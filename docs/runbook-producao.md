@@ -24,11 +24,13 @@ gcloud sql instances describe nod-pg-restaurada-AAAAMMDD \
   --format='value(ipAddresses[0].ipAddress)' --project=nod-exemplos
 ```
 
-3. Em [`infra/gcp/config.env`](../infra/gcp/config.env), troque `SQL_IP` pelo IP novo e
-   `SQL_INSTANCIA` pelo nome novo. O `vm/deploy.sh` monta `DATABASE_URL` e `DATABASE_URL_DONO` a
-   partir de `SQL_IP`.
-4. Commit no `main` → o deploy leva o `config.env` para a VM e troca a cor (azul/verde, sem queda). Sem esperar o CI:
-   Actions → deploy → Run workflow.
+3. No secret `NOD_CONFIG_PRIVADA` do environment `producao` (NOD-485, ADR-161), troque `SQL_IP` pelo IP novo e
+   `SQL_INSTANCIA` pelo nome novo (acrescente a linha se ela não estiver lá). NÃO edite o
+   [`infra/gcp/config.env`](../infra/gcp/config.env): ele é público, traz valores de exemplo e o
+   `scripts/ci/config-producao.ts` acrescenta o secret depois dele (a última linha vence). O `vm/deploy.sh` monta
+   `DATABASE_URL` e `DATABASE_URL_DONO` a partir de `SQL_IP`.
+4. Actions → deploy → Run workflow (na `main`): o deploy leva o `config.env` com o secret para a VM e troca a cor
+   (azul/verde, sem queda). Na VM, confira `grep '^SQL_IP=' /opt/nod/config.env | tail -1` antes de seguir.
 5. Confira `https://<domínio>/api/saude` (a saúde inclui o banco) e entre no nod.
 6. Na instância nova, confira que a proteção contra exclusão e os backups com PITR estão ligados
    (`gcloud sql instances describe … --format='value(settings.deletionProtectionEnabled,settings.backupConfiguration)'`);
@@ -44,7 +46,8 @@ Quando o PITR não serve (instante fora dos 7 dias, ou instância perdida), rest
 custom (`pg_dump -Fc`) num banco **vazio**: o [`vm/restaurar.sh`](../infra/gcp/vm/restaurar.sh) recusa
 banco com tabelas.
 
-1. Banco vazio: uma instância nova (`SQL_INSTANCIA` e `SQL_IP` novos no `config.env`, criada pelo
+1. Banco vazio: uma instância nova (`SQL_INSTANCIA` e `SQL_IP` novos no `config.env` local, sem commit, e no secret
+   `NOD_CONFIG_PRIVADA` para o deploy, como no passo 3 acima; criada pelo
    `provisionar.sh`) e depois `infra/gcp/preparar-banco.sh` (papéis, banco `nod`, extensões).
 2. Leve o dump e rode na VM, como o [`levar-dados.sh`](../infra/gcp/levar-dados.sh) faz:
 

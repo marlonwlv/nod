@@ -103,6 +103,19 @@ describe("config-producao.ts: a config privada da produção (NOD-485)", () => {
     expect(linhasDeAmbiente(final)).toContain("NOD_CONTAS=1");
   });
 
+  it("tira as aspas de fora (duplas ou simples) no $GITHUB_ENV e na máscara: o Actions não as tira como o source", () => {
+    const comAspas = completa.replace("PROJETO=proj-real", 'PROJETO="proj-real"').replace("NOD_ADMINS=dona@real.dev", "NOD_ADMINS='dona@real.dev'");
+    const r = lerConfigPrivada(comAspas);
+    expect(r.valores.get("PROJETO")).toBe("proj-real");
+    expect(r.valores.get("NOD_ADMINS")).toBe("dona@real.dev");
+    expect(mascaras(r.valores)).toContain("dona@real.dev");
+    const ambiente = linhasDeAmbiente(`${comAspas}\nREGISTRO="southamerica-east1-docker.pkg.dev/proj-real/nod"\nNOD_EMAIL_REMETENTE="nod <conta@x.dev>"\n`);
+    expect(ambiente).toContain("PROJETO=proj-real");
+    expect(ambiente).toContain("NOD_ADMINS=dona@real.dev");
+    expect(ambiente.at(-2)).toBe("REGISTRO=southamerica-east1-docker.pkg.dev/proj-real/nod");
+    expect(ambiente.at(-1)).toBe("NOD_EMAIL_REMETENTE=nod <conta@x.dev>");
+  });
+
   it("o CLI sem o secret sai 1 e não escreve nada", () => {
     const dir = mkdtempSync(join(tmpdir(), "config-producao-"));
     const cfg = join(dir, "config.env");

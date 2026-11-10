@@ -17,6 +17,8 @@ export const OBRIGATORIAS: readonly string[] = ["PROJETO", "REGISTRO", "SQL_IP",
 /** Valores que só existem no exemplo público: se um deles chega à produção, o secret está errado. */
 const EXEMPLO = /nod-exemplos|exemplo\.com|^10\.0\.0\.3$/;
 const LINHA = /^([A-Z][A-Z0-9_]*)=(.*)$/;
+/** O valor como o `source` do bash o vê nos casos do config.env: sem as aspas de fora (duplas ou simples). */
+export const semAspas = (v: string): string => v.replace(/^"(.*)"$|^'(.*)'$/, "$1$2");
 
 /** Lê o secret. Devolve { linhas, valores } ou lança com a primeira linha culpada (sem ecoar o valor). */
 export function lerConfigPrivada(texto: string): { linhas: string[]; valores: Map<string, string> } {
@@ -29,7 +31,7 @@ export function lerConfigPrivada(texto: string): { linhas: string[]; valores: Ma
     const m = LINHA.exec(l);
     if (!m) throw new Error(`NOD_CONFIG_PRIVADA linha ${i + 1}: esperado CHAVE=valor`);
     linhas.push(l);
-    valores.set(m[1]!, m[2]!.replace(/^"(.*)"$/, "$1"));
+    valores.set(m[1]!, semAspas(m[2]!));
   }
   for (const k of OBRIGATORIAS) {
     if (!valores.get(k)) throw new Error(`NOD_CONFIG_PRIVADA sem ${k}`);
@@ -38,9 +40,15 @@ export function lerConfigPrivada(texto: string): { linhas: string[]; valores: Ma
   return { linhas, valores };
 }
 
-/** As linhas CHAVE= do config final, na ordem (a última de cada chave vence no $GITHUB_ENV). */
+/**
+ * As linhas CHAVE=valor do config final para o $GITHUB_ENV, na ordem (a última de cada chave vence). O $GITHUB_ENV não
+ * tira aspas como o `source`: `REGISTRO="x/y"` viraria uma tag de imagem com aspas. Por isso vai o valor sem elas.
+ */
 export function linhasDeAmbiente(config: string): string[] {
-  return config.split("\n").filter((l) => /^[A-Z_]+=/.test(l));
+  return config.split("\n").flatMap((l) => {
+    const m = LINHA.exec(l.trim());
+    return m ? [`${m[1]}=${semAspas(m[2]!)}`] : [];
+  });
 }
 
 /** Os valores a mascarar: cada valor não vazio e, para os compostos (a,b ou x/y), cada parte com 4+ caracteres. */

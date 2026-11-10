@@ -338,7 +338,12 @@ if ! dc run --rm --no-deps -T "nod-$NOVA" test -f scripts/ligacoes-orfas.ts; the
   exit 1
 fi
 # Migração compatível com N-1 (docs/deploy-gcp.md): a velha segue no ar com o schema novo até a troca.
-dc run --rm --no-deps -T "nod-$NOVA" node scripts/migrate.ts
+# NOD-485: a saída vai para um arquivo da VM: o erro do Postgres numa migração traz o `detail` com valores de linha
+# (e-mails, ids de tenant) e o log do Actions é público.
+if ! dc run --rm --no-deps -T "nod-$NOVA" node scripts/migrate.ts >estado/migracao.log 2>&1; then
+  echo "a migração falhou (saída em /opt/nod/estado/migracao.log na VM); nenhuma cor subiu" >&2
+  exit 1
+fi
 dc up -d --no-deps "nod-$NOVA"
 
 saudavel=""

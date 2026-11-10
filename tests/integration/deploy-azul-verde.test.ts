@@ -38,7 +38,7 @@ if [ "$1" = compose ]; then
     pull) exit 0 ;;
     run)
       case "$*" in *"test -f scripts/ligacoes-orfas.ts"*) [ -n "\${IMAGEM_PRE_218:-}" ] && exit 1 ;; esac
-      case "$*" in *migrate.ts*) [ -n "\${FALHA_MIGRA:-}" ] && { echo "migração falhou" >&2; exit 1; } ;; esac
+      case "$*" in *migrate.ts*) [ -n "\${FALHA_MIGRA:-}" ] && { echo "duplicate key: Key (email)=(pessoa@cliente.com) already exists" >&2; exit 1; } ;; esac
       # NOD-331: o banco fora na hora de fechar as órfãs.
       case "$*" in *"ligacoes-orfas.ts --instancia"*) [ -n "\${FALHA_ORFAS:-}" ] && { echo "órfãs: banco fora" >&2; exit 1; } ;; esac
       # PR 6 dos modos de aprovação: o aviso do total que falha não derruba o deploy.
@@ -276,7 +276,11 @@ describe("deploy.sh azul/verde (NOD-218)", () => {
     await noAr("azul");
     const r = deploy({ FALHA_MIGRA: "1" });
     expect(r.status).not.toBe(0);
-    expect(r.stderr).toMatch(/migração falhou/);
+    expect(r.stderr).toMatch(/a migração falhou/);
+    // NOD-485: o erro do Postgres traz valores de linha; fica num arquivo da VM, fora do log público do Actions.
+    expect(r.stderr + r.stdout).not.toContain("pessoa@cliente.com");
+    expect(r.stderr).toContain("/opt/nod/estado/migracao.log");
+    expect(await ler("estado/migracao.log")).toContain("pessoa@cliente.com");
     const log = await chamadas();
     expect(log.some((l) => l.includes("up -d"))).toBe(false);
     expect(await marcador()).toBe("azul");
@@ -854,7 +858,8 @@ describe("deploy.sh e o login por e-mail (ADR-124 §6, NOD-406)", () => {
   });
 });
 
-describe("deploy.sh: um deploy por vez na VM (NOD-485, ADR-161)", () => {
+// O flock(1) do util-linux e o /proc/<pid>/fd que o deploy.sh lê só existem no Linux (a VM); no Mac o bloco é pulado.
+describe.skipIf(process.platform !== "linux")("deploy.sh: um deploy por vez na VM (NOD-485, ADR-161)", () => {
   const ambiente = (extra: Record<string, string> = {}) => ({
     PATH: `${join(dir, "bin")}:${process.env.PATH ?? ""}`,
     HOME: dir,
@@ -863,8 +868,16 @@ describe("deploy.sh: um deploy por vez na VM (NOD-485, ADR-161)", () => {
     "BASH_FUNC_cd%%": `() { builtin cd ${JSON.stringify(dir)}; }`,
     ...extra,
   });
-  // Outro deploy (outro processo, não um ancestral) segura a trava enquanto o comando roda. O `sleep` do PATH é falso.
-  const comOutroSegurando = (comando: string) => `flock ${JSON.stringify(join(dir, "deploy.lock"))} /bin/sleep 5 & sleep_pid=$!; /bin/sleep 0.3; ${comando}; s=$?; kill $sleep_pid 2>/dev/null; exit $s`;
+  // Outro deploy (outro processo, não um ancestral) segura a trava enquanto o comando roda. Por evento, não por tempo: o
+  // comando só começa depois que o outro avisa que pegou a trava (pronto), e o outro só a solta quando o comando acabou
+  // (solta). O `sleep` do PATH é falso.
+  const comOutroSegurando = (comando: string) => {
+    const [trava, pronto, solta] = ["deploy.lock", "trava.pronto", "trava.solta"].map((n) => JSON.stringify(join(dir, n)));
+    return (
+      `rm -f ${pronto} ${solta}; flock ${trava} sh -c 'touch "$1"; while [ ! -e "$2" ]; do /bin/sleep 0.05; done' _ ${pronto} ${solta} & dono=$!; ` +
+      `while [ ! -e ${pronto} ]; do /bin/sleep 0.02; done; ${comando}; s=$?; touch ${solta}; wait $dono; exit $s`
+    );
+  };
 
   it("com outro deploy segurando o deploy.lock, espera NOD_DEPLOY_LOCK_S e sai 1 sem chamar o docker nem mexer no marcador", async () => {
     await noAr("azul");
