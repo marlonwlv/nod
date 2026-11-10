@@ -22,10 +22,20 @@ TAG="${1:?uso: deploy.sh <tag>}"
 cd /opt/nod
 # NOD-485 (ADR-161): um deploy por vez NA VM. O concurrency do workflow só vale dentro de um repo; na transição o
 # gamefik/nod e o marlonwlv/nod podem disparar juntos. O segundo espera o primeiro (até NOD_DEPLOY_LOCK_S, 30 min) e,
-# se não conseguir, sai sem mexer em nada.
+# se não conseguir, sai sem mexer em nada. O deploy.yml pega a trava ANTES de instalar config.env, compose.yml e
+# Caddyfile.novo (`flock … /opt/nod/deploy.lock sh -c 'install …; exec deploy.sh'`), senão o outro repo trocaria esses
+# arquivos no meio deste deploy: aqui o descritor herdado é reaproveitado (a mesma trava passa na hora). Rodado à mão,
+# abre o seu.
 if command -v flock >/dev/null; then
-  exec 9>>./deploy.lock
-  flock -w "${NOD_DEPLOY_LOCK_S:-1800}" 9 || { echo "outro deploy segura /opt/nod/deploy.lock há ${NOD_DEPLOY_LOCK_S:-1800} s; nada foi mexido" >&2; exit 1; }
+  TRAVA_FD=""
+  for f in /proc/$$/fd/*; do
+    if [ "$(readlink "$f" 2>/dev/null)" = "$(pwd -P)/deploy.lock" ]; then TRAVA_FD="${f##*/}"; break; fi
+  done
+  if [ -z "$TRAVA_FD" ]; then
+    exec 9>>./deploy.lock
+    TRAVA_FD=9
+  fi
+  flock -w "${NOD_DEPLOY_LOCK_S:-1800}" "$TRAVA_FD" || { echo "outro deploy segura /opt/nod/deploy.lock há ${NOD_DEPLOY_LOCK_S:-1800} s; nada foi mexido" >&2; exit 1; }
 else
   echo "aviso: sem flock na VM; o deploy segue sem a trava entre repos" >&2
 fi
@@ -104,6 +114,12 @@ dc() { docker compose --env-file imagens.env "$@"; }
 outra() { if [ "$1" = azul ]; then echo verde; else echo azul; fi; }
 id_cor() { dc ps -q "nod-$1" 2>/dev/null || true; }
 roda() { [ -n "$(id_cor "$1")" ]; }
+# NOD-485 (ADR-161): o log do Actions é público. Os logs do servidor (ids de tenant e pessoa, e-mails, IPs de quem
+# acessou) ficam num arquivo só do root na VM (umask 077) e no Cloud Logging; o log do deploy diz só onde ler.
+logs_da_nova() {
+  dc logs --tail=80 "nod-$NOVA" >"estado/falha-nod-$NOVA.log" 2>&1 || true
+  echo "os últimos logs da nod-$NOVA estão na VM em /opt/nod/estado/falha-nod-$NOVA.log (e no Cloud Logging)" >&2
+}
 # O `nod` de antes do azul/verde (a transição): mesmo projeto do compose, serviço `nod`.
 legado() { docker ps -q --filter label=com.docker.compose.project=nod --filter label=com.docker.compose.service=nod; }
 marcar() { printf '%s\n' "$1" > estado/cor-ativa.novo && chmod 0644 estado/cor-ativa.novo && mv estado/cor-ativa.novo estado/cor-ativa; }
@@ -335,7 +351,7 @@ for _ in $(seq 1 30); do
 done
 if [ -z "$saudavel" ]; then
   echo "a cor $NOVA não ficou saudável em 90 s; ${VELHA:-o nod legado} segue atendendo e o marcador não mudou" >&2
-  dc logs --tail=80 "nod-$NOVA" >&2
+  logs_da_nova
   dc stop "nod-$NOVA"
   exit 1
 fi
@@ -397,7 +413,7 @@ restaurar_caddyfile() {
 # `marcar` e ela (ex.: o recreate do Caddy). Roda pelo trap de EXIT: nenhum caminho de saída deixa o marcador na nova
 # sem confirmação.
 desfazer_troca() {
-  dc logs --tail=80 "nod-$NOVA" >&2 || true
+  logs_da_nova
   if [ -n "$VELHA" ] && roda "$VELHA"; then
     # A velha ainda não drenou: com o marcador de volta ela retoma o 200 do /api/saude/lb e o Caddy volta para ela.
     marcar "$VELHA"
@@ -454,7 +470,9 @@ echo "nod no ar: https://$NOD_DOMINIO ($TAG, cor $NOVA)"
 # aqui não derruba o deploy. Pode sair daqui depois do primeiro deploy do PR 6.
 # Com prazo de 5 min: uma trava no banco não segura o deploy (o script pode rodar de novo). `timeout` não roda a função
 # `dc`, por isso o docker compose por extenso.
-timeout 300 docker compose --env-file imagens.env run --rm --no-deps -T "nod-$NOVA" node scripts/aviso-total-credenciais.ts || echo "aviso do total falhou ou passou de 5 min (dc logs nod-$NOVA)" >&2
+# NOD-485: a saída vai para um arquivo da VM (a falha de uma pessoa loga tenant_id e pessoa_id; o log do Actions é público).
+timeout 300 docker compose --env-file imagens.env run --rm --no-deps -T "nod-$NOVA" node scripts/aviso-total-credenciais.ts >estado/aviso-total.log 2>&1 ||
+  echo "aviso do total falhou ou passou de 5 min (saída em /opt/nod/estado/aviso-total.log na VM)" >&2
 
 # A velha drena (até 10 min: ligações vivas e turnos do Mac que não atravessam o reinício) e sai. Síncrono: o job
 # segue serializado (concurrency: deploy-producao) e o próximo deploy nunca acha duas cores de pé.

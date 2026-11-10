@@ -184,6 +184,9 @@ describe("deploy.sh azul/verde (NOD-218)", () => {
     const r = deploy({ FALHA_AVISO: "1" });
     expect(r.status).toBe(0);
     expect(r.stderr).toContain("aviso do total falhou ou passou de 5 min");
+    // NOD-485: a saída do aviso (a falha de uma pessoa loga tenant_id e pessoa_id) não vai para o log público.
+    expect(r.stderr + r.stdout).not.toContain("banco fora");
+    expect(await ler("estado/aviso-total.log")).toContain("aviso: banco fora");
     expect(await marcador()).toBe("verde");
     expect(roda("nod-azul")).toBe(false);
   });
@@ -193,7 +196,10 @@ describe("deploy.sh azul/verde (NOD-218)", () => {
     const r = deploy({ FALHA_HEALTHY: "nod-verde" });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/a cor verde não ficou saudável em 90 s/);
-    expect(r.stderr).toContain("logs de nod-verde");
+    // NOD-485: o log do Actions é público; os logs do servidor ficam num arquivo da VM e o deploy diz onde.
+    expect(r.stderr + r.stdout).not.toContain("logs de nod-verde");
+    expect(r.stderr).toContain("/opt/nod/estado/falha-nod-verde.log");
+    expect(await ler("estado/falha-nod-verde.log")).toContain("logs de nod-verde");
     expect(await marcador()).toBe("azul");
     expect(roda("nod-azul")).toBe(true);
     expect(roda("nod-verde")).toBe(false);
@@ -205,6 +211,7 @@ describe("deploy.sh azul/verde (NOD-218)", () => {
     const r = deploy({ FALHA_CADDY: "azul" });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/o Caddy não confirmou a cor verde em 15 s/);
+    expect(r.stderr + r.stdout).not.toContain("logs de nod-verde");
     expect(r.stderr).toMatch(/o marcador voltou para azul/);
     expect(await marcador()).toBe("azul");
     expect(roda("nod-azul")).toBe(true);
@@ -381,8 +388,8 @@ describe("deploy.sh: Caddyfile em estágio (NOD-331)", () => {
 
   it("o workflow instala o Caddyfile como Caddyfile.novo, nunca por cima do Caddyfile em uso", async () => {
     const yml = await readFile(fileURLToPath(new URL("../../.github/workflows/deploy.yml", import.meta.url)), "utf8");
-    expect(yml).toContain("sudo install -m 0640 ~/nod-deploy/Caddyfile /opt/nod/Caddyfile.novo");
-    expect(yml).not.toMatch(/install[^&]*~\/nod-deploy\/Caddyfile \/opt\/nod\/ /);
+    expect(yml).toContain("install -m 0640 \\$1/Caddyfile /opt/nod/Caddyfile.novo");
+    expect(yml).not.toMatch(/install[^&]*\/Caddyfile \/opt\/nod\/ /);
   });
 
   it("(a) a nova não fica saudável: Caddyfile intocado, o novo segue em estágio, nenhum recreate do Caddy", async () => {
@@ -503,7 +510,8 @@ describe("deploy.sh: Caddyfile em estágio (NOD-331)", () => {
 
   it("o workflow marca o estágio com a tag do deploy", async () => {
     const yml = await readFile(fileURLToPath(new URL("../../.github/workflows/deploy.yml", import.meta.url)), "utf8");
-    expect(yml).toContain("echo '$SHA' | sudo tee /opt/nod/Caddyfile.novo.tag >/dev/null");
+    expect(yml).toContain("echo \\$2 > /opt/nod/Caddyfile.novo.tag");
+    expect(yml).toContain("_ ~/nod-deploy-publico '$SHA'");
   });
 });
 
@@ -847,14 +855,20 @@ describe("deploy.sh e o login por e-mail (ADR-124 §6, NOD-406)", () => {
 });
 
 describe("deploy.sh: um deploy por vez na VM (NOD-485, ADR-161)", () => {
+  const ambiente = (extra: Record<string, string> = {}) => ({
+    PATH: `${join(dir, "bin")}:${process.env.PATH ?? ""}`,
+    HOME: dir,
+    FAKE: dir,
+    NOD_DEPLOY_LOCK_S: "1",
+    "BASH_FUNC_cd%%": `() { builtin cd ${JSON.stringify(dir)}; }`,
+    ...extra,
+  });
+  // Outro deploy (outro processo, não um ancestral) segura a trava enquanto o comando roda. O `sleep` do PATH é falso.
+  const comOutroSegurando = (comando: string) => `flock ${JSON.stringify(join(dir, "deploy.lock"))} /bin/sleep 5 & sleep_pid=$!; /bin/sleep 0.3; ${comando}; s=$?; kill $sleep_pid 2>/dev/null; exit $s`;
+
   it("com outro deploy segurando o deploy.lock, espera NOD_DEPLOY_LOCK_S e sai 1 sem chamar o docker nem mexer no marcador", async () => {
     await noAr("azul");
-    const r = spawnSync("bash", ["-c", `exec 8>>${JSON.stringify(join(dir, "deploy.lock"))}; flock 8; bash ${JSON.stringify(DEPLOY)} ${TAG}`], {
-      cwd: dir,
-      env: { PATH: `${join(dir, "bin")}:${process.env.PATH ?? ""}`, HOME: dir, FAKE: dir, NOD_DEPLOY_LOCK_S: "1", "BASH_FUNC_cd%%": `() { builtin cd ${JSON.stringify(dir)}; }` },
-      input: "",
-      encoding: "utf8",
-    });
+    const r = spawnSync("bash", ["-c", comOutroSegurando(`bash ${JSON.stringify(DEPLOY)} ${TAG}`)], { cwd: dir, env: ambiente(), input: "", encoding: "utf8" });
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("outro deploy segura /opt/nod/deploy.lock");
     expect(await chamadas()).toEqual([]);
@@ -866,6 +880,50 @@ describe("deploy.sh: um deploy por vez na VM (NOD-485, ADR-161)", () => {
     expect(deploy().status).toBe(0);
     expect(await marcador()).toBe("verde");
     expect(deploy().status).toBe(0);
+    expect(await marcador()).toBe("azul");
+  });
+
+  // O comando remoto do passo Deploy do workflow, como o runner o expande (\$1 vira $1, '$SHA' vira a tag), com /opt/nod
+  // trocado pela pasta do teste e sem o sudo. A pasta de estágio é ~/nod-deploy-publico (HOME = a pasta do teste).
+  async function comandoDoWorkflow(esperaS = "1800") {
+    const yml = await readFile(fileURLToPath(new URL("../../.github/workflows/deploy.yml", import.meta.url)), "utf8");
+    const passo = yml.slice(yml.indexOf("- name: Deploy"));
+    const bruto = /--command="(.*)"/.exec(passo)?.[1];
+    if (!bruto) throw new Error("--command do passo Deploy não encontrado");
+    const expandido = spawnSync("bash", ["-c", `printf '%s' "${bruto}"`], { env: { SHA: TAG }, encoding: "utf8" }).stdout;
+    expect(expandido).toMatch(/^sudo flock -w 1800 /);
+    const estagio = join(dir, "nod-deploy-publico");
+    await mkdir(estagio);
+    await writeFile(join(estagio, "config.env"), `${await ler("config.env")}# do estágio\n`);
+    await writeFile(join(estagio, "compose.yml"), "compose do estágio\n");
+    await writeFile(join(estagio, "Caddyfile"), "caddy do estágio\n");
+    // O `cd` desviado (função exportada do bash) não atravessa o `sh -c` do passo (o dash descarta a função): o deploy.sh
+    // do estágio já sai com a pasta do teste no lugar de /opt/nod.
+    await writeFile(join(estagio, "deploy.sh"), (await readFile(DEPLOY, "utf8")).replaceAll("/opt/nod", dir));
+    await writeFile(join(dir, "compose.yml"), "compose em uso\n");
+    return expandido.replace(/^sudo /, "").replace("-w 1800", `-w ${esperaS}`).replaceAll("/opt/nod", dir);
+  }
+
+  it("o passo Deploy do workflow instala os arquivos e roda o deploy.sh sob a mesma trava, que o deploy.sh reaproveita", async () => {
+    await noAr("azul");
+    const r = spawnSync("bash", ["-c", await comandoDoWorkflow()], { cwd: dir, env: ambiente(), input: "", encoding: "utf8" });
+    expect(r.stderr).not.toContain("outro deploy segura");
+    expect(r.status).toBe(0);
+    expect(await marcador()).toBe("verde");
+    expect(await ler("compose.yml")).toBe("compose do estágio\n");
+    expect(await ler("config.env")).toContain("# do estágio");
+    expect(await ler("Caddyfile")).toBe("caddy do estágio\n");
+  });
+
+  it("com o deploy do outro repo segurando a trava, o passo Deploy não troca config.env, compose.yml nem Caddyfile.novo", async () => {
+    await noAr("azul");
+    const antes = await ler("config.env");
+    const r = spawnSync("bash", ["-c", comOutroSegurando(await comandoDoWorkflow("1"))], { cwd: dir, env: ambiente(), input: "", encoding: "utf8" });
+    expect(r.status).toBe(75);
+    expect(await ler("config.env")).toBe(antes);
+    expect(await ler("compose.yml")).toBe("compose em uso\n");
+    expect(existsSync(join(dir, "Caddyfile.novo"))).toBe(false);
+    expect(await chamadas()).toEqual([]);
     expect(await marcador()).toBe("azul");
   });
 });
