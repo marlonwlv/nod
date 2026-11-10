@@ -845,3 +845,27 @@ describe("deploy.sh e o login por e-mail (ADR-124 §6, NOD-406)", () => {
     expect(env.NOD_LOGIN).toBe("google");
   });
 });
+
+describe("deploy.sh: um deploy por vez na VM (NOD-485, ADR-161)", () => {
+  it("com outro deploy segurando o deploy.lock, espera NOD_DEPLOY_LOCK_S e sai 1 sem chamar o docker nem mexer no marcador", async () => {
+    await noAr("azul");
+    const r = spawnSync("bash", ["-c", `exec 8>>${JSON.stringify(join(dir, "deploy.lock"))}; flock 8; bash ${JSON.stringify(DEPLOY)} ${TAG}`], {
+      cwd: dir,
+      env: { PATH: `${join(dir, "bin")}:${process.env.PATH ?? ""}`, HOME: dir, FAKE: dir, NOD_DEPLOY_LOCK_S: "1", "BASH_FUNC_cd%%": `() { builtin cd ${JSON.stringify(dir)}; }` },
+      input: "",
+      encoding: "utf8",
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("outro deploy segura /opt/nod/deploy.lock");
+    expect(await chamadas()).toEqual([]);
+    expect(await marcador()).toBe("azul");
+  });
+
+  it("sem ninguém segurando, o deploy pega a trava e segue (e a solta no fim: o seguinte também passa)", async () => {
+    await noAr("azul");
+    expect(deploy().status).toBe(0);
+    expect(await marcador()).toBe("verde");
+    expect(deploy().status).toBe(0);
+    expect(await marcador()).toBe("azul");
+  });
+});
