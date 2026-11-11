@@ -295,6 +295,8 @@ export function criarRotasDecisoes(d: DepsRotasDecisoes): Rota[] {
           // NOD-159/NOD-190: a rotina (ou o perfil) mudou depois da proposta — o caso recusou e avisou sem lançar; o erro
           // sai DEPOIS do commit.
           let obsoleta = false;
+          // Revisão do PR #15: o "Rodar agora" que achou uma execução aberta que o card não anunciou (recusado, sem rodar).
+          let jaNaFila = false;
           await comoDona(ctx.escopo, atual, async (deps) => {
             // NOD-190: o perfil trava o AGENTE antes da decisão, na mesma ordem de POST propostas/:id/confirmar
             // (confirmar-perfil.ts trava o agente e, no card obsoleto, fecha a decisão). Na ordem inversa, o mesmo card
@@ -333,6 +335,7 @@ export function criarRotasDecisoes(d: DepsRotasDecisoes): Rota[] {
                 if (r.execucao.bloqueio.propostaId) ids.propostaId = r.execucao.bloqueio.propostaId;
               }
               obsoleta = r.obsoleta === true;
+              jaNaFila = r.jaNaFila === true;
             } else if (atual.tipo === "rotina_atualizacao" || atual.tipo === "rotina_exclusao") {
               // A rotina já existe e tem id próprio: a ligação é payload.rotinaId, não a igualdade
               // de ids que 'rotina' (nascimento) usa. O caso aplica o payload JÁ normalizado (E7.1).
@@ -352,6 +355,7 @@ export function criarRotasDecisoes(d: DepsRotasDecisoes): Rota[] {
             // Revisão do épico (S2, 2026-10-08): a task do turno que propôs relê o estado.
             await deps.repos.events.gravarComOutbox([eventoDecidida(deps, decidida, { recusada: recusada(corpo) || obsoleta }), ...(await sincronizarDasDecisoes(deps, [decidida]))]);
           });
+          if (jaNaFila) throw new ErroDeDominio("estado_invalido", { cause: "ja_na_fila" });
           if (obsoleta) throw atual.tipo === "perfil" ? erroPerfilMudou() : erroRotinaMudou();
           const resposta: RespostaMutacao = { ok: true, ids };
           ctx.json(200, resposta);

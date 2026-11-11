@@ -221,8 +221,13 @@ export const executarRotinaPeloAgente: CasoNod<Deps, "executar_rotina"> = async 
   try {
     const atual = await rotinaDoAgente(deps, input.agenteId, input.rotina_id);
     const resumo = quandoDaRotina(atual);
-    const aberta = (await deps.repos.propostas.pendentesDaConversa(input.conversaId)).find((p) => p.payload.kind === "rotina_execucao" && p.payload.rotinaId === atual.id);
-    if (aberta) return { data: { proposta_id: aberta.id, resumo } };
+    // Revisão do PR #15: só reusa o card que ainda se clica. A proposta segue `pendente` depois que a decisão de mesmo id
+    // vence ou é dispensada; reusá-la devolvia, para sempre, um card morto (o clique dá 409).
+    for (const p of await deps.repos.propostas.pendentesDaConversa(input.conversaId)) {
+      if (p.payload.kind !== "rotina_execucao" || p.payload.rotinaId !== atual.id) continue;
+      const decisao = await deps.repos.decisoes.buscar(p.id);
+      if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { data: { proposta_id: p.id, resumo } };
+    }
     const fila = await deps.repos.rotinaJanelas.turnoAberto(atual.id, deps.agora());
     const payload: PayloadPropostaRotinaExecucao = {
       kind: "rotina_execucao", rotinaId: atual.id, resumo, instrucao: atual.instrucao, revisao: revisaoAtual(atual),

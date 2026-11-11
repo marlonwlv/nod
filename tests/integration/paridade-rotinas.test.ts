@@ -134,6 +134,59 @@ describeIntegracao("paridade tela × chat do rotinas.executar (NOD-413, ADR-135)
     });
   });
 
+  // Revisão do PR #15: a proposta segue pendente quando a decisão vence; o card vencido não pode voltar para sempre.
+  it("pedir de novo depois que o card venceu abre um card novo, que roda", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const m = await montar(trx);
+      const p1 = await executarRotinaPeloAgente(m.deps, { ...m.ctx, rotina_id: m.rotina.id });
+      if ("erro" in p1.data) throw new Error(p1.data.erro);
+      await trx`update decisoes set estado = 'vencida' where id = ${p1.data.proposta_id}`;
+      const p2 = await executarRotinaPeloAgente(m.deps, { ...m.ctx, rotina_id: m.rotina.id });
+      if ("erro" in p2.data) throw new Error(p2.data.erro);
+      expect(p2.data.proposta_id).not.toBe(p1.data.proposta_id);
+      const r = await servidor.chamar(m.sessao, "POST", `decisoes/${p2.data.proposta_id}/decidir`, {});
+      expect(r.status).toBe(200);
+      expect((await estado(trx, m)).turnos).toHaveLength(1);
+      trxAtual = null;
+    });
+  });
+
+  // Revisão do PR #15: o minuto cheio é a chave da janela do scheduler; com ela já usada, o clique confirmava sem rodar.
+  it("Rodar agora no mesmo minuto de uma janela já reivindicada pelo scheduler ainda roda", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const m = await montar(trx);
+      const p = await executarRotinaPeloAgente(m.deps, { ...m.ctx, rotina_id: m.rotina.id });
+      if ("erro" in p.data) throw new Error(p.data.erro);
+      const minuto = Math.floor(Date.now() / 60_000) * 60_000;
+      for (const instanteAgendado of [minuto, minuto + 60_000]) await m.repos.rotinaJanelas.reivindicar({ rotinaId: m.rotina.id, instanteAgendado, machineId: "00000000-0000-4000-8000-000000000001", executor: "catcher" });
+      const r = await servidor.chamar(m.sessao, "POST", `decisoes/${p.data.proposta_id}/decidir`, {});
+      expect(r.status).toBe(200);
+      expect((await estado(trx, m)).turnos).toHaveLength(1);
+      trxAtual = null;
+    });
+  });
+
+  // Revisão do PR #15: o card sem aviso de fila não é o "Rodar mais uma" do Testar agora.
+  it("a execução que abriu depois do card não ganha outra: 409, card recusado e o aviso na conversa", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const m = await montar(trx);
+      const p = await executarRotinaPeloAgente(m.deps, { ...m.ctx, rotina_id: m.rotina.id });
+      if ("erro" in p.data) throw new Error(p.data.erro);
+      expect((await servidor.chamar(m.sessao, "POST", `rotinas/${m.rotina.id}/executar`, {})).status).toBe(200);
+      const r = await servidor.chamar(m.sessao, "POST", `decisoes/${p.data.proposta_id}/decidir`, {});
+      expect(r.status).toBe(409);
+      expect(await r.json()).toMatchObject({ codigo: "estado_invalido" });
+      expect((await m.repos.propostas.buscar(p.data.proposta_id))?.estado).toBe("recusada");
+      expect((await estado(trx, m)).turnos).toHaveLength(1);
+      const avisos = await trx<{ texto: string }[]>`select texto from mensagens where conversa_id = ${m.rotina.conversaId} and kind = 'sistema' and texto like 'Não rodei a rotina: já há uma execução na fila%'`;
+      expect(avisos).toHaveLength(1);
+      trxAtual = null;
+    });
+  });
+
   it("pedir de novo com o card aberto devolve o mesmo card; a rotina de outro bot não é deste", async () => {
     await withRollback(MARLON, async (trx) => {
       trxAtual = trx;
