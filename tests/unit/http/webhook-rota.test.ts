@@ -138,17 +138,22 @@ describe("rota do webhook: limites, corpo, moldura e log", () => {
     const corpo = "gt_".repeat(87_000);
     redigidos.length = 0;
     const saida = entradaDoPayload(corpo, token);
-    expect(redigidos.length).toBeGreaterThan(0);
-    expect(Math.max(...redigidos)).toBeLessThanOrEqual(JANELA);
+    // A SOMA, não o maior: redigir o corpo inteiro em pedaços de 8 KB também custaria 256 KB e passaria num máximo.
+    const total = redigidos.reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(PAYLOAD_NO_TURNO);
+    expect(total).toBeLessThanOrEqual(JANELA);
     expect(saida).toContain("[… payload cortado em 16 KB]");
   });
 
   it("NOD-446: a janela vale em bytes num corpo multibyte e não parte o caractere", () => {
     const JANELA = PAYLOAD_NO_TURNO + 2 * 1024;
-    const corpo = "é".repeat(100_000); // 200 KB em UTF-8
+    // O "a" na frente desalinha: sem ele, 16 KB e 18 KB caem sempre entre dois "é" (2 bytes) e o corte nunca parte nada.
+    const corpo = "a" + "é".repeat(100_000); // ~200 KB em UTF-8
     redigidos.length = 0;
     const saida = entradaDoPayload(corpo);
-    expect(Math.max(...redigidos)).toBeLessThanOrEqual(JANELA);
+    const total = redigidos.reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(PAYLOAD_NO_TURNO);
+    expect(total).toBeLessThanOrEqual(JANELA);
     expect(saida).toContain("[… payload cortado em 16 KB]");
     expect(saida).not.toContain("\uFFFD");
   });
