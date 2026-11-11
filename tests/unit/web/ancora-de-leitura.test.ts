@@ -16,7 +16,7 @@ function empilhar(cx: Caixa, itens: [chave: string, altura: number][], comId = f
   let y = 0;
   const blocos = itens.map(([k, h]) => {
     const b: FBloco = { offsetTop: (cx.offsetTop as number) + y, offsetParent: raiz, offsetHeight: h, attrs: comId ? { id: k } : { "data-ancora": k },
-      getAttribute(n: string) { return this.attrs[n] ?? null; } };
+      getAttribute(n: string) { return this.attrs[n] ?? null; }, contains(o: unknown) { return o === this; } };
     if (comId) b.id = k;
     y += h;
     return b;
@@ -32,10 +32,40 @@ describe("NOD-468: a âncora de leitura", () => {
     expect(topoNaCaixa(c.querySelectorAll()[1]!, cx)).toBe(60);
   });
 
-  it("escolhe o primeiro bloco que começa no topo ou abaixo dele, com a distância ao topo", () => {
+  it("escolhe o primeiro bloco que aparece (o que cruza o topo, o que a pessoa lê), com a distância ao topo", () => {
     const cx = caixa(1000);
     // tit 0–60, desc 60–460, trab 460–660, com-0 660–750, com-1 750–840, com-2 840–930, com-3 930–1020, com-4 1020–1110.
-    expect(acharAncora(cx, empilhar(cx, TAREFA(400)))).toEqual({ chave: "a:com-4", desvio: 20 });
+    expect(acharAncora(cx, empilhar(cx, TAREFA(400)))).toEqual({ chave: "a:com-3", desvio: -70 });
+    // Um bloco que começa exatamente no topo é o primeiro que aparece.
+    expect(acharAncora(caixa(1020), empilhar(cx, TAREFA(400)))).toEqual({ chave: "a:com-4", desvio: 0 });
+  });
+
+  // Regression: QA do NOD-468 — a âncora era o bloco de baixo e o texto lido subia o que a descrição cresceu
+  // Found by /qa on 2026-11-11
+  it("lendo o fim da descrição, ela cresce embaixo do lido: a vista não se mexe (a âncora é a descrição, não o bloco de baixo)", () => {
+    // desc 60–460 cruza o topo (400), o trab começa em 460, à vista.
+    const cx = caixa(400);
+    const a = acharAncora(cx, empilhar(cx, TAREFA(400)))!;
+    expect(a.chave).toBe("a:desc");
+    expect(topoPelaAncora(a, cx, empilhar(cx, TAREFA(505)))).toBe(400);
+  });
+
+  it("dentro de um bloco com chave que cruza o topo, o mais interno que aparece; a coluna do lado, depois no documento, fica fora", () => {
+    const cx = caixa(1000);
+    type N = FBloco & { filhos: N[] };
+    const no = (k: string, y: number, h: number, filhos: N[] = []): N => {
+      const b: N = { offsetTop: 64 + y, offsetParent: raiz, offsetHeight: h, attrs: { "data-ancora": k }, filhos,
+        getAttribute(n: string) { return this.attrs[n] ?? null; },
+        contains(o: unknown): boolean { return o === this || this.filhos.some((f) => f.contains(o)); } };
+      return b;
+    };
+    // A tarefa inteira (0–3000) com a descrição (60–460) e os comentários; ao lado, o trabalho (0–2000), depois no documento.
+    const coms = Array.from({ length: 20 }, (_, i) => no(`com-${i}`, 660 + i * 90, 90));
+    const tarefa = no("tarefa", 0, 3000, [no("desc", 60, 400), ...coms]);
+    const lado = no("trab", 0, 2000);
+    const preordem = (n: N): N[] => [n, ...n.filhos.flatMap(preordem)];
+    const lista = [...preordem(tarefa), lado];
+    expect(acharAncora(cx, { querySelectorAll: () => lista })).toEqual({ chave: "a:com-3", desvio: -70 });
   });
 
   it("a descrição acima cresce 52 px: o scrollTop sobe o mesmo tanto e o comentário lido fica parado", () => {
@@ -70,21 +100,22 @@ describe("NOD-468: a âncora de leitura", () => {
   it("a âncora que sumiu (o comentário apagado) não dá posição: fica com a rolagem guardada", () => {
     const cx = caixa(1000);
     const a = acharAncora(cx, empilhar(cx, TAREFA(400)))!;
-    expect(topoPelaAncora(a, cx, empilhar(cx, TAREFA(400).filter(([k]) => k !== "com-4")))).toBeNull();
+    expect(topoPelaAncora(a, cx, empilhar(cx, TAREFA(400).filter(([k]) => k !== "com-3")))).toBeNull();
   });
 
   it("a chave repetida (o mesmo id duas vezes) não serve de âncora", () => {
     const cx = caixa(1000);
     const itens = TAREFA(400).map(([k, h]) => [k === "com-5" ? "com-4" : k, h] as [string, number]);
-    // com-4 aparece duas vezes: a âncora passa ao próximo que começa à vista (com-6).
-    expect(acharAncora(cx, empilhar(cx, itens))).toEqual({ chave: "a:com-6", desvio: 200 });
+    // com-4 aparece duas vezes (com-4 1020–1110 e o que era com-5): a âncora é o primeiro outro que aparece (com-6).
+    expect(acharAncora(caixa(1030), empilhar(cx, itens))).toEqual({ chave: "a:com-6", desvio: 170 });
     expect(topoPelaAncora({ chave: "a:com-4", desvio: 20 }, cx, empilhar(cx, itens))).toBeNull();
   });
 
   it("o id também é chave, e o bloco escondido (altura 0) não é âncora", () => {
     const cx = caixa(1000);
     const itens = TAREFA(400).map(([k, h]) => [k, k === "com-4" ? 0 : h] as [string, number]);
-    expect(acharAncora(cx, empilhar(cx, itens, true))?.chave).toBe("i:com-5");
+    // com-3 930–1020 termina no topo (1020): com-4 escondido, a âncora é o com-5.
+    expect(acharAncora(caixa(1020), empilhar(cx, itens, true))?.chave).toBe("i:com-5");
   });
 
   it("sem nada à vista, sem âncora", () => {

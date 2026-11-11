@@ -4,7 +4,7 @@
  * número: o mesmo scrollTop, com 20–85 px a mais ou a menos acima, mostra outro texto. O `overflow-anchor` do navegador
  * não ajuda porque o innerHTML recria os nós a cada desenho (e o Safari não o tem).
  *
- * Aqui a âncora é de conteúdo: antes de regravar, o primeiro bloco com chave estável que aparece no topo da caixa e a
+ * Aqui a âncora é de conteúdo: antes de regravar, o bloco com chave estável que a pessoa lê no topo da caixa e a
  * distância dele ao topo da vista; depois, o mesmo bloco (pela chave) e o scrollTop que o deixa à mesma distância. Quem
  * está colada no fim não usa âncora (segue o fim, ADA-12 revisão 3); quem chama decide.
  *
@@ -22,7 +22,7 @@ export type Ancora = { readonly chave: string; readonly desvio: number };
 
 /** O pedaço do HTMLElement que a âncora lê. */
 export type Caixa = { offsetTop: number; offsetParent: unknown; clientTop: number; scrollTop: number; clientHeight: number };
-export type Bloco = { offsetTop: number; offsetParent: unknown; offsetHeight: number; id?: string; getAttribute(n: string): string | null };
+export type Bloco = { offsetTop: number; offsetParent: unknown; offsetHeight: number; id?: string; getAttribute(n: string): string | null; contains(outro: unknown): boolean };
 type Conteudo<B extends Bloco> = { querySelectorAll(sel: string): ArrayLike<B> };
 type ComOffset = { offsetTop: number; offsetParent: unknown };
 
@@ -47,8 +47,12 @@ export function topoNaCaixa(b: ComOffset, caixa: Caixa): number {
 }
 
 /**
- * O bloco que segura a leitura: entre os que aparecem na caixa, o que começa no topo ou abaixo dele mais perto do topo;
- * se nenhum começa à vista, o que cruza o topo e começa mais embaixo (o mais interno). Sem bloco à vista, sem âncora.
+ * O bloco que segura a leitura, como o scroll anchoring do Chrome escolhe: o primeiro bloco com chave, na ordem do
+ * documento, que aparece na caixa; e, dentro dele, o primeiro que aparece, até o mais interno. Quem cruza o topo é o que
+ * a pessoa lê: crescer embaixo do lido (o fim da descrição relida) não mexe nele. QA de 2026-11-11: a regra de antes
+ * ("o que começa no topo ou abaixo dele") segurava o bloco de baixo e levava o texto lido para cima o tanto que a
+ * descrição cresceu (390: −105 px). A ordem do documento também deixa a coluna do lado (que vem depois) fora da escolha
+ * quando o meio aparece. Sem bloco à vista, sem âncora.
  * A chave repetida (o mesmo id em duas formas) não serve: depois não se sabe qual é o mesmo bloco.
  */
 export function acharAncora<B extends Bloco>(caixa: Caixa, conteudo: Conteudo<B>): Ancora | null {
@@ -56,27 +60,27 @@ export function acharAncora<B extends Bloco>(caixa: Caixa, conteudo: Conteudo<B>
   const fundo = topo + caixa.clientHeight;
   const blocos = conteudo.querySelectorAll(SELETOR_DE_ANCORAS);
   const contagem = new Map<string, number>();
-  const candidatos: { chave: string; y: number }[] = [];
+  const chaves: (string | null)[] = [];
   for (let i = 0; i < blocos.length; i++) {
     const b = blocos[i];
-    if (!b) continue;
-    const k = chaveDe(b);
-    if (!k) continue;
-    contagem.set(k, (contagem.get(k) ?? 0) + 1);
+    const k = b ? chaveDe(b) : null;
+    chaves.push(k);
+    if (k) contagem.set(k, (contagem.get(k) ?? 0) + 1);
+  }
+  let escolhido: { b: B; chave: string; y: number } | null = null;
+  for (let i = 0; i < blocos.length; i++) {
+    const b = blocos[i];
+    const k = chaves[i];
+    if (!b || !k || contagem.get(k) !== 1) continue;
+    // Na ordem do documento, o primeiro que vem depois do escolhido e não está dentro dele já é outro bloco (mais
+    // embaixo ou ao lado): ninguém depois dele está dentro do escolhido.
+    if (escolhido && !escolhido.b.contains(b)) break;
     if (b.offsetHeight <= 0 || !b.offsetParent) continue;
     const y = topoNaCaixa(b, caixa);
     if (y + b.offsetHeight <= topo || y >= fundo) continue;
-    candidatos.push({ chave: k, y });
+    escolhido = { b, chave: k, y };
   }
-  let abaixo: { chave: string; y: number } | null = null;
-  let cruza: { chave: string; y: number } | null = null;
-  for (const c of candidatos) {
-    if (contagem.get(c.chave) !== 1) continue;
-    if (c.y >= topo) { if (!abaixo || c.y < abaixo.y) abaixo = c; }
-    else if (!cruza || c.y > cruza.y) cruza = c;
-  }
-  const e = abaixo ?? cruza;
-  return e ? { chave: e.chave, desvio: e.y - topo } : null;
+  return escolhido ? { chave: escolhido.chave, desvio: escolhido.y - topo } : null;
 }
 
 /** O scrollTop que põe a âncora à mesma distância do topo da vista; null se ela sumiu (ou não é mais única). */
