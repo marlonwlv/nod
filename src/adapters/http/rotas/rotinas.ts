@@ -134,7 +134,11 @@ export function criarRotasRotinas(deps: DepsRotasL7): Rota[] {
       metodo: "POST", acao: "rotinas.pausar",
       padrao: /^\/rotinas\/(?<id>[^/]+)\/pausar$/,
       async handler(ctx) {
-        const { rotina } = await executar(deps, ctx.escopo, pausarRotina, { rotinaId: uuid(ctx.params.id, "id"), estado: "pausada" });
+        // NOD-412: corpo opcional { retomar_em: ms }; sem corpo (ou sem o campo), a pausa de sempre.
+        const corpo = (await ctx.corpo()) as { retomar_em?: unknown } | null;
+        const bruto = corpo && typeof corpo === "object" ? corpo.retomar_em : undefined;
+        if (bruto !== undefined && bruto !== null && (typeof bruto !== "number" || !Number.isFinite(bruto))) throw new ErroDeDominio("entrada_invalida", { cause: "campo retomar_em" });
+        const { rotina } = await executar(deps, ctx.escopo, pausarRotina, { rotinaId: uuid(ctx.params.id, "id"), estado: "pausada", retomarEm: typeof bruto === "number" ? bruto : null });
         const resposta: RespostaMutacao = { ok: true, ids: { rotinaId: rotina.id } };
         ctx.json(200, resposta);
       },
