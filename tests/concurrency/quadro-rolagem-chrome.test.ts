@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
 import { abrirChrome, avaliar, type Cdp } from "../../scripts/carga-tela/cdp.ts";
 import { ADIAR_ATE_MS, GESTO_MS, RESERVA_MS, TOQUE_PARADO_MS } from "../../web/lib/quadro.ts";
+import { PASSOS_A_VISTA } from "../../web/telas/passos-do-run.ts";
 
 /**
  * ADA-7 no Chrome de verdade, em 390×844 (toque) e 1440×900: a pessoa rola o quadro e a tarefa aberta até o fim, um
@@ -42,10 +43,11 @@ const STS = ["backlog", "afazer", "fazendo", "revisao", "bloqueado", "feito"];
 const tarefa = (i) => ({ id: "t" + i, quadroId: "q1", titulo: "Tarefa número " + i + " com um título razoável", descricao: "linha\\n".repeat(window.__linhas ?? 80),
   status: window.__estreita ? STS[i % 3] : STS[i % STS.length], agenteId: "a", ordem: i, linearId: null, linearUrl: null, prUrl: null, pergunta: null, resposta: null, deFora: false,
   turnoId: "tu1", criadoEm: agora, mudadoEm: agora, terminadaEm: null, execucao: "rodando", agenteNome: "Ada",
-  // ADA-12 revisão 4: com __movs, o histórico de movimentos da t3 (o <details> que a pessoa abre).
+  // ADA-12 revisão 4: com __movs, o histórico de movimentos da t3. #725: 3 min entre eles, fora da janela de 2 min em que a
+  // linha do tempo junta os iguais seguidos num "×N" (juntarAtividades): cada um é uma linha.
   ...(i === 3 && window.__movs ? { movimentos: Array.from({ length: window.__movs }, (_, k) => ({ id: "mv" + k, tarefaId: "t3", tipo: "mover", de: "fazendo", para: "revisao",
     agenteAntes: "a", agenteDepois: "a", autor: { tipo: "agente", agenteId: "a" }, motivo: null, acionou: false, loteId: null, desfeitoEm: null, desfaz: null, deFora: false,
-    criadoEm: agora - k * 60_000, autorNome: "Ada", agenteAntesNome: "Ada", agenteDepoisNome: "Ada" })) } : {}) });
+    criadoEm: agora - k * 180_000, autorNome: "Ada", agenteAntesNome: "Ada", agenteDepoisNome: "Ada" })) } : {}) });
 let versao = 0;
 // ADA-12 revisão 2: a grade estreita por um instante — só três colunas abertas, o resto recolhido. Desde o NOD-460 (#645,
 // coluna de 264 sem o teto de 1240) e com o recolhidaPorPadrao (coluna com tarefa abre sozinha), a releitura estreita também
@@ -75,8 +77,22 @@ const api = {
   historicoTarefa: async () => ({ historico: [] }),
   // Os comentários mudam só com __comentou(): a tarefa aberta tem o que redesenhar sem o trabalho mudar.
   // Com __latComs, a primeira leitura dos comentários demora (a tarefa recém-aberta ainda carregando).
-  comentariosDaTarefa: async () => (window.__latComs ? await new Promise((r) => setTimeout(r, window.__latComs)) : undefined, { comentarios: Array.from({ length: window.__coms ?? 0 }, (_, i) => ({ id: "k" + i, quadroId: "q1", tarefaId: "t3", autor: { tipo: "pessoa" },
-    texto: "comentário " + i, deFora: false, criadoEm: agora + i, autorNome: "Marlon", acionados: [] })).concat(window.__comsExtras ?? []), atividade: [], criadaPor: null }),
+  // 2026-11-10 (#725): o trabalho da tarefa é um run na linha do tempo, que vem junto com os comentários. Com __trabVivo, o
+  // run rodando (o turno "tv"; com __trabN > 1, o run novo "tvN", de passos vazios, no lugar do anterior, como o trabalho
+  // novo do bloco antigo); com __latTrab, ele chega depois dos comentários (a primeira leitura vem sem run).
+  comentariosDaTarefa: async () => {
+    if (window.__latComs) await new Promise((r) => setTimeout(r, window.__latComs));
+    const comRun = !!window.__trabVivo && !(window.__latTrab && !window.__runChegou);
+    if (window.__latTrab && window.__trabVivo && !window.__runChegou) setTimeout(() => { window.__runChegou = true; frame("quadro.mudou", { quadroId: "q1", agenteId: "a", loteId: null, tarefas: "t3" }); }, window.__latTrab);
+    const n = window.__trabN ?? 1;
+    const turno = n > 1 ? "tv" + n : "tv";
+    return { comentarios: Array.from({ length: window.__coms ?? 0 }, (_, i) => ({ id: "k" + i, quadroId: "q1", tarefaId: "t3", autor: { tipo: "pessoa" },
+      texto: "comentário " + i, deFora: false, criadoEm: agora + i, autorNome: "Marlon", acionados: [] })).concat(window.__comsExtras ?? []), atividade: [], criadaPor: null,
+      runs: comRun ? [{ turnoId: turno, agenteId: "a", agenteNome: "Ada", comentarioId: null, execucao: n, estado: "rodando", turnoAtual: turno, criadoEm: agora + n,
+        comecouEm: agora, terminouEm: null, custoUsd: null, tokens: null, ultimaFrase: null, motivo: null, origem: "inicio", nPassos: 0 }] : [] };
+  },
+  // Os passos persistidos do run (a rota): nenhum; os do teste chegam pelos frames turno.atividade.
+  passosDoRun: async () => ({ passos: [], fim: true }),
   // O comentário da pessoa (POST rápido): a releitura traz um comentário a mais.
   comentarTarefa: async () => { await new Promise((r) => setTimeout(r, 50)); window.__coms = (window.__coms ?? 0) + 1; return { quadro: q() }; },
   // Com a passagem, os cards nascem arrastáveis (o arrasto entre colunas).
@@ -655,7 +671,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     expect(texto, "a resposta velha não pinta por cima").not.toContain("Meta velha");
   }, 60_000);
 
-  it("390×844 (toque): o passo do trabalho que roda espera o dedo sair para reescrever o log (e escreve o último)", async () => {
+  // 2026-11-10 (#725): o log do bloco "Execuções" virou o run na linha do tempo. A linha viva do run (o último passo) troca
+  // só o texto, no lugar; a lista de passos aberta é a que se regrava, e ela espera o dedo sair (redesenharQuandoLivre).
+  it("390×844 (toque): o passo do run que roda espera o dedo sair para regravar a lista de passos (e escreve o último)", async () => {
     await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await cdp.enviar("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     await cdp.enviar("Page.navigate", { url });
@@ -663,25 +681,33 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await avaliar(cdp, "window.__trabVivo = true; window.__montar()");
     await ate(`document.querySelector("#quadro [data-act='abrir-tarefa'][data-id='t3']")`);
     await avaliar(cdp, `[...document.querySelectorAll("#quadro [data-act='abrir-tarefa'][data-id='t3']")].find((e) => e.offsetParent).click()`);
-    await ate(`document.querySelector("#quadro .qd-trab-log[data-trabalho='e1']")`);
+    await ate(`document.querySelector("#quadro .ta-run[data-turno='tv']")`);
     await esperar(600);
-    // Sem o dedo, o passo escreve na hora (o log vivo continua vivo).
+    // Sem o dedo, o passo escreve na hora: o toggle "› 1 passo" nasce e abre a lista.
     await avaliar(cdp, "window.__passoVivo(1)");
-    await ate(`document.querySelector("#quadro .qd-trab-log").textContent.includes("1 passo")`);
-    await avaliar(cdp, `(() => { window.__logRegravado = 0; const l = document.querySelector("#quadro .qd-trab-log");
-      new MutationObserver(() => window.__logRegravado++).observe(l, { childList: true, subtree: true, characterData: true });
+    const tg = `document.querySelector("#quadro .ta-run[data-turno='tv'] [data-act='run-abrir']")`;
+    await ate(`${tg}?.textContent.includes("1 passo")`);
+    await avaliar(cdp, `${tg}.click()`);
+    await ate(`document.querySelectorAll("#quadro .ta-run[data-turno='tv'] .ta-run-passos .ta-passo").length === 1`);
+    await esperar(300);
+    // Conta as regravações da lista (o nó da lista trocado), não o texto do tempo ou da linha viva.
+    await avaliar(cdp, `(() => { window.__logRegravado = 0; window.__lista = document.querySelector("#quadro .ta-run-passos");
+      new MutationObserver(() => { const l = document.querySelector("#quadro .ta-run-passos"); if (l !== window.__lista) { window.__lista = l; window.__logRegravado++; } })
+        .observe(document.getElementById("quadro"), { childList: true, subtree: true });
       const t = document.getElementById("qd-t-tit"); t.dispatchEvent(new Event("touchstart", { bubbles: true }));
       window.__mexe = setInterval(() => t.dispatchEvent(new Event("touchmove", { bubbles: true })), 150); })()`);
     try {
       for (const n of [2, 3]) { await avaliar(cdp, `window.__passoVivo(${n})`); await esperar(400); }
-      expect(await avaliar<number>(cdp, "window.__logRegravado"), "o log reescrito com o dedo na tela").toBe(0);
+      expect(await avaliar<number>(cdp, "window.__logRegravado"), "a lista regravada com o dedo na tela").toBe(0);
     } finally {
       await avaliar(cdp, `(() => { clearInterval(window.__mexe); document.getElementById("qd-t-tit").dispatchEvent(new Event("touchend", { bubbles: true })); })()`);
     }
-    await ate(`document.querySelector("#quadro .qd-trab-log").textContent.includes("3 passos")`);
+    await ate(`document.querySelectorAll("#quadro .ta-run[data-turno='tv'] .ta-run-passos .ta-passo").length === 3`);
     await esperar(300);
-    // Uma escrita só (o innerHTML tira e põe: 1 registro de childList), com o último passo.
+    // Uma regravação só, com o último passo.
     expect(await avaliar<number>(cdp, "window.__logRegravado"), "uma escrita só, com o último passo").toBe(1);
+    expect(await avaliar<string>(cdp, `${tg}.textContent`)).toContain("3 passos");
+    expect(await avaliar<string>(cdp, `document.querySelector("#quadro .ta-run[data-turno='tv'] .ta-run-passos").textContent`)).toContain("Passo 3");
     await avaliar(cdp, "window.__trabVivo = false");
   }, 60_000);
 
@@ -795,15 +821,16 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
   it("1440×900: no computador, o campo com foco na tarefa aberta não segura a atualização (revisão 11)", async () => {
     await montar(1440, 900, false);
     await avaliar(cdp, `[...document.querySelectorAll("#quadro [data-act='abrir-tarefa'][data-id='t3']")].find((e) => e.offsetParent).click()`);
-    await ate(`document.getElementById("qd-trab-recado")`);
+    // 2026-11-10 (#725): o campo do recado saiu com o bloco "Execuções"; o campo da tarefa aberta é o comentário.
+    await ate(`document.getElementById("qd-com-t3")`);
     await esperar(300);
-    await avaliar(cdp, `(() => { const c = document.getElementById("qd-trab-recado"); c.value = "rascunho"; c.dispatchEvent(new Event("input", { bubbles: true })); c.focus(); })()`);
+    await avaliar(cdp, `(() => { const c = document.getElementById("qd-com-t3"); c.value = "rascunho"; c.dispatchEvent(new Event("input", { bubbles: true })); c.focus(); })()`);
     await observar();
     const t0 = Date.now();
     await avaliar(cdp, "window.__mudou()");
     await ate("window.__regravacoes > 0");
     expect(Date.now() - t0, "a regravação chega sem esperar o foco sair").toBeLessThan(ADIAR_ATE_MS);
-    expect(await avaliar<string>(cdp, `document.activeElement?.id + "|" + document.getElementById("qd-trab-recado").value`)).toBe("qd-trab-recado|rascunho");
+    expect(await avaliar<string>(cdp, `document.activeElement?.id + "|" + document.getElementById("qd-com-t3").value`)).toBe("qd-com-t3|rascunho");
   }, 60_000);
 
   it("390×844 (toque): no quadro compartilhado, o comentário com foco não é recriado pela releitura até ela sair dele (revisão 11)", async () => {
@@ -927,7 +954,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await abrirT3(30);
     for (let i = 1; i <= 30; i++) await avaliar(cdp, `window.__passoVivo(${i})`);
     await esperar(400);
-    const botao = `[...document.querySelectorAll("#quadro [data-act='trab-passos']")].find((b) => b.offsetParent)`;
+    const botao = `[...document.querySelectorAll("#quadro .ta-run[data-turno='tv'] [data-act='run-abrir']")].find((b) => b.offsetParent)`;
     const noTopo = `(() => { const v = document.getElementById("quadro"); const b = ${botao}; return b ? b.getBoundingClientRect().top - v.getBoundingClientRect().top : null; })()`;
     await avaliar(cdp, `(() => { document.activeElement?.blur(); const v = document.getElementById("quadro"); v.scrollTop += ${noTopo} - 40; })()`);
     await esperar(GESTO_MS + 150);
@@ -937,11 +964,20 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
       return JSON.stringify({ y, entre: ks.some((k) => k >= 0 && k <= y), abaixo: ks.some((k) => k > y && k < v.clientHeight) }); })()`)) as { y: number; entre: boolean; abaixo: boolean };
     expect(cena.entre, "nenhum bloco com chave começa entre o topo e o botão (o do botão cruza o topo)").toBe(false);
     expect(cena.abaixo, "um bloco com chave começa abaixo do botão, à vista (a âncora de antes)").toBe(true);
+    // #725: o bloco aberto mostra os PASSOS_A_VISTA últimos e "mostrar N anteriores" (o resto abre no segundo toque,
+    // também da pessoa, também abaixo do botão): os dois toques deixam o botão no lugar.
+    const passos = `document.querySelectorAll("#quadro .ta-run[data-turno='tv'] .ta-run-passos .ta-passo").length`;
+    const mais = `document.querySelector("#quadro .ta-run[data-turno='tv'] [data-act='run-passos-todos']")`;
     await avaliar(cdp, `(${botao}).click()`);
-    await ate(`document.querySelectorAll("#quadro .qd-trab-passo").length >= 30`);
+    await ate(`${passos} >= ${PASSOS_A_VISTA} && ${mais}?.textContent.includes("mostrar ${30 - PASSOS_A_VISTA} anteriores")`);
     await esperar(300);
     const y1 = await avaliar<number | null>(cdp, noTopo);
     expect(Math.abs((y1 ?? -9999) - cena.y), `o botão dos passos foi de ${cena.y} a ${y1}`).toBeLessThan(4);
+    await avaliar(cdp, `${mais}.click()`);
+    await ate(`${passos} >= 30`);
+    await esperar(300);
+    const y2 = await avaliar<number | null>(cdp, noTopo);
+    expect(Math.abs((y2 ?? -9999) - cena.y), `com todos os passos, o botão foi de ${cena.y} a ${y2}`).toBeLessThan(4);
     await avaliar(cdp, "window.__trabVivo = false");
   }, 90_000);
 
@@ -1192,9 +1228,12 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await atualizar(); // a descrição curta já no quadro (senão ela encolheria junto na primeira releitura)
     await abrirT3(0);
     for (let i = 0; i < 40; i++) await avaliar(cdp, `window.__passoVivo(${i})`);
-    await ate(`document.querySelector("#quadro [data-act='trab-passos']")`);
-    await avaliar(cdp, `document.querySelector("#quadro [data-act='trab-passos']").click()`);
-    await ate(`document.querySelectorAll("#quadro .qd-trab-passo").length >= 40`);
+    // 2026-11-10 (#725): o run na linha do tempo: "› N passos" abre a lista, que mostra os 12 últimos até "mostrar N anteriores".
+    await ate(`document.querySelector("#quadro .ta-run[data-turno='tv'] [data-act='run-abrir']")`);
+    await avaliar(cdp, `document.querySelector("#quadro .ta-run[data-turno='tv'] [data-act='run-abrir']").click()`);
+    await ate(`document.querySelector("#quadro [data-act='run-passos-todos'][data-turno='tv']")`);
+    await avaliar(cdp, `document.querySelector("#quadro [data-act='run-passos-todos'][data-turno='tv']").click()`);
+    await ate(`document.querySelectorAll("#quadro .ta-run[data-turno='tv'] .ta-passo").length >= 40`);
     await esperar(200);
     await avaliar(cdp, `(() => { document.activeElement?.blur(); const v = document.getElementById("quadro"); v.scrollTop = Math.floor((v.scrollHeight - v.clientHeight) * 0.7); })()`);
     await esperar(150);
@@ -1202,12 +1241,20 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     expect(t0.max, "o log faz a tarefa rolar").toBeGreaterThan(600);
     // O trabalho novo: a releitura do frame traz o #2, de log vazio (redesenharLido).
     await avaliar(cdp, "(() => { window.__trabN = 2; window.__mudou(); })()");
-    // ADA-17: no celular a execução é uma linha (#294), sem o "#2" do computador: o log do trabalho novo é o sinal.
-    await ate(`document.querySelector('#quadro .qd-trab-log[data-trabalho="e2"]')`);
+    // O run novo (o turno "tv2"), sem passos: o bloco dele é o sinal.
+    await ate(`document.querySelector("#quadro .ta-run[data-turno='tv2']") && !document.querySelector("#quadro .ta-run[data-turno='tv']")`);
     await esperar(RESERVA_TESTE + 300);
     expect((await medir()).max, "o log vazio encolheu a tarefa abaixo da posição").toBeLessThan(t0.top);
-    for (let i = 0; i < 40; i++) await avaliar(cdp, `window.__passoVivo(${i}, "tv2")`);
-    await ate(`document.querySelectorAll("#quadro .qd-trab-passo").length >= 40`);
+    // A pessoa abre os passos do run novo logo que ele tem um (e "mostrar anteriores" logo que aparece): esses desenhos são
+    // dela; o resto dos passos chega ao vivo, com a lista aberta, como no log do bloco antigo.
+    await avaliar(cdp, `window.__passoVivo(0, "tv2")`);
+    await ate(`document.querySelector("#quadro .ta-run[data-turno='tv2'] [data-act='run-abrir']")`);
+    await avaliar(cdp, `document.querySelector("#quadro .ta-run[data-turno='tv2'] [data-act='run-abrir']").click()`);
+    for (let i = 1; i < 13; i++) await avaliar(cdp, `window.__passoVivo(${i}, "tv2")`);
+    await ate(`document.querySelector("#quadro [data-act='run-passos-todos'][data-turno='tv2']")`);
+    await avaliar(cdp, `document.querySelector("#quadro [data-act='run-passos-todos'][data-turno='tv2']").click()`);
+    for (let i = 13; i < 40; i++) await avaliar(cdp, `window.__passoVivo(${i}, "tv2")`);
+    await ate(`document.querySelectorAll("#quadro .ta-run[data-turno='tv2'] .ta-passo").length >= 40`);
     await esperar(400);
     expect(Math.abs((await medir()).top - t0.top), "com os passos do trabalho novo, a tarefa volta ao lugar").toBeLessThanOrEqual(1);
     await avaliar(cdp, "(() => { window.__trabVivo = false; window.__trabN = 1; })()");
@@ -1371,8 +1418,8 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await atualizar();
     await abrirT3(2);
     await avaliar(cdp, `document.activeElement?.blur()`);
-    // 2026-11-10: o trabalho mora na lateral (Registro de execução); a tarefa rola pela linha do tempo.
-    await ate(`document.querySelector("#quadro .qd-trab, #quadro [class*='trab']") && document.getElementById("quadro").scrollHeight > document.getElementById("quadro").clientHeight + 24`);
+    // 2026-11-10 (#725): o trabalho é o run na linha do tempo (e no Registro de execução da lateral); a tarefa rola por ela.
+    await ate(`document.querySelector("#quadro .ta-run[data-turno='tv']") && document.getElementById("quadro").scrollHeight > document.getElementById("quadro").clientHeight + 24`);
     await esperar(250);
     const t1 = await medir();
     expect(t1.max, "o trabalho que chegou faz a tarefa rolar").toBeGreaterThan(24);
@@ -1387,6 +1434,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await atualizar();
     await abrirT3(0);
     await avaliar(cdp, `document.activeElement?.blur()`);
+    // #725: os movimentos seguidos vêm agrupados ("N atividades"); a pessoa abre o grupo.
+    await ate(`document.querySelector("#quadro [data-act='ativ-abrir']") || document.querySelectorAll("#quadro .ta-ev").length >= 20`);
+    await avaliar(cdp, `document.querySelector("#quadro [data-act='ativ-abrir'][aria-expanded='false']")?.click()`);
     await ate(`document.querySelectorAll("#quadro .ta-ev").length >= 20`);
     await avaliar(cdp, `(() => { const v = document.getElementById("quadro"); v.scrollTop = Math.floor((v.scrollHeight - v.clientHeight) * 0.7); })()`);
     await esperar(120);
@@ -1631,17 +1681,17 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
       await atualizar();
       await abrirT3(30);
       for (let i = 1; i <= 3; i++) await avaliar(cdp, `window.__passoVivo(${i})`);
-      const botao = `[...document.querySelectorAll("#quadro [data-act='trab-passos']")].find((b) => b.offsetParent)`;
+      const botao = `[...document.querySelectorAll("#quadro .ta-run[data-turno='tv'] [data-act='run-abrir']")].find((b) => b.offsetParent)`;
       await ate(botao);
       await avaliar(cdp, `(${botao}).click()`);
-      await ate(`document.querySelectorAll("#quadro .qd-trab-passo").length >= 3`);
+      await ate(`document.querySelectorAll("#quadro .ta-run[data-turno='tv'] .ta-run-passos .ta-passo").length >= 3`);
       await esperar(300);
       await lerEm(comentarioN(15), 120);
       const y0 = await yNaVista(comentarioN(15));
       expect(await avaliar<number>(cdp, `(${botao}).getBoundingClientRect().bottom - document.getElementById("quadro").getBoundingClientRect().top`), "o log está acima da vista").toBeLessThan(0);
       for (let i = 4; i <= 12; i++) {
         await avaliar(cdp, `window.__passoVivo(${i})`);
-        await ate(`document.querySelectorAll("#quadro .qd-trab-passo").length >= ${i}`);
+        await ate(`document.querySelectorAll("#quadro .ta-run[data-turno='tv'] .ta-run-passos .ta-passo").length >= ${i}`);
         await esperar(80);
         const y = await yNaVista(comentarioN(15));
         expect(Math.abs(y - y0), `passo ${i}: o comentário lido foi de ${y0} a ${y}`).toBeLessThanOrEqual(1);

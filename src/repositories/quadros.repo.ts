@@ -524,7 +524,7 @@ export function quadrosRepo(conn: Conn, escopo: Escopo) {
           resposta_mensagem_id = excluded.resposta_mensagem_id, resposta_conversa_id = excluded.resposta_conversa_id, resposta_agente_id = excluded.resposta_agente_id,
           -- 0160: a foto de antes da prioridade não a tem: fica a atual.
           prioridade = coalesce(${t.prioridade ?? null}::text, quadro_tarefas.prioridade),
-          -- 0159: a foto de antes da 0159 não tem labels nem prazo: mantém os de agora.
+          -- 0161: a foto de antes da 0161 não tem labels nem prazo: mantém os de agora.
           label_ids = ${t.labelIds === undefined ? conn`quadro_tarefas.label_ids` : conn`excluded.label_ids`}, prazo_em = ${t.prazoEm === undefined ? conn`quadro_tarefas.prazo_em` : conn`excluded.prazo_em`}
         returning ${conn.unsafe(COLUNAS_T)}`;
       return paraTarefa(l!);
@@ -645,12 +645,20 @@ export function quadrosRepo(conn: Conn, escopo: Escopo) {
      * de criação. Desc com limite e vira na aplicação (revisão 1 do PR #627): com `order by criado_em limit 50`, uma
      * tarefa com mais de 50 lotes mostrava os 50 primeiros e nunca o que acabou de acontecer.
      */
-    async lotesDaTarefa(quadroId: string, tarefaId: string, limite = 50): Promise<LoteQuadro[]> {
+    /**
+     * `antesDaTarefa` (2026-11-10): a foto desta tarefa antes do lote (null = nasceu nele; ausente = o lote não a fotografou),
+     * para a linha do tempo contar o que mudou na prioridade, no prazo e nas labels (`mudancasDeCampos`).
+     */
+    async lotesDaTarefa(quadroId: string, tarefaId: string, limite = 50): Promise<(LoteQuadro & { antesDaTarefa?: TarefaQuadro | null })[]> {
       const rs = await conn<LinhaLote[]>`
         select ${conn.unsafe(COLUNAS_L)} from quadro_lotes
         where ${dona()} and quadro_id = ${quadroId} and ${tarefaId}::uuid = any(tarefa_ids) and desfeito_em is null
         order by criado_em desc, id desc limit ${limite}`;
-      return rs.reverse().map((r) => { const { antes: _antes, ...lote } = paraLote(r); return lote; });
+      return rs.reverse().map((r) => {
+        const { antes, ...lote } = paraLote(r);
+        const foto = antes?.tarefas?.find((x) => x.id === tarefaId);
+        return foto ? { ...lote, antesDaTarefa: foto.antes } : lote;
+      });
     },
     /** NOD-430 (revisão 2 do PR #627): o lote mais antigo da tarefa (o "criada por"), fora da janela dos 50 recentes. */
     async primeiroLoteDaTarefa(quadroId: string, tarefaId: string): Promise<LoteQuadro | null> {
@@ -874,7 +882,7 @@ export function quadrosRepo(conn: Conn, escopo: Escopo) {
     },
     /** Muda a tarefa de quadro (o resto dela fica). */
     async moverTarefa(id: string, c: { quadroId: string; status: IdColuna; voltarPara: IdColuna | null; ordem: number; numero: number; terminadaEm: number | null }): Promise<TarefaQuadro | null> {
-      // 0159: as labels são por quadro. A tarefa leva as dela pelo nome: a que falta no destino nasce lá, com a mesma cor.
+      // 0161: as labels são por quadro. A tarefa leva as dela pelo nome: a que falta no destino nasce lá, com a mesma cor.
       await conn`
         insert into quadro_labels (tenant_id, owner_id, quadro_id, nome, cor)
         select o.tenant_id, o.owner_id, ${c.quadroId}, o.nome, o.cor from quadro_labels o
@@ -927,13 +935,15 @@ export function quadrosRepo(conn: Conn, escopo: Escopo) {
     },
     /** O histórico da tarefa, mais antigo primeiro (até 200 linhas, as mais recentes). */
     /** `quadroId` = o quadro em que a mudança foi registrada (no mover, o destino; a origem vai em `de` da linha `quadro`). */
-    async historico(tarefaId: string): Promise<{ id: string; quadroId: string; campo: CampoHistorico; de: string | null; para: string | null; autor: "pessoa" | "agente" | "regra"; autorAgenteId: string | null; criadoEm: number }[]> {
-      const ls = await conn<{ id: string; quadro_id: string; campo: CampoHistorico; de: string | null; para: string | null; autor: "pessoa" | "agente" | "regra"; autor_agente_id: string | null; criado_em: Date }[]>`
-        select * from (
-          select id, quadro_id, campo, de, para, autor, autor_agente_id, criado_em from quadro_tarefa_historico
+    /** `pedidoPor`: quem pediu o lote da mudança (quem participa do quadro, NOD-443); null = a dona ou sem lote. */
+    async historico(tarefaId: string): Promise<{ id: string; quadroId: string; campo: CampoHistorico; de: string | null; para: string | null; autor: "pessoa" | "agente" | "regra"; autorAgenteId: string | null; criadoEm: number; pedidoPor: string | null }[]> {
+      const ls = await conn<{ id: string; quadro_id: string; campo: CampoHistorico; de: string | null; para: string | null; autor: "pessoa" | "agente" | "regra"; autor_agente_id: string | null; criado_em: Date; pedido_por: string | null }[]>`
+        select h.*, l.pedido_por from (
+          select id, quadro_id, campo, de, para, autor, autor_agente_id, criado_em, lote_id from quadro_tarefa_historico
           where ${dona()} and tarefa_id = ${tarefaId} order by criado_em desc, id desc limit 200
-        ) h order by criado_em, id`;
-      return ls.map((l) => ({ id: l.id, quadroId: l.quadro_id, campo: l.campo, de: l.de, para: l.para, autor: l.autor, autorAgenteId: l.autor_agente_id, criadoEm: ms(l.criado_em) }));
+        ) h left join quadro_lotes l on l.tenant_id = ${escopo.tenantId} and l.owner_id = ${escopo.pessoaId} and l.id = h.lote_id
+        order by h.criado_em, h.id`;
+      return ls.map((l) => ({ id: l.id, quadroId: l.quadro_id, campo: l.campo, de: l.de, para: l.para, autor: l.autor, autorAgenteId: l.autor_agente_id, criadoEm: ms(l.criado_em), pedidoPor: l.pedido_por }));
     },
     /* NOD-443 (ADR-143): as pessoas do quadro, o modo, o mural e os comentários. */
 
@@ -979,7 +989,7 @@ export function quadrosRepo(conn: Conn, escopo: Escopo) {
         select quadro_id, owner_id from quadro_membros where tenant_id = ${escopo.tenantId} and pessoa_id = ${escopo.pessoaId} order by adicionado_em, id`;
       return ls.map((l) => ({ quadroId: l.quadro_id, donaId: l.owner_id }));
     },
-    // 0159: o catálogo de labels do quadro (na ordem de criação).
+    // 0161: o catálogo de labels do quadro (na ordem de criação).
     async labels(quadroId: string): Promise<LabelQuadro[]> {
       const ls = await conn<{ id: string; quadro_id: string; nome: string; cor: CorLabel; criado_em: Date }[]>`
         select id, quadro_id, nome, cor, criado_em from quadro_labels where ${dona()} and quadro_id = ${quadroId} order by criado_em, id`;
@@ -1055,10 +1065,10 @@ export function quadrosRepo(conn: Conn, escopo: Escopo) {
      * ADA-232: o PR já sincronizado pelo laço de PRs (estado, CI e quando o laço gravou a última transição), pela url;
      * null = ainda não visto. A mesma url em duas tarefas: vale a linha vista por último.
      */
-    async prPorUrl(url: string): Promise<(Pick<PrDaTarefa, "estado" | "ci"> & { vistoEm: number }) | null> {
-      const [l] = await conn<{ estado: PrDaTarefa["estado"]; ci: PrDaTarefa["ci"]; visto_em: Date }[]>`
-        select estado, ci, visto_em from quadro_tarefa_prs where ${dona()} and url = ${url} order by visto_em desc limit 1`;
-      return l ? { estado: l.estado, ci: l.ci, vistoEm: ms(l.visto_em) } : null;
+    async prPorUrl(url: string): Promise<(Pick<PrDaTarefa, "estado" | "ci" | "conflito"> & { vistoEm: number }) | null> {
+      const [l] = await conn<{ estado: PrDaTarefa["estado"]; ci: PrDaTarefa["ci"]; conflito: boolean; visto_em: Date }[]>`
+        select estado, ci, conflito, visto_em from quadro_tarefa_prs where ${dona()} and url = ${url} order by visto_em desc limit 1`;
+      return l ? { estado: l.estado, ci: l.ci, conflito: l.conflito, vistoEm: ms(l.visto_em) } : null;
     },
     /**
      * ADA-232 (revisão do PR #705): a tarefa ganhou ou trocou de PR desde `desde`. O pr_url não entra no histórico da tarefa:
