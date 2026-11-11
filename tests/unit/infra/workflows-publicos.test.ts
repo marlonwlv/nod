@@ -20,7 +20,15 @@ describe("workflows do repo público (NOD-485)", () => {
     expect(yml).not.toMatch(/pull_request_target/);
     expect(yml).not.toMatch(/self-hosted/);
     expect(yml).not.toMatch(/blacksmith/);
-    for (const m of yml.matchAll(/runs-on:\s*(.+)/g)) expect(m[1]!.trim()).toMatch(/^(ubuntu-latest|macos-15|windows-latest)$/);
+    for (const m of yml.matchAll(/runs-on:\s*(.+)/g)) expect(m[1]!.trim()).toMatch(/^(ubuntu-latest|macos-15|windows-latest|\$\{\{ matrix\.runner \}\})$/);
+    // A matriz só escolhe entre runners hospedados do GitHub (as arquiteturas nativas do release desktop).
+    for (const m of yml.matchAll(/^\s+runner:\s*(.+)$/gm)) expect(m[1]!.trim()).toMatch(/^(ubuntu-latest|ubuntu-24\.04|ubuntu-24\.04-arm|macos-15|macos-15-intel|windows-latest)$/);
+  });
+
+  // Os nomes da produção (projeto, IP, e-mails) ficam no varrer.mjs do repo privado; aqui, a forma de qualquer identificador
+  // da GCP: conta de serviço, provider do WIF ou número de projeto vão em secrets do environment, nunca no YAML.
+  it.each(workflows)("%s: nenhuma conta de serviço, provider WIF ou número de projeto da GCP no texto", (nome) => {
+    expect(ler(nome)).not.toMatch(/\.iam\.gserviceaccount\.com|workloadIdentityPools\/|projects\/\d{6,}/);
   });
 
   it("ci.yml: token só de leitura e nenhum secret (PR de fork roda tudo isto)", () => {
@@ -49,6 +57,63 @@ describe("workflows do repo público (NOD-485)", () => {
     // A config privada é aplicada (e mascarada) antes do gcloud, que imprime projeto e registro.
     expect(yml.indexOf("config-producao.ts")).toBeLessThan(yml.indexOf("google-github-actions/auth"));
     expect(yml).toContain("persist-credentials: false");
+  });
+});
+
+describe("desktop-release.yml e release-pendente.yml no repo público (portados do gamefik/nod)", () => {
+  const release = semComentarios(ler("desktop-release.yml"));
+  const jobs = (yml: string) => [...yml.matchAll(/^ {2}([a-z-]+):\n((?: {4,}.*\n?|\n)*)/gm)].map((m) => ({ nome: m[1]!, corpo: m[2]! }));
+
+  it("desktop-release: só tag v* e dispatch com publicar (padrão false), token zerado no topo", () => {
+    const gatilhos = release.slice(release.indexOf("on:"), release.indexOf("permissions:"));
+    expect(gatilhos).not.toMatch(/pull_request|schedule|workflow_run|branches:/);
+    expect(gatilhos).toMatch(/push:\n {4}tags: \['v\*'\]/);
+    expect(gatilhos).toMatch(/publicar:\n(?: {8}.*\n)*? {8}type: boolean\n {8}default: false/);
+    expect(release).toMatch(/^permissions: \{\}$/m);
+  });
+
+  it("desktop-release: todo job tem a guarda do repo e permissões próprias", () => {
+    const js = jobs(release.slice(release.indexOf("\njobs:")));
+    expect(js.map((j) => j.nome)).toEqual(["verify", "mac", "vm-local", "windows", "draft", "downloads"]);
+    for (const j of js) {
+      expect(j.corpo, j.nome).toContain("github.repository == 'marlonwlv/nod'");
+      expect(j.corpo, j.nome).toMatch(/^ {4}permissions:\n/m);
+    }
+  });
+
+  it("desktop-release: segredo e WIF só nos jobs do environment release; o rascunho só publicando numa tag", () => {
+    for (const j of jobs(release.slice(release.indexOf("\njobs:")))) {
+      const usaSegredo = /secrets\.(?!GITHUB_TOKEN)|id-token: write/.test(j.corpo);
+      if (usaSegredo) expect(j.corpo, j.nome).toMatch(/^ {4}environment: release$/m);
+      if (j.nome === "draft") {
+        expect(j.corpo).toContain("(github.event_name == 'push' || inputs.publicar == true)");
+        expect(j.corpo).toContain("startsWith(github.ref, 'refs/tags/v')");
+      }
+      if (j.nome === "downloads") {
+        expect(j.corpo).toContain("needs: draft");
+        expect(j.corpo).toContain("vars.NOD_RELEASE_BUCKET == '1'");
+        expect(j.corpo).toContain("--no-clobber");
+        expect(j.corpo).toContain('"gs://$BUCKET/$TAG/"');
+        // A conferência dos hashes vem antes da credencial.
+        expect(j.corpo.indexOf("sha256sum -c")).toBeLessThan(j.corpo.indexOf("google-github-actions/auth"));
+      }
+    }
+  });
+
+  it("desktop-release: modo seco avisa no preflight e assina só com os secrets Apple", () => {
+    expect(release).toContain("NOD_RELEASE_SECO: ${{ env.PUBLICAR != 'true' && '1' || '' }}");
+    expect(release).toMatch(/- name: Notarizar e grampear o DMG\n {8}if: env\.ASSINAR == '1'/);
+    expect(release).toMatch(/- name: Verificar o \.app do ZIP da atualização\n {8}if: env\.ASSINAR == '1'/);
+    expect(release).toContain("--config.mac.identity=null");
+  });
+
+  it("release-pendente: runner hospedado, guarda do repo, sem nome de pessoa no YAML", () => {
+    const yml = semComentarios(ler("release-pendente.yml"));
+    expect(yml).toMatch(/^permissions: \{\}$/m);
+    expect(yml).toContain("if: github.repository == 'marlonwlv/nod'");
+    expect(yml).toMatch(/issues: write/);
+    expect(yml).toContain("RESPONSAVEL: ${{ github.repository_owner }}");
+    expect(yml).not.toMatch(/pull_request/);
   });
 });
 
