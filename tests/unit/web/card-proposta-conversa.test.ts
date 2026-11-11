@@ -78,4 +78,17 @@ describe("card de proposta na conversa (NOD-399)", () => {
     expect(html).toContain("<span>Mudar o perfil do bot</span>");
     expect(html).not.toMatch(/ de o bot| a o bot/);
   });
+  it("NOD-413: rodar agora uma rotina vira o card Rodar agora · Agora não, e a execução na fila aparece antes do clique", () => {
+    const base = { tenantId: "t", conversaId: "c", agenteId: "a", kind: "rotina_execucao" as const, estado: "pendente" as const, criadoEm: 0 };
+    const livre: Proposta = { ...base, id: "x1", payload: { kind: "rotina_execucao", rotinaId: "r", resumo: "todo dia às 09:00", instrucao: LONGA } };
+    const html = renderTimeline(conversa([livre]), estado);
+    expect(html).toContain("<span>Rodar agora uma rotina de Ada</span>");
+    expect(html).toMatch(/data-act="decidir-proposta"[^>]*>Rodar agora</);
+    expect(html).toMatch(/data-act="recusar-decisao"[^>]*>Agora não</);
+    expect(html).not.toContain("confirmar-proposta");
+    expect(linhasVisiveis(html).length).toBeLessThanOrEqual(MAX_LINHAS);
+    expect(html).not.toContain("ainda não terminou");
+    const naFila: Proposta = { ...base, id: "x2", payload: { kind: "rotina_execucao", rotinaId: "r", resumo: "todo dia às 09:00", instrucao: "y", naFila: { instanteAgendado: Date.UTC(2026, 10, 11, 12), fusoIana: "UTC" } } };
+    expect(renderTimeline(conversa([naFila]), estado)).toContain("ainda não terminou. Rodar mais uma agora, sem cancelar a outra?");
+  });
 });
