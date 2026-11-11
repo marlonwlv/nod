@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Proposta } from "../contracts/conversa.ts";
-import type { RuntimeEvent } from "../contracts/evento.ts";
+import type { Executor, RuntimeEvent } from "../contracts/evento.ts";
 import type { Rotina } from "../contracts/rotina.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { revisaoDaRotina } from "../domain/revisao-rotina.ts";
@@ -10,6 +10,8 @@ import { evento, eventoDeRotina, exigir, textoRotinaAtiva } from "./apoio-l7.ts"
 import { concederAcessosDaRotina } from "./conceder-acessos-da-rotina.ts";
 import { autoriaDeQuemConfirma, fecharDecisaoDaProposta, type PorRegra } from "./confirmar-pelo-modo.ts";
 import { invalidarCardDeRitmo } from "./ritmo-card.ts";
+import { EXECUTORES_ROTINAS } from "./acoes/rotinas.ts";
+import type { SaidaExecutarAgora } from "./executar-rotina-agora.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 
 /** `obsoleta` (NOD-159): a rotina mudou depois da proposta; nada foi aplicado e a proposta saiu recusada. */
@@ -203,4 +205,26 @@ export const aplicarExclusaoRotina: CasoDeUso<{ propostaId: string; porRegra?: P
   const { decisao, sincronizar } = await fecharDecisaoDaProposta(deps, proposta.id, agora, input.porRegra);
   if (decisao) events.push(evento(deps, "decisao_decidida", autoria, { decisaoId: decisao.id, tipo: "rotina_exclusao" }, { conversaId: rotina.conversaId }), ...sincronizar);
   return { data: { rotina, jaAplicada: false }, events };
+};
+
+/**
+ * NOD-413: o clique em "Rodar agora" do card do chat (decisão rotina_execucao). Roda pelo MESMO executor do Testar agora
+ * (EXECUTORES_ROTINAS["rotinas.executar"]), com `confirmar: true`: o card já mostrou a execução na fila, se havia, e o
+ * clique é o "Rodar mais uma". A rotina que mudou ou foi excluída depois do card não roda (recusarObsoleta, NOD-159).
+ * Só pela pessoa: o risco é pessoa_confirma e não há `porRegra` aqui.
+ */
+export const aplicarExecucaoRotina: CasoDeUso<{ propostaId: string; executor: Executor }, SaidaAplicarPropostaRotina & { execucao?: SaidaExecutarAgora }> = async (deps, input) => {
+  const lida = exigir(await deps.repos.propostas.buscar(input.propostaId), "nao_encontrado", "proposta");
+  if (lida.payload.kind !== "rotina_execucao") throw new ErroDeDominio("estado_invalido", { cause: "proposta não é de rodar rotina agora" });
+  if (lida.estado === "recusada") throw new ErroDeDominio("estado_invalido", { cause: "proposta recusada" });
+  const p = lida.payload;
+  const { proposta, atual } = await travarRotinaEReler(deps, input.propostaId, p.rotinaId);
+  if (jaDecidida(proposta.estado)) return { data: { rotina: atual, jaAplicada: true } };
+  if (atual.excluidoEm !== null || mudouDesdeAProposta(p.revisao, atual)) return recusarObsoleta(deps, proposta, atual, undefined);
+  await confirmarOuAbortar(deps, proposta.id);
+  const r = await EXECUTORES_ROTINAS["rotinas.executar"](deps, { rotinaId: atual.id, executor: input.executor, confirmar: true });
+  const events: RuntimeEvent[] = [...(r.events ?? [])];
+  const { decisao, sincronizar } = await fecharDecisaoDaProposta(deps, proposta.id, deps.agora(), undefined);
+  if (decisao) events.push(evento(deps, "decisao_decidida", autoriaDeQuemConfirma(deps, proposta.agenteId, undefined), { decisaoId: decisao.id, tipo: "rotina_execucao" }, { conversaId: atual.conversaId }), ...sincronizar);
+  return { data: { rotina: atual, jaAplicada: false, execucao: r.data }, events };
 };

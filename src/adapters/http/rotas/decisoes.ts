@@ -10,7 +10,7 @@ import type { Decisao } from "../../../contracts/decisao.ts";
 import type { Executor, RuntimeEvent } from "../../../contracts/evento.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import type { Escopo } from "../../../shared/types.ts";
-import { aplicarAtualizacaoRotina, aplicarExclusaoRotina, erroRotinaMudou } from "../../../use-cases/aplicar-proposta-rotina.ts";
+import { aplicarAtualizacaoRotina, aplicarExclusaoRotina, aplicarExecucaoRotina, erroRotinaMudou } from "../../../use-cases/aplicar-proposta-rotina.ts";
 import { erroPerfilMudou } from "../../../use-cases/confirmar-perfil.ts";
 import { confirmarProposta } from "../../../use-cases/confirmar-proposta.ts";
 import { decidirAcesso } from "../../../use-cases/decidir-acesso.ts";
@@ -290,7 +290,7 @@ export function criarRotasDecisoes(d: DepsRotasDecisoes): Rota[] {
           return;
         }
 
-        if (atual.tipo === "perfil" || atual.tipo === "rotina" ||atual.tipo === "rotina_atualizacao" || atual.tipo === "rotina_exclusao") {
+        if (atual.tipo === "perfil" || atual.tipo === "rotina" ||atual.tipo === "rotina_atualizacao" || atual.tipo === "rotina_exclusao" || atual.tipo === "rotina_execucao") {
           // Proposta confirmada por botão em "Sua vez": decisao.id === proposta.id (criar-rotina.ts, rotinas-do-agente.ts).
           // NOD-159/NOD-190: a rotina (ou o perfil) mudou depois da proposta — o caso recusou e avisou sem lançar; o erro
           // sai DEPOIS do commit.
@@ -321,6 +321,18 @@ export function criarRotasDecisoes(d: DepsRotasDecisoes): Rota[] {
               // acessos declarados dos apps conectados NESTA transação (conceder-acessos-da-rotina.ts).
               const rotina = await deps.tx((trx) => d.services.rotinas.ativar(trx, atual.id));
               ids.rotina = rotina.id;
+            } else if (atual.tipo === "rotina_execucao") {
+              // NOD-413: o "Rodar agora" do card roda pelo executor único do Testar agora (aplicarExecucaoRotina). Com o
+              // pré-voo parado (falta acesso), a resposta leva o motivo e o card que destrava, como a rota do Testar agora.
+              const r = await executar(deps, aplicarExecucaoRotina, { propostaId: atual.id, executor: d.executor ?? "catcher" });
+              ids.rotina = r.rotina.id;
+              if (r.execucao?.turnoId) ids.turnoId = r.execucao.turnoId;
+              if (r.execucao) ids.conversaId = r.execucao.conversaId;
+              if (r.execucao?.bloqueio) {
+                ids.bloqueada = r.execucao.bloqueio.motivo;
+                if (r.execucao.bloqueio.propostaId) ids.propostaId = r.execucao.bloqueio.propostaId;
+              }
+              obsoleta = r.obsoleta === true;
             } else if (atual.tipo === "rotina_atualizacao" || atual.tipo === "rotina_exclusao") {
               // A rotina já existe e tem id próprio: a ligação é payload.rotinaId, não a igualdade
               // de ids que 'rotina' (nascimento) usa. O caso aplica o payload JÁ normalizado (E7.1).

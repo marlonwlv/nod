@@ -1,4 +1,4 @@
-import type { PayloadProposta, PayloadPropostaRotinaAtualizacao, PayloadPropostaRotinaExclusao } from "../contracts/conversa.ts";
+import type { PayloadProposta, PayloadPropostaRotinaAtualizacao, PayloadPropostaRotinaExclusao, PayloadPropostaRotinaExecucao } from "../contracts/conversa.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { EstadoRotina, Rotina } from "../contracts/rotina.ts";
 import type { CasoNod, ContextoFerramenta } from "../contracts/servicos.ts";
@@ -105,7 +105,7 @@ async function propor(deps: Deps, input: ContextoFerramenta, payload: PayloadPro
   if (!proposta) throw new ErroDeDominio("estado_invalido", { cause: "proposta não criada" });
   const decisao = await deps.repos.decisoes.criar({
     id: proposta.id,
-    tipo: payload.kind === "rotina_exclusao" ? "rotina_exclusao" : "rotina_atualizacao",
+    tipo: payload.kind === "rotina_exclusao" || payload.kind === "rotina_execucao" ? payload.kind : "rotina_atualizacao",
     agenteId: input.agenteId,
     conversaId: input.conversaId,
     turnoId: input.turnoId,
@@ -203,6 +203,31 @@ export const excluirRotinaPeloAgente: CasoNod<Deps, "excluir_rotina"> = async (d
       if (aplicada.data.obsoleta) return obsoleta(events, aplicada.events);
       return { data: { proposta_id: proposta.id, resumo, aplicada: true }, events: [...semCard(events), ...(aplicada.events ?? [])] };
     }
+    return { data: { proposta_id: proposta.id, resumo }, events };
+  } catch (e) {
+    if (ehErroDeDominio(e)) return { data: { erro: e.codigo } };
+    throw e;
+  }
+};
+
+/**
+ * NOD-413: `executar_rotina` — "roda agora a rotina das 9h". Só PROPÕE, sempre: o risco é `pessoa_confirma`
+ * (src/domain/acoes/rotinas.ts), então nem o modo "Ignorar todas as aprovações" dispara sem o clique em "Rodar agora".
+ * Só rotina DESTE bot (rotinaDoAgente); a de um colega fica para a NOD-393. O clique roda pelo executor único do Testar
+ * agora (EXECUTORES_ROTINAS), em aplicarExecucaoRotina. Pedir de novo com o card ainda aberto devolve o mesmo card.
+ */
+export const executarRotinaPeloAgente: CasoNod<Deps, "executar_rotina"> = async (deps, input) => {
+  try {
+    const atual = await rotinaDoAgente(deps, input.agenteId, input.rotina_id);
+    const resumo = quandoDaRotina(atual);
+    const aberta = (await deps.repos.propostas.pendentesDaConversa(input.conversaId)).find((p) => p.payload.kind === "rotina_execucao" && p.payload.rotinaId === atual.id);
+    if (aberta) return { data: { proposta_id: aberta.id, resumo } };
+    const fila = await deps.repos.rotinaJanelas.turnoAberto(atual.id, deps.agora());
+    const payload: PayloadPropostaRotinaExecucao = {
+      kind: "rotina_execucao", rotinaId: atual.id, resumo, instrucao: atual.instrucao, revisao: revisaoAtual(atual),
+      ...(fila ? { naFila: { instanteAgendado: fila.instanteAgendado, fusoIana: atual.fusoIana } } : {}),
+    };
+    const { proposta, events } = await propor(deps, input, payload, `Rodar agora a rotina: ${resumo} — ${atual.instrucao}`);
     return { data: { proposta_id: proposta.id, resumo }, events };
   } catch (e) {
     if (ehErroDeDominio(e)) return { data: { erro: e.codigo } };
