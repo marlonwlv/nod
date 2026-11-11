@@ -546,6 +546,9 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     redesenhar: () => { if (aberta) desenharVista(); },
     redesenharLido: () => { if (aberta) redesenharQuandoLivre(); },
     log: () => vista()?.querySelector<HTMLElement>(".qd-trab-log") ?? null,
+    // QA do NOD-468: o log escrito no lugar (o passo novo, ao vivo) também segura o texto lido abaixo dele. Medido em
+    // 2026-11-11 a 390 (toque), sem isto: 21 px por passo com o log aberto acima do comentário lido.
+    escreverNoLog: (escrever) => segurarLeitura(escrever),
     // ADA-7 (revisão 8): o delta do log do trabalho também espera o dedo (o mesmo teto do redesenho).
     // O log não recria o campo do recado: só o gesto o segura.
     segura: (desde) => seguraGesto(desde),
@@ -671,6 +674,25 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   let releituraDesde = 0;
   let timerDetalhe: ReturnType<typeof setTimeout> | null = null;
   let detalheDesde = 0;
+
+  /**
+   * QA do NOD-468: a escrita ao vivo que muda um pedaço da tarefa aberta no lugar, sem o desenharVista (o log do
+   * trabalho), com a mesma âncora de leitura: fora do colado no fim e do alvo cortado da ADA-12, e com o gesto, que já
+   * segura a escrita, fora (quem chama só escreve com a tela livre).
+   */
+  function segurarLeitura(escrever: () => void): void {
+    const v = vista();
+    const conteudo = v?.querySelector<HTMLElement>(":scope > .qd-conteudo") ?? null;
+    const alvoDaCaixa = rol?.alvo("caixa");
+    const colada = alvoDaCaixa?.colado ?? (!!v && v.scrollHeight - v.clientHeight - v.scrollTop <= COLADO_PX);
+    const cortada = !!v && !!alvoDaCaixa && Math.abs(alvoDaCaixa.topo - v.scrollTop) > 1;
+    const ancora = v && conteudo && aberta && !colada && !cortada && v.scrollTop > 0 ? acharAncora(v, conteudo) : null;
+    escrever();
+    if (!v || !conteudo || !ancora) return;
+    const alvo = topoPelaAncora(ancora, v, conteudo);
+    const max = v.scrollHeight - v.clientHeight;
+    if (alvo !== null && alvo >= 0 && alvo <= max + 0.5 && Math.abs(v.scrollTop - alvo) > 0.5) { v.scrollTop = alvo; rolagemDoPrograma(v); rol?.aceitar(); }
+  }
 
   function desenharVista(): void {
     const vivo = aoVivo;
