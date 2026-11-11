@@ -15,10 +15,11 @@ import { direcaoDaTroca, ehModo, ADIAR_ATE_MS, ARRASTO_ATE_MS, ECO_DA_PESSOA_MS,
 import { comColunas, FAIXA_DO_PRAZO, fraseDoErroDeColuna, nomeRepetido, passoDeMover, comecaAoEntrar, porqueNaoRecebeCard, porqueNaoRemove, prazoEmMin, prazoLegivelMin, reciboDaResposta, reciboDeMover, saidaComErroDesiste, seletorDoFocoDaColuna, soltarEm, type EdicaoDeColuna, type Lado, type UnidadeDePrazo } from "./colunas.ts";
 import { ErroApi, ehRecusaDoServidor } from "./erro-api.ts";
 import { anunciarEm } from "./posicao-da-lista.ts";
-import { campoComFocoNoToque, criarGestoNaTela } from "./gesto-na-tela.ts";
-import { focarSemRolar, guardarRolagem, restaurarRolagem, seletorDoFocoDoCard } from "./rolagem-guardada.ts";
+import { campoComFocoNoToque, criarGestoNaTela, rolagemDoPrograma } from "./gesto-na-tela.ts";
+import { focarSemRolar, guardarRolagem, restaurarRolagem, seletorDoFocoDoCard, type RolagemGuardada } from "./rolagem-guardada.ts";
 import { criarAlvosDeRolagem, criarReservaDeAltura } from "./alvo-de-rolagem-na-tela.ts";
 import { COLADO_PX } from "./alvo-de-rolagem.ts";
+import { acharAncora, topoPelaAncora } from "./ancora-de-leitura.ts";
 import type { CamposDeLabel } from "../../src/contracts/quadro-labels.ts";
 import type { EntradaHistoricoDto, GrupoColuna, LinhaMuralDto, ModoConversa, QuadroDaPessoaDto, QuadroDto, TarefaDto } from "../../src/contracts/quadro.ts";
 import type { ConversaDto, RespostaMutacao } from "../../src/contracts/api.ts";
@@ -418,6 +419,12 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   let q: QuadroDto | null = null;
   let carga: "nada" | "carregando" | "ok" | "erro" = "nada";
   let aberta: string | null = null;
+  /**
+   * NOD-469: a rolagem do quadro (a caixa e a grade) no clique que abriu a tarefa, e a vista dela. Abrir troca a vista (a
+   * grade some) e fechar a desenhava com scrollLeft 0; o voltarAoQuadro a devolve. Só vale para a mesma página e forma, na
+   * mesma conversa e no mesmo quadro (a troca de bot ou de quadro com a tarefa aberta não a apaga).
+   */
+  let quadroAntesDaTarefa: { vista: string; de: string | null; quadro: string | null; rolagem: RolagemGuardada } | null = null;
   /** NOD-422 (PR 2): a tarefa aberta por link antes de o quadro chegar; a trilha sai quando ele chega (com o quadroId). */
   let trilhaPendente: string | null = null;
   let aberturaRegistrada = false;
@@ -545,6 +552,9 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     redesenhar: () => { if (aberta) desenharVista(); },
     redesenharLido: () => { if (aberta) redesenharQuandoLivre(); },
     log: () => vista()?.querySelector<HTMLElement>(".qd-trab-log") ?? null,
+    // QA do NOD-468: o log escrito no lugar (o passo novo, ao vivo) também segura o texto lido abaixo dele. Medido em
+    // 2026-11-11 a 390 (toque), sem isto: 21 px por passo com o log aberto acima do comentário lido.
+    escreverNoLog: (escrever) => segurarLeitura(escrever),
     // ADA-7 (revisão 8): o delta do log do trabalho também espera o dedo (o mesmo teto do redesenho).
     // O log não recria o campo do recado: só o gesto o segura.
     segura: (desde) => seguraGesto(desde),
@@ -671,6 +681,25 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   let timerDetalhe: ReturnType<typeof setTimeout> | null = null;
   let detalheDesde = 0;
 
+  /**
+   * QA do NOD-468: a escrita ao vivo que muda um pedaço da tarefa aberta no lugar, sem o desenharVista (o log do
+   * trabalho), com a mesma âncora de leitura: fora do colado no fim e do alvo cortado da ADA-12, e com o gesto, que já
+   * segura a escrita, fora (quem chama só escreve com a tela livre).
+   */
+  function segurarLeitura(escrever: () => void): void {
+    const v = vista();
+    const conteudo = v?.querySelector<HTMLElement>(":scope > .qd-conteudo") ?? null;
+    const alvoDaCaixa = rol?.alvo("caixa");
+    const colada = alvoDaCaixa?.colado ?? (!!v && v.scrollHeight - v.clientHeight - v.scrollTop <= COLADO_PX);
+    const cortada = !!v && !!alvoDaCaixa && Math.abs(alvoDaCaixa.topo - v.scrollTop) > 1;
+    const ancora = v && conteudo && aberta && !colada && !cortada && v.scrollTop > 0 ? acharAncora(v, conteudo) : null;
+    escrever();
+    if (!v || !conteudo || !ancora) return;
+    const alvo = topoPelaAncora(ancora, v, conteudo);
+    const max = v.scrollHeight - v.clientHeight;
+    if (alvo !== null && alvo >= 0 && alvo <= max + 0.5 && Math.abs(v.scrollTop - alvo) > 0.5) { v.scrollTop = alvo; rolagemDoPrograma(v); rol?.aceitar(); }
+  }
+
   function desenharVista(): void {
     const vivo = aoVivo;
     aoVivo = false;
@@ -748,6 +777,17 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     carregavaNoDesenho = !!aberta && coms.carregando();
     abertaCompletaNoDesenho = !!aberta && !coms.carregando() && !trabs.carregando() && !(dd?.api()?.historicoTarefa && histTarefa === null);
     const rolagem = mesmaVista ? guardarRolagem(v, conteudo) : null;
+    // NOD-468: na tarefa aberta, quem lê no meio (não colada no fim) fica com o mesmo texto no mesmo lugar: a âncora é o
+    // bloco no topo da vista, e o desenho novo compensa o que mudou de altura acima dele.
+    const coladaAntes = rol?.alvo("caixa")?.colado ?? (v.scrollHeight - v.clientHeight - v.scrollTop <= COLADO_PX && v.scrollTop > 0);
+    // Com o alvo da ADA-12 cortado (o conteúdo encolheu e o navegador limitou a rolagem), quem manda é o alvo: a âncora de
+    // agora seria um bloco do corte, e prendê-lo tiraria a vista do lugar quando o conteúdo voltasse.
+    const alvoDaCaixa = rol?.alvo("caixa");
+    const cortada = !!alvoDaCaixa && Math.abs(alvoDaCaixa.topo - v.scrollTop) > 1;
+    // Revisão 1: só no desenho ao vivo (o frame, a releitura). A regravação da pessoa (abrir os passos, responder, editar)
+    // muda o bloco que ela tocou, que pode cruzar o topo: a âncora abaixo dele levaria o que ela tocou para cima. Ali a
+    // posição fica com quem regravou (ADA-12, `esquecer`).
+    const ancora = doAlvo && !!aberta && !coladaAntes && !cortada && !seguirFim && v.scrollTop > 0 ? acharAncora(v, conteudo) : null;
     // Revisão 3: colada no fim segue o fim do desenho novo, sem reserva (a reserva a deixaria no branco até ela soltar).
     const alturaAntes = doAlvo && !rol?.alvo("caixa")?.colado ? reserva.antes(conteudo, v) : 0;
     vistaDesenhada = vistaAgora;
@@ -769,6 +809,12 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     atualizarPontos(conteudo);
     // ADA-12: o alvo vence o valor guardado (que pode ser o corte de um conteúdo que encolheu no desenho anterior).
     rol?.depois(doAlvo);
+    if (ancora && !cabiaInteira && !seguirFim) {
+      const alvo = topoPelaAncora(ancora, v, conteudo);
+      // A âncora que o conteúdo de agora não alcança (cortaria a rolagem) fica com a ADA-12 (o alvo e a reserva).
+      const max = v.scrollHeight - v.clientHeight;
+      if (alvo !== null && alvo >= 0 && alvo <= max + 0.5 && Math.abs(v.scrollTop - alvo) > 0.5) { v.scrollTop = alvo; rolagemDoPrograma(v); rol?.aceitar(); }
+    }
     if (cabiaInteira || seguirFim) v.scrollTop = v.scrollHeight;
     // ADA-7: o foco volta sem rolar (o título da tarefa aberta, recriado e focado, levava a vista ao topo).
     if (focoColuna) focarSemRolar(conteudo.querySelector<HTMLElement>(focoColuna));
@@ -2324,6 +2370,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // NOD-422: a trilha (tarefa_aberta pelo link) sai quando o quadro do agente chegar (o sincronizar).
     // NOD-445 (merge com o #627): a tarefa abre na página Tarefas da pílula, não na última página da vista (um app).
     const t = paginaDasTarefas();
+    // NOD-469: a tarefa aberta pelo link (do chat) não volta a uma rolagem guardada de outra abertura.
+    quadroAntesDaTarefa = null;
     if (modo !== "quadro") { marcarAberta(tarefaId, null); trocar("quadro", { pagina: t }); return; }
     // O irPara entre páginas da vista fecha a tarefa aberta: a pedida é marcada depois.
     if (pagina !== t) irPara(t);
@@ -2351,6 +2399,12 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   }
 
   function abrirTarefa(id: string, via: "card" | "link" = "link"): void {
+    // NOD-469: só a abertura a partir do quadro guarda (de uma tarefa para outra, a guarda do quadro continua a de antes).
+    if (!aberta) {
+      const v = vista();
+      const c = v?.querySelector<HTMLElement>(":scope > .qd-conteudo");
+      quadroAntesDaTarefa = v && c && vistaDesenhada ? { vista: vistaDesenhada, de: chave, quadro: q?.id ?? null, rolagem: guardarRolagem(v, c) } : null;
+    }
     marcarAberta(id, via);
     desenharVista();
     doc.getElementById("qd-t-tit")?.focus();
@@ -2385,8 +2439,28 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     dd?.naUrl?.(null);
     coms.fechar();
     trabs.fechar();
+    const antes = quadroAntesDaTarefa;
+    quadroAntesDaTarefa = null;
     desenharVista();
-    if (id) vista()?.querySelector<HTMLElement>(`.qd-conteudo [data-act="abrir-tarefa"][data-id="${CSS.escape(id)}"]`)?.focus();
+    const v = vista();
+    const c = v?.querySelector<HTMLElement>(":scope > .qd-conteudo");
+    // NOD-469: a mesma vista de antes de abrir (página e forma, na mesma conversa e quadro) volta à rolagem guardada; o
+    // foco no card não rola (ADA-7).
+    if (v && c && antes && antes.vista === vistaDesenhada && antes.de === chave && antes.quadro === (q?.id ?? null)) restaurarRolagem(v, c, antes.rolagem);
+    const card = id ? v?.querySelector<HTMLElement>(`.qd-conteudo [data-act="abrir-tarefa"][data-id="${CSS.escape(id)}"]`) : null;
+    focarSemRolar(card);
+    // Revisão do NOD-469 (a11y): o card fora da vista (a tarefa aberta pelo link, ou que mudou de coluna aberta) vem até
+    // ela; o que já está à vista, mesmo cortado na borda, não rola (a rolagem devolvida fica).
+    if (card && v && foraDaVista(card, [v, card.closest<HTMLElement>(".qd-grade, .pg-colunas, .qd-cel-cols")])) card.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }
+
+  /** O elemento não aparece em nenhum pedaço de alguma das caixas que o cortam (nem da janela). */
+  function foraDaVista(el: HTMLElement, caixas: (HTMLElement | null)[]): boolean {
+    const r = el.getBoundingClientRect();
+    const janela = doc.defaultView;
+    const fora = (b: { left: number; right: number; top: number; bottom: number }): boolean => r.right <= b.left || r.left >= b.right || r.bottom <= b.top || r.top >= b.bottom;
+    if (janela && fora({ left: 0, top: 0, right: janela.innerWidth, bottom: janela.innerHeight })) return true;
+    return caixas.some((c) => !!c && fora(c.getBoundingClientRect()));
   }
 
   function mostrar(els: HTMLElement[]): void {

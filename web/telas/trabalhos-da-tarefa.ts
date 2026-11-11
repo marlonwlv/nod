@@ -62,9 +62,15 @@ export type VistaDoTrabalho = {
   ocupado: boolean;
 };
 
+/**
+ * ADA-10: o número que a pessoa vê é a sessão do bot na tarefa, não o gatilho: as etapas seguidas do mesmo bot repetem o
+ * número (a mesma sessão, com o contexto carregado). O DTO de um servidor de antes da 0165 não traz `sessao`: vale o número.
+ */
+export const numeroNaTela = (e: Pick<ExecucaoDto, "numero"> & Partial<Pick<ExecucaoDto, "sessao">>): number => e.sessao ?? e.numero;
+
 /** A frase do anúncio de estado (a mesma palavra da linha do trabalho). */
-export const anuncioDoTrabalho = (e: Pick<ExecucaoDto, "numero" | "estado" | "esperando">): string =>
-  `Trabalho #${e.numero}: ${e.esperando ? "esperando" : NOME_DO_ESTADO[e.estado] ?? e.estado}`;
+export const anuncioDoTrabalho = (e: Pick<ExecucaoDto, "numero" | "estado" | "esperando"> & Partial<Pick<ExecucaoDto, "sessao">>): string =>
+  `Trabalho #${numeroNaTela(e)}: ${e.esperando ? "esperando" : NOME_DO_ESTADO[e.estado] ?? e.estado}`;
 
 const ultimaLinha = (t: string | null | undefined): string => (t ?? "").trim().split("\n").map((l) => l.trim()).filter(Boolean).pop() ?? "";
 
@@ -88,8 +94,10 @@ export function logDoTrabalho(e: ExecucaoDto, a: AtividadeTurno | undefined, abe
 
 function linhaDoTrabalho(e: ExecucaoDto, hora: (em: number) => string): string {
   const tentativa = e.origem === "automatica" && e.tentativa ? ` · Nova tentativa ${e.tentativa} de ${TENTATIVAS_MAX}` : e.numero > 1 ? ` · ${esc(NOME_DA_ORIGEM[e.origem] ?? e.origem)}` : "";
+  // ADA-10: a etapa do gatilho ("#3 · Plano de engenharia · concluído"); a linha de antes da 0165 não tem.
+  const etapa = e.colunaNome ? ` · ${esc(e.colunaNome)}` : "";
   return `<span class="qd-trab-selo" data-estado="${e.estado}" aria-hidden="true">${SELO_DO_ESTADO[e.estado]}</span>` +
-    `<span class="qd-trab-est">#${e.numero} · ${esc(e.esperando ? "esperando" : NOME_DO_ESTADO[e.estado] ?? e.estado)}${tentativa}</span>` +
+    `<span class="qd-trab-est">#${numeroNaTela(e)}${etapa} · ${esc(e.esperando ? "esperando" : NOME_DO_ESTADO[e.estado] ?? e.estado)}${tentativa}</span>` +
     `<time class="qd-trab-hora" datetime="${new Date(e.criadoEm).toISOString()}">${esc(hora(e.criadoEm))}</time>`;
 }
 
@@ -119,7 +127,7 @@ export function fraseDaVolta(v: NonNullable<ExecucaoDto["volta"]>, hora: (em: nu
 
 export function secaoDoTrabalho(v: VistaDoTrabalho, hora: (em: number) => string): string {
   const titulo = `<h2 class="qd-t-sec" id="qd-trab-tit">Execuções</h2>`;
-  const abre = `<section class="qd-trab" aria-labelledby="qd-trab-tit" data-tarefa="${esc(v.tarefaId)}">${titulo}`;
+  const abre = `<section class="qd-trab" data-ancora="trab" aria-labelledby="qd-trab-tit" data-tarefa="${esc(v.tarefaId)}">${titulo}`;
   if (v.erro) return `${abre}<p class="qd-trab-nota">Não consegui ler os trabalhos · <button type="button" class="qd-link" data-act="trab-reler">Tentar de novo</button></p></section>`;
   if (!v.dados) return `${abre}<p class="qd-trab-nota">Lendo…</p></section>`;
   const d = v.dados;
