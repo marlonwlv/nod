@@ -204,11 +204,12 @@ function formasDoTexto(texto: string, windows: boolean): string[] {
   if (!windows) return formas;
   // Revisão do PR #7 (médio 1): no Git Bash a `\` entre aspas duplas fica e é pasta (`"C:\Users\bia\.a"$'w'"s\…"`): a forma
   // decodificada também com as barras viradas.
-  formas.push(ansiC.replace(/\\/g, "/"), semEscape.replace(/\\/g, "/"));
+  // QA do PR #7: elas entram no laço do Win32 (ponto final e fluxo do NTFS aparados), como as outras.
+  const decodificadasComBarra = [ansiC.replace(/\\/g, "/"), semEscape.replace(/\\/g, "/")];
   const todas = texto.replace(/\\ /g, " ").replace(/`(?=\S| )/g, "").replace(/\\/g, "/");
   // Revisão 13 do PR #642 (médio 1): o `^` é o escape do cmd (`.a^ws`, `^cmdkey`) — também sem ele.
   const semCircunflexo = todas.replace(/\^(.)/g, "$1");
-  for (const x of [todas, todas.replace(/["']/g, ""), semCircunflexo, semCircunflexo.replace(/["']/g, ""), semEscape]) {
+  for (const x of [todas, todas.replace(/["']/g, ""), semCircunflexo, semCircunflexo.replace(/["']/g, ""), semEscape, ...decodificadasComBarra]) {
     const aparado = x.replace(/(?<=[^/\s.])[. ]+(?=\/)/g, "").replace(/(?<=[^/\s.])\.+(?=$|[\s"';|&)])/g, "");
     // Revisão 12 do PR #642 (alto B): o fluxo também no meio do caminho (`.aws::$INDEX_ALLOCATION/credentials`,
     // `.aws:$I30:$INDEX_ALLOCATION`).

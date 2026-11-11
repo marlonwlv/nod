@@ -410,4 +410,25 @@ describe("guarda de credencial: aspas ANSI-C e $\"…\" (NOD-470)", () => {
     expect(tocaCredencial(`cat "$USERPROFILE\\.a"$'w'"s\\credentials"`, { windows: true })).toBe(true);
     expect(tocaCredencial(`cat "$USERPROFILE\\.ss"$'\\x68'"\\config"`, { windows: true })).toBe(true);
   });
+  // QA do PR #7: no win32 o `$'…'` não pode perder o ponto final e o fluxo do NTFS que o Win32 apara — `"…\.a"w"s.\…"` já
+  // era pego, `"…\.a"$'w'"s.\…"` passava.
+  it.each([
+    `cat "C:\\Users\\bia\\.a"$'w'"s.\\credentials"`,
+    `cat "C:\\Users\\bia\\.a"$'w'"s::$DATA\\credentials"`,
+    `cat "\${x:-~/.a$'w's./credentials}"`,
+  ])("no win32, $'…' com o ponto ou o fluxo que o Win32 apara: %s", (comando) => {
+    expect(tocaCredencial(comando, { windows: true })).toBe(true);
+  });
+  // QA do PR #7: mutantes que sobreviviam.
+  it("octal acima de \\377 fica com o byte de baixo, como o bash ($'\\567' é w)", () => {
+    expect(tocaCredencial("cat ~/.a$'\\567's/credentials")).toBe(true);
+    expect(tocaCredencial("cat ~/.a$'\\567's/credentials", { windows: true })).toBe(true);
+    expect(comoOBashLe("$'\\c1\\c.'")).toBe("\x11\x0e");
+  });
+  it("o cofre como programa com $'…' dentro de \"$(…)\"", () => {
+    expect(tocaCredencial(`echo "$(git $'credential' fill)"`)).toBe(true);
+  });
+  it("no win32, a \\ de escape fora das aspas num caminho com \\ entre aspas e ponto final", () => {
+    expect(tocaCredencial(`cat "C:\\Users\\bia\\.a"\\w"s.\\credentials"`, { windows: true })).toBe(true);
+  });
 });
