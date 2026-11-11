@@ -17,7 +17,7 @@ import type { Deps } from "./tipos.ts";
 import type { TrabalhoFeito } from "./quadro.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { registrarConsultaDoQuadro } from "./trilha-quadro.ts";
-import { codigoDoPasso, fraseParaPessoa, indiceDaRecusa, type ErroDoQuadro } from "../domain/recusa-do-quadro.ts";
+import { codigoDoPasso, faltouOBot, fraseParaPessoa, indiceDaRecusa, type ErroDoQuadro } from "../domain/recusa-do-quadro.ts";
 import { OPS_QUADROS_DO_BOT, OPS_QUADROS_DO_BOT_DA_PESSOA } from "../contracts/quadros-do-bot.ts";
 import { lerOpQuadrosDoBot } from "../domain/quadros-do-bot.ts";
 import { aplicarQuadrosDoBot } from "./quadros-do-bot.ts";
@@ -194,7 +194,7 @@ export async function gerirQuadroEmFases(deps: Deps, input: EntradaGerirQuadro, 
   const turno = achado && achado.agenteId === input.agenteId ? achado : null;
   const jaCitou = codigo !== null && turno !== null && naConversa(turno)
     && (await deps.repos.mensagens.falasDaPessoaNoTurno(turno.id, turno.conversaId)).some((f) => citaTarefa(f.texto, { codigo, linearId: null }));
-  const frase = fraseParaPessoa(r.data.erro as ErroDoQuadro, codigo, jaCitou);
+  const frase = fraseParaPessoa(r.data.erro as ErroDoQuadro, codigo, jaCitou, faltouOBot(r.data.instrucao));
   if (turno) {
     await deps.repos.trilha.registrar({ agenteId: input.agenteId, turnoId: turno.id, conectorId: null, ferramenta: "gerir_quadro", kind: "negacao", motivo: "alcance_insuficiente", regra: REGRA_QUADRO_RECUSOU, regraVersao: 1, em: deps.agora() });
   }

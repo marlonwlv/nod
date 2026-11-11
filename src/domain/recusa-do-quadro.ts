@@ -36,11 +36,19 @@ export function indiceDaRecusa(instrucao: string): number | null {
 }
 
 /**
+ * O que o `nao_encontrado` não achou: o bot do passo (resolverAgenteDoQuadro) ou a tarefa. QA do PR #8: o bot que não
+ * existe virava "Não achei a ADA-17 no quadro; confira o código da tarefa", com a tarefa lá.
+ */
+export function faltouOBot(instrucao: string): boolean {
+  return /^(ação \d+: )?bot "[^"]*" não encontrado/.test(instrucao);
+}
+
+/**
  * A frase para a pessoa; null = a recusa já tem instrução própria (a importação do Linear). `jaCitou` = a fala dela
  * neste turno já cita a tarefa (revisão do PR #8): pedir de novo citando o código não resolve, e era o defeito de 03/11
  * ("peça à pessoa na conversa" para quem já estava pedindo); o caminho que sobra é mudar direto no quadro.
  */
-export function fraseParaPessoa(erro: ErroDoQuadro, codigo: string | null, jaCitou = false): string | null {
+export function fraseParaPessoa(erro: ErroDoQuadro, codigo: string | null, jaCitou = false, semOBot = false): string | null {
   const alvo = codigo ? `a ${codigo}` : "isso";
   switch (erro) {
     case "nao_permitido":
@@ -58,6 +66,7 @@ export function fraseParaPessoa(erro: ErroDoQuadro, codigo: string | null, jaCit
     case "sem_quadro":
       return "Ainda não há quadro aqui; se quiser, me peça para criar um.";
     case "nao_encontrado":
+      if (semOBot) return `Não achei esse bot no quadro; me diga o nome de um dos bots dele para ${codigo ? `a ${codigo}` : "a tarefa"}.`;
       return codigo ? `Não achei a ${codigo} no quadro; confira o código da tarefa.` : "Não achei essa tarefa no quadro; me diga o código dela (ex.: ADA-17).";
     default:
       return null;
