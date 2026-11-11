@@ -35,8 +35,11 @@ const ATRIBUICAO = new RegExp(`(${NOME_COMPOSTO}["']?)(\\s*[:=]\\s*)(["']?)${VAL
 const FLAG = new RegExp(`(--(?:[a-z0-9]+-)*${NOME_DE_SEGREDO}(?:-[a-z0-9]+)*)([= ])(["']?)[^\\s"']+`, "gi");
 /** O nome sozinho seguido de um valor longo (`token abc…`, `aws_secret_access_key abc…`), como o `redigir` da linha do tempo. */
 const NOME_E_VALOR_LONGO = new RegExp(`(${NOME_COMPOSTO})(\\s+)[A-Za-z0-9._~+/=-]{16,}`, "gi");
-/** A senha como opção curta da linha de comando: `mysql -pX`, `sshpass -p X`, `redis-cli -a X`, `curl -u user:senha`. */
-const SENHA_NA_OPCAO = /(\bmysql(?:dump|admin)?\b[^|;&]*?\s-p)(\S+)|(\bsshpass\s+-p\s*)(\S+)|(\bredis-cli\b[^|;&]*?\s-a\s+)(\S+)|(\s(?:-u|--user)[= ]?\s*[^\s:]+:)(\S+)/g;
+/**
+ * A senha como opção curta da linha de comando: `mysql -pX`, `sshpass -p X`, `redis-cli -a X`, `curl -u user:senha`,
+ * `docker login -p X` (QA do PR #16: o do docker passava inteiro).
+ */
+const SENHA_NA_OPCAO = /(\bmysql(?:dump|admin)?\b[^|;&]*?\s-p)(\S+)|(\bsshpass\s+-p\s*)(\S+)|(\bredis-cli\b[^|;&]*?\s-a\s+)(\S+)|(\s(?:-u|--user)[= ]?\s*[^\s:]+:)(\S+)|(\b(?:docker|podman)\s+login\b[^|;&]*?\s-p\s*)(\S+)/g;
 /** `CHAVE=valor` de env (nome em maiúsculas, como `export OPENAI_API_KEY=…` ou `PGPASSWORD=… psql`). */
 const ENV = /\b([A-Z][A-Z0-9_]{2,})=("[^"]*"|'[^']*'|\S+)/g;
 /** Candidato a trecho longo de base64/hex; quem decide é `pareceSegredo` (um caminho comprido não é segredo). */
@@ -73,7 +76,7 @@ export function redigirResumo(texto: string, max: number): string {
     .replace(CHAVES_CONHECIDAS, TAPADO)
     .replace(JWT, TAPADO)
     .replace(BEARER, `$1$2${TAPADO}`)
-    .replace(SENHA_NA_OPCAO, (_m, a1, _v1, a2, _v2, a3, _v3, a4) => `${a1 ?? a2 ?? a3 ?? a4}${TAPADO}`)
+    .replace(SENHA_NA_OPCAO, (_m, a1, _v1, a2, _v2, a3, _v3, a4, _v4, a5) => `${a1 ?? a2 ?? a3 ?? a4 ?? a5}${TAPADO}`)
     .replace(FLAG, `$1$2$3${TAPADO}`)
     .replace(ATRIBUICAO, `$1$2$3${TAPADO}`)
     .replace(NOME_E_VALOR_LONGO, `$1$2${TAPADO}`)
