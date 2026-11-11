@@ -1,0 +1,6 @@
+# Quem revisa o quê. O GitHub pede a revisão dessas pessoas sozinho em todo PR,
+# inclusive nos que vêm de fork, onde quem abre não consegue escolher revisor.
+*                   @marlonwlv
+
+# Mudanças em CI, release e segredos sempre passam pela mantenedoria.
+/.github/           @marlonwlv
