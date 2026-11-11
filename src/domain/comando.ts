@@ -70,6 +70,15 @@ export function comoOBashLe(texto: string): string {
     if (aspas === "'") {
       if (c === "'") aspas = "";
       else saida += c;
+    } else if (aspas === "" && c === "$" && texto[i + 1] === "'") {
+      // NOD-470: `$'…'` (aspas ANSI-C) — o bash decodifica os escapes (`$'\x61ws'`, `$'\141ws'`) antes de abrir o arquivo.
+      const { texto: decodificado, fim } = lerAnsiC(texto, i + 2);
+      saida += decodificado;
+      i = fim;
+    } else if (aspas === "" && c === "$" && texto[i + 1] === '"') {
+      // NOD-470: `$"…"` (tradução de locale) — sem catálogo, o bash entrega o próprio texto, como `"…"`.
+      aspas = '"';
+      i++;
     } else if (c === "\\" && i + 1 < texto.length) {
       const prox = texto[i + 1]!;
       if (aspas === '"' && !/[$`"\\\n]/.test(prox)) {
@@ -83,6 +92,55 @@ export function comoOBashLe(texto: string): string {
     } else saida += c;
   }
   return saida;
+}
+
+/**
+ * NOD-470: o miolo de `$'…'` como o bash o decodifica (manual do bash, "ANSI-C Quoting"), a partir de `inicio` (logo
+ * depois de `$'`). Devolve o texto e o índice da `'` que fecha (ou o fim do texto, se não fechar). Escape desconhecido
+ * fica com a `\`, como no bash; o NUL (`\0`, `\x00`, `\c@`) corta o resto da string.
+ */
+const ESCAPES_ANSI_C: Record<string, string> = { a: "\x07", b: "\b", e: "\x1b", E: "\x1b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v", "\\": "\\", "'": "'", '"': '"', "?": "?" };
+function lerAnsiC(texto: string, inicio: number): { texto: string; fim: number } {
+  let saida = "";
+  let cortado = false;
+  let i = inicio;
+  const por = (s: string) => { if (s === "\0") cortado = true; if (!cortado) saida += s; };
+  const digitos = (re: RegExp, max: number, de: number): string => {
+    let d = "";
+    while (d.length < max && de + d.length < texto.length && re.test(texto[de + d.length]!)) d += texto[de + d.length]!;
+    return d;
+  };
+  for (; i < texto.length; i++) {
+    const c = texto[i]!;
+    if (c === "'") break;
+    if (c !== "\\" || i + 1 >= texto.length) { por(c); continue; }
+    const e = texto[i + 1]!;
+    if (e in ESCAPES_ANSI_C) { por(ESCAPES_ANSI_C[e]!); i++; continue; }
+    if (/[0-7]/.test(e)) {
+      const d = digitos(/[0-7]/, 3, i + 1);
+      por(String.fromCharCode(parseInt(d, 8) & 0xff));
+      i += d.length;
+      continue;
+    }
+    const hex = e === "x" ? 2 : e === "u" ? 4 : e === "U" ? 8 : 0;
+    if (hex > 0) {
+      const d = digitos(/[0-9a-fA-F]/, hex, i + 2);
+      if (d === "") { por("\\" + e); i++; continue; }
+      const n = parseInt(d, 16);
+      por(n === 0 ? "\0" : n <= 0x10ffff ? String.fromCodePoint(n) : "");
+      i += 1 + d.length;
+      continue;
+    }
+    if (e === "c" && i + 2 < texto.length) {
+      const x = texto[i + 2]!;
+      por(x === "?" ? "\x7f" : String.fromCharCode(x.toUpperCase().charCodeAt(0) & 0x1f));
+      i += 2;
+      continue;
+    }
+    por("\\" + e);
+    i++;
+  }
+  return { texto: saida, fim: i };
 }
 
 /** `windows`: a máquina que roda o comando é win32 (o hook e o executor sabem; o servidor, não, e fica com o texto). */
@@ -286,7 +344,9 @@ const QUAL_CREDENCIAL: readonly (readonly [RegExp, string])[] = [
 
 export function qualCredencial(texto: string): string | null {
   if (!tocaCredencial(texto)) return null;
-  for (const [re, nome] of QUAL_CREDENCIAL) if (re.test(texto) || new RegExp(re.source, "i").test(barras(texto)) || new RegExp(re.source, "i").test(semAspas(texto))) return nome;
+  // NOD-470: também como o bash lê (`gh auth $'token'` é "o token do GitHub", não "uma credencial").
+  const comoLe = comoOBashLe(texto);
+  for (const [re, nome] of QUAL_CREDENCIAL) if (re.test(texto) || re.test(comoLe) || new RegExp(re.source, "i").test(barras(texto)) || new RegExp(re.source, "i").test(semAspas(texto))) return nome;
   if (tocaChaveDoNod(texto)) return "a chave do nod nesta máquina";
   return "uma credencial";
 }

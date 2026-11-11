@@ -327,3 +327,54 @@ describe("git credential-<helper> get", () => {
     expect(tocaCredencial(`git credential-cache exit`)).toBe(false);
   });
 });
+
+// NOD-470: as aspas ANSI-C (`$'…'`, com escapes) e o `$"…"` do bash não furam a guarda, no Linux e no win32 (Git Bash).
+describe("guarda de credencial: aspas ANSI-C e $\"…\" (NOD-470)", () => {
+  it.each([
+    "gh auth $'token'",
+    "cat ~/.a$'w's/credentials",
+    `cat ~/.a$"w"s/credentials`,
+    "cat ~/.$'\\x61'ws/credentials",
+    "cat ~/.$'\\141'ws/credentials",
+    "cat ~/.$'\\u0061'ws/credentials",
+    "cat ~/.$'\\U00000061'ws/credentials",
+    "gh auth $'tok\\145n'",
+    "gh auth $'tok\\x65n'",
+    "cat ~/$'\\x2e'ssh/id_ed25519",
+    "cat ~$'\\x2f'.aws/credentials",
+    "cat ~/.config/g$'h'/hosts.yml",
+    "cat ~/.config/nod-motor/con$'exao.json'",
+  ])("pega nas duas plataformas: %s", (comando) => {
+    expect(tocaCredencial(comando)).toBe(true);
+    expect(tocaCredencial(comando, { windows: true })).toBe(true);
+  });
+  it("diz o que é a credencial", () => {
+    expect(qualCredencial("gh auth $'token'")).toBe("o token do GitHub");
+    expect(qualCredencial("cat ~/.a$'w's/credentials")).toBe("as credenciais da AWS");
+    expect(qualCredencial(`cat ~/.a$"w"s/credentials`)).toBe("as credenciais da AWS");
+  });
+  it.each([`printf $'a\\tb\\n'`, `echo $'\\n'`, `rg "$'aws'" src`, `echo $'olá'`, `echo $"ok"`])("o que não toca credencial segue livre: %s", (comando) => {
+    expect(tocaCredencial(comando)).toBe(false);
+  });
+  it("comoOBashLe decodifica $'…' como o bash", () => {
+    expect(comoOBashLe("$'a\\tb'")).toBe("a\tb");
+    expect(comoOBashLe("$'\\a\\b\\e\\E\\f\\n\\r\\v'")).toBe("\x07\b\x1b\x1b\f\n\r\v");
+    expect(comoOBashLe("$'\\\\\\'\\\"\\?'")).toBe(`\\'"?`);
+    expect(comoOBashLe("$'\\141\\1411'")).toBe("aa1");
+    expect(comoOBashLe("$'\\x41\\x4142'")).toBe("AA42");
+    expect(comoOBashLe("$'\\u00e9\\U0001F600'")).toBe("é😀");
+    expect(comoOBashLe("$'\\cA\\c?'")).toBe("\x01\x7f");
+    expect(comoOBashLe("$'\\xzz'")).toBe("\\xzz");
+    expect(comoOBashLe("$'\\q'")).toBe("\\q");
+    expect(comoOBashLe("$'ab\\0cd'ef")).toBe("abef");
+    expect(comoOBashLe("$'ab\\x00cd'ef")).toBe("abef");
+    expect(comoOBashLe("$'sem fim")).toBe("sem fim");
+    expect(comoOBashLe(`$"a\\$b"`)).toBe("a$b");
+  });
+  it("dentro de aspas e depois de \\ o $ continua literal", () => {
+    expect(comoOBashLe(`"$'x'"`)).toBe("$'x'");
+    expect(comoOBashLe(`'$"x"'`)).toBe(`$"x"`);
+    expect(comoOBashLe("\\$'x'")).toBe("$x");
+    expect(comoOBashLe(`"a$"b`)).toBe("a$b");
+  });
+});
