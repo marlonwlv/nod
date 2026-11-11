@@ -6,11 +6,11 @@ import { COLUNAS_PADRAO, colunasDto } from "../../../src/domain/colunas.ts";
 import { alturaDoTeclado, ligarTecladoVisivel } from "../../../web/lib/teclado-visivel.ts";
 import { casaNaBusca, folhaDeAjustes, folhaDeCancelar, folhaDeStatus, folhaDoBranch, folhaDoResponsavel } from "../../../web/telas/folhas-da-tarefa.ts";
 import { tarefaAberta } from "../../../web/telas/quadro-real.ts";
-import { LIMITE_COMENTARIO } from "../../../web/telas/comentarios-tarefa.ts";
+import { LIMITE_COMENTARIO } from "../../../web/telas/linha-do-tempo.ts";
 import { engolirCliqueDoToque, focaveisVisiveis } from "../../../web/lib/folha-gestos.ts";
 import { confiar } from "../../../web/telas/quadro.ts";
 import {
-  PRAZO_DA_TAREFA, bandejaDeChips, fimDaTrocaCel, citacaoDe, composerDaTarefa, linhaDaExecucao, linhaDoTempo, separarExecucoes, tarefaAbertaCelular, textoDaResposta, trechoDe,
+  bandejaDeChips, fimDaTrocaCel, citacaoDe, composerDaTarefa, linhaDaExecucao, linhaDoTempo, separarExecucoes, tarefaAbertaCelular, textoDaResposta, trechoDe,
   type VistaDaTarefaCelular,
 } from "../../../web/telas/tarefa-celular.ts";
 import type { VistaDoTrabalho } from "../../../web/telas/trabalhos-da-tarefa.ts";
@@ -20,7 +20,7 @@ import type { VistaDoTrabalho } from "../../../web/telas/trabalhos-da-tarefa.ts"
 const MAL = `<img src=x onerror="alert(1)">"'&`;
 const t = (extra: Partial<TarefaDto> = {}): TarefaDto => ({
   id: "t1", quadroId: "q1", titulo: "Tarefa um", descricao: "", status: "fazendo", voltarPara: null, agenteId: "a", ordem: 1, linearId: null, linearUrl: null, prUrl: null,
-  pergunta: null, resposta: null, deFora: false, turnoId: null, criadoEm: 1_000, mudadoEm: 1_000, terminadaEm: null, execucao: null, agenteNome: "Vera", numero: 1, codigo: "VER-1", branch: "", ...extra,
+  pergunta: null, resposta: null, deFora: false, turnoId: null, criadoEm: 1_000, mudadoEm: 1_000, terminadaEm: null, execucao: null, agenteNome: "Vera", numero: 1, prioridade: "sem", codigo: "VER-1", branch: "", ...extra,
 });
 const q = (extra: Partial<QuadroDto> = {}): QuadroDto => ({
   id: "q1", agenteId: "a", nome: null, projetoId: null, prefixo: "VER", modoConversa: "individual", meta: "Meta", prazo: null, cumpridoEm: null, resumo: null, criadoEm: 1, atualizadoEm: 1, metaDesde: 1, agenteNome: "Vera",
@@ -47,14 +47,13 @@ describe("ADA-17: a tarefa aberta no celular", () => {
     expect(h).toContain('class="qd-tarefa qd-tarefa-cel"');
     expect(h).toMatch(/<h1 class="qd-t-tit" id="qd-t-tit" tabindex="-1">Tarefa um<\/h1>/);
     expect(h).toContain('<span class="qd-id">VER-1</span>');
-    expect(h).toContain('<div class="qd-t-desc">Fazer X</div>');
+    expect(h).toContain('<div class="qd-t-desc" data-ancora="desc">Fazer X</div>');
     expect(h).not.toContain("<select");
     expect(h).not.toContain("qd-t-lado");
     expect(h).toContain('data-titulo="VER-1 · Tarefa um"');
   });
 
-  it("critério 2: a bandeja tem Status, Responsável e Ajustes; Branch só com branch; Prazo atrás da flag desligada (S1)", () => {
-    expect(PRAZO_DA_TAREFA).toBe(false);
+  it("critério 2: a bandeja tem Status, Responsável e Ajustes; Branch só com branch (o prazo mora na seção de labels e prazo, 0161)", () => {
     const sem = bandejaDeChips(v());
     expect(sem).toContain('id="qd-t-status"');
     expect(sem).toContain('data-folha="status"');
@@ -69,10 +68,10 @@ describe("ADA-17: a tarefa aberta no celular", () => {
     expect(sem).toMatch(/aria-label="Responsável: Vera"/);
   });
 
-  it("critério 2: a troca otimista aparece no chip antes de voltar; em Precisa de você o responsável é Você", () => {
+  it("critério 2: a troca otimista aparece no chip antes de voltar; a tarefa que espera você segue com o bot (ADR-162)", () => {
     expect(bandejaDeChips(v({ otimista: { status: "revisao" } }))).toContain("Status: Em revisão");
     expect(bandejaDeChips(v({ otimista: { agente: null } }))).toContain("Sem responsável");
-    expect(bandejaDeChips(v({ t: t({ status: "voce" }) }))).toContain("Responsável: Você");
+    expect(bandejaDeChips(v({ t: t({ status: "fazendo", esperaPessoa: true }) }))).toContain("Responsável: Vera");
     expect(bandejaDeChips(v({ responsaveis: undefined }))).toMatch(/id="qd-t-resp"[^>]* disabled/);
   });
 
@@ -165,16 +164,16 @@ describe("ADA-17: as folhas", () => {
     expect(f).not.toContain("<img");
   });
 
-  it("responsável: Sem responsável, os bots, busca acima de 6, Você em Precisa de você", () => {
+  it("responsável: Sem responsável, os bots, busca acima de 6; sem o \"Você\" de Precisa de você (ADR-162)", () => {
     const bots = [{ id: "a", nome: "Vera" }, { id: "b", nome: "Bia" }];
     const f = folhaDoResponsavel({ status: "fazendo", agenteId: "a", agenteNome: "Vera" }, bots);
     expect(f).toMatch(/aria-checked="true" data-folha-acao="agente" data-valor="a"/);
     expect(f).not.toContain("data-folha-busca");
     const muitos = Array.from({ length: 7 }, (_, i) => ({ id: `b${i}`, nome: `Bot ${i}` }));
     expect(folhaDoResponsavel({ status: "fazendo", agenteId: null, agenteNome: null }, muitos)).toContain("data-folha-busca");
-    const voce = folhaDoResponsavel({ status: "voce", agenteId: "a", agenteNome: "Vera" }, bots);
-    expect(voce).toContain(">Você<");
-    expect(voce).not.toMatch(/aria-checked="true" data-folha-acao="agente"/);
+    const espera = folhaDoResponsavel({ status: "fazendo", agenteId: "a", agenteNome: "Vera" }, bots);
+    expect(espera).not.toContain(">Você<");
+    expect(espera).toMatch(/aria-checked="true" data-folha-acao="agente" data-valor="a"/);
     expect(casaNaBusca("Júlia", "jul")).toBe(true);
     expect(casaNaBusca("Vera", "bia")).toBe(false);
     expect(casaNaBusca("Vera", "  ")).toBe(true);
@@ -277,7 +276,7 @@ describe("ADA-17: QA do PR #699", () => {
     expect(String(tarefaAbertaCelular(v({ t: t({ status: "feito" }), naoSalvou: "status" })))).toContain("Não salvou. Voltou para Feito.");
     expect(String(tarefaAbertaCelular(v({ naoSalvou: "resp" })))).toContain("Não salvou. Continua com Vera.");
     expect(String(tarefaAbertaCelular(v({ t: t({ agenteId: null }), naoSalvou: "resp" })))).toContain("Não salvou. Continua sem responsável.");
-    expect(String(tarefaAbertaCelular(v({ t: t({ status: "voce" }), naoSalvou: "resp" })))).toContain("Não salvou. Continua com Você.");
+    expect(String(tarefaAbertaCelular(v({ t: t({ status: "fazendo", esperaPessoa: true }), naoSalvou: "resp" })))).toContain("Não salvou. Continua com Vera.");
   });
 
   it("a folha do responsável marca só o atual; sem responsável, marca \"Sem responsável\"", () => {
@@ -352,5 +351,31 @@ describe("ADA-17: o CSS do celular (lido como texto; celular.test.ts garante que
     const sel = ".stage.qd-no-quadro:has(.qd-tarefa-cel) .cabecalho.topo-encolhido[data-titulo]::after";
     expect(ultimo(sel, "content")).toBe("attr(data-titulo)");
     expect(ultimo(sel, "white-space")).toBe("nowrap");
+  });
+});
+
+describe("2026-11-11: a tarefa no celular com o aviso do Backlog e a Prioridade do computador (PR #725)", () => {
+  it("no Backlog com responsável, o aviso de parada do computador (avisoDeParada) aparece sob o título", () => {
+    const h = String(tarefaAbertaCelular(v({ t: t({ status: "backlog" }) })));
+    expect(h).toContain('<p class="ta-parada">Parada no Backlog: o responsável só começa quando ela for para A fazer</p>');
+    expect(String(tarefaAbertaCelular(v({ t: t({ status: "backlog", agenteId: null }) })))).not.toContain("ta-parada");
+  });
+
+  it("a Prioridade preenchida vira um chip da bandeja que abre a folha dela; vazia, fica em Ajustes", () => {
+    const h = bandejaDeChips(v({ t: t({ prioridade: "urgente" }) }));
+    expect(h).toMatch(/<button type="button" class="qd-chip qd-chip-cel" id="qd-t-prioridade" data-act="cel-folha" data-folha="prioridade" data-id="t1" aria-haspopup="dialog" aria-label="Prioridade: Urgente">/);
+    expect(h.indexOf("qd-t-prioridade")).toBeGreaterThan(h.indexOf("qd-t-resp"));
+    expect(bandejaDeChips(v())).not.toContain("qd-t-prioridade");
+    expect(folhaDeAjustes({ t: t(), q: q(), nomeStatus: "Fazendo", nomeResp: "Vera", podeResp: true, podeMover: false })).toContain('data-folha-acao="abrir-prioridade"');
+  });
+});
+
+describe("2026-11-11: os diálogos da linha do tempo na tarefa do celular", () => {
+  it("o diálogo de Ver o trabalho (e o Registro) entra na tarefa do celular, como no computador", () => {
+    const d = `<dialog open class="ta-dialogo ta-trans" id="ta-trans"><p class="ta-lado-nota">máquina nod-motor-teste</p></dialog>`;
+    const h = String(tarefaAbertaCelular(v({ linha: "<section></section>", dialogo: d })));
+    expect(h).toContain(d);
+    expect(h.indexOf(d)).toBeLessThan(h.lastIndexOf("</article>"));
+    expect(String(tarefaAbertaCelular(v()))).not.toContain("ta-trans");
   });
 });

@@ -7,6 +7,7 @@ import { decidirSoltura, ECO_DO_AGENTE_MS, ecoDoAgente, fraseDaTrava, fraseDoMov
 import { colunaDeEspera } from "../../../web/lib/colunas.ts";
 import { aposDoCabecalho, popoverDeTrava } from "../../../web/telas/colunas-quadro.ts";
 import { cardDaTarefa, historicoDaTarefa, quadroDaMeta, tarefaAberta } from "../../../web/telas/quadro-real.ts";
+import { eventosDaTarefa } from "../../../web/telas/linha-do-tempo.ts";
 
 /** NOD-419 na tela, sem DOM: os espelhos dos freios, a trava no cabeçalho e no menu, o eco do agente e o histórico. */
 
@@ -20,7 +21,7 @@ const mov = (extra: Partial<MovimentoDto> = {}): MovimentoDto => ({
   acionou: true, loteId: "l1", desfeitoEm: null, desfaz: null, deFora: false, criadoEm: AGORA - 60_000, autorNome: "Ada", agenteAntesNome: "Ada", agenteDepoisNome: "Caio", ...extra,
 });
 const t = (extra: Partial<TarefaDto> = {}): TarefaDto => ({
-  id: "1", quadroId: "q1", titulo: "Login", descricao: "", status: "revisao", voltarPara: null, terminadaEm: null, agenteId: "caio", ordem: 1, linearId: null, linearUrl: null, prUrl: null,
+  id: "1", quadroId: "q1", titulo: "Login", descricao: "", status: "revisao", voltarPara: null, terminadaEm: null, agenteId: "caio", ordem: 1, prioridade: "sem", linearId: null, linearUrl: null, prUrl: null,
   pergunta: null, resposta: null, deFora: false, turnoId: null, criadoEm: 1, mudadoEm: 1, execucao: null, agenteNome: "Caio", numero: null, codigo: "#1", branch: "", movimentos: [mov()], ...extra,
 });
 const q = (tarefas: TarefaDto[], cs = dto()): QuadroDto => ({
@@ -29,6 +30,15 @@ const q = (tarefas: TarefaDto[], cs = dto()): QuadroDto => ({
 });
 const tela = (tarefas: TarefaDto[], o: Partial<Parameters<typeof quadroDaMeta>[0]> = {}) =>
   quadroDaMeta({ q: q(tarefas), nome: "Ada", agente: () => null, filtro: "todos", alternadas: new Set(), acesas: new Set(), agora: AGORA, agentes: [{ id: "caio", nome: "Caio" }], ...o });
+
+describe("linha do tempo da tarefa: o movimento para a espera da pessoa (10/11)", () => {
+  it("diz \"Esperando você\", não o id cru voce (ADR-162: voce não é coluna)", () => {
+    const tarefa = t({ status: "voce", voltarPara: "fazendo", movimentos: [mov({ de: "fazendo", para: "voce", agenteDepois: "caio" })] });
+    const html = eventosDaTarefa(tarefa, dto(), AGORA).map((e) => e.html).join("");
+    expect(html).toContain("para Esperando você");
+    expect(html).not.toMatch(/para voce\b/);
+  });
+});
 
 describe("web/lib/freios: os espelhos do domínio", () => {
   it("fraseDaTrava igual à do domínio", () => {
@@ -134,18 +144,13 @@ describe("caminho da pessoa: a trava recusa no card; a coluna com responsável p
     expect(decidirSoltura(cs, t({ status: "revisao" }), col("afazer"))).toMatchObject({ tipo: "recusa", texto: "De Em revisão só sai para Feito ou Fazendo", destino: { id: "feito" } });
     // Revisão do PR #629: de Bloqueado, a trava de Em revisão (de onde ela foi esperar) continua valendo.
     expect(decidirSoltura(cs, t({ status: "bloqueado", voltarPara: "revisao" }), col("afazer"))).toMatchObject({ tipo: "recusa" });
-    // Em revisão tem responsável (Caio) e é do grupo iniciado: pede o card da 417.
-    expect(decidirSoltura(cs, t({ status: "afazer" }), col("revisao"))).toEqual({ tipo: "confirmar" });
+    // Em revisão tem responsável (Caio) e é do grupo iniciado: 2026-11-10, move e aciona direto (sem confirmar).
+    expect(decidirSoltura(cs, t({ status: "afazer" }), col("revisao"))).toEqual({ tipo: "mover" });
     expect(decidirSoltura(cs, t({ status: "revisao" }), col("feito"))).toEqual({ tipo: "mover" });
     expect(decidirSoltura(cs, undefined, col("fazendo"))).toEqual({ tipo: "mover" });
   });
 
-  it("soltar numa coluna com responsável: o mesmo card sutil da 417 (Confirmar · Não iniciar ainda), sem eco", () => {
-    const h = tela([t({ status: "afazer", agenteId: "ada", movimentos: [] })], { edicao: { tipo: "soltar", coluna: "revisao", tarefa: "1" } });
-    expect(h).toContain(`data-act="col-soltar"`);
-    expect(h).toContain(`data-act="col-soltar-sem"`);
-    expect(h).not.toContain("tarefa-desfazer-movimento");
-  });
+
 });
 
 describe("a trava na coluna", () => {

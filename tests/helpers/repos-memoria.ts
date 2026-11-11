@@ -1,4 +1,5 @@
 import { contasIaMemoria, estadoContasIaMemoria, type EstadoContasIaMemoria } from "./contas-ia-memoria.ts";
+import type { CondicaoDaVolta } from "../../src/contracts/quadro-execucoes.ts";
 import { temFalha, type EstadoDisjuntor } from "../../src/domain/disjuntor-conector.ts";
 import { ehDecisao, MOTIVOS_DE_CONECTOR_FORA } from "../../src/domain/decisoes.ts";
 import type { ConfigGithubApp } from "../../src/repositories/github-app.repo.ts";
@@ -290,7 +291,7 @@ const soNoPostgres = async (): Promise<never> => {
   throw new Error("só no Postgres: use tests/integration");
 };
 /** ADR-086: o pedido de volta anotado em cada turno (no Postgres, turnos.despertar_em/despertar_motivo). */
-const despertares = new Map<string, { em: number; motivo: string; prUrlCi: string | null }>();
+const despertares = new Map<string, { em: number; motivo: string; cond: CondicaoDaVolta | null }>();
 const iso = (n: number) => new Date(n).toISOString();
 const semDono = (l: Artefato & { tenantId: string; ownerId: string }): Artefato => ({ id: l.id, agenteId: l.agenteId, conversaId: l.conversaId, titulo: l.titulo, versaoAtual: l.versaoAtual, criadoEm: l.criadoEm, atualizadoEm: l.atualizadoEm });
 const semDonoEspera = ({ tenantId: _tenant, ownerId: _dona, ...e }: Espera & { tenantId: string; ownerId: string }): Espera => ({ ...e });
@@ -1411,6 +1412,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     trabalhos: {
       async tarefasComFrenteAberta() { return new Set<string>(); },
       async criar(n) {
+        // ADA-16 (0163): o índice único trabalhos_da_tarefa com ON CONFLICT DO NOTHING.
+        if (n.tarefaId && n.origem === "quadro" && (n.forma ?? "task") === "task" && doTenant(b.trabalhos).some((x) => x.agenteId === n.agenteId && x.tarefaId === n.tarefaId && x.origem === "quadro" && (x.forma ?? "task") === "task")) return null;
         const linha: Trabalho & { ownerId: string } = {
           tenantId: escopo.tenantId,
           ownerId: escopo.pessoaId,
@@ -1434,12 +1437,17 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           forma: n.forma ?? "task",
           loteId: n.loteId ?? null,
           resumo: null,
+          ...(n.tarefaId ? { tarefaId: n.tarefaId } : {}),
           criadoEm: agora() + b.trabalhos.length / 1000,
           iniciadoEm: n.iniciadoEm ?? null,
           terminadoEm: null,
         };
         b.trabalhos.push(linha);
         return semDonoTrabalho(linha);
+      },
+      async daTarefa(agenteId, tarefaId) {
+        const t = doTenant(b.trabalhos).find((x) => x.agenteId === agenteId && x.tarefaId === tarefaId && x.origem === "quadro" && (x.forma ?? "task") === "task");
+        return t ? semDonoTrabalho(t) : null;
       },
       async buscar(id) {
         const t = doTenant(b.trabalhos).find((x) => x.id === id);
@@ -1697,14 +1705,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async retomadaNaFila(retomaTurnoId: string) {
         return doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.retomaTurnoId === retomaTurnoId && t.origem === "retomada" && t.estado === "pendente" && (t.acordarEm ?? 0) <= agora()).sort((x, y) => y.criadoEm - x.criadoEm)[0] ?? null;
       },
-      async marcarDespertar(id: string, em: number, motivo: string, ci: { prUrl: string } | null = null) {
+      async marcarDespertar(id: string, em: number, motivo: string, cond: CondicaoDaVolta | null = null) {
         const t = doTenant(b.turnos).find((x) => x.id === id && x.ownerId === escopo.pessoaId && x.estado === "despachando" && x.pararSolicitadoEm === null);
         if (!t) return false;
-        despertares.set(id, { em, motivo, prUrlCi: ci?.prUrl ?? null });
+        despertares.set(id, { em, motivo, cond });
         return true;
       },
-      marcarVoltaCi: soNoPostgres,
-      voltasCiPendentes: async () => [],
+      marcarVoltaPorEvento: soNoPostgres,
+      voltasPorEventoPendentes: async () => [],
       acordarVolta: soNoPostgres,
       async despertarDoTurno(id: string) {
         return despertares.get(id) ?? null;
@@ -1900,7 +1908,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
             const dep = dono?.depoisDeTrabalhoId ? doTenant(b.trabalhos).find((x) => x.id === dono.depoisDeTrabalhoId) : null;
             if (dep && !["terminado", "parado", "falhou"].includes(dep.estado)) return false;
             // ADR-085: a mesma regra do SQL (seguravelPeloMac; o espaço segura também o que passou da espera máxima).
-            if (dono && p.espacarFundo === true && seguravelPeloMac({ ...dono, criadoEm: p.agora }, p.agora)) return false;
+            if (dono && p.espacarFundo === true && dono.origem !== "quadro" && seguravelPeloMac({ ...dono, criadoEm: p.agora }, p.agora)) return false; // ADR-163: o quadro fora do espaço
             // #219: disco crítico — nenhum trabalho novo, nem a volta marcada (que só ele segura, revisão do #224);
             // memória crítica — o segundo plano novo sem prazo.
             if (p.segurarNovo === true && (t.acordarEm || (dono && dono.iniciadoEm === null))) return false;
@@ -2546,11 +2554,20 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async ativasVencidas(em) {
         return doTenant(b.rotinas).filter((r) => r.ownerId === escopo.pessoaId && r.estado === "ativa" && r.excluidoEm === null && r.proximaExecucao <= em);
       },
-      async atualizarEstado(id, estado) {
+      async atualizarEstado(id, estado, retomarEm = null) {
         const r = doTenant(b.rotinas).find((x) => x.id === id);
         if (!r) return null;
         r.estado = estado;
+        r.retomarEm = estado === "pausada" ? retomarEm : null;
         return r;
+      },
+      async pausadasParaRetomar(em) {
+        return doTenant(b.rotinas).filter((r) => r.ownerId === escopo.pessoaId && r.estado === "pausada" && r.excluidoEm === null && r.retomarEm != null && r.retomarEm <= em);
+      },
+      async limparRetomadasSemVolta(em) {
+        let n = 0;
+        for (const r of doTenant(b.rotinas)) if (r.ownerId === escopo.pessoaId && r.excluidoEm !== null && r.retomarEm != null && r.retomarEm <= em) { r.retomarEm = null; n++; }
+        return n;
       },
       async atualizar(id, campos) {
         // Espelha o SQL: só a dona, nunca excluída, e campo ausente fica como está.
@@ -3894,6 +3911,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       contarRecuperacoesDeConector: soNoPostgres,
       trabalhos: soNoPostgres,
       contarTrabalhos: soNoPostgres,
+      recusasDoQuadro: soNoPostgres,
+      contarRecusasDoQuadro: soNoPostgres,
     },
     // NOD-54 (0120): os checkpoints são do Postgres (tests/integration/checkpoints.test.ts); aqui, nenhum.
     checkpoints: {
@@ -4004,6 +4023,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       restaurarTarefa: soNoPostgres,
       estadosDosTurnos: async () => new Map(),
       desdeDosTurnos: async () => new Map(),
+      tarefasEsperando: async () => new Set<string>(),
+      filaDasTarefas: async () => new Map(),
       cadeiaDoTurno: async () => [],
       inserirLote: soNoPostgres,
       lotesDaTarefa: async () => [],
@@ -4053,6 +4074,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       adicionarMembro: soNoPostgres,
       tirarMembro: soNoPostgres,
       participacoes: async () => [],
+      labels: async () => [],
+      inserirLabels: soNoPostgres,
+      editarLabel: soNoPostgres,
+      removerLabel: soNoPostgres,
       comentar: soNoPostgres,
       contarComentarios: async () => 0,
       comentarios: async () => [],
@@ -4076,6 +4101,15 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       temDeOutroNoQuadro: async () => false,
       pedidoAbertoNaTarefa: async () => false,
       turnoNaFila: async () => null,
+      turnoNaFilaDaThread: async () => null,
+      contarDeQuemParticipa: async () => 0,
+      turnosVivos: async () => [],
+      buscar: async () => null,
+      thread: async () => [],
+      threadDoTurno: async () => null,
+      editar: soNoPostgres,
+      apagar: soNoPostgres,
+      resumoDasCadeias: async () => new Map(),
     },
     // NOD-422 (0148): a importação do Linear é do Postgres (tests/integration/importar-linear.test.ts).
     quadroImportacoes: {
@@ -4114,6 +4148,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       atuaisDasTarefas: async () => [],
       tarefasAbertas: async () => [],
       doTurnoRaiz: async () => null,
+      repetidoDepois: async () => false,
       tratar: soNoPostgres,
       gravarSaida: soNoPostgres,
       contarReacionamento: soNoPostgres,
@@ -4135,6 +4170,10 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       tomarPendentes: async () => [],
       devolverTomados: async () => {},
       cancelarRecados: async () => 0,
+      cancelarRecadosDeComentario: async () => 0,
+      cancelarRecadoDoComentario: async () => 0,
+      tarefasDosRecadosLidos: async () => [],
+      recibosDosComentarios: async () => new Map(),
     },
     // NOD-437: os times são do Postgres (tests/integration/times.test.ts); aqui não há nenhum.
     times: {
@@ -4177,6 +4216,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       atualizar: soNoPostgres,
       foto: async () => null,
       definirFoto: soNoPostgres,
+    },
+    // ADR-165 (0170): os passos do run só existem no Postgres (tests/integration/turno-passos.test.ts); aqui nada grava.
+    turnoPassos: {
+      gravar: async () => [],
+      marcarFalha: async () => false,
+      daCadeia: async () => ({ passos: [], fim: true }),
+      resumo: async (raizes: readonly string[]) => new Map(raizes.map((r) => [r, { n: 0, ultimo: null }])),
+      podar: async () => 0,
     },
   } satisfies Repos;
 

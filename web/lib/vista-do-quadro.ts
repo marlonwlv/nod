@@ -3,7 +3,7 @@
  * busca por título ou código, sem acento nem caixa. Tudo é estado da tela (não vai ao servidor) e puro: quem guarda o
  * estado e redesenha é web/lib/quadro-na-tela.ts; quem desenha é web/telas/quadro-real.ts.
  */
-import type { TarefaDto } from "../../src/contracts/quadro.ts";
+import type { ColunaDto, TarefaDto } from "../../src/contracts/quadro.ts";
 import { esc } from "./escape.ts";
 
 /** O filtro rápido da barra. `agente:<id>` = só as tarefas daquele bot. */
@@ -35,13 +35,30 @@ export function termoDaBusca(busca: string): string {
   return normalizar(busca.trim().slice(0, LIMITE_BUSCA)).trim();
 }
 
-/** A tarefa espera quem lê ("Comigo"): status "voce" e não é outra pessoa que decide (NOD-443, D6). */
-export const ehComigo = (t: Pick<TarefaDto, "status" | "decide">): boolean => t.status === "voce" && !(t.decide && !t.decide.voce);
+/**
+ * A tarefa espera quem lê ("Comigo"). ADR-162 (sem a coluna Precisa de você): a pergunta pendente do bot (a marca
+ * `esperaPessoa`, menos quando é outra pessoa que decide, NOD-443 D6), Bloqueado e a coluna "só a pessoa tira daqui"
+ * (NOD-419) — o mesmo que o servidor chama de espera da pessoa (esperaPessoa em src/domain/avisos-quadro.ts).
+ */
+export function ehComigo(t: Pick<TarefaDto, "status" | "decide" | "esperaPessoa">, colunas: readonly Pick<ColunaDto, "id" | "trava">[] = []): boolean {
+  if (t.esperaPessoa) return !(t.decide && !t.decide.voce);
+  // A marca `voce` de antes da ADR-162 (o status ainda existe no servidor) também é comigo, como o funil contava.
+  return t.status === "bloqueado" || t.status === "voce" || colunas.find((c) => c.id === t.status)?.trava?.soPessoa === true;
+}
 
-export function passaNoFiltro(t: Pick<TarefaDto, "status" | "decide" | "agenteId" | "execucao">, f: Filtro): boolean {
+/**
+ * T5 (comparação Multica × nod, 2026-11-10): o bot está trabalhando agora nesta tarefa. A execução que o servidor calculou
+ * ou, sem ela, a linha de estado do card (a frente aberta conta como trabalhando). Uma regra só para o card, a pílula de
+ * agentes ativos, o filtro rápido e o funil ("Status do agente: Trabalhando agora"); antes as contagens não batiam.
+ */
+export function trabalhandoAgora(t: Pick<TarefaDto, "execucao" | "estadoLinha">): boolean {
+  return (t.execucao ?? (t.estadoLinha?.tipo === "trabalhando" ? "rodando" : null)) === "rodando";
+}
+
+export function passaNoFiltro(t: Pick<TarefaDto, "status" | "decide" | "agenteId" | "execucao" | "esperaPessoa" | "estadoLinha">, f: Filtro, colunas: readonly Pick<ColunaDto, "id" | "trava">[] = []): boolean {
   if (f === "todos") return true;
-  if (f === "comigo") return ehComigo(t);
-  if (f === "trabalhando") return t.execucao === "rodando";
+  if (f === "comigo") return ehComigo(t, colunas);
+  if (f === "trabalhando") return trabalhandoAgora(t);
   return t.agenteId === agenteDoFiltro(f);
 }
 
@@ -51,7 +68,7 @@ export function passaNaBusca(t: Pick<TarefaDto, "titulo" | "codigo"> & { linearI
   return normalizar(t.titulo).includes(termo) || normalizar(t.codigo ?? "").includes(termo) || normalizar(t.linearId ?? "").includes(termo);
 }
 
-export const passaNaVista = (t: TarefaDto, f: Filtro, termo: string): boolean => passaNoFiltro(t, f) && passaNaBusca(t, termo);
+export const passaNaVista = (t: TarefaDto, f: Filtro, termo: string, colunas: readonly Pick<ColunaDto, "id" | "trava">[] = []): boolean => passaNoFiltro(t, f, colunas) && passaNaBusca(t, termo);
 
 /**
  * O texto escapado, com cada ocorrência do termo dentro de `<mark class="qd-mark">`. A comparação é sem acento e sem
@@ -112,7 +129,7 @@ export function chipsDaBarra(tarefas: readonly Pick<TarefaDto, "agenteId">[], fi
 }
 
 /** Quantas tarefas o filtro e a busca deixam à vista. */
-export const contarNaVista = (tarefas: readonly TarefaDto[], f: Filtro, termo: string): number => tarefas.filter((t) => passaNaVista(t, f, termo)).length;
+export const contarNaVista = (tarefas: readonly TarefaDto[], f: Filtro, termo: string, colunas: readonly Pick<ColunaDto, "id" | "trava">[] = []): number => tarefas.filter((t) => passaNaVista(t, f, termo, colunas)).length;
 
 /**
  * A linha do vazio inline (ajuste aprovado: sem modal). Null = há o que mostrar ou não há filtro nem busca (o vazio de

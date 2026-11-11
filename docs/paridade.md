@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **192**, mais 3 só de leitura. No chat: **66 vivas**, 3 parciais, 92 faltando e 34 que nunca vão para o chat. Piso de vivas: 66.
+Ações de pessoa que mudam algo: **197**, mais 3 só de leitura. No chat: **74 vivas**, 3 parciais, 89 faltando e 34 que nunca vão para o chat. Piso de vivas: 74.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -40,9 +40,9 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | Ação | O que faz | Risco | No chat | Rotas |
 | --- | --- | --- | --- | --- |
 | `rotinas.criar` | Criar uma rotina num bot | muda | parcial (`gerir_bots criar_rotina`): a tela manda fonte, limites e política sem dado; o lote preenche com padrões e não tem teste de contrato | `POST ^\/rotinas$` |
-| `rotinas.executar` | Rodar uma rotina agora | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/executar$` |
-| `rotinas.pausar` | Pausar uma rotina | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/pausar$` |
-| `rotinas.ativar` | Ativar uma rotina | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/ativar$` |
+| `rotinas.executar` | Rodar uma rotina agora | pessoa_confirma | vivo (`executar_rotina`) | `POST ^\/rotinas\/(?<id>[^/]+)\/executar$` |
+| `rotinas.pausar` | Pausar uma rotina (com data de volta opcional) | muda | vivo (`pausar_rotina`) | `POST ^\/rotinas\/(?<id>[^/]+)\/pausar$` |
+| `rotinas.ativar` | Ativar uma rotina | muda | vivo (`reativar_rotina`) | `POST ^\/rotinas\/(?<id>[^/]+)\/ativar$` |
 | `rotinas.mudar_ritmo` | Mudar o ritmo de uma rotina | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/ritmo$` |
 | `rotinas.gerar_endereco` | Gerar novo endereço do webhook | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/endereco$` |
 | `rotinas.enviar_teste` | Enviar teste ao webhook | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/testar-webhook$` |
@@ -220,7 +220,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | --- | --- | --- | --- | --- |
 | `preferencias.salvar` | Salvar as preferências | muda | falta (NOD-397) | `PUT ^\/preferencias$` |
 | `preferencias.fechar_aviso` | Fechar um aviso | muda | nunca: estado da própria tela, sem efeito para os bots | `POST ^\/preferencias\/avisos-fechados$` |
-| `preferencias.exibir_quadro` | Mudar o Exibir do quadro (a visão no celular, as recolhidas e o compacto) | muda | vivo (`gerir_quadro`) | `PUT ^\/preferencias\/quadros\/(?<id>[^/]+)\/exibir$` |
+| `preferencias.exibir_quadro` | Mudar o Exibir do quadro (a visão no celular, as recolhidas, o compacto e as Opções do quadro) | muda | vivo (`gerir_quadro`) | `PUT ^\/preferencias\/quadros\/(?<id>[^/]+)\/exibir$` |
 
 ## artefatos
 
@@ -279,9 +279,9 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `quadro.importar_linear` | Trazer itens do Linear para o quadro | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/linear$` |
 | `quadro.importar_time_linear` | Trazer um time do Linear para o quadro (com prévia) | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/importacao$` |
 | `quadro.assumir` | O quadro assume a esteira: pausar as rotinas dos bots do quadro (com confirmação e Desfazer) | muda | vivo (`gerir_quadro`) | `DELETE ^\/agentes\/(?<id>[^/]+)\/quadro\/assumir$`<br>`POST ^\/agentes\/(?<id>[^/]+)\/quadro\/assumir$` |
-| `quadro.mudar_tarefa` | Mudar uma tarefa (status, responsável, PR, pergunta) ou tirá-la do quadro | muda | vivo (`gerir_quadro`) | `DELETE ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)$`<br>`PATCH ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)$`<br>`PATCH ^\/quadros\/(?<qid>[^/]+)\/tarefas\/(?<tid>[^/]+)$` |
+| `quadro.mudar_tarefa` | Mudar uma tarefa (status, responsável, PR, pergunta, labels, prazo) ou tirá-la do quadro | muda | vivo (`gerir_quadro`) | `DELETE ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)$`<br>`PATCH ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)$`<br>`PATCH ^\/quadros\/(?<qid>[^/]+)\/tarefas\/(?<tid>[^/]+)$` |
 | `quadro.responder` | Responder a pergunta de uma tarefa bloqueada | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)\/resposta$`<br>`POST ^\/quadros\/(?<qid>[^/]+)\/tarefas\/(?<tid>[^/]+)\/resposta$` |
-| `quadro.comentar` | Comentar uma tarefa (aciona o responsável ou o bot @mencionado; no quadro de outra pessoa, fica para a dona) | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/comentarios$`<br>`POST ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)\/comentarios$`<br>`POST ^\/quadros\/(?<qid>[^/]+)\/comentarios$` |
+| `quadro.comentar` | Comentar uma tarefa (aciona o responsável, o agente da thread ou o bot @mencionado; no quadro de outra pessoa, fica para a dona) | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/comentarios$`<br>`POST ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)\/comentarios$`<br>`POST ^\/quadros\/(?<qid>[^/]+)\/comentarios$` |
 | `quadro.desfazer` | Desfazer a última mudança no quadro | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/lotes\/(?<lid>[^/]+)\/desfazer$`<br>`POST ^\/quadros\/(?<qid>[^/]+)\/lotes\/(?<lid>[^/]+)\/desfazer$` |
 | `quadro.mover_tarefa` | Mudar a tarefa para o quadro de outro bot | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)\/mover$` |
 | `quadro.remover` | Remover o quadro (o bot volta a ser um agente comum; conversa e memória ficam) | arriscada | vivo (`gerir_quadro`) | `DELETE ^\/agentes\/(?<id>[^/]+)\/quadro$` |
@@ -310,6 +310,11 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `quadro.arquivar_projeto` | Arquivar um projeto (os quadros ficam, soltos) | muda | vivo (`gerir_quadro`) | `POST ^\/projetos\/(?<pid>[^/]+)\/arquivar$` |
 | `quadro.restaurar_projeto` | Restaurar um projeto arquivado | muda | vivo (`gerir_quadro`) | `POST ^\/projetos\/(?<pid>[^/]+)\/restaurar$` |
 | `quadro.acordar_trabalho` | Acordar agora o trabalho de uma tarefa que espera uma volta (hora marcada ou CI) | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)\/trabalhos\/acordar$` |
+| `quadro.criar_label` | Criar uma label no quadro (nome e cor) | muda | vivo (`gerir_quadro`) | `POST ^\/agentes\/(?<id>[^/]+)\/quadro\/labels$` |
+| `quadro.editar_label` | Renomear ou recolorir uma label do quadro | muda | vivo (`gerir_quadro`) | `PATCH ^\/agentes\/(?<id>[^/]+)\/quadro\/labels\/(?<lid>[^/]+)$` |
+| `quadro.remover_label` | Remover uma label do quadro (sai de todas as tarefas) | muda | vivo (`gerir_quadro`) | `DELETE ^\/agentes\/(?<id>[^/]+)\/quadro\/labels\/(?<lid>[^/]+)$` |
+| `quadro.editar_comentario` | Editar o próprio comentário numa tarefa (com refazer: cancela o run que ele abriu e reaciona com o texto novo) | muda | vivo (`gerir_quadro`) | `PATCH ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)\/comentarios\/(?<cid>[^/]+)$` |
+| `quadro.apagar_comentario` | Apagar o próprio comentário numa tarefa (as respostas da thread ficam) | muda | vivo (`gerir_quadro`) | `DELETE ^\/agentes\/(?<id>[^/]+)\/quadro\/tarefas\/(?<tid>[^/]+)\/comentarios\/(?<cid>[^/]+)$` |
 
 ## paginas
 
@@ -343,7 +348,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 ## O que cada onda leva
 
-- **NOD-393** (Onda 1: bots e rotinas): `bots.restaurar`, `bots.fixar`, `bots.ocultar`, `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.executar`, `rotinas.pausar`, `rotinas.ativar`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
+- **NOD-393** (Onda 1: bots e rotinas): `bots.restaurar`, `bots.fixar`, `bots.ocultar`, `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
 - **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
 - **NOD-395** (Onda 3: conta e segurança): `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`
 - **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`

@@ -18,15 +18,14 @@ import { esc } from "../lib/escape.ts";
 import { fraseDoMovimento, porqueNaoDesfaz } from "../lib/freios.ts";
 import { NOME_DO_STATUS, type Status } from "../lib/quadro.ts";
 import { codigoDaTarefa, linhaDoHistorico } from "../lib/quadro-dados.ts";
-import { confirmacaoDeSoltar } from "./colunas-quadro.ts";
-import type { CargaDosComentarios } from "./comentarios-tarefa.ts";
-import { LIMITE_COMENTARIO } from "./comentarios-tarefa.ts";
-import { esperandoOutro, formResposta, type AgenteDoQuadro } from "./quadro-real.ts";
+import { LIMITE_COMENTARIO, type CargaDosComentarios } from "./linha-do-tempo.ts";
+import { esperandoOutro, formResposta, fusoDoAparelho, type AgenteDoQuadro } from "./quadro-real.ts";
+import { secaoDeLabelEPrazoCelular } from "./campos-da-tarefa.ts";
+import { avisoDeParada } from "./acoes-da-tarefa.ts";
 import { anel, avatar, confiar, ICONE, ICONE_DO_STATUS, type Html } from "./quadro.ts";
+import { iconeDaPrioridade } from "./opcoes-quadro.ts";
+import { NOME_DA_PRIORIDADE, prioridadeDe } from "../lib/opcoes-do-quadro.ts";
 import { logDoTrabalho, passosDoTrabalho, vivo, type VistaDoTrabalho } from "./trabalhos-da-tarefa.ts";
-
-/** S1 (ADA-17): a tarefa não tem prazo no modelo; o chip Prazo fica atrás desta flag, desligada, até o follow-up. */
-export const PRAZO_DA_TAREFA = false;
 
 export type DadosDosComentarios = {
   lista: readonly ComentarioDto[];
@@ -36,7 +35,8 @@ export type DadosDosComentarios = {
   pendente: { texto: string; falhou: boolean; duvida?: boolean } | null;
 };
 
-export type Respondendo = { comentario: string; nome: string; trecho: string };
+/** `raiz` (2026-11-10): a thread do comentário respondido; a resposta vai nela (responder_a) além da citação. */
+export type Respondendo = { comentario: string; nome: string; trecho: string; raiz?: string };
 
 export type VistaDaTarefaCelular = {
   t: TarefaDto;
@@ -47,13 +47,23 @@ export type VistaDaTarefaCelular = {
   historico?: readonly EntradaHistoricoDto[] | null;
   coms?: DadosDosComentarios;
   trabalho?: VistaDoTrabalho;
-  soltar?: string;
   respondendo?: Respondendo | null;
   /** A mudança de status/responsável que ainda não voltou (troca otimista no chip). */
   otimista?: { status?: string; agente?: string | null } | null;
   /** A mudança que não salvou (status ou responsável): "Não salvou. Voltou para Fazendo." + Tentar de novo. */
   naoSalvou?: QualTroca | null;
   agora?: number;
+  /** 0161: o fuso de quem lê (o prazo da tarefa). Sem ele, o do aparelho. */
+  fuso?: string;
+  /**
+   * 2026-11-10: a MESMA linha do tempo do computador (web/telas/linha-do-tempo.ts: runs de todos os agentes, modos dos
+   * chips, custo, editar/apagar, o campo de comentário único no fim) e o chip "trabalhando" do topo. Com ela, a lista e o
+   * composer próprios do celular saem; sem ela (a API sem comentários), ficam como eram.
+   */
+  linha?: string;
+  topo?: string;
+  /** 2026-11-11: os diálogos da linha do tempo ("Ver o trabalho", o Registro de execução), os mesmos do computador. */
+  dialogo?: string;
 };
 
 const ENVIAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
@@ -92,7 +102,6 @@ export function fraseDoNaoSalvou(v: Pick<VistaDaTarefaCelular, "t" | "q" | "agen
     const col = comColunas(v.q).colunas.find((c) => c.id === t.status);
     return `Não salvou. Voltou para ${col?.nome ?? NOME_DO_STATUS[t.status as Status] ?? t.status}.`;
   }
-  if (t.status === "voce") return "Não salvou. Continua com Você.";
   return t.agenteId ? `Não salvou. Continua com ${v.agente(t.agenteId)?.nome ?? t.agenteNome ?? "outro bot"}.` : "Não salvou. Continua sem responsável.";
 }
 /**
@@ -113,7 +122,10 @@ export function citacaoDe(texto: string): { cita: { nome: string; trecho: string
 /** Quem escreveu o comentário (o mesmo critério da lista do computador, NOD-422/NOD-430). */
 export function autorDoComentario(c: ComentarioDto, agente: AgenteDoQuadro): { avatar: string; nome: string } {
   if (c.autor.tipo === "linear") return { avatar: anel((c.autorNome ?? "L").slice(0, 1), c.autorNome ?? "Linear", false), nome: `${c.autorNome ?? "Linear"} · no Linear` };
+  if (c.autor.tipo === "pessoa" && c.pedidoPor) return { avatar: anel((c.autorNome ?? "?").slice(0, 1), c.autorNome ?? "Alguém do quadro", false), nome: c.autorNome ?? "Alguém do quadro" };
   if (c.autor.tipo === "pessoa") return { avatar: anel("V", "Você", true), nome: "Você" };
+  // ADR-162: a explicação do próprio quadro (a espera que ele deixou com você).
+  if (c.autor.tipo === "sistema") return { avatar: anel("Q", "Quadro", false), nome: "Quadro" };
   const a = agente(c.autor.agenteId) ?? { avatar: anel((c.autorNome ?? "?").slice(0, 1), c.autorNome ?? "Bot", false), nome: c.autorNome ?? "Bot" };
   return c.pedidoPor ? { avatar: a.avatar, nome: `Você, pela ${a.nome}` } : a;
 }
@@ -165,7 +177,8 @@ function cardDoComentario(c: ComentarioDto, agente: AgenteDoQuadro, hora: (em: n
   const citaHtml = cita ? `<blockquote class="qd-com-cita"><span class="qd-com-cita-nome">${esc(cita.nome)}</span> ${esc(cita.trecho)}</blockquote>` : "";
   const acionou = c.acionados.length ? `<p class="qd-com-acao">acionou ${esc(c.acionados.join(", "))}</p>` : "";
   const nomeCurto = a.nome.replace(/ · no Linear$/, "");
-  return `<li class="qd-com" id="c-${esc(c.id)}" data-com="${esc(c.id)}" data-autor="${esc(nomeCurto)}"><span class="qd-com-av" aria-hidden="true">${a.avatar}</span><div class="qd-com-corpo">` +
+  // 2026-11-10: a resposta numa thread fica recuada sob a raiz (a linha do tempo do celular já vem em ordem de tempo).
+  return `<li class="qd-com${c.paiId ? " qd-com-resposta" : ""}" id="c-${esc(c.id)}" data-com="${esc(c.id)}" data-autor="${esc(nomeCurto)}"><span class="qd-com-av" aria-hidden="true">${a.avatar}</span><div class="qd-com-corpo">` +
     `<p class="qd-com-cab"><span class="qd-com-nome">${esc(a.nome)}</span><time datetime="${tempo(c.criadoEm)}">${esc(hora(c.criadoEm))}</time>` +
     `<button type="button" class="qd-link qd-com-resp" data-act="cel-responder" data-com="${esc(c.id)}">Responder<span class="qd-sr"> a ${esc(nomeCurto)}</span></button></p>` +
     `${citaHtml}<p class="qd-com-txt">${esc(corpo)}</p>${acionou}</div></li>`;
@@ -253,8 +266,7 @@ export function bandejaDeChips(v: VistaDaTarefaCelular): string {
   const nomeSt = col?.nome ?? NOME_DO_STATUS[status as Status] ?? status;
   const icSt = ICONE_DO_STATUS[col ? iconeDaColuna(col) : (status as Status)] ?? ICONE_DO_STATUS.afazer;
   const agenteId = v.otimista && "agente" in v.otimista ? v.otimista.agente ?? null : t.agenteId;
-  const voce = status === "voce" && !esperandoOutro(t);
-  const resp = voce ? { avatar: anel("V", "Você", true), nome: "Você" } : agenteId ? v.agente(agenteId) ?? { avatar: anel((t.agenteNome ?? "?").slice(0, 1), t.agenteNome ?? "Bot"), nome: t.agenteNome ?? "Outro bot" } : null;
+  const resp = agenteId ? v.agente(agenteId) ?? { avatar: anel((t.agenteNome ?? "?").slice(0, 1), t.agenteNome ?? "Bot"), nome: t.agenteNome ?? "Outro bot" } : null;
   const podeResp = !!v.responsaveis;
   const chip = (id: string, folha: string, conteudo: string, rotulo: string, vazio = false, desligado = false): string =>
     `<button type="button" class="qd-chip qd-chip-cel${vazio ? " qd-chip-vazio" : ""}" id="${id}" data-act="cel-folha" data-folha="${folha}" data-id="${esc(t.id)}" aria-haspopup="dialog" aria-label="${esc(rotulo)}"${desligado ? " disabled" : ""}>${conteudo}</button>`;
@@ -262,7 +274,8 @@ export function bandejaDeChips(v: VistaDaTarefaCelular): string {
     chip("qd-t-status", "status", `${icSt}<span>${esc(nomeSt)}</span>`, `Status: ${nomeSt}`),
     resp ? chip("qd-t-resp", "resp", `${avatar({ avatar: resp.avatar, nome: resp.nome, estado: t.execucao })}<span>${esc(resp.nome)}</span>`, `Responsável: ${resp.nome}`, false, !podeResp)
       : chip("qd-t-resp", "resp", `<span>Sem responsável</span>`, "Responsável: ninguém", true, !podeResp),
-    PRAZO_DA_TAREFA ? chip("qd-t-prazo", "prazo", `<span>Sem prazo</span>`, "Prazo: nenhum", true) : "",
+    // 2026-11-11: a Prioridade como no computador (à vista quando preenchida; vazia, mora em Ajustes): abre a folha dela.
+    prioridadeDe(t) !== "sem" ? chip("qd-t-prioridade", "prioridade", `${iconeDaPrioridade(prioridadeDe(t), false)}<span>${esc(NOME_DA_PRIORIDADE[prioridadeDe(t)])}</span>`, `Prioridade: ${NOME_DA_PRIORIDADE[prioridadeDe(t)]}`) : "",
     t.branch ? chip("qd-t-branch", "branch", `${BRANCH}<span class="qd-chip-branch">${esc(t.branch)}</span>`, `Branch: ${t.branch}`) : "",
     chip("qd-t-ajustes", "ajustes", `${AJUSTES}<span>Ajustes</span>`, "Ajustes da tarefa"),
   ].join("");
@@ -278,7 +291,8 @@ export function composerDaTarefa(v: Pick<VistaDaTarefaCelular, "t" | "agente" | 
   const resp = v.respondendo
     ? `<div class="qd-cel-resp"><span>Respondendo a <strong>${esc(v.respondendo.nome)}</strong></span>` +
       `<button type="button" class="qd-cel-resp-x" data-act="cel-responder-sair" aria-label="Não responder a ${esc(v.respondendo.nome)}">✕</button></div>` : "";
-  return `<form class="qd-com-form qd-cel-composer" data-form="comentar-tarefa" data-id="${esc(t.id)}">${resp}<div class="qd-cel-caixa">` +
+  const thread = v.respondendo?.raiz ? ` data-responder="${esc(v.respondendo.raiz)}"` : "";
+  return `<form class="qd-com-form qd-cel-composer" data-form="comentar-tarefa" data-id="${esc(t.id)}"${thread}>${resp}<div class="qd-cel-caixa">` +
     `<label class="qd-sr" for="${id}">${v.respondendo ? `Resposta a ${esc(v.respondendo.nome)}` : "Comentar"}</label>` +
     `<textarea id="${id}" class="qd-com-in" name="texto" rows="1" maxlength="${v.respondendo ? LIMITE_COMENTARIO - prefixoDaResposta(v.respondendo).length : LIMITE_COMENTARIO}" required placeholder="${esc(ph)}"></textarea>` +
     `<button type="submit" class="qd-com-bt qd-cel-enviar" aria-label="Enviar">${ENVIAR}</button></div></form>`;
@@ -287,17 +301,22 @@ export function composerDaTarefa(v: Pick<VistaDaTarefaCelular, "t" | "agente" | 
 export function tarefaAbertaCelular(v: VistaDaTarefaCelular): Html {
   const { t } = v;
   const codigo = codigoDaTarefa(t);
-  const desc = t.descricao.trim() ? `<div class="qd-t-desc">${esc(t.descricao)}</div>` : `<div class="qd-t-desc qd-t-desc-vazia">Sem descrição.</div>`;
+  const desc = t.descricao.trim() ? `<div class="qd-t-desc" data-ancora="desc">${esc(t.descricao)}</div>` : `<div class="qd-t-desc qd-t-desc-vazia" data-ancora="desc">Sem descrição.</div>`;
   const outro = esperandoOutro(t);
-  const saiu = t.status === "voce" && t.decide?.saiu ? `<p class="qd-t-saiu">Era de ${esc(t.decide.saiu)}, que saiu do quadro.</p>` : "";
-  const pergunta = t.pergunta && (t.status === "voce" || t.status === "bloqueado")
-    ? `<section class="qd-t-pergunta"><h2 class="qd-t-sec">${t.status === "voce" ? (outro ? `Esperando ${esc(outro)}` : "Precisa de você") : "Bloqueada"}</h2><p class="qd-voce-frase">${esc(t.pergunta)}</p>${saiu}${t.status === "voce" && outro ? "" : formResposta(t)}</section>` : "";
+  const saiu = t.esperaPessoa && t.decide?.saiu ? `<p class="qd-t-saiu">Era de ${esc(t.decide.saiu)}, que saiu do quadro.</p>` : "";
+  // ADR-162: a pergunta do bot ("Ada te perguntou"); responder aqui ou comentar dá no mesmo.
+  // 2026-11-10 (pedido do Marlon, como o Multica): com os comentários na tela, a pergunta é o comentário do bot; aqui fica
+  // só a linha discreta "Esperando você responder" (o composer responde). Sem eles, o bloco de antes (ADR-162).
+  const esperaNaLinha = t.esperaPessoa && !outro && (!!v.coms || !!v.linha);
+  const pergunta = esperaNaLinha && v.linha ? `<button type="button" class="ta-espera qd-t-espera" data-act="ir-pergunta"><span aria-hidden="true">🔔</span>Esperando você responder</button>`
+    : esperaNaLinha ? `<p class="qd-t-espera"><span aria-hidden="true">🔔</span> Esperando você responder · a pergunta está nos comentários</p>`
+    : t.pergunta && (t.esperaPessoa || t.status === "bloqueado")
+    ? `<section class="qd-t-pergunta"><h2 class="qd-t-sec">${t.esperaPessoa ? (outro ? `Esperando ${esc(outro)}` : `${esc(t.agenteNome ?? "O bot")} te perguntou`) : "Bloqueada"}</h2><p class="qd-voce-frase">${esc(t.pergunta)}</p>${saiu}${t.esperaPessoa && outro ? "" : formResposta(t)}</section>` : "";
   const resposta = t.resposta ? `<h2 class="qd-t-sec">Sua resposta</h2><p class="qd-t-resposta">${esc(t.resposta)}</p>` : "";
-  const soltar = v.soltar ? comColunas(v.q).colunas.find((c) => c.id === v.soltar) : undefined;
   const naoSalvou = v.naoSalvou ? `<p class="qd-cel-erro" role="alert">${esc(fraseDoNaoSalvou(v, v.naoSalvou))} <button type="button" class="qd-link" data-act="cel-tentar">Tentar de novo</button></p>` : "";
   return confiar(`<article class="qd-tarefa qd-tarefa-cel" aria-labelledby="qd-t-tit" data-tarefa="${esc(t.id)}" data-titulo="${esc(`${codigo} · ${t.titulo}`)}">` +
-    `<div class="qd-t-cab"><button type="button" class="qd-voltar" data-act="voltar-ao-quadro">${ICONE.voltar}<span>${esc(v.q.meta ?? "Quadro")}</span></button><span class="qd-t-sep" aria-hidden="true">/</span><span class="qd-id">${esc(codigo)}</span></div>` +
-    `<div class="qd-t-principal"><h1 class="qd-t-tit" id="qd-t-tit" tabindex="-1">${esc(t.titulo)}</h1>${bandejaDeChips(v)}` +
-    `${soltar ? `<ul class="qd-t-soltar">${confirmacaoDeSoltar(soltar, t.id, t.titulo)}</ul>` : ""}${naoSalvou}${desc}${pergunta}${resposta}${linhaDoTempo(v)}</div>` +
-    `${composerDaTarefa(v)}</article>`);
+    `<div class="qd-t-cab"><button type="button" class="qd-voltar" data-act="voltar-ao-quadro">${ICONE.voltar}<span>${esc(v.q.meta ?? "Quadro")}</span></button><span class="qd-t-sep" aria-hidden="true">/</span><span class="qd-id">${esc(codigo)}</span>${v.topo ? `<span class="ta-cab-dir">${v.topo}</span>` : ""}</div>` +
+    `<div class="qd-t-principal"><h1 class="qd-t-tit" id="qd-t-tit" tabindex="-1">${esc(t.titulo)}</h1>${avisoDeParada(t, comColunas(v.q).colunas)}${bandejaDeChips(v)}${secaoDeLabelEPrazoCelular(t, v.q, { agora: v.agora ?? Date.now(), fuso: v.fuso ?? fusoDoAparelho() })}` +
+    `${naoSalvou}${desc}${pergunta}${resposta}${v.linha ?? linhaDoTempo(v)}</div>` +
+    `${v.linha ? "" : composerDaTarefa(v)}${v.dialogo ?? ""}</article>`);
 }

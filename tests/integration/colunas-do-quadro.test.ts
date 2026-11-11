@@ -58,7 +58,7 @@ describeIntegracao("colunas do quadro (NOD-448, ADR-140)", () => {
     });
   });
 
-  it("mover para uma coluna Iniciado com responsável aciona; para uma Não iniciado, não", async () => {
+  it("2026-11-10 (regra do Multica): mover para uma coluna Iniciado sem responsável na coluna não aciona; com, aciona", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);
       ok(await m.pessoa([{ tipo: "criar_quadro", meta: "Doces" }]));
@@ -66,9 +66,13 @@ describeIntegracao("colunas do quadro (NOD-448, ADR-140)", () => {
       ok(await m.pessoa([{ tipo: "criar_tarefa", titulo: "Bolo", status: "Pedido", agente: m.nomeCaio }]));
       expect((await m.tarefas())[0]).toMatchObject({ status: "c-pedido", turnoId: null });
       const r = ok(await m.pessoa([{ tipo: "mudar_tarefa", tarefa: "Bolo", status: "Compras" }]));
-      expect(r.data.ok && r.data.comecaram.map((c) => c.agenteNome)).toEqual([m.nomeCaio]);
-      const [t] = await m.tarefas();
-      expect(t).toMatchObject({ status: "c-compras" });
+      expect(r.data.ok && r.data.comecaram).toEqual([]);
+      expect((await m.tarefas())[0]).toMatchObject({ status: "c-compras", turnoId: null });
+      ok(await m.pessoa([{ tipo: "definir_passagem", coluna: "Produção", agente: m.nomeCaio }]));
+      const rp = ok(await m.pessoa([{ tipo: "mudar_tarefa", tarefa: "Bolo", status: "Produção" }]));
+      expect(rp.data.ok && rp.data.comecaram.map((c) => c.agenteNome)).toEqual([m.nomeCaio]);
+      const t = (await m.tarefas()).find((x) => x.titulo === "Bolo");
+      expect(t).toMatchObject({ status: "c-producao" });
       expect(t!.turnoId).not.toBeNull();
       // De volta a Pedido, e de novo para outra de Não iniciado: nada começa.
       ok(await m.pessoa([{ tipo: "criar_coluna", nome: "Orçamento", grupo: "nao_iniciado" }]));
@@ -310,7 +314,7 @@ describeIntegracao("colunas do quadro (NOD-448, ADR-140)", () => {
       const p = await executar(m.d, gerirQuadro, { ...ctx, acoes: [{ tipo: "substituir_colunas", colunas: DOCES }] });
       if (!p.data.ok || !p.data.proposta_id) throw new Error(JSON.stringify(p.data));
       expect((await executar(m.d, decidirColunasDoQuadro, { decisaoId: p.data.proposta_id, recusar: false, executor: "catcher" })).data).toMatchObject({ aplicado: true });
-      expect((await m.quadro()).colunas.map((c) => c.nome)).toEqual(["Pedido", "Compras", "Produção", "Finalização", "Embalagem", "Entrega", "Precisa de você", "Pago", "Cancelado"]);
+      expect((await m.quadro()).colunas.map((c) => c.nome)).toEqual(["Pedido", "Compras", "Produção", "Finalização", "Embalagem", "Entrega", "Pago", "Cancelado"]);
       ok(await executar(m.d, gerirQuadro, { ...ctx, acoes: [{ tipo: "criar_tarefa", titulo: "Brigadeiro", status: "Pedido" }, { tipo: "criar_tarefa", titulo: "Bolo", status: "Pedido" }, { tipo: "criar_tarefa", titulo: "Torta", status: "Pedido" }] }));
       for (const col of ["Compras", "Produção", "Finalização", "Embalagem", "Entrega", "Pago"]) ok(await executar(m.d, gerirQuadro, { ...ctx, acoes: [{ tipo: "mudar_tarefa", tarefa: "Brigadeiro", status: col }] }));
       ok(await executar(m.d, gerirQuadro, { ...ctx, acoes: [{ tipo: "mudar_tarefa", tarefa: "Torta", status: "Cancelado", motivo: "o cliente desistiu" }] }));

@@ -254,6 +254,32 @@ describe("montarPromptSistema", () => {
       expect(conexoes(p)[0]).toEqual({ slug: "gmail", habilitado: true, concedidas_a_voce: ["GMAIL_FETCH_EMAILS"], outras_do_app: ["GMAIL_LIST_LABELS"] });
       expect(p).not.toContain("rótulos");
     });
+
+    const muitas = Array.from({ length: 20 }, (_, i) => doConector(`GMAIL_CAP_${i}`));
+    const lista = (p: string) => {
+      const linha = p.split("\n").find((l) => l.startsWith("As únicas ferramentas disponíveis são"))!;
+      return { linha, lista: linha.slice(0, linha.indexOf(".")) }; // nome de ferramenta não tem ponto
+    };
+
+    it("com concedidas de sobra, elas não se repetem em \"As únicas ferramentas\": lá fica só a regra do nome", () => {
+      const p = montarPromptSistema({ agente, memorias: [], ferramentas: [f("pedir_acesso"), ...muitas], pessoaNome: "M", modo: "conversa", conectores: [gmail] });
+      expect(lista(p).lista).toContain("mcp__nod__pedir_acesso");
+      expect(lista(p).lista).not.toContain("gmail");
+      expect(lista(p).linha).toContain("mcp__nod__<slug>__<capacidade>");
+      expect(conexoes(p)[0]?.concedidas_a_voce).toContain("GMAIL_CAP_0");
+    });
+
+    it("com poucas concedidas a regra custaria mais que os nomes: a lista segue inteira, sem regressão", () => {
+      const p = montarPromptSistema({ agente, memorias: [], ferramentas: [f("pedir_acesso"), doConector("GMAIL_FETCH_EMAILS")], pessoaNome: "M", modo: "conversa", conectores: [gmail] });
+      expect(lista(p).lista).toContain("mcp__nod__gmail__GMAIL_FETCH_EMAILS");
+      expect(lista(p).linha).not.toContain("mcp__nod__<slug>__<capacidade>");
+    });
+
+    it("na rotina não há bloco de conexões (ADR-044), então a lista de ferramentas segue inteira", () => {
+      const p = montarPromptSistema({ agente, memorias: [], ferramentas: [f("pedir_acesso"), ...muitas], pessoaNome: "M", modo: "rotina", conectores: [gmail] });
+      expect(p).not.toContain("Conexões cadastradas");
+      expect(lista(p).lista).toContain("mcp__nod__gmail__GMAIL_CAP_0");
+    });
   });
 });
 
@@ -412,7 +438,7 @@ describe("ADR-142: o prompt ensina a passagem por coluna quando há gerir_quadro
     expect(secaoDaLinha(linha!)).toBe("ferramentas");
     expect(linha).toContain("cada coluna pode ter um responsável (a passagem, o handoff)");
     // a assinatura é a mesma da descrição da ferramenta: se o contrato mudar, o prompt tem de acompanhar.
-    const assinatura = "definir_passagem {coluna, agente?, instrucoes?}";
+    const assinatura = "definir_passagem {coluna, agente?, instrucoes?, proxima?, volta_para?}";
     expect(FERRAMENTAS_QUADRO.gerir_quadro.description).toContain(assinatura);
     expect(linha).toContain(`gerir_quadro ${assinatura}`);
     expect(linha).toContain("agente null tira");
@@ -420,9 +446,11 @@ describe("ADR-142: o prompt ensina a passagem por coluna quando há gerir_quadro
     expect(linha).toContain("a pedido dela, na conversa com você");
     // QA (mutante h): a frase das colunas sem passagem segue a regra do domínio (aceitaPassagem).
     expect(linha).toContain("Só a dona do quadro define");
-    expect(linha).toContain("Bloqueado, Precisa de você e as colunas de fim não têm passagem");
+    expect(linha).toContain("Bloqueado e as colunas de fim não têm passagem");
+    expect(linha).not.toContain("Precisa de você");
     const aceita = Object.fromEntries(COLUNAS_PADRAO.map((c) => [c.id, aceitaPassagem(c)]));
-    for (const id of ["bloqueado", "voce", "feito", "cancelado"]) expect(aceita[id]).toBe(false);
+    for (const id of ["bloqueado", "feito", "cancelado"]) expect(aceita[id]).toBe(false);
+    expect(aceita.voce).toBeUndefined(); // ADR-162: não é coluna
     expect(aceita.backlog && aceita.afazer).toBe(true);
     // ADR-142 decisão 2: Backlog recebe sem acionar; o prompt não pode prometer início em toda coluna.
     expect(linha).toContain("nas outras de Não iniciado (como Backlog) só recebe, sem começar");

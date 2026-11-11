@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { LIMITES_QUADRO, type ColunaQuadro, type QuadroDto, type TarefaDto } from "../../../src/contracts/quadro.ts";
 import { acionaNaColuna as acionaNoDominio, aceitaPassagem as aceitaNoDominio, COLUNAS_PADRAO, colunasDto } from "../../../src/domain/colunas.ts";
-import { aceitaPassagem, acionaNaColuna, agentesDaPassagem, fraseDaColuna, LIMITE_INSTRUCOES, pedeConfirmacao, reciboDeMover } from "../../../web/lib/colunas.ts";
-import { aposDoCabecalho, confirmacaoDeSoltar, menuDeMover, passagemDoCabecalho, popoverDePassagem } from "../../../web/telas/colunas-quadro.ts";
+import { aceitaPassagem, acionaNaColuna, agentesDaPassagem, fraseDaColuna, LIMITE_INSTRUCOES, reciboDeMover } from "../../../web/lib/colunas.ts";
+import { previaDaTarefa } from "../../../web/lib/acionamento.ts";
+import { aposDoCabecalho, menuDeMover, passagemDoCabecalho, popoverDePassagem, previaDoQueRecebe } from "../../../web/telas/colunas-quadro.ts";
 import { quadroDaMeta } from "../../../web/telas/quadro-real.ts";
 
 /** ADR-142: a passagem por coluna na tela, sem DOM. */
@@ -13,7 +14,7 @@ const comPassagem = (): ColunaQuadro[] => COLUNAS_PADRAO.map((c) => (c.id === "r
 const dto = (cs: ColunaQuadro[] = comPassagem()) => colunasDto(cs).map((c) => (c.responsavel ? { ...c, responsavelNome: "Caio" } : c));
 const col = (id: string, cs = dto()) => cs.find((c) => c.id === id)!;
 const t = (id: string, extra: Partial<TarefaDto> = {}): TarefaDto => ({
-  id, quadroId: "q1", titulo: `Tarefa ${id}`, descricao: "", status: "afazer", voltarPara: null, terminadaEm: null, agenteId: "a", ordem: 1, linearId: null, linearUrl: null, prUrl: null,
+  id, quadroId: "q1", titulo: `Tarefa ${id}`, descricao: "", status: "afazer", voltarPara: null, terminadaEm: null, agenteId: "a", ordem: 1, prioridade: "sem", linearId: null, linearUrl: null, prUrl: null,
   pergunta: null, resposta: null, deFora: false, turnoId: null, criadoEm: 1, mudadoEm: 1, execucao: null, agenteNome: "Ada", numero: null, codigo: `ZE-${id}`, branch: `ze-${id}`, ...extra,
 });
 const q = (tarefas: TarefaDto[]): QuadroDto => ({
@@ -32,11 +33,11 @@ describe("web/lib/colunas: passagem", () => {
 });
 
 describe("web/telas/colunas-quadro: passagem", () => {
-  it("com responsável mostra o nome; sem, o Passar para…; nunca em Bloqueado, Precisa de você, Feito ou Cancelado", () => {
+  it("com responsável mostra o nome; sem, o Passar para…; nunca em Bloqueado, Feito ou Cancelado", () => {
     expect(passagemDoCabecalho(col("revisao"), false)).toContain("Caio");
     expect(passagemDoCabecalho(col("revisao"), false)).toContain("qd-col-passa-com");
     expect(passagemDoCabecalho(col("fazendo"), false)).toContain("Passar para…");
-    for (const id of ["bloqueado", "voce", "feito", "cancelado"]) expect(passagemDoCabecalho(col(id), false)).toBe("");
+    for (const id of ["bloqueado", "feito", "cancelado"]) expect(passagemDoCabecalho(col(id), false)).toBe("");
   });
 
   it("o popover marca o modo, o agente e o que a etapa faz; tudo escapado", () => {
@@ -60,25 +61,12 @@ describe("web/telas/colunas-quadro: passagem", () => {
     expect(backlog).toContain("sem acionar");
   });
 
-  it("a confirmação do card solto: um grupo discreto (sem diálogo), Confirmar · Não iniciar ainda, com a tarefa", () => {
-    const h = confirmacaoDeSoltar(col("revisao"), "t1", MAL);
-    expect(h).toMatch(/^<li class="qd-soltar" role="group" aria-label="[^"]+">/);
-    expect(h).not.toContain("dialog");
-    expect(h).not.toContain("qd-pop");
-    expect(h).toContain("Caio começa agora");
-    expect(h).toContain(`data-act="col-soltar"`);
-    expect(h).toContain(`data-act="col-soltar-sem"`);
-    expect(h).toContain("Não iniciar ainda");
-    expect(h).toContain(`data-tarefa="t1"`);
-    expect(h).not.toContain(MAL);
-  });
-
   it("o Mover para…: as outras colunas num menu, cada uma com a tarefa; a de responsável diz quem começa", () => {
     const h = menuDeMover(dto(), t("t1", { status: "afazer", titulo: MAL }));
     expect(h).toContain(`role="menu"`);
     expect(h).toContain(`data-act="tarefa-mover-para" data-coluna="revisao" data-tarefa="t1"`);
     expect(h).not.toContain(`data-coluna="afazer"`);
-    expect(h).toContain("Caio começa");
+    expect(h).toContain("Passa para Caio, que começa agora");
     expect(h).not.toContain(MAL);
   });
 
@@ -95,16 +83,11 @@ describe("quadroDaMeta: passagem", () => {
     expect(tela()).not.toContain("draggable");
   });
 
-  it("o card solto vira uma linha na lista da coluna de destino, não um popover no cabeçalho", () => {
-    const h = tela({ agentes: AGENTES, edicao: { tipo: "soltar", coluna: "revisao", tarefa: "1" } });
-    expect(h).not.toContain("qd-pop-soltar");
-    expect(h).not.toContain(`role="dialog"`);
-    const revisao = h.slice(h.indexOf(`data-coluna="revisao"`));
-    const lista = revisao.slice(revisao.indexOf(`<ul class="qd-col-lista">`), revisao.indexOf("</ul>"));
-    expect(lista).toContain(`<li class="qd-soltar" role="group"`);
-    expect(lista).toContain("Caio começa agora");
-    expect(lista).toContain("Tarefa 1");
-    expect(h.slice(0, h.indexOf(`class="qd-so-estreito"`))).not.toMatch(/<h3 class="qd-col-cab">(?:(?!<\/h3>).)*qd-soltar/s);
+  it("2026-11-10: soltar numa coluna com responsável não pede confirmação (o card não ganha Confirmar · Não iniciar ainda)", () => {
+    const h = tela({ agentes: AGENTES });
+    expect(h).not.toContain("qd-soltar");
+    expect(h).not.toContain("Não iniciar ainda");
+    expect(h).not.toContain(`data-act="col-soltar"`);
   });
 
   it("o card que edita a passagem tem o Mover para…; aberto, o menu fica no card e só na vista dele", () => {
@@ -132,30 +115,30 @@ describe("revisão 2 do PR #622: só diz que começa onde a coluna aciona", () =
     for (const c of COM_IDEIAS) expect(acionaNaColuna(c)).toBe(acionaNoDominio(COM_IDEIAS, c.id));
   });
 
-  it("A fazer e as de Andamento pedem a confirmação; Backlog e Ideias (Não iniciado) não", () => {
-    expect(pedeConfirmacao(col("afazer", cs()))).toBe(true);
-    expect(pedeConfirmacao(col("c-qa", cs()))).toBe(true);
-    expect(pedeConfirmacao(col("backlog", cs()))).toBe(false);
-    expect(pedeConfirmacao(col("c-ideias", cs()))).toBe(false);
-    expect(pedeConfirmacao(col("fazendo", cs()))).toBe(false);
+  it("A fazer e as de Andamento com responsável fazem começar ao entrar; Backlog e Ideias (Não iniciado) só passam", () => {
+    const de = (para: string) => previaDaTarefa({ status: "fazendo", agenteId: "ada", execucao: null }, para, cs());
+    expect(de("afazer")).toEqual({ agenteId: "caio", passa: true, aciona: true });
+    expect(de("c-qa")).toEqual({ agenteId: "caio", passa: true, aciona: true });
+    expect(de("backlog")).toEqual({ agenteId: "caio", passa: true, aciona: false });
+    expect(de("c-ideias")).toEqual({ agenteId: "caio", passa: true, aciona: false });
+    expect(de("revisao")).toEqual({ agenteId: "ada", passa: false, aciona: false });
   });
 
-  it("o recibo: começa só onde aciona; numa que não aciona, passa para; sem responsável, só o destino", () => {
-    expect(reciboDeMover("T", col("afazer", cs()), false)).toBe("T foi para A fazer; Caio começa");
-    expect(reciboDeMover("T", col("afazer", cs()), true)).toBe("T foi para A fazer; passa para Caio");
-    expect(reciboDeMover("T", col("c-ideias", cs()), false)).toBe("T foi para Ideias; passa para Caio");
-    expect(reciboDeMover("T", col("fazendo", cs()), false)).toBe("T foi para Fazendo");
+  it("o recibo: começa só onde aciona; quando só passa, passa para; sem responsável, só o destino", () => {
+    expect(reciboDeMover("T", col("afazer", cs()), { agenteId: "caio", passa: true, aciona: true }, "Caio")).toBe("T foi para A fazer; Caio começa");
+    expect(reciboDeMover("T", col("c-ideias", cs()), { agenteId: "caio", passa: true, aciona: false }, "Caio")).toBe("T foi para Ideias; passa para Caio");
+    expect(reciboDeMover("T", col("fazendo", cs()), { agenteId: "ada", passa: false, aciona: false }, "Ada")).toBe("T foi para Fazendo");
   });
 
-  it("o Mover para…: começa nas que acionam, passa para nas outras; Precisa de você desabilitada com o porquê", () => {
-    const h = menuDeMover(cs(), t("t1", { status: "fazendo" }), "Ada");
+  it("o Mover para…: começa nas que acionam, passa para nas outras; ADR-162: não há Precisa de você", () => {
+    const h = menuDeMover(cs(), t("t1", { status: "fazendo" }));
     const it = (id: string) => h.slice(h.indexOf(`data-coluna="${id}"`), h.indexOf("</button>", h.indexOf(`data-coluna="${id}"`)));
-    expect(it("afazer")).toContain("Caio começa");
+    expect(it("afazer")).toContain("Passa para Caio, que começa agora");
     expect(it("c-ideias")).toContain("Passa para Caio");
     expect(it("c-ideias")).not.toContain("começa");
     expect(it("backlog")).toContain("Passa para Caio");
-    expect(it("voce")).toContain(`aria-disabled="true"`);
-    expect(it("voce")).toContain("Só Ada põe aqui");
+    expect(h).not.toContain(`data-coluna="voce"`);
+    expect(h).not.toContain("Só Ada põe aqui");
     expect(it("revisao")).not.toContain("aria-disabled");
   });
 
@@ -164,10 +147,21 @@ describe("revisão 2 do PR #622: só diz que começa onde a coluna aciona", () =
     expect(fraseDaColuna(col("c-qa", cs()))).toBe("Entrar passa para Caio e aciona");
     expect(fraseDaColuna(col("c-ideias", cs()))).toBe("Entrar passa para Caio, sem acionar");
     expect(fraseDaColuna(col("backlog", cs()))).toBe("Entrar passa para Caio, sem acionar");
-    expect(fraseDaColuna(col("fazendo", cs()))).toMatch(/aciona o responsável/);
+    expect(fraseDaColuna(col("fazendo", cs()))).toBe("Trocar o responsável aciona");
   });
 
   it("a passagem nunca lista o Nod nem os excluídos", () => {
     expect(agentesDaPassagem([{ id: "n", nome: "Nod", papel: "nod" }, { id: "x", nome: "X", excluidoEm: 1 }, { id: "c", nome: "Caio", papel: null }])).toEqual([{ id: "c", nome: "Caio" }]);
+  });
+});
+
+describe("O que o bot recebe (2026-11-10, o What X receives do Multica)", () => {
+  it("o popover mostra, recolhido e escapado, o texto da etapa que o servidor manda; sem texto, nada", () => {
+    const c = { ...colunasDto(comPassagem()).find((x) => x.id === "revisao")!, responsavelNome: "Caio", recebe: "Etapa: Em revisão. <b>x</b>" };
+    const h = String(popoverDePassagem(c, []));
+    expect(h).toContain('<details class="qd-pas-recebe"><summary>O que Caio recebe</summary>');
+    expect(h).toContain("Etapa: Em revisão. &lt;b&gt;x&lt;/b&gt;");
+    expect(h).not.toMatch(/<details[^>]* open/);
+    expect(previaDoQueRecebe({ recebe: undefined, responsavelNome: null })).toBe("");
   });
 });

@@ -2,8 +2,8 @@ import type { CasoNod } from "../contracts/servicos.ts";
 import type { QuadroDto, ResultadoGerirQuadro } from "../contracts/quadro.ts";
 import { LIMITE_ACIONAMENTOS_HORA } from "../domain/freios-quadro.ts";
 import type { LinkDeTarefa } from "../contracts/quadro-pela-conversa.ts";
-import { ehOpDeTrabalho, lerOps, MAX_COMECOS_POR_LOTE } from "../domain/quadro.ts";
-import { ERROS_FALA } from "../domain/fala-da-pessoa.ts";
+import { ehOpDeTrabalho, lerOps } from "../domain/quadro.ts";
+import { citaTarefa, ERROS_FALA } from "../domain/fala-da-pessoa.ts";
 import { proporColunas } from "./colunas-do-quadro.ts";
 import type { IssueLinear } from "../contracts/quadro-importacao.ts";
 import { type BuscaDaPrevia, conferirImportacaoDoBot, type FalhaDaImportacao, proporImportacaoLinear } from "./importar-linear.ts";
@@ -17,10 +17,12 @@ import type { Deps } from "./tipos.ts";
 import type { TrabalhoFeito } from "./quadro.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { registrarConsultaDoQuadro } from "./trilha-quadro.ts";
+import { codigoDoPasso, faltouOBot, fraseParaPessoa, indiceDaRecusa, type ErroDoQuadro } from "../domain/recusa-do-quadro.ts";
 import { OPS_QUADROS_DO_BOT, OPS_QUADROS_DO_BOT_DA_PESSOA } from "../contracts/quadros-do-bot.ts";
 import { lerOpQuadrosDoBot } from "../domain/quadros-do-bot.ts";
 import { aplicarQuadrosDoBot } from "./quadros-do-bot.ts";
 import { exibirDoQuadro } from "./raio-x.ts";
+import { fraseDasOpcoes } from "../domain/opcoes-do-quadro.ts";
 
 /**
  * gerir_quadro (definido em 2026-10-31, NOD-442, ADR-135): a via do chat das ações `quadro.*`, para QUALQUER bot. É o
@@ -176,7 +178,31 @@ export const gerirQuadro: CasoNod<Deps, "gerir_quadro"> = async (deps, input) =>
   return r;
 };
 
+/**
+ * ADA-26: toda recusa ganha a frase para a pessoa (`para_pessoa`, sem a regra interna) e fica na Atividade do bot (uma
+ * linha na trilha: só ids e o motivo, ADR-004; `alcance_insuficiente` fica fora das decisões de autorização e não
+ * interrompe o turno, porque não passa pelo registrarNegacao).
+ */
+export const REGRA_QUADRO_RECUSOU = "regra:quadro_recusou" as const;
 export async function gerirQuadroEmFases(deps: Deps, input: EntradaGerirQuadro, modo: ModoImportacao): Promise<SaidaGerirQuadro | { buscarLinear: BuscaDaPrevia }> {
+  const r = await decidirGerirQuadro(deps, input, modo);
+  if ("buscarLinear" in r || r.data.ok) return r;
+  // Revisão do PR #8: a tarefa do passo recusado (não a do primeiro) e, se a fala da pessoa neste turno já a cita, a
+  // frase não manda pedir de novo citando o código. Só o código entra (ADR-047); a fala é lida, nunca devolvida.
+  const codigo = codigoDoPasso(input.acoes, indiceDaRecusa(r.data.instrucao));
+  const achado = await deps.repos.turnos.buscar(input.turnoId);
+  const turno = achado && achado.agenteId === input.agenteId ? achado : null;
+  const jaCitou = codigo !== null && turno !== null && naConversa(turno)
+    && (await deps.repos.mensagens.falasDaPessoaNoTurno(turno.id, turno.conversaId)).some((f) => citaTarefa(f.texto, { codigo, linearId: null }));
+  const frase = fraseParaPessoa(r.data.erro as ErroDoQuadro, codigo, jaCitou, faltouOBot(r.data.instrucao));
+  if (turno) {
+    await deps.repos.trilha.registrar({ agenteId: input.agenteId, turnoId: turno.id, conectorId: null, ferramenta: "gerir_quadro", kind: "negacao", motivo: "alcance_insuficiente", regra: REGRA_QUADRO_RECUSOU, regraVersao: 1, em: deps.agora() });
+  }
+  if (!frase) return r;
+  return { ...r, data: { ...r.data, para_pessoa: frase, instrucao: `${r.data.instrucao} Se não der para seguir, diga à pessoa só isto, em uma frase: "${frase}"` } };
+}
+
+async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: ModoImportacao): Promise<SaidaGerirQuadro | { buscarLinear: BuscaDaPrevia }> {
   const turno = await deps.repos.turnos.buscar(input.turnoId);
   if (!turno || turno.agenteId !== input.agenteId) return recusa("nao_encontrado", "turno de outro bot");
   // ADR-063 entre donos (revisão do PR #612): o quadro é da pessoa do escopo. Um bot de outro dono só mexe nele de
@@ -210,11 +236,15 @@ export async function gerirQuadroEmFases(deps: Deps, input: EntradaGerirQuadro, 
   if (ops.some((o) => o.tipo === "responder" && !o.pela_fala) && !(naConversa(turno) && limpo)) {
     return recusa("entrada_invalida", naConversa(turno)
       ? "responder é a resposta da pessoa: sem pela_fala, só num turno limpo, e este leu algo de fora (o quadro, o Linear, uma página). Se a pessoa respondeu nesta conversa citando a tarefa, mande o mesmo passo com pela_fala: true; senão, pergunte a ela citando o código da tarefa"
-      : "responder é a resposta da pessoa: só num turno em que ela falou com você (não numa tarefa, rotina ou pedido de colega). Peça a ela no card (status voce com a pergunta)");
+      : "responder é a resposta da pessoa: só num turno em que ela falou com você (não numa tarefa, rotina ou pedido de colega). Pergunte a ela na tarefa (mudar_tarefa só com a pergunta)");
   }
   // As colunas são da pessoa (ADR-140): o bot só mexe nelas a pedido dela, na conversa — não no turno de uma tarefa,
   // rotina ou pedido de colega (revisão do PR #615, o mesmo corte do Desfazer de lote alheio).
   const COLUNA = new Set(["criar_coluna", "renomear_coluna", "mover_coluna", "remover_coluna", "substituir_colunas", "definir_passagem", "travar_coluna"]);
+  // 0161: o catálogo de labels também (o nome de uma label entra no turno das tarefas, como o de uma coluna).
+  if (ops.some((o) => o.tipo === "criar_label" || o.tipo === "editar_label" || o.tipo === "remover_label") && !naConversa(turno)) {
+    return recusa("entrada_invalida", "as labels do quadro só mudam a pedido da pessoa, num turno em que ela falou com você (não numa tarefa, rotina ou pedido de colega). Para marcar a tarefa, use uma das labels que já existem");
+  }
   if (ops.some((o) => COLUNA.has(o.tipo)) && !naConversa(turno)) {
     return recusa("entrada_invalida", "as colunas só mudam a pedido da pessoa, num turno em que ela falou com você (não numa tarefa, rotina ou pedido de colega). Diga a ela o que sugere e deixe que ela peça");
   }
@@ -235,10 +265,10 @@ export async function gerirQuadroEmFases(deps: Deps, input: EntradaGerirQuadro, 
     const achado = await acharQuadro(deps, { autor: { tipo: "agente", agenteId: input.agenteId }, ops, executor: turno.executor, ...(input.quadro !== undefined ? { quadro: input.quadro } : {}) }, agentes);
     if (achado && ("ambiguo" in achado || "semNome" in achado)) { const f = falhaDoAchado(achado, agentes); return recusa(f.erro, f.detalhe); }
     if (!achado) return recusa("sem_quadro", "não há quadro: crie com criar_quadro");
-    const { visao, recolhidas, compacto } = exibir;
-    await exibirDoQuadro(deps, { quadroId: achado.id, visao, recolhidas, compacto });
+    const { visao, recolhidas, compacto, vista, agrupar, ordenar, inverter, ocultas, propriedades } = exibir;
+    await exibirDoQuadro(deps, { quadroId: achado.id, visao, recolhidas, compacto, vista, agrupar, ordenar, inverter, ocultas, propriedades });
     const nomes = { lista: "Lista", colunas: "Colunas", minhas: "Minhas tarefas" } as const;
-    const o_que = [visao && `a visão do celular agora é ${nomes[visao]}`, recolhidas !== undefined && `as colunas recolhidas ${recolhidas ? "aparecem" : "somem"}`, compacto !== undefined && `os cards ${compacto ? "ficam compactos" : "voltam ao normal"}`].filter(Boolean).join("; ");
+    const o_que = [visao && `a visão do celular agora é ${nomes[visao]}`, recolhidas !== undefined && `as colunas recolhidas ${recolhidas ? "aparecem" : "somem"}`, compacto !== undefined && `os cards ${compacto ? "ficam compactos" : "voltam ao normal"}`, ...fraseDasOpcoes(exibir)].filter(Boolean).join("; ");
     return { data: { ok: true, quadro: null, lote_id: null, comecaram: [], instrucao: `Feito: ${o_que} (só na tela da pessoa; não tem Desfazer, troca de novo se ela pedir). Diga isso em uma frase.` } };
   }
   // NOD-448 (ADR-140, decisão 3 do Gil): trocar o conjunto inteiro de colunas não sai sozinho — vira o card compacto na
@@ -384,12 +414,14 @@ export async function gerirQuadroEmFases(deps: Deps, input: EntradaGerirQuadro, 
   if (r.data.comentario) {
     const juntados = r.data.juntados ?? 0;
     if (r.data.freados) partes.push(`Ninguém foi acionado: esta tarefa passou de ${LIMITE_ACIONAMENTOS_HORA} acionamentos na última hora (freio). O comentário ficou gravado; diga à pessoa e espere a resposta dela.`);
-    else if (!r.data.seguradas) partes.push(comecaram.length ? `Acionou: ${comecaram.map((c) => c.agenteNome).join(", ")}${juntados ? ` (${juntados === 1 ? "um já estava" : `${juntados} já estavam`} na fila para esta tarefa e o comentário se juntou ao trabalho dele)` : ""}.` : "Ninguém foi acionado: o comentário aciona o responsável da tarefa e os @nomes de outros bots do quadro, nunca quem escreveu.");
+    else if (!r.data.seguradas) partes.push(comecaram.length ? `Acionou: ${comecaram.map((c) => c.agenteNome).join(", ")}${juntados ? ` (${juntados === 1 ? "um já estava" : `${juntados} já estavam`} na fila para esta tarefa e o comentário se juntou ao trabalho dele)` : ""}.` : "Ninguém foi acionado: o comentário aciona o responsável da tarefa (numa thread, o agente da thread) e os @nomes de outros bots do quadro, nunca quem escreveu; @todos não aciona o responsável.");
   } else if (comecaram.length && !feito) partes.push(`Começaram: ${comecaram.map((c) => c.agenteNome).join(", ")} (cada um recebeu a tarefa como pedido).`);
-  const parado = r.data.responsavelForaDoAndamento;
-  if (parado) partes.push(`A tarefa está em ${parado.coluna}, fora do andamento: o comentário ficou nela e ${parado.agenteNome} (o responsável) não foi acionado.`);
+  for (const s of r.data.seguemNaEtapa ?? []) partes.push(`${s.agenteNome} segue trabalhando na etapa de antes (não foi parado): termina o que faz, sem mudar mais o status. Diga isso à pessoa (para parar junto, o mover leva parar_anterior true).`);
+  if (r.data.mandadosAgora) partes.push("O comentário entrou no turno em andamento do responsável (lê no próximo passo).");
+  if (r.data.comentario && "paiId" in r.data.comentario && r.data.comentario.paiId) partes.push(`Ficou na thread ${r.data.comentario.paiId} (para responder nela, responder_a com esse id).`);
+  else if (r.data.comentario) partes.push(`Para responder a este comentário na mesma thread: responder_a "${r.data.comentario.id}".`);
   if (r.data.seguradas && r.data.comentario) partes.push("A corrente de bots chegou ao limite: o comentário ficou gravado e ninguém foi acionado.");
-  else if (r.data.seguradas) partes.push(`${r.data.seguradas === 1 ? "Uma tarefa ficou" : `${r.data.seguradas} tarefas ficaram`} na espera sem começar: a corrente de bots chegou ao limite ou o lote passou de ${MAX_COMECOS_POR_LOTE} começos. Diga à pessoa: ela começa a tarefa pela conversa com você (mudar_tarefa com status afazer, num turno dela).`);
+  else if (r.data.seguradas) partes.push(`${r.data.seguradas === 1 ? "Uma tarefa ficou" : `${r.data.seguradas} tarefas ficaram`} na espera sem começar: a corrente de bots chegou ao limite. Diga à pessoa: ela começa a tarefa pela conversa com você (mudar_tarefa com status afazer, num turno dela).`);
   // ADA-15: o card guarda a fala literal da pessoa, com o link da mensagem; o texto do bot não entra.
   if (comFala && lote) partes.push("A resposta no card é a fala literal da pessoa, com o link para a mensagem; o histórico guarda de qual fala veio.");
   if (r.data.ajustada) partes.push("Um passo de coluna foi para a posição válida mais próxima: as colunas só mudam de lugar dentro do próprio grupo.");

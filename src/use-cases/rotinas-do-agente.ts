@@ -1,10 +1,12 @@
 import type { PayloadProposta, PayloadPropostaRotinaAtualizacao, PayloadPropostaRotinaExclusao } from "../contracts/conversa.ts";
+import type { PayloadPropostaRotinaExecucao } from "../contracts/rotina-execucao.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { EstadoRotina, Rotina } from "../contracts/rotina.ts";
 import type { CasoNod, ContextoFerramenta } from "../contracts/servicos.ts";
 import { ehErroDeDominio, ErroDeDominio } from "../domain/erro.ts";
 import { nomeDoApp } from "../domain/pedido-acesso.ts";
 import { mesmosAcessos } from "../domain/rotina-acessos.ts";
+import { instanteLocal, textoRetomada } from "../domain/rotina-retomada.ts";
 import { ehWebhook, validarAtualizacaoRotina, quandoDaRotina } from "../domain/rotina-texto.ts";
 import type { PlanoTurno } from "../contracts/plano-turno.ts";
 import { agenteVisivel, assertUuid, autoriaAgente, carimbo, evento, PRAZO_DECISAO_MS } from "./apoio-l7.ts";
@@ -49,14 +51,17 @@ export const listarRotinasDoAgente: CasoNod<Deps, "listar_rotinas"> = async (dep
  * do modelo, e sem esse filtro um agente mexeria na rotina de qualquer outro dentro do mesmo tenant
  * (rotinas.buscar é tenant-wide, por RLS de leitura).
  */
-async function alternar(deps: Deps, input: { agenteId: string; rotinaId: string; plano?: PlanoTurno }, estado: EstadoRotina) {
+async function alternar(deps: Deps, input: { agenteId: string; rotinaId: string; plano?: PlanoTurno; ate?: string }, estado: EstadoRotina) {
   try {
     const { rotina: atual, quem } = await rotinaAlternavel(deps, input);
-    const jaEstava = atual.estado === estado;
+    // NOD-412: `ate` é hora local no fuso DA ROTINA (a pessoa fala do horário dela); vira instante aqui, e o executor valida.
+    const retomarEm = estado === "pausada" && input.ate !== undefined ? instanteLocal(input.ate, atual.fusoIana) : null;
+    const jaEstava = atual.estado === estado && (estado === "ativa" || retomarEm === null || retomarEm === (atual.retomarEm ?? null));
     // Na conversa do colega fica dito quem pausou e a pedido de quem: a pessoa abre a Nina e entende.
-    const texto = quem && estado === "pausada" ? `${quem} pausou esta rotina a seu pedido: nada será disparado até você reativar.` : undefined;
-    const { data } = await pausarRotina(deps, { rotinaId: input.rotinaId, estado, autoria: autoriaAgente(input.agenteId, deps.escopo.pessoaId), ...(texto ? { texto } : {}) });
-    return { data: { rotina_id: data.rotina.id, estado: data.rotina.estado, ja_estava: jaEstava, proxima_execucao: data.rotina.estado === "ativa" ? data.rotina.proximaExecucao : null } };
+    const ate = retomarEm !== null ? ` até ${textoRetomada(retomarEm, atual.fusoIana, deps.agora())}: volta sozinha.` : ": nada será disparado até você reativar.";
+    const texto = quem && estado === "pausada" ? `${quem} pausou esta rotina a seu pedido${ate}` : undefined;
+    const { data } = await pausarRotina(deps, { rotinaId: input.rotinaId, estado, retomarEm, autoria: autoriaAgente(input.agenteId, deps.escopo.pessoaId), ...(texto ? { texto } : {}) });
+    return { data: { rotina_id: data.rotina.id, estado: data.rotina.estado, ja_estava: jaEstava, proxima_execucao: data.rotina.estado === "ativa" ? data.rotina.proximaExecucao : null, retomar_em: data.rotina.estado === "pausada" ? data.rotina.retomarEm ?? null : null } };
   } catch (e) {
     if (ehErroDeDominio(e)) return { data: { erro: e.codigo } };
     throw e;
@@ -64,7 +69,7 @@ async function alternar(deps: Deps, input: { agenteId: string; rotinaId: string;
 }
 
 export const pausarRotinaPeloAgente: CasoNod<Deps, "pausar_rotina"> = (deps, input) =>
-  alternar(deps, { agenteId: input.agenteId, rotinaId: input.rotina_id, plano: input.plano }, "pausada");
+  alternar(deps, { agenteId: input.agenteId, rotinaId: input.rotina_id, plano: input.plano, ...(input.ate !== undefined ? { ate: input.ate } : {}) }, "pausada");
 
 export const reativarRotinaPeloAgente: CasoNod<Deps, "reativar_rotina"> = (deps, input) =>
   alternar(deps, { agenteId: input.agenteId, rotinaId: input.rotina_id, plano: input.plano }, "ativa");
@@ -105,7 +110,7 @@ async function propor(deps: Deps, input: ContextoFerramenta, payload: PayloadPro
   if (!proposta) throw new ErroDeDominio("estado_invalido", { cause: "proposta não criada" });
   const decisao = await deps.repos.decisoes.criar({
     id: proposta.id,
-    tipo: payload.kind === "rotina_exclusao" ? "rotina_exclusao" : "rotina_atualizacao",
+    tipo: payload.kind === "rotina_exclusao" || payload.kind === "rotina_execucao" ? payload.kind : "rotina_atualizacao",
     agenteId: input.agenteId,
     conversaId: input.conversaId,
     turnoId: input.turnoId,
@@ -203,6 +208,36 @@ export const excluirRotinaPeloAgente: CasoNod<Deps, "excluir_rotina"> = async (d
       if (aplicada.data.obsoleta) return obsoleta(events, aplicada.events);
       return { data: { proposta_id: proposta.id, resumo, aplicada: true }, events: [...semCard(events), ...(aplicada.events ?? [])] };
     }
+    return { data: { proposta_id: proposta.id, resumo }, events };
+  } catch (e) {
+    if (ehErroDeDominio(e)) return { data: { erro: e.codigo } };
+    throw e;
+  }
+};
+
+/**
+ * NOD-413: `executar_rotina` — "roda agora a rotina das 9h". Só PROPÕE, sempre: o risco é `pessoa_confirma`
+ * (src/domain/acoes/rotinas.ts), então nem o modo "Ignorar todas as aprovações" dispara sem o clique em "Rodar agora".
+ * Só rotina DESTE bot (rotinaDoAgente); a de um colega fica para a NOD-393. O clique roda pelo executor único do Testar
+ * agora (EXECUTORES_ROTINAS), em aplicarExecucaoRotina. Pedir de novo com o card ainda aberto devolve o mesmo card.
+ */
+export const executarRotinaPeloAgente: CasoNod<Deps, "executar_rotina"> = async (deps, input) => {
+  try {
+    const atual = await rotinaDoAgente(deps, input.agenteId, input.rotina_id);
+    const resumo = quandoDaRotina(atual);
+    // Revisão do PR #15: só reusa o card que ainda se clica. A proposta segue `pendente` depois que a decisão de mesmo id
+    // vence ou é dispensada; reusá-la devolvia, para sempre, um card morto (o clique dá 409).
+    for (const p of await deps.repos.propostas.pendentesDaConversa(input.conversaId)) {
+      if (p.payload.kind !== "rotina_execucao" || p.payload.rotinaId !== atual.id) continue;
+      const decisao = await deps.repos.decisoes.buscar(p.id);
+      if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { data: { proposta_id: p.id, resumo } };
+    }
+    const fila = await deps.repos.rotinaJanelas.turnoAberto(atual.id, deps.agora());
+    const payload: PayloadPropostaRotinaExecucao = {
+      kind: "rotina_execucao", rotinaId: atual.id, resumo, instrucao: atual.instrucao, revisao: revisaoAtual(atual),
+      ...(fila ? { naFila: { instanteAgendado: fila.instanteAgendado, fusoIana: atual.fusoIana } } : {}),
+    };
+    const { proposta, events } = await propor(deps, input, payload, `Rodar agora a rotina: ${resumo} — ${atual.instrucao}`);
     return { data: { proposta_id: proposta.id, resumo }, events };
   } catch (e) {
     if (ehErroDeDominio(e)) return { data: { erro: e.codigo } };

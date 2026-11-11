@@ -1,4 +1,5 @@
 import type { AutorHistorico, ColunaQuadro, IdColuna, MudancaTarefa, TarefaQuadro } from "../contracts/quadro.ts";
+import type { MudancaDeCampo } from "../contracts/quadro-pela-conversa.ts";
 import { colunaDeAndamento, colunaDoGrupoSemPassagem, grupoDe, normalizarNome, responsavelDe } from "./colunas.ts";
 
 /**
@@ -37,12 +38,14 @@ export function mudancasDaTarefa(p: {
 
 /**
  * A coluna da tarefa no quadro de destino: a mesma, se o destino a tem; senão a padrão do mesmo grupo (Backlog, Fazendo,
- * Feito, Cancelado). "Precisa de você" é fixa e existe em todo quadro. Revisão 7 do PR #623, a regra da main
+ * Feito, Cancelado). A espera da pessoa (`voce`, ADR-162) não é coluna e segue com a tarefa (a coluna de onde veio é
+ * levada à parte, no `voltarPara`). Revisão 7 do PR #623, a regra da main
  * (ADR-142): o mover não faz passagem. A coluna do destino com responsável (`responsavelDe`) que não é o da tarefa fica
  * de fora (a tarefa estaria na etapa de um bot sem ser dele, e sem ele acionado); cai na do mesmo grupo sem passagem.
  * Cair numa coluna que aciona (`acionaNaColuna`) não começa ninguém: quem aciona é o lote, e o mover não é lote.
  */
 export function statusNoDestino(origem: readonly ColunaQuadro[], status: IdColuna, destino: readonly ColunaQuadro[], agenteId: string | null = null, turnoVivo = true): IdColuna {
+  if (status === "voce") return status;
   const livre = (id: IdColuna) => { const r = responsavelDe(destino, id); return r === null || r === agenteId; };
   if (destino.some((c) => c.id === status) && livre(status)) return status;
   const g = grupoDe(origem, status) ?? "nao_iniciado";
@@ -63,4 +66,25 @@ function andamentoSemExecucao(origem: readonly ColunaQuadro[], status: IdColuna,
   const nome = origem.find((c) => c.id === status)?.nome;
   const mesmoNome = nome === undefined ? undefined : candidatas.find((c) => normalizarNome(c.nome) === normalizarNome(nome));
   return (mesmoNome ?? candidatas[0])?.id ?? null;
+}
+
+/** A foto dos campos que a linha do tempo conta (2026-11-10); ausente na foto de um lote de antes deles = não se sabe. */
+export type CamposDaFoto = Partial<Pick<TarefaQuadro, "prioridade" | "labelIds" | "prazoEm">>;
+
+/**
+ * 2026-11-10 (a issue do Multica): o que um lote mudou na prioridade, no prazo e nas labels da tarefa, comparando a foto de
+ * antes dele com a de depois (a foto de antes do lote seguinte, ou a tarefa de agora para o último). Campo ausente numa das
+ * fotos (lote de antes da 0159/0160) não conta: melhor calar que inventar uma mudança.
+ */
+export function mudancasDeCampos(antes: CamposDaFoto | null, depois: CamposDaFoto): MudancaDeCampo[] {
+  if (!antes) return [];
+  const m: MudancaDeCampo[] = [];
+  if (antes.prioridade !== undefined && depois.prioridade !== undefined && antes.prioridade !== depois.prioridade) m.push({ campo: "prioridade", de: antes.prioridade, para: depois.prioridade });
+  if (antes.prazoEm !== undefined && depois.prazoEm !== undefined && (antes.prazoEm ?? null) !== (depois.prazoEm ?? null)) m.push({ campo: "prazo", de: antes.prazoEm ?? null, para: depois.prazoEm ?? null });
+  if (antes.labelIds !== undefined && depois.labelIds !== undefined) {
+    const postas = depois.labelIds.filter((id) => !antes.labelIds!.includes(id));
+    const tiradas = antes.labelIds.filter((id) => !depois.labelIds!.includes(id));
+    if (postas.length || tiradas.length) m.push({ campo: "labels", postas, tiradas });
+  }
+  return m;
 }

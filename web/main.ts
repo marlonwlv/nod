@@ -2,6 +2,7 @@ import { botaoDaBarraSemIa, conversaAguardandoIa, dicaDoComposerSemIa, iasNoCard
 import { escNoEspaco, focoAoAbrirEspaco, voltarParaLista } from "./lib/navegacao-config.ts";
 import { perfilMudou } from "./lib/perfil-mudou.ts";
 import "./lib/mascote-elemento.ts";
+import { ligarModoDeFoco } from "./lib/modo-de-foco.ts";
 import { alternarExplicacao, detailsParaFecharComEsc } from "./lib/recomeco.ts";
 import { abrirCapturaAmpliada } from "./telas/captura-ampliada.ts";
 import { abrirPreviaArquivo } from "./telas/previa-arquivo.ts";
@@ -709,6 +710,8 @@ const quadroNaTela = criarQuadroNaTela(document, {
     api: () => api,
     agente: (id) => { const b = botGerido(id); return b ? { avatar: confiarHtml(iconeAgente(b, "sm")), nome: b.nome } : null; },
     hora: horaDaFala,
+    // 2026-11-10: o SSE mudo (um proxy que segura o stream) faz o quadro reler sozinho.
+    ultimoDadoAoVivo: () => live?.ultimoDado() ?? 0,
     // Os bots da pessoa: quem recebe a passagem de uma coluna (ADR-142) e quem pode ser o Responsável da tarefa aberta
     // (NOD-416). O código da tarefa aberta vai para a URL.
     agentes: () => responsaveisDaTarefa(estado.frota?.agentes ?? [], estado.sessao?.pessoaId),
@@ -1189,6 +1192,8 @@ const daAtividade = (q: Invalidacao): boolean => q.startsWith("atividade:") || q
 const focoPendente = criarFocoPendente({ get activeElement() { return document.activeElement; }, get body() { return document.body; }, querySelector: (s) => document.querySelector<HTMLElement>(s) as unknown as ElDaLista | null }, () => Date.now());
 document.addEventListener("pointerdown", () => focoPendente.descartar(), true);
 document.addEventListener("keydown", () => focoPendente.descartar(), true);
+// O contorno de foco só para quem navega pelo teclado (web/lib/modo-de-foco.ts).
+ligarModoDeFoco(document as never);
 
 /**
  * ADR-125: o que foi escolhido e ainda não voltou confirmado, por bot: a frota relida no meio não desfaz na tela.
@@ -6668,7 +6673,14 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "dispensar-incidente": (el) => agir(async () => void (await api!.dispensarIncidente(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["sua-vez"] }))),
   // definido em 2026-09-24 (ADR-044): o grupo (app · nível) do painel sai inteiro, com um registro só.
   "revogar-acessos": (el) => agir(async () => void (await api!.revogarAcessos(el.dataset.agente ?? "", (el.dataset.ids ?? "").split(",").filter(Boolean)), dispatch({ tipo: "invalidar", quais: [`concessoes:${el.dataset.agente ?? ""}`, "frota"] }))),
-  "pausar-rotina": (el) => agir(async () => void (await api!.pausarRotina(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["rotinas"] }))),
+  "pausar-rotina": (el) => agir(async () => void (await api!.pausarRotina(el.dataset.id ?? "", el.dataset.ate || undefined), dispatch({ tipo: "invalidar", quais: ["rotinas"] }))),
+  // NOD-412: "Pausar até…" com data e hora escolhidas no campo ao lado (hora local, no fuso da rotina).
+  "pausar-rotina-escolhida": (el) => {
+    const campo = el.parentElement?.querySelector<HTMLInputElement>("input[data-ate-rotina]");
+    const ate = campo?.value ?? "";
+    if (!ate) { campo?.focus(); return; }
+    agir(async () => void (await api!.pausarRotina(el.dataset.id ?? "", ate.slice(0, 16)), dispatch({ tipo: "invalidar", quais: ["rotinas"] })));
+  },
   "ativar-rotina": (el) => agir(async () => void (await api!.ativarRotina(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["rotinas"] }))),
   "ver-execucoes": (el) => {
     const id = el.dataset.id ?? "";

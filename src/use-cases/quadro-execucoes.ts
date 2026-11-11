@@ -1,22 +1,25 @@
 import type { Executor, RuntimeEvent } from "../contracts/evento.ts";
+import { labelsDaTarefa } from "../domain/quadro-labels.ts";
 import type { OpQuadro, Quadro, TarefaQuadro } from "../contracts/quadro.ts";
 import { type DesfechoExecucao, type ExecucaoDto, type TrabalhoParaBot, type ExecucaoQuadro, type ExecucoesDaTarefa, INTERVALO_NOVA_TENTATIVA_MS, type RecadoQuadro } from "../contracts/quadro-execucoes.ts";
 import type { Profundidade, Turno } from "../contracts/turno.ts";
-import { acionaNaColuna, colunaDeAndamento, colunaDeEspera, colunasDe, papelDe } from "../domain/colunas.ts";
+import { acionaNaColuna, colunaDeAndamento, colunaDeEspera, colunasDe, grupoDe, papelDe } from "../domain/colunas.ts";
 import { ehErroDeDominio, ErroDeDominio } from "../domain/erro.ts";
 import { log } from "../obs/log.ts";
-import { cercado, entradaDaTarefa, etapaDaTarefa, resolverTarefa, voltaDaResposta } from "../domain/quadro.ts";
-import { decidirAposTermino, entradaDoNovoTrabalho, entradaDoReacionamento, entradaDoRecado, saidaDoTurno, esperandoNaCadeia, estadoDaExecucao, molduraDoRecado, motivoDaFalha, recadosNaEntrada, type RecadoNaEntrada, tentativasAutomaticasSeguidas, terminada, voltaCiPronta, voltaNaTela } from "../domain/quadro-execucoes.ts";
+import { andando as andandoNoDominio, cercado, entradaDaTarefa, etapaDaTarefa, resolverTarefa, voltaDaResposta } from "../domain/quadro.ts";
+import { mudancaQuePrende } from "../domain/etapa-presa.ts";
+import { cobraTurnoDeComentario, decidirAposTermino, entradaDoNovoTrabalho, entradaDoReacionamento, entradaDoRecado, saidaDoTurno, esperandoNaCadeia, estadoDaExecucao, molduraDoRecado, motivoDaFalha, recadosNaEntrada, type RecadoNaEntrada, tentativasAutomaticasSeguidas, terminada, voltaNaTela, voltaPorEventoPronta } from "../domain/quadro-execucoes.ts";
 import type { DesfechoComFrase } from "../repositories/quadro-execucoes.repo.ts";
 import { autoriaPessoa, evento } from "./autoria-evento.ts";
 import { fecharPedidoSemAcordar } from "./entregar-resposta-peer.ts";
-import { abrirTurno, acharQuadro, agentesDaPessoa, avisarComVoce, comMembros, eventoQuadro, experimentoLigado, falhaDoAchado, montarQuadro, pararTurno, type PedidoLote, type ResultadoLote } from "./quadro.ts";
+import { abrirTurno, acharQuadro, agentesDaPessoa, avisarComVoce, comentarPergunta, comMembros, eventoQuadro, experimentoLigado, falhaDoAchado, montarQuadro, pararTurno, type PedidoLote, type ResultadoLote } from "./quadro.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 import { registrarHistoricoComTrilha } from "./trilha-quadro.ts";
 import { vaiParaQuadroDeOutraPessoa } from "./quadro-pessoas.ts";
 import type { Isolar } from "./turnos-orfaos.ts";
 import { ehUuid } from "./apoio-l7.ts";
 import { enfileirarVolta } from "./me-chame-as.ts";
+import { sincronizarTrabalho } from "./trabalhos.ts";
 import { AVISO_SEM_SAIDA } from "../contracts/quadro-execucoes.ts";
 import { LIMITE_ACIONAMENTOS_HORA } from "../domain/freios-quadro.ts";
 import { situacaoDasTarefas } from "./situacao-trabalho.ts";
@@ -44,10 +47,15 @@ export const REGRA_TRABALHO_SUBSTITUIDO = "regra:trabalho_do_quadro_substituido"
 
 const falha = (erro: Extract<ResultadoLote, { ok: false }>["erro"], detalhe: string): { data: ResultadoLote } => ({ data: { ok: false, erro, detalhe } });
 
-/** Só a fazer e fazendo repetem sozinhas ou vão para Bloqueado (decisão da Ada). */
+/**
+ * Onde o trabalho da tarefa vale (repete sozinho, é cobrado pelas 4 saídas ou vai para Bloqueado): o `andando` do domínio
+ * (todo o grupo iniciado, menos Bloqueado e a espera da pessoa: Fazendo, Em revisão e as colunas de andamento da pessoa)
+ * e A fazer, onde o trabalho já começou e ainda não andou. revisto em 2026-11-10 (P1 da comparação Multica): a regra
+ * local (só A fazer e Fazendo) deixava o bot acionado pela passagem em Em revisão (ADR-142) fora da ADR-155.
+ */
 const andando = (q: Quadro, t: TarefaQuadro): boolean => {
-  const papel = papelDe(colunasDe(q), t.status);
-  return papel === "afazer" || papel === "fazendo";
+  const colunas = colunasDe(q);
+  return andandoNoDominio(colunas, t.status) || papelDe(colunas, t.status) === "afazer";
 };
 
 async function desfechosDe(deps: Deps, execs: readonly ExecucaoQuadro[]): Promise<Map<string, DesfechoComFrase>> {
@@ -141,12 +149,15 @@ export async function trabalhosDaTarefa(deps: Deps, t: TarefaQuadro): Promise<Ex
   let seguidas = 0;
   // ADA-232: a volta marcada de cada cadeia ("Volto quando… · Acordar agora"); só a do trabalho que ainda não terminou.
   const voltas = await deps.repos.quadroExecucoes.voltasDasCadeias(execs.map((e) => e.turnoId));
+  // ADA-10: o nome da etapa de cada linha ("#3 · Plano de engenharia"); a coluna que saiu do quadro fica sem nome.
+  const nomes = new Map(colunasDe(await deps.repos.quadros.buscar(t.quadroId)).map((c) => [c.id, c.nome]));
   const dtos: ExecucaoDto[] = execs.map((e) => {
     // A mesma conta de tentativasAutomaticasSeguidas: o trabalho de comentário não zera.
     if (e.origem !== "comentario") seguidas = e.origem === "automatica" ? seguidas + 1 : 0;
     const d = desfechos.get(e.turnoId);
     return {
-      id: e.id, numero: e.numero, origem: e.origem, turnoId: e.turnoId, motivo: e.motivo, criadoEm: e.criadoEm,
+      id: e.id, numero: e.numero, sessao: e.sessao, coluna: e.coluna, colunaNome: e.coluna ? nomes.get(e.coluna) ?? null : null,
+      origem: e.origem, turnoId: e.turnoId, motivo: e.motivo, criadoEm: e.criadoEm,
       estado: estadoDaExecucao(e, d),
       esperando: estadoDaExecucao(e, d) === "rodando" && esperandoNaCadeia(d),
       turnoAtual: d?.turnoAtual ?? e.turnoId,
@@ -175,13 +186,13 @@ export async function trabalhosParaBot(deps: Deps, tarefaIds: readonly string[])
     const d = desfechos.get(e.turnoId);
     const estado = estadoDaExecucao(e, d);
     const motivo = estado === "falhou" ? (e.motivo ?? (d ? motivoDaFalha(d) : null)) : null;
-    r.set(e.tarefaId, { numero: e.numero, estado, esperando: estado === "rodando" && esperandoNaCadeia(d), motivo: motivo === null ? null : cercado(motivo),
+    r.set(e.tarefaId, { numero: e.sessao, estado, esperando: estado === "rodando" && esperandoNaCadeia(d), motivo: motivo === null ? null : cercado(motivo),
       novaTentativaEm: e.novaTentativaEm === null ? null : new Date(e.novaTentativaEm).toISOString() });
   }
   return r;
 }
 
-/** Bloqueada (Bloqueado, ou Precisa de você com a coluna de antes guardada): o trabalho novo a devolve para onde estava. */
+/** Bloqueada (Bloqueado, ou esperando a pessoa com a coluna de antes guardada): o trabalho novo a devolve para onde estava. */
 function estaBloqueada(q: Quadro, t: TarefaQuadro): boolean {
   const papel = papelDe(colunasDe(q), t.status);
   return papel === "bloqueado" || (papel === "voce" && t.voltarPara !== null && t.voltarPara !== t.status);
@@ -200,6 +211,11 @@ const podeAbrirTrabalho = (q: Quadro, t: TarefaQuadro): boolean => acionaNaColun
  * coluna Bloqueado ela caiu em "voce" com a coluna de antes guardada, e volta igual. null = sem responsável ou sem
  * conversa.
  */
+/** Os nomes dos bots da pessoa (as saídas da etapa nomeiam quem recebe a tarefa). */
+async function nomesDosBots(deps: Deps): Promise<Map<string, string>> {
+  return new Map((await deps.repos.agentes.listar()).map((a) => [a.id, a.nome]));
+}
+
 async function novoTrabalho(deps: Deps, p: PedidoLote, q: Quadro, t: TarefaQuadro, origem: Origem, recadoNovo?: string): Promise<{ execucao: ExecucaoQuadro; events: RuntimeEvent[] } | null> {
   const agente = t.agenteId ? await deps.repos.agentes.buscar(t.agenteId) : null;
   if (!agente || agente.ownerId !== deps.escopo.pessoaId) return null;
@@ -217,21 +233,29 @@ async function novoTrabalho(deps: Deps, p: PedidoLote, q: Quadro, t: TarefaQuadr
   ];
   const colunas = colunasDe(q);
   const bloqueada = estaBloqueada(q, t);
-  const status = bloqueada ? (t.voltarPara && t.voltarPara !== t.status ? voltaDaResposta(colunas, t) : colunaDeAndamento(colunas) ?? colunaDeEspera(colunas)) : t.status;
+  // O trabalho novo da Bloqueada roda: a volta que não anda (Backlog, A fazer, P2 de 10/11) dá lugar ao andamento.
+  const volta = bloqueada && t.voltarPara && t.voltarPara !== t.status ? voltaDaResposta(colunas, t) : null;
+  const status = bloqueada ? (volta && andandoNoDominio(colunas, volta) ? volta : colunaDeAndamento(colunas) ?? colunaDeEspera(colunas)) : t.status;
   // Revisão 2 do PR #625: o pedido parte da tarefa de agora (título, descrição, a etapa da coluna para onde ela vai) e
   // dos recados pendentes, não do pedido do trabalho anterior (que já levava recados entregues ou nem tinha a tarefa).
   const texto = origem === "recado"
     ? entradaDoRecado({ titulo: t.titulo, tarefaId: t.id, quadroId: q.id, recados: textos, pessoaNome })
-    : entradaDoNovoTrabalho({ pedido: entradaDaTarefa({ quadroId: q.id, meta: q.meta, prazo: q.prazo, tarefa: t, pessoaNome, deQuem: null, etapa: etapaDaTarefa(colunas, status) }), automatica: origem === "automatica", recados: textos, pessoaNome, titulo: t.titulo });
+    : entradaDoNovoTrabalho({ pedido: entradaDaTarefa({ quadroId: q.id, meta: q.meta, prazo: q.prazo, tarefa: t, labels: labelsDaTarefa(t.labelIds, await deps.repos.quadros.labels(q.id)).map((l) => l.nome), pessoaNome, deQuem: null, etapa: etapaDaTarefa(colunas, status, { agenteId: t.agenteId, nomes: await nomesDosBots(deps), quemFecha: q.quemFecha ?? "bot" }) }), automatica: origem === "automatica", recados: textos, pessoaNome, titulo: t.titulo });
   if (t.turnoId && !execs.some((e) => e.turnoId === t.turnoId)) await pararTurno(deps, p, t.turnoId);
   // A mesma corrente do trabalho anterior (o +1 é do abrirTurno); contaminado se a tarefa ou o anterior eram.
   const profundidade = (anterior ? Math.max(0, anterior.profundidade - 1) : (p.profundidade ?? 0)) as Profundidade;
   const deFora = t.deFora || (anterior ? await deps.repos.turnos.contaminado(anterior.id) : false);
-  const aberto = await abrirTurno(deps, { ...p, executor: anterior?.executor ?? p.executor, profundidade }, agente, texto, deFora);
+  const aberto = await abrirTurno(deps, { ...p, executor: anterior?.executor ?? p.executor, profundidade }, agente, texto, deFora, t);
   if (!aberto) {
     await deps.repos.quadroExecucoes.devolverTomados(t.id, pendentes.map((r) => r.id));
     return null;
   }
+  // ADA-10: o Repetir é a sessão nova que a pessoa pede. O trabalho da tarefa (a pasta, a worktree) continua o mesmo,
+  // mas a sessão do motor sai: o turno novo vai sem --resume. A nova tentativa sozinha e o recado seguem na mesma sessão.
+  // Só depois que o turno abriu, no trabalho em que ele roda (travado pelo abrirTurno): o Repetir que não abre turno (o
+  // bot sem conversa própria) devolve a falha sem apagar o contexto que a etapa seguinte retomaria. O turno novo ainda
+  // não foi despachado (a mesma transação), então nenhum plano lê a sessão velha.
+  if (origem === "repetir") await deps.repos.trabalhos.largarSessao(aberto.trabalhoId);
   // O trabalho novo toma o lugar da nova tentativa agendada (o Repetir, o recado, a própria tentativa).
   await deps.repos.quadroExecucoes.desagendarNovaTentativa({ tarefaId: t.id });
   await deps.repos.quadros.salvarTarefa(t.id, { ...t, status, turnoId: aberto.turnoId, ...(bloqueada ? { pergunta: null, voltarPara: null } : {}) });
@@ -279,7 +303,9 @@ export async function trabalhoDaTarefa(deps: Deps, p: PedidoLote, op: OpTrabalho
   const vivos = vivosDe(execs, desfechos);
   const rodando = rodandoDe(vivos);
   const events: RuntimeEvent[] = [];
+  // ADA-10: `numero` aqui é a sessão (o que a pessoa e o bot veem); `alvo` é o gatilho, para achar o estado dele.
   let trabalho: { numero: number | null; entregue?: EntregaRecado; cancelados?: number };
+  let alvo: ExecucaoQuadro | null = null;
 
   if (op.tipo === "acordar_trabalho") {
     // ADA-232 (ADR-155): "Acordar agora". A volta que dorme (hora marcada ou CI) dispara já, na mesma cadeia e sessão;
@@ -288,7 +314,8 @@ export async function trabalhoDaTarefa(deps: Deps, p: PedidoLote, op: OpTrabalho
     if (!volta) return falha("estado_invalido", "a tarefa não está esperando uma volta: não há o que acordar");
     if (!volta.turnoId) return falha("estado_invalido", "a tarefa espera um comando de fundo, que termina sozinho: não há o que acordar");
     await deps.repos.turnos.acordarVolta(volta.turnoId, deps.agora());
-    trabalho = { numero: vivos[0]?.e.numero ?? null };
+    alvo = vivos[0]?.e ?? null;
+    trabalho = { numero: alvo?.sessao ?? null };
   } else if (op.tipo === "cancelar_trabalho") {
     // Não move a tarefa (decisão da Ada): cancela e para cada trabalho vivo (no turno dele), solta o que as cadeias
     // esperavam e os recados que aguardavam. Nada vivo = nada muda.
@@ -297,7 +324,8 @@ export async function trabalhoDaTarefa(deps: Deps, p: PedidoLote, op: OpTrabalho
     const cancelados = await deps.repos.quadroExecucoes.cancelarRecados(t.id);
     // Revisão 4 do PR #625: a nova tentativa agendada (a espera depois da queda) também sai: Cancelar é parar tudo.
     await deps.repos.quadroExecucoes.desagendarNovaTentativa({ tarefaId: t.id });
-    trabalho = { numero: vivos[0]?.e.numero ?? null, cancelados };
+    alvo = vivos[0]?.e ?? null;
+    trabalho = { numero: alvo?.sessao ?? null, cancelados };
   } else {
     if (!t.agenteId) return falha("entrada_invalida", "sem agente responsável: a tarefa precisa de um bot para trabalhar (mudar_tarefa com agente)");
     // Repetir com um trabalho rodando de verdade não abre outro (o duplo clique, o Repetir do chat): cancele antes.
@@ -311,12 +339,14 @@ export async function trabalhoDaTarefa(deps: Deps, p: PedidoLote, op: OpTrabalho
         // Na fila: o recado entra no pedido do turno, que ainda não começou.
         const r = await deps.repos.quadroExecucoes.inserirRecado(t.id, op.texto, repassador(p));
         await deps.repos.quadroExecucoes.levarRecados(t.id, vivo.e.id, vivo.e.turnoId, [r.id]);
-        trabalho = { numero: vivo.e.numero, entregue: "quando_comecar" };
+        alvo = vivo.e;
+        trabalho = { numero: vivo.e.sessao, entregue: "quando_comecar" };
       } else {
         // Rodando: a sessão viva lê no próximo passo (ofertarRecadosDoQuadro). Esperando (a pessoa, o CI): entra quando
         // a retomada começar. Se não ler, vira o próximo trabalho.
         await deps.repos.quadroExecucoes.inserirRecado(t.id, op.texto, repassador(p));
-        trabalho = { numero: vivo.e.numero, entregue: esperandoNaCadeia(vivo.d) ? "quando_comecar" : "agora" };
+        alvo = vivo.e;
+        trabalho = { numero: vivo.e.sessao, entregue: esperandoNaCadeia(vivo.d) ? "quando_comecar" : "agora" };
       }
     } else {
       // Revisão 2 do PR #625: fora do andamento (Feito, Cancelado, Backlog) nada abre trabalho; a pessoa move a tarefa antes.
@@ -329,14 +359,38 @@ export async function trabalhoDaTarefa(deps: Deps, p: PedidoLote, op: OpTrabalho
       const r = await novoTrabalho(deps, p, q, t, op.tipo === "recado" ? "recado" : "repetir", op.tipo === "recado" ? op.texto : undefined);
       if (!r) return falha("entrada_invalida", "sem agente responsável que possa trabalhar: o bot não tem conversa própria");
       events.push(...r.events);
-      trabalho = { numero: r.execucao.numero, ...(op.tipo === "recado" ? { entregue: "novo" as const } : {}) };
+      alvo = r.execucao;
+      trabalho = { numero: r.execucao.sessao, ...(op.tipo === "recado" ? { entregue: "novo" as const } : {}) };
     }
   }
   events.unshift(eventoQuadro(deps, p, q, null, [t.id]));
   const atual = (await deps.repos.quadros.tarefa(t.id)) ?? t;
   const trabalhos = await trabalhosDaTarefa(deps, atual);
-  const estado = trabalhos.execucoes.find((e) => e.numero === trabalho.numero)?.estado ?? null;
+  const estado = alvo ? trabalhos.execucoes.find((e) => e.id === alvo.id)?.estado ?? null : null;
   return { data: { ok: true, quadro: await montarQuadro(deps, q), lote: null, comecaram: [], desfeito: false, trabalho: { ...trabalho, estado }, trabalhos }, events: await comMembros(deps, events) };
+}
+
+/**
+ * 2026-11-10 (os chips do comentário): o trabalho do responsável nesta tarefa, como o chip o lê. rodando = um turno
+ * despachado (não só esperando a pessoa ou o CI): o "manda agora" vira recado na sessão viva (ofertarRecadosDoQuadro);
+ * fila = há trabalho na fila.
+ */
+export async function trabalhoVivoDaTarefa(deps: Deps, tarefaId: string): Promise<{ rodando: boolean; fila: boolean; turnoRodando: string | null }> {
+  const execs = await deps.repos.quadroExecucoes.daTarefa(tarefaId);
+  const vivos = vivosDe(execs, await desfechosDe(deps, execs));
+  const r = rodandoDe(vivos);
+  const rodando = !!r && r.d.estado !== "pendente";
+  return { rodando, fila: vivos.some((v) => v.d.estado === "pendente" && !v.d.parado), turnoRodando: rodando ? r.e.turnoId : null };
+}
+
+/** 2026-11-10 ("no lugar do atual"): cancela os trabalhos vivos da tarefa como o Cancelar (sem mexer nos recados). */
+export async function cancelarTrabalhosVivos(deps: Deps, p: PedidoLote, tarefaId: string, soOsTurnos?: readonly string[]): Promise<RuntimeEvent[]> {
+  // Revisão do PR #16: `soOsTurnos` = só os trabalhos destes turnos raiz (o refazer de um comentário não mata o principal).
+  const execs = (await deps.repos.quadroExecucoes.daTarefa(tarefaId)).filter((e) => !soOsTurnos || soOsTurnos.includes(e.turnoId));
+  const vivos = vivosDe(execs, await desfechosDe(deps, execs));
+  if (!vivos.length) return [];
+  await cancelarVivos(deps, p, vivos);
+  return soltarCadeias(deps, vivos.map((v) => v.e.turnoId), REGRA_TRABALHO_SUBSTITUIDO, p);
 }
 
 /** Os trabalhos de uma tarefa do quadro do bot da tela. Só lê. */
@@ -442,41 +496,59 @@ export async function cuidarDasExecucoesDoQuadro(deps: Deps, o: { isolar?: Isola
  * ADA-232 (ADR-155): as voltas por CI que dormem acordam quando o PR delas terminou os checks (voltaCiPronta), lendo o
  * estado que o laço de PRs já gravou (sem GitHub aqui). Acordar = acordar_em para agora: a máquina pega a retomada na
  * mesma sessão. O prazo máximo (24h) acorda sozinho pela própria acordar_em.
+ * 2026-11-10 (os wakeups do Multica): o mesmo varredor acorda as voltas por merge, por conflito e por outra tarefa do
+ * quadro (voltaPorEventoPronta).
  */
 export async function acordarVoltasDeCi(deps: Pick<Deps, "repos" | "agora">): Promise<number> {
   const agora = deps.agora();
   let acordadas = 0;
-  for (const v of await deps.repos.turnos.voltasCiPendentes(agora)) {
-    if (!voltaCiPronta(await deps.repos.quadros.prPorUrl(v.prUrl), v.criadoEm, agora)) continue;
+  for (const v of await deps.repos.turnos.voltasPorEventoPendentes(agora)) {
+    const c = v.cond;
+    const pronta = c.quando === "tarefa"
+      ? voltaPorEventoPronta("tarefa", { tarefa: await situacaoDaOutra(deps, c.tarefaId), estado: c.estado, desde: v.criadoEm, agora })
+      : voltaPorEventoPronta(c.quando, { pr: await deps.repos.quadros.prPorUrl(c.prUrl), desde: v.criadoEm, agora });
+    if (!pronta) continue;
     if (await deps.repos.turnos.acordarVolta(v.id, agora)) {
       acordadas += 1;
-      log("info", "execucoes_quadro_volta_ci_acordou", { turno_id: v.id });
+      log("info", c.quando === "ci" ? "execucoes_quadro_volta_ci_acordou" : "execucoes_quadro_volta_evento_acordou", { turno_id: v.id, quando: c.quando });
     }
   }
   return acordadas;
 }
 
+/** A coluna e o grupo da outra tarefa (null = apagada: a espera acorda). */
+async function situacaoDaOutra(deps: Pick<Deps, "repos">, tarefaId: string): Promise<{ status: string; grupo: string | null } | null> {
+  const t = await deps.repos.quadros.tarefa(tarefaId);
+  if (!t) return null;
+  return { status: t.status, grupo: grupoDe(colunasDe(await deps.repos.quadros.buscar(t.quadroId)), t.status) };
+}
+
 /** ADA-232: o freio de acionamentos na hora (contando as retomadas) segurou o reacionamento. */
 const MOTIVO_FREIO_REACIONAR = `Freio: o bot foi acionado ${LIMITE_ACIONAMENTOS_HORA} vezes ou mais na última hora nesta tarefa e parou sem saída. Veja a conversa e diga o próximo passo.`;
 
-/** ADA-232: a frase de Precisa de você quando o reacionamento não tem onde retomar. */
+/** ADA-232: a frase da espera da pessoa quando o reacionamento não tem onde retomar (ADR-162: o comentário do sistema). */
 const MOTIVO_SEM_SAIDA_FRASE = "O bot parou sem saída e não deu para chamá-lo de volta. Veja a conversa e diga o próximo passo.";
 
 /**
  * ADA-232 (ADR-155): o turno de um trabalho de tarefa assentou concluído — grava a saída com que ele terminou na execução
  * da cadeia (o varredor decide por ela). Chamado pelo assentamento, na mesma transação. Turno sem trabalho de tarefa
- * (conversa, zelador) ou de comentário (roda ao lado do trabalho) não grava: saída null nunca reaciona.
+ * (conversa, zelador, o bot mencionado que não é o responsável) não grava: saída null nunca reaciona. O de comentário do
+ * responsável grava (P4, 2026-11-10), menos o que só respondeu (cobraTurnoDeComentario).
  */
 export async function gravarSaidaDoTrabalho(deps: Deps, turno: Turno, concluiu: boolean): Promise<void> {
   if (!concluiu || turno.pararSolicitadoEm !== null) return;
   const raiz = turno.retomaTurnoId ? await deps.repos.turnos.raizDaCadeia(turno.id) : turno;
   const e = raiz ? await deps.repos.quadroExecucoes.doTurnoRaiz(raiz.id) : null;
-  if (!e || e.canceladaEm !== null || e.origem === "comentario") return;
+  if (!e || e.canceladaEm !== null) return;
   const t = await deps.repos.quadros.tarefa(e.tarefaId);
   const q = t ? await deps.repos.quadros.buscar(t.quadroId) : null;
   if (!t || !q) return;
   const desde = turno.despachadoEm ?? turno.criadoEm;
-  const camposMudados: string[] = (await deps.repos.quadros.historico(t.id)).filter((h) => h.criadoEm >= desde).map((h) => h.campo);
+  const historico = await deps.repos.quadros.historico(t.id);
+  const camposMudados: string[] = historico.filter((h) => h.criadoEm >= desde).map((h) => h.campo);
+  // 2026-11-10 (ADR-142/155): o trabalho cuja tarefa foi movida por outro para outra etapa terminou preso à dele; a tarefa
+  // andou (não é cobrado por "sem saída", nem reacionado na etapa que já não é dele).
+  const presa = mudancaQuePrende({ etapa: e.etapa, statusAgora: t.status, desde: e.criadoEm, agenteId: turno.agenteId, historico }) !== null;
   // O PR não entra no histórico: "ganhou PR" (pr_url) sai dos lotes e do laço de PRs (revisão do PR #705).
   if (await deps.repos.quadros.prMudouDesde(q.id, t.id, t.prUrl, desde)) camposMudados.push("pr_url");
   const papelAgora = t.status === "voce" ? "voce" : t.status === "bloqueado" ? "bloqueado" : andando(q, t) ? "andando" : "fora";
@@ -486,7 +558,13 @@ export async function gravarSaidaDoTrabalho(deps: Deps, turno: Turno, concluiu: 
     (await deps.repos.turnos.despertarDoTurno(turno.id)) !== null ||
     (await deps.repos.esperas.doTurnoTravada(turno.id)) !== null ||
     (await deps.repos.frentes.lotesAbertosPor([turno.id])).some((l) => l.devolvidoEm === null);
-  const saida = saidaDoTurno({ voltaMarcada, papelAgora, camposMudados });
+  const dele = saidaDoTurno({ voltaMarcada, papelAgora, camposMudados });
+  const saida = dele === "nenhuma" && presa ? "andou" : dele;
+  // P4 (ADR-155 §6): o turno de comentário que só respondeu (comentou na tarefa e parou) não é cobrado.
+  if (e.origem === "comentario") {
+    const respondeuNaTarefa = (await deps.repos.quadroComentarios.daTarefa(t.id)).some((c) => c.autor.tipo === "agente" && c.autor.agenteId === turno.agenteId && c.criadoEm >= desde);
+    if (!cobraTurnoDeComentario({ saida: dele, respondeuNaTarefa })) return;
+  }
   // A cadeia assentou um turno novo: o trabalho volta a ser tratado (a retomada que acabou entre dois passes do
   // varredor não fica com o tratamento da parada anterior, que já reacionou).
   await deps.repos.quadroExecucoes.reabrir(e.id);
@@ -510,18 +588,39 @@ async function cuidarDaTarefa(deps: Deps, antes: TarefaQuadro): Promise<{ tratad
   const guardado = t.turnoId ? await deps.repos.turnos.buscar(t.turnoId) : null;
   const executor: Executor | undefined = (ultimo ? desfechos.get(ultimo.turnoId)?.executor : undefined) ?? guardado?.executor;
   const p: PedidoLote | null = executor ? { autor: { tipo: "pessoa" }, ops: [], executor, profundidade: 0 } : null;
+  const vivoAntes = vivosDe(execs, desfechos).length > 0;
+  // 2026-11-10 (bug 13 da comparação Multica × nod): o "manda agora" de um comentário que o run não chegou a ler fica na
+  // thread com o recibo "não entrou" (e o "Mandar como run novo"); não vira um trabalho de origem recado fora dela.
+  if (!vivoAntes) await deps.repos.quadroExecucoes.cancelarRecadosDeComentario(t.id);
   const haRecado = (await deps.repos.quadroExecucoes.recadosPendentes(t.id)).length > 0;
-  let vivo = vivosDe(execs, desfechos).length > 0;
+  let vivo = vivoAntes;
   let bloqueou = false;
-  /** Bloqueado (ou Precisa de você): o motivo na linha 1 do card e o aviso na conversa do responsável. */
-  const bloquear = async (e: ExecucaoQuadro, motivo: string, preferido: "bloqueado" | "voce" = "bloqueado"): Promise<void> => {
+  /**
+   * Bloqueado (o travamento de fato: sem onde rodar, a falha que não se repete) ou a espera da pessoa (ADR-162: o bot parou
+   * sem saída, o freio do reacionamento — o card fica na coluna, com um comentário do sistema): o motivo na linha 1 do
+   * card e o aviso na conversa do responsável.
+   */
+  const bloquear = async (e: ExecucaoQuadro, motivo: string, preferido: "bloqueado" | "voce" = "bloqueado", tipo: "mover" | "freio" = "mover"): Promise<void> => {
     // Revisão 3 do PR #625: Bloqueado solta a cadeia velha (o Retomar não a roda com o card parado; o caminho é o Repetir).
     events.push(...(await soltarCadeias(deps, [e.turnoId], REGRA_TRABALHO_TRATADO)));
     const atual = (await deps.repos.quadros.tarefa(t.id)) ?? t;
     const destino = preferido === "bloqueado" && colunasDe(q).some((c) => c.id === "bloqueado") ? "bloqueado" : "voce";
-    const salva = await deps.repos.quadros.salvarTarefa(t.id, { ...atual, status: destino, voltarPara: atual.status, pergunta: motivo });
+    // A coluna de onde foi esperar (a que já esperava guarda a dela): é onde o card aparece enquanto espera (ADR-162).
+    const voltarPara = atual.status === "voce" || atual.status === "bloqueado" ? atual.voltarPara : atual.status;
+    const salva = await deps.repos.quadros.salvarTarefa(t.id, { ...atual, status: destino, voltarPara, pergunta: motivo, resposta: null });
+    if (salva && destino === "voce" && atual.status !== "voce") await comentarPergunta(deps, salva, { tipo: "sistema" });
     // Revisão 4 do PR #630: a ida para Bloqueado (ou Precisa de você) entra no histórico e na trilha, autor regra.
     if (salva && destino !== atual.status) await registrarHistoricoComTrilha(deps, q.id, [{ tarefaId: t.id, campo: "status", de: atual.status, para: destino, autor: { tipo: "regra" } }], null);
+    // P8 (2026-11-10): a ida à espera também entra nos movimentos, como a do lote: o card ganha o Desfazer, e a entrada
+    // na espera (entradasNaEspera) a acha — o zelador e o "só a pessoa tira" leem por ela. O autor é o responsável (a
+    // coluna só aceita pessoa ou agente), como no freio que o lote de um bot dispara; o motivo diz que foi o quadro.
+    // Revisão do PR #705: o freio zera a conta da hora (tipo freio), e a pessoa que devolve a tarefa não é freada de novo.
+    if (salva && destino !== atual.status) {
+      await deps.repos.quadros.inserirMovimentos(q.id, null, [{
+        tarefaId: t.id, tipo, de: atual.status, para: destino, agenteAntes: atual.agenteId, agenteDepois: salva.agenteId,
+        autor: atual.agenteId ? { tipo: "agente", agenteId: atual.agenteId } : { tipo: "pessoa" }, motivo, acionou: false,
+      }]);
+    }
     events.push(eventoQuadro(deps, DO_VARREDOR, q, null, [t.id]));
     // Revisão 5 do PR #625: a tarefa escrita de fora (deFora) não leva o título ao aviso: o texto dela fica fora da conversa.
     const texto = atual.deFora ? `Uma tarefa parou no quadro. ${motivo}` : `"${atual.titulo}" parou no quadro. ${motivo}`;
@@ -546,25 +645,16 @@ async function cuidarDaTarefa(deps: Deps, antes: TarefaQuadro): Promise<{ tratad
       // atual (podado) ou com a task fechada não há onde retomar: Precisa de você.
       // O teto de acionamentos na hora (com as retomadas) vale também para o reacionamento: passou, Precisa de você.
       if (((await deps.repos.quadros.acionamentosNaHora(q.id)).get(t.id) ?? 0) >= LIMITE_ACIONAMENTOS_HORA) {
-        const antesDoFreio = (await deps.repos.quadros.tarefa(t.id)) ?? t;
-        await bloquear(e, MOTIVO_FREIO_REACIONAR, "voce");
-        // Revisão do PR #705: o freio entra nos movimentos, como o do lote, e zera a conta da hora. Sem ele, a pessoa que
-        // devolve a tarefa para Fazendo era freada de novo pelo lote (as retomadas de antes ainda somavam 12). O autor é o
-        // responsável (o acionado; a coluna só aceita pessoa ou agente), como no freio que o lote de um bot dispara.
-        const depois = await deps.repos.quadros.tarefa(t.id);
-        if (depois && depois.status !== antesDoFreio.status) {
-          await deps.repos.quadros.inserirMovimentos(q.id, null, [{
-            tarefaId: t.id, tipo: "freio", de: antesDoFreio.status, para: depois.status, agenteAntes: antesDoFreio.agenteId, agenteDepois: depois.agenteId,
-            autor: antesDoFreio.agenteId ? { tipo: "agente", agenteId: antesDoFreio.agenteId } : { tipo: "pessoa" }, motivo: MOTIVO_FREIO_REACIONAR, acionou: false,
-          }]);
-        }
+        await bloquear(e, MOTIVO_FREIO_REACIONAR, "voce", "freio");
         continue;
       }
       const ultimoTurno = d?.turnoAtual ? await deps.repos.turnos.buscar(d.turnoAtual) : null;
       const r = ultimoTurno && (await deps.repos.quadroExecucoes.contarReacionamento(e.id))
-        ? await enfileirarVolta(deps, ultimoTurno, { acordarEm: deps.agora(), motivo: AVISO_SEM_SAIDA, entradaTexto: entradaDoReacionamento({ titulo: t.deFora ? "(tarefa de fora)" : t.titulo, tarefaId: t.id, quadroId: q.id }) })
+        ? await enfileirarVolta(deps, ultimoTurno, { acordarEm: deps.agora(), motivo: AVISO_SEM_SAIDA, entradaTexto: entradaDoReacionamento({ titulo: t.deFora ? "(tarefa de fora)" : t.titulo, tarefaId: t.id, quadroId: q.id }), daTarefa: true })
         : null;
       if (r) {
+        // ADA-16 (ADR-163): o trabalho da tarefa, que terminou com o turno, volta a andar com a retomada na fila.
+        if (r.volta?.trabalhoId) events.push(...(await sincronizarTrabalho(deps, r.volta.trabalhoId)));
         events.push(...r.events, eventoQuadro(deps, DO_VARREDOR, q, null, [t.id]));
         if (r.volta) vivo = true;
         log("info", "execucoes_quadro_reacionou_sem_saida", { tarefa_id: t.id, execucao_id: e.id });
@@ -633,3 +723,17 @@ const SEM_NOVA_TENTATIVA = "Não deu para abrir a nova tentativa sozinho: o bot 
 
 /** A trilha do que o varredor muda no quadro (sem turno de quem chamou). */
 const DO_VARREDOR = { autor: { tipo: "pessoa" } } as const;
+
+/**
+ * 2026-11-10 (Passo 3 da comparação Multica × nod): a sessão leu o "manda agora" de um comentário — o recibo dele muda de
+ * "aguardando" para "lido" na tela de quem está com a tarefa aberta (um quadro.mudou por tarefa, também a quem participa).
+ */
+export async function avisosDeRecadoLido(deps: Deps, ids: readonly string[]): Promise<RuntimeEvent[]> {
+  const out: RuntimeEvent[] = [];
+  for (const id of await deps.repos.quadroExecucoes.tarefasDosRecadosLidos(ids)) {
+    const t = await deps.repos.quadros.tarefa(id);
+    const q = t ? await deps.repos.quadros.buscar(t.quadroId) : null;
+    if (q) out.push(eventoQuadro(deps, DO_VARREDOR, q, null, [id]));
+  }
+  return out.length ? comMembros(deps, out) : out;
+}

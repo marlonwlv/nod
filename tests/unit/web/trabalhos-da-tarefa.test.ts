@@ -1,15 +1,16 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { ExecucaoDto, ExecucoesDaTarefa } from "../../../src/contracts/quadro-execucoes.ts";
 import { ErroApi } from "../../../web/lib/erro-api.ts";
 import { atividadeComFrame, criarTrabalhosDaTarefa, turnoEscutado, type ApiDosTrabalhos } from "../../../web/lib/trabalhos-da-tarefa.ts";
-import { fraseDaVolta, logDoTrabalho, secaoDoTrabalho, type VistaDoTrabalho } from "../../../web/telas/trabalhos-da-tarefa.ts";
+import { anuncioDoTrabalho, fraseDaVolta, logDoTrabalho, secaoDoTrabalho, type VistaDoTrabalho } from "../../../web/telas/trabalhos-da-tarefa.ts";
 
 /** NOD-418, direção C "só o atual": o trabalho da tarefa aberta (a linha, os passos ao vivo, os anteriores, as ações). */
 
 const MAL = `<img src=x onerror="alert(1)">`;
 const hora = () => "10:00";
 const exec = (p: Partial<ExecucaoDto> & Pick<ExecucaoDto, "id" | "numero" | "estado">): ExecucaoDto =>
-  ({ origem: "inicio", turnoId: `t-${p.id}`, turnoAtual: `t-${p.id}`, motivo: null, criadoEm: 0, comecouEm: null, ultimaFrase: null, tentativa: null, esperando: false, novaTentativaEm: null, saida: null, volta: null, ...p });
+  ({ sessao: p.numero, coluna: null, colunaNome: null, origem: "inicio", turnoId: `t-${p.id}`, turnoAtual: `t-${p.id}`, motivo: null, criadoEm: 0, comecouEm: null, ultimaFrase: null, tentativa: null, esperando: false, novaTentativaEm: null, saida: null, volta: null, ...p });
 const dados = (execucoes: ExecucaoDto[], extra: Partial<ExecucoesDaTarefa> = {}): ExecucoesDaTarefa => ({ execucoes, recados: [], conversaId: "conv-beto", semAgente: false, ...extra });
 const vista = (p: Partial<VistaDoTrabalho>): VistaDoTrabalho => ({
   tarefaId: "tar", dados: null, erro: false, bloqueada: false, agenteId: "beto", conversaAtual: "conv-ana", atividade: undefined,
@@ -19,7 +20,7 @@ const secao = (p: Partial<VistaDoTrabalho>) => secaoDoTrabalho(vista(p), hora);
 
 describe("os 5 estados", () => {
   it.each([
-    ["fila", "○", "na fila"], ["rodando", "◐", "rodando"], ["concluido", "✓", "concluído"], ["falhou", "⊗", "falhou"], ["cancelado", "⊘", "cancelado"],
+    ["fila", "○", "na fila"], ["rodando", "◐", "trabalhando"], ["concluido", "✓", "concluído"], ["falhou", "⊗", "falhou"], ["cancelado", "⊘", "cancelado"],
   ] as const)("%s: o selo e o texto", (estado, selo, nome) => {
     const h = secao({ dados: dados([exec({ id: "a", numero: 1, estado })]) });
     expect(h).toContain(`data-estado="${estado}" aria-hidden="true">${selo}</span>`);
@@ -33,9 +34,37 @@ describe("os 5 estados", () => {
   });
 });
 
+describe("ADA-10: o número é a sessão do bot, com a etapa", () => {
+  it("as etapas seguidas do mesmo bot repetem o # e dizem a coluna; o Repetir mostra a sessão nova", () => {
+    const h = secao({ anterioresAbertos: true, dados: dados([
+      exec({ id: "c", numero: 4, sessao: 2, estado: "rodando", origem: "repetir", colunaNome: "Implementando" }),
+      exec({ id: "b", numero: 3, sessao: 1, estado: "concluido", colunaNome: "Plano de engenharia" }),
+      exec({ id: "a", numero: 1, sessao: 1, estado: "concluido", colunaNome: "Pronto para engenharia" }),
+    ]) });
+    // #725: o rótulo do estado é o dos runs ("trabalhando"); o número continua a sessão (ADA-10).
+    expect(h).toContain("#2 · Implementando · trabalhando");
+    expect(h).toContain("#1 · Plano de engenharia · concluído");
+    expect(h).toContain("#1 · Pronto para engenharia · concluído");
+    // O gatilho (numero) não aparece mais como número do trabalho.
+    expect(h).not.toContain("#4");
+    expect(h).not.toContain("#3");
+    expect(anuncioDoTrabalho({ numero: 4, sessao: 2, estado: "rodando", esperando: false })).toBe("Run #2: trabalhando");
+  });
+
+  it("o nome da etapa sai escapado; sem coluna (linha de antes da 0165) fica o formato de antes", () => {
+    expect(secao({ dados: dados([exec({ id: "a", numero: 1, estado: "concluido", colunaNome: MAL })]) })).not.toContain(MAL);
+    expect(secao({ dados: dados([exec({ id: "a", numero: 1, estado: "concluido" })]) })).toContain("#1 · concluído");
+  });
+
+  it("o DTO de um servidor de antes da 0165 (sem sessao) mostra o número do gatilho", () => {
+    const { sessao: _s, ...antigo } = exec({ id: "a", numero: 3, estado: "fila" });
+    expect(anuncioDoTrabalho(antigo)).toBe("Run #3: na fila");
+  });
+});
+
 describe("o título", () => {
   it("a seção se chama Execuções (critério 1 e protótipo C; revisão 2 do PR #625)", () => {
-    expect(secao({ dados: dados([]) })).toContain('<h2 class="qd-t-sec" id="qd-trab-tit">Execuções</h2>');
+    expect(secao({ dados: dados([]) })).toContain('<h2 class="qd-t-sec" id="qd-trab-tit">Runs</h2>');
   });
 });
 
@@ -269,11 +298,11 @@ describe("o controle", () => {
     expect(escritas).toEqual([]);
     t.aoClicar("trab-repetir");
     await esperar();
-    expect(regiao.textContent).toBe("Trabalho #3: na fila");
+    expect(regiao.textContent).toBe("Run #3: na fila");
     // A mesma chave (o redesenho, uma releitura igual) não reescreve a região.
     t.html("tar", { bloqueada: false, agenteId: "beto", conversaAtual: null, hora });
     await t.reler();
-    expect(escritas).toEqual(["Trabalho #3: na fila"]);
+    expect(escritas).toEqual(["Run #3: na fila"]);
     expect(t.html("tar", { bloqueada: false, agenteId: "beto", conversaAtual: null, hora })).not.toContain(`role="status"`);
   });
 
@@ -309,5 +338,14 @@ describe("ADA-232: Volto quando… · Acordar agora", () => {
     const h = secao({ dados: dados([exec({ id: "a", numero: 1, estado: "rodando", esperando: true, volta: { motivo: "os testes", em: null, quando: null, prUrl: null } })]) });
     expect(h).toContain("Volto depois · os testes");
     expect(h).not.toContain("trab-acordar");
+  });
+});
+
+describe("os frames que a tarefa aberta escuta (10/11)", () => {
+  it("todo `f.tipo === \"…\"` de web/lib/trabalhos-da-tarefa.ts é um TipoFrame de verdade (\"turno.falhou\" era tipo de mensagem)", () => {
+    const tipos = new Set([...readFileSync("src/contracts/frame.ts", "utf8").matchAll(/\|\s*"([a-z_.]+)"/g)].map((m) => m[1]));
+    const usados = [...readFileSync("web/lib/trabalhos-da-tarefa.ts", "utf8").matchAll(/f\.tipo === "([a-z_.]+)"/g)].map((m) => m[1]);
+    expect(usados.length).toBeGreaterThan(0);
+    expect(usados.filter((u) => !tipos.has(u))).toEqual([]);
   });
 });

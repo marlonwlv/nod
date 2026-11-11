@@ -2,20 +2,21 @@
  * NOD-448 (definido em 2026-11-01, ADR-140): o que a tela precisa saber das colunas, sem DOM. O servidor valida tudo de
  * novo (src/domain/colunas.ts); aqui é só para a tela não oferecer o que vai ser recusado e dizer o porquê na hora.
  *
- * Decisões do Gil: grupos em ordem fixa e mover só dentro do grupo (1); Precisa de você e Cancelado renomeiam, mas não
- * saem nem mudam de lugar, e Precisa de você é sempre a última do andamento (2); coluna nova no fim do grupo, Feito e
- * Fechado nascem recolhidas (5); as da pessoa têm o ícone cinza (8).
+ * Decisões do Gil: grupos em ordem fixa e mover só dentro do grupo (1); Cancelado renomeia, mas não sai nem muda de
+ * lugar (2); coluna nova no fim do grupo, Feito e Fechado nascem recolhidas (5); as da pessoa têm o ícone cinza (8).
+ * ADR-162: "Precisa de você" não é mais coluna (a tarefa que espera a pessoa fica na coluna dela, com o sinal discreto).
  */
 import type { ColunaDto, GrupoColuna } from "../../src/contracts/quadro.ts";
 import { NOME_DO_STATUS, STATUS, type Status } from "./quadro.ts";
+import type { PreviaDeMover } from "./acionamento.ts";
 
 /** Espelho de LIMITES_QUADRO.coluna/.colunas (a web só importa tipos de src, ADR-018; o teste confere). */
 export const LIMITE_NOME_COLUNA = 40;
 export const LIMITE_COLUNAS = 30;
 /** ADR-142: o "O que essa etapa faz" (espelha LIMITES_QUADRO.instrucoes). */
-export const LIMITE_INSTRUCOES = 500;
+export const LIMITE_INSTRUCOES = 2000;
 
-/** ADR-142 (espelha aceitaPassagem do domínio): só não iniciado e iniciado, fora Bloqueado, Precisa de você e Cancelado. */
+/** ADR-142 (espelha aceitaPassagem do domínio): só não iniciado e iniciado, fora Bloqueado e Cancelado. */
 export const aceitaPassagem = (c: Pick<ColunaDto, "id" | "grupo">): boolean =>
   (c.grupo === "nao_iniciado" || c.grupo === "iniciado") && c.id !== "voce" && c.id !== "bloqueado" && c.id !== "cancelado";
 
@@ -26,20 +27,15 @@ export const aceitaPassagem = (c: Pick<ColunaDto, "id" | "grupo">): boolean =>
 export const acionaNaColuna = (c: Pick<ColunaDto, "id" | "grupo">): boolean =>
   c.id === "afazer" || (c.grupo === "iniciado" && c.id !== "voce" && c.id !== "bloqueado");
 
-/** O card que entra aqui pede "Confirmar · Não iniciar ainda": só quando a coluna tem responsável E aciona de verdade. */
-export const pedeConfirmacao = (c: Pick<ColunaDto, "id" | "grupo" | "responsavel">): boolean => !!c.responsavel && acionaNaColuna(c);
-
-/** O recibo do card movido: "começa" só quando aciona; numa coluna com responsável que não aciona, "passa para". */
-export function reciboDeMover(titulo: string, c: Pick<ColunaDto, "id" | "grupo" | "nome" | "responsavel" | "responsavelNome">, semIniciar: boolean): string {
-  const quem = c.responsavelNome ?? "o responsável";
-  if (pedeConfirmacao(c) && !semIniciar) return `${titulo} foi para ${c.nome}; ${quem} começa`;
-  if (c.responsavel) return `${titulo} foi para ${c.nome}; passa para ${quem}`;
+/**
+ * O recibo do card movido, pela prévia da regra única (web/lib/acionamento.ts, 2026-11-10): "começa" só quando aciona;
+ * quando só troca de mão, "passa para"; sem nada disso, só o destino.
+ */
+export function reciboDeMover(titulo: string, c: Pick<ColunaDto, "nome">, p: PreviaDeMover, quem: string | null): string {
+  const nome = quem ?? "o responsável";
+  if (p.aciona && p.agenteId) return `${titulo} foi para ${c.nome}; ${nome} começa`;
+  if (p.passa) return `${titulo} foi para ${c.nome}; passa para ${nome}`;
   return `${titulo} foi para ${c.nome}`;
-}
-
-/** Por que o card não vai para esta coluna pelo Mover para… (null = vai). O servidor recusa Precisa de você sem a pergunta. */
-export function porqueNaoRecebeCard(c: Pick<ColunaDto, "id">, nomeDoBot = "o bot"): string | null {
-  return c.id === "voce" ? `Só ${nomeDoBot} põe aqui, com a pergunta para você.` : null;
 }
 
 /** Quem pode receber a passagem (ADR-142): os bots da pessoa, fora os excluídos e o Nod (ADR-081, o servidor recusa). */
@@ -52,7 +48,7 @@ export const NOME_DO_GRUPO: Readonly<Record<GrupoColuna, string>> = { nao_inicia
 /** O que o grupo faz, numa linha (o topo do menu e a escolha da coluna nova). */
 export const FRASE_DO_GRUPO: Readonly<Record<GrupoColuna, string>> = {
   nao_iniciado: "Não aciona ninguém",
-  iniciado: "Entrar aciona o responsável",
+  iniciado: "Trocar o responsável aciona",
   feito: "Conta no progresso",
   fechado: "Sai da conta",
 };
@@ -67,8 +63,9 @@ export function colunaDeEspera(cs: readonly Pick<ColunaDto, "id" | "grupo">[]): 
 }
 
 /**
- * O que ESTA coluna faz (o topo do menu): a do grupo, com as exceções das padrão que o motor trata à parte
- * (`deveComecar`): A fazer aciona apesar de ser Não iniciado; Revisão, Bloqueado e Precisa de você não acionam.
+ * O que ESTA coluna faz (o topo do menu), pela regra única (web/lib/acionamento.ts, 2026-11-10): com responsável, entrar
+ * passa para ele (e aciona onde a coluna aciona); A fazer aciona o da tarefa; no andamento sem responsável, entrar não
+ * aciona ninguém, só trocar o responsável; Bloqueado não aciona.
  */
 export function fraseDaColuna(c: Pick<ColunaDto, "id" | "grupo"> & Partial<Pick<ColunaDto, "responsavel" | "responsavelNome">>): string {
   if (c.responsavel && aceitaPassagem(c)) {
@@ -76,19 +73,17 @@ export function fraseDaColuna(c: Pick<ColunaDto, "id" | "grupo"> & Partial<Pick<
     return acionaNaColuna(c) ? `Entrar passa para ${quem} e aciona` : `Entrar passa para ${quem}, sem acionar`;
   }
   if (c.id === "afazer") return "Entrar aciona o responsável";
-  if (c.id === "revisao") return "Trocar o responsável aciona";
   if (c.id === "bloqueado") return "Não aciona ninguém";
-  if (c.id === "voce") return "Espera a sua resposta";
   return FRASE_DO_GRUPO[c.grupo];
 }
 
 /** Espelho de colunasDto(COLUNAS_PADRAO) do servidor (o teste confere): o quadro de um servidor antigo vem sem `colunas`. */
-const ORDEM_PADRAO: readonly Status[] = ["backlog", "afazer", "fazendo", "revisao", "bloqueado", "voce", "feito", "cancelado"];
+const ORDEM_PADRAO: readonly Status[] = ["backlog", "afazer", "fazendo", "revisao", "bloqueado", "feito", "cancelado"];
 const GRUPO_PADRAO: Readonly<Record<Status, GrupoColuna>> = {
   backlog: "nao_iniciado", afazer: "nao_iniciado", fazendo: "iniciado", revisao: "iniciado", bloqueado: "iniciado", voce: "iniciado", feito: "feito", cancelado: "fechado",
 };
 export const COLUNAS_PADRAO_DA_WEB: readonly ColunaDto[] = ORDEM_PADRAO.map((id) => ({
-  id, nome: NOME_DO_STATUS[id], grupo: GRUPO_PADRAO[id], fixa: id === "voce" || id === "cancelado", daPessoa: false,
+  id, nome: NOME_DO_STATUS[id], grupo: GRUPO_PADRAO[id], fixa: id === "cancelado", daPessoa: false,
   recolhida: id === "backlog" || id === "feito" || id === "cancelado",
 }));
 
@@ -104,10 +99,9 @@ export function iconeDaColuna(c: Pick<ColunaDto, "id" | "grupo">): Status {
 }
 
 /** Por que esta coluna não sai (null = sai). O texto é o que o menu mostra no item desabilitado. */
-export function porqueNaoRemove(cs: readonly ColunaDto[], id: string, nomeDoBot = "o bot"): string | null {
+export function porqueNaoRemove(cs: readonly ColunaDto[], id: string, _nomeDoBot = "o bot"): string | null {
   const c = cs.find((x) => x.id === id);
   if (!c) return "Esta coluna não existe mais.";
-  if (c.id === "voce") return `É onde ${nomeDoBot} te chama. Dá para renomear.`;
   if (c.fixa) return "Esta coluna fica no quadro. Dá para renomear.";
   if (c.grupo === "feito" && cs.filter((x) => x.grupo === "feito").length <= 1) return "Precisa haver uma coluna de feito.";
   // Espelho de validarColunas: sobra Fazendo ou uma do andamento da pessoa (a coluna onde o trabalho anda).
@@ -124,10 +118,9 @@ export function passoDeMover(cs: readonly ColunaDto[], id: string, lado: Lado): 
   const i = cs.findIndex((x) => x.id === id);
   const c = cs[i];
   if (!c) return { ok: false, porque: "Esta coluna não existe mais." };
-  if (c.fixa) return { ok: false, porque: c.id === "voce" ? "Precisa de você fica por último no andamento" : "Esta coluna fica no lugar" };
+  if (c.fixa) return { ok: false, porque: "Esta coluna fica no lugar" };
   const viz = cs[lado === "esquerda" ? i - 1 : i + 1];
   if (!viz || viz.grupo !== c.grupo) return { ok: false, porque: `Só entre colunas de ${NOME_DO_GRUPO[c.grupo]}` };
-  if (viz.id === "voce") return { ok: false, porque: "Precisa de você fica por último no andamento" };
   if (viz.fixa) return { ok: false, porque: `${viz.nome} fica no lugar` };
   return lado === "esquerda" ? { ok: true, antes_de: viz.id } : { ok: true, depois_de: viz.id };
 }
@@ -143,7 +136,7 @@ export function soltarEm(cs: readonly ColunaDto[], id: string, alvo: string): { 
   return i < j ? { depois_de: alvo } : { antes_de: alvo };
 }
 
-/** Para onde vão as tarefas de uma coluna que sai: todas menos ela e Precisa de você; o padrão é a vizinha do mesmo grupo. */
+/** Para onde vão as tarefas de uma coluna que sai: todas menos ela; o padrão é a vizinha do mesmo grupo. */
 export function destinosAoRemover(cs: readonly ColunaDto[], id: string): { opcoes: ColunaDto[]; padrao: string | null } {
   const opcoes = cs.filter((x) => x.id !== id && x.id !== "voce");
   const i = cs.findIndex((x) => x.id === id);
@@ -204,8 +197,6 @@ export type EdicaoDeColuna =
   | { tipo: "passagem"; coluna: string }
   /** NOD-419: o "Só sai para…" da coluna (os destinos da trava). */
   | { tipo: "trava"; coluna: string }
-  /** ADR-142: o card solto numa coluna com responsável espera "Confirmar · Não iniciar ainda". */
-  | { tipo: "soltar"; coluna: string; tarefa: string }
   /** NOD-420: o prazo (SLA) da coluna, no ⋯. */
   | { tipo: "prazo"; coluna: string; erro?: string; naFolha?: boolean }
 
@@ -213,7 +204,9 @@ export type EdicaoDeColuna =
    * ADR-142 (revisão do PR #622): o "Mover para…" do card, o caminho do teclado e do toque até o mesmo "soltar".
    * `estreito`: aberto na lista do celular (o menu só aparece na vista de onde veio).
    */
-  | { tipo: "mover"; tarefa: string; estreito?: boolean };
+  | { tipo: "mover"; tarefa: string; estreito?: boolean }
+  /** 2026-11-10: o seletor de prioridade aberto nas barrinhas do card. */
+  | { tipo: "prioridade"; tarefa: string; estreito?: boolean };
 
 /**
  * Revisão do QA do PR #615: o botão da coluna não tem id, então o aviso do servidor que regrava o quadro logo depois de
