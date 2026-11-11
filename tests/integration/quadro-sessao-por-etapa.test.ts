@@ -148,6 +148,55 @@ describeIntegracao("etapas seguidas com o mesmo bot continuam na mesma sessão (
     });
   });
 
+  // QA do PR marlonwlv/nod#11: Cancelar e Repetir antes de a máquina entregar o turno cancelado. A entrega tardia trazia
+  // a sessão velha de volta ao trabalho (propagarSessaoDoTurno) e o turno do Repetir saía com --resume dela.
+  const turnoNoAr = async (m: Awaited<ReturnType<typeof montar>>) => {
+    const maquina = randomUUID();
+    const turno = await m.repos.turnos.reivindicar({ machineId: maquina, agora: Date.now() });
+    if (!turno) throw new Error("nada na fila");
+    await emitirPlanoTurno(m.deps, { turnoId: turno.id, machineId: maquina, executor: "catcher" });
+    const entregar = (sessaoCli: string) => assentarTurno(m.deps, { turnoId: turno.id, machineId: maquina, seqLocal: 1, fala: { tipo: "texto", texto: "x" }, resultado: sucesso(sessaoCli), executor: "catcher" });
+    return { trabalhoId: turno.trabalhoId!, entregar };
+  };
+  const op = async (m: Awaited<ReturnType<typeof montar>>, o: Parameters<typeof trabalhoDaTarefa>[2]) => {
+    const r = await trabalhoDaTarefa(m.deps, m.p, o);
+    if (!r.data.ok) throw new Error(r.data.detalhe);
+  };
+
+  it("Cancelar e Repetir antes da entrega do turno cancelado: a entrega tardia não devolve a sessão velha ao Repetir", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      await m.lote([{ tipo: "criar_tarefa", titulo: "T", status: "fazendo", agente: m.nomes.beto }]);
+      await m.rodar("sessao-velha");
+      await m.lote([{ tipo: "mudar_tarefa", tarefa: "T", status: "revisao" }]);
+      const noAr = await turnoNoAr(m);
+      await op(m, { tipo: "cancelar_trabalho", tarefa: "T" });
+      await op(m, { tipo: "repetir_trabalho", tarefa: "T" });
+      await noAr.entregar("sessao-velha");
+      expect((await m.repos.trabalhos.buscar(noAr.trabalhoId))?.sessaoCli).toBeNull();
+      expect((await m.rodar("sessao-nova")).retomou).toBeNull();
+      // Só o turno de antes do Repetir fica de fora: os de depois seguem gravando a sessão deles.
+      await m.lote([{ tipo: "mudar_tarefa", tarefa: "T", status: "fazendo" }]);
+      expect((await m.rodar("sessao-depois")).retomou).toBe("sessao-nova");
+      await m.lote([{ tipo: "mudar_tarefa", tarefa: "T", status: "revisao" }]);
+      expect((await m.rodar("sessao-depois")).retomou).toBe("sessao-depois");
+    });
+  });
+
+  it("Cancelar sem Repetir: a entrega tardia ainda guarda a sessão, e a etapa seguinte a retoma", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      await m.lote([{ tipo: "criar_tarefa", titulo: "T", status: "fazendo", agente: m.nomes.beto }]);
+      await m.rodar("sessao-1");
+      await m.lote([{ tipo: "mudar_tarefa", tarefa: "T", status: "revisao" }]);
+      const noAr = await turnoNoAr(m);
+      await op(m, { tipo: "cancelar_trabalho", tarefa: "T" });
+      await noAr.entregar("sessao-2");
+      await m.lote([{ tipo: "mudar_tarefa", tarefa: "T", status: "fazendo" }]);
+      expect((await m.rodar("sessao-2")).retomou).toBe("sessao-2");
+    });
+  });
+
   it("linha gravada por um servidor de antes da 0165 (sem sessão): vale o número dela e a próxima não colide", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);

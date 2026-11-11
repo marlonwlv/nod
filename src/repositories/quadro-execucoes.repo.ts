@@ -162,6 +162,19 @@ export function quadroExecucoesRepo(conn: Conn, escopo: Escopo) {
       const [l] = await conn<LinhaExecucao[]>`select ${conn.unsafe(COLUNAS)} from quadro_execucoes where ${dona()} and turno_id = ${turnoId} order by criado_em desc limit 1`;
       return l ? paraExecucao(l) : null;
     },
+    /**
+     * ADA-10 (QA do PR marlonwlv/nod#11): a pessoa pediu Repetir no trabalho deste turno depois que ele nasceu. A sessão
+     * que ele entrega (a entrega tardia do turno cancelado) já não é a do trabalho: o Repetir a largou de propósito.
+     */
+    async repetidoDepois(turnoId: string): Promise<boolean> {
+      const [l] = await conn<{ sim: boolean }[]>`
+        select exists (select 1 from quadro_execucoes e
+          join turnos n on n.tenant_id = e.tenant_id and n.id = e.turno_id
+          join turnos v on v.tenant_id = n.tenant_id and v.id = ${turnoId}
+          where e.tenant_id = ${escopo.tenantId} and e.owner_id = ${escopo.pessoaId} and e.origem = 'repetir'
+            and n.trabalho_id = v.trabalho_id and n.id <> v.id and e.criado_em > v.criado_em) as sim`;
+      return l?.sim ?? false;
+    },
     /** O fim do trabalho foi tratado: o desfecho fica gravado (vale depois da poda); `motivo` = a falha em palavras. */
     async tratar(id: string, desfecho: DesfechoExecucao, motivo: string | null): Promise<void> {
       await conn`update quadro_execucoes set tratada_em = coalesce(tratada_em, clock_timestamp()), desfecho = coalesce(desfecho, ${desfecho}),
