@@ -105,3 +105,22 @@ pergunta é sobre o dia dela e não sobre um bot. Decidido pela PM (Ada) na issu
 Gatilho de reversão: se um bot passar a agir sobre rotina de outro bot a partir do que leu na
 agenda (pedir para pausar, mudar ou "rodar agora" uma rotina que não é dele), restringir
 `ver_agenda` às rotinas do agente do turno e deixar a visão geral só na tela.
+
+## Emenda NOD-412 (2026-11-11): pausar até uma data
+
+`pausar_rotina` ganha `ate` (opcional), e a tela ganha "Pausar até amanhã / segunda / …". A data é hora LOCAL no fuso
+da rotina (`AAAA-MM-DD` = 00:00 desse dia; `AAAA-MM-DDTHH:MM`), vira um instante absoluto (`rotinas.retomar_em`,
+migração 0165) e vale de agora + 1 min a 366 dias. Continua aplicando direto, como a pausa sem data: é reversível em um
+clique (Ativar limpa a data). O cartão de confirmação do protótipo da NOD-85 não entrou: contrariaria a decisão acima.
+
+- Horário de verão: hora que não existe vale o primeiro instante depois do salto; hora repetida, a primeira ocorrência.
+- Quem reativa é o agendador, no tick de 30 s, antes de procurar as vencidas, pela mesma porta da tela (`pausarRotina`,
+  autoria `regra:retomar`). A próxima execução é recalculada a partir do instante da volta; as janelas perdidas na pausa
+  não são repostas (a regra de reativar de 2026-09-16).
+- Rotina que não pode voltar quando a data chega (bot excluído, geração antiga, rotina excluída): a data é apagada e
+  ela segue pausada, sem ser tentada a cada tick.
+- `rotinas.pausar` e `rotinas.ativar` passam a `vivo` no registro de ações (ADR-135), com o contrato em
+  tests/integration/paridade-pausar-rotina.test.ts.
+
+Gatilho de reversão: se pessoas pausarem "até" e esquecerem que a rotina volta (reclamação de execução inesperada),
+avisar na conversa da rotina uma hora antes da volta, ou pedir confirmação no chat quando a data passa de 7 dias.

@@ -115,6 +115,8 @@ button.ag-linha:hover { background: var(--surface-raised); }
 .ag-frase { font-size: 14px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
 .ag-meta { margin-top: 4px !important; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
 .ag-acoes { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 4px !important; }
+.ag-pausar-ate { display: inline-flex; align-items: center; gap: 8px; }
+.ag-pausar-ate input { font: inherit; font-size: 12px; color: var(--ink-2); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 2px 6px; }
 .ag-sem { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 40px; padding: 0 8px 0 60px; font-size: 13.5px; color: var(--ink-2); }
 /* O agora: linha cheia em --signal, 2 px; a bolinha no eixo dos mascotes. */
 .ag-agora { display: flex; align-items: center; height: 28px; padding: 0 8px; font-size: 12px; font-variant-numeric: tabular-nums; }

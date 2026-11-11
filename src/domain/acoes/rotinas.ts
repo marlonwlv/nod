@@ -1,5 +1,6 @@
 import type { DefinicaoAcao } from "../../contracts/acoes.ts";
 import { FERRAMENTAS_DO_NOD } from "../../contracts/ferramentas-do-nod.ts";
+import { FERRAMENTAS_ROTINA } from "../../contracts/ferramentas-rotina.ts";
 
 /** As rotinas dos bots (NOD-391, ADR-135). Criar já existe no lote do Nod, mas por outro executor que o da tela. */
 
@@ -16,8 +17,11 @@ export const ACOES_ROTINAS = [
     lote: { tipo: "criar_rotina", deFora: () => true },
   },
   { id: "rotinas.executar", titulo: "Rodar uma rotina agora", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
-  { id: "rotinas.pausar", titulo: "Pausar uma rotina", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
-  { id: "rotinas.ativar", titulo: "Ativar uma rotina", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
+  // NOD-412 (2026-11-11): vivos. A rota (POST rotinas/:id/pausar e /ativar) e as ferramentas pausar_rotina/reativar_rotina
+  // de qualquer bot chamam o mesmo executor (src/use-cases/pausar-rotina.ts), com a mesma data de volta (`ate`, no fuso da
+  // rotina). Aplicam direto (ADR-043): reversíveis em um clique.
+  { id: "rotinas.pausar", titulo: "Pausar uma rotina (com data de volta opcional)", schema: FERRAMENTAS_ROTINA.pausar_rotina, risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: "pausar_rotina" }, contrato: "tests/integration/paridade-pausar-rotina.test.ts" }, casoDeUso: "rotinas.pausar" },
+  { id: "rotinas.ativar", titulo: "Ativar uma rotina", schema: FERRAMENTAS_ROTINA.reativar_rotina, risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: "reativar_rotina" }, contrato: "tests/integration/paridade-pausar-rotina.test.ts" }, casoDeUso: "rotinas.ativar" },
   { id: "rotinas.mudar_ritmo", titulo: "Mudar o ritmo de uma rotina", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
   { id: "rotinas.gerar_endereco", titulo: "Gerar novo endereço do webhook", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
   { id: "rotinas.enviar_teste", titulo: "Enviar teste ao webhook", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },

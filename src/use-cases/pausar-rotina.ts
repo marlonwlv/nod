@@ -2,7 +2,7 @@ import type { Autoria, RuntimeEvent } from "../contracts/evento.ts";
 import { proximaDaRotina } from "../domain/rotina-texto.ts";
 import type { EstadoRotina, Rotina } from "../contracts/rotina.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { textoRetomada, validarRetomada } from "../domain/rotina-retomada.ts";
+import { instanteLocal, textoRetomada, validarRetomada } from "../domain/rotina-retomada.ts";
 import { autoriaPessoa, evento, eventoDeRotina, exigir, textoRotinaAtiva } from "./apoio-l7.ts";
 import { registrarDesfechoRotina } from "./disparar-rotina.ts";
 import { invalidarCardDeRitmo } from "./ritmo-card.ts";
@@ -21,14 +21,15 @@ import type { CasoDeUso } from "./tipos.ts";
  * quando ninguém liberou o acesso da rotina no prazo. Ausente, a linha de sempre.
  */
 /**
- * NOD-412 (definido em 2026-11-11): `retomarEm` (só na pausa) é o instante em que o agendador a reativa sozinho; validado
+ * NOD-412 (definido em 2026-11-11): `retomarEm` ou `ate` (hora local no fuso da rotina; só na pausa) é o instante em que o agendador a reativa sozinho; validado
  * aqui (de agora + 1 min a 366 dias), para a tela e o chat recusarem igual. Pausar a já pausada com OUTRA data troca só a
  * data (sem corte de fila, que já foi feito); com a mesma data, ou sem data numa pausada, segue sem efeito como sempre.
  */
-export const pausarRotina: CasoDeUso<{ rotinaId: string; estado: EstadoRotina; retomarEm?: number | null; retomadaAutomatica?: true; autoria?: Autoria; texto?: string; semLinha?: true }, { rotina: Rotina; corte?: { cortados: number; rodando: boolean } }> = async (deps, input) => {
+export const pausarRotina: CasoDeUso<{ rotinaId: string; estado: EstadoRotina; retomarEm?: number | null; ate?: string; retomadaAutomatica?: true; autoria?: Autoria; texto?: string; semLinha?: true }, { rotina: Rotina; corte?: { cortados: number; rodando: boolean } }> = async (deps, input) => {
   const atual = exigir(await deps.repos.rotinas.buscar(input.rotinaId), "nao_encontrado", "rotina");
   const agora = deps.agora();
-  const retomarEm = input.estado === "pausada" ? input.retomarEm ?? null : null;
+  // `ate` (a tela manda a hora local, como o chat) vira instante no fuso DA ROTINA; `retomarEm` já é o instante.
+  const retomarEm = input.estado !== "pausada" ? null : input.ate !== undefined ? instanteLocal(input.ate, atual.fusoIana) : input.retomarEm ?? null;
   if (retomarEm !== null) validarRetomada(retomarEm, agora);
   if (atual.estado === input.estado) {
     if (input.estado === "ativa" || retomarEm === null || retomarEm === (atual.retomarEm ?? null)) return { data: { rotina: atual } };
