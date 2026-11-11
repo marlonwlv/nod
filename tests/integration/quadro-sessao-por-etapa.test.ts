@@ -132,6 +132,22 @@ describeIntegracao("etapas seguidas com o mesmo bot continuam na mesma sessão (
     });
   });
 
+  it("Repetir que não abre turno (o bot sem conversa própria) não larga a sessão do motor", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      await m.lote([{ tipo: "criar_tarefa", titulo: "T", status: "fazendo", agente: m.nomes.beto }]);
+      const antes = await m.rodar("sessao-velha");
+      // O caminho do `null` do abrirTurno: sem a conversa própria do bot, nenhum turno nasce.
+      const conversas = m.deps.repos.conversas;
+      m.deps.repos.conversas = { ...conversas, buscarPropriaDoAgente: async () => null };
+      const r = await trabalhoDaTarefa(m.deps, m.p, { tipo: "repetir_trabalho", tarefa: "T" });
+      m.deps.repos.conversas = conversas;
+      expect(r.data.ok).toBe(false);
+      // A etapa seguinte do bot ainda retoma a sessão dele: o Repetir que falhou não apagou o contexto.
+      expect((await m.repos.trabalhos.buscar(antes.turno.trabalhoId!))?.sessaoCli).toBe("sessao-velha");
+    });
+  });
+
   it("linha gravada por um servidor de antes da 0165 (sem sessão): vale o número dela e a próxima não colide", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);

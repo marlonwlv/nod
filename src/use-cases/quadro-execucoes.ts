@@ -238,17 +238,17 @@ async function novoTrabalho(deps: Deps, p: PedidoLote, q: Quadro, t: TarefaQuadr
   // A mesma corrente do trabalho anterior (o +1 é do abrirTurno); contaminado se a tarefa ou o anterior eram.
   const profundidade = (anterior ? Math.max(0, anterior.profundidade - 1) : (p.profundidade ?? 0)) as Profundidade;
   const deFora = t.deFora || (anterior ? await deps.repos.turnos.contaminado(anterior.id) : false);
-  // ADA-10: o Repetir é a sessão nova que a pessoa pede. O trabalho da tarefa (a pasta, a worktree) continua o mesmo,
-  // mas a sessão do motor sai: o turno novo vai sem --resume. A nova tentativa sozinha e o recado seguem na mesma sessão.
-  if (origem === "repetir") {
-    const doBot = await deps.repos.trabalhos.daTarefa(agente.id, t.id);
-    if (doBot?.sessaoCli) await deps.repos.trabalhos.largarSessao(doBot.id);
-  }
   const aberto = await abrirTurno(deps, { ...p, executor: anterior?.executor ?? p.executor, profundidade }, agente, texto, deFora, t);
   if (!aberto) {
     await deps.repos.quadroExecucoes.devolverTomados(t.id, pendentes.map((r) => r.id));
     return null;
   }
+  // ADA-10: o Repetir é a sessão nova que a pessoa pede. O trabalho da tarefa (a pasta, a worktree) continua o mesmo,
+  // mas a sessão do motor sai: o turno novo vai sem --resume. A nova tentativa sozinha e o recado seguem na mesma sessão.
+  // Só depois que o turno abriu, no trabalho em que ele roda (travado pelo abrirTurno): o Repetir que não abre turno (o
+  // bot sem conversa própria) devolve a falha sem apagar o contexto que a etapa seguinte retomaria. O turno novo ainda
+  // não foi despachado (a mesma transação), então nenhum plano lê a sessão velha.
+  if (origem === "repetir") await deps.repos.trabalhos.largarSessao(aberto.trabalhoId);
   // O trabalho novo toma o lugar da nova tentativa agendada (o Repetir, o recado, a própria tentativa).
   await deps.repos.quadroExecucoes.desagendarNovaTentativa({ tarefaId: t.id });
   await deps.repos.quadros.salvarTarefa(t.id, { ...t, status, turnoId: aberto.turnoId, ...(bloqueada ? { pergunta: null, voltarPara: null } : {}) });
