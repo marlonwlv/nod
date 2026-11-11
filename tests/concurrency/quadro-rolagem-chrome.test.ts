@@ -952,6 +952,37 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     expect(await avaliar<number>(cdp, `${grade}.scrollLeft`), "scrollLeft da grade depois de 30 atualizações").toBe(400);
   }, 60_000);
 
+  // NOD-469: abrir a tarefa troca a vista (a grade some) e fechar a desenha de novo com scrollLeft 0. Antes da correção o
+  // Esc e o X voltavam com a grade em 0 (o foco no card só a trazia até o card, quando trazia). O desktop não tem "clique
+  // fora": a tarefa aberta ocupa a vista inteira; os dois caminhos de fechar são o Esc e o X (voltar-ao-quadro).
+  for (const como of ["Esc", "X"] as const) {
+    it(`1440×900: NOD-469 — fechar a tarefa com ${como} devolve a grade ao scrollLeft e ao scrollTop de antes`, async () => {
+      await montar(1440, 900, false);
+      const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
+      await avaliar(cdp, `(() => { ${grade}.scrollLeft = 400; const v = document.getElementById("quadro"); v.scrollTop = Math.min(120, v.scrollHeight - v.clientHeight); })()`);
+      await esperar(150);
+      const antes = JSON.parse(await avaliar<string>(cdp, `JSON.stringify({ left: ${grade}.scrollLeft, top: document.getElementById("quadro").scrollTop })`)) as { left: number; top: number };
+      expect(antes.left, "a grade rolou").toBe(400);
+      // O card visível com a grade em 400 (o t3 pode estar fora da vista; vale qualquer card à vista).
+      await avaliar(cdp, `(() => { const g = ${grade}; const r = g.getBoundingClientRect();
+        const c = [...g.querySelectorAll("[data-act='abrir-tarefa']")].find((e) => { const b = e.getBoundingClientRect(); return b.left >= r.left && b.right <= r.right && b.top >= 0 && b.bottom <= innerHeight; });
+        c.click(); })()`);
+      await ate(`document.getElementById("qd-t-tit")`);
+      await esperar(300);
+      if (como === "Esc") await avaliar(cdp, `document.getElementById("qd-t-tit").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))`);
+      else await avaliar(cdp, `document.querySelector("#quadro [data-act='voltar-ao-quadro']").click()`);
+      await ate(`!document.getElementById("qd-t-tit") && ${grade}`);
+      await esperar(300);
+      const depois = JSON.parse(await avaliar<string>(cdp, `JSON.stringify({ left: ${grade}.scrollLeft, top: document.getElementById("quadro").scrollTop })`)) as { left: number; top: number };
+      expect(Math.abs(depois.left - antes.left), `scrollLeft da grade ${antes.left} → ${depois.left} (${como})`).toBeLessThanOrEqual(1);
+      expect(Math.abs(depois.top - antes.top), `scrollTop do quadro ${antes.top} → ${depois.top} (${como})`).toBeLessThanOrEqual(1);
+      // Um frame ao vivo depois de fechar não a leva de volta a 0.
+      await avaliar(cdp, "window.__mudou()");
+      await esperar(400);
+      expect(Math.abs((await avaliar<number>(cdp, `${grade}.scrollLeft`)) - antes.left), "scrollLeft depois do frame ao vivo").toBeLessThanOrEqual(1);
+    }, 60_000);
+  }
+
   it("390×844 (toque): ADA-12 revisão 1 — o conteúdo que só volta depois de 3 s (o trabalho novo de log vazio) não leva a tela, com a reserva de verdade", async () => {
     await montar(390, 844, true, RESERVA_MS);
     await semAncora();
