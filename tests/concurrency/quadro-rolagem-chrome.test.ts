@@ -1027,6 +1027,52 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     expect(await avaliar<number>(cdp, `${grade}.scrollLeft`), "o quadro de B nunca rolou").toBe(0);
   }, 60_000);
 
+  // QA do PR #10 (NOD-469): o card aberto que estava cortado na borda direita da grade recebe o foco no Esc sem rolar
+  // (focarSemRolar); o focus() comum o trazia inteiro e a grade saía do scrollLeft devolvido.
+  it("1440×900: NOD-469 — Esc na tarefa aberta por um card cortado na borda da grade não rola a grade até ele", async () => {
+    await montar(1440, 900, false);
+    const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
+    // A rolagem em que um card fica cortado na borda direita (parte à vista, parte fora).
+    const achou = await avaliar<number>(cdp, `(() => { const g = ${grade};
+      for (let x = 100; x <= g.scrollWidth - g.clientWidth; x += 20) { g.scrollLeft = x; const r = g.getBoundingClientRect();
+        const c = [...g.querySelectorAll("[data-act='abrir-tarefa']")].find((e) => { const b = e.getBoundingClientRect(); return b.left < r.right - 40 && b.right > r.right + 40 && b.top >= 0 && b.bottom <= innerHeight; });
+        if (c) { c.dataset.cortado = "1"; return g.scrollLeft; } }
+      return -1; })()`);
+    expect(achou, "um card cortado na borda direita, para o teste valer").toBeGreaterThan(0);
+    await esperar(150);
+    await avaliar(cdp, `${grade}.querySelector("[data-cortado='1']").click()`);
+    await ate(`document.getElementById("qd-t-tit")`);
+    await esperar(300);
+    await avaliar(cdp, `document.getElementById("qd-t-tit").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))`);
+    await ate(`!document.getElementById("qd-t-tit") && ${grade}`);
+    await esperar(300);
+    expect(await avaliar<string>(cdp, `document.activeElement?.dataset?.act ?? ""`), "o foco volta ao card").toBe("abrir-tarefa");
+    expect(Math.abs((await avaliar<number>(cdp, `${grade}.scrollLeft`)) - achou), `scrollLeft da grade (era ${achou})`).toBeLessThanOrEqual(1);
+  }, 60_000);
+
+  // QA do PR #10 (NOD-469): de uma tarefa para outra (o link de outra tarefa com a primeira aberta), o Esc ainda devolve a
+  // rolagem do quadro de antes da primeira; guardar de novo guardaria a vista da tarefa, que nunca bate com a do quadro.
+  it("1440×900: NOD-469 — abrir outra tarefa com uma aberta e fechar com Esc devolve a rolagem de antes da primeira", async () => {
+    await montar(1440, 900, false);
+    const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
+    await avaliar(cdp, `${grade}.scrollLeft = 400`);
+    await esperar(150);
+    const ids = JSON.parse(await avaliar<string>(cdp, `(() => { const g = ${grade}; const r = g.getBoundingClientRect();
+      const cs = [...g.querySelectorAll("[data-act='abrir-tarefa']")].filter((e) => { const b = e.getBoundingClientRect(); return b.left >= r.left && b.right <= r.right && b.top >= 0 && b.bottom <= innerHeight; });
+      return JSON.stringify(cs.map((e) => e.dataset.id)); })()`)) as string[];
+    expect(ids.length, "dois cards à vista").toBeGreaterThanOrEqual(2);
+    await avaliar(cdp, `${grade}.querySelector(${JSON.stringify(`[data-act='abrir-tarefa'][data-id='${ids[0]}']`)}).click()`);
+    await ate(`document.getElementById("qd-t-tit")`);
+    await esperar(300);
+    await avaliar(cdp, `window.__q.abrirTarefa("a", ${JSON.stringify(ids[ids.length - 1])})`);
+    await esperar(400);
+    await avaliar(cdp, `document.getElementById("qd-t-tit").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))`);
+    await ate(`!document.getElementById("qd-t-tit") && ${grade}`);
+    await esperar(300);
+    expect(await avaliar<string>(cdp, `document.activeElement?.dataset?.id ?? ""`), "o foco volta ao card da segunda tarefa").toBe(ids[ids.length - 1]);
+    expect(Math.abs((await avaliar<number>(cdp, `${grade}.scrollLeft`)) - 400), "scrollLeft da grade de antes da primeira tarefa").toBeLessThanOrEqual(1);
+  }, 60_000);
+
   it("390×844 (toque): ADA-12 revisão 1 — o conteúdo que só volta depois de 3 s (o trabalho novo de log vazio) não leva a tela, com a reserva de verdade", async () => {
     await montar(390, 844, true, RESERVA_MS);
     await semAncora();
