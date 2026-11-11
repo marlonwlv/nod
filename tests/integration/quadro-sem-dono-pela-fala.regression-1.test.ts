@@ -7,7 +7,7 @@ import { lerAtividade } from "../../src/use-cases/atividade.ts";
 import { gerirQuadro, REGRA_QUADRO_RECUSOU } from "../../src/use-cases/gerir-quadro.ts";
 import { aplicarLoteQuadro } from "../../src/use-cases/quadro.ts";
 import type { Tx } from "../../src/shared/types.ts";
-import { depsSobreTrx, executar, MARLON } from "../helpers/deps-l6.ts";
+import { ANA, depsSobreTrx, executar, MARLON } from "../helpers/deps-l6.ts";
 import { agenteComConversa } from "../helpers/fabricas.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
@@ -182,6 +182,25 @@ describeIntegracao("tarefa sem dono pela fala: bordas (QA do PR #8)", () => {
       expect((r.data as { ok: boolean }).ok).toBe(false);
       expect(await m.recusas(t.id)).toBe(0);
       expect((await m.tarefa(m.semDono.id)).status).not.toBe("cancelado");
+    });
+  });
+
+  it("sob a procuração de outra pessoa, pela_fala recusa sem mexer, sem jargão, e a recusa fica na Atividade do bot", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const f = await m.falaEm(m.ada.conversaId, `cancela a ${m.semDono.codigo}`);
+      const t = (await m.d.repos.turnos.enfileirar({
+        executor: "catcher", conversaId: m.ada.conversaId, agenteId: m.ada.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000,
+        profundidade: 0 as never, entradaTexto: "fala", entradaConfianca: "confiavel", modelo: "auto", mensagemOrigemId: f.id, sobProcuracaoDe: ANA.pessoaId,
+      }))!;
+      const antes = await m.tarefa(m.semDono.id);
+      const r = await m.gerir(t.id, [{ tipo: "mudar_tarefa", tarefa: m.semDono.codigo, status: "cancelado", motivo: "x", pela_fala: true }]);
+      const data = await m.recusou(t.id, r, m.semDono.id, { status: antes.status, agenteId: null });
+      expect((r.data as { erro: string }).erro).toBe("nao_permitido");
+      expect(data.para_pessoa).toContain("direto no quadro");
+      const hoje = new Date().toISOString().slice(0, 10);
+      const at = await executar(m.d, lerAtividade, { agenteId: m.ada.agenteId, dia: hoje, fuso: "UTC" });
+      expect(at.data.itens.map((i) => i.id)).toContain("trilha:gerir_quadro:recusou");
     });
   });
 
