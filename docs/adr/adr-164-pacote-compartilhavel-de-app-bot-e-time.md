@@ -32,7 +32,12 @@ time (ADA-176). Esta ADR fixa o formato e as regras de segurança; o importador 
 5. **Sandbox do app de terceiro**: as telas rodam como as do Canvas, em `<iframe sandbox="allow-scripts" srcdoc>` com a
    CSP sem rede da ADR-051, sem mesma origem, até 2 MB por tela e 8 MB por pacote. Os dados entram só pela ponte do nod,
    no escopo das permissões dadas àquele bot. **Terceiro não traz ferramenta do chat** (é código do servidor); só o
-   pacote `nativo`, que descreve código que já mora no nod, lista ferramentas. `nativo` e o autor `nod` são reservados.
+   pacote `nativo`, que descreve código que já mora no nod, lista ferramentas. `nativo` e o autor `nod` são reservados;
+   como o arquivo não tem assinatura, `nativo` só vale para um slug que o código do nod conhece (`FERRAMENTAS_NATIVAS`) e
+   só com as ferramentas que o código diz. Terceiro não usa como nome de app um namespace da plataforma nem o nome de um
+   nativo (`NOMES_RESERVADOS`: `maria/quadro` não pede `quadro.apagar`, `maria/canvas` não pede `canvas.*`) nem se
+   apresenta com `autor.nome` "nod". JSON com mais de 16 níveis é rejeitado antes de qualquer recursão, e o tamanho é
+   medido sem montar o texto inteiro.
 6. **Preço é dado, não cobrança**: o núcleo valida e mostra; cobrar fica em `fechado/` (ADR-160).
 7. **Versões e quem já instalou** (`decidirAtualizacao`): integridade por sha256 do JSON canônico (chaves em ordem).
    Entra sozinha a versão maior que não pede nada a mais. Pede o consentimento de novo a que pede permissão nova

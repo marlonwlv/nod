@@ -178,3 +178,32 @@ describe("decidirAtualizacao", () => {
     expect(decidir(v1)).toEqual({ decisao: "igual" });
   });
 });
+
+describe("revisão ADA-283: escalada e DoS", () => {
+  it("nativo só para os pacotes que o nod conhece, e só com as ferramentas deles", () => {
+    tem(appTerceiro({ slug: "nod/qualquer", nativo: true, telas: undefined, ferramentas: ["gerir_canvas"] }), "nativo", "não é um app nativo deste nod");
+    tem(appTerceiro({ slug: "nod/canvas", nativo: true, telas: undefined, permissoes: [], ferramentas: ["gerir_canvas", "executar_comando"] }), "ferramentas[1]", "não é ferramenta do nativo");
+  });
+
+  it("app de terceiro não usa o namespace da plataforma nem o nome de um app nativo", () => {
+    tem(appTerceiro({ slug: "maria/quadro", permissoes: [{ id: "quadro.apagar", motivo: "x" }] }), "slug", "reservado");
+    tem(appTerceiro({ slug: "maria/arquivos", permissoes: [{ id: "arquivos.escrever", motivo: "x" }] }), "slug", "reservado");
+    tem(appTerceiro({ slug: "maria/canvas", permissoes: [{ id: "canvas.criar_publicar", motivo: "x" }] }), "slug", "reservado");
+  });
+
+  it("autor terceiro não se apresenta como o nod", () => {
+    tem(appTerceiro({ autor: { nome: " NOD " } }), "autor.nome", "reservado");
+  });
+
+  it("aninhamento fundo vira problema, não estouro de pilha", () => {
+    let fundo: unknown = 1;
+    for (let i = 0; i < 200_000; i++) fundo = [fundo];
+    expect(() => lerPacote(appTerceiro({ extra: fundo }))).not.toThrow();
+    tem(appTerceiro({ extra: fundo }), "", "fundo demais");
+  });
+
+  it("pacote grande para de medir no teto (sem montar o texto inteiro)", () => {
+    const telas = Array.from({ length: 5 }, (_, i) => ({ id: `t${i}`, titulo: "T", html: "x".repeat(TETO_TELA_BYTES - 10) }));
+    tem(appTerceiro({ telas }), "", "MB");
+  });
+});

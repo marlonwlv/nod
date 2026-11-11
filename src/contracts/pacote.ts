@@ -82,6 +82,24 @@ export const MAX_ROTINAS_BOT = 10;
 export const TETO_TEXTO_CURTO = 120;
 export const TETO_DESCRICAO = 2000;
 export const TETO_INSTRUCOES = 20_000;
+/** Profundidade máxima do JSON (o formato 1 vai até 5); passar disso é rejeitado antes de qualquer recursão. */
+export const MAX_PROFUNDIDADE = 16;
+
+/**
+ * Os apps nativos que este nod conhece e as ferramentas do chat que cada um entrega. `nativo: true` com outro slug, ou
+ * com ferramenta fora desta lista, é rejeitado: o arquivo não tem assinatura, então é o código do nod (não o pacote) que
+ * diz quais ferramentas de servidor existem. `pacote-canvas.test.ts` amarra a do Canvas a `FERRAMENTAS_CANVAS`.
+ */
+export const FERRAMENTAS_NATIVAS: Readonly<Record<string, readonly string[]>> = {
+  "nod/canvas": ["gerir_canvas"],
+};
+
+/**
+ * Nomes de app (a parte depois da `/` no slug) que só o autor `nod` usa: os namespaces das permissões da plataforma e
+ * os nomes dos apps nativos. Sem isso, `maria/quadro` pediria `quadro.apagar` e `maria/canvas` pediria
+ * `canvas.criar_publicar`, ids que se confundem com os da plataforma e os do Canvas.
+ */
+export const NOMES_RESERVADOS: readonly string[] = ["conversa", "quadro", "arquivos", "conector", "nod", "canvas"];
 
 /** O que já está instalado (a decisão de atualizar compara com o novo). */
 export type InstalacaoPacote = { slug: string; versao: string; hash: string; permissoes: string[]; preco: PrecoPacote };

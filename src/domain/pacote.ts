@@ -1,5 +1,5 @@
 import {
-  FORMATO_PACOTE, IMPLICA, MAX_BOTS_TIME, MAX_PERMISSOES, MAX_ROTINAS_BOT, MAX_TELAS, MODELOS_PRECO, MOEDAS_PRECO,
+  FERRAMENTAS_NATIVAS, FORMATO_PACOTE, IMPLICA, MAX_BOTS_TIME, MAX_PROFUNDIDADE, NOMES_RESERVADOS, MAX_PERMISSOES, MAX_ROTINAS_BOT, MAX_TELAS, MODELOS_PRECO, MOEDAS_PRECO,
   PERIODOS_ASSINATURA, PERMISSOES_PLATAFORMA, TETO_DESCRICAO, TETO_INSTRUCOES, TETO_PACOTE_BYTES, TETO_TELA_BYTES,
   TETO_TEXTO_CURTO, TIPOS_PACOTE,
   type AppConectadoPedido, type DecisaoAtualizacao, type InstalacaoPacote, type MoedaPreco, type PacoteNod, type PeriodoAssinatura, type PerfilBotPacote,
@@ -44,6 +44,27 @@ export function canonico(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(canonico).join(",")}]`;
   if (ehObj(v)) return `{${Object.keys(v).filter((k) => v[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonico(v[k])}`).join(",")}}`;
   return JSON.stringify(v) ?? "null";
+}
+
+/**
+ * Mede o JSON bruto sem recursão e para no primeiro teto: profundidade (a recursão do resto do leitor e do `canonico`
+ * só roda depois disso) ou bytes (aproximados pelo JSON canônico, sem montar o texto inteiro).
+ */
+function medirBruto(raiz: unknown, tetoBytes: number, tetoProfundidade: number): "fundo" | "grande" | null {
+  const pilha: [unknown, number][] = [[raiz, 1]];
+  let bytes = 0;
+  while (pilha.length > 0) {
+    const [v, prof] = pilha.pop() as [unknown, number];
+    if (Array.isArray(v) || ehObj(v)) {
+      if (prof > tetoProfundidade) return "fundo";
+      bytes += 2;
+      if (Array.isArray(v)) for (const x of v) { bytes += 1; pilha.push([x, prof + 1]); }
+      else for (const k of Object.keys(v)) { bytes += bytesUtf8(k) + 4; pilha.push([v[k], prof + 1]); }
+    } else if (typeof v === "string") bytes += bytesUtf8(v) + 2;
+    else bytes += String(v).length;
+    if (bytes > tetoBytes) return "grande";
+  }
+  return null;
 }
 
 export function hashPacote(p: PacoteNod, sha256: (texto: string) => string): string {
@@ -254,7 +275,9 @@ export function lerPacote(bruto: unknown): LeituraPacote {
   const l = new Leitor();
   if (!ehObj(bruto)) return { ok: false, problemas: [{ caminho: "", motivo: "o pacote é um objeto JSON" }] };
   if (bruto.formato !== FORMATO_PACOTE) return { ok: false, problemas: [{ caminho: "formato", motivo: `formato desconhecido; este nod lê o formato ${FORMATO_PACOTE}` }] };
-  if (bytesUtf8(canonico(bruto)) > TETO_PACOTE_BYTES) return { ok: false, problemas: [{ caminho: "", motivo: `pacote acima de ${TETO_PACOTE_BYTES / 1024 / 1024} MB` }] };
+  const medida = medirBruto(bruto, TETO_PACOTE_BYTES, MAX_PROFUNDIDADE);
+  if (medida === "fundo") return { ok: false, problemas: [{ caminho: "", motivo: `JSON fundo demais (mais de ${MAX_PROFUNDIDADE} níveis)` }] };
+  if (medida === "grande") return { ok: false, problemas: [{ caminho: "", motivo: `pacote acima de ${TETO_PACOTE_BYTES / 1024 / 1024} MB` }] };
   l.chaves(bruto, "", CHAVES_TOPO);
 
   const tipo = bruto.tipo;
@@ -291,7 +314,13 @@ export function lerPacote(bruto: unknown): LeituraPacote {
   const ehNativo = nativo === true;
   if (ehNativo && autorSlug !== AUTOR_RESERVADO) l.erro("nativo", `só os pacotes do próprio nod (autor "${AUTOR_RESERVADO}") são nativos`);
   if (!ehNativo && autorSlug === AUTOR_RESERVADO && slug !== "") l.erro("slug", `o autor "${AUTOR_RESERVADO}" é reservado aos pacotes do próprio nod`);
+  if (autorSlug !== AUTOR_RESERVADO && NOMES_RESERVADOS.includes(nomeDoApp)) l.erro("slug", `o nome "${nomeDoApp}" é reservado (namespace da plataforma ou app nativo do nod)`);
+  if (autorSlug !== AUTOR_RESERVADO && autor.nome.toLocaleLowerCase("pt-BR") === AUTOR_RESERVADO) l.erro("autor.nome", `o autor "${AUTOR_RESERVADO}" é reservado aos pacotes do próprio nod`);
   if (ehNativo && tipo !== "app") l.erro("nativo", "só app é nativo");
+  // O arquivo não tem assinatura: o nativo tem de ser um que este nod já conhece, e as ferramentas vêm do código do nod.
+  const ferramentasDoNativo = ehNativo && autorSlug === AUTOR_RESERVADO ? (Object.hasOwn(FERRAMENTAS_NATIVAS, slug) ? FERRAMENTAS_NATIVAS[slug] : undefined) : null;
+  if (ferramentasDoNativo === undefined) l.erro("nativo", `"${slug}" não é um app nativo deste nod`);
+  else if (ferramentasDoNativo) ferramentas.forEach((f, i) => { if (!ferramentasDoNativo.includes(f)) l.erro(`ferramentas[${i}]`, `"${f}" não é ferramenta do nativo ${slug}`); });
   // Ferramenta do chat é código do servidor: terceiro não traz. O app de terceiro fala com o nod pela ponte das telas.
   if (!ehNativo && ferramentas.length > 0) l.erro("ferramentas", "app de terceiro não traz ferramenta do chat (é código do servidor); só os nativos do nod");
 
