@@ -17,6 +17,7 @@ import type { Deps } from "./tipos.ts";
 import type { TrabalhoFeito } from "./quadro.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { registrarConsultaDoQuadro } from "./trilha-quadro.ts";
+import { codigoDoPasso, fraseParaPessoa, type ErroDoQuadro } from "../domain/recusa-do-quadro.ts";
 import { OPS_QUADROS_DO_BOT, OPS_QUADROS_DO_BOT_DA_PESSOA } from "../contracts/quadros-do-bot.ts";
 import { lerOpQuadrosDoBot } from "../domain/quadros-do-bot.ts";
 import { aplicarQuadrosDoBot } from "./quadros-do-bot.ts";
@@ -177,7 +178,25 @@ export const gerirQuadro: CasoNod<Deps, "gerir_quadro"> = async (deps, input) =>
   return r;
 };
 
+/**
+ * ADA-26: toda recusa ganha a frase para a pessoa (`para_pessoa`, sem a regra interna) e fica na Atividade do bot (uma
+ * linha na trilha: só ids e o motivo, ADR-004; `alcance_insuficiente` fica fora das decisões de autorização e não
+ * interrompe o turno, porque não passa pelo registrarNegacao).
+ */
+export const REGRA_QUADRO_RECUSOU = "regra:quadro_recusou" as const;
 export async function gerirQuadroEmFases(deps: Deps, input: EntradaGerirQuadro, modo: ModoImportacao): Promise<SaidaGerirQuadro | { buscarLinear: BuscaDaPrevia }> {
+  const r = await decidirGerirQuadro(deps, input, modo);
+  if ("buscarLinear" in r || r.data.ok) return r;
+  const frase = fraseParaPessoa(r.data.erro as ErroDoQuadro, codigoDoPasso(input.acoes));
+  const turno = await deps.repos.turnos.buscar(input.turnoId);
+  if (turno && turno.agenteId === input.agenteId) {
+    await deps.repos.trilha.registrar({ agenteId: input.agenteId, turnoId: turno.id, conectorId: null, ferramenta: "gerir_quadro", kind: "negacao", motivo: "alcance_insuficiente", regra: REGRA_QUADRO_RECUSOU, regraVersao: 1, em: deps.agora() });
+  }
+  if (!frase) return r;
+  return { ...r, data: { ...r.data, para_pessoa: frase, instrucao: `${r.data.instrucao} Se não der para seguir, diga à pessoa só isto, em uma frase: "${frase}"` } };
+}
+
+async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: ModoImportacao): Promise<SaidaGerirQuadro | { buscarLinear: BuscaDaPrevia }> {
   const turno = await deps.repos.turnos.buscar(input.turnoId);
   if (!turno || turno.agenteId !== input.agenteId) return recusa("nao_encontrado", "turno de outro bot");
   // ADR-063 entre donos (revisão do PR #612): o quadro é da pessoa do escopo. Um bot de outro dono só mexe nele de

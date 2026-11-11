@@ -938,7 +938,14 @@ export function colunaDoBacklog(colunas: readonly ColunaQuadro[]): IdColuna {
 }
 
 /** A recusa do limite normal, numa frase: o que faltou é a pessoa pedir na conversa. */
-export const recusaDoLimite = (o_que: string) => `sozinho (tarefa, rotina, colega ou depois de ler algo de fora) você não pode ${o_que}: peça à pessoa na conversa`;
+/**
+ * ADA-26: a recusa diz o caminho. Se a pessoa já pediu nesta conversa citando a tarefa, o caminho é o mesmo passo com
+ * pela_fala (status e, na tarefa sem responsável, o agente); senão, perguntar a ela citando o código.
+ */
+export const CAMINHO_DA_FALA = "se a pessoa pediu isso nesta conversa citando a tarefa (ex.: \"cancela a ADA-17\"), mande o mesmo passo com pela_fala: true (vale para o status e, na tarefa sem responsável, para atribuir); senão, pergunte a ela citando o código da tarefa";
+export const recusaDoLimite = (o_que: string) => `sem um pedido da pessoa nesta conversa você não pode ${o_que}: ${CAMINHO_DA_FALA}`;
+/** O bot que se pegaria uma tarefa que não é dele sem o pedido da pessoa. */
+export const ERRO_PEGAR_TAREFA = `você só pega uma tarefa que não é sua a pedido da pessoa: ${CAMINHO_DA_FALA}`;
 
 /**
  * Planeja o lote inteiro em memória (tudo ou nada: a primeira falha recusa o lote antes de gravar). Puro: recebe o
@@ -1071,7 +1078,7 @@ export function planejarLote(p: {
   // segura; pegar tarefa sem responsável também acionaria a próxima etapa).
   const seToma = (id: string | null, agenteId: string | null | undefined) =>
     p.autorAgenteId !== null && turnoSujo && agenteId === p.autorAgenteId && (id === null || !eraDoAutor(id));
-  const ERRO_SE_TOMA = "você só pega uma tarefa que não é sua num turno limpo, em que a pessoa falou com você e nada de fora entrou: peça à pessoa";
+  const ERRO_SE_TOMA = ERRO_PEGAR_TAREFA;
   // ADA-15 (ADR-154): o passo `pela_fala` vale como da pessoa, só para aquela tarefa. A fala tem de citar a tarefa e ser
   // posterior à pergunta do card; a tarefa não pode ter sido mexida antes no lote, nem ser mexida depois (conferido no fim):
   // a isenção não cobre outro passo.
@@ -1217,8 +1224,12 @@ export function planejarLote(p: {
     if (op.pela_fala) {
       // A fala autoriza mudar o status (e o motivo do cancelar), nada mais: título, descrição, pergunta, PR, responsável,
       // excluir e "não iniciar" seguem as regras do turno, em outro passo.
-      if (op.titulo !== undefined || op.descricao !== undefined || op.pergunta !== undefined || op.pr_url !== undefined || op.prioridade !== undefined || op.agente !== undefined || op.excluir || op.sem_iniciar || mexeEmLabelOuPrazo(op)) return "pela_fala só muda o status da tarefa: título, descrição, pergunta, PR, responsável e excluir vão em outro passo, sem pela_fala";
-      if (op.status === undefined) return "pela_fala no mudar_tarefa precisa do status";
+      // ADA-26 (emenda à ADR-154 §2): na tarefa SEM responsável no começo do lote, a fala da dona também atribui (a
+      // qualquer bot do quadro, inclusive a quem fala). Na tarefa com dono, o responsável continua fora da fala.
+      const semDono = !t.nova && antes.get(t.id)?.agenteId == null;
+      const atribui = op.agente !== undefined && semDono;
+      if (op.titulo !== undefined || op.descricao !== undefined || op.pergunta !== undefined || op.pr_url !== undefined || op.prioridade !== undefined || (op.agente !== undefined && !semDono) || op.excluir || op.sem_iniciar || mexeEmLabelOuPrazo(op)) return "pela_fala só muda o status da tarefa (e o responsável, se ela não tem um): título, descrição, pergunta, PR e excluir vão em outro passo, sem pela_fala";
+      if (op.status === undefined && !atribui) return "pela_fala no mudar_tarefa precisa do status (ou do agente, numa tarefa sem responsável)";
       const e = autorizarPelaFala(t, op);
       if (e) return e;
     }
@@ -1242,7 +1253,7 @@ export function planejarLote(p: {
     // As duas travas (merge da NOD-417 com a NOD-430): o limite normal (só a própria tarefa) e o turno de fora (não se toma).
     const limitado = limiteNaTarefa(t, agenteId, op.titulo !== undefined || op.descricao !== undefined || op.prioridade !== undefined || op.sem_iniciar === true || mexeEmLabelOuPrazo(op));
     if (limitado) return limitado;
-    if (seToma(t.nova ? null : t.id, agenteId)) return ERRO_SE_TOMA;
+    if (!pelaFala.has(t.id) && seToma(t.nova ? null : t.id, agenteId)) return ERRO_SE_TOMA;
     const status = colunaDe(op.status);
     if (falhou(status)) return status.erro;
     if (status !== undefined && status !== t.status && pessoaFecha() && grupoDe(colunas, status) === "feito") return ERRO_QUEM_FECHA;

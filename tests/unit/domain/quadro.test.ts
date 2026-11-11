@@ -459,7 +459,7 @@ describe("NOD-430 × NOD-417: o limite normal com as travas do turno de fora", (
   const n = { autor: ADA.id, limite: "normal" as const };
   const livre = tarefa({ titulo: "Livre", status: "backlog" });
   it("criar tarefa para si no modo normal, num turno com conteúdo de fora: recusa (não se toma); no turno limpo, cria no Backlog", () => {
-    expect(planejar([{ tipo: "criar_tarefa", titulo: "Minha nova", agente: "Ada" }], { ...n, origemConfiavel: false })).toMatchObject({ erro: expect.stringContaining("só pega uma tarefa que não é sua num turno limpo"), indice: 0 });
+    expect(planejar([{ tipo: "criar_tarefa", titulo: "Minha nova", agente: "Ada" }], { ...n, origemConfiavel: false })).toMatchObject({ erro: expect.stringContaining("só pega uma tarefa que não é sua a pedido da pessoa"), indice: 0 });
     const ok = planejar([{ tipo: "criar_tarefa", titulo: "Minha nova", agente: "Ada" }], { ...n, origemConfiavel: true });
     if ("erro" in ok) throw new Error(ok.erro);
     expect(ok.tarefas.map((t) => [t.titulo, t.status, t.agenteId])).toEqual([["Minha nova", "backlog", ADA.id]]);

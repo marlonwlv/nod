@@ -134,7 +134,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
         // terminei: só na tarefa dela.
         await recusa([{ tipo: "terminei", tarefa: "Do Eng" }], recusaDoLimite("mexer em tarefa de outro (só na sua)"));
         // Criar para si: no Backlog, num turno limpo; num turno contaminado ela não se toma tarefa (trava da NOD-417).
-        if (sujo) await recusa([{ tipo: "criar_tarefa", titulo: "Para mim", agente: m.nomeAda }], "você só pega uma tarefa que não é sua num turno limpo");
+        if (sujo) await recusa([{ tipo: "criar_tarefa", titulo: "Para mim", agente: m.nomeAda }], "você só pega uma tarefa que não é sua a pedido da pessoa");
         else ok(await m.pela([{ tipo: "criar_tarefa", titulo: "Para mim", agente: m.nomeAda }], caso.o));
         // O que pode: criar no Backlog (sem responsável ou com ela), importar no Backlog, terminar e mexer na própria tarefa.
         ok(await m.pela([{ tipo: "criar_tarefa", titulo: "Ideia" }], caso.o));
