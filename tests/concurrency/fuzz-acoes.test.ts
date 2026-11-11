@@ -105,6 +105,9 @@ const ISENCOES_DE_ACOES_NOVAS: Readonly<Record<string, string>> = {
   // ADA-289 (PR #723): apagar comentário do quadro só leva ids (tarefa e comentário), sem corpo para barrar antes da busca;
   // o fuzz não semeia comentário de tarefa. Semear as entidades do quadro é da NOD-409 (ADA-55).
   "quadro.apagar_comentario": "NOD-409",
+  // ADA-26 (CI do PR #8, semente 946209926): remover label só leva o nome/id da label, sem corpo para barrar antes da
+  // busca; o fuzz não semeia label no quadro, e só a semente que sorteia um nome existente passa da busca. NOD-409.
+  "quadro.remover_label": "NOD-409",
 };
 /** As ações do quadro que a NOD-420 mudou (o prazo_min): no PR levam as N entradas; as outras do quadro, metade. */
 const ACOES_DO_QUADRO_COM_N = new Set(["quadro.criar_coluna", "quadro.renomear_coluna"]);
