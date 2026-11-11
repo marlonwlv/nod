@@ -887,6 +887,35 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     }, 60_000);
   }
 
+  // NOD-468: lendo no meio da tarefa (um comentário no topo da vista), a descrição acima cresce ou encolhe 20–85 px.
+  // Antes da correção a rolagem guardava o scrollTop e o comentário lido deslizava pelo mesmo tanto (o innerHTML recria
+  // os nós, e o overflow-anchor do navegador não tem a que se segurar).
+  const topoDoLido = async (): Promise<{ y: number; folga: number }> => JSON.parse(await avaliar<string>(cdp, `(() => {
+    const v = document.getElementById("quadro");
+    const c = [...v.querySelectorAll(".qd-com, .ta-com")].find((e) => e.offsetParent && e.textContent.includes("comentário 15"));
+    return JSON.stringify({ y: c.getBoundingClientRect().top - v.getBoundingClientRect().top, folga: v.scrollHeight - v.clientHeight - v.scrollTop });
+  })()`)) as { y: number; folga: number };
+  for (const [w, h, toque] of [[390, 844, true], [1440, 900, false]] as const) {
+    for (const ancora of [false, true]) {
+      it(`${w}×${h}${toque ? " (toque)" : ""}${ancora ? " (com scroll anchoring)" : ""}: NOD-468 — o comentário lido fica parado quando a descrição acima muda de altura`, async () => {
+        await montar(w, h, toque);
+        if (!ancora) await semAncora();
+        await abrirT3(30);
+        await avaliar(cdp, `(() => { document.activeElement?.blur(); const v = document.getElementById("quadro");
+          const c = [...v.querySelectorAll(".qd-com, .ta-com")].find((e) => e.offsetParent && e.textContent.includes("comentário 15"));
+          v.scrollTop += c.getBoundingClientRect().top - v.getBoundingClientRect().top - 120; })()`);
+        await esperar(150);
+        const t0 = await topoDoLido();
+        expect(t0.folga, "no meio, longe do fim (senão é o caso colado)").toBeGreaterThan(200);
+        for (const linhas of [82, 76, 88, 80]) {
+          await atualizarCom(linhas, 30);
+          const t = await topoDoLido();
+          expect(Math.abs(t.y - t0.y), `descrição com ${linhas} linhas: o comentário lido foi de ${t0.y} a ${t.y}`).toBeLessThanOrEqual(1);
+        }
+      }, 90_000);
+    }
+  }
+
   // QA da ADA-12: o lado negativo de COLADO_PX (o mutante COLADO_PX = 200 passava em tudo) e os casos com o scroll
   // anchoring do navegador LIGADO, como o app real roda no Chrome e no Firefox (os de cima desligam, como o Safari).
   for (const ancora of [false, true]) {
