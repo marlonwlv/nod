@@ -36,7 +36,10 @@ export const pausarRotina: CasoDeUso<{ rotinaId: string; estado: EstadoRotina; r
     return trocarRetomada(deps, atual, retomarEm, input);
   }
   if (input.estado === "ativa") {
-    const proxima = proximaDaRotina(atual, agora);
+    // Na volta marcada, a próxima conta a partir do instante da volta (inclusive): a janela de "seg 09:00" numa pausa
+    // "até seg 09:00" roda, como a agenda prevê; o tick chega segundos depois e a pegaria só no dia seguinte.
+    const desde = input.retomadaAutomatica && atual.retomarEm != null ? Math.min(agora, atual.retomarEm - 1) : agora;
+    const proxima = proximaDaRotina(atual, desde);
     exigir(await deps.repos.rotinas.reagendar(atual.id, proxima), "nao_encontrado", "rotina (não é a dona)");
   }
   const rotina = await deps.repos.rotinas.atualizarEstado(atual.id, input.estado, retomarEm);

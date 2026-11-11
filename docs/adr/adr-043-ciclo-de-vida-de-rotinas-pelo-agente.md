@@ -116,7 +116,10 @@ clique (Ativar limpa a data). O cartão de confirmação do protótipo da NOD-85
 - Horário de verão: hora que não existe vale o primeiro instante depois do salto; hora repetida, a primeira ocorrência.
 - Quem reativa é o agendador, no tick de 30 s, antes de procurar as vencidas, pela mesma porta da tela (`pausarRotina`,
   autoria `regra:retomar`). A próxima execução é recalculada a partir do instante da volta; as janelas perdidas na pausa
-  não são repostas (a regra de reativar de 2026-09-16).
+  não são repostas (a regra de reativar de 2026-09-16), mas a janela na hora exata da volta roda. A volta trava a linha e
+  relê: data trocada, ou ativada e pausada sem data no meio, não é atropelada.
+- O servidor antigo (cor velha do deploy, rollback de imagem) ativa sem saber da data: o trigger `nod_rotina_limpa_retomar`
+  (0165) a apaga quando a pausada vira ativa.
 - Rotina que não pode voltar quando a data chega (bot excluído, geração antiga, rotina excluída): a data é apagada e
   ela segue pausada, sem ser tentada a cada tick.
 - `rotinas.pausar` e `rotinas.ativar` passam a `vivo` no registro de ações (ADR-135), com o contrato em

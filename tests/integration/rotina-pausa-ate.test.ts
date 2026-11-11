@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
-import { tickPessoa } from "../../src/adapters/fundo/scheduler-rotina.ts";
+import { retomarRotinasMarcadas, tickPessoa } from "../../src/adapters/fundo/scheduler-rotina.ts";
 import { instanteLocal } from "../../src/domain/rotina-retomada.ts";
 import type { Transacao } from "../../src/shared/types.ts";
 import { pausarRotina } from "../../src/use-cases/pausar-rotina.ts";
@@ -141,6 +141,67 @@ describeIntegracao("pausar rotina até uma data (NOD-412)", () => {
       expect(res.falhas).toEqual([]);
       const [linha] = await trx<{ estado: string; retomar_em: Date | null }[]>`select estado, retomar_em from rotinas where id = ${id}`;
       expect(linha).toEqual({ estado: "pausada", retomar_em: null });
+    });
+  });
+  it("a janela na hora exata da volta roda (a agenda a mostra como prevista): a próxima é recalculada a partir da volta", async () => {
+    await withRollback(MARLON, async (trx) => {
+      let agora = Date.parse("2026-11-11T15:00:00Z");
+      const { agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Lia" });
+      const { deps, repos } = depsSobre(trx, MARLON, { agora: () => agora });
+      const r = await repos.rotinas.criar({ ...base, cron: "0 9 * * *", agenteId, conversaId, fusoIana: "America/Sao_Paulo", proximaExecucao: agora + 3_600_000 });
+      const id = r?.id ?? "";
+      await pausarRotinaPeloAgente(deps, { agenteId, conversaId, turnoId: randomUUID(), rotina_id: id, ate: "2026-11-16T09:00" });
+      const volta = instanteLocal("2026-11-16T09:00", "America/Sao_Paulo");
+      agora = volta + 20_000; // o tick de 30 s chega 20 s depois da hora marcada
+      const tx: Transacao = (fn) => fn(trx);
+      const res = await retomarRotinasMarcadas(MARLON, tx, { services: deps.services, useCases: deps.useCases, agora: () => agora });
+      expect(res.retomadas).toEqual([id]);
+      // A de seg 09:00 vence neste mesmo tick (não pula para ter 09:00).
+      expect(iso((await repos.rotinas.buscar(id))?.proximaExecucao)).toBe(iso(volta));
+    });
+  });
+
+  it("a retomada relê a rotina travada: data trocada ou pausa sem data entre a busca e a volta não é atropelada", async () => {
+    await withRollback(MARLON, async (trx) => {
+      let agora = Date.parse("2026-11-11T15:00:00Z");
+      const { agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Lia" });
+      const { deps, repos } = depsSobre(trx, MARLON, { agora: () => agora });
+      const criar = async () => (await repos.rotinas.criar({ ...base, agenteId, conversaId, fusoIana: NY, proximaExecucao: agora + 3_600_000 }))?.id ?? "";
+      const trocada = await criar();
+      const semData = await criar();
+      await pausarRotina(deps, { rotinaId: trocada, estado: "pausada", retomarEm: agora + 86_400_000 });
+      await pausarRotina(deps, { rotinaId: semData, estado: "pausada", retomarEm: agora + 86_400_000 });
+      agora += 86_400_000 + 20_000;
+      // Entre a busca das que voltam (1ª tx) e a volta de cada uma, a pessoa mexe nelas pela tela.
+      let n = 0;
+      const tx: Transacao = async (fn) => {
+        n += 1;
+        if (n === 2) {
+          await pausarRotina(deps, { rotinaId: trocada, estado: "pausada", retomarEm: agora + 2 * 86_400_000 });
+          await pausarRotina(deps, { rotinaId: semData, estado: "ativa" });
+          await pausarRotina(deps, { rotinaId: semData, estado: "pausada" });
+        }
+        return fn(trx);
+      };
+      const res = await retomarRotinasMarcadas(MARLON, tx, { services: deps.services, useCases: deps.useCases, agora: () => agora });
+      expect(res.retomadas).toEqual([]);
+      expect(await repos.rotinas.buscar(trocada)).toMatchObject({ estado: "pausada", retomarEm: agora + 2 * 86_400_000 });
+      expect(await repos.rotinas.buscar(semData)).toMatchObject({ estado: "pausada", retomarEm: null });
+    });
+  });
+
+  it("o servidor antigo (que não conhece retomar_em) ativa a pausada com data sem violar o CHECK: a data some", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const agora = Date.parse("2026-11-11T15:00:00Z");
+      const { agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Lia" });
+      const { deps, repos } = depsSobre(trx, MARLON, { agora: () => agora });
+      const r = await repos.rotinas.criar({ ...base, agenteId, conversaId, fusoIana: NY, proximaExecucao: agora + 3_600_000 });
+      const id = r?.id ?? "";
+      await pausarRotina(deps, { rotinaId: id, estado: "pausada", retomarEm: agora + 86_400_000 });
+      // O UPDATE do atualizarEstado de antes da NOD-412 (rollback de imagem, ou a cor velha nos 10 min do deploy).
+      await trx.savepoint((s) => s`update rotinas set estado = 'ativa' where id = ${id}`);
+      const [linha] = await trx<{ estado: string; retomar_em: Date | null }[]>`select estado, retomar_em from rotinas where id = ${id}`;
+      expect(linha).toEqual({ estado: "ativa", retomar_em: null });
     });
   });
 });

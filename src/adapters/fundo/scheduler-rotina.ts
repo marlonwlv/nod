@@ -101,7 +101,8 @@ export async function tickPessoa(escopo: Escopo, tx: Transacao, opcoes: OpcoesTi
  * janelas perdidas na pausa não são repostas (a regra de reativar desde 2026-09-16). Uma rotina que falha não derruba as
  * outras. A que não pode voltar (bot excluído, geração antiga, rotina excluída) perde a data e segue pausada.
  *
- * Dois processos no mesmo tick: o segundo relê a rotina já ativa e `pausarRotina` volta sem efeito (estado igual).
+ * Dois processos no mesmo tick, ou a pessoa mexendo na rotina entre a busca e a volta: a tx de cada rotina trava a linha
+ * (FOR UPDATE) e relê; só volta a que segue pausada com a data já chegada (revisão do PR #13).
  */
 export async function retomarRotinasMarcadas(
   escopo: Escopo,
@@ -119,12 +120,18 @@ export async function retomarRotinasMarcadas(
   const falhas: string[] = [];
   for (const rotina of aRetomar) {
     try {
-      await tx(async (trx) => {
+      const voltou = await tx(async (trx) => {
         const repos = criarRepos(trx, escopo);
+        // A lista acima é de outra tx: trava a linha e relê. A pessoa pode ter trocado a data, ativado e pausado sem data,
+        // ou outro processo já a ter retomado; nesses casos a volta marcada não vale mais.
+        const travada = await repos.rotinas.buscarParaAtualizar(rotina.id);
+        if (!travada || travada.estado !== "pausada" || travada.retomarEm == null || travada.retomarEm > agora) return false;
         const deps: Deps = { repos, services: opcoes.services, useCases: opcoes.useCases, tx, escopo, agora: opcoes.agora };
         const r = await pausarRotina(deps, { rotinaId: rotina.id, estado: "ativa", retomadaAutomatica: true, autoria: autoriaPessoa(escopo.pessoaId, "regra:retomar") });
         await repos.events.gravarComOutbox(r.events ?? []);
+        return true;
       });
+      if (!voltou) continue;
       retomadas.push(rotina.id);
       log("info", "rotina_retomada", { rotina_id: rotina.id, retomar_em: rotina.retomarEm ?? null, atraso_ms: agora - (rotina.retomarEm ?? agora) });
     } catch (e) {
