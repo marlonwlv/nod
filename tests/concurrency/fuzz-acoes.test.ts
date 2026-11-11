@@ -105,8 +105,8 @@ const ISENCOES_DE_ACOES_NOVAS: Readonly<Record<string, string>> = {
   // ADA-289 (PR #723): apagar comentário do quadro só leva ids (tarefa e comentário), sem corpo para barrar antes da busca;
   // o fuzz não semeia comentário de tarefa. Semear as entidades do quadro é da NOD-409 (ADA-55).
   "quadro.apagar_comentario": "NOD-409",
-  // ADA-26 (CI do PR #8, semente 946209926): remover label só leva o nome/id da label, sem corpo para barrar antes da
-  // busca; o fuzz não semeia label no quadro, e só a semente que sorteia um nome existente passa da busca. NOD-409.
+  // PR #9 (ADA-283, semente 3758063732): remover label só leva o nome da label, e o fuzz não semeia labels do quadro; a
+  // semente desta árvore nunca sorteia um nome que exista. Semear as entidades do quadro é da NOD-409 (ADA-55).
   "quadro.remover_label": "NOD-409",
 };
 /** As ações do quadro que a NOD-420 mudou (o prazo_min): no PR levam as N entradas; as outras do quadro, metade. */
@@ -281,6 +281,11 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       const comProjeto = await srv.json<{ projeto?: { id: string }; quadros?: { projetos?: { id: string; nome: string }[] } }>("POST", "projetos", { nome: "Projeto do fuzz" });
       const projetoDoFuzz = comProjeto.projeto?.id ?? comProjeto.quadros?.projetos?.find((p) => p.nome === "Projeto do fuzz")?.id;
       if (!projetoDoFuzz) throw new Error(`o projeto do fuzz não foi criado: ${JSON.stringify(comProjeto)}`);
+      // ADA-10 (CI do PR marlonwlv/nod#11, semente 1603153517): uma label real no quadro do fuzz para `quadro.remover_label`
+      // (`/agentes/:id/quadro/labels/:lid`). Sem ela o sorteio de `:lid` nunca acertava uma label e a ação só via 404.
+      const comLabel = await srv.json<{ quadro?: { labels?: { id: string; nome: string }[] } }>("POST", `agentes/${meu.agente.id}/quadro/labels`, { nome: "Label do fuzz" });
+      const labelDoFuzz = comLabel.quadro?.labels?.find((l) => l.nome === "Label do fuzz")?.id;
+      if (!labelDoFuzz) throw new Error(`a label do fuzz não foi criada: ${JSON.stringify(comLabel)}`);
       // ADA-241 (CI do PR #706, semente 2570060255): um app conectado e um lote de acessos no bot da pessoa, para o
       // `acessos.desfazer_lote` (`/acessos/lotes/:id/desfazer`) passar da busca; sem o lote, o id sorteado só dava 404.
       const conectorDoFuzz = await conectorDe(sessao, `fuzz-${config.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
@@ -358,6 +363,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             "quadro.editar_projeto": { caminho: `/projetos/${projetoDoFuzz}`, corpo: { nome: "Projeto do fuzz" } },
             "quadro.arquivar_projeto": { caminho: `/projetos/${projetoDoFuzz}/arquivar`, corpo: null },
             "quadro.restaurar_projeto": { caminho: `/projetos/${projetoDoFuzz}/restaurar`, corpo: null },
+            "quadro.remover_label": { caminho: `/agentes/${meu.agente.id}/quadro/labels/${encodeURIComponent(labelDoFuzz)}`, corpo: null },
           };
           const valido = validoDaAda14[c.acao];
           if (valido && n === 1) enxuto.push({ ...c, caminho: valido.caminho, entrada: { rotulo: "base plausível", corpo: valido.corpo === null ? null : JSON.stringify(valido.corpo) } });
