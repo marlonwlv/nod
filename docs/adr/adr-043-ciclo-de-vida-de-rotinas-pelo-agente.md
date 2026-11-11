@@ -110,7 +110,7 @@ agenda (pedir para pausar, mudar ou "rodar agora" uma rotina que não é dele), 
 
 `pausar_rotina` ganha `ate` (opcional), e a tela ganha "Pausar até amanhã / segunda / …". A data é hora LOCAL no fuso
 da rotina (`AAAA-MM-DD` = 00:00 desse dia; `AAAA-MM-DDTHH:MM`), vira um instante absoluto (`rotinas.retomar_em`,
-migração 0165) e vale de agora + 1 min a 366 dias. Continua aplicando direto, como a pausa sem data: é reversível em um
+migração 0167) e vale de agora + 1 min a 366 dias. Continua aplicando direto, como a pausa sem data: é reversível em um
 clique (Ativar limpa a data). O cartão de confirmação do protótipo da NOD-85 não entrou: contrariaria a decisão acima.
 
 - Horário de verão: hora que não existe vale o primeiro instante depois do salto; hora repetida, a primeira ocorrência.
@@ -119,7 +119,7 @@ clique (Ativar limpa a data). O cartão de confirmação do protótipo da NOD-85
   não são repostas (a regra de reativar de 2026-09-16), mas a janela na hora exata da volta roda. A volta trava a linha e
   relê: data trocada, ou ativada e pausada sem data no meio, não é atropelada.
 - O servidor antigo (cor velha do deploy, rollback de imagem) ativa sem saber da data: o trigger `nod_rotina_limpa_retomar`
-  (0165) a apaga quando a pausada vira ativa.
+  (0167) a apaga quando a pausada vira ativa.
 - Rotina que não pode voltar quando a data chega (bot excluído, geração antiga, rotina excluída): a data é apagada e
   ela segue pausada, sem ser tentada a cada tick.
 - `rotinas.pausar` e `rotinas.ativar` passam a `vivo` no registro de ações (ADR-135), com o contrato em

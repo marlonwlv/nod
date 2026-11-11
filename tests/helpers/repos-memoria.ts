@@ -3910,6 +3910,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       contarRecuperacoesDeConector: soNoPostgres,
       trabalhos: soNoPostgres,
       contarTrabalhos: soNoPostgres,
+      recusasDoQuadro: soNoPostgres,
+      contarRecusasDoQuadro: soNoPostgres,
     },
     // NOD-54 (0120): os checkpoints são do Postgres (tests/integration/checkpoints.test.ts); aqui, nenhum.
     checkpoints: {
@@ -4144,6 +4146,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       atuaisDasTarefas: async () => [],
       tarefasAbertas: async () => [],
       doTurnoRaiz: async () => null,
+      repetidoDepois: async () => false,
       tratar: soNoPostgres,
       gravarSaida: soNoPostgres,
       contarReacionamento: soNoPostgres,

@@ -136,7 +136,7 @@ export function rotinasRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
-     * NOD-412 (0165): `retomarEm` só vale na pausa (o instante em que o agendador a reativa); ativar sempre limpa — o
+     * NOD-412 (0167): `retomarEm` só vale na pausa (o instante em que o agendador a reativa); ativar sempre limpa — o
      * CHECK rotinas_retomar_so_pausada recusa ativa com data.
      */
     async atualizarEstado(id: string, estado: EstadoRotina, retomarEm: number | null = null): Promise<Rotina | null> {
