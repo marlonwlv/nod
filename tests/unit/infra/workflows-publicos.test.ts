@@ -62,7 +62,35 @@ describe("workflows do repo público (NOD-485)", () => {
 
 describe("desktop-release.yml e release-pendente.yml no repo público (portados do gamefik/nod)", () => {
   const release = semComentarios(ler("desktop-release.yml"));
-  const jobs = (yml: string) => [...yml.matchAll(/^ {2}([a-z-]+):\n((?: {4,}.*\n?|\n)*)/gm)].map((m) => ({ nome: m[1]!, corpo: m[2]! }));
+  // Qualquer id de job válido (letras, dígitos, _ e -): um job novo com `_` ou dígito não escapa das checagens abaixo.
+  const jobs = (yml: string) => [...yml.matchAll(/^ {2}([A-Za-z0-9_-]+):\n((?: {4,}.*\n?|\n)*)/gm)].map((m) => ({ nome: m[1]!, corpo: m[2]! }));
+  /** O bloco `env:` do próprio job (4 espaços), sem os `env:` dos passos. */
+  const envDoJob = (corpo: string) => /^ {4}env:\n((?: {6,}.*\n?)*)/m.exec(corpo)?.[1] ?? "";
+
+  it("desktop-release: secret só no env do passo que o usa, nunca no do job (o npm ci e o build não leem certificado nem senha)", () => {
+    for (const j of jobs(release.slice(release.indexOf("\njobs:")))) {
+      expect(envDoJob(j.corpo), j.nome).not.toMatch(/secrets\./);
+      // Os passos que rodam código de dependência (npm ci, build, smoke) não recebem secret.
+      for (const passo of j.corpo.split(/\n(?= {6}- )/)) {
+        if (/run: (npm ci|npm run desktop:build|npx electron scripts)/.test(passo)) expect(passo, j.nome).not.toMatch(/secrets\./);
+      }
+    }
+  });
+
+  it("desktop-release: `env` não existe no `if` de job; escrita no repo só no draft, OIDC só no downloads", () => {
+    for (const j of jobs(release.slice(release.indexOf("\njobs:")))) {
+      const se = /^ {4}if: (.*)$/m.exec(j.corpo)?.[1] ?? "";
+      expect(se, j.nome).not.toMatch(/\benv\./);
+      if (j.nome !== "draft") expect(j.corpo, j.nome).not.toMatch(/contents: write/);
+      if (j.nome !== "downloads") expect(j.corpo, j.nome).not.toMatch(/id-token: write/);
+    }
+  });
+
+  it("os links do app e do rascunho da release apontam para o repo público, nunca para o privado", () => {
+    for (const arquivo of ["desktop/release-notes.md", "docs/aceite-desktop.md", "web/lib/computador-pessoa.ts"]) {
+      expect(readFileSync(join(RAIZ, arquivo), "utf8"), arquivo).not.toMatch(/github\.com\/gamefik\/nod\b/);
+    }
+  });
 
   it("desktop-release: só tag v* e dispatch com publicar (padrão false), token zerado no topo", () => {
     const gatilhos = release.slice(release.indexOf("on:"), release.indexOf("permissions:"));

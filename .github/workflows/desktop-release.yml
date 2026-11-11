@@ -89,12 +89,9 @@ jobs:
             vmarch: amd64
             runner: macos-15-intel
     runs-on: ${{ matrix.runner }}
+    # Os secrets Apple entram só no env dos passos que assinam ou conferem (preflight, modo de assinatura, empacotar,
+    # notarizar o DMG e verificar): o npm ci, o build e o smoke rodam código de dependência e não os veem.
     env:
-      CSC_LINK: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-      CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       # NOD-203: o endereço do servidor embutido no app (ADR-069). Variável de repositório, não secret: aparece no app.
       NOD_SERVIDOR_PADRAO: ${{ vars.NOD_SERVIDOR_PADRAO }}
       ARCH: ${{ matrix.arch }}
@@ -111,9 +108,20 @@ jobs:
       - name: Preflight da release
         env:
           NOD_RELEASE_SECO: ${{ env.PUBLICAR != 'true' && '1' || '' }}
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: node scripts/desktop/release-preflight.mjs
       # Assina e notariza só com os cinco secrets Apple. Publicar sem eles já reprovou no preflight.
       - name: Modo de assinatura
+        env:
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [ -n "$CSC_LINK" ] && [ -n "$CSC_KEY_PASSWORD" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
             echo "ASSINAR=1" >> "$GITHUB_ENV"; echo "assinatura e notarização ligadas"
@@ -147,6 +155,12 @@ jobs:
       # NOD-133: o alvo explícito (`dmg`) faz a CLI mandar na arquitetura. Só com `--arm64`, o `arch: [arm64, x64]` do
       # electron-builder.yml vence (app-builder-lib targetFactory) e cada job empacotava, assinava e notarizava as duas.
       - name: Empacotar, assinar e notarizar o .app
+        env:
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           # 5/11/2026: o @electron/notarize grampeia o .app e o CloudKit da Apple caiu 4× seguidas no runner Intel
@@ -174,6 +188,10 @@ jobs:
       # mesmo com status Invalid, então o status é conferido pelo verificador. A senha só passa pela expansão do env.
       - name: Notarizar e grampear o DMG
         if: env.ASSINAR == '1'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -188,6 +206,8 @@ jobs:
             exit 1
           fi
       - name: Verificar arquitetura, proxy e (com assinatura) assinatura e notarização
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           if [ "$ARCH" = arm64 ]; then APP=release/mac-arm64/nod.app; LIPO=arm64; else APP=release/mac/nod.app; LIPO=x86_64; fi
@@ -369,8 +389,6 @@ jobs:
     env:
       NOD_SERVIDOR_PADRAO: ${{ vars.NOD_SERVIDOR_PADRAO }}
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      WIN_CSC_LINK: ${{ vars.NOD_WINDOWS_ASSINAR == '1' && secrets.WIN_CSC_LINK || '' }}
-      WIN_CSC_KEY_PASSWORD: ${{ vars.NOD_WINDOWS_ASSINAR == '1' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -384,6 +402,9 @@ jobs:
         shell: pwsh
         env:
           NOD_WINDOWS_ASSINAR: ${{ vars.NOD_WINDOWS_ASSINAR }}
+          # Só neste passo (o npm ci acima não vê o certificado), e só com a flag ligada.
+          WIN_CSC_LINK: ${{ vars.NOD_WINDOWS_ASSINAR == '1' && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ vars.NOD_WINDOWS_ASSINAR == '1' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
         run: |
           # Flag ligada sem o certificado não sai sem assinar calada: falha aqui, e o electron-builder força a assinatura.
           if ($env:NOD_WINDOWS_ASSINAR -eq '1') {

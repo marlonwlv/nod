@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FORMATO_SERVIDOR_PADRAO } from "./servidor-padrao.mjs";
 
-/** Variável de ambiente do job → secret no GitHub (`.github/workflows/desktop-release.yml`, env do job `mac`). */
+/** Variável de ambiente do job → secret no GitHub (`.github/workflows/desktop-release.yml`, env dos passos do job `mac` que assinam). */
 export const SECRETS_DE_RELEASE = [
   ["CSC_LINK", "APPLE_CERTIFICATE_P12"],
   ["CSC_KEY_PASSWORD", "APPLE_CERTIFICATE_PASSWORD"],
