@@ -377,4 +377,37 @@ describe("guarda de credencial: aspas ANSI-C e $\"…\" (NOD-470)", () => {
     expect(comoOBashLe("\\$'x'")).toBe("$x");
     expect(comoOBashLe(`"a$"b`)).toBe("a$b");
   });
+  // Revisão do PR #7 (alto 1): o bash decodifica o `$'…'` também dentro de `"${x:-…}"`, `"$(…)"` e da crase entre aspas.
+  it.each([
+    `cat "\${x:-$HOME/.a$'\\x77's/credentials}"`,
+    `cat "$(echo ~/.a$'w's/credentials)"`,
+    "cat \"`echo ~/.a$'w's/credentials`\"",
+    `cat "\${x:-~/.config/nod-motor/con$'exao.json'}"`,
+  ])("$'…' dentro das aspas duplas de ${…}, $(…) e crase: %s", (comando) => {
+    expect(tocaCredencial(comando)).toBe(true);
+    expect(tocaCredencial(comando, { windows: true })).toBe(true);
+  });
+  // Revisão do PR #7 (alto 2): a `'` que fecha é a do léxico do bash; `\c\'` não fecha o `$'…'`.
+  it("$'\\c\\'…' não fecha as aspas antes do bash", () => {
+    const comando = "echo $'\\c\\'x'; cat ~/.a\\ws/credentials #'";
+    expect(tocaCredencial(comando)).toBe(true);
+    expect(tocaCredencial(comando, { windows: true })).toBe(true);
+    expect(comoOBashLe("$'\\c\\'x'y")).toBe("\x1c'xy");
+    expect(comoOBashLe("$'\\c\\\\x'")).toBe("\x1cx");
+    expect(comoOBashLe("$'a\\\\'b")).toBe("a\\b");
+  });
+  // Revisão do PR #7 (alto 3): o `\x{HH…}` do bash (quantos dígitos vierem, o byte de baixo, `}` opcional).
+  it("$'\\x{…}' decodifica como o bash", () => {
+    expect(tocaCredencial("cat ~/$'\\x{2e}'aws/credentials")).toBe(true);
+    expect(tocaCredencial("gh auth $'\\x{74}oken'", { windows: true })).toBe(true);
+    expect(comoOBashLe("$'\\x{41}b'")).toBe("Ab");
+    expect(comoOBashLe("$'\\x{4142}'")).toBe("B");
+    expect(comoOBashLe("$'\\x{41zb'")).toBe("Azb");
+    expect(comoOBashLe("$'\\x{zz}ab'c")).toBe("c");
+  });
+  // Revisão do PR #7 (médio 1): no Git Bash a `\` entre aspas duplas fica e é pasta.
+  it("no win32, $'…' colado num caminho com \\ entre aspas duplas", () => {
+    expect(tocaCredencial(`cat "$USERPROFILE\\.a"$'w'"s\\credentials"`, { windows: true })).toBe(true);
+    expect(tocaCredencial(`cat "$USERPROFILE\\.ss"$'\\x68'"\\config"`, { windows: true })).toBe(true);
+  });
 });

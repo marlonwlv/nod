@@ -50,7 +50,7 @@ export function tocaCredencial(texto: string, opcoes: OpcoesDaGuarda = {}): bool
   if (CREDENCIAL.test(texto) || tocaChaveDoNod(texto, opcoes)) return true;
   // Revisão 14 do PR #642 (M2): a `\` do bash e as aspas no meio do nome (`~/.a\ws/credentials`, `~/.a"w"s/…`) nas duas
   // plataformas — o shell as tira antes de abrir o arquivo.
-  if (CREDENCIAL.test(comoOBashLe(texto))) return true;
+  if (CREDENCIAL.test(comoOBashLe(texto)) || CREDENCIAL.test(comAnsiCEmTodaParte(texto))) return true;
   const windows = opcoes.windows === true || pareceWindows(texto);
   const formas = formasDoTexto(texto, windows);
   if (formas.some((x) => COFRE_NO_PROGRAMA.test(x) || PASSWORDVAULT.test(x) || NOME_CURTO_EM_MAIUSCULAS.test(x) || GH_COM_BARRA.test(x))) return true;
@@ -100,7 +100,14 @@ export function comoOBashLe(texto: string): string {
  * fica com a `\`, como no bash; o NUL (`\0`, `\x00`, `\c@`) corta o resto da string.
  */
 const ESCAPES_ANSI_C: Record<string, string> = { a: "\x07", b: "\b", e: "\x1b", E: "\x1b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v", "\\": "\\", "'": "'", '"': '"', "?": "?" };
-function lerAnsiC(texto: string, inicio: number): { texto: string; fim: number } {
+function lerAnsiC(original: string, inicio: number): { texto: string; fim: number } {
+  // Revisão do PR #7 (alto 2): a `'` que fecha é a do LÉXICO do bash (`\` pula o caractere seguinte), achada antes de
+  // decodificar. Decodificando e fechando juntos, `$'\c\'x'` fechava na `\'` (o `\c` come só uma `\`) e o resto do
+  // comando (`; cat ~/.a\ws/…`) era lido como aspas simples, sem tirar a `\`.
+  let fim = inicio;
+  while (fim < original.length && original[fim] !== "'") fim += original[fim] === "\\" ? 2 : 1;
+  fim = Math.min(fim, original.length);
+  const texto = original.slice(0, fim);
   let saida = "";
   let cortado = false;
   let i = inicio;
@@ -112,7 +119,6 @@ function lerAnsiC(texto: string, inicio: number): { texto: string; fim: number }
   };
   for (; i < texto.length; i++) {
     const c = texto[i]!;
-    if (c === "'") break;
     if (c !== "\\" || i + 1 >= texto.length) { por(c); continue; }
     const e = texto[i + 1]!;
     if (e in ESCAPES_ANSI_C) { por(ESCAPES_ANSI_C[e]!); i++; continue; }
@@ -120,6 +126,15 @@ function lerAnsiC(texto: string, inicio: number): { texto: string; fim: number }
       const d = digitos(/[0-7]/, 3, i + 1);
       por(String.fromCharCode(parseInt(d, 8) & 0xff));
       i += d.length;
+      continue;
+    }
+    // Revisão do PR #7 (alto 3): o bash aceita `\x{HH…}` (`$'\x{2e}'aws` é `.aws`): quantos dígitos vierem, o byte de baixo,
+    // a `}` opcional; sem dígito é NUL (corta o resto).
+    if (e === "x" && texto[i + 2] === "{") {
+      const d = digitos(/[0-9a-fA-F]/, Infinity, i + 3);
+      const n = parseInt(d.slice(-2) || "0", 16);
+      por(n === 0 ? "\0" : String.fromCharCode(n));
+      i += 2 + d.length + (texto[i + 3 + d.length] === "}" ? 1 : 0);
       continue;
     }
     const hex = e === "x" ? 2 : e === "u" ? 4 : e === "U" ? 8 : 0;
@@ -134,13 +149,32 @@ function lerAnsiC(texto: string, inicio: number): { texto: string; fim: number }
     if (e === "c" && i + 2 < texto.length) {
       const x = texto[i + 2]!;
       por(x === "?" ? "\x7f" : String.fromCharCode(x.toUpperCase().charCodeAt(0) & 0x1f));
-      i += 2;
+      // Como o bash: `\c\\` come as duas `\` (`$'\c\\x'` é 0x1c + `x`).
+      i += x === "\\" && texto[i + 3] === "\\" ? 3 : 2;
       continue;
     }
     por("\\" + e);
     i++;
   }
-  return { texto: saida, fim: i };
+  return { texto: saida, fim };
+}
+
+/**
+ * Revisão do PR #7 (alto 1): forma a mais, com TODO `$'…'` decodificado onde quer que esteja e sem aspas. O bash também
+ * decodifica o `$'…'` dentro de `"${x:-…}"`, de `"$(…)"` e da crase entre aspas duplas (`cat "${x:-$HOME/.a$'\x77's/…}"`),
+ * que `comoOBashLe` deixa como texto. Só soma casos: o `$'` dentro de aspas simples também é decodificado.
+ */
+function comAnsiCEmTodaParte(texto: string): string {
+  let saida = "";
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i]!;
+    if (c === "$" && texto[i + 1] === "'") {
+      const { texto: decodificado, fim } = lerAnsiC(texto, i + 2);
+      saida += decodificado;
+      i = fim;
+    } else if (c !== "$" || texto[i + 1] !== '"') saida += c;
+  }
+  return saida.replace(/["']/g, "");
 }
 
 /** `windows`: a máquina que roda o comando é win32 (o hook e o executor sabem; o servidor, não, e fica com o texto). */
@@ -165,8 +199,12 @@ function formasDoTexto(texto: string, windows: boolean): string[] {
   // Revisão 14 do PR #642 (M2): a `\` de escape do bash (`g\it credential fill`, `~/.a\ws/credentials`) — no win32 o
   // terminal roda no Git Bash, onde `\x` vira `x`. Forma a mais, sem a `\` e sem as aspas; a com `\` continua.
   const semEscape = comoOBashLe(texto);
-  const formas = [barras(texto), semAspas(texto), semEscape];
+  const ansiC = comAnsiCEmTodaParte(texto);
+  const formas = [barras(texto), semAspas(texto), semEscape, ansiC];
   if (!windows) return formas;
+  // Revisão do PR #7 (médio 1): no Git Bash a `\` entre aspas duplas fica e é pasta (`"C:\Users\bia\.a"$'w'"s\…"`): a forma
+  // decodificada também com as barras viradas.
+  formas.push(ansiC.replace(/\\/g, "/"), semEscape.replace(/\\/g, "/"));
   const todas = texto.replace(/\\ /g, " ").replace(/`(?=\S| )/g, "").replace(/\\/g, "/");
   // Revisão 13 do PR #642 (médio 1): o `^` é o escape do cmd (`.a^ws`, `^cmdkey`) — também sem ele.
   const semCircunflexo = todas.replace(/\^(.)/g, "$1");
