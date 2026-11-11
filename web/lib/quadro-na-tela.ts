@@ -15,10 +15,11 @@ import { direcaoDaTroca, ehModo, ADIAR_ATE_MS, ARRASTO_ATE_MS, ECO_DA_PESSOA_MS,
 import { comColunas, FAIXA_DO_PRAZO, fraseDoErroDeColuna, nomeRepetido, passoDeMover, comecaAoEntrar, porqueNaoRecebeCard, porqueNaoRemove, prazoEmMin, prazoLegivelMin, reciboDaResposta, reciboDeMover, saidaComErroDesiste, seletorDoFocoDaColuna, soltarEm, type EdicaoDeColuna, type Lado, type UnidadeDePrazo } from "./colunas.ts";
 import { ErroApi, ehRecusaDoServidor } from "./erro-api.ts";
 import { anunciarEm } from "./posicao-da-lista.ts";
-import { campoComFocoNoToque, criarGestoNaTela } from "./gesto-na-tela.ts";
+import { campoComFocoNoToque, criarGestoNaTela, rolagemDoPrograma } from "./gesto-na-tela.ts";
 import { focarSemRolar, guardarRolagem, restaurarRolagem, seletorDoFocoDoCard } from "./rolagem-guardada.ts";
 import { criarAlvosDeRolagem, criarReservaDeAltura } from "./alvo-de-rolagem-na-tela.ts";
 import { COLADO_PX } from "./alvo-de-rolagem.ts";
+import { acharAncora, topoPelaAncora } from "./ancora-de-leitura.ts";
 import type { CamposDeLabel } from "../../src/contracts/quadro-labels.ts";
 import type { EntradaHistoricoDto, GrupoColuna, LinhaMuralDto, ModoConversa, QuadroDaPessoaDto, QuadroDto, TarefaDto } from "../../src/contracts/quadro.ts";
 import type { ConversaDto, RespostaMutacao } from "../../src/contracts/api.ts";
@@ -748,6 +749,14 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     carregavaNoDesenho = !!aberta && coms.carregando();
     abertaCompletaNoDesenho = !!aberta && !coms.carregando() && !trabs.carregando() && !(dd?.api()?.historicoTarefa && histTarefa === null);
     const rolagem = mesmaVista ? guardarRolagem(v, conteudo) : null;
+    // NOD-468: na tarefa aberta, quem lê no meio (não colada no fim) fica com o mesmo texto no mesmo lugar: a âncora é o
+    // bloco no topo da vista, e o desenho novo compensa o que mudou de altura acima dele.
+    const coladaAntes = rol?.alvo("caixa")?.colado ?? (v.scrollHeight - v.clientHeight - v.scrollTop <= COLADO_PX && v.scrollTop > 0);
+    // Com o alvo da ADA-12 cortado (o conteúdo encolheu e o navegador limitou a rolagem), quem manda é o alvo: a âncora de
+    // agora seria um bloco do corte, e prendê-lo tiraria a vista do lugar quando o conteúdo voltasse.
+    const alvoDaCaixa = rol?.alvo("caixa");
+    const cortada = !!alvoDaCaixa && Math.abs(alvoDaCaixa.topo - v.scrollTop) > 1;
+    const ancora = mesmaVista && !!aberta && !coladaAntes && !cortada && !seguirFim && v.scrollTop > 0 ? acharAncora(v, conteudo) : null;
     // Revisão 3: colada no fim segue o fim do desenho novo, sem reserva (a reserva a deixaria no branco até ela soltar).
     const alturaAntes = doAlvo && !rol?.alvo("caixa")?.colado ? reserva.antes(conteudo, v) : 0;
     vistaDesenhada = vistaAgora;
@@ -769,6 +778,12 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     atualizarPontos(conteudo);
     // ADA-12: o alvo vence o valor guardado (que pode ser o corte de um conteúdo que encolheu no desenho anterior).
     rol?.depois(doAlvo);
+    if (ancora && !cabiaInteira && !seguirFim) {
+      const alvo = topoPelaAncora(ancora, v, conteudo);
+      // A âncora que o conteúdo de agora não alcança (cortaria a rolagem) fica com a ADA-12 (o alvo e a reserva).
+      const max = v.scrollHeight - v.clientHeight;
+      if (alvo !== null && alvo >= 0 && alvo <= max + 0.5 && Math.abs(v.scrollTop - alvo) > 0.5) { v.scrollTop = alvo; rolagemDoPrograma(v); rol?.aceitar(); }
+    }
     if (cabiaInteira || seguirFim) v.scrollTop = v.scrollHeight;
     // ADA-7: o foco volta sem rolar (o título da tarefa aberta, recriado e focado, levava a vista ao topo).
     if (focoColuna) focarSemRolar(conteudo.querySelector<HTMLElement>(focoColuna));
