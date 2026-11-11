@@ -14,6 +14,13 @@ import { textoDaLinhaCinza } from "../../../src/use-cases/receber-webhook.ts";
 import { TAG } from "../../../src/adapters/mcp-proxy/moldura.ts";
 import { moldesQueCasam } from "../../../src/domain/assunto-do-texto.ts";
 
+// Regression: ISSUE-001 — o corte em 16 KB não era medido: cortar em 18 KB ou 32 KB passava (achado no QA da NOD-446).
+/** Bytes do payload que ficam antes da marca de corte, dentro da moldura. */
+const bytesAntesDoCorte = (saida: string): number => {
+  const ini = saida.indexOf('origem="webhook">\n') + 'origem="webhook">\n'.length;
+  return Buffer.byteLength(saida.slice(ini, saida.indexOf("\n[… payload cortado em 16 KB]")), "utf8");
+};
+
 /** NOD-84 (ADR-139): as partes da rota pública que não precisam do banco. */
 describe("rota do webhook: limites, corpo, moldura e log", () => {
   it("o token nunca vai ao log: /w/<token> vira /w/:token", () => {
@@ -143,6 +150,7 @@ describe("rota do webhook: limites, corpo, moldura e log", () => {
     expect(total).toBeGreaterThan(PAYLOAD_NO_TURNO);
     expect(total).toBeLessThanOrEqual(JANELA);
     expect(saida).toContain("[… payload cortado em 16 KB]");
+    expect(bytesAntesDoCorte(saida)).toBe(PAYLOAD_NO_TURNO);
   });
 
   it("NOD-446: a janela vale em bytes num corpo multibyte e não parte o caractere", () => {
@@ -155,6 +163,8 @@ describe("rota do webhook: limites, corpo, moldura e log", () => {
     expect(total).toBeGreaterThan(PAYLOAD_NO_TURNO);
     expect(total).toBeLessThanOrEqual(JANELA);
     expect(saida).toContain("[… payload cortado em 16 KB]");
+    // O corte recua o "é" partido: 1 byte a menos que 16 KB, nunca mais.
+    expect(bytesAntesDoCorte(saida)).toBe(PAYLOAD_NO_TURNO - 1);
     expect(saida).not.toContain("\uFFFD");
   });
 
