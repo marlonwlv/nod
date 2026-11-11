@@ -16,7 +16,7 @@ import { comColunas, FAIXA_DO_PRAZO, fraseDoErroDeColuna, nomeRepetido, passoDeM
 import { ErroApi, ehRecusaDoServidor } from "./erro-api.ts";
 import { anunciarEm } from "./posicao-da-lista.ts";
 import { campoComFocoNoToque, criarGestoNaTela } from "./gesto-na-tela.ts";
-import { focarSemRolar, guardarRolagem, restaurarRolagem, seletorDoFocoDoCard } from "./rolagem-guardada.ts";
+import { focarSemRolar, guardarRolagem, restaurarRolagem, seletorDoFocoDoCard, type RolagemGuardada } from "./rolagem-guardada.ts";
 import { criarAlvosDeRolagem, criarReservaDeAltura } from "./alvo-de-rolagem-na-tela.ts";
 import { COLADO_PX } from "./alvo-de-rolagem.ts";
 import type { CamposDeLabel } from "../../src/contracts/quadro-labels.ts";
@@ -418,6 +418,11 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   let q: QuadroDto | null = null;
   let carga: "nada" | "carregando" | "ok" | "erro" = "nada";
   let aberta: string | null = null;
+  /**
+   * NOD-469: a rolagem do quadro (a caixa e a grade) no clique que abriu a tarefa, e a vista dela. Abrir troca a vista (a
+   * grade some) e fechar a desenhava com scrollLeft 0; o voltarAoQuadro a devolve. Só vale para a mesma página e forma.
+   */
+  let quadroAntesDaTarefa: { vista: string; rolagem: RolagemGuardada } | null = null;
   /** NOD-422 (PR 2): a tarefa aberta por link antes de o quadro chegar; a trilha sai quando ele chega (com o quadroId). */
   let trilhaPendente: string | null = null;
   let aberturaRegistrada = false;
@@ -2327,6 +2332,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (modo !== "quadro") { marcarAberta(tarefaId, null); trocar("quadro", { pagina: t }); return; }
     // O irPara entre páginas da vista fecha a tarefa aberta: a pedida é marcada depois.
     if (pagina !== t) irPara(t);
+    // NOD-469: a tarefa aberta pelo link (do chat) não volta a uma rolagem guardada de outra abertura.
+    quadroAntesDaTarefa = null;
     marcarAberta(tarefaId, null);
     desenharVista();
     void lerQuadro();
@@ -2351,6 +2358,12 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   }
 
   function abrirTarefa(id: string, via: "card" | "link" = "link"): void {
+    // NOD-469: só a abertura a partir do quadro guarda (de uma tarefa para outra, a guarda do quadro continua a de antes).
+    if (!aberta) {
+      const v = vista();
+      const c = v?.querySelector<HTMLElement>(":scope > .qd-conteudo");
+      quadroAntesDaTarefa = v && c && vistaDesenhada ? { vista: vistaDesenhada, rolagem: guardarRolagem(v, c) } : null;
+    }
     marcarAberta(id, via);
     desenharVista();
     doc.getElementById("qd-t-tit")?.focus();
@@ -2385,8 +2398,14 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     dd?.naUrl?.(null);
     coms.fechar();
     trabs.fechar();
+    const antes = quadroAntesDaTarefa;
+    quadroAntesDaTarefa = null;
     desenharVista();
-    if (id) vista()?.querySelector<HTMLElement>(`.qd-conteudo [data-act="abrir-tarefa"][data-id="${CSS.escape(id)}"]`)?.focus();
+    const v = vista();
+    const c = v?.querySelector<HTMLElement>(":scope > .qd-conteudo");
+    // NOD-469: a mesma vista de antes de abrir (página e forma) volta à rolagem guardada; o foco no card não rola (ADA-7).
+    if (v && c && antes && antes.vista === vistaDesenhada) restaurarRolagem(v, c, antes.rolagem);
+    if (id) focarSemRolar(v?.querySelector<HTMLElement>(`.qd-conteudo [data-act="abrir-tarefa"][data-id="${CSS.escape(id)}"]`));
   }
 
   function mostrar(els: HTMLElement[]): void {
