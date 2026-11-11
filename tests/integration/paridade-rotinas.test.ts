@@ -6,6 +6,8 @@ import { REGISTRO_DE_ACOES } from "../../src/domain/acoes/index.ts";
 import type { Escopo, Transacao, Tx } from "../../src/shared/types.ts";
 import { criarRotinaPelaPessoa } from "../../src/use-cases/criar-rotina.ts";
 import { executarRotinaPeloAgente } from "../../src/use-cases/rotinas-do-agente.ts";
+import { listarSuaVez } from "../../src/use-cases/listar-sua-vez.ts";
+import { recusarProposta } from "../../src/use-cases/recusar-proposta.ts";
 import type { Deps } from "../../src/use-cases/tipos.ts";
 import { MARLON, servicosDeTeste } from "../helpers/deps-l6.ts";
 import { contexto, depsSobre, rotinaValida } from "../helpers/deps-l7.ts";
@@ -183,6 +185,27 @@ describeIntegracao("paridade tela × chat do rotinas.executar (NOD-413, ADR-135)
       expect((await estado(trx, m)).turnos).toHaveLength(1);
       const avisos = await trx<{ texto: string }[]>`select texto from mensagens where conversa_id = ${m.rotina.conversaId} and kind = 'sistema' and texto like 'Não rodei a rotina: já há uma execução na fila%'`;
       expect(avisos).toHaveLength(1);
+      // QA do PR #15: o frame decisao.decidida sai recusado (a ligação lê "recusado", não "decidido").
+      const [frame] = await trx<{ recusada: boolean | null }[]>`select (dados->>'recusada')::boolean as recusada from events where kind = 'decisao_decidida' and dados->>'decisao_id' = ${p.data.proposta_id}`;
+      expect(frame?.recusada).toBe(true);
+      trxAtual = null;
+    });
+  });
+
+  // QA do PR #15 (2026-11-11): cobertura que faltava — sem ela, tirar rotina_execucao de TIPOS_COM_PROPOSTA (a Sua vez
+  // perde o aviso de fila) ou de KINDS_COM_CARD_EM_SUA_VEZ (a recusa deixa a decisão aberta) passava verde.
+  it("a Sua vez leva a proposta do card, e recusar pela conversa fecha a decisão de mesmo id", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const m = await montar(trx);
+      const p = await executarRotinaPeloAgente(m.deps, { ...m.ctx, rotina_id: m.rotina.id });
+      if ("erro" in p.data) throw new Error(p.data.erro);
+      const id = p.data.proposta_id;
+      const { data } = await listarSuaVez(m.deps, { marcarVista: false });
+      expect(data.itens.find((i) => i.decisao.id === id)?.proposta?.payload).toMatchObject({ kind: "rotina_execucao", rotinaId: m.rotina.id });
+      await recusarProposta(m.deps, { propostaId: p.data.proposta_id });
+      expect((await m.repos.decisoes.buscar(p.data.proposta_id))?.estado).not.toBe("pendente");
+      expect((await estado(trx, m)).turnos).toEqual([]);
       trxAtual = null;
     });
   });
