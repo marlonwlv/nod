@@ -55,7 +55,7 @@ describeIntegracao("tarefa sem dono pela fala da dona (ADA-26)", () => {
     };
     const recusasNaTrilha = async (turnoId: string) =>
       (await trx<{ n: number }[]>`select count(*)::int as n from trilha where turno_id = ${turnoId} and ferramenta = 'gerir_quadro' and regra = ${REGRA_QUADRO_RECUSOU}`)[0]!.n;
-    return { d, eng, ada, nomeEng, semDono, comDono, tarefa, fala, turno, gerir, lerQuadro, recusasNaTrilha };
+    return { d, eng, ada, nomeEng, semDono, comDono, criar, tarefa, fala, turno, gerir, lerQuadro, recusasNaTrilha };
   }
 
   it("critério 4: a dona pede \"cancela a ADA-X\" (sem dono) depois de o bot ler o quadro no mesmo turno → cancela", async () => {
@@ -118,6 +118,9 @@ describeIntegracao("tarefa sem dono pela fala da dona (ADA-26)", () => {
       expect(data.instrucao).toContain("pela_fala: true");
       expect(data.para_pessoa).toContain(m.semDono.codigo);
       for (const jargao of ["turno limpo", "deFora", "de fora", "limite"]) expect(data.para_pessoa).not.toContain(jargao);
+      // Revisão do PR #8 (médio): ela já pediu citando a tarefa; a frase não manda pedir de novo citando o código.
+      expect(data.para_pessoa).not.toMatch(/me peça|citando/);
+      expect(data.para_pessoa).toContain("direto no quadro");
       expect((await m.tarefa(m.semDono.id)).status).not.toBe("cancelado");
       expect(await m.recusasNaTrilha(t.id)).toBe(1);
       // A recusa não interrompe o turno (não é a negação terminal do registrarNegacao).
@@ -125,6 +128,26 @@ describeIntegracao("tarefa sem dono pela fala da dona (ADA-26)", () => {
       const hoje = new Date().toISOString().slice(0, 10);
       const at = await executar(m.d, lerAtividade, { agenteId: m.ada.agenteId, dia: hoje, fuso: "UTC" });
       expect(at.data.itens.map((i) => i.id)).toContain("trilha:gerir_quadro:recusou");
+    });
+  });
+
+  // Revisão do PR #8 (médio): no lote com dois passos, a frase cita a tarefa do passo recusado, não a do primeiro.
+  it("a frase para a pessoa cita a tarefa do passo recusado; sem a fala citando, pede o código", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const daAda = await m.criar("Da Ada", m.ada.agenteId);
+      const f = await m.fala("arruma o quadro");
+      const t = await m.turno(f.id);
+      await m.lerQuadro(t.id);
+      const r = await m.gerir(t.id, [
+        { tipo: "mudar_tarefa", tarefa: daAda.codigo, status: "fazendo" },
+        { tipo: "mudar_tarefa", tarefa: m.semDono.codigo, status: "cancelado", motivo: "x" },
+      ]);
+      const data = r.data as { ok: boolean; para_pessoa?: string };
+      expect(data.ok).toBe(false);
+      expect(data.para_pessoa).toContain(m.semDono.codigo);
+      expect(data.para_pessoa).not.toContain(daAda.codigo);
+      expect(data.para_pessoa).toContain("citando o código");
     });
   });
 });

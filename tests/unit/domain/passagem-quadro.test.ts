@@ -293,6 +293,17 @@ describe("revisão 3 do PR #622: se tomar a tarefa não destrava a trava", () =>
     expect(ok(planejar([{ tipo: "mudar_tarefa", tarefa: TID, agente: ZE.nome }], { autor: ADA.id, origemConfiavel: false, tarefas: daAda })).comecam).toEqual([TID]);
   });
 
+  // Revisão do PR #8 (médio): o caminho do pela_fala só onde ele existe; criar ou importar para si não tem pela_fala.
+  it("a recusa de se tomar aponta o pela_fala no mudar_tarefa, e não no criar_tarefa nem no importar_linear", () => {
+    const livre = [tarefa({ agenteId: null })];
+    expect(planejar([{ tipo: "mudar_tarefa", tarefa: TID, agente: ADA.nome }], { ...fora, tarefas: livre })).toMatchObject({ erro: expect.stringContaining("pela_fala: true") });
+    for (const op of [{ tipo: "criar_tarefa", titulo: "x", agente: ADA.nome }, { tipo: "importar_linear", itens: [{ identificador: "NOD-1", titulo: "x", agente: ADA.nome }] }] as const) {
+      const r = planejar([op], fora);
+      expect(r).toMatchObject({ erro: expect.stringContaining("a pedido da pessoa") });
+      expect((r as { erro: string }).erro).not.toContain("pela_fala");
+    }
+  });
+
   it("também não pega tarefa sem responsável nem cria uma para si; no turno limpo pode; a própria segue", () => {
     const livre = [tarefa({ agenteId: null })];
     expect(planejar([{ tipo: "mudar_tarefa", tarefa: TID, agente: ADA.nome }], { ...fora, tarefas: livre })).toMatchObject({ erro: expect.stringContaining("a pedido da pessoa") });

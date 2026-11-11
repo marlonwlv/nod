@@ -3,7 +3,7 @@ import type { QuadroDto, ResultadoGerirQuadro } from "../contracts/quadro.ts";
 import { LIMITE_ACIONAMENTOS_HORA } from "../domain/freios-quadro.ts";
 import type { LinkDeTarefa } from "../contracts/quadro-pela-conversa.ts";
 import { ehOpDeTrabalho, lerOps, MAX_COMECOS_POR_LOTE } from "../domain/quadro.ts";
-import { ERROS_FALA } from "../domain/fala-da-pessoa.ts";
+import { citaTarefa, ERROS_FALA } from "../domain/fala-da-pessoa.ts";
 import { proporColunas } from "./colunas-do-quadro.ts";
 import type { IssueLinear } from "../contracts/quadro-importacao.ts";
 import { type BuscaDaPrevia, conferirImportacaoDoBot, type FalhaDaImportacao, proporImportacaoLinear } from "./importar-linear.ts";
@@ -17,7 +17,7 @@ import type { Deps } from "./tipos.ts";
 import type { TrabalhoFeito } from "./quadro.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { registrarConsultaDoQuadro } from "./trilha-quadro.ts";
-import { codigoDoPasso, fraseParaPessoa, type ErroDoQuadro } from "../domain/recusa-do-quadro.ts";
+import { codigoDoPasso, fraseParaPessoa, indiceDaRecusa, type ErroDoQuadro } from "../domain/recusa-do-quadro.ts";
 import { OPS_QUADROS_DO_BOT, OPS_QUADROS_DO_BOT_DA_PESSOA } from "../contracts/quadros-do-bot.ts";
 import { lerOpQuadrosDoBot } from "../domain/quadros-do-bot.ts";
 import { aplicarQuadrosDoBot } from "./quadros-do-bot.ts";
@@ -187,9 +187,15 @@ export const REGRA_QUADRO_RECUSOU = "regra:quadro_recusou" as const;
 export async function gerirQuadroEmFases(deps: Deps, input: EntradaGerirQuadro, modo: ModoImportacao): Promise<SaidaGerirQuadro | { buscarLinear: BuscaDaPrevia }> {
   const r = await decidirGerirQuadro(deps, input, modo);
   if ("buscarLinear" in r || r.data.ok) return r;
-  const frase = fraseParaPessoa(r.data.erro as ErroDoQuadro, codigoDoPasso(input.acoes));
-  const turno = await deps.repos.turnos.buscar(input.turnoId);
-  if (turno && turno.agenteId === input.agenteId) {
+  // Revisão do PR #8: a tarefa do passo recusado (não a do primeiro) e, se a fala da pessoa neste turno já a cita, a
+  // frase não manda pedir de novo citando o código. Só o código entra (ADR-047); a fala é lida, nunca devolvida.
+  const codigo = codigoDoPasso(input.acoes, indiceDaRecusa(r.data.instrucao));
+  const achado = await deps.repos.turnos.buscar(input.turnoId);
+  const turno = achado && achado.agenteId === input.agenteId ? achado : null;
+  const jaCitou = codigo !== null && turno !== null && naConversa(turno)
+    && (await deps.repos.mensagens.falasDaPessoaNoTurno(turno.id, turno.conversaId)).some((f) => citaTarefa(f.texto, { codigo, linearId: null }));
+  const frase = fraseParaPessoa(r.data.erro as ErroDoQuadro, codigo, jaCitou);
+  if (turno) {
     await deps.repos.trilha.registrar({ agenteId: input.agenteId, turnoId: turno.id, conectorId: null, ferramenta: "gerir_quadro", kind: "negacao", motivo: "alcance_insuficiente", regra: REGRA_QUADRO_RECUSOU, regraVersao: 1, em: deps.agora() });
   }
   if (!frase) return r;

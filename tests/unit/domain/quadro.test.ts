@@ -525,7 +525,7 @@ describe("NOD-430, revisão 3: no limite normal, a passagem a outro agente é at
   const n = { autor: ADA.id, limite: "normal" as const };
   const minha = tarefa({ agenteId: ADA.id, titulo: "Minha", status: "fazendo" });
   const colunas = COLUNAS_PADRAO.map((c) => (c.id === "revisao" ? { ...c, responsavel: ZE.id } : c));
-  const PASSAR = recusaDoLimite("mover a tarefa para uma coluna que a passa a outro agente fora das saídas da sua etapa (isso é atribuir; para fechar a etapa, use terminei; para pedir ajustes, devolver)");
+  const PASSAR = recusaDoLimite("mover a tarefa para uma coluna que a passa a outro agente fora das saídas da sua etapa (isso é atribuir; para fechar a etapa, use terminei; para pedir ajustes, devolver)", true);
   it("mudar_tarefa com status (ou o PR que leva à Revisão) para a coluna de outro bot fora das saídas da etapa: recusa", () => {
     const noBacklog = { ...minha, status: "backlog" };
     expect(planejar([{ tipo: "mudar_tarefa", tarefa: "Minha", status: "revisao" }], { ...n, colunas, tarefas: [noBacklog] })).toMatchObject({ erro: PASSAR, indice: 0 });
