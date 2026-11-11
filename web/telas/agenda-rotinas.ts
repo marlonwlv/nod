@@ -171,8 +171,14 @@ function abaixoDoAgora(ctx: Ctx): string {
   const botDe = (r: RotinaDto) => ctx.estado.frota?.agentes.find((a) => a.id === r.rotina.agenteId) ?? null;
   const paradas = ctx.estado.rotinas.filter((r) => r.bloqueio && r.rotina.estado === "ativa" && passa(r));
   const pausadas = ctx.ui.soProblema ? [] : ctx.estado.rotinas.filter((r) => r.rotina.estado === "pausada" && passa(r));
-  const nota = (r: RotinaDto, desf: string, tom: string, acao: string) =>
-    `<li class="ag-item ag-nota"><div class="ag-linha ag-linha-muda"><span class="ag-hora ag-hora-ic" aria-hidden="true">${ICONE.relogioMini}</span>${mascote(botDe(r))}<span class="ag-nome">${esc(tituloDaRotina(r.rotina.instrucao))}</span><span class="ag-desf">${ponto(tom)}${esc(desf)}</span>${acao}</div></li>`;
+  // QA do PR #13 (NOD-412): no celular o desfecho solto da nota some (falta espaço ao lado do Ativar); a pausada com data
+  // leva o "Pausada até …" embaixo do nome, como o "Prevista" das outras linhas — senão o celular não diz quando volta.
+  const nota = (r: RotinaDto, desf: string, tom: string, acao: string, sobNome = false) => {
+    const nome = `<span class="ag-nome">${esc(tituloDaRotina(r.rotina.instrucao))}</span>`;
+    const d = `<span class="ag-desf">${ponto(tom)}${esc(desf)}</span>`;
+    const meio = sobNome && ctx.celular ? `<span class="ag-txt">${nome}${d}</span>` : `${nome}${d}`;
+    return `<li class="ag-item ag-nota"><div class="ag-linha ag-linha-muda"><span class="ag-hora ag-hora-ic" aria-hidden="true">${ICONE.relogioMini}</span>${mascote(botDe(r))}${meio}${acao}</div></li>`;
+  };
   const linhasParadas = paradas.map((r) => {
     const b = r.bloqueio!;
     const falta = `${b.motivo === "sem_conexao" ? `Falta conectar o ${b.app}` : `Falta acesso ao ${b.app}`} ${desdeDaParada(b, ctx.estado.agora)}`;
@@ -180,7 +186,7 @@ function abaixoDoAgora(ctx: Ctx): string {
   });
   const ativar = (r: RotinaDto) => link("ativar-rotina", "Ativar", { id: r.rotina.id }, `Ativar a rotina ${tituloDaRotina(r.rotina.instrucao)}`);
   // NOD-412: a pausada com data diz quando volta sozinha.
-  let linhasPausadas = pausadas.map((r) => nota(r, r.retomada ? `Pausada até ${r.retomada.texto}` : "Pausada", "neutro", ativar(r)));
+  let linhasPausadas = pausadas.map((r) => nota(r, r.retomada ? `Pausada até ${r.retomada.texto}` : "Pausada", "neutro", ativar(r), r.retomada !== undefined));
   if (pausadas.length > MAX_PAUSADAS_SOLTAS) {
     const aberto = ctx.ui.pausadasAbertas;
     const cab = `<li class="ag-item"><button type="button" class="ag-linha ag-pausadas" data-act="agenda-pausadas" aria-expanded="${aberto}"><span class="ag-hora ag-hora-ic" aria-hidden="true">${ICONE.relogioMini}</span><span class="ag-nome">${pausadas.length} rotinas pausadas</span>${SETA_BAIXO}</button></li>`;

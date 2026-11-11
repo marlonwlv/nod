@@ -312,6 +312,16 @@ describe("a tela da agenda", () => {
     expect(aberta).toContain('type="datetime-local"');
   });
 
+  it("NOD-412 (QA do PR #13): no celular a pausada com data também diz até quando (o desfecho solto da nota fica escondido)", () => {
+    const pausada = { ...rotinaDto("r2", "b-ada"), retomada: { em: AGORA + 86_400_000, texto: "seg 09:00" }, rotina: { id: "r2", agenteId: "b-ada", ownerId: "p", estado: "pausada", instrucao: "Pausada aqui" } } as unknown as RotinaDto;
+    const cel = renderAgendaRotinas(com({ dto: BASE_DTO }, { rotinas: [pausada] }), true);
+    // Embaixo do nome, como o "Prevista" das outras linhas do celular: fora do alcance do `.ag-cel .ag-nota .ag-linha > .ag-desf`.
+    expect(cel).toMatch(/<span class="ag-txt"><span class="ag-nome">Pausada aqui<\/span><span class="ag-desf">[^]*?Pausada até seg 09:00<\/span><\/span>/);
+    const css = readFileSync(new URL("../../../web/agenda.css", import.meta.url), "utf8");
+    expect(css).toContain(".ag-cel .ag-nota .ag-linha > .ag-desf { display: none; }");
+    expect(css).not.toContain(".ag-cel .ag-nota .ag-desf { display: none; }");
+  });
+
   it("NOD-412: domingo não repete \"segunda\" (amanhã já é segunda)", () => {
     expect(datasDePausa("America/Sao_Paulo", Date.parse("2026-11-01T15:00:00Z")).map((d) => d.ate)).toEqual(["2026-11-02"]);
     expect(datasDePausa("America/Sao_Paulo", Date.parse("2026-11-02T15:00:00Z")).map((d) => d.ate)).toEqual(["2026-11-03", "2026-11-09"]);

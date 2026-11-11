@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { retomarRotinasMarcadas, tickPessoa } from "../../src/adapters/fundo/scheduler-rotina.ts";
 import { instanteLocal } from "../../src/domain/rotina-retomada.ts";
 import type { Transacao } from "../../src/shared/types.ts";
+import { listarRotinas } from "../../src/use-cases/listar-rotinas.ts";
 import { pausarRotina } from "../../src/use-cases/pausar-rotina.ts";
 import { pausarRotinaPeloAgente, reativarRotinaPeloAgente } from "../../src/use-cases/rotinas-do-agente.ts";
 import { depsSobre } from "../helpers/deps-l7.ts";
@@ -30,6 +31,9 @@ describeIntegracao("pausar rotina até uma data (NOD-412)", () => {
       expect(com.data.rotina).toMatchObject({ estado: "pausada", retomarEm: segunda });
       const linhas = await repos.mensagens.listarDaConversa(conversaId);
       expect(linhas.at(-1)?.texto).toBe("Rotina pausada até seg 00:00: volta sozinha. Execuções perdidas na pausa não são repostas.");
+      // QA do PR #13: o DTO da tela (agenda, gaveta, perfil do celular) leva quando volta e o texto.
+      const dto = (await listarRotinas(deps, {})).data.rotinas.find((x) => x.rotina.id === id);
+      expect(dto?.retomada).toEqual({ em: segunda, texto: "seg 00:00" });
 
       // Outra data na já pausada troca só a data; a mesma data não faz nada.
       const terca = instanteLocal("2026-11-17T09:00", "America/Sao_Paulo");
@@ -43,6 +47,7 @@ describeIntegracao("pausar rotina até uma data (NOD-412)", () => {
 
       const sem = await pausarRotina(deps, { rotinaId: id, estado: "pausada" });
       expect(sem.data.rotina).toMatchObject({ estado: "pausada", retomarEm: null });
+      expect((await listarRotinas(deps, {})).data.rotinas.find((x) => x.rotina.id === id)).not.toHaveProperty("retomada");
       expect((await repos.mensagens.listarDaConversa(conversaId)).at(-1)?.texto).toMatch(/^Rotina pausada: nada será disparado até você reativar\./);
 
       // Data no passado ou longe demais: recusada, nada muda.
