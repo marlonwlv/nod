@@ -35,7 +35,7 @@ export type Conversa = {
   criadoEm: EpochMs;
 };
 
-export type KindProposta = "perfil" | "rotina" | "acesso" | "pasta" | "rotina_atualizacao" | "rotina_exclusao" | "bot" | "lote_bots" | "credencial" | "colunas_quadro" | "quadro_exclusao" | "app" | "importacao_linear" | "assumir_quadro";
+export type KindProposta = "perfil" | "rotina" | "acesso" | "pasta" | "rotina_atualizacao" | "rotina_exclusao" | "bot" | "lote_bots" | "credencial" | "colunas_quadro" | "quadro_exclusao" | "app" | "importacao_linear" | "assumir_quadro" | "rotina_execucao";
 export type EstadoProposta = "pendente" | "confirmada" | "recusada";
 
 /**
@@ -114,6 +114,20 @@ export type PayloadPropostaRotinaExclusao = {
   /** Mesma regra de PayloadPropostaRotinaAtualizacao.revisao (NOD-159). */
   revisao?: string;
 };
+/**
+ * definido em 2026-11-11 (NOD-413): rodar agora uma rotina do próprio bot, pedido pelo chat. Só o clique dispara, pelo
+ * mesmo executor do Testar agora (rotinas.executar). `naFila`: já havia execução aberta quando a proposta nasceu (o card
+ * avisa e o clique é a confirmação de rodar mais uma).
+ */
+export type PayloadPropostaRotinaExecucao = {
+  kind: "rotina_execucao";
+  rotinaId: string;
+  resumo: string;
+  instrucao: string;
+  /** Mesma regra de PayloadPropostaRotinaAtualizacao.revisao (NOD-159). */
+  revisao?: string;
+  naFila?: { instanteAgendado: EpochMs; fusoIana: string };
+};
 export type PayloadPropostaAcesso = {
   kind: "acesso";
   conector: string;
@@ -183,7 +197,7 @@ export type PayloadPropostaLoteBots = { kind: "lote_bots"; resumo: string; acoes
 /** Pelo teto de 200 linhas: a credencial (NOD-50) mora em ferramentas-credencial.ts e as colunas (NOD-448) em quadro.ts. */
 export type { AlvoCredencial, PayloadPropostaCredencial } from "./ferramentas-credencial.ts";
 export type { ColunaNaProposta, PayloadPropostaColunasQuadro } from "./quadro.ts";
-export type PayloadProposta = PayloadPropostaApp | PayloadPropostaDoQuadro | PayloadPropostaCredencial | PayloadPropostaLoteBots | PayloadPropostaBot | PayloadPropostaPerfil | PayloadPropostaRotina | PayloadPropostaAcesso | PayloadPropostaPasta | PayloadPropostaRotinaAtualizacao | PayloadPropostaRotinaExclusao;
+export type PayloadProposta = PayloadPropostaApp | PayloadPropostaDoQuadro | PayloadPropostaCredencial | PayloadPropostaLoteBots | PayloadPropostaBot | PayloadPropostaPerfil | PayloadPropostaRotina | PayloadPropostaAcesso | PayloadPropostaPasta | PayloadPropostaRotinaAtualizacao | PayloadPropostaRotinaExclusao | PayloadPropostaRotinaExecucao;
 
 /** Proposta do modelo (ferramenta tipada) — nada é aplicado antes da confirmação da pessoa (E1.1). */
 export type Proposta = {
