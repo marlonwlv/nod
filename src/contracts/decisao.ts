@@ -10,7 +10,7 @@ export type TipoDecisao =
   | "rotina"
   | "rotina_atualizacao"
   | "rotina_exclusao"
-  /** definido em 2026-11-11 (NOD-413, 0165): rodar agora uma rotina do bot, pedido pelo chat (executar_rotina). */
+  /** definido em 2026-11-11 (NOD-413, 0166): rodar agora uma rotina do bot, pedido pelo chat (executar_rotina). */
   | "rotina_execucao"
   /** definido em 2026-10-04 (ADR-077, 0050): o primeiro bot que a Nina propõe no onboarding (propor_bot). */
   | "bot"
