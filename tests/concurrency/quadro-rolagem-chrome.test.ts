@@ -916,6 +916,35 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     }
   }
 
+  // Revisão 1 da NOD-468: a regravação da pessoa (abrir os passos do trabalho) não usa a âncora. No celular o bloco do
+  // trabalho não tem chave; com ele cruzando o topo, a âncora era o primeiro comentário abaixo do botão: os passos abriam
+  // entre os dois, a vista subia o tamanho da lista e o botão tocado saía da tela (medido: 40 → −594 px). Quem regrava
+  // decide a posição (ADA-12: `esquecer`). No computador o trabalho fica na coluna do lado e não empurra o meio.
+  it("390×844 (toque): NOD-468 revisão 1 — abrir os passos do trabalho que cruza o topo deixa o botão no lugar", async () => {
+    await montar(390, 844, true);
+    await avaliar(cdp, "window.__linhas = 30; window.__trabVivo = true");
+    await atualizar();
+    await abrirT3(30);
+    for (let i = 1; i <= 30; i++) await avaliar(cdp, `window.__passoVivo(${i})`);
+    await esperar(400);
+    const botao = `[...document.querySelectorAll("#quadro [data-act='trab-passos']")].find((b) => b.offsetParent)`;
+    const noTopo = `(() => { const v = document.getElementById("quadro"); const b = ${botao}; return b ? b.getBoundingClientRect().top - v.getBoundingClientRect().top : null; })()`;
+    await avaliar(cdp, `(() => { document.activeElement?.blur(); const v = document.getElementById("quadro"); v.scrollTop += ${noTopo} - 40; })()`);
+    await esperar(GESTO_MS + 150);
+    const cena = JSON.parse(await avaliar<string>(cdp, `(() => { const v = document.getElementById("quadro"); const vt = v.getBoundingClientRect().top; const b = ${botao};
+      const y = b.getBoundingClientRect().top - vt;
+      const ks = [...v.querySelectorAll("[data-ancora], [id]")].filter((e) => e.offsetParent && !e.contains(b)).map((e) => e.getBoundingClientRect().top - vt);
+      return JSON.stringify({ y, entre: ks.some((k) => k >= 0 && k <= y), abaixo: ks.some((k) => k > y && k < v.clientHeight) }); })()`)) as { y: number; entre: boolean; abaixo: boolean };
+    expect(cena.entre, "nenhum bloco com chave começa entre o topo e o botão (o do botão cruza o topo)").toBe(false);
+    expect(cena.abaixo, "um bloco com chave começa abaixo do botão, à vista (a âncora de antes)").toBe(true);
+    await avaliar(cdp, `(${botao}).click()`);
+    await ate(`document.querySelectorAll("#quadro .qd-trab-passo").length >= 30`);
+    await esperar(300);
+    const y1 = await avaliar<number | null>(cdp, noTopo);
+    expect(Math.abs((y1 ?? -9999) - cena.y), `o botão dos passos foi de ${cena.y} a ${y1}`).toBeLessThan(4);
+    await avaliar(cdp, "window.__trabVivo = false");
+  }, 90_000);
+
   // QA da ADA-12: o lado negativo de COLADO_PX (o mutante COLADO_PX = 200 passava em tudo) e os casos com o scroll
   // anchoring do navegador LIGADO, como o app real roda no Chrome e no Firefox (os de cima desligam, como o Safari).
   for (const ancora of [false, true]) {

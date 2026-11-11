@@ -756,7 +756,10 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // agora seria um bloco do corte, e prendê-lo tiraria a vista do lugar quando o conteúdo voltasse.
     const alvoDaCaixa = rol?.alvo("caixa");
     const cortada = !!alvoDaCaixa && Math.abs(alvoDaCaixa.topo - v.scrollTop) > 1;
-    const ancora = mesmaVista && !!aberta && !coladaAntes && !cortada && !seguirFim && v.scrollTop > 0 ? acharAncora(v, conteudo) : null;
+    // Revisão 1: só no desenho ao vivo (o frame, a releitura). A regravação da pessoa (abrir os passos, responder, editar)
+    // muda o bloco que ela tocou, que pode cruzar o topo: a âncora abaixo dele levaria o que ela tocou para cima. Ali a
+    // posição fica com quem regravou (ADA-12, `esquecer`).
+    const ancora = doAlvo && !!aberta && !coladaAntes && !cortada && !seguirFim && v.scrollTop > 0 ? acharAncora(v, conteudo) : null;
     // Revisão 3: colada no fim segue o fim do desenho novo, sem reserva (a reserva a deixaria no branco até ela soltar).
     const alturaAntes = doAlvo && !rol?.alvo("caixa")?.colado ? reserva.antes(conteudo, v) : 0;
     vistaDesenhada = vistaAgora;
