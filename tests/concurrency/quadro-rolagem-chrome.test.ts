@@ -963,6 +963,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
       await esperar(150);
       const antes = JSON.parse(await avaliar<string>(cdp, `JSON.stringify({ left: ${grade}.scrollLeft, top: document.getElementById("quadro").scrollTop })`)) as { left: number; top: number };
       expect(antes.left, "a grade rolou").toBe(400);
+      expect(antes.top, "o quadro rolou para baixo").toBeGreaterThan(0);
       // O card visível com a grade em 400 (o t3 pode estar fora da vista; vale qualquer card à vista).
       await avaliar(cdp, `(() => { const g = ${grade}; const r = g.getBoundingClientRect();
         const c = [...g.querySelectorAll("[data-act='abrir-tarefa']")].find((e) => { const b = e.getBoundingClientRect(); return b.left >= r.left && b.right <= r.right && b.top >= 0 && b.bottom <= innerHeight; });
@@ -977,11 +978,54 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
       expect(Math.abs(depois.left - antes.left), `scrollLeft da grade ${antes.left} → ${depois.left} (${como})`).toBeLessThanOrEqual(1);
       expect(Math.abs(depois.top - antes.top), `scrollTop do quadro ${antes.top} → ${depois.top} (${como})`).toBeLessThanOrEqual(1);
       // Um frame ao vivo depois de fechar não a leva de volta a 0.
-      await avaliar(cdp, "window.__mudou()");
-      await esperar(400);
+      await atualizar();
       expect(Math.abs((await avaliar<number>(cdp, `${grade}.scrollLeft`)) - antes.left), "scrollLeft depois do frame ao vivo").toBeLessThanOrEqual(1);
     }, 60_000);
   }
+
+  // NOD-469 (revisão): a tarefa aberta pelo link não tem rolagem guardada; o Esc devolve o foco ao card dela, e o card que
+  // estava fora da grade (uma coluna à direita) vem até a vista. Com o foco que não rola, o foco ficava num card invisível.
+  it("1440×900: NOD-469 — Esc na tarefa aberta pelo link traz à vista o card focado que estava fora da grade", async () => {
+    await montar(1440, 900, false);
+    const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
+    const id = await avaliar<string>(cdp, `(() => { const g = ${grade}; g.scrollLeft = 0; const r = g.getBoundingClientRect();
+      const c = [...g.querySelectorAll("[data-act='abrir-tarefa']")].find((e) => e.getBoundingClientRect().left >= r.right);
+      return c ? c.dataset.id : ""; })()`);
+    expect(id, "um card fora da grade, à direita, para o teste valer").not.toBe("");
+    await avaliar(cdp, `window.__q.abrirTarefa("a", ${JSON.stringify(id)})`);
+    await ate(`document.getElementById("qd-t-tit")`);
+    await esperar(300);
+    await avaliar(cdp, `document.getElementById("qd-t-tit").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))`);
+    await ate(`!document.getElementById("qd-t-tit") && ${grade}`);
+    await esperar(300);
+    const r = JSON.parse(await avaliar<string>(cdp, `(() => { const a = document.activeElement; const g = ${grade}.getBoundingClientRect(); const b = a.getBoundingClientRect();
+      return JSON.stringify({ id: a.dataset?.id ?? "", dentro: b.right > g.left && b.left < g.right && b.bottom > 0 && b.top < innerHeight }); })()`)) as { id: string; dentro: boolean };
+    expect(r.id, "o foco volta ao card da tarefa fechada").toBe(id);
+    expect(r.dentro, "o card focado está à vista").toBe(true);
+  }, 60_000);
+
+  // NOD-469 (revisão): a rolagem guardada é do quadro de quem a guardou. Abrir no quadro de A, trocar para a conversa de B e
+  // abrir pelo código no chat (com a conversa à vista) não leva o quadro de B ao scrollLeft que A tinha.
+  it("1440×900: NOD-469 — a rolagem guardada no quadro de um bot não vai para o quadro de outro", async () => {
+    await montar(1440, 900, false);
+    const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
+    await avaliar(cdp, `${grade}.scrollLeft = 400`);
+    await esperar(150);
+    await avaliar(cdp, `(() => { const g = ${grade}; const r = g.getBoundingClientRect();
+      [...g.querySelectorAll("[data-act='abrir-tarefa']")].find((e) => { const b = e.getBoundingClientRect(); return b.left >= r.left && b.right <= r.right && b.top >= 0 && b.bottom <= innerHeight; }).click(); })()`);
+    await ate(`document.getElementById("qd-t-tit")`);
+    await avaliar(cdp, `window.__q.trocar("conversa")`);
+    await esperar(400);
+    await avaliar(cdp, `window.__q.sincronizar({ chave: "c2", nome: "Bia", agenteId: "b" })`);
+    await esperar(300);
+    await avaliar(cdp, `window.__q.abrirTarefaDe("b", "t3")`);
+    await ate(`document.getElementById("qd-t-tit")`);
+    await esperar(400);
+    await avaliar(cdp, `document.getElementById("qd-t-tit").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }))`);
+    await ate(`!document.getElementById("qd-t-tit") && ${grade}`);
+    await esperar(300);
+    expect(await avaliar<number>(cdp, `${grade}.scrollLeft`), "o quadro de B nunca rolou").toBe(0);
+  }, 60_000);
 
   it("390×844 (toque): ADA-12 revisão 1 — o conteúdo que só volta depois de 3 s (o trabalho novo de log vazio) não leva a tela, com a reserva de verdade", async () => {
     await montar(390, 844, true, RESERVA_MS);

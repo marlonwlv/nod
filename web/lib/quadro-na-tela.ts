@@ -420,9 +420,10 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   let aberta: string | null = null;
   /**
    * NOD-469: a rolagem do quadro (a caixa e a grade) no clique que abriu a tarefa, e a vista dela. Abrir troca a vista (a
-   * grade some) e fechar a desenhava com scrollLeft 0; o voltarAoQuadro a devolve. Só vale para a mesma página e forma.
+   * grade some) e fechar a desenhava com scrollLeft 0; o voltarAoQuadro a devolve. Só vale para a mesma página e forma, na
+   * mesma conversa e no mesmo quadro (a troca de bot ou de quadro com a tarefa aberta não a apaga).
    */
-  let quadroAntesDaTarefa: { vista: string; rolagem: RolagemGuardada } | null = null;
+  let quadroAntesDaTarefa: { vista: string; de: string | null; quadro: string | null; rolagem: RolagemGuardada } | null = null;
   /** NOD-422 (PR 2): a tarefa aberta por link antes de o quadro chegar; a trilha sai quando ele chega (com o quadroId). */
   let trilhaPendente: string | null = null;
   let aberturaRegistrada = false;
@@ -2329,11 +2330,11 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // NOD-422: a trilha (tarefa_aberta pelo link) sai quando o quadro do agente chegar (o sincronizar).
     // NOD-445 (merge com o #627): a tarefa abre na página Tarefas da pílula, não na última página da vista (um app).
     const t = paginaDasTarefas();
+    // NOD-469: a tarefa aberta pelo link (do chat) não volta a uma rolagem guardada de outra abertura.
+    quadroAntesDaTarefa = null;
     if (modo !== "quadro") { marcarAberta(tarefaId, null); trocar("quadro", { pagina: t }); return; }
     // O irPara entre páginas da vista fecha a tarefa aberta: a pedida é marcada depois.
     if (pagina !== t) irPara(t);
-    // NOD-469: a tarefa aberta pelo link (do chat) não volta a uma rolagem guardada de outra abertura.
-    quadroAntesDaTarefa = null;
     marcarAberta(tarefaId, null);
     desenharVista();
     void lerQuadro();
@@ -2362,7 +2363,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (!aberta) {
       const v = vista();
       const c = v?.querySelector<HTMLElement>(":scope > .qd-conteudo");
-      quadroAntesDaTarefa = v && c && vistaDesenhada ? { vista: vistaDesenhada, rolagem: guardarRolagem(v, c) } : null;
+      quadroAntesDaTarefa = v && c && vistaDesenhada ? { vista: vistaDesenhada, de: chave, quadro: q?.id ?? null, rolagem: guardarRolagem(v, c) } : null;
     }
     marcarAberta(id, via);
     desenharVista();
@@ -2403,9 +2404,23 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     desenharVista();
     const v = vista();
     const c = v?.querySelector<HTMLElement>(":scope > .qd-conteudo");
-    // NOD-469: a mesma vista de antes de abrir (página e forma) volta à rolagem guardada; o foco no card não rola (ADA-7).
-    if (v && c && antes && antes.vista === vistaDesenhada) restaurarRolagem(v, c, antes.rolagem);
-    if (id) focarSemRolar(v?.querySelector<HTMLElement>(`.qd-conteudo [data-act="abrir-tarefa"][data-id="${CSS.escape(id)}"]`));
+    // NOD-469: a mesma vista de antes de abrir (página e forma, na mesma conversa e quadro) volta à rolagem guardada; o
+    // foco no card não rola (ADA-7).
+    if (v && c && antes && antes.vista === vistaDesenhada && antes.de === chave && antes.quadro === (q?.id ?? null)) restaurarRolagem(v, c, antes.rolagem);
+    const card = id ? v?.querySelector<HTMLElement>(`.qd-conteudo [data-act="abrir-tarefa"][data-id="${CSS.escape(id)}"]`) : null;
+    focarSemRolar(card);
+    // Revisão do NOD-469 (a11y): o card fora da vista (a tarefa aberta pelo link, ou que mudou de coluna aberta) vem até
+    // ela; o que já está à vista, mesmo cortado na borda, não rola (a rolagem devolvida fica).
+    if (card && v && foraDaVista(card, [v, card.closest<HTMLElement>(".qd-grade, .pg-colunas, .qd-cel-cols")])) card.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }
+
+  /** O elemento não aparece em nenhum pedaço de alguma das caixas que o cortam (nem da janela). */
+  function foraDaVista(el: HTMLElement, caixas: (HTMLElement | null)[]): boolean {
+    const r = el.getBoundingClientRect();
+    const janela = doc.defaultView;
+    const fora = (b: { left: number; right: number; top: number; bottom: number }): boolean => r.right <= b.left || r.left >= b.right || r.bottom <= b.top || r.top >= b.bottom;
+    if (janela && fora({ left: 0, top: 0, right: janela.innerWidth, bottom: janela.innerHeight })) return true;
+    return caixas.some((c) => !!c && fora(c.getBoundingClientRect()));
   }
 
   function mostrar(els: HTMLElement[]): void {
