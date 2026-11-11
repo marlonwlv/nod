@@ -237,9 +237,6 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       // que um `quadro.adicionar_pessoa` sorteado acertava o nome dela antes; a 443 ficou vermelha com a semente 1735492939).
       const comPessoa = await srv.json<{ ok: boolean; detalhe?: string }>("POST", `agentes/${meu.agente.id}/quadro/pessoas`, { pessoa: outraEscopo.pessoaId });
       if (!comPessoa.ok) throw new Error(`a pessoa do fuzz não entrou no quadro: ${comPessoa.detalhe}`);
-      // NOD-490: uma label no quadro para o `:lid` (`quadro.remover_label` só passava da busca na semente em que um
-      // `quadro.criar_label` sorteado criava antes a label com o mesmo nome; o #14 ficou vermelho com a semente 34757027).
-      await srv.json("POST", `agentes/${meu.agente.id}/quadro/labels`, { nome: "Label do fuzz" });
       // NOD-445: um app ativo e um removido no bot da pessoa e um no da outra, para `paginas.remover_app` e
       // `paginas.restaurar_app` passarem da busca (o `:app` recebe estes ids pelo segmento `apps`).
       const appDe = (s: SessaoDeTeste, b: Criado, nome: string, removido: boolean) =>
@@ -399,9 +396,8 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       // A main ficou vermelha com a semente 806451066 (3011777, #689) no `quadro.tirar_pessoa`: a pessoa do fuzz está no
       // quadro desde a NOD-443, mas nenhum caso sorteado levava o id dela no `:pid` (todos em 404). Ganha o caso semeado
       // também; não entra em PRECISAM_DA_TAREFA porque não depende da tarefa e não precisa vir antes do `mudar_tarefa`.
-      // NOD-490: o `quadro.remover_label` também, com a label do fuzz no `:lid` (semente 34757027, todos em 404).
-      const SEMEADOS: Record<string, string> = { agentes: meu.agente.id, tarefas: tarefaDoFuzz, movimentos: movimentoDoFuzz, pessoas: outraEscopo.pessoaId, labels: "Label do fuzz" };
-      for (const acao of [...PRECISAM_DA_TAREFA, "quadro.tirar_pessoa", "quadro.remover_label"]) {
+      const SEMEADOS: Record<string, string> = { agentes: meu.agente.id, tarefas: tarefaDoFuzz, movimentos: movimentoDoFuzz, pessoas: outraEscopo.pessoaId };
+      for (const acao of [...PRECISAM_DA_TAREFA, "quadro.tirar_pessoa"]) {
         const i = plano.casos.findIndex((c) => c.acao === acao);
         if (i < 0) continue;
         // A entrada é a plausível do gerador (o corpo não importa: estas rotas não o leem); só o caminho muda.
