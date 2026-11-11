@@ -1,6 +1,6 @@
 import {
-  FERRAMENTAS_NATIVAS, FORMATO_PACOTE, IMPLICA, MAX_BOTS_TIME, MAX_PROFUNDIDADE, NOMES_RESERVADOS, MAX_PERMISSOES, MAX_ROTINAS_BOT, MAX_TELAS, MODELOS_PRECO, MOEDAS_PRECO,
-  PERIODOS_ASSINATURA, PERMISSOES_PLATAFORMA, TETO_DESCRICAO, TETO_INSTRUCOES, TETO_PACOTE_BYTES, TETO_TELA_BYTES,
+  FERRAMENTAS_NATIVAS, FORMATO_PACOTE, IMPLICA, MAX_BOTS_TIME, MAX_PROBLEMAS, MAX_PROFUNDIDADE, NOMES_RESERVADOS, MAX_PERMISSOES, MAX_ROTINAS_BOT, MAX_TELAS, MODELOS_PRECO, MOEDAS_PRECO,
+  PERIODOS_ASSINATURA, PERMISSOES_NATIVAS, PERMISSOES_PLATAFORMA, TETO_DESCRICAO, TETO_INSTRUCOES, TETO_PACOTE_BYTES, TETO_TELA_BYTES,
   TETO_TEXTO_CURTO, TIPOS_PACOTE,
   type AppConectadoPedido, type DecisaoAtualizacao, type InstalacaoPacote, type MoedaPreco, type PacoteNod, type PeriodoAssinatura, type PerfilBotPacote,
   type PermissaoPedida, type PrecoPacote, type ProblemaPacote, type RotinaPacote, type SecaoTimePacote, type TelaPacote,
@@ -27,6 +27,10 @@ const CAMPO_DE_SEGREDO = /token|secret|segredo|senha|password|api_?key|credencia
 const NUNCA_VIAJA = new Set(["memoria", "memorias", "conversas", "mensagens", "segredos", "maquina", "maquinaId", "contas_ia", "contasIa", "conta_ia"]);
 const CONTROLE = /\p{Cc}/u;
 const CONTROLE_FORA_DE_LINHA = /[^\P{Cc}\n\r\t]/u;
+/** Bidi e invisíveis (Trojan Source): escondem ou invertem texto no nome, no autor e nas instruções. O ZWJ dos emojis fica. */
+const INVISIVEL = /[\u061C\u200B\u200C\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/u;
+/** https sem usuário/senha na autoridade (credencial não viaja nem na URL), sem espaço nem controle. */
+const URL_AUTOR = /^https:\/\/[^\s\p{Cc}@/?#]{1,253}(?:[/?#][^\s\p{Cc}]{0,300})?$/u;
 const AUTOR_RESERVADO = "nod";
 
 /** Bytes UTF-8 sem TextEncoder (o domínio compila sem DOM). */
@@ -107,7 +111,11 @@ export function compativel(p: Pick<PacoteNod, "nodMinimo">, versaoNod: string): 
 
 class Leitor {
   readonly problemas: ProblemaPacote[] = [];
-  erro(caminho: string, motivo: string): void { this.problemas.push({ caminho, motivo }); }
+  /** Para no teto: um pacote de 8 MB com um milhão de itens errados não vira um milhão de mensagens. */
+  erro(caminho: string, motivo: string): void {
+    if (this.problemas.length < MAX_PROBLEMAS) this.problemas.push({ caminho, motivo });
+    else if (this.problemas.length === MAX_PROBLEMAS) this.problemas.push({ caminho: "", motivo: `mais problemas além destes ${MAX_PROBLEMAS}; corrija estes primeiro` });
+  }
 
   /** Só as chaves esperadas; avisa o segredo e o que nunca viaja antes do "desconhecido". */
   chaves(o: Obj, caminho: string, permitidas: readonly string[]): void {
@@ -127,6 +135,7 @@ class Leitor {
     if (!opts.vazio && t === "") this.erro(aqui, "não pode ser vazio");
     else if (v.length > teto) this.erro(aqui, `mais de ${teto} caracteres`);
     else if ((opts.linhas ? CONTROLE_FORA_DE_LINHA : CONTROLE).test(v)) this.erro(aqui, "caractere de controle");
+    else if (INVISIVEL.test(v)) this.erro(aqui, "caractere invisível ou de direção de texto (bidi)");
     return t;
   }
 
@@ -293,7 +302,7 @@ export function lerPacote(bruto: unknown): LeituraPacote {
     l.chaves(autorObj, "autor", ["nome", "url"]);
     autor = { nome: l.texto(autorObj, "nome", "autor", TETO_TEXTO_CURTO) };
     if (autorObj.url !== undefined) {
-      if (typeof autorObj.url !== "string" || !/^https:\/\/[^\s]{1,300}$/.test(autorObj.url)) l.erro("autor.url", "https://…");
+      if (typeof autorObj.url !== "string" || !URL_AUTOR.test(autorObj.url) || INVISIVEL.test(autorObj.url)) l.erro("autor.url", "https://… (sem usuário e senha)");
       else autor.url = autorObj.url;
     }
   }
@@ -315,12 +324,18 @@ export function lerPacote(bruto: unknown): LeituraPacote {
   if (ehNativo && autorSlug !== AUTOR_RESERVADO) l.erro("nativo", `só os pacotes do próprio nod (autor "${AUTOR_RESERVADO}") são nativos`);
   if (!ehNativo && autorSlug === AUTOR_RESERVADO && slug !== "") l.erro("slug", `o autor "${AUTOR_RESERVADO}" é reservado aos pacotes do próprio nod`);
   if (autorSlug !== AUTOR_RESERVADO && NOMES_RESERVADOS.includes(nomeDoApp)) l.erro("slug", `o nome "${nomeDoApp}" é reservado (namespace da plataforma ou app nativo do nod)`);
-  if (autorSlug !== AUTOR_RESERVADO && autor.nome.toLocaleLowerCase("pt-BR") === AUTOR_RESERVADO) l.erro("autor.nome", `o autor "${AUTOR_RESERVADO}" é reservado aos pacotes do próprio nod`);
+  if (autorSlug !== AUTOR_RESERVADO && autor.nome.normalize("NFKC").toLocaleLowerCase("pt-BR").trim() === AUTOR_RESERVADO) l.erro("autor.nome", `o autor "${AUTOR_RESERVADO}" é reservado aos pacotes do próprio nod`);
   if (ehNativo && tipo !== "app") l.erro("nativo", "só app é nativo");
   // O arquivo não tem assinatura: o nativo tem de ser um que este nod já conhece, e as ferramentas vêm do código do nod.
   const ferramentasDoNativo = ehNativo && autorSlug === AUTOR_RESERVADO ? (Object.hasOwn(FERRAMENTAS_NATIVAS, slug) ? FERRAMENTAS_NATIVAS[slug] : undefined) : null;
   if (ferramentasDoNativo === undefined) l.erro("nativo", `"${slug}" não é um app nativo deste nod`);
   else if (ferramentasDoNativo) ferramentas.forEach((f, i) => { if (!ferramentasDoNativo.includes(f)) l.erro(`ferramentas[${i}]`, `"${f}" não é ferramenta do nativo ${slug}`); });
+  // O mesmo para as permissões: um nativo forjado não pede o que o código do nod não diz (nem app conectado).
+  const permissoesDoNativo = ferramentasDoNativo ? PERMISSOES_NATIVAS[slug] ?? [] : null;
+  if (permissoesDoNativo) {
+    const demais = permissoesEfetivas({ permissoes, apps_conectados: apps }).filter((x) => !permissoesDoNativo.includes(x));
+    if (demais.length > 0) l.erro("permissoes", `não é permissão do nativo ${slug}: ${demais.join(", ")}`);
+  }
   // Ferramenta do chat é código do servidor: terceiro não traz. O app de terceiro fala com o nod pela ponte das telas.
   if (!ehNativo && ferramentas.length > 0) l.erro("ferramentas", "app de terceiro não traz ferramenta do chat (é código do servidor); só os nativos do nod");
 
@@ -356,7 +371,7 @@ export function permissoesEfetivas(p: Pick<PacoteNod, "permissoes" | "apps_conec
   const por = (id: string, extra: readonly string[] = []): void => {
     if (s.has(id)) return;
     s.add(id);
-    for (const i of [...(IMPLICA[id] ?? []), ...extra]) por(i);
+    for (const i of [...(Object.hasOwn(IMPLICA, id) ? IMPLICA[id] ?? [] : []), ...extra]) por(i);
   };
   for (const x of p.permissoes) por(x.id, x.implica);
   for (const a of p.apps_conectados) {
@@ -377,11 +392,12 @@ function precoMaior(antes: PrecoPacote, depois: PrecoPacote): string | null {
 
 /**
  * O que fazer com quem já instalou quando chega uma versão nova. Entra sozinha só se não pede nada a mais (nem
- * permissão nova, nem preço maior, nem versão major); downgrade, outro slug, versão igual com conteúdo diferente e
+ * permissão nova, nem preço maior, nem versão major); downgrade, outro slug ou tipo, versão igual com conteúdo diferente e
  * pacote que este nod não entende ficam bloqueados. A versão instalada continua valendo até a pessoa decidir.
  */
 export function decidirAtualizacao(instalado: InstalacaoPacote, novo: PacoteNod, hashNovo: string, versaoNod: string): DecisaoAtualizacao {
   if (novo.slug !== instalado.slug) return { decisao: "bloqueada", motivo: "é outro pacote (o slug mudou)" };
+  if (novo.tipo !== instalado.tipo) return { decisao: "bloqueada", motivo: `é outro tipo de pacote (${instalado.tipo} virou ${novo.tipo})` };
   if (!compativel(novo, versaoNod)) return { decisao: "bloqueada", motivo: `pede o nod ${novo.nodMinimo} ou mais novo` };
   const cmp = compararVersoes(novo.versao, instalado.versao);
   if (cmp < 0) return { decisao: "bloqueada", motivo: `a ${novo.versao} é mais velha que a instalada (${instalado.versao})` };

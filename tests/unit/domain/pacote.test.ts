@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { InstalacaoPacote, PacoteNod } from "../../../src/contracts/pacote.ts";
-import { TETO_TELA_BYTES } from "../../../src/contracts/pacote.ts";
+import { MAX_PROBLEMAS, TETO_TELA_BYTES } from "../../../src/contracts/pacote.ts";
 import { bytesUtf8, canonico, compararVersoes, decidirAtualizacao, hashPacote, lerPacote, permissoesEfetivas } from "../../../src/domain/pacote.ts";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -134,7 +134,7 @@ describe("compararVersoes", () => {
 
 describe("decidirAtualizacao", () => {
   const v1 = ok(appTerceiro());
-  const inst = (p: PacoteNod = v1): InstalacaoPacote => ({ slug: p.slug, versao: p.versao, hash: hashPacote(p, sha), permissoes: permissoesEfetivas(p), preco: p.preco });
+  const inst = (p: PacoteNod = v1): InstalacaoPacote => ({ slug: p.slug, tipo: p.tipo, versao: p.versao, hash: hashPacote(p, sha), permissoes: permissoesEfetivas(p), preco: p.preco });
   const decidir = (novo: PacoteNod, nod = "1.0.0") => decidirAtualizacao(inst(), novo, hashPacote(novo, sha), nod);
 
   it("mesmas permissões e minor: entra sozinha", () => {
@@ -205,5 +205,82 @@ describe("revisão ADA-283: escalada e DoS", () => {
   it("pacote grande para de medir no teto (sem montar o texto inteiro)", () => {
     const telas = Array.from({ length: 5 }, (_, i) => ({ id: `t${i}`, titulo: "T", html: "x".repeat(TETO_TELA_BYTES - 10) }));
     tem(appTerceiro({ telas }), "", "MB");
+  });
+});
+
+// Regressão: QA do PR #9 (ADA-283), 2026-11-11: os ataques que passavam e os mutantes que sobreviviam.
+describe("QA ADA-283: pacotes maliciosos", () => {
+  const nativoCanvas = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    formato: 1, tipo: "app", slug: "nod/canvas", nome: "Canvas", descricao: "x", autor: { nome: "nod" }, versao: "1.0.0", nodMinimo: "1.0.0",
+    preco: { modelo: "gratis" }, permissoes: [{ id: "canvas.ver_comentar", motivo: "x" }], apps_conectados: [], ferramentas: ["gerir_canvas"], nativo: true, ...extra,
+  });
+
+  it("um nod/canvas forjado não pede permissão da plataforma nem app conectado", () => {
+    expect(ok(nativoCanvas()).nativo).toBe(true);
+    tem(nativoCanvas({ permissoes: [{ id: "quadro.escrever", motivo: "x" }] }), "permissoes", "não é permissão do nativo");
+    tem(nativoCanvas({ apps_conectados: [{ slug: "gmail", nivel: "escrever", motivo: "x" }] }), "permissoes", "conector:gmail:escrever");
+  });
+
+  it("caractere invisível ou bidi em texto é rejeitado; o autor não vira nod por zero-width nem fullwidth", () => {
+    tem(appTerceiro({ nome: "Vagas‮exe.txt" }), "nome", "invisível");
+    tem(appTerceiro({ descricao: "ok⁦escondido⁩" }), "descricao", "invisível");
+    tem(appTerceiro({ autor: { nome: "n​od" } }), "autor.nome", "invisível");
+    tem(appTerceiro({ autor: { nome: "ｎｏｄ" } }), "autor.nome", "reservado");
+    expect(ok(appTerceiro({ descricao: "Para quem programa 👩‍💻" })).descricao).toContain("👩‍💻");
+  });
+
+  it("autor.url sem credencial (userinfo) nem caractere de controle", () => {
+    tem(appTerceiro({ autor: { nome: "M", url: "https://maria:senha@exemplo.com" } }), "autor.url", "https://");
+    tem(appTerceiro({ autor: { nome: "M", url: "https://exemplo.com/\u0000" } }), "autor.url", "https://");
+    tem(appTerceiro({ autor: { nome: "M", url: "https://exemplo.com/‮" } }), "autor.url", "https://");
+    expect(ok(appTerceiro({ autor: { nome: "M", url: "https://exemplo.com/@maria?x=1" } })).autor.url).toBe("https://exemplo.com/@maria?x=1");
+  });
+
+  it("um pacote grande não vira milhões de problemas", () => {
+    const implica = Array.from({ length: 200_000 }, () => "x");
+    const r = lerPacote(appTerceiro({ permissoes: [{ id: "vagas.a", motivo: "x", implica }] }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.problemas.length).toBeLessThanOrEqual(MAX_PROBLEMAS + 1);
+      expect(r.problemas.at(-1)?.motivo).toContain("mais problemas");
+    }
+  });
+
+  it("implica não aponta para permissão do próprio app que o pacote não pediu, nem para ela mesma (mutante M14)", () => {
+    tem(appTerceiro({ permissoes: [{ id: "vagas.editar", motivo: "x", implica: ["vagas.ver"] }] }), "permissoes[0].implica", "do próprio app");
+    tem(appTerceiro({ permissoes: [{ id: "vagas.editar", motivo: "x", implica: ["vagas.editar"] }] }), "permissoes[0].implica", "do próprio app");
+    expect(ok(appTerceiro({ permissoes: [{ id: "vagas.ver", motivo: "x" }, { id: "vagas.editar", motivo: "x", implica: ["vagas.ver"] }] })).permissoes).toHaveLength(2);
+  });
+
+  it("nativo só em app, mesmo com o slug certo (mutante M20)", () => {
+    tem(nativoCanvas({ tipo: "bot", bot: { nome: "Ana", titulo: "", descricao: "x", instrucoes: "", rotinas: [] } }), "nativo", "só app é nativo");
+  });
+
+  it("caractere de controle em texto curto é rejeitado; quebra de linha só onde há linhas (mutante M25)", () => {
+    tem(appTerceiro({ nome: "Va\u0007gas" }), "nome", "controle");
+    tem(appTerceiro({ nome: "Va\ngas" }), "nome", "controle");
+    expect(ok(appTerceiro({ descricao: "linha 1\nlinha 2" })).descricao).toBe("linha 1\nlinha 2");
+  });
+
+  it("escrever da plataforma cobre ler, e quem tinha escrever não pede de novo o ler (mutante M22)", () => {
+    expect(permissoesEfetivas({ permissoes: [{ id: "quadro.escrever", motivo: "x" }], apps_conectados: [] })).toEqual(["quadro.escrever", "quadro.ler"]);
+    expect(permissoesEfetivas({ permissoes: [{ id: "constructor", motivo: "x" }, { id: "toString", motivo: "x" }], apps_conectados: [] })).toEqual(["constructor", "toString"]);
+  });
+});
+
+describe("QA ADA-283: atualização", () => {
+  const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+  const inst = (p: PacoteNod): InstalacaoPacote => ({ slug: p.slug, tipo: p.tipo, versao: p.versao, hash: hashPacote(p, sha256), permissoes: permissoesEfetivas(p), preco: p.preco });
+  const decidirDe = (antes: PacoteNod, novo: PacoteNod) => decidirAtualizacao(inst(antes), novo, hashPacote(novo, sha256), "1.0.0");
+
+  it("trocar o tipo com o mesmo slug fica bloqueado (um app não vira bot calado)", () => {
+    const bot = ok({ ...appTerceiro({ versao: "1.1.0", tipo: "bot", bot: { nome: "Ana", titulo: "", descricao: "x", instrucoes: "Faça tudo.", rotinas: [] } }), telas: undefined });
+    expect(decidirDe(ok(appTerceiro()), bot)).toMatchObject({ decisao: "bloqueada", motivo: expect.stringContaining("tipo") });
+  });
+
+  it("mudar a moeda ou o período da assinatura pede consentimento (mutantes M23 e M24)", () => {
+    const assin = (moeda: string, periodo: string, versao = "1.0.0") => ok(appTerceiro({ versao, preco: { modelo: "assinatura", centavos: 1000, moeda, periodo } }));
+    expect(decidirDe(assin("BRL", "mes"), assin("USD", "mes", "1.1.0"))).toMatchObject({ motivos: ["mudou a moeda"] });
+    expect(decidirDe(assin("BRL", "mes"), assin("BRL", "ano", "1.1.0"))).toMatchObject({ motivos: ["mudou o período da assinatura"] });
   });
 });

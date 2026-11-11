@@ -84,6 +84,8 @@ export const TETO_DESCRICAO = 2000;
 export const TETO_INSTRUCOES = 20_000;
 /** Profundidade máxima do JSON (o formato 1 vai até 5); passar disso é rejeitado antes de qualquer recursão. */
 export const MAX_PROFUNDIDADE = 16;
+/** Quantos problemas `lerPacote` devolve no máximo: um pacote de 8 MB não vira milhões de mensagens na memória. */
+export const MAX_PROBLEMAS = 100;
 
 /**
  * Os apps nativos que este nod conhece e as ferramentas do chat que cada um entrega. `nativo: true` com outro slug, ou
@@ -92,6 +94,14 @@ export const MAX_PROFUNDIDADE = 16;
  */
 export const FERRAMENTAS_NATIVAS: Readonly<Record<string, readonly string[]>> = {
   "nod/canvas": ["gerir_canvas"],
+};
+/**
+ * O que cada nativo pode pedir (as permissões efetivas, com `conector:<slug>:<nivel>` dos apps conectados). Pelo mesmo
+ * motivo das ferramentas: sem assinatura, um `nod/canvas` forjado não pede `quadro.escrever` nem um app conectado.
+ * `pacote-canvas.test.ts` amarra a do Canvas aos `NIVEIS_CANVAS`.
+ */
+export const PERMISSOES_NATIVAS: Readonly<Record<string, readonly string[]>> = {
+  "nod/canvas": ["canvas.criar_publicar", "canvas.ver_comentar"],
 };
 
 /**
@@ -102,7 +112,7 @@ export const FERRAMENTAS_NATIVAS: Readonly<Record<string, readonly string[]>> = 
 export const NOMES_RESERVADOS: readonly string[] = ["conversa", "quadro", "arquivos", "conector", "nod", "canvas"];
 
 /** O que já está instalado (a decisão de atualizar compara com o novo). */
-export type InstalacaoPacote = { slug: string; versao: string; hash: string; permissoes: string[]; preco: PrecoPacote };
+export type InstalacaoPacote = { slug: string; tipo: TipoPacote; versao: string; hash: string; permissoes: string[]; preco: PrecoPacote };
 export type DecisaoAtualizacao =
   | { decisao: "igual" }
   | { decisao: "automatica"; de: string; para: string }

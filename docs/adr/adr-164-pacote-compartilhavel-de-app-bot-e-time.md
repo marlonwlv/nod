@@ -34,15 +34,18 @@ time (ADA-176). Esta ADR fixa o formato e as regras de segurança; o importador 
    no escopo das permissões dadas àquele bot. **Terceiro não traz ferramenta do chat** (é código do servidor); só o
    pacote `nativo`, que descreve código que já mora no nod, lista ferramentas. `nativo` e o autor `nod` são reservados;
    como o arquivo não tem assinatura, `nativo` só vale para um slug que o código do nod conhece (`FERRAMENTAS_NATIVAS`) e
-   só com as ferramentas que o código diz. Terceiro não usa como nome de app um namespace da plataforma nem o nome de um
+   só com as ferramentas e as permissões que o código diz (`PERMISSOES_NATIVAS`, que inclui os apps conectados: um
+   `nod/canvas` forjado não pede `quadro.escrever` nem `conector:gmail:escrever`). Terceiro não usa como nome de app um namespace da plataforma nem o nome de um
    nativo (`NOMES_RESERVADOS`: `maria/quadro` não pede `quadro.apagar`, `maria/canvas` não pede `canvas.*`) nem se
-   apresenta com `autor.nome` "nod". JSON com mais de 16 níveis é rejeitado antes de qualquer recursão, e o tamanho é
-   medido sem montar o texto inteiro.
+   apresenta com `autor.nome` "nod" (comparado em NFKC: `ｎｏｄ` também é "nod"). Texto com caractere bidi ou invisível
+   (U+202E, U+200B, U+2066…) é rejeitado (Trojan Source: inverteria nome ou esconderia instrução), e `autor.url` não
+   leva usuário e senha. JSON com mais de 16 níveis é rejeitado antes de qualquer recursão, e o tamanho é
+   medido sem montar o texto inteiro; o leitor devolve no máximo 100 problemas (`MAX_PROBLEMAS`).
 6. **Preço é dado, não cobrança**: o núcleo valida e mostra; cobrar fica em `fechado/` (ADR-160).
 7. **Versões e quem já instalou** (`decidirAtualizacao`): integridade por sha256 do JSON canônico (chaves em ordem).
    Entra sozinha a versão maior que não pede nada a mais. Pede o consentimento de novo a que pede permissão nova
    (inclusive trocar `ler` por `escrever` ou um app conectado novo), fica mais cara, passa a ser paga ou é major; até a
-   pessoa aceitar, a instalada continua valendo. Ficam bloqueados o downgrade, o slug diferente, a mesma versão com
+   pessoa aceitar, a instalada continua valendo. Ficam bloqueados o downgrade, o slug ou o tipo diferente, a mesma versão com
    conteúdo diferente e o pacote cujo `nodMinimo` este nod não alcança.
 8. **A prova**: `pacotes/canvas/nod-pacote.json` empacota o Canvas (`nod/canvas`, nativo, níveis como permissões,
    `gerir_canvas`). `tests/unit/domain/pacote-canvas.test.ts` é o contrato com o runtime: níveis, ferramentas, slug,

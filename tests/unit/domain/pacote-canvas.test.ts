@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FERRAMENTAS_CANVAS } from "../../../src/contracts/ferramentas-canvas.ts";
-import { FERRAMENTAS_NATIVAS } from "../../../src/contracts/pacote.ts";
+import { FERRAMENTAS_NATIVAS, PERMISSOES_NATIVAS } from "../../../src/contracts/pacote.ts";
 import { NIVEIS_CANVAS } from "../../../src/domain/canvas.ts";
 import { compativel, lerPacote, permissoesEfetivas } from "../../../src/domain/pacote.ts";
 import { DESCRICAO_CANVAS, SLUG_CANVAS } from "../../../web/telas/marketplace-canvas.ts";
@@ -34,6 +34,10 @@ describe("pacote do Canvas", () => {
   it("as ferramentas são as do Canvas", () => {
     expect(p.ferramentas).toEqual(Object.keys(FERRAMENTAS_CANVAS));
     expect(FERRAMENTAS_NATIVAS[p.slug]).toEqual(Object.keys(FERRAMENTAS_CANVAS));
+  });
+  it("o que o nativo pode pedir no código são os níveis do Canvas, e o manifesto pede tudo isso", () => {
+    expect([...(PERMISSOES_NATIVAS[p.slug] ?? [])].sort()).toEqual(NIVEIS_CANVAS.map((n) => `canvas.${n}`).sort());
+    expect(permissoesEfetivas(p)).toEqual([...(PERMISSOES_NATIVAS[p.slug] ?? [])].sort());
   });
   it("o nome e a descrição são os do cartão do marketplace", () => {
     expect(p.nome).toBe("Canvas");
