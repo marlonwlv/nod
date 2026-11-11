@@ -1,4 +1,5 @@
-import type { PayloadProposta, PayloadPropostaRotinaAtualizacao, PayloadPropostaRotinaExclusao, PayloadPropostaRotinaExecucao } from "../contracts/conversa.ts";
+import type { PayloadProposta, PayloadPropostaRotinaAtualizacao, PayloadPropostaRotinaExclusao } from "../contracts/conversa.ts";
+import type { PayloadPropostaRotinaExecucao } from "../contracts/rotina-execucao.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { EstadoRotina, Rotina } from "../contracts/rotina.ts";
 import type { CasoNod, ContextoFerramenta } from "../contracts/servicos.ts";
