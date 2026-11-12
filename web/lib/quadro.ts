@@ -124,6 +124,28 @@ export function ehModo(v: unknown): v is ModoDaConversa {
 /** ADA-7: os frames de turno que mudam a execução de um card (e por isso releem o quadro à vista). */
 export const TURNO_MUDA_A_EXECUCAO: ReadonlySet<string> = new Set<TipoFrame>(["turno.iniciado", "turno.encerrado", "turno.interrompido"]);
 
+/** Os bots de um quadro: o anfitrião, o responsável de cada tarefa e o de cada coluna (a passagem). */
+export function agentesDoQuadro(q: { agenteId: string; tarefas: readonly { agenteId: string | null }[]; colunas?: readonly { responsavel?: string | null }[] }): Set<string> {
+  const ids = new Set<string>([q.agenteId]);
+  for (const t of q.tarefas) if (t.agenteId) ids.add(t.agenteId);
+  for (const c of q.colunas ?? []) if (c.responsavel) ids.add(c.responsavel);
+  return ids;
+}
+
+/**
+ * Q4 (definido em 2026-11-12): o frame de turno só relê o quadro quando o turno é DELE. Qualquer turno de qualquer bot
+ * relia (8 bots escrevendo = uma releitura do quadro inteiro a cada começo e fim). É do quadro: o turno de uma tarefa, o que
+ * começou num bot do quadro (anfitrião, responsável de tarefa ou de coluna: o `agente_id`/`agenteId` do frame), o da
+ * conversa do anfitrião e o que acaba depois de ter começado num desses (`vistos`, porque o fim não traz o bot).
+ */
+export function turnoDoQuadro(d: Record<string, unknown>, q: { agenteId: string; tarefas: readonly { agenteId: string | null; turnoId?: string | null }[]; colunas?: readonly { responsavel?: string | null }[] }, conversaDoAnfitriao: string | null, vistos: ReadonlySet<string>): boolean {
+  const turno = typeof d["turnoId"] === "string" ? d["turnoId"] : null;
+  if (turno && (vistos.has(turno) || q.tarefas.some((t) => t.turnoId === turno))) return true;
+  if (conversaDoAnfitriao && d["conversaId"] === conversaDoAnfitriao) return true;
+  const agente = typeof d["agente_id"] === "string" ? d["agente_id"] : typeof d["agenteId"] === "string" ? d["agenteId"] : null;
+  return agente !== null && agentesDoQuadro(q).has(agente);
+}
+
 /**
  * ADA-7: quanto tempo depois da última rolagem o gesto ainda conta, e o máximo que a releitura de um frame espera por ele.
  * definido em 2026-11-03: 150 ms, folga sobre o intervalo de um quadro (16 ms) entre eventos de scroll do embalo; 3 s

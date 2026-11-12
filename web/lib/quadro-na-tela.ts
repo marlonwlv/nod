@@ -12,12 +12,12 @@
  */
 import { iniciais } from "./render.ts";
 import { previaDoComentario, textoDaPrevia } from "./previa-comentario.ts";
-import { direcaoDaTroca, ehModo, ADIAR_ATE_MS, ARRASTO_ATE_MS, ECO_DA_PESSOA_MS, GESTO_MS, RESERVA_MS, movimentoDaTroca, releComecando, TURNO_MUDA_A_EXECUCAO, VIGIA_DO_QUADRO_MS, deveVigiarQuadro, type ModoDaConversa } from "./quadro.ts";
+import { direcaoDaTroca, ehModo, turnoDoQuadro, ADIAR_ATE_MS, ARRASTO_ATE_MS, ECO_DA_PESSOA_MS, GESTO_MS, RESERVA_MS, movimentoDaTroca, releComecando, TURNO_MUDA_A_EXECUCAO, VIGIA_DO_QUADRO_MS, deveVigiarQuadro, type ModoDaConversa } from "./quadro.ts";
 import { dicaDeMover, nomeNaPrevia, previaDaTarefa } from "./acionamento.ts";
 import { abrirDialogoDeHandoff } from "../telas/dialogo-handoff.ts";
 import { aceitaPassagem, comColunas, FAIXA_DO_PRAZO, fraseDoErroDeColuna, nomeRepetido, passoDeMover, porqueNaoRemove, prazoEmMin, prazoLegivelMin, reciboDaResposta, reciboDeMover, saidaComErroDesiste, seletorDoFocoDaColuna, soltarEm, type EdicaoDeColuna, type Lado, type UnidadeDePrazo } from "./colunas.ts";
 import { ErroApi, ehRecusaDoServidor } from "./erro-api.ts";
-import { aplicarMudanca, desfazerMudanca, ESPERE_A_ANTERIOR, patchDoMover, reaplicarNoAr, tiqueDoRelogio, TIQUE_MS, type MudancaNoAr } from "./otimista-do-quadro.ts";
+import { aplicarMudanca, desfazerMudanca, enfileirarMudanca, patchDoMover, reaplicarFila, tiqueDoRelogio, TIQUE_MS, type MudancaNoAr } from "./otimista-do-quadro.ts";
 import { anunciarEm } from "./posicao-da-lista.ts";
 import { campoComFocoNoToque, criarGestoNaTela, rolagemDoPrograma } from "./gesto-na-tela.ts";
 import { focarSemRolar, guardarRolagem, restaurarRolagem, seletorDoFocoDoCard, type RolagemGuardada } from "./rolagem-guardada.ts";
@@ -428,6 +428,17 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
    * link de tarefa pediu (vale na próxima leitura e vira o aberto).
    */
   let sel: QuadrosDoBotDto | null = null;
+  /**
+   * Q3 (definido em 2026-11-12): o último quadro (e a lista de quadros) lido de cada bot nesta aba. Voltar a um bot mostrava
+   * "carregando" e repetia as duas leituras; agora mostra o guardado e relê por baixo (stale-while-revalidate).
+   */
+  const quadrosDoBot = new Map<string, { q: QuadroDto; sel: QuadrosDoBotDto | null }>();
+  const QUADROS_GUARDADOS = 20;
+  function guardarDoBot(de: string, novo: QuadroDto): void {
+    quadrosDoBot.delete(de);
+    quadrosDoBot.set(de, { q: novo, sel: selDe === de ? sel : null });
+    if (quadrosDoBot.size > QUADROS_GUARDADOS) quadrosDoBot.delete(quadrosDoBot.keys().next().value!);
+  }
   let selDe: string | null = null;
   let selAberto = false;
   let selBusca = "";
@@ -552,7 +563,9 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   /** NOD-430: a tarefa pedida pelo código num chat (`nod-tarefa:`): abre quando a conversa do dono dela estiver na tela. */
   let pendente: { agenteId: string; tarefaId: string } | null = null;
   /** T2: o mover que está no ar (o frame que chega antes da resposta o reaplica). */
-  let noAr: MudancaNoAr | null = null;
+  /** Q2: os arrastos no ar, na ordem em que a pessoa soltou; a `[0]` está no servidor quando `moverNoServidor`. */
+  let noAr: MudancaNoAr[] = [];
+  let moverNoServidor = false;
   /** NOD-443: o painel aberto abaixo do topo (Pessoas ou Atividade), o mural (null = carregando) e o porquê de uma recusa. */
   let painel: PainelDoQuadro = null;
   let mural: LinhaMuralDto[] | null = null;
@@ -658,7 +671,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     timerAviso = null;
     doc.querySelector('#quadro [data-form="conversa-no-quadro"]')?.removeAttribute("aria-busy");
     painel = null; mural = null; erroPessoas = null; leituraMural++;
-    historico = []; histAberto = false; lendo = false; ultimaResposta = null; tarefasPedem = false; leitura++; leituraConversa++; dica = []; editandoMeta = false; edicao = null; importando = null; otimistaCel = naoSalvouCel = respondendo = null; noAr = null; folhaAberta()?.fechar(false); coms.fechar(); trabs.fechar();
+    historico = []; histAberto = false; lendo = false; ultimaResposta = null; tarefasPedem = false; leitura++; leituraConversa++; dica = []; editandoMeta = false; edicao = null; importando = null; otimistaCel = naoSalvouCel = respondendo = null; noAr = []; moverNoServidor = false; folhaAberta()?.fechar(false); coms.fechar(); trabs.fechar();
     if (timerReler) clearTimeout(timerReler);
     if (timerImportacao) clearTimeout(timerImportacao);
     timerImportacao = null;
@@ -774,6 +787,9 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (alvo !== null && alvo >= 0 && alvo <= max + 0.5 && Math.abs(v.scrollTop - alvo) > 0.5) { v.scrollTop = alvo; rolagemDoPrograma(v); rol?.aceitar(); }
   }
 
+  /** Q2: o HTML da última grade escrita e se o próximo desenho (de dados) pode ser pulado quando sai igual. */
+  let htmlDesenhado: string | null = null;
+  let pularSeIgual = false;
   function desenharVista(): void {
     const vivo = aoVivo;
     aoVivo = false;
@@ -832,6 +848,13 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // (abrir a tarefa, voltar ao quadro, outra página) segue com quem a trocou (abrirTarefa e irPara levam ao topo).
     const vistaAgora = `${paginas[pagina]?.id ?? ""}|${aberta ?? ""}|${forma}`;
     const mesmaVista = vistaAgora === vistaDesenhada;
+    // Q2 (definido em 2026-11-12): o quadro que chega (a resposta do mover, a releitura do frame) e desenha a MESMA grade que
+    // já está na tela não regrava nada. Mover um card regravava a grade 3 vezes (otimista, resposta e frame); agora uma.
+    // Só nos desenhos que vêm de dados (aplicarQuadro); o desenho devido (a recusa que devolve o select) regrava sempre.
+    const html = conteudoHtml();
+    const pular = pularSeIgual && mesmaVista && !desenhoDevido && html === htmlDesenhado;
+    pularSeIgual = false;
+    if (pular) { minutoDesenhado = Math.floor(Date.now() / 60_000); return; }
     // ADA-12: a rolagem que o evento ainda não contou entra no alvo antes de o conteúdo mudar; a vista nova começa sem alvo.
     const doAlvo = mesmaVista && vivo;
     // ADA-12 (revisões 9 e 10): quem comentou colada no fim (ou com a tarefa inteira na tela) segue o fim nos desenhos do
@@ -870,7 +893,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // ADA-12 (revisão 4): o histórico de movimentos aberto continua aberto (recriado fechado, a tarefa encolhia e a reserva
     // ficava em branco).
     const movimentosAbertos = mesmaVista && conteudo.querySelector<HTMLDetailsElement>("details.qd-hist")?.open === true;
-    conteudo.innerHTML = conteudoHtml();
+    conteudo.innerHTML = html;
+    htmlDesenhado = html;
     // ADA-302: a folha da tarefa no celular sobe (qd-sobe, 24 px) só quando abre. O innerHTML recria o article e, sem isto,
     // cada desenho da mesma vista (o passo novo do run aberto, o frame) subia de novo: o texto lido descia 24 px e voltava
     // em 220 ms, por cima da âncora (medido a 390: 3 px aos 80 ms do passo).
@@ -1240,9 +1264,12 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (!doFrame) desenhoDevido = true;
     if (carga === "nada") { carga = "carregando"; desenharVista(); }
     try {
-      await prepararSeletor(a, de);
+      // Q3 (definido em 2026-11-12): a lista dos quadros do bot e o quadro saem juntos (eram em série). Só com um quadro
+      // pedido (o link, o seletor) o quadro espera a lista, que decide qual abrir; se a lista abrir outro, relê esse.
+      const comPedido = quadroPedido?.agenteId === de;
+      const [, lido] = await Promise.all([prepararSeletor(a, de), comPedido ? Promise.resolve(null) : a.quadro(de)]);
       if (minha !== leitura || de !== agenteId) return;
-      const r = await a.quadro(de);
+      const r = lido && !(selDe === de && sel?.aberto && lido.quadro && lido.quadro.id !== sel.aberto) ? lido : await a.quadro(de);
       if (minha !== leitura || de !== agenteId) return;
       aplicarQuadro(r.quadro, [], doFrame, gestoDesde, vivo);
     } catch {
@@ -1253,7 +1280,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
 
   function aplicarQuadro(novo: QuadroDto | null, extra: readonly string[] = [], doFrame = false, gestoDesde: number | null = null, vivo = false): void {
     // T2 (2026-11-10): o frame que chega com a mudança no ar não derruba o card otimista (ele piscava de volta).
-    if (novo) novo = reaplicarNoAr(comColunas(novo), noAr);
+    if (novo) novo = reaplicarFila(comColunas(novo), noAr);
+    if (novo && agenteId) guardarDoBot(agenteId, novo);
     // NOD-445: Tarefas acende o laranja na pílula quando alguma tarefa espera a pessoa (ADR-162: o bot perguntou).
     const pedem = !!novo?.tarefas.some((t) => t.esperaPessoa);
     if (pedem !== tarefasPedem) { tarefasPedem = pedem; o.aoTarefasPedirem?.(pedem); }
@@ -1304,6 +1332,9 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // ADA-7 (revisão 6): a resposta do frame que chega com o gesto em curso (o dedo começou com o GET no ar) espera
     // como o pedido esperou; o link que não achou a tarefa (abaixo) é da pessoa e desenha já.
     // Revisão 10: a espera segue contando de quando a releitura foi pedida (o adiamento do GET e o do desenho não somam).
+    // Q2: a resposta da mudança e o eco dela (o frame da própria ação, na janela ECO_DA_PESSOA_MS) não regravam a mesma
+    // grade; o frame de outra origem segue a regra da ADA-7 (`igual`, acima).
+    pularSeIgual = !linkSemTarefa && (!doFrame || Date.now() < daPessoaAte);
     if ((doFrame || gestoDesde !== null) && !linkSemTarefa) { redesenharQuandoLivre(gestoDesde ?? undefined); return; }
     // ADA-12 (revisão 2): a releitura depois de uma ação da pessoa (mover, status, edição, a resposta da ação) é dela, não
     // ao vivo: sem alvo nem reserva. Ao vivo só o frame (por redesenharQuandoLivre) e a importação que se relê.
@@ -1434,6 +1465,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       return false;
     } finally {
       mexendo = false;
+      soltouMexendo();
     }
   }
 
@@ -1689,6 +1721,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       if (f.reler) void lerQuadro();
     } finally {
       mexendo = false;
+      soltouMexendo();
     }
   }
 
@@ -2236,6 +2269,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       return false;
     } finally {
       mexendo = false;
+      soltouMexendo();
     }
   }
 
@@ -2345,6 +2379,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       if (!f.manter) void lerQuadro();
     } finally {
       mexendo = false;
+      soltouMexendo();
     }
   }
 
@@ -2489,6 +2524,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   }
   doc.defaultView?.setInterval(vigiarQuadro, VIGIA_DO_QUADRO_MS);
 
+  /** Q4: os turnos que começaram num bot do quadro (o fim deles não traz o bot e também relê). */
+  const turnosDoQuadro = new Set<string>();
   function aoFrame(frame: { tipo: string; dados: Record<string, unknown> }): void {
     if (!dd || chave === null || !agenteId) return;
     const d = frame.dados;
@@ -2509,7 +2546,11 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // A execução dos cards (rodando, na fila, falhou) vem dos turnos: com o quadro à vista e com tarefas, relê. Só o
     // começo e o fim de um turno mudam a execução; o delta, a fala e a atividade (várias por segundo enquanto qualquer
     // bot escreve) regravavam o quadro inteiro e travavam a rolagem (ADA-7, ADR-061).
-    if (TURNO_MUDA_A_EXECUCAO.has(frame.tipo) && q && q.tarefas.length && modo === "quadro") pedirReleitura();
+    // Q4 (2026-11-12): só o turno do quadro (turnoDoQuadro); o de um bot de fora não relê nada.
+    if (TURNO_MUDA_A_EXECUCAO.has(frame.tipo) && q && q.tarefas.length && modo === "quadro" && turnoDoQuadro(d, q, chave, turnosDoQuadro)) {
+      if (frame.tipo === "turno.iniciado" && typeof d["turnoId"] === "string") { turnosDoQuadro.add(d["turnoId"]); if (turnosDoQuadro.size > 200) turnosDoQuadro.delete(turnosDoQuadro.values().next().value!); }
+      pedirReleitura();
+    }
     // Revisão do PR #700: o turno que acabou pode ter trocado o Exibir pelo chat (de qualquer conversa da pessoa).
     if (frame.tipo === "turno.encerrado" && q && modo === "quadro") relerExibir();
     const daConversa = d["conversaId"] === chave;
@@ -2901,6 +2942,13 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       zerarDados();
       agenteId = s.chave === null ? null : (s.agenteId ?? null);
       chave = s.chave;
+      // Q3: o quadro deste bot já lido nesta aba aparece na hora; a leitura de sempre o atualiza por baixo.
+      const guardado = agenteId ? quadrosDoBot.get(agenteId) : undefined;
+      if (guardado) {
+        q = guardado.q;
+        carga = "ok";
+        if (guardado.sel) { sel = guardado.sel; selDe = agenteId; }
+      }
       modo = "conversa";
       aberturaRegistrada = false;
       viaDaAbertura = "tela";
@@ -3786,21 +3834,45 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     const t = q?.tarefas.find((x) => x.id === tarefa);
     const c = colunaDe(coluna);
     if (!q || !t || !c || t.status === coluna) { editar(null); return; }
-    // T3 (2026-11-10): com outra mudança no ar o arraste não sai, e a pessoa sabe por quê (antes o card voltava calado).
-    if (mexendo) { desenharVista(); mudarFaixa({ tipo: "erro", texto: ESPERE_A_ANTERIOR }); return; }
     // A prévia (regra única de vai começar, espelho do servidor) decide o responsável e se começa.
     const previa = previaDaTarefa(t, coluna, q.colunas);
     const recibo = reciboDeMover(t.titulo, c, previa, previa.agenteId ? nomeNaPrevia(q.colunas, t)(previa.agenteId) : null);
     const m: MudancaNoAr = { tarefa, de: t.status, para: coluna, patch: patchDoMover(coluna, previa.agenteId, previa.aciona) };
-    noAr = m;
+    // Q2 (2026-11-12): com outra mudança no ar o arrasto entra na fila (antes era descartado, T3): o card já vai para a
+    // coluna e sai para o servidor quando a anterior voltar.
+    noAr = enfileirarMudanca(noAr, m, moverNoServidor);
     q = aplicarMudanca(q, m);
     edicao = null;
     desenharVista();
+    // O card solto de volta na coluna de onde saiu sai da fila (enfileirarMudanca): nada a mandar por ele.
+    if (noAr.some((x, k) => x.tarefa === tarefa && !(k === 0 && moverNoServidor))) esperandoMover.set(tarefa, { m, antes: esperandoMover.get(tarefa)?.antes ?? t, recibo, pararAnterior });
+    else esperandoMover.delete(tarefa);
+    if (!moverNoServidor && !mexendo) enviarProximoMover();
+  }
+  /** Q2: o arrasto que entrou na fila com outra mudança (status, responsável, outro quadro) no ar sai quando ela volta. */
+  function soltouMexendo(): void {
+    if (!moverNoServidor && noAr.length) queueMicrotask(() => { if (!moverNoServidor && !mexendo && noAr.length) enviarProximoMover(); });
+  }
+  type PedidoDeMover = { m: MudancaNoAr; antes: TarefaDto; recibo: string; pararAnterior: boolean };
+  /** Q2: o pedido de cada tarefa que espera a vez (o último que a pessoa soltou para ela). */
+  const esperandoMover = new Map<string, PedidoDeMover>();
+  function enviarProximoMover(): void {
+    const m = noAr[0];
+    const pedido = m ? esperandoMover.get(m.tarefa) : undefined;
+    if (!m || !pedido) { noAr = []; esperandoMover.clear(); return; }
+    esperandoMover.delete(m.tarefa);
+    moverNoServidor = true;
+    const { tarefa, para: coluna } = m;
     // T1: sem rede o card volta ao que era (a releitura também falharia); recusado, relê (mudarTarefa já relê).
-    void mudarTarefa((a, de) => a.mudarTarefa?.(de, tarefa, { status: coluna, ...(pararAnterior ? { parar_anterior: true } : {}) }), recibo, undefined, (semRede) => {
-      if (noAr === m) noAr = null;
-      if (semRede && q) q = desfazerMudanca(q, t);
-    }).then((ok) => { if (noAr === m) noAr = null; if (!ok && q?.tarefas.find((x) => x.id === tarefa)?.status === coluna) void lerQuadro(); });
+    void mudarTarefa((a, de) => a.mudarTarefa?.(de, tarefa, { status: coluna, ...(pedido.pararAnterior ? { parar_anterior: true } : {}) }), pedido.recibo, undefined, (semRede) => {
+      noAr = noAr.filter((x) => x !== m);
+      if (semRede && q) q = desfazerMudanca(q, pedido.antes);
+    }).then((ok) => {
+      noAr = noAr.filter((x) => x !== m);
+      moverNoServidor = false;
+      if (!ok && q?.tarefas.find((x) => x.id === tarefa)?.status === coluna) void lerQuadro();
+      if (noAr.length) enviarProximoMover();
+    });
   }
   let cardArrastado: string | null = null;
   /** A linha da coluna sob o card arrastado (null = nada a dizer). */
