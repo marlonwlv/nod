@@ -261,3 +261,94 @@
 .qm-seg-modo { margin: 0 0 6px; }
 .qm-seg-modo .qm-seg-bt { height: 26px; font-size: 12px; }
 @media (forced-colors: active) { .qm-label i { forced-color-adjust: none; } }
+
+/* ---------- Tela 18 do Paper (rodada 2): a barra de cima do quadro ----------
+   44 de altura; à esquerda "▯ Produto / Quadro NOD ⌄" (30, raio 8) e o filtro por pessoa em segmentado (26, pílula);
+   à direita a busca e o filtro como ícones redondos de 30, Quadro | Lista (24, raio 7 dentro de 9) e "Nova tarefa"
+   (28, raio 8, preto). As Opções de exibição foram para o menu do quadro. */
+.qm-barra { min-height: 44px; gap: 12px; }
+.qm-barra .qm-esq { gap: 12px; }
+.qm-barra .qd-barra-dir { gap: 6px; }
+.qm-cab-l { margin-right: 0; }
+.qm-cab-bt { height: 30px; margin-left: 0; padding: 0 10px; gap: 6px; border-radius: 8px; font-size: 13px; line-height: 18px; font-weight: 600; }
+.qm-cab-ic { flex: none; color: var(--ink-2); }
+.qm-cab-proj { font-weight: 400; color: var(--ink-3); white-space: nowrap; }
+.qm-cab-sep { font-weight: 400; color: var(--ink-4); }
+.qm-cab-bt .qm-cab-chev { width: 12px; height: 12px; }
+
+.qm-pes { display: inline-flex; align-items: center; gap: 2px; min-width: 0; padding: 2px; border-radius: 999px; background: var(--hover); overflow: hidden; }
+.qm-pes-bt { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 4px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--ink-2); font: 400 13px/18px var(--font-sans); white-space: nowrap; cursor: pointer; }
+.qm-pes-todas { padding: 0 10px; }
+.qm-pes-bt:hover { color: var(--ink); }
+.qm-pes-bt[aria-pressed="true"] { background: var(--surface-elevated); box-shadow: var(--sombra-controle); color: var(--ink); font-weight: 500; }
+:root[data-theme="dark"] .qm-pes-bt[aria-pressed="true"] { border-color: var(--borda); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .qm-pes-bt[aria-pressed="true"] { border-color: var(--borda); } }
+.qm-pes-n { font-size: 12px; line-height: 16px; font-weight: 400; color: var(--ink-3); }
+.qm-pes-av { position: relative; flex: none; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; --pes-cor: var(--ink-2); }
+.qm-pes-av > :first-child { width: 20px !important; height: 20px !important; min-width: 0 !important; font-size: 9px; }
+.qm-pes-rodando { position: absolute; top: -1px; right: -1px; width: 7px; height: 7px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid var(--surface); background: var(--pes-cor); }
+.qm-pes-av:has(.c-orange) { --pes-cor: var(--agent-orange); } .qm-pes-av:has(.c-blue) { --pes-cor: var(--agent-bleu); }
+.qm-pes-av:has(.c-purple) { --pes-cor: var(--agent-violet); } .qm-pes-av:has(.c-pink) { --pes-cor: var(--agent-rose); }
+.qm-pes-av:has(.c-teal) { --pes-cor: var(--agent-turquoise); } .qm-pes-av:has(.c-green) { --pes-cor: var(--agent-vert); }
+.qm-pes-av:has(.c-amber) { --pes-cor: var(--agent-ambre); } .qm-pes-av:has(.c-red) { --pes-cor: var(--agent-rouge); }
+.qm-pes-av:has(.c-brown) { --pes-cor: var(--agent-brun); } .qm-pes-av:has(.c-gray) { --pes-cor: var(--agent-gris); }
+.qm-pes-av:has(.c-black) { --pes-cor: var(--ink); }
+
+/* A busca vira o ícone redondo de 30; abre no foco ou com texto (o "/" foca e abre). */
+.qm-barra .qd-busca { width: 30px; height: 30px; padding: 0 0 0 8px; gap: 6px; border-color: transparent; border-radius: 999px; background: transparent; color: var(--ink-2); overflow: hidden; transition: width .16s ease; }
+.qm-barra .qd-busca:hover { background: var(--hover); }
+.qm-barra .qd-busca .qd-busca-in { opacity: 0; }
+.qm-barra .qd-busca .qd-kbd { display: none; }
+.qm-barra .qd-busca:focus-within, .qm-barra .qd-busca.qd-busca-cheia { width: 200px; padding-right: 8px; border-color: var(--borda); background: var(--surface); }
+.qm-barra .qd-busca:focus-within .qd-busca-in, .qm-barra .qd-busca.qd-busca-cheia .qd-busca-in { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .qm-barra .qd-busca { transition: none; } }
+.qm-barra .qm-icbt { min-width: 30px; height: 30px; padding: 0; border-radius: 999px; }
+.qm-barra .qm-icbt:has(.qm-icbt-n) { padding: 0 8px; }
+.qm-barra .qm-icbt:hover, .qm-barra .qm-icbt[aria-expanded="true"] { background: var(--hover); }
+
+.qm-vista { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--hover); }
+.qm-vista-bt { height: 24px; padding: 0 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--ink-2); font: 400 13px/18px var(--font-sans); cursor: pointer; }
+.qm-vista-bt[aria-pressed="true"] { background: var(--surface-elevated); box-shadow: var(--sombra-controle); color: var(--ink); font-weight: 500; }
+:root[data-theme="dark"] .qm-vista-bt[aria-pressed="true"] { border-color: var(--borda); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .qm-vista-bt[aria-pressed="true"] { border-color: var(--borda); } }
+.qm-nova { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); font: 500 13px/18px var(--font-sans); cursor: pointer; }
+.qm-nova:hover { background: var(--base-hover); }
+.qm-pes-bt:focus-visible, .qm-vista-bt:focus-visible, .qm-nova:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.qm-op-ancora:empty { display: none; }
+/* A barra começa em 64 (o topo da pílula ocupa 64) e as colunas 4 px abaixo dela, como no Paper. */
+.qd-vista:has(.qm-barra) { padding-top: 64px; }
+.qd-conteudo:has(> .qm-barra) { gap: 4px; }
+.qm-barra .qd-busca > .qd-ic { width: 16px; height: 16px; flex: none; }
+/* O véu de 104 px da pílula (que lavava a barra a 60%) sai no quadro, como no canvas: o Paper tem o fundo liso. */
+.stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qm-barra) > .cabecalho-pilula::before { display: none; }
+/* Rodada 3 (tela 18 do Paper): o "Você" do filtro por pessoa é o anel neutro com as iniciais (MW), não o azul. */
+.qm-pes-av > .qd-anel-voce { background: var(--hover); color: var(--ink-2); border-color: var(--borda-sutil); font-weight: var(--peso-medio); }
+
+/* Rodada 3 (tela 18c do Paper): o popover da passagem com o ícone no título, o selo do grupo da coluna, o mascote no
+   seletor do agente (34 de altura, recuado sob as opções) e o contador "N / 500" ao lado do rótulo. */
+.qd-pop-passa .qd-pop-tit { display: flex; align-items: center; gap: 8px; }
+.qd-pop-passa .qd-pas-ic { flex: none; color: var(--ink-3); }
+.qd-pas-selo { display: inline-flex; align-self: flex-start; width: fit-content; margin: 0 0 6px; padding: 2px 8px; border-radius: 6px; background: var(--hover); color: var(--ink-2); font-size: 12px; line-height: 18px; }
+.qd-pas-agente { position: relative; display: flex; align-items: center; margin-left: 26px; }
+.qd-pas-agente > .qd-sel { flex: 1; width: 100%; height: 34px; min-height: 34px; }
+.qd-pas-com-av > .qd-sel { padding-left: 34px; }
+.qd-pas-av { position: absolute; left: 7px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; pointer-events: none; }
+.qd-pas-av > * { width: 20px !important; height: 20px !important; min-width: 0 !important; }
+.qd-pas-av:empty { display: none; }
+.qd-pas-com-av:has(.qd-pas-av:empty) > .qd-sel { padding-left: 10px; }
+.qd-pas-inst-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.qd-pas-cont { font-size: 11px; color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.qd-pop-passa .qd-pas-selo { margin: -4px 0 -6px; }
+.qd-pop-passa .qd-pas-agente { margin-top: -6px; }
+.qd-pop-passa .qd-pas-agente > #qd-pas-agente { height: 34px; min-height: 34px; border-radius: 9px; }
+.qd-pop-passa .qd-pas-com-av > #qd-pas-agente { padding-left: 34px; }
+.qd-pop-passa .qd-pas-com-av:has(.qd-pas-av:empty) > #qd-pas-agente { padding-left: 10px; }
+.qd-pop-passa:not(:has(input[value="agente"]:checked)) .qd-pas-agente { display: none; }
+.qd-pop-passa .qd-pas-inst-cab { margin-bottom: -6px; }
+.qd-pop-passa .qd-pas-inst { height: 64px; }
+.qd-pop-passa :is(#qd-pas-agente, #qd-pas-proxima, #qd-pas-volta) { -webkit-appearance: none; appearance: none; padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; background-size: 12px 12px; } /* cor-fixa: o chevron cinza do Paper (i3), igual nos dois temas */
+.qd-pop-passa :is(label[for="qd-pas-volta"], #qd-pas-volta) { margin-top: -4px; }
+.qd-pop-passa .qd-pop-bts { margin-top: 4px; }
+.qd-pop-passa :is(#qd-pas-proxima, #qd-pas-volta) { justify-self: end; width: auto; max-width: 200px; }

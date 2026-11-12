@@ -92,7 +92,7 @@ describe("montarPlano", () => {
     for (const n of ["ver_colegas", "pedir_a_bot", "pedir_a_pessoa"]) expect(criacao).toContain(n);
     expect(nomes(montarPlano(base))).not.toContain("atualizar_perfil");
     // ADR-044: pedir_acesso só propõe (a pessoa decide num botão); sem ele a rotina pedia acesso em texto a cada disparo.
-    expect(nomes(montarPlano({ ...base, modo: "rotina" })).filter((n) => !n.includes("__") && n !== "ler_mais")).toEqual(["lembrar", "pedir_aprovacao", "pedir_acesso", "ver_colegas", "pedir_a_pessoa", "pedir_a_bot", "sem_novidade", "publicar_artefato", "ler_artefato", "abrir_frentes", "mandar_para_frente", "me_chame_as", "avisar_pessoa", "buscar_conversas", "ler_conversa"]);
+    expect(nomes(montarPlano({ ...base, modo: "rotina" })).filter((n) => !n.includes("__") && n !== "ler_mais")).toEqual(["lembrar", "pedir_aprovacao", "pedir_acesso", "ver_colegas", "pedir_a_pessoa", "pedir_a_bot", "sem_novidade", "publicar_artefato", "ler_artefato", "abrir_frentes", "mandar_para_frente", "me_chame_as", "avisar_pessoa", "mostrar_cartoes", "buscar_conversas", "ler_conversa"]);
     // ADR-051: a rotina também publica e lê o artefato (a checklist do meio-dia atualiza a da manhã).
     // definido em 2026-09-28: com ferramenta de fora (conector) vem ler_mais, atendida pelo proxy; sem nenhuma, não.
     expect(nomes(montarPlano({ ...base, modo: "rotina" }))).toContain("ler_mais");

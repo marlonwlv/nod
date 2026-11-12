@@ -1,0 +1,94 @@
+/* =====================================================================================
+   ADR-165 (tela 01 do Paper): a vitrine do design system em /design-system.html. Só tokens (web/tokens.css): o que muda
+   num token muda aqui também. Três colunas de 452 px a partir de 56 px, como a prancha do Paper.
+   ===================================================================================== */
+body.dsv { margin: 0; background: var(--surface); color: var(--ink); font-family: var(--font-sans); font-size: var(--fs-corpo); line-height: var(--lh-corpo); overflow: auto; height: auto; }
+#vitrine { width: 1328px; margin: 0 auto; padding: 56px 0 64px; }
+.dsv-topo { display: flex; align-items: center; gap: 16px; padding: 0 0 22px; border-bottom: 1px solid var(--divisoria); }
+.dsv-topo h1 { margin: 0; font-size: var(--fs-titulo-1); line-height: var(--lh-titulo-1); letter-spacing: var(--tracking-titulo-1); font-weight: var(--peso-medio); }
+.dsv-topo p { margin: 2px 0 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.dsv-etiquetas { margin-left: auto; align-self: flex-end; display: flex; gap: 8px; }
+.dsv-etiquetas span { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: var(--raio-full); background: var(--hover); font-size: var(--fs-rotulo); color: var(--ink-2); }
+.dsv-grade { display: grid; grid-template-columns: repeat(3, 424px); column-gap: 28px; padding-top: 48px; } /* rodada 3: as colunas de 424 do Paper 01 (os 4 sinais e os controles numa linha) */
+.dsv-col h2 { margin: 0; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); font-weight: var(--peso-medio); }
+.dsv-sub { margin: 2px 0 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.dsv-col h3 { margin: 28px 0 12px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.dsv-linha { display: flex; flex-wrap: wrap; gap: 10px; }
+.dsv-sup { width: 58px; display: flex; flex-direction: column; gap: 2px; }
+.dsv-sup .dsv-amostra { width: 58px; height: 44px; border-radius: var(--raio-10); border: 1px solid var(--borda-sutil); margin-bottom: 6px; }
+.dsv-sup b, .dsv-sinal b, .dsv-txt b { font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); }
+.dsv-sup small, .dsv-sinal small, .dsv-txt small, .dsv-borda small, .dsv-cores small { font-size: var(--fs-legenda); color: var(--ink-3); }
+.dsv-txt { display: grid; grid-template-columns: 44px 108px 1fr; align-items: center; height: 28px; }
+.dsv-txt span { font-size: var(--fs-titulo-3); }
+.dsv-borda { display: flex; flex-direction: column; gap: 6px; }
+.dsv-borda span { width: 84px; height: 36px; border-radius: var(--raio-8); border: 1px solid; }
+.dsv-sinal { display: flex; flex-direction: column; gap: 2px; width: 94px; }
+.dsv-sinal span { display: flex; height: 36px; border-radius: var(--raio-6); overflow: hidden; margin-bottom: 6px; }
+.dsv-sinal i { flex: 1; }
+.dsv-cores { display: grid; grid-template-columns: repeat(7, 54px); row-gap: 14px; }
+.dsv-cores div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.dsv-cores span { width: 28px; height: 28px; border-radius: var(--raio-full); border: 1px solid var(--borda-sutil); }
+.dsv-tipo { display: grid; grid-template-columns: 108px 1fr; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--divisoria); } /* rodada 3: linhas de ~30 como o Paper 01 */
+.dsv-tipo b { display: block; font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); }
+.dsv-tipo small { font-size: var(--fs-legenda); color: var(--ink-3); }
+.dsv-raios, .dsv-sombras { display: flex; gap: 8px; flex-wrap: wrap; }
+.dsv-raios div, .dsv-sombras div { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dsv-raios span { width: 40px; height: 40px; background: var(--hover); border: 1px solid var(--borda-sutil); }
+.dsv-raios b, .dsv-sombras b { font-weight: var(--peso-regular); font-size: var(--fs-rotulo); }
+.dsv-raios small { font-size: var(--fs-legenda); color: var(--ink-3); }
+.dsv-sombras { gap: 12px; }
+.dsv-sombras span { width: 68px; height: 52px; border-radius: var(--raio-10); background: var(--surface-elevated); }
+.dsv-nota { margin: 12px 0 0; font-size: var(--fs-rotulo); color: var(--ink-3); }
+.dsv-mov div { display: grid; grid-template-columns: 108px 1fr; height: 22px; align-items: center; }
+.dsv-mov b { font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); }
+.dsv-mov small { font-size: var(--fs-rotulo); color: var(--ink-3); }
+.dsv-mono { margin: 12px 0 0; font-family: var(--font-mono); font-size: var(--fs-rotulo); color: var(--ink-3); }
+.dsv-shimmer { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.dsv-shimmer .ds-esqueleto { display: block; width: 120px; height: 6px; }
+.dsv-shimmer small { font-size: var(--fs-rotulo); color: var(--ink-3); }
+.dsv-bts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.dsv-bt { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--raio-8); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); border: 1px solid transparent; }
+.dsv-bt.g { height: 32px; padding: 0 12px; border-radius: var(--raio-full); font-size: var(--fs-corpo); }
+.dsv-bt.p { height: 24px; padding: 0 8px; font-size: var(--fs-rotulo); }
+.dsv-bt small { font-size: var(--fs-rotulo); font-weight: var(--peso-regular); opacity: .6; }
+.dsv-bt.pri { background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); }
+.dsv-bt.sec { background: var(--hover); color: var(--ink); }
+.dsv-bt.fant { color: var(--ink-2); }
+.dsv-bt.cont { background: var(--surface-elevated); color: var(--ink); border-color: var(--borda); box-shadow: var(--sombra-controle); }
+.dsv-bt.perigo { background: var(--danger); color: var(--on-status); }
+.dsv-bt.perigo-s { background: var(--danger-soft); color: var(--danger); }
+.dsv-bt.off { background: color-mix(in srgb, var(--base) 15%, transparent); color: var(--on-action); }
+.dsv-ib { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--raio-full); color: var(--ink-2); }
+.dsv-ib.flut { background: var(--surface-elevated); border: 1px solid var(--borda-sutil); box-shadow: var(--sombra-controle); }
+.dsv-ib.pri { background: var(--action); color: var(--on-action); }
+.dsv-campo { display: flex; align-items: center; height: 36px; box-sizing: border-box; padding: 0 12px; margin-bottom: 10px; border-radius: var(--raio-10); border: 1px solid var(--borda); background: var(--surface); color: var(--ink-4); }
+.dsv-campo b { font-weight: var(--peso-regular); color: var(--ink); }
+.dsv-campo.foco { border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+.dsv-campo.dsv-campo-erro { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); margin-bottom: 6px; }
+.dsv-erro { margin: 0 0 12px; font-size: var(--fs-rotulo); color: var(--danger); }
+.dsv-chave { width: 32px; height: 20px; box-sizing: border-box; padding: 2px; border-radius: var(--raio-full); background: var(--ativo); display: flex; }
+.dsv-chave.on { background: var(--action); justify-content: flex-end; }
+.dsv-chave i { width: 16px; height: 16px; border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--shadow-knob); }
+.dsv-chave.on i { background: var(--on-action); }
+.dsv-select { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px 0 10px; border-radius: var(--raio-8); border: 1px solid var(--borda); font-size: var(--fs-corpo-2); color: var(--ink-3); }
+.dsv-select { color: var(--ink); }
+.dsv-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--raio-10); background: var(--hover); }
+.dsv-seg span { height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: var(--raio-8); font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.dsv-seg .on { background: var(--surface-elevated); color: var(--ink); font-weight: var(--peso-medio); box-shadow: var(--sombra-controle); }
+.dsv-chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--raio-full); background: var(--hover); color: var(--ink-2); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); }
+.dsv-chip i { width: 6px; height: 6px; border-radius: var(--raio-full); background: currentColor; }
+.dsv-chip.ok { background: var(--success-soft); color: var(--success); }
+.dsv-chip.aviso { background: var(--aguardando-soft); color: var(--aguardando); }
+.dsv-chip.novo { background: var(--signal-soft); color: var(--signal); }
+.dsv-chip.perigo { background: var(--danger-soft); color: var(--danger); }
+.dsv-kbds small { color: var(--ink-4); }
+.dsv-balao { display: flex; justify-content: flex-end; }
+.dsv-balao span { padding: 7px 14px; border-radius: var(--raio-18); background: var(--balao-pessoa); color: var(--balao-pessoa-tinta); line-height: var(--lh-conversa); }
+.dsv-bot { margin: 10px 0 0; line-height: var(--lh-conversa); }
+.dsv-formas, .dsv-tamanhos, .dsv-estados { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.dsv-formas { gap: 6px; flex-wrap: nowrap; }
+.dsv-formas div { width: 46px; }
+.dsv-formas div, .dsv-tamanhos div, .dsv-estados div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.dsv-formas small, .dsv-tamanhos small, .dsv-estados small { font-size: var(--fs-legenda); color: var(--ink-3); }
+.dsv-estados { gap: 26px; align-items: flex-start; }
+.dsv-estados b { font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); }

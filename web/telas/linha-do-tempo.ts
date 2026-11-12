@@ -35,6 +35,20 @@ export function tempoRelativo(em: number, agora: number): string {
   return new Date(em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
+/**
+ * Rodada 4 (tela 18b do Paper): a hora da linha do tempo é a do relógio ("10:02", "ontem 9:14", "12/11 9:14"), no fuso
+ * do aparelho; o "há 4 min" fica para o cartão da pergunta.
+ */
+export function quandoNaLinha(em: number, agora: number): string {
+  const d = new Date(em);
+  const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const dia = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dias = Math.round((dia(new Date(agora)) - dia(d)) / 86_400_000);
+  if (dias <= 0) return hm;
+  if (dias === 1) return `ontem ${hm}`;
+  return `${d.getDate()}/${d.getMonth() + 1} ${hm}`;
+}
+
 /** "40 s", "3 min", "1 h 5 min". */
 export function duracao(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -113,11 +127,12 @@ function rotuloDoLink(url: string): string {
 
 type Autor = { avatar: string; nome: string; meu: boolean; agenteId: string | null };
 
-export function autorDoComentario(c: ComentarioDto, agente: AgenteDoQuadro): Autor {
+export function autorDoComentario(c: ComentarioDto, agente: AgenteDoQuadro, voce?: string | null): Autor {
   if (c.autor.tipo === "linear") return { avatar: anel((c.autorNome ?? "L").slice(0, 1), c.autorNome ?? "Linear", false), nome: `${c.autorNome ?? "Linear"} · no Linear`, meu: false, agenteId: null };
   // 2026-11-11: quem participa do quadro (pessoa com `pedidoPor`) assina com o nome dele ("Ana, pela Lia"); não é seu.
   if (c.autor.tipo === "pessoa" && c.pedidoPor) return { avatar: anel((c.autorNome ?? "?").slice(0, 1), c.autorNome ?? "Alguém do quadro", false), nome: c.autorNome ?? "Alguém do quadro", meu: false, agenteId: null };
-  if (c.autor.tipo === "pessoa") return { avatar: anel("V", "Você", true), nome: "Você", meu: true, agenteId: null };
+  // Rodada 4 (tela 18b do Paper): "Você" é o anel neutro com as iniciais de quem lê (sem elas, "V").
+  if (c.autor.tipo === "pessoa") return { avatar: anel(voce || "V", "Você", false), nome: "Você", meu: true, agenteId: null };
   // ADR-162: a espera que o próprio quadro deixou (o bot parou sem saída, o freio) é do quadro, não de um bot.
   if (c.autor.tipo === "sistema") return { avatar: anel("Q", "Quadro", false), nome: "Quadro", meu: false, agenteId: null };
   const a = agente(c.autor.agenteId) ?? { avatar: anel((c.autorNome ?? "?").slice(0, 1), c.autorNome ?? "Bot", false), nome: c.autorNome ?? "Bot" };
@@ -176,7 +191,7 @@ export function campoDeComentario(o: { tarefaId: string; raiz: string | null; ch
   const chave = o.raiz ?? "nova";
   return `<form class="qd-com-form ta-campo${o.raiz ? " ta-campo-resp" : ""}" data-form="comentar-tarefa" data-id="${esc(o.tarefaId)}"${o.raiz ? ` data-responder="${esc(o.raiz)}"` : ""}>` +
     `<label class="qd-sr" for="${id}">${o.raiz ? "Responder na thread" : "Comentar"}</label>` +
-    `<textarea id="${id}" class="qd-com-in" name="texto" rows="1" maxlength="${LIMITE_COMENTARIO}" required data-chave="${esc(chave)}" placeholder="${o.raiz ? "Responder…" : "Comentar… @nome chama um bot, @todos avisa sem acionar"}"></textarea>` +
+    `<textarea id="${id}" class="qd-com-in" name="texto" rows="1" maxlength="${LIMITE_COMENTARIO}" required data-chave="${esc(chave)}" placeholder="${o.raiz ? "Responder…" : "Comentar… @nome chama outro bot"}"></textarea>` +
     `<div class="ta-campo-pe"><div class="ta-chips" data-chips="${esc(chave)}" data-previa="${esc(o.tarefaId)}" aria-live="polite">${o.chips}</div>` +
     (o.raiz ? `<button type="button" class="qd-link ta-campo-fechar" data-act="com-responder-fechar" data-raiz="${esc(o.raiz)}">Cancelar</button>` : "") +
     `<button type="submit" class="qd-com-bt ta-enviar"${o.ocupado ? " disabled" : ""}>Enviar <kbd>⌘↵</kbd></button></div></form>`;
@@ -187,8 +202,22 @@ export function campoDeComentario(o: { tarefaId: string; raiz: string | null; ch
 /** `chave` (2026-11-10): quem + a ação; eventos seguidos com a mesma chave em 2 min viram um só com "×N" (eventos-da-linha.ts). */
 export type EventoDaLinha = { id: string; em: number; html: string; chave?: string };
 
+/** O ícone do quadro (o do Paper) no círculo cinza de 24 dos eventos. */
+const ICONE_QUADRO = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M6 2.5v11M10 2.5v7"/></svg>';
+const frase = (s: string): string => { const t = s.trim(); return t ? `${t[0]!.toUpperCase()}${t.slice(1)}${/[.!?…]$/.test(t) ? "" : "."}` : ""; };
+
 /**
- * Os movimentos (NOD-419) e as linhas de sistema como eventos discretos; o Desfazer só no último que ainda vale.
+ * Rodada 4 (tela 18b do Paper): um evento é um item como o comentário — o círculo do quadro, "Quadro" e a hora, a frase
+ * ("Moveu de A fazer para Fazendo.") e, embaixo, quem ele acionou. O Desfazer fica na linha do nome e aparece no hover e
+ * no foco (o Paper desenha a tela parada). `html` já escapado.
+ */
+export function itemDoQuadro(o: { id?: string; em: number; agora: number; texto: string; sub?: string; acao?: string; extra?: string; classe?: string; titulo?: string }): string {
+  return `<li class="ta-ev${o.classe ? ` ${o.classe}` : ""}"${o.titulo ? ` title="${esc(o.titulo)}"` : ""}><span class="ta-ev-ponto" aria-hidden="true">${ICONE_QUADRO}</span><div class="ta-ev-corpo">` +
+    `<p class="ta-ev-cab"><b>Quadro</b>${horaEv(o.em, o.agora)}${o.acao ?? ""}</p><p class="ta-ev-txt">${o.texto}${o.extra ?? ""}</p>${o.sub ? `<p class="ta-ev-sub">${o.sub}</p>` : ""}</div></li>`;
+}
+
+/**
+ * Os movimentos (NOD-419) e as linhas de sistema como eventos; o Desfazer só no último que ainda vale.
  * 2026-11-10: e as mudanças de prioridade, prazo e labels que os lotes fizeram (`extra.atividade`).
  */
 export function eventosDaTarefa(t: TarefaDto, cs: readonly ColunaDto[], agora: number, extra?: { atividade?: readonly AtividadeTarefa[]; labels?: readonly LabelDto[] }): EventoDaLinha[] {
@@ -197,28 +226,35 @@ export function eventosDaTarefa(t: TarefaDto, cs: readonly ColunaDto[], agora: n
   const evs: EventoDaLinha[] = [];
   for (const m of t.movimentos ?? []) {
     if (m.tipo === "acionou") continue; // o run aparece no lugar
-    const quem = m.autor.tipo === "agente" ? m.autorNome ?? "Um agente" : m.autor.tipo === "pessoa" ? "Você" : "O quadro";
+    // O bot que mexeu assina a frase; a pessoa e o próprio quadro, não (o "Quadro" do item já diz de onde veio).
+    const quem = m.autor.tipo === "agente" ? m.autorNome ?? "Um agente" : null;
     const oque = m.de !== m.para ? `moveu de ${nome(m.de)} para ${nome(m.para)}`
       : m.agenteAntes !== m.agenteDepois ? `passou para ${m.agenteDepoisNome ?? "ninguém"}`
       : m.tipo === "freio" ? "freio" : m.tipo;
-    const extra = m.tipo === "nao_e_comigo" ? " (não é comigo)" : m.tipo === "laco" ? " (laço)" : m.tipo === "desfazer" ? " (desfez)" : "";
+    const sufixo = m.tipo === "nao_e_comigo" ? " (não é comigo)" : m.tipo === "laco" ? " (laço)" : m.tipo === "desfazer" ? " (desfez)" : "";
     const porque = porqueNaoDesfaz(t, m, cs);
     const desfeito = m.desfeitoEm !== null;
-    const bt = !porque ? ` <button type="button" class="qd-link ta-ev-acao" data-act="tarefa-desfazer-movimento" data-id="${esc(m.id)}">Desfazer</button>` : "";
-    const motivo = m.motivo ? `<span class="ta-ev-motivo"> · ${esc(trecho(m.motivo, 160))}</span>` : "";
-    evs.push({ id: m.id, em: m.criadoEm, chave: `${quem}|${m.tipo}|${m.de !== m.para ? "coluna" : m.agenteAntes !== m.agenteDepois ? "responsavel" : "outro"}`, html: `<li class="ta-ev${desfeito ? " ta-ev-desfeito" : ""}"><span class="ta-ev-ponto" aria-hidden="true"></span><span><b>${esc(quem)}</b> ${esc(oque + extra)}${motivo}${desfeito ? `<span class="qd-sr"> (desfeito)</span>` : ""}</span>${horaEv(m.criadoEm, agora)}${bt}</li>` });
+    const bt = !porque ? `<button type="button" class="qd-link ta-ev-acao" data-act="tarefa-desfazer-movimento" data-id="${esc(m.id)}">Desfazer</button>` : "";
+    const motivo = m.motivo ? `<span class="ta-ev-motivo"> ${esc(trecho(m.motivo, 160))}</span>` : "";
+    const acionou = m.acionou && m.agenteDepoisNome ? `acionou ${esc(m.agenteDepoisNome)}` : "";
+    evs.push({ id: m.id, em: m.criadoEm, chave: `${quem}|${m.tipo}|${m.de !== m.para ? "coluna" : m.agenteAntes !== m.agenteDepois ? "responsavel" : "outro"}`, html: itemDoQuadro({ em: m.criadoEm, agora, texto: esc(frase(`${quem ? `${quem} ` : ""}${oque}${sufixo}`)), extra: `${motivo}${desfeito ? `<span class="qd-sr"> (desfeito)</span>` : ""}`, acao: bt, ...(acionou ? { sub: acionou } : {}), ...(desfeito ? { classe: "ta-ev-desfeito" } : {}), ...(m.autor.tipo === "pessoa" ? { titulo: "Por você" } : {}) }) });
   }
-  for (const l of t.linhas ?? []) evs.push({ id: `l-${l.criadoEm}-${l.texto.slice(0, 12)}`, em: l.criadoEm, chave: `sistema|${l.texto}`, html: `<li class="ta-ev"><span class="ta-ev-ponto" aria-hidden="true"></span><span>${esc(l.texto)}</span>${horaEv(l.criadoEm, agora)}</li>` });
+  for (const l of t.linhas ?? []) evs.push({ id: `l-${l.criadoEm}-${l.texto.slice(0, 12)}`, em: l.criadoEm, chave: `sistema|${l.texto}`, html: itemDoQuadro({ em: l.criadoEm, agora, texto: esc(frase(l.texto)) }) });
   evs.push(...eventosDeCampos(extra?.atividade ?? [], extra?.labels ?? [], (em) => horaEv(em, agora)));
   return evs;
 }
 
-export const horaEv = (em: number, agora: number): string => `<time class="ta-ev-hora" datetime="${new Date(em).toISOString()}" title="${esc(new Date(em).toLocaleString("pt-BR"))}">${esc(tempoRelativo(em, agora))}</time>`;
+export const horaEv = (em: number, agora: number): string => `<time class="ta-ev-hora" datetime="${new Date(em).toISOString()}" title="${esc(new Date(em).toLocaleString("pt-BR"))}">${esc(quandoNaLinha(em, agora))}</time>`;
 
 /** Os passos de um run (o cache da rota + frames: web/lib/passos-do-run.ts). */
 export type PassoAoVivo = PassosDoRun;
 
 export type DadosDaLinha = {
+  /**
+   * Rodada 3 (tela 18b do Paper): os runs moram só no Registro de execução da lateral; a linha do tempo fica com os
+   * eventos e os comentários. `true` volta o desenho de 10/11 (o bloco de cada run e o "trabalhou N min" no comentário).
+   */
+  runsNaLinha?: boolean;
   t: TarefaDto;
   colunas: readonly ColunaDto[];
   comentarios: readonly ComentarioDto[];
@@ -243,6 +279,10 @@ export type DadosDaLinha = {
   pendente: { texto: string; falhou: boolean; duvida?: boolean; paiId?: string | null } | null;
   criadaPor: string | null;
   criadaEm: number | null;
+  /** Rodada 4: o resumo do lote que criou a tarefa ("criou a tarefa a partir das notas da call"), se veio. */
+  criadaResumo?: string | null;
+  /** Rodada 4: as iniciais de quem lê (o anel do "Você"). */
+  voceIniciais?: string | null;
   carga: CargaDosComentarios;
   /** A pessoa fechou o reply que abre sozinho embaixo da pergunta do bot. */
   fechouPergunta?: boolean;
@@ -369,8 +409,8 @@ export function reciboDoComentario(c: ComentarioDto): string {
 const temRunVivo = (c: ComentarioDto, runs: readonly RunDaTarefa[]): boolean => runs.some((r) => vivo(r) && (r.comentariosJuntos ?? (r.comentarioId ? [r.comentarioId] : [])).includes(c.id));
 
 function cardDoComentario(c: ComentarioDto, d: DadosDaLinha, run: RunDaTarefa | undefined, raiz: string, aguardando = false): string {
-  const a = autorDoComentario(c, d.agente);
-  const quando = `<time datetime="${new Date(c.criadoEm).toISOString()}" title="${esc(new Date(c.criadoEm).toLocaleString("pt-BR"))}">${esc(tempoRelativo(c.criadoEm, d.agora))}</time>`;
+  const a = autorDoComentario(c, d.agente, d.voceIniciais);
+  const quando = `<time datetime="${new Date(c.criadoEm).toISOString()}" title="${esc(new Date(c.criadoEm).toLocaleString("pt-BR"))}">${esc(quandoNaLinha(c.criadoEm, d.agora))}</time>`;
   if (c.apagado) return `<article class="ta-com ta-com-apagado" id="com-${esc(c.id)}"><p class="ta-com-txt">Comentário apagado</p></article>`;
   const editado = c.editadoEm ? `<span class="ta-com-editado" title="${esc(new Date(c.editadoEm).toLocaleString("pt-BR"))}">editado</span>` : "";
   const acoes = `<span class="ta-com-acoes">` +
@@ -383,15 +423,15 @@ function cardDoComentario(c: ComentarioDto, d: DadosDaLinha, run: RunDaTarefa | 
     : `<p class="ta-com-txt">${comMencoes(esc(c.texto), d.nomes)}</p>`;
   const acionou = c.acionados.length ? `<p class="ta-com-acao">acionou ${esc(c.acionados.join(", "))}</p>` : reciboDoComentario(c);
   return `<article class="ta-com" id="com-${esc(c.id)}"><span class="ta-com-av" aria-hidden="true">${a.avatar}</span><div class="ta-com-corpo">` +
-    `<p class="ta-com-cab"><span class="ta-com-nome">${esc(a.nome)}</span>${run ? runNoCabecalho(run, d) : ""}${quando}${editado}${aguardando ? `<span class="ta-aguarda">aguardando sua resposta</span>` : ""}${acoes}</p>` +
+    `<p class="ta-com-cab"><span class="ta-com-nome">${esc(a.nome)}</span>${run ? runNoCabecalho(run, d) : ""}${quando}${editado}${aguardando ? `<span class="qd-sr"> · aguardando sua resposta</span>` : ""}${acoes}</p>` +
     (run ? detalheDoRun(run, d) : "") + corpo + acionou + `</div></article>`;
 }
 
-function pendenteDe(p: NonNullable<DadosDaLinha["pendente"]>): string {
+function pendenteDe(p: NonNullable<DadosDaLinha["pendente"]>, voce?: string | null): string {
   const est = p.falhou && p.duvida ? `<span class="qd-com-est">Sem resposta: pode ter saído. Confira a lista antes de mandar de novo.</span>`
     : p.falhou ? `<span class="qd-com-est">Não saiu.</span> <button type="button" class="qd-link qd-com-tentar" data-act="com-tentar">Tentar de novo</button>`
     : `<span class="qd-com-est">enviando</span>`;
-  return `<article class="ta-com qd-com-pendente${p.falhou ? " qd-com-falhou" : ""}"><span class="ta-com-av" aria-hidden="true">${anel("V", "Você", true)}</span><div class="ta-com-corpo">` +
+  return `<article class="ta-com qd-com-pendente${p.falhou ? " qd-com-falhou" : ""}"><span class="ta-com-av" aria-hidden="true">${anel(voce || "V", "Você", false)}</span><div class="ta-com-corpo">` +
     `<p class="ta-com-cab"><span class="ta-com-nome">Você</span>${est}</p><p class="ta-com-txt">${esc(p.texto)}</p></div></article>`;
 }
 
@@ -402,14 +442,21 @@ function pendenteDe(p: NonNullable<DadosDaLinha["pendente"]>): string {
 export function linhaDoTempo(d: DadosDaLinha): string {
   const porId = new Map(d.comentarios.map((c) => [c.id, c]));
   const raizDe = (c: ComentarioDto): string => (c.paiId && porId.has(c.paiId) ? c.paiId : c.id);
-  const casados = casarRuns(d.comentarios, d.runs);
+  const casados = d.runsNaLinha ? casarRuns(d.comentarios, d.runs) : new Map<string, RunDaTarefa>();
   const compactados = new Set([...casados.values()].map((r) => r.turnoId));
   // A pergunta do bot: o reply dela já vem aberto (até a pessoa fechar) e o cabeçalho diz "aguardando sua resposta".
   const pergunta = comentarioDaPergunta(d.t, d.comentarios);
   const respondendo = d.respondendo ?? (pergunta && !d.fechouPergunta ? pergunta : null);
   type Item = { em: number; html: string; ev?: { id: string; chave: string } };
   const topo: Item[] = eventosDaTarefa(d.t, d.colunas, d.agora, d).map((e) => ({ em: e.em, html: e.html, ev: { id: e.id, chave: e.chave ?? e.id } }));
-  if (d.criadaPor && d.criadaEm) topo.push({ em: d.criadaEm - 1, ev: { id: "criada", chave: "criada" }, html: `<li class="ta-ev"><span class="ta-ev-ponto" aria-hidden="true"></span><span><b>${esc(d.criadaPor)}</b> criou a tarefa</span>${horaEv(d.criadaEm, d.agora)}</li>` });
+  // Rodada 4 (tela 18b do Paper): "Quadro · ontem 9:14 / Ada criou a tarefa a partir das notas da call de ontem." Quem
+  // criou é o bot quando foi "Você, pela Ada" (o pedido mora no "Pedida por" da lateral).
+  if (d.criadaPor && d.criadaEm) {
+    const quem = /, pela (.+)$/.exec(d.criadaPor)?.[1] ?? d.criadaPor;
+    const resumo = (d.criadaResumo ?? "").trim();
+    const oque = /^criou a tarefa\b/i.test(resumo) ? resumo.replace(/^criou/i, "criou") : "criou a tarefa";
+    topo.push({ em: d.criadaEm - 1, ev: { id: "criada", chave: "criada" }, html: itemDoQuadro({ em: d.criadaEm, agora: d.agora, texto: esc(frase(`${quem} ${oque}`)) }) });
+  }
   const threads = new Map<string, Item[]>();
   for (const c of d.comentarios) {
     const r = raizDe(c);
@@ -417,7 +464,7 @@ export function linhaDoTempo(d: DadosDaLinha): string {
     if (!threads.has(r)) threads.set(r, []);
     threads.get(r)!.push({ em: c.criadoEm, html: `<li class="ta-resp">${cardDoComentario(c, d, casados.get(c.id), r)}</li>` });
   }
-  for (const run of d.runs) {
+  for (const run of d.runsNaLinha ? d.runs : []) {
     if (compactados.has(run.turnoId)) continue;
     const c = run.comentarioId ? porId.get(run.comentarioId) : undefined;
     const item = { em: run.criadoEm, html: blocoDoRun(run, d) };
@@ -429,7 +476,7 @@ export function linhaDoTempo(d: DadosDaLinha): string {
   if (d.pendente?.paiId && porId.has(d.pendente.paiId)) {
     const r = d.pendente.paiId;
     if (!threads.has(r)) threads.set(r, []);
-    threads.get(r)!.push({ em: Infinity, html: `<li class="ta-resp">${pendenteDe(d.pendente)}</li>` });
+    threads.get(r)!.push({ em: Infinity, html: `<li class="ta-resp">${pendenteDe(d.pendente, d.voceIniciais)}</li>` });
   }
   for (const c of d.comentarios) {
     if (raizDe(c) !== c.id) continue;
@@ -439,11 +486,13 @@ export function linhaDoTempo(d: DadosDaLinha): string {
       : resps ? `<button type="button" class="qd-link ta-th-responder" data-act="com-responder" data-raiz="${esc(c.id)}">Responder</button>` : "";
     topo.push({ em: c.criadoEm, html: `<li class="ta-th${c.id === pergunta ? " ta-th-pergunta" : ""}">${cardDoComentario(c, d, casados.get(c.id), c.id, c.id === pergunta)}${resps || pe ? `<ol class="ta-resps">${resps}</ol>${pe}` : ""}</li>` });
   }
-  if (d.pendente && !(d.pendente.paiId && porId.has(d.pendente.paiId))) topo.push({ em: Infinity, html: `<li class="ta-th">${pendenteDe(d.pendente)}</li>` });
+  if (d.pendente && !(d.pendente.paiId && porId.has(d.pendente.paiId))) topo.push({ em: Infinity, html: `<li class="ta-th">${pendenteDe(d.pendente, d.voceIniciais)}</li>` });
   for (const p of d.pedidos ?? []) topo.push({ em: p.criadoEm, html: pedidoNaLinha(p, (em) => horaEv(em, d.agora)) });
   const itens = juntarAtividades(topo.sort((a, b) => a.em - b.em), d.atividadesAbertas ?? new Set());
   const estado = d.carga === "carregando" && !itens ? `<p class="qd-com-vazio">Carregando…</p>` : d.carga === "erro" ? `<p class="qd-com-vazio">Não consegui ler os comentários.</p>` : "";
-  return `<section class="ta-tempo qd-coms" aria-labelledby="ta-tempo-tit"><h2 class="ta-sec" id="ta-tempo-tit">Atividade</h2>${estado}` +
+  // Rodada 4 (tela 18b do Paper): "Atividade 4" — quantos itens a linha tem (eventos e threads; o que está enviando não conta).
+  const n = topo.filter((i) => i.em !== Infinity).length;
+  return `<section class="ta-tempo qd-coms" aria-labelledby="ta-tempo-tit"><h2 class="ta-sec" id="ta-tempo-tit">Atividade${n ? ` <span class="ta-sec-n">${n}</span>` : ""}</h2>${estado}` +
     (itens ? `<ol class="ta-lista">${itens}</ol>` : "") +
     `<div class="ta-pe">${campoDeComentario({ tarefaId: d.t.id, raiz: null, chips: d.chips("nova"), ocupado: !!d.pendente && !d.pendente.falhou })}</div></section>`;
 }

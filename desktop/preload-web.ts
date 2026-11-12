@@ -5,6 +5,7 @@ import type { AcaoDeBusca } from "./menu.ts";
 import type { EstadoIa } from "../src/contracts/estado-ia.ts";
 import { CANAIS_MIDIA, type PonteMidia } from "../src/contracts/midia-desktop.ts";
 import { CANAIS_REMOVER, type OpcoesRemover } from "../src/contracts/remover-computador.ts";
+import { CANAIS_MAC, type FamiliaMac } from "../src/contracts/desktop-mac.ts";
 
 /**
  * Preload da JANELA WEB (definido em 2026-09-24, "aviso no Mac"): a página é remota, então a ponte é a
@@ -112,6 +113,18 @@ const ponte: NodDesktop = {
   // ADA-245 (jornada D): "Remover o nod deste computador"; o processo principal valida as opções. No Mac o app fica
   // (sem fecharAposRemover): a tela de Fim volta a Computadores.
   removerDaqui: (opcoes: OpcoesRemover) => ipcRenderer.invoke(CANAIS_REMOVER.removerDaqui, { manterIas: opcoes?.manterIas === true, manterConexao: opcoes?.manterConexao === true }),
+  // ADR-171: Quick Chat, captura e ferramentas do Mac; o processo principal valida cada argumento.
+  capturarTela: () => ipcRenderer.invoke(CANAIS_MAC.capturarTela),
+  atalhoQuickChat: () => ipcRenderer.invoke(CANAIS_MAC.atalhoQuickChat),
+  definirAtalhoQuickChat: (atalho: string | null) => ipcRenderer.invoke(CANAIS_MAC.definirAtalhoQuickChat, atalho),
+  quickChatExpandir: () => ipcRenderer.invoke(CANAIS_MAC.quickChatExpandir),
+  quickChatEsconder: () => ipcRenderer.invoke(CANAIS_MAC.quickChatEsconder),
+  montarNaMesa: (agenteId: string) => ipcRenderer.invoke(CANAIS_MAC.montarNaMesa, agenteId),
+  desmontarDaMesa: (agenteId: string) => ipcRenderer.invoke(CANAIS_MAC.desmontarDaMesa, agenteId),
+  naMesa: () => ipcRenderer.invoke(CANAIS_MAC.naMesa),
+  quickChatAbrir: (agenteId: string) => ipcRenderer.invoke(CANAIS_MAC.quickChatAbrir, agenteId),
+  ferramentasMac: () => ipcRenderer.invoke(CANAIS_MAC.ferramentasMac),
+  definirFerramentaMac: (familia: FamiliaMac, ligada: boolean) => ipcRenderer.invoke(CANAIS_MAC.definirFerramentaMac, familia, ligada),
   aoAbrir: (fn: (alvo: AlvoAviso) => void) => {
     // Um ouvinte só (a página registra uma vez; recarregar recria o preload). O evento do IPC não vai à página.
     ipcRenderer.removeAllListeners(CANAIS_DESKTOP.abrir);

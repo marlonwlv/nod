@@ -10,24 +10,26 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#131315" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Nod" />
     <!-- Tema escolhido em Preferências (web/lib/tema.ts, mesma chave): aplicado antes do primeiro quadro, senão o app pisca claro. -->
+    <!-- ADR-165: o balão da pessoa na cor do bot é opção (web/lib/balao.ts, mesma chave); o padrão é o preto. -->
+    <script>try { if (localStorage.getItem("nod.balao") === "cor") document.documentElement.dataset.balao = "cor"; } catch (e) {}</script>
     <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {}</script>
     <!-- NOD-119: densidade e largura da barra (web/lib/densidade.ts, mesma chave, valores e consulta do celular): aplicadas antes do primeiro quadro, senão a barra abre larga e encolhe. -->
-    <script>try { var d = localStorage.getItem("nod.densidade"), px = { "compacta": 200, "compacta:recolhida": 56, "compacta:larga": 340, "confortavel:recolhida": 72 }; if (Object.prototype.hasOwnProperty.call(px, d) && !matchMedia("(hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px)").matches) { var h = document.documentElement, p = d.split(":"); h.dataset.densidade = p[0]; if (p[1]) h.dataset.largura = p[1]; h.style.setProperty("--largura-barra", px[d] + "px"); } } catch (e) {}</script>
-    <!-- A Geist pedida já com o HTML, sem esperar o tokens.css: menos tempo com a fonte do sistema e o texto mudando de largura. -->
-    <link rel="preload" href="/fontes/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <script>try { var d = localStorage.getItem("nod.densidade"), px = { "compacta": 200, "compacta:recolhida": 56, "compacta:larga": 340, "confortavel:recolhida": 88 }; if (Object.prototype.hasOwnProperty.call(px, d) && !matchMedia("(hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px)").matches) { var h = document.documentElement, p = d.split(":"); h.dataset.densidade = p[0]; if (p[1]) h.dataset.largura = p[1]; h.style.setProperty("--largura-barra", px[d] + "px"); } } catch (e) {}</script>
     <link rel="stylesheet" href="/tokens.css" />
     <link rel="stylesheet" href="/estilos.css" />
     <link rel="stylesheet" href="/interface.css" />
     <link rel="stylesheet" href="/navegacao.css" />
     <link rel="stylesheet" href="/ligacao.css" />
     <link rel="stylesheet" href="/onboarding.css" />
+    <link rel="stylesheet" href="/personagem.css" />
     <link rel="stylesheet" href="/computador-do-bot.css" />
+    <link rel="stylesheet" href="/quick-chat.css" />
     <link rel="stylesheet" href="/conta.css" />
     <link rel="stylesheet" href="/configuracoes.css" />
     <link rel="stylesheet" href="/agentes-lote.css" />
@@ -42,6 +44,12 @@
     <link rel="stylesheet" href="/historico-perfil.css" />
     <link rel="stylesheet" href="/quadro-celular.css" />
     <link rel="stylesheet" href="/quadro-min.css" />
+    <link rel="stylesheet" href="/tarefas-de-todos.css" />
+    <link rel="stylesheet" href="/provedores-ia.css" />
+    <!-- ADR-165: os componentes do design system (web/ds.css) vêm depois das telas do computador e antes das do celular. -->
+    <link rel="stylesheet" href="/ds.css" />
+    <!-- ADR-165: a casca igual ao Paper (barra, pílula, conversa, campo e painel), depois do design system. -->
+    <link rel="stylesheet" href="/casca.css" />
     <link rel="stylesheet" href="/mobile.css" />
     <link rel="stylesheet" href="/celular-base.css" />
     <link rel="stylesheet" href="/tab-bar-celular.css" />

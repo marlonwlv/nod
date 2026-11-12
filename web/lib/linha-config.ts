@@ -46,7 +46,19 @@ export type LinhaConfig = {
   controle?: ControleLinha;
   /** Atributos extras na linha (ex.: `id`), já montados. */
   attrs?: string;
+  /**
+   * ADR-165: o id do ajuste no catálogo (web/lib/ajustes.ts). A linha ganha `id="ajuste-<id>"` (o alvo do link e da busca)
+   * e, se não for ela mesma um botão, o "copiar link" que aparece no hover e no foco.
+   */
+  ajuste?: string;
 };
+
+const ICONE_LINK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2.2-2.2a2.6 2.6 0 0 0-3.7-3.7l-.8.8"/><path d="M9.2 6.8a2.6 2.6 0 0 0-3.7 0L3.3 9a2.6 2.6 0 0 0 3.7 3.7l.8-.8"/></svg>';
+
+/** O "copiar link" de um ajuste (ADR-165). */
+export function botaoLinkDoAjuste(id: string, titulo: string): string {
+  return `<button type="button" class="lc-copiar-link" data-act="copiar-link-ajuste" data-ajuste="${esc(id)}" aria-label="Copiar link de ${esc(titulo)}" title="Copiar link">${ICONE_LINK}</button>`;
+}
 
 const dadosAttr = (dados: Record<string, string> | undefined): string =>
   dados ? Object.entries(dados).map(([k, v]) => ` data-${k}="${esc(v)}"`).join("") : "";
@@ -209,7 +221,7 @@ const SETA = `<span class="lc-seta" aria-hidden="true">${ICONE.seta}</span>`;
 export function linhaConfig(l: LinhaConfig): string {
   const c = l.controle;
   const classes = ["lc-linha", l.classe ?? "", l.perigo ? "lc-perigo" : ""].filter(Boolean).join(" ");
-  const attrs = l.attrs ? ` ${l.attrs}` : "";
+  const attrs = (l.attrs ? ` ${l.attrs}` : "") + (l.ajuste ? ` id="ajuste-${esc(l.ajuste)}" data-ajuste="${esc(l.ajuste)}"` : "");
   const m = miolo(l);
   if (c?.tipo === "link") {
     const bt = `<button type="button" class="${classes} lc-link" data-act="${esc(c.acao)}"${dadosAttr(c.dados)}${c.desabilitado ? " disabled" : ""}${attrs}>${m.html}${SETA}</button>`;
@@ -224,7 +236,8 @@ export function linhaConfig(l: LinhaConfig): string {
       : c.tipo === "seletor" ? seletorLinha(c)
         : c.tipo === "menu" ? menuLinha(c)
           : c.html;
-  return `<div class="${classes}"${attrs}>${m.html}${ctrl ? `<span class="lc-ctrl">${ctrl}</span>` : ""}</div>`;
+  const link = l.ajuste ? botaoLinkDoAjuste(l.ajuste, l.titulo) : "";
+  return `<div class="${classes}"${attrs}>${m.html}${link}${ctrl ? `<span class="lc-ctrl">${ctrl}</span>` : ""}</div>`;
 }
 
 /** Um grupo de linhas com título (opcional), contagem e nota embaixo. `linhas` já em HTML. */

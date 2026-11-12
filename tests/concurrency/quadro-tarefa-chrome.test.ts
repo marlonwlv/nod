@@ -339,8 +339,10 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     // Compacto e sem as colunas recolhidas (o Backlog vazio nasce recolhido: some).
     await ate(`document.querySelector("#quadro .qd-compacto")`);
     expect(await avaliar<boolean>(cdp, `!document.querySelector('#quadro .qd-so-largo [data-act="abrir-coluna"][data-status="backlog"]')`)).toBe(true);
-    // Quadro minimalista (PR #723): o Exibir mora no popover das Opções (as tiras das recolhidas e o compacto).
-    await avaliar(cdp, `document.querySelector('#quadro [data-act="op-abrir"]').click()`);
+    // Quadro minimalista (PR #723): o Exibir mora no popover das Opções; tela 18 do Paper: as Opções abrem pelo menu do quadro.
+    await avaliar(cdp, `document.querySelector('#quadro .qm-cab-bt').click()`);
+    await ate(`document.querySelector('#qm-pop-quadro [data-act="op-abrir"]')`);
+    await avaliar(cdp, `document.querySelector('#qm-pop-quadro [data-act="op-abrir"]').click()`);
     await ate(`document.querySelector('#qm-pop-op [data-act="exibir-alternar"][data-chave="compacto"]')`);
     await avaliar(cdp, `document.querySelector('#qm-pop-op [data-act="exibir-alternar"][data-chave="compacto"]').click()`);
     await ate(`!document.querySelector("#quadro .qd-compacto")`);
@@ -391,18 +393,17 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     await avaliar(cdp, `document.querySelector('#quadro .qd-vazio-1 [data-act="busca-limpar"]').click()`);
     await ate(`!document.querySelector("#quadro .qd-vazio-1")`);
 
-    // Com as Opções abertas, o clique em quem está no quadro não se perde: abre a lista (as Opções fecham), e o
-    // clique na Ada filtra e fecha a lista.
-    await avaliar(cdp, `document.querySelector('#quadro [data-act="op-abrir"]').click()`);
+    // Com as Opções abertas (pelo menu do quadro), o clique na Ada do filtro por pessoa (tela 18 do Paper) não se perde:
+    // filtra e as Opções fecham.
+    await avaliar(cdp, `document.querySelector('#quadro .qm-cab-bt').click()`);
+    await ate(`document.querySelector('#qm-pop-quadro [data-act="op-abrir"]')`);
+    await avaliar(cdp, `document.querySelector('#qm-pop-quadro [data-act="op-abrir"]').click()`);
     await ate(`document.querySelector("#qm-pop-op")`);
-    await avaliar(cdp, `document.querySelector('#quadro [data-act="ativos-abrir"]').click()`);
-    await ate(`document.querySelector('#qm-pop-ativos [data-act="filtro-do-quadro"][data-filtro="agente:a"]') && !document.querySelector("#qm-pop-op")`);
-    await avaliar(cdp, `document.querySelector('#qm-pop-ativos [data-act="filtro-do-quadro"][data-filtro="agente:a"]').click()`);
-    await ate(`document.querySelector('#quadro .qm-ativos')?.classList.contains("qm-ligado")`);
-    expect(await avaliar<boolean>(cdp, `!document.querySelector("#qm-pop-ativos")`)).toBe(true);
+    await avaliar(cdp, `document.querySelector('#quadro .qm-pes [data-act="filtro-do-quadro"][data-filtro="agente:a"]').click()`);
+    await ate(`document.querySelector('#quadro .qm-pes [aria-pressed="true"]')?.textContent.includes("Ada") && !document.querySelector("#qm-pop-op")`);
     expect(await texto("#quadro")).toContain("Responsável: Ada");
     await avaliar(cdp, `document.querySelector('#quadro [data-act="filtro-do-quadro"][data-filtro="todos"]').click()`);
-    await ate(`!document.querySelector('#quadro .qm-ativos')?.classList.contains("qm-ligado")`);
+    await ate(`document.querySelector('#quadro .qm-pes [aria-pressed="true"]')?.textContent.includes("Todas as tarefas")`);
 
     // Setas, Home e End andam entre os itens do menu do quadro.
     await avaliar(cdp, `document.querySelector('#quadro [data-act="qmenu-abrir"]').click()`);

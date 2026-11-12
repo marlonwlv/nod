@@ -523,7 +523,8 @@ describeIntegracao("e2e com catcher: as doze jornadas do fluxo de aceite, sem CL
   it("falha do fornecedor (NOD-174): o erro do CLI em inglês não vira fala; a conversa ganha o aviso em pt-BR e o erro cru fica só no diagnóstico do turno", { timeout: JORNADA_MS }, async () => {
     const bot = await criarBot("Fornecedor");
     const casos = [
-      { erro: "Credit balance is too low", aviso: "Turno interrompido: a IA parou por um erro; tente de novo e, se repetir, relate o problema nesta mensagem." },
+      // ADR-169 (falhas tipadas): o crédito acabado tem frase própria.
+      { erro: "Credit balance is too low", aviso: "Turno interrompido: a conta da sua IA está sem crédito ou com fatura em aberto; espere o uso renovar e tente de novo." },
       { erro: "API Error: 529 overloaded", aviso: "Turno interrompido: o serviço da sua IA está instável ou fora do ar; tente de novo em alguns minutos." },
     ];
     for (const c of casos) {

@@ -130,7 +130,7 @@ describe("NOD-383: Configurações em lista no celular (critério 3)", () => {
     const h = renderEspaco(aberto(true), avisos, volta, extras, true);
     expect(h).toContain('role="dialog" aria-modal="true" aria-labelledby="espaco-titulo"');
     expect(h).toContain(">Configurações</h1>");
-    expect([...h.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["conta", "geral", "conexao", "maquinas", "agentes", "rotinas", "feedback"]);
+    expect([...h.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["conta", "geral", "conexao", "maquinas", "agentes", "rotinas", "aprovacoes", "cofre", "feedback"]);
     expect(h.match(/class="cfg-grupo"/g)).toHaveLength(3);
     expect(h).toContain("<b>Ana Lima</b><small>ana@x.com</small>");
     expect(h).toContain('<span class="cfg-item-valor">Simulação</span>');
@@ -179,8 +179,9 @@ describe("NOD-383: Configurações em lista no celular (critério 3)", () => {
     const sem = renderEspaco(aberto(false), avisos, volta, extras, false);
     expect(renderEspaco(aberto(true), avisos, volta, extras, false)).toBe(sem);
     expect(renderEspaco(aberto(false), avisos, volta, extras)).toBe(sem);
-    expect(sem).toContain('<h1 id="espaco-titulo">Configurações</h1>');
-    expect(sem).toContain("<kbd>esc</kbd>");
+    // ADR-165 (Paper 07): no computador é um modal; o título fica para o leitor de tela e o ✕ fecha com o Esc.
+    expect(sem).toContain('<h1 id="espaco-titulo" class="sr-only">Configurações</h1>');
+    expect(sem).toContain('class="espaco-voltar cfg-fechar" data-act="fechar-espaco" aria-keyshortcuts="Escape"');
     expect(sem).not.toContain("cfg-celular");
   });
 

@@ -20,6 +20,11 @@ export type AcaoDoModoNaFala = {
   frase: string;
   /** PR 4b: o comando sem frase, na linha do revisor — o trecho de `frase` em fonte de código, [início, fim). */
   codigo?: readonly [number, number];
+  /**
+   * ADR-164: o revisor liberou por uma regra "Pode fazer sem perguntar" da pessoa — a linha vira "Aprovado pela sua regra ·
+   * Editar". O texto é o de agora (a pessoa pode tê-la editado depois); `agenteId` null = a regra do padrão.
+   */
+  regra?: { id: string; texto: string; agenteId: string | null };
 };
 
 /**

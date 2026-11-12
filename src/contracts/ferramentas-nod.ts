@@ -10,7 +10,7 @@ import { FERRAMENTAS_DO_NOD, type ContratoFerramentasDoNod } from "./ferramentas
 import { FERRAMENTAS_CRIAR_BOTS, type ContratoFerramentasCriarBots } from "./ferramentas-criar-bots.ts";
 import { FERRAMENTAS_RESPONDER_PEDIDO, type ContratoFerramentasResponderPedido } from "./ferramentas-responder-pedido.ts";
 import { FERRAMENTAS_CREDENCIAL, type ContratoFerramentasCredencial } from "./ferramentas-credencial.ts";
-import { FERRAMENTAS_AVISO, type ContratoFerramentasAviso } from "./ferramentas-aviso.ts"; import { FERRAMENTAS_BARRA, type ContratoFerramentasBarra } from "./ferramentas-barra.ts";
+import { FERRAMENTAS_AVISO, type ContratoFerramentasAviso } from "./ferramentas-aviso.ts"; import { FERRAMENTAS_CARTOES, type ContratoFerramentasCartoes } from "./ferramentas-cartoes.ts"; import { FERRAMENTAS_BARRA, type ContratoFerramentasBarra } from "./ferramentas-barra.ts";
 import { FERRAMENTAS_CONTA, type ContratoFerramentasConta } from "./ferramentas-conta.ts"; import { FERRAMENTAS_QUADRO, type ContratoFerramentasQuadro } from "./ferramentas-quadro.ts"; import { FERRAMENTAS_APPS, type ContratoFerramentasApps } from "./ferramentas-apps.ts"; import { FERRAMENTAS_CONVERSAS, type ContratoFerramentasConversas } from "./ferramentas-conversas.ts"; import { FERRAMENTAS_NAO_LIDOS, type ContratoFerramentasNaoLidos } from "./ferramentas-nao-lidos.ts"; import { FERRAMENTAS_TIMES, type ContratoFerramentasTimes } from "./ferramentas-times.ts"; import { FERRAMENTAS_ACESSOS, type ContratoFerramentasAcessos } from "./ferramentas-acessos.ts"; import { FERRAMENTAS_CANVAS, type ContratoFerramentasCanvas } from "./ferramentas-canvas.ts"; import { FERRAMENTAS_MAQUINAS, type ContratoFerramentasMaquinas } from "./ferramentas-maquinas.ts"; import { FERRAMENTAS_COMPUTADORES, type ContratoFerramentasComputadores } from "./ferramentas-computadores.ts";
 import { SCHEMA_PEDIR_A_PESSOA, type ArgsPedirAPessoa } from "./pedido.ts";
 import type { ArgsAtualizarRotina, ArgsCriarRotina, ArgsExcluirRotina, ArgsExecutarRotina, ArgsListarRotinas, ArgsPausarRotina, ArgsReativarRotina, ArgsVerAgenda, ResultadoAlternarRotina, ResultadoCriarRotina, ResultadoListarRotinas, ResultadoPropostaRotina, ResultadoVerAgenda } from "./ferramentas-rotina.ts";
@@ -38,7 +38,7 @@ export const FERRAMENTAS_NOD = {
   ...FERRAMENTAS_LIGACAO,
   ...FERRAMENTAS_TRABALHO,
   ...FERRAMENTAS_FRENTE,
-  ...FERRAMENTAS_DO_NOD, ...FERRAMENTAS_CRIAR_BOTS, ...FERRAMENTAS_RESPONDER_PEDIDO, ...FERRAMENTAS_CREDENCIAL, ...FERRAMENTAS_AVISO, ...FERRAMENTAS_BARRA, ...FERRAMENTAS_CONTA, ...FERRAMENTAS_CONVERSAS, ...FERRAMENTAS_QUADRO, ...FERRAMENTAS_APPS, ...FERRAMENTAS_NAO_LIDOS, ...FERRAMENTAS_TIMES, ...FERRAMENTAS_ACESSOS, ...FERRAMENTAS_CANVAS, ...FERRAMENTAS_MAQUINAS, ...FERRAMENTAS_COMPUTADORES,
+  ...FERRAMENTAS_DO_NOD, ...FERRAMENTAS_CRIAR_BOTS, ...FERRAMENTAS_RESPONDER_PEDIDO, ...FERRAMENTAS_CREDENCIAL, ...FERRAMENTAS_AVISO, ...FERRAMENTAS_CARTOES, ...FERRAMENTAS_BARRA, ...FERRAMENTAS_CONTA, ...FERRAMENTAS_CONVERSAS, ...FERRAMENTAS_QUADRO, ...FERRAMENTAS_APPS, ...FERRAMENTAS_NAO_LIDOS, ...FERRAMENTAS_TIMES, ...FERRAMENTAS_ACESSOS, ...FERRAMENTAS_CANVAS, ...FERRAMENTAS_MAQUINAS, ...FERRAMENTAS_COMPUTADORES,
   lembrar: {
     type: "object",
     description: "Guarda uma memória deste agente (preferência, fato ou resumo). A memória não substitui fonte autoritativa.",
@@ -75,7 +75,7 @@ export const FERRAMENTAS_NOD = {
         items: {
           type: "object",
           properties: {
-            texto: { type: "string", description: "O item como a pessoa vai ler.", minLength: 1 },
+            texto: { type: "string", description: "O item como a pessoa vai ler. Numa mensagem que sai (e-mail, Slack, iMessage, SMS), o corpo exato da mensagem, igual ao argumento do corpo: ela aparece como rascunho, e a pessoa edita o corpo antes de enviar. Uma mensagem por item.", minLength: 1 },
             destino: {
               type: "object",
               properties: {
@@ -149,7 +149,7 @@ export const NOMES_FERRAMENTAS_NOD = [
   "pedir_a_pessoa", "passar", "encaminhar", "sem_novidade", "pedir_a_bot", "ver_colegas", "publicar_artefato", "ler_artefato",
   "iniciar_tarefa", "desligar",
   "anotar_entrevista", "concluir_entrevista", "propor_bot", "abrir_task", "mandar_para_task",
-  "gerir_bots", "ver_apps_conectados", "registrar_relato", "me_chame_as", "esperar_comando", "abrir_frentes", "mandar_para_frente", "devolver_resumo", "criar_bots", "responder_pedido", "pedir_credencial", "avisar_pessoa", "abrir_conta", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "gerir_quadro", "nao_lidos", "gerir_apps", "gerir_times", "gerir_canvas", "gerir_acessos", "gerir_maquinas", "remover_computador",
+  "gerir_bots", "ver_apps_conectados", "registrar_relato", "me_chame_as", "esperar_comando", "abrir_frentes", "mandar_para_frente", "devolver_resumo", "criar_bots", "responder_pedido", "pedir_credencial", "avisar_pessoa", "mostrar_cartoes", "abrir_conta", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "gerir_quadro", "nao_lidos", "gerir_apps", "gerir_times", "gerir_canvas", "gerir_acessos", "gerir_maquinas", "remover_computador",
 ] as const satisfies readonly NomeFerramentaNod[];
 
 export type ArgsLembrar = { tipo: "preferencia" | "fato" | "resumo"; texto: string };
@@ -171,13 +171,13 @@ export type ResultadoPedirAprovacao =
   | { estado: "decidida"; itens: { idx: number; desfecho: string }[] }
   | { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a decisão retoma depois" }
   /** ADR-062: argumento fora do schema do conector — o bot corrige e pede de novo. NOD-443: quem pediu saiu do quadro. */
-  | { estado: "recusada"; erros: string[]; instrucao: "corrija os argumentos e chame pedir_aprovacao de novo" | "não peça de novo; encerre o turno" };
+  | { estado: "recusada"; erros: string[]; instrucao: "corrija os argumentos e chame pedir_aprovacao de novo" | "não peça de novo; encerre o turno" | "não peça de novo: diga à pessoa o que ficou de fora e por quê" };
 export type ResultadoPedirAPessoa = { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a resposta retoma depois" };
 export type ResultadoOk = { ok: true };
 export type ResultadoPedirABot = { ok: true; tarefa_id: string; instrucao: string; livres: { id: string; nome: string }[] } | { ok: false; erro: "espera_circular" | "ja_pedido" | "experimento_desligado" | "sem_quadro" | "tarefa_invalida" | "colega_fora_do_quadro" | "colega_nao_acionado"; instrucao: string }; // ADR-099: espera circular; NOD-259: ja_pedido; NOD-417: os da tarefa
 
 /** Args ↔ resultado por nome: contrato entre proxy, chamar-ferramenta e UseCasesNod. */
-export type ContratoFerramentaNod = ContratoFerramentasArtefato & ContratoFerramentasLigacao & ContratoFerramentasTrabalho & ContratoFerramentasFrente & ContratoFerramentasDoNod & ContratoFerramentasCriarBots & ContratoFerramentasResponderPedido & ContratoFerramentasCredencial & ContratoFerramentasAviso & ContratoFerramentasBarra & ContratoFerramentasConta & ContratoFerramentasConversas & ContratoFerramentasQuadro & ContratoFerramentasApps & ContratoFerramentasNaoLidos & ContratoFerramentasTimes & ContratoFerramentasAcessos & ContratoFerramentasCanvas & ContratoFerramentasMaquinas & ContratoFerramentasComputadores & {
+export type ContratoFerramentaNod = ContratoFerramentasArtefato & ContratoFerramentasLigacao & ContratoFerramentasTrabalho & ContratoFerramentasFrente & ContratoFerramentasDoNod & ContratoFerramentasCriarBots & ContratoFerramentasResponderPedido & ContratoFerramentasCredencial & ContratoFerramentasAviso & ContratoFerramentasCartoes & ContratoFerramentasBarra & ContratoFerramentasConta & ContratoFerramentasConversas & ContratoFerramentasQuadro & ContratoFerramentasApps & ContratoFerramentasNaoLidos & ContratoFerramentasTimes & ContratoFerramentasAcessos & ContratoFerramentasCanvas & ContratoFerramentasMaquinas & ContratoFerramentasComputadores & {
   lembrar: { args: ArgsLembrar; resultado: ResultadoLembrar };
   atualizar_perfil: { args: ArgsAtualizarPerfil; resultado: ResultadoAtualizarPerfil };
   pedir_acesso: { args: ArgsPedirAcesso; resultado: ResultadoPedirAcesso };

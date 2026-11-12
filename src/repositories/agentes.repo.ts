@@ -3,6 +3,8 @@ import type { Agente, CorAgente, DonoAgente, EsforcoAgente, FormaAgente, ModoApr
 import type { EscolhasIa, InteligenciaBot, ModoInteligencia } from "../contracts/inteligencia.ts";
 import { derivadosDa, INTELIGENCIA_PADRAO, inteligenciaDoAgente, inteligenciaDoLegado } from "../domain/inteligencia.ts";
 import { MODO_APROVACAO_INICIAL } from "../domain/modo-aprovacao.ts";
+import type { TetoModo } from "../contracts/ajustes-aprovacao.ts";
+import { ehTetoModo, modoEfetivo, soLeituraEfetivo, tetoMaisFechado } from "../domain/ajustes-aprovacao.ts";
 import type { Conn, Escopo } from "../shared/types.ts";
 import { jsonb, ms } from "./conversao.ts";
 
@@ -39,15 +41,22 @@ interface Linha {
   configurando_desde: Date | null;
   configurando_turno_id: string | null;
   criado_em: Date;
+  so_leitura: boolean | null;
+  tetos: string[] | null;
 }
 
-const COLUNAS = "tenant_id, id, owner_id, visibility, nome, titulo, descricao, dono, forma, cor, fixado, oculto, confirmado, modelo, harness, esforco, modo_aprovacao, duplicado_de, criado_em, secao, posicao, nao_lido, excluido_em, voz, voz_velocidade, papel, maquina_id, inteligencia_modo, ordem_ias, escolhas_ia, configurando_desde, configurando_turno_id";
+const COLUNAS = "tenant_id, id, owner_id, visibility, nome, titulo, descricao, dono, forma, cor, fixado, oculto, confirmado, modelo, harness, esforco, modo_aprovacao, duplicado_de, criado_em, secao, posicao, nao_lido, excluido_em, voz, voz_velocidade, papel, maquina_id, inteligencia_modo, ordem_ias, escolhas_ia, configurando_desde, configurando_turno_id, so_leitura, array(select t.teto from tetos_modo t where t.tenant_id = agentes.tenant_id and t.visibility = 'equipe') as tetos";
 
 /** 0068: as colunas novas lidas como gravadas e conferidas contra harness/modelo (inteligenciaDoAgente). */
 function inteligenciaDaLinha(l: Linha): InteligenciaBot {
   const harness = l.harness ?? "auto";
   const gravada: InteligenciaBot = { modo: l.inteligencia_modo ?? "auto", fixa: harness !== "auto" ? harness : null, ordem: l.ordem_ias ?? null, escolhas: l.escolhas_ia ?? {} };
   return inteligenciaDoAgente({ harness, modelo: l.modelo, esforco: l.esforco, inteligencia: gravada });
+}
+
+/** ADR-164: o teto mais fechado entre os que os admins do time gravaram (linha 'equipe'), ou null. */
+function tetoDaLinha(l: Linha): TetoModo | null {
+  return tetoMaisFechado((l.tetos ?? []).filter(ehTetoModo));
 }
 
 function paraAgente(l: Linha): Agente {
@@ -69,7 +78,12 @@ function paraAgente(l: Linha): Agente {
     harness: l.harness ?? "auto",
     esforco: l.esforco ?? null,
     inteligencia: inteligenciaDaLinha(l),
-    modoAprovacao: l.modo_aprovacao ?? "manual",
+    // ADR-164: o modo que vale é o pedido cortado pelo teto do admin do time; o pedido fica em `modoPedido`.
+    modoAprovacao: modoEfetivo(l.modo_aprovacao ?? "manual", tetoDaLinha(l)),
+    modoPedido: l.modo_aprovacao ?? "manual",
+    soLeitura: soLeituraEfetivo(l.so_leitura === true, tetoDaLinha(l)),
+    soLeituraPedido: l.so_leitura === true,
+    tetoModo: tetoDaLinha(l),
     maquinaId: l.maquina_id ?? null,
     duplicadoDe: l.duplicado_de,
     secao: l.secao,
@@ -322,6 +336,14 @@ export function agentesRepo(conn: Conn, escopo: Escopo) {
      * /onboarding` ao mesmo tempo (duas abas) esperam um pelo outro e o segundo já vê o Nod que o primeiro criou. O índice
      * único da 0061 fica de rede. Só a dona: o Nod de outra pessoa nunca volta.
      */
+    /** ADR-164: o só leitura do bot. Só a dona; null = não é dela, não existe ou foi excluído. */
+    async definirSoLeitura(id: string, soLeitura: boolean): Promise<Agente | null> {
+      const [l] = await conn<Linha[]>`update agentes set so_leitura = ${soLeitura}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and excluido_em is null
+        returning ${conn.unsafe(COLUNAS)}`;
+      return l ? paraAgente(l) : null;
+    },
+
     async travarNod(): Promise<Agente | null> {
       await conn`select pg_advisory_xact_lock(hashtext(${escopo.tenantId}), hashtext(${`nod:${escopo.pessoaId}`}))`;
       const [l] = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)} from agentes

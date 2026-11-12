@@ -68,7 +68,7 @@ export function textoDaEtiqueta(el: Element): string {
 const ALVOS = "[data-etiqueta], button[aria-label]";
 
 /** A etiqueta escura: só com `ativa()` (a barra recolhida); um elemento só, fora do #sidebar. */
-export function ligarEtiqueta(sidebar: HTMLElement, etiqueta: HTMLElement, ativa: () => boolean): { esconder(): void } {
+export function ligarEtiqueta(sidebar: HTMLElement, etiqueta: HTMLElement, ativa: () => boolean, teclas?: (el: Element) => string[] | null): { esconder(): void } {
   let alvo: Element | null = null;
   const esconder = () => { alvo = null; etiqueta.hidden = true; };
   const mostrar = (el: Element) => {
@@ -76,6 +76,15 @@ export function ligarEtiqueta(sidebar: HTMLElement, etiqueta: HTMLElement, ativa
     if (!texto || !ativa()) return esconder();
     alvo = el;
     etiqueta.textContent = texto;
+    // Paper 03 (rodada 3): o atalho do bot ao lado do nome, em caixinhas ("Gil · UI/UX ⌘ 4").
+    const ks = teclas?.(el);
+    if (ks?.length) {
+      const grupo = etiqueta.ownerDocument.createElement("span");
+      grupo.className = "etiqueta-teclas";
+      grupo.setAttribute("aria-hidden", "true");
+      for (const k of ks) { const kbd = etiqueta.ownerDocument.createElement("kbd"); kbd.className = "ds-kbd"; kbd.textContent = k; grupo.append(kbd); }
+      etiqueta.append(grupo);
+    }
     const r = el.getBoundingClientRect();
     etiqueta.style.top = `${Math.round(r.top + r.height / 2)}px`;
     etiqueta.style.left = `${Math.round(r.right + 8)}px`;

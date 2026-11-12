@@ -51,6 +51,7 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   // NOD-262: o bot fecha da conversa um pedido de colega que já resolveu.
   responder_pedido: ["Respondeu a um pedido de colega", "Respondendo a um pedido de colega"],
   avisar_pessoa: ["Avisou você", "Avisando você"],
+  mostrar_cartoes: ["Mostrou cartões", "Mostrando cartões"],
   gerir_quadro: ["Mexeu no quadro", "Mexendo no quadro"],
   gerir_apps: ["Mexeu nas páginas", "Mexendo nas páginas"],
   gerir_canvas: ["Mexeu no Canvas", "Mexendo no Canvas"],

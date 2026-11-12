@@ -27,6 +27,7 @@ import { pedirAprovacao } from "../../src/use-cases/pedir-aprovacao.ts";
 import type { Deps, Services, UseCasesNod } from "../../src/use-cases/tipos.ts";
 import { criarBancoMemoria, type BancoMemoria } from "./repos-memoria.ts";
 import { avisarPessoa } from "../../src/use-cases/avisar-pessoa.ts";
+import { mostrarCartoes } from "../../src/use-cases/mostrar-cartoes.ts";
 import { ajustarBarraLateral } from "../../src/use-cases/ajustar-barra-lateral.ts";
 import { gerirQuadro } from "../../src/use-cases/gerir-quadro.ts";
 import { gerirApps } from "../../src/use-cases/gerir-apps.ts";
@@ -153,6 +154,7 @@ export function useCasesDeTeste(sobrescrita: Partial<UseCasesNod> = {}): UseCase
     responderPedido,
     pedirCredencial,
     avisarPessoa,
+    mostrarCartoes,
     ajustarBarraLateral,
     gerirQuadro,
     gerirApps,

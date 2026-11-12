@@ -268,8 +268,8 @@ describe("lerVeredito: parse estrito", () => {
     ]) expect(lerVeredito(t), t).toBeNull();
   });
 
-  it("o esquema da saída estruturada é o mesmo que o parse aceita: as duas chaves, o enum, nada a mais", () => {
-    expect(ESQUEMA_VEREDITO).toEqual({ type: "object", properties: { decisao: { type: "string", enum: ["libera", "pede"] }, motivo: { type: "string" } }, required: ["decisao", "motivo"], additionalProperties: false });
+  it("o esquema da saída estruturada é o mesmo que o parse aceita: as quatro chaves (ADR-164: regra e sugestão), o enum, nada a mais", () => {
+    expect(ESQUEMA_VEREDITO).toEqual({ type: "object", properties: { decisao: { type: "string", enum: ["libera", "pede"] }, motivo: { type: "string" }, regra: { type: "string" }, sugestao: { type: "string" } }, required: ["decisao", "motivo", "regra", "sugestao"], additionalProperties: false });
   });
 
   it("JSON inválido, campo a mais, texto em volta, outro valor, motivo vazio ou texto longo demais → null (cartão)", () => {

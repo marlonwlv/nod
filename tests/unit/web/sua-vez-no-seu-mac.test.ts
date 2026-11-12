@@ -16,11 +16,13 @@ const item = (): Item => ({
   itensAprovacao: [{ tenantId: "t", id: "i1", decisaoId: "d1", idx: 0, textoOriginal: "ls", textoFinal: "ls", destino: { conector: "terminal", ferramenta: "bash", argumentos: { comando: "ls" } }, selecionado: true, origemSensivel: false, justificativa: null, marcadoPor: null, marcadoEm: null, editadoPor: null, desfecho: null, motivoManual: null } as unknown as ItemAprov],
 } as unknown as Item);
 
-describe("Sua vez: o comando do terminal no 'Sempre permitir' desligado", () => {
+describe("Sua vez: o comando do terminal no 'Permitir nesta tarefa' (tela 06)", () => {
   it("diz onde o comando roda, sem o literal ${noSeuMac()}", () => {
     const e: Estado = { ...estadoInicial, sessao: { pessoaId: "p", tenantId: "t" } as never, frota: { agentes: [{ id: "ze", nome: "Ze", conversaId: "c", ownerId: "p" }] } as never, suaVez: { itens: [item()], incidentes: [], foraDoAr: [], vazio: false, ultimaDecisaoEm: null } };
     const html = renderSuaVez(e);
-    expect(html).toContain("decidir-aprovacao-sempre");
+    expect(html).toContain("decidir-aprovacao-resto");
+    expect(html).toContain(">Permitir nesta tarefa<");
+    expect(html).not.toContain("decidir-aprovacao-sempre");
     expect(html).not.toContain("${");
     expect(html).toContain("Comando no seu Mac é aprovado um a um");
   });

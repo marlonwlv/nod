@@ -9,7 +9,7 @@
    ===================================================================================== */
 
 /* ---- Coluna e borda ------------------------------------------------------------------ */
-.app { position: relative; --largura-barra-auto: 340px; }
+.app { position: relative; --largura-barra-auto: 272px; }
 @media (max-width: 1099px) { .app { --largura-barra-auto: 300px; } }
 @media (max-width: 900px) { .app { --largura-barra-auto: 220px; } }
 @media (max-width: 700px) { .app { --largura-barra-auto: 184px; } }
@@ -25,12 +25,12 @@ html[data-densidade] .app.com-detalhes:not(.sem-sessao) { grid-template-columns:
   html[data-densidade] .app.com-detalhes.detalhes-ocultos:not(.sem-sessao),
   html[data-densidade] body.com-raio-x .app.com-detalhes:not(.sem-sessao) { grid-template-columns: var(--largura-barra) minmax(360px, 1fr); }
 }
-html[data-densidade] .app { transition: grid-template-columns .2s ease; }
+html[data-densidade] .app { transition: grid-template-columns var(--dur-lento) ease; }
 
 .borda-barra { position: absolute; top: 0; bottom: 0; z-index: 6; width: 6px; cursor: col-resize; touch-action: none;
-  left: calc(var(--largura-barra, var(--largura-barra-auto)) - 3px); transition: left .2s ease; }
+  left: calc(var(--largura-barra, var(--largura-barra-auto)) - 3px); transition: left var(--dur-lento) ease; }
 .borda-barra::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; border-radius: 1px; background: transparent;
-  transition: background-color .12s ease; }
+  transition: background-color var(--dur-rapido) ease; }
 .borda-barra:hover::after, .borda-barra.arrastando::after { background: var(--line-strong); }
 /* O anel só no teclado (o :focus-visible geral desenha um contorno; aqui é a própria linha que acende). */
 .borda-barra:focus { outline: none; }
@@ -46,25 +46,25 @@ html[data-densidade="compacta"]:not([data-largura="recolhida"]) .sidebar {
   & .search-wrap { padding: 16px 10px 10px; }
   & .sh { margin-bottom: 12px; gap: 2px; }
   & .list { padding: 0 6px; }
-  & .row { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; min-height: 36px; padding: 6px 8px; margin: 1px 0; border-radius: 9px; align-items: center; }
-  & .row .icon { width: 24px; height: 24px; border-radius: 9px; }
-  & .txt b { font-size: 13px; font-weight: 500; }
+  & .row { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; min-height: 36px; padding: 6px 8px; margin: 1px 0; border-radius: var(--raio-10); align-items: center; }
+  & .row .icon { width: 24px; height: 24px; border-radius: var(--raio-10); }
+  & .txt b { font-size: var(--fs-corpo-2); font-weight: 500; }
   & .txt > span:not(.nome-linha, .sub-fora-do-ar, .sub-esperando, .sub-rotina-parada, .sub-em-ligacao) { display: none; }
   /* Os estados que pedem ação continuam, curtos, no lugar da prévia — a prévia some. */
-  & .txt > :is(.sub-fora-do-ar, .sub-esperando, .sub-rotina-parada, .sub-em-ligacao) { display: block; font-size: 11px; line-height: 1.3; }
+  & .txt > :is(.sub-fora-do-ar, .sub-esperando, .sub-rotina-parada, .sub-em-ligacao) { display: block; font-size: var(--fs-legenda); line-height: 1.3; }
   /* O chip encolhe antes de o nome truncar. */
   & .nome-linha b { flex-shrink: 0; max-width: 100%; min-width: 0; }
   & .nome-linha .chip { flex-shrink: 1; min-width: 0; }
   & .section h3 { margin: 2px 0 4px; }
   & .fixados { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; margin: 2px 0 6px; padding: 0 0 8px; }
-  & .fixado-bt { padding: 6px 2px; gap: 3px; border-radius: 10px; }
-  & .fixado-bt .icon.lg { width: 32px; height: 32px; border-radius: 12px; }
+  & .fixado-bt { padding: 6px 2px; gap: 3px; border-radius: var(--raio-10); }
+  & .fixado-bt .icon.lg { width: 32px; height: 32px; border-radius: var(--raio-12); }
   /* O mascote redondo continua redondo (interface.css: .icon.shape-circle). */
   & :is(.row, .fixado-bt) .icon.shape-circle { border-radius: 50%; }
-  & .fixado-bt b { font-size: 11px; }
+  & .fixado-bt b { font-size: var(--fs-legenda); }
   & .fixado-bt :is(.chip, .chip-trab) { display: none; }
   & .rodape { padding: 10px; gap: 8px; }
-  & .marketplace-bt { height: 32px; font-size: 12px; }
+  & .marketplace-bt { height: 32px; font-size: var(--fs-rotulo); }
 }
 html[data-densidade="compacta"][data-largura="larga"] .sidebar .fixados { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 html[data-densidade="compacta"][data-largura="larga"] .sidebar .fixado-bt .icon.lg { width: 36px; height: 36px; }
@@ -82,7 +82,7 @@ html[data-largura="recolhida"] .sidebar {
   & .list { padding: 0; scrollbar-width: none; display: flex; flex-direction: column; align-items: center; }
   & .list > * { width: 100%; }
   & .row, & .fixado-bt { display: grid; place-items: center; width: var(--alvo-l); height: var(--alvo-a); min-height: 0;
-    margin: 2px auto; padding: 0; gap: 0; border-radius: 12px; grid-template-columns: 1fr; position: relative; }
+    margin: 2px auto; padding: 0; gap: 0; border-radius: var(--raio-12); grid-template-columns: 1fr; position: relative; }
   & .row .txt, & .fixado-bt b, & .fixado-bt :is(.chip, .chip-trab), & .bot-mais { display: none; }
   & .row .icon, & .fixado-bt .icon, & .fixado-bt .icon.lg { width: var(--mascote-barra); height: var(--mascote-barra); border-radius: 30%; }
   & :is(.row, .fixado-bt) .icon.shape-circle { border-radius: 50%; }
@@ -104,14 +104,14 @@ html[data-largura="recolhida"] .sidebar {
   /* A frota que falhou segue à vista na recolhida: o ↻ com etiqueta (o aria-label do botão). */
   & .list > .falha-frota { font-size: 0; text-align: center; margin: 6px 0; }
   & .list > .falha-frota button { font-size: 0; width: 40px; height: 40px; border-radius: 50%; }
-  & .list > .falha-frota button::before { content: "↻"; font-size: 18px; }
+  & .list > .falha-frota button::before { content: "↻"; font-size: var(--fs-titulo-3); }
   & .rodape { flex-direction: column; align-items: center; padding: 10px 0 14px; gap: 10px; }
   & .marketplace-bt { flex: none; width: 40px; height: 40px; padding: 0; border-radius: 50%; }
   & .marketplace-nome { display: none; }
 }
 html[data-densidade="compacta"][data-largura="recolhida"] .sidebar { --mascote-barra: 28px; --alvo-l: 44px; --alvo-a: 36px; }
 html[data-densidade="compacta"][data-largura="recolhida"] .sidebar .marketplace-bt { width: 32px; height: 32px; }
-html[data-densidade="compacta"][data-largura="recolhida"] .sidebar .rodape .me .av-me { width: 28px; height: 28px; font-size: 11px; }
+html[data-densidade="compacta"][data-largura="recolhida"] .sidebar .rodape .me .av-me { width: 28px; height: 28px; font-size: var(--fs-legenda); }
 
 /* O chip na recolhida: em ligação, anel verde; fora do ar, mascote apagado com ponto âmbar; rotina parada, ponto âmbar.
    O número de trabalhos fica só no aria-label. */
@@ -124,17 +124,18 @@ html[data-largura="recolhida"] .sidebar :is([data-estado-barra="fora"], [data-es
 /* ---- Busca por cima da conversa (recolhida + lupa ou ⌘K) ----------------------------- */
 html[data-sobreposta] .sidebar { z-index: 20; box-shadow: var(--shadow-pop); }
 html[data-sobreposta="340"] .sidebar { width: 340px; }
+html[data-sobreposta="272"] .sidebar { width: 272px; }
 html[data-sobreposta="200"] .sidebar { width: 200px; }
 
 /* ---- Etiqueta escura (substitui o title na recolhida) --------------------------------- */
-.etiqueta-barra { position: fixed; z-index: 60; transform: translateY(-50%); max-width: 260px; padding: 5px 9px; border-radius: 7px;
-  background: var(--ink); color: var(--surface); font-size: 12px; line-height: 1.35; font-weight: 500; white-space: nowrap; overflow: hidden;
+.etiqueta-barra { position: fixed; z-index: 60; transform: translateY(-50%); max-width: 260px; padding: 5px 9px; border-radius: var(--raio-8);
+  background: var(--ink); color: var(--surface); font-size: var(--fs-rotulo); line-height: 1.35; font-weight: 500; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; pointer-events: none; box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
 
 /* ---- Silhuetas do carregando (nunca "Nenhum agente visível") -------------------------- */
 .silhuetas-barra { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; }
-.silhueta-barra { height: 44px; border-radius: 12px; background: var(--surface-raised); animation: silhueta-pulsa 1.4s ease-in-out infinite; }
-html[data-densidade="compacta"]:not([data-largura="recolhida"]) .silhueta-barra { height: 28px; border-radius: 9px; }
+.silhueta-barra { height: 44px; border-radius: var(--raio-12); background: var(--surface-raised); animation: silhueta-pulsa 1.4s ease-in-out infinite; }
+html[data-densidade="compacta"]:not([data-largura="recolhida"]) .silhueta-barra { height: 28px; border-radius: var(--raio-10); }
 html[data-largura="recolhida"] .silhuetas-barra { align-items: center; padding: 6px 0; }
 html[data-largura="recolhida"] .silhueta-barra { width: var(--mascote-barra, 40px); height: var(--mascote-barra, 40px); border-radius: 30%; }
 @keyframes silhueta-pulsa { 50% { opacity: .5; } }
@@ -144,8 +145,8 @@ html[data-largura="recolhida"] .silhueta-barra { width: var(--mascote-barra, 40p
   background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; line-height: 1; box-shadow: 0 0 0 2px var(--surface-side); }
 
 /* ---- Seletor segmentado (Configurações › Aparência) ---------------------------------- */
-.segmentado { display: inline-flex; padding: 2px; gap: 2px; border-radius: 10px; background: var(--surface-raised); border: 1px solid var(--line); }
-.seg-opcao { border: 0; background: none; font: inherit; font-size: 13px; color: var(--ink-2); padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+.segmentado { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--raio-10); background: var(--surface-raised); border: 1px solid var(--line); }
+.seg-opcao { border: 0; background: none; font: inherit; font-size: var(--fs-corpo-2); color: var(--ink-2); padding: 6px 12px; border-radius: var(--raio-8); cursor: pointer; }
 .seg-opcao:hover { color: var(--ink); }
 .seg-opcao[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
 
@@ -153,14 +154,14 @@ html[data-largura="recolhida"] .silhueta-barra { width: var(--mascote-barra, 40p
 @media (prefers-reduced-motion: reduce) { .app, .borda-barra { transition: none; } }
 
 /* ---- Card do chat (C1): propõe mudar a barra, no estilo do card de proposta ----------- */
-.card-barra { max-width: 440px; margin: 2px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
-  background: var(--surface-side); font-size: 14px; line-height: 20px; color: var(--ink); }
+.card-barra { max-width: 440px; margin: 2px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--raio-12);
+  background: var(--surface-side); font-size: var(--fs-corpo); line-height: 20px; color: var(--ink); }
 .card-barra p { margin: 0; }
 .card-barra .ab-titulo { font-weight: 500; }
-.card-barra .ab-troca { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+.card-barra .ab-troca { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: var(--fs-corpo-2); color: var(--ink-2); }
 .card-barra .ab-troca b { font-weight: 500; color: var(--ink); }
 .card-barra .ab-seta { color: var(--ink-3, var(--ink-2)); }
-.card-barra .ab-nota { margin-top: 6px; font-size: 12px; line-height: 17px; color: var(--ink-2); }
+.card-barra .ab-nota { margin-top: 6px; font-size: var(--fs-rotulo); line-height: 17px; color: var(--ink-2); }
 .card-barra .ab-acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 .card-barra .ab-acoes .bt.pri { height: 30px; }
 .card-barra .ab-acoes .ab-nota { margin-top: 0; flex-basis: 100%; }

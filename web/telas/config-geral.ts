@@ -8,6 +8,11 @@ import { ESCOLHAS_DENSIDADE, type Densidade } from "../lib/densidade.ts";
 import { grupoConfig, linhaConfig, listaAninhada, segmentado, type TomStatus } from "../lib/linha-config.ts";
 import { esc } from "../lib/render.ts";
 import { ESCOLHAS_TEMA, type EscolhaTema } from "../lib/tema.ts";
+import { ajustePorId } from "../lib/ajustes.ts";
+import type { EscolhaSons } from "../lib/sons.ts";
+
+/** ADR-165: a frase do catálogo (web/lib/ajustes.ts), para a linha e a busca dizerem o mesmo. */
+const frase = (id: string): string => ajustePorId(id)?.frase ?? "";
 
 /**
  * NOD-367 (protótipo v2 do Gil, aprovado em 2026-10-26): Configurações › Geral junta o que eram Preferências e Avisos, em
@@ -66,6 +71,7 @@ export function renderAvisos(a: EstadoAvisos, celular = ehCelular()): string {
   const linhas = [
     linhaConfig({
       titulo: "Avisar quando algo precisar de você",
+      ajuste: "avisos",
       detalhe,
       status: { texto: situacaoCurtaAvisos(a), tom: TOM_AVISOS[a.situacao] },
       controle: { tipo: "switch", ligado, acao: "alternar-avisos", desabilitado: travado },
@@ -96,6 +102,10 @@ export type DadosGeral = {
   quadroLiberado?: boolean;
   /** NOD-119: a densidade da barra neste computador (ausente = Confortável). */
   densidade?: Densidade;
+  /** ADR-165: o balão da pessoa na cor do bot (ausente = preto, o padrão). */
+  balaoCor?: boolean;
+  /** ADR-165: os sons opcionais deste computador (ausente = desligados). */
+  sons?: EscolhaSons;
 };
 
 /** NOD-119: a frase que ensina o atalho da borda. */
@@ -107,17 +117,30 @@ export function renderGeral(d: DadosGeral, ui: ConfigUi, celular = ehCelular(), 
   // NOD-119 (C1): no celular a barra é a gaveta de sempre; a linha "Barra lateral" não aparece.
   const barra = celular ? [] : [linhaConfig({
     titulo: "Barra lateral",
+    ajuste: "barra-lateral",
     detalheHtml: `<span id="densidade-ajuda">${esc(AJUDA_DENSIDADE)}</span>`,
     controle: { tipo: "html", html: segmentado({ acao: "escolher-densidade", rotulo: "Barra lateral", descritoPor: "densidade-ajuda", opcoes: ESCOLHAS_DENSIDADE.map((o) => ({ valor: o.id, rotulo: o.nome, selecionado: o.id === densidade })) }) },
   })];
   const tema = grupoConfig("Aparência", [linhaConfig({
     titulo: "Tema",
+    ajuste: "tema",
     detalhe: detalheDoTema(celular),
     controle: { tipo: "seletor", acao: "escolher-tema", rotulo: "Tema", opcoes: ESCOLHAS_TEMA.map((t) => ({ valor: t.id, rotulo: t.nome, selecionado: t.id === d.tema })) },
-  }), ...barra]);
+  }), ...barra, linhaConfig({
+    titulo: "Cor do bot nos balões",
+    ajuste: "balao-cor",
+    detalhe: frase("balao-cor"),
+    controle: { tipo: "switch", ligado: d.balaoCor === true, acao: "alternar-balao-cor" },
+  })]);
+  // ADR-165: os sons do Grok Bot, opcionais e deste computador.
+  const sons = d.sons ?? { mensagem: false, aprovacao: false };
+  const blocoSons = grupoConfig("Sons", [
+    linhaConfig({ titulo: "Som de mensagem", ajuste: "som-mensagem", detalhe: frase("som-mensagem"), controle: { tipo: "switch", ligado: sons.mensagem, acao: "alternar-som-app", dados: { som: "mensagem" } } }),
+    linhaConfig({ titulo: "Som de pedido de aprovação", ajuste: "som-aprovacao", detalhe: frase("som-aprovacao"), controle: { tipo: "switch", ligado: sons.aprovacao, acao: "alternar-som-app", dados: { som: "aprovacao" } } }),
+  ], { nota: "Tocam com o nod aberto, só para o que é novo; o som do aviso do Mac fica em Avisos." });
   // NOD-117: a folha de atalhos é este bloco, com as teclas do lugar onde o nod roda (web/lib/atalhos.ts).
   const ajuda = grupoConfig("Ajuda", [
-    linhaConfig({ titulo: "Ver o onboarding de novo", detalhe: "A apresentação do nod, do começo", controle: { tipo: "link", acao: "ver-onboarding" } }),
+    linhaConfig({ titulo: "Ver o onboarding de novo", ajuste: "onboarding", detalhe: "A apresentação do nod, do começo", controle: { tipo: "link", acao: "ver-onboarding" } }),
     ...(celular ? [] : linhasDaFolha(lugar).map((l) => linhaConfig({ titulo: l.titulo, controle: { tipo: "html", html: `${kbd(l.combinacoes)}<span class="sr-only">${esc(l.falado)}</span>` } }))),
   ], { id: "ajuda" });
   const aberto = ui.abertos.includes("avancado");
@@ -144,6 +167,7 @@ export function renderGeral(d: DadosGeral, ui: ConfigUi, celular = ehCelular(), 
       <h2>Geral</h2>
       ${tema}
       ${renderAvisos(d.avisos)}
+      ${blocoSons}
       ${ajuda}
       ${blocoAvancado}
     </section>`;

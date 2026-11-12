@@ -4,6 +4,7 @@ import type { EstadoTelaComputador } from "../../src/contracts/computador-motor.
 import type { MotivoFalhaComputador } from "../../src/contracts/motivos.ts";
 import type { VmLocalAnunciada } from "../../src/contracts/vm-local.ts";
 import { htmlCenaDoPreparo } from "./cena-do-preparo.ts";
+import { htmlCartaoDoComputador } from "./computador-estados.ts";
 import { htmlMascote } from "./mascote.ts";
 import { esc } from "./escape.ts";
 import { linhaConfig } from "./linha-config.ts";
@@ -308,7 +309,7 @@ function htmlSono(bot: BotVisto, titulo: string, sub: string, acao: string): str
 }
 
 /** O topo da gaveta (só a dona): miniatura com Abrir, a linha "sem tela", o mascote dormindo ou acordando. */
-export function htmlGavetaTela(dto: ComputadorPessoaDto, bot: BotVisto, recusa: string | null = null): string {
+export function htmlGavetaTela(dto: ComputadorPessoaDto, bot: BotVisto, recusa: string | null = null, agora: number = Date.now()): string {
   const g = estadoDaGaveta(dto, bot.id);
   const atualizarApp = textoAppDesatualizado(dto);
   const semContato = tituloSemContato(dto);
@@ -326,7 +327,8 @@ export function htmlGavetaTela(dto: ComputadorPessoaDto, bot: BotVisto, recusa: 
           ? `<div class="cb-acordando">${htmlSono(bot, "Acordando…", dto.preparo?.estado === "ligando" || dto.preparo?.estado === "esperando_memoria" ? "Ligando o computador no seu Mac · pode levar até 3 min" : `Abrindo a tela de ${bot.nome}`, "")}</div>`
           : htmlAviso({ titulo: "O computador parou de responder", apoio: dto.falha ? textoDaFalha(dto.falha.motivo) : "Atualizar costuma resolver.", acoes: [link("Tentar de novo", 'data-act="operar-computador" data-op="tentar_de_novo"'), link("Ver computador do bot", 'data-act="ver-computador-do-bot" data-realce="atualizar"')] }));
   // `data-comp-bot`: a aba Computador da gaveta (ADR-125) à vista — o laço de web/telas/tela-do-bot.ts só observa com ela.
-  return `<section class="gv-secao gv-tela" data-comp-bot="${esc(bot.id)}" data-gaveta-computador="${g}">${corpo}</section>`;
+  // Tela 11 (ADR-171): o cartão com o estado em uma palavra (Conectando, Ao vivo, Reconectando, Sem conexão, Em repouso).
+  return `<section class="gv-secao gv-tela" data-comp-bot="${esc(bot.id)}" data-gaveta-computador="${g}">${htmlCartaoDoComputador(dto, bot, agora)}${corpo}</section>`;
 }
 
 const FALHA_CURTA: Partial<Record<MotivoFalhaComputador, string>> = {

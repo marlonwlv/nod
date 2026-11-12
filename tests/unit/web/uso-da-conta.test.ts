@@ -50,7 +50,10 @@ describe("o bloco de uso da conta (Provedores de IA)", () => {
     expect(html).toContain(`aria-valuetext="Semana: 18% usado, renova em 26/10 às ${hora(SEMANA)}"`);
     expect(html).toContain('<div class="cu-cab" aria-hidden="true"><span>5 h</span><b>42%</b></div>');
     expect(html).toContain('<span style="width:42%"></span>');
-    expect(html).toContain('<p class="cu-pe">medido há 1 min</p>');
+    // Rodada 3 (tela 19 do Paper): as barras numa linha; quando renova e quando foi medido vão no title.
+    expect(html).toContain('title="5 h: renova às');
+    expect(html).toContain("medido há 1 min");
+    expect(html).not.toContain('class="cu-pe"');
     expect(html).not.toContain("cu-fila");
   });
 
@@ -94,9 +97,9 @@ describe("o bloco de uso da conta (Provedores de IA)", () => {
   it("leitura com mais de 6 h 'pode ter mudado'; com a conta em duas máquinas, diz de qual veio", () => {
     const velha = uso(conta("a", "Pessoal", { cota: cota(0.64, 0.33, { medidoEm: AGORA - 7 * HORA }) }));
     expect(velha).toContain('<p class="cu-pe velho">medido há 7 h · pode ter mudado</p>');
-    expect(uso(conta("a", "Pessoal", { cota: cota(0.42, null, { medidoEm: AGORA - 6 * HORA }) }))).toContain('<p class="cu-pe">medido há 6 h</p>');
+    expect(uso(conta("a", "Pessoal", { cota: cota(0.42, null, { medidoEm: AGORA - 6 * HORA }) }))).toContain("· medido há 6 h\"");
     const duas = conta("a", "Pessoal", { cota: cota(0.42, 0.18, { medidoEm: AGORA - 12 * MIN }), maquinas: [{ maquinaId: MAC, nome: "MacBook Air", estado: "pronta" }, { maquinaId: VM, nome: "vm-bots", estado: "pronta" }] });
-    expect(uso(duas)).toContain('<p class="cu-pe">medido há 12 min no MacBook Air</p>');
+    expect(uso(duas)).toContain("medido há 12 min no MacBook Air\"");
   });
 });
 

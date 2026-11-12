@@ -1,5 +1,6 @@
 import { redigirCampos } from "../domain/segredos.ts";
 import { contextoAtual } from "./contexto.ts";
+import { rastroAtual } from "./rastro.ts";
 
 /**
  * Wrapper ÚNICO de log (Práticas §10): uma linha JSON por evento com ts, tenant_id, pessoa_id e
@@ -25,6 +26,7 @@ export function definirDestinoDoLog(novo: DestinoDoLog | null): void {
 
 export function log(nivel: Nivel, evento: string, campos: CamposLog = {}): string {
   const ctx = contextoAtual();
+  const rastro = rastroAtual();
   const { texto: _texto, ...semTexto } = campos;
   const linha = JSON.stringify({
     ts: new Date().toISOString(),
@@ -33,6 +35,8 @@ export function log(nivel: Nivel, evento: string, campos: CamposLog = {}): strin
     tenant_id: ctx?.tenantId ?? null,
     pessoa_id: ctx?.pessoaId ?? null,
     correlation_id: ctx?.correlationId ?? null,
+    // ADR-169: o trace W3C do pedido (motor → servidor), quando veio no header.
+    ...(rastro ? { trace_id: rastro.traceId, span_pai: rastro.spanId } : {}),
     ...redigirCampos(semTexto),
   });
   // eslint-disable-next-line no-console -- único ponto de saída do processo (definido em 2026-09-16: no-console sem allow)

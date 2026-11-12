@@ -18,36 +18,36 @@
 /* O tooltip sai da doca (overflow:hidden): com a doca aberta a cápsula deixa vazar. */
 .qd-pil.pg-aberta .pg-doca { overflow: visible; }
 
-.pg-ic { position: relative; display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 10px;
+.pg-ic { position: relative; display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--raio-10);
   background: transparent; color: var(--ink-3); cursor: pointer; opacity: 0;
-  transform: scale(.7); transition: transform .14s ease-in, opacity .12s ease-in, background-color .15s, color .15s; }
+  transform: scale(.7); transition: transform .14s ease-in, opacity var(--dur-rapido) ease-in, background-color var(--dur-normal), color var(--dur-normal); }
 /* Ao abrir, os ícones entram em cascata com um leve passar do ponto; ao fechar, só somem, sem mola (senão tremia). */
 .qd-pil.pg-aberta .pg-ic { opacity: 1; transform: scale(1); touch-action: none;
-  transition: transform .42s cubic-bezier(.3, 1.35, .5, 1) calc(var(--pg-i, 0) * 24ms), opacity .22s ease-out calc(var(--pg-i, 0) * 24ms), background-color .15s, color .15s; }
+  transition: transform .42s cubic-bezier(.3, 1.35, .5, 1) calc(var(--pg-i, 0) * 24ms), opacity .22s ease-out calc(var(--pg-i, 0) * 24ms), background-color var(--dur-normal), color var(--dur-normal); }
 .pg-ic:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .pg-ic[aria-selected="true"] { background: var(--surface-raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
 /* A casa do agente (1ª posição, onde ele abre): um tracinho discreto sob o ícone. */
 .pg-ic.pg-casa::after { content: ""; position: absolute; bottom: 2px; left: 50%; width: 8px; height: 2px; margin-left: -4px; border-radius: 1px;
   background: currentColor; opacity: .35; }
 /* Arrastando um ícone para mudar a ordem: ele segue o ponteiro e os outros abrem espaço, sem mola. */
-.qd-pil.pg-aberta .pg-doca.pg-reordenando .pg-ic { transition: transform .18s ease-out, background-color .15s, color .15s; }
+.qd-pil.pg-aberta .pg-doca.pg-reordenando .pg-ic { transition: transform var(--dur-lento) ease-out, background-color var(--dur-normal), color var(--dur-normal); }
 .qd-pil.pg-aberta .pg-doca.pg-reordenando .pg-ic.pg-arrastando { z-index: 1; transition: none; cursor: grabbing;
   background: var(--surface-raised); color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 2px 6px color-mix(in srgb, var(--ink) 12%, transparent); }
 .pg-doca.pg-reordenando .pg-tip { opacity: 0 !important; }
 .pg-ic:focus-visible { outline: 2px solid var(--focus-ring, var(--signal)); outline-offset: 1px; }
 .pg-svg { display: block; }
 .pg-bd { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 2px var(--surface); }
-.pg-tip { position: absolute; top: 36px; left: 50%; z-index: 2; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
-  box-shadow: var(--shadow-pop); color: var(--ink-2); font-size: 11.5px; line-height: 16px; text-align: center; white-space: nowrap; pointer-events: none;
-  opacity: 0; transform: translateX(-50%) translateY(-3px); transition: opacity .15s, transform .15s; }
+.pg-tip { position: absolute; top: 36px; left: 50%; z-index: 2; padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--raio-6); background: var(--surface);
+  box-shadow: var(--shadow-pop); color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 16px; text-align: center; white-space: nowrap; pointer-events: none;
+  opacity: 0; transform: translateX(-50%) translateY(-3px); transition: opacity var(--dur-normal), transform var(--dur-normal); }
 /* NOD-461: a segunda linha do tooltip ensina as teclas, apagada (não é alerta). */
-.pg-tip-tec { display: block; margin-top: 1px; color: var(--ink-3); font-size: 10.5px; letter-spacing: .01em; }
+.pg-tip-tec { display: block; margin-top: 1px; color: var(--ink-3); font-size: var(--fs-legenda); letter-spacing: .01em; }
 .pg-ic:hover .pg-tip, .pg-ic:focus-visible .pg-tip { opacity: 1; transform: translateX(-50%); }
 
 /* Os pontinhos, logo abaixo da cápsula; somem com a doca aberta (os ícones dizem o mesmo). ADA-8: no toque, tocar
    neles abre e fecha a doca (a alternativa visível ao gesto; o alvo mora no bloco do toque logo abaixo). */
 .pg-pontos { position: absolute; top: calc(100% + 6px); left: 50%; display: flex; align-items: center; gap: 4px; height: 6px; transform: translateX(-50%);
-  pointer-events: none; transition: opacity .2s; }
+  pointer-events: none; transition: opacity var(--dur-lento); }
 .qd-pil.pg-aberta .pg-pontos { opacity: 0; }
 @media (any-pointer: coarse) {
   /* Os pontinhos recebem o toque só aqui: no mouse o hover já abre a doca, e o alvo debaixo do cursor fazia a doca
@@ -58,8 +58,8 @@
   .pg-pontos::before { content: ""; position: absolute; left: 50%; top: -14px; width: max(44px, calc(100% + 16px)); height: 24px; transform: translateX(-50%); }
   .qd-pil.pg-aberta .pg-pontos { pointer-events: none; }
 }
-.pg-pt { width: 5px; height: 5px; border-radius: 3px; background: var(--ink-3); opacity: .35;
-  transition: width .35s cubic-bezier(.34, 1.56, .64, 1), opacity .2s, background-color .2s; }
+.pg-pt { width: 5px; height: 5px; border-radius: var(--raio-4); background: var(--ink-3); opacity: .35;
+  transition: width .35s cubic-bezier(.34, 1.56, .64, 1), opacity var(--dur-lento), background-color var(--dur-lento); }
 /* O "pede você" é laranja (--warning), como no protótipo aprovado; o azul (--signal) é do foco e da seleção. */
 .pg-pt.pg-pt-pede { background: var(--warning); opacity: 1; }
 .pg-pt.pg-pt-atual { width: 14px; background: var(--ink); opacity: 1; }
@@ -71,15 +71,15 @@
 .bnc-pilula .pg-doca, .bnc-pilula .pg-pontos { display: none; }
 
 /* A dica da primeira vez. */
-.pg-dica { position: fixed; left: 50%; z-index: 40; color: var(--ink-3); font-size: 12px; white-space: nowrap; pointer-events: none; transform: translateX(-50%);
+.pg-dica { position: fixed; left: 50%; z-index: 40; color: var(--ink-3); font-size: var(--fs-rotulo); white-space: nowrap; pointer-events: none; transform: translateX(-50%);
   animation: pg-dica-entra .4s ease-out both; transition: opacity .4s; }
 .pg-dica-sai { opacity: 0; }
 @keyframes pg-dica-entra { from { opacity: 0; transform: translateX(-50%) translateY(-4px); } }
 
 /* O "+ pedir um app" no fim da doca: o mesmo tamanho dos ícones, mais apagado; no limite, o tooltip explica. */
-.pg-pedir { position: relative; display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 10px;
-  background: transparent; color: var(--ink-3); cursor: pointer; opacity: 0; transform: scale(.7); transition: transform .14s ease-in, opacity .12s ease-in, color .15s; }
-.qd-pil.pg-aberta .pg-pedir { opacity: .8; transform: scale(1); transition: transform .42s cubic-bezier(.3, 1.35, .5, 1) calc(var(--pg-i, 0) * 24ms), opacity .22s ease-out calc(var(--pg-i, 0) * 24ms), color .15s; }
+.pg-pedir { position: relative; display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--raio-10);
+  background: transparent; color: var(--ink-3); cursor: pointer; opacity: 0; transform: scale(.7); transition: transform .14s ease-in, opacity var(--dur-rapido) ease-in, color var(--dur-normal); }
+.qd-pil.pg-aberta .pg-pedir { opacity: .8; transform: scale(1); transition: transform .42s cubic-bezier(.3, 1.35, .5, 1) calc(var(--pg-i, 0) * 24ms), opacity .22s ease-out calc(var(--pg-i, 0) * 24ms), color var(--dur-normal); }
 .pg-pedir:hover { color: var(--ink); }
 .pg-pedir[aria-disabled="true"] { cursor: default; opacity: .4 !important; }
 .pg-pedir:hover .pg-tip, .pg-pedir:focus-visible .pg-tip { opacity: 1; transform: translateX(-50%); }
@@ -96,9 +96,9 @@
 @keyframes pg-chega { from { transform: scale(.2); opacity: 0; } }
 
 /* O menu do ícone (segurar, botão direito, Shift+F10). */
-.pg-menu { position: fixed; z-index: 60; display: flex; flex-direction: column; min-width: 190px; padding: 4px; border: 1px solid var(--line); border-radius: 10px;
+.pg-menu { position: fixed; z-index: 60; display: flex; flex-direction: column; min-width: 190px; padding: 4px; border: 1px solid var(--line); border-radius: var(--raio-10);
   background: var(--surface); box-shadow: var(--shadow-pop); }
-.pg-menu-it { height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.pg-menu-it { height: 32px; padding: 0 10px; border: 0; border-radius: var(--raio-6); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); text-align: left; cursor: pointer; }
 .pg-menu-it:hover, .pg-menu-it:focus-visible { background: color-mix(in srgb, var(--ink) 6%, transparent); outline: none; }
 .pg-menu-it[aria-disabled="true"] { color: var(--ink-3); cursor: default; }
 
@@ -107,34 +107,34 @@
 .qd-vista[data-pagina^="app:"] > .qc-wrap { display: none; }
 .pg-app { display: flex; flex-direction: column; gap: 12px; max-width: 880px; width: 100%; margin: 0 auto; }
 .pg-app-topo { display: flex; align-items: center; gap: 8px; }
-.pg-app-topo h2 { margin: 0; font-size: 17px; font-weight: 600; color: var(--ink); }
-.pg-app-ic { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-2); }
-.pg-app-linha { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 20px; }
-.pg-app-ex { margin: 0; color: var(--ink-3); font-size: 13px; line-height: 19px; }
+.pg-app-topo h2 { margin: 0; font-size: var(--fs-titulo-3); font-weight: 600; color: var(--ink); }
+.pg-app-ic { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: var(--raio-8); color: var(--ink-2); }
+.pg-app-linha { margin: 0; color: var(--ink-2); font-size: var(--fs-corpo); line-height: 20px; }
+.pg-app-ex { margin: 0; color: var(--ink-3); font-size: var(--fs-corpo-2); line-height: 19px; }
 .pg-link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .pg-app-velho { opacity: .55; }
 .pg-lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .pg-item { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 10px 2px; border-bottom: 1px solid var(--line); }
 .pg-item-pt { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); align-self: center; }
 .pg-item-tx { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.pg-item-tit { color: var(--ink); font-size: 13.5px; overflow-wrap: anywhere; }
-.pg-item-det { color: var(--ink-3); font-size: 12.5px; overflow-wrap: anywhere; }
-.pg-item-val { flex: none; color: var(--ink-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pg-item-tit { color: var(--ink); font-size: var(--fs-corpo); overflow-wrap: anywhere; }
+.pg-item-det { color: var(--ink-3); font-size: var(--fs-corpo-2); overflow-wrap: anywhere; }
+.pg-item-val { flex: none; color: var(--ink-2); font-size: var(--fs-corpo-2); font-variant-numeric: tabular-nums; }
 .pg-colunas { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 16px; overflow-x: auto; }
-.pg-coluna h3 { margin: 0 0 6px; color: var(--ink-2); font-size: 12.5px; font-weight: 600; }
+.pg-coluna h3 { margin: 0 0 6px; color: var(--ink-2); font-size: var(--fs-corpo-2); font-weight: 600; }
 .pg-coluna h3 span { color: var(--ink-3); font-weight: 400; }
 .pg-painel { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-.pg-tile { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.pg-tile { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 12px; border: 1px solid var(--line); border-radius: var(--raio-10); }
 .pg-tile.pg-item-pede { border-color: color-mix(in srgb, var(--warning) 60%, var(--line)); }
 /* O tile que pede você não é só cor (revisão 6): o pontinho no canto e ", pede você" para o leitor de tela. */
 .pg-tile > .pg-item-pt { position: absolute; top: 12px; right: 12px; }
 .pg-tile.pg-item-pede > .pg-tile-val { padding-right: 14px; }
-.pg-tile-val { color: var(--ink); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.pg-tile-tit { color: var(--ink-2); font-size: 12.5px; }
-.pg-doc p { max-width: 68ch; margin: 0 0 12px; color: var(--ink); font-size: 14px; line-height: 22px; white-space: pre-line; }
+.pg-tile-val { color: var(--ink); font-size: var(--fs-titulo-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pg-tile-tit { color: var(--ink-2); font-size: var(--fs-corpo-2); }
+.pg-doc p { max-width: 68ch; margin: 0 0 12px; color: var(--ink); font-size: var(--fs-corpo); line-height: 22px; white-space: pre-line; }
 /* Carregando: um esqueleto discreto, sem spinner no meio da tela. */
 .pg-esq { display: flex; flex-direction: column; gap: 10px; }
-.pg-esq i { display: block; height: 14px; border-radius: 7px; background: color-mix(in srgb, var(--ink) 7%, transparent); animation: pg-esq 1.4s ease-in-out infinite; }
+.pg-esq i { display: block; height: 14px; border-radius: var(--raio-8); background: color-mix(in srgb, var(--ink) 7%, transparent); animation: pg-esq 1.4s ease-in-out infinite; }
 .pg-esq i:nth-child(2) { width: 80%; } .pg-esq i:nth-child(3) { width: 60%; }
 @keyframes pg-esq { 50% { opacity: .5; } }
 
@@ -149,8 +149,8 @@
 }
 
 /* Lista | Quadro em Tarefas (só no computador; o celular é sempre a lista). */
-.pg-forma { display: inline-flex; gap: 2px; margin-right: 8px; padding: 2px; border: 1px solid var(--line); border-radius: 999px; }
-.pg-forma-bt { height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--ink-3); font: inherit; font-size: 12px; cursor: pointer; }
+.pg-forma { display: inline-flex; gap: 2px; margin-right: 8px; padding: 2px; border: 1px solid var(--line); border-radius: var(--raio-full); }
+.pg-forma-bt { height: 24px; padding: 0 10px; border: 0; border-radius: var(--raio-full); background: transparent; color: var(--ink-3); font: inherit; font-size: var(--fs-rotulo); cursor: pointer; }
 .pg-forma-bt:hover { color: var(--ink); }
 .pg-forma-bt[aria-pressed="true"] { background: var(--surface-raised); color: var(--ink); }
 .pg-forma-bt:focus-visible { outline: 2px solid var(--focus-ring, var(--signal)); outline-offset: 1px; }
@@ -169,11 +169,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pg-ic, .qd-pil.pg-aberta .pg-ic { transform: none; transition: opacity .12s, background-color .12s, color .12s; }
+  .pg-ic, .qd-pil.pg-aberta .pg-ic { transform: none; transition: opacity var(--dur-rapido), background-color var(--dur-rapido), color var(--dur-rapido); }
   .pg-pt { transition: none; }
   .qd-pil.pg-aberta .pg-doca.pg-reordenando .pg-ic { transition: none; }
   .pg-dica { animation: none; }
-  .pg-pedir, .qd-pil.pg-aberta .pg-pedir { transform: none; transition: opacity .12s, color .12s; }
+  .pg-pedir, .qd-pil.pg-aberta .pg-pedir { transform: none; transition: opacity var(--dur-rapido), color var(--dur-rapido); }
   .pg-ic.pg-chegou, .pg-pt.pg-chegou, .pg-esq i { animation: none; }
 }
 

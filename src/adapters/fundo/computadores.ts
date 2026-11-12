@@ -1086,6 +1086,8 @@ export function criarComputadores(o: Opcoes) {
         // ações da MESMA tarefa. Nunca vale em turno não confiável (ADR-026) nem depois da web (ADR-062: a marca de
         // 0033 ficava de fora, e o terminal já a olhava — autorizar-comando.ts).
         // revisto em 2026-10-01 (ADR-066): saiu o gate da rotina; quem pede a pessoa é a política do computador e o modo.
+        // ADR-164: o bot em só leitura só observa e lê no computador dele; o que muda algo é negado, sem cartão.
+        if (alteraComputador(acao) && (await d.repos.agentes.buscar(plano.agenteId))?.soLeitura === true) return negar("capacidade_desligada");
         const liberadaNaTarefa = plano.confiancaEntrada === "confiavel" && alteraComputador(acao) && !(await d.repos.turnos.contaminado(plano.turnoId)) && await computadorLiberadoNaTarefa(d, plano.turnoId);
         // ADR-059: o modo do bot aprova a ação no computador DELE como aprova o resto. Nada ali é "arriscado" no
         // sentido do Mac (o computador é isolado, ADR-037). ADR-066: conteúdo de fora não para o automático nem o total.

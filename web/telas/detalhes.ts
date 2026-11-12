@@ -2,12 +2,12 @@ import { avisoErro } from "../lib/card-proposta.ts";
 import { secaoOnboardingDetalhes } from "./onboarding.ts";
 import type { RotinaDto } from "../../src/contracts/api.ts";
 import type { AbaGaveta, Estado, EstadoComputadorBot, NivelGaveta } from "../estado/reducer.ts";
-import { botao, dataHora, esc, iconeAgente } from "../lib/render.ts";
+import { botao, dataHora, esc, hora, iconeAgente } from "../lib/render.ts";
 import { ICONE } from "../lib/icones.ts";
 import { MOTIVO_FALHA_TEXTO } from "../lib/computador.ts";
 import { htmlGavetaTela } from "../lib/computador-pessoa.ts";
 import { ATALHO_SEMPRE_LIGADA, botaoDaParada, desdeDaParada, linhaOndeRoda, pedeAtalhoNaExecucao, rotuloExecucao } from "../lib/execucao.ts";
-import { CORES_MASCOTE, FORMAS_MASCOTE, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
+import { avatarDoBot, CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
 import { botaoLigar, htmlLinhaLigar, VELOCIDADES, VOZES } from "./ligacao.ts";
 import { renderSeloModoDev } from "./modo-dev.ts";
 import { caminhoDaPastaDoBot } from "../lib/pasta-do-bot.ts";
@@ -24,7 +24,8 @@ import { blocoDasChamadas, blocoDoEndereco, ehRotinaWebhook, ICONE_RAIO, origemD
 import { textoMotivo } from "./negacao.ts";
 import { falhaVisivel } from "../lib/fora-do-ar.ts";
 import { renderGavetaTrabalhos } from "./trabalhos.ts";
-import { abertosDoBot } from "../lib/trabalhos.ts";
+import { abertosDoBot, emEspera } from "../lib/trabalhos.ts";
+import { resumosDosQuadros } from "../lib/tarefas-da-barra.ts";
 import { renderAtividade } from "./atividade.ts";
 import { renderListaBiblioteca } from "./biblioteca.ts";
 import { lembrancaDaMidia } from "../lib/midia.ts";
@@ -83,6 +84,9 @@ export function abasDoBot(dona: boolean): AbaGaveta[] {
   return ["detalhes", "biblioteca", ...(dona ? (["computador"] as const) : [])];
 }
 
+/** ADR-165 (Paper 02/02b): à vista só Atividade e Biblioteca; o Computador abre pelo bloco dele na Atividade. */
+export const abasAVista = (abas: readonly AbaGaveta[], aberta?: AbaGaveta): AbaGaveta[] => abas.filter((a) => a !== "computador" || a === aberta);
+
 /** A aba aberta: a lembrada, se ela ainda existe para este bot (o D15 tira o Computador); senão, Detalhes. */
 export function abaAberta(estado: Pick<Estado, "abaGaveta">, agenteId: string, abas: readonly AbaGaveta[]): AbaGaveta {
   const lembrada = estado.abaGaveta[agenteId];
@@ -102,14 +106,18 @@ export const nomeEditavel = (a: Pick<Bot, "papel">, dona: boolean): boolean => d
  */
 export function renderDetalhes(estado: Estado): string {
   const t = estado.tela;
-  if (t.tipo !== "conversa") return "";
-  const a = estado.frota?.agentes.find((b) => b.id === t.agenteId);
+  // Paper 15b (rodada 2): a página de uma frente mostra o painel do bot dela (a visão geral, com a frente marcada).
+  const frente = t.tipo === "trabalho" ? (estado.trabalhos?.trabalhos ?? []).find((x) => x.id === t.id && x.forma === "frente") : undefined;
+  if (t.tipo !== "conversa" && !frente) return "";
+  const agenteId = t.tipo === "conversa" ? t.agenteId : frente?.agenteId;
+  const a = estado.frota?.agentes.find((b) => b.id === agenteId);
   if (!a) return "";
   const dona = a.ownerId === estado.sessao?.pessoaId;
   const fechar = `<button type="button" class="gv-icone gvn-redondo gv-painel" data-act="alternar-detalhes" aria-label="Fechar painel" title="Fechar painel">${ICONE.fechar}</button>`;
   const nivel = estado.gaveta?.agenteId === a.id ? estado.gaveta.nivel : null;
   if (!nivel) {
     const compartilhar = `<button type="button" class="gv-icone gvn-redondo" data-act="gaveta-compartilhar" data-id="${esc(a.id)}" aria-haspopup="menu" aria-label="Compartilhar ${esc(a.nome)}" aria-expanded="false" title="Compartilhar">${ICONE.compartilhar}</button>`;
+    // ADR-165 (Paper 02): no topo só o fechar; o compartilhar fica escondido no computador (casca.css) e segue no celular.
     return `<div class="gv-topo gvn-topo">${compartilhar}${fechar}</div>
       <div class="gv-corpo">${visaoGeral(estado, a, dona)}</div>`;
   }
@@ -135,7 +143,7 @@ export const classeDoRodape = (n: Pick<Nivel, "rodapeClasse">): string => (n.rod
 const linha = (conteudo: string, dados: string, extra = "") => `<button type="button" class="gv-linha" ${dados}>${conteudo}${extra}</button>`;
 const irPara = (a: Bot, nivel: NivelGaveta["tipo"], id = "") => `data-act="gaveta" data-nivel="${nivel}" data-agente="${esc(a.id)}"${id ? ` data-id="${esc(id)}"` : ""}`;
 
-const ROTULO_ABA: Readonly<Record<AbaGaveta, string>> = { detalhes: "Detalhes", biblioteca: "Biblioteca", computador: "Computador" };
+const ROTULO_ABA: Readonly<Record<AbaGaveta, string>> = { detalhes: "Atividade", biblioteca: "Biblioteca", computador: "Computador" };
 
 function visaoGeral(estado: Estado, a: Bot, dona: boolean): string {
   const abas = abasDoBot(dona);
@@ -144,7 +152,7 @@ function visaoGeral(estado: Estado, a: Bot, dona: boolean): string {
   const fora = Boolean(a.computadorForaDoAr);
   const painel = (aba: AbaGaveta) => (aba === "detalhes" ? abaDetalhes(estado, a, dona) : aba === "computador" ? abaComputador(estado, a) : abaBiblioteca(estado, a, dona));
   if (abas.length === 1) return identidade(estado, a, dona) + `<div class="gv-aba-painel">${painel("detalhes")}</div>`;
-  const tabs = abas
+  const tabs = abasAVista(abas, aberta)
     .map((aba) => {
       const sel = aba === aberta;
       const ponto = aba === "computador" && fora ? '<span class="gvn-ponto" aria-hidden="true"></span><span class="sr-only"> (fora do ar)</span>' : "";
@@ -159,12 +167,18 @@ function visaoGeral(estado: Estado, a: Bot, dona: boolean): string {
  * ADR-125: o avatar xl, o nome e o subtítulo, editáveis ali mesmo (Enter ou blur salva, Esc desfaz; web/lib/
  * gaveta-identidade.ts). No Nod e no bot de outra pessoa, só leitura.
  */
+/** Paper 05/05b/15 (rodada 3): o avatar grande do painel gira com o bot trabalhando; só pensando, fica o mascote (o "···" é da barra e da pílula). */
+function avatarDoPainel(estado: Estado, a: Bot): ReturnType<typeof avatarDoBot> {
+  const e = avatarDoBot(estado, a);
+  return e === "pensando" ? "disponivel" : e;
+}
+
 function identidade(estado: Estado, a: Bot, dona: boolean): string {
   if (!identidadeEditavel(dona)) {
-    return `<div class="gv-identidade gvn-id">${iconeAgente(a, "xl")}<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2><span class="gvn-sub-fixo">${esc(a.titulo || (dona ? "Seu bot" : "Bot da equipe"))}</span></div>`;
+    return `<div class="gv-identidade gvn-id">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2><span class="gvn-sub-fixo">${esc(a.titulo || (dona ? "Seu bot" : "Bot da equipe"))}</span></div>`;
   }
   const aberto = estado.avatarAberto?.agenteId === a.id;
-  const avatar = `<div class="gvn-avatar-wrap"><button type="button" class="gvn-avatar" data-act="gaveta-avatar" data-id="${esc(a.id)}" aria-haspopup="dialog"${aberto ? ' aria-controls="gvn-pop"' : ""} aria-expanded="${aberto}" aria-label="Editar avatar de ${esc(a.nome)}" aria-describedby="gvn-dica">${iconeAgente(a, "xl")}<span class="gvn-lapis" aria-hidden="true">${ICONE.lapis}</span></button><span class="gvn-dica" id="gvn-dica" role="tooltip">Editar avatar</span>${aberto ? popoverAvatar(a) : ""}</div>`;
+  const avatar = `<div class="gvn-avatar-wrap"><button type="button" class="gvn-avatar" data-act="gaveta-avatar" data-id="${esc(a.id)}" aria-haspopup="dialog"${aberto ? ' aria-controls="gvn-pop"' : ""} aria-expanded="${aberto}" aria-label="Editar avatar de ${esc(a.nome)}" aria-describedby="gvn-dica">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<span class="gvn-lapis" aria-hidden="true">${ICONE.lapis}</span></button><span class="gvn-dica" id="gvn-dica" role="tooltip">Editar avatar</span>${aberto ? popoverAvatar(a) : ""}</div>`;
   return `<div class="gv-identidade gvn-id">${avatar}
     ${nomeEditavel(a, dona) ? `<label class="sr-only" for="gvn-nome">Nome do bot</label>
     <input id="gvn-nome" class="gvn-nome" data-campo="nome" data-id="${esc(a.id)}" data-salvo="${esc(a.nome)}" value="${esc(a.nome)}" maxlength="60" autocomplete="off" spellcheck="false" title="Enter salva · Esc desfaz" aria-describedby="gvn-erro" />` : `<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2>`}
@@ -173,15 +187,15 @@ function identidade(estado: Estado, a: Bot, dona: boolean): string {
     <span class="gvn-erro-linha"><span class="gvn-erro-icone" aria-hidden="true">${ICONE.alerta}</span><span class="gvn-erro" id="gvn-erro" role="status"></span></span>${nomeEditavel(a, dona) ? statusDesfazer(a, estado.historicoPerfil[a.id], "identidade") : ""}</div>`;
 }
 
-/** ADR-125: o popover do avatar, com as 8 formas e as 12 cores do mascote (rádios com setas) e Redefinir. */
+/** ADR-125: o popover do avatar, com as 13 formas e as 14 cores do mascote (ADR-172) (rádios com setas) e Redefinir. */
 export function popoverAvatar(a: Bot): string {
-  const formas = FORMAS_MASCOTE.map((forma, i) => {
+  const formas = FORMAS_MASCOTE.map((forma) => {
     const sel = a.forma === forma;
-    return `<button type="button" class="gvn-forma" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" aria-label="${NOMES_FORMAS[i]}" title="${NOMES_FORMAS[i]}" data-act="gaveta-forma" data-id="${esc(a.id)}" data-valor="${forma}">${iconeAgente({ ...a, forma }, "sm")}</button>`;
+    return `<button type="button" class="gvn-forma" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" aria-label="${NOME_DA_FORMA[forma]}" title="${NOME_DA_FORMA[forma]}" data-act="gaveta-forma" data-id="${esc(a.id)}" data-valor="${forma}">${iconeAgente({ ...a, forma }, "sm")}</button>`;
   }).join("");
-  const cores = CORES_MASCOTE.map((cor, i) => {
+  const cores = CORES_MASCOTE.map((cor) => {
     const sel = a.cor === cor;
-    return `<button type="button" class="gvn-cor" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" aria-label="${NOMES_CORES[i]}" title="${NOMES_CORES[i]}" data-act="gaveta-cor" data-id="${esc(a.id)}" data-valor="${cor}"><span class="cor-amostra ${cor}"></span></button>`;
+    return `<button type="button" class="gvn-cor" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" aria-label="${NOME_DA_COR[cor]}" title="${NOME_DA_COR[cor]}" data-act="gaveta-cor" data-id="${esc(a.id)}" data-valor="${cor}"><span class="cor-amostra ${cor}"></span></button>`;
   }).join("");
   return `<div class="gvn-pop" id="gvn-pop" role="dialog" aria-label="Editar avatar">
     <p class="gvn-pop-titulo" id="gvn-pop-formas">Forma</p><div class="gvn-formas" role="radiogroup" aria-labelledby="gvn-pop-formas">${formas}</div>
@@ -202,20 +216,131 @@ function abaDetalhes(estado: Estado, a: Bot, dona: boolean): string {
     // NOD-84: a rotina por webhook não tem "próxima"; o resumo é "Quando o Stripe avisa · última às 10:42", e a recusa
     // ainda sem chamada aceita depois dela acende o "!" (com texto ao leitor de tela).
     const wh = ehRotinaWebhook(dto) ? quandoNaLista(dto) : null;
-    const quando = wh ? wh.quando : [resumo ? capitalizar(semFuso(resumo)) : "", ativa && !bloqueio ? `próxima ${interpolar(proximaExecucao, estado.agora)}` : ""].filter(Boolean).join(" · ");
+    const quando = wh ? wh.quando : [resumo ? capitalizar(semFuso(resumo)) : "", ativa && !bloqueio ? `próxima ${proximaCurta(proximaExecucao, estado.agora)}` : !ativa && !bloqueio ? "pausada" : ""].filter(Boolean).join(" · ");
     const chave = dona ? `<button type="button" class="chave" role="switch" aria-checked="${ativa}" data-act="${ativa ? "pausar-rotina" : "ativar-rotina"}" data-id="${esc(r.id)}" aria-label="${ativa ? "Pausar" : "Ativar"} a rotina ${esc(r.instrucao)}"><span></span></button>` : "";
     const parada = bloqueio ? `<div class="gvn-parada"><span class="gvn-parada-icone" aria-hidden="true">${ICONE.alerta}</span><span>${esc(`${fraseDaParada(bloqueio)} ${desdeDaParada(bloqueio, estado.agora)}.`)}</span>${dona ? botaoDaParada(bloqueio, "gvn-acao-texto") : ""}</div>` : "";
-    return `<li class="detalhe-rotina rotina-${esc(r.estado)}${bloqueio ? " gvn-rotina-parada" : ""}">${linha(`<span class="gv-linha-txt"><b title="${esc(r.instrucao)}">${esc(r.instrucao)}</b><small>${wh?.marca ?? ""}<span class="gvn-estado">${rotulo}</span>${quando ? ` · ${esc(quando)}` : ""}</small></span>`, irPara(a, "rotina", r.id))}${chave}${parada}</li>`;
+    // ADR-165 (Paper 02): o relógio à esquerda e o nome curto da rotina; "Ativa" sai (a chave já diz), "Parada" fica.
+    const titulo = r.instrucao;
+    return `<li class="detalhe-rotina rotina-${esc(r.estado)}${bloqueio ? " gvn-rotina-parada" : ""}">${linha(`${ICONE_RELOGIO}<span class="gv-linha-txt"><b title="${esc(r.instrucao)}">${esc(titulo)}</b><small>${wh?.marca ?? ""}${bloqueio ? `<span class="gvn-estado">${rotulo}</span>${quando ? " · " : ""}` : `<span class="sr-only">${rotulo} · </span>`}${quando ? esc(quando) : ""}</small></span>`, irPara(a, "rotina", r.id))}${chave}${parada}</li>`;
   };
-  const rotinasHtml = `<section class="gv-secao"><div class="gv-secao-cab"><h3>Rotinas</h3>${dona ? `<button type="button" class="gv-link" data-act="rotina-no-chat" data-agente="${esc(a.id)}" aria-label="Nova rotina: pedir a ${esc(a.nome)} na conversa">+ Nova</button>` : ""}</div>
+  const rotinasHtml = `<section class="gv-secao gv-rotinas"><div class="gv-secao-cab"><h3>Rotinas</h3>${rotinas.length ? `<span class="gv-conta" aria-hidden="true">${rotinas.length}</span>` : ""}${dona ? `<button type="button" class="gv-link" data-act="rotina-no-chat" data-agente="${esc(a.id)}" aria-label="Nova rotina: pedir a ${esc(a.nome)} na conversa">+ Nova</button>` : ""}</div>
       ${rotinas.length ? `<ul class="gv-cartao">${rotinas.map(linhaRotina).join("")}</ul>` : `<p class="gvn-vazio">${VAZIO_ROTINAS}</p>`}
       ${rotinas.length ? linhaOndeRoda(rotinas.find((r) => r.ondeRoda)?.ondeRoda, { plural: true, comAtalho: true }) : ""}
     </section>`;
-  const ajustes = `<section class="gv-secao"><div class="gv-cartao">${linha(`${ICONE.ajustes}<span class="gv-linha-txt">Ajustes<small>${dona ? "Ligar, trabalhos, memória, missão e acessos" : "Trabalhos, memória e acessos"}</small></span>`, `${irPara(a, "ajustes")} data-origem="ajustes"`, ICONE.seta)}</div></section>`;
+  // ADR-165 (Paper 02): Frentes (o que o bot faz agora), Computador (a miniatura) e Ajustes › Aprovações / Quadro. O título
+  // "Ajustes" abre o nível Ajustes de sempre (Ligar, trabalhos, memória, missão e acessos).
+  const modo = MODOS[a.modoAprovacao ?? "manual"];
+  const ajustesCab = `<div class="gv-secao-cab"><button type="button" class="gv-cab-link" ${irPara(a, "ajustes")} data-origem="ajustes" aria-label="${esc(dona ? "Ajustes: ligar, trabalhos, memória, missão e acessos" : "Ajustes: trabalhos, memória e acessos")}"><h3>Ajustes</h3>${ICONE_CHEVRON}</button></div>`;
+  const aprov = dona
+    ? linha(`${ICONE_ESCUDO}<span class="gv-linha-txt">Aprovações<small>${esc(subtituloDasAprovacoes(a))}</small></span>`, `data-act="modo-aprovacao" data-id="${esc(a.id)}" title="${esc(`${modo.titulo}: ${descricao(a.modoAprovacao ?? "manual", estado.frota?.revisor === true)}`)}"`, ICONE_CHEVRON)
+    : "";
+  const quadro = estado.experimentos.quadro ? linha(`${ICONE_QUADRO_P}<span class="gv-linha-txt">Quadro<small>${esc(resumoDoQuadro(estado, a.id))}</small></span>`, `data-act="abrir-tarefas" data-agente="${esc(a.id)}"`, ICONE_CHEVRON) : "";
+  const ajustes = `<section class="gv-secao gv-ajustes">${ajustesCab}${aprov || quadro ? `<div class="gv-cartao">${aprov}${quadro}</div>` : ""}</section>`;
   // ADR-077: durante a configuração guiada, o painel da guia mostra o que a pessoa contou e o que já foi montado.
   const o = estado.onboarding;
   const onboarding = estado.onboardingAberto && o && o.guia?.id === a.id && (o.etapa === "entrevista" || o.etapa === "configurando" || o.etapa === "concluido") ? secaoOnboardingDetalhes(o) : "";
-  return onboarding + segundoPlano(estado, a, dona) + rotinasHtml + ajustes;
+  // ADR-165 (Paper 15): com duas ou mais frentes abertas, a Atividade é das frentes, por grupo.
+  const porGrupo = frentesPorGrupo(estado, a);
+  if (porGrupo) return onboarding + segundoPlano(estado, a, dona) + porGrupo;
+  return onboarding + segundoPlano(estado, a, dona) + rotinasHtml + blocoFrentes(estado, a) + (dona ? blocoComputador(estado, a) : "") + ajustes;
+}
+
+/**
+ * ADR-165 (Paper 15/15b): as frentes do bot no painel, em Precisa de você, Trabalhando, Esperando e Terminadas hoje, com o
+ * número de cada grupo e "Toda a atividade de hoje ›" no fim. Só quando há duas ou mais frentes abertas.
+ */
+function frentesPorGrupo(estado: Estado, a: Bot): string {
+  const todos = (estado.trabalhos?.trabalhos ?? []).filter((t) => t.agenteId === a.id && t.forma === "frente");
+  const abertas = todos.filter((t) => t.estado === "na_fila" || t.estado === "rodando" || t.estado === "precisa_de_voce" || t.estado === "fechado_ocioso");
+  if (abertas.length < 2) return "";
+  const hoje = new Date(estado.agora || Date.now()); hoje.setHours(0, 0, 0, 0);
+  const grupos: [string, typeof todos][] = [
+    ["Precisa de você", abertas.filter((t) => t.estado === "precisa_de_voce")],
+    // A que roda mas só espera (a CI, um colega, a hora marcada: `emEspera`) vai para Esperando, como o bloco da fala.
+    ["Trabalhando", abertas.filter((t) => t.estado === "rodando" && !emEspera(t))],
+    ["Esperando", abertas.filter((t) => t.estado === "na_fila" || t.estado === "fechado_ocioso" || (t.estado === "rodando" && emEspera(t)))],
+    ["Terminadas hoje", todos.filter((t) => t.estado === "terminado" && (t.terminadoEm ?? 0) >= hoje.getTime())],
+  ];
+  const quando = (t: (typeof todos)[number]): string => {
+    if (t.estado === "terminado") return hora(t.terminadoEm ?? t.criadoEm);
+    if (t.estado === "precisa_de_voce") return "agora";
+    return interpolar(t.iniciadoEm ?? t.criadoEm, estado.agora).replace(/^há /, "");
+  };
+  const marca = (t: (typeof todos)[number]): string =>
+    t.estado === "rodando" && !emEspera(t) ? iconeAgente(a, "sm", "trabalhando") : t.estado === "precisa_de_voce" ? '<span class="gvf-marca gvf-pede" aria-hidden="true"></span>' : t.estado === "terminado" ? `<span class="gvf-marca gvf-feita" aria-hidden="true">${ICONE_P('<path d="M3.5 8.5l3 3 6-7"/>', 14)}</span>` : '<span class="gvf-marca gvf-espera" aria-hidden="true"></span>';
+  const aberta = estado.tela.tipo === "trabalho" ? estado.tela.id : null;
+  const linhaF = (t: (typeof todos)[number]) => linha(`${marca(t)}<span class="gv-linha-txt"><b>${esc(t.titulo)}</b><small${t.estado === "precisa_de_voce" ? ' class="gv-pede"' : ""}>${esc(t.ultimoPasso ?? "")}</small></span><span class="gvf-quando">${esc(quando(t))}</span>`, `data-act="abrir-trabalho" data-id="${esc(t.id)}"${t.id === aberta ? ' aria-current="page"' : ""}`);
+  const secoes = grupos.filter(([, l]) => l.length).map(([titulo, l]) => `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>${titulo}</h3><span class="gv-conta">${l.length}</span></div><div class="gv-cartao">${l.map(linhaF).join("")}</div></section>`).join("");
+  return `${secoes}<button type="button" class="gv-cab-link gvf-tudo" ${irPara(a, "atividade")}>Toda a atividade de hoje${ICONE_CHEVRON}</button>`;
+}
+
+/** Os nomes do segmentado de Ajustes › Aprovações (Paper 01/07): Manual | Automático | Total. */
+const NOME_DO_MODO: Readonly<Record<string, string>> = { manual: "Manual", automatico: "Automático", total: "Total" };
+
+/**
+ * Paper 02 (rodada 3 da casca): no Automático, "Automático · 6 regras" — as regras "Pode fazer sem perguntar" que valem
+ * para o bot (as do padrão e as dele). A main lê os ajustes do bot uma vez (`pedirRegrasDoBot`) e guarda a contagem aqui;
+ * até lá, e fora do Automático, só o nome do modo.
+ */
+export const regrasPodeFazer = new Map<string, number>();
+let pedirRegras: ((agenteId: string) => void) | null = null;
+export function aoPedirRegrasDoBot(f: (agenteId: string) => void): void { pedirRegras = f; }
+export function subtituloDasAprovacoes(a: Pick<Bot, "id" | "modoAprovacao">): string {
+  const nome = NOME_DO_MODO[a.modoAprovacao ?? "manual"] ?? "Manual";
+  if (a.modoAprovacao !== "automatico") return nome;
+  const n = regrasPodeFazer.get(a.id);
+  if (n === undefined) { pedirRegras?.(a.id); return nome; }
+  return n > 0 ? `${nome} · ${n} ${n === 1 ? "regra" : "regras"}` : nome;
+}
+const ICONE_P = (corpo: string, t = 16): string => `<svg class="gv-ic" width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corpo}</svg>`;
+const ICONE_RELOGIO = ICONE_P('<circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1.5"/>');
+const ICONE_ESCUDO = ICONE_P('<path d="M8 2l5 2v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z"/><path d="M5.8 8l1.6 1.6 2.9-3"/>');
+const ICONE_QUADRO_P = ICONE_P('<rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M6 2.5v11M10 2.5v7"/>');
+const ICONE_CHEVRON = ICONE_P('<path d="M6 4l4 4-4 4"/>', 14).replace('class="gv-ic"', 'class="gv-chev"');
+
+/** "amanhã", "hoje às 9h", "em 12 min", "sex às 17h": a próxima execução curta do Paper. */
+export function proximaCurta(quando: number | null | undefined, agora: number): string {
+  if (!quando) return "";
+  const d = quando - agora;
+  if (d < 60 * 60_000) return interpolar(quando, agora);
+  const a = new Date(agora), q = new Date(quando);
+  const dia = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dias = Math.round((dia(q) - dia(a)) / 864e5);
+  const h = q.getMinutes() ? `${q.getHours()}h${String(q.getMinutes()).padStart(2, "0")}` : `${q.getHours()}h`;
+  if (dias === 0) return `hoje às ${h}`;
+  if (dias === 1) return "amanhã";
+  return `${["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][q.getDay()]} às ${h}`;
+}
+
+/** O Quadro em Ajustes: "2 em andamento · 1 bloqueada" quando a tela já conhece o quadro; senão, "Tarefas". */
+function resumoDoQuadro(estado: Estado, agenteId: string): string {
+  void estado;
+  const r = resumosDosQuadros.get(agenteId);
+  if (!r) return "Tarefas";
+  const partes = [r.andando ? `${r.andando} em andamento` : "", r.bloqueadas ? `${r.bloqueadas} ${r.bloqueadas === 1 ? "bloqueada" : "bloqueadas"}` : ""].filter(Boolean);
+  return partes.join(" · ") || "Nada em andamento";
+}
+
+/** ADR-165 (Paper 02/15): o bloco Frentes — o que o bot está fazendo agora, uma linha por trabalho aberto. */
+function blocoFrentes(estado: Estado, a: Bot): string {
+  const abertos = abertosDoBot(estado, a.id, a.conversaId).slice(0, 4);
+  if (!abertos.length) return "";
+  const linhaFrente = (t: (typeof abertos)[number]) => {
+    const desde = t.iniciadoEm ?? t.criadoEm;
+    const quando = t.estado === "na_fila" ? "Na fila · começa já" : t.estado === "precisa_de_voce" ? `Precisa de você${t.ultimoPasso ? ` · ${t.ultimoPasso}` : ""}` : t.estado === "fechado_ocioso" ? (t.ultimoPasso ?? "Esperando") : `Rodando há ${interpolar(desde, estado.agora).replace(/^há /, "")}`;
+    const barra = t.estado === "rodando" ? '<span class="gv-barra" aria-hidden="true"><i></i></span>' : "";
+    return linha(`<span class="gv-linha-txt"><b>${esc(t.titulo)}</b><small${t.estado === "precisa_de_voce" ? ' class="gv-pede"' : ""}>${esc(quando)}</small></span>${barra}`, `data-act="abrir-trabalho" data-id="${esc(t.id)}"`);
+  };
+  return `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>Frentes</h3></div><div class="gv-cartao">${abertos.map(linhaFrente).join("")}</div></section>`;
+}
+
+/** ADR-165 (Paper 02): o bloco Computador — a linha com o estado e a miniatura; o clique abre a tela do bot. */
+function blocoComputador(estado: Estado, a: Bot): string {
+  const visto = estadoDoComputadorNaGaveta(estado, a);
+  const sub = visto === "fora" ? "Fora do ar" : visto === "dormindo" ? "Dormindo" : visto === "sem" ? "Ainda sem computador" : visto === null ? "Ativo" : "Ativo";
+  const ok = visto !== "fora" && visto !== "sem" && visto !== "dormindo";
+  // Paper 02 (rodada 3): "Ativo · Mac do Marlon", o nome da máquina onde o computador mora.
+  return `<section class="gv-secao gv-computador"><div class="gv-secao-cab"><h3>Computador</h3></div><div class="gv-cartao">${linha(`<span class="gv-linha-txt"><b>${esc(`Computador de ${a.nome}`)}${a.computadorForaDoAr ? '<span class="gvn-ponto" aria-hidden="true"></span><span class="sr-only"> (fora do ar)</span>' : ""}</b><small class="${ok ? "gv-ok" : ""}">${esc(sub)}${ok && estado.computadorPessoa ? ` · ${estado.computadorPessoa.maquina?.nome ?? "Mac"}` : ""}</small></span><span class="gv-mini${ok ? "" : " gv-mini-off"}" data-tela-bot="${esc(a.id)}" aria-hidden="true"><img alt="" hidden /><i></i><i></i></span>`, `data-act="gaveta-aba" data-aba="computador" data-id="${esc(a.id)}" aria-label="${esc(`Ver o computador de ${a.nome}`)}"`)}</div></section>`;
 }
 
 /**
@@ -287,8 +412,9 @@ export function abaBiblioteca(estado: Estado, a: Bot, dona: boolean, celular = f
   // Revisão 2: a mesma conversa que a busca e a releitura usam (a da tela).
   const conversaId = estado.tela.tipo === "conversa" ? estado.tela.conversaId : a.conversaId;
   const url = (id: string) => `/api/t/${encodeURIComponent(tenant)}/conversas/${encodeURIComponent(conversaId)}/anexos/${encodeURIComponent(id)}`;
-  const lista = renderListaBiblioteca(estado.bibliotecaDoBot[conversaId], { conversaId, url, bot: a.nome, sumiram: lembrancaDaMidia.sumiram, esteMac: lembrancaDaMidia.esteMac, agora: estado.agora > 0 ? estado.agora : Date.now(), ...(celular ? { celular } : {}) });
-  return `${pasta}<section class="gv-secao gvb">${lista}</section>`;
+  const lista = renderListaBiblioteca(estado.bibliotecaDoBot[conversaId], { conversaId, url, bot: a.nome, sumiram: lembrancaDaMidia.sumiram, esteMac: lembrancaDaMidia.esteMac, agora: estado.agora > 0 ? estado.agora : Date.now(), ...(celular ? { celular } : { cartoes: true }) });
+  // ADR-165 (Paper 02b): no computador os cartões vêm primeiro e a Pasta de trabalho fica embaixo deles.
+  return celular ? `${pasta}<section class="gv-secao gvb">${lista}</section>` : `<section class="gv-secao gvb">${lista}</section>${pasta}`;
 }
 
 /**
@@ -528,8 +654,6 @@ function campoVoz(a: Bot): string {
     <div class="segmentado sm" role="radiogroup" aria-label="Velocidade da fala">${velocidades}</div></fieldset>`;
 }
 
-const NOMES_FORMAS = ["Quadrado", "Hexágono", "Círculo", "Galet", "Cápsula", "Triângulo", "Nuvem", "Gota"];
-const NOMES_CORES = ["Vermelho", "Rosa", "Roxo", "Azul", "Turquesa", "Verde", "Laranja", "Preto", "Marrom", "Âmbar", "Cinza", "Creme"];
 
 function segmentado(agenteId: string, nomeBot: string, conectorId: string, atual: NivelAtual): string {
   return `<div class="segmentado sm" role="group" aria-label="${esc(`Acesso de ${nomeBot}`)}">${(["nenhum", "leitura", "escrita"] as const).map((n) => `<button type="button" class="seg${n === atual ? " ativo" : ""}" data-act="nivel-bot" data-id="${esc(agenteId)}" data-conector="${esc(conectorId)}" data-nivel="${n}" aria-pressed="${n === atual}">${esc(ROTULO_NIVEL[n])}</button>`).join("")}</div>`;

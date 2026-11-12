@@ -1,4 +1,4 @@
-import { esc, hora } from "../lib/render.ts";
+import { esc, horaSemZero } from "../lib/render.ts";
 
 /**
  * Divisores de data entre blocos de horário (chat limpo, PR 6; plano, Parte 5; como o "Today 00:25" do Grok e o protótipo
@@ -54,8 +54,9 @@ export function rotuloDoDia(em: number, agora: number): string {
  * (`role="separator"` não lê o conteúdo) leva sempre o texto inteiro, com o dia.
  */
 export function htmlDivisor(em: number, agora: number, comDia: boolean): string {
-  const inteiro = `${rotuloDoDia(em, agora)} ${hora(em)}`;
-  return `<div class="time-sep" role="separator" aria-label="${esc(inteiro)}">${esc(comDia ? inteiro : hora(em))}</div>`;
+  // Rodada 3 da casca: a hora sem o zero à esquerda, como o Paper ("Hoje 9:12").
+  const inteiro = `${rotuloDoDia(em, agora)} ${horaSemZero(em)}`;
+  return `<div class="time-sep" role="separator" aria-label="${esc(inteiro)}">${esc(comDia ? inteiro : horaSemZero(em))}</div>`;
 }
 
 /**

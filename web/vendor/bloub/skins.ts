@@ -33,6 +33,12 @@ export type ShapeId =
   | 'hexagone'
   | 'nuage'
   | 'goutte'
+  // nod (ADR-172): as cinco formas a mais do seletor (13, como o do Grok Bot)
+  | 'oeuf'
+  | 'coeur'
+  | 'etoile'
+  | 'fleur'
+  | 'trefle'
 
 export interface BotShape {
   id: ShapeId
@@ -76,6 +82,69 @@ const droplet = normalize(
 /** Capsule couchee : enveloppe de deux disques cote a cote. */
 const capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0)
 
+/* nod (ADR-172, 2026-11-12): cinco formas a mais, com os mesmos construtores analiticos de cima. */
+
+/** Ovo : mais estreito que o circulo e mais largo embaixo. */
+const egg = normalize(
+  profileFromPolygon(
+    Array.from({ length: 96 }, (_, i) => {
+      const t = (i / 96) * Math.PI * 2
+      return { x: 0.8 * Math.cos(t) * (1 + 0.13 * Math.sin(t)), y: Math.sin(t) }
+    }),
+    0,
+    0.05
+  ),
+  1.04
+)
+
+/** O maior dos dois raios em cada angulo: a uniao de duas formas que contem a origem. */
+const uniao = (a: number[], b: number[]): number[] => a.map((r, i) => Math.max(r, b[i] ?? 0))
+
+/** Coracao : dois lobos em cima (com o vinco no meio) e, de cada um, a tangente ate a ponta embaixo. */
+const heart = normalize(
+  uniao(
+    uniao(
+      unionOfCirclesProfile([
+        { x: -0.42, y: -0.3, r: 0.5 },
+        { x: 0.42, y: -0.3, r: 0.5 }
+      ]),
+      profileFromPolygon(hullOfCircles(-0.42, -0.3, 0.5, 0, 0.82, 0.09), 0, 0)
+    ),
+    profileFromPolygon(hullOfCircles(0.42, -0.3, 0.5, 0, 0.82, 0.09), 0, 0)
+  ),
+  1.06
+)
+
+/** Estrela macia : cinco pontas arredondadas, uma para cima (theta = -90deg). */
+const star = normalize(
+  ANGLES.map((a) => 0.8 + 0.2 * Math.cos(5 * (a + Math.PI / 2))),
+  1.1
+)
+
+/** Flor : seis petalas em volta de um miolo. */
+const flower = normalize(
+  unionOfCirclesProfile([
+    { x: 0, y: 0, r: 0.62 },
+    ...Array.from({ length: 6 }, (_, i) => {
+      const a = (i / 6) * Math.PI * 2 - Math.PI / 2
+      return { x: Math.cos(a) * 0.5, y: Math.sin(a) * 0.5, r: 0.42 }
+    })
+  ]),
+  1.06
+)
+
+/** Trevo : tres folhas, uma para cima. */
+const clover = normalize(
+  unionOfCirclesProfile([
+    { x: 0, y: 0.05, r: 0.5 },
+    ...[-90, 30, 150].map((g) => {
+      const a = (g * Math.PI) / 180
+      return { x: Math.cos(a) * 0.44, y: Math.sin(a) * 0.44 + 0.05, r: 0.52 }
+    })
+  ]),
+  1.06
+)
+
 export const SHAPES: BotShape[] = [
   { id: 'cercle', radii: new Array(PROFILE_SAMPLES).fill(1) },
   { id: 'galet', radii: pebble },
@@ -88,7 +157,12 @@ export const SHAPES: BotShape[] = [
   // 0deg : sommets a gauche et a droite, donc aretes du haut et du bas plates
   { id: 'hexagone', radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
   { id: 'nuage', radii: cloud },
-  { id: 'goutte', radii: droplet }
+  { id: 'goutte', radii: droplet },
+  { id: 'oeuf', radii: egg },
+  { id: 'coeur', radii: heart },
+  { id: 'etoile', radii: star },
+  { id: 'fleur', radii: flower },
+  { id: 'trefle', radii: clover }
 ]
 
 // Map indexee par `string` et non par `ShapeId` : les appelants interrogent avec

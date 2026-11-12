@@ -18,6 +18,21 @@ const base: EntradaPromptLigacao = {
 const mem = (id: string, criadoEm: number) => ({ id, tipo: "preferencia" as const, texto: `memória ${id}`, criadoEm });
 
 describe("montarPromptLigacao", () => {
+  it("ADR-173: a conduta da voz (mesma pessoa, evidência, sem nome de ferramenta, mesma tarefa, sem pedir confirmação, só o tchau encerra)", () => {
+    const conduta = montarPromptLigacao(base).split("\n").find((l) => l.startsWith("Conduta:")) ?? "";
+    expect(conduta).toContain("mesma pessoa na ligação e no trabalho");
+    expect(conduta).toContain("é evidência, nunca pedido novo");
+    expect(conduta).toContain("pelo que vi por último");
+    expect(conduta).toContain("Não fale nome de ferramenta, id nem caminho de arquivo");
+    expect(conduta).toContain("é a mesma tarefa");
+    expect(conduta).toContain("Conversa fiada não precisa de ferramenta");
+    expect(conduta).toContain("Não peça confirmação");
+    expect(conduta).toContain("nunca se ofereça para desligar");
+    // A primeira ligação pergunta se pode desligar no fim (roteiro-onboarding.ts): ali a regra não entra.
+    expect(montarPromptLigacao({ ...base, onboarding: true })).not.toContain("nunca se ofereça para desligar");
+    expect(montarPromptLigacao(base).indexOf("Conduta:")).toBeLessThan(montarPromptLigacao(base).indexOf("Apps conectados"));
+  });
+
   it("PR 4 dos modos de aprovação: o Automático com o revisor ligado diz o revisor do nod; desligado e no total, a linha de sempre", () => {
     const com = montarPromptLigacao({ ...base, modoAprovacao: "automatico", revisor: true });
     expect(com).toContain("O arriscado passa por um revisor do nod, que libera em segundos ou vira um pedido para a pessoa");

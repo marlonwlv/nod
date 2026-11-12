@@ -623,7 +623,7 @@ const PREFIXOS_DAS_SECOES: readonly (readonly [SecaoDoPrompt, readonly string[]]
   // definido em 2026-10-04 (ADR-072): "Fala:", "Ligação:", "Primeira ligação:", "Colegas no nod" e "Apps conectados" são
   // do prompt de voz (prompt-ligacao.ts); o de texto nunca começa linha assim.
   ["identidade", ["Você é ", "Responda sempre em", "Formatação:", "Tom:", "Calibração:", "O que você faz:", `${PREFIXO_SOBRE_A_PESSOA} (`, "Fala:"]],
-  ["modo", [...Object.values(INSTRUCAO_MODO).map((t) => t.slice(0, 40)), "Modo de pedido de colega:", "Aprovações:", "Ligação:", "Primeira ligação:"]],
+  ["modo", [...Object.values(INSTRUCAO_MODO).map((t) => t.slice(0, 40)), "Modo de pedido de colega:", "Aprovações:", "Ligação:", "Conduta:", "Primeira ligação:"]],
   ["computador", ["Seu computador está", "Você tem um computador", "Pastas do computador"]],
   ["colegas", ["Colaboração:", "Diretório de colegas", "Limite da corrente:", "Quem receber um pedido seu", "Colegas no nod"]],
   ["rotinas", ["Quando a pessoa pedir uma tarefa recorrente", "Se o pedido de rotina não diz quando", "Rotinas deste agente:", "Inventário de rotinas", "Pausar interrompe", "Pausar e reativar"]],

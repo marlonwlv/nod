@@ -125,5 +125,8 @@ export function usoDaConta(c: ContaIa, x: ContextoDoUso): string {
       ? `<p class="cu-fila">Ao chegar no limite, os trabalhos seguem em ${esc(nomeDaConta(prox))}.</p>`
       : `<p class="cu-fila">Sem outra conta do ${esc(PROVEDOR[c.ia].nome)} na fila: no limite, as rotinas esperam até renovar.</p>`;
   }
-  return `<div class="cl-uso">${janelas}</div>${pe}${fila}`;
+  // Rodada 3 (tela 19 do Paper): as duas janelas numa linha ("5 h ▬ 62%  semana ▬ 34%"); quando renova e quando foi
+  // medido vão no title da linha (e no texto falado de cada barra), não em linhas embaixo.
+  const dica = [q.cincoHoras?.renovaEm ? `5 h: renova ${quandoRenova(q.cincoHoras.renovaEm, x.agora)}` : "", q.semana?.renovaEm ? `Semana: renova ${quandoRenova(q.semana.renovaEm, x.agora)}` : "", `medido ${ha(q.medidoEm, x.agora)}${onde ? ` no ${onde}` : ""}${velho ? " · pode ter mudado" : ""}`].filter(Boolean).join(" · ");
+  return `<div class="cl-uso cl-uso-linha" title="${esc(dica)}">${janelas}</div>${velho ? pe : ""}${fila}`;
 }

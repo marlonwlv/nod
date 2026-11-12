@@ -3,7 +3,7 @@ import { readFile, statfs } from "node:fs/promises";
 import { availableParallelism, cpus, homedir, loadavg } from "node:os";
 import { join } from "node:path";
 import type { LeituraDisco, LeituraMemoria, LeituraProcessador, NivelPressao } from "../../contracts/trabalho.ts";
-import { cargaDoLoadavg, discoDoStatfs, discoSimulado, leituraDoProcessador, leituraDoTurno, lerLinhasDoPs, marcaNoAmbiente, nivelDaMemoriaLinux, nivelDaPressao, nivelDoDisco, pressaoSimulada, somarComFugitivos, temposDaCpu, usoDaCpu, type LinhaDoPs, type TemposCpu } from "../../domain/memoria-mac.ts";
+import { cargaDoLoadavg, cpuComFugitivos, discoDoStatfs, discoSimulado, leituraDoProcessador, leituraDoTurno, lerLinhasDoPs, marcaNoAmbiente, nivelDaMemoriaLinux, nivelDaPressao, nivelDoDisco, pressaoSimulada, somarComFugitivos, temposDaCpu, usoDaCpu, type LinhaDoPs, type TemposCpu } from "../../domain/memoria-mac.ts";
 import { log } from "../../obs/log.ts";
 import { ambientesDosProcessos } from "./grupos-orfaos.ts";
 import { marcasDosGruposVivos } from "./processo.ts";
@@ -98,6 +98,7 @@ export function criarAmostradorMemoria(o: { env: Record<string, string | undefin
   const grupos = new Map<string, number>();
   let nivel: NivelPressao = "verde";
   let rss = new Map<number, number>();
+  let cpu = new Map<number, number>();
   let processador: LeituraProcessador | null = null;
   let temposAnteriores: TemposCpu | null = null;
   let temposEm = 0;
@@ -216,9 +217,12 @@ export function criarAmostradorMemoria(o: { env: Record<string, string | undefin
   async function lerGrupos(): Promise<Map<number, number>> {
     if (grupos.size === 0) return new Map();
     try {
-      const linhas = lerLinhasDoPs(await executar("/bin/ps", ["-A", "-o", "pid=,pgid=,rss="]));
+      // ADR-169: o %cpu na 4ª coluna dá a CPU por bot/turno na mesma passada do ps.
+      const linhas = lerLinhasDoPs(await executar("/bin/ps", ["-A", "-o", "pid=,pgid=,rss=,%cpu="]));
       const dosTurnos = new Set(grupos.values());
-      return somarComFugitivos(linhas, dosTurnos, await grupoDosFugitivos(linhas, dosTurnos));
+      const fugitivos = await grupoDosFugitivos(linhas, dosTurnos);
+      cpu = cpuComFugitivos(linhas, dosTurnos, fugitivos);
+      return somarComFugitivos(linhas, dosTurnos, fugitivos);
     } catch (erro) {
       avisar("memoria_ps_sem_leitura", erro);
       return rss;
@@ -261,7 +265,7 @@ export function criarAmostradorMemoria(o: { env: Record<string, string | undefin
       comecar();
       // Grupo novo: a próxima amostra já o mede, sem esperar a batida de 30 s.
       if (novo && !rss.has(grupo)) void amostrar();
-      return leituraDoTurno({ nivel, rssPorGrupo: rss, gruposVivos: [...grupos.values()], turnoId, grupo, processador, disco: daMaquinaLe ? disco : undefined, blocoMb: o.bloco?.() ?? 0 });
+      return leituraDoTurno({ nivel, rssPorGrupo: rss, cpuPorGrupo: cpu, gruposVivos: [...grupos.values()], turnoId, grupo, processador, disco: daMaquinaLe ? disco : undefined, blocoMb: o.bloco?.() ?? 0 });
     },
     daMaquina() {
       if (!daMaquinaLe) return undefined;

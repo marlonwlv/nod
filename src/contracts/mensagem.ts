@@ -143,7 +143,7 @@ export type PayloadMensagem =
    */
   | { kind: "pasta_aberta"; propostaId: string; agenteId: string; pasta: string; nome: string; onde?: string; turnoId?: string | null }
   /** 2026-09-28 (ADR-051): só ids, o HTML não viaja com a conversa; o canvas (ADA-13, ADR-150) também: ids e contagens; a lista compacta dele (ADA-228, J7-5) só o resumo. */
-  | { kind: "artefato"; artefatoId: string; versao: number; titulo: string } | { kind: "canvas"; canvasId: string; agenteId: string; versao: number; titulo: string; issue?: string | null; jornadas: number; telas: number; importado: boolean; confiavel?: boolean; origemUrl?: string | null } | import("./ferramentas-canvas.ts").PayloadCanvasLista
+  | { kind: "artefato"; artefatoId: string; versao: number; titulo: string } | { kind: "canvas"; canvasId: string; agenteId: string; versao: number; titulo: string; issue?: string | null; jornadas: number; telas: number; importado: boolean; confiavel?: boolean; origemUrl?: string | null } | import("./ferramentas-canvas.ts").PayloadCanvasLista | import("./ferramentas-cartoes.ts").PayloadCartoes
   /** definido em 2026-10-04 (ADR-075): a linha "Chat de voz · mm:ss"; a transcrição vem por GET ligacoes/:id/falas. */
   | PayloadLinhaLigacao
   /**

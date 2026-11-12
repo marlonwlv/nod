@@ -178,7 +178,7 @@ export function criarComentariosNaTela(o: {
      * 2026-11-10: a tarefa aberta como a issue do Multica: a linha do tempo, o chip do topo, o Registro, as Entregas e o
      * diálogo dos runs. undefined = a API não tem os comentários (a tela fica como era).
      */
-    partes(t: TarefaDto, o2: { colunas: Parameters<typeof linhaDoTempo>[0]["colunas"]; agente: AgenteDoQuadro; nomes: readonly string[]; passos: (turno: string, n?: number) => PassoAoVivo | null; trabalho?: string; agora?: number; maquina?: string | null; /** 2026-11-10: os pedidos de quem participa e o catálogo de labels (a linha do tempo os mostra). */ quadro?: Pick<QuadroDto, "comentarios" | "labels"> }) {
+    partes(t: TarefaDto, o2: { colunas: Parameters<typeof linhaDoTempo>[0]["colunas"]; agente: AgenteDoQuadro; nomes: readonly string[]; passos: (turno: string, n?: number) => PassoAoVivo | null; trabalho?: string; agora?: number; maquina?: string | null; /** 2026-11-10: os pedidos de quem participa e o catálogo de labels (a linha do tempo os mostra). */ quadro?: Pick<QuadroDto, "comentarios" | "labels">; /** Rodada 4: as iniciais de quem lê. */ voceIniciais?: string | null }) {
       if (!o.api()?.comentariosDaTarefa) return undefined;
       const e = estado?.tarefaId === t.id ? estado : null;
       agenteDosChips = o2.agente;
@@ -193,7 +193,8 @@ export function criarComentariosNaTela(o: {
       return {
         linha: linhaDoTempo({
           t, colunas: o2.colunas, comentarios: e?.lista ?? [], runs, agente: o2.agente, agora, nomes: o2.nomes, respondendo: ui.respondendo, editando: ui.editando,
-          abertos: ui.abertos, passos: o2.passos, todosPassos: ui.todosPassos, parando: ui.parando, chips, pendente: e?.pendente ?? null, fechouPergunta: ui.fechouPergunta, criadaPor: e?.criadaPor ?? null, criadaEm: primeiro?.criadoEm ?? null, carga: e?.carga ?? "carregando",
+          // Tela 18b do Paper: no computador a pergunta tem o cartão em cima; o reply da linha do tempo não abre sozinho.
+          abertos: ui.abertos, passos: o2.passos, todosPassos: ui.todosPassos, parando: ui.parando, chips, pendente: e?.pendente ?? null, fechouPergunta: true, criadaPor: e?.criadaPor ?? null, criadaEm: primeiro?.criadoEm ?? null, criadaResumo: primeiro?.resumo ?? null, voceIniciais: o2.voceIniciais ?? null, carga: e?.carga ?? "carregando",
           atividade: e?.atividade ?? [], labels: o2.quadro?.labels ?? [], pedidos: (o2.quadro?.comentarios ?? []).filter((c) => c.tarefaId === t.id), atividadesAbertas: ui.atividadesAbertas,
         }),
         // O chip único de espera (você, a CI, a hora) e o chip de quem trabalha, com o popover por run.
@@ -203,6 +204,8 @@ export function criarComentariosNaTela(o: {
         entregas: entregas({ comentarios: e?.lista ?? [], todas: ui.entregasTodas, aberto: !recolhidas.has("ent") }),
         dialogo: dialogoDosRuns({ runs, agente: o2.agente, agora }) + dialogoDaTranscricao(transcricao(t, o2.agente, o2.passos, agora, o2.maquina ?? null)),
         recolhidas,
+        // Rodada 4 (tela 18b do Paper): o "Pedida por … pela <bot>" da lateral.
+        criadaPor: e?.criadaPor ?? null,
       };
     },
     /**
@@ -214,7 +217,14 @@ export function criarComentariosNaTela(o: {
       if (act === "com-responder") { ui.respondendo = d["raiz"] ?? null; ui.editando = null; o.redesenhar(); doc.getElementById(`qd-com-${estado?.tarefaId ?? ""}-${ui.respondendo ?? ""}`)?.focus(); return true; }
       if (act === "com-responder-fechar") { const k = d["raiz"] ?? ui.respondendo; if (k) ui.previas.delete(k); ui.respondendo = null; ui.fechouPergunta = true; o.redesenhar(); return true; }
       // O chip "Esperando você responder" do cabeçalho leva ao reply da pergunta (aberto de novo, se a pessoa fechou).
+      // Tela 18b do Paper: a pergunta é o cartão em cima (o campo dele); sem o cartão, o reply da linha do tempo.
       if (act === "ir-pergunta") {
+        const cartao = doc.querySelector<HTMLElement>(".qd-tarefa #ta-pergunta");
+        if (cartao) {
+          cartao.scrollIntoView({ block: "center", behavior: "smooth" });
+          cartao.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
+          return true;
+        }
         ui.fechouPergunta = false;
         o.redesenhar();
         const alvo = doc.querySelector<HTMLElement>(".qd-tarefa .ta-th-pergunta");

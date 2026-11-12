@@ -211,7 +211,7 @@ describe("o ponto da memória na pílula do bot (decisão tomada 5; PR 8)", () =
   it("no bloco de progresso na fala: o ponto ao lado do número, só no bloco que ainda anda", () => {
     const frentes = [{ trabalhoId: "w", titulo: "Relatório", estado: "rodando" as const, passo: "lendo", tempo: "3 min", terminouEm: null }, { trabalhoId: "w2", titulo: "Resumo", estado: "pronta" as const, passo: null, tempo: null, terminouEm: AGORA }];
     const html = htmlProgresso(frentes, { chave: "a1", agenteId: "ada", memoria: { texto: "Pouca memória no seu Mac · 1 trabalho aberto", nivel: "amarela" } });
-    expect(html).toContain('1 de 2 prontas<span class="progresso-memoria amarela" role="img" aria-label="Pouca memória no seu Mac · 1 trabalho aberto" title="Pouca memória no seu Mac · 1 trabalho aberto"></span>');
+    expect(html).toContain('<b class="progresso-principal">1 de 2 prontas</b><span class="progresso-memoria amarela" role="img" aria-label="Pouca memória no seu Mac · 1 trabalho aberto" title="Pouca memória no seu Mac · 1 trabalho aberto"></span>');
     expect(htmlProgresso(frentes, { chave: "a1", agenteId: "ada" })).not.toContain("progresso-memoria");
   });
 });

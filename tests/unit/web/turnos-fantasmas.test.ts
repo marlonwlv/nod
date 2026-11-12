@@ -82,10 +82,10 @@ describe("cabeçalho e ao vivo leem a mesma regra do mascote (NOD-216)", () => {
     expect(cab).not.toContain('presenca ativa');
   });
 
-  it("rodando: 'Trabalhando' e mascote animado", () => {
+  it("rodando: 'Trabalhando' e mascote animado (Paper 05: só pensando, o avatar da pílula mostra '···')", () => {
     const cab = renderCabecalhoConversa(comConversa({ t1: vivo("t1", { estado: "rodando" }) }), "a");
     expect(cab).toContain("Trabalhando");
-    expect(cab).toContain('data-estado="trabalhando"');
+    expect(cab).toContain('data-estado="pensando"');
   });
 
   it("o turno de uma task não diz 'Trabalhando' no cabeçalho da conversa", () => {
@@ -228,6 +228,9 @@ describe("revisão do PR #302 (NOD-216)", () => {
     expect(mascoteComAviso("trabalhando", "pergunta")).toBe("trabalhando");
     expect(mascoteComAviso("pensando", "pergunta")).toBe("pensando");
     expect(mascoteComAviso("na_fila", null)).toBe("na_fila");
+    // Igual ao Grok: a mensagem não lida é o ponto azul, não "aguardando você".
+    expect(mascoteComAviso("disponivel", "nao-lido")).toBe("disponivel");
+    expect(mascoteComAviso("disponivel", "decisao")).toBe("aguardando");
   });
 
   it("turnosVivosDaConversa reusa o conjunto dos turnos de task da mesma leitura de GET trabalhos", () => {

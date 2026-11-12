@@ -82,6 +82,8 @@ export type Tela =
   /** NOD-455 (ADR-143): o quadro de outra pessoa em que quem lê participa (/quadros/:qid). */
   | { tipo: "quadro-compartilhado"; quadroId: string }
   | { tipo: "nova-sala" }
+  /** Tela 18d do Paper: as tarefas dos quadros de todos os bots da pessoa (web/lib/tarefas-de-todos-na-tela.ts). */
+  | { tipo: "tarefas" }
   /** ADR-083 (#196): "Todos os trabalhos" — os de todos os bots da pessoa, com os filtros De você / Rotinas / Entre bots. */
   | { tipo: "trabalhos"; filtro?: FiltroTrabalhos }
   /**
@@ -161,7 +163,7 @@ export type ConectarMaquina = {
 };
 
 /** NOD-367 (protótipo v2): as seções das Configurações, nesta ordem na lateral. NOD-85: Rotinas entre Agentes e Feedback. */
-export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "agentes" | "rotinas" | "feedback";
+export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "feedback";
 /**
  * O que um ponto de entrada pode pedir: as 6 seções, as de antes da NOD-367 (avisos, preferências, este Mac,
  * computadores, computador do bot, relatos), que caem na seção que as absorveu, e "ajuda" (Geral, no bloco Ajuda).

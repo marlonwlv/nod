@@ -5,7 +5,7 @@ import { data, msOuNull } from "./conversao.ts";
 
 /** O que a linha registra (0093): o modo decidiu sem a pessoa, ou mandou ao revisor. Texto livre só aqui, nunca na trilha. */
 export type TipoAcaoDoModo = "comando" | "arquivo" | "leitura_credencial" | "app" | "mcp";
-export type GatilhoAcaoDoModo = "arriscado" | "envio_apos_fora" | "credencial" | "fora_da_pasta" | "comum";
+export type GatilhoAcaoDoModo = "arriscado" | "envio_apos_fora" | "credencial" | "fora_da_pasta" | "comum" | "regra_da_pessoa";
 
 export type NovaAcaoDoModo = {
   agenteId: string;
@@ -39,6 +39,10 @@ export type AcaoDoModo = NovaAcaoDoModo & {
   /** "Devia ter perguntado" (PR 4): quando a dona contestou a liberação do revisor. */
   contestadaEm: number | null;
   criadoEm: number;
+  /** ADR-164 (0165): a regra da pessoa que o revisor citou ao liberar; null = nenhuma. */
+  regraId?: string | null;
+  /** ADR-164: a regra que o revisor sugeriu no "pede" (texto de modelo, até 200); null = nenhuma. */
+  sugestao?: string | null;
 };
 
 interface Linha {
@@ -65,6 +69,8 @@ interface Linha {
   desfecho_pessoa: "aprovou" | "negou" | "venceu" | null;
   contestada_em: Date | null;
   criado_em: Date;
+  regra_id: string | null;
+  sugestao: string | null;
 }
 
 /** Uma ação na linha embaixo da fala: a do total (PR 6) ou a que o revisor liberou (PR 4, com o `motivo` dele). */
@@ -72,13 +78,15 @@ export type LinhaNaFala = {
   id: string; turno_id: string; modo: "automatico" | "total"; tipo: TipoAcaoDoModo; gatilho: GatilhoAcaoDoModo; resumo: string; risco: string | null; veredito: VereditoRevisao | null; motivo: string | null; criado_em: Date; linux: boolean;
   /** PR 4b: o item da decisão quando ela tem UM só (o comando, ou a ação no app), para a frase da ação; senão null. */
   item: { texto_final: string; destino: DestinoItem } | null;
+  /** ADR-164: a regra "Pode fazer sem perguntar" que liberou (o id e o texto de agora), para "Aprovado pela sua regra · Editar". */
+  regra: { id: string; texto: string; agente_id: string | null } | null;
 };
 /** Uma ação que rodou sem a pessoa, como a Atividade a lista (PR 6); `motivo` e `contestada_em` do revisor (PR 4). */
 export type LinhaSemAprovacao = { id: string; modo: "automatico" | "total"; tipo: TipoAcaoDoModo; gatilho: GatilhoAcaoDoModo; resumo: string; risco: string | null; veredito: VereditoRevisao | null; motivo: string | null; contestada_em: Date | null; criado_em: Date };
 /** O que a contestação devolve (PR 4): a linha contestada, para o log e a resposta. */
 export type AcaoContestada = { id: string; agente_id: string; tipo: TipoAcaoDoModo; gatilho: GatilhoAcaoDoModo; criado_em: Date; contestada_em: Date };
 
-const COLUNAS = "id, agente_id, conversa_id, turno_id, decisao_id, modo, tipo, resumo, gatilho, risco, veredito, falha, motivo, revisor_modelo, revisor_harness, revisor_maquina, entregue_em, revisor_ms, fichas_entrada, fichas_saida, desfecho_pessoa, contestada_em, criado_em";
+const COLUNAS = "id, agente_id, conversa_id, turno_id, decisao_id, modo, tipo, resumo, gatilho, risco, veredito, falha, motivo, revisor_modelo, revisor_harness, revisor_maquina, entregue_em, revisor_ms, fichas_entrada, fichas_saida, desfecho_pessoa, contestada_em, criado_em, regra_id, sugestao";
 
 const paraAcao = (l: Linha): AcaoDoModo => ({
   id: l.id,
@@ -104,6 +112,8 @@ const paraAcao = (l: Linha): AcaoDoModo => ({
   desfechoPessoa: l.desfecho_pessoa,
   contestadaEm: msOuNull(l.contestada_em),
   criadoEm: l.criado_em.getTime(),
+  regraId: l.regra_id ?? null,
+  sugestao: l.sugestao ?? null,
 });
 
 /** Inteiro não negativo ou null: as fichas e o tempo vêm da máquina (já validados na rota); aqui só a segunda camada. */
@@ -140,9 +150,11 @@ export function acoesPeloModoRepo(conn: Conn, escopo: Escopo) {
      * O veredito da fase 3, uma vez só (`veredito is null`): o relato repetido, o prazo e o varredor não regravam.
      * Devolve se gravou.
      */
-    async concluir(decisaoId: string, c: { veredito: VereditoRevisao; falha?: FalhaRevisao | null; motivo?: string | null; entregueEm?: number | null; revisorMs?: number | null; fichasEntrada?: number | null; fichasSaida?: number | null }): Promise<boolean> {
+    async concluir(decisaoId: string, c: { veredito: VereditoRevisao; falha?: FalhaRevisao | null; motivo?: string | null; entregueEm?: number | null; revisorMs?: number | null; fichasEntrada?: number | null; fichasSaida?: number | null; regraId?: string | null; sugestao?: string | null }): Promise<boolean> {
+      // ADR-164 (0165): `regra_id` = a regra da pessoa que o revisor citou ao liberar; `sugestao` = a regra que ele sugeriu no "pede".
       const r = await conn`
         update acoes_pelo_modo set veredito = ${c.veredito}, falha = ${c.falha ?? null}, motivo = ${c.motivo?.slice(0, 160) ?? null},
+          regra_id = ${c.regraId ?? null}, sugestao = ${c.sugestao?.slice(0, 200) ?? null},
           entregue_em = ${c.entregueEm ? data(c.entregueEm) : null}, revisor_ms = ${naoNegativo(c.revisorMs)},
           fichas_entrada = ${naoNegativo(c.fichasEntrada)}, fichas_saida = ${naoNegativo(c.fichasSaida)}
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and decisao_id = ${decisaoId} and veredito is null`;
@@ -190,8 +202,10 @@ export function acoesPeloModoRepo(conn: Conn, escopo: Escopo) {
       if (turnoIds.length === 0) return [];
       return conn<LinhaNaFala[]>`
         select a.id, a.turno_id, a.modo, a.tipo, a.gatilho, a.resumo, a.risco, a.veredito, a.motivo, a.criado_em, coalesce(mt.plataforma = 'linux', false) as linux,
-          case when it.n = 1 then jsonb_build_object('texto_final', it.texto_final, 'destino', it.destino) end as item
+          case when it.n = 1 then jsonb_build_object('texto_final', it.texto_final, 'destino', it.destino) end as item,
+          case when rr.id is not null then jsonb_build_object('id', rr.id, 'texto', rr.texto, 'agente_id', rr.agente_id) end as regra
         from acoes_pelo_modo a
+          left join regras_revisor rr on rr.tenant_id = a.tenant_id and rr.id = a.regra_id and rr.owner_id = a.owner_id
           join turnos t on t.tenant_id = a.tenant_id and t.id = a.turno_id
           left join maquina_tokens mt on mt.tenant_id = t.tenant_id and mt.id = t.machine_id
           left join lateral (

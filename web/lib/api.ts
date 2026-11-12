@@ -1,5 +1,7 @@
 import type { PreviaDoMoverDto } from "../../src/contracts/previa-mover.ts";
 import type { Prioridade } from "../../src/contracts/quadro-opcoes.ts";
+import type { CofreDto } from "../../src/contracts/cofre.ts";
+import type { AjustesAprovacao, ListaRegra, NivelDeFerramenta, NivelFerramenta, RegraRevisor, TetoModo, TipoNivel } from "../../src/contracts/ajustes-aprovacao.ts";
 import type { Time, TimeNaLista } from "../../src/contracts/time.ts";
 import type { ModoAcionar, PassosDoRunDto, PreviaComentarioDto, RunDaTarefa } from "../../src/contracts/quadro-comentarios.ts";
 import type { DetalheVersaoPerfil, ListaVersoesPerfil, VersaoPerfil } from "../../src/contracts/versoes-perfil.ts";
@@ -19,6 +21,7 @@ import type { AmbienteBancoDto, ChaveEmitidaDto, ChaveMaquinaDto, ConversaDto, F
 import type { Concessao } from "../../src/contracts/concessao.ts";
 import { cabecalhosDoApp, cabecalhosDoGoogleApp } from "./desafio-app.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
+import type { OpcoesOndeRodaDto } from "../../src/contracts/vm-do-nod.ts";
 import type { OpcoesRemover, PreviaRemoverDto, ResultadoRemoverDto } from "../../src/contracts/remover-computador.ts";
 import type { InstalacaoCriadaDto, InstalacaoSshDto, MetodoSsh } from "../../src/contracts/instalacoes-ssh.ts";
 import type { CadastroDto, EntrarDto, EsperaPareamentoDto, EstadoContaDto, EstadoPareamentoDto, ImportarDto, PareamentoAbertoDto, PedirPareamentoDto, RedefinirDto, SessoesDto, TrocarSenhaDto, VerificarDto } from "../../src/contracts/conta.ts";
@@ -495,6 +498,16 @@ export function criarApi(escopo: Escopo) {
     // ADR-059: o botão de aprovações do campo; o servidor escreve a troca na conversa do bot. O total exige `confirmado`
     // (o segundo clique do menu, emenda de 2026-10-18): sem ele o servidor responde 400.
     mudarModoAprovacao: (id: string, modo: ModoAprovacao, confirmado = false) => post<{ agente: Agente; mudou: boolean }>(`agentes/${id}/modo-aprovacao`, confirmado ? { modo, confirmado: true } : { modo }),
+    // ADR-164: Ajustes > Aprovações (regras do revisor, níveis por app, só leitura, teto do admin).
+    // Paper 07 (rodada 2): Configurações › Cofre — nome, app e data das chaves guardadas; nunca o valor.
+    cofre: () => get<CofreDto>("cofre"),
+    ajustesAprovacao: (agenteId: string | null) => get<AjustesAprovacao>(`aprovacoes/ajustes${agenteId ? `?agente=${encodeURIComponent(agenteId)}` : ""}`),
+    criarRegraRevisor: (corpo: { agenteId: string | null; lista: ListaRegra; texto: string; origem?: "pessoa" | "sugestao" }) => post<{ regra: RegraRevisor }>("aprovacoes/regras", corpo),
+    editarRegraRevisor: (id: string, texto: string) => patch<{ regra: RegraRevisor }>(`aprovacoes/regras/${encodeURIComponent(id)}`, { texto }),
+    apagarRegraRevisor: (id: string) => del<{ apagada: boolean }>(`aprovacoes/regras/${encodeURIComponent(id)}`),
+    definirNivelFerramenta: (corpo: { agenteId: string | null; conector: string; ferramenta?: string; tipo: TipoNivel; nivel: NivelFerramenta }) => post<{ nivel: NivelDeFerramenta }>("aprovacoes/niveis", corpo),
+    definirSoLeitura: (id: string, soLeitura: boolean) => post<{ agente: Agente }>(`agentes/${encodeURIComponent(id)}/so-leitura`, { soLeitura }),
+    definirTetoModo: (teto: TetoModo | null) => post<{ teto: TetoModo | null }>("aprovacoes/teto", { teto }),
     fixar: (id: string, fixado?: boolean) => post<{ agente: Agente }>(`agentes/${id}/fixar`, fixado === undefined ? {} : { fixado }),
     ocultar: (id: string, oculto?: boolean) => post<{ agente: Agente }>(`agentes/${id}/ocultar`, oculto === undefined ? {} : { oculto }),
     duplicar: (id: string) => post<{ agente: Agente; conversa: Conversa }>(`agentes/${id}/duplicar`),
@@ -620,6 +633,8 @@ export function criarApi(escopo: Escopo) {
     revogarChave: (id: string) => del<{ ok: true }>(`maquinas/chaves/${id}`),
     // ADR-090: as máquinas, onde cada bot trabalha, o pareamento por código e o "rodar em outra desta vez".
     maquinas: () => get<MaquinasDto>("maquinas"),
+    // ADR-167: as três opções de onde o agente roda; o servidor antigo dá 404 e a tela fica como antes.
+    ondeRoda: () => get<OpcoesOndeRodaDto>("maquinas/onde-roda"),
     maquinaDoBot: (agenteId: string, maquinaId: string | null) => pedir<{ agente: Agente }>("PUT", `${base}/agentes/${encodeURIComponent(agenteId)}/maquina`, { maquinaId }),
     moverBots: (maquinaId: string, agentes: string[]) => pedir<{ movidos: number }>("PUT", `${base}/maquinas/${encodeURIComponent(maquinaId)}/bots`, { agentes }),
     maquinaPadrao: (maquinaId: string | null) => pedir<{ padraoId: string | null }>("PUT", `${base}/maquinas/padrao`, { maquinaId }),

@@ -372,7 +372,7 @@ describe("T6: o seletor de IA no campo", () => {
   it("a régua mostra só os níveis que o modelo aceita, com o atual e 'N de M no <modelo>'", () => {
     const opus = renderMenuIa(dadosDoSeletor(cenario(), "a")!);
     expect(opus.match(/data-escolha="raciocinio"/g)).toHaveLength(5);
-    expect(opus).toContain("<b>Médio</b><small>· 2 de 5 no Opus</small>");
+    expect(opus).toContain("<small>· Médio · 2 de 5 no Opus</small>");
     expect(opus).toContain('aria-checked="true" aria-label="Médio"');
     const haiku = dadosDoSeletor(cenario({ harness: "claude-cli", modelo: "haiku" }), "a")!;
     const niveisHaiku = HARNESSES.find((h) => h.id === "claude-cli")!.modelos.find((m) => m.id === "haiku")!.raciocinios!;

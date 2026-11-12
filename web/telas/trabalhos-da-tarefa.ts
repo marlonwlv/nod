@@ -140,6 +140,49 @@ export function fraseDaVolta(v: NonNullable<ExecucaoDto["volta"]>, hora: (em: nu
   return v.motivo ? `${quando} · ${v.motivo}` : quando;
 }
 
+/**
+ * Rodada 3 (tela 18b do Paper): o bloco no Registro de execução, sem o título "Execuções" nem a linha do trabalho atual
+ * (os runs já estão na lista em cima). Ficam o "Recado ao agente" (o campo vira uma pílula até ganhar o foco), o "Ver na
+ * conversa" e, quando cabem, Repetir, Cancelar e Acordar agora; as notas (a volta, a nova tentativa, os recados) embaixo.
+ */
+export function secaoDoTrabalhoCompacta(v: VistaDoTrabalho, hora: (em: number) => string): string {
+  const abre = `<section class="qd-trab qd-trab-compacto" aria-label="Execuções" data-tarefa="${esc(v.tarefaId)}">`;
+  if (v.erro) return `${abre}<p class="qd-trab-nota">Não consegui ler os trabalhos · <button type="button" class="qd-link" data-act="trab-reler">Tentar de novo</button></p></section>`;
+  if (!v.dados) return `${abre}</section>`;
+  const d = v.dados;
+  if (d.semAgente) return `${abre}<p class="qd-trab-nota">Sem agente responsável</p></section>`;
+  const atual = d.execucoes[0];
+  const des = v.ocupado ? " disabled" : "";
+  const links: string[] = [];
+  if (d.conversaId) {
+    links.push(d.conversaId === v.conversaAtual
+      ? `<button type="button" class="qd-link qd-trab-ver" data-act="qc-abrir-conversa">Ver na conversa</button>`
+      : `<button type="button" class="qd-link qd-trab-ver" data-act="abrir-conversa" data-conversa="${esc(d.conversaId)}" data-agente="${esc(v.agenteId ?? "")}">Ver na conversa</button>`);
+  }
+  if (atual && vivo(atual)) {
+    links.push(`<button type="button" class="qd-link" data-act="trab-cancelar"${des}>Cancelar</button>`);
+    if (atual.esperando) links.push(`<button type="button" class="qd-link" data-act="trab-repetir"${des}>Repetir</button>`);
+  } else if (atual && (atual.estado === "falhou" || atual.estado === "concluido" || v.bloqueada)) {
+    links.push(`<button type="button" class="qd-link" data-act="trab-repetir"${des}>Repetir</button>`);
+  }
+  if (atual?.volta?.em != null) links.push(`<button type="button" class="qd-link" data-act="trab-acordar"${des}>Acordar agora</button>`);
+  const placeholder = atual && vivo(atual) ? "Recado ao agente (entra no próximo passo)" : "Recado ao agente (vira um trabalho novo)";
+  const recado = `<form class="qd-trab-form qd-trab-recado-pilula" data-form="recado-trabalho" data-id="${esc(v.tarefaId)}"><label class="qd-sr" for="qd-trab-recado">Recado ao agente</label>` +
+    `<textarea id="qd-trab-recado" class="qd-com-in" name="recado" rows="1" maxlength="${RECADO_MAX}" required placeholder="Recado ao agente" title="${esc(placeholder)}"></textarea>` +
+    `<button type="submit" class="qd-com-bt"${des}>Mandar</button></form>`;
+  const falha = atual?.estado === "falhou" ? `<p class="qd-trab-nota qd-trab-falha">${esc(trechoCurto(atual.motivo ?? "O trabalho falhou."))}</p>` : "";
+  const volta = atual?.volta ? `<p class="qd-trab-nota qd-trab-volta">${esc(fraseDaVolta(atual.volta, hora))}</p>` : "";
+  const agenda = atual && atual.novaTentativaEm !== null && !vivo(atual)
+    ? `<p class="qd-trab-nota">Nova tentativa sozinha às <time datetime="${new Date(atual.novaTentativaEm).toISOString()}">${esc(hora(atual.novaTentativaEm))}</time></p>` : "";
+  const aviso = v.aviso ? `<p class="qd-trab-nota">${esc(v.aviso)}</p>` : "";
+  const p = v.recadoPendente;
+  const pend = p ? `<p class="qd-trab-nota qd-trab-pend">Seu recado <span class="qd-trab-pend-txt">“${esc(p.texto.length > 80 ? `${p.texto.slice(0, 80)}…` : p.texto)}”</span> · ` +
+    (p.falhou && p.motivo === "duvida" ? "sem resposta: pode ter saído" : p.falhou && p.motivo === "recusado" ? "não entrou" : p.falhou ? `não saiu · <button type="button" class="qd-link" data-act="trab-recado-tentar">Tentar de novo</button>` : "enviando") + `</p>` : "";
+  return `${abre}<div class="qd-trab-acoes-c">${recado}${links.join("")}</div>${falha}${volta}${agenda}${notasDosRecados(d)}${pend}${aviso}</section>`;
+}
+
+const trechoCurto = (s: string): string => (s.length > 200 ? `${s.slice(0, 200)}…` : s);
+
 export function secaoDoTrabalho(v: VistaDoTrabalho, hora: (em: number) => string): string {
   const titulo = `<h2 class="qd-t-sec" id="qd-trab-tit">Runs</h2>`;
   const abre = `<section class="qd-trab" data-ancora="trab" aria-labelledby="qd-trab-tit" data-tarefa="${esc(v.tarefaId)}">${titulo}`;

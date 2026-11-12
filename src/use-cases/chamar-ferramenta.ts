@@ -19,6 +19,8 @@ import { revisarAcaoFase1, type PedidoNaFila } from "./revisar-acao.ts";
 import { normalizarPedidoAPessoa } from "./pedir-a-pessoa.ts";
 import { assentarLoteAutomatico, pedirAprovacaoFase1, type LoteAutomatico } from "./pedir-aprovacao.ts";
 import { semprePermitirVivo } from "./regras-vivas.ts";
+import { barradoDeAntemao, nivelDaFerramenta } from "../domain/ajustes-aprovacao.ts";
+import { ajustesDoBot } from "./ajustes-aprovacao.ts";
 import { executarItens, type DesfechoExecutado } from "./decidir.ts";
 import { classificarFalhaDaChamada, limparFalhaAposSucesso, registrarFalhaDaChamada } from "./disjuntor-conector.ts";
 import type { gerirQuadroEmFases } from "./gerir-quadro.ts";
@@ -177,6 +179,8 @@ const DESPACHO: Despacho = {
   responder_pedido: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.responder_pedido](deps, { ...ctx, ...args }),
   pedir_credencial: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.pedir_credencial](deps, { ...ctx, ...args }),
   avisar_pessoa: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.avisar_pessoa](deps, { ...ctx, ...args }),
+  // ADR-173: os cartões ricos (voo, hotel, carro, mapa, clima, carrinho, arquivo) numa fala do bot.
+  mostrar_cartoes: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.mostrar_cartoes](deps, { ...ctx, ...args }),
   gerir_quadro: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_quadro](deps, { ...ctx, ...args }),
   gerir_apps: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_apps](deps, { ...ctx, ...args }),
   gerir_times: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_times](deps, { ...ctx, ...args }),
@@ -348,6 +352,13 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
   // direto rodavam sem card no modo manual (só o prompt pedia pedir_aprovacao), e um colega apagava direto no
   // automático o que, pedido por item, pararia em `acao_arriscada`. Quem não passaria sozinho no card recebe a
   // negação transitória "peça aprovação" e cai no pedir_aprovacao, com o motivo gravado no item.
+  // ADR-164: o nível que a dona deu a esta ferramenta (Ajustes > Aprovações) e o só leitura do bot, ANTES de qualquer
+  // modo. Bloqueado e escrita em só leitura voltam negados (transitória: o bot segue e conta à pessoa); "Sempre pedir"
+  // numa leitura volta como "peça aprovação" (a leitura não passa pela decisão abaixo); o resto vai à decisão.
+  const ajustes = await ajustesDoBot(deps, input.agenteId);
+  const nivel = nivelDaFerramenta(ajustes.niveis, input.agenteId, conector.slug, tool, ferramenta.readOnlyHint ? "leitura" : "escrita");
+  if (barradoDeAntemao(nivel, ajustes.soLeitura, ferramenta.readOnlyHint === true)) return negar("alcance_insuficiente", "ferramenta_negada", conectorId, true, "recusado_pela_pessoa");
+  if (ferramenta.readOnlyHint && nivel === "sempre_pedir") return negar("alcance_insuficiente", "ferramenta_negada", conectorId, true);
   let medir: (() => Promise<unknown>) | null = null;
   // A leitura declarada pelo conector não passa por decidirAprovacao: é a regra `consulta_sem_decisao` (passo 5 dela).
   let regraDaChamada: { regra: string; versao: number } = { regra: REGRA_CONSULTA_SEM_DECISAO, versao: VERSAO_CONSULTA_SEM_DECISAO };
@@ -370,7 +381,7 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
     const contaminadoParaRevisor = revisor && !contaminadoTurno && !arriscada && envioParaFora
       ? await deps.repos.turnos.conversaLeuDeFora(plano.conversaId, { agora, janelaMs: JANELA_CONVERSA_DE_FORA_MS }).catch(() => true)
       : contaminadoTurno;
-    const d = decidirAprovacao({ plano: { ...plano, semprePermitir }, destino, origemSensivel: false, modo, arriscada, contaminado, ...(revisor ? { revisor, envioParaFora, contaminadoParaRevisor } : {}) });
+    const d = decidirAprovacao({ plano: { ...plano, semprePermitir }, destino, origemSensivel: false, modo, arriscada, contaminado, nivel, ...(revisor ? { revisor, envioParaFora, contaminadoParaRevisor, regrasDePerguntar: ajustes.regras.perguntar.length > 0 } : {}) });
     if ("revisar" in d) revisar = { gatilho: d.gatilho, arriscada, contaminadoTurno, contaminado: contaminadoParaRevisor, agente };
     else if (!d.automatico) return negar("alcance_insuficiente", "ferramenta_negada", conectorId, true);
     else regraDaChamada = { regra: d.regra, versao: d.versao };
@@ -397,7 +408,7 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
       itens: [{ texto: `Usar ${tool} no ${conector.nome}`, destino, sempreServe: sempreServe({ destino, arriscada: revisar.arriscada }, revisar.contaminadoTurno) }],
       acao: { tipo: "app", app: conector.slug, ferramenta: tool, argumentos },
       gatilho: revisar.gatilho,
-      risco: revisar.gatilho === "arriscado" ? RISCO_APAGAR_NO_APP : RISCO_DO_GATILHO.envio_apos_fora,
+      risco: revisar.gatilho === "arriscado" ? RISCO_APAGAR_NO_APP : RISCO_DO_GATILHO[revisar.gatilho],
       contaminado: revisar.contaminado,
       frase: `${agente?.nome ?? "O bot"} quer usar ${conector.nome}`,
       agente: agente ? { nome: agente.nome, titulo: agente.titulo, descricao: agente.descricao } : null,

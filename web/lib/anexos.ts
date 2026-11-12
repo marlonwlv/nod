@@ -99,6 +99,12 @@ const ehImagem = (mime: string) => (MIMES_IMAGEM as readonly string[]).includes(
 const rotuloTipo = (mime: string) => (mime === MIME_PDF ? "PDF" : ehImagem(mime) ? "IMG" : "TXT");
 const X = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 
+/** "captura-2026-11-12-102400.png" (desktop/captura-mac.ts) vira "Captura de região"; os outros perdem só a extensão. */
+export function nomeLegivelDoAnexo(nome: string): string {
+  if (/^captura-\d{4}-\d{2}-\d{2}-\d{6}\.png$/u.test(nome)) return "Captura de região";
+  return nome.replace(/\.[a-z0-9]{2,4}$/iu, "");
+}
+
 export function renderItens(itens: readonly ItemAnexo[]): string {
   return itens.map((i) => {
     const remover = `<button type="button" class="anexo-x" data-act="remover-anexo" data-id="${esc(i.chave)}" aria-label="Remover ${esc(i.nome)}">${X}</button>`;
@@ -106,7 +112,10 @@ export function renderItens(itens: readonly ItemAnexo[]): string {
       return `<div class="anexo-chip anexo-erro" role="alert"><div class="anexo-info"><b>${esc(i.nome)}</b><span>${esc(i.erro ?? "Não enviado.")}</span></div>${remover}</div>`;
     }
     if (ehImagem(i.mime) && i.previa) {
-      return `<div class="anexo-thumb${i.estado === "enviando" ? " enviando" : ""}"><img src="${esc(i.previa)}" alt="${esc(i.nome)}" />${i.estado === "enviando" ? `<span class="anexo-barra"><span style="width:${Math.round(i.progresso * 100)}%"></span></span>` : ""}${remover}</div>`;
+      // Rodada 3 (tela 10 do Paper): no Quick Chat a imagem vira a linha "miniatura · Captura de região · tamanho · ×"; o
+      // nome e o tamanho ficam no HTML e só o CSS do Quick Chat os mostra (web/quick-chat.css).
+      const info = `<span class="anexo-info anexo-info-img" aria-hidden="true"><b>${esc(nomeLegivelDoAnexo(i.nome))}</b><span>${esc(tamanhoHumano(i.tamanho))}</span></span>`;
+      return `<div class="anexo-thumb${i.estado === "enviando" ? " enviando" : ""}"><img src="${esc(i.previa)}" alt="${esc(i.nome)}" />${info}${i.estado === "enviando" ? `<span class="anexo-barra"><span style="width:${Math.round(i.progresso * 100)}%"></span></span>` : ""}${remover}</div>`;
     }
     const detalhe = i.estado === "enviando"
       ? `<span class="anexo-barra"><span style="width:${Math.round(i.progresso * 100)}%"></span></span>`

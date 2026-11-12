@@ -34,13 +34,19 @@ export type DadosDoEncolhido = {
   detalhes?: { rotulo: string; html: string; chave: string };
   /** HTML depois da linha do resultado (a pasta: onde fica e "Trocar"). */
   rodape?: string;
+  /** O title da linha: quem decidiu e quando (o Paper tira da linha). */
+  dica?: string;
 };
 
-/** O desenho de cada marca; `null` é a recusa (o traço do protótipo). Só o ícone tem cor: a linha é neutra (NOD-399). */
+/**
+ * O desenho de cada marca; `null` é a recusa. Só o ícone tem cor: a linha é neutra (NOD-399). Tela 06 do Paper
+ * ("Resolvido"): a recusa é o × vermelho e a regra nova é o visto verde de "Permitido sempre".
+ */
+const ICONE_NEGADO = '<svg class="cp-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
 const MARCA: Record<Exclude<MarcaDoEncolhido, null>, string> = {
   ok: iconeDaLinha("ok"),
   falha: '<svg class="cp-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.6"/><path d="M8 11v.01"/></svg>',
-  regra: '<svg class="cp-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7.5" width="9" height="6" rx="1.5"/><path d="M5.5 7.5V5.5a2.5 2.5 0 0 1 4.9-.7"/></svg>',
+  regra: iconeDaLinha("ok"),
 };
 
 /** O leitor de tela ouve o estado depois da linha (a marca é desenho). */
@@ -60,13 +66,15 @@ export function renderCartaoEncolhido(d: DadosDoEncolhido, mensagemId: string): 
   const id = esc(d.decisaoId);
   const titulo = `ce-t-${esc(mensagemId)}`;
   const tipo = d.marca === null ? "recusado" : d.marca;
-  const marca = d.marca === null ? iconeDaLinha("recusado") : `${MARCA[d.marca]}`;
+  const marca = d.marca === null ? ICONE_NEGADO : `${MARCA[d.marca]}`;
   const sr = d.marca === null ? "" : `<span class="sr-only"> (${NOME_DA_MARCA[d.marca]})</span>`;
-  const detalhes = d.detalhes ? `<details class="ce-detalhes" data-disclosure="${esc(d.detalhes.chave)}"><summary>${esc(d.detalhes.rotulo)}</summary><div class="ce-corpo">${d.detalhes.html}</div></details>` : "";
-  const extra = `${d.rodape ?? ""}${detalhes}`;
+  // Tela 06 do Paper: o que abre (registro, itens) é o link do fim da linha ("· Editar", "· Desfazer"); o corpo abre
+  // embaixo, na linha inteira.
+  const detalhes = d.detalhes ? `<details class="ce-detalhes" data-disclosure="${esc(d.detalhes.chave)}"><summary><span class="cp-sep" aria-hidden="true">·</span> <span class="ce-link">${esc(d.detalhes.rotulo)}</span></summary><div class="ce-corpo">${d.detalhes.html}</div></details>` : "";
+  const extra = d.rodape ?? "";
   // O título leva tabindex -1: o foco vai para ele quando o cartão nasce de um clique nesta aba (o botão clicado já saiu).
-  return `<div class="cp-linha cp-${tipo} cartao-encolhido${extra ? " cp-com-extra" : ""}" role="group" aria-labelledby="${titulo}" data-cartao-encolhido="${id}" data-anuncio="${esc(d.anuncio)}">`
-    + `${marca}<span class="cp-texto"><span class="ce-resultado">${esc(d.resultado)}</span>${sr} <span class="cp-sep" aria-hidden="true">·</span> <span class="pq-titulo ce-titulo" id="${titulo}" tabindex="-1">${esc(d.titulo)}</span></span>`
+  return `<div class="cp-linha cp-${tipo} cartao-encolhido${extra ? " cp-com-extra" : ""}" role="group" aria-labelledby="${titulo}" data-cartao-encolhido="${id}" data-anuncio="${esc(d.anuncio)}"${d.dica ? ` title="${esc(d.dica)}"` : ""}>`
+    + `${marca}<span class="cp-texto"><span class="ce-resultado">${esc(d.resultado)}</span>${sr} ${d.resultado.endsWith(":") ? "" : '<span class="cp-sep" aria-hidden="true">·</span> '}<span class="pq-titulo ce-titulo" id="${titulo}" tabindex="-1">${esc(d.titulo)}</span></span>${detalhes}`
     + (extra ? `<div class="cp-extra">${extra}</div>` : "")
     + "</div>";
 }
@@ -107,13 +115,16 @@ function daAprovacao(m: Mensagem, p: Payload<"resultado_aprovacao">, estado: Est
     : `<p class="recibo-texto">${paragrafos(m.texto)}</p>`;
   const detalhes = { rotulo: "detalhes", html: itens, chave: `encolhido-${m.id}` };
   // PR 4 dos modos de aprovação: o cartão do revisor tinha "Negar"; o encolhido usa o mesmo verbo.
+  // Tela 06 do Paper ("Resolvido"): "Negado · <o pedido>" e "Permitido uma vez · <o pedido>"; quem decidiu e a hora ficam
+  // no title (a linha é de status, não de recibo).
+  const quando = `Decidido${quem} às ${hora(m.criadoEm)}`;
   if (aprovados === 0) return p.revisor
-    ? { decisaoId: p.decisaoId, titulo, resultado: `Negado${quem}`, marca: null, anuncio: `Negado: ${titulo}` }
-    : { decisaoId: p.decisaoId, titulo, resultado: `Recusado${quem}`, marca: null, anuncio: `Recusado: ${titulo}` };
+    ? { decisaoId: p.decisaoId, titulo, resultado: "Negado", marca: null, anuncio: `Negado: ${titulo}`, dica: quando }
+    : { decisaoId: p.decisaoId, titulo, resultado: "Negado", marca: null, anuncio: `Recusado: ${titulo}`, dica: quando };
   if (feitos === aprovados) {
-    const resultado = total === 1 ? `Aprovado${quem} · feito ${hora(m.criadoEm)}` : `Aprovado${quem} · ${feitos} de ${total} ${feitos === 1 ? "feita" : "feitas"}`;
+    const resultado = total === 1 ? "Permitido uma vez" : `Permitido · ${feitos} de ${total} ${feitos === 1 ? "feita" : "feitas"}`;
     // Um item que deu certo não tem o que abrir: a linha já diz tudo.
-    return { decisaoId: p.decisaoId, titulo, resultado, marca: "ok", anuncio: `Aprovado: ${titulo}`, ...(total > 1 ? { detalhes } : {}) };
+    return { decisaoId: p.decisaoId, titulo, resultado, marca: "ok", anuncio: `Aprovado: ${titulo}`, dica: quando, ...(total > 1 ? { detalhes } : {}) };
   }
   const falhas = aprovados - feitos;
   const resultado = feitos === 0 ? "Aprovado · não saiu" : `Aprovado · ${falhas} de ${aprovados} não ${falhas === 1 ? "saiu" : "saíram"}`;
@@ -145,8 +156,8 @@ function daRegra(m: Mensagem, p: Payload<"regra_permanente">, estado: Estado): D
     const ponto = n.indexOf(".");
     return ponto > 0 ? { slug: n.slice(0, ponto), ferramenta: n.slice(ponto + 1) } : { slug: n, ferramenta: n };
   });
-  const titulo = `Sempre permitir ${acoesHumanas(estado, nomes)}`;
-  return { decisaoId: p.decisaoId, titulo, resultado: "Regra nova", marca: "regra", anuncio: `Regra nova: ${titulo.charAt(0).toLowerCase()}${titulo.slice(1)}`, detalhes: registro(m) };
+  const titulo = acoesHumanas(estado, nomes);
+  return { decisaoId: p.decisaoId, titulo, resultado: "Permitido sempre:", marca: "regra", anuncio: `Permitido sempre: ${titulo}`, detalhes: registro(m) };
 }
 
 function daPasta(p: Payload<"pasta_aberta">, estado: Estado): DadosDoEncolhido {

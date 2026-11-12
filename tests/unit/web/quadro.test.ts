@@ -258,7 +258,9 @@ describe("NOD-429 · a pílula da conversa", () => {
     const com = renderCabecalhoConversa(e, "a", { comQuadro: true, paginas: paginasDoDto(cenario(1)) });
     expect(com).toMatch(/^<div class="qd-pil pg-pil"><button type="button" class="pilula-bot"[\s\S]*<\/button><span class="pg-doca" data-pg-doca><span class="pg-doca-in"><span class="pg-abas" role="tablist" aria-label="Páginas de Ada"/);
     expect(com).toContain('data-act="pagina" data-pagina="1" data-pg-id="tarefas" data-pos="1" id="pg-aba-1" aria-selected="false" tabindex="-1" aria-label="Tarefas"');
-    expect(com.replace(/^<div class="qd-pil pg-pil">|<span class="pg-doca"[\s\S]*$/g, "")).toBe(sem.replace(/<span class="pilula-sub"[\s\S]*$/, ""));
+    // ADR-165 (Paper 02): o botão do painel fica depois da cápsula, nas duas.
+    expect(com.replace(/^<div class="qd-pil pg-pil">|<span class="pg-doca"[\s\S]*$/g, "")).toBe(sem.replace(/<span class="pilula-sub"[\s\S]*$/, "").replace(/<button type="button" class="painel-alternar"[\s\S]*$/, ""));
+    expect(com).toContain('<button type="button" class="painel-alternar" data-act="alternar-detalhes"');
   });
 });
 

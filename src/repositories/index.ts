@@ -30,6 +30,8 @@ import { quadrosRepo } from "./quadros.repo.ts";
 import { appsDoBotRepo } from "./apps-do-bot.repo.ts";
 import { canvasRepo } from "./canvas.repo.ts";
 import { acessosRepo } from "./acessos.repo.ts";
+import { ajustesAprovacaoRepo } from "./ajustes-aprovacao.repo.ts";
+import { memoriaDeTimeRepo, passkeysRepo, vezNaSalaRepo, vmsDoNodRepo } from "./grok-persistencia.repo.ts";
 import { quadroComentariosRepo } from "./quadro-comentarios.repo.ts";
 import { quadroImportacoesRepo } from "./quadro-importacoes.repo.ts";
 import { quadroExecucoesRepo } from "./quadro-execucoes.repo.ts";
@@ -130,6 +132,11 @@ export function criarRepos(conn: Conn, escopo: Escopo): Repos {
     conectores: conectoresRepo(conn, escopo),
     concessoes: concessoesRepo(conn, escopo),
     acessos: acessosRepo(conn, escopo),
+    ajustesAprovacao: ajustesAprovacaoRepo(conn, escopo),
+    vmsDoNod: vmsDoNodRepo(conn, escopo),
+    vezNaSala: vezNaSalaRepo(conn, escopo),
+    memoriaDeTime: memoriaDeTimeRepo(conn, escopo),
+    passkeys: passkeysRepo(conn, escopo),
     permissoesPermanentes: permissoesPermanentesRepo(conn, escopo),
     procuracoes: procuracoesRepo(conn, escopo),
     inventario: inventarioRepo(conn, escopo),

@@ -56,13 +56,15 @@ export function somarPorGrupo(saidaPs: string): Map<number, number> {
 }
 
 /** Uma linha de `ps -A -o pid=,pgid=,rss=` (rss em KiB). */
-export type LinhaDoPs = { pid: number; pgid: number; rssKib: number };
+/** ADR-169: `cpuPct` (o %cpu do ps, opcional: a 4ª coluna) soma por grupo como a memória — CPU por bot/turno. */
+export type LinhaDoPs = { pid: number; pgid: number; rssKib: number; cpuPct?: number };
 
 export function lerLinhasDoPs(saidaPs: string): LinhaDoPs[] {
   const linhas: LinhaDoPs[] = [];
   for (const linha of saidaPs.split("\n")) {
-    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s*$/.exec(linha);
-    if (m) linhas.push({ pid: Number(m[1]), pgid: Number(m[2]), rssKib: Number(m[3]) });
+    // O %cpu do ps do macOS sai com vírgula no locale pt_BR ("12,5").
+    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+(?:[.,]\d+)?))?\s*$/.exec(linha);
+    if (m) linhas.push({ pid: Number(m[1]), pgid: Number(m[2]), rssKib: Number(m[3]), ...(m[4] !== undefined ? { cpuPct: Number(m[4].replace(",", ".")) } : {}) });
   }
   return linhas;
 }
@@ -82,6 +84,17 @@ export function somarComFugitivos(linhas: readonly LinhaDoPs[], gruposDosTurnos:
   return soma;
 }
 
+/** ADR-169: o %cpu somado por grupo, com os mesmos fugitivos da memória (um processo com vários núcleos passa de 100). */
+export function cpuComFugitivos(linhas: readonly LinhaDoPs[], gruposDosTurnos: ReadonlySet<number>, grupoDoFugitivo: (pid: number) => number | undefined): Map<number, number> {
+  const soma = new Map<number, number>();
+  for (const l of linhas) {
+    if (l.cpuPct === undefined) continue;
+    const dono = gruposDosTurnos.has(l.pgid) ? l.pgid : (grupoDoFugitivo(l.pid) ?? l.pgid);
+    soma.set(dono, (soma.get(dono) ?? 0) + l.cpuPct);
+  }
+  return soma;
+}
+
 /** O valor de NOD_GRUPO num ambiente lido (`/proc/<pid>/environ` ou `ps -E`), ou null. */
 export function marcaNoAmbiente(ambiente: string | undefined): string | null {
   for (const t of (ambiente ?? "").split(/\s+/)) if (t.startsWith("NOD_GRUPO=") && t.length > "NOD_GRUPO=".length) return t.slice("NOD_GRUPO=".length);
@@ -97,13 +110,14 @@ const kibParaMb = (kib: number) => Math.round(kib / 1024);
  * NOD-93 (ADR-127, definido em 2026-10-24): `blocoMb` é a memória da VM local ligada (2/3/4 GiB pelo modo, teto de 25%
  * da RAM; `memoriaDaVm`). Entra no total como um bloco: com a VM ligada, a memória dela sai do disponível do Mac.
  */
-export function leituraDoTurno(p: { nivel: NivelPressao; rssPorGrupo: ReadonlyMap<number, number>; gruposVivos: readonly number[]; turnoId: string | null; grupo: number | null; processador?: LeituraProcessador | null; disco?: LeituraDisco | null; blocoMb?: number }): LeituraMemoria {
+export function leituraDoTurno(p: { nivel: NivelPressao; rssPorGrupo: ReadonlyMap<number, number>; cpuPorGrupo?: ReadonlyMap<number, number>; gruposVivos: readonly number[]; turnoId: string | null; grupo: number | null; processador?: LeituraProcessador | null; disco?: LeituraDisco | null; blocoMb?: number }): LeituraMemoria {
   const totalKib = [...new Set(p.gruposVivos)].reduce((t, g) => t + (p.rssPorGrupo.get(g) ?? 0), 0);
   const doTurno = p.grupo !== null ? p.rssPorGrupo.get(p.grupo) : undefined;
+  const cpu = p.grupo !== null ? p.cpuPorGrupo?.get(p.grupo) : undefined;
   return {
     nivel: p.nivel,
     totalMb: kibParaMb(totalKib) + Math.max(0, Math.round(p.blocoMb ?? 0)),
-    porTurno: doTurno !== undefined && p.turnoId !== null ? [{ turnoId: p.turnoId, mb: kibParaMb(doTurno) }] : [],
+    porTurno: doTurno !== undefined && p.turnoId !== null ? [{ turnoId: p.turnoId, mb: kibParaMb(doTurno), ...(cpu !== undefined ? { cpuPct: Math.round(cpu * 10) / 10 } : {}) }] : [],
     ...(p.processador ? { processador: p.processador } : {}),
     // Revisão do #224: `null` vai junto (o app mede e não conseguiu); `undefined` (fora do macOS) não.
     ...(p.disco !== undefined ? { disco: p.disco } : {}),

@@ -15,6 +15,7 @@ const svg = (d: string, classe: string, w = 16, sw = 1.6): string =>
   `<svg class="qd-ic ${classe}" width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
 export const ICONE_MIN = {
+  mais: svg('<path d="M12 5v14M5 12h14"/>', "qm-ic-mais", 14, 1.8),
   funil: svg('<path d="M4 6h16M7 12h10M10 18h4"/>', "qm-ic-funil"),
   opcoes: svg('<rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M9.5 4.5v15M14.5 4.5v15"/>', "qm-ic-opcoes"),
   nova: svg('<path d="M12 20h8"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>', "qm-ic-nova"),
@@ -158,15 +159,32 @@ export function popoverDasOpcoes(o: { op: OpcoesEfetivas; colunas: readonly Colu
  * A barra do quadro minimalista: à esquerda o funil (com quantos filtros ligados) e a busca; à direita a pílula de quem
  * trabalha, as Opções e a Nova tarefa. Embaixo, os chips dos filtros ligados. Os popovers vêm prontos de fora.
  */
-export function barraMinima(o: { nFiltros: number; filtroAberto: boolean; popFiltros: Html | ""; busca: string; ativos: Html; opAberto: boolean; opAjustadas: boolean; popOpcoes: Html | ""; podeCriar: boolean; chips: Html | ""; /** O nome e o menu do quadro (menu-do-quadro.ts): a mesma linha, à esquerda. */ cab?: Html }): Html {
+export function barraMinima(o: { nFiltros: number; filtroAberto: boolean; popFiltros: Html | ""; busca: string; ativos: Html; opAberto: boolean; opAjustadas: boolean; popOpcoes: Html | ""; podeCriar: boolean; chips: Html | ""; /** O nome e o menu do quadro (menu-do-quadro.ts): a mesma linha, à esquerda. */ cab?: Html; /** Tela 18 do Paper: Quadro | Lista à direita (sem ela, a visão fica só nas Opções). */ vista?: "quadro" | "lista" }): Html {
   const funil = `<span class="qm-fil-l"><button type="button" class="qm-icbt${o.nFiltros ? " qm-ligado" : ""}" data-act="fil-abrir" aria-haspopup="dialog" aria-expanded="${o.filtroAberto}"${o.filtroAberto ? ' aria-controls="qm-pop-fil"' : ""} aria-label="${esc(o.nFiltros ? `Filtros, ${o.nFiltros} ligados` : "Filtros")}" title="Filtros">${ICONE_MIN.funil}${o.nFiltros ? `<span class="qm-icbt-n">${o.nFiltros}</span>` : ""}</button>${o.popFiltros}</span>`;
-  const busca = `<span class="qd-busca-l"><label class="qd-busca">${ICONE_MIN.busca}<span class="qd-sr">Buscar tarefa por título ou código</span>` +
+  // Tela 18 do Paper: a busca é um ícone redondo de 30 que abre o campo no foco (ou com texto); o "/" continua.
+  const busca = `<span class="qd-busca-l"><label class="qd-busca${o.busca ? " qd-busca-cheia" : ""}">${ICONE_MIN.busca}<span class="qd-sr">Buscar tarefa por título ou código</span>` +
     `<input type="search" id="qd-busca" class="qd-busca-in" data-campo="busca" placeholder="Buscar" value="${esc(o.busca)}" maxlength="200" autocomplete="off" spellcheck="false" aria-keyshortcuts="/">` +
     `${o.busca ? "" : `<kbd class="qd-kbd" title="Atalho: /" aria-hidden="true">/</kbd>`}</label>` +
     `${o.busca ? `<button type="button" class="qd-busca-limpar" data-act="busca-limpar" aria-label="Limpar busca">×</button>` : ""}</span>`;
-  const op = `<span class="qm-op-l"><button type="button" class="qm-icbt" data-act="op-abrir" aria-haspopup="dialog" aria-expanded="${o.opAberto}"${o.opAberto ? ' aria-controls="qm-pop-op"' : ""} aria-label="${o.opAjustadas ? "Opções do quadro (ajustadas)" : "Opções do quadro"}" title="Opções do quadro">${ICONE_MIN.opcoes}${o.opAjustadas ? '<i class="qd-ponto" aria-hidden="true"></i>' : ""}</button>${o.popOpcoes}</span>`;
-  const nova = o.podeCriar ? `<button type="button" class="qm-icbt" data-act="nt-abrir" aria-label="Nova tarefa" title="Nova tarefa (C)" aria-keyshortcuts="C">${ICONE_MIN.nova}</button>` : "";
-  return confiar(`<div class="qd-barra-q qm-barra"><span class="qm-esq">${o.cab ?? ""}${funil}${busca}</span><span class="qd-barra-dir">${o.ativos}${op}${nova}</span></div>${o.chips}`);
+  // As Opções (agrupar, ordenar, colunas, propriedades) saíram da barra para o menu do quadro ("Opções de exibição…");
+  // o popover continua ancorado à direita da barra.
+  const op = `<span class="qm-op-l qm-op-ancora"${o.opAjustadas ? ' data-ajustadas="1"' : ""}>${o.popOpcoes}</span>`;
+  const seg = (v: "quadro" | "lista", rot: string): string => `<button type="button" class="qm-vista-bt" data-act="op-vista" data-valor="${v}" aria-pressed="${o.vista === v}">${rot}</button>`;
+  const vista = o.vista ? `<span class="qm-vista" role="group" aria-label="Visão">${seg("quadro", "Quadro")}${seg("lista", "Lista")}</span>` : "";
+  const nova = o.podeCriar ? `<button type="button" class="qm-nova" data-act="nt-abrir" title="Nova tarefa (C)" aria-keyshortcuts="C">${ICONE_MIN.mais}<span>Nova tarefa</span></button>` : "";
+  return confiar(`<div class="qd-barra-q qm-barra"><span class="qm-esq">${o.cab ?? ""}${o.ativos}</span><span class="qd-barra-dir">${busca}${funil}${vista}${op}${nova}</span></div>${o.chips}`);
+}
+
+/**
+ * Tela 18 do Paper: o filtro por pessoa em segmentado ("Todas as tarefas 14", Você e cada bot com o mascote; quem trabalha
+ * agora ganha o ponto). Um clique filtra (o filtro rápido `agente:`/`comigo` da NOD-460); de novo, volta a Todas.
+ */
+export function segmentoDasPessoas(o: { quem: readonly QuemNoQuadro[]; total: number }): Html {
+  const ativo = o.quem.some((q) => q.ativo);
+  const todos = `<button type="button" class="qm-pes-bt qm-pes-todas" data-act="filtro-do-quadro" data-filtro="todos" aria-pressed="${!ativo}"><span>Todas as tarefas</span><span class="qm-pes-n">${o.total}</span></button>`;
+  const item = (q: QuemNoQuadro): string => `<button type="button" class="qm-pes-bt" data-act="filtro-do-quadro" data-filtro="${esc(q.ativo ? "todos" : q.filtro)}" aria-pressed="${q.ativo}" aria-label="${esc(`${q.nome}, ${q.n} ${q.n === 1 ? "tarefa" : "tarefas"}${q.rodando ? ", trabalhando agora" : ""}`)}">` +
+    `<span class="qm-pes-av" aria-hidden="true">${q.avatar}${q.rodando ? '<i class="qm-pes-rodando"></i>' : ""}</span><span class="qm-pes-nome">${esc(q.nome)}</span></button>`;
+  return confiar(`<span class="qm-pes" role="group" aria-label="Filtrar por pessoa">${todos}${o.quem.map(item).join("")}</span>`);
 }
 
 /* ---------- Nova tarefa ---------- */

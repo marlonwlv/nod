@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import type { NivelFerramenta } from "../contracts/ajustes-aprovacao.ts";
+import { barradoDeAntemao, FRASE_BLOQUEADO, FRASE_SO_LEITURA, nivelDaFerramenta } from "../domain/ajustes-aprovacao.ts";
+import { ajustesDoBot } from "./ajustes-aprovacao.ts";
 import { ligarDecisaoATarefa } from "./tarefa-casa.ts";
 import type { Concessao } from "../contracts/concessao.ts";
 import type { Assunto } from "../contracts/destino-no-chat.ts";
@@ -111,6 +114,11 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
   // comentários sem `assignee` hoje, 6 cards). Volta ao bot como resposta, não como exceção: o `cause` de um erro de
   // domínio só vai para o log (AGENTS.md: erro nunca vaza `message`), e o bot precisa ler o que corrigir.
   const errosDeArgs: string[] = [];
+  // ADR-164: o nível de cada ferramenta (Ajustes > Aprovações) e o só leitura do bot. Bloqueado e escrita em só leitura
+  // voltam ao bot como recusa (sem cartão); "Sempre pedir" e "Sempre permitir" vão à decisão abaixo.
+  const ajustes = await ajustesDoBot(deps, input.agenteId);
+  const nivelPorIdx: (NivelFerramenta | undefined)[] = [];
+  const barrados: string[] = [];
   for (const [idxItem, item] of input.itens.entries()) {
     if (item.destino.conector === "computador") {
       if (!computador) throw new ErroDeDominio("nao_permitido");
@@ -123,6 +131,8 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
       conectorIdPorIdx.push(null);
       arriscadaPorIdx.push(false);
       envioPorIdx.push(false);
+      nivelPorIdx.push(undefined);
+      if (ajustes.soLeitura) barrados.push(`itens[${idxItem}]: ${FRASE_SO_LEITURA}`);
       continue;
     }
     const conector = await deps.repos.conectores.buscarPorSlug(item.destino.conector);
@@ -137,6 +147,10 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
     if (!concessoes.some((c) => c.conectorId === conector.id && c.capacidade === item.destino.ferramenta)) {
       throw new ErroDeDominio("nao_permitido", { cause: `sem concessão de ${conector.slug}.${item.destino.ferramenta}: peça com pedir_acesso` });
     }
+    const nivel = nivelDaFerramenta(ajustes.niveis, input.agenteId, conector.slug, item.destino.ferramenta, capacidade.readOnlyHint === true ? "leitura" : "escrita");
+    const barrado = barradoDeAntemao(nivel, ajustes.soLeitura, capacidade.readOnlyHint === true);
+    if (barrado) barrados.push(`itens[${idxItem}] (${conector.slug}.${item.destino.ferramenta}): ${barrado === "bloqueado" ? FRASE_BLOQUEADO : FRASE_SO_LEITURA}`);
+    nivelPorIdx.push(nivel);
     errosDeArgs.push(...errosDoSchema(capacidade.schema, item.destino.argumentos ?? {}, `itens[${idxItem}].destino.argumentos (${conector.slug}.${item.destino.ferramenta})`));
     let origemSensivel = false;
     if (CLASSIFICAR_ORIGEM_SENSIVEL && item.origem_conector) {
@@ -157,6 +171,7 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
     envioPorIdx.push(envioParaForaNoApp(capacidade));
   }
 
+  if (barrados.length > 0) return { saida: { data: { estado: "recusada", erros: barrados, instrucao: "não peça de novo: diga à pessoa o que ficou de fora e por quê" }, events: [] } };
   if (errosDeArgs.length > 0) return { saida: { data: { estado: "recusada", erros: errosDeArgs, instrucao: "corrija os argumentos e chame pedir_aprovacao de novo" }, events: [] } };
 
   // ADR-052 (0033): turno que trouxe a web pelas nativas não usa "Sempre permitir" — a mesma regra do não confiável.
@@ -183,7 +198,8 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
     : contaminadoTurno;
   const { automatico, revisar, porItem } = decidirLote(propostas.map((p, idx) => ({
     plano, destino: p.destino, origemSensivel: p.origemSensivel, modo, arriscada: arriscadaPorIdx[idx] === true,
-    ...(revisor ? { revisor, envioParaFora: envioPorIdx[idx] === true, contaminadoParaRevisor } : {}),
+    ...(nivelPorIdx[idx] ? { nivel: nivelPorIdx[idx] } : {}),
+    ...(revisor ? { revisor, envioParaFora: envioPorIdx[idx] === true, contaminadoParaRevisor, regrasDePerguntar: ajustes.regras.perguntar.length > 0 } : {}),
   })));
   if (revisar && input.plano) {
     // O lote inteiro numa revisão só (lote misto continua perguntando tudo, ADR-042): um pedido ao revisor com todos os
@@ -194,7 +210,7 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
       itens: propostas.map((p, idx) => ({ texto: p.texto, destino: p.destino, sempreServe: sempreServe({ destino: p.destino, arriscada: arriscadaPorIdx[idx] === true }, contaminadoTurno) })),
       acao: { tipo: "apps", itens: propostas.map((p) => ({ app: p.destino.conector, ferramenta: p.destino.ferramenta, argumentos: p.destino.argumentos, textoDoItem: p.texto })), resumo: input.resumo },
       gatilho: revisar,
-      risco: revisar === "arriscado" ? RISCO_APAGAR_NO_APP : RISCO_DO_GATILHO.envio_apos_fora,
+      risco: revisar === "arriscado" ? RISCO_APAGAR_NO_APP : RISCO_DO_GATILHO[revisar],
       contaminado: contaminadoParaRevisor,
       frase: input.resumo,
       agente: agente ? { nome: agente.nome, titulo: agente.titulo, descricao: agente.descricao } : null,

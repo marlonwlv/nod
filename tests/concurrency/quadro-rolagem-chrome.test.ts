@@ -1188,10 +1188,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await esperar(120);
     const antes = await avaliar<number>(cdp, `document.querySelector("#quadro > .qd-conteudo").getBoundingClientRect().height`);
     expect((await medir()).max, "o quadro precisa rolar para o teste valer").toBeGreaterThan(200);
-    // Quadro minimalista (PR #723): o "Comigo" saiu dos chips da barra e virou o "Você" da pílula de quem está no quadro.
-    await avaliar(cdp, `document.querySelector('#quadro [data-act="ativos-abrir"]').click()`);
-    await ate(`document.querySelector('#quadro #qm-pop-ativos [data-act="filtro-do-quadro"][data-filtro="comigo"]')`);
-    await avaliar(cdp, `document.querySelector('#quadro #qm-pop-ativos [data-act="filtro-do-quadro"][data-filtro="comigo"]').click()`);
+    // Tela 18 do Paper: o "Comigo" é o "Você" do filtro por pessoa, na própria barra.
+    await ate(`document.querySelector('#quadro .qm-pes [data-act="filtro-do-quadro"][data-filtro="comigo"]')`);
+    await avaliar(cdp, `document.querySelector('#quadro .qm-pes [data-act="filtro-do-quadro"][data-filtro="comigo"]').click()`);
     await esperar(250);
     expect(await avaliar<number>(cdp, `document.querySelector("#quadro > .qd-conteudo").scrollHeight`), "o filtro encolheu a lista na hora (a reserva deixaria o espaço em branco)").toBeLessThan(antes - 100);
     expect(await avaliar<string>(cdp, `document.querySelector("#quadro > .qd-conteudo").style.minHeight`), "sem reserva na regravação da pessoa").toBe("");

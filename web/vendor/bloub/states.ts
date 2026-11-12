@@ -162,6 +162,11 @@ export type StateId =
   | 'orbit'
   | 'burst'
   | 'comet'
+  /** nod (ADR-172): estados do personagem que o catálogo original não tinha */
+  | 'reading'
+  | 'celebrate'
+  | 'sleeping'
+  | 'offline'
   /** transition d'interface, pas une animation du catalogue : hors `SEQUENCE` */
   | 'swirl'
 
@@ -569,6 +574,112 @@ export const STATES: StateDef[] = [
         arcs: COMET_RIBBONS.map((s, i) => ({ id: `cm${i}`, seed: s, t, opacity: fade }))
       })
     }
+  },
+
+  /* ---------------------------------------------------------------------------------------------------------------
+   * nod (ADR-172, 2026-11-12): os quatro estados do personagem que o catálogo original não tinha. Comportamento
+   * inspirado no Grok Bot (lendo, comemorando, dormindo, offline); a geometria é nossa, declarada como as de cima.
+   * Todos usam a forma escolhida (baseBody), para o bot continuar reconhecível em qualquer estado.
+   * --------------------------------------------------------------------------------------------------------------- */
+
+  {
+    // Lendo: o olhar corre da esquerda para a direita e volta de uma vez, como quem lê linhas; olhos um pouco
+    // mais baixos e estreitos, e o corpo acompanha com um aceno curto a cada linha.
+    id: 'reading',
+    duration: 2.4,
+    morph: 0.4,
+    blinkIn: true,
+    baseFace: false,
+    baseBody: true,
+    pose: (t) => {
+      const linha = (t % 1.2) / 1.2
+      // 85% do tempo varrendo, 15% voltando: a volta rápida é o que lê como "próxima linha".
+      const varre = linha < 0.85 ? easings.easeInOutCubic(linha / 0.85) : 1 - easings.easeOutCubic((linha - 0.85) / 0.15)
+      const aceno = linha > 0.85 ? Math.sin(((linha - 0.85) / 0.15) * Math.PI) * 0.025 : 0
+      return base({
+        gaze: { yaw: -14 + 34 * varre, pitch: 14, roll: -6 },
+        split: 15,
+        eyes: pair(0.2, 0.3),
+        offY: aceno
+      })
+    }
+  },
+
+  {
+    // Comemorando: dois pulos com amassa-e-estica, olhos em arco (felizes) e confete da cor do bot.
+    id: 'celebrate',
+    duration: 2.2,
+    morph: 0.3,
+    blinkIn: true,
+    baseFace: false,
+    baseBody: true,
+    pose: (t) => {
+      const ciclo = (t % 1.1) / 1.1
+      const salto = Math.sin(ciclo * Math.PI)
+      // agacha antes de pular e no pouso; estica no ar
+      const amassa = ciclo < 0.12 || ciclo > 0.9 ? 0.1 : -0.06 * salto
+      const confete = [0, 1, 2, 3, 4, 5].map((i) => {
+        const a = (i / 6) * TAU + 0.4
+        const vida = ((t + i * 0.17) % 1.1) / 1.1
+        const d = 1.15 + 0.55 * easings.easeOutCubic(vida)
+        return { x: Math.cos(a) * d, y: Math.sin(a) * d - 0.2 * vida, r: 0.07 * (1 - vida * 0.6), opacity: 1 - vida }
+      })
+      return base({
+        sil: circle(1, { sx: 1 + amassa, sy: 1 - amassa }),
+        offY: -0.22 * salto,
+        gaze: { yaw: 5, pitch: 8, roll: 0 },
+        split: 18,
+        eyes: [
+          { w: 0.3, h: 0.15, open: 1, tilt: 16 },
+          { w: 0.3, h: 0.15, open: 1, tilt: -16 }
+        ],
+        dots: confete
+      })
+    }
+  },
+
+  {
+    // Dormindo: olhos fechados (tiretes), respiração lenta e funda, corpo um pouco abaixado.
+    id: 'sleeping',
+    duration: 3.2,
+    morph: 0.6,
+    blinkIn: false,
+    baseFace: false,
+    baseBody: true,
+    pose: (t) => {
+      const respira = 0.5 - 0.5 * Math.cos((t / 3.2) * TAU)
+      return base({
+        sil: circle(1, { sx: 1 + 0.025 * respira, sy: 0.97 - 0.035 * respira }),
+        offY: 0.04,
+        gaze: { yaw: 8, pitch: 16, roll: -8 },
+        split: 16,
+        eyes: [
+          { w: 0.3, h: 0.07, open: 1, tilt: -6 },
+          { w: 0.3, h: 0.07, open: 1, tilt: 6 }
+        ]
+      })
+    }
+  },
+
+  {
+    // Offline: sem computador. Parado, desbotado, olhos fechados e retos: não respira nem pisca (o elemento o
+    // trata como pose fixa, igual ao repouso).
+    id: 'offline',
+    duration: 1.6,
+    morph: 0.5,
+    blinkIn: false,
+    baseFace: false,
+    baseBody: true,
+    pose: () =>
+      base({
+        bodyAlpha: 0.4,
+        gaze: { yaw: 10, pitch: 18, roll: 0 },
+        split: 16,
+        eyes: [
+          { w: 0.28, h: 0.06, open: 1 },
+          { w: 0.28, h: 0.06, open: 1 }
+        ]
+      })
   }
 ]
 
@@ -595,7 +706,11 @@ export const POSES: Record<StateId, number> = {
   orbit: 1.2,
   swirl: 0.5,
   burst: 0.45,
-  comet: 1.15
+  comet: 1.15,
+  reading: 0.6,
+  celebrate: 0.55,
+  sleeping: 1.6,
+  offline: 1
 }
 
 export const SEQUENCE: StateId[] = [
@@ -612,6 +727,10 @@ export const SEQUENCE: StateId[] = [
   'play',
   'orbit',
   'burst',
-  'comet'
+  'comet',
+  'reading',
+  'celebrate',
+  'sleeping',
+  'offline'
 ]
 

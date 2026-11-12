@@ -12,6 +12,9 @@ import { criarEsteComputador } from "./este-computador.ts";
 import { htmlConversaTexto, LINHA_PULOU, SO_OLHAR, type PassoTexto } from "./conversa-texto.ts";
 import { destinoAoFimDoOla, htmlCamada, htmlGuia, notaForaDoApp, ORDEM_IAS, textoComoLiberar, type EstadoTelaOnboarding, type FaseTela } from "./onboarding.ts";
 import { nesteMac } from "../lib/plataforma-da-tela.ts";
+import { APPS, andar, apresentacaoInicial, emailDoGoogle, htmlApresentacao, nomeDoBot, passoAtual, PASSOS, type EstadoApresentacao } from "./apresentacao.ts";
+import { COMEMORA_MS, etapasDoBot, type DepsCriarBot } from "./criar-bot.ts";
+import { ErroDoPreparo, novoPreparo, rodarPreparo, tique } from "../lib/preparo.ts";
 
 /**
  * O controlador do onboarding por ligação (definido em 2026-10-04, ADR-077): a abertura, a sondagem da IA do Mac, o
@@ -63,6 +66,13 @@ export type DepsOnboarding = {
   texto?: () => boolean;
   /** O nome sugerido na primeira pergunta (tirado do e-mail da conta). */
   nomeSugerido?: () => string | null;
+  /**
+   * ADR-172: com isto, o "olá" vira o onboarding do Grok Bot em 10 passos (web/telas/apresentacao.ts), que cria o bot
+   * com cor e forma e o prepara com %. Sem isto (os testes antigos), o "olá" de 3,3 s de sempre.
+   */
+  criarBot?: () => DepsCriarBot;
+  /** O e-mail da sessão: o passo dos apps sugere Gmail e Agenda quando é do Google. */
+  email?: () => string | null;
 };
 
 export type TelaOnboarding = ReturnType<typeof criarTelaOnboarding>;
@@ -110,6 +120,12 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
   let textoErro: string | null = null;
   /** A pessoa pulou as perguntas (ou só quer olhar): a linha fica na conversa do Nod. */
   let pulouEm: string | null = null;
+  // ADR-172: o onboarding em 10 passos. `pelaLigacao`: a pessoa escolheu "Prefiro conversar por voz" (o caminho antigo).
+  let apres: EstadoApresentacao = apresentacaoInicial();
+  let pelaLigacao = false;
+  let relogioPreparo = 0;
+  const ctxBot = { nome: "", forma: apres.forma, cor: apres.cor, criado: null as { agenteId: string; conversaId: string } | null };
+  const comApresentacao = (): boolean => !!deps.criarBot && !pelaLigacao;
 
   const api = (): Api => {
     const a = deps.api();
@@ -195,6 +211,10 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     agendarPelaFase(e);
     // Sem guia, a configuração é uma camada por cima do app: precisa de uma saída.
     if (e.fase === "computador") return computador.html();
+    if (e.fase === "ola" && comApresentacao()) {
+      const conectando = APPS.find((a) => deps.conectando(a.slug))?.slug ?? null;
+      return `<div class="ap-camada">${htmlApresentacao({ ...apres, conectando }, { emailGoogle: emailDoGoogle(deps.email?.()), ligacao: !jornadaA() })}</div>`;
+    }
     if (e.fase === "configurando" && !e.dados.guia) return `<div class="ob-guia-solta">${htmlGuia(e)}<button type="button" class="ob-link ob-depois" data-act="onboarding-depois">Fazer depois</button></div>`;
     return htmlCamada(e, deps.ligacao.cheia());
   }
@@ -202,7 +222,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
   /** Os efeitos de cada fase (timer do olá, sonda do Mac, conclusão) — idempotentes, chamados a cada desenho. */
   function agendarPelaFase(e: EstadoTelaOnboarding): void {
     if (e.fase === "ola" && !jornadaA()) teste.iniciar(e.dados);
-    if (e.fase === "ola" && timerOla === null) timerOla = window.setTimeout(() => { timerOla = null; void passarOla(); }, OLA_MS);
+    if (e.fase === "ola" && timerOla === null && !comApresentacao()) timerOla = window.setTimeout(() => { timerOla = null; void passarOla(); }, OLA_MS);
     if ((e.fase === "executor" || e.fase === "computador") && sonda === null) sonda = window.setInterval(() => void (e.fase === "computador" ? sondarComputador() : sondar()), SONDA_MS);
     if (e.fase !== "executor" && e.fase !== "computador" && sonda !== null) { window.clearInterval(sonda); sonda = null; }
     if (e.fase === "fim" && e.dados.etapa !== "concluido" && !e.emLigacao) void concluir();
@@ -487,7 +507,149 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
   const relogioDoCopiar: RelogioDoCopiar = { agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => clearTimeout(id), timers: new WeakMap() };
   const iaDoClique = (el: HTMLElement): IaDesktop => (el.dataset.ia === "codex-cli" ? "codex-cli" : "claude-cli");
 
+  // ---- ADR-172: os 10 passos -------------------------------------------------------------------------------------------
+  function mudarApres(novo: EstadoApresentacao, focarTitulo = false): void {
+    const mudouPasso = novo.passo !== apres.passo;
+    apres = novo;
+    deps.aoMudar();
+    if (focarTitulo || mudouPasso) requestAnimationFrame(() => document.querySelector<HTMLElement>(".ap-camada #ap-titulo, .ap-camada .cb-preparo-titulo")?.focus());
+  }
+
+  function guardarRespostas(): void {
+    try { localStorage.setItem("nod.onboarding.respostas", JSON.stringify({ funcao: apres.funcao, origem: apres.origem })); } catch { /* sem armazenamento: só não guarda */ }
+  }
+
+  /** O computador e a IA do bot respondem? Espera um pouco (o teste das IAs pode estar rodando) antes de dar erro. */
+  async function iaPronta(): Promise<boolean> {
+    for (let i = 0; i < 6; i++) {
+      const d = deps.dados();
+      if (d && (teste.ativo() ? teste.podeLigar(d) : d.executor.pronto)) return true;
+      await new Promise((r) => window.setTimeout(r, 1_500));
+      await reler();
+    }
+    return false;
+  }
+
+  async function prepararBot(): Promise<void> {
+    const criar = deps.criarBot?.();
+    if (!criar || !apres.preparo) return;
+    ctxBot.nome = apres.preparo.nome;
+    ctxBot.forma = apres.forma;
+    ctxBot.cor = apres.cor;
+    const primeira = apres.primeira.trim();
+    const apps = [...apres.apps];
+    const etapas = etapasDoBot(ctxBot, {
+      ...criar,
+      computadorPronto: async (agenteId) => {
+        if (!(await criar.computadorPronto(agenteId))) return false;
+        if (!(await iaPronta())) throw new ErroDoPreparo(`${ctxBot.nome} não terminou de se preparar: falta uma IA conectada para ele pensar.`);
+        return true;
+      },
+    }, {
+      apps: async (agenteId) => {
+        for (const slug of apps) {
+          const id = await deps.conectorHabilitado(slug);
+          if (id) await api().definirNivel(agenteId, id, "leitura");
+        }
+      },
+      instrucoes: async (conversaId) => {
+        if (primeira) await api().enviar(conversaId, primeira);
+        else await new Promise((r) => window.setTimeout(r, 700));
+      },
+    });
+    if (relogioPreparo) window.clearInterval(relogioPreparo);
+    relogioPreparo = window.setInterval(() => {
+      if (!apres.preparo) return;
+      const p = tique(apres.preparo);
+      apres = { ...apres, preparo: p };
+      // Só a barra muda a cada tique (regravar a camada reiniciaria o personagem).
+      const cheia = document.querySelector<HTMLElement>(".ap-camada .cb-barra-cheia");
+      if (cheia) cheia.style.width = `${p.porcento}%`;
+      const n = document.querySelector(".ap-camada .cb-porcento");
+      if (n) n.textContent = `${p.porcento}%`;
+    }, 120);
+    const fim = await rodarPreparo(apres.preparo, etapas, (p) => { apres = { ...apres, preparo: p }; deps.aoMudar(); });
+    window.clearInterval(relogioPreparo);
+    relogioPreparo = 0;
+    deps.invalidar();
+    if (!fim.pronto || !ctxBot.criado) return;
+    const { agenteId, conversaId } = ctxBot.criado;
+    await new Promise((r) => window.setTimeout(r, COMEMORA_MS));
+    await fazerDepois();
+    deps.irParaConversa(conversaId, agenteId);
+  }
+
+  const acoesApres: Record<string, (el: HTMLElement) => Promise<void> | void> = {
+    "apres-seguir": () => mudarApres(andar(apres, 1)),
+    "apres-voltar": () => mudarApres(andar(apres, -1)),
+    "apres-pular": () => {
+      const p = passoAtual(apres);
+      mudarApres(andar({ ...apres, ...(p === "funcao" ? { funcao: null } : p === "origem" ? { origem: null } : {}) }, 1));
+      guardarRespostas();
+    },
+    "apres-escolher": (el) => {
+      const valor = el.dataset.valor ?? null;
+      if (el.dataset.campo === "funcao") apres = { ...apres, funcao: valor };
+      else if (el.dataset.campo === "origem") apres = { ...apres, origem: valor };
+      guardarRespostas();
+      deps.aoMudar();
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`.ap-camada [data-valor="${CSS.escape(valor ?? "")}"]`)?.focus());
+    },
+    "apres-forma": (el) => {
+      const forma = el.dataset.forma;
+      if (forma) { apres = { ...apres, forma: forma as EstadoApresentacao["forma"] }; deps.aoMudar(); requestAnimationFrame(() => document.querySelector<HTMLElement>(`.ap-camada [data-forma="${forma}"]`)?.focus()); }
+    },
+    "apres-cor": (el) => {
+      const cor = el.dataset.cor;
+      if (cor) { apres = { ...apres, cor: cor as EstadoApresentacao["cor"] }; deps.aoMudar(); requestAnimationFrame(() => document.querySelector<HTMLElement>(`.ap-camada [data-cor="${cor}"]`)?.focus()); }
+    },
+    // O login do app abre DENTRO do clique (o navegador bloqueia a janela fora dele); o acesso do bot sai no preparo.
+    "apres-conectar": (el) => {
+      const slug = el.dataset.slug;
+      if (!slug) return;
+      deps.iniciarConexao(slug, async () => {
+        if (!apres.apps.includes(slug)) apres = { ...apres, apps: [...apres.apps, slug] };
+        deps.aoMudar();
+      });
+      deps.aoMudar();
+    },
+    "apres-ligacao": () => { pelaLigacao = true; deps.aoMudar(); void passarOla(); },
+    "apres-criar": () => {
+      if (!nomeDoBot(apres)) return;
+      const nomesApps = APPS.filter((a) => apres.apps.includes(a.slug)).map((a) => a.nome);
+      mudarApres({ ...apres, passo: PASSOS.indexOf("preparando"), preparo: novoPreparo(nomeDoBot(apres), nomesApps) }, true);
+      void prepararBot();
+    },
+    "apres-tentar": () => void prepararBot(),
+    // "Ver o que houve": o caminho de antes, que mostra a IA dos bots (o que mais falta num bot que não acorda).
+    "apres-ver": () => { pelaLigacao = true; deps.aoMudar(); void passarOla(); },
+  };
+
+  // O nome e a primeira mensagem do passo 9 mudam sem regravar a camada (o foco e o cursor ficam onde estão).
+  if (typeof document !== "undefined") document.addEventListener("input", (ev) => {
+    const alvo = ev.target;
+    if (!(alvo instanceof HTMLInputElement || alvo instanceof HTMLTextAreaElement) || !alvo.dataset.campoApres) return;
+    if (alvo.dataset.campoApres === "nome") {
+      apres = { ...apres, nome: alvo.value };
+      const nome = nomeDoBot(apres) || "seu bot";
+      const enviar = document.querySelector<HTMLButtonElement>(".ap-camada .ap-enviar");
+      if (enviar) enviar.disabled = !nomeDoBot(apres);
+      const campo = document.querySelector<HTMLTextAreaElement>('.ap-camada [data-campo-apres="primeira"]');
+      if (campo) { campo.placeholder = `O que ${nome} deve fazer primeiro?`; campo.setAttribute("aria-label", campo.placeholder); }
+    } else apres = { ...apres, primeira: alvo.value };
+  });
+  if (typeof document !== "undefined") document.addEventListener("keydown", (ev) => {
+    const alvo = ev.target;
+    if (!(alvo instanceof HTMLElement) || !alvo.closest(".ap-camada")) return;
+    if (ev.key === "Enter" && !ev.shiftKey && alvo.dataset.campoApres) { ev.preventDefault(); acoesApres["apres-criar"]?.(alvo); return; }
+    // ← → andam pelos passos fora dos campos e dos rádios (como no protótipo).
+    if (alvo.matches("input, textarea, [role=radio]") || passoAtual(apres) === "preparando") return;
+    if (ev.key === "ArrowRight" && !document.querySelector(".ap-camada .ap-seguir[disabled]") && passoAtual(apres) !== "criar") { ev.preventDefault(); mudarApres(andar(apres, 1)); }
+    if (ev.key === "ArrowLeft") { ev.preventDefault(); mudarApres(andar(apres, -1)); }
+  });
+
   const acoes: Record<string, (el: HTMLElement) => Promise<void> | void> = {
+    ...acoesApres,
     "onboarding-pular-ola": () => passarOla(),
     "onboarding-depois": () => fazerDepois(),
     "onboarding-ia-entrar": (el) => iaNoMac(iaDoClique(el), "entrar"),
@@ -580,6 +742,9 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
       soComputador = false;
       passoTexto = { passo: "apelido" };
       pulouEm = null;
+      apres = apresentacaoInicial();
+      pelaLigacao = false;
+      ctxBot.criado = null;
       teste.recomecar();
       hidratar(await api().etapaOnboarding({ etapa: "ola" }));
       deps.abrir(true);
@@ -656,6 +821,11 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
       passoTexto = { passo: "apelido" };
       textoErro = null;
       pulouEm = null;
+      apres = apresentacaoInicial();
+      pelaLigacao = false;
+      ctxBot.criado = null;
+      if (relogioPreparo) window.clearInterval(relogioPreparo);
+      relogioPreparo = 0;
       computador.descartar();
       teste.descartar();
     },
