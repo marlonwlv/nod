@@ -76,8 +76,10 @@ do computador do bot e o consentimento de voz.
 
 ## 4. Testar na mão
 
+Com o token em `NOD_MCP_TOKEN`:
+
 ```bash
 curl -s https://app.nodbot.ai/api/mcp \
-  -H "Authorization: Bearer nod_mcp_..." -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $NOD_MCP_TOKEN" -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nod_listar_bots","arguments":{}}}'
 ```
