@@ -1823,6 +1823,7 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     return detalhe ? { tipo: "hidratar-trabalho", detalhe, agora } : { tipo: "trabalho-sumiu", id };
   }
   if (q === "chaves") return { tipo: "hidratar-chaves", chaves: (await api.chaves()).chaves };
+  if (q === "mcp-tokens") return { tipo: "hidratar-mcp-tokens", tokens: await api.mcpTokens() };
   // ADR-090: servidor sem a rota (404, versão anterior) fica sem máquinas; nenhum erro sobe.
   if (q === "maquinas") {
     relerEstaMaquina();
@@ -2052,6 +2053,7 @@ function relevante(q: Invalidacao): boolean {
   if (q === "agenda") return secao === "rotinas";
   if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala";
   if (q === "chaves") return secao === "maquinas";
+  if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
   if (q === "nuvem") return secao === "maquinas";
   if (q === "contas") return secao === "maquinas" || secao === "conexao" || ((t.tipo === "conversa" || t.tipo === "trabalho" || conversaAbertaTemNotaDeContas(estado)) && (contasFalharamEm === null || Date.now() - contasFalharamEm > ESPERA_CONTAS_MS));
@@ -6813,6 +6815,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     return agir(async () => void (await api!.revogarChave(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["chaves", "maquinas", "frota"] }), focarGatilho(gatilho)));
   },
   "fechar-chave-emitida": () => dispatch({ tipo: "chave-emitida", emitida: null }),
+  "fechar-token-mcp": () => dispatch({ tipo: "mcp-token-emitido", emitido: null }),
+  "revogar-token-mcp": (el) => {
+    if (!window.confirm(`Revogar o token "${el.dataset.nome ?? ""}"? O app conectado com ele perde o acesso ao Nod na hora.`)) return;
+    return agir(async () => void (await api!.revogarTokenMcp(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["mcp-tokens"] })));
+  },
   // ADR-102: a lista única de contas (Provedores de IA) e as ações da máquina (Máquinas).
   "cl-menu": (el) => {
     const id = el.dataset.id ?? "";
@@ -7225,6 +7232,13 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     if (campo && telaLigacao.enviarTexto(campo.value)) campo.value = "";
     campo?.focus();
   },
+  "gerar-token-mcp": (form) =>
+    agir(async () => {
+      const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
+      const emitido = await api!.gerarTokenMcp(nome);
+      form.reset();
+      dispatch({ tipo: "mcp-token-emitido", emitido });
+    }),
   "emitir-chave": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
