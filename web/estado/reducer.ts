@@ -980,6 +980,31 @@ function comPendentes(estado: Estado, conversaId: string, f: (ps: readonly FalaP
   return { ...estado, conversas: { ...estado.conversas, [conversaId]: { ...resto, ...(pendentes.length ? { pendentes } : {}), ...(juntas && Object.keys(juntas).length ? { enviadas: juntas } : {}) } } };
 }
 
+/**
+ * C4 (definido em 2026-11-12): a releitura casa cada pendente com a gravada pelo `idEnvio` (a mesma chave de idempotência
+ * que o POST levou), não só pelo id que o POST devolve. A releitura do próprio `mensagem.nova`/`turno.iniciado` chega
+ * antes da resposta do POST: sem o id, a pendente ficava e a gravada aparecia junto (a fala duplicada). A gravada herda a
+ * chave do bloco da pendente (`enviadas`), então o nó do balão é o mesmo e nada anima de novo.
+ */
+export function casarPendentes(pendentes: readonly FalaPendente[], enviadas: Readonly<Record<string, string>> | undefined, mensagens: readonly Mensagem[]): { pendentes: readonly FalaPendente[]; enviadas: Readonly<Record<string, string>> | undefined } {
+  if (pendentes.length === 0) return { pendentes, enviadas };
+  const porEnvio = new Map<string, string>();
+  const gravadas = new Set<string>();
+  for (const m of mensagens) {
+    gravadas.add(m.id);
+    if (m.idEnvio) porEnvio.set(m.idEnvio, m.id);
+  }
+  const novas: Record<string, string> = {};
+  const ficam = pendentes.filter((p) => {
+    const id = porEnvio.get(p.idEnvio) ?? (p.mensagemId && gravadas.has(p.mensagemId) ? p.mensagemId : null);
+    if (!id) return true;
+    if (!enviadas?.[id]) novas[id] = p.idEnvio;
+    return false;
+  });
+  if (Object.keys(novas).length === 0) return { pendentes: ficam, enviadas };
+  return { pendentes: ficam, enviadas: Object.fromEntries(Object.entries({ ...enviadas, ...novas }).slice(-ENVIADAS_GUARDADAS)) };
+}
+
 /** Parte 4: a mensagem que veio no frame, se tem a forma de uma fala de pergunta e a conversa está carregada sem ela. */
 function comMensagemDoFrame(estado: Estado, f: FrameSse): Estado {
   const m = mensagemDoFrame(f.dados.mensagem_json);
@@ -1577,6 +1602,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       const id = acao.mensagemId;
       // Revisão de engenharia (27/10): a releitura (do `turno.iniciado` por SSE) pode chegar ANTES da resposta do POST e já
       // trazer a gravada; aí a pendente só sai, e a gravada fica com a chave dela (o bloco da pendente nunca virou o dela).
+      // C4: com o idEnvio na mensagem, a releitura já casou a pendente e guardou a chave dela em `enviadas`.
       if (estado.conversas[acao.conversaId]?.mensagens.some((m) => m.id === id)) return comPendentes(estado, acao.conversaId, (ps) => ps.filter((p) => p.idEnvio !== acao.idEnvio));
       return comPendentes(estado, acao.conversaId, (ps) => ps.map((p) => (p.idEnvio === acao.idEnvio ? { ...p, estado: "enviando", mensagemId: id, turnoId: acao.turnoId } : p)), { [id]: acao.idEnvio });
     }
@@ -1698,9 +1724,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       }
       // Parte 1: a pendente cuja gravada chegou sai; as outras seguem (a releitura que saiu antes do POST não a traz).
       const antes = estado.conversas[conversaId];
-      const gravadas = new Set(acao.conversa.mensagens.map((m) => m.id));
-      const pendentes = (antes?.pendentes ?? []).filter((p) => !(p.mensagemId && gravadas.has(p.mensagemId)));
-      const extras = { ...(pendentes.length ? { pendentes } : {}), ...(antes?.enviadas ? { enviadas: antes.enviadas } : {}) };
+      const { pendentes, enviadas } = casarPendentes(antes?.pendentes ?? [], antes?.enviadas, acao.conversa.mensagens);
+      const extras = { ...(pendentes.length ? { pendentes } : {}), ...(enviadas ? { enviadas } : {}) };
       // O retrato de antes da releitura sai (revisão 3 do #508); o desta releitura (`semDesmentidos`, `em` = agora) ou de depois
       // dela fica — salvo se a gravada já veio nela (QA do #534).
       return { ...semFalasSaindo(semSumidos, (s, c) => c !== conversaId || (s.em >= acao.agora && !gravadaDoRetrato(acao.conversa, s))), turnosVivos: promovidos, atividades, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: acao.agora, ...extras } } };

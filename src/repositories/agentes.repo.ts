@@ -214,6 +214,13 @@ export function agentesRepo(conn: Conn, escopo: Escopo) {
       return l ? paraAgente(l) : null;
     },
 
+    /** Q5 (2026-11-12): vários de uma vez (uma consulta), no lugar de um `buscar` por id no laço (a N+1 do montarQuadro). */
+    async buscarVarios(ids: readonly string[], incluirExcluidos = false): Promise<Agente[]> {
+      if (ids.length === 0) return [];
+      const ls = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)} from agentes where tenant_id = ${escopo.tenantId} and id = any(${[...ids]}::uuid[]) ${incluirExcluidos ? conn`` : conn`and excluido_em is null`}`;
+      return ls.map(paraAgente);
+    },
+
     /** Resolve por nome entre os agentes visíveis (para encaminhar/pedir_a_bot por nome). */
     async buscarPorNome(nome: string): Promise<Agente | null> {
       const [l] = await conn<Linha[]>`

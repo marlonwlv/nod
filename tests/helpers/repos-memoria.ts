@@ -380,6 +380,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async buscar(id: string) {
         return doTenant(b.pessoas).find((p) => p.id === id) ?? null;
       },
+      async buscarVarias(ids: readonly string[]) {
+        return doTenant(b.pessoas).filter((p) => ids.includes(p.id));
+      },
       async listarDoTenant() {
         return doTenant(b.pessoas).sort((x, y) => x.nome.localeCompare(y.nome));
       },
@@ -578,6 +581,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
       async buscar(id, incluirExcluidos = false) {
         return doTenant(b.agentes).find((a) => a.id === id && (incluirExcluidos || !a.excluidoEm)) ?? null;
+      },
+      async buscarVarios(ids, incluirExcluidos = false) {
+        return doTenant(b.agentes).filter((a) => ids.includes(a.id) && (incluirExcluidos || !a.excluidoEm));
       },
       async buscarPorNome(nome) {
         return doTenant(b.agentes).find((a) => a.nome.toLowerCase() === nome.toLowerCase()) ?? null;

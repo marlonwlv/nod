@@ -38,6 +38,8 @@ export interface LinhaMensagem {
   criado_em: Date;
   /** 0091 (chat limpo): o que a mensagem é; null = fala ou linha sem backfill. Fica no servidor: a web recebe o destino. */
   assunto: string | null;
+  /** 0057: a chave de idempotência do envio da pessoa; vai à web (C4) para casar a fala pendente com a gravada. */
+  id_envio?: string | null;
 }
 
 /** NOD-380: uma linha da busca de mensagens (`buscarTexto`), com o instante em texto de µs para o cursor. */
@@ -61,7 +63,7 @@ export interface LinhaAchada {
 export type FalaDaPessoa = { id: string; conversaId: string; texto: string; criadoEm: number };
 
 export const COLUNAS_MENSAGEM =
-  "tenant_id, id, conversa_id, turno_id, autor_tipo, autor_id, sob_procuracao_de, conta_de_execucao, executor, locality, locality_reason, machine_id, decidido_por, regra_versao, kind, texto, payload, confianca, parcial, criado_em, assunto";
+  "tenant_id, id, conversa_id, turno_id, autor_tipo, autor_id, sob_procuracao_de, conta_de_execucao, executor, locality, locality_reason, machine_id, decidido_por, regra_versao, kind, texto, payload, confianca, parcial, criado_em, assunto, id_envio";
 
 export function paraMensagem(l: LinhaMensagem): Mensagem {
   return {
@@ -87,6 +89,7 @@ export function paraMensagem(l: LinhaMensagem): Mensagem {
     confianca: l.confianca,
     parcial: l.parcial,
     criadoEm: ms(l.criado_em),
+    ...(l.id_envio ? { idEnvio: l.id_envio } : {}),
   };
 }
 
