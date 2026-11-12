@@ -39,7 +39,9 @@
 .message.bot .bubble .md-codigo .sx-n { color: var(--chat-sx-numero); }
 
 /* "Copiar código": 20×20 a 6 px do canto, aparece no hover do bloco (ou no foco do teclado). */
-.message.bot .bubble .md-codigo-copiar { position: absolute; top: 6px; right: 6px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; box-sizing: border-box; background: var(--chat-codigo-fundo); border: 1px solid var(--chat-codigo-borda); border-radius: 4px; color: var(--chat-icone); opacity: 0; }
+.message.bot .bubble .md-codigo-copiar { position: absolute; top: 6px; right: 6px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; box-sizing: border-box; background: var(--chat-codigo-fundo); border: 1px solid var(--chat-codigo-borda); border-radius: 4px; color: var(--chat-icone); }
+/* Some até o hover do bloco (fora do seletor do balão: a opacidade não pode envolver o balão, tests/unit/domain/contraste-do-balao). */
+.timeline .md-codigo:not(:hover) .md-codigo-copiar:not(:focus-visible):not(.copiado) { opacity: 0; }
 .message.bot .bubble .md-codigo:hover .md-codigo-copiar, .message.bot .bubble .md-codigo-copiar:focus-visible, .message.bot .bubble .md-codigo-copiar.copiado { opacity: 1; }
 .message.bot .bubble .md-codigo-copiar:hover, .message.bot .bubble .md-codigo-copiar:focus-visible { background: var(--chat-codigo-fundo); color: var(--chat-tinta); }
 .message.bot .bubble .md-codigo-copiar svg { width: 12px; height: 12px; }

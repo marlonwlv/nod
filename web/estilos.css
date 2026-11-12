@@ -101,20 +101,21 @@ body.ocupado { cursor: progress; }
 
 /* NOD-431 (emenda da ADR-070): o balão da pessoa veste a cor do bot da conversa. A classe balao-c-* vai no
    .message.you (classeDoBalao, web/telas/conversa.ts) e aponta para os tokens da skin, já com contraste garantido. */
-.balao-c-red { --balao-fundo: var(--balao-rouge); --balao-tinta: var(--balao-rouge-tinta); --balao-codigo: var(--balao-rouge-codigo); }
-.balao-c-pink { --balao-fundo: var(--balao-rose); --balao-tinta: var(--balao-rose-tinta); --balao-codigo: var(--balao-rose-codigo); }
-.balao-c-purple, .balao-c-lilac { --balao-fundo: var(--balao-violet); --balao-tinta: var(--balao-violet-tinta); --balao-codigo: var(--balao-violet-codigo); }
-.balao-c-blue { --balao-fundo: var(--balao-bleu); --balao-tinta: var(--balao-bleu-tinta); --balao-codigo: var(--balao-bleu-codigo); }
-.balao-c-teal { --balao-fundo: var(--balao-turquoise); --balao-tinta: var(--balao-turquoise-tinta); --balao-codigo: var(--balao-turquoise-codigo); }
-.balao-c-green { --balao-fundo: var(--balao-vert); --balao-tinta: var(--balao-vert-tinta); --balao-codigo: var(--balao-vert-codigo); }
-.balao-c-orange { --balao-fundo: var(--balao-orange); --balao-tinta: var(--balao-orange-tinta); --balao-codigo: var(--balao-orange-codigo); }
-.balao-c-black { --balao-fundo: var(--balao-encre); --balao-tinta: var(--balao-encre-tinta); --balao-codigo: var(--balao-encre-codigo); }
-.balao-c-brown { --balao-fundo: var(--balao-brun); --balao-tinta: var(--balao-brun-tinta); --balao-codigo: var(--balao-brun-codigo); }
-.balao-c-amber { --balao-fundo: var(--balao-ambre); --balao-tinta: var(--balao-ambre-tinta); --balao-codigo: var(--balao-ambre-codigo); }
-.balao-c-gray { --balao-fundo: var(--balao-gris); --balao-tinta: var(--balao-gris-tinta); --balao-codigo: var(--balao-gris-codigo); }
-.balao-c-cream { --balao-fundo: var(--balao-creme); --balao-tinta: var(--balao-creme-tinta); --balao-codigo: var(--balao-creme-codigo); }
-.balao-c-magenta { --balao-fundo: var(--balao-magenta); --balao-tinta: var(--balao-magenta-tinta); --balao-codigo: var(--balao-magenta-codigo); }
-.balao-c-indigo { --balao-fundo: var(--balao-anil); --balao-tinta: var(--balao-anil-tinta); --balao-codigo: var(--balao-anil-codigo); }
+/* COP-14 (item 3): o fundo e a tinta seguem a paleta do chat (--chat-pessoa-*, web/tokens.css); o código segue a skin. */
+.balao-c-red { --balao-fundo: var(--chat-pessoa-vermelho); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-rouge-codigo); }
+.balao-c-pink { --balao-fundo: var(--chat-pessoa-rosa); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-rose-codigo); }
+.balao-c-purple, .balao-c-lilac { --balao-fundo: var(--chat-pessoa-violeta); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-violet-codigo); }
+.balao-c-blue { --balao-fundo: var(--chat-pessoa-azul); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-bleu-codigo); }
+.balao-c-teal { --balao-fundo: var(--chat-pessoa-turquesa); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-turquoise-codigo); }
+.balao-c-green { --balao-fundo: var(--chat-pessoa-verde); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-vert-codigo); }
+.balao-c-orange { --balao-fundo: var(--chat-pessoa-laranja); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-orange-codigo); }
+.balao-c-black { --balao-fundo: var(--chat-pessoa-tinta-neutra); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-encre-codigo); }
+.balao-c-brown { --balao-fundo: var(--chat-pessoa-marrom); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-brun-codigo); }
+.balao-c-amber { --balao-fundo: var(--chat-pessoa-ambar); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-ambre-codigo); }
+.balao-c-gray { --balao-fundo: var(--chat-pessoa-tinta-neutra); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-gris-codigo); }
+.balao-c-cream { --balao-fundo: var(--chat-pessoa-tinta-neutra); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-creme-codigo); }
+.balao-c-magenta { --balao-fundo: var(--chat-pessoa-rosa); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-magenta-codigo); }
+.balao-c-indigo { --balao-fundo: var(--chat-pessoa-azul); --balao-tinta: var(--chat-pessoa-tinta); --balao-codigo: var(--balao-anil-codigo); }
 
 /* avatares vazados (mensagens de sistema / membros de sala) — mantidos do shell antigo */
 .av { display: inline-grid; place-items: center; font-size: var(--fs-legenda); font-weight: 700; flex: none; }

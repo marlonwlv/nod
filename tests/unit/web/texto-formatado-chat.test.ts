@@ -116,7 +116,8 @@ describe("chat-formato.css (COP-14, item 4)", () => {
     const codigo = regra(".message.bot .bubble .md-codigo pre code");
     for (const parte of ["ui-monospace", "font-size: 12px", "line-height: 18px", "padding: 0 10px", "white-space: pre"]) expect(codigo).toContain(parte);
     const copiar = regra(".message.bot .bubble .md-codigo-copiar");
-    for (const parte of ["top: 6px", "right: 6px", "width: 20px", "height: 20px", "border-radius: 4px", "opacity: 0"]) expect(copiar).toContain(parte);
+    for (const parte of ["top: 6px", "right: 6px", "width: 20px", "height: 20px", "border-radius: 4px"]) expect(copiar).toContain(parte);
+    expect(regra(".timeline .md-codigo:not(:hover) .md-codigo-copiar:not(:focus-visible):not(.copiado)")).toContain("opacity: 0");
   });
 
   it("prévia: superfície, sombra de popover, raio 10, altura 30, endereço até 320 px com reticências", () => {

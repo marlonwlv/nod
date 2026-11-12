@@ -86,24 +86,10 @@
 .timeline .message.bot .bubble.com-progresso { width: auto; }
 .timeline .message.bot .bubble > * { margin-top: 0; margin-bottom: 0; }
 /* Pessoa: à direita, até min(80%, 560, 100% − 82), padding 7/12, raio 18, o mesmo brilho; 8 px entre parágrafos. */
-.timeline .message.you .bubble {
-  max-width: min(80%, 560px, calc(100% - 82px)); box-sizing: border-box; padding: 7px 12px; border-radius: 18px;
-  box-shadow: var(--chat-brilho-balao); background: var(--chat-pessoa-tinta-neutra); color: var(--chat-pessoa-tinta);
-}
+.timeline .message.you .bubble { max-width: min(80%, 560px, calc(100% - 82px)); box-sizing: border-box; padding: 7px 12px; border-radius: 18px; box-shadow: var(--chat-brilho-balao); }
 .timeline .message.you .bubble-wrap { max-width: min(80%, 560px, calc(100% - 82px)); }
 .timeline .message.you .bubble p + p { margin-top: 8px; }
-.timeline .message.you .bubble a { color: inherit; text-decoration: underline; }
-/* O balão da pessoa na cor do bot da conversa (a opção "preto" de Aparência continua valendo: ds.css). */
-html[data-balao="cor"] .timeline .message.you.balao-c-blue .bubble, html[data-balao="cor"] .timeline .message.you.balao-c-indigo .bubble { background: var(--chat-pessoa-azul); }
-html[data-balao="cor"] .timeline .message.you:is(.balao-c-purple, .balao-c-lilac) .bubble { background: var(--chat-pessoa-violeta); }
-html[data-balao="cor"] .timeline .message.you.balao-c-green .bubble { background: var(--chat-pessoa-verde); }
-html[data-balao="cor"] .timeline .message.you.balao-c-teal .bubble { background: var(--chat-pessoa-turquesa); }
-html[data-balao="cor"] .timeline .message.you:is(.balao-c-pink, .balao-c-magenta) .bubble { background: var(--chat-pessoa-rosa); }
-html[data-balao="cor"] .timeline .message.you.balao-c-red .bubble { background: var(--chat-pessoa-vermelho); }
-html[data-balao="cor"] .timeline .message.you.balao-c-orange .bubble { background: var(--chat-pessoa-laranja); }
-html[data-balao="cor"] .timeline .message.you.balao-c-amber .bubble { background: var(--chat-pessoa-ambar); }
-html[data-balao="cor"] .timeline .message.you.balao-c-brown .bubble { background: var(--chat-pessoa-marrom); }
-html:not([data-balao="cor"]) .timeline .message.you .bubble { background: var(--balao-pessoa); color: var(--balao-pessoa-tinta); }
+/* O balão da pessoa na cor do bot: as classes balao-c-* de web/estilos.css apontam --balao-fundo para --chat-pessoa-*. */
 
 /* Agrupamento: 4 px dentro do grupo, 16 px entre remetentes ou depois de um cartão; o canto do lado do remetente vira 6. */
 .timeline .message[data-grupo] { margin-top: 4px; }
