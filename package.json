@@ -14,7 +14,7 @@
     "check": "npm run lint && npm run typecheck && npm run fence:domain && npm run fence:migrations && npm run test:unit && npm run test:integration && npm run test:conformidade && npm run test:concurrency && npm run db:test:limpar",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run --project unit",
+    "test:unit": "vitest run --project unit --project componentes",
     "test:integration": "vitest run --project integration",
     "test:conformidade": "vitest run --project conformidade",
     "test:concurrency": "vitest run --project concurrency",
@@ -59,23 +59,31 @@
     "pre-commit": "if command -v mise >/dev/null 2>&1; then mise exec -- npx lint-staged; else npx lint-staged; fi"
   },
   "lint-staged": {
-    "*.ts": "eslint --fix"
+    "*.{ts,tsx}": "eslint --fix"
   },
   "dependencies": {
+    "@base-ui/react": "1.9.0",
     "@novnc/novnc": "^1.7.0",
     "mermaid": "12.2.0",
     "pdfjs-dist": "6.4.299",
     "postgres": "^3.4.9",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "ws": "^8.22.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
     "@types/node": "^24.13.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "@types/ws": "^8.18.2",
     "electron": "43.7.1",
     "electron-builder": "26.16.1",
     "esbuild": "0.25.12",
     "eslint": "^9.15.0",
+    "happy-dom": "21.0.4",
     "lint-staged": "^17.5.1",
     "npm": "11.17.0",
     "simple-git-hooks": "^2.14.0",
