@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import type { Agente } from "../../src/contracts/agente.ts";
 import type { ConversaDto } from "../../src/contracts/api.ts";
+import type { AtividadeDto } from "../../src/contracts/atividade.ts";
 import type { Conversa } from "../../src/contracts/conversa.ts";
 import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
@@ -57,6 +58,11 @@ describeIntegracao("servidor MCP do Nod pelo HTTP real", () => {
     expect(envio.isError).toBeFalsy();
     const conversa = await srv.json<ConversaDto>("GET", `conversas/${b.conversa.id}/mensagens`);
     expect(conversa.mensagens.some((m) => m.texto === "oi pelo MCP" && m.autoria.autor_tipo === "pessoa")).toBe(true);
+
+    // Critério 4 da NOD-152: a mensagem mandada pelo MCP aparece na Atividade do bot como vinda do cliente MCP.
+    const dia = new Date().toISOString().slice(0, 10);
+    const atividade = await srv.json<AtividadeDto>("GET", `agentes/${b.agente.id}/atividade?dia=${dia}&fuso=UTC`);
+    expect(atividade.itens).toContainEqual(expect.objectContaining({ titulo: "Mandou uma mensagem a Piloto MCP", detalhe: "Pelo MCP · Grok Bot" }));
 
     // O uso e o cliente ficam na lista dos Ajustes.
     const depois = (await srv.json<TokensMcpDto>("GET", "mcp/tokens")).tokens.find((t) => t.id === emitido.dados.id);

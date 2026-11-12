@@ -10,6 +10,8 @@ const CONVERSA = "22222222-2222-4222-8222-222222222222";
 const DECISAO = "33333333-3333-4333-8333-333333333333";
 const TAREFA = "44444444-4444-4444-8444-444444444444";
 const QUADRO = "55555555-5555-4555-8555-555555555555";
+const RETOMAR = "66666666-6666-4666-8666-666666666666";
+const ROTINA = "77777777-7777-4777-8777-777777777777";
 
 /** As rotas falsas da tela: guardam o que o servidor MCP chamou, como a tela chamaria. */
 function rotasFalsas() {
@@ -27,7 +29,17 @@ function rotasFalsas() {
       if (leituras === 1) { ctx.json(200, { mensagens: [pessoa], turnosEmCurso: [{ id: "t-1" }], turnosPendentes: [] }); return; }
       ctx.json(200, { mensagens: [pessoa, { id: "m-bot", turnoId: "t-1", kind: "texto", texto: "Bom dia, Marlon!", criadoEm: 2, autoria: { autor_tipo: "agente" } }], turnosEmCurso: [], turnosPendentes: [] });
     } },
-    { metodo: "GET", padrao: /^\/sua-vez$/, async handler(ctx) { ctx.json(200, { itens: [{ decisao: { id: DECISAO, tipo: "aprovacao", frase: "Enviar o e-mail?", criadoEm: "2026-11-12T10:00:00Z" }, agenteNome: "Ada", itensAprovacao: [{ id: "i-1", textoFinal: "Enviar", selecionado: true }] }] }); } },
+    { metodo: "GET", padrao: /^\/sua-vez$/, async handler(ctx) { ctx.json(200, { itens: [
+      { decisao: { id: DECISAO, tipo: "aprovacao", frase: "Enviar o e-mail?", criadoEm: "2026-11-12T10:00:00Z", agenteId: BOT }, agenteNome: "Ada", itensAprovacao: [{ id: "i-1", textoFinal: "Enviar", selecionado: true }] },
+      { decisao: { id: RETOMAR, tipo: "retomar_turno", frase: "Retomar o turno interrompido?", criadoEm: "2026-11-12T10:01:00Z", agenteId: BOT }, agenteNome: "Ada" },
+    ] }); } },
+    { metodo: "POST", acao: "cartoes.dispensar", padrao: /^\/decisoes\/(?<id>[^/]+)\/dispensar$/, async handler(ctx) { await registrar(ctx, "POST", `/decisoes/${ctx.params.id}/dispensar`); ctx.json(200, { ok: true, ids: { decisaoId: ctx.params.id } }); } },
+    // GET /rotinas devolve RotinaDto[] (a rotina dentro de `rotina`), como a rota de verdade.
+    { metodo: "GET", padrao: /^\/rotinas$/, async handler(ctx) { ctx.json(200, [{ rotina: { id: ROTINA, agenteId: BOT, cron: "0 9 * * 1", fusoIana: "America/Sao_Paulo", estado: "ativa", instrucao: "Resumo da semana" }, proximaExecucao: 0, bloqueio: null, resumo: "", espera: null }]); } },
+    { metodo: "POST", acao: "rotinas.executar", padrao: /^\/rotinas\/(?<id>[^/]+)\/executar$/, async handler(ctx) { await registrar(ctx, "POST", `/rotinas/${ctx.params.id}/executar`); ctx.json(202, { ok: true }); } },
+    // O convite de máquina (papel computador pareia sem a tela) e o endereço da rotina webhook (GET devolve o segredo).
+    { metodo: "POST", acao: "maquinas.convidar", padrao: /^\/maquinas\/convites$/, async handler(ctx) { await registrar(ctx, "POST", "/maquinas/convites"); ctx.json(201, { convite: "segredo" }); } },
+    { metodo: "GET", padrao: /^\/rotinas\/(?<id>[^/]+)\/endereco$/, async handler(ctx) { await registrar(ctx, "GET", `/rotinas/${ctx.params.id}/endereco`); ctx.json(200, { url: "https://x/w/segredo" }); } },
     { metodo: "GET", padrao: /^\/nao-lidos$/, async handler(ctx) { ctx.json(200, { conversas: [{ conversaId: CONVERSA, tipo: "propria", agenteId: BOT, total: 3 }] }); } },
     { metodo: "POST", acao: "cartoes.decidir", padrao: /^\/decisoes\/(?<id>[^/]+)\/decidir$/, async handler(ctx) { await registrar(ctx, "POST", `/decisoes/${ctx.params.id}/decidir`); ctx.json(200, { ok: true, ids: { decisao: ctx.params.id } }); } },
     { metodo: "GET", padrao: /^\/quadro\/tarefas\/(?<codigo>[^/]+)$/, async handler(ctx) {
@@ -50,6 +62,7 @@ describe("servidor MCP do Nod (POST /api/mcp)", () => {
   let url = "";
   let close: () => Promise<void> = async () => {};
   const clientes: (string | null)[] = [];
+  const registradas: { tokenId: string; agenteId: string | null; ferramenta: string; resumo: string }[] = [];
   const falsas = rotasFalsas();
 
   beforeAll(async () => {
@@ -62,6 +75,9 @@ describe("servidor MCP do Nod (POST /api/mcp)", () => {
         async autorizar(token, cliente) {
           clientes.push(cliente);
           return token === TOKEN ? { tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON, tokenId: "tok-1" } : null;
+        },
+        async registrarAcao(identidade, a) {
+          registradas.push({ tokenId: identidade.tokenId, agenteId: a.agenteId, ferramenta: a.ferramenta, resumo: a.resumo });
         },
       },
     });
@@ -149,5 +165,108 @@ describe("servidor MCP do Nod (POST /api/mcp)", () => {
     const tokens = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "GET", caminho: "/mcp/tokens" })).texto) as { status: number };
     expect(tokens.status).toBe(404);
     expect(falsas.chamadas.some((c) => c.caminho === "/maquinas/chaves" || c.caminho === "/mcp/tokens")).toBe(false);
+  });
+
+  it("nod_chamar_rota não alcança o convite de máquina nem o endereço (segredo) da rotina webhook", async () => {
+    const convite = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "POST", caminho: "/maquinas/convites", corpo: { papel: "computador" } })).texto) as { status: number };
+    expect(convite.status).toBe(404);
+    const endereco = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "GET", caminho: `/rotinas/${ROTINA}/endereco` })).texto) as { status: number };
+    expect(endereco.status).toBe(404);
+    expect(falsas.chamadas.some((c) => c.caminho === "/maquinas/convites" || c.caminho.endsWith("/endereco"))).toBe(false);
+  });
+
+  it("recusar um retomar_turno vai pelo Deixar pra lá (dispensar), nunca pelo /decidir que retomaria", async () => {
+    const r = await chamarFerramenta("nod_decidir", { pedido_id: RETOMAR, decisao: "recusar" });
+    expect(r.erro ? r.texto : false).toBe(false);
+    expect(falsas.chamadas.some((c) => c.caminho === `/decisoes/${RETOMAR}/dispensar`)).toBe(true);
+    expect(falsas.chamadas.some((c) => c.caminho === `/decisoes/${RETOMAR}/decidir`)).toBe(false);
+  });
+
+  it("nod_listar_rotinas lê o RotinaDto de verdade (a rotina dentro de `rotina`)", async () => {
+    const r = await chamarFerramenta("nod_listar_rotinas", {});
+    expect(r.erro ? r.texto : false).toBe(false);
+    expect(JSON.parse(r.texto)).toEqual({ rotinas: [expect.objectContaining({ id: ROTINA, bot: "Ada", estado: "ativa", instrucao: "Resumo da semana" })] });
+  });
+
+  it("lote com item inválido responde item a item (nunca 500) e lote acima do teto é 400", async () => {
+    const r = await rpc([null, { jsonrpc: "2.0", id: 1, method: "ping" }]);
+    expect(r.status).toBe(200);
+    const corpo = (await r.json()) as { id: unknown; error?: { code: number }; result?: unknown }[];
+    expect(corpo).toEqual([expect.objectContaining({ id: null, error: expect.objectContaining({ code: -32600 }) }), expect.objectContaining({ id: 1, result: {} })]);
+    const grande = await rpc(Array.from({ length: 17 }, (_, i) => ({ jsonrpc: "2.0", id: i, method: "ping" })));
+    expect(grande.status).toBe(400);
+  });
+
+  it("o que muda pelo MCP vai para a Atividade do bot (registrarAcao); leitura e erro não registram", async () => {
+    registradas.length = 0;
+    expect((await chamarFerramenta("nod_listar_bots", {})).erro).toBe(false);
+    expect((await chamarFerramenta("nod_mudar_tarefa", { tarefa: "XYZ-9", coluna: "Done" })).erro).toBe(true);
+    expect(registradas).toEqual([]);
+    expect((await chamarFerramenta("nod_mudar_tarefa", { tarefa: "ADA-1", coluna: "Done" })).erro).toBe(false);
+    expect((await chamarFerramenta("nod_rodar_rotina", { rotina_id: ROTINA })).erro).toBe(false);
+    expect(registradas).toEqual([
+      { tokenId: "tok-1", agenteId: BOT, ferramenta: "nod_mudar_tarefa", resumo: "Moveu a tarefa ADA-1 para Done" },
+      { tokenId: "tok-1", agenteId: BOT, ferramenta: "nod_rodar_rotina", resumo: 'Rodou a rotina "Resumo da semana"' },
+    ]);
+  });
+});
+
+describe("servidor MCP do Nod: tetos de concorrência e desistência do cliente", () => {
+  let url = "";
+  let close: () => Promise<void> = async () => {};
+  let leituras = 0;
+  let terminou = false;
+  let soltar: () => void = () => {};
+  let portao = new Promise<void>((r) => { soltar = r; });
+
+  beforeAll(async () => {
+    const rotas: Rota[] = [
+      { metodo: "GET", padrao: /^\/frota$/, async handler(ctx) { ctx.json(200, { agentes: [{ id: BOT, nome: "Ada", conversaId: CONVERSA }] }); } },
+      { metodo: "POST", acao: "conversas.enviar", padrao: /^\/conversas\/(?<id>[^/]+)\/mensagens$/, async handler(ctx) { ctx.json(201, { ok: true, ids: { mensagem: "m", turno: "t-1" } }); } },
+      { metodo: "GET", padrao: /^\/conversas\/(?<id>[^/]+)\/mensagens$/, async handler(ctx) {
+        leituras += 1;
+        ctx.json(200, { mensagens: [], turnosEmCurso: terminou ? [] : [{ id: "t-1" }], turnosPendentes: [] });
+      } },
+    ];
+    const srv = await listen(0, "127.0.0.1", {
+      rotas,
+      segredoSessao: "segredo-de-teste",
+      mcp: { versaoNod: "1.2.3", dormir: () => portao, async autorizar(token) { return token === TOKEN ? { tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON, tokenId: "tok-1" } : null; } },
+    });
+    url = `http://127.0.0.1:${srv.port}/api/mcp`;
+    close = srv.close;
+  });
+  afterAll(async () => { soltar(); await close(); });
+
+  const conversar = (signal?: AbortSignal) =>
+    fetch(url, { method: "POST", ...(signal ? { signal } : {}), headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "nod_conversar", arguments: { bot: "Ada", texto: "oi", esperar_segundos: 110 } } }) });
+  const esperarAte = async (cond: () => boolean) => { for (let i = 0; i < 200 && !cond(); i++) await new Promise((r) => setTimeout(r, 10)); };
+
+  it("o cliente que desiste para a espera: a conversa não é lida de novo depois que a conexão cai", async () => {
+    const ac = new AbortController();
+    const pedido = conversar(ac.signal).catch(() => null);
+    await esperarAte(() => leituras >= 1);
+    ac.abort();
+    await pedido;
+    await new Promise((r) => setTimeout(r, 50));
+    const antes = leituras;
+    // Solta a espera com a conversa ainda aberta: sem a desistência, o laço leria a conversa de novo, sem parar, por 110 s.
+    soltar();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(leituras).toBe(antes);
+    portao = new Promise<void>((r) => { soltar = r; });
+  });
+
+  it("um token tem no máximo 8 ferramentas em andamento: a 9ª volta isError na hora", async () => {
+    leituras = 0;
+    const pedidos = Array.from({ length: 8 }, () => conversar());
+    await esperarAte(() => leituras >= 8);
+    const nona = (await (await conversar()).json()) as { result: { isError?: boolean; content: { text: string }[] } };
+    expect(nona.result.isError).toBe(true);
+    expect(nona.result.content[0]!.text).toContain("em andamento");
+    terminou = true;
+    soltar();
+    const respostas = await Promise.all(pedidos.map(async (p) => ((await (await p).json()) as { result: { isError?: boolean } }).result));
+    expect(respostas.every((r) => r.isError !== true)).toBe(true);
   });
 });

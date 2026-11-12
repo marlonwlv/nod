@@ -53,4 +53,30 @@ describeIntegracao("mcp_tokens: só a dona vê, acha e revoga (0173)", () => {
       await expectRejected(trx, () => repo.criar({ nome: "  ", prefixo: c.prefixo, hash: cunharTokenMcp(dona).hash }), "23514");
     });
   });
+
+  it("0174: a ação pelo MCP grava com o nome do cliente do token, sai no dia do bot e só a dona a vê", async () => {
+    const dona = { tenantId: TENANT_PADRAO, pessoaId: randomUUID() };
+    const outra = { tenantId: TENANT_PADRAO, pessoaId: randomUUID() };
+    const bot = randomUUID();
+    await withRollback(dona, async (trx) => {
+      const repo = mcpTokensRepo(trx, dona);
+      const c = cunharTokenMcp(dona);
+      const token = await repo.criar({ nome: "Meu Grok", prefixo: c.prefixo, hash: c.hash });
+      const faixa = { ini: new Date(Date.now() - 60_000), fim: new Date(Date.now() + 60_000) };
+      expect(await repo.registrarAcao({ tokenId: token?.id ?? "", agenteId: bot, ferramenta: "nod_mudar_tarefa", resumo: "Moveu a tarefa ADA-1 para Done" })).toBe(true);
+      await repo.marcarUso(token?.id ?? "", Date.now(), "Grok Bot");
+      expect(await repo.registrarAcao({ tokenId: token?.id ?? "", agenteId: bot, ferramenta: "nod_conversar", resumo: "Mandou uma mensagem a Ada" })).toBe(true);
+      expect(await repo.registrarAcao({ tokenId: token?.id ?? "", agenteId: null, ferramenta: "nod_chamar_rota", resumo: "Chamou POST /rotinas" })).toBe(true);
+      expect(await repo.registrarAcao({ tokenId: randomUUID(), agenteId: bot, ferramenta: "x", resumo: "y" })).toBe(false);
+      const linhas = await repo.acoesDoDia(bot, faixa, 10);
+      expect(linhas.map((l) => [l.resumo, l.cliente])).toEqual([["Mandou uma mensagem a Ada", "Grok Bot"], ["Moveu a tarefa ADA-1 para Done", "Meu Grok"]]);
+      expect(await repo.contarAcoesDoDia(bot, faixa)).toBe(2);
+
+      await vincularEscopo(trx, outra);
+      const daOutra = mcpTokensRepo(trx, outra);
+      expect(await daOutra.acoesDoDia(bot, faixa, 10)).toEqual([]);
+      expect(await daOutra.registrarAcao({ tokenId: token?.id ?? "", agenteId: bot, ferramenta: "x", resumo: "y" })).toBe(false);
+      expect(await trx`select id from mcp_acoes`).toHaveLength(0);
+    });
+  });
 });

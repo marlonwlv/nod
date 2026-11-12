@@ -28,21 +28,27 @@ rodar rotinas sem abrir o Nod. Depois, qualquer cliente MCP (Claude Desktop, Cla
    conversar (manda e espera a resposta até 110 s), ler conversa, o que espera por mim, decidir, responder pedido, ver
    quadro e tarefa, criar, mudar, comentar e responder tarefa, listar e rodar rotinas. `nod_chamar_rota` alcança
    qualquer outra rota de pessoa (o resto da paridade, até a ADA-191 dar ferramentas próprias).
-4. **Fica fora do MCP**, inclusive pelo `nod_chamar_rota`: os próprios tokens MCP (um token não gera outro), o SSE e as
-   ações que levam segredo, pareamento, OAuth no navegador, as mãos da pessoa no computador do bot e o consentimento de
-   voz (`ACOES_FORA_DO_MCP`, lista explícita). **Não** é "todas as `nunca` do chat": o `nunca` de `conversas.enviar` e
+4. **Fica fora do MCP**, inclusive pelo `nod_chamar_rota`: os próprios tokens MCP (um token não gera outro), o SSE, o
+   endereço da rotina webhook (o GET devolve o segredo) e as ações que levam segredo, pareamento (inclusive o convite de
+   máquina, que com `papel: computador` pareia sem a tela e vira chave que sobrevive à revogação do token), instalação
+   por SSH e confiança em host key, login de IA na máquina, OAuth no navegador, a troca do endereço webhook, as mãos da
+   pessoa no computador do bot e o consentimento de voz (`ACOES_FORA_DO_MCP`, lista explícita; revisão do PR #22). **Não** é "todas as `nunca` do chat": o `nunca` de `conversas.enviar` e
    dos cartões fala do BOT decidir pela conversa; o cliente MCP age em nome da PESSOA, com o token dela, e mandar
    mensagem e aprovar são o que ele existe para fazer (critério de aceite do Marlon). As descrições das ferramentas
    pedem ao modelo do cliente que confirme com a pessoa antes de aprovar algo com efeito externo.
 5. **Rastro**: cada chamada loga `mcp_ferramenta` (token, ferramenta, erro, ms; nunca argumentos ou saída, ADR-004) e o
    token guarda o último uso e o nome que o cliente anunciou no `initialize`, que a tela mostra ("Usado por Grok Bot").
+   O que uma ferramenta muda (mensagem, decisão, tarefa, rotina, `nod_chamar_rota` fora de GET) vai para `mcp_acoes`
+   (0174) com um resumo de uma linha e entra na Atividade do bot como "Pelo MCP · <cliente>" (critério 4 da NOD-152).
+6. **Tetos**: lote JSON-RPC de no máximo 16 pedidos e no máximo 8 ferramentas em andamento por token (o `nod_conversar`
+   segura a leitura da conversa por até 110 s); o cliente que fecha a conexão para a espera na hora.
 
 ## Consequências
 
 - O que a tela ganha de rota nova o MCP alcança no mesmo dia pelo `nod_chamar_rota`.
-- **Ainda não**: OAuth (o Grok Bot e o Claude aceitam cabeçalho; OAuth fica para quando um cliente exigir), a Atividade
-  do bot marcando a ação "via MCP" (hoje o rastro é o log e o último uso do token) e notificações do servidor (sem SSE,
-  o cliente relê com `nod_ler_conversa`).
+- **Ainda não**: OAuth (o Grok Bot e o Claude aceitam cabeçalho; OAuth fica para quando um cliente exigir), a marca
+  "via MCP" na própria mensagem do chat e no mural do quadro (a Atividade do bot já diz) e notificações do servidor (sem
+  SSE, o cliente relê com `nod_ler_conversa`).
 
 ## Gatilho de reversão
 

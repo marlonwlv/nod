@@ -125,6 +125,7 @@ import { criarPonteInterna, VERSAO_MINIMA_APP, type PonteInternaNod } from "../f
 import { autorizarChaveMaquina } from "./autorizar-chave-maquina.ts";
 import { autorizarTokenMcp } from "./autorizar-token-mcp.ts";
 import { rotasMcpTokens } from "./rotas/mcp-tokens.ts";
+import type { DepsServidorMcp } from "./mcp/servidor-mcp.ts";
 import { segredoEfetivo } from "./sessao.ts";
 import { comporContas, type ContasMontadas } from "./compor-contas.ts";
 import { situacaoDaConta } from "../../repositories/contas.repo.ts";
@@ -307,7 +308,7 @@ export type App = {
   ultimoContatoDaMaquina(machineId: string): number | null;
   autorizarMaquina(token: string): ReturnType<typeof autorizarChaveMaquina>;
   /** Servidor MCP do Nod (0173): valida o token do cliente MCP e diz a versão que o initialize anuncia. */
-  mcp: { autorizar(token: string, cliente: string | null): ReturnType<typeof autorizarTokenMcp>; versaoNod: string };
+  mcp: { autorizar(token: string, cliente: string | null): ReturnType<typeof autorizarTokenMcp>; versaoNod: string; registrarAcao: NonNullable<DepsServidorMcp["registrarAcao"]> };
   /** Liga o registry sondado (boot), os snapshots das sondas por driver e quem liga um driver DEPOIS do boot (interruptor). */
   ligarRegistry(registry: Registry, inventarios?: Partial<Record<IdDriver, Inventario>>, ativar?: AtivarDriver): void;
   /** NOD-323 (J6): a URL deste servidor, que só existe depois do listen — o laço local sobe por ela a mídia da fala. */
@@ -868,7 +869,14 @@ export function comporApp(o: OpcoesCompor): App {
   // ADR-108 (revisão do PR 2, C5): as IAs prontas nas máquinas da ponte HTTP (as VMs, no modo local) contam por máquina.
   const ponte = criarPonteInterna(db, { ...depsPonte, prontosPorMaquina: (pessoaId) => ponteHttp.prontosPorMaquinaDaPessoa(pessoaId) });
   const autorizarMaquina = (token: string) => autorizarChaveMaquina(db, token, relogio());
-  const mcp = { autorizar: (token: string, cliente: string | null) => autorizarTokenMcp(db, token, relogio(), cliente), versaoNod: versaoDoServidor() };
+  const mcp: App["mcp"] = {
+    autorizar: (token, cliente) => autorizarTokenMcp(db, token, relogio(), cliente),
+    versaoNod: versaoDoServidor(),
+    // Critério 4 da NOD-152 (0174): o que o cliente MCP mudou aparece na Atividade do bot, marcado "Pelo MCP".
+    registrarAcao: async (identidade, a) => {
+      await dentro({ tenantId: identidade.tenantId, pessoaId: identidade.pessoaId }, (d) => d.repos.mcpTokens.registrarAcao({ tokenId: identidade.tokenId, agenteId: a.agenteId, ferramenta: a.ferramenta, resumo: a.resumo }));
+    },
+  };
   // ADR-102 (2026-10-13): os logins de contas pela tela e o pareamento por código/convite (em memória, src/services).
   const logins = criarLoginsNaMaquina(relogio);
   /**

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { RotinaDto } from "../../../contracts/api.ts";
 import type { Escopo } from "../../../shared/types.ts";
 import type { ChamadorInterno, PedidoInterno, RespostaInterna } from "./chamador-interno.ts";
 
@@ -20,12 +21,19 @@ export interface DefinicaoFerramentaMcp {
   annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean; openWorldHint?: boolean };
 }
 
+/** O que uma ferramenta que mudou algo deixa para a Atividade do bot ("Pelo MCP · Grok Bot"). */
+export type AnotacaoMcp = { agenteId: string | null; resumo: string };
+
 export interface ContextoFerramenta {
   escopo: Escopo;
   chamar: ChamadorInterno;
   /** Relógio e espera injetáveis: o teste não dorme. */
   agora(): number;
   dormir(ms: number): Promise<void>;
+  /** O cliente desistiu do pedido (a conexão caiu): a espera do nod_conversar para de ler a conversa. */
+  cancelado?(): boolean;
+  /** Registra o que a ferramenta mudou; o servidor grava na Atividade do bot só se a chamada terminou sem erro. */
+  anotar?(a: AnotacaoMcp): void;
 }
 
 type Args = Record<string, unknown>;
@@ -146,6 +154,7 @@ const conversar: Implementacao = async (ctx, args) => {
   const espera = Math.min(ESPERA_MAX_S, Math.max(0, typeof args.esperar_segundos === "number" ? args.esperar_segundos : ESPERA_PADRAO_S));
   if (!bot.conversaId) throw new FalhaDaFerramenta(`O bot ${bot.nome} ainda não tem conversa.`);
   const enviado = (await chamarOk(ctx, { metodo: "POST", caminho: `/conversas/${bot.conversaId}/mensagens`, corpo: { texto: fala, idEnvio: randomUUID() } })) as { ids?: { mensagem?: string; turno?: string } };
+  ctx.anotar?.({ agenteId: bot.id, resumo: `Mandou uma mensagem a ${bot.nome}` });
   const turnoId = enviado.ids?.turno ?? null;
   const mensagemId = enviado.ids?.mensagem ?? null;
   const ate = ctx.agora() + espera * 1_000;
@@ -155,8 +164,9 @@ const conversar: Implementacao = async (ctx, args) => {
     conversa = await lerConversa(ctx, bot.conversaId);
     const aberto = [...(conversa.turnosEmCurso ?? []), ...(conversa.turnosPendentes ?? [])].some((t) => t.id === turnoId);
     if (!aberto) { terminou = true; break; }
-    if (ctx.agora() >= ate) break;
+    if (ctx.agora() >= ate || ctx.cancelado?.()) break;
     await ctx.dormir(INTERVALO_LEITURA_MS);
+    if (ctx.cancelado?.()) break;
   }
   const mensagens = conversa.mensagens ?? [];
   const indice = mensagemId ? mensagens.findIndex((m) => m.id === mensagemId) : -1;
@@ -178,7 +188,7 @@ const lerConversaFerramenta: Implementacao = async (ctx, args) => {
   return { bot: bot.nome, trabalhando: (conversa.turnosEmCurso?.length ?? 0) + (conversa.turnosPendentes?.length ?? 0) > 0, mensagens: falas.map((m) => falaResumida(m, bot.nome)) };
 };
 
-type ItemSuaVez = { decisao: { id: string; tipo: string; frase: string; criadoEm: string; tarefaId?: string }; agenteNome: string; itensAprovacao?: { id: string; textoFinal: string; selecionado: boolean }[]; fio?: { opcoes?: string[] } | null };
+type ItemSuaVez = { decisao: { id: string; tipo: string; frase: string; criadoEm: string; tarefaId?: string; agenteId?: string }; agenteNome: string; itensAprovacao?: { id: string; textoFinal: string; selecionado: boolean }[]; fio?: { opcoes?: string[] } | null };
 
 async function suaVez(ctx: ContextoFerramenta): Promise<ItemSuaVez[]> {
   const r = (await chamarOk(ctx, { metodo: "GET", caminho: "/sua-vez" })) as { itens?: ItemSuaVez[] };
@@ -215,16 +225,22 @@ const decidir: Implementacao = async (ctx, args) => {
   if (SE_RESPONDE.has(item.decisao.tipo)) throw new FalhaDaFerramenta("Esse pedido é uma pergunta: responda com nod_responder_pedido.");
   // O mesmo corpo que a janela de aprovação por voz monta (rotas/decisoes.ts): recusar uma aprovação = todos os itens
   // desmarcados; aprovar = o que o bot propôs, como o botão Aprovar da tela.
+  // Retomar um turno interrompido não se recusa pelo /decidir (a rota retoma de qualquer jeito): o "não retomar" da tela
+  // é o Deixar pra lá (POST decisoes/:id/dispensar).
+  const caminho = acao === "recusar" && item.decisao.tipo === "retomar_turno" ? `/decisoes/${id}/dispensar` : `/decisoes/${id}/decidir`;
   const tipoComItens = item.decisao.tipo === "aprovacao" || item.decisao.tipo === "gate_rotina";
   const corpo = acao === "recusar" ? (tipoComItens ? { itens: (item.itensAprovacao ?? []).map((x) => ({ id: x.id, selecionado: false })) } : { recusar: true }) : args.sempre === true ? { sempre: true } : {};
-  const r = (await chamarOk(ctx, { metodo: "POST", caminho: `/decisoes/${id}/decidir`, corpo })) as { ids?: Record<string, string> };
+  const r = (await chamarOk(ctx, { metodo: "POST", caminho, corpo })) as { ids?: Record<string, string> };
+  ctx.anotar?.({ agenteId: item.decisao.agenteId ?? null, resumo: `${acao === "aprovar" ? "Aprovou" : "Recusou"}: ${corte(item.decisao.frase, 140)}` });
   return { ok: true, pedido: id, decisao: acao, bot: item.agenteNome, ids: r.ids ?? {} };
 };
 
 const responderPedido: Implementacao = async (ctx, args) => {
   const id = texto(args, "pedido_id", true);
   const resposta = texto(args, "texto", true);
+  const item = (await suaVez(ctx)).find((i) => i.decisao.id === id);
   const r = (await chamarOk(ctx, { metodo: "POST", caminho: `/decisoes/${id}/responder`, corpo: { texto: resposta } })) as { ids?: Record<string, string> };
+  ctx.anotar?.({ agenteId: item?.decisao.agenteId ?? null, resumo: item ? `Respondeu: ${corte(item.decisao.frase, 140)}` : "Respondeu a um pedido" });
   return { ok: true, pedido: id, ids: r.ids ?? {} };
 };
 
@@ -273,6 +289,7 @@ const criarTarefa: Implementacao = async (ctx, args) => {
     ...(texto(args, "prioridade") !== undefined ? { prioridade: texto(args, "prioridade") } : {}),
   };
   const r = await chamarOk(ctx, { metodo: "POST", caminho: `/agentes/${bot.id}/quadro/tarefas`, corpo });
+  ctx.anotar?.({ agenteId: bot.id, resumo: `Criou a tarefa "${corte(corpo.titulo, 120)}"` });
   return { ok: true, quadro_de: bot.nome, resultado: r };
 };
 
@@ -283,32 +300,43 @@ const mudarTarefa: Implementacao = async (ctx, args) => {
   for (const [de, para] of mapa) if (texto(args, de) !== undefined) corpo[para] = texto(args, de);
   if (Object.keys(corpo).length === 0) throw new FalhaDaFerramenta("Diga o que mudar: coluna, responsavel, titulo, descricao ou prioridade.");
   const r = await chamarOk(ctx, { metodo: "PATCH", caminho: caminhoDaTarefa(achada), corpo });
+  ctx.anotar?.({ agenteId: achada.agenteId, resumo: typeof corpo.status === "string" ? `Moveu a tarefa ${achada.codigoAtual} para ${corte(corpo.status, 60)}` : `Mudou a tarefa ${achada.codigoAtual}` });
   return { ok: true, tarefa: achada.codigoAtual, resultado: r };
 };
 
 const comentarTarefa: Implementacao = async (ctx, args) => {
   const achada = await acharTarefa(ctx, texto(args, "tarefa", true));
   const r = await chamarOk(ctx, { metodo: "POST", caminho: caminhoDaTarefa(achada, "/comentarios"), corpo: { texto: texto(args, "texto", true) } });
+  ctx.anotar?.({ agenteId: achada.agenteId, resumo: `Comentou na tarefa ${achada.codigoAtual}` });
   return { ok: true, tarefa: achada.codigoAtual, resultado: r };
 };
 
 const responderTarefa: Implementacao = async (ctx, args) => {
   const achada = await acharTarefa(ctx, texto(args, "tarefa", true));
   const r = await chamarOk(ctx, { metodo: "POST", caminho: caminhoDaTarefa(achada, "/resposta"), corpo: { resposta: texto(args, "resposta", true), ...(args.avancar === true ? { avancar: true } : {}) } });
+  ctx.anotar?.({ agenteId: achada.agenteId, resumo: `Respondeu na tarefa ${achada.codigoAtual}` });
   return { ok: true, tarefa: achada.codigoAtual, resultado: r };
 };
 
-type RotinaLida = { id: string; agenteId: string; cron: string; fusoIana: string; estado: string; instrucao: string; proximaExecucao: number; agenteNome?: string };
+/** GET /rotinas devolve `RotinaDto[]` (contracts/api.ts): a rotina vem dentro de `rotina`. */
+type RotinaLida = Pick<RotinaDto, "proximaExecucao"> & { rotina: Pick<RotinaDto["rotina"], "id" | "agenteId" | "cron" | "fusoIana" | "estado" | "instrucao"> };
+
+async function rotinas(ctx: ContextoFerramenta): Promise<RotinaLida[]> {
+  const r = await chamarOk(ctx, { metodo: "GET", caminho: "/rotinas" });
+  return Array.isArray(r) ? (r as RotinaLida[]) : [];
+}
 
 const listarRotinas: Implementacao = async (ctx) => {
-  const r = (await chamarOk(ctx, { metodo: "GET", caminho: "/rotinas" })) as { rotinas?: RotinaLida[] };
+  const lista = await rotinas(ctx);
   const nomes = new Map((await frota(ctx)).map((b) => [b.id, b.nome]));
-  return { rotinas: (r.rotinas ?? []).map((x) => ({ id: x.id, bot: x.agenteNome ?? nomes.get(x.agenteId) ?? x.agenteId, estado: x.estado, quando: `${x.cron} (${x.fusoIana})`, proxima: iso(x.proximaExecucao), instrucao: corte(x.instrucao, 300) })) };
+  return { rotinas: lista.map(({ rotina: x, proximaExecucao }) => ({ id: x.id, bot: nomes.get(x.agenteId) ?? x.agenteId, estado: x.estado, quando: `${x.cron} (${x.fusoIana})`, proxima: iso(proximaExecucao), instrucao: corte(x.instrucao ?? "", 300) })) };
 };
 
 const rodarRotina: Implementacao = async (ctx, args) => {
   const id = texto(args, "rotina_id", true);
   const r = await chamarOk(ctx, { metodo: "POST", caminho: `/rotinas/${id}/executar`, corpo: {} });
+  const rotina = (await rotinas(ctx)).find((x) => x.rotina.id === id)?.rotina;
+  ctx.anotar?.({ agenteId: rotina?.agenteId ?? null, resumo: rotina ? `Rodou a rotina "${corte(rotina.instrucao ?? "", 100)}"` : "Rodou uma rotina" });
   return { ok: true, rotina: id, resultado: r };
 };
 
@@ -319,6 +347,10 @@ const chamarRota: Implementacao = async (ctx, args) => {
   if (!METODOS.has(metodo)) throw new FalhaDaFerramenta('O "metodo" é GET, POST, PATCH, PUT ou DELETE.');
   if (!caminho.startsWith("/") || caminho.startsWith("//")) throw new FalhaDaFerramenta('O "caminho" começa com "/" (ex.: /frota), sem /api/t/<tenant>.');
   const r = await ctx.chamar(ctx.escopo, { metodo: metodo as PedidoInterno["metodo"], caminho, corpo: args.corpo ?? {} });
+  if (metodo !== "GET" && r.status < 400) {
+    const bot = /^\/agentes\/([0-9a-f-]{36})(?:[/?]|$)/i.exec(caminho)?.[1] ?? null;
+    ctx.anotar?.({ agenteId: bot, resumo: `Chamou ${metodo} ${corte(caminho.split("?")[0] ?? caminho, 120)}` });
+  }
   return { status: r.status, corpo: r.corpo };
 };
 

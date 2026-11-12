@@ -3,7 +3,7 @@ import { log } from "../../../obs/log.ts";
 import type { Escopo } from "../../../shared/types.ts";
 import { json, lerCorpo } from "../util.ts";
 import type { ChamadorInterno } from "./chamador-interno.ts";
-import { DEFINICOES_MCP, executarFerramentaMcp } from "./ferramentas.ts";
+import { DEFINICOES_MCP, executarFerramentaMcp, type AnotacaoMcp } from "./ferramentas.ts";
 
 /**
  * Servidor MCP do Nod: o endpoint `POST /api/mcp` no transporte Streamable HTTP do MCP, sem estado (cada pedido traz o
@@ -21,6 +21,14 @@ export const VERSOES_MCP = ["2025-06-18", "2025-03-26", "2024-11-05"] as const;
 
 export type IdentidadeDoToken = Escopo & { tokenId: string };
 
+/**
+ * Tetos contra um cliente (ou um token vazado) que transforma um pedido em milhares de chamadas: o lote JSON-RPC tem no
+ * máximo MAX_LOTE itens (a versão 2025-06-18 nem tem lote) e cada token roda no máximo MAX_EM_CURSO_POR_TOKEN ferramentas
+ * ao mesmo tempo — o nod_conversar espera até 110 s lendo a conversa, e cada um segura essa leitura enquanto dura.
+ */
+export const MAX_LOTE = 16;
+export const MAX_EM_CURSO_POR_TOKEN = 8;
+
 export interface DepsServidorMcp {
   /** Valida o token (autorizarTokenMcp); `cliente` é o clientInfo.name do initialize, quando o pedido é um. */
   autorizar(token: string, cliente: string | null): Promise<IdentidadeDoToken | null>;
@@ -28,6 +36,11 @@ export interface DepsServidorMcp {
   versaoNod: string;
   agora?(): number;
   dormir?(ms: number): Promise<void>;
+  /**
+   * Grava na Atividade do bot o que uma ferramenta mudou, marcado como vindo do cliente MCP (critério 4 da NOD-152). Só
+   * depois da chamada terminar sem erro; falhar aqui não desfaz a ação, só loga.
+   */
+  registrarAcao?(identidade: IdentidadeDoToken, a: AnotacaoMcp & { ferramenta: string }): Promise<void>;
 }
 
 type PedidoRpc = { jsonrpc?: unknown; id?: unknown; method?: unknown; params?: unknown };
@@ -40,7 +53,8 @@ const INSTRUCOES =
 const erroRpc = (id: IdRpc, code: number, message: string) => ({ jsonrpc: "2.0", id, error: { code, message } });
 const okRpc = (id: IdRpc, result: unknown) => ({ jsonrpc: "2.0", id, result });
 
-function idDoPedido(p: PedidoRpc): IdRpc | undefined {
+function idDoPedido(p: PedidoRpc | null): IdRpc | undefined {
+  if (p === null || typeof p !== "object") return undefined;
   return typeof p.id === "string" || typeof p.id === "number" ? p.id : p.id === null ? null : undefined;
 }
 
@@ -54,7 +68,9 @@ export function criarServidorMcp(deps: DepsServidorMcp): (req: IncomingMessage, 
   const agora = deps.agora ?? (() => Date.now());
   const dormir = deps.dormir ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
 
-  async function responderUm(identidade: IdentidadeDoToken, p: PedidoRpc): Promise<object | null> {
+  const emCurso = new Map<string, number>();
+
+  async function responderUm(identidade: IdentidadeDoToken, p: PedidoRpc, cancelado: () => boolean): Promise<object | null> {
     const id = idDoPedido(p);
     if (p === null || typeof p !== "object" || p.jsonrpc !== "2.0" || typeof p.method !== "string") return erroRpc(id ?? null, -32600, "Pedido JSON-RPC inválido.");
     // Notificação (sem id): nada a responder (notifications/initialized, notifications/cancelled…).
@@ -72,12 +88,30 @@ export function criarServidorMcp(deps: DepsServidorMcp): (req: IncomingMessage, 
         return okRpc(id, { tools: DEFINICOES_MCP });
       case "tools/call": {
         const nome = typeof params.name === "string" ? params.name : "";
+        const rodando = emCurso.get(identidade.tokenId) ?? 0;
+        if (rodando >= MAX_EM_CURSO_POR_TOKEN) {
+          log("aviso", "mcp_ferramenta_recusada", { token: identidade.tokenId, ferramenta: nome, motivo: "em_curso", em_curso: rodando });
+          return okRpc(id, { content: [{ type: "text", text: `Há ${rodando} chamadas deste token em andamento. Espere uma terminar e tente de novo.` }], isError: true });
+        }
+        emCurso.set(identidade.tokenId, rodando + 1);
         const inicio = agora();
-        const r = await executarFerramentaMcp({ escopo: { tenantId: identidade.tenantId, pessoaId: identidade.pessoaId }, chamar: deps.chamar, agora, dormir }, nome, params.arguments);
-        if (!r) return erroRpc(id, -32602, `Ferramenta desconhecida: ${nome}`);
-        // Só o nome e o desfecho (ADR-004): nunca os argumentos nem a saída, que levam texto da pessoa.
-        log("info", "mcp_ferramenta", { token: identidade.tokenId, ferramenta: nome, erro: r.isError === true, ms: agora() - inicio });
-        return okRpc(id, r);
+        const anotacoes: AnotacaoMcp[] = [];
+        try {
+          const r = await executarFerramentaMcp({ escopo: { tenantId: identidade.tenantId, pessoaId: identidade.pessoaId }, chamar: deps.chamar, agora, dormir, cancelado, anotar: (a) => anotacoes.push(a) }, nome, params.arguments);
+          if (!r) return erroRpc(id, -32602, `Ferramenta desconhecida: ${nome}`);
+          // Só o nome e o desfecho (ADR-004): nunca os argumentos nem a saída, que levam texto da pessoa.
+          log("info", "mcp_ferramenta", { token: identidade.tokenId, ferramenta: nome, erro: r.isError === true, ms: agora() - inicio });
+          if (r.isError !== true && deps.registrarAcao) {
+            for (const a of anotacoes) {
+              await deps.registrarAcao(identidade, { ...a, ferramenta: nome }).catch((err: unknown) => log("aviso", "mcp_atividade_falhou", { token: identidade.tokenId, ferramenta: nome, erro: err instanceof Error ? err.name : "desconhecido" }));
+            }
+          }
+          return okRpc(id, r);
+        } finally {
+          const resta = (emCurso.get(identidade.tokenId) ?? 1) - 1;
+          if (resta <= 0) emCurso.delete(identidade.tokenId);
+          else emCurso.set(identidade.tokenId, resta);
+        }
       }
       default:
         return erroRpc(id, -32601, `Método não suportado: ${p.method}`);
@@ -109,14 +143,19 @@ export function criarServidorMcp(deps: DepsServidorMcp): (req: IncomingMessage, 
       res.end(JSON.stringify(erroRpc(null, -32001, "Token do Nod ausente, inválido ou revogado. Gere um nos Ajustes do Nod, em Conectar por MCP.")));
       return;
     }
+    // O cliente desistiu (fechou a conexão antes da resposta): a espera do nod_conversar para de ler a conversa.
+    let caiu = false;
+    res.once("close", () => { if (!res.writableFinished) caiu = true; });
+    const cancelado = () => caiu;
     if (Array.isArray(corpo)) {
       if (corpo.length === 0) { json(res, 400, erroRpc(null, -32600, "Lote vazio.")); return; }
-      const respostas = (await Promise.all(corpo.map((p: PedidoRpc) => responderUm(identidade, p)))).filter((r): r is object => r !== null);
+      if (corpo.length > MAX_LOTE) { json(res, 400, erroRpc(null, -32600, `Lote grande demais: no máximo ${MAX_LOTE} pedidos por vez.`)); return; }
+      const respostas = (await Promise.all(corpo.map((p: PedidoRpc) => responderUm(identidade, p, cancelado)))).filter((r): r is object => r !== null);
       if (respostas.length === 0) { res.writeHead(202); res.end(); return; }
       json(res, 200, respostas);
       return;
     }
-    const resposta = await responderUm(identidade, corpo as PedidoRpc);
+    const resposta = await responderUm(identidade, corpo as PedidoRpc, cancelado);
     if (!resposta) { res.writeHead(202); res.end(); return; }
     json(res, 200, resposta);
   };

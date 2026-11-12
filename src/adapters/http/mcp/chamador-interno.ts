@@ -11,9 +11,10 @@ export type ChamadorInterno = (escopo: Escopo, pedido: PedidoInterno) => Promise
 
 /**
  * Rotas que o cliente MCP nunca chama, nem pelo `nod_chamar_rota`: os próprios tokens MCP (um token não gera outro nem se
- * esconde da lista) e o canal SSE (`/eventos`, que não termina).
+ * esconde da lista), o canal SSE (`/eventos`, que não termina) e o endereço da rotina webhook (o GET devolve o segredo
+ * inteiro decifrado, e é GET: não tem `acao` para a lista abaixo pegar).
  */
-const CAMINHOS_FORA = [/^\/mcp(\/|$)/, /^\/eventos$/];
+const CAMINHOS_FORA = [/^\/mcp(\/|$)/, /^\/eventos$/, /^\/rotinas\/[^/]+\/endereco$/];
 
 /**
  * As ações do registro que ficam fora do MCP: as que levam um segredo (token, chave, senha, credencial), o pareamento de
@@ -24,7 +25,15 @@ const CAMINHOS_FORA = [/^\/mcp(\/|$)/, /^\/eventos$/];
  */
 export const ACOES_FORA_DO_MCP: ReadonlySet<IdAcao> = new Set<IdAcao>([
   "apps.credenciais", "apps.configurar_marketplace", "apps.github_token", "apps.github_app",
-  "maquinas.criar_chave", "maquinas.parear", "maquinas.aprovar_dispositivo", "maquinas.credencial_ssh",
+  // O convite de máquina com `papel: computador` pareia SEM a tela confirmar e vira uma chave de máquina que sobrevive à
+  // revogação do token MCP: é o mesmo poder de criar_chave. Instalar por SSH e confiar numa host key nova pedem o olho da
+  // pessoa na impressão digital.
+  "maquinas.criar_chave", "maquinas.parear", "maquinas.aprovar_dispositivo", "maquinas.convidar",
+  "maquinas.instalar_ssh", "maquinas.credencial_ssh", "maquinas.confiar_ssh",
+  // Login de IA numa máquina e OAuth de app: o código e o consentimento são da pessoa, no navegador dela.
+  "contas_ia.entrar", "contas_ia.codigo_do_login", "apps.conectar",
+  // Gerar o endereço da rotina webhook troca o segredo que a integração de fora usa.
+  "rotinas.gerar_endereco",
   "nuvem.conectar_google", "computador.usar_tela", "cartoes.guardar_credencial", "voz.consentir",
   "mcp.criar_token", "mcp.revogar_token",
 ]);
