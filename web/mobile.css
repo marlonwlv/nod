@@ -222,9 +222,8 @@
   .cabecalho.cabecalho-pilula .pilula-bot > .cb-fio { left: 19px; right: 19px; border-radius: 2px; }
   /* A primeira mensagem começa abaixo da pílula (sa + 52 + 12), e a mensagem destacada também não para embaixo dela. */
   .cabecalho.cabecalho-pilula ~ .timeline-wrap { padding-top: calc(env(safe-area-inset-top) + 64px); scroll-padding-top: calc(env(safe-area-inset-top) + 64px); }
-  .cabecalho.cabecalho-pilula + #erro:not(:empty) { position: relative; z-index: 5; margin-top: calc(env(safe-area-inset-top) + 56px); }
-  /* Revisão 2: entre o #erro e a lista há os avisos sr-only, então o irmão é `~`, não `+`; e a folga da rolagem segue. */
-  .cabecalho.cabecalho-pilula + #erro:not(:empty) ~ .timeline-wrap { padding-top: 12px; scroll-padding-top: 12px; }
+  /* C6 (2026-11-12): sobreposto, como no desktop; a lista não muda de lugar quando o aviso aparece ou some. */
+  .cabecalho.cabecalho-pilula + #erro:not(:empty) { top: calc(env(safe-area-inset-top) + 56px); }
 
   /* ---- A conversa ---- */
   .timeline-wrap { padding: 14px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left)); overflow-x: hidden;
