@@ -633,6 +633,8 @@ export type Acao =
   | { tipo: "rascunho-ia"; rascunho: RascunhoInteligencia | null }
   | { tipo: "menu-ia"; agenteId: string | null }
   | { tipo: "hidratar-conversa"; conversa: ConversaDto; agora: number }
+  /** Item 5 do chat (troca sem "carregando"): a conversa guardada (web/lib/cache-conversas.ts), pintada antes da releitura. */
+  | { tipo: "conversa-do-cache"; conversa: ConversaDto }
   | { tipo: "hidratar-sua-vez"; suaVez: SuaVezDto }
   | { tipo: "hidratar-nao-lidos"; naoLidos: NaoLidosDto }
   | { tipo: "novas-desde"; conversaId: string; mensagemId: string; em: number; total: number }
@@ -1651,6 +1653,13 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return { ...estado, rascunhoIa: acao.rascunho };
     case "menu-ia":
       return { ...estado, menuIa: acao.agenteId };
+    case "conversa-do-cache": {
+      // Item 5 do chat: o cache só entra onde não há nada (a leitura do servidor, mais nova, sempre ganha), sem turno vivo
+      // (o guardado vem sem `turnosEmCurso`), e pede a releitura: o que se pinta é velho e é revalidado ao abrir.
+      const conversaId = acao.conversa.conversa.id;
+      if (estado.conversas[conversaId]) return estado;
+      return invalidar({ ...estado, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: 0 } } }, `conversa:${conversaId}`);
+    }
     case "hidratar-conversa": {
       const conversaId = acao.conversa.conversa.id;
       // Turno aberto que a web não viu nascer (página recarregada no meio dele): o REST o devolve e ele

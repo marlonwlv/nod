@@ -81,6 +81,8 @@ import type { Escopo } from "../src/shared/types.ts";
 import type { FrameSse } from "../src/contracts/frame.ts";
 import type { AnexoDaConversa } from "../src/contracts/anexo.ts";
 import { confirmacaoCaducou, HISTORICO_INICIAL, type HistoricoDoBot } from "./lib/historico-perfil.ts";
+import { armazemEmMemoria, criarCacheDeConversas, criarEsperaDoSpinner, ESPERA_DO_PREFETCH_MS } from "./lib/cache-conversas.ts";
+import { armazemIndexedDb } from "./lib/cache-conversas-idb.ts";
 import { agenteDaTela, bibliotecaAberta, conversaAbertaTemNotaDeContas, conversaDaTela, estadoInicial, acoesAoMudarConexao, invalidacoesAoRetomar, sempreRelevante, invalidacoesDaTela, mudouNaTela, reduzir, secaoAberta, secaoDoPedido, type Acao, type Estado, type FalaPendente, type Invalidacao, type NivelGaveta, type PedidoSecao, type PerfilCelular, type SecaoEspaco, type Tela } from "./estado/reducer.ts";
 import { mascararDormindo, RetryDoAcordar, type PassosDoRetry } from "./lib/retry-computador.ts";
 import { contaApi, criarApi, minhaContaApi, ErroApi, observarRede, sessao as sessaoApi, type Api } from "./lib/api.ts";
@@ -94,7 +96,7 @@ import type { EstadoContaDto } from "../src/contracts/conta.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
 import { criarSondaDeRede } from "./lib/sonda-de-rede.ts";
 import { criarReleituraAdiada } from "./lib/releitura-adiada.ts";
-import { tabelaComo } from "./lib/texto-formatado.ts";
+import { CHECK_CODIGO_MS, tabelaComo } from "./lib/texto-formatado.ts";
 import { CHAVE_GUARDADA, lerGuardado, lerPedido, PARAMETROS_DO_PEDIDO, type PedidoPareamento } from "./lib/parear-mac.ts";
 import { abrirPareamento } from "./telas/parear-mac.ts";
 import { abrirOiDeNovo, mostrarEsteComputador } from "./telas/oi-de-novo.ts";
@@ -445,6 +447,10 @@ function marcarDecidida(el: HTMLElement, id: string | undefined): void {
 // NOD-156: a chave de idempotência da fala nasce aqui, uma por fala, e sobrevive ao reenvio depois de uma falha.
 const envios = criarEnvios();
 const rascunhos = criarRascunhos(() => { try { return localStorage; } catch { return null; } });
+/** Item 5 do chat: o cache das conversas (memória + IndexedDB, um por pessoa; até a sessão entrar, só a memória). */
+let cacheConversas = criarCacheDeConversas(armazemEmMemoria());
+/** Item 5 do chat: sem cache, a conversa anterior fica até 80 ms; depois o spinner (o redesenho agendado o mostra). */
+const esperaDoSpinner = criarEsperaDoSpinner((fn, ms) => void window.setTimeout(fn, ms), () => render());
 /**
  * O progresso na fala que a timeline mostra agora (chat limpo, PR 8): medido pela rolagem; a pílula do bot some com ele à
  * vista (web/lib/pilula.ts).
@@ -2151,7 +2157,10 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     // Modo dev (0036): a faixa de cada resposta acompanha a conversa — o turno que acabou de assentar já tem Raio-X.
     void carregarRaioX(q.slice(9));
     const ate = ateDaBusca(q.slice(9));
-    return { tipo: "hidratar-conversa", conversa: notarAlvoDaBusca(q.slice(9), ate, await api.conversa(q.slice(9), ate)), agora };
+    // Item 5 do chat: a leitura de hoje é a revalidação do cache (a resposta é guardada); a conversa que sumiu (404) sai dele.
+    const cliente = api;
+    const conversa = await cacheConversas.revalidar(q.slice(9), () => cliente.conversa(q.slice(9), ate)).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) cacheConversas.apagar(q.slice(9)); throw e; });
+    return { tipo: "hidratar-conversa", conversa: notarAlvoDaBusca(q.slice(9), ate, conversa), agora };
   }
   // QA do PR #302 (NOD-216): a conversa do bot que o dono diz trabalhando, lida fora da tela para a barra animar.
   if (q.startsWith("vivos:")) {
@@ -2864,6 +2873,19 @@ function abrirMenuDaPilula(ancora: HTMLElement, itens: readonly ItemDoMenuDaPilu
   });
 }
 
+/**
+ * Item 5 do chat: a conversa nova sem cache nenhum deixa a timeline como está (a conversa anterior) por até 80 ms; passado
+ * isso, o render seguinte (agendado pela espera) limpa a área e mostra só o spinner. Sem conversa anterior desenhada (a
+ * primeira carga), não há o que segurar: o spinner entra direto.
+ */
+function segurarConversaAnterior(conversaId: string, temOQuePintar: boolean): boolean {
+  if (temOQuePintar || !document.getElementById("timeline-historico")?.firstElementChild) {
+    esperaDoSpinner.soltar();
+    return false;
+  }
+  return esperaDoSpinner.segurar(conversaId, performance.now());
+}
+
 function renderPrincipal(): void {
   const t = estado.tela;
   // NOD-174: a pessoa lê a frase do servidor; o código fechado fica só no <details>, para quem depura.
@@ -2872,6 +2894,8 @@ function renderPrincipal(): void {
   let corpo = "";
   let partes: PartesDaTimeline | null = null;
   let composer: { chave: string; html: string } | null = null;
+  // Item 5 do chat: sem nada para pintar da conversa nova, a anterior fica na tela até 80 ms (corte seco, sem "carregando").
+  let segurarTimeline = false;
   switch (t.tipo) {
     case "novo-bot":
       corpo = renderNovoBot(estado, { teclaSala: `${MOD_DA_PALETA} ⇧ N` });
@@ -2932,12 +2956,14 @@ function renderPrincipal(): void {
       }
       partes = partesDaTimeline();
       corpo = partes ? CASCA_TIMELINE : renderTimeline(null, estado);
+      segurarTimeline = segurarConversaAnterior(t.conversaId, partes !== null);
       composer = { chave: `conversa:${t.conversaId}`, html: htmlComposer(placeholderPadrao(), (estado.frota?.agentes ?? []).filter((a) => a.id !== t.agenteId && a.ownerId === estado.sessao?.pessoaId && a.confirmado).map((a) => a.nome), { anexos: aceitaDo(botGerido(t.agenteId)?.harness), comandos: true, aprovacao: true, bot: botGerido(t.agenteId)?.nome }) };
       break;
     case "sala":
       cabecalho = renderCabecalhoSala(estado, t.salaId);
       partes = partesDaTimeline();
       corpo = partes ? CASCA_TIMELINE : renderTimeline(null, estado);
+      segurarTimeline = segurarConversaAnterior(t.conversaId, partes !== null);
       composer = { chave: `sala:${t.salaId}`, html: htmlComposer(PLACEHOLDER_SALA, nomesDosMembros(estado, t.salaId)) };
       break;
   }
@@ -2968,7 +2994,7 @@ function renderPrincipal(): void {
   const cascaMuda = regiaoMudaria("timeline", corpo);
   const historicoMuda = cascaMuda || (partes !== null && blocosMudariam("timeline-historico", partes.historico));
   const aoVivoMuda = cascaMuda || (partes !== null && blocosMudariam("timeline-ao-vivo", partes.aoVivo));
-  if (historicoMuda || aoVivoMuda) regravarTimeline(corpo, partes, { cascaMuda, historicoMuda, aoVivoMuda });
+  if (!segurarTimeline && (historicoMuda || aoVivoMuda)) regravarTimeline(corpo, partes, { cascaMuda, historicoMuda, aoVivoMuda });
   // Chat limpo (PR 7; QA do PR 398): o progresso das frentes muda só o bloco dele, dentro da fala, sem regravá-la. O bloco
   // trocado é medido de novo antes da pílula (PR 8): ela some com o bloco à vista, e a frente nova do lote muda o bloco.
   if (progressoNaTela.desenhar(conversaDaTela(estado), estado, memoriaNaFala()) > 0) rolagem.progressoTrocado();
@@ -3010,6 +3036,9 @@ function renderPrincipal(): void {
     fecharFolhaMais();
     const saindo = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
     if (composerDe && saindo) rascunhos.guardar(composerDe, saindo.value);
+    // Item 5 do chat: trocar de uma conversa para outra tira o foco do campo (a borda volta ao repouso em 150 ms).
+    const trocaDeConversa = composerDe !== null && /^(conversa|sala):/.test(composerDe) && /^(conversa|sala):/.test(composer?.chave ?? "");
+    const tinhaFoco = !!saindo && document.activeElement === saindo;
     composerDe = composer?.chave ?? null;
     esquecerRegiao("composer");
     esquecerRegiao("composer-pergunta");
@@ -3021,8 +3050,13 @@ function renderPrincipal(): void {
       ajustarAltura(ta);
       ta.setSelectionRange(rascunho.length, rascunho.length);
     }
-    // No celular o foco abriria o teclado a cada conversa aberta: o campo espera o toque.
-    if (!celular.ativo()) ta?.focus();
+    // No celular o foco abriria o teclado a cada conversa aberta: o campo espera o toque. Na troca de conversa, também não.
+    if (!celular.ativo() && !trocaDeConversa) ta?.focus();
+    if (trocaDeConversa && tinhaFoco) {
+      const caixa = ta?.closest<HTMLElement>(".box");
+      caixa?.classList.add("saindo-do-foco");
+      caixa?.addEventListener("animationend", () => caixa.classList.remove("saindo-do-foco"), { once: true });
+    }
     redesenharAnexos();
   }
   atualizarComposer();
@@ -3802,6 +3836,17 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   cancelarRetryDoComputador();
   // Os rascunhos são da pessoa: outra sessão, outros rascunhos.
   rascunhos.usar(`${escopo.tenantId}.${escopo.pessoaId}`);
+  // Item 5 do chat: as conversas guardadas também são da pessoa (um banco por pessoa). Lidas, a da tela que ainda espera
+  // o servidor já pinta (a primeira troca depois de recarregar vem do IndexedDB).
+  if (escopo.tenantId !== estado.sessao?.tenantId || escopo.pessoaId !== estado.sessao?.pessoaId) {
+    const cache = criarCacheDeConversas(armazemIndexedDb(`${escopo.tenantId}.${escopo.pessoaId}`));
+    cacheConversas = cache;
+    void cache.pronto.then(() => {
+      if (cache !== cacheConversas || !pintarDoCache(estado.tela)) return;
+      render();
+      void reidratar();
+    });
+  }
   api = criarApi(escopo);
   // NOD-324: a disponibilidade do ditado (e o aceite do aviso) é da sessão; a da anterior não decide o 🎤 desta.
   ditado.reiniciar();
@@ -4240,6 +4285,7 @@ function navegar(tela: Tela, o: { filaDeSuaVez?: boolean } = {}): void {
   if (celular.ativo() && abaDoDestino(tela) === "sua-vez" && !o.filaDeSuaVez) { trocarAbaDoInicio("sua-vez"); celular.voltarAoInicio(); return; }
   const paraInicial = celular.ativo() && tela.tipo === "inicio";
   if (!paraInicial) celular.entrarNaConversa();
+  prepararConversaAoAbrir(antes, tela);
   aoTrocarDeTela(antes, tela);
   dispatch({ tipo: "navegar", tela });
   conversaEscolhida = tela.tipo === "conversa" ? tela.conversaId : null;
@@ -4252,6 +4298,70 @@ function navegar(tela: Tela, o: { filaDeSuaVez?: boolean } = {}): void {
   lerConversaDaTela();
   if (rolaAoTopoAoNavegar(tela.tipo)) document.getElementById("timeline")?.scrollTo({ top: 0 });
 }
+
+/** Releitura de menos de 2 s (o prefetch do hover, por exemplo) já é a revalidação: abrir logo depois não lê de novo. */
+const RELEITURA_RECENTE_MS = 2000;
+
+/**
+ * Item 5 do chat (stale-while-revalidate): abrir outra conversa pinta no mesmo quadro o que houver dela — a memória
+ * (`estado.conversas`) ou o IndexedDB (web/lib/cache-conversas.ts) — e pede a leitura de hoje, que o reducer aplica por
+ * cima; a timeline troca só os blocos que mudaram, e a rolagem colada no fim continua no fim. A conversa que sai é guardada.
+ */
+function prepararConversaAoAbrir(antes: Tela, tela: Tela): void {
+  if (tela.tipo !== "conversa" && tela.tipo !== "sala") return;
+  const de = antes.tipo === "conversa" || antes.tipo === "sala" ? antes.conversaId : null;
+  if (de === tela.conversaId) return;
+  const saindo = de ? estado.conversas[de] : undefined;
+  if (saindo && saindo.carregadaEm > 0) cacheConversas.guardar(saindo);
+  if (pintarDoCache(tela)) return;
+  const c = estado.conversas[tela.conversaId];
+  if (c && Date.now() - c.carregadaEm > RELEITURA_RECENTE_MS) estado = reduzir(estado, { tipo: "invalidar", quais: [`conversa:${tela.conversaId}`] });
+}
+
+/** A conversa da tela que não está na memória mas está no cache entra no estado (o reducer pede a releitura). */
+function pintarDoCache(tela: Tela): boolean {
+  if ((tela.tipo !== "conversa" && tela.tipo !== "sala") || estado.conversas[tela.conversaId]) return false;
+  const guardada = cacheConversas.ler(tela.conversaId);
+  if (!guardada) return false;
+  estado = reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada });
+  return true;
+}
+
+/**
+ * Item 5 do chat: o mouse parado 150 ms numa linha da barra busca a conversa daquele bot (o clique já acha o que pintar).
+ * Com ela no cache, só pinta do cache (abrir revalida); sem, lê do servidor e guarda. A que já está na memória não relê.
+ */
+let prefetchDe: string | null = null;
+let prefetchTimer: number | null = null;
+const prefetchEmCurso = new Set<string>();
+document.addEventListener("pointerover", (ev) => {
+  if (ev.pointerType === "touch") return;
+  const alvo = ev.target instanceof Element ? ev.target : null;
+  const id = alvo?.closest<HTMLElement>('#sidebar [data-act="abrir-conversa"][data-conversa]')?.dataset.conversa || null;
+  if (id === prefetchDe) return;
+  prefetchDe = id;
+  if (prefetchTimer !== null) window.clearTimeout(prefetchTimer);
+  prefetchTimer = id ? window.setTimeout(() => { prefetchTimer = null; prefetchConversa(id); }, ESPERA_DO_PREFETCH_MS) : null;
+});
+
+function prefetchConversa(id: string): void {
+  const t = estado.tela;
+  if (!api || estado.conversas[id] || prefetchEmCurso.has(id) || ((t.tipo === "conversa" || t.tipo === "sala") && t.conversaId === id)) return;
+  const guardada = cacheConversas.ler(id);
+  if (guardada) { estado = reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }); return; }
+  const cliente = api;
+  const sessao = estado.sessao;
+  prefetchEmCurso.add(id);
+  void cacheConversas.revalidar(id, () => cliente.conversa(id))
+    .then((conversa) => { if (api === cliente && estado.sessao === sessao && !estado.conversas[id]) dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() }); }, () => undefined)
+    .finally(() => prefetchEmCurso.delete(id));
+}
+
+// Item 5 do chat: a miniatura da imagem que a pessoa mandou é um skeleton até a foto carregar (web/chat-troca.css).
+document.addEventListener("load", (ev) => {
+  const img = ev.target;
+  if (img instanceof HTMLImageElement && img.parentElement?.classList.contains("msg-anexo-img")) img.parentElement.classList.add("carregou");
+}, true);
 
 /** A tela de onde a pessoa sai: no celular, com a inicial à vista, é a inicial (não a conversa escondida por baixo). */
 function telaDeOrigem(): Tela {
@@ -6529,18 +6639,20 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // "Código copiado" no aria-label nem voltam ao "Copiar" no meio do segundo aviso.
   "copiar-codigo": async (el) => {
     const estadoEl = el.querySelector(".md-codigo-estado");
-    const mostrar = (texto: string, aria: string): void => {
+    // COP-14 (item 4): no balão do bot o botão é só ícone; a classe `copiado` troca o ícone por um check por 1,5 s.
+    const mostrar = (texto: string, aria: string, copiado = false): void => {
       if (estadoEl) estadoEl.textContent = texto;
       el.setAttribute("aria-label", aria);
+      el.classList.toggle("copiado", copiado);
     };
     try {
       await navigator.clipboard.writeText(el.closest(".md-codigo")?.querySelector("code")?.textContent ?? "");
-      mostrar(ROTULO_COPIADO, "Código copiado");
+      mostrar(ROTULO_COPIADO, "Código copiado", true);
     } catch {
       mostrar("Não copiou", "Não copiou o código");
     }
     clearTimeout(timersCopiarCodigo.get(el));
-    timersCopiarCodigo.set(el, window.setTimeout(() => mostrar("Copiar", "Copiar código"), COPIADO_MS));
+    timersCopiarCodigo.set(el, window.setTimeout(() => mostrar("Copiar", "Copiar código"), CHECK_CODIGO_MS));
   },
   "fechar-espaco": () => fecharEspaco(),
   // NOD-383: o ‹ de uma seção no celular volta para a lista das Configurações (o foco vai para a seção de onde saiu).

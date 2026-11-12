@@ -403,10 +403,11 @@ describe("NOD-380 revisão 7: a fala achada que a timeline recolhe", () => {
     expect(main).toContain("const mundoDaFala = criarMundoDaFala<HTMLElement>({");
     expect(main).toContain("notarVeio(alvoDaBusca, conversaId, ate,");
     // Revisão 3 (B1): a leitura da conversa (na tela e a dos vivos) sai com o `ate` do alvo — sem isso a janela não cresce.
-    for (const p of ["9", "6"]) {
-      expect(main).toContain(`const ate = ateDaBusca(q.slice(${p}));`);
-      expect(main).toContain(`notarAlvoDaBusca(q.slice(${p}), ate, await api.conversa(q.slice(${p}), ate))`);
-    }
+    for (const p of ["9", "6"]) expect(main).toContain(`const ate = ateDaBusca(q.slice(${p}));`);
+    expect(main).toContain("notarAlvoDaBusca(q.slice(6), ate, await api.conversa(q.slice(6), ate))");
+    // Item 5 do chat: a da tela passa pela revalidação do cache de conversas, com o mesmo `ate`.
+    expect(main).toContain("cacheConversas.revalidar(q.slice(9), () => cliente.conversa(q.slice(9), ate))");
+    expect(main).toContain("notarAlvoDaBusca(q.slice(9), ate, conversa)");
     expect(main).toContain("const ateDaBusca = (conversaId: string): string | undefined => (alvoDaBusca?.conversaId === conversaId ? alvoDaBusca.mensagemId : undefined);");
   });
 });
