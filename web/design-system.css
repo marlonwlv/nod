@@ -12,20 +12,23 @@ body.dsv { margin: 0; background: var(--surface); color: var(--ink); font-family
 .dsv-grade { display: grid; grid-template-columns: repeat(3, 424px); column-gap: 28px; padding-top: 48px; } /* rodada 3: as colunas de 424 do Paper 01 (os 4 sinais e os controles numa linha) */
 .dsv-col h2 { margin: 0; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); font-weight: var(--peso-medio); }
 .dsv-sub { margin: 2px 0 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
-.dsv-col h3 { margin: 28px 0 12px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.dsv-col h3 { margin: 21px 0 14px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
 .dsv-linha { display: flex; flex-wrap: wrap; gap: 10px; }
-.dsv-sup { width: 58px; display: flex; flex-direction: column; gap: 2px; }
-.dsv-sup .dsv-amostra { width: 58px; height: 44px; border-radius: var(--raio-10); border: 1px solid var(--borda-sutil); margin-bottom: 6px; }
+.dsv-sup { width: 58px; display: flex; flex-direction: column; gap: 0; }
+.dsv-sup .dsv-amostra { width: 58px; height: 42px; border-radius: var(--raio-10); border: 1px solid var(--borda-sutil); margin-bottom: 6px; }
 .dsv-sup b, .dsv-sinal b, .dsv-txt b { font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); }
 .dsv-sup small, .dsv-sinal small, .dsv-txt small, .dsv-borda small, .dsv-cores small { font-size: var(--fs-legenda); color: var(--ink-3); }
+/* Paper 01 (casca, rodada 4): o respiro da coluna Cor — rótulo de 16 e legenda de 14 de entrelinha, sem folga entre eles. */
+.dsv-sup b, .dsv-sinal b { line-height: 16px; }
+.dsv-sup small, .dsv-sinal small, .dsv-borda small, .dsv-cores small { line-height: 14px; }
 .dsv-txt { display: grid; grid-template-columns: 44px 108px 1fr; align-items: center; height: 28px; }
 .dsv-txt span { font-size: var(--fs-titulo-3); }
-.dsv-borda { display: flex; flex-direction: column; gap: 6px; }
+.dsv-borda { display: flex; flex-direction: column; gap: 8px; }
 .dsv-borda span { width: 84px; height: 36px; border-radius: var(--raio-8); border: 1px solid; }
-.dsv-sinal { display: flex; flex-direction: column; gap: 2px; width: 94px; }
-.dsv-sinal span { display: flex; height: 36px; border-radius: var(--raio-6); overflow: hidden; margin-bottom: 6px; }
+.dsv-sinal { display: flex; flex-direction: column; gap: 0; width: 94px; }
+.dsv-sinal span { display: flex; height: 35px; border-radius: var(--raio-6); overflow: hidden; margin-bottom: 6px; }
 .dsv-sinal i { flex: 1; }
-.dsv-cores { display: grid; grid-template-columns: repeat(7, 54px); row-gap: 14px; }
+.dsv-cores { display: grid; grid-template-columns: repeat(7, 54px); row-gap: 10px; }
 .dsv-cores div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .dsv-cores span { width: 28px; height: 28px; border-radius: var(--raio-full); border: 1px solid var(--borda-sutil); }
 .dsv-tipo { display: grid; grid-template-columns: 108px 1fr; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--divisoria); } /* rodada 3: linhas de ~30 como o Paper 01 */
@@ -52,7 +55,7 @@ body.dsv { margin: 0; background: var(--surface); color: var(--ink); font-family
 .dsv-bt.p { height: 24px; padding: 0 8px; font-size: var(--fs-rotulo); }
 .dsv-bt small { font-size: var(--fs-rotulo); font-weight: var(--peso-regular); opacity: .6; }
 .dsv-bt.pri { background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); }
-.dsv-bt.sec { background: var(--hover); color: var(--ink); }
+.dsv-bt.sec { margin: 0; background: var(--hover); color: var(--ink); } /* rodada 4: a `.sec` global (margem 6/10) não vale aqui */
 .dsv-bt.fant { color: var(--ink-2); }
 .dsv-bt.cont { background: var(--surface-elevated); color: var(--ink); border-color: var(--borda); box-shadow: var(--sombra-controle); }
 .dsv-bt.perigo { background: var(--danger); color: var(--on-status); }
@@ -92,3 +95,4 @@ body.dsv { margin: 0; background: var(--surface); color: var(--ink); font-family
 .dsv-formas small, .dsv-tamanhos small, .dsv-estados small { font-size: var(--fs-legenda); color: var(--ink-3); }
 .dsv-estados { gap: 26px; align-items: flex-start; }
 .dsv-estados b { font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); }
+.dsv-sinal small { margin-top: 2px; }
