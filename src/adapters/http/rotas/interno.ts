@@ -145,14 +145,18 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
     },
     {
       // ADR-046: o driver baixa os bytes de um anexo DESTE turno. O plano em memória do token diz quais
-      // ids o turno pode ler; qualquer outro é 404, mesmo sendo da mesma pessoa.
+      // ids o turno pode ler; qualquer outro é 404, mesmo sendo da mesma pessoa (C1: salvo a fala pendente, abaixo).
       metodo: "GET",
       padrao: /^\/anexos\/(?<aid>[^/]+)$/,
       interno: true,
       async handler(ctx) {
         const plano = await deps.tokens.planoOuRecompor(ctx.params.turnoId ?? "");
         const aid = ctx.params.aid ?? "";
-        if (!plano?.entrada.anexos?.some((a) => a.id === aid)) {
+        // C1 (2026-11-12): também o anexo de uma fala da pessoa ainda pendente na conversa e no bot deste turno vivo — a
+        // fala com imagem que entra no meio do turno (o laço baixa antes de escrever na sessão, e só confirma depois).
+        const daFalaNoMeio = async () => plano !== null && plano !== undefined && (await deps.dentro(ctx.escopo, (d) => d.repos.turnos.pendentesDaPessoa(plano.conversaId)))
+          .some((t) => t.agenteId === plano.agenteId && t.origem === "conversa" && !t.trabalhoId && t.entradaAnexos.includes(aid));
+        if (!plano?.entrada.anexos?.some((a) => a.id === aid) && !(await daFalaNoMeio())) {
           ctx.json(404, { codigo: "nao_encontrado", mensagem: "anexo fora do turno" });
           return;
         }

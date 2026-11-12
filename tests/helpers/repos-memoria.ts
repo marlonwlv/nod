@@ -2098,7 +2098,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async absorverNaSessao(turno, ids) {
         // NOD-286: como o SQL — fora de trabalho, e só até a primeira fala pendente com anexo do mesmo escopo.
         const escopoDaFala = doTenant(b.turnos).filter((t) => t.id !== turno.id && t.ownerId === escopo.pessoaId && t.conversaId === turno.conversaId && t.agenteId === turno.agenteId && t.estado === "pendente" && t.origem === "conversa" && t.mensagemOrigemId && !t.trabalhoId);
-        const absorvidos = ateOPrimeiroAnexo(escopoDaFala).filter((t) => !ids || ids.includes(t.id));
+        // C1: com `ids`, o print confirmado entra; o print pendente que não foi confirmado barra os posteriores.
+        if (ids && ids.length === 0) return [];
+        const absorvidos = ids ? ateOPrimeiroAnexo(escopoDaFala.map((t) => (ids.includes(t.id) ? { ...t, entradaAnexos: [] } : t))).flatMap((x) => (ids.includes(x.id) ? [escopoDaFala.find((t) => t.id === x.id)!] : [])) : ateOPrimeiroAnexo(escopoDaFala);
         for (const t of absorvidos) {
           t.estado = "interrompido";
           t.motivoInterrupcao = "absorvido";

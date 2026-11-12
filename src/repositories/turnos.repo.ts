@@ -1245,20 +1245,23 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * é o caso de uso (absorverNaSessao).
      * definido em 2026-10-07 (#189): com `ids`, só estas — as que o app confirmou ter escrito na sessão
      * (confirmarNaSessao); sem, todas as da fila, como antes (app que não confirma).
+     * C1 (2026-11-12): com `ids`, a fala com anexo entra quando está entre as confirmadas (o servidor só a oferece ao app que
+     * a escreve na sessão, `aceitaAnexos`), e o print pendente só barra as posteriores quando ele mesmo não foi confirmado.
      */
     async absorverNaSessao(turno: Turno, ids?: readonly string[]): Promise<Turno[]> {
       if (ids && ids.length === 0) return [];
       const linhas = await conn<Linha[]>`
         update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conversa_id = ${turno.conversaId} and agente_id = ${turno.agenteId}
-          and estado = 'pendente' and origem = 'conversa' and mensagem_origem_id is not null and cardinality(entrada_anexos) = 0 and id <> ${turno.id}
+          and estado = 'pendente' and origem = 'conversa' and mensagem_origem_id is not null and id <> ${turno.id}
           and trabalho_id is null
-          ${ids ? conn`and id = any(${ids as string[]}::uuid[])` : conn``}
+          ${ids ? conn`and id = any(${ids as string[]}::uuid[])` : conn`and cardinality(entrada_anexos) = 0`}
           and not exists (
             select 1 from turnos a
             where a.tenant_id = ${escopo.tenantId} and a.owner_id = ${escopo.pessoaId} and a.conversa_id = ${turno.conversaId} and a.agente_id = ${turno.agenteId}
               and a.estado = 'pendente' and a.origem = 'conversa' and a.mensagem_origem_id is not null and a.trabalho_id is null and a.id <> ${turno.id}
-              and cardinality(a.entrada_anexos) > 0 and (a.criado_em, a.id) < (turnos.criado_em, turnos.id))
+              and cardinality(a.entrada_anexos) > 0 and (a.criado_em, a.id) < (turnos.criado_em, turnos.id)
+              ${ids ? conn`and not (a.id = any(${ids as string[]}::uuid[]))` : conn``})
         returning ${conn.unsafe(COLUNAS)}`;
       return linhas.map(paraTurno).sort(porChegada);
     },

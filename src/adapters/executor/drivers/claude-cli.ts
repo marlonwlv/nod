@@ -16,7 +16,8 @@ import type { CatalogoDeComandos } from "../../../contracts/comandos.ts";
 import { lerCatalogoDoMac } from "../catalogo-comandos.ts";
 import { log } from "../../../obs/log.ts";
 import { pastaValidaNoWindows } from "../../../domain/caminhos.ts";
-import { baixarAnexos, mensagemClaude } from "../anexos-turno.ts";
+import { baixarAnexos, mensagemClaude, type AnexoBaixado } from "../anexos-turno.ts";
+import type { AnexoMeta } from "../../../contracts/anexo.ts";
 import { rodarLigacaoClaude } from "./claude-ligacao.ts";
 import { classificarSessao, fimDoStderr, eventosDaLinhaStreamJson, reduzirSinais, SINAIS_ZERADOS, textoDaRodada } from "../../../domain/stream-json.ts";
 import { capacidadesDe, versaoMinimaDoModelo } from "../../../domain/harness.ts";
@@ -527,6 +528,9 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
           // ADR-067: a entrada da sessão viva fica aberta até o modelo responder sem nada em segundo plano e sem
           // mensagem nova; só então fecha e o processo sai. Fora da sessão viva ela fecha logo depois do prompt.
           let entradaAberta = false;
+          // C1: as falas do meio que esperam um anexo baixar, em fila (a ordem em que chegaram é a ordem no stdin).
+          let escritas: Promise<void> = Promise.resolve();
+          let escritasNaFila = 0;
           // ADR-083 §6: a primeira fala depois de uma mensagem do meio sai na hora, de qualquer tamanho.
           const meio = criarFalaDoMeio();
           // X1 (revisto em 2026-10-08): o modelo está parado entre voltas (o último evento foi um `result`). Uma mensagem
@@ -536,16 +540,34 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
 
           return {
             aceitaMensagens: () => entradaAberta && processo !== null,
-            receberMensagem(texto: string, id?: string): boolean {
+            receberMensagem(texto: string, id?: string, anexos?: readonly AnexoMeta[]): boolean {
               if (!entradaAberta || !processo) return false;
-              processo.escrever(mensagemClaude(texto, []));
-              // X1: no meio da volta, o CLI só lê a mensagem na fronteira seguinte (tool_result ou result).
-              if (entreVoltas) meio.armar();
-              else meio.absorveu();
-              // X2: o stdin aceitou a escrita: a mensagem entrou na sessão.
-              if (id !== undefined) sinksDoTurno?.mensagemEntrou?.(id);
+              const escrever = (baixados: AnexoBaixado[]) => {
+                // C1: a sessão fechou enquanto o anexo baixava — a fala volta para a fila e vira turno próprio.
+                if (!entradaAberta || !processo) {
+                  if (id !== undefined) sinksDoTurno?.mensagemDevolvida?.(id);
+                  return;
+                }
+                processo.escrever(mensagemClaude(texto, baixados));
+                // X1: no meio da volta, o CLI só lê a mensagem na fronteira seguinte (tool_result ou result).
+                if (entreVoltas) meio.armar();
+                else meio.absorveu();
+                // X2: o stdin aceitou a escrita: a mensagem entrou na sessão.
+                if (id !== undefined) sinksDoTurno?.mensagemEntrou?.(id);
+              };
+              // C1 (2026-11-12): a fala com imagem baixa os bytes antes de escrever; as falas seguem na ordem em que chegaram.
+              if (!anexos?.length && escritasNaFila === 0) {
+                escrever([]);
+                return true;
+              }
+              escritasNaFila += 1;
+              escritas = escritas
+                .then(async () => escrever(anexos?.length && lig.urlNod ? await baixarAnexos({ ...plano, entrada: { ...plano.entrada, anexos: [...anexos] } }, lig.urlNod) : []))
+                .catch(() => { if (id !== undefined) sinksDoTurno?.mensagemDevolvida?.(id); })
+                .finally(() => { escritasNaFila -= 1; });
               return true;
             },
+            aceitaAnexosNoMeio: () => entradaAberta && Boolean(lig.urlNod),
             grupoDeProcessos: () => processo?.pid ?? null,
 
             async rodarTurno(sinks): Promise<ResultadoTurno> {

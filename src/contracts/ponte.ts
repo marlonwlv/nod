@@ -1,4 +1,5 @@
 import type { FaseDoBloco } from "./evento-stream.ts";
+import type { PedidoRenovarAnexos, PonteAguardaMensagem, RespostaRenovarAnexos } from "./estado-vivo.ts";
 import type { AnuncioComputador } from "./computador-motor.ts";
 import type { DesfazerParaRodar, RelatoDesfazer } from "./checkpoint.ts";
 import type { ContaAnunciada } from "./contas-ia.ts";
@@ -113,7 +114,7 @@ export type PedidoRenovar = {
    * servidor a grava cedo: se a entrega se perder num reinício, a volta retoma a mesma sessão em vez de abrir outra.
    */
   sessaoCli?: string;
-};
+} & PedidoRenovarAnexos;
 /**
  * O que a renovação devolve. `mensagens`: as falas da pessoa que entraram neste turno vivo, na ordem (ADR-067).
  * `mensagensIds` (#189): o id do turno de cada uma, na mesma ordem, para o app confirmar em `mensagensEntregues`.
@@ -130,7 +131,7 @@ export type PedidoRenovar = {
  */
 export const MOTIVOS_RENOVACAO_NEGADA = ["sem_plano", "parado", "agente_excluido", "lease_vencido"] as const;
 export type MotivoRenovacaoNegada = (typeof MOTIVOS_RENOVACAO_NEGADA)[number];
-export type RespostaRenovar = { ativo: boolean | "indefinido"; versaoMinimaApp: string; motivo?: MotivoRenovacaoNegada; mensagens?: string[]; mensagensIds?: string[]; mensagensSemMoldura?: string[]; ligacaoEncerrada?: boolean };
+export type RespostaRenovar = { ativo: boolean | "indefinido"; versaoMinimaApp: string; motivo?: MotivoRenovacaoNegada; mensagens?: string[]; mensagensIds?: string[]; mensagensSemMoldura?: string[]; ligacaoEncerrada?: boolean } & RespostaRenovarAnexos;
 
 /**
  * O que o app desktop viu do turno vivo desde a última renovação, NA ORDEM: texto do modelo e nomes de ferramenta (nunca o
@@ -152,11 +153,8 @@ export type { MotivoPuladaLimpeza, PastaParaLimpar, RelatoLimpeza } from "./limp
 /** ADR-130: o que a máquina aceita neste puxar. Ausente = tudo, como antes. */
 export type OpcoesDoPuxar = { soDaPessoa?: boolean };
 
-/**
- * Os cinco verbos da ponte (ADR-021), faladas in-process nesta rodada. A ponte HTTP entra depois
- * sem trocar o driver. {ativo:false} em renovar manda o executor abortar.
- */
-export interface PonteInterna {
+/** Os cinco verbos da ponte (ADR-021). {ativo:false} em renovar manda o executor abortar. C1: aguardarMensagem. */
+export interface PonteInterna extends PonteAguardaMensagem {
   conectar(m: AnuncioMaquina): Promise<void>;
   /**
    * NOD-199 (emenda à ADR-021): reanuncia só as IAs da máquina já conectada, sem mexer nos turnos em andamento. Opcional:

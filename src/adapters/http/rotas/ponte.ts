@@ -1,4 +1,5 @@
 import type { FaseDoBloco } from "../../../contracts/evento-stream.ts";
+import { AGUARDAR_MENSAGEM_MS } from "../../../contracts/estado-vivo.ts";
 import { HARNESSES } from "../../../contracts/harness.ts";
 import type { CapacidadesHarness, IdHarness } from "../../../contracts/harness.ts";
 import { setTimeout as esperar } from "node:timers/promises";
@@ -427,7 +428,7 @@ export function criarPonteHttpServidor(d: {
       const entregues = idsDeMensagens(b.mensagensEntregues), devolvidas = idsDeMensagens(b.mensagensDevolvidas);
       // ADR-083 (#194): a memória do Mac, amostrada uma vez por máquina e mandada em cada renovação.
       const mem = memoria(b.memoria);
-      const r = await c.ponte.renovar({ turnoId, machineId: ctx.params.chaveId!, sinais: s, eventos: [], ...(fs.length ? { falas: fs } : {}), ...(b.aceitaMensagens === true ? { aceitaMensagens: true } : {}), ...(entregues ? { mensagensEntregues: entregues } : {}), ...(devolvidas?.length ? { mensagensDevolvidas: devolvidas } : {}), ...(mem ? { memoria: mem } : {}), ...(sessaoCli ? { sessaoCli } : {}) });
+      const r = await c.ponte.renovar({ turnoId, machineId: ctx.params.chaveId!, sinais: s, eventos: [], ...(fs.length ? { falas: fs } : {}), ...(b.aceitaMensagens === true ? { aceitaMensagens: true } : {}), ...(b.aceitaAnexos === true ? { aceitaAnexos: true } : {}), ...(entregues ? { mensagensEntregues: entregues } : {}), ...(devolvidas?.length ? { mensagensDevolvidas: devolvidas } : {}), ...(mem ? { memoria: mem } : {}), ...(sessaoCli ? { sessaoCli } : {}) });
       if (fs.length && r.ativo) d.fala?.(plano);
       if (r.ativo && texto(b.delta, 16_000) && b.delta) d.delta(plano, b.delta);
       if (r.ativo) for (const t of trechos(b.trechos)) {
@@ -440,6 +441,13 @@ export function criarPonteHttpServidor(d: {
         else if (t.texto) d.delta(plano, t.texto);
       }
       ctx.json(200, r);
+    }),
+    // C1 (2026-11-12): o long-poll da mensagem — o laço espera aqui e renova quando chega fala para a sessão viva.
+    rota("aguardar", async (ctx, b) => {
+      const c = conexao(ctx), turnoId = uuid(b.turnoId);
+      const ms = typeof b.ms === "number" && Number.isFinite(b.ms) ? Math.min(Math.max(0, b.ms), AGUARDAR_MENSAGEM_MS) : AGUARDAR_MENSAGEM_MS;
+      if (!c.ponte.aguardarMensagem || !c.planos.has(turnoId)) { ctx.json(200, { chegou: false }); return; }
+      ctx.json(200, { chegou: await c.ponte.aguardarMensagem(turnoId, ms) });
     }),
     rota("entregar", async (ctx, b) => {
       const c = conexao(ctx), lida = entrega(b, ctx.params.chaveId!);

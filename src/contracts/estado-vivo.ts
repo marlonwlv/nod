@@ -1,3 +1,4 @@
+import type { AnexoMeta } from "./anexo.ts";
 import type { ConversaDto } from "./api.ts";
 import type { Mensagem } from "./mensagem.ts";
 import type { EpochMs } from "./ids.ts";
@@ -101,3 +102,21 @@ export type DadosFrameCursor = { bot: string; tipo: TipoCursor; x: number; y: nu
 /** `GET /conversas/:id/envios/:idEnvio` (definido em 2026-11-12): o destino da fala mandada com aquele `idEnvio`. */
 export type StatusDoEnvio = "aceito" | "rejeitado" | "pendente" | "nao_encontrado";
 export type RespostaStatusDoEnvio = { estado: StatusDoEnvio; mensagemId: string | null };
+
+/**
+ * C1 (definido em 2026-11-12): fala com imagem no meio do turno. O app cujo driver escreve anexo na sessão viva manda
+ * `aceitaAnexos` na renovação; só então o servidor deixa passar a fala com anexo (antes ela cortava a fila e esperava o
+ * próximo turno) e devolve os metadados em `mensagensAnexos` (id da fala → anexos). O driver baixa os bytes no
+ * `GET interno/anexos/:id` com o token do turno vivo, que aceita o anexo de fala pendente da mesma conversa e bot.
+ */
+export type PedidoRenovarAnexos = { aceitaAnexos?: boolean };
+export type RespostaRenovarAnexos = { mensagensAnexos?: Record<string, AnexoMeta[]> };
+
+/**
+ * C1: a fala vai ao executor por evento, não pela checagem de 3 s. `aguardarMensagem` (long-poll, até `ms`) volta `true`
+ * quando chegou algo para a conversa da pessoa (fala nova, recado do quadro, trabalho mudou) e o laço renova na hora;
+ * `false` = venceu sem novidade. A batida do lease (30 s) segue como rede. HTTP: `POST /api/maquina/aguardar` {turnoId, ms} → {chegou}.
+ */
+export type PonteAguardaMensagem = { aguardarMensagem?(turnoId: string, ms: number): Promise<boolean> };
+/** Teto do long-poll da mensagem (o mesmo do pull da ponte, ADR-021). */
+export const AGUARDAR_MENSAGEM_MS = 20_000;

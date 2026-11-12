@@ -54,6 +54,7 @@ import { log } from "../../obs/log.ts";
 import { listarTodas } from "../../repositories/pessoas.repo.ts";
 import { criarBarramento, type Barramento } from "../../services/barramento.ts";
 import { criarEstadoVivo } from "../../services/estado-vivo.ts";
+import { comAvisoDeMensagem, criarAvisoDeMensagem } from "../../services/aviso-de-mensagem.ts";
 import { sinalDoEvento, type SinalDoMotor } from "../../domain/estado-vivo.ts";
 import { criarConectoresVivos, type ConectoresVivos, type ConfigConectorVivo } from "../../services/conectores-vivos.ts";
 import { capturaLigada, criarCapturas } from "../../services/capturas.ts";
@@ -429,7 +430,9 @@ export function comporApp(o: OpcoesCompor): App {
   // NOD_JUNTAR_DELTAS_MS=0 volta a um frame por pedaço de texto (para medir ou isolar um problema).
   // definido em 2026-11-12: o estado vivo por bot decora o barramento — todo frame publicado passa pela projeção.
   const estadoVivo = criarEstadoVivo(criarBarramento({ juntarDeltasMs: env.NOD_JUNTAR_DELTAS_MS === undefined ? JUNTAR_DELTAS_MS : Math.max(0, Number(env.NOD_JUNTAR_DELTAS_MS) || 0) }), { agora: relogio });
-  const barramento = estadoVivo.barramento;
+  // C1 (2026-11-12): o frame que pode trazer fala para a sessão viva acorda o long-poll do laço (aguardarMensagem).
+  const avisoDeMensagem = criarAvisoDeMensagem();
+  const barramento = comAvisoDeMensagem(estadoVivo.barramento, avisoDeMensagem);
   const interruptor = criarInterruptor();
   // revisto em 2026-10-12 (NOD-214): o token que falta na memória (o processo é novo, o turno seguiu na máquina durante o
   // deploy) é procurado pelo hash em `turno_credenciais`, no escopo que o token alega, e só vale com o turno ainda
@@ -853,6 +856,7 @@ export function comporApp(o: OpcoesCompor): App {
     useCases,
     executor: () => executorAtual,
     agora: relogio,
+    avisoDeMensagem,
     // NOD-214: a carência do lease só no compartilhado — no modo local o reinício é o nod fechado (ADR-045).
     ...(compartilhado ? { inicioDoProcesso: o.inicioDoProcesso ?? relogio() } : {}),
     listarPessoas: o.listarPessoas,
