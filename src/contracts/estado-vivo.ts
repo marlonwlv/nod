@@ -1,3 +1,4 @@
+import type { ConversaDto } from "./api.ts";
 import type { Mensagem } from "./mensagem.ts";
 import type { EpochMs } from "./ids.ts";
 
@@ -75,6 +76,9 @@ export type FimDoTurnoNoFrame = { desfecho: ResultadoTurno; settled_at: EpochMs;
  * (mensagens apagadas). `GET /conversas/:id/mensagens?depois_de=<updated_seq>&geracao=<g>` devolve só o que mudou.
  */
 export type CursorDaConversa = { geracao: number; updated_seq: number };
+
+/** O GET de sempre com o cursor lido antes da página (o ponto de partida do `?depois_de=`); ausente = servidor antigo. */
+export type ConversaComCursor = ConversaDto & { cursor?: CursorDaConversa };
 
 export type MensagemComCursor = Mensagem & { seq: number; updated_seq: number };
 

@@ -67,8 +67,6 @@ export type ConversaDto = DonoNaConversa & TrocasNaConversa & AcoesDoModoNaConve
   fios: FioDaPergunta[];
   trabalhos?: TrabalhoDto[]; // ADR-083: trabalhos abertos do bot desta conversa (faixa); ausente = servidor antigo
   reacoes?: ReacaoNaFala[]; // ADR-113: as reações das falas da janela, agrupadas por emoji; ausente = servidor antigo
-  /** definido em 2026-11-12: o cursor da conversa lido antes da página — o ponto de partida do `?depois_de=`. Ausente = servidor antigo. */
-  cursor?: import("./estado-vivo.ts").CursorDaConversa;
 };
 
 export type SuaVezDto = {
