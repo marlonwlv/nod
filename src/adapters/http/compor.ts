@@ -54,6 +54,7 @@ import { log } from "../../obs/log.ts";
 import { listarTodas } from "../../repositories/pessoas.repo.ts";
 import { criarBarramento, type Barramento } from "../../services/barramento.ts";
 import { criarEstadoVivo } from "../../services/estado-vivo.ts";
+import { sementeDoEstadoVivo } from "../../use-cases/semente-estado-vivo.ts";
 import { comAvisoDeMensagem, criarAvisoDeMensagem } from "../../services/aviso-de-mensagem.ts";
 import { chaveDaMaquina, maquinaNoStream } from "../../domain/computador-vivo.ts";
 import { sinalDoEvento, type SinalDoMotor } from "../../domain/estado-vivo.ts";
@@ -1645,7 +1646,12 @@ export function comporApp(o: OpcoesCompor): App {
         return executorAtual;
       },
     }),
-    criarRotaEventos(barramento, { conexoes: conexoesSse, retrato: (pessoaId) => estadoVivo.retrato(pessoaId) }),
+    // Item 5 (2026-11-12): a primeira conexão da pessoa depois do reinício semeia o estado vivo do banco; o que mudar sai em
+    // `agente.estado` logo depois do retrato (o retrato segue síncrono, no mesmo tick da inscrição).
+    criarRotaEventos(barramento, { conexoes: conexoesSse, retrato: (pessoaId, escopo) => {
+      estadoVivo.hidratar(pessoaId, () => dentro(escopo, (d) => sementeDoEstadoVivo(d))).catch((e: unknown) => log("aviso", "estado_vivo_hidratar_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }));
+      return estadoVivo.retrato(pessoaId);
+    } }),
     criarRotaMetricas(),
     criarRotaDev(dentro, {
       get executor() {

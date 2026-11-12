@@ -227,3 +227,29 @@ export function aplicarFrame(p: ProjecaoEstadoVivo, tipo: string, dados: Record<
       return [];
   }
 }
+
+/**
+ * Estado vivo durável (definido em 2026-11-12, item 5): o que o banco sabe e a memória perde num reinício — os turnos
+ * `despachando` da pessoa e as decisões abertas em que ela decide. O serviço semeia a projeção com isso na primeira
+ * conexão da pessoa depois do processo subir; o resto (atividade, compondo, subagentes) volta no próximo frame do turno.
+ */
+export type SementeEstadoVivo = {
+  vivos: RefDoTurno[];
+  decisoes: { decisaoId: string; agenteId: string; tipo: unknown; desde: number; venceEm: number | null }[];
+};
+
+/** Semeia sem pisar no que a projeção já viu (turno fechado não religa; decisão já conhecida fica). Devolve os bots que mudaram. */
+export function semearProjecao(p: ProjecaoEstadoVivo, s: SementeEstadoVivo, agora: number): string[] {
+  const mudaram = new Set<string>();
+  for (const ref of s.vivos) {
+    if (p.fechados.has(ref.turnoId) || p.bots.get(ref.agenteId)?.vivos.has(ref.turnoId)) continue;
+    if (ligar(p, ref, agora)) mudaram.add(ref.agenteId);
+  }
+  for (const d of s.decisoes) {
+    if (p.decisoes.has(d.decisaoId)) continue;
+    p.decisoes.set(d.decisaoId, { agenteId: d.agenteId, motivo: motivoDaDecisao(d.tipo), desde: d.desde, venceEm: d.venceEm });
+    limitar(p.decisoes);
+    if (recomputarEspera(p, d.agenteId, agora)) mudaram.add(d.agenteId);
+  }
+  return [...mudaram];
+}

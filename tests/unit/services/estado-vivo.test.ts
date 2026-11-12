@@ -28,3 +28,35 @@ describe("serviço do estado vivo sobre o barramento", () => {
     expect(vivo.estado(PESSOA, BOT)?.compondo).toBe(true);
   });
 });
+
+describe("item 5: estado vivo durável (hidratar do banco depois do reinício)", () => {
+  const semente = { vivos: [{ agenteId: BOT, turnoId: "t9", conversaId: "c1" }], decisoes: [{ decisaoId: "d1", agenteId: BOT, tipo: "pergunta", desde: 3, venceEm: 99 }] };
+
+  it("semeia uma vez: o bot volta rodando e aguardando a pergunta, com o prazo; a segunda conexão não relê o banco", async () => {
+    const vivo = criarEstadoVivo(criarBarramento(), { agora: () => 10 });
+    const vistos: FrameSse[] = [];
+    vivo.barramento.inscrever(PESSOA, (f) => vistos.push(f));
+    let leituras = 0;
+    const carregar = async () => { leituras += 1; return semente; };
+    await vivo.hidratar(PESSOA, carregar);
+    await vivo.hidratar(PESSOA, carregar);
+    expect(leituras).toBe(1);
+    expect(vistos.map((f) => f.tipo)).toEqual(["agente.estado"]);
+    expect(vivo.estado(PESSOA, BOT)).toMatchObject({ rodando: true, turnoId: "t9", aguardando: { motivo: "pergunta", desde: 3 }, vence_em: 99 });
+  });
+
+  it("não pisa no que a projeção já viu: turno fechado não religa", async () => {
+    const vivo = criarEstadoVivo(criarBarramento(), { agora: () => 10 });
+    vivo.barramento.publicar(PESSOA, "turno.iniciado", { kind: "turno_despachado", turnoId: "t9", conversaId: "c1", agente_id: BOT });
+    vivo.barramento.publicar(PESSOA, "turno.encerrado", { turnoId: "t9" });
+    await vivo.hidratar(PESSOA, async () => ({ vivos: semente.vivos, decisoes: [] }));
+    expect(vivo.estado(PESSOA, BOT)?.rodando).toBe(false);
+  });
+
+  it("leitura que falha não marca a pessoa: a próxima conexão tenta de novo", async () => {
+    const vivo = criarEstadoVivo(criarBarramento(), { agora: () => 10 });
+    await expect(vivo.hidratar(PESSOA, async () => { throw new Error("banco fora"); })).rejects.toThrow("banco fora");
+    await vivo.hidratar(PESSOA, async () => semente);
+    expect(vivo.estado(PESSOA, BOT)?.rodando).toBe(true);
+  });
+});

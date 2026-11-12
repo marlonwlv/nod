@@ -4,6 +4,7 @@ import type { FrameSse } from "../../contracts/frame.ts";
 import { metricas as registroPadrao, type Metricas } from "../../obs/metricas.ts";
 import { interpretarSince, type Barramento, type Retomada, type Since } from "../../services/barramento.ts";
 import type { Ctx } from "./roteador.ts";
+import type { Escopo } from "../../shared/types.ts";
 
 /**
  * Canal servidor→NAVEGADOR (ADR-016): SSE, e só nesta direção — a ponte servidor↔máquina não usa
@@ -92,7 +93,7 @@ export interface OpcoesSse {
    * definido em 2026-11-12: o retrato do estado vivo dos bots (RetratoEstadoVivo), mandado logo depois do `resumed` como
    * evento `agentes.estado` SEM `id:` (como o ping): não gasta seq nem buffer, e cada conexão recebe o seu.
    */
-  retrato?: (pessoaId: string) => unknown;
+  retrato?: (pessoaId: string, escopo: Escopo) => unknown;
 }
 
 export function criarHandlerSse(barramento: Barramento, opcoes: OpcoesSse = {}): (ctx: Ctx) => Promise<void> {
@@ -133,7 +134,7 @@ export function criarHandlerSse(barramento: Barramento, opcoes: OpcoesSse = {}):
     if (retomada.resumed) for (const f of retomada.frames) escrever(f);
     escrever(frameDeRetomada(escopo.pessoaId, retomada));
     // O retrato sai depois do `resumed` e antes de inscrever, no mesmo tick: um `agente.estado` posterior sempre o sucede.
-    if (opcoes.retrato) res.write(eventoSemId(EVENTO_RETRATO_ESTADO_VIVO, opcoes.retrato(escopo.pessoaId)));
+    if (opcoes.retrato) res.write(eventoSemId(EVENTO_RETRATO_ESTADO_VIVO, opcoes.retrato(escopo.pessoaId, escopo)));
     const cancelar = barramento.inscrever(escopo.pessoaId, escrever);
     contar(escopo.tenantId, escopo.pessoaId, +1);
     const soltar = opcoes.conexoes?.registrar(res);
