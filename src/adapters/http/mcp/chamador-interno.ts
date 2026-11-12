@@ -25,6 +25,9 @@ const CAMINHOS_FORA = [/^\/mcp(\/|$)/, /^\/eventos$/, /^\/rotinas\/[^/]+\/endere
  */
 export const ACOES_FORA_DO_MCP: ReadonlySet<IdAcao> = new Set<IdAcao>([
   "apps.credenciais", "apps.configurar_marketplace", "apps.github_token", "apps.github_app",
+  // Registrar um app leva segredo (o `env` sai cifrado, como apps.credenciais) e, em stdio, um comando que o servidor roda
+  // na sondagem: com o token vazado, isso vira código rodando na máquina que sobrevive à revogação (revisão de QA do PR #22).
+  "apps.criar",
   // O convite de máquina com `papel: computador` pareia SEM a tela confirmar e vira uma chave de máquina que sobrevive à
   // revogação do token MCP: é o mesmo poder de criar_chave. Instalar por SSH e confiar numa host key nova pedem o olho da
   // pessoa na impressão digital.

@@ -29,7 +29,8 @@ rodar rotinas sem abrir o Nod. Depois, qualquer cliente MCP (Claude Desktop, Cla
    quadro e tarefa, criar, mudar, comentar e responder tarefa, listar e rodar rotinas. `nod_chamar_rota` alcança
    qualquer outra rota de pessoa (o resto da paridade, até a ADA-191 dar ferramentas próprias).
 4. **Fica fora do MCP**, inclusive pelo `nod_chamar_rota`: os próprios tokens MCP (um token não gera outro), o SSE, o
-   endereço da rotina webhook (o GET devolve o segredo) e as ações que levam segredo, pareamento (inclusive o convite de
+   endereço da rotina webhook (o GET devolve o segredo) e as ações que levam segredo (inclusive registrar um app: o `env` sai
+   cifrado e o comando stdio roda na sondagem, revisão de QA), pareamento (inclusive o convite de
    máquina, que com `papel: computador` pareia sem a tela e vira chave que sobrevive à revogação do token), instalação
    por SSH e confiança em host key, login de IA na máquina, OAuth no navegador, a troca do endereço webhook, as mãos da
    pessoa no computador do bot e o consentimento de voz (`ACOES_FORA_DO_MCP`, lista explícita; revisão do PR #22). **Não** é "todas as `nunca` do chat": o `nunca` de `conversas.enviar` e

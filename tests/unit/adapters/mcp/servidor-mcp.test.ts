@@ -36,6 +36,15 @@ function rotasFalsas() {
     { metodo: "POST", acao: "cartoes.dispensar", padrao: /^\/decisoes\/(?<id>[^/]+)\/dispensar$/, async handler(ctx) { await registrar(ctx, "POST", `/decisoes/${ctx.params.id}/dispensar`); ctx.json(200, { ok: true, ids: { decisaoId: ctx.params.id } }); } },
     // GET /rotinas devolve `{ rotinas: RotinaDto[] }` (a rotina dentro de `rotina`), como a rota de verdade (listarRotinas).
     { metodo: "GET", padrao: /^\/rotinas$/, async handler(ctx) { ctx.json(200, { rotinas: [{ rotina: { id: ROTINA, agenteId: BOT, cron: "0 9 * * 1", fusoIana: "America/Sao_Paulo", estado: "ativa", instrucao: "Resumo da semana" }, proximaExecucao: 0, bloqueio: null, resumo: "", espera: null }] }); } },
+    // Regression: ISSUE-002 — o chamador interno só alcança rotas de pessoa: nunca as públicas (conta, sessão), as
+    // internas do turno (as ferramentas do bot) nem as de máquina, mesmo que o caminho case.
+    // Found by /qa on 2026-11-12
+    // Regression: ISSUE-003 — registrar um app leva segredo (o `env` sai cifrado) e, em stdio, um comando que o servidor
+    // roda na sondagem e que sobrevive à revogação do token. Found by /qa on 2026-11-12
+    { metodo: "POST", acao: "apps.criar", padrao: /^\/conectores$/, async handler(ctx) { await registrar(ctx, "POST", "/conectores"); ctx.json(201, { ok: true }); } },
+    { metodo: "GET", publica: true, padrao: /^\/so-publica$/, async handler(ctx) { await registrar(ctx, "GET", "/so-publica"); ctx.json(200, { ok: true }); } },
+    { metodo: "GET", interno: true, padrao: /^\/so-interna$/, async handler(ctx) { await registrar(ctx, "GET", "/so-interna"); ctx.json(200, { ok: true }); } },
+    { metodo: "GET", maquina: true, padrao: /^\/so-maquina$/, async handler(ctx) { await registrar(ctx, "GET", "/so-maquina"); ctx.json(200, { ok: true }); } },
     { metodo: "POST", acao: "rotinas.executar", padrao: /^\/rotinas\/(?<id>[^/]+)\/executar$/, async handler(ctx) { await registrar(ctx, "POST", `/rotinas/${ctx.params.id}/executar`); ctx.json(202, { ok: true }); } },
     // O convite de máquina (papel computador pareia sem a tela) e o endereço da rotina webhook (GET devolve o segredo).
     { metodo: "POST", acao: "maquinas.convidar", padrao: /^\/maquinas\/convites$/, async handler(ctx) { await registrar(ctx, "POST", "/maquinas/convites"); ctx.json(201, { convite: "segredo" }); } },
@@ -173,6 +182,21 @@ describe("servidor MCP do Nod (POST /api/mcp)", () => {
     const endereco = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "GET", caminho: `/rotinas/${ROTINA}/endereco` })).texto) as { status: number };
     expect(endereco.status).toBe(404);
     expect(falsas.chamadas.some((c) => c.caminho === "/maquinas/convites" || c.caminho.endsWith("/endereco"))).toBe(false);
+  });
+
+  it("nod_chamar_rota não alcança rota pública, interna do turno nem de máquina", async () => {
+    for (const caminho of ["/so-publica", "/so-interna", "/so-maquina"]) {
+      const r = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "GET", caminho })).texto) as { status: number };
+      expect(r.status).toBe(404);
+    }
+    expect(falsas.chamadas.some((c) => c.caminho.startsWith("/so-"))).toBe(false);
+  });
+
+  it("nod_chamar_rota não registra app (env com segredo; comando stdio que o servidor roda)", async () => {
+    const corpo = { nome: "X", slug: "x", transporte: "stdio", comando: "/bin/sh", args: ["-c", "true"], env: { TOKEN: "segredo" } };
+    const r = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "POST", caminho: "/conectores", corpo })).texto) as { status: number };
+    expect(r.status).toBe(404);
+    expect(falsas.chamadas.some((c) => c.caminho === "/conectores")).toBe(false);
   });
 
   it("recusar um retomar_turno vai pelo Deixar pra lá (dispensar), nunca pelo /decidir que retomaria", async () => {

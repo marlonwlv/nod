@@ -71,7 +71,7 @@ e ponha o cabeçalho `Authorization` em `headers` na configuração do servidor 
 | `nod_listar_rotinas` / `nod_rodar_rotina` | As rotinas e rodar uma agora |
 | `nod_chamar_rota` | Qualquer outra ação da tela (o caminho da API, sem `/api/t/<tenant>`) |
 
-Não passam pelo MCP: gerar ou revogar tokens, guardar segredos e credenciais, parear aparelhos, logins OAuth, usar a tela
+Não passam pelo MCP: gerar ou revogar tokens, guardar segredos e credenciais (inclusive registrar um app novo), parear aparelhos, logins OAuth, usar a tela
 do computador do bot e o consentimento de voz.
 
 ## 4. Testar na mão
