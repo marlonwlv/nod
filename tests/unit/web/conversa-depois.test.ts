@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { ConversaDto, SuaVezDto } from "../../../src/contracts/api.ts";
 import type { Mensagem } from "../../../src/contracts/mensagem.ts";
 import { estadoInicial, reduzir, type ConversaEstado, type Estado } from "../../../web/estado/reducer.ts";
@@ -57,43 +57,72 @@ describe("1. o balão de quem escreve", () => {
 });
 
 describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
+  /**
+   * O rótulo fica ≥ 800 ms na tela, guardado por turno (permanência): cada caso tem o seu turno, para o rótulo de um não
+   * segurar o do outro; dentro do caso, o estado novo do mesmo turno chega com o relógio adiantado em `PASSOU`.
+   */
+  let T = "tc0";
+  let casos = 0;
+  beforeEach(() => { T = `tc${++casos}`; });
+  const PASSOU = 800;
   /** O turno rodando da Ada, com a atividade dada. */
   const rodando = (base: Estado, a?: ReturnType<typeof comTexto>, desde = AGORA - 60_000, extra: Record<string, unknown> = {}): Estado => ({
-    ...base, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: "catcher", machineId: null, desde, ...extra } as never }, atividades: a ? { [C]: { t1: a } } : {},
+    ...base, turnosVivos: { [T]: { turnoId: T, conversaId: C, estado: "rodando", executor: "catcher", machineId: null, desde, ...extra } as never }, atividades: a ? { [C]: { [T]: a } } : {},
   });
   /** O turno.encerrado da Ada. */
-  const encerrar = (e: Estado): Estado => reduzir(e, { tipo: "frame", frame: { tipo: "turno.encerrado", dados: { turnoId: "t1", conversaId: C } } as never, agora: AGORA });
+  const encerrar = (e: Estado): Estado => reduzir(e, { tipo: "frame", frame: { tipo: "turno.encerrado", dados: { turnoId: T, conversaId: C } } as never, agora: AGORA });
 
   it("com ferramenta: uma linha só, o personagem de 28 e o verbo da ferramenta; sem nome, pensamento, narração nem balão", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const atividade = comFerramenta(comTexto(ATIVIDADE_VAZIA, "Lendo o PR https://github.com/acme/loja/pull/481."), "Consultou GitHub", { texto: "Usando GitHub", frentes: false });
     const e = rodando(base, atividade);
     const blocos = blocosAoVivo(c, e);
-    expect(blocos.map((b) => b.chave)).toEqual(["vivo:t1"]);
+    expect(blocos.map((b) => b.chave)).toEqual([`vivo:${T}`]);
     const html = blocos[0]!.html;
     // A cor do bot (a classe c-* do perfil; "blue" na frota de teste) segue na raiz; o aria-live anuncia o rótulo.
-    expect(html).toMatch(/^<article class="message bot fala-viva ao-vivo indicador blue" data-turno="t1" data-morfar aria-live="polite" aria-label="Ada está usando GitHub"><nod-mascote [^>]*\bsm\b[^>]*data-parte="mascote"/);
+    expect(html).toMatch(/^<article class="message bot fala-viva ao-vivo indicador blue" data-turno="tc\d+" data-morfar aria-live="polite" aria-label="Ada está usando GitHub"><nod-mascote [^>]*\bsm\b[^>]*data-parte="mascote"/);
     expect(html).toContain('state="orbit"');
-    expect(html).toContain('<span class="indicador-rotulo brilho" data-parte="rotulo-ferramenta:Usando GitHub">Usando GitHub</span>');
+    expect(html).toContain(`data-turno="${T}"`);
+    expect(html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-GitHub"><span class="indicador-rotulo fala-viva-estado brilho">Usando GitHub</span></span>');
     // Sem o nome da IA, sem nome do bot, sem a narração, sem pensamento e sem balão.
     for (const fora of ["catcher", "Claude", "msg-autor", "Lendo o PR", "fala-narracao", 'class="pensar"', "data-desde"]) expect(html).not.toContain(fora);
     expect(html).not.toMatch(/class="bubble[ "]/);
-    expect(blocos[0]!.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-ferramenta:Usando GitHub"]);
+    expect(blocos[0]!.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-ferramenta-Usando-GitHub"]);
     // O HTML não muda quando o tempo anda (sem vigia).
     expect(blocosAoVivo(c, { ...e, agora: AGORA + 120_000 })[0]!.html).toBe(html);
     expect(blocos[0]!.morfar?.mascote).toMatchObject({ state: "orbit", "data-estado": "trabalhando", "aria-label": "Ada está usando GitHub" });
     // Texto chegando depois da ferramenta: "Digitando…", cinza fixo (sem brilho), e o texto não aparece.
-    const narrando = blocosAoVivo(c, { ...e, atividades: { [C]: { t1: { ...atividade, atual: "Abrindo https://github.com/acme/loja/pull/481 agora" } } } })[0]!;
-    expect(narrando.html).toContain('<span class="indicador-rotulo" data-parte="rotulo-digitando">Digitando…</span>');
+    const narrando = blocosAoVivo(c, { ...e, agora: AGORA + 120_000 + PASSOU, atividades: { [C]: { [T]: { ...atividade, atual: "Abrindo https://github.com/acme/loja/pull/481 agora" } } } })[0]!;
+    expect(narrando.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-digitando"><span class="indicador-rotulo fala-viva-estado">Digitando…</span></span>');
     expect(narrando.html).toContain('aria-label="Ada está digitando"');
     expect(narrando.html).not.toContain("Abrindo https://");
     expect(narrando.morfar?.partes.map((p) => p.chave)).toEqual(["rotulo-digitando"]);
   });
 
+  it("cada rótulo fica no mínimo 800 ms: o novo que chega antes espera em data-estado-pendente; depois dos 800 ms, entra", () => {
+    const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
+    const usando = comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false });
+    const em = (a: ReturnType<typeof comTexto>, agora: number) => blocosAoVivo(c, { ...rodando(base, a), agora })[0]!;
+    expect(em(usando, AGORA).html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-GitHub"><span class="indicador-rotulo fala-viva-estado brilho">Usando GitHub</span></span>');
+    // 500 ms depois o texto chega: o rótulo antigo fica, com o novo pendente desde a entrada do antigo.
+    const cedo = em(comTexto(usando, "Fechei o PR."), AGORA + 500);
+    expect(cedo.html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-GitHub" data-estado-pendente="Digitando…" data-estado-desde="${AGORA}"><span class="indicador-rotulo fala-viva-estado brilho">Usando GitHub</span></span>`);
+    expect(cedo.html).not.toContain(">Digitando…</span>");
+    expect(cedo.morfar!.mascote).toMatchObject({ "aria-label": "Ada está usando GitHub" });
+    // Aos 799 ms ainda espera; aos 800 ms o novo entra, sem pendente.
+    expect(em(comTexto(usando, "Fechei o PR."), AGORA + 799).html).toContain('data-estado-pendente="Digitando…"');
+    const depois = em(comTexto(usando, "Fechei o PR."), AGORA + PASSOU);
+    expect(depois.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-digitando"><span class="indicador-rotulo fala-viva-estado">Digitando…</span></span>');
+    expect(depois.html).not.toContain("data-estado-pendente");
+    // A troca rápida não pisca: a ferramenta seguinte, 300 ms depois, espera de novo (contada desde a entrada do "Digitando…").
+    const outra = em(comFerramenta(ATIVIDADE_VAZIA, "Consultou Linear", { texto: "Usando Linear", frentes: false }), AGORA + PASSOU + 300);
+    expect(outra.html).toContain(`data-estado-pendente="Usando Linear" data-estado-desde="${AGORA + PASSOU}"><span class="indicador-rotulo fala-viva-estado">Digitando…</span>`);
+  });
+
   it("revisão do #508: o nome do bot com $&, $` e $' não abre atributo no mascote (replace com função)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     for (const nome of ['Ada$&" onmouseover="x', "Ada$`", "Ada$'"]) {
-      const e: Estado = { ...base, frota: { agentes: [{ id: "a", nome, cor: "blue", forma: "square", conversaId: C }] } as never, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } } };
+      const e: Estado = { ...base, frota: { agentes: [{ id: "a", nome, cor: "blue", forma: "square", conversaId: C }] } as never, turnosVivos: { [T]: { turnoId: T, conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } } };
       const mascote = /<nod-mascote [^>]*>/.exec(blocosAoVivo(c, e)[0]!.html)![0];
       expect(mascote).not.toMatch(/ onmouseover="/);
       expect(mascote.match(/ aria-label="/g)).toHaveLength(1);
@@ -107,8 +136,8 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
   it("revisão do #508: cada data-parte do HTML é uma parte do morph, na mesma ordem (senão o morph cai na recriação)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const mudo = comVigia(comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false }), { mudoDesde: AGORA - 4 * 60_000, aberta: null, emFundo: 0, repeticao: null });
-    for (const a of [undefined, comTexto(ATIVIDADE_VAZIA, "Olá"), mudo]) {
-      const b = blocosAoVivo(c, rodando(base, a, AGORA - 5 * 60_000))[0]!;
+    for (const [i, a] of [undefined, comTexto(ATIVIDADE_VAZIA, "Olá"), mudo].entries()) {
+      const b = blocosAoVivo(c, { ...rodando(base, a, AGORA - 5 * 60_000), agora: AGORA + i * PASSOU })[0]!;
       const noWrap = b.html.slice(b.html.indexOf('<div class="bubble-wrap">'));
       const filhas = [...noWrap.matchAll(/<(?:div|details|span)[^>]* data-parte="([^"]+)"/g)].map((m) => m[1]);
       expect(filhas).toEqual(b.morfar!.partes.map((p) => p.chave));
@@ -116,28 +145,33 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     }
   });
 
-  it("sem novidade há mais de 2 min: 'Ainda trabalhando · N min', sem o aviso do vigia dentro da linha", () => {
+  it("sem novidade há mais de 2 min: o rótulo segue o verbo da ferramenta (o silêncio não muda o rótulo), sem o aviso do vigia", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const mudo = comVigia(comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false }), { mudoDesde: AGORA - 4 * 60_000, aberta: null, emFundo: 0, repeticao: null });
     const e = rodando(base, mudo, AGORA - 5 * 60_000);
     const b = blocosAoVivo(c, e)[0]!;
-    expect(b.html).toContain('<span class="indicador-rotulo brilho" data-parte="rotulo-mudo">Ainda trabalhando · 4 min</span>');
-    expect(b.html).toContain('aria-label="Ada está ainda trabalhando · 4 min"');
-    expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-mudo"]);
-    for (const fora of ["Sem novidade", "vigia", "parar-conversa"]) expect(b.html).not.toContain(fora);
-    // Com trabalho de verdade, o mesmo turno volta ao verbo da ferramenta.
-    const ativo = blocosAoVivo(c, { ...e, atividades: { [C]: { t1: { ...mudo, vigia: null } } } })[0]!;
-    expect(ativo.html).toContain(">Usando GitHub</span>");
+    expect(b.html).toContain('>Usando GitHub</span></span>');
+    expect(b.html).toContain('aria-label="Ada está usando GitHub"');
+    expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-ferramenta-Usando-GitHub"]);
+    for (const fora of ["Ainda trabalhando", "Sem novidade", "vigia", "parar-conversa"]) expect(b.html).not.toContain(fora);
+    // Sem o silêncio, o mesmo rótulo e o mesmo HTML.
+    const ativo = blocosAoVivo(c, { ...e, atividades: { [C]: { [T]: { ...mudo, vigia: null } } } })[0]!;
+    expect(ativo.html).toBe(b.html);
     expect(ativo.morfar!.mascote).toMatchObject({ state: "orbit", "data-estado": "trabalhando" });
   });
 
-  it("sem ferramenta e sem texto: 'Cuidando disso' no começo (trabalhando); depois, 'Refletindo' (as 3 bolinhas)", () => {
+  it("sem ferramenta e sem texto: 'Trabalhando' (5 variantes, 5 s) antes de tudo; depois de uma ação, 'Refletindo' (3 variantes, 2,5 s)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const comeco = blocosAoVivo(c, rodando(base, undefined, AGORA))[0]!;
-    expect(comeco.html).toContain('<span class="indicador-rotulo brilho" data-parte="rotulo-cuidando">Cuidando disso</span>');
-    expect(comeco.morfar!.mascote).toMatchObject({ state: "orbit", "data-estado": "trabalhando", "aria-label": "Ada está cuidando disso" });
-    const depois = blocosAoVivo(c, rodando(base, undefined, AGORA - 10_000))[0]!;
-    expect(depois.html).toContain('<span class="indicador-rotulo brilho" data-parte="rotulo-refletindo">Refletindo</span>');
+    expect(comeco.html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo-trabalhando"><span class="indicador-rotulo fala-viva-estado brilho" data-variantes="Trabalhando|Cuidando disso|Organizando|Seguindo com isso|Ainda nisso" data-periodo="5000" data-variantes-desde="${AGORA}">Trabalhando</span></span>`);
+    expect(comeco.morfar!.mascote).toMatchObject({ state: "orbit", "data-estado": "trabalhando", "aria-label": "Ada está trabalhando" });
+    expect(comeco.html).not.toContain("Cuidando disso<");
+    // A variante da vez conta desde que o rótulo entrou (o relógio da tela troca no lugar; o render já sai com a da vez).
+    expect(blocosAoVivo(c, { ...rodando(base, undefined, AGORA), agora: AGORA + 5_000 })[0]!.html).toContain(">Cuidando disso</span>");
+    // Já fez uma ação e não está com ferramenta em uso nem texto chegando (ex.: depois de um turno.fala): "Refletindo".
+    const fez = { ...comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false }), emUso: null };
+    const depois = blocosAoVivo(c, { ...rodando(base, fez, AGORA), agora: AGORA + 10_000 })[0]!;
+    expect(depois.html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo-refletindo"><span class="indicador-rotulo fala-viva-estado brilho" data-variantes="Refletindo|Pensando|Ponderando" data-periodo="2500" data-variantes-desde="${AGORA + 10_000}">Refletindo</span></span>`);
     expect(depois.morfar!.mascote).toMatchObject({ state: "thinking", "data-estado": "pensando", "aria-label": "Ada está refletindo" });
     expect(depois.html).not.toContain("catcher");
   });
@@ -165,20 +199,20 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const frota = { agentes: [{ id: "a", nome: "Ada", conversaId: C, cor: "blue", forma: "square" }, { id: "g", nome: "Gil", conversaId: "c2", cor: "teal", forma: "shape-hex" }] } as never;
     const html = blocosAoVivo(c, { ...rodando(base, undefined, AGORA, { agenteId: "g" }), frota })[0]!.html;
-    expect(html).toContain('aria-label="Gil está cuidando disso"');
+    expect(html).toContain('aria-label="Gil está trabalhando"');
     expect(html).not.toContain("Ada");
   });
 
   it("no fim do turno o indicador sai e a resposta entra inteira, num balão só (saindo:), até a releitura trazer a gravada", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const comVivo = rodando(base, comTexto(ATIVIDADE_VAZIA, "Pronto, fechei setembro."), AGORA - 12_000);
-    expect(blocosAoVivo(c, comVivo).map((b) => b.chave)).toEqual(["vivo:t1"]);
+    expect(blocosAoVivo(c, comVivo).map((b) => b.chave)).toEqual([`vivo:${T}`]);
     const fim = encerrar(comVivo);
-    expect(fim.turnosVivos.t1).toBeUndefined();
+    expect(fim.turnosVivos[T]).toBeUndefined();
     const saindo = blocosAoVivo(fim.conversas[C]!, fim);
-    expect(saindo.map((b) => b.chave)).toEqual(["saindo:t1"]);
+    expect(saindo.map((b) => b.chave)).toEqual([`saindo:${T}`]);
     const html = saindo[0]!.html;
-    expect(html).toMatch(/^<article class="message bot fala-chegou" data-turno="t1"><div class="bubble-wrap"><span class="sr-only">Mensagem de Ada<\/span><div class="bubble balao-chega">/);
+    expect(html).toMatch(/^<article class="message bot fala-chegou" data-turno="tc\d+"><div class="bubble-wrap"><span class="sr-only">Mensagem de Ada<\/span><div class="bubble balao-chega">/);
     expect(html).toContain("Pronto, fechei setembro.");
     expect(html.match(/class="bubble[ "]/g)).toHaveLength(1);
     for (const fora of ["indicador", "nod-mascote", "msg-autor", 'class="pensar"', "data-desde"]) expect(html).not.toContain(fora);
@@ -188,15 +222,15 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 15_000 })).toEqual([]);
     // Revisão 3: a releitura que saiu ANTES do fim (sem a fala gravada) não a tira; o tick a limpa depois de 15 s.
     const velha = reduzir(fim, { tipo: "hidratar-conversa", conversa: c as unknown as ConversaDto, agora: AGORA - 200 });
-    expect(paradas(velha, "t1")).toHaveLength(1);
+    expect(paradas(velha, T)).toHaveLength(1);
     // QA 3 / QA do #534: é a gravada, não o instante, que decide; a releitura de OUTRA conversa não tira as desta.
-    expect(paradas(reduzir(fim, { tipo: "hidratar-conversa", conversa: c as unknown as ConversaDto, agora: AGORA }), "t1")).toHaveLength(1);
-    const comGravada = { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2, { turnoId: "t1", texto: "Pronto, fechei setembro." })] } as ConversaDto;
-    expect(paradas(reduzir(fim, { tipo: "hidratar-conversa", conversa: comGravada, agora: AGORA }), "t1")).toHaveLength(0);
+    expect(paradas(reduzir(fim, { tipo: "hidratar-conversa", conversa: c as unknown as ConversaDto, agora: AGORA }), T)).toHaveLength(1);
+    const comGravada = { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2, { turnoId: T, texto: "Pronto, fechei setembro." })] } as ConversaDto;
+    expect(paradas(reduzir(fim, { tipo: "hidratar-conversa", conversa: comGravada, agora: AGORA }), T)).toHaveLength(0);
     const dto = c as unknown as ConversaDto;
     const outra = { ...dto, conversa: { ...dto.conversa, id: "outra-conversa" }, mensagens: [] } as ConversaDto;
-    expect(paradas(reduzir(fim, { tipo: "hidratar-conversa", conversa: outra, agora: AGORA + 500 }), "t1")).toHaveLength(1);
-    expect(paradas(reduzir(fim, { tipo: "tick", agora: AGORA + 14_000 }), "t1")).toHaveLength(1);
+    expect(paradas(reduzir(fim, { tipo: "hidratar-conversa", conversa: outra, agora: AGORA + 500 }), T)).toHaveLength(1);
+    expect(paradas(reduzir(fim, { tipo: "tick", agora: AGORA + 14_000 }), T)).toHaveLength(1);
     expect(reduzir(fim, { tipo: "tick", agora: AGORA + 15_000 }).falasSaindo).toEqual({});
   });
 
@@ -214,9 +248,9 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
   it("revisão 3 do #508: turno.fala no meio do turno deixa o balão da fala antes do indicador do mesmo turno", () => {
     const { e: base } = cenario([msg("m1", "pessoa", 1)]);
     const comVivo = rodando(base, comTexto(comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false }), "Primeira parte."), AGORA);
-    const meio = reduzir(comVivo, { tipo: "frame", frame: { tipo: "turno.fala", dados: { turnoId: "t1", conversaId: C } } as never, agora: AGORA });
+    const meio = reduzir(comVivo, { tipo: "frame", frame: { tipo: "turno.fala", dados: { turnoId: T, conversaId: C } } as never, agora: AGORA });
     const blocos = blocosAoVivo(meio.conversas[C]!, meio);
-    expect(blocos.map((b) => b.chave)).toEqual([`saindo:t1:${AGORA}:0`, "vivo:t1"]);
+    expect(blocos.map((b) => b.chave)).toEqual([`saindo:${T}:${AGORA}:0`, `vivo:${T}`]);
     expect(blocos[0]!.html).toContain('class="message bot fala-chegou"');
     expect(blocos[0]!.html).toContain("Primeira parte.");
     // Duas mensagens na mesma rodada: o indicador volta a aparecer depois da primeira.
@@ -227,26 +261,26 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
 
   it("QA do #508: sem atividade nada fica saindo; o interrompido fica (QA do #534); o turno de outro bot não a tira", () => {
     const { e: base } = cenario([msg("m1", "pessoa", 1)]);
-    const vivo = { turnoId: "t1", conversaId: C, estado: "rodando" as const, executor: null, machineId: null, desde: AGORA };
+    const vivo = { turnoId: T, conversaId: C, estado: "rodando" as const, executor: null, machineId: null, desde: AGORA };
     const frame = (tipo: string, dados: Record<string, unknown>, e: Estado) => reduzir(e, { tipo: "frame", frame: { tipo, dados } as never, agora: AGORA });
-    const semTexto = frame("turno.encerrado", { turnoId: "t1", conversaId: C }, { ...base, turnosVivos: { t1: vivo } });
+    const semTexto = frame("turno.encerrado", { turnoId: T, conversaId: C }, { ...base, turnosVivos: { [T]: vivo } });
     expect(semTexto.falasSaindo?.[C]).toBeUndefined();
-    const comVivo: Estado = { ...base, turnosVivos: { t1: vivo }, atividades: { [C]: { t1: comTexto(ATIVIDADE_VAZIA, "Olá") } } };
+    const comVivo: Estado = { ...base, turnosVivos: { [T]: vivo }, atividades: { [C]: { [T]: comTexto(ATIVIDADE_VAZIA, "Olá") } } };
     // QA do #534 (27/10): o Parar também deixa a fala parada até a gravada (parcial) chegar — antes a viva sumia num quadro.
-    expect(paradas(frame("turno.interrompido", { turnoId: "t1", conversaId: C }, comVivo), "t1")).toHaveLength(1);
-    const fim = frame("turno.encerrado", { turnoId: "t1", conversaId: C }, comVivo);
-    expect(paradas(fim, "t1")).toHaveLength(1);
+    expect(paradas(frame("turno.interrompido", { turnoId: T, conversaId: C }, comVivo), T)).toHaveLength(1);
+    const fim = frame("turno.encerrado", { turnoId: T, conversaId: C }, comVivo);
+    expect(paradas(fim, T)).toHaveLength(1);
     // Revisão 3: na sala, o turno de outro bot (que começa ou é interrompido) não tira a fala parada deste.
-    expect(paradas(frame("turno.iniciado", { turnoId: "t2", conversaId: C }, fim), "t1")).toHaveLength(1);
-    expect(paradas(frame("turno.interrompido", { turnoId: "t2", conversaId: C }, fim), "t1")).toHaveLength(1);
+    expect(paradas(frame("turno.iniciado", { turnoId: "t2", conversaId: C }, fim), T)).toHaveLength(1);
+    expect(paradas(frame("turno.interrompido", { turnoId: "t2", conversaId: C }, fim), T)).toHaveLength(1);
   });
 
   it("QA 2 do #508: só fica parada a fala do turno rodando, da conversa aberta, fora de task e com texto", () => {
     const { e: base } = cenario([msg("m1", "pessoa", 1)]);
-    const vivo = { turnoId: "t1", conversaId: C, estado: "rodando" as const, executor: null, machineId: null, desde: AGORA };
-    const fim = (e: Estado) => reduzir(e, { tipo: "frame", frame: { tipo: "turno.encerrado", dados: { turnoId: "t1", conversaId: C } } as never, agora: AGORA });
-    const com = (t: Record<string, unknown>, a = comTexto(ATIVIDADE_VAZIA, "Olá"), extra: Partial<Estado> = {}): Estado => ({ ...base, turnosVivos: { t1: { ...vivo, ...t } as never }, atividades: { [C]: { t1: a } }, ...extra });
-    expect(paradas(fim(com({})), "t1")).toHaveLength(1);
+    const vivo = { turnoId: T, conversaId: C, estado: "rodando" as const, executor: null, machineId: null, desde: AGORA };
+    const fim = (e: Estado) => reduzir(e, { tipo: "frame", frame: { tipo: "turno.encerrado", dados: { turnoId: T, conversaId: C } } as never, agora: AGORA });
+    const com = (t: Record<string, unknown>, a = comTexto(ATIVIDADE_VAZIA, "Olá"), extra: Partial<Estado> = {}): Estado => ({ ...base, turnosVivos: { [T]: { ...vivo, ...t } as never }, atividades: { [C]: { [T]: a } }, ...extra });
+    expect(paradas(fim(com({})), T)).toHaveLength(1);
     expect(fim(com({ estado: "na_fila" })).falasSaindo?.[C]).toBeUndefined();
     expect(fim(com({ trabalhoId: "w1" })).falasSaindo?.[C]).toBeUndefined();
     expect(fim(com({}, comTexto(ATIVIDADE_VAZIA, "  \n "))).falasSaindo?.[C]).toBeUndefined();
@@ -264,13 +298,13 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
 
   it("a narração curta nunca aparece; no fim o balão traz o texto definitivo, inteiro e num balão só", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
-    const comA = (a: ReturnType<typeof comTexto>): Estado => rodando(base, a, AGORA);
+    const comA = (a: ReturnType<typeof comTexto>, agora = AGORA): Estado => ({ ...rodando(base, a, AGORA), agora });
     const primeira = comTexto(ATIVIDADE_VAZIA, "Vou olhar o PR.");
     const usando = comFerramenta(primeira, "Consultou GitHub", { texto: "Usando GitHub", frentes: false });
     const segunda = comTexto(usando, "Está aprovado.");
     const html = (e: Estado) => blocosAoVivo(c, e)[0]!.html;
     expect(html(comA(primeira))).toContain(">Digitando…</span>");
-    expect(html(comA(usando))).toContain(">Usando GitHub</span>");
+    expect(html(comA(usando, AGORA + PASSOU))).toContain(">Usando GitHub</span>");
     for (const a of [primeira, usando, segunda]) {
       expect(html(comA(a))).not.toContain("Vou olhar o PR.");
       expect(html(comA(a))).not.toContain("Está aprovado.");
@@ -292,24 +326,24 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     expect(blocos[0]!.html).toContain("Está aprovado.");
     expect(blocos[0]!.html).not.toContain("data-balao");
     // O turno.fala no meio leva o texto e a fala viva recomeça sem ele.
-    const meio = reduzir(comA(segunda), { tipo: "frame", frame: { tipo: "turno.fala", dados: { turnoId: "t1", conversaId: C } } as never, agora: AGORA });
-    expect(meio.atividades[C]!.t1).toMatchObject({ atual: "", antes: [] });
+    const meio = reduzir(comA(segunda), { tipo: "frame", frame: { tipo: "turno.fala", dados: { turnoId: T, conversaId: C } } as never, agora: AGORA });
+    expect(meio.atividades[C]![T]).toMatchObject({ atual: "", antes: [] });
   });
 
   it("revisão 4 do #508: dois turno.fala antes da releitura ficam os dois, na ordem; o interrompido não os tira", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
-    const frame = (tipo: string, e: Estado, agora: number) => reduzir(e, { tipo: "frame", frame: { tipo, dados: { turnoId: "t1", conversaId: C } } as never, agora });
-    const com = (e: Estado, texto: string): Estado => ({ ...e, atividades: { [C]: { t1: comTexto(e.atividades[C]?.t1, texto) } } });
+    const frame = (tipo: string, e: Estado, agora: number) => reduzir(e, { tipo: "frame", frame: { tipo, dados: { turnoId: T, conversaId: C } } as never, agora });
+    const com = (e: Estado, texto: string): Estado => ({ ...e, atividades: { [C]: { [T]: comTexto(e.atividades[C]?.[T], texto) } } });
     let e = rodando(base, ATIVIDADE_VAZIA, AGORA);
     e = frame("turno.fala", com(e, "Primeira."), AGORA);
     e = frame("turno.fala", com(e, "Segunda."), AGORA + 100);
     const blocos = blocosAoVivo(c, e);
-    expect(blocos.map((b) => b.chave)).toEqual([`saindo:t1:${AGORA}:0`, `saindo:t1:${AGORA + 100}:1`, "vivo:t1"]);
+    expect(blocos.map((b) => b.chave)).toEqual([`saindo:${T}:${AGORA}:0`, `saindo:${T}:${AGORA + 100}:1`, `vivo:${T}`]);
     expect(blocos[0]!.html).toContain("Primeira.");
     expect(blocos[1]!.html).toContain("Segunda.");
     expect(blocos[2]!.html).toContain("indicador-rotulo");
     const parado = frame("turno.interrompido", e, AGORA + 200);
-    expect(paradas(parado, "t1")).toHaveLength(2);
+    expect(paradas(parado, T)).toHaveLength(2);
     // Sem indicador, os dois balões ficam, cada um com a sua chave de fala parada.
     const depois = blocosAoVivo(c, parado);
     expect(depois.map((b) => b.chave).every((k) => k.startsWith("saindo:"))).toBe(true);
@@ -319,18 +353,18 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
   it("revisão 4 do #508: o balão do turno que acabou vem antes dos indicadores vivos (sala, turno novo)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const vivo = (turnoId: string) => ({ turnoId, conversaId: C, estado: "rodando" as const, executor: null, machineId: null, desde: AGORA });
-    const e: Estado = { ...base, turnosVivos: { t1: vivo("t1"), t2: vivo("t2") }, atividades: { [C]: { t1: comTexto(ATIVIDADE_VAZIA, "Feito."), t2: ATIVIDADE_VAZIA } } };
-    expect(blocosAoVivo(c, e).map((b) => b.chave)).toEqual(["vivo:t1", "vivo:t2"]);
+    const e: Estado = { ...base, turnosVivos: { [T]: vivo(T), t2: vivo("t2") }, atividades: { [C]: { [T]: comTexto(ATIVIDADE_VAZIA, "Feito."), t2: ATIVIDADE_VAZIA } } };
+    expect(blocosAoVivo(c, e).map((b) => b.chave)).toEqual([`vivo:${T}`, "vivo:t2"]);
     const fim = encerrar(e);
     const blocos = blocosAoVivo(fim.conversas[C]!, fim);
-    expect(blocos.map((b) => b.chave)).toEqual(["saindo:t1", "vivo:t2"]);
+    expect(blocos.map((b) => b.chave)).toEqual([`saindo:${T}`, "vivo:t2"]);
     expect(blocos[0]!.html).toContain('<div class="bubble balao-chega">');
     expect(blocos[0]!.html).toContain("Feito.");
   });
 
   it("COP-14 (item 1): na fila, nenhuma linha 'na fila', nenhum indicador e nada do nome da IA", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
-    const e: Estado = { ...base, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "na_fila", executor: "claude", machineId: null, desde: AGORA - 120_000 } } };
+    const e: Estado = { ...base, turnosVivos: { [T]: { turnoId: T, conversaId: C, estado: "na_fila", executor: "claude", machineId: null, desde: AGORA - 120_000 } } };
     const html = blocosAoVivo(c, e).map((b) => b.html).join("");
     for (const fora of ["na fila", "msg-sistema", "claude", "fala-viva", "indicador"]) expect(html).not.toContain(fora);
   });

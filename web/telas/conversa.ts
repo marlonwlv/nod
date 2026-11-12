@@ -76,6 +76,7 @@ import { ancorasDoProgresso, comProgressoNaFala, marcadorDoProgresso } from "./p
 import { ancorasDoModo, renderLinhaDoModo } from "./linha-do-modo.ts";
 import { ROTULO_SUGESTAO } from "../lib/rotina-no-chat.ts";
 import { comGrupos } from "./grupos-do-chat.ts";
+import { estadoDoIndicador, rotuloComPermanencia, varianteDaVez, VARIANTES_TRABALHANDO, type EstadoVivoDoBot, type NaTela, type RotuloDoIndicador } from "../lib/estado-do-indicador.ts";
 
 /** id → nome (agentes da frota + a pessoa da sessão); id desconhecido cai no genérico, nunca no uuid. */
 export function nomesDe(estado: Estado): Record<string, string> {
@@ -966,46 +967,33 @@ function comDecisaoVencida(p: Proposta, estado: Estado): boolean {
  */
 export type FalaViva = { html: string; morfar: Morph };
 
-/** COP-14 (item 2): o que o indicador diz. `id` muda quando o rótulo troca (a parte nova entra subindo). */
-export type RotuloDoIndicador = { id: string; texto: string; brilho: boolean; mascote: "trabalhando" | "pensando" | "aguardando" | "disponivel"; state: string };
-
-/** COP-14: o turno ainda não fez nada visível até aqui (ms): antes, "Cuidando disso"; depois, "Refletindo". */
-export const CUIDANDO_MS = 3_000;
-
 /**
- * COP-14 (item 2): um verbo curto por ferramenta. O servidor já manda o rótulo no presente (src/domain/rotulo-ferramenta.ts);
- * aqui só os que a especificação do chat pede diferente. O resto ("Pesquisando na web", "Usando Gmail") passa como veio.
+ * COP-14 (item 2): o estado vivo do bot montado a partir do turno vivo e da atividade de hoje. Quando o frame de estado
+ * vivo do backend existir, ele chega pronto e esta função sai. Compondo = o texto da resposta está chegando; ferramenta em
+ * uso = a atividade ferramenta; já fez alguma coisa e não está com ferramenta nem texto = pensando (thinking); antes de
+ * tudo, sem atividade (o indicador diz "Trabalhando").
  */
-const VERBO_DA_FERRAMENTA: Readonly<Record<string, string>> = {
-  "Lendo um arquivo": "Lendo arquivos",
-  "Procurando arquivos": "Pesquisando no código",
-  "Procurando nos arquivos": "Pesquisando no código",
-  "Rodando um comando": "Rodando no terminal",
-  "Lendo a saída de um comando": "Rodando no terminal",
-  "Usando o navegador": "Abrindo o navegador",
-};
-export function verboDaFerramenta(texto: string): string {
-  return Object.hasOwn(VERBO_DA_FERRAMENTA, texto) ? VERBO_DA_FERRAMENTA[texto]! : texto;
-}
-
-/**
- * COP-14 (item 2): o rótulo do indicador, puro. Começou o turno: "Cuidando disso"; pensando sem ferramenta: "Refletindo";
- * ferramenta: o verbo dela; texto da resposta chegando: "Digitando…" (sem brilho); esperando a pessoa: o que ela precisa
- * fazer; sem novidade há mais de 2 min (o vigia): "Ainda trabalhando · N min".
- */
-export function rotuloDoIndicador(t: Pick<TurnoVivo, "desde">, a: AtividadeTurno | undefined, agora: number, espera: string | null, mudo: number | null): RotuloDoIndicador {
-  if (espera) return { id: `espera:${espera}`, texto: espera, brilho: true, mascote: "aguardando", state: "notify" };
-  if (mudo !== null) return { id: "mudo", texto: `Ainda trabalhando · ${mudo} min`, brilho: true, mascote: "trabalhando", state: "orbit" };
+export function estadoVivoDoTurno(a: AtividadeTurno | undefined, espera: string | null, agora = 0): EstadoVivoDoBot {
+  const aguardando = espera === null ? null : espera === "Esperando sua resposta" ? "resposta" : "aprovacao";
   const fala = estadoDaFala(a);
-  if (fala.chave === "escrevendo") return { id: "digitando", texto: "Digitando…", brilho: false, mascote: "disponivel", state: "idle" };
-  if (fala.chave === "ferramenta" || fala.chave === "frentes") {
-    const texto = verboDaFerramenta(fala.texto);
-    return { id: `ferramenta:${texto}`, texto, brilho: true, mascote: "trabalhando", state: fala.chave === "frentes" && a?.frentesEm !== undefined && agora - a.frentesEm < COMET_MS ? "comet" : "orbit" };
-  }
   const fezAlgo = (a?.acoes.length ?? 0) > 0 || (a?.etapas.length ?? 0) > 0 || (a?.totalEtapas ?? 0) > 0;
-  if (!fezAlgo && agora - t.desde < CUIDANDO_MS) return { id: "cuidando", texto: "Cuidando disso", brilho: true, mascote: "trabalhando", state: "orbit" };
-  return { id: "refletindo", texto: "Refletindo", brilho: true, mascote: "pensando", state: "thinking" };
+  // O `emUso` fica com a última ferramenta até o próximo texto ou ferramenta: só conta como ferramenta enquanto alguma ação
+  // roda (o app antigo, sem as ações, segue o `emUso`); acabada, o bot está pensando de novo.
+  const rodandoAcao = !a?.acoes.length || a.acoes.some((x) => x.estado === "rodando");
+  const comet = a?.frentesEm !== undefined && agora - a.frentesEm < COMET_MS;
+  const atividade: EstadoVivoDoBot["atividade"] = (fala.chave === "ferramenta" || fala.chave === "frentes") && rodandoAcao
+    ? { tipo: "ferramenta", rotulo: fala.texto, ...(fala.chave === "frentes" && comet ? { frentes: true } : {}) }
+    : fezAlgo ? { tipo: "thinking" } : null;
+  return { rodando: aguardando === null, compondo: fala.chave === "escrevendo", atividade, aguardando, desfecho: null };
 }
+
+/** O rótulo que o indicador mostra para o turno agora (sem a permanência; os testes leem daqui). */
+export function rotuloDoIndicador(a: AtividadeTurno | undefined, espera: string | null, agora: number): RotuloDoIndicador | null {
+  return estadoDoIndicador(estadoVivoDoTurno(a, espera, agora), agora);
+}
+
+/** O rótulo na tela por turno, para a permanência de 800 ms (`rotuloComPermanencia`). Sai quando o turno sai. */
+const ROTULO_NA_TELA = new Map<string, NaTela>();
 
 /**
  * COP-14 (item 2, definido em 2026-11-12): enquanto o bot trabalha, a conversa mostra só uma linha, depois do último balão:
@@ -1019,13 +1007,27 @@ export function rotuloDoIndicador(t: Pick<TurnoVivo, "desde">, a: AtividadeTurno
  */
 export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agente: Pick<AgenteDaFala, "nome" | "cor" | "forma"> | undefined, estado: Estado, _parar: string, saindo?: { em: number; chave: string }): FalaViva {
   const nome = agente?.nome ?? "O agente";
-  const mudo = saindo ? null : minutosSemNovidade(a, estado.agora);
-  const r = rotuloDoIndicador(t, a, estado.agora, saindo ? null : esperaDaPessoa(estado, t.turnoId), mudo);
-  const falado = r.id === "digitando" ? `${nome} está digitando` : `${nome} está ${minusculaInicial(r.texto)}`;
+  const agora = estado.agora;
+  // Saindo, o rótulo fica o que estava (a linha sai em 140 ms); rodando, a função única diz o estado.
+  const novo = rotuloDoIndicador(a, saindo ? null : esperaDaPessoa(estado, t.turnoId), agora) ?? VAZIO;
+  const { atual, pendente } = saindo && ROTULO_NA_TELA.has(t.turnoId) ? { atual: ROTULO_NA_TELA.get(t.turnoId)!, pendente: null } : rotuloComPermanencia(ROTULO_NA_TELA.get(t.turnoId), novo, agora);
+  if (saindo) ROTULO_NA_TELA.delete(t.turnoId);
+  else {
+    ROTULO_NA_TELA.set(t.turnoId, atual);
+    if (ROTULO_NA_TELA.size > 50) ROTULO_NA_TELA.delete(ROTULO_NA_TELA.keys().next().value!);
+  }
+  const r = atual.rotulo;
+  const texto = varianteDaVez(r, atual.desde, agora);
+  const falado = r.id === "digitando" ? `${nome} está digitando` : `${nome} está ${minusculaInicial(texto)}`;
   const partes: { chave: string; html: string }[] = [];
   // NOD-312: o turno que recomeçou sem a sessão diz, no topo, que relê o necessário antes de seguir.
   if (t.motivoRecomeco && !saindo) partes.push({ chave: "recomeco", html: notaDasEtapas(t.motivoRecomeco, agente?.nome ?? null) });
-  partes.push({ chave: `rotulo-${r.id}`, html: `<span class="indicador-rotulo${r.brilho ? " brilho" : ""}" data-parte="rotulo-${esc(r.id)}">${esc(r.texto)}</span>` });
+  // As variantes trocam no lugar pelo relógio da tela (`escreverVariantes`); o rótulo que espera a permanência entra por
+  // ele também (`escreverEstados`, `data-estado-pendente`). A chave da parte leva o id: o rótulo novo é um nó novo e sobe.
+  const variantes = r.variantes && r.periodoMs ? ` data-variantes="${esc(r.variantes.join("|"))}" data-periodo="${r.periodoMs}" data-variantes-desde="${atual.desde}"` : "";
+  const espera = pendente ? ` data-estado-pendente="${esc(pendente.texto)}" data-estado-desde="${atual.desde}"` : "";
+  const id = r.id.replace(/[^a-z0-9-]+/gi, "-");
+  partes.push({ chave: `rotulo-${id}`, html: `<span class="indicador-rotulo-lugar" data-parte="rotulo-${esc(id)}"${espera}><span class="indicador-rotulo fala-viva-estado${r.brilho ? " brilho" : ""}"${variantes}>${esc(texto)}</span></span>` });
   // `saindo` vai na classe (não num atributo): o morph copia a classe da raiz, e o anunciador pula a fala que saiu.
   const raiz = `message bot fala-viva ao-vivo indicador${saindo ? " saindo" : ""}${agente?.cor ? ` ${esc(agente.cor)}` : ""}`;
   const mascote: Record<string, string> = { state: r.state, "data-estado": r.mascote, "aria-label": falado, title: falado };
@@ -1035,6 +1037,9 @@ export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agen
     morfar: { raiz, mascote: agente ? mascote : null, partes },
   };
 }
+
+/** O turno rodando sem estado nenhum (não acontece com o adaptador de hoje): o indicador diz "Trabalhando". */
+const VAZIO: RotuloDoIndicador = { id: "trabalhando", texto: VARIANTES_TRABALHANDO[0], brilho: true, mascote: "trabalhando", state: "orbit" };
 
 type AgenteDaFala = FrotaDto["agentes"][number];
 

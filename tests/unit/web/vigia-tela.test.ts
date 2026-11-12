@@ -9,7 +9,11 @@ const C = "c1";
 const AGORA = Date.parse("2026-10-05T14:00:00Z");
 const MIN = 60_000;
 
+/** O rótulo fica ≥ 800 ms por turno (permanência, COP-14): cada cenário tem o seu turno, para um não segurar o do outro. */
+let turnos = 0;
+
 function cenario(vigia: VigiaDaAtividade | null, comCartao = true): { e: Estado; c: ConversaEstado } {
+  const t = `t${++turnos}`;
   const conversa: ConversaDto = {
     conversa: { tenantId: "t", id: C, ownerId: "p", visibility: "privado", tipo: "propria", agenteId: "a", salaId: null, sessaoCli: null, criadoEm: 1 } as never,
     mensagens: [], turnosPendentes: [], turnosEmCurso: [], turnosCancelados: [], propostas: [], fios: [],
@@ -19,17 +23,19 @@ function cenario(vigia: VigiaDaAtividade | null, comCartao = true): { e: Estado;
   const e: Estado = {
     ...base, agora: AGORA, sessao: { pessoaId: "p", tenantId: "t" } as never, tela: { tipo: "conversa", conversaId: C, agenteId: "a" },
     frota: { agentes: [{ id: "a", nome: "Ada", conversaId: C, cor: "blue", forma: "square" }] } as never,
-    turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA - 30 * MIN } },
-    atividades: { [C]: { t1: vigia ? comVigia(atividade, vigia) : atividade } },
+    turnosVivos: { [t]: { turnoId: t, conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA - 30 * MIN } },
+    atividades: { [C]: { [t]: vigia ? comVigia(atividade, vigia) : atividade } },
   };
   return { e, c: e.conversas[C]! };
 }
 
-const corpo = (e: Estado, c: ConversaEstado) => blocosAoVivo(c, e).find((b) => b.chave === "vivo:t1")!.html;
+const corpo = (e: Estado, c: ConversaEstado) => blocosAoVivo(c, e).find((b) => b.chave.startsWith("vivo:"))!.html;
+const FERRAMENTA = '<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-uma-ferramenta"><span class="indicador-rotulo fala-viva-estado brilho">Usando uma ferramenta</span></span>';
 
 /**
- * COP-14 (item 2, definido em 2026-11-12): a fala viva é só a linha do indicador. O aviso âmbar do vigia saiu dela; o
- * silêncio aparece no rótulo ("Ainda trabalhando · N min") e no cabeçalho, e o Parar mora só no campo.
+ * COP-14 (item 2, revisto em 2026-11-12): a fala viva é só a linha do indicador. O aviso âmbar do vigia saiu dela; o
+ * silêncio não muda o rótulo (segue o estado normal: o verbo da ferramenta, ou "Trabalhando"), aparece só no cabeçalho, e
+ * o Parar mora só no campo.
  */
 describe("vigia do turno na tela (NOD-73, revisto no COP-14)", () => {
   it("sem aviso: o rótulo é o da ferramenta, sem bloco âmbar", () => {
@@ -39,41 +45,44 @@ describe("vigia do turno na tela (NOD-73, revisto no COP-14)", () => {
     expect(renderCabecalhoConversa(e, "a")).not.toContain("sem novidade");
   });
 
-  it("silêncio com ferramenta aberta: o indicador diz 'Ainda trabalhando · N min', sem aviso nem Parar; o cabeçalho conta", () => {
+  it("silêncio com ferramenta aberta: o indicador segue o verbo da ferramenta, sem aviso nem Parar; o cabeçalho conta", () => {
     const { e, c } = cenario({ mudoDesde: AGORA - 12 * MIN, aberta: "Terminal", emFundo: 0, repeticao: null });
     const html = corpo(e, c);
-    expect(html).toContain('<span class="indicador-rotulo brilho" data-parte="rotulo-mudo">Ainda trabalhando · 12 min</span>');
-    expect(html).toContain('aria-label="Ada está ainda trabalhando · 12 min"');
-    for (const fora of ["atividade-vigia", "vigia-ic", "Sem novidade", "Terminal", 'data-act="parar-conversa"', "<details"]) expect(html).not.toContain(fora);
+    expect(html).toContain(FERRAMENTA);
+    expect(html).toContain('aria-label="Ada está usando uma ferramenta"');
+    for (const fora of ["Ainda trabalhando", "atividade-vigia", "vigia-ic", "Sem novidade", "Terminal", 'data-act="parar-conversa"', "<details"]) expect(html).not.toContain(fora);
     expect(renderCabecalhoConversa(e, "a")).toContain("sem novidade há 12 min");
-    // O relógio da tela anda sem frame novo.
-    expect(corpo({ ...e, agora: AGORA + 5 * MIN }, c)).toContain("Ainda trabalhando · 17 min");
+    // O relógio anda e o silêncio cresce: o rótulo não muda (o HTML é o mesmo).
+    expect(corpo({ ...e, agora: AGORA + 5 * MIN }, c)).toBe(html);
   });
 
   it("segundo plano e nada aberto: o mesmo rótulo (o que espera fica na Atividade)", () => {
     const fundo = cenario({ mudoDesde: AGORA - 10 * MIN, aberta: null, emFundo: 2, repeticao: null });
-    expect(corpo(fundo.e, fundo.c)).toContain("Ainda trabalhando · 10 min");
+    expect(corpo(fundo.e, fundo.c)).toContain(FERRAMENTA);
+    expect(corpo(fundo.e, fundo.c)).not.toContain("Ainda trabalhando");
     expect(corpo(fundo.e, fundo.c)).not.toContain("segundo plano");
     const nada = cenario({ mudoDesde: AGORA - 10 * MIN, aberta: null, emFundo: 0, repeticao: null });
-    expect(corpo(nada.e, nada.c)).toContain("Ainda trabalhando · 10 min");
+    expect(corpo(nada.e, nada.c)).toContain(FERRAMENTA);
     expect(corpo(nada.e, nada.c)).not.toContain("O bot não responde.");
   });
 
   it("repetição: não entra na linha do indicador; sem silêncio, o rótulo segue o da ferramenta", () => {
     const { e, c } = cenario({ mudoDesde: AGORA - 10 * MIN, aberta: null, emFundo: 0, repeticao: { rotulo: "Terminal", vezes: 10 } });
     const html = corpo(e, c);
-    expect(html).toContain("Ainda trabalhando · 10 min");
+    expect(html).toContain(FERRAMENTA);
+    expect(html).not.toContain("Ainda trabalhando");
     expect(html).not.toContain("Repetiu a mesma ação");
     expect(html).not.toContain('data-act="parar-conversa"');
     const so = cenario({ mudoDesde: null, aberta: null, emFundo: 0, repeticao: { rotulo: "Gmail", vezes: 5 } });
     expect(corpo(so.e, so.c)).not.toContain("Repetiu a mesma ação");
-    expect(corpo(so.e, so.c)).not.toContain("Ainda trabalhando");
+    expect(corpo(so.e, so.c)).toContain(FERRAMENTA);
   });
 
-  it("sem ferramenta: o mesmo rótulo do silêncio, sem aviso nem Parar", () => {
+  it("sem ferramenta nem ação: 'Trabalhando' (o estado normal), sem aviso nem Parar", () => {
     const { e, c } = cenario({ mudoDesde: AGORA - 20 * MIN, aberta: null, emFundo: 0, repeticao: null }, false);
     const html = corpo(e, c);
-    expect(html).toContain("Ainda trabalhando · 20 min");
+    expect(html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo-trabalhando"><span class="indicador-rotulo fala-viva-estado brilho" data-variantes="Trabalhando|Cuidando disso|Organizando|Seguindo com isso|Ainda nisso" data-periodo="5000" data-variantes-desde="${AGORA}">Trabalhando</span></span>`);
+    expect(html).not.toContain("Ainda trabalhando");
     expect(html).not.toContain('data-parte="vigia"');
     expect(html).not.toContain('data-act="parar-conversa"');
   });
@@ -113,7 +122,7 @@ describe("um Parar só na tela (NOD-354, revisto no COP-14: o Parar mora só no 
     const { e: base, c } = cenario(MUDO);
     const e: Estado = { ...base, tela: { tipo: "conversa", conversaId: "outra", agenteId: "a" } };
     expect(corpo(e, c)).not.toContain('data-act="parar-conversa"');
-    expect(corpo(e, c)).toContain("Ainda trabalhando · 12 min");
+    expect(corpo(e, c)).toContain(FERRAMENTA);
   });
 
   it("bot desconhecido na frota (conversa sem o bot): segue 1 Parar, o do campo", () => {

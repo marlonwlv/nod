@@ -37,7 +37,7 @@ export function escreverTempos(raiz: { querySelectorAll(seletor: string): ArrayL
 }
 
 /** O atributo que diz quanto o cabeçalho precisa esperar (Parte 2 do plano "o pensamento no chat"); e o que escreve. */
-type ComPendente = { getAttribute(nome: string): string | null; removeAttribute(nome: string): void; querySelector(seletor: string): { textContent: string | null } | null };
+type ComPendente = { getAttribute(nome: string): string | null; removeAttribute(nome: string): void; querySelector(seletor: string): { textContent: string | null; removeAttribute?(nome: string): void } | null };
 
 /**
  * Parte 2: a troca do cabeçalho que o reducer deixou pendente (`comCabecalho`, permanência de 600 ms) entra quando dá o
@@ -55,10 +55,34 @@ export function escreverEstados(raiz: { querySelectorAll(seletor: string): Array
     if (Number.isFinite(desde) && agora - desde < permanenciaMs) { esperam++; continue; }
     const alvo = el.querySelector(".fala-viva-estado");
     if (alvo && alvo.textContent !== texto) alvo.textContent = texto;
+    // COP-14: o rótulo que entra depois da permanência é fixo — as variantes do anterior param de trocar.
+    alvo?.removeAttribute?.("data-variantes");
     el.removeAttribute("data-estado-pendente");
     el.removeAttribute("data-estado-desde");
   }
   return esperam;
+}
+
+type ComVariantes = { textContent: string | null; getAttribute(nome: string): string | null };
+
+/**
+ * COP-14 (item 2): as variantes do rótulo do indicador ("Refletindo" → "Pensando" → "Ponderando" a cada 2,5 s;
+ * "Trabalhando" em 5 a cada 5 s) trocam no lugar, sem regravar a região: a da vez é contada desde que o rótulo entrou
+ * (`data-variantes-desde`). Devolve quantas há (o relógio continua enquanto houver).
+ */
+export function escreverVariantes(raiz: { querySelectorAll(seletor: string): ArrayLike<ComVariantes> } | null, agora: number): number {
+  if (!raiz) return 0;
+  const els = raiz.querySelectorAll("[data-variantes]");
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i]!;
+    const variantes = (el.getAttribute("data-variantes") ?? "").split("|").filter(Boolean);
+    const periodo = Number(el.getAttribute("data-periodo"));
+    const desde = Number(el.getAttribute("data-variantes-desde"));
+    if (!variantes.length || !(periodo > 0) || !Number.isFinite(desde)) continue;
+    const texto = variantes[Math.floor(Math.max(0, agora - desde) / periodo) % variantes.length]!;
+    if (el.textContent !== texto) el.textContent = texto;
+  }
+  return els.length;
 }
 
 type Agendar = (fn: () => void, ms: number) => () => void;

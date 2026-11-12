@@ -48,9 +48,10 @@
 .timeline .message.fala-viva.indicador > nod-mascote { display: block; width: 28px; height: 28px; margin: 0; flex: none; animation: indicador-personagem 340ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .timeline .message.fala-viva.indicador .bubble-wrap { flex: 1; min-width: 0; max-width: none; }
 .timeline .message.fala-viva.indicador.saindo { animation: indicador-sai 140ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.timeline .indicador-rotulo-lugar { display: inline-flex; }
 .timeline .indicador-rotulo { display: inline-block; font-size: 14px; line-height: 22px; font-weight: 425; color: var(--chat-tinta-3); animation: indicador-rotulo 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 /* O rótulo da entrada espera o personagem (220 ms); a troca de rótulo entra na hora. */
-.timeline .message.fala-viva.indicador .indicador-rotulo:only-child { animation-delay: 220ms; }
+.timeline .message.fala-viva.indicador .indicador-rotulo-lugar:only-child .indicador-rotulo { animation-delay: 220ms; }
 .timeline .indicador-rotulo.brilho {
   color: transparent;
   background-image: linear-gradient(90deg, var(--chat-tinta-3) 0%, var(--chat-tinta-3) 25%, var(--chat-tinta-2) 60%, var(--chat-tinta-3) 75%, var(--chat-tinta-3) 100%);

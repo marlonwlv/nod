@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { comGrupos, posicoesDosGrupos, remetenteDoBloco } from "../../../web/telas/grupos-do-chat.ts";
-import { botoesDoCampo, rotuloDoIndicador, verboDaFerramenta, CUIDANDO_MS } from "../../../web/telas/conversa.ts";
+import { botoesDoCampo, rotuloDoIndicador } from "../../../web/telas/conversa.ts";
+import { estadoDoIndicador, rotuloComPermanencia, varianteDaVez, verboDaFerramenta, VARIANTES_TRABALHANDO, type EstadoVivoDoBot } from "../../../web/lib/estado-do-indicador.ts";
+import { escreverVariantes } from "../../../web/lib/fala-viva.ts";
 import { ATIVIDADE_VAZIA, type AtividadeTurno } from "../../../web/lib/atividade.ts";
 import { PAUSA_QUE_ABRE_BLOCO_MS, htmlDivisor } from "../../../web/telas/divisores-de-data.ts";
 
@@ -32,22 +34,55 @@ describe("COP-14 item 3: agrupamento dos balões", () => {
   });
 });
 
-describe("COP-14 item 2: o rótulo do indicador", () => {
-  const t = { desde: 1_000 };
-  const com = (x: Partial<AtividadeTurno>): AtividadeTurno => ({ ...ATIVIDADE_VAZIA, ...x });
-  it("começou: Cuidando disso; depois de um tempo sem nada, Refletindo", () => {
-    expect(rotuloDoIndicador(t, undefined, 1_500, null, null)).toMatchObject({ texto: "Cuidando disso", brilho: true });
-    expect(rotuloDoIndicador(t, undefined, 1_000 + CUIDANDO_MS, null, null)).toMatchObject({ texto: "Refletindo", state: "thinking" });
+describe("COP-14 item 2: a função única do estado do indicador", () => {
+  const base: EstadoVivoDoBot = { rodando: true, compondo: false, atividade: null, aguardando: null, desfecho: null };
+  it("rodando: compondo → Digitando… sem brilho; thinking → Refletindo (3 a cada 2,5 s); sem atividade → Trabalhando (5 a cada 5 s)", () => {
+    expect(estadoDoIndicador({ ...base, compondo: true }, 0)).toMatchObject({ texto: "Digitando…", brilho: false });
+    expect(estadoDoIndicador({ ...base, atividade: { tipo: "thinking" } }, 0)).toMatchObject({ texto: "Refletindo", periodoMs: 2_500, state: "thinking" });
+    expect(estadoDoIndicador({ ...base, atividade: { tipo: "thinking" } }, 0)?.variantes).toHaveLength(3);
+    const t = estadoDoIndicador(base, 0)!;
+    expect(t).toMatchObject({ texto: "Trabalhando", periodoMs: 5_000 });
+    expect(t.variantes).toHaveLength(5);
+    expect(varianteDaVez(t, 1_000, 1_000 + 5_000)).toBe(VARIANTES_TRABALHANDO[1]);
+    expect(varianteDaVez(t, 1_000, 1_000 + 25_000)).toBe(VARIANTES_TRABALHANDO[0]);
   });
-  it("ferramenta: o verbo curto; texto chegando: Digitando… sem brilho", () => {
-    expect(rotuloDoIndicador(t, com({ emUso: { texto: "Rodando um comando", frentes: false } }), 1_500, null, null).texto).toBe("Rodando no terminal");
-    expect(rotuloDoIndicador(t, com({ emUso: { texto: "Usando Gmail", frentes: false } }), 1_500, null, null).texto).toBe("Usando Gmail");
-    expect(rotuloDoIndicador(t, com({ atual: "Oi" }), 1_500, null, null)).toMatchObject({ texto: "Digitando…", brilho: false });
+  it("ferramenta: o verbo curto", () => {
+    expect(estadoDoIndicador({ ...base, atividade: { tipo: "ferramenta", rotulo: "Rodando um comando" } }, 0)?.texto).toBe("Rodando no terminal");
+    expect(estadoDoIndicador({ ...base, atividade: { tipo: "ferramenta", rotulo: "Usando Gmail" } }, 0)?.texto).toBe("Usando Gmail");
     expect(verboDaFerramenta("Procurando nos arquivos")).toBe("Pesquisando no código");
   });
-  it("esperando a pessoa e o silêncio do vigia", () => {
-    expect(rotuloDoIndicador(t, undefined, 1_500, "Esperando sua aprovação", null).texto).toBe("Esperando sua aprovação");
-    expect(rotuloDoIndicador(t, undefined, 1_500, null, 3).texto).toBe("Ainda trabalhando · 3 min");
+  it("depois de rodar: aguardando → desfecho por menos de 8 s → parado (null)", () => {
+    expect(estadoDoIndicador({ ...base, rodando: false, aguardando: "aprovacao" }, 0)?.texto).toBe("Esperando sua aprovação");
+    expect(estadoDoIndicador({ ...base, rodando: false, aguardando: "resposta" }, 0)?.texto).toBe("Esperando sua resposta");
+    const desfecho = { ...base, rodando: false, desfecho: { tipo: "parou" as const, em: 1_000 } };
+    expect(estadoDoIndicador(desfecho, 1_000 + 7_999)?.texto).toBe("Parou");
+    expect(estadoDoIndicador(desfecho, 1_000 + 8_000)).toBeNull();
+    expect(estadoDoIndicador({ ...base, rodando: false }, 0)).toBeNull();
+  });
+  it("cada rótulo fica no mínimo 800 ms; o novo espera como pendente", () => {
+    const a = estadoDoIndicador(base, 0)!;
+    const b = estadoDoIndicador({ ...base, compondo: true }, 0)!;
+    const p1 = rotuloComPermanencia(undefined, a, 1_000);
+    expect(p1).toEqual({ atual: { rotulo: a, desde: 1_000 }, pendente: null });
+    expect(rotuloComPermanencia(p1.atual, b, 1_799)).toEqual({ atual: p1.atual, pendente: b });
+    expect(rotuloComPermanencia(p1.atual, b, 1_800)).toEqual({ atual: { rotulo: b, desde: 1_800 }, pendente: null });
+    expect(rotuloComPermanencia(p1.atual, a, 5_000).atual.desde).toBe(1_000);
+  });
+  it("o adaptador de hoje: texto chegando = compondo; ferramenta em uso; já fez algo = thinking; nada = sem atividade", () => {
+    const com = (x: Partial<AtividadeTurno>): AtividadeTurno => ({ ...ATIVIDADE_VAZIA, ...x });
+    expect(rotuloDoIndicador(com({ atual: "Oi" }), null, 0)?.texto).toBe("Digitando…");
+    expect(rotuloDoIndicador(com({ emUso: { texto: "Usando Gmail", frentes: false } }), null, 0)?.texto).toBe("Usando Gmail");
+    expect(rotuloDoIndicador(com({ acoes: [{ id: "1", rotulo: "Leu", estado: "feita", emUso: null }] }), null, 0)?.texto).toBe("Refletindo");
+    expect(rotuloDoIndicador(undefined, null, 0)?.texto).toBe("Trabalhando");
+    // A ferramenta acabou e o `emUso` ficou com ela (até o próximo texto ou ferramenta): o bot está pensando de novo.
+    const acabou = com({ emUso: { texto: "Usando Gmail", frentes: false }, acoes: [{ id: "1", rotulo: "Usou Gmail", estado: "feita", emUso: null }] });
+    expect(rotuloDoIndicador(acabou, null, 0)?.texto).toBe("Refletindo");
+    expect(rotuloDoIndicador(undefined, "Esperando sua aprovação", 0)?.texto).toBe("Esperando sua aprovação");
+  });
+  it("o relógio troca a variante no lugar", () => {
+    const el = { textContent: "Refletindo", getAttribute: (n: string) => ({ "data-variantes": "Refletindo|Pensando|Ponderando", "data-periodo": "2500", "data-variantes-desde": "0" } as Record<string, string>)[n] ?? null };
+    expect(escreverVariantes({ querySelectorAll: () => [el] }, 2_600)).toBe(1);
+    expect(el.textContent).toBe("Pensando");
   });
 });
 

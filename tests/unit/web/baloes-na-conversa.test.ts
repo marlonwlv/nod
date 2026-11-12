@@ -76,10 +76,11 @@ describe("a fala gravada", () => {
 });
 
 describe("a fala viva (COP-14, item 2: só o indicador; a resposta entra inteira no fim)", () => {
-  const comAtividade = (a: AtividadeTurno, encerrado = false): ReturnType<typeof blocosAoVivo> => {
+  /** O turno rodando com a atividade dada. O rótulo fica ≥ 800 ms por turno (permanência): cada estado novo no mesmo `agora` usa outro turno. */
+  const comAtividade = (a: AtividadeTurno, encerrado = false, turnoId = "t1"): ReturnType<typeof blocosAoVivo> => {
     const base = cenario([msg("m0", "pessoa", "oi")]);
-    const e: Estado = { ...base, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } }, atividades: { [C]: { t1: a } } };
-    const fim = encerrado ? reduzir(e, { tipo: "frame", frame: { tipo: "turno.encerrado", dados: { turnoId: "t1", conversaId: C } } as never, agora: AGORA }) : e;
+    const e: Estado = { ...base, turnosVivos: { [turnoId]: { turnoId, conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } }, atividades: { [C]: { [turnoId]: a } } };
+    const fim = encerrado ? reduzir(e, { tipo: "frame", frame: { tipo: "turno.encerrado", dados: { turnoId, conversaId: C } } as never, agora: AGORA }) : e;
     return blocosAoVivo(fim.conversas[C]!, fim);
   };
   const vivo = (texto: string): ReturnType<typeof blocosAoVivo>[number] => comAtividade(comTexto(ATIVIDADE_VAZIA, texto))[0]!;
@@ -91,7 +92,7 @@ describe("a fala viva (COP-14, item 2: só o indicador; a resposta entra inteira
       expect(agora.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-digitando"]);
       expect(agora.html).not.toMatch(/class="bubble[ "]/);
       expect(agora.html).not.toContain("Fechei");
-      expect(agora.html).toContain('<span class="indicador-rotulo" data-parte="rotulo-digitando">Digitando…</span>');
+      expect(agora.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-digitando"><span class="indicador-rotulo fala-viva-estado">Digitando…</span></span>');
       expect(agora.html).toContain('aria-label="Ada está digitando"');
       if (antes) expect(planoDoMorph(antes.morfar, agora.morfar)!.partes.every((p) => p.html === null)).toBe(true);
       antes = agora;
@@ -102,9 +103,9 @@ describe("a fala viva (COP-14, item 2: só o indicador; a resposta entra inteira
 
   it("com ferramenta, o indicador diz o verbo dela (com brilho); a narração e o pensamento não aparecem", () => {
     const a = comFerramenta(comTexto(ATIVIDADE_VAZIA, "Vou olhar o Linear.\n\nJá volto com a lista."), "Consultou Linear", { texto: "Usando Linear", frentes: false });
-    const b = comAtividade(a)[0]!;
-    expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-ferramenta:Usando Linear"]);
-    expect(b.html).toContain('<span class="indicador-rotulo brilho" data-parte="rotulo-ferramenta:Usando Linear">Usando Linear</span>');
+    const b = comAtividade(a, false, "t-linear")[0]!;
+    expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-ferramenta-Usando-Linear"]);
+    expect(b.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-Linear"><span class="indicador-rotulo fala-viva-estado brilho">Usando Linear</span></span>');
     expect(b.html).toContain('aria-live="polite"');
     expect(b.html).toContain('aria-label="Ada está usando Linear"');
     expect(b.html).not.toContain("Vou olhar");
