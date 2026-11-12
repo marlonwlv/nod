@@ -16,7 +16,6 @@ import { anel, confiar, iconeDe, type Card, type Html } from "./quadro.ts";
 
 type AgenteDoQuadro = (agenteId: string) => { avatar: Html; nome: string } | null;
 
-const VOCE_AV = (): Html => anel("V", "Você", true);
 
 /** Os bots ligados ao quadro, tenham tarefa ou não: o dono do quadro e os responsáveis (passagem) das colunas. */
 export function botsLigadosAoQuadro(q: Pick<QuadroDto, "agenteId">, cs: readonly Pick<ColunaDto, "responsavel">[]): string[] {

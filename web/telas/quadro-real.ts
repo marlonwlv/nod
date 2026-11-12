@@ -20,7 +20,7 @@ import { atalhosDePrazo, codigoDaTarefa, faltaParaOPrazo, fraseDaEspera, fraseDo
 import { textoFormatado } from "../lib/texto-formatado.ts";
 import type { Sugestao } from "../lib/sugestoes-do-quadro.ts";
 import { ecoDoAgente, fraseDaTrava, fraseDoMovimento, porqueNaoDesfaz } from "../lib/freios.ts";
-import { anel, avatar, barra, card, confiar, ICONE, linha, lista, quadro, seloEmTeste, type Aviso, type Card, type ChipDaBarra, type Coluna, type ExibirDaBarra, type ExtraDaGrade, type Filtro, type Html, type QuemRoda } from "./quadro.ts";
+import { anel, barra, card, confiar, ICONE, linha, lista, quadro, seloEmTeste, type Aviso, type Card, type ChipDaBarra, type Coluna, type ExibirDaBarra, type ExtraDaGrade, type Filtro, type Html, type QuemRoda } from "./quadro.ts";
 import { chipsDaBarra, ehComigo, fraseDoVazio, marcar, passaNaVista, termoDaBusca, trabalhandoAgora, type ChipDeAgente } from "../lib/vista-do-quadro.ts";
 import { linhaDaImportacao, painelDeImportacao, type PainelImportacao } from "./card-importacao.ts";
 import { gruposPorResponsavel, opcoesEfetivas, ordenarTarefas, passaNosFiltros } from "../lib/opcoes-do-quadro.ts";
