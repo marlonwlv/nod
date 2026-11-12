@@ -6,6 +6,7 @@ import { ACOES_APPS } from "./apps.ts";
 import { ACOES_BOTS } from "./bots.ts";
 import { ACOES_CANVAS } from "./canvas.ts";
 import { ACOES_CONTA } from "./conta.ts";
+import { ACOES_MCP } from "./mcp.ts";
 import { ACOES_CONTAS_IA } from "./contas-ia.ts";
 import { ACOES_CONVERSA } from "./conversa.ts";
 import { ACOES_MAQUINAS } from "./maquinas.ts";
@@ -18,7 +19,7 @@ import { ACOES_TIMES } from "./times.ts";
  * O registro único de ações (definido em 2026-10-28, NOD-391, ADR-135): a lista FECHADA das ações de pessoa que mudam
  * algo, um arquivo por domínio. `IdAcao` sai daqui: a rota que declara um id fora do registro não compila.
  */
-export const REGISTRO_DE_ACOES = [...ACOES_BOTS, ...ACOES_ROTINAS, ...ACOES_ACESSOS, ...ACOES_CONTAS_IA, ...ACOES_MAQUINAS, ...ACOES_CONVERSA, ...ACOES_CONTA, ...ACOES_TELA, ...ACOES_QUADRO, ...ACOES_APPS, ...ACOES_TIMES, ...ACOES_CANVAS] as const;
+export const REGISTRO_DE_ACOES = [...ACOES_BOTS, ...ACOES_ROTINAS, ...ACOES_ACESSOS, ...ACOES_CONTAS_IA, ...ACOES_MAQUINAS, ...ACOES_CONVERSA, ...ACOES_CONTA, ...ACOES_TELA, ...ACOES_QUADRO, ...ACOES_APPS, ...ACOES_TIMES, ...ACOES_CANVAS, ...ACOES_MCP] as const;
 
 export type IdAcao = (typeof REGISTRO_DE_ACOES)[number]["id"];
 

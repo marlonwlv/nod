@@ -19,6 +19,7 @@ import type { incidentesRepo } from "./incidentes.repo.ts";
 import type { inventarioRepo } from "./inventario.repo.ts";
 import type { itensAprovacaoRepo } from "./itens-aprovacao.repo.ts";
 import type { maquinaTokensRepo } from "./maquina-tokens.repo.ts";
+import type { mcpTokensRepo } from "./mcp-tokens.repo.ts";
 import type { maquinasSshRepo } from "./maquinas-ssh.repo.ts";
 import type { maquinasNuvemRepo } from "./maquinas-nuvem.repo.ts";
 import type { credenciaisNuvemRepo } from "./credenciais-nuvem.repo.ts";
@@ -155,6 +156,7 @@ export interface Repos {
   paradas: ReturnType<typeof paradasRepo>;
   catcher: ReturnType<typeof catcherRepo>;
   maquinaTokens: ReturnType<typeof maquinaTokensRepo>;
+  mcpTokens: ReturnType<typeof mcpTokensRepo>;
   /** NOD-94 (0105): endereço e impressão da host key das máquinas instaladas por SSH. */
   maquinasSsh: ReturnType<typeof maquinasSshRepo>;
   /** ADR-121 (0107): a máquina na nuvem que dorme e acorda. */
