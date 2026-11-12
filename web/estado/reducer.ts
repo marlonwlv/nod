@@ -5,6 +5,7 @@ import type { AnexoDaConversa } from "../../src/contracts/anexo.ts";
 import type { AtividadeDto } from "../../src/contracts/atividade.ts";
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { ChaveEmitidaDto, ChaveMaquinaDto, ConversaDto, FrotaDto, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
+import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
 import type { InstalacaoSshDto, MetodoSsh } from "../../src/contracts/instalacoes-ssh.ts";
 import type { ResumoDaChave } from "../lib/chave-ssh.ts";
@@ -317,7 +318,7 @@ export type EscolhaComposer = { outroAssunto: boolean; alvoId: string | null };
  */
 export type CitacaoNoCampo = { mensagemId: string; trecho: string };
 
-export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}`;
+export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "mcp-tokens" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}`;
 
 export type Estado = {
   sessao: Escopo | null;
@@ -470,6 +471,8 @@ export type Estado = {
   statusMemoria: string;
   /** Minhas chaves de máquina (ADR-031); null = ainda não carregou. */
   chaves: ChaveMaquinaDto[] | null;
+  /** Servidor MCP do Nod (0173): os tokens e o endpoint, na seção Geral; null = ainda não carregou. */
+  mcpTokens: TokensMcpDto | null;
   /** ADR-090: as máquinas da pessoa (chaves vivas + o que as conectadas anunciaram) e o padrão de onde os bots trabalham. */
   maquinas: MaquinasDto | null;
   /**
@@ -517,6 +520,8 @@ export type Estado = {
    * aba — nunca em storage — e o servidor não tem como mostrá-la de novo.
    */
   chaveEmitida: ChaveEmitidaDto | null;
+  /** O token MCP cru recém-gerado: como a chave de máquina, só na memória da aba e mostrado uma vez. */
+  mcpTokenEmitido: TokenMcpEmitidoDto | null;
   negacoes: NegacaoVista[];
   faixaParada: FaixaParada | null;
   /** Escolha do campo por conversa (EscolhaComposer); ausente = o padrão. */
@@ -650,6 +655,7 @@ export type Acao =
   | { tipo: "status-memoria"; texto: string }
   | { tipo: "hidratar-salas"; salas: { sala: Sala; membros: MembroSala[] }[] }
   | { tipo: "hidratar-chaves"; chaves: ChaveMaquinaDto[] }
+  | { tipo: "hidratar-mcp-tokens"; tokens: TokensMcpDto }
   | { tipo: "hidratar-maquinas"; maquinas: MaquinasDto }
   | { tipo: "esta-maquina"; maquina: EstaMaquina | null }
   | { tipo: "hidratar-computador-pessoa"; dto: ComputadorPessoaDto | null; agora: number }
@@ -666,6 +672,7 @@ export type Acao =
   | { tipo: "modo-dev"; ligado: boolean }
   | { tipo: "hidratar-raio-x"; conversaId: string; raioX: RaioXConversa }
   | { tipo: "chave-emitida"; emitida: ChaveEmitidaDto | null }
+  | { tipo: "mcp-token-emitido"; emitido: TokenMcpEmitidoDto | null }
   | { tipo: "faixa"; faixa: FaixaParada | null }
   | { tipo: "composer"; conversaId: string; escolha: EscolhaComposer | null }
   | { tipo: "citar"; conversaId: string; citacao: CitacaoNoCampo | null }
@@ -760,6 +767,7 @@ export const estadoInicial: Estado = {
   avisoDiario: null,
   statusMemoria: "",
   chaves: null,
+  mcpTokens: null,
   maquinas: null,
   estaMaquina: null,
   computadorPessoa: null,
@@ -777,6 +785,7 @@ export const estadoInicial: Estado = {
   agenda: AGENDA_INICIAL,
   modoDev: { ligado: false, raioX: {} },
   chaveEmitida: null,
+  mcpTokenEmitido: null,
   negacoes: [],
   faixaParada: null,
   composer: {},
@@ -1516,7 +1525,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "sessao":
       // Trocou a pessoa: chaves E relatos somem. Relato carrega correlationId, machineId e o erro
       // cru do fornecedor — não pode ficar na tela da próxima sessão (ADR-002).
-      return { ...estado, sessao: acao.escopo, chaves: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.chaves : null, maquinas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.maquinas : null, computadorPessoa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.computadorPessoa : null, instalarSsh: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.instalarSsh : null, contasIa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.contasIa : null, detalhesContas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.detalhesContas : null, relatos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.relatos : null, chaveEmitida: null,
+      return { ...estado, sessao: acao.escopo, chaves: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.chaves : null, maquinas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.maquinas : null, computadorPessoa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.computadorPessoa : null, instalarSsh: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.instalarSsh : null, contasIa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.contasIa : null, detalhesContas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.detalhesContas : null, relatos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.relatos : null, mcpTokens: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.mcpTokens : null, chaveEmitida: null, mcpTokenEmitido: null,
         modoDev: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.modoDev : { ligado: false, raioX: {} },
         naoLidos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.naoLidos : null, novasDesde: {},
         citacoes: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.citacoes : {},
@@ -1553,7 +1562,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return {
         // NOD-383: a lista do celular não é seção nenhuma (guarda só de onde a pessoa saiu, para o foco): voltar para ela
         // descarta a chave e as linhas abertas como trocar de seção.
-        ...estado, espaco: acao.secao ? { secao: acao.secao, ...(acao.lista ? { lista: true } : {}) } : null, chaveEmitida: acao.secao === "maquinas" && !acao.lista ? estado.chaveEmitida : null, erro: null,
+        ...estado, espaco: acao.secao ? { secao: acao.secao, ...(acao.lista ? { lista: true } : {}) } : null, chaveEmitida: acao.secao === "maquinas" && !acao.lista ? estado.chaveEmitida : null, mcpTokenEmitido: acao.secao === "geral" && !acao.lista ? estado.mcpTokenEmitido : null, erro: null,
         configUi: !acao.secao ? { ...CONFIG_UI_INICIAL, lote: loteAoSair(estado.configUi.lote) } : acao.secao === estado.espaco?.secao && !acao.lista && !estado.espaco.lista ? estado.configUi : { ...CONFIG_UI_INICIAL, busca: estado.configUi.busca, lote: loteAoSair(estado.configUi.lote) },
         // NOD-367 (revisão 2): o relato.criado não invalida nada (ADR-041), então entrar em Feedback relê "Seus envios" e
         // esquece o erro de antes; o envio feito na conversa com o Nod aparece ao voltar.
@@ -1920,6 +1929,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return { ...estado, novasDesde: { ...estado.novasDesde, [acao.conversaId]: { mensagemId: acao.mensagemId, em: acao.em, total: acao.total } } };
     case "hidratar-chaves":
       return { ...estado, chaves: acao.chaves };
+    case "hidratar-mcp-tokens":
+      return { ...estado, mcpTokens: acao.tokens };
     case "hidratar-maquinas":
       return { ...estado, maquinas: acao.maquinas };
     case "esta-maquina":
@@ -1962,6 +1973,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return estado.modoDev.ligado ? { ...estado, modoDev: { ...estado.modoDev, raioX: { ...estado.modoDev.raioX, [acao.conversaId]: acao.raioX } } } : estado;
     case "chave-emitida":
       return acao.emitida ? invalidar({ ...estado, chaveEmitida: acao.emitida }, "chaves") : { ...estado, chaveEmitida: null };
+    case "mcp-token-emitido":
+      return acao.emitido ? invalidar({ ...estado, mcpTokenEmitido: acao.emitido }, "mcp-tokens") : { ...estado, mcpTokenEmitido: null };
     case "faixa":
       return { ...estado, faixaParada: acao.faixa };
     case "composer": {
@@ -2258,6 +2271,7 @@ export function invalidacoesDaTela(estado: Estado): Invalidacao[] {
   if (t.tipo === "trabalho" && !estado.trabalhoDetalhe[t.id]) faltas.push(`trabalho:${t.id}`);
   if (t.tipo === "linha" && !estado.conversas[t.conversaId]) faltas.push(`conversa:${t.conversaId}`);
   if (secao === "maquinas" && !estado.chaves) faltas.push("chaves");
+  if (estado.sessao && secao === "geral" && !estado.mcpTokens) faltas.push("mcp-tokens");
   // ADR-090: a seção Máquinas e a conversa (a mensagem na fila diz quando a máquina do bot está fora do ar).
   // QA do NOD-314: a tela da task também lê a frota ("Rodar em <outra> desta vez" e a linha do turno preso).
   if (estado.sessao && !estado.maquinas && (secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho")) faltas.push("maquinas");

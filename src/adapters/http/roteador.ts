@@ -51,6 +51,8 @@ export interface DepsRoteador {
   /** revisto em 2026-10-12 (NOD-214): pode ir ao banco (o token de um turno adotado depois de um reinício). */
   autorizarTokenTurno?(token: string): IdentidadeDeTurno | null | Promise<IdentidadeDeTurno | null>;
   autorizarMaquina?(token: string): Promise<(Escopo & { chaveId: string }) | null>;
+  /** Servidor MCP do Nod (0173): trata `/api/mcp` inteiro (autentica pelo token MCP, JSON-RPC). */
+  mcp?(req: IncomingMessage, res: ServerResponse): Promise<void>;
   /** Último recurso quando nenhuma rota casa (ex.: estático). Devolve true se respondeu. */
   fallback?(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
 }
@@ -79,7 +81,7 @@ function montarCtx(req: IncomingMessage, res: ServerResponse, escopo: Escopo | n
   };
 }
 
-function casar(rotas: Rota[], metodo: string, caminho: string, filtro: (r: Rota) => boolean): { rota: Rota; params: Record<string, string> } | null {
+export function casar(rotas: Rota[], metodo: string, caminho: string, filtro: (r: Rota) => boolean): { rota: Rota; params: Record<string, string> } | null {
   for (const rota of rotas) {
     if (!filtro(rota) || rota.metodo !== metodo) continue;
     const m = rota.padrao.exec(caminho);
@@ -115,6 +117,11 @@ export function criarRoteador(rotas: Rota[], deps: DepsRoteador): (req: Incoming
       const achado = casar(rotas, metodo, caminho.slice("/api/maquina".length), (r) => r.maquina === true);
       if (!achado) { json(res, 404, { codigo: "nao_encontrado" }); return; }
       await (achado.rota.handler as (c: CtxPublico) => Promise<void>)(montarCtx(req, res, identidade, { ...achado.params, chaveId: identidade.chaveId }, false, achado.rota.publica ? undefined : achado.rota.corpoMax));
+      return;
+    }
+
+    if (caminho === "/api/mcp" && deps.mcp) {
+      await deps.mcp(req, res);
       return;
     }
 

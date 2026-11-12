@@ -181,6 +181,9 @@ export type BancoMemoria = {
   rotinaGatilhos: (GatilhoVivo & { tenantId: string; ownerId: string; revogadoEm: number | null })[];
   rotinaChamadas: (ChamadaWebhook & { tenantId: string; ownerId: string; entregaId: string | null })[];
   maquinaTokens: { tenantId: string; ownerId: string; id: string; nome: string; prefixo: string; hash: Buffer; criadaEm: number; ultimoUsoEm: number | null; expiraEm: number | null; revogadaEm: number | null; plataforma?: "darwin" | "linux" | "win32" | null; papel?: "motor" | "computador" }[];
+  /** Servidor MCP do Nod (0173). */
+  mcpTokens: { tenantId: string; ownerId: string; id: string; nome: string; prefixo: string; hash: Buffer; cliente: string | null; criadoEm: number; ultimoUsoEm: number | null; revogadoEm: number | null }[];
+  mcpAcoes: { tenantId: string; ownerId: string; id: string; tokenId: string; agenteId: string | null; ferramenta: string; resumo: string; cliente: string; criadoEm: number }[];
   /** NOD-94 (0105): máquinas instaladas por SSH. */
   maquinasSsh: (MaquinaSsh & { tenantId: string; ownerId: string })[];
   /** 0071 (ADR-099, partes 3/4): os lotes de frentes, com a dona (o comportamento completo se prova no Postgres). */
@@ -274,6 +277,8 @@ export function criarBancoMemoria(): { banco: BancoMemoria; repos(escopo?: Escop
     rotinaGatilhos: [],
     rotinaChamadas: [],
     maquinaTokens: [],
+    mcpTokens: [],
+    mcpAcoes: [],
     maquinasSsh: [],
     lotes: [],
   };
@@ -3308,6 +3313,52 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const sai = dela.filter((x) => !fica.has(x.id) && x.em < agora - 72 * 3_600_000).map((x) => x.id);
         b.rotinaChamadas = b.rotinaChamadas.filter((x) => !sai.includes(x.id));
         return sai.length;
+      },
+    },
+    mcpTokens: {
+      async criar(e) {
+        const l = { tenantId: escopo.tenantId, ownerId: escopo.pessoaId, id: randomUUID(), nome: e.nome, prefixo: e.prefixo, hash: e.hash, cliente: null as string | null, criadoEm: agora(), ultimoUsoEm: null as number | null, revogadoEm: null as number | null };
+        b.mcpTokens.push(l);
+        return { id: l.id, nome: l.nome, prefixo: l.prefixo, cliente: null, criadoEm: l.criadoEm, ultimoUsoEm: null, revogadoEm: null };
+      },
+      async listar() {
+        return b.mcpTokens
+          .filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId)
+          .sort((x, y) => y.criadoEm - x.criadoEm)
+          .map((x) => ({ id: x.id, nome: x.nome, prefixo: x.prefixo, cliente: x.cliente, criadoEm: x.criadoEm, ultimoUsoEm: x.ultimoUsoEm, revogadoEm: x.revogadoEm }));
+      },
+      async revogar(id, quando) {
+        const l = b.mcpTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);
+        if (!l) return false;
+        l.revogadoEm ??= quando;
+        return true;
+      },
+      async buscarVivoPorHash(hash) {
+        const l = b.mcpTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.revogadoEm === null && x.hash.equals(hash));
+        return l ? { id: l.id, hash: l.hash } : null;
+      },
+      async marcarUso(id, quando, cliente) {
+        const l = b.mcpTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === id);
+        if (!l) return false;
+        l.ultimoUsoEm = quando;
+        if (cliente) l.cliente = cliente;
+        return true;
+      },
+      async registrarAcao(a) {
+        const t = b.mcpTokens.find((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.id === a.tokenId);
+        if (!t) return false;
+        b.mcpAcoes.push({ tenantId: escopo.tenantId, ownerId: escopo.pessoaId, id: randomUUID(), tokenId: t.id, agenteId: a.agenteId, ferramenta: a.ferramenta.slice(0, 60), resumo: a.resumo.slice(0, 200), cliente: (t.cliente ?? t.nome).slice(0, 80), criadoEm: agora() });
+        return true;
+      },
+      async acoesDoDia(agenteId, f, limite) {
+        return b.mcpAcoes
+          .filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.agenteId === agenteId && x.criadoEm >= f.ini.getTime() && x.criadoEm < f.fim.getTime())
+          .sort((x, y) => y.criadoEm - x.criadoEm)
+          .slice(0, limite)
+          .map((x) => ({ id: x.id, resumo: x.resumo, cliente: x.cliente, criado_em: new Date(x.criadoEm) }));
+      },
+      async contarAcoesDoDia(agenteId, f) {
+        return b.mcpAcoes.filter((x) => x.tenantId === escopo.tenantId && x.ownerId === escopo.pessoaId && x.agenteId === agenteId && x.criadoEm >= f.ini.getTime() && x.criadoEm < f.fim.getTime()).length;
       },
     },
     maquinaTokens: {

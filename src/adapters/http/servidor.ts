@@ -5,6 +5,8 @@ import type { Escopo } from "../../shared/types.ts";
 import { log } from "../../obs/log.ts";
 import { criarEstatico } from "./estatico.ts";
 import { criarRoteador, type DepsRoteador, type Rota } from "./roteador.ts";
+import { criarChamadorInterno } from "./mcp/chamador-interno.ts";
+import { criarServidorMcp, type DepsServidorMcp } from "./mcp/servidor-mcp.ts";
 import { responderMetricas } from "./rotas/metricas.ts";
 import { criarRotaSaude, criarRotaSaudeLb, type EstadoSaude, type VerificacaoSaude } from "./rotas/saude.ts";
 import { criarSessao, exigirConfiguracaoSegura, segredoEfetivo, type ContasNaSessao, type OpcoesSessao } from "./sessao.ts";
@@ -28,6 +30,8 @@ export interface OpcoesServidor {
   staticDir?: string;
   autorizarMaquina?: DepsRoteador["autorizarMaquina"];
   autorizarTokenTurno?: DepsRoteador["autorizarTokenTurno"];
+  /** Servidor MCP do Nod (0173): sem isto, POST /api/mcp não existe (404). */
+  mcp?: Pick<DepsServidorMcp, "autorizar" | "versaoNod" | "dormir" | "registrarAcao">;
   /** Modo de login (ADR-030). Default `stub`, que só escuta em loopback; o boot SEMPRE passa o do NOD_LOGIN. */
   sessao?: OpcoesSessao;
   /** NOD-345 (ADR-124): com NOD_CONTAS, a sessão revogável, as rotas de conta e o que o modo anuncia. */
@@ -60,6 +64,7 @@ export function criarServidor(opcoes: OpcoesServidor = {}) {
     resolverEscopo: sessao.resolverEscopo,
     autorizarTokenTurno: opcoes.autorizarTokenTurno,
     autorizarMaquina: opcoes.autorizarMaquina,
+    ...(opcoes.mcp ? { mcp: criarServidorMcp({ ...opcoes.mcp, chamar: criarChamadorInterno(rotas) }) } : {}),
     fallback: criarEstatico(opcoes.staticDir ?? process.env.NOD_STATIC_DIR),
   });
   const server = createServer((req, res) => {
