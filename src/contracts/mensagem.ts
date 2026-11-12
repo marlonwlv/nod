@@ -196,6 +196,5 @@ export type Mensagem = {
   motivoRecomeco?: MotivoRecomeco; // NOD-312: o turno da fala recomeçou sem a sessão. Ausente = normal ou servidor antigo.
   destino?: Destino; tarefa?: import("./destino-no-chat.ts").TarefaDaMensagem; // ADR-114: o destino da tabela DESTINO, resolvido no servidor (só na conversa própria); ADA-28: a tarefa do turno.
   checkpoint?: import("./checkpoint.ts").CheckpointDaFala; // NOD-54 (ADR-134): na fala final do turno que mudou arquivos, o "Desfazer N arquivos" do ⋯. Ausente = sem checkpoint ou vencido.
-  /** C4 (2026-11-12): a chave de idempotência com que a pessoa mandou esta fala (NOD-156); a web casa a pendente por ela. Ausente = sem chave ou servidor antigo. */
-  idEnvio?: string;
+  idEnvio?: string; // C4 (2026-11-12): a chave de idempotência do envio da pessoa (NOD-156); a web casa a pendente por ela.
 };
