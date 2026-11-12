@@ -1,4 +1,4 @@
-import { blobsDoCanvas, canvasDoAgente, darAcessoCanvas, desinstalarCanvas, EXECUTORES_CANVAS, instalarCanvas, verAppCanvas, verCanvas } from "../../../use-cases/acoes/canvas.ts";
+import { blobsDoCanvas, canvasDoAgente, darAcessoCanvas, desinstalarCanvas, EXECUTORES_CANVAS, instalarCanvas, verAppCanvas, verCanvas, versoesDoCanvas } from "../../../use-cases/acoes/canvas.ts";
 import type { Rota } from "../roteador.ts";
 import { corpoObjeto, criarExecutor, type DepsRotas } from "./executar-caso.ts";
 
@@ -35,6 +35,9 @@ export function rotasCanvas(d: DepsRotas): Rota[] {
       const v = Number(busca(ctx.req.url).get("versao"));
       ctx.json(200, await executar(ctx.escopo, verCanvas, { canvasId: ctx.params.id ?? "", ...(Number.isInteger(v) && v > 0 && v <= 2147483647 ? { versao: v } : {}) }));
     } },
+    { metodo: "GET", padrao: new RegExp(`^/canvas/${ID}/versoes$`), async handler(ctx) {
+      ctx.json(200, await executar(ctx.escopo, versoesDoCanvas, { canvasId: ctx.params.id ?? "" }));
+    } },
     { metodo: "GET", padrao: new RegExp(`^/canvas/${ID}/blobs$`), async handler(ctx) {
       const hashes = (busca(ctx.req.url).get("hashes") ?? "").split(",").filter(Boolean);
       ctx.json(200, await executar(ctx.escopo, blobsDoCanvas, { canvasId: ctx.params.id ?? "", hashes }));
@@ -42,10 +45,11 @@ export function rotasCanvas(d: DepsRotas): Rota[] {
     { metodo: "POST", acao: "canvas.comentar", padrao: new RegExp(`^/canvas/${ID}/comentarios$`), async handler(ctx) {
       const c = corpoObjeto(await ctx.corpo());
       const tipo = c.tipo === "pino" || c.tipo === "nota" ? c.tipo : undefined;
-      const endereco = texto(c.endereco); const x = numero(c.x); const y = numero(c.y); const paiId = texto(c.pai_id);
+      const endereco = texto(c.endereco); const x = numero(c.x); const y = numero(c.y); const paiId = texto(c.pai_id); const rodada = numero(c.rodada); const versao = numero(c.versao);
       ctx.json(201, await executar(ctx.escopo, EXECUTORES_CANVAS["canvas.comentar"], {
         canvasId: ctx.params.id ?? "", texto: texto(c.texto) ?? "",
         ...(endereco ? { endereco } : {}), ...(tipo ? { tipo } : {}), ...(x !== undefined ? { x } : {}), ...(y !== undefined ? { y } : {}), ...(paiId ? { paiId } : {}),
+        ...(rodada !== undefined ? { rodada } : {}), ...(versao !== undefined ? { versao } : {}),
       }));
     } },
     { metodo: "POST", acao: "canvas.resolver_comentario", padrao: new RegExp(`^/canvas/comentarios/${ID}/resolver$`), async handler(ctx) {

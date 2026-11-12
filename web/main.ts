@@ -673,7 +673,9 @@ window.matchMedia("(max-width: 1099px)").addEventListener("change", marcarPainel
 // NOD-429: Conversa | Quadro na pílula, só com o experimento Quadro ligado (Configurações › Geral › Avançado) e no bot da própria pessoa (web/lib/quadro.ts).
 // NOD-429: de volta à Conversa, a conversa passa a estar "na tela" de novo e é lida.
 // ADA-13 (ADR-150): a página Canvas do bot (a pílula a mostra quando o bot tem acesso ao app).
-const canvasNaTela = criarCanvasNaTela(document, { api: () => api });
+// ADA-228: o recibo da rodada e o input de vidro vão para a conversa do bot à vista; "ver na conversa" volta à Conversa.
+const canvasNaTela = criarCanvasNaTela(document, { api: () => api, conversa: () => conversaAtual()?.conversaId ?? null, irParaConversa: () => quadroNaTela.irPara(0),
+  mascote: (id) => { const a = estado.frota?.agentes.find((x) => x.id === id); return a ? iconeAgente(a, "sm") : null; } });
 configurarAppCanvas({ ler: () => (api ? api.appCanvas() : null), aoMudar: () => render() });
 const quadroNaTela = criarQuadroNaTela(document, {
   // ADA-8: a pílula tem um dono só para o dedo (web/lib/gesto-da-pilula-na-tela.ts); a busca e o menu entram por aqui.
@@ -6076,7 +6078,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // ADA-13: o card do canvas no chat abre a página Canvas do bot, já nesse canvas.
   "abrir-canvas": (el) => {
     if (!el.dataset.id) return;
-    canvasNaTela.querAbrir(el.dataset.id);
+    canvasNaTela.querAbrir(el.dataset.id, el.dataset.endereco ?? null);
     quadroNaTela.abrirPagina("canvas");
   },
   "abrir-computador": (el) => {

@@ -2,22 +2,31 @@
  * ADA-13 (ADR-150): a página Canvas sem DOM. As jornadas em fileiras, cada tela no tamanho de verdade (1440×900 no
  * computador, 390×844 no celular) em coordenadas do mundo; a vista é um deslocamento e um zoom. Aqui ficam o layout,
  * o Ajustar, o tamanho real, o zoom no ponto do ponteiro, o endereço #Jx-y, quais telas aparecem e quais têm o iframe
- * vivo (no máximo 12, as mais perto do centro e as mais recentes). O DOM mora em web/lib/canvas-na-tela.ts.
+ * vivo (ADA-228: no máximo 6, as mais perto do centro, e só a partir de 50% de zoom; abaixo disso, a miniatura). O DOM mora em web/lib/canvas-na-tela.ts.
  */
 import type { EstruturaCanvasDto, TelaCanvasDto } from "../../src/contracts/canvas.ts";
 import { CSP_ARTEFATO, jsonParaScript } from "./artefato.ts";
 import { esc } from "./escape.ts";
 
 export const TAMANHO = { desk: { w: 1440, h: 900 }, cel: { w: 390, h: 844 } } as const;
-/** O espaço entre as telas de uma fileira, entre as fileiras e o cabeçalho de cada uma (o título da jornada). */
-export const VAO = 120;
-export const VAO_FILEIRA = 260;
-export const CABECA = 140;
+/**
+ * ADA-228 (protótipo v4 da ADA-13): o rótulo da jornada à esquerda da fileira ("J1 No card" e o resumo), o cabeçalho
+ * de cada tela em cima ("J1-1 Hoje ⤢"), a legenda embaixo e a seta no vão entre as telas. Os textos têm tamanho fixo
+ * na tela (o CSS multiplica por --cv-k); estas medidas do mundo são as do zoom de abrir (~10%), como no protótipo.
+ */
+export const ROTULO = 1180;
+export const VAO = 260;
+export const VAO_FILEIRA = 360;
+export const CABECA = 200;
 /** A legenda embaixo de cada tela. */
-export const LEGENDA = 90;
+export const LEGENDA = 420;
+/** A coluna dos post-its no fim da fileira (os do protótipo e os da pessoa). */
+export const NOTAS = 1900;
 export const ZOOM_MIN = 0.03;
 export const ZOOM_MAX = 2;
-export const MAX_VIVOS = 12;
+export const MAX_VIVOS = 6;
+/** ADA-228 (J3): abaixo deste zoom nenhuma tela fica viva; a miniatura basta e o motor fica leve. */
+export const ZOOM_VIVO = 0.5;
 
 export type Caixa = { x: number; y: number; w: number; h: number };
 export type TelaNoMundo = Caixa & { tela: TelaCanvasDto };
@@ -25,14 +34,19 @@ export type FileiraNoMundo = { id: string; titulo: string; resumo: string; y: nu
 export type Layout = { fileiras: FileiraNoMundo[]; porId: Map<string, TelaNoMundo>; limites: Caixa };
 export type Vista = { x: number; y: number; zoom: number };
 
-/** As fileiras: uma por jornada, as telas lado a lado na ordem; a fileira seguinte começa embaixo da mais alta. */
-export function montarLayout(e: Pick<EstruturaCanvasDto, "jornadas">): Layout {
+/**
+ * As fileiras: uma por jornada, as telas lado a lado na ordem; a fileira seguinte começa embaixo da mais alta. ADA-228
+ * (J4-4): `notasDaPessoa` são as jornadas com post-it da pessoa ou do bot (os comentários), que também reservam a coluna,
+ * para o "ajustar tudo" mostrar os post-its como no protótipo.
+ */
+export function montarLayout(e: Pick<EstruturaCanvasDto, "jornadas"> & { notas?: EstruturaCanvasDto["notas"] }, notasDaPessoa: Iterable<string> = []): Layout {
+  const comNotas = new Set([...(e.notas ?? []).map((n) => n.jornada).filter((j): j is string => !!j), ...notasDaPessoa]);
   const fileiras: FileiraNoMundo[] = [];
   const porId = new Map<string, TelaNoMundo>();
   let y = 0;
   let largura = 0;
   for (const j of e.jornadas) {
-    let x = 0;
+    let x = ROTULO;
     let alta = 0;
     const telas: TelaNoMundo[] = [];
     for (const t of j.telas) {
@@ -43,7 +57,7 @@ export function montarLayout(e: Pick<EstruturaCanvasDto, "jornadas">): Layout {
       x += tam.w + VAO;
       alta = Math.max(alta, tam.h);
     }
-    largura = Math.max(largura, x - VAO);
+    largura = Math.max(largura, x - VAO + (comNotas.has(j.id) ? VAO + NOTAS : 0));
     fileiras.push({ id: j.id, titulo: j.titulo, resumo: j.resumo, y, telas });
     y += CABECA + alta + LEGENDA + VAO_FILEIRA;
   }
@@ -58,6 +72,23 @@ export function ajustar(c: Caixa, tela: { w: number; h: number }, folga = 48): V
   if (c.w <= 0 || c.h <= 0 || tela.w <= 0 || tela.h <= 0) return { x: folga, y: folga, zoom: 1 };
   const zoom = prender(Math.min((tela.w - 2 * folga) / c.w, (tela.h - 2 * folga) / c.h));
   return { zoom, x: (tela.w - c.w * zoom) / 2 - c.x * zoom, y: (tela.h - c.h * zoom) / 2 - c.y * zoom };
+}
+
+/**
+ * ADA-228 (J3-1): abrir como no protótipo, com a largura toda (as fileiras de cima à vista, o resto rola), entre a
+ * barra em cima e o input embaixo. Fileira estreita não passa de 50%.
+ */
+export function ajustarLargura(c: Caixa, tela: { w: number; h: number }, o: { topo: number; base: number; folga?: number } = { topo: 72, base: 88 }): Vista {
+  const folga = o.folga ?? 48;
+  if (c.w <= 0 || tela.w <= 0) return { x: folga, y: o.topo, zoom: 1 };
+  const zoom = prender(Math.min(0.5, (tela.w - 2 * folga) / c.w));
+  return { zoom, x: folga - c.x * zoom, y: o.topo - c.y * zoom };
+}
+
+/** Ajustar à janela com a barra em cima e o input embaixo (Shift 1 e o clique no %). */
+export function ajustarEntre(c: Caixa, tela: { w: number; h: number }, o: { topo: number; base: number } = { topo: 72, base: 88 }): Vista {
+  const v = ajustar(c, { w: tela.w, h: Math.max(1, tela.h - o.topo - o.base) }, 32);
+  return { ...v, y: v.y + o.topo };
 }
 
 /** O tamanho real de uma tela: zoom 1, a tela no centro (ou no topo, se for mais alta que a vista). */
@@ -113,7 +144,7 @@ export function urlDoCanvas(href: string, canvasId: string | null, endereco?: st
 export function caixaDaFileira(f: FileiraNoMundo): Caixa {
   const ult = f.telas.at(-1);
   const alta = Math.max(0, ...f.telas.map((t) => t.h));
-  return { x: 0, y: f.y, w: ult ? ult.x + ult.w : 1, h: CABECA + alta + LEGENDA };
+  return { x: 0, y: f.y, w: ult ? ult.x + ult.w : ROTULO, h: CABECA + alta + LEGENDA };
 }
 
 /** As telas que cruzam a vista (com uma margem de meia tela, para o iframe já estar pronto ao chegar). */
@@ -125,14 +156,30 @@ export function visiveis(l: Layout, v: Vista, tela: { w: number; h: number }): T
 
 /**
  * Quais telas ficam com o iframe vivo: abaixo de um zoom em que o texto nem se lê, nenhuma (a miniatura basta); acima,
- * as visíveis mais perto do centro, até 12. As que já estavam vivas ganham na disputa (sem piscar ao rolar).
+ * as visíveis mais perto do centro, até 6. As que já estavam vivas ganham na disputa (sem piscar ao rolar).
  */
 export function escolherVivos(vis: readonly TelaNoMundo[], v: Vista, tela: { w: number; h: number }, vivos: ReadonlySet<string>, o: { minZoom?: number; max?: number } = {}): string[] {
-  if (v.zoom < (o.minZoom ?? 0.12)) return [];
+  if (v.zoom < (o.minZoom ?? ZOOM_VIVO)) return [];
   const c = noMundo(v, tela.w / 2, tela.h / 2);
   const dist = (t: TelaNoMundo): number => Math.hypot(t.x + t.w / 2 - c.x, t.y + t.h / 2 - c.y) * (vivos.has(t.tela.id) ? 0.7 : 1);
   return [...vis].sort((p, q) => dist(p) - dist(q)).slice(0, o.max ?? MAX_VIVOS).map((t) => t.tela.id);
 }
+
+/**
+ * ADA-228 (J3, proposta do Gil): "onde parou" por canvas. Na 1ª vez, Ajustar; depois, a vista guardada. O #Jx-y no
+ * endereço sempre manda (quem chama tenta o hash antes).
+ */
+export const chaveOndeParou = (canvasId: string): string => `nod.canvas.vista.${canvasId}`;
+export function lerOndeParou(bruto: string | null | undefined): Vista | null {
+  if (!bruto) return null;
+  try {
+    const v = JSON.parse(bruto) as Partial<Vista>;
+    const ok = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+    if (!ok(v.x) || !ok(v.y) || !ok(v.zoom)) return null;
+    return { x: v.x, y: v.y, zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v.zoom)) };
+  } catch { return null; }
+}
+export const gravarOndeParou = (v: Vista): string => JSON.stringify({ x: Math.round(v.x), y: Math.round(v.y), zoom: Math.round(v.zoom * 10_000) / 10_000 });
 
 /** O pino na tela: x e y em [0, 1] da tela, presos. */
 export function fracaoNaTela(t: Caixa, m: { x: number; y: number }): { x: number; y: number } {

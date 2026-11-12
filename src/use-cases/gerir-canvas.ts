@@ -1,11 +1,12 @@
-import type { ArgsGerirCanvas, FalhaCanvas, ResultadoGerirCanvas, ResultadoImportarCanvas } from "../contracts/ferramentas-canvas.ts";
+import type { ArgsGerirCanvas, CanvasResumo, FalhaCanvas, ResultadoGerirCanvas, ResultadoImportarCanvas } from "../contracts/ferramentas-canvas.ts";
 import { OPS_DE_PUBLICAR } from "../contracts/ferramentas-canvas.ts";
 import type { ContextoFerramenta, SaidaCasoDeUso } from "../contracts/servicos.ts";
 import type { Confianca } from "../contracts/mensagem.ts";
 import type { NivelCanvas } from "../domain/canvas.ts";
+import type { EstadoDoCanvas } from "../domain/canvas-versoes.ts";
 import type { Autoria } from "../contracts/evento.ts";
 import { autoriaAgente, evento } from "./autoria-evento.ts";
-import { aplicarImportacao, canvasDoBot, carregarCanvas, comentar, comentarioLido, eventoCanvas, publicar, resolver, resumoDe, TETO_PUBLICAR, type Falha, type Publicado } from "./canvas.ts";
+import { aplicarImportacao, aprovacaoDaIssue, canvasDoBot, carregarCanvas, comentar, comentarioLido, estadoDe, eventoCanvas, publicar, resolver, resumoDe, TETO_PUBLICAR, type Falha, type Publicado } from "./canvas.ts";
 import type { Deps } from "./tipos.ts";
 import type { ComentarioCanvas } from "../repositories/canvas.repo.ts";
 
@@ -76,7 +77,7 @@ async function respostaPublicado(deps: Deps, input: Entrada, ctx: Contexto, p: P
   const linha = await deps.repos.mensagens.criar({
     ...ids, autoria, kind: "sistema", confianca: p.confianca,
     texto: `${como === "importou" ? "Importou" : "Publicou"} o canvas ${p.canvas.titulo} (v${p.canvas.versaoAtual}: ${r.jornadas} jornadas, ${r.telas} telas).`,
-    payload: { kind: "canvas", canvasId: p.canvas.id, agenteId: input.agenteId, versao: p.canvas.versaoAtual, titulo: p.canvas.titulo, jornadas: r.jornadas, telas: r.telas, importado: como === "importou", confiavel: p.confianca === "confiavel" },
+    payload: { kind: "canvas", canvasId: p.canvas.id, agenteId: input.agenteId, versao: p.canvas.versaoAtual, titulo: p.canvas.titulo, issue: p.canvas.issue, jornadas: r.jornadas, telas: r.telas, importado: como === "importou", confiavel: p.confianca === "confiavel", ...(como === "importou" && p.canvas.origemUrl ? { origemUrl: p.canvas.origemUrl } : {}) },
   });
   if (linha) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora: deps.agora(), ...ids, dados: { mensagem_id: linha.id, kind: "sistema" } }));
   const partes = [`${p.novo ? "Canvas criado" : `v${p.canvas.versaoAtual} no ar`}: ${r.jornadas} jornadas, ${r.telas} telas.`];
@@ -92,6 +93,19 @@ async function respostaPublicado(deps: Deps, input: Entrada, ctx: Contexto, p: P
   };
 }
 
+/** ADA-228 (J7-5): a lista compacta na conversa, por estado (a web agrupa); o retrato da hora, como o card dos não lidos. */
+async function mostrarLista(deps: Deps, input: Entrada, ctx: Contexto, canvas: readonly (CanvasResumo & EstadoDoCanvas)[]) {
+  const autoria = autoriaDe(deps, input);
+  const ids = { conversaId: input.conversaId, turnoId: input.turnoId };
+  const itens = canvas.slice(0, 50).map((c) => ({ canvasId: c.id, titulo: c.titulo, issue: c.issue, versao: c.versao, estado: c.estado, etapa: c.etapa, aprovadoEm: c.aprovadoEm }));
+  const linha = await deps.repos.mensagens.criar({
+    ...ids, autoria, kind: "sistema", confianca: ctx.confianca,
+    texto: `${itens.length === 1 ? "1 canvas" : `${itens.length} canvas`}: ${itens.map((c) => c.issue ?? c.titulo).join(", ")}.`,
+    payload: { kind: "canvas_lista", agenteId: input.agenteId, itens },
+  });
+  return linha ? [evento(deps.escopo, { kind: "mensagem_criada", autoria, agora: deps.agora(), ...ids, dados: { mensagem_id: linha.id, kind: "sistema" } })] : [];
+}
+
 export const gerirCanvas = async (deps: Deps, input: Entrada): Promise<Saida> => {
   const ctx = await conferir(deps, input);
   if ("erro" in ctx) return recusa(ctx);
@@ -104,10 +118,12 @@ export const gerirCanvas = async (deps: Deps, input: Entrada): Promise<Saida> =>
         const v = await deps.repos.canvas.versao(c.id, c.versaoAtual);
         const coms = await deps.repos.canvas.comentarios(c.id);
         sujo ||= deFora(v, coms);
-        canvas.push(resumoDe(c, v?.estrutura ?? null, coms));
+        canvas.push({ ...resumoDe(c, v?.estrutura ?? null, coms), ...estadoDe(v, coms, await aprovacaoDaIssue(deps, c.issue)) });
       }
       await contaminarSe(deps, input, ctx, sujo);
-      return { data: { ok: true, canvas, instrucao: canvas.length ? "Os seus canvas. ler {canvas} traz as telas e os comentários." : "Você ainda não tem canvas." } };
+      const events = input.mostrar === true && canvas.length ? await mostrarLista(deps, input, ctx, canvas) : [];
+      const instrucao = !canvas.length ? "Você ainda não tem canvas." : events.length ? "A lista dos que esperam a pessoa está na conversa; não a repita. Em uma linha, diga os que você ainda está fazendo (em_producao), se houver." : "Os seus canvas. ler {canvas} traz as telas e os comentários.";
+      return { data: { ok: true, canvas, instrucao }, events };
     }
     case "ler": {
       if (!input.canvas) return recusaDe("entrada_invalida", "falta o canvas");
@@ -140,6 +156,7 @@ export const gerirCanvas = async (deps: Deps, input: Entrada): Promise<Saida> =>
         canvasId: alvo.id, autor: { tipo: "bot", id: input.agenteId, nome: ctx.nome }, confianca: ctx.confianca, texto: input.texto,
         ...(input.endereco ? { endereco: input.endereco } : {}), ...(input.tipo ? { tipo: input.tipo } : {}),
         ...(input.x !== undefined ? { x: input.x } : {}), ...(input.y !== undefined ? { y: input.y } : {}), ...(input.pai_id ? { paiId: input.pai_id } : {}),
+        ...(input.rodada !== undefined ? { rodada: input.rodada } : {}), ...(input.versao !== undefined ? { versao: input.versao } : {}),
       });
       if (!r.ok) return recusa(r);
       await contaminarSe(deps, input, ctx, deFora(await deps.repos.canvas.versao(r.canvas.id, r.canvas.versaoAtual), []));
@@ -159,7 +176,7 @@ export const gerirCanvas = async (deps: Deps, input: Entrada): Promise<Saida> =>
     case "publicar": {
       if (!input.conteudo) return recusaDe("entrada_invalida", "falta o conteudo");
       if (Buffer.byteLength(JSON.stringify(input.conteudo), "utf8") > TETO_PUBLICAR) return recusaDe("grande_demais", `o conteúdo passa de ${TETO_PUBLICAR / 1000} KB por chamada`);
-      const r = await publicar(deps, { agenteId: input.agenteId, ...(input.canvas ? { canvas: input.canvas } : {}), bruto: input.conteudo, origemUrl: null, confianca: ctx.confianca });
+      const r = await publicar(deps, { agenteId: input.agenteId, ...(input.canvas ? { canvas: input.canvas } : {}), bruto: input.conteudo, origemUrl: null, confianca: ctx.confianca, ...(input.resumo ? { resumo: input.resumo } : {}) });
       return r.ok ? respostaPublicado(deps, input, ctx, r, "publicou") : recusa(r);
     }
     case "importar": {

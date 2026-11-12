@@ -22,6 +22,8 @@ export type TelaDoCanvas<H = string> = {
   html: H;
   /** A miniatura (data:image/webp;base64,…) que o importador trouxe; null = placeholder com o título. */
   miniatura: H | null;
+  /** A tela ainda em produção (J7-4): tracejada, sem pino; o html pode vir vazio. Só aparece quando é true. */
+  pendente?: true;
 };
 export type JornadaDoCanvas<H = string> = { id: string; titulo: string; resumo: string; telas: TelaDoCanvas<H>[] };
 export type NotaDoCanvas = { titulo: string | null; texto: string; jornada: string | null };
@@ -137,7 +139,8 @@ export function normalizarEstrutura(bruto: unknown): { ok: true; estrutura: Estr
       if (porId.has(id)) id = `${jid}-${90 + total - 1}`;
       if (porId.has(id)) return { ok: false, erro: `tela ${id} repetida` };
       porId.add(id);
-      const html = typeof t.html === "string" ? t.html : null;
+      const pendente = t.pendente === true;
+      const html = typeof t.html === "string" ? t.html : pendente ? "" : null;
       if (html !== null && html.length > LIMITES_CANVAS.blob) return { ok: false, erro: `o HTML de ${id} passa de 2 MB` };
       if (html === null && !explicito) return { ok: false, erro: `a tela ${id} não tem html (sem html, só com o id de uma tela que já existe)` };
       const novoBruto = Array.isArray(t.novo) ? t.novo : t.novo ? [t.novo] : [];
@@ -151,6 +154,7 @@ export function normalizarEstrutura(bruto: unknown): { ok: true; estrutura: Estr
         novo: novoBruto.map((s) => texto(s, LIMITES_CANVAS.seletor)).filter(Boolean).slice(0, LIMITES_CANVAS.novo),
         html,
         miniatura: ehMiniatura(t.miniatura) ? t.miniatura : null,
+        ...(pendente ? { pendente: true as const } : {}),
       });
     }
     jornadas.push({ id: jid, titulo: texto(j.titulo, LIMITES_CANVAS.titulo) || jid, resumo: texto(j.resumo, LIMITES_CANVAS.resumo), telas });
@@ -242,6 +246,7 @@ export function validarComentario<H>(atual: EstruturaCanvas<H>, c: { endereco?: 
   const e = enderecosDe(atual);
   const tipo: TipoComentario = c.tipo === "nota" || !end.tela ? "nota" : "pino";
   if (end.tela && !e.telas.has(end.tela)) return { ok: false, erro: `a tela ${end.tela} não existe nesta versão` };
+  if (end.tela && tipo === "pino" && telasDe(atual).some((x) => x.id === end.tela && x.pendente === true)) return { ok: false, erro: `a tela ${end.tela} ainda está em produção` };
   if (!e.jornadas.has(end.jornada)) return { ok: false, erro: `a jornada ${end.jornada} não existe nesta versão` };
   if (tipo === "nota") return { ok: true, comentario: { telaId: null, jornada: end.jornada, tipo, x: null, y: null, texto: t, paiId: null } };
   const coord = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1 ? v : null);
