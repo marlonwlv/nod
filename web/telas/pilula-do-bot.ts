@@ -3,7 +3,7 @@ import type { Estado } from "../estado/reducer.ts";
 import { donoDoBot, esperaNaTela, linhaDoDono, quemPediu, textoDaFila, textoDasEsperas, type EsperaNaTela } from "../lib/dono.ts";
 import { acaoLocal, comAcaoLocal, htmlDasAcoes } from "../lib/esperas-de-colega.ts";
 import { pilulaEscondida, type ProgressoNaTela } from "../lib/pilula.ts";
-import { esc, hora } from "../lib/render.ts";
+import { esc, hora, iconeAgente } from "../lib/render.ts";
 import { aberto, esperandoMaquina, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
 import { memoriaDoMac } from "./linha-do-dono.ts";
 import { conversaLimpa } from "./linhas-do-chat.ts";
@@ -235,14 +235,15 @@ function linhaDaMemoria(p: Pilula): string {
 }
 const CHIP = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg>';
 
-function corpoDaPilula(p: Pilula): string {
+/** Paper 15c (casca, rodada 4): a frente que roda leva o mascote do bot girando no lugar do ponto (`mascote`). */
+function corpoDaPilula(p: Pilula, mascote = ""): string {
   const fora = new Set(p.emEspera ?? []);
   const lotes = p.grupos.map((g) => {
     // O separador entre as que andam e as que terminaram (o traço do protótipo acima da primeira pronta).
     const frentes = g.frentes.filter((f) => !fora.has(f.trabalhoId));
     const primeiraFeita = frentes.findIndex((f) => !VIVAS.includes(f.estado));
     const itens = frentes.map((f, i) => {
-      const li = comResponder(itemDaFrente(f), f);
+      const li = comResponder(itemDaFrente(f, mascote), f);
       return i === primeiraFeita && i > 0 ? li.replace('<li class="progresso-item', '<li class="progresso-item pf-depois') : li;
     }).join("");
     const cab = p.grupos.length > 1 ? `<h3 class="pf-lote">${esc(g.titulo)} · ${esc(estadoDoGrupo(g))}</h3>` : "";
@@ -259,7 +260,7 @@ function corpoDaPilula(p: Pilula): string {
  * As partes da pílula. `progresso` diz se a fala de algum grupo está na janela carregada: sem ela, "Ver na conversa" não
  * tem para onde levar e não aparece.
  */
-export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">): PartesDaPilula {
+export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">, mascote = ""): PartesDaPilula {
   const resto = p.resto.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">${esc(p.resto.join(" · "))}</span>` : "";
   const botao = `${ponto(p.sinal)}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
   const memoria = p.memoria ? `<button type="button" class="pf-memoria ${p.memoria.nivel}" ${p.memoria.alvo} title="${esc(p.memoria.texto)}" aria-label="${esc(p.memoria.texto)}"><span class="pf-memoria-ponto" aria-hidden="true"></span></button>` : "";
@@ -274,7 +275,7 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
     p.abertas.length ? `<button type="button" class="pf-parar" data-act="pilula-parar">${PARAR}Parar</button>` : "",
   ].join("");
   const rotulo = p.grupos.length ? `Frentes de ${p.nome}` : `O que ${p.nome} está esperando`;
-  return { chave: p.agenteId, botao, memoria, rotulo, cab, corpo: corpoDaPilula(p), pe, telemetria: chaveDaTelemetria(p.grupos) };
+  return { chave: p.agenteId, botao, memoria, rotulo, cab, corpo: corpoDaPilula(p, mascote), pe, telemetria: chaveDaTelemetria(p.grupos) };
 }
 
 /**
@@ -344,5 +345,5 @@ export function pilulaNaConversa(estado: Estado, agenteId: string, progresso: Pr
   const cid = bot?.conversaId;
   const semHistorico = !!cid && estado.conversas[cid] === undefined;
   const escondida = pilulaEscondida(conteudo, progresso) || (semHistorico && pilulaEscondida(conteudo, { naTimeline: new Set(), aVista: new Set(pilula.grupos.flatMap((g) => g.ids)) }));
-  return { tipo: "pilula", pilula, partes: partesDaPilula(pilula, progresso), escondida };
+  return { tipo: "pilula", pilula, partes: partesDaPilula(pilula, progresso, bot ? iconeAgente(bot, "sm", "trabalhando") : ""), escondida };
 }

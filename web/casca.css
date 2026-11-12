@@ -352,6 +352,9 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 /* ---- A fala viva (Paper 05): "··· Pensando" — o mascote pequeno à esquerda; o tempo e a seta só no hover ---- */
 .timeline .message.fala-viva > nod-mascote { display: block; width: 24px; height: 22px; margin: 0 14px 0 3px; flex: none; }
 .timeline .message.fala-viva .bubble-wrap { flex: 1; min-width: 0; }
+/* Paper 05/05b (rodada 4): a fala viva no fim da conversa encosta no campo como o Paper (16 px do wrap), sem os 18 px
+   de margem das mensagens; com algo depois dela (um cartão), a margem volta. */
+.timeline .bloco:has(> .message.fala-viva:last-child):not(:has(~ .bloco > *)) > .message.fala-viva { margin-bottom: 0; }
 .timeline .message.fala-viva .pensar[data-fase="pensando"] :is(.pensar-meta, .pensar-seta) { visibility: hidden; }
 .timeline .message.fala-viva .pensar[data-fase="pensando"]:hover :is(.pensar-meta, .pensar-seta) { visibility: visible; }
 .timeline .message.fala-viva .fala-viva-estado { font-size: var(--fs-corpo); color: var(--ink-2); }
@@ -567,6 +570,9 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .progresso-ic.com-mascote { width: 18px; height: 18px; }
 .progresso-ic.com-mascote::before { content: none; }
 .progresso-ic.com-mascote nod-mascote { --mascote-tam: 18px; width: 18px; height: 18px; }
+/* Paper 15b (rodada 4): o passo de agora da frente com o mascote do bot girando (o "run" do Paper), numa coluna de 18. */
+.passo-ic-mascote { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: none; }
+.passo-ic-mascote > nod-mascote.icon.mascote { --mascote-tam: 18px; width: 18px; height: 18px; min-width: 18px; min-height: 18px; margin: 0; }
 @media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-txt { align-items: baseline; } .timeline .progresso-item.esperando { padding: 5px 10px; border-radius: var(--raio-10); } }
 .progresso-ic.esperando { padding: 0; margin: 0; gap: 0; background: transparent; border-radius: 0; font-size: inherit; }
 @media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-passo::first-letter, .pf-lista .progresso-passo::first-letter { text-transform: uppercase; } }
@@ -669,7 +675,17 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .tk-topo-frente .tk-status { height: 24px; padding: 0 6px 0 8px; border-radius: var(--raio-full); background: var(--hover); color: var(--ink-2); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); }
 .tk-topo-frente .tk-parar-frente { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--borda); border-radius: var(--raio-8); background: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); cursor: pointer; }
 .tk-topo-frente .tk-parar-frente:hover { background: var(--hover); }
-.tk-topo-frente .tk-pop { position: absolute; top: 48px; left: 50%; transform: translateX(-12%); z-index: 3; }
+/* Paper 15b (rodada 4): o cartão do tempo da frente (pop de 270, raio 12, padding 12/14), 48 px à direita do centro. */
+.tk-topo-frente .tk-pop { position: absolute; top: 56px; left: calc(50% + 44px); transform: none; z-index: 3; }
+.tk-pop.tk-pop-frente { gap: 0; width: 270px; box-sizing: border-box; margin: 0; padding: 12px 14px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-popover); }
+.tk-pop-frente .tk-pop-total { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-medio); color: var(--ink); }
+.tk-pop-frente .tk-pop-barra { display: flex; gap: 3px; height: 6px; margin: 8px 0 6px; border-radius: 0; background: none; overflow: visible; }
+.tk-pop-frente .tk-pop-seg { display: block; flex-basis: 0; min-width: 6px; height: 6px; border-radius: var(--raio-full); }
+.tk-pop-frente .tk-pop-seg.trabalhou { background: var(--mascote-cor, var(--ink)); }
+.tk-pop-frente .tk-pop-seg.esperou { background: var(--borda); }
+.tk-pop-frente .tk-pop-pe { display: flex; white-space: nowrap; justify-content: space-between; gap: 8px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-2); }
+.tk-pop-frente .tk-pop-esperou { color: var(--ink-3); }
+.tk-pop-frente .tk-pop-rodape { margin-top: 10px; }
 .tk-timeline { max-width: 680px; margin: 0 auto; }
 .tk-timeline .tk-meta { margin: 0 0 16px; padding: 0 2px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
 /* A ordem do Paper: a linha de quem pediu, os passos, o de agora, os subagentes e depois as falas da pessoa (que ficam no
