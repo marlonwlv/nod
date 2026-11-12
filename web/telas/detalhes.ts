@@ -328,7 +328,8 @@ function blocoFrentes(estado: Estado, a: Bot): string {
   const linhaFrente = (t: (typeof abertos)[number]) => {
     const desde = t.iniciadoEm ?? t.criadoEm;
     const quando = t.estado === "na_fila" ? "Na fila · começa já" : t.estado === "precisa_de_voce" ? `Precisa de você${t.ultimoPasso ? ` · ${t.ultimoPasso}` : ""}` : t.estado === "fechado_ocioso" ? (t.ultimoPasso ?? "Esperando") : `Rodando há ${interpolar(desde, estado.agora).replace(/^há /, "")}`;
-    const barra = t.estado === "rodando" ? '<span class="gv-barra" aria-hidden="true"><i></i></span>' : "";
+    // Paper 02/05 (casca, rodada 4): a barra também na frente na fila ("Na fila · começa já"), como o Paper desenha.
+    const barra = t.estado === "rodando" || t.estado === "na_fila" ? '<span class="gv-barra" aria-hidden="true"><i></i></span>' : "";
     return linha(`<span class="gv-linha-txt"><b>${esc(t.titulo)}</b><small${t.estado === "precisa_de_voce" ? ' class="gv-pede"' : ""}>${esc(quando)}</small></span>${barra}`, `data-act="abrir-trabalho" data-id="${esc(t.id)}"`);
   };
   return `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>Frentes</h3></div><div class="gv-cartao">${abertos.map(linhaFrente).join("")}</div></section>`;
