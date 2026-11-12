@@ -333,6 +333,19 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * definido em 2026-11-12 (fim do turno no frame): o `id_envio` da fala mais nova da pessoa que este turno leu — a que o
+     * disparou ou a de um turno que ele absorveu. null = nenhuma com id_envio (cliente antigo, rotina, colega).
+     */
+    async idEnvioQueFechou(turnoId: string): Promise<string | null> {
+      const [l] = await conn<{ id_envio: string }[]>`
+        select m.id_envio from turnos t
+        join mensagens m on m.tenant_id = t.tenant_id and m.id = t.mensagem_origem_id
+        where t.tenant_id = ${escopo.tenantId} and (t.id = ${turnoId} or t.absorvido_por = ${turnoId}) and m.id_envio is not null
+        order by m.criado_em desc, m.id desc limit 1`;
+      return l?.id_envio ?? null;
+    },
+
+    /**
      * Leitura com trava de linha (FOR UPDATE) para quem vai ASSENTAR o turno. medido em 2026-09-16 (e2e da L9):
      * Parar e a entrega do laço correm em transações paralelas — a entrega lia `parar_solicitado_em` NULL
      * (leitura sem trava, READ COMMITTED) e só esperava o commit de Parar no UPDATE seguinte, assentando

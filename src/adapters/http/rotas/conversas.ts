@@ -4,6 +4,7 @@ import { ErroDeDominio } from "../../../domain/erro.ts";
 import { lerAnexo, lerBiblioteca, lerFaixaDoAnexo, localDaMidia, receberAnexo } from "../../../use-cases/anexos.ts";
 import { lerCursor, limiteDaBiblioteca } from "../../../domain/biblioteca.ts";
 import { enviarMensagem, lerConversa } from "../../../use-cases/enviar-mensagem.ts";
+import { lerMensagensDesde } from "../../../use-cases/mensagens-desde.ts";
 import { pedirDesfazerTurno } from "../../../use-cases/desfazer-turno.ts";
 import { parar } from "../../../use-cases/parar.ts";
 import { reagir } from "../../../use-cases/reagir.ts";
@@ -34,7 +35,16 @@ export function criarRotasConversas(d: DepsRotas): Rota[] {
       padrao: new RegExp(`^/conversas/${ID}/mensagens$`),
       async handler(ctx) {
         // NOD-380/NOD-363: `?ate=<mensagem>` (a busca do celular e o Ir para a mensagem da Biblioteca) faz a janela chegar até ela; id fora de uuid é entrada inválida.
-        const ate = new URL(ctx.req.url ?? "/", "http://x").searchParams.get("ate");
+        const q = new URL(ctx.req.url ?? "/", "http://x").searchParams;
+        // definido em 2026-11-12 (cursor, 0175): `?depois_de=<updated_seq>&geracao=<g>` devolve só o que mudou (RespostaMensagensDesde).
+        const depoisDe = q.get("depois_de");
+        if (depoisDe !== null) {
+          const geracao = q.get("geracao");
+          if (!/^\d{1,15}$/.test(depoisDe) || geracao === null || !/^\d{1,9}$/.test(geracao)) throw new ErroDeDominio("entrada_invalida", { cause: "conversa: depois_de/geracao" });
+          ctx.json(200, await executar(ctx.escopo, lerMensagensDesde, { conversaId: ctx.params.id ?? "", depoisDe: Number(depoisDe), geracao: Number(geracao) }));
+          return;
+        }
+        const ate = q.get("ate");
         if (ate !== null && !UUID.test(ate)) throw new ErroDeDominio("entrada_invalida", { cause: "conversa: ate" });
         ctx.json(200, await executar(ctx.escopo, lerConversa, { conversaId: ctx.params.id ?? "", ...(ate ? { ate } : {}) }));
       },

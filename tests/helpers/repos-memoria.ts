@@ -1004,6 +1004,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     },
 
     mensagens: {
+      // 2026-11-12 (cursor, 0175): o banco em memória não tem o gatilho do cursor; sem cursor, a leitura sai sem ele.
+      async mudadasDesde() {
+        return [];
+      },
+      async cursorDaConversa() {
+        return null;
+      },
       async criar(m) {
         const chave = m.idEnvio ? `${escopo.tenantId}:${m.conversaId}:${m.idEnvio}` : null;
         if (chave && b.idsDeEnvio.has(chave)) return null;
@@ -1638,6 +1645,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     },
 
     turnos: {
+      async idEnvioQueFechou() {
+        return null;
+      },
       async somarRecusasDeMidia(id, recusas) {
         const t = b.turnos.find((x) => x.id === id);
         if (!t || t.estado !== "despachando") return false;

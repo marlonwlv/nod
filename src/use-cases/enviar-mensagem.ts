@@ -261,6 +261,8 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
   // Revisão 5 do PR #551: os anexos só sobem ao teto quando a fala achada está mesmo fora da janela de sempre; um `ate` de
   // outra conversa, invisível ou já nas 200 recentes (a web o repete a cada releitura) não pesa a leitura.
   const tetoAnexos = tetoAnexosAte(desde, input.limite);
+  // definido em 2026-11-12 (0175): o cursor ANTES da página — o que mudar entre os dois volta no próximo `depois_de`.
+  const cursor = await deps.repos.mensagens.cursorDaConversa(conversa.id);
   const [lidas, turnosPendentes, vivos, propostas] = await Promise.all([
     // Chat limpo (ADR-114, PR 2): na conversa própria a janela conta só os itens de chat (os avisos que saem moram na
     // Atividade do bot), traz os `anexo` desde o corte e cada mensagem leva o destino resolvido no servidor. Na sala, nada muda.
@@ -300,7 +302,7 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
   // embaixo da fala (credencial e arriscado), numa consulta à parte. Só na conversa própria; nada vira mensagem. PR 4
   // (telas A1 e A2): também o que o revisor do Automático liberou.
   const acoesDoModo = conversa.tipo === "propria" ? await acoesDoModoNaConversa(deps, mensagens) : undefined;
-  return { data: { conversa, mensagens, turnosPendentes, turnosEmCurso, turnosCancelados, propostas, fios, trabalhos, dono, reacoes, ...(pedidosDeColega ? { pedidosDeColega } : {}), ...(acoesDoModo ? { acoesDoModo } : {}) } };
+  return { data: { conversa, mensagens, turnosPendentes, turnosEmCurso, turnosCancelados, propostas, fios, trabalhos, dono, reacoes, ...(pedidosDeColega ? { pedidosDeColega } : {}), ...(acoesDoModo ? { acoesDoModo } : {}), ...(cursor ? { cursor } : {}) } };
 };
 
 /**
