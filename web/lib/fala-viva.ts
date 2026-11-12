@@ -12,6 +12,12 @@
 
 /** Quanto a fala que saiu (o texto que virou mensagem) fica na tela esperando a releitura, que costuma levar menos de 1 s. */
 export const FALA_SAINDO_MS = 15_000;
+/**
+ * C2 (definido em 2026-11-12): o retrato não vence mais em FALA_SAINDO_MS — com a releitura atrasada (a fila do reidratar,
+ * a rede lenta) a fala sumia aos 15 s e a gravada só vinha depois. Ele sai quando a gravada está na conversa (a da tela ou
+ * a da resposta). Só o retrato órfão (o turno já acabou e nenhuma gravada veio, ex.: o fim sem fala) sai por tempo, este.
+ */
+export const FALA_ORFA_MS = 60_000;
 
 export function tempoDaFala(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -166,4 +172,15 @@ export function criarAnunciador(falar: (texto: string) => void, agendar: Agendar
 /** "Usando Linear" → "usando Linear": só a primeira letra, para o nome da ferramenta continuar como é. */
 function minusculaInicial(s: string): string {
   return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/**
+ * C1 (definido em 2026-11-12): a chave do bloco da fala viva de um turno. Cada `turno.fala` congela a fala viva num retrato
+ * que FICA com a chave dela (o mesmo nó, sem animar de novo: a fala não "pula" de região nem nasce de novo) e a próxima
+ * fala viva do turno ganha uma chave nova, `vivo:<turno>:<n>` — ela, sim, é um balão novo e anima ao entrar. A primeira
+ * segue `vivo:<turno>`. A chave do retrato vale até ele virar a gravada (que mora no histórico, com o id dela).
+ */
+export function chaveDaFalaViva(estado: { falasDoTurno?: Readonly<Record<string, number>> }, turnoId: string): string {
+  const n = estado.falasDoTurno?.[turnoId] ?? 0;
+  return n ? `vivo:${turnoId}:${n}` : `vivo:${turnoId}`;
 }
