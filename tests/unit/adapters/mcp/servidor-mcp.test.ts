@@ -63,6 +63,8 @@ function rotasFalsas() {
     // Uma ação que o registro marca "nunca" no chat (leva segredo): o MCP não chega nela, nem pelo nod_chamar_rota.
     { metodo: "POST", acao: "maquinas.criar_chave", padrao: /^\/maquinas\/chaves$/, async handler(ctx) { await registrar(ctx, "POST", "/maquinas/chaves"); ctx.json(201, { chave: "segredo" }); } },
     { metodo: "GET", padrao: /^\/mcp\/tokens$/, async handler(ctx) { await registrar(ctx, "GET", "/mcp/tokens"); ctx.json(200, { tokens: [] }); } },
+    // O canal SSE, como o de verdade (rotas/eventos.ts): não termina nunca.
+    { metodo: "GET", padrao: /^\/eventos$/, async handler(ctx) { await registrar(ctx, "GET", "/eventos"); await new Promise(() => {}); } },
   ];
   return { rotas, chamadas };
 }
@@ -191,6 +193,14 @@ describe("servidor MCP do Nod (POST /api/mcp)", () => {
     }
     expect(falsas.chamadas.some((c) => c.caminho.startsWith("/so-"))).toBe(false);
   });
+
+  // Regression: ISSUE-004 — o mutante que tirava /eventos de CAMINHOS_FORA sobrevivia: o nod_chamar_rota no SSE nunca
+  // volta e segura a vaga do token até o cliente desistir. Found by /qa on 2026-11-12
+  it("nod_chamar_rota não abre o canal SSE (/eventos), que não termina", async () => {
+    const r = JSON.parse((await chamarFerramenta("nod_chamar_rota", { metodo: "GET", caminho: "/eventos" })).texto) as { status: number };
+    expect(r.status).toBe(404);
+    expect(falsas.chamadas.some((c) => c.caminho === "/eventos")).toBe(false);
+  }, 5000);
 
   it("nod_chamar_rota não registra app (env com segredo; comando stdio que o servidor roda)", async () => {
     const corpo = { nome: "X", slug: "x", transporte: "stdio", comando: "/bin/sh", args: ["-c", "true"], env: { TOKEN: "segredo" } };
