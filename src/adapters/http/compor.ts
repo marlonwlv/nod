@@ -53,6 +53,8 @@ import { contextoAtual } from "../../obs/contexto.ts";
 import { log } from "../../obs/log.ts";
 import { listarTodas } from "../../repositories/pessoas.repo.ts";
 import { criarBarramento, type Barramento } from "../../services/barramento.ts";
+import { criarEstadoVivo } from "../../services/estado-vivo.ts";
+import { sinalDoEvento, type SinalDoMotor } from "../../domain/estado-vivo.ts";
 import { criarConectoresVivos, type ConectoresVivos, type ConfigConectorVivo } from "../../services/conectores-vivos.ts";
 import { capturaLigada, criarCapturas } from "../../services/capturas.ts";
 import type { Conector } from "../../contracts/conector.ts";
@@ -425,7 +427,9 @@ export function comporApp(o: OpcoesCompor): App {
   });
 
   // NOD_JUNTAR_DELTAS_MS=0 volta a um frame por pedaço de texto (para medir ou isolar um problema).
-  const barramento = criarBarramento({ juntarDeltasMs: env.NOD_JUNTAR_DELTAS_MS === undefined ? JUNTAR_DELTAS_MS : Math.max(0, Number(env.NOD_JUNTAR_DELTAS_MS) || 0) });
+  // definido em 2026-11-12: o estado vivo por bot decora o barramento — todo frame publicado passa pela projeção.
+  const estadoVivo = criarEstadoVivo(criarBarramento({ juntarDeltasMs: env.NOD_JUNTAR_DELTAS_MS === undefined ? JUNTAR_DELTAS_MS : Math.max(0, Number(env.NOD_JUNTAR_DELTAS_MS) || 0) }), { agora: relogio });
+  const barramento = estadoVivo.barramento;
   const interruptor = criarInterruptor();
   // revisto em 2026-10-12 (NOD-214): o token que falta na memória (o processo é novo, o turno seguiu na máquina durante o
   // deploy) é procurado pelo hash em `turno_credenciais`, no escopo que o token alega, e só vale com o turno ainda
@@ -977,6 +981,7 @@ export function comporApp(o: OpcoesCompor): App {
     tarefas: (plano, tarefas) => publicarDoPlano(plano, "turno.tarefas", { tarefas }),
     subagentes: (plano, subagentes, principalOcioso) => publicarDoPlano(plano, "turno.subagentes", { subagentes, principalOcioso: principalOcioso === true }),
     fala: (plano) => publicarDoPlano(plano, "turno.fala", {}),
+    fase: (plano, fase) => sinalDoPlano(plano, fase),
     vigia: (plano, aviso) => avisoDoVigia(plano, aviso),
     longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined,
     ...(canalComputador ? { computador: { canal: canalComputador, reconciliar: reconciliarComputador } } : {}),
@@ -1625,7 +1630,7 @@ export function comporApp(o: OpcoesCompor): App {
         return executorAtual;
       },
     }),
-    criarRotaEventos(barramento, { conexoes: conexoesSse }),
+    criarRotaEventos(barramento, { conexoes: conexoesSse, retrato: (pessoaId) => estadoVivo.retrato(pessoaId) }),
     criarRotaMetricas(),
     criarRotaDev(dentro, {
       get executor() {
@@ -1654,7 +1659,13 @@ export function comporApp(o: OpcoesCompor): App {
       trabalhosVivos.subagentes(plano.turnoId, resumo, haSubagenteTrabalhando(lista));
       dados = { ...dados, subagentes: lista, resumo };
     }
+    // definido em 2026-11-12: a resposta chega inteira (a fala gravada), nunca em pedaços — o texto do modelo continua
+    // virando passo (passos-vivos) e só acende o "compondo" do estado vivo; o `turno.delta` não sai mais à pessoa.
+    if (tipo === "turno.delta") { sinalDoPlano(plano, "texto"); return; }
     barramento.publicar(plano.autoria.conta_de_execucao, tipo, dadosDoFrameDoPlano(plano, dados));
+  }
+  function sinalDoPlano(plano: PlanoTurno, sinal: SinalDoMotor): void {
+    estadoVivo.sinal(plano.autoria.conta_de_execucao, { agenteId: plano.agenteId, turnoId: plano.turnoId, conversaId: plano.conversaId }, sinal);
   }
   // NOD-73: o vigia do turno (só avisa), igual para o app do Mac e o modo servidor — frame e log saem do mesmo lugar.
   const avisoDoVigia = criarAvisoDoVigia((plano, dados) => publicarDoPlano(plano, "turno.vigia", dados));
@@ -1700,6 +1711,8 @@ export function comporApp(o: OpcoesCompor): App {
         if (ev.tipo === "catcher") aoRegistrarCatcher({ turnoId: plano.turnoId, tipo: ev.subtipo, dados: ev.dados });
         // NOD-348 (QA do #508): o laço local manda o mesmo frame da ponte, com o `emUso` da fala viva.
         else { const f = frameVivoDoEvento(ev); if (f) publicarDoPlano(plano, f.tipo, f.dados); }
+        const sinal = sinalDoEvento(ev);
+        if (sinal) sinalDoPlano(plano, sinal);
         tarefasVivas.evento(plano.turnoId, ev);
         subagentesVivos.evento(plano.turnoId, ev);
       },

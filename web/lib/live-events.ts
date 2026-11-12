@@ -120,6 +120,8 @@ const TIPOS: Record<TipoFrame, true> = {
   "paginas.mudaram": true,
   "canvas.mudou": true,
   "conector.mudou": true,
+  "agente.estado": true,
+  "computador.cursor": true,
   resumed: true,
 };
 

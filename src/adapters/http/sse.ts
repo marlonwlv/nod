@@ -1,4 +1,5 @@
 import type { IncomingMessage } from "node:http";
+import { EVENTO_RETRATO_ESTADO_VIVO } from "../../contracts/estado-vivo.ts";
 import type { FrameSse } from "../../contracts/frame.ts";
 import { metricas as registroPadrao, type Metricas } from "../../obs/metricas.ts";
 import { interpretarSince, type Barramento, type Retomada, type Since } from "../../services/barramento.ts";
@@ -23,6 +24,11 @@ export const PING_MS = 15_000;
 
 /** O bloco do ping, sem `id:` (ver PING_MS). */
 export const PING_SSE = "event: ping\ndata: {}\n\n";
+
+/** Evento nomeado sem `id:` (fora do contrato de resume): o ping e o retrato do estado vivo. */
+export function eventoSemId(evento: string, dados: unknown): string {
+  return `event: ${evento}\ndata: ${JSON.stringify(dados)}\n\n`;
+}
 
 export function serializarFrame(frame: FrameSse): string {
   return `id: ${frame.streamId}:${frame.seq}\nevent: ${frame.tipo}\ndata: ${JSON.stringify(frame)}\n\n`;
@@ -82,6 +88,11 @@ export interface OpcoesSse {
   conexoes?: ConexoesSse;
   pingMs?: number;
   retryMs?: number;
+  /**
+   * definido em 2026-11-12: o retrato do estado vivo dos bots (RetratoEstadoVivo), mandado logo depois do `resumed` como
+   * evento `agentes.estado` SEM `id:` (como o ping): não gasta seq nem buffer, e cada conexão recebe o seu.
+   */
+  retrato?: (pessoaId: string) => unknown;
 }
 
 export function criarHandlerSse(barramento: Barramento, opcoes: OpcoesSse = {}): (ctx: Ctx) => Promise<void> {
@@ -121,6 +132,8 @@ export function criarHandlerSse(barramento: Barramento, opcoes: OpcoesSse = {}):
     const retomada = barramento.retomar(escopo.pessoaId, since);
     if (retomada.resumed) for (const f of retomada.frames) escrever(f);
     escrever(frameDeRetomada(escopo.pessoaId, retomada));
+    // O retrato sai depois do `resumed` e antes de inscrever, no mesmo tick: um `agente.estado` posterior sempre o sucede.
+    if (opcoes.retrato) res.write(eventoSemId(EVENTO_RETRATO_ESTADO_VIVO, opcoes.retrato(escopo.pessoaId)));
     const cancelar = barramento.inscrever(escopo.pessoaId, escrever);
     contar(escopo.tenantId, escopo.pessoaId, +1);
     const soltar = opcoes.conexoes?.registrar(res);

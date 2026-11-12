@@ -6,6 +6,7 @@
 import type { DadosDaAtividade } from "../contracts/frame.ts";
 import { RESUMO_DO_PASSO_MAX } from "../contracts/quadro-comentarios.ts";
 import type { EventoStream } from "../contracts/turno.ts";
+import type { FaseDoBloco } from "../contracts/evento-stream.ts";
 import { classeDaFerramenta, nomeCurtoDaFerramenta, redigirResumo, resumoDaFerramenta } from "./resumo-do-passo.ts";
 /**
  * NOD-352 (definido em 2026-10-28): cada ferramenta do nod no passado (etapas, resumo gravado, último passo do subagente)
@@ -267,9 +268,11 @@ export function frameVivoDoEvento(ev: EventoStream): { tipo: "turno.atividade"; 
 
 /** NOD-353: o desktop e o motor repassam à ponte a chamada e o fim dela (o mesmo mapa nos dois). */
 /** ADR-165: com o resumo de uma linha do argumento (`resumoDaFerramenta`, já redigido), nunca o input inteiro. */
-export function repassarAcaoDoEvento(alvo: { ferramenta(turnoId: string, nome: string, id?: string, resumo?: string): void; fimDaFerramenta(turnoId: string, id: string, falhou: boolean): void }, turnoId: string, ev: EventoStream): void {
+/** definido em 2026-11-12 (estado vivo): e a fase do bloco (compondo, pensando, fim), quando o alvo a aceita. */
+export function repassarAcaoDoEvento(alvo: { ferramenta(turnoId: string, nome: string, id?: string, resumo?: string): void; fimDaFerramenta(turnoId: string, id: string, falhou: boolean): void; fase?(turnoId: string, fase: FaseDoBloco): void }, turnoId: string, ev: EventoStream): void {
   if (ev.tipo === "tool_use") alvo.ferramenta(turnoId, ev.nome, ev.id, resumoDaFerramenta(ev.nome, ev.input));
   else if (ev.tipo === "tool_result") alvo.fimDaFerramenta(turnoId, ev.toolUseId, ev.isError);
+  else if (ev.tipo === "fase") alvo.fase?.(turnoId, ev.fase);
 }
 
 /** Revisão 2 do #578: o presente também tem o teto do rótulo (um conector de slug longo vira "Usando ‹slug›"). */

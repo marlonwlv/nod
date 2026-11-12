@@ -1,3 +1,4 @@
+import type { FaseDoBloco } from "../../../contracts/evento-stream.ts";
 import { HARNESSES } from "../../../contracts/harness.ts";
 import type { CapacidadesHarness, IdHarness } from "../../../contracts/harness.ts";
 import { setTimeout as esperar } from "node:timers/promises";
@@ -101,6 +102,8 @@ export function criarPonteHttpServidor(d: {
   tarefas(plano: PlanoTurno, tarefas: TarefaDoBot[]): void;
   /** ADR-067: uma fala da sessão viva foi gravada — a tela troca o texto ao vivo pela mensagem. */
   fala?(plano: PlanoTurno): void;
+  /** definido em 2026-11-12 (estado vivo): a fase do bloco que o modelo escreve (compondo, pensando, fim do bloco). */
+  fase?(plano: PlanoTurno, fase: FaseDoBloco): void;
   /** NOD-350: a lista inteira dos subagentes do turno quando muda — publica turno.subagentes e guarda o resumo. */
   subagentes?(plano: PlanoTurno, subagentes: SubagenteVivo[], principalOcioso?: boolean): void;
   /** NOD-73: o vigia do turno avisou (só nome e números) — publica turno.vigia e registra no log. */
@@ -433,6 +436,7 @@ export function criarPonteHttpServidor(d: {
         else if ("tarefas" in t) d.tarefas(plano, t.tarefas);
         else if ("vigia" in t) d.vigia?.(plano, t.vigia);
         else if ("subagentes" in t) d.subagentes?.(plano, t.subagentes, t.ocioso);
+        else if ("fase" in t) d.fase?.(plano, t.fase);
         else if (t.texto) d.delta(plano, t.texto);
       }
       ctx.json(200, r);

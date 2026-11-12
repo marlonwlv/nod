@@ -1,3 +1,4 @@
+import type { FaseDoBloco } from "../../contracts/evento-stream.ts";
 import { randomBytes } from "node:crypto";
 import { traceparentDoTurno } from "../../domain/traceparent.ts";
 import type { FluxoVivo } from "./computador.ts";
@@ -453,6 +454,18 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
     ferramenta(turnoId: string, nome: string, id?: string, resumo?: string) {
       const r = resumo ? redigirResumo(resumo, RESUMO_NO_EXECUTOR_MAX) : "";
       trechos.set(turnoId, [...(trechos.get(turnoId) ?? []), { ferramenta: nome, ...(id ? { id } : {}), ...(r ? { resumo: r } : {}) }]);
+      aparar(turnoId);
+    },
+    /**
+     * definido em 2026-11-12 (estado vivo): a fase do bloco que o modelo escreve. Duas fases seguidas sem nada entre elas:
+     * só a mais nova importa (a renovação é de 1 s).
+     */
+    fase(turnoId: string, fase: FaseDoBloco) {
+      const fila = trechos.get(turnoId) ?? [];
+      const ultimo = fila[fila.length - 1];
+      if (ultimo && "fase" in ultimo) fila[fila.length - 1] = { fase };
+      else fila.push({ fase });
+      trechos.set(turnoId, fila);
       aparar(turnoId);
     },
     /** NOD-353: a chamada `id` terminou; `falhou` = tool_result.isError. */

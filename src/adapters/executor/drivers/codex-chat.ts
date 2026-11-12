@@ -280,6 +280,8 @@ async function rodarUmaVez(c: ContextoChatCodex, comTerminal: boolean): Promise<
           if (ev.texto !== "") emitir({ tipo: "delta", texto: ev.texto });
           return;
         case "item":
+          // definido em 2026-11-12 (estado vivo): a mensagem do agente compõe do início ao fim do item; o raciocínio pensa.
+          if (ev.tipoItem === "agentMessage" || ev.tipoItem === "reasoning") emitir({ tipo: "fase", fase: ev.fase === "fim" ? "fim_bloco" : ev.tipoItem === "reasoning" ? "pensando" : "compondo" });
           if (ev.fase === "fim" && ev.texto !== null && ev.texto.trim() !== "") emitir({ tipo: "texto_bloco", texto: ev.texto });
           if (!ev.ferramenta || !ev.itemId) return;
           if (ev.fase === "inicio") {
