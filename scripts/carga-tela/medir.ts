@@ -22,6 +22,8 @@ const CICLOS_DA_FRENTE = Number(process.env.CARGA_CICLOS_FRENTE ?? 12);
 /** O turno pesado, na conversa aberta. */
 const DELTAS_PESADO = Number(process.env.CARGA_DELTAS_PESADO ?? 600);
 const TETO_MS = 150_000;
+/** Freio de CPU da aba (Emulation.setCPUThrottlingRate); vai junto no JSON para a tabela dizer 1× ou 4×. */
+const CPU = Number(process.env.CARGA_CPU ?? 1);
 /** Os itens de primeiro nível da conversa (cada bloco do histórico: um balão, uma linha centralizada, um card), sem a data. */
 const ITENS_DA_TIMELINE = "document.querySelectorAll('#timeline-historico > .bloco:not(:has(> .time-sep:only-child))').length";
 /**
@@ -153,6 +155,8 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
     // Sem foco emulado, document.hasFocus() é falso e a web não marca nada como lido (ver web/main.ts naFrente).
     await cdp.enviar("Emulation.setFocusEmulationEnabled", { enabled: true });
     await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    // CARGA_CPU=4 freia a CPU da aba em 4× (máquina mais lenta que a de quem mede); 1 é a CPU da máquina.
+    if (CPU > 1) await cdp.enviar("Emulation.setCPUThrottlingRate", { rate: CPU });
     const [nome = "", ...valor] = s.cookie.split("=");
     await cdp.enviar("Network.setCookie", { name: nome, value: valor.join("="), domain: "127.0.0.1", path: "/", httpOnly: true });
     await cdp.enviar("Page.addScriptToEvaluateOnNewDocument", { source: INSTRUMENTO });
@@ -217,6 +221,7 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
       const resumo = {
         rotulo,
         cenario,
+        cpu: CPU,
         duracaoS: r1(janelaS),
         telaLivreS,
         frames: c.framesTotal,
