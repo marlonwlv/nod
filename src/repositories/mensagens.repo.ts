@@ -456,6 +456,34 @@ export function mensagensRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * definido em 2026-11-12 (cursor por conversa, 0175): as mensagens que mudaram depois de `depoisDe` (updated_seq), em
+     * ordem de mudança, com `limite + 1` para quem chama saber que passou do teto. Mesmo formato do GET da conversa
+     * (paraMensagemComTurno; `comDestino` na conversa própria, e aqui vem TODA mudança — o cliente esconde o que não é
+     * de destino `chat`, como a janela faz), mais `seq` e `updated_seq`. O `fimDoTurno` sai do recorte: a fala antiga de um turno que
+     * ganhou fala nova não muda de linha — o cliente recalcula pelo turno.
+     */
+    async mudadasDesde(conversaId: string, depoisDe: number, limite: number, opcoes: { comDestino?: boolean } = {}): Promise<(Mensagem & { seq: number; updated_seq: number })[]> {
+      const linhas = await selectComTurno(conn, escopo.tenantId, conn`
+        select ${conn.unsafe(COLUNAS_MENSAGEM)}, seq, updated_seq from mensagens
+        where tenant_id = ${escopo.tenantId} and conversa_id = ${conversaId} and updated_seq > ${depoisDe}
+        order by updated_seq limit ${limite + 1}`);
+      return linhas
+        .map((l) => {
+          const c = l as LinhaComTurno & { seq: string | number; updated_seq: string | number };
+          return { ...paraMensagemComTurno(l), ...(opcoes.comDestino ? { destino: destinoDaLinha(l) } : {}), seq: Number(c.seq), updated_seq: Number(c.updated_seq) };
+        })
+        .sort((a, b) => a.updated_seq - b.updated_seq);
+    },
+
+    /** O cursor da conversa (0175): a geração e o maior updated_seq dela (0 = vazia). null = conversa fora do escopo. */
+    async cursorDaConversa(conversaId: string): Promise<{ geracao: number; updated_seq: number } | null> {
+      const [l] = await conn<{ geracao: number; maior: string | null }[]>`
+        select c.geracao, (select max(m.updated_seq) from mensagens m where m.tenant_id = c.tenant_id and m.conversa_id = c.id) as maior
+        from conversas c where c.tenant_id = ${escopo.tenantId} and c.id = ${conversaId}`;
+      return l ? { geracao: l.geracao, updated_seq: Number(l.maior ?? 0) } : null;
+    },
+
+    /**
      * NOD-380: as falas de texto inteiras que contêm `termo` (cru: o escape do LIKE é feito no SQL DEPOIS de normalizar, porque o
      * unaccent transforma `％`, `＿` e `＼` de largura total em `%`, `_` e `\`; escapado antes, viravam curinga), ignorando acento e
      * caixa (`nod_sem_acento`, 0116), da mais nova à mais antiga, depois de `antes`. Quem decide o que a pessoa lê é a RLS

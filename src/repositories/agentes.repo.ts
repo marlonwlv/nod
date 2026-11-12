@@ -205,7 +205,9 @@ export function agentesRepo(conn: Conn, escopo: Escopo) {
         values (${escopo.tenantId}, ${a.id ?? conn`gen_random_uuid()`}, ${escopo.pessoaId}, ${visibility}, ${a.nome}, ${a.titulo ?? ""},
           ${a.descricao ?? ""}, ${a.dono}, ${a.forma}, ${a.cor}, ${d.modelo}, ${d.harness}, ${d.esforco}, ${i.modo}, ${i.ordem ? jsonb(conn, i.ordem) : null}, ${jsonb(conn, i.escolhas)},
           ${a.duplicadoDe ?? null}, ${a.confirmado ?? false}, ${a.maquinaId ?? null}, ${MODO_APROVACAO_INICIAL})
+        ${a.id ? conn`on conflict (tenant_id, id) do nothing` : conn``}
         returning ${conn.unsafe(COLUNAS)}`;
+      // A4 (2026-11-12): com o id do cliente, o repetido (ou o que perdeu a corrida) volta null e o caso de uso relê.
       return l ? paraAgente(l) : null;
     },
 

@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { cursorDaAcao, type PosicaoCursor } from "../../domain/computador-vivo.ts";
+import type { DadosFrameCursor } from "../../contracts/estado-vivo.ts";
 import type { AcaoComputador, Computador, ComputadorDto, ControleComputador, DriverComputador, OrigemControle, PoliticaComputador, RegistroComputador, ResultadoComputador } from "../../contracts/computador.ts";
 import type { ComputadorDaPessoa, ComputadorDaPessoaDto, EstadoComputadorDaPessoa, EstadoComputadorRelatado, OperacaoComputador, OperacaoDaPessoa, TelaComputadorBot } from "../../contracts/computador-motor.ts";
 import type { SessaoVivo } from "../../contracts/computador-vivo.ts";
@@ -24,6 +26,8 @@ import type { Deps } from "../../use-cases/tipos.ts";
 type Dentro = <T>(escopo: Escopo, fn: (d: Deps) => Promise<T>) => Promise<T>;
 /** `saude`: o computador entrou ou saiu do ar — a frota (lateral, cabeçalho, painel) precisa reler. */
 type Opcoes = { executor(): "local" | "catcher"; dentro: Dentro; driver: DriverComputador; cifrar(s: string): string; decifrar(s: string): string; mudou(escopo: Escopo, agenteId: string, saude?: boolean): void; agora?: () => number;
+  /** D (2026-11-12): o frame `computador.cursor` da ação do bot. Ausente = não emite. */
+  cursor?(escopo: Escopo, frame: DadosFrameCursor): void;
   /** NOD-200: guarda a última tela do turno para virar anexo da fala (NOD_CAPTURA_NO_TRANSCRIPT). Desligado, nada fica em memória. */
   guardarTelas?: boolean;
   /**
@@ -588,6 +592,17 @@ export function criarComputadores(o: Opcoes) {
     }
   }
 
+  /** D: onde o cursor de cada bot ficou (memória do processo; o rolar e o digitar acontecem ali). */
+  const cursores = new Map<string, PosicaoCursor>();
+  function emitirCursor(escopo: Escopo, agenteId: string, acao: AcaoComputador): void {
+    if (!o.cursor) return;
+    const frame = cursorDaAcao(acao, agenteId, cursores.get(agenteId) ?? null, agora());
+    if (!frame) return;
+    cursores.delete(agenteId);
+    cursores.set(agenteId, { x: frame.x, y: frame.y });
+    if (cursores.size > 1000) cursores.delete(cursores.keys().next().value!);
+    try { o.cursor(escopo, frame); } catch (e) { log("aviso", "computador_cursor_falhou", { agente_id: agenteId, erro: e instanceof Error ? e.name : "desconhecido" }); }
+  }
   async function executar(escopo: Escopo, r: Reserva): Promise<ResultadoComputador> {
     let estado: "concluida" | "falhou" = "falhou";
     let falha: FalhaComputador | null = null;
@@ -617,6 +632,8 @@ export function criarComputadores(o: Opcoes) {
             if (!estadoAtual.permitido) { if (estadoAtual.desligar) await o.driver.parar(r.computador.id, escopo); throw new ErroDeDominio("nao_permitido"); }
             ligado = true;
           }
+          // D (2026-11-12): o cursor da ação do bot vai à tela da pessoa quando o comando sai ao computador.
+          if (r.autor === "bot") emitirCursor(escopo, r.computador.agenteId, r.acao);
           resultado = await o.driver.executar(r.computador.id, r.acao, escopo, r.autor);
           break;
         } catch (e) {
