@@ -1,1 +1,75 @@
 /* COP-14 (chat): chat-formato. Cores só por token (web/tokens.css, --chat-*). */
+
+/*
+ * Item 4: o que vai dentro do balão do bot (web/lib/texto-formatado.ts). Tudo escopado em .message.bot .bubble: os
+ * mesmos blocos aparecem em Não lidos, cartões e quadro com o estilo de interface.css.
+ */
+/* Blocos com 10 px entre si, sem divisória. Margem no irmão (e não flex + gap): o texto de um parágrafo só e os
+   elementos em linha (negrito, link) continuam em linha no balão. */
+.message.bot .bubble > :is(.md-paragrafo, .md-titulo, .md-lista, .md-codigo, .md-tabela, .md-diagrama) { margin: 0; border: 0; }
+.message.bot .bubble > :is(.md-paragrafo, .md-titulo, .md-lista, .md-codigo, .md-tabela, .md-diagrama) + :is(.md-paragrafo, .md-titulo, .md-lista, .md-codigo, .md-tabela, .md-diagrama) { margin-top: 10px; }
+
+.message.bot .bubble .md-paragrafo { font-size: 15px; line-height: 22px; }
+
+/* Títulos # e ##: o mesmo corpo, só o peso muda. */
+.message.bot .bubble .md-titulo { font-size: 15px; line-height: 22px; font-weight: 600; color: inherit; }
+.message.bot .bubble strong { font-weight: 600; }
+
+/* Listas: 20 px de recuo, 4 px entre itens, marcador terciário. */
+.message.bot .bubble .md-lista { margin: 0; padding-left: 20px; font-size: 15px; line-height: 22px; }
+.message.bot .bubble ul.md-lista { list-style: disc; }
+.message.bot .bubble ol.md-lista { list-style: decimal; }
+.message.bot .bubble .md-lista li:not(.md-tarefa) { margin: 0; }
+.message.bot .bubble .md-lista li.md-tarefa { margin-top: 0; margin-bottom: 0; }
+.message.bot .bubble .md-lista li + li { margin-top: 4px; }
+.message.bot .bubble .md-lista li::marker { color: var(--chat-tinta-3); }
+
+/* Código em linha. */
+.message.bot .bubble :not(pre) > code { padding: 0 4px; border-radius: 4px; background: var(--chat-codigo-inline); color: var(--chat-tinta-2); }
+
+/* Bloco de código: cartão sem barra de título, sem linguagem e sem sombra, com a largura do balão. */
+.message.bot .bubble .md-codigo { position: relative; width: 100%; max-width: 100%; box-sizing: border-box; background: var(--chat-codigo-fundo); border: 1px solid var(--chat-codigo-borda); border-radius: 14px; box-shadow: none; overflow: hidden; }
+.message.bot .bubble .md-codigo-topo { display: contents; }
+.message.bot .bubble .md-codigo-ling { display: none; }
+.message.bot .bubble .md-codigo pre { margin: 0; max-width: none; padding: 6px 0; border-radius: 0; background: transparent; white-space: pre; overflow-x: auto; }
+/* O <code> cresce com a linha mais longa: o padding de 10 px vale para cada linha, inclusive rolada até o fim. */
+.message.bot .bubble .md-codigo pre code { display: inline-block; min-width: 100%; box-sizing: border-box; padding: 0 10px; background: none; border-radius: 0; color: var(--chat-tinta); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 18px; font-weight: 400; white-space: pre; overflow-wrap: normal; }
+.message.bot .bubble .md-codigo :is(.sx-p, .sx-c) { color: var(--chat-sx-pontuacao); }
+.message.bot .bubble .md-codigo .sx-s { color: var(--chat-sx-string); }
+.message.bot .bubble .md-codigo .sx-n { color: var(--chat-sx-numero); }
+
+/* "Copiar código": 20×20 a 6 px do canto, aparece no hover do bloco (ou no foco do teclado). */
+.message.bot .bubble .md-codigo-copiar { position: absolute; top: 6px; right: 6px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; box-sizing: border-box; background: var(--chat-codigo-fundo); border: 1px solid var(--chat-codigo-borda); border-radius: 4px; color: var(--chat-icone); opacity: 0; }
+.message.bot .bubble .md-codigo:hover .md-codigo-copiar, .message.bot .bubble .md-codigo-copiar:focus-visible, .message.bot .bubble .md-codigo-copiar.copiado { opacity: 1; }
+.message.bot .bubble .md-codigo-copiar:hover, .message.bot .bubble .md-codigo-copiar:focus-visible { background: var(--chat-codigo-fundo); color: var(--chat-tinta); }
+.message.bot .bubble .md-codigo-copiar svg { width: 12px; height: 12px; }
+/* O rótulo "Copiar"/"Copiado" continua para o leitor de tela (aria-live), fora da vista. */
+.message.bot .bubble .md-codigo-estado { position: absolute; width: 1px; height: 1px; min-width: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* O check só aparece depois de copiar, em qualquer lugar onde o card estiver. */
+.md-codigo-copiar .md-ic-check { display: none; }
+.md-codigo-copiar.copiado .md-ic-check { display: block; }
+.md-codigo-copiar.copiado .md-ic-copiar { display: none; }
+
+/* Links como chip em linha: ícone numa caixa de 18×18 e o título do markdown sublinhado, peso 500, na cor do texto. */
+.lk-ic.lk-ic-so-chat { display: none; }
+.message.bot .bubble :is(a.lk, a.lk-chip) { display: inline; max-width: none; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; color: inherit; font-size: inherit; font-weight: 500; line-height: inherit; vertical-align: baseline; text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
+.message.bot .bubble a.lk-chip .lk-rotulo { white-space: normal; }
+.message.bot .bubble .lk-dominio { display: none; }
+.message.bot .bubble :is(a.lk, a.lk-chip) .lk-ic { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin: 0 2px 0 0; vertical-align: -4px; border-radius: 0; background: none; color: var(--chat-icone); }
+.message.bot .bubble :is(a.lk, a.lk-chip) .lk-ic svg { width: 14px; height: 14px; stroke-width: 1; }
+.message.bot .bubble :is(a.lk, a.lk-chip) .lk-ic-inseguro { color: var(--warning); }
+/* Ícone de app (Slack, GitHub…) faz o papel do favicon: 14×14, raio 3, com o anel, centrado na caixa de 18. */
+.message.bot .bubble :is(a.lk, a.lk-chip) .lk-ic:not(.lk-ic-web, .lk-ic-inseguro, .lk-ic-local) { width: 14px; height: 14px; margin: 0 4px 0 2px; vertical-align: -2px; border-radius: 3px; background: var(--chat-superficie); box-shadow: 0 0 0 1px var(--chat-favicon-anel); color: var(--chat-tinta-2); }
+.message.bot .bubble :is(a.lk, a.lk-chip) .lk-ic:not(.lk-ic-web, .lk-ic-inseguro, .lk-ic-local) svg { width: 10px; height: 10px; stroke-width: 1.4; }
+
+/* Balão da pessoa: link cru, sublinhado, na cor do texto do balão, sem chip nem ícone. */
+.message.you .bubble :is(a.lk, a.lk-chip) { display: inline; padding: 0; border: 0; background: none; color: inherit; font-weight: inherit; text-decoration: underline; }
+.message.you .bubble :is(.lk-ic, .lk-dominio) { display: none; }
+
+/* Prévia do link no hover de 500 ms (web/lib/dica-link.ts): acima do link, globo, endereço sem https:// e ↗. */
+.lk-previa { position: fixed; z-index: 1000; display: flex; align-items: center; gap: 6px; height: 30px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 0 10px; background: var(--chat-superficie); border-radius: 10px; box-shadow: var(--sombra-popover); color: var(--chat-tinta-2); font-size: 13px; line-height: 18px; white-space: nowrap; pointer-events: none; }
+.lk-previa[hidden] { display: none; }
+.lk-previa-globo { display: inline-flex; flex-shrink: 0; color: var(--chat-icone); }
+.lk-previa-globo svg { width: 14px; height: 14px; }
+.lk-previa-url { min-width: 0; max-width: 320px; overflow: hidden; text-overflow: ellipsis; color: var(--chat-tinta-2); }
+.lk-previa-seta { flex-shrink: 0; color: var(--chat-icone); }
