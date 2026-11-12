@@ -82,7 +82,7 @@ function linhaDoRun(r: RunDaTarefa, agente: AgenteDoQuadro, agora: number, motiv
   const rot = r.motivoFila === undefined && motivoFila ? rotuloDoRun(r, motivoFila) : rotuloCompletoDoRun(r, agora);
   const gat = gatilhoDoRun(r, comentarios);
   const bts = acoes ? `<span class="ta-reg-ac">${vivo(r) ? `<button type="button" class="qd-link" data-act="run-parar" data-turno="${esc(r.turnoId)}">Parar</button>` : `<button type="button" class="qd-link" data-act="run-repetir" data-turno="${esc(r.turnoId)}">Repetir</button>`}</span>` : "";
-  return `<li class="ta-reg" data-estado="${r.estado}"${titulo}><span class="ta-reg-av" aria-hidden="true">${p.avatar}</span><span class="ta-reg-txt"><span class="ta-reg-nome">${esc(p.nome)}</span>` +
+  return `<li class="ta-reg" data-estado="${r.estado}"${titulo}><span class="ta-reg-av" aria-hidden="true">${r.estado === "rodando" ? p.trabalhando ?? p.avatar : p.avatar}</span><span class="ta-reg-txt"><span class="ta-reg-nome">${esc(p.nome)}</span>` +
     `<span class="ta-reg-meta">${[esc(rot), t, esc(g)].filter(Boolean).join(" · ")}</span>${gat ? `<span class="ta-reg-gat">${esc(gat)}</span>` : ""}</span>` +
     `<time class="ta-reg-hora" datetime="${new Date(r.criadoEm).toISOString()}">${esc(tempoRelativo(r.criadoEm, agora))}</time>${bts}</li>`;
 }

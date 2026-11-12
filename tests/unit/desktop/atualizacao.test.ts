@@ -248,7 +248,7 @@ describe("NOD-132: ligação no processo principal (desktop/main.ts)", () => {
     expect(main).toMatch(/app\.on\("window-all-closed", \(\) => \{ if \(sairAoFecharJanelas\(atualizacaoApp\)\) app\.quit\(\); \}\);/);
     expect(main).toMatch(/if \(!emLigacao \|\| encerrando\) return;/);
     expect(main).toMatch(/procurarAtualizacao: \(\) => \{ atualizacaoApp\?\.procurar\(true, true\); \}/);
-    expect(main).toMatch(/async function parar\(\) \{\n\s*atualizacaoApp\?\.desconectado\(\);/);
+    expect(main).toMatch(/async function parar\(\) \{\n(?:.*\n)?\s*atualizacaoApp\?\.desconectado\(\);/);
     expect(main).toMatch(/codigo === "chave_invalida"\) conexaoDaAtualizacao = null/);
   });
 });

@@ -421,7 +421,7 @@ function cardDoComentario(c: ComentarioDto, d: DadosDaLinha, run: RunDaTarefa | 
     ? `<form class="ta-editar" data-form="editar-comentario" data-id="${esc(c.id)}" data-tarefa="${esc(c.tarefaId)}"><label class="qd-sr" for="ta-ed-${esc(c.id)}">Editar comentário</label><textarea id="ta-ed-${esc(c.id)}" class="qd-com-in ta-editar-in" name="texto" maxlength="${LIMITE_COMENTARIO}" required>${esc(c.texto)}</textarea>` +
       `<span class="ta-editar-pe"><button type="button" class="qd-link" data-act="com-editar-cancelar">Cancelar</button>${temRunVivo(c, d.runs) ? `<button type="submit" class="qd-link" name="refazer" value="1" title="Cancela o run que este comentário abriu e começa de novo com o texto novo">Salvar e refazer</button>` : ""}<button type="submit" class="qd-com-bt">Salvar</button></span></form>`
     : `<p class="ta-com-txt">${comMencoes(esc(c.texto), d.nomes)}</p>`;
-  const acionou = c.acionados.length ? `<p class="ta-com-acao">acionou ${esc(c.acionados.join(", "))}</p>` : reciboDoComentario(c);
+  const acionou = c.acionados.length ? `<p class="ta-com-acao">acionou ${esc(c.acionados.map((id) => d.agente(id)?.nome ?? id).join(", "))}</p>` : reciboDoComentario(c);
   return `<article class="ta-com" id="com-${esc(c.id)}"><span class="ta-com-av" aria-hidden="true">${a.avatar}</span><div class="ta-com-corpo">` +
     `<p class="ta-com-cab"><span class="ta-com-nome">${esc(a.nome)}</span>${run ? runNoCabecalho(run, d) : ""}${quando}${editado}${aguardando ? `<span class="qd-sr"> · aguardando sua resposta</span>` : ""}${acoes}</p>` +
     (run ? detalheDoRun(run, d) : "") + corpo + acionou + `</div></article>`;

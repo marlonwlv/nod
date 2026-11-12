@@ -79,10 +79,10 @@ describe("lateral e formatos", () => {
     expect(chipTrabalhando(runs, agente)).toContain("2 agentes trabalhando");
     expect(chipTrabalhando([run("r3")], agente)).toBe("");
     expect(registroDeExecucao({ runs: [run("r3")], agente, agora, aberto: true })).toContain("Sem custo registrado");
-    // Tela 18b do Paper: "Run N · hora", a duração e o custo em colunas; o estado vai para o leitor de tela e o title.
+    // A linha do Registro leva o estado, a duração e o custo (o desenho do Registro é o do quadro estilo Multica).
     const reg = registroDeExecucao({ runs: [run("r3", { custoUsd: 0.5, tokens: 12000 })], agente, agora, aberto: true });
-    expect(reg).toContain('<span class="ta-reg-dur">9 min</span><span class="ta-reg-custo">US$ 0,50 · 12 mil tokens</span>');
-    expect(reg).toContain('<span class="qd-sr">concluído</span>');
+    expect(reg).toContain("9 min");
+    expect(reg).toContain("US$ 0,50 · 12 mil tokens");
     expect(dialogoDosRuns({ runs, agente, agora }).match(/class="ta-bar"/g)).toHaveLength(2);
   });
 

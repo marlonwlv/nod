@@ -14,7 +14,7 @@ const agente = (id: string) => (id === "dev" ? { avatar: confiar('<span class="a
 const t = { id: "t1", quadroId: "q", titulo: "T", descricao: "", status: "fazendo", agenteId: "dev", movimentos: [], linhas: [] } as unknown as TarefaDto;
 const com = (id: string, o: Partial<ComentarioDto> = {}): ComentarioDto => ({ id, quadroId: "q", tarefaId: "t1", autor: { tipo: "pessoa" }, texto: `texto ${id}`, deFora: false, criadoEm: agora - 30 * min, autorNome: null, acionados: [], paiId: null, ...o });
 const run = (turnoId: string, o: Partial<RunDaTarefa> = {}): RunDaTarefa => ({ turnoId, agenteId: "dev", agenteNome: "Dev 1", comentarioId: null, execucao: null, estado: "concluido", turnoAtual: turnoId, criadoEm: agora - 20 * min, comecouEm: agora - 19 * min, terminouEm: agora - 10 * min, custoUsd: null, tokens: null, ultimaFrase: null, motivo: null, ...o });
-const dados = (o: Partial<DadosDaLinha>): DadosDaLinha => ({ t, colunas: [], comentarios: [], runs: [], agente, agora, nomes: ["Dev 1"], respondendo: null, editando: null, abertos: new Set(), passos: () => null, chips: () => "", pendente: null, criadaPor: null, criadaEm: null, carga: "ok", ...o });
+const dados = (o: Partial<DadosDaLinha>): DadosDaLinha => ({ t, colunas: [], comentarios: [], runs: [], agente, agora, nomes: ["Dev 1"], respondendo: null, editando: null, abertos: new Set(), passos: () => null, chips: () => "", pendente: null, criadaPor: null, criadaEm: null, carga: "ok", runsNaLinha: true, ...o });
 
 describe("os rótulos do run (uma fonte só)", () => {
   it("esperando a CI / volta às HH:MM / na fila com motivo / falhou com rótulo", () => {

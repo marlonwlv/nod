@@ -76,7 +76,8 @@ describe("assinatura na tarefa aberta (NOD-430)", () => {
   });
   it("quem criou a tarefa vem antes dos comentários", () => {
     const h = linha([com({ criadoEm: 120_000 })], { criadaPor: "Você, pela Ada", criadaEm: 60_000 });
-    expect(h).toContain("<b>Você, pela Ada</b> criou a tarefa");
+    // Rodada 4 (tela 18b): a criação é um evento do quadro; quem criou é o bot quando foi "Você, pela Ada".
+    expect(h).toContain('<p class="ta-ev-txt">Ada criou a tarefa.</p>');
     expect(h.indexOf("criou a tarefa")).toBeLessThan(h.indexOf("Olhei"));
   });
   it("revisão 1: a hora do comentário leva o datetime ISO no <time>", () => {

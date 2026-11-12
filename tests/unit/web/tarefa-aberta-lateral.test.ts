@@ -169,8 +169,8 @@ describe("C · eventos de campo, ×N e atividades recolhidas", () => {
     const mov = (id: string, de: string, para: string, em: number) => ({ id, tarefaId: "t1", tipo: "mover", de, para, agenteAntes: "a", agenteDepois: "a", autor: { tipo: "pessoa" }, motivo: null, loteId: id, acionou: false, desfeitoEm: null, criadoEm: em, autorNome: null, agenteAntesNome: "Vera", agenteDepoisNome: "Vera" });
     const tt = t({ status: "revisao", movimentos: [mov("m1", "afazer", "fazendo", agora - 3 * min), mov("m2", "fazendo", "revisao", agora - 2 * min)] as never });
     const h = linhaDoTempo(dados({ t: tt }));
-    expect(h).not.toContain("moveu de A fazer para Fazendo");
-    expect(h).toContain("moveu de Fazendo para Em revisão");
+    expect(h).not.toContain("Moveu de A fazer para Fazendo");
+    expect(h).toContain("Moveu de Fazendo para Em revisão");
     expect(h).toContain("×2");
   });
   it("a linha do tempo mostra os eventos dos lotes e os pedidos de quem participa (só leitura, com o nome escapado)", () => {
