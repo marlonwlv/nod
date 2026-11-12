@@ -47,7 +47,7 @@ export type LinhaConfig = {
   /** Atributos extras na linha (ex.: `id`), já montados. */
   attrs?: string;
   /**
-   * ADR-165: o id do ajuste no catálogo (web/lib/ajustes.ts). A linha ganha `id="ajuste-<id>"` (o alvo do link e da busca)
+   * ADR-167: o id do ajuste no catálogo (web/lib/ajustes.ts). A linha ganha `id="ajuste-<id>"` (o alvo do link e da busca)
    * e, se não for ela mesma um botão, o "copiar link" que aparece no hover e no foco.
    */
   ajuste?: string;
@@ -55,7 +55,7 @@ export type LinhaConfig = {
 
 const ICONE_LINK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2.2-2.2a2.6 2.6 0 0 0-3.7-3.7l-.8.8"/><path d="M9.2 6.8a2.6 2.6 0 0 0-3.7 0L3.3 9a2.6 2.6 0 0 0 3.7 3.7l.8-.8"/></svg>';
 
-/** O "copiar link" de um ajuste (ADR-165). */
+/** O "copiar link" de um ajuste (ADR-167). */
 export function botaoLinkDoAjuste(id: string, titulo: string): string {
   return `<button type="button" class="lc-copiar-link" data-act="copiar-link-ajuste" data-ajuste="${esc(id)}" aria-label="Copiar link de ${esc(titulo)}" title="Copiar link">${ICONE_LINK}</button>`;
 }

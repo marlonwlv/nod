@@ -2,7 +2,7 @@ import type { FamiliaMac } from "./desktop-mac.ts";
 import type { JsonSchema } from "./json-schema.ts";
 
 /**
- * ADR-171 (definido em 2026-11-12): as ferramentas do Mac são UM conector, slug `mac`, como o `github` local da
+ * ADR-173 (definido em 2026-11-12): as ferramentas do Mac são UM conector, slug `mac`, como o `github` local da
  * ADR-048: o servidor decide (catálogo, concessão, aprovação, trilha) e o EFEITO roda no Mac do turno, pelo proxy
  * (`execucao: "maquina"`). Nunca no servidor e nunca na VM Linux: fora do macOS as capacidades nem entram no plano.
  *

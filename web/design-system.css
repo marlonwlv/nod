@@ -1,5 +1,5 @@
 /* =====================================================================================
-   ADR-165 (tela 01 do Paper): a vitrine do design system em /design-system.html. Só tokens (web/tokens.css): o que muda
+   ADR-167 (tela 01 do Paper): a vitrine do design system em /design-system.html. Só tokens (web/tokens.css): o que muda
    num token muda aqui também. Três colunas de 452 px a partir de 56 px, como a prancha do Paper.
    ===================================================================================== */
 body.dsv { margin: 0; background: var(--surface); color: var(--ink); font-family: var(--font-sans); font-size: var(--fs-corpo); line-height: var(--lh-corpo); overflow: auto; height: auto; }

@@ -179,7 +179,7 @@ describe("NOD-383: Configurações em lista no celular (critério 3)", () => {
     const sem = renderEspaco(aberto(false), avisos, volta, extras, false);
     expect(renderEspaco(aberto(true), avisos, volta, extras, false)).toBe(sem);
     expect(renderEspaco(aberto(false), avisos, volta, extras)).toBe(sem);
-    // ADR-165 (Paper 07): no computador é um modal; o título fica para o leitor de tela e o ✕ fecha com o Esc.
+    // ADR-167 (Paper 07): no computador é um modal; o título fica para o leitor de tela e o ✕ fecha com o Esc.
     expect(sem).toContain('<h1 id="espaco-titulo" class="sr-only">Configurações</h1>');
     expect(sem).toContain('class="espaco-voltar cfg-fechar" data-act="fechar-espaco" aria-keyshortcuts="Escape"');
     expect(sem).not.toContain("cfg-celular");

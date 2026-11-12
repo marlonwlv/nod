@@ -6,7 +6,7 @@ export const FORMAS_BLOUB: Record<FormaAgente, ShapeId> = {
   "shape-square": "squircle", "shape-hex": "hexagone", "shape-circle": "cercle",
   "shape-pebble": "galet", "shape-capsule": "capsule", "shape-triangle": "triangle",
   "shape-cloud": "nuage", "shape-drop": "goutte",
-  // ADR-172: as cinco formas a mais
+  // ADR-174: as cinco formas a mais
   "shape-egg": "oeuf", "shape-heart": "coeur", "shape-star": "etoile", "shape-flower": "fleur", "shape-clover": "trefle",
 };
 // definido em 2026-09-18: reservado não representa um fato atual do produto.
@@ -26,7 +26,7 @@ export const CATALOGO_MASCOTE = {
   play: { nome: "Play", ativo: false, situacao: "Início ou retomada confirmada de execução" },
   burst: { nome: "Explosão", ativo: false, situacao: "Conclusão bem-sucedida, uma vez por entrega" },
   comet: { nome: "Cometa", ativo: true, situacao: "As frentes saíram (disparo único no chat); transferência de tarefa entre agentes" },
-  // ADR-172 (2026-11-12): os estados do personagem que vieram do Grok Bot.
+  // ADR-174 (2026-11-12): os estados do personagem que vieram do Grok Bot.
   reading: { nome: "Lendo", ativo: true, situacao: "Turno rodando com uma ferramenta de leitura em uso" },
   celebrate: { nome: "Comemorando", ativo: true, situacao: "Preparo do bot chegou a 100% ou o onboarding acabou (disparo das telas)" },
   sleeping: { nome: "Dormindo", ativo: true, situacao: "Bot pausado (olhos fechados, respirando)" },

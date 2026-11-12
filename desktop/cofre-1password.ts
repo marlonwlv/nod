@@ -1,7 +1,7 @@
 import type { ExecutarComando } from "./mdm.ts";
 
 /**
- * O mínimo do 1Password no Mac (ADR-175), atrás de `NOD_1PASSWORD=1`. O bot pede um preenchimento por REFERÊNCIA
+ * O mínimo do 1Password no Mac (ADR-177), atrás de `NOD_1PASSWORD=1`. O bot pede um preenchimento por REFERÊNCIA
  * (`op://Cofre/Item/campo`) e nunca recebe o valor: o app do Mac lê com o `op` da pessoa e entrega o segredo direto a
  * quem preenche (o campo da página no navegador do computador do bot, pela ponte local), sem passar pelo servidor nem pelo
  * modelo. Antes de rodar o `op`, o app confere que o binário é o da AgileBits (assinatura de código com o Team ID dela,

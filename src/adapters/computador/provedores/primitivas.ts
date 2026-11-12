@@ -6,7 +6,7 @@ import { FalhaComputador } from "../../../domain/computador.ts";
 import { anotarQuadro, aspasShell, type EstadoQuadros, mudarRevisao, novoEstadoQuadros, quadroValido } from "../../../domain/provedor-computador.ts";
 
 /**
- * ADR-166 (definido em 2026-11-12): a `AcaoComputador` do nod sobre as primitivas de um provedor de fora. Refaz o que o
+ * ADR-168 (definido em 2026-11-12): a `AcaoComputador` do nod sobre as primitivas de um provedor de fora. Refaz o que o
  * runtime do nod (infra/computador/runtime.mjs) garante dentro do Docker, com os MESMOS limites, para o bot não notar a
  * troca de provedor:
  *   - quadro: cada observação ganha um; ação que muda a tela troca a revisão; quadro vale 2 min (`tela_alterada`);

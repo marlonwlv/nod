@@ -3,7 +3,7 @@ import { ArgumentoMacInvalido, ehCapacidadeMac, familiaDaCapacidade, ferramentas
 import { CAPACIDADES_MAC } from "../../../src/contracts/mac.ts";
 import { FAMILIAS_MAC } from "../../../src/contracts/desktop-mac.ts";
 
-describe("ferramentas do Mac: domínio (ADR-171)", () => {
+describe("ferramentas do Mac: domínio (ADR-173)", () => {
   it("toda capacidade tem família conhecida; toda família tem capacidade; escrita não é readOnly", () => {
     for (const c of CAPACIDADES_MAC) expect(FAMILIAS_MAC).toContain(c.familia);
     for (const f of FAMILIAS_MAC) expect(CAPACIDADES_MAC.some((c) => c.familia === f)).toBe(true);

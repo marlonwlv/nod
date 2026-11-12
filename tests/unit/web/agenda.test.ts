@@ -215,7 +215,7 @@ describe("estado da agenda", () => {
     expect(invalidacoesDaTela(e)).toContain("agenda");
     const ids = SECOES_ESPACO.map((s) => s.id);
     expect(ids.indexOf("rotinas")).toBe(ids.indexOf("agentes") + 1);
-    // ADR-164: Aprovações entra entre Rotinas e Feedback; Feedback continua por último.
+    // ADR-166: Aprovações entra entre Rotinas e Feedback; Feedback continua por último.
     // Paper 07 (rodada 2): o Cofre entre Aprovações e Feedback na lista; Feedback continua por último.
     expect(ids.indexOf("cofre")).toBe(ids.indexOf("aprovacoes") + 1);
     expect(ids.indexOf("feedback")).toBe(ids.length - 1);

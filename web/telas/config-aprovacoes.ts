@@ -5,7 +5,7 @@ import { botaoLinkDoAjuste, grupoConfig, linhaConfig, seletorLinha } from "../li
 import { esc } from "../lib/render.ts";
 
 /**
- * Configurações › Aprovações (definido em 2026-11-12, ADR-164; tela 07 do protótipo "nod x Grok Bot"). Uma seção, de cima
+ * Configurações › Aprovações (definido em 2026-11-12, ADR-166; tela 07 do protótipo "nod x Grok Bot"). Uma seção, de cima
  * para baixo: os três modos (título + frase, Automático "Recomendado"), "Vale para" (Todos os bots ou um), o só leitura do
  * bot, o teto do admin, as duas listas de regras do revisor ("Sempre me pergunte" e "Pode fazer sem perguntar", N de 20) e o
  * nível de cada app, separado em leitura e escrita. Puro: recebe o estado da tela e devolve HTML; quem busca e grava é

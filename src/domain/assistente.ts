@@ -3,7 +3,7 @@ import type { JsonSchema } from "../contracts/json-schema.ts";
 import { semInvisiveis } from "./acoes-do-modo.ts";
 
 /**
- * O catálogo e a validação do conector local `assistente` (ADR-174). Puro: o servidor MCP
+ * O catálogo e a validação do conector local `assistente` (ADR-176). Puro: o servidor MCP
  * (src/adapters/conectores-locais/assistente/servidor.ts) valida aqui antes de chamar o driver, e a falha volta ao modelo
  * como texto que diz o que corrigir — nunca como exceção com a mensagem do provedor.
  */

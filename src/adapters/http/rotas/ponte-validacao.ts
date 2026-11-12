@@ -125,7 +125,7 @@ export function memoria(v: unknown): LeituraMemoria | undefined {
   const porTurno = (o.porTurno as unknown[]).map((x) => {
     const t = objeto(x);
     exigir(typeof t.turnoId === "string" && UUID.test(t.turnoId) && typeof t.mb === "number" && Number.isFinite(t.mb) && t.mb >= 0 && t.mb <= TETO_MB);
-    // ADR-169: o %cpu do grupo do turno é opcional; fora de 0–10000 (100 núcleos) é ignorado, sem derrubar a renovação.
+    // ADR-171: o %cpu do grupo do turno é opcional; fora de 0–10000 (100 núcleos) é ignorado, sem derrubar a renovação.
     const cpu = typeof t.cpuPct === "number" && Number.isFinite(t.cpuPct) && t.cpuPct >= 0 && t.cpuPct <= 10_000 ? t.cpuPct : undefined;
     return { turnoId: t.turnoId, mb: t.mb, ...(cpu !== undefined ? { cpuPct: cpu } : {}) };
   });

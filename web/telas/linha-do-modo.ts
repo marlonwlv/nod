@@ -78,7 +78,7 @@ const ICONE_ARRISCADO = svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 
  * da telemetria é o turno: a linha conta uma vez por turno, e o "ver" conta como aberta.
  */
 function linhaDoRevisor(acoes: readonly AcaoDoModoNaFala[], agenteId: string): string {
-  // ADR-164: liberada por uma regra da pessoa → "Aprovado pela sua regra · <regra> · Editar" (o Editar abre a regra nos
+  // ADR-166: liberada por uma regra da pessoa → "Aprovado pela sua regra · <regra> · Editar" (o Editar abre a regra nos
   // Ajustes). Várias ações por regras diferentes, ou nem todas por regra, ficam na linha de sempre.
   const regras = new Set(acoes.map((a) => a.regra?.id ?? ""));
   const regra = regras.size === 1 ? acoes[0]?.regra : undefined;
@@ -92,7 +92,7 @@ function linhaDoRevisor(acoes: readonly AcaoDoModoNaFala[], agenteId: string): s
   return `<div class="linha-modo linha-revisor">${ICONE_ESCUDO_LIBEROU}<span class="linha-modo-txt">${textoComCodigo(texto, codigo)}</span><span class="linha-modo-sep" aria-hidden="true">·</span><button type="button" class="linha-modo-ver" data-act="ver-sem-aprovacao" data-agente="${esc(agenteId)}" data-dia="${esc(dia)}" data-linha-tipo="revisor" data-linha-chave="${esc(chave)}" aria-label="${esc(`Ver na Atividade: ${texto}`)}">ver</button></div>`;
 }
 
-/** ADR-164: a regra até 60 caracteres na linha; o texto inteiro vai no `title` e no rótulo do Editar. */
+/** ADR-166: a regra até 60 caracteres na linha; o texto inteiro vai no `title` e no rótulo do Editar. */
 const REGRA_NA_LINHA_MAX = 60;
 /**
  * Paper 02/17 (rodada 3 da casca, "igual ao Paper"): com a frase da ação (uma só), a linha é "Criou 4 issues no Linear ·

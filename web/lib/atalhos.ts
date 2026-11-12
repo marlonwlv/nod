@@ -80,7 +80,7 @@ export type AcaoAtalho =
   /** NOD-461: fora do Mac, ⌥← → num campo com texto: não troca (o texto do quadro se perderia) nem vira o voltar. */
   | { tipo: "engolir" }
   | { tipo: "folha" }
-  /** ADR-165 (atalhos do Grok Bot que não colidem com os do nod): ⌘B barra só com avatares. */
+  /** ADR-167 (atalhos do Grok Bot que não colidem com os do nod): ⌘B barra só com avatares. */
   | { tipo: "barra" }
   /** ⌘, Configurações (Geral). */
   | { tipo: "ajustes" }
@@ -148,7 +148,7 @@ function acaoDaTecla(t: Tecla, c: ContextoTecla): AcaoAtalho | null {
   const barra = key === "/" || (key.length !== 1 && t.code === "Slash" && !t.shiftKey);
   if (soCom(t, MOD_DA_FOLHA[c.lugar]) && barra) return { tipo: "folha" };
   if (!soCom(t, mod)) return null;
-  // ADR-165: no navegador do Mac o modificador é o ⌃, e num campo ⌃B, ⌃I e ⌃L são do macOS (cursor e rolagem do texto):
+  // ADR-167: no navegador do Mac o modificador é o ⌃, e num campo ⌃B, ⌃I e ⌃L são do macOS (cursor e rolagem do texto):
   // lá esses três ficam com o campo. No app do Mac (⌘) e fora do Mac (Alt) valem em qualquer lugar.
   const doCampo = c.emCampo && c.lugar === "navegador-mac";
   if (!t.shiftKey) {
@@ -269,7 +269,7 @@ export type LinhaDaFolha = {
   falado: string;
 };
 
-/** As linhas da folha (9 da NOD-117 e 5 da ADR-165), nas teclas do lugar (⌥← → e ⌥⇧← → da pílula valem igual em todo lugar, `setaDaPilula`). ⌘K e ⌘⇧D aceitam ⌘ ou Ctrl: no Mac mostram ⌘, fora dele Ctrl. */
+/** As linhas da folha (9 da NOD-117 e 5 da ADR-167), nas teclas do lugar (⌥← → e ⌥⇧← → da pílula valem igual em todo lugar, `setaDaPilula`). ⌘K e ⌘⇧D aceitam ⌘ ou Ctrl: no Mac mostram ⌘, fora dele Ctrl. */
 export function linhasDaFolha(lugar: LugarTeclado): LinhaDaFolha[] {
   const m = MOD_DE[lugar];
   const f = MOD_DA_FOLHA[lugar];

@@ -84,7 +84,7 @@ export function abasDoBot(dona: boolean): AbaGaveta[] {
   return ["detalhes", "biblioteca", ...(dona ? (["computador"] as const) : [])];
 }
 
-/** ADR-165 (Paper 02/02b): à vista só Atividade e Biblioteca; o Computador abre pelo bloco dele na Atividade. */
+/** ADR-167 (Paper 02/02b): à vista só Atividade e Biblioteca; o Computador abre pelo bloco dele na Atividade. */
 export const abasAVista = (abas: readonly AbaGaveta[], aberta?: AbaGaveta): AbaGaveta[] => abas.filter((a) => a !== "computador" || a === aberta);
 
 /** A aba aberta: a lembrada, se ela ainda existe para este bot (o D15 tira o Computador); senão, Detalhes. */
@@ -117,7 +117,7 @@ export function renderDetalhes(estado: Estado): string {
   const nivel = estado.gaveta?.agenteId === a.id ? estado.gaveta.nivel : null;
   if (!nivel) {
     const compartilhar = `<button type="button" class="gv-icone gvn-redondo" data-act="gaveta-compartilhar" data-id="${esc(a.id)}" aria-haspopup="menu" aria-label="Compartilhar ${esc(a.nome)}" aria-expanded="false" title="Compartilhar">${ICONE.compartilhar}</button>`;
-    // ADR-165 (Paper 02): no topo só o fechar; o compartilhar fica escondido no computador (casca.css) e segue no celular.
+    // ADR-167 (Paper 02): no topo só o fechar; o compartilhar fica escondido no computador (casca.css) e segue no celular.
     return `<div class="gv-topo gvn-topo">${compartilhar}${fechar}</div>
       <div class="gv-corpo">${visaoGeral(estado, a, dona)}</div>`;
   }
@@ -187,7 +187,7 @@ function identidade(estado: Estado, a: Bot, dona: boolean): string {
     <span class="gvn-erro-linha"><span class="gvn-erro-icone" aria-hidden="true">${ICONE.alerta}</span><span class="gvn-erro" id="gvn-erro" role="status"></span></span>${nomeEditavel(a, dona) ? statusDesfazer(a, estado.historicoPerfil[a.id], "identidade") : ""}</div>`;
 }
 
-/** ADR-125: o popover do avatar, com as 13 formas e as 14 cores do mascote (ADR-172) (rádios com setas) e Redefinir. */
+/** ADR-125: o popover do avatar, com as 13 formas e as 14 cores do mascote (ADR-174) (rádios com setas) e Redefinir. */
 export function popoverAvatar(a: Bot): string {
   const formas = FORMAS_MASCOTE.map((forma) => {
     const sel = a.forma === forma;
@@ -219,7 +219,7 @@ function abaDetalhes(estado: Estado, a: Bot, dona: boolean): string {
     const quando = wh ? wh.quando : [resumo ? capitalizar(semFuso(resumo)) : "", ativa && !bloqueio ? `próxima ${proximaCurta(proximaExecucao, estado.agora)}` : !ativa && !bloqueio ? "pausada" : ""].filter(Boolean).join(" · ");
     const chave = dona ? `<button type="button" class="chave" role="switch" aria-checked="${ativa}" data-act="${ativa ? "pausar-rotina" : "ativar-rotina"}" data-id="${esc(r.id)}" aria-label="${ativa ? "Pausar" : "Ativar"} a rotina ${esc(r.instrucao)}"><span></span></button>` : "";
     const parada = bloqueio ? `<div class="gvn-parada"><span class="gvn-parada-icone" aria-hidden="true">${ICONE.alerta}</span><span>${esc(`${fraseDaParada(bloqueio)} ${desdeDaParada(bloqueio, estado.agora)}.`)}</span>${dona ? botaoDaParada(bloqueio, "gvn-acao-texto") : ""}</div>` : "";
-    // ADR-165 (Paper 02): o relógio à esquerda e o nome curto da rotina; "Ativa" sai (a chave já diz), "Parada" fica.
+    // ADR-167 (Paper 02): o relógio à esquerda e o nome curto da rotina; "Ativa" sai (a chave já diz), "Parada" fica.
     const titulo = r.instrucao;
     return `<li class="detalhe-rotina rotina-${esc(r.estado)}${bloqueio ? " gvn-rotina-parada" : ""}">${linha(`${ICONE_RELOGIO}<span class="gv-linha-txt"><b title="${esc(r.instrucao)}">${esc(titulo)}</b><small>${wh?.marca ?? ""}${bloqueio ? `<span class="gvn-estado">${rotulo}</span>${quando ? " · " : ""}` : `<span class="sr-only">${rotulo} · </span>`}${quando ? esc(quando) : ""}</small></span>`, irPara(a, "rotina", r.id))}${chave}${parada}</li>`;
   };
@@ -227,7 +227,7 @@ function abaDetalhes(estado: Estado, a: Bot, dona: boolean): string {
       ${rotinas.length ? `<ul class="gv-cartao">${rotinas.map(linhaRotina).join("")}</ul>` : `<p class="gvn-vazio">${VAZIO_ROTINAS}</p>`}
       ${rotinas.length ? linhaOndeRoda(rotinas.find((r) => r.ondeRoda)?.ondeRoda, { plural: true, comAtalho: true }) : ""}
     </section>`;
-  // ADR-165 (Paper 02): Frentes (o que o bot faz agora), Computador (a miniatura) e Ajustes › Aprovações / Quadro. O título
+  // ADR-167 (Paper 02): Frentes (o que o bot faz agora), Computador (a miniatura) e Ajustes › Aprovações / Quadro. O título
   // "Ajustes" abre o nível Ajustes de sempre (Ligar, trabalhos, memória, missão e acessos).
   const modo = MODOS[a.modoAprovacao ?? "manual"];
   const ajustesCab = `<div class="gv-secao-cab"><button type="button" class="gv-cab-link" ${irPara(a, "ajustes")} data-origem="ajustes" aria-label="${esc(dona ? "Ajustes: ligar, trabalhos, memória, missão e acessos" : "Ajustes: trabalhos, memória e acessos")}"><h3>Ajustes</h3>${ICONE_CHEVRON}</button></div>`;
@@ -239,14 +239,14 @@ function abaDetalhes(estado: Estado, a: Bot, dona: boolean): string {
   // ADR-077: durante a configuração guiada, o painel da guia mostra o que a pessoa contou e o que já foi montado.
   const o = estado.onboarding;
   const onboarding = estado.onboardingAberto && o && o.guia?.id === a.id && (o.etapa === "entrevista" || o.etapa === "configurando" || o.etapa === "concluido") ? secaoOnboardingDetalhes(o) : "";
-  // ADR-165 (Paper 15): com duas ou mais frentes abertas, a Atividade é das frentes, por grupo.
+  // ADR-167 (Paper 15): com duas ou mais frentes abertas, a Atividade é das frentes, por grupo.
   const porGrupo = frentesPorGrupo(estado, a);
   if (porGrupo) return onboarding + segundoPlano(estado, a, dona) + porGrupo;
   return onboarding + segundoPlano(estado, a, dona) + rotinasHtml + blocoFrentes(estado, a) + (dona ? blocoComputador(estado, a) : "") + ajustes;
 }
 
 /**
- * ADR-165 (Paper 15/15b): as frentes do bot no painel, em Precisa de você, Trabalhando, Esperando e Terminadas hoje, com o
+ * ADR-167 (Paper 15/15b): as frentes do bot no painel, em Precisa de você, Trabalhando, Esperando e Terminadas hoje, com o
  * número de cada grupo e "Toda a atividade de hoje ›" no fim. Só quando há duas ou mais frentes abertas.
  */
 function frentesPorGrupo(estado: Estado, a: Bot): string {
@@ -321,7 +321,7 @@ function resumoDoQuadro(estado: Estado, agenteId: string): string {
   return partes.join(" · ") || "Nada em andamento";
 }
 
-/** ADR-165 (Paper 02/15): o bloco Frentes — o que o bot está fazendo agora, uma linha por trabalho aberto. */
+/** ADR-167 (Paper 02/15): o bloco Frentes — o que o bot está fazendo agora, uma linha por trabalho aberto. */
 function blocoFrentes(estado: Estado, a: Bot): string {
   const abertos = abertosDoBot(estado, a.id, a.conversaId).slice(0, 4);
   if (!abertos.length) return "";
@@ -334,7 +334,7 @@ function blocoFrentes(estado: Estado, a: Bot): string {
   return `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>Frentes</h3></div><div class="gv-cartao">${abertos.map(linhaFrente).join("")}</div></section>`;
 }
 
-/** ADR-165 (Paper 02): o bloco Computador — a linha com o estado e a miniatura; o clique abre a tela do bot. */
+/** ADR-167 (Paper 02): o bloco Computador — a linha com o estado e a miniatura; o clique abre a tela do bot. */
 function blocoComputador(estado: Estado, a: Bot): string {
   const visto = estadoDoComputadorNaGaveta(estado, a);
   const sub = visto === "fora" ? "Fora do ar" : visto === "dormindo" ? "Dormindo" : visto === "sem" ? "Ainda sem computador" : visto === null ? "Ativo" : "Ativo";
@@ -413,7 +413,7 @@ export function abaBiblioteca(estado: Estado, a: Bot, dona: boolean, celular = f
   const conversaId = estado.tela.tipo === "conversa" ? estado.tela.conversaId : a.conversaId;
   const url = (id: string) => `/api/t/${encodeURIComponent(tenant)}/conversas/${encodeURIComponent(conversaId)}/anexos/${encodeURIComponent(id)}`;
   const lista = renderListaBiblioteca(estado.bibliotecaDoBot[conversaId], { conversaId, url, bot: a.nome, sumiram: lembrancaDaMidia.sumiram, esteMac: lembrancaDaMidia.esteMac, agora: estado.agora > 0 ? estado.agora : Date.now(), ...(celular ? { celular } : { cartoes: true }) });
-  // ADR-165 (Paper 02b): no computador os cartões vêm primeiro e a Pasta de trabalho fica embaixo deles.
+  // ADR-167 (Paper 02b): no computador os cartões vêm primeiro e a Pasta de trabalho fica embaixo deles.
   return celular ? `${pasta}<section class="gv-secao gvb">${lista}</section>` : `<section class="gv-secao gvb">${lista}</section>${pasta}`;
 }
 

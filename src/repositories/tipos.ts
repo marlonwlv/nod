@@ -31,7 +31,7 @@ import type { appsDoBotRepo } from "./apps-do-bot.repo.ts";
 import type { canvasRepo } from "./canvas.repo.ts";
 import type { acessosRepo } from "./acessos.repo.ts";
 import type { ajustesAprovacaoRepo } from "./ajustes-aprovacao.repo.ts";
-import type { memoriaDeTimeRepo, passkeysRepo, vezNaSalaRepo, vmsDoNodRepo } from "./grok-persistencia.repo.ts";
+import type { memoriaDeTimeRepo, passkeysRepo, vezNaSalaRepo, vmsDoNodRepo } from "./vm-sala-memoria-passkey.repo.ts";
 import type { quadroComentariosRepo } from "./quadro-comentarios.repo.ts";
 import type { quadroImportacoesRepo } from "./quadro-importacoes.repo.ts";
 import type { quadroExecucoesRepo } from "./quadro-execucoes.repo.ts";

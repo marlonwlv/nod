@@ -17,7 +17,7 @@ describe("NOD-207: a web decide anexo e pasta pelas capacidades do catálogo (AD
     ["codex-cli", "sem_pdf"],
     ["cursor-cli", undefined],
     ["hermes", undefined],
-    ["grok", undefined],
+    ["desconhecido", undefined],
   ])("com o catálogo, o composer do bot %j aceita %j (igual à regra antiga por id)", (harness, aceita) => {
     expect(aceitaDoBot(catalogo, harness)).toBe(aceita);
   });

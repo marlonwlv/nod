@@ -5,7 +5,7 @@ import type { EstadoPreparo } from "../lib/preparo.ts";
 import { COR_PADRAO, FORMA_PADRAO, NOME_MAX, htmlPreparo, htmlSeletorCor, htmlSeletorForma } from "./criar-bot.ts";
 
 /**
- * ADR-172 (2026-11-12, tela 13 do Paper): o onboarding do Grok Bot inteiro, em 10 passos curtos com o personagem como fio
+ * ADR-174 (2026-11-12, tela 13 do Paper): o onboarding do Grok Bot inteiro, em 10 passos curtos com o personagem como fio
  * condutor — boas-vindas, conhecer, "tem o próprio computador", dar um trabalho, delegar, função, como conheceu, conectar
  * apps, criar o bot (cor e forma) e preparando com %. Comportamento e visual do Grok Bot; os textos são os do protótipo do
  * Paper. Substitui o "olá" de 3,3 s da ADR-077: a ligação continua como opção ("Prefiro conversar por voz"), que segue o

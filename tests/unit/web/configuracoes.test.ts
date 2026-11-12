@@ -85,7 +85,7 @@ describe("as 6 seções (critério 2)", () => {
       const html = renderEspaco(estado, avisos, volta, extras);
       expect(html).toContain('<h1 id="espaco-titulo" class="sr-only">Configurações</h1>');
       expect(html).toContain('aria-label="Seções das Configurações"');
-      // ADR-165 (Paper 07): a ordem do Paper (Geral, Conta, Máquinas, Aprovações, [Apps], IA) e depois as que o Paper não desenhou.
+      // ADR-167 (Paper 07): a ordem do Paper (Geral, Conta, Máquinas, Aprovações, [Apps], IA) e depois as que o Paper não desenhou.
       expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["geral", "conta", "maquinas", "aprovacoes", "cofre", "conexao", "agentes", "rotinas", "feedback"]);
       expect(html).not.toContain("espaco-banco");
     }
@@ -188,7 +188,7 @@ describe("Geral (critérios 4 e 5)", () => {
 
   it("NOD-117: o keydown global chama os atalhos depois de ⌘K e ⌘⇧D, e o + diz o atalho", () => {
     const main = ler("main.ts");
-    // ADR-165: ⌘K abre a paleta no computador (a busca de tela cheia no celular).
+    // ADR-167: ⌘K abre a paleta no computador (a busca de tela cheia no celular).
     const k = main.indexOf('ev.key.toLowerCase() === "k") { ev.preventDefault(); if (celular.ativo() || !estado.sessao) abrirBusca(); else abrirPaleta();');
     const dev = main.indexOf("void agir(alternarModoDev); return; }");
     const novos = main.indexOf("const atalho = atalhoDoTeclado(teclaSemRepetir, {");

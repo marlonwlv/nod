@@ -81,7 +81,7 @@ describe("5: o popover do avatar", () => {
     expect(html).toContain('aria-haspopup="dialog" aria-controls="gvn-pop" aria-expanded="true"');
     expect(html).toContain('role="dialog" aria-label="Editar avatar"');
     expect(html).not.toContain("aria-modal");
-    // ADR-172: 13 formas e 14 cores.
+    // ADR-174: 13 formas e 14 cores.
     expect(html.match(/data-act="gaveta-forma"/g)).toHaveLength(13);
     expect(html.match(/data-act="gaveta-cor"/g)).toHaveLength(14);
     expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
@@ -97,7 +97,7 @@ describe("5: o popover do avatar", () => {
 });
 
 describe("6: as abas", () => {
-  it("ADR-165 (Paper 02): à vista Atividade e Biblioteca; o Computador abre pelo bloco da Atividade; tabindex roving", () => {
+  it("ADR-167 (Paper 02): à vista Atividade e Biblioteca; o Computador abre pelo bloco da Atividade; tabindex roving", () => {
     const html = renderDetalhes(com(nina()));
     expect(html).toContain('role="tablist" aria-label="Seções do painel"');
     expect(html).toContain('role="tab" class="gv-aba" id="gv-aba-detalhes" aria-controls="gv-painel-detalhes" aria-selected="true" tabindex="0" data-act="gaveta-aba" data-aba="detalhes" data-id="a1">Atividade');
@@ -130,7 +130,7 @@ describe("7: Detalhes com as Rotinas e a linha Ajustes", () => {
     expect(html).not.toContain("ela aparece aqui");
     expect(html).toContain('data-act="rotina-no-chat" data-agente="a1"');
     expect(html).not.toContain('data-nivel="nova-rotina"');
-    // ADR-165 (Paper 02): o título "Ajustes" do painel leva ao nível (as linhas embaixo são Aprovações e Quadro).
+    // ADR-167 (Paper 02): o título "Ajustes" do painel leva ao nível (as linhas embaixo são Aprovações e Quadro).
     expect(html).toContain('data-act="gaveta" data-nivel="ajustes" data-agente="a1" data-origem="ajustes"');
     expect(html).toContain("Ajustes: ligar, trabalhos, memória, missão e acessos");
   });
@@ -150,7 +150,7 @@ describe("8–9: o nível Ajustes", () => {
     expect(dev).not.toContain("Pasta de trabalho");
   });
 
-  it("NOD-326 + ADR-165 (Paper 02b): a Pasta fica na aba Biblioteca, embaixo dos cartões no computador e no topo no celular, só no bot da pessoa", () => {
+  it("NOD-326 + ADR-167 (Paper 02b): a Pasta fica na aba Biblioteca, embaixo dos cartões no computador e no topo no celular, só no bot da pessoa", () => {
     const e = com(nina());
     const a = e.frota!.agentes[0]! as never;
     const html = abaBiblioteca(e, a, true);

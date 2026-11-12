@@ -8,7 +8,7 @@ import { criarExecutorPorPrimitivas } from "./primitivas.ts";
 type Escopo = { tenantId: string; pessoaId: string };
 
 /**
- * ADR-166 (definido em 2026-11-12): o `DriverComputador` que o portão (fundo/computadores.ts) sempre usou, agora montado
+ * ADR-168 (definido em 2026-11-12): o `DriverComputador` que o portão (fundo/computadores.ts) sempre usou, agora montado
  * por cima de N provedores. Cada chamada escolhe o provedor do computador pela configuração (bot > pessoa > global >
  * padrão) e delega. O portão, as ferramentas `computador_*`, o plano de turno e o agente NÃO mudam.
  *

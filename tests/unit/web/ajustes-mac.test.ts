@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { atalhoDoTeclado, atalhoLegivel, htmlAjustesDoMac } from "../../../web/telas/ajustes-mac.ts";
 import { TODAS_DESLIGADAS } from "../../../src/adapters/conectores-locais/mac/familias.ts";
 
-describe("Configurações › Máquinas no Mac (ADR-171)", () => {
+describe("Configurações › Máquinas no Mac (ADR-173)", () => {
   it("as nove famílias aparecem desligadas por padrão, cada uma com o switch dela", () => {
     const html = htmlAjustesDoMac({ atalho: "Alt+Space", familias: TODAS_DESLIGADAS });
     expect(html.match(/data-act="alternar-ferramenta-mac"/g)?.length).toBe(9);

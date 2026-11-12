@@ -68,7 +68,7 @@ async function comFraseDaAcao(deps: DepsSuaVez, decisaoId: string, itens: ItemAp
 }
 
 /**
- * ADR-173: os itens que são uma mensagem que sai (e-mail, Slack, iMessage/SMS, chat) ganham o `rascunho`, que a conversa
+ * ADR-175: os itens que são uma mensagem que sai (e-mail, Slack, iMessage/SMS, chat) ganham o `rascunho`, que a conversa
  * desenha como o cartão de rascunho. Calculado a cada leitura, como a frase; o nome do app sai do mesmo mapa de conectores.
  */
 async function comRascunho(deps: DepsSuaVez, itens: ItemAprovacao[], conectores: ConectoresDaLeitura): Promise<ItemAprovacao[]> {
@@ -152,7 +152,7 @@ export async function listarSuaVez(deps: DepsSuaVez, input: EntradaSuaVez = {}):
     // parada e quais janelas não rodaram — só no aberto; o vencido já pausou a rotina.
     const rotinaParada = proposta && aberta && decisao.tipo === "acesso" ? await paradaDoPedido(repos, proposta) : null;
     const nuncaPermanente = itensAprovacao.filter((i) => ehNuncaPermanente(i.destino.ferramenta)).map((i) => i.id);
-    // ADR-164: no cartão aberto em que o revisor pediu, a regra pronta para "Salvar como regra": a que ele sugeriu (texto de
+    // ADR-166: no cartão aberto em que o revisor pediu, a regra pronta para "Salvar como regra": a que ele sugeriu (texto de
     // modelo; a pessoa lê e edita antes) ou, sem ela, a feita da frase da ação. Só no Automático: é onde as regras valem.
     const sugestaoDeRegra = aberta && itensAprovacao.some((i) => i.motivoManual === "revisor_pediu")
       ? limparTextoDaRegra((await repos.acoesPeloModo.daDecisao(decisao.id))?.sugestao ?? "") ?? regraSugeridaDaFrase(itensAprovacao.length === 1 ? itensAprovacao[0]?.fraseDaAcao?.texto : null)

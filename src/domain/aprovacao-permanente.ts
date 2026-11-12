@@ -138,10 +138,10 @@ export type EntradaAprovacao = {
   envioParaFora?: boolean;
   /** Só com o revisor: o turno (entrada ou marca) ou a conversa nas últimas 24 h leu conteúdo de fora. Ausente = a marca do turno. */
   contaminadoParaRevisor?: boolean;
-  /** ADR-164: só com o revisor — a pessoa tem regras de "Sempre me pergunte" para o bot (o envio limpo também vai a ele). */
+  /** ADR-166: só com o revisor — a pessoa tem regras de "Sempre me pergunte" para o bot (o envio limpo também vai a ele). */
   regrasDePerguntar?: boolean;
   /**
-   * ADR-164: o nível que a pessoa deu a esta ferramenta (`nivelDaFerramenta`, no tipo dela: leitura ou escrita). Ausente
+   * ADR-166: o nível que a pessoa deu a esta ferramenta (`nivelDaFerramenta`, no tipo dela: leitura ou escrita). Ausente
    * = `revisor`, a decisão de antes. `bloqueado` e o só leitura quem chama nega ANTES (`barradoDeAntemao`); aqui o
    * bloqueado ainda pergunta (fail-closed, nunca roda).
    */
@@ -189,7 +189,7 @@ export function decidirAprovacao(entrada: EntradaAprovacao): DecisaoDoApp {
   const nome = `${entrada.destino.conector}__${entrada.destino.ferramenta}`;
   const ferramenta: FerramentaPlano | undefined = plano.catalogo.ferramentas.find((f) => f.nome === nome);
   if (!ferramenta || ferramenta.origem !== "conector") return { automatico: false, motivo: "fora_do_catalogo" };
-  // ADR-164: "Bloqueado" nunca roda (quem chama já negou; aqui é a rede) e "Sempre pedir" pede a pessoa em todo modo, até
+  // ADR-166: "Bloqueado" nunca roda (quem chama já negou; aqui é a rede) e "Sempre pedir" pede a pessoa em todo modo, até
   // na leitura. Sem motivo novo no enum (0019): é a ausência de regra que deixe, dita pela própria pessoa.
   if (entrada.nivel === "bloqueado") return { automatico: false, motivo: "fora_do_catalogo" };
   if (entrada.nivel === "sempre_pedir") return { automatico: false, motivo: "sem_regra_permanente" };
@@ -212,7 +212,7 @@ export function decidirAprovacao(entrada: EntradaAprovacao): DecisaoDoApp {
   const envioAposFora = entrada.revisor === true && entrada.envioParaFora === true && (entrada.contaminadoParaRevisor ?? deFora);
   if (deFora || envioAposFora) return doModo ?? { automatico: false, motivo: "regra_suspensa_conteudo_nao_confiavel" };
   if (nuncaPermanente(nome, ferramenta.readOnlyHint)) return doModo ?? { automatico: false, motivo: "sem_regra_permanente" };
-  // ADR-164: o nível "Sempre permitir" dos Ajustes vale como o clique "Sempre permitir" do cartão (ADR-042): num turno
+  // ADR-166: o nível "Sempre permitir" dos Ajustes vale como o clique "Sempre permitir" do cartão (ADR-042): num turno
   // limpo e fora do que nunca é permanente; depois de conteúdo de fora o modo decide (a regra da pessoa cai, claim 6).
   if (plano.semprePermitir.includes(nome) || entrada.nivel === "sempre_permitir") return { automatico: true, regra: REGRA_APROVACAO_PERMANENTE, versao: VERSAO_APROVACAO_PERMANENTE };
   return doModo ?? { automatico: false, motivo: "sem_regra_permanente" };

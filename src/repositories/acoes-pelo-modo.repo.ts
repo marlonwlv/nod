@@ -39,9 +39,9 @@ export type AcaoDoModo = NovaAcaoDoModo & {
   /** "Devia ter perguntado" (PR 4): quando a dona contestou a liberação do revisor. */
   contestadaEm: number | null;
   criadoEm: number;
-  /** ADR-164 (0165): a regra da pessoa que o revisor citou ao liberar; null = nenhuma. */
+  /** ADR-166 (0173): a regra da pessoa que o revisor citou ao liberar; null = nenhuma. */
   regraId?: string | null;
-  /** ADR-164: a regra que o revisor sugeriu no "pede" (texto de modelo, até 200); null = nenhuma. */
+  /** ADR-166: a regra que o revisor sugeriu no "pede" (texto de modelo, até 200); null = nenhuma. */
   sugestao?: string | null;
 };
 
@@ -78,7 +78,7 @@ export type LinhaNaFala = {
   id: string; turno_id: string; modo: "automatico" | "total"; tipo: TipoAcaoDoModo; gatilho: GatilhoAcaoDoModo; resumo: string; risco: string | null; veredito: VereditoRevisao | null; motivo: string | null; criado_em: Date; linux: boolean;
   /** PR 4b: o item da decisão quando ela tem UM só (o comando, ou a ação no app), para a frase da ação; senão null. */
   item: { texto_final: string; destino: DestinoItem } | null;
-  /** ADR-164: a regra "Pode fazer sem perguntar" que liberou (o id e o texto de agora), para "Aprovado pela sua regra · Editar". */
+  /** ADR-166: a regra "Pode fazer sem perguntar" que liberou (o id e o texto de agora), para "Aprovado pela sua regra · Editar". */
   regra: { id: string; texto: string; agente_id: string | null } | null;
 };
 /** Uma ação que rodou sem a pessoa, como a Atividade a lista (PR 6); `motivo` e `contestada_em` do revisor (PR 4). */
@@ -151,7 +151,7 @@ export function acoesPeloModoRepo(conn: Conn, escopo: Escopo) {
      * Devolve se gravou.
      */
     async concluir(decisaoId: string, c: { veredito: VereditoRevisao; falha?: FalhaRevisao | null; motivo?: string | null; entregueEm?: number | null; revisorMs?: number | null; fichasEntrada?: number | null; fichasSaida?: number | null; regraId?: string | null; sugestao?: string | null }): Promise<boolean> {
-      // ADR-164 (0165): `regra_id` = a regra da pessoa que o revisor citou ao liberar; `sugestao` = a regra que ele sugeriu no "pede".
+      // ADR-166 (0173): `regra_id` = a regra da pessoa que o revisor citou ao liberar; `sugestao` = a regra que ele sugeriu no "pede".
       const r = await conn`
         update acoes_pelo_modo set veredito = ${c.veredito}, falha = ${c.falha ?? null}, motivo = ${c.motivo?.slice(0, 160) ?? null},
           regra_id = ${c.regraId ?? null}, sugestao = ${c.sugestao?.slice(0, 200) ?? null},

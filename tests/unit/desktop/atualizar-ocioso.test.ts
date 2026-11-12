@@ -3,7 +3,7 @@ import { deveAtualizarOcioso, ESPERA_ENTRE_TENTATIVAS_MS, OCIOSO_MIN_S, type Sin
 
 const BASE: SinaisOcioso = { pronta: true, ociosoSegundos: OCIOSO_MIN_S, turnos: 0, telas: 0, emLigacao: false, janelaEmFoco: false, ultimaTentativaEm: null, agora: 10_000_000 };
 
-describe("atualizar com o Mac ocioso (ADR-171)", () => {
+describe("atualizar com o Mac ocioso (ADR-173)", () => {
   it("reinicia só com a versão pronta, a pessoa longe e nada rodando", () => {
     expect(deveAtualizarOcioso(BASE)).toBe(true);
     expect(deveAtualizarOcioso({ ...BASE, pronta: false })).toBe(false);

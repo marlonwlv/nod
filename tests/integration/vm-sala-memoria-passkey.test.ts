@@ -13,13 +13,13 @@ import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
 
 /**
- * 0166 (frente "Comportamento igual ao Grok"): o que os PRs #732 e #735 deixaram só no domínio, agora no Postgres e com RLS:
+ * 0174 (frente "Comportamento igual ao Grok"): o que os PRs #732 e #735 deixaram só no domínio, agora no Postgres e com RLS:
  * a VM do Nod (uma viva por pessoa, pedido idempotente), a vez na sala (uma vez por sala, garantida pelo banco), a memória
  * de time revisada por gente (a fila e a fusão do "sonho") e a passkey do gasto (desafio de uso único, contador).
  */
 const CONFIG = { projeto: "nod-exemplos", zona: "southamerica-east1-b", rede: "default" };
 
-describeIntegracao("persistência do Grok no nod (0166)", () => {
+describeIntegracao("persistência do Grok no nod (0174)", () => {
   it("VM do Nod: uma viva por pessoa, o mesmo pedido de novo é a mesma linha, outro plano é recusado; a Ana não vê", async () => {
     await withRollback(MARLON, async (trx) => {
       const repos = criarRepos(trx, MARLON);

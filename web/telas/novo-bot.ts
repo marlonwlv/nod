@@ -2,7 +2,7 @@ import type { Estado } from "../estado/reducer.ts";
 import { esc, iconeAgente } from "../lib/render.ts";
 
 /**
- * ADR-165 (tela 04 do Paper): a nova conversa é a linha "Para:" no topo, com o popover de sugestões logo abaixo (os bots
+ * ADR-167 (tela 04 do Paper): a nova conversa é a linha "Para:" no topo, com o popover de sugestões logo abaixo (os bots
  * que casam com o que foi digitado, "Criar o bot “Ce”" e "Nova sala com vários bots ⌘⇧N"), o mascote do nod no vazio e o
  * campo de sempre embaixo. O filtro é o de sempre (filtrarBots em `.contact-picker`): cada linha de bot tem `data-busca`.
  */

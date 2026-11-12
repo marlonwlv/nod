@@ -1,5 +1,5 @@
 /**
- * A confirmação de gasto por passkey (ADR-175; Grok Bot: `BeginGrokBotSpendApproval` → asserção WebAuthn). O bot nunca vê
+ * A confirmação de gasto por passkey (ADR-177; Grok Bot: `BeginGrokBotSpendApproval` → asserção WebAuthn). O bot nunca vê
  * nem produz a asserção: o servidor do nod gera o desafio para (compra, total), o navegador ou o app do Mac pede a passkey
  * da pessoa (Touch ID), e o servidor confere a asserção aqui (as regras) e em src/adapters/passkey/ (a assinatura, que
  * precisa de criptografia do Node). Só então o verificador do conector `assistente` responde "confirmado".

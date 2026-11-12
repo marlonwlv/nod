@@ -1,6 +1,6 @@
 /* definido em 2026-09-17: interface de contatos e painel de detalhes conforme referência fornecida pela pessoa. */
 /* definido em 2026-09-30 (canvas "Menu, sidebar e gaveta"): sidebar 340 e gaveta 380 — numa janela de 1440 a conversa fica com 720. */
-/* Rodada 3 da casca: a coluna da barra é a da casca (272, ADR-165) em qualquer rota; antes, 340 aqui valia onde casca.css não pegava. */
+/* Rodada 3 da casca: a coluna da barra é a da casca (272, ADR-167) em qualquer rota; antes, 340 aqui valia onde casca.css não pegava. */
 .app { grid-template-columns: var(--largura-barra, 272px) minmax(0, 1fr); }
 .app.com-detalhes { grid-template-columns: var(--largura-barra, 272px) minmax(360px, 1fr) 360px; }
 .search-wrap { padding: 24px 19px 18px; border: 0; }
@@ -1469,7 +1469,7 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .cr-item-txt small { display: block; color: var(--ink-3); }
 .cr-item .aprov-previa { margin: 6px 0 0; }
 .cr-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-/* ADR-164 (tela 06): "Salvar como regra" no cartão do revisor, o Esc ao lado de Negar e o cartão de pedidos iguais. */
+/* ADR-166 (tela 06): "Salvar como regra" no cartão do revisor, o Esc ao lado de Negar e o cartão de pedidos iguais. */
 .cr-regra { display: grid; grid-template-columns: 1fr auto; gap: 8px 10px; align-items: center; margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-raised); }
 .cr-regra-marca { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink); cursor: pointer; }
 .cr-regra-origem { font-size: 12px; color: var(--ink-3); }
@@ -1498,7 +1498,7 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .cr-sempre-dica { display: none; margin: 6px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
 @media (hover: none) { .cr-sempre-dica { display: block; } }
 .lista > li.cartao-revisor.realce .cr { box-shadow: 0 0 0 3px var(--revisor-line); transition: box-shadow .2s ease; }
-/* ---- Tela 06 do Paper (ADR-164): o cartão branco com o mascote, a pergunta em negrito, o comando em bloco mono e
+/* ---- Tela 06 do Paper (ADR-166): o cartão branco com o mascote, a pergunta em negrito, o comando em bloco mono e
    "Negar Esc · Sempre permitir · Permitir uma vez", este em pílula preta. Medidas do gerador do Paper (screens.py, appr_*). ---- */
 .aprov-cab, .cr-topo { display: flex; align-items: center; gap: 8px; padding: 12px 14px 0; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }
 .aprov-cab b { font-weight: var(--peso-medio); color: var(--ink-2); }
@@ -2531,7 +2531,7 @@ img.luz-midia { display: block; flex: none; width: min(var(--w), calc(100cqw - 1
   .dft-cancelar, .dft-ok, .dft-tentar, .dft-linha .dft-tentar { height: 44px; }
 }
 
-/* ADR-173: rascunhos de envio na conversa (web/telas/rascunhos-de-envio.ts; protótipo "12-rascunhos-claro"). O <li> não
+/* ADR-175: rascunhos de envio na conversa (web/telas/rascunhos-de-envio.ts; protótipo "12-rascunhos-claro"). O <li> não
    desenha nada; cada mensagem é um cartão com o cabeçalho do canal, Para/Assunto e o corpo editável. A barra "N rascunhos
    prontos" fica presa ao pé da conversa, logo acima do campo. */
 .lista > li.re-decisao, li.re-decisao { padding: 0; border: 0 !important; border-left: 0 !important; background: none; margin-bottom: 12px; display: grid; gap: 16px; }
@@ -2560,7 +2560,7 @@ textarea.re-corpo:focus-visible { border-color: var(--ink-3); }
 .re-atalho { margin-left: 6px; font: inherit; font-size: 11.5px; opacity: .7; }
 @media (max-width: 600px) { .re-atalho { display: none; } .re-barra { bottom: 4px; } }
 
-/* ADR-173: cartões ricos na conversa (web/telas/cartoes-ricos.ts). Uma grade de cartões com o desenho do cartão de
+/* ADR-175: cartões ricos na conversa (web/telas/cartoes-ricos.ts). Uma grade de cartões com o desenho do cartão de
    atividade; números em tabular, preço à direita, nada carregado de fora (o mapa é SVG dos pontos). */
 .rc-grupo { max-width: 640px; }
 .rc-resumo { margin: 0 0 10px; color: var(--ink); font-size: 14px; line-height: 1.5; }

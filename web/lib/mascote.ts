@@ -15,7 +15,7 @@ import { FALA_SAINDO_MS } from "./fala-viva.ts";
  * pendente esquecido no servidor deixava o mascote pensando por horas.
  */
 /**
- * ADR-172 (2026-11-12, o personagem do Grok Bot): mais quatro estados. `lendo` é o turno rodando com uma ferramenta de
+ * ADR-174 (2026-11-12, o personagem do Grok Bot): mais quatro estados. `lendo` é o turno rodando com uma ferramenta de
  * leitura em uso (o rótulo "Lendo …" de web/lib/rotulos); `offline` é o computador do bot fora do ar, para o dono e sem
  * turno vivo; `comemorando` é disparo das telas (o preparo chegou a 100%, o onboarding acabou), nunca inferido do chat;
  * `pausado` passa a desenhar "dormindo" (olhos fechados, respirando) no lugar do ponto que quicava.
@@ -25,7 +25,7 @@ export type EstadoMascote = "disponivel" | "pensando" | "lendo" | "trabalhando" 
 export const FORMAS_MASCOTE = ["shape-square", "shape-hex", "shape-circle", "shape-pebble", "shape-capsule", "shape-triangle", "shape-cloud", "shape-drop", "shape-egg", "shape-heart", "shape-star", "shape-flower", "shape-clover"] as const satisfies readonly FormaAgente[];
 export const CORES_MASCOTE = ["c-red", "c-pink", "c-purple", "c-blue", "c-teal", "c-green", "c-orange", "c-black", "c-brown", "c-amber", "c-gray", "c-cream", "c-magenta", "c-indigo"] as const;
 
-/** ADR-172: o nome de cada forma e cor, para o seletor (perfil, "Criar novo bot", onboarding) e o leitor de tela. */
+/** ADR-174: o nome de cada forma e cor, para o seletor (perfil, "Criar novo bot", onboarding) e o leitor de tela. */
 export const NOME_DA_FORMA: Record<(typeof FORMAS_MASCOTE)[number], string> = {
   "shape-square": "Quadrado", "shape-hex": "Hexágono", "shape-circle": "Círculo", "shape-pebble": "Seixo", "shape-capsule": "Cápsula",
   "shape-triangle": "Triângulo", "shape-cloud": "Nuvem", "shape-drop": "Gota", "shape-egg": "Ovo", "shape-heart": "Coração",
@@ -128,7 +128,7 @@ export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "tr
   if (vivos.some((t) => filaRecente(t, estado.agora))) return "pensando";
   const aguarda = estado.suaVez?.itens.some((item) => item.decisao.conversaId === conversaId && item.estadoColuna !== "vencido");
   if (aguarda) return "aguardando";
-  // ADR-172: o computador do bot fora do ar (o mesmo sinal da barra: só para o dono) ganha do repouso e da fila.
+  // ADR-174: o computador do bot fora do ar (o mesmo sinal da barra: só para o dono) ganha do repouso e da fila.
   if (computadorForaDoAr(estado, conversaId)) return "offline";
   return vivos.some((t) => t.estado === "na_fila") ? "na_fila" : "disponivel";
 }
@@ -158,7 +158,7 @@ export function avatarDoBot(estado: Parameters<typeof estadoMascoteNaConversa>[0
   return rodando ? "trabalhando" : e;
 }
 
-/** ADR-172: a ferramenta em uso é de leitura ("Lendo um arquivo", "Buscando na web"…): o personagem lê. */
+/** ADR-174: a ferramenta em uso é de leitura ("Lendo um arquivo", "Buscando na web"…): o personagem lê. */
 export function lendoNoTurno(texto: string | null | undefined): boolean {
   return !!texto && /^(Lendo|Buscando|Procurando|Pesquisando|Abrindo|Consultando)\b/.test(texto);
 }
@@ -173,7 +173,7 @@ export const mascoteAnimado = (e: EstadoMascote): boolean => e === "trabalhando"
 
 /**
  * Revisão NOD-216: o aviso do bot (fora do ar, pergunta, rotina parada) ganha do mascote parado — disponível ou na fila.
- * Frente "igual ao Grok" (12/11/2026; ADR-165, "o azul fica só para o não lido"): a mensagem não lida NÃO deixa o
+ * Frente "igual ao Grok" (12/11/2026; ADR-167, "o azul fica só para o não lido"): a mensagem não lida NÃO deixa o
  * personagem "aguardando você" — ela é o ponto azul; o personagem só espera a pessoa quando há pedido ou pergunta aberta.
  */
 export const mascoteComAviso = (e: EstadoMascote, aviso: unknown): EstadoMascote => (aviso && aviso !== "nao-lido" && !mascoteAnimado(e) && e !== "aguardando" && e !== "pausado" && e !== "offline" ? "aguardando" : e);

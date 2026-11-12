@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dinheiro, renderCartaoRico, renderMensagemCartoes } from "../../../web/telas/cartoes-ricos.ts";
 
-describe("cartões ricos na conversa (ADR-173)", () => {
+describe("cartões ricos na conversa (ADR-175)", () => {
   it("voo: trecho, horário, preço em reais e o link", () => {
     const html = renderCartaoRico({ tipo: "voo", companhia: "Aérea", numero: "AT 1", origem: "GRU", destino: "SDU", partida: "2026-12-01T07:10", chegada: "2026-12-01T08:25", paradas: 0, preco: { centavos: 48900, moeda: "BRL" }, link: "https://exemplo.com/v" });
     expect(html).toContain("GRU → SDU");

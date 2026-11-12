@@ -91,7 +91,7 @@ export type OpcoesBoot = {
   capturador?: OpcoesCompor["capturador"];
   /** NOD-132, só em teste: o assinador falso da URL do ZIP (vale com NOD_APP_VERSAO_PUBLICADA). Default: signBlob do IAM. */
   assinadorAtualizacaoApp?: OpcoesCompor["assinadorAtualizacaoApp"];
-  /** ADR-115, só em teste: a API falsa do revisor (o e2e das regras do Automático, ADR-164). Default: a da Anthropic. */
+  /** ADR-115, só em teste: a API falsa do revisor (o e2e das regras do Automático, ADR-166). Default: a da Anthropic. */
   revisor?: OpcoesCompor["revisor"];
 };
 

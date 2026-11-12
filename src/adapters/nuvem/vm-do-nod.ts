@@ -5,7 +5,7 @@ import { ErroDeDominio } from "../../domain/erro.ts";
 import { log } from "../../obs/log.ts";
 
 /**
- * ADR-167 (definido em 2026-11-12): o provisionador da VM do nod (opção 3). Dois drivers:
+ * ADR-169 (definido em 2026-11-12): o provisionador da VM do nod (opção 3). Dois drivers:
  *   - `seco` (o padrão): monta o pedido exato que iria ao Google e o devolve como PREVISÃO; nunca chama a rede. É o que
  *     roda com `NOD_VM_DO_NOD=1` até o Marlon decidir cobrança e projeto — nada pago nasce por engano.
  *   - `gcp`: o MESMO `ProvedorNuvem` da ADR-121 (criar, ligar, desligar, excluir, estado), só que com a conta de serviço do

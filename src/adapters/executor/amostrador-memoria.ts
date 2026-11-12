@@ -217,7 +217,7 @@ export function criarAmostradorMemoria(o: { env: Record<string, string | undefin
   async function lerGrupos(): Promise<Map<number, number>> {
     if (grupos.size === 0) return new Map();
     try {
-      // ADR-169: o %cpu na 4ª coluna dá a CPU por bot/turno na mesma passada do ps.
+      // ADR-171: o %cpu na 4ª coluna dá a CPU por bot/turno na mesma passada do ps.
       const linhas = lerLinhasDoPs(await executar("/bin/ps", ["-A", "-o", "pid=,pgid=,rss=,%cpu="]));
       const dosTurnos = new Set(grupos.values());
       const fugitivos = await grupoDosFugitivos(linhas, dosTurnos);

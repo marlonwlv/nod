@@ -55,7 +55,7 @@ const AMOSTRAS: Record<(typeof CLASSES_ERRO_FORNECEDOR)[number], string[]> = {
     "TypeError: fetch failed",
     "stream disconnected before completion: error sending request",
   ],
-  // ADR-169 (2026-11-12): o crédito e o 429 por minuto ganharam classe própria; continuam fora do `limite_de_uso`.
+  // ADR-171 (2026-11-12): o crédito e o 429 por minuto ganharam classe própria; continuam fora do `limite_de_uso`.
   fatura_em_aberto: [
     "success | Credit balance is too low",
     'unexpected status 429 Too Many Requests: {"error":{"type":"insufficient_quota","message":"You exceeded your current quota"}}',

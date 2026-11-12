@@ -13,7 +13,7 @@ import {
 } from "../contracts/ajustes-aprovacao.ts";
 
 /**
- * Ajustes > Aprovações (definido em 2026-11-12, ADR-164; decisões 2 e 4 do Marlon no comparativo com o Grok Bot). Puro:
+ * Ajustes > Aprovações (definido em 2026-11-12, ADR-166; decisões 2 e 4 do Marlon no comparativo com o Grok Bot). Puro:
  * validação das regras em texto do revisor, o nível de cada ferramenta (sempre permitir, sempre pedir, bloqueado, o revisor
  * decide), o só leitura e o teto do modo que o admin do time define.
  */

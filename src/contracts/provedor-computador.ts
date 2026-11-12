@@ -2,7 +2,7 @@ import type { AcaoComputador, AmbienteComputador, ResultadoComputador } from "./
 import type { MotivoFalhaComputador } from "./motivos.ts";
 
 /**
- * ADR-166 (definido em 2026-11-12): o computador do bot é PLUG AND PLAY. Quem dá a máquina (Docker próprio, o motor da
+ * ADR-168 (definido em 2026-11-12): o computador do bot é PLUG AND PLAY. Quem dá a máquina (Docker próprio, o motor da
  * pessoa, um serviço de terceiros como o Orgo) é um `ProvedorDeComputador`; o portão (fundo/computadores.ts), as
  * ferramentas `computador_*` e o agente só conhecem o `DriverComputador` de sempre, montado por cima do provedor escolhido
  * (adapters/computador/provedores/seletor.ts). Trocar de provedor é configuração (`NOD_COMPUTADOR_PROVEDOR`, por pessoa ou
@@ -115,7 +115,7 @@ export interface ProvedorDeComputador {
 }
 
 /**
- * A escolha do provedor, por configuração (ADR-166). A ordem de precedência é bot > pessoa > global > padrão; o padrão é
+ * A escolha do provedor, por configuração (ADR-168). A ordem de precedência é bot > pessoa > global > padrão; o padrão é
  * o que o servidor já fazia (`NOD_COMPUTADORES=docker`; o motor (ADR-122, um computador por pessoa) segue no caminho próprio), para nada mudar sem alguém pedir.
  */
 export type ConfigProvedores = {

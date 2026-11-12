@@ -504,7 +504,7 @@ export function comporApp(o: OpcoesCompor): App {
     if (!detectorGh || (await donoDaMaquinaLocal()) !== escopo.pessoaId) return false;
     return detectorGh.logado();
   }
-  // ADR-171: a máquina do turno é um Mac DA PESSOA do turno? Só então as ferramentas do conector `mac` entram no plano.
+  // ADR-173: a máquina do turno é um Mac DA PESSOA do turno? Só então as ferramentas do conector `mac` entram no plano.
   async function macDaPessoa(escopo: Escopo, maquinaDoTurno?: string | null): Promise<boolean> {
     if (maquinaDoTurno && (compartilhado || maquinaDaPonte(escopo, maquinaDoTurno))) return ponteHttp.maquina(escopo, maquinaDoTurno)?.plataforma === "darwin";
     if (compartilhado) return false;
@@ -784,7 +784,7 @@ export function comporApp(o: OpcoesCompor): App {
     if (desfecho === "diferente") log("aviso", "computador_supervisor_diferente", { computador_id: relato.computadorId, maquina_id: maquinaId });
   }
   /**
-   * ADR-166 (NOD computador plug and play): fora do motor, o computador do bot vem de um PROVEDOR escolhido por
+   * ADR-168 (NOD computador plug and play): fora do motor, o computador do bot vem de um PROVEDOR escolhido por
    * configuração (bot > pessoa > global > NOD_COMPUTADORES=docker). Só NOD_COMPUTADORES=docker monta o mesmo Docker de
    * antes; o Orgo só existe com NOD_COMPUTADOR_ORGO=1 e a chave da pessoa vem do cofre (conector `orgo`, ORGO_API_KEY).
    */
@@ -1523,7 +1523,7 @@ export function comporApp(o: OpcoesCompor): App {
       ...(compartilhado ? {} : Object.fromEntries(ponte.maquinasConectadas().map((m) => [m.machineId, (Object.entries(m.harnesses ?? {}) as [IdHarness, Inventario | undefined][]).filter(([, i]) => i?.estado === "pronto").map(([h]) => h)]))),
     })),
     ...rotasTimes(depsRotas),
-    // ADR-164: Ajustes > Aprovações; o teto do modo é do admin (NOD_ADMINS, a mesma lista das flags).
+    // ADR-166: Ajustes > Aprovações; o teto do modo é do admin (NOD_ADMINS, a mesma lista das flags).
     ...criarRotasAjustesAprovacao(depsRotas, (env.NOD_ADMINS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
     ...criarRotasConversas(depsRotas),
     ...criarRotasBusca(depsRotas, { poolMax: lerPoolMax(env) }),
@@ -1592,7 +1592,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasTrilha({ dentro }),
     // ADR-090: o motor sem janela da versão deste servidor (dist/motor) e o script que o instala numa máquina Linux.
     // NOD-132 (ADR-149): o feed da atualização do app do Mac, fora da trava 426. Versão vazia = 204 para todos.
-    // ADR-168: as flags remotas da pessoa (a web e o app leem) e o canal de teste do app pelas mesmas flags.
+    // ADR-170: as flags remotas da pessoa (a web e o app leem) e o canal de teste do app pelas mesmas flags.
     ...rotasFlags({ fonte: fonteFlags }),
     ...rotasAtualizacaoApp({ config: configAtualizacaoApp, versaoMinima: VERSAO_MINIMA_APP, teste: configTesteApp, canalDe: (escopo) => canalDasFlags(fonteFlags.avaliar(escopo)), publicadaEm: new Date(relogio()).toISOString().replace(/\.\d{3}Z$/, "Z"),
       assinar: configAtualizacaoApp ? cachearAssinador(o.assinadorAtualizacaoApp ?? criarAssinadorGcs({ bucket: configAtualizacaoApp.bucket, fonteToken: criarFonteDeToken({ env }) }), { agora: relogio }) : null }),
@@ -1600,7 +1600,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasContasIa({ dentro, logins, dispositivo, compartilhado, onboardingTexto, avisar: avisarContas, maquinaViva: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id), plataformaDaMaquina: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).find((m) => m.machineId === id)?.plataforma ?? null, maquinaAtualizaIas: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id && m.atualizaIas), aoRenomear: (escopo, id, nome) => ponteHttp.renomear(escopo, id, nome) }),
     ...(compartilhado ? rotasInstalacoesSsh({ dentro, instalacoes, dispositivo, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }) : []),
     ...rotasMaquinas({ dentro, pareamento: criarPareamentoMaquina(relogio), dispositivo, maquinasVivas: (escopo) => ponteHttp.maquinasDaPessoa(escopo), pareadaPorConvite, ...(compartilhado ? {} : { servidorNoMac: { api: `http://127.0.0.1:${numero(env.NOD_API_PORT, 8888)}` } }) , nuvem: nuvemLigada,
-      // ADR-167: a VM do Nod (opção 3) só aparece disponível com NOD_VM_DO_NOD=1; o driver padrão é o seco (nada na nuvem).
+      // ADR-169: a VM do Nod (opção 3) só aparece disponível com NOD_VM_DO_NOD=1; o driver padrão é o seco (nada na nuvem).
       ...(env.NOD_VM_DO_NOD === "1" ? { vmDoNod: { planos: planosDoEnv(env.NOD_VM_DO_NOD_PLANOS), driver: env.NOD_VM_DO_NOD_DRIVER === "gcp" ? "gcp" as const : "seco" as const } } : {}) }),
     ...(nuvemLigada ? rotasNuvem({ dentro, segredo: segredoEfetivo(env.NOD_LOGIN === "google" ? "google" : "stub", env.NOD_SESSAO_SEGREDO), oauth: oauthNuvem(env), conta: o.nuvem?.conta ?? criarContaGcp({ contaFaturamento: env.NOD_NUVEM_CONTA_FATURAMENTO ?? null }), ...(o.nuvem?.fetchImpl ? { fetchImpl: o.nuvem.fetchImpl } : {}), cifrar: (t) => cifrar(t, chave), provedorDa: async (escopo, credencialId) => provedorDaChave(await dentro(escopo, (d) => d.repos.credenciaisNuvem.chaveCifrada(credencialId))), ...(criacaoNuvem ? { registrarConvite: criacaoNuvem.registrarConvite } : {}), agora: relogio }) : []),
     // definido em 2026-09-16: NOD_LONGPOLL_MS encurta a fatia do long-poll de aprovação (testes/e2e); default LONGPOLL_APROVACAO_MS.

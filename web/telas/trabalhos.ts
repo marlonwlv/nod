@@ -94,7 +94,7 @@ export function renderFaixaTrabalhos(estado: Estado, agenteId: string): string {
   // entre o título e o status (o status e a seta não saem do lugar; o título é que cede).
   const linhas = lista.map((t) => `<button type="button" class="ft-linha" data-act="abrir-trabalho" data-id="${esc(t.id)}">${pontoTrabalho(t, bot?.cor)}${tituloDaLinha(t, "ft-titulo")}${detalheNoHover(t, estado.agora)}<span class="ft-passo">${esc(statusCurto(t, todos, atividadeDe(estado, t), segurando, estado.agora))}</span><span class="ft-seta" aria-hidden="true">${ICONE.seta}</span></button>`).join("");
   // "Trabalhos · Cecília": sem "do"/"da" — o nome do bot não diz o gênero (o print do Marlon tinha "Trabalhos do Cecília").
-  // ADR-165 (Paper 15c): com um lote de frentes, o cabeçalho é o do lote ("5 frentes do Dante · 2 de 5 prontas").
+  // ADR-167 (Paper 15c): com um lote de frentes, o cabeçalho é o do lote ("5 frentes do Dante · 2 de 5 prontas").
   const lote = lista.find((t) => t.lote)?.lote;
   const titulo = lote ? lista.find((t) => t.tituloDoLote)?.tituloDoLote ?? `${lote.frentes} frentes` : null;
   const prontas = lote ? todos.filter((t) => t.lote?.id === lote.id && t.estado === "terminado").length : 0;
@@ -201,7 +201,7 @@ const FILTROS: { id: FiltroTrabalhos; nome: string }[] = [
  * "Todos os trabalhos" (K9/M3): os grupos da gaveta com os trabalhos de todos os bots, o filtro por origem e a memória
  * de cada um — os que mais usam primeiro. Sob pressão, a pílula de memória fica no topo.
  */
-/** ADR-165 (Paper 16): o segmentado "Por bot | Por frente" do topo de Trabalhos (só com o dono de cada bot no servidor). */
+/** ADR-167 (Paper 16): o segmentado "Por bot | Por frente" do topo de Trabalhos (só com o dono de cada bot no servidor). */
 export function segmentadoDosTrabalhos(porBot: boolean): string {
   return `<div class="tt-vista" role="group" aria-label="Ver os trabalhos"><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="por-bot" aria-pressed="${porBot}">Por bot</button><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="todos" aria-pressed="${!porBot}">Por frente</button></div>`;
 }
@@ -500,7 +500,7 @@ function telaDaLinhaDaRotina(titulo: string, mensagens: readonly Mensagem[], est
   return `${topo}${corpo}<div class="tk-acoes">${botao("fechar-trabalho", "Fechar", { classe: "tk-fechar" })}</div>`;
 }
 
-/** ADR-165 (Paper 17): com um trabalho só, a pílula diz qual é e o último passo ("Issues da call de ontem · Criando a NOD-515"). */
+/** ADR-167 (Paper 17): com um trabalho só, a pílula diz qual é e o último passo ("Issues da call de ontem · Criando a NOD-515"). */
 function umTrabalhoNaPilula(t: TrabalhoDto): string {
   const passo = t.estado === "precisa_de_voce" ? "precisa de você" : t.ultimoPasso;
   return `<span class="pt-um"><b>${esc(tituloCurto(t.titulo))}</b>${passo ? `<span class="pt-passo">${esc(passo)}</span>` : ""}</span>`;

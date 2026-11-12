@@ -5,7 +5,7 @@ import { corpoObjeto, criarExecutor, type DepsRotas } from "./executar-caso.ts";
 const ID = "(?<id>[^/]+)";
 
 /**
- * Ajustes > Aprovações (definido em 2026-11-12, ADR-164). A tela lê tudo de uma vez (`GET /aprovacoes/ajustes?agente=`) e
+ * Ajustes > Aprovações (definido em 2026-11-12, ADR-166). A tela lê tudo de uma vez (`GET /aprovacoes/ajustes?agente=`) e
  * cada mudança é uma rota com o id do registro (`aprovacoes.*`, sem caminho no chat). `admins` = NOD_ADMINS, lida na borda.
  */
 export function criarRotasAjustesAprovacao(d: DepsRotas, admins: readonly string[]): Rota[] {

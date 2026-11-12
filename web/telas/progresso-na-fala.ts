@@ -138,7 +138,7 @@ export function frentesNaFala(abertura: Pick<Abertura, "frentes">, mensagens: re
 }
 
 /**
- * Paper 15 (ADR-165): no resumo a frente vai pelo nome curto, o pedaço antes do primeiro " · " ("PR #491 · Passagem por
+ * Paper 15 (ADR-167): no resumo a frente vai pelo nome curto, o pedaço antes do primeiro " · " ("PR #491 · Passagem por
  * coluna" → "PR #491"); o título inteiro fica na lista. Sem " · ", o título curto de sempre.
  */
 export function nomeNoResumo(titulo: string): string {
@@ -160,7 +160,7 @@ export function resumoDoProgresso(frentes: readonly FrenteNaFala[]): { principal
   const resto: string[] = [];
   const rodando = de("rodando");
   if (rodando.length) resto.push(`${nomes(rodando) ?? rodando.length} rodando`);
-  // Paper 15 (ADR-165): "1 precisa de você" pela contagem, em laranja — o título da frente já está na lista aberta.
+  // Paper 15 (ADR-167): "1 precisa de você" pela contagem, em laranja — o título da frente já está na lista aberta.
   const precisa = de("precisa");
   if (precisa.length) resto.push(precisa.length === 1 ? "1 precisa de você" : `${precisa.length} precisam de você`);
   const esperando = de("esperando");
@@ -232,7 +232,7 @@ export function htmlProgresso(frentes: readonly FrenteNaFala[], p: { chave: stri
     return `<section class="progresso progresso-uma" data-frentes="${ids}" aria-label="${esc(`Frente ${curto}: ${ROTULO[unica.estado]}`)}"><div class="progresso-item ${unica.estado}">${icone(unica.estado)}<span class="progresso-corpo progresso-em-linha"><button type="button" class="progresso-titulo" data-act="abrir-trabalho" data-id="${esc(unica.trabalhoId)}"${curto === unica.titulo ? "" : ` title="${esc(unica.titulo)}"`}>${esc(curto)}</button><span class="progresso-passo">${esc(detalhe)}</span></span>${memoria}${unica.tempo ? `<span class="progresso-fim">${esc(unica.tempo)}</span>` : ""}</div></section>`;
   }
   const { principal, resto } = resumoDoProgresso(frentes);
-  // Paper 15 (ADR-165): a barra enche da esquerda com as prontas, depois as que pararam e as que esperam, e termina nas que
+  // Paper 15 (ADR-167): a barra enche da esquerda com as prontas, depois as que pararam e as que esperam, e termina nas que
   // rodam e nas que precisam de você; a lista é a mesma ordem ao contrário (o que precisa de você em cima).
   const naBarra = [...frentes].sort((a, b) => ORDEM_NA_BARRA.indexOf(a.estado) - ORDEM_NA_BARRA.indexOf(b.estado));
   const barra = naBarra.map((f) => `<span class="progresso-seg ${f.estado}"></span>`).join("");

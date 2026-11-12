@@ -7,7 +7,7 @@ import { criarFilaOffline, falhouPorRede, type Armazem } from "../../../web/lib/
 
 const TURNO = "0b0f6c1e-2f3a-4b5c-8d9e-0123456789ab";
 
-describe("prazo de primeiro token e de ociosidade do modelo (ADR-169)", () => {
+describe("prazo de primeiro token e de ociosidade do modelo (ADR-171)", () => {
   it("150 s sem o primeiro token estoura uma vez; ferramenta rodando não conta", () => {
     const v = novaVigia(0);
     expect(verificarVigia(v, PRAZO_PRIMEIRO_TOKEN_MS)).toBeNull();
@@ -40,7 +40,7 @@ describe("prazo de primeiro token e de ociosidade do modelo (ADR-169)", () => {
   });
 });
 
-describe("traceparent do motor ao servidor (ADR-169)", () => {
+describe("traceparent do motor ao servidor (ADR-171)", () => {
   it("o trace do turno é o id dele sem hífens; o header é W3C válido", () => {
     expect(traceDoTurno(TURNO)).toBe("0b0f6c1e2f3a4b5c8d9e0123456789ab");
     const tp = traceparentDoTurno(TURNO, "00f067aa0ba902b7")!;
@@ -54,7 +54,7 @@ describe("traceparent do motor ao servidor (ADR-169)", () => {
   });
 });
 
-describe("CPU por bot/turno (ADR-169)", () => {
+describe("CPU por bot/turno (ADR-171)", () => {
   it("o ps com %cpu (ponto ou vírgula) soma por grupo, com os fugitivos", () => {
     const linhas = lerLinhasDoPs(" 10 10 2048 12,5\n 11 10 1024 30.0\n 12 99 512 7.5\n 13 13 100\n");
     expect(linhas[0]).toEqual({ pid: 10, pgid: 10, rssKib: 2048, cpuPct: 12.5 });
@@ -66,7 +66,7 @@ describe("CPU por bot/turno (ADR-169)", () => {
   });
 });
 
-describe("troca de rede renova a espera (ADR-169)", () => {
+describe("troca de rede renova a espera (ADR-171)", () => {
   it("a assinatura ignora o loopback e muda com o IP", async () => {
     const um = { en0: [{ address: "192.168.0.2", internal: false }], lo0: [{ address: "127.0.0.1", internal: true }] } as never;
     const dois = { en0: [{ address: "10.0.0.7", internal: false }] } as never;
@@ -81,7 +81,7 @@ describe("troca de rede renova a espera (ADR-169)", () => {
   });
 });
 
-describe("fila de envio offline da web (ADR-169)", () => {
+describe("fila de envio offline da web (ADR-171)", () => {
   const memoria = (): Armazem & { dados: Map<string, string> } => {
     const dados = new Map<string, string>();
     return { dados, getItem: (k) => dados.get(k) ?? null, setItem: (k, v) => { dados.set(k, v); }, removeItem: (k) => { dados.delete(k); } };

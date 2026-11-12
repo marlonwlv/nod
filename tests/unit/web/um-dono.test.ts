@@ -136,7 +136,7 @@ describe("Trabalhos com uma linha por bot (quadro 05)", () => {
   it("os grupos Precisa de você, Trabalhando e Esperando, e os livres numa linha; o topo conta bots", () => {
     const html = renderTrabalhosPorBot(base());
     expect(html).toContain("<p>1 bot trabalhando · 1 esperando · 1 precisa de você</p>");
-    // ADR-165 (Paper 16): o número do grupo vem em cinza, sem o "·".
+    // ADR-167 (Paper 16): o número do grupo vem em cinza, sem o "·".
     const ordem = ['Precisa de você <span class="tb-conta">1</span>', 'Trabalhando <span class="tb-conta">1</span>', 'Esperando <span class="tb-conta">1</span>'].map((t) => html.indexOf(t));
     expect(ordem.every((i) => i > 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);

@@ -17,7 +17,7 @@ import type { Rota } from "../roteador.ts";
  * A URL assinada nunca vai para log.
  */
 /**
- * ADR-168: o canal de teste. `teste` é a versão de teste publicada no mesmo bucket (NOD_APP_VERSAO_TESTE) e `canalDe` diz,
+ * ADR-170: o canal de teste. `teste` é a versão de teste publicada no mesmo bucket (NOD_APP_VERSAO_TESTE) e `canalDe` diz,
  * pelas flags remotas da pessoa da chave, se ela está no canal `teste`. Só quem está no teste recebe a de teste, e só se
  * ela for mais nova que a estável; senão segue a estável.
  */

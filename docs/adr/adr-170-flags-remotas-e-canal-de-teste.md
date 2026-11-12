@@ -1,4 +1,4 @@
-# ADR-168 — Flags remotas por pessoa e o canal de teste do app
+# ADR-170 — Flags remotas por pessoa e o canal de teste do app
 
 Status: proposta · Data: 2026-11-12 (decisão 3 do Marlon: "flags remotas e versões de teste") · Convive com a
 [ADR-111](adr-111-chaves-de-experimento-calibracao-e-memoria-longa.md) (chaves de experimento) e emenda a

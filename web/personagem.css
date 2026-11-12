@@ -1,5 +1,5 @@
-/* ADR-172 (2026-11-12): o personagem do Grok Bot no nod — o modal "Criar novo bot" (tela 09 do Paper), o preparo com %
-   (tela 09b) e o onboarding em 10 passos (tela 13). Só tokens (tokens.css e os do ADR-165); nenhuma cor literal. */
+/* ADR-174 (2026-11-12): o personagem do Grok Bot no nod — o modal "Criar novo bot" (tela 09 do Paper), o preparo com %
+   (tela 09b) e o onboarding em 10 passos (tela 13). Só tokens (tokens.css e os do ADR-167); nenhuma cor literal. */
 
 /* ---- seletores de forma e cor (modal e passo 9) ------------------------------------------------------------------- */
 .cb-formas, .cb-cores { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
@@ -163,7 +163,7 @@ dialog.criar-bot[open] { animation: cb-entra var(--dur-lento) var(--curva); }
 @media (forced-colors: active) { .cb-nome:focus { outline: 2px solid CanvasText; } }
 
 /* ---- Tela 09b do Paper (rodada 2): o preparo ocupa a área da conversa ----
-   O modal (ADR-172: o preparo segue no mesmo diálogo) vira a tela inteira à direita da barra: sem véu, sem cartão, o
+   O modal (ADR-174: o preparo segue no mesmo diálogo) vira a tela inteira à direita da barra: sem véu, sem cartão, o
    conteúdo no centro (personagem de 128, título 22/28, a barra de 320 com o %, os passos em linhas de 28) e o "Se der
    erro" como cartão no canto de baixo à direita. --cb-barra é local: a largura da barra lateral (340 hoje; a casca nova
    usa 272 e a integração liga ao token dela). */

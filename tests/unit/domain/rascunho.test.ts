@@ -5,7 +5,7 @@ import { rascunhoDoItem } from "../../../src/domain/rascunho.ts";
 const item = (conector: string, ferramenta: string, argumentos: Record<string, unknown>, texto: string, textoFinal = texto) =>
   ({ textoOriginal: texto, textoFinal, destino: { conector, ferramenta, argumentos } });
 
-describe("rascunhoDoItem (ADR-173)", () => {
+describe("rascunhoDoItem (ADR-175)", () => {
   it("e-mail do Gmail: cabeçalho, Para, Assunto e o corpo editável quando o corpo é o texto do item", () => {
     const corpo = "Oi, Mateus! Respondi as 12 perguntas.";
     const r = rascunhoDoItem(item("gmail", "GMAIL_SEND_EMAIL", { recipient_email: "mateus@lipe.com.br", subject: "Re: Formulário de LGPD", body: corpo }, corpo), "Gmail");

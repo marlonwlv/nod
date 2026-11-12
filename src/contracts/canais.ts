@@ -1,7 +1,7 @@
 /**
- * O conector local `canais` (ADR-174): os canais próprios do bot que o Grok Bot traz — a caixa de e-mail do bot
+ * O conector local `canais` (ADR-176): os canais próprios do bot que o Grok Bot traz — a caixa de e-mail do bot
  * (`ClaimEmailInbox`, `SendEmail`, `Search/ReadEmailThread`) e iMessage/SMS pelo telefone vinculado. Enviar passa pela
- * aprovação e aparece como rascunho na conversa (ADR-173); ler devolve conteúdo de fora, que é dado, nunca instrução.
+ * aprovação e aparece como rascunho na conversa (ADR-175); ler devolve conteúdo de fora, que é dado, nunca instrução.
  */
 export type MensagemDeCanal = {
   id: string;

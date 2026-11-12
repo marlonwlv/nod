@@ -31,7 +31,7 @@ import { appsDoBotRepo } from "./apps-do-bot.repo.ts";
 import { canvasRepo } from "./canvas.repo.ts";
 import { acessosRepo } from "./acessos.repo.ts";
 import { ajustesAprovacaoRepo } from "./ajustes-aprovacao.repo.ts";
-import { memoriaDeTimeRepo, passkeysRepo, vezNaSalaRepo, vmsDoNodRepo } from "./grok-persistencia.repo.ts";
+import { memoriaDeTimeRepo, passkeysRepo, vezNaSalaRepo, vmsDoNodRepo } from "./vm-sala-memoria-passkey.repo.ts";
 import { quadroComentariosRepo } from "./quadro-comentarios.repo.ts";
 import { quadroImportacoesRepo } from "./quadro-importacoes.repo.ts";
 import { quadroExecucoesRepo } from "./quadro-execucoes.repo.ts";

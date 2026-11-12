@@ -341,7 +341,7 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 .at-sigilo { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 7px; border-radius: var(--raio-full); background: var(--surface-selected); color: var(--ink-3); font-style: normal; font-size: var(--fs-legenda); white-space: nowrap; vertical-align: 1px; }
 .at-sigilo svg { flex: none; }
 
-/* ---------- Tela 11 (ADR-171, 2026-11-12): o estado do computador em uma palavra, no desenho do Grok Bot ----------
+/* ---------- Tela 11 (ADR-173, 2026-11-12): o estado do computador em uma palavra, no desenho do Grok Bot ----------
    Rótulo pequeno acima do cartão; cartão com título, apoio e, à direita, a miniatura (ao vivo) ou um ícone do estado.
    Só tokens existentes; nada de token global novo. */
 .cbe { margin: 0 0 12px; }

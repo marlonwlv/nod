@@ -74,7 +74,7 @@ export type EntradaEmitirPlano = {
    */
   ghNaMaquina?: boolean;
   /**
-   * ADR-171 (definido em 2026-11-12): a máquina DESTE turno é um Mac da pessoa do turno. As ferramentas do conector
+   * ADR-173 (definido em 2026-11-12): a máquina DESTE turno é um Mac da pessoa do turno. As ferramentas do conector
    * `mac` DELA vão marcadas para rodar na máquina; sem isso (VM Linux, servidor, Windows, ausente) elas saem do plano.
    */
   macNaMaquina?: boolean;
@@ -595,7 +595,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
     partesDoRecomeco = { motivo: motivoRecomeco, avisoChars: 0, resumoChars: 0, historicoChars: JSON.stringify(historico).length };
   }
   {
-    // ADR-171: Mail, Notas, Calendário, Lembretes, Contatos e iMessage só existem no Mac da pessoa; fora dele, somem.
+    // ADR-173: Mail, Notas, Calendário, Lembretes, Contatos e iMessage só existem no Mac da pessoa; fora dele, somem.
     const meuMac = guardados.find((c) => c.slug === SLUG_MAC && c.comando === COMANDO_MAC_NATIVO && c.ownerId === deps.escopo.pessoaId);
     const deOutro = guardados.filter((c) => c.slug === SLUG_MAC && c.comando === COMANDO_MAC_NATIVO && c.ownerId !== deps.escopo.pessoaId);
     parcial.catalogo.ferramentas = ferramentasMacNoPlano(parcial.catalogo.ferramentas, meuMac?.id ?? null, input.macNaMaquina === true);

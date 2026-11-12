@@ -3,7 +3,7 @@ import type { ModoAprovacao } from "../../src/contracts/agente.ts";
 import { fraseDoErro, TELA_APROVACOES_INICIAL, type BotDaTela, type TelaAprovacoes } from "../telas/config-aprovacoes.ts";
 
 /**
- * O controlador de Configurações › Aprovações (ADR-164): o estado da tela fica aqui (fora do reducer: é só desta seção),
+ * O controlador de Configurações › Aprovações (ADR-166): o estado da tela fica aqui (fora do reducer: é só desta seção),
  * busca os ajustes do "Vale para" escolhido e grava cada mudança pela rota dela. Depois de gravar, relê do servidor — a
  * verdade é o banco, e o próximo desenho mostra o que valeu.
  */

@@ -3,7 +3,7 @@ import { criarChecagemTeste } from "../../../src/adapters/checagem-aparelho/test
 import { lerPoliticaMdm, modoComTeto, origemHttps } from "../../../src/domain/mdm.ts";
 import { decidirTesteGratis, pareceMaquinaVirtual } from "../../../src/domain/teste-gratis.ts";
 
-describe("política do MDM (ADR-176)", () => {
+describe("política do MDM (ADR-178)", () => {
   it("só origem https, sem caminho, usuário ou consulta", () => {
     expect(origemHttps("https://Nod.Acme.com/")).toBe("https://nod.acme.com");
     expect(origemHttps("https://nod.acme.com:8443")).toBe("https://nod.acme.com:8443");
@@ -25,7 +25,7 @@ describe("política do MDM (ADR-176)", () => {
   });
 });
 
-describe("teste grátis com DeviceCheck (ADR-176)", () => {
+describe("teste grátis com DeviceCheck (ADR-178)", () => {
   it("um teste por aparelho, nunca em VM nem com a empresa desligando", async () => {
     const c = criarChecagemTeste();
     const primeira = decidirTesteGratis({ bits: await c.consultar("tok"), maquinaVirtual: false, semTesteGratisPelaEmpresa: false });

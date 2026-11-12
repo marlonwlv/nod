@@ -116,7 +116,7 @@ export function criarRoteador(rotas: Rota[], deps: DepsRoteador): (req: Incoming
       }
       const achado = casar(rotas, metodo, caminho.slice("/api/maquina".length), (r) => r.maquina === true);
       if (!achado) { json(res, 404, { codigo: "nao_encontrado" }); return; }
-      // ADR-169: o traceparent que o motor manda vira o trace de todo log deste pedido.
+      // ADR-171: o traceparent que o motor manda vira o trace de todo log deste pedido.
       await comRastro(lerTraceparent(req.headers.traceparent), () => (achado.rota.handler as (c: CtxPublico) => Promise<void>)(montarCtx(req, res, identidade, { ...achado.params, chaveId: identidade.chaveId }, false, achado.rota.publica ? undefined : achado.rota.corpoMax)));
       return;
     }

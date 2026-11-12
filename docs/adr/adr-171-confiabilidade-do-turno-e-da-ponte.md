@@ -1,4 +1,4 @@
-# ADR-169 — Confiabilidade trazida do Grok Bot: falhas tipadas, prazos do modelo, traceparent, rede, CPU por turno e fila offline
+# ADR-171 — Confiabilidade trazida do Grok Bot: falhas tipadas, prazos do modelo, traceparent, rede, CPU por turno e fila offline
 
 Status: proposta · Data: 2026-11-12 (lista "Pode trazer já" do comparativo do back) · Emenda a
 [ADR-067](adr-067-sessao-viva-o-turno-segue-ate-o-bot-terminar.md) (sem watchdog de turno: continua), a NOD-174
@@ -43,4 +43,4 @@ Status: proposta · Data: 2026-11-12 (lista "Pode trazer já" do comparativo do 
 ## Gatilho de reversão
 
 Se em 14 dias o `turno_modelo_mudo` aparecer em mais de 2% dos turnos com o modelo de fato respondendo depois (falso
-positivo), subir os prazos por flag remota (ADR-168) antes de qualquer `encerrar`.
+positivo), subir os prazos por flag remota (ADR-170) antes de qualquer `encerrar`.

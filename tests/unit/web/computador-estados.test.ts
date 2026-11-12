@@ -8,7 +8,7 @@ function pc(p: Partial<ComputadorPessoaDto> = {}): ComputadorPessoaDto {
   return { estado: "pronto", maquina: { id: "m", nome: "Mac do Marlon", contato: AGORA }, telas: [], esperando: [], ...p };
 }
 
-describe("Tela 11: os cinco estados do computador do bot (ADR-171)", () => {
+describe("Tela 11: os cinco estados do computador do bot (ADR-173)", () => {
   it("deriva cada estado do que o nod já guarda", () => {
     expect(estadoDoCartao(pc({ estado: "dormindo" }), "a", AGORA)).toBe("em_repouso");
     expect(estadoDoCartao(pc({ estado: "ligando" }), "a", AGORA)).toBe("conectando");

@@ -1,4 +1,4 @@
-# ADR-170 — Sala com a vez de cada membro e memória de time revisada por gente
+# ADR-172 — Sala com a vez de cada membro e memória de time revisada por gente
 
 Status: proposta (só o domínio entrou; persistência, rotas e telas no próximo recorte) · Data: 2026-11-12 (decisão 3
 do Marlon: "salas com vários bots e pessoas; memória de time") · Estende a

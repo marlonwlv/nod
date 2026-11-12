@@ -64,7 +64,7 @@ describe("decisões no chat", () => {
       suaVez: { ...estado.suaVez!, itens: [{ ...item, decisao: { ...item.decisao, tipo: "aprovacao" }, itensAprovacao: [i] }] },
     };
     const html = renderTimeline(conversa, e);
-    // ADR-164 (tela 06): "Permitir uma vez" e "Negar" com o Esc ao lado.
+    // ADR-166 (tela 06): "Permitir uma vez" e "Negar" com o Esc ao lado.
     expect(html).toContain("Permitir uma vez");
     expect(html).toContain('Negar <kbd class="kbd-esc">Esc</kbd>');
     expect(html).not.toContain("Aprovar 1 de 1");

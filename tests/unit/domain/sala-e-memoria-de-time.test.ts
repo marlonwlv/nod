@@ -5,7 +5,7 @@ import { fecharVez, pedirVez, PRAZO_VEZ_DO_BOT_MS, sairDaSala, salaVazia, vencer
 const bot = (id: string) => ({ id, tipo: "bot" as const });
 const pessoa = (id: string) => ({ id, tipo: "pessoa" as const });
 
-describe("turno por membro na sala (ADR-170)", () => {
+describe("turno por membro na sala (ADR-172)", () => {
   it("uma vez de cada vez; pessoa passa na frente dos bots; pedir de novo não duplica", () => {
     let e = salaVazia();
     expect(pedirVez(e, bot("a"), "p1", 0).comecou).toBe(true);
@@ -39,7 +39,7 @@ describe("turno por membro na sala (ADR-170)", () => {
   });
 });
 
-describe("memória de time revisada por gente (ADR-170)", () => {
+describe("memória de time revisada por gente (ADR-172)", () => {
   const quem = { agenteId: "bot1", pessoaId: "p1" };
   it("a proposta entra na fila; igual ao que o time já tem vira duplicada", () => {
     const time = [{ id: "m1", texto: "O deploy de produção é às quintas" }];

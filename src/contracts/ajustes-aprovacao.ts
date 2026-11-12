@@ -1,7 +1,7 @@
 import type { ModoAprovacao } from "./agente.ts";
 
 /**
- * Ajustes > Aprovações (definido em 2026-11-12, ADR-164; decisões 2 e 4 do Marlon no comparativo com o Grok Bot). Só tipos e
+ * Ajustes > Aprovações (definido em 2026-11-12, ADR-166; decisões 2 e 4 do Marlon no comparativo com o Grok Bot). Só tipos e
  * `as const`: a regra mora em src/domain/ajustes-aprovacao.ts; a web importa daqui só com `import type`.
  */
 

@@ -227,9 +227,9 @@ function caminhoConfig() { return join(app.getPath("userData"), "conexao.enc"); 
 // conexão (clearStorageData abaixo). O aviso sai daqui, do processo principal — a página continua sem
 // permissão nenhuma (proteger) —, e só com a janela fora de foco.
 let preferencias: Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraDesktop | null; decisoesBarra: DecisoesBarraDesktop; atalhoQuickChat?: string | null; avataresNaMesa?: AvatarNaMesa[] } = { avisos: true, tema: "sistema", som: true, barra: null, decisoesBarra: {} };
-/** ADR-171: o Quick Chat da conexão atual (recriado a cada conectar, destruído ao fechar a janela principal). */
+/** ADR-173: o Quick Chat da conexão atual (recriado a cada conectar, destruído ao fechar a janela principal). */
 let quickChat: QuickChatApp | null = null;
-/** ADR-171: os avatares soltos na mesa, por bot (desktop/avatar-mesa.ts). Vivem com a conexão, como o Quick Chat. */
+/** ADR-173: os avatares soltos na mesa, por bot (desktop/avatar-mesa.ts). Vivem com a conexão, como o Quick Chat. */
 const avataresVivos = new Map<string, BrowserWindow>();
 function abrirAvatar(servidor: string, a: AvatarNaMesa): void {
   if (avataresVivos.has(a.agenteId)) return;
@@ -558,7 +558,7 @@ async function mostrarSetup() {
   anterior?.close();
 }
 async function parar() {
-  quickChat?.destruir(); quickChat = null; fecharAvatares(); // ADR-171: sem conexão, o atalho solta e os avatares saem
+  quickChat?.destruir(); quickChat = null; fecharAvatares(); // ADR-173: sem conexão, o atalho solta e os avatares saem
   atualizacaoApp?.desconectado(); // NOD-132: o ciclo de 4 h volta só no próximo conectado()
   if (itensGithub) clearInterval(itensGithub);
   itensGithub = null;
@@ -829,7 +829,7 @@ async function conectar(c: Config) {
   await nova.loadURL(c.url);
   anterior?.close(); mensagem = "Conectado.";
   atualizacaoApp?.conectado();
-  // ADR-171: o Quick Chat nasce com a conexão, na origem do servidor desta conexão.
+  // ADR-173: o Quick Chat nasce com a conexão, na origem do servidor desta conexão.
   quickChat?.destruir();
   quickChat = montarQuickChat({ servidor: c.url, preload: join(dir, "preload-web.cjs"), fundo: fundoDaJanela, proteger, atalhoInicial: preferencias.atalhoQuickChat === undefined ? ATALHO_PADRAO_QUICK_CHAT : preferencias.atalhoQuickChat });
   fecharAvatares();
@@ -1511,7 +1511,7 @@ else {
       },
     });
     montarMenu();
-    // ADR-171: a versão pronta entra sozinha com o Mac ocioso e nada rodando (desktop/atualizar-ocioso.ts).
+    // ADR-173: a versão pronta entra sozinha com o Mac ocioso e nada rodando (desktop/atualizar-ocioso.ts).
     let ultimaTentativaOciosa: number | null = null;
     setInterval(() => {
       const a = atualizacaoApp;
@@ -1533,7 +1533,7 @@ else {
       if (lido !== null) { contadorAtual = lido; aplicarContador(); }
     });
     ipcMain.handle(CANAIS_DESKTOP.preferencias, (e) => { validarRemetenteWeb(e); return estadoPreferencias(); });
-    // ADR-171: Quick Chat, captura de janela/região e os liga/desliga das ferramentas do Mac. Tudo validado aqui.
+    // ADR-173: Quick Chat, captura de janela/região e os liga/desliga das ferramentas do Mac. Tudo validado aqui.
     ipcMain.handle(CANAIS_MAC.capturarTela, async (e) => {
       validarRemetenteWeb(e);
       const quem = BrowserWindow.fromWebContents(e.sender);

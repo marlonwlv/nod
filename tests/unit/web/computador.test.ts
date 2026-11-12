@@ -67,7 +67,7 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
   it("painel: fora do ar, a aba Computador ganha o ponto vermelho (e o texto para leitor de tela); respondendo, não — e o cabeçalho fica limpo", () => {
     const dev = (e: Estado): Estado => ({ ...e, modoDev: { ...e.modoDev, ligado: true } });
     const fora = renderDetalhes(comFrota(nina(FORA)));
-    // ADR-165 (Paper 02): o Computador é um bloco da Atividade; o ponto fica no nome dele.
+    // ADR-167 (Paper 02): o Computador é um bloco da Atividade; o ponto fica no nome dele.
     expect(fora).toMatch(/Computador de Nina<span class="gvn-ponto" aria-hidden="true"><\/span><span class="sr-only"> \(fora do ar\)<\/span>/);
     expect(renderDetalhes(comFrota(nina(null)))).not.toContain("gvn-ponto");
     expect(renderDetalhes({ ...dev(comFrota(nina(FORA))), gaveta: { agenteId: "a1", nivel: { tipo: "ajustes" } } })).toContain(">Computador do bot</span>");

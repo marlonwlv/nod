@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { FAMILIAS_MAC, type FamiliaMac, type FamiliasMacLigadas } from "../../../contracts/desktop-mac.ts";
 
 /**
- * ADR-171 (definido em 2026-11-12): os liga/desliga das famílias de ferramentas do Mac. Quem grava é o app do Mac
+ * ADR-173 (definido em 2026-11-12): os liga/desliga das famílias de ferramentas do Mac. Quem grava é o app do Mac
  * (Ajustes > Computador); quem lê, a cada chamada, é o proxy MCP do turno, que roda no mesmo Mac. O arquivo mora no
  * HOME da pessoa (`~/.nod/ferramentas-mac.json`, 0600), num caminho fixo: o proxy recebe do CLI só NOD_URL e o token
  * do turno (mcp-config.ts), não o userData do Electron nem o NOD_HOME do executor do app.

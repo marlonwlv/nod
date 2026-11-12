@@ -93,7 +93,7 @@ export type DadosDoCartaoRevisor = {
    */
   aPedidoDe?: string | null;
   /**
-   * ADR-164 (tela 06, "Com regra sugerida"): a regra pronta para salvar com o clique de permitir. Marcada por padrão; a
+   * ADR-166 (tela 06, "Com regra sugerida"): a regra pronta para salvar com o clique de permitir. Marcada por padrão; a
    * pessoa edita o texto ali mesmo. Só no `revisor_pediu` aberto (quem monta decide).
    */
   regra?: { sugestao: string; agenteId: string };
@@ -108,7 +108,7 @@ export function renderCartaoRevisor(d: DadosDoCartaoRevisor, estadoColuna: strin
   const titulo = `cr-t-${id}`;
   // O topo já diz "O revisor pediu sua decisão": o rótulo "Revisor:" fica só para o leitor de tela.
   const motivo = `<p class="cr-motivo">${d.motivo.rotulo ? `<span class="sr-only">${esc(d.motivo.rotulo)} </span>` : ""}${esc(d.motivo.texto)}</p>`;
-  // ADR-164 (tela 06, "Com regra sugerida"): o que vai sair fica à vista numa caixa; com várias ações, atrás do disclosure.
+  // ADR-166 (tela 06, "Com regra sugerida"): o que vai sair fica à vista numa caixa; com várias ações, atrás do disclosure.
   const detalhe = !d.detalhe ? "" : d.detalhe.aberto
     ? `<div class="cr-caixa">${d.detalhe.html}</div>`
     : `<details class="cr-detalhe" data-disclosure="cr-${id}"><summary>${esc(d.detalhe.rotulo)}</summary><div class="cr-detalhe-corpo">${d.detalhe.html}</div></details>`;

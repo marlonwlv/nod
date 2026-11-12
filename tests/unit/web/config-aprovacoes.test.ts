@@ -8,7 +8,7 @@ import { agruparIguais, IGUAIS_UM_A_UM, renderPedidosIguais } from "../../../web
 import { renderCartaoRevisor } from "../../../web/telas/cartao-revisor.ts";
 import { linhaDaRegra } from "../../../web/telas/linha-do-modo.ts";
 
-/** ADR-164: Configurações › Aprovações (tela 07) e os cartões da tela 06 do protótipo nod x Grok Bot. */
+/** ADR-166: Configurações › Aprovações (tela 07) e os cartões da tela 06 do protótipo nod x Grok Bot. */
 
 const regra = (id: string, lista: "permitir" | "perguntar", texto: string, agenteId: string | null = null) => ({ id, agenteId, lista, texto, origem: "pessoa" as const, criadoEm: 1 });
 

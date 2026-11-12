@@ -1,5 +1,5 @@
 /* =====================================================================================
-   casca.css — a casca do computador IGUAL ao Paper "nod x Grok Bot" (telas 02–05, 08, 15–17; ADR-165).
+   casca.css — a casca do computador IGUAL ao Paper "nod x Grok Bot" (telas 02–05, 08, 15–17; ADR-167).
    Medidas tiradas do gerador do Paper (front-no-paper/bin/kit.py e app.py): barra de 272 px com a grade de 3, linhas
    "Nome · Título" de 52 px, rodapé MW + nome + ⚙ + grade; pílula de 36 px "Ada · PM"; conversa sem cabeçalho nem
    avatar por fala, com 64 px de margem; campo de 680 px (＋ | texto | 🎤 | ↑); painel do bot de 360 px.
@@ -9,7 +9,7 @@
 
 @media not ((hover: none) and (pointer: coarse)) {
 
-/* ---- A coluna da barra: 272 px (ADR-165, Paper 02) e o painel do bot com 360 ---------------------------------- */
+/* ---- A coluna da barra: 272 px (ADR-167, Paper 02) e o painel do bot com 360 ---------------------------------- */
 .app { --largura-barra-auto: 272px; }
 .app:not(.sem-sessao) { grid-template-columns: var(--largura-barra, 272px) minmax(0, 1fr); }
 .app.com-detalhes:not(.sem-sessao) { grid-template-columns: var(--largura-barra, 272px) minmax(360px, 1fr) 360px; }

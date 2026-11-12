@@ -1,7 +1,7 @@
 import { type ConfigProvedores, type IdProvedorComputador, PROVEDORES_COMPUTADOR } from "../contracts/provedor-computador.ts";
 
 /**
- * ADR-166 (definido em 2026-11-12): a escolha do provedor do computador é configuração, lida só no boot (compor.ts).
+ * ADR-168 (definido em 2026-11-12): a escolha do provedor do computador é configuração, lida só no boot (compor.ts).
  *
  *   NOD_COMPUTADORES=docker                  o que já existia: liga o computador e dá o PADRÃO (nada muda sem pedir)
  *   NOD_COMPUTADOR_PROVEDOR=orgo             o provedor GLOBAL (vale para todos os bots sem escolha própria)
@@ -72,7 +72,7 @@ export function provedoresEmUso(config: ConfigProvedores): IdProvedorComputador[
 }
 
 /**
- * definido em 2026-11-12 (ADR-166): o quadro de quem só tem primitivas, igual ao do runtime do nod (runtime.mjs): cada
+ * definido em 2026-11-12 (ADR-168): o quadro de quem só tem primitivas, igual ao do runtime do nod (runtime.mjs): cada
  * observação ganha um quadro ligado à revisão atual; qualquer ação que muda a tela troca a revisão; o quadro vale 2 min.
  * Puro: o relógio e o gerador de ids vêm de fora.
  */

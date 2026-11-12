@@ -1,4 +1,4 @@
-# ADR-167 — A VM do Nod: a terceira opção de onde o agente roda
+# ADR-169 — A VM do Nod: a terceira opção de onde o agente roda
 
 Status: proposta · Data: 2026-11-12 (decisão 1 do Marlon sobre o Grok Bot) · Estende a
 [ADR-090](adr-090-o-motor-numa-maquina-linux-da-pessoa.md) e a [ADR-121](adr-121-caminho-b-a-vm-na-conta-de-nuvem-da-pessoa.md).

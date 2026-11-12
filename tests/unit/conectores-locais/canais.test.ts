@@ -10,7 +10,7 @@ async function chamar(s: ReturnType<typeof criarServidorCanais>, name: string, a
   return { erro: r.isError === true, texto: r.content[0]?.text ?? "" };
 }
 
-describe("conector local canais (ADR-174)", () => {
+describe("conector local canais (ADR-176)", () => {
   it("e-mail próprio do bot: reivindica a caixa e envia dela; sem caixa, diz o que fazer", async () => {
     const d = criarDriverCanaisTeste();
     const s = criarServidorCanais(d);
@@ -35,7 +35,7 @@ describe("conector local canais (ADR-174)", () => {
     expect(validarArgsCanais("reivindicar_caixa", { nome: "../root" }).ok).toBe(false);
   });
 
-  it("o envio do conector vira rascunho na conversa, com o corpo editável (ADR-173)", () => {
+  it("o envio do conector vira rascunho na conversa, com o corpo editável (ADR-175)", () => {
     const email = { textoOriginal: "Olá", textoFinal: "Olá", destino: { conector: "canais", ferramenta: "enviar_email", argumentos: { para: ["a@x.co"], assunto: "Oi", corpo: "Olá" } } };
     expect(rascunhoDoItem(email, "Canais do bot")).toMatchObject({ canal: "email", rotulo: "E-mail · Canais do bot", para: ["a@x.co"], assunto: "Oi", editavel: true });
     const sms = { textoOriginal: "ok", textoFinal: "ok", destino: { conector: "canais", ferramenta: "enviar_sms", argumentos: { para: "+5511900000000", texto: "ok" } } };

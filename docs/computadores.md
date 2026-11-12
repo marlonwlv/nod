@@ -52,7 +52,7 @@ O smoke cria dois computadores descartáveis, usa arquivos/cookies fictícios e 
 
 Os volumes têm nomes `nod-computador-<id>-home` e `nod-computador-<id>-workspace`. Faça backup com o computador desligado e preserve a chave do servidor separadamente; sem a chave, o cofre não abre. Não monte um mesmo perfil em dois Chromium ativos. Planeje recuperação e retenção antes de remover dados de bots excluídos.
 
-### Provedor do computador (ADR-166)
+### Provedor do computador (ADR-168)
 
 O computador vem de um **provedor**: o Docker do servidor (padrão com `NOD_COMPUTADORES=docker`) ou um serviço de fora. A escolha é configuração, com precedência bot > pessoa > global:
 

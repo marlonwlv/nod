@@ -8,7 +8,7 @@ type ItemAprovacao = Item["itensAprovacao"][number];
 type ItemComRascunho = ItemAprovacao & { rascunho: Rascunho };
 
 /**
- * Os rascunhos de envio na conversa (ADR-173; protótipo "12-rascunhos-claro" da engenharia reversa do Grok Bot). Quando
+ * Os rascunhos de envio na conversa (ADR-175; protótipo "12-rascunhos-claro" da engenharia reversa do Grok Bot). Quando
  * TODOS os itens de uma aprovação aberta são mensagens que saem, a decisão vira um cartão por mensagem — cabeçalho "E-mail ·
  * Gmail", Para, Assunto e o corpo editável — e, com dois ou mais na conversa, a barra "N rascunhos prontos" com "Descartar
  * todos" e "Enviar todos ⌘↵". A web não decide nada: Enviar e Descartar chamam o mesmo `decisoes/:id/decidir` do cartão

@@ -1,6 +1,6 @@
-# ADR-164 — Regras em texto para o revisor, nível por ferramenta, só leitura e teto do admin
+# ADR-166 — Regras em texto para o revisor, nível por ferramenta, só leitura e teto do admin
 
-Status: proposta (2026-11-12, frente "Aprovações e revisor") · Migração 0165 · Emenda a [ADR-059](adr-059-modos-de-aprovacao-do-bot.md)
+Status: proposta (2026-11-12, frente "Aprovações e revisor") · Migração 0173 · Emenda a [ADR-059](adr-059-modos-de-aprovacao-do-bot.md)
 (o modo efetivo), [ADR-115](adr-115-automatico-com-revisor-na-ia-da-pessoa.md) (o que vai ao revisor e o veredito) e
 [ADR-042](adr-042-aprovacao-permanente-e-regra-nomeada.md) (o "Sempre permitir" ganha uma tela). Origem: decisões 2 e 4 do
 Marlon no comparativo com o Grok Bot (`~/nod/Copiador/grokbot-rea/DECISOES.md`), telas 06 e 07 do protótipo no Paper.

@@ -1,7 +1,7 @@
 import type { DriverCanais, MensagemDeCanal } from "../../../contracts/canais.ts";
 
 /**
- * O driver de teste do conector `canais` (ADR-174): a caixa e o telefone vivem no processo. O que se envia vai para a
+ * O driver de teste do conector `canais` (ADR-176): a caixa e o telefone vivem no processo. O que se envia vai para a
  * `saida` (o teste e o e2e leem); a entrada tem duas mensagens fixas, marcadas "(teste)". Sem rede e sem custo.
  */
 export function criarDriverCanaisTeste(dominio = "bots.nod.test"): DriverCanais & { saida: MensagemDeCanal[] } {

@@ -4,7 +4,7 @@ import { capturarNoMac, nomeDaCaptura, TETO_CAPTURA_BYTES } from "../../../deskt
 import { writeFile } from "node:fs/promises";
 import { dentroDeUmaTela, lerAvatares, MAX_AVATARES, posicaoNova, TAMANHO_AVATAR, urlDoAvatar } from "../../../desktop/avatar-mesa.ts";
 
-describe("Quick Chat: o atalho (ADR-171)", () => {
+describe("Quick Chat: o atalho (ADR-173)", () => {
   it("canoniza o accelerator e aceita os nomes do Mac", () => {
     expect(lerAtalho("Alt+Space")).toBe("Alt+Space");
     expect(lerAtalho("option+space")).toBe("Alt+Space");
@@ -51,7 +51,7 @@ describe("Quick Chat: o atalho (ADR-171)", () => {
   });
 });
 
-describe("Captura de janela ou região (ADR-171)", () => {
+describe("Captura de janela ou região (ADR-173)", () => {
   const medir = () => ({ largura: 690, altura: 300 });
   it("fora do Mac não faz nada", async () => {
     expect(await capturarNoMac({ plataforma: "linux", medir, executar: async () => { throw new Error("não devia rodar"); } })).toBeNull();
@@ -76,7 +76,7 @@ describe("Captura de janela ou região (ADR-171)", () => {
 });
 
 
-describe("avatar do bot na área de trabalho (ADR-171)", () => {
+describe("avatar do bot na área de trabalho (ADR-173)", () => {
   const ID = "0b9c6a8e-3f1d-4c7e-9a2b-5d6e7f8a9b0c";
   it("lê só avatares válidos, sem repetir e até o teto", () => {
     expect(lerAvatares([{ agenteId: ID, x: 10.4, y: 20 }, { agenteId: ID, x: 1, y: 1 }, { agenteId: "x", x: 1, y: 1 }, null, { agenteId: ID.replace("0b", "1b"), x: "1", y: 1 }])).toEqual([{ agenteId: ID, x: 10, y: 20 }]);

@@ -1,5 +1,5 @@
 /**
- * ADR-165 (configuração "Accent" do Grok Bot): o balão da pessoa é preto por padrão; pintar com a cor do bot da conversa
+ * ADR-167 (configuração "Accent" do Grok Bot): o balão da pessoa é preto por padrão; pintar com a cor do bot da conversa
  * (NOD-431) vira opção em Configurações › Geral › Aparência. A escolha é deste computador, como o tema: localStorage na
  * web, e o index.html a aplica antes do primeiro quadro (mesma chave), senão o balão pisca colorido. O CSS lê
  * `data-balao="cor"` no <html> (web/ds.css); sem o atributo, `--balao-pessoa` vence a classe `balao-c-*`.

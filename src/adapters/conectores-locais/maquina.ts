@@ -4,7 +4,7 @@ import { executarGithubNaMaquina } from "./github/maquina.ts";
 import { executarMacNaMaquina } from "./mac/maquina.ts";
 
 /**
- * ADR-171: quem executa um efeito "na máquina" (ADR-048) — o `gh` do conector `github` ou o Mail/Notas/Mensagens do
+ * ADR-173: quem executa um efeito "na máquina" (ADR-048) — o `gh` do conector `github` ou o Mail/Notas/Mensagens do
  * conector `mac`. Os nomes das capacidades não se cruzam (os do `mac` estão em src/contracts/mac.ts); quando o nome da
  * ferramenta é conhecido (no proxy), o conector tem de bater também: `mac__<capacidade>` só roda no Mac, e uma
  * capacidade do `mac` com nome de outro conector é recusada.

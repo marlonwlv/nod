@@ -3,7 +3,7 @@ import { CAPACIDADES_MAC, type NomeCapacidadeMac } from "../contracts/mac.ts";
 import type { ResultadoSonda } from "../contracts/servicos.ts";
 
 /**
- * ADR-171: a validação das ferramentas do Mac (pura). Nada malformado chega ao osascript: cada argumento é conferido
+ * ADR-173: a validação das ferramentas do Mac (pura). Nada malformado chega ao osascript: cada argumento é conferido
  * aqui e vira um valor de `argv` do script, nunca texto colado no código do script.
  */
 export class ArgumentoMacInvalido extends Error {
@@ -170,7 +170,7 @@ export function htmlDaNota(titulo: string, corpo: string): string {
 }
 
 /**
- * O plano do turno (ADR-171): as ferramentas do conector `mac` DA PESSOA do turno rodam na máquina do turno quando ela
+ * O plano do turno (ADR-173): as ferramentas do conector `mac` DA PESSOA do turno rodam na máquina do turno quando ela
  * é um Mac (`execucao: "maquina"`); fora do macOS (VM Linux, Windows, servidor) elas SAEM do catálogo — não existe
  * Mail nem Mensagens ali, e o servidor nunca as executa. `conectorId` null = a pessoa não tem o conector.
  */
@@ -181,7 +181,7 @@ export function ferramentasMacNoPlano<F extends { origem: string; conectorId?: s
   return ferramentas.map((f) => (doMac(f) ? { ...f, execucao: "maquina" as const } : f));
 }
 
-/** A "sonda" do conector `mac` (ADR-171): não spawna nada; o catálogo é o contrato, e o efeito só existe no Mac. */
+/** A "sonda" do conector `mac` (ADR-173): não spawna nada; o catálogo é o contrato, e o efeito só existe no Mac. */
 export function sondaMacNativa(): ResultadoSonda {
   return { ok: true, ferramentas: CAPACIDADES_MAC.map((c) => ({ nome: c.nome, descricao: c.descricao, schema: c.schema, readOnlyHint: c.readOnlyHint })) };
 }

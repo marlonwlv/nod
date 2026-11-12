@@ -498,7 +498,7 @@ export function criarApi(escopo: Escopo) {
     // ADR-059: o botão de aprovações do campo; o servidor escreve a troca na conversa do bot. O total exige `confirmado`
     // (o segundo clique do menu, emenda de 2026-10-18): sem ele o servidor responde 400.
     mudarModoAprovacao: (id: string, modo: ModoAprovacao, confirmado = false) => post<{ agente: Agente; mudou: boolean }>(`agentes/${id}/modo-aprovacao`, confirmado ? { modo, confirmado: true } : { modo }),
-    // ADR-164: Ajustes > Aprovações (regras do revisor, níveis por app, só leitura, teto do admin).
+    // ADR-166: Ajustes > Aprovações (regras do revisor, níveis por app, só leitura, teto do admin).
     // Paper 07 (rodada 2): Configurações › Cofre — nome, app e data das chaves guardadas; nunca o valor.
     cofre: () => get<CofreDto>("cofre"),
     ajustesAprovacao: (agenteId: string | null) => get<AjustesAprovacao>(`aprovacoes/ajustes${agenteId ? `?agente=${encodeURIComponent(agenteId)}` : ""}`),
@@ -633,7 +633,7 @@ export function criarApi(escopo: Escopo) {
     revogarChave: (id: string) => del<{ ok: true }>(`maquinas/chaves/${id}`),
     // ADR-090: as máquinas, onde cada bot trabalha, o pareamento por código e o "rodar em outra desta vez".
     maquinas: () => get<MaquinasDto>("maquinas"),
-    // ADR-167: as três opções de onde o agente roda; o servidor antigo dá 404 e a tela fica como antes.
+    // ADR-169: as três opções de onde o agente roda; o servidor antigo dá 404 e a tela fica como antes.
     ondeRoda: () => get<OpcoesOndeRodaDto>("maquinas/onde-roda"),
     maquinaDoBot: (agenteId: string, maquinaId: string | null) => pedir<{ agente: Agente }>("PUT", `${base}/agentes/${encodeURIComponent(agenteId)}/maquina`, { maquinaId }),
     moverBots: (maquinaId: string, agentes: string[]) => pedir<{ movidos: number }>("PUT", `${base}/maquinas/${encodeURIComponent(maquinaId)}/bots`, { agentes }),

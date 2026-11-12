@@ -4,7 +4,7 @@ import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import { esc } from "../lib/render.ts";
 
 /**
- * Os cartões ricos na conversa (ADR-173; respostas ricas do Grok Bot): voo, hotel, carro, mapa, clima, carrinho e arquivo.
+ * Os cartões ricos na conversa (ADR-175; respostas ricas do Grok Bot): voo, hotel, carro, mapa, clima, carrinho e arquivo.
  * Os dados chegam limpos do servidor (src/domain/cartoes-ricos.ts: texto curto, link só https); aqui tudo é escapado de
  * novo e nada de fora é carregado — o mapa é um desenho dos pontos pelos números, sem tiles, com o link para o Mapas.
  */

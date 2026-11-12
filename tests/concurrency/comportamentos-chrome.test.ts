@@ -87,7 +87,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
     if (!srv) return;
     await srv.fechar();
     // O que a lista fixa da limpeza não conhece: "Sempre permitir" (permissoes_permanentes aponta o item) e os ajustes de
-    // aprovação (ADR-164). Como a própria pessoa (nod_app: as policies de RLS são dela), sob o escopo dela.
+    // aprovação (ADR-166). Como a própria pessoa (nod_app: as policies de RLS são dela), sob o escopo dela.
     const escopo = { tenantId: srv.pessoa.tenantId, pessoaId: srv.pessoa.pessoaId };
     await srv.db.begin(async (trx) => {
       await vincularEscopo(trx, escopo);

@@ -1,5 +1,5 @@
 /**
- * Atualização com o Mac ocioso (ADR-171, definido em 2026-11-12; o `autoUpdateWhenIdle` do Grok Bot). O app já baixa a
+ * Atualização com o Mac ocioso (ADR-173, definido em 2026-11-12; o `autoUpdateWhenIdle` do Grok Bot). O app já baixa a
  * versão nova sozinho (ADR-149) e fica em "pronta" esperando o clique em Reiniciar. Aqui ele reinicia SOZINHO, mas só
  * quando reiniciar não atrapalha ninguém:
  *   - a versão está pronta;

@@ -11,7 +11,7 @@ import { compararVersoesDoApp } from "./versao-app.ts";
  * fixture confiável (fora de escopo na NOD-174; o limite do plano é a NOD-171). A rede entrou no `transitorio` (NOD-309).
  */
 /**
- * revisto em 2026-11-12 (ADR-169, falhas de turno tipadas do Grok Bot: usageLimit, unpaidInvoice, rateLimit,
+ * revisto em 2026-11-12 (ADR-171, falhas de turno tipadas do Grok Bot: usageLimit, unpaidInvoice, rateLimit,
  * regionUnsupported, contentBlocked): entram `fatura_em_aberto`, `limite_por_minuto`, `regiao_sem_suporte` e
  * `conteudo_bloqueado`. O "Credit balance is too low" e o 429 por minuto deixam de ser `desconhecido`. `limite_por_minuto`
  * NÃO é `limite_de_uso` (não troca de conta) nem `transitorio` (o fundo não repete sozinho: a frase pede um minuto).

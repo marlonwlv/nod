@@ -5,7 +5,7 @@ import { CODIGO, erro, interpretar, resposta } from "../mcp-proxy/jsonrpc.ts";
 import { criarLineSplitter } from "../mcp-proxy/line-splitter.ts";
 
 /**
- * Servidor MCP stdio mínimo para os conectores locais do assistente pessoal (ADR-174): o mesmo JSON-RPC 2.0 sem SDK do
+ * Servidor MCP stdio mínimo para os conectores locais do assistente pessoal (ADR-176): o mesmo JSON-RPC 2.0 sem SDK do
  * conector `github` (uma linha por mensagem, respostas em ordem), sem o que é do GitHub. O nod o spawna como qualquer
  * conector stdio, então a sonda, a concessão, a aprovação e a moldura de não confiável seguem o caminho de sempre: este
  * processo só executa. NUNCA escreve fora do JSON-RPC no stdout: é o canal.

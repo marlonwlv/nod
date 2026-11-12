@@ -1,7 +1,7 @@
 import { ErroDeDominio } from "./erro.ts";
 
 /**
- * ADR-168 (definido em 2026-11-12): flags remotas por pessoa, sem publicar versão. O Grok Bot usa o Statsig (gates e
+ * ADR-170 (definido em 2026-11-12): flags remotas por pessoa, sem publicar versão. O Grok Bot usa o Statsig (gates e
  * configs dinâmicas); o nod começa com regras num JSON do servidor (`NOD_FLAGS` ou o arquivo `NOD_FLAGS_ARQUIVO`, relido
  * quando muda) e as entrega por `GET /api/t/:t/flags` a web e ao app. Trocar uma regra vale no próximo pedido de cada
  * pessoa — sem build, sem release, sem reiniciar o servidor.
@@ -16,7 +16,7 @@ export type ContextoFlags = { pessoaId: string; tenantId: string; agora: number 
 
 /** As flags que o código conhece, com o padrão. Flag fora daqui também é entregue (experimentos da web), mas sem padrão. */
 export const FLAGS_CONHECIDAS = {
-  /** O canal de atualização do app: `estavel` ou `teste` (a versão de teste do ADR-168). */
+  /** O canal de atualização do app: `estavel` ou `teste` (a versão de teste do ADR-170). */
   "app.canal": "estavel",
   /** A web mostra as telas novas do estilo Grok (frentes, pílula, quadro) a quem está no teste. */
   "web.telas_novas": false,

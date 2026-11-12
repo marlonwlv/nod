@@ -17,7 +17,7 @@ import { autoriaPessoa, evento } from "./autoria-evento.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 
 /**
- * Ajustes > Aprovações (definido em 2026-11-12, ADR-164). Tudo é da dona: as regras em texto do revisor (padrão e por bot),
+ * Ajustes > Aprovações (definido em 2026-11-12, ADR-166). Tudo é da dona: as regras em texto do revisor (padrão e por bot),
  * o nível por ferramenta, o só leitura do bot. O teto do modo é do admin do time (NOD_ADMINS, a mesma lista das flags).
  * Nada daqui passa pelo chat: mudar o que o bot pode fazer sem a pessoa é dela (registro de ações, `chat: nunca`).
  */

@@ -16,7 +16,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Nod" />
     <!-- Tema escolhido em Preferências (web/lib/tema.ts, mesma chave): aplicado antes do primeiro quadro, senão o app pisca claro. -->
-    <!-- ADR-165: o balão da pessoa na cor do bot é opção (web/lib/balao.ts, mesma chave); o padrão é o preto. -->
+    <!-- ADR-167: o balão da pessoa na cor do bot é opção (web/lib/balao.ts, mesma chave); o padrão é o preto. -->
     <script>try { if (localStorage.getItem("nod.balao") === "cor") document.documentElement.dataset.balao = "cor"; } catch (e) {}</script>
     <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {}</script>
     <!-- NOD-119: densidade e largura da barra (web/lib/densidade.ts, mesma chave, valores e consulta do celular): aplicadas antes do primeiro quadro, senão a barra abre larga e encolhe. -->
@@ -46,9 +46,9 @@
     <link rel="stylesheet" href="/quadro-min.css" />
     <link rel="stylesheet" href="/tarefas-de-todos.css" />
     <link rel="stylesheet" href="/provedores-ia.css" />
-    <!-- ADR-165: os componentes do design system (web/ds.css) vêm depois das telas do computador e antes das do celular. -->
+    <!-- ADR-167: os componentes do design system (web/ds.css) vêm depois das telas do computador e antes das do celular. -->
     <link rel="stylesheet" href="/ds.css" />
-    <!-- ADR-165: a casca igual ao Paper (barra, pílula, conversa, campo e painel), depois do design system. -->
+    <!-- ADR-167: a casca igual ao Paper (barra, pílula, conversa, campo e painel), depois do design system. -->
     <link rel="stylesheet" href="/casca.css" />
     <link rel="stylesheet" href="/mobile.css" />
     <link rel="stylesheet" href="/celular-base.css" />

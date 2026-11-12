@@ -114,7 +114,7 @@ export async function rotinaParaRevisor(deps: Deps, turnoId: string): Promise<{ 
 
 type NaoVai = { falha: FalhaRevisao; frase: string };
 
-/** ADR-164: os textos das regras que valem para o bot, na ordem (o veredito cita P1, A2… por esta ordem). */
+/** ADR-166: os textos das regras que valem para o bot, na ordem (o veredito cita P1, A2… por esta ordem). */
 async function regrasParaORevisor(deps: Deps, agenteId: string): Promise<{ permitir: string[]; perguntar: string[] }> {
   const { regras } = await ajustesDoBot(deps, agenteId);
   return { permitir: regras.permitir.map((r) => r.texto), perguntar: regras.perguntar.map((r) => r.texto) };
@@ -174,7 +174,7 @@ export const revisarAcaoFase1: CasoDeUso<EntradaRevisarAcao, SaidaRevisarAcao> =
     pedidoDeColega: modo === "peer" || modo === "delegacao" ? e.plano.entrada.texto.slice(0, MENSAGENS_DA_PESSOA_MAX * 2) : null,
     bot: e.agente ?? { nome: "O bot", titulo: "", descricao: "" },
     jaPediuNoTurno: await deps.repos.acoesPeloModo.pedidasNoTurno(e.plano.turnoId),
-    // ADR-164: as regras em texto que a dona ensinou (padrão e do bot), na parte confiável.
+    // ADR-166: as regras em texto que a dona ensinou (padrão e do bot), na parte confiável.
     regras: await regrasParaORevisor(deps, e.plano.agenteId),
     // Revisão do #524, item 1: 18 bytes sorteados por pedido delimitam a parte não confiável (o bot não os vê).
     marca: randomBytes(MARCA_BYTES).toString("base64url"),
@@ -267,7 +267,7 @@ export const assentarRevisao: CasoDeUso<{ decisaoId: string; resultado: Resultad
         const m = await deps.repos.itensAprovacao.marcarRevisao(i.id, doApp ? { liberado: true, executar: true } : { liberado: true });
         if (doApp && m) liberados.push(m);
       }
-      // ADR-164: a regra "Pode fazer sem perguntar" que o revisor citou vira o "Aprovado pela sua regra · Editar".
+      // ADR-166: a regra "Pode fazer sem perguntar" que o revisor citou vira o "Aprovado pela sua regra · Editar".
       const regraId = veredito.regra?.lista === "permitir" ? regraCitada((await ajustesDoBot(deps, antes.agenteId)).regras, veredito.regra) : null;
       await deps.repos.acoesPeloModo.concluir(decisaoId, { veredito: "libera", motivo: veredito.motivo, ...(regraId ? { regraId } : {}), ...medidas });
       log("info", "revisao_liberou", { turno_id: antes.turnoId, decisao_id: decisaoId, ms: resultado.ms ?? null, itens_de_app: liberados.length });
@@ -285,7 +285,7 @@ export const assentarRevisao: CasoDeUso<{ decisaoId: string; resultado: Resultad
   for (const i of itens) await deps.repos.itensAprovacao.marcarRevisao(i.id, { motivoManual: pediu ? "revisor_pediu" : "revisor_falhou", justificativa });
   // NOD-70: a revisão virou cartão — uma linha `cartao` por item, com o motivo de agora (só a fase que abriu o cartão grava).
   await registrarCartoes(deps, { agenteId: antes.agenteId, turnoId: antes.turnoId, itens: itens.map((i) => ({ destino: i.destino, motivo: pediu ? "revisor_pediu" : "revisor_falhou" })) });
-  // ADR-164: a regra que o revisor sugeriu no "pede" vai ao cartão ("Salvar como regra"); a pessoa lê e edita antes.
+  // ADR-166: a regra que o revisor sugeriu no "pede" vai ao cartão ("Salvar como regra"); a pessoa lê e edita antes.
   const sugestao = pediu ? limparTextoDaRegra(veredito.sugestao ?? "") : null;
   await deps.repos.acoesPeloModo.concluir(decisaoId, { veredito: veredito?.decisao ?? "falhou", falha: pediu ? null : falha, motivo: justificativa, ...(sugestao ? { sugestao: sugestao.slice(0, SUGESTAO_MAX) } : {}), ...medidas });
   log("info", pediu ? "revisao_pediu" : "revisao_falhou", { turno_id: antes.turnoId, decisao_id: decisaoId, falha: pediu ? null : falha, ms: resultado.ms ?? null });

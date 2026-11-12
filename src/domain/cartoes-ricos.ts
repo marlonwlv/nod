@@ -5,7 +5,7 @@ import type { Validacao } from "./assistente.ts";
 import { formatarDinheiro } from "./pagamento.ts";
 
 /**
- * Os cartões ricos (ADR-173): o que o bot mandou em `mostrar_cartoes` vira `CartaoRico[]` limpo, ou a frase do que
+ * Os cartões ricos (ADR-175): o que o bot mandou em `mostrar_cartoes` vira `CartaoRico[]` limpo, ou a frase do que
  * corrigir. Tudo é dado não confiável (o bot pode ter copiado de uma página): texto sem invisíveis e cortado, número
  * finito e no intervalo, data no formato, link só `https:` sem usuário/senha. A web escapa tudo e nunca carrega nada de
  * fora (o mapa é desenhado com os números, sem tiles). Puro.

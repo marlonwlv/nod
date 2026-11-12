@@ -23,7 +23,7 @@ function decisao(id: string, itens: ItemAp[], estadoColuna: Item["estadoColuna"]
 }
 const comFila = (itens: Item[]) => ({ ...estadoInicial, suaVez: { itens, incidentes: [], foraDoAr: [], vazio: itens.length === 0, ultimaDecisaoEm: null } });
 
-describe("rascunhos de envio na conversa (ADR-173)", () => {
+describe("rascunhos de envio na conversa (ADR-175)", () => {
   it("só vira rascunho a aprovação aberta em que TODO item é mensagem que sai", () => {
     expect(ehDecisaoDeRascunhos(decisao("d1", [itemAp("d1", 0, rascunho())]))).toBe(true);
     expect(ehDecisaoDeRascunhos(decisao("d1", [itemAp("d1", 0, rascunho()), itemAp("d1", 1, undefined)]))).toBe(false);

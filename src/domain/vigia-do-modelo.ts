@@ -1,5 +1,5 @@
 /**
- * ADR-169 (definido em 2026-11-12): prazo de PRIMEIRO TOKEN e de OCIOSIDADE do modelo, como o Grok Bot (Statsig: 150 s até
+ * ADR-171 (definido em 2026-11-12): prazo de PRIMEIRO TOKEN e de OCIOSIDADE do modelo, como o Grok Bot (Statsig: 150 s até
  * o primeiro token, 90 s ocioso). Não é o watchdog de turno que a ADR-067 tirou: o turno continua podendo esperar
  * comando em segundo plano, ferramenta lenta e mensagem da pessoa sem prazo. O relógio só anda enquanto o nod espera O
  * MODELO falar:

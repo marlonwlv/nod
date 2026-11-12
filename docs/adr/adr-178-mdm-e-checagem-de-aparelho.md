@@ -1,4 +1,4 @@
-# ADR-176: MDM (só origem https) e checagem de aparelho no teste grátis
+# ADR-178: MDM (só origem https) e checagem de aparelho no teste grátis
 
 Status: proposta (2026-11-12, frente "Assistente pessoal"; decisão "MDM e checagem de aparelho" em `grokbot-rea/DECISOES.md`
 §4, com "teto de modo do admin, já agora").

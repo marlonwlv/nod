@@ -1,7 +1,7 @@
 import type { EstadoInstancia, RefInstancia } from "./provedor-nuvem.ts";
 
 /**
- * ADR-167 (definido em 2026-11-12, decisão 1 do Marlon sobre o Grok Bot): o agente roda em TRÊS lugares, todos suportados.
+ * ADR-169 (definido em 2026-11-12, decisão 1 do Marlon sobre o Grok Bot): o agente roda em TRÊS lugares, todos suportados.
  *   1. `maquina_da_pessoa` — o padrão e o primeiro que quase todo mundo usa (o Mac, o Linux ou o Windows dela, ADR-090);
  *   2. `vm_da_pessoa`      — a VM que ela configura na conta de nuvem dela (ADR-121, caminho B: o custo é dela);
  *   3. `vm_do_nod`         — a VM gerenciada pelo nod, PAGA: o modelo da "box" do Grok Bot (uma VM por pessoa onde o

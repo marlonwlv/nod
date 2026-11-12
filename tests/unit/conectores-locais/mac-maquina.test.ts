@@ -7,7 +7,7 @@ import { TODAS_DESLIGADAS } from "../../../src/adapters/conectores-locais/mac/fa
 const LIGADAS = Object.fromEntries(Object.keys(TODAS_DESLIGADAS).map((k) => [k, true])) as typeof TODAS_DESLIGADAS;
 const naoRoda: Executor = async () => { throw new Error("não devia executar"); };
 
-describe("ferramentas do Mac: a máquina (ADR-171)", () => {
+describe("ferramentas do Mac: a máquina (ADR-173)", () => {
   it("fora do Mac não executa nada", async () => {
     const r = await executarMacNaMaquina({ capacidade: "mail_ler", argumentos: {}, plataforma: "linux", familias: LIGADAS, executar: naoRoda });
     expect(r.codigo).toBe("fora_do_mac");
@@ -56,7 +56,7 @@ describe("ferramentas do Mac: a máquina (ADR-171)", () => {
   });
 });
 
-describe("controle de tela do macOS (ADR-171)", () => {
+describe("controle de tela do macOS (ADR-173)", () => {
   /** Executor falso: responde ao tamanho da tela, escreve o PNG do screencapture e o JPEG do sips. */
   function falso(registro: string[][]): Executor {
     return async (bin, args) => {

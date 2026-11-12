@@ -67,7 +67,7 @@ export type DepsOnboarding = {
   /** O nome sugerido na primeira pergunta (tirado do e-mail da conta). */
   nomeSugerido?: () => string | null;
   /**
-   * ADR-172: com isto, o "olá" vira o onboarding do Grok Bot em 10 passos (web/telas/apresentacao.ts), que cria o bot
+   * ADR-174: com isto, o "olá" vira o onboarding do Grok Bot em 10 passos (web/telas/apresentacao.ts), que cria o bot
    * com cor e forma e o prepara com %. Sem isto (os testes antigos), o "olá" de 3,3 s de sempre.
    */
   criarBot?: () => DepsCriarBot;
@@ -120,7 +120,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
   let textoErro: string | null = null;
   /** A pessoa pulou as perguntas (ou só quer olhar): a linha fica na conversa do Nod. */
   let pulouEm: string | null = null;
-  // ADR-172: o onboarding em 10 passos. `pelaLigacao`: a pessoa escolheu "Prefiro conversar por voz" (o caminho antigo).
+  // ADR-174: o onboarding em 10 passos. `pelaLigacao`: a pessoa escolheu "Prefiro conversar por voz" (o caminho antigo).
   let apres: EstadoApresentacao = apresentacaoInicial();
   let pelaLigacao = false;
   let relogioPreparo = 0;
@@ -507,7 +507,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
   const relogioDoCopiar: RelogioDoCopiar = { agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => clearTimeout(id), timers: new WeakMap() };
   const iaDoClique = (el: HTMLElement): IaDesktop => (el.dataset.ia === "codex-cli" ? "codex-cli" : "claude-cli");
 
-  // ---- ADR-172: os 10 passos -------------------------------------------------------------------------------------------
+  // ---- ADR-174: os 10 passos -------------------------------------------------------------------------------------------
   function mudarApres(novo: EstadoApresentacao, focarTitulo = false): void {
     const mudouPasso = novo.passo !== apres.passo;
     apres = novo;

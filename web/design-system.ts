@@ -1,5 +1,5 @@
 /**
- * ADR-165 (tela 01 do Paper "nod x Grok Bot"): a vitrine do design system, como página interna (`/design-system.html`).
+ * ADR-167 (tela 01 do Paper "nod x Grok Bot"): a vitrine do design system, como página interna (`/design-system.html`).
  * Mostra os tokens de verdade (web/tokens.css) e os componentes desenhados com eles: cor, tipografia, raios, sombras,
  * movimento, botões, campos, chips, balões e os avatares do nod (o mesmo <nod-mascote> do app). Segue o tema do sistema;
  * `?tema=escuro` ou `?tema=claro` força um. Só tokens (web/design-system.css).

@@ -6,7 +6,7 @@ import { log } from "../../../obs/log.ts";
 import { criarDriverDocker, docker as dockerPadrao } from "../docker.ts";
 
 /**
- * ADR-166 (definido em 2026-11-12): o Docker próprio do nod (ADR-037) como `ProvedorDeComputador`. O ciclo e o plano de
+ * ADR-168 (definido em 2026-11-12): o Docker próprio do nod (ADR-037) como `ProvedorDeComputador`. O ciclo e o plano de
  * dados continuam no driver de sempre (adapters/computador/docker.ts, com o runtime do nod dentro do container); este
  * arquivo só o veste na interface e acrescenta o que faltava: saúde explícita e snapshot dos volumes.
  *

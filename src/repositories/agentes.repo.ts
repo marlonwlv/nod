@@ -54,7 +54,7 @@ function inteligenciaDaLinha(l: Linha): InteligenciaBot {
   return inteligenciaDoAgente({ harness, modelo: l.modelo, esforco: l.esforco, inteligencia: gravada });
 }
 
-/** ADR-164: o teto mais fechado entre os que os admins do time gravaram (linha 'equipe'), ou null. */
+/** ADR-166: o teto mais fechado entre os que os admins do time gravaram (linha 'equipe'), ou null. */
 function tetoDaLinha(l: Linha): TetoModo | null {
   return tetoMaisFechado((l.tetos ?? []).filter(ehTetoModo));
 }
@@ -78,7 +78,7 @@ function paraAgente(l: Linha): Agente {
     harness: l.harness ?? "auto",
     esforco: l.esforco ?? null,
     inteligencia: inteligenciaDaLinha(l),
-    // ADR-164: o modo que vale é o pedido cortado pelo teto do admin do time; o pedido fica em `modoPedido`.
+    // ADR-166: o modo que vale é o pedido cortado pelo teto do admin do time; o pedido fica em `modoPedido`.
     modoAprovacao: modoEfetivo(l.modo_aprovacao ?? "manual", tetoDaLinha(l)),
     modoPedido: l.modo_aprovacao ?? "manual",
     soLeitura: soLeituraEfetivo(l.so_leitura === true, tetoDaLinha(l)),
@@ -336,7 +336,7 @@ export function agentesRepo(conn: Conn, escopo: Escopo) {
      * /onboarding` ao mesmo tempo (duas abas) esperam um pelo outro e o segundo já vê o Nod que o primeiro criou. O índice
      * único da 0061 fica de rede. Só a dona: o Nod de outra pessoa nunca volta.
      */
-    /** ADR-164: o só leitura do bot. Só a dona; null = não é dela, não existe ou foi excluído. */
+    /** ADR-166: o só leitura do bot. Só a dona; null = não é dela, não existe ou foi excluído. */
     async definirSoLeitura(id: string, soLeitura: boolean): Promise<Agente | null> {
       const [l] = await conn<Linha[]>`update agentes set so_leitura = ${soLeitura}
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and excluido_em is null

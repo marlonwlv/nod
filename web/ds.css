@@ -1,5 +1,5 @@
 /* =====================================================================================
-   ds.css — componentes do design system do visual Grok Bot (ADR-165, telas 01–04, 08 e 16 do Paper).
+   ds.css — componentes do design system do visual Grok Bot (ADR-167, telas 01–04, 08 e 16 do Paper).
    Só classes e variáveis de web/tokens.css: nada aqui depende de como a página é desenhada (string, morph ou qualquer
    framework). Carregado depois dos CSS das telas: onde ele muda um componente antigo (a barra, o balão), a regra está
    aqui, isolada, e não espalhada no meio dos outros arquivos. Sem cor literal (tests/unit/web/cores-por-token.test.ts).

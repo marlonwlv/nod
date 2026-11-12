@@ -22,7 +22,7 @@ import { buscarAjustes, caminhoDoAjuste } from "../lib/ajustes.ts";
 import type { EscolhaSons } from "../lib/sons.ts";
 
 /**
- * ADR-165 (Configurações do Grok Bot): a busca dos ajustes. Com termo, o conteúdo vira a lista do que casa — título, frase e
+ * ADR-167 (Configurações do Grok Bot): a busca dos ajustes. Com termo, o conteúdo vira a lista do que casa — título, frase e
  * o caminho —, e o clique leva à linha (irAoAjuste em web/main.ts). Sem termo, a seção de sempre.
  */
 export function renderBuscaAjustes(termo: string): string {
@@ -50,7 +50,7 @@ export const SECOES_ESPACO: readonly { id: SecaoEspaco; nome: string; icone: str
   { id: "agentes", nome: "Agentes", icone: ICONE.agentes },
   // NOD-85: a agenda das rotinas, depois de Agentes (rotina é o que os agentes fazem sozinhos).
   { id: "rotinas", nome: "Rotinas", icone: ICONE.relogio },
-  // ADR-164 (tela 07 do protótipo nod x Grok Bot): os modos, as regras do revisor e o nível por app, antes de Feedback.
+  // ADR-166 (tela 07 do protótipo nod x Grok Bot): os modos, as regras do revisor e o nível por app, antes de Feedback.
   { id: "aprovacoes", nome: "Aprovações", icone: ICONE.escudo },
   // Paper 07 (rodada 2): as chaves guardadas pelos cartões dos bots, entre Apps e IA no computador.
   { id: "cofre", nome: "Cofre", icone: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="10.5" r="3"/><path d="M7.6 8.4L13.5 2.5M11.5 4.5l1.5 1.5M10 6l1.2 1.2"/></svg>' },
@@ -58,7 +58,7 @@ export const SECOES_ESPACO: readonly { id: SecaoEspaco; nome: string; icone: str
 ];
 
 const IC16 = (corpo: string): string => `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corpo}</svg>`;
-/** ADR-165 (Paper 07): os ícones da coluna das Configurações no computador. */
+/** ADR-167 (Paper 07): os ícones da coluna das Configurações no computador. */
 const ICONE_DA_SECAO: Partial<Record<SecaoEspaco, string>> = {
   geral: IC16('<path d="M6.9 1.8h2.2l.4 1.7 1.3.7 1.6-.6 1.1 1.9-1.3 1.2v1.5l1.3 1.2-1.1 1.9-1.6-.6-1.3.7-.4 1.7H6.9l-.4-1.7-1.3-.7-1.6.6-1.1-1.9 1.3-1.2V7.3L2.5 6.1l1.1-1.9 1.6.6 1.3-.7z"/><circle cx="8" cy="8" r="2"/>'),
   conta: IC16('<circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14a5.2 5.2 0 0110.4 0"/>'),
@@ -93,23 +93,23 @@ export type ExtrasEspaco = {
   densidade?: Densidade;
   /** O valor curto de Provedores de IA na lista do celular ("Conectada", "Simulação"…), o mesmo do menu da conta. */
   conexao?: string;
-  /** ADR-165: o balão da pessoa na cor do bot e os sons deste computador. */
+  /** ADR-167: o balão da pessoa na cor do bot e os sons deste computador. */
   balaoCor?: boolean;
   sons?: EscolhaSons;
-  /** ADR-165: o termo da busca dos ajustes (vazio = a seção aberta). */
+  /** ADR-167: o termo da busca dos ajustes (vazio = a seção aberta). */
   buscaAjustes?: string;
-  /** ADR-164: a seção Aprovações já desenhada (o estado dela mora em web/lib/ajustes-aprovacao.ts, fora do reducer). */
+  /** ADR-166: a seção Aprovações já desenhada (o estado dela mora em web/lib/ajustes-aprovacao.ts, fora do reducer). */
   aprovacoes?: () => string;
   /** Paper 07 (rodada 2): a seção Cofre já desenhada (o estado mora em web/lib/cofre.ts). */
   cofre?: () => string;
-  /** ADR-171: Quick Chat e ferramentas do Mac; só no app do Mac (null/ausente na web, no Windows e na VM). */
+  /** ADR-173: Quick Chat e ferramentas do Mac; só no app do Mac (null/ausente na web, no Windows e na VM). */
   mac?: AjustesMac | null;
 };
 
 export function renderEspaco(estado: Estado, avisos: EstadoAvisos, volta: Volta, extras: ExtrasEspaco, celular = ehCelular()): string {
   if (celular) return renderEspacoCelular(estado, avisos, volta, extras);
   const secao = estado.espaco?.secao ?? "conexao";
-  // ADR-165 (Paper 07): no computador as Configurações são um modal sobre o app — a busca no topo das seções, na ordem do
+  // ADR-167 (Paper 07): no computador as Configurações são um modal sobre o app — a busca no topo das seções, na ordem do
   // Paper (Geral, Conta, Máquinas, Aprovações, Apps, IA); Agentes, Rotinas e Feedback, que o Paper não desenhou, vêm depois.
   const item = (s: (typeof SECOES_ESPACO)[number]) => `<button type="button" class="espaco-item" data-act="secao-espaco" data-secao="${s.id}"${s.id === secao ? ' aria-current="page"' : ""}>${ICONE_DA_SECAO[s.id] ?? s.icone}<span>${esc(s.id === "conexao" ? "IA" : nomeDaSecao(s, estado))}</span></button>`;
   const porId = (id: SecaoEspaco) => SECOES_ESPACO.find((s) => s.id === id);

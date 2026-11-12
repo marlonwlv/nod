@@ -13,7 +13,7 @@ import { FalhaComputador } from "../../../src/domain/computador.ts";
 import { configDeProvedores, escolherProvedor, lerMapaDeProvedores, provedoresEmUso } from "../../../src/domain/provedor-computador.ts";
 
 /**
- * ADR-166: o computador do bot plug and play. Sem rede, sem Docker, sem conta no Orgo: o Docker e o fetch são falsos, e a
+ * ADR-168: o computador do bot plug and play. Sem rede, sem Docker, sem conta no Orgo: o Docker e o fetch são falsos, e a
  * camada de primitivas roda contra um bash LOCAL numa pasta temporária (coreutils do GNU; no Mac, os g* do Homebrew).
  */
 const ID = "11111111-2222-4333-8444-555555555555";

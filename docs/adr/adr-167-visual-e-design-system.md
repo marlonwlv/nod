@@ -1,4 +1,4 @@
-# ADR-165 — O visual do Grok Bot: tokens por base, fonte do sistema e a casca do front
+# ADR-167 — O visual do Grok Bot: tokens por base, fonte do sistema e a casca do front
 
 Status: proposta · Data: 2026-11-12 · Emenda a [ADR-070](adr-070-design-system-grafite-e-cor-do-agente.md) (tokens, Geist, balão na cor do
 bot da NOD-431) e à [ADR-060](adr-060-menu-da-conta-sidebar-e-gaveta-por-niveis.md) (barra lateral). Telas 01–04, 08 e 16/16b do Paper

@@ -4,7 +4,7 @@ import { conectorPublico } from "./registrar-conector.ts";
 import type { Deps } from "./tipos.ts";
 
 /**
- * ADR-171 (definido em 2026-11-12): o conector `mac` nasce no primeiro `pedir_acesso` a ele, como o `github` nativo da
+ * ADR-173 (definido em 2026-11-12): o conector `mac` nasce no primeiro `pedir_acesso` a ele, como o `github` nativo da
  * ADR-048 — sem card de conexão e sem configuração: o catálogo é o contrato (`sondaMacNativa`). Nascer não liga nada no
  * Mac: as famílias continuam desligadas em Ajustes até a pessoa ligar, e o plano só mostra as ferramentas quando a
  * máquina do turno é um Mac dela (`ferramentasMacNoPlano`). O acesso do bot segue o card de sempre.

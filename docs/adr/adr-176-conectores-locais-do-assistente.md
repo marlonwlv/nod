@@ -1,4 +1,4 @@
-# ADR-174: Conectores locais do assistente pessoal (vida real e canais)
+# ADR-176: Conectores locais do assistente pessoal (vida real e canais)
 
 Status: proposta (2026-11-12, frente "Assistente pessoal"; decisões "assistente pessoal completo" e "e-mail próprio do bot e
 iMessage" em `grokbot-rea/DECISOES.md` §3).
@@ -16,7 +16,7 @@ concessão diz o que o bot pode, a aprovação decide cada escrita e o proxy mar
    Entram pelo caminho de sempre: nada muda no proxy, na aprovação nem no catálogo do nod.
 2. **Leitura com `readOnlyHint`; escrita sem.** Buscar voo, hotel, carro, lugar, previsão, produto, reunião e e-mail lê;
    reservar mesa, carrinho, entrar e falar na reunião, enviar e-mail/iMessage/SMS passam pela aprovação. Os envios têm nome
-   e corpo que viram rascunho (ADR-173). Comprar e cartão virtual são `destructiveHint` e têm a passkey (ADR-175).
+   e corpo que viram rascunho (ADR-175). Comprar e cartão virtual são `destructiveHint` e têm a passkey (ADR-177).
 3. **Validação no domínio** (src/domain/assistente.ts, canais.ts): argumento fora do schema, data inválida, e-mail com
    nome de exibição, telefone sem DDI voltam ao modelo como frase que diz o que corrigir; o erro do provedor nunca vaza.
 4. **Driver pelo ambiente, nunca pelo modelo.** Sem variável, o de teste (fixtures marcadas "(teste)", estado no

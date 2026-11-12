@@ -11,7 +11,7 @@ const PESSOA = "99999999-8888-4777-8666-555555555555";
 const TENANT = "11111111-0000-4000-8000-000000000001";
 const CONFIG = { projeto: "nod-boxes-prod", zona: "us-central1-a", rede: "nod-rede" };
 
-describe("onde o agente roda (ADR-167)", () => {
+describe("onde o agente roda (ADR-169)", () => {
   it("três opções; a máquina da pessoa é o padrão; a VM do Nod desligada fica em teste fechado", () => {
     const o = opcoesOndeRoda([{ nome: "MacBook", plataforma: "darwin" }], { vmDoNodLigada: false, planos: PLANOS_VM_DO_NOD_PADRAO });
     expect(o.map((x) => x.id)).toEqual(["maquina_da_pessoa", "vm_da_pessoa", "vm_do_nod"]);
@@ -74,7 +74,7 @@ describe("onde o agente roda (ADR-167)", () => {
   });
 });
 
-describe("flags remotas (ADR-168)", () => {
+describe("flags remotas (ADR-170)", () => {
   const ctx = { pessoaId: PESSOA, tenantId: TENANT, agora: Date.parse("2026-11-12T12:00:00Z") };
 
   it("sem regras, os padrões do catálogo; a primeira regra que casa ganha", () => {
@@ -126,7 +126,7 @@ describe("flags remotas (ADR-168)", () => {
   });
 });
 
-describe("canal de teste do app (ADR-168)", () => {
+describe("canal de teste do app (ADR-170)", () => {
   const SHA = `arm64=${"a".repeat(64)},x64=${"b".repeat(64)}`;
   const estavel = { versao: "1.0.0", bucket: "nod-app", sha256: { arm64: "a".repeat(64), x64: "b".repeat(64) } };
 

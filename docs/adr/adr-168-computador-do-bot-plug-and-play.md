@@ -1,4 +1,4 @@
-# ADR-166 — O computador do bot é plug and play: uma interface de provedor e a escolha por configuração
+# ADR-168 — O computador do bot é plug and play: uma interface de provedor e a escolha por configuração
 
 Status: proposta · Data: 2026-11-12 (frente "Plataforma e time", engenharia reversa do Grok Bot) · Emenda a
 [ADR-037](adr-037-computadores-por-bot.md) ("o `DriverComputador` permite substituir Docker por um provedor de máquinas
@@ -114,7 +114,7 @@ desde 18/09), o que faz ele ser difícil de pôr de pé é estrutural, não um b
 
 ## Fora deste recorte
 
-Escolher o provedor pela tela (hoje é env; o canal natural são as flags remotas por pessoa da ADR-168), migrar arquivos
+Escolher o provedor pela tela (hoje é env; o canal natural são as flags remotas por pessoa da ADR-170), migrar arquivos
 e logins entre provedores, proxy da tela ao vivo por VNC de um provedor de fora para a web, áudio no Orgo, e um segundo
 provedor de fora (E2B, Daytona, Cua, Scrapybara, Browserbase, Morph) — o contrato foi desenhado para eles, mas só o Orgo
 foi lido a fundo.

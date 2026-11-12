@@ -1,9 +1,9 @@
-# ADR-172 — O personagem do Grok Bot no nod: estados, formas, onboarding em 10 passos e preparo com %
+# ADR-174 — O personagem do Grok Bot no nod: estados, formas, onboarding em 10 passos e preparo com %
 
 Status: proposta · Data: 2026-11-12 · Emenda a [ADR-077](adr-077-onboarding-por-ligacao.md) (o "olá" vira a apresentação;
 a ligação fica como opção), a [ADR-157](adr-157-onboarding-por-texto-e-conta-sem-senha.md) (a jornada A também abre pela
 apresentação) e a [ADR-070](adr-070-design-system-grafite-e-cor-do-agente.md) (duas cores de bot a mais). Usa os tokens da
-[ADR-165](adr-165-visual-grok-design-system.md). Telas 09, 09b e 13 do Paper "nod x Grok Bot"; decisões do Marlon de
+[ADR-167](adr-167-visual-e-design-system.md). Telas 09, 09b e 13 do Paper "nod x Grok Bot"; decisões do Marlon de
 12/11/2026 ("personagem animado" e "onboarding do Grok inteiro", DECISOES.md da engenharia reversa do Grok Bot v1.0.1).
 
 ## Contexto
@@ -58,6 +58,6 @@ visual; nenhum código do Grok Bot.
 - O preparo dentro do modal (e não numa tela inteira, como no Paper) evita mexer na navegação e na barra lateral, que são
   de outra frente. Gatilho de revisão: a barra mostrar "Preparando… 64%" na linha do bot (tela 09b) — aí o preparo vira
   estado da frota e a tela inteira.
-- O Bloub segue isolado em `web/vendor/bloub`: os estados e formas novos estão marcados "nod (ADR-172)" no código.
+- O Bloub segue isolado em `web/vendor/bloub`: os estados e formas novos estão marcados "nod (ADR-174)" no código.
 - Reverter: tirar `criarBot` das dependências do onboarding devolve o "olá" de 3,3 s; `criar-rapido` volta a chamar
   `criarBotAgora`.

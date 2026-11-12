@@ -1,5 +1,5 @@
 /**
- * ADR-165 (Configurações do Grok Bot): o catálogo dos ajustes. Cada ajuste tem um id estável, a seção onde mora, um título
+ * ADR-167 (Configurações do Grok Bot): o catálogo dos ajustes. Cada ajuste tem um id estável, a seção onde mora, um título
  * curto e uma frase que começa por verbo ("Escolha…", "Mostre…"), como as linhas do Grok. O mesmo catálogo serve:
  * - à busca das Configurações (o campo no topo das seções);
  * - à paleta ⌘K (o grupo "Ajustes", com o caminho "Configurações › Geral › Aparência");
@@ -48,7 +48,7 @@ export const AJUSTES: readonly Ajuste[] = [
   { id: "maquinas", secao: "maquinas", grupo: null, titulo: "Máquinas", frase: "Veja e gerencie os computadores onde seus bots trabalham", palavras: ["mac", "computador", "vm"] },
   { id: "agentes", secao: "agentes", grupo: null, titulo: "Agentes", frase: "Veja todos os seus bots e mude vários de uma vez", palavras: ["bots", "lote"] },
   { id: "rotinas", secao: "rotinas", grupo: null, titulo: "Rotinas", frase: "Veja a agenda de tudo o que roda sozinho", palavras: ["agenda", "cron", "horário"] },
-  // ADR-164 (revisor): a seção Aprovações entrou junto com a busca da ADR-165 na integração.
+  // ADR-166 (revisor): a seção Aprovações entrou junto com a busca da ADR-167 na integração.
   { id: "aprovacoes", secao: "aprovacoes", grupo: null, titulo: "Aprovações", frase: "Escolha o modo, as regras do revisor e o nível de cada app", palavras: ["revisor", "modo", "permitir", "regras", "teto", "só leitura"] },
   { id: "cofre", secao: "cofre", grupo: null, titulo: "Cofre", frase: "Veja as chaves que você guardou pelos cartões dos bots", palavras: ["chave", "token", "senha", "credencial", "segredo", "api"] },
   // Frente "igual ao Grok" (12/11/2026; TELAS §3.8: "cada linha com título + descrição, busca e link próprio"): as linhas de

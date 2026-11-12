@@ -56,7 +56,7 @@ export function somarPorGrupo(saidaPs: string): Map<number, number> {
 }
 
 /** Uma linha de `ps -A -o pid=,pgid=,rss=` (rss em KiB). */
-/** ADR-169: `cpuPct` (o %cpu do ps, opcional: a 4ª coluna) soma por grupo como a memória — CPU por bot/turno. */
+/** ADR-171: `cpuPct` (o %cpu do ps, opcional: a 4ª coluna) soma por grupo como a memória — CPU por bot/turno. */
 export type LinhaDoPs = { pid: number; pgid: number; rssKib: number; cpuPct?: number };
 
 export function lerLinhasDoPs(saidaPs: string): LinhaDoPs[] {
@@ -84,7 +84,7 @@ export function somarComFugitivos(linhas: readonly LinhaDoPs[], gruposDosTurnos:
   return soma;
 }
 
-/** ADR-169: o %cpu somado por grupo, com os mesmos fugitivos da memória (um processo com vários núcleos passa de 100). */
+/** ADR-171: o %cpu somado por grupo, com os mesmos fugitivos da memória (um processo com vários núcleos passa de 100). */
 export function cpuComFugitivos(linhas: readonly LinhaDoPs[], gruposDosTurnos: ReadonlySet<number>, grupoDoFugitivo: (pid: number) => number | undefined): Map<number, number> {
   const soma = new Map<number, number>();
   for (const l of linhas) {

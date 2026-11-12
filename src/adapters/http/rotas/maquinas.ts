@@ -190,7 +190,7 @@ export function rotasMaquinas(deps: { dentro: DentroDeTx; vmDoNod?: { planos: Pl
       },
     },
     {
-      // ADR-167: as três opções de onde o agente roda (este computador, minha VM, VM do Nod). Só lê; contratar a VM do
+      // ADR-169: as três opções de onde o agente roda (este computador, minha VM, VM do Nod). Só lê; contratar a VM do
       // Nod (cobrança) é o próximo recorte. Sem `vmDoNod` (NOD_VM_DO_NOD desligada), a 3ª opção vem "Em teste fechado".
       metodo: "GET",
       padrao: /^\/maquinas\/onde-roda$/,

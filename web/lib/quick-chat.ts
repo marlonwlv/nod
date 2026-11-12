@@ -2,7 +2,7 @@ import type { CapturaDesktop } from "../../src/contracts/desktop-mac.ts";
 import { esc } from "./escape.ts";
 
 /**
- * Quick Chat (ADR-171, definido em 2026-11-12; tela 10 do protótipo no Paper): a mesma página do nod numa janela de
+ * Quick Chat (ADR-173, definido em 2026-11-12; tela 10 do protótipo no Paper): a mesma página do nod numa janela de
  * 608×440 que o atalho global abre de qualquer app (desktop/quick-chat.ts). Aqui só o que é da página:
  *
  * - o modo compacto, ligado por `?janela=quick-chat` (o CSS esconde a barra lateral, o cabeçalho e os detalhes);

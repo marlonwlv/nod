@@ -88,7 +88,7 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
   const trechos = new Map<string, TrechoVivo[]>();
   const ativos = new Set<AbortController>();
   /**
-   * ADR-169 (definido em 2026-11-12): as esperas longas (o `puxar`, long-poll de 20 s no servidor) que podem ser renovadas.
+   * ADR-171 (definido em 2026-11-12): as esperas longas (o `puxar`, long-poll de 20 s no servidor) que podem ser renovadas.
    * O Grok Bot renova o stream de pedidos depois de 15 s de silêncio ou de uma troca de rede; aqui o silêncio já tem prazo
    * (35 s = os 20 s do long-poll + 15 s), e a troca de rede (`renovarEsperas`, chamada pela vigia de rede do motor) aborta
    * a espera presa num socket morto para a próxima sair na rede nova — sem aviso de "servidor fora".
@@ -129,7 +129,7 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
     if (opcoes.renovavel) renovaveis.add(ctrl);
     const timer = setTimeout(() => ctrl.abort(), 35_000);
     try {
-      // ADR-169: a chamada de um turno leva o traceparent dele (trace = id do turno, span novo por chamada).
+      // ADR-171: a chamada de um turno leva o traceparent dele (trace = id do turno, span novo por chamada).
       const turnoDoCorpo = corpo && typeof corpo === "object" && typeof (corpo as { turnoId?: unknown }).turnoId === "string" ? (corpo as { turnoId: string }).turnoId : null;
       const traceparent = turnoDoCorpo ? traceparentDoTurno(turnoDoCorpo, randomBytes(8).toString("hex")) : null;
       const r = await f(`${o.url}/api/maquina/${nome}`, { method: "POST", headers: { authorization: `Bearer ${o.chave}`, "content-type": "application/json", "x-nod-versao": o.versao, ...(opcoes.tokenDeTurno ? { "x-nod-token-turno": opcoes.tokenDeTurno } : {}), ...(traceparent ? { traceparent } : {}) }, body: JSON.stringify(corpo), signal: ctrl.signal, redirect: "error" });
@@ -191,7 +191,7 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
         return plano;
       }
       catch (e) {
-        // ADR-169: a espera renovada pela troca de rede volta vazia e o laço puxa de novo na hora.
+        // ADR-171: a espera renovada pela troca de rede volta vazia e o laço puxa de novo na hora.
         if (e instanceof FalhaPonte && e.codigo === "renovar") return null;
         // Revisão do PR #295: o 409 do puxar entra na mesma reconexão das renovações (uma `conectar` só por reinício).
         if (e instanceof FalhaPonte && e.codigo === "reconectar" && anuncio) await reconectar(anuncio);
@@ -470,7 +470,7 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
       aparar(turnoId);
     },
     cancelar() { for (const c of ativos) c.abort(); },
-    /** ADR-169: a rede mudou — renova as esperas longas (puxar) sem tocar nas renovações e entregas dos turnos. */
+    /** ADR-171: a rede mudou — renova as esperas longas (puxar) sem tocar nas renovações e entregas dos turnos. */
     renovarEsperas() { for (const c of renovaveis) c.abort(RENOVAR); return renovaveis.size; },
   };
 }

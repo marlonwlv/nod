@@ -3,7 +3,7 @@ import type { OpcaoOndeRoda, PedidoVmDoNod, PlanoVmDoNod } from "../contracts/vm
 import { ErroDeDominio } from "./erro.ts";
 
 /**
- * ADR-167 (definido em 2026-11-12): as três opções de onde o agente roda e o pedido da VM do nod. Puro.
+ * ADR-169 (definido em 2026-11-12): as três opções de onde o agente roda e o pedido da VM do nod. Puro.
  *
  * Preços e tipos são PROVISÓRIOS (definido em 2026-11-12, sem medição de custo: os mesmos e2-standard-4/8 da ADR-121 (TIPO_POR_TAMANHO do gcp.ts) com a VM
  * dormindo ociosa, ADR-121): o servidor os troca por `NOD_VM_DO_NOD_PLANOS` (JSON) sem publicar versão.

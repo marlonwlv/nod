@@ -179,7 +179,7 @@ const DESPACHO: Despacho = {
   responder_pedido: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.responder_pedido](deps, { ...ctx, ...args }),
   pedir_credencial: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.pedir_credencial](deps, { ...ctx, ...args }),
   avisar_pessoa: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.avisar_pessoa](deps, { ...ctx, ...args }),
-  // ADR-173: os cartões ricos (voo, hotel, carro, mapa, clima, carrinho, arquivo) numa fala do bot.
+  // ADR-175: os cartões ricos (voo, hotel, carro, mapa, clima, carrinho, arquivo) numa fala do bot.
   mostrar_cartoes: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.mostrar_cartoes](deps, { ...ctx, ...args }),
   gerir_quadro: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_quadro](deps, { ...ctx, ...args }),
   gerir_apps: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_apps](deps, { ...ctx, ...args }),
@@ -352,7 +352,7 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
   // direto rodavam sem card no modo manual (só o prompt pedia pedir_aprovacao), e um colega apagava direto no
   // automático o que, pedido por item, pararia em `acao_arriscada`. Quem não passaria sozinho no card recebe a
   // negação transitória "peça aprovação" e cai no pedir_aprovacao, com o motivo gravado no item.
-  // ADR-164: o nível que a dona deu a esta ferramenta (Ajustes > Aprovações) e o só leitura do bot, ANTES de qualquer
+  // ADR-166: o nível que a dona deu a esta ferramenta (Ajustes > Aprovações) e o só leitura do bot, ANTES de qualquer
   // modo. Bloqueado e escrita em só leitura voltam negados (transitória: o bot segue e conta à pessoa); "Sempre pedir"
   // numa leitura volta como "peça aprovação" (a leitura não passa pela decisão abaixo); o resto vai à decisão.
   const ajustes = await ajustesDoBot(deps, input.agenteId);

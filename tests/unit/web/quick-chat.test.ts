@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { arquivoDaCaptura, ehJanelaQuickChat, fraseDaCaptura, htmlBotaoCapturar, htmlTopoQuickChat } from "../../../web/lib/quick-chat.ts";
 import { botDaUrl, ehJanelaAvatar, htmlAvatarDaMesa } from "../../../web/lib/quick-chat.ts";
 
-describe("Quick Chat na web (ADR-171)", () => {
+describe("Quick Chat na web (ADR-173)", () => {
   it("o modo compacto liga só com ?janela=quick-chat", () => {
     expect(ehJanelaQuickChat("?janela=quick-chat")).toBe(true);
     expect(ehJanelaQuickChat("?janela=outra")).toBe(false);
@@ -33,7 +33,7 @@ describe("Quick Chat na web (ADR-171)", () => {
 });
 
 
-describe("avatar da mesa na web (ADR-171)", () => {
+describe("avatar da mesa na web (ADR-173)", () => {
   const ID = "0b9c6a8e-3f1d-4c7e-9a2b-5d6e7f8a9b0c";
   it("lê o modo e o bot da URL; recusa id que não é uuid", () => {
     expect(ehJanelaAvatar(`?janela=avatar&bot=${ID}`)).toBe(true);

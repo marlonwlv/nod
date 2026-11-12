@@ -1,5 +1,5 @@
 /**
- * ADR-171 (definido em 2026-11-12, frente "Mac e Quick Chat"): o que a janela web do app do Mac ganha para o Quick Chat,
+ * ADR-173 (definido em 2026-11-12, frente "Mac e Quick Chat"): o que a janela web do app do Mac ganha para o Quick Chat,
  * a captura de tela e as ferramentas do Mac. Mora fora de desktop.ts pelo teto de 200 linhas. Tudo opcional: o app de
  * antes desta versão não tem, e a web confere antes de chamar.
  */

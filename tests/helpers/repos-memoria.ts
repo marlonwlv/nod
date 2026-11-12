@@ -4220,9 +4220,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return true;
       },
     },
-    // ADR-164: as regras do revisor, os níveis e o teto em memória (o Postgres é provado em tests/integration/ajustes-aprovacao.test.ts).
+    // ADR-166: as regras do revisor, os níveis e o teto em memória (o Postgres é provado em tests/integration/ajustes-aprovacao.test.ts).
     ajustesAprovacao: ajustesEmMemoria(b, escopo),
-    // 0166: VM do Nod, vez na sala, memória de time e passkey são só do Postgres (tests/integration/grok-persistencia.test.ts).
+    // 0174: VM do Nod, vez na sala, memória de time e passkey são só do Postgres (tests/integration/vm-sala-memoria-passkey.test.ts).
     vmsDoNod: reposSoNoPostgres("vmsDoNod"),
     vezNaSala: reposSoNoPostgres("vezNaSala"),
     memoriaDeTime: reposSoNoPostgres("memoriaDeTime"),
@@ -4248,7 +4248,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
   return repos;
 }
 
-/** ADR-164: Ajustes > Aprovações em memória, um conjunto por banco de mentira. */
+/** ADR-166: Ajustes > Aprovações em memória, um conjunto por banco de mentira. */
 const AJUSTES_EM_MEMORIA = new WeakMap<object, { regras: RegraRevisor[]; niveis: (NivelDeFerramenta & { ownerId: string })[]; tetos: { ownerId: string; teto: TetoModo }[] }>();
 /** Repo que só existe no Postgres: qualquer chamada em memória é erro do teste, nunca um vazio silencioso. */
 function reposSoNoPostgres<K extends "vmsDoNod" | "vezNaSala" | "memoriaDeTime" | "passkeys">(nome: K): Repos[K] {

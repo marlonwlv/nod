@@ -62,15 +62,15 @@ export type Agente = {
   /** ADR-059 (0040). Ausente = 'manual' (planos e fixtures anteriores ao modo). */
   modoAprovacao?: ModoAprovacao;
   /**
-   * ADR-164 (0165): o modo que a dona escolheu, antes do teto do admin do time. `modoAprovacao` é o EFETIVO (o que todo
+   * ADR-166 (0173): o modo que a dona escolheu, antes do teto do admin do time. `modoAprovacao` é o EFETIVO (o que todo
    * leitor em runtime usa); este só a tela mostra ("o admin limitou a Manual"). Ausente = igual ao efetivo.
    */
   modoPedido?: ModoAprovacao;
-  /** ADR-164: o bot só lê (o dele ou o teto `so_leitura` do admin); a escrita é barrada sem cartão. Ausente = falso. */
+  /** ADR-166: o bot só lê (o dele ou o teto `so_leitura` do admin); a escrita é barrada sem cartão. Ausente = falso. */
   soLeitura?: boolean;
-  /** ADR-164: o só leitura que a dona ligou no bot (sem o teto). */
+  /** ADR-166: o só leitura que a dona ligou no bot (sem o teto). */
   soLeituraPedido?: boolean;
-  /** ADR-164: o teto do admin do time, se houver. */
+  /** ADR-166: o teto do admin do time, se houver. */
   tetoModo?: "so_leitura" | "manual" | "automatico" | null;
   /** ADR-090 (0066): a máquina onde o bot trabalha — o id da chave da máquina. Ausente ou null = qualquer uma (o padrão da pessoa). */
   maquinaId?: string | null;

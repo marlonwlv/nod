@@ -8,12 +8,12 @@ import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
 
 /**
- * ADR-164 (0165): Ajustes > Aprovações no Postgres — as regras do revisor (padrão e do bot, 20 por lista), o nível por app,
+ * ADR-166 (0173): Ajustes > Aprovações no Postgres — as regras do revisor (padrão e do bot, 20 por lista), o nível por app,
  * o só leitura do bot e o teto do admin (linha 'equipe', lida por todo o tenant), com a RLS de cada uma.
  */
 const ADMINS = [MARLON.pessoaId.toLowerCase()];
 
-describeIntegracao("Ajustes > Aprovações (ADR-164)", () => {
+describeIntegracao("Ajustes > Aprovações (ADR-166)", () => {
   it("regras: cria no padrão e no bot, recusa a repetida e a 21ª, edita e apaga; a Ana não vê as do Marlon", async () => {
     await withRollback(MARLON, async (trx) => {
       const d = depsSobreTrx(trx, MARLON);

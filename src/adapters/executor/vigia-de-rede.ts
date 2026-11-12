@@ -2,7 +2,7 @@ import { networkInterfaces } from "node:os";
 import { log } from "../../obs/log.ts";
 
 /**
- * ADR-169 (definido em 2026-11-12): o motor percebe a troca de rede (Wi-Fi → cabo, VPN, IP novo) e renova as esperas
+ * ADR-171 (definido em 2026-11-12): o motor percebe a troca de rede (Wi-Fi → cabo, VPN, IP novo) e renova as esperas
  * longas da ponte na hora, como o daemon do Grok Bot ("watch renewed after a network change"). Sem isso o `puxar` preso
  * num socket da rede velha só caía no prazo de 35 s. Lê `os.networkInterfaces()` a cada 5 s — sem processo, sem rede.
  */

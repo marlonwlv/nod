@@ -3,7 +3,7 @@ import { linkSeguro, normalizarCartoes, textoDosCartoes } from "../../../src/dom
 
 const voo = { tipo: "voo", companhia: "Aérea", numero: "AT 1", origem: "GRU", destino: "SDU", partida: "2026-12-01T07:10", chegada: "2026-12-01T08:25", paradas: 0, preco: { centavos: 48900, moeda: "BRL" }, link: "https://exemplo.com/voo?id=1" };
 
-describe("cartões ricos (ADR-173)", () => {
+describe("cartões ricos (ADR-175)", () => {
   it("normaliza os sete tipos e monta o texto de quem não desenha cartão", () => {
     const r = normalizarCartoes({
       resumo: "Achei isto.",

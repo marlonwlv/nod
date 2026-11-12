@@ -4,7 +4,7 @@
    desktop/setup.css (tela de conexão do Mac, que não carrega este arquivo) tem uma cópia dos valores que usa; o mesmo
    teste confere que ela continua igual a esta.
 
-   Revisto em 2026-11-12 (ADR-165, visual do Grok Bot, telas 01–04 do Paper "nod x Grok Bot"):
+   Revisto em 2026-11-12 (ADR-167, visual do Grok Bot, telas 01–04 do Paper "nod x Grok Bot"):
    - tudo sai de UMA cor base (--base: #1c1c1c no claro, #f5f5f5 no escuro) por opacidade. Os tokens de texto, linha e
      superfície são essa base achatada sobre o fundo da conversa (hex sólido: o contraste não muda com o que está atrás);
      os de interação (--hover, --ativo, --borda-*) ficam translúcidos, com color-mix, e acompanham qualquer fundo.
@@ -21,10 +21,10 @@
      de estado, o botão que resolve usa a cor do estado; signal é só para o que é NOVO (divisor de novas,
      não lidas, menção a você) e nunca para link, seleção, botão, foco ou aviso;
    - estados: danger (o trabalho não começa ou parou), warning (o usuário resolve depois), success; informação
-     é neutra (surface-raised + line + ink); --aguardando (laranja) é o "precisa de você" da barra (ADR-165);
+     é neutra (surface-raised + line + ink); --aguardando (laranja) é o "precisa de você" da barra (ADR-167);
    - a cor do agente (agent-*) aparece só no avatar, no ponto de "trabalhando" e no marcador da menção, mais as
      exceções das emendas da ADR-070 (o brilho do pensamento e o balão da pessoa, --balao-*, NOD-431, que desde a
-     ADR-165 é opcional: o padrão é o balão preto, --balao-pessoa).
+     ADR-167 é opcional: o padrão é o balão preto, --balao-pessoa).
 
    Tema: claro por padrão; escuro pelo sistema (prefers-color-scheme) ou por escolha (data-theme no <html>,
    gravado por web/lib/tema.ts). data-theme="light" vence o sistema escuro e data-theme="dark" vence o claro.
@@ -103,7 +103,7 @@
   --agent-rose: #e152b0;
   --agent-gris: #a3a3a3;
   --agent-creme: #f1efe9;
-  /* ADR-172: duas cores a mais no seletor (magenta do Grok Bot; anil para fechar o círculo entre azul e violeta) */
+  /* ADR-174: duas cores a mais no seletor (magenta do Grok Bot; anil para fechar o círculo entre azul e violeta) */
   --agent-magenta: #ff309b;
   --agent-anil: #5865f2;
   /* Olhos do avatar: brancos em toda skin, exceto creme (fica clara demais e leva olhos em tinta) */
@@ -147,7 +147,7 @@
   --cel-campo: 16px;
   --cel-corpo: 16px;
 
-  /* ADR-165: a base e o que sai dela por opacidade (translúcidos: valem sobre qualquer fundo) */
+  /* ADR-167: a base e o que sai dela por opacidade (translúcidos: valem sobre qualquer fundo) */
   --base: #1c1c1c;
   --base-hover: #363636;
   --ink-4: #a4a4a4;
@@ -158,9 +158,9 @@
   --borda-sutil: color-mix(in srgb, var(--base) 8%, transparent);
   --divisoria: color-mix(in srgb, var(--base) 6%, transparent);
   --surface-elevated: #ffffff;
-  /* ADR-165 (Paper): o fundo do painel do bot, um tom acima da conversa. */
+  /* ADR-167 (Paper): o fundo do painel do bot, um tom acima da conversa. */
   --surface-chrome: #fcfcfc;
-  /* ADR-165 (Paper 07/08): o véu do modal (Configurações, criar bot) e o da paleta ⌘K, mais leve. */
+  /* ADR-167 (Paper 07/08): o véu do modal (Configurações, criar bot) e o da paleta ⌘K, mais leve. */
   --veu-modal: rgba(0, 0, 0, .5);
   --veu-paleta: rgba(0, 0, 0, .22);
   /* O "precisa de você" da barra (Aguardando você, telas 16/16b): laranja, texto 4,5:1 sobre a barra. */
@@ -170,7 +170,7 @@
   /* Paper (rodada 2): o verde de "pronta" (a barra e o ✓ das frentes, a CI verde) e o texto dele. */
   --pronto: #10ab61;
   --pronto-tinta: #00854a;
-  /* O balão da pessoa (ADR-165): preto por padrão; a cor do bot é opção em Ajustes (--balao-<skin>). */
+  /* O balão da pessoa (ADR-167): preto por padrão; a cor do bot é opção em Ajustes (--balao-<skin>). */
   --balao-pessoa: #1c1c1c;
   --balao-pessoa-tinta: #ffffff;
   --balao-pessoa-codigo: #363636;
@@ -341,7 +341,7 @@
 }
 
 /* =====================================================================================
-   ADR-165: escala, raios e movimento. Não são cor: iguais nos dois temas, num bloco à parte.
+   ADR-167: escala, raios e movimento. Não são cor: iguais nos dois temas, num bloco à parte.
    ===================================================================================== */
 :root {
   /* Tipografia: 7 tamanhos fechados (o Grok Bot usa a mesma escala); corpo 14/20, conversa 14/22, menus 13/18. */

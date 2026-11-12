@@ -33,7 +33,7 @@ export type ShapeId =
   | 'hexagone'
   | 'nuage'
   | 'goutte'
-  // nod (ADR-172): as cinco formas a mais do seletor (13, como o do Grok Bot)
+  // nod (ADR-174): as cinco formas a mais do seletor (13, como o do Grok Bot)
   | 'oeuf'
   | 'coeur'
   | 'etoile'
@@ -82,7 +82,7 @@ const droplet = normalize(
 /** Capsule couchee : enveloppe de deux disques cote a cote. */
 const capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0)
 
-/* nod (ADR-172, 2026-11-12): cinco formas a mais, com os mesmos construtores analiticos de cima. */
+/* nod (ADR-174, 2026-11-12): cinco formas a mais, com os mesmos construtores analiticos de cima. */
 
 /** Ovo : mais estreito que o circulo e mais largo embaixo. */
 const egg = normalize(

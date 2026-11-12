@@ -76,7 +76,7 @@ export type SuaVezDto = {
    * `rotinaParada` (mesma data, emenda da ADR-044): o pedido de acesso aberto que veio de uma rotina — desde quando e o que não rodou.
    * `nuncaPermanente` (ADR-047): sem "Sempre permitir". `pedido` (2026-10-18): PedidoDoItem. `trabalhoId` (NOD-114): a task do turno (null = conversa).
    */
-  itens: (ItemFila & { itensAprovacao: ItemAprovacao[]; proposta: Proposta | null; fio: FioDoItem | null; rotinaParada: ParadaDaRotina | null; nuncaPermanente?: string[]; pedido?: PedidoDoItem | null; trabalhoId?: string | null; /** NOD-402: o turno do pedido é dos bastidores. */ bastidores?: boolean; /** NOD-443 (revisão 7 do PR #628, achado 4): o nome de quem participa do quadro e pediu o turno que abriu o cartão (o bot da dona sob a procuração dela). */ aPedidoDe?: string; /** ADR-164: a regra pronta para "Salvar como regra" no cartão em que o revisor pediu. */ sugestaoDeRegra?: string })[];
+  itens: (ItemFila & { itensAprovacao: ItemAprovacao[]; proposta: Proposta | null; fio: FioDoItem | null; rotinaParada: ParadaDaRotina | null; nuncaPermanente?: string[]; pedido?: PedidoDoItem | null; trabalhoId?: string | null; /** NOD-402: o turno do pedido é dos bastidores. */ bastidores?: boolean; /** NOD-443 (revisão 7 do PR #628, achado 4): o nome de quem participa do quadro e pediu o turno que abriu o cartão (o bot da dona sob a procuração dela). */ aPedidoDe?: string; /** ADR-166: a regra pronta para "Salvar como regra" no cartão em que o revisor pediu. */ sugestaoDeRegra?: string })[];
   /** Avisos de infraestrutura (ADR-045): um por queda do Mac, nunca um card por turno. Não são decisões. */
   incidentes: IncidenteDto[];
   foraDoAr: { nome: string; desde: EpochMs }[];

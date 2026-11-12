@@ -4,7 +4,7 @@ import { lerMdmDoMac } from "../../../desktop/mdm.ts";
 
 const ASSINADO = "Executable=/opt/homebrew/bin/op\nAuthority=Developer ID Application: AgileBits Inc. (2BUA8C4S2C)\nTeamIdentifier=2BUA8C4S2C\n";
 
-describe("MDM no Mac (ADR-176)", () => {
+describe("MDM no Mac (ADR-178)", () => {
   it("desligado não lê nada; ligado lê os defaults e o policy.json", async () => {
     const executar = async (_c: string, args: readonly string[]) => (args[2] === "DeploymentBackendUrl" ? { codigo: 0, saida: "https://nod.acme.com\n" } : { codigo: 1, saida: "" });
     expect(await lerMdmDoMac({ bundleId: "br.nod", ligado: false, executar })).toBeNull();
@@ -19,7 +19,7 @@ describe("MDM no Mac (ADR-176)", () => {
   });
 });
 
-describe("1Password no Mac (ADR-175)", () => {
+describe("1Password no Mac (ADR-177)", () => {
   it("referência op:// válida; shell e caminho fora não", () => {
     expect(referenciaValida("op://Pessoal/Banco/senha")).toBe(true);
     expect(referenciaValida("op://Pessoal/Banco/Login/senha")).toBe(true);

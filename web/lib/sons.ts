@@ -1,5 +1,5 @@
 /**
- * ADR-165 (sons do Grok Bot): dois sons curtos e opcionais — um "blip" quando chega mensagem nova de um bot e um "chime"
+ * ADR-167 (sons do Grok Bot): dois sons curtos e opcionais — um "blip" quando chega mensagem nova de um bot e um "chime"
  * de duas notas quando um bot pede aprovação ou resposta. Desligados por padrão; a escolha é deste computador (como o
  * tema), em Configurações › Geral › Sons. Sintetizados com Web Audio: nenhum arquivo de áudio, nada de rede.
  *

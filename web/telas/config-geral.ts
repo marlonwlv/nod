@@ -11,7 +11,7 @@ import { ESCOLHAS_TEMA, type EscolhaTema } from "../lib/tema.ts";
 import { ajustePorId } from "../lib/ajustes.ts";
 import type { EscolhaSons } from "../lib/sons.ts";
 
-/** ADR-165: a frase do catálogo (web/lib/ajustes.ts), para a linha e a busca dizerem o mesmo. */
+/** ADR-167: a frase do catálogo (web/lib/ajustes.ts), para a linha e a busca dizerem o mesmo. */
 const frase = (id: string): string => ajustePorId(id)?.frase ?? "";
 
 /**
@@ -102,9 +102,9 @@ export type DadosGeral = {
   quadroLiberado?: boolean;
   /** NOD-119: a densidade da barra neste computador (ausente = Confortável). */
   densidade?: Densidade;
-  /** ADR-165: o balão da pessoa na cor do bot (ausente = preto, o padrão). */
+  /** ADR-167: o balão da pessoa na cor do bot (ausente = preto, o padrão). */
   balaoCor?: boolean;
-  /** ADR-165: os sons opcionais deste computador (ausente = desligados). */
+  /** ADR-167: os sons opcionais deste computador (ausente = desligados). */
   sons?: EscolhaSons;
 };
 
@@ -132,7 +132,7 @@ export function renderGeral(d: DadosGeral, ui: ConfigUi, celular = ehCelular(), 
     detalhe: frase("balao-cor"),
     controle: { tipo: "switch", ligado: d.balaoCor === true, acao: "alternar-balao-cor" },
   })]);
-  // ADR-165: os sons do Grok Bot, opcionais e deste computador.
+  // ADR-167: os sons do Grok Bot, opcionais e deste computador.
   const sons = d.sons ?? { mensagem: false, aprovacao: false };
   const blocoSons = grupoConfig("Sons", [
     linhaConfig({ titulo: "Som de mensagem", ajuste: "som-mensagem", detalhe: frase("som-mensagem"), controle: { tipo: "switch", ligado: sons.mensagem, acao: "alternar-som-app", dados: { som: "mensagem" } } }),

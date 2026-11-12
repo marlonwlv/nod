@@ -102,7 +102,7 @@ function registroDoTotal(pedido: Pedido, credencial: boolean, risco: string | nu
  */
 async function decidirComando(deps: Deps, plano: PlanoTurno, texto: string, pedido: Pedido, medir = false): Promise<(Permitir & { registro?: RegistroDoTotal }) | PedeCard | VaiAoRevisor | { negar: string }> {
   const contaminado = plano.confiancaEntrada !== "confiavel" || (await deps.repos.turnos.contaminado(plano.turnoId));
-  // ADR-164: o bot em só leitura (dele ou pelo teto do admin) roda só o comando que lê — mesmo depois de conteúdo de fora,
+  // ADR-166: o bot em só leitura (dele ou pelo teto do admin) roda só o comando que lê — mesmo depois de conteúdo de fora,
   // que é o que ele está ali para fazer — e o resto é negado sem cartão, em todo modo.
   const ajustes = await ajustesDoBot(deps, plano.agenteId);
   if (ajustes.soLeitura) return pedido.tipo === "comando" && classificarComando(texto).tipo === "leitura" ? { permitir: true, porque: "leitura" } : { negar: FRASE_SO_LEITURA };

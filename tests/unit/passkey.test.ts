@@ -20,7 +20,7 @@ function assercao(p: { flags?: number; contador?: number; origem?: string; desaf
 }
 const conf = { chavePublica, rpId: RP, desafio, origens: [ORIGEM], contadorGuardado: 0 };
 
-describe("passkey do gasto (ADR-175)", () => {
+describe("passkey do gasto (ADR-177)", () => {
   it("aceita a asserção certa (P-256, UP e UV, desafio do valor)", () => {
     expect(verificarAssercao(assercao(), conf)).toEqual({ ok: true, contador: 0 });
   });

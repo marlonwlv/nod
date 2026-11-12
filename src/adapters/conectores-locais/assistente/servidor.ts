@@ -7,8 +7,8 @@ import { criarServidorMcpSimples, type ResultadoMcp, type ServidorMcpSimples } f
 import { criarDriverTeste, criarVerificadorTeste, ErroDoDriver } from "./driver-teste.ts";
 
 /**
- * Servidor MCP stdio do conector local `assistente` (ADR-174): viagens, lugares e restaurantes, clima, compras e reuniões.
- * Valida no domínio, chama o driver e devolve JSON. A compra e o cartão virtual têm a trava da passkey (ADR-175): a primeira
+ * Servidor MCP stdio do conector local `assistente` (ADR-176): viagens, lugares e restaurantes, clima, compras e reuniões.
+ * Valida no domínio, chama o driver e devolve JSON. A compra e o cartão virtual têm a trava da passkey (ADR-177): a primeira
  * chamada devolve `aguardando_passkey` com o total; só depois de o verificador confirmar ESSE total a cobrança sai.
  *
  * Driver pelo ambiente (o modelo nunca escolhe): `NOD_ASSISTENTE_REAL=1` pede o real, que ainda não tem provedor
@@ -60,7 +60,7 @@ export function criarServidorAssistente(o: { driver: DriverAssistente | null; ve
     }
     pendentes.delete(id);
     const c = await d.emitirCartaoVirtual({ limite, comerciante: a.comerciante });
-    // Só o final: o número, a validade e o código ficam com quem preenche (o Mac), nunca com o bot (ADR-175).
+    // Só o final: o número, a validade e o código ficam com quem preenche (o Mac), nunca com o bot (ADR-177).
     return json({ estado: "emitido", cartao_id: c.id, final: c.final, limite, comerciante: a.comerciante });
   }
 

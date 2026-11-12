@@ -50,7 +50,7 @@ export type DetalheDaIaNaMaquina = { causa?: CausaInventario | CausaSemIa | "lim
  * alcança pelo túnel SSH). Ausente = modo compartilhado ("qualquer uma").
  */
 export type MaquinasDto = { maquinas: MaquinaDto[]; padraoId: string | null; servidorNoMac?: { api: string };
-  /** ADR-167: as três opções de onde o agente roda (GET maquinas/onde-roda, lido junto); ausente com o servidor antigo. */
+  /** ADR-169: as três opções de onde o agente roda (GET maquinas/onde-roda, lido junto); ausente com o servidor antigo. */
   ondeRoda?: OpcoesOndeRodaDto };
 
 /** Uma máquina da pessoa como a tela a nomeia: o Mac ("seu Mac") ou outra, pelo nome que ela anunciou ("nod-motor-teste"). */

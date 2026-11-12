@@ -3,7 +3,7 @@
  * - a densidade, escolhida em Configurações › Aparência: Confortável (padrão) ou Compacta;
  * - a largura, mudada pelo gesto da borda (ou pelo chat): aberta no padrão da densidade, recolhida ("só avatares") ou,
  *   só na Compacta, alargada até a largura da Confortável.
- * A barra só encaixa nestas larguras (Confortável 272 ↔ 88 desde a ADR-165 (Paper 02); Compacta 200 ↔ 56, e 340 alargada), então não vira
+ * A barra só encaixa nestas larguras (Confortável 272 ↔ 88 desde a ADR-167 (Paper 02); Compacta 200 ↔ 56, e 340 alargada), então não vira
  * redimensionável (o ADR-060 continua valendo). Vale para este computador, como o tema (web/lib/tema.ts): localStorage
  * na web; no app do Mac, o preload repõe o valor de userData antes da página (o localStorage é apagado a cada conexão).
  * O index.html aplica a escolha antes do primeiro quadro com a mesma chave e os mesmos valores (o teste confere).
@@ -32,7 +32,7 @@ const LARGURAS: Record<Densidade, readonly Largura[]> = {
   compacta: ["recolhida", "padrao", "larga"],
 };
 const PX: Record<Densidade, Partial<Record<Largura, number>>> = {
-  // ADR-165: só avatares em 88 px, como a barra compacta do Grok Bot (⌘B); antes 72.
+  // ADR-167: só avatares em 88 px, como a barra compacta do Grok Bot (⌘B); antes 72.
   confortavel: { recolhida: 88, padrao: 272 },
   compacta: { recolhida: 56, padrao: 200, larga: 340 },
 };

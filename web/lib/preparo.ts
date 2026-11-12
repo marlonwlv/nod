@@ -1,5 +1,5 @@
 /**
- * ADR-172 (2026-11-12, tela 09b do Paper, "Preparando a Lia"): o preparo de um bot novo, com a porcentagem e a lista de
+ * ADR-174 (2026-11-12, tela 09b do Paper, "Preparando a Lia"): o preparo de um bot novo, com a porcentagem e a lista de
  * passos. Comportamento copiado do Grok Bot ("Getting your team ready…" → "Waking your computer…" → "Setting up… {0}%",
  * e o erro "X couldn't finish setting up" com "Try again" / "Check for issues"); o código é nosso.
  *

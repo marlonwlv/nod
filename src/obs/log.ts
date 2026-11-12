@@ -35,7 +35,7 @@ export function log(nivel: Nivel, evento: string, campos: CamposLog = {}): strin
     tenant_id: ctx?.tenantId ?? null,
     pessoa_id: ctx?.pessoaId ?? null,
     correlation_id: ctx?.correlationId ?? null,
-    // ADR-169: o trace W3C do pedido (motor → servidor), quando veio no header.
+    // ADR-171: o trace W3C do pedido (motor → servidor), quando veio no header.
     ...(rastro ? { trace_id: rastro.traceId, span_pai: rastro.spanId } : {}),
     ...redigirCampos(semTexto),
   });

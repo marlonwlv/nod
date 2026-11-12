@@ -18,7 +18,7 @@ import { decidirAprovacao, decidirLote, REGRA_APROVACAO_PERMANENTE, type Entrada
 import { decidirPeloModo, gatilhoDeRevisao } from "../../../src/domain/modo-aprovacao.ts";
 import { lerVeredito, pedidoDoRevisor, PROMPT_REVISOR, ESQUEMA_VEREDITO, type EntradaRevisor } from "../../../src/domain/revisor.ts";
 
-/** ADR-164: Ajustes > Aprovações — regras em texto do revisor, níveis por ferramenta, só leitura e teto do admin. */
+/** ADR-166: Ajustes > Aprovações — regras em texto do revisor, níveis por ferramenta, só leitura e teto do admin. */
 
 const regra = (id: string, lista: RegraRevisor["lista"], texto: string, agenteId: string | null = null, criadoEm = 1): RegraRevisor => ({ id, agenteId, lista, texto, origem: "pessoa", criadoEm });
 

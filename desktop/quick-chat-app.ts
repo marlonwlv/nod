@@ -2,7 +2,7 @@ import { BrowserWindow, globalShortcut, screen } from "electron";
 import { criarQuickChat, posicaoDaJanela, urlDoQuickChat, type JanelaQuickChat, type QuickChat } from "./quick-chat.ts";
 
 /**
- * A cola do Quick Chat com o Electron (ADR-171). A lógica (atalho, alternar, recusa do atalho em uso) é de
+ * A cola do Quick Chat com o Electron (ADR-173). A lógica (atalho, alternar, recusa do atalho em uso) é de
  * quick-chat.ts; aqui só a janela de verdade e o `globalShortcut`.
  *
  * A janela: 560×392 (rodada 3 do Paper), sem moldura, flutuando sobre os outros apps e em todas as mesas (como o Spotlight), na partição

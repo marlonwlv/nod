@@ -50,7 +50,7 @@ const FALA_ESPEROU_MS = 10_000;
 
 /** definido em 2026-09-16: versão mínima do app = a do package.json desta rodada; a ponte HTTP compara quando entrar (ADR-021). */
 
-/** ADR-169 (definido em 2026-11-12): o último log de recursos de cada turno, para 1 linha por minuto (renovação a cada ~10 s). */
+/** ADR-171 (definido em 2026-11-12): o último log de recursos de cada turno, para 1 linha por minuto (renovação a cada ~10 s). */
 const recursosLogados = new Map<string, number>();
 const INTERVALO_LOG_RECURSOS_MS = 60_000;
 function registrarRecursosDoTurno(t: { turnoId: string; mb: number; cpuPct?: number }, agenteId: string | null, agora: number): void {
@@ -623,7 +623,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         let mudanca: MudancaDePressao | undefined;
         if (p.memoria) {
           await d.repos.trabalhos.atualizarMemoria(p.memoria.porTurno);
-          // ADR-169: memória e CPU do grupo do turno, por bot, no log (no máximo 1 linha por turno por minuto).
+          // ADR-171: memória e CPU do grupo do turno, por bot, no log (no máximo 1 linha por turno por minuto).
           for (const t of p.memoria.porTurno) if (t.turnoId === p.turnoId) registrarRecursosDoTurno(t, turno?.agenteId ?? null, Date.now());
           mudanca = deps.registrarMemoria?.(escopo.pessoaId, p.machineId, p.memoria);
           if (mudanca?.mudou) events.push(eventoPressao(d, mudanca, p.memoria));

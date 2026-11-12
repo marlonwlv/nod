@@ -17,7 +17,7 @@ function servidor(teto?: number) {
   return { s, verificador };
 }
 
-describe("conector local assistente (ADR-174)", () => {
+describe("conector local assistente (ADR-176)", () => {
   it("tools/list: leitura marcada readOnly; finalizar_compra e cartão virtual destrutivos", async () => {
     const { s } = servidor();
     const r = JSON.parse((await s.tratarLinha('{"jsonrpc":"2.0","id":1,"method":"tools/list"}')) ?? "{}");
@@ -86,7 +86,7 @@ describe("conector local assistente (ADR-174)", () => {
   });
 });
 
-describe("domínio de pagamento (ADR-175)", () => {
+describe("domínio de pagamento (ADR-177)", () => {
   it("soma em centavos, recusa moedas misturadas e formata em reais", () => {
     expect(somar([{ quantidade: 3, unitario: { centavos: 10, moeda: "BRL" } }])).toEqual({ centavos: 30, moeda: "BRL" });
     expect(somar([{ quantidade: 1, unitario: { centavos: 1, moeda: "BRL" } }, { quantidade: 1, unitario: { centavos: 1, moeda: "USD" } }])).toBeNull();

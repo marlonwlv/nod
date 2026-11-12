@@ -1,5 +1,5 @@
 /**
- * ADR-169 (definido em 2026-11-12): a fila de envio offline da web, como o `send-journal` do Grok Bot (acked / failed /
+ * ADR-171 (definido em 2026-11-12): a fila de envio offline da web, como o `send-journal` do Grok Bot (acked / failed /
  * queued_offline). A fala pendente já existia (enviando / falhou, com "Tentar de novo" pela mesma chave de idempotência,
  * NOD-156); o que faltava:
  *   - a fala que falhou SEM INTERNET vai para uma fila no `localStorage` da pessoa e sobrevive a recarregar a página;

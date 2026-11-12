@@ -116,7 +116,7 @@ export type SituacaoDaAcao = {
   /** Só pesa com o revisor ligado: o turno, ou outro turno da conversa nas últimas 24 h, leu conteúdo de fora. */
   contaminado?: boolean;
   /**
-   * ADR-164: só pesa com o revisor ligado — a pessoa tem regras de "Sempre me pergunte" para este bot. Então o envio para
+   * ADR-166: só pesa com o revisor ligado — a pessoa tem regras de "Sempre me pergunte" para este bot. Então o envio para
    * fora vai ao revisor também num turno limpo (gatilho `regra_da_pessoa`): é o revisor que sabe se a regra bate.
    */
   regrasDePerguntar?: boolean;
@@ -219,7 +219,7 @@ export function gatilhoDeRevisao(s: SituacaoParaRevisao): GatilhoDoAutomatico | 
   if (s.credencial) return "credencial";
   if (s.arriscada) return "arriscado";
   if (s.envioParaFora && s.contaminado) return "envio_apos_fora";
-  // ADR-164 (2026-11-12): com regras de "Sempre me pergunte", o envio para fora num turno limpo também vai ao revisor.
+  // ADR-166 (2026-11-12): com regras de "Sempre me pergunte", o envio para fora num turno limpo também vai ao revisor.
   if (s.envioParaFora && s.regrasDePerguntar === true) return "regra_da_pessoa";
   return null;
 }

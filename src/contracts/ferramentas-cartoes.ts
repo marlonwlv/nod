@@ -2,7 +2,7 @@ import type { Dinheiro } from "./assistente.ts";
 import type { JsonSchema } from "./json-schema.ts";
 
 /**
- * mostrar_cartoes (ADR-173, respostas ricas): o bot mostra na conversa cartões padronizados — voo, hotel, carro, mapa,
+ * mostrar_cartoes (ADR-175, respostas ricas): o bot mostra na conversa cartões padronizados — voo, hotel, carro, mapa,
  * clima, carrinho e arquivo (PDF ou planilha) — em vez de descrever em texto o que achou. Grava uma fala `texto` com o
  * resumo e o payload `cartoes`; a web desenha cada cartão (web/telas/cartoes-ricos.ts). Os campos são dado: o domínio
  * (src/domain/cartoes-ricos.ts) corta, limpa e só aceita link https. Mora fora de ferramentas-nod.ts (gatilho de 200 linhas).

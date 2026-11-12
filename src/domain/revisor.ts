@@ -155,7 +155,7 @@ export type EntradaRevisor = {
   /** Quantas ações deste turno o revisor já mandou para a pessoa (revisão de engenharia, item 3). */
   jaPediuNoTurno: number;
   /**
-   * ADR-164 (2026-11-12): as regras que a pessoa escreveu (confiáveis: só ela as grava, nos Ajustes ou no clique do
+   * ADR-166 (2026-11-12): as regras que a pessoa escreveu (confiáveis: só ela as grava, nos Ajustes ou no clique do
    * cartão). Cada lista na ordem; o veredito cita a que usou por `P<n>` (pode) ou `A<n>` (sempre pergunte).
    */
   regras?: { permitir: readonly string[]; perguntar: readonly string[] };
@@ -421,7 +421,7 @@ export function limparMotivo(texto: string): string {
 }
 
 /**
- * ADR-164 (2026-11-12): o veredito cita a regra da pessoa que decidiu (`regra`, a lista e a posição de 0) e, no "pede",
+ * ADR-166 (2026-11-12): o veredito cita a regra da pessoa que decidiu (`regra`, a lista e a posição de 0) e, no "pede",
  * sugere uma regra (`sugestao`, texto de modelo: a pessoa lê e edita antes de salvar; até 200). O formato antigo, de duas
  * chaves, continua aceito (o modelo velho, um teste antigo): regra e sugestão nulas.
  */

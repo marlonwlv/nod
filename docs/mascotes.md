@@ -1,8 +1,8 @@
 # Mascotes temporários
 
-Motor Bloub original em `web/vendor/bloub`, isolado dos contratos e do backend. A ADR-172 (2026-11-12) acrescentou
+Motor Bloub original em `web/vendor/bloub`, isolado dos contratos e do backend. A ADR-174 (2026-11-12) acrescentou
 quatro estados (reading, celebrate, sleeping, offline) e cinco formas (ovo, coração, estrela, flor, trevo), marcados
-"nod (ADR-172)" no código; o seletor tem 13 formas e 14 cores.
+"nod (ADR-174)" no código; o seletor tem 13 formas e 14 cores.
 Origem/licença: [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md).
 O perfil persiste apenas forma e cor. Expressões e reprodução do catálogo são prévias locais.
 
@@ -22,17 +22,17 @@ e volta à base quando acaba (o relógio da virada, `proximaViradaDoMascote`, re
 | wide | Descoberta relevante | — | Reservada |
 | alert | Falha recuperável que requer atenção | Silêncio do vigia ("sem novidade há N min"); decisão pendente: `idle + somnolent` como alternativa (`MASCOTE_NO_SILENCIO`) | Ativa no chat |
 | exclaim | Bloqueio crítico ou prazo próximo | — (candidato: máquina caiu, limite do plano, falha; fora do chat) | Reservada |
-| sleep | Agente explicitamente suspenso (antes da ADR-172) | — | Reservada; o pausado agora desenha `sleeping` |
+| sleep | Agente explicitamente suspenso (antes da ADR-174) | — | Reservada; o pausado agora desenha `sleeping` |
 | egg | Criação/preparação inicial | — (candidato: a linha "criada por você" e o bot novo na frota) | Reservada |
 | hexagon | Preparação de integração | — (candidato: o cartão de acesso ao conector) | Reservada |
 | play | Início/retomada confirmada | — (candidato: depois de Aprovar ou Retomar; precisa do fato no frame) | Reservada |
 | burst | Conclusão bem-sucedida | — (candidato: task entregue, uma vez por entrega) | Reservada; futuro disparo único por entrega |
 | comet | Transferência entre agentes | Disparo único (2,5 s) quando as frentes saem; depois, orbit | Ativa no chat |
 | swirl | Transição visual entre contextos | — | Reservada; não é estado de negócio |
-| reading | Turno rodando com ferramenta de leitura (`lendo`, ADR-172) | Idem | Ativa |
-| celebrate | Preparo do bot a 100% e escolhas do onboarding (`comemorando`, ADR-172) | — | Ativa nas telas; nunca inferida do chat |
-| sleeping | Bot pausado (`pausado`, desenhado como dormindo, ADR-172) | — | Ativa |
-| offline | Computador do bot fora do ar, para o dono, sem turno vivo (`offline`, ADR-172) | — | Ativa; pose fixa como o repouso |
+| reading | Turno rodando com ferramenta de leitura (`lendo`, ADR-174) | Idem | Ativa |
+| celebrate | Preparo do bot a 100% e escolhas do onboarding (`comemorando`, ADR-174) | — | Ativa nas telas; nunca inferida do chat |
+| sleeping | Bot pausado (`pausado`, desenhado como dormindo, ADR-174) | — | Ativa |
+| offline | Computador do bot fora do ar, para o dono, sem turno vivo (`offline`, ADR-174) | — | Ativa; pose fixa como o repouso |
 
 Prioridade atual: execução (lendo ou trabalhando) > fila recente > decisão > offline > repouso. Escopo por conversa.
 Usado na barra lateral, cabeçalho da conversa e Frota. Mensagens históricas não simulam trabalho atual.

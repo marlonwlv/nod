@@ -4,7 +4,7 @@ import { semInvisiveis } from "./acoes-do-modo.ts";
 import type { Validacao } from "./assistente.ts";
 
 /**
- * Catálogo e validação do conector local `canais` (ADR-174): a caixa de e-mail do bot e iMessage/SMS. Os nomes de envio
+ * Catálogo e validação do conector local `canais` (ADR-176): a caixa de e-mail do bot e iMessage/SMS. Os nomes de envio
  * (`enviar_email`, `enviar_imessage`, `enviar_sms`) e o corpo no argumento `corpo`/`texto` fazem o item virar rascunho na
  * conversa (domain/rascunho.ts). Puro.
  */

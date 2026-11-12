@@ -3,7 +3,7 @@ import { avaliarFlags, lerRegras, type RegraFlag, type ValorFlag } from "../../d
 import { log } from "../../obs/log.ts";
 
 /**
- * ADR-168 (definido em 2026-11-12): de onde vêm as regras das flags remotas. `NOD_FLAGS_ARQUIVO` (um JSON no servidor,
+ * ADR-170 (definido em 2026-11-12): de onde vêm as regras das flags remotas. `NOD_FLAGS_ARQUIVO` (um JSON no servidor,
  * relido quando o mtime muda, conferido no máximo a cada 5 s) ganha de `NOD_FLAGS` (o JSON no env, lido no boot).
  * Arquivo inválido NÃO apaga as regras: fica a última válida e um aviso `flags_invalidas` no log (um erro de digitação
  * não pode desligar a versão de teste de todo mundo de uma vez).

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { botDasTarefas, tarefasEmAndamento } from "../../../web/lib/tarefas-da-barra.ts";
 
-describe("linha Tarefas da barra (ADR-165, Paper 02–05)", () => {
+describe("linha Tarefas da barra (ADR-167, Paper 02–05)", () => {
   const colunas = [
     { id: "backlog", grupo: "nao_iniciado" }, { id: "afazer", grupo: "nao_iniciado" }, { id: "fazendo", grupo: "iniciado" },
     { id: "revisao", grupo: "iniciado" }, { id: "bloqueado", grupo: "iniciado" }, { id: "feito", grupo: "feito" }, { id: "cancelado", grupo: "fechado" },

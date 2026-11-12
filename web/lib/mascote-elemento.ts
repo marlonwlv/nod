@@ -15,7 +15,7 @@ const INK = "var(--mascote-cor, var(--agent-gris))";
 const ASSENTA = .8;
 /** definido em 2026-09-30: teto de 60 quadros por segundo; numa tela de 120 Hz o rAF dobraria o custo sem ganho visível. */
 const QUADRO_MS = 1000 / 60;
-/** ADR-172: estados que, assentados, não se mexem (não pedem quadro nenhum). */
+/** ADR-174: estados que, assentados, não se mexem (não pedem quadro nenhum). */
 const ESTATICOS: ReadonlySet<StateId> = new Set<StateId>(["idle", "offline"]);
 const reduced = matchMedia(CONSULTA_MOVIMENTO_REDUZIDO);
 /**
@@ -156,7 +156,7 @@ class MascoteElemento extends HTMLElement {
     if (!this.moving()) this.wake();
   }
   private moving(): boolean {
-    // ADR-172: offline é pose fixa, como o repouso — só a transição de entrada anima.
+    // ADR-174: offline é pose fixa, como o repouso — só a transição de entrada anima.
     return !ESTATICOS.has(this.state) || this.time - this.changed < ASSENTA;
   }
   private paint(): void {

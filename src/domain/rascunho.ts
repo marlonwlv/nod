@@ -2,7 +2,7 @@ import type { CanalRascunho, DestinoItem, Rascunho } from "../contracts/item-apr
 import { semInvisiveis } from "./acoes-do-modo.ts";
 
 /**
- * O rascunho de uma mensagem que sai (ADR-173; protótipo "12-rascunhos-claro" da engenharia reversa do Grok Bot): quando o
+ * O rascunho de uma mensagem que sai (ADR-175; protótipo "12-rascunhos-claro" da engenharia reversa do Grok Bot): quando o
  * item de aprovação é um envio — e-mail, Slack, iMessage/SMS ou chat —, a conversa o desenha como o rascunho que ele é
  * (cabeçalho "E-mail · Gmail", Para, Assunto e o corpo editável), em vez do cartão genérico "precisa do seu ok".
  *

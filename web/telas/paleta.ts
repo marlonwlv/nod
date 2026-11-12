@@ -3,7 +3,7 @@ import { ORDEM_DOS_GRUPOS, type ItemPaleta } from "../lib/paleta.ts";
 import { esc } from "../lib/render.ts";
 
 /**
- * ADR-165 (tela 08): o desenho da paleta ⌘K — campo no topo, grupos com título (Bots, Conversas, Ajustes, Ações), cada
+ * ADR-167 (tela 08): o desenho da paleta ⌘K — campo no topo, grupos com título (Bots, Conversas, Ajustes, Ações), cada
  * item com ícone ou avatar, título, linha de baixo (prévia ou caminho) e as teclas à direita, e o rodapé com ↑ ↓ ↵ esc.
  * HTML com classes `.paleta-*` (web/ds.css): sem estado, recebe o modelo e devolve texto.
  */

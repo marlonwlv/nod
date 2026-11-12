@@ -1,5 +1,5 @@
 /**
- * ADR-165 (telas 02–05 do Paper "nod x Grok Bot"): a linha fixa "Tarefas" da barra mostra quantas tarefas estão em
+ * ADR-167 (telas 02–05 do Paper "nod x Grok Bot"): a linha fixa "Tarefas" da barra mostra quantas tarefas estão em
  * andamento nos quadros da pessoa — as das colunas do grupo "iniciado" (Fazendo, Em revisão, Bloqueado). Backlog, A fazer,
  * Feito e Cancelado não contam. Puro: a tela lê os quadros e chama isto.
  */

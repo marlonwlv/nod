@@ -51,7 +51,7 @@ export function computadoresRepo(conn: Conn, escopo: Escopo) {
      * revincula ao da pessoa na 1ª ação (vincularBot). Sem `docker` (pedir_aprovacao), segue o vínculo que houver.
      */
     /**
-     * ADR-166 (definido em 2026-11-12): o bot vinculado ao computador, SEM trava — o seletor de provedor só lê para
+     * ADR-168 (definido em 2026-11-12): o bot vinculado ao computador, SEM trava — o seletor de provedor só lê para
      * escolher quem dá a máquina (bot > pessoa > global), fora da tx de quem executa a ação.
      */
     async agenteDoComputador(id: string): Promise<string | null> {

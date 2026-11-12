@@ -1,4 +1,4 @@
--- definido em 2026-11-12 (ADR-164, frente "Aprovações e revisor"; decisões 2 e 4 do Marlon no comparativo com o Grok Bot):
+-- definido em 2026-11-12 (ADR-166, frente "Aprovações e revisor"; decisões 2 e 4 do Marlon no comparativo com o Grok Bot):
 -- regras_revisor: as frases que a pessoa ensina ao revisor do Automático, em duas listas ("Pode fazer sem perguntar" =
 --   'permitir', "Sempre me pergunte" = 'perguntar'), até 20 em cada e 1000 caracteres cada. agente_id nulo = o padrão da
 --   pessoa (vale para todos os bots); com agente_id, só para aquele bot (somam-se ao padrão).

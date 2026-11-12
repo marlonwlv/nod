@@ -253,7 +253,7 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   };
   // ADR-099 (I5): a frente que terminou sem trabalho sai na hora (a resposta do entregar traz a pasta).
   const ponteHttp = criarPonteHttp({ url: c.url, chave: c.chave, versao, aoFalhar, aoLimparAgora: (pastas) => void limpeza?.limparAgora(pastas) });
-  // ADR-169: rede nova (Wi-Fi, VPN, IP) renova na hora o puxar preso no socket da rede velha.
+  // ADR-171: rede nova (Wi-Fi, VPN, IP) renova na hora o puxar preso no socket da rede velha.
   vigiarRede({ aoMudar: () => { ponteHttp.renovarEsperas(); } });
   const gh =await criarDetectorGh({ ambiente: process.env }).logado();
   const anuncio = { machineId: dados.machineId, nome: hostname(), versaoContrato: 1, github: { gh: gh && papel === "motor" }, ligacao: papel === "motor", plataforma: PLATAFORMA, papel, atualizaIas: !NO_WINDOWS } as const;

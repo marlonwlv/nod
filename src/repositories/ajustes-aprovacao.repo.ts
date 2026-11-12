@@ -4,7 +4,7 @@ import type { Conn, Escopo } from "../shared/types.ts";
 import { ms } from "./conversao.ts";
 
 /**
- * definido em 2026-11-12 (ADR-164, 0165): as regras em texto do revisor, o nível por ferramenta e o teto do modo do admin.
+ * definido em 2026-11-12 (ADR-166, 0173): as regras em texto do revisor, o nível por ferramenta e o teto do modo do admin.
  * Só primitivas: a regra mora em src/domain/ajustes-aprovacao.ts. Tudo da dona (owner_id), menos o teto, que o admin grava
  * como 'equipe' e todo o tenant lê.
  */

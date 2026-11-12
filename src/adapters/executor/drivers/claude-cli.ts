@@ -685,7 +685,7 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 // ADR-067: o que segura a sessão viva aberta — comandos em segundo plano ainda rodando — e as voltas
                 // do modelo já fechadas por um `result` (cada uma vira fala; a última vai na entrega).
                 const emFundo = new Set<string>();
-                // ADR-169: prazo de primeiro token (150 s) e de ociosidade (90 s) do MODELO, nunca do turno (ADR-067). Por
+                // ADR-171: prazo de primeiro token (150 s) e de ociosidade (90 s) do MODELO, nunca do turno (ADR-067). Por
                 // padrão só mede e loga `turno_modelo_mudo`; NOD_PRAZOS_DO_MODELO=encerrar interrompe o CLI.
                 const modoPrazos = modoDosPrazos(cfg.env.NOD_PRAZOS_DO_MODELO);
                 const vigia = novaVigia(Date.now());

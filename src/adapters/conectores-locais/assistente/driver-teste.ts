@@ -2,7 +2,7 @@ import type { Carrinho, DriverAssistente, ItemCarrinho, Produto, VerificadorDeGa
 import { somar } from "../../../domain/pagamento.ts";
 
 /**
- * O driver de teste do conector `assistente` (ADR-174): fixtures fixas, sem rede e sem custo, para o bot, o e2e e a tela.
+ * O driver de teste do conector `assistente` (ADR-176): fixtures fixas, sem rede e sem custo, para o bot, o e2e e a tela.
  * É o padrão: o real só com `NOD_ASSISTENTE_REAL=1`. Os dados são inventados e dizem que são ("(teste)" no nome), para
  * ninguém confundir uma busca de teste com um voo de verdade. Estado (carrinho, reservas) vive no processo.
  */
@@ -100,7 +100,7 @@ export class ErroDoDriver extends Error {
 
 /**
  * O verificador de teste: confirma as compras cujo id está no conjunto (o teste e o e2e o enchem). Nunca é usado com o
- * driver real: lá, sem o verificador do servidor (O que faltou, ADR-175), nenhuma compra sai.
+ * driver real: lá, sem o verificador do servidor (O que faltou, ADR-177), nenhuma compra sai.
  */
 export function criarVerificadorTeste(confirmadas: Set<string> = new Set()): VerificadorDeGasto & { confirmar(compraId: string): void } {
   return {

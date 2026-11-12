@@ -182,7 +182,7 @@ export function renderTrabalhosPorBot(estado: Estado): string {
   const comLinha = new Set([...linhas.map((l) => l.bot.id), ...livres.map((b) => b.id)]);
   for (const b of estado.frota?.agentes ?? []) if (!comLinha.has(b.id) && b.papel !== "nod") livres.push(b);
   const nomesLivres = livres.map((b) => b.nome);
-  // ADR-165 (Paper 16): "Livres", os mascotes e os nomes (até três, depois "e mais N").
+  // ADR-167 (Paper 16): "Livres", os mascotes e os nomes (até três, depois "e mais N").
   const nomes = nomesLivres.length > 4 ? `${nomesLivres.slice(0, 3).join(", ")} e mais ${nomesLivres.length - 3}` : nomesLivres.join(", ");
   const livresHtml = nomesLivres.length ? `<p class="tb-livres"><span class="tb-livres-rot">Livres</span><span class="tb-livres-av" aria-hidden="true">${livres.map((b) => iconeAgente(b, "sm")).join("")}</span><span class="tb-livres-nomes">${esc(nomes)}</span></p>` : "";
   const vazio = linhas.length ? "" : `<p class="tt-vazio">Nenhum bot está trabalhando agora. Quando um bot começar uma frente, esperar algo ou precisar de você, aparece aqui.</p>`;
@@ -225,7 +225,7 @@ function linhaDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[]
   const ponto = x.linha.sinal === "voce" ? "precisa" : x.linha.sinal === "vivo" ? `${esc(x.bot.cor)} pulso-trab` : "fora-do-mac";
   // Paper 16: com 2 ou mais frentes trabalhando, o número antes do ponto ("2 ●").
   const n = x.linha.sinal === "vivo" && x.dono.estado.frentes > 1 ? `<span class="tb-n" aria-hidden="true">${x.dono.estado.frentes}</span>` : "";
-  // ADR-165 (Paper 16): ponto, mascote, "Nome  Título" e a frase embaixo (laranja quando precisa de você); à direita o
+  // ADR-167 (Paper 16): ponto, mascote, "Nome  Título" e a frase embaixo (laranja quando precisa de você); à direita o
   // detalhe curto ("4 frentes"), o tempo e a seta.
   const linha = `<button type="button" class="tt-linha tb-linha" data-act="bot-trabalhos" data-agente="${esc(x.bot.id)}" aria-expanded="${aberta}" data-grupo="${x.grupo}">${n}<span class="ponto-trabalho ${ponto}" aria-hidden="true"></span>${iconeAgente(x.bot, "sm", x.grupo === "trabalhando" ? "trabalhando" : x.grupo === "precisa" ? "aguardando" : "disponivel")}<span class="tb-meio"><span class="tb-nome"><b>${esc(x.bot.nome)}</b>${x.bot.titulo ? `<small>${esc(x.bot.titulo)}</small>` : ""}</span><span class="tb-frase">${esc(frase)}</span></span>${detalhe ? `<span class="tb-detalhe">${esc(detalhe)}</span>` : ""}<span class="tt-fim">${esc(tempo)}</span>${aberta ? ICONE.recolher : ICONE.seta}</button>`;
   return aberta ? linha + frentesAbertasDoBot(estado, x, todos) : linha;

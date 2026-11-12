@@ -24,7 +24,7 @@ export type ContextoBiblioteca = {
   agora: number;
   /** NOD-382: no perfil do celular, o vazio é só o título e o erro é a linha "· Tentar de novo" (critérios 7 e 8). */
   celular?: boolean;
-  /** ADR-165 (Paper 02b): no painel do computador, "Recentes" numa grade de cartões de duas colunas, com "Ver tudo". */
+  /** ADR-167 (Paper 02b): no painel do computador, "Recentes" numa grade de cartões de duas colunas, com "Ver tudo". */
   cartoes?: boolean;
 };
 

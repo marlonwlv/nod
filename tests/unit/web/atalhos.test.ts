@@ -225,7 +225,7 @@ describe("NOD-117: índice e vizinho", () => {
 });
 
 describe("NOD-117: folha e rótulo do +", () => {
-  it("14 linhas (9 da NOD-117 e 5 da ADR-165), com as teclas do lugar (NOD-461: ⌥← → na de página e a linha de mover)", () => {
+  it("14 linhas (9 da NOD-117 e 5 da ADR-167), com as teclas do lugar (NOD-461: ⌥← → na de página e a linha de mover)", () => {
     const app = linhasDaFolha("app-mac");
     expect(app.map((l) => l.titulo)).toEqual(["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Nova sala", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"]);
     expect(app[0]!.combinacoes).toEqual([["⌘", "N"]]);
@@ -338,7 +338,7 @@ describe("NOD-461: ⌥← → troca e ⌥⇧← → move a página, de qualquer 
   });
 });
 
-describe("ADR-165: os atalhos do Grok Bot que não colidem", () => {
+describe("ADR-167: os atalhos do Grok Bot que não colidem", () => {
   it.each(LUGARES)("⌘B, ⌘, , ⌘I, ⌘L e ⌘⇧N no modificador do lugar (%s)", (lugar) => {
     expect(atalhoDoTeclado(tecla("KeyB", "b", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "barra" });
     expect(atalhoDoTeclado(tecla("Comma", ",", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "ajustes" });

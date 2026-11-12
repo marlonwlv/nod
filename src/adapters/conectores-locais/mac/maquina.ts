@@ -7,7 +7,7 @@ import { ArgumentoMacInvalido, ehCapacidadeMac, familiaDaCapacidade, htmlDaNota,
 import { carregarFamiliasMac } from "./familias.ts";
 
 /**
- * O lado da MÁQUINA do conector `mac` (ADR-171): roda no proxy MCP do turno e no app (itens aprovados), no Mac da
+ * O lado da MÁQUINA do conector `mac` (ADR-173): roda no proxy MCP do turno e no app (itens aprovados), no Mac da
  * pessoa. Sem banco e sem HTTP: entra no bundle do desktop. Três travas antes de qualquer efeito, nesta ordem:
  *   1. a plataforma é macOS (na VM Linux e no Windows: `fora_do_mac`);
  *   2. a família da capacidade está LIGADA em Ajustes > Computador (padrão desligada: `familia_desligada`);
@@ -36,7 +36,7 @@ const APP_DA_CAPACIDADE: Readonly<Record<ArgsMac["capacidade"], string>> = {
 };
 
 /**
- * Controle de tela (ADR-171): o mouse por CoreGraphics pelo ponte ObjC do JXA (sem módulo nativo); teclado pelo System
+ * Controle de tela (ADR-173): o mouse por CoreGraphics pelo ponte ObjC do JXA (sem módulo nativo); teclado pelo System
  * Events. Os números são os enums do CoreGraphics (kCGEventMouseMoved 5, LeftMouseDown/Up 1/2, RightMouseDown/Up 3/4,
  * kCGHIDEventTap 0, kCGMouseEventClickState 1, kCGScrollEventUnitLine 1): o JXA não expõe as constantes de C.
  */

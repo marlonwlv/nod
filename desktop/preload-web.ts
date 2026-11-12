@@ -113,7 +113,7 @@ const ponte: NodDesktop = {
   // ADA-245 (jornada D): "Remover o nod deste computador"; o processo principal valida as opções. No Mac o app fica
   // (sem fecharAposRemover): a tela de Fim volta a Computadores.
   removerDaqui: (opcoes: OpcoesRemover) => ipcRenderer.invoke(CANAIS_REMOVER.removerDaqui, { manterIas: opcoes?.manterIas === true, manterConexao: opcoes?.manterConexao === true }),
-  // ADR-171: Quick Chat, captura e ferramentas do Mac; o processo principal valida cada argumento.
+  // ADR-173: Quick Chat, captura e ferramentas do Mac; o processo principal valida cada argumento.
   capturarTela: () => ipcRenderer.invoke(CANAIS_MAC.capturarTela),
   atalhoQuickChat: () => ipcRenderer.invoke(CANAIS_MAC.atalhoQuickChat),
   definirAtalhoQuickChat: (atalho: string | null) => ipcRenderer.invoke(CANAIS_MAC.definirAtalhoQuickChat, atalho),

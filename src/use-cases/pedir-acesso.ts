@@ -86,7 +86,7 @@ export const pedirAcesso: CasoNod<Deps, "pedir_acesso"> = async (deps, input) =>
   const ligacao = await rotinaDoTurno(deps.repos, input.turnoId);
   let conector = await deps.repos.conectores.buscarPorSlug(input.conector);
   let entrada = input;
-  // ADR-171: o `mac` nasce do mesmo jeito (sem configuração; o catálogo é o contrato).
+  // ADR-173: o `mac` nasce do mesmo jeito (sem configuração; o catálogo é o contrato).
   if ((input.conector === SLUG_GITHUB || input.conector === SLUG_MAC) && !conector?.habilitado) {
     // definido em 2026-09-24 (ADR-048): com o gh desta máquina logado (ou o App da organização no
     // servidor), o GitHub nasce aqui mesmo e o
@@ -181,7 +181,7 @@ async function pedirAcessoParaBot(deps: Deps, input: ContextoFerramenta & Parame
   if (!alvo) throw new ErroDeDominio("entrada_invalida", { cause: "para_bot só vale para o bot novo do onboarding" });
   let conector = await deps.repos.conectores.buscarPorSlug(input.conector);
   let entrada = input;
-  // ADR-171: o `mac` nasce do mesmo jeito (sem configuração; o catálogo é o contrato).
+  // ADR-173: o `mac` nasce do mesmo jeito (sem configuração; o catálogo é o contrato).
   if ((input.conector === SLUG_GITHUB || input.conector === SLUG_MAC) && !conector?.habilitado) {
     const r = input.conector === SLUG_MAC ? await garantirMacSemConfiguracao(deps) : await garantirGithubSemConfiguracao(deps, { pelaPessoa: false });
     if (r.ok) {

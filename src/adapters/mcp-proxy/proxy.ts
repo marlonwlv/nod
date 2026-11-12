@@ -205,7 +205,7 @@ export function criarProxy(opcoes: OpcoesProxy): Proxy {
       return resposta(id, texto(JSON.stringify({ estado: "pendente", decisao_id: r.aguardar, instrucao: INSTRUCAO_PENDENTE })));
     }
     if ("executarLocal" in r) {
-      // ADR-048: o servidor já decidiu tudo; aqui só o EFEITO, pelo gh desta máquina (ou, ADR-171, pelos apps do Mac). O plano puxado
+      // ADR-048: o servidor já decidiu tudo; aqui só o EFEITO, pelo gh desta máquina (ou, ADR-173, pelos apps do Mac). O plano puxado
       // tem de concordar (ferramenta marcada "maquina" e a mesma capacidade) — senão nada roda.
       const capacidade = r.executarLocal.capacidade;
       if (ferramenta.execucao !== "maquina" || !ferramenta.nome.endsWith(`__${capacidade}`)) {
@@ -219,7 +219,7 @@ export function criarProxy(opcoes: OpcoesProxy): Proxy {
       await cliente.execucaoLocal?.(nome, local.codigo).catch(() => undefined);
       const origem = v.plano.catalogo.servidores.find((s) => s.conectorId === ferramenta.conectorId)?.nome ?? nome;
       const texto = envolverNaoConfiavel(neutralizarDelimitadores(cortarGuardando(local.conteudo, orcamento, { origem, naoConfiavel: true, computador: false })), origem, false);
-      // ADR-171: o controle de tela do Mac devolve o print depois de cada ação.
+      // ADR-173: o controle de tela do Mac devolve o print depois de cada ação.
       const imagem = "imagem" in local && local.imagem ? [{ type: "image", ...local.imagem }] : [];
       return resposta(id, { content: [{ type: "text", text: texto }, ...imagem], ...(local.isError ? { isError: true } : {}) });
     }

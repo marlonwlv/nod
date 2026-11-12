@@ -2,7 +2,7 @@ import { filtrarPaleta, moverNaPaleta, type ItemPaleta } from "./paleta.ts";
 import { cascaDaPaleta, idDoItem, listaDaPaleta } from "../telas/paleta.ts";
 
 /**
- * ADR-165: liga a paleta ⌘K ao documento. Vive FORA do render() da página (um elemento próprio no <body>): o redesenho da
+ * ADR-167: liga a paleta ⌘K ao documento. Vive FORA do render() da página (um elemento próprio no <body>): o redesenho da
  * barra ou da conversa nunca a apaga nem tira o foco do campo. Tudo o que ela sabe do app chega por `deps` — os itens no
  * momento de abrir, o avatar de um bot e o que fazer com o item escolhido —, então a mesma peça serve a qualquer camada de
  * tela (a migração do front não precisa reescrevê-la).

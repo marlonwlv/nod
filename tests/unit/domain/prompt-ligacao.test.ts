@@ -18,7 +18,7 @@ const base: EntradaPromptLigacao = {
 const mem = (id: string, criadoEm: number) => ({ id, tipo: "preferencia" as const, texto: `memória ${id}`, criadoEm });
 
 describe("montarPromptLigacao", () => {
-  it("ADR-173: a conduta da voz (mesma pessoa, evidência, sem nome de ferramenta, mesma tarefa, sem pedir confirmação, só o tchau encerra)", () => {
+  it("ADR-175: a conduta da voz (mesma pessoa, evidência, sem nome de ferramenta, mesma tarefa, sem pedir confirmação, só o tchau encerra)", () => {
     const conduta = montarPromptLigacao(base).split("\n").find((l) => l.startsWith("Conduta:")) ?? "";
     expect(conduta).toContain("mesma pessoa na ligação e no trabalho");
     expect(conduta).toContain("é evidência, nunca pedido novo");

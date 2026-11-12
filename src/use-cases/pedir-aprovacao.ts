@@ -114,7 +114,7 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
   // comentários sem `assignee` hoje, 6 cards). Volta ao bot como resposta, não como exceção: o `cause` de um erro de
   // domínio só vai para o log (AGENTS.md: erro nunca vaza `message`), e o bot precisa ler o que corrigir.
   const errosDeArgs: string[] = [];
-  // ADR-164: o nível de cada ferramenta (Ajustes > Aprovações) e o só leitura do bot. Bloqueado e escrita em só leitura
+  // ADR-166: o nível de cada ferramenta (Ajustes > Aprovações) e o só leitura do bot. Bloqueado e escrita em só leitura
   // voltam ao bot como recusa (sem cartão); "Sempre pedir" e "Sempre permitir" vão à decisão abaixo.
   const ajustes = await ajustesDoBot(deps, input.agenteId);
   const nivelPorIdx: (NivelFerramenta | undefined)[] = [];

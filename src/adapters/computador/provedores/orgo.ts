@@ -5,7 +5,7 @@ import { aspasShell } from "../../../domain/provedor-computador.ts";
 import { log } from "../../../obs/log.ts";
 
 /**
- * ADR-166 (definido em 2026-11-12): driver de EXEMPLO de um provedor de fora, o Orgo (https://docs.orgo.ai, API REST em
+ * ADR-168 (definido em 2026-11-12): driver de EXEMPLO de um provedor de fora, o Orgo (https://docs.orgo.ai, API REST em
  * https://www.orgo.ai/api, spec 2.0.0). Só existe com `NOD_COMPUTADOR_ORGO=1` e só é escolhido quando a configuração do
  * provedor aponta para "orgo" (global, pessoa ou bot). Escrito pela documentação, SEM conta: nenhum teste chama a rede.
  *
@@ -13,7 +13,7 @@ import { log } from "../../../obs/log.ts";
  * `pedir_credencial` (alvo `conector`). Ela nunca vem do env do servidor, do código, de log nem de mensagem; este arquivo a
  * recebe por `chaveDe(escopo)` a cada chamada e não a guarda (a chave revogada para de funcionar na hora).
  *
- * Mapeamento (tabela completa na ADR-166):
+ * Mapeamento (tabela completa na ADR-168):
  *   criar     POST /computers (workspace + nome `nod-<id>`, Idempotency-Key)      iniciar  POST /computers/{id}/start|resume
  *   parar     POST /computers/{id}/stop (arquiva o disco: fica `frozen`)          retomar  POST /computers/{id}/resume
  *   suspender POST /computers/{id}/suspend (memória e disco)                      saúde    GET /computers/{id}/health

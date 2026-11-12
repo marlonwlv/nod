@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { lerPoliticaMdm, type PoliticaMdm } from "../src/domain/mdm.ts";
 
 /**
- * A política do MDM no Mac (ADR-176), atrás de `NOD_MDM=1`. Lê os user defaults gerenciados do app
+ * A política do MDM no Mac (ADR-178), atrás de `NOD_MDM=1`. Lê os user defaults gerenciados do app
  * (`defaults read <bundle> DeploymentBackendUrl` — o perfil de configuração do MDM os grava em
  * /Library/Managed Preferences) e o `policy.json` em /Library/Application Support/nod/. A decisão do que vale é de
  * `lerPoliticaMdm` (só origem https). Sem Electron: o executor de comando e a leitura de arquivo são injetados (teste).

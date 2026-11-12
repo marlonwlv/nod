@@ -337,7 +337,7 @@ function renderCardAprovacao(item: Item, estado: Estado): string {
   const umApp = slugs.length === 1 ? slugs[0] : undefined;
   const marcados = itens.filter((i) => i.selecionado).length;
   const contagem = !unico && (itens.some((i) => i.origemSensivel) || marcados !== itens.length);
-  // ADR-164 (tela 06): "Negar Esc · Sempre permitir · Permitir uma vez", este em pílula preta; o comportamento é o de antes.
+  // ADR-166 (tela 06): "Negar Esc · Sempre permitir · Permitir uma vez", este em pílula preta; o comportamento é o de antes.
   const rotulo = contagem ? `Permitir <span data-contador>${marcados}</span> de ${itens.length}` : "Permitir uma vez";
   const naMaquina = unico && (unico.destino.conector === "computador" || unico.destino.conector === "terminal");
   // No terminal e no computador a regra "sempre" não existe (ADR-037/055): o lugar do "Sempre permitir" fica com o "resto
@@ -370,7 +370,7 @@ function renderCardAprovacao(item: Item, estado: Estado): string {
 }
 
 /**
- * A pergunta em negrito do cartão (ADR-164, tela 06: "Permitir que o Dante rode um comando no seu Mac?"). A frase da
+ * A pergunta em negrito do cartão (ADR-166, tela 06: "Permitir que o Dante rode um comando no seu Mac?"). A frase da
  * decisão ("Dante quer usar o Terminal") vai para o cabeçalho; aqui, o que a pessoa permite. Sem artigo antes do nome: a
  * tela não sabe o gênero do bot.
  */
@@ -669,7 +669,7 @@ function renderCartaoDoRevisor(item: Item, estado: Estado, naConversa: boolean):
   const rodape = !naConversa && agente ? `<div class="cr-rodape">${botao("abrir-conversa", "abrir conversa", { classe: "link", dados: { conversa: d.conversaId, agente: d.agenteId } })}</div>` : undefined;
   // Revisão 8 do PR #628: na conversa não há cabeçalho; o "a pedido de" vai no corpo, senão a dona não sabe de quem é.
   const pedidoDe = naConversa && item.aPedidoDe ? { aPedidoDe: item.aPedidoDe } : {};
-  // ADR-164: "Salvar como regra" — a regra pronta (do revisor ou da frase da ação), salva no bot do cartão com um clique.
+  // ADR-166: "Salvar como regra" — a regra pronta (do revisor ou da frase da ação), salva no bot do cartão com um clique.
   const regra = item.sugestaoDeRegra && item.estadoColuna !== "vencido" ? { regra: { sugestao: item.sugestaoDeRegra, agenteId: d.agenteId } } : {};
   const avatar = agente ? { avatar: iconeAgente(agente, "", "aguardando") } : {};
   const titulo = itens.some((i) => i.motivoManual === "revisor_pediu") ? {} : { titulo: "O revisor não conseguiu revisar" };
@@ -680,7 +680,7 @@ function renderItem(item: Item, estado: Estado, naConversa = false): string {
   const d = item.decisao;
   const aberta = item.estadoColuna !== "vencido";
   if (ehPergunta(d.tipo)) return renderItemPergunta(item, estado);
-  // ADR-173: na conversa, a aprovação que é só mensagens que saem vira rascunhos (com a barra "Enviar todos" em conversa.ts).
+  // ADR-175: na conversa, a aprovação que é só mensagens que saem vira rascunhos (com a barra "Enviar todos" em conversa.ts).
   if (aberta && naConversa && ehDecisaoDeRascunhos(item)) return renderDecisaoDeRascunhos(item);
   if (aberta && d.tipo === "aprovacao" && ehCartaoDoRevisor(item.itensAprovacao)) return renderCartaoDoRevisor(item, estado, naConversa);
   if (aberta && d.tipo === "aprovacao" && item.itensAprovacao.length > 0) return renderCardAprovacao(item, estado);
@@ -823,7 +823,7 @@ export function renderDecisoesDaConversa(estado: Estado, conversaId: string, pro
   const itens = estado.suaVez?.itens.filter((item) => item.decisao.conversaId === conversaId && !propostas.has(item.decisao.id) && !ehPergunta(item.decisao.tipo)) ?? [];
   if (!itens.length) return "";
   const abertos = itens.filter((item) => item.estadoColuna !== "vencido" && !ancoradas.has(item.decisao.id));
-  // ADR-164 (tela 06): o cartão fala por si, inline na conversa; sem o título "Preciso da sua decisão…" em cima.
+  // ADR-166 (tela 06): o cartão fala por si, inline na conversa; sem o título "Preciso da sua decisão…" em cima.
   const pedindo = abertos.length ? `<h2 class="sr-only">Pedidos desta conversa</h2><ul class="lista">${renderComIguais(abertos, estado, true)}</ul>` : "";
   const vencidos = renderVencidos(itens.filter((item) => item.estadoColuna === "vencido"), estado, true, conversaId);
   if (!pedindo && !vencidos) return "";
@@ -859,7 +859,7 @@ export function ancoradosComIguais(pedidos: readonly Item[], estado: Estado): { 
   });
 }
 
-/** ADR-164: os pedidos iguais (mesmo bot, mesma ação no mesmo app) num cartão só; o resto como antes. */
+/** ADR-166: os pedidos iguais (mesmo bot, mesma ação no mesmo app) num cartão só; o resto como antes. */
 function renderComIguais(itens: readonly Item[], estado: Estado, naConversa: boolean): string {
   return agruparIguais(itens).map((g) => {
     if (!Array.isArray(g)) return renderItem(g, estado, naConversa);

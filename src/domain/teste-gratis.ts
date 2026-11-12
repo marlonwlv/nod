@@ -1,7 +1,7 @@
 import type { BitsDoAparelho, MotivoSemTeste } from "../contracts/checagem-aparelho.ts";
 
 /**
- * Quem ganha o teste grátis (ADR-176). O bit 0 do DeviceCheck é "já usou o teste" (definido em 2026-11-12; o bit 1 fica
+ * Quem ganha o teste grátis (ADR-178). O bit 0 do DeviceCheck é "já usou o teste" (definido em 2026-11-12; o bit 1 fica
  * livre). Máquina virtual não ganha: o DeviceCheck não existe nela e uma VM nova seria um teste novo a cada vez (Grok Bot
  * detecta VM). A política da empresa (MDM) desliga o teste. Puro.
  */

@@ -5,7 +5,7 @@ import { criarServidorMcpSimples, type ResultadoMcp, type ServidorMcpSimples } f
 import { criarDriverCanaisTeste } from "./driver-teste.ts";
 
 /**
- * Servidor MCP stdio do conector local `canais` (ADR-174): a caixa de e-mail do bot e iMessage/SMS. O driver vem do
+ * Servidor MCP stdio do conector local `canais` (ADR-176): a caixa de e-mail do bot e iMessage/SMS. O driver vem do
  * ambiente: `NOD_CANAIS_REAL=1` pede o real, que ainda não tem provedor (O que faltou: o domínio de e-mail do nod e o
  * telefone vinculado pelo Mac) — sem driver, tools/list volta vazio; sem a variável, o driver de teste.
  */

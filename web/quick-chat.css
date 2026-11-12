@@ -1,4 +1,4 @@
-/* Quick Chat (ADR-171, 2026-11-12; tela 10 do protótipo no Paper): a janela de 560×392 do atalho global (rodada 3: o cartão do Paper; a sombra é a da janela do macOS). Só o que muda
+/* Quick Chat (ADR-173, 2026-11-12; tela 10 do protótipo no Paper): a janela de 560×392 do atalho global (rodada 3: o cartão do Paper; a sombra é a da janela do macOS). Só o que muda
    no modo compacto (`html[data-janela="quick-chat"]`): some a barra lateral, o cabeçalho, os detalhes e a faixa de
    trabalhos; fica a conversa e o composer, com o topo do seletor de bot. O botão Capturar vale em qualquer janela.
    Só tokens existentes; nenhum token global novo. */
@@ -28,7 +28,7 @@ html[data-janela="quick-chat"] #quick-chat-topo { display: block; height: 48px; 
 .qc-capturar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 @media (max-width: 520px) { .qc-capturar span { display: none; } }
 
-/* Avatar do bot solto na área de trabalho (ADR-171; tela 14): a janela é transparente e só o mascote aparece. A borda
+/* Avatar do bot solto na área de trabalho (ADR-173; tela 14): a janela é transparente e só o mascote aparece. A borda
    arrasta a janela; o mascote e o × não (clique). */
 html[data-janela="avatar"], html[data-janela="avatar"] body { background: transparent !important; overflow: hidden; }
 html[data-janela="avatar"] .app, html[data-janela="avatar"] #quick-chat-topo { display: none !important; }

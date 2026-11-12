@@ -3,7 +3,7 @@ import { esc } from "../lib/escape.ts";
 import { grupoConfig, linhaConfig } from "../lib/linha-config.ts";
 
 /**
- * ADR-167 (definido em 2026-11-12): a seção "Onde o agente roda" no topo de Máquinas, com as três opções da decisão 1 do
+ * ADR-169 (definido em 2026-11-12): a seção "Onde o agente roda" no topo de Máquinas, com as três opções da decisão 1 do
  * Marlon: este computador (padrão), minha VM e a VM do Nod (paga). Só leitura neste recorte: a 1ª e a 2ª já se usam pelas
  * linhas de máquina logo abaixo (parear, conectar a VM, dormir e acordar pelo Google); a 3ª mostra os planos e, desligada,
  * "Em teste fechado". Contratar (cobrança) é o próximo recorte e ganha ação no registro e caminho no chat junto.

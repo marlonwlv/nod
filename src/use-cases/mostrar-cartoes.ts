@@ -5,7 +5,7 @@ import { autoriaAgente, evento } from "./apoio-l7.ts";
 import type { Deps } from "./tipos.ts";
 
 /**
- * mostrar_cartoes (ADR-173, respostas ricas): grava UMA fala `texto` do bot com o resumo e as linhas dos cartões (o que
+ * mostrar_cartoes (ADR-175, respostas ricas): grava UMA fala `texto` do bot com o resumo e as linhas dos cartões (o que
  * lê quem não desenha cartão) e o payload `cartoes` limpo pelo domínio. A fala leva a confiança do turno: o turno que leu
  * conteúdo de fora grava `nao_confiavel`, como a fala final. Sem cerca de modo: é uma fala do bot na conversa do turno
  * dele, como qualquer outra; o que ela não pode é sair do turno (outro bot, outra conversa).

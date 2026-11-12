@@ -256,7 +256,7 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   if (p?.kind === "computador_senha_preenchida") return htmlLinhaSenhaSalva(agenteDe(estado, p.agenteId)?.nome ?? "O bot");
   // definido em 2026-09-28 (ADR-051): o card do artefato; o iframe entra depois do render (telas/artefatos-vivos.ts).
   if (p?.kind === "artefato") return renderCardArtefato(m, p, versaoMaisRecente(estado, m.conversaId, p.artefatoId, p.versao));
-  // ADR-173: os cartões ricos (voo, hotel, carro, mapa, clima, carrinho, arquivo) de mostrar_cartoes.
+  // ADR-175: os cartões ricos (voo, hotel, carro, mapa, clima, carrinho, arquivo) de mostrar_cartoes.
   if (p?.kind === "cartoes") return renderMensagemCartoes(m, p);
   // definido em 2026-10-04 (ADR-075): a linha "Chat de voz · mm:ss"; a ligação aberta nesta página oferece voltar a ela.
   if (p?.kind === "ligacao") return renderLinhaLigacao(m, p, estado.ligacaoViva?.local === true && estado.ligacaoViva.ligacaoId === p.ligacaoId);
@@ -1698,7 +1698,7 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
     ...abertas.map((p) => ({ chave: `proposta:${p.id}`, html: renderProposta(p, estado, c.propostas) })),
     ...expiradas.map((p) => ({ chave: `proposta:${p.id}`, html: linhaDaVencida(p, estado) })),
     { chave: "decisoes", html: renderDecisoesDaConversa(estado, c.conversa.id, idsDasPropostas, ancoradas) },
-    // ADR-173: "N rascunhos prontos" com "Descartar todos" e "Enviar todos ⌘↵", presa ao pé da conversa.
+    // ADR-175: "N rascunhos prontos" com "Descartar todos" e "Enviar todos ⌘↵", presa ao pé da conversa.
     { chave: "rascunhos-barra", html: renderBarraRascunhos(estado, c.conversa.id) },
     // revisto em 2026-10-06 (pedido do Marlon): sai a oferta de liberar apps recém-conectados (card-liberar.ts, PR #141).
     // Ela aparecia sozinha em bot novo e a cada reconexão do Mac, porque valia para todo bot sem acesso por 24 h depois de
@@ -1872,7 +1872,7 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];
-  // ADR-165 (Paper 02): o botão do painel à direita do topo (o mesmo alternar da pílula).
+  // ADR-167 (Paper 02): o botão do painel à direita do topo (o mesmo alternar da pílula).
   const painel = `<button type="button" class="painel-alternar" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${nome}`)}" title="Painel do bot">${ICONE_PAINEL}</button>`;
   return o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>${sub}${painel}` : `${pilula}${sub}${painel}`;
 }
@@ -1880,7 +1880,7 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
 const ICONE_PAINEL = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></svg>';
 
 /**
- * ADR-165 (Paper 15/15c): com frentes abertas, a pílula diz "· 4 frentes" depois do título, com o ponto laranja quando
+ * ADR-167 (Paper 15/15c): com frentes abertas, a pílula diz "· 4 frentes" depois do título, com o ponto laranja quando
  * alguma precisa da pessoa. Uma frente só (ou nenhuma) não aparece: a conversa já mostra o trabalho.
  */
 function frentesNaPilula(estado: Estado, agenteId: string): string {
@@ -1985,7 +1985,7 @@ export function htmlSugestaoRotina(): string {
  * entre o texto e o microfone, e o Parar (secundário, redondo, escondido) logo antes do Enviar — o Enviar continua na
  * ponta, onde a pessoa o procura; o main mostra cada um pelo `botoesDoCampo`. `bot` dá o nome do Parar ("Parar resposta do Eng 1").
  */
-export function htmlComposer(placeholder: string, sugestoes: readonly string[] = [], opcoes: { anexos?: Aceita; comandos?: boolean; aprovacao?: boolean; bot?: string; /** ADR-165: o seletor de modelo sem o resto da conversa própria (o campo da task). */ seletor?: boolean } = {}): string {
+export function htmlComposer(placeholder: string, sugestoes: readonly string[] = [], opcoes: { anexos?: Aceita; comandos?: boolean; aprovacao?: boolean; bot?: string; /** ADR-167: o seletor de modelo sem o resto da conversa própria (o campo da task). */ seletor?: boolean } = {}): string {
   const lista = sugestoes.length ? `<div class="autocomplete" id="autocomplete" hidden></div>` : "";
   const aceita = opcoes.anexos;
   const accept = aceita === "sem_pdf" ? "image/*,.txt,.md,.csv,.json" : "image/*,application/pdf,.pdf,.txt,.md,.csv,.json";
@@ -2008,5 +2008,5 @@ export function htmlComposer(placeholder: string, sugestoes: readonly string[] =
   <p class="nota" id="composer-nota" data-padrao=""></p></div>`;
 }
 
-/** ADR-165 (Paper 02): o enviar é a seta para cima (↑) num círculo; vazio, fica claro (casca.css). */
+/** ADR-167 (Paper 02): o enviar é a seta para cima (↑) num círculo; vazio, fica claro (casca.css). */
 const SETA_ENVIAR = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M4 7.5l4-4 4 4"/></svg>';

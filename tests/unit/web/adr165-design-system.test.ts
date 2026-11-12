@@ -18,7 +18,7 @@ const armazem = () => {
   return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k), m };
 };
 
-describe("ADR-165: tokens", () => {
+describe("ADR-167: tokens", () => {
   const tokens = ler("tokens.css");
   it("uma base por tema, a fonte do sistema e nenhuma Geist", () => {
     expect(tokens).toMatch(/--base: #1c1c1c;/);
@@ -44,7 +44,7 @@ describe("ADR-165: tokens", () => {
   });
 });
 
-describe("ADR-165: Aguardando você (telas 16/16b)", () => {
+describe("ADR-167: Aguardando você (telas 16/16b)", () => {
   it("um por bot, o primeiro pedido da fila decide o motivo e o alvo; conta o resto", () => {
     const m = aguardandoPorAgente([pedido("d1", "a", "Quer enviar 2 e-mails\n  para a Lipe"), pedido("d2", "b", "Rebaseio?"), pedido("d3", "a", "Outra")]);
     expect(m.get("a")).toEqual({ agenteId: "a", conversaId: "c-a", decisaoId: "d1", motivo: "Quer enviar 2 e-mails para a Lipe", total: 2 });
@@ -74,7 +74,7 @@ describe("ADR-165: Aguardando você (telas 16/16b)", () => {
   });
 });
 
-describe("ADR-165: catálogo de ajustes, busca e link", () => {
+describe("ADR-167: catálogo de ajustes, busca e link", () => {
   it("todo ajuste tem título e uma frase que começa por verbo no imperativo (maiúscula) e ids únicos", () => {
     expect(new Set(AJUSTES.map((a) => a.id)).size).toBe(AJUSTES.length);
     for (const a of AJUSTES) {
@@ -111,7 +111,7 @@ describe("ADR-165: catálogo de ajustes, busca e link", () => {
   });
 });
 
-describe("ADR-165: paleta ⌘K (tela 08)", () => {
+describe("ADR-167: paleta ⌘K (tela 08)", () => {
   const itens = itensDaPaleta({
     mod: "⌘",
     bots: [{ id: "ada", nome: "Ada", titulo: "PM", conversaId: "c1", previa: "Feito. NOD-512" }, { id: "dante", nome: "Dante", titulo: "Dev Sr", conversaId: "c2" }],
@@ -154,7 +154,7 @@ describe("ADR-165: paleta ⌘K (tela 08)", () => {
   });
 });
 
-describe("ADR-165: sons opcionais", () => {
+describe("ADR-167: sons opcionais", () => {
   it("desligados por padrão; a escolha é deste computador", () => {
     const a = armazem();
     expect(lerSons(a)).toEqual({ mensagem: false, aprovacao: false });
@@ -200,7 +200,7 @@ describe("ADR-165: sons opcionais", () => {
   });
 });
 
-describe("ADR-165: balão da pessoa preto por padrão", () => {
+describe("ADR-167: balão da pessoa preto por padrão", () => {
   it("a cor do bot é opção guardada neste computador e marcada no <html>", () => {
     const a = armazem();
     const raiz = { dataset: {} as Record<string, string | undefined> };

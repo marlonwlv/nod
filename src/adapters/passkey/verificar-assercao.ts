@@ -2,7 +2,7 @@ import { createHash, createPublicKey, verify, type JsonWebKey } from "node:crypt
 import { conferirAssercao, type MotivoPasskeyRecusada } from "../../domain/passkey.ts";
 
 /**
- * A assinatura da asserção WebAuthn (ADR-175), em volta das regras puras de src/domain/passkey.ts: ES256 (P-256, a que o
+ * A assinatura da asserção WebAuthn (ADR-177), em volta das regras puras de src/domain/passkey.ts: ES256 (P-256, a que o
  * iCloud Keychain e o 1Password usam) sobre `authenticatorData || sha256(clientDataJSON)` (WebAuthn §7.2 passo 20). A
  * chave pública é a guardada no registro da passkey (JWK), nunca a que vem com a asserção.
  */

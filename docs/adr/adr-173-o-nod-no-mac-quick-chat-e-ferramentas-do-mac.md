@@ -1,4 +1,4 @@
-# ADR-171 — O nod no Mac: Quick Chat, captura, ferramentas do Mac e os estados do computador
+# ADR-173 — O nod no Mac: Quick Chat, captura, ferramentas do Mac e os estados do computador
 
 Status: proposta · Data: 2026-11-12 (frente "Mac e Quick Chat", engenharia reversa do Grok Bot v1.0.1) · Estende a
 [ADR-048](adr-048-github-um-conector-varios-jeitos-de-conectar.md) (efeito "na máquina") a um segundo conector, emenda a

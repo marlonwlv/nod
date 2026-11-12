@@ -1,7 +1,7 @@
 import type { BitsDoAparelho, ChecagemDeAparelho } from "../../contracts/checagem-aparelho.ts";
 
 /**
- * O driver de teste do DeviceCheck (ADR-176): os bits por token num mapa em memória. Token que começa com "invalido" é
+ * O driver de teste do DeviceCheck (ADR-178): os bits por token num mapa em memória. Token que começa com "invalido" é
  * recusado, como a Apple faz com token vencido. O real (atrás de `NOD_DEVICECHECK=1`) precisa da chave .p8 do DeviceCheck
  * e do Team ID; sem eles o servidor não liga a checagem.
  */

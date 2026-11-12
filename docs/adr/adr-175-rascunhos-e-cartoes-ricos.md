@@ -1,4 +1,4 @@
-# ADR-173: Rascunhos de envio, cartões ricos e conduta da voz
+# ADR-175: Rascunhos de envio, cartões ricos e conduta da voz
 
 Status: proposta (2026-11-12, frente "Assistente pessoal" a partir da engenharia reversa do Grok Bot; decisão do Marlon
 "respostas ricas: tudo" em `grokbot-rea/DECISOES.md` §3). Usa a API de aprovação sem mudá-la (ADR-042, E4.3).

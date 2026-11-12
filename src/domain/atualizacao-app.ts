@@ -96,7 +96,7 @@ export function lerConfigAtualizacaoApp(env: Readonly<Record<string, string | un
 }
 
 /**
- * ADR-168 (definido em 2026-11-12): a versão de teste do app, publicada no MESMO bucket que a estável
+ * ADR-170 (definido em 2026-11-12): a versão de teste do app, publicada no MESMO bucket que a estável
  * (`NOD_APP_VERSAO_TESTE` + `NOD_APP_ATUALIZACAO_TESTE_SHA256`). Ausente = sem canal de teste.
  */
 export function lerConfigTesteDoApp(env: Readonly<Record<string, string | undefined>>): ConfigAtualizacaoApp {
