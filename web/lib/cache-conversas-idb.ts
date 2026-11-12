@@ -35,6 +35,7 @@ export function armazemIndexedDb(dono: string, idb: IDBFactory | undefined = idb
       const [chaves, valores] = await Promise.all([pedir("readonly", (l) => l.getAllKeys()), pedir("readonly", (l) => l.getAll() as IDBRequest<RegistroDaConversa[]>)]);
       return chaves.map((k, i) => [String(k), valores[i]!] as [string, RegistroDaConversa]);
     },
+    ler: (chave) => pedir("readonly", (l) => l.get(chave) as IDBRequest<RegistroDaConversa | undefined>),
     gravar: async (chave, registro) => void (await pedir("readwrite", (l) => l.put(registro, chave))),
     apagar: async (chave) => void (await pedir("readwrite", (l) => l.delete(chave))),
   };

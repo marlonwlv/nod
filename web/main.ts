@@ -1,4 +1,6 @@
-import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE, type FilaOffline, type ItemDaFila } from "./lib/fila-offline.ts";
+import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
+import { armazemComReserva, armazemDaFila, criarJournalDeEnvio, JournalEncerrado, tipoDaFalha, type ArmazemDoJournal, type Desfecho, type ItemDoJournal, type Journal } from "./lib/journal-envio.ts";
+import { armazemDoJournalIndexedDb } from "./lib/journal-envio-idb.ts";
 import { atalhoDoTeclado as atalhoDoQuickChat, type AjustesMac } from "./telas/ajustes-mac.ts";
 import { arquivoDaCaptura, botDaUrl, ehJanelaAvatar, ehJanelaQuickChat, fraseDaCaptura, htmlAvatarDaMesa, htmlBotaoCapturar, htmlTopoQuickChat } from "./lib/quick-chat.ts";
 import { botaoDaBarraSemIa, conversaAguardandoIa, dicaDoComposerSemIa, iasNoCard, idDoCardSemIa, turnosVivosDe } from "./telas/sem-ia-conversa.ts";
@@ -81,7 +83,7 @@ import type { Escopo } from "../src/shared/types.ts";
 import type { FrameSse } from "../src/contracts/frame.ts";
 import type { AnexoDaConversa } from "../src/contracts/anexo.ts";
 import { confirmacaoCaducou, HISTORICO_INICIAL, type HistoricoDoBot } from "./lib/historico-perfil.ts";
-import { armazemEmMemoria, criarCacheDeConversas, criarEsperaDoSpinner, ESPERA_DO_PREFETCH_MS } from "./lib/cache-conversas.ts";
+import { armazemEmMemoria, criarCacheDeConversas, criarEsperaDoSpinner, criarRevalidacaoEmSegundoPlano, ESPERA_DO_PREFETCH_MS } from "./lib/cache-conversas.ts";
 import { armazemIndexedDb } from "./lib/cache-conversas-idb.ts";
 import { agenteDaTela, bibliotecaAberta, conversaAbertaTemNotaDeContas, conversaDaTela, estadoInicial, acoesAoMudarConexao, invalidacoesAoRetomar, sempreRelevante, invalidacoesDaTela, mudouNaTela, reduzir, secaoAberta, secaoDoPedido, type Acao, type Estado, type FalaPendente, type Invalidacao, type NivelGaveta, type PedidoSecao, type PerfilCelular, type SecaoEspaco, type Tela } from "./estado/reducer.ts";
 import { mascararDormindo, RetryDoAcordar, type PassosDoRetry } from "./lib/retry-computador.ts";
@@ -144,7 +146,8 @@ import { lembrar } from "./lib/lembrar.ts";
 import { atualizarGaveta } from "./lib/gaveta-render.ts";
 import { blocosMudariam, esquecerRegiao, regiao, regiaoEmVoltaDe, regiaoMudaria, regiaoPorBlocos } from "./lib/regioes.ts";
 import { mudancaSujaAGaveta, reporSeletor, salvarOuRepor } from "./lib/salvar-ou-repor.ts";
-import { criarAnunciador, criarRelogioDaFala, escreverEstados, escreverTempos, lerFalasNaTela, TICK_CURTO_MS, type FalaNaTela } from "./lib/fala-viva.ts";
+import { PERMANENCIA_MS } from "./lib/estado-do-indicador.ts";
+import { criarAnunciador, criarRelogioDaFala, escreverEstados, escreverTempos, escreverVariantes, lerFalasNaTela, TICK_CURTO_MS, type FalaNaTela } from "./lib/fala-viva.ts";
 import { criarRascunhos } from "./lib/rascunhos.ts";
 import { juntarSugestao, planoNovaRotina } from "./lib/rotina-no-chat.ts";
 import { criarRolagem } from "./lib/rolagem-na-tela.ts";
@@ -206,7 +209,7 @@ import { rolagemDaBarra, type Faixa } from "./lib/rolagem-barra.ts";
 import { comandoNoTexto, recentesDaConversa } from "./lib/barra.ts";
 import { ajustarAltura, arquivosDaColagem, criarBarra, escolherMencao, htmlSugestoes, sugestoesDaMencao, teclaDoCampo, type ContextoDaBarra } from "./lib/composer.ts";
 import type { ComandosDto } from "../src/contracts/comandos.ts";
-import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, opcoesDaPergunta, proximaDoComposer, textoDaLetra } from "./lib/perguntas.ts";
+import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, type ResultadoEnvio, opcoesDaPergunta, proximaDoComposer, textoDaLetra } from "./lib/perguntas.ts";
 import { acharBotao, aplicarFocoDaFila, botaoEmFoco, proximoDaFila, VALIDADE_DO_FOCO_MS, type FocoDaFila } from "./lib/foco-da-fila.ts";
 import { aplicarEncolhidos, decididaNaConversa, type DecididaNestaAba } from "./lib/foco-do-encolhido.ts";
 import { seletorDoFocoNaRegiao } from "./lib/foco-do-bloco.ts";
@@ -449,6 +452,15 @@ const envios = criarEnvios();
 const rascunhos = criarRascunhos(() => { try { return localStorage; } catch { return null; } });
 /** Item 5 do chat: o cache das conversas (memória + IndexedDB, um por pessoa; até a sessão entrar, só a memória). */
 let cacheConversas = criarCacheDeConversas(armazemEmMemoria());
+/** O journal de envio da pessoa (web/lib/journal-envio.ts); nasce com a sessão. */
+let journal: Journal | null = null;
+/** A barra em dia: depois do boot, com a aba visível, relê uma por vez as conversas da barra que já têm réplica. */
+const revalidacaoDaBarra = criarRevalidacaoEmSegundoPlano({
+  candidatas: () => conversasDaBarraComReplica(),
+  revalidar: (id) => revalidarDaBarra(id),
+  visivel: () => !document.hidden,
+  agendar: (fn, ms) => void window.setTimeout(fn, ms),
+});
 /** Item 5 do chat: sem cache, a conversa anterior fica até 80 ms; depois o spinner (o redesenho agendado o mostra). */
 const esperaDoSpinner = criarEsperaDoSpinner((fn, ms) => void window.setTimeout(fn, ms), () => render());
 /**
@@ -1530,6 +1542,8 @@ function dispatch(acao: Acao): void {
 function reduzirVendoSaida(acao: Acao): boolean {
   const antes = estado.tela;
   estado = reduzir(estado, sobreporPendentes(acao, perfilPendente));
+  // Journal de envio: a conversa que carregou depois do boot ganha as falas dela que ainda estão no journal.
+  if (acao.tipo === "hidratar-conversa") estado = comPendentesDoJournal(estado, acao.conversa.conversa.id);
   // NOD-379: o onboarding pendente continua abrindo no guia, não na inicial do celular.
   if (estado.onboardingAberto && !onboardingVisto) celular.fecharBots();
   onboardingVisto = !!estado.onboardingAberto;
@@ -1578,8 +1592,9 @@ let trocasPendentes = 0;
 const relogioDaFala = criarRelogioDaFala(() => {
   const aoVivo = document.getElementById("timeline-ao-vivo");
   const agora = Date.now();
-  trocasPendentes = escreverEstados(aoVivo, agora);
-  return escreverTempos(aoVivo, agora) + trocasPendentes;
+  // COP-14: a permanência do rótulo do indicador é de 800 ms (PERMANENCIA_MS); as variantes trocam no mesmo tick.
+  trocasPendentes = escreverEstados(aoVivo, agora, PERMANENCIA_MS);
+  return escreverTempos(aoVivo, agora) + trocasPendentes + escreverVariantes(aoVivo, agora);
 }, agendarNaJanela, () => document.hidden, () => (trocasPendentes > 0 ? TICK_CURTO_MS : 1000));
 let anuncioPendente = 0;
 const anunciadorDoTurno = criarAnunciador((texto) => {
@@ -2879,7 +2894,11 @@ function abrirMenuDaPilula(ancora: HTMLElement, itens: readonly ItemDoMenuDaPilu
  * primeira carga), não há o que segurar: o spinner entra direto.
  */
 function segurarConversaAnterior(conversaId: string, temOQuePintar: boolean): boolean {
-  if (temOQuePintar || !document.getElementById("timeline-historico")?.firstElementChild) {
+  // A réplica que ainda vem do IndexedDB (o boot antes do espelho, ou a que saiu da memória) também segura até 80 ms, com a
+  // casca da timeline já na tela (mesmo vazia): o spinner fica para o bot nunca aberto.
+  const historico = document.getElementById("timeline-historico");
+  const segura = historico?.firstElementChild || (historico && replicaACaminho(conversaId));
+  if (temOQuePintar || !segura) {
     esperaDoSpinner.soltar();
     return false;
   }
@@ -3839,8 +3858,12 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   // Item 5 do chat: as conversas guardadas também são da pessoa (um banco por pessoa). Lidas, a da tela que ainda espera
   // o servidor já pinta (a primeira troca depois de recarregar vem do IndexedDB).
   if (escopo.tenantId !== estado.sessao?.tenantId || escopo.pessoaId !== estado.sessao?.pessoaId) {
+    cacheConversas.descarregar();
     const cache = criarCacheDeConversas(armazemIndexedDb(`${escopo.tenantId}.${escopo.pessoaId}`));
     cacheConversas = cache;
+    // O journal de envio também é da pessoa: o da sessão anterior para de reenviar (o que ficou volta no boot dela).
+    journal?.encerrar();
+    journal = criarJournalDeEnvio({ armazem: armazemDoJournalDa(escopo), enviar: enviarDoJournal });
     void cache.pronto.then(() => {
       if (cache !== cacheConversas || !pintarDoCache(estado.tela)) return;
       render();
@@ -3861,6 +3884,9 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   deepLink.novaSessao();
   ambienteBanco = await api.ambiente();
   dispatch({ tipo: "sessao", escopo });
+  // Journal de envio: depois da sessão, o que ficou (recarregou no meio, ficou sem rede) volta à conversa e é reenviado.
+  reconciliarJournal();
+  revalidacaoDaBarra.iniciar();
   void api.preferencias().then((p) => {
     if (p.usoDoMac) dispatch({ tipo: "uso-do-mac", uso: p.usoDoMac });
     atualizarModoNoComposer();
@@ -4322,10 +4348,76 @@ function prepararConversaAoAbrir(antes: Tela, tela: Tela): void {
 function pintarDoCache(tela: Tela): boolean {
   if ((tela.tipo !== "conversa" && tela.tipo !== "sala") || estado.conversas[tela.conversaId]) return false;
   const guardada = cacheConversas.ler(tela.conversaId);
-  if (!guardada) return false;
-  estado = reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada });
+  if (!guardada) {
+    // A réplica parada que saiu da memória (10 min) volta do IndexedDB; a espera do spinner (80 ms) cobre a leitura.
+    if (cacheConversas.temGuardada(tela.conversaId)) trazerDoArmazem(tela.conversaId);
+    return false;
+  }
+  estado = comPendentesDoJournal(reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }), tela.conversaId);
   return true;
 }
+
+function trazerDoArmazem(id: string): void {
+  const cache = cacheConversas;
+  void cache.carregar(id).then((guardada) => {
+    const t = estado.tela;
+    if (!guardada || cache !== cacheConversas || estado.conversas[id] || (t.tipo !== "conversa" && t.tipo !== "sala") || t.conversaId !== id) return;
+    estado = comPendentesDoJournal(reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }), id);
+    render();
+    void reidratar();
+  });
+}
+
+/** Item 5 do chat: a réplica desta conversa ainda vem do IndexedDB (o espelho não foi lido, ou ela saiu da memória). */
+function replicaACaminho(conversaId: string): boolean {
+  return !cacheConversas.estaPronto() || (cacheConversas.temGuardada(conversaId) && !estado.conversas[conversaId]);
+}
+
+/** As conversas da barra que já têm réplica, sem a aberta; nenhuma enquanto a aberta espera a leitura dela (não atrapalha). */
+function conversasDaBarraComReplica(): string[] {
+  if (!api) return [];
+  const t = estado.tela;
+  const aberta = t.tipo === "conversa" || t.tipo === "sala" ? t.conversaId : null;
+  if (aberta && estado.invalidacoes.includes(`conversa:${aberta}`)) return [];
+  const ids = [...document.querySelectorAll<HTMLElement>('#sidebar [data-act="abrir-conversa"][data-conversa]')].map((el) => el.dataset.conversa ?? "");
+  return [...new Set(ids)].filter((id) => id && id !== aberta && cacheConversas.temGuardada(id));
+}
+
+/**
+ * A barra em dia: a leitura de sempre (GET da conversa), em segundo plano — guardada sem contar como uso; a conversa que
+ * já está na memória da tela (não a aberta) ganha a versão nova; a que sumiu (404) sai da réplica.
+ */
+async function revalidarDaBarra(id: string): Promise<void> {
+  const cliente = api;
+  const cache = cacheConversas;
+  const sessao = estado.sessao;
+  if (!cliente) return;
+  const conversa = await cache.revalidar(id, () => cliente.conversa(id), { emSegundoPlano: true }).catch((e: unknown) => {
+    if (e instanceof ErroApi && e.status === 404) cache.apagar(id);
+    throw e;
+  });
+  const t = estado.tela;
+  const aberta = (t.tipo === "conversa" || t.tipo === "sala") && t.conversaId === id;
+  if (api === cliente && estado.sessao === sessao && !aberta && estado.conversas[id]) dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() });
+}
+
+/**
+ * Item 5 do chat: as réplicas paradas há 10 min saem da memória (a do módulo e `estado.conversas`); o IndexedDB fica e as
+ * traz de volta ao abrir. Nunca a aberta, a com turno vivo, a com fala pendente nem a com fala no journal.
+ */
+function soltarReplicasParadas(): void {
+  const t = estado.tela;
+  const aberta = t.tipo === "conversa" || t.tipo === "sala" ? t.conversaId : null;
+  const vivas = new Set(Object.values(estado.turnosVivos).map((v) => v.conversaId));
+  const noJournal = new Set((journal?.itens() ?? []).map((i) => i.item.conversaId));
+  const manter = (id: string): boolean => id === aberta || vivas.has(id) || noJournal.has(id) || !!estado.conversas[id]?.pendentes?.length || !!estado.conversas[id]?.turnosEmCurso?.length;
+  const saem = cacheConversas.despejarParadas(manter);
+  if (saem.length) estado = reduzir(estado, { tipo: "conversas-saem-da-memoria", ids: saem });
+}
+window.setInterval(soltarReplicasParadas, 60_000);
+// A aba que some grava já o que esperava os 2 s (fechar a aba não perde a última releitura).
+window.addEventListener("pagehide", () => cacheConversas.descarregar());
+document.addEventListener("visibilitychange", () => { if (document.hidden) cacheConversas.descarregar(); });
 
 /**
  * Item 5 do chat: o mouse parado 150 ms numa linha da barra busca a conversa daquele bot (o clique já acha o que pintar).
@@ -4679,9 +4771,14 @@ async function enviarComposer(): Promise<void> {
   }
   await agir(async () => {
     let enviou = false;
+    // Journal de envio: o primeiro POST falhou e os reenvios seguem sozinhos — a trava do campo solta já (outra fala pode ir).
+    let solto = false;
     let r: Awaited<ReturnType<typeof enviarPeloComposer>>;
     try {
-      r = await enviarPeloComposer(a, alvo, destino, enviado, ids, idEnvio);
+      const j = journal;
+      r = pendente && j
+        ? await enviarPeloJournal(j, { conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, texto: pendente.texto, anexos: ids, ...(pendente.respondeA ? { respondeA: pendente.respondeA } : {}), em: pendente.em }, () => { solto = true; envios.concluir(alvo.conversaId, false); })
+        : await enviarPeloComposer(a, alvo, destino, enviado, ids, idEnvio);
       enviou = true;
       // NOD-380: depois de falar, a conversa volta à janela comum; o alvo da busca não segura mais o `?ate=`.
       alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, alvo.conversaId);
@@ -4701,14 +4798,13 @@ async function enviarComposer(): Promise<void> {
       }
       // Revisão de engenharia (27/10): o porquê (limite do plano, conversa encerrada, sem internet…) vai na própria fala,
       // com a frase que a faixa de antes mostrava — sem ele, "Não foi enviada" não dizia o que fazer.
-      // ADR-171: sem internet, a fala entra na fila offline e vai sozinha quando a conexão voltar.
-      const offline = guardarSeOffline(e, { conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, texto: pendente.texto, anexos: ids, ...(pendente.respondeA ? { respondeA: pendente.respondeA } : {}), em: Date.now() });
-      dispatch({ tipo: "fala-pendente-falhou", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, motivo: offline ? MOTIVO_OFFLINE : motivoDaFalha(e) });
+      // ADR-171 + journal: sem internet (ou 5xx), a fala segue no journal e vai sozinha no `online` ou no próximo boot.
+      dispatch({ tipo: "fala-pendente-falhou", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, motivo: motivoDoJournal(e) });
       return;
     } finally {
-      if (idEnvio) envios.concluir(alvo.conversaId, enviou);
+      if (idEnvio && !solto) envios.concluir(alvo.conversaId, enviou);
+      else if (idEnvio && enviou) envios.esquecer(alvo.conversaId, idEnvio);
     }
-    if (pendente) filaDeEnvio()?.tirar(pendente.idEnvio);
     if (pendente) dispatch({ tipo: "fala-pendente-confirmada", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, mensagemId: r.ids?.mensagem ?? null, turnoId: r.ids?.turno ?? null });
     else limparDepoisDeEnviar(ta, chave, texto);
     if (r.enviado === "resposta") anunciarPergunta(`Resposta enviada: ${enviado}`);
@@ -4721,34 +4817,81 @@ async function enviarComposer(): Promise<void> {
   });
 }
 
-/** ADR-171: a fila de envio offline da pessoa da sessão (localStorage); sem sessão ou sem armazenamento, nenhuma. */
-function filaDeEnvio(): FilaOffline | null {
-  const pessoaId = estado.sessao?.pessoaId;
-  if (!pessoaId) return null;
-  let armazem: Storage | null = null;
-  try { armazem = window.localStorage; } catch { armazem = null; }
-  return criarFilaOffline(armazem, pessoaId);
+/**
+ * Journal de envio (web/lib/journal-envio.ts): o armazém da pessoa — o IndexedDB, com a fila offline do `localStorage`
+ * (ADR-171) de reserva e de onde o que ela guardou antes passa para o IndexedDB; sem IndexedDB, só a fila (como antes).
+ */
+function armazemDoJournalDa(escopo: Escopo): ArmazemDoJournal {
+  let local: Storage | null = null;
+  try { local = window.localStorage; } catch { local = null; }
+  const fila = armazemDaFila(criarFilaOffline(local, escopo.pessoaId));
+  const idb = armazemDoJournalIndexedDb(`${escopo.tenantId}.${escopo.pessoaId}`);
+  return idb ? armazemComReserva(idb, fila) : fila;
 }
 
-/** ADR-171: o envio caiu por falta de rede — a fala vai para a fila e o motivo diz que ela vai sozinha. */
-function guardarSeOffline(e: unknown, item: ItemDaFila): boolean {
-  if (!falhouPorRede(navigator.onLine, e)) return false;
-  filaDeEnvio()?.guardar(item);
-  return true;
+/** O POST da fala do journal, pela mesma chave. Sem sessão, conta como rede (fica no journal, não vira recusa). */
+function enviarDoJournal(item: ItemDoJournal): Promise<unknown> {
+  const a = api;
+  if (!a) return Promise.reject(new DOMException("sem sessão", "AbortError"));
+  return item.respondeA ? a.enviar(item.conversaId, item.texto, item.anexos, item.idEnvio, item.respondeA) : a.enviar(item.conversaId, item.texto, item.anexos, item.idEnvio);
+}
+
+async function enviarPeloJournal(j: Journal, item: ItemDoJournal, aoFalharPrimeira?: () => void): Promise<ResultadoEnvio> {
+  const ids = idsDaResposta(await j.enviar(item, aoFalharPrimeira ? { aoFalharPrimeira } : {}));
+  return ids ? { enviado: "mensagem", ids } : { enviado: "mensagem" };
+}
+
+/** ADR-171: sem internet, o motivo diz que a fala vai sozinha (ela segue no journal); senão, a frase do erro. */
+function motivoDoJournal(e: unknown): string | undefined {
+  return falhouPorRede(navigator.onLine, e) ? MOTIVO_OFFLINE : motivoDaFalha(e);
+}
+
+function pendenteDoJournal(item: ItemDoJournal, falhou: boolean): FalaPendente {
+  return { idEnvio: item.idEnvio, texto: item.texto, anexos: [], ...(item.respondeA ? { respondeA: item.respondeA } : {}), em: item.em, estado: falhou ? "falhou" : "enviando", mensagemId: null, turnoId: null, ...(falhou ? { motivo: MOTIVO_OFFLINE } : {}) };
+}
+
+/** A conversa que carregou depois do boot mostra as falas dela que o journal ainda tem (o reducer só põe pendente em conversa carregada). */
+function comPendentesDoJournal(e: Estado, conversaId: string): Estado {
+  const j = journal;
+  if (!j || !e.conversas[conversaId]) return e;
+  let novo = e;
+  for (const { item, falhou } of j.itens()) {
+    if (item.conversaId !== conversaId || novo.conversas[conversaId]?.pendentes?.some((p) => p.idEnvio === item.idEnvio)) continue;
+    novo = reduzir(novo, { tipo: "fala-pendente", conversaId, pendente: pendenteDoJournal(item, falhou) });
+  }
+  return novo;
+}
+
+/** Como a fala do journal acabou (reconciliada no boot ou "Tentar de novo"): confirmada, ou "falhou" com o porquê. */
+function terminarDoJournal(j: Journal, item: ItemDoJournal, d: Desfecho): void {
+  if (j !== journal || (!d.ok && d.erro instanceof JournalEncerrado)) return;
+  const { conversaId, idEnvio } = item;
+  if (!d.ok) {
+    dispatch({ tipo: "fala-pendente-falhou", conversaId, idEnvio, motivo: motivoDoJournal(d.erro) });
+    if (d.erro instanceof ErroApi && d.erro.status === 401) mostrarErro(d.erro);
+    return;
+  }
+  envios.esquecer(conversaId, idEnvio);
+  // NOD-380: quem fala na conversa voltou para o fim; a janela deixa de crescer até a fala achada na busca.
+  alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, conversaId);
+  // `idsDaResposta` (revisão de engenharia, 27/10): a resposta sem `ids` (servidor de antes, no deploy) não pode virar
+  // "falhou" depois de enviada — a pendente sai e a releitura traz a gravada, como no envio pelo campo.
+  const gravados = idsDaResposta(d.resposta);
+  dispatch({ tipo: "fala-pendente-confirmada", conversaId, idEnvio, mensagemId: gravados?.mensagem ?? null, turnoId: gravados?.turno ?? null });
+  dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
 }
 
 /**
- * ADR-171: a conexão voltou (ou a página abriu): cada fala da fila volta à conversa como pendente (se a página foi
- * recarregada) e, com internet, é reenviada pela mesma chave — o servidor não duplica.
+ * Journal de envio, no boot (depois da sessão) e quando a conexão volta: o que ficou no journal volta à conversa como fala
+ * pendente e é reenviado pela mesma chave — o servidor não duplica. Substitui a drenagem da fila offline (ADR-171).
  */
-function drenarFilaOffline(): void {
-  const fila = filaDeEnvio();
-  if (!fila) return;
-  for (const item of fila.listar()) {
-    const ja = estado.conversas[item.conversaId]?.pendentes?.some((x) => x.idEnvio === item.idEnvio);
-    if (!ja) dispatch({ tipo: "fala-pendente", conversaId: item.conversaId, pendente: { idEnvio: item.idEnvio, texto: item.texto, anexos: [], ...(item.respondeA ? { respondeA: item.respondeA } : {}), em: item.em, estado: "falhou", mensagemId: null, turnoId: null, motivo: MOTIVO_OFFLINE } });
-    if (navigator.onLine) void reenviarPendente(item.conversaId, item.idEnvio);
-  }
+function reconciliarJournal(): void {
+  const j = journal;
+  if (!j || !api) return;
+  void j.reconciliar(
+    (item) => { if (j === journal && estado.conversas[item.conversaId]) dispatch({ tipo: "fala-pendente", conversaId: item.conversaId, pendente: pendenteDoJournal(item, false) }); },
+    (item, d) => terminarDoJournal(j, item, d),
+  );
 }
 
 /** Os metadados dos anexos prontos, para a fala pendente desenhar os chips como a gravada vai desenhar. */
@@ -4764,38 +4907,21 @@ function motivoDaFalha(e: unknown): string | undefined {
 
 /**
  * "Tentar de novo" da fala pendente que falhou (Parte 1): a mesma fala, pela mesma chave de idempotência (`envios` guarda
- * a chave pendente enquanto a assinatura é igual), sem passar pelo campo. Com outro envio em voo na conversa, espera.
+ * a chave pendente enquanto a assinatura é igual), sem passar pelo campo. Vai pelo journal: entra nele de novo, repete
+ * na rede e no 5xx, e o clique duplo devolve o mesmo envio (a chave já em voo).
  */
 async function reenviarPendente(conversaId: string, idEnvio: string): Promise<void> {
   const p = estado.conversas[conversaId]?.pendentes?.find((x) => x.idEnvio === idEnvio);
-  if (!p || !api) return;
-  const ids = p.anexos.map((x) => x.id);
-  // Revisão do PR (27/10): a chave é a da própria pendente (`envios` só trava o voo); e o motivo da falha anterior sai.
-  const chave = envios.iniciar(conversaId, p.texto, ids, p.respondeA, p.idEnvio);
-  if (chave === null) return;
+  const j = journal;
+  if (!p || !api || !j) return;
+  // Revisão do PR (27/10): a chave é a da própria pendente; e o motivo da falha anterior sai.
   const { motivo: _motivo, ...semMotivo } = p;
-  dispatch({ tipo: "fala-pendente", conversaId, pendente: { ...semMotivo, idEnvio: chave, estado: "enviando" } });
-  if (chave !== idEnvio) dispatch({ tipo: "fala-pendente-sai", conversaId, idEnvio });
-  const a = api;
-  let enviou = false;
+  dispatch({ tipo: "fala-pendente", conversaId, pendente: { ...semMotivo, estado: "enviando" } });
+  const item: ItemDoJournal = { conversaId, idEnvio, texto: p.texto, anexos: p.anexos.map((x) => x.id), ...(p.respondeA ? { respondeA: p.respondeA } : {}), em: p.em };
   try {
-    const r = await (p.respondeA ? a.enviar(conversaId, p.texto, ids, chave, p.respondeA) : a.enviar(conversaId, p.texto, ids, chave));
-    enviou = true;
-    // NOD-380: quem fala na conversa voltou para o fim; a janela deixa de crescer até a fala achada na busca.
-    alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, conversaId);
-    // `idsDaResposta` (revisão de engenharia, 27/10): a resposta sem `ids` (servidor de antes, no deploy) não pode virar
-    // "falhou" depois de enviada — a pendente sai e a releitura traz a gravada, como no envio pelo campo.
-    const gravados = idsDaResposta(r);
-    filaDeEnvio()?.tirar(idEnvio);
-    if (chave !== idEnvio) filaDeEnvio()?.tirar(chave);
-    dispatch({ tipo: "fala-pendente-confirmada", conversaId, idEnvio: chave, mensagemId: gravados?.mensagem ?? null, turnoId: gravados?.turno ?? null });
-    dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
-  } catch (e) {
-    const offline = guardarSeOffline(e, { conversaId, idEnvio: chave, texto: p.texto, anexos: ids, ...(p.respondeA ? { respondeA: p.respondeA } : {}), em: p.em });
-    dispatch({ tipo: "fala-pendente-falhou", conversaId, idEnvio: chave, motivo: offline ? MOTIVO_OFFLINE : motivoDaFalha(e) });
-    if (e instanceof ErroApi && e.status === 401) mostrarErro(e);
-  } finally {
-    envios.concluir(conversaId, enviou);
+    terminarDoJournal(j, item, { ok: true, resposta: await j.enviar(item) });
+  } catch (erro) {
+    terminarDoJournal(j, item, { ok: false, erro, tipo: tipoDaFalha(erro) });
   }
 }
 
@@ -7465,7 +7591,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "desfazer-cancelamento": (el) => dispatch({ tipo: "desfazer-cancelamento", turnoId: el.dataset.id ?? "" }),
   // Parte 1 do plano "o pensamento no chat": a fala pendente que falhou.
   "reenviar-pendente": (el) => reenviarPendente(el.dataset.conversa ?? "", el.dataset.id ?? ""),
-  "descartar-pendente": (el) => dispatch({ tipo: "fala-pendente-sai", conversaId: el.dataset.conversa ?? "", idEnvio: el.dataset.id ?? "" }),
+  "descartar-pendente": (el) => {
+    // Descartada, a fala sai também do journal de envio (e os reenvios dela param).
+    journal?.esquecer(el.dataset.id ?? "");
+    dispatch({ tipo: "fala-pendente-sai", conversaId: el.dataset.conversa ?? "", idEnvio: el.dataset.id ?? "" });
+  },
   "dispensar-incidente": (el) => agir(async () => void (await api!.dispensarIncidente(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["sua-vez"] }))),
   // definido em 2026-09-24 (ADR-044): o grupo (app · nível) do painel sai inteiro, com um registro só.
   "revogar-acessos": (el) => agir(async () => void (await api!.revogarAcessos(el.dataset.agente ?? "", (el.dataset.ids ?? "").split(",").filter(Boolean)), dispatch({ tipo: "invalidar", quais: [`concessoes:${el.dataset.agente ?? ""}`, "frota"] }))),
@@ -8864,9 +8994,8 @@ document.addEventListener("visibilitychange", () => {
   avisarDitado("tela-bloqueou");
 });
 window.addEventListener("online", retomarStream);
-// ADR-171: a fila de envio offline sai sozinha quando a conexão volta, e uma vez logo depois de abrir a página.
-window.addEventListener("online", () => drenarFilaOffline());
-setTimeout(() => drenarFilaOffline(), 3000);
+// ADR-171 + journal de envio: o que ficou no journal sai sozinho quando a conexão volta (no boot, `iniciarSessao` reconcilia).
+window.addEventListener("online", () => reconciliarJournal());
 window.addEventListener("pageshow", retomarStream);
 window.addEventListener("focus", retomarStream);
 // Outra aba recolheu ou abriu uma seção: esta acompanha (definido em 2026-10-04).

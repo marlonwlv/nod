@@ -635,6 +635,8 @@ export type Acao =
   | { tipo: "hidratar-conversa"; conversa: ConversaDto; agora: number }
   /** Item 5 do chat (troca sem "carregando"): a conversa guardada (web/lib/cache-conversas.ts), pintada antes da releitura. */
   | { tipo: "conversa-do-cache"; conversa: ConversaDto }
+  /** Réplicas paradas há 10 min saem da memória (web/lib/cache-conversas.ts); o IndexedDB fica. */
+  | { tipo: "conversas-saem-da-memoria"; ids: readonly string[] }
   | { tipo: "hidratar-sua-vez"; suaVez: SuaVezDto }
   | { tipo: "hidratar-nao-lidos"; naoLidos: NaoLidosDto }
   | { tipo: "novas-desde"; conversaId: string; mensagemId: string; em: number; total: number }
@@ -1659,6 +1661,20 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       const conversaId = acao.conversa.conversa.id;
       if (estado.conversas[conversaId]) return estado;
       return invalidar({ ...estado, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: 0 } } }, `conversa:${conversaId}`);
+    }
+    case "conversas-saem-da-memoria": {
+      // Nunca a da tela, nem a com turno vivo ou fala pendente (quem chama já filtra; aqui é a trava).
+      const t = estado.tela;
+      const aberta = t.tipo === "conversa" || t.tipo === "sala" ? t.conversaId : null;
+      const vivas = new Set(Object.values(estado.turnosVivos).map((v) => v.conversaId));
+      const saem = acao.ids.filter((id) => {
+        const c = estado.conversas[id];
+        return c && id !== aberta && !vivas.has(id) && !c.pendentes?.length && !c.turnosEmCurso?.length;
+      });
+      if (saem.length === 0) return estado;
+      const conversas = { ...estado.conversas };
+      for (const id of saem) delete conversas[id];
+      return { ...estado, conversas };
     }
     case "hidratar-conversa": {
       const conversaId = acao.conversa.conversa.id;

@@ -14,6 +14,11 @@ export type Envios = {
   iniciar(conversaId: string, texto: string, anexos: readonly string[], respondeA?: string, chave?: string): string | null;
   /** Fecha o envio em voo; com `ok`, a chave pendente some e a próxima fala ganha outra. */
   concluir(conversaId: string, ok: boolean): void;
+  /**
+   * A fala de `chave` foi gravada depois que o voo já tinha sido solto (o journal reenviou sozinho, web/lib/journal-envio.ts):
+   * a chave pendente some (se ainda é ela), e a mesma fala de novo ganha outra. Não mexe no voo de quem está enviando agora.
+   */
+  esquecer(conversaId: string, chave: string): void;
 };
 
 export function criarEnvios(gerar: () => string = () => crypto.randomUUID()): Envios {
@@ -35,6 +40,9 @@ export function criarEnvios(gerar: () => string = () => crypto.randomUUID()): En
     concluir(conversaId, ok) {
       emVoo.delete(conversaId);
       if (ok) pendentes.delete(conversaId);
+    },
+    esquecer(conversaId, chave) {
+      if (pendentes.get(conversaId)?.chave === chave) pendentes.delete(conversaId);
     },
   };
 }
