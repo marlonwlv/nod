@@ -1,1 +1,122 @@
-/* COP-14 (chat): chat. Cores só por token (web/tokens.css, --chat-*). */
+/* COP-14 (chat): a base do chat, o campo, a mensagem com o bot trabalhando, o indicador de pensando, os balões e o
+   agrupamento. Vale para o computador nos dois temas; cores só por token (web/tokens.css, --chat-*). Vem depois da casca. */
+
+/* ---- 0. Base: o fundo do chat, a coluna de 960 com 70 de respiro e o texto 15/22 ---------------------------------- */
+.stage > .timeline-wrap, .stage > .composer-wrap { background: var(--chat-fundo); }
+.stage > .timeline-wrap { padding: 12px max(70px, calc((100% - 960px) / 2)) 16px; }
+.stage > .timeline-wrap > .timeline { max-width: 960px; width: 100%; margin-left: auto; margin-right: auto; }
+.stage > .composer-wrap { padding: 0 max(70px, calc((100% - 960px) / 2)) 18px; }
+.composer-wrap .composer { max-width: 960px; }
+@media (max-width: 760px) {
+  .stage > .timeline-wrap, .stage > .composer-wrap { padding-left: 24px; padding-right: 24px; }
+}
+.timeline .message { padding: 2px 0; margin: 0; font-size: 15px; line-height: 22px; font-weight: 425; }
+.timeline .message .bubble { font-size: 15px; line-height: 22px; font-weight: 425; }
+
+/* O separador de hora: "Hoje 14:32", 12/16, secundário, centrado. Quebra o grupo. */
+.timeline .time-sep, .timeline .time-sep[role="separator"] { margin: 16px 0 0; padding: 6px 0; font-size: 12px; line-height: 16px; font-weight: 425; color: var(--chat-tinta-2); }
+
+/* O campo: a largura da coluna, 44 de altura mínima, raio 22, a única sombra que fica no escuro. */
+.composer .box { min-height: 44px; border-radius: var(--raio-22); background: var(--chat-superficie); border: 1px solid var(--chat-borda-campo); box-shadow: var(--chat-sombra-campo); transition: border-color 150ms ease; }
+.composer .box:focus-within { border-color: var(--chat-borda-campo-foco); }
+.composer .box > .mais-campo { width: 28px; height: 28px; background: var(--chat-preenchido); border-radius: var(--raio-full); }
+.composer .box > :is(.send, .parar-envio) { width: 28px; height: 28px; }
+
+/* ---- 1. O botão da direita: Enviar (seta), Enviar desabilitado (campo vazio) ou Parar (quadrado de 14) ---------- */
+.composer .box > .send { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); }
+.composer .box:has(textarea:placeholder-shown) > .send, .composer .box > .send:disabled { background: var(--chat-preenchido); color: var(--chat-icone); }
+.composer .box > .parar-envio { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); border: 0; }
+.composer .box > .parar-envio svg { width: 14px; height: 14px; }
+
+/* A exceção do nod: a mensagem que só vai ser lida quando a máquina ligar. Linha como o separador, à direita, sem botão. */
+.timeline .fila-linha { margin-top: 4px; font-size: 12px; line-height: 16px; font-weight: 425; color: var(--chat-tinta-3); text-align: right; }
+
+/* As ações no hover: 24 × 24, sem fundo, ícone de 16, sem animação; à direita do balão do bot, à esquerda do da pessoa. */
+.timeline .message .bubble-wrap { position: relative; }
+.timeline .message .msg-actions { top: 50%; transform: translateY(-50%); transition: none; gap: 0; }
+.timeline .message.bot .msg-actions { left: calc(100% + 4px); right: auto; }
+.timeline .message.you .msg-actions { right: calc(100% + 4px); left: auto; }
+.timeline .message .msg-actions button.bt { width: 24px; height: 24px; padding: 0; border: 0; background: none; color: var(--chat-icone); }
+.timeline .message .msg-actions button.bt:hover { background: none; border: 0; color: var(--chat-tinta); }
+.timeline .message .msg-actions button.bt svg { width: 16px; height: 16px; }
+.timeline .message .msg-actions [data-act="relatar-mensagem"] { display: none; }
+.timeline .message.you .msg-actions [data-act="reagir-fala"] { display: none; }
+.timeline .message .msg-actions:has(button[aria-expanded="true"]) { transform: translateY(-50%); }
+
+/* ---- 2. O indicador: a linha depois do último balão (48 = 36 + 6/6), personagem 28 e o rótulo 14/22 ------------- */
+.timeline .message.fala-viva.indicador { display: flex; align-items: center; gap: 8.5px; min-height: 36px; padding: 6px 0 6px 8px; margin: 16px 0 0; transform-origin: left center; animation: indicador-entra 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.timeline .message.fala-viva.indicador > nod-mascote { display: block; width: 28px; height: 28px; margin: 0; flex: none; animation: indicador-personagem 340ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.timeline .message.fala-viva.indicador .bubble-wrap { flex: 1; min-width: 0; max-width: none; }
+.timeline .message.fala-viva.indicador.saindo { animation: indicador-sai 140ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.timeline .indicador-rotulo { display: inline-block; font-size: 14px; line-height: 22px; font-weight: 425; color: var(--chat-tinta-3); animation: indicador-rotulo 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+/* O rótulo da entrada espera o personagem (220 ms); a troca de rótulo entra na hora. */
+.timeline .message.fala-viva.indicador .indicador-rotulo:only-child { animation-delay: 220ms; }
+.timeline .indicador-rotulo.brilho {
+  color: transparent;
+  background-image: linear-gradient(90deg, var(--chat-tinta-3) 0%, var(--chat-tinta-3) 25%, var(--chat-tinta-2) 60%, var(--chat-tinta-3) 75%, var(--chat-tinta-3) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: indicador-rotulo 180ms cubic-bezier(0.22, 1, 0.36, 1) both, indicador-brilho 2200ms steps(60) infinite;
+}
+@keyframes indicador-entra { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes indicador-sai { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.92); } }
+@keyframes indicador-personagem { from { transform: scale(.6); } to { transform: none; } }
+@keyframes indicador-rotulo { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes indicador-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .timeline .message.fala-viva.indicador, .timeline .message.fala-viva.indicador > nod-mascote, .timeline .indicador-rotulo { animation: none; }
+  .timeline .indicador-rotulo.brilho { animation: none; background: none; color: var(--chat-tinta-3); }
+}
+
+/* A resposta entra inteira, num balão só, subindo 12 px em 240 ms (depois da saída do indicador e ~100 ms vazios). */
+.timeline .message.fala-chegou { margin-top: 16px; }
+.timeline .bubble.balao-chega { animation: balao-chega 240ms cubic-bezier(0.23, 1, 0.32, 1) 240ms both; }
+@keyframes balao-chega { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .timeline .bubble.balao-chega { animation: none; } }
+
+/* ---- 3. Os balões ---------------------------------------------------------------------------------------------- */
+/* Bot: à esquerda, até 560, encolhe ao conteúdo, padding 7/12, raio 18, sem borda e sem rabicho, o brilho interno. */
+.timeline .message.bot .bubble-wrap { max-width: 560px; }
+.timeline .message.bot .bubble, .timeline .message.bot .bubble:not(.com-progresso) {
+  width: fit-content; max-width: 560px; box-sizing: border-box; padding: 7px 12px; border: 0; border-radius: 18px;
+  background: var(--chat-preenchido); color: var(--chat-tinta); box-shadow: var(--chat-brilho-balao);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.timeline .message.bot .bubble.com-progresso { width: auto; }
+.timeline .message.bot .bubble > * { margin-top: 0; margin-bottom: 0; }
+/* Pessoa: à direita, até min(80%, 560, 100% − 82), padding 7/12, raio 18, o mesmo brilho; 8 px entre parágrafos. */
+.timeline .message.you .bubble {
+  max-width: min(80%, 560px, calc(100% - 82px)); box-sizing: border-box; padding: 7px 12px; border-radius: 18px;
+  box-shadow: var(--chat-brilho-balao); background: var(--chat-pessoa-tinta-neutra); color: var(--chat-pessoa-tinta);
+}
+.timeline .message.you .bubble-wrap { max-width: min(80%, 560px, calc(100% - 82px)); }
+.timeline .message.you .bubble p + p { margin-top: 8px; }
+.timeline .message.you .bubble a { color: inherit; text-decoration: underline; }
+/* O balão da pessoa na cor do bot da conversa (a opção "preto" de Aparência continua valendo: ds.css). */
+html[data-balao="cor"] .timeline .message.you.balao-c-blue .bubble, html[data-balao="cor"] .timeline .message.you.balao-c-indigo .bubble { background: var(--chat-pessoa-azul); }
+html[data-balao="cor"] .timeline .message.you:is(.balao-c-purple, .balao-c-lilac) .bubble { background: var(--chat-pessoa-violeta); }
+html[data-balao="cor"] .timeline .message.you.balao-c-green .bubble { background: var(--chat-pessoa-verde); }
+html[data-balao="cor"] .timeline .message.you.balao-c-teal .bubble { background: var(--chat-pessoa-turquesa); }
+html[data-balao="cor"] .timeline .message.you:is(.balao-c-pink, .balao-c-magenta) .bubble { background: var(--chat-pessoa-rosa); }
+html[data-balao="cor"] .timeline .message.you.balao-c-red .bubble { background: var(--chat-pessoa-vermelho); }
+html[data-balao="cor"] .timeline .message.you.balao-c-orange .bubble { background: var(--chat-pessoa-laranja); }
+html[data-balao="cor"] .timeline .message.you.balao-c-amber .bubble { background: var(--chat-pessoa-ambar); }
+html[data-balao="cor"] .timeline .message.you.balao-c-brown .bubble { background: var(--chat-pessoa-marrom); }
+html:not([data-balao="cor"]) .timeline .message.you .bubble { background: var(--balao-pessoa); color: var(--balao-pessoa-tinta); }
+
+/* Agrupamento: 4 px dentro do grupo, 16 px entre remetentes ou depois de um cartão; o canto do lado do remetente vira 6. */
+.timeline .message[data-grupo] { margin-top: 4px; }
+.timeline .message[data-group-start] { margin-top: 16px; }
+.timeline .message.bot[data-grupo="primeiro"] .bubble { border-radius: 18px 18px 18px 6px; }
+.timeline .message.bot[data-grupo="meio"] .bubble { border-radius: 6px 18px 18px 6px; }
+.timeline .message.bot[data-grupo="ultimo"] .bubble { border-radius: 6px 18px 18px 18px; }
+.timeline .message.you[data-grupo="primeiro"] .bubble { border-radius: 18px 18px 6px 18px; }
+.timeline .message.you[data-grupo="meio"] .bubble { border-radius: 18px 6px 6px 18px; }
+.timeline .message.you[data-grupo="ultimo"] .bubble { border-radius: 18px 6px 18px 18px; }
+/* Os cartões e as linhas do chat ficam a 16 px do que vem antes. */
+.timeline > .bloco > :is(.msg-linha, .card, .welcome-options) { margin-top: 16px; }
+
+/* O balão entra como qualquer balão: sobe 12 px com fade em 240 ms. */
+.fala-pendente[data-envio="enviando"] .message.you .bubble { outline: 0; opacity: 1; animation: balao-chega 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@media (prefers-reduced-motion: reduce) { .fala-pendente[data-envio="enviando"] .message.you .bubble { animation: none; } }

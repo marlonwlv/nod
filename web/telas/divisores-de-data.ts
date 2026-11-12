@@ -1,4 +1,4 @@
-import { esc, horaSemZero } from "../lib/render.ts";
+import { esc, hora } from "../lib/render.ts";
 
 /**
  * Divisores de data entre blocos de horário (chat limpo, PR 6; plano, Parte 5; como o protótipo
@@ -7,11 +7,11 @@ import { esc, horaSemZero } from "../lib/render.ts";
  */
 
 /**
- * definido em 2026-10-18 (decisão tomada 6 do plano do chat limpo): uma pausa de 30 min ou mais entre dois itens visíveis
+ * revisto em 2026-11-12 (COP-14): 15 min, não mais 30. definido em 2026-10-18 (decisão tomada 6 do plano do chat limpo): uma pausa entre dois itens visíveis
  * abre um bloco novo, com divisor. A mesma pausa separa duas trocas vizinhas (`juntarTrocas`, ./linhas-do-chat.ts): na tela
  * do Eng 1, as trocas das 15:02, das 15:40 e das 17:20 ficam em três linhas, cada uma embaixo do seu divisor.
  */
-export const PAUSA_QUE_ABRE_BLOCO_MS = 30 * 60_000;
+export const PAUSA_QUE_ABRE_BLOCO_MS = 15 * 60_000;
 
 /**
  * O tempo de um bloco da timeline: `id` é a primeira mensagem dele (a chave do divisor é `sep:<id>`), `em` o primeiro
@@ -53,10 +53,10 @@ export function rotuloDoDia(em: number, agora: number): string {
  * O divisor: "Hoje 08:00" no topo e quando o dia muda; só "15:40" no mesmo dia do item de cima. O nome acessível
  * (`role="separator"` não lê o conteúdo) leva sempre o texto inteiro, com o dia.
  */
-export function htmlDivisor(em: number, agora: number, comDia: boolean): string {
-  // Rodada 3 da casca: a hora sem o zero à esquerda, como o Paper ("Hoje 9:12").
-  const inteiro = `${rotuloDoDia(em, agora)} ${horaSemZero(em)}`;
-  return `<div class="time-sep" role="separator" aria-label="${esc(inteiro)}">${esc(comDia ? inteiro : horaSemZero(em))}</div>`;
+export function htmlDivisor(em: number, agora: number, _comDia: boolean): string {
+  // COP-14 (item 0): o separador leva sempre o dia e a hora ("Hoje 14:32").
+  const inteiro = `${rotuloDoDia(em, agora)} ${hora(em)}`;
+  return `<div class="time-sep" role="separator" aria-label="${esc(inteiro)}">${esc(inteiro)}</div>`;
 }
 
 /**
