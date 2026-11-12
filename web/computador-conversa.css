@@ -1,0 +1,83 @@
+/*
+ * D · Computador do bot, itens 1 e 8: o computador na conversa. O chip [Computador](nod-computador:) e o cartão
+ * "Destino do link" (web/lib/computador-conversa.ts, web/telas/computador-chip.ts), a linha de sistema da falha do
+ * computador e o balão do print que o bot manda (web/lib/midia.ts, .msg-midia-print). Os valores dos dois temas são os
+ * da prancheta (claro / escuro); o escuro vale pelo sistema e pela escolha manual, como em tokens.css.
+ */
+:root {
+  --cc-texto: #1c1c1c; /* cor-fixa: prancheta D1 */
+  --cc-terciario: #1c1c1c8f; /* cor-fixa: prancheta D1 */
+  --cc-cartao: #ffffff; /* cor-fixa: prancheta D1 */
+  --cc-cartao-sombra: 0 10px 20px -3px #1c1c1c1a, 0 4px 6px -4px #1c1c1c1a, 0 0 0 1px #1c1c1c01; /* cor-fixa: prancheta D1 */
+  --cc-cartao-borda: transparent;
+  --cc-globo-fundo: #1c1c1c0f; /* cor-fixa: prancheta D1 */
+  --cc-separador: #1c1c1c1f; /* cor-fixa: prancheta D1 */
+  --cc-hover: #f1f1f1; /* cor-fixa: prancheta D1 */
+  --cc-anel: #1c1c1c14; /* cor-fixa: prancheta D8 */
+  --cc-skeleton: #1c1c1c0f; /* cor-fixa: prancheta D8 */
+  --cc-faixa: #1c1c1c0f; /* cor-fixa: prancheta D8 */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cc-texto: #f5f5f5; /* cor-fixa: prancheta D1 */
+    --cc-terciario: #f5f5f58a; /* cor-fixa: prancheta D1 */
+    --cc-cartao: #1f1f1f; /* cor-fixa: prancheta D1 */
+    --cc-cartao-sombra: none;
+    --cc-cartao-borda: #f5f5f51a; /* cor-fixa: prancheta D1 */
+    --cc-globo-fundo: #f5f5f50a; /* cor-fixa: prancheta D1 */
+    --cc-separador: #f5f5f51a; /* cor-fixa: prancheta D1 */
+    --cc-hover: #2c2c2c; /* cor-fixa: prancheta D1 */
+    --cc-anel: #f5f5f50f; /* cor-fixa: prancheta D8 */
+    --cc-skeleton: #f5f5f50a; /* cor-fixa: prancheta D8 */
+    --cc-faixa: #f5f5f50f; /* cor-fixa: prancheta D8 */
+  }
+}
+:root[data-theme="dark"] {
+  --cc-texto: #f5f5f5; /* cor-fixa: prancheta D1 */
+  --cc-terciario: #f5f5f58a; /* cor-fixa: prancheta D1 */
+  --cc-cartao: #1f1f1f; /* cor-fixa: prancheta D1 */
+  --cc-cartao-sombra: none;
+  --cc-cartao-borda: #f5f5f51a; /* cor-fixa: prancheta D1 */
+  --cc-globo-fundo: #f5f5f50a; /* cor-fixa: prancheta D1 */
+  --cc-separador: #f5f5f51a; /* cor-fixa: prancheta D1 */
+  --cc-hover: #2c2c2c; /* cor-fixa: prancheta D1 */
+  --cc-anel: #f5f5f50f; /* cor-fixa: prancheta D8 */
+  --cc-skeleton: #f5f5f50a; /* cor-fixa: prancheta D8 */
+  --cc-faixa: #f5f5f50f; /* cor-fixa: prancheta D8 */
+}
+
+/* ---- o chip no texto do bot: inline, 15/22 peso 500, globo de 14 px antes (gap 3), sem fundo nem sublinhado ---- */
+.cc-chip { display: inline; margin: 0; padding: 0; border: 0; background: none; font: inherit; font-size: 15px; line-height: 22px; font-weight: 500; color: var(--cc-texto); text-decoration: none; white-space: nowrap; cursor: pointer; }
+.cc-chip .cc-globo { display: inline-block; width: 14px; height: 14px; margin-right: 3px; vertical-align: -2px; }
+.cc-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+
+/* ---- o cartão "Destino do link": 300 px, padding 6, raio 16, acima do chip a 6 px ---- */
+.cc-cartao { position: fixed; z-index: 1000; box-sizing: border-box; width: 300px; padding: 6px; border-radius: 16px; background: var(--cc-cartao); box-shadow: var(--cc-cartao-sombra); border: 1px solid var(--cc-cartao-borda); color: var(--cc-texto); }
+.cc-cartao-cab { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0; padding: 4px 6px; border: 0; border-radius: 10px; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.cc-cartao-globo { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--cc-globo-fundo); }
+.cc-cartao-globo .cc-globo { width: 16px; height: 16px; }
+.cc-cartao-txt { display: flex; flex-direction: column; min-width: 0; }
+.cc-cartao-txt b { font-size: 14px; line-height: 20px; font-weight: 500; }
+.cc-cartao-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--cc-terciario); }
+.cc-cartao-sep { height: 0; margin: 2px 8px; border: 0; border-top: 0.5px solid var(--cc-separador); }
+.cc-cartao-linha { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 36px; margin: 0; padding: 0 10px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 14px; line-height: 18px; color: inherit; text-align: left; cursor: pointer; }
+.cc-cartao-linha .cc-seta { flex: none; width: 14px; height: 14px; }
+.cc-cartao-linha:hover, .cc-cartao-cab:hover { background: var(--cc-hover); }
+.cc-cartao-linha:focus-visible, .cc-cartao-cab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+
+/* ---- a linha de sistema centrada da falha do computador: 12/16, terciário, com "Tentar de novo" ---- */
+.cc-sistema { margin: 8px 0; text-align: center; font-size: 12px; line-height: 16px; color: var(--cc-terciario); }
+.cc-sistema-link { margin: 0; padding: 0; border: 0; background: none; font: inherit; color: var(--cc-texto); cursor: pointer; }
+.cc-sistema-link:hover { text-decoration: underline; }
+.cc-sistema-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 3px; }
+
+/* ---- item 8: o print do bot num balão próprio (lado maior 307), raio 12, anel, skeleton até decodificar ---- */
+.msg-midia-print .msg-midia-bt { border-radius: 12px; background: var(--cc-skeleton); }
+.msg-midia-print .msg-midia-bt::after { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; box-shadow: inset 0 0 0 0.5px var(--cc-anel); pointer-events: none; }
+.msg-midia-print .msg-midia-bt::before { content: ""; position: absolute; inset: 0; z-index: 0; background: linear-gradient(110deg, transparent 20%, var(--cc-faixa) 50%, transparent 80%); transform: translateX(-100%); animation: cc-faixa 1.2s linear infinite; pointer-events: none; }
+.msg-midia-print .msg-midia-giro { display: none; }
+.msg-midia-print .msg-midia-bt img { z-index: 1; }
+.msg-midia-print .msg-midia-bt.carregou, .msg-midia-print .msg-midia-bt:has(> img[data-ok]) { background: none; }
+.msg-midia-print .msg-midia-bt.carregou::before, .msg-midia-print .msg-midia-bt:has(> img[data-ok])::before, .msg-midia-print .msg-midia-bt.falhou::before { content: none; }
+@keyframes cc-faixa { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .msg-midia-print .msg-midia-bt::before { animation: none; transform: none; background: none; } }

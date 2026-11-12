@@ -251,6 +251,16 @@ export const LINK_TAREFA_WEB = new RegExp(`^nod-tarefa:(${UUID}):(${UUID})$`, "i
 /** NOD-455 (D6): o "Abrir no quadro" do aviso de "Com você" (`nod-quadro:<quadro>`, src/use-cases/quadro-pessoas.ts). */
 export const LINK_QUADRO_WEB = new RegExp(`^nod-quadro:(${UUID})$`, "i");
 
+/** D · Computador do bot (item 1): o link do bot para a tela dele (src/domain/prompt-sistema.ts pede `[Computador](nod-computador:)`). */
+export const LINK_COMPUTADOR_WEB = /^nod-computador:$/i;
+/** O globo de 14 px do chip e do cartão (stroke na cor do texto). */
+export const ICONE_GLOBO = '<svg class="cc-globo" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M1.9 8h12.2M8 1.75c1.7 1.8 2.55 3.9 2.55 6.25S9.7 12.45 8 14.25C6.3 12.45 5.45 10.35 5.45 8S6.3 3.55 8 1.75Z"/></svg>';
+
+/** O chip inline: globo + o texto do link, sem fundo nem sublinhado; o clique abre o cartão (web/telas/computador-chip.ts). */
+export function htmlChipComputador(texto: string): string {
+  return `<button type="button" class="cc-chip" data-act="computador-chip" aria-haspopup="dialog" aria-expanded="false">${ICONE_GLOBO}<span>${esc(texto)}</span></button>`;
+}
+
 function token(t: string, opcoes: OpcoesTexto, dentroDeEnfase: boolean): string {
   if (t.startsWith("`")) return `<code>${esc(t.slice(1, -1))}</code>`;
   if (t.startsWith("<")) {
@@ -271,6 +281,8 @@ function token(t: string, opcoes: OpcoesTexto, dentroDeEnfase: boolean): string 
     // NOD-455: o quadro de outra pessoa em que ela participa abre a tela /quadros/:id (a tela confere o acesso).
     const quadro = LINK_QUADRO_WEB.exec(t.slice(meio + 2, -1));
     if (quadro) return `<button type="button" class="md-midia-link md-quadro-link" data-act="abrir-quadro-compartilhado" data-quadro="${esc(quadro[1]!.toLowerCase())}">${esc(t.slice(1, meio))}</button>`;
+    // D · Computador do bot (item 1): `[Computador](nod-computador:)` é o chip que abre o cartão "Destino do link".
+    if (LINK_COMPUTADOR_WEB.test(t.slice(meio + 2, -1))) return htmlChipComputador(t.slice(1, meio));
     // NOD-85: o link da mini-agenda (`ver_agenda`) abre Configurações › Rotinas no dia, com o filtro de problema.
     const agenda = lerLinkDaAgenda(t.slice(meio + 2, -1));
     if (agenda) return `<button type="button" class="md-midia-link md-agenda-link" data-act="abrir-agenda" data-dia="${agenda.dia}"${agenda.soProblema ? ' data-problema="1"' : ""}>${esc(t.slice(1, meio))}</button>`;

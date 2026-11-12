@@ -272,15 +272,6 @@ export function avisoDoComputador(dto: ComputadorPessoaDto | null, ok = false): 
   return ok && dto ? { texto: "Computador do bot pronto", tom: "ok" } : null;
 }
 
-/** A linha de 2 px dentro da pílula do cabeçalho do chat, durante uma operação. */
-export function htmlFio(dto: ComputadorPessoaDto | null): string {
-  const prep = preparoAtivo(dto);
-  const pct = dto?.operacao ? pctDaOperacao(dto) : prep && (prep.estado === "baixando" || prep.estado === "pausado_sem_internet") ? pctDoPreparo(prep) : null;
-  if (pct === null) return "";
-  return `<span class="cb-fio" aria-hidden="true"><i style="width:${pct}%"></i></span>`;
-}
-
-
 // ---- a gaveta --------------------------------------------------------------------------------------------------------
 
 export type EstadoDaGaveta = "miniatura" | "sem_tela" | "dormindo" | "acordando" | "fora";
@@ -466,28 +457,67 @@ export function htmlLinhaTelaFechada(tipo: OperacaoLonga, nome: string): string 
 }
 
 
-// ---- a tela cheia ----------------------------------------------------------------------------------------------------
+// ---- a tela cheia (card D, item 3 e 4) -------------------------------------------------------------------------------
 
-export type EstadoPilula = "assistindo" | "assumindo" | "controle";
+/** A barra de controle embaixo do quadro. "assumindo" só aparece se o assumir passar de MS_ASSUMINDO_VISIVEL. */
+export type EstadoBarra = "assistindo" | "assumindo" | "controle";
 
-export function estadoDaPilula(controle: ControleComputador | undefined, assumindo: boolean): EstadoPilula {
+/** Card D, item 4 (definido em 2026-11-12): até isto o assumir não muda nada na barra; depois, "Assumindo…". */
+export const MS_ASSUMINDO_VISIVEL = 300;
+/** Card D, F9: as esperas entre as tentativas de religar o VNC; a última se repete. */
+export const ESPERAS_RECONECTAR_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000];
+/** Card D, F9: sem o VNC por isto, as capturas de 2 s entram como plano B (a interface não muda). */
+export const MS_PLANO_B = 30_000;
+export const MS_CAPTURA_PLANO_B = 2_000;
+/** Card D, item 4: o pulso do halo do "Assumir o controle" ao clicar na tela assistindo. */
+export const MS_PULSO = 2_400;
+export const AVISO_ASSUMA = "Assuma o controle para clicar e digitar";
+
+/** A espera antes da n-ésima tentativa de religar (n a partir de 0). */
+export function esperaParaReconectar(n: number): number {
+  return ESPERAS_RECONECTAR_MS[Math.max(0, Math.min(n, ESPERAS_RECONECTAR_MS.length - 1))]!;
+}
+
+/**
+ * O estado da barra. `assumindoDesde` é quando a pessoa clicou em "Assumir o controle" (null sem pedido em curso): o
+ * "Assumindo…" só aparece depois de MS_ASSUMINDO_VISIVEL; antes disso a barra fica como estava.
+ */
+export function estadoDaBarra(controle: ControleComputador | undefined, assumindoDesde: number | null, agora: number): EstadoBarra {
   if (controle === "pessoa") return "controle";
-  return assumindo ? "assumindo" : "assistindo";
+  return assumindoDesde !== null && agora - assumindoDesde >= MS_ASSUMINDO_VISIVEL ? "assumindo" : "assistindo";
 }
 
-/** A pílula embaixo e no meio da tela: o estado e a ação em link. */
-export function htmlPilula(nome: string, estado: EstadoPilula): string {
-  const corpo = estado === "assumindo"
-    ? `<span class="cb-pilula-est" role="status">${GIRO}<span>Assumindo… ${esc(nome)} termina a ação em curso</span></span>`
-    : estado === "controle"
-      ? `<span class="cb-pilula-est" role="status">${ICONE_CB.cursor}<span>Você está no controle</span></span>${SEP}${link("Parar", 'data-c="devolver"')}`
-      : `<span class="cb-pilula-est" role="status">${ICONE_CB.olho}<span>Assistindo</span></span>${SEP}${link("Assumir o controle", 'data-c="assumir"')}`;
-  return `<div class="cb-pilula cb-${estado}" role="group" aria-label="Controle da tela de ${esc(nome)}">${corpo}</div>`;
+const svg12 = (corpo: string) => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corpo}</svg>`;
+export const ICONE_TELA_CHEIA = {
+  olho: svg12('<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>'),
+  /** O cursor numa janela. */
+  cursorNaJanela: svg12('<path d="M12.03 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7"/><path d="M3 9h18"/><path d="m14.6 14.6 6.1 2.5-2.6 1-1 2.6z"/>'),
+  /** Recolher (sair da tela cheia), 14 px. */
+  recolher: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>',
+};
+
+/** A barra de controle (pílula branca). O botão do assumir carrega a camada do pulso por cima do halo fixo. */
+export function htmlBarraDeControle(nome: string, estado: EstadoBarra): string {
+  const corpo = estado === "controle"
+    ? `<span class="ctc-estado">${ICONE_TELA_CHEIA.cursorNaJanela}<span>Você está no controle</span></span><button type="button" class="ctc-bt ctc-parar" data-c="devolver">Parar</button>`
+    : estado === "assumindo"
+      ? `<span class="ctc-estado" role="status">${ICONE_TELA_CHEIA.olho}<span>Assumindo…</span><span class="sr-only"> ${esc(nome)} termina a ação em curso</span></span><button type="button" class="ctc-bt ctc-assumir" data-c="assumir" disabled aria-disabled="true"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`
+      : `<span class="ctc-estado">${ICONE_TELA_CHEIA.olho}<span>Assistindo</span></span><button type="button" class="ctc-bt ctc-assumir" data-c="assumir"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`;
+  return `<div class="ctc-controle" data-estado="${estado}" role="group" aria-label="Controle da tela de ${esc(nome)}">${corpo}</div>`;
 }
 
-/** A tela cheia: quase a janela toda, título pequeno, ✕ discreto, a imagem inteira e a pílula. */
-export function htmlTelaCheia(nome: string, pedido: string | null): string {
-  return `<div class="cb-tela"><header class="cb-tela-cab"><h2 class="cb-tela-tit">Tela de ${esc(nome)}</h2><span class="cb-tela-pedido">${esc(pedido ?? "")}</span><button type="button" class="cb-tela-x" data-c="fechar" aria-label="Fechar a tela de ${esc(nome)}">${ICONE_CB.fechar}</button></header><div class="cb-tela-vista"><img alt="Tela de ${esc(nome)}" tabindex="0" draggable="false" hidden /><div class="cb-tela-vivo" hidden></div><p class="cb-gv-linha cb-tela-vazia" role="status">${ICONE_CB.monitor}<span>${esc(nome)} não está usando o navegador agora.</span></p><div class="cb-tela-pilula"></div></div></div>`;
+/**
+ * O visualizador em tela cheia (card D, item 3): a barra de 44 px com "Sair da tela cheia", o palco, o quadro 16:10 (a
+ * captura, o último quadro do VNC que caiu e o VNC ao vivo), a espera com o personagem e o aviso ao leitor de tela.
+ * `personagem` é o HTML do personagem do bot (htmlMascote) que gira na espera.
+ */
+export function htmlTelaCheia(nome: string, personagem: string): string {
+  return `<header class="ctc-topo"><button type="button" class="ctc-sair" data-c="fechar" aria-label="Sair da tela cheia">${ICONE_TELA_CHEIA.recolher}</button></header>`
+    + `<div class="ctc-corpo"><div class="ctc-palco"><div class="ctc-coluna">`
+    + `<div class="ctc-quadro" tabindex="-1" aria-label="Tela de ${esc(nome)}"><img class="ctc-captura" alt="" tabindex="-1" draggable="false" hidden /><div class="ctc-ultimo" hidden></div><div class="ctc-vivo"></div></div>`
+    + `<div class="ctc-barra-lugar"></div></div>`
+    + `<div class="ctc-espera" role="status"><span class="ctc-masc" aria-hidden="true">${personagem}</span><span class="ctc-espera-txt">Iniciando desktop</span></div>`
+    + `</div></div><p class="ctc-aviso sr-only" aria-live="polite"></p>`;
 }
 
 /** O pedido de login leve (duas linhas, sem caixa): a miniatura é o clique. */

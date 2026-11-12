@@ -12,10 +12,11 @@ import { perfilMudou } from "./lib/perfil-mudou.ts";
 import "./lib/mascote-elemento.ts";
 import { ligarModoDeFoco } from "./lib/modo-de-foco.ts";
 import { alternarExplicacao, detailsParaFecharComEsc } from "./lib/recomeco.ts";
-import { abrirCapturaAmpliada } from "./telas/captura-ampliada.ts";
 import { abrirPreviaArquivo } from "./telas/previa-arquivo.ts";
 import { abrirComputador, aplicarModoDevNoComputador } from "./telas/computador.ts";
 import { abrirTelaCheia } from "./telas/tela-cheia.ts";
+import { abrirCartaoDestino, mostrarComputadorNoPainel } from "./telas/computador-chip.ts";
+import { LUGAR_CONECTAR } from "./telas/config-computador.ts";
 import { criarAcoesDaEspera } from "./lib/esperas-de-colega.ts";
 import { avisoDoComputador, OPERACOES_PESSOA, type OperacaoPessoa } from "./lib/computador-pessoa.ts";
 import { CHAVE_AVISO_RECRIADO } from "./telas/espaco.ts";
@@ -182,7 +183,7 @@ import { inventarioEmUso, motorDesatualizado, situacaoMotorFora } from "./telas/
 import { ehIa, fraseDoMotivoDaNota, inventarioDaIa, pedeInstalar } from "./telas/ia-fora.ts";
 import { renderRotinas } from "./telas/rotinas.ts";
 import { nomesDosMembros, renderCabecalhoSala, renderNovaSala } from "./telas/sala.ts";
-import { abertasPorAgente, perguntasPorAgente, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
+import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
 import { aparenciaDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
 import { mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
@@ -2472,7 +2473,8 @@ function renderSidebar(estado: Estado): string {
   // ADR-167 (telas 16/16b): o pedido aberto mora na linha do bot — "Aguardando você: {motivo}" em laranja, o ponto laranja
   // e o clique que abre a conversa no cartão pendente. Sem caixa nem sino separados.
   const pedidos = pedidosAbertos(estado.suaVez);
-  const aguardandoDe = aguardandoPorAgente(pedidos);
+  // Spec D, itens 5 e 6: o pedido do computador diz a ação em poucas palavras ("abrir nfse.gov.br", "entrar no portal").
+  const aguardandoDe = aguardandoPorAgente(pedidos.map(pedidoParaAguardando));
   const pendente = (a: (typeof agentes)[number]) => (avisoDe(a) === "decisao" || avisoDe(a) === "pergunta" ? aguardandoDe.get(a.id) : undefined);
   const dadoPendente = (a: (typeof agentes)[number]) => { const p = pendente(a); return p ? ` data-pendente="${esc(p.decisaoId)}"` : ""; };
   const linha = (a: (typeof agentes)[number], escondida = false) => {
@@ -4383,6 +4385,25 @@ function botGerido(id: string | undefined): BotGerido | undefined {
   const a = [...(estado.frota?.agentes ?? []), ...(estado.gestao?.agentes ?? [])].find((a) => a.id === id && !a.excluidoEm);
   // "Marcar como lido / não lido" no menu segue os não lidos, que chegam a cada mensagem (a frota não).
   return a && estado.naoLidos ? { ...a, naoLido: temNovas(a.conversaId) } : a;
+}
+
+/** O bot de um chip do computador: o autor da mensagem em que ele está; na fala viva (ou sem achar), o bot da conversa. */
+function botDoChip(el: HTMLElement): string | undefined {
+  const t = estado.tela;
+  const conversaId = t.tipo === "conversa" ? t.conversaId : undefined;
+  const mensagemId = el.closest<HTMLElement>("[data-mensagem]")?.dataset.mensagem;
+  const m = conversaId && mensagemId ? estado.conversas[conversaId]?.mensagens.find((x) => x.id === mensagemId) : undefined;
+  if (m?.autoria.autor_tipo === "agente") return m.autoria.autor_id;
+  return t.tipo === "conversa" ? t.agenteId : undefined;
+}
+
+/** D · Computador do bot: abre o painel de detalhes do bot (só abre; se já está à vista, fica), pelo mesmo `alternar-detalhes`. */
+function abrirPainelDoBot(): void {
+  const app = document.querySelector(".app");
+  if (!app) return;
+  const estreito = ehCelular() || window.matchMedia("(max-width: 1099px)").matches;
+  const aVista = estreito ? app.classList.contains("detalhes-abertos") : !app.classList.contains("detalhes-ocultos");
+  if (!aVista) void ACOES["alternar-detalhes"]?.(app as HTMLElement);
 }
 
 function menuDoBot(el: HTMLElement): void {
@@ -6711,7 +6732,6 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (ta) { escreverNoCampo(ta, el.dataset.texto ?? ""); return enviarComposer(); }
   },
   // NOD-56: a captura da tela do bot ao fim do turno, ampliada sobre a conversa.
-  "ampliar-captura": (el) => { abrirCapturaAmpliada(el); },
   // NOD-327: o card de CSV/PDF abre a prévia num modal claro sobre a conversa.
   "previa-arquivo": (el) => { abrirPreviaArquivo(el); },
   // NOD-96 (v2): Abrir leva à tela cheia em Assistindo (no pedido de ajuda, já no controle). Sem v2, o diálogo de antes.
@@ -6721,12 +6741,18 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     canvasNaTela.querAbrir(el.dataset.id, el.dataset.endereco ?? null);
     quadroNaTela.abrirPagina("canvas");
   },
+  // D · Computador do bot (item 1): o chip [Computador](nod-computador:) abre o cartão "Destino do link" do bot que falou.
+  "computador-chip": (el) => {
+    const a = botGerido(botDoChip(el));
+    if (a) abrirCartaoDestino(el, a);
+  },
+  "computador-mostrar-painel": (el) => { if (el.dataset.id) mostrarComputadorNoPainel(el.dataset.id, abrirPainelDoBot); },
   "abrir-computador": (el) => {
     const a = botGerido(el.dataset.id);
     if (!a || !api || a.ownerId !== estado.sessao?.pessoaId) return;
     const sessao = api;
     if (!estado.computadorPessoa) return abrirComputador(sessao, a, { assumir: el.dataset.assumir === "1", dev: () => estado.modoDev.ligado, aoFechar: render });
-    abrirTelaCheia(sessao, a, { assumir: el.dataset.assumir === "1", pedido: el.dataset.pedido ?? null, aoMudar: () => void lerComputadorAgora(), antigo: estado.modoDev.ligado ? () => abrirComputador(sessao, a, { assumir: false, dev: () => estado.modoDev.ligado }) : null });
+    abrirTelaCheia(sessao, a, { assumir: el.dataset.assumir === "1", pedido: el.dataset.pedido ?? null, aoMudar: () => void lerComputadorAgora(), aoFechar: () => mostrarComputadorNoPainel(a.id, abrirPainelDoBot), antigo: estado.modoDev.ligado ? () => abrirComputador(sessao, a, { assumir: false, dev: () => estado.modoDev.ligado }) : null });
   },
   // NOD-96 (v2): as operações do computador da pessoa. Redefinir, Sair de todos e Esquecer senhas pedem confirmação; o resto vai direto.
   "operar-computador": (el) => {
@@ -9787,7 +9813,7 @@ function trocarLugarDoComputador(maquinaId: string, semLogins: boolean): Promise
   if (!maquinaId) return Promise.resolve();
   // NOD-407: a troca mata a repetição pendente do Acordar (ela religaria a máquina de antes no meio da troca).
   cancelarRetryDoComputador();
-  dispatch({ tipo: "computador-ui", ui: { trocarPara: null, recusaDaTroca: null, etapasAbertas: secaoAberta(estado) === "maquinas" } });
+  dispatch({ tipo: "computador-ui", ui: { trocarPara: null, recusaDaTroca: null, etapasAbertas: secaoAberta(estado) === "computador" } });
   window.clearTimeout(computadorTimer);
   ++computadorGeracao;
   return agir(async () => {
@@ -9872,6 +9898,12 @@ const ACOES_CHANGE: Record<string, (valor: string, el: HTMLSelectElement) => Pro
     await api!.maquinaPadrao(valor || null);
     dispatch({ tipo: "invalidar", quais: ["maquinas"] });
   })),
+  // Especificação D, item 7: "Onde o computador mora" é um seletor; escolher outro lugar abre a confirmação de sempre.
+  "pc-lugar": (valor, el) => {
+    if (valor === LUGAR_CONECTAR) { reporSeletor(el); return ACOES["conectar-sempre-ligada"]!(el); }
+    dispatch({ tipo: "computador-ui", ui: { trocarPara: valor || null, recusaDaTroca: null } });
+    focarNovo();
+  },
   "maquina-do-bot": (valor, el) => agir(salvarOuRepor(() => reporSeletor(el), async () => {
     await api!.maquinaDoBot(el.dataset.id ?? "", valor || null);
     dispatch({ tipo: "invalidar", quais: ["frota", "maquinas"] });

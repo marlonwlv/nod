@@ -782,8 +782,6 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       avisosDeEtapa.delete(e.turnoId);
       adotadosNaEntrega.delete(e.turnoId);
       deps.services.tokenTurno.revogar(e.turnoId);
-      // NOD-200: a captura do turno sai só com o assentar confirmado; na falha fica, como o escopo, para a entrega repetida.
-      deps.services.capturas?.esquecer(e.turnoId);
       deps.esquecerTurno?.(e.turnoId);
     },
 

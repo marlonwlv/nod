@@ -492,21 +492,6 @@
 .pv-pdf-paginas { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; width: max-content; min-width: 100%; box-sizing: border-box; }
 .pv-pdf-pagina { background: var(--papel); box-shadow: var(--shadow-pop); flex: none; }
 .pv-pdf-pagina canvas { display: block; }
-/* NOD-56 (protótipo do Gil, 2026-10-05): a tela do computador ao fim do turno, rodapé do balão do bot, à esquerda, sem corte. */
-.msg-captura { margin: 8px 0 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.msg-captura-bt { display: block; padding: 0; width: 240px; height: 150px; border: 1px solid var(--line); border-radius: var(--raio-12); overflow: hidden; background: var(--surface-raised); cursor: zoom-in; }
-.msg-captura-bt:hover { border-color: var(--line-strong); }
-.msg-captura-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.msg-captura-bt img { display: block; width: 100%; height: 100%; object-fit: contain; color: var(--ink-3); font-size: var(--fs-legenda); }
-.msg-captura figcaption { font-size: var(--fs-rotulo); color: var(--ink-3); }
-.captura-ampliada { padding: 0; border: 1px solid var(--line-strong); border-radius: var(--raio-18); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-pop); max-width: min(1320px, 94vw); max-height: 92vh; overflow: hidden; }
-.captura-ampliada::backdrop { background: var(--backdrop); backdrop-filter: blur(4px); }
-.captura-ampliada-corpo { display: flex; flex-direction: column; }
-.captura-ampliada-corpo img { display: block; width: auto; max-width: 100%; height: auto; max-height: calc(92vh - 58px); object-fit: contain; background: var(--surface-raised); }
-.captura-ampliada-rodape { display: flex; align-items: center; gap: 14px; padding: 12px 16px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-.captura-ampliada-rodape span { flex: 1; min-width: 0; }
-.captura-ampliada-rodape a { color: var(--ink); }
-@media (max-width: 640px) { .msg-captura-bt { width: min(240px, 100%); height: auto; aspect-ratio: 16 / 10; } }
 @media (max-width: 640px) { .anexo-chip { min-width: 0; max-width: 100%; flex: 1 1 100%; } .msg-anexo-img { width: 132px; height: 88px; } }
 
 /* A fala viva (NOD-348, emenda da ADR-114; Parte 2 do plano "o pensamento no chat", 2026-10-26, opção C): o turno rodando é a

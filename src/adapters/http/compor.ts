@@ -54,7 +54,6 @@ import { log } from "../../obs/log.ts";
 import { listarTodas } from "../../repositories/pessoas.repo.ts";
 import { criarBarramento, type Barramento } from "../../services/barramento.ts";
 import { criarConectoresVivos, type ConectoresVivos, type ConfigConectorVivo } from "../../services/conectores-vivos.ts";
-import { capturaLigada, criarCapturas } from "../../services/capturas.ts";
 import type { Conector } from "../../contracts/conector.ts";
 import { COMANDO_GITHUB_NATIVO } from "../../contracts/github.ts";
 import { executarGithubNaMaquina } from "../conectores-locais/github/maquina.ts";
@@ -724,8 +723,6 @@ export function comporApp(o: OpcoesCompor): App {
     });
   }
 
-  // NOD-200: a chave liga o guardador e o serviço juntos; desligada, nada fica em memória e `tomar` é sempre null.
-  const capturaNoTranscript = capturaLigada(env);
   /**
    * NOD-96 PR 3 (ADR-122): `NOD_COMPUTADORES=motor` — o computador roda numa máquina da pessoa, pelo motor; a flag é lida
    * só aqui. O portão (fundo/computadores.ts) segue falando do computador do bot; o driver acha o da pessoa (`por_pessoa`,
@@ -804,7 +801,7 @@ export function comporApp(o: OpcoesCompor): App {
     }) });
     return { config, driver: criarDriverPorProvedor({ config, provedores, agenteDe: (id, escopo) => dentro(escopo, (d) => d.repos.computadores.agenteDoComputador(id)) }) };
   })();
-  const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? provedoresComputador?.driver ?? criarDriverDocker(env), executor: () => executorAtual, guardarTelas: capturaNoTranscript,
+  const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? provedoresComputador?.driver ?? criarDriverDocker(env), executor: () => executorAtual,
     porPessoa: computadorNoMotor,
     ...(sessoesVivo ? { vivo: sessoesVivo } : {}),
     lugarPadraoNaCriacao: computadorNoMotor ? (escopo) => lugarPadrao(ponteHttp.maquinasComComputador(escopo)) : undefined,
@@ -819,7 +816,6 @@ export function comporApp(o: OpcoesCompor): App {
     const rodar: RodarNaTx = (fn) => dentro(escopo, async (d) => executar(d, (dd) => fn(dd), undefined));
     void trazerImportacao(rodar, efeito.importacaoId).catch((erro: unknown) => log("erro", "importar_linear_falhou", { importacao_id: efeito.importacaoId, erro: erro instanceof Error ? erro.message : String(erro) }));
   };
-  services.capturas = criarCapturas({ ligado: capturaNoTranscript, fonte: computadores });
   // definido em 2026-09-18: login web remoto não autoriza o filesystem do host; stub só escuta loopback.
   const workspaces = compartilhado || env.NOD_LOGIN !== "stub" ? undefined : criarWorkspaces({ dentro, machineId, imagem: env.NOD_COMPUTADOR_IMAGEM, ...(env.NOD_BUSCA_BASE ? { baseBusca: env.NOD_BUSCA_BASE } : {}), raiz: join(expandirTil(env.NOD_HOME ?? "~/.nod", homedir()), "workspaces") });
   if (workspaces) services.workspaces = workspaces;
@@ -1787,9 +1783,12 @@ export function comporApp(o: OpcoesCompor): App {
         anexarCerebro: ({ identidade, ligacaoId, canal }) => voz.anexarCerebro({ turnoId: identidade.turnoId, ligacaoId, canal }),
         anexarDitado: ({ escopo, canal }) => anexarDitado(escopo, canal),
         ...(sessoesVivo ? { computadorVivo: {
-          web(escopo, agenteId, canal) {
-            const s = sessoesVivo.abrir({ escopo, agenteId, web: canal, conferir: () => computadores.vivoAindaPode(escopo, agenteId) });
-            computadores.vivo(escopo, agenteId, { sessao: s.sessao, token: s.token }).catch((e: unknown) => {
+          web(escopo, agenteId, canal, modo) {
+            const assistir = modo?.assistir === true;
+            const s = assistir
+              ? sessoesVivo.abrir({ escopo, agenteId, web: canal, assistir: () => computadores.vivoPodeAssistir(escopo, agenteId) })
+              : sessoesVivo.abrir({ escopo, agenteId, web: canal, conferir: () => computadores.vivoAindaPode(escopo, agenteId) });
+            computadores.vivo(escopo, agenteId, { sessao: s.sessao, token: s.token }, { assistir }).catch((e: unknown) => {
               const motivo = e instanceof ErroDeDominio ? e.codigo : ehFalhaComputador(e) ? e.motivo : "acao_falhou";
               const causa = e instanceof Error && e.cause !== undefined ? String(e.cause) : null;
               log("aviso", "computador_vivo_recusado", { agente_id: agenteId, motivo, causa });

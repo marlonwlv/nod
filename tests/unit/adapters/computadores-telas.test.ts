@@ -1016,6 +1016,34 @@ it("revisão do PR #599: o ao vivo só com a pessoa no controle, no ar e sem ope
   expect(pedidos).toEqual(["tela-a"]);
 });
 
+it("card D, F3/F4: assistir ao vivo com o bot no controle; assumir libera o teclado da sessão, devolver tira sem fechar", async () => {
+  const pedidos: string[] = [];
+  const trocas: string[] = [];
+  const comVivo = criarComputadores({
+    executor: () => "catcher", porPessoa: true, driver: { ...driver, vivo: async (id) => { pedidos.push(id); } }, cifrar: (s) => s, decifrar: (s) => s, mudou: () => {}, agora: () => agora,
+    lugarPadraoNaCriacao: () => "maquina-inicial",
+    dentro: async <T>(_e: unknown, fn: (d: never) => Promise<T>) => fn(deps() as never),
+    dormir: async (ms) => { agora += ms; },
+    vivo: { fecharDaTela: (_e, agenteId) => { trocas.push(`fechar:${agenteId}`); }, liberarDaTela: (_e, agenteId) => { trocas.push(`liberar:${agenteId}`); } },
+  });
+  const sessao = { sessao: "s", token: "t" };
+  mudar("tela-a", { estado: "aberta" });
+  await comVivo.vivo(MARLON, A, sessao, { assistir: true });
+  expect(pedidos).toEqual(["tela-a"]);
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: true, mexer: false });
+  await comVivo.configurar(MARLON, A, "assumir");
+  expect(trocas).toEqual([`liberar:${A}`]);
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: true, mexer: true });
+  await comVivo.configurar(MARLON, A, "devolver");
+  expect(trocas).toEqual([`liberar:${A}`, `fechar:${A}`]);
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: true, mexer: false });
+  // Fora do ar: nem assistir.
+  pessoa = { ...pessoa, indisponivelDesde: agora };
+  await expect(comVivo.vivo(MARLON, A, sessao, { assistir: true })).rejects.toMatchObject({ codigo: "estado_invalido" });
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: false, mexer: false });
+  pessoa = { ...pessoa, indisponivelDesde: null };
+});
+
 it("revisão do PR #599 (NOD-410): bot sem tela no computador ligado da pessoa — o painel vem com o ativo dela, para o Abrir o computador assumir", async () => {
   const perguntados: string[] = [];
   const espiao = criarComputadores({

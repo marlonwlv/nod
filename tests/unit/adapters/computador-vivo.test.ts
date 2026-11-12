@@ -122,3 +122,53 @@ describe("sessões da tela ao vivo", () => {
     expect(s.abertas()).toEqual([]);
   });
 });
+
+describe("card D, F3: sessão de quem assiste", () => {
+  const APERTO = new Uint8Array([...new TextEncoder().encode("RFB 003.008\n"), 1, 1]);
+  const PEDIDO_QUADRO = new Uint8Array([3, 1, 0, 0, 0, 0, 5, 0, 3, 32]);
+  const PONTEIRO = new Uint8Array([5, 1, 0, 10, 0, 20]);
+  const juntar = (...partes: Uint8Array[]) => { const t = new Uint8Array(partes.reduce((s, p) => s + p.length, 0)); let i = 0; for (const p of partes) { t.set(p, i); i += p.length; } return t; };
+
+  it("sem o controle, o ponteiro não passa e o pedido de quadro sim; liberar passa, fecharDaTela tira sem fechar", async () => {
+    const s = criarSessoesVivo();
+    const web = lado();
+    let mexer = false;
+    const { sessao, token } = s.abrir({ escopo: ESCOPO, agenteId: "a1", web: web.l, assistir: async () => ({ ver: true, mexer }) });
+    const motor = lado();
+    expect(s.anexarMotor(sessao, token, motor.l)).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+    web.chegou(juntar(APERTO, PEDIDO_QUADRO, PONTEIRO));
+    expect(motor.recebidos.at(-1)).toEqual(juntar(APERTO, PEDIDO_QUADRO));
+    s.liberarDaTela(ESCOPO, "a1");
+    web.chegou(PONTEIRO);
+    expect(motor.recebidos.at(-1)).toEqual(PONTEIRO);
+    mexer = true;
+    s.fecharDaTela(ESCOPO, "a1");
+    expect(web.fechamentos).toEqual([]);
+    const antes = motor.recebidos.length;
+    web.chegou(PONTEIRO);
+    expect(motor.recebidos.length).toBe(antes);
+    expect(s.abertas()).toEqual([{ sessao, agenteId: "a1", pareada: true, entrada: false }]);
+  });
+
+  it("mensagem desconhecida fecha a sessão (falha fechado)", () => {
+    const s = criarSessoesVivo();
+    const web = lado();
+    const { sessao, token } = s.abrir({ escopo: ESCOPO, agenteId: "a1", web: web.l, assistir: async () => ({ ver: true, mexer: false }) });
+    s.anexarMotor(sessao, token, lado().l);
+    web.chegou(juntar(APERTO, new Uint8Array([99, 0, 0])));
+    expect(web.fechamentos).toEqual([[FECHAMENTOS_VIVO.recusado, "fluxo desconhecido"]]);
+  });
+
+  it("a reconferência sem ver encerra; a de controle e a de assistir contam à parte no limite por tela", async () => {
+    const s = criarSessoesVivo();
+    const web = lado();
+    const { sessao, token } = s.abrir({ escopo: ESCOPO, agenteId: "a1", web: web.l, assistir: async () => ({ ver: false, mexer: false }) });
+    const controles = Array.from({ length: VIVO_POR_TELA }, () => lado());
+    for (const c of controles) s.abrir({ escopo: ESCOPO, agenteId: "a1", web: c.l });
+    expect(web.fechamentos).toEqual([]);
+    s.anexarMotor(sessao, token, lado().l);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(web.fechamentos).toEqual([[FECHAMENTOS_VIVO.trocou, "a tela não está mais à vista"]]);
+  });
+});

@@ -48,34 +48,9 @@
 .cb-anel .cb-anel-trilho { stroke: var(--line-strong); }
 .cb-anel .cb-anel-valor { stroke: var(--signal); stroke-linecap: round; transition: stroke-dasharray var(--dur-mais-lento) ease; }
 
-/* ---------- A linha de 2 px no cabeçalho do chat (o progresso, em segundo plano) ---------- */
-/* Vai dentro do button.pilula-bot. No computador, a pílula é o cabeçalho: a linha acende a borda de baixo dela, na
-   parte reta. No celular, a pílula não é posicionada e a linha cai na borda de baixo do .cabecalho inteiro. */
-.cb-fio { position: absolute; left: 0; right: 0; bottom: -1px; z-index: 1; display: block; height: 2px; overflow: hidden; background: transparent; pointer-events: none; }
-.cb-fio > i { display: block; height: 100%; background: var(--signal); transition: width var(--dur-mais-lento) ease; }
-.cb-fio.cb-fio-fim > i { animation: cb-fio-some .6s 1.2s both; }
-@keyframes cb-fio-some { to { opacity: 0; } }
-.pilula-bot:has(> .cb-fio) { position: relative; }
-.pilula-bot > .cb-fio { left: 19px; right: 19px; bottom: -1px; border-radius: var(--raio-2); }
-.pilula-bot > .cb-fio > i { border-radius: inherit; }
-/* A mesma condição do mobile.css do nod (onde a pílula vira a faixa do ☰). */
-@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
-  .pilula-bot:has(> .cb-fio) { position: static; }
-  .pilula-bot > .cb-fio { left: 0; right: 0; border-radius: 0; }
-}
-
-/* ---------- A miniatura da tela: "Abrir" no centro, leve escurecimento, sem pílula ---------- */
-.tela-preview.cb-mini .tela-abrir, .tela-preview.com-imagem.cb-mini .tela-abrir { opacity: 1; background: #00000033; transition: background var(--dur-normal) ease; } /* cor-fixa: véu sobre o monitor */
-.tela-preview.cb-mini:hover .tela-abrir, .tela-preview.cb-mini:focus-visible .tela-abrir { background: #00000073; } /* cor-fixa: a tela do bot é sempre escura */
+/* ---------- "Abrir" sobre a miniatura do card de login ---------- */
 .cb-abrir { display: inline-flex; align-items: center; gap: 6px; color: #fff; font-size: var(--fs-corpo); font-weight: 500; text-shadow: 0 1px 8px #000a; } /* cor-fixa: texto sobre o monitor */
 .cb-abrir svg { width: 16px; height: 16px; filter: drop-shadow(0 1px 4px #0009); } /* cor-fixa: a tela do bot é sempre escura */
-.tela-preview.cb-mini:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.cb-ao-vivo { position: absolute; top: 8px; left: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px 2px 6px; border-radius: var(--raio-full); background: #00000080; color: #fff; font-size: var(--fs-legenda); font-weight: 500; line-height: 1.4; } /* cor-fixa: selo sobre o monitor */
-.cb-ao-vivo i { width: 6px; height: 6px; border-radius: 50%; background: #3ecf8e; animation: cb-pulsa 2.4s ease-in-out infinite; } /* cor-fixa: o --agent-vert */
-
-/* ---------- Sem tela: uma linha discreta, sem caixa ---------- */
-.cb-gv-linha { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 2px 0 4px; color: var(--ink-3); font-size: var(--fs-corpo-2); line-height: 1.45; text-align: center; }
-.cb-gv-linha svg { flex: none; width: 15px; height: 15px; }
 
 /* ---------- O mascote (htmlMascote do nod, estado "pausado" = dormindo) ---------- */
 .cb-sono { --mascote-cor: var(--agent-bleu); }
@@ -112,42 +87,10 @@
 /* 29/10: o "Acordando…" fica à vista enquanto o computador liga (a VM do Mac leva minutos); antes sumia em 2 s e deixava a aba vazia. */
 .cb-acordando .cb-zzz { animation: cb-sai .3s both; }
 .cb-acordando .cb-sono-masc { animation: cb-espreguica 1.9s ease-in-out both; }
-.cb-acordando .tela-preview { animation: cb-entra .45s 2s both; }
 @keyframes cb-espreguica { 0%, 62% { transform: none; } 76% { transform: translateY(-3px) scale(.9, 1.14); } 88% { transform: scale(1.05, .95); } 100% { transform: none; } }
 @keyframes cb-sai { to { opacity: 0; visibility: hidden; } }
 @keyframes cb-entra { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
 
-/* ---------- Tela cheia: quase a janela toda, imagem inteira, título pequeno, ✕ discreto, pílula sutil ---------- */
-/* No protótipo é um véu dentro do palco (a moldura usa transform); no nod, o <dialog> em tela cheia. */
-/* No protótipo era um véu absoluto; no nod é um <dialog> modal (foco preso, Esc fecha, o resto fica inerte). */
-dialog.cb-veu { position: fixed; inset: 0; width: auto; height: auto; max-width: none; max-height: none; margin: 0; padding: 20px; border: 0; box-sizing: border-box; background: transparent; color: inherit; overflow: hidden; }
-dialog.cb-veu[open] { display: flex; align-items: center; justify-content: center; }
-dialog.cb-veu::backdrop { background: var(--backdrop); }
-.cb-tela-vista > img.controlavel { cursor: default; }
-.cb-tela-vista > img:focus-visible { outline: 2px solid #fff; outline-offset: -5px; } /* cor-fixa: WCAG 2.4.7, dentro da borda azul do controle */
-.cb-tela { position: relative; flex: none; width: 100%; max-height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--raio-14); background: #111113; color: #e4e4e7; box-shadow: 0 24px 64px #0007; } /* cor-fixa: a moldura do monitor, escura nos dois temas */
-.cb-tela-cab { flex: none; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 6px 0 14px; box-sizing: border-box; font-size: var(--fs-corpo-2); }
-.cb-tela-tit { flex: none; margin: 0; font-size: var(--fs-corpo-2); font-weight: 500; color: #e4e4e7; } /* cor-fixa: a tela do bot é sempre escura */
-.cb-tela-pedido { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #a1a1aa; } /* cor-fixa: 7,6:1 sobre #111113 */
-.cb-tela-cab .cb-tela-x { flex: none; display: grid; place-items: center; width: 32px; height: 32px; margin: 0 0 0 auto; padding: 0; border: 0; border-radius: var(--raio-8); background: none; color: #a1a1aa; cursor: pointer; } /* cor-fixa: a tela do bot é sempre escura */
-.cb-tela-cab .cb-tela-x:hover { background: #ffffff14; color: #fff; } /* cor-fixa: a tela do bot é sempre escura */
-.cb-tela-x:focus-visible { outline: 2px solid #4ea3f0; outline-offset: 0; } /* cor-fixa: o --focus-ring do escuro */
-/* A moldura abraça a tela (16:10, a resolução do computador): sobra fundo escurecido em volta, não faixa preta. Se não couber na altura, encolhe e a imagem fica inteira (contain). */
-.cb-tela-vista { position: relative; flex: 0 1 auto; min-height: 0; aspect-ratio: 16 / 10; display: grid; place-items: center; background: #000; } /* cor-fixa: a tela do bot é sempre escura */
-.cb-tela-vista > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; } /* a imagem inteira, na proporção */
-/* NOD-95: a tela ao vivo (noVNC) ocupa o mesmo lugar da imagem; o cliente escala o canvas para caber inteiro. */
-.cb-tela-vista > .cb-tela-vivo { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
-.cb-tela-vista > .cb-tela-vivo[hidden] { display: none; }
-.cb-tela-vista.no-controle::after { content: ""; position: absolute; inset: 0; z-index: 2; border: 3px solid #4ea3f0; pointer-events: none; } /* cor-fixa: a borda do controle, como na v1 */
-/* A pílula: estado + ação em link, embaixo e no meio, translúcida. */
-.cb-pilula { position: absolute; z-index: 3; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100% - 24px); box-sizing: border-box; padding: 7px 14px; border: 1px solid #ffffff1f; border-radius: var(--raio-full); background: #1c1c1ecc; color: #d4d4d8; font-size: var(--fs-corpo-2); line-height: 1.35; box-shadow: 0 6px 20px #0005; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); } /* cor-fixa: sobre a tela */
-.cb-pilula svg { flex: none; width: 15px; height: 15px; }
-.cb-pilula .ob-gira { flex: none; width: 10px; height: 10px; border-width: 1.5px; }
-.cb-pilula-est { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.cb-pilula .cb-sep { color: #71717a; } /* cor-fixa: a tela do bot é sempre escura */
-.cb-pilula .cb-link { flex: none; color: #fff; text-decoration-color: #ffffff59; } /* cor-fixa: a tela do bot é sempre escura */
-.cb-pilula .cb-link:focus-visible { outline-color: #4ea3f0; } /* cor-fixa: a tela do bot é sempre escura */
-.cb-pilula.cb-controle svg { color: #4ea3f0; } /* cor-fixa: o azul do controle */
 
 /* ---------- Card de login leve: miniatura do site, título, ponto âmbar, dica; sem caixa ---------- */
 .cb-login { display: flex; align-items: center; gap: 12px; max-width: 520px; padding: 2px 0; }
@@ -231,13 +174,6 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 
 /* ---------- Celular ---------- */
 @media (max-width: 640px) {
-  .cb-veu { padding: 0; }
-  .cb-tela { align-self: stretch; max-height: none; border-radius: 0; }
-  .cb-tela-vista { flex: 1; aspect-ratio: auto; }
-  .cb-tela-cab { min-height: 48px; padding-top: env(safe-area-inset-top); }
-  .cb-tela-cab .cb-tela-x { width: 44px; height: 44px; }
-  .cb-pilula { bottom: calc(16px + env(safe-area-inset-bottom)); padding: 4px 6px 4px 14px; }
-  .cb-pilula .cb-link { display: inline-flex; align-items: center; min-height: 40px; padding: 0 8px; }
   /* Links no meio do texto: a área de toque cresce para 44 px sem mudar a linha. */
   .cb-acoes .cb-link, .cb-linha .cb-link { position: relative; }
   .cb-acoes .cb-link::after, .cb-linha .cb-link::after { content: ""; position: absolute; inset: -12px -6px; }
@@ -308,26 +244,25 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 
 /* ---------- Movimento reduzido: tudo parado ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .cb-sono .cb-respira, .cb-zzz i, .cb-estrelas i, .cb-ao-vivo i, .cb-aguarda .cb-ponto { animation: none; }
+  .cb-sono .cb-respira, .cb-zzz i, .cb-estrelas i, .cb-aguarda .cb-ponto { animation: none; }
   .cb-zzz i { opacity: .8; }
   .cb-estrelas i { opacity: .4; }
   /* Acordar: o fim, direto (a tela no lugar do mascote). */
   .cb-acordando .cb-sono { animation: none; opacity: 0; visibility: hidden; }
-  .cb-acordando .tela-preview, .cb-acordando .cb-sono-masc { animation: none; }
+  .cb-acordando .cb-sono-masc { animation: none; }
   /* Cenas: uma imagem parada por etapa. */
   .cb-cena *, .cb-cena-masc > nod-mascote { animation: none !important; }
   .cb-cena[data-etapa="baixando"] .cb-peca.p1 { opacity: 1; transform: translateY(6px); }
   .cb-cena[data-etapa="ligando"] .cb-cena-luz, .cb-cena[data-etapa="abrindo"] .cb-cena-luz, .cb-cena[data-etapa="abrindo"] .cb-cena-nav, .cb-cena[data-etapa="abrindo"] .cb-cena-mao { opacity: 1; }
   .cb-cena[data-etapa="ligando"] .cb-cena-botao { fill: var(--success); }
   .cb-item-ok .cb-ok-v, .cb-item-ok .cb-ic-pc, .cb-fio.cb-fio-fim > i { animation-duration: .01s; }
-  .cb-dica, .tela-preview.cb-mini .tela-abrir, .cb-login-mini .cb-abrir, .cb-anel .cb-anel-valor, .cb-fio > i, .pc-barra i { transition: none; }
-  .cb-linha-ic .ob-gira, .cb-pilula .ob-gira, .pc-et-ic .ob-gira, .maq-estado .ob-gira { animation-duration: 2.4s; }
+  .cb-dica, .cb-login-mini .cb-abrir, .cb-anel .cb-anel-valor, .cb-fio > i, .pc-barra i { transition: none; }
+  .cb-linha-ic .ob-gira, .pc-et-ic .ob-gira, .maq-estado .ob-gira { animation-duration: 2.4s; }
 }
 
 /* ---------- Alto contraste (forced-colors): o progresso, o ponto e o tooltip não somem ---------- */
 /* Sem isso o Windows troca os fundos por Canvas e a barra, a linha de 2 px e o ponto do card ficam invisíveis. */
 @media (forced-colors: active) {
-  .cb-tela-vista > img:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
   .pc-barra { border: 1px solid CanvasText; }
   .pc-barra i, .cb-fio > i { forced-color-adjust: none; background: Highlight; }
   .cb-anel .cb-anel-trilho { stroke: GrayText; }
@@ -340,66 +275,3 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 /* NOD-97 PR 5: o selo do cadeado na linha "Entrou de novo com a senha salva" ("‹bot› não vê a senha"). */
 .at-sigilo { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 7px; border-radius: var(--raio-full); background: var(--surface-selected); color: var(--ink-3); font-style: normal; font-size: var(--fs-legenda); white-space: nowrap; vertical-align: 1px; }
 .at-sigilo svg { flex: none; }
-
-/* ---------- Tela 11 (ADR-173, 2026-11-12): o estado do computador em uma palavra, no desenho do protótipo ----------
-   Rótulo pequeno acima do cartão; cartão com título, apoio e, à direita, a miniatura (ao vivo) ou um ícone do estado.
-   Só tokens existentes; nada de token global novo. */
-.cbe { margin: 0 0 12px; }
-.cbe-rotulo { margin: 0 0 6px; color: var(--ink-2); font-size: 13px; font-weight: 500; }
-.cbe-cartao { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
-.cbe-txt { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
-.cbe-txt b { color: var(--ink); font-size: 13px; font-weight: 500; }
-.cbe-apoio { overflow: hidden; color: var(--ink-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.cbe-apoio.vivo { color: var(--success); }
-.cbe-icone { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 64px; height: 40px; border-radius: 8px; background: var(--surface-selected); color: var(--ink-3); }
-.cbe-icone.gira svg { animation: cbe-gira 1.2s linear infinite; }
-.cbe-mini { position: relative; flex: none; width: 64px; height: 40px; padding: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 8px; background: #1b1d22; cursor: pointer; } /* cor-fixa: a tela do bot é sempre escura */
-.cbe-mini img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.cbe-mini:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.cbe-acoes { display: flex; gap: 8px; margin: 10px 0 0; }
-.cbe-acoes .bt svg { margin-right: 4px; vertical-align: -2px; }
-.cbe-topo { display: inline-flex; align-items: center; gap: 12px; font-size: 13px; }
-.cbe-topo-pilula { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .08); color: #fff; } /* cor-fixa: a tela do bot é sempre escura */
-.cbe-topo-extra { color: rgba(255, 255, 255, .55); } /* cor-fixa: a tela do bot é sempre escura */
-.cbe-ponto { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
-.cbe-topo[data-estado-computador="ao_vivo"] .cbe-ponto { background: var(--success); }
-.cbe-topo[data-estado-computador="sem_conexao"] .cbe-ponto { background: var(--danger); }
-@keyframes cbe-gira { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .cbe-icone.gira svg { animation: none; } }
-
-/* Tela 11 do Paper (rodada 2): o cartão branco de raio 12 com a sombra leve, a linha de 60 (título 13, apoio 12 e o
-   ícone num ladrilho de 64 × 40), as ações do Sem conexão dentro dele ("Tentar de novo" cheio e "Ver máquinas" com
-   contorno) e 16 entre um estado e o outro. */
-.cbe { margin: 0 0 16px; }
-.cbe-rotulo { margin: 0 0 8px; line-height: 18px; }
-.cbe-cartao { display: block; padding: 0; border: 1px solid var(--borda-sutil); background: var(--surface-elevated); box-shadow: var(--sombra-inline); }
-:root[data-theme="dark"] .cbe-cartao { box-shadow: none; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cbe-cartao { box-shadow: none; } }
-.cbe-linha { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 12px; box-sizing: border-box; }
-.cbe-txt b { line-height: 18px; }
-.cbe-apoio { line-height: 16px; }
-.cbe-icone { background: var(--hover); }
-.cbe-acoes { margin: 0; padding: 0 12px 12px; }
-.cbe-acoes .bt { height: 28px; min-height: 28px; padding: 0 10px; border-radius: 8px; font-size: 13px; font-weight: 500; }
-.cbe-acoes .bt:not(.primario) { border: 1px solid var(--borda); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-controle); }
-.cbe-acoes .bt.primario { border: 1px solid transparent; background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); }
-
-/* Rodada 3 (tela 11 do Paper, os 3 estados): o rótulo é o p_label (16 em cima, 8 embaixo, 4 de recuo), o título do cartão
-   em peso normal, 10 px entre o texto e o ladrilho, o ladrilho com a borda fina e, ao vivo sem a imagem ainda, o desenho
-   de uma tela (barra escura e uma janela clara) no lugar do bloco preto. */
-.cbe { margin: 0; }
-.cbe-rotulo { margin: 0; padding: 16px 4px 8px; line-height: 18px; }
-.cbe-linha { gap: 10px; padding: 8px 12px; }
-.cbe-txt { gap: 0; }
-.cbe-txt b { font-weight: var(--peso-regular); }
-.cbe-icone { box-sizing: border-box; border: 1px solid var(--borda-sutil); }
-.cbe-mini { box-sizing: border-box; border-color: var(--borda-sutil); background: #1d1f24; } /* cor-fixa: a tela do bot é sempre escura */
-.cbe-mini-vazia { position: absolute; inset: 0; display: block;
-  background:
-    linear-gradient(#ffffff33, #ffffff33) 4px 4px / 60% 5px no-repeat, /* cor-fixa: o desenho da tela do bot (sempre escura) */
-    linear-gradient(#1c1c1c14, #1c1c1c14) 7px 15px / 15px 19px no-repeat, /* cor-fixa: o desenho da tela do bot (sempre escura) */
-    linear-gradient(#1c1c1c26, #1c1c1c26) 25px 15px / 30px 3px no-repeat, /* cor-fixa: o desenho da tela do bot (sempre escura) */
-    linear-gradient(#1c1c1c1a, #1c1c1c1a) 25px 20px / 21px 3px no-repeat, /* cor-fixa: o desenho da tela do bot (sempre escura) */
-    linear-gradient(#f5f5f5, #f5f5f5) 4px 12px / calc(100% - 8px) calc(100% - 16px) no-repeat; } /* cor-fixa: a tela do bot é sempre escura; o desenho é o computer_thumb do Paper */
-.cbe-mini-vazia { border-radius: 0; }
-.cbe-mini img:not([hidden]) + .cbe-mini-vazia { display: none; }

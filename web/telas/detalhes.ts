@@ -4,10 +4,9 @@ import type { RotinaDto } from "../../src/contracts/api.ts";
 import type { AbaGaveta, Estado, EstadoComputadorBot, NivelGaveta } from "../estado/reducer.ts";
 import { botao, dataHora, esc, hora, iconeAgente } from "../lib/render.ts";
 import { ICONE } from "../lib/icones.ts";
-import { MOTIVO_FALHA_TEXTO } from "../lib/computador.ts";
-import { htmlGavetaTela } from "../lib/computador-pessoa.ts";
+import { ENTRADA_PARADA, TENTAR_V2, entradaDoComputador, estadoDoCartaoDoBot, htmlCartaoComputador, telaCheiaAberta, type EntradaDoCartao } from "../lib/computador-estados.ts";
 import { ATALHO_SEMPRE_LIGADA, botaoDaParada, desdeDaParada, linhaOndeRoda, pedeAtalhoNaExecucao, rotuloExecucao } from "../lib/execucao.ts";
-import { avatarDoBot, CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
+import { avatarDoBot, mascoteAnimado, CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
 import { botaoLigar, htmlLinhaLigar, VELOCIDADES, VOZES } from "./ligacao.ts";
 import { renderSeloModoDev } from "./modo-dev.ts";
 import { caminhoDaPastaDoBot } from "../lib/pasta-do-bot.ts";
@@ -79,9 +78,13 @@ export function paiDoNivel(nivel: NivelGaveta, celular = false): NivelGaveta | n
   return nivel.tipo === "rotina" || nivel.tipo === "nova-rotina" || nivel.tipo === "ajustes" ? null : { tipo: "ajustes" };
 }
 
-/** ADR-125: as abas que o bot tem. O bot de outra pessoa não tem Computador; com uma aba só, a gaveta não mostra abas. */
+/**
+ * ADR-125: as abas que o bot tem. Especificação D, item 2 (decisão a): a aba Computador saiu; o computador é o cartão
+ * da Atividade, que abre a tela cheia. A aba lembrada de antes cai em Detalhes (`abaAberta`).
+ */
 export function abasDoBot(dona: boolean): AbaGaveta[] {
-  return ["detalhes", "biblioteca", ...(dona ? (["computador"] as const) : [])];
+  void dona;
+  return ["detalhes", "biblioteca"];
 }
 
 /** ADR-167 (Paper 02/02b): à vista só Atividade e Biblioteca; o Computador abre pelo bloco dele na Atividade. */
@@ -150,7 +153,7 @@ function visaoGeral(estado: Estado, a: Bot, dona: boolean): string {
   const aberta = abaAberta(estado, a.id, abas);
   // O ponto vem só da frota (revisão da NOD-349): o "fora" de um pulso antigo não fica preso depois que o computador volta.
   const fora = Boolean(a.computadorForaDoAr);
-  const painel = (aba: AbaGaveta) => (aba === "detalhes" ? abaDetalhes(estado, a, dona) : aba === "computador" ? abaComputador(estado, a) : abaBiblioteca(estado, a, dona));
+  const painel = (aba: AbaGaveta) => (aba === "biblioteca" ? abaBiblioteca(estado, a, dona) : abaDetalhes(estado, a, dona));
   if (abas.length === 1) return identidade(estado, a, dona) + `<div class="gv-aba-painel">${painel("detalhes")}</div>`;
   const tabs = abasAVista(abas, aberta)
     .map((aba) => {
@@ -335,13 +338,28 @@ function blocoFrentes(estado: Estado, a: Bot): string {
   return `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>Frentes</h3></div><div class="gv-cartao">${abertos.map(linhaFrente).join("")}</div></section>`;
 }
 
-/** ADR-167 (Paper 02): o bloco Computador — a linha com o estado e a miniatura; o clique abre a tela do bot. */
-function blocoComputador(estado: Estado, a: Bot): string {
-  const visto = estadoDoComputadorNaGaveta(estado, a);
-  const sub = visto === "fora" ? "Fora do ar" : visto === "dormindo" ? "Dormindo" : visto === "sem" ? "Ainda sem computador" : visto === null ? "Ativo" : "Ativo";
-  const ok = visto !== "fora" && visto !== "sem" && visto !== "dormindo";
-  // Paper 02 (rodada 3): "Ativo · Mac do Marlon", o nome da máquina onde o computador mora.
-  return `<section class="gv-secao gv-computador"><div class="gv-secao-cab"><h3>Computador</h3></div><div class="gv-cartao">${linha(`<span class="gv-linha-txt"><b>${esc(`Computador de ${a.nome}`)}${a.computadorForaDoAr ? '<span class="gvn-ponto" aria-hidden="true"></span><span class="sr-only"> (fora do ar)</span>' : ""}</b><small class="${ok ? "gv-ok" : ""}">${esc(sub)}${ok && estado.computadorPessoa ? ` · ${estado.computadorPessoa.maquina?.nome ?? "Mac"}` : ""}</small></span><span class="gv-mini${ok ? "" : " gv-mini-off"}" data-tela-bot="${esc(a.id)}" aria-hidden="true"><img alt="" hidden /><i></i><i></i></span>`, `data-act="gaveta-aba" data-aba="computador" data-id="${esc(a.id)}" aria-label="${esc(`Ver o computador de ${a.nome}`)}"`)}</div></section>`;
+/**
+ * Especificação D, item 2: a seção Computador com o cartão "Computador de {Bot}" — o status e a miniatura 64 × 40 sem
+ * imagem (Em repouso, Ativo, Ligando…, Sem conexão/Fora do ar). O clique abre a tela cheia (`abrir-computador`); fora
+ * do ar, "Tentar de novo" é um link no status. Os estados e as esperas moram em web/lib/computador-estados.ts.
+ */
+export function blocoComputador(estado: Estado, a: Bot): string {
+  const e = entradaDoCartao(estado, a);
+  const situacao = estadoDoCartaoDoBot(a.id, e);
+  const tentar = estado.computadorPessoa ? TENTAR_V2 : `data-act="religar-computador" data-id="${esc(a.id)}"`;
+  // Sem o computador da pessoa (v1), o pulso de web/telas/tela-do-bot.ts lê o estado com o `data-comp-bot` à vista (sem imagem).
+  const pulso = estado.computadorPessoa ? "" : `<span hidden data-comp-bot="${esc(a.id)}"></span>`;
+  return `<section class="gv-secao gv-computador cpm" id="gv-computador-${esc(a.id)}"><h3 class="cpm-titulo">Computador</h3>${htmlCartaoComputador(situacao, a, e, tentar)}${pulso}</section>`;
+}
+
+/** O que o cartão lê: o computador da pessoa (v2) ou, sem ele, o pulso deste bot (v1); o turno; a tela cheia aberta. */
+function entradaDoCartao(estado: Estado, a: Bot): EntradaDoCartao {
+  const botTrabalhando = mascoteAnimado(avatarDoBot(estado, a));
+  const telaAberta = telaCheiaAberta(a.nome);
+  if (estado.computadorPessoa) return entradaDoComputador(estado.computadorPessoa, a.id, { botTrabalhando, telaAberta });
+  // O fora do ar vem só da frota (revisão da NOD-349): o "fora" de um pulso antigo não prende o cartão depois que o computador volta.
+  if (a.computadorForaDoAr) return { ...ENTRADA_PARADA, computador: "fora", foraDesde: a.computadorForaDoAr.desde, telaAberta };
+  return { ...ENTRADA_PARADA, botUsando: estado.computadorVisto[a.id] === "ocupado", telaAberta };
 }
 
 /**
@@ -367,39 +385,6 @@ export function fraseDaParada(b: NonNullable<RotinaDto["bloqueio"]>): string {
 export function estadoDoComputadorNaGaveta(estado: Pick<Estado, "computadorVisto">, a: Pick<Bot, "id" | "computadorForaDoAr">): EstadoComputadorBot | null {
   if (a.computadorForaDoAr) return "fora";
   return estado.computadorVisto[a.id] ?? null;
-}
-
-/**
- * ADR-125: a aba Computador — a miniatura e os estados ligado, dormindo, sem computador e fora do ar. A imagem ao vivo
- * entra por web/telas/tela-do-bot.ts, que só observa com esta aba à vista (`data-comp-bot`), sem regravar a gaveta.
- */
-export function abaComputador(estado: Estado, a: Bot): string {
-  // NOD-96 (v2): com o computador da pessoa, a aba mostra a miniatura com Abrir, "não está usando o navegador",
-  // dormindo/Acordar e o fora do ar com o caminho — o estado vem do computador da pessoa, não do pulso deste bot.
-  const v2 = estado.computadorPessoa;
-  if (v2) return htmlGavetaTela(v2, a, estado.computadorUi.recusa ?? null);
-  const visto = estadoDoComputadorNaGaveta(estado, a);
-  const acao = estado.computadorAcao?.agenteId === a.id ? estado.computadorAcao.tipo : null;
-  const legenda = `<p class="tela-legenda">Tela de ${esc(a.nome)}</p>`;
-  const miniatura = `<button type="button" class="tela-preview" data-act="abrir-computador" data-id="${esc(a.id)}" data-tela-bot="${esc(a.id)}" aria-label="Abrir a tela de ${esc(a.nome)}"><img alt="" hidden /><span class="tela-abrir"><span class="tela-pilula">${ICONE.monitor}<span>Abrir</span></span></span></button>`;
-  let corpo: string;
-  if (visto === null) {
-    corpo = `<p class="gvn-comp-linha mudo">Vendo o computador…</p>`;
-  } else if (visto === "fora") {
-    const f = a.computadorForaDoAr;
-    const motivo = f ? `Desde ${dataHora(f.desde)} · ${MOTIVO_FALHA_TEXTO[f.motivo]}.` : "O computador parou de responder.";
-    corpo = `<div class="tela-preview gvn-tela-fora" role="img" aria-label="Tela de ${esc(a.nome)} fora do ar"><span>Fora do ar</span></div>${legenda}
-      <div class="cp-fora">${avisoErro({ frase: "Fora do ar", mais: motivo, solto: true, acoes: `${botao("religar-computador", acao === "religar" ? "Tentando de novo…" : "Tentar de novo", { classe: "cp-acao sm", id: a.id, desabilitado: acao === "religar" })}${botao("abrir-computador", "Abrir computador", { classe: "cp-acao sm", id: a.id })}` })}</div>`;
-  } else if (visto === "dormindo") {
-    corpo = `<div class="gvn-sono"><b>O computador está dormindo</b><small>Acorda sozinho quando ${esc(a.nome)} precisar.</small>${botao("computador-acordar", acao === "acordar" ? "Acordando…" : "Acordar", { classe: "gvn-acao-texto", id: a.id, desabilitado: acao === "acordar" })}${botao("abrir-computador", "Abrir computador", { classe: "gvn-acao-texto", id: a.id })}</div>`;
-  } else if (visto === "sem") {
-    corpo = `<p class="gvn-comp-sem">${esc(a.nome)} ainda não tem um computador próprio. Ele ganha um na primeira vez que precisar usar a tela.</p><div class="gvn-acoes-texto">${botao("abrir-computador", "Abrir computador", { classe: "gvn-acao-texto", id: a.id })}</div>`;
-  } else if (visto === "indisponivel" || visto === "erro") {
-    corpo = `<p class="gvn-comp-linha mudo" role="status">${visto === "indisponivel" ? "Ambiente indisponível agora. O computador volta quando o ambiente voltar." : "Não deu para ver o computador agora. Tentando de novo…"}</p><div class="gvn-acoes-texto">${botao("abrir-computador", "Abrir computador", { classe: "gvn-acao-texto", id: a.id })}</div>`;
-  } else {
-    corpo = `${miniatura}${legenda}<p class="gvn-comp-linha">${visto === "ocupado" ? "Ligado · usando a tela agora" : "Ligado · pronto para usar"}</p>`;
-  }
-  return `<section class="gv-secao gv-tela" data-comp-bot="${esc(a.id)}"${visto === null ? ' aria-busy="true"' : ""}>${corpo}</section>`;
 }
 
 /**
@@ -535,7 +520,7 @@ export function renderNivel(estado: Estado, a: Bot, dona: boolean, nivel: NivelG
     case "biblioteca":
       return { titulo: "Biblioteca", corpo: abaBiblioteca(estado, a, dona) };
     case "computador":
-      return { titulo: "Computador", corpo: abaComputador(estado, a) };
+      return { titulo: "Computador", corpo: blocoComputador(estado, a) };
     case "codigo":
       return { titulo: "Código", corpo: dona ? `<div class="gv-cartao">${linhaDaPasta(estado, a)}</div>` : "" };
   }

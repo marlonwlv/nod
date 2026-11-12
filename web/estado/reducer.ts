@@ -163,7 +163,7 @@ export type ConectarMaquina = {
 };
 
 /** NOD-367 (protótipo v2): as seções das Configurações, nesta ordem na lateral. NOD-85: Rotinas entre Agentes e Feedback. */
-export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "feedback";
+export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "computador" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "feedback";
 /**
  * O que um ponto de entrada pode pedir: as 6 seções, as de antes da NOD-367 (avisos, preferências, este Mac,
  * computadores, computador do bot, relatos), que caem na seção que as absorveu, e "ajuda" (Geral, no bloco Ajuda).
@@ -179,7 +179,9 @@ export function secaoAberta(e: Pick<Estado, "espaco">): SecaoEspaco | null {
 export function secaoDoPedido(p: PedidoSecao): SecaoEspaco {
   switch (p) {
     case "avisos": case "preferencias": case "ajuda": return "geral";
-    case "este-mac": case "computador-do-bot": case "computadores": return "maquinas";
+    case "este-mac": case "computadores": return "maquinas";
+    // Especificação D, item 7: o painel do computador do bot saiu de Máquinas para Configurações › Computador.
+    case "computador-do-bot": return "computador";
     case "relatos": return "feedback";
     default: return p;
   }

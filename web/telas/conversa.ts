@@ -32,7 +32,8 @@ import { avatarDoBot, estadoMascoteNaConversa, mascoteAnimado, turnosVivosDaConv
 import { renderFaixaParada } from "./faixa-parada.ts";
 import type { Morph } from "../lib/morph.ts";
 import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../lib/computador.ts";
-import { htmlAvisoForaDoArRegistrado, htmlFio, htmlLinhaDoChat, htmlPedidoDeTela } from "../lib/computador-pessoa.ts";
+import { htmlLinhaTelaFechada, htmlPedidoDeTela } from "../lib/computador-pessoa.ts";
+import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDoComputador } from "../lib/computador-conversa.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { linhaNaoRodaram } from "../lib/execucao.ts";
@@ -46,7 +47,7 @@ import { renderCardAcesso, tituloDoPedidoDeAcesso } from "./card-acesso.ts";
 import { ehCartaoCredencial, renderCardCredencial } from "./card-credencial.ts";
 import { renderBarraRascunhos } from "./rascunhos-de-envio.ts";
 import { renderMensagemCartoes } from "./cartoes-ricos.ts";
-import { acaoHumana, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
+import { acaoHumana, cartaoDoPedidoDeAjuda, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
 import { renderCardPasta } from "./card-pasta.ts";
 import { dadosDoEncolhido, pedidoDoRecibo, renderCartaoEncolhido, turnoDoEncolhido } from "./cartao-encolhido.ts";
 import { renderCardLote } from "./card-lote.ts";
@@ -244,7 +245,8 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
     // as duas saídas; depois que o computador volta, o cartão fica como registro, sem botões.
     const bot = agenteDe(estado, p.agenteId);
     // NOD-96 (v2): o card leve, com "Tentar de novo · Ver computador do bot"; o computador é da pessoa, não do bot.
-    if (estado.computadorPessoa && bot?.ownerId === estado.sessao?.pessoaId) return htmlAvisoForaDoArRegistrado(estado.computadorPessoa);
+    // D · Computador do bot (item 1): a linha de sistema centrada; depois que ele volta, o registro sem o link.
+    if (estado.computadorPessoa && bot?.ownerId === estado.sessao?.pessoaId) return htmlFalhaDoComputador(estado.computadorPessoa) ?? htmlLinhaDeSistemaDoComputador("O computador voltou a responder", false);
     const aindaFora = Boolean(bot?.computadorForaDoAr);
     const dono = bot?.ownerId === estado.sessao?.pessoaId;
     // NOD-399: o aviso neutro (círculo com "!", uma frase, botões normais); depois que volta, a linha com ✓.
@@ -495,8 +497,8 @@ function urlDoAnexo(tenant: string, m: Mensagem, id: string): string {
 }
 
 /**
- * NOD-56: a fala do bot só ganha anexo de imagem pela captura da tela ao fim do turno (NOD-200, `assentar-turno.ts`).
- * Ela sai de `msg-anexos` (acima do balão, à direita, desenhado para a pessoa) e vira o rodapé do balão.
+ * NOD-56: a captura da tela ao fim do turno (NOD-200), que o servidor gravava como anexo de imagem da fala do bot sem
+ * `origem: "bot"`. D · Computador do bot (decisão b): o servidor não grava mais; as antigas abrem como a mídia do bot.
  */
 const ehCaptura = (m: Mensagem, a: { mime: string; origem?: string }): boolean => m.autoria.autor_tipo !== "pessoa" && a.origem !== "bot" && a.mime.startsWith("image/");
 
@@ -508,29 +510,6 @@ function anexosDe(m: Mensagem, estado: Estado): string {
   return renderAnexosDaMensagem(anexos, (id) => urlDoAnexo(tenant, m, id));
 }
 
-/** NOD-56: o conteúdo do <dialog> da captura ampliada (`captura-ampliada.ts`); puro, para o teste sem DOM. */
-export function htmlCapturaAmpliada(src: string, legenda: string): string {
-  return `<div class="captura-ampliada-corpo"><img src="${esc(src)}" alt="${esc(legenda)}" /><div class="captura-ampliada-rodape"><span>${esc(legenda)}</span><a href="${esc(src)}" target="_blank" rel="noopener">Abrir em nova aba</a><button type="button" class="bt sm" data-captura="fechar">Fechar</button></div></div>`;
-}
-
-/**
- * NOD-56 (protótipo do Gil, 2026-10-05): a tela do computador ao fim do turno, como miniatura de 240×150 abaixo do
- * balão do bot, com a legenda neutra. Clicar amplia num <dialog> (`ampliar-captura`). Mais de uma imagem (não acontece
- * hoje): só a primeira. Sem captura, nada — o balão fica igual.
- */
-export function capturaDoTurno(m: Mensagem, estado: Estado): string {
-  const tenant = estado.sessao?.tenantId;
-  const captura = m.anexos?.find((a) => ehCaptura(m, a));
-  if (!captura || !tenant) return "";
-  const url = esc(urlDoAnexo(tenant, m, captura.id));
-  const legenda = `Tela do computador ao fim do turno · ${hora(m.criadoEm)}`;
-  // Protótipo (Gil): o alt e a ampliação nomeiam o bot; sem nome conhecido, "do bot".
-  const nome = agenteDe(estado, m.autoria.autor_id)?.nome;
-  const deQuem = nome ? `de ${nome}` : "do bot";
-  const legendaAmpliada = `Tela do computador ${deQuem} ao fim do turno · ${hora(m.criadoEm)}`;
-  return `<figure class="msg-captura"><button type="button" class="msg-captura-bt" data-act="ampliar-captura" data-src="${url}" data-legenda="${esc(legendaAmpliada)}" aria-label="Ampliar tela do computador ao fim do turno" aria-haspopup="dialog"><img src="${url}" alt="${esc(`Tela do computador ${deQuem} ao fim do turno`)}" loading="lazy" width="240" height="150" /></button><figcaption>${esc(legenda)}</figcaption></figure>`;
-}
-
 /**
  * NOD-323 (ADR-126): a mídia que o bot anexou, abaixo do balão, e a linha do que não entrou. Puro: o que muda entre
  * redesenhos (GIF pausado, este Mac) vem de `lembrancaDaMidia`, mantida por `midia-dom.ts`.
@@ -539,11 +518,14 @@ export function midiasDoBot(m: Mensagem, estado: Estado): string {
   const tenant = estado.sessao?.tenantId;
   if (m.autoria.autor_tipo === "pessoa" || !tenant) return "";
   const bot = agenteDe(estado, m.autoria.autor_id)?.nome;
-  const midias = renderMidiasDoBot(m.anexos ?? [], { url: (id) => urlDoAnexo(tenant, m, id), ...(bot ? { bot } : {}), ...lembrancaDaMidia });
+  // D · Computador do bot (decisão b): a captura automática do fim do turno saiu; as antigas já gravadas abrem como a
+  // imagem comum do bot (o mesmo balão do print, item 8).
+  const anexos = (m.anexos ?? []).map((a) => (ehCaptura(m, a) ? { ...a, origem: "bot" as const } : a));
+  const midias = renderMidiasDoBot(anexos, { url: (id) => urlDoAnexo(tenant, m, id), ...(bot ? { bot } : {}), ...lembrancaDaMidia });
   return midias + linhaRecusas(m.midiaRecusas, bot);
 }
 
-const temMidiaDoBot = (m: Mensagem): boolean => m.autoria.autor_tipo !== "pessoa" && (m.anexos ?? []).some((a) => a.origem === "bot");
+const temMidiaDoBot = (m: Mensagem): boolean => m.autoria.autor_tipo !== "pessoa" && (m.anexos ?? []).some((a) => a.origem === "bot" || ehCaptura(m, a));
 
 /**
  * `destaVez` (ADR-090, protótipo "Nod — Motor na VM", tela 4c): a máquina do bot está sem contato e há outra conectada —
@@ -744,11 +726,14 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
     ? perguntaDaFrente(m, opcoes.etiqueta.slice("da task ".length), pergunta.decisaoId, pergunta.opcoes ?? [], agente)
     : null;
   if (daFrente) return `<article class="message bot da-frente" data-mensagem="${esc(m.id)}" data-pergunta="${esc(pergunta?.decisaoId ?? "")}"><div class="bubble-wrap">${daFrente}</div></article>`;
-  const balao = motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m) && !progressoDentro) && m.texto.trim() === "" ? "" : ehPessoa
+  // Item 6: no computador da pessoa o pedido de ajuda é o cartão "Entre no {site}"; resolvido, vira linha de sistema.
+  const ajuda = motivoTela !== null && estado.computadorPessoa ? cartaoDoPedidoDeAjuda(m, estado) : null;
+  if (ajuda?.linha) return ajuda.html;
+  const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m) && !progressoDentro) && m.texto.trim() === "" ? "" : ehPessoa
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, `${metaTags}${progressoDentro}`, progressoDentro !== "");
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}>
-    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : resumoDaMensagem(m)}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${ehPessoa ? "" : capturaDoTurno(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila, fila.turnoId) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
+    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : resumoDaMensagem(m)}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila, fila.turnoId) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
 }
 
@@ -1140,6 +1125,9 @@ export function pensarDaFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, es
   const espera = esperaDaPessoa(estado, t.turnoId);
   const fase: FaseDoPensamento = mudo !== null ? "silencio" : espera ? "esperando" : estadoFala.chave === "ferramenta" || estadoFala.chave === "frentes" ? "fazendo" : "pensando";
   const c = a?.cabecalho;
+  // D · Computador do bot (item 1): esperando o computador ligar ou uma tela livre, a própria linha de atividade diz.
+  const computador = esperaDoComputador(estado, t);
+  if (computador) return { turnoId: t.turnoId, fase: "fazendo", cabecalho: { id: `computador:${computador}`, texto: computador }, anuncio: computador, desde: t.desde, contagem, itens, tarefas: a?.tarefas ?? [] };
   const cabecalho = fase === "silencio"
     ? { id: "silencio", texto: `Sem novidade há ${mudo} min` }
     : fase === "esperando"
@@ -1148,6 +1136,13 @@ export function pensarDaFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, es
         ? { id: c.id, texto: c.texto, ...(c.pendente ? { pendente: { texto: c.pendente.texto, desde: c.desde } } : {}) }
         : { id: estadoFala.chave === "escrevendo" ? "escrevendo" : `${estadoFala.chave}:${estadoFala.texto}`, texto: estadoFala.chave === "escrevendo" && a ? textoEscrevendo(a) : estadoFala.texto };
   return { turnoId: t.turnoId, fase, cabecalho, anuncio: fase === "silencio" ? cabecalho.texto : fase === "esperando" ? cabecalho.texto : estadoFala.texto, desde: t.desde, contagem, itens, tarefas: a?.tarefas ?? [] };
+}
+
+/** O rótulo da espera do computador para o turno vivo de um bot da pessoa ("Ligando o computador"); null = não espera. */
+function esperaDoComputador(estado: Estado, t: TurnoVivo): string | null {
+  const id = t.agenteId ?? estado.conversas[t.conversaId]?.conversa.agenteId;
+  if (!id || !estado.computadorPessoa || agenteDe(estado, id)?.ownerId !== estado.sessao?.pessoaId) return null;
+  return rotuloDaEsperaDoComputador(estado.computadorPessoa, estado.computadorMemoria, id, estado.agora);
 }
 
 /** Puro (Paper 05b): as notas antes da primeira ação viram a narração da fala; o pensamento fica com o resto, na ordem. */
@@ -1615,8 +1610,10 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
 }
 
 /**
- * NOD-96 (v2): a linha do computador do bot abaixo do turno — "Ligando o computador…", "Esperando uma tela livre", a tela
- * que uma operação fechou, o ✓ quando a espera acaba e o erro com o caminho. Só no chat de um bot da pessoa.
+ * NOD-96 (v2): a linha do computador do bot abaixo do turno — a tela que uma operação fechou e o aviso de falha. Só no chat
+ * de um bot da pessoa. D · Computador do bot (item 1): a espera ("Ligando o computador", "Esperando uma tela livre") virou
+ * o rótulo da linha de atividade (`pensarDaFalaViva`), o ✓ "Tela aberta"/"Computador pronto" saiu e a falha é a linha de
+ * sistema centrada com "Tentar de novo".
  */
 function linhaDoComputador(c: ConversaEstado, estado: Estado): string {
   const id = c.conversa.agenteId;
@@ -1626,7 +1623,11 @@ function linhaDoComputador(c: ConversaEstado, estado: Estado): string {
   // O aviso de fora do ar que o servidor já deixou na conversa vale pelo card ao vivo: um só na tela.
   const jaAvisou = c.mensagens.slice(-30).some((m) => m.payload?.kind === "computador_fora_do_ar");
   if (jaAvisou && dto.estado === "fora_do_ar") return "";
-  return htmlLinhaDoChat(dto, estado.computadorMemoria, id, nomes, estado.agora);
+  const mem = estado.computadorMemoria;
+  const falha = htmlFalhaDoComputador(dto);
+  // O erro só aparece no chat de quem estava usando ou esperando o computador.
+  if (falha) return dto.telas.some((t) => t.agenteId === id) || mem.esperas[id] ? falha : "";
+  return mem.fechadas?.agentes.includes(id) && dto.operacao ? htmlLinhaTelaFechada(mem.fechadas.tipo, nomes[id] ?? "o bot") : "";
 }
 
 export function renderHistoricoDaTimeline(c: ConversaEstado, estado: Estado): string {
@@ -1883,7 +1884,7 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-381 (definido em 2026-10-27): no celular a presença vai dentro da pílula, em 12px abaixo do nome; o computador
   // continua com o ponto e a linha de baixo (`.pilula-txt` é `display: contents` e `.pilula-presenca` fica escondida).
   const presencaNaPilula = disponivel ? "" : `<span class="pilula-presenca" aria-hidden="true">${html}</span>`;
-  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}${frentesNaPilula(estado, agenteId)}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span>${a?.ownerId === estado.sessao?.pessoaId ? htmlFio(estado.computadorPessoa) : ""}</button>`;
+  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}${frentesNaPilula(estado, agenteId)}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];

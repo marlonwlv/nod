@@ -1,0 +1,122 @@
+/* Especificação D (Computador do bot, 2026-11-12): o cartão Computador do painel de detalhes (item 2) e Configurações ›
+   Computador (item 7). As cores com alfa saem da cor base (--base, o quase preto no claro e o quase branco no escuro) por
+   color-mix, nos valores do Paper; os cinzas do personagem e do gradiente são iguais nos dois temas (cor-fixa). */
+
+:root {
+  --cpm-fundo: var(--surface-elevated);                                   /* superfície do cartão */
+  --cpm-borda: color-mix(in srgb, var(--base) 8%, transparent);           /* Paper: alfa 14 no claro, 14 no escuro */
+  --cpm-hover: color-mix(in srgb, var(--base) 6%, transparent);           /* Paper: alfa 0f no claro, 0f no escuro */
+  --cpm-mini: color-mix(in srgb, var(--base) 6%, transparent);            /* Paper: alfa 0f no claro, 0a no escuro */
+  --cpm-texto-2: color-mix(in srgb, var(--base) 68%, transparent);        /* Paper: alfa ad no claro, a8 no escuro */
+  --cpm-texto-3: color-mix(in srgb, var(--base) 56%, transparent);        /* Paper: alfa 8f no claro, 8a no escuro */
+  --cpm-olho: color-mix(in srgb, var(--base) 52%, transparent);           /* Paper: alfa 85 no claro, 80 no escuro */
+  --cpm-anel: color-mix(in srgb, var(--base) 15%, transparent);           /* Paper: alfa 26 no claro, 1f no escuro */
+  --cpm-ponto-off: color-mix(in srgb, var(--base) 40%, transparent);      /* Paper: alfa 66 no claro, 61 no escuro */
+  --cpm-personagem: #959595; /* cor-fixa: o personagem cinza do Paper (D2b), claro */
+}
+:root[data-theme="dark"] {
+  --cpm-mini: color-mix(in srgb, var(--base) 4%, transparent);
+  --cpm-texto-2: color-mix(in srgb, var(--base) 66%, transparent);
+  --cpm-texto-3: color-mix(in srgb, var(--base) 54%, transparent);
+  --cpm-olho: color-mix(in srgb, var(--base) 50%, transparent);
+  --cpm-anel: color-mix(in srgb, var(--base) 12%, transparent);
+  --cpm-ponto-off: color-mix(in srgb, var(--base) 38%, transparent);
+  --cpm-personagem: #777777; /* cor-fixa: o personagem cinza do Paper (D2b), escuro */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cpm-mini: color-mix(in srgb, var(--base) 4%, transparent);
+    --cpm-texto-2: color-mix(in srgb, var(--base) 66%, transparent);
+    --cpm-texto-3: color-mix(in srgb, var(--base) 54%, transparent);
+    --cpm-olho: color-mix(in srgb, var(--base) 50%, transparent);
+    --cpm-anel: color-mix(in srgb, var(--base) 12%, transparent);
+    --cpm-ponto-off: color-mix(in srgb, var(--base) 38%, transparent);
+    --cpm-personagem: #777777; /* cor-fixa: o personagem cinza do Paper (D2b), escuro */
+  }
+}
+
+/* ---------- Item 2: o cartão do painel de detalhes ---------- */
+.detalhes .cpm > .cpm-titulo { margin: 0; padding: 20px 12px 8px; font-size: 13px; line-height: 18px; font-weight: var(--peso-regular); color: var(--cpm-texto-2); }
+.cpm-cartao { padding: 4px; border: 1px solid var(--cpm-borda); border-radius: 12px; background: var(--cpm-fundo); box-sizing: border-box; }
+.cpm-linha { position: relative; display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 6px 0 12px; border-radius: 8px; box-sizing: border-box; }
+.cpm-linha:hover, .cpm-linha:has(.cpm-abrir:focus-visible) { background: var(--cpm-hover); }
+/* O botão cobre a linha inteira (role button, "Abrir a tela de {Bot}"); o texto e a miniatura ficam embaixo dele. */
+.cpm-abrir { position: absolute; inset: 0; z-index: 1; margin: 0; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+.cpm-abrir:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cpm-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cpm-txt b { overflow: hidden; font-size: 13px; line-height: 18px; font-weight: var(--peso-regular); color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
+.cpm-status { overflow: hidden; font-size: 12px; line-height: 16px; color: var(--cpm-texto-3); text-overflow: ellipsis; white-space: nowrap; }
+/* "Tentar de novo" é um link no status, por cima do botão da linha. */
+.cpm-tentar { position: relative; z-index: 2; margin: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.cpm-tentar:hover { color: var(--ink); }
+.cpm-tentar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--raio-4); }
+
+/* A miniatura 64 × 40: nunca a imagem da tela. */
+.cpm-mini { position: relative; flex: none; display: grid; place-items: center; width: 64px; height: 40px; border-radius: 8px; overflow: hidden; background: var(--cpm-mini); color: var(--cpm-olho); }
+.cpm-mini[data-miniatura="repouso"], .cpm-mini[data-miniatura="ligando"] {
+  background:
+    radial-gradient(115% 90% at 15% 8%, #A6A6A642, transparent), /* cor-fixa: o gradiente cinza do Paper (D2b), igual nos dois temas */
+    radial-gradient(95% 75% at 90% 82%, #69696933, transparent), /* cor-fixa: o gradiente cinza do Paper (D2b) */
+    linear-gradient(140deg, #A6A6A624, #69696912), /* cor-fixa: o gradiente cinza do Paper (D2b) */
+    var(--cpm-mini);
+}
+/* Ativo: o mesmo gradiente na cor do bot (26 %, 20 % e 14 %/7 %), sem personagem. */
+.cpm-mini[data-miniatura="ativo"] {
+  background:
+    radial-gradient(115% 90% at 15% 8%, color-mix(in srgb, var(--mascote-cor, var(--ink-3)) 26%, transparent), transparent),
+    radial-gradient(95% 75% at 90% 82%, color-mix(in srgb, var(--mascote-cor, var(--ink-3)) 20%, transparent), transparent),
+    linear-gradient(140deg, color-mix(in srgb, var(--mascote-cor, var(--ink-3)) 14%, transparent), color-mix(in srgb, var(--mascote-cor, var(--ink-3)) 7%, transparent)),
+    var(--cpm-mini);
+}
+.cpm-personagem { position: relative; display: grid; place-items: center; width: 24px; height: 24px; }
+.cpm-mini .icon.mascote { --mascote-cor: var(--cpm-personagem); width: 24px; height: 24px; }
+.cpm-zzz { position: absolute; left: 82%; bottom: 70%; display: flex; align-items: flex-end; gap: 1px; color: var(--cpm-personagem); font-size: 7px; line-height: 1; font-weight: var(--peso-medio); pointer-events: none; }
+.cpm-zzz i { font-style: normal; opacity: 0; animation: cpm-zzz 3s ease-in-out infinite; }
+.cpm-zzz i:nth-child(2) { font-size: 8px; animation-delay: .5s; }
+.cpm-zzz i:nth-child(3) { font-size: 9px; animation-delay: 1s; }
+.cpm-olho { width: 16px; height: 16px; }
+@keyframes cpm-zzz { 0% { opacity: 0; transform: translateY(3px); } 25%, 60% { opacity: .9; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* ---------- Item 7: Configurações › Computador ---------- */
+.espaco-conteudo .cpc > .cpc-titulo { margin: 0; font-size: 17px; line-height: 24px; font-weight: var(--peso-medio); letter-spacing: 0; }
+.cpc > .cpc-intro { margin: 2px 0 20px; font-size: 12px; line-height: 16px; color: var(--cpm-texto-3); }
+.cpc .pc-faixa { margin: 0 0 14px; }
+.cpc-grupos { display: flex; flex-direction: column; gap: 14px; }
+.cpc-grupo { margin: 0; }
+.espaco-conteudo .cpc-grupo-tit { margin: 0 0 6px; padding: 0 14px; font-size: 12px; line-height: 16px; font-weight: var(--peso-regular); color: var(--cpm-texto-2); }
+.cpc-cartao { padding: 4px 0; border: 1px solid var(--cpm-borda); border-radius: 12px; background: var(--cpm-fundo); }
+.cpc-linha { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+.cpc-linha.realce .cpc-bt { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cpc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cpc-txt b { font-size: 13px; line-height: 18px; font-weight: var(--peso-regular); color: var(--ink); }
+.cpc-txt > span { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--cpm-texto-2); }
+.cpc-lado { flex: none; display: flex; gap: 6px; }
+.cpc-ic { flex: none; display: grid; place-items: center; width: 20px; color: var(--ink-2); }
+.cpc-ic svg { width: 18px; height: 18px; }
+.cpc-avatar { flex: none; display: grid; place-items: center; width: 18px; height: 18px; }
+.cpc-avatar .icon.mascote { width: 18px; height: 18px; }
+.cpc-ponto { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--cpm-ponto-off); }
+.cpc-ponto.ativo { background: var(--pronto); }
+.cpc-vazio { margin: 0; padding: 10px 14px; font-size: 13px; line-height: 18px; color: var(--cpm-texto-2); }
+.cpc-recusa { margin: 0; padding: 0 14px 10px; font-size: 12px; line-height: 16px; color: var(--cpm-texto-2); }
+/* Botões: pílula de 28 com o anel fino. */
+.cpc-bt { flex: none; height: 28px; margin: 0; padding: 0 12px; border: 0; border-radius: var(--raio-full); background: var(--cpm-mini); box-shadow: inset 0 0 0 .5px var(--cpm-anel); font: inherit; font-size: 13px; line-height: 18px; color: var(--ink); white-space: nowrap; cursor: pointer; }
+.cpc-bt:hover:not(:disabled) { background: var(--cpm-hover); }
+.cpc-bt:disabled { opacity: .5; cursor: default; }
+.cpc-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Seletor: 26 de altura, raio 8, borda fina e o chevron de 12. */
+.cpc-seletor { position: relative; flex: none; display: inline-flex; align-items: center; }
+.cpc-seletor select { height: 26px; margin: 0; padding: 0 26px 0 10px; border: 1px solid var(--cpm-borda); border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: var(--ink); appearance: none; cursor: pointer; }
+.cpc-seletor select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cpc-seletor svg { position: absolute; right: 8px; pointer-events: none; color: var(--ink-2); }
+.cpc-progresso { height: 4px; margin: 0 14px 10px; border-radius: var(--raio-full); background: var(--cpm-mini); overflow: hidden; }
+.cpc-progresso i { display: block; height: 100%; border-radius: inherit; background: var(--signal); transition: width var(--dur-rapido) var(--curva); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cpm-zzz i { animation: none; opacity: .8; }
+  .cpc-progresso i { transition: none; }
+}
+@media (forced-colors: active) {
+  .cpm-cartao, .cpc-cartao, .cpm-mini { border: 1px solid CanvasText; }
+  .cpc-ponto { forced-color-adjust: none; background: CanvasText; }
+}
