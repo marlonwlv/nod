@@ -24,7 +24,7 @@ import { acordandoNaFila, motivoLegivel } from "../lib/maquina-nuvem.ts";
 import { COMET_MS, contagemDasAcoes, estadoDaFala, falaNoBalao, geracaoDoBalao, GRUPOS_A_VISTA, itensDoPensamento, textoEmLf, textoEscrevendo, WINK_MS, type AtividadeTurno, type ItemDoPensamento, type LinhaDoResumo, type VigiaDaAtividade } from "../lib/atividade.ts";
 import { linhaDaFila } from "../lib/fila-do-pedido.ts";
 import { haQuanto } from "../lib/relogio.ts";
-import { FALA_SAINDO_MS, tempoDaFala } from "../lib/fala-viva.ts";
+import { chaveDaFalaViva, tempoDaFala } from "../lib/fala-viva.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
 import { htmlDaLinhaNoAr, htmlDaListaCompacta, htmlDoCard, htmlDoRecibo, lerRecibo } from "../lib/canvas-html.ts";
 import { dividirEmBaloes } from "../lib/baloes.ts";
@@ -1010,12 +1010,12 @@ function comDecisaoVencida(p: Proposta, estado: Estado): boolean {
  * são escritos pelo relógio da tela (web/lib/fala-viva.ts), para o HTML não mudar a cada tick.
  */
 export type FalaViva = { html: string; morfar: Morph };
-export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agente: Pick<AgenteDaFala, "nome" | "cor" | "forma"> | undefined, estado: Estado, parar: string, saindo?: { em: number; chave: string }): FalaViva {
+export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agente: Pick<AgenteDaFala, "nome" | "cor" | "forma"> | undefined, estado: Estado, parar: string, saindo?: { em: number; chave: string; ultima?: boolean }): FalaViva {
   const nome = agente?.nome ?? "O agente";
   const fala = saindo ? { chave: "respondeu", texto: "Respondeu", mascote: { state: "idle" } as { state: string; expression?: string } } : estadoDaFala(a);
   const { texto, trechos } = falaNoBalao(a, !!saindo);
   // A chave do cache do texto formatado e das tabelas: a fala parada do meio do turno tem a sua (revisão 4 do #508).
-  const chave = saindo?.chave ?? `vivo:${t.turnoId}`;
+  const chave = saindo?.chave ?? chaveDaFalaViva(estado, t.turnoId);
   // NOD-73: no silêncio do vigia o brilho para (a linha não finge trabalho); o aviso âmbar diz o resto. A fala saindo também para.
   const mudo = minutosSemNovidade(a, estado.agora);
   const parado = saindo || mudo !== null ? " parado" : "";
@@ -1024,7 +1024,7 @@ export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agen
   // a última de um turno acabado (`vivo:`) tem, igual à gravada, sem pulo na troca (NOD-353).
   // NOD-312: o turno que recomeçou sem a sessão diz, no topo, que relê o necessário antes de seguir.
   if (t.motivoRecomeco && !saindo) partes.push({ chave: "recomeco", html: notaDasEtapas(t.motivoRecomeco, agente?.nome ?? null) });
-  const p0 = !saindo || chave === `vivo:${t.turnoId}` ? pensarDaFalaViva(t, a, estado, saindo, mudo) : null;
+  const p0 = !saindo || (saindo.ultima ?? chave === `vivo:${t.turnoId}`) ? pensarDaFalaViva(t, a, estado, saindo, mudo) : null;
   // Paper 05b (casca, rodada 4): com o turno andando, a narração de abertura (as notas antes da primeira ação) sai do
   // pensamento e vem antes dele, como texto da fala — "Vou rodar só os testes…", e só então o cabeçalho e os passos.
   // É uma parte própria (`narracao`, no lugar): o morph a mantém e só troca o texto. No fim (`saindo`) volta ao
@@ -1354,7 +1354,7 @@ export function renderTarefasDoBot(tarefas: readonly TarefaDoBot[]): string {
  * frame; na sala, cada turno é de um bot) ou, sem ele, o da conversa. Na fila continua a linha de sistema, sem a IA.
  */
 function blocosDoTurnoVivo(t: TurnoVivo, c: ConversaEstado, estado: Estado): BlocoDaTimeline[] {
-  const chave = `vivo:${t.turnoId}`;
+  const chave = chaveDaFalaViva(estado, t.turnoId);
   if (t.estado !== "rodando") return [{ chave, html: linhaNaFila(t, c, estado) }];
   const atividade = estado.atividades[c.conversa.id]?.[t.turnoId];
   const id = t.agenteId ?? c.conversa.agenteId;
@@ -1367,10 +1367,10 @@ function blocosDoTurnoVivo(t: TurnoVivo, c: ConversaEstado, estado: Estado): Blo
  * QA do #508: no fim do turno a fala viva sumia e a fala gravada só vinha com a releitura — um quadro sem fala nenhuma e a
  * conversa pulando ~95 px. A fala que saiu fica, parada e com a mesma chave (o bloco é reaproveitado), até a releitura.
  */
-function blocoDaFalaSaindo(s: FalaSaindo, c: ConversaEstado, estado: Estado, chave: string): BlocoDaTimeline[] {
+function blocoDaFalaSaindo(s: FalaSaindo, c: ConversaEstado, estado: Estado, chave: string, ultima: boolean): BlocoDaTimeline[] {
   const id = s.turno.agenteId ?? c.conversa.agenteId;
   const agente = id ? agenteDe(estado, id) : undefined;
-  const fala = renderFalaViva(s.turno, s.atividade, agente, estado, "", { em: s.em, chave });
+  const fala = renderFalaViva(s.turno, s.atividade, agente, estado, "", { em: s.em, chave, ultima });
   return [{ chave, html: fala.html, morfar: fala.morfar }];
 }
 
@@ -1601,10 +1601,14 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
   // o turno novo não as passam para baixo, revisão 4 do #508); a do meio do turno (`turno.fala`), antes da fala viva
   // dele. A última de um turno que acabou fica com a chave da fala viva (o bloco é reaproveitado pelo morph).
   const vivosIds = new Set(vivos.map((t) => t.turnoId));
-  const saindo = Object.entries(estado.falasSaindo?.[c.conversa.id] ?? {}).filter(([, s]) => estado.agora - s.em < FALA_SAINDO_MS).sort(([, a], [, b]) => a.em - b.em);
+  // C2 (2026-11-12): sem o corte de 15 s aqui; quem tira o retrato é o reducer, quando a gravada chega (ou o órfão vence).
+  const saindo = Object.entries(estado.falasSaindo?.[c.conversa.id] ?? {}).sort(([, a], [, b]) => a.em - b.em);
   const ultimaDoTurno = new Map(saindo.map(([k, s]) => [s.turno.turnoId, k]));
-  const chaveDa = (k: string, s: FalaSaindo) => (!vivosIds.has(s.turno.turnoId) && ultimaDoTurno.get(s.turno.turnoId) === k ? `vivo:${s.turno.turnoId}` : `saindo:${k}`);
-  const paradas = (fica: (s: FalaSaindo) => boolean) => saindo.filter(([, s]) => fica(s)).flatMap(([k, s]) => blocoDaFalaSaindo(s, c, estado, chaveDa(k, s)));
+  // C1 (2026-11-12): o retrato fica com a chave da fala viva que ele congelou (`s.chave`): o mesmo nó, sem animar de novo.
+  // A última de um turno que acabou leva o pensamento, como a gravada (NOD-353).
+  const ultima = (k: string, s: FalaSaindo) => !vivosIds.has(s.turno.turnoId) && ultimaDoTurno.get(s.turno.turnoId) === k;
+  const chaveDa = (k: string, s: FalaSaindo) => s.chave ?? (ultima(k, s) ? `vivo:${s.turno.turnoId}` : `saindo:${k}`);
+  const paradas = (fica: (s: FalaSaindo) => boolean) => saindo.filter(([, s]) => fica(s)).flatMap(([k, s]) => blocoDaFalaSaindo(s, c, estado, chaveDa(k, s), ultima(k, s)));
   const blocos: BlocoDaTimeline[] = [
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),

@@ -40,12 +40,36 @@ export function reaplicarNoAr(novo: QuadroDto, m: MudancaNoAr | null): QuadroDto
   return aplicarMudanca(novo, m);
 }
 
+/**
+ * Q2 (definido em 2026-11-12): as mudanças no ar são uma FILA — a primeira foi ao servidor, as outras esperam a vez. O
+ * segundo arrasto com o primeiro no ar era descartado ("Espere a mudança anterior terminar e solte de novo") e a pessoa
+ * soltava de novo. Todas ficam reaplicadas no quadro que chega (resposta ou frame), na ordem em que a pessoa soltou.
+ */
+export function reaplicarFila(novo: QuadroDto, fila: readonly MudancaNoAr[]): QuadroDto {
+  let q = novo;
+  for (const m of fila) q = reaplicarNoAr(q, m);
+  return q;
+}
+
+/**
+ * Q2: entra na fila a mudança nova. Se a mesma tarefa já espera a vez (não a do servidor, a `[0]` com `noServidor`), vale
+ * o último destino: a que espera é trocada, com o `de` dela (de onde o card saiu de verdade). Soltar o card de volta na
+ * coluna de onde saiu tira a espera da fila.
+ */
+export function enfileirarMudanca(fila: readonly MudancaNoAr[], m: MudancaNoAr, noServidor: boolean): MudancaNoAr[] {
+  const i = fila.findIndex((x, k) => x.tarefa === m.tarefa && !(k === 0 && noServidor));
+  if (i < 0) return [...fila, m];
+  const antes = fila[i]!;
+  if (antes.de === m.para) return fila.filter((_, k) => k !== i);
+  return fila.map((x, k) => (k === i ? { ...m, de: antes.de } : x));
+}
+
 /** T1: sem rede, a tarefa volta ao que era antes (só ela: o resto do quadro pode ter vindo de um frame). */
 export function desfazerMudanca(q: QuadroDto, antes: TarefaDto): QuadroDto {
   return { ...q, tarefas: q.tarefas.map((x) => (x.id === antes.id ? antes : x)) };
 }
 
-/** T3: o arraste com outra mudança no ar não sai calado. */
+/** T3: a mudança da tarefa (status, responsável) com outra no ar não sai calada. Q2: o arrasto não usa mais: entra na fila. */
 export const ESPERE_A_ANTERIOR = "Espere a mudança anterior terminar e solte de novo.";
 
 /**

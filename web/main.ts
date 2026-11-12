@@ -126,6 +126,7 @@ import { caixaComFrase, FRASE_DE_PEDIR_APP, fraseDeEditarApp, fraseDeReconectar,
 import { aoGuardarOrdem, definirPaginas, ordemDoAgente, paginasDoAgente, paginasDtoDe } from "./lib/ordem-das-paginas.ts";
 import { criarPaginasDoServidor } from "./lib/paginas-do-servidor.ts";
 import { criarQuadroNaTela } from "./lib/quadro-na-tela.ts";
+import { comAbertaNaFrente } from "./lib/fila-do-reidratar.ts";
 import { criarCanvasNaTela } from "./lib/canvas-na-tela.ts";
 import { configurarAppCanvas, esquecerErroDoCanvas, guardarAppCanvas } from "./telas/marketplace-canvas.ts";
 import { conversaDaTrilha, criarTrilhaDaConversa } from "./lib/trilha-conversa.ts";
@@ -2247,7 +2248,8 @@ async function reidratar(): Promise<void> {
   if (!api || reidratando) return;
   const pendentes = [...new Set([...estado.invalidacoes, ...invalidacoesDaTela(estado)])];
   // Só o que a tela atual olha entra agora; o resto fica marcado para quando a tela abrir.
-  const relevantes = pendentes.filter((q) => relevante(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente()));
+  // C5 (2026-11-12): a conversa aberta é a primeira da passada (web/lib/fila-do-reidratar.ts).
+  const relevantes = comAbertaNaFrente(pendentes.filter((q) => relevante(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente())), estado.tela.tipo === "conversa" ? estado.tela.conversaId : null);
   // definido em 2026-09-30: nada relevante, nada a buscar nem a redesenhar. A conversa de outro bot fica marcada
   // até ser aberta, e antes cada frame caía aqui e redesenhava a tela inteira de forma síncrona.
   if (relevantes.length === 0) return;
@@ -2450,6 +2452,8 @@ function abrirTarefasDaBarra(agenteId?: string): void {
   quadroNaTela.abrirPagina("tarefas");
 }
 
+/** C3 (2026-11-12): a chave do motor do mascote da barra; a barra regravada não leva o mascote de volta ao repouso. */
+const motorDaBarra = (id: string): string => `data-motor="barra:${esc(id)}"`;
 function renderSidebar(estado: Estado): string {
   // NOD-379: no celular a barra é a tela inicial (topo do web, favoritos em grade, conversas como num mensageiro e a barra
   // flutuante de Buscar). O HTML do computador não muda.
@@ -2505,7 +2509,7 @@ function renderSidebar(estado: Estado): string {
     const extraAria = `${foraDoAr ? ", computador fora do ar" : ""}${!foraDoAr && paradas.has(a.id) ? ", rotina parada" : ""}${rotuloDoSinal(chip)}`;
     const nomeCompleto = a.titulo ? `${a.nome} · ${a.titulo}` : a.nome;
     const selecionado = selecaoBots.has(a.id);
-    return `<div class="bot-row${escondida ? " escondida" : ""}${selecionado ? " selecionado" : ""}" data-bot-contexto="${esc(a.id)}"${selecionado ? ' aria-selected="true"' : ""}${arrastavel(a)}${estadoBarra ? ` data-estado-barra="${estadoBarra}"` : ""} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}"${espera ? " data-aguardando" : ""}><button class="row"${atual(a.conversaId)} data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}"${dadoPendente(a)} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}" data-etiqueta="${esc(nomeCompleto)}" aria-label="Abrir conversa com ${esc(a.nome)}${emLigacao ? " (em ligação)" : ""}${rotuloAviso}${esc(extraAria)}${selecionado ? ", selecionado" : ""}"${semTitle ? "" : ` title="${esc(nomeCompleto)}"`}>${iconeAgente(a, "", estadoVisual, aviso ? `data-aviso="${aviso}"` : "")}<span class="txt"><span class="nome-linha"><b>${esc(a.nome)}</b>${chip}</span>${subtitulo}</span>${espera ? '<i class="ponto-aguardando" aria-hidden="true"></i>' : ""}</button><button type="button" class="bot-mais" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
+    return `<div class="bot-row${escondida ? " escondida" : ""}${selecionado ? " selecionado" : ""}" data-bot-contexto="${esc(a.id)}"${selecionado ? ' aria-selected="true"' : ""}${arrastavel(a)}${estadoBarra ? ` data-estado-barra="${estadoBarra}"` : ""} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}"${espera ? " data-aguardando" : ""}><button class="row"${atual(a.conversaId)} data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}"${dadoPendente(a)} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}" data-etiqueta="${esc(nomeCompleto)}" aria-label="Abrir conversa com ${esc(a.nome)}${emLigacao ? " (em ligação)" : ""}${rotuloAviso}${esc(extraAria)}${selecionado ? ", selecionado" : ""}"${semTitle ? "" : ` title="${esc(nomeCompleto)}"`}>${iconeAgente(a, "", estadoVisual, `${motorDaBarra(a.id)}${aviso ? ` data-aviso="${aviso}"` : ""}`)}<span class="txt"><span class="nome-linha"><b>${esc(a.nome)}</b>${chip}</span>${subtitulo}</span>${espera ? '<i class="ponto-aguardando" aria-hidden="true"></i>' : ""}</button><button type="button" class="bot-mais" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
   };
   /**
    * NOD-379 (protótipo v3): a linha de mensageiro — mascote de 48, nome e título, a hora à direita e a prévia embaixo. Quando
@@ -2520,7 +2524,7 @@ function renderSidebar(estado: Estado): string {
     const hora = em ? `<time class="inicio-hora" datetime="${new Date(em).toISOString()}">${horaDaLinha(em, Date.now(), fusoLocal())}</time>` : "";
     const tom = prefixo ? " pede" : o.nova ? " nao-lida" : "";
     const busca = esc(`${a.nome} ${a.titulo}`.toLowerCase());
-    return `<div class="bot-row inicio-linha${tom}${o.escondida ? " escondida" : ""}" data-bot-contexto="${esc(a.id)}" data-busca="${busca}"><button class="row" data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}" data-busca="${busca}" aria-label="Abrir conversa com ${esc(a.nome)}${o.emLigacao ? " (em ligação)" : ""}${o.rotuloAviso}">${iconeAgente(a, "", o.estadoVisual, o.aviso ? `data-aviso="${o.aviso}"` : "")}<span class="txt"><span class="nome-linha"><b>${esc(a.nome)}</b>${o.chip}${hora}</span>${sub}</span></button><button type="button" class="bot-mais" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
+    return `<div class="bot-row inicio-linha${tom}${o.escondida ? " escondida" : ""}" data-bot-contexto="${esc(a.id)}" data-busca="${busca}"><button class="row" data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}" data-busca="${busca}" aria-label="Abrir conversa com ${esc(a.nome)}${o.emLigacao ? " (em ligação)" : ""}${o.rotuloAviso}">${iconeAgente(a, "", o.estadoVisual, `${motorDaBarra(a.id)}${o.aviso ? ` data-aviso="${o.aviso}"` : ""}`)}<span class="txt"><span class="nome-linha"><b>${esc(a.nome)}</b>${o.chip}${hora}</span>${sub}</span></button><button type="button" class="bot-mais" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
   };
   // definido em 2026-10-04 (web/lib/secoes.ts): a seção recolhe pelo título. Recolhida, ficam à vista o bot da conversa
   // aberta e os com problema (computador fora do ar, em ligação); os outros continuam no HTML, escondidos pelo CSS — a
@@ -2552,7 +2556,7 @@ function renderSidebar(estado: Estado): string {
     const estadoBarra = ehCelular ? "" : emLigacao ? "ligacao" : foraDoAr ? "fora" : paradas.has(a.id) ? "parada" : "";
     const extraAria = ehCelular ? "" : `${emLigacao ? " (em ligação)" : ""}${foraDoAr ? ", computador fora do ar" : ""}${!foraDoAr && paradas.has(a.id) ? ", rotina parada" : ""}${rotuloDoSinal(sinalDoBot(estado, a))}`;
     const nomeCompleto = a.titulo ? `${a.nome} · ${a.titulo}` : a.nome;
-    return `<div class="fixado${emLigacao ? " em-ligacao" : ""}${alem}" data-bot-contexto="${esc(a.id)}"${arrastavel(a)}${estadoBarra ? ` data-estado-barra="${estadoBarra}"` : ""} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}"><button class="fixado-bt"${atual(a.conversaId)} data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}"${dadoPendente(a)} data-etiqueta="${esc(nomeCompleto)}" aria-label="Abrir conversa com ${esc(a.nome)}${rotulo}${esc(extraAria)}"${semTitle ? "" : ` title="${esc(nomeCompleto)}"`}>${iconeAgente(a, "lg", novo ? mascote : mascoteComAviso(mascote, aviso), aviso && !novo ? `data-aviso="${aviso}"` : "")}${sinalGrade}<b>${esc(a.nome)}</b>${emLigacao ? `<i class="chip chip-em-ligacao">${ICONE_LIGACAO.fone(11)}Em ligação</i>` : sinalDoBot(estado, a) || (a.titulo ? `<i class="chip">${esc(a.titulo)}</i>` : "")}</button><button type="button" class="bot-mais bot-mais-fixado" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
+    return `<div class="fixado${emLigacao ? " em-ligacao" : ""}${alem}" data-bot-contexto="${esc(a.id)}"${arrastavel(a)}${estadoBarra ? ` data-estado-barra="${estadoBarra}"` : ""} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}"><button class="fixado-bt"${atual(a.conversaId)} data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}"${dadoPendente(a)} data-etiqueta="${esc(nomeCompleto)}" aria-label="Abrir conversa com ${esc(a.nome)}${rotulo}${esc(extraAria)}"${semTitle ? "" : ` title="${esc(nomeCompleto)}"`}>${iconeAgente(a, "lg", novo ? mascote : mascoteComAviso(mascote, aviso), `${motorDaBarra(a.id)}${aviso && !novo ? ` data-aviso="${aviso}"` : ""}`)}${sinalGrade}<b>${esc(a.nome)}</b>${emLigacao ? `<i class="chip chip-em-ligacao">${ICONE_LIGACAO.fone(11)}Em ligação</i>` : sinalDoBot(estado, a) || (a.titulo ? `<i class="chip">${esc(a.titulo)}</i>` : "")}</button><button type="button" class="bot-mais bot-mais-fixado" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
   };
   // definido em 2026-10-07 (ADR-081): o Nod nunca entra numa seção. Fixado, é o primeiro da grade; desafixado (discreto),
   // vira o botão com o logo e o nome na barra de cima, à esquerda da lupa (canvas "Nod — bot fixo", Alt E).

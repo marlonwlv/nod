@@ -34,7 +34,7 @@ import type { DonoDto, EstadoDoDono } from "../../src/contracts/dono.ts";
 import type { NivelPressao, TaxaDeAbertura, TrabalhoDetalheDto, TrabalhosDto } from "../../src/contracts/trabalho.ts";
 import type { Escopo } from "../../src/shared/types.ts";
 import type { LeituraAtual } from "../lib/ouvir.ts";
-import { FALA_SAINDO_MS } from "../lib/fala-viva.ts";
+import { chaveDaFalaViva, FALA_ORFA_MS } from "../lib/fala-viva.ts";
 import { acoesFechadas, acoesSemNota, ATIVIDADE_VAZIA, linhasDoResumo, comFerramenta, comFimDaAcao, comSubagentes, comTarefas, comTexto, comVigia, SEM_NOME_DA_FERRAMENTA, semFerramentaAberta, soSubagentes, subagentesParados, textoDaFala, type AtividadeTurno, type FerramentaEmUso, type SubagentesDoTurno, type VigiaDaAtividade, comCabecalho, comFrentesEm } from "../lib/atividade.ts";
 import { chaveDaAtividade, diaLocal, vistaInicial, type VistaDaAtividade } from "../lib/atividade-do-bot.ts";
 import { chaveDasDecisoes, type PaginaDasDecisoes } from "../lib/decisoes-do-bot.ts";
@@ -269,7 +269,7 @@ export type LigacaoVivaNaTela = { ligacaoId: string; agenteId: string; conversaI
  */
 /** `agenteId` (NOD-348): o bot do turno, do `agente_id` do frame — na sala, cada fala viva tem o mascote de quem fala. */
 /** O turno que acabou com texto, guardado com a atividade até a releitura da conversa (`em`: a hora do fim). */
-export type FalaSaindo = { turno: TurnoVivo; atividade: AtividadeTurno; em: number };
+export type FalaSaindo = { turno: TurnoVivo; atividade: AtividadeTurno; em: number; /** C1: a chave do bloco da fala viva que ele congelou (o nó fica o mesmo). */ chave?: string };
 export type TurnoVivo = { turnoId: string; conversaId: string; estado: "na_fila" | "rodando"; executor: string | null; machineId: string | null; desde: number; trabalhoId?: string | null; vistoEm?: number; chegouEm?: number; origem?: string | null; agenteId?: string | null; /** NOD-312: o turno recomeçou sem a sessão (turno_despachado.dados.motivo_recomeco). */ motivoRecomeco?: MotivoRecomeco | null; /** NOD-402 (ADR-130): turno dos bastidores (rotina, colega, sob procuração) — conta na presença, nunca no chat. */ bastidores?: boolean; /** NOD-402: a hora do despacho no relógio do SERVIDOR (turno_despachado, GET), comparável ao `criadoEm` das mensagens. */ despachadoEm?: number; /** NOD-402: a hora em que o turno nasceu no SERVIDOR (turno_criado, turno_despachado, GET); a ordem do chat trava daqui. */ criadoEm?: number };
 
 /**
@@ -361,9 +361,11 @@ export type Estado = {
   /**
    * NOD-348 (QA do #508): a fala viva que virou mensagem (o turno acabou, ou `turno.fala` no meio dele), por conversa e
    * por turno, até a releitura que saiu depois dela trazer a fala gravada — sem ela, a timeline ficava um quadro sem fala
-   * nenhuma e a conversa pulava ~95 px no fim de todo turno. Some sozinha em `FALA_SAINDO_MS` (o tick limpa).
+   * nenhuma e a conversa pulava ~95 px no fim de todo turno. C2: sai quando a gravada chega; o órfão, em `FALA_ORFA_MS`.
    */
   falasSaindo?: Record<string, Record<string, FalaSaindo>>;
+  /** C1 (2026-11-12): quantas falas do meio cada turno já soltou (`turno.fala`); o segmento da fala viva, na chave dela. */
+  falasDoTurno?: Record<string, number>;
   /**
    * Os últimos turnos que a web viu encerrar ou ser interrompidos (definido em 2026-10-08, revisão W6): o `GET
    * trabalhos/:id` que saiu antes do `turno.encerrado` e chega depois dele traz o turno ainda vivo, e sem esta lista o
@@ -879,8 +881,10 @@ function comFalaSaindo(estado: Estado, turnoId: string | null, agora: number, fi
   const atuais = estado.falasSaindo?.[turno.conversaId] ?? {};
   let n = Object.keys(atuais).length;
   while (atuais[`${turno.turnoId}:${agora}:${n}`]) n++;
-  const daConversa = { ...atuais, [`${turno.turnoId}:${agora}:${n}`]: { turno, atividade, em: agora } };
-  return { ...estado, falasSaindo: { ...estado.falasSaindo, [turno.conversaId]: daConversa } };
+  const daConversa = { ...atuais, [`${turno.turnoId}:${agora}:${n}`]: { turno, atividade, em: agora, chave: chaveDaFalaViva(estado, turno.turnoId) } };
+  // C1: a fala do meio (não o fim do turno) abre um segmento novo da fala viva, com chave nova.
+  const falasDoTurno = fim ? estado.falasDoTurno : { ...estado.falasDoTurno, [turno.turnoId]: (estado.falasDoTurno?.[turno.turnoId] ?? 0) + 1 };
+  return { ...estado, falasSaindo: { ...estado.falasSaindo, [turno.conversaId]: daConversa }, ...(falasDoTurno ? { falasDoTurno } : {}) };
 }
 
 /** Há um retrato (fala parada) deste turno na conversa? */
@@ -903,6 +907,16 @@ function gravadaDoTurno(estado: Estado, conversaId: string, turnoId: string): bo
 function gravadaDoRetrato(conversa: ConversaDto, s: FalaSaindo): boolean {
   const texto = textoDaFala(s.atividade).trim();
   return conversa.mensagens.some((m) => m.turnoId === s.turno.turnoId && m.kind === "texto" && m.autoria.autor_tipo === "agente" && (texto ? m.texto.trim() === texto : m.payload?.kind === "acoes_do_turno"));
+}
+
+/**
+ * C2 (definido em 2026-11-12): o retrato fica enquanto a gravada dele não está na conversa da tela; o do turno que já
+ * acabou e não deixou gravada (órfão) sai em FALA_ORFA_MS. Com o turno vivo, o tempo não conta.
+ */
+function retratoFica(estado: Pick<Estado, "conversas" | "turnosVivos">, conversaId: string, s: FalaSaindo, agora: number): boolean {
+  const tela = estado.conversas[conversaId];
+  if (tela && gravadaDoRetrato(tela, s)) return false;
+  return !!estado.turnosVivos[s.turno.turnoId] || agora - s.em < FALA_ORFA_MS;
 }
 
 /**
@@ -980,6 +994,31 @@ function comPendentes(estado: Estado, conversaId: string, f: (ps: readonly FalaP
   return { ...estado, conversas: { ...estado.conversas, [conversaId]: { ...resto, ...(pendentes.length ? { pendentes } : {}), ...(juntas && Object.keys(juntas).length ? { enviadas: juntas } : {}) } } };
 }
 
+/**
+ * C4 (definido em 2026-11-12): a releitura casa cada pendente com a gravada pelo `idEnvio` (a mesma chave de idempotência
+ * que o POST levou), não só pelo id que o POST devolve. A releitura do próprio `mensagem.nova`/`turno.iniciado` chega
+ * antes da resposta do POST: sem o id, a pendente ficava e a gravada aparecia junto (a fala duplicada). A gravada herda a
+ * chave do bloco da pendente (`enviadas`), então o nó do balão é o mesmo e nada anima de novo.
+ */
+export function casarPendentes(pendentes: readonly FalaPendente[], enviadas: Readonly<Record<string, string>> | undefined, mensagens: readonly Mensagem[]): { pendentes: readonly FalaPendente[]; enviadas: Readonly<Record<string, string>> | undefined } {
+  if (pendentes.length === 0) return { pendentes, enviadas };
+  const porEnvio = new Map<string, string>();
+  const gravadas = new Set<string>();
+  for (const m of mensagens) {
+    gravadas.add(m.id);
+    if (m.idEnvio) porEnvio.set(m.idEnvio, m.id);
+  }
+  const novas: Record<string, string> = {};
+  const ficam = pendentes.filter((p) => {
+    const id = porEnvio.get(p.idEnvio) ?? (p.mensagemId && gravadas.has(p.mensagemId) ? p.mensagemId : null);
+    if (!id) return true;
+    if (!enviadas?.[id]) novas[id] = p.idEnvio;
+    return false;
+  });
+  if (Object.keys(novas).length === 0) return { pendentes: ficam, enviadas };
+  return { pendentes: ficam, enviadas: Object.fromEntries(Object.entries({ ...enviadas, ...novas }).slice(-ENVIADAS_GUARDADAS)) };
+}
+
 /** Parte 4: a mensagem que veio no frame, se tem a forma de uma fala de pergunta e a conversa está carregada sem ela. */
 function comMensagemDoFrame(estado: Estado, f: FrameSse): Estado {
   const m = mensagemDoFrame(f.dados.mensagem_json);
@@ -1019,7 +1058,7 @@ function semDesmentidos(estado: Estado, ids: readonly string[], leituraEm: numbe
   if (ids.length === 0) return estado;
   // QA do #534 (27/10): a leitura que desmente um turno rodando chega antes do `turno.encerrado`/`interrompido` (a de
   // trabalhos, ou a que o próprio Parar dispara; medido em 2026-10-27: 86 ms e 50 ms sem fala nenhuma, no Mac). A fala viva dele fica como
-  // retrato, igual ao fim pelo frame: a releitura que traz a gravada o tira (`gravadaDoRetrato`) e `FALA_SAINDO_MS` dá o teto.
+  // retrato, igual ao fim pelo frame: a releitura que traz a gravada o tira (`gravadaDoRetrato`) e `FALA_ORFA_MS` dá o teto do órfão.
   let comRetratos = estado;
   for (const id of ids) comRetratos = comFalaSaindo(comRetratos, id, leituraEm, true);
   const turnosVivos = { ...comRetratos.turnosVivos };
@@ -1577,6 +1616,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       const id = acao.mensagemId;
       // Revisão de engenharia (27/10): a releitura (do `turno.iniciado` por SSE) pode chegar ANTES da resposta do POST e já
       // trazer a gravada; aí a pendente só sai, e a gravada fica com a chave dela (o bloco da pendente nunca virou o dela).
+      // C4: com o idEnvio na mensagem, a releitura já casou a pendente e guardou a chave dela em `enviadas`.
       if (estado.conversas[acao.conversaId]?.mensagens.some((m) => m.id === id)) return comPendentes(estado, acao.conversaId, (ps) => ps.filter((p) => p.idEnvio !== acao.idEnvio));
       return comPendentes(estado, acao.conversaId, (ps) => ps.map((p) => (p.idEnvio === acao.idEnvio ? { ...p, estado: "enviando", mensagemId: id, turnoId: acao.turnoId } : p)), { [id]: acao.idEnvio });
     }
@@ -1600,7 +1640,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "tick": {
       // definido em 2026-09-24 (ADR-045): nenhum evento diz que o Mac voltou (o fechamento do aviso é do
       // varredor, no modo compartilhado). Enquanto houver aviso EM CURSO, cada tick relê "Sua vez".
-      const comAgora = semFalasSaindo({ ...estado, agora: acao.agora }, (s) => acao.agora - s.em < FALA_SAINDO_MS);
+      // C2: o retrato fica até a gravada estar na conversa da tela; o órfão (turno acabado, sem gravada) sai em FALA_ORFA_MS.
+      const comAgora = semFalasSaindo({ ...estado, agora: acao.agora }, (s, c) => retratoFica(estado, c, s, acao.agora));
       return estado.suaVez?.incidentes.some((i) => i.voltouEm === null) ? invalidar(comAgora, "sua-vez") : comAgora;
     }
     case "conexao": {
@@ -1698,12 +1739,15 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       }
       // Parte 1: a pendente cuja gravada chegou sai; as outras seguem (a releitura que saiu antes do POST não a traz).
       const antes = estado.conversas[conversaId];
-      const gravadas = new Set(acao.conversa.mensagens.map((m) => m.id));
-      const pendentes = (antes?.pendentes ?? []).filter((p) => !(p.mensagemId && gravadas.has(p.mensagemId)));
-      const extras = { ...(pendentes.length ? { pendentes } : {}), ...(antes?.enviadas ? { enviadas: antes.enviadas } : {}) };
+      const { pendentes, enviadas } = casarPendentes(antes?.pendentes ?? [], antes?.enviadas, acao.conversa.mensagens);
+      const extras = { ...(pendentes.length ? { pendentes } : {}), ...(enviadas ? { enviadas } : {}) };
       // O retrato de antes da releitura sai (revisão 3 do #508); o desta releitura (`semDesmentidos`, `em` = agora) ou de depois
       // dela fica — salvo se a gravada já veio nela (QA do #534).
-      return { ...semFalasSaindo(semSumidos, (s, c) => c !== conversaId || (s.em >= acao.agora && !gravadaDoRetrato(acao.conversa, s))), turnosVivos: promovidos, atividades, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: acao.agora, ...extras } } };
+      // C2 (2026-11-12): o retrato sai quando a gravada está na conversa — a da tela primeiro, depois a da resposta —, nunca
+      // só por ser de antes desta releitura (a releitura que saiu antes da gravada o tirava e a fala sumia até a próxima).
+      const tela = estado.conversas[conversaId];
+      const fica = (s: FalaSaindo): boolean => !(tela && gravadaDoRetrato(tela, s)) && !gravadaDoRetrato(acao.conversa, s) && retratoFica({ ...semSumidos, turnosVivos: promovidos }, conversaId, s, acao.agora);
+      return { ...semFalasSaindo(semSumidos, (s, c) => c !== conversaId || fica(s)), turnosVivos: promovidos, atividades, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: acao.agora, ...extras } } };
     }
     case "hidratar-sua-vez": {
       // A escolha do campo só vale enquanto a conversa tem pergunta aberta: respondida ou deixada pra lá

@@ -2122,8 +2122,10 @@ span.pilula-memoria { padding-right: 12px; cursor: default; }
 .cabecalho.cabecalho-pilula::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 104px; z-index: -1; pointer-events: none;
   background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 94%, transparent) 34%, color-mix(in srgb, var(--surface) 0%, transparent) 100%); }
 .cabecalho.cabecalho-pilula ~ .timeline-wrap { padding-top: 104px; }
-.cabecalho.cabecalho-pilula + #erro:not(:empty) { position: relative; z-index: 5; margin-top: 62px; }
-.cabecalho.cabecalho-pilula + #erro:not(:empty) + .timeline-wrap { padding-top: 42px; }
+/* C6 (definido em 2026-11-12): o "Reconectando…" e o erro ficam POR CIMA da conversa, logo abaixo da pílula; no fluxo,
+   eles empurravam a lista 62 px + a faixa (o `+ .timeline-wrap` nunca casava: os avisos sr-only ficam no meio). */
+.cabecalho.cabecalho-pilula + #erro:not(:empty) { position: absolute; top: 62px; left: 0; right: 0; z-index: 5; pointer-events: none; }
+.cabecalho.cabecalho-pilula + #erro:not(:empty) > * { pointer-events: auto; }
 .pilula-bot { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 38px; max-width: min(420px, 100%); box-sizing: border-box;
   padding: 0 16px 0 6px; border: 1px solid var(--line); border-radius: var(--raio-full); background: var(--surface); box-shadow: var(--shadow-pop);
   color: var(--ink); font: inherit; font-size: var(--fs-corpo); font-weight: 600; cursor: pointer; }

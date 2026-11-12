@@ -1,3 +1,4 @@
+import { FALA_ORFA_MS } from "../../../web/lib/fala-viva.ts";
 import { describe, expect, it } from "vitest";
 import type { ConversaDto } from "../../../src/contracts/api.ts";
 import type { FrameSse, TipoFrame } from "../../../src/contracts/frame.ts";
@@ -338,8 +339,10 @@ describe("QA do #534: o retrato da fala e a gravada", () => {
     expect(retratos(relida(e, [gravada("Pronto, revisei.")], AGORA + 5))).toHaveLength(0);
     // Outra fala do mesmo turno (a do meio, de um `turno.fala`) não vale pela final.
     expect(retratos(relida(e, [gravada("A do meio.")], AGORA + 5))).toHaveLength(1);
-    // A releitura de depois do fim continua tirando tudo, como antes.
-    expect(retratos(relida(e, [], AGORA + 20))).toHaveLength(0);
+    // C2 (2026-11-12): nem a releitura de depois do fim o tira sem a gravada (a fala sumia antes de a gravada chegar); o
+    // órfão sai pelo tick, FALA_ORFA_MS depois.
+    expect(retratos(relida(e, [], AGORA + 20))).toHaveLength(1);
+    expect(retratos(reduzir(relida(e, [], AGORA + 20), { tipo: "tick", agora: AGORA + 10 + FALA_ORFA_MS }))).toHaveLength(0);
   });
 
   it("sem texto e com ações, o pensamento fica como retrato até a fala com o resumo chegar; sem ação nenhuma, nada fica", () => {

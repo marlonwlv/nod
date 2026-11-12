@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aplicarMudanca, desfazerMudanca, patchDoMover, reaplicarNoAr, tiqueDoRelogio, type MudancaNoAr } from "../../../web/lib/otimista-do-quadro.ts";
+import { aplicarMudanca, desfazerMudanca, enfileirarMudanca, patchDoMover, reaplicarFila, reaplicarNoAr, tiqueDoRelogio, type MudancaNoAr } from "../../../web/lib/otimista-do-quadro.ts";
 import { rotuloDaSituacao } from "../../../web/lib/estado-do-trabalho.ts";
 import type { QuadroDto, TarefaDto } from "../../../src/contracts/quadro.ts";
 import { COLUNAS_PADRAO, colunasDto } from "../../../src/domain/colunas.ts";
@@ -65,5 +65,39 @@ describe("T4: o relógio da tela", () => {
   it("na fila há X também sem motivo, depois de um minuto", () => {
     expect(rotuloDaSituacao("fila", { naFilaDesde: MIN, agora: 5 * MIN })).toBe("na fila há 4 min");
     expect(rotuloDaSituacao("fila", { naFilaDesde: MIN, agora: MIN + 30_000 })).toBe("na fila");
+  });
+});
+
+describe("Q2 (2026-11-12): os arrastos no ar são uma fila, não um descarte", () => {
+  const mover = (tarefa: string, de: string, para: string): MudancaNoAr => ({ tarefa, de, para, patch: patchDoMover(para, undefined, false) });
+
+  it("o segundo arrasto entra atrás do primeiro, e os dois ficam no quadro que chega (resposta ou frame)", () => {
+    const fila = enfileirarMudanca(enfileirarMudanca([], mover("a", "backlog", "revisao"), false), mover("b", "backlog", "feito"), true);
+    expect(fila.map((x) => x.tarefa)).toEqual(["a", "b"]);
+    // O frame ainda mostra os dois na coluna antiga: os dois voltam para onde a pessoa soltou, na ordem.
+    const q = reaplicarFila(quadro(tarefa("a"), tarefa("b")), fila);
+    expect(q.tarefas.map((t) => t.status)).toEqual(["revisao", "feito"]);
+  });
+
+  it("a mesma tarefa arrastada de novo antes de sair: vale o último destino, com o `de` de verdade", () => {
+    const fila = enfileirarMudanca([mover("x", "afazer", "fazendo"), mover("a", "backlog", "revisao")], mover("a", "revisao", "feito"), true);
+    expect(fila).toHaveLength(2);
+    expect(fila[1]).toMatchObject({ tarefa: "a", de: "backlog", para: "feito" });
+  });
+
+  it("a tarefa que já está no servidor (a [0]) não é trocada: o arrasto novo dela entra atrás e se aplica depois", () => {
+    const fila = enfileirarMudanca([mover("a", "backlog", "revisao")], mover("a", "revisao", "feito"), true);
+    expect(fila.map((x) => [x.de, x.para])).toEqual([["backlog", "revisao"], ["revisao", "feito"]]);
+    expect(reaplicarFila(quadro(tarefa("a")), fila).tarefas[0]?.status).toBe("feito");
+  });
+
+  it("soltar o card de volta na coluna de onde saiu tira a espera da fila", () => {
+    const fila = enfileirarMudanca([mover("x", "afazer", "fazendo"), mover("a", "backlog", "revisao")], mover("a", "revisao", "backlog"), true);
+    expect(fila.map((x) => x.tarefa)).toEqual(["x"]);
+  });
+
+  it("o servidor que já mostra a tarefa noutro lugar ganha da fila (T2 segue valendo)", () => {
+    const q = reaplicarFila(quadro(tarefa("a", { status: "feito" })), [mover("a", "backlog", "revisao")]);
+    expect(q.tarefas[0]?.status).toBe("feito");
   });
 });
