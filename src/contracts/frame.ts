@@ -74,11 +74,13 @@ export type TipoFrame =
    */
   | "agente.estado"
   /**
-   * definido em 2026-11-12: o cursor do computador de um bot, efêmero (sem gravar, sem replay útil): `DadosFrameCursor`
-   * (src/contracts/estado-vivo.ts). Só o contrato por ora: o servidor ainda não o emite (falta o motor do computador mandar
-   * as coordenadas); quando emitir, sai só para a pessoa com a tela daquele bot aberta.
+   * definido em 2026-11-12: o cursor do computador de um bot, efêmero (sem gravar): `DadosFrameCursor`
+   * (src/contracts/estado-vivo.ts). Sai da ação do bot (clicar, arrastar, rolar, digitar) quando o servidor a manda ao
+   * computador; a web mostra só na tela daquele bot (`bot`).
    */
   | "computador.cursor"
+  /** D (2026-11-12): o estado da máquina do computador mudou: `DadosFrameMaquina` (src/contracts/estado-vivo.ts). */
+  | "computador.estado"
   | "resumed";
 
 /**

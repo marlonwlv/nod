@@ -216,3 +216,16 @@ it("4ª revisão: a retomada desfeita por erro na mesma transação não derruba
   } finally { deps.repos.computadores.ocupar = ocupar; }
   expect(vivoFechado).toEqual([]);
 });
+
+it("D: o clique e o digitar do bot saem como computador.cursor (o digitar onde o clique deixou); o observar não", async () => {
+  const cursores: unknown[] = [];
+  const comCursor = criarComputadores({ ...opcoes, cursor: (_e, frame) => { cursores.push(frame); } });
+  const vista = await chamar("computador_observar", {}, "t-cursor", comCursor);
+  await chamar("computador_interagir", { tipo: "clicar", x: 120, y: 340, quadro: vista.json.tela.quadro }, "t-cursor", comCursor);
+  const depois = await chamar("computador_observar", { forcar: true }, "t-cursor", comCursor);
+  await chamar("computador_interagir", { tipo: "digitar", texto: "oi", quadro: depois.json.tela.quadro }, "t-cursor", comCursor);
+  expect(cursores).toEqual([
+    { bot: AGENTE, tipo: "clicar", x: 120, y: 340, botao: "esquerdo", contagem: 1, em: agora },
+    { bot: AGENTE, tipo: "digitar", x: 120, y: 340, botao: null, contagem: 0, em: agora },
+  ]);
+});

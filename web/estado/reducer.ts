@@ -1452,6 +1452,8 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   // fase 0 do React); aqui o reducer só os aceita, sem mudar o estado (o contrato é src/contracts/estado-vivo.ts).
   "agente.estado": (e) => e,
   "computador.cursor": (e) => e,
+  // D (2026-11-12): o estado da máquina no stream; a tela do computador (C/D) o usa — aqui ainda não muda nada.
+  "computador.estado": (e) => e,
   "contas.mudou": (e) => invalidar(e, "contas", "maquinas", usoPlano(e)),
   "agente.mudou": (e, f) => {
     const agenteId = texto(f.dados.agente_id) ?? texto(f.dados.agenteId);

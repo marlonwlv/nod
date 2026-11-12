@@ -1,4 +1,5 @@
 import type { AnexoMeta } from "./anexo.ts";
+import type { EstadoTelaComputador, OperacaoComputador } from "./computador-motor.ts";
 import type { ConversaDto } from "./api.ts";
 import type { Mensagem } from "./mensagem.ts";
 import type { EpochMs } from "./ids.ts";
@@ -120,3 +121,25 @@ export type RespostaRenovarAnexos = { mensagensAnexos?: Record<string, AnexoMeta
 export type PonteAguardaMensagem = { aguardarMensagem?(turnoId: string, ms: number): Promise<boolean> };
 /** Teto do long-poll da mensagem (o mesmo do pull da ponte, ADR-021). */
 export const AGUARDAR_MENSAGEM_MS = 20_000;
+
+/**
+ * D (definido em 2026-11-12): o estado da máquina do computador no stream (frame `computador.estado`), da foto que o
+ * supervisor relata (computador no motor): ligado, a operação em curso e cada tela de bot. Sai quando muda (ligou,
+ * operação, tela abriu/fechou, memória ±10%), não a cada foto. `presente`: a pessoa está com o nod aberto (o sono espera).
+ */
+export type DadosFrameMaquina = {
+  maquinaId: string;
+  ligado: boolean;
+  operacao: { tipo: OperacaoComputador; pct: number } | null;
+  telas: { bot: string; estado: EstadoTelaComputador; ultimaAcaoEm: EpochMs | null; memoriaMb: number | null }[];
+  memoriaTotalMb: number | null;
+  presente: boolean;
+  em: EpochMs;
+};
+
+/**
+ * D: a presença da pessoa decide o sono. Com o nod aberto (SSE conectado), o computador ocioso só dorme depois de
+ * `PRESENCA_MULTIPLICA_SONO` vezes o limite de ociosidade (uma aba esquecida não o segura ligado para sempre); sem ela, no
+ * limite de sempre.
+ */
+export const PRESENCA_MULTIPLICA_SONO = 4;

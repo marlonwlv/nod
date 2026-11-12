@@ -55,6 +55,7 @@ import { listarTodas } from "../../repositories/pessoas.repo.ts";
 import { criarBarramento, type Barramento } from "../../services/barramento.ts";
 import { criarEstadoVivo } from "../../services/estado-vivo.ts";
 import { comAvisoDeMensagem, criarAvisoDeMensagem } from "../../services/aviso-de-mensagem.ts";
+import { chaveDaMaquina, maquinaNoStream } from "../../domain/computador-vivo.ts";
 import { sinalDoEvento, type SinalDoMotor } from "../../domain/estado-vivo.ts";
 import { criarConectoresVivos, type ConectoresVivos, type ConfigConectorVivo } from "../../services/conectores-vivos.ts";
 import { capturaLigada, criarCapturas } from "../../services/capturas.ts";
@@ -739,7 +740,15 @@ export function comporApp(o: OpcoesCompor): App {
    * o do supervisor) e a máquina dela. Desligada: nada disto existe e as rotas `computador/*` da ponte dão 404.
    */
   const computadorNoMotor = !o.computador && env.NOD_COMPUTADORES === "motor";
-  const canalComputador = computadorNoMotor ? criarCanalComputador({ agora: relogio }) : null;
+  // D (2026-11-12): o estado da máquina vai no stream quando muda o que importa (chaveDaMaquina), não a cada foto.
+  const chavesDasMaquinas = new Map<string, string>();
+  const canalComputador = computadorNoMotor ? criarCanalComputador({ agora: relogio, aoEstado: (escopo, maquinaId, relato) => {
+    const dados = maquinaNoStream(maquinaId, relato, barramento.inscritos(escopo.pessoaId) > 0, relogio());
+    const chave = `${escopo.pessoaId}:${chaveDaMaquina(dados)}`;
+    if (chavesDasMaquinas.get(maquinaId) === chave) return;
+    chavesDasMaquinas.set(maquinaId, chave);
+    barramento.publicar(escopo.pessoaId, "computador.estado", dados);
+  } }) : null;
   // NOD-95 (ADR-138): as sessões da tela ao vivo, só com o computador no motor.
   const sessoesVivo = computadorNoMotor ? criarSessoesVivo() : null;
   const driverMotor = canalComputador ? criarDriverMotor({
@@ -817,7 +826,9 @@ export function comporApp(o: OpcoesCompor): App {
     lugarPadraoNaCriacao: computadorNoMotor ? (escopo) => lugarPadrao(ponteHttp.maquinasComComputador(escopo)) : undefined,
     cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave),
     // `saude` (emenda da ADR-037): o computador entrou ou saiu do ar — a web relê a frota só nesse caso.
-    mudou: (escopo, agenteId, saude) => { barramento.publicar(escopo.pessoaId, "computador.mudou", { agenteId, ...(saude ? { saude: true } : {}) }); } });
+    mudou: (escopo, agenteId, saude) => { barramento.publicar(escopo.pessoaId, "computador.mudou", { agenteId, ...(saude ? { saude: true } : {}) }); },
+    // D (2026-11-12): o cursor da ação do bot, efêmero (não grava), para a tela daquele bot.
+    cursor: (escopo, frame) => { barramento.publicar(escopo.pessoaId, "computador.cursor", frame); } });
   if (o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor || provedoresComputador) services.computadores = computadores;
   rodarAposCommit = async (escopo, efeito) => {
     if (efeito.tipo === "desligar_computador") return computadores.desligarExcluido(escopo, efeito.agenteId);
