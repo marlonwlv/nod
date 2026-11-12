@@ -31,7 +31,7 @@ export interface OpcoesServidor {
   autorizarMaquina?: DepsRoteador["autorizarMaquina"];
   autorizarTokenTurno?: DepsRoteador["autorizarTokenTurno"];
   /** Servidor MCP do Nod (0173): sem isto, POST /api/mcp não existe (404). */
-  mcp?: Pick<DepsServidorMcp, "autorizar" | "versaoNod">;
+  mcp?: Pick<DepsServidorMcp, "autorizar" | "versaoNod" | "dormir">;
   /** Modo de login (ADR-030). Default `stub`, que só escuta em loopback; o boot SEMPRE passa o do NOD_LOGIN. */
   sessao?: OpcoesSessao;
   /** NOD-345 (ADR-124): com NOD_CONTAS, a sessão revogável, as rotas de conta e o que o modo anuncia. */

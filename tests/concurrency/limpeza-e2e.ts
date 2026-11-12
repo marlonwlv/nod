@@ -15,6 +15,7 @@ export async function limparPessoaE2E(db: Db, dbDono: Db, escopo: Escopo, ids: {
   await db.begin(async (trx) => {
     await vincularEscopo(trx, escopo);
     await trx`set local lock_timeout = '5s'`;
+    await trx`delete from mcp_tokens where owner_id = ${p}`;
     await trx`delete from relato_prosa where owner_id = ${p}`;
     await trx`delete from relatos where owner_id = ${p}`;
     await trx`delete from turno_diagnosticos where owner_id = ${p}`;

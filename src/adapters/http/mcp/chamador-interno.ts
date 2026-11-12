@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import type { Escopo } from "../../../shared/types.ts";
-import { REGISTRO_DE_ACOES } from "../../../domain/acoes/index.ts";
+import type { IdAcao } from "../../../domain/acoes/index.ts";
 import { responderErro } from "../erros.ts";
 import { casar, type Ctx, type Metodo, type Rota } from "../roteador.ts";
 
@@ -11,16 +11,27 @@ export type ChamadorInterno = (escopo: Escopo, pedido: PedidoInterno) => Promise
 
 /**
  * Rotas que o cliente MCP nunca chama, nem pelo `nod_chamar_rota`: os próprios tokens MCP (um token não gera outro nem se
- * esconde da lista) e o canal SSE (`/eventos`, que não termina). As ações que o registro marca `nunca` no chat (as que
- * levam um segredo, a senha ou o pareamento) também ficam de fora: o motivo de não irem pela conversa vale para um
- * cliente de fora.
+ * esconde da lista) e o canal SSE (`/eventos`, que não termina).
  */
 const CAMINHOS_FORA = [/^\/mcp(\/|$)/, /^\/eventos$/];
-const ACOES_NUNCA = new Set<string>(REGISTRO_DE_ACOES.filter((a) => a.chat.estado === "nunca").map((a) => a.id));
+
+/**
+ * As ações do registro que ficam fora do MCP: as que levam um segredo (token, chave, senha, credencial), o pareamento de
+ * aparelho (a pessoa confere o código na tela dele), o login OAuth no navegador, as mãos da pessoa no computador do bot e
+ * o consentimento de voz. Lista explícita, não "todas as `nunca` do chat": o `nunca` de conversas.enviar ("é o próprio
+ * chat") e o dos cartões ("cartão se decide no cartão") falam do bot decidir pela conversa; o cliente MCP age em nome da
+ * PESSOA, com o token dela, e mandar mensagem e aprovar um pedido são justamente o que ele existe para fazer.
+ */
+export const ACOES_FORA_DO_MCP: ReadonlySet<IdAcao> = new Set<IdAcao>([
+  "apps.credenciais", "apps.configurar_marketplace", "apps.github_token", "apps.github_app",
+  "maquinas.criar_chave", "maquinas.parear", "maquinas.aprovar_dispositivo", "maquinas.credencial_ssh",
+  "nuvem.conectar_google", "computador.usar_tela", "cartoes.guardar_credencial", "voz.consentir",
+  "mcp.criar_token", "mcp.revogar_token",
+]);
 
 export function rotaForaDoMcp(rota: Rota, caminho: string): boolean {
   if (CAMINHOS_FORA.some((p) => p.test(caminho))) return true;
-  return rota.acao !== undefined && ACOES_NUNCA.has(rota.acao);
+  return rota.acao !== undefined && ACOES_FORA_DO_MCP.has(rota.acao);
 }
 
 /**
