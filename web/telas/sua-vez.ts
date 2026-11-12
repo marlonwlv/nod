@@ -1,4 +1,5 @@
 import { listaDasColunasParaSuaVez } from "./card-colunas.ts";
+import { agruparIguais, renderPedidosIguais } from "./pedidos-iguais.ts";
 import { previaParaSuaVez } from "./card-importacao.ts";
 import { previaAssumirParaSuaVez } from "./card-assumir-quadro.ts";
 import type { SuaVezDto } from "../../src/contracts/api.ts";
@@ -6,7 +7,6 @@ import type { Proposta } from "../../src/contracts/conversa.ts";
 import type { TIPOS_DISPENSAVEIS_ABERTOS, TipoDecisao } from "../../src/contracts/decisao.ts";
 import type { Estado } from "../estado/reducer.ts";
 import { checkboxesDosGrupos, type IdGrupo } from "./app-acesso.ts";
-import { logoApp } from "./marketplace.ts";
 import { pedidosAbertos } from "../lib/avisos.ts";
 import { desdeDaParada, linhaNaoRodaram } from "../lib/execucao.ts";
 import { chaveDoItem, contarFios, ehPergunta } from "../lib/perguntas.ts";
@@ -19,6 +19,7 @@ import { ehCartaoCredencial, renderCardCredencial } from "./card-credencial.ts";
 import { ehCartaoDoRevisor, motivoDoCartao, perguntaDoCartao, renderCartaoRevisor, sempreNoCartao } from "./cartao-revisor.ts";
 import { noSeuMac, seuMac } from "../lib/plataforma-da-tela.ts";
 import { avisoNaFila } from "../lib/executar-rotina.ts";
+import { ehDecisaoDeRascunhos, renderDecisaoDeRascunhos } from "./rascunhos-de-envio.ts";
 
 type Item = SuaVezDto["itens"][number];
 
@@ -334,37 +335,54 @@ function renderCardAprovacao(item: Item, estado: Estado): string {
   const unico = itens.length === 1 && itens[0] && !itens[0].origemSensivel ? itens[0] : undefined;
   const slugs = [...new Set(itens.map((i) => i.destino.conector))];
   const umApp = slugs.length === 1 ? slugs[0] : undefined;
-  const chip = (slug: string): string => {
-    const app = conectores.find((c) => c.slug === slug)?.nome ?? slug;
-    return slug === "computador" || slug === "terminal" ? esc(ondeAcontece(conectores, slug)) : `em <span class="lk-chip aprov-app">${logoApp(estado, slug, app)}<span>${esc(app)}</span></span>`;
-  };
   const marcados = itens.filter((i) => i.selecionado).length;
   const contagem = !unico && (itens.some((i) => i.origemSensivel) || marcados !== itens.length);
-  const rotulo = contagem ? `Pode fazer <span data-contador>${marcados}</span> de ${itens.length}` : "Pode fazer";
+  // ADR-166 (tela 06): "Negar Esc · Sempre permitir · Permitir uma vez", este em pílula preta; o comportamento é o de antes.
+  const rotulo = contagem ? `Permitir <span data-contador>${marcados}</span> de ${itens.length}` : "Permitir uma vez";
   const naMaquina = unico && (unico.destino.conector === "computador" || unico.destino.conector === "terminal");
-  const resto = naMaquina ? botao("decidir-aprovacao-resto", "Pode fazer e o resto desta tarefa", { id: d.id }) : "";
+  // No terminal e no computador a regra "sempre" não existe (ADR-037/055): o lugar do "Sempre permitir" fica com o "resto
+  // desta tarefa", com o mesmo peso visual; o "Sempre permitir" desabilitado só repetiria o que o botão ao lado já diz.
+  const segundo = naMaquina ? botao("decidir-aprovacao-resto", "Permitir nesta tarefa", { classe: "aprov-sec", id: d.id, titulo: unico.destino.conector === "terminal" ? `Comando ${noSeuMac()} é aprovado um a um; este libera também o resto desta tarefa.` : "Ação no computador é aprovada uma a uma; este libera também o resto desta tarefa." }) : botaoSempre(item, conectores);
   const prazo = `Sem resposta, ${PRAZO_POR_TIPO[d.tipo](emQuanto(item.recusaAutomaticaEmMs), item)}`;
+  const agente = estado.frota?.agentes.find((a) => a.id === d.agenteId);
   let corpo: string;
   if (unico) {
     const acao = unico.destino.conector === "terminal"
       ? `<pre class="ap-comando"><code>${esc(unico.textoFinal)}</code></pre>`
       : unico.destino.conector === "computador" && unico.textoFinal.trim() !== d.frase.trim() ? `<div class="ap-oque">${esc(unico.textoFinal)}</div>` : "";
-    corpo = `${acao}${previaDoItem(unico)}${porqueDaPausa(unico, revisor)}${tagDesfecho(unico, true)}`;
+    corpo = `${acao}${previaDoItem(unico)}${porqueDaPausa(unico, revisor)}${tagDesfecho(unico, true)}${naMaquina ? "" : detalheTecnico(unico)}`;
   } else {
     const linha = (i: Item["itensAprovacao"][number]): string => `<li class="aprov-item${i.origemSensivel ? " sensivel" : ""}">
-      <label class="aprov-marca"><input type="checkbox" data-item="${esc(i.id)}" ${i.selecionado ? "checked" : ""} /><span class="aprov-item-txt">${esc(i.textoFinal)}${umApp ? "" : `<small>${esc(ondeAcontece(conectores, i.destino.conector))}</small>`}</span></label>
+      <label class="aprov-marca"><input type="checkbox" data-item="${esc(i.id)}" ${i.selecionado ? "checked" : ""} /><span class="aprov-item-txt">${esc(i.textoFinal)}</span></label><small class="aprov-item-onde">${esc(umApp ? (conectores.find((c) => c.slug === umApp)?.nome ?? umApp) : ondeAcontece(conectores, i.destino.conector))}</small>
       ${i.origemSensivel ? `<p class="justificativa">${esc(i.justificativa ?? JUSTIFICATIVA_PADRAO)}</p>` : ""}${porqueDaPausa(i, revisor)}${tagDesfecho(i, true)}${detalheTecnico(i)}
     </li>`;
     corpo = `<ul class="aprov-itens">${itens.map(linha).join("")}</ul>`;
   }
+  const onde = umApp ? (umApp === "computador" || umApp === "terminal" ? ondeAcontece(conectores, umApp) : `no ${conectores.find((c) => c.slug === umApp)?.nome ?? umApp}`) : "";
+  const sub = [onde ? `${onde.charAt(0).toUpperCase()}${onde.slice(1)}` : "", naMaquina ? "Dá para mudar depois em Aprovações." : ""].filter(Boolean).join(" · ");
   return `<li class="decisao aprov-card dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}">
-    <div class="aprov-cab"><span class="aprov-ponto" aria-hidden="true"></span><b>${esc(item.agenteNome)} precisa do seu ok</b>${aPedidoDe(item)}<span>· ${esc(haQuanto(item.aguardandoHaMs))}</span>${marcaGemeas(item)}${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}</div>
-    <p class="aprov-titulo dec-frase">${esc(d.frase)}</p>
-    ${umApp ? `<div class="aprov-onde">${chip(umApp)}</div>` : ""}
+    <div class="aprov-cab">${agente ? `<span class="aprov-av">${iconeAgente(agente, "", "aguardando")}</span>` : '<span class="aprov-ponto" aria-hidden="true"></span>'}<span class="aprov-quem">${esc(d.frase)}</span>${aPedidoDe(item)}${marcaGemeas(item)}${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}<span class="aprov-esc" title="${esc(`${prazo} · pedido ${haQuanto(item.aguardandoHaMs)}`)}">Esc</span>${botao("decidir-aprovacao-nenhum", "×", { classe: "aprov-fechar", id: d.id, aria: "Negar e fechar" })}</div>
+    <p class="aprov-titulo dec-frase">${esc(perguntaDaAprovacao(item, conectores))}</p>
+    ${sub ? `<p class="aprov-onde">${esc(sub)}</p>` : ""}
     ${corpo}
-    <div class="acoes aprov-acoes">${botao("decidir-aprovacao", rotulo, { classe: "pri", id: d.id })}${resto}${botao("decidir-aprovacao-nenhum", "Agora não", { id: d.id })}${botaoSempre(item, conectores)}</div>
-    <div class="aprov-rodape"><span>${esc(prazo)}</span>${unico ? detalheTecnico(unico) : ""}</div>
+    <div class="acoes aprov-acoes">${botao("decidir-aprovacao-nenhum", 'Negar <kbd class="kbd-esc">Esc</kbd>', { classe: "aprov-negar", id: d.id, aria: "Negar" })}${segundo}${botao("decidir-aprovacao", rotulo, { classe: "pri", id: d.id })}</div>
   </li>`;
+}
+
+/**
+ * A pergunta em negrito do cartão (ADR-166, tela 06: "Permitir que o Dante rode um comando no seu Mac?"). A frase da
+ * decisão ("Dante quer usar o Terminal") vai para o cabeçalho; aqui, o que a pessoa permite. Sem artigo antes do nome: a
+ * tela não sabe o gênero do bot.
+ */
+export function perguntaDaAprovacao(item: Pick<Item, "agenteNome" | "itensAprovacao">, conectores: Estado["conectores"]): string {
+  const itens = item.itensAprovacao;
+  const [i] = itens;
+  if (!i) return "Permitir?";
+  if (itens.length === 1 && i.fraseDaAcao?.texto) return `${i.fraseDaAcao.texto}?`;
+  if (itens.length === 1 && i.destino.conector === "terminal") return `Permitir que ${item.agenteNome} rode um comando ${noSeuMac()}?`;
+  if (itens.length === 1 && i.destino.conector === "computador") return `Permitir que ${item.agenteNome} faça isto no computador do bot?`;
+  if (itens.length === 1) return `Permitir ${acaoHumana(conectores, i.destino.conector, i.destino.ferramenta)}?`;
+  return `Permitir ${itens.length} ações?`;
 }
 
 /**
@@ -608,15 +626,41 @@ function renderItemPergunta(item: Item, estado: Estado): string {
  * comando inteiro em "ver comando"; no app, a prévia do que vai ser enviado e o nome técnico em "ver detalhes". Em "Sua
  * vez", quem pede e "abrir conversa"; na conversa, o cartão fica embaixo da fala e dispensa os dois.
  */
+/** O destino legível de uma mensagem que sai (canal do Slack, e-mail): a chave dos argumentos e o valor como aparece. */
+export function destinoDoItem(args: Readonly<Record<string, unknown>> | undefined): { chave: string; valor: string } | null {
+  for (const chave of ["channel", "canal", "channel_name", "to", "recipient_email"]) {
+    const v = args?.[chave];
+    if (typeof v !== "string" || !v.trim()) continue;
+    const t = v.trim();
+    // O id cru do Slack (C0123ABCD) não diz nada à pessoa: o nome do app fica.
+    if (/^[CGD][A-Z0-9]{7,}$/u.test(t)) return null;
+    return { chave, valor: chave.startsWith("chan") || chave === "canal" ? (t.startsWith("#") ? t : `#${t}`) : t };
+  }
+  return null;
+}
+
+/** O ícone monocromático do app (14 px, o `i2` do Paper); só os que o Paper desenha, os outros ficam no nome. */
+function iconeDoAppNaCaixa(conector: string): string {
+  if (conector !== "slack") return "";
+  return '<svg class="cr-app-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="3" height="8" x="13" y="2" rx="1.5"/><path d="M19 8.5V10h1.5A1.5 1.5 0 1 0 19 8.5"/><rect width="3" height="8" x="8" y="14" rx="1.5"/><path d="M5 15.5V14H3.5A1.5 1.5 0 1 0 5 15.5"/><rect width="8" height="3" x="14" y="13" rx="1.5"/><path d="M15.5 19H14v1.5a1.5 1.5 0 1 0 1.5-1.5"/><rect width="8" height="3" x="2" y="8" rx="1.5"/><path d="M8.5 5H10V3.5A1.5 1.5 0 1 0 8.5 5"/></svg>';
+}
+
 function renderCartaoDoRevisor(item: Item, estado: Estado, naConversa: boolean): string {
   const d = item.decisao;
   const itens = item.itensAprovacao;
   const unico = itens.length === 1 ? itens[0] : undefined;
   const noTerminal = unico?.destino.conector === "terminal";
-  const doApp = (i: Item["itensAprovacao"][number]): string => `<div class="cr-item"><div class="cr-item-txt">${esc(i.textoFinal)}<small>${esc(ondeAcontece(estado.conectores, i.destino.conector))} · ${esc(i.destino.conector)}.${esc(i.destino.ferramenta)}</small></div>${previaDoItem(i)}</div>`;
+  // Tela 06 do Paper ("Com regra sugerida"): em cima da mensagem, o ícone do app e o destino ("#produto"); sem destino nos
+  // argumentos, o nome do app. O destino e o texto que já estão à vista saem da prévia.
+  const doApp = (i: Item["itensAprovacao"][number]): string => {
+    const canal = destinoDoItem(i.destino.argumentos);
+    const rotulo = canal?.valor ?? ondeAcontece(estado.conectores, i.destino.conector).replace(/^no /u, "");
+    const resto = Object.fromEntries(Object.entries(i.destino.argumentos ?? {}).filter(([k, v]) => k !== canal?.chave && v !== i.textoFinal));
+    return `<div class="cr-item"><div class="cr-item-txt">${esc(i.textoFinal)}<small title="${esc(`${i.destino.conector}.${i.destino.ferramenta}`)}">${iconeDoAppNaCaixa(i.destino.conector)}${esc(rotulo)}</small></div>${previaDoItem({ destino: { ...i.destino, argumentos: resto } })}</div>`;
+  };
   const detalhe = noTerminal && unico
-    ? { rotulo: "ver comando", html: `<pre class="ap-comando"><code>${esc(unico.textoFinal)}</code></pre>` }
-    : { rotulo: itens.length > 1 ? `ver as ${itens.length} ações` : "ver detalhes", html: itens.map(doApp).join("") };
+    ? { rotulo: "ver comando", html: `<pre class="ap-comando"><code>${esc(unico.textoFinal)}</code></pre>`, aberto: true }
+    : { rotulo: itens.length > 1 ? `ver as ${itens.length} ações` : "ver detalhes", html: itens.map(doApp).join(""), aberto: itens.length === 1 };
   const servem = sempreNoCartao(item);
   const nomes = [...new Set(servem.map((i) => acaoHumana(estado.conectores, i.destino.conector, i.destino.ferramenta)))];
   const sempre = servem.length ? { titulo: `Vale já para ${nomes.join(" e ")}, em qualquer destino, enquanto o bot não tiver lido conteúdo de fora na tarefa.` } : null;
@@ -625,13 +669,19 @@ function renderCartaoDoRevisor(item: Item, estado: Estado, naConversa: boolean):
   const rodape = !naConversa && agente ? `<div class="cr-rodape">${botao("abrir-conversa", "abrir conversa", { classe: "link", dados: { conversa: d.conversaId, agente: d.agenteId } })}</div>` : undefined;
   // Revisão 8 do PR #628: na conversa não há cabeçalho; o "a pedido de" vai no corpo, senão a dona não sabe de quem é.
   const pedidoDe = naConversa && item.aPedidoDe ? { aPedidoDe: item.aPedidoDe } : {};
-  return renderCartaoRevisor({ decisaoId: d.id, ...perguntaDoCartao(d.frase, itens), motivo: motivoDoCartao(itens), detalhe, sempre, ...(cabecalho ? { cabecalho } : {}), ...(rodape ? { rodape } : {}), ...pedidoDe }, item.estadoColuna);
+  // ADR-166: "Salvar como regra" — a regra pronta (do revisor ou da frase da ação), salva no bot do cartão com um clique.
+  const regra = item.sugestaoDeRegra && item.estadoColuna !== "vencido" ? { regra: { sugestao: item.sugestaoDeRegra, agenteId: d.agenteId } } : {};
+  const avatar = agente ? { avatar: iconeAgente(agente, "", "aguardando") } : {};
+  const titulo = itens.some((i) => i.motivoManual === "revisor_pediu") ? {} : { titulo: "O revisor não conseguiu revisar" };
+  return renderCartaoRevisor({ decisaoId: d.id, ...perguntaDoCartao(d.frase, itens), ...avatar, ...titulo, motivo: motivoDoCartao(itens), detalhe, sempre, ...(cabecalho ? { cabecalho } : {}), ...(rodape ? { rodape } : {}), ...pedidoDe, ...regra }, item.estadoColuna);
 }
 
 function renderItem(item: Item, estado: Estado, naConversa = false): string {
   const d = item.decisao;
   const aberta = item.estadoColuna !== "vencido";
   if (ehPergunta(d.tipo)) return renderItemPergunta(item, estado);
+  // ADR-175: na conversa, a aprovação que é só mensagens que saem vira rascunhos (com a barra "Enviar todos" em conversa.ts).
+  if (aberta && naConversa && ehDecisaoDeRascunhos(item)) return renderDecisaoDeRascunhos(item);
   if (aberta && d.tipo === "aprovacao" && ehCartaoDoRevisor(item.itensAprovacao)) return renderCartaoDoRevisor(item, estado, naConversa);
   if (aberta && d.tipo === "aprovacao" && item.itensAprovacao.length > 0) return renderCardAprovacao(item, estado);
   const relogio = aberta ? `aguardando ${haQuanto(item.aguardandoHaMs)} · ${PRAZO_POR_TIPO[d.tipo](emQuanto(item.recusaAutomaticaEmMs), item)}` : rotuloVencido(d, estado.agora);
@@ -773,7 +823,8 @@ export function renderDecisoesDaConversa(estado: Estado, conversaId: string, pro
   const itens = estado.suaVez?.itens.filter((item) => item.decisao.conversaId === conversaId && !propostas.has(item.decisao.id) && !ehPergunta(item.decisao.tipo)) ?? [];
   if (!itens.length) return "";
   const abertos = itens.filter((item) => item.estadoColuna !== "vencido" && !ancoradas.has(item.decisao.id));
-  const pedindo = abertos.length ? `<h2>Preciso da sua decisão para continuar</h2><p>Você pode resolver aqui, sem sair da conversa.</p><ul class="lista">${abertos.map((item) => renderItem(item, estado, true)).join("")}</ul>` : "";
+  // ADR-166 (tela 06): o cartão fala por si, inline na conversa; sem o título "Preciso da sua decisão…" em cima.
+  const pedindo = abertos.length ? `<h2 class="sr-only">Pedidos desta conversa</h2><ul class="lista">${renderComIguais(abertos, estado, true)}</ul>` : "";
   const vencidos = renderVencidos(itens.filter((item) => item.estadoColuna === "vencido"), estado, true, conversaId);
   if (!pedindo && !vencidos) return "";
   return `<section class="decisoes-chat" aria-label="Decisões nesta conversa">${pedindo}${vencidos}</section>`;
@@ -794,6 +845,32 @@ export function renderDecisaoAncorada(item: Item, estado: Estado): string {
 }
 
 /**
+ * Os pedidos ancorados da conversa com os iguais dobrados (frente de comportamento, 12/11/2026; "aprovação em
+ * lote de pedidos iguais"): na conversa cada pedido era desenhado sozinho embaixo do turno dele, e o lote só existia em
+ * "Sua vez". Agora o grupo vira o cartão "N pedidos iguais" no lugar do primeiro pedido; os outros saem dali. `primeiro`
+ * dá a âncora; `ids`, o que conta como ancorado.
+ */
+export function ancoradosComIguais(pedidos: readonly Item[], estado: Estado): { primeiro: Item; ids: string[]; html: string }[] {
+  return agruparIguais(pedidos).flatMap((g) => {
+    if (!Array.isArray(g)) return [{ primeiro: g, ids: [g.decisao.id], html: renderDecisaoAncorada(g, estado) }];
+    const primeiro = g[0];
+    if (!primeiro) return [];
+    return [{ primeiro, ids: g.map((i) => i.decisao.id), html: `<ul class="decisoes-ancoradas" aria-label="Pedidos de ${esc(primeiro.agenteNome)}">${renderComIguais(g, estado, true)}</ul>` }];
+  });
+}
+
+/** ADR-166: os pedidos iguais (mesmo bot, mesma ação no mesmo app) num cartão só; o resto como antes. */
+function renderComIguais(itens: readonly Item[], estado: Estado, naConversa: boolean): string {
+  return agruparIguais(itens).map((g) => {
+    if (!Array.isArray(g)) return renderItem(g, estado, naConversa);
+    const i = g[0]?.itensAprovacao[0];
+    const onde = i ? (estado.conectores.find((c) => c.slug === i.destino.conector)?.nome ?? i.destino.conector) : "";
+    const agente = estado.frota?.agentes.find((a) => a.id === g[0]?.decisao.agenteId);
+    return renderPedidosIguais(g, i ? acaoHumana(estado.conectores, i.destino.conector, i.destino.ferramenta) : g[0]?.decisao.frase ?? "", onde, agente ? iconeAgente(agente, "", "aguardando") : "");
+  }).join("");
+}
+
+/**
  * "Sua vez" por pessoa (ADR-007): mais antiga no topo, reaberta volta ao topo, vencida em cinza com
  * reabrir e nunca suprimida — recolhida no fim desde 2026-09-24; "Nada esperando por você · última
  * decisão …" quando vazia; motor fora do ar entra como item ESCRITO (E3.3).
@@ -808,7 +885,7 @@ export function renderSuaVez(estado: Estado): string {
   return `<section class="tela tela-sua-vez">
     <header class="tela-cab"><h1>Sua vez${esperando ? ` · ${esperando}` : ""}</h1><span class="chip">mais antiga no topo · vencidas recolhidas no fim</span></header>
     ${sv.vazio && sv.foraDoAr.length === 0 ? `<p class="vazio">${esc(nadaEsperando(sv.ultimaDecisaoEm, estado.agora))}</p>` : ""}
-    <ul class="lista">${fora}${abertos.map((i) => renderItem(i, estado)).join("")}</ul>
+    <ul class="lista">${fora}${renderComIguais(abertos, estado, false)}</ul>
     ${renderVencidos(sv.itens.filter((i) => i.estadoColuna === "vencido"), estado, false, "sua-vez")}
   </section>`;
 }

@@ -56,7 +56,8 @@ export default defineConfig({
     // NOD-328: o renderizador de diagramas é uma 2ª entrada, com nome fixo fora de /assets (o iframe sandbox pede pelo
     // nome; no-cache em estatico.ts). O mermaid e os chunks dele ficam em /assets, com hash, e só baixam no 1º diagrama.
     rollupOptions: {
-      input: { index: path.resolve("web/index.html"), diagrama: path.resolve("web/sandbox/diagrama.ts") },
+      // ADR-167 (tela 01 do Paper): a vitrine do design system é uma página interna, /design-system.html.
+      input: { index: path.resolve("web/index.html"), diagrama: path.resolve("web/sandbox/diagrama.ts"), "design-system": path.resolve("web/design-system.html") },
       output: { entryFileNames: (chunk) => (chunk.name === "diagrama" ? "diagrama/sandbox.js" : "assets/[name]-[hash].js") },
     },
   },

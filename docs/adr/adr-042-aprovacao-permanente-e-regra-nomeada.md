@@ -73,13 +73,13 @@ conteúdo não confiável (ADR-026). Uma regra cuja condição de aplicação o 
 é regra, é oráculo. O escopo por ferramenta tem a propriedade que o outro não tem: a pessoa
 consegue enunciar o que autorizou sem ler JSON.
 
-Verificado na doc do Grok Bot em 2026-09-21: o botão `Always allow` deles grava *"this kind of
+Verificado na pesquisa de referência em 2026-09-21: o botão `Always allow` de lá grava *"this kind of
 action"*, não o destino específico; escopo por destino lá é regra escrita à mão em Settings.
 O escopo por ferramenta é a escolha do Marlon com o trade-off explicado.
 
-### Revisor-modelo antes de cada ação (Auto Review do Grok Bot)
+### Revisor-modelo antes de cada ação
 
-Já recusado em `docs/grokbot-comparison.md` por três razões, a decisiva sendo que no caminho
+Já recusado antes por três razões, a decisiva sendo que no caminho
 local ele ou queima a cota da pessoa para vigiá-la, ou vira chamada WAN por `tools/call` — a
 autoridade remota síncrona com fail-closed que o ADR-013 recusou depois de verificar linha a
 linha que o precedente citado era falso. Adotar reabriria aquela decisão pela porta dos fundos.

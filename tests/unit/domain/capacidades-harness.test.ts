@@ -10,7 +10,7 @@ describe("capacidadesDe (ADR-083): diferença entre harnesses só por capacidade
   });
 
   it("harness desconhecido, ausente ou 'auto' cai no caminho sem nenhuma capacidade", () => {
-    for (const h of ["grok", "", null, undefined, "auto", "__proto__"]) expect(capacidadesDe(h)).toEqual(SEM_CAPACIDADES);
+    for (const h of ["desconhecido", "", null, undefined, "auto", "__proto__"]) expect(capacidadesDe(h)).toEqual(SEM_CAPACIDADES);
   });
 
   // ADR-103: o Codex continua a thread (thread/resume), a copia (thread/fork), tem o terminal e a pasta do bot.
@@ -25,7 +25,7 @@ describe("capacidadesDe (ADR-083): diferença entre harnesses só por capacidade
     ["codex-cli", ["imagem", "texto"]],
     ["cursor-cli", []],
     ["hermes", []],
-    ["grok", []],
+    ["desconhecido", []],
   ])("motorLe(%s) lê só %j (a tabela de 2026-09-24, agora a capacidade `anexos`)", (harness, le) => {
     for (const tipo of ["imagem", "pdf", "texto"] as const) expect(motorLe(harness, tipo)).toBe(le.includes(tipo));
   });

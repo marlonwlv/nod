@@ -23,14 +23,14 @@ const armazem = (inicial: Record<string, string> = {}) => {
 const B = (densidade: Barra["densidade"], largura: Barra["largura"] = "padrao"): Barra => ({ densidade, largura });
 
 describe("NOD-119: densidade e largura da barra (web/lib/densidade.ts)", () => {
-  it("as larguras da tabela: Confortável 340 ↔ 72; Compacta 200 ↔ 56 e 340 alargada", () => {
-    expect(pxDaBarra(B("confortavel"))).toBe(340);
-    expect(pxDaBarra(B("confortavel", "recolhida"))).toBe(72);
+  it("as larguras da tabela: Confortável 272 ↔ 88 (ADR-167, Paper 02); Compacta 200 ↔ 56 e 340 alargada", () => {
+    expect(pxDaBarra(B("confortavel"))).toBe(272);
+    expect(pxDaBarra(B("confortavel", "recolhida"))).toBe(88);
     expect(pxDaBarra(B("compacta"))).toBe(200);
     expect(pxDaBarra(B("compacta", "recolhida"))).toBe(56);
     expect(pxDaBarra(B("compacta", "larga"))).toBe(340);
     // A Confortável não tem a alargada: vira a aberta.
-    expect(pxDaBarra(B("confortavel", "larga"))).toBe(340);
+    expect(pxDaBarra(B("confortavel", "larga"))).toBe(272);
   });
 
   it("serializa só os valores do contrato, e o padrão não grava nada", () => {

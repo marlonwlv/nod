@@ -25,6 +25,8 @@ export type ApiContas = {
   cancelarLogin(maquinaId: string, loginId: string): Promise<unknown>;
   /** NOD-9 PR4: pede à máquina que atualize a IA (opcional: os testes antigos não o montam). */
   atualizarIaDaMaquina?(maquinaId: string, ia: IaComConta): Promise<unknown>;
+  /** Rodada 3 (tela 19b do Paper): a VM na nuvem desligada "liga ao entrar" (ADR-121; opcional nos testes antigos). */
+  acordarAgora?(maquinaId: string): Promise<unknown>;
 };
 
 export type DepsContasDaPessoa = {
@@ -262,8 +264,14 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
     async enviarNova(): Promise<void> {
       const n = d.ui().nova;
       if (!n || n.maquinas.length === 0) return;
-      d.mudar({ nova: null });
-      for (const m of n.maquinas) await entrarNaMaquina(m, n.ia, null, n.apelido.trim() || null);
+      // Rodada 3 (tela 19b do Paper): a Nova conta continua aberta e cada máquina mostra o login dela ("Termine no
+      // navegador…", o código); a VM na nuvem desligada é acordada antes (o login começa quando ela voltar).
+      d.mudar({ nova: { ...n, entrando: true } });
+      for (const m of n.maquinas) {
+        const maq = d.maquinas().find((x) => x.id === m);
+        if (maq && !maq.conectada && maq.nuvem) await d.api()?.acordarAgora?.(m).catch(() => undefined);
+        await entrarNaMaquina(m, n.ia, null, n.apelido.trim() || null);
+      }
     },
 
     digitarCodigo(loginId: string, codigo: string): void {

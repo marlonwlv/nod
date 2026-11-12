@@ -9,6 +9,15 @@ import type { ProgressoDeInstalacao } from "../../contracts/instalacoes-ssh.ts";
 import type { PlataformaMaquina } from "../../contracts/ponte.ts";
 import type { DriverComputador } from "../../contracts/computador.ts";
 import { criarDriverDocker } from "../computador/docker.ts";
+import { criarProvedorDocker } from "../computador/provedores/docker.ts";
+import { criarProvedorOrgo } from "../computador/provedores/orgo.ts";
+import { criarDriverPorProvedor } from "../computador/provedores/seletor.ts";
+import type { IdProvedorComputador, ProvedorDeComputador } from "../../contracts/provedor-computador.ts";
+import { configDeProvedores, provedoresEmUso } from "../../domain/provedor-computador.ts";
+import { planosDoEnv } from "../../domain/vm-do-nod.ts";
+import { canalDasFlags } from "../../domain/flags-remotas.ts";
+import { criarFonteDeFlags } from "../flags/fonte-flags.ts";
+import { rotasFlags } from "./rotas/flags.ts";
 import { criarCanalComputador } from "../computador/canal.ts";
 import { criarSessoesVivo } from "../computador/vivo.ts";
 import { criarDriverMotor } from "../computador/motor.ts";
@@ -83,6 +92,7 @@ import { semNovidade } from "../../use-cases/sem-novidade.ts";
 import { pedirAcesso } from "../../use-cases/pedir-acesso.ts";
 import { pedirCredencial } from "../../use-cases/pedir-credencial.ts";
 import { avisarPessoa } from "../../use-cases/avisar-pessoa.ts";
+import { mostrarCartoes } from "../../use-cases/mostrar-cartoes.ts";
 import { ajustarBarraLateral } from "../../use-cases/ajustar-barra-lateral.ts";
 import { gerirQuadro, gerirQuadroEmFases } from "../../use-cases/gerir-quadro.ts";
 import { gerirApps } from "../../use-cases/gerir-apps.ts";
@@ -130,6 +140,7 @@ import type { EnviadorEmail } from "../email/enviador.ts";
 import { criarPonteHttpServidor } from "./rotas/ponte.ts";
 import type { Rota } from "./roteador.ts";
 import { criarRotasAgentes } from "./rotas/agentes.ts";
+import { criarRotasAjustesAprovacao } from "./rotas/ajustes-aprovacao.ts";
 import { rotasTimes } from "./rotas/times.ts";
 import { criarRotasTrabalhos } from "./rotas/trabalhos.ts";
 import { criarRotasAtividade } from "./rotas/atividade.ts";
@@ -148,7 +159,7 @@ import { criarRepos } from "../../repositories/index.ts";
 import { rotasMotor } from "./rotas/motor.ts";
 import { rotasAtualizacaoApp } from "./rotas/atualizacao-app.ts";
 import { cachearAssinador, criarAssinadorGcs, type AssinadorDeUrl } from "../atualizacao-app/assinador-gcs.ts";
-import { lerConfigAtualizacaoApp } from "../../domain/atualizacao-app.ts";
+import { lerConfigAtualizacaoApp, lerConfigTesteDoApp } from "../../domain/atualizacao-app.ts";
 import { criarFonteDeToken } from "../voz/token-google.ts";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -161,6 +172,7 @@ import { rotasCanvas } from "./rotas/canvas.ts";
 import { criarCapturadorCdp, type Capturador } from "../tela/capturador-cdp.ts";
 import { rotasConectores } from "./rotas/conectores.ts";
 import { rotasCredencial } from "./rotas/credencial.ts";
+import { criarRotasCofre } from "./rotas/cofre.ts";
 import { criarRotasBusca } from "./rotas/busca.ts";
 import { lerPoolMax } from "../../db/client.ts";
 import { criarRotasConversas } from "./rotas/conversas.ts";
@@ -376,12 +388,14 @@ export function comporApp(o: OpcoesCompor): App {
   // NOD-132: configuração inválida da atualização do app lança aqui (o boot já validou antes do
   // primeiro efeito; aqui cobre quem compôs sem o boot).
   const configAtualizacaoApp = lerConfigAtualizacaoApp(env);
+  const configTesteApp = lerConfigTesteDoApp(env);
   // definido em 2026-10-07 (ADR-082): as mãos do Nod ligadas por padrão; NOD_GERIR_BOTS=0 as tira do catálogo sem deploy de código.
   const semFerramentasDoNod = env.NOD_GERIR_BOTS?.trim() === "0";
   // definido em 2026-10-13 (ADR-104, revisão do PR #309): o mesmo interruptor para o criar_bots dos bots comuns.
   const semCriarBots = env.NOD_CRIAR_BOTS?.trim() === "0";
   const compartilhado = env.NOD_MODO === "compartilhado";
   const relogio: Relogio = o.relogio ?? (() => Date.now());
+  const fonteFlags = criarFonteDeFlags({ env, agora: relogio });
   const fusoPadrao = env.NOD_FUSO_PADRAO ?? "America/Sao_Paulo";
   // Executor da máquina: nasce de NOD_EXECUTOR e muda pelo interruptor (trocarExecutor). Quem precisa dele lê o valor VIVO
   // (getter/closure), nunca uma cópia — senão a troca pela interface não chega ao plano do turno seguinte.
@@ -438,7 +452,7 @@ export function comporApp(o: OpcoesCompor): App {
     return tenants.get(pessoaId) ?? null;
   }
 
-  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
+  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
 
   // NOD-351: a situação da conta para abrir_conta, lida na transação do turno (sem outra conexão do pool). Liga tarde: as
   // contas nascem depois, sobre `dentro`; false = desligadas, e abrir_conta volta `indisponivel`.
@@ -489,6 +503,12 @@ export function comporApp(o: OpcoesCompor): App {
     if (machineId && maquinaDaPonte(escopo, machineId)) return ponteHttp.ghDaMaquina(escopo, machineId);
     if (!detectorGh || (await donoDaMaquinaLocal()) !== escopo.pessoaId) return false;
     return detectorGh.logado();
+  }
+  // ADR-173: a máquina do turno é um Mac DA PESSOA do turno? Só então as ferramentas do conector `mac` entram no plano.
+  async function macDaPessoa(escopo: Escopo, maquinaDoTurno?: string | null): Promise<boolean> {
+    if (maquinaDoTurno && (compartilhado || maquinaDaPonte(escopo, maquinaDoTurno))) return ponteHttp.maquina(escopo, maquinaDoTurno)?.plataforma === "darwin";
+    if (compartilhado) return false;
+    return process.platform === "darwin" && (await donoDaMaquinaLocal()) === escopo.pessoaId;
   }
   // ADR-048: o App da organização só atende turno de ROTINA (ninguém olhando); em turno interativo, nunca.
   const cofreDoApp = criarCofreDeTokensDoApp<Escopo>({
@@ -602,7 +622,7 @@ export function comporApp(o: OpcoesCompor): App {
         // revisto em 2026-10-15 (ADR-107, NOD-281): com --resume quando a sessão nasceu nesta máquina, nesta IA e nesta
         // conta (sessaoPorMaquina); antes a ponte nunca retomava e cada turno ia com o histórico.
         const daPonte = compartilhado || maquinaDaPonte(d.escopo, machineIdDoPlano);
-        const r = await emitirPlanoTurno(d, { turnoId, machineId: machineIdDoPlano, executor: daPonte ? "local" : executorAtual, permitirResume: true, sessaoPorMaquina: daPonte, ghNaMaquina: await ghDaPessoa(d.escopo, machineIdDoPlano),
+        const r = await emitirPlanoTurno(d, { turnoId, machineId: machineIdDoPlano, executor: daPonte ? "local" : executorAtual, permitirResume: true, sessaoPorMaquina: daPonte, ghNaMaquina: await ghDaPessoa(d.escopo, machineIdDoPlano), macNaMaquina: await macDaPessoa(d.escopo, machineIdDoPlano),
           harnesses: daPonte ? ponteHttp.harnesses(d.escopo, machineIdDoPlano) : Object.fromEntries(HARNESSES.map((h) => [h.id, inventarioDe(h.id)])),
           harnessPreferido: !daPonte && driverPreferido !== "catcher" ? driverPreferido : null, modelosLigacao, semFerramentasDoNod, semCriarBots, contas: contasLigadas, onboardingTexto,
           maquina: daPonte ? ponteHttp.maquina(d.escopo, machineIdDoPlano) : null, ...(daPonte && !compartilhado ? { maquinaRemota: true } : {}),
@@ -694,7 +714,7 @@ export function comporApp(o: OpcoesCompor): App {
       // (undefined), não {} — o Codex com terminal não perde o Bash; o plano volta provisório e fica fora do cache.
       const capacidades = daPonte ? ponteHttp.capacidadesDaMaquinaConectada(escopo, t.machineId) : undefined;
       const r = await emitirPlanoTurno(d, {
-        turnoId: t.id, machineId: t.machineId, executor: c.executor, permitirResume: false, ghNaMaquina: await ghDaPessoa(escopo, t.machineId),
+        turnoId: t.id, machineId: t.machineId, executor: c.executor, permitirResume: false, ghNaMaquina: await ghDaPessoa(escopo, t.machineId), macNaMaquina: await macDaPessoa(escopo, t.machineId),
         harnesses: c.harness ? { [c.harness]: inventario } : undefined, harnessPreferido: c.harness, modelosLigacao, semFerramentasDoNod, semCriarBots, contas: contasLigadas, onboardingTexto,
         maquina: daPonte ? ponteHttp.maquina(escopo, t.machineId) : null, ...(daPonte && !compartilhado ? { maquinaRemota: true } : {}),
         ...(capacidades ? { capacidadesDaMaquina: capacidades } : {}),
@@ -763,14 +783,35 @@ export function comporApp(o: OpcoesCompor): App {
     }
     if (desfecho === "diferente") log("aviso", "computador_supervisor_diferente", { computador_id: relato.computadorId, maquina_id: maquinaId });
   }
-  const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? criarDriverDocker(env), executor: () => executorAtual, guardarTelas: capturaNoTranscript,
+  /**
+   * ADR-168 (NOD computador plug and play): fora do motor, o computador do bot vem de um PROVEDOR escolhido por
+   * configuração (bot > pessoa > global > NOD_COMPUTADORES=docker). Só NOD_COMPUTADORES=docker monta o mesmo Docker de
+   * antes; o Orgo só existe com NOD_COMPUTADOR_ORGO=1 e a chave da pessoa vem do cofre (conector `orgo`, ORGO_API_KEY).
+   */
+  const provedoresComputador = (() => {
+    if (o.computador || driverMotor) return null;
+    const { config, avisos } = configDeProvedores(env);
+    for (const aviso of avisos) log("aviso", "computador_provedor_config", { aviso });
+    const emUso = provedoresEmUso(config);
+    if (!emUso.length) return null;
+    const provedores: Partial<Record<IdProvedorComputador, ProvedorDeComputador>> = {};
+    if (emUso.includes("docker")) provedores.docker = criarProvedorDocker(env);
+    if (emUso.includes("orgo")) provedores.orgo = criarProvedorOrgo({ env, chaveDe: (escopo) => dentro(escopo, async (d) => {
+      const c = await d.repos.conectores.buscarPorSlug("orgo");
+      if (!c?.envCifrado) return null;
+      const lido = JSON.parse(decifrar(c.envCifrado, chave)) as Record<string, unknown>;
+      return typeof lido.ORGO_API_KEY === "string" && lido.ORGO_API_KEY ? lido.ORGO_API_KEY : null;
+    }) });
+    return { config, driver: criarDriverPorProvedor({ config, provedores, agenteDe: (id, escopo) => dentro(escopo, (d) => d.repos.computadores.agenteDoComputador(id)) }) };
+  })();
+  const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? provedoresComputador?.driver ?? criarDriverDocker(env), executor: () => executorAtual, guardarTelas: capturaNoTranscript,
     porPessoa: computadorNoMotor,
     ...(sessoesVivo ? { vivo: sessoesVivo } : {}),
     lugarPadraoNaCriacao: computadorNoMotor ? (escopo) => lugarPadrao(ponteHttp.maquinasComComputador(escopo)) : undefined,
     cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave),
     // `saude` (emenda da ADR-037): o computador entrou ou saiu do ar — a web relê a frota só nesse caso.
     mudou: (escopo, agenteId, saude) => { barramento.publicar(escopo.pessoaId, "computador.mudou", { agenteId, ...(saude ? { saude: true } : {}) }); } });
-  if (o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor) services.computadores = computadores;
+  if (o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor || provedoresComputador) services.computadores = computadores;
   rodarAposCommit = async (escopo, efeito) => {
     if (efeito.tipo === "desligar_computador") return computadores.desligarExcluido(escopo, efeito.agenteId);
     if (efeito.tipo === "remover_computador") return removerDepoisDoCommit(escopo, efeito);
@@ -1482,6 +1523,8 @@ export function comporApp(o: OpcoesCompor): App {
       ...(compartilhado ? {} : Object.fromEntries(ponte.maquinasConectadas().map((m) => [m.machineId, (Object.entries(m.harnesses ?? {}) as [IdHarness, Inventario | undefined][]).filter(([, i]) => i?.estado === "pronto").map(([h]) => h)]))),
     })),
     ...rotasTimes(depsRotas),
+    // ADR-166: Ajustes > Aprovações; o teto do modo é do admin (NOD_ADMINS, a mesma lista das flags).
+    ...criarRotasAjustesAprovacao(depsRotas, (env.NOD_ADMINS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
     ...criarRotasConversas(depsRotas),
     ...criarRotasBusca(depsRotas, { poolMax: lerPoolMax(env) }),
     ...criarRotasTrabalhos(depsRotas),
@@ -1499,6 +1542,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...criarRotasUsoDoPlano(depsRotas),
     ...criarRotasCustoDoDia({ ...depsRotas, fusoPadrao: env.NOD_FUSO_PADRAO ?? "America/Sao_Paulo" }),
     ...criarRotasNaoLidos(depsRotas),
+    ...criarRotasCofre(depsRotas),
     ...criarRotasLigacoes({
       ...depsRotas,
       contexto: contextoLigacao,
@@ -1548,12 +1592,16 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasTrilha({ dentro }),
     // ADR-090: o motor sem janela da versão deste servidor (dist/motor) e o script que o instala numa máquina Linux.
     // NOD-132 (ADR-149): o feed da atualização do app do Mac, fora da trava 426. Versão vazia = 204 para todos.
-    ...rotasAtualizacaoApp({ config: configAtualizacaoApp, versaoMinima: VERSAO_MINIMA_APP, publicadaEm: new Date(relogio()).toISOString().replace(/\.\d{3}Z$/, "Z"),
+    // ADR-170: as flags remotas da pessoa (a web e o app leem) e o canal de teste do app pelas mesmas flags.
+    ...rotasFlags({ fonte: fonteFlags }),
+    ...rotasAtualizacaoApp({ config: configAtualizacaoApp, versaoMinima: VERSAO_MINIMA_APP, teste: configTesteApp, canalDe: (escopo) => canalDasFlags(fonteFlags.avaliar(escopo)), publicadaEm: new Date(relogio()).toISOString().replace(/\.\d{3}Z$/, "Z"),
       assinar: configAtualizacaoApp ? cachearAssinador(o.assinadorAtualizacaoApp ?? criarAssinadorGcs({ bucket: configAtualizacaoApp.bucket, fonteToken: criarFonteDeToken({ env }) }), { agora: relogio }) : null }),
     ...rotasMotor({ pasta: env.NOD_MOTOR_DIR ?? resolve("dist/motor"), versao: versaoDoServidor(), ...(env.NOD_COMPUTADORES === "motor" ? { computador: true } : {}), ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
     ...rotasContasIa({ dentro, logins, dispositivo, compartilhado, onboardingTexto, avisar: avisarContas, maquinaViva: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id), plataformaDaMaquina: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).find((m) => m.machineId === id)?.plataforma ?? null, maquinaAtualizaIas: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id && m.atualizaIas), aoRenomear: (escopo, id, nome) => ponteHttp.renomear(escopo, id, nome) }),
     ...(compartilhado ? rotasInstalacoesSsh({ dentro, instalacoes, dispositivo, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }) : []),
-    ...rotasMaquinas({ dentro, pareamento: criarPareamentoMaquina(relogio), dispositivo, maquinasVivas: (escopo) => ponteHttp.maquinasDaPessoa(escopo), pareadaPorConvite, ...(compartilhado ? {} : { servidorNoMac: { api: `http://127.0.0.1:${numero(env.NOD_API_PORT, 8888)}` } }) , nuvem: nuvemLigada }),
+    ...rotasMaquinas({ dentro, pareamento: criarPareamentoMaquina(relogio), dispositivo, maquinasVivas: (escopo) => ponteHttp.maquinasDaPessoa(escopo), pareadaPorConvite, ...(compartilhado ? {} : { servidorNoMac: { api: `http://127.0.0.1:${numero(env.NOD_API_PORT, 8888)}` } }) , nuvem: nuvemLigada,
+      // ADR-169: a VM do Nod (opção 3) só aparece disponível com NOD_VM_DO_NOD=1; o driver padrão é o seco (nada na nuvem).
+      ...(env.NOD_VM_DO_NOD === "1" ? { vmDoNod: { planos: planosDoEnv(env.NOD_VM_DO_NOD_PLANOS), driver: env.NOD_VM_DO_NOD_DRIVER === "gcp" ? "gcp" as const : "seco" as const } } : {}) }),
     ...(nuvemLigada ? rotasNuvem({ dentro, segredo: segredoEfetivo(env.NOD_LOGIN === "google" ? "google" : "stub", env.NOD_SESSAO_SEGREDO), oauth: oauthNuvem(env), conta: o.nuvem?.conta ?? criarContaGcp({ contaFaturamento: env.NOD_NUVEM_CONTA_FATURAMENTO ?? null }), ...(o.nuvem?.fetchImpl ? { fetchImpl: o.nuvem.fetchImpl } : {}), cifrar: (t) => cifrar(t, chave), provedorDa: async (escopo, credencialId) => provedorDaChave(await dentro(escopo, (d) => d.repos.credenciaisNuvem.chaveCifrada(credencialId))), ...(criacaoNuvem ? { registrarConvite: criacaoNuvem.registrarConvite } : {}), agora: relogio }) : []),
     // definido em 2026-09-16: NOD_LONGPOLL_MS encurta a fatia do long-poll de aprovação (testes/e2e); default LONGPOLL_APROVACAO_MS.
     ...rotasComputadores(computadores),
@@ -1682,7 +1730,7 @@ export function comporApp(o: OpcoesCompor): App {
     services,
     useCases,
     dentro,
-    computadores: o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor ? computadores : null,
+    computadores: o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor || provedoresComputador ? computadores : null,
     disjuntor,
     depsDe,
     ponte,

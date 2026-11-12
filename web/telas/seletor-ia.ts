@@ -38,7 +38,7 @@ export { ALERTA_USO };
 /** O botão do campo, criado uma vez com o composer; o miolo é trocado por `mioloDoSeletor` a cada render. */
 export const HTML_SELETOR_IA = '<button type="button" class="seletor-ia" id="composer-ia" data-act="seletor-ia" aria-haspopup="menu" aria-expanded="false" hidden></button>';
 
-export type GrupoDoSeletor = { ia: IaMac; serve: boolean; modelos: { id: string; nome: string; marcado: boolean }[] };
+export type GrupoDoSeletor = { ia: IaMac; serve: boolean; modelos: { id: string; nome: string; marcado: boolean; /** Rodada 3: o selo "Recomendado" (tela 19c do Paper). */ recomendado?: boolean }[] };
 
 /**
  * O que acontece se a conta em uso acabar (`fraseDoLimite`): segue noutra conta da mesma IA, segue noutra IA, o Nod
@@ -192,7 +192,7 @@ export function dadosDoSeletor(estado: Estado, agenteId: string): DadosSeletor |
   const grupos = iasDoBot(c.ias, i.ordem).filter((x) => ehIaMac(x.id)).map((x): GrupoDoSeletor => {
     const id = x.id as IaMac;
     const escolhido = !auto && i.fixa === id ? escolhaEfetiva(x, i.escolhas).modelo : null;
-    return { ia: id, serve: conectada(x, c), modelos: modelosDoMenu(x, escolhido).map((m) => ({ id: m.id, nome: m.nome, marcado: m.id === escolhido })) };
+    return { ia: id, serve: conectada(x, c), modelos: modelosDoMenu(x, escolhido).map((m) => ({ id: m.id, nome: m.nome, marcado: m.id === escolhido, ...(m.recomendado ? { recomendado: true } : {}) })) };
   });
   return {
     agenteId: a.id,
@@ -275,8 +275,8 @@ export function renderMenuIa(d: DadosSeletor): string {
   const grupos = d.grupos.map((g) => {
     const nome = PROVEDOR[g.ia].nome;
     const sub = g.serve ? "fixa o bot neste modelo" : "não conectado";
-    const titulo = `<div class="ia-sel-grupo" aria-hidden="true">${esc(nome)} <span>· ${sub}</span></div>`;
-    const modelos = g.modelos.map((m) => `<button type="button" class="ia-sel-op" role="menuitemradio" aria-checked="${m.marcado}" data-escolha="modelo" data-ia="${g.ia}" data-modelo="${esc(m.id)}"${g.serve ? "" : " disabled"}><span class="ia-sel-txt"><span>${esc(m.nome)}</span></span>${m.marcado ? CHECK : ""}</button>`).join("");
+    const titulo = `<div class="ia-sel-grupo" aria-hidden="true">${logoDaIa(g.ia, "ia-sel-glogo")}${esc(nome)} <span>· ${sub}</span></div>`;
+    const modelos = g.modelos.map((m) => `<button type="button" class="ia-sel-op" role="menuitemradio" aria-checked="${m.marcado}" data-escolha="modelo" data-ia="${g.ia}" data-modelo="${esc(m.id)}"${g.serve ? "" : " disabled"}><span class="ia-sel-txt"><span>${esc(m.nome)}</span></span>${m.recomendado ? '<span class="ia-sel-rec">Recomendado</span>' : ""}${m.marcado ? CHECK : ""}</button>`).join("");
     return `<div role="group" aria-label="${esc(`${nome}: ${sub}`)}">${titulo}${modelos}</div>`;
   }).join("");
   return `${cab}<div role="menu" aria-label="IA e modelo de ${esc(d.nome)}">${auto}${grupos}${reguaDeRaciocinio(d)}<hr><button type="button" class="ia-sel-link" role="menuitem" data-escolha="provedores"><span>Fila de contas e regra de troca</span>${MAIS}</button></div>`;
@@ -288,14 +288,12 @@ function reguaDeRaciocinio(d: DadosSeletor): string {
   if (!d.ia || niveis.length === 0) return "";
   const n = niveis.length;
   const atual = Math.max(0, niveis.findIndex((x) => x.id === d.raciocinio));
-  const passo = 100 / n;
-  const pontos = niveis.map((x, i) => `<button type="button" role="menuitemradio" class="ia-sel-ponto${i < atual ? " feito" : ""}${i === atual ? " atual" : ""}" aria-checked="${i === atual}" aria-label="${esc(x.nome)}" title="${esc(`${x.nome} · ${x.descricao}`)}" data-escolha="raciocinio" data-raciocinio="${x.id}"></button>`).join("");
-  const nomes = niveis.map((x, i) => `<span${i === atual ? ' class="atual"' : ""}>${esc(x.nome)}</span>`).join("");
+  // Tela 19c do Paper: um segmentado com o nome de cada nível (Baixo · Médio · Alto · Muito alto · Máximo), o atual em relevo.
+  const pontos = niveis.map((x, i) => `<button type="button" role="menuitemradio" class="ia-sel-ponto${i === atual ? " atual" : ""}" aria-checked="${i === atual}" aria-label="${esc(x.nome)}" title="${esc(`${x.nome} · ${x.descricao}`)}" data-escolha="raciocinio" data-raciocinio="${x.id}"><span aria-hidden="true">${esc(x.nome)}</span></button>`).join("");
   const colunas = `grid-template-columns: repeat(${n}, minmax(0, 1fr))`;
   return `<hr><div class="ia-sel-regua" role="group" aria-label="${esc(`Raciocínio do ${d.modelo}: ${nomeDoNivel(d.raciocinio)}, ${atual + 1} de ${n}`)}">
-      <div class="ia-sel-regua-cab" aria-hidden="true"><span>Raciocínio</span><b>${esc(nomeDoNivel(d.raciocinio))}</b><small>· ${atual + 1} de ${n} no ${esc(d.modelo)}</small></div>
-      <div class="ia-sel-trilho" style="${colunas}"><span class="ia-sel-linha" aria-hidden="true" style="left:${(passo / 2).toFixed(2)}%;right:${(passo / 2).toFixed(2)}%"></span><span class="ia-sel-linha feita" aria-hidden="true" style="left:${(passo / 2).toFixed(2)}%;width:${(atual * passo).toFixed(2)}%"></span>${pontos}</div>
-      <div class="ia-sel-nomes" aria-hidden="true" style="${colunas}">${nomes}</div>
+      <div class="ia-sel-regua-cab" aria-hidden="true"><span>Raciocínio</span><small>· ${esc(nomeDoNivel(d.raciocinio))} · ${atual + 1} de ${n} no ${esc(d.modelo)}</small></div>
+      <div class="ia-sel-seg" style="${colunas}">${pontos}</div>
     </div>`;
 }
 

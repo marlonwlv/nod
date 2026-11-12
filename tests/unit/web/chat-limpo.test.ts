@@ -295,7 +295,7 @@ describe("revisão W7/W8/W10 (2026-10-08)", () => {
   });
 });
 
-describe("quem pede a um colega (padrão Grok)", () => {
+describe("quem pede a um colega", () => {
   it("'Enviou mensagem para Chico' no pedido e 'N mensagens com Chico' na volta; a fala de quem pediu continua balão", () => {
     const handoff = msg("h1", t0, { turnoId: "t-pede", origemTurno: "conversa", kind: "handoff", texto: "x", payload: { kind: "handoff", de: "clarice", para: "chico", motivo: "revisar", tarefaId: "tarefa-1", trabalhoId: "tb-chico" } });
     const resposta = msg("h2", t0 + 30 * MIN, { turnoId: "t-volta", origemTurno: "retomada", kind: "peer_ask", texto: "Revisei", payload: { kind: "peer_ask", agenteId: "chico", nome: "Chico", naoSupervisionado: true, tarefaId: "tarefa-1", delegada: true } });

@@ -20,7 +20,7 @@ export type EntradaParar = { conversaId: string | null };
  * conversa) e devolve a faixa.
  *
  * Sem conversa (Parar global): a parada fica ABERTA e bloqueia o despacho até a pessoa falar de novo (definido em
- * 2026-09-16: "Stop now" do Grok Bot; nova mensagem chama encerrarAbertas), e para as tasks de todos os bots.
+ * 2026-09-16: "Parar agora"; nova mensagem chama encerrarAbertas), e para as tasks de todos os bots.
  * revisto em 2026-10-22 (NOD-311, emenda da ADR-083): com conversa, o Parar é só do turno do chat (`trabalhoId` nulo) e do
  * que ele abriu (esperas e pedidos a colegas). As frentes seguem, cada uma se para por dentro. A parada é gravada
  * (auditoria) e ENCERRADA no fim da mesma transação: nada fica segurado depois (rotinas, pedidos, retorno de frentes).

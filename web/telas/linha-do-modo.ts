@@ -78,6 +78,11 @@ const ICONE_ARRISCADO = svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 
  * da telemetria é o turno: a linha conta uma vez por turno, e o "ver" conta como aberta.
  */
 function linhaDoRevisor(acoes: readonly AcaoDoModoNaFala[], agenteId: string): string {
+  // ADR-166: liberada por uma regra da pessoa → "Aprovado pela sua regra · <regra> · Editar" (o Editar abre a regra nos
+  // Ajustes). Várias ações por regras diferentes, ou nem todas por regra, ficam na linha de sempre.
+  const regras = new Set(acoes.map((a) => a.regra?.id ?? ""));
+  const regra = regras.size === 1 ? acoes[0]?.regra : undefined;
+  if (regra) return linhaDaRegra(regra, agenteId, new Set(acoes.map((a) => a.frase)).size === 1 ? acoes[0]?.frase : undefined);
   const texto = textoDaLinhaDoRevisor(acoes);
   const primeira = [...acoes].sort((x, y) => x.em - y.em)[0];
   const dia = diaLocal(primeira?.em ?? Date.now());
@@ -85,6 +90,18 @@ function linhaDoRevisor(acoes: readonly AcaoDoModoNaFala[], agenteId: string): s
   // PR 4b: uma ação só, e o comando sem frase — o trecho que o servidor marcou vai em fonte de código.
   const codigo = new Set(acoes.map((a) => a.frase)).size === 1 ? acoes.find((a) => a.codigo)?.codigo : undefined;
   return `<div class="linha-modo linha-revisor">${ICONE_ESCUDO_LIBEROU}<span class="linha-modo-txt">${textoComCodigo(texto, codigo)}</span><span class="linha-modo-sep" aria-hidden="true">·</span><button type="button" class="linha-modo-ver" data-act="ver-sem-aprovacao" data-agente="${esc(agenteId)}" data-dia="${esc(dia)}" data-linha-tipo="revisor" data-linha-chave="${esc(chave)}" aria-label="${esc(`Ver na Atividade: ${texto}`)}">ver</button></div>`;
+}
+
+/** ADR-166: a regra até 60 caracteres na linha; o texto inteiro vai no `title` e no rótulo do Editar. */
+const REGRA_NA_LINHA_MAX = 60;
+/**
+ * Paper 02/17 (rodada 3 da casca, "igual ao Paper"): com a frase da ação (uma só), a linha é "Criou 4 issues no Linear ·
+ * Aprovado pela sua regra · Editar" — a regra vai no `title` e no rótulo do Editar. Sem frase única, a regra na linha.
+ */
+export function linhaDaRegra(regra: NonNullable<AcaoDoModoNaFala["regra"]>, agenteId: string, frase?: string): string {
+  const curta = regra.texto.length > REGRA_NA_LINHA_MAX ? `${regra.texto.slice(0, REGRA_NA_LINHA_MAX - 1).trimEnd()}…` : regra.texto;
+  const texto = frase ? `${esc(frase)} · Aprovado pela sua regra` : `Aprovado pela sua regra · ${esc(curta)}`;
+  return `<div class="linha-modo linha-revisor linha-regra">${ICONE_ESCUDO_LIBEROU}<span class="linha-modo-txt" title="${esc(frase ? `Regra: ${regra.texto}` : regra.texto)}">${texto}</span><span class="linha-modo-sep" aria-hidden="true">·</span><button type="button" class="linha-modo-ver" data-act="apv-editar-da-linha" data-regra="${esc(regra.id)}" data-agente="${esc(regra.agenteId ?? "")}" data-bot="${esc(agenteId)}" aria-label="${esc(`Editar a regra: ${regra.texto}`)}">Editar</button></div>`;
 }
 
 /** O HTML da linha (ou das duas: a do revisor e a do total, se o modo mudou no meio do turno). `agenteId`: o bot da conversa (a Atividade é dele). */

@@ -71,7 +71,7 @@ describe("4: nome e subtítulo editáveis ali mesmo", () => {
 
 describe("5: o popover do avatar", () => {
   const aberto = (e: Estado) => reduzir(e, { tipo: "avatar-popover", aberto: { agenteId: "a1", forma: "shape-square", cor: "c-purple" } });
-  it("fechado, só o botão; aberto, 8 formas e 12 cores como rádios, com a atual marcada, e Redefinir", () => {
+  it("fechado, só o botão; aberto, 13 formas e 14 cores como rádios, com a atual marcada, e Redefinir", () => {
     const fechado = renderDetalhes(com(nina()));
     // Revisão 2: fechado, sem aria-controls (apontaria para um popover que não está no DOM).
     expect(fechado).toContain('data-act="gaveta-avatar" data-id="a1" aria-haspopup="dialog" aria-expanded="false"');
@@ -81,8 +81,9 @@ describe("5: o popover do avatar", () => {
     expect(html).toContain('aria-haspopup="dialog" aria-controls="gvn-pop" aria-expanded="true"');
     expect(html).toContain('role="dialog" aria-label="Editar avatar"');
     expect(html).not.toContain("aria-modal");
-    expect(html.match(/data-act="gaveta-forma"/g)).toHaveLength(8);
-    expect(html.match(/data-act="gaveta-cor"/g)).toHaveLength(12);
+    // ADR-174: 13 formas e 14 cores.
+    expect(html.match(/data-act="gaveta-forma"/g)).toHaveLength(13);
+    expect(html.match(/data-act="gaveta-cor"/g)).toHaveLength(14);
     expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
     expect(html).toMatch(/aria-checked="true" tabindex="0"[^>]*data-act="gaveta-forma" data-id="a1" data-valor="shape-square"/);
     expect(html).toContain('data-act="gaveta-redefinir"');
@@ -96,14 +97,14 @@ describe("5: o popover do avatar", () => {
 });
 
 describe("6: as abas", () => {
-  it("tablist com Detalhes, Biblioteca e Computador (NOD-326), tabindex roving e o painel ligado à aba", () => {
+  it("ADR-167 (Paper 02): à vista Atividade e Biblioteca; o Computador abre pelo bloco da Atividade; tabindex roving", () => {
     const html = renderDetalhes(com(nina()));
     expect(html).toContain('role="tablist" aria-label="Seções do painel"');
-    expect(html).toContain('role="tab" class="gv-aba" id="gv-aba-detalhes" aria-controls="gv-painel-detalhes" aria-selected="true" tabindex="0"');
-    expect(html).toContain('id="gv-aba-computador" aria-controls="gv-painel-computador" aria-selected="false" tabindex="-1"');
+    expect(html).toContain('role="tab" class="gv-aba" id="gv-aba-detalhes" aria-controls="gv-painel-detalhes" aria-selected="true" tabindex="0" data-act="gaveta-aba" data-aba="detalhes" data-id="a1">Atividade');
     expect(html).toContain('id="gv-aba-biblioteca" aria-controls="gv-painel-biblioteca" aria-selected="false" tabindex="-1"');
+    expect(html).not.toContain('id="gv-aba-computador"');
+    expect(html).toContain('data-act="gaveta-aba" data-aba="computador" data-id="a1"');
     expect(html.indexOf('data-aba="detalhes"')).toBeLessThan(html.indexOf('data-aba="biblioteca"'));
-    expect(html.indexOf('data-aba="biblioteca"')).toBeLessThan(html.indexOf('data-aba="computador"'));
     expect(html).toContain('role="tabpanel" id="gv-painel-detalhes" aria-labelledby="gv-aba-detalhes"');
     expect(abasDoBot(true)).toEqual(["detalhes", "biblioteca", "computador"]);
     expect(abasDoBot(false)).toEqual(["detalhes", "biblioteca"]);
@@ -112,7 +113,7 @@ describe("6: as abas", () => {
   it("a aba é lembrada por bot; a lembrada que não existe mais (bot da equipe) cai em Detalhes", () => {
     const e = reduzir(com(nina()), { tipo: "aba-gaveta", agenteId: "a1", aba: "computador" });
     expect(e.abaGaveta).toEqual({ a1: "computador" });
-    expect(renderDetalhes(e)).toContain('id="gv-aba-computador" aria-controls="gv-painel-computador" aria-selected="true"');
+    expect(renderDetalhes(e)).toContain('role="tabpanel" id="gv-painel-computador"');
     expect(abaAberta(e, "a1", ["detalhes"])).toBe("detalhes");
     expect(abaAberta(e, "outro", ["detalhes", "computador"])).toBe("detalhes");
     // Ler do localStorage não atropela o que a pessoa escolheu nesta aba do navegador.
@@ -129,8 +130,9 @@ describe("7: Detalhes com as Rotinas e a linha Ajustes", () => {
     expect(html).not.toContain("ela aparece aqui");
     expect(html).toContain('data-act="rotina-no-chat" data-agente="a1"');
     expect(html).not.toContain('data-nivel="nova-rotina"');
+    // ADR-167 (Paper 02): o título "Ajustes" do painel leva ao nível (as linhas embaixo são Aprovações e Quadro).
     expect(html).toContain('data-act="gaveta" data-nivel="ajustes" data-agente="a1" data-origem="ajustes"');
-    expect(html).toContain("Ligar, trabalhos, memória, missão e acessos");
+    expect(html).toContain("Ajustes: ligar, trabalhos, memória, missão e acessos");
   });
 });
 
@@ -148,12 +150,14 @@ describe("8–9: o nível Ajustes", () => {
     expect(dev).not.toContain("Pasta de trabalho");
   });
 
-  it("NOD-326: a Pasta fica no topo da aba Biblioteca, só no bot da pessoa (nada some sem destino)", () => {
+  it("NOD-326 + ADR-167 (Paper 02b): a Pasta fica na aba Biblioteca, embaixo dos cartões no computador e no topo no celular, só no bot da pessoa", () => {
     const e = com(nina());
     const a = e.frota!.agentes[0]! as never;
     const html = abaBiblioteca(e, a, true);
     expect(html).toContain('data-act="abrir-workspace"');
-    expect(html.indexOf("abrir-workspace")).toBeLessThan(html.indexOf('class="gv-secao gvb"'));
+    expect(html.indexOf("abrir-workspace")).toBeGreaterThan(html.indexOf('class="gv-secao gvb"'));
+    const cel = abaBiblioteca(e, a, true, true);
+    expect(cel.indexOf("abrir-workspace")).toBeLessThan(cel.indexOf('class="gv-secao gvb"'));
     expect(abaBiblioteca(e, a, false)).not.toContain("abrir-workspace");
   });
 });

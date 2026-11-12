@@ -4,9 +4,9 @@ Status: aceito · Data: 2026-09-17
 
 ## Decisão
 
-A primeira versão prioriza as jornadas do Grok Bot: criar bots, conversar, consultar outros bots,
+A primeira versão prioriza as jornadas principais: criar bots, conversar, consultar outros bots,
 trabalhar em salas e agendar rotinas. A execução passa pelo Claude Code instalado na máquina,
-usando o modelo via assinatura da pessoa (ADR-014). Não há dependência da API do Grok nem modelo offline.
+usando o modelo via assinatura da pessoa (ADR-014). Não há dependência de outra API de modelo nem modelo offline.
 
 A pessoa pode criar um bot informando nome, especialidade e instruções num formulário. Um perfil
 com nome e descrição nasce confirmado: o preenchimento da pessoa já é a confirmação. A criação
@@ -51,10 +51,6 @@ na máquina local. Não há desktop fictício nem indicação de acesso já conc
 
 ## Referências
 
-- https://docs.x.ai/grok-bot/get-started
-- https://docs.x.ai/grok-bot/chat-and-collaboration
-- https://docs.x.ai/grok-bot/skills-routines-and-automations
-- https://x.ai/bot/guides/how-i-run-multiple-teams-of-grok-bots
 - https://github.com/milind-soni/OpenMausBot — inspiração funcional; nenhum código copiado.
 
 ## Reversão

@@ -49,6 +49,18 @@ import type { TokenTurno } from "../../services/token-turno.ts";
 const FALA_ESPEROU_MS = 10_000;
 
 /** definido em 2026-09-16: versão mínima do app = a do package.json desta rodada; a ponte HTTP compara quando entrar (ADR-021). */
+
+/** ADR-171 (definido em 2026-11-12): o último log de recursos de cada turno, para 1 linha por minuto (renovação a cada ~10 s). */
+const recursosLogados = new Map<string, number>();
+const INTERVALO_LOG_RECURSOS_MS = 60_000;
+function registrarRecursosDoTurno(t: { turnoId: string; mb: number; cpuPct?: number }, agenteId: string | null, agora: number): void {
+  const antes = recursosLogados.get(t.turnoId);
+  if (antes !== undefined && agora - antes < INTERVALO_LOG_RECURSOS_MS) return;
+  recursosLogados.set(t.turnoId, agora);
+  if (recursosLogados.size > 2000) for (const [id, em] of recursosLogados) if (agora - em > 10 * INTERVALO_LOG_RECURSOS_MS) recursosLogados.delete(id);
+  log("info", "turno_recursos", { turno_id: t.turnoId, agente_id: agenteId, memoria_mb: t.mb, cpu_pct: t.cpuPct ?? null });
+}
+
 export const VERSAO_MINIMA_APP = "0.1.0";
 
 export type DepsPonte = {
@@ -611,6 +623,8 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         let mudanca: MudancaDePressao | undefined;
         if (p.memoria) {
           await d.repos.trabalhos.atualizarMemoria(p.memoria.porTurno);
+          // ADR-171: memória e CPU do grupo do turno, por bot, no log (no máximo 1 linha por turno por minuto).
+          for (const t of p.memoria.porTurno) if (t.turnoId === p.turnoId) registrarRecursosDoTurno(t, turno?.agenteId ?? null, Date.now());
           mudanca = deps.registrarMemoria?.(escopo.pessoaId, p.machineId, p.memoria);
           if (mudanca?.mudou) events.push(eventoPressao(d, mudanca, p.memoria));
         }

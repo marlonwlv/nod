@@ -6,7 +6,7 @@ A política **Com aprovação por ação** pede autorização antes de interaç�
 
 ## Casos de uso e critérios de aceite
 
-As referências de produto são os [guias](https://x.ai/bot/guides) e [casos de uso do Grok Bot](https://x.ai/bot/use-cases). Esta tabela descreve o comportamento buscado, não uma afirmação de que todos os serviços citados já foram homologados.
+Esta tabela descreve o comportamento buscado, não uma afirmação de que todos os serviços citados já foram homologados.
 
 | Caso | O computador precisa fazer | Critério de aceite |
 |---|---|---|
@@ -51,6 +51,18 @@ node scripts/desktop/smoke-proxy.mjs node_modules/electron/dist/Electron.app/Con
 O smoke cria dois computadores descartáveis, usa arquivos/cookies fictícios e não chama modelos pagos. Remove apenas seus próprios containers, redes e volumes. IDs para diagnóstico ficam em `/tmp/nod-computadores-smoke-ids.json`.
 
 Os volumes têm nomes `nod-computador-<id>-home` e `nod-computador-<id>-workspace`. Faça backup com o computador desligado e preserve a chave do servidor separadamente; sem a chave, o cofre não abre. Não monte um mesmo perfil em dois Chromium ativos. Planeje recuperação e retenção antes de remover dados de bots excluídos.
+
+### Provedor do computador (ADR-168)
+
+O computador vem de um **provedor**: o Docker do servidor (padrão com `NOD_COMPUTADORES=docker`) ou um serviço de fora. A escolha é configuração, com precedência bot > pessoa > global:
+
+| Variável | Exemplo |
+|---|---|
+| `NOD_COMPUTADOR_PROVEDOR` | `orgo` (todos os bots sem escolha própria) |
+| `NOD_COMPUTADOR_PROVEDOR_POR_PESSOA` | `{"<pessoaId>":"orgo"}` |
+| `NOD_COMPUTADOR_PROVEDOR_POR_BOT` | `{"<agenteId>":"docker"}` |
+
+O Orgo só existe com `NOD_COMPUTADOR_ORGO=1`. A chave da conta Orgo da pessoa fica no cofre: conector `orgo`, chave `ORGO_API_KEY`, guardada pelo cartão do `pedir_credencial`; nunca no env do servidor. Os computadores nascem no workspace `nod` da conta dela, com o nome `nod-<id>`. Trocar de provedor não leva arquivos nem logins. Valor desconhecido é ignorado com o aviso `computador_provedor_config` no log.
 
 ### Ciclo de vida no host (NOD-170)
 

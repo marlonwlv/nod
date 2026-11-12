@@ -1,0 +1,857 @@
+/* =====================================================================================
+   casca.css — a casca do computador IGUAL ao Paper (telas 02–05, 08, 15–17; ADR-167).
+   Medidas tiradas do gerador do Paper (front-no-paper/bin/kit.py e app.py): barra de 272 px com a grade de 3, linhas
+   "Nome · Título" de 52 px, rodapé MW + nome + ⚙ + grade; pílula de 36 px "Ada · PM"; conversa sem cabeçalho nem
+   avatar por fala, com 64 px de margem; campo de 680 px (＋ | texto | 🎤 | ↑); painel do bot de 360 px.
+   Carregado depois de ds.css e antes dos CSS do celular. Só no computador (o celular segue a ADR-094) e só na densidade
+   Confortável aberta (a Compacta e a barra só com avatares têm as regras de densidade.css). Só tokens.
+   ===================================================================================== */
+
+@media not ((hover: none) and (pointer: coarse)) {
+
+/* ---- A coluna da barra: 272 px (ADR-167, Paper 02) e o painel do bot com 360 ---------------------------------- */
+.app { --largura-barra-auto: 272px; }
+.app:not(.sem-sessao) { grid-template-columns: var(--largura-barra, 272px) minmax(0, 1fr); }
+.app.com-detalhes:not(.sem-sessao) { grid-template-columns: var(--largura-barra, 272px) minmax(360px, 1fr) 360px; }
+html[data-densidade] .app.com-detalhes:not(.sem-sessao) { grid-template-columns: var(--largura-barra) minmax(360px, 1fr) 360px; }
+
+/* =====================================================================================
+   Barra lateral aberta (Confortável)
+   ===================================================================================== */
+html:not([data-densidade="compacta"]):not([data-largura="recolhida"]) #sidebar.sidebar {
+  background: var(--surface-side); border-right: 1px solid var(--divisoria);
+
+  /* Topo: 52 px; à direita o recolher (sem fundo), a lupa e o + (flutuantes, 30 px). */
+  & .search-wrap { padding: 0; border: 0; }
+  & .sh { height: 52px; box-sizing: border-box; margin: 0; padding: 0 6px 0 12px; gap: 6px; justify-content: flex-end; }
+  & .sh .create-actions { display: contents; }
+  & .sh :is(.icone-topo, .create-trigger) {
+    width: 30px; height: 30px; min-width: 0; padding: 0; margin: 0; display: grid; place-items: center; flex: none;
+    border-radius: var(--raio-full); border: 1px solid transparent; background: transparent; color: var(--ink-2); font-size: 0;
+  }
+  & .sh :is(.icone-topo, .create-trigger) svg { width: 16px; height: 16px; }
+  & .sh .icone-flutua { background: var(--surface-elevated); border-color: var(--borda-sutil); box-shadow: var(--sombra-controle); }
+  & .sh :is(.icone-topo, .create-trigger):hover { background: var(--hover); }
+  & .sh .icone-flutua:hover { background: var(--surface-raised); }
+  /* À esquerda fica o lugar dos semáforos do Mac (Paper); os três botões ficam juntos à direita. */
+  & .sh .nod-topo { margin-right: auto; }
+  & .search { margin: 0 8px 8px; }
+
+  /* A lista: 8 px dos lados. */
+  & .list { padding: 0 8px; }
+
+  /* Fixados: grade de 3 colunas de 78 × 80, mascote de 44 e só o nome (11 px). */
+  & .fixados { display: grid; grid-template-columns: repeat(3, 78px); gap: 2px 4px; margin: 0; padding: 4px 4px 6px; border: 0; }
+  & .fixado { position: relative; }
+  & .fixado-bt { width: 78px; height: 80px; box-sizing: border-box; padding: 0; gap: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--raio-12); }
+  & .fixado-bt .icon, & .fixado-bt .icon.lg { width: 44px; height: 44px; margin: 0; }
+  & .fixado-bt b { font-size: var(--fs-legenda); line-height: var(--lh-legenda); font-weight: var(--peso-medio); color: var(--ink-2); max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  & .fixado-bt :is(.chip, .chip-trab) { display: none; }
+  & .fixado .bot-mais-fixado { top: 2px; right: 2px; }
+
+  /* Linhas fixas Tarefas e Trabalhos: 32 px, ícone de 16, contador de 12. */
+  & .linha-fixa { margin: 2px 0 0; border-radius: var(--raio-8); }
+  & .linha-fixa + .linha-fixa { margin-top: 2px; }
+  & .linha-fixa-bt { height: 32px; padding: 0 10px; gap: 10px; border-radius: var(--raio-8); font-size: var(--fs-corpo); line-height: var(--lh-corpo); color: var(--ink); }
+  & .linha-fixa-ic { width: 16px; height: 16px; color: var(--ink-2); }
+  & .linha-fixa-cont { color: var(--ink-3); font-size: var(--fs-rotulo); }
+  & .linha-fixa:has(.linha-fixa-aguardando) { background: var(--ativo); }
+
+  /* Times: o rótulo de 12 px (28 px com 12 de respiro em cima), sem chevron nem ⋯ à vista. */
+  & .section { margin: 0; padding: 0; }
+  & .section h3, & .time-cab { height: 28px; box-sizing: border-box; margin: 0; padding: 12px 10px 0; display: flex; align-items: center; border: 0; }
+  & .secao-cab { padding: 0; margin: 0; min-height: 0; height: 16px; gap: 4px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); color: var(--ink-3); background: none; letter-spacing: 0; text-transform: none; }
+  & .secao-cab svg { opacity: 0; transition: opacity var(--dur-rapido) var(--curva); }
+  & .time-cab:hover .secao-cab svg, & .secao-cab:focus-visible svg { opacity: 1; }
+  & .time-mais { opacity: 0; }
+  & .time-cab:hover .time-mais, & .time-mais:focus-visible { opacity: 1; }
+  & .novo-time { opacity: 0; height: 28px; margin: 4px 0; font-size: var(--fs-rotulo); }
+  & .list:hover .novo-time, & .novo-time:focus-visible { opacity: 1; }
+
+  /* Linha do bot: 52 px, mascote de 36, "Nome · Título" e a prévia de 13. */
+  & .bot-row { margin: 0; border-radius: var(--raio-10); }
+  & .row { display: flex; align-items: center; gap: 10px; height: 52px; min-height: 0; box-sizing: border-box; padding: 0 10px 0 8px; margin: 0; border-radius: var(--raio-10); }
+  & .row .icon { width: 36px; height: 36px; margin: 0; flex: none; }
+  & .row .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
+  & .nome-linha { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-corpo); line-height: var(--lh-corpo); color: var(--ink); }
+  & .nome-linha b { display: inline; font-weight: var(--peso-regular); font-size: inherit; }
+  & .nome-linha .chip { display: inline; padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; font-style: normal; border-radius: 0; height: auto; }
+  & .nome-linha .chip::before { content: " · "; }
+  & .nome-linha .inicio-hora, & .nome-linha .chip-trab { display: none; }
+  & .row .txt > span:not(.nome-linha) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); margin: 0; }
+  & .row .txt > span.sub-aguardando { color: var(--aguardando); }
+  & .bot-row .bot-mais { top: 50%; transform: translateY(-50%); }
+
+  /* Rodapé: 52 px, borda de cima, MW + nome + ⚙ + grade. */
+  & .rodape { height: 52px; box-sizing: border-box; padding: 0 8px 0 10px; gap: 4px; display: flex; align-items: center; border-top: 1px solid var(--divisoria); margin: 0; }
+  & .rodape .me { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; width: auto; height: 36px; padding: 0 6px 0 0; border: 0; border-radius: var(--raio-8); background: none; }
+  & .rodape .me:hover { background: none; }
+  & .rodape .me .av-me {
+    width: 28px; height: 28px; flex: none; display: grid; place-items: center; box-sizing: border-box; border-radius: var(--raio-full);
+    background: var(--hover); border: 1px solid var(--borda-sutil); color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 1; font-weight: var(--peso-medio);
+  }
+  & .rodape .me-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-corpo); line-height: var(--lh-corpo); color: var(--ink); text-align: left; }
+  & .rodape .me-conexao { left: 20px; right: auto; bottom: 6px; }
+  & .rodape .me-conexao.conexao-aberto, & .rodape .me-conexao.conexao-reconectando { display: none; }
+  & .rodape-ic {
+    width: 28px; height: 28px; flex: none; display: grid; place-items: center; padding: 0; margin: 0; border: 0; border-radius: var(--raio-full);
+    background: transparent; color: var(--ink-2);
+  }
+  & .rodape-ic:hover { background: var(--hover); }
+  & .rodape .marketplace-bt { flex: none; width: 28px; height: 28px; border: 0; gap: 0; }
+  & .rodape .marketplace-bt[aria-current="true"] { background: var(--ativo); }
+  & .rodape .rodape-tarefas { display: none; }
+}
+/* O ⚙ e a grade na barra só com avatares (o MW fica em cima deles). */
+html[data-largura="recolhida"] .sidebar .rodape-ic { width: 30px; height: 30px; display: grid; place-items: center; border: 0; background: none; color: var(--ink-2); border-radius: var(--raio-full); }
+html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
+.sidebar .rodape-ic:focus-visible, .sidebar .sh .barra-alternar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* =====================================================================================
+   Cabeçalho da conversa: a pílula de 36 px no centro e o botão do painel à direita
+   ===================================================================================== */
+.stage > .cabecalho-pilula {
+  position: relative; min-height: 0; height: 56px; box-sizing: border-box; padding: 0 16px; margin: 0; border: 0;
+  background: var(--surface); display: flex; align-items: center; justify-content: center; flex: none;
+}
+.stage > .cabecalho-pilula::before, .stage > .cabecalho-pilula::after { display: none; }
+.cabecalho-pilula .pilula-bot {
+  height: 36px; box-sizing: border-box; padding: 0 14px 0 6px; gap: 8px; border-radius: var(--raio-full);
+  background: var(--surface-elevated); border: 1px solid var(--divisoria); box-shadow: var(--sombra-controle);
+  font-size: var(--fs-corpo); line-height: var(--lh-corpo); font-weight: var(--peso-medio); color: var(--ink); backdrop-filter: none;
+}
+.cabecalho-pilula .pilula-bot .icon { width: 24px; height: 24px; margin: 0; }
+.stage > .cabecalho-pilula .qd-pil { padding: 0; gap: 0; border: 1px solid var(--divisoria); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle); backdrop-filter: none; }
+.stage > .cabecalho-pilula .qd-pil:has(> .pilula-bot:hover, > .pilula-bot:focus-visible) { border-color: var(--borda); }
+#cabecalho.cabecalho-pilula .qd-pil > .pilula-bot { height: 34px; border: 0; box-shadow: none; background: transparent; padding: 0 13px 0 5px; }
+.cabecalho-pilula .pilula-bot :is(.presenca, .pilula-seta) { display: none; }
+.cabecalho-pilula .pilula-txt { display: inline-flex; align-items: baseline; gap: 0; white-space: nowrap; }
+.cabecalho-pilula .pilula-nome { font-weight: var(--peso-medio); font-size: var(--fs-corpo); }
+.pilula-titulo::before { content: " · "; white-space: pre; }
+.pilula-titulo { font-weight: var(--peso-medio); }
+.cabecalho-pilula .pilula-frentes { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: var(--fs-rotulo); font-weight: var(--peso-regular); color: var(--ink-3); }
+.cabecalho-pilula .pilula-frentes .ponto-aguardando { width: 6px; height: 6px; }
+.cabecalho-pilula :is(.abrir-bots, .buscar-celular, .pilula-sub, .pilula-presenca) { display: none; }
+/* O botão do painel à direita (Paper: 32 px, sem fundo com o painel aberto; flutuante com ele fechado). */
+.cabecalho-pilula .painel-alternar {
+  position: absolute; right: 16px; top: 12px; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; margin: 0;
+  border-radius: var(--raio-full); border: 1px solid transparent; background: transparent; color: var(--ink-2);
+}
+.cabecalho-pilula .painel-alternar:hover { background: var(--hover); }
+.app.detalhes-ocultos .cabecalho-pilula .painel-alternar, .app:not(.com-detalhes) .cabecalho-pilula .painel-alternar { background: var(--surface-elevated); border-color: var(--borda-sutil); box-shadow: var(--sombra-controle); }
+/* A dica da doca (⌥ ← →) só aparece com a doca aberta (bug da verificação: ficava por cima do conteúdo). */
+.pg-dica:not(.pg-dica-viva) { opacity: 0 !important; visibility: hidden; }
+
+/* =====================================================================================
+   Conversa: sem cabeçalho nem avatar por fala; data no centro; 64 px de margem; bot sem balão em 600 px
+   ===================================================================================== */
+.stage > .timeline-wrap { padding: 12px 64px 16px; }
+.stage > .timeline-wrap > .timeline { max-width: 680px; }
+.timeline .time-sep, .timeline .time-sep[role="separator"] { margin: 0 0 18px; padding: 4px 0; text-align: center; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.timeline .message { margin: 0 0 18px; gap: 0; }
+.timeline .message > .icon, .timeline .message > nod-mascote { display: none; }
+.timeline .message .msg-autor { display: none; }
+.timeline .message.you .bubble { max-width: 460px; padding: 7px 14px; font-size: var(--fs-corpo); line-height: var(--lh-conversa); border-radius: var(--raio-18); }
+.timeline .message.bot .bubble-wrap { max-width: 600px; }
+.timeline .message.bot .bubble:not(.com-progresso) { padding: 0 2px; font-size: var(--fs-corpo); line-height: var(--lh-conversa); color: var(--ink); }
+.timeline .message.bot .bubble + .bubble { margin-top: 10px; }
+
+/* =====================================================================================
+   Campo de mensagem: 680 px, raio 22, ＋ | texto | 🎤 | ↑ (o anexo, o modo e a IA moram no ＋)
+   ===================================================================================== */
+.stage > .composer-wrap { border: 0; padding: 0 64px 18px; background: var(--surface); }
+.composer-wrap .composer { max-width: 680px; margin: 0 auto; }
+.composer .box {
+  min-height: 44px; box-sizing: border-box; padding: 6px 7px; gap: 8px; align-items: center; border-radius: var(--raio-22);
+  background: var(--surface-elevated); border: 1px solid var(--borda); box-shadow: var(--sombra-controle);
+}
+.composer .box:focus-within { border-color: var(--borda-forte); }
+.composer .box > :is(.clipe, #composer-modo, #composer-ia) { display: none; }
+.composer .box > .mais-campo {
+  display: grid; place-items: center; width: 30px; height: 30px; flex: none; padding: 0; margin: 0; border: 0; border-radius: var(--raio-full);
+  background: transparent; color: var(--ink-2);
+}
+.composer .box > .mais-campo:hover { background: var(--hover); }
+.composer .box > .mais-campo svg { width: 16px; height: 16px; }
+.composer .box > textarea { padding: 0; }
+.composer textarea { font-size: var(--fs-corpo); line-height: var(--lh-conversa); min-height: 22px; padding: 0; color: var(--ink); }
+.composer textarea::placeholder { color: var(--ink-4); }
+.composer .box > .mic { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--raio-full); background: transparent; color: var(--ink-2); flex: none; }
+.composer .box > .mic:hover { background: var(--hover); }
+.composer .box > :is(.send, .parar-envio) { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--raio-full); flex: none; }
+.composer .box > .send { background: var(--action); color: var(--on-action); }
+.composer .box > .send:disabled, .composer .box > .send[aria-disabled="true"] { background: var(--hover); color: var(--ink-3); opacity: 1; }
+.composer .box > .parar-envio { background: var(--action); color: var(--on-action); }
+.composer .box > :is(.send, .parar-envio, .mic) svg { width: 16px; height: 16px; }
+.composer .nota:empty { display: none; }
+
+
+/* ---- Conversa ancorada embaixo (Paper: as falas encostam no campo) ---- */
+.stage > .timeline-wrap { display: flex; flex-direction: column; }
+.stage > .timeline-wrap > .timeline { margin-top: auto; }
+/* O enviar com o campo vazio: o círculo claro do Paper; com texto, o preto. */
+.composer .box:has(textarea:placeholder-shown) > .send { background: var(--hover); color: var(--ink-3); }
+/* Os pontinhos da doca só com a doca aberta (Paper 17). */
+.cabecalho-pilula .qd-pil:not(.pg-aberta) .pg-pontos { opacity: 0; }
+.cabecalho-pilula .qd-pil.pg-aberta .pg-pontos { opacity: 1; }
+
+/* =====================================================================================
+   Painel do bot (Paper 02): 360 px, fundo um tom acima, Atividade | Biblioteca, blocos em cartão
+   ===================================================================================== */
+.app > .detalhes { padding: 0; background: var(--surface-chrome); border-left: 1px solid var(--borda-sutil); }
+.detalhes .gvn-topo { display: flex; justify-content: flex-end; padding: 12px 12px 0; margin: 0; height: auto; border: 0; }
+.detalhes .gvn-topo > [data-act="gaveta-compartilhar"] { display: none; }
+.detalhes .gvn-topo .gv-painel {
+  width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--raio-full); padding: 0;
+  background: var(--surface-elevated); border: 1px solid var(--borda-sutil); box-shadow: var(--sombra-controle); color: var(--ink-2);
+}
+.detalhes .gvn-topo .gv-painel svg { width: 16px; height: 16px; }
+.detalhes .gv-corpo { padding: 0 16px 16px; gap: 0; }
+.detalhes .gvn-id { padding: 8px 0 14px; gap: 0; margin: 0; }
+.detalhes .gvn-id :is(.icon.mascote.xl, .gvn-avatar .icon) { width: 72px; height: 72px; }
+.detalhes .gvn-avatar { padding: 0; margin: 0 0 10px; border: 0; background: none; }
+.detalhes .gvn-id :is(.gvn-nome, .gvn-nome-fixo) {
+  margin: 0; padding: 0; height: 24px; border: 0; background: none; text-align: center; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3);
+  letter-spacing: var(--tracking-titulo-3); font-weight: var(--peso-medio); color: var(--ink);
+}
+.detalhes .gvn-id :is(.gvn-sub, .gvn-sub-fixo) {
+  margin: 2px 0 0; padding: 0; height: 18px; border: 0; background: none; text-align: center; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-3);
+}
+.detalhes .gvn-id :is(.gvn-nome, .gvn-sub):hover { background: var(--hover); border-radius: var(--raio-6); }
+.detalhes .gv-abas { display: flex; justify-content: center; gap: 4px; margin: -4px 0 0; padding: 0 0 14px; border: 0; }
+.detalhes .gv-aba {
+  height: 26px; padding: 0 10px; border-radius: var(--raio-8); border: 0; background: transparent; box-shadow: none;
+  font-size: var(--fs-corpo-2); line-height: 26px; font-weight: var(--peso-regular); color: var(--ink-3);
+}
+.detalhes .gv-aba[aria-selected="true"] { background: var(--ativo); color: var(--ink); font-weight: var(--peso-medio); }
+.detalhes .gv-aba::after { display: none; }
+.detalhes .gv-aba-painel { padding: 0; display: block; gap: 0; }
+.detalhes .gv-aba-painel > .gv-secao + .gv-secao, .detalhes .gv-secao + .gv-secao { margin-top: 0; }
+.detalhes .gvn-erro-linha:not(:has(.gvn-erro:not(:empty))) { display: none; }
+.detalhes .gvn-avatar-wrap { margin: 0 0 10px; }
+.detalhes .gvn-avatar { margin: 0; padding: 0; width: 72px; height: 72px; }
+.detalhes .gv-cartao .detalhe-rotina { background: none; }
+.detalhes .gv-secao { margin: 0; padding: 0; border: 0; }
+.detalhes .gv-secao-cab { display: flex; align-items: center; justify-content: space-between; padding: 16px 4px 8px; margin: 0; min-height: 0; }
+.detalhes .gv-secao-cab h3, .detalhes .gv-secao > h3 { margin: 0; padding: 0; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-medio); color: var(--ink-2); }
+.detalhes .gv-conta { margin-left: auto; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.detalhes .gv-rotinas .gv-secao-cab .gv-link { display: none; font-size: var(--fs-rotulo); padding: 0 4px; height: 18px; }
+.detalhes .gv-rotinas .gv-secao-cab:hover .gv-link, .detalhes .gv-rotinas .gv-secao-cab .gv-link:focus-visible { display: inline-flex; }
+.detalhes .gv-rotinas .gv-secao-cab:hover .gv-conta { display: none; }
+.detalhes .gv-cab-link { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.detalhes .gv-cab-link .gv-chev { opacity: 0; color: var(--ink-3); }
+.detalhes .gv-cab-link:hover .gv-chev, .detalhes .gv-cab-link:focus-visible .gv-chev { opacity: 1; }
+.detalhes .gv-cartao {
+  border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-inline); overflow: hidden;
+}
+.detalhes .gv-cartao > * + * { border-top: 0; position: relative; }
+.detalhes .gv-cartao > * + *::before { content: ""; position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: var(--divisoria); }
+.detalhes .gv-linha { min-height: 52px; box-sizing: border-box; padding: 8px 12px; gap: 10px; border-radius: 0; }
+.detalhes .gv-linha:hover { background: var(--hover); }
+.detalhes .gv-linha > .gv-ic, .detalhes .gv-linha > svg:first-child { width: 16px; height: 16px; color: var(--ink-2); flex: none; }
+.detalhes .gv-linha-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink); font-weight: var(--peso-regular); }
+.detalhes .gv-linha-txt b { font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detalhes .gv-linha-txt small { margin: 0; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detalhes .gv-linha-txt small.gv-ok { color: var(--success); }
+.detalhes .gv-linha-txt small.gv-pede { color: var(--aguardando); }
+.detalhes .gv-linha > .gv-chev { width: 14px; height: 14px; color: var(--ink-3); flex: none; }
+.detalhes .gv-cartao .detalhe-rotina { padding: 0 12px 0 0; flex-wrap: nowrap; }
+.detalhes .gv-cartao .detalhe-rotina .gv-linha { flex: 1; min-width: 0; padding-right: 8px; }
+.detalhes .gv-cartao .detalhe-rotina .gv-linha:hover { background: none; }
+.detalhes .chave { width: 32px; height: 20px; border-radius: var(--raio-full); background: var(--ativo); flex: none; }
+.detalhes .chave[aria-checked="true"] { background: var(--action); }
+.detalhes .chave span { top: 2px; left: 2px; width: 16px; height: 16px; background: var(--surface-elevated); box-shadow: var(--shadow-knob); }
+.detalhes .chave[aria-checked="true"] span { left: 14px; transform: none; background: var(--on-action); }
+.detalhes .gv-barra { width: 48px; height: 4px; border-radius: var(--raio-full); background: var(--hover); overflow: hidden; flex: none; }
+.detalhes .gv-barra i { display: block; width: 75%; height: 100%; border-radius: inherit; background: var(--ink-2); }
+.detalhes .gv-computador .gv-linha { min-height: 60px; }
+.detalhes .gv-mini {
+  position: relative; width: 64px; height: 40px; flex: none; box-sizing: border-box; border-radius: var(--raio-8); overflow: hidden;
+  border: 1px solid var(--borda-sutil); background: var(--surface-raised);
+}
+.detalhes .gv-mini img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.detalhes .gv-mini:not(.gv-mini-off) { background: var(--base); }
+.detalhes .gv-mini:not(.gv-mini-off) i:first-of-type { position: absolute; left: 4px; top: 4px; width: 36px; height: 5px; border-radius: var(--raio-2); background: var(--surface-raised); opacity: .3; }
+.detalhes .gv-mini:not(.gv-mini-off) i:last-of-type { position: absolute; left: 4px; right: 4px; top: 12px; bottom: 4px; border-radius: var(--raio-2); background: var(--surface-raised); }
+.detalhes .gvn-onde-roda, .detalhes .gv-rotinas > .mudo { display: none; }
+
+
+/* ---- A pílula do trabalho acima do campo (Paper 17): no centro, 30 px, título e último passo ---- */
+.stage > .lugar-faixa-trabalhos { padding: 0 64px; }
+.lugar-faixa-trabalhos .faixa-trab-lugar { justify-content: center; padding: 0 0 10px; }
+.lugar-faixa-trabalhos .pilula-trab {
+  height: 30px; padding: 0 10px 0 12px; gap: 8px; border-radius: var(--raio-full); border: 1px solid var(--borda-sutil);
+  background: var(--surface-elevated); box-shadow: var(--sombra-controle); font-size: var(--fs-corpo-2); color: var(--ink);
+}
+.pilula-trab .pt-um { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; max-width: 520px; }
+.pilula-trab .pt-um b { font-weight: var(--peso-medio); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pilula-trab .pt-passo { color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pilula-trab > svg:last-child { width: 14px; height: 14px; color: var(--ink-3); }
+
+/* ---- A tabela da fala vira o cartão do Paper ("Linear · time NOD"): raio 12, linhas de 40, sem fundo no cabeçalho ---- */
+.timeline .md-tabela { border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-inline); overflow: hidden; max-width: 558px; }
+.timeline .md-tabela table { border: 0; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.timeline .md-tabela :is(th, td) { height: 40px; box-sizing: border-box; padding: 0 14px; border: 0; background: none; font-size: var(--fs-corpo-2); vertical-align: middle; }
+.timeline .md-tabela th { font-weight: var(--peso-regular); color: var(--ink-2); }
+.timeline .md-tabela tr + tr :is(td, th), .timeline .md-tabela tbody tr :is(td, th) { border-top: 1px solid var(--divisoria); }
+.timeline .md-tabela .md-tabela-rodape { display: none; }
+.timeline .md-tabela:hover .md-tabela-rodape, .timeline .md-tabela:focus-within .md-tabela-rodape { display: flex; }
+
+
+/* ---- Paleta ⌘K (Paper 08): véu leve, 640 px a 110 do topo, linhas de 44 com avatar de 20 ---- */
+.paleta-fundo { background: var(--veu-paleta); padding-top: 110px; }
+.paleta { width: 640px; max-height: min(600px, calc(100vh - 140px)); border-radius: var(--raio-14); border: 1px solid var(--divisoria); }
+.paleta-campo { height: 56px; padding: 0 18px; }
+.paleta-item { min-height: 36px; padding: 4px 10px; gap: 12px; }
+.paleta-item:has(.paleta-txt small) { min-height: 44px; }
+.paleta-av, .paleta-ic { width: 20px; height: 20px; }
+.paleta-av :is(nod-mascote, .icon) { width: 20px; height: 20px; }
+.paleta-txt small { font-size: var(--fs-rotulo); }
+.paleta-grupo-tit { margin: 8px 10px 2px; }
+
+
+/* ---- Nova conversa (Paper 04): "Para:" no topo, popover de sugestões, mascote no vazio e o campo embaixo ---- */
+.stage > .timeline-wrap:has(> .nc-paper) { padding: 0; }
+.tela.nc-paper { position: relative; max-width: none; margin: 0; padding: 0; height: 100%; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
+.nc-paper .nc-para { height: 52px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 16px 0 20px; border-bottom: 1px solid var(--divisoria); }
+.nc-paper .nc-para label { font-size: var(--fs-corpo); line-height: var(--lh-corpo); color: var(--ink-3); }
+.nc-paper .nc-para input { flex: 1; min-width: 0; height: 32px; padding: 0; border: 0; outline: none; background: none; font: inherit; font-size: var(--fs-corpo); color: var(--ink); caret-color: var(--focus-ring); }
+.nc-paper .nc-fechar { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--raio-full); background: none; color: var(--ink-2); }
+.nc-paper .nc-fechar:hover { background: var(--hover); }
+.nc-paper .nc-pop {
+  position: absolute; z-index: 5; top: 58px; left: 64px; width: 398px; box-sizing: border-box; display: none; flex-direction: column; gap: 0; padding: 6px; margin: 0;
+  background: var(--surface-elevated); border: 1px solid var(--divisoria); border-radius: var(--raio-12); box-shadow: var(--sombra-popover); max-width: none;
+}
+.nc-paper:focus-within .nc-pop, .nc-paper:has(#busca-destinatario:not(:placeholder-shown)) .nc-pop, .nc-paper:has(#busca-destinatario:focus) .nc-pop { display: flex; }
+.nc-paper:not(:has(#busca-destinatario:focus)):has(#busca-destinatario[value=""]) .nc-pop { display: flex; }
+.nc-paper .picker-row { display: flex !important; align-items: center; gap: 12px; width: 100%; min-height: 40px; box-sizing: border-box; padding: 4px 10px !important; margin: 0; border: 0 !important; border-radius: var(--raio-8) !important; background: none !important; text-align: left; color: var(--ink); font-size: var(--fs-corpo-2) !important; line-height: var(--lh-corpo-2); }
+.nc-paper .picker-row small { margin-top: 0; }
+.nc-paper .picker-row[hidden] { display: none !important; }
+.nc-paper .nc-bot { min-height: 44px; }
+.nc-paper .picker-row:hover, .nc-paper .nc-bot[data-nc-atual] { background: var(--ativo) !important; }
+.nc-paper .nc-bot .icon { width: 20px; height: 20px; flex: none; margin: 0; }
+.nc-paper .nc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nc-paper .nc-txt b { font-weight: var(--peso-medio); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.nc-paper .nc-txt small { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-paper .nc-enter { visibility: hidden; }
+.nc-paper .nc-bot[data-nc-atual] .nc-enter { visibility: visible; }
+.nc-paper .nc-sep { height: 1px; margin: 4px 6px; background: var(--divisoria); }
+.nc-paper .nc-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; color: var(--ink-2); margin-left: -2px; }
+.nc-paper .nc-ic-mais { box-sizing: border-box; border: 1px dashed var(--borda-forte); border-radius: var(--raio-full); font-size: var(--fs-corpo-2); color: var(--ink-3); }
+.nc-paper .nc-dica { font-size: var(--fs-rotulo); color: var(--ink-3); }
+.nc-paper .nc-vazio { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding-bottom: 40px; text-align: center; }
+.nc-paper .nc-vazio .icon { width: 56px; height: 56px; margin: 0 0 8px; }
+.nc-paper .nc-vazio b { font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); letter-spacing: var(--tracking-titulo-3); font-weight: var(--peso-medio); color: var(--ink); }
+.nc-paper .nc-vazio span { margin-top: 10px; font-size: var(--fs-corpo); line-height: var(--lh-corpo); color: var(--ink-3); }
+.nc-paper .nc-campo { flex: none; width: 720px; max-width: calc(100% - 64px); margin: 0 auto 18px; }
+.nc-paper .nc-campo .box { display: flex; }
+.nc-paper .nc-campo :is(.nc-mais, .nc-mic) { display: grid; place-items: center; width: 30px; height: 30px; color: var(--ink-2); flex: none; }
+.nc-paper .nc-campo textarea { flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: none; font: inherit; font-size: var(--fs-corpo); line-height: var(--lh-conversa); padding: 0; color: var(--ink); }
+
+
+/* ---- A fala viva (Paper 05): "··· Pensando" — o mascote pequeno à esquerda; o tempo e a seta só no hover ---- */
+.timeline .message.fala-viva > nod-mascote { display: block; width: 24px; height: 22px; margin: 0 14px 0 3px; flex: none; }
+.timeline .message.fala-viva .bubble-wrap { flex: 1; min-width: 0; }
+/* Paper 05/05b (rodada 4): a fala viva no fim da conversa encosta no campo como o Paper (16 px do wrap), sem os 18 px
+   de margem das mensagens; com algo depois dela (um cartão), a margem volta. */
+.timeline .bloco:has(> .message.fala-viva:last-child):not(:has(~ .bloco > *)) > .message.fala-viva { margin-bottom: 0; }
+.timeline .message.fala-viva .pensar[data-fase="pensando"] :is(.pensar-meta, .pensar-seta) { visibility: hidden; }
+.timeline .message.fala-viva .pensar[data-fase="pensando"]:hover :is(.pensar-meta, .pensar-seta) { visibility: visible; }
+.timeline .message.fala-viva .fala-viva-estado { font-size: var(--fs-corpo); color: var(--ink-2); }
+
+
+/* ---- Barra só com avatares (Paper 03): 88 px; em cima o lugar dos semáforos; mascote de 38 em alvo de 56 × 52;
+   embaixo, em coluna: recolher, lupa, +, Tarefas e o MW (⚙ e a grade ficam no menu do MW e no ⌘,) ---- */
+html[data-largura="recolhida"]:not([data-densidade="compacta"]) #sidebar.sidebar {
+  --mascote-barra: 38px; --alvo-l: 56px; --alvo-a: 50px; /* rodada 3: 54 de passo entre os avatares, como o Paper */
+  background: var(--surface-side); border-right: 1px solid var(--divisoria);
+  & .list { order: 1; padding-top: 52px; }
+  & .search-wrap { order: 2; padding: 10px 0 0; }
+  & .rodape { order: 3; padding: 6px 0 14px; gap: 6px; border: 0; }
+  & .sh { gap: 6px; }
+  & .sh :is(.icone-topo, .create-trigger) { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--raio-full); background: transparent; box-shadow: none; color: var(--ink-2); font-size: 0; }
+  & .sh :is(.icone-topo, .create-trigger) svg { width: 16px; height: 16px; }
+  & .sh :is(.icone-topo, .create-trigger):hover { background: var(--hover); }
+  & .linha-tarefas { display: none; }
+  & .linha-trabalhos:not(:has(.linha-fixa-aguardando)) { display: none; }
+  & .rodape-ic:not(.rodape-tarefas) { display: none; }
+  & .rodape-tarefas { order: -1; }
+  & .fixados { border: 0; box-shadow: none; margin-bottom: 0; }
+  & .fixados + .linha-fixa, & .fixados ~ .section:first-of-type { margin-top: 0; }
+  & .rodape .me { width: 30px; height: 30px; padding: 0; }
+  & .rodape .me .av-me { width: 30px; height: 30px; box-sizing: border-box; display: grid; place-items: center; border-radius: var(--raio-full); background: var(--hover); border: 1px solid var(--borda-sutil); color: var(--ink-2); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); }
+  & .section h3 { width: 40px; margin: 6px auto; }
+  & .fixado-bt[aria-current="true"], & .bot-row:has(> .row[aria-current="true"]) .row { background: var(--ativo); }
+}
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display: none; }
+/* A etiqueta da barra recolhida (Paper 03): clara, com borda, no lugar do balão escuro. */
+.etiqueta-barra { background: var(--surface-elevated); color: var(--ink); border: 1px solid var(--divisoria); box-shadow: var(--sombra-popover); font-weight: var(--peso-regular); padding: 4px 8px; }
+
+
+/* ---- Configurações como modal sobre o app (Paper 07): 960 px, 18 px de margem em cima e embaixo, raio 20, a coluna de
+   seções com a busca no topo (208 px) e o ✕ no canto; o app continua à vista atrás do véu ---- */
+#espaco:has(> .cfg-modal) { background: var(--veu-modal); display: grid; place-items: start center; padding: 18px 0; box-sizing: border-box; }
+.espaco.cfg-modal {
+  position: relative; width: min(960px, calc(100vw - 48px)); height: calc(100vh - 36px); box-sizing: border-box; overflow: hidden;
+  border-radius: var(--raio-20); background: var(--surface); border: 1px solid var(--divisoria); box-shadow: var(--sombra-modal);
+}
+.cfg-modal .espaco-nav { width: 208px; flex: none; box-sizing: border-box; padding: 16px 10px; gap: 0; background: var(--surface); border-right: 1px solid var(--divisoria); }
+.cfg-modal .cfg-busca { height: 32px; margin: 0 0 14px; padding: 0 10px; gap: 8px; border-radius: var(--raio-10); background: var(--surface); border: 1px solid var(--borda); color: var(--ink-3); }
+.cfg-modal .cfg-busca input { font-size: var(--fs-corpo-2); }
+.cfg-modal .espaco-itens { margin: 0; display: flex; flex-direction: column; gap: 0; }
+.cfg-modal .espaco-item { height: 34px; min-height: 0; box-sizing: border-box; padding: 0 10px; margin: 0; gap: 10px; border-radius: var(--raio-8); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink); font-weight: var(--peso-regular); background: none; }
+.cfg-modal .espaco-item > svg { width: 16px; height: 16px; color: var(--ink-2); }
+.cfg-modal .espaco-item:hover { background: var(--hover); }
+.cfg-modal .espaco-item[aria-current="page"] { background: var(--ativo); font-weight: var(--peso-regular); }
+.cfg-modal .espaco-nav-sep { height: 1px; margin: 8px 10px; background: var(--divisoria); }
+.cfg-modal .espaco-conteudo { position: relative; flex: 1; min-width: 0; overflow: auto; padding: 21px 30px 30px 29px; }
+.cfg-modal .cfg-modal-topo { position: sticky; top: 0; height: 0; z-index: 3; display: flex; justify-content: flex-end; }
+.cfg-modal .cfg-fechar { width: 28px; height: 28px; margin-top: 2px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--raio-full); background: var(--surface); color: var(--ink-2); }
+.cfg-modal .cfg-fechar:hover { background: var(--hover); }
+.cfg-modal .espaco-conteudo .cfg-secao > h2, .cfg-modal .espaco-conteudo > section > h2:first-child { margin: 0 0 14px; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); letter-spacing: var(--tracking-titulo-3); font-weight: var(--peso-medio); }
+
+
+/* ---- Trabalhos (Paper 16): 760 px no centro, "Por bot | Por frente", seções com o número em cinza, linhas de 60 ---- */
+.tela-trabalhos { width: 100%; max-width: 760px; margin: 0 auto; padding: 15px 0 32px; box-sizing: border-box; } /* rodada 3: 760 de largura de fato (o pai é flex) e o título a 41 do topo, como o Paper 16 */
+.tela-trabalhos .tt-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0 0 20px; }
+.tela-trabalhos .tt-cab h1 { margin: 0; font-size: var(--fs-titulo-2); line-height: var(--lh-titulo-2); letter-spacing: var(--tracking-titulo-2); font-weight: var(--peso-medio); }
+.tela-trabalhos .tt-cab p { margin: 2px 0 0; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }
+.tt-vista { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--raio-10); background: var(--hover); flex: none; }
+.tt-vista-op { height: 26px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--raio-8); background: none; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.tt-vista-op[aria-pressed="true"] { background: var(--surface-elevated); color: var(--ink); font-weight: var(--peso-medio); box-shadow: var(--sombra-controle); }
+.tela-trabalhos .tb-grupo, .tela-trabalhos .tt-grupo { margin: 0 0 18px; padding: 0; border: 0; }
+.ponto-trabalho.precisa { background: var(--aguardando-ponto); }
+.tela-trabalhos .tb-grupo > h2 { margin: 0 0 6px; padding: 0 4px; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-medio); color: var(--ink-2); }
+.tela-trabalhos .tb-conta { margin-left: 4px; color: var(--ink-3); font-weight: var(--peso-regular); }
+.tela-trabalhos .tb-grupo .tt-lista { border: 0; background: none; box-shadow: none; display: flex; flex-direction: column; gap: 0; }
+.tela-trabalhos .tb-linha { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 16px 8px 14px; border: 0; border-radius: var(--raio-12); background: none; text-align: left; }
+.tela-trabalhos .tb-linha:hover { background: var(--hover); }
+.tela-trabalhos .tb-linha[aria-expanded="true"] { background: var(--hover); border-radius: var(--raio-12) var(--raio-12) 0 0; }
+.tela-trabalhos .tb-linha .icon { width: 32px; height: 32px; flex: none; margin: 0; }
+.tela-trabalhos .tb-meio { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tela-trabalhos .tb-nome { display: flex; align-items: baseline; gap: 8px; }
+.tela-trabalhos .tb-nome b { font-size: var(--fs-corpo); line-height: var(--lh-corpo); font-weight: var(--peso-medio); color: var(--ink); }
+.tela-trabalhos .tb-nome small { font-size: var(--fs-rotulo); color: var(--ink-3); }
+.tela-trabalhos .tb-frase { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tela-trabalhos .tb-linha[data-grupo="precisa"] .tb-frase { color: var(--aguardando); }
+.tela-trabalhos .tb-detalhe, .tela-trabalhos .tb-linha .tt-fim { flex: none; font-size: var(--fs-rotulo); color: var(--ink-3); white-space: nowrap; }
+.tela-trabalhos .tb-detalhe { margin-right: 12px; }
+.tela-trabalhos .tb-linha > svg:last-child { width: 14px; height: 14px; color: var(--ink-3); flex: none; }
+.tela-trabalhos .tb-frentes { margin: 0 0 6px; padding: 4px 16px 12px 60px; border-radius: 0 0 var(--raio-12) var(--raio-12); background: var(--surface-elevated); border: 1px solid var(--borda-sutil); border-top: 0; box-shadow: var(--sombra-inline); }
+.tela-trabalhos .tb-grupo:has(.tb-linha[aria-expanded="true"]) .tb-linha[aria-expanded="true"] { background: var(--surface-raised); }
+.tela-trabalhos .tb-frente { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 0; border: 0; background: none; text-align: left; width: 100%; }
+.tela-trabalhos .tb-frente-titulo { font-size: var(--fs-corpo-2); color: var(--ink); font-weight: var(--peso-medio); }
+.tela-trabalhos .tb-frente-passo { flex: 1; min-width: 0; font-size: var(--fs-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tela-trabalhos .tb-frente-fim { font-size: var(--fs-rotulo); color: var(--ink-3); }
+.tela-trabalhos .tb-abrir-conversa { margin-top: 4px; padding: 6px 0; border: 0; background: none; font-size: var(--fs-corpo-2); color: var(--ink); font-weight: var(--peso-medio); }
+.tela-trabalhos .tb-livres { display: flex; align-items: center; gap: 12px; margin: 6px 0 0; padding: 0 4px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
+.tela-trabalhos .tb-livres-rot { color: var(--ink-2); }
+.tela-trabalhos .tb-livres-av { display: inline-flex; gap: 6px; }
+.tela-trabalhos .tb-livres-av .icon { width: 20px; height: 20px; margin: 0; }
+
+
+/* ---- Painel com frentes (Paper 15): marca à esquerda (ponto laranja, mascote rodando, anel, ✓), o tempo à direita ---- */
+.detalhes .gv-frentes .gv-linha .icon.sm { width: 16px; height: 16px; flex: none; margin: 0; }
+.detalhes .gvf-marca { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+.detalhes .gvf-pede::before { content: ""; width: 8px; height: 8px; border-radius: var(--raio-full); background: var(--aguardando-ponto); }
+.detalhes .gvf-espera::before { content: ""; width: 8px; height: 8px; box-sizing: border-box; border-radius: var(--raio-full); border: 1.5px solid var(--ink-3); }
+.detalhes .gvf-feita { color: var(--success); }
+.detalhes .gvf-quando { flex: none; font-size: var(--fs-rotulo); color: var(--ink-3); }
+.detalhes .gvf-tudo { display: flex; justify-content: space-between; width: 100%; padding: 16px 4px 8px; font-size: var(--fs-corpo-2); color: var(--ink-2); font-weight: var(--peso-medio); }
+.detalhes .gvf-tudo .gv-chev { opacity: 1; }
+.pilula-trab .pt-precisa { color: var(--aguardando); }
+
+
+/* ---- Biblioteca do painel (Paper 02b): "Recentes · Ver tudo" e cartões de 156 × 104 em duas colunas ---- */
+.detalhes .gvb-cartoes .gv-secao-cab .gvb-ver-tudo { font-size: var(--fs-rotulo); color: var(--ink-2); font-weight: var(--peso-medio); padding: 0; background: none; border: 0; }
+.detalhes .gvb-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+.detalhes .gvb-grade .gvb-item { position: relative; border: 0; }
+.detalhes .gvb-grade .gvb-item::before { display: none; }
+.detalhes .gvb-grade .gvb-abrir { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 0; min-height: 0; background: none; border: 0; text-align: left; }
+.detalhes .gvb-grade .gvb-abrir:hover { background: none; }
+.detalhes .gvb-grade .gvb-ic { width: auto; height: 104px; box-sizing: border-box; display: grid; place-items: center; border-radius: var(--raio-12); background: var(--surface-elevated); border: 1px solid var(--borda-sutil); box-shadow: var(--sombra-controle); }
+.detalhes .gvb-grade .gvb-abrir:hover .gvb-ic { border-color: var(--borda); }
+.detalhes .gvb-grade .gvb-ic svg { width: 28px; height: 28px; }
+.detalhes .gvb-grade .gvb-mini { width: 100%; height: 100%; border-radius: inherit; overflow: hidden; }
+.detalhes .gvb-grade .gvb-mini img { width: 100%; height: 100%; object-fit: cover; }
+.detalhes .gvb-grade .gvb-nome { padding: 0 2px; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); line-height: var(--lh-corpo-2); }
+.detalhes .gvb-grade .gvb-menu { position: absolute; top: 6px; right: 6px; opacity: 0; }
+.detalhes .gvb-grade .gvb-item:hover .gvb-menu, .detalhes .gvb-grade .gvb-menu:focus-visible { opacity: 1; }
+.detalhes .gv-aba-painel > .gvb-pasta, .detalhes .gv-aba-painel > .gv-cartao.gvb-pasta { margin-top: 16px; }
+
+}
+
+/* No celular a pílula segue a NOD-381 (nome e presença): o título e as frentes do Paper são só do computador. */
+@media (hover: none) and (pointer: coarse) {
+  .pilula-titulo, .cabecalho-pilula .pilula-frentes, .cabecalho-pilula .painel-alternar { display: none; }
+}
+@media (forced-colors: active) {
+  .nc-paper .nc-para input, .nc-paper .nc-campo textarea { outline: 2px solid CanvasText; outline-offset: 2px; }
+}
+
+@media not ((hover: none) and (pointer: coarse)) {
+/* Painel fechado: a conversa ocupa a largura toda (Paper 15c). */
+.app.com-detalhes.detalhes-ocultos:not(.sem-sessao), html[data-densidade] .app.com-detalhes.detalhes-ocultos:not(.sem-sessao) { grid-template-columns: var(--largura-barra, 272px) minmax(0, 1fr); }
+/* A dica da doca (Paper 17): uma linha só, "Tarefas · ⌥ ← → troca · ⌥⇧ ← → move", em pílula clara embaixo da cápsula. */
+.cabecalho-pilula .pg-tip { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; padding: 6px 10px; border-radius: var(--raio-8); background: var(--surface-elevated); border: 1px solid var(--divisoria); box-shadow: var(--sombra-popover); font-size: var(--fs-rotulo); color: var(--ink); top: calc(100% + 26px); }
+.cabecalho-pilula .pg-tip-tec { margin: 0; color: var(--ink-3); font-size: var(--fs-rotulo); }
+/* A faixa dos trabalhos aberta acima do campo (Paper 15c): um cartão de 680 px, raio 16, separado do campo. */
+.lugar-faixa-trabalhos .faixa-trab { max-width: 680px; margin: 0 auto 10px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-16); background: var(--surface-elevated); box-shadow: var(--sombra-popover); overflow: hidden; }
+.lugar-faixa-trabalhos:has(.faixa-trab) + .composer-wrap .composer .box { border-radius: var(--raio-22); }
+.faixa-trab .ft-cab { height: 44px; padding: 0 14px 0 16px; border: 0; }
+.faixa-trab .ft-lote { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-corpo-2); color: var(--ink); }
+.faixa-trab .ft-lote b { font-weight: var(--peso-medio); }
+.faixa-trab .ft-prontas { color: var(--ink-3); }
+.faixa-trab .ft-recolher { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--fs-rotulo); color: var(--ink-2); }
+.faixa-trab .ft-linha { min-height: 44px; padding: 4px 16px; }
+}
+
+/* =====================================================================================
+   Rodada 2 — o cartão do lote na fala (Paper 15, progress_block): texto solto da fala, cartão com borda sutil e sombra
+   de controle, raio 14, padding 12/14/10, gap 10; barra de 6 px (gap 3); resumo numa linha em 13/18 ("2 de 5 prontas"
+   forte, "·" em ink-4, "1 precisa de você" laranja); lista aberta com linhas de 44 px, ícone em 18 px, título 13 médio e
+   o passo em 12. As cores da barra: pronta verde, rodando a tinta, precisa laranja, esperando a borda forte.
+   ===================================================================================== */
+@media not ((hover: none) and (pointer: coarse)) {
+.timeline .message.bot .bubble.com-progresso { background: transparent; padding: 0 2px; border-radius: 0; font-size: var(--fs-corpo); line-height: var(--lh-conversa); color: var(--ink); }
+.timeline .bubble-wrap:has(> .bubble > .progresso-lugar) { width: min(100%, 620px); min-width: 0; }
+.timeline .progresso { gap: 10px; margin-top: 14px; padding: 12px 14px 10px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-14, 14px); background: var(--surface-elevated); box-shadow: var(--sombra-controle); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.timeline .progresso-seg { height: 6px; border-radius: var(--raio-full); background: var(--borda); }
+.timeline .progresso-seg.pronta { background: var(--pronto); }
+.timeline .progresso-seg.rodando { background: var(--action); }
+.timeline .progresso-seg.precisa { background: var(--aguardando-ponto); }
+.timeline .progresso-seg:is(.esperando, .sem_noticia) { background: var(--borda-forte); }
+.timeline .progresso-seg.parada { background: var(--ink-3); }
+.timeline .progresso-resumo { gap: 6px; min-height: 18px; }
+.timeline .progresso-txt { display: flex; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; color: var(--ink-2); }
+.timeline .progresso-principal { font-weight: var(--peso-forte); color: var(--ink); }
+.timeline .progresso-resto { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
+.timeline .progresso-sep { color: var(--ink-4); padding: 0 6px; font-size: 0; }
+.timeline .progresso-sep::before { content: "·"; font-size: var(--fs-corpo-2); }
+.timeline .progresso-parte.precisa { color: var(--aguardando); font-weight: var(--peso-medio); }
+.timeline :is(.progresso-ver, .progresso-ocultar) { color: var(--ink-2); font-weight: var(--peso-medio); text-decoration: none; }
+.timeline .progresso-chev { flex: none; color: var(--ink-3); margin-left: -2px; }
+.timeline .progresso-det[open] > summary .progresso-chev { transform: rotate(180deg); }
+.timeline .progresso-lista { margin: 12px -10px -4px; padding: 0; border-top: 0; }
+.timeline .progresso-item { min-height: 44px; box-sizing: border-box; padding: 5px 10px; gap: 10px; border-radius: var(--raio-10); }
+.timeline .progresso-item > .progresso-ic { width: 18px; height: 18px; }
+.timeline .progresso-titulo { font-weight: var(--peso-medio); line-height: var(--lh-corpo-2); }
+.timeline .progresso-passo { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline .progresso-item.precisa .progresso-passo { color: var(--aguardando); }
+.timeline .progresso-fim { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.timeline .progresso-ic.pronta { color: var(--pronto-tinta); }
+.timeline .progresso-ic.pronta svg { width: 14px; height: 14px; stroke-width: 1.8; }
+.timeline .progresso-ic.precisa::before { background: var(--aguardando-ponto); box-shadow: 0 0 0 3px var(--aguardando-soft); }
+.timeline .progresso-ic.rodando::before { background: var(--action); }
+.timeline .progresso-ic.esperando::before { width: 9px; height: 9px; border: 1.6px solid var(--ink-3); }
+}
+
+/* A pergunta aberta de uma frente na conversa (Paper 15, from_frente): até 600 px; rótulo 12/16 com o mascote de 16;
+   a pergunta 14/22 com 12 px de recuo e o fio laranja de 2 px; as opções em botões secundários de 28 px, gap 8. */
+@media not ((hover: none) and (pointer: coarse)) {
+.timeline .message.da-frente .bubble-wrap { max-width: 600px; }
+.timeline .df { display: flex; flex-direction: column; gap: 6px; padding: 0 2px; }
+.timeline .df-rotulo { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.timeline .df-rotulo nod-mascote { --mascote-tam: 16px; width: 16px; height: 16px; flex: none; }
+.timeline .df-titulo { color: var(--ink-2); font-weight: var(--peso-medio); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline .df-rotulo time { margin-left: 4px; color: var(--ink-4); opacity: 0; transition: opacity var(--dur-rapido) var(--curva); }
+.timeline .message.da-frente:hover .df-rotulo time { opacity: 1; }
+.timeline .df-texto { padding-left: 12px; border-left: 2px solid var(--aguardando-ponto); font-size: var(--fs-corpo); line-height: var(--lh-conversa); color: var(--ink); }
+.timeline .df-texto p { margin: 0; }
+.timeline .df-opcoes { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 12px; }
+.timeline .df-opcao { height: 28px; padding: 0 10px; border-radius: var(--raio-8); border: 0; background: var(--hover); color: var(--ink); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); cursor: pointer; }
+.timeline .df-opcao:hover { background: var(--ativo); }
+.timeline .df-opcao:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+}
+/* `.esperando` (o aviso de espera do card de acesso, interface.css) também é o estado da frente: no bloco e na pílula
+   o segmento e a linha não herdam aquela caixa. */
+.progresso-seg.esperando { display: block; padding: 0; margin: 0; gap: 0; }
+.progresso-item.esperando { margin: 0; background: transparent; font-size: inherit; }
+.progresso-ic.com-mascote { width: 18px; height: 18px; }
+.progresso-ic.com-mascote::before { content: none; }
+.progresso-ic.com-mascote nod-mascote { --mascote-tam: 18px; width: 18px; height: 18px; }
+/* Paper 15b (rodada 4): o passo de agora da frente com o mascote do bot girando (o "run" do Paper), numa coluna de 18. */
+.passo-ic-mascote { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: none; }
+.passo-ic-mascote > nod-mascote.icon.mascote { --mascote-tam: 18px; width: 18px; height: 18px; min-width: 18px; min-height: 18px; margin: 0; }
+@media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-txt { align-items: baseline; } .timeline .progresso-item.esperando { padding: 5px 10px; border-radius: var(--raio-10); } }
+.progresso-ic.esperando { padding: 0; margin: 0; gap: 0; background: transparent; border-radius: 0; font-size: inherit; }
+@media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-passo::first-letter, .pf-lista .progresso-passo::first-letter { text-transform: uppercase; } }
+
+/* A pílula do bot aberta acima do campo (Paper 15c, s15c): cartão de 680 px, raio 18, padding 4/4/0, sombra de popover;
+   cabeçalho de 40 px (ponto, "5 frentes do Dante" forte, "2 de 5 prontas" em cinza, "⌄ fechar" fantasma); linhas de 42 px
+   com o ícone em 18; seções em 12 médio; a memória numa linha de 12 com o chip; pé de 44 px com a borda de cima. */
+@media not ((hover: none) and (pointer: coarse)) {
+.stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 64px; }
+.pf-moldura { display: flex; justify-content: center; bottom: 10px; }
+.pf-painel { width: min(100%, 680px); max-height: min(560px, 70vh); gap: 0; padding: 4px 4px 0; border: 1px solid var(--borda-sutil); border-radius: var(--raio-18); background: var(--surface-elevated); box-shadow: var(--sombra-popover); }
+.pilula-frentes[data-estado="aberta"] .pf-painel { clip-path: none; }
+.pf-cab { height: 40px; padding: 0 6px 0 12px; gap: 8px; }
+.pf-cab > .pf-ponto { width: 8px; height: 8px; }
+.pf-cab-titulo { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-corpo-2); font-weight: var(--peso-regular); color: var(--ink-3); }
+.pf-cab-titulo b { font-weight: var(--peso-forte); color: var(--ink); }
+.pf-fechar { gap: 4px; height: 24px; padding: 0 8px; border-radius: var(--raio-8); background: transparent; color: var(--ink-2); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
+.pf-fechar:hover { background: var(--hover); }
+.pf-miolo { padding: 0 4px; }
+.pf-lista .progresso-item { min-height: 42px; box-sizing: border-box; padding: 5px 10px; gap: 10px; border-radius: var(--raio-10); }
+.pf-lista .progresso-item.pf-depois { border-top: 0; margin-top: 9px; position: relative; }
+.pf-lista .progresso-item.pf-depois::before { content: ""; position: absolute; left: 10px; right: 10px; top: -5px; height: 1px; background: var(--divisoria); }
+.pf-lista .progresso-ic { width: 18px; height: 18px; }
+.pf-lista .progresso-titulo { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-medio); }
+.pf-lista .progresso-passo { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-lista .progresso-item.precisa .progresso-passo { color: var(--aguardando); }
+.pf-lista .progresso-fim { font-size: var(--fs-rotulo); color: var(--ink-3); }
+.pf-lista .progresso-ic.pronta { color: var(--pronto-tinta); }
+.pf-lista .progresso-ic.precisa::before { background: var(--aguardando-ponto); box-shadow: 0 0 0 3px var(--aguardando-soft); }
+.pf-lista .progresso-ic.rodando::before { background: var(--action); }
+.pf-lista .progresso-ic.esperando::before { width: 9px; height: 9px; border: 1.6px solid var(--ink-3); }
+.pf-responder { flex: none; height: 24px; padding: 0 8px; margin-right: 8px; border: 0; border-radius: var(--raio-8); background: var(--hover); color: var(--ink); font: inherit; font-size: var(--fs-rotulo); font-weight: var(--peso-medio); cursor: pointer; }
+.pf-responder:hover { background: var(--ativo); }
+.pf-lote, .pf-secao { margin: 0; padding: 10px 10px 2px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); color: var(--ink-3); }
+.pf-item { min-height: 42px; box-sizing: border-box; padding: 5px 10px; gap: 10px; }
+.pf-item > .pf-ponto { width: 9px; height: 9px; margin: 0 4.5px; border: 1.6px solid var(--ink-3); animation: none; }
+.pf-comando { font-size: var(--fs-rotulo); }
+.pf-sub, .pf-item-fim { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.pf-memoria-info { display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 10px 2px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.pf-memoria-info svg { color: var(--ink-3); flex: none; }
+.pf-pe { height: 44px; box-sizing: border-box; align-items: center; margin-top: 6px; padding: 0 8px 0 10px; border-top: 1px solid var(--divisoria); gap: 8px; }
+.pf-ver { height: 28px; padding: 0 10px; border-radius: var(--raio-8); color: var(--ink-2); font-weight: var(--peso-medio); text-decoration: none; }
+.pf-ver:hover { background: var(--hover); }
+.pf-parar { gap: 6px; height: 28px; margin-left: auto; padding: 0 10px; border-radius: var(--raio-8); background: var(--danger-soft); color: var(--danger); font-weight: var(--peso-medio); }
+.lugar-faixa-trabalhos:has(> .pilula-frentes[data-estado="aberta"]) + .composer-wrap .composer .box { border-radius: var(--raio-22); }
+}
+@media not ((hover: none) and (pointer: coarse)) {
+/* O ponto do cabeçalho aberto na cor do bot, com o anel de 20 % (Paper sig "work"). */
+.pf-cab-ponto[class*=" c-"] { background: var(--mascote-cor); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mascote-cor) 20%, transparent); animation: none; }
+/* Aberta, a pílula entra no fluxo (Paper 15c): a conversa termina acima do cartão em vez de ficar por baixo dele. */
+.pilula-frentes[data-estado="aberta"] { height: auto; }
+.pilula-frentes[data-estado="aberta"] .pf-moldura { position: relative; bottom: 0; padding-bottom: 10px; pointer-events: auto; }
+}
+@media not ((hover: none) and (pointer: coarse)) {
+/* Painel fechado (Paper 15c, pad 180): a coluna da conversa vai a 808 px; o campo e a pílula ficam em 680, centrados. */
+.app.detalhes-ocultos .stage > .timeline-wrap > .timeline { max-width: 808px; }
+/* A pílula aberta já está no fluxo: a conversa não precisa da folga da pílula fechada. */
+.stage.com-pilula-frentes:has(.pilula-frentes[data-estado="aberta"]) > .timeline-wrap { padding-bottom: 16px; }
+}
+
+/* =====================================================================================
+   O turno executando (Paper 05b, step): os passos à vista, em linhas de 28 px com o ícone numa coluna de 18 e gap 10;
+   a narração como texto da fala (14/22); feito com ✓ verde de 14; a lista sem o fio da esquerda; as tarefas pendentes
+   no fim como "Depois: …" com o relógio, sem a caixa (a que está em andamento é o passo que roda).
+   ===================================================================================== */
+@media not ((hover: none) and (pointer: coarse)) {
+.timeline .message.fala-viva:has(.pensar:not([data-fase="pensando"])) > nod-mascote { display: none; }
+.timeline .fala-viva .pensar:not([data-fase="pronto"]) > summary .fala-viva-estado { font-size: var(--fs-corpo-2); font-weight: var(--peso-regular); }
+.timeline .fala-viva .pensar-dentro { display: flex; flex-direction: column; }
+.timeline .fala-viva .pensar-lista { order: 1; margin: 2px 0 0; padding: 0; border-left: 0; display: flex; flex-direction: column; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }
+.timeline .fala-viva .pensar-nota { padding: 0 0 6px; font-size: var(--fs-corpo); line-height: var(--lh-conversa); color: var(--ink); }
+.timeline .fala-viva .pensar-acao { min-height: 28px; gap: 10px; }
+.timeline .fala-viva .pensar-ic { width: 14px; height: 14px; margin: 0 2px; }
+.timeline .fala-viva .pensar-acao[data-estado="feita"] .pensar-ic { border: 0; background: none; }
+.timeline .fala-viva .pensar-acao[data-estado="feita"] .pensar-ic::after { width: 4px; height: 8px; border-color: var(--pronto-tinta); border-width: 0 1.8px 1.8px 0; }
+.timeline .fala-viva .pensar-acao[data-estado="rodando"] { color: var(--ink); }
+.timeline .fala-viva .pensar .atividade-tarefas { order: 2; margin: 0; padding: 0; border: 0; background: none; }
+.timeline .fala-viva .atividade-tarefas-cab, .timeline .fala-viva .atividade-tarefas :is(.tarefa-feita, .tarefa-andamento) { display: none; }
+.timeline .fala-viva .atividade-tarefas ol { gap: 0; }
+.timeline .fala-viva .atividade-tarefas li { min-height: 28px; align-items: center; gap: 10px; color: var(--ink-2); }
+.timeline .fala-viva .tarefa-pendente .tarefa-marca { width: 18px; height: 14px; color: transparent; overflow: hidden; background: var(--ink-3);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='5.8'/%3E%3Cpath d='M8 5v3l2 1.4'/%3E%3C/svg%3E") center / 14px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='5.8'/%3E%3Cpath d='M8 5v3l2 1.4'/%3E%3C/svg%3E") center / 14px no-repeat; }
+.timeline .fala-viva .tarefa-pendente > span:nth-child(2)::before { content: "Depois: "; }
+}
+
+/* =====================================================================================
+   A página da frente (Paper 15b, s15b): topo com "← Conversa" à esquerda, o chip no centro (40 px, raio cheio, ponto e
+   mascote, título 14 médio, "trabalhando ⌄" em pílula cinza) e "Parar frente" à direita (contorno, 28 px); a linha de quem
+   pediu em 12 cinza no começo; os passos à esquerda em linhas de 28 (ícone em 18, gap 10); os subagentes num cartão com o
+   título dentro, recuado 28; a fala da pessoa e o "Na fila" depois dos passos.
+   ===================================================================================== */
+@media not ((hover: none) and (pointer: coarse)) {
+.tk-topo.tk-topo-frente { position: relative; flex-direction: row; justify-content: center; align-items: center; width: 100%; min-height: 52px; gap: 0; }
+.tk-topo-frente .tk-voltar { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 8px 0 6px; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); cursor: pointer; }
+.tk-topo-frente .tk-voltar svg { color: var(--ink-2); }
+.tk-topo-frente .tk-voltar:hover { background: var(--hover); }
+.tk-topo-frente .tk-chip { height: 40px; box-sizing: border-box; padding: 0 6px 0 12px; gap: 8px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle); font-size: var(--fs-corpo); font-weight: var(--peso-medio); color: var(--ink); }
+.tk-topo-frente .tk-chip .icon.sm, .tk-topo-frente .tk-chip nod-mascote { width: 22px; height: 22px; min-width: 22px; }
+.tk-topo-frente .tk-status { height: 24px; padding: 0 6px 0 8px; border-radius: var(--raio-full); background: var(--hover); color: var(--ink-2); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); }
+.tk-topo-frente .tk-parar-frente { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--borda); border-radius: var(--raio-8); background: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); cursor: pointer; }
+.tk-topo-frente .tk-parar-frente:hover { background: var(--hover); }
+/* Paper 15b (rodada 4): o cartão do tempo da frente (pop de 270, raio 12, padding 12/14), 48 px à direita do centro. */
+.tk-topo-frente .tk-pop { position: absolute; top: 56px; left: calc(50% + 44px); transform: none; z-index: 3; }
+.tk-pop.tk-pop-frente { gap: 0; width: 270px; box-sizing: border-box; margin: 0; padding: 12px 14px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-popover); }
+.tk-pop-frente .tk-pop-total { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-medio); color: var(--ink); }
+.tk-pop-frente .tk-pop-barra { display: flex; gap: 3px; height: 6px; margin: 8px 0 6px; border-radius: 0; background: none; overflow: visible; }
+.tk-pop-frente .tk-pop-seg { display: block; flex-basis: 0; min-width: 6px; height: 6px; border-radius: var(--raio-full); }
+.tk-pop-frente .tk-pop-seg.trabalhou { background: var(--mascote-cor, var(--ink)); }
+.tk-pop-frente .tk-pop-seg.esperou { background: var(--borda); }
+.tk-pop-frente .tk-pop-pe { display: flex; white-space: nowrap; justify-content: space-between; gap: 8px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-2); }
+.tk-pop-frente .tk-pop-esperou { color: var(--ink-3); }
+.tk-pop-frente .tk-pop-rodape { margin-top: 10px; }
+.tk-timeline { max-width: 680px; margin: 0 auto; }
+.tk-timeline .tk-meta { margin: 0 0 16px; padding: 0 2px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+/* A ordem do Paper: a linha de quem pediu, os passos, o de agora, os subagentes e depois as falas da pessoa (que ficam no
+   histórico, mas chegaram depois do começo dos passos). */
+.tk-timeline:has(> #timeline-historico > .bloco > .tk-meta) { display: flex; flex-direction: column; }
+.tk-timeline:has(> #timeline-historico > .bloco > .tk-meta) > .timeline-parte { display: contents; }
+.tk-timeline .tk-meta { order: -1; }
+.tk-timeline:has(> #timeline-historico > .bloco > .tk-meta) .bloco > .message { order: 3; }
+.tk-timeline .passo { justify-content: flex-start; min-height: 28px; padding: 0 2px; gap: 10px; text-align: left; color: var(--ink-2); }
+.tk-timeline .passo-ok { width: 18px; color: var(--pronto-tinta); }
+.tk-timeline .passo-agora { color: var(--ink); }
+.tk-timeline .passo-agora .ponto-trabalho { width: 8px; height: 8px; margin: 0 5px; }
+.tk-timeline .bloco > .passo-agora { order: 1; }
+.tk-timeline .bloco > .p350-subs { order: 2; }
+.tk-timeline .p350-subs { align-items: stretch; gap: 0; margin: 4px 0 4px 28px; padding: 0 4px 6px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-14); background: var(--surface-elevated); box-shadow: var(--sombra-controle); }
+.tk-timeline .p350-cab { padding: 10px 12px 4px; min-height: 0; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); color: var(--ink-2); }
+.tk-timeline .p350-cab .ponto-trabalho, .tk-timeline .p350-cab .passo-ok { display: none; }
+.tk-timeline .p350-lista { width: 100%; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; gap: 0; }
+.tk-timeline .p350-lista .progresso-item { min-height: 40px; padding: 5px 10px; gap: 10px; }
+.tk-timeline .p350-lista .progresso-titulo { font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
+.tk-timeline .p350-lista .progresso-passo { font-size: var(--fs-rotulo); color: var(--ink-3); }
+.tk-timeline .p350-lista .progresso-ic.rodando::before { background: var(--action); }
+.tk-timeline .message.you { margin-top: 18px; }
+}
+@media not ((hover: none) and (pointer: coarse)) {
+/* Paper 15b: a frente aberta fica marcada na lista do painel. */
+.detalhes .gv-linha[aria-current="page"] { background: var(--ativo); }
+}
+
+/* =====================================================================================
+   A página de um app na pílula (Paper 17b, s17b): cabeçalho com o ícone em caixa de 36 (raio 10), o nome 22 e o
+   subtítulo 13 cinza, "N pedem você" em pílula laranja à direita; a tabela num cartão (cabeçalho de 34 em 12 médio,
+   linhas de 44 com as iniciais de 24, a coluna em chip e o desde à direita); o pé em 12 com a regra e "As ações saem pela
+   conversa"; o campo da conversa embaixo, com 760.
+   ===================================================================================== */
+@media not ((hover: none) and (pointer: coarse)) {
+.pg-app { max-width: none; gap: 0; }
+.pg-app-topo { gap: 12px; padding: 6px 0 16px; }
+.pg-app-ic { width: 36px; height: 36px; border: 0; border-radius: var(--raio-10); background: var(--hover); color: var(--ink); }
+.pg-app-ic .pg-svg { width: 18px; height: 18px; }
+.pg-app-titulos { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pg-app-topo h2 { font-size: var(--fs-titulo-2); line-height: var(--lh-titulo-2); letter-spacing: var(--tracking-titulo-2); font-weight: var(--peso-medio); }
+.pg-app-sub { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-app-pedem { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: var(--raio-full); background: var(--aguardando-soft); color: var(--aguardando); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); }
+.pg-app .pg-item-pt { flex: none; width: 7px; height: 7px; border-radius: var(--raio-full); background: var(--aguardando-ponto); }
+.pg-app-pedem .pg-item-pt { width: 6px; height: 6px; }
+.pg-tabela { border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-controle); overflow: hidden; }
+.pg-tab-cab, .pg-tab-linha { display: grid; grid-template-columns: minmax(0, 1fr) 160px 130px 110px; align-items: center; gap: 12px; padding: 0 14px; }
+.pg-tab-cab { height: 34px; border-bottom: 1px solid var(--borda-sutil); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); color: var(--ink-3); }
+.pg-tab-linha { height: 44px; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.pg-tab-linha + .pg-tab-linha { border-top: 1px solid var(--divisoria); }
+.pg-tab-nome { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pg-tab-linha:not(.pg-item-pede) .pg-item-pt { visibility: hidden; }
+.pg-tab-ini { flex: none; display: grid; place-items: center; width: 24px; height: 24px; box-sizing: border-box; border-radius: var(--raio-full); background: var(--hover); border: 1px solid var(--borda-sutil); font-size: 10px; font-weight: var(--peso-medio); color: var(--ink-2); }
+.pg-tab-tit { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--peso-medio); color: var(--ink); }
+.pg-tab-det { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-tab-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--raio-6); background: var(--hover); color: var(--ink-2); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); white-space: nowrap; }
+.pg-item-pede .pg-tab-chip { background: var(--aguardando-soft); color: var(--aguardando); }
+.pg-tab-desde { text-align: right; color: var(--ink-3); white-space: nowrap; }
+.pg-item-pede .pg-tab-desde { color: var(--aguardando); }
+.pg-app-pe { display: flex; justify-content: space-between; gap: 12px; margin: 0; padding: 12px 4px 0; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.pg-app-regra { display: inline-flex; align-items: center; gap: 6px; }
+.pg-app-regra .pg-item-pt { width: 6px; height: 6px; }
+}
+@media not ((hover: none) and (pointer: coarse)) {
+/* Paper 17b: a página do app no fundo da conversa (branco), com 64 px dos lados, e o campo da conversa por cima, embaixo,
+   com 760 (o pedido vai para a conversa do bot). */
+.stage:has(> #quadro:not([hidden]) .pg-app) > #quadro { background: var(--surface); padding-bottom: 80px; box-sizing: border-box; }
+.stage:has(> #quadro:not([hidden]) .pg-app) > .composer-wrap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: transparent; }
+.stage:has(> #quadro:not([hidden]) .pg-app) > .composer-wrap .composer { max-width: 760px; }
+.qd-vista .pg-app { padding: 0 40px; box-sizing: border-box; }
+}
+@media not ((hover: none) and (pointer: coarse)) {
+/* Paper 02/17: na tabela da fala o código vai em mono apagado e a prioridade em chip. */
+.timeline .md-tabela td.md-codigo { font-family: var(--font-mono); font-size: var(--fs-rotulo); color: var(--ink-3); white-space: nowrap; }
+.timeline .md-tabela td.md-prio-cel { text-align: right; }
+.md-prio { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--raio-6); background: var(--hover); color: var(--ink-2); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); white-space: nowrap; }
+.md-prio-alta { background: var(--aguardando-soft); color: var(--aguardando); }
+.md-prio-urgente { background: var(--danger-soft); color: var(--danger); }
+/* A dica da doca com as teclas em caixinhas, "Tarefas · ⌥ ← → troca ⌥ ⇧ ← → move". */
+.cabecalho-pilula .pg-tip-tec { display: inline-flex; align-items: center; gap: 6px; }
+.cabecalho-pilula .pg-tip-tec .ds-kbd { min-width: 18px; height: 18px; padding: 0 4px; font-size: var(--fs-legenda); }
+}
+@media not ((hover: none) and (pointer: coarse)) { .timeline .md-tabela { width: min(100%, 558px); } .timeline .md-tabela table { width: 100%; } }
+@media not ((hover: none) and (pointer: coarse)) {
+/* Paper 16/16b (nav_row com work_label): "2 aguardando" é o contador da linha, em laranja 12 regular — sem ponto nem caixa. */
+html:not([data-largura="recolhida"]) #sidebar .linha-fixa-aguardando { height: auto; padding: 0; margin-right: 10px; font-weight: var(--peso-regular); background: none; }
+html:not([data-largura="recolhida"]) #sidebar .linha-fixa-aguardando .ponto-aguardando { display: none; }
+html:not([data-largura="recolhida"]) #sidebar .linha-fixa-aguardando:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
+@media not ((hover: none) and (pointer: coarse)) {
+/* Rodada 3 (Paper 02/17): o ícone do quadro no cabeçalho, o código estreito (o título começa a 84 da borda) e a linha
+   "Criou 4 issues no Linear · Aprovado pela sua regra · Editar" cinza, com o Editar em tinta. */
+.timeline .md-tabela th .md-tabela-icone { width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px; color: var(--ink-3); }
+.timeline .md-tabela th[colspan] { white-space: nowrap; }
+.timeline .md-tabela td.md-codigo { width: 1%; padding-right: 6px; }
+.timeline .md-tabela:has(th[colspan]) { width: 558px; max-width: 100%; }
+.timeline .linha-regra { margin: 21px 0 0; font-size: var(--fs-rotulo); color: var(--ink-3); }
+.timeline .linha-regra > svg { color: var(--ink-3); width: 13px; height: 13px; }
+.timeline .linha-regra .linha-modo-sep { margin: 0 7px; }
+.timeline .linha-regra .linha-modo-ver { color: var(--ink); text-decoration-color: currentColor; }
+}
+/* Paper 03 (rodada 3): o atalho do bot na etiqueta da barra recolhida, "Gil · UI/UX ⌘ 4", em caixinhas. */
+.etiqueta-barra .etiqueta-teclas { display: inline-flex; align-items: center; gap: 3px; margin-left: 10px; vertical-align: 1px; }
+.etiqueta-barra .etiqueta-teclas .ds-kbd { min-width: 18px; height: 18px; padding: 0 4px; font-size: var(--fs-legenda); }
+/* Paper 02b (rodada 3): a capa do arquivo sem imagem é uma folha com quatro linhas no canto de cima; embaixo, o nome sem
+   a extensão e a legenda "Página · ontem". */
+.detalhes .gvb-grade .gvb-ic:has(> .gvb-folha) { place-items: start; padding: 14px 12px; }
+.gvb-folha { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.gvb-folha i { display: block; height: 3px; border-radius: 2px; background: var(--borda-sutil); }
+.gvb-folha i:nth-child(1) { width: 52%; background: var(--borda); }
+.gvb-folha i:nth-child(2) { width: 68%; } .gvb-folha i:nth-child(3) { width: 60%; } .gvb-folha i:nth-child(4) { width: 36%; }
+.detalhes .gvb-grade .gvb-nome-2 { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.detalhes .gvb-grade .gvb-nome-l { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: var(--peso-medio); }
+.detalhes .gvb-grade .gvb-nome-2 small { font-size: var(--fs-rotulo); font-weight: var(--peso-regular); color: var(--ink-3); }
+/* Paper 15–17 (rodada 3): o sinal do bot no canto do avatar da grade — ponto de 8 na cor do bot (trabalhando, com o
+   número de frentes à esquerda), vazado (esperando) e laranja (precisa de você), com o anel da cor da barra. */
+#sidebar .fixado-bt { position: relative; }
+#sidebar .fixado-sinal { position: absolute; top: 5px; right: calc(50% - 18px); display: inline-flex; align-items: center; gap: 2px; pointer-events: none; }
+#sidebar .fixado-sinal i { width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; background: var(--pes-cor); box-shadow: 0 0 0 2px var(--surface-side); }
+#sidebar .fixado-sinal b { font-size: var(--fs-legenda); line-height: 1; font-weight: var(--peso-medio); color: var(--ink-2); }
+#sidebar .fixado-sinal[data-sinal="espera"] i { background: var(--surface-side); border: 1.5px solid var(--ink-3); }
+#sidebar .fixado-sinal[data-sinal="voce"] i { background: var(--aguardando); }
+#sidebar .fixado-sinal[data-sinal="novo"] i { background: var(--signal); }
+html[data-largura="recolhida"] #sidebar .fixado-sinal { top: 2px; right: 6px; }
+/* Paper 16 (rodada 3): a frente aberta em duas linhas (o título e o passo embaixo, a pergunta em laranja), o tempo à
+   direita; o número de frentes antes do ponto da linha do bot. */
+.tela-trabalhos .tb-frente { min-height: 45px; padding: 0; box-sizing: border-box; align-items: center; }
+.tela-trabalhos .tb-frentes { padding-left: 65px; }
+.tela-trabalhos .tb-frente-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tela-trabalhos .tb-frente-txt .tb-frente-titulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tela-trabalhos .tb-frente[data-pede] .tb-frente-passo { color: var(--aguardando); }
+.tela-trabalhos .tb-n { margin-right: -6px; font-size: var(--fs-legenda); color: var(--ink-2); }
+.tela-trabalhos .tb-grupo { margin-bottom: 0; } /* rodada 3: o respiro entre os grupos é só o gap da tela (Paper 16, ~19) */
+/* O mascote esperando você leva o ponto laranja do Paper (16, 16b), não o azul de novidade. */
+nod-mascote[data-estado="aguardando"]:not([data-aviso="pergunta"], [data-aviso="nao-lido"]) { --nod-aviso: var(--aguardando); }
+/* Paper 16 (rodada 3): a faixa da memória em Trabalhos — cinza, da largura da tela, 40 de altura, "Ver ›" à direita. */
+.tela-trabalhos .tb-faixa-memoria { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; margin: 0 0 4px; padding: 0 14px; box-sizing: border-box; border: 0; border-radius: var(--raio-10); background: var(--hover); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); text-align: left; cursor: pointer; }
+.tela-trabalhos .tb-faixa-memoria .pm-icone { color: var(--ink-2); flex: none; }
+.tela-trabalhos .tb-faixa-memoria.vermelha { background: var(--danger-soft); }
+.tela-trabalhos .tb-faixa-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tela-trabalhos .tb-faixa-ver { display: inline-flex; align-items: center; gap: 6px; font-weight: var(--peso-medio); }
+.tela-trabalhos .tb-faixa-ver svg { width: 12px; height: 12px; color: var(--ink-3); }
+.tela-trabalhos .tt-cab { margin-bottom: 4px; }
+.tela-trabalhos .tb-faixa-memoria { margin: 0; }
+.tela-trabalhos .tb-linha { padding-left: 8px; }
+@media not ((hover: none) and (pointer: coarse)) {
+/* Paper 17 (rodada 3): o "+ pedir um app" num círculo tracejado e a dica que nasce à esquerda do ícone (não centrada). */
+.cabecalho-pilula .pg-pedir { border: 1px dashed var(--line-strong); border-radius: var(--raio-full); }
+.cabecalho-pilula .pg-ic .pg-tip { left: -10px; transform: translateY(-3px); }
+.cabecalho-pilula .pg-ic:hover .pg-tip, .cabecalho-pilula .pg-ic:focus-visible .pg-tip { transform: none; }
+}
+@media not ((hover: none) and (pointer: coarse)) { .cabecalho-pilula .pg-tip .pg-tip-tec::before { content: "·"; margin-right: 2px; color: var(--ink-3); } }
+/* Paper 15b (rodada 3): o topo da frente mais alto (centro a 30 do topo) e mais largo que a coluna — "← Conversa" a 302 e
+   "Parar frente" terminando a 1064 com o painel aberto. */
+.tk-topo.tk-topo-frente { width: 788px; max-width: none; flex: none; margin-top: -10px; left: 4px; }
+.pilula-bot .pilula-pagina { color: var(--ink-3); font-weight: var(--peso-regular); white-space: nowrap; }
+.pilula-bot .pilula-pagina::before { content: "·"; margin: 0 6px; color: var(--ink-3); }
+/* Paper 17b (rodada 3): o menu do ícone da doca com ícones, o traço antes de Remover e Remover em vermelho; a dica some. */
+.pg-menu-it { display: flex; align-items: center; gap: 8px; height: 30px; }
+.pg-menu-ic { flex: none; color: var(--ink-2); }
+.pg-menu-traco { height: 1px; margin: 4px 6px; border: 0; background: var(--divisoria); }
+.pg-menu-it.pg-menu-perigo, .pg-menu-it.pg-menu-perigo .pg-menu-ic { color: var(--danger); }
+body:has(#pg-menu) .cabecalho-pilula .pg-tip { opacity: 0 !important; }
+/* Paper 17/17b (rodada 3): o ponto da página que pede você fica laranja também quando é a atual (o traço largo). */
+.pg-pt.pg-pt-atual.pg-pt-pede { background: var(--aguardando); }
+.pg-pt.pg-pt-pede { background: var(--aguardando); }
+/* Paper 07 (rodada 3): o × dos Ajustes na altura do título (centro a 50 do topo do modal na janela), 4 px mais para a borda. */
+.cfg-modal .cfg-fechar { margin-top: -4px; position: relative; left: 4px; }

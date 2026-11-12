@@ -2,7 +2,7 @@ import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { EstadoTrabalho, TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { ConversaEstado, Estado } from "../estado/reducer.ts";
 import { seletoresDoFoco } from "../lib/foco-do-bloco.ts";
-import { esc, hora } from "../lib/render.ts";
+import { esc, hora, iconeAgente } from "../lib/render.ts";
 import { aberto, emEspera, juntar, passoDaFrente, tempoDe, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
 
 /**
@@ -126,7 +126,8 @@ export function frentesNaFala(abertura: Pick<Abertura, "frentes">, mensagens: re
     if (t && !(fim && aberto(t) && !abertasNaConversa.has(t.id))) {
       const e = estadoDoTrabalho(t);
       const vivo = e === "rodando" || e === "precisa" || e === "esperando";
-      return { trabalhoId: t.id, titulo: t.titulo, estado: e, passo: vivo ? passoDaFrente(estado, t, todos) : null, tempo: vivo && t.estado !== "na_fila" ? tempoDe(t, estado.agora) : null, terminouEm: vivo ? null : t.terminadoEm };
+      // Paper 15: a pronta mostra o último passo dela ("Corrigiu 2 testes · CI verde") embaixo do título.
+      return { trabalhoId: t.id, titulo: t.titulo, estado: e, passo: vivo ? passoDaFrente(estado, t, todos) : e === "pronta" ? (t.ultimoPasso ?? null) : null, tempo: vivo && t.estado !== "na_fila" ? tempoDe(t, estado.agora) : null, terminouEm: vivo ? null : t.terminadoEm };
     }
     if (fim) return { trabalhoId: f.trabalhoId, titulo: fim.titulo || f.titulo, estado: ESTADO_DO_FIM[fim.estado] ?? "sem_noticia", passo: null, tempo: null, terminouEm: fim.em };
     return { trabalhoId: f.trabalhoId, titulo: f.titulo, estado: "sem_noticia", passo: null, tempo: null, terminouEm: null };
@@ -136,6 +137,16 @@ export function frentesNaFala(abertura: Pick<Abertura, "frentes">, mensagens: re
   return frentes.map((f, i) => ({ f, i })).sort((a, b) => ordem(a.f.estado) - ordem(b.f.estado) || (a.f.terminouEm ?? 0) - (b.f.terminouEm ?? 0) || a.i - b.i).map((x) => x.f);
 }
 
+/**
+ * Paper 15 (ADR-167): no resumo a frente vai pelo nome curto, o pedaço antes do primeiro " · " ("PR #491 · Passagem por
+ * coluna" → "PR #491"); o título inteiro fica na lista. Sem " · ", o título curto de sempre.
+ */
+export function nomeNoResumo(titulo: string): string {
+  const curto = tituloCurto(titulo);
+  const i = curto.indexOf(" · ");
+  return i > 0 ? curto.slice(0, i) : curto;
+}
+
 /** definido em 2026-10-18: até dois títulos, somando até 40 caracteres, vão por nome; mais que isso, a contagem. */
 const NOMES_ATE = 40;
 
@@ -143,14 +154,15 @@ const NOMES_ATE = 40;
 export function resumoDoProgresso(frentes: readonly FrenteNaFala[]): { principal: string; resto: string[] } {
   const de = (e: EstadoNaFala): FrenteNaFala[] => frentes.filter((f) => f.estado === e);
   const nomes = (fs: readonly FrenteNaFala[]): string | null => {
-    const ts = fs.map((f) => tituloCurto(f.titulo));
+    const ts = fs.map((f) => nomeNoResumo(f.titulo));
     return fs.length <= 2 && ts.join("").length <= NOMES_ATE ? juntar(ts) : null;
   };
   const resto: string[] = [];
   const rodando = de("rodando");
   if (rodando.length) resto.push(`${nomes(rodando) ?? rodando.length} rodando`);
+  // Paper 15 (ADR-167): "1 precisa de você" pela contagem, em laranja — o título da frente já está na lista aberta.
   const precisa = de("precisa");
-  if (precisa.length) resto.push(precisa.length === 1 ? `${nomes(precisa) ?? "1"} precisa de você` : `${precisa.length} precisam de você`);
+  if (precisa.length) resto.push(precisa.length === 1 ? "1 precisa de você" : `${precisa.length} precisam de você`);
   const esperando = de("esperando");
   if (esperando.length) resto.push(`${esperando.length} esperando`);
   const paradas = de("parada");
@@ -166,6 +178,16 @@ export function resumoDoProgresso(frentes: readonly FrenteNaFala[]): { principal
   const semNoticia = de("sem_noticia").length;
   if (semNoticia) resto.push(`${semNoticia} sem notícia`);
   return { principal: `${de("pronta").length} de ${frentes.length} prontas`, resto };
+}
+
+/** A ordem da barra no Paper 15: prontas, as que pararam ou não se sabe, as que esperam, as que rodam e as que precisam de você. */
+const ORDEM_NA_BARRA: readonly EstadoNaFala[] = ["pronta", "sem_noticia", "falhou", "parada", "esperando", "rodando", "precisa"];
+
+/** As listas que a pessoa fechou (a chave da abertura): a lista nasce aberta (Paper 15) e o fechamento vale até recarregar. */
+const FECHADOS = new Set<string>();
+export function progressoFechado(chave: string, fechado: boolean): void {
+  if (fechado) FECHADOS.add(chave);
+  else FECHADOS.delete(chave);
 }
 
 const ROTULO: Record<EstadoNaFala, string> = { pronta: "pronta", rodando: "rodando", precisa: "precisa de você", esperando: "esperando", parada: "parada", falhou: "não terminou", sem_noticia: "sem notícia" };
@@ -185,10 +207,12 @@ function fimDoItem(f: FrenteNaFala): string {
 }
 
 /** Um item: o ícone, o título (abre a frente), o passo embaixo quando anda, e a hora ou o tempo. A pílula alargada usa o mesmo. */
-export function itemDaFrente(f: FrenteNaFala): string {
+export function itemDaFrente(f: FrenteNaFala, mascote = ""): string {
   const curto = tituloCurto(f.titulo);
   const sub = f.passo ? `<span class="progresso-passo">${esc(f.passo)}</span>` : f.estado === "parada" || f.estado === "falhou" || f.estado === "sem_noticia" ? `<span class="progresso-passo">${esc(ROTULO[f.estado])}</span>` : "";
-  return `<li class="progresso-item ${f.estado}">${icone(f.estado)}<span class="progresso-corpo"><button type="button" class="progresso-titulo" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}"${curto === f.titulo ? "" : ` title="${esc(f.titulo)}"`}>${esc(curto)}</button><span class="sr-only"> (${ROTULO[f.estado]})</span>${sub}</span>${fimDoItem(f)}</li>`;
+  // Paper 15: a que roda leva o mascote do bot girando no lugar do ponto (quando quem desenha o tem).
+  const ic = f.estado === "rodando" && mascote ? `<span class="progresso-ic rodando com-mascote" aria-hidden="true">${mascote}</span>` : icone(f.estado);
+  return `<li class="progresso-item ${f.estado}">${ic}<span class="progresso-corpo"><button type="button" class="progresso-titulo" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}"${curto === f.titulo ? "" : ` title="${esc(f.titulo)}"`}>${esc(curto)}</button><span class="sr-only"> (${ROTULO[f.estado]})</span>${sub}</span>${fimDoItem(f)}</li>`;
 }
 
 /**
@@ -196,7 +220,7 @@ export function itemDaFrente(f: FrenteNaFala): string {
  * `data-disclosure` (a lista aberta sobrevive ao re-render) e a chave da linha `frentes` na telemetria (ADR-099, gatilho
  * "detalhe das frentes aberto em mais de 30%": no PR 8, a pílula alargada conta no mesmo tipo).
  */
-export function htmlProgresso(frentes: readonly FrenteNaFala[], p: { chave: string; agenteId: string; memoria?: MemoriaNoProgresso | null }): string {
+export function htmlProgresso(frentes: readonly FrenteNaFala[], p: { chave: string; agenteId: string; memoria?: MemoriaNoProgresso | null; mascote?: string }): string {
   const [unica] = frentes;
   if (!unica) return "";
   // PR 8: `data-frentes` diz à rolagem de quais frentes este bloco fala — a pílula some quando ele está à vista.
@@ -208,10 +232,17 @@ export function htmlProgresso(frentes: readonly FrenteNaFala[], p: { chave: stri
     return `<section class="progresso progresso-uma" data-frentes="${ids}" aria-label="${esc(`Frente ${curto}: ${ROTULO[unica.estado]}`)}"><div class="progresso-item ${unica.estado}">${icone(unica.estado)}<span class="progresso-corpo progresso-em-linha"><button type="button" class="progresso-titulo" data-act="abrir-trabalho" data-id="${esc(unica.trabalhoId)}"${curto === unica.titulo ? "" : ` title="${esc(unica.titulo)}"`}>${esc(curto)}</button><span class="progresso-passo">${esc(detalhe)}</span></span>${memoria}${unica.tempo ? `<span class="progresso-fim">${esc(unica.tempo)}</span>` : ""}</div></section>`;
   }
   const { principal, resto } = resumoDoProgresso(frentes);
-  const barra = frentes.map((f) => `<span class="progresso-seg ${f.estado}"></span>`).join("");
-  const texto = `${esc(principal)}${memoria}${resto.length ? `<span class="progresso-resto"> · ${esc(resto.join(" · "))}</span>` : ""}`;
-  const resumo = `<summary class="progresso-resumo" data-act="abrir-progresso" data-linha-tipo="frentes" data-linha-chave="${esc(`frentes:${p.chave}`)}" data-agente="${esc(p.agenteId)}"><span class="progresso-txt">${texto}</span><span class="progresso-ver">ver as ${frentes.length}</span><span class="progresso-ocultar">ocultar</span></summary>`;
-  return `<section class="progresso" data-frentes="${ids}" aria-label="${esc(`Frentes: ${principal}`)}"><div class="progresso-barra" aria-hidden="true">${barra}</div><details class="progresso-det" data-disclosure="progresso-${esc(p.chave)}">${resumo}<ul class="progresso-lista">${frentes.map(itemDaFrente).join("")}</ul></details></section>`;
+  // Paper 15 (ADR-167): a barra enche da esquerda com as prontas, depois as que pararam e as que esperam, e termina nas que
+  // rodam e nas que precisam de você; a lista é a mesma ordem ao contrário (o que precisa de você em cima).
+  const naBarra = [...frentes].sort((a, b) => ORDEM_NA_BARRA.indexOf(a.estado) - ORDEM_NA_BARRA.indexOf(b.estado));
+  const barra = naBarra.map((f) => `<span class="progresso-seg ${f.estado}"></span>`).join("");
+  const partes = resto.map((r) => `<span class="progresso-sep" aria-hidden="true"> · </span><span class="progresso-parte${/precisa(m)? de você$/.test(r) ? " precisa" : ""}">${esc(r)}</span>`).join("");
+  const texto = `<b class="progresso-principal">${esc(principal)}</b>${memoria}${resto.length ? `<span class="progresso-resto">${partes}</span>` : ""}`;
+  const chev = '<svg class="progresso-chev" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5"/></svg>';
+  const resumo = `<summary class="progresso-resumo" data-act="abrir-progresso" data-linha-tipo="frentes" data-linha-chave="${esc(`frentes:${p.chave}`)}" data-agente="${esc(p.agenteId)}"><span class="progresso-txt">${texto}</span><span class="progresso-ver">ver as ${frentes.length}</span><span class="progresso-ocultar">ocultar</span>${chev}</summary>`;
+  // Paper 15: a lista vem aberta; fechada pela pessoa, fica fechada (`progressoFechado`).
+  const aberta = !FECHADOS.has(p.chave);
+  return `<section class="progresso" data-frentes="${ids}" aria-label="${esc(`Frentes: ${principal}`)}"><div class="progresso-barra" aria-hidden="true">${barra}</div><details class="progresso-det" data-disclosure="progresso-${esc(p.chave)}"${aberta ? " open" : ""}>${resumo}<ul class="progresso-lista">${[...naBarra].reverse().map((f) => itemDaFrente(f, p.mascote ?? "")).join("")}</ul></details></section>`;
 }
 
 /** As aberturas da janela por id, uma vez por lista de mensagens (a tela pede a cada quadro). */
@@ -237,13 +268,14 @@ function aberturasDe(mensagens: readonly Mensagem[]): Map<string, Abertura> {
 export type MemoriaNoProgresso = { texto: string; nivel: "amarela" | "vermelha" };
 
 /** O bloco da abertura `aberturaId` com o estado de agora; "" se ela não está na janela. */
-export function blocoDaAbertura(aberturaId: string, c: ConversaEstado, estado: Pick<Estado, "trabalhos" | "conversas" | "trabalhoDetalhe" | "atividades" | "agora">, memoria: MemoriaNoProgresso | null = null): string {
+export function blocoDaAbertura(aberturaId: string, c: ConversaEstado, estado: Pick<Estado, "trabalhos" | "conversas" | "trabalhoDetalhe" | "atividades" | "agora"> & Partial<Pick<Estado, "frota">>, memoria: MemoriaNoProgresso | null = null): string {
   const a = aberturasDe(c.mensagens).get(aberturaId);
   if (!a) return "";
   const frentes = frentesNaFala(a, c.mensagens, estado, c.conversa.id);
   // O ponto da memória só no bloco que ainda anda: o lote que terminou não tem o que o Mac apertado segure.
   const anda = frentes.some((f) => f.estado === "rodando" || f.estado === "precisa" || f.estado === "esperando");
-  return htmlProgresso(frentes, { chave: a.id, agenteId: c.conversa.agenteId ?? "", memoria: anda ? memoria : null });
+  const bot = estado.frota?.agentes.find((x) => x.id === c.conversa.agenteId);
+  return htmlProgresso(frentes, { chave: a.id, agenteId: c.conversa.agenteId ?? "", memoria: anda ? memoria : null, ...(bot ? { mascote: iconeAgente(bot, "sm", "trabalhando") } : {}) });
 }
 
 /**
@@ -303,14 +335,15 @@ export function criarProgressoNaTela(ativo: () => unknown = () => (globalThis as
         if (!lugar.isConnected) continue;
         const html = blocoDaAbertura(lugar.dataset.progresso ?? "", c, estado, memoria);
         if (desenhado.get(lugar) === html) continue;
-        const aberta = lugar.querySelector("details")?.open === true;
+        const antes = lugar.querySelector("details");
+        const aberta = antes ? antes.open === true : null;
         const foco = ativo() as { dataset?: { act?: string; id?: string } } | null;
         const focado = foco && lugar.contains(foco) ? foco : null;
         lugar.innerHTML = html;
         desenhado.set(lugar, html);
         trocados++;
-        const det = aberta ? lugar.querySelector("details") : null;
-        if (det) det.open = true;
+        const det = aberta !== null ? lugar.querySelector("details") : null;
+        if (det && aberta !== null) det.open = aberta;
         if (focado) {
           for (const seletor of seletoresDoFoco(focado.dataset ?? {})) {
             const alvo = lugar.querySelector(seletor);

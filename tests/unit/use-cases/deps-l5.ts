@@ -21,6 +21,7 @@ import type { Deps, Services, UseCasesNod } from "../../../src/use-cases/tipos.t
 import { PESSOA_MARLON, TENANT_PADRAO } from "../../helpers/ids.ts";
 import { criarBancoMemoria, type BancoMemoria } from "../../helpers/repos-memoria.ts";
 import { avisarPessoa } from "../../../src/use-cases/avisar-pessoa.ts";
+import { mostrarCartoes } from "../../../src/use-cases/mostrar-cartoes.ts";
 import { ajustarBarraLateral } from "../../../src/use-cases/ajustar-barra-lateral.ts";
 import { gerirQuadro } from "../../../src/use-cases/gerir-quadro.ts";
 import { gerirApps } from "../../../src/use-cases/gerir-apps.ts";
@@ -118,6 +119,7 @@ export function depsFalsos(opcoes: OpcoesDepsFalsos = {}): { deps: Deps; banco: 
     responderPedido,
     pedirCredencial,
     avisarPessoa,
+    mostrarCartoes,
     ajustarBarraLateral,
     gerirQuadro,
     gerirApps,

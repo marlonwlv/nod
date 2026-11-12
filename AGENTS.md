@@ -474,6 +474,10 @@ Computador de trabalho e máquina executora do harness são recursos diferentes.
 com reserva confirmada antes do efeito e nova validação depois do boot, fora da transação.
 Takeover só termina por devolução explícita. Não use `--password-store=basic`: perfil usa GNOME
 Keyring e checkpoint de cookies cifrado. Preserve a chave de credenciais junto da estratégia de backup.
+Provedor do computador (ADR-168): fora do motor, quem dá a máquina é um `ProvedorDeComputador`
+(`src/adapters/computador/provedores/`), escolhido por `NOD_COMPUTADOR_PROVEDOR[_POR_PESSOA|_POR_BOT]`; provedor novo
+implementa as primitivas e herda a semântica do nod de `primitivas.ts`. Nunca leia chave de provedor do env do servidor:
+ela vem do cofre da pessoa (conector com o slug do provedor).
 `node scripts/smoke-computador.ts` usa dois ambientes descartáveis, sem modelos pagos. Limites e
 operação: [docs/computadores.md](docs/computadores.md).
 

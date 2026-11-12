@@ -144,7 +144,9 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       home = mkdtempSync(join(tmpdir(), "nod-fuzz-home-"));
       desbloquear = bloquearRedeExterna({ unixPermitidos: [home] });
       // tela.capturar entra no fuzz com a flag ligada e um capturador falso: mede a validação da rota sem subir Chrome.
-      srv = await servidorCompleto({ env: { ...config.env, NOD_HOME: home }, capturador: { capturar: async () => ASSINATURA_PNG }, intervalos: { orquestradorMs: 3_600_000, schedulerMs: 3_600_000, expiracaoMs: 3_600_000, outboxMs: 3_600_000, leaseMs: 3_600_000 } });
+      // ADR-166: a pessoa do fuzz é admin (NOD_ADMINS), para o `aprovacoes.teto` passar da guarda de admin (sem isso, 403 sempre).
+      const pessoaDoFuzz = randomUUID();
+      srv = await servidorCompleto({ pessoaId: pessoaDoFuzz, env: { ...config.env, NOD_HOME: home, NOD_ADMINS: pessoaDoFuzz }, capturador: { capturar: async () => ASSINATURA_PNG }, intervalos: { orquestradorMs: 3_600_000, schedulerMs: 3_600_000, expiracaoMs: 3_600_000, outboxMs: 3_600_000, leaseMs: 3_600_000 } });
       sessao = srv.pessoa;
       outraEscopo.tenantId = srv.pessoa.tenantId;
       await srv.dbDono`insert into pessoas (tenant_id, id, nome, iniciais) values (${outraEscopo.tenantId}, ${outraEscopo.pessoaId}, 'Outra do fuzz', 'OF') on conflict do nothing`;
@@ -291,6 +293,11 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       // `acessos.desfazer_lote` (`/acessos/lotes/:id/desfazer`) passar da busca; sem o lote, o id sorteado só dava 404.
       const conectorDoFuzz = await conectorDe(sessao, `fuzz-${config.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
       const loteDoFuzz = (await srv.json<{ lote_id: string }>("POST", `conectores/${conectorDoFuzz.id}/acessos/lote`, { nivel: "leitura", bots: [meu.agente.id], chave: `fuzz:${randomUUID()}` })).lote_id;
+      // ADR-166: uma regra do revisor de cada pessoa, para o `:id` de `aprovacoes.editar_regra` e `aprovacoes.apagar_regra`
+      // (`/aprovacoes/regras/:id`) passar da busca; sem ela, todo id sorteado dava 404.
+      type ComRegra = { regra: { id: string } };
+      const regraDoFuzz = (await srv.json<ComRegra>("POST", "aprovacoes/regras", { agenteId: null, lista: "perguntar", texto: "Regra do fuzz" })).regra.id;
+      const regraDela = (await srv.json<ComRegra>("POST", "aprovacoes/regras", { agenteId: null, lista: "perguntar", texto: "Regra dela" }, outra)).regra.id;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
       await srv.json("PUT", "canvas/app", {});
       const plano = planoDoServidor({
@@ -323,6 +330,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             projetos: { daPessoa: [projetoDoFuzz], deOutraPessoa: [] },
             lotes: { daPessoa: [loteDoFuzz], deOutraPessoa: [] },
             conectores: { daPessoa: [conectorDoFuzz.id], deOutraPessoa: [] },
+            regras: { daPessoa: [regraDoFuzz], deOutraPessoa: [regraDela] },
           },
         },
       });

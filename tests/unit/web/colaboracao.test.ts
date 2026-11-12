@@ -3,7 +3,7 @@ import type { Mensagem } from "../../../src/contracts/mensagem.ts";
 import { estadoInicial } from "../../../web/estado/reducer.ts";
 import { renderMensagensAgrupadas } from "../../../web/telas/conversa.ts";
 
-// revisto em 2026-10-07 (#191, chat limpo, padrão Grok): o grupo continua pelo turno de origem, mas em vez de um
+// revisto em 2026-10-07 (#191, chat limpo): o grupo continua pelo turno de origem, mas em vez de um
 // <details class="collaboration"> com as trocas dentro, vira duas linhas centralizadas — "Enviou mensagem para…" no
 // pedido e "N mensagens com…" na volta —, que abrem a task de quem recebeu (ou a tela provisória com as trocas).
 it("agrupa dois colegas pelo turno de origem, preservando respostas tardias e fala normal", () => {

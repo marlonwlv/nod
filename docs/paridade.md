@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **197**, mais 3 só de leitura. No chat: **74 vivas**, 3 parciais, 89 faltando e 34 que nunca vão para o chat. Piso de vivas: 74.
+Ações de pessoa que mudam algo: **203**, mais 3 só de leitura. No chat: **74 vivas**, 3 parciais, 89 faltando e 40 que nunca vão para o chat. Piso de vivas: 74.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -345,6 +345,17 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `canvas.instalar` | Instalar o app Canvas | muda | falta (NOD-394) | `PUT ^\/canvas\/app$` |
 | `canvas.desinstalar` | Desinstalar o app Canvas (tira o acesso de todos os bots; os canvas ficam) | muda | falta (NOD-394) | `DELETE ^\/canvas\/app$` |
 | `canvas.dar_acesso` | Dar ou tirar o acesso de um bot ao Canvas (ver e comentar, ou criar e publicar) | muda | falta (NOD-394) | `PUT ^\/canvas\/app\/acessos\/(?<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$` |
+
+## aprovacoes
+
+| Ação | O que faz | Risco | No chat | Rotas |
+| --- | --- | --- | --- | --- |
+| `aprovacoes.criar_regra` | Ensinar uma regra ao revisor (Pode fazer sem perguntar / Sempre me pergunte) | pessoa_confirma | nunca: muda o que um bot pode fazer sem perguntar: só a pessoa, nos Ajustes ou no clique do cartão (um bot poderia se dar alçada pela conversa) | `POST ^\/aprovacoes\/regras$` |
+| `aprovacoes.editar_regra` | Editar uma regra do revisor | pessoa_confirma | nunca: muda o que um bot pode fazer sem perguntar: só a pessoa, nos Ajustes ou no clique do cartão (um bot poderia se dar alçada pela conversa) | `PATCH ^\/aprovacoes\/regras\/(?<id>[^/]+)$` |
+| `aprovacoes.apagar_regra` | Apagar uma regra do revisor | muda | nunca: muda o que um bot pode fazer sem perguntar: só a pessoa, nos Ajustes ou no clique do cartão (um bot poderia se dar alçada pela conversa) | `DELETE ^\/aprovacoes\/regras\/(?<id>[^/]+)$` |
+| `aprovacoes.nivel_ferramenta` | Definir o nível de um app (sempre permitir, sempre pedir, bloqueado, o revisor decide) | pessoa_confirma | nunca: muda o que um bot pode fazer sem perguntar: só a pessoa, nos Ajustes ou no clique do cartão (um bot poderia se dar alçada pela conversa) | `POST ^\/aprovacoes\/niveis$` |
+| `aprovacoes.so_leitura` | Ligar ou desligar o só leitura de um bot | muda | nunca: muda o que um bot pode fazer sem perguntar: só a pessoa, nos Ajustes ou no clique do cartão (um bot poderia se dar alçada pela conversa) | `POST ^\/agentes\/(?<id>[^/]+)\/so-leitura$` |
+| `aprovacoes.teto` | Definir o teto do modo de aprovação do time (admin) | pessoa_confirma | nunca: muda o que um bot pode fazer sem perguntar: só a pessoa, nos Ajustes ou no clique do cartão (um bot poderia se dar alçada pela conversa) | `POST ^\/aprovacoes\/teto$` |
 
 ## O que cada onda leva
 

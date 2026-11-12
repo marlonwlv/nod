@@ -147,7 +147,7 @@ describe("faixa de Trabalhos e pílula (#195, K1/K6)", () => {
     expect(css).toMatch(/\.lugar-faixa-trabalhos:has\(\.faixa-trab\) \+ \.composer-wrap \.composer \.box \{ border-top-left-radius: 0; border-top-right-radius: 0; \}/);
     // QA do épico (2026-10-08): com algo acima do campo entre a faixa de Trabalhos e o campo (desde 2026-10-18, a caixa
     // "Respondendo" ou "N coisas esperam você", no lugar da faixa da pergunta), a faixa fecha e o campo fica redondo.
-    expect(css).toMatch(/\.lugar-faixa-trabalhos:has\(\+ \.composer-wrap \.composer-pergunta:not\(:empty\)\) \.faixa-trab \{ margin-bottom: 8px; border-bottom: 1px solid var\(--line\); border-radius: 16px; \}/);
+    expect(css).toMatch(/\.lugar-faixa-trabalhos:has\(\+ \.composer-wrap \.composer-pergunta:not\(:empty\)\) \.faixa-trab \{ margin-bottom: 8px; border-bottom: 1px solid var\(--line\); border-radius: var\(--raio-16\); \}/);
     expect(css).toMatch(/\.composer-wrap:has\(\.composer-pergunta:not\(:empty\)\) \.composer \.box \{ border-top-left-radius: 28px; border-top-right-radius: 28px; \}/);
     expect(readFileSync(new URL("../../../web/index.html", import.meta.url), "utf8")).toMatch(/id="pilula-novas"[^\n]*\n[^\n]*\n\s*<div class="lugar-faixa-trabalhos" id="faixa-trabalhos"><\/div>\n\s*<footer class="composer-wrap" id="composer">/);
   });

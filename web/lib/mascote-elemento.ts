@@ -15,6 +15,8 @@ const INK = "var(--mascote-cor, var(--agent-gris))";
 const ASSENTA = .8;
 /** definido em 2026-09-30: teto de 60 quadros por segundo; numa tela de 120 Hz o rAF dobraria o custo sem ganho visível. */
 const QUADRO_MS = 1000 / 60;
+/** ADR-174: estados que, assentados, não se mexem (não pedem quadro nenhum). */
+const ESTATICOS: ReadonlySet<StateId> = new Set<StateId>(["idle", "offline"]);
 const reduced = matchMedia(CONSULTA_MOVIMENTO_REDUZIDO);
 /**
  * NOD-122 (revisão): a resposta continua vindo de movimentoReduzido(), mas lida da MediaQueryList guardada acima. Chamar
@@ -154,7 +156,8 @@ class MascoteElemento extends HTMLElement {
     if (!this.moving()) this.wake();
   }
   private moving(): boolean {
-    return this.state !== "idle" || this.time - this.changed < ASSENTA;
+    // ADR-174: offline é pose fixa, como o repouso — só a transição de entrada anima.
+    return !ESTATICOS.has(this.state) || this.time - this.changed < ASSENTA;
   }
   private paint(): void {
     const fixed = reduzido();
@@ -165,7 +168,7 @@ class MascoteElemento extends HTMLElement {
       let svg = parados.get(chave);
       if (!svg) {
         const engine = fixed ? new BotEngine(100, state, radii(this.getAttribute("shape")), expressaoMascote(this.getAttribute("expression"))) : this.engine!;
-        svg = svgMascote(engine.sample(instanteDoMascote({ reduzido: fixed, pose: POSES[state], tempo: this.time }), state !== "idle"), "@@", INK);
+        svg = svgMascote(engine.sample(instanteDoMascote({ reduzido: fixed, pose: POSES[state], tempo: this.time }), !ESTATICOS.has(state)), "@@", INK);
         if (parados.size >= 64) parados.clear();
         parados.set(chave, svg);
       }
@@ -175,7 +178,7 @@ class MascoteElemento extends HTMLElement {
       return;
     }
     this.shown = "";
-    (this.painter ??= new PintorMascote(this, this.uid, INK)).pintar(this.engine!.sample(this.time, state !== "idle"));
+    (this.painter ??= new PintorMascote(this, this.uid, INK)).pintar(this.engine!.sample(this.time, !ESTATICOS.has(state)));
   }
 }
 customElements.define("nod-mascote", MascoteElemento);

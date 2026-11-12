@@ -90,7 +90,7 @@ export type PonteIas = {
 // ADR-101: as várias contas ficam em contas-desktop.ts (o teto de 200 linhas por contrato).
 export type { ContaNaTela, ContasNaTela, DetalheDaConta, DetalhesDasContas, PonteContas } from "./contas-desktop.ts";
 
-export type NodDesktop = import("./desktop-barra.ts").PonteBarraDesktop & import("./desktop-conta-app.ts").PonteContaNoApp & import("./desktop-esta-maquina.ts").PonteEstaMaquina & import("./remover-computador.ts").PonteRemoverDesktop & { // NOD-119 barra; ADA-242 conta; ADA-243 estaMaquina; ADA-245 remover
+export type NodDesktop = import("./desktop-mac.ts").PonteMacDesktop & import("./desktop-barra.ts").PonteBarraDesktop & import("./desktop-conta-app.ts").PonteContaNoApp & import("./desktop-esta-maquina.ts").PonteEstaMaquina & import("./remover-computador.ts").PonteRemoverDesktop & { // NOD-119 barra; ADA-242 conta; ADA-243 estaMaquina; ADA-245 remover
   /** Mostra o aviso só se a janela do nod não estiver na frente; devolve se mostrou. */
   avisar?(aviso: AvisoDesktop): Promise<boolean>;
   /** O número no ícone do Dock: pedidos abertos (0 apaga). */

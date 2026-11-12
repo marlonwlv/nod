@@ -307,7 +307,7 @@ export const LINHA_CALIBRACAO = "Calibração: quando a pessoa citar algo que vo
 
 /**
  * definido em 2026-10-17 (ADR-112): a linha da chave "Modo WhatsApp", no lugar da "Formatação:". Motivo medido: em 17/10
- * o Marlon achou as respostas do Nod longas e com cara de relatório perto das do Rakazo/Grok Bot. Teste offline (prompt
+ * o Marlon achou as respostas do Nod longas e com cara de relatório perto das de outros assistentes. Teste offline (prompt
  * `conversa-manual`, Sonnet 5.5, sem ferramentas, 10 mensagens × 2 rodadas): hoje mediana de 1.229 caracteres e 85% das
  * respostas com lista; "Be concise." no fim −27% e 80% com lista; esta linha −64% (444 caracteres), 0% com lista, 0% com
  * tabela. Efeito colateral visto: num pedido de rotina o bot propôs direto (assumiu dias úteis) em vez de perguntar.
@@ -623,7 +623,7 @@ const PREFIXOS_DAS_SECOES: readonly (readonly [SecaoDoPrompt, readonly string[]]
   // definido em 2026-10-04 (ADR-072): "Fala:", "Ligação:", "Primeira ligação:", "Colegas no nod" e "Apps conectados" são
   // do prompt de voz (prompt-ligacao.ts); o de texto nunca começa linha assim.
   ["identidade", ["Você é ", "Responda sempre em", "Formatação:", "Tom:", "Calibração:", "O que você faz:", `${PREFIXO_SOBRE_A_PESSOA} (`, "Fala:"]],
-  ["modo", [...Object.values(INSTRUCAO_MODO).map((t) => t.slice(0, 40)), "Modo de pedido de colega:", "Aprovações:", "Ligação:", "Primeira ligação:"]],
+  ["modo", [...Object.values(INSTRUCAO_MODO).map((t) => t.slice(0, 40)), "Modo de pedido de colega:", "Aprovações:", "Ligação:", "Conduta:", "Primeira ligação:"]],
   ["computador", ["Seu computador está", "Você tem um computador", "Pastas do computador"]],
   ["colegas", ["Colaboração:", "Diretório de colegas", "Limite da corrente:", "Quem receber um pedido seu", "Colegas no nod"]],
   ["rotinas", ["Quando a pessoa pedir uma tarefa recorrente", "Se o pedido de rotina não diz quando", "Rotinas deste agente:", "Inventário de rotinas", "Pausar interrompe", "Pausar e reativar"]],

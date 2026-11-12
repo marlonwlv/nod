@@ -1,3 +1,5 @@
+import type { OpcoesOndeRodaDto, PlanoVmDoNod } from "../../../contracts/vm-do-nod.ts";
+import { opcoesOndeRoda, planosDoEnv } from "../../../domain/vm-do-nod.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import type { PareamentoMaquina } from "../../../services/pareamento-maquina.ts";
 import { lerPlataforma, type PareamentoDispositivo } from "../../../services/pareamento-dispositivo.ts";
@@ -36,7 +38,7 @@ function nomeDaMaquina(v: unknown): string {
  * ADR-090: a chave existe, é da pessoa do escopo e não foi revogada — só assim um bot pode ser preso a ela. NOD-94: a
  * máquina só-computador nunca pega turno, então não é escolha de onde o bot trabalha (404, como a inexistente).
  */
-export function rotasMaquinas(deps: { dentro: DentroDeTx; pareamento: PareamentoMaquina; dispositivo: PareamentoDispositivo; maquinasVivas?: (escopo: Escopo) => MaquinaConectada[]; servidorNoMac?: { api: string }; nuvem?: boolean;
+export function rotasMaquinas(deps: { dentro: DentroDeTx; vmDoNod?: { planos: PlanoVmDoNod[]; driver: "seco" | "gcp" }; pareamento: PareamentoMaquina; dispositivo: PareamentoDispositivo; maquinasVivas?: (escopo: Escopo) => MaquinaConectada[]; servidorNoMac?: { api: string }; nuvem?: boolean;
   /** NOD-94: a máquina do convite `convite` pareou — a instalação por SSH que o criou fica `pronta` com ela. */
   pareadaPorConvite?: (e: { escopo: Escopo; convite: string; maquinaId: string }) => Promise<void> | void }): Rota[] {
   /** ADR-121: só com NOD_MAQUINA_NUVEM=gcp (compor.ts). Sem a flag, o DTO sai igual ao de antes. */
@@ -185,6 +187,22 @@ export function rotasMaquinas(deps: { dentro: DentroDeTx; pareamento: Pareamento
         // ADR-092: com o servidor no Mac (modo local), o bot sem máquina roda neste Mac ("Este Mac" na tela), e a VM chega à
         // API deste Mac por um túnel SSH — a tela mostra o endereço da API, que é o que o motor guarda.
         ctx.json(200, { maquinas, padraoId: maquinas.some((m) => m.id === padraoId) ? padraoId : null, ...(deps.servidorNoMac ? { servidorNoMac: deps.servidorNoMac } : {}) });
+      },
+    },
+    {
+      // ADR-169: as três opções de onde o agente roda (este computador, minha VM, VM do Nod). Só lê; contratar a VM do
+      // Nod (cobrança) é o próximo recorte. Sem `vmDoNod` (NOD_VM_DO_NOD desligada), a 3ª opção vem "Em teste fechado".
+      metodo: "GET",
+      padrao: /^\/maquinas\/onde-roda$/,
+      async handler(ctx) {
+        const chaves = await deps.dentro(ctx.escopo, (d) => d.repos.maquinaTokens.listar());
+        const vivas = new Map((deps.maquinasVivas?.(ctx.escopo) ?? []).map((m) => [m.machineId, m]));
+        const maquinas = chaves.filter((c) => c.revogadaEm === null).map((c) => ({ nome: c.nome, plataforma: vivas.get(c.id)?.plataforma ?? null }));
+        const dto: OpcoesOndeRodaDto = {
+          opcoes: opcoesOndeRoda(maquinas, { vmDoNodLigada: !!deps.vmDoNod, planos: deps.vmDoNod?.planos ?? planosDoEnv(undefined) }),
+          vmDoNod: { ligada: !!deps.vmDoNod, driver: deps.vmDoNod?.driver ?? null },
+        };
+        ctx.json(200, dto);
       },
     },
     {

@@ -61,7 +61,7 @@ describe("menu do avatar (critério 1)", () => {
 
 describe("as 6 seções (critério 2)", () => {
   it("Conta, Geral, Provedores de IA, Máquinas, Agentes, Rotinas e Feedback, nesta ordem (NOD-85)", () => {
-    expect(SECOES_ESPACO.map((s) => s.nome)).toEqual(["Conta", "Geral", "Provedores de IA", "Máquinas", "Agentes", "Rotinas", "Feedback"]);
+    expect(SECOES_ESPACO.map((s) => s.nome)).toEqual(["Conta", "Geral", "Provedores de IA", "Máquinas", "Agentes", "Rotinas", "Aprovações", "Cofre", "Feedback"]);
   });
 
   it("os pedidos de antes caem na seção que os absorveu", () => {
@@ -83,9 +83,10 @@ describe("as 6 seções (critério 2)", () => {
     const e = reduzir(estadoInicial, { tipo: "espaco", secao: "geral" });
     for (const estado of [e, { ...e, computadorPessoa: { estado: "pronto", maquina: null, telas: [], esperando: [] } } as never]) {
       const html = renderEspaco(estado, avisos, volta, extras);
-      expect(html).toContain('<h1 id="espaco-titulo">Configurações</h1>');
+      expect(html).toContain('<h1 id="espaco-titulo" class="sr-only">Configurações</h1>');
       expect(html).toContain('aria-label="Seções das Configurações"');
-      expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["conta", "geral", "conexao", "maquinas", "agentes", "rotinas", "feedback"]);
+      // ADR-167 (Paper 07): a ordem do Paper (Geral, Conta, Máquinas, Aprovações, [Apps], IA) e depois as que o Paper não desenhou.
+      expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["geral", "conta", "maquinas", "aprovacoes", "cofre", "conexao", "agentes", "rotinas", "feedback"]);
       expect(html).not.toContain("espaco-banco");
     }
   });
@@ -163,9 +164,9 @@ describe("Geral (critérios 4 e 5)", () => {
     expect(ler("main.ts")).toMatch(/ev\.shiftKey && ev\.key\.toLowerCase\(\) === "d"[^\n]*alternarModoDev/);
   });
 
-  it("NOD-117: o bloco Ajuda é a folha, com os 9 atalhos nas teclas do lugar e texto para leitor de tela", () => {
+  it("NOD-117: o bloco Ajuda é a folha, com os 14 atalhos nas teclas do lugar e texto para leitor de tela", () => {
     const ajudaDe = (html: string) => html.slice(html.indexOf('id="ajuda"'), html.indexOf("Avançado"));
-    const titulos = ["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar agentes", "Modo dev", "Fechar e voltar"];
+    const titulos = ["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Nova sala", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"];
     const casos: [Parameters<typeof renderGeral>[3], string, string][] = [
       ["app-mac", "<kbd>⌘</kbd><kbd>N</kbd>", "Command N"],
       ["navegador-mac", "<kbd>⌃</kbd><kbd>N</kbd>", "Control N"],
@@ -174,8 +175,8 @@ describe("Geral (critérios 4 e 5)", () => {
     for (const [lugar, novo, falado] of casos) {
       const ajuda = ajudaDe(renderGeral(d, CONFIG_UI_INICIAL, false, lugar));
       for (const t of titulos) expect(ajuda, `${lugar}: ${t}`).toContain(t);
-      expect(ajuda.match(/class="cfg-kbd"/g)).toHaveLength(9);
-      expect(ajuda.match(/class="sr-only"/g)).toHaveLength(9);
+      expect(ajuda.match(/class="cfg-kbd"/g)).toHaveLength(14);
+      expect(ajuda.match(/class="sr-only"/g)).toHaveLength(14);
       expect(ajuda).toContain(novo);
       expect(ajuda).toContain(`<span class="sr-only">${falado}</span>`);
       expect(ajuda).toContain("<kbd>?</kbd> ou ");
@@ -187,7 +188,8 @@ describe("Geral (critérios 4 e 5)", () => {
 
   it("NOD-117: o keydown global chama os atalhos depois de ⌘K e ⌘⇧D, e o + diz o atalho", () => {
     const main = ler("main.ts");
-    const k = main.indexOf('ev.key.toLowerCase() === "k") { ev.preventDefault(); abrirBusca()');
+    // ADR-167: ⌘K abre a paleta no computador (a busca de tela cheia no celular).
+    const k = main.indexOf('ev.key.toLowerCase() === "k") { ev.preventDefault(); if (celular.ativo() || !estado.sessao) abrirBusca(); else abrirPaleta();');
     const dev = main.indexOf("void agir(alternarModoDev); return; }");
     const novos = main.indexOf("const atalho = atalhoDoTeclado(teclaSemRepetir, {");
     expect(k).toBeGreaterThan(0);

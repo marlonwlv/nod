@@ -94,10 +94,11 @@ describe("NOD-461: as teclas da pílula na doca", () => {
   it("o tooltip ensina as teclas numa segunda linha e o aria-keyshortcuts lista as quatro e o menu", async () => {
     const { docaDePaginas } = await import("../../../web/telas/paginas.ts");
     const mac = docaDePaginas({ nome: "Ada", paginas: tres, ordem: [1, 0, 2], mac: true });
-    expect(mac).toContain('· abre primeiro<span class="pg-tip-tec">⌥ ← → troca · ⌥⇧ ← → move</span></span>');
+    // Paper 17 (rodada 2): cada tecla numa caixinha.
+    expect(mac).toContain('· abre primeiro<span class="pg-tip-tec"><span class="ds-teclas"><kbd class="ds-kbd">⌥</kbd><kbd class="ds-kbd">←</kbd><kbd class="ds-kbd">→</kbd></span> troca <span class="ds-teclas"><kbd class="ds-kbd">⌥</kbd><kbd class="ds-kbd">⇧</kbd><kbd class="ds-kbd">←</kbd><kbd class="ds-kbd">→</kbd></span> move</span></span>');
     expect(mac.match(/class="pg-tip-tec"/g)).toHaveLength(3);
     const pc = docaDePaginas({ nome: "Ada", paginas: tres, mac: false });
-    expect(pc).toContain('<span class="pg-tip-tec">Alt ← → troca · Alt Shift ← → move</span>');
+    expect(pc).toContain('<span class="pg-tip-tec"><span class="ds-teclas"><kbd class="ds-kbd">Alt</kbd><kbd class="ds-kbd">←</kbd><kbd class="ds-kbd">→</kbd></span> troca <span class="ds-teclas"><kbd class="ds-kbd">Alt</kbd><kbd class="ds-kbd">Shift</kbd><kbd class="ds-kbd">←</kbd><kbd class="ds-kbd">→</kbd></span> move</span>');
     expect(pc).not.toContain("⌥");
     expect(ARIA_DAS_TECLAS).toBe("Alt+ArrowLeft Alt+ArrowRight Alt+Shift+ArrowLeft Alt+Shift+ArrowRight Shift+F10");
     expect(pc.match(/aria-keyshortcuts="([^"]*)"/g)).toEqual(Array(3).fill(`aria-keyshortcuts="${ARIA_DAS_TECLAS}"`));

@@ -1049,7 +1049,7 @@ export function criarComputadores(o: Opcoes) {
         // seguem esperando: o Assumir continua sendo o freio dela.
         if (c.controle === "pessoa" && !(await pedidoNovoDaPessoa(d, c, plano))) return aguardarPessoa();
         // definido em 2026-10-29 (1º ensaio no Mac, pedido do Marlon; revê a NOD-97): a pessoa estava no controle e PEDIU
-        // algo ao bot — a mensagem é o sinal de que terminou. O bot retoma na hora, como no Grok: controle volta ao bot,
+        // algo ao bot — a mensagem é o sinal de que terminou. O bot retoma na hora: o controle volta ao bot,
         // a tela ao vivo dela acaba (fora da transação) e a linha "retomou o computador" fica no painel. Só o pedido de
         // ajuda do próprio bot (aguardando_pessoa, acima) segue esperando a pessoa.
         if (c.controle === "pessoa") {
@@ -1086,6 +1086,8 @@ export function criarComputadores(o: Opcoes) {
         // ações da MESMA tarefa. Nunca vale em turno não confiável (ADR-026) nem depois da web (ADR-062: a marca de
         // 0033 ficava de fora, e o terminal já a olhava — autorizar-comando.ts).
         // revisto em 2026-10-01 (ADR-066): saiu o gate da rotina; quem pede a pessoa é a política do computador e o modo.
+        // ADR-166: o bot em só leitura só observa e lê no computador dele; o que muda algo é negado, sem cartão.
+        if (alteraComputador(acao) && (await d.repos.agentes.buscar(plano.agenteId))?.soLeitura === true) return negar("capacidade_desligada");
         const liberadaNaTarefa = plano.confiancaEntrada === "confiavel" && alteraComputador(acao) && !(await d.repos.turnos.contaminado(plano.turnoId)) && await computadorLiberadoNaTarefa(d, plano.turnoId);
         // ADR-059: o modo do bot aprova a ação no computador DELE como aprova o resto. Nada ali é "arriscado" no
         // sentido do Mac (o computador é isolado, ADR-037). ADR-066: conteúdo de fora não para o automático nem o total.

@@ -323,7 +323,7 @@
   .modo-confirma { margin-left: 12px; }
   .modo-confirma-acoes { flex-direction: column; }
   .bot-menu.modo-menu .modo-confirma-acoes button { min-height: 44px; width: 100%; justify-content: center; }
-  /* ADR-095 (as fotos do Grok no iPhone, docs/referencias/ditado-grok/): gravando, a linha do campo vira três pílulas —
+  /* ADR-095 (as fotos de referência no iPhone): gravando, a linha do campo vira três pílulas —
      ■ (para e põe no campo) | tempo e nível | enviar largo (para e envia direto). O resto do campo some até acabar. */
   .composer .mic { width: 44px; height: 44px; background: transparent; }
   .composer .box.gravando { border-radius: 0; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; background: transparent; box-shadow: none; padding: 0; gap: 10px; min-height: 52px; align-items: stretch; }

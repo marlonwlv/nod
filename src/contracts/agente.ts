@@ -2,8 +2,8 @@ import type { PreferenciaHarness } from "./harness.ts";
 import type { InteligenciaBot } from "./inteligencia.ts";
 import type { EpochMs, TenantId } from "./ids.ts";
 
-export const FORMAS_AGENTE = ["shape-square", "shape-hex", "shape-circle", "shape-pebble", "shape-capsule", "shape-triangle", "shape-cloud", "shape-drop"] as const;
-export const CORES_AGENTE = ["c-red", "c-pink", "c-purple", "c-blue", "c-teal", "c-green", "c-orange", "c-black", "c-brown", "c-amber", "c-gray", "c-cream"] as const;
+export const FORMAS_AGENTE = ["shape-square", "shape-hex", "shape-circle", "shape-pebble", "shape-capsule", "shape-triangle", "shape-cloud", "shape-drop", "shape-egg", "shape-heart", "shape-star", "shape-flower", "shape-clover"] as const;
+export const CORES_AGENTE = ["c-red", "c-pink", "c-purple", "c-blue", "c-teal", "c-green", "c-orange", "c-black", "c-brown", "c-amber", "c-gray", "c-cream", "c-magenta", "c-indigo"] as const;
 
 export type FormaAgente = (typeof FORMAS_AGENTE)[number];
 export type CorAgente = (typeof CORES_AGENTE)[number];
@@ -41,9 +41,9 @@ export type Agente = {
   dono: DonoAgente;
   forma: FormaAgente;
   cor: CorAgente;
-  /** Pin (Grok Bot). */
+  /** Fixar. */
   fixado: boolean;
-  /** Hide (Grok Bot). */
+  /** Ocultar. */
   oculto: boolean;
   /** Perfil confirmado pela pessoa (nada aplicado antes disso). */
   confirmado: boolean;
@@ -61,6 +61,17 @@ export type Agente = {
   inteligencia?: InteligenciaBot;
   /** ADR-059 (0040). Ausente = 'manual' (planos e fixtures anteriores ao modo). */
   modoAprovacao?: ModoAprovacao;
+  /**
+   * ADR-166 (0173): o modo que a dona escolheu, antes do teto do admin do time. `modoAprovacao` é o EFETIVO (o que todo
+   * leitor em runtime usa); este só a tela mostra ("o admin limitou a Manual"). Ausente = igual ao efetivo.
+   */
+  modoPedido?: ModoAprovacao;
+  /** ADR-166: o bot só lê (o dele ou o teto `so_leitura` do admin); a escrita é barrada sem cartão. Ausente = falso. */
+  soLeitura?: boolean;
+  /** ADR-166: o só leitura que a dona ligou no bot (sem o teto). */
+  soLeituraPedido?: boolean;
+  /** ADR-166: o teto do admin do time, se houver. */
+  tetoModo?: "so_leitura" | "manual" | "automatico" | null;
   /** ADR-090 (0066): a máquina onde o bot trabalha — o id da chave da máquina. Ausente ou null = qualquer uma (o padrão da pessoa). */
   maquinaId?: string | null;
   /** Duplicate copia perfil, nunca memória nem histórico. */

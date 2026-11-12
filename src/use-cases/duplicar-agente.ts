@@ -17,7 +17,7 @@ import { concederLote } from "./conceder.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 
 /**
- * Duplicate (Grok Bot): nome + ' (cópia)', título, descrição (a missão confirmada), dono, modelo e harness;
+ * Duplicar: nome + ' (cópia)', título, descrição (a missão confirmada), dono, modelo e harness;
  * avatar preservado; conversa própria nova. Histórico e sessão do CLI nunca vêm: a cópia é outra conversa.
  *
  * definido em 2026-09-28 (emenda da ADR-034): a DONA duplicando o próprio bot leva o bot inteiro — memória,

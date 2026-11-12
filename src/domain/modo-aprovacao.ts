@@ -115,6 +115,11 @@ export type SituacaoDaAcao = {
   envioParaFora?: boolean;
   /** Só pesa com o revisor ligado: o turno, ou outro turno da conversa nas últimas 24 h, leu conteúdo de fora. */
   contaminado?: boolean;
+  /**
+   * ADR-166: só pesa com o revisor ligado — a pessoa tem regras de "Sempre me pergunte" para este bot. Então o envio para
+   * fora vai ao revisor também num turno limpo (gatilho `regra_da_pessoa`): é o revisor que sabe se a regra bate.
+   */
+  regrasDePerguntar?: boolean;
 };
 
 export type DecisaoSemRevisor =
@@ -160,7 +165,7 @@ export function decidirPeloModo(modo: ModoAprovacao | undefined, s: SituacaoDaAc
     if (s.arriscada) return { automatico: false, motivo: "acao_arriscada" };
     return { automatico: true, regra: REGRA_MODO_AUTOMATICO, versao: VERSAO_MODO_AUTOMATICO };
   }
-  const gatilho = gatilhoDeRevisao({ arriscada: s.arriscada, credencial: false, envioParaFora: s.envioParaFora === true, contaminado: s.contaminado === true });
+  const gatilho = gatilhoDeRevisao({ arriscada: s.arriscada, credencial: false, envioParaFora: s.envioParaFora === true, contaminado: s.contaminado === true, regrasDePerguntar: s.regrasDePerguntar === true });
   if (vaiAoRevisor(gatilho)) return { revisar: true, gatilho };
   return { automatico: true, regra: REGRA_MODO_AUTOMATICO, versao: VERSAO_MODO_AUTOMATICO_COM_REVISOR };
 }
@@ -176,7 +181,7 @@ export function semRevisor(d: DecisaoDoModo | null): DecisaoSemRevisor | null {
 }
 
 /** A ação vai ao revisor do Automático novo por um destes motivos (plano dos modos de aprovação, Parte 3a). */
-export type GatilhoDeRevisao = "arriscado" | "envio_apos_fora";
+export type GatilhoDeRevisao = "arriscado" | "envio_apos_fora" | "regra_da_pessoa";
 
 /**
  * O que o Automático novo faz com a ação: `credencial` é cartão direto, sem revisor; os outros dois vão ao revisor.
@@ -194,7 +199,7 @@ export type SituacaoParaRevisao = SituacaoDaAcao & {
 };
 
 export function vaiAoRevisor(g: GatilhoDoAutomatico | null): g is GatilhoDeRevisao {
-  return g === "arriscado" || g === "envio_apos_fora";
+  return g === "arriscado" || g === "envio_apos_fora" || g === "regra_da_pessoa";
 }
 
 /**
@@ -214,5 +219,7 @@ export function gatilhoDeRevisao(s: SituacaoParaRevisao): GatilhoDoAutomatico | 
   if (s.credencial) return "credencial";
   if (s.arriscada) return "arriscado";
   if (s.envioParaFora && s.contaminado) return "envio_apos_fora";
+  // ADR-166 (2026-11-12): com regras de "Sempre me pergunte", o envio para fora num turno limpo também vai ao revisor.
+  if (s.envioParaFora && s.regrasDePerguntar === true) return "regra_da_pessoa";
   return null;
 }

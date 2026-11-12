@@ -9,7 +9,7 @@ import { qualCredencial, soLeCredencial } from "./comando.ts";
 export type AcaoDoModoParaTexto = {
   modo: "automatico" | "total";
   tipo: "comando" | "arquivo" | "leitura_credencial" | "app" | "mcp";
-  gatilho: "arriscado" | "envio_apos_fora" | "credencial" | "fora_da_pasta" | "comum";
+  gatilho: "arriscado" | "envio_apos_fora" | "credencial" | "fora_da_pasta" | "comum" | "regra_da_pessoa";
   /** O texto da ação, já redigido (`resumoDeTexto`): o comando, `Ler …`/`Gravar …` ou o pedido do MCP. */
   resumo: string;
   /** A frase fixa de `comandoArriscado` ("reescreve ou apaga no remoto"), quando é o arriscado. */

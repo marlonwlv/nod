@@ -10,7 +10,7 @@ import { pausarRotina } from "../../use-cases/pausar-rotina.ts";
 import type { Deps, Services, UseCasesNod } from "../../use-cases/tipos.ts";
 import { logarTickLento, paraCadaPessoa, type OpcoesLaco } from "./escopos-de-fundo.ts";
 
-/** definido em 2026-09-16: tick a cada 30 s — o cron tem granularidade de minuto e o Grok Bot promete "em até um minuto". */
+/** definido em 2026-09-16: tick a cada 30 s — o cron tem granularidade de minuto e a promessa é "em até um minuto". */
 export const INTERVALO_SCHEDULER_MS = 30_000;
 
 /** definido em 2026-10-16 (NOD-271): a tx de uma rotina acima disto vai para o log — o tick inteiro tem 30 s. */

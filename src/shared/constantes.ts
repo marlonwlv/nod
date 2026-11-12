@@ -73,11 +73,11 @@ export const MAX_RESULTADO_INLINE_CHARS = ORCAMENTO_RESULTADO_CHARS + 5_000;
 export const OUTBOX_TETO_TENTATIVAS = 5;
 /** definido em 2026-09-16: 30 min — só o teto esvaziaria a fila numa queda curta do consumidor (Práticas §7). */
 export const OUTBOX_IDADE_MIN_MS = 1_800_000;
-/** definido em 2026-09-16: limite do Grok Bot (docs/grokbot-comparison.md). */
+/** definido em 2026-09-16: limite de referência. */
 export const ROTINAS_POR_AGENTE = 50;
-/** definido em 2026-09-16: limite do Grok Bot. */
+/** definido em 2026-09-16: limite de referência. */
 export const EXECUCOES_GUARDADAS = 20;
-/** definido em 2026-09-16: sala = 2 a 6 bots (Grok Bot, ADR-027). */
+/** definido em 2026-09-16: sala = 2 a 6 bots (ADR-027). */
 export const SALA_MIN = 2;
 export const SALA_MAX = 6;
 /** Frames guardados por pessoa para replay. definido em 2026-09-16: cobre ~1 min de deltas de um turno; buffer podado → resumed:false (ADR-016). */

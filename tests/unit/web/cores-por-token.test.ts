@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * "cor-fixa: <motivo>" quando for de propósito igual nos dois temas.
  */
 const RAIZ = new URL("../../../web/", import.meta.url);
-const CSS = ["estilos.css", "interface.css", "navegacao.css", "ligacao.css", "onboarding.css", "computador-do-bot.css", "conta.css", "configuracoes.css", "agentes-lote.css", "quadro.css", "quadro-celular.css", "mobile.css", "celular-base.css", "tab-bar-celular.css"] as const;
+const CSS = ["estilos.css", "interface.css", "navegacao.css", "ligacao.css", "onboarding.css", "personagem.css", "computador-do-bot.css", "conta.css", "configuracoes.css", "agentes-lote.css", "quadro.css", "tarefas-de-todos.css", "quadro-celular.css", "mobile.css", "celular-base.css", "tab-bar-celular.css", "ds.css", "casca.css", "design-system.css"] as const;
 const LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/;
 const ler = (nome: string): string => readFileSync(new URL(nome, RAIZ), "utf8");
 
@@ -30,7 +30,7 @@ describe("cores só por token", () => {
     const declarados = new Set([...`${tokens}\n${todos}`.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
     // Variáveis que o TS escreve no elemento (style="--x: …") ou que têm fallback no próprio var().
     // NOD-323: as medidas da mídia do bot (web/lib/midia.ts) e o progresso da trilha (midia-dom.ts).
-    const doTs = new Set(["--nod-aviso", "--ms-segurar", "--x", "--altura-visivel", "--topo-visivel", "--w", "--ar", "--k", "--soma", "--n", "--r", "--p", "--qc-faixa-alto"]);
+    const doTs = new Set(["--largura-barra", "--nod-aviso", "--ms-segurar", "--x", "--altura-visivel", "--topo-visivel", "--w", "--ar", "--k", "--soma", "--n", "--r", "--p", "--qc-faixa-alto"]);
     // ADA-6: a altura da faixa do quadro (quadro-na-tela.ts, medirFaixa).
     const usados = [...todos.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]);
     const faltam = [...new Set(usados)].filter((v) => v !== undefined && !declarados.has(v) && !doTs.has(v));

@@ -140,9 +140,9 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
 describe("a pílula alargada (protótipo D4BE2)", () => {
   const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono()), "orq", progresso([], ["w1", "w2", "w3", "w4", "w5"])));
 
-  it("rodando primeiro, com o último passo e o tempo; depois as prontas pela hora, com ✓; o traço entre as duas", () => {
+  it("rodando primeiro, com o último passo e o tempo; depois as prontas da mais nova para a mais velha (Paper 15c), com ✓; o traço entre as duas", () => {
     const ordem = [...p.partes.corpo.matchAll(/data-id="(w\d)"/g)].map((m) => m[1]);
-    expect(ordem).toEqual(["w3", "w5", "w1", "w2", "w4"]);
+    expect(ordem).toEqual(["w3", "w5", "w4", "w2", "w1"]);
     expect(p.partes.corpo).toContain('Hero w3 · Terminal retrô</button><span class="sr-only"> (rodando)</span><span class="progresso-passo">ajustando o contraste</span></span><span class="progresso-fim">12 min</span>');
     expect(p.partes.corpo).toContain('<span class="progresso-passo">rodando os testes</span></span><span class="progresso-fim">9 min</span>');
     expect(p.partes.corpo).toContain('<li class="progresso-item pf-depois pronta">');
@@ -151,10 +151,12 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
   });
 
   it("o cabeçalho com o resumo e \"fechar\"; no pé, \"Ver na conversa ↑\" (com a fala na janela) e \"Parar\"", () => {
-    expect(p.partes.cab).toContain('<span class="pf-cab-titulo">5 frentes · 3 de 5 prontas</span>');
-    expect(p.partes.cab).toContain(`class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">fechar`);
+    // Paper 15c: o ponto na cor do bot, o título forte e só "N de M prontas" em cinza; "⌄ fechar".
+    expect(p.partes.cab).toContain('<span class="pf-cab-titulo"><b>5 frentes</b><span class="pf-cab-resto">3 de 5 prontas</span></span>');
+    expect(p.partes.cab).toContain(`class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">`);
+    expect(p.partes.cab).toMatch(/<\/svg>fechar<\/button>$/);
     expect(p.partes.pe).toContain('data-act="pilula-ver-na-conversa">Ver na conversa');
-    expect(p.partes.pe).toContain('<button type="button" class="pf-parar" data-act="pilula-parar">Parar</button>');
+    expect(p.partes.pe).toMatch(/<button type="button" class="pf-parar" data-act="pilula-parar"><svg[^]*?<\/svg>Parar<\/button>/);
     expect(p.pilula.abertas.map((t) => t.id)).toEqual(["w3", "w5"]);
     // A fala fora da janela carregada: "Ver na conversa" não tem para onde levar.
     expect(daPilula(pilulaNaConversa(estadoCom(HEROS, dono()), "orq", SEM_PROGRESSO)).partes.pe).not.toContain("Ver na conversa");

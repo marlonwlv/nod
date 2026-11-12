@@ -1,6 +1,6 @@
 # ADR-095 — Ditado no campo de mensagem: o 🎤 transcreve pelo STT da ligação, sem texto ao vivo
 
-**Status** aceito · decidido e implementado em 2026-10-11 (o Marlon pediu o microfone do Grok no campo: "aperta para
+**Status** aceito · decidido e implementado em 2026-10-11 (o Marlon pediu um microfone no campo: "aperta para
 gravar, fala tudo, depois aperta para enviar; não aparece a transcrição enquanto estou falando")
 
 Estende a ADR-071 (a voz roda no processo do nod, com provedores trocáveis) e a ADR-075 (consentimento versionado; nada
@@ -8,8 +8,7 @@ Estende a ADR-071 (a voz roda no processo do nod, com provedores trocáveis) e a
 
 ## Contexto
 
-O Grok tem um 🎤 no campo de mensagem, e as fotos que o Marlon mandou estão em
-[docs/referencias/ditado-grok/](../referencias/ditado-grok/). O jeito muda com o aparelho:
+O Marlon pediu um 🎤 no campo de mensagem, a partir de fotos de referência. O jeito muda com o aparelho:
 
 - **No computador:** apertar o 🎤 faz o campo dizer "Ouvindo…" e mostra a pílula `■ 0:08 •••••`. O ■ põe o texto
   transcrito no campo, para conferir antes de enviar.
@@ -82,7 +81,7 @@ Também já tinha o worklet de captura a 16 kHz, o VAD puro e a permissão de mi
   caminho se um dia o áudio não puder sair do Mac da pessoa.
 - **Gravar o arquivo e mandar ao gpt-4o-transcribe ou ao Whisper (Open WebUI, LibreChat).** O texto só começa a ser
   feito depois do clique, de 1 a 3 s, e exigiria uma chave da OpenAI no servidor. O streaming já existia.
-- **Mostrar o texto ao vivo (parciais).** O Marlon pediu sem, como no Grok. As parciais do Google também trocam palavras
+- **Mostrar o texto ao vivo (parciais).** O Marlon pediu sem. As parciais do Google também trocam palavras
   no meio da frase.
 - **Reusar o canal da mídia da ligação.** Ele exige uma ligação registrada no orquestrador, com turno-cérebro e Mac. O
   ditado não tem nada disso.

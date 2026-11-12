@@ -79,7 +79,19 @@ export type AcaoAtalho =
   | { tipo: "mover-pagina"; passo: 1 | -1 }
   /** NOD-461: fora do Mac, ⌥← → num campo com texto: não troca (o texto do quadro se perderia) nem vira o voltar. */
   | { tipo: "engolir" }
-  | { tipo: "folha" };
+  | { tipo: "folha" }
+  /** ADR-167 (atalhos novos que não colidem com os do nod): ⌘B barra só com avatares. */
+  | { tipo: "barra" }
+  /** ⌘, Configurações (Geral). */
+  | { tipo: "ajustes" }
+  /** ⌘I põe o foco no campo de mensagem. */
+  | { tipo: "focar-campo" }
+  /** ⌘L leva o texto selecionado na conversa para o campo, como citação. */
+  | { tipo: "selecao-no-campo" }
+  /** ⌘⇧N nova sala (conversa em grupo). */
+  | { tipo: "nova-sala" }
+  /** ⌘K a paleta de tudo: bots, conversas, ajustes e ações. */
+  | { tipo: "paleta" };
 
 type Mod = "meta" | "ctrl" | "alt";
 
@@ -136,13 +148,21 @@ function acaoDaTecla(t: Tecla, c: ContextoTecla): AcaoAtalho | null {
   const barra = key === "/" || (key.length !== 1 && t.code === "Slash" && !t.shiftKey);
   if (soCom(t, MOD_DA_FOLHA[c.lugar]) && barra) return { tipo: "folha" };
   if (!soCom(t, mod)) return null;
+  // ADR-167: no navegador do Mac o modificador é o ⌃, e num campo ⌃B, ⌃I e ⌃L são do macOS (cursor e rolagem do texto):
+  // lá esses três ficam com o campo. No app do Mac (⌘) e fora do Mac (Alt) valem em qualquer lugar.
+  const doCampo = c.emCampo && c.lugar === "navegador-mac";
   if (!t.shiftKey) {
     if (t.code === "KeyN") return { tipo: "novo-bot" };
+    if (t.code === "KeyB") return doCampo ? null : { tipo: "barra" };
+    if (t.code === "Comma") return { tipo: "ajustes" };
+    if (t.code === "KeyI") return doCampo ? null : { tipo: "focar-campo" };
+    if (t.code === "KeyL") return doCampo ? null : { tipo: "selecao-no-campo" };
     const digito = /^Digit([1-9])$/.exec(t.code);
     if (digito) return { tipo: "ir-ao-bot", n: Number(digito[1]) };
     const col = colchete(t);
     return col && (c.paginas ?? 0) > 1 ? { tipo: "pagina", passo: col } : null;
   }
+  if (t.code === "KeyN") return { tipo: "nova-sala" };
   const col = colchete(t);
   return col ? { tipo: "vizinho", passo: col } : null;
 }
@@ -249,7 +269,7 @@ export type LinhaDaFolha = {
   falado: string;
 };
 
-/** As 9 linhas da folha, nas teclas do lugar (⌥← → e ⌥⇧← → da pílula valem igual em todo lugar, `setaDaPilula`). ⌘K e ⌘⇧D aceitam ⌘ ou Ctrl: no Mac mostram ⌘, fora dele Ctrl. */
+/** As linhas da folha (9 da NOD-117 e 5 da ADR-167), nas teclas do lugar (⌥← → e ⌥⇧← → da pílula valem igual em todo lugar, `setaDaPilula`). ⌘K e ⌘⇧D aceitam ⌘ ou Ctrl: no Mac mostram ⌘, fora dele Ctrl. */
 export function linhasDaFolha(lugar: LugarTeclado): LinhaDaFolha[] {
   const m = MOD_DE[lugar];
   const f = MOD_DA_FOLHA[lugar];
@@ -265,10 +285,21 @@ export function linhasDaFolha(lugar: LugarTeclado): LinhaDaFolha[] {
     { titulo: "Página anterior e próxima do bot", combinacoes: [[k(m), "["], [k(m), "]"], [k("alt"), "←"], [k("alt"), "→"]], falado: `${fala(m)} colchete esquerdo e ${fala(m)} colchete direito, ou ${fala("alt")} seta para os lados` },
     { titulo: "Mover a página atual na pílula", combinacoes: [[k("alt"), shift, "←"], [k("alt"), shift, "→"]], falado: `${fala("alt")} Shift seta para os lados` },
     { titulo: "Folha de atalhos", combinacoes: [["?"], [k(f), "/"]], falado: `Interrogação, ou ${fala(f)} barra` },
-    { titulo: "Buscar agentes", combinacoes: [[k(busca), "K"]], falado: `${fala(busca)} K` },
+    { titulo: "Buscar bots, conversas, ajustes e ações", combinacoes: [[k(busca), "K"]], falado: `${fala(busca)} K` },
     { titulo: "Modo dev", combinacoes: [[k(busca), shift, "D"]], falado: `${fala(busca)} Shift D` },
     { titulo: "Fechar e voltar", combinacoes: [["esc"]], falado: "Esc" },
+    { titulo: "Nova sala", combinacoes: [[k(m), shift, "N"]], falado: `${fala(m)} Shift N` },
+    { titulo: "Barra lateral só com avatares", combinacoes: [[k(m), "B"]], falado: `${fala(m)} B` },
+    { titulo: "Configurações", combinacoes: [[k(m), ","]], falado: `${fala(m)} vírgula` },
+    { titulo: "Ir ao campo de mensagem", combinacoes: [[k(m), "I"]], falado: `${fala(m)} I` },
+    { titulo: "Levar o texto selecionado ao campo", combinacoes: [[k(m), "L"]], falado: `${fala(m)} L` },
   ];
+}
+
+/** Paper 03 (rodada 3 da casca): as teclas do "ir ao bot n" para a etiqueta da barra recolhida — ["⌘", "4"] no app do Mac. */
+export function teclasDoBot(lugar: LugarTeclado, n: number): string[] | null {
+  if (!Number.isInteger(n) || n < 1 || n > 9) return null;
+  return [NOME[MOD_DE[lugar]][lugar], String(n)];
 }
 
 /** O rótulo e o aria-keyshortcuts do + (Novo bot) no lugar. */

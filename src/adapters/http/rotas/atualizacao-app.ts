@@ -1,4 +1,4 @@
-import { arquiteturaDoApp, decidirAtualizacaoDoApp, plataformaDoApp, type ConfigAtualizacaoApp } from "../../../domain/atualizacao-app.ts";
+import { arquiteturaDoApp, configDoCanal, decidirAtualizacaoDoApp, plataformaDoApp, type ConfigAtualizacaoApp } from "../../../domain/atualizacao-app.ts";
 import { log } from "../../../obs/log.ts";
 import type { AssinadorDeUrl } from "../../atualizacao-app/assinador-gcs.ts";
 import type { Rota } from "../roteador.ts";
@@ -16,7 +16,12 @@ import type { Rota } from "../roteador.ts";
  * ADA-229 (ADR-152): `plataforma=windows` anuncia o instalador `.exe` (só x64, só com `win-x64=` no SHA-256); ausente = mac.
  * A URL assinada nunca vai para log.
  */
-export function rotasAtualizacaoApp(o: { config: ConfigAtualizacaoApp; assinar: AssinadorDeUrl | null; versaoMinima: string; publicadaEm?: string }): Rota[] {
+/**
+ * ADR-170: o canal de teste. `teste` é a versão de teste publicada no mesmo bucket (NOD_APP_VERSAO_TESTE) e `canalDe` diz,
+ * pelas flags remotas da pessoa da chave, se ela está no canal `teste`. Só quem está no teste recebe a de teste, e só se
+ * ela for mais nova que a estável; senão segue a estável.
+ */
+export function rotasAtualizacaoApp(o: { config: ConfigAtualizacaoApp; assinar: AssinadorDeUrl | null; versaoMinima: string; publicadaEm?: string; teste?: ConfigAtualizacaoApp; canalDe?: (escopo: { tenantId: string; pessoaId: string }) => "estavel" | "teste" }): Rota[] {
   return [{
     metodo: "GET",
     padrao: /^\/atualizacao$/,
@@ -30,7 +35,9 @@ export function rotasAtualizacaoApp(o: { config: ConfigAtualizacaoApp; assinar: 
       const plataforma = plataformaDoApp(busca.get("plataforma"));
       if (!plataforma) { ctx.json(400, { codigo: "entrada_invalida", mensagem: "plataforma deve ser mac ou windows" }); return; }
       const atual = ctx.req.headers["x-nod-versao"];
-      const decisao = decidirAtualizacaoDoApp({ atual, config: o.config, arch, plataforma });
+      const canal = o.teste && o.canalDe ? o.canalDe(ctx.escopo) : "estavel";
+      const config = canal === "teste" ? configDoCanal(o.config, o.teste ?? null) : o.config;
+      const decisao = decidirAtualizacaoDoApp({ atual, config, arch, plataforma });
       if (!decisao.anunciar || !o.assinar) { ctx.res.writeHead(204).end(); return; }
       let url: string;
       try {
@@ -40,7 +47,7 @@ export function rotasAtualizacaoApp(o: { config: ConfigAtualizacaoApp; assinar: 
         ctx.json(503, { codigo: "atualizacao_indisponivel", mensagem: "atualização indisponível agora" });
         return;
       }
-      log("info", "atualizacao_app_anunciada", { arch, plataforma, versao: decisao.versao, de: typeof atual === "string" ? atual.slice(0, 32) : null });
+      log("info", "atualizacao_app_anunciada", { arch, plataforma, canal, versao: decisao.versao, de: typeof atual === "string" ? atual.slice(0, 32) : null });
       ctx.json(200, { url, name: decisao.versao, notes: "", pub_date: o.publicadaEm ?? "1970-01-01T00:00:00Z", sha256: decisao.sha256 });
     },
   }];

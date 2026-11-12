@@ -10,7 +10,7 @@ export function descricaoEstado(_agente: Pick<Agente, "confirmado">, estado: { c
   return `${acessos} · ${execucoes}`;
 }
 
-/** definido em 2026-09-24 (sidebar no estilo do Grok): a prévia da última mensagem cabe numa linha. */
+/** definido em 2026-09-24 (sidebar compacta): a prévia da última mensagem cabe numa linha. */
 export const PREVIA_MAX = 140;
 
 /**

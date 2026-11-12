@@ -141,7 +141,7 @@ describe("ADA-2 F1: base do celular", () => {
   });
 
   it("6ª revisão: a pílula \"perguntou algo\" tem 14 no celular (a interface.css põe 13 com .pilula-novas.pilula-pergunta, mais específico)", () => {
-    expect(ultimo(ler("interface.css"), ".pilula-novas.pilula-pergunta", "font-size")).toBe("13px");
+    expect(ultimo(ler("interface.css"), ".pilula-novas.pilula-pergunta", "font-size")).toBe("var(--fs-corpo-2)");
     expect(ultimo(base, ".pilula-novas.pilula-pergunta", "font-size")).toBe("14px");
   });
 

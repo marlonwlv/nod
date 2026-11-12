@@ -67,7 +67,8 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
   it("painel: fora do ar, a aba Computador ganha o ponto vermelho (e o texto para leitor de tela); respondendo, não — e o cabeçalho fica limpo", () => {
     const dev = (e: Estado): Estado => ({ ...e, modoDev: { ...e.modoDev, ligado: true } });
     const fora = renderDetalhes(comFrota(nina(FORA)));
-    expect(fora).toMatch(/data-aba="computador"[^>]*>Computador<span class="gvn-ponto" aria-hidden="true"><\/span><span class="sr-only"> \(fora do ar\)<\/span>/);
+    // ADR-167 (Paper 02): o Computador é um bloco da Atividade; o ponto fica no nome dele.
+    expect(fora).toMatch(/Computador de Nina<span class="gvn-ponto" aria-hidden="true"><\/span><span class="sr-only"> \(fora do ar\)<\/span>/);
     expect(renderDetalhes(comFrota(nina(null)))).not.toContain("gvn-ponto");
     expect(renderDetalhes({ ...dev(comFrota(nina(FORA))), gaveta: { agenteId: "a1", nivel: { tipo: "ajustes" } } })).toContain(">Computador do bot</span>");
     expect(renderDetalhes({ ...comFrota(nina(FORA)), gaveta: { agenteId: "a1", nivel: { tipo: "ajustes" } } })).not.toContain(">Computador do bot</span>");
@@ -91,9 +92,9 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
   });
 
   // ADR-125: a tela saiu do topo da visão geral e mora na aba Computador; Detalhes abre com as rotinas.
-  it("painel: a tela do bot mora na aba Computador (ligado), com Abrir; a aba Detalhes não tem miniatura", () => {
+  it("painel: a tela do bot mora na aba Computador (ligado), com Abrir; a Atividade tem o bloco Computador que leva até ela", () => {
     const detalhes = renderDetalhes(comFrota(nina(null)));
-    expect(detalhes).not.toContain('data-tela-bot="a1"');
+    expect(detalhes).toContain('data-act="gaveta-aba" data-aba="computador" data-id="a1"');
     expect(detalhes).toContain("<h3>Rotinas</h3>");
     expect(detalhes).toContain("Nenhuma rotina ainda. Peça na conversa, do seu jeito: «todo dia útil às 8, me mande as pautas»");
     const ligado = renderDetalhes(naAbaComputador(comFrota(nina(null)), "ligado"));
@@ -106,7 +107,7 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
 
   it("painel: a ordem da visão geral é identidade, abas e o painel da aba (Rotinas e a linha Ajustes)", () => {
     const html = renderDetalhes(comFrota(nina(null)));
-    const ordem = ['class="gv-identidade gvn-id"', 'role="tablist"', "<h3>Rotinas</h3>", ">Ajustes<small>"].map((s) => html.indexOf(s));
+    const ordem = ['class="gv-identidade gvn-id"', 'role="tablist"', "<h3>Rotinas</h3>", "<h3>Ajustes</h3>"].map((s) => html.indexOf(s));
     expect(ordem.every((i) => i >= 0)).toBe(true);
     expect(ordem).toEqual([...ordem].sort((a, b) => a - b));
   });

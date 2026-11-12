@@ -342,16 +342,47 @@ function alinhamento(marca: string): Alinhamento {
 /** Célula curta (data, número, #PR) não quebra linha; texto longo quebra. */
 const CELULA_CURTA = 20;
 
+/** Paper 02/17 (rodada 2): a célula que é só uma prioridade vira chip (Urgente vermelho, Alta laranja, Média e Baixa cinza). */
+const PRIORIDADE = /^(urgente|alta|média|media|baixa)$/i;
+/** …e a que é só um código de issue ("NOD-512") vai em mono, apagada. */
+const CODIGO_DE_ISSUE = /^[A-Z][A-Z0-9]{1,9}-\d{1,6}$/;
+
 function celulaHtml(tag: "th" | "td", texto: string, al: Alinhamento, opcoes: OpcoesTexto): string {
-  const classes = [al ? `al-${al}` : "", texto.length <= CELULA_CURTA ? "curta" : ""].filter(Boolean).join(" ");
-  return `<${tag}${classes ? ` class="${classes}"` : ""}>${emLinha(texto, opcoes)}</${tag}>`;
+  const limpo = texto.trim();
+  const prio = tag === "td" && PRIORIDADE.test(limpo) ? limpo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : null;
+  const codigo = tag === "td" && CODIGO_DE_ISSUE.test(limpo);
+  const classes = [al ? `al-${al}` : "", texto.length <= CELULA_CURTA ? "curta" : "", prio ? "md-prio-cel" : "", codigo ? "md-codigo" : ""].filter(Boolean).join(" ");
+  const miolo = prio ? `<span class="md-prio md-prio-${prio}">${esc(limpo)}</span>` : emLinha(texto, opcoes);
+  return `<${tag}${classes ? ` class="${classes}"` : ""}>${miolo}</${tag}>`;
 }
 
 const ICONE_COPIAR = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>';
 
+/** O quadro do Paper (02/17): o ícone do cabeçalho da tabela que lista issues ("Linear · time NOD"). */
+const ICONE_QUADRO_TABELA = '<svg class="md-tabela-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg>';
+
+/**
+ * Paper 02/17 (rodada 3 da casca): a célula vazia do cabeçalho junta-se à de antes (colspan) — "Linear · time NOD" passa
+ * por cima da coluna do código sem quebrar — e a tabela cuja 1ª coluna é só código de issue ganha o ícone do quadro.
+ */
+function cabecalhoHtml(t: Tabela, opcoes: OpcoesTexto): string {
+  const issues = t.linhas.length > 0 && t.linhas.every((l) => CODIGO_DE_ISSUE.test((l[0] ?? "").trim()));
+  const grupos: { k: number; span: number }[] = [];
+  t.cabecalho.forEach((c, k) => {
+    const anterior = grupos[grupos.length - 1];
+    if (c.trim() === "" && anterior && t.cabecalho[anterior.k]?.trim()) anterior.span++;
+    else grupos.push({ k, span: 1 });
+  });
+  return grupos.map(({ k, span }) => {
+    const th = celulaHtml("th", t.cabecalho[k] ?? "", t.alinhamentos[k] ?? "", opcoes);
+    const comSpan = span > 1 ? th.replace(/^<th/, `<th colspan="${span}"`) : th;
+    return k === 0 && issues ? comSpan.replace(/^(<th[^>]*>)/, `$1${ICONE_QUADRO_TABELA}`) : comSpan;
+  }).join("");
+}
+
 function tabelaHtml(t: Tabela, opcoes: OpcoesTexto, indice: number): string {
   const recolhe = t.linhas.length > LINHAS_SEM_MOSTRAR_MAIS;
-  const cabeca = `<tr>${t.cabecalho.map((c, k) => celulaHtml("th", c, t.alinhamentos[k] ?? "", opcoes)).join("")}</tr>`;
+  const cabeca = `<tr>${cabecalhoHtml(t, opcoes)}</tr>`;
   const corpo = t.linhas.map((linha, n) => `<tr${recolhe && n >= LINHAS_VISIVEIS ? ' class="md-extra"' : ""}>${linha.map((c, k) => celulaHtml("td", c, t.alinhamentos[k] ?? "", opcoes)).join("")}</tr>`).join("");
   const escondidas = t.linhas.length - LINHAS_VISIVEIS;
   const disclosure = opcoes.chave ? ` data-disclosure="${esc(`tabela:${opcoes.chave}:${indice}`)}"` : "";

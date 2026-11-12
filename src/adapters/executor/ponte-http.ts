@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+import { traceparentDoTurno } from "../../domain/traceparent.ts";
 import type { FluxoVivo } from "./computador.ts";
 import type { ComandoComputador, EstadoComputadorRelatado, ResultadoComandoComputador } from "../../contracts/computador-motor.ts";
 import type { SessaoVivo } from "../../contracts/computador-vivo.ts";
@@ -27,7 +29,7 @@ export class FalhaPonte extends Error {
    * `entrada_invalida` (NOD-245): 400 — o servidor recusou o corpo. É definitivo: repetir o mesmo corpo dá o mesmo 400 (antes
    * virava `servidor_fora` e a entrega insistia por 120 s).
    */
-  readonly codigo: "servidor_fora" | "chave_invalida" | "atualize_app" | "reconectar" | "resposta_invalida" | "rota_ausente" | "ja_assentado" | "acao_recusada" | "entrada_invalida";
+  readonly codigo: "servidor_fora" | "chave_invalida" | "atualize_app" | "reconectar" | "resposta_invalida" | "rota_ausente" | "ja_assentado" | "acao_recusada" | "entrada_invalida" | "renovar";
   constructor(codigo: FalhaPonte["codigo"]) { super(codigo); this.codigo = codigo; }
 }
 
@@ -86,6 +88,14 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
   const trechos = new Map<string, TrechoVivo[]>();
   const ativos = new Set<AbortController>();
   /**
+   * ADR-171 (definido em 2026-11-12): as esperas longas (o `puxar`, long-poll de 20 s no servidor) que podem ser renovadas.
+   * O stream de pedidos se renova depois de 15 s de silêncio ou de uma troca de rede; aqui o silêncio já tem prazo
+   * (35 s = os 20 s do long-poll + 15 s), e a troca de rede (`renovarEsperas`, chamada pela vigia de rede do motor) aborta
+   * a espera presa num socket morto para a próxima sair na rede nova — sem aviso de "servidor fora".
+   */
+  const renovaveis = new Set<AbortController>();
+  const RENOVAR = Symbol("renovar");
+  /**
    * NOD-199: os turnos puxados e ainda não entregues (entregue ou abandonado). Com algum aqui, o anúncio de inventário
    * num servidor antigo NÃO cai no `conectar`, que recusaria ou limparia os planos do servidor.
    */
@@ -114,11 +124,15 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
    * processo novo de um deploy, que não conhece o turno, reconhece-o por ele. Sai junto com o turno (entregue ou abandonado).
    */
   const tokens = new Map<string, string>();
-  async function chamar<T>(nome: string, corpo: unknown, opcoes: { rota404?: true; tokenDeTurno?: string } = {}): Promise<T> {
+  async function chamar<T>(nome: string, corpo: unknown, opcoes: { rota404?: true; tokenDeTurno?: string; renovavel?: true } = {}): Promise<T> {
     const ctrl = new AbortController(); ativos.add(ctrl);
+    if (opcoes.renovavel) renovaveis.add(ctrl);
     const timer = setTimeout(() => ctrl.abort(), 35_000);
     try {
-      const r = await f(`${o.url}/api/maquina/${nome}`, { method: "POST", headers: { authorization: `Bearer ${o.chave}`, "content-type": "application/json", "x-nod-versao": o.versao, ...(opcoes.tokenDeTurno ? { "x-nod-token-turno": opcoes.tokenDeTurno } : {}) }, body: JSON.stringify(corpo), signal: ctrl.signal, redirect: "error" });
+      // ADR-171: a chamada de um turno leva o traceparent dele (trace = id do turno, span novo por chamada).
+      const turnoDoCorpo = corpo && typeof corpo === "object" && typeof (corpo as { turnoId?: unknown }).turnoId === "string" ? (corpo as { turnoId: string }).turnoId : null;
+      const traceparent = turnoDoCorpo ? traceparentDoTurno(turnoDoCorpo, randomBytes(8).toString("hex")) : null;
+      const r = await f(`${o.url}/api/maquina/${nome}`, { method: "POST", headers: { authorization: `Bearer ${o.chave}`, "content-type": "application/json", "x-nod-versao": o.versao, ...(opcoes.tokenDeTurno ? { "x-nod-token-turno": opcoes.tokenDeTurno } : {}), ...(traceparent ? { traceparent } : {}) }, body: JSON.stringify(corpo), signal: ctrl.signal, redirect: "error" });
       const minima = r.headers.get("x-nod-versao-minima");
       if (r.status === 426 || (minima && !versaoAceita(o.versao, minima))) throw new FalhaPonte("atualize_app");
       const codigo = r.ok ? undefined : await codigoDoCorpo(r);
@@ -131,12 +145,12 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
       if (!r.ok) throw new FalhaPonte("servidor_fora");
       return await r.json() as T;
     } catch (e) {
-      const erro = e instanceof FalhaPonte ? e : new FalhaPonte("servidor_fora");
+      const erro = e instanceof FalhaPonte ? e : ctrl.signal.reason === RENOVAR ? new FalhaPonte("renovar") : new FalhaPonte("servidor_fora");
       // O 404 da rota nova num servidor antigo não é falha de conexão: quem pediu decide (nada de aviso na tela).
       // `ja_assentado`, `acao_recusada` e `entrada_invalida` falam do turno, não da conexão: nada de aviso (nem de parar a máquina).
-      if (erro.codigo !== "rota_ausente" && erro.codigo !== "ja_assentado" && erro.codigo !== "acao_recusada" && erro.codigo !== "entrada_invalida") o.aoFalhar?.(erro.codigo);
+      if (erro.codigo !== "rota_ausente" && erro.codigo !== "ja_assentado" && erro.codigo !== "acao_recusada" && erro.codigo !== "entrada_invalida" && erro.codigo !== "renovar") o.aoFalhar?.(erro.codigo);
       throw erro;
-    } finally { clearTimeout(timer); ativos.delete(ctrl); }
+    } finally { clearTimeout(timer); ativos.delete(ctrl); renovaveis.delete(ctrl); }
   }
   const ponte: PonteInterna & Required<Pick<PonteInterna, "anunciarInventario">> = {
     // NOD-214: este cliente (com o laço) atravessa o reinício do servidor — o anúncio diz isso, e a drenagem deixa de esperá-lo.
@@ -172,11 +186,13 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
     },
     async puxar(_pessoaId, maquina, opcoes) {
       try {
-        const plano = (await chamar<{ plano: PlanoTurno | null }>("puxar", { ...(maquina ? { memoria: maquina } : {}), ...(opcoes?.soDaPessoa ? { soDaPessoa: true } : {}) })).plano;
+        const plano = (await chamar<{ plano: PlanoTurno | null }>("puxar", { ...(maquina ? { memoria: maquina } : {}), ...(opcoes?.soDaPessoa ? { soDaPessoa: true } : {}) }, { renovavel: true })).plano;
         if (plano) { emAndamento.add(plano.turnoId); primeiraFalha.delete(plano.turnoId); if (plano.tokenDeTurno) tokens.set(plano.turnoId, plano.tokenDeTurno); }
         return plano;
       }
       catch (e) {
+        // ADR-171: a espera renovada pela troca de rede volta vazia e o laço puxa de novo na hora.
+        if (e instanceof FalhaPonte && e.codigo === "renovar") return null;
         // Revisão do PR #295: o 409 do puxar entra na mesma reconexão das renovações (uma `conectar` só por reinício).
         if (e instanceof FalhaPonte && e.codigo === "reconectar" && anuncio) await reconectar(anuncio);
         throw e;
@@ -454,5 +470,7 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
       aparar(turnoId);
     },
     cancelar() { for (const c of ativos) c.abort(); },
+    /** ADR-171: a rede mudou — renova as esperas longas (puxar) sem tocar nas renovações e entregas dos turnos. */
+    renovarEsperas() { for (const c of renovaveis) c.abort(RENOVAR); return renovaveis.size; },
   };
 }

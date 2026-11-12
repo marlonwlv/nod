@@ -15,6 +15,7 @@ import { criarCodexCliDriver } from "../src/adapters/executor/drivers/codex-cli.
 import { driverDoPlano, iniciarLaco } from "../src/adapters/executor/laco.ts";
 import { iniciarPoolDeLacos, type PoolDeLacos } from "../src/adapters/executor/pool-lacos.ts";
 import { criarPonteHttp, FalhaPonte, urlServidor } from "../src/adapters/executor/ponte-http.ts";
+import { vigiarRede } from "../src/adapters/executor/vigia-de-rede.ts";
 import { encerrarGruposVivos, executarColetando, registrarGruposEm } from "../src/adapters/executor/processo.ts";
 import { encerrarGruposOrfaos, type ResultadoDaLimpeza } from "../src/adapters/executor/grupos-orfaos.ts";
 import { encerrarFugitivosDaInstancia } from "../src/adapters/executor/fugitivos.ts";
@@ -30,7 +31,8 @@ import { sistemaDeVerdade } from "../src/shared/instalador-ssh.ts";
 import { configDosDrivers, criarRegistryDetalhado } from "../src/adapters/executor/registry.ts";
 import { prazoSondaDoEnv } from "../src/adapters/executor/sonda.ts";
 import type { ConfigDriver, Driver, Registry, RegistroDriver } from "../src/adapters/executor/spi.ts";
-import { criarDetectorGh, executarGithubNaMaquina } from "../src/adapters/conectores-locais/github/maquina.ts";
+import { criarDetectorGh } from "../src/adapters/conectores-locais/github/maquina.ts";
+import { executarConectorNaMaquina } from "../src/adapters/conectores-locais/maquina.ts";
 import type { IaDesktop } from "../src/contracts/desktop.ts";
 import { compararVersoes, extrairVersao, PISO_CLI } from "../src/adapters/executor/flag-floors.ts";
 import type { AtualizadorDeIas } from "../desktop/atualizador-ias.ts";
@@ -251,7 +253,9 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   };
   // ADR-099 (I5): a frente que terminou sem trabalho sai na hora (a resposta do entregar traz a pasta).
   const ponteHttp = criarPonteHttp({ url: c.url, chave: c.chave, versao, aoFalhar, aoLimparAgora: (pastas) => void limpeza?.limparAgora(pastas) });
-  const gh = await criarDetectorGh({ ambiente: process.env }).logado();
+  // ADR-171: rede nova (Wi-Fi, VPN, IP) renova na hora o puxar preso no socket da rede velha.
+  vigiarRede({ aoMudar: () => { ponteHttp.renovarEsperas(); } });
+  const gh =await criarDetectorGh({ ambiente: process.env }).logado();
   const anuncio = { machineId: dados.machineId, nome: hostname(), versaoContrato: 1, github: { gh: gh && papel === "motor" }, ligacao: papel === "motor", plataforma: PLATAFORMA, papel, atualizaIas: !NO_WINDOWS } as const;
   // NOD-96 PR 2/3 (ADR-122): o computador da pessoa nesta máquina (só quando a instalação o trouxe). Relido a cada
   // reanúncio (a instalação pode ter terminado depois); a prova do bwrap roda uma vez só (não muda com o motor no ar).
@@ -276,7 +280,7 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
         for (const item of await ponteHttp.itensLocais()) {
           const jaRodou = relatos.get(item.itemId);
           if (jaRodou) { await relatar(item.itemId, jaRodou); continue; }
-          const r = await executarGithubNaMaquina({ capacidade: item.capacidade, argumentos: item.argumentos, ambiente: process.env });
+          const r = await executarConectorNaMaquina({ capacidade: item.capacidade, argumentos: item.argumentos, ambiente: process.env });
           await relatar(item.itemId, r.isError ? "falhou_na_execucao" : "executado");
         }
       })().catch(() => undefined).finally(() => { ocupado = false; });

@@ -53,7 +53,13 @@ export function timesComBots<A extends { secao?: string | null }>(bots: readonly
 }
 
 /** O nome que a pessoa lê: o Sem time tem nome "" no servidor. */
-export const nomeDoTime = (t: { nome: string; semTime?: boolean }): string => (t.semTime || t.nome === "" ? NOME_SEM_TIME : t.nome);
+export const nomeDoTime = (t: { nome: string; semTime?: boolean }): string => (t.semTime || t.nome === "" ? ROTULO_SEM_TIME : t.nome);
+
+/**
+ * Paper 02/15 (rodada 2, decisão do Marlon "igual ao Paper"): o cabeçalho do grupo sem time na barra diz "Sem seção", como
+ * a prancheta. Só o rótulo: a chave (`CHAVE_SEM_TIME`) e o resto do vocabulário de times seguem. Para voltar, "Sem time".
+ */
+export const ROTULO_SEM_TIME = "Sem seção";
 
 /** O Sem time só tem cabeçalho quando existe outro time (protótipo: sozinho, a barra é só a lista dos bots). */
 export const comCabecalho = (t: { semTime: boolean }, total: number): boolean => !t.semTime || total > 1;

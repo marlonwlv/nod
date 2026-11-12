@@ -1,4 +1,5 @@
 import type { Estado, SecaoEspaco } from "../estado/reducer.ts";
+import { htmlAjustesDoMac, type AjustesMac } from "./ajustes-mac.ts";
 import type { EstadoAvisos } from "../lib/avisos.ts";
 import { ehCelular } from "../lib/celular.ts";
 import { ICONE } from "../lib/icones.ts";
@@ -17,6 +18,19 @@ import { iniciaisDeQuem } from "./menu-conta.ts";
 import { renderAgentes } from "./config-agentes.ts";
 import { renderGeral } from "./config-geral.ts";
 import { renderAgendaRotinas, tituloDaAgendaCelular, valorDaAgenda } from "./agenda-rotinas.ts";
+import { buscarAjustes, caminhoDoAjuste } from "../lib/ajustes.ts";
+import type { EscolhaSons } from "../lib/sons.ts";
+
+/**
+ * ADR-167 (Configurações): a busca dos ajustes. Com termo, o conteúdo vira a lista do que casa — título, frase e
+ * o caminho —, e o clique leva à linha (irAoAjuste em web/main.ts). Sem termo, a seção de sempre.
+ */
+export function renderBuscaAjustes(termo: string): string {
+  const achados = buscarAjustes(termo);
+  if (!achados.length) return `<section class="espaco-secao cfg-secao cfg-busca-resultado"><h2>Busca</h2><p class="cfg-busca-vazia" role="status">Nenhum ajuste com “${esc(termo.trim())}”.</p></section>`;
+  const linhas = achados.map((a) => `<button type="button" class="cfg-achado" data-act="ir-ao-ajuste" data-ajuste="${esc(a.id)}"><span class="cfg-achado-txt"><b>${esc(a.titulo)}</b><small>${esc(a.frase)}</small></span><span class="cfg-achado-caminho">${caminhoDoAjuste(a).slice(1).map(esc).join(" › ")}</span></button>`).join("");
+  return `<section class="espaco-secao cfg-secao cfg-busca-resultado"><h2>Busca</h2><p class="sr-only" role="status">${achados.length} ${achados.length === 1 ? "ajuste" : "ajustes"}</p><div class="cfg-achados">${linhas}</div></section>`;
+}
 
 /**
  * "Seu espaço" (definido em 2026-09-18): o que é da CONTA, não de um bot. definido em 2026-09-30 (canvas "Menu, sidebar e
@@ -36,8 +50,23 @@ export const SECOES_ESPACO: readonly { id: SecaoEspaco; nome: string; icone: str
   { id: "agentes", nome: "Agentes", icone: ICONE.agentes },
   // NOD-85: a agenda das rotinas, depois de Agentes (rotina é o que os agentes fazem sozinhos).
   { id: "rotinas", nome: "Rotinas", icone: ICONE.relogio },
+  // ADR-166 (tela 07 do protótipo): os modos, as regras do revisor e o nível por app, antes de Feedback.
+  { id: "aprovacoes", nome: "Aprovações", icone: ICONE.escudo },
+  // Paper 07 (rodada 2): as chaves guardadas pelos cartões dos bots, entre Apps e IA no computador.
+  { id: "cofre", nome: "Cofre", icone: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="10.5" r="3"/><path d="M7.6 8.4L13.5 2.5M11.5 4.5l1.5 1.5M10 6l1.2 1.2"/></svg>' },
   { id: "feedback", nome: "Feedback", icone: ICONE.bandeira },
 ];
+
+const IC16 = (corpo: string): string => `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corpo}</svg>`;
+/** ADR-167 (Paper 07): os ícones da coluna das Configurações no computador. */
+const ICONE_DA_SECAO: Partial<Record<SecaoEspaco, string>> = {
+  geral: IC16('<path d="M6.9 1.8h2.2l.4 1.7 1.3.7 1.6-.6 1.1 1.9-1.3 1.2v1.5l1.3 1.2-1.1 1.9-1.6-.6-1.3.7-.4 1.7H6.9l-.4-1.7-1.3-.7-1.6.6-1.1-1.9 1.3-1.2V7.3L2.5 6.1l1.1-1.9 1.6.6 1.3-.7z"/><circle cx="8" cy="8" r="2"/>'),
+  conta: IC16('<circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14a5.2 5.2 0 0110.4 0"/>'),
+  maquinas: IC16('<rect x="2" y="2.5" width="12" height="8.5" rx="1.5"/><path d="M6 14h4M8 11v3"/>'),
+  aprovacoes: IC16('<path d="M8 2l5 2v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z"/>'),
+  conexao: IC16('<path d="M8 2l1.3 3.7L13 7l-3.7 1.3L8 12l-1.3-3.7L3 7l3.7-1.3z"/>'),
+};
+const ICONE_APPS = IC16('<rect x="2.5" y="2.5" width="4" height="4" rx="1"/><rect x="9.5" y="2.5" width="4" height="4" rx="1"/><rect x="2.5" y="9.5" width="4" height="4" rx="1"/><path d="M11.5 9.5v4M9.5 11.5h4"/>');
 
 /** ADA-245 (jornada D): com o texto do onboarding, "Máquinas" se chama "Computadores". */
 export function nomeDaSecao(s: { id: SecaoEspaco; nome: string }, estado: Pick<Estado, "onboardingTexto">): string {
@@ -64,19 +93,38 @@ export type ExtrasEspaco = {
   densidade?: Densidade;
   /** O valor curto de Provedores de IA na lista do celular ("Conectada", "Simulação"…), o mesmo do menu da conta. */
   conexao?: string;
+  /** ADR-167: o balão da pessoa na cor do bot e os sons deste computador. */
+  balaoCor?: boolean;
+  sons?: EscolhaSons;
+  /** ADR-167: o termo da busca dos ajustes (vazio = a seção aberta). */
+  buscaAjustes?: string;
+  /** ADR-166: a seção Aprovações já desenhada (o estado dela mora em web/lib/ajustes-aprovacao.ts, fora do reducer). */
+  aprovacoes?: () => string;
+  /** Paper 07 (rodada 2): a seção Cofre já desenhada (o estado mora em web/lib/cofre.ts). */
+  cofre?: () => string;
+  /** ADR-173: Quick Chat e ferramentas do Mac; só no app do Mac (null/ausente na web, no Windows e na VM). */
+  mac?: AjustesMac | null;
 };
 
 export function renderEspaco(estado: Estado, avisos: EstadoAvisos, volta: Volta, extras: ExtrasEspaco, celular = ehCelular()): string {
   if (celular) return renderEspacoCelular(estado, avisos, volta, extras);
   const secao = estado.espaco?.secao ?? "conexao";
-  const nav = SECOES_ESPACO.map((s) => `<button type="button" class="espaco-item" data-act="secao-espaco" data-secao="${s.id}"${s.id === secao ? ' aria-current="page"' : ""}>${s.icone}<span>${esc(nomeDaSecao(s, estado))}</span></button>`).join("");
-  return `<div class="espaco cfg-espaco" role="dialog" aria-modal="true" aria-labelledby="espaco-titulo">
+  // ADR-167 (Paper 07): no computador as Configurações são um modal sobre o app — a busca no topo das seções, na ordem do
+  // Paper (Geral, Conta, Máquinas, Aprovações, Apps, IA); Agentes, Rotinas e Feedback, que o Paper não desenhou, vêm depois.
+  const item = (s: (typeof SECOES_ESPACO)[number]) => `<button type="button" class="espaco-item" data-act="secao-espaco" data-secao="${s.id}"${s.id === secao ? ' aria-current="page"' : ""}>${ICONE_DA_SECAO[s.id] ?? s.icone}<span>${esc(s.id === "conexao" ? "IA" : nomeDaSecao(s, estado))}</span></button>`;
+  const porId = (id: SecaoEspaco) => SECOES_ESPACO.find((s) => s.id === id);
+  const apps = `<button type="button" class="espaco-item" data-act="navegar" data-tela="conectores">${ICONE_APPS}<span>Apps</span></button>`;
+  const doPaper = (["geral", "conta", "maquinas", "aprovacoes"] as const).map((id) => porId(id)).filter((s) => s !== undefined).map(item).join("") + apps + (["cofre", "conexao"] as const).map((id) => porId(id)).filter((s) => s !== undefined).map(item).join("");
+  // Decisão do Marlon (rodada 2): Agentes, Rotinas e Feedback, que o Paper não desenhou, ficam no fim, num grupo à parte.
+  const resto = SECOES_ESPACO.filter((s) => !["geral", "conta", "maquinas", "aprovacoes", "cofre", "conexao"].includes(s.id)).map(item).join("");
+  const nav = `${doPaper}<span class="espaco-nav-sep" role="separator"></span>${resto}`;
+  return `<div class="espaco cfg-espaco cfg-modal" role="dialog" aria-modal="true" aria-labelledby="espaco-titulo">
     <nav class="espaco-nav" aria-label="Seções das Configurações">
-      <div class="espaco-volta"><button type="button" class="espaco-voltar" data-act="fechar-espaco" aria-keyshortcuts="Escape" title="Voltar para ${esc(volta.rotulo)} (Esc)">${ICONE.voltar}${volta.icone}<span>${esc(volta.rotulo)}</span></button><kbd>esc</kbd></div>
-      <h1 id="espaco-titulo">Configurações</h1>
+      <h1 id="espaco-titulo" class="sr-only">Configurações</h1>
+      <label class="cfg-busca"><span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg></span><input id="busca-ajustes" type="search" data-manter-foco="busca-ajustes" placeholder="Buscar ajustes" aria-label="Buscar ajustes" autocomplete="off" spellcheck="false" value="${esc(extras.buscaAjustes ?? "")}" /></label>
       <div class="espaco-itens">${nav}</div>
     </nav>
-    <main class="espaco-conteudo">${conteudo(estado, secao, avisos, extras)}</main>
+    <main class="espaco-conteudo"><div class="cfg-modal-topo"><button type="button" class="espaco-voltar cfg-fechar" data-act="fechar-espaco" aria-keyshortcuts="Escape" aria-label="Fechar as Configurações e voltar para ${esc(volta.rotulo)}" title="Fechar (Esc)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>${extras.buscaAjustes?.trim() ? renderBuscaAjustes(extras.buscaAjustes) : conteudo(estado, secao, avisos, extras)}</main>
   </div>`;
 }
 
@@ -135,15 +183,21 @@ function conteudo(estado: Estado, secao: SecaoEspaco, avisos: EstadoAvisos, extr
         experimentos: estado.experimentos,
         quadroLiberado: estado.quadroLiberado ?? false,
         densidade: extras.densidade,
+        ...(extras.balaoCor !== undefined ? { balaoCor: extras.balaoCor } : {}),
+        ...(extras.sons ? { sons: extras.sons } : {}),
       }, estado.configUi, celular);
     case "conexao":
       return renderProvedores(estado);
     case "maquinas":
-      return renderSecaoMaquinas(estado);
+      return `${renderSecaoMaquinas(estado)}${extras.mac ? htmlAjustesDoMac(extras.mac) : ""}`;
     case "agentes":
       return renderAgentes(estado);
+    case "aprovacoes":
+      return extras.aprovacoes?.() ?? '<section class="cfg-secao"><h2>Aprovações</h2><p class="lc-vazio">Carregando…</p></section>';
     case "rotinas":
       return renderAgendaRotinas(estado, celular);
+    case "cofre":
+      return extras.cofre?.() ?? '<section class="cfg-secao"><h2>Cofre</h2><p class="lc-nota">Abrindo o cofre…</p></section>';
     case "feedback":
       return renderRelatos(estado);
   }

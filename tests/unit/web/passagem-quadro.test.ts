@@ -44,7 +44,7 @@ describe("web/telas/colunas-quadro: passagem", () => {
     const h = popoverDePassagem(col("revisao"), AGENTES);
     expect(h).toContain("Sem passagem");
     expect(h).toContain("Passar para um agente");
-    expect(h).toContain("começa na hora");
+    expect(h).toContain("Começa na hora");
     expect(h).toMatch(/value="agente" checked/);
     expect(h).toMatch(/value="caio" selected/);
     expect(h).toContain("O que essa etapa faz");
@@ -55,9 +55,9 @@ describe("web/telas/colunas-quadro: passagem", () => {
   });
 
   it("revisão 3 do PR #622: o popover só diz \"começa na hora\" onde a coluna aciona", () => {
-    expect(popoverDePassagem(col("afazer"), AGENTES)).toContain("começa na hora");
+    expect(popoverDePassagem(col("afazer"), AGENTES)).toContain("Começa na hora");
     const backlog = popoverDePassagem(col("backlog"), AGENTES);
-    expect(backlog).not.toContain("começa na hora");
+    expect(backlog).not.toContain("Começa na hora");
     expect(backlog).toContain("sem acionar");
   });
 

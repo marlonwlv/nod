@@ -9,25 +9,25 @@
 /* ---------- Links e botão ghost (ações de card: nunca botão cheio) ---------- */
 .cb-link { display: inline; margin: 0; padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
 .cb-link:hover { color: var(--ink); text-decoration-color: currentColor; }
-.cb-link:focus-visible, .cb-bt-ghost:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+.cb-link:focus-visible, .cb-bt-ghost:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--raio-4); }
 .cb-sep { margin: 0 2px; color: var(--ink-3); }
-.cb-bt-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; margin: 0; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.cb-bt-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; margin: 0; padding: 0 10px; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); font-weight: 500; cursor: pointer; }
 .cb-bt-ghost:hover { background: var(--surface-selected); color: var(--ink); }
 .cb-bt-ghost svg { flex: none; width: 15px; height: 15px; }
 
 /* ---------- Card sutil (o erro com cara de mensagem): balão normal do bot, ponto pequeno, título, apoio e links ---------- */
-.message.bot .bubble.cb-aviso, .bubble.cb-aviso { padding: 10px 14px; font-size: 14px; line-height: 1.5; }
+.message.bot .bubble.cb-aviso, .bubble.cb-aviso { padding: 10px 14px; font-size: var(--fs-corpo); line-height: 1.5; }
 .cb-aviso p { margin: 0; }
 .cb-aviso-tit { display: flex; align-items: flex-start; gap: 8px; font-weight: 500; color: var(--ink); }
 .cb-ponto { flex: none; display: inline-block; width: 6px; height: 6px; margin-top: calc(.75em - 3px); border-radius: 50%; background: var(--danger); }
 .cb-ponto.aviso { background: var(--warning); }
 .cb-ponto.neutro { background: var(--ink-3); }
-.cb-aviso-sub { padding-left: 14px; color: var(--ink-3); font-size: 13.5px; }
-.cb-acoes { margin-top: 4px !important; padding-left: 14px; font-size: 13.5px; }
+.cb-aviso-sub { padding-left: 14px; color: var(--ink-3); font-size: var(--fs-corpo); }
+.cb-acoes { margin-top: 4px !important; padding-left: 14px; font-size: var(--fs-corpo); }
 .cb-acoes .cb-link, .cb-linha .cb-link { white-space: nowrap; }
 
 /* ---------- Estado de espera e ✓: uma linha cinza, sem caixa ---------- */
-.cb-linha { display: flex; align-items: flex-start; gap: 7px; width: fit-content; max-width: 100%; box-sizing: border-box; margin: 6px 0 0; padding: 0; color: var(--ink-3); font-size: 13px; line-height: 1.5; }
+.cb-linha { display: flex; align-items: flex-start; gap: 7px; width: fit-content; max-width: 100%; box-sizing: border-box; margin: 6px 0 0; padding: 0; color: var(--ink-3); font-size: var(--fs-corpo-2); line-height: 1.5; }
 .cb-linha-ic { flex: none; display: grid; place-items: center; width: 15px; height: 1.5em; color: var(--ink-3); }
 .cb-linha-txt { min-width: 0; clip-path: inset(-24px -24px -24px 0); } /* corta só à esquerda: o "·" de quem abre linha */
 .cb-segs { display: flex; flex-wrap: wrap; margin-left: -15px; }
@@ -46,17 +46,17 @@
 .cb-anel { display: block; width: 12px; height: 12px; overflow: visible; }
 .cb-anel circle { fill: none; stroke-width: 2; }
 .cb-anel .cb-anel-trilho { stroke: var(--line-strong); }
-.cb-anel .cb-anel-valor { stroke: var(--signal); stroke-linecap: round; transition: stroke-dasharray .3s ease; }
+.cb-anel .cb-anel-valor { stroke: var(--signal); stroke-linecap: round; transition: stroke-dasharray var(--dur-mais-lento) ease; }
 
 /* ---------- A linha de 2 px no cabeçalho do chat (o progresso, em segundo plano) ---------- */
 /* Vai dentro do button.pilula-bot. No computador, a pílula é o cabeçalho: a linha acende a borda de baixo dela, na
    parte reta. No celular, a pílula não é posicionada e a linha cai na borda de baixo do .cabecalho inteiro. */
 .cb-fio { position: absolute; left: 0; right: 0; bottom: -1px; z-index: 1; display: block; height: 2px; overflow: hidden; background: transparent; pointer-events: none; }
-.cb-fio > i { display: block; height: 100%; background: var(--signal); transition: width .3s ease; }
+.cb-fio > i { display: block; height: 100%; background: var(--signal); transition: width var(--dur-mais-lento) ease; }
 .cb-fio.cb-fio-fim > i { animation: cb-fio-some .6s 1.2s both; }
 @keyframes cb-fio-some { to { opacity: 0; } }
 .pilula-bot:has(> .cb-fio) { position: relative; }
-.pilula-bot > .cb-fio { left: 19px; right: 19px; bottom: -1px; border-radius: 2px; }
+.pilula-bot > .cb-fio { left: 19px; right: 19px; bottom: -1px; border-radius: var(--raio-2); }
 .pilula-bot > .cb-fio > i { border-radius: inherit; }
 /* A mesma condição do mobile.css do nod (onde a pílula vira a faixa do ☰). */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
@@ -65,22 +65,22 @@
 }
 
 /* ---------- A miniatura da tela: "Abrir" no centro, leve escurecimento, sem pílula ---------- */
-.tela-preview.cb-mini .tela-abrir, .tela-preview.com-imagem.cb-mini .tela-abrir { opacity: 1; background: #00000033; transition: background .15s ease; } /* cor-fixa: véu sobre o monitor */
+.tela-preview.cb-mini .tela-abrir, .tela-preview.com-imagem.cb-mini .tela-abrir { opacity: 1; background: #00000033; transition: background var(--dur-normal) ease; } /* cor-fixa: véu sobre o monitor */
 .tela-preview.cb-mini:hover .tela-abrir, .tela-preview.cb-mini:focus-visible .tela-abrir { background: #00000073; } /* cor-fixa: a tela do bot é sempre escura */
-.cb-abrir { display: inline-flex; align-items: center; gap: 6px; color: #fff; font-size: 13.5px; font-weight: 500; text-shadow: 0 1px 8px #000a; } /* cor-fixa: texto sobre o monitor */
+.cb-abrir { display: inline-flex; align-items: center; gap: 6px; color: #fff; font-size: var(--fs-corpo); font-weight: 500; text-shadow: 0 1px 8px #000a; } /* cor-fixa: texto sobre o monitor */
 .cb-abrir svg { width: 16px; height: 16px; filter: drop-shadow(0 1px 4px #0009); } /* cor-fixa: a tela do bot é sempre escura */
 .tela-preview.cb-mini:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.cb-ao-vivo { position: absolute; top: 8px; left: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px 2px 6px; border-radius: 999px; background: #00000080; color: #fff; font-size: 11px; font-weight: 500; line-height: 1.4; } /* cor-fixa: selo sobre o monitor */
+.cb-ao-vivo { position: absolute; top: 8px; left: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px 2px 6px; border-radius: var(--raio-full); background: #00000080; color: #fff; font-size: var(--fs-legenda); font-weight: 500; line-height: 1.4; } /* cor-fixa: selo sobre o monitor */
 .cb-ao-vivo i { width: 6px; height: 6px; border-radius: 50%; background: #3ecf8e; animation: cb-pulsa 2.4s ease-in-out infinite; } /* cor-fixa: o --agent-vert */
 
 /* ---------- Sem tela: uma linha discreta, sem caixa ---------- */
-.cb-gv-linha { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 2px 0 4px; color: var(--ink-3); font-size: 13px; line-height: 1.45; text-align: center; }
+.cb-gv-linha { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 2px 0 4px; color: var(--ink-3); font-size: var(--fs-corpo-2); line-height: 1.45; text-align: center; }
 .cb-gv-linha svg { flex: none; width: 15px; height: 15px; }
 
 /* ---------- O mascote (htmlMascote do nod, estado "pausado" = dormindo) ---------- */
 .cb-sono { --mascote-cor: var(--agent-bleu); }
 /* ---------- Dormindo: fundo sutil com estrelas, mascote respirando, z z z, Acordar ---------- */
-.cb-sono { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; aspect-ratio: 1.6; box-sizing: border-box; padding: 12px 16px; overflow: hidden; border-radius: 16px; background: var(--surface-raised); color: var(--ink); text-align: center; }
+.cb-sono { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; aspect-ratio: 1.6; box-sizing: border-box; padding: 12px 16px; overflow: hidden; border-radius: var(--raio-16); background: var(--surface-raised); color: var(--ink); text-align: center; }
 .cb-sono p { margin: 0; }
 .cb-estrelas { position: absolute; inset: 0; pointer-events: none; }
 .cb-estrelas i { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--ink-3); opacity: .35; animation: cb-brilha 3.2s ease-in-out infinite; }
@@ -93,12 +93,12 @@
 .cb-sono-masc { position: relative; display: grid; margin-bottom: 4px; }
 .cb-sono-masc > .mascote { grid-area: 1 / 1; transform-origin: 50% 90%; }
 .cb-sono .cb-respira { animation: cb-respira 4s ease-in-out infinite; }
-.cb-zzz { position: absolute; left: 80%; bottom: 62%; display: flex; gap: 1px; color: var(--ink-3); font-size: 11px; font-weight: 600; line-height: 1; pointer-events: none; }
+.cb-zzz { position: absolute; left: 80%; bottom: 62%; display: flex; gap: 1px; color: var(--ink-3); font-size: var(--fs-legenda); font-weight: 600; line-height: 1; pointer-events: none; }
 .cb-zzz i { font-style: normal; opacity: 0; animation: cb-zzz 3s ease-in-out infinite; }
-.cb-zzz i:nth-child(2) { font-size: 13px; animation-delay: .5s; }
-.cb-zzz i:nth-child(3) { font-size: 15px; animation-delay: 1s; }
-.cb-sono-tit { font-size: 13.5px; font-weight: 500; line-height: 1.35; }
-.cb-sono-sub { font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
+.cb-zzz i:nth-child(2) { font-size: var(--fs-corpo-2); animation-delay: .5s; }
+.cb-zzz i:nth-child(3) { font-size: var(--fs-corpo); animation-delay: 1s; }
+.cb-sono-tit { font-size: var(--fs-corpo); font-weight: 500; line-height: 1.35; }
+.cb-sono-sub { font-size: var(--fs-corpo-2); line-height: 1.4; color: var(--ink-3); }
 .cb-sono .cb-bt-ghost { margin-top: 4px; }
 .cb-sono .cb-bt-ghost:hover { background: var(--surface); }
 @keyframes cb-respira { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.035, .965); } }
@@ -125,11 +125,11 @@ dialog.cb-veu[open] { display: flex; align-items: center; justify-content: cente
 dialog.cb-veu::backdrop { background: var(--backdrop); }
 .cb-tela-vista > img.controlavel { cursor: default; }
 .cb-tela-vista > img:focus-visible { outline: 2px solid #fff; outline-offset: -5px; } /* cor-fixa: WCAG 2.4.7, dentro da borda azul do controle */
-.cb-tela { position: relative; flex: none; width: 100%; max-height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-radius: 14px; background: #111113; color: #e4e4e7; box-shadow: 0 24px 64px #0007; } /* cor-fixa: a moldura do monitor, escura nos dois temas */
-.cb-tela-cab { flex: none; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 6px 0 14px; box-sizing: border-box; font-size: 13px; }
-.cb-tela-tit { flex: none; margin: 0; font-size: 13px; font-weight: 500; color: #e4e4e7; } /* cor-fixa: a tela do bot é sempre escura */
+.cb-tela { position: relative; flex: none; width: 100%; max-height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--raio-14); background: #111113; color: #e4e4e7; box-shadow: 0 24px 64px #0007; } /* cor-fixa: a moldura do monitor, escura nos dois temas */
+.cb-tela-cab { flex: none; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 6px 0 14px; box-sizing: border-box; font-size: var(--fs-corpo-2); }
+.cb-tela-tit { flex: none; margin: 0; font-size: var(--fs-corpo-2); font-weight: 500; color: #e4e4e7; } /* cor-fixa: a tela do bot é sempre escura */
 .cb-tela-pedido { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #a1a1aa; } /* cor-fixa: 7,6:1 sobre #111113 */
-.cb-tela-cab .cb-tela-x { flex: none; display: grid; place-items: center; width: 32px; height: 32px; margin: 0 0 0 auto; padding: 0; border: 0; border-radius: 8px; background: none; color: #a1a1aa; cursor: pointer; } /* cor-fixa: a tela do bot é sempre escura */
+.cb-tela-cab .cb-tela-x { flex: none; display: grid; place-items: center; width: 32px; height: 32px; margin: 0 0 0 auto; padding: 0; border: 0; border-radius: var(--raio-8); background: none; color: #a1a1aa; cursor: pointer; } /* cor-fixa: a tela do bot é sempre escura */
 .cb-tela-cab .cb-tela-x:hover { background: #ffffff14; color: #fff; } /* cor-fixa: a tela do bot é sempre escura */
 .cb-tela-x:focus-visible { outline: 2px solid #4ea3f0; outline-offset: 0; } /* cor-fixa: o --focus-ring do escuro */
 /* A moldura abraça a tela (16:10, a resolução do computador): sobra fundo escurecido em volta, não faixa preta. Se não couber na altura, encolhe e a imagem fica inteira (contain). */
@@ -140,7 +140,7 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 .cb-tela-vista > .cb-tela-vivo[hidden] { display: none; }
 .cb-tela-vista.no-controle::after { content: ""; position: absolute; inset: 0; z-index: 2; border: 3px solid #4ea3f0; pointer-events: none; } /* cor-fixa: a borda do controle, como na v1 */
 /* A pílula: estado + ação em link, embaixo e no meio, translúcida. */
-.cb-pilula { position: absolute; z-index: 3; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100% - 24px); box-sizing: border-box; padding: 7px 14px; border: 1px solid #ffffff1f; border-radius: 999px; background: #1c1c1ecc; color: #d4d4d8; font-size: 13px; line-height: 1.35; box-shadow: 0 6px 20px #0005; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); } /* cor-fixa: sobre a tela */
+.cb-pilula { position: absolute; z-index: 3; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; width: max-content; max-width: calc(100% - 24px); box-sizing: border-box; padding: 7px 14px; border: 1px solid #ffffff1f; border-radius: var(--raio-full); background: #1c1c1ecc; color: #d4d4d8; font-size: var(--fs-corpo-2); line-height: 1.35; box-shadow: 0 6px 20px #0005; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); } /* cor-fixa: sobre a tela */
 .cb-pilula svg { flex: none; width: 15px; height: 15px; }
 .cb-pilula .ob-gira { flex: none; width: 10px; height: 10px; border-width: 1.5px; }
 .cb-pilula-est { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -152,27 +152,27 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 /* ---------- Card de login leve: miniatura do site, título, ponto âmbar, dica; sem caixa ---------- */
 .cb-login { display: flex; align-items: center; gap: 12px; max-width: 520px; padding: 2px 0; }
 .cb-login p { margin: 0; }
-.cb-login-mini { position: relative; flex: none; display: block; width: 72px; height: 48px; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #1c1c1e; cursor: pointer; } /* cor-fixa: monitor */
+.cb-login-mini { position: relative; flex: none; display: block; width: 72px; height: 48px; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--raio-8); background: #1c1c1e; cursor: pointer; } /* cor-fixa: monitor */
 .cb-login-mini img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
 /* 72 × 48 é pouco para texto por cima: o site e o favicon ficam à vista, e "Abrir" só aparece no hover e no foco. */
-.cb-login-mini .cb-abrir { position: absolute; inset: 0; justify-content: center; gap: 4px; background: #00000080; font-size: 12px; opacity: 0; transition: opacity .15s ease; } /* cor-fixa: a tela do bot é sempre escura */
+.cb-login-mini .cb-abrir { position: absolute; inset: 0; justify-content: center; gap: 4px; background: #00000080; font-size: var(--fs-rotulo); opacity: 0; transition: opacity var(--dur-normal) ease; } /* cor-fixa: a tela do bot é sempre escura */
 .cb-login-mini .cb-abrir svg { width: 13px; height: 13px; }
 .cb-login-mini:hover .cb-abrir, .cb-login-mini:focus-visible .cb-abrir, .cb-login-mini.sem-imagem .cb-abrir { opacity: 1; }
 .cb-login-mini:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .cb-login-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.cb-login-tit { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 14px; font-weight: 600; line-height: 1.4; color: var(--ink); }
-.cb-aguarda { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 400; color: var(--ink-3); }
+.cb-login-tit { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: var(--fs-corpo); font-weight: 600; line-height: 1.4; color: var(--ink); }
+.cb-aguarda { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-corpo-2); font-weight: 400; color: var(--ink-3); }
 .cb-aguarda .cb-ponto { margin-top: 0; background: var(--warning); animation: cb-pulsa 2.4s ease-in-out infinite; }
-.cb-login-sub { font-size: 13px; line-height: 1.4; color: var(--ink-3); }
-.cb-login-dica { font-size: 12px; line-height: 1.4; color: var(--ink-3); }
+.cb-login-sub { font-size: var(--fs-corpo-2); line-height: 1.4; color: var(--ink-3); }
+.cb-login-dica { font-size: var(--fs-rotulo); line-height: 1.4; color: var(--ink-3); }
 
 /* ---------- Seu espaço › Computador do bot (o painel das duas issues) ---------- */
 .seu-pc .pc-cartao { overflow: visible; }
 .pc-memoria { padding: 12px 18px 16px; border-top: 1px solid var(--line); }
-.pc-mem-cab { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 13px; color: var(--ink-2); }
+.pc-mem-cab { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: var(--fs-corpo-2); color: var(--ink-2); }
 .pc-mem-cab span:last-child { font-variant-numeric: tabular-nums; text-align: right; }
-.pc-barra { height: 6px; border-radius: 999px; background: var(--surface-raised); overflow: hidden; }
-.pc-barra i { display: block; height: 100%; border-radius: inherit; background: var(--ink-2); transition: width .3s ease; }
+.pc-barra { height: 6px; border-radius: var(--raio-full); background: var(--surface-raised); overflow: hidden; }
+.pc-barra i { display: block; height: 100%; border-radius: inherit; background: var(--ink-2); transition: width var(--dur-mais-lento) ease; }
 .pc-barra.cheia i { background: var(--warning); }
 .pc-cartao:has(.pc-barra.cheia) .pc-mem-cab span:last-child { color: var(--warning); font-weight: 500; }
 .pc-barra.grande { height: 6px; margin: 10px 0 4px; }
@@ -182,49 +182,49 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 .maq-estado.pc-dorme svg { flex: none; color: var(--ink-3); }
 .pc-telas .pc-tela { gap: 12px; }
 .pc-tela .mascote { flex: none; }
-.pc-vazio { margin: 0; padding: 16px 18px; font-size: 13.5px; line-height: 1.5; color: var(--ink-3); }
+.pc-vazio { margin: 0; padding: 16px 18px; font-size: var(--fs-corpo); line-height: 1.5; color: var(--ink-3); }
 .pc-acao { display: flex; align-items: center; gap: 16px; padding: 14px 18px; }
 .pc-acao + .pc-acao { border-top: 1px solid var(--line); }
 .pc-acao-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pc-acao-txt b { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; font-size: 14px; font-weight: 500; }
-.pc-acao-txt > span { font-size: 13px; line-height: 1.45; color: var(--ink-3); }
+.pc-acao-txt b { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; font-size: var(--fs-corpo); font-weight: 500; }
+.pc-acao-txt > span { font-size: var(--fs-corpo-2); line-height: 1.45; color: var(--ink-3); }
 .pc-acao > .bt { flex: none; }
 .espaco-conteudo .bt.sm.perigo { color: var(--danger); border-color: var(--danger-line); }
 /* Vindo de um aviso: a ação sugerida só com o foco e a palavra "sugerido", sem fundo. */
 .pc-acao.realce > .bt, .pc-lugar.realce > .bt { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.pc-sugerido { font-size: 12.5px; font-weight: 400; color: var(--signal); }
+.pc-sugerido { font-size: var(--fs-corpo-2); font-weight: 400; color: var(--signal); }
 .pc-atividade { list-style: none; margin: 0; padding: 0; }
-.pc-atividade li { display: flex; align-items: center; gap: 12px; padding: 10px 18px; font-size: 13.5px; }
+.pc-atividade li { display: flex; align-items: center; gap: 12px; padding: 10px 18px; font-size: var(--fs-corpo); }
 .pc-atividade li + li { border-top: 1px solid var(--line); }
 .pc-atividade li > span:not(.av-me) { flex: 1; min-width: 0; color: var(--ink-2); }
 .pc-atividade li b { font-weight: 500; color: var(--ink); }
-.pc-atividade time { flex: none; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.pc-atividade time { flex: none; font-size: var(--fs-corpo-2); color: var(--ink-3); white-space: nowrap; }
 .pc-atividade .mascote { flex: none; }
 .pc-atividade .av-me.pc-eu { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surface-raised); color: var(--ink-2); font-size: 10px; }
 /* A faixa no topo do painel: sutil, só a borda; .alerta quando algo impede. */
-.pc-faixa { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 24px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: none; }
+.pc-faixa { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 24px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--raio-14); background: none; }
 .pc-faixa > svg { flex: none; margin-top: 2px; color: var(--ink-3); }
 .pc-faixa > div { flex: 1; min-width: 0; }
-.pc-faixa b { font-size: 14px; font-weight: 500; }
-.pc-faixa p { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--ink-3); }
+.pc-faixa b { font-size: var(--fs-corpo); font-weight: 500; }
+.pc-faixa p { margin: 2px 0 0; font-size: var(--fs-corpo-2); line-height: 1.5; color: var(--ink-3); }
 .pc-faixa > .bt, .pc-faixa > .cb-bt-ghost { flex: none; }
 .pc-faixa.alerta { border-color: var(--warning-line); }
 .pc-faixa.alerta > svg { color: var(--warning); }
 /* Etapas (redefinir, primeiro uso, mover): a atual com o giro e o %. */
 .pc-progresso h3 { margin-bottom: 0; }
-.pc-lead { margin: 6px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.pc-lead { margin: 6px 0 0; font-size: var(--fs-corpo); line-height: 1.5; color: var(--ink-2); }
 .pc-etapas { list-style: none; display: grid; gap: 8px; margin: 12px 0 0; padding: 0; }
-.pc-etapas li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-3); }
+.pc-etapas li { display: flex; align-items: center; gap: 10px; font-size: var(--fs-corpo); color: var(--ink-3); }
 .pc-etapas li.feita { color: var(--ink-2); }
 .pc-etapas li.atual { color: var(--ink); font-weight: 500; }
 .pc-et-nome { display: flex; flex-direction: column; min-width: 0; }
-.pc-et-sub { font-size: 12.5px; font-weight: 400; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.pc-et-sub { font-size: var(--fs-corpo-2); font-weight: 400; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .pc-et-ic { flex: none; display: grid; place-items: center; width: 18px; height: 18px; }
 .pc-et-ic i { width: 8px; height: 8px; box-sizing: border-box; border: 1.5px solid var(--line-strong); border-radius: 50%; }
 .feita .pc-et-ic { color: var(--success); }
 .pc-et-ic .ob-gira { width: 11px; height: 11px; border-width: 1.5px; }
 .pc-pct { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 400; color: var(--ink-2); }
-.cl-dialogo .pc-obs { margin: 14px 0 0; font-size: 13px; color: var(--ink-3); }
+.cl-dialogo .pc-obs { margin: 14px 0 0; font-size: var(--fs-corpo-2); color: var(--ink-3); }
 /* O progresso dentro do cartão do painel (sem modal). */
 .pc-prog-inline { padding: 12px 18px 16px; border-top: 1px solid var(--line); }
 .pc-prog-inline .pc-mem-cab { margin-bottom: 0; }
@@ -276,9 +276,9 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 .cb-cena .cb-peca.p3 { fill: var(--agent-ambre); }
 .cb-cena-masc { position: absolute; left: 12%; bottom: 12%; display: grid; width: 23%; aspect-ratio: 1; }
 .cb-cena-masc > nod-mascote { grid-area: 1 / 1; width: 100%; height: 100%; transform-origin: 50% 95%; }
-.cb-cena-caixa { position: absolute; left: 24%; top: -20%; width: 52%; height: 32%; box-sizing: border-box; border: 2px solid var(--ink-2); border-radius: 4px; background: var(--warning-soft); }
+.cb-cena-caixa { position: absolute; left: 24%; top: -20%; width: 52%; height: 32%; box-sizing: border-box; border: 2px solid var(--ink-2); border-radius: var(--raio-4); background: var(--warning-soft); }
 .cb-cena-caixa::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink-2); opacity: .5; }
-.cb-cena-mao { position: absolute; right: -4%; top: -10%; width: 15%; height: 46%; border-radius: 999px; background: var(--mascote-cor); opacity: 0; transform: rotate(24deg); transform-origin: 50% 92%; }
+.cb-cena-mao { position: absolute; right: -4%; top: -10%; width: 15%; height: 46%; border-radius: var(--raio-full); background: var(--mascote-cor); opacity: 0; transform: rotate(24deg); transform-origin: 50% 92%; }
 /* Baixando: anda carregando a caixa; as peças caem no monitor, que enche com o progresso. */
 .cb-cena[data-etapa="baixando"] .cb-cena-masc > nod-mascote, .cb-cena[data-etapa="baixando"] .cb-cena-caixa { animation: cb-passo .8s ease-in-out infinite; }
 .cb-cena[data-etapa="baixando"] .cb-peca { animation: cb-cai 2.4s ease-in infinite; }
@@ -304,7 +304,7 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 .pc-primeiro-uso h3 { text-align: center; }
 .pc-primeiro-uso .pc-lead { text-align: center; }
 .pc-primeiro-uso .cl-dialogo-acoes { justify-content: center; }
-.pc-et-sub { color: var(--ink-3); font-size: 12px; }
+.pc-et-sub { color: var(--ink-3); font-size: var(--fs-rotulo); }
 
 /* ---------- Movimento reduzido: tudo parado ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -338,5 +338,68 @@ dialog.cb-veu::backdrop { background: var(--backdrop); }
 }
 
 /* NOD-97 PR 5: o selo do cadeado na linha "Entrou de novo com a senha salva" ("‹bot› não vê a senha"). */
-.at-sigilo { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--surface-selected); color: var(--ink-3); font-style: normal; font-size: 11px; white-space: nowrap; vertical-align: 1px; }
+.at-sigilo { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 7px; border-radius: var(--raio-full); background: var(--surface-selected); color: var(--ink-3); font-style: normal; font-size: var(--fs-legenda); white-space: nowrap; vertical-align: 1px; }
 .at-sigilo svg { flex: none; }
+
+/* ---------- Tela 11 (ADR-173, 2026-11-12): o estado do computador em uma palavra, no desenho do protótipo ----------
+   Rótulo pequeno acima do cartão; cartão com título, apoio e, à direita, a miniatura (ao vivo) ou um ícone do estado.
+   Só tokens existentes; nada de token global novo. */
+.cbe { margin: 0 0 12px; }
+.cbe-rotulo { margin: 0 0 6px; color: var(--ink-2); font-size: 13px; font-weight: 500; }
+.cbe-cartao { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
+.cbe-txt { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
+.cbe-txt b { color: var(--ink); font-size: 13px; font-weight: 500; }
+.cbe-apoio { overflow: hidden; color: var(--ink-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.cbe-apoio.vivo { color: var(--success); }
+.cbe-icone { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 64px; height: 40px; border-radius: 8px; background: var(--surface-selected); color: var(--ink-3); }
+.cbe-icone.gira svg { animation: cbe-gira 1.2s linear infinite; }
+.cbe-mini { position: relative; flex: none; width: 64px; height: 40px; padding: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 8px; background: #1b1d22; cursor: pointer; } /* cor-fixa: a tela do bot é sempre escura */
+.cbe-mini img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cbe-mini:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cbe-acoes { display: flex; gap: 8px; margin: 10px 0 0; }
+.cbe-acoes .bt svg { margin-right: 4px; vertical-align: -2px; }
+.cbe-topo { display: inline-flex; align-items: center; gap: 12px; font-size: 13px; }
+.cbe-topo-pilula { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .08); color: #fff; } /* cor-fixa: a tela do bot é sempre escura */
+.cbe-topo-extra { color: rgba(255, 255, 255, .55); } /* cor-fixa: a tela do bot é sempre escura */
+.cbe-ponto { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
+.cbe-topo[data-estado-computador="ao_vivo"] .cbe-ponto { background: var(--success); }
+.cbe-topo[data-estado-computador="sem_conexao"] .cbe-ponto { background: var(--danger); }
+@keyframes cbe-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cbe-icone.gira svg { animation: none; } }
+
+/* Tela 11 do Paper (rodada 2): o cartão branco de raio 12 com a sombra leve, a linha de 60 (título 13, apoio 12 e o
+   ícone num ladrilho de 64 × 40), as ações do Sem conexão dentro dele ("Tentar de novo" cheio e "Ver máquinas" com
+   contorno) e 16 entre um estado e o outro. */
+.cbe { margin: 0 0 16px; }
+.cbe-rotulo { margin: 0 0 8px; line-height: 18px; }
+.cbe-cartao { display: block; padding: 0; border: 1px solid var(--borda-sutil); background: var(--surface-elevated); box-shadow: var(--sombra-inline); }
+:root[data-theme="dark"] .cbe-cartao { box-shadow: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cbe-cartao { box-shadow: none; } }
+.cbe-linha { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 12px; box-sizing: border-box; }
+.cbe-txt b { line-height: 18px; }
+.cbe-apoio { line-height: 16px; }
+.cbe-icone { background: var(--hover); }
+.cbe-acoes { margin: 0; padding: 0 12px 12px; }
+.cbe-acoes .bt { height: 28px; min-height: 28px; padding: 0 10px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+.cbe-acoes .bt:not(.primario) { border: 1px solid var(--borda); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-controle); }
+.cbe-acoes .bt.primario { border: 1px solid transparent; background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); }
+
+/* Rodada 3 (tela 11 do Paper, os 3 estados): o rótulo é o p_label (16 em cima, 8 embaixo, 4 de recuo), o título do cartão
+   em peso normal, 10 px entre o texto e o ladrilho, o ladrilho com a borda fina e, ao vivo sem a imagem ainda, o desenho
+   de uma tela (barra escura e uma janela clara) no lugar do bloco preto. */
+.cbe { margin: 0; }
+.cbe-rotulo { margin: 0; padding: 16px 4px 8px; line-height: 18px; }
+.cbe-linha { gap: 10px; padding: 8px 12px; }
+.cbe-txt { gap: 0; }
+.cbe-txt b { font-weight: var(--peso-regular); }
+.cbe-icone { box-sizing: border-box; border: 1px solid var(--borda-sutil); }
+.cbe-mini { box-sizing: border-box; border-color: var(--borda-sutil); background: #1d1f24; } /* cor-fixa: a tela do bot é sempre escura */
+.cbe-mini-vazia { position: absolute; inset: 0; display: block;
+  background:
+    linear-gradient(#ffffff33, #ffffff33) 4px 4px / 60% 5px no-repeat, /* cor-fixa: o desenho da tela do bot (sempre escura) */
+    linear-gradient(#1c1c1c14, #1c1c1c14) 7px 15px / 15px 19px no-repeat, /* cor-fixa: o desenho da tela do bot (sempre escura) */
+    linear-gradient(#1c1c1c26, #1c1c1c26) 25px 15px / 30px 3px no-repeat, /* cor-fixa: o desenho da tela do bot (sempre escura) */
+    linear-gradient(#1c1c1c1a, #1c1c1c1a) 25px 20px / 21px 3px no-repeat, /* cor-fixa: o desenho da tela do bot (sempre escura) */
+    linear-gradient(#f5f5f5, #f5f5f5) 4px 12px / calc(100% - 8px) calc(100% - 16px) no-repeat; } /* cor-fixa: a tela do bot é sempre escura; o desenho é o computer_thumb do Paper */
+.cbe-mini-vazia { border-radius: 0; }
+.cbe-mini img:not([hidden]) + .cbe-mini-vazia { display: none; }

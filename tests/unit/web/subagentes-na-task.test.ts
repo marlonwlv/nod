@@ -50,7 +50,12 @@ describe("NOD-350: os subagentes na tela da task", () => {
     expect(html).toContain("Rodou um comando…");
     expect(html).toContain('<span class="p350-cab-txt">2 subagentes trabalhando</span>');
     expect(html).toMatch(/<div class="passo p350-cab"><span class="ponto-trabalho c-purple" aria-hidden="true">/);
-    expect(pulsos(html)).toBe(1);
+    // Casca r4 (Paper 15b): o passo de agora do bot é o mascote dele girando (o "run" do Paper), no lugar do ponto que
+    // pulsa; o ponto do cabeçalho dos subagentes fica parado. Uma coisa só se mexe na tela.
+    expect(html).toMatch(/<div class="passo passo-agora"><span class="passo-ic-mascote" aria-hidden="true"><nod-mascote [^>]*state="orbit"/);
+    expect(pulsos(html)).toBe(0);
+    // Os subagentes que trabalham também levam o mascote no lugar do ponto.
+    expect(html).toContain('<li class="progresso-item rodando" data-p350-sub="a1"><span class="progresso-ic rodando com-mascote" aria-hidden="true"><nod-mascote');
 
     e = f(e, "turno.fala", {});
     html = ao(e);

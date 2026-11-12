@@ -5,54 +5,54 @@
 
 /* ---------- O menu do avatar ---------- */
 /* A faixa só com problema: uma linha, ponto de cor + texto secundário + o botão como link. Sem fundo. */
-.menu-conta .mc-faixa { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 6px 10px 12px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-2); }
+.menu-conta .mc-faixa { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 6px 10px 12px; border-bottom: 1px solid var(--line); font-size: var(--fs-corpo-2); color: var(--ink-2); }
 .mc-faixa > i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--warning); }
 .mc-faixa > span { flex: 1; min-width: 0; }
-.menu-conta .mc-faixa button { width: auto; min-height: 32px; padding: 4px 8px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.menu-conta .mc-faixa button { width: auto; min-height: 32px; padding: 4px 8px; border-radius: var(--raio-8); font-size: var(--fs-corpo-2); font-weight: 500; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .menu-conta .mc-faixa button:hover, .menu-conta .mc-faixa button:focus-visible { background: var(--surface-raised); text-decoration-color: currentColor; }
 
 /* Quem está logado: só texto, sem ação. */
 .menu-conta .mc-quem { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; padding: 6px 10px 10px; border-bottom: 1px solid var(--line); }
-.mc-av { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--ink-2); }
-.mc-av-g { width: 36px; height: 36px; font-size: 13px; }
+.mc-av { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); font-size: var(--fs-rotulo); font-weight: 600; letter-spacing: .02em; color: var(--ink-2); }
+.mc-av-g { width: 36px; height: 36px; font-size: var(--fs-corpo-2); }
 .mc-quem-txt { min-width: 0; }
-.mc-quem-txt b { display: block; font-size: 14px; font-weight: 500; line-height: 1.3; color: var(--ink); }
-.mc-quem-txt small { display: block; overflow: hidden; font-size: 12.5px; line-height: 1.35; color: var(--ink-3); text-overflow: ellipsis; white-space: nowrap; }
+.mc-quem-txt b { display: block; font-size: var(--fs-corpo); font-weight: 500; line-height: 1.3; color: var(--ink); }
+.mc-quem-txt small { display: block; overflow: hidden; font-size: var(--fs-corpo-2); line-height: 1.35; color: var(--ink-3); text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- Configurações: a lateral com 6 seções ---------- */
 .cfg-espaco .espaco-itens { margin-top: 4px; }
 .cfg-espaco .espaco-item > svg { flex: none; width: 18px; height: 18px; }
-.espaco-conteudo .cfg-secao > h2 { margin: 0 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
-.cfg-secao > .intro { margin: 0 0 22px; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.espaco-conteudo .cfg-secao > h2 { margin: 0 0 6px; font-size: var(--fs-titulo-2); font-weight: 600; letter-spacing: -.01em; }
+.cfg-secao > .intro { margin: 0 0 22px; font-size: var(--fs-corpo); line-height: 1.5; color: var(--ink-2); }
 
 /* ---------- linhaConfig: o componente único ---------- */
 .lc-grupo { display: block; width: 100%; margin: 0 0 26px; }
-.lc-grupo-tit { margin: 0 0 8px 2px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.lc-grupo-tit { margin: 0 0 8px 2px; font-size: var(--fs-corpo-2); font-weight: 600; color: var(--ink-2); }
 /* foco-ok: recebe o foco só pelo código (o menu "Ajuda" abre Geral em #ajuda); não é um controle */
 .lc-grupo-tit:focus { outline: none; }
 .lc-grupo-tit span { margin-left: 4px; font-weight: 400; color: var(--ink-3); }
-.lc-lista { box-sizing: border-box; width: 100%; overflow: visible; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.lc-lista { box-sizing: border-box; width: 100%; overflow: visible; border: 1px solid var(--line); border-radius: var(--raio-14); background: var(--surface); }
 .lc-lista > * + * { border-top: 1px solid var(--line); }
 .lc-linha { box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 11px 16px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; }
-.lc-lista > .lc-linha:first-child, .lc-lista > :first-child > .lc-linha:first-child { border-top-left-radius: 13px; border-top-right-radius: 13px; }
-.lc-lista > .lc-linha:last-child { border-bottom-left-radius: 13px; border-bottom-right-radius: 13px; }
+.lc-lista > .lc-linha:first-child, .lc-lista > :first-child > .lc-linha:first-child { border-top-left-radius: var(--raio-14); border-top-right-radius: var(--raio-14); }
+.lc-lista > .lc-linha:last-child { border-bottom-left-radius: var(--raio-14); border-bottom-right-radius: var(--raio-14); }
 .lc-ic { flex: none; display: grid; place-items: center; min-width: 22px; color: var(--ink-2); }
 .lc-ic svg { width: 18px; height: 18px; }
 .lc-ic .icon.mascote { width: 30px; height: 30px; }
 .lc-txt { flex: 1; min-width: 0; }
-.lc-txt b { display: block; font-size: 14px; font-weight: 500; line-height: 1.35; color: var(--ink); }
-.lc-txt small { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
+.lc-txt b { display: block; font-size: var(--fs-corpo); font-weight: 500; line-height: 1.35; color: var(--ink); }
+.lc-txt small { display: block; margin-top: 2px; font-size: var(--fs-corpo-2); line-height: 1.4; color: var(--ink-3); }
 .lc-ctrl { flex: none; display: flex; align-items: center; gap: 8px; }
 .lc-link { cursor: pointer; }
 .lc-link:hover, .lc-linha[aria-current="true"] { background: var(--surface-raised); }
 .lc-link:disabled { cursor: default; opacity: .6; }
-.lc-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 12px; }
-.lc-seta { flex: none; display: grid; place-items: center; color: var(--ink-3); transition: transform .15s; }
+.lc-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: var(--raio-12); }
+.lc-seta { flex: none; display: grid; place-items: center; color: var(--ink-3); transition: transform var(--dur-normal); }
 .lc-seta svg { width: 16px; height: 16px; }
 .lc-seta.aberta { transform: rotate(90deg); }
 
 /* O status: um ponto e o texto; a cor fica só no ponto, o texto é secundário. */
-.lc-status { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.lc-status { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-corpo-2); color: var(--ink-2); white-space: nowrap; }
 .lc-status > i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); }
 .lc-status.lc-tom-ok > i { background: var(--success); }
 .lc-status.lc-tom-atencao > i { background: var(--warning); }
@@ -60,8 +60,8 @@
 .lc-status.lc-tom-neutro { color: var(--ink-3); }
 
 /* Um switch só (a base visual do .avisos-trilho). A área de toque passa de 44px pelo ::before. */
-.lc-switch { position: relative; flex: none; width: 34px; height: 20px; padding: 0; border: 0; border-radius: 10px; background: var(--line-strong); cursor: pointer; transition: background .15s; }
-.lc-switch > span { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-knob); transition: transform .15s; }
+.lc-switch { position: relative; flex: none; width: 34px; height: 20px; padding: 0; border: 0; border-radius: var(--raio-10); background: var(--line-strong); cursor: pointer; transition: background var(--dur-normal); }
+.lc-switch > span { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-knob); transition: transform var(--dur-normal); }
 .lc-switch[aria-checked="true"] { background: var(--action); }
 .lc-switch[aria-checked="true"] > span { transform: translateX(14px); }
 .lc-switch:disabled { cursor: default; opacity: .5; }
@@ -69,10 +69,10 @@
 .lc-switch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 
 /* O seletor: <select> nativo (teclado e leitor de tela de graça), só com a pele do nod. */
-.lc-seletor { max-width: 260px; min-height: 32px; padding: 5px 30px 5px 11px; border: 1px solid var(--line); border-radius: 9px; background-color: var(--surface);
+.lc-seletor { max-width: 260px; min-height: 32px; padding: 5px 30px 5px 11px; border: 1px solid var(--line); border-radius: var(--raio-10); background-color: var(--surface);
   background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
   background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
-  color: var(--ink); font: inherit; font-size: 13.5px; text-overflow: ellipsis; -webkit-appearance: none; appearance: none; cursor: pointer; }
+  color: var(--ink); font: inherit; font-size: var(--fs-corpo); text-overflow: ellipsis; -webkit-appearance: none; appearance: none; cursor: pointer; }
 .lc-seletor:hover { border-color: var(--line-strong); }
 .lc-seletor:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
@@ -81,15 +81,15 @@
 .lc-aninhada { width: auto; margin: 0 12px 6px 28px; border: 0; border-radius: 0; background: none; }
 .lc-aninhada > .lc-linha { padding-left: 4px; padding-right: 4px; border-radius: 0; }
 .lc-aninhada > :first-child { border-top: 1px solid var(--line); }
-.lc-nota { margin: 8px 2px 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); }
-.lc-vazio { margin: 18px 2px; font-size: 14px; color: var(--ink-2); }
-.lc-quando { flex: none; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lc-nota { margin: 8px 2px 0; font-size: var(--fs-corpo-2); line-height: 1.5; color: var(--ink-3); }
+.lc-vazio { margin: 18px 2px; font-size: var(--fs-corpo); color: var(--ink-2); }
+.lc-quando { flex: none; font-size: var(--fs-corpo-2); color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lc-perigo b, .lc-perigo .lc-ic { color: var(--danger); }
 
 /* O "…" dentro da linha: o menu real (.cl-menu) por cima das linhas de baixo. */
 .lc-linha .cl-mais:has(.cl-menu) { z-index: 5; }
 .lc-linha .cl-menu { width: 300px; }
-.cl-menu .cfg-leitura { margin: 6px 10px; font-size: 12px; line-height: 1.45; color: var(--ink-3); border-radius: 6px; cursor: default; }
+.cl-menu .cfg-leitura { margin: 6px 10px; font-size: var(--fs-rotulo); line-height: 1.45; color: var(--ink-3); border-radius: var(--raio-6); cursor: default; }
 .cl-menu .cfg-leitura:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .cl-menu [role="menuitemradio"] { align-items: flex-start; }
 .cl-menu [role="menuitemradio"][aria-checked="true"] { background: var(--surface-selected); }
@@ -99,17 +99,17 @@
 
 /* ---------- Conta ---------- */
 .cfg-perfil .lc-ic { min-width: 36px; }
-.cfg-perfil .conta-avatar { width: 36px; height: 36px; font-size: 13px; }
+.cfg-perfil .conta-avatar { width: 36px; height: 36px; font-size: var(--fs-corpo-2); }
 
 /* ---------- Geral ---------- */
 .cfg-kbd { display: inline-flex; gap: 4px; }
-.cfg-kbd kbd { min-width: 22px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; font: 12px var(--font-sans); color: var(--ink-2); text-align: center; }
+.cfg-kbd kbd { min-width: 22px; padding: 2px 6px; border: 1px solid var(--line); border-radius: var(--raio-6); font: var(--fs-rotulo) var(--font-sans); color: var(--ink-2); text-align: center; }
 
 /* ---------- Máquinas ---------- */
 .cfg-chave { padding: 2px 16px 14px 50px; }
 .cfg-chave dl, .cfg-dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; margin: 0; }
-.cfg-chave dt, .cfg-dl dt { font-size: 12px; color: var(--ink-3); }
-.cfg-chave dd, .cfg-dl dd { margin: 2px 0 0; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.cfg-chave dt, .cfg-dl dt { font-size: var(--fs-rotulo); color: var(--ink-3); }
+.cfg-chave dd, .cfg-dl dd { margin: 2px 0 0; font-size: var(--fs-corpo-2); color: var(--ink); overflow-wrap: anywhere; }
 .cfg-chave .lc-nota { margin-top: 10px; }
 .cfg-chave .bt-texto, .cfg-det .bt-texto { margin-top: 8px; }
 /* O que abre embaixo da linha da máquina (renomear, a chave, a nuvem, o que roda no Mac) fica no mesmo bloco. */
@@ -122,16 +122,16 @@
 .cfg-mac-agora .lc-lista { border: 0; border-radius: 0; }
 .cfg-leitura .maq-nivel { display: inline-block; margin-right: 6px; vertical-align: middle; }
 .cfg-chave-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-.cfg-chave-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-3); }
-.cfg-chave.chave-emitida { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; }
+.cfg-chave-form label { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
+.cfg-chave.chave-emitida { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--raio-14); }
 .cfg-chave.chave-emitida .acoes { display: flex; gap: 8px; margin-top: 10px; }
 
 /* ---------- Agentes ---------- */
-.cfg-busca { display: flex; align-items: center; gap: 8px; height: 40px; margin: 0 0 18px; padding: 0 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); color: var(--ink-3); }
+.cfg-busca { display: flex; align-items: center; gap: 8px; height: 40px; margin: 0 0 18px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface); color: var(--ink-3); }
 .cfg-busca:focus-within { border-color: var(--line-strong); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .cfg-busca svg { flex: none; width: 16px; height: 16px; }
 /* foco-ok: o contorno fica no .cfg-busca:focus-within, em volta da caixa inteira */
-.cfg-busca input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--ink); font: inherit; font-size: 14px; outline: none; }
+.cfg-busca input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo); outline: none; }
 .cfg-busca + .lc-nota { margin: -10px 2px 14px; }
 
 /* ---------- A ficha do bot: a linha Máquina ---------- */
@@ -140,10 +140,10 @@
 /* ---------- Feedback ---------- */
 .cfg-fb { container-type: inline-size; }
 .cfg-fb-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin: 0 0 26px; }
-.espaco-conteudo .cfg-fb-cab h2 { margin: 0 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
-.cfg-fb-cab .intro { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.espaco-conteudo .cfg-fb-cab h2 { margin: 0 0 6px; font-size: var(--fs-titulo-2); font-weight: 600; letter-spacing: -.01em; }
+.cfg-fb-cab .intro { margin: 0; font-size: var(--fs-corpo); line-height: 1.5; color: var(--ink-2); }
 /* A ação principal sem botão cheio: contorno, texto escuro. */
-.cfg-enviar { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+.cfg-enviar { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--raio-full); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo); font-weight: 500; cursor: pointer; }
 .cfg-enviar svg { width: 16px; height: 16px; color: var(--ink-2); }
 .cfg-enviar:hover { background: var(--surface-raised); }
 .cfg-enviar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
@@ -156,9 +156,9 @@
 }
 /* O detalhe abre embaixo do envio, como a chave em Máquinas. */
 .cfg-det { padding: 2px 16px 6px; }
-.cfg-det-rot { margin: 12px 0 4px; font-size: 12px; color: var(--ink-3); }
-.cfg-det .cfg-prosa { margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
-.cfg-det-ctx { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); }
+.cfg-det-rot { margin: 12px 0 4px; font-size: var(--fs-rotulo); color: var(--ink-3); }
+.cfg-det .cfg-prosa { margin: 0; font-size: var(--fs-corpo); line-height: 1.55; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cfg-det-ctx { display: flex; align-items: center; gap: 8px; font-size: var(--fs-corpo); color: var(--ink-2); }
 .cfg-det .cfg-dl { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }
 
 /* ---------- Celular ---------- */
@@ -207,16 +207,91 @@
 .rm-dialogo { width: min(440px, calc(100vw - 32px)); }
 /* foco-ok: o título recebe o foco só pelo código, ao abrir o diálogo; não é um controle */
 .rm-dialogo h3:focus { outline: none; }
-.rm-dialogo .rm-caixa { margin: 10px 0 0; font-size: 13.5px; line-height: 1.4; }
+.rm-dialogo .rm-caixa { margin: 10px 0 0; font-size: var(--fs-corpo); line-height: 1.4; }
 .rm-fim { max-width: 620px; }
 /* foco-ok: o título recebe o foco só pelo código, ao abrir a tela de Fim; não é um controle */
 .rm-fim h2:focus { outline: none; }
-.rm-fim-onde { margin: 0 0 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.rm-fim-onde { margin: 0 0 8px; font-size: var(--fs-legenda); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .rm-lista { list-style: none; margin: 20px 0 24px; padding: 0; }
-.rm-item { display: grid; grid-template-columns: 28px 1fr; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.rm-item { display: grid; grid-template-columns: 28px 1fr; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); font-size: var(--fs-corpo); }
 .rm-item:last-child { border-bottom: 1px solid var(--line); }
-.rm-item small { display: block; font-size: 13px; color: var(--ink-3); }
-.rm-marca { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; justify-self: center; font-size: 11px; font-weight: 700; background: var(--surface-side); color: var(--ink-3); }
+.rm-item small { display: block; font-size: var(--fs-corpo-2); color: var(--ink-3); }
+.rm-marca { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; justify-self: center; font-size: var(--fs-legenda); font-weight: 700; background: var(--surface-side); color: var(--ink-3); }
 .rm-feito .rm-marca { color: var(--success); }
 .rm-falhou .rm-marca { color: var(--danger); }
 .rm-fim-acoes .bt { min-height: 44px; padding: 0 22px; }
+
+/* ADR-166 (tela 07 do protótipo): Configurações › Aprovações. Só tokens existentes; cada linha é título + frase. */
+.apv .apv-modos { display: grid; gap: 2px; margin: 4px 0 18px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.apv-modo { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.apv-modo:hover, .apv-modo.apv-marcado { background: var(--surface-raised); }
+.apv-modo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.apv-modo:disabled { cursor: default; opacity: .6; }
+.apv-radio { flex: none; width: 16px; height: 16px; margin-top: 2px; border: 1.5px solid var(--line-strong); border-radius: 50%; box-sizing: border-box; }
+.apv-marcado .apv-radio { border: 5px solid var(--ink); }
+.apv-modo-txt { flex: 1; min-width: 0; }
+.apv-modo-txt b { display: block; font-size: 14px; font-weight: 500; line-height: 1.35; }
+.apv-modo-txt small { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
+.apv-confirmando .apv-modo-txt small { color: var(--warning); }
+.apv-selo { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--surface-raised); border: 1px solid var(--line); font-size: 11.5px; color: var(--ink-2); }
+.apv-aviso { margin: -8px 2px 16px; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+.apv-extras { margin-bottom: 22px; }
+.apv-bloco { margin: 0 0 20px; }
+.apv-cabeca { display: flex; align-items: flex-end; gap: 12px; margin: 0 2px 8px; }
+.apv-cabeca-txt { flex: 1; min-width: 0; }
+.apv-cabeca h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+.apv-cabeca p { margin: 2px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-3); }
+.apv-conta { flex: none; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.apv-botao { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.apv-botao svg { width: 14px; height: 14px; }
+.apv-botao:hover { background: var(--surface-raised); }
+.apv-botao:disabled { cursor: default; opacity: .5; }
+.apv-botao:focus-visible, .apv-icone:focus-visible, .apv-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.apv-primario { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.apv-primario:hover { background: var(--ink); opacity: .9; }
+.apv-lista { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.apv-lista > * + * { border-top: 1px solid var(--line); }
+.apv-regra { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 8px 8px 14px; font-size: 13.5px; line-height: 1.45; }
+.apv-regra:hover { background: var(--surface-raised); }
+.apv-regra-txt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.apv-regra-acoes { flex: none; display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.apv-regra:hover .apv-regra-acoes, .apv-regra:focus-within .apv-regra-acoes { opacity: 1; }
+.apv-icone { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; color: var(--ink-3); cursor: pointer; }
+.apv-icone:hover { background: var(--surface); color: var(--ink); }
+.apv-regra-herdada .apv-regra-txt { color: var(--ink-2); }
+.apv-herdada { flex: none; font-size: 11.5px; color: var(--ink-3); }
+.apv-regra-campo { gap: 8px; }
+.apv-regra-campo:hover { background: none; }
+.apv-input { flex: 1; min-width: 0; min-height: 32px; padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13.5px; }
+.apv-input:focus { outline: 2px solid var(--focus-ring); outline-offset: 0; }
+.apv-vazio { margin: 0 2px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; font-size: 13px; color: var(--ink-3); }
+.apv-nota { margin: -6px 2px 22px; }
+.apv-app-ctrl { flex: none; display: flex; gap: 10px; }
+.apv-app-ctrl label { display: flex; align-items: center; gap: 6px; }
+.apv-app-ctrl small { font-size: 12px; color: var(--ink-3); }
+.apv-link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.apv-erro { margin: 8px 2px; font-size: 13px; color: var(--danger); }
+@media (hover: none) { .apv-regra-acoes { opacity: 1; } }
+
+/* ---- Tela 07 do Paper (Ajustes › Aprovações, só o conteúdo): modos num cartão de raio 12 com linhas de 9 × 14, regras em
+   linhas de 34 px em corpo 2, "Adicionar regra" secundário de 28 e o selo "Recomendado" sem borda. Medidas do gerador do
+   Paper (screens.py: mode_row, rule_row, settings_modal). A casca do modal é de outra frente. ---- */
+.apv .apv-modos { gap: 0; margin: 0 0 12px; padding: 4px; border-color: var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-inline); }
+.apv-modo { padding: 9px 14px; }
+.apv-modo:hover, .apv-modo.apv-marcado { background: var(--hover); }
+.apv-radio { border-color: var(--borda-forte); }
+.apv-modo-txt b { font-size: var(--fs-corpo); line-height: var(--lh-corpo); }
+.apv-modo-txt small { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }
+.apv-selo { display: inline-flex; align-items: center; height: 22px; box-sizing: border-box; padding: 0 8px; border: 0; background: var(--hover); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); }
+.apv-bloco { margin: 0 0 12px; }
+.apv-cabeca { margin: 0 2px 12px; padding-top: 6px; }
+.apv-cabeca h3 { font-size: var(--fs-corpo); line-height: var(--lh-corpo); font-weight: var(--peso-medio); }
+.apv-cabeca p { margin: 0; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }
+.apv-cabeca .apv-botao { min-height: 28px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--raio-8); background: var(--hover); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
+.apv-cabeca .apv-botao:hover { background: var(--ativo); }
+.apv-lista { border-color: var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-inline); }
+.apv-lista > * + * { border-top-color: var(--divisoria); }
+.apv-regra { min-height: 34px; padding: 0 10px 0 14px; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.apv-regra:hover { background: var(--hover); }
+.apv-regra .apv-icone { width: 24px; height: 24px; border-radius: var(--raio-full); color: var(--ink-2); }
+.apv-regra .apv-icone svg { width: 14px; height: 14px; }

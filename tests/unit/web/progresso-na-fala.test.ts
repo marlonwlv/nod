@@ -76,6 +76,8 @@ const lista = (trabalhos: TrabalhoDto[]): Partial<Estado> => ({ trabalhos: { tra
 const blocos = (c: ConversaEstado, e: Estado) => comProgressoNaFala(blocosDoHistorico(c, e), c, e).filter((b) => !b.chave.startsWith("sep:"));
 const doBloco = (c: ConversaEstado, e: Estado, chave: string): string => blocos(c, e).find((b) => b.chave === chave)?.html ?? "";
 const segmentos = (html: string): string[] => [...html.matchAll(/class="progresso-seg ([a-z_]+)"/g)].map((m) => m[1] ?? "");
+/** O resumo como a pessoa lê ("3 de 5 prontas · Hero w3 e Hero w5 rodando"): Paper 15, cada parte no seu span. */
+const resumoLido = (html: string): string => (/<span class="progresso-txt">([\s\S]*?)<\/span><span class="progresso-ver">/.exec(html)?.[1] ?? "").replace(/<[^>]+>/g, "");
 
 /** O dia do protótipo: w1, w2 e w4 prontas; w3 rodando com o ao vivo; w5 rodando, só com o último passo do servidor. */
 function diaDoPrototipo(): { e: Estado; c: ConversaEstado } {
@@ -116,7 +118,8 @@ describe("o bloco mora na fala que abriu as frentes", () => {
     const { e, c } = diaDoPrototipo();
     const b1 = doBloco(c, e, "b1");
     expect(segmentos(b1)).toEqual(["pronta", "pronta", "pronta", "rodando", "rodando"]);
-    expect(b1).toContain('<span class="progresso-txt">3 de 5 prontas<span class="progresso-resto"> · Hero w3 e Hero w5 rodando</span></span>');
+    expect(resumoLido(b1)).toBe("3 de 5 prontas · Hero w3 e Hero w5 rodando");
+    expect(b1).toContain('<b class="progresso-principal">3 de 5 prontas</b>');
     expect(b1).toContain('<span class="progresso-ver">ver as 5</span>');
     expect(b1).toContain('aria-label="Frentes: 3 de 5 prontas"');
   });
@@ -124,13 +127,14 @@ describe("o bloco mora na fala que abriu as frentes", () => {
   it("'ver as 5' abre a lista no lugar: prontas com ✓ e a hora, rodando com o último passo (ao vivo, senão o do servidor) e o tempo; cada título abre a frente", () => {
     const { e, c } = diaDoPrototipo();
     const b1 = doBloco(c, e, "b1");
-    expect(b1).toContain('<details class="progresso-det" data-disclosure="progresso-fa">');
+    // Paper 15: a lista nasce aberta, com a ordem da barra ao contrário (as que rodam em cima, as prontas da mais nova à mais velha).
+    expect(b1).toContain('<details class="progresso-det" data-disclosure="progresso-fa" open>');
     const itens = [...b1.matchAll(/<li class="progresso-item ([a-z_]+)">([\s\S]*?)<\/li>/g)].map((m) => ({ estado: m[1], html: m[2] ?? "" }));
-    expect(itens.map((i) => i.estado)).toEqual(["pronta", "pronta", "pronta", "rodando", "rodando"]);
-    // As prontas pela hora em que terminaram: w1 às 01:09, no relógio local (19 min depois de 00:50).
-    expect(itens[0]!.html).toContain(">Hero w1 · Aurora</button>");
-    expect(itens[0]!.html).toContain('<span class="progresso-fim">01:09</span>');
-    expect(itens[0]!.html).toContain("<svg");
+    expect(itens.map((i) => i.estado)).toEqual(["rodando", "rodando", "pronta", "pronta", "pronta"]);
+    // As prontas pela hora em que terminaram: w1 às 01:09, no relógio local (19 min depois de 00:50), por último.
+    expect(itens.at(-1)!.html).toContain(">Hero w1 · Aurora</button>");
+    expect(itens.at(-1)!.html).toContain('<span class="progresso-fim">01:09</span>');
+    expect(itens.at(-1)!.html).toContain("<svg");
     const w3 = itens.find((i) => i.html.includes(">Hero w3</button>"))!.html;
     expect(w3).toContain('<span class="progresso-passo">Ajustando o contraste do título…</span>');
     expect(w3).toContain('<span class="progresso-fim">12 min</span>');
@@ -146,20 +150,22 @@ describe("o bloco mora na fala que abriu as frentes", () => {
     const { e, c } = cenario(conversaDoHero(), lista(trabalhos));
     const b1 = doBloco(c, e, "b1");
     expect(segmentos(b1)).toEqual(["pronta", "pronta", "pronta", "pronta", "parada"]);
-    expect(b1).toContain("4 de 5 prontas<span class=\"progresso-resto\"> · Hero w3 parada às 01:36</span>");
+    expect(resumoLido(b1)).toBe("4 de 5 prontas · Hero w3 parada às 01:36");
     expect(b1).toContain('<li class="progresso-item parada"><span class="progresso-ic parada" aria-hidden="true"></span>');
     const falhou = cenario(conversaDoHero(), lista([pronta("w1", 19), pronta("w2", 20), trabalho("w3", { estado: "falhou", terminadoEm: t0 + 46 * MIN }), trabalho("w4", { estado: "parado" }), trabalho("w5", { estado: "parado" })]));
     const html = doBloco(falhou.c, falhou.e, "b1");
-    expect(segmentos(html)).toEqual(["pronta", "pronta", "parada", "parada", "falhou"]);
-    expect(html).toContain("2 de 5 prontas<span class=\"progresso-resto\"> · 2 paradas · Hero w3 não terminou</span>");
+    expect(segmentos(html)).toEqual(["pronta", "pronta", "falhou", "parada", "parada"]);
+    expect(resumoLido(html)).toBe("2 de 5 prontas · 2 paradas · Hero w3 não terminou");
   });
 
   it("esperando e precisando de você não contam como rodando", () => {
     const trabalhos = [trabalho("w1", { estado: "precisa_de_voce" }), trabalho("w2", { estado: "na_fila", iniciadoEm: null }), trabalho("w3", { esperandoColega: { nome: "Motion", desde: t0, trabalhoId: null } }), pronta("w4", 20), trabalho("w5")];
     const { e, c } = cenario(conversaDoHero(), lista(trabalhos));
     const b1 = doBloco(c, e, "b1");
-    expect(segmentos(b1)).toEqual(["pronta", "rodando", "precisa", "esperando", "esperando"]);
-    expect(b1).toContain("1 de 5 prontas<span class=\"progresso-resto\"> · Hero w5 rodando · Hero w1 · Aurora precisa de você · 2 esperando</span>");
+    // Paper 15: a barra termina nas que rodam e nas que precisam de você; "1 precisa de você" pela contagem, em laranja.
+    expect(segmentos(b1)).toEqual(["pronta", "esperando", "esperando", "rodando", "precisa"]);
+    expect(resumoLido(b1)).toBe("1 de 5 prontas · Hero w5 rodando · 1 precisa de você · 2 esperando");
+    expect(b1).toContain('<span class="progresso-parte precisa">1 precisa de você</span>');
     // Na fila não tem tempo; esperando o colega diz quem.
     expect(b1).toContain('<span class="progresso-passo">esperando Motion</span>');
   });
@@ -170,8 +176,9 @@ describe("de onde vem o estado", () => {
     const terminadas = anexo("ft", t0 + 30 * MIN, { kind: "frentes_terminadas", loteId: "l1", frentes: [{ trabalhoId: "w1", titulo: "Hero w1 · Aurora", estado: "terminado" }, { trabalhoId: "w2", titulo: "Hero w2 · Motor no escuro", estado: "parado" }] });
     const { e, c } = cenario(conversaDoHero([terminadas]), lista([trabalho("w3"), trabalho("w4")]));
     const b1 = doBloco(c, e, "b1");
-    expect(segmentos(b1)).toEqual(["pronta", "rodando", "rodando", "parada", "sem_noticia"]);
-    expect(b1).toContain("1 de 5 prontas<span class=\"progresso-resto\"> · Hero w3 e Hero w4 · Wordmark gigante rodando · Hero w2 · Motor no escuro parada às 01:20 · 1 sem notícia</span>");
+    expect(segmentos(b1)).toEqual(["pronta", "sem_noticia", "parada", "rodando", "rodando"]);
+    // No resumo a frente vai pelo nome curto, antes do " · " (Paper 15: "PR #491 rodando").
+    expect(resumoLido(b1)).toBe("1 de 5 prontas · Hero w3 e Hero w4 rodando · Hero w2 · Motor no escuro parada às 01:20 · 1 sem notícia");
     expect(b1).toMatch(/>Hero w1 · Aurora<\/button>[\s\S]*?<span class="progresso-fim">01:20<\/span>/);
     expect(b1).toMatch(/<li class="progresso-item sem_noticia">[\s\S]*?>Hero w5<\/button>[\s\S]*?sem notícia/);
   });
@@ -188,7 +195,7 @@ describe("de onde vem o estado", () => {
     const { e, c } = cenario(conversaDoHero([terminadas]), lista([reaberta]), { trabalhos: [reaberta] });
     const b1 = doBloco(c, e, "b1");
     expect(segmentos(b1)).toEqual(["pronta", "pronta", "pronta", "pronta", "rodando"]);
-    expect(b1).toContain("4 de 5 prontas<span class=\"progresso-resto\"> · Hero w3 rodando</span>");
+    expect(resumoLido(b1)).toBe("4 de 5 prontas · Hero w3 rodando");
     expect(b1).toMatch(/<li class="progresso-item rodando">[\s\S]*?>Hero w3<\/button>/);
   });
 

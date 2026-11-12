@@ -10,6 +10,7 @@
  *   onde ela está (sem salto).
  * - O modo é por conversa e só em memória: trocar de conversa (ou sair dela) volta para Conversa, sem animação.
  */
+import { iniciais } from "./render.ts";
 import { previaDoComentario, textoDaPrevia } from "./previa-comentario.ts";
 import { direcaoDaTroca, ehModo, ADIAR_ATE_MS, ARRASTO_ATE_MS, ECO_DA_PESSOA_MS, GESTO_MS, RESERVA_MS, movimentoDaTroca, releComecando, TURNO_MUDA_A_EXECUCAO, VIGIA_DO_QUADRO_MS, deveVigiarQuadro, type ModoDaConversa } from "./quadro.ts";
 import { dicaDeMover, nomeNaPrevia, previaDaTarefa } from "./acionamento.ts";
@@ -140,6 +141,8 @@ export interface DadosDoQuadro {
    * e os que podem ser o Responsável da tarefa aberta (NOD-416; sem isto, ele fica só leitura).
    */
   agentes?: () => readonly { id: string; nome: string }[];
+  /** Rodada 3 (tela 18 do Paper): o nome de quem está logado, para as iniciais do "Você" no filtro por pessoa. */
+  voce?: () => string | null;
   hora: (em: number) => string;
   /** Quanto a faixa fica à vista depois da resposta (ms). */
   recolherEm?: number;
@@ -381,6 +384,11 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
 
   const vista = (): HTMLElement | null => doc.getElementById("quadro");
   const conversa = (): HTMLElement[] => LADO_DA_CONVERSA.map((id) => doc.getElementById(id)).filter((e): e is HTMLElement => !!e);
+  /**
+   * Paper 17b (rodada 2): na página de um app o campo fica (o pedido vai para a conversa do bot, como em qualquer página da
+   * pílula que não seja o Quadro); o resto da conversa sai.
+   */
+  const conversaQueSai = (): HTMLElement[] => conversa().filter((e) => !(e.id === "composer" && paginas[pagina]?.app));
 
   /* ---------- NOD-442: o quadro de verdade ---------- */
   const dd = o.dados;
@@ -678,10 +686,11 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (!q) return semQuadro(nome, Date.now());
     const t = tarefaNoQuadro(q, aberta);
     if (t) {
-      const trabalhos = trabs.html(t.id, { bloqueada: t.status === "bloqueado" || (t.esperaPessoa === true && t.voltarPara !== null), agenteId: t.agenteId, conversaAtual: chave, motivoFila: t.motivoFila ?? null, hora: dd.hora });
+      const trabalhos = trabs.html(t.id, { bloqueada: t.status === "bloqueado" || (t.esperaPessoa === true && t.voltarPara !== null), agenteId: t.agenteId, conversaAtual: chave, motivoFila: t.motivoFila ?? null, hora: dd.hora, compacto: !!dd.api()?.comentariosDaTarefa });
       const resp = dd.agentes?.();
       // 2026-11-10 (a issue do Multica): a linha do tempo, o chip do topo e a lateral (Registro, Entregas, Runs no tempo).
-      const partes = coms.partes(t, { colunas: comColunas(q).colunas, agente: dd.agente, nomes: (resp ?? []).map((a) => a.nome), passos: (turno, n) => trabs.passosDe(turno, n), quadro: q });
+      const voceNome = dd.voce?.() ?? null;
+      const partes = coms.partes(t, { colunas: comColunas(q).colunas, agente: dd.agente, nomes: (resp ?? []).map((a) => a.nome), passos: (turno, n) => trabs.passosDe(turno, n), quadro: q, ...(trabalhos !== undefined ? { trabalho: trabalhos } : {}), voceIniciais: voceNome ? iniciais(voceNome) || null : null });
       if (ehCelular()) {
         // ADA-17 (ADR-148): a mesma tarefa, os mesmos dados e handlers; só a árvore muda no celular.
         const trabalho = trabs.vista(t.id, { bloqueada: t.status === "bloqueado" || (t.esperaPessoa === true && t.voltarPara !== null), agenteId: t.agenteId, conversaAtual: chave });
@@ -694,14 +703,14 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
           ...(partes ? { linha: partes.linha, topo: partes.topo, ...(partes.dialogo ? { dialogo: partes.dialogo } : {}) } : {}),
         });
       }
-      return tarefaAberta({ t, q, agente: dd.agente, hora: dd.hora, historico: dd.api()?.historicoTarefa ? histTarefa : undefined, ...(resp ? { responsaveis: resp } : {}), ...(quadros ? { destinos: destinosDaTarefa(quadros, q.id), moverPara } : {}), ...(trabalhos !== undefined ? { trabalhos } : {}), ...(partes ?? {}), ...coms.lateral(t.id) });
+      return tarefaAberta({ t, q, projeto: sel?.projetos.find((p) => p.id === q?.projetoId)?.nome ?? null, agente: dd.agente, hora: dd.hora, historico: dd.api()?.historicoTarefa ? histTarefa : undefined, ...(resp ? { responsaveis: resp } : {}), ...(quadros ? { destinos: destinosDaTarefa(quadros, q.id), moverPara } : {}), ...(trabalhos !== undefined ? { trabalhos } : {}), ...(partes ?? {}), ...coms.lateral(t.id), voceNome, nomesDosBots: (resp ?? []).map((a) => a.nome) });
     }
     const comPessoas = !!dd.api()?.adicionarPessoa;
     const agentes = dd.agentes && dd.api()?.definirPassagem ? dd.agentes() : undefined;
     const seletor = seletorDeQuadro(sel, { aberto: selAberto, busca: selBusca, criando: selCriando, erro: selErro });
     // Quadro mínimo: no computador o seletor mora no cabeçalho (o item "Trocar de quadro…" do menu o abre).
     const noCab = !noCelular();
-    return confiar((noCab ? "" : seletor) + quadroDaMeta({ q, ...(noCab && mostraSeletor(sel) ? { seletor, trocar: true } : {}), nome, agente: dd.agente, filtro: filtroRapido(), alternadas, acesas, edicao, agora: Date.now(), editandoMeta, ...(comPessoas ? { pessoas: { painel, mural, hora: dd.hora, erro: erroPessoas } } : {}), ...(agentes ? { agentes } : {}), ...(importando ? { importando } : {}), ...(recusa ? { avisos: new Map([[recusa.tarefa, recusa.aviso]]) } : {}), busca, exibir: { ...exibirDoQuadro(), aberto: exibirAberto }, maisAberto, nova, podeCriar: !!dd.api()?.criarTarefa, ui: barraUi.ui(), ...(noCelular() ? { celular: { visao: visaoDoQuadro(), folha: cel.folha() } } : {}) }));
+    return confiar((noCab ? "" : seletor) + quadroDaMeta({ q, ...(noCab && mostraSeletor(sel) ? { seletor, trocar: true } : {}), projeto: sel?.projetos.find((p) => p.id === q?.projetoId)?.nome ?? null, nome, agente: dd.agente, voceNome: dd.voce?.() ?? null, filtro: filtroRapido(), alternadas, acesas, edicao, agora: Date.now(), editandoMeta, ...(comPessoas ? { pessoas: { painel, mural, hora: dd.hora, erro: erroPessoas } } : {}), ...(agentes ? { agentes } : {}), ...(importando ? { importando } : {}), ...(recusa ? { avisos: new Map([[recusa.tarefa, recusa.aviso]]) } : {}), busca, exibir: { ...exibirDoQuadro(), aberto: exibirAberto }, maisAberto, nova, podeCriar: !!dd.api()?.criarTarefa, ui: barraUi.ui(), ...(noCelular() ? { celular: { visao: visaoDoQuadro(), folha: cel.folha() } } : {}) }));
   }
 
   /** ADA-18: o quadro do celular (o teste injeta; o app lê a consulta canônica a cada desenho). */
@@ -2666,6 +2675,18 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       b.tabIndex = s ? 0 : -1;
     }
     for (const p of doc.querySelectorAll<HTMLElement>("#cabecalho .pg-pt")) p.classList.toggle("pg-pt-atual", Number(p.dataset["pagina"]) === pagina);
+    // Paper 17b (rodada 3 da casca): numa página de app, a pílula diz qual — "Ada · PM · Vagas" (o nome em cinza).
+    const txt = pil?.querySelector<HTMLElement>(".pilula-bot .pilula-txt");
+    if (txt) {
+      const aba = doc.querySelector<HTMLElement>(`#cabecalho .pg-ic[data-pagina="${pagina}"]`);
+      const nome = pagina > 0 && aba?.dataset["pgId"]?.startsWith("app:") ? (aba.querySelector(".pg-tip")?.firstChild?.textContent ?? "").trim() : "";
+      let el = txt.querySelector<HTMLElement>(".pilula-pagina");
+      if (!nome) el?.remove();
+      else {
+        if (!el) { el = doc.createElement("span"); el.className = "pilula-pagina"; txt.append(el); }
+        if (el.textContent !== nome) el.textContent = nome;
+      }
+    }
     if (chegou && Date.now() > chegou.ate) chegou = null;
     for (const e of doc.querySelectorAll<HTMLElement>("#cabecalho .pg-ic, #cabecalho .pg-pt")) e.classList.toggle("pg-chegou", !!chegou && e.dataset["pgId"] === chegou.id);
     doc.querySelector(".stage")?.classList.toggle("qd-no-quadro", modo === "quadro");
@@ -2752,7 +2773,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   /** Sem animação: o estado final do modo atual. */
   function assentar(): void {
     const v = vista();
-    if (modo === "quadro") { mostrar(v ? [v] : []); esconder(conversa()); }
+    if (modo === "quadro") { mostrar(v ? [v, ...conversa().filter((e) => !conversaQueSai().includes(e))] : []); esconder(conversaQueSai()); }
     else { mostrar(conversa()); esconder(v ? [v] : []); }
     marcar();
   }
@@ -2800,7 +2821,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     anunciarPagina();
     // Depois de `modo = para`: quem ouve (o main, que marca a conversa como lida na volta) já vê o modo novo.
     avisarTroca(para);
-    const sai = para === "quadro" ? conversa() : [v];
+    const sai = para === "quadro" ? conversaQueSai() : [v];
     const entra = para === "quadro" ? [v] : conversa();
     saindo = sai;
     entrando = entra;
@@ -2970,6 +2991,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       if (act === "tarefa-mover" || act === "tarefa-mover-para") { aoMoverCard(el, act); return; }
       if (act === "tarefa-prioridade" || act === "tarefa-prioridade-para") { aoPrioridadeDoCard(el, act); return; }
       if (act === "voltar-ao-quadro") { voltarAoQuadro(); return; }
+      if (act === "ta-copiar-link" && id) { el.closest("details")?.removeAttribute("open"); void copiarLinkDaTarefa(id); return; }
       if (act === "cel-folha" && id) { abrirFolhaDaTarefa(el.dataset["folha"] ?? "", id); return; }
       if (act === "cel-tentar") { const n = naoSalvouCel; naoSalvouCel = null; if (n) n.refazer(); else desenharVista(); return; }
       if (act === "cel-responder") { responderA(el.dataset["com"] ?? ""); return; }
@@ -3626,6 +3648,19 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   ligarTopoDaTarefa();
   // ADA-6: digitar na pílula esconde as sugestões e mostra o contador perto do limite.
   doc.addEventListener("input", (ev) => { if (dd && ev.target instanceof HTMLTextAreaElement && ev.target.id === "qc-txt") desenharIdeias(); });
+  // Rodada 3 (tela 18c do Paper): o contador "N / 500" do "O que essa etapa faz" e o mascote do agente escolhido.
+  doc.addEventListener("input", (ev) => {
+    const t = ev.target;
+    if (!(t instanceof HTMLTextAreaElement) || t.id !== "qd-pas-inst") return;
+    const cont = doc.getElementById("qd-pas-cont");
+    if (cont) cont.textContent = `${t.value.length} / ${t.maxLength > 0 ? t.maxLength : t.value.length}`;
+  });
+  doc.addEventListener("change", (ev) => {
+    const t = ev.target;
+    if (!dd || !(t instanceof HTMLSelectElement) || t.id !== "qd-pas-agente") return;
+    const av = t.closest(".qd-pas-agente")?.querySelector(".qd-pas-av");
+    if (av) av.innerHTML = t.value ? String(dd.agente(t.value)?.avatar ?? "") : "";
+  });
   // ADA-28 (escopo D): a linha embaixo do campo diz se o comentário aciona alguém (local, sem rede).
   const desenharPrevia = (campo: HTMLTextAreaElement): void => {
     const form = campo.form;

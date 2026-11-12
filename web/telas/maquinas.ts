@@ -1,3 +1,4 @@
+import { secaoOndeRoda } from "./onde-roda.ts";
 import type { MaquinaDto } from "../../src/contracts/maquina.ts";
 import type { EstaMaquina } from "../../src/contracts/desktop-esta-maquina.ts";
 import type { Agente } from "../../src/contracts/agente.ts";
@@ -543,6 +544,7 @@ export function renderMaquinas(estado: Estado): string {
       : grupoConfig(tituloSuas, linhas, { classe: "cfg-maquinas", ...(ob ? { contagem: linhas.length } : {}) });
   return `<section class="espaco-secao cfg-secao cfg-maquinas-secao maquinas">
     ${cab}
+    ${secaoOndeRoda(dados?.ondeRoda ?? null)}
     ${avisoDaNuvem(estado)}
     ${painelCriar(estado)}
     ${conectar}

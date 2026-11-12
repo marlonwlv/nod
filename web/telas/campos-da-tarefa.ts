@@ -9,7 +9,7 @@
 import type { QuadroDto, TarefaDto } from "../../src/contracts/quadro.ts";
 import type { CorLabel, LabelDto } from "../../src/contracts/quadro-labels.ts";
 import { esc } from "../lib/escape.ts";
-import { rotuloDoPrazo } from "../lib/filtros-de-campo.ts";
+import { diaNoFuso, diasEntre, rotuloDoPrazo } from "../lib/filtros-de-campo.ts";
 
 /** As nove cores da paleta (o ponto pega a tinta dos mascotes pelo CSS: `.qd-label-ponto[data-cor]`). */
 const CORES: readonly CorLabel[] = ["cinza", "azul", "verde", "ambar", "laranja", "vermelho", "rosa", "violeta", "turquesa"];
@@ -33,9 +33,31 @@ export function campoDeLabels(t: Pick<TarefaDto, "id" | "labels">, q: Pick<Quadr
     `<datalist id="${id}-lista">${resto.map((l) => `<option value="${esc(l.nome)}"></option>`).join("")}</datalist></form></div>`;
 }
 
+/**
+ * Rodada 4 (tela 18b do Paper): o prazo na lateral é "14 nov  em 2 dias" (a data curta e quanto falta), não a data do
+ * campo nativo. "hoje", "amanhã", "em N dias", "venceu ontem", "venceu há N dias"; o ano só fora do ano corrente.
+ */
+export function prazoDaLateral(prazoEm: string, agora: number, fuso: string): { data: string; falta: string; tom: "vencida" | "hoje" | "normal" } {
+  const hoje = diaNoFuso(agora, fuso);
+  const d = diasEntre(hoje, prazoEm);
+  const mesmoAno = prazoEm.slice(0, 4) === hoje.slice(0, 4);
+  const data = new Date(`${prazoEm}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "numeric", month: "short", ...(mesmoAno ? {} : { year: "numeric" }), timeZone: "UTC" }).replace(/\./g, "").replace(/ de /g, " ");
+  const falta = d < -1 ? `venceu há ${-d} dias` : d === -1 ? "venceu ontem" : d === 0 ? "hoje" : d === 1 ? "amanhã" : `em ${d} dias`;
+  return { data, falta, tom: d < 0 ? "vencida" : d === 0 ? "hoje" : "normal" };
+}
+
 /** O prazo da tarefa: o campo de data, como ele fica ("Hoje", "Vencida há 2 dias") e o Limpar. */
 export function campoDePrazo(t: Pick<TarefaDto, "id" | "prazoEm">, o: { agora: number; fuso: string; onde: "lado" | "cel" }): string {
   const id = `qd-t-prazo-em-${o.onde}`;
+  if (o.onde === "lado") {
+    // Na lateral o texto é o do Paper; o campo de data fica por cima, transparente, e abre o calendário no clique (o
+    // ícone do calendário do Chrome cobre o campo inteiro pelo CSS). O Limpar aparece no hover e no foco.
+    const p = t.prazoEm ? prazoDaLateral(t.prazoEm, o.agora, o.fuso) : null;
+    return `<div class="qd-prazo-t ta-prazo"><span class="ta-prazo-vista" aria-hidden="true">${p ? `<span class="ta-prazo-data">${esc(p.data)}</span><span class="qd-prazo-tom" data-tom="${p.tom}">${esc(p.falta)}</span>` : `<span class="ta-prazo-sem">Sem prazo</span>`}</span>` +
+      `<label class="qd-sr" for="${id}">Prazo da tarefa${p ? `: ${esc(p.data)}, ${esc(p.falta)}` : ""}</label>` +
+      `<input type="date" id="${id}" class="qd-data ta-prazo-in" data-campo="prazo-tarefa" data-id="${esc(t.id)}" value="${esc(t.prazoEm ?? "")}">` +
+      (p ? `<button type="button" class="qd-link qd-prazo-limpar" data-act="prazo-tarefa-limpar" data-id="${esc(t.id)}">Limpar</button>` : "") + `</div>`;
+  }
   const r = t.prazoEm ? rotuloDoPrazo(t.prazoEm, o.agora, o.fuso) : null;
   return `<div class="qd-prazo-t"><label class="qd-sr" for="${id}">Prazo da tarefa</label>` +
     `<input type="date" id="${id}" class="qd-data" data-campo="prazo-tarefa" data-id="${esc(t.id)}" value="${esc(t.prazoEm ?? "")}">` +

@@ -50,6 +50,15 @@ export function computadoresRepo(conn: Conn, escopo: Escopo) {
      * da pessoa (o modo motor, antes de voltar ao docker) ganha um 'por_bot' novo e o vínculo passa a ele; o motor o
      * revincula ao da pessoa na 1ª ação (vincularBot). Sem `docker` (pedir_aprovacao), segue o vínculo que houver.
      */
+    /**
+     * ADR-168 (definido em 2026-11-12): o bot vinculado ao computador, SEM trava — o seletor de provedor só lê para
+     * escolher quem dá a máquina (bot > pessoa > global), fora da tx de quem executa a ação.
+     */
+    async agenteDoComputador(id: string): Promise<string | null> {
+      const [l] = await conn<{ id: string }[]>`select a.id from agentes a
+        where a.tenant_id = ${escopo.tenantId} and a.owner_id = ${escopo.pessoaId} and a.computador_id = ${id} and a.excluido_em is null limit 1`;
+      return l?.id ?? null;
+    },
     async obter(agenteId: string, docker = false): Promise<Computador | null> {
       const [agente] = await conn<{ id: string; computador_id: string | null; modelo: string | null }[]>`select a.id, a.computador_id, c.modelo from agentes a
         left join computadores c on c.tenant_id = a.tenant_id and c.id = a.computador_id

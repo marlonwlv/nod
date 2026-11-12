@@ -18,7 +18,8 @@ const conversa: ConversaEstado = { conversa: { tenantId: "t", id: "c", ownerId: 
 describe("decisões no chat", () => {
   it("mostra a autorização na conversa de origem com as mesmas ações da fila", () => {
     const html = renderTimeline(conversa, estado);
-    expect(html).toContain("Preciso da sua decisão para continuar");
+    expect(html).toContain('<section class="decisoes-chat"');
+    expect(html).not.toContain("Preciso da sua decisão para continuar");
     expect(html).toContain('data-act="permitir-acesso"');
     expect(html).toContain('data-id="d"');
     // ADR-044: um clique concede E continua, e o botão diz isso.
@@ -63,8 +64,9 @@ describe("decisões no chat", () => {
       suaVez: { ...estado.suaVez!, itens: [{ ...item, decisao: { ...item.decisao, tipo: "aprovacao" }, itensAprovacao: [i] }] },
     };
     const html = renderTimeline(conversa, e);
-    expect(html).toContain("Pode fazer");
-    expect(html).toContain("Agora não");
+    // ADR-166 (tela 06): "Permitir uma vez" e "Negar" com o Esc ao lado.
+    expect(html).toContain("Permitir uma vez");
+    expect(html).toContain('Negar <kbd class="kbd-esc">Esc</kbd>');
     expect(html).not.toContain("Aprovar 1 de 1");
     expect(html).not.toContain("Não aprovar nada");
     // Item único e não sensível dispensa a lista: a pergunta já está na frase da decisão.
@@ -91,7 +93,7 @@ describe("decisões no chat", () => {
     expect(html).toContain("Avisar o time");
     expect(html).toContain("Arquivar a planilha");
     // Tudo marcado e nada sensível: contar "2 de 2" não acrescenta nada.
-    expect(html).toContain("Pode fazer");
+    expect(html).toContain("Permitir uma vez");
     expect(html).not.toContain("data-contador");
     // Slug sem conector casado no estado cai no próprio slug, nunca inventa nome.
     expect(html).toContain("no drive");
@@ -487,7 +489,8 @@ describe("fila honesta: vencidos recolhidos, ×N, prazo por tipo e rótulos em p
     const aprovacao = (conector: string, texto: string): Estado => comItens([{ ...item, decisao: { ...item.decisao, tipo: "aprovacao", frase: "Ação no computador do bot" }, itensAprovacao: [itemAp(conector, texto)] }]);
     const html = renderTimeline(conversa, aprovacao("computador", "Abrir no navegador: https://exemplo.com.br"));
     expect(html).toContain('<div class="ap-oque">Abrir no navegador: https://exemplo.com.br</div>');
-    expect(html.indexOf("Abrir no navegador")).toBeLessThan(html.indexOf("Ver detalhes"));
+    // Tela 06: no computador o "Ver detalhes" sai (o texto é só leitura e a ação concreta já está à vista).
+    expect(html).not.toContain("Ver detalhes");
     expect(html).toContain("no computador do bot");
     // A frase já diz tudo: não repete.
     expect(renderTimeline(conversa, aprovacao("computador", "Ação no computador do bot"))).not.toContain('class="ap-oque"');

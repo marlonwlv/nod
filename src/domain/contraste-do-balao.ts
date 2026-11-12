@@ -6,7 +6,7 @@
  * dois temas, que o tokens.css tem exatamente o que ela calcula e que o contraste passa. Determinística: mesma entrada,
  * mesma saída, sem aleatório nem relógio.
  *
- * Regra (correção de 2026-10-30, pedido do Marlon comparando com o Grok): o texto do balão é sempre branco. O fundo é a
+ * Regra (correção de 2026-10-30, pedido do Marlon): o texto do balão é sempre branco. O fundo é a
  * cor do bot ou, quando o branco não passa de 4,5:1 nela, a cor mais próxima no mesmo tom (só a luminosidade anda, em
  * passos de 1%) em que passa; ele também precisa se separar da página e do balão do bot por SEPARACAO_MINIMA. O fundo
  * do código é o balão 10% para o preto (ou para o branco, nas pontas em que o preto não separa o chip), também
@@ -118,7 +118,7 @@ export function matiz(hex: string): number {
 
 /**
  * As cores do balão da pessoa para uma cor de bot, contra o que está em volta dele no tema: a página (`surface`) e o
- * balão do bot (`surface-raised`). A tinta é sempre branca, como no Grok; o fundo é a cor do bot com a menor mudança de
+ * balão do bot (`surface-raised`). A tinta é sempre branca; o fundo é a cor do bot com a menor mudança de
  * luminosidade (HSL: matiz e saturação ficam) que faz o branco passar de 4,5:1 (no texto e no chip) e separa o balão do
  * que está em volta. Lança se não achar: uma skin nova que caia aqui precisa de decisão de design.
  */

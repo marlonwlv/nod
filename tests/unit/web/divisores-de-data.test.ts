@@ -80,7 +80,7 @@ describe("comDivisores, puro", () => {
   it("o topo leva o dia; 29 min no mesmo dia não abrem bloco, 30 min abrem só com a hora; o dia que muda leva o dia de novo", () => {
     const saida = comDivisores([bloco("a", as(22, 0, 17)), bloco("b", as(22, 29, 17)), bloco("c", as(22, 59, 17)), bloco("d", as(0, 10)), bloco("e", as(8, 0))], AGORA);
     expect(saida.map((b) => b.chave)).toEqual(["sep:a", "a", "b", "sep:c", "c", "sep:d", "d", "sep:e", "e"]);
-    expect(saida.filter((b) => b.chave.startsWith("sep:")).map((b) => b.html.replace(/^.*">|<\/div>$/g, ""))).toEqual(["Ontem 22:00", "22:59", "Hoje 00:10", "08:00"]);
+    expect(saida.filter((b) => b.chave.startsWith("sep:")).map((b) => b.html.replace(/^.*">|<\/div>$/g, ""))).toEqual(["Ontem 22:00", "22:59", "Hoje 0:10", "8:00"]);
     expect(PAUSA_QUE_ABRE_BLOCO_MS).toBe(30 * MIN);
   });
 
@@ -132,7 +132,7 @@ describe("os divisores na conversa", () => {
     // A troca mostra 23:00 e 09:00 (a fala do meio não é mensagem dela): a conversa das 23:30 vem 30 min depois do que
     // está à vista e abre bloco (QA do PR 6; antes o fim da troca era cortado no próprio item seguinte e a pausa dava zero).
     expect(chaves(c, e)).toEqual(["sep:e1-p", "troca:turno:e1", "sep:p1", "p1", "b1", "sep:p2", "p2", "b2", "sep:p3", "p3"]);
-    expect(divisores(c, e)).toEqual(["Ontem 23:00", "23:30", "Hoje 07:00", "08:00"]);
+    expect(divisores(c, e)).toEqual(["Ontem 23:00", "23:30", "Hoje 7:00", "8:00"]);
   });
 
   // Regressão do /qa do PR 6 (2026-10-18): o `ate` da troca era cortado no próprio item seguinte, a pausa até ele dava
@@ -141,7 +141,7 @@ describe("os divisores na conversa", () => {
     const [pedido, meio, resposta] = pedidoRecebido("ada", "e1", as(23, 0, 17), 9 * 60 * MIN);
     const { e, c } = cenario([pedido!, meio!, daPessoa("p1", as(23, 45, 17)), doBot("b1", as(23, 46, 17)), resposta!, daPessoa("p2", as(8, 40))]);
     expect(chaves(c, e)).toEqual(["sep:e1-p", "troca:turno:e1", "sep:p1", "p1", "b1", "sep:p2", "p2"]);
-    expect(divisores(c, e)).toEqual(["Ontem 23:00", "23:45", "Hoje 08:40"]);
+    expect(divisores(c, e)).toEqual(["Ontem 23:00", "23:45", "Hoje 8:40"]);
     // Puro: sem `instantes`, a troca que passa do item seguinte só segura até o começo dela.
     const p1 = { chave: "p1", html: "<p>p1</p>", tempo: { id: "p1", em: as(23, 45, 17), ate: as(23, 45, 17) } };
     const troca = (instantes?: number[]) => ({ chave: "troca", html: "<p>troca</p>", tempo: { id: "troca", em: as(23, 0, 17), ate: as(8, 0), ...(instantes ? { instantes } : {}) } });
@@ -153,7 +153,7 @@ describe("os divisores na conversa", () => {
   it("duas trocas a 13 min uma da outra, mas de um dia para o outro, não juntam: o 'Hoje' fica (revisão do PR 6)", () => {
     const { e, c } = cenario([...pedidoRecebido("ada", "e1", as(23, 50, 17)), ...pedidoRecebido("teodora", "e2", as(0, 5)), daPessoa("p1", as(0, 20))]);
     expect(chaves(c, e)).toEqual(["sep:e1-p", "troca:turno:e1", "sep:e2-p", "troca:turno:e2", "p1"]);
-    expect(divisores(c, e)).toEqual(["Ontem 23:50", "Hoje 00:05"]);
+    expect(divisores(c, e)).toEqual(["Ontem 23:50", "Hoje 0:05"]);
   });
 
   // Rebase sobre o QA do PR 3: com o "Novas" logo acima da primeira troca, a seguinte junta nela (`antes`), e a junta leva
@@ -180,19 +180,19 @@ describe("os divisores na conversa", () => {
       naAtividade("s2", as(9, 30)),
     ]);
     expect(chaves(c, e)).toEqual(["sep:p1", "p1", "b1", "sep:p2", "p2", "b2"]);
-    expect(divisores(c, e)).toEqual(["Hoje 08:00", "08:45"]);
+    expect(divisores(c, e)).toEqual(["Hoje 8:00", "8:45"]);
   });
 
   it("o topo é o primeiro item à vista, não a primeira mensagem da janela", () => {
     const { e, c } = cenario([naAtividade("s0", as(22, 10, 17)), daPessoa("p1", as(7, 50)), doBot("b1", as(7, 51))]);
     expect(chaves(c, e)).toEqual(["sep:p1", "p1", "b1"]);
-    expect(divisores(c, e)).toEqual(["Hoje 07:50"]);
+    expect(divisores(c, e)).toEqual(["Hoje 7:50"]);
   });
 
   it("de ontem para hoje: 'Ontem 22:10' no topo e 'Hoje 08:00' quando o dia muda, mesmo com menos de 30 min de pausa à meia-noite", () => {
     const { e, c } = cenario([daPessoa("p1", as(22, 10, 17)), doBot("b1", as(23, 50, 17)), daPessoa("p2", as(0, 5)), daPessoa("p3", as(8, 0))]);
     expect(chaves(c, e)).toEqual(["sep:p1", "p1", "sep:b1", "b1", "sep:p2", "p2", "sep:p3", "p3"]);
-    expect(divisores(c, e)).toEqual(["Ontem 22:10", "23:50", "Hoje 00:05", "08:00"]);
+    expect(divisores(c, e)).toEqual(["Ontem 22:10", "23:50", "Hoje 0:05", "8:00"]);
   });
 
   it("a linha 'Novas' fica embaixo do divisor, na mensagem à vista ou sozinha no lugar da que sumiu", () => {

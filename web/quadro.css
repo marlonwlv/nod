@@ -1044,3 +1044,63 @@ a.qd-chip:hover { background: var(--surface-raised); }
 .qd-ho-bts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .qd-handoff .qd-bt-pri { border-color: var(--line-strong, var(--line)); background: none; color: var(--ink); font-weight: 600; }
 .qd-handoff .qd-bt-pri:hover { background: var(--surface-raised); opacity: 1; }
+
+/* ====================================================================================================================
+   Tela 18 do Paper: colunas de 226 sem fundo, tiras recolhidas de 40 com a contagem em cima, cards
+   brancos de raio 12 e o quadro na cor do painel. A grade cabe na janela de 1440 com as 7 colunas: antes a coluna de
+   264 empurrava o Bloqueado para baixo das tiras presas à direita, e ele saía cortado. Medidas do gerador do Paper
+   (screens_nod.py: kcol, kstrip, kcard, board_cols).
+   ==================================================================================================================== */
+.qd-vista:has(.qd-grade):not(:has(.qm-barra)) { --qd-fundo: var(--surface); --qd-card: var(--surface-elevated); }
+.qd-vista > .qd-conteudo:has(.qd-grade) { --qd-col-min: 196px; --qd-tira: 40px; }
+.qd-vista > .qd-conteudo .qd-grade { column-gap: 10px; padding: 4px 0 20px; }
+.qd-vista > .qd-conteudo .qd-col:not(.qd-col-recolhida) { gap: 8px; padding: 0; background: transparent; }
+.qd-vista > .qd-conteudo .qd-col-cab { height: 34px; min-height: 34px; padding: 0 4px 0 6px; gap: 6px; border-radius: 9px; font-size: var(--fs-corpo-2); font-weight: 600; }
+.qd-vista > .qd-conteudo .qd-col-cab .qd-n { font-size: var(--fs-corpo-2); font-weight: var(--peso-regular); color: var(--ink-3); }
+.qd-vista > .qd-conteudo .qd-col-cab > .qd-col-bt > .qd-ic { display: none; }
+.qd-vista > .qd-conteudo .qd-col-lista { gap: 8px; }
+.qd-vista > .qd-conteudo .qd-col-tira { gap: 10px; min-height: 0; padding: 10px 0; border-radius: var(--raio-12); background: var(--hover); color: var(--ink-2); font-size: var(--fs-rotulo); }
+.qd-vista > .qd-conteudo .qd-col-tira > .qd-ic { display: none; }
+.qd-vista > .qd-conteudo .qd-col-tira .qd-n { order: -1; font-size: var(--fs-rotulo); font-weight: 600; color: var(--ink-2); }
+.qd-vista > .qd-conteudo .qd-col-tira .qd-col-nome { transform: none; font-weight: var(--peso-medio); }
+.qd-vista > .qd-conteudo .qd-grade > .qd-col-recolhida { padding: 0; background: transparent; align-self: stretch; }
+.qd-vista > .qd-conteudo .qd-grade > .qd-fixa { box-shadow: -10px 0 0 var(--qd-fundo); }
+.qd-vista > .qd-conteudo .qd-card { gap: 8px; padding: 10px 12px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--qd-card); box-shadow: var(--sombra-controle); }
+.qd-vista > .qd-conteudo .qd-card:hover { border-color: var(--borda); }
+.qd-vista > .qd-conteudo .qd-id { font-weight: var(--peso-medio); }
+.qd-vista > .qd-conteudo .qd-card-tit { line-height: var(--lh-corpo-2); }
+.qd-vista > .qd-conteudo .qd-tag { height: 20px; border-color: var(--borda); border-radius: var(--raio-full); font-size: var(--fs-legenda); font-weight: var(--peso-medio); }
+.qd-vista > .qd-conteudo .qd-quando, .qd-vista > .qd-conteudo .qd-perguntou { font-size: var(--fs-legenda); }
+/* A passagem no cabeçalho: o responsável numa pílula cinza com o mascote, à direita do nome. */
+.qd-vista > .qd-conteudo .qd-col-passa-com { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 3px; border-radius: var(--raio-full); background: var(--hover); color: var(--ink); font-size: var(--fs-rotulo); max-width: 10em; }
+/* O "+" de nova tarefa da coluna aparece só no hover (o Paper não o mostra); a pílula da passagem fica inteira, à direita. */
+.qd-vista > .qd-conteudo .qd-col-cab .qd-col-passa-com { flex: 0 1 auto; min-width: 0; margin-left: auto; }
+.qd-vista > .qd-conteudo .qd-col-cab .qd-col-passa-com .icon.mascote, .qd-vista > .qd-conteudo .qd-col-cab .qd-col-passa-com nod-mascote { width: 18px !important; height: 18px !important; }
+.qd-vista > .qd-conteudo .qd-col-cab .qd-col-add { position: absolute; right: 30px; top: 5px; opacity: 0; pointer-events: none; background: var(--qd-fundo); transition: opacity .12s; }
+.qd-vista > .qd-conteudo .qd-col-cab:is(:hover, :focus-within) .qd-col-add, .qd-vista > .qd-conteudo .qd-col-cab .qd-col-add[aria-expanded="true"] { opacity: 1; pointer-events: auto; }
+@media (hover: none) { .qd-vista > .qd-conteudo .qd-col-cab .qd-col-add { position: static; opacity: 1; pointer-events: auto; } }
+/* As tiras recolhidas descem até o fim do quadro, como no Paper. */
+.qd-vista > .qd-conteudo:has(.qd-grade) { flex: 1 0 auto; }
+.qd-vista > .qd-conteudo:has(.qd-grade) > .qd-quadro { flex: 1 0 auto; }
+.qd-vista > .qd-conteudo .qd-quadro > .qd-grade { flex: 1 0 auto; min-height: 0; }
+.qd-vista > .qd-conteudo .qd-col-cab > .qd-col-bt { flex: 0 1 auto; min-width: 0; }
+/* ---- Tela 18c do Paper: o popover da passagem com 378 px, as saídas em linha (rótulo à esquerda, seletor compacto à
+   direita), selects de 28 a 36 px com borda fina e os botões em pílula. ---- */
+.qd-vista > .qd-conteudo .qd-pop-passa { width: 378px; box-sizing: border-box; padding: 16px; border-color: var(--borda-sutil); border-radius: var(--raio-14); background: var(--surface-elevated); box-shadow: var(--sombra-popover); }
+.qd-pop-passa form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 8px; }
+.qd-pop-passa form > * { grid-column: 1 / -1; }
+.qd-pop-passa .qd-pop-tit { margin: 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.qd-pop-passa .qd-pop-tit b { margin-left: 4px; font-weight: 600; color: var(--ink); }
+.qd-pop-passa .qd-pas-op { gap: 10px; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); color: var(--ink); }
+.qd-pop-passa .qd-pas-op input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--action); }
+.qd-pop-passa .qd-pas-op small { font-size: var(--fs-rotulo); font-weight: var(--peso-regular); }
+.qd-pop-passa #qd-pas-agente { height: 36px; padding: 0 10px; border: 1px solid var(--borda); border-radius: var(--raio-10); background: var(--surface-elevated); color: var(--ink); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
+.qd-pop-passa .qd-rotulo { margin: 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.qd-pop-passa .qd-pas-inst { min-height: 64px; margin-top: -6px; padding: 8px 10px; border-color: var(--borda); border-radius: var(--raio-10); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); resize: none; }
+.qd-pop-passa .qd-pas-inst:focus-visible { outline: none; border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+.qd-pop-passa :is(label[for="qd-pas-proxima"], label[for="qd-pas-volta"], #qd-pas-proxima, #qd-pas-volta) { grid-column: auto; }
+.qd-pop-passa :is(#qd-pas-proxima, #qd-pas-volta) { height: 28px; padding: 0 8px 0 10px; border: 1px solid var(--borda); border-radius: var(--raio-8); background: var(--surface-elevated); color: var(--ink); font-size: var(--fs-corpo-2); }
+.qd-pop-passa .qd-pop-bts { gap: 8px; margin-top: 2px; }
+.qd-pop-passa .qd-pop-bts .qd-bt { height: 28px; padding: 0 10px; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
+.qd-pop-passa .qd-pop-bts .qd-bt-pri { background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); }
+@media (forced-colors: active) { .qd-pop-passa .qd-pas-inst:focus-visible { outline: 2px solid CanvasText; } }

@@ -1,0 +1,196 @@
+/* ADR-174 (2026-11-12): o personagem do nod — o modal "Criar novo bot" (tela 09 do Paper), o preparo com %
+   (tela 09b) e o onboarding em 10 passos (tela 13). Só tokens (tokens.css e os do ADR-167); nenhuma cor literal. */
+
+/* ---- seletores de forma e cor (modal e passo 9) ------------------------------------------------------------------- */
+.cb-formas, .cb-cores { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.cb-cores { gap: 6px; }
+.cb-forma { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--raio-14); border: 1.5px solid transparent; background: none; cursor: pointer; transition: background var(--dur-rapido) var(--curva), border-color var(--dur-rapido) var(--curva); }
+.cb-forma:hover { background: var(--hover); }
+.cb-forma[aria-checked="true"] { border-color: var(--ink); background: var(--ativo); }
+.cb-forma .icon.mascote.sm { width: 32px; height: 32px; }
+.cb-cor { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--raio-full); border: 2px solid transparent; background: none; cursor: pointer; padding: 0; }
+.cb-cor .cor-amostra { display: block; width: 22px; height: 22px; border-radius: var(--raio-full); background: var(--mascote-cor); box-shadow: inset 0 0 0 .5px var(--line-strong); transition: transform var(--dur-rapido) var(--curva); }
+.cb-cor:hover .cor-amostra { transform: scale(1.08); }
+.cb-cor[aria-checked="true"] { border-color: var(--ink); }
+.cb-forma:focus-visible, .cb-cor:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ---- o modal ------------------------------------------------------------------------------------------------------ */
+dialog.criar-bot { width: min(480px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--borda-sutil); border-radius: var(--raio-20); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-modal); overflow: hidden; }
+/* Tela 09: o véu é preto (50% no claro, 70% no escuro, o --backdrop do escuro). Antes era o --papel, branco nos dois temas,
+   que lavava a tela inteira no escuro. --veu-criar-bot é local; a integração pode levá-lo a tokens.css. */
+dialog.criar-bot { --veu-criar-bot: color-mix(in srgb, black 50%, transparent); } /* cor-fixa: o véu do Paper é preto nos dois temas */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) dialog.criar-bot { --veu-criar-bot: var(--backdrop); } }
+:root[data-theme="dark"] dialog.criar-bot { --veu-criar-bot: var(--backdrop); }
+dialog.criar-bot::backdrop { background: var(--veu-criar-bot); }
+dialog.criar-bot :is(.cb-topo, .cb-acoes, .cb-nome) { box-sizing: border-box; }
+/* No escuro a cor "tinta" do Paper é clara (o personagem preto vira branco): a amostra acompanha. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cb-cor .cor-amostra.c-black { background: var(--ink); } }
+:root[data-theme="dark"] .cb-cor .cor-amostra.c-black { background: var(--ink); }
+dialog.criar-bot[open] { animation: cb-entra var(--dur-lento) var(--curva); }
+@keyframes cb-entra { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+.cb-topo { display: flex; align-items: center; justify-content: space-between; height: 52px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--divisoria); }
+.cb-topo h2 { margin: 0; font-size: var(--fs-corpo); line-height: var(--lh-corpo); font-weight: 600; }
+.cb-fechar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--raio-full); border: 0; background: none; color: var(--ink-3); font-size: var(--fs-titulo-3); cursor: pointer; }
+.cb-fechar:hover { background: var(--hover); color: var(--ink); }
+.cb-corpo { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 20px 24px; }
+.cb-previa { display: grid; place-items: center; height: 104px; margin-bottom: 10px; }
+.cb-previa .icon.mascote.xl { width: 104px; height: 104px; }
+.cb-nome { height: 36px; margin-bottom: 10px; padding: 0 12px; border-radius: var(--raio-10); border: 1px solid var(--borda); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo); }
+.cb-nome:focus { outline: none; border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+.cb-rotulo-grupo { margin: 0; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); color: var(--ink-3); }
+.cb-corpo .cb-formas { margin-bottom: 10px; }
+.cb-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 60px; padding: 0 16px; border-top: 1px solid var(--divisoria); }
+.cb-acoes .bt { height: 32px; min-height: 32px; padding: 0 12px; border-radius: var(--raio-full); font-size: var(--fs-corpo); font-weight: var(--peso-medio); }
+.cb-acoes .bt:not(.pri) { border: 1px solid var(--borda); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-controle); }
+.cb-acoes .bt.pri { border: 1px solid transparent; background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); }
+.cb-form.preparando { padding: 28px 28px 24px; }
+
+/* ---- o preparo com % ---------------------------------------------------------------------------------------------- */
+.cb-preparo { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; max-width: 360px; margin: 0 auto; text-align: center; }
+.cb-preparo > :not(.cb-barra, .cb-porcento) { grid-column: 1 / -1; }
+.cb-preparo-mascote { position: relative; display: grid; place-items: center; height: 140px; }
+.cb-preparo-mascote .icon.mascote.xl { width: 104px; height: 104px; }
+/* A órbita do Paper: dois anéis finos da cor do bot girando em volta do personagem enquanto ele trabalha. */
+.cb-preparo-mascote.orbita::before, .cb-preparo-mascote.orbita::after { content: ""; position: absolute; left: 50%; top: 50%; width: 132px; height: 52px; margin: -26px 0 0 -66px; border: 1.5px solid var(--mascote-cor, var(--ink-3)); border-radius: 50%; opacity: .55; animation: cb-orbita 2.4s linear infinite; pointer-events: none; }
+.cb-preparo-mascote.orbita::after { animation-duration: 3.1s; animation-direction: reverse; transform: rotate(60deg); }
+@keyframes cb-orbita { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+/* foco-ok: o título só recebe o foco do programa ao trocar de tela, para o leitor de tela anunciar; não é controle */
+.cb-preparo-titulo { margin: 8px 0 2px; font-size: var(--fs-titulo-3); font-weight: var(--peso-medio); outline: none; }
+.cb-preparo-sub { margin: 0 0 18px; color: var(--ink-3); font-size: var(--fs-corpo-2); }
+.cb-barra { grid-column: 1; height: 4px; border-radius: var(--raio-full); background: var(--hover); overflow: hidden; }
+.cb-barra-cheia { display: block; height: 100%; border-radius: inherit; background: var(--ink); transition: width var(--dur-normal) var(--curva); }
+.cb-porcento { grid-column: 2; min-width: 3.2em; text-align: right; font-size: var(--fs-rotulo); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.cb-passos { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 10px; text-align: left; }
+.cb-passo { display: flex; align-items: center; gap: 10px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
+.cb-passo[data-situacao="feito"] { color: var(--ink-2); }
+.cb-passo[data-situacao="agora"] { color: var(--ink); font-weight: var(--peso-medio); }
+.cb-passo[data-situacao="erro"] { color: var(--danger); }
+.cb-marca { display: grid; place-items: center; width: 18px; height: 18px; flex: none; }
+.cb-passo[data-situacao="feito"] .cb-marca { color: var(--success); }
+.cb-marca .icon.mascote.sm { width: 18px; height: 18px; }
+.cb-ponto { width: 5px; height: 5px; border-radius: var(--raio-full); background: var(--line-strong); }
+.cb-detalhe { margin-left: auto; color: var(--ink-3); font-size: var(--fs-rotulo); font-weight: var(--peso-regular); }
+.cb-erro { margin-top: 18px; padding: 12px 14px; border-radius: var(--raio-12); border: 1px solid var(--borda); background: var(--surface); text-align: left; }
+.cb-erro p { margin: 0 0 10px; font-size: var(--fs-corpo-2); }
+.cb-erro .cb-erro-titulo { margin-bottom: 4px; color: var(--ink-3); font-size: var(--fs-rotulo); }
+.cb-erro-acoes { display: flex; gap: 8px; }
+
+/* ---- onboarding em 10 passos -------------------------------------------------------------------------------------- */
+.ap-camada { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px; background: var(--surface); color: var(--ink); }
+.ap { position: relative; display: flex; flex-direction: column; width: min(560px, 100%); min-height: min(440px, calc(100vh - 48px)); }
+.ap-palco { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; animation: ap-entra var(--dur-lento) var(--curva); }
+@keyframes ap-entra { from { opacity: 0; transform: translateX(14px); } }
+/* foco-ok: o título só recebe o foco do programa ao trocar de passo, para o leitor de tela anunciar; não é controle */
+.ap h1 { margin: 10px 0 0; font-size: var(--fs-titulo-2); line-height: var(--lh-titulo-2); font-weight: var(--peso-medio); letter-spacing: var(--tracking-titulo-2); outline: none; }
+.ap .ap-titulo-discreto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.ap-sub { margin: 0; color: var(--ink-2); font-size: var(--fs-corpo); max-width: 40ch; }
+.ap-personagem { display: grid; place-items: center; min-height: 120px; }
+.ap-personagem .icon.mascote.xl { width: 88px; height: 88px; }
+.ap-personagem .icon.mascote.xxl { width: 120px; height: 120px; }
+.ap-previa .icon.mascote.xxl { width: 104px; height: 104px; }
+.ap-exemplo .icon.mascote.lg { width: 52px; height: 52px; }
+.ap-rodape { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; min-height: 52px; }
+.ap-acoes { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.ap-pontos { display: flex; align-items: center; gap: 4px; }
+.ap-ponto { width: 4px; height: 4px; border-radius: var(--raio-full); background: var(--line-strong); transition: width var(--dur-normal) var(--curva), background var(--dur-normal) var(--curva); }
+.ap-ponto.atual { width: 16px; background: var(--ink); }
+.ap-voltar { position: absolute; top: -8px; left: -8px; width: 32px; height: 32px; border-radius: var(--raio-8); border: 0; background: none; color: var(--ink-3); font-size: var(--fs-titulo-2); cursor: pointer; }
+.ap-voltar:hover { background: var(--hover); color: var(--ink); }
+
+/* 1 · boas-vindas */
+.ap-boas-vindas { align-items: center; justify-content: center; gap: 14px; text-align: center; }
+.ap-marca { display: flex; align-items: center; gap: 12px; }
+.ap-marca h1 { margin: 0; font-size: var(--fs-titulo-1); line-height: 1; }
+.ap-entrar { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+.ap-termos { margin: 8px 0 0; color: var(--ink-3); font-size: var(--fs-legenda); }
+
+/* 3 · o computador do bot, com um cursor que anda e clica */
+.ap-cena-pc { width: 220px; border-radius: var(--raio-10); background: var(--ink); padding: 6px; box-shadow: var(--sombra-modal); }
+.ap-pc-barra { height: 6px; width: 40%; margin: 2px 4px 6px; border-radius: var(--raio-full); background: var(--ink-2); }
+.ap-pc-tela { position: relative; height: 92px; border-radius: var(--raio-6); background: var(--surface); padding: 10px; display: grid; align-content: start; gap: 6px; }
+.ap-pc-linha { display: block; height: 4px; border-radius: var(--raio-full); background: var(--line-strong); }
+.ap-pc-linha.l1 { width: 80%; } .ap-pc-linha.l2 { width: 92%; } .ap-pc-linha.l3 { width: 58%; }
+.ap-pc-cursor { position: absolute; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 12px solid var(--action); transform: rotate(-30deg); animation: ap-cursor 3.2s var(--curva) infinite; }
+@keyframes ap-cursor { 0% { left: 20%; top: 70%; } 35% { left: 62%; top: 40%; } 45% { left: 62%; top: 40%; transform: rotate(-30deg) scale(.82); } 55% { transform: rotate(-30deg) scale(1); } 80% { left: 34%; top: 22%; } 100% { left: 20%; top: 70%; } }
+
+/* 4 · o desfile de bots de exemplo */
+.ap-desfile { display: flex; gap: 28px; justify-content: center; margin-bottom: 4px; }
+.ap-exemplo { --atraso: 0ms; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: var(--fs-corpo-2); animation: ap-sobe var(--dur-lento) var(--curva) both; animation-delay: var(--atraso, 0ms); }
+@keyframes ap-sobe { from { opacity: 0; transform: translateY(10px); } }
+
+/* 5 · o quadro */
+.ap-quadro { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(360px, 100%); text-align: left; margin-bottom: 6px; }
+.ap-quadro > div { display: grid; align-content: start; gap: 6px; }
+.ap-quadro b { font-size: var(--fs-legenda); color: var(--ink-3); font-weight: var(--peso-regular); }
+.ap-cartao { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; border-radius: var(--raio-6); border: 1px solid var(--borda); background: var(--surface-elevated); }
+.ap-cartao i { flex: 1; height: 3px; border-radius: var(--raio-full); background: var(--line-strong); }
+.ap-cartao .icon.mascote.sm { width: 14px; height: 14px; }
+
+/* 6 e 7 · fichas */
+.ap-fichas { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 420px; margin-top: 12px; }
+.ap-ficha { height: 32px; padding: 0 14px; border-radius: var(--raio-full); border: 1px solid var(--borda); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; transition: background var(--dur-rapido) var(--curva), border-color var(--dur-rapido) var(--curva); }
+.ap-ficha:hover { background: var(--hover); }
+.ap-ficha[aria-checked="true"] { border-color: var(--ink); background: var(--surface-selected); }
+
+/* 8 · apps */
+.ap-apps { list-style: none; margin: 12px 0 0; padding: 0; width: min(380px, 100%); text-align: left; }
+.ap-app { display: flex; align-items: center; gap: 8px; min-height: 44px; border-bottom: 1px solid var(--borda-sutil); font-size: var(--fs-corpo-2); }
+.ap-app:last-child { border-bottom: 0; }
+.ap-app-nome { flex: 1; }
+.ap-sugerido { padding: 2px 8px; border-radius: var(--raio-full); background: var(--signal-soft); color: var(--signal); font-size: var(--fs-legenda); }
+.ap-conectado { color: var(--success); font-size: var(--fs-rotulo); }
+
+/* 9 · criar o bot */
+.ap-criar .ap-palco { gap: 12px; }
+.ap-previa { min-height: 140px; }
+.ap-nome { width: min(260px, 100%); height: 36px; padding: 0 12px; border-radius: var(--raio-10); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; text-align: center; }
+.ap-nome:focus { outline: 2px solid var(--focus-ring); border-color: transparent; }
+.ap-composer { display: flex; align-items: center; gap: 8px; width: min(420px, 100%); margin-top: 6px; padding: 6px 6px 6px 14px; border-radius: var(--raio-18); border: 1px solid var(--borda); background: var(--surface-elevated); box-shadow: var(--sombra-modal); }
+/* foco-no-conteiner: .ap-composer */
+.ap-composer textarea { flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo); line-height: 24px; height: 24px; }
+.ap-enviar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--raio-full); border: 0; background: var(--action); color: var(--on-action); cursor: pointer; }
+.ap-enviar[disabled] { background: var(--hover); color: var(--ink-3); cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-palco, .ap-exemplo, dialog.criar-bot[open] { animation: none; }
+  .ap-pc-cursor, .cb-preparo-mascote.orbita::before, .cb-preparo-mascote.orbita::after { animation: none; }
+}
+
+/* Alto contraste: o campo da primeira mensagem mostra o contorno no composer inteiro. */
+@media (forced-colors: active) {
+  .ap-composer:focus-within { outline: 2px solid CanvasText; }
+}
+@media (forced-colors: active) { .cb-nome:focus { outline: 2px solid CanvasText; } }
+
+/* ---- Tela 09b do Paper (rodada 2): o preparo ocupa a área da conversa ----
+   O modal (ADR-174: o preparo segue no mesmo diálogo) vira a tela inteira à direita da barra: sem véu, sem cartão, o
+   conteúdo no centro (personagem de 128, título 22/28, a barra de 320 com o %, os passos em linhas de 28) e o "Se der
+   erro" como cartão no canto de baixo à direita. --cb-barra é local: a largura da barra lateral (340 hoje; a casca nova
+   usa 272 e a integração liga ao token dela). */
+dialog.criar-bot:has(.cb-form.preparando) { --cb-barra: 340px; position: fixed; inset: 0 0 0 var(--cb-barra); width: auto; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; background: var(--surface); box-shadow: none; }
+dialog.criar-bot:has(.cb-form.preparando)::backdrop { background: transparent; }
+.cb-form.preparando { height: 100%; box-sizing: border-box; padding: 0; display: flex; align-items: center; justify-content: center; }
+.cb-form.preparando .cb-preparo { width: 320px; max-width: 320px; column-gap: 12px; }
+.cb-form.preparando .cb-preparo-mascote { height: 128px; margin-bottom: 22px; }
+.cb-form.preparando .cb-preparo-mascote .icon.mascote.xl { width: 104px; height: 104px; }
+.cb-form.preparando .cb-preparo-mascote.orbita::before, .cb-form.preparando .cb-preparo-mascote.orbita::after { width: 124px; height: 48px; margin: -24px 0 0 -62px; }
+.cb-form.preparando .cb-preparo-titulo { margin: 0 0 6px; font-size: 22px; line-height: 28px; letter-spacing: -.012em; font-weight: 500; }
+.cb-form.preparando .cb-preparo-sub { margin: 0 0 22px; font-size: 14px; line-height: 20px; color: var(--ink-2); }
+.cb-form.preparando .cb-barra { height: 6px; background: var(--hover); }
+.cb-form.preparando .cb-barra-cheia { background: var(--action); }
+.cb-form.preparando .cb-porcento { min-width: 34px; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--ink); }
+.cb-form.preparando .cb-passos { margin-top: 22px; gap: 0; }
+.cb-form.preparando .cb-passo { height: 28px; font-size: 13px; }
+.cb-form.preparando .cb-detalhe { font-size: 12px; }
+.cb-form.preparando .cb-erro { position: fixed; right: 24px; bottom: 24px; width: 300px; margin: 0; box-sizing: border-box; border-color: var(--borda-sutil); background: var(--surface-elevated); box-shadow: var(--sombra-inline); }
+/* O ponto do passo que falta: o .cb-ponto do computador do bot (vermelho, computador-do-bot.css) vazava aqui. */
+.cb-passo .cb-ponto { width: 6px; height: 6px; margin: 0; background: var(--borda-forte); animation: none; }
+
+/* Tela 13 do Paper (rodada 2): "Entrar →" em pílula de 32; a cena do computador com a moldura escura, a tela cinza e o
+   cursor violeta; o ícone de cada app na linha dos apps. */
+.ap-entrar.bt.pri { height: 32px; min-height: 32px; padding: 0 12px; border-radius: 999px; font-size: 14px; font-weight: 500; }
+.ap-cena-pc { width: 220px; padding: 8px; border-radius: 12px; background: var(--base); }
+.ap-pc-barra { background: color-mix(in srgb, var(--surface) 30%, transparent); }
+.ap-pc-tela { background: var(--surface-raised); border-radius: 6px; }
+.ap-pc-cursor { border-bottom-color: var(--agent-violet); }
+.ap-app-ic { flex: none; color: var(--ink-2); }

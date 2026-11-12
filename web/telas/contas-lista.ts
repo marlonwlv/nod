@@ -41,7 +41,7 @@ export type UiContas = {
   renomear: string | null;
   detalhe: string | null;
   /** "Adicionar conta" aberto. */
-  nova: { ia: IaComConta; apelido: string; maquinas: string[] } | null;
+  nova: { ia: IaComConta; apelido: string; maquinas: string[]; /** Rodada 3: depois do "Entrar", o login de cada máquina aparece nela. */ entrando?: boolean } | null;
   confirmar: ConfirmacaoContas | null;
   /** Provedores filtrado por máquina (vindo de Máquinas › Gerenciar contas). */
   filtro: string | null;
@@ -75,7 +75,15 @@ export type ContextoContas = {
   simulacao?: boolean;
 };
 
-export const nomeDaContaNaTela = (c: Pick<ContaIa, "ia" | "apelido">): string => `${PROVEDOR[c.ia].nome} · ${c.apelido}`;
+/**
+ * "Claude · Lumen". Rodada 3 (tela 19 do Paper): o apelido que já começa pelo fornecedor ("Claude · Lumen", "Claude
+ * Pessoal") não ganha o prefixo de novo ("Claude · Claude · Lumen").
+ */
+export const nomeDaContaNaTela = (c: Pick<ContaIa, "ia" | "apelido">): string => {
+  const prov = PROVEDOR[c.ia].nome;
+  const a = c.apelido.trim();
+  return !a ? prov : a.toLocaleLowerCase("pt-BR").startsWith(prov.toLocaleLowerCase("pt-BR")) ? a : `${prov} · ${a}`;
+};
 
 /** O nome curto da máquina na pílula: "Mac" quando a pessoa tem um Mac só; senão o nome que ela anunciou. */
 export function nomeCurto(m: MaquinaDto, maquinas: readonly MaquinaDto[]): string {
@@ -123,12 +131,15 @@ export function contaEmUso(contas: readonly ContaIa[], agora: number, p: { filtr
   return logadas.find((c) => daIa(c.ia) === c) ?? null;
 }
 
+const ICONE_OK_PIL = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>';
+
 function pilulas(c: ContaIa, x: ContextoContas): string {
   return x.maquinas.map((m) => {
     const v = c.maquinas.find((y) => y.maquinaId === m.id);
     const nome = nomeCurto(m, x.maquinas);
     const ic = m.plataforma === "darwin" ? ICONE.laptop : ICONE.servidor;
-    if (v?.estado === "pronta") return `<span class="cl-pil"><i class="cl-ponto${m.conectada ? "" : " fora"}" aria-hidden="true"></i>${ic}${esc(nome)}</span>${alvoPendente(c, m)}`;
+    // Rodada 3 (tela 19 do Paper): logada é o chip verde "✓ Mac do Marlon" (o nome inteiro da máquina); fora do ar, cinza.
+    if (v?.estado === "pronta") return `<span class="cl-pil ok${m.conectada ? "" : " fora"}" title="${esc(m.conectada ? `Logada no ${m.nome}` : `${m.nome} fora do ar`)}">${ICONE_OK_PIL}${esc(m.nome)}</span>${alvoPendente(c, m)}`;
     if (!m.conectada) return "";
     const entrando = x.ui.logins.some((l) => maquinaDoLogin(l) === m.id && contaDoLogin(l) === c.id);
     if (entrando) return `<span class="cl-pil tracejada"><span class="ob-gira" aria-hidden="true"></span>Entrando na ${esc(nome)}…</span>`;
@@ -136,7 +147,7 @@ function pilulas(c: ContaIa, x: ContextoContas): string {
     const podeEntrar = m.plataforma !== "darwin" || ehEsteMac(m, x);
     const texto = v?.estado === "sem_login" ? `Entrar de novo na ${nome}` : `Entrar na ${nome}`;
     return podeEntrar
-      ? `<button type="button" class="cl-pil tracejada" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">${ic}${esc(texto)}</button>`
+      ? `<button type="button" class="cl-pil tracejada" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">${esc(texto)}</button>`
       : `<span class="cl-pil tracejada mudo">${ic}${esc(`Entre pelo app do nod no ${nome}`)}</span>`;
   }).join("");
 }
@@ -322,7 +333,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
     ? ["e-limite", `No limite até ${quandoNaTela(c.noLimiteAte!, x.agora)}`]
     : c.id === usada ? ["e-uso", filtro ? `Em uso na ${nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas)}` : "Em uso"]
     : c.entraNaTrocaAutomatica ? ["e-disp", "Disponível"] : ["e-fora", "Fora da fila"];
-  const ident = [d?.email, d?.organizacao ? `organização ${d.organizacao}` : null, `pelo ${PROVEDOR[c.ia].cli}`].filter(Boolean).join(" · ");
+  const ident = [d?.email, d?.organizacao ?? null, `pelo ${PROVEDOR[c.ia].cli}`].filter(Boolean).join(" · ");
   const renomear = x.ui.renomear === c.id
     ? `<form class="cl-renomear" data-form="cl-renomear" data-id="${esc(c.id)}"><input name="apelido" maxlength="40" value="${esc(c.apelido)}" aria-label="Apelido de ${esc(nome)}" data-cl-autofoco data-manter-foco="cl-renomear"><button type="submit" class="bt pri sm">Salvar</button><button type="button" class="bt sm" data-act="cl-renomear-fechar">Cancelar</button></form>`
     : "";
@@ -339,7 +350,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
       <span class="cl-pos" aria-hidden="true">${pos}</span>
       ${logoDaIa(c.ia, "cl-logo")}
       <div class="cl-corpo">
-        <div class="cl-nome"><b>${esc(PROVEDOR[c.ia].nome)} · ${esc(c.apelido)}</b>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div>
+        <div class="cl-nome"><b>${esc(nomeDaContaNaTela(c))}</b>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div>
         <div class="cl-ident">${ICONE.pessoa}<span>${esc(ident)}</span></div>
         ${x.simulacao ? "" : usoDaConta(c, { agora: x.agora, contas: x.contas.contas, nomeDaMaquina: (id) => { const m = x.maquinas.find((y) => y.id === id); return m ? nomeCurto(m, x.maquinas) : null; } })}
         ${filtro ? "" : `<div class="cl-maqs">${pilulas(c, x)}</div>`}
@@ -378,24 +389,60 @@ function formNova(x: ContextoContas): string {
   const recebem = x.maquinas.filter((m) => m.conectada && (m.plataforma !== "darwin" || ehEsteMac(m, x)));
   if (recebem.length === 0) return semMaquina(x);
   const ias: IaComConta[] = ["claude-cli", "codex-cli"];
-  const provedor = ias.map((ia) => `<label class="cl-prov${n.ia === ia ? " ativo" : ""}"><input type="radio" name="ia" value="${ia}" data-cl-nova-ia${n.ia === ia ? " checked" : ""}>${logoDaIa(ia, "cl-logo")}<span><b>${esc(PROVEDOR[ia].nome)}</b><small>pelo ${esc(PROVEDOR[ia].cli)}</small></span></label>`).join("");
-  const maqs = x.maquinas.filter((m) => m.conectada).map((m) => {
+  // Tela 19b do Paper: o fornecedor em dois cartões (logo, nome, "Empresa · pelo CLI" e o rádio à direita).
+  const provedor = ias.map((ia) => `<label class="cl-prov${n.ia === ia ? " ativo" : ""}"><input type="radio" name="ia" value="${ia}" class="cl-prov-in" data-cl-nova-ia${n.ia === ia ? " checked" : ""}>${logoDaIa(ia, "cl-logo")}<span class="cl-prov-txt"><b>${esc(PROVEDOR[ia].nome)}</b><small>${esc(PROVEDOR[ia].empresa)} · pelo ${esc(PROVEDOR[ia].cli)}</small></span><i class="cl-prov-radio" aria-hidden="true"></i></label>`).join("");
+  // Rodada 3 (tela 19b do Paper): a VM na nuvem desligada aparece ("Desligada · liga ao entrar", ADR-121) e, depois do
+  // Entrar, o login de cada máquina mora na linha dela: o estado à direita e, na VM, os passos (o código) embaixo.
+  const entrando = !!n.entrando;
+  const dela = (m: MaquinaDto) => x.ui.logins.find((l) => maquinaDoLogin(l) === m.id && contaDoLogin(l) === null && (l.onde === "vm" ? l.login.ia : l.ia) === n.ia);
+  const recebe = (m: MaquinaDto) => m.conectada || (m.plataforma !== "darwin" && !!m.nuvem);
+  const maqs = x.maquinas.filter(recebe).map((m) => {
     const mac = m.plataforma === "darwin";
     const pode = !mac || ehEsteMac(m, x);
-    const dica = mac ? (pode ? "abre o navegador" : "abra o app do nod nesse Mac") : preparoNaNova(m, n.ia) ?? "o login aparece aqui na tela";
-    return `<label class="cl-maq${pode ? "" : " mudo"}"><input type="checkbox" value="${esc(m.id)}" data-cl-nova-maq${n.maquinas.includes(m.id) && pode ? " checked" : ""}${pode ? "" : " disabled"}>${mac ? ICONE.laptop : ICONE.servidor}<span><b>${esc(mac && pode ? rotuloDoMac() : m.nome)}</b><small>${esc(dica)}</small></span></label>`;
+    const dica = !m.conectada ? "Desligada · liga ao entrar" : mac ? (pode ? "Abre o navegador deste Mac" : "Abra o app do nod nesse Mac") : preparoNaNova(m, n.ia) ?? "O login aparece aqui na tela";
+    const l = entrando && n.maquinas.includes(m.id) ? dela(m) : undefined;
+    const marcada = entrando ? n.maquinas.includes(m.id) : n.maquinas.includes(m.id) && pode;
+    const linha = `<label class="cl-maq${pode ? "" : " mudo"}"><input type="checkbox" value="${esc(m.id)}" data-cl-nova-maq${marcada ? " checked" : ""}${!pode ? " disabled" : entrando ? ' aria-disabled="true" tabindex="-1"' : ""}>${mac ? ICONE.laptop : ICONE.servidor}<span><b>${esc(mac && pode ? rotuloDoMac() : m.nome)}</b><small>${esc(dica.charAt(0).toUpperCase() + dica.slice(1))}</small></span>${l ? estadoDoLoginNaNova(l) : ""}</label>`;
+    const passos = l && l.onde === "vm" && !["pronto", "pedido", "abrindo"].includes(l.login.fase) && (l.login.url || l.login.fase === "falhou" || l.login.fase === "cancelado" || l.login.fase === "preparando") ? `<div class="cl-np-login">${blocoDoLogin(l, x, null)}</div>` : "";
+    return linha + passos;
   }).join("");
-  const marcadas = n.maquinas.filter((id) => x.maquinas.some((m) => m.id === id && m.conectada)).length;
-  return `<form class="espaco-cartao cl-nova" data-form="cl-nova">
-      <b class="cl-nova-tit">Nova conta</b>
-      <div class="cl-provs" role="radiogroup" aria-label="Provedor">${provedor}</div>
-      <label class="cl-campo">Apelido<input name="apelido" maxlength="40" placeholder="ex.: Lumen, Pessoal, Freela" value="${esc(n.apelido)}" data-cl-nova-apelido data-manter-foco="cl-nova-apelido"></label>
-      <small class="mudo">Aparece na lista e na conversa. E-mail e organização ficam só nas suas máquinas.</small>
-      <span class="cl-campo-tit">Entrar em</span>
-      <div class="cl-maqs-form">${maqs}</div>
-      <div class="cl-nova-acoes"><button type="button" class="bt" data-act="cl-nova-fechar">Cancelar</button><button type="submit" class="bt pri"${marcadas === 0 ? " disabled" : ""}>${marcadas > 1 ? `Entrar nas ${marcadas} máquinas` : "Entrar"}</button></div>
+  const marcadas = n.maquinas.filter((id) => x.maquinas.some((m) => m.id === id && recebe(m))).length;
+  const daNova = n.maquinas.map((id) => x.maquinas.find((m) => m.id === id)).filter((m): m is MaquinaDto => !!m).map(dela);
+  const andando = daNova.some((l) => l && (l.onde === "mac" || !FASES_FINAIS.has(l.login.fase)));
+  const entrar = !entrando
+    ? `<button type="submit" class="cl-np-entrar"${marcadas === 0 ? " disabled" : ""}>${marcadas > 1 ? `Entrar nas ${marcadas} máquinas` : "Entrar"}</button>`
+    : andando
+      ? `<button type="submit" class="cl-np-entrar" disabled>${marcadas > 1 ? `Entrando nas ${marcadas} máquinas…` : "Entrando…"}</button>`
+      : `<button type="button" class="cl-np-entrar" data-act="cl-nova-fechar">Concluir</button>`;
+  return `<form class="cl-nova cl-nova-pag" data-form="cl-nova" aria-labelledby="cl-nova-tit">
+      <div class="cl-np-cab"><button type="button" class="cl-np-voltar" data-act="cl-nova-fechar" aria-label="Voltar para Provedores de IA">${ICONE_VOLTAR}</button><span class="cl-np-mig">Provedores de IA</span><span class="cl-np-sep" aria-hidden="true">/</span><h2 class="cl-nova-tit" id="cl-nova-tit">Nova conta</h2></div>
+      <span class="cl-campo-tit" id="cl-np-forn">Fornecedor</span>
+      <div class="cl-provs" role="radiogroup" aria-labelledby="cl-np-forn">${provedor}</div>
+      <label class="cl-campo"><span class="cl-campo-tit">Apelido</span><input name="apelido" maxlength="40" placeholder="ex.: Lumen, Pessoal, Freela" value="${esc(n.apelido)}" data-cl-nova-apelido data-manter-foco="cl-nova-apelido" aria-describedby="cl-np-apelido-dica"></label>
+      <small class="qd-sr" id="cl-np-apelido-dica">Aparece na lista e na conversa. E-mail e organização ficam só nas suas máquinas.</small>
+      <span class="cl-campo-tit" id="cl-np-maqs">Entrar em</span>
+      <div class="cl-maqs-form" role="group" aria-labelledby="cl-np-maqs">${maqs}</div>
+      <div class="cl-nova-acoes"><p class="cl-np-nota">${ICONE_CADEADO}<span>O nod não vê sua senha: o login é no site da ${esc(PROVEDOR[n.ia].empresa)}, e a sessão fica em cada máquina.</span></p><button type="button" class="cl-np-cancelar" data-act="cl-nova-fechar">Cancelar</button>${entrar}</div>
     </form>`;
 }
+
+const FASES_FINAIS: ReadonlySet<string> = new Set(["pronto", "falhou", "cancelado"]);
+
+/** O estado do login à direita da máquina, na Nova conta (tela 19b do Paper). */
+function estadoDoLoginNaNova(l: LoginNaTela): string {
+  const gira = '<span class="ob-gira" aria-hidden="true"></span>';
+  if (l.onde === "mac") return `<span class="cl-np-est">${gira}Termine no navegador…</span>`;
+  const g = l.login;
+  if (g.fase === "pronto") return `<span class="cl-np-est ok">✓ Entrou</span>`;
+  if (g.fase === "falhou" || g.fase === "cancelado") return `<span class="cl-np-est erro">Não entrou</span>`;
+  if (g.fase === "preparando") return `<span class="cl-np-est">${gira}Preparando…</span>`;
+  if (g.fase === "conferindo" || g.codigoEnviado) return `<span class="cl-np-est">${gira}Conferindo…</span>`;
+  if (!g.url || g.fase === "pedido" || g.fase === "abrindo") return `<span class="cl-np-est">${gira}Abrindo o login…</span>`;
+  return `<span class="cl-np-chip"><i aria-hidden="true"></i>Esperando o código</span>`;
+}
+
+const ICONE_VOLTAR = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg>';
+const ICONE_CADEADO = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>';
 
 /**
  * NOD-8 (definido em 2026-10-22): na VM sem a IA (ou abaixo do piso), a Nova conta avisa que o nod instala (ou atualiza)
@@ -504,8 +551,20 @@ function loginsSemConta(x: ContextoContas): string {
   }).join("");
 }
 
+/**
+ * Rodada 3 (tela 19 do Paper): "Todas as máquinas ⌄" ao lado de "Adicionar conta", com duas máquinas ou mais. Escolher
+ * uma é o mesmo filtro que Máquinas abre ("Em uso na VM", "Entrar na VM"); "Todas" volta à fila inteira.
+ */
+function seletorDeMaquina(x: ContextoContas): string {
+  if (x.maquinas.length < 2) return "";
+  const ops = [{ id: "", nome: "Todas as máquinas" }, ...x.maquinas.map((m) => ({ id: m.id, nome: m.plataforma === "darwin" && ehEsteMac(m, x) ? "Este Mac" : m.nome }))];
+  return `<label class="qd-sr" for="cl-maq-sel">Máquina</label><select id="cl-maq-sel" class="cl-maq-sel" data-cl-filtro>${ops.map((o) => `<option value="${esc(o.id)}"${(x.ui.filtro ?? "") === o.id ? " selected" : ""}>${esc(o.nome)}</option>`).join("")}</select>`;
+}
+
 export function renderListaDeContas(x: ContextoContas): string {
   const filtro = x.ui.filtro ? x.maquinas.find((m) => m.id === x.ui.filtro) ?? null : null;
+  // Tela 19b do Paper: com a Nova conta aberta (e uma máquina que receba o login), a página é só ela.
+  if (x.ui.nova && !filtro) { const f = formNova(x); if (f.includes('data-form="cl-nova"')) return `${f}${confirmacao(x)}`; }
   const usada = emUso(x);
   const linhas = x.contas.contas.map((c, i) => linha(c, i + 1, x, usada)).join("");
   const n = x.contas.contas.length;
@@ -516,15 +575,16 @@ export function renderListaDeContas(x: ContextoContas): string {
     ? `<div class="espaco-cartao cl-vazio"><p>Nenhuma conta de IA ainda.${x.maquinas.length === 0 ? " Conecte o app do Mac ou uma VM em Máquinas e entre numa conta nela." : " Adicione uma conta e escolha em quais máquinas entrar."}</p></div>`
     : "";
   const regras = n > 0
-    ? `<div class="espaco-cartao cl-regras"><b>Quando uma conta acabar</b><small>Não há nada para configurar aqui. É assim que o Nod age:</small><ul>${REGRAS_DA_FILA.map((r) => `<li><b>${esc(r.titulo)}:</b> ${esc(r.texto)}</li>`).join("")}</ul></div>`
+    // Tela 19 do Paper: o título e uma tabela de duas colunas (o caso e o que o Nod faz); não há nada para configurar.
+    ? `<div class="espaco-cartao cl-regras"><b>Quando uma conta acabar</b><dl class="cl-regras-tab" aria-label="É assim que o Nod age; não há nada para configurar aqui">${REGRAS_DA_FILA.map((r) => `<dt>${esc(r.titulo)}</dt><dd>${esc(r.texto)}</dd>`).join("")}</dl></div>`
     : "";
   const nota = x.ui.nota ? `<p class="cl-nota" role="status">${esc(x.ui.nota)}</p>` : "";
   return `${abas}
     ${vazio}
-    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem"><span>${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span>arraste para mudar</span></div>
+    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem"><span>${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span>arraste para mudar</span>${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${seletorDeMaquina(x)}${formNova(x)}</span>`}</div>
     <ol class="espaco-cartao cl-lista" data-ordem-lista="contas" aria-label="Suas contas de IA, em ordem de uso">${linhas}${loginsSemConta(x)}</ol>` : ""}
     ${nota}
-    ${filtro ? "" : formNova(x)}
+    ${filtro || (!x.ui.nova && (n > 0 || x.ui.logins.length > 0)) ? "" : formNova(x)}
     ${regras}
     <p class="contas-privado">E-mail e organização ficam só nas suas máquinas: o servidor do nod recebe o apelido, o plano e uma impressão da conta, nunca o e-mail.</p>
     ${confirmacao(x)}`;

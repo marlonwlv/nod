@@ -241,7 +241,7 @@ describe("web/telas/quadro-minimo e o quadro com a barra nova", () => {
     const quadro = q([tarefa], { comentarios: [{ id: "c", tarefaId: "1", texto: "oi", assinatura: "Ana", criadoEm: 1 } as never] });
     const base = cardDaTarefa(tarefa, agente);
     const tudo = ajustarCard(base, tarefa, opcoesEfetivas({ propriedades: [...PROPRIEDADES_DO_CARD] }), quadro, ctx.agora);
-    expect(tudo).toMatchObject({ descricao: "Contexto", atualizado: "Atualizado há 2 h", comentarios: 1 });
+    expect(tudo).toMatchObject({ descricao: "Contexto", atualizado: "há 2 h", comentarios: 1 });
     expect(card(tudo)).toContain("qm-pri-urgente");
     expect(card(tudo)).toContain("qm-desc");
     const nada = ajustarCard(base, tarefa, opcoesEfetivas({ propriedades: [] }), quadro, ctx.agora);
@@ -269,13 +269,17 @@ describe("web/telas/quadro-minimo e o quadro com a barra nova", () => {
     expect(modalDoQuadro({ ui: ui(), q: quadro, cs: colunas, nome: "Ada", agente })).toBe("");
   });
 
-  it("quadroDaMeta com a barra nova: funil, pílula, Opções e Nova tarefa; esconde colunas, ordena e filtra", () => {
+  it("quadroDaMeta com a barra da tela 18 do Paper: pessoas, busca, funil, Quadro | Lista e Nova tarefa; esconde colunas, ordena e filtra", () => {
     const ts = [t("1", { titulo: "Zeta", prioridade: "baixa", ordem: 1 }), t("2", { titulo: "Alfa", prioridade: "urgente", ordem: 2 }), t("3", { status: "backlog", titulo: "No backlog" })];
     const h = quadroDaMeta({ q: q(ts), nome: "Ada", agente, filtro: "todos", alternadas: new Set(), acesas: new Set(), podeCriar: true, exibir: { recolhidas: true, compacto: false, ordenar: "prioridade", ocultas: ["backlog"] }, ui: ui({ filtros: [{ campo: "prioridade", valor: "urgente" }, { campo: "prioridade", valor: "baixa" }] }) });
     expect(h).toContain('data-act="fil-abrir"');
-    expect(h).toContain('data-act="ativos-abrir"');
-    expect(h).toContain('data-act="op-abrir"');
-    expect(h).toContain('data-act="nt-abrir"');
+    // As Opções foram para o menu do quadro ("Opções de exibição…"); a barra tem o filtro por pessoa e a visão.
+    expect(h).not.toContain('data-act="ativos-abrir"');
+    expect(h).toContain('class="qm-pes" role="group" aria-label="Filtrar por pessoa"');
+    expect(h).toMatch(/data-filtro="todos" aria-pressed="true"><span>Todas as tarefas<\/span><span class="qm-pes-n">3<\/span>/);
+    expect(h).toContain('data-filtro="comigo"');
+    expect(h).toContain('data-act="op-vista" data-valor="quadro" aria-pressed="true"');
+    expect(h).toMatch(/data-act="nt-abrir"[^>]*>.*<span>Nova tarefa<\/span>/);
     expect(h).toContain("Prioridade: Urgente, Baixa");
     expect(h).not.toContain('data-coluna="backlog" data-grupo');
     expect(h.indexOf("Alfa")).toBeLessThan(h.indexOf("Zeta"));

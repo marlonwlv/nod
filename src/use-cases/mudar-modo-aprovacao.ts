@@ -30,7 +30,8 @@ export const mudarModoAprovacao: CasoDeUso<{ agenteId: string; modo: unknown; co
   const existente = await deps.repos.agentes.buscar(input.agenteId);
   if (!existente) throw new ErroDeDominio("nao_encontrado");
   if (existente.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_permitido");
-  if ((existente.modoAprovacao ?? "manual") === input.modo) return { data: { agente: existente, mudou: false } };
+  // ADR-166: compara com o modo PEDIDO (o efetivo pode estar cortado pelo teto do admin).
+  if ((existente.modoPedido ?? existente.modoAprovacao ?? "manual") === input.modo) return { data: { agente: existente, mudou: false } };
   const agente = await deps.repos.agentes.definirModoAprovacao(input.agenteId, input.modo);
   if (!agente) throw new ErroDeDominio("nao_permitido");
 

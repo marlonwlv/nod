@@ -13,7 +13,7 @@ import { expectRejected } from "../helpers/expect-rejected.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
 
-describeIntegracao("agentes (E1.1/E1.2/E1.3, Grok Bot Pin/Hide/Duplicate) no Postgres", () => {
+describeIntegracao("agentes (E1.1/E1.2/E1.3, fixar/ocultar/duplicar) no Postgres", () => {
   it("nasce 'Novo agente' com conversa e mensagem de sistema; frota diz 'sem acessos · nunca executou'; eventos e outbox na mesma tx", async () => {
     await withRollback(MARLON, async (trx) => {
       const deps = depsSobreTrx(trx, MARLON);

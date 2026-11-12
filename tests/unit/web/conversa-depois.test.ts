@@ -72,15 +72,17 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     expect(html).toContain(`data-desde="${AGORA - 60_000}"`);
     // Sem o nome da IA, sem "digitando", sem cursor, sem a linha antiga e sem o ponto que pulsa.
     for (const fora of ["catcher", "Claude", "digitando", 'class="cursor"', "está trabalhando", "atividade-pulso", "trabalhando ·", "fala-viva-linha"]) expect(html).not.toContain(fora);
-    // Parte 2: a narração curta de antes da ferramenta não vai ao balão (a gravada a deixa de fora): vira nota no pensamento.
+    // Parte 2: a narração curta de antes da ferramenta não vai ao balão (a gravada a deixa de fora). Casca r4 (Paper 05b):
+    // a narração de abertura vem antes do pensamento, como texto da fala (parte `narracao`), e não como nota dentro dele.
     expect(html).not.toContain('class="bubble"');
-    expect(html).toContain('<li class="pensar-nota">Lendo o PR https://github.com/acme/loja/pull/481.</li>');
+    expect(html).toContain('<div class="fala-narracao" data-parte="narracao" data-no-lugar><p>Lendo o PR https://github.com/acme/loja/pull/481.</p></div><details class="pensar"');
+    expect(html).not.toContain('pensar-nota');
     expect(html).toContain('<li class="pensar-acao" data-estado="rodando"><i class="pensar-ic" aria-hidden="true"></i><span>Usando GitHub</span></li>');
     expect(html).toContain('<span class="pensar-contagem">1 ação</span>');
-    expect(blocos[0]!.morfar!.partes.map((p) => p.chave)).toEqual(["nome", "pensar"]);
+    expect(blocos[0]!.morfar!.partes.map((p) => p.chave)).toEqual(["nome", "narracao", "pensar"]);
     expect(html).not.toContain("ver etapas");
-    // Fechado por padrão: o `open` é da pessoa.
-    expect(html).not.toContain(" open");
+    // Paper 05b (rodada 2): com o turno andando, os passos nascem à vista; a pessoa que fecha, fecha.
+    expect(html).toContain(' data-estado-fala="ferramenta:Usando GitHub" open>');
     // O tempo é escrito pelo relógio da tela: o HTML não muda quando o tempo anda.
     expect(blocosAoVivo(c, { ...e, agora: AGORA + 120_000 })[0]!.html).toBe(html);
     // O morph sabe as partes e o que copiar para o mascote; o pensamento muda por dentro (data-no-lugar).
@@ -91,7 +93,7 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     expect(narrando.html).toContain('<span class="fala-viva-estado">Abrindo https://github.com/acme/loja/pull/481 agora</span>');
     expect(narrando.html).toContain('state="idle"');
     expect(narrando.html).not.toContain('class="bubble"');
-    expect(narrando.morfar?.partes.map((p) => p.chave)).toEqual(["nome", "pensar"]);
+    expect(narrando.morfar?.partes.map((p) => p.chave)).toEqual(["nome", "narracao", "pensar"]);
   });
   it("revisão do #508: o nome do bot com $&, $` e $' não abre atributo no mascote (replace com função)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
@@ -143,7 +145,7 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     // Parte 3: pensando é o `thinking` do Bloub, sem expressão.
     expect(html).toContain('state="thinking"');
     expect(html).not.toContain('expression="attentif"');
-    expect(html).toContain(`<div class="msg-autor" data-parte="nome"><b title="Ada">Ada</b></div><details class="pensar" data-parte="pensar" data-no-lugar data-disclosure="pensar-t1" data-fase="pensando" data-estado-fala="pensando:Pensando"><summary class="pensar-cab"><span class="fala-viva-estado">Pensando</span><span class="sr-only fala-viva-anuncio">Pensando</span><span class="pensar-meta" aria-hidden="true"><span class="fala-viva-tempo" data-desde="${AGORA}" aria-hidden="true"></span></span>`);
+    expect(html).toContain(`<div class="msg-autor" data-parte="nome"><b title="Ada">Ada</b></div><details class="pensar" data-parte="pensar" data-no-lugar data-disclosure="pensar-t1" data-fase="pensando" data-estado-fala="pensando:Pensando" open><summary class="pensar-cab"><span class="fala-viva-estado">Pensando</span><span class="sr-only fala-viva-anuncio">Pensando</span><span class="pensar-meta" aria-hidden="true"><span class="fala-viva-tempo" data-desde="${AGORA}" aria-hidden="true"></span></span>`);
     expect(html).not.toContain("claude");
   });
   it("Parte 2: texto curto corre no cabeçalho do pensamento; passou de 280 caracteres, vira balão sem cursor, numa direção só", () => {
@@ -171,7 +173,7 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const e: Estado = { ...base, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } }, atividades: { [C]: { t1: comFerramenta(ATIVIDADE_VAZIA, "Abriu frentes", { texto: "Abrindo frentes", frentes: true }) } } };
     const html = blocosAoVivo(c, e)[0]!.html;
-    expect(html).toContain('data-fase="fazendo" data-estado-fala="frentes:Abrindo frentes"><summary class="pensar-cab"><span class="fala-viva-estado">Abrindo frentes</span>');
+    expect(html).toContain('data-fase="fazendo" data-estado-fala="frentes:Abrindo frentes" open><summary class="pensar-cab"><span class="fala-viva-estado">Abrindo frentes</span>');
     expect(html).toContain('state="orbit"');
   });
   it("NOD-348: na sala, a fala é do bot do turno (agenteId), não do bot da conversa", () => {
@@ -303,9 +305,10 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     const html = (e: Estado) => blocosAoVivo(c, e)[0]!.html;
     expect(chaves(comA(primeira))).toEqual(["nome", "pensar"]);
     expect(html(comA(primeira))).toContain('<span class="fala-viva-estado">Vou olhar o PR.</span>');
-    expect(chaves(comA(usando))).toEqual(["nome", "pensar"]);
+    // Casca r4 (Paper 05b): a narração de abertura sai do pensamento e vem antes dele.
+    expect(chaves(comA(usando))).toEqual(["nome", "narracao", "pensar"]);
     expect(html(comA(usando))).toContain('<span class="fala-viva-estado">Usando GitHub</span>');
-    expect(html(comA(usando))).toContain('<li class="pensar-nota">Vou olhar o PR.</li>');
+    expect(html(comA(usando))).toContain('<div class="fala-narracao" data-parte="narracao" data-no-lugar><p>Vou olhar o PR.</p></div>');
     const segunda = comTexto(usando, "Está aprovado.");
     expect(html(comA(comTexto(usando, "Es")))).toContain('<span class="fala-viva-estado">Es</span>');
     expect(html(comA(segunda))).not.toContain('class="bubble"');
@@ -397,7 +400,7 @@ describe("3. o pedido fica junto do turno que o pediu", () => {
     const { e, c } = cenario(mensagens, [pedido("d1")]);
     expect(blocosDoHistorico(c, e).map((b) => b.chave)).toEqual(["sep:m1", "m1", "decisao:d1", "m2"]);
     const vazio = cenario([], [pedido("d1")]);
-    expect(renderTimeline(vazio.c, vazio.e)).toContain("Preciso da sua decisão para continuar");
+    expect(renderTimeline(vazio.c, vazio.e)).toContain('<section class="decisoes-chat"');
   });
 
   // definido em 2026-10-07 (#191, chat limpo): o pedido de uma execução de rotina que virou linha fica logo depois da
@@ -420,10 +423,11 @@ describe("4–6. o card da aprovação de um item", () => {
     const valores = [["Sudeste", "R$ 210 mil"], ["Sul", "R$ 98 mil"], ["Total", "R$ 482 mil"]];
     const { e, c } = cenario([msg("m1", "agente", 1, { turnoId: "t1" })], [pedido("d1", { turnoId: "t1", itens: [itemAprovacao("i1", { spreadsheetId: "abc", range: "Setembro!A1", values: valores })] })]);
     const html = renderTimeline(c, e);
-    expect(html).toContain("<b>Ada precisa do seu ok</b>");
-    expect(html).toContain("· há 5 min");
-    expect(html).toContain('<span class="lk-chip aprov-app">');
-    expect(html).toContain("<span>Google Sheets</span>");
+    // Tela 06 do Paper: o topo com o mascote e a frase da decisão; a pergunta em negrito; onde, numa linha; o prazo no Esc.
+    expect(html).toContain('<span class="aprov-av"><nod-mascote');
+    expect(html).toContain('<span class="aprov-quem">Atualizar a planilha de metas com a receita de setembro</span>');
+    expect(html).toContain("pedido há 5 min");
+    expect(html).toContain('<p class="aprov-onde">No Google Sheets</p>');
     expect(html).toContain("O que vai ser enviado");
     expect(html).toContain("<td>R$ 482 mil</td>");
     expect(html).toContain("Sem resposta, recusa automática em 23h");
@@ -441,7 +445,7 @@ describe("4–6. o card da aprovação de um item", () => {
     const comPedido = { ...pedido("d1", { turnoId: "t1" }), aPedidoDe: "Ana <b>" };
     const { e, c } = cenario([msg("m1", "agente", 1, { turnoId: "t1" })], [comPedido]);
     const html = renderTimeline(c, e);
-    expect(html).toContain("<b>Ada precisa do seu ok</b><span class=\"aprov-pedido-de\">· a pedido de Ana &lt;b&gt;</span>");
+    expect(html).toContain("</span><span class=\"aprov-pedido-de\">· a pedido de Ana &lt;b&gt;</span>");
     // O pedido da própria dona não ganha a linha.
     const daDona = cenario([msg("m1", "agente", 1, { turnoId: "t1" })], [pedido("d1", { turnoId: "t1" })]);
     expect(renderTimeline(daDona.c, daDona.e)).not.toContain("a pedido de");
@@ -475,7 +479,7 @@ describe("revisão de 2026-10-03: o card da lista, o artefato e os recibos", () 
     const { e, c } = cenario([msg("m1", "agente", 1, { turnoId: "t1" })], [pedido("d1", { turnoId: "t1", itens: [slack("i1", "Avisar o comercial"), slack("i2", "Parabenizar o Sudeste")] })]);
     const html = renderTimeline(c, e);
     expect(html).toContain("aprov-card");
-    expect(html).toContain("<b>Ada precisa do seu ok</b>");
+    expect(html).toContain('<span class="aprov-quem">');
     expect(html).toContain('class="aprov-itens"');
     expect(html.match(/data-item="i[12]"/g)).toHaveLength(2);
     expect(html).not.toContain("no slack</small>");
@@ -495,23 +499,23 @@ describe("revisão de 2026-10-03: o card da lista, o artefato e os recibos", () 
     const { e } = cenario([]);
     const resultado = (itens: { idx: number; desfecho: string; texto?: string }[], frase = "Atualizar a planilha de metas") => renderMensagem(msg("r", "pessoa", Date.parse("2026-10-03T14:44:00Z"), { kind: "resultado_aprovacao", texto: "Marlon aprovou 0 de 1; não enviado: … (falhou na execução).", payload: { kind: "resultado_aprovacao", decisaoId: "d1", frase, itens } as never }), e);
     const falhou = resultado([{ idx: 0, desfecho: "falhou_na_execucao", texto: "Atualizar metas" }]);
-    expect(falhou).toContain('class="cp-linha cp-falha cartao-encolhido cp-com-extra"');
+    expect(falhou).toContain('class="cp-linha cp-falha cartao-encolhido"');
     expect(falhou).toContain('tabindex="-1">Atualizar a planilha de metas</span>');
     expect(falhou).toContain('<span class="ce-resultado">Aprovado · não saiu</span><span class="sr-only"> (não saiu)</span>');
-    expect(falhou).toContain("<summary>detalhes</summary>");
+    expect(falhou).toContain('<span class="ce-link">detalhes</span></summary>');
     expect(falhou).toContain("falhou ao executar");
     const feito = resultado([{ idx: 0, desfecho: "executado", texto: "Atualizar metas" }]);
-    expect(feito).toMatch(/class="cp-linha cp-ok cartao-encolhido"[^>]*><svg class="cp-ic"[^]*?<span class="ce-resultado">Aprovado por você · feito \d\d:\d\d<\/span>/);
+    expect(feito).toMatch(/class="cp-linha cp-ok cartao-encolhido"[^>]*><svg class="cp-ic"[^]*?<span class="ce-resultado">Permitido uma vez<\/span>/);
     expect(feito).not.toContain("<details");
     const varios = resultado([{ idx: 0, desfecho: "executado", texto: "a" }, { idx: 1, desfecho: "retirado_pela_pessoa", texto: "b" }, { idx: 2, desfecho: "executado", texto: "c" }]);
-    expect(varios).toContain(">Aprovado por você · 2 de 3 feitas<");
+    expect(varios).toContain(">Permitido · 2 de 3 feitas<");
     expect(varios).toContain("você tirou");
     const parcial = resultado([{ idx: 0, desfecho: "executado", texto: "a" }, { idx: 1, desfecho: "falhou_na_execucao", texto: "b" }, { idx: 2, desfecho: "executado", texto: "c" }]);
     expect(parcial).toContain(">Aprovado · 1 de 3 não saiu<");
     const recusado = resultado([{ idx: 0, desfecho: "retirado_pela_pessoa", texto: "a" }, { idx: 1, desfecho: "retirado_pela_pessoa", texto: "b" }], "Posso mandar estes 2 avisos?");
     expect(recusado).toContain('tabindex="-1">Posso mandar estes 2 avisos?</span>');
     expect(recusado).toContain('class="cp-linha cp-recusado cartao-encolhido"');
-    expect(recusado).toContain('<span class="ce-resultado">Recusado por você</span>');
+    expect(recusado).toContain('<span class="ce-resultado">Negado</span>');
     expect(recusado).not.toContain("<details");
   });
 
@@ -523,15 +527,15 @@ describe("revisão de 2026-10-03: o card da lista, o artefato e os recibos", () 
     expect(html).not.toContain("cartao-encolhido");
   });
 
-  it("a regra nova com payload (regra_permanente) encolhe: 'Sempre permitir editar no Google Sheets' · Regra nova, com o registro", () => {
+  it("a regra nova com payload (regra_permanente) encolhe como a tela 06 do Paper: 'Permitido sempre: editar no Google Sheets', com o registro", () => {
     const { e } = cenario([]);
     const html = renderMensagem(msg("r", "pessoa", 1, { kind: "consentimento", texto: "Marlon permitiu para sempre: googlesheets.update_values. Vale já…", payload: { kind: "regra_permanente", decisaoId: "d1", turnoId: "t1", acoes: ["googlesheets.update_values"] } }), e);
     expect(html).toContain('data-cartao-encolhido="d1"');
-    expect(html).toContain('tabindex="-1">Sempre permitir editar no Google Sheets</span>');
-    expect(html).toContain('class="cp-linha cp-regra cartao-encolhido cp-com-extra"');
-    expect(html).toContain('<span class="ce-resultado">Regra nova</span>');
-    expect(html).toContain("<summary>Ver registro de autorização</summary>");
-    expect(html).toContain('data-anuncio="Regra nova: sempre permitir editar no Google Sheets"');
+    expect(html).toContain('tabindex="-1">editar no Google Sheets</span>');
+    expect(html).toContain('class="cp-linha cp-regra cartao-encolhido"');
+    expect(html).toContain('<span class="ce-resultado">Permitido sempre:</span>');
+    expect(html).toContain('<span class="ce-link">Ver registro de autorização</span></summary>');
+    expect(html).toContain('data-anuncio="Permitido sempre: editar no Google Sheets"');
   });
 });
 
@@ -556,34 +560,15 @@ describe("8. o cabeçalho com uma regra só", () => {
   });
 });
 
-describe("9. 'N coisas esperam você' acima do campo", () => {
-  it("só os outros pedidos, cada um com a sua ação; a pergunta mora no cartão (plano \"pergunta com botões\", 2026-10-18)", () => {
+describe("9. nada de 'N coisas esperam você' acima do campo (Paper, rodada 2: a faixa repetia os cartões)", () => {
+  it("com pergunta e outros pedidos, o topo do campo não lista os pedidos: cada um está no seu cartão", () => {
     const pergunta = { ...pedido("q1", { tipo: "pergunta", criadoEm: "2026-10-03T14:30:00Z", itens: [] }), decisao: { ...pedido("q1").decisao, tipo: "pergunta" as const, frase: "Posso mandar o painel?", criadoEm: "2026-10-03T14:30:00Z" } };
-    const { e } = cenario([], [pergunta, pedido("d1")]);
-    const html = renderTopoComposer({ tipo: "resposta", alvo: pergunta as never, indice: 0, perguntas: [pergunta as never] }, e, C);
-    expect(html).toContain('<span class="espera-n">1</span>coisa espera você');
-    expect(html).not.toContain("Posso mandar o painel?");
-    expect(html).toContain('data-act="ver-decisao" data-id="d1"');
-    expect(html).toContain("Google Sheets · recusa automática em 23h");
-    // O seletor "Responder à pergunta | Outro assunto" e a faixa saíram.
-    expect(html).not.toContain("Responder à pergunta");
-    expect(html).not.toContain("está esperando sua resposta");
-  });
-
-  it("gate_rotina tem o mesmo nome da lista de rotinas: 'Ver aprovação' (re-revisão do #342, ajuste B)", () => {
-    const pergunta = { ...pedido("q1"), decisao: { ...pedido("q1").decisao, tipo: "pergunta" as const } };
     const gate = { ...pedido("g1"), decisao: { ...pedido("g1").decisao, tipo: "gate_rotina" as const } };
-    const { e } = cenario([], [pergunta, gate]);
-    const html = renderTopoComposer({ tipo: "resposta", alvo: pergunta as never, indice: 0, perguntas: [pergunta as never] }, e, C);
-    expect(html).toMatch(/data-act="ver-decisao" data-id="g1"[^>]*>Ver aprovação</);
-    expect(html).not.toContain(">Ver pedido<");
-  });
-
-  it("só pergunta, sem outro pedido: nada acima do campo", () => {
-    const pergunta = { ...pedido("q1"), decisao: { ...pedido("q1").decisao, tipo: "pergunta" as const } };
-    const { e } = cenario([], [pergunta]);
+    const { e } = cenario([], [pergunta, pedido("d1"), gate]);
     const html = renderTopoComposer({ tipo: "resposta", alvo: pergunta as never, indice: 0, perguntas: [pergunta as never] }, e, C);
     expect(html).toBe("");
+    expect(html).not.toContain("esperam você");
+    expect(html).not.toContain('data-act="ver-decisao"');
   });
 });
 
@@ -639,8 +624,7 @@ describe("NOD-353: o resumo das ações na fala (viva, parada e gravada)", () =>
     a = comFimDaAcao(a, "w2", true)!;
     a = usa(a, "Consultou Gmail", "Usando Gmail", "g1");
     const html = resumoDe(blocosAoVivo(c, vivoCom(base, a))[0]!.html);
-    expect(html).toMatch(new RegExp(`^<details class="pensar" data-parte="pensar" data-no-lugar data-disclosure="pensar-${T}" data-fase="fazendo" data-estado-fala="ferramenta:Usando Gmail"><summary class="pensar-cab"><span class="fala-viva-estado">Usando Gmail</span>`));
-    expect(html).not.toContain(" open");
+    expect(html).toMatch(new RegExp(`^<details class="pensar" data-parte="pensar" data-no-lugar data-disclosure="pensar-${T}" data-fase="fazendo" data-estado-fala="ferramenta:Usando Gmail" open><summary class="pensar-cab"><span class="fala-viva-estado">Usando Gmail</span>`));
     expect(html).toContain('<span class="pensar-contagem">3 ações</span><span class="pensar-falhas">1 falhou</span>');
     expect(html).toContain('<li class="pensar-acao" data-estado="feita"><i class="pensar-ic" aria-hidden="true"></i><span>Pesquisou na web</span></li>');
     expect(html).toContain('<li class="pensar-acao" data-estado="falhou"><i class="pensar-ic" aria-hidden="true"></i><span>Abriu uma página</span><span class="pensar-falhou">Falhou</span></li>');

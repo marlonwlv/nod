@@ -1,0 +1,172 @@
+/* =====================================================================================
+   ds.css — componentes do design system do visual novo (ADR-167, telas 01–04, 08 e 16 do Paper).
+   Só classes e variáveis de web/tokens.css: nada aqui depende de como a página é desenhada (string, morph ou qualquer
+   framework). Carregado depois dos CSS das telas: onde ele muda um componente antigo (a barra, o balão), a regra está
+   aqui, isolada, e não espalhada no meio dos outros arquivos. Sem cor literal (tests/unit/web/cores-por-token.test.ts).
+   ===================================================================================== */
+
+/* ---- Tokens que nasceram locais na frente Cartões (rodada 2: globais, com os mesmos valores) ----
+   --aprov-codigo: o fundo do comando no cartão de aprovação (4 % da base). --veu-criar-bot: o véu do "Criar novo bot",
+   preto 50 % no claro (o --veu-modal) e o --backdrop no escuro. */
+:root { --aprov-codigo: color-mix(in srgb, var(--base) 4%, transparent); --veu-criar-bot: var(--veu-modal); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --veu-criar-bot: var(--backdrop); } }
+:root[data-theme="dark"] { --veu-criar-bot: var(--backdrop); }
+/* --cb-barra: a largura da barra lateral para quem se posiciona ao lado dela (o preparo do bot, 09b): a da densidade
+   escolhida ou os 272 da casca do Paper. --pes-cor: a cor do bot de um avatar de pessoa/bot (o ponto "rodando" do filtro
+   por pessoa do quadro); fora de um bot, ink-2. Os mesmos valores das variáveis locais da frente Cartões. */
+:root { --cb-barra: var(--largura-barra, 272px); --pes-cor: var(--ink-2); }
+.c-orange { --pes-cor: var(--agent-orange); } .c-blue { --pes-cor: var(--agent-bleu); } .c-purple { --pes-cor: var(--agent-violet); }
+.c-pink { --pes-cor: var(--agent-rose); } .c-teal { --pes-cor: var(--agent-turquoise); } .c-green { --pes-cor: var(--agent-vert); }
+.c-amber { --pes-cor: var(--agent-ambre); } .c-red { --pes-cor: var(--agent-rouge); } .c-brown { --pes-cor: var(--agent-brun); }
+.c-gray { --pes-cor: var(--agent-gris); } .c-black { --pes-cor: var(--ink); }
+/* Rodada 3 (frente Cartões, telas 18b e 19): --anel-fundo / --anel-borda, o anel das iniciais de pessoa (o "sec" e o
+   "b3" do Paper; eram --ta-anel-fundo / --ta-anel-borda em tarefa-aberta.css). --marca-claude / --marca-chatgpt e
+   --marca-simbolo: o quadrado do logo do fornecedor de IA e o símbolo branco por cima, iguais nos dois temas (eram
+   literais em provedores-ia.css e interface.css). --chevron-select: o ⌄ cinza (i3 do Paper) dos selects nativos. */
+:root { --anel-fundo: var(--hover); --anel-borda: var(--borda-sutil); }
+:root { --marca-claude: #d97757; --marca-chatgpt: #0d0d0d; --marca-simbolo: #fff; } /* cor-fixa: as cores das marcas Claude e ChatGPT e o símbolo branco por cima delas */
+:root { --chevron-select: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8a8a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); } /* cor-fixa: o chevron cinza do Paper (i3), o mesmo nos dois temas */
+
+/* ---- Tipografia base: a escala de 7 tamanhos (corpo 14/20; títulos com tracking negativo) ---- */
+body { font-size: var(--fs-corpo); line-height: var(--lh-corpo); }
+.ds-titulo-1 { font-size: var(--fs-titulo-1); line-height: var(--lh-titulo-1); letter-spacing: var(--tracking-titulo-1); font-weight: var(--peso-medio); }
+.ds-titulo-2 { font-size: var(--fs-titulo-2); line-height: var(--lh-titulo-2); letter-spacing: var(--tracking-titulo-2); font-weight: var(--peso-medio); }
+.ds-titulo-3 { font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); letter-spacing: var(--tracking-titulo-3); font-weight: var(--peso-medio); }
+.ds-corpo { font-size: var(--fs-corpo); line-height: var(--lh-corpo); }
+.ds-corpo-2 { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.ds-rotulo { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.ds-legenda { font-size: var(--fs-legenda); line-height: var(--lh-legenda); letter-spacing: .005em; }
+
+/* ---- Shimmer de carregando ("Pensando…", "Trabalhando…", esqueletos) ---- */
+.ds-shimmer {
+  color: transparent;
+  background: linear-gradient(90deg, var(--shimmer-fundo) 0%, var(--shimmer-fundo) 35%, var(--shimmer-brilho) 50%, var(--shimmer-fundo) 65%, var(--shimmer-fundo) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: ds-shimmer var(--dur-shimmer) linear infinite;
+}
+.ds-esqueleto {
+  border-radius: var(--raio-6);
+  background: linear-gradient(90deg, var(--hover) 0%, var(--ativo) 50%, var(--hover) 100%);
+  background-size: 200% 100%;
+  animation: ds-shimmer var(--dur-shimmer) linear infinite;
+}
+@keyframes ds-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .ds-shimmer { animation: none; color: var(--ink-3); background: none; }
+  .ds-esqueleto { animation: none; }
+}
+
+/* ---- Teclas (⌘ K) ---- */
+.ds-teclas { display: inline-flex; gap: 3px; flex: none; }
+.ds-kbd {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box;
+  font: var(--peso-medio) var(--fs-legenda)/1 var(--font-sans); color: var(--ink-3);
+  background: var(--surface-elevated); border: .5px solid var(--borda); border-radius: var(--raio-6);
+}
+
+/* ---- Pontos com significado: laranja = aguardando você; azul = não lido ---- */
+.ponto-aguardando { display: inline-block; width: 7px; height: 7px; border-radius: var(--raio-full); background: var(--aguardando-ponto); flex: none; }
+
+/* =====================================================================================
+   Barra lateral (telas 02, 03 e 16)
+   ===================================================================================== */
+#sidebar :is(.row, .fixado-bt, .nod-topo, .linha-fixa-bt) { transition: background-color var(--dur-rapido) var(--curva); }
+#sidebar .bot-row:hover, #sidebar .fixado-bt:hover, #sidebar .linha-fixa:hover { background: var(--hover); }
+#sidebar .bot-row:has(> .row[aria-current="true"]), #sidebar .fixado-bt[aria-current="true"] { background: var(--ativo); }
+#sidebar .bot-row, #sidebar .fixado-bt { border-radius: var(--raio-10); }
+
+/* "Aguardando você: {motivo}" na linha do bot, em laranja, com o ponto à direita. */
+#sidebar .sub-aguardando { color: var(--aguardando); }
+#sidebar .row > .ponto-aguardando { align-self: center; margin-left: auto; margin-right: 4px; }
+#sidebar .bot-row[data-aguardando] .row { padding-right: 6px; }
+/* O ponto do mascote: laranja para decisão e pergunta (aguardando você), azul só para não lido. */
+nod-mascote[data-aviso="decisao"], nod-mascote[data-aviso="pergunta"] { --nod-aviso: var(--aguardando-ponto); }
+nod-mascote[data-aviso="nao-lido"] { --nod-aviso: var(--signal); }
+.secao-aviso[data-aviso="decisao"], .secao-aviso[data-aviso="pergunta"], .nod-topo-aviso[data-aviso="decisao"], .nod-topo-aviso[data-aviso="pergunta"] { background: var(--aguardando-ponto); }
+
+/* A linha fixa "Trabalhos": ícone, nome e o contador discreto; "N aguardando" em laranja, sem caixa. */
+.linha-fixa { display: flex; align-items: center; gap: 4px; margin: 2px 6px 6px; border-radius: var(--raio-10); }
+.linha-fixa-bt { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--raio-10); color: var(--ink); font-size: var(--fs-corpo); }
+.linha-fixa-bt[aria-current="page"] { background: var(--ativo); }
+.linha-fixa-ic { color: var(--ink-2); flex: none; }
+.linha-fixa-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linha-fixa-cont { color: var(--ink-3); font-size: var(--fs-rotulo); font-variant-numeric: tabular-nums; }
+.linha-fixa-aguardando { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; margin-right: 4px; border-radius: var(--raio-8); color: var(--aguardando); font-size: var(--fs-rotulo); font-weight: var(--peso-medio); white-space: nowrap; }
+.linha-fixa-aguardando:hover { background: var(--aguardando-soft); }
+/* Barra só com avatares (⌘B): a linha vira o ícone; o laranja vira o ponto no canto. */
+html[data-largura="recolhida"] .sidebar .linha-fixa { flex-direction: column; margin: 2px 0 6px; width: 100%; position: relative; }
+html[data-largura="recolhida"] .sidebar .linha-fixa-bt { justify-content: center; flex: none; width: 56px; height: 40px; margin: 0 auto; padding: 0; }
+html[data-largura="recolhida"] .sidebar :is(.linha-fixa-nome, .linha-fixa-cont) { display: none; }
+html[data-largura="recolhida"] .sidebar .linha-fixa-aguardando { position: absolute; top: 4px; right: 8px; height: auto; padding: 0; margin: 0; }
+html[data-largura="recolhida"] .sidebar .linha-fixa-aguardando span { display: none; }
+/* Na linha do bot, só avatares: o ponto do mascote já diz que espera; o da direita sairia do lugar. */
+html[data-largura="recolhida"] .sidebar .row > .ponto-aguardando { display: none; }
+
+/* =====================================================================================
+   Conversa (telas 02 e 04): o balão da pessoa é preto por padrão; o bot fala sem balão.
+   ===================================================================================== */
+html:not([data-balao="cor"]) [class*="balao-c-"] { --balao-fundo: var(--balao-pessoa); --balao-tinta: var(--balao-pessoa-tinta); --balao-codigo: var(--balao-pessoa-codigo); }
+.message.you .bubble { border-radius: var(--raio-18); border-top-right-radius: var(--raio-18); line-height: var(--lh-conversa); padding: 7px 14px; }
+.message.bot .bubble:not(.com-progresso) { background: transparent; padding-left: 0; padding-right: 0; border-radius: 0; line-height: var(--lh-conversa); }
+/* 16b: o cartão que a linha "Aguardando você" abriu ganha contorno e halo laranja por um instante. */
+:is(.lista > li.decisao, .card-acesso, [data-proposta], .aprov-card, .lista > li.cartao-revisor .cr, .message.pergunta .cartao-pergunta, [data-pergunta]).realce {
+  box-shadow: 0 0 0 1.5px var(--aguardando-ponto), 0 0 0 6px var(--aguardando-soft);
+  transition: box-shadow var(--dur-lento) var(--curva);
+}
+
+/* =====================================================================================
+   Paleta ⌘K (tela 08)
+   ===================================================================================== */
+.paleta-camada { position: fixed; inset: 0; z-index: 1000; }
+.paleta-fundo { position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; background: var(--backdrop); animation: ds-aparece var(--dur-normal) var(--curva) both; }
+.paleta {
+  width: min(640px, calc(100vw - 32px)); max-height: min(560px, 76vh); display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface-elevated); border-radius: var(--raio-14); box-shadow: var(--sombra-modal);
+  animation: ds-sobe var(--dur-normal) var(--curva) both;
+}
+.paleta-campo { display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 18px; border-bottom: 1px solid var(--borda-sutil); color: var(--ink-3); flex: none; }
+/* foco-no-conteiner: .paleta-campo */
+.paleta-campo input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--ink); font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); }
+.paleta-campo input::placeholder { color: var(--ink-4); }
+.paleta-lista { overflow-y: auto; padding: 6px 8px 8px; overscroll-behavior: contain; }
+.paleta-grupo-tit { margin: 10px 10px 4px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); font-weight: var(--peso-medio); }
+.paleta-item { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 6px 10px; border-radius: var(--raio-8); cursor: pointer; color: var(--ink); }
+.paleta-item[aria-selected="true"] { background: var(--ativo); }
+.paleta-av, .paleta-ic { width: 24px; height: 24px; flex: none; display: grid; place-items: center; color: var(--ink-2); }
+.paleta-av :is(nod-mascote, .icon) { width: 24px; height: 24px; }
+.paleta-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.paleta-txt b { font-weight: var(--peso-regular); font-size: var(--fs-corpo); line-height: var(--lh-corpo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paleta-txt small { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paleta-vazia { margin: 18px 12px; color: var(--ink-3); font-size: var(--fs-corpo-2); }
+.paleta-rodape { display: flex; gap: 16px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--borda-sutil); color: var(--ink-3); font-size: var(--fs-rotulo); flex: none; }
+.paleta-rodape span { display: inline-flex; align-items: center; gap: 4px; }
+@keyframes ds-aparece { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ds-sobe { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .paleta-fundo, .paleta { animation: none; } }
+
+/* =====================================================================================
+   Configurações: busca, link por ajuste e os achados
+   ===================================================================================== */
+.cfg-busca { display: flex; align-items: center; gap: 6px; height: 32px; margin: 0 8px 10px; padding: 0 10px; border-radius: var(--raio-8); background: var(--hover); color: var(--ink-3); }
+/* foco-no-conteiner: .cfg-busca */
+.cfg-busca input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: var(--ink); font-size: var(--fs-corpo-2); }
+.cfg-busca:focus-within { box-shadow: 0 0 0 2px var(--focus-ring); }
+.lc-copiar-link { opacity: 0; display: grid; place-items: center; width: 24px; height: 24px; margin-left: 4px; border-radius: var(--raio-6); color: var(--ink-3); flex: none; transition: opacity var(--dur-rapido) var(--curva); }
+.lc-linha:hover .lc-copiar-link, .lc-copiar-link:focus-visible { opacity: 1; }
+.lc-copiar-link:hover { background: var(--hover); color: var(--ink); }
+.cfg-achados { display: flex; flex-direction: column; gap: 2px; }
+.cfg-achado { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: var(--raio-10); text-align: left; }
+.cfg-achado:hover, .cfg-achado:focus-visible { background: var(--hover); }
+.cfg-achado-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cfg-achado-txt b { font-weight: var(--peso-medio); font-size: var(--fs-corpo); }
+.cfg-achado-txt small { color: var(--ink-3); font-size: var(--fs-corpo-2); }
+.cfg-achado-caminho { color: var(--ink-3); font-size: var(--fs-rotulo); white-space: nowrap; }
+.cfg-busca-vazia { color: var(--ink-3); }
+@media (prefers-reduced-motion: reduce) { .lc-copiar-link { transition: none; } }
+.paleta-campo:focus-within { box-shadow: inset 0 -2px 0 var(--focus-ring); }
+@media (forced-colors: active) {
+  .paleta-campo:focus-within, .cfg-busca:focus-within { outline: 2px solid CanvasText; outline-offset: -2px; }
+  .paleta-item[aria-selected="true"] { outline: 2px solid Highlight; }
+}

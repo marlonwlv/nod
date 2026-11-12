@@ -3,7 +3,7 @@ import type { Estado } from "../estado/reducer.ts";
 import { donoDoBot, esperaNaTela, linhaDoDono, quemPediu, textoDaFila, textoDasEsperas, type EsperaNaTela } from "../lib/dono.ts";
 import { acaoLocal, comAcaoLocal, htmlDasAcoes } from "../lib/esperas-de-colega.ts";
 import { pilulaEscondida, type ProgressoNaTela } from "../lib/pilula.ts";
-import { esc, hora } from "../lib/render.ts";
+import { esc, hora, iconeAgente } from "../lib/render.ts";
 import { aberto, esperandoMaquina, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
 import { memoriaDoMac } from "./linha-do-dono.ts";
 import { conversaLimpa } from "./linhas-do-chat.ts";
@@ -47,6 +47,12 @@ export type Pilula = {
   vencida?: boolean;
   /** As frentes abertas que o "Parar" da pílula para. */
   abertas: TrabalhoDto[];
+  /** Paper 15 (rodada 2): as esperas de frentes que não estão em nenhum lote (as do lote aparecem no bloco da fala). */
+  esperasForaDoLote?: number;
+  /** Paper 15c: a cor do bot (`c-orange`), para o ponto do cabeçalho aberto. */
+  cor?: string;
+  /** Paper 15c: as frentes do lote que estão em Esperando (saem da lista do lote para não aparecerem duas vezes). */
+  emEspera?: string[];
 };
 
 /** O título do lote: o do servidor (PR 5, `tituloDoLote`; null sem lote), o da frente quando é uma só, ou "N frentes". */
@@ -60,10 +66,13 @@ function tituloDoGrupo(ts: readonly Pick<TrabalhoDto, "titulo" | "tituloDoLote">
 }
 
 const VIVAS: readonly FrenteNaFala["estado"][] = ["rodando", "precisa", "esperando"];
-/** Na pílula, as que andam vêm primeiro (na ordem em que abriram), depois as prontas pela hora, e por fim as que pararam. */
+/**
+ * Na pílula (Paper 15c): as que rodam, as que precisam de você e as que esperam (cada grupo na ordem em que abriram), depois
+ * as prontas da mais nova para a mais velha, e por fim as que pararam.
+ */
 function ordemNaPilula(frentes: readonly FrenteNaFala[], ordemAbertura: readonly string[]): FrenteNaFala[] {
-  const peso = (f: FrenteNaFala): number => (VIVAS.includes(f.estado) ? 0 : f.estado === "pronta" ? 1 : 2);
-  return [...frentes].sort((a, b) => peso(a) - peso(b) || (peso(a) === 0 ? ordemAbertura.indexOf(a.trabalhoId) - ordemAbertura.indexOf(b.trabalhoId) : (a.terminouEm ?? 0) - (b.terminouEm ?? 0)));
+  const peso = (f: FrenteNaFala): number => (f.estado === "rodando" ? 0 : f.estado === "precisa" ? 1 : f.estado === "esperando" ? 2 : f.estado === "pronta" ? 3 : 4);
+  return [...frentes].sort((a, b) => peso(a) - peso(b) || (peso(a) <= 2 ? ordemAbertura.indexOf(a.trabalhoId) - ordemAbertura.indexOf(b.trabalhoId) : (b.terminouEm ?? 0) - (a.terminouEm ?? 0)));
 }
 
 /**
@@ -143,7 +152,10 @@ export function pilulaDoBot(estado: Estado, agenteId: string): Pilula | null {
     const esperasNoResto = outras <= 0 ? "" : jaDita ? `${outras} esperando` : textoDasEsperas(e);
     const resto = [um ? estadoDoGrupo(g) : `${prontas} de ${total} prontas`, precisam ? (precisam === 1 ? "1 precisa de você" : `${precisam} precisam de você`) : "", esperasNoResto, e.fila > 0 ? textoDaFila(e, dono.fila.length) : ""].filter(Boolean);
     const vivo = grupos.some((x) => x.frentes.some((f) => f.estado === "rodando"));
-    return { agenteId, nome, sinal: vivo ? "vivo" : "espera", texto, resto, grupos, esperas, fila, memoria, abertas };
+    const doLote = new Set(grupos.flatMap((x) => x.ids));
+    const esperasForaDoLote = dono.esperas.filter((x) => !x.trabalhoId || !doLote.has(x.trabalhoId)).length;
+    const emEspera = dono.esperas.flatMap((x) => (x.trabalhoId && doLote.has(x.trabalhoId) ? [x.trabalhoId] : []));
+    return { agenteId, nome, sinal: vivo ? "vivo" : "espera", texto, resto, grupos, esperas, fila, memoria, abertas, esperasForaDoLote, emEspera, ...(bot?.cor ? { cor: bot.cor } : {}) };
   }
   // Sem frentes: a espera ou a fila, pela prioridade da linha do dono (o "Esperando você" fica com o cartão da pergunta).
   const desistidas = doServidor.esperas.length - dono.esperas.length;
@@ -176,6 +188,8 @@ const SETA_CIMA = '<svg class="pf-seta" width="12" height="12" viewBox="0 0 24 2
 const SETA_BAIXO = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 const SETA_SOBE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
 
+const PARAR = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"/></svg>';
+
 /** As partes que o desenho troca uma a uma (o botão e o painel ficam; só o miolo que mudou é regravado). */
 export type PartesDaPilula = {
   /** Muda quando é outro bot: o esqueleto é refeito, sem animação. */
@@ -204,12 +218,32 @@ function itemDaEspera(v: EsperaNaTela, agenteId: string): string {
   return `<li class="pf-item${acoes ? " p377-item" : ""}">${ponto("espera")}<span class="pf-item-corpo">${titulo}${linhas}${acoes}</span>${fim}</li>`;
 }
 
-function corpoDaPilula(p: Pilula): string {
+/** Paper 15c: "Responder" na frente que precisa de você, antes do tempo (abre a frente, onde a pergunta mora). */
+function comResponder(li: string, f: FrenteNaFala): string {
+  if (f.estado !== "precisa") return li;
+  const bt = `<button type="button" class="pf-responder" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}">Responder</button>`;
+  const i = li.lastIndexOf('<span class="progresso-fim">');
+  return i < 0 ? li.replace("</li>", `${bt}</li>`) : `${li.slice(0, i)}${bt}${li.slice(i)}`;
+}
+
+/** Paper 15c: "As frentes do Dante usam 1,2 GB do seu Mac", quando a memória não está apertada (apertada, vale o aviso). */
+function linhaDaMemoria(p: Pilula): string {
+  const mb = p.abertas.reduce((s, t) => s + (t.memoriaMb ?? 0), 0);
+  if (p.memoria || mb <= 0) return "";
+  const qto = mb >= 1024 ? `${(mb / 1024).toFixed(1).replace(".", ",")} GB` : `${Math.round(mb)} MB`;
+  return `<p class="pf-memoria-info">${CHIP}As frentes do ${esc(p.nome)} usam ${qto} do seu Mac</p>`;
+}
+const CHIP = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg>';
+
+/** Paper 15c (casca, rodada 4): a frente que roda leva o mascote do bot girando no lugar do ponto (`mascote`). */
+function corpoDaPilula(p: Pilula, mascote = ""): string {
+  const fora = new Set(p.emEspera ?? []);
   const lotes = p.grupos.map((g) => {
     // O separador entre as que andam e as que terminaram (o traço do protótipo acima da primeira pronta).
-    const primeiraFeita = g.frentes.findIndex((f) => !VIVAS.includes(f.estado));
-    const itens = g.frentes.map((f, i) => {
-      const li = itemDaFrente(f);
+    const frentes = g.frentes.filter((f) => !fora.has(f.trabalhoId));
+    const primeiraFeita = frentes.findIndex((f) => !VIVAS.includes(f.estado));
+    const itens = frentes.map((f, i) => {
+      const li = comResponder(itemDaFrente(f, mascote), f);
       return i === primeiraFeita && i > 0 ? li.replace('<li class="progresso-item', '<li class="progresso-item pf-depois') : li;
     }).join("");
     const cab = p.grupos.length > 1 ? `<h3 class="pf-lote">${esc(g.titulo)} · ${esc(estadoDoGrupo(g))}</h3>` : "";
@@ -219,26 +253,29 @@ function corpoDaPilula(p: Pilula): string {
   const fila = p.fila.length ? `<h3 class="pf-secao">Na fila</h3><ul class="pf-lista">${p.fila.map((x, i) => `<li class="pf-item"><span class="pf-ordem" aria-hidden="true">${i + 1}</span><span class="pf-item-corpo"><span class="pf-item-titulo">${esc(x.quem.charAt(0).toUpperCase() + x.quem.slice(1))}</span></span><span class="pf-item-fim">${esc(hora(x.desde))}</span></li>`).join("")}</ul>` : "";
   // A frase da memória só aqui dentro (decisão tomada 5); o ponto leva a Trabalhos, Este Mac ou Máquinas.
   const memoria = p.memoria ? `<button type="button" class="pf-memoria-linha ${p.memoria.nivel}" ${p.memoria.alvo}><span class="pf-memoria-ponto" aria-hidden="true"></span>${esc(p.memoria.texto)}</button>` : "";
-  return `${lotes}${esperas}${fila}${memoria}`;
+  return `${lotes}${esperas}${fila}${memoria}${linhaDaMemoria(p)}`;
 }
 
 /**
  * As partes da pílula. `progresso` diz se a fala de algum grupo está na janela carregada: sem ela, "Ver na conversa" não
  * tem para onde levar e não aparece.
  */
-export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">): PartesDaPilula {
+export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">, mascote = ""): PartesDaPilula {
   const resto = p.resto.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">${esc(p.resto.join(" · "))}</span>` : "";
   const botao = `${ponto(p.sinal)}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
   const memoria = p.memoria ? `<button type="button" class="pf-memoria ${p.memoria.nivel}" ${p.memoria.alvo} title="${esc(p.memoria.texto)}" aria-label="${esc(p.memoria.texto)}"><span class="pf-memoria-ponto" aria-hidden="true"></span></button>` : "";
-  const resumo = [p.texto, ...p.resto].join(" · ");
-  const cab = `<span class="pf-cab-titulo">${esc(resumo)}</span><button type="button" class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">fechar${SETA_BAIXO}</button>`;
+  // Paper 15c: o ponto, o título forte e só "N de M prontas" em cinza (o resto está na lista logo abaixo); sem lote, tudo.
+  const doCab = p.grupos.length ? p.resto.slice(0, 1) : p.resto;
+  // O ponto na cor do bot (Paper: "ponto na cor do bot = bot trabalhando"); a classe só aceita o formato c-<nome>.
+  const cor = p.cor && /^c-[a-z]+$/.test(p.cor) ? ` ${p.cor}` : "";
+  const cab = `${ponto(p.sinal).replace('class="pf-ponto ', `class="pf-ponto pf-cab-ponto${cor} `)}<span class="pf-cab-titulo"><b>${esc(p.texto)}</b>${doCab.length ? `<span class="pf-cab-resto">${esc(doCab.join(" · "))}</span>` : ""}</span><button type="button" class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">${SETA_BAIXO}fechar</button>`;
   const naConversa = p.grupos.some((g) => g.ids.some((id) => progresso.naTimeline.has(id)));
   const pe = [
     naConversa ? `<button type="button" class="pf-ver" data-act="pilula-ver-na-conversa">Ver na conversa${SETA_SOBE}</button>` : "",
-    p.abertas.length ? `<button type="button" class="pf-parar" data-act="pilula-parar">Parar</button>` : "",
+    p.abertas.length ? `<button type="button" class="pf-parar" data-act="pilula-parar">${PARAR}Parar</button>` : "",
   ].join("");
   const rotulo = p.grupos.length ? `Frentes de ${p.nome}` : `O que ${p.nome} está esperando`;
-  return { chave: p.agenteId, botao, memoria, rotulo, cab, corpo: corpoDaPilula(p), pe, telemetria: chaveDaTelemetria(p.grupos) };
+  return { chave: p.agenteId, botao, memoria, rotulo, cab, corpo: corpoDaPilula(p, mascote), pe, telemetria: chaveDaTelemetria(p.grupos) };
 }
 
 /**
@@ -271,6 +308,14 @@ export function htmlDaPilula(partes: PartesDaPilula, c: { aberta: boolean; escon
     + `</div>`;
 }
 
+/** O bot só tem frente na fila: nenhuma rodando, parada à espera da pessoa ou com espera (comando, colega, volta). */
+export function soNaFila(estado: Estado, agenteId: string, pilula: Pick<Pilula, "esperas">): boolean {
+  if (pilula.esperas.length > 0) return false;
+  const doBot = trabalhosConhecidos(estado, agente(estado, agenteId)?.conversaId).filter((t) => t.agenteId === agenteId);
+  const abertos = doBot.filter((t) => t.estado === "na_fila" || t.estado === "rodando" || t.estado === "precisa_de_voce");
+  return abertos.length > 0 && abertos.every((t) => t.estado === "na_fila");
+}
+
 /** O que a região acima do campo mostra na conversa do bot. */
 export type PilulaNaConversa =
   | { tipo: "nada" }
@@ -283,17 +328,22 @@ export type PilulaNaConversa =
 export function pilulaNaConversa(estado: Estado, agenteId: string, progresso: ProgressoNaTela): PilulaNaConversa {
   const bot = agente(estado, agenteId);
   if (!donoDoBot(estado, agenteId, bot?.conversaId)) {
+    if (soNaFila(estado, agenteId, { esperas: [] })) return { tipo: "nada" };
     const html = renderFaixaTrabalhos(estado, agenteId);
     return html ? { tipo: "legado", html } : { tipo: "nada" };
   }
   const pilula = pilulaDoBot(estado, agenteId);
   if (!pilula) return { tipo: "nada" };
-  const conteudo = { grupos: pilula.grupos, esperas: pilula.esperas.length, fila: pilula.fila.length };
+  // Paper 05 (rodada 3 da casca, "igual ao Paper"): a frente só na fila, que ainda não começou, não ganha pílula acima do
+  // campo — o painel do bot já diz "Na fila · começa já". A pílula volta quando ela começa (ou com espera de verdade).
+  if (soNaFila(estado, agenteId, pilula)) return { tipo: "nada" };
+  // Paper 15: a espera de uma frente do lote já está no bloco da fala; com ele à vista, só a espera de fora segura a pílula.
+  const conteudo = { grupos: pilula.grupos, esperas: pilula.esperasForaDoLote ?? pilula.esperas.length, fila: pilula.fila.length };
   // A conversa aberta pela primeira vez nesta carga ainda não tem o histórico: a timeline está vazia, não há fala para medir,
   // e a pílula nascia à vista, contava "mostrada" e escorregava para fora quando as mensagens chegavam com a fala à vista (QA
   // do PR 400). Com frentes, ela espera escondida o histórico; espera e fila não têm fala-âncora e aparecem já.
   const cid = bot?.conversaId;
   const semHistorico = !!cid && estado.conversas[cid] === undefined;
   const escondida = pilulaEscondida(conteudo, progresso) || (semHistorico && pilulaEscondida(conteudo, { naTimeline: new Set(), aVista: new Set(pilula.grupos.flatMap((g) => g.ids)) }));
-  return { tipo: "pilula", pilula, partes: partesDaPilula(pilula, progresso), escondida };
+  return { tipo: "pilula", pilula, partes: partesDaPilula(pilula, progresso, bot ? iconeAgente(bot, "sm", "trabalhando") : ""), escondida };
 }

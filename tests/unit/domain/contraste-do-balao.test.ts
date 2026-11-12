@@ -57,7 +57,7 @@ describe("contraste WCAG", () => {
     expect(r.fundo).toMatch(/^#([0-9a-f]{2})\1\1$/);
   });
 
-  it("o texto é sempre branco, como no Grok, em qualquer cor de bot e nos dois temas", () => {
+  it("o texto é sempre branco, em qualquer cor de bot e nos dois temas", () => {
     for (const cor of ["#f0b429", "#3ecf8e", "#e8483f", "#8b5cf6", "#f1efe9", "#a3a3a3", "#0a0a0c", "#ffffff"]) {
       for (const [balaoDoBot, pagina] of [["#f0f0f2", "#ffffff"], ["#232327", "#131315"]] as const) {
         const r = coresDoBalao(cor, balaoDoBot, pagina);
@@ -220,8 +220,20 @@ describe("a cascata: nenhuma folha posterior tira a cor ou o contraste do balão
 
   it("os --balao-fundo/-tinta/-codigo só são definidos pelas classes balao-c-* de web/estilos.css", () => {
     // E pelos estados claros (falhou, fila), que os põem em surface/ink para a seleção e o realce seguirem o balão claro.
-    const fora = regras.filter((r) => /--balao-(fundo|tinta|codigo)\s*:/.test(r.corpo) && !(r.folha === "estilos.css" && r.seletores.every((s) => /^\.balao-c-[a-z]+$/.test(s))) && !r.seletores.every(ehFalhou));
+    // ADR-167: a única exceção é o padrão preto (web/ds.css), que aponta os três para o trio --balao-pessoa* (provado abaixo).
+    const padraoPreto = (r: (typeof regras)[number]): boolean => r.folha === "ds.css" && r.seletores.join(", ") === 'html:not([data-balao="cor"]) [class*="balao-c-"]' && /--balao-fundo: var\(--balao-pessoa\); --balao-tinta: var\(--balao-pessoa-tinta\); --balao-codigo: var\(--balao-pessoa-codigo\)/.test(r.corpo);
+    const fora = regras.filter((r) => /--balao-(fundo|tinta|codigo)\s*:/.test(r.corpo) && !(r.folha === "estilos.css" && r.seletores.every((s) => /^\.balao-c-[a-z]+$/.test(s))) && !r.seletores.every(ehFalhou) && !padraoPreto(r));
     expect(fora.map((r) => `${r.folha}: ${r.seletores.join(", ")}`)).toEqual([]);
+    expect(regras.filter(padraoPreto)).toHaveLength(1);
+  });
+
+  it("ADR-167: o balão preto padrão passa de 4,5:1 no texto e no chip, nos três temas, e se separa da página", () => {
+    for (const [nome, t] of Object.entries(TEMAS)) {
+      const fundo = t["--balao-pessoa"] ?? "", tinta = t["--balao-pessoa-tinta"] ?? "", codigo = t["--balao-pessoa-codigo"] ?? "";
+      expect(contraste(fundo, tinta), nome).toBeGreaterThanOrEqual(CONTRASTE_MINIMO);
+      expect(contraste(codigo, tinta), nome).toBeGreaterThanOrEqual(CONTRASTE_MINIMO);
+      expect(contraste(fundo, t["--surface"] ?? ""), nome).toBeGreaterThanOrEqual(SEPARACAO_MINIMA);
+    }
   });
 
   it("a seleção inverte tinta e fundo no texto direto do balão e nos filhos (em toda regra de seleção do balão)", () => {

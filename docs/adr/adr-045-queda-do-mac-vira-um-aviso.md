@@ -353,7 +353,7 @@ continuação só e o card fechado) e `retomar-superado` (card antigo + recado n
 clique numa opção, e 47% das faltas de dado foram fechadas no ×. Uma pergunta ocupava quatro camadas na tela (balão com
 "Parei aqui", botões com duas frases de instrução, faixa acima do campo repetindo a pergunta, seletor "Responder à
 pergunta | Outro assunto"), e a fila guardava o molde "parei: falta X; quem destrava: Y; não vou tentar de novo". O
-Marlon aprovou em 18/10 o protótipo "Nod — pergunta com botões" (padrão do Grok Bot). Plano: `docs/plano-pergunta-com-botoes.md`
+Marlon aprovou em 18/10 o protótipo "Nod — pergunta com botões". Plano: `docs/plano-pergunta-com-botoes.md`
 (PR #388), Partes 1, 2, 3a e 4; a 3b (citação de qualquer fala) e a 5 (ações na fala, reações) ficam para o PR B.
 
 **Decisão.**

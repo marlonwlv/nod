@@ -21,7 +21,8 @@ describe("'Tocar som': ação e estilo (NOD-115)", () => {
   it("todo data-act da seção Avisos com som tem ação no main.ts", () => {
     const html = renderAvisos({ onde: "mac", situacao: "ligados", som: true });
     const acoes = [...html.matchAll(/data-act="([^"]+)"/g)].map((m) => m[1]);
-    expect(acoes).toEqual(["alternar-avisos", "alternar-som"]);
+    // ADR-167: a linha dos avisos ganhou o "copiar link" do ajuste (antes do switch).
+    expect(acoes).toEqual(["copiar-link-ajuste", "alternar-avisos", "alternar-som"]);
     for (const a of acoes) expect(main).toMatch(new RegExp(`^\\s+"${a}":`, "m"));
   });
 

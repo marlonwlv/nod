@@ -13,6 +13,8 @@ import { confiar, type Html } from "./quadro.ts";
 /** Teto da meta (o mesmo do campo de antes; LIMITES do contrato). */
 const LIMITE_META = 200;
 
+/** Tela 18 do Paper: o ícone do quadro antes de "Produto / Quadro NOD". */
+const ICONE_QUADRO = '<svg class="qd-ic qm-cab-ic" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M6 2.5v11"/></svg>';
 const CHEVRON = '<svg class="qd-ic qm-cab-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>';
 
 export type PassoDoMenu = "prazo" | null;
@@ -20,6 +22,8 @@ export type PassoDoMenu = "prazo" | null;
 export interface CabecalhoDoQuadro {
   /** O nome do quadro (ou "Quadro de <bot>"). */
   nome: string;
+  /** Tela 18 do Paper: o projeto antes do nome ("Produto / Quadro NOD"); null = solto (só o nome). */
+  projeto?: string | null;
   meta: string | null;
   /** "até 20 nov", ou null sem prazo. */
   prazoFrase: string | null;
@@ -68,6 +72,8 @@ export function menuDoQuadro(c: CabecalhoDoQuadro): Html {
     c.trocar ? item("quadro-seletor", "Trocar de quadro…", null) : "",
     c.trazer ? item("trazer-linear", "Trazer do Linear…", null) : "",
     `<div class="qm-qm-sep" role="separator"></div>`,
+    item("op-abrir", "Opções de exibição…", null, ' aria-haspopup="dialog"'),
+    `<div class="qm-qm-sep" role="separator"></div>`,
     item("remover-quadro", "Remover quadro", null, ' title="O bot volta a ser um agente comum; a conversa e a memória ficam"', " qm-qm-perigo"),
     `<p class="qm-nota qm-qm-teste" role="none" title="Recurso em teste, liberado só para a sua conta">Em teste · só você vê</p>`,
   ].join("");
@@ -81,7 +87,7 @@ export function menuDoQuadro(c: CabecalhoDoQuadro): Html {
 export function cabecalhoDoQuadro(c: CabecalhoDoQuadro): Html {
   const resumo = [c.meta, c.prazoFrase].filter((x): x is string => !!x).join(" · ");
   const botao = `<button type="button" class="qm-cab-bt" data-act="qmenu-abrir" aria-haspopup="menu" aria-expanded="${c.aberto}"${c.aberto ? ' aria-controls="qm-pop-quadro"' : ""} title="Menu do quadro">` +
-    `<span class="qm-cab-nome">${esc(c.nome)}</span>${CHEVRON}</button>`;
+    `${ICONE_QUADRO}${c.projeto ? `<span class="qm-cab-proj">${esc(c.projeto)}</span><span class="qm-cab-sep" aria-hidden="true">/</span>` : ""}<span class="qm-cab-nome">${esc(c.nome)}</span>${CHEVRON}</button>`;
   const meta = resumo ? `<button type="button" class="qm-cab-meta" data-act="qmenu-abrir" data-foco="meta" aria-label="${esc(`${resumo}. Mudar no menu do quadro`)}">${esc(resumo)}</button>` : "";
   // role=status também na falha (revisão 5 do PR #630): o topo é redesenhado a cada releitura e role=alert re-anunciaria.
   const imp = c.importacao ? `<span class="qd-imp qd-imp-${c.importacao.tipo} qm-cab-imp" role="status">${esc(c.importacao.texto)}</span>` : "";

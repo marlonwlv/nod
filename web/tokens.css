@@ -1,56 +1,55 @@
 /* =====================================================================================
-   Tokens do design system do Nod (definido em 2026-10-04; fonte: o design system "Nod", project/tokens.json,
-   direção D "grafite + cor do agente"). É o ÚNICO arquivo da web com cor literal: os outros CSS usam var(--…)
+   Tokens do design system do Nod. É o ÚNICO arquivo da web com cor literal: os outros CSS usam var(--…)
    e tests/unit/web/cores-por-token.test.ts recusa hex/rgb fora daqui (exceção: linha marcada com "cor-fixa").
    desktop/setup.css (tela de conexão do Mac, que não carrega este arquivo) tem uma cópia dos valores que usa; o mesmo
    teste confere que ela continua igual a esta.
+
+   Revisto em 2026-11-12 (ADR-167, visual novo, telas 01–04 do Paper):
+   - tudo sai de UMA cor base (--base: #1c1c1c no claro, #f5f5f5 no escuro) por opacidade. Os tokens de texto, linha e
+     superfície são essa base achatada sobre o fundo da conversa (hex sólido: o contraste não muda com o que está atrás);
+     os de interação (--hover, --ativo, --borda-*) ficam translúcidos, com color-mix, e acompanham qualquer fundo.
+     Receita: texto 100/68/64/40 % (claro) e 100/66/54/38 % (escuro); linha 12 %, linha de controle 52 %/45 % (3:1),
+     hover 6 %, ativo 9 %. O texto terciário sobe de 56 % (referência) para 64 % no claro: com 56 % ele ficava em 3,9:1.
+   - fonte do sistema (SF Pro no Mac) no lugar da Geist; escala fechada de 7 tamanhos com corpo 14 (--fs-*, --lh-*);
+   - raios em escala (--raio-*), cinco níveis de sombra (--sombra-*); no escuro não há sombra: o relevo vem de uma borda
+     clara sutil (o "especular", branco a 8–12 %) e de superfícies mais claras;
+   - movimento nomeado (--dur-*, --curva*) e o shimmer de carregando (web/ds.css).
+   Independentes de framework: são só variáveis CSS e valem para qualquer camada de tela.
 
    Regras de uso (README do design system):
    - action é a única cor de ação (botão primário, enviar), com uma exceção do próprio design system: dentro de um aviso
      de estado, o botão que resolve usa a cor do estado; signal é só para o que é NOVO (divisor de novas,
      não lidas, menção a você) e nunca para link, seleção, botão, foco ou aviso;
    - estados: danger (o trabalho não começa ou parou), warning (o usuário resolve depois), success; informação
-     é neutra (surface-raised + line + ink);
+     é neutra (surface-raised + line + ink); --aguardando (laranja) é o "precisa de você" da barra (ADR-167);
    - a cor do agente (agent-*) aparece só no avatar, no ponto de "trabalhando" e no marcador da menção, mais as
-     exceções das emendas da ADR-070 (o brilho do pensamento e o balão da pessoa, --balao-*, NOD-431).
+     exceções das emendas da ADR-070 (o brilho do pensamento e o balão da pessoa, --balao-*, NOD-431, que desde a
+     ADR-167 é opcional: o padrão é o balão preto, --balao-pessoa).
 
    Tema: claro por padrão; escuro pelo sistema (prefers-color-scheme) ou por escolha (data-theme no <html>,
    gravado por web/lib/tema.ts). data-theme="light" vence o sistema escuro e data-theme="dark" vence o claro.
    ===================================================================================== */
-
-@font-face { font-family: "Geist"; font-style: normal; font-display: swap; font-weight: 100 900;
-  src: url(/fontes/geist-latin-wght-normal.woff2) format("woff2-variations");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: "Geist"; font-style: normal; font-display: swap; font-weight: 100 900;
-  src: url(/fontes/geist-latin-ext-wght-normal.woff2) format("woff2-variations");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
-@font-face { font-family: "Geist Mono"; font-style: normal; font-display: swap; font-weight: 100 900;
-  src: url(/fontes/geist-mono-latin-wght-normal.woff2) format("woff2-variations");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: "Geist Mono"; font-style: normal; font-display: swap; font-weight: 100 900;
-  src: url(/fontes/geist-mono-latin-ext-wght-normal.woff2) format("woff2-variations");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
 
 :root {
   color-scheme: light;
 
   /* Superfícies, da mais funda à selecionada */
   --surface: #ffffff;
-  --surface-side: #f7f7f8;
-  --surface-raised: #f0f0f2;
-  --surface-selected: #ececef;
+  --surface-side: #f5f5f5;
+  --surface-raised: #f1f1f1;
+  --surface-selected: #ebebeb;
 
   /* Linhas: line é decorativa; line-strong é a borda de campos e controles (3:1) */
-  --line: #e5e5e9;
-  --line-strong: #8e8e96;
+  --line: #e4e4e4;
+  --line-strong: #898989;
 
   /* Texto */
-  --ink: #18181b;
-  --ink-2: #5d5d66;
-  --ink-3: #6b6b74;
+  --ink: #1c1c1c;
+  --ink-2: #656565;
+  --ink-3: #6e6e6e;
 
   /* Ação e sinal */
-  --action: #18181b;
+  --action: #1c1c1c;
   --on-action: #ffffff;
   --signal: #1866c0;
   --on-signal: #ffffff;
@@ -58,7 +57,7 @@
   /* Mais suave que a tinta (pedido do Marlon): o anel aparece só no teclado e não grita (contraste ~5:1 no claro). */
   --focus-ring: var(--ink-3);
 
-  /* O revisor do Automático (modos de aprovação, PR 4; tela A3, o cartão compacto "estilo Grok"): o azul claro do
+  /* O revisor do Automático (modos de aprovação, PR 4; tela A3, o cartão compacto): o azul claro do
      cartão, a borda, o escudo e o Aprovar. Próprio, e não signal: signal é só o que é NOVO, nunca botão. */
   --revisor: #1866c0;
   --on-revisor: #ffffff;
@@ -104,12 +103,15 @@
   --agent-rose: #e152b0;
   --agent-gris: #a3a3a3;
   --agent-creme: #f1efe9;
+  /* ADR-174: duas cores a mais no seletor (magenta; anil para fechar o círculo entre azul e violeta) */
+  --agent-magenta: #ff309b;
+  --agent-anil: #5865f2;
   /* Olhos do avatar: brancos em toda skin, exceto creme (fica clara demais e leva olhos em tinta) */
   --agent-olho: #ffffff;
   --agent-olho-creme: #18181b;
 
   /* NOD-431 (emenda da ADR-070): o balão da pessoa na cor do bot da conversa. Fundo, tinta e fundo do código de cada
-     skin saem de src/domain/contraste-do-balao.ts (texto sempre branco, como no Grok, ≥ 4,5:1 sobre o fundo e sobre o chip;
+     skin saem de src/domain/contraste-do-balao.ts (texto sempre branco, ≥ 4,5:1 sobre o fundo e sobre o chip;
      separado da página e do balão do bot; o fundo só muda de luminosidade quando precisa, mantendo o tom); tests/unit/domain/contraste-do-balao.test.ts confere estes valores. */
   --balao-encre: #0a0a0c; --balao-encre-tinta: #ffffff; --balao-encre-codigo: #232324;
   --balao-brun: #8b5e3c; --balao-brun-tinta: #ffffff; --balao-brun-codigo: #7d5536;
@@ -124,40 +126,79 @@
   --balao-gris: #757575; --balao-gris-tinta: #ffffff; --balao-gris-codigo: #696969;
   /* Creme e cinza escurecem no mesmo tom até o branco passar. */
   --balao-creme: #807451; --balao-creme-tinta: #ffffff; --balao-creme-codigo: #736849;
+  --balao-magenta: #e30075; --balao-magenta-tinta: #ffffff; --balao-magenta-codigo: #cc0069;
+  --balao-anil: #5865f2; --balao-anil-tinta: #ffffff; --balao-anil-codigo: #4f5bda;
 
   /* Tipografia */
-  --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Sombra só no que flutua (menus, popovers, gavetas, diálogos); cards separam por line */
-  --shadow-pop: 0 6px 20px rgba(24, 24, 27, .10), 0 1px 2px rgba(24, 24, 27, .06);
+  --shadow-pop: 0 10px 20px -3px rgba(28, 28, 28, .10), 0 4px 6px -4px rgba(28, 28, 28, .10), 0 0 0 1px rgba(28, 28, 28, .05);
   /* O campo da conversa (plano "tela limpa", 2026-10-16): borda fina e uma sombra mais leve que a do que flutua */
-  --shadow-composer: 0 6px 20px rgba(24, 24, 27, .07), 0 1px 2px rgba(24, 24, 27, .05);
+  --shadow-composer: 0 4px 12px -1px rgba(28, 28, 28, .08), 0 2px 4px -2px rgba(28, 28, 28, .06), 0 0 0 1px rgba(28, 28, 28, .04);
   /* Extensões do app, fora do tokens.json: o botão das chaves e do segmentado, e o fundo atrás de diálogos */
-  --shadow-knob: 0 1px 2px rgba(24, 24, 27, .22);
-  --backdrop: rgba(24, 24, 27, .28);
+  --shadow-knob: 0 1px 3px 0 rgba(28, 28, 28, .2);
+  --backdrop: rgba(0, 0, 0, .32);
 
   /* ADA-2 (ADR-148): a forma do celular — alvo de toque, campo (16 px: o iOS não dá zoom ao focar) e corpo de leitura.
      Usados só dentro da consulta do celular (web/celular-base.css). */
   --cel-alvo: 44px;
   --cel-campo: 16px;
   --cel-corpo: 16px;
+
+  /* ADR-167: a base e o que sai dela por opacidade (translúcidos: valem sobre qualquer fundo) */
+  --base: #1c1c1c;
+  --base-hover: #363636;
+  --ink-4: #a4a4a4;
+  --hover: color-mix(in srgb, var(--base) 6%, transparent);
+  --ativo: color-mix(in srgb, var(--base) 9%, transparent);
+  --borda-forte: color-mix(in srgb, var(--base) 24%, transparent);
+  --borda: color-mix(in srgb, var(--base) 12%, transparent);
+  --borda-sutil: color-mix(in srgb, var(--base) 8%, transparent);
+  --divisoria: color-mix(in srgb, var(--base) 6%, transparent);
+  --surface-elevated: #ffffff;
+  /* ADR-167 (Paper): o fundo do painel do bot, um tom acima da conversa. */
+  --surface-chrome: #fcfcfc;
+  /* ADR-167 (Paper 07/08): o véu do modal (Configurações, criar bot) e o da paleta ⌘K, mais leve. */
+  --veu-modal: rgba(0, 0, 0, .5);
+  --veu-paleta: rgba(0, 0, 0, .22);
+  /* O "precisa de você" da barra (Aguardando você, telas 16/16b): laranja, texto 4,5:1 sobre a barra. */
+  --aguardando: #aa6300;
+  --aguardando-ponto: #da830e;
+  --aguardando-soft: #fef6ed;
+  /* Paper (rodada 2): o verde de "pronta" (a barra e o ✓ das frentes, a CI verde) e o texto dele. */
+  --pronto: #10ab61;
+  --pronto-tinta: #00854a;
+  /* O balão da pessoa (ADR-167): preto por padrão; a cor do bot é opção em Ajustes (--balao-<skin>). */
+  --balao-pessoa: #1c1c1c;
+  --balao-pessoa-tinta: #ffffff;
+  --balao-pessoa-codigo: #363636;
+  /* Cinco níveis de sombra (só no claro; no escuro viram a borda clara sutil) */
+  --sombra-controle: 0 1px 3px 0 rgba(28, 28, 28, .12);
+  --sombra-inline: 0 4px 12px -1px rgba(28, 28, 28, .08), 0 2px 4px -2px rgba(28, 28, 28, .06), 0 0 0 1px rgba(28, 28, 28, .04);
+  --sombra-popover: 0 10px 20px -3px rgba(28, 28, 28, .10), 0 4px 6px -4px rgba(28, 28, 28, .10), 0 0 0 1px rgba(28, 28, 28, .05);
+  --sombra-modal: 0 20px 32px -5px rgba(28, 28, 28, .10), 0 8px 12px -6px rgba(28, 28, 28, .10), 0 0 0 1px rgba(28, 28, 28, .05);
+  --sombra-janela: 0 22px 70px 4px rgba(28, 28, 28, .56), 0 0 0 .5px rgba(28, 28, 28, .10);
+  /* O brilho do shimmer de carregando (web/ds.css) */
+  --shimmer-fundo: var(--ink-3);
+  --shimmer-brilho: var(--ink);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --surface: #131315;
-    --surface-side: #18181b;
-    --surface-raised: #232327;
-    --surface-selected: #2a2a2f;
-    --line: #2d2d32;
-    --line-strong: #6a6a73;
-    --ink: #ededef;
-    --ink-2: #a4a4ac;
-    --ink-3: #8b8b94;
-    --action: #ededef;
-    --on-action: #131315;
+    --surface: #161616;
+    --surface-side: #0e0e0e;
+    --surface-raised: #232323;
+    --surface-selected: #2a2a2a;
+    --line: #2c2c2c;
+    --line-strong: #7a7a7a;
+    --ink: #f5f5f5;
+    --ink-2: #a9a9a9;
+    --ink-3: #8e8e8e;
+    --action: #f5f5f5;
+    --on-action: #161616;
     --signal: #4ea3f0;
     --on-signal: #0b1622;
     --signal-soft: #15283c;
@@ -179,10 +220,10 @@
     --success: #4cc38a;
     --success-soft: #132a1e;
     --on-status: #131315;
-    --shadow-pop: 0 8px 24px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .04);
-    --shadow-composer: 0 6px 20px rgba(0, 0, 0, .32), 0 1px 2px rgba(0, 0, 0, .4);
-    --shadow-knob: 0 1px 2px rgba(0, 0, 0, .5);
-    --backdrop: rgba(0, 0, 0, .5);
+    --shadow-pop: 0 0 0 .5px rgba(255, 255, 255, .12);
+    --shadow-composer: 0 0 0 .5px rgba(255, 255, 255, .12);
+    --shadow-knob: 0 0 0 .5px rgba(255, 255, 255, .14);
+    --backdrop: rgba(0, 0, 0, .7);
     --arquivo-planilha: #3fb874;
     --arquivo-documento: #5b93ef;
     --arquivo-apresentacao: #f08a52;
@@ -190,23 +231,52 @@
     --papel: #ffffff;
     --balao-encre: #31313b;
     --balao-encre-codigo: #46464f;
+
+    --base: #f5f5f5;
+    --base-hover: #dbdbdb;
+    --ink-4: #6b6b6b;
+    --hover: color-mix(in srgb, var(--base) 6%, transparent);
+    --ativo: color-mix(in srgb, var(--base) 9%, transparent);
+    --borda-forte: color-mix(in srgb, var(--base) 22%, transparent);
+    --borda: color-mix(in srgb, var(--base) 10%, transparent);
+    --borda-sutil: color-mix(in srgb, var(--base) 6%, transparent);
+    --divisoria: color-mix(in srgb, var(--base) 4%, transparent);
+    --surface-elevated: #1f1f1f;
+    --surface-chrome: #121212;
+    --veu-modal: rgba(0, 0, 0, .7);
+    --veu-paleta: rgba(0, 0, 0, .5);
+    --aguardando: #e28600;
+    --aguardando-ponto: #c8770c;
+    --aguardando-soft: #2a1f12;
+    --pronto: #0e9f5a;
+    --pronto-tinta: #00ba69;
+    --balao-pessoa: #3a3a3a;
+    --balao-pessoa-tinta: #f5f5f5;
+    --balao-pessoa-codigo: #4a4a4a;
+    --sombra-controle: 0 0 0 .5px rgba(255, 255, 255, .10);
+    --sombra-inline: 0 0 0 .5px rgba(255, 255, 255, .12);
+    --sombra-popover: 0 0 0 .5px rgba(255, 255, 255, .12);
+    --sombra-modal: 0 0 0 .5px rgba(255, 255, 255, .12);
+    --sombra-janela: 0 0 0 .5px rgba(255, 255, 255, .14);
+    --shimmer-fundo: var(--ink-3);
+    --shimmer-brilho: var(--ink);
   }
 }
 
 /* Mesmos valores do bloco acima: a escolha manual vence o sistema nos dois sentidos. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --surface: #131315;
-  --surface-side: #18181b;
-  --surface-raised: #232327;
-  --surface-selected: #2a2a2f;
-  --line: #2d2d32;
-  --line-strong: #6a6a73;
-  --ink: #ededef;
-  --ink-2: #a4a4ac;
-  --ink-3: #8b8b94;
-  --action: #ededef;
-  --on-action: #131315;
+  --surface: #161616;
+  --surface-side: #0e0e0e;
+  --surface-raised: #232323;
+  --surface-selected: #2a2a2a;
+  --line: #2c2c2c;
+  --line-strong: #7a7a7a;
+  --ink: #f5f5f5;
+  --ink-2: #a9a9a9;
+  --ink-3: #8e8e8e;
+  --action: #f5f5f5;
+  --on-action: #161616;
   --signal: #4ea3f0;
   --on-signal: #0b1622;
   --signal-soft: #15283c;
@@ -228,10 +298,10 @@
   --success: #4cc38a;
   --success-soft: #132a1e;
   --on-status: #131315;
-  --shadow-pop: 0 8px 24px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .04);
-  --shadow-composer: 0 6px 20px rgba(0, 0, 0, .32), 0 1px 2px rgba(0, 0, 0, .4);
-  --shadow-knob: 0 1px 2px rgba(0, 0, 0, .5);
-  --backdrop: rgba(0, 0, 0, .5);
+  --shadow-pop: 0 0 0 .5px rgba(255, 255, 255, .12);
+  --shadow-composer: 0 0 0 .5px rgba(255, 255, 255, .12);
+  --shadow-knob: 0 0 0 .5px rgba(255, 255, 255, .14);
+  --backdrop: rgba(0, 0, 0, .7);
   --arquivo-planilha: #3fb874;
   --arquivo-documento: #5b93ef;
   --arquivo-apresentacao: #f08a52;
@@ -239,4 +309,72 @@
   --papel: #ffffff;
   --balao-encre: #31313b;
   --balao-encre-codigo: #46464f;
+
+  --base: #f5f5f5;
+  --base-hover: #dbdbdb;
+  --ink-4: #6b6b6b;
+  --hover: color-mix(in srgb, var(--base) 6%, transparent);
+  --ativo: color-mix(in srgb, var(--base) 9%, transparent);
+  --borda-forte: color-mix(in srgb, var(--base) 22%, transparent);
+  --borda: color-mix(in srgb, var(--base) 10%, transparent);
+  --borda-sutil: color-mix(in srgb, var(--base) 6%, transparent);
+  --divisoria: color-mix(in srgb, var(--base) 4%, transparent);
+  --surface-elevated: #1f1f1f;
+  --surface-chrome: #121212;
+  --veu-modal: rgba(0, 0, 0, .7);
+  --veu-paleta: rgba(0, 0, 0, .5);
+  --aguardando: #e28600;
+  --aguardando-ponto: #c8770c;
+  --aguardando-soft: #2a1f12;
+  --pronto: #0e9f5a;
+  --pronto-tinta: #00ba69;
+  --balao-pessoa: #3a3a3a;
+  --balao-pessoa-tinta: #f5f5f5;
+  --balao-pessoa-codigo: #4a4a4a;
+  --sombra-controle: 0 0 0 .5px rgba(255, 255, 255, .10);
+  --sombra-inline: 0 0 0 .5px rgba(255, 255, 255, .12);
+  --sombra-popover: 0 0 0 .5px rgba(255, 255, 255, .12);
+  --sombra-modal: 0 0 0 .5px rgba(255, 255, 255, .12);
+  --sombra-janela: 0 0 0 .5px rgba(255, 255, 255, .14);
+  --shimmer-fundo: var(--ink-3);
+  --shimmer-brilho: var(--ink);
+}
+
+/* =====================================================================================
+   ADR-167: escala, raios e movimento. Não são cor: iguais nos dois temas, num bloco à parte.
+   ===================================================================================== */
+:root {
+  /* Tipografia: 7 tamanhos fechados (a mesma escala do Paper); corpo 14/20, conversa 14/22, menus 13/18. */
+  --fs-titulo-1: 26px; --lh-titulo-1: 32px;
+  --fs-titulo-2: 22px; --lh-titulo-2: 28px;
+  --fs-titulo-3: 17px; --lh-titulo-3: 24px;
+  --fs-corpo: 14px; --lh-corpo: 20px; --lh-conversa: 22px;
+  --fs-corpo-2: 13px; --lh-corpo-2: 18px;
+  --fs-rotulo: 12px; --lh-rotulo: 16px;
+  --fs-legenda: 11px; --lh-legenda: 16px;
+  --tracking-titulo-1: -.015em; --tracking-titulo-2: -.012em; --tracking-titulo-3: -.008em;
+  /* No Mac o "regular" de referência é 420; com a fonte do sistema o peso variável aceita. */
+  --peso-regular: 400; --peso-medio: 500; --peso-forte: 600;
+
+  /* Raios: tooltip 6 · botão e linha de menu 6–8 · item da barra 10 · cartão e menu 12 · busca e paleta 14 ·
+     balão 18 · modal 20 · pílula e avatar full */
+  --raio-2: 2px; --raio-4: 4px; --raio-6: 6px; --raio-8: 8px; --raio-10: 10px; --raio-12: 12px; --raio-14: 14px;
+  --raio-16: 16px; --raio-18: 18px; --raio-20: 20px; --raio-22: 22px; --raio-full: 9999px;
+
+  /* Movimento: hover 100 · menus 150 · barra 200 · painéis 300 · gaveta 500 */
+  --dur-instantaneo: 50ms; --dur-rapido: 100ms; --dur-normal: 150ms; --dur-lento: 200ms; --dur-mais-lento: 300ms; --dur-gaveta: 500ms;
+  --curva: cubic-bezier(.22, 1, .36, 1);
+  --curva-padrao: cubic-bezier(.2, 0, 0, 1);
+  --curva-saida: cubic-bezier(.4, 0, 1, 1);
+  --curva-entra-sai: cubic-bezier(.77, 0, .175, 1);
+  --dur-shimmer: 1.6s;
+
+  /* Medidas da janela: barra compacta só com avatares, controles 20/24/28/32 */
+  --barra-compacta: 88px;
+  --controle-xs: 20px; --controle-sm: 24px; --controle-md: 28px; --controle-lg: 32px;
+}
+
+/* Movimento reduzido: as durações nomeadas zeram (a regra global de estilos.css continua valendo). */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-instantaneo: .01ms; --dur-rapido: .01ms; --dur-normal: .01ms; --dur-lento: .01ms; --dur-mais-lento: .01ms; --dur-gaveta: .01ms; }
 }

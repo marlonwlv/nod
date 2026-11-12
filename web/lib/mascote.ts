@@ -5,7 +5,7 @@ import { COMET_MS, WINK_MS } from "./atividade.ts";
 import { FALA_SAINDO_MS } from "./fala-viva.ts";
 
 /**
- * Adaptador do motor SVG temporário Bloub/GrokBot.
+ * Adaptador do motor SVG temporário Bloub.
  * Mantém forma, estado e desenho isolados para a identidade definitiva poder substituí-lo sem
  * alterar contratos, banco ou telas. Referência e licença registradas em THIRD_PARTY_NOTICES.md.
  */
@@ -14,15 +14,33 @@ import { FALA_SAINDO_MS } from "./fala-viva.ts";
  * de disponível) e diz "na fila" no tooltip: só o turno rodando anima. Antes a fila animava "pensando" — um turno
  * pendente esquecido no servidor deixava o mascote pensando por horas.
  */
-export type EstadoMascote = "disponivel" | "pensando" | "trabalhando" | "aguardando" | "pausado" | "na_fila";
+/**
+ * ADR-174 (2026-11-12, o personagem): mais quatro estados. `lendo` é o turno rodando com uma ferramenta de
+ * leitura em uso (o rótulo "Lendo …" de web/lib/rotulos); `offline` é o computador do bot fora do ar, para o dono e sem
+ * turno vivo; `comemorando` é disparo das telas (o preparo chegou a 100%, o onboarding acabou), nunca inferido do chat;
+ * `pausado` passa a desenhar "dormindo" (olhos fechados, respirando) no lugar do ponto que quicava.
+ */
+export type EstadoMascote = "disponivel" | "pensando" | "lendo" | "trabalhando" | "aguardando" | "comemorando" | "pausado" | "offline" | "na_fila";
 
-export const FORMAS_MASCOTE = ["shape-square", "shape-hex", "shape-circle", "shape-pebble", "shape-capsule", "shape-triangle", "shape-cloud", "shape-drop"] as const satisfies readonly FormaAgente[];
-export const CORES_MASCOTE = ["c-red", "c-pink", "c-purple", "c-blue", "c-teal", "c-green", "c-orange", "c-black", "c-brown", "c-amber", "c-gray", "c-cream"] as const;
+export const FORMAS_MASCOTE = ["shape-square", "shape-hex", "shape-circle", "shape-pebble", "shape-capsule", "shape-triangle", "shape-cloud", "shape-drop", "shape-egg", "shape-heart", "shape-star", "shape-flower", "shape-clover"] as const satisfies readonly FormaAgente[];
+export const CORES_MASCOTE = ["c-red", "c-pink", "c-purple", "c-blue", "c-teal", "c-green", "c-orange", "c-black", "c-brown", "c-amber", "c-gray", "c-cream", "c-magenta", "c-indigo"] as const;
 
-export const ESTADOS_BLOUB = { disponivel: "idle", pensando: "thinking", trabalhando: "orbit", aguardando: "notify", pausado: "sleep", na_fila: "idle" } as const;
+/** ADR-174: o nome de cada forma e cor, para o seletor (perfil, "Criar novo bot", onboarding) e o leitor de tela. */
+export const NOME_DA_FORMA: Record<(typeof FORMAS_MASCOTE)[number], string> = {
+  "shape-square": "Quadrado", "shape-hex": "Hexágono", "shape-circle": "Círculo", "shape-pebble": "Seixo", "shape-capsule": "Cápsula",
+  "shape-triangle": "Triângulo", "shape-cloud": "Nuvem", "shape-drop": "Gota", "shape-egg": "Ovo", "shape-heart": "Coração",
+  "shape-star": "Estrela", "shape-flower": "Flor", "shape-clover": "Trevo",
+};
+export const NOME_DA_COR: Record<(typeof CORES_MASCOTE)[number], string> = {
+  "c-red": "Vermelho", "c-pink": "Rosa", "c-purple": "Roxo", "c-blue": "Azul", "c-teal": "Turquesa", "c-green": "Verde",
+  "c-orange": "Laranja", "c-black": "Preto", "c-brown": "Marrom", "c-amber": "Âmbar", "c-gray": "Cinza", "c-cream": "Creme",
+  "c-magenta": "Magenta", "c-indigo": "Anil",
+};
+
+export const ESTADOS_BLOUB = { disponivel: "idle", pensando: "thinking", lendo: "reading", trabalhando: "orbit", aguardando: "notify", comemorando: "celebrate", pausado: "sleeping", offline: "offline", na_fila: "idle" } as const;
 /** `xxl` (definido em 2026-10-04): o mascote da tela cheia da ligação, o maior da interface. */
 export type TamanhoMascote = "" | "sm" | "md" | "lg" | "xl" | "xxl";
-const ROTULOS = { disponivel: "disponível", pensando: "pensando", trabalhando: "trabalhando", aguardando: "aguardando você", pausado: "pausado (reservado)", na_fila: "na fila" };
+const ROTULOS: Record<EstadoMascote, string> = { disponivel: "disponível", pensando: "pensando", lendo: "lendo", trabalhando: "trabalhando", aguardando: "aguardando você", comemorando: "pronto", pausado: "dormindo", offline: "computador fora do ar", na_fila: "na fila" };
 export function htmlMascote(a: Pick<Agente, "nome" | "cor" | "forma">, tamanho: TamanhoMascote = "", estado: EstadoMascote = "disponivel", extra = ""): string {
   return `<nod-mascote class="icon mascote ${esc(a.cor)} ${esc(a.forma)}${tamanho ? ` ${tamanho}` : ""}" data-mascote data-estado="${estado}" state="${ESTADOS_BLOUB[estado]}" shape="${a.forma}" role="img" aria-label="${esc(a.nome)} · ${ROTULOS[estado]}" title="${esc(a.nome)} · ${ROTULOS[estado]}" ${extra}></nod-mascote>`;
 }
@@ -102,18 +120,60 @@ export function proximaViradaDoMascote(estado: Pick<Estado, "turnosVivos" | "fal
  * girava (a variante 1, recusada) e o chip piscava ao mesmo tempo. A lista de `GET trabalhos` diz qual turno é de task
  * (`turnoVivoId`), além do `trabalhoId` que o turno vivo já traz; `conversas` fica de fora (a barra relê pelo que lê).
  */
-export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "trabalhos" | "suaVez" | "agora">, conversaId: string): EstadoMascote {
+export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "trabalhos" | "suaVez" | "agora"> & Partial<Pick<Estado, "atividades" | "frota" | "sessao">>, conversaId: string): EstadoMascote {
   const vivos = turnosVivosDaConversa(estado, conversaId);
-  if (vivos.some((t) => t.estado === "rodando")) return "trabalhando";
+  const rodando = vivos.filter((t) => t.estado === "rodando");
+  if (rodando.length) return rodando.some((t) => lendoNoTurno(estado.atividades?.[conversaId]?.[t.turnoId]?.emUso?.texto)) ? "lendo" : "trabalhando";
   // NOD-216: só o pedido recém-chegado pensa; a fila antiga fica parada (abaixo de "Sua vez", que pede a pessoa).
   if (vivos.some((t) => filaRecente(t, estado.agora))) return "pensando";
   const aguarda = estado.suaVez?.itens.some((item) => item.decisao.conversaId === conversaId && item.estadoColuna !== "vencido");
   if (aguarda) return "aguardando";
+  // ADR-174: o computador do bot fora do ar (o mesmo sinal da barra: só para o dono) ganha do repouso e da fila.
+  if (computadorForaDoAr(estado, conversaId)) return "offline";
   return vivos.some((t) => t.estado === "na_fila") ? "na_fila" : "disponivel";
 }
 
-/** O mascote anima (gira ou pensa)? Para a presença do cabeçalho e para quem só precisa do sim ou não. */
-export const mascoteAnimado = (e: EstadoMascote): boolean => e === "trabalhando" || e === "pensando";
+/**
+ * Paper 05/05b (rodada 2, decisão "igual ao Paper"): o DESENHO do avatar na barra e na pílula. Rodando sem ferramenta em
+ * uso — só pensando ou escrevendo — o avatar mostra "···" (pensando); com uma ferramenta, gira. A presença escrita
+ * ("Trabalhando") continua a de `estadoMascoteNaConversa`. Para voltar, use `estadoMascoteNaConversa` nos dois lugares.
+ */
+export function avatarNaConversa(estado: Parameters<typeof estadoMascoteNaConversa>[0], conversaId: string): EstadoMascote {
+  const e = estadoMascoteNaConversa(estado, conversaId);
+  if (e !== "trabalhando") return e;
+  const rodando = turnosVivosDaConversa(estado, conversaId).filter((t) => t.estado === "rodando");
+  const soPensa = rodando.length > 0 && rodando.every((t) => !t.trabalhoId && !estado.atividades?.[conversaId]?.[t.turnoId]?.emUso);
+  return soPensa ? "pensando" : e;
+}
 
-/** Revisão NOD-216: o aviso do bot (fora do ar, pergunta, rotina parada) ganha do mascote parado — disponível ou na fila. */
-export const mascoteComAviso = (e: EstadoMascote, aviso: unknown): EstadoMascote => (aviso && !mascoteAnimado(e) && e !== "aguardando" && e !== "pausado" ? "aguardando" : e);
+/**
+ * Paper 15–17 (rodada 3 da casca, "igual ao Paper"): o avatar do bot no cabeçalho, no painel e na grade gira com uma
+ * frente dele rodando (um turno vivo de trabalho), não só com o turno da conversa. Reverte a K8 variante 3 ("um sinal
+ * por bot") nesses três lugares; para voltar, use `avatarNaConversa` de novo.
+ */
+export function avatarDoBot(estado: Parameters<typeof estadoMascoteNaConversa>[0], a: { id: string; conversaId: string }): EstadoMascote {
+  const e = avatarNaConversa(estado, a.conversaId);
+  if (e !== "disponivel" && e !== "na_fila") return e;
+  const rodando = (estado.trabalhos?.trabalhos ?? []).some((t) => t.agenteId === a.id && t.estado === "rodando" && !!t.turnoVivoId);
+  return rodando ? "trabalhando" : e;
+}
+
+/** ADR-174: a ferramenta em uso é de leitura ("Lendo um arquivo", "Buscando na web"…): o personagem lê. */
+export function lendoNoTurno(texto: string | null | undefined): boolean {
+  return !!texto && /^(Lendo|Buscando|Procurando|Pesquisando|Abrindo|Consultando)\b/.test(texto);
+}
+
+function computadorForaDoAr(estado: Partial<Pick<Estado, "frota" | "sessao">>, conversaId: string): boolean {
+  const a = estado.frota?.agentes.find((x) => x.conversaId === conversaId);
+  return !!a?.computadorForaDoAr && !!estado.sessao && a.ownerId === estado.sessao.pessoaId;
+}
+
+/** O mascote anima (gira ou pensa)? Para a presença do cabeçalho e para quem só precisa do sim ou não. */
+export const mascoteAnimado = (e: EstadoMascote): boolean => e === "trabalhando" || e === "pensando" || e === "lendo";
+
+/**
+ * Revisão NOD-216: o aviso do bot (fora do ar, pergunta, rotina parada) ganha do mascote parado — disponível ou na fila.
+ * Frente de comportamento (12/11/2026; ADR-167, "o azul fica só para o não lido"): a mensagem não lida NÃO deixa o
+ * personagem "aguardando você" — ela é o ponto azul; o personagem só espera a pessoa quando há pedido ou pergunta aberta.
+ */
+export const mascoteComAviso = (e: EstadoMascote, aviso: unknown): EstadoMascote => (aviso && aviso !== "nao-lido" && !mascoteAnimado(e) && e !== "aguardando" && e !== "pausado" && e !== "offline" ? "aguardando" : e);

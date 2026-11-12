@@ -16,8 +16,9 @@ const run = (turnoId: string, o: Partial<RunDaTarefa> = {}): RunDaTarefa => ({ t
 const dados = (o: Partial<DadosDaLinha>): DadosDaLinha => ({ t, colunas: [{ id: "fazendo", nome: "Fazendo", grupo: "iniciado" } as never], comentarios: [], runs: [], agente, agora, nomes: ["Dev 1", "Gil"], respondendo: null, editando: null, abertos: new Set(), passos: () => null, chips: () => "", pendente: null, criadaPor: null, criadaEm: null, carga: "ok", ...o });
 
 describe("linha do tempo", () => {
-  it("a resposta fica dentro da thread da raiz, e o run concluído que respondeu compacta no cabeçalho dela", () => {
-    const h = linhaDoTempo(dados({
+  // Rodada 3 (tela 18b do Paper): os runs moram só no Registro; o desenho com os runs na linha fica atrás de `runsNaLinha`.
+  it("a resposta fica dentro da thread da raiz, e o run concluído que respondeu compacta no cabeçalho dela (runsNaLinha)", () => {
+    const h = linhaDoTempo(dados({ runsNaLinha: true,
       comentarios: [com("c1", { texto: "@Gil olha" }), com("c2", { autor: { tipo: "agente", agenteId: "gil" }, autorNome: "Gil", paiId: "c1", criadoEm: agora - 15 * min })],
       runs: [run("r1", { agenteId: "gil", agenteNome: "Gil", comentarioId: "c1", criadoEm: agora - 29 * min, terminouEm: agora - 16 * min })],
     }));
@@ -28,8 +29,8 @@ describe("linha do tempo", () => {
     expect(h).toContain('<span class="ta-men">@Gil</span>');
   });
 
-  it("o run vivo é um bloco na thread que o acionou, com o último passo trocável ao vivo; a falha leva o motivo no title", () => {
-    const h = linhaDoTempo(dados({
+  it("o run vivo é um bloco na thread que o acionou, com o último passo trocável ao vivo; a falha leva o motivo no title (runsNaLinha)", () => {
+    const h = linhaDoTempo(dados({ runsNaLinha: true,
       comentarios: [com("c1")],
       runs: [run("r1", { comentarioId: "c1", estado: "rodando", terminouEm: null, turnoAtual: "tr1" }), run("r2", { comentarioId: "c1", estado: "falhou", motivo: `caiu ${MAL}`, criadoEm: agora - 25 * min })],
       passos: (turno) => (turno === "r1" ? { ultimo: "Lendo o arquivo", n: 3, lista: [], carregado: true } : null),
@@ -43,7 +44,9 @@ describe("linha do tempo", () => {
   it("os movimentos entram como eventos discretos; o campo do fim e o da thread aberta", () => {
     const tt = { ...t, movimentos: [{ id: "m1", tarefaId: "t1", tipo: "mover", de: "afazer", para: "fazendo", agenteAntes: "dev", agenteDepois: "dev", autor: { tipo: "agente", agenteId: "dev" }, motivo: null, loteId: "l", acionou: false, desfeitoEm: null, criadoEm: agora - 50 * min, autorNome: "Dev 1", agenteAntesNome: "Dev 1", agenteDepoisNome: "Dev 1" }] } as unknown as TarefaDto;
     const h = linhaDoTempo(dados({ t: tt, colunas: [{ id: "afazer", nome: "A fazer" }, { id: "fazendo", nome: "Fazendo" }] as never, comentarios: [com("c1")], respondendo: "c1" }));
-    expect(h).toContain("<b>Dev 1</b> moveu de A fazer para Fazendo");
+    // Rodada 4 (tela 18b do Paper): o evento é um item do quadro ("Quadro · hora", a frase com o bot que mexeu).
+    expect(h).toContain('<p class="ta-ev-cab"><b>Quadro</b>');
+    expect(h).toContain('<p class="ta-ev-txt">Dev 1 moveu de A fazer para Fazendo.</p>');
     expect(h).toContain('data-form="comentar-tarefa" data-id="t1" data-responder="c1"');
     expect(h).toContain('id="qd-com-t1"');
   });
@@ -76,7 +79,10 @@ describe("lateral e formatos", () => {
     expect(chipTrabalhando(runs, agente)).toContain("2 agentes trabalhando");
     expect(chipTrabalhando([run("r3")], agente)).toBe("");
     expect(registroDeExecucao({ runs: [run("r3")], agente, agora, aberto: true })).toContain("Sem custo registrado");
-    expect(registroDeExecucao({ runs: [run("r3", { custoUsd: 0.5, tokens: 12000 })], agente, agora, aberto: true })).toContain("concluído · 9 min · US$ 0,50 · 12 mil tokens");
+    // A linha do Registro leva o estado, a duração e o custo (o desenho do Registro é o do quadro estilo Multica).
+    const reg = registroDeExecucao({ runs: [run("r3", { custoUsd: 0.5, tokens: 12000 })], agente, agora, aberto: true });
+    expect(reg).toContain("9 min");
+    expect(reg).toContain("US$ 0,50 · 12 mil tokens");
     expect(dialogoDosRuns({ runs, agente, agora }).match(/class="ta-bar"/g)).toHaveLength(2);
   });
 

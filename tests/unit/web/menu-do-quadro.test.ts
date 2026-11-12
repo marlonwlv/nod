@@ -35,6 +35,11 @@ const cab = (extra: Partial<CabecalhoDoQuadro> = {}): CabecalhoDoQuadro => ({
 });
 
 describe("web/telas/menu-do-quadro", () => {
+  it("tela 18 do Paper: o ícone do quadro e o projeto antes do nome", () => {
+    const h = cabecalhoDoQuadro(cab({ projeto: "Produto" }));
+    expect(h).toMatch(/qm-cab-ic.*<span class="qm-cab-proj">Produto<\/span><span class="qm-cab-sep" aria-hidden="true">\/<\/span><span class="qm-cab-nome">/);
+  });
+
   it("fechado: só o nome com o chevron; sem meta e sem prazo, nada ao lado", () => {
     const h = cabecalhoDoQuadro(cab());
     expect(h).toContain('data-act="qmenu-abrir" aria-haspopup="menu" aria-expanded="false"');
@@ -55,12 +60,12 @@ describe("web/telas/menu-do-quadro", () => {
     const h = cabecalhoDoQuadro(cab({ aberto: true, meta: "Lançar", prazoFrase: "até 20 nov", progresso: "0 de 1 feitas", nPessoas: 2 }));
     expect(h).toContain('aria-expanded="true" aria-controls="qm-pop-quadro"');
     expect(h).toContain('id="qm-pop-quadro" role="menu"');
-    const ordem = ["0 de 1 feitas", 'data-act="editar-meta"', 'data-act="qmenu-prazo"', "Pessoas · 2", 'data-act="painel-atividade"', 'data-act="trazer-linear"', 'data-act="remover-quadro"', "Em teste · só você vê"];
+    const ordem = ["0 de 1 feitas", 'data-act="editar-meta"', 'data-act="qmenu-prazo"', "Pessoas · 2", 'data-act="painel-atividade"', 'data-act="trazer-linear"', 'data-act="op-abrir"', 'data-act="remover-quadro"', "Em teste · só você vê"];
     const pos = ordem.map((s) => h.indexOf(s));
     expect(pos.every((p) => p >= 0)).toBe(true);
     expect([...pos].sort((a, b) => a - b)).toEqual(pos);
     expect(h).toMatch(/qm-qm-perigo" data-act="remover-quadro"/);
-    expect(h.match(/role="menuitem"/g)).toHaveLength(6);
+    expect(h.match(/role="menuitem"/g)).toHaveLength(7);
   });
 
   it("sem pessoas, sem Linear (membro ou importando) e com o seletor: os itens certos", () => {

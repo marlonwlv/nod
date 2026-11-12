@@ -157,7 +157,8 @@ describe("a fala viva", () => {
     const b = comAtividade(comTexto(a, "Pronto."));
     // Parte 2: curta, nunca entrou no balão — é nota do pensamento; "Pronto." também é curto.
     expect(b.morfar!.partes.filter((p) => p.chave.startsWith("balao"))).toEqual([]);
-    expect(b.html).toContain(`<li class="pensar-nota">${narracao}</li>`);
+    // Casca r4 (Paper 05b): a narração de abertura vem antes do pensamento (parte `narracao`).
+    expect(b.html).toContain(`<div class="fala-narracao" data-parte="narracao" data-no-lugar><p>${narracao}</p></div>`);
   });
 
   it("revisão 8 do PR #522: a narração curta com quebras no fim conta como curta quando sai da lista guardada", () => {
@@ -202,14 +203,15 @@ describe("a fala viva", () => {
     expect(comAtividade(narrando).morfar!.partes.map((p) => p.chave)).toEqual(["nome", "pensar"]);
     expect(comAtividade(narrando).html).toContain('<span class="fala-viva-estado">Vou olhar o Linear.</span>');
     const usando = comFerramenta(narrando, "Consultou Linear", { texto: "Usando Linear", frentes: false });
-    expect(comAtividade(usando).html).toContain('<li class="pensar-nota">Vou olhar o Linear.\n\nJá volto com a lista.</li>');
+    expect(comAtividade(usando).html).toContain('<div class="fala-narracao" data-parte="narracao" data-no-lugar><p>Vou olhar o Linear.\n\nJá volto com a lista.</p></div>');
     const depois = comAtividade(comTexto(usando, "Achei 3 issues"));
     expect(depois.morfar!.partes.filter((p) => p.chave.startsWith("balao"))).toEqual([]);
     expect(depois.html).toContain('<span class="fala-viva-estado">Achei 3 issues</span>');
-    // O pensamento é uma parte só, que muda por dentro: a nota continua lá.
+    // O pensamento é uma parte só, que muda por dentro; a narração (casca r4, antes dele) fica como está, no mesmo nó.
     const plano = planoDoMorph(comAtividade(usando).morfar, depois.morfar)!;
-    expect(plano.partes.map((p) => p.chave)).toEqual(["nome", "pensar"]);
-    expect(plano.partes.find((p) => p.chave === "pensar")?.html).toContain("Vou olhar o Linear.");
+    expect(plano.partes.map((p) => p.chave)).toEqual(["nome", "narracao", "pensar"]);
+    expect(plano.partes.find((p) => p.chave === "narracao")?.html).toBeNull();
+    expect(depois.html).toContain("<p>Vou olhar o Linear.\n\nJá volto com a lista.</p>");
   });
 
   it("revisão 2 do PR #522: a fala parada divide como a gravada, sem esconder o começo indeciso do fim", () => {

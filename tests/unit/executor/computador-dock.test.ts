@@ -18,7 +18,7 @@ const BWRAP_RODA = (() => {
   try { execFileSync("/usr/bin/bwrap", ["--ro-bind", "/", "/", "--dev", "/dev", "--", "/bin/true"], { stdio: "ignore" }); return true; } catch { return false; }
 })();
 
-/** NOD-410 (30/10): o dock do desktop, como o do Grok — tint2 embaixo com Chrome, Arquivos e Terminal, e as janelas abertas. */
+/** NOD-410 (30/10): o dock do desktop — tint2 embaixo com Chrome, Arquivos e Terminal, e as janelas abertas. */
 describe("o dock do desktop", () => {
   it("o tint2rc é um painel embaixo, com os lançadores e a barra de janelas, sem relógio nem bandeja", () => {
     const rc = tint2rc(["/t/chrome.desktop", "/t/arquivos.desktop", "/t/terminal.desktop"]);

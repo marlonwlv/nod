@@ -28,7 +28,7 @@ import { FALA_SAINDO_MS, tempoDaFala } from "../lib/fala-viva.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
 import { htmlDaLinhaNoAr, htmlDaListaCompacta, htmlDoCard, htmlDoRecibo, lerRecibo } from "../lib/canvas-html.ts";
 import { dividirEmBaloes } from "../lib/baloes.ts";
-import { estadoMascoteNaConversa, mascoteAnimado, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
+import { avatarDoBot, estadoMascoteNaConversa, mascoteAnimado, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
 import { renderFaixaParada } from "./faixa-parada.ts";
 import type { Morph } from "../lib/morph.ts";
 import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../lib/computador.ts";
@@ -44,7 +44,9 @@ import { cortar } from "../lib/avisos.ts";
 import { nomeDoApp } from "./app-acesso.ts";
 import { renderCardAcesso, tituloDoPedidoDeAcesso } from "./card-acesso.ts";
 import { ehCartaoCredencial, renderCardCredencial } from "./card-credencial.ts";
-import { acaoHumana, idsGemeas, marcaGemeas, marcaRotinaParada, pedidosAncoraveis, renderDecisaoAncorada, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
+import { renderBarraRascunhos } from "./rascunhos-de-envio.ts";
+import { renderMensagemCartoes } from "./cartoes-ricos.ts";
+import { acaoHumana, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
 import { renderCardPasta } from "./card-pasta.ts";
 import { dadosDoEncolhido, pedidoDoRecibo, renderCartaoEncolhido, turnoDoEncolhido } from "./cartao-encolhido.ts";
 import { renderCardLote } from "./card-lote.ts";
@@ -68,7 +70,7 @@ import { escolhaEfetiva, iasDaTela, inteligenciaDoBot } from "./inteligencia.ts"
 import { htmlBotaoDitado, htmlPilulaDitado } from "./ditado.ts";
 import { renderLinhaLigacao } from "./ligacao.ts";
 import { conversaLimpa, emOrdemDoChat, htmlTroca, juntarTrocas, lugarDosBastidores, NENHUM_TURNO_VIVO, planejarLinhas, type PlanoMensagem, type TurnosDaPessoaVivos } from "./linhas-do-chat.ts";
-import { trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { aberto, trabalhosConhecidos } from "../lib/trabalhos.ts";
 import { TEXTO_FALHA_LEITURA } from "../lib/ouvir.ts";
 import { acoesDaFala, chipsDeReacao, citacaoAcimaDoBalao } from "./acoes-da-fala.ts";
 import { desfazerDaFala } from "./desfazer.ts";
@@ -254,6 +256,8 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   if (p?.kind === "computador_senha_preenchida") return htmlLinhaSenhaSalva(agenteDe(estado, p.agenteId)?.nome ?? "O bot");
   // definido em 2026-09-28 (ADR-051): o card do artefato; o iframe entra depois do render (telas/artefatos-vivos.ts).
   if (p?.kind === "artefato") return renderCardArtefato(m, p, versaoMaisRecente(estado, m.conversaId, p.artefatoId, p.versao));
+  // ADR-175: os cartões ricos (voo, hotel, carro, mapa, clima, carrinho, arquivo) de mostrar_cartoes.
+  if (p?.kind === "cartoes") return renderMensagemCartoes(m, p);
   // definido em 2026-10-04 (ADR-075): a linha "Chat de voz · mm:ss"; a ligação aberta nesta página oferece voltar a ela.
   if (p?.kind === "ligacao") return renderLinhaLigacao(m, p, estado.ligacaoViva?.local === true && estado.ligacaoViva.ligacaoId === p.ligacaoId);
   // NOD-119 (C1): o card que propõe mudar a barra lateral; a barra é deste computador, então lê a daqui.
@@ -672,10 +676,10 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // 'travou_ou_parou' descreve, e o caso de uso já trata mensagem sem turno (definido em 2026-09-21).
   // definido em 2026-10-03: o artefato é uma fala do bot — mascote, nome e hora em volta do card, como os balões; solto
   // na margem ele parecia de ninguém.
-  if (m.payload?.kind === "artefato") {
+  if (m.payload?.kind === "artefato" || m.payload?.kind === "cartoes") {
     const bot = m.autoria.autor_tipo === "agente" ? agenteDe(estado, m.autoria.autor_id) : undefined;
     const nome = esc(bot?.nome ?? assinatura(m.autoria, nomesDe(estado)));
-    return `<article class="message bot com-artefato" data-mensagem="${esc(m.id)}">${bot ? iconeAgente(bot, "md") : ""}<div class="bubble-wrap">${acoesDaMensagem(m, estado, sala)}<div class="msg-autor"><b title="${nome}">${nome}</b><time>${hora(m.criadoEm)}</time></div>${corpoMensagem(m, estado)}${chipsDeReacao(m, estado)}${faixaDaMensagem(m, estado)}</div></article>`;
+    return `<article class="message bot ${m.payload.kind === "cartoes" ? "com-cartoes" : "com-artefato"}" data-mensagem="${esc(m.id)}">${bot ? iconeAgente(bot, "md") : ""}<div class="bubble-wrap">${acoesDaMensagem(m, estado, sala)}<div class="msg-autor"><b title="${nome}">${nome}</b><time>${hora(m.criadoEm)}</time></div>${corpoMensagem(m, estado)}${chipsDeReacao(m, estado)}${faixaDaMensagem(m, estado)}</div></article>`;
   }
   // Jornada C (NOD_ONBOARDING_TEXTO=1): a fala fixa sem IA é fala do bot (balão), não aviso de erro; a primeira da
   // sequência mais recente leva o card "Conectar uma IA neste computador" (um por conversa; as seguintes dizem "card acima").
@@ -733,12 +737,26 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // terminou perguntando), embaixo dele — o cartão não tem onde recebê-lo, e sem isso o bloco sumia (revisão do PR 398).
   const progressoDentro = !ehPessoa && !pergunta ? (opcoes.progresso ?? "") : "";
   const progressoFora = ehPessoa || pergunta ? (opcoes.progresso ?? "") : "";
+  // Paper 15 (rodada 2): a pergunta aberta de uma frente ("da task …") vira o bloco "da frente": o mascote pequeno, "da
+  // frente" e o título, a pergunta com o fio laranja à esquerda e as opções como botões. Respondida, vencida ou sem opções,
+  // segue o cartão da pergunta.
+  const daFrente = pergunta && motivoTela === null && m.trabalhoId && opcoes.etiqueta?.startsWith("da task ") && (pergunta.opcoes?.length ?? 0) > 0 && estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], pergunta.decisaoId).tipo === "aberta"
+    ? perguntaDaFrente(m, opcoes.etiqueta.slice("da task ".length), pergunta.decisaoId, pergunta.opcoes ?? [], agente)
+    : null;
+  if (daFrente) return `<article class="message bot da-frente" data-mensagem="${esc(m.id)}" data-pergunta="${esc(pergunta?.decisaoId ?? "")}"><div class="bubble-wrap">${daFrente}</div></article>`;
   const balao = motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m) && !progressoDentro) && m.texto.trim() === "" ? "" : ehPessoa
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, `${metaTags}${progressoDentro}`, progressoDentro !== "");
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}>
     ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : resumoDaMensagem(m)}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${ehPessoa ? "" : capturaDoTurno(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila, fila.turnoId) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
+}
+
+/** Paper 15: o bloco "da frente" (from_frente do gerador): rótulo, a pergunta com o fio laranja e as opções em botões de 28 px. */
+function perguntaDaFrente(m: Mensagem, titulo: string, decisaoId: string, opcoesDaPergunta: readonly string[], agente: AgenteDaFala | undefined): string {
+  const rotulo = `<div class="df-rotulo">${agente ? iconeAgente(agente, "sm", "aguardando") : ""}<span class="df-de">da frente</span><span class="df-titulo" title="${esc(titulo)}">${esc(titulo)}</span><time>${hora(m.criadoEm)}</time></div>`;
+  const botoes = opcoesDaPergunta.map((o) => `<button type="button" class="botao secundario df-opcao" data-act="responder-opcao" data-id="${esc(decisaoId)}" data-texto="${esc(o)}">${esc(o)}</button>`).join("");
+  return `<div class="df" role="group" aria-label="${esc(`Pergunta da frente ${titulo}`)}">${rotulo}<div class="df-texto">${paragrafos(m.texto)}</div><div class="df-opcoes">${botoes}</div></div>`;
 }
 
 /**
@@ -1006,7 +1024,13 @@ export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agen
   // a última de um turno acabado (`vivo:`) tem, igual à gravada, sem pulo na troca (NOD-353).
   // NOD-312: o turno que recomeçou sem a sessão diz, no topo, que relê o necessário antes de seguir.
   if (t.motivoRecomeco && !saindo) partes.push({ chave: "recomeco", html: notaDasEtapas(t.motivoRecomeco, agente?.nome ?? null) });
-  const p = !saindo || chave === `vivo:${t.turnoId}` ? pensarDaFalaViva(t, a, estado, saindo, mudo) : null;
+  const p0 = !saindo || chave === `vivo:${t.turnoId}` ? pensarDaFalaViva(t, a, estado, saindo, mudo) : null;
+  // Paper 05b (casca, rodada 4): com o turno andando, a narração de abertura (as notas antes da primeira ação) sai do
+  // pensamento e vem antes dele, como texto da fala — "Vou rodar só os testes…", e só então o cabeçalho e os passos.
+  // É uma parte própria (`narracao`, no lugar): o morph a mantém e só troca o texto. No fim (`saindo`) volta ao
+  // pensamento fechado, como a gravada.
+  const { narracao, pensar: p } = p0 && !saindo ? separarNarracao(p0) : { narracao: [] as string[], pensar: p0 };
+  if (narracao.length) partes.push({ chave: "narracao", html: `<div class="fala-narracao" data-parte="narracao" data-no-lugar>${narracao.map((n) => `<p>${esc(n)}</p>`).join("")}</div>` });
   const pensar = p ? renderPensar({ ...p, parte: "pensar" }) : "";
   if (pensar) partes.push({ chave: "pensar", html: pensar });
   // NOD-358: um balão por parágrafo, como a fala gravada vai mostrar. Ao vivo (`parcial`), o próximo só aparece quando
@@ -1126,6 +1150,15 @@ export function pensarDaFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, es
   return { turnoId: t.turnoId, fase, cabecalho, anuncio: fase === "silencio" ? cabecalho.texto : fase === "esperando" ? cabecalho.texto : estadoFala.texto, desde: t.desde, contagem, itens, tarefas: a?.tarefas ?? [] };
 }
 
+/** Puro (Paper 05b): as notas antes da primeira ação viram a narração da fala; o pensamento fica com o resto, na ordem. */
+export function separarNarracao(p: Pensar): { narracao: string[]; pensar: Pensar } {
+  const i = p.itens.findIndex((it) => it.tipo !== "nota");
+  const n = i < 0 ? p.itens.length : i;
+  if (n === 0) return { narracao: [], pensar: p };
+  const narracao = p.itens.slice(0, n).map((it) => (it.tipo === "nota" ? it.texto : ""));
+  return { narracao, pensar: { ...p, itens: p.itens.slice(n) } };
+}
+
 /** "Pensou por 9 s · 2 ações · 1 falhou": a linha do pensamento pronto (viva e gravada). Sem tempo: "2 ações · 1 falhou". */
 export function frasePensou(duracaoMs: number | null, contagem: { acoes: number; falhas: number }): string {
   const partes = [duracaoMs === null ? "" : `Pensou por ${tempoDaFala(duracaoMs)}`, contagem.acoes ? `${contagem.acoes === 1 ? "1 ação" : `${contagem.acoes} ações`}` : "", contagem.falhas ? (contagem.falhas === 1 ? "1 falhou" : `${contagem.falhas} falharam`) : ""].filter(Boolean);
@@ -1205,7 +1238,16 @@ function montarPensar(p: Pensar, cab: string, pendente: string): string {
   }
   const mais = anteriores.length ? `<li class="pensar-mais"><details data-disclosure="pensar-mais-${esc(p.turnoId)}"><summary>${escondidos === 1 ? "1 anterior" : `${escondidos} anteriores`}</summary><ol role="list">${anteriores.join("")}</ol></details></li>` : "";
   const corpo = `<div class="pensar-corpo"><div class="pensar-dentro">${renderTarefasDoBot(p.tarefas)}${lista.length || mais ? `<ol class="pensar-lista" role="list">${mais}${lista.join("")}</ol>` : ""}</div></div>`;
-  return `<details class="pensar"${p.parte ? ` data-parte="${p.parte}" data-no-lugar` : ""} data-disclosure="pensar-${esc(p.turnoId)}" data-fase="${p.fase}" data-estado-fala="${esc(p.cabecalho.id)}"${pendente}>${cab}${corpo}</details>`;
+  // Paper 05b (rodada 2): enquanto o turno anda, os passos ficam à vista; a pessoa que fecha, fecha (`pensarFechado`).
+  const aberto = p.fase !== "pronto" && !PENSAR_FECHADOS.has(p.turnoId) ? " open" : "";
+  return `<details class="pensar"${p.parte ? ` data-parte="${p.parte}" data-no-lugar` : ""} data-disclosure="pensar-${esc(p.turnoId)}" data-fase="${p.fase}" data-estado-fala="${esc(p.cabecalho.id)}"${pendente}${aberto}>${cab}${corpo}</details>`;
+}
+
+/** Os turnos cujo pensamento a pessoa fechou com o turno andando (Paper 05b: nasce aberto). Vale até recarregar. */
+const PENSAR_FECHADOS = new Set<string>();
+export function pensarFechado(turnoId: string, fechado: boolean): void {
+  if (fechado) PENSAR_FECHADOS.add(turnoId);
+  else PENSAR_FECHADOS.delete(turnoId);
 }
 
 function itemDoPensamento(item: ItemDoPensamento): string {
@@ -1671,6 +1713,8 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
     ...abertas.map((p) => ({ chave: `proposta:${p.id}`, html: renderProposta(p, estado, c.propostas) })),
     ...expiradas.map((p) => ({ chave: `proposta:${p.id}`, html: linhaDaVencida(p, estado) })),
     { chave: "decisoes", html: renderDecisoesDaConversa(estado, c.conversa.id, idsDasPropostas, ancoradas) },
+    // ADR-175: "N rascunhos prontos" com "Descartar todos" e "Enviar todos ⌘↵", presa ao pé da conversa.
+    { chave: "rascunhos-barra", html: renderBarraRascunhos(estado, c.conversa.id) },
     // revisto em 2026-10-06 (pedido do Marlon): sai a oferta de liberar apps recém-conectados (card-liberar.ts, PR #141).
     // Ela aparecia sozinha em bot novo e a cada reconexão do Mac, porque valia para todo bot sem acesso por 24 h depois de
     // qualquer verificação. O card de acesso nasce quando o bot pede (pedir_acesso), logo abaixo da fala dele.
@@ -1790,8 +1834,9 @@ function comPedidosAncorados(blocos: BlocoDaTimeline[], c: ConversaEstado, estad
   if (pedidos.length === 0) return { blocos, ancoradas: new Set(segurados) };
   const posicao = new Map(c.mensagens.map((m, i) => [m.id, i]));
   const inicioDe = blocos.map((b) => posicao.get(inicioDoBloco(b)));
-  const depoisDe = new Map<number, typeof pedidos>();
-  for (const item of pedidos) {
+  const depoisDe = new Map<number, ReturnType<typeof ancoradosComIguais>>();
+  for (const unidade of ancoradosComIguais(pedidos, estado)) {
+    const item = unidade.primeiro;
     const l = lugar.get(item.decisao.id);
     const ancora = typeof l === "number" ? doServidor[l]?.id : ancoraDoPedido(item.decisao, c);
     const alvo = ancora === undefined ? undefined : posicao.get(ancora);
@@ -1801,10 +1846,10 @@ function comPedidosAncorados(blocos: BlocoDaTimeline[], c: ConversaEstado, estad
     if (bloco < 0) continue;
     // O cartão já encolhido na mesma âncora (chat limpo, PR 4) vem antes: foi pedido antes do que ainda está aberto.
     while (blocos[bloco + 1]?.chave.startsWith(ENCOLHIDO)) bloco++;
-    depoisDe.set(bloco, [...(depoisDe.get(bloco) ?? []), item]);
+    depoisDe.set(bloco, [...(depoisDe.get(bloco) ?? []), unidade]);
   }
-  const ancoradas = new Set([...segurados, ...[...depoisDe.values()].flat().map((i) => i.decisao.id)]);
-  const saida = blocos.flatMap((b, i) => [b, ...(depoisDe.get(i) ?? []).map((item) => ({ chave: `decisao:${item.decisao.id}`, html: renderDecisaoAncorada(item, estado) }))]);
+  const ancoradas = new Set([...segurados, ...[...depoisDe.values()].flat().flatMap((u) => u.ids)]);
+  const saida = blocos.flatMap((b, i) => [b, ...(depoisDe.get(i) ?? []).map((u) => ({ chave: `decisao:${u.primeiro.decisao.id}`, html: u.html }))]);
   return { blocos: saida, ancoradas };
 }
 
@@ -1838,11 +1883,26 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-381 (definido em 2026-10-27): no celular a presença vai dentro da pílula, em 12px abaixo do nome; o computador
   // continua com o ponto e a linha de baixo (`.pilula-txt` é `display: contents` e `.pilula-presenca` fica escondida).
   const presencaNaPilula = disponivel ? "" : `<span class="pilula-presenca" aria-hidden="true">${html}</span>`;
-  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", estadoMascoteNaConversa(estado, a.conversaId)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span>${a?.ownerId === estado.sessao?.pessoaId ? htmlFio(estado.computadorPessoa) : ""}</button>`;
+  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}${frentesNaPilula(estado, agenteId)}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span>${a?.ownerId === estado.sessao?.pessoaId ? htmlFio(estado.computadorPessoa) : ""}</button>`;
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];
-  return o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>${sub}` : `${pilula}${sub}`;
+  // ADR-167 (Paper 02): o botão do painel à direita do topo (o mesmo alternar da pílula).
+  const painel = `<button type="button" class="painel-alternar" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${nome}`)}" title="Painel do bot">${ICONE_PAINEL}</button>`;
+  return o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>${sub}${painel}` : `${pilula}${sub}${painel}`;
+}
+
+const ICONE_PAINEL = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></svg>';
+
+/**
+ * ADR-167 (Paper 15/15c): com frentes abertas, a pílula diz "· 4 frentes" depois do título, com o ponto laranja quando
+ * alguma precisa da pessoa. Uma frente só (ou nenhuma) não aparece: a conversa já mostra o trabalho.
+ */
+function frentesNaPilula(estado: Estado, agenteId: string): string {
+  const frentes = (estado.trabalhos?.trabalhos ?? []).filter((t) => t.agenteId === agenteId && t.forma === "frente" && aberto(t));
+  if (frentes.length < 2) return "";
+  const pede = frentes.some((t) => t.estado === "precisa_de_voce");
+  return `<span class="pilula-frentes">${pede ? '<i class="ponto-aguardando" aria-hidden="true"></i>' : ""}${frentes.length} frentes</span>`;
 }
 
 /**
@@ -1940,7 +2000,7 @@ export function htmlSugestaoRotina(): string {
  * entre o texto e o microfone, e o Parar (secundário, redondo, escondido) logo antes do Enviar — o Enviar continua na
  * ponta, onde a pessoa o procura; o main mostra cada um pelo `botoesDoCampo`. `bot` dá o nome do Parar ("Parar resposta do Eng 1").
  */
-export function htmlComposer(placeholder: string, sugestoes: readonly string[] = [], opcoes: { anexos?: Aceita; comandos?: boolean; aprovacao?: boolean; bot?: string } = {}): string {
+export function htmlComposer(placeholder: string, sugestoes: readonly string[] = [], opcoes: { anexos?: Aceita; comandos?: boolean; aprovacao?: boolean; bot?: string; /** ADR-167: o seletor de modelo sem o resto da conversa própria (o campo da task). */ seletor?: boolean } = {}): string {
   const lista = sugestoes.length ? `<div class="autocomplete" id="autocomplete" hidden></div>` : "";
   const aceita = opcoes.anexos;
   const accept = aceita === "sem_pdf" ? "image/*,.txt,.md,.csv,.json" : "image/*,application/pdf,.pdf,.txt,.md,.csv,.json";
@@ -1954,11 +2014,14 @@ export function htmlComposer(placeholder: string, sugestoes: readonly string[] =
   // ADR-059: o botão do modo de aprovação (só na conversa própria); main.ts troca o miolo. A faixa acima do campo saiu
   // em 2026-10-18 (Fase 4, PR 2).
   const chip = opcoes.aprovacao ? HTML_CHIP_MODO : "";
-  const seletor = opcoes.aprovacao ? HTML_SELETOR_IA : "";
+  const seletor = opcoes.aprovacao || opcoes.seletor ? HTML_SELETOR_IA : "";
   const parar = opcoes.aprovacao ? `<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="${esc(rotuloDoParar(opcoes.bot))}" title="Parar o que está rodando nesta conversa" hidden>${QUADRADO}</button>` : "";
   // NOD-381 (definido em 2026-10-27): no celular o clipe, o modo e a IA saem de dentro do campo e moram na folha do +
   // (web/telas/folha-mais.ts); o + só nasce quando há o que abrir e o computador nunca o vê (web/mobile.css).
   const mais = aceita || opcoes.aprovacao ? `<button type="button" class="mais-campo" data-act="abrir-mais" aria-label="Anexar, modo e IA" aria-haspopup="menu" aria-expanded="false">${MAIS}</button>` : "";
-  return `<div class="composer"><div class="composer-pergunta" id="composer-pergunta"></div>${htmlSugestaoRotina()}${barra}<div class="box${aceita ? " com-anexos" : ""}${chip ? " com-modo" : ""}${mais ? " com-mais" : ""}">${lista}${mais}${anexar}${chip}<textarea id="composer-texto" rows="1" placeholder="${esc(placeholder)}" data-sugestoes="${esc(JSON.stringify(sugestoes))}"></textarea>${resumo}${seletor}${htmlPilulaDitado()}${htmlBotaoDitado()}${parar}<button class="send" data-act="enviar" aria-label="Enviar">➤</button></div>
+  return `<div class="composer"><div class="composer-pergunta" id="composer-pergunta"></div>${htmlSugestaoRotina()}${barra}<div class="box${aceita ? " com-anexos" : ""}${chip ? " com-modo" : ""}${mais ? " com-mais" : ""}">${lista}${mais}${anexar}${chip}<textarea id="composer-texto" rows="1" placeholder="${esc(placeholder)}" data-sugestoes="${esc(JSON.stringify(sugestoes))}"></textarea>${resumo}${seletor}${htmlPilulaDitado()}${htmlBotaoDitado()}${parar}<button class="send" data-act="enviar" aria-label="Enviar">${SETA_ENVIAR}</button></div>
   <p class="nota" id="composer-nota" data-padrao=""></p></div>`;
 }
+
+/** ADR-167 (Paper 02): o enviar é a seta para cima (↑) num círculo; vazio, fica claro (casca.css). */
+const SETA_ENVIAR = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3.5M4 7.5l4-4 4 4"/></svg>';

@@ -9,7 +9,7 @@ import type { IdHarness } from "../contracts/harness.ts";
 import type { Inventario } from "../contracts/inventario.ts";
 import type { Mensagem } from "../contracts/mensagem.ts";
 import type { OrigemTurno, Turno } from "../contracts/turno.ts";
-import { grupoNaFala, linhaNaFala } from "../domain/acoes-do-modo.ts";
+import { grupoNaFala, linhaNaFala, semInvisiveis } from "../domain/acoes-do-modo.ts";
 import { fraseNoMeio } from "../domain/frase-da-acao.ts";
 import { fraseDoItem, type ConectoresDaLeitura } from "./frase-da-acao.ts";
 import { excedeQuantidade, motorLe, tipoDoAnexo } from "../domain/anexo.ts";
@@ -316,7 +316,8 @@ async function acoesDoModoNaConversa(deps: Deps, mensagens: readonly Mensagem[])
     if (!gatilho) continue;
     const acao = gatilho === "revisor" && a.item ? await fraseDoItem(deps, a.tipo, { textoFinal: a.item.texto_final, destino: a.item.destino }, conectores) : null;
     const { frase, codigo } = linhaNaFala(a, a.linux, acao ? fraseNoMeio(acao) : null);
-    (porTurno[a.turno_id] ??= []).push({ id: a.id, turnoId: a.turno_id, em: a.criado_em.getTime(), gatilho, frase, ...(codigo ? { codigo } : {}) });
+    const regra = gatilho === "revisor" && a.regra ? { regra: { id: a.regra.id, texto: semInvisiveis(a.regra.texto).slice(0, 200), agenteId: a.regra.agente_id } } : {};
+    (porTurno[a.turno_id] ??= []).push({ id: a.id, turnoId: a.turno_id, em: a.criado_em.getTime(), gatilho, frase, ...(codigo ? { codigo } : {}), ...regra });
   }
   return porTurno;
 }

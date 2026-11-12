@@ -47,6 +47,30 @@ export type ItemAprovacao = {
    * decisão). Vale também para os itens de antes do PR.
    */
   fraseDaAcao?: FraseDaAcao;
+  /**
+   * ADR-175: o item é uma mensagem que sai (e-mail, Slack, iMessage/SMS, chat), calculado pelo servidor na LEITURA de "Sua
+   * vez" (nunca gravado) para a conversa desenhar o cartão de rascunho. Ausente = o cartão de aprovação de hoje.
+   */
+  rascunho?: Rascunho;
+};
+
+/** Os canais do cartão de rascunho (ADR-175). `chat` = Teams, Discord, Google Chat e o chat de reunião. */
+export const CANAIS_RASCUNHO = ["email", "slack", "imessage", "sms", "chat"] as const;
+export type CanalRascunho = (typeof CANAIS_RASCUNHO)[number];
+
+/**
+ * O rascunho de uma mensagem que sai (ADR-175; protótipo "12-rascunhos-claro"): o cabeçalho "E-mail · Gmail", Para,
+ * Assunto (só no e-mail) e o corpo. `editavel`: o corpo é o próprio texto do item, então a edição na tela chega ao
+ * argumento pela regra de sempre (`argumentosComTextoFinal`); falso = o corpo aparece como vai, sem caixa de edição.
+ */
+export type Rascunho = {
+  canal: CanalRascunho;
+  /** O cabeçalho do cartão, com o nome do app como a pessoa o vê: "E-mail · Gmail", "Mensagem · Slack", "iMessage". */
+  rotulo: string;
+  para: string[];
+  assunto?: string;
+  corpo: string;
+  editavel: boolean;
 };
 
 /**

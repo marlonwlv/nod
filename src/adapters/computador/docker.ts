@@ -39,7 +39,7 @@ const SEM_DAEMON = /cannot connect to the docker daemon|is the docker daemon run
  * linha do stderr como detalhe (o log a resume e redige). Antes tudo era "estado_invalido".
  * `padrao` é o que a falha significa NAQUELE passo (image inspect → imagem_ausente, create → nao_iniciou).
  */
-async function docker(args: string[], entrada?: string, timeout = 70_000, padrao: MotivoFalhaComputador = "sem_resposta"): Promise<string> {
+export async function docker(args: string[], entrada?: string, timeout = 70_000, padrao: MotivoFalhaComputador = "sem_resposta"): Promise<string> {
   const r = await rodar(args, entrada, timeout);
   if (r.codigo === 0) return r.saida;
   if (r.semDocker || SEM_DAEMON.test(r.erro)) throw new FalhaComputador("docker_indisponivel", { detalhe: r.erro || "docker não encontrado" });
