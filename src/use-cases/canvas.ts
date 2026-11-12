@@ -15,6 +15,9 @@ import {
   type NivelCanvas,
   type TipoComentario,
 } from "../domain/canvas.ts";
+import { aprovadaEm, estadoDoCanvas, proximaRodada, type EstadoDoCanvas } from "../domain/canvas-versoes.ts";
+import { lerCodigo } from "../domain/codigo-tarefa.ts";
+import { colunasDe } from "../domain/colunas.ts";
 import { acharTextoMalFormado } from "../domain/texto-bem-formado.ts";
 import type { Autoria, RuntimeEvent } from "../contracts/evento.ts";
 import type { Canvas, ComentarioCanvas, VersaoCanvas } from "../repositories/canvas.repo.ts";
@@ -72,6 +75,32 @@ export function resumoDe(canvas: Canvas, estrutura: EstruturaCanvas<string> | nu
   return { id: canvas.id, issue: canvas.issue, titulo: canvas.titulo, versao: canvas.versaoAtual, jornadas: n.jornadas, telas: n.telas, abertos: comentarios.filter((c) => !c.resolvidoEm && !c.arquivadoEm && !c.paiId).length };
 }
 
+/** O estado do canvas na lista (J7-3), pela tarefa ligada, pela versão atual e pelos comentários (src/domain/canvas-versoes.ts). */
+export function estadoDe(versao: Pick<VersaoCanvas, "estrutura" | "criadoEm"> | null, comentarios: readonly ComentarioCanvas[], aprovadoEm: number | null = null): EstadoDoCanvas {
+  return estadoDoCanvas(versao ? { telas: versao.estrutura.jornadas.flatMap((j) => j.telas), criadoEm: versao.criadoEm } : null, comentarios, aprovadoEm);
+}
+
+/**
+ * A regra da Ada (ADA-228): a tarefa ligada ao canvas é a do código do quadro na issue ("ADA-13") ou, sem ela, a trazida
+ * do Linear com esse id ("NOD-512"). Devolve quando ela saiu de Prototipando; null sem tarefa ou se não saiu.
+ */
+export async function aprovacaoDaIssue(deps: Deps, issue: string | null): Promise<number | null> {
+  if (!issue) return null;
+  const cod = lerCodigo(issue);
+  const id = cod ? await deps.repos.quadros.tarefaDoCodigo(cod.prefixo, cod.numero) : null;
+  const tarefa = (id ? await deps.repos.quadros.tarefa(id) : null) ?? (await deps.repos.quadros.tarefasDoLinear(issue))[0] ?? null;
+  if (!tarefa) return null;
+  const quadro = await deps.repos.quadros.buscar(tarefa.quadroId);
+  if (!quadro) return null;
+  return aprovadaEm(colunasDe(quadro), tarefa, await deps.repos.quadros.historico(tarefa.id));
+}
+
+/** A próxima rodada da pessoa (J5-1): só as rodadas DELA contam (domínio). */
+export { proximaRodada };
+
+/** A rodada só vale inteira de 1 a 100000 (o CHECK da 0152). */
+export const ehRodada = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 100_000;
+
 export function comentarioLido(c: ComentarioCanvas, porId: Map<string, ComentarioCanvas>): ComentarioLido {
   // O nome do importado vem do protótipo: vai sempre com "(importado)", para não se passar pela pessoa (revisão 6 do #649, M1).
   const autor = c.autorTipo === "pessoa" ? "a pessoa" : c.autorTipo === "bot" ? c.autorNome ?? "um bot" : c.autorNome ? `${c.autorNome} (importado)` : "importado";
@@ -101,14 +130,20 @@ export type PedidoComentario = {
   y?: number;
   texto: string;
   paiId?: string;
+  /** A rodada da pessoa (J5-1..3): os pinos enviados juntos pelo "Enviar N". */
+  rodada?: number;
+  /** A versão que a pessoa via: diferente da atual, recusa (a versão antiga é só leitura, J5-7). */
+  versao?: number;
 };
 
 export async function comentar(deps: Deps, p: PedidoComentario): Promise<{ ok: true; comentario: ComentarioCanvas; canvas: Canvas } | Falha> {
   // FOR SHARE: a publicação que tiraria a tela deste comentário espera ele entrar (e então o arquiva junto).
   // Revisão 10 do #649 (baixo 2): o comentário pelo chat também barra o byte nulo e o surrogate solto (o Postgres daria 22021).
   if (acharTextoMalFormado({ texto: p.texto, autor: p.autor.nome })) return falha("entrada_invalida", "o texto tem caractere inválido (byte nulo ou surrogate solto)");
+  if (p.rodada !== undefined && !ehRodada(p.rodada)) return falha("entrada_invalida", "a rodada é um número inteiro de 1 a 100000");
   const c = await carregarCanvas(deps, p.canvasId, undefined, "share");
   if ("erro" in c) return c;
+  if (p.versao !== undefined && p.versao !== c.canvas.versaoAtual) return falha("entrada_invalida", `a v${p.versao} é só leitura: comente na v${c.canvas.versaoAtual}, a atual`);
   const v = validarComentario(c.versao.estrutura, { endereco: p.endereco, tipo: p.tipo, x: p.x, y: p.y, texto: p.texto, paiId: p.paiId });
   if (!v.ok) return falha("entrada_invalida", v.erro);
   let paiId = v.comentario.paiId;
@@ -121,7 +156,7 @@ export async function comentar(deps: Deps, p: PedidoComentario): Promise<{ ok: t
   const comentario = await deps.repos.canvas.comentar({
     canvasId: c.canvas.id, telaId: v.comentario.telaId, jornada: v.comentario.jornada, tipo: v.comentario.tipo, x: v.comentario.x, y: v.comentario.y,
     texto: v.comentario.texto, autorTipo: p.autor.tipo, autorId: p.autor.id, autorNome: p.autor.nome, paiId, versao: c.canvas.versaoAtual, confianca: p.confianca,
-    criadoEm: deps.agora(),
+    rodada: p.rodada ?? null, criadoEm: deps.agora(),
   });
   return { ok: true, comentario, canvas: c.canvas };
 }
@@ -164,6 +199,8 @@ export type PedidoPublicar = {
   turnoLimpo?: boolean;
   /** Os comentários que o protótipo já tinha (importar): entram como importados, nunca como da pessoa. */
   comentarios?: readonly ComentarioImportadoArg[];
+  /** O que mudou nesta versão, numa linha (o histórico do ▾ da versão, J5-6). */
+  resumo?: string;
 };
 
 export type Publicado = { ok: true; canvas: Canvas; estrutura: EstruturaCanvas<string>; confianca: Confianca; novo: boolean; arquivados: number; desarquivados: number; importados: number; avisos: string[] };
@@ -172,8 +209,9 @@ export async function publicar(deps: Deps, p: PedidoPublicar): Promise<Publicado
   const n = normalizarEstrutura(p.bruto);
   if (!n.ok) return falha("entrada_invalida", n.erro);
   const e = n.estrutura;
+  const resumo = typeof p.resumo === "string" ? Array.from(p.resumo.trim()).slice(0, 600).join("") || null : null;
   // Byte nulo ou surrogate solto (do bot ou do window.CANVAS importado) virava 22021/22P02 e 500 (#649 revisão 8, B2).
-  const mal = acharTextoMalFormado({ e, comentarios: p.comentarios ?? [] });
+  const mal = acharTextoMalFormado({ e, comentarios: p.comentarios ?? [], resumo });
   if (mal) return falha("entrada_invalida", `texto inválido (byte nulo ou caractere partido) em ${mal}`);
 
   let alvo: Canvas | null = null;
@@ -227,7 +265,7 @@ export async function publicar(deps: Deps, p: PedidoPublicar): Promise<Publicado
   // A tela sem html (e o css/js vazio) reusa o blob da anterior: herdar de uma versão de fora mantém a versão de fora,
   // mesmo num turno limpo (#649 revisão 4, M1).
   const confianca: Confianca = anterior?.confianca === "nao_confiavel" && reusados.length > 0 ? "nao_confiavel" : p.confianca;
-  await deps.repos.canvas.gravarVersao({ canvasId: canvas.id, versao: canvas.versaoAtual, estrutura, confianca });
+  await deps.repos.canvas.gravarVersao({ canvasId: canvas.id, versao: canvas.versaoAtual, estrutura, confianca, resumo });
 
   const comentarios = await deps.repos.canvas.comentarios(canvas.id);
   const porId = new Map(comentarios.map((c) => [c.id, c]));

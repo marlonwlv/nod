@@ -1,12 +1,13 @@
-import type { AppCanvasDto, CanvasItemDto, ComentarioCanvasDto, EstruturaCanvasDto } from "../../contracts/canvas.ts";
+import type { AppCanvasDto, CanvasItemDto, ComentarioCanvasDto, VersaoCanvasDto, VistaCanvasDto } from "../../contracts/canvas.ts";
 import type { FalhaCanvas } from "../../contracts/ferramentas-canvas.ts";
 import type { IdAcao } from "../../domain/acoes/index.ts";
-import { NIVEIS_CANVAS } from "../../domain/canvas.ts";
+import { contagem, NIVEIS_CANVAS } from "../../domain/canvas.ts";
+import { resolvidosPorVersao, telasQueMudaram } from "../../domain/canvas-versoes.ts";
 import type { CodigoErro } from "../../domain/erro.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
-import type { Canvas, ComentarioCanvas } from "../../repositories/canvas.repo.ts";
+import type { Canvas, ComentarioCanvas, VersaoCanvas } from "../../repositories/canvas.repo.ts";
 import { autoriaPessoa } from "../autoria-evento.ts";
-import { carregarCanvas, comentar, eventoCanvas, eventoPaginasDoCanvas, resolver, type Falha } from "../canvas.ts";
+import { aprovacaoDaIssue, carregarCanvas, comentar, estadoDe, eventoCanvas, eventoPaginasDoCanvas, proximaRodada, resolver, type Falha } from "../canvas.ts";
 import type { CasoDeUso } from "../tipos.ts";
 
 /**
@@ -28,10 +29,11 @@ const lancar = (f: Falha): never => {
 
 export const comentarioDto = (c: ComentarioCanvas): ComentarioCanvasDto => ({
   id: c.id, telaId: c.telaId, jornada: c.jornada, tipo: c.tipo, x: c.x, y: c.y, texto: c.texto, autorTipo: c.autorTipo, autorNome: c.autorNome,
-  paiId: c.paiId, versao: c.versao, confiavel: c.confianca === "confiavel", resolvido: c.resolvidoEm !== null, arquivado: c.arquivadoEm !== null, criadoEm: c.criadoEm,
+  autorAgenteId: c.autorTipo === "bot" ? c.autorId : null,
+  paiId: c.paiId, versao: c.versao, rodada: c.rodada, confiavel: c.confianca === "confiavel", resolvido: c.resolvidoEm !== null, arquivado: c.arquivadoEm !== null, criadoEm: c.criadoEm,
 });
 
-type EntradaComentar = { canvasId: string; endereco?: string; tipo?: "pino" | "nota"; x?: number; y?: number; texto: string; paiId?: string };
+type EntradaComentar = { canvasId: string; endereco?: string; tipo?: "pino" | "nota"; x?: number; y?: number; texto: string; paiId?: string; rodada?: number; versao?: number };
 
 export const EXECUTORES_CANVAS = {
   "canvas.comentar": (async (deps, input) => {
@@ -80,24 +82,54 @@ export const darAcessoCanvas: CasoDeUso<{ agenteId: string; nivel: unknown }, Ap
   return { ...(await verApp(deps, {})), events };
 };
 
-const itemDto = (c: Canvas, abertos: number): CanvasItemDto => ({ id: c.id, issue: c.issue, titulo: c.titulo, versao: c.versaoAtual, origemUrl: c.origemUrl, atualizadoEm: c.atualizadoEm, abertos });
+/** O item da lista com o estado (J7-3): o estado e a contagem vêm sempre da versão atual. */
+const itemDto = (c: Canvas, atual: VersaoCanvas | null, cs: readonly ComentarioCanvas[], aprovado: number | null): CanvasItemDto => {
+  const { estado, etapa, aprovadoEm } = estadoDe(atual, cs, aprovado);
+  const n = atual ? contagem(atual.estrutura) : { jornadas: 0, telas: 0 };
+  return {
+    id: c.id, issue: c.issue, titulo: c.titulo, versao: c.versaoAtual, origemUrl: c.origemUrl, atualizadoEm: c.atualizadoEm,
+    abertos: cs.filter((x) => !x.paiId && !x.resolvidoEm && !x.arquivadoEm).length, estado, etapa, aprovadoEm, telas: n.telas, jornadas: n.jornadas,
+  };
+};
 
 export const canvasDoAgente: CasoDeUso<{ agenteId: string }, { canvas: CanvasItemDto[] }> = async (deps, input) => {
   const lista = await deps.repos.canvas.doAgente(input.agenteId);
   const canvas: CanvasItemDto[] = [];
-  for (const c of lista) {
-    const cs = await deps.repos.canvas.comentarios(c.id);
-    canvas.push(itemDto(c, cs.filter((x) => !x.paiId && !x.resolvidoEm && !x.arquivadoEm).length));
-  }
+  for (const c of lista) canvas.push(itemDto(c, await deps.repos.canvas.versao(c.id, c.versaoAtual), await deps.repos.canvas.comentarios(c.id), await aprovacaoDaIssue(deps, c.issue)));
   return { data: { canvas } };
 };
 
 /** O canvas com a estrutura (o conteúdo vai por hash: a página busca os blobs à parte) e todos os comentários. */
-export const verCanvas: CasoDeUso<{ canvasId: string; versao?: number }, { canvas: CanvasItemDto; estrutura: EstruturaCanvasDto; confiavel: boolean; versoes: number; comentarios: ComentarioCanvasDto[] }> = async (deps, input) => {
+export const verCanvas: CasoDeUso<{ canvasId: string; versao?: number }, VistaCanvasDto> = async (deps, input) => {
   const c = await carregarCanvas(deps, input.canvasId, input.versao);
   if ("erro" in c) return lancar(c);
-  const abertos = c.comentarios.filter((x) => !x.paiId && !x.resolvidoEm && !x.arquivadoEm).length;
-  return { data: { canvas: itemDto(c.canvas, abertos), estrutura: c.versao.estrutura, confiavel: c.versao.confianca === "confiavel", versoes: c.canvas.versaoAtual, comentarios: c.comentarios.map(comentarioDto) } };
+  const atual = c.versao.versao === c.canvas.versaoAtual ? c.versao : await deps.repos.canvas.versao(c.canvas.id, c.canvas.versaoAtual);
+  return {
+    data: {
+      canvas: itemDto(c.canvas, atual, c.comentarios, await aprovacaoDaIssue(deps, c.canvas.issue)), estrutura: c.versao.estrutura, confiavel: c.versao.confianca === "confiavel", versoes: c.canvas.versaoAtual,
+      comentarios: c.comentarios.map(comentarioDto), proximaRodada: proximaRodada(c.comentarios),
+    },
+  };
+};
+
+/**
+ * O histórico do ▾ da versão (J5-6, ADA-228), da mais nova para a mais antiga: o resumo, as telas que mudaram (o hash do
+ * html contra a anterior), os comentários que ela resolveu e os que ela arquivou (a tela saiu). Só lê (fora do registro).
+ */
+export const versoesDoCanvas: CasoDeUso<{ canvasId: string }, { versoes: VersaoCanvasDto[] }> = async (deps, input) => {
+  const canvas = await deps.repos.canvas.buscar(input.canvasId);
+  if (!canvas) throw new ErroDeDominio("nao_encontrado", { cause: "canvas não encontrado" });
+  const vs = await deps.repos.canvas.versoes(canvas.id);
+  const cs = await deps.repos.canvas.comentarios(canvas.id);
+  const resolvidos = resolvidosPorVersao(vs, cs);
+  const porVersao = new Map(vs.map((v) => [v.versao, v]));
+  const versoes = vs.map((v): VersaoCanvasDto => {
+    const antes = porVersao.get(v.versao - 1) ?? null;
+    const { mudaram, sairam } = telasQueMudaram(antes?.telas ?? null, v.telas);
+    const jornadas = new Set(v.telas.map((t) => t.id.split("-")[0])).size;
+    return { versao: v.versao, criadoEm: v.criadoEm, resumo: v.resumo, mudaram, sairam, telas: v.telas.length, jornadas, resolvidos: resolvidos.get(v.versao) ?? [], arquivados: cs.filter((x) => !x.paiId && x.telaId !== null && sairam.includes(x.telaId)).length };
+  });
+  return { data: { versoes } };
 };
 
 const HASH = /^[0-9a-f]{64}$/;

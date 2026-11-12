@@ -26,6 +26,7 @@ import { linhaDaFila } from "../lib/fila-do-pedido.ts";
 import { haQuanto } from "../lib/relogio.ts";
 import { FALA_SAINDO_MS, tempoDaFala } from "../lib/fala-viva.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
+import { htmlDaLinhaNoAr, htmlDaListaCompacta, htmlDoCard, htmlDoRecibo, lerRecibo } from "../lib/canvas-html.ts";
 import { dividirEmBaloes } from "../lib/baloes.ts";
 import { estadoMascoteNaConversa, mascoteAnimado, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
 import { renderFaixaParada } from "./faixa-parada.ts";
@@ -211,6 +212,29 @@ function linhaDaMemoria(m: Mensagem, estado: Estado): string | null {
   return `<div class="msg-sistema msg-memoria">${paragrafos(`Anotei ${tipo}: ${m.texto.slice(achado[0].length)}`)}${ver}</div>`;
 }
 
+/** ADA-228 (J5-3): a rodada enviada do canvas vira o recibo no lugar do balão, e cada #Jx-y abre a tela no canvas. */
+function reciboDaPessoa(m: Mensagem, estado: Estado, metaTags = ""): string | null {
+  const r = lerRecibo(m.texto);
+  // Como no protótipo: o recibo é a fala da pessoa (o mesmo balão) e leva "enviada do Canvas" embaixo.
+  return r ? `<div class="bubble cv-rodada-bal">${htmlDoRecibo(r, canvasDoRecibo(estado, m.conversaId, r.canvas))}${metaTags}</div><span class="cv-rodada-pe">enviada do Canvas</span>` : null;
+}
+
+/**
+ * O canvas do recibo: o da conversa cuja issue (ou o título, sem issue) é o nome do recibo, o mais recente; sem nenhum
+ * (o card gravado antes de levar a issue), o último publicado nela. Revisão do #677: o nome é a issue (nomeCurto), que
+ * o título quase nunca contém; e "NOD-512" não pode pegar o "NOD-5120".
+ */
+function canvasDoRecibo(estado: Estado, conversaId: string, nome: string): string | null {
+  let ultimo: string | null = null;
+  let achado: string | null = null;
+  for (const x of estado.conversas[conversaId]?.mensagens ?? []) {
+    if (x.payload?.kind !== "canvas") continue;
+    if ((x.payload.issue || x.payload.titulo) === nome) achado = x.payload.canvasId;
+    ultimo = x.payload.canvasId;
+  }
+  return achado ?? ultimo;
+}
+
 function corpoMensagem(m: Mensagem, estado: Estado): string {
   const p = m.payload;
   if (p?.kind === "computador_fora_do_ar") {
@@ -239,10 +263,23 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   // NOD-449: o card dos não lidos e o recibo de "marcada como lida", da ferramenta nao_lidos de qualquer bot.
   if (m.kind === "sistema" && p?.kind === "nao_lidos_lista") return cartaoNaoLidos(p, estado);
   if (m.kind === "sistema" && p?.kind === "recibo_leitura") return reciboLeitura(m, p);
+  // ADA-228 (J7-5): a lista compacta dos canvas, do listar {mostrar: true}; cada nome abre o canvas.
+  if (m.kind === "sistema" && p?.kind === "canvas_lista") {
+    return `<div class="cv-lst-chat">${htmlDaListaCompacta(p.itens.map((c) => ({ id: c.canvasId, issue: c.issue, titulo: c.titulo, versao: c.versao, estado: c.estado, etapa: c.etapa, aprovadoEm: c.aprovadoEm ?? null })))}</div>`;
+  }
   // ADA-13 (ADR-150): o canvas publicado pelo bot (só ids e contagens); Abrir leva à página Canvas do bot.
   if (p?.kind === "canvas") {
-    const meta = `v${p.versao} · ${p.jornadas} jornada${p.jornadas === 1 ? "" : "s"} · ${p.telas} tela${p.telas === 1 ? "" : "s"}${p.importado ? " · importado" : ""}`;
-    return `<div class="cv-card" data-canvas="${esc(p.canvasId)}"><span class="cv-card-ic" aria-hidden="true"></span><span class="cv-card-txt"><b>${esc(p.titulo)}</b><span>${esc(meta)}${p.confiavel === false ? ' · <span class="cv-fora">não confiável</span>' : ""}</span></span>${botao("abrir-canvas", "Abrir", { classe: "cv-bt sm", id: p.canvasId, dados: { agente: p.agenteId } })}</div>`;
+    // ADA-228 (J2-1, J2-2): a primeira vez que o canvas aparece na conversa vira o card com as miniaturas; as versões
+    // seguintes, a linha "vN no ar", que abre a folha já na versão nova.
+    const item = { id: p.canvasId, issue: p.issue ?? null, titulo: p.titulo, versao: p.versao, telas: p.telas, jornadas: p.jornadas, origemUrl: p.origemUrl ?? null };
+    const antes = (estado.conversas[m.conversaId]?.mensagens ?? []).some((x) => x.id !== m.id && x.payload?.kind === "canvas" && x.payload.canvasId === p.canvasId && x.payload.versao < p.versao);
+    // ADA-228 (teste com a IA real): o texto automático da linha ("Publicou o canvas X (v7: …)") não é resumo; só o do bot.
+    const resumo = m.texto.trim();
+    if (antes && p.versao > 1) return htmlDaLinhaNoAr(item, resumo && resumo.length <= 140 && !/^(Publicou|Importou) o canvas /.test(resumo) ? resumo : null);
+    // ADA-228 (J6-1): o importado diz de onde veio ("de gamefik/nod-prototipos · nod-463-canvas"), como no protótipo; a
+    // origem é a procedência, e a regra de conteúdo de fora segue valendo para o bot (comentários com confiavel: false).
+    if (p.importado) return htmlDoCard(item, { origem: true });
+    return htmlDoCard(item, { aviso: p.confiavel === false ? "não confiável" : null });
   }
   // ADA-28 (ADR-159, U1/U7): a linha cinza que aponta para a tarefa; o código abre a tarefa no quadro.
   if (p?.kind === "tarefa_linha") return linhaDaTarefa(m, p);
@@ -697,7 +734,7 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const progressoDentro = !ehPessoa && !pergunta ? (opcoes.progresso ?? "") : "";
   const progressoFora = ehPessoa || pergunta ? (opcoes.progresso ?? "") : "";
   const balao = motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m) && !progressoDentro) && m.texto.trim() === "" ? "" : ehPessoa
-      ? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
+      ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, `${metaTags}${progressoDentro}`, progressoDentro !== "");
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}>
     ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : resumoDaMensagem(m)}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${ehPessoa ? "" : capturaDoTurno(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila, fila.turnoId) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>

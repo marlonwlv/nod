@@ -16,7 +16,8 @@ export const ICONE_DA_PAGINA: Readonly<Record<IconeDaPagina, string>> = {
   conversa: svg('<path d="M4.5 18.5V6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2V14a2 2 0 0 1-2 2H8z"/>'),
   tarefas: svg('<rect x="3.5" y="4.5" width="5" height="15" rx="1.2"/><rect x="9.5" y="4.5" width="5" height="10" rx="1.2"/><rect x="15.5" y="4.5" width="5" height="12" rx="1.2"/>'),
   quadro: svg('<rect x="3.5" y="4.5" width="5" height="15" rx="1.2"/><rect x="9.5" y="4.5" width="5" height="10" rx="1.2"/><rect x="15.5" y="4.5" width="5" height="12" rx="1.2"/>'),
-  canvas: svg('<rect x="3.5" y="5.5" width="10" height="7" rx="1.3"/><rect x="10.5" y="13" width="10" height="6.5" rx="1.3"/><path d="M8.5 12.5v3.5h2"/>'),
+  // ADA-228 (J1-3, Marlon 11/11): o ícone do protótipo (três telas e uma linha); o de antes lia como balões cortados.
+  canvas: svg('<rect x="2.25" y="4.5" width="8.25" height="6" rx="1.5"/><rect x="13.5" y="4.5" width="8.25" height="6" rx="1.5"/><rect x="2.25" y="14.25" width="8.25" height="6" rx="1.5"/><path d="M13.5 17.25h8.25"/>'),
   lista: svg('<path d="M9 6.5h10.5M9 12h10.5M9 17.5h10.5"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>'),
   painel: svg('<path d="M4.5 19.5h15"/><path d="M7.5 16v-5M12 16V7M16.5 16v-8"/>'),
   doc: svg('<path d="M7 3.5h7l4.5 4.5v12.5H7z"/><path d="M14 3.5V8h4.5M9.5 12.5h6M9.5 16h4"/>'),

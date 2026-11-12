@@ -247,6 +247,7 @@ export function assuntoDe(kind: KindMensagem, payload: PayloadMensagem | null, a
       case "ajuste_barra":
         return "barra.ajuste";
       case "canvas":
+      case "canvas_lista":
         return "canvas";
       case "nao_lidos_lista":
         return "leitura.lista";

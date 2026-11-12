@@ -8,11 +8,11 @@ import { ACOES_CANVAS } from "../../src/domain/acoes/canvas.ts";
 import { canvasRepo } from "../../src/repositories/canvas.repo.ts";
 import { criarRepos } from "../../src/repositories/index.ts";
 import type { Escopo, Tx } from "../../src/shared/types.ts";
-import { verCanvas } from "../../src/use-cases/acoes/canvas.ts";
+import { canvasDoAgente, verCanvas, versoesDoCanvas } from "../../src/use-cases/acoes/canvas.ts";
 import { concluirChamada } from "../../src/use-cases/chamar-ferramenta.ts";
 import { gerirCanvas } from "../../src/use-cases/gerir-canvas.ts";
 import { verPaginas } from "../../src/use-cases/acoes/apps.ts";
-import { publicar } from "../../src/use-cases/canvas.ts";
+import { comentar, publicar } from "../../src/use-cases/canvas.ts";
 import type { Deps } from "../../src/use-cases/tipos.ts";
 import { depsSobreTrx, executar, MARLON, servicosDeTeste, useCasesDeTeste } from "../helpers/deps-l6.ts";
 import { agenteComConversa } from "../helpers/fabricas.ts";
@@ -100,7 +100,7 @@ describeIntegracao("paridade tela × chat do canvas.* (ADA-13, ADR-135)", () => 
   const estado = async (m: M, canvasId: string) => {
     const r = await executar(m.d, verCanvas, { canvasId });
     const porId = new Map(r.data.comentarios.map((c) => [c.id, c]));
-    return r.data.comentarios.map((c) => [c.telaId, c.jornada, c.tipo, c.x, c.y, c.texto, c.resolvido, c.arquivado, c.paiId ? porId.get(c.paiId)?.texto : null]);
+    return r.data.comentarios.map((c) => [c.telaId, c.jornada, c.tipo, c.x, c.y, c.texto, c.resolvido, c.arquivado, c.rodada, c.paiId ? porId.get(c.paiId)?.texto : null]);
   };
 
   type Cenario = {
@@ -138,6 +138,20 @@ describeIntegracao("paridade tela × chat do canvas.* (ADA-13, ADR-135)", () => 
       },
       chat: async (m, canvasId) => {
         await ok(m, m.chat, { op: "comentar", canvas: canvasId, pai_id: await primeiro(m, canvasId), texto: "ajustado na v2" });
+      },
+    },
+    {
+      id: "canvas.comentar",
+      // ADA-228 (J5-1..3): a rodada, os pinos que a pessoa envia juntos pelo "Enviar N", na mesma ação.
+      tela: async (_m, canvasId) => {
+        const s = await servidor.entrar("marlon");
+        for (const [endereco, texto] of [["#J1-1", "um"], ["#J2-1", "dois"]] as const) {
+          const r = await servidor.chamar(s, "POST", `/canvas/${canvasId}/comentarios`, { endereco, texto, rodada: 1, versao: 1 });
+          expect(r.status, await r.clone().text()).toBe(201);
+        }
+      },
+      chat: async (m, canvasId) => {
+        for (const [endereco, texto] of [["#J1-1", "um"], ["#J2-1", "dois"]] as const) await ok(m, m.chat, { op: "comentar", canvas: canvasId, endereco, texto, rodada: 1, versao: 1 });
       },
     },
     {
@@ -614,3 +628,141 @@ describeIntegracao("paridade tela × chat do canvas.* (ADA-13, ADR-135)", () => 
     });
   });
 });
+
+describeIntegracao("canvas fiel ao protótipo: rodada, versões, pendente e estado (ADA-228)", () => {
+  const CONTEUDO_V = (telas: { id: string; html?: string; pendente?: boolean }[]) => ({ issue: "ADA-228", titulo: "Canvas", jornadas: [{ titulo: "J", telas }] });
+
+  async function montar(trx: Tx) {
+    const d = depsSobreTrx(trx, MARLON);
+    const bot = await agenteComConversa(trx, MARLON, { nome: `Gil ${Math.random().toString(36).slice(2, 7)}` });
+    await d.repos.canvas.instalar();
+    await d.repos.canvas.definirNivel(bot.agenteId, "criar_publicar");
+    const chat = async (args: ArgsGerirCanvas) => {
+      const turno = await d.repos.turnos.enfileirar({ executor: "catcher", conversaId: bot.conversaId, agenteId: bot.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "pedido", entradaConfianca: "confiavel", modelo: "auto" });
+      if (!turno) throw new Error("turno");
+      return (await executar(d, gerirCanvas, { turnoId: turno.id, agenteId: bot.agenteId, conversaId: bot.conversaId, ...args })).data;
+    };
+    const pessoa = { tipo: "pessoa" as const, id: MARLON.pessoaId, nome: null };
+    return { d, bot, chat, pessoa };
+  }
+
+  it("comentar numa versão antiga recusa (só leitura, J5-7); a rodada inválida também", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, chat, pessoa } = await montar(trx);
+      expect(await chat({ op: "publicar", conteudo: CONTEUDO_V([{ id: "J1-1", html: "<p>a</p>" }]) })).toMatchObject({ ok: true });
+      expect(await chat({ op: "publicar", canvas: "ADA-228", conteudo: CONTEUDO_V([{ id: "J1-1", html: "<p>b</p>" }]) })).toMatchObject({ ok: true });
+      const alvo = (await chat({ op: "listar" })) as Extract<ResultadoGerirCanvas, { canvas: CanvasResumo[] }>;
+      const id = alvo.canvas[0]!.id;
+      const velha = await comentar(d, { canvasId: id, autor: pessoa, confianca: "confiavel", endereco: "#J1-1", texto: "na v1", versao: 1 });
+      expect(velha).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      expect(await chat({ op: "comentar", canvas: id, endereco: "#J1-1", texto: "na v1", versao: 1 })).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      expect(await comentar(d, { canvasId: id, autor: pessoa, confianca: "confiavel", endereco: "#J1-1", texto: "x", rodada: 0 })).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      expect(await comentar(d, { canvasId: id, autor: pessoa, confianca: "confiavel", endereco: "#J1-1", texto: "na v2", versao: 2, rodada: 1 })).toMatchObject({ ok: true, comentario: { rodada: 1, versao: 2 } });
+      expect((await executar(d, verCanvas, { canvasId: id })).data.proximaRodada).toBe(2);
+    });
+  });
+
+  it("tela pendente: publica sem html, aparece na vista, não aceita pino; o estado na lista é em produção", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, bot, chat, pessoa } = await montar(trx);
+      const pub = await chat({ op: "publicar", conteudo: CONTEUDO_V([{ id: "J1-1", html: "<p>a</p>" }, { id: "J1-2", pendente: true }, { id: "J1-3", pendente: true }]) });
+      expect(pub).toMatchObject({ ok: true });
+      const id = (await d.repos.canvas.porIssue(bot.agenteId, "ADA-228"))!.id;
+      const vista = await executar(d, verCanvas, { canvasId: id });
+      expect(vista.data.estrutura.jornadas[0]?.telas.map((t) => [t.id, t.pendente ?? false])).toEqual([["J1-1", false], ["J1-2", true], ["J1-3", true]]);
+      expect(vista.data.canvas).toMatchObject({ estado: "em_producao", etapa: "montando a J1-2 · 1 de 3 telas", telas: 3, jornadas: 1 });
+      expect(await comentar(d, { canvasId: id, autor: pessoa, confianca: "confiavel", endereco: "#J1-2", texto: "aqui" })).toMatchObject({ ok: false, detalhe: "a tela J1-2 ainda está em produção" });
+      expect(await comentar(d, { canvasId: id, autor: pessoa, confianca: "confiavel", endereco: "#J1-1", texto: "a pronta aceita" })).toMatchObject({ ok: true });
+      const lista = await executar(d, canvasDoAgente, { agenteId: bot.agenteId });
+      expect(lista.data.canvas[0]).toMatchObject({ estado: "em_producao", etapa: "montando a J1-2 · 1 de 3 telas" });
+      const listar = (await chat({ op: "listar" })) as Extract<ResultadoGerirCanvas, { canvas: CanvasResumo[] }>;
+      expect(listar.canvas[0]).toMatchObject({ estado: "em_producao", etapa: "montando a J1-2 · 1 de 3 telas" });
+    });
+  });
+
+  it("listar {mostrar: true} põe a lista compacta na conversa (J7-5); sem mostrar, só devolve os dados", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, bot, chat } = await montar(trx);
+      await chat({ op: "publicar", conteudo: CONTEUDO_V([{ id: "J1-1", html: "<p>a</p>" }, { id: "J1-2", pendente: true }]) });
+      const linhas = async () => (await d.repos.mensagens.listarDaConversa(bot.conversaId, 20)).filter((l) => l.payload?.kind === "canvas_lista");
+      expect(await chat({ op: "listar" })).toMatchObject({ ok: true });
+      expect(await linhas()).toHaveLength(0);
+      const r = await executar(d, gerirCanvas, await (async () => {
+        const turno = await d.repos.turnos.enfileirar({ executor: "catcher", conversaId: bot.conversaId, agenteId: bot.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "pedido", entradaConfianca: "confiavel", modelo: "auto" });
+        return { turnoId: turno!.id, agenteId: bot.agenteId, conversaId: bot.conversaId, op: "listar" as const, mostrar: true };
+      })());
+      expect((r.events ?? []).map((e) => e.kind)).toEqual(["mensagem_criada"]);
+      const [l] = await linhas();
+      expect(l?.kind).toBe("sistema");
+      expect(l?.payload).toMatchObject({ kind: "canvas_lista", agenteId: bot.agenteId, itens: [{ issue: "ADA-228", versao: 1, estado: "em_producao", etapa: "montando a J1-2 · 1 de 2 telas" }] });
+    });
+  });
+
+  it("versões (J5-6): o resumo, as telas que mudaram, o que cada versão resolveu e o que arquivou; o estado segue a rodada", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, bot, chat, pessoa } = await montar(trx);
+      await chat({ op: "publicar", conteudo: CONTEUDO_V([{ id: "J1-1", html: "<p>a</p>" }, { id: "J1-2", html: "<p>b</p>" }, { id: "J1-3", html: "<p>c</p>" }]) });
+      const id = (await d.repos.canvas.porIssue(bot.agenteId, "ADA-228"))!.id;
+      const um = await comentar(d, { canvasId: id, autor: pessoa, confianca: "confiavel", endereco: "#J1-1", texto: "um", rodada: 1 });
+      const dois = await comentar(d, { canvasId: id, autor: pessoa, confianca: "confiavel", endereco: "#J1-2", texto: "dois", rodada: 1 });
+      const tres = await comentar(d, { canvasId: id, autor: pessoa, confianca: "confiavel", endereco: "#J1-3", texto: "três", rodada: 1 });
+      if (!um.ok || !dois.ok || !tres.ok) throw new Error("comentar");
+      expect((await executar(d, canvasDoAgente, { agenteId: bot.agenteId })).data.canvas[0]).toMatchObject({ estado: "em_producao", etapa: "ajustando a rodada 1 · 0 de 3" });
+      // O bot resolve o J1-2 e publica a v2 (J1-2 mudou, J1-3 saiu e arquiva o "três").
+      expect(await chat({ op: "resolver", comentario_id: dois.comentario.id, resolvido: true })).toMatchObject({ ok: true });
+      expect(await chat({ op: "publicar", canvas: id, resumo: "  ajustou o botão  ", conteudo: CONTEUDO_V([{ id: "J1-1" }, { id: "J1-2", html: "<p>b2</p>" }]) })).toMatchObject({ ok: true, arquivados: 1 });
+      const r = await servidorVersoes(d, id);
+      expect(r.map((v) => [v.versao, v.resumo, v.mudaram, v.sairam, v.resolvidos, v.arquivados, v.telas])).toEqual([
+        [2, "ajustou o botão", ["J1-2"], ["J1-3"], [dois.comentario.id], 1, 2],
+        [1, null, [], [], [], 0, 3],
+      ]);
+      // Depois da v2, a rodada 1 é mais velha que a versão: esperando você, com o J1-1 aberto.
+      expect((await executar(d, canvasDoAgente, { agenteId: bot.agenteId })).data.canvas[0]).toMatchObject({ estado: "esperando_voce", etapa: "1 comentário aberto", versao: 2 });
+      await chat({ op: "resolver", comentario_id: um.comentario.id, resolvido: true });
+      // Regra da Ada (ADA-228): comentários resolvidos não aprovam; sem tarefa ligada, nunca Aprovado.
+      expect((await executar(d, canvasDoAgente, { agenteId: bot.agenteId })).data.canvas[0]).toMatchObject({ estado: "esperando_voce", etapa: "pronto para você ver", aprovadoEm: null });
+    });
+  });
+
+  it("Aprovado (regra da Ada): a tarefa ligada pela issue sai de Prototipando → aprovado com a data, na tela e no listar do chat", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, bot, chat } = await montar(trx);
+      await chat({ op: "publicar", conteudo: CONTEUDO_V([{ id: "J1-1", html: "<p>a</p>" }]) });
+      const q = await d.repos.quadros.criar({ agenteId: bot.agenteId, meta: null, prazo: null });
+      if (!q) throw new Error("quadro");
+      const colunas = [
+        { id: "backlog", nome: "Backlog", grupo: "nao_iniciado" as const }, { id: "c-prototipando", nome: "Prototipando", grupo: "iniciado" as const },
+        { id: "c-pronto-eng", nome: "Pronto para engenharia", grupo: "iniciado" as const }, { id: "voce", nome: "Precisa de você", grupo: "iniciado" as const },
+        { id: "feito", nome: "Feito", grupo: "feito" as const }, { id: "cancelado", nome: "Cancelado", grupo: "fechado" as const },
+      ];
+      await d.repos.quadros.salvar(q.id, { meta: null, prazo: null, cumpridoEm: null, resumo: null, colunas });
+      const t = await d.repos.quadros.inserirTarefa({ quadroId: q.id, titulo: "Canvas", descricao: "", status: "c-prototipando", agenteId: null, linearId: "ADA-228" });
+      const lista = async () => (await executar(d, canvasDoAgente, { agenteId: bot.agenteId })).data.canvas[0];
+      expect(await lista()).toMatchObject({ estado: "esperando_voce", aprovadoEm: null });
+      const t2 = await d.repos.quadros.salvarTarefa(t.id, { ...t, status: "c-pronto-eng" });
+      if (!t2) throw new Error("salvarTarefa");
+      await d.repos.quadros.registrarHistorico(q.id, [{ tarefaId: t.id, campo: "status", de: "c-prototipando", para: "c-pronto-eng", autor: { tipo: "pessoa" } }], null);
+      const h = await d.repos.quadros.historico(t.id);
+      const em = h.at(-1)!.criadoEm;
+      expect(await lista()).toMatchObject({ estado: "aprovado", etapa: null, aprovadoEm: em });
+      expect(await chat({ op: "listar" })).toMatchObject({ ok: true, canvas: [{ estado: "aprovado", aprovadoEm: em }] });
+      // Cancelada não aprova.
+      await d.repos.quadros.salvarTarefa(t.id, { ...t2, status: "cancelado" });
+      expect(await lista()).toMatchObject({ estado: "esperando_voce", aprovadoEm: null });
+    });
+  });
+
+  it("a migração 0152 barra rodada e resumo fora do intervalo no banco", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { d, chat, bot } = await montar(trx);
+      await chat({ op: "publicar", conteudo: CONTEUDO_V([{ id: "J1-1", html: "<p>a</p>" }]) });
+      const id = (await d.repos.canvas.porIssue(bot.agenteId, "ADA-228"))!.id;
+      await expect(trx.savepoint((sp) => sp`update canvas_comentarios set rodada = 0 where canvas_id = ${id}`.then(() => sp`insert into canvas_comentarios (tenant_id, owner_id, canvas_id, tela_id, jornada, tipo, texto, autor_tipo, versao, confianca, rodada) values (${MARLON.tenantId}, ${MARLON.pessoaId}, ${id}, 'J1-1', 'J1', 'pino', 'x', 'pessoa', 1, 'confiavel', 0)`))).rejects.toThrow(/check/i);
+      await expect(trx.savepoint((sp) => sp`update canvas_versoes set resumo = '' where canvas_id = ${id}`)).rejects.toThrow(/check/i);
+    });
+  });
+});
+
+async function servidorVersoes(d: Deps, canvasId: string) {
+  return (await executar(d, versoesDoCanvas, { canvasId })).data.versoes;
+}
