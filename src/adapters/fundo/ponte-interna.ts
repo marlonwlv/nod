@@ -555,7 +555,11 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       async aguardarMensagem(turnoId: string, ms: number): Promise<boolean> {
         const escopo = escopos.get(turnoId);
         if (!escopo) return false;
-        return deps.avisoDeMensagem!.aguardar(escopo.pessoaId, Math.min(Math.max(0, ms), AGUARDAR_MENSAGEM_MS));
+        // A rede de 2 min (ADR-083) promove na renovação: a espera volta no prazo dela, para a promoção não atrasar.
+        const despachado = despachados.get(turnoId);
+        const ateARede = despachado ? despachado.em + (deps.redeMs ?? REDE_MS) - agora() : -1;
+        const teto = ateARede > 0 ? Math.min(AGUARDAR_MENSAGEM_MS, ateARede + 50) : AGUARDAR_MENSAGEM_MS;
+        return deps.avisoDeMensagem!.aguardar(escopo.pessoaId, Math.min(Math.max(0, ms), teto));
       },
     } : {}),
 
