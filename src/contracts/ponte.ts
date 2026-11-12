@@ -136,8 +136,7 @@ export type RespostaRenovar = { ativo: boolean | "indefinido"; versaoMinimaApp: 
  * O que o app desktop viu do turno vivo desde a última renovação, NA ORDEM: texto do modelo e nomes de ferramenta (nunca o
  * resultado). Republicado como turno.delta / turno.atividade e gravado em turno_passos. NOD-353: `id` do tool_use; `{fim,
  * falhou}`: a chamada terminou. ADR-165: `resumo` é UMA linha do argumento (até 120), já redigida no executor
- * (src/domain/resumo-do-passo.ts); o servidor corta em 160 e redige de novo. Nunca o argumento inteiro nem a saída.
- * `fase` (definido em 2026-11-12): compondo/pensando/fim do bloco, só para o estado vivo (servidor antigo descarta). */
+ * (src/domain/resumo-do-passo.ts); o servidor corta em 160 e redige de novo. Nunca o argumento inteiro nem a saída. `fase`: estado vivo (2026-11-12). */
 export type TrechoVivo = { texto: string } | { fase: FaseDoBloco } | { ferramenta: string; id?: string; resumo?: string } | { fim: string; falhou: boolean } | { tarefas: TarefaDoBot[] } | { vigia: VigiaVivo } | { subagentes: SubagenteVivo[]; ocioso?: boolean };
 
 /**
