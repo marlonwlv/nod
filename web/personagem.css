@@ -13,37 +13,67 @@
 .cb-cor:hover .cor-amostra { transform: scale(1.08); }
 .cb-cor[aria-checked="true"] { border-color: var(--ink); }
 .cb-forma:focus-visible, .cb-cor:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-
-/* ---- o modal ------------------------------------------------------------------------------------------------------ */
-dialog.criar-bot { width: min(480px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--borda-sutil); border-radius: var(--raio-20); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-modal); overflow: hidden; }
-/* Tela 09: o véu é preto (50% no claro, 70% no escuro, o --backdrop do escuro). Antes era o --papel, branco nos dois temas,
-   que lavava a tela inteira no escuro. --veu-criar-bot é local; a integração pode levá-lo a tokens.css. */
-dialog.criar-bot { --veu-criar-bot: color-mix(in srgb, black 50%, transparent); } /* cor-fixa: o véu do Paper é preto nos dois temas */
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) dialog.criar-bot { --veu-criar-bot: var(--backdrop); } }
-:root[data-theme="dark"] dialog.criar-bot { --veu-criar-bot: var(--backdrop); }
-dialog.criar-bot::backdrop { background: var(--veu-criar-bot); }
-dialog.criar-bot :is(.cb-topo, .cb-acoes, .cb-nome) { box-sizing: border-box; }
 /* No escuro a cor "tinta" do Paper é clara (o personagem preto vira branco): a amostra acompanha. */
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cb-cor .cor-amostra.c-black { background: var(--ink); } }
 :root[data-theme="dark"] .cb-cor .cor-amostra.c-black { background: var(--ink); }
-dialog.criar-bot[open] { animation: cb-entra var(--dur-lento) var(--curva); }
-@keyframes cb-entra { from { opacity: 0; transform: translateY(8px) scale(.98); } }
-.cb-topo { display: flex; align-items: center; justify-content: space-between; height: 52px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--divisoria); }
-.cb-topo h2 { margin: 0; font-size: var(--fs-corpo); line-height: var(--lh-corpo); font-weight: 600; }
-.cb-fechar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--raio-full); border: 0; background: none; color: var(--ink-3); font-size: var(--fs-titulo-3); cursor: pointer; }
-.cb-fechar:hover { background: var(--hover); color: var(--ink); }
-.cb-corpo { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 20px 24px; }
-.cb-previa { display: grid; place-items: center; height: 104px; margin-bottom: 10px; }
-.cb-previa .icon.mascote.xl { width: 104px; height: 104px; }
-.cb-nome { height: 36px; margin-bottom: 10px; padding: 0 12px; border-radius: var(--raio-10); border: 1px solid var(--borda); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo); }
-.cb-nome:focus { outline: none; border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
-.cb-rotulo-grupo { margin: 0; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); color: var(--ink-3); }
-.cb-corpo .cb-formas { margin-bottom: 10px; }
-.cb-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 60px; padding: 0 16px; border-top: 1px solid var(--divisoria); }
-.cb-acoes .bt { height: 32px; min-height: 32px; padding: 0 12px; border-radius: var(--raio-full); font-size: var(--fs-corpo); font-weight: var(--peso-medio); }
-.cb-acoes .bt:not(.pri) { border: 1px solid var(--borda); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-controle); }
-.cb-acoes .bt.pri { border: 1px solid transparent; background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); }
-.cb-form.preparando { padding: 28px 28px 24px; }
+
+/* ---- o diálogo "Criar novo bot" (spec do botão +, telas 1 e 2) ----------------------------------------------------
+   Abre e fecha seco (sem animação, o scrim também). 440 de largura, altura pelo conteúdo; borda 2 (--borda), raio 14. */
+dialog.criar-bot { --cnb-fundo: var(--surface-criar-bot, var(--surface-elevated)); box-sizing: border-box; width: min(440px, calc(100vw - 32px)); max-width: none; padding: 0; border: 1px solid var(--borda); border-radius: 14px; background: var(--cnb-fundo); color: var(--ink); box-shadow: var(--sombra-modal); overflow: hidden; animation: none; }
+dialog.criar-bot::backdrop { background: var(--scrim, var(--backdrop)); animation: none; }
+dialog.criar-bot * { box-sizing: border-box; }
+.cnb { display: flex; flex-direction: column; margin: 0; }
+.cnb-topo { display: flex; align-items: center; justify-content: space-between; height: 55px; padding: 16px; border-bottom: 1px solid var(--borda); }
+.cnb-topo h2 { margin: 0; font-size: 14px; line-height: 22px; font-weight: 600; }
+.cnb-fechar { display: grid; place-items: center; width: 32px; height: 32px; margin-right: -8px; padding: 0; border: 0; border-radius: var(--raio-full); background: none; color: var(--icone-2, var(--ink-2)); cursor: pointer; }
+.cnb-fechar:hover { background: var(--hover); }
+.cnb-corpo { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 406px; max-width: 100%; margin: 0 auto; padding: 16px 0; }
+@media (max-width: 472px) { .cnb-corpo { width: auto; padding: 16px; } }
+.cnb-previa { display: grid; place-items: center; width: 96px; height: 96px; }
+.cnb-previa .icon.mascote.xl { width: 96px; height: 96px; }
+.cnb-nome { width: 100%; height: 36px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; line-height: 18px; text-align: center; }
+.cnb-nome::placeholder { color: var(--ink-3); }
+.cnb-nome:focus { outline: none; border-color: var(--borda-forte); box-shadow: 0 0 0 3px var(--focus-ring); }
+.cnb-formas, .cnb-cores { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cnb-formas .cnb-linha { display: flex; justify-content: center; gap: 10px; }
+.cnb-cores .cnb-linha { display: flex; justify-content: center; gap: 8px; }
+/* hover e clique trocam seco: sem transição nos rádios */
+.cnb-forma { position: relative; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: var(--raio-full); background: none; cursor: pointer; }
+.cnb-forma .icon.mascote.sm { width: 36px; height: 36px; }
+.cnb-forma:hover { background: var(--hover); }
+.cnb-forma[aria-checked="true"]::before { content: ""; position: absolute; inset: 2px; border-radius: var(--raio-full); box-shadow: inset 0 0 0 1px var(--borda-forte); pointer-events: none; }
+.cnb-cor { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--raio-full); background: none; cursor: pointer; }
+.cnb-cor .cnb-bolinha { display: block; width: 24px; height: 24px; border-radius: var(--raio-full); background: var(--mascote-cor); box-shadow: inset 0 0 0 .5px var(--borda); }
+.cnb-cor[aria-checked="true"] .cnb-bolinha { box-shadow: 0 0 0 3px var(--cnb-fundo), 0 0 0 4px var(--borda-forte); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cnb-bolinha.c-black { background: var(--ink); } }
+:root[data-theme="dark"] .cnb-bolinha.c-black { background: var(--ink); }
+.cnb-forma:focus-visible, .cnb-cor:focus-visible, .cnb-fechar:focus-visible, .cnb-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cnb-erro { margin: 0; color: var(--danger); font-size: 13px; line-height: 18px; text-align: center; }
+.cnb-rodape { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 57px; padding: 12px 12px 12px 16px; border-top: 1px solid var(--borda); }
+.cnb-bt { height: 32px; padding: 0 12px; border: 0; border-radius: var(--raio-full); font: inherit; font-size: 14px; line-height: 20px; font-weight: var(--peso-medio); cursor: pointer; transition: background 120ms ease-out, color 120ms ease-out, opacity 120ms ease-out; }
+.cnb-cancelar { background: var(--hover); color: var(--ink); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--ink) 15%, transparent); }
+.cnb-criar { background: var(--action); color: var(--on-action); }
+.cnb-criar:hover:not(:disabled) { background: var(--base-hover); }
+.cnb-criar:disabled { background: color-mix(in srgb, var(--ink) 15%, transparent); color: color-mix(in srgb, var(--ink) 30%, transparent); cursor: default; }
+/* tela 2 · Criando…: todos os controles desabilitados (opacidade .5), 120 ms ease-out */
+.cnb-nome, .cnb-forma, .cnb-cor, .cnb-fechar { transition: opacity 120ms ease-out; }
+dialog.criar-bot.criando :is(.cnb-nome, .cnb-forma, .cnb-cor, .cnb-fechar, .cnb-cancelar, .cnb-criar) { opacity: .5; cursor: default; }
+dialog.criar-bot.criando .cnb-criar { background: var(--action); color: var(--on-action); }
+
+/* ---- a linha provisória da barra (tela 3): entre Criar e o bot entrar na frota ------------------------------------ */
+.bot-provisorio > .row { display: flex; align-items: center; gap: 10px; color: var(--ink-3); cursor: default; }
+.bot-provisorio .provisorio-av { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border: 1.5px solid var(--ink-4); border-radius: var(--raio-full); color: var(--ink-3); }
+.bot-provisorio .txt { display: flex; flex-direction: column; min-width: 0; }
+.bot-provisorio b, .bot-provisorio .sub { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-provisorio b { font-weight: var(--peso-medio); }
+.bot-provisorio.selecionado { background: var(--ativo); }
+
+/* ---- o menu do botão direito do + ("Novo bot" ⌘N, "Novo chat em grupo") -------------------------------------------- */
+.bot-menu.menu-mais { width: 240px; }
+.bot-menu.menu-mais button > span { width: auto; font-size: inherit; }
+.bot-menu.menu-mais button > svg { flex: none; color: var(--icone-2, var(--ink-2)); }
+.bot-menu.menu-mais .mc-meta { margin-left: auto; color: var(--ink-3); font-size: var(--fs-corpo-2); }
+
 
 /* ---- o preparo com % ---------------------------------------------------------------------------------------------- */
 .cb-preparo { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; max-width: 360px; margin: 0 auto; text-align: center; }
@@ -152,7 +182,7 @@ dialog.criar-bot[open] { animation: cb-entra var(--dur-lento) var(--curva); }
 .ap-enviar[disabled] { background: var(--hover); color: var(--ink-3); cursor: default; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ap-palco, .ap-exemplo, dialog.criar-bot[open] { animation: none; }
+  .ap-palco, .ap-exemplo { animation: none; }
   .ap-pc-cursor, .cb-preparo-mascote.orbita::before, .cb-preparo-mascote.orbita::after { animation: none; }
 }
 
@@ -160,29 +190,8 @@ dialog.criar-bot[open] { animation: cb-entra var(--dur-lento) var(--curva); }
 @media (forced-colors: active) {
   .ap-composer:focus-within { outline: 2px solid CanvasText; }
 }
-@media (forced-colors: active) { .cb-nome:focus { outline: 2px solid CanvasText; } }
+@media (forced-colors: active) { .cnb-nome:focus { outline: 2px solid CanvasText; } }
 
-/* ---- Tela 09b do Paper (rodada 2): o preparo ocupa a área da conversa ----
-   O modal (ADR-174: o preparo segue no mesmo diálogo) vira a tela inteira à direita da barra: sem véu, sem cartão, o
-   conteúdo no centro (personagem de 128, título 22/28, a barra de 320 com o %, os passos em linhas de 28) e o "Se der
-   erro" como cartão no canto de baixo à direita. --cb-barra é local: a largura da barra lateral (340 hoje; a casca nova
-   usa 272 e a integração liga ao token dela). */
-dialog.criar-bot:has(.cb-form.preparando) { --cb-barra: 340px; position: fixed; inset: 0 0 0 var(--cb-barra); width: auto; height: 100dvh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; background: var(--surface); box-shadow: none; }
-dialog.criar-bot:has(.cb-form.preparando)::backdrop { background: transparent; }
-.cb-form.preparando { height: 100%; box-sizing: border-box; padding: 0; display: flex; align-items: center; justify-content: center; }
-.cb-form.preparando .cb-preparo { width: 320px; max-width: 320px; column-gap: 12px; }
-.cb-form.preparando .cb-preparo-mascote { height: 128px; margin-bottom: 22px; }
-.cb-form.preparando .cb-preparo-mascote .icon.mascote.xl { width: 104px; height: 104px; }
-.cb-form.preparando .cb-preparo-mascote.orbita::before, .cb-form.preparando .cb-preparo-mascote.orbita::after { width: 124px; height: 48px; margin: -24px 0 0 -62px; }
-.cb-form.preparando .cb-preparo-titulo { margin: 0 0 6px; font-size: 22px; line-height: 28px; letter-spacing: -.012em; font-weight: 500; }
-.cb-form.preparando .cb-preparo-sub { margin: 0 0 22px; font-size: 14px; line-height: 20px; color: var(--ink-2); }
-.cb-form.preparando .cb-barra { height: 6px; background: var(--hover); }
-.cb-form.preparando .cb-barra-cheia { background: var(--action); }
-.cb-form.preparando .cb-porcento { min-width: 34px; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--ink); }
-.cb-form.preparando .cb-passos { margin-top: 22px; gap: 0; }
-.cb-form.preparando .cb-passo { height: 28px; font-size: 13px; }
-.cb-form.preparando .cb-detalhe { font-size: 12px; }
-.cb-form.preparando .cb-erro { position: fixed; right: 24px; bottom: 24px; width: 300px; margin: 0; box-sizing: border-box; border-color: var(--borda-sutil); background: var(--surface-elevated); box-shadow: var(--sombra-inline); }
 /* O ponto do passo que falta: o .cb-ponto do computador do bot (vermelho, computador-do-bot.css) vazava aqui. */
 .cb-passo .cb-ponto { width: 6px; height: 6px; margin: 0; background: var(--borda-forte); animation: none; }
 

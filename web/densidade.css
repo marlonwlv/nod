@@ -1,77 +1,33 @@
 /* =====================================================================================
-   NOD-119 (jornada v2 W2 + C1): densidade da barra lateral e "só avatares".
-   O <html> diz a escolha (web/lib/densidade.ts, pintarBarra, e o script do index.html antes do primeiro quadro):
-   - data-densidade="compacta" | "confortavel" (ausente = Confortável aberta, a barra de hoje);
-   - data-largura="recolhida" | "larga" (ausente = a aberta da densidade);
-   - data-sobreposta="340" | "200": recolhida com a busca aberta — a barra aberta POR CIMA da conversa;
-   - --largura-barra: a coluna em px.
-   No celular nenhum atributo é aplicado: a gaveta de hoje em qualquer densidade.
+   ADR-179 (substitui o ADR-060 na parte da barra; antes NOD-119 com densidades): a barra lateral redimensionável.
+   O <html> diz o estado (web/lib/densidade.ts, pintarBarra, e o script do index.html antes do primeiro quadro):
+   - data-barra="expandida" | "compacta" e --largura-barra (240–400 px, ou 88 na compacta): a coluna do grid;
+   - data-largura="recolhida": a compacta desenhada (o gancho de sempre dos CSS da barra só com avatares);
+   - data-sobreposta + --largura-sobreposta: compacta com a busca aberta — a barra expandida POR CIMA da conversa.
+   No celular nenhum atributo é aplicado: a gaveta de hoje. As colunas do grid moram em casca.css.
    ===================================================================================== */
 
-/* ---- Coluna e borda ------------------------------------------------------------------ */
-.app { position: relative; --largura-barra-auto: 272px; }
-@media (max-width: 1099px) { .app { --largura-barra-auto: 300px; } }
-@media (max-width: 900px) { .app { --largura-barra-auto: 220px; } }
-@media (max-width: 700px) { .app { --largura-barra-auto: 184px; } }
+/* ---- Movimento: ⌘B anima 200 ms; o arrasto é seco ------------------------------------- */
+:root { --curva-barra: cubic-bezier(0.22, 1, 0.36, 1); --dur-barra: 200ms; }
+.app { position: relative; --largura-barra-auto: 340px; }
+html[data-barra] .app { transition: grid-template-columns var(--dur-barra) var(--curva-barra); }
+/* Arrastando, nada anima (1:1); recolher ou reabrir no meio do arrasto (.encaixando) anima como o ⌘B. */
+html:has(.borda-barra.arrastando:not(.encaixando)) :is(.app, .app *, .borda-barra) { transition: none !important; }
 
-/* A escolha da pessoa ganha das larguras da janela estreita (as media de interface.css). */
-html[data-densidade] .app:not(.sem-sessao) { grid-template-columns: var(--largura-barra) minmax(0, 1fr); }
-html[data-densidade] .app.com-detalhes:not(.sem-sessao) { grid-template-columns: var(--largura-barra) minmax(360px, 1fr) 380px; }
-@media (max-width: 1099px) {
-  html[data-densidade] .app.com-detalhes:not(.sem-sessao) { grid-template-columns: var(--largura-barra) minmax(0, 1fr); }
-}
-/* O painel do bot fechado (interface.css) e o raio-x também tiram a 3ª coluna com a barra escolhida. */
-@media (min-width: 1100px) {
-  html[data-densidade] .app.com-detalhes.detalhes-ocultos:not(.sem-sessao),
-  html[data-densidade] body.com-raio-x .app.com-detalhes:not(.sem-sessao) { grid-template-columns: var(--largura-barra) minmax(360px, 1fr); }
-}
-html[data-densidade] .app { transition: grid-template-columns var(--dur-lento) ease; }
-
-.borda-barra { position: absolute; top: 0; bottom: 0; z-index: 6; width: 6px; cursor: col-resize; touch-action: none;
-  left: calc(var(--largura-barra, var(--largura-barra-auto)) - 3px); transition: left var(--dur-lento) ease; }
-.borda-barra::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; border-radius: 1px; background: transparent;
-  transition: background-color var(--dur-rapido) ease; }
-.borda-barra:hover::after, .borda-barra.arrastando::after { background: var(--line-strong); }
-/* O anel só no teclado (o :focus-visible geral desenha um contorno; aqui é a própria linha que acende). */
+/* ---- O puxador: 12 px centrados na borda, invisível, cursor col-resize ---------------- */
+.borda-barra { position: absolute; top: 0; bottom: 0; z-index: 6; width: 12px; cursor: col-resize; touch-action: none; background: none;
+  left: calc(var(--largura-barra, var(--largura-barra-auto)) - 6px); transition: left var(--dur-barra) var(--curva-barra); }
+/* Sem linha nem cor no hover; o anel só no teclado. */
 .borda-barra:focus { outline: none; }
-.borda-barra:focus-visible::after { background: var(--focus-ring); width: 2px; box-shadow: 0 0 0 1px var(--focus-ring); }
-/* No alto contraste o fundo da linha some: o contorno do sistema volta. */
-@media (forced-colors: active) { .borda-barra:focus { outline: 2px solid Highlight; outline-offset: -2px; } }
-.borda-barra.arrastando { transition: none; }
+.borda-barra:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -5px; border-radius: var(--raio-full); }
+@media (forced-colors: active) { .borda-barra:focus-visible { outline: 2px solid Highlight; } }
 .sem-sessao .borda-barra { display: none; }
 html:has(.borda-barra.arrastando) { cursor: col-resize; user-select: none; }
 
-/* ---- Compacta aberta (200) e alargada (340) ------------------------------------------- */
-html[data-densidade="compacta"]:not([data-largura="recolhida"]) .sidebar {
-  & .search-wrap { padding: 16px 10px 10px; }
-  & .sh { margin-bottom: 12px; gap: 2px; }
-  & .list { padding: 0 6px; }
-  & .row { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; min-height: 36px; padding: 6px 8px; margin: 1px 0; border-radius: var(--raio-10); align-items: center; }
-  & .row .icon { width: 24px; height: 24px; border-radius: var(--raio-10); }
-  & .txt b { font-size: var(--fs-corpo-2); font-weight: 500; }
-  & .txt > span:not(.nome-linha, .sub-fora-do-ar, .sub-esperando, .sub-rotina-parada, .sub-em-ligacao) { display: none; }
-  /* Os estados que pedem ação continuam, curtos, no lugar da prévia — a prévia some. */
-  & .txt > :is(.sub-fora-do-ar, .sub-esperando, .sub-rotina-parada, .sub-em-ligacao) { display: block; font-size: var(--fs-legenda); line-height: 1.3; }
-  /* O chip encolhe antes de o nome truncar. */
-  & .nome-linha b { flex-shrink: 0; max-width: 100%; min-width: 0; }
-  & .nome-linha .chip { flex-shrink: 1; min-width: 0; }
-  & .section h3 { margin: 2px 0 4px; }
-  & .fixados { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; margin: 2px 0 6px; padding: 0 0 8px; }
-  & .fixado-bt { padding: 6px 2px; gap: 3px; border-radius: var(--raio-10); }
-  & .fixado-bt .icon.lg { width: 32px; height: 32px; border-radius: var(--raio-12); }
-  /* O mascote redondo continua redondo (interface.css: .icon.shape-circle). */
-  & :is(.row, .fixado-bt) .icon.shape-circle { border-radius: 50%; }
-  & .fixado-bt b { font-size: var(--fs-legenda); }
-  & .fixado-bt :is(.chip, .chip-trab) { display: none; }
-  & .rodape { padding: 10px; gap: 8px; }
-  & .marketplace-bt { height: 32px; font-size: var(--fs-rotulo); }
-}
-html[data-densidade="compacta"][data-largura="larga"] .sidebar .fixados { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-html[data-densidade="compacta"][data-largura="larga"] .sidebar .fixado-bt .icon.lg { width: 36px; height: 36px; }
-
-/* ---- Recolhida (só avatares) --------------------------------------------------------- */
+/* ---- Compacta (88 px, só avatares): botões de 54 × 54 com avatar 36 em x = 17, passo de 58 ------------------------
+   Nome e prévia não saem com display: somem por opacidade e flex-grow (o ⌘B anima; casca.css desenha o resto). */
 html[data-largura="recolhida"] .sidebar {
-  --mascote-barra: 40px; --alvo-l: 56px; --alvo-a: 48px;
+  --mascote-barra: 36px; --alvo-l: 54px; --alvo-a: 54px;
   overflow-x: hidden;
   & .search-wrap { padding: 12px 0 8px; border: 0; }
   & .sh { flex-direction: column; justify-content: flex-start; align-items: center; gap: 6px; margin: 0; }
@@ -81,39 +37,32 @@ html[data-largura="recolhida"] .sidebar {
   & .search { display: none; }
   & .list { padding: 0; scrollbar-width: none; display: flex; flex-direction: column; align-items: center; }
   & .list > * { width: 100%; }
-  & .row, & .fixado-bt { display: grid; place-items: center; width: var(--alvo-l); height: var(--alvo-a); min-height: 0;
-    margin: 2px auto; padding: 0; gap: 0; border-radius: var(--raio-12); grid-template-columns: 1fr; position: relative; }
-  & .row .txt, & .fixado-bt b, & .fixado-bt :is(.chip, .chip-trab), & .bot-mais { display: none; }
-  & .row .icon, & .fixado-bt .icon, & .fixado-bt .icon.lg { width: var(--mascote-barra); height: var(--mascote-barra); border-radius: 30%; }
+  & .row .txt { flex-grow: 0; flex-basis: 0; min-width: 0; opacity: 0; overflow: hidden; }
+  & .fixado-bt b, & .fixado-bt :is(.chip, .chip-trab), & .bot-mais { display: none; }
+  & .row .icon, & .fixado-bt .icon, & .fixado-bt .icon.lg { width: var(--mascote-barra); height: var(--mascote-barra); flex: none; }
   & :is(.row, .fixado-bt) .icon.shape-circle { border-radius: 50%; }
   & .bot-row { display: block; }
-  & .fixados { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 0 0 4px; padding: 0 0 4px; }
   & .fixado { width: 100%; }
   & .fixado.em-ligacao .chip-em-ligacao { display: none; }
-  /* A seção vira um separador fino; recolhida ou não, os bots continuam como estão. */
+  /* A seção vira uma divisória de 1 px entre os grupos, sem título. */
   & .section { margin: 0; padding: 0; }
-  & .section h3 { height: 1px; margin: 6px 14px; padding: 0; background: var(--line); overflow: hidden; }
   & .section h3 > * { display: none; }
-  & .section:first-of-type h3 { background: transparent; margin-top: 0; }
   /* A vaga de soltar tem o tamanho do mascote, sem "+ Nova seção". */
   & .fixados-vazio, & .vaga-fixar { width: var(--mascote-barra); height: var(--mascote-barra); min-height: 0; padding: 0; margin: 4px auto;
-    font-size: 0; color: transparent; border-radius: 30%; }
+    font-size: 0; color: transparent; border-radius: var(--raio-12); }
   & .nova-secao-alvo { display: none !important; }
   & .ambiente-banco { font-size: 0; justify-content: center; padding: 6px 0; }
   & .aviso-compacto, & .list > .mudo:not(.falha-frota) { display: none; }
-  /* A frota que falhou segue à vista na recolhida: o ↻ com etiqueta (o aria-label do botão). */
+  /* A frota que falhou segue à vista na compacta: o ↻ com etiqueta (o aria-label do botão). */
   & .list > .falha-frota { font-size: 0; text-align: center; margin: 6px 0; }
   & .list > .falha-frota button { font-size: 0; width: 40px; height: 40px; border-radius: 50%; }
   & .list > .falha-frota button::before { content: "↻"; font-size: var(--fs-titulo-3); }
   & .rodape { flex-direction: column; align-items: center; padding: 10px 0 14px; gap: 10px; }
-  & .marketplace-bt { flex: none; width: 40px; height: 40px; padding: 0; border-radius: 50%; }
+  & .marketplace-bt { flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; }
   & .marketplace-nome { display: none; }
 }
-html[data-densidade="compacta"][data-largura="recolhida"] .sidebar { --mascote-barra: 28px; --alvo-l: 44px; --alvo-a: 36px; }
-html[data-densidade="compacta"][data-largura="recolhida"] .sidebar .marketplace-bt { width: 32px; height: 32px; }
-html[data-densidade="compacta"][data-largura="recolhida"] .sidebar .rodape .me .av-me { width: 28px; height: 28px; font-size: var(--fs-legenda); }
 
-/* O chip na recolhida: em ligação, anel verde; fora do ar, mascote apagado com ponto âmbar; rotina parada, ponto âmbar.
+/* O chip na compacta: em ligação, anel verde; fora do ar, mascote apagado com ponto âmbar; rotina parada, ponto âmbar.
    O número de trabalhos fica só no aria-label. */
 html[data-largura="recolhida"] .sidebar [data-estado-barra="ligacao"] .icon { box-shadow: 0 0 0 2px var(--surface-side), 0 0 0 4px var(--success); }
 html[data-largura="recolhida"] .sidebar [data-estado-barra="fora"] .icon { opacity: .45; }
@@ -121,37 +70,47 @@ html[data-largura="recolhida"] .sidebar :is([data-estado-barra="fora"], [data-es
   content: ""; position: absolute; right: calc((var(--alvo-l) - var(--mascote-barra)) / 2 - 2px); bottom: calc((var(--alvo-a) - var(--mascote-barra)) / 2 - 2px);
   width: 9px; height: 9px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 2px var(--surface-side); }
 
-/* ---- Busca por cima da conversa (recolhida + lupa ou ⌘K) ----------------------------- */
-html[data-sobreposta] .sidebar { z-index: 20; box-shadow: var(--shadow-pop); }
-html[data-sobreposta="340"] .sidebar { width: 340px; }
-html[data-sobreposta="272"] .sidebar { width: 272px; }
-html[data-sobreposta="200"] .sidebar { width: 200px; }
+/* ---- Busca por cima da conversa (compacta + lupa ou ⌘K) ------------------------------ */
+html[data-sobreposta] .sidebar { z-index: 20; box-shadow: var(--shadow-pop); width: var(--largura-sobreposta, 340px); }
 
-/* ---- Etiqueta escura (substitui o title na recolhida) --------------------------------- */
+/* ---- Etiqueta (foco e botões) e prévia do chat (mouse num bot, depois de 280 ms) ------- */
 .etiqueta-barra { position: fixed; z-index: 60; transform: translateY(-50%); max-width: 260px; padding: 5px 9px; border-radius: var(--raio-8);
   background: var(--ink); color: var(--surface); font-size: var(--fs-rotulo); line-height: 1.35; font-weight: 500; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; pointer-events: none; box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
+.etiqueta-barra.previa-barra {
+  width: 260px; max-width: none; box-sizing: border-box; padding: 9px 10px; display: flex; flex-direction: column; gap: 2px; white-space: normal;
+  transform: none; border-radius: var(--raio-14); background: var(--surface-elevated); color: var(--ink); border: 0; box-shadow: var(--sombra-popover);
+  animation: previa-barra-entra 100ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+.previa-barra .previa-topo { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.previa-barra .previa-av { width: 16px; height: 16px; margin: 0; flex: none; font-size: 8px; }
+.previa-barra .previa-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 500; }
+.previa-barra .previa-ultima { width: 240px; font-size: 13px; line-height: 18px; font-weight: 400; color: var(--ink-2);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+@keyframes previa-barra-entra { from { opacity: 0; transform: translate3d(-2px, 0, 0) scale(.98); } }
 
 /* ---- Silhuetas do carregando (nunca "Nenhum agente visível") -------------------------- */
 .silhuetas-barra { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; }
 .silhueta-barra { height: 44px; border-radius: var(--raio-12); background: var(--surface-raised); animation: silhueta-pulsa 1.4s ease-in-out infinite; }
-html[data-densidade="compacta"]:not([data-largura="recolhida"]) .silhueta-barra { height: 28px; border-radius: var(--raio-10); }
 html[data-largura="recolhida"] .silhuetas-barra { align-items: center; padding: 6px 0; }
-html[data-largura="recolhida"] .silhueta-barra { width: var(--mascote-barra, 40px); height: var(--mascote-barra, 40px); border-radius: 30%; }
+html[data-largura="recolhida"] .silhueta-barra { width: var(--mascote-barra, 36px); height: var(--mascote-barra, 36px); border-radius: var(--raio-12); }
 @keyframes silhueta-pulsa { 50% { opacity: .5; } }
 
 /* ---- "eu" com a IA desconectada ------------------------------------------------------ */
 .me-fora { position: absolute; right: -3px; top: -3px; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%;
   background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; line-height: 1; box-shadow: 0 0 0 2px var(--surface-side); }
 
-/* ---- Seletor segmentado (Configurações › Aparência) ---------------------------------- */
+/* ---- Seletor segmentado (web/lib/linha-config.ts) --------------------------------------- */
 .segmentado { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--raio-10); background: var(--surface-raised); border: 1px solid var(--line); }
 .seg-opcao { border: 0; background: none; font: inherit; font-size: var(--fs-corpo-2); color: var(--ink-2); padding: 6px 12px; border-radius: var(--raio-8); cursor: pointer; }
 .seg-opcao:hover { color: var(--ink); }
 .seg-opcao[aria-checked="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
 
-/* Com movimento reduzido, a troca é instantânea (o * de interface.css já zera; aqui por clareza). */
-@media (prefers-reduced-motion: reduce) { .app, .borda-barra { transition: none; } }
+/* Com movimento reduzido, a troca é seca: coluna, linhas, prévia e rodapé (o * de interface.css já zera; aqui por clareza). */
+@media (prefers-reduced-motion: reduce) {
+  html[data-barra] .app, .borda-barra, html[data-barra] #sidebar.sidebar :is(.row, .row .txt, .fixado-bt, .search-wrap, .rodape) { transition: none !important; }
+  .etiqueta-barra.previa-barra { animation: none; }
+}
 
 /* ---- Card do chat (C1): propõe mudar a barra, no estilo do card de proposta ----------- */
 .card-barra { max-width: 440px; margin: 2px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--raio-12);

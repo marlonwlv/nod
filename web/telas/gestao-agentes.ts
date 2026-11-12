@@ -2,12 +2,13 @@ import type { PedidoSecao } from "../estado/reducer.ts";
 import { esc } from "../lib/render.ts";
 import { ehCelular } from "../lib/celular.ts";
 import type { AcaoGestao, BotGerido } from "./gestao.ts";
-import { htmlMenuConta, type DadosMenuConta } from "./menu-conta.ts";
+import { htmlMenuConta, informacoesDaVersao, teclaDoMenuConta, type DadosMenuConta } from "./menu-conta.ts";
 
 export type { AcaoGestao, BotGerido } from "./gestao.ts";
 export { textoDuplicar } from "./gestao.ts";
 
-export function dialogo(html: string, menu = false): HTMLDialogElement {
+/** `fechar`: como o clique fora fecha (o menu da conta fecha com o movimento de 100 ms); ausente = seco. */
+export function dialogo(html: string, menu = false, fechar?: (d: HTMLDialogElement) => void): HTMLDialogElement {
   document.getElementById("gestao-dialogo")?.remove();
   const d = document.createElement("dialog");
   d.id = "gestao-dialogo";
@@ -16,7 +17,7 @@ export function dialogo(html: string, menu = false): HTMLDialogElement {
   const titulo = d.querySelector("h2");
   if (titulo) { titulo.id = "gestao-dialogo-titulo"; d.setAttribute("aria-labelledby", titulo.id); }
   const focoAnterior = document.activeElement;
-  d.addEventListener("click", (e) => { e.stopPropagation(); if (e.target === d) d.close(); });
+  d.addEventListener("click", (e) => { e.stopPropagation(); if (e.target === d) { if (fechar) fechar(d); else d.close(); } });
   // O foco só volta à origem se a ação do diálogo não o levou a outro lugar (Renomear foca o nome na gaveta).
   d.addEventListener("close", () => { const foi = document.activeElement; d.remove(); if (focoAnterior instanceof HTMLElement && focoAnterior.isConnected && (!foi || foi === document.body || d.contains(foi) || foi === focoAnterior)) focoAnterior.focus(); });
   document.body.append(d);
@@ -138,37 +139,137 @@ export function pedirGestao(titulo: string, corpo: string, confirmar: string, sa
   d.querySelector<HTMLInputElement>("input")?.select();
 }
 
+/** Spec do item 2: abrir e fechar o menu em 100 ms; trocar de submenu, o anterior sai em 50 ms. */
+export const MENU_CONTA_MS = 100;
+export const SUBMENU_SAI_MS = 50;
+const semMovimento = (): boolean => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let contaAberta = false;
+/** Se o menu da conta está aberto (o render do rodapé mantém o aria-expanded da pílula). */
+export const menuContaAberto = (): boolean => contaAberta;
+
+/** Fecha o menu com o movimento inverso da abertura (100 ms); com reduced-motion, seco. */
+export function fecharComMovimento(d: HTMLDialogElement): void {
+  if (!d.open || d.classList.contains("fechando")) return;
+  if (semMovimento()) { d.close(); return; }
+  d.classList.add("fechando");
+  window.setTimeout(() => { if (d.open) d.close(); }, MENU_CONTA_MS);
+}
+
 /**
  * O menu da conta (web/telas/menu-conta.ts) sobre o mesmo diálogo dos menus do bot. NOD-367: cada item abre uma seção das
  * Configurações (`secao` recebe o pedido: "geral", "agentes", "feedback", "ajuda", "conexao"); Sair e o convite da conta
- * vão por `conta`.
+ * vão por `conta`; Atalhos de teclado e Sobre o nod, por `acao`. Spec do item 2 (2026-11-12): abre para cima, alinhado à
+ * esquerda do gatilho e com a base 4 px acima dele; os submenus abrem à direita (x = 250) no hover, sem atraso, e pelo
+ * teclado (teclaDoMenuConta). No celular (`folha`) segue a folha de baixo de antes, sem submenus.
  */
-export function abrirMenuConta(ancora: HTMLElement, dados: DadosMenuConta, acoes: { secao(s: PedidoSecao): void; conta?(qual: string): void }, folha = false): void {
-  const d = dialogo(htmlMenuConta(dados), true);
+export function abrirMenuConta(ancora: HTMLElement, dados: DadosMenuConta, acoes: { secao(s: PedidoSecao): void; conta?(qual: string): void; acao?(qual: "atalhos" | "sobre"): void }, folha = false): void {
+  const d = dialogo(htmlMenuConta(dados, folha), true, folha ? undefined : fecharComMovimento);
   d.classList.add("menu-conta");
+  contaAberta = true;
+  ancora.setAttribute("aria-expanded", "true");
+  d.addEventListener("close", () => { contaAberta = false; ancora.setAttribute("aria-expanded", "false"); });
   // NOD-379: no celular o avatar fica no topo da inicial e o menu vira folha de baixo (o CSS a prende embaixo).
   if (folha) d.classList.add("folha");
-  // Nasce acima do avatar, alinhado à esquerda da barra (a largura dela menos as margens).
   const r = ancora.getBoundingClientRect();
   d.style.left = `${Math.max(12, r.left)}px`;
-  d.style.top = folha ? "auto" : `${Math.max(12, r.top - d.offsetHeight - 10)}px`;
+  d.style.top = folha ? "auto" : `${Math.max(12, r.top - d.offsetHeight - 4)}px`;
+  const fechar = () => (folha ? d.close() : fecharComMovimento(d));
+
+  const menu = d.querySelector<HTMLElement>(".mc-menu");
+  const itensDe = (m: Element | null) => (m ? [...m.querySelectorAll<HTMLButtonElement>(":scope > button[role='menuitem']")] : []);
+  const subAberto = () => d.querySelector<HTMLElement>(".mc-sub:not([hidden]):not(.saindo)");
+  const paiDe = (sub: HTMLElement) => d.querySelector<HTMLButtonElement>(`[data-sub="${sub.dataset.subDe}"]`);
+  const fecharSub = (sub = subAberto()) => {
+    if (!sub) return;
+    const pai = paiDe(sub);
+    pai?.setAttribute("aria-expanded", "false");
+    if (semMovimento()) { sub.hidden = true; return; }
+    sub.classList.add("saindo");
+    window.setTimeout(() => { sub.classList.remove("saindo"); sub.hidden = true; }, SUBMENU_SAI_MS);
+  };
+  const abrirSub = (nome: string, focar: boolean) => {
+    const sub = d.querySelector<HTMLElement>(`.mc-sub[data-sub-de="${nome}"]`);
+    const pai = d.querySelector<HTMLButtonElement>(`[data-sub="${nome}"]`);
+    if (!sub || !pai) return;
+    const atual = subAberto();
+    if (atual !== sub) {
+      if (atual) fecharSub(atual);
+      sub.classList.remove("saindo");
+      sub.hidden = false;
+      pai.setAttribute("aria-expanded", "true");
+      // Colado à direita (x = 250 do menu), alinhado ao item (a primeira linha do submenu na altura dele).
+      sub.style.left = "250px";
+      sub.style.top = `${pai.offsetTop - 6}px`;
+      const fundo = sub.getBoundingClientRect().bottom - (window.innerHeight - 12);
+      if (fundo > 0) sub.style.top = `${pai.offsetTop - 6 - fundo}px`;
+    }
+    if (focar) itensDe(sub)[0]?.focus();
+  };
+
+  if (!folha) {
+    // O realce acompanha o ponteiro (o item sob ele ganha o foco) e o submenu abre no hover, sem atraso.
+    d.addEventListener("pointerover", (e) => {
+      const item = (e.target as HTMLElement).closest<HTMLButtonElement>("button[role='menuitem']");
+      if (!item || d.classList.contains("fechando")) return;
+      item.focus({ preventScroll: true });
+      if (item.parentElement !== menu) return;
+      if (item.dataset.sub) abrirSub(item.dataset.sub, false);
+      else fecharSub();
+    });
+  }
   d.addEventListener("click", (e) => {
     const alvo = e.target as HTMLElement;
+    const sub = alvo.closest<HTMLElement>("[data-sub]")?.dataset.sub;
+    // e.detail 0 = Enter/Espaço: o foco entra no submenu; no clique, ele só abre.
+    if (sub) { abrirSub(sub, e.detail === 0); return; }
     const secao = alvo.closest<HTMLElement>("[data-secao]")?.dataset.secao as PedidoSecao | undefined;
-    if (secao) { d.close(); acoes.secao(secao); return; }
+    if (secao) { fechar(); acoes.secao(secao); return; }
+    const acao = alvo.closest<HTMLElement>("[data-acao]")?.dataset.acao as "atalhos" | "sobre" | undefined;
+    if (acao) { fechar(); acoes.acao?.(acao); return; }
     // NOD-345: Sair (e o convite do espaço provisório) saem da sessão ou abrem o cartão na conversa do Nod.
     const conta = alvo.closest<HTMLElement>("[data-conta]")?.dataset.conta;
-    if (conta) { d.close(); acoes.conta?.(conta); }
+    if (conta) { fechar(); acoes.conta?.(conta); }
   });
+  let escTratado = false;
   d.addEventListener("keydown", (e) => {
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+    const ativo = document.activeElement as HTMLElement | null;
+    const noSub = ativo?.closest<HTMLElement>(".mc-sub") ?? null;
+    const itens = itensDe(noSub ?? menu);
+    const acao = teclaDoMenuConta(e.key, { indice: itens.indexOf(ativo as HTMLButtonElement), total: itens.length, noSubmenu: !!noSub, temSubmenu: !!ativo?.dataset.sub });
+    if (!acao) return;
     e.preventDefault();
-    const itens = [...d.querySelectorAll<HTMLButtonElement>("button")];
-    const atual = itens.indexOf(document.activeElement as HTMLButtonElement);
-    const proximo = e.key === "Home" ? 0 : e.key === "End" ? itens.length - 1 : (atual + (e.key === "ArrowDown" ? 1 : -1) + itens.length) % itens.length;
-    itens[proximo]?.focus();
+    e.stopPropagation();
+    if (acao.tipo === "focar") itens[acao.indice]?.focus();
+    else if (acao.tipo === "abrir-submenu") abrirSub(ativo!.dataset.sub!, true);
+    else if (acao.tipo === "fechar-submenu") { const pai = noSub ? paiDe(noSub) : null; fecharSub(noSub); pai?.focus(); escTratado = e.key === "Escape"; }
+    else { escTratado = true; fechar(); }
   });
-  d.querySelector<HTMLButtonElement>("[data-secao]:not(.mc-faixa [data-secao])")?.focus();
+  // O Esc nativo do diálogo (cancel) vira o fechar com movimento; o Esc que o teclado já tratou não fecha de novo.
+  d.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    if (escTratado) { escTratado = false; return; }
+    fechar();
+  });
+  // ↓ foca o 1º item: ao abrir, o foco fica no menu. No celular, no primeiro item (como antes).
+  if (folha) d.querySelector<HTMLButtonElement>("[data-secao]:not(.mc-faixa [data-secao])")?.focus();
+  else menu?.focus();
+}
+
+/** Sobre o nod: a versão e "Copiar informações da versão" (o que vai para um relato), na casca dos diálogos. */
+export function abrirSobreONod(versao: string): void {
+  const d = dialogo(`<div class="mc-sobre"><h2>Sobre o nod</h2><p>Versão ${esc(versao)}</p><p class="mc-sobre-status" role="status"></p><div class="acoes"><button class="bt" type="button" data-fechar>Fechar</button><button class="bt pri" type="button" data-copiar>Copiar informações da versão</button></div></div>`);
+  d.classList.add("mc-sobre-dialogo");
+  d.querySelector("[data-fechar]")?.addEventListener("click", () => d.close());
+  d.querySelector("[data-copiar]")?.addEventListener("click", () => {
+    const status = d.querySelector(".mc-sobre-status")!;
+    const texto = informacoesDaVersao(versao, navigator.userAgent);
+    void (navigator.clipboard?.writeText(texto) ?? Promise.reject(new Error("sem área de transferência"))).then(
+      () => { status.textContent = "Informações copiadas."; },
+      () => { status.textContent = "Não deu para copiar. Selecione o texto acima."; },
+    );
+  });
+  d.querySelector<HTMLButtonElement>("[data-copiar]")?.focus();
 }
 
 /**

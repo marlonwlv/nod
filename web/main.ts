@@ -49,7 +49,7 @@ import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
 import { instalarOrdemArrastavel } from "./lib/ordem-arrastavel.ts";
 import { chaveDoMenuDaIa, ordemDoPasso } from "./lib/ordem.ts";
-import { abrirFolhaCompartilhar, abrirMenu, abrirMenuCompartilhar, abrirMenuConta, confirmarExclusaoNaFolha, dialogo, pedirGestao, textoDuplicar, type BotGerido, type AcaoGestao } from "./telas/gestao-agentes.ts";
+import { abrirFolhaCompartilhar, abrirMenu, abrirMenuCompartilhar, abrirMenuConta, abrirSobreONod, confirmarExclusaoNaFolha, menuContaAberto, dialogo, pedirGestao, textoDuplicar, type BotGerido, type AcaoGestao } from "./telas/gestao-agentes.ts";
 import { perfilAoAbrir, perfilAoAbrirNivel, saidaDoPerfil } from "./telas/perfil-celular.ts";
 import { criarMarcaDoPerfil, planoDaSaida } from "./lib/lista-apos-saida.ts";
 import { rascunhoMudou } from "./telas/memoria.ts";
@@ -104,7 +104,7 @@ import { criarPuxadorDeepLink, destinoDoAlvo, leituraConta } from "./lib/deep-li
 import { criarLiveEvents, type LiveEvents } from "./lib/live-events.ts";
 import { ehCelular } from "./lib/celular.ts";
 import { contextoDaPilula, executarNaPilula } from "./lib/setas-da-pilula.ts";
-import { alvoDoAtalho, atalhoDoNovoBot, atalhoDoTeclado, lugarAtual, SELETOR_CAMPO, SELETOR_MODAL, teclasDoBot, type AcaoAtalho } from "./lib/atalhos.ts";
+import { alvoDoAtalho, atalhoDoNovoBot, atalhoDoTeclado, linhasDaFolha, lugarAtual, SELETOR_CAMPO, SELETOR_MODAL, teclasDoBot, type AcaoAtalho } from "./lib/atalhos.ts";
 import { rotuloDoMac } from "./lib/aparelho.ts";
 import { criarCelular, SELETOR_INTERATIVO } from "./lib/gaveta-bots.ts";
 import { tentarFrotaAgora } from "./lib/tentar-frota.ts";
@@ -116,7 +116,7 @@ import { avatar, botao, dataHora, esc, hora as horaDaFala, iconeAgente } from ".
 import { COPIADO_MS, mostrarCopia, ROTULO_COPIADO, type RelogioDoCopiar } from "./lib/copiar.ts";
 import { avisoDeEstado } from "./lib/aviso-estado.ts";
 import { aplicarTema, lerTema, type EscolhaTema } from "./lib/tema.ts";
-import { adiar, alternarRecolhida, aplicarBarra, escolherDensidade, lerBarra, pedidoDoChat, pintarBarra, serializar, type Barra, type PedidoBarra } from "./lib/densidade.ts";
+import { adiar, alternarCompacta, aplicarBarra, chaveDaBarra, lerBarra, PAINEL_DETALHES, pedidoDoChat, pintarBarra, type Barra, type PedidoBarra } from "./lib/densidade.ts";
 import type { BarraDesktop } from "../src/contracts/desktop-barra.ts";
 import { gravarDecisao, versaoDasDecisoesDaBarra } from "./telas/card-barra.ts";
 import { atualizarBorda, ligarBorda, ligarEtiqueta } from "./lib/borda-barra.ts";
@@ -160,7 +160,7 @@ import { diaDe, inicioDoDia } from "./lib/agenda.ts";
 import { agendaPorLer, escNaAgenda } from "./estado/agenda.ts";
 import { diaParaFocarNoMes } from "./telas/agenda-rotinas.ts";
 import { confirmarCriarBot, criarRapido } from "./telas/confirmar-criar-bot.ts";
-import { abrirCriarBot, type DepsCriarBot } from "./telas/criar-bot.ts";
+import { abrirCriarBot, type DepsCriarBot, type DepsDialogoCriarBot } from "./telas/criar-bot.ts";
 import { USOS } from "./telas/este-mac.ts";
 import { botsDaPessoa, lerEstaMaquina, maquinaNova, maquinasDeTrabalho, nomeDeInstanciaSugerido, soComputador } from "./telas/maquinas.ts";
 import { appEncerraNoFim, ITEM_PONTE_FALHOU, itensDaPonte, itensDoServidor, textoDeRemover, type ItemDoFim } from "./telas/remover-computador.ts";
@@ -168,7 +168,7 @@ import { erroDoConectar, erroDoCriar, erroDoExcluir, recusaDoDormir, REGIAO_PADR
 import type { DormirAposMin, TamanhoMaquinaNuvem } from "../src/contracts/provedor-nuvem.ts";
 import { voltaDaTela } from "./lib/volta.ts";
 import { cabecalhoSecao, CHAVE_SECOES_RECOLHIDAS, chaveDaSecao, definirSecaoRecolhida, ESPERA, estadoDaSecao, gruposDaBarra, lerSecoesRecolhidas, type AvisoBot } from "./lib/secoes.ts";
-import { faixaDeConectores, faixaDoUso, type AvisoDoUso, type DadosMenuConta } from "./telas/menu-conta.ts";
+import { faixaDeConectores, faixaDoUso, provedoresDoMenu, type AvisoDoUso, type DadosMenuConta } from "./telas/menu-conta.ts";
 import { renderConectores } from "./telas/conectores.ts";
 import { appsQueFaltam } from "./telas/rotina-precisa.ts";
 import { criarConexoes } from "./lib/conexao.ts";
@@ -544,30 +544,56 @@ const celular = criarCelular(() => {
 });
 // A busca do celular aberta a partir da inicial: a conversa escolhida nela é uma escolha nova (NOD-422).
 let buscaDaInicial = false;
-// NOD-119: a densidade e a largura da barra (web/lib/densidade.ts). O index.html já pintou antes do primeiro quadro;
-// mudarBarra é o caminho único da escolha em Configurações, da borda e do card do chat.
+// ADR-179: a largura da barra (web/lib/densidade.ts). O index.html já pintou antes do primeiro quadro; mudarBarra é o
+// caminho único do puxador, das teclas, do ⌘B e do card do chat.
 let barraAtual: Barra = lerBarra();
-// A conversa depende da barra só pelo card do chat: ela lê `barraNaConversa`, que acompanha a barra quando o arrasto para.
-let barraNaConversa = serializar(barraAtual);
-const acompanharNaConversa = adiar<null>(250, () => { barraNaConversa = serializar(barraAtual); render(); });
+// A conversa depende da barra só pelo card do chat: ela lê `barraNaConversa`, que acompanha a barra quando ela para.
+let barraNaConversa = chaveDaBarra(barraAtual);
+const acompanharNaConversa = adiar<null>(250, () => { barraNaConversa = chaveDaBarra(barraAtual); render(); });
 const gravarNoMac = adiar<BarraDesktop | null>(250, (v) => { void window.nodDesktop?.definirBarra?.(v).catch(() => undefined); });
-function mudarBarra(nova: Barra, naHora = false): void {
-  const gravarFora = naHora ? gravarNoMac.agora : gravarNoMac;
-  barraAtual = aplicarBarra(nova, document.documentElement, celular.ativo(), undefined, gravarFora);
-  acompanharNaConversa(null);
+/** A janela e o painel da direita (aberto e à vista só a partir de 1100 px, fora do raio-x): o máximo da barra. */
+function medidasDaBarra(): { janela: number; painel: number } {
+  const app = document.querySelector(".app");
+  const painel = window.innerWidth >= 1100 && !!app?.classList.contains("com-detalhes") && !app.classList.contains("detalhes-ocultos") && !document.body.classList.contains("com-raio-x") ? PAINEL_DETALHES : 0;
+  return { janela: window.innerWidth, painel };
+}
+function pintarBarraAgora(): void {
+  const m = medidasDaBarra();
+  pintarBarra(barraAtual, document.documentElement, celular.ativo(), buscaAberta || termoBusca() !== "", m.janela, m.painel);
   const borda = document.getElementById("borda-barra");
-  if (borda) atualizarBorda(borda, barraAtual);
-  etiquetaDaBarra?.esconder();
+  if (borda) atualizarBorda(borda, barraAtual, m);
+}
+/** `gravar` falso: o arrasto ao vivo (só pinta; redesenha a barra só quando entra ou sai da compacta). */
+function mudarBarra(nova: Barra, naHora = false, gravar = true): void {
+  const antes = barraAtual;
+  const m = medidasDaBarra();
+  if (gravar) barraAtual = aplicarBarra(nova, document.documentElement, celular.ativo(), undefined, naHora ? gravarNoMac.agora : gravarNoMac, m.janela, m.painel);
+  else { barraAtual = nova; pintarBarra(nova, document.documentElement, celular.ativo(), false, m.janela, m.painel); }
+  const borda = document.getElementById("borda-barra");
+  if (borda) atualizarBorda(borda, barraAtual, m);
+  if (antes.compacta !== barraAtual.compacta) { etiquetaDaBarra?.esconder(); animarTrocaDaBarra(barraAtual.compacta); }
+  if (!gravar) { if (antes.compacta !== barraAtual.compacta) render(); return; }
+  acompanharNaConversa(null);
   render();
 }
-// A etiqueta só vale com a barra desenhada recolhida (com a busca por cima, a barra está aberta).
+/** ADR-179: recolher/abrir regrava a barra; html[data-barra-anim] liga as animações das linhas e do rodapé por 200 ms + atrasos (casca.css). */
+let timerAnimBarra = 0;
+function animarTrocaDaBarra(compacta: boolean): void {
+  const h = document.documentElement;
+  h.dataset.barraAnim = compacta ? "recolher" : "abrir";
+  window.clearTimeout(timerAnimBarra);
+  timerAnimBarra = window.setTimeout(() => { delete h.dataset.barraAnim; }, 320);
+}
+// A janela mudou: o máximo da barra também (o chat nunca fica com menos de 424 px).
+window.addEventListener("resize", () => pintarBarraAgora());
+// A etiqueta e a prévia só valem com a barra desenhada compacta (com a busca por cima, a barra está aberta).
 const recolhida = () => document.documentElement.dataset.largura === "recolhida";
 let etiquetaDaBarra: { esconder(): void } | null = null;
 {
   const borda = document.getElementById("borda-barra");
   const sidebar = document.getElementById("sidebar");
   const etiqueta = document.getElementById("etiqueta-barra");
-  if (borda) ligarBorda(borda, { obter: () => barraAtual, mudar: mudarBarra });
+  if (borda) ligarBorda(borda, { obter: () => barraAtual, medidas: medidasDaBarra, pintar: (b) => mudarBarra(b, false, false), gravar: (b) => mudarBarra(b, true) });
   if (sidebar && etiqueta) etiquetaDaBarra = ligarEtiqueta(sidebar, etiqueta, recolhida, (el) => {
     // Paper 03: a posição do bot na ordem do ⌘1–9 (a mesma de botaoDoBotNoAtalho), só para quem abre conversa.
     if (el.getAttribute("data-act") !== "abrir-conversa") return null;
@@ -2391,7 +2417,6 @@ const IC_BARRA = IC_PAPER('<rect x="2" y="3" width="12" height="10" rx="2"/><pat
 const IC_LUPA = IC_PAPER('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/>');
 const IC_MAIS = IC_PAPER('<path d="M8 3v10M3 8h10"/>');
 const IC_QUADRO = IC_PAPER('<rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M6 2.5v11M10 2.5v7"/>');
-const IC_ENGRENAGEM = IC_PAPER('<path d="M6.9 1.8h2.2l.4 1.7 1.3.7 1.6-.6 1.1 1.9-1.3 1.2v1.5l1.3 1.2-1.1 1.9-1.6-.6-1.3.7-.4 1.7H6.9l-.4-1.7-1.3-.7-1.6.6-1.1-1.9 1.3-1.2V7.3L2.5 6.1l1.1-1.9 1.6.6 1.3-.7z"/><circle cx="8" cy="8" r="2"/>');
 const IC_GRADE = IC_PAPER('<rect x="2.5" y="2.5" width="4" height="4" rx="1"/><rect x="9.5" y="2.5" width="4" height="4" rx="1"/><rect x="2.5" y="9.5" width="4" height="4" rx="1"/><path d="M11.5 9.5v4M9.5 11.5h4"/>');
 /** As iniciais do rodapé ("MW"); sem nome, o "eu" de sempre. */
 function iniciaisDe(nome: string | null | undefined): string {
@@ -2455,7 +2480,7 @@ function renderSidebar(estado: Estado): string {
   // flutuante de Buscar). O HTML do computador não muda.
   const ehCelular = celular.ativo();
   // NOD-119: na barra recolhida a etiqueta própria (web/lib/borda-barra.ts) substitui o title.
-  const semTitle = !ehCelular && barraAtual.largura === "recolhida" && !(buscaAberta || termoBusca() !== "");
+  const semTitle = !ehCelular && barraAtual.compacta && !(buscaAberta || termoBusca() !== "");
   const agentes = estado.frota?.agentes ?? [];
   const abertas = abertasPorAgente(estado);
   const perguntas = perguntasPorAgente(estado);
@@ -2633,7 +2658,7 @@ function renderSidebar(estado: Estado): string {
     return `<div class="inicio-topo">
       <button class="me me-topo${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${estado.espaco ? "true" : "false"}" aria-label="Menu da conta: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}"><span class="av-me">eu</span>${avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}</button>
       ${renderTituloCompacto(abaDoInicio)}
-      <span class="inicio-topo-acoes">${renderIconeTrabalhos(estado)}<button class="create-trigger" data-act="navegar" data-tela="novo-bot" aria-label="Nova conversa">${MAIS}</button></span>
+      <span class="inicio-topo-acoes">${renderIconeTrabalhos(estado)}<button class="create-trigger" data-act="novo-bot-dialogo" aria-haspopup="dialog" aria-label="Novo bot">${MAIS}</button></span>
     </div>
     ${renderIncidentes(estado)}
     ${ambiente}
@@ -2661,7 +2686,7 @@ function renderSidebar(estado: Estado): string {
   const quem = quemEsta();
   const nomeRodape = quem?.nome ?? quem?.email ?? "";
   const html = `<div class="search-wrap">
-      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.largura === "recolhida" ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button>${naoLidos}<span class="create-actions"><button class="create-trigger icone-flutua" data-act="navegar" data-tela="novo-bot" data-segurar="segurar-mais" aria-label="Nova conversa (segure para criar um bot direto)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} Shift+Enter Shift+Space" title="Nova conversa (${ATALHO_NOVO_BOT.texto})"><span class="segurar-anel" aria-hidden="true"></span>${IC_MAIS}</button></span></div>
+      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.compacta ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button>${naoLidos}<span class="create-actions"><button class="create-trigger icone-flutua" data-act="novo-bot-dialogo" data-segurar="segurar-mais" aria-haspopup="dialog" aria-label="Novo bot (segure para criar na hora)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} Shift+Enter Shift+Space" title="Novo bot (${ATALHO_NOVO_BOT.texto}) · segure para criar na hora"><span class="segurar-anel" aria-hidden="true"></span>${IC_MAIS}</button></span></div>
       <label class="search"${buscando ? "" : " hidden"}><span>⌕</span><input id="busca-bots" placeholder="Buscar agentes…" aria-label="Buscar agentes" autocomplete="off" /><kbd>esc</kbd></label>
     </div>
     ${renderIncidentes(estado)}
@@ -2669,16 +2694,16 @@ function renderSidebar(estado: Estado): string {
       ${grade}
       ${linhaTarefas}
       ${linhaTrabalhos}
+      ${linhaProvisoria()}
       ${bots || listaVaziaDaBarra({ falhou: frotaFalhou, temFrota: !!estado.frota, botsDaEquipe: daEquipe.length }, SILHUETAS_DA_BARRA)}
       ${equipe}
     </div>
     ${ambiente}
     ${avisoDoMotor}
     <div class="rodape">
-      <button class="me${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${estado.espaco ? "true" : "false"}"${falhaMotor ? ' data-etiqueta="Sua IA não está conectada"' : ""} aria-label="Menu da conta: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}" title="Menu da conta · ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}"><span class="av-me">${esc(iniciaisDe(quem?.nome))}</span>${falhaMotor ? '<span class="me-fora" aria-hidden="true">!</span>' : avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}<span class="me-conexao conexao-${esc(estado.conexao.estado)}" title="eventos ao vivo: ${esc(estado.conexao.estado)}"></span>${nomeRodape ? `<span class="me-nome">${esc(nomeRodape)}</span>` : ""}</button>
+      <button type="button" class="me conta-pilula${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${menuContaAberto() ? "true" : "false"}"${falhaMotor ? ' data-etiqueta="Sua IA não está conectada"' : ""} aria-label="Menu da conta${nomeRodape ? ` de ${esc(nomeRodape)}` : ""}: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}" title="${esc(nomeRodape || "Menu da conta")}"><span class="av-me">${esc(iniciaisDe(quem?.nome))}</span>${falhaMotor ? '<span class="me-fora" aria-hidden="true">!</span>' : avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}<span class="me-conexao conexao-${esc(estado.conexao.estado)}" title="eventos ao vivo: ${esc(estado.conexao.estado)}"></span>${nomeRodape ? `<span class="me-nome">${esc(nomeRodape)}</span>` : ""}</button>
       ${linhaTarefas ? `<button type="button" class="rodape-ic rodape-tarefas" data-act="navegar" data-tela="tarefas" aria-label="Tarefas" data-etiqueta="Tarefas">${IC_QUADRO}</button>` : ""}
-      <button type="button" class="rodape-ic" data-act="abrir-ajustes" aria-label="Configurações" aria-keyshortcuts="Meta+Comma" title="Configurações (⌘,)" data-etiqueta="Configurações">${IC_ENGRENAGEM}</button>
-      <button class="rodape-ic marketplace-bt" data-act="navegar" data-tela="conectores" aria-current="${t.tipo === "conectores" ? "true" : "false"}" aria-label="Marketplace" title="Marketplace" data-etiqueta="Marketplace">${IC_GRADE}<span class="marketplace-nome sr-only">Marketplace</span></button>
+      <button type="button" class="rodape-ic conectar-bt" data-act="navegar" data-tela="conectores" aria-current="${t.tipo === "conectores" ? "true" : "false"}" aria-label="Conectar aplicativos" title="Conectar aplicativos" data-etiqueta="Conectar aplicativos">${IC_GRADE}</button>
     </div>`;
   // NOD-119: na barra recolhida nenhum title nativo (a etiqueta escura o substitui; dois balões juntos confundem).
   return semTitle ? html.replace(/ title="[^"]*"/g, "") : html;
@@ -3649,7 +3674,6 @@ function render(): void {
     conta: dadosConta(),
     contaPagina: contas?.minhaConta && estado.configUi.abertos.includes("conta-pagina") ? telaMinhaConta.render() : null,
     tema: lerTema(),
-    densidade: barraAtual.densidade,
     conexao: resumoConexao(),
     ...extrasDasConfiguracoes(),
   }) : "", { seletor: ".espaco-conteudo", chave: secaoAberta(estado) === "agentes" || secaoAberta(estado) === "rotinas" ? secaoAberta(estado) : null });
@@ -3744,9 +3768,9 @@ function prenderFocoNaGaveta(slug: string | null): void {
  * (digitar na busca filtra direto, no ouvinte de input).
  */
 function redesenharSidebar(): void {
-  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", serializar(barraAtual), JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo], renderSidebar);
-  // NOD-119: no celular a barra é a gaveta de sempre; o <html> só leva a densidade no computador (virar o aparelho muda).
-  pintarBarra(barraAtual, document.documentElement, celular.ativo(), buscaAberta || termoBusca() !== "");
+  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", barraAtual.compacta, JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo, botProvisorio ? `${botProvisorio.nome}:${botProvisorio.agenteId ?? ""}` : ""], renderSidebar);
+  // NOD-119/ADR-179: no celular a barra é a gaveta de sempre; o <html> só leva a largura no computador (virar o aparelho muda).
+  pintarBarraAgora();
   if (!regiaoMudaria("sidebar", html)) return;
   const busca = document.getElementById("busca-bots") as HTMLInputElement | null;
   const valorBusca = busca?.value ?? "";
@@ -6144,8 +6168,70 @@ const acoesDaMemoria: Record<string, (el: HTMLElement) => Promise<void> | void> 
     }),
 };
 
-/** Cria um bot em branco e abre a conversa dele. */
-/** ADR-174: o que o modal "Criar novo bot" (web/telas/criar-bot.ts) e o onboarding pedem ao app. */
+/**
+ * Spec do botão + (tela 3): a linha provisória da barra, entre o clique em Criar e o bot entrar na frota. `agenteId`
+ * chega quando a API devolve; a linha some quando a frota já traz esse bot (aí a linha dele, selecionada, ocupa o lugar).
+ */
+let botProvisorio: { nome: string; agenteId: string | null } | null = null;
+
+/** A linha provisória (null quando não há, ou quando o bot já está na frota). */
+function linhaProvisoria(): string {
+  const p = botProvisorio;
+  if (!p) return "";
+  if (p.agenteId && estado.frota?.agentes.some((a) => a.id === p.agenteId)) { botProvisorio = null; return ""; }
+  return `<div class="bot-row bot-provisorio selecionado" aria-busy="true"><span class="row" role="status" aria-label="${esc(p.nome)}, criando…"><span class="provisorio-av" aria-hidden="true">${IC_PESSOA_PROVISORIO}</span><span class="txt"><span class="nome-linha"><b>${esc(p.nome)}</b></span><span class="sub">Criando…</span></span></span></div>`;
+}
+const IC_PESSOA_PROVISORIO = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="5.5" r="2.5"/><path d="M3.5 13.5c.6-2.3 2.4-3.5 4.5-3.5s3.9 1.2 4.5 3.5"/></svg>';
+
+/**
+ * Spec do botão + (telas 1 a 5): clique no + e ⌘N abrem o diálogo "Criar novo bot". Criar chama o mesmo criarAgente
+ * interativo do segurar (criarBotAgora), com nome, forma e cor: o backend grava a fala boas_vindas na criação.
+ */
+function depsDialogoCriarBot(): DepsDialogoCriarBot {
+  return {
+    criar: async ({ nome, forma, cor }) => {
+      const r = await api!.criarAgente(nome, { interativo: true, forma, cor });
+      return { agenteId: r.agente.id, conversaId: r.conversa.id };
+    },
+    aoComecar: ({ nome }) => { botProvisorio = { nome, agenteId: null }; redesenharSidebar(); },
+    aoCriar: ({ agenteId, conversaId }, { nome }) => {
+      botProvisorio = { nome, agenteId };
+      navegar({ tipo: "conversa", conversaId, agenteId });
+      dispatch({ tipo: "invalidar", quais: ["frota"] });
+    },
+    aoFalhar: () => { botProvisorio = null; redesenharSidebar(); },
+    depoisDeCriar: () => document.getElementById("composer-texto")?.focus(),
+  };
+}
+
+/** O diálogo "Criar novo bot" (clique no +, ⌘N, a paleta e o menu do botão direito do +). */
+function abrirDialogoCriarBot(nome = ""): void {
+  if (!api) return;
+  void abrirCriarBot(depsDialogoCriarBot(), { nome });
+}
+
+/** O menu do botão direito do +: "Novo bot" (⌘N) e "Novo chat em grupo", na casca de menu de sempre. */
+function abrirMenuDoMais(ancora: HTMLElement, ponto?: { x: number; y: number }): void {
+  const item = (acao: string, icone: string, texto: string, meta = "") => `<button type="button" role="menuitem" data-mais="${acao}">${icone}<span>${texto}</span>${meta ? `<span class="mc-meta" aria-hidden="true">${esc(meta)}</span>` : ""}</button>`;
+  const d = dialogo(`<div role="menu" aria-label="Novo">${item("novo-bot", IC_MAIS, "Novo bot", ATALHO_NOVO_BOT.texto)}${item("nova-sala", IC_PESSOAS_MENU, "Novo chat em grupo")}</div>`, true);
+  d.classList.add("menu-mais");
+  const r = ancora.getBoundingClientRect();
+  const x = ponto ? ponto.x + 4 : r.left;
+  const y = ponto ? ponto.y + 4 : r.bottom + 6;
+  d.style.left = `${Math.max(12, Math.min(x, window.innerWidth - d.offsetWidth - 12))}px`;
+  d.style.top = `${Math.max(12, Math.min(y, window.innerHeight - d.offsetHeight - 12))}px`;
+  d.addEventListener("click", (e) => {
+    const qual = (e.target as HTMLElement).closest<HTMLElement>("[data-mais]")?.dataset.mais;
+    if (!qual) return;
+    d.close();
+    if (qual === "novo-bot") abrirDialogoCriarBot();
+    else navegar({ tipo: "nova-sala" });
+  });
+  d.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+}
+const IC_PESSOAS_MENU = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="5.5" r="2.2"/><path d="M2 13c.5-2 2-3 4-3s3.5 1 4 3"/><circle cx="11.5" cy="6" r="1.8"/><path d="M11 10c1.6 0 2.7.9 3 2.5"/></svg>';
+
+/** ADR-174: o que o onboarding pede ao app (o preparo com %, web/telas/criar-bot.ts). */
 function depsCriarBot(): DepsCriarBot {
   return {
     criar: async (nome) => {
@@ -6186,12 +6272,6 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (!regra) return;
     abrirEspaco("aprovacoes");
     telaAprovacoes.editarRegra(el.dataset.agente || null, regra);
-  },
-  // NOD-119: Configurações › Aparência › Barra lateral; recolhida continua recolhida.
-  "escolher-densidade": (el) => {
-    const d = el.dataset.valor === "compacta" ? "compacta" : "confortavel";
-    mudarBarra(escolherDensidade(barraAtual, d), true);
-    document.querySelector<HTMLElement>(`.segmentado [data-act="escolher-densidade"][data-valor="${d}"]`)?.focus();
   },
   // NOD-119 (C1): o card do chat. Só o clique da pessoa muda a barra; a decisão fica neste computador.
   "aplicar-barra": (el) => {
@@ -6368,7 +6448,12 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     else if (tela === "espaco") abrirEspaco("conexao");
   },
   // NOD-383: no celular, "Configurações" (a Geral do menu) abre a lista das seções; os outros itens abrem a seção direto.
-  "menu-conta": (el) => abrirMenuConta(el, dadosMenuConta(), { secao: (s) => abrirEspaco(s, s === "geral" && celular.ativo()), conta: (qual) => void abrirDoMenuConta(qual) }, celular.ativo()),
+  // Spec do item 2: Atalhos de teclado abre a folha de atalhos (a mesma do ⌘/); Sobre o nod, o diálogo da versão.
+  "menu-conta": (el) => abrirMenuConta(el, dadosMenuConta(), {
+    secao: (s) => abrirEspaco(s, s === "geral" && celular.ativo()),
+    conta: (qual) => void abrirDoMenuConta(qual),
+    acao: (qual) => (qual === "atalhos" ? abrirEspaco("ajuda") : abrirSobreONod(__NOD_VERSAO__)),
+  }, celular.ativo()),
   "secao-espaco": (el) => abrirEspaco((el.dataset.secao as SecaoEspaco | undefined) ?? "conexao"),
   // NOD-85: a agenda das rotinas (Configurações › Rotinas).
   "agenda-ir": (el) => { if (el.dataset.dia) dispatch({ tipo: "agenda-ir", dia: el.dataset.dia }); },
@@ -6701,9 +6786,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     else navegar({ tipo: "inicio" });
   },
   // NOD-383: no celular, segurar o + pergunta antes ("Criar um bot agora?"); só Criar chama o criarAgente.
-  // ADR-174 (tela 09 do Paper): o toque em "Criar novo bot" (Nova conversa) abre o modal com nome, forma e cor, e o
-  // preparo com % no mesmo cartão. O nome digitado na busca vem preenchido. Segurar o + continua criando direto.
-  "criar-rapido": () => void abrirCriarBot(depsCriarBot(), { nome: (document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value.trim() ?? "" }),
+  // Spec do botão + (tela 1): "Criar o bot “…”" (Nova conversa) abre o diálogo "Criar novo bot" com o nome digitado.
+  "criar-rapido": () => abrirDialogoCriarBot((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value.trim() ?? ""),
+  // Spec do botão + (tela 1): o clique no + (e ⌘N) abre o diálogo. Segurar 500 ms continua criando na hora (segurar-mais).
+  "novo-bot-dialogo": () => abrirDialogoCriarBot(),
   // NOD-383: segurar o + do topo. No celular o toque longo sai sem querer: pergunta antes; no desktop cria direto.
   "segurar-mais": () => void criarRapido(celular.ativo(), () => confirmarCriarBot(LOGO_NOD), criarBotAgora),
   "escolher-missao": (el) => {
@@ -8854,6 +8940,16 @@ document.addEventListener("keydown", (ev) => {
 // O menu do bot na barra lateral: abre onde o cursor está; pelo teclado (Shift+F10, tecla de menu) o evento vem sem
 // posição e o menu abre ao lado do bot.
 document.addEventListener("contextmenu", (ev) => {
+  // Spec do botão + : o clique direito no + abre "Novo bot" (⌘N) e "Novo chat em grupo".
+  const mais = (ev.target as HTMLElement).closest<HTMLElement>("#sidebar .create-trigger");
+  if (mais) {
+    ev.preventDefault();
+    // No celular o toque longo dispara contextmenu: ali o gesto é o segurar (que pergunta antes), não o menu.
+    if (celular.ativo()) return;
+    encerrarSegurar();
+    abrirMenuDoMais(mais, ev.clientX || ev.clientY ? { x: ev.clientX, y: ev.clientY } : undefined);
+    return;
+  }
   // NOD-437: o clique direito no cabeçalho do time abre o mesmo menu do ⋯.
   const cab = (ev.target as HTMLElement).closest<HTMLElement>("#sidebar .time-cab");
   const idTime = cab?.querySelector<HTMLElement>("[data-time]")?.dataset.time;
@@ -9897,7 +9993,7 @@ function botaoDoBotNoAtalho(a: { tipo: "ir-ao-bot"; n: number } | { tipo: "vizin
 function executarAtalho(a: AcaoAtalho): boolean {
   if (a.tipo === "folha") { abrirEspaco("ajuda"); return true; }
   // ADR-167: os atalhos novos que não colidem com os do nod.
-  if (a.tipo === "barra") { mudarBarra(alternarRecolhida(barraAtual), true); anunciar(barraAtual.largura === "recolhida" ? "Barra só com avatares" : "Barra aberta"); return true; }
+  if (a.tipo === "barra") { mudarBarra(alternarCompacta(barraAtual), true); anunciar(barraAtual.compacta ? "Barra só com avatares" : "Barra aberta"); return true; }
   if (a.tipo === "ajustes") { abrirEspaco("geral"); return true; }
   if (a.tipo === "paleta") { abrirPaleta(); return true; }
   if (a.tipo === "nova-sala") { navegar({ tipo: "nova-sala" }); return true; }
@@ -9909,9 +10005,10 @@ function executarAtalho(a: AcaoAtalho): boolean {
   }
   if (a.tipo === "selecao-no-campo") return levarSelecaoAoCampo();
   // Com Seu espaço aberto só a folha chega aqui (atalhoDoTeclado, `espaco`).
+  // Spec do botão + : ⌘N = o clique no + (o diálogo "Criar novo bot").
   if (a.tipo === "novo-bot") {
-    navegar({ tipo: "novo-bot" });
-    requestAnimationFrame(() => document.getElementById("busca-destinatario")?.focus());
+    if (!api) return false;
+    abrirDialogoCriarBot();
     return true;
   }
   // NOD-445: ⌘[ ⌘] andam pelas páginas da pílula; só chegam aqui com mais de uma página (atalhoDoTeclado, `paginas`).
@@ -9987,6 +10084,14 @@ function resumoConexao(): string {
   return !estado.executor ? "Verificando" : inv && inv.estado !== "pronto" ? "Desconectada" : estado.executor.atual === "catcher" ? "Simulação" : "Conectada";
 }
 
+/** As teclas da meta do menu da conta (Configurações e a folha de atalhos), pelo lugar do teclado. */
+const TECLAS_DO_MENU_CONTA = ((): { ajustes: string; atalhos: string } => {
+  const linhas = linhasDaFolha(LUGAR_TECLADO);
+  // "⌘," no Mac; "Ctrl+," fora dele.
+  const teclas = (titulo: string, i: number) => { const c = linhas.find((l) => l.titulo === titulo)?.combinacoes[i] ?? []; return c.join(c.some((t) => t.length > 1) ? "+" : ""); };
+  return { ajustes: teclas("Configurações", 0) || "⌘,", atalhos: teclas("Folha de atalhos", 1) || "⌘/" };
+})();
+
 function dadosMenuConta(): DadosMenuConta {
   const inv = inventarioEmUso(estado);
   const falha = !!inv && inv.estado !== "pronto";
@@ -9999,7 +10104,8 @@ function dadosMenuConta(): DadosMenuConta {
     faixa,
     conexao: resumoConexao(),
     maquina: avisoDasMaquinas(),
-    quem: quemEsta(),
+    provedores: estado.contasIa?.disponivel ? provedoresDoMenu(estado.contasIa.contas, estado.agora) : null,
+    teclas: TECLAS_DO_MENU_CONTA,
     // NOD-345: com contas no servidor, Sair por último (ou o convite, no espaço provisório).
     ...(contas && contaAtual ? { conta: { email: contaAtual.conta?.email ?? contaAtual.legado?.email ?? null, senha: contaAtual.conta?.senha ?? false, legado: !contaAtual.conta && !!contaAtual.legado } } : {}),
     equipe: contas ? (linkEquipe() ?? (equipeDoApp() ? "app" : null)) : null,
