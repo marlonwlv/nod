@@ -546,6 +546,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return a;
       },
       async criar(a) {
+        // A4: como o `on conflict (id) do nothing` do SQL.
+        if (a.id && b.agentes.some((x) => x.id === a.id)) return null;
         // 0068: como o SQL — a inteligência inteira e os derivados gravados juntos.
         const inteligencia = a.inteligencia ?? inteligenciaDoLegado(INTELIGENCIA_PADRAO, { harness: a.harness ?? "auto", modelo: a.modelo });
         const d = derivadosDa(inteligencia);
