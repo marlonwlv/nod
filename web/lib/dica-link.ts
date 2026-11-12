@@ -1,22 +1,10 @@
-import { lerLink, partesDoEndereco } from "./links.ts";
+import { ATRASO_PREVIA_MS, enderecoDaPrevia, partesDoEndereco } from "./links.ts";
 
-/** COP-14 (item 4): no balão do bot, a prévia do link aparece depois de 500 ms de mouse parado em cima dele. */
-export const ATRASO_PREVIA_MS = 500;
 /** Onde o link mostra a prévia (globo, endereço e ↗) em vez da dica de duas linhas. */
 const BALAO_DO_BOT = ".message.bot .bubble";
 
 const GLOBO = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M1.5 6h9M6 1.5c1.6 1.4 1.6 7.6 0 9M6 1.5c-1.6 1.4-1.6 7.6 0 9"/></svg>';
 
-/**
- * O endereço que a prévia mostra: o href inteiro sem "https://" (o "http://" fica, porque avisa que não é seguro) e sem
- * a barra solta da raiz. O corte com reticências é do CSS (máx. 320 px). null = não é link que abre (ADR-053).
- */
-export function enderecoDaPrevia(href: string): string | null {
-  const url = lerLink(href);
-  if (!url) return null;
-  const texto = url.href.replace(/^https:\/\//, "");
-  return url.pathname === "/" && !url.search && !url.hash ? texto.replace(/\/$/, "") : texto;
-}
 
 function linha(doc: Document, tag: "b" | "span", texto: string, classe?: string): HTMLElement {
   const el = doc.createElement(tag);

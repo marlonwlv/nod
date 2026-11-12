@@ -93,10 +93,11 @@ describe("cabeçalho e ao vivo leem a mesma regra do mascote (NOD-216)", () => {
     expect(cab).not.toContain("Trabalhando");
   });
 
-  it("o cabeçalho ao vivo do turno na fila antiga não pensa", () => {
+  it("o turno na fila antiga não mostra indicador nem linha 'na fila' (COP-14, item 1) e não pensa", () => {
     const e = comConversa({ t1: vivo("t1") });
     const html = blocosAoVivo(e.conversas[C]!, e).map((b) => b.html).join("");
-    expect(html).toContain("na fila");
+    expect(html).not.toContain("na fila");
+    expect(html).not.toContain("indicador-rotulo");
     expect(html).not.toContain('data-estado="pensando"');
   });
 });

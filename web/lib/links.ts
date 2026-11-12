@@ -197,3 +197,16 @@ export function partesDoEndereco(href: string): PartesDoEndereco | null {
   const resto = (url.pathname === "/" ? "" : url.pathname) + url.search + url.hash;
   return { host: url.host, resto: resto.length > LIMITE_RESTO ? `${resto.slice(0, LIMITE_RESTO - 1)}…` : resto, seguro: url.protocol === "https:" };
 }
+
+/** COP-14 (item 4): no balão do bot, a prévia do link aparece depois de 500 ms de mouse parado em cima dele. */
+export const ATRASO_PREVIA_MS = 500;
+/**
+ * O endereço que a prévia mostra: o href inteiro sem "https://" (o "http://" fica, porque avisa que não é seguro) e sem
+ * a barra solta da raiz. O corte com reticências é do CSS (máx. 320 px). null = não é link que abre (ADR-053).
+ */
+export function enderecoDaPrevia(href: string): string | null {
+  const url = lerLink(href);
+  if (!url) return null;
+  const texto = url.href.replace(/^https:\/\//, "");
+  return url.pathname === "/" && !url.search && !url.hash ? texto.replace(/\/$/, "") : texto;
+}

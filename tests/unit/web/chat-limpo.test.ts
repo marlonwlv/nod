@@ -74,7 +74,8 @@ function cenario(mensagens: Mensagem[], extra: Partial<Estado> = {}, conversa: P
 }
 
 const itens = (c: ConversaEstado, e: Estado) => blocosDoHistorico(c, e).filter((b) => !b.chave.startsWith("sep:"));
-const ehBalao = (html: string): boolean => /^\s*<article class="message /.test(html);
+// COP-14 (item 3): o balão do histórico pode levar data-grupo/data-group-start antes da classe (./grupos-do-chat.ts).
+const ehBalao = (html: string): boolean => /^\s*<article (?:data-grupo="[a-z]+" (?:data-group-start )?)?class="message /.test(html);
 const ehLinha = (html: string): boolean => /^\s*<div class="linha-centro-wrap"/.test(html);
 
 describe("a semente da filha 03: 11 itens, 9 você↔bot", () => {

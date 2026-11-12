@@ -22,39 +22,47 @@ function comConversa(dto: Partial<ConversaDto>): Estado {
   return { ...e, frota: { agentes: [{ id: "a", nome: "Nina", conversaId: C }] } as never };
 }
 
-describe("fila da conversa: cada mensagem com seu Cancelar", () => {
+/**
+ * COP-14 (item 1, definido em 2026-11-12): a mensagem mandada com o bot trabalhando entra como qualquer balão — sem chip
+ * "Na fila", sem relógio, sem Cancelar/Desfazer e sem "Cancelada · não rodou". Fica só a linha da exceção do nod (máquina
+ * desligada, acordando ou sem IA), sem botão.
+ */
+describe("fila da conversa: a mensagem entra como qualquer balão (COP-14)", () => {
   const emCurso = (id: string, estado: "pendente" | "despachando", mensagemId: string | null) => ({ id, estado, desde: AGORA, mensagemId });
 
-  it("uma na fila: lê quando terminar; duas: lê junto com as outras", () => {
+  it("uma ou duas na fila, com a máquina em ordem: nenhuma linha, nenhum chip, nenhum Cancelar", () => {
     const uma = comConversa({ turnosEmCurso: [emCurso("rodando", "despachando", "m1"), emCurso("t2", "pendente", "m2")] });
-    expect(situacaoNaFila(mensagem("m2"), uma)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Nina lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem("m2"), uma)).toBeNull();
     expect(situacaoNaFila(mensagem("m1"), uma)).toBeNull();
     const duas = comConversa({ turnosEmCurso: [emCurso("t2", "pendente", "m2"), emCurso("t3", "pendente", "m3")] });
-    expect(situacaoNaFila(mensagem("m3"), duas)).toEqual({ tipo: "na_fila", turnoId: "t3", texto: "Na fila · Nina lê junto com as outras quando terminar" });
+    expect(situacaoNaFila(mensagem("m3"), duas)).toBeNull();
+    const html = renderMensagem(mensagem("m3"), duas);
+    for (const fora of ["fila-chip", "fila-relogio", "fila-linha", 'data-act="cancelar-turno"', "Na fila"]) expect(html).not.toContain(fora);
   });
 
-  it("NOD-402: a rotina na fila dos bastidores não conta como outra mensagem da pessoa", () => {
+  it("NOD-402: a rotina na fila dos bastidores também não gera linha", () => {
     const e = comConversa({ turnosEmCurso: [{ ...emCurso("r1", "pendente", null), origem: "rotina", bastidores: true } as never, emCurso("t2", "pendente", "m2")] });
-    expect(situacaoNaFila(mensagem("m2"), e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Nina lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem("m2"), e)).toBeNull();
   });
 
-  it("Cancelar mostra Desfazer por 5 s só na web; cancelada no servidor vira 'não rodou'", () => {
+  it("sem Cancelando/Desfazer nem 'Cancelada · não rodou'", () => {
     const e = comConversa({ turnosEmCurso: [emCurso("t2", "pendente", "m2")] });
     const cancelando = reduzir(e, { tipo: "cancelando-turno", turnoId: "t2", agora: AGORA });
-    expect(situacaoNaFila(mensagem("m2"), cancelando)).toEqual({ tipo: "cancelando", turnoId: "t2" });
-    expect(renderMensagem(mensagem("m2"), cancelando)).toContain('data-act="desfazer-cancelamento"');
-    expect(situacaoNaFila(mensagem("m2"), reduzir(cancelando, { tipo: "desfazer-cancelamento", turnoId: "t2" }))?.tipo).toBe("na_fila");
-    expect(situacaoNaFila(mensagem("m2"), comConversa({ turnosCancelados: [{ id: "t2", mensagemId: "m2" }] }))).toEqual({ tipo: "cancelada", turnoId: "t2" });
+    expect(situacaoNaFila(mensagem("m2"), cancelando)).toBeNull();
+    expect(renderMensagem(mensagem("m2"), cancelando)).not.toContain('data-act="desfazer-cancelamento"');
+    const cancelada = comConversa({ turnosCancelados: [{ id: "t2", mensagemId: "m2" }] });
+    expect(situacaoNaFila(mensagem("m2"), cancelada)).toBeNull();
+    expect(renderMensagem(mensagem("m2"), cancelada)).not.toContain("não rodou");
   });
 
-  it("mensagem cujo turno já rodou (ou foi lido junto com outro) não tem chip", () => {
+  it("mensagem cujo turno já rodou (ou foi lido junto com outro) não tem linha", () => {
     const e = comConversa({});
     expect(situacaoNaFila(mensagem("m1"), e)).toBeNull();
-    expect(renderMensagem(mensagem("m1"), e)).not.toContain("fila-chip");
+    expect(renderMensagem(mensagem("m1"), e)).not.toContain("fila-");
   });
 });
 
-describe("fila da conversa com a máquina do bot fora do ar (ADR-090, protótipo 4c)", () => {
+describe("fila da conversa com a máquina do bot fora do ar (exceção do nod, COP-14)", () => {
   const emCurso = (id: string, mensagemId: string) => ({ id, estado: "pendente" as const, desde: AGORA, mensagemId });
   const maquina = (id: string, nome: string, conectada: boolean) => ({ id, nome, prefixo: "abcd1234", criadaEm: 1, ultimoUsoEm: Date.UTC(2026, 9, 9, 14, 32), conectada, plataforma: conectada ? ("darwin" as const) : null, ias: (conectada ? { "claude-cli": "pronto" } : {}) as MaquinaDto["ias"], gh: false });
   function com(maquinaIdDoBot: string | null, maquinas: ReturnType<typeof maquina>[], padraoId: string | null = null): Estado {
@@ -62,50 +70,43 @@ describe("fila da conversa com a máquina do bot fora do ar (ADR-090, protótipo
     return { ...e, frota: { agentes: [{ id: "a", nome: "Ze 1", conversaId: C, maquinaId: maquinaIdDoBot }] } as never, maquinas: { maquinas, padraoId } };
   }
 
-  it("a linha da fila diz que a máquina não responde e oferece rodar na outra conectada, desta vez", () => {
+  it("máquina desligada: '{Bot} lê quando a máquina ligar', numa linha sem botão", () => {
     const e = com("vm", [maquina("vm", "vm-sp", false), maquina("mac", "MacBook", true)]);
-    const s = situacaoNaFila(mensagem("m2"), e);
-    expect(s).toMatchObject({ tipo: "na_fila", turnoId: "t2", destaVez: { conversaId: C, maquinaId: "mac", nome: "MacBook" } });
-    // ADA-243 (spec da jornada B): o bot diz onde trabalha e o que a pessoa pode fazer, com o link.
-    expect(s && s.tipo === "na_fila" ? s.texto : "").toBe("Eu trabalho no vm-sp, que está desligado; começo quando ele voltar, ou mude meu computador em");
+    expect(situacaoNaFila(mensagem("m2"), e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Ze 1 lê quando a máquina ligar" });
     const html = renderMensagem(mensagem("m2"), e);
-    expect(html).toMatch(/data-act="secao-espaco"[^>]*data-secao="maquinas"[^>]*>Configurações › Computadores|data-secao="maquinas"[^>]*data-act="secao-espaco"/);
-    expect(html).toContain('data-act="rodar-desta-vez"');
-    expect(html).toContain("Rodar em MacBook desta vez");
-    expect(html).toContain('data-act="cancelar-turno"');
+    expect(html).toContain('<div class="fila-linha" role="status">Ze 1 lê quando a máquina ligar</div>');
+    for (const fora of ["rodar-desta-vez", "secao-espaco", "cancelar-turno", "fila-chip"]) expect(html).not.toContain(fora);
   });
 
-  it("vale também pelo padrão da pessoa; sem outra máquina conectada, só o texto e o Cancelar", () => {
+  it("vale também pelo padrão da pessoa", () => {
     const e = com(null, [maquina("vm", "vm-sp", false)], "vm");
-    const s = situacaoNaFila(mensagem("m2"), e);
-    expect(s).toMatchObject({ tipo: "na_fila", turnoId: "t2" });
-    expect(s && "destaVez" in s ? s.destaVez : undefined).toBeUndefined();
+    expect(situacaoNaFila(mensagem("m2"), e)).toMatchObject({ tipo: "na_fila", turnoId: "t2", texto: "Ze 1 lê quando a máquina ligar" });
     expect(renderMensagem(mensagem("m2"), e)).not.toContain("rodar-desta-vez");
   });
 
-  it("máquina do bot conectada mas sem IA pronta: a linha diz o que falta", () => {
+  it("máquina do bot conectada mas sem IA pronta: '{Bot} está sem IA configurada'", () => {
     const e = com("vm", [{ ...maquina("vm", "vm-sp", true), ias: { "claude-cli": "nao_autenticado" as const } }]);
-    expect(situacaoNaFila(mensagem("m2"), e)).toMatchObject({ texto: expect.stringContaining("vm-sp está sem IA pronta") });
+    expect(situacaoNaFila(mensagem("m2"), e)).toMatchObject({ texto: "Ze 1 está sem IA configurada" });
   });
 
-  it("ADA-243: sem IA NESTE computador, a linha diz neste computador (não pede o terminal de outra máquina)", () => {
+  it("sem IA NESTE computador: a mesma linha, sem pedir terminal", () => {
     const e = { ...com("vm", [{ ...maquina("vm", "Windows de Marlon", true), ias: { "claude-cli": "ausente" as const } }]), estaMaquina: { id: "vm", nome: "Windows de Marlon", plataforma: "win32" as const } };
     const s = situacaoNaFila(mensagem("m2"), e);
-    expect(s && s.tipo === "na_fila" ? s.texto : "").toMatch(/^Na fila · sem IA neste computador/);
-    expect(s && s.tipo === "na_fila" ? s.texto : "").not.toContain("nod-motor");
+    expect(s?.texto).toBe("Ze 1 está sem IA configurada");
+    expect(s?.texto).not.toContain("nod-motor");
   });
 
-  it("máquina do bot conectada: a fila de sempre", () => {
+  it("máquina do bot conectada: nenhuma linha", () => {
     const e = com("vm", [maquina("vm", "vm-sp", true)]);
-    expect(situacaoNaFila(mensagem("m2"), e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Ze 1 lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem("m2"), e)).toBeNull();
   });
 
   it("QA do NOD-314 (achado 7): o turno mandado 'desta vez' para outra máquina espera ESSA máquina, não a do bot", () => {
     const e = comConversa({ turnosEmCurso: [{ ...emCurso("t2", "m2"), maquinaDestaVez: "mac" }] });
     const fora = { ...e, frota: { agentes: [{ id: "a", nome: "Ze 1", conversaId: C, maquinaId: "vm" }] } as never, maquinas: { maquinas: [maquina("vm", "vm-sp", true), maquina("mac", "MacBook", false)], padraoId: null } };
-    expect(situacaoNaFila(mensagem("m2"), fora)).toMatchObject({ texto: expect.stringMatching(/^Na fila · MacBook não responde/) });
-    // A do bot fora do ar, mas a desta vez conectada: a fila de sempre (não acusa a do bot).
+    expect(situacaoNaFila(mensagem("m2"), fora)).toMatchObject({ texto: "Ze 1 lê quando a máquina ligar" });
+    // A do bot fora do ar, mas a desta vez conectada: nenhuma linha (não acusa a do bot).
     const viva = { ...fora, maquinas: { maquinas: [maquina("vm", "vm-sp", false), maquina("mac", "MacBook", true)], padraoId: null } };
-    expect(situacaoNaFila(mensagem("m2"), viva)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Ze 1 lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem("m2"), viva)).toBeNull();
   });
 });

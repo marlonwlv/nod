@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ATRASO_PREVIA_MS, enderecoDaPrevia } from "../../../web/lib/dica-link.ts";
+import { ATRASO_PREVIA_MS, enderecoDaPrevia } from "../../../web/lib/links.ts";
 import { CHECK_CODIGO_MS, realcarCodigo, textoFormatado } from "../../../web/lib/texto-formatado.ts";
 
 /** COP-14 (item 4): o formato da resposta dentro do balão do bot. */

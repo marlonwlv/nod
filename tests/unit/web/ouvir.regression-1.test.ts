@@ -160,7 +160,8 @@ describe("regressão /qa #381: fiação em main.ts e nos diálogos", () => {
     // NOD-370: a parada saiu para `aoTrocarDeTela`, chamado por `navegar` antes do dispatch e por `reidratar` quando o
     // bot da conversa sai da frota.
     expect(main).toMatch(/antes\.conversaId !== tela\.conversaId\)\) tocador\.parar\("saiu"\);/);
-    expect(main).toMatch(/aoTrocarDeTela\(antes, tela\);\s*dispatch\(\{ tipo: "navegar", tela \}\)/);
+    // A troca sem "carregando" (item 5 do chat) prepara a conversa entre os dois; a parada segue antes do dispatch.
+    expect(main).toMatch(/aoTrocarDeTela\(antes, tela\);\s*(?:[^;\n]*;\s*)?dispatch\(\{ tipo: "navegar", tela \}\)/);
     expect(main).toMatch(/function reduzirVendoSaida[\s\S]*?aoTrocarDeTela\(antes, estado\.tela\);/);
     expect(main).toContain('window.addEventListener("pagehide", () => tocador.parar("saiu"));');
     expect(main).toContain('if (acao.tipo === "ligacao-viva" && acao.viva && tocador.atual()) tocador.parar("ligacao");');
