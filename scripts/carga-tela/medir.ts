@@ -3,9 +3,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { abrirChrome, avaliar, type Cdp } from "./cdp.ts";
+import { abrirQuadro, arrastarAte, COLUNA_B, prepararQuadro, tarefasPorColuna } from "./quadro.ts";
 import { api, botsDeCarga, CONFIG, entrar, escrever, promptStreaming, respostaRica, urlWeb, type Bot, type Sessao } from "./comum.ts";
 
-export const CENARIOS = ["ocioso", "varios-bots", "turno-pesado", "tudo-junto", "frentes"] as const;
+export const CENARIOS = ["ocioso", "varios-bots", "turno-pesado", "tudo-junto", "frentes", "quadro"] as const;
 export type Cenario = (typeof CENARIOS)[number];
 
 /** Bots escrevendo ao mesmo tempo fora da tela, e quantos pedaços de texto cada um manda. */
@@ -54,7 +55,7 @@ const INSTRUMENTO = `(() => {
   setInterval(() => { const agora = performance.now(); c.lags.push(Math.max(0, agora - esperado)); esperado = agora + 20; }, 20);
 })();`;
 
-type Coleta = { frames: Record<string, number>; framesTotal: number; longtasks: { inicio: number; dur: number }[]; rafGaps: number[]; lags: number[]; falaRegravada: number; blocoTrocado: number; t0: number };
+type Coleta = { quadro?: { regravacoes: number; leituras: number }; frames: Record<string, number>; framesTotal: number; longtasks: { inicio: number; dur: number }[]; rafGaps: number[]; lags: number[]; falaRegravada: number; blocoTrocado: number; t0: number };
 
 /** O que a web instrumentada mediu (performance.measure "nod:regravar:<historico|ao-vivo>", "nod:progresso"). */
 const REGRAVACOES = `(() => { const r = {}; for (const e of performance.getEntriesByType('measure')) { if (!e.name.startsWith('nod:')) continue; const k = e.name.slice(4); const x = r[k] ??= { n: 0, totalMs: 0, maxMs: 0 }; x.n++; x.totalMs += e.duration; x.maxMs = Math.max(x.maxMs, e.duration); } return r; })()`;
@@ -120,10 +121,11 @@ async function esperarOcioso(s: Sessao, conversas: string[], inicio: number): Pr
 async function disparar(s: Sessao, cenario: Cenario, pesada: Bot, ativos: Bot[]): Promise<string[]> {
   const envios: Promise<unknown>[] = [];
   const conversas: string[] = [];
-  if (cenario === "varios-bots" || cenario === "tudo-junto") {
+  if (cenario === "varios-bots" || cenario === "tudo-junto" || cenario === "quadro") {
     ativos.forEach((b, k) => {
       conversas.push(b.conversaId);
-      envios.push(api(s, "POST", `conversas/${b.conversaId}/mensagens`, { texto: promptStreaming(DELTAS, respostaRica(900 + k), `Carga ${k}`) }));
+      // No quadro, os bots escrevem por mais tempo (o turno pesado): dá tempo de a pessoa arrastar ~15 cards no meio.
+      envios.push(api(s, "POST", `conversas/${b.conversaId}/mensagens`, { texto: promptStreaming(cenario === "quadro" ? DELTAS_PESADO : DELTAS, respostaRica(900 + k), `Carga ${k}`) }));
     });
   }
   if (cenario === "turno-pesado" || cenario === "tudo-junto") {
@@ -172,7 +174,18 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
     escrever(`[${rotulo}] conversa aberta: ${JSON.stringify(dom)}`);
 
     for (const cenario of cenarios) {
-      await avaliar(cdp, "(() => { const t = document.getElementById('composer-texto'); t.value = ''; t.focus(); window.__carga.reset(); return true; })()");
+      if (cenario === "quadro") {
+        // Por último e à parte: liga o experimento, recarrega a página com o quadro e entra nele (o chat acima não muda).
+        await prepararQuadro(s, pesada);
+        await cdp.enviar("Page.navigate", { url: urlWeb() });
+        for (let i = 0; i < 150 && !(await avaliar<boolean>(cdp, `!!document.querySelector('${linha}')`)); i++) await new Promise((r) => setTimeout(r, 200));
+        await avaliar(cdp, `document.querySelector('${linha}').click()`);
+        for (let i = 0; i < 150 && (await avaliar<number>(cdp, ITENS_DA_TIMELINE)) < 100; i++) await new Promise((r) => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (cenario === "quadro") await abrirQuadro(cdp);
+      await avaliar(cdp, "(() => { const t = document.getElementById('composer-texto'); if (t) { t.value = ''; t.focus(); } window.__carga.reset(); if (window.__carga.quadro) window.__carga.quadro = { regravacoes: 0, leituras: 0 }; return true; })()");
+      const antesDoQuadro = cenario === "quadro" ? await tarefasPorColuna(s, pesada) : null;
       const antes = await metricas(cdp);
       await cdp.enviar("Profiler.setSamplingInterval", { interval: 500 });
       await cdp.enviar("Profiler.start");
@@ -190,10 +203,15 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
         }
       })();
       let duracao = 8000;
+      let arrastos = 0;
       if (cenario === "ocioso") await new Promise((r) => setTimeout(r, duracao));
       else {
+        let fim = false;
+        const arrastando = cenario === "quadro" ? arrastarAte(cdp, () => fim) : Promise.resolve(0);
         duracao = await esperarOcioso(s, await disparar(s, cenario, pesada, ativos), inicio);
-        await new Promise((r) => setTimeout(r, 1500));
+        fim = true;
+        arrastos = await arrastando;
+        await new Promise((r) => setTimeout(r, cenario === "quadro" ? 4000 : 1500));
       }
       digitando = false;
       // A tela "volta" quando o thread principal atende uma avaliação: o atraso acumulado depois do servidor terminar.
@@ -233,10 +251,12 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
         chrome: { tarefaS: r1(delta("TaskDuration")), scriptS: r1(delta("ScriptDuration")), layoutS: r1(delta("LayoutDuration")), estiloS: r1(delta("RecalcStyleDuration")), layouts: delta("LayoutCount"), estilos: delta("RecalcStyleCount"), nos: depois.Nodes, heapMB: r1((depois.JSHeapUsedSize ?? 0) / 1e6) },
         perfil: agregarPerfil(profile),
         dom,
+        ...(antesDoQuadro ? { quadro: { arrastos, chegaram: ((await tarefasPorColuna(s, pesada))[COLUNA_B] ?? 0) - (antesDoQuadro[COLUNA_B] ?? 0), regravacoes: c.quadro?.regravacoes ?? 0, leituras: c.quadro?.leituras ?? 0 } } : {}),
         ...(cenario === "frentes" ? { frentes: { falaRegravada: c.falaRegravada, porMinuto: r1(c.falaRegravada / (janelaS / 60)), blocoTrocado: c.blocoTrocado, regravacoes: await avaliar<Record<string, { n: number; totalMs: number; maxMs: number }>>(cdp, REGRAVACOES) } } : {}),
       };
       writeFileSync(join(CONFIG.saida, `${rotulo}-${cenario}.json`), JSON.stringify(resumo, null, 2));
       escrever(`[${rotulo}] ${cenario}: turnos ${resumo.duracaoS} s, tela livre em ${telaLivreS} s, ${resumo.frames} frames, maior tarefa ${resumo.tarefasLongas.maxMs} ms, TBT ${resumo.tarefasLongas.tbtMs} ms, tecla p50/p95/max ${resumo.digitacao.p50}/${resumo.digitacao.p95}/${resumo.digitacao.max} ms`);
+      if (resumo.quadro) escrever(`  quadro: ${resumo.quadro.arrastos} arrastos, ${resumo.quadro.chegaram} chegaram ao servidor, ${resumo.quadro.regravacoes} regravações da grade, ${resumo.quadro.leituras} GET do quadro`);
       if (resumo.frentes) escrever(`  frentes: fala regravada ${resumo.frentes.falaRegravada}× (${resumo.frentes.porMinuto}/min; cada uma perde a seleção de texto nela), só o bloco trocado ${resumo.frentes.blocoTrocado}×, regravações ${JSON.stringify(resumo.frentes.regravacoes)}`);
       escrever(`  mais caro (próprio): ${resumo.perfil.proprio.slice(0, 8).map((x) => `${x.ms}ms ${x.fn}`).join(" | ")}`);
       await new Promise((r) => setTimeout(r, 2000));
