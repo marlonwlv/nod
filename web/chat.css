@@ -4,9 +4,9 @@
 /* ---- 0. Base: o fundo do chat, a coluna de 960 com 70 de respiro e o texto 15/22 ---------------------------------- */
 .stage > .timeline-wrap, .stage > .composer-wrap { background: var(--chat-fundo); }
 .stage > .timeline-wrap { padding: 12px max(70px, calc((100% - 960px) / 2)) 16px; }
-.stage > .timeline-wrap > .timeline { max-width: 960px; width: 100%; margin-left: auto; margin-right: auto; }
+.stage > .timeline-wrap > .timeline, .app.detalhes-ocultos .stage > .timeline-wrap > .timeline { max-width: 960px; width: 100%; margin-left: auto; margin-right: auto; }
 .stage > .composer-wrap { padding: 0 max(70px, calc((100% - 960px) / 2)) 18px; }
-.composer-wrap .composer { max-width: 960px; }
+.composer-wrap .composer, .app.detalhes-ocultos .composer-wrap .composer { max-width: 960px; }
 @media (max-width: 760px) {
   .stage > .timeline-wrap, .stage > .composer-wrap { padding-left: 24px; padding-right: 24px; }
 }
@@ -88,7 +88,8 @@
 .timeline .message.bot .bubble > * { margin-top: 0; margin-bottom: 0; }
 /* Pessoa: à direita, até min(80%, 560, 100% − 82), padding 7/12, raio 18, o mesmo brilho; 8 px entre parágrafos. */
 .timeline .message.you .bubble { max-width: min(80%, 560px, calc(100% - 82px)); box-sizing: border-box; padding: 7px 12px; border-radius: 18px; box-shadow: var(--chat-brilho-balao); }
-.timeline .message.you .bubble-wrap { max-width: min(80%, 560px, calc(100% - 82px)); }
+.timeline .message.you .bubble-wrap { max-width: min(80%, 560px, calc(100% - 82px)); display: flex; flex-direction: column; align-items: flex-end; margin-left: auto; }
+.timeline .message.you .bubble-wrap > .bubble { max-width: 100%; }
 .timeline .message.you .bubble p + p { margin-top: 8px; }
 /* O balão da pessoa na cor do bot: as classes balao-c-* de web/estilos.css apontam --balao-fundo para --chat-pessoa-*. */
 
