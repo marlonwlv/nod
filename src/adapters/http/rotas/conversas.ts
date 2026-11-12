@@ -4,6 +4,7 @@ import { ErroDeDominio } from "../../../domain/erro.ts";
 import { lerAnexo, lerBiblioteca, lerFaixaDoAnexo, localDaMidia, receberAnexo } from "../../../use-cases/anexos.ts";
 import { lerCursor, limiteDaBiblioteca } from "../../../domain/biblioteca.ts";
 import { enviarMensagem, lerConversa } from "../../../use-cases/enviar-mensagem.ts";
+import { statusDoEnvio } from "../../../use-cases/status-do-envio.ts";
 import { lerMensagensDesde } from "../../../use-cases/mensagens-desde.ts";
 import { pedirDesfazerTurno } from "../../../use-cases/desfazer-turno.ts";
 import { parar } from "../../../use-cases/parar.ts";
@@ -47,6 +48,16 @@ export function criarRotasConversas(d: DepsRotas): Rota[] {
         const ate = q.get("ate");
         if (ate !== null && !UUID.test(ate)) throw new ErroDeDominio("entrada_invalida", { cause: "conversa: ate" });
         ctx.json(200, await executar(ctx.escopo, lerConversa, { conversaId: ctx.params.id ?? "", ...(ate ? { ate } : {}) }));
+      },
+    },
+    {
+      // definido em 2026-11-12: o status da fala mandada com `idEnvio` (RespostaStatusDoEnvio); id fora de uuid é 404.
+      metodo: "GET",
+      padrao: new RegExp(`^/conversas/${ID}/envios/(?<envio>[^/]+)$`),
+      async handler(ctx) {
+        const conversaId = ctx.params.id ?? "", idEnvio = ctx.params.envio ?? "";
+        if (!UUID.test(conversaId) || !UUID.test(idEnvio)) throw new ErroDeDominio("nao_encontrado");
+        ctx.json(200, await executar(ctx.escopo, statusDoEnvio, { conversaId, idEnvio }));
       },
     },
     {

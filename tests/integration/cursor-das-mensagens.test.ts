@@ -1,13 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import type { Tx } from "../../src/shared/types.ts";
-import { lerConversa } from "../../src/use-cases/enviar-mensagem.ts";
+import { criarAgente } from "../../src/use-cases/criar-agente.ts";
+import { enviarMensagem, lerConversa } from "../../src/use-cases/enviar-mensagem.ts";
+import { parar } from "../../src/use-cases/parar.ts";
+import { statusDoEnvio } from "../../src/use-cases/status-do-envio.ts";
 import { lerMensagensDesde } from "../../src/use-cases/mensagens-desde.ts";
 import { depsSobreTrx, esperarErro, executar, MARLON } from "../helpers/deps-l6.ts";
 import { agenteComConversa, autoriaAgente, autoriaPessoa } from "../helpers/fabricas.ts";
 import { PESSOA_MARLON } from "../helpers/ids.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
+
+const PRONTO = { estado: "pronto" as const, versao: "teste", em: 0 };
 
 async function numeros(trx: Tx, id: string): Promise<{ seq: number; updated_seq: number }> {
   const [l] = await trx<{ seq: string; updated_seq: string }[]>`select seq, updated_seq from mensagens where id = ${id}`;
@@ -78,6 +83,21 @@ describeIntegracao("cursor por conversa (0175)", () => {
       const depois = await numeros(trx, cartao!.id);
       expect(depois.seq).toBe(antes.seq);
       expect(depois.updated_seq).toBeGreaterThan((await numeros(trx, outra!.id)).updated_seq);
+    });
+  });
+
+  it("status do envio: nao_encontrado, pendente, rejeitado; o id_envio que fechou o turno", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const deps = depsSobreTrx(trx, MARLON);
+      const a = (await executar(deps, criarAgente, { dono: "pessoa" })).data;
+      const conversaId = a.conversa.id;
+      const idEnvio = randomUUID();
+      expect((await executar(deps, statusDoEnvio, { conversaId, idEnvio })).data).toEqual({ estado: "nao_encontrado", mensagemId: null });
+      const enviada = (await executar(deps, enviarMensagem, { conversaId, texto: "oi", idEnvio, inventario: PRONTO })).data;
+      expect((await executar(deps, statusDoEnvio, { conversaId, idEnvio })).data).toEqual({ estado: "pendente", mensagemId: enviada.mensagem.id });
+      expect(await deps.repos.turnos.idEnvioQueFechou(enviada.turno.id)).toBe(idEnvio);
+      await executar(deps, parar, { conversaId });
+      expect((await executar(deps, statusDoEnvio, { conversaId, idEnvio })).data.estado).toBe("rejeitado");
     });
   });
 });

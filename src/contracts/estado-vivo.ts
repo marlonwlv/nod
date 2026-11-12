@@ -93,3 +93,7 @@ export const LIMITE_MENSAGENS_DESDE = 500;
  */
 export type TipoCursor = "mover" | "clicar" | "arrastar" | "rolar" | "digitar";
 export type DadosFrameCursor = { bot: string; tipo: TipoCursor; x: number; y: number; botao: "esquerdo" | "direito" | "meio" | null; contagem: number; em: EpochMs };
+
+/** `GET /conversas/:id/envios/:idEnvio` (definido em 2026-11-12): o destino da fala mandada com aquele `idEnvio`. */
+export type StatusDoEnvio = "aceito" | "rejeitado" | "pendente" | "nao_encontrado";
+export type RespostaStatusDoEnvio = { estado: StatusDoEnvio; mensagemId: string | null };
