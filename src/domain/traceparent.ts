@@ -1,6 +1,6 @@
 /**
- * ADR-171 (definido em 2026-11-12): `traceparent` W3C (Trace Context, versão 00) entre o motor e o servidor, como o
- * Grok Bot propaga até o gateway da box. O trace-id de um turno é o PRÓPRIO id do turno sem hífens (um UUID tem os 32 hex
+ * ADR-171 (definido em 2026-11-12): `traceparent` W3C (Trace Context, versão 00) entre o motor e o servidor, propagado
+ * até o gateway. O trace-id de um turno é o PRÓPRIO id do turno sem hífens (um UUID tem os 32 hex
  * de um trace-id): servidor e motor chegam ao mesmo trace sem campo novo no plano, e uma ferramenta de OTEL junta os dois
  * lados pelo turno. O span-id muda a cada chamada. Puro: os bytes aleatórios vêm de fora.
  */

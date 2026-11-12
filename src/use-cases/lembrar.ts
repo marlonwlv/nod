@@ -21,7 +21,7 @@ export type EntradaRegistrarMemoria = {
 };
 
 /**
- * Memória por bot (Grok Bot: memória não é fonte). Grava a linha e, quando há conversa, a mensagem de
+ * Memória por bot (memória não é fonte). Grava a linha e, quando há conversa, a mensagem de
  * sistema 'anotei' na MESMA tx. A memória entra no prompt de sistema com "não substitui fonte autoritativa".
  */
 export const registrarMemoria: CasoDeUso<EntradaRegistrarMemoria, { memoria: Memoria; mensagem: Mensagem | null }> = async (deps, input) => {

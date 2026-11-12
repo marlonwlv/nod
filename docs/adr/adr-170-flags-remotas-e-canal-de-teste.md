@@ -6,8 +6,8 @@ Status: proposta · Data: 2026-11-12 (decisão 3 do Marlon: "flags remotas e ver
 
 ## Contexto
 
-O Grok Bot liga e desliga comportamento por pessoa sem publicar versão (Statsig: gates e configs dinâmicas, inclusive
-prazos de stream) e tem canais de atualização (stable, nightly, dogfood, lab). No nod, flag é `NOD_*` no env do servidor:
+Assistentes de referência ligam e desligam comportamento por pessoa sem publicar versão (gates e configs dinâmicas, inclusive
+prazos de stream) e têm canais de atualização (stable, nightly, dogfood, lab). No nod, flag é `NOD_*` no env do servidor:
 vale para todo mundo e muda só reiniciando; o app tem um canal só.
 
 ## Decisão

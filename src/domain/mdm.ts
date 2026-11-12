@@ -1,7 +1,7 @@
 import type { ModoAprovacao } from "../contracts/agente.ts";
 
 /**
- * A configuração gerenciada por MDM (ADR-178; Grok Bot: user defaults `DeploymentBackendUrl`/`DeploymentWebsiteUrl` e
+ * A configuração gerenciada por MDM (ADR-178; user defaults `DeploymentBackendUrl`/`DeploymentWebsiteUrl` e
  * `policy.json`). A empresa instala o app apontado para o servidor dela e trava o que o admin decidiu. O app do Mac lê os
  * valores (desktop/mdm.ts, atrás de `NOD_MDM=1`) e esta função decide o que vale. Só ORIGEM https (sem caminho, consulta,
  * usuário ou senha): uma URL com caminho viraria um lugar para injetar rota, e http mandaria a sessão em claro.
@@ -10,7 +10,7 @@ import type { ModoAprovacao } from "../contracts/agente.ts";
 export type PoliticaMdm = {
   backendUrl?: string;
   websiteUrl?: string;
-  /** O teto do modo de aprovação (Grok: `localToolPermissionCeiling`): nenhum bot passa dele. */
+  /** O teto do modo de aprovação (teto local de permissão): nenhum bot passa dele. */
   tetoModoAprovacao?: ModoAprovacao;
   /** As ferramentas do Mac (Mail, Mensagens, tela) ficam desligadas e a pessoa não liga. */
   ferramentasDoMacTravadas?: boolean;

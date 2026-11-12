@@ -4,7 +4,7 @@ import { CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, type EstadoM
 import { ErroDoPreparo, novoPreparo, rodarPreparo, subtituloDoPreparo, tique, type EstadoPreparo, type EtapasDoPreparo } from "../lib/preparo.ts";
 
 /**
- * ADR-174 (2026-11-12, telas 09 e 09b do Paper; o "Create new Bot" e o "Setting up your Bot… {0}%" do Grok Bot): o modal
+ * ADR-174 (2026-11-12, telas 09 e 09b do Paper): o modal
  * "Criar novo bot" — prévia do personagem, nome, Forma (8) e Cor (12), Cancelar/Criar — e, no mesmo cartão, o preparo
  * com a porcentagem. O cartão vira o preparo (e não uma tela inteira, como no Paper) para não mexer na navegação nem na
  * barra: decisão registrada no PR. Ao chegar a 100% o personagem comemora e a conversa do bot novo abre.
@@ -33,7 +33,7 @@ export function htmlSeletorForma(atual: FormaAgente, cor: CorAgente, acao = ""):
   return `<div class="cb-formas" role="radiogroup" aria-label="Forma">${botoes}</div>`;
 }
 
-/** Os rádios de cor (bolinhas). `semPreto`: o onboarding mostra as cores sem o preto, como o seletor do Grok Bot. */
+/** Os rádios de cor (bolinhas). `semPreto`: o onboarding mostra as cores sem o preto. */
 export function htmlSeletorCor(atual: CorAgente, acao = "", semPreto = false): string {
   const botoes = comAtual(CORES_DO_SELETOR, CORES_MASCOTE, atual).filter((c) => !semPreto || c !== "c-black").map((cor) => {
     const sel = cor === atual;

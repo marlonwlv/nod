@@ -1,12 +1,12 @@
 # ADR-178: MDM (só origem https) e checagem de aparelho no teste grátis
 
-Status: proposta (2026-11-12, frente "Assistente pessoal"; decisão "MDM e checagem de aparelho" em `grokbot-rea/DECISOES.md`
-§4, com "teto de modo do admin, já agora").
+Status: proposta (2026-11-12, frente "Assistente pessoal"; decisão "MDM e checagem de aparelho", com "teto de modo do
+admin, já agora").
 
 ## Contexto
 
-O Grok Bot aceita configuração gerenciada: user defaults `DeploymentBackendUrl` e `DeploymentWebsiteUrl` e um `policy.json`,
-e limita o teste grátis com DeviceCheck e detecção de VM.
+Assistentes de referência aceitam configuração gerenciada: user defaults `DeploymentBackendUrl` e `DeploymentWebsiteUrl` e um `policy.json`,
+e limitam o teste grátis com DeviceCheck e detecção de VM.
 
 ## Decisão
 

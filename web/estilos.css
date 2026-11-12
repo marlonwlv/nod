@@ -1,5 +1,5 @@
-/* Linguagem visual de prototypes/private-agents-minimal.html (protótipo de alta fidelidade do PR #4,
-   "cópia Grok Bot"), redesenhada em 2026-10-04 sobre os tokens do design system (web/tokens.css): base grafite,
+/* Linguagem visual de prototypes/private-agents-minimal.html (protótipo de alta fidelidade do PR #4),
+   redesenhada em 2026-10-04 sobre os tokens do design system (web/tokens.css): base grafite,
    ação grafite, azul só para o que é novo e a cor do agente só na identidade. Chat em BALÕES; o ícone do bot é o
    mascote. Este arquivo não tem cor literal: tudo vem de var(--…). */
 * { box-sizing: border-box; }

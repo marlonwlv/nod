@@ -8,7 +8,7 @@ do Marlon: "salas com vários bots e pessoas; memória de time") · Estende a
 ## Contexto
 
 O nod já tem sala (ADR-027): 2 a 6 bots, quem responde por política, teto de 3 handoffs por rodada e orçamento sem
-humano. Faltam duas coisas do Grok Bot: a **vez de cada membro** (`RequestRoomMemberTurn` → `DeliverRoomMemberTurnResult`),
+humano. Faltam duas coisas: a **vez de cada membro** (pedir a vez de um membro → entregar o resultado dela),
 com pessoas além de bots, e a **memória de time** com revisão humana e consolidação periódica (o "dream").
 
 ## Decisão

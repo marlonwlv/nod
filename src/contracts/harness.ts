@@ -122,5 +122,5 @@ export const HARNESSES = [
     modelos: [{ id: "gpt-5.6-sol", nome: "GPT-5.6 Sol", descricao: "Trabalho do dia a dia", raciocinios: RACIOCINIOS_TODOS }, { id: "gpt-6-astra", nome: "GPT-6 Astra", descricao: "Trabalhos mais complexos", raciocinios: RACIOCINIOS_SEM_MAX }, { id: MODELO_LUNA_CODEX, nome: "GPT-5.6 Luna", descricao: "Tarefas rápidas e simples", raciocinios: RACIOCINIOS_TODOS },
       { id: "gpt-6.1-sol", nome: "GPT-6.1 Sol", descricao: "Dia a dia, geração mais nova", raciocinios: RACIOCINIOS_SEM_MAX }, { id: "gpt-6-sol", nome: "GPT-6 Sol", descricao: "Dia a dia, geração 6", raciocinios: RACIOCINIOS_SEM_MAX }, { id: "gpt-6-luna", nome: "GPT-6 Luna", descricao: "Rápido, geração 6", raciocinios: RACIOCINIOS_SEM_MAX }] },
   { id: "cursor-cli", nome: "Cursor", descricao: "Integração em preparação.", integrado: false, modelos: [] },
-  { id: "hermes", nome: "Hermes", descricao: "Integração em preparação; poderá oferecer modelos de diferentes provedores, como Grok.", integrado: false, modelos: [] },
+  { id: "hermes", nome: "Hermes", descricao: "Integração em preparação; poderá oferecer modelos de diferentes provedores.", integrado: false, modelos: [] },
 ] as const satisfies readonly Omit<OpcaoHarness, "inventario" | "capacidades">[];

@@ -7,7 +7,7 @@ type ItemAprovacao = Item["itensAprovacao"][number];
 
 /**
  * O cartão compacto do revisor (definido em 2026-10-26, plano dos modos de aprovação, PR 4; tela A3 "cartão compacto, com
- * cor (estilo Grok)", o cartão escolhido pelo Marlon em 18/10). É o cartão que sobra quando o revisor do Automático pede
+ * cor", o cartão escolhido pelo Marlon em 18/10). É o cartão que sobra quando o revisor do Automático pede
  * o ok da pessoa (`revisor_pediu`) ou não conseguiu revisar (`revisor_falhou`): fundo azul claro, o escudo, a pergunta
  * numa linha com o motivo do revisor embaixo, o comando (ou os detalhes do app) num `<details>` e os botões em pílula
  * Aprovar / Negar / Sempre permitir. As ações são as de hoje (`decidir-aprovacao`, `decidir-aprovacao-nenhum`,

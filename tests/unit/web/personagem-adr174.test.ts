@@ -10,7 +10,7 @@ import { APPS, PASSOS, andar, apresentacaoInicial, emailDoGoogle, htmlApresentac
 import { estadoDoPreparo, etapasDoBot, htmlFormCriarBot, htmlPreparo, htmlSeletorCor, htmlSeletorForma } from "../../../web/telas/criar-bot.ts";
 import type { FrotaDto } from "../../../src/contracts/api.ts";
 
-/** ADR-174: o personagem do Grok Bot no nod — estados, formas, cores, preparo com %, onboarding em 10 passos. */
+/** ADR-174: o personagem do nod — estados, formas, cores, preparo com %, onboarding em 10 passos. */
 
 describe("personagem: estados novos", () => {
   it("todo estado do nod aponta para um estado que o motor desenha", () => {
@@ -151,7 +151,7 @@ describe("preparo com %", () => {
 describe("onboarding em 10 passos", () => {
   const ctx = { emailGoogle: false, ligacao: true };
 
-  it("tem os 10 passos do Grok Bot, na ordem", () => {
+  it("tem os 10 passos do onboarding, na ordem", () => {
     expect(PASSOS).toEqual(["boas-vindas", "conhecer", "computador", "trabalho", "delegar", "funcao", "origem", "apps", "criar", "preparando"]);
   });
 

@@ -11,8 +11,8 @@ export type CapturaDesktop = { nome: string; mime: "image/png"; base64: string; 
 export type ResultadoAtalhoQuickChat = { ok: true; atalho: string | null } | { ok: false; motivo: "invalido" | "em_uso"; atalho: string | null };
 
 /**
- * As famílias de ferramentas do Mac, cada uma com liga/desliga em Ajustes > Computador, DESLIGADAS por padrão (como os
- * gates do Grok Bot). Leitura e envio do Mail e do iMessage são separados: ler não implica poder enviar.
+ * As famílias de ferramentas do Mac, cada uma com liga/desliga em Ajustes > Computador, DESLIGADAS por padrão (atrás
+ * de gates). Leitura e envio do Mail e do iMessage são separados: ler não implica poder enviar.
  */
 export const FAMILIAS_MAC = ["mail_ler", "mail_enviar", "notas", "calendario", "lembretes", "contatos", "imessage_ler", "imessage_enviar", "controle_tela"] as const;
 export type FamiliaMac = (typeof FAMILIAS_MAC)[number];

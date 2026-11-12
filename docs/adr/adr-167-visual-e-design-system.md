@@ -1,12 +1,12 @@
-# ADR-167 — O visual do Grok Bot: tokens por base, fonte do sistema e a casca do front
+# ADR-167 — O visual novo: tokens por base, fonte do sistema e a casca do front
 
 Status: proposta · Data: 2026-11-12 · Emenda a [ADR-070](adr-070-design-system-grafite-e-cor-do-agente.md) (tokens, Geist, balão na cor do
-bot da NOD-431) e à [ADR-060](adr-060-menu-da-conta-sidebar-e-gaveta-por-niveis.md) (barra lateral). Telas 01–04, 08 e 16/16b do Paper
-"nod x Grok Bot"; decisões do Marlon de 12/11/2026 (DECISOES.md da engenharia reversa do Grok Bot v1.0.1).
+bot da NOD-431) e à [ADR-060](adr-060-menu-da-conta-sidebar-e-gaveta-por-niveis.md) (barra lateral). Telas 01–04, 08 e 16/16b do Paper;
+decisões do Marlon de 12/11/2026.
 
 ## Contexto
 
-O Marlon decidiu trazer para o nod o comportamento e o visual do Grok Bot (Anysphere). O nod tinha tokens literais por
+O Marlon decidiu trazer para o nod o comportamento e o visual do Paper. O nod tinha tokens literais por
 tema, a Geist servida pelo app, ~40 tamanhos de fonte soltos (corpo 12–13), três sombras, sombra escura no tema escuro, o
 balão da pessoa sempre na cor do bot e o ⌘K só filtrando a barra. Uma frente de pesquisa avalia migrar o front para
 React; até a decisão, o design system precisa sobreviver a qualquer camada de tela.
@@ -16,7 +16,7 @@ React; até a decisão, o design system precisa sobreviver a qualquer camada de 
 1. **Uma base, tudo por opacidade.** `--base` (`#1c1c1c` claro, `#f5f5f5` escuro). Texto, linha e superfície são a base
    achatada sobre o fundo da conversa (hex sólido, contraste estável); interação (`--hover` 6 %, `--ativo` 9 %,
    `--borda-*`) é translúcida por `color-mix`. Os nomes antigos (`--ink`, `--surface`, `--line`…) continuam e passam a
-   valer os valores derivados. Desvio do Grok: texto terciário a 64 % no claro (o Grok usa 56 %, que dá 3,9:1) e a linha
+   valer os valores derivados. Desvio da referência: texto terciário a 64 % no claro (a referência usa 56 %, que dá 3,9:1) e a linha
    de controle a 52 %/45 % (3:1, a regra da ADR-070).
 2. **Fonte do sistema** (`-apple-system`/SF Pro no Mac) no lugar da Geist; escala fechada de 7 tamanhos
    (26/22/17/14/13/12/11, `--fs-*`, `--lh-*`) com corpo 14 e conversa 14/22. Os CSS do computador foram migrados para a

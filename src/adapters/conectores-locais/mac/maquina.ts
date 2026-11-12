@@ -165,7 +165,7 @@ export async function executarMacNaMaquina(p: {
   return { conteudo: frase, isError: true, codigo };
 }
 
-/** A ação na tela (se houver) e o print depois dela, anexado ao resultado (como o Grok Bot faz em cada ação). */
+/** A ação na tela (se houver) e o print depois dela, anexado ao resultado (em cada ação). */
 async function controlarTela(args: ArgsMac, home: string, executar: Executor, esperar: (ms: number) => Promise<void>): Promise<ResultadoMac> {
   if (args.capacidade !== "tela_ver") {
     const cmd = comandoDaCapacidade(args, home);

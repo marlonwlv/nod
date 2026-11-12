@@ -3,7 +3,7 @@ import { EXECUCOES_GUARDADAS, ROTINAS_POR_AGENTE } from "../../../src/shared/con
 import { podarExecucoes, podeCriarRotina } from "../../../src/domain/rotina-limites.ts";
 
 describe("rotina-limites", () => {
-  it("a 50ª cria, a 51ª não (Grok Bot)", () => {
+  it("a 50ª cria, a 51ª não", () => {
     expect(podeCriarRotina(ROTINAS_POR_AGENTE - 1)).toBe(true);
     expect(podeCriarRotina(ROTINAS_POR_AGENTE)).toBe(false);
   });

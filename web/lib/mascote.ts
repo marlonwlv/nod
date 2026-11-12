@@ -5,7 +5,7 @@ import { COMET_MS, WINK_MS } from "./atividade.ts";
 import { FALA_SAINDO_MS } from "./fala-viva.ts";
 
 /**
- * Adaptador do motor SVG temporário Bloub/GrokBot.
+ * Adaptador do motor SVG temporário Bloub.
  * Mantém forma, estado e desenho isolados para a identidade definitiva poder substituí-lo sem
  * alterar contratos, banco ou telas. Referência e licença registradas em THIRD_PARTY_NOTICES.md.
  */
@@ -15,7 +15,7 @@ import { FALA_SAINDO_MS } from "./fala-viva.ts";
  * pendente esquecido no servidor deixava o mascote pensando por horas.
  */
 /**
- * ADR-174 (2026-11-12, o personagem do Grok Bot): mais quatro estados. `lendo` é o turno rodando com uma ferramenta de
+ * ADR-174 (2026-11-12, o personagem): mais quatro estados. `lendo` é o turno rodando com uma ferramenta de
  * leitura em uso (o rótulo "Lendo …" de web/lib/rotulos); `offline` é o computador do bot fora do ar, para o dono e sem
  * turno vivo; `comemorando` é disparo das telas (o preparo chegou a 100%, o onboarding acabou), nunca inferido do chat;
  * `pausado` passa a desenhar "dormindo" (olhos fechados, respirando) no lugar do ponto que quicava.
@@ -173,7 +173,7 @@ export const mascoteAnimado = (e: EstadoMascote): boolean => e === "trabalhando"
 
 /**
  * Revisão NOD-216: o aviso do bot (fora do ar, pergunta, rotina parada) ganha do mascote parado — disponível ou na fila.
- * Frente "igual ao Grok" (12/11/2026; ADR-167, "o azul fica só para o não lido"): a mensagem não lida NÃO deixa o
+ * Frente de comportamento (12/11/2026; ADR-167, "o azul fica só para o não lido"): a mensagem não lida NÃO deixa o
  * personagem "aguardando você" — ela é o ponto azul; o personagem só espera a pessoa quando há pedido ou pergunta aberta.
  */
 export const mascoteComAviso = (e: EstadoMascote, aviso: unknown): EstadoMascote => (aviso && aviso !== "nao-lido" && !mascoteAnimado(e) && e !== "aguardando" && e !== "pausado" && e !== "offline" ? "aguardando" : e);

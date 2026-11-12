@@ -4,12 +4,12 @@
    desktop/setup.css (tela de conexão do Mac, que não carrega este arquivo) tem uma cópia dos valores que usa; o mesmo
    teste confere que ela continua igual a esta.
 
-   Revisto em 2026-11-12 (ADR-167, visual do Grok Bot, telas 01–04 do Paper "nod x Grok Bot"):
+   Revisto em 2026-11-12 (ADR-167, visual novo, telas 01–04 do Paper):
    - tudo sai de UMA cor base (--base: #1c1c1c no claro, #f5f5f5 no escuro) por opacidade. Os tokens de texto, linha e
      superfície são essa base achatada sobre o fundo da conversa (hex sólido: o contraste não muda com o que está atrás);
      os de interação (--hover, --ativo, --borda-*) ficam translúcidos, com color-mix, e acompanham qualquer fundo.
      Receita: texto 100/68/64/40 % (claro) e 100/66/54/38 % (escuro); linha 12 %, linha de controle 52 %/45 % (3:1),
-     hover 6 %, ativo 9 %. O texto terciário sobe de 56 % (Grok) para 64 % no claro: com 56 % ele ficava em 3,9:1.
+     hover 6 %, ativo 9 %. O texto terciário sobe de 56 % (referência) para 64 % no claro: com 56 % ele ficava em 3,9:1.
    - fonte do sistema (SF Pro no Mac) no lugar da Geist; escala fechada de 7 tamanhos com corpo 14 (--fs-*, --lh-*);
    - raios em escala (--raio-*), cinco níveis de sombra (--sombra-*); no escuro não há sombra: o relevo vem de uma borda
      clara sutil (o "especular", branco a 8–12 %) e de superfícies mais claras;
@@ -57,7 +57,7 @@
   /* Mais suave que a tinta (pedido do Marlon): o anel aparece só no teclado e não grita (contraste ~5:1 no claro). */
   --focus-ring: var(--ink-3);
 
-  /* O revisor do Automático (modos de aprovação, PR 4; tela A3, o cartão compacto "estilo Grok"): o azul claro do
+  /* O revisor do Automático (modos de aprovação, PR 4; tela A3, o cartão compacto): o azul claro do
      cartão, a borda, o escudo e o Aprovar. Próprio, e não signal: signal é só o que é NOVO, nunca botão. */
   --revisor: #1866c0;
   --on-revisor: #ffffff;
@@ -103,7 +103,7 @@
   --agent-rose: #e152b0;
   --agent-gris: #a3a3a3;
   --agent-creme: #f1efe9;
-  /* ADR-174: duas cores a mais no seletor (magenta do Grok Bot; anil para fechar o círculo entre azul e violeta) */
+  /* ADR-174: duas cores a mais no seletor (magenta; anil para fechar o círculo entre azul e violeta) */
   --agent-magenta: #ff309b;
   --agent-anil: #5865f2;
   /* Olhos do avatar: brancos em toda skin, exceto creme (fica clara demais e leva olhos em tinta) */
@@ -111,7 +111,7 @@
   --agent-olho-creme: #18181b;
 
   /* NOD-431 (emenda da ADR-070): o balão da pessoa na cor do bot da conversa. Fundo, tinta e fundo do código de cada
-     skin saem de src/domain/contraste-do-balao.ts (texto sempre branco, como no Grok, ≥ 4,5:1 sobre o fundo e sobre o chip;
+     skin saem de src/domain/contraste-do-balao.ts (texto sempre branco, ≥ 4,5:1 sobre o fundo e sobre o chip;
      separado da página e do balão do bot; o fundo só muda de luminosidade quando precisa, mantendo o tom); tests/unit/domain/contraste-do-balao.test.ts confere estes valores. */
   --balao-encre: #0a0a0c; --balao-encre-tinta: #ffffff; --balao-encre-codigo: #232324;
   --balao-brun: #8b5e3c; --balao-brun-tinta: #ffffff; --balao-brun-codigo: #7d5536;
@@ -344,7 +344,7 @@
    ADR-167: escala, raios e movimento. Não são cor: iguais nos dois temas, num bloco à parte.
    ===================================================================================== */
 :root {
-  /* Tipografia: 7 tamanhos fechados (o Grok Bot usa a mesma escala); corpo 14/20, conversa 14/22, menus 13/18. */
+  /* Tipografia: 7 tamanhos fechados (a mesma escala do Paper); corpo 14/20, conversa 14/22, menus 13/18. */
   --fs-titulo-1: 26px; --lh-titulo-1: 32px;
   --fs-titulo-2: 22px; --lh-titulo-2: 28px;
   --fs-titulo-3: 17px; --lh-titulo-3: 24px;
@@ -353,7 +353,7 @@
   --fs-rotulo: 12px; --lh-rotulo: 16px;
   --fs-legenda: 11px; --lh-legenda: 16px;
   --tracking-titulo-1: -.015em; --tracking-titulo-2: -.012em; --tracking-titulo-3: -.008em;
-  /* No Mac o "regular" do Grok é 420; com a fonte do sistema o peso variável aceita. */
+  /* No Mac o "regular" de referência é 420; com a fonte do sistema o peso variável aceita. */
   --peso-regular: 400; --peso-medio: 500; --peso-forte: 600;
 
   /* Raios: tooltip 6 · botão e linha de menu 6–8 · item da barra 10 · cartão e menu 12 · busca e paleta 14 ·
@@ -369,7 +369,7 @@
   --curva-entra-sai: cubic-bezier(.77, 0, .175, 1);
   --dur-shimmer: 1.6s;
 
-  /* Medidas da janela (Grok): barra compacta só com avatares, controles 20/24/28/32 */
+  /* Medidas da janela: barra compacta só com avatares, controles 20/24/28/32 */
   --barra-compacta: 88px;
   --controle-xs: 20px; --controle-sm: 24px; --controle-md: 28px; --controle-lg: 32px;
 }

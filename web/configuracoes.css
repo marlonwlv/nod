@@ -221,7 +221,7 @@
 .rm-falhou .rm-marca { color: var(--danger); }
 .rm-fim-acoes .bt { min-height: 44px; padding: 0 22px; }
 
-/* ADR-166 (tela 07 do protótipo nod x Grok Bot): Configurações › Aprovações. Só tokens existentes; cada linha é título + frase. */
+/* ADR-166 (tela 07 do protótipo): Configurações › Aprovações. Só tokens existentes; cada linha é título + frase. */
 .apv .apv-modos { display: grid; gap: 2px; margin: 4px 0 18px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .apv-modo { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .apv-modo:hover, .apv-modo.apv-marcado { background: var(--surface-raised); }

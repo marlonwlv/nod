@@ -1,7 +1,7 @@
--- definido em 2026-11-12 (frente "Comportamento igual ao Grok"): a persistência que os PRs #732 (ADR-169 e ADR-172) e
+-- definido em 2026-11-12 (frente de comportamento): a persistência que os PRs #732 (ADR-169 e ADR-172) e
 -- #735 (ADR-177) deixaram só no domínio puro. Quatro peças, todas escopadas por pessoa com nod_escopar_tabela:
 --
--- vms_do_nod: o pedido da VM do Nod (opção 3 da decisão 1), UMA por pessoa (o Grok Bot também tem uma box por usuário).
+-- vms_do_nod: o pedido da VM do Nod (opção 3 da decisão 1), UMA por pessoa (uma box por usuário).
 --   Guarda o plano, o nome estável `nod-box-…` (nomeDaVmDoNod), o requestId idempotente, o driver (seco = só previsão) e
 --   o estado do ciclo. O aceite da cobrança fica com hora; sem ele o domínio já recusa o pedido.
 -- vez_na_sala: a vez por membro na sala (vez-na-sala.ts): quem fala agora e a fila. Uma linha por pedido de vez; o

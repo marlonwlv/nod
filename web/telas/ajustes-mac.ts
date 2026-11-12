@@ -4,7 +4,7 @@ import { esc } from "../lib/render.ts";
 
 /**
  * ADR-173 (definido em 2026-11-12): Configurações › Máquinas, só no app do Mac (a ponte tem `ferramentasMac`). Dois
- * blocos, no desenho do Grok Bot (Settings › Computer e o "Chat rápido" de Geral):
+ * blocos (Computador e o "Chat rápido" de Geral):
  *
  * - **Quick Chat**: o atalho global, com Gravar/Desligar e a recusa ("Outro app já usa esse atalho").
  * - **Ferramentas do Mac**: um switch por família, todos DESLIGADOS por padrão. Ligar não aprova nada: cada envio

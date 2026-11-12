@@ -8,7 +8,7 @@ import type { RunDaTarefa } from "../../src/contracts/quadro-comentarios.ts";
 import { NOME_DA_ORIGEM, palavraDoRun, rotuloCompletoDoRun, rotuloDaSituacao, situacaoDoRun, type MotivoDaFila } from "../lib/estado-do-trabalho.ts";
 import { fraseDaEspera } from "../lib/quadro-dados.ts";
 import { esc } from "../lib/escape.ts";
-import { duracao, entregasDe, gasto, tempoDoRun, trecho } from "./linha-do-tempo.ts";
+import { duracao, entregasDe, gasto, tempoDoRun, tempoRelativo, trecho } from "./linha-do-tempo.ts";
 import type { AgenteDoQuadro } from "./quadro-real.ts";
 import { anel } from "./quadro.ts";
 

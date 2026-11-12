@@ -1,8 +1,8 @@
 import { ErroDeDominio } from "./erro.ts";
 
 /**
- * ADR-172 (definido em 2026-11-12): memória de TIME, revisada por gente, com consolidação periódica — o que o Grok Bot
- * faz com `PromoteGrokBotMemoriesToTeam`, os itens de revisão do time e o "dream" (`AdminStartGrokBotDream`).
+ * ADR-172 (definido em 2026-11-12): memória de TIME, revisada por gente, com consolidação periódica — promover
+ * memórias do bot ao time, os itens de revisão do time e o "dream" (a consolidação disparada pelo administrador).
  *
  * - O bot PROPÕE guardar (uma memória, uma skill, uma memória de pasta); nada entra na memória do time sem uma pessoa do
  *   time aprovar. A proposta guarda quem propôs, o texto, de onde veio e quando; a revisão, quem revisou e quando.

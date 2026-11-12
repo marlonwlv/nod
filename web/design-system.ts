@@ -1,5 +1,5 @@
 /**
- * ADR-167 (tela 01 do Paper "nod x Grok Bot"): a vitrine do design system, como página interna (`/design-system.html`).
+ * ADR-167 (tela 01 do Paper): a vitrine do design system, como página interna (`/design-system.html`).
  * Mostra os tokens de verdade (web/tokens.css) e os componentes desenhados com eles: cor, tipografia, raios, sombras,
  * movimento, botões, campos, chips, balões e os avatares do nod (o mesmo <nod-mascote> do app). Segue o tema do sistema;
  * `?tema=escuro` ou `?tema=claro` força um. Só tokens (web/design-system.css).
@@ -88,7 +88,7 @@ function valoresDasSuperficies(raiz: HTMLElement): void {
   }
 }
 if (app) {
-  app.innerHTML = `<header class="dsv-topo">${m("shape-pebble", "c-black", "disponivel", 56)}<div><h1>nod · design system</h1><p>Novo front com o visual do Grok Bot · tema ${escuro ? "escuro" : "claro"}</p></div><span class="dsv-etiquetas"><span>SF Pro</span><span>base + opacidade</span><span>Sand ${escuro ? "dark" : "light"}</span></span></header>
+  app.innerHTML = `<header class="dsv-topo">${m("shape-pebble", "c-black", "disponivel", 56)}<div><h1>nod · design system</h1><p>Novo front com o visual novo · tema ${escuro ? "escuro" : "claro"}</p></div><span class="dsv-etiquetas"><span>SF Pro</span><span>base + opacidade</span><span>Sand ${escuro ? "dark" : "light"}</span></span></header>
     <div class="dsv-grade">${cor}${tipografia}${componentes}</div>`;
   valoresDasSuperficies(app);
 }

@@ -1,11 +1,11 @@
 # ADR-169 — A VM do Nod: a terceira opção de onde o agente roda
 
-Status: proposta · Data: 2026-11-12 (decisão 1 do Marlon sobre o Grok Bot) · Estende a
+Status: proposta · Data: 2026-11-12 (decisão 1 do Marlon) · Estende a
 [ADR-090](adr-090-o-motor-numa-maquina-linux-da-pessoa.md) e a [ADR-121](adr-121-caminho-b-a-vm-na-conta-de-nuvem-da-pessoa.md).
 
 ## Contexto
 
-No Grok Bot o agente não roda no Mac: cada usuário tem uma "box", uma VM na nuvem do fornecedor onde moram o agente, o
+Em outros assistentes o agente não roda no Mac: cada usuário tem uma "box", uma VM na nuvem do fornecedor onde moram o agente, o
 navegador e o terminal, e o Mac é um cliente fino que empresta ferramentas. O nod roda o motor na máquina da pessoa (o
 diferencial de custo: a assinatura e o harness são dela) ou numa VM que ela mesma configura. O Marlon decidiu as três:
 
@@ -19,7 +19,7 @@ diferencial de custo: a assinatura e o harness são dela) ou numa VM que ela mes
    turnos pela ponte e anuncia o computador (ADR-122). Turno, `alvoDoTurno`, ponte, motor e computador não mudam. O que
    muda é QUEM paga e em que conta ela mora: no projeto de nuvem do nod, não no da pessoa.
 2. **Uma VM por pessoa**, nome estável `nod-box-<20 hex do id da pessoa>` (`nomeDaVmDoNod`), rótulos `nod-box=1` e
-   `nod-plano=<plano>`, sem e-mail. Todos os bots da pessoa dividem a VM, como na box do Grok Bot (persona, memória e
+   `nod-plano=<plano>`, sem e-mail. Todos os bots da pessoa dividem a VM, como em outros assistentes (persona, memória e
    workspace separados por bot; hardware em comum).
 3. **O provisionamento é uma interface com driver** (`ProvisionadorVmDoNod`, `src/adapters/nuvem/vm-do-nod.ts`):
    - `seco` (padrão): monta o pedido exato que iria ao Google (`compute.instances.insert`, tipo, zona, rótulos, `requestId`)
@@ -39,7 +39,7 @@ diferencial de custo: a assinatura e o harness são dela) ou numa VM que ela mes
 
 ## Fora deste recorte (próximo PR)
 
-- **Contratar e cobrar.** Exige decidir o meio de pagamento (o Grok Bot pede passkey para gasto) e o projeto do nod. O
+- **Contratar e cobrar.** Exige decidir o meio de pagamento (outros assistentes pedem passkey para gasto) e o projeto do nod. O
   pedido (`pedidoVmDoNod`) já exige o aceite explícito da cobrança (`nao_permitido` sem ele). A ação entra no registro
   (`maquinas.contratar_vm_do_nod`, risco `arriscada`) com caminho no chat, junto com a rota `POST`.
 - **Persistência.** Uma coluna `do_nod boolean` (ou `credencial_id` nulo com dono "nod") em `maquinas_nuvem`, migração

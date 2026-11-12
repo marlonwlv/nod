@@ -7,7 +7,7 @@ import type { CapturaDesktop } from "../src/contracts/desktop-mac.ts";
 /**
  * Captura de janela ou região (ADR-173, definido em 2026-11-12) pelo `screencapture` do próprio macOS, em modo
  * interativo: a pessoa arrasta uma região, ou aperta Espaço e clica numa janela (o mesmo gesto do ⇧⌘4). Sem módulo
- * nativo: o Grok Bot usa um addon de ScreenCaptureKit; o `screencapture` dá o mesmo resultado com zero dependência e já
+ * nativo: um addon de ScreenCaptureKit não é preciso; o `screencapture` dá o mesmo resultado com zero dependência e já
  * respeita a permissão de Gravação de Tela do macOS (sem ela, a imagem sai só com o fundo da mesa).
  *
  * Cancelou (Esc) = nenhum arquivo = null. O arquivo temporário sai sempre, deu certo ou não. Só PNG, até 10 MB (o teto

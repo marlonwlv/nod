@@ -1,8 +1,8 @@
 import type { JsonSchema } from "./json-schema.ts";
 
 /**
- * O conector local `assistente` (ADR-176): as ferramentas de vida real do assistente pessoal que o Grok Bot traz
- * (engenharia reversa, AGENTE.md §3 "Vida real", "Reuniões", "Cofre e pagamento") — viagens, lugares e restaurantes,
+ * O conector local `assistente` (ADR-176): as ferramentas de vida real do assistente pessoal
+ * (pesquisa de referência: "Vida real", "Reuniões", "Cofre e pagamento") — viagens, lugares e restaurantes,
  * clima, compras e reuniões —, num servidor MCP que o nod spawna como qualquer conector. Leitura é `readOnlyHint`;
  * reservar, comprar e falar na reunião passam pela aprovação de sempre; gastar pede ainda a passkey no Mac (ADR-177).
  *
@@ -24,7 +24,7 @@ export type Carrinho = { id: string; itens: ItemCarrinho[]; total: Dinheiro };
 export type Reuniao = { id: string; titulo: string; inicio: string; fim: string; participantes: string[]; link: string | null };
 
 /**
- * A compra que espera a passkey (ADR-177; Grok: `BeginGrokBotSpendApproval` → asserção WebAuthn). `aguardando_passkey`
+ * A compra que espera a passkey (ADR-177; pedido de aprovação do gasto → asserção WebAuthn). `aguardando_passkey`
  * até a pessoa confirmar no Mac; `paga` só com a confirmação do mesmo valor; `recusada` com o motivo fixo.
  */
 export type EstadoCompra = "aguardando_passkey" | "paga" | "recusada";

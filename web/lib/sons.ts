@@ -1,5 +1,5 @@
 /**
- * ADR-167 (sons do Grok Bot): dois sons curtos e opcionais — um "blip" quando chega mensagem nova de um bot e um "chime"
+ * ADR-167 (sons de aviso): dois sons curtos e opcionais — um "blip" quando chega mensagem nova de um bot e um "chime"
  * de duas notas quando um bot pede aprovação ou resposta. Desligados por padrão; a escolha é deste computador (como o
  * tema), em Configurações › Geral › Sons. Sintetizados com Web Audio: nenhum arquivo de áudio, nada de rede.
  *
@@ -20,7 +20,7 @@ export const SONS_PADRAO: EscolhaSons = { mensagem: false, aprovacao: false };
 export type Nota = { freq: number; inicio: number; dur: number; ganho: number };
 
 /**
- * definido em 2026-11-12 (como os sons do Grok: curtos, macios, sem susto): blip de 90 ms subindo uma quinta; chime de
+ * definido em 2026-11-12 (sons curtos, macios, sem susto): blip de 90 ms subindo uma quinta; chime de
  * duas notas (mi e si) com cauda de 220 ms. Volume baixo: são avisos, não alarme.
  */
 export function notasDoSom(tipo: TipoSom): Nota[] {

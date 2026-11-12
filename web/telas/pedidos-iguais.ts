@@ -4,8 +4,8 @@ import { botao, esc } from "../lib/render.ts";
 type Item = SuaVezDto["itens"][number];
 
 /**
- * Aprovação em lote de pedidos iguais (definido em 2026-11-12, ADR-166; decisão 2 do Marlon, tela 06 "Em lote" do protótipo
- * nod x Grok Bot). Quando o mesmo bot pede a mesma ação no mesmo app várias vezes (quatro "criar issue no Linear"), os
+ * Aprovação em lote de pedidos iguais (definido em 2026-11-12, ADR-166; decisão 2 do Marlon, tela 06 "Em lote" do protótipo).
+ * Quando o mesmo bot pede a mesma ação no mesmo app várias vezes (quatro "criar issue no Linear"), os
  * cartões viram um só: "4 pedidos iguais", cada pedido com a caixa marcada, "Permitir os 4", "Negar todos" (Esc) e "Ver um
  * a um". Só na tela: cada pedido continua sendo a decisão dele, e o clique decide cada uma pela rota de sempre
  * (`decisoes/:id/decidir`) — nada novo no servidor, nada que um item faça pelo outro.

@@ -95,7 +95,7 @@ Gatilho: o texto de um tema perder o contraste de 4,5:1 sobre o realce reverte p
 NOD-431 (pedido do Marlon). O balão da fala da pessoa ganha a cor do bot dono da conversa como fundo sólido; o balão do
 bot não muda. Para o texto nunca perder legibilidade, a cor não entra crua: `src/domain/contraste-do-balao.ts` calcula,
 por skin e por tema, o fundo, a tinta e o fundo do chip de comando, e os literais moram em
-web/tokens.css (`--balao-<skin>`, `-tinta`, `-codigo`). Correção de 30/10 (Marlon, comparando com o Grok): a tinta é
+web/tokens.css (`--balao-<skin>`, `-tinta`, `-codigo`). Correção de 30/10 (Marlon, comparando com outros assistentes): a tinta é
 sempre branca. O fundo é a cor do bot quando o branco passa de 4,5:1 nela (e no chip); senão, a cor mais próxima no
 mesmo tom (só a luminosidade anda, em passos de 1%) em que passa, quase sempre um pouco mais escura. O balão também
 precisa se separar da página e do balão do bot por 1,2:1 (por isso o preto clareia no escuro). Exceção: sem bot dono

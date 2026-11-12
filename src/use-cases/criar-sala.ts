@@ -9,7 +9,7 @@ import type { CasoDeUso } from "./tipos.ts";
 export type SaidaCriarSala = { sala: Sala; conversa: Conversa; membros: MembroSala[] };
 
 /**
- * Sala de 2 a 6 bots (Grok Bot, ADR-027): visibility privada, política 'lead' (E12.1: nasce com um
+ * Sala de 2 a 6 bots (ADR-027): visibility privada, política 'lead' (E12.1: nasce com um
  * responsável, não com todos), lead = primeiro da lista. Sala, conversa tipo 'sala' e os grants de
  * leitura ao DONO de cada bot (sala_membros.pessoa_leitora_id) nascem na MESMA transação — a FK
  * cíclica sala ↔ conversa é deferida na 0002. Um bot só entra se a pessoa o enxerga (RLS de agentes):

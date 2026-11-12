@@ -8,7 +8,7 @@ import { registrarMemoria } from "../../../src/use-cases/lembrar.ts";
 import { CRON_SENTINELA_WEBHOOK, PROXIMA_WEBHOOK } from "../../../src/domain/rotina-webhook.ts";
 import { depsEmMemoria, esperarErro, executar } from "../../helpers/deps-l6.ts";
 
-describe("duplicarAgente (Grok Bot: Duplicate; a dona leva o bot inteiro, nunca o histórico)", () => {
+describe("duplicarAgente (duplicar; a dona leva o bot inteiro, nunca o histórico)", () => {
   it("cópia leva nome ' (cópia)', título, descrição, dono, modelo, avatar e memória; sem mensagens", async () => {
     const { deps } = depsEmMemoria();
     const { data: criado } = await executar(deps, criarAgente, { dono: "empresa", nome: "Vera" });

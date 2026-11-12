@@ -33,7 +33,7 @@ export type ShapeId =
   | 'hexagone'
   | 'nuage'
   | 'goutte'
-  // nod (ADR-174): as cinco formas a mais do seletor (13, como o do Grok Bot)
+  // nod (ADR-174): as cinco formas a mais do seletor (13 no total)
   | 'oeuf'
   | 'coeur'
   | 'etoile'

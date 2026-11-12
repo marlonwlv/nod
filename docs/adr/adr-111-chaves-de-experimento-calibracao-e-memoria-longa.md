@@ -5,12 +5,12 @@ o Raio-X), a ADR-046 (anexos de mensagem) e a 0030 (o que chegou depois da sess�
 
 ## Contexto
 
-Em 16/10, das 17:15 às 17:20, o Marlon pediu um teste controlado entre o Grok Bot e o Nod: as mesmas três perguntas,
+Em 16/10, das 17:15 às 17:20, o Marlon pediu um teste controlado entre outro assistente e o Nod: as mesmas três perguntas,
 iguais, ao bot da casa de cada um. Duas falhas do nod apareceram com evidência:
 
 1. **Calibração.** Perguntado "GPT-5.5 vs Opus 5.5", o Nod pesquisou, não achou o segundo, afirmou que "o Opus 5.5 não
    existe", comparou com o Opus 5 e repetiu a correção no resumo pedido em seguida. O modelo existia; a busca estava
-   atrás do que a pessoa via. O Grok, na mesma pergunta, disse que não tinha dados confiáveis.
+   atrás do que a pessoa via. O outro assistente, na mesma pergunta, disse que não tinha dados confiáveis.
 2. **Memória sem sessão.** Em 15/10, 15:46, a Frida 2 disse que o playbook enviado no turno anterior "não ficou salvo
    nesta máquina" e que a própria tabela da resposta anterior "só chega inteira até a linha do Copy". A pessoa teve de
    mandar o arquivo de novo. As duas causas estão no código: sem sessão retomada, cada fala do histórico vai cortada em

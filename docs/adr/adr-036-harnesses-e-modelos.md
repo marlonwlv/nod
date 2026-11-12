@@ -24,7 +24,7 @@ O fluxo com seleção de harness recompõe contexto a partir do histórico e mem
 
 ## Limites desta entrega
 
-Claude Code e Codex têm drivers. Cursor e Hermes aparecem como integrações em preparação, sem permitir seleção. Grok é tratado como modelo/provedor a ser exposto por um harness compatível, não como um executável inventado. Nenhum driver ACP ou API xAI é simulado como integração pronta.
+Claude Code e Codex têm drivers. Cursor e Hermes aparecem como integrações em preparação, sem permitir seleção. Os modelos da xAI são tratados como provedor a ser exposto por um harness compatível, não como um executável inventado. Nenhum driver ACP ou API xAI é simulado como integração pronta.
 
 O catálogo de modelos é editorial, não uma garantia de habilitação na assinatura. O estado de login não prova saldo, cota ou acesso a cada modelo. Erros do fornecedor durante uma tarefa seguem o encerramento existente do nod. Descoberta dinâmica de modelos e uma integração ACP exigem testes próprios antes de serem habilitadas.
 

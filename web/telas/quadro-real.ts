@@ -29,7 +29,6 @@ import type { UiDaBarra } from "./opcoes-quadro.ts";
 import { cabecalhoDoQuadro, formDaMeta } from "./menu-do-quadro.ts";
 import { maisPropriedade, PROPRIEDADES_OPCIONAIS, propriedadesAVista, propriedadesDeLabelEPrazo } from "./campos-da-tarefa.ts";
 import { avisoDeParada, menuDaTarefa, notaDoSelect } from "./acoes-da-tarefa.ts";
-import { propriedadesDeLabelEPrazo } from "./campos-da-tarefa.ts";
 import { iniciais } from "../lib/render.ts";
 import { colunasDoCelular, folhaDaTarefa, folhaDaVisao, folhaDoTopo, linhaDoCelular, listaDoCelular, topoDoCelular, VAZIO_DAS_MINHAS, VAZIO_DO_GRUPO, type CelularDoQuadro } from "./quadro-celular.ts";
 

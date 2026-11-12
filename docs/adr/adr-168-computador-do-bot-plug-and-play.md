@@ -1,6 +1,6 @@
 # ADR-168 — O computador do bot é plug and play: uma interface de provedor e a escolha por configuração
 
-Status: proposta · Data: 2026-11-12 (frente "Plataforma e time", engenharia reversa do Grok Bot) · Emenda a
+Status: proposta · Data: 2026-11-12 (frente "Plataforma e time", pesquisa de referência) · Emenda a
 [ADR-037](adr-037-computadores-por-bot.md) ("o `DriverComputador` permite substituir Docker por um provedor de máquinas
 remotas") e convive com a [ADR-122](adr-122-o-computador-da-pessoa-roda-no-motor.md) (motor) e a
 [ADR-127](adr-127-supervisor-do-computador-na-vm-do-mac.md) (VM do Mac).

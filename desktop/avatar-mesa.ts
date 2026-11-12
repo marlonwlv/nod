@@ -1,7 +1,7 @@
 import { PARAMETRO_QUICK_CHAT } from "./quick-chat.ts";
 
 /**
- * Avatar do bot solto na área de trabalho (ADR-173, definido em 2026-11-12; o "Mount on Desktop" do Grok Bot, tela 14
+ * Avatar do bot solto na área de trabalho (ADR-173, definido em 2026-11-12; o mascote "montado na mesa", tela 14
  * do protótipo). Uma janelinha transparente, sem moldura, por cima dos apps, só com o mascote do bot: clicar abre o
  * Quick Chat já na conversa daquele bot (o mini-composer e o popout são o próprio Quick Chat). Arrastar move; a posição
  * fica guardada em preferencias.json e o avatar volta no próximo conectar. Puro aqui; a janela mora em main.ts.

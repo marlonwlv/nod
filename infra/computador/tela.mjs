@@ -385,7 +385,7 @@ export function temSenhaPreenchida() {
 }
 /* eslint-enable no-undef */
 
-// NOD-410 (definido em 2026-10-30): o desktop tem um dock (tint2) embaixo, como o do Grok: o Chrome continua sem moldura
+// NOD-410 (definido em 2026-10-30): o desktop tem um dock (tint2) embaixo: o Chrome continua sem moldura
 // e maximizado (ocupa o que o dock deixa); o terminal e os arquivos que a pessoa abre pelo dock vêm com moldura.
 /** As classes X do Chrome, em glob do openbox: o mesmo conjunto que CLASSE_DO_CHROME casa no xdotool (revisão do PR #600). */
 export const CLASSES_DO_CHROME_NO_OPENBOX = ['Chromium*', 'chromium*', 'Google-chrome*', 'google-chrome*', 'chrome*'];
@@ -424,7 +424,7 @@ export function tint2rc(lancadores) {
   return [
     'panel_items = LT',
     'panel_position = bottom center horizontal',
-    // Largura pelo conteúdo (`panel_shrink`, o caminho documentado do tint2): um dock flutuante no meio, como o do Grok,
+    // Largura pelo conteúdo (`panel_shrink`, o caminho documentado do tint2): um dock flutuante no meio,
     // não uma barra de ponta a ponta.
     `panel_size = 100% ${DOCK_ALTURA}`,
     'panel_shrink = 1',
@@ -1386,7 +1386,7 @@ export function criarTela(config, avisar) {
   }
 
   /**
-   * NOD-410 (definido em 2026-10-30): o desktop com dock, como o do Grok. Fundo escuro (xsetroot) e o tint2 com três
+   * NOD-410 (definido em 2026-10-30): o desktop com dock. Fundo escuro (xsetroot) e o tint2 com três
    * lançadores — Chrome (traz a janela do Chrome para a frente; é o mesmo Chrome do bot), Arquivos (pcmanfm no workspace
    * do bot) e Terminal (xfce4-terminal no workspace) — mais as janelas abertas. O dock e o que a pessoa abre por ele rodam
    * no bwrap do desktop: só o workspace entra; o perfil do Chrome e os logins ficam fora. Sem tint2 na máquina, a tela

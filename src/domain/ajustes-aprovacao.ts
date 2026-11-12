@@ -13,12 +13,12 @@ import {
 } from "../contracts/ajustes-aprovacao.ts";
 
 /**
- * Ajustes > Aprovações (definido em 2026-11-12, ADR-166; decisões 2 e 4 do Marlon no comparativo com o Grok Bot). Puro:
+ * Ajustes > Aprovações (definido em 2026-11-12, ADR-166; decisões 2 e 4 do Marlon no comparativo). Puro:
  * validação das regras em texto do revisor, o nível de cada ferramenta (sempre permitir, sempre pedir, bloqueado, o revisor
  * decide), o só leitura e o teto do modo que o admin do time define.
  */
 
-/** definido em 2026-11-12 (decisão 2, "como no Grok Bot"): até 20 regras por lista, até 1000 caracteres cada. */
+/** definido em 2026-11-12 (decisão 2): até 20 regras por lista, até 1000 caracteres cada. */
 export const REGRAS_POR_LISTA = 20;
 export const CARACTERES_POR_REGRA = 1000;
 
@@ -111,7 +111,7 @@ export const ROTULO_NIVEL: Readonly<Record<NivelFerramenta, { titulo: string; fr
 const ORDEM_MODO: Readonly<Record<ModoAprovacao, number>> = { manual: 0, automatico: 1, total: 2 };
 
 /**
- * O modo que vale depois do teto do admin (o modo pedido × o efetivo, como o `effective` do Grok Bot). O teto
+ * O modo que vale depois do teto do admin (o modo pedido × o efetivo). O teto
  * `so_leitura` corta o modo para o manual e liga o só leitura (`soLeituraEfetivo`); `manual` e `automatico` cortam o que
  * passa deles. Sem teto, o pedido.
  */

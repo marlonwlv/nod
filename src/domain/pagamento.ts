@@ -1,7 +1,7 @@
 import type { Carrinho, Compra, Dinheiro, MotivoRecusaCompra } from "../contracts/assistente.ts";
 
 /**
- * Gastar dinheiro (ADR-177; Grok Bot: "gasto exige passkey", `BeginGrokBotSpendApproval` → asserção WebAuthn). Duas travas
+ * Gastar dinheiro (ADR-177: "gasto exige passkey", o pedido de aprovação do gasto → asserção WebAuthn). Duas travas
  * que não dependem uma da outra: a aprovação de sempre (o item `finalizar_compra` é `destructiveHint`, e o cartão mostra o
  * total) e a passkey no Mac da pessoa para (compra, total). A segunda vale em QUALQUER modo de aprovação, inclusive no
  * "Ignorar todas": quem a produz é o Mac, nunca o bot, e a cobrança só sai com a confirmação do MESMO total.

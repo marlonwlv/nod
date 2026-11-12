@@ -41,9 +41,9 @@ export type Agente = {
   dono: DonoAgente;
   forma: FormaAgente;
   cor: CorAgente;
-  /** Pin (Grok Bot). */
+  /** Fixar. */
   fixado: boolean;
-  /** Hide (Grok Bot). */
+  /** Ocultar. */
   oculto: boolean;
   /** Perfil confirmado pela pessoa (nada aplicado antes disso). */
   confirmado: boolean;

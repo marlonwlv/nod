@@ -80,7 +80,7 @@ export type AcaoAtalho =
   /** NOD-461: fora do Mac, ⌥← → num campo com texto: não troca (o texto do quadro se perderia) nem vira o voltar. */
   | { tipo: "engolir" }
   | { tipo: "folha" }
-  /** ADR-167 (atalhos do Grok Bot que não colidem com os do nod): ⌘B barra só com avatares. */
+  /** ADR-167 (atalhos novos que não colidem com os do nod): ⌘B barra só com avatares. */
   | { tipo: "barra" }
   /** ⌘, Configurações (Geral). */
   | { tipo: "ajustes" }

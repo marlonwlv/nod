@@ -1,5 +1,5 @@
 /**
- * ADR-167 (telas 16 e 16b do Paper "nod x Grok Bot"): o "Aguardando você" do jeito do Grok Bot. Não há caixa nem sino
+ * ADR-167 (telas 16 e 16b do Paper): o "Aguardando você" do jeito do protótipo. Não há caixa nem sino
  * separados: o pedido aberto aparece NA LINHA do bot — a prévia vira "Aguardando você: {motivo}" em laranja, com o ponto
  * laranja à direita —, o avatar da grade ganha o ponto laranja, e a linha fixa "Trabalhos" diz "N aguardando". O azul fica
  * só para o não lido. Clicar na linha abre a conversa rolada até o cartão pendente.

@@ -845,7 +845,7 @@ export function renderDecisaoAncorada(item: Item, estado: Estado): string {
 }
 
 /**
- * Os pedidos ancorados da conversa com os iguais dobrados (frente "igual ao Grok", 12/11/2026; DECISOES §2 "aprovação em
+ * Os pedidos ancorados da conversa com os iguais dobrados (frente de comportamento, 12/11/2026; "aprovação em
  * lote de pedidos iguais"): na conversa cada pedido era desenhado sozinho embaixo do turno dele, e o lote só existia em
  * "Sua vez". Agora o grupo vira o cartão "N pedidos iguais" no lugar do primeiro pedido; os outros saem dali. `primeiro`
  * dá a âncora; `ids`, o que conta como ancorado.

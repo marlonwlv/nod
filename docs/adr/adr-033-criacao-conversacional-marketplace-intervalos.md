@@ -58,8 +58,6 @@ computador remoto nem OAuth genérico para qualquer servidor MCP.
 
 ## Referências
 
-- https://docs.x.ai/grok-bot/get-started
-- https://x.ai/bot/guides
 - https://github.com/milind-soni/OpenMausBot — referência, sem código copiado.
 - https://docs.composio.dev/docs/sessions-via-mcp
 - https://docs.composio.dev/reference/api-reference/tool-router/postToolRouterSession

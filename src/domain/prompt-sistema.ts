@@ -307,7 +307,7 @@ export const LINHA_CALIBRACAO = "Calibração: quando a pessoa citar algo que vo
 
 /**
  * definido em 2026-10-17 (ADR-112): a linha da chave "Modo WhatsApp", no lugar da "Formatação:". Motivo medido: em 17/10
- * o Marlon achou as respostas do Nod longas e com cara de relatório perto das do Rakazo/Grok Bot. Teste offline (prompt
+ * o Marlon achou as respostas do Nod longas e com cara de relatório perto das de outros assistentes. Teste offline (prompt
  * `conversa-manual`, Sonnet 5.5, sem ferramentas, 10 mensagens × 2 rodadas): hoje mediana de 1.229 caracteres e 85% das
  * respostas com lista; "Be concise." no fim −27% e 80% com lista; esta linha −64% (444 caracteres), 0% com lista, 0% com
  * tabela. Efeito colateral visto: num pedido de rotina o bot propôs direto (assumiu dias úteis) em vez de perguntar.

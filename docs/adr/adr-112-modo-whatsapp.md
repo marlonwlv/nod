@@ -5,7 +5,7 @@ Status: proposto · Data: 2026-10-17 · Complementa a [ADR-111](adr-111-chaves-d
 
 ## Contexto
 
-Em 17/10 o Marlon comparou o Nod com o Rakazo/Grok Bot e achou as respostas do Nod longas, com cara de relatório:
+Em 17/10 o Marlon comparou o Nod com outros assistentes e achou as respostas do Nod longas, com cara de relatório:
 títulos, listas e um resumo no fim de cada resposta, mesmo para pergunta simples.
 
 Teste offline para medir antes de mudar: o prompt `conversa-manual` do repositório (`tests/unit/domain/__prompts__/`),

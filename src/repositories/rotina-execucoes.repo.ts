@@ -43,7 +43,7 @@ export type NovaExecucao = {
   voltaEm?: number | null;
 };
 
-/** Últimas 20 execuções por rotina (Grok Bot); passou_em_branco ≠ falhou (E7.3). */
+/** Últimas 20 execuções por rotina; passou_em_branco ≠ falhou (E7.3). */
 export function rotinaExecucoesRepo(conn: Conn, escopo: Escopo) {
   return {
     async registrar(e: NovaExecucao): Promise<ExecucaoRotina | null> {

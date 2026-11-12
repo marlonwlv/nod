@@ -1,7 +1,7 @@
 import { esc, horaSemZero } from "../lib/render.ts";
 
 /**
- * Divisores de data entre blocos de horário (chat limpo, PR 6; plano, Parte 5; como o "Today 00:25" do Grok e o protótipo
+ * Divisores de data entre blocos de horário (chat limpo, PR 6; plano, Parte 5; como o protótipo
  * F1 do Eng 1: "Hoje 15:02", "15:40", "17:20"). Puro: recebe os blocos já na ordem da tela e devolve os mesmos com os
  * divisores no meio.
  */

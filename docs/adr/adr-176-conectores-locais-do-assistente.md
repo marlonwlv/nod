@@ -1,11 +1,11 @@
 # ADR-176: Conectores locais do assistente pessoal (vida real e canais)
 
 Status: proposta (2026-11-12, frente "Assistente pessoal"; decisões "assistente pessoal completo" e "e-mail próprio do bot e
-iMessage" em `grokbot-rea/DECISOES.md` §3).
+iMessage").
 
 ## Contexto
 
-O Grok Bot tem ~190 ferramentas num enum só, rodando no backend dele: viagens, lugares/restaurantes, clima, compras,
+Um assistente completo tem ~190 ferramentas num enum só, rodando no backend: viagens, lugares/restaurantes, clima, compras,
 reuniões, a caixa de e-mail do bot e iMessage/SMS. No nod, ferramenta de fora é conector MCP: a sonda lê o catálogo, a
 concessão diz o que o bot pode, a aprovação decide cada escrita e o proxy marca o resultado como não confiável.
 

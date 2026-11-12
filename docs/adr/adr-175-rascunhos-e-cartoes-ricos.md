@@ -1,11 +1,11 @@
 # ADR-175: Rascunhos de envio, cartões ricos e conduta da voz
 
-Status: proposta (2026-11-12, frente "Assistente pessoal" a partir da engenharia reversa do Grok Bot; decisão do Marlon
-"respostas ricas: tudo" em `grokbot-rea/DECISOES.md` §3). Usa a API de aprovação sem mudá-la (ADR-042, E4.3).
+Status: proposta (2026-11-12, frente "Assistente pessoal" a partir da pesquisa de referência; decisão do Marlon
+"respostas ricas: tudo"). Usa a API de aprovação sem mudá-la (ADR-042, E4.3).
 
 ## Contexto
 
-O Grok Bot mostra cada mensagem que vai sair (e-mail, Slack, iMessage, chat de reunião) como um rascunho editável, com
+A ideia é mostrar cada mensagem que vai sair (e-mail, Slack, iMessage, chat de reunião) como um rascunho editável, com
 Enviar/Descartar e uma barra "N rascunhos prontos · Descartar todos · Enviar todos ⌘↵"; e mostra voo, hotel, carro, mapa,
 clima, carrinho e arquivo como cartões. No nod, o envio para fora já passa por `pedir_aprovacao` e vira um cartão genérico
 "precisa do seu ok" com o texto do item; o resultado de uma busca vira texto corrido.

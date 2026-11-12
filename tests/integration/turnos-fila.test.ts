@@ -233,7 +233,7 @@ describeIntegracao("fila de turnos (ADR-010): enviar → despachar → assentar,
     await withRollback(MARLON, async (trx) => {
       const deps = depsSobreTrx(trx, MARLON);
       const casos = [
-        // ADR-171 (falhas tipadas, como o unpaidInvoice do Grok Bot): o crédito acabado tem frase própria, não a genérica.
+        // ADR-171 (falhas tipadas, como a fatura em aberto): o crédito acabado tem frase própria, não a genérica.
         { erro: "Credit balance is too low", aviso: "Turno interrompido: a conta do Claude Code está sem crédito ou com fatura em aberto; espere o uso renovar e tente de novo." },
         { erro: "Invalid API key · Please run /login", aviso: "Turno interrompido: sua conta do Claude Code saiu deste Mac; use Conectar IA para entrar de novo." },
       ];

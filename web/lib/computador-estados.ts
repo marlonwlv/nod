@@ -2,8 +2,8 @@ import type { ComputadorPessoaDto } from "./computador-pessoa.ts";
 import { esc } from "./escape.ts";
 
 /**
- * Tela 11 (ADR-173, definido em 2026-11-12): os cinco estados do computador do bot, no desenho do Grok Bot (prints
- * 60–64 da engenharia reversa e o protótipo do Paper, tela 11). O nod já guarda o estado da máquina (dormindo, ligando,
+ * Tela 11 (ADR-173, definido em 2026-11-12): os cinco estados do computador do bot, no desenho do
+ * protótipo do Paper, tela 11. O nod já guarda o estado da máquina (dormindo, ligando,
  * pronto, fora do ar, operando) e o da tela de cada bot; aqui só se DERIVA o que a pessoa lê, em cinco palavras:
  *
  * - **Conectando**: o computador está ligando ou a tela do bot está abrindo.

@@ -67,7 +67,7 @@ export type DepsOnboarding = {
   /** O nome sugerido na primeira pergunta (tirado do e-mail da conta). */
   nomeSugerido?: () => string | null;
   /**
-   * ADR-174: com isto, o "olá" vira o onboarding do Grok Bot em 10 passos (web/telas/apresentacao.ts), que cria o bot
+   * ADR-174: com isto, o "olá" vira o onboarding em 10 passos (web/telas/apresentacao.ts), que cria o bot
    * com cor e forma e o prepara com %. Sem isto (os testes antigos), o "olá" de 3,3 s de sempre.
    */
   criarBot?: () => DepsCriarBot;

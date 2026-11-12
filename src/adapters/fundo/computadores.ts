@@ -1049,7 +1049,7 @@ export function criarComputadores(o: Opcoes) {
         // seguem esperando: o Assumir continua sendo o freio dela.
         if (c.controle === "pessoa" && !(await pedidoNovoDaPessoa(d, c, plano))) return aguardarPessoa();
         // definido em 2026-10-29 (1º ensaio no Mac, pedido do Marlon; revê a NOD-97): a pessoa estava no controle e PEDIU
-        // algo ao bot — a mensagem é o sinal de que terminou. O bot retoma na hora, como no Grok: controle volta ao bot,
+        // algo ao bot — a mensagem é o sinal de que terminou. O bot retoma na hora: o controle volta ao bot,
         // a tela ao vivo dela acaba (fora da transação) e a linha "retomou o computador" fica no painel. Só o pedido de
         // ajuda do próprio bot (aguardando_pessoa, acima) segue esperando a pessoa.
         if (c.controle === "pessoa") {

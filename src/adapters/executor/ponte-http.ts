@@ -89,7 +89,7 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
   const ativos = new Set<AbortController>();
   /**
    * ADR-171 (definido em 2026-11-12): as esperas longas (o `puxar`, long-poll de 20 s no servidor) que podem ser renovadas.
-   * O Grok Bot renova o stream de pedidos depois de 15 s de silêncio ou de uma troca de rede; aqui o silêncio já tem prazo
+   * O stream de pedidos se renova depois de 15 s de silêncio ou de uma troca de rede; aqui o silêncio já tem prazo
    * (35 s = os 20 s do long-poll + 15 s), e a troca de rede (`renovarEsperas`, chamada pela vigia de rede do motor) aborta
    * a espera presa num socket morto para a próxima sair na rede nova — sem aviso de "servidor fora".
    */

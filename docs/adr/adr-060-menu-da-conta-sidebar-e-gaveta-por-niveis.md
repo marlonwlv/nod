@@ -5,7 +5,7 @@ tela do agente", página "Menu, sidebar e gaveta".
 
 ## Contexto
 
-O Marlon comparou o nod com o Grok bot e pediu quatro mudanças. Conferido na tela real em 2026-09-30, numa janela de
+O Marlon comparou o nod com outros assistentes e pediu quatro mudanças. Conferido na tela real em 2026-09-30, numa janela de
 1440 × 900:
 - **Seu espaço** ocupava o lugar da conversa com uma página longa de seis blocos. Para sair, só clicando num bot.
 - **Sidebar de 292 px:** o fixado tinha mascote de 49 px, o título cortava sem reticências e os ••• ficavam em cima do

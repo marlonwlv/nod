@@ -5,7 +5,7 @@ import { botaoLinkDoAjuste, grupoConfig, linhaConfig, seletorLinha } from "../li
 import { esc } from "../lib/render.ts";
 
 /**
- * Configurações › Aprovações (definido em 2026-11-12, ADR-166; tela 07 do protótipo "nod x Grok Bot"). Uma seção, de cima
+ * Configurações › Aprovações (definido em 2026-11-12, ADR-166; tela 07 do protótipo no Paper). Uma seção, de cima
  * para baixo: os três modos (título + frase, Automático "Recomendado"), "Vale para" (Todos os bots ou um), o só leitura do
  * bot, o teto do admin, as duas listas de regras do revisor ("Sempre me pergunte" e "Pode fazer sem perguntar", N de 20) e o
  * nível de cada app, separado em leitura e escrita. Puro: recebe o estado da tela e devolve HTML; quem busca e grava é
@@ -109,7 +109,7 @@ function blocoRegras(t: TelaAprovacoes, d: AjustesAprovacao, lista: ListaRegra):
   ];
   const info = TITULO_LISTA[lista];
   const vazio = linhas.length === 0 ? `<p class="apv-vazio">Nenhuma regra ainda. ${esc(info.exemplo)}.</p>` : "";
-  // Frente "igual ao Grok": o 1º bloco de regras é o alvo do link "regras-revisor" (web/lib/ajustes.ts).
+  // Frente de comportamento: o 1º bloco de regras é o alvo do link "regras-revisor" (web/lib/ajustes.ts).
   const ancora = lista === "perguntar" ? ' id="ajuste-regras-revisor" data-ajuste="regras-revisor"' : "";
   const link = lista === "perguntar" ? botaoLinkDoAjuste("regras-revisor", "Regras do revisor") : "";
   return `<section class="apv-bloco"${ancora} aria-labelledby="apv-tit-${lista}">

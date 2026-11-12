@@ -578,7 +578,7 @@ export const STATES: StateDef[] = [
 
   /* ---------------------------------------------------------------------------------------------------------------
    * nod (ADR-174, 2026-11-12): os quatro estados do personagem que o catálogo original não tinha. Comportamento
-   * inspirado no Grok Bot (lendo, comemorando, dormindo, offline); a geometria é nossa, declarada como as de cima.
+   * de referência (lendo, comemorando, dormindo, offline); a geometria é nossa, declarada como as de cima.
    * Todos usam a forma escolhida (baseBody), para o bot continuar reconhecível em qualquer estado.
    * --------------------------------------------------------------------------------------------------------------- */
 

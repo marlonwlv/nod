@@ -1,6 +1,6 @@
 /**
- * ADR-167 (Configurações do Grok Bot): o catálogo dos ajustes. Cada ajuste tem um id estável, a seção onde mora, um título
- * curto e uma frase que começa por verbo ("Escolha…", "Mostre…"), como as linhas do Grok. O mesmo catálogo serve:
+ * ADR-167 (Configurações): o catálogo dos ajustes. Cada ajuste tem um id estável, a seção onde mora, um título
+ * curto e uma frase que começa por verbo ("Escolha…", "Mostre…"). O mesmo catálogo serve:
  * - à busca das Configurações (o campo no topo das seções);
  * - à paleta ⌘K (o grupo "Ajustes", com o caminho "Configurações › Geral › Aparência");
  * - ao link de cada ajuste (`#ajuste=<id>`), que abre as Configurações já na linha, realçada.
@@ -51,7 +51,7 @@ export const AJUSTES: readonly Ajuste[] = [
   // ADR-166 (revisor): a seção Aprovações entrou junto com a busca da ADR-167 na integração.
   { id: "aprovacoes", secao: "aprovacoes", grupo: null, titulo: "Aprovações", frase: "Escolha o modo, as regras do revisor e o nível de cada app", palavras: ["revisor", "modo", "permitir", "regras", "teto", "só leitura"] },
   { id: "cofre", secao: "cofre", grupo: null, titulo: "Cofre", frase: "Veja as chaves que você guardou pelos cartões dos bots", palavras: ["chave", "token", "senha", "credencial", "segredo", "api"] },
-  // Frente "igual ao Grok" (12/11/2026; TELAS §3.8: "cada linha com título + descrição, busca e link próprio"): as linhas de
+  // Frente de comportamento (12/11/2026; "cada linha com título + descrição, busca e link próprio"): as linhas de
   // Aprovações ganham o link delas, como as de Geral (antes, só a seção inteira).
   { id: "aprovacoes-modo", secao: "aprovacoes", grupo: "Modo", titulo: "Modo de aprovação", frase: "Escolha se o bot pede tudo, se o revisor decide ou se ele faz sem perguntar", palavras: ["manual", "automático", "total", "auto-review"] },
   { id: "so-leitura", secao: "aprovacoes", grupo: "Modo", titulo: "Só leitura", frase: "Deixe o bot só ler: tudo que muda algo é barrado, sem cartão", palavras: ["somente leitura", "read only", "bloquear escrita"] },

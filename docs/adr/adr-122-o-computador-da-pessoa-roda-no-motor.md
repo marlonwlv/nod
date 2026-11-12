@@ -9,8 +9,8 @@ aprovado (`53c1c07`). O plano chamava esta ADR de "ADR-118": 117 a 121 já estav
 
 ## Contexto
 
-Decisões do Marlon em 21/10: "quero compartilhar o computador para todos os bots, assim como o Grok Bot faz", com o
-mesmo modelo do Grok: **uma máquina por pessoa**, disco comum, **tela e Chrome por bot**, em paralelo e sem fila,
+Decisões do Marlon em 21/10: "quero compartilhar o computador para todos os bots", com o
+modelo de **uma máquina por pessoa**, disco comum, **tela e Chrome por bot**, em paralelo e sem fila,
 **cookies compartilhados**. O computador roda **na máquina da pessoa, pelo motor** (ADR-090), e tem de funcionar numa
 VM Linux como a `nod-motor-teste`. Medido nela em 21/10: GCP e2-standard-8 (8 vCPU, 31 GB), Debian 12 bookworm,
 kernel 6.1, **sem Docker, sem Podman e sem `/dev/kvm`**; com `bwrap`, user namespaces sem privilégio e systemd 252.

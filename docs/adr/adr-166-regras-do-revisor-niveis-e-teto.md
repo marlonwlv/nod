@@ -3,13 +3,13 @@
 Status: proposta (2026-11-12, frente "Aprovações e revisor") · Migração 0173 · Emenda a [ADR-059](adr-059-modos-de-aprovacao-do-bot.md)
 (o modo efetivo), [ADR-115](adr-115-automatico-com-revisor-na-ia-da-pessoa.md) (o que vai ao revisor e o veredito) e
 [ADR-042](adr-042-aprovacao-permanente-e-regra-nomeada.md) (o "Sempre permitir" ganha uma tela). Origem: decisões 2 e 4 do
-Marlon no comparativo com o Grok Bot (`~/nod/Copiador/grokbot-rea/DECISOES.md`), telas 06 e 07 do protótipo no Paper.
+Marlon no comparativo com outros assistentes, telas 06 e 07 do protótipo no Paper.
 
 ## Contexto
 
 O Automático com revisor (ADR-115) só olha a lista fixa (arriscado, envio depois de conteúdo de fora) e não sabe nada do
-que a pessoa quer. O Grok Bot deixa a pessoa ensinar o revisor em frases ("pode fazer sem perguntar", "sempre me
-pergunte", até 20 de cada), dá níveis por ferramenta (sempre permitir, pedir, bloqueado, o revisor decide), um modo só
+que a pessoa quer. Outros assistentes deixam a pessoa ensinar o revisor em frases ("pode fazer sem perguntar", "sempre me
+pergunte", até 20 de cada), dão níveis por ferramenta (sempre permitir, pedir, bloqueado, o revisor decide), um modo só
 leitura e um teto que o admin do time impõe. O Marlon decidiu trazer tudo, com as regras **só no Automático**.
 
 ## Decisão

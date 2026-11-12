@@ -1,4 +1,4 @@
-# ADR-171 — Confiabilidade trazida do Grok Bot: falhas tipadas, prazos do modelo, traceparent, rede, CPU por turno e fila offline
+# ADR-171 — Confiabilidade do turno e da ponte: falhas tipadas, prazos do modelo, traceparent, rede, CPU por turno e fila offline
 
 Status: proposta · Data: 2026-11-12 (lista "Pode trazer já" do comparativo do back) · Emenda a
 [ADR-067](adr-067-sessao-viva-o-turno-segue-ate-o-bot-terminar.md) (sem watchdog de turno: continua), a NOD-174
@@ -6,7 +6,7 @@ Status: proposta · Data: 2026-11-12 (lista "Pode trazer já" do comparativo do 
 
 ## Decisão
 
-1. **Falhas de turno tipadas** (`src/domain/erro-fornecedor.ts`). O Grok Bot distingue usageLimit, unpaidInvoice,
+1. **Falhas de turno tipadas** (`src/domain/erro-fornecedor.ts`). A referência distingue usageLimit, unpaidInvoice,
    rateLimit, regionUnsupported e contentBlocked. Entram quatro classes: `fatura_em_aberto` ("Credit balance is too
    low", `insufficient_quota`, 402), `limite_por_minuto` (o 429 da API, que NÃO é o plano: não troca de conta e não
    repete sozinho), `regiao_sem_suporte` e `conteudo_bloqueado`, cada uma com a frase em pt-BR e a ação. A classe muda a
@@ -19,7 +19,7 @@ Status: proposta · Data: 2026-11-12 (lista "Pode trazer já" do comparativo do 
 3. **`traceparent` motor → servidor** (`src/domain/traceparent.ts`). O trace de um turno é o id do turno sem hífens (os 32
    hex de um trace-id W3C): os dois lados chegam ao mesmo trace sem campo novo. Cada chamada da ponte com `turnoId` leva o
    header com um span novo; o roteador põe `trace_id` e `span_pai` em todo log daquele pedido (`src/obs/rastro.ts`).
-4. **Renovação da espera pela troca de rede** (`vigia-de-rede.ts` + `ponteHttp.renovarEsperas`). O daemon do Grok Bot
+4. **Renovação da espera pela troca de rede** (`vigia-de-rede.ts` + `ponteHttp.renovarEsperas`). Um bom daemon
    renova o stream depois de 15 s de silêncio ou de uma troca de rede. No nod o silêncio já tem prazo (o `puxar` espera 35 s
    = os 20 s do long-poll + 15 s); faltava a rede: o motor lê as interfaces a cada 5 s e, se mudaram, aborta o `puxar`
    preso no socket velho, que volta vazio (código `renovar`, sem aviso de "servidor fora") e sai de novo na rede nova. O

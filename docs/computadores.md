@@ -6,7 +6,7 @@ A política **Com aprovação por ação** pede autorização antes de interaç�
 
 ## Casos de uso e critérios de aceite
 
-As referências de produto são os [guias](https://x.ai/bot/guides) e [casos de uso do Grok Bot](https://x.ai/bot/use-cases). Esta tabela descreve o comportamento buscado, não uma afirmação de que todos os serviços citados já foram homologados.
+Esta tabela descreve o comportamento buscado, não uma afirmação de que todos os serviços citados já foram homologados.
 
 | Caso | O computador precisa fazer | Critério de aceite |
 |---|---|---|

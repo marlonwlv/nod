@@ -1,15 +1,15 @@
 # ADR-173 — O nod no Mac: Quick Chat, captura, ferramentas do Mac e os estados do computador
 
-Status: proposta · Data: 2026-11-12 (frente "Mac e Quick Chat", engenharia reversa do Grok Bot v1.0.1) · Estende a
+Status: proposta · Data: 2026-11-12 (frente "Mac e Quick Chat", pesquisa de referência) · Estende a
 [ADR-048](adr-048-github-um-conector-varios-jeitos-de-conectar.md) (efeito "na máquina") a um segundo conector, emenda a
 [ADR-149](adr-149-atualizacao-automatica-do-app-do-mac.md) (reiniciar sozinho com o Mac ocioso) e usa a
 [ADR-122](adr-122-o-computador-da-pessoa-roda-no-motor.md) sem mudá-la (só a leitura dos estados).
 
 ## Contexto
 
-O Marlon decidiu em 12/11 trazer do Grok Bot, desligados por padrão: as ferramentas do Mac (Mail, Notas, Calendário,
+O Marlon decidiu em 12/11 trazer para o nod, desligados por padrão: as ferramentas do Mac (Mail, Notas, Calendário,
 Lembretes, Contatos e iMessage), o controle de tela do macOS, o Quick Chat com captura, o avatar solto na área de
-trabalho e a atualização com o Mac ocioso (`~/nod/Copiador/grokbot-rea/DECISOES.md` §3). Premissa: entregar em horas,
+trabalho e a atualização com o Mac ocioso. Premissa: entregar em horas,
 copiando comportamento e visual, nunca código. O repo está congelado (NOD-485): o PR é de transição e não é mesclado.
 
 ## Decisão
@@ -39,7 +39,7 @@ copiando comportamento e visual, nunca código. O repo está congelado (NOD-485)
 7. **Controle de tela do macOS no mesmo conector.** `tela_ver`, `tela_clicar`, `tela_digitar`, `tela_tecla` e
    `tela_rolar` (família `controle_tela`): o mouse por CoreGraphics pela ponte ObjC do JXA, o teclado pelo System
    Events (Acessibilidade), e o print da tela principal em PONTOS (`screencapture` + `sips`, JPEG) anexado ao resultado
-   de cada ação, como o Grok Bot. As ações de escrita passam pela aprovação. O "overlay" do cursor é o próprio cursor do
+   de cada ação. As ações de escrita passam pela aprovação. O "overlay" do cursor é o próprio cursor do
    macOS, que vai ao ponto antes do clique.
 8. **Avatar do bot solto na mesa.** Uma janela transparente de 88×88 por bot (até 6), sem moldura, por cima dos apps,
    só com o mascote: clicar abre o Quick Chat já na conversa dele (o mini-composer e o popout são o Quick Chat). Montar
@@ -52,7 +52,7 @@ copiando comportamento e visual, nunca código. O repo está congelado (NOD-485)
 
 ## Alternativas recusadas
 
-- **Módulos nativos de ScreenCaptureKit e um app auxiliar dono das permissões (o desenho do Grok).** Separa melhor as
+- **Módulos nativos de ScreenCaptureKit e um app auxiliar dono das permissões (outro desenho possível).** Separa melhor as
   permissões TCC, mas exige build nativo, assinatura de um segundo bundle e não cabe em horas. Gatilho de reversão:
   a pessoa precisar de captura sem interação (o bot tirando print sozinho) ou o macOS atribuir a permissão ao processo
   errado.

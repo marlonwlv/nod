@@ -124,7 +124,7 @@ describe("ADR-167: paleta ⌘K (tela 08)", () => {
     expect(itens.find((i) => i.chave === "acao:novo-bot")).toMatchObject({ grupo: "Ações", teclas: ["⌘", "N"] });
     expect(itens.filter((i) => i.grupo === "Ações")).toHaveLength(ACOES_DA_PALETA.length);
   });
-  it("igual ao Grok: as salas (conversas em grupo) entram em Conversas e abrem a sala", () => {
+  it("frente de comportamento: as salas (conversas em grupo) entram em Conversas e abrem a sala", () => {
     const comSala = itensDaPaleta({ mod: "⌘", bots: [], trabalhos: [], salas: [{ id: "s1", nome: "Lançamento de março", conversaId: "cs1", membros: "Ada, Gil" }] });
     expect(comSala.find((i) => i.chave === "sala:s1")).toMatchObject({ grupo: "Conversas", titulo: "Lançamento de março", sub: "Ada, Gil", destino: { tipo: "sala", salaId: "s1", conversaId: "cs1" } });
     expect(filtrarPaleta(comSala, "lancamento").map((i) => i.chave)).toContain("sala:s1");

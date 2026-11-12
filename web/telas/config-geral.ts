@@ -132,7 +132,7 @@ export function renderGeral(d: DadosGeral, ui: ConfigUi, celular = ehCelular(), 
     detalhe: frase("balao-cor"),
     controle: { tipo: "switch", ligado: d.balaoCor === true, acao: "alternar-balao-cor" },
   })]);
-  // ADR-167: os sons do Grok Bot, opcionais e deste computador.
+  // ADR-167: os sons, opcionais e deste computador.
   const sons = d.sons ?? { mensagem: false, aprovacao: false };
   const blocoSons = grupoConfig("Sons", [
     linhaConfig({ titulo: "Som de mensagem", ajuste: "som-mensagem", detalhe: frase("som-mensagem"), controle: { tipo: "switch", ligado: sons.mensagem, acao: "alternar-som-app", dados: { som: "mensagem" } } }),

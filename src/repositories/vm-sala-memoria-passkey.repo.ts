@@ -6,7 +6,7 @@ import type { Conn, Escopo } from "../shared/types.ts";
 import { data, ms, msOuNull } from "./conversao.ts";
 
 /**
- * definido em 2026-11-12 (0174, frente "Comportamento igual ao Grok"): a persistência das quatro peças que os PRs #732 e
+ * definido em 2026-11-12 (0174, frente de comportamento): a persistência das quatro peças que os PRs #732 e
  * #735 deixaram só no domínio — a VM do Nod (ADR-169), a vez na sala e a memória de time (ADR-172) e a passkey do gasto
  * (ADR-177). Só primitivas: as regras moram em src/domain/{vm-do-nod,vez-na-sala,memoria-de-time,passkey}.ts.
  */

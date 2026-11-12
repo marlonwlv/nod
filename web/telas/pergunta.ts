@@ -128,7 +128,7 @@ export const TRECHO_RESPONDENDO_MAX = 90;
 
 /**
  * A caixa "Respondendo" presa ao campo (plano "pergunta com botões", Parte 3a; tela "Duas perguntas abertas"), no padrão do
- * Grok: com duas ou mais perguntas abertas, diz a qual a próxima mensagem responde — a mais recente, salvo "Trocar". O ×
+ * protótipo: com duas ou mais perguntas abertas, diz a qual a próxima mensagem responde — a mais recente, salvo "Trocar". O ×
  * manda a mensagem como assunto novo (o `outroAssunto` de antes). Substitui a citação "1 de 2" e o seletor.
  * revisto em 2026-10-18 (QA do PR #389): só "Respondendo", como na tela S2 do protótipo; o "· N de M" saiu (o trecho já diz
  * qual é, e "Trocar" passa à outra).

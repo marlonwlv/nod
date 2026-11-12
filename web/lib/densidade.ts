@@ -32,7 +32,7 @@ const LARGURAS: Record<Densidade, readonly Largura[]> = {
   compacta: ["recolhida", "padrao", "larga"],
 };
 const PX: Record<Densidade, Partial<Record<Largura, number>>> = {
-  // ADR-167: só avatares em 88 px, como a barra compacta do Grok Bot (⌘B); antes 72.
+  // ADR-167: só avatares em 88 px, como a barra compacta (⌘B); antes 72.
   confortavel: { recolhida: 88, padrao: 272 },
   compacta: { recolhida: 56, padrao: 200, larga: 340 },
 };

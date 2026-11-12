@@ -18,16 +18,15 @@ import { vincularEscopo } from "../../src/db/tx.ts";
 import { limparPessoaE2E } from "./limpeza-e2e.ts";
 
 /**
- * Frente "comportamento igual ao Grok" (12/11/2026, docs/grokbot/COMPORTAMENTO.md): um e2e por comportamento que o Marlon
- * decidiu copiar do Grok Bot (docs/grokbot/DECISOES.md), no app inteiro — servidor completo com banco, catcher, a web
- * montada (npx vite build) e o Chrome de verdade por CDP. A referência do Grok é docs/grokbot/TELAS.md e AGENTE.md e os
- * prints 37–39 (aprovação) e 70–72 (onboarding). Seletores por papel, `data-act` ou texto: o visual (CSS) muda em paralelo
+ * Frente de comportamento (12/11/2026): um e2e por comportamento que o Marlon decidiu adotar, no app inteiro —
+ * servidor completo com banco, catcher, a web montada (npx vite build) e o Chrome de verdade por CDP. A referência são
+ * os prints 37–39 (aprovação) e 70–72 (onboarding). Seletores por papel, `data-act` ou texto: o visual (CSS) muda em paralelo
  * e não é o que se prova aqui. Sem a web montada ou sem Chrome, pula, como os outros e2e de Chrome.
  */
 
 const WEB = process.env.NOD_E2E_WEB ?? join(process.cwd(), "dist/web");
 const chrome = existsSync(join(WEB, "index.html")) ? (() => { try { return acharChrome(); } catch { return null; } })() : null;
-if (process.env.NOD_QA_EXIGE_CHROME === "1" && !chrome) throw new Error("igual ao Grok: o CI precisa da web montada (npx vite build) e do Chromium");
+if (process.env.NOD_QA_EXIGE_CHROME === "1" && !chrome) throw new Error("comportamentos: o CI precisa da web montada (npx vite build) e do Chromium");
 const MCP_GRAVAR = fileURLToPath(new URL("../fixtures/mcp-somar.mjs", import.meta.url));
 const MCP_EXEMPLO = fileURLToPath(new URL("../../scripts/mcp-exemplo.mjs", import.meta.url));
 const JORNADA = 180_000;
@@ -42,7 +41,7 @@ const LIBERA_PELA = (regra: string) => mensagem(JSON.stringify({ decisao: "liber
 /** A pessoa do teste é admin (NOD_ADMINS) para o teto do item 4. */
 const PESSOA = randomUUID();
 
-descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
+descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
   let srv: ServidorCompleto;
   let cdp: Cdp;
   let dir: string;
@@ -56,7 +55,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
 
   beforeAll(async () => {
     api = await apiAnthropicFalsa((_p: PedidoNaApiFalsa) => PEDE());
-    dir = mkdtempSync(join(tmpdir(), "igual-grok-"));
+    dir = mkdtempSync(join(tmpdir(), "comportamentos-"));
     arquivoGravar = join(dir, "gravar.txt");
     arquivoEmails = join(dir, "emails.txt");
     writeFileSync(arquivoGravar, "");
@@ -108,7 +107,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
   }
 
   async function criarBot(nome: string, modo: "manual" | "automatico" | "total", acessos: { conectorId: string; capacidade: string }[] = []): Promise<{ id: string; conversaId: string }> {
-    const r = await srv.json<{ agente: Agente; conversa: Conversa }>("POST", "agentes", { dono: "pessoa", nome, descricao: "Bot do teste igual ao Grok" });
+    const r = await srv.json<{ agente: Agente; conversa: Conversa }>("POST", "agentes", { dono: "pessoa", nome, descricao: "Bot do teste de comportamentos" });
     agentes.push(r.agente.id);
     conversas.push(r.conversa.id);
     for (const a of acessos) await srv.json("POST", `agentes/${r.agente.id}/concessoes`, a);
@@ -157,17 +156,17 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
   const pedirGravar = (t: string) => JSON.stringify({ resumo: `Gravar "${t}"`, itens: [{ texto: `Gravar "${t}"`, destino: { conector: "gravador", ferramenta: "gravar", argumentos: { texto: t } }, origem_conector: "gravador" }] });
 
   // ———————————————————————————————————————————————— 10 ———————————————————————————————————————————————
-  it("10. onboarding do Grok inteiro em 10 passos: boas-vindas → … → criar (cor e forma) → preparando com %", { timeout: JORNADA }, async () => {
+  it("10. onboarding inteiro em 10 passos: boas-vindas → … → criar (cor e forma) → preparando com %", { timeout: JORNADA }, async () => {
     // Antes de qualquer outro: a pessoa nova, sem o onboarding concluído.
     await cdp.enviar("Page.navigate", { url: `${srv.url}/` });
-    // O passo pelo nome (os 10 do Grok, PASSOS de web/telas/apresentacao.ts); onde há os pontos, "Passo N de 10".
+    // O passo pelo nome (os 10 de PASSOS em web/telas/apresentacao.ts); onde há os pontos, "Passo N de 10".
     const PASSOS = ["boas-vindas", "conhecer", "computador", "trabalho", "delegar", "funcao", "origem", "apps", "criar", "preparando"];
     const noPasso = (n: number) => ate(`document.querySelector(".ap-camada section.ap.ap-${PASSOS[n - 1]}") && (!document.querySelector(".ap-camada .ap-pontos") || document.querySelector(".ap-camada .ap-pontos").getAttribute("aria-label") === "Passo ${n} de 10")`, `o passo ${n} de 10 (${PASSOS[n - 1]})`);
     await noPasso(1);
     const seguir = () => clicar('[data-act="apres-seguir"]');
     const mascote = () => avaliar<string | null>(cdp, `document.querySelector(".ap-camada .ap-personagem nod-mascote, .ap-camada .cb-preparo-topo nod-mascote, .ap-camada .cb-preparo nod-mascote")?.dataset.estado ?? null`);
     await seguir(); await noPasso(2);
-    // Voltar funciona (o ‹ do Grok).
+    // Voltar funciona (o ‹).
     await clicar('[data-act="apres-voltar"]'); await noPasso(1);
     await seguir(); await noPasso(2);
     await seguir(); await noPasso(3);
@@ -184,7 +183,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
     // Conectar apps: pular (sem contas aqui).
     expect(await existe('[data-act="apres-conectar"]')).toBe(true);
     await clicar('[data-act="apres-pular"]'); await noPasso(9);
-    // Criar: o nome sugerido pela função, forma e cor do Grok (sem o preto), e a primeira mensagem.
+    // Criar: o nome sugerido pela função, forma e cor (sem o preto), e a primeira mensagem.
     expect(await existe('.cb-cores [data-cor="c-black"]')).toBe(false);
     await clicar('[data-act="apres-forma"][data-forma="shape-star"]');
     await clicar('[data-act="apres-cor"][data-cor="c-green"]');
@@ -216,11 +215,11 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
 
   // ———————————————————————————————————————————————— 1 ————————————————————————————————————————————————
   it("1. cartão de aprovação: Permitir uma vez · Sempre permitir · Negar (Esc); decidido, encolhe numa linha de status", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Cartão Grok", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
+    const bot = await criarBot("Cartão Teste", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
     await abrirApp();
     await abrirConversa(bot);
 
-    // (a) Os três verbos do Grok no cartão (print 37: Permitir uma vez · Sempre permitir · ✕ = Negar uma vez com Esc).
+    // (a) Os três verbos no cartão (print 37: Permitir uma vez · Sempre permitir · ✕ = Negar uma vez com Esc).
     await falar(bot, `Grave "um". [[tool: pedir_aprovacao ${pedirGravar("um")}]] [[texto: gravei]]`);
     await ate(`document.querySelector("#timeline li.decisao.aprov-card[data-decisao]")`, "o cartão de aprovação");
     expect(await texto('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao"]')).toBe("Permitir uma vez");
@@ -243,7 +242,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
     for (let t = 0; t < 50 && !readFileSync(arquivoGravar, "utf8").includes("dois"); t++) await espera(100);
     expect(readFileSync(arquivoGravar, "utf8")).toContain("dois");
 
-    // (d) Sempre permitir: encolhe em "Permitido daqui em diante" (Grok: "Allowed from now on: {rule}") e o próximo igual
+    // (d) Sempre permitir: encolhe em "Permitido daqui em diante" e o próximo igual
     // não pede mais.
     await falar(bot, `Grave "três". [[tool: pedir_aprovacao ${pedirGravar("três")}]] [[texto: gravei]]`);
     await ate(`document.querySelector("#timeline li.decisao.aprov-card[data-decisao]")`, "o 3º cartão");
@@ -283,7 +282,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
 
   // ———————————————————————————————————————————————— 2 ————————————————————————————————————————————————
   it("2. regras em texto só no Automático: o cartão sugere e salva a regra; o que passa por ela mostra 'Aprovado pela sua regra · Editar'", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Regras Grok", "automatico", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
+    const bot = await criarBot("Regras Teste", "automatico", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
     // Uma regra de "Sempre me pergunte" põe toda escrita do bot na mão do revisor (sem ela, a escrita comum roda direto).
     await srv.json("POST", "aprovacoes/regras", { agenteId: bot.id, lista: "perguntar", texto: "Sempre me pergunte antes de apagar algo" });
     api.responder(() => PEDE("Pode gravar notas no Gravador sem perguntar"));
@@ -329,7 +328,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
 
   // ———————————————————————————————————————————————— 3 ————————————————————————————————————————————————
   it("3. aprovação em lote: pedidos iguais viram um cartão na conversa, com 'Permitir os N' e 'Negar todos'", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Lote Grok", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
+    const bot = await criarBot("Lote Teste", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
     await abrirApp();
     await abrirConversa(bot);
     // O pedir_aprovacao encerra o turno: um pedido por fala, três falas (o lote junta pedidos de turnos diferentes).
@@ -366,7 +365,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
   // ———————————————————————————————————————————————— 4 ————————————————————————————————————————————————
   it("4. quatro níveis por ferramenta, só leitura sem cartão e o teto do admin", { timeout: JORNADA }, async () => {
     const acessos = [{ conectorId: conectorGravar, capacidade: "gravar" }, { conectorId: conectorGravar, capacidade: "somar" }];
-    const bot = await criarBot("Níveis Grok", "manual", acessos);
+    const bot = await criarBot("Níveis Teste", "manual", acessos);
     const nivel = (n: string) => srv.json("POST", "aprovacoes/niveis", { agenteId: bot.id, conector: "gravador", ferramenta: "", tipo: "escrita", nivel: n });
     const cartoesAbertos = async () => (await srv.json<{ itens: { decisao: { agenteId: string } }[] }>("GET", "sua-vez")).itens.filter((i) => i.decisao.agenteId === bot.id).length;
 
@@ -424,9 +423,9 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
 
   // ———————————————————————————————————————————————— 6 ————————————————————————————————————————————————
   it("6. ⌘K acha bots, conversas, ajustes e ações; os atalhos ⌘B, ⌘, , ⌘I, ⌘L e ⌘⇧N (no Chrome do Linux: Ctrl+K e Alt)", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Atalhos Grok", "manual");
+    const bot = await criarBot("Atalhos Teste", "manual");
     // Uma sala (conversa em grupo), para o grupo Conversas ter o que achar.
-    const colega = await criarBot("Colega Grok", "manual");
+    const colega = await criarBot("Colega Teste", "manual");
     const sala = await srv.json<{ ids: { sala?: string; conversa?: string } }>("POST", "salas", { nome: "Vendas da semana", agenteIds: [bot.id, colega.id] });
     if (sala.ids.conversa) conversas.push(sala.ids.conversa);
     await abrirApp();
@@ -443,7 +442,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
       const achou = `[...document.querySelectorAll('.paleta .paleta-grupo[aria-label="${grupo}"] .paleta-item')].some((e) => e.textContent.toLowerCase().includes(${JSON.stringify(termo.toLowerCase())}))`;
       await ate(`${digitar} && ${achou}`, `"${termo}" em ${grupo}`);
     };
-    await buscar("Atalhos Grok", "Bots");
+    await buscar("Atalhos Teste", "Bots");
     await buscar("tema", "Ajustes");
     await buscar("Vendas da semana", "Conversas");
     await buscar("nova", "Ações");
@@ -550,7 +549,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
 
   // ———————————————————————————————————————————————— 9 ————————————————————————————————————————————————
   it("9. o personagem muda de estado com o trabalho: disponível → trabalhando → aguardando você → disponível", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Personagem Grok", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
+    const bot = await criarBot("Personagem Teste", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
     await abrirApp();
     await abrirConversa(bot);
     const naBarra = (e: string) => ate(`document.querySelector('#sidebar [data-bot-contexto="${bot.id}"] nod-mascote')?.dataset.estado === "${e}"`, `o personagem ${e}`);
@@ -571,8 +570,8 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
 
   // ———————————————————————————————————————————————— 5 ————————————————————————————————————————————————
   it("5. 'Aguardando você: {motivo}' em laranja na linha do bot; o clique abre a conversa rolada até o cartão", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Espera Grok", "manual");
-    const outro = await criarBot("Outro Grok", "manual");
+    const bot = await criarBot("Espera Teste", "manual");
+    const outro = await criarBot("Outro Teste", "manual");
     await abrirApp();
     await abrirConversa(outro);
     await falar(bot, `Pergunte. [[tool: pedir_a_pessoa {"tipo":"pergunta","texto":"Posso arquivar o PR 7?"}]] [[texto: perguntei]]`);
@@ -593,7 +592,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
 
   // ———————————————————————————————————————————————— 11 ————————————————————————————————————————————————
   it("11. rascunhos de envio editáveis, com 'Enviar todos'", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Rascunhos Grok", "manual", [
+    const bot = await criarBot("Rascunhos Teste", "manual", [
       { conectorId: conectorExemplo, capacidade: "listar_contatos" },
       { conectorId: conectorExemplo, capacidade: "enviar_email" },
     ]);
@@ -607,7 +606,7 @@ descrever("nod igual ao Grok Bot (app inteiro, Chrome real)", () => {
     await falar(bot, `Mande 3 e-mails. [[tool: pedir_aprovacao ${JSON.stringify({ resumo: "3 e-mails", itens })}]] [[texto: rascunhos prontos]]`);
     await ate(`document.querySelector('#timeline .re-barra[role=region] [data-act="rascunhos-enviar-todos"]')`, "a barra Enviar todos");
     expect(await avaliar<number>(cdp, `document.querySelectorAll("#timeline textarea.re-corpo").length`)).toBe(3);
-    // Edita o corpo de um antes de enviar (Grok: rascunho editável).
+    // Edita o corpo de um antes de enviar (rascunho editável).
     await avaliar(cdp, `(() => { const ta = document.querySelectorAll("#timeline textarea.re-corpo")[1]; ta.value = "Olá, Bia! Corpo editado."; ta.dispatchEvent(new Event("input", { bubbles: true })); ta.dispatchEvent(new Event("change", { bubbles: true })); })()`);
     expect(await existe('#timeline [data-act="rascunhos-descartar-todos"]')).toBe(true);
     await clicar('#timeline [data-act="rascunhos-enviar-todos"]');

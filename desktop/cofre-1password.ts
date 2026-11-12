@@ -5,7 +5,7 @@ import type { ExecutarComando } from "./mdm.ts";
  * (`op://Cofre/Item/campo`) e nunca recebe o valor: o app do Mac lê com o `op` da pessoa e entrega o segredo direto a
  * quem preenche (o campo da página no navegador do computador do bot, pela ponte local), sem passar pelo servidor nem pelo
  * modelo. Antes de rodar o `op`, o app confere que o binário é o da AgileBits (assinatura de código com o Team ID dela,
- * como o launcher do Grok Bot faz): um `op` falso no PATH receberia a sessão do cofre.
+ * como um launcher cuidadoso faz): um `op` falso no PATH receberia a sessão do cofre.
  */
 export const TEAM_ID_AGILEBITS = "2BUA8C4S2C";
 export const CAMINHOS_OP = ["/opt/homebrew/bin/op", "/usr/local/bin/op"] as const;

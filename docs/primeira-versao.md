@@ -1,6 +1,6 @@
 # Primeira versão funcional
 
-Referência funcional: Grok Bot e OpenMausBot. Referência visual: imagem fornecida em 17/09/2026.
+Referência funcional: OpenMausBot. Referência visual: imagem fornecida em 17/09/2026.
 Base: main `1f071ed`, após integrar o PR #16 e confirmar zero PRs abertos.
 
 ## Experimentar

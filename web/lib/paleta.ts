@@ -1,5 +1,5 @@
 /**
- * ADR-167 (tela 08 do Paper, "Jump to" do Grok Bot): ⌘K vira a paleta de tudo — bots, conversas (os trabalhos), ajustes
+ * ADR-167 (tela 08 do Paper, "Ir para"): ⌘K vira a paleta de tudo — bots, conversas (os trabalhos), ajustes
  * (com o caminho "Configurações › Geral › Aparência") e ações (com o atalho ao lado). Este arquivo é só o modelo: monta os
  * itens a partir de dados simples, filtra e anda pela seleção. Sem DOM nem framework; quem desenha é web/telas/paleta.ts e
  * quem liga ao documento é web/lib/paleta-na-tela.ts.
@@ -63,7 +63,7 @@ export const ACOES_DA_PALETA: readonly { id: IdAcaoPaleta; titulo: string; icone
 
 export type BotDaPaleta = { id: string; nome: string; titulo?: string | null; conversaId: string; previa?: string; /** Paper 08: 0 = o bot aberto, depois os de conversa mais recente. */ recencia?: number };
 export type TrabalhoDaPaleta = { id: string; titulo: string; botNome?: string; quando?: string; agenteId?: string };
-/** Frente "igual ao Grok" (TELAS §2: o ⌘K acha "Bots, chats, configurações e ações"): as salas são as conversas em grupo. */
+/** Frente de comportamento (o ⌘K acha "Bots, chats, configurações e ações"): as salas são as conversas em grupo. */
 export type SalaDaPaleta = { id: string; nome: string; conversaId: string; membros?: string };
 
 /**

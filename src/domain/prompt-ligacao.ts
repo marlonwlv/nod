@@ -80,7 +80,7 @@ function linhaDaLigacao(iniciarTarefa: boolean): string {
 }
 
 /**
- * ADR-175 (§ voz): as regras de conduta da ligação que o Grok Bot traz no app (engenharia reversa, AGENTE.md §4 "Voz"),
+ * ADR-175 (§ voz): as regras de conduta da ligação de um assistente pessoal (pesquisa de referência, § "Voz"),
  * decididas para o nod em 2026-11-12 ("assistente pessoal completo"). A voz é a mesma pessoa do trabalho; o que o trabalho
  * devolve é evidência, não pedido; pedir de novo o que já começou é a mesma tarefa. Na primeira ligação (onboarding) o
  * roteiro pergunta se pode desligar no fim; ali a regra de não se oferecer para desligar não entra.

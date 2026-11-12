@@ -1046,7 +1046,7 @@ a.qd-chip:hover { background: var(--surface-raised); }
 .qd-handoff .qd-bt-pri:hover { background: var(--surface-raised); opacity: 1; }
 
 /* ====================================================================================================================
-   Tela 18 do Paper (nod x Grok Bot): colunas de 226 sem fundo, tiras recolhidas de 40 com a contagem em cima, cards
+   Tela 18 do Paper: colunas de 226 sem fundo, tiras recolhidas de 40 com a contagem em cima, cards
    brancos de raio 12 e o quadro na cor do painel. A grade cabe na janela de 1440 com as 7 colunas: antes a coluna de
    264 empurrava o Bloqueado para baixo das tiras presas à direita, e ele saía cortado. Medidas do gerador do Paper
    (screens_nod.py: kcol, kstrip, kcard, board_cols).

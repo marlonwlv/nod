@@ -228,7 +228,7 @@ describe("revisão do PR #302 (NOD-216)", () => {
     expect(mascoteComAviso("trabalhando", "pergunta")).toBe("trabalhando");
     expect(mascoteComAviso("pensando", "pergunta")).toBe("pensando");
     expect(mascoteComAviso("na_fila", null)).toBe("na_fila");
-    // Igual ao Grok: a mensagem não lida é o ponto azul, não "aguardando você".
+    // A mensagem não lida é o ponto azul, não "aguardando você".
     expect(mascoteComAviso("disponivel", "nao-lido")).toBe("disponivel");
     expect(mascoteComAviso("disponivel", "decisao")).toBe("aguardando");
   });

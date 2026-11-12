@@ -22,7 +22,7 @@ import { buscarAjustes, caminhoDoAjuste } from "../lib/ajustes.ts";
 import type { EscolhaSons } from "../lib/sons.ts";
 
 /**
- * ADR-167 (Configurações do Grok Bot): a busca dos ajustes. Com termo, o conteúdo vira a lista do que casa — título, frase e
+ * ADR-167 (Configurações): a busca dos ajustes. Com termo, o conteúdo vira a lista do que casa — título, frase e
  * o caminho —, e o clique leva à linha (irAoAjuste em web/main.ts). Sem termo, a seção de sempre.
  */
 export function renderBuscaAjustes(termo: string): string {
@@ -50,7 +50,7 @@ export const SECOES_ESPACO: readonly { id: SecaoEspaco; nome: string; icone: str
   { id: "agentes", nome: "Agentes", icone: ICONE.agentes },
   // NOD-85: a agenda das rotinas, depois de Agentes (rotina é o que os agentes fazem sozinhos).
   { id: "rotinas", nome: "Rotinas", icone: ICONE.relogio },
-  // ADR-166 (tela 07 do protótipo nod x Grok Bot): os modos, as regras do revisor e o nível por app, antes de Feedback.
+  // ADR-166 (tela 07 do protótipo): os modos, as regras do revisor e o nível por app, antes de Feedback.
   { id: "aprovacoes", nome: "Aprovações", icone: ICONE.escudo },
   // Paper 07 (rodada 2): as chaves guardadas pelos cartões dos bots, entre Apps e IA no computador.
   { id: "cofre", nome: "Cofre", icone: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="10.5" r="3"/><path d="M7.6 8.4L13.5 2.5M11.5 4.5l1.5 1.5M10 6l1.2 1.2"/></svg>' },

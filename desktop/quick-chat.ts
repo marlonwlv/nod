@@ -1,8 +1,7 @@
 import type { ResultadoAtalhoQuickChat } from "../src/contracts/desktop-mac.ts";
 
 /**
- * Quick Chat (ADR-173, definido em 2026-11-12): um atalho global abre, de qualquer app, uma janela pequena (560×392, o cartão da tela 10 do Paper — a sombra é a do macOS;
- * a medida do Grok Bot) com a conversa do nod em modo compacto (`?janela=quick-chat`). A janela é a MESMA página web
+ * Quick Chat (ADR-173, definido em 2026-11-12): um atalho global abre, de qualquer app, uma janela pequena (560×392, o cartão da tela 10 do Paper — a sombra é a do macOS) com a conversa do nod em modo compacto (`?janela=quick-chat`). A janela é a MESMA página web
  * da janela principal, na mesma partição e com o mesmo preload (`preload-web.cjs`): nenhuma ponte nova para a página
  * remota além das funções nomeadas da captura e do atalho, validadas no processo principal.
  *
@@ -142,5 +141,5 @@ export function criarQuickChat(deps: DepsQuickChat, inicial: string | null): Qui
   };
 }
 
-/** A frase do Grok Bot para o atalho em uso, em português (a tela de Ajustes mostra esta). */
+/** A frase para o atalho em uso, em português (a tela de Ajustes mostra esta). */
 export const FRASE_ATALHO_EM_USO = "Outro app já usa esse atalho. Escolha outro.";

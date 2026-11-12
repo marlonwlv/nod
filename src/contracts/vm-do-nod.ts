@@ -1,10 +1,10 @@
 import type { EstadoInstancia, RefInstancia } from "./provedor-nuvem.ts";
 
 /**
- * ADR-169 (definido em 2026-11-12, decisão 1 do Marlon sobre o Grok Bot): o agente roda em TRÊS lugares, todos suportados.
+ * ADR-169 (definido em 2026-11-12, decisão 1 do Marlon): o agente roda em TRÊS lugares, todos suportados.
  *   1. `maquina_da_pessoa` — o padrão e o primeiro que quase todo mundo usa (o Mac, o Linux ou o Windows dela, ADR-090);
  *   2. `vm_da_pessoa`      — a VM que ela configura na conta de nuvem dela (ADR-121, caminho B: o custo é dela);
- *   3. `vm_do_nod`         — a VM gerenciada pelo nod, PAGA: o modelo da "box" do Grok Bot (uma VM por pessoa onde o
+ *   3. `vm_do_nod`         — a VM gerenciada pelo nod, PAGA: o modelo de "box" (uma VM por pessoa onde o
  *                            motor, o computador e as rotinas rodam com o laptop fechado).
  * A 3 só existe com `NOD_VM_DO_NOD=1`. O provisionador é uma interface com driver: `seco` (padrão — calcula o pedido e
  * nunca chama a nuvem) ou `gcp` (o mesmo `ProvedorNuvem` da ADR-121, com a conta de serviço do PROJETO DO NOD).

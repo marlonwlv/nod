@@ -68,7 +68,7 @@ export function opcoesOndeRoda(maquinas: readonly Pick<MaquinaDto, "plataforma" 
   ];
 }
 
-/** Nome estável da VM da pessoa no projeto do nod: um por pessoa (o Grok Bot também tem uma box por usuário). */
+/** Nome estável da VM da pessoa no projeto do nod: um por pessoa (uma box por usuário). */
 export function nomeDaVmDoNod(pessoaId: string): string {
   const limpo = pessoaId.toLowerCase().replace(/[^a-f0-9]/g, "");
   if (limpo.length < 12) throw new ErroDeDominio("entrada_invalida");

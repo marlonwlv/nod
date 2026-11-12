@@ -1,6 +1,6 @@
 /**
- * ADR-172 (definido em 2026-11-12): TURNO POR MEMBRO na sala, como o Grok Bot (`RequestRoomMemberTurn` →
- * `DeliverRoomMemberTurnResult`). A sala da ADR-027 já tem rodadas, políticas de quem responde, teto de handoffs e
+ * ADR-172 (definido em 2026-11-12): TURNO POR MEMBRO na sala (pedir a vez de um
+ * membro e entregar o resultado dela). A sala da ADR-027 já tem rodadas, políticas de quem responde, teto de handoffs e
  * orçamento; o que entra é a VEZ: quem fala agora, numa sala com vários bots E várias pessoas.
  *
  * Regras:

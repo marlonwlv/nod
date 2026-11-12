@@ -19,7 +19,7 @@ import { etiquetaDoWebhook } from "./webhook.ts";
  * - **rotina**: execuções seguidas da mesma rotina, sem nada para a pessoa, viram UMA linha centralizada
  *   ("Triagem do Slack rodou 4 vezes · 11:00 a 11:30 · nada para você"); a execução que termina com algo para ela vira
  *   balão com a etiqueta "da rotina …"; a que falhou continua com a linha de sempre;
- * - **bots entre si** (o padrão do Grok): quem recebe um pedido vê "Pedido do Chico · 3 mensagens" no lugar do pedido e
+ * - **bots entre si**: quem recebe um pedido vê "Pedido do Chico · 3 mensagens" no lugar do pedido e
  *   das falas da delegação; quem pede vê "Enviou mensagem para Dev 1 e Dev 2" e, quando as respostas voltam, "5 mensagens
  *   com Dev 1 e Dev 2" — a fala de quem pediu, depois, continua balão;
  * - **task**: a linha "Abriu a task …"; as falas do meio do trabalho ficam só na tela da task; a pergunta e o resultado

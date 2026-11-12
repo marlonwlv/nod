@@ -40,7 +40,7 @@
 .cab-acoes .bt { padding: 6px 9px; border-color: transparent; background: transparent; }
 .cab-acoes .perigo { color: var(--danger); }
 .timeline-wrap { padding: 24px 30px; }
-/* Plano "tela limpa" (2026-10-16, T4): a coluna e o campo com a mesma largura, 760 px, como no Grok. */
+/* Plano "tela limpa" (2026-10-16, T4): a coluna e o campo com a mesma largura, 760 px. */
 .timeline { max-width: 760px; }
 .time-sep { font-size: var(--fs-legenda); margin: 0 0 26px; }
 /* Chat limpo, PR 6 (2026-10-18; protótipos Main e F1): o divisor de data da conversa ("Hoje 08:00", "15:40") é o título do
@@ -848,7 +848,7 @@
 .composer .clipe:disabled { opacity: .4; cursor: not-allowed; }
 .composer .clipe:disabled:hover { background: transparent; color: var(--ink-2); }
 
-/* ---- ditado no campo (ADR-095, 2026-10-11; referência do Grok em docs/referencias/ditado-grok/) ----
+/* ---- ditado no campo (ADR-095, 2026-10-11) ----
    O 🎤 fica antes do enviar, num círculo cinza. Gravando, ele dá lugar à pílula "■ 0:08 ||||" e o campo diz "Ouvindo…";
    o enviar continua no lugar (↑ = para e envia). No celular (web/mobile.css) a linha inteira vira três pílulas. */
 .composer .mic { width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--surface-raised); color: var(--ink-2); display: grid; place-items: center; flex: none; cursor: pointer; }
@@ -953,7 +953,7 @@
 nod-mascote[data-aviso="decisao"] { --nod-aviso: var(--warning); }
 nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-aviso: var(--signal); }
 
-/* definido em 2026-09-24 (sidebar no estilo do Grok): topo só com ícones, fixados em grade, título num
+/* definido em 2026-09-24 (sidebar nova): topo só com ícones, fixados em grade, título num
    chip ao lado do nome, última mensagem embaixo, e o rodapé com você + Marketplace. */
 .search-wrap { padding: 14px 14px 8px; }
 .sh { justify-content: flex-end; gap: 2px; margin-bottom: 8px; }
@@ -2223,7 +2223,7 @@ span.pilula-memoria { padding-right: 12px; cursor: default; }
 .md-codigo-estado { display: inline-block; min-width: 9ch; text-align: left; }
 
 /* NOD-323 (ADR-126, protótipo v3.1): a mídia que o bot anexou, ABAIXO do balão da fala, na ordem anexada. Sem moldura
-   nem legenda na conversa (cara de mensagem, como no Grok); a tela cheia (.luz) mostra o nome. Só tokens, exceto o
+   nem legenda na conversa (cara de mensagem); a tela cheia (.luz) mostra o nome. Só tokens, exceto o
    escuro fixo sobre a mídia (o mesmo nos dois temas, marcado com cor-fixa). */
 .msg-midias { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: fit-content; max-width: 100%; margin: 8px 0 0; }
 .msg-midias figure { margin: 0; }

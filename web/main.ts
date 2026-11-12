@@ -334,7 +334,7 @@ function executarDaPaleta(item: ItemPaleta): void {
 }
 
 /**
- * Frente "igual ao Grok" (TELAS §2: "o ⌘K encontra Bots, chats, configurações e ações"): o grupo Conversas são os trabalhos,
+ * Frente de comportamento ("o ⌘K encontra Bots, chats, configurações e ações"): o grupo Conversas são os trabalhos,
  * que só hidratavam ao abrir a faixa de trabalhos. Abrir a paleta pede a lista se ela ainda não veio; a paleta relê os itens
  * a cada busca.
  */
@@ -371,7 +371,7 @@ function irAoAjuste(id: string): void {
 function extrasDoDs(): { balaoCor: boolean; sons: ReturnType<typeof lerSons>; buscaAjustes: string } {
   return { balaoCor: lerBalaoCor(), sons: lerSons(), buscaAjustes: termoAjustes };
 }
-/** O que as Configurações ganharam do Grok Bot: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
+/** O que as Configurações ganharam na frente nova: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
  * extra para o render() de Seu espaço caber na guarda da NOD-370. */
 function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null } {
   return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now()), mac: ajustesMac };
@@ -2487,7 +2487,7 @@ function renderSidebar(estado: Estado): string {
     const mascote = avatarNaConversa(estado, a.conversaId);
     // NOD-216: a fila parada não esconde o aviso — ela é tão "parada" quanto o disponível.
     const estadoVisual = mascoteComAviso(mascote, aviso);
-    // definido em 2026-09-24 (sidebar no estilo do Grok): o título vira um chip ao lado do nome e a linha de
+    // definido em 2026-09-24 (sidebar compacta): o título vira um chip ao lado do nome e a linha de
     // baixo é a última mensagem; os estados que pedem ação (fora do ar, pergunta, rotina parada) ganham dela.
     // definido em 2026-10-04 (ADR-071): "Em ligação" ganha da última mensagem, discreto, com o fone.
     const emLigacao = estado.ligacaoViva?.agenteId === a.id;
@@ -2535,7 +2535,7 @@ function renderSidebar(estado: Estado): string {
     const escondidos = ehCelular ? escondidosNoCelular(s.recolhida, bots) : s.escondidos;
     return `<section class="section"${atributos}${s.recolhida ? " data-recolhida" : ""}>${cabecalhoSecao(nome, chave, { recolhida: s.recolhida, total: lista.length, aviso: ehCelular ? "" : s.aviso })}${lista.map((a, i) => linha(a, escondidos[i])).join("")}</section>`;
   };
-  // definido em 2026-09-24 (sidebar no estilo do Grok): fixados em grade de 4 — avatar grande, nome e o
+  // definido em 2026-09-24 (sidebar compacta): fixados em grade de 4 — avatar grande, nome e o
   // título num chip. Mesmo aviso no mascote e o mesmo menu (clique direito / •••) da linha.
   const bloco = (a: (typeof agentes)[number], i: number) => {
     const aviso = avisoDe(a);
@@ -2613,7 +2613,7 @@ function renderSidebar(estado: Estado): string {
   const avisoDoMotor = agenteAguardando && aguardando
     ? botaoDaBarraSemIa(aguardando.conversaId, agenteAguardando.id)
     : falhaMotor ? avisoDeEstado({ tom: "alerta", texto: situacaoMotor, papel: "status", classe: "aviso-compacto", acao: botao("secao-espaco", motorDesatualizado(estado) ? "Atualizar" : "Conectar", { classe: "pri sm", dados: { secao: "conexao" } }) }) : "";
-  // definido em 2026-09-24 (sidebar no estilo do Grok): sem marca e sem título — o topo tem só busca,
+  // definido em 2026-09-24 (sidebar compacta): sem marca e sem título — o topo tem só busca,
   // sino e +. A busca é um ícone; o campo aparece ao clicar, com ⌘K, ou enquanto tem texto.
   const buscando = buscaAberta || termoBusca() !== "";
   // definido em 2026-09-29 (0039, canvas "Não lidos"): o ícone só existe com algo não lido (ou com a tela aberta).
@@ -9896,7 +9896,7 @@ function botaoDoBotNoAtalho(a: { tipo: "ir-ao-bot"; n: number } | { tipo: "vizin
 /** Faz o atalho; false quando não há alvo (aí não faz nada). */
 function executarAtalho(a: AcaoAtalho): boolean {
   if (a.tipo === "folha") { abrirEspaco("ajuda"); return true; }
-  // ADR-167: os atalhos do Grok Bot que não colidem com os do nod.
+  // ADR-167: os atalhos novos que não colidem com os do nod.
   if (a.tipo === "barra") { mudarBarra(alternarRecolhida(barraAtual), true); anunciar(barraAtual.largura === "recolhida" ? "Barra só com avatares" : "Barra aberta"); return true; }
   if (a.tipo === "ajustes") { abrirEspaco("geral"); return true; }
   if (a.tipo === "paleta") { abrirPaleta(); return true; }
@@ -9929,7 +9929,7 @@ function executarAtalho(a: AcaoAtalho): boolean {
 }
 
 /**
- * ADR-167 (⌘L do Grok Bot, "Add selection to prompt"): o texto selecionado numa fala da conversa aberta vira a citação do
+ * ADR-167 (⌘L, "Add selection to prompt"): o texto selecionado numa fala da conversa aberta vira a citação do
  * campo ("Respondendo · trecho"), como o Responder do menu da fala. Fora de uma fala, nada (a tecla segue livre).
  */
 function levarSelecaoAoCampo(): boolean {
@@ -10025,6 +10025,8 @@ function nomeParaAsIniciais(): string | null {
   perfilPedido = true;
   void minhaContaApi.estado().then((d) => { nomeDoPerfil = d.perfil.nome || null; if (nomeDoPerfil) render(); }).catch(() => {});
   return null;
+}
+
 /** ADR-167 (Paper 02): o rodapé da barra mostra o nome da pessoa; lido uma vez de Minha conta, no fundo. */
 let nomeLidoDoRodape: string | null | undefined;
 function nomeDoRodape(): string | null {

@@ -5,9 +5,9 @@ import type { EstadoPreparo } from "../lib/preparo.ts";
 import { COR_PADRAO, FORMA_PADRAO, NOME_MAX, htmlPreparo, htmlSeletorCor, htmlSeletorForma } from "./criar-bot.ts";
 
 /**
- * ADR-174 (2026-11-12, tela 13 do Paper): o onboarding do Grok Bot inteiro, em 10 passos curtos com o personagem como fio
+ * ADR-174 (2026-11-12, tela 13 do Paper): o onboarding inteiro, em 10 passos curtos com o personagem como fio
  * condutor — boas-vindas, conhecer, "tem o próprio computador", dar um trabalho, delegar, função, como conheceu, conectar
- * apps, criar o bot (cor e forma) e preparando com %. Comportamento e visual do Grok Bot; os textos são os do protótipo do
+ * apps, criar o bot (cor e forma) e preparando com %. Comportamento e visual de referência; os textos são os do protótipo do
  * Paper. Substitui o "olá" de 3,3 s da ADR-077: a ligação continua como opção ("Prefiro conversar por voz"), que segue o
  * caminho de antes (a IA dos bots, a ligação e os cards).
  *
@@ -58,7 +58,7 @@ export function apresentacaoInicial(): EstadoApresentacao {
   return { passo: 0, funcao: null, origem: null, apps: [], nome: "", forma: FORMA_PADRAO, cor: COR_PADRAO, primeira: "", preparo: null, conectando: null };
 }
 
-/** Os passos que dá para pular (6 e 7, como no Grok Bot; e "Agora não" nos apps). */
+/** Os passos que dá para pular (6 e 7, como no protótipo; e "Agora não" nos apps). */
 export const PULAVEIS: ReadonlySet<PassoApresentacao> = new Set(["funcao", "origem", "apps"]);
 
 export const passoAtual = (e: Pick<EstadoApresentacao, "passo">): PassoApresentacao => PASSOS[Math.max(0, Math.min(PASSOS.length - 1, e.passo))] ?? "boas-vindas";

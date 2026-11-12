@@ -1,11 +1,10 @@
 # ADR-177: Dinheiro e segredos sem o bot ver (passkey no gasto, cartão virtual, 1Password)
 
-Status: proposta (2026-11-12, frente "Assistente pessoal"; decisões "1Password e passkeys" e "pagamentos" em
-`grokbot-rea/DECISOES.md` §3).
+Status: proposta (2026-11-12, frente "Assistente pessoal"; decisões "1Password e passkeys" e "pagamentos").
 
 ## Contexto
 
-No Grok Bot, gastar exige a passkey da pessoa (`BeginGrokBotSpendApproval` → asserção WebAuthn), o cartão virtual é aprovado
+Na referência, gastar exige a passkey da pessoa (um pedido de aprovação do gasto → asserção WebAuthn), o cartão virtual é aprovado
 com atestação, senhas vêm do 1Password por um launcher que confere a assinatura do `op`, e passkeys são assinadas no Mac.
 No nod, o modo "Ignorar todas as aprovações" deixa uma escrita de conector rodar sem cartão; isso não pode valer para
 dinheiro.
@@ -35,7 +34,7 @@ provedor do cartão virtual. Nada disso existe ainda: o verificador real é nulo
 
 ## Gatilho de reversão
 
-Se a passkey em cada compra pesar demais, um limite diário aprovado por passkey uma vez (como o Grok faz com o cartão), nunca
+Se a passkey em cada compra pesar demais, um limite diário aprovado por passkey uma vez (como a referência faz com o cartão), nunca
 tirar a passkey.
 
 ## Porte (NOD-485)

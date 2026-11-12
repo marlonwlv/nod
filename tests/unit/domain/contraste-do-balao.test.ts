@@ -57,7 +57,7 @@ describe("contraste WCAG", () => {
     expect(r.fundo).toMatch(/^#([0-9a-f]{2})\1\1$/);
   });
 
-  it("o texto é sempre branco, como no Grok, em qualquer cor de bot e nos dois temas", () => {
+  it("o texto é sempre branco, em qualquer cor de bot e nos dois temas", () => {
     for (const cor of ["#f0b429", "#3ecf8e", "#e8483f", "#8b5cf6", "#f1efe9", "#a3a3a3", "#0a0a0c", "#ffffff"]) {
       for (const [balaoDoBot, pagina] of [["#f0f0f2", "#ffffff"], ["#232327", "#131315"]] as const) {
         const r = coresDoBalao(cor, balaoDoBot, pagina);

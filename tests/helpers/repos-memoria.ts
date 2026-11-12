@@ -1206,6 +1206,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         p.payload = payload;
         return p;
       },
+      // O cofre (nome, app e data; nunca o valor) só existe no Postgres; em memória não há credencial guardada.
+      async credenciaisGuardadas() { return []; },
     },
 
     contasIa: contasIaMemoria(b.contasIa, escopo),

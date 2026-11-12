@@ -338,7 +338,7 @@ describe("NOD-461: ⌥← → troca e ⌥⇧← → move a página, de qualquer 
   });
 });
 
-describe("ADR-167: os atalhos do Grok Bot que não colidem", () => {
+describe("ADR-167: os atalhos novos que não colidem", () => {
   it.each(LUGARES)("⌘B, ⌘, , ⌘I, ⌘L e ⌘⇧N no modificador do lugar (%s)", (lugar) => {
     expect(atalhoDoTeclado(tecla("KeyB", "b", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "barra" });
     expect(atalhoDoTeclado(tecla("Comma", ",", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "ajustes" });
