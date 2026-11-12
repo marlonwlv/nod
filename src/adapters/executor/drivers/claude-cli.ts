@@ -20,6 +20,7 @@ import { baixarAnexos, mensagemClaude } from "../anexos-turno.ts";
 import { rodarLigacaoClaude } from "./claude-ligacao.ts";
 import { classificarSessao, fimDoStderr, eventosDaLinhaStreamJson, reduzirSinais, SINAIS_ZERADOS, textoDaRodada } from "../../../domain/stream-json.ts";
 import { capacidadesDe, versaoMinimaDoModelo } from "../../../domain/harness.ts";
+import { criarFalaPorBloco } from "../../../domain/fala-por-bloco.ts";
 import { criarFalaDoMeio } from "../../../domain/mensagem-no-meio.ts";
 import { caminhoAumentado, resolverBinario } from "../caminho.ts";
 import { compararVersoes, conferirFloors, conferirPisoCli, FLAG_FLOORS, inventarioAbaixoDoPiso, type FlagComPiso } from "../flag-floors.ts";
@@ -705,6 +706,7 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 // NOD-402 (ADR-130): nem nos bastidores da conversa — a rotina não fala no meio; tudo vai na entrega,
                 // que o `sem_novidade` cala.
                 const falaNaHora = plano.modoTurno !== "sala" && !plano.bastidores && sinks.falaIntermediaria !== undefined;
+                const porBloco = criarFalaPorBloco(meio);
                 const falarRodadas = () => {
                   if (!falaNaHora) return;
                   for (; rodadasFaladas < rodadas.length; rodadasFaladas++) {
@@ -746,6 +748,9 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                     // ADR-083 §6: a resposta à mensagem do meio vira fala gravada agora, não passo do card.
                     const resposta = meio.avaliar(ev, falaNaHora);
                     if (resposta !== null && falaNaHora) sinks.falaIntermediaria!(resposta);
+                    // Fala por bloco (2026-11-12): o bloco fechado (content_block_stop) vira mensagem própria, sem esperar o result.
+                    const doBloco = falaNaHora ? porBloco.avaliar(ev) : null;
+                    if (doBloco !== null) sinks.falaIntermediaria!(doBloco);
                     if (ev.tipo === "tool_use") anotarSinal(vigia, { tipo: "ferramenta_comecou", id: ev.id }, Date.now());
                     else if (ev.tipo === "tool_result") anotarSinal(vigia, { tipo: "ferramenta_acabou", id: ev.toolUseId }, Date.now());
                     else if (ev.tipo === "result") anotarSinal(vigia, { tipo: "fim_da_volta" }, Date.now());

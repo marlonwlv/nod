@@ -58,6 +58,8 @@ export type FalaDoMeio = {
    */
   avaliar(ev: EventoStream, falouNaHora: boolean): string | null;
   readonly falados: ReadonlySet<EventoStream>;
+  /** Fala por bloco (2026-11-12): o bloco que o driver já gravou como fala própria sai da fala final, como os daqui. */
+  marcarFalado(ev: EventoStream): void;
   readonly obrigatorios: ReadonlySet<EventoStream>;
 };
 
@@ -81,6 +83,9 @@ export function criarFalaDoMeio(fronteiras: readonly EventoStream["tipo"][] = FR
       // A fronteira arma DEPOIS de avaliar: o bloco que a fecha (o texto do item, no Codex) ainda é de antes.
       if (estado === "pendente" && fronteiras.includes(ev.tipo)) estado = "armado";
       return null;
+    },
+    marcarFalado(ev) {
+      falados.add(ev);
     },
     falados,
     obrigatorios,
