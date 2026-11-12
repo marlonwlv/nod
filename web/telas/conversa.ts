@@ -1024,7 +1024,13 @@ export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agen
   // a última de um turno acabado (`vivo:`) tem, igual à gravada, sem pulo na troca (NOD-353).
   // NOD-312: o turno que recomeçou sem a sessão diz, no topo, que relê o necessário antes de seguir.
   if (t.motivoRecomeco && !saindo) partes.push({ chave: "recomeco", html: notaDasEtapas(t.motivoRecomeco, agente?.nome ?? null) });
-  const p = !saindo || chave === `vivo:${t.turnoId}` ? pensarDaFalaViva(t, a, estado, saindo, mudo) : null;
+  const p0 = !saindo || chave === `vivo:${t.turnoId}` ? pensarDaFalaViva(t, a, estado, saindo, mudo) : null;
+  // Paper 05b (casca, rodada 4): com o turno andando, a narração de abertura (as notas antes da primeira ação) sai do
+  // pensamento e vem antes dele, como texto da fala — "Vou rodar só os testes…", e só então o cabeçalho e os passos.
+  // É uma parte própria (`narracao`, no lugar): o morph a mantém e só troca o texto. No fim (`saindo`) volta ao
+  // pensamento fechado, como a gravada.
+  const { narracao, pensar: p } = p0 && !saindo ? separarNarracao(p0) : { narracao: [] as string[], pensar: p0 };
+  if (narracao.length) partes.push({ chave: "narracao", html: `<div class="fala-narracao" data-parte="narracao" data-no-lugar>${narracao.map((n) => `<p>${esc(n)}</p>`).join("")}</div>` });
   const pensar = p ? renderPensar({ ...p, parte: "pensar" }) : "";
   if (pensar) partes.push({ chave: "pensar", html: pensar });
   // NOD-358: um balão por parágrafo, como a fala gravada vai mostrar. Ao vivo (`parcial`), o próximo só aparece quando
@@ -1142,6 +1148,15 @@ export function pensarDaFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, es
         ? { id: c.id, texto: c.texto, ...(c.pendente ? { pendente: { texto: c.pendente.texto, desde: c.desde } } : {}) }
         : { id: estadoFala.chave === "escrevendo" ? "escrevendo" : `${estadoFala.chave}:${estadoFala.texto}`, texto: estadoFala.chave === "escrevendo" && a ? textoEscrevendo(a) : estadoFala.texto };
   return { turnoId: t.turnoId, fase, cabecalho, anuncio: fase === "silencio" ? cabecalho.texto : fase === "esperando" ? cabecalho.texto : estadoFala.texto, desde: t.desde, contagem, itens, tarefas: a?.tarefas ?? [] };
+}
+
+/** Puro (Paper 05b): as notas antes da primeira ação viram a narração da fala; o pensamento fica com o resto, na ordem. */
+export function separarNarracao(p: Pensar): { narracao: string[]; pensar: Pensar } {
+  const i = p.itens.findIndex((it) => it.tipo !== "nota");
+  const n = i < 0 ? p.itens.length : i;
+  if (n === 0) return { narracao: [], pensar: p };
+  const narracao = p.itens.slice(0, n).map((it) => (it.tipo === "nota" ? it.texto : ""));
+  return { narracao, pensar: { ...p, itens: p.itens.slice(n) } };
 }
 
 /** "Pensou por 9 s · 2 ações · 1 falhou": a linha do pensamento pronto (viva e gravada). Sem tempo: "2 ações · 1 falhou". */

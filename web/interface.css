@@ -561,6 +561,10 @@
 .pensar[open] > .pensar-corpo { grid-template-rows: 1fr; }
 .pensar-lista { margin: 4px 0 2px; padding: 0 0 0 12px; border-left: 2px solid var(--line); list-style: none; line-height: 22px; font-size: var(--fs-corpo-2); color: var(--ink-2); }
 .pensar-nota { color: var(--ink-2); }
+/* Paper 05b (casca, rodada 4): a narração de abertura do turno vivo, antes do pensamento, como texto da fala. */
+.fala-narracao { margin: 0 0 16px; font-size: var(--fs-corpo); line-height: var(--lh-conversa); color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.fala-narracao > p { margin: 0; }
+.fala-narracao > p + p { margin-top: 6px; }
 .pensar-acao { display: flex; gap: 8px; align-items: center; }
 .pensar-ic { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--ink-3); box-sizing: border-box; display: grid; place-items: center; }
 .pensar-acao[data-estado="rodando"] .pensar-ic { border-color: var(--ink-3) transparent var(--ink-3) var(--ink-3); animation: pensar-gira .9s linear infinite; }

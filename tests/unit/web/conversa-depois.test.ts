@@ -72,12 +72,14 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     expect(html).toContain(`data-desde="${AGORA - 60_000}"`);
     // Sem o nome da IA, sem "digitando", sem cursor, sem a linha antiga e sem o ponto que pulsa.
     for (const fora of ["catcher", "Claude", "digitando", 'class="cursor"', "está trabalhando", "atividade-pulso", "trabalhando ·", "fala-viva-linha"]) expect(html).not.toContain(fora);
-    // Parte 2: a narração curta de antes da ferramenta não vai ao balão (a gravada a deixa de fora): vira nota no pensamento.
+    // Parte 2: a narração curta de antes da ferramenta não vai ao balão (a gravada a deixa de fora). Casca r4 (Paper 05b):
+    // a narração de abertura vem antes do pensamento, como texto da fala (parte `narracao`), e não como nota dentro dele.
     expect(html).not.toContain('class="bubble"');
-    expect(html).toContain('<li class="pensar-nota">Lendo o PR https://github.com/acme/loja/pull/481.</li>');
+    expect(html).toContain('<div class="fala-narracao" data-parte="narracao" data-no-lugar><p>Lendo o PR https://github.com/acme/loja/pull/481.</p></div><details class="pensar"');
+    expect(html).not.toContain('pensar-nota');
     expect(html).toContain('<li class="pensar-acao" data-estado="rodando"><i class="pensar-ic" aria-hidden="true"></i><span>Usando GitHub</span></li>');
     expect(html).toContain('<span class="pensar-contagem">1 ação</span>');
-    expect(blocos[0]!.morfar!.partes.map((p) => p.chave)).toEqual(["nome", "pensar"]);
+    expect(blocos[0]!.morfar!.partes.map((p) => p.chave)).toEqual(["nome", "narracao", "pensar"]);
     expect(html).not.toContain("ver etapas");
     // Paper 05b (rodada 2): com o turno andando, os passos nascem à vista; a pessoa que fecha, fecha.
     expect(html).toContain(' data-estado-fala="ferramenta:Usando GitHub" open>');
@@ -91,7 +93,7 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     expect(narrando.html).toContain('<span class="fala-viva-estado">Abrindo https://github.com/acme/loja/pull/481 agora</span>');
     expect(narrando.html).toContain('state="idle"');
     expect(narrando.html).not.toContain('class="bubble"');
-    expect(narrando.morfar?.partes.map((p) => p.chave)).toEqual(["nome", "pensar"]);
+    expect(narrando.morfar?.partes.map((p) => p.chave)).toEqual(["nome", "narracao", "pensar"]);
   });
   it("revisão do #508: o nome do bot com $&, $` e $' não abre atributo no mascote (replace com função)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
@@ -303,9 +305,10 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     const html = (e: Estado) => blocosAoVivo(c, e)[0]!.html;
     expect(chaves(comA(primeira))).toEqual(["nome", "pensar"]);
     expect(html(comA(primeira))).toContain('<span class="fala-viva-estado">Vou olhar o PR.</span>');
-    expect(chaves(comA(usando))).toEqual(["nome", "pensar"]);
+    // Casca r4 (Paper 05b): a narração de abertura sai do pensamento e vem antes dele.
+    expect(chaves(comA(usando))).toEqual(["nome", "narracao", "pensar"]);
     expect(html(comA(usando))).toContain('<span class="fala-viva-estado">Usando GitHub</span>');
-    expect(html(comA(usando))).toContain('<li class="pensar-nota">Vou olhar o PR.</li>');
+    expect(html(comA(usando))).toContain('<div class="fala-narracao" data-parte="narracao" data-no-lugar><p>Vou olhar o PR.</p></div>');
     const segunda = comTexto(usando, "Está aprovado.");
     expect(html(comA(comTexto(usando, "Es")))).toContain('<span class="fala-viva-estado">Es</span>');
     expect(html(comA(segunda))).not.toContain('class="bubble"');
