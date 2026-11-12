@@ -673,7 +673,10 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
 
   // 2026-11-10 (#725): o log do bloco "Execuções" virou o run na linha do tempo. A linha viva do run (o último passo) troca
   // só o texto, no lugar; a lista de passos aberta é a que se regrava, e ela espera o dedo sair (redesenharQuandoLivre).
-  it("390×844 (toque): o passo do run que roda espera o dedo sair para regravar a lista de passos (e escreve o último)", async () => {
+  // Tela 18b (rodadas 3 e 4 do Paper): o run e a lista de passos dele saíram da linha do tempo (só o Registro de execução da
+  // lateral, sem os passos); o desenho com o run na linha ficou atrás de `runsNaLinha` (linha-do-tempo.ts), que a tarefa
+  // aberta não liga. Sem o bloco na tela, estes testes do log de passos ficam pulados até ele voltar a algum lugar.
+  it.skip("390×844 (toque): o passo do run que roda espera o dedo sair para regravar a lista de passos (e escreve o último)", async () => {
     await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await cdp.enviar("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     await cdp.enviar("Page.navigate", { url });
@@ -927,7 +930,10 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
       it(`${w}×${h}${toque ? " (toque)" : ""}${ancora ? " (com scroll anchoring)" : ""}: NOD-468 — o comentário lido fica parado quando a descrição acima muda de altura`, async () => {
         await montar(w, h, toque);
         if (!ancora) await semAncora();
-        await abrirT3(30);
+        // Tela 18b (rodada 4): o comentário de 13/18 é mais baixo; a 1440, 30 comentários deixavam menos de 200 px abaixo do
+        // lido. 40 devolvem o caso "no meio, longe do fim".
+        const coms = toque ? 30 : 40;
+        await abrirT3(coms);
         await avaliar(cdp, `(() => { document.activeElement?.blur(); const v = document.getElementById("quadro");
           const c = [...v.querySelectorAll(".qd-com, .ta-com")].find((e) => e.offsetParent && e.textContent.includes("comentário 15"));
           v.scrollTop += c.getBoundingClientRect().top - v.getBoundingClientRect().top - 120; })()`);
@@ -935,7 +941,7 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
         const t0 = await topoDoLido();
         expect(t0.folga, "no meio, longe do fim (senão é o caso colado)").toBeGreaterThan(200);
         for (const linhas of [82, 76, 88, 80]) {
-          await atualizarCom(linhas, 30);
+          await atualizarCom(linhas, coms);
           const t = await topoDoLido();
           expect(Math.abs(t.y - t0.y), `descrição com ${linhas} linhas: o comentário lido foi de ${t0.y} a ${t.y}`).toBeLessThanOrEqual(1);
         }
@@ -947,7 +953,8 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
   // trabalho não tem chave; com ele cruzando o topo, a âncora era o primeiro comentário abaixo do botão: os passos abriam
   // entre os dois, a vista subia o tamanho da lista e o botão tocado saía da tela (medido: 40 → −594 px). Quem regrava
   // decide a posição (ADA-12: `esquecer`). No computador o trabalho fica na coluna do lado e não empurra o meio.
-  it("390×844 (toque): NOD-468 revisão 1 — abrir os passos do trabalho que cruza o topo deixa o botão no lugar", async () => {
+  // Tela 18b: pulado como o "passo do run que roda" acima (o log de passos saiu da linha do tempo).
+  it.skip("390×844 (toque): NOD-468 revisão 1 — abrir os passos do trabalho que cruza o topo deixa o botão no lugar", async () => {
     await montar(390, 844, true);
     await avaliar(cdp, "window.__linhas = 30; window.__trabVivo = true");
     await atualizar();
@@ -1032,8 +1039,10 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     }, 90_000);
   }
 
-  it("1440×900 (com scroll anchoring): ADA-12 CA1 — a grade rolada para o lado fica em 400 durante 30 atualizações ao vivo", async () => {
-    await montar(1440, 900, false);
+  // Cartões rodada 4 (tela 18 do Paper): a coluna de 196 faz a grade de 7 colunas caber na janela de 1440 (ela rola só ~220
+  // px); os testes da rolagem de lado da grade rodam a 1120, onde ela ainda rola mais de 400 (e há card fora da borda).
+  it("1120×900 (com scroll anchoring): ADA-12 CA1 — a grade rolada para o lado fica em 400 durante 30 atualizações ao vivo", async () => {
+    await montar(1120, 900, false);
     const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
     await avaliar(cdp, `${grade}.scrollLeft = 400`);
     await esperar(120);
@@ -1050,8 +1059,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
   // Esc e o X voltavam com a grade em 0 (o foco no card só a trazia até o card, quando trazia). O desktop não tem "clique
   // fora": a tarefa aberta ocupa a vista inteira; os dois caminhos de fechar são o Esc e o X (voltar-ao-quadro).
   for (const como of ["Esc", "X"] as const) {
-    it(`1440×900: NOD-469 — fechar a tarefa com ${como} devolve a grade ao scrollLeft e ao scrollTop de antes`, async () => {
-      await montar(1440, 900, false);
+    // Cartões rodada 4: a 1120, onde a grade ainda rola mais de 400 (ver o CA1 com scroll anchoring).
+    it(`1120×900: NOD-469 — fechar a tarefa com ${como} devolve a grade ao scrollLeft e ao scrollTop de antes`, async () => {
+      await montar(1120, 900, false);
       const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
       await avaliar(cdp, `(() => { ${grade}.scrollLeft = 400; const v = document.getElementById("quadro"); v.scrollTop = Math.min(120, v.scrollHeight - v.clientHeight); })()`);
       await esperar(150);
@@ -1079,8 +1089,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
 
   // NOD-469 (revisão): a tarefa aberta pelo link não tem rolagem guardada; o Esc devolve o foco ao card dela, e o card que
   // estava fora da grade (uma coluna à direita) vem até a vista. Com o foco que não rola, o foco ficava num card invisível.
-  it("1440×900: NOD-469 — Esc na tarefa aberta pelo link traz à vista o card focado que estava fora da grade", async () => {
-    await montar(1440, 900, false);
+  // Cartões rodada 4: a 1120, onde a grade ainda rola mais de 400 (ver o CA1 com scroll anchoring).
+  it("1120×900: NOD-469 — Esc na tarefa aberta pelo link traz à vista o card focado que estava fora da grade", async () => {
+    await montar(1120, 900, false);
     const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
     const id = await avaliar<string>(cdp, `(() => { const g = ${grade}; g.scrollLeft = 0; const r = g.getBoundingClientRect();
       const c = [...g.querySelectorAll("[data-act='abrir-tarefa']")].find((e) => e.getBoundingClientRect().left >= r.right);
@@ -1123,8 +1134,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
 
   // QA do PR #10 (NOD-469): o card aberto que estava cortado na borda direita da grade recebe o foco no Esc sem rolar
   // (focarSemRolar); o focus() comum o trazia inteiro e a grade saía do scrollLeft devolvido.
-  it("1440×900: NOD-469 — Esc na tarefa aberta por um card cortado na borda da grade não rola a grade até ele", async () => {
-    await montar(1440, 900, false);
+  // Cartões rodada 4: a 1120, onde a grade ainda rola mais de 400 (ver o CA1 com scroll anchoring).
+  it("1120×900: NOD-469 — Esc na tarefa aberta por um card cortado na borda da grade não rola a grade até ele", async () => {
+    await montar(1120, 900, false);
     const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
     // A rolagem em que um card fica cortado na borda direita (parte à vista, parte fora).
     const achou = await avaliar<number>(cdp, `(() => { const g = ${grade};
@@ -1146,8 +1158,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
 
   // QA do PR #10 (NOD-469): de uma tarefa para outra (o link de outra tarefa com a primeira aberta), o Esc ainda devolve a
   // rolagem do quadro de antes da primeira; guardar de novo guardaria a vista da tarefa, que nunca bate com a do quadro.
-  it("1440×900: NOD-469 — abrir outra tarefa com uma aberta e fechar com Esc devolve a rolagem de antes da primeira", async () => {
-    await montar(1440, 900, false);
+  // Cartões rodada 4: a 1120, onde a grade ainda rola mais de 400 (ver o CA1 com scroll anchoring).
+  it("1120×900: NOD-469 — abrir outra tarefa com uma aberta e fechar com Esc devolve a rolagem de antes da primeira", async () => {
+    await montar(1120, 900, false);
     const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
     await avaliar(cdp, `${grade}.scrollLeft = 400`);
     await esperar(150);
@@ -1220,7 +1233,8 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     expect(Math.abs((await medir()).top - t0.top), "a tarefa voltou ao lugar").toBeLessThanOrEqual(1);
   }, 60_000);
 
-  it("390×844 (toque): ADA-12 revisão 2 — o trabalho novo que começa de log vazio e enche de passos não leva a tarefa rolada", async () => {
+  // Tela 18b: pulado como o "passo do run que roda" acima (o log de passos saiu da linha do tempo).
+  it.skip("390×844 (toque): ADA-12 revisão 2 — o trabalho novo que começa de log vazio e enche de passos não leva a tarefa rolada", async () => {
     await montar(390, 844, true);
     await semAncora();
     await avaliar(cdp, "(() => { window.__linhas = 4; window.__trabVivo = true; window.__trabN = 1; })()");
@@ -1259,8 +1273,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await avaliar(cdp, "(() => { window.__trabVivo = false; window.__trabN = 1; })()");
   }, 60_000);
 
-  it("1440×900: ADA-12 revisão 2 — a grade que estreita por um instante (menos colunas abertas) e volta deixa o scrollLeft em 400", async () => {
-    await montar(1440, 900, false);
+  // Cartões rodada 4: a 1120, onde a grade ainda rola mais de 400 (ver o CA1 com scroll anchoring).
+  it("1120×900: ADA-12 revisão 2 — a grade que estreita por um instante (menos colunas abertas) e volta deixa o scrollLeft em 400", async () => {
+    await montar(1120, 900, false);
     await semAncora();
     const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
     await avaliar(cdp, `${grade}.scrollLeft = 400`);
@@ -1350,8 +1365,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await avaliar(cdp, `document.activeElement?.blur()`);
     const t0 = await medir();
     expect(t0.max, "a tarefa cabe inteira (não rola)").toBeLessThanOrEqual(24);
-    await avaliar(cdp, `(() => { window.__coms = 14; window.__q.aoFrame({ streamId: "s", seq: 1, pessoaId: "p", tipo: "quadro.mudou", dados: { quadroId: "q1", agenteId: "a", loteId: null, tarefas: "t3" } }); })()`);
-    await ate(`document.querySelector("#quadro .qd-conteudo").textContent.includes("comentário 13")`);
+    // Tela 18b (rodada 4): com o comentário mais baixo, 14 não passavam de 200 px de rolagem; 20 passam.
+    await avaliar(cdp, `(() => { window.__coms = 20; window.__q.aoFrame({ streamId: "s", seq: 1, pessoaId: "p", tipo: "quadro.mudou", dados: { quadroId: "q1", agenteId: "a", loteId: null, tarefas: "t3" } }); })()`);
+    await ate(`document.querySelector("#quadro .qd-conteudo").textContent.includes("comentário 19")`);
     await esperar(250);
     const t1 = await medir();
     expect(t1.max, "o comentário novo faz a tarefa rolar").toBeGreaterThan(24);
@@ -1374,8 +1390,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     expect(t0.max, "a tarefa rola até 24 px").toBeGreaterThan(0);
     expect(t0.max).toBeLessThanOrEqual(24);
     expect(t0.top, "no fim").toBeGreaterThan(t0.max - 2);
-    await avaliar(cdp, `(() => { window.__coms = 14; window.__q.aoFrame({ streamId: "s", seq: 1, pessoaId: "p", tipo: "quadro.mudou", dados: { quadroId: "q1", agenteId: "a", loteId: null, tarefas: "t3" } }); })()`);
-    await ate(`document.querySelector("#quadro .qd-conteudo").textContent.includes("comentário 13")`);
+    // Tela 18b (rodada 4): com o comentário mais baixo, 14 não passavam de 200 px de rolagem; 20 passam.
+    await avaliar(cdp, `(() => { window.__coms = 20; window.__q.aoFrame({ streamId: "s", seq: 1, pessoaId: "p", tipo: "quadro.mudou", dados: { quadroId: "q1", agenteId: "a", loteId: null, tarefas: "t3" } }); })()`);
+    await ate(`document.querySelector("#quadro .qd-conteudo").textContent.includes("comentário 19")`);
     await esperar(250);
     const t1 = await medir();
     expect(t1.max).toBeGreaterThan(200);
@@ -1385,7 +1402,8 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
   it("1440×900: ADA-12 revisão 9 — CA3 colada no fim: o próprio comentário e a resposta que chega depois seguem o fim", async () => {
     await montar(1440, 900, false);
     await semAncora();
-    await avaliar(cdp, "window.__linhas = 30; window.__coms = 3");
+    // Tela 18b (rodada 4): a descrição de 30 linhas na coluna de agora não passava de 200 px de rolagem; 40 passam.
+    await avaliar(cdp, "window.__linhas = 40; window.__coms = 3");
     await atualizar();
     await abrirT3(3);
     await avaliar(cdp, `(() => { const v = document.getElementById("quadro"); v.scrollTop = v.scrollHeight; })()`);
@@ -1417,8 +1435,8 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     await atualizar();
     await abrirT3(2);
     await avaliar(cdp, `document.activeElement?.blur()`);
-    // 2026-11-10 (#725): o trabalho é o run na linha do tempo (e no Registro de execução da lateral); a tarefa rola por ela.
-    await ate(`document.querySelector("#quadro .ta-run[data-turno='tv']") && document.getElementById("quadro").scrollHeight > document.getElementById("quadro").clientHeight + 24`);
+    // Tela 18b: o trabalho chega só no Registro de execução da lateral (o run saiu da linha do tempo); a tarefa rola pela descrição.
+    await ate(`document.querySelector("#quadro .qd-lado .ta-regs .ta-reg") && document.getElementById("quadro").scrollHeight > document.getElementById("quadro").clientHeight + 24`);
     await esperar(250);
     const t1 = await medir();
     expect(t1.max, "o trabalho que chegou faz a tarefa rolar").toBeGreaterThan(24);
@@ -1531,8 +1549,9 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     expect(await avaliar<string>(cdp, `document.querySelector("#quadro > .qd-conteudo").style.minHeight`), "o eco da ação não reserva").toBe("");
   }, 60_000);
 
-  it("1440×900: ADA-12 CA1 — a grade rolada para o lado fica em 400 durante 30 atualizações ao vivo seguidas", async () => {
-    await montar(1440, 900, false);
+  // Cartões rodada 4: a 1120, onde a grade ainda rola mais de 400 (ver o CA1 com scroll anchoring).
+  it("1120×900: ADA-12 CA1 — a grade rolada para o lado fica em 400 durante 30 atualizações ao vivo seguidas", async () => {
+    await montar(1120, 900, false);
     await semAncora();
     const grade = `[...document.querySelectorAll("#quadro .qd-grade")].find((e) => e.offsetParent)`;
     await avaliar(cdp, `${grade}.scrollLeft = 400`);
@@ -1602,7 +1621,8 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
     expect(a2.top, "a resposta que chega depois segue o fim").toBeGreaterThan(a2.max - 2);
   }, 60_000);
 
-  it("1440×900: ADA-12 revisão 10 — colada no fim, abrir os passos do trabalho não leva a vista ao fim (sem pulo da pessoa)", async () => {
+  // Tela 18b: pulado como o "passo do run que roda" acima (o log de passos saiu da linha do tempo).
+  it.skip("1440×900: ADA-12 revisão 10 — colada no fim, abrir os passos do trabalho não leva a vista ao fim (sem pulo da pessoa)", async () => {
     await montar(1440, 900, false);
     await semAncora();
     await avaliar(cdp, "window.__linhas = 30; window.__trabVivo = true");
@@ -1673,7 +1693,8 @@ descrever("ADA-7: a atualização do quadro preserva a rolagem (Chrome real)", (
   // para baixo (sem o scroll anchoring, 359 px depois de 17 passos; com ele, 21 px). O log é escrito no lugar
   // (escreverLog), fora do desenharVista, e a âncora não valia ali. No computador o log fica na coluna do lado.
   for (const ancora of [false, true]) {
-    it(`390×844 (toque)${ancora ? " (com scroll anchoring)" : ""}: QA NOD-468 — o log do trabalho que cresce acima não leva o comentário lido`, async () => {
+    // Tela 18b: pulado como o "passo do run que roda" acima (o log de passos saiu da linha do tempo).
+    it.skip(`390×844 (toque)${ancora ? " (com scroll anchoring)" : ""}: QA NOD-468 — o log do trabalho que cresce acima não leva o comentário lido`, async () => {
       await montar(390, 844, true);
       if (!ancora) await semAncora();
       await avaliar(cdp, "window.__linhas = 10; window.__trabVivo = true; window.__trabN = 1");
