@@ -116,7 +116,7 @@ describe("servidor MCP do Nod (POST /api/mcp)", () => {
     const envio = falsas.chamadas.find((c) => c.caminho === `/conversas/${CONVERSA}/mensagens`);
     expect(envio?.corpo).toMatchObject({ texto: "bom dia" });
     // A rota roda com o escopo do token, como a sessão da tela.
-    expect(envio?.escopo).toEqual({ tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON, tokenId: "tok-1" });
+    expect(envio?.escopo).toEqual({ tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON });
   });
 
   it("o que espera e decidir: recusar uma aprovação desmarca todos os itens, como a tela", async () => {

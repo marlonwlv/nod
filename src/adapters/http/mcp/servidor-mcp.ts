@@ -73,7 +73,7 @@ export function criarServidorMcp(deps: DepsServidorMcp): (req: IncomingMessage, 
       case "tools/call": {
         const nome = typeof params.name === "string" ? params.name : "";
         const inicio = agora();
-        const r = await executarFerramentaMcp({ escopo: identidade, chamar: deps.chamar, agora, dormir }, nome, params.arguments);
+        const r = await executarFerramentaMcp({ escopo: { tenantId: identidade.tenantId, pessoaId: identidade.pessoaId }, chamar: deps.chamar, agora, dormir }, nome, params.arguments);
         if (!r) return erroRpc(id, -32602, `Ferramenta desconhecida: ${nome}`);
         // Só o nome e o desfecho (ADR-004): nunca os argumentos nem a saída, que levam texto da pessoa.
         log("info", "mcp_ferramenta", { token: identidade.tokenId, ferramenta: nome, erro: r.isError === true, ms: agora() - inicio });
