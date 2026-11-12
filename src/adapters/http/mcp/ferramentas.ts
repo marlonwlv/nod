@@ -318,12 +318,12 @@ const responderTarefa: Implementacao = async (ctx, args) => {
   return { ok: true, tarefa: achada.codigoAtual, resultado: r };
 };
 
-/** GET /rotinas devolve `RotinaDto[]` (contracts/api.ts): a rotina vem dentro de `rotina`. */
+/** GET /rotinas devolve `{ rotinas: RotinaDto[] }` (listarRotinas, contracts/api.ts): a rotina vem dentro de `rotina`. */
 type RotinaLida = Pick<RotinaDto, "proximaExecucao"> & { rotina: Pick<RotinaDto["rotina"], "id" | "agenteId" | "cron" | "fusoIana" | "estado" | "instrucao"> };
 
 async function rotinas(ctx: ContextoFerramenta): Promise<RotinaLida[]> {
-  const r = await chamarOk(ctx, { metodo: "GET", caminho: "/rotinas" });
-  return Array.isArray(r) ? (r as RotinaLida[]) : [];
+  const r = (await chamarOk(ctx, { metodo: "GET", caminho: "/rotinas" })) as { rotinas?: RotinaLida[] } | null;
+  return Array.isArray(r?.rotinas) ? r.rotinas : [];
 }
 
 const listarRotinas: Implementacao = async (ctx) => {

@@ -34,8 +34,8 @@ function rotasFalsas() {
       { decisao: { id: RETOMAR, tipo: "retomar_turno", frase: "Retomar o turno interrompido?", criadoEm: "2026-11-12T10:01:00Z", agenteId: BOT }, agenteNome: "Ada" },
     ] }); } },
     { metodo: "POST", acao: "cartoes.dispensar", padrao: /^\/decisoes\/(?<id>[^/]+)\/dispensar$/, async handler(ctx) { await registrar(ctx, "POST", `/decisoes/${ctx.params.id}/dispensar`); ctx.json(200, { ok: true, ids: { decisaoId: ctx.params.id } }); } },
-    // GET /rotinas devolve RotinaDto[] (a rotina dentro de `rotina`), como a rota de verdade.
-    { metodo: "GET", padrao: /^\/rotinas$/, async handler(ctx) { ctx.json(200, [{ rotina: { id: ROTINA, agenteId: BOT, cron: "0 9 * * 1", fusoIana: "America/Sao_Paulo", estado: "ativa", instrucao: "Resumo da semana" }, proximaExecucao: 0, bloqueio: null, resumo: "", espera: null }]); } },
+    // GET /rotinas devolve `{ rotinas: RotinaDto[] }` (a rotina dentro de `rotina`), como a rota de verdade (listarRotinas).
+    { metodo: "GET", padrao: /^\/rotinas$/, async handler(ctx) { ctx.json(200, { rotinas: [{ rotina: { id: ROTINA, agenteId: BOT, cron: "0 9 * * 1", fusoIana: "America/Sao_Paulo", estado: "ativa", instrucao: "Resumo da semana" }, proximaExecucao: 0, bloqueio: null, resumo: "", espera: null }] }); } },
     { metodo: "POST", acao: "rotinas.executar", padrao: /^\/rotinas\/(?<id>[^/]+)\/executar$/, async handler(ctx) { await registrar(ctx, "POST", `/rotinas/${ctx.params.id}/executar`); ctx.json(202, { ok: true }); } },
     // O convite de máquina (papel computador pareia sem a tela) e o endereço da rotina webhook (GET devolve o segredo).
     { metodo: "POST", acao: "maquinas.convidar", padrao: /^\/maquinas\/convites$/, async handler(ctx) { await registrar(ctx, "POST", "/maquinas/convites"); ctx.json(201, { convite: "segredo" }); } },

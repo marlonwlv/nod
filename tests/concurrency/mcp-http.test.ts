@@ -69,6 +69,13 @@ describeIntegracao("servidor MCP do Nod pelo HTTP real", () => {
     expect(depois).toMatchObject({ cliente: "Grok Bot", revogadoEm: null });
     expect(depois?.ultimoUsoEm).toBeTypeOf("number");
 
+    // Regression: ISSUE-001 — nod_listar_rotinas voltava sempre vazio: o GET /rotinas de verdade devolve
+    // `{ rotinas: [...] }` e a ferramenta lia um array (o falso do teste unitário tinha o formato errado).
+    // Found by /qa on 2026-11-12
+    const rotina = await srv.json<{ ids: { rotinaId: string } }>("POST", "rotinas", { agenteId: b.agente.id, cron: "0 9 * * 1-5", fusoIana: "America/Sao_Paulo", instrucao: "Resumo pelo MCP", fonte: "Conversa", entregavel: "Resumo", limitesAprovacao: "Pedir aprovação", politicaSemDado: "Avisar" });
+    const rotinas = JSON.parse((await ferramenta(emitido.token, "nod_listar_rotinas", {})).content[0]!.text) as { rotinas: { id: string; bot: string }[] };
+    expect(rotinas.rotinas).toContainEqual(expect.objectContaining({ id: rotina.ids.rotinaId, bot: "Piloto MCP" }));
+
     // A rota dos tokens não é alcançável pelo MCP (um token não gera outro).
     const porDentro = JSON.parse((await ferramenta(emitido.token, "nod_chamar_rota", { metodo: "POST", caminho: "/mcp/tokens", corpo: { nome: "outro" } })).content[0]!.text) as { status: number };
     expect(porDentro.status).toBe(404);
