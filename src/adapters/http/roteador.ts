@@ -29,7 +29,7 @@ export interface Ctx {
 
 export type CtxPublico = Omit<Ctx, "escopo"> & { escopo: Escopo | null };
 
-export type Metodo = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+export type Metodo = "GET" | "HEAD" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 /**
  * `acao` (NOD-391, ADR-135): o id do registro único de ações (src/domain/acoes/) que a rota executa. Toda rota de pessoa

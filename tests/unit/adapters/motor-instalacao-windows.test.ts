@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ARQUIVOS_DO_MOTOR } from "../../../src/domain/atualizacao-do-motor.ts";
 import { PISO_CLI } from "../../../src/adapters/executor/flag-floors.ts";
 import { NODE_DO_MOTOR } from "../../../src/adapters/http/motor-instalacao.ts";
-import { scriptDeInstalacaoWindows, servidorDoWindowsValido, TAREFA_DO_MOTOR_WINDOWS } from "../../../src/adapters/http/motor-instalacao-windows.ts";
+import { SHA256_SHASUMS_DO_NODE, scriptDeInstalacaoWindows, servidorDoWindowsValido, TAREFA_DO_MOTOR_WINDOWS } from "../../../src/adapters/http/motor-instalacao-windows.ts";
 import { caminhosNoWindows, IAS_DO_NPM, lerMarcaDasIas } from "../../../motor/desinstalar.ts";
 
 /** ADR-151 (ADA-32): o PowerShell que `irm https://<nod>/windows | iex` roda. */
@@ -61,6 +61,10 @@ describe("script de instalação do motor no Windows (ADR-151)", () => {
 
   it("confere o sha256 do Node e de cada arquivo do motor antes de trocar", () => {
     expect(script).toContain("SHASUMS256.txt");
+    expect(SHA256_SHASUMS_DO_NODE).toBe("be0629ee2bcd8e40bb856abdd3407f0762101b76bd60a36b8867f637733631c0");
+    expect(script).toContain(`$Sha256SomasNode = '${SHA256_SHASUMS_DO_NODE}'`);
+    expect(script).toContain("if ((Sha256 $somas) -ne $Sha256SomasNode)");
+    expect(script.indexOf("(Sha256 $somas)")).toBeLessThan(script.indexOf("Get-Content -LiteralPath $somas"));
     expect(script).toMatch(/\(Sha256 \$zip\) -ne/);
     expect(script).toMatch(/\(Sha256 \$destino\) -ne \$esperado/);
     expect(script.indexOf("(Sha256 $destino)")).toBeLessThan(script.indexOf("Trocar $novo $App"));
@@ -81,8 +85,38 @@ describe("script de instalação do motor no Windows (ADR-151)", () => {
     expect(script).toContain("-RunLevel Limited");
     expect(script).toContain("-LogonType Interactive");
     expect(script).toContain("-ExecutionTimeLimit ([TimeSpan]::Zero)");
+    expect(script).toContain("-RestartInterval (New-TimeSpan -Minutes 1) -RestartCount 999");
     expect(script).toContain("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run");
     expect(script).not.toMatch(/-RunLevel Highest|RunAs/);
+  });
+
+  it("remove a tarefa e a chave Run antigas sem SID depois de registrar o início novo", () => {
+    expect(script).toContain(`Unregister-ScheduledTask -TaskName '${TAREFA_DO_MOTOR_WINDOWS}' -TaskPath '\\'`);
+    expect(script).toContain(`Remove-ItemProperty -Path $ChaveRun -Name '${TAREFA_DO_MOTOR_WINDOWS}'`);
+  });
+
+  it("recusa ConstrainedLanguage antes de usar tipos .NET e impede duas instalações simultâneas", () => {
+    const guarda = script.indexOf("LanguageMode -ne 'FullLanguage'");
+    expect(guarda).toBeGreaterThan(0);
+    expect(guarda).toBeLessThan(script.indexOf("[Security.Principal.WindowsIdentity]"));
+    expect(guarda).toBeLessThan(script.indexOf("[guid]::NewGuid"));
+    expect(script).toContain("New-Object Threading.Mutex($false, 'Local\\nod-motor-instalador')");
+    expect(script).toContain("if (-not $Trava.WaitOne(0))");
+    expect(script).toContain("$Trava.ReleaseMutex()");
+    expect(script.indexOf("$Trava.ReleaseMutex()")).toBeGreaterThan(script.indexOf("} finally {"));
+  });
+
+  it("os shims das IAs chamam o Node portátil e a mensagem de sucesso só vem depois de provar o processo", () => {
+    const shims = script.slice(script.indexOf("function FixarNodeNosShims"), script.indexOf("function InstalarIa"));
+    expect(shims).toContain("$nodeCmd = $NodeExe");
+    expect(shims).toContain("($Binario + '.cmd')");
+    expect(shims).toContain("($Binario + '.ps1')");
+    expect(shims).toContain("Join-Path $PastaNpm $Binario");
+    const iniciar = script.slice(script.indexOf("function IniciarMotor"), script.indexOf("function RetomarMotor"));
+    expect(iniciar).toContain("while ((PidsDoMotor).Count -eq 0");
+    expect(iniciar).toContain("if ((PidsDoMotor).Count -eq 0) { Falhar");
+    expect(iniciar.indexOf("$Estado.Iniciado = $true")).toBeGreaterThan(iniciar.indexOf("Falhar"));
+    expect(script.indexOf("Motor atualizado e no ar")).toBeGreaterThan(script.indexOf("IniciarMotor"));
   });
 
   it("para o motor antes de trocar o Node e as IAs (o Windows trava o .exe em uso)", () => {
