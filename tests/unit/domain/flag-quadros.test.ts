@@ -24,6 +24,24 @@ describe("NOD-415 (ADR-141): flag NOD_QUADROS", () => {
     expect(quadroLiberadoPara({ modo: "todos", admins: [] }, { id: "qualquer" })).toBe(true);
   });
 
+  it("NOD_QUADROS_PESSOAS soma pessoas ao modo admins; não abre o desligado nem a NOD_QUADROS_N", () => {
+    const l = lerLiberacaoQuadros({ NOD_QUADROS: "admins", NOD_ADMINS: "admin1@exemplo.com", NOD_QUADROS_PESSOAS: " Pessoa1@Exemplo.com, id-2 ,, admin1@exemplo.com " });
+    expect(l.admins).toEqual(["admin1@exemplo.com", "pessoa1@exemplo.com", "id-2"]);
+    expect(quadroLiberadoPara(l, { id: "x", email: "pessoa1@exemplo.com" })).toBe(true);
+    expect(quadroLiberadoPara(l, { id: "ID-2" })).toBe(true);
+    expect(quadroLiberadoPara(l, { id: "x", email: "admin1@exemplo.com" })).toBe(true);
+    expect(quadroLiberadoPara(l, { id: "y", email: "outra@exemplo.com" })).toBe(false);
+    // Só a lista, sem NOD_ADMINS, já basta no padrão de produção.
+    expect(quadroLiberadoPara(lerLiberacaoQuadros({ NODE_ENV: "production", NOD_QUADROS_PESSOAS: "pessoa1@exemplo.com" }), { id: "x", email: "pessoa1@exemplo.com" })).toBe(true);
+    // desligado continua fechando para todos; todos continua abrindo para todos.
+    expect(quadroLiberadoPara(lerLiberacaoQuadros({ NOD_QUADROS: "desligado", NOD_QUADROS_PESSOAS: "pessoa1@exemplo.com" }), { id: "x", email: "pessoa1@exemplo.com" })).toBe(false);
+    expect(quadroLiberadoPara(lerLiberacaoQuadros({ NOD_QUADROS: "todos", NOD_QUADROS_PESSOAS: "pessoa1@exemplo.com" }), { id: "y", email: "outra@exemplo.com" })).toBe(true);
+    // A lista não vaza para o 2º quadro: a NOD_QUADROS_N segue só com os admins.
+    const env = { NODE_ENV: "production", NOD_ADMINS: "admin1@exemplo.com", NOD_QUADROS_PESSOAS: "pessoa1@exemplo.com" };
+    expect(quadroLiberadoPara(lerLiberacaoQuadrosN(env), { id: "x", email: "pessoa1@exemplo.com" })).toBe(false);
+    expect(quadroLiberadoPara(lerLiberacaoQuadrosN(env), { id: "x", email: "admin1@exemplo.com" })).toBe(true);
+  });
+
   it("ADA-14 (ADR-153 §7): NOD_QUADROS_N é lida por si (não pela NOD_QUADROS), com o mesmo padrão e os mesmos admins", () => {
     expect(lerLiberacaoQuadrosN({ NOD_QUADROS_N: "desligado" }).modo).toBe("desligado");
     expect(lerLiberacaoQuadrosN({ NOD_QUADROS_N: "todos", NODE_ENV: "production" }).modo).toBe("todos");

@@ -55,6 +55,14 @@ meta é opcional e só ela mostra progresso.
    decisões 1 e 2): o quadro de outra dona em que a pessoa participa segue a flag e a chave da DONA — ela vê a tela
    desse quadro e o bot dela recebe o `gerir_quadro` para ele, mesmo fora da flag; o resto continua fechado.
 
+## Emenda de 2026-11-13: liberar pessoas sem torná-las admins
+
+`NOD_QUADROS_PESSOAS` (e-mails ou ids, separados por vírgula) soma pessoas à lista que o modo `admins` libera. Antes,
+liberar o quadro para alguém (e com ele as páginas do bot, os apps e a página do Canvas, que leem o mesmo experimento)
+exigia pôr a pessoa em `NOD_ADMINS`, que também abre o Marketplace de admin e a ligação. `desligado` continua fechando
+para todos, e a lista não vale para `NOD_QUADROS_N` (o 2º quadro segue só com os admins). Sem a env, nada muda.
+Gatilho de reversão: com o quadro em `todos` na produção, a lista perde o sentido e sai.
+
 ## Emenda NOD-430 (2026-11-02): o limite do bot no quadro
 
 Qualquer bot da pessoa mexe em qualquer quadro dela pelo `gerir_quadro`. **Total** (o controle da tela) só num turno da
