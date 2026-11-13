@@ -25,7 +25,7 @@ export function desenhar(no: (a: Acoes) => ReactElement) {
       const rotulo = (b.textContent ?? "").trim();
       fireEvent.click(b);
       for (const [acao, dados] of executar.mock.calls) lista.push({ acao, dados: dados ?? {}, rotulo });
-      for (const [acao, ia, extra] of cartao.agir.mock.calls) lista.push({ acao, dados: { ia, ...(extra ?? {}) } as DadosDaAcao, rotulo });
+      for (const [acao, ia, extra] of cartao.agir.mock.calls) lista.push({ acao, dados: { ia, ...(extra ?? {}) } as unknown as DadosDaAcao, rotulo });
     }
     return lista;
   };

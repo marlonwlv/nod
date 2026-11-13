@@ -8,7 +8,7 @@ import { Gira, Svg } from "./pecas.tsx";
 /**
  * ADR-179 (fase 5): o cartão de uma IA (web/telas/cartao-ia.ts, `renderCartaoIa`) como componente, para a etapa "A IA
  * dos seus bots" do onboarding. A vista (`vistaDaIa`) é a mesma função pura de Provedores de IA; só o desenho mudou de
- * motor. Os cliques chegam ao main.ts por `acoes` (o mesmo `iasDoMac` dos `data-act="ia-…"` de Provedores de IA).
+ * motor. Os cliques chegam ao main.ts por `acoes` (o mesmo `iasDoMac` que os cliques "ia-…" de Provedores de IA usam).
  */
 export type AcoesDoCartaoIa = {
   agir: (act: AcaoIa, ia: IaMac, extra?: { agora?: boolean; passo?: IdPasso; texto?: string }) => void;
