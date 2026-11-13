@@ -6,6 +6,7 @@ import type { Mensagem } from "../contracts/mensagem.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { nomeReservadoAoNod } from "../domain/nod.ts";
 import { NOME_INICIAL, nomeDeBoasVindas, proximaCor, proximaForma } from "../domain/proposta-agente.ts";
+import { OPCOES_BOAS_VINDAS, PERGUNTA_BOAS_VINDAS, saudacaoDeBoasVindas } from "../domain/boas-vindas.ts";
 import { TETO_DESCRICAO_BOT, TETO_NOME_BOT, TETO_TITULO_BOT } from "../contracts/ferramentas-criar-bots.ts";
 import { proximaVoz } from "../domain/vozes.ts";
 import { autoriaDoAgente } from "./registrar-negacao.ts";
@@ -75,14 +76,16 @@ export const criarAgenteSemReserva: CasoDeUso<EntradaCriarAgente, SaidaCriarAgen
   if (!conversa) throw new ErroDeDominio("estado_invalido", { cause: "conversa não criada" });
 
   const autoria = input.criadoPorAgenteId ? autoriaDoAgente(deps.escopo, input.criadoPorAgenteId, { decididoPor: "regra:criar_bots" }) : autoriaPessoa(deps.escopo);
+  // Spec do botão + (tela 5): o balão é a saudação com o nome da pessoa; a pergunta e as opções vão no payload (o cartão).
+  const pessoa = input.interativo ? (await deps.repos.pessoas.buscar(deps.escopo.pessoaId))?.nome : null;
   const mensagem = await deps.repos.mensagens.criar({
     conversaId: conversa.id,
     autoria: input.interativo ? autoriaDoAgente(deps.escopo, agente.id, { decididoPor: "regra:boas_vindas" }) : autoria,
     kind: input.interativo ? "texto" : "sistema",
-    payload: input.interativo ? { kind: "boas_vindas" } : null,
+    payload: input.interativo ? { kind: "boas_vindas", pergunta: PERGUNTA_BOAS_VINDAS, opcoes: [...OPCOES_BOAS_VINDAS] } : null,
     // Chat limpo (PR 1, decisão 10): a primeira linha da conversa fica no chat; sem ela a conversa nova abre vazia.
     assunto: "agente.criado",
-    texto: input.mensagem && !input.interativo ? input.mensagem : input.interativo ? `Oi! Eu sou ${nome}. Acabamos de nos conhecer. Para que você quer minha ajuda? Pode escolher uma opção ou me contar do seu jeito.` : confirmado ? `${nome} está pronto. O perfil que você definiu já está salvo; envie a primeira tarefa.` : redigir("agente-nasceu", agora),
+    texto: input.mensagem && !input.interativo ? input.mensagem : input.interativo ? saudacaoDeBoasVindas(pessoa, nome) : confirmado ? `${nome} está pronto. O perfil que você definiu já está salvo; envie a primeira tarefa.` : redigir("agente-nasceu", agora),
     confianca: "confiavel",
   });
   if (!mensagem) throw new ErroDeDominio("estado_invalido", { cause: "mensagem não criada" });

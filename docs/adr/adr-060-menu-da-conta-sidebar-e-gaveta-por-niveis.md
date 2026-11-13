@@ -1,6 +1,6 @@
 # ADR-060 — Menu da conta, sidebar arrastável e a gaveta do bot por níveis
 
-Status: aceito · Data: 2026-09-30 · Emendada pela ADR-125 (itens 3 e 5, 2026-10-23), pela NOD-370 (2026-10-26, a conversa do bot que saiu), pela NOD-119 (2026-10-29, densidade e largura da barra) e pela NOD-444 (2026-10-31, nova rotina começa no chat) · Emenda ADR-032 (painel do bot) e a regra de 2026-09-18 de "Seu espaço". Canvas "Nod —
+Status: aceito · Data: 2026-09-30 · Emendada pela ADR-125 (itens 3 e 5, 2026-10-23), pela NOD-370 (2026-10-26, a conversa do bot que saiu), pela NOD-119 (2026-10-29, densidade e largura da barra) e pela NOD-444 (2026-10-31, nova rotina começa no chat) · Substituído em parte pelo ADR-179 (2026-11-12: a largura da barra, item 3 e a emenda da NOD-119) · Emenda ADR-032 (painel do bot) e a regra de 2026-09-18 de "Seu espaço". Canvas "Nod —
 tela do agente", página "Menu, sidebar e gaveta".
 
 ## Contexto
@@ -86,6 +86,9 @@ conta própria. Com Agentes aberto, a lista fica na mesma rolagem e o foco vai p
 leitor de tela ouve "‹nome› foi para Excluídos/Ocultos." numa região viva fora da `.app`.
 
 ## Emenda de 2026-10-29 — Densidade e largura da barra (NOD-119)
+
+> Substituída pelo [ADR-179](adr-179-barra-redimensionavel.md) (2026-11-12): a barra passou a ser redimensionável, sem
+> densidades. O card do chat continua.
 
 "Sidebar de 340 px" passa a ser o padrão, não a única largura. Em Configurações › Aparência a pessoa escolhe a densidade:
 Confortável (340 px, a de hoje) ou Compacta (200 px, linhas de 36 px sem a prévia). A borda direita da barra é um separador

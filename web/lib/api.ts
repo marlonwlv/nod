@@ -486,7 +486,7 @@ export function criarApi(escopo: Escopo) {
     // Revisão W12 (2026-10-08): o último lote sai no `pagehide`; com keepalive o POST termina depois de a aba fechar.
     telemetriaLinhas: (eventos: readonly EventoLinha[]) => pedir<RespostaMutacao>("POST", `${base}/telemetria/linhas`, { eventos }, { keepalive: true, silencioso: true }),
     taxasLinhas: () => get<TaxaDeAbertura[]>("telemetria/linhas"),
-    criarAgente: (nome?: string, perfil?: { titulo?: string; descricao?: string; interativo?: boolean }) => post<{ agente: Agente; conversa: Conversa }>("agentes", { dono: "pessoa", nome, ...perfil }),
+    criarAgente: (nome?: string, perfil?: { titulo?: string; descricao?: string; interativo?: boolean; forma?: FormaAgente; cor?: CorAgente }) => post<{ agente: Agente; conversa: Conversa }>("agentes", { dono: "pessoa", nome, ...perfil }),
     /** NOD-20: voz e vozVelocidade vão no mesmo PATCH; `versao` = a versão do perfil que a mudança gravou (null = nada mudou). */
     editarPerfil: (id: string, perfil: { nome?: string; titulo?: string; descricao?: string; modelo?: string; harness?: PreferenciaHarness; esforco?: string; forma?: FormaAgente; cor?: CorAgente; voz?: IdVozNod | null; vozVelocidade?: VelocidadeVoz }) =>
       patch<{ agente: Agente; versao?: number | null }>(`agentes/${id}`, perfil),

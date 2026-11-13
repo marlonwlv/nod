@@ -14,7 +14,6 @@ import type { Destino } from "./destino-no-chat.ts";
 import type { PayloadPedidoRespondido, PayloadPeerPedido } from "./troca-entre-bots.ts";
 import type { AncoraDoConsentimento, PayloadPropostaDecidida, PayloadRegraPermanente } from "./cartao-encolhido.ts";
 import type { DesfechoItem, DesfechoRotina, MotivoFalhaComputador, MotivoNegacao, MotivoPasse } from "./motivos.ts";
-
 /** Marca de confiança é propriedade do CONTEÚDO, nunca do nome da ferramenta (ADR-026). */
 /**
  * definido em 2026-10-15 (NOD-257, H5): o pedido a colega parado na fila e o porquê. Não é gravado: `lerConversa` o põe
@@ -43,7 +42,8 @@ export type KindMensagem =
 
 /** Payload tipado por kind: estado de controle nunca se lê do texto (Regra 9, GRUPO.passe-tipado). */
 export type PayloadMensagem =
-  | { kind: "boas_vindas" } | { kind: "acoes_do_turno"; acoes: { rotulo: string; falhou?: true; vezes?: number }[]; duracaoMs?: number } // NOD-353: resumo das ações; duracaoMs (26/10, "Pensou por 9 s" na gravada)
+  | { kind: "boas_vindas"; pergunta?: string; opcoes?: { rotulo: string; texto: string }[] } // botão +, tela 5; as gravadas antes não têm pergunta/opções
+  | { kind: "acoes_do_turno"; acoes: { rotulo: string; falhou?: true; vezes?: number }[]; duracaoMs?: number } // NOD-353: resumo das ações; duracaoMs (26/10, "Pensou por 9 s" na gravada)
   /** `trabalhoId` (2026-10-07, ADR-083): o trabalho de quem RECEBEU o pedido. `nomePara` (2026-10-18, chat limpo PR 3): o nome dele no momento. */
   | { kind: "handoff"; de: string; para: string; motivo: string; tarefaId?: string; trabalhoId?: string; fila?: FilaDoPedido; nomePara?: string }
   /** ADR-047/058 e chat limpo (PR 3, `nome`): troca-entre-bots.ts. */

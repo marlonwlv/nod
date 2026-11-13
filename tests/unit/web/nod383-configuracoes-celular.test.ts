@@ -60,7 +60,7 @@ describe("NOD-383: textos de aparelho (critério 2)", () => {
     comCelular(true);
     expect(detalheDoBot(e, bot)).toContain("Seu Mac");
     expect(opcoesDeMaquina([], null, true)[0]!.rotulo).toBe("Seu Mac");
-    expect(htmlMenuConta({ faixa: null, conexao: "Conectada", quem: null, conta: { email: null, senha: false } })).toContain("neste aparelho");
+    expect(htmlMenuConta({ faixa: null, conexao: "Conectada", conta: { email: null, senha: false } })).toContain("neste aparelho");
   });
 });
 

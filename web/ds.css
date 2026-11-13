@@ -72,7 +72,7 @@ body { font-size: var(--fs-corpo); line-height: var(--lh-corpo); }
 /* =====================================================================================
    Barra lateral (telas 02, 03 e 16)
    ===================================================================================== */
-#sidebar :is(.row, .fixado-bt, .nod-topo, .linha-fixa-bt) { transition: background-color var(--dur-rapido) var(--curva); }
+/* COP-12: o hover e o selecionado da barra trocam seco (saiu a transição de fundo de 100 ms). */
 #sidebar .bot-row:hover, #sidebar .fixado-bt:hover, #sidebar .linha-fixa:hover { background: var(--hover); }
 #sidebar .bot-row:has(> .row[aria-current="true"]), #sidebar .fixado-bt[aria-current="true"] { background: var(--ativo); }
 #sidebar .bot-row, #sidebar .fixado-bt { border-radius: var(--raio-10); }
@@ -105,11 +105,18 @@ html[data-largura="recolhida"] .sidebar .linha-fixa-aguardando span { display: n
 html[data-largura="recolhida"] .sidebar .row > .ponto-aguardando { display: none; }
 
 /* =====================================================================================
-   Conversa (telas 02 e 04): o balão da pessoa é preto por padrão; o bot fala sem balão.
+   Conversa (telas 02 e 04): o balão da pessoa é preto por padrão; o do bot é a tinta a 6 % (COP-12, --balao-bot).
    ===================================================================================== */
 html:not([data-balao="cor"]) [class*="balao-c-"] { --balao-fundo: var(--balao-pessoa); --balao-tinta: var(--balao-pessoa-tinta); --balao-codigo: var(--balao-pessoa-codigo); }
 .message.you .bubble { border-radius: var(--raio-18); border-top-right-radius: var(--raio-18); line-height: var(--lh-conversa); padding: 7px 14px; }
-.message.bot .bubble:not(.com-progresso) { background: transparent; padding-left: 0; padding-right: 0; border-radius: 0; line-height: var(--lh-conversa); }
+.message.you .bubble { box-shadow: var(--brilho-balao); }
+.message.bot .bubble:not(.com-progresso) { background: var(--balao-bot); color: var(--balao-bot-tinta); padding: 7px 14px; border-radius: var(--raio-18); box-shadow: var(--brilho-balao); line-height: var(--lh-conversa); }
+.message.bot .bubble :not(pre) > code { background: var(--codigo-inline-fundo); color: var(--codigo-inline-tinta); border-radius: var(--raio-4); }
+
+/* COP-12: o avatar de bot preto (skin encre) inverte no escuro, corpo claro e olhos escuros. Os olhos do <nod-mascote>
+   são o "papel" (o path do corpo, em branco) que aparece pelos furos da máscara; o .olho é o do avatar estático. */
+.c-black { --mascote-cor: var(--mascote-preto); }
+nod-mascote.c-black svg > g > path, .mascote.c-black :is(.olho, .mascote-pausado) { fill: var(--mascote-preto-olho); }
 /* 16b: o cartão que a linha "Aguardando você" abriu ganha contorno e halo laranja por um instante. */
 :is(.lista > li.decisao, .card-acesso, [data-proposta], .aprov-card, .lista > li.cartao-revisor .cr, .message.pergunta .cartao-pergunta, [data-pergunta]).realce {
   box-shadow: 0 0 0 1.5px var(--aguardando-ponto), 0 0 0 6px var(--aguardando-soft);

@@ -34,10 +34,11 @@ describe("ADR-167: tokens", () => {
     expect(tokens).toContain("--raio-full: 9999px;");
     expect(tokens).toContain("--curva: cubic-bezier(.22, 1, .36, 1);");
   });
-  it("no escuro não há sombra: todo nível é a borda clara sutil", () => {
+  it("no escuro não há sombra (COP-12): todo nível zera, menos a do campo de mensagem", () => {
     const escuro = tokens.slice(tokens.indexOf(':root[data-theme="dark"]'));
-    for (const s of ["controle", "inline", "popover", "modal", "janela"]) expect(escuro).toMatch(new RegExp(`--sombra-${s}: 0 0 0 \\.5px rgba\\(255, 255, 255, \\.1\\d\\);`));
-    expect(escuro).toMatch(/--shadow-pop: 0 0 0 \.5px rgba\(255, 255, 255, \.12\);/);
+    for (const s of ["controle", "inline", "popover", "modal", "janela", "menu", "pilula"]) expect(escuro).toMatch(new RegExp(`--sombra-${s}: none;`));
+    expect(escuro).toMatch(/--shadow-pop: none;/);
+    expect(escuro).toMatch(/--shadow-composer: var\(--sombra-campo\);/);
   });
   it("movimento reduzido zera as durações nomeadas", () => {
     expect(tokens).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*:root \{ --dur-instantaneo: \.01ms;/);
