@@ -1103,9 +1103,9 @@ async function decidirPelaLigacao(decisaoId: string, aprovar: boolean): Promise<
   if (!api) return;
   const item = estado.suaVez?.itens.find((i) => i.decisao.id === decisaoId);
   const tipo = item?.decisao.tipo;
-  if (tipo === "aprovacao" || tipo === "gate_rotina") await api.decidir(decisaoId, { itens: (item?.itensAprovacao ?? []).map((i) => ({ id: i.id, selecionado: aprovar && i.selecionado })) });
+  if (tipo === "aprovacao" || tipo === "gate_rotina") await decidirAprovacaoReconciliando(decisaoId, { itens: (item?.itensAprovacao ?? []).map((i) => ({ id: i.id, selecionado: aprovar && i.selecionado })) });
   else if (tipo === "retomar_turno") await (aprovar ? api.retomar(decisaoId) : api.dispensar(decisaoId));
-  else await api.decidir(decisaoId, aprovar ? {} : { recusar: true });
+  else await decidirAprovacaoReconciliando(decisaoId, aprovar ? {} : { recusar: true });
   dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(item?.decisao.conversaId ? [`conversa:${item.decisao.conversaId}` as Invalidacao] : [])] });
 }
 
@@ -6037,7 +6037,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (grupos.length > 0 && capacidades.length === 0) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: "Marque pelo menos um grupo para permitir." } }); return; }
     // Chat limpo (PR 4): o consentimento leva o id desta decisão; o cartão "Acesso permitido" recebe o foco e o anúncio.
     marcarDecidida(el, id);
-    await api!.decidir(id, grupos.length > 0 ? { capacidades } : {});
+    await decidirAprovacaoReconciliando(id, grupos.length > 0 ? { capacidades } : {});
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", "conectores", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
   "dar-acesso": (el) => abrirNivel(el.dataset.id ?? "", { tipo: "dar-acesso" }),
@@ -6070,7 +6070,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       const proposta = propostaDoEstado(propostaId);
       if (!proposta || proposta.estado !== "pendente" || appsQueFaltam(proposta, estado).length > 0) return;
       await agir(async () => {
-        if (ato === "decidir-proposta") await api!.decidir(propostaId, {});
+        if (ato === "decidir-proposta") await decidirAprovacaoReconciliando(propostaId, {});
         else await api!.confirmarProposta(propostaId);
         dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
       });
@@ -6748,12 +6748,12 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const card = el.closest<HTMLElement>("[data-proposta]");
     const selecionados = [...(card?.querySelectorAll<HTMLInputElement>("input[data-lote-i]") ?? [])].filter((c) => c.checked).map((c) => Number(c.dataset.loteI));
     marcarDecidida(el, el.dataset.id);
-    await api!.decidir(el.dataset.id ?? "", { selecionados });
+    await decidirAprovacaoReconciliando(el.dataset.id ?? "", { selecionados });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", "gestao", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
   // Revisão 6 do #626: o card do app que não vale mais volta 409 com o `motivo`; a frase dele sai no aviso neutro (o card
   // fechou como recusado e o recibo foi gravado, então a conversa relê do mesmo jeito). Outros cards não mandam motivo.
-  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => api!.decidir(el.dataset.id ?? "", {}).then(() => undefined), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => decidirAprovacaoReconciliando(el.dataset.id ?? ""), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // NOD-50: o cartão de credencial. Mostrar troca o tipo do campo sem redesenhar (o valor fica onde está); a fase guarda
   // só o "mostrando", para o próximo frame não esconder o que a pessoa pediu para ver.
   "mostrar-credencial": (el) => {
@@ -6770,10 +6770,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const id = el.dataset.id ?? "";
     for (const campo of document.querySelectorAll<HTMLInputElement>(`[data-form="guardar-credencial"][data-id="${CSS.escape(id)}"] input[name="valor"]`)) campo.value = "";
     marcarFase(id, null);
-    await api!.decidir(id, { recusar: true });
+    await decidirAprovacaoReconciliando(id, { recusar: true });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
-  "recusar-decisao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { recusar: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "recusar-decisao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { recusar: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // definido em 2026-09-24 (emenda da ADR-045): a pergunta se responde pelo campo da conversa. Revisto em 2026-10-18
   // (plano "pergunta com botões"): estes são os gestos em volta do cartão e da caixa "Respondendo".
   "composer-outro": () => escolherNoComposer(true),

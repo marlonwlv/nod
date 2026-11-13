@@ -13,7 +13,9 @@ export async function decidirContraEstadoVelho<T>(
     await decidir();
     return "decidida";
   } catch (erro) {
-    if (!(erro instanceof ErroApi) || erro.status !== 409 || erro.codigo !== "estado_invalido") throw erro;
+    // Um `motivo` da lista branca descreve um conflito real produzido por este clique (por exemplo, uma proposta de
+    // app que deixou de caber). Mesmo que o servidor feche o cartão ao recusá-lo, a pessoa ainda precisa ler o motivo.
+    if (!(erro instanceof ErroApi) || erro.status !== 409 || erro.codigo !== "estado_invalido" || erro.motivo !== null) throw erro;
     if (!(await fechouNoServidor())) throw erro;
     return "reconciliada";
   }
