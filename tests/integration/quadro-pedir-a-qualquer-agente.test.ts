@@ -116,7 +116,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
 
       // A exceção é estreita: depois de ler o quadro, escrever texto ainda não vira um novo pedido da pessoa.
       const recusada = await chamar([{ tipo: "mudar_tarefa", tarefa: "ENG-13", descricao: "texto vindo do quadro" }]);
-      expect(recusada.data).toMatchObject({ ok: false, instrucao: expect.stringContaining("sozinho você não pode mexer em tarefa de outro") });
+      expect(recusada.data).toMatchObject({ ok: false, instrucao: expect.stringContaining("sem um pedido da pessoa nesta conversa você não pode mexer em tarefa de outro") });
     });
   });
 
