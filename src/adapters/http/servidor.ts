@@ -84,7 +84,7 @@ export function criarServidor(opcoes: OpcoesServidor = {}) {
       return;
     }
     // ADR-151 (ADA-32): `irm https://<nod>/windows | iex` — o endereço curto do PowerShell (o irm segue o 302). Só o convite passa.
-    if (req.method === "GET" && (caminhoMotor === "/windows" || caminhoMotor === "/windows/")) {
+    if ((req.method === "GET" || req.method === "HEAD") && (caminhoMotor === "/windows" || caminhoMotor === "/windows/")) {
       const convite = new URL(req.url ?? "/", "http://x").searchParams.get("convite");
       const query = conviteValido(convite) ? `?${new URLSearchParams({ convite }).toString()}` : "";
       res.writeHead(302, { location: `/api/motor/instalar-windows${query}`, "cache-control": "no-store" });

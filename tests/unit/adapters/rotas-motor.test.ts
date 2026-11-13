@@ -96,6 +96,13 @@ describe("rotas do motor (ADR-090)", () => {
     expect(r.headers.get("cache-control")).toBe("no-store");
     expect((await fetch(`${srv.url}/windows/?convite=${convite}&papel=computador`, { redirect: "manual" })).headers.get("location")).toBe(`/api/motor/instalar-windows?convite=${convite}`);
     expect((await fetch(`${srv.url}/windows?convite=curto`, { redirect: "manual" })).headers.get("location")).toBe("/api/motor/instalar-windows");
+    const head = await fetch(`${srv.url}/windows?convite=${convite}`, { method: "HEAD", redirect: "manual" });
+    expect(head.status).toBe(302);
+    expect(head.headers.get("location")).toBe(`/api/motor/instalar-windows?convite=${convite}`);
+    const scriptHead = await fetch(`${srv.url}/api/motor/instalar-windows?convite=${convite}`, { method: "HEAD" });
+    expect(scriptHead.status).toBe(200);
+    expect(scriptHead.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await scriptHead.text()).toBe("");
   });
 
   it("ADA-226: /download/windows redireciona (302, no-store) para o .exe público, com ou sem barra e com query", async () => {
