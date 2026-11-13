@@ -134,6 +134,8 @@ export type TarefaDto = TarefaQuadro & {
   naColunaDesde?: number | null; // NOD-420: epoch ms da entrada na coluna atual; null fora do Postgres
   /** NOD-460: epoch ms do despacho do turno vivo (null = não roda). ADR-163: na fila desde e o motivo real (série ou portão). */
   trabalhandoDesde?: number | null; naFilaDesde?: number | null; motivoFila?: "mesma_tarefa" | "memoria" | "processador" | "disco" | null;
+  /** 2026-11-13 (mover em lote): a posição na fila do quadro, "na fila (n de m)", pela ordem de entrada; só com m ≥ 2. */
+  posicaoFila?: { n: number; m: number } | null;
   prs?: PrNaTela[]; // NOD-421: os PRs ligados e as linhas de sistema (CI, conflito, merge)
   linhas?: LinhaDeSistema[]; estadoLinha?: import("./quadro-execucoes.ts").EstadoLinhaTarefa | null; // ADA-232: o card numa linha
   movimentos?: MovimentoDto[]; // NOD-419: os últimos movimentos (o mais novo primeiro)
