@@ -219,6 +219,57 @@ export function usaSnapshotOff(flagsNoHelp: readonly string[] | null | undefined
   return (flagsNoHelp ?? []).includes("--system-prompt-snapshot") && compararVersoes(versao, FLAG_FLOORS["--system-prompt-snapshot"].piso) >= 0;
 }
 
+/**
+ * definido em 2026-11-13: o teto da linha de comando no Windows. O CreateProcess aceita até 32.767 caracteres, contando
+ * o programa, os espaços e as aspas; acima disso o `spawn` do Node lança `ENAMETOOLONG` na hora (medido no Node 24.19.0:
+ * 32.700 caracteres de args abre o processo, 33.000 não). A folga cobre o caminho do programa e o do script que o `.cmd`
+ * do npm vira (ADR-147). Um bot com quatro conectores passava do teto: o prompt de sistema (~17 mil caracteres) e o
+ * `--allowedTools`, que cresce com cada ferramenta de conector, iam inteiros no argv, e todo turno falhava sem o CLI abrir.
+ */
+export const TETO_DA_LINHA_NO_WINDOWS = 32_767 - 2_048;
+
+/**
+ * Quantos caracteres os args ocupam na linha de comando do Windows, por cima: cada um com o espaço, as aspas que o Node
+ * põe quando há espaço ou aspas, e uma barra de escape por aspa ou barra invertida.
+ */
+export function tamanhoNaLinhaDeComando(args: readonly string[]): number {
+  return args.reduce((soma, a) => soma + a.length + 3 + (a.match(/["\\]/g)?.length ?? 0), 0);
+}
+
+/** As flags cujo valor longo pode ir num arquivo, e a flag que lê o arquivo (o `--settings` aceita caminho ou JSON). */
+const FLAG_EM_ARQUIVO = {
+  "--system-prompt": { flag: "--system-prompt-file", arquivo: "prompt-sistema.txt" },
+  "--append-system-prompt": { flag: "--append-system-prompt-file", arquivo: "prompt-sistema.txt" },
+  "--settings": { flag: "--settings", arquivo: "settings.json" },
+} as const satisfies Record<string, { flag: string; arquivo: string }>;
+
+/**
+ * definido em 2026-11-13: os args do turno com o prompt de sistema e o `--settings` em arquivos de `dir` (o tmpdir do
+ * turno, apagado no fim), para a linha de comando caber no teto do Windows. O conteúdo é o mesmo, byte a byte; muda só
+ * por onde o CLI o lê. Sondado no CLI 2.1.323: `--system-prompt-file`, `--append-system-prompt-file` e `--settings
+ * <arquivo>` respondem como as formas em linha; o `--help` cita as duas primeiras como `--system-prompt[-file]`, por
+ * isso elas não aparecem na lista de flags lida do help. Sem piso próprio na tabela: só entram quando a forma em linha
+ * falharia de certeza (rodarTurno), então uma versão que não as conhecesse não perde turno que hoje funciona.
+ */
+export function argsComArquivos(args: readonly string[], dir: string): { args: string[]; arquivos: { caminho: string; conteudo: string }[] } {
+  const saida: string[] = [];
+  const arquivos: { caminho: string; conteudo: string }[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    const regra = Object.hasOwn(FLAG_EM_ARQUIVO, a) ? FLAG_EM_ARQUIVO[a as keyof typeof FLAG_EM_ARQUIVO] : null;
+    const conteudo = args[i + 1];
+    if (!regra || conteudo === undefined) {
+      saida.push(a);
+      continue;
+    }
+    const caminho = join(dir, regra.arquivo);
+    saida.push(regra.flag, caminho);
+    arquivos.push({ caminho, conteudo });
+    i++;
+  }
+  return { args: saida, arquivos };
+}
+
 /** ADR-052: o turno com o kit do terminal — `settings` (o hook do nod) e as pastas além do cwd (ADR-055: a pasta da pessoa). */
 export type TurnoTerminal = { settings: string; dirsExtras: readonly string[] };
 
@@ -677,7 +728,16 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 const entradaStdin = streamJson
                   ? mensagemClaude(texto, anexos)
                   : [texto, ...anexos.map((a) => `[anexo "${a.meta.nome}" não pôde ser lido: esta versão do Claude Code não aceita arquivos. Diga isso à pessoa.]`)].join("\n\n");
-                const { args } = montarArgs({ plano: { ...planoDoTurno, ...(pastas || terminal ? {} : { workspacePastas: null }) }, mcpJson, compactar, streamJson, terminal, esforco, systemPrompt, snapshotOff, bifurcar, windows });
+                const montados = montarArgs({ plano: { ...planoDoTurno, ...(pastas || terminal ? {} : { workspacePastas: null }) }, mcpJson, compactar, streamJson, terminal, esforco, systemPrompt, snapshotOff, bifurcar, windows });
+                // 2026-11-13: no Windows, a linha que passaria do teto leva o prompt e o --settings em arquivos do tmpdir.
+                const tamanhoDaLinha = windows ? tamanhoNaLinhaDeComando(montados.args) : 0;
+                let args = montados.args;
+                if (tamanhoDaLinha > TETO_DA_LINHA_NO_WINDOWS) {
+                  const emArquivos = argsComArquivos(montados.args, tmpdir);
+                  await Promise.all(emArquivos.arquivos.map((a) => writeFile(a.caminho, a.conteudo, "utf8")));
+                  args = emArquivos.args;
+                  log("info", "claude_cli_args_em_arquivo", { turno_id: plano.turnoId, caracteres: tamanhoDaLinha, depois: tamanhoNaLinhaDeComando(args) });
+                }
                 const env = montarEnvDoFilho(cfg.env, home, plano.politicaExecucao.prazoMs, { claudeMdDasPastas: Boolean(terminal), orcamento: plano.orcamento });
 
                 const pendentes: Promise<void>[] = [];

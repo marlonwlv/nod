@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ABRE_CONTEXTO_DO_TURNO, argsDoPromptSistema, AVISO_SEM_TERMINAL, CLAUDE_MD_DAS_PASTAS, comAvisoSemTerminal, FECHA_CONTEXTO_DO_TURNO, FLAGS_DO_TURNO, montarArgs, montarEnvDoFilho, settingsDoTerminal, usaSnapshotOff, usaSystemPrompt, volatilNaMensagem } from "../../../src/adapters/executor/drivers/claude-cli.ts";
+import { join } from "node:path";
+import { ABRE_CONTEXTO_DO_TURNO, argsComArquivos, argsDoPromptSistema, AVISO_SEM_TERMINAL, CLAUDE_MD_DAS_PASTAS, comAvisoSemTerminal, FECHA_CONTEXTO_DO_TURNO, FLAGS_DO_TURNO, montarArgs, montarEnvDoFilho, settingsDoTerminal, tamanhoNaLinhaDeComando, TETO_DA_LINHA_NO_WINDOWS, usaSnapshotOff, usaSystemPrompt, volatilNaMensagem } from "../../../src/adapters/executor/drivers/claude-cli.ts";
 import { ambienteDaLigacao, montarArgsLigacao } from "../../../src/adapters/executor/drivers/claude-ligacao.ts";
 import { FLAG_FLOORS, flagsListadasNoHelp } from "../../../src/adapters/executor/flag-floors.ts";
-import type { PlanoTurno } from "../../../src/contracts/plano-turno.ts";
+import type { FerramentaPlano, PlanoTurno } from "../../../src/contracts/plano-turno.ts";
 import { MARCADOR_PARTE_DINAMICA } from "../../../src/domain/marcador-prompt.ts";
 import { NATIVAS_DE_ARQUIVO } from "../../../src/domain/nativas.ts";
 
@@ -484,5 +485,57 @@ describe("laço de voz: --effort e ambiente (NOD-164)", () => {
       expect(env).toMatchObject({ MAX_THINKING_TOKENS: "0", ENABLE_TOOL_SEARCH: "false" });
       expect(env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING).toBeUndefined();
     }
+  });
+});
+
+describe("linha de comando no Windows (2026-11-13: turno de bot com quatro conectores falhava sem o CLI abrir)", () => {
+  /** Um bot com `conectores` conectores de `porConector` ferramentas cada, e o prompt de conversa do tamanho de referência. */
+  const planoComConectores = (conectores: number, porConector: number): PlanoTurno => {
+    const base = planoDeTeste({ sessaoCli: "s" });
+    const ferramentas = Array.from({ length: conectores * porConector }, (_, i): FerramentaPlano => {
+      const nome = `conector${Math.floor(i / porConector)}__ferramenta_de_exemplo_${i % porConector}`;
+      return { nome, nomeMcp: `mcp__nod__${nome}`, origem: "conector", conectorId: `k${i}`, readOnlyHint: true, tocaDadoPessoal: false, schema: { type: "object" } };
+    });
+    // ~17 mil caracteres: a parte estável do prompt de conversa (tests/unit/domain/__prompts__/tamanhos.json).
+    const estavel = "Regra do bot com aspas \"assim\" e barra \\ no meio.\n".repeat(340);
+    return { ...base, catalogo: { ...base.catalogo, ferramentas: [...base.catalogo.ferramentas, ...ferramentas] }, promptSistema: `${estavel}\n${MARCADOR_PARTE_DINAMICA}\nvolatil`, promptSistemaPartes: { estavel, volatil: "volatil" } };
+  };
+  const terminal = { settings: settingsDoTerminal({ comandoHook: "C:/Users/pessoa/nod/node.exe C:/Users/pessoa/nod/hook.mjs" }), dirsExtras: [] };
+
+  it("a conta do tamanho põe espaço, aspas e um escape por aspa ou barra invertida", () => {
+    expect(tamanhoNaLinhaDeComando(["-p"])).toBe(5);
+    expect(tamanhoNaLinhaDeComando(['a"b\\c'])).toBe(5 + 3 + 2);
+  });
+
+  it("o plano de um bot com quatro conectores passa do teto em linha e cabe com o prompt e o --settings em arquivos", () => {
+    const { args } = montarArgs({ plano: planoComConectores(4, 70), mcpJson: "C:\\Users\\pessoa\\nod\\turno-x\\mcp.json", terminal, systemPrompt: true, snapshotOff: true, windows: true });
+    expect(tamanhoNaLinhaDeComando(args)).toBeGreaterThan(TETO_DA_LINHA_NO_WINDOWS);
+    const emArquivos = argsComArquivos(args, "C:\\turno-x");
+    expect(tamanhoNaLinhaDeComando(emArquivos.args)).toBeLessThan(TETO_DA_LINHA_NO_WINDOWS);
+  });
+
+  it("troca só o valor das flags longas pelo caminho do arquivo, com o mesmo conteúdo, e deixa o resto na ordem", () => {
+    const { args } = montarArgs({ plano: planoComConectores(1, 2), mcpJson: "m", terminal, systemPrompt: true, snapshotOff: true, windows: true });
+    const prompt = valor(args, "--system-prompt")!;
+    const settings = valor(args, "--settings")!;
+    const r = argsComArquivos(args, "dir");
+    expect(r.args).not.toContain("--system-prompt");
+    expect(valor(r.args, "--system-prompt-file")).toBe(join("dir", "prompt-sistema.txt"));
+    expect(valor(r.args, "--settings")).toBe(join("dir", "settings.json"));
+    expect(r.arquivos).toEqual([
+      { caminho: join("dir", "settings.json"), conteudo: settings },
+      { caminho: join("dir", "prompt-sistema.txt"), conteudo: prompt },
+    ]);
+    // O resto dos args fica igual e na mesma ordem.
+    const semLongas = (a: string[]) => a.filter((x) => x !== prompt && x !== settings && !x.startsWith(join("dir", "")) && !["--system-prompt", "--system-prompt-file", "--settings"].includes(x));
+    expect(semLongas(r.args)).toEqual(semLongas(args));
+  });
+
+  it("o --append-system-prompt (sem a forma do ADR-080) vai para --append-system-prompt-file", () => {
+    const { args } = montarArgs({ plano: planoDeTeste(), mcpJson: "m" });
+    const r = argsComArquivos(args, "dir");
+    expect(valor(r.args, "--append-system-prompt-file")).toBe(join("dir", "prompt-sistema.txt"));
+    expect(r.arquivos).toEqual([{ caminho: join("dir", "prompt-sistema.txt"), conteudo: "Você é a Vera. Responda em português." }]);
+    expect(r.args).not.toContain("--settings");
   });
 });

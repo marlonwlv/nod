@@ -94,6 +94,14 @@ describe.runIf(noWindows)("processo no Windows (ADR-147)", () => {
     expect(r.status).toBe(0);
     expect(r.stdout.split("\n")[0]).toBe("3");
   });
+
+  // 2026-11-13: movido de tests/unit/executor/processo-spawn-que-lanca.test.ts — lá era it.runIf(win32) dentro do
+  // projeto "unit", que no CI roda só no Ubuntu, então nunca rodava de verdade (ficava sempre pulado).
+  it("a linha de comando acima de 32.767 caracteres vira erroSpawn ENAMETOOLONG", async () => {
+    const p = iniciarProcesso({ bin: process.execPath, args: ["-e", "0", "x".repeat(33_000)], env: env(), cwd: pasta, aoLinha: () => undefined, encerrarFugitivos: false });
+    const fim = await p.fim;
+    expect((fim.erroSpawn as NodeJS.ErrnoException | undefined)?.code).toBe("ENAMETOOLONG");
+  });
 });
 
 describe.runIf(noWindows)("hook no Git Bash (ADR-147)", () => {
