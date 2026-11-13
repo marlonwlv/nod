@@ -588,8 +588,15 @@ function Principal {
 
 try {
   $Trava = New-Object Threading.Mutex($false, 'Local\nod-motor-instalador')
-  if (-not $Trava.WaitOne(0)) { Falhar 'Já há outra instalação do nod rodando neste Windows. Espere ela terminar e rode de novo.' }
-  $TravaAdquirida = $true
+  try {
+    if (-not $Trava.WaitOne(0)) { Falhar 'Já há outra instalação do nod rodando neste Windows. Espere ela terminar e rode de novo.' }
+    $TravaAdquirida = $true
+  } catch [Threading.AbandonedMutexException] {
+    # O processo anterior morreu sem liberar a trava. O .NET já entrega a propriedade ao lançar esta exceção; seguir
+    # recupera a instalação interrompida e o finally libera a trava normalmente para as próximas tentativas.
+    $TravaAdquirida = $true
+    Registrar 'a instalação anterior terminou sem liberar a trava; retomando'
+  }
   Principal
   $env:NOD_INSTALACAO_RESULTADO = 'ok'
 } catch {

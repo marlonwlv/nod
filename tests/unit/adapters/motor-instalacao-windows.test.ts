@@ -102,6 +102,8 @@ describe("script de instalação do motor no Windows (ADR-151)", () => {
     expect(guarda).toBeLessThan(script.indexOf("[guid]::NewGuid"));
     expect(script).toContain("New-Object Threading.Mutex($false, 'Local\\nod-motor-instalador')");
     expect(script).toContain("if (-not $Trava.WaitOne(0))");
+    expect(script).toContain("catch [Threading.AbandonedMutexException]");
+    expect(script).toMatch(/catch \[Threading\.AbandonedMutexException\] \{[\s\S]*?\$TravaAdquirida = \$true/);
     expect(script).toContain("$Trava.ReleaseMutex()");
     expect(script.indexOf("$Trava.ReleaseMutex()")).toBeGreaterThan(script.indexOf("} finally {"));
   });
