@@ -304,6 +304,15 @@ export function formDoResponder(c: Card, onde: "card" | "linha"): string {
  * o "te perguntou" (ADR-162) e quando mudou.
  */
 export function card(c: Card): Html {
+  const p = partesDoCard(c);
+  return h(`<li class="${p.classe}" data-tarefa="${esc(c.id)}"${c.arrastavel ? ' draggable="true"' : ""}>${p.corpo}${botaoDeMover(c)}${c.menu ?? ""}</li>`);
+}
+
+/**
+ * ADR-180 (fase 2 do React): o card em partes — a classe do `li` e o corpo sem o "Mover para…" nem o menu dele. A grade
+ * em React (web/react/quadro/) põe o corpo no seu próprio `li` arrastável e o "Mover para…" no Menu do Base UI.
+ */
+export function partesDoCard(c: Card): { classe: string; corpo: Html } {
   const av = avataresDoCard(c);
   const r = c.responsavel;
   const quem = r || av.rodam.length ? `<span class="qd-quem"><span class="qd-avs">${av.html}</span><span>${esc(r?.nome ?? "")}</span></span>` : "";
@@ -313,11 +322,11 @@ export function card(c: Card): Html {
   const l1 = c.aviso ? aviso(c.aviso) : estadoDoCard(c);
   const l3 = c.pr || c.tags?.length ? `<span class="qd-tags">${c.pr ? `<span class="qd-tag qd-tag-pr" title="${esc(c.pr.titulo)}"><i class="qd-pr-ponto qd-pr-${c.pr.tom}" aria-hidden="true"></i>${esc(c.pr.texto)}<span class="qd-sr"> (${esc(c.pr.titulo)})</span></span>` : ""}${(c.tags ?? []).map((t) => `<span class="qd-tag">${esc(t)}</span>`).join("")}${extrasDoCard(c)}</span>` : extrasDoCard(c) ? `<span class="qd-tags">${extrasDoCard(c)}</span>` : "";
   const classe = cl("qd-card", c.menu && "qd-com-menu", c.motivo && "qd-bloqueado", c.brilho && "qd-brilho", c.aviso && "qd-com-aviso", c.classe && esc(c.classe));
-  return h(`<li class="${classe}" data-tarefa="${esc(c.id)}"${c.arrastavel ? ' draggable="true"' : ""}>` +
+  return { classe, corpo: h(
     `<div class="qd-card-l1">${prioridadeDoCard(c)}<span class="qd-id">${c.codigoHtml ?? esc(c.codigo ?? c.id)}</span>${l1}</div>` +
     `<button type="button" class="qd-card-bt" data-act="abrir-tarefa" data-id="${esc(c.id)}" aria-label="${esc(rotuloDoCard(c))}"><span class="qd-card-tit">${c.tituloHtml ?? esc(c.titulo)}</span></button>` +
     (c.descricao ? `<p class="qm-desc">${esc(c.descricao)}</p>` : "") +
-    l3 + resp + (quem || quando || coms ? `<div class="qd-card-pe">${quem}${coms}${quando}</div>` : "") + botaoDeMover(c) + (c.menu ?? "") + `</li>`);
+    l3 + resp + (quem || quando || coms ? `<div class="qd-card-pe">${quem}${coms}${quando}</div>` : "")) };
 }
 
 /** ADR-162: o sinal discreto da tarefa que espera você. 2026-11-10: com o chip da espera (`espera`), o chip fala por ele. */
@@ -346,6 +355,9 @@ export interface Coluna {
   /** NOD-448 (decisão 8 do Gil): coluna criada pela pessoa, com o ícone cinza. */
   pessoa?: boolean;
   cards?: Html[];
+  /** ADR-180: os mesmos cards como dado (a grade em React) e o que vem antes deles na lista (o campo de nova tarefa). */
+  cartoes?: Card[];
+  antesDosCards?: Html[];
   /** A contagem, quando os cards mostrados são só uma parte. */
   n?: number;
   recolhida?: boolean;
@@ -384,18 +396,26 @@ export const iconeDe = (c: Pick<Coluna, "status" | "icone" | "pessoa">): Html =>
   return c.pessoa ? h(ic.replace('class="qd-ic qd-st ', 'class="qd-ic qd-st qd-st-pessoa ')) : ic;
 };
 
-export function coluna(c: Coluna): Html {
+/** ADR-180: a coluna em partes, para a grade em React montar a seção, o cabeçalho e a lista dela. */
+export interface PartesDaColuna {
+  id: string; classe: string; rotulo: string; grupo: string; direita?: string;
+  /** Recolhida: só a tira (o botão inteiro). */
+  tira?: Html;
+  /** O que vai dentro do h3, a linha da dica e o fim da lista ("e mais N", o vazio). */
+  cab: Html; dica: Html; fim: Html;
+}
+
+export function partesDaColuna(c: Coluna): PartesDaColuna {
   const cards = c.cards ?? [];
   const n = c.n ?? cards.length;
   const ic = c.avatar ? h(`<span class="qm-av qm-col-av" aria-hidden="true">${emudecer(c.avatar)}</span>`) : iconeDe(c);
   const grupo = c.grupo ?? GRUPO_DO_STATUS[c.status as Status] ?? "iniciado";
   const id = esc(c.status);
-  const presa = c.presa !== undefined ? ` style="right: ${esc(c.presa)}"` : "";
-  const base = cl("qd-col", `qd-col-${id}`, `qd-grupo-${grupo}`, c.recolhida && "qd-col-recolhida", c.pessoa && "qd-col-pessoa", c.presa !== undefined && "qd-fixa", c.classe && esc(c.classe));
-  const dados = `data-status="${id}" data-coluna="${id}" data-grupo="${grupo}"`;
+  const classe = cl("qd-col", `qd-col-${id}`, `qd-grupo-${grupo}`, c.recolhida && "qd-col-recolhida", c.pessoa && "qd-col-pessoa", c.presa !== undefined && "qd-fixa", c.classe && esc(c.classe));
+  const base = { id: c.status, classe, grupo, ...(c.presa !== undefined ? { direita: c.presa } : {}) };
   if (c.recolhida) {
-    return h(`<section class="${base}" aria-label="${esc(`${c.nome}, ${n}, recolhida`)}" ${dados}${presa}>` +
-      `<button type="button" class="qd-col-tira" data-act="abrir-coluna" data-status="${id}" aria-expanded="false" title="${esc(`Mostrar ${c.nome}`)}">${ic}<span class="qd-col-nome">${esc(c.nome)}</span><span class="qd-n">${n}</span></button></section>`);
+    return { ...base, rotulo: `${c.nome}, ${n}, recolhida`, cab: h(""), dica: h(""), fim: h(""),
+      tira: h(`<button type="button" class="qd-col-tira" data-act="abrir-coluna" data-status="${id}" aria-expanded="false" title="${esc(`Mostrar ${c.nome}`)}">${ic}<span class="qd-col-nome">${esc(c.nome)}</span><span class="qd-n">${n}</span></button>`) };
   }
   const trava = c.trava ? `<span class="qd-col-trava" title="${esc(c.trava)}">${ICONE.trava}<span class="qd-sr">${esc(c.trava)}</span></span>` : "";
   // QA do PR #624: o prazo é um chip que não quebra; o nome cortado por reticências leva o nome inteiro no title.
@@ -414,10 +434,17 @@ export function coluna(c: Coluna): Html {
   const cab = c.cab ?? (c.recolhivel
     ? `<button type="button" class="qd-col-bt" data-act="abrir-coluna" data-status="${id}" aria-expanded="true" data-coluna="${id}" title="${esc(dica)}"${atalhos}>${ic}${nome}<span class="qd-n">${n}</span></button>`
     : `${ic}${nome}<span class="qd-n">${n}</span>`);
-  return h(`<section class="${base}" aria-label="${esc(`${c.nome}, ${n}`)}" ${dados}${presa}>` +
-    `<h3 class="qd-col-cab">${cab}${trava}${prazo}${add}${c.apos ?? ""}</h3>` +
-    (c.dica ? `<p class="qd-col-dica">${esc(c.dica)}</p>` : "") +
-    `<ul class="qd-col-lista">${cards.join("")}${mais}${vazio}</ul></section>`);
+  return { ...base, rotulo: `${c.nome}, ${n}`, cab: h(`${cab}${trava}${prazo}${add}${c.apos ?? ""}`),
+    dica: h(c.dica ? `<p class="qd-col-dica">${esc(c.dica)}</p>` : ""), fim: h(`${mais}${vazio}`) };
+}
+
+export function coluna(c: Coluna): Html {
+  const p = partesDaColuna(c);
+  const id = esc(p.id);
+  const presa = p.direita !== undefined ? ` style="right: ${esc(p.direita)}"` : "";
+  const abre = `<section class="${p.classe}" aria-label="${esc(p.rotulo)}" data-status="${id}" data-coluna="${id}" data-grupo="${p.grupo}"${presa}>`;
+  if (p.tira) return h(`${abre}${p.tira}</section>`);
+  return h(`${abre}<h3 class="qd-col-cab">${p.cab}</h3>${p.dica}<ul class="qd-col-lista">${(c.cards ?? []).join("")}${p.fim}</ul></section>`);
 }
 
 /** Uma coluna extra na grade (a coluna nova, o "+"): o html e a trilha dela. */
