@@ -19,6 +19,39 @@ type Sql = postgres.Sql;
 const DIR = new URL("../../src/db/migrations/", import.meta.url);
 const BANCO = `nod_rollback_${process.pid}_${randomBytes(4).toString("hex")}`;
 const ESQUEMAS = "n.nspname !~ '^pg_' and n.nspname <> 'information_schema'";
+const SQLSTATE_PERMISSAO_INSUFICIENTE = "42501";
+
+type ResultadoLimpeza = "removido" | "ocupado_por_outro_papel";
+
+/**
+ * O PostgreSQL 16 tenta encerrar todos os backends no DROP ... WITH (FORCE), mas um dono de banco sem
+ * pg_signal_backend não pode encerrar a sessão de outro papel. A limpeza é auxiliar: tolera apenas esse 42501
+ * confirmado no catálogo; qualquer falha do rollback ou qualquer outro erro continua reprovando o gate.
+ */
+async function limparBancoDescartavel(admin: Sql, banco: string): Promise<ResultadoLimpeza> {
+  const apagar = () => admin.unsafe(`drop database if exists ${banco} with (force)`);
+  try {
+    await apagar();
+    return "removido";
+  } catch (erro: unknown) {
+    const sqlstate = typeof erro === "object" && erro !== null ? Reflect.get(erro, "code") : undefined;
+    if (sqlstate !== SQLSTATE_PERMISSAO_INSUFICIENTE) throw erro;
+
+    const [atividade] = await admin<{ alheia: boolean }[]>`
+      select exists (
+        select 1 from pg_stat_activity
+         where datname = ${banco}
+           and pid <> pg_backend_pid()
+           and usename <> current_user
+      ) as alheia`;
+    if (atividade?.alheia) return "ocupado_por_outro_papel";
+
+    // A sessão alheia pode terminar entre o DROP e a inspeção. Sem ela, a permissão não é tolerada:
+    // uma segunda tentativa remove o banco ou torna a falha real visível.
+    await apagar();
+    return "removido";
+  }
+}
 
 /**
  * ACL nula é a padrão do dono, e GRANT + REVOKE deixa essa mesma padrão explícita, nunca nula de novo: sem
@@ -126,8 +159,77 @@ describeIntegracao("NOD-195: o ROLLBACK de cada migração nova volta o schema e
 
   afterAll(async () => {
     await sql?.end({ timeout: 2 });
-    await admin?.unsafe(`drop database if exists ${BANCO} with (force)`);
-    await admin?.end({ timeout: 2 });
+    if (admin) {
+      try {
+        await limparBancoDescartavel(admin, BANCO);
+      } finally {
+        await admin.end({ timeout: 2 });
+      }
+    }
+  }, 60_000);
+
+  it("a limpeza não falha nem encerra uma conexão de outro papel", async ({ skip }) => {
+    if (!admin) throw new Error("conexão administrativa não foi criada");
+    const urlTeste = process.env.DATABASE_URL_TEST;
+    if (!urlTeste) throw new Error("DATABASE_URL_TEST ausente");
+    const banco = `nod_rollback_limpeza_${process.pid}_${randomBytes(4).toString("hex")}`;
+    let app: Sql | undefined;
+    await admin.unsafe(`create database ${banco}`);
+    try {
+      const url = new URL(urlTeste);
+      url.pathname = `/${banco}`;
+      app = postgres(url.toString(), { prepare: false, max: 1, onnotice: () => {} });
+      const [papelApp] = await app<{ papel: string }[]>`select current_user as papel`;
+      const [papelDono] = await admin<{ papel: string }[]>`select current_user as papel`;
+      if (papelApp?.papel === papelDono?.papel) {
+        await app.end({ timeout: 2 });
+        app = undefined;
+        await limparBancoDescartavel(admin, banco);
+        skip();
+        return;
+      }
+
+      expect(await limparBancoDescartavel(admin, banco)).toBe("ocupado_por_outro_papel");
+      expect(await app<{ papel: string }[]>`select current_user as papel`).toEqual([{ papel: papelApp?.papel }]);
+    } finally {
+      await app?.end({ timeout: 2 });
+      await limparBancoDescartavel(admin, banco);
+    }
+  }, 60_000);
+
+  it("a limpeza atravessa a corrida de uma conexão de outro papel que está terminando", async ({ skip }) => {
+    if (!admin) throw new Error("conexão administrativa não foi criada");
+    const urlTeste = process.env.DATABASE_URL_TEST;
+    if (!urlTeste) throw new Error("DATABASE_URL_TEST ausente");
+    const banco = `nod_rollback_corrida_${process.pid}_${randomBytes(4).toString("hex")}`;
+    let app: Sql | undefined;
+    await admin.unsafe(`create database ${banco}`);
+    try {
+      const url = new URL(urlTeste);
+      url.pathname = `/${banco}`;
+      app = postgres(url.toString(), { prepare: false, max: 1, onnotice: () => {} });
+      const [papelApp] = await app<{ papel: string }[]>`select current_user as papel`;
+      const [papelDono] = await admin<{ papel: string }[]>`select current_user as papel`;
+      if (papelApp?.papel === papelDono?.papel) {
+        await app.end({ timeout: 2 });
+        app = undefined;
+        await limparBancoDescartavel(admin, banco);
+        skip();
+        return;
+      }
+
+      const limpeza = limparBancoDescartavel(admin, banco);
+      await app.end({ timeout: 2 });
+      app = undefined;
+      if ((await limpeza) === "ocupado_por_outro_papel") {
+        expect(await limparBancoDescartavel(admin, banco)).toBe("removido");
+      }
+      const [restou] = await admin<{ existe: boolean }[]>`select exists (select 1 from pg_database where datname = ${banco}) as existe`;
+      expect(restou?.existe).toBe(false);
+    } finally {
+      await app?.end({ timeout: 2 });
+      await limparBancoDescartavel(admin, banco);
+    }
   }, 60_000);
 
   it("até a 0058 aplica; cada nova: foto → ida → rollback → foto igual → ida de novo", async () => {
