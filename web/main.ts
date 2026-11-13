@@ -6230,6 +6230,10 @@ function agendarBoasVindas(agenteId: string): void {
   for (const atraso of [ATRASO_PARA_REFLETIR_MS, ATRASO_PARA_PERGUNTAR_MS]) {
     window.setTimeout(() => {
       if (botRecemCriado?.agenteId !== agenteId) return;
+      if (atraso === ATRASO_PARA_PERGUNTAR_MS) {
+        const conversaId = estado.frota?.agentes.find((a) => a.id === agenteId)?.conversaId;
+        if (conversaId) dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
+      }
       esquecerRegiao("timeline");
       render();
       redesenharSidebar();
@@ -6255,7 +6259,7 @@ function depsDialogoCriarBot(): DepsDialogoCriarBot {
       botRecemCriado = { agenteId, em: Date.now() };
       agendarBoasVindas(agenteId);
       navegar({ tipo: "conversa", conversaId, agenteId });
-      dispatch({ tipo: "invalidar", quais: ["frota"] });
+      dispatch({ tipo: "invalidar", quais: ["frota", `conversa:${conversaId}`] });
     },
     aoFalhar: () => { botProvisorio = null; redesenharSidebar(); },
     depoisDeCriar: () => document.getElementById("composer-texto")?.focus(),
@@ -6313,7 +6317,7 @@ function criarBotAgora(): Promise<void> {
     const r = await api!.criarAgente(undefined, { interativo: true });
     botRecemCriado = { agenteId: r.agente.id, em: Date.now() };
     agendarBoasVindas(r.agente.id);
-    dispatch({ tipo: "invalidar", quais: ["frota"] });
+    dispatch({ tipo: "invalidar", quais: ["frota", `conversa:${r.conversa.id}`] });
     navegar({ tipo: "conversa", conversaId: r.conversa.id, agenteId: r.agente.id });
   });
 }
