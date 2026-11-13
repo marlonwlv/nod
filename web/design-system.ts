@@ -7,6 +7,7 @@
 import "./lib/mascote-elemento.ts";
 import { htmlMascote } from "./lib/mascote.ts";
 import type { CorAgente, FormaAgente } from "../src/contracts/agente.ts";
+import type { StateId } from "./vendor/bloub/states.ts";
 
 const tema = new URLSearchParams(location.search).get("tema");
 if (tema === "escuro") document.documentElement.dataset.theme = "dark";
@@ -27,6 +28,9 @@ const IC = {
 };
 const m = (forma: FormaAgente, cor: CorAgente, estado: Parameters<typeof htmlMascote>[2] = "disponivel", t = 36): string =>
   htmlMascote({ nome: "nod", forma, cor }, "", estado, `style="width:${t}px;height:${t}px"`);
+const estadoDoMotor = (id: StateId, t = 56): string => m("shape-pebble", "c-purple", "disponivel", t)
+  .replace('state="idle"', `state="${id}"`)
+  .replace('data-estado="disponivel"', `data-estado="${id}"`);
 
 const sup = (nome: string, valor: string, token: string) => `<div class="dsv-sup"><span class="dsv-amostra" style="background:var(${token})"></span><b>${nome}</b><small>${valor}</small></div>`;
 const texto = (rotulo: string, pct: string, token: string) => `<div class="dsv-txt"><span style="color:var(${token})">Aa</span><b>${rotulo}</b><small>base ${pct}</small></div>`;
@@ -71,7 +75,7 @@ const componentes = `<section class="dsv-col"><h2>Componentes</h2><p class="dsv-
   <h3>Avatar · formas do nod</h3>
   <div class="dsv-formas">${([["shape-circle", "c-blue", "Círculo"], ["shape-pebble", "c-purple", "Seixo"], ["shape-square", "c-black", "Quadrado"], ["shape-capsule", "c-amber", "Cápsula"], ["shape-triangle", "c-orange", "Triângulo"], ["shape-hex", "c-teal", "Hexágono"], ["shape-cloud", "c-pink", "Nuvem"], ["shape-drop", "c-green", "Gota"]] as [FormaAgente, CorAgente, string][]).map(([f, c, n]) => `<div>${m(f, c)}<small>${n}</small></div>`).join("")}</div>
   <h3>Avatar · estados</h3>
-  <div class="dsv-estados">${([["disponivel", "Parado", "sem turno"], ["pensando", "Pensando", "turno na fila"], ["trabalhando", "Trabalhando", "turno rodando"], ["aguardando_aprovacao", "Aguardando aprovação", "aprovação pendente"]] as [Parameters<typeof htmlMascote>[2], string, string][]).map(([e, n, s]) => `<div>${m("shape-pebble", "c-purple", e, 56)}<b>${n}</b><small>${s}</small></div>`).join("")}</div>
+  <div class="dsv-estados">${([["disponivel", "Parado", "sem turno"], ["pensando", "Pensando", "refletindo"], ["trabalhando", "Trabalhando", "ferramenta"], ["lendo", "Lendo", "leitura"], ["executando", "Executando", "terminal · 2 s"], ["digitando", "Digitando", "resposta"], ["terminou", "Terminou", "13 s"], ["aguardando_aprovacao", "Aguardando aprovação", "aprovação pendente"], ["pausado", "Dormindo", "bot pausado"], ["offline", "Fora do ar", "computador"], ["comemorando", "Comemorando", "preparo pronto"]] as [Parameters<typeof htmlMascote>[2], string, string][]).map(([e, n, s]) => `<div>${m("shape-pebble", "c-purple", e, 56)}<b>${n}</b><small>${s}</small></div>`).join("")}${([["comet", "Frentes saíram", "2,5 s"], ["alert", "Alerta", "falha recuperável"], ["orbit", "Órbita", "computador conectando"]] as [StateId, string, string][]).map(([e, n, s]) => `<div>${estadoDoMotor(e)}<b>${n}</b><small>${s}</small></div>`).join("")}</div>
   <h3>Avatar · tamanhos</h3>
   <div class="dsv-tamanhos">${[20, 24, 36, 44, 72].map((t) => `<div>${m("shape-circle", "c-blue", "disponivel", t)}<small>${t}</small></div>`).join("")}</div>
 </section>`;
