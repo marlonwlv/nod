@@ -14,6 +14,7 @@ import { CHAVE_AVISO_RECRIADO } from "./telas/espaco.ts";
 import { marcarTelaFechadaNaAjuda } from "./lib/computador.ts";
 import { anunciarEm, criarFocoPendente, guardarPosicao, planejarSaidaDaLista, reporPosicao, type ElDaLista, type RaizDaLista } from "./lib/posicao-da-lista.ts";
 import { criarUltimaLeitura } from "./lib/ultima-leitura.ts";
+import { decidirContraEstadoVelho } from "./lib/decidir-contra-estado-velho.ts";
 import { aoVerComputador, definirTelaDoBot } from "./telas/tela-do-bot.ts";
 import { abrirWorkspace } from "./telas/workspace.ts";
 import { listaDoQuePodem, rotuloPermitir, type EscolhaLiberar } from "./telas/card-liberar.ts";
@@ -1740,6 +1741,23 @@ async function agir(fn: () => Promise<void>): Promise<void> {
     // ação bem-sucedida (visto no 409 do card de acesso: "Permitir acesso" ficava inerte depois do erro).
     dispatch({ tipo: "ocupado", valor: false });
   }
+}
+
+/**
+ * ADA-247: o POST pode perder a corrida para outra aba, uma regra ou o varredor. Confirma pelo GET autoritativo antes de
+ * tratar o 409 como sucesso já realizado; a fila sai na hora e a conversa relê o cartão como linha de desfecho.
+ */
+async function decidirAprovacaoReconciliando(id: string, corpo: Parameters<Api["decidir"]>[1]): Promise<void> {
+  await decidirContraEstadoVelho(
+    () => api!.decidir(id, corpo),
+    async () => {
+      const suaVez = await api!.suaVez(naFrente());
+      dispatch({ tipo: "hidratar-sua-vez", suaVez });
+      return !suaVez.itens.some((item) => item.decisao.id === id);
+    },
+  );
+  const conversa = conversaAtual();
+  dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(conversa ? [`conversa:${conversa.conversaId}` as Invalidacao] : [])] });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -6695,11 +6713,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "sondar-conector": (el) => agir(async () => void (await api!.sondarConector(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["conectores", "frota"] }))),
   "habilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", true), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
   "desabilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", false), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
-  "decidir-aprovacao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? "") }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
+  "decidir-aprovacao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? "") }))),
   // ADR-042: aprova AGORA e grava a regra para as próximas vezes, no mesmo clique.
   // definido em 2026-09-28 (emenda da ADR-037): aprova este passo e libera o computador até o fim da tarefa.
-  "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
-  "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
+  "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }))),
+  "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }))),
   // QA do PR 4 (2026-10-18): o cartão de um item não tem caixa de marcar e mandava `itens: []`, que aprova (web/lib/recusa-da-aprovacao.ts).
   "decidir-aprovacao-nenhum": (el) => agir(async () => {
     const id = el.dataset.id ?? "";
@@ -6709,8 +6727,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       return;
     }
     marcarDecidida(el, id);
-    await api!.decidir(id, { itens });
-    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+    await decidirAprovacaoReconciliando(id, { itens });
   }),
   // NOD-367: o filtro de Feedback mora em configUi (os envios abertos ficam em configUi.abertos e sobrevivem ao redesenho).
   "filtrar-relatos": (el) => {
