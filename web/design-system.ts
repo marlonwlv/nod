@@ -71,7 +71,7 @@ const componentes = `<section class="dsv-col"><h2>Componentes</h2><p class="dsv-
   <h3>Avatar · formas do nod</h3>
   <div class="dsv-formas">${([["shape-circle", "c-blue", "Círculo"], ["shape-pebble", "c-purple", "Seixo"], ["shape-square", "c-black", "Quadrado"], ["shape-capsule", "c-amber", "Cápsula"], ["shape-triangle", "c-orange", "Triângulo"], ["shape-hex", "c-teal", "Hexágono"], ["shape-cloud", "c-pink", "Nuvem"], ["shape-drop", "c-green", "Gota"]] as [FormaAgente, CorAgente, string][]).map(([f, c, n]) => `<div>${m(f, c)}<small>${n}</small></div>`).join("")}</div>
   <h3>Avatar · estados</h3>
-  <div class="dsv-estados">${([["disponivel", "Parado", "sem turno"], ["pensando", "Pensando", "turno na fila"], ["trabalhando", "Trabalhando", "turno rodando"], ["aguardando", "Sua vez", "aprovação pendente"]] as [Parameters<typeof htmlMascote>[2], string, string][]).map(([e, n, s]) => `<div>${m("shape-pebble", "c-purple", e, 56)}<b>${n}</b><small>${s}</small></div>`).join("")}</div>
+  <div class="dsv-estados">${([["disponivel", "Parado", "sem turno"], ["pensando", "Pensando", "turno na fila"], ["trabalhando", "Trabalhando", "turno rodando"], ["aguardando_aprovacao", "Aguardando aprovação", "aprovação pendente"]] as [Parameters<typeof htmlMascote>[2], string, string][]).map(([e, n, s]) => `<div>${m("shape-pebble", "c-purple", e, 56)}<b>${n}</b><small>${s}</small></div>`).join("")}</div>
   <h3>Avatar · tamanhos</h3>
   <div class="dsv-tamanhos">${[20, 24, 36, 44, 72].map((t) => `<div>${m("shape-circle", "c-blue", "disponivel", t)}<small>${t}</small></div>`).join("")}</div>
 </section>`;

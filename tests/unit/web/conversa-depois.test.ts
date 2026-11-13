@@ -66,7 +66,7 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     const html = blocos[0]!.html;
     // Parte 3: a cor do bot (a classe c-* do perfil; "blue" na frota de teste) vai na raiz, para o brilho ser da cor dele.
     expect(html).toMatch(/^<article class="message bot fala-viva ao-vivo blue" data-turno="t1" data-morfar><nod-mascote [^>]*data-parte="mascote"/);
-    expect(html).toContain('state="orbit"');
+    expect(html).toContain('state="working"');
     expect(html).toContain('<div class="msg-autor" data-parte="nome"><b title="Ada">Ada</b></div>');
     expect(html).toContain('<span class="fala-viva-estado">Usando GitHub</span>');
     expect(html).toContain(`data-desde="${AGORA - 60_000}"`);
@@ -136,7 +136,7 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     expect(b.morfar!.partes.map((p) => p.chave)).toContain("vigia");
     // Com trabalho de verdade, o mesmo turno anima e diz "trabalhando".
     const ativo = blocosAoVivo(c, { ...e, atividades: { [C]: { t1: { ...mudo, vigia: null } } } })[0]!;
-    expect(ativo.morfar!.mascote).toMatchObject({ state: "orbit", "data-estado": "trabalhando" });
+    expect(ativo.morfar!.mascote).toMatchObject({ state: "working", "data-estado": "trabalhando" });
   });
   it("NOD-348 / Parte 2: sem ferramenta e sem texto, o pensamento diz 'Pensando', fechado, mascote idle e atento", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
@@ -155,7 +155,7 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     expect(curto.html).toContain('class="message bot fala-viva ao-vivo blue"');
     expect(curto.html).not.toContain('class="bubble"');
     expect(curto.html).toContain('data-estado-fala="escrevendo"');
-    expect(curto.html).toContain('<span class="fala-viva-estado">Olhando</span><span class="sr-only fala-viva-anuncio">Escrevendo</span>');
+    expect(curto.html).toContain('<span class="fala-viva-estado">Olhando</span><span class="sr-only fala-viva-anuncio">Digitando…</span>');
     expect(curto.morfar?.partes.map((p) => p.chave)).toEqual(["nome", "pensar"]);
     const longo = `Olhando ${"o fechamento de setembro, conta por conta. ".repeat(8)}`;
     expect(longo.length).toBeGreaterThan(280);
@@ -174,7 +174,7 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     const e: Estado = { ...base, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } }, atividades: { [C]: { t1: comFerramenta(ATIVIDADE_VAZIA, "Abriu frentes", { texto: "Abrindo frentes", frentes: true }) } } };
     const html = blocosAoVivo(c, e)[0]!.html;
     expect(html).toContain('data-fase="fazendo" data-estado-fala="frentes:Abrindo frentes" open><summary class="pensar-cab"><span class="fala-viva-estado">Abrindo frentes</span>');
-    expect(html).toContain('state="orbit"');
+    expect(html).toContain('state="working"');
   });
   it("NOD-348: na sala, a fala é do bot do turno (agenteId), não do bot da conversa", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
@@ -555,7 +555,7 @@ describe("8. o cabeçalho com uma regra só", () => {
   it("turno vivo e pedidos juntos: 'Trabalhando · 2 esperam você'; sem turno, 'Aguardando você'", () => {
     const { e } = cenario([], [pedido("d1"), pedido("d2")]);
     const vivo: Estado = { ...e, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } } };
-    expect(renderCabecalhoConversa(vivo, "a")).toContain("Trabalhando <span class=\"presenca-sep\" aria-hidden=\"true\">·</span> <b>2 esperam você</b>");
+    expect(renderCabecalhoConversa(vivo, "a")).toContain("Refletindo <span class=\"presenca-sep\" aria-hidden=\"true\">·</span> <b>2 esperam você</b>");
     expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando você<");
   });
 });

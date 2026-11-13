@@ -69,6 +69,7 @@ class MascoteElemento extends HTMLElement {
   private applied = "";
   private shown = "";
   private painter: PintorMascote | null = null;
+  private runningAssentado = false;
   private get state(): StateId {
     const id = this.getAttribute("state") as StateId;
     return STATE_BY_ID.has(id) ? id : "idle";
@@ -110,6 +111,7 @@ class MascoteElemento extends HTMLElement {
     this.engine.setShape(radii(this.getAttribute("shape")), this.time);
     this.engine.setExpression(expressaoMascote(this.getAttribute("expression")), this.time);
     this.engine.setState(this.state, this.time);
+    this.runningAssentado = false;
     this.changed = this.time;
     return true;
   }
@@ -152,6 +154,10 @@ class MascoteElemento extends HTMLElement {
     if (this.last && stamp - this.last < QUADRO_MS - 2) return;
     this.time += this.last ? Math.min((stamp - this.last) / 1000, .05) : 0;
     this.last = stamp;
+    if (this.state === "running" && !this.runningAssentado && this.time - this.changed >= 2) {
+      this.engine?.setState("working", this.time);
+      this.runningAssentado = true;
+    }
     this.paint();
     if (!this.moving()) this.wake();
   }

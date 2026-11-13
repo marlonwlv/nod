@@ -1,9 +1,6 @@
 import {
   COMET_DOT,
   COMET_RIBBONS,
-  DOT_PEAK,
-  DOT_R,
-  DOT_X,
   NOTIF_ANGLE,
   NOTIF_DIST,
   NOTIF_MARGIN,
@@ -16,7 +13,7 @@ import {
   type DotRender
 } from './decor.ts'
 import { EYE_H, EYE_SPLIT, EYE_W, REST_GAZE, type HeadGaze } from './face.ts'
-import { TAU, clamp, easings } from './math.ts'
+import { TAU, clamp, easings, lerp } from './math.ts'
 import {
   circle,
   hullOfCircles,
@@ -167,6 +164,11 @@ export type StateId =
   | 'celebrate'
   | 'sleeping'
   | 'offline'
+  | 'working'
+  | 'running'
+  | 'streaming'
+  | 'finished'
+  | 'blocked'
   /** transition d'interface, pas une animation du catalogue : hors `SEQUENCE` */
   | 'swirl'
 
@@ -203,7 +205,7 @@ export interface StateDef {
 
 /** Onde de pulsation qui parcourt les trois points de gauche a droite. */
 function dotPulse(t: number, index: number): number {
-  const p = ((((t - index * 0.5) / 1.5) % 1) + 1) % 1
+  const p = (((t - index / 3) % 1) + 1) % 1
   const k = p < 0.5 ? 0.5 - 0.5 * Math.cos(p * TAU) : 0
   return clamp(k * 2)
 }
@@ -221,29 +223,132 @@ export const STATES: StateDef[] = [
 
   {
     id: 'thinking',
-    duration: 2.6,
-    morph: 0.4,
+    duration: 1,
+    morph: 0.07,
     baseFace: false,
     baseBody: false,
-    blinkIn: true,
+    blinkIn: false,
     pose: (t) => {
       const mid = dotPulse(t, 1)
-      // Les points lateraux sortent des flancs de la boule : dans la video ils
-      // restent fusionnes avec elle 1-2 frames avant de se detacher.
-      const emerge = 0.3 + 0.7 * easings.easeOutCubic(clamp(t / 0.3))
       return base({
-        // la boule DEVIENT le point du milieu : le morph reste continu
-        sil: circle(DOT_R * (1 + (DOT_PEAK - 1) * mid), { cx: DOT_X[1]! }),
+        sil: circle(lerp(0.27, 0.45, mid)),
         eyeAlpha: 0,
         dots: [0, 2].map((i) => {
           const k = dotPulse(t, i)
           return {
-            x: DOT_X[i]! * emerge,
+            x: i === 0 ? -0.78 : 0.78,
             y: 0,
-            r: DOT_R * (1 + (DOT_PEAK - 1) * k),
-            opacity: 0.55 + 0.45 * k
+            r: lerp(0.18, 0.23, k),
+            opacity: 0.5 + 0.5 * k
           }
         })
+      })
+    }
+  },
+
+  {
+    id: 'working',
+    duration: 3.2,
+    morph: 0.25,
+    blinkIn: false,
+    baseFace: false,
+    baseBody: true,
+    pose: (t) => {
+      const olhares = [
+        { yaw: -26, pitch: 6, roll: 8 },
+        { yaw: 26, pitch: 6, roll: -8 },
+        { yaw: 8, pitch: 28, roll: -6 },
+        { yaw: 0, pitch: 2, roll: 0 }
+      ] as const
+      const passo = Math.floor(t / 1.6) % olhares.length
+      const anterior = olhares[(passo + olhares.length - 1) % olhares.length]!
+      const proximo = olhares[passo]!
+      const mistura = easings.easeInOutCubic(clamp((t % 1.6) / 0.25))
+      return base({
+        sil: circle(1, { rot: (10 * Math.PI / 180) * Math.sin(t * TAU / 3.2) }),
+        gaze: {
+          yaw: lerp(anterior.yaw, proximo.yaw, mistura),
+          pitch: lerp(anterior.pitch, proximo.pitch, mistura),
+          roll: lerp(anterior.roll, proximo.roll, mistura)
+        },
+        split: 16,
+        eyes: pair(EYE_W, EYE_H)
+      })
+    }
+  },
+
+  {
+    id: 'running',
+    duration: 2,
+    morph: 0.2,
+    blinkIn: false,
+    baseFace: false,
+    baseBody: true,
+    pose: (t) => {
+      const p = easings.easeInOutCubic(clamp(t / 2))
+      return base({
+        sil: circle(1, { rot: Math.PI * p }),
+        gaze: { yaw: lerp(-30, 6, p), pitch: lerp(-24, 34, p), roll: 0 },
+        eyes: pair(0.34, 0.2)
+      })
+    }
+  },
+
+  {
+    id: 'streaming',
+    duration: 3.2,
+    morph: 0.1,
+    blinkIn: false,
+    baseFace: false,
+    baseBody: true,
+    pose: (t) => {
+      const fase = Math.min(4, Math.floor(t / 0.12))
+      const olhos: [EyeCfg, EyeCfg] = fase === 0
+        ? [{ w: 0.2, h: 0.36, open: 1, tilt: 28 }, { w: 0.2, h: 0.36, open: 1, tilt: -28 }]
+        : fase === 1 ? pair(0.3, 0.06)
+        : fase === 2 ? [{ w: EYE_W, h: EYE_H, open: 1, tilt: 22 }, { w: EYE_W, h: EYE_H, open: 1, tilt: 22 }]
+        : fase === 3 ? [{ w: 0.2, h: 0.36, open: 1, tilt: -28 }, { w: 0.2, h: 0.36, open: 1, tilt: 28 }]
+        : pair(EYE_W, EYE_H)
+      return base({
+        sil: circle(1, { rot: (10 * Math.PI / 180) * Math.sin(t * TAU / 3.2) }),
+        gaze: { yaw: 0, pitch: 0, roll: 0 },
+        eyes: olhos
+      })
+    }
+  },
+
+  {
+    id: 'finished',
+    duration: 13,
+    morph: 0.2,
+    blinkIn: false,
+    baseFace: false,
+    baseBody: true,
+    pose: (t) => {
+      if (t < 1) return base({ gaze: { yaw: 0, pitch: 8, roll: 0 }, eyes: [{ w: 0.3, h: 0.15, open: 1, tilt: 16 }, { w: 0.3, h: 0.15, open: 1, tilt: -16 }] })
+      if (t < 2) return base({ gaze: { yaw: 10, pitch: 30, roll: -4 } })
+      const p = easings.easeInOutCubic(clamp((t - 2) / 0.3))
+      return base({ gaze: { yaw: lerp(10, REST_GAZE.yaw, p), pitch: lerp(30, REST_GAZE.pitch, p), roll: lerp(-4, REST_GAZE.roll, p) } })
+    }
+  },
+
+  {
+    id: 'blocked',
+    duration: 2.2,
+    morph: 0.3,
+    blinkIn: false,
+    baseFace: false,
+    baseBody: true,
+    pose: (t) => {
+      const fase = t % 2.2
+      const onda = Math.sin(t * TAU / 1.1)
+      const x: [EyeCfg, EyeCfg] = [{ w: 0.13, h: 0.44, open: 1, tilt: 45 }, { w: 0.13, h: 0.44, open: 1, tilt: -45 }]
+      const pequenos = pair(fase >= 2.167 ? 0.12 : 0.13, fase >= 2.167 ? 0.12 : 0.26)
+      return base({
+        sil: circle(1, { cx: 0.06 * onda, sx: 0.85, sy: 0.85, rot: 0.08 * onda }),
+        gaze: fase < 1.3 ? { yaw: 0, pitch: 0, roll: 0 } : { yaw: 24, pitch: 2, roll: 0 },
+        split: fase < 1.3 ? 0 : 16,
+        eyes: fase < 1.3 ? x : pequenos
       })
     }
   },
@@ -641,15 +746,16 @@ export const STATES: StateDef[] = [
   {
     // Dormindo: olhos fechados (tiretes), respiração lenta e funda, corpo um pouco abaixado.
     id: 'sleeping',
-    duration: 3.2,
+    duration: 2.4,
     morph: 0.6,
     blinkIn: false,
     baseFace: false,
     baseBody: true,
     pose: (t) => {
-      const respira = 0.5 - 0.5 * Math.cos((t / 3.2) * TAU)
+      const respira = 0.5 - 0.5 * Math.cos((t / 2.4) * TAU)
       return base({
-        sil: circle(1, { sx: 1 + 0.025 * respira, sy: 0.97 - 0.035 * respira }),
+        sil: circle(1, { sx: 1 + 0.04 * respira, sy: 1 + 0.04 * respira }),
+        bodyAlpha: 0.85 + 0.15 * respira,
         offY: 0.04,
         gaze: { yaw: 8, pitch: 16, roll: -8 },
         split: 16,
@@ -709,8 +815,13 @@ export const POSES: Record<StateId, number> = {
   comet: 1.15,
   reading: 0.6,
   celebrate: 0.55,
-  sleeping: 1.6,
-  offline: 1
+  sleeping: 1.2,
+  offline: 1,
+  working: 0.8,
+  running: 1,
+  streaming: 0.3,
+  finished: 0.7,
+  blocked: 0.5
 }
 
 export const SEQUENCE: StateId[] = [
@@ -731,6 +842,11 @@ export const SEQUENCE: StateId[] = [
   'reading',
   'celebrate',
   'sleeping',
-  'offline'
+  'offline',
+  'working',
+  'running',
+  'streaming',
+  'finished',
+  'blocked'
 ]
 

@@ -361,7 +361,7 @@ function renderCardAprovacao(item: Item, estado: Estado): string {
   const onde = umApp ? (umApp === "computador" || umApp === "terminal" ? ondeAcontece(conectores, umApp) : `no ${conectores.find((c) => c.slug === umApp)?.nome ?? umApp}`) : "";
   const sub = [onde ? `${onde.charAt(0).toUpperCase()}${onde.slice(1)}` : "", naMaquina ? "Dá para mudar depois em Aprovações." : ""].filter(Boolean).join(" · ");
   return `<li class="decisao aprov-card dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}">
-    <div class="aprov-cab">${agente ? `<span class="aprov-av">${iconeAgente(agente, "", "aguardando")}</span>` : '<span class="aprov-ponto" aria-hidden="true"></span>'}<span class="aprov-quem">${esc(d.frase)}</span>${aPedidoDe(item)}${marcaGemeas(item)}${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}<span class="aprov-esc" title="${esc(`${prazo} · pedido ${haQuanto(item.aguardandoHaMs)}`)}">Esc</span>${botao("decidir-aprovacao-nenhum", "×", { classe: "aprov-fechar", id: d.id, aria: "Negar e fechar" })}</div>
+    <div class="aprov-cab">${agente ? `<span class="aprov-av">${iconeAgente(agente, "", "aguardando_aprovacao")}</span>` : '<span class="aprov-ponto" aria-hidden="true"></span>'}<span class="aprov-quem">${esc(d.frase)}</span>${aPedidoDe(item)}${marcaGemeas(item)}${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}<span class="aprov-esc" title="${esc(`${prazo} · pedido ${haQuanto(item.aguardandoHaMs)}`)}">Esc</span>${botao("decidir-aprovacao-nenhum", "×", { classe: "aprov-fechar", id: d.id, aria: "Negar e fechar" })}</div>
     <p class="aprov-titulo dec-frase">${esc(perguntaDaAprovacao(item, conectores))}</p>
     ${sub ? `<p class="aprov-onde">${esc(sub)}</p>` : ""}
     ${corpo}
@@ -671,7 +671,7 @@ function renderCartaoDoRevisor(item: Item, estado: Estado, naConversa: boolean):
   const pedidoDe = naConversa && item.aPedidoDe ? { aPedidoDe: item.aPedidoDe } : {};
   // ADR-166: "Salvar como regra" — a regra pronta (do revisor ou da frase da ação), salva no bot do cartão com um clique.
   const regra = item.sugestaoDeRegra && item.estadoColuna !== "vencido" ? { regra: { sugestao: item.sugestaoDeRegra, agenteId: d.agenteId } } : {};
-  const avatar = agente ? { avatar: iconeAgente(agente, "", "aguardando") } : {};
+  const avatar = agente ? { avatar: iconeAgente(agente, "", "disponivel") } : {};
   const titulo = itens.some((i) => i.motivoManual === "revisor_pediu") ? {} : { titulo: "O revisor não conseguiu revisar" };
   return renderCartaoRevisor({ decisaoId: d.id, ...perguntaDoCartao(d.frase, itens), ...avatar, ...titulo, motivo: motivoDoCartao(itens), detalhe, sempre, ...(cabecalho ? { cabecalho } : {}), ...(rodape ? { rodape } : {}), ...pedidoDe, ...regra }, item.estadoColuna);
 }
@@ -866,7 +866,7 @@ function renderComIguais(itens: readonly Item[], estado: Estado, naConversa: boo
     const i = g[0]?.itensAprovacao[0];
     const onde = i ? (estado.conectores.find((c) => c.slug === i.destino.conector)?.nome ?? i.destino.conector) : "";
     const agente = estado.frota?.agentes.find((a) => a.id === g[0]?.decisao.agenteId);
-    return renderPedidosIguais(g, i ? acaoHumana(estado.conectores, i.destino.conector, i.destino.ferramenta) : g[0]?.decisao.frase ?? "", onde, agente ? iconeAgente(agente, "", "aguardando") : "");
+    return renderPedidosIguais(g, i ? acaoHumana(estado.conectores, i.destino.conector, i.destino.ferramenta) : g[0]?.decisao.frase ?? "", onde, agente ? iconeAgente(agente, "", "aguardando_aprovacao") : "");
   }).join("");
 }
 

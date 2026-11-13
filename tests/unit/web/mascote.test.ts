@@ -11,30 +11,30 @@ describe("mascote temporário", () => {
   });
 
   it("renderiza forma, cor e estado sem interpolar o nome como HTML", () => {
-    const html = htmlMascote({ nome: '<bot "novo">', forma: "shape-cloud", cor: "c-amber" }, "xl", "aguardando");
+    const html = htmlMascote({ nome: '<bot "novo">', forma: "shape-cloud", cor: "c-amber" }, "xl", "aguardando_aprovacao");
     expect(html).toContain('class="icon mascote c-amber shape-cloud xl"');
-    expect(html).toContain('data-estado="aguardando"');
-    expect(html).toContain("aguardando você");
+    expect(html).toContain('data-estado="aguardando_aprovacao"');
+    expect(html).toContain("aguardando sua aprovação");
     expect(html).toContain("&lt;bot &quot;novo&quot;&gt;");
-    expect(html).toContain('state="notify"');
+    expect(html).toContain('state="blocked"');
   });
 
   it("traduz fila e execução para estados visuais usando a conversa", () => {
     const base = { ...estadoInicial, turnosVivos: { t1: { turnoId: "t1", conversaId: "c1", estado: "na_fila" as const, executor: null, machineId: null, desde: 0 } } };
     expect(estadoMascoteNaConversa(base, "c1")).toBe("pensando");
-    expect(estadoMascoteNaConversa({ ...base, turnosVivos: { t1: { ...base.turnosVivos.t1!, estado: "rodando" } } }, "c1")).toBe("trabalhando");
+    expect(estadoMascoteNaConversa({ ...base, turnosVivos: { t1: { ...base.turnosVivos.t1!, estado: "rodando" } } }, "c1")).toBe("pensando");
     expect(estadoMascoteNaConversa(base, "outra")).toBe("disponivel");
     expect(estadoMascoteNaConversa({ ...base, turnosVivos: {
       ...base.turnosVivos, t2: { ...base.turnosVivos.t1!, turnoId: "t2", estado: "rodando" },
-    } }, "c1")).toBe("trabalhando");
+    } }, "c1")).toBe("pensando");
   });
 
-  it("Paper 05/05b: o avatar mostra '···' rodando só a pensar; com ferramenta em uso, gira — a presença segue 'trabalhando'", () => {
+  it("usa o mesmo estado na barra e nos espelhos; terminal entra em Executando", () => {
     const rodando = { ...estadoInicial, turnosVivos: { t1: { turnoId: "t1", conversaId: "c1", estado: "rodando" as const, executor: null, machineId: null, desde: 0 } } };
     expect(avatarNaConversa(rodando, "c1")).toBe("pensando");
-    expect(estadoMascoteNaConversa(rodando, "c1")).toBe("trabalhando");
+    expect(estadoMascoteNaConversa(rodando, "c1")).toBe("pensando");
     const comFerramenta = { ...rodando, atividades: { c1: { t1: { ...ATIVIDADE_VAZIA, emUso: { texto: "Rodando um comando", frentes: false } } } } };
-    expect(avatarNaConversa(comFerramenta, "c1")).toBe("trabalhando");
+    expect(avatarNaConversa(comFerramenta, "c1")).toBe("executando");
     expect(avatarNaConversa({ ...rodando, turnosVivos: {} }, "c1")).toBe("disponivel");
   });
 });
