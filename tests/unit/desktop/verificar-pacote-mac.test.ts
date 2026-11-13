@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  compararAntiDowngrade,
   compararEntitlements,
   compararEsquemaUrl,
   compararMicrofone,
@@ -65,13 +66,14 @@ const saidasCertas = (): SaidasPacote => ({
   helpers: HELPERS.map((nome) => ({ nome, entitlements: entXml(ESPERADAS) })),
   microfone: { codigo: 0, saida: `${MICROFONE}\n` },
   esquemaUrl: { codigo: 0, saida: "nod\n" },
+  antiDowngrade: { codigo: 1, saida: "Could not extract value, error: No value at that key path or invalid key path: ElectronSquirrelPreventDowngrades\n" },
   lipo: "arm64\n",
   staplerApp: staplerOk(APP),
   staplerDmg: staplerOk(DMG),
   spctlApp: spctlOk(APP),
   spctlDmg: spctlOk(DMG),
 });
-const esperado: EsperadoPacote = { teamId: TEAM, arch: "arm64", entitlements: ESPERADAS, microfone: MICROFONE };
+const esperado: EsperadoPacote = { teamId: TEAM, arch: "arm64", entitlements: ESPERADAS, microfone: MICROFONE, antiDowngrade: false };
 const falhasCom = (mudanca: Partial<SaidasPacote>, outro: Partial<EsperadoPacote> = {}) => formatarFalhas(conferirPacote({ ...saidasCertas(), ...mudanca }, { ...esperado, ...outro }));
 
 describe("verificar-pacote-mac.mjs (NOD-203)", () => {
@@ -253,5 +255,25 @@ describe("5/11/2026: o stapler repete só a queda do CloudKit (saída 68)", () =
     expect(wf).toMatch(/scripts\/desktop\/stapler\.sh staple "\$DMG"/);
     expect(wf).toMatch(/scripts\/desktop\/stapler\.sh validate "\$DIR\/nod\.app"/);
     expect(wf).toMatch(/for tentativa in 1 2 3; do\s*if npx electron-builder --mac dmg zip/);
+  });
+});
+
+describe("NOD-467: ElectronSquirrelPreventDowngrades no Info.plist do app assinado", () => {
+  const ausente = { codigo: 1, saida: "Could not extract value, error: No value at that key path or invalid key path: ElectronSquirrelPreventDowngrades\n" };
+  const ligada = { codigo: 0, saida: "true\n" };
+  it("rc ou Electron 43: a chave tem de estar ausente (presente, o Squirrel recusaria toda atualização)", () => {
+    expect(compararAntiDowngrade(ausente, false).ok).toBe(true);
+    expect(compararAntiDowngrade(ligada, false).ok).toBe(false);
+    expect(falhasCom({ antiDowngrade: ligada })).toEqual([
+      "ElectronSquirrelPreventDowngrades: esperava ausente no Info.plist (versão rc ou Electron < 44), veio ElectronSquirrelPreventDowngrades=true",
+    ]);
+  });
+  it("x.y.z com Electron >= 44: a chave tem de estar presente e verdadeira", () => {
+    expect(compararAntiDowngrade(ligada, true).ok).toBe(true);
+    expect(compararAntiDowngrade(ausente, true).ok).toBe(false);
+    expect(compararAntiDowngrade({ codigo: 0, saida: "false\n" }, true).ok).toBe(false);
+    expect(falhasCom({ antiDowngrade: ausente }, { antiDowngrade: true })).toEqual([
+      "ElectronSquirrelPreventDowngrades: esperava ElectronSquirrelPreventDowngrades=true, veio ausente no Info.plist",
+    ]);
   });
 });
