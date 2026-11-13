@@ -30,6 +30,7 @@ import { ehFrente, FERRAMENTA_DA_FRENTE, FERRAMENTAS_FORA_DA_FRENTE, worktreeDaF
 import type { OrigemTrabalho } from "../contracts/trabalho.ts";
 import type { FormaTrabalho } from "../contracts/frente.ts";
 import { manualDoNod } from "./manual-do-nod.ts";
+import { kitDoQuadro, SCHEMA_DO_KIT } from "./kit-quadro.ts";
 import { ehNod } from "./nod.ts";
 import { FERRAMENTA_RESPONDER_PEDIDO, temPedidosNoTurno, type PedidoPendenteNoPrompt } from "./pedidos-pendentes.ts";
 import { janelaDoModelo, orcamentoDoTurno, precisaEnxugar, type OrcamentoContexto } from "./orcamento-contexto.ts";
@@ -399,6 +400,7 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   const abreConta: readonly NomeFerramentaNod[] = entrada.contas && MODOS_DA_CONTA.includes(modo) && !entrada.trabalho ? [FERRAMENTA_ABRIR_CONTA] : [];
   const geraQuadro: readonly NomeFerramentaNod[] = entrada.quadro && MODOS_DO_QUADRO.includes(modo) ? ["gerir_quadro", ...(MODOS_DOS_APPS.includes(modo) ? (["gerir_apps"] as const) : [])] : [];
   const usaCanvas: readonly NomeFerramentaNod[] = entrada.canvas && MODOS_DO_CANVAS.includes(modo) ? ["gerir_canvas"] : [];
+  const kitQuadro = kitDoQuadro({ trabalho: entrada.trabalho ?? null, texto: entrada.turno.entradaTexto });
   const nod = [...(reconfigura ? [FERRAMENTA_RECONFIGURACAO] : []), ...FERRAMENTAS_NOD_POR_MODO[modo], ...esperaComando, ...(modo === "ligacao" && entrada.onboarding ? FERRAMENTAS_NOD_ONBOARDING : []), ...doNod, ...criaBots, ...respondePedido, ...abreConta, ...geraQuadro, ...usaCanvas]
     .filter((n) => (n !== "abrir_frentes" || podeAbrirTask(entrada.trabalho ?? null)) && (n !== "mandar_para_frente" || podeMandarParaTask(entrada.trabalho ?? null)))
     .filter((n) => !frente || !FERRAMENTAS_FORA_DA_FRENTE.includes(n))
@@ -408,7 +410,9 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
     .filter((n) => !aPedidoDeOutroBot(entrada.turno) || !FERRAMENTAS_DO_HISTORICO.includes(n))
     .filter((n) => !deOutraPessoa || !FORA_DO_PEDIDO_DE_OUTRA_PESSOA.includes(n))
     .concat(frente ? [FERRAMENTA_DA_FRENTE] : [])
-    .map(ferramentaNod);
+    .map(ferramentaNod)
+    // Estudo chat x quadro (decisão 3, 03/11): o gerir_quadro vai no kit do contexto (kit-quadro.ts).
+    .map((f) => (f.nome === "gerir_quadro" ? { ...f, schema: SCHEMA_DO_KIT[kitQuadro] } : f));
   // NOD-443 (revisão 5 do PR #628, achado 1): no pedido de outra pessoa, nenhuma ferramenta de conector da dona — nem a
   // leitura (readOnlyHint sai sem aprovação no manual e devolveria o e-mail, a agenda ou o Drive dela a quem pediu). Pelo
   // mesmo motivo a memória do bot e a lista de apps dele não entram no prompt (o histórico sai em emitir-plano-turno).
@@ -464,7 +468,7 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // NOD-323 (ADR-126): quem tem pasta e terminal gera arquivos; `anexar_midia` os mostra no chat (atendida pelo proxy).
   // A sala fica fora nesta PR (a fala da sala vai por postarNaSala, que não prende a mídia).
   if (pasta && modo !== "sala" && entrada.semAnexarMidia !== true) ferramentas = [...ferramentas, FERRAMENTA_ANEXAR_MIDIA];
-  const entradaDoPrompt: EntradaPromptSistema = { agente: deOutraPessoa ? { ...entrada.agente, modoAprovacao: "manual" } : entrada.agente, memorias: deOutraPessoa ? [] : entrada.memorias, ferramentas, nativas, pastaDoBot: pasta, pessoaNome: entrada.pessoaNome, modo, colegas: deOutraPessoa ? [] : entrada.colegas, contextoConversa: entrada.contextoConversa, conectores: conectoresDoTurno, rotinas: deOutraPessoa ? [] : entrada.rotinasDoAgente, computadorFora: temComputador ? entrada.computadorFora ?? null : null, delegacao: modo === "delegacao" ? entrada.delegacao ?? null : null, profundidade: entrada.profundidade, semTerminal: motivoSemTerminal({ modo, confianca: entrada.confianca, terminal: entrada.terminal === true, deOutraPessoa }), harness: entrada.harness ?? null, trabalho: entrada.trabalho ?? null, trabalhosAbertos: podeAbrirTask(entrada.trabalho ?? null) && !deOutraPessoa ? entrada.trabalhosAbertos ?? [] : [], ...(comPedidos ? { pedidosPendentes: entrada.pedidosPendentes } : {}), ...(modo === "conversa" && entrada.bastidores?.length ? { bastidores: entrada.bastidores } : {}), ...(ehNod(entrada.agente) ? { manualDoNod: manualDoNod(entrada.revisor === true) } : {}), ...(entrada.maquina ? { maquina: entrada.maquina } : {}), ...(entrada.calibracao ? { calibracao: true } : {}), ...(entrada.whatsapp ? { whatsapp: true } : {}), ...(entrada.revisor ? { revisor: true } : {}), ...(entrada.sobreMim && !deOutraPessoa ? { sobreMim: entrada.sobreMim } : {}), ...(reconfigura ? { reconfiguracao: true } : {}) };
+  const entradaDoPrompt: EntradaPromptSistema = { agente: deOutraPessoa ? { ...entrada.agente, modoAprovacao: "manual" } : entrada.agente, memorias: deOutraPessoa ? [] : entrada.memorias, ferramentas, nativas, pastaDoBot: pasta, pessoaNome: entrada.pessoaNome, modo, colegas: deOutraPessoa ? [] : entrada.colegas, contextoConversa: entrada.contextoConversa, conectores: conectoresDoTurno, rotinas: deOutraPessoa ? [] : entrada.rotinasDoAgente, computadorFora: temComputador ? entrada.computadorFora ?? null : null, delegacao: modo === "delegacao" ? entrada.delegacao ?? null : null, profundidade: entrada.profundidade, semTerminal: motivoSemTerminal({ modo, confianca: entrada.confianca, terminal: entrada.terminal === true, deOutraPessoa }), harness: entrada.harness ?? null, trabalho: entrada.trabalho ?? null, trabalhosAbertos: podeAbrirTask(entrada.trabalho ?? null) && !deOutraPessoa ? entrada.trabalhosAbertos ?? [] : [], ...(comPedidos ? { pedidosPendentes: entrada.pedidosPendentes } : {}), ...(modo === "conversa" && entrada.bastidores?.length ? { bastidores: entrada.bastidores } : {}), ...(ehNod(entrada.agente) ? { manualDoNod: manualDoNod(entrada.revisor === true) } : {}), ...(entrada.maquina ? { maquina: entrada.maquina } : {}), ...(entrada.calibracao ? { calibracao: true } : {}), ...(entrada.whatsapp ? { whatsapp: true } : {}), ...(entrada.revisor ? { revisor: true } : {}), ...(entrada.sobreMim && !deOutraPessoa ? { sobreMim: entrada.sobreMim } : {}), ...(reconfigura ? { reconfiguracao: true } : {}), ...(geraQuadro.length ? { kitQuadro } : {}) };
   // NOD-480 (emenda da ADR-040): o orçamento pela janela do modelo. A decisão de enxugar mede só a parte estável (a do
   // bot), para o prompt não mudar de um turno para outro e o cache não se perder. A ligação tem o prompt de voz.
   const { prompt, orcamento } = comOrcamento(entrada, modo, entradaDoPrompt, ferramentas.length);
