@@ -184,6 +184,7 @@ const DESPACHO: Despacho = {
   gerir_acessos: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_acessos](deps, { ...ctx, ...args }),
   gerir_canvas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_canvas](deps, { ...ctx, ...args }),
   nao_lidos: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.nao_lidos](deps, { ...ctx, ...args }),
+  decisoes: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.decisoes](deps, { ...ctx, ...args }),
   gerir_maquinas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_maquinas](deps, { ...ctx, ...args }),
   abrir_conta: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.abrir_conta](deps, { ...ctx, ...args }),
   buscar_conversas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.buscar_conversas](deps, { ...ctx, ...args }),

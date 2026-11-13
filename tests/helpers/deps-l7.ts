@@ -26,6 +26,7 @@ import { gerirCanvas } from "../../src/use-cases/gerir-canvas.ts";
 import { removerComputadorPeloChat } from "../../src/use-cases/remover-computador.ts";
 import { gerirAcessos } from "../../src/use-cases/gerir-acessos.ts";
 import { naoLidosNoChat } from "../../src/use-cases/nao-lidos-no-chat.ts";
+import { decisoesNoChat } from "../../src/use-cases/decisoes-no-chat.ts";
 import { buscarConversas, lerConversa } from "../../src/use-cases/buscar-conversas.ts";
 
 /**
@@ -119,6 +120,7 @@ export function useCasesFalsos(): UseCasesNod {
     gerirQuadro,
     gerirApps,
     naoLidosNoChat,
+    decisoesNoChat,
     gerirTimes,
     gerirMaquinas,
     gerirCanvas,

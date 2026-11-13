@@ -6416,7 +6416,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const agenteId = el.dataset.agente ?? estado.atividadeVista?.agenteId ?? "";
     const dia = el.dataset.dia ?? "";
     if (estado.gaveta?.nivel.tipo !== "atividade" || estado.atividadeVista?.agenteId !== agenteId) abrirNivel(agenteId, { tipo: "atividade" });
-    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho: "negada", decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
+    const desfecho = ehFiltroDecisoes(el.dataset.filtro ?? "") ? el.dataset.filtro : "negada";
+    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho, decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
     focarQuandoAparecer('#detalhes [data-act="atividade-aba"][data-aba="decisoes"]', el);
   },
   "exportar-csv": () => {
