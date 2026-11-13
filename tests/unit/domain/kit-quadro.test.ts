@@ -11,8 +11,8 @@ const turno: Turno = { executor: "catcher", tenantId: "t", id: "t1", conversaId:
 const base: EntradaPlano = { turno, agente, memorias: [], concessoes: [], conectores: [], modo: "conversa", confianca: "confiavel", profundidade: 0, inventario: { estado: "pronto", versao: "2.1.272", em: agora }, executor: "local", sessaoCli: null, pessoaNome: "Marlon", agora, quadro: true };
 
 const gerirQuadro = (entrada: EntradaPlano) => montarPlano(entrada).catalogo.ferramentas.find((f) => f.nome === "gerir_quadro")!;
-const itens = (schema: typeof SCHEMA_DO_KIT.tarefa) => schema.properties!.acoes.items!;
-const tipos = (schema: typeof SCHEMA_DO_KIT.tarefa) => itens(schema).properties!.tipo.enum;
+const itens = (schema: typeof SCHEMA_DO_KIT.tarefa) => schema.properties!.acoes!.items!;
+const tipos = (schema: typeof SCHEMA_DO_KIT.tarefa) => itens(schema).properties!.tipo!.enum;
 
 describe("kits do gerir_quadro por contexto", () => {
   it("no turno de tarefa expõe só as saídas da etapa e não lista gestão do quadro", () => {
