@@ -164,6 +164,10 @@ passo "Atualização do app do Mac (NOD-132, ADR-149)"
 BUCKET_ATUALIZACOES="gs://$PROJETO-atualizacoes"
 gc storage buckets describe "$BUCKET_ATUALIZACOES" >/dev/null 2>&1 ||
   gc storage buckets create "$BUCKET_ATUALIZACOES" --location="$REGIAO" --uniform-bucket-level-access --public-access-prevention
+# NOD-467 (ADR-149): retenção de 365 dias. Nenhum ZIP publicado é apagado nem sobrescrito por um ano, nem por quem tem
+# escrita nos objetos (só quem muda o bucket tira a política). SEM lock de propósito: o lock é irreversível e é decisão
+# humana. Uma versão ruim se corrige publicando outra maior, nunca trocando o ZIP. Idempotente (reaplicar não muda nada).
+gc storage buckets update "$BUCKET_ATUALIZACOES" --retention-period=365d >/dev/null
 gc storage buckets add-iam-policy-binding "$BUCKET_ATUALIZACOES" --member="serviceAccount:$SA_VM" --role=roles/storage.objectViewer >/dev/null
 papel_customizado nodAssinarBlob "nod: assinar URL do bucket" iam.serviceAccounts.signBlob
 gc iam service-accounts add-iam-policy-binding "$SA_VM" --member="serviceAccount:$SA_VM" \
