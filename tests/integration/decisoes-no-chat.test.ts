@@ -41,12 +41,16 @@ describeIntegracao("NOD-414: decisões pelo chat", () => {
       await d.repos.trilha.registrar({ agenteId: bia.agenteId, ferramenta: "github__create_issue", conectorId: null, kind: "tool_call", motivo: null, regra: "regra:clique", regraVersao: 1, em: Date.parse("2026-10-15T12:00:00Z") });
       await d.repos.trilha.registrar({ agenteId: bia.agenteId, ferramenta: "terminal__bash", conectorId: null, kind: "negacao", motivo: "retirado_pela_pessoa", regra: "regra:clique", regraVersao: 1, em: Date.parse("2026-11-12T12:00:00Z") });
       const ctx = await turnoDe(d, bia.agenteId, bia.conversaId);
-      const proposta = await executar(d, decisoesNoChat, { ...ctx, acao: "exportar", de: "2026-10-15", ate: "2026-11-13", fuso: "UTC", desfecho: "tudo" });
-      expect(proposta.data).toMatchObject({ ok: true, estado: "pendente", arquivos: 2 });
+      const curta = await executar(d, decisoesNoChat, { ...ctx, acao: "exportar", de: "2026-10-15", ate: "2026-11-13", fuso: "UTC", desfecho: "tudo" });
+      expect(curta.data).toMatchObject({ ok: true, estado: "pendente", arquivos: 1 });
+      if (!curta.data.ok || !("decisao_id" in curta.data)) throw new Error("proposta curta");
+      await executar(d, aplicarExportacaoDecisoes, { propostaId: curta.data.decisao_id, recusar: true });
+      const proposta = await executar(d, decisoesNoChat, { ...ctx, acao: "exportar", de: "2026-09-15", ate: "2026-11-13", fuso: "UTC", desfecho: "tudo" });
+      expect(proposta.data).toMatchObject({ ok: true, estado: "pendente", arquivos: 3 });
       if (!proposta.data.ok || !("decisao_id" in proposta.data)) throw new Error("proposta");
       expect((await d.repos.anexos.daMensagens((await d.repos.mensagens.listarDaConversa(bia.conversaId)).map((m) => m.id))).size).toBe(0);
       const aplicado = await executar(d, aplicarExportacaoDecisoes, { propostaId: proposta.data.decisao_id, recusar: false });
-      expect(aplicado.data.arquivos).toHaveLength(2);
+      expect(aplicado.data.arquivos).toHaveLength(3);
       for (const id of aplicado.data.arquivos) {
         const a = await d.repos.anexos.conteudo(id);
         expect(a?.meta).toMatchObject({ mime: "text/csv", origem: "bot", mensagemId: expect.any(String) });
@@ -60,6 +64,10 @@ describeIntegracao("NOD-414: decisões pelo chat", () => {
       const d = depsSobreTrx(trx, MARLON);
       const bia = await agenteComConversa(trx, MARLON, { nome: "Bia limite" });
       const ctx = await turnoDe(d, bia.agenteId, bia.conversaId);
+      const propostasAntes = await d.repos.propostas.pendentesDaConversa(bia.conversaId);
+      const invalida = await executar(d, decisoesNoChat, { ...ctx, acao: "exportar", de: "2026-11-01", ate: "2026-11-13", fuso: "Fuso/QueNaoExiste" });
+      expect(invalida.data).toMatchObject({ ok: false, erro: "entrada_invalida" });
+      expect(await d.repos.propostas.pendentesDaConversa(bia.conversaId)).toHaveLength(propostasAntes.length);
       const longo = await executar(d, decisoesNoChat, { ...ctx, acao: "exportar", de: "2026-01-01", ate: "2026-06-01", fuso: "UTC" });
       expect(longo.data).toMatchObject({ ok: false, erro: "periodo_longo" });
       const proposta = await executar(d, decisoesNoChat, { ...ctx, acao: "exportar", de: "2026-11-01", ate: "2026-11-13", fuso: "UTC" });

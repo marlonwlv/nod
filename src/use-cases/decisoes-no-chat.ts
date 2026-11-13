@@ -3,6 +3,7 @@ import type { PayloadDecisoesResumo, PayloadPropostaDecisoesExportacao, Resultad
 import type { CasoNod, SaidaCasoDeUso } from "../contracts/servicos.ts";
 import { diasNoPeriodo } from "../domain/decisoes.ts";
 import { ErroDeDominio, ehErroDeDominio } from "../domain/erro.ts";
+import { ehNod } from "../domain/nod.ts";
 import { autoriaAgente, evento, PRAZO_DECISAO_MS } from "./apoio-l7.ts";
 import { exportarDecisoesCsv, lerDecisoes } from "./decisoes-do-bot.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
@@ -30,7 +31,7 @@ async function alvo(deps: Deps, agenteId: string, bot?: string) {
   const eu = await deps.repos.agentes.buscar(agenteId);
   if (!eu || eu.ownerId !== deps.escopo.pessoaId) return null;
   if (!bot || normalizar(bot) === normalizar(eu.nome)) return eu;
-  if (normalizar(eu.nome) !== "nod") return null;
+  if (!ehNod(eu)) return null;
   const agentes = await deps.repos.agentes.listar();
   const achados = agentes.filter((a) => normalizar(a.nome) === normalizar(bot));
   return achados.length === 1 ? achados[0] : null;
@@ -67,7 +68,14 @@ export const decisoesNoChat: CasoNod<Deps, "decisoes"> = async (deps, input) => 
     }
   }
 
-  const periodos = periodosMensais(input.de, input.ate);
+  // Valida o recorte antes de abrir o card: um clique nunca deve descobrir tarde que a data, o fuso ou o filtro era inválido.
+  try {
+    await lerDecisoes(deps, { agenteId: agente.id, de: input.de, ate: input.ate, fuso: input.fuso, desfecho, limite: 1 });
+  } catch (e) {
+    if (ehErroDeDominio(e)) return recusa("entrada_invalida", `Não preparei o CSV: ${e.codigo}. Confira datas, fuso e filtro.`);
+    throw e;
+  }
+  const periodos = dias > 31 ? periodosMensais(input.de, input.ate) : [{ de: input.de, ate: input.ate }];
   if (periodos.length === 0) return recusa("entrada_invalida", "Período inválido. Nada mudou.");
   if (periodos.length > MAX_ARQUIVOS) return recusa("periodo_longo", `Esse período geraria ${periodos.length} arquivos; cada confirmação aceita até ${MAX_ARQUIVOS}. Divida o pedido.`);
   const payload: PayloadPropostaDecisoesExportacao = { kind: "decisoes_exportacao", agenteId: agente.id, agenteNome: agente.nome, de: input.de, ate: input.ate, fuso: input.fuso, desfecho, periodos };
