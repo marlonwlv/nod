@@ -1541,7 +1541,9 @@ async function aplicarNoQuadro(deps: Deps, p: PedidoLote, qSemPrefixo: Quadro, a
   // resultado. Sem essa confirmação o bot podia tratar o resultado invisível como se já tivesse sido enviado no chat.
   const antesDaTarefa = daTarefa ? antesPorId.get(daTarefa) : null;
   const finalDaTarefa = daTarefa ? gravadas.get(daTarefa) : null;
-  if (autorAgenteId && p.conversaId && antesDaTarefa?.agenteId === autorAgenteId && finalDaTarefa && finalDaTarefa.status !== antesDaTarefa.status) {
+  // A ida a `voce` não é resultado: `ligarDecisaoATarefa` grava logo depois a única linha "precisa de você" da ADR-159.
+  // Tratá-la como etapa concluída criaria duas linhas para a mesma pergunta (resultado + precisa).
+  if (autorAgenteId && p.conversaId && antesDaTarefa?.agenteId === autorAgenteId && finalDaTarefa && finalDaTarefa.status !== antesDaTarefa.status && finalDaTarefa.status !== "voce") {
     const coluna = colunasFinais.find((c) => c.id === finalDaTarefa.status)?.nome;
     events.push(...(await gravarLinhaDaTarefa(deps, {
       motivo: "resultado", t: finalDaTarefa, q: atualizado, conversaId: p.conversaId, agenteId: autorAgenteId,
