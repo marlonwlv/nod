@@ -89,6 +89,7 @@ import { resolverProvaNoNavegador } from "./lib/prova-trabalho.ts";
 import { abreProvisorio, CHAVE_EQUIPE, decidirPareamento, criarContaNoChat, equipeNoApp, fraseDoErro as fraseDoErroDeConta, linkDaEquipe, type PassoPareamento } from "./telas/conta-no-chat.ts";
 import { criarMinhaConta } from "./telas/minha-conta.ts";
 import { reduzirFoto } from "./lib/reduzir-foto.ts";
+import { criarLoja } from "./react/loja.ts";
 import { deveLembrar, htmlLembrete, jaFalou, marcarFalou } from "./telas/lembrete-conta.ts";
 import type { EstadoContaDto } from "../src/contracts/conta.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
@@ -219,7 +220,9 @@ import { anuncioDaLeitura, criarTocadorDeLeitura, TEXTO_FALHA_LEITURA, type Leit
 import { criarControleDitado } from "./telas/ditado-controle.ts";
 import { ditadoNaPilula, juntarAoCampo, textoDaFalha } from "./telas/ditado.ts";
 import { nomeDoEmail } from "./telas/conversa-texto.ts";
-import { criarTelaOnboarding, guardarFocoDaCamada } from "./telas/onboarding-controle.ts";
+import { criarTelaOnboarding } from "./telas/onboarding-controle.ts";
+import type { AcoesDoCartaoIa } from "./react/onboarding/cartao-ia.tsx";
+import type { DadosDaAcao } from "./react/onboarding/tipos.ts";
 import { movimentoReduzido } from "./lib/movimento.ts";
 import { alvoDoQueEspera, levarAoAlvo, passoDoAtalho, REALCE_MS, type AlvoDoAtalho } from "./lib/levar-ao-alvo.ts";
 import { criarBuscaCelular, limparEntradaDaBusca } from "./telas/busca-celular.ts";
@@ -409,6 +412,8 @@ document.addEventListener("toggle", (ev) => {
  * exige o app aberto: sem executor a tela continua respondendo (web-sem-app).
  */
 let estado: Estado = estadoInicial;
+/** ADR-179 (fase 1 do React): a mesma `estado` vista pelas regiões React (useLoja). render() avisa; nenhuma região montada ainda. */
+const lojaDoEstado = criarLoja(() => estado);
 /** Janela do Desfazer ao cancelar uma mensagem da fila. */
 const CANCELAR_DESFAZER_MS = 5_000;
 let api: Api | null = null;
@@ -1150,7 +1155,7 @@ const telaLigacao = criarTelaLigacao({
   },
   aoOnboarding: (etapa, campos) => telaOnboarding.aoOnboarding(etapa, campos),
   // Rede de segurança da ligação (2026-10-05): o "Configurar sem voz" do aviso é o mesmo do onboarding.
-  configurarSemVoz: () => telaOnboarding.acoes["onboarding-sem-voz"]?.(document.body),
+  configurarSemVoz: () => telaOnboarding.acoes["onboarding-sem-voz"]?.({}),
 });
 /**
  * Ouvir uma resposta (definido em 2026-10-17, NOD-106): o tocador mora fora do reducer (o áudio), mas a fase vai para
@@ -1278,7 +1283,59 @@ const telaOnboarding = criarTelaOnboarding({
   invalidar: () => dispatch({ tipo: "invalidar", quais: ["frota", "sua-vez", "rotinas", "conectores", ...(conversaDaTela(estado) ? [`conversa:${conversaDaTela(estado)?.conversa.id}` as Invalidacao] : [])] }),
   erro: (e) => mostrarErro(e),
   aoMudar: () => render(),
+  redesenhar: () => desenharCamadaOnboarding(),
 });
+
+/**
+ * ADR-179 (fase 5): a região `#onboarding` é do React (web/react/onboarding/). O módulo só é baixado quando a camada vai
+ * aparecer: quem já passou pelo onboarding não carrega o React por causa dele. Até o módulo chegar, a região fica
+ * escondida (a `.app` já está inerte por `telaOnboarding.cobre()`).
+ */
+let moduloOnboarding: typeof import("./react/onboarding/regiao.tsx") | null = null;
+let carregandoOnboarding = false;
+const executarNoOnboarding = (acao: string, dados: DadosDaAcao = {}): void => { void telaOnboarding.acoes[acao]?.(dados); };
+const copiarNoOnboarding = (texto: string): Promise<boolean> => navigator.clipboard.writeText(texto).then(() => true, () => false);
+/** Os cliques do cartão de IA no onboarding: os mesmos do `data-act="ia-…"` de Provedores de IA, sem a delegação. */
+const cartaoIaNoOnboarding: AcoesDoCartaoIa = {
+  agir: (act, ia, extra = {}) => {
+    switch (act) {
+      case "ia-instalar": void iasDoMac.instalar(ia); return;
+      case "ia-entrar": void iasDoMac.entrar(ia); return;
+      case "ia-trocar": void iasDoMac.trocar(ia); return;
+      case "ia-cancelar": void iasDoMac.cancelar(ia); return;
+      case "ia-verificar": void iasDoMac.verificar(ia); return;
+      // No onboarding, o teste é o dele (onboarding-teste.ts): é o veredito dele que libera o Continuar.
+      case "ia-testar": executarNoOnboarding("onboarding-ia-testar", { ia }); return;
+      case "ia-abrir-link": void iasDoMac.abrirLink(ia); return;
+      case "ia-copiar-codigo": void iasDoMac.copiarCodigo(ia, extra.texto ?? "").then((ok) => { if (ok) anunciar("Código copiado"); }); return;
+      case "ia-ajuda": iasDoMac.alternarAjuda(`${ia}:${extra.passo ?? ""}`); return;
+      case "ia-detalhe": iasDoMac.alternarDetalhe(ia); return;
+      case "ia-atualizar":
+        if (window.nodDesktop?.ias?.atualizar) void iasDoMac.atualizar(ia, { agora: extra.agora === true });
+        else void window.nodDesktop?.iaInstalar?.(ia).catch(() => undefined);
+        return;
+      case "ia-colar-codigo": return;
+      case "secao-espaco": abrirEspaco("conexao"); return;
+    }
+  },
+  digitarCodigo: (ia, codigo) => dispatch({ tipo: "ias-mac", mudanca: { codigo: { ...estado.iasMac.codigo, [ia]: codigo } } }),
+  colarCodigo: (ia, codigo) => { void iasDoMac.colarCodigo(ia, codigo); },
+  copiar: copiarNoOnboarding,
+};
+
+function desenharCamadaOnboarding(): void {
+  const vista = telaOnboarding.vista();
+  const regiaoOnb = document.getElementById("onboarding");
+  if (!moduloOnboarding) {
+    regiaoOnb?.toggleAttribute("hidden", true);
+    if (!vista || carregandoOnboarding) return;
+    carregandoOnboarding = true;
+    void import("./react/onboarding/regiao.tsx").then((m) => { moduloOnboarding = m; render(); }, (e: unknown) => { carregandoOnboarding = false; mostrarErro(e); });
+    return;
+  }
+  moduloOnboarding.desenharOnboarding(vista ? { vista, executar: executarNoOnboarding, copiar: copiarNoOnboarding, cartao: cartaoIaNoOnboarding } : null);
+  regiaoOnb?.toggleAttribute("hidden", vista === null);
+}
 
 /**
  * NOD-345 (ADR-124): a conta no nod como cartões na conversa. `contas` vem de /api/sessao/modo (ausente = servidor sem
@@ -3603,6 +3660,7 @@ function agendarViradaDoMascote(): void {
 }
 
 function render(): void {
+  lojaDoEstado.avisar();
   if (ajusteDoLink && estado.sessao && estado.frota && !celular.ativo()) {
     const id = ajusteDoLink;
     ajusteDoLink = null;
@@ -3660,11 +3718,7 @@ function render(): void {
   // O onboarding por cima (olá, IA do Mac, "está te ligando") também deixa a .app inerte (ADR-077).
   // ADA-242 (aceite 6): quem já concluiu, numa máquina que não viu "Este computador", vê só essa tela (uma vez por sessão).
   void telaOnboarding.verificarMaquina();
-  const camadaOnboarding = telaOnboarding.camada();
-  const devolverFoco = regiaoMudaria("onboarding", camadaOnboarding) ? guardarFocoDaCamada(document.getElementById("onboarding")) : null;
-  regiao("onboarding", camadaOnboarding);
-  devolverFoco?.();
-  document.getElementById("onboarding")?.toggleAttribute("hidden", camadaOnboarding === "");
+  desenharCamadaOnboarding();
   // A busca do celular em tela cheia também (NOD-380): sem isto, o próximo render devolvia a .app ao Tab com o diálogo aberto.
   pintarInerciaDoApp();
   document.getElementById("espaco")?.toggleAttribute("inert", telaLigacao.cheia());
@@ -6209,7 +6263,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     void window.nodDesktop?.definirDecisaoBarra?.(id, "recusada").catch(() => undefined);
     render();
   },
-  ...telaOnboarding.acoes,
+  // O bloco guiado na conversa da guia (ainda por string) chama as ações do onboarding pela delegação.
+  ...Object.fromEntries(Object.entries(telaOnboarding.acoes).map(([k, f]) => [k, (el: HTMLElement) => f(el.dataset)])),
   // NOD-323: a mídia do bot.
   "midia-abrir": abrirMidia,
   "midia-gif": alternarGif,
@@ -6482,7 +6537,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "conta-falha-fechar": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void contasDoMac.fecharFalha(ia); },
   "ia-verificar": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void iasDoMac.verificar(ia); },
   // No onboarding, o teste é o dele (onboarding-teste.ts): é o veredito dele que libera o Continuar.
-  "ia-testar": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void (el.closest("#onboarding") ? telaOnboarding.acoes["onboarding-ia-testar"]?.(el) : iasDoMac.testar(ia)); },
+  // No onboarding (React), o "Testar" do cartão vai direto ao teste dele (cartaoIaNoOnboarding).
+  "ia-testar": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void iasDoMac.testar(ia); },
   "ia-abrir-link": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void iasDoMac.abrirLink(ia); },
   "ia-copiar-codigo": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void iasDoMac.copiarCodigo(ia, el.dataset.texto ?? "").then((ok) => { if (ok) anunciar("Código copiado"); }); },
   "ia-ajuda": (el) => iasDoMac.alternarAjuda(`${el.dataset.ia ?? ""}:${el.dataset.passo ?? ""}`),

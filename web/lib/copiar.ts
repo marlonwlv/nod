@@ -4,7 +4,7 @@
  * (o `[data-act]` dos botões de copiar tem largura mínima no CSS). No cartão da IA, que é renderizado de novo, o
  * anúncio sai pela região viva global (`anunciar` no main.ts). Antes era "Copiado" por 1,5 s.
  * Vale no `copiar-texto`, no `copiar-codigo` (bloco de código), no `ia-copiar-codigo` (cartão da IA) e no
- * `onboarding-ia-copiar`.
+ * Copiar do onboarding (o `BotaoCopiar` de web/react/onboarding/cartao-ia.tsx).
  */
 export const COPIADO_MS = 2_000;
 export const ROTULO_COPIADO = "✓ Copiado";
