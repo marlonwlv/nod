@@ -30,6 +30,7 @@ import { removerComputadorPeloChat } from "../../../src/use-cases/remover-comput
 import { gerirAcessos } from "../../../src/use-cases/gerir-acessos.ts";
 import { gerirMaquinas } from "../../../src/use-cases/gerir-maquinas.ts";
 import { naoLidosNoChat } from "../../../src/use-cases/nao-lidos-no-chat.ts";
+import { decisoesNoChat } from "../../../src/use-cases/decisoes-no-chat.ts";
 import { buscarConversas, lerConversa } from "../../../src/use-cases/buscar-conversas.ts";
 
 export const MARLON: Escopo = { tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON };
@@ -122,6 +123,7 @@ export function depsFalsos(opcoes: OpcoesDepsFalsos = {}): { deps: Deps; banco: 
     gerirQuadro,
     gerirApps,
     naoLidosNoChat,
+    decisoesNoChat,
     gerirTimes,
     gerirCanvas,
     removerComputador: removerComputadorPeloChat,

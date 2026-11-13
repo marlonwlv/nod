@@ -96,7 +96,7 @@ export const aplicarExportacaoDecisoes: CasoDeUso<{ propostaId: string; recusar:
     arquivos.push(r.data);
   }
   const autoria = autoriaAgente(proposta.agenteId, deps.escopo.pessoaId);
-  const m = await deps.repos.mensagens.criar({ conversaId: proposta.conversaId, turnoId: decidida.turnoId, autoria, kind: "sistema", texto: arquivos.length === 1 ? "CSV das decisões" : `${arquivos.length} CSVs mensais das decisões`, payload: null, confianca: "confiavel" });
+  const m = await deps.repos.mensagens.criar({ conversaId: proposta.conversaId, turnoId: decidida.turnoId, autoria, kind: "sistema", assunto: "sistema.generico", texto: arquivos.length === 1 ? "CSV das decisões" : `${arquivos.length} CSVs mensais das decisões`, payload: null, confianca: "confiavel" });
   if (!m) throw new ErroDeDominio("estado_invalido", { cause: "mensagem não criada" });
   const ids: string[] = [];
   for (const arquivo of arquivos) {
