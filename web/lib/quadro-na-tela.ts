@@ -543,6 +543,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   let leituraHist = 0;
   /** NOD-430: a tarefa pedida pelo código num chat (`nod-tarefa:`): abre quando a conversa do dono dela estiver na tela. */
   let pendente: { agenteId: string; tarefaId: string } | null = null;
+  /** Instantâneo (2026-11-13): a última leitura do quadro de cada bot nesta sessão (null = o bot não tem quadro). */
+  const quadroLembrado = new Map<string, QuadroDto | null>();
   /** T2: o mover que está no ar (o frame que chega antes da resposta o reaplica). */
   let noAr: MudancaNoAr | null = null;
   /** NOD-443: o painel aberto abaixo do topo (Pessoas ou Atividade), o mural (null = carregando) e o porquê de uma recusa. */
@@ -1231,10 +1233,14 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (!doFrame) desenhoDevido = true;
     if (carga === "nada") { carga = "carregando"; desenharVista(); }
     try {
-      await prepararSeletor(a, de);
-      if (minha !== leitura || de !== agenteId) return;
-      const r = await a.quadro(de);
-      if (minha !== leitura || de !== agenteId) return;
+      // Instantâneo (2026-11-13): a lista do seletor e o quadro saem JUNTOS quando nenhum link escolheu o quadro — sem
+      // `?quadro=` o servidor abre o último aberto do bot (verQuadro lê a preferência), o mesmo que a lista diria. Com um
+      // link, a lista vem antes, como sempre: o alvo dele vai no `?quadro=` da leitura.
+      const comLink = quadroPedido?.agenteId === de;
+      const r = comLink
+        ? await prepararSeletor(a, de).then(() => (minha !== leitura || de !== agenteId ? null : a.quadro(de)))
+        : (await Promise.all([prepararSeletor(a, de), a.quadro(de)]))[1];
+      if (!r || minha !== leitura || de !== agenteId) return;
       aplicarQuadro(r.quadro, [], doFrame, gestoDesde, vivo);
     } catch {
       if (minha !== leitura || de !== agenteId) return;
@@ -1258,6 +1264,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     dica = [];
     q = novo;
     carga = "ok";
+    if (agenteId) quadroLembrado.set(agenteId, novo);
     // 2026-11-10 (card preso em "começando"): a resposta de uma mudança traz o quadro do commit, com o turno que acabou
     // de nascer ainda pendente ("na fila"). O despacho vem logo depois e o frame dele relê o quadro, mas, quando a resposta
     // HTTP chega DEPOIS dessa releitura, ela regrava o quadro velho e o card fica em "começando" até o próximo frame. Uma
@@ -2879,6 +2886,10 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       cancelar();
       zerarDados();
       agenteId = s.chave === null ? null : (s.agenteId ?? null);
+      // Instantâneo (2026-11-13): o quadro que este bot mostrou da última vez aparece na hora; a leitura que segue acende
+      // o que mudou desde então (a regra de sempre de aplicarQuadro).
+      const lembrado = agenteId ? quadroLembrado.get(agenteId) : undefined;
+      if (lembrado !== undefined) { q = lembrado; carga = "ok"; }
       chave = s.chave;
       modo = "conversa";
       aberturaRegistrada = false;

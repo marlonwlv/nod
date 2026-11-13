@@ -73,6 +73,7 @@ import type { Escopo } from "../src/shared/types.ts";
 import type { FrameSse } from "../src/contracts/frame.ts";
 import type { AnexoDaConversa } from "../src/contracts/anexo.ts";
 import { confirmacaoCaducou, HISTORICO_INICIAL, type HistoricoDoBot } from "./lib/historico-perfil.ts";
+import { ordemDasLeituras } from "./lib/ordem-das-leituras.ts";
 import { agenteDaTela, bibliotecaAberta, conversaAbertaTemNotaDeContas, conversaDaTela, estadoInicial, acoesAoMudarConexao, invalidacoesAoRetomar, sempreRelevante, invalidacoesDaTela, mudouNaTela, reduzir, secaoAberta, secaoDoPedido, type Acao, type Estado, type FalaPendente, type Invalidacao, type NivelGaveta, type PedidoSecao, type PerfilCelular, type SecaoEspaco, type Tela } from "./estado/reducer.ts";
 import { mascararDormindo, RetryDoAcordar, type PassosDoRetry } from "./lib/retry-computador.ts";
 import { contaApi, criarApi, minhaContaApi, ErroApi, observarRede, sessao as sessaoApi, type Api } from "./lib/api.ts";
@@ -1993,7 +1994,12 @@ async function reidratar(): Promise<void> {
   try {
     // definido em 2026-09-17: consumir antes do GET preserva frames recebidos durante a busca.
     estado = reduzir(estado, { tipo: "invalidacoes-tratadas", quais: relevantes });
-    for (const [i, q] of relevantes.entries()) {
+    // Instantâneo (2026-11-13): as leituras saem JUNTAS e a tela redesenha conforme cada uma chega. Antes era uma por vez
+    // e o `render` só no fim: abrir um bot na primeira carga enfileirava ~15 GETs (~80 ms cada pela internet) e a
+    // conversa só aparecia depois do último. A conversa da tela vai na frente da fila (ordemDasLeituras), por ser o que
+    // a pessoa olha; cada resposta entra no estado na hora e pinta no próximo quadro (renderNoQuadro).
+    let redeCaiu = false;
+    await Promise.all(ordemDasLeituras(relevantes, estado.tela).map(async (q) => {
       try {
         const acao = await buscar(q);
         if (acao && reduzirVendoSaida(acao)) saiu = true;
@@ -2006,17 +2012,21 @@ async function reidratar(): Promise<void> {
           avisador.atualizarNaoLidos(acao.naoLidos);
         }
         if (acao?.tipo === "trabalho-sumiu") lembrarTaskAberta(estado.tela);
+        if (acao) renderNoQuadro();
       } catch (e) {
         if (!(e instanceof ErroApi && e.status === 404)) {
           const erro = erroDe(e);
           if (erro && ehErroDeRede(erro)) {
             // NOD-136: falha de rede não conta para o link (leituraConta); a leitura volta com a rede.
-            // Revisão NOD-215: a rede caiu depois das tentativas desta leitura. O resto da passada também cairia (cada
-            // GET esperaria mais 8,5 s com `reidratando` preso): guarda esta e as que faltam para quando o nod voltar.
-            for (const resto of relevantes.slice(i)) pendentesDeRede.add(resto);
-            if (estado.erro === null || ehErroDeRede(estado.erro)) estado = reduzir(estado, acaoDoErro(erro));
-            sonda.lembrar();
-            break;
+            // Revisão NOD-215: a rede caiu. Esta leitura fica guardada para quando o nod voltar (as outras da passada já
+            // saíram juntas: cada uma que cair se guarda sozinha); o erro e a sonda, uma vez só.
+            pendentesDeRede.add(q);
+            if (!redeCaiu) {
+              redeCaiu = true;
+              if (estado.erro === null || ehErroDeRede(estado.erro)) estado = reduzir(estado, acaoDoErro(erro));
+              sonda.lembrar();
+            }
+            return;
           }
           if (erro) estado = reduzir(estado, acaoDoErro(erro));
         }
@@ -2024,7 +2034,7 @@ async function reidratar(): Promise<void> {
         const lida = leituraConta(q, { erroDeRede: false });
         if (lida) lerParaDeepLink(lida);
       }
-    }
+    }));
     render();
   } finally {
     reidratando = false;
@@ -2039,6 +2049,40 @@ async function reidratar(): Promise<void> {
   // e a nova janela precisa ser lida já, não no próximo tique. agendaPorLer é falso depois de ler ou falhar: não gira.
   const agendaNova = agendaPorLer(estado.agenda) && invalidacoesDaTela(estado).includes("agenda");
   if (telaMudou || agendaNova || estado.invalidacoes.some((q) => relevante(q))) void reidratar();
+  else window.setTimeout(() => void aquecerConversas(), AQUECER_APOS_MS);
+}
+
+/**
+ * Instantâneo (2026-11-13): com a tela aberta já servida, as conversas dos outros bots da barra são lidas em segundo
+ * plano, uma de cada vez, para o clique seguinte abrir na hora — a conversa já está no estado e a tela desenha dela; o
+ * que mudou enquanto ela ficou fora da vista chega pela invalidação de sempre (o frame marca `conversa:` e a abertura
+ * relê por cima). Só no computador com a janela na frente (no celular é dado móvel), os bots da pessoa primeiro, na
+ * ordem da barra, até AQUECER_MAX; qualquer falha encerra a passada (a leitura de sempre cuida ao abrir).
+ */
+const AQUECER_APOS_MS = 1000;
+const AQUECER_ENTRE_MS = 250;
+const AQUECER_MAX = 12;
+let aquecendo = false;
+async function aquecerConversas(): Promise<void> {
+  if (!api || aquecendo || !estado.sessao || !estado.frota || celular.ativo() || !naFrente()) return;
+  aquecendo = true;
+  try {
+    const pessoaId = estado.sessao.pessoaId;
+    const agentes = [...estado.frota.agentes].sort((a, b) => Number(b.ownerId === pessoaId) - Number(a.ownerId === pessoaId));
+    const fila = [...new Set(agentes.map((a) => a.conversaId))].filter((id) => !estado.conversas[id]).slice(0, AQUECER_MAX);
+    for (const id of fila) {
+      if (!api || !naFrente() || estado.conversas[id]) continue;
+      // A passada de leituras da tela tem prioridade: a pré-carga espera ela acabar.
+      while (reidratando) await new Promise((r) => window.setTimeout(r, AQUECER_ENTRE_MS));
+      const acao = await buscar(`vivos:${id}`);
+      if (acao) reduzirVendoSaida(acao);
+      await new Promise((r) => window.setTimeout(r, AQUECER_ENTRE_MS));
+    }
+  } catch {
+    // Sem rede ou servidor ocupado: a pré-carga para aqui; abrir o bot lê a conversa como sempre.
+  } finally {
+    aquecendo = false;
+  }
 }
 
 function relevante(q: Invalidacao): boolean {
