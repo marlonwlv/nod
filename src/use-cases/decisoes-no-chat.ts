@@ -68,16 +68,19 @@ export const decisoesNoChat: CasoNod<Deps, "decisoes"> = async (deps, input) => 
     }
   }
 
-  // Valida o recorte antes de abrir o card: um clique nunca deve descobrir tarde que a data, o fuso ou o filtro era inválido.
+  const periodos = dias > 31 ? periodosMensais(input.de, input.ate) : [{ de: input.de, ate: input.ate }];
+  if (periodos.length === 0) return recusa("entrada_invalida", "Período inválido. Nada mudou.");
+  if (periodos.length > MAX_ARQUIVOS) return recusa("periodo_longo", `Esse período geraria ${periodos.length} arquivos; cada confirmação aceita até ${MAX_ARQUIVOS}. Divida o pedido.`);
+  // Cada exportador aceita até 31 dias. Valida os mesmos recortes mensais que serão gerados: validar o período inteiro
+  // faria toda exportação longa falhar antes da divisão. Ainda não cria mensagem nem anexo antes da confirmação.
   try {
-    await lerDecisoes(deps, { agenteId: agente.id, de: input.de, ate: input.ate, fuso: input.fuso, desfecho, limite: 1 });
+    for (const periodo of periodos) {
+      await lerDecisoes(deps, { agenteId: agente.id, de: periodo.de, ate: periodo.ate, fuso: input.fuso, desfecho, limite: 1 });
+    }
   } catch (e) {
     if (ehErroDeDominio(e)) return recusa("entrada_invalida", `Não preparei o CSV: ${e.codigo}. Confira datas, fuso e filtro.`);
     throw e;
   }
-  const periodos = dias > 31 ? periodosMensais(input.de, input.ate) : [{ de: input.de, ate: input.ate }];
-  if (periodos.length === 0) return recusa("entrada_invalida", "Período inválido. Nada mudou.");
-  if (periodos.length > MAX_ARQUIVOS) return recusa("periodo_longo", `Esse período geraria ${periodos.length} arquivos; cada confirmação aceita até ${MAX_ARQUIVOS}. Divida o pedido.`);
   const payload: PayloadPropostaDecisoesExportacao = { kind: "decisoes_exportacao", agenteId: agente.id, agenteNome: agente.nome, de: input.de, ate: input.ate, fuso: input.fuso, desfecho, periodos };
   const proposta = await deps.repos.propostas.criar({ conversaId: input.conversaId, agenteId: input.agenteId, payload });
   if (!proposta) throw new ErroDeDominio("estado_invalido", { cause: "proposta não criada" });
