@@ -158,6 +158,8 @@ export type BancoMemoria = {
   liberacoesDispensadas: Map<string, number>;
   /** 0033: turnos que trouxeram conteúdo da web pelas nativas. */
   contaminados: Set<string>;
+  /** 0176: subconjunto cuja única origem de contaminação foi o próprio quadro da pessoa. */
+  contaminadosSoQuadro: Set<string>;
   /** ADR-130 (0121): os turnos dos bastidores da conversa (a coluna `turnos.bastidores` do repo real). */
   bastidores: Set<string>;
   githubApp: Map<string, ConfigGithubApp>;
@@ -257,6 +259,7 @@ export function criarBancoMemoria(): { banco: BancoMemoria; repos(escopo?: Escop
     leituras: new Map(),
     liberacoesDispensadas: new Map(),
     contaminados: new Set(),
+    contaminadosSoQuadro: new Set(),
     bastidores: new Set(),
     githubApp: new Map(),
     composioSessoes: new Map(),
@@ -1792,10 +1795,16 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async terminalLiberado(raizId: string) {
         return b.terminalLiberado.has(raizId);
       },
-      async contaminar(id: string) {
+      async contaminar(id: string, _agora: number, origem: "quadro" | "outra" = "outra") {
         if (!doTenant(b.turnos).some((t) => t.id === id && t.ownerId === escopo.pessoaId)) return false;
+        if (!b.contaminados.has(id) && origem === "quadro") b.contaminadosSoQuadro.add(id);
+        else if (origem !== "quadro") b.contaminadosSoQuadro.delete(id);
         b.contaminados.add(id);
         return true;
+      },
+      async contaminacao(id: string) {
+        if (!b.contaminados.has(id)) return "nenhuma" as const;
+        return b.contaminadosSoQuadro.has(id) ? "quadro" as const : "outra" as const;
       },
       async trabalhosDosTurnos(ids: readonly string[]) {
         return new Map(doTenant(b.turnos).filter((t) => ids.includes(t.id)).map((t) => [t.id, t.trabalhoId ?? null] as [string, string | null]));
