@@ -6,13 +6,11 @@ import type { CamposDeLabel, LabelDto, OpLabel } from "./quadro-labels.ts";
  * O quadro-agente (definido em 2026-10-31, NOD-442; base visual NOD-429): uma meta com prazo, tarefas em colunas de
  * status, e cada tarefa com um bot responsável que começa sozinho. Só tipos (EMENDA 26): o domínio puro mora em
  * src/domain/quadro.ts, o banco na 0133.
- *
  * Um quadro por bot anfitrião (quem o criou): ele mora na aba Quadro da conversa desse bot (NOD-429). Qualquer bot da
  * pessoa mexe nele pelas mesmas ações (ADR-135, domínio `quadro`).
  */
 import type { LinhaDeSistema, PrNaTela } from "./prs-da-tarefa.ts"; import type { OpcoesDoQuadro, Prioridade } from "./quadro-opcoes.ts";
 export type { CiPr, EstadoPr, LinhaDeSistema, PrDaTarefa, PrLido, PrNaTela, TipoLinhaTarefa } from "./prs-da-tarefa.ts";
-
 /**
  * As colunas padrão, na ordem (os mesmos de web/lib/quadro.ts, que a NOD-429 já desenha). Definido em 2026-11-01
  * (NOD-448): são ids reservados com o comportamento de sempre. ADR-162: `voce` não é coluna, é a marca "esperando a pessoa".
