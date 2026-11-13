@@ -22,6 +22,14 @@ describe("decidir contra um cartão com estado velho", () => {
     expect(reler).not.toHaveBeenCalled();
   });
 
+  it("não absorve estado_invalido fora do 409", async () => {
+    const erro = new ErroApi(400, "estado_invalido", "O pedido está inválido.");
+    const reler = vi.fn(async () => true);
+
+    await expect(decidirContraEstadoVelho(async () => { throw erro; }, reler)).rejects.toBe(erro);
+    expect(reler).not.toHaveBeenCalled();
+  });
+
   it("mantém o 409 com motivo de negócio mesmo quando o servidor fechou o cartão", async () => {
     const conflito = new ErroApi(409, "estado_invalido", "Este pedido mudou.");
     conflito.motivo = "limite_atingido";

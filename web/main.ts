@@ -6753,7 +6753,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   }),
   // Revisão 6 do #626: o card do app que não vale mais volta 409 com o `motivo`; a frase dele sai no aviso neutro (o card
   // fechou como recusado e o recibo foi gravado, então a conversa relê do mesmo jeito). Outros cards não mandam motivo.
-  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => decidirAprovacaoReconciliando(el.dataset.id ?? ""), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => decidirAprovacaoReconciliando(el.dataset.id ?? "", {}), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // NOD-50: o cartão de credencial. Mostrar troca o tipo do campo sem redesenhar (o valor fica onde está); a fase guarda
   // só o "mostrando", para o próximo frame não esconder o que a pessoa pediu para ver.
   "mostrar-credencial": (el) => {
