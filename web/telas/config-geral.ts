@@ -89,8 +89,9 @@ export function renderAvisos(a: EstadoAvisos, celular = ehCelular()): string {
   });
 }
 
-// NOD-117: uma linha pode ter combinações alternativas ("?" ou ⌘/), separadas por "ou".
-const kbd = (combinacoes: readonly (readonly string[])[]) => `<span class="cfg-kbd" aria-hidden="true">${combinacoes.map((teclas) => teclas.map((t) => `<kbd>${esc(t)}</kbd>`).join("")).join(" ou ")}</span>`;
+// NOD-117: uma linha pode ter combinações alternativas ("?" ou ⌘/), separadas por "ou". Também desenha o diálogo de
+// atalhos (menu-conta.ts, htmlFolhaDeAtalhos).
+export const kbd = (combinacoes: readonly (readonly string[])[]) => `<span class="cfg-kbd" aria-hidden="true">${combinacoes.map((teclas) => teclas.map((t) => `<kbd>${esc(t)}</kbd>`).join("")).join(" ou ")}</span>`;
 
 export type DadosGeral = {
   tema: EscolhaTema;

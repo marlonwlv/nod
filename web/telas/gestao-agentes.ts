@@ -2,7 +2,8 @@ import type { PedidoSecao } from "../estado/reducer.ts";
 import { esc } from "../lib/render.ts";
 import { ehCelular } from "../lib/celular.ts";
 import type { AcaoGestao, BotGerido } from "./gestao.ts";
-import { htmlMenuConta, informacoesDaVersao, teclaDoMenuConta, type DadosMenuConta } from "./menu-conta.ts";
+import type { LinhaDaFolha } from "../lib/atalhos.ts";
+import { htmlFolhaDeAtalhos, htmlMenuConta, informacoesDaVersao, teclaDoMenuConta, type DadosMenuConta } from "./menu-conta.ts";
 
 export type { AcaoGestao, BotGerido } from "./gestao.ts";
 export { textoDuplicar } from "./gestao.ts";
@@ -270,6 +271,14 @@ export function abrirSobreONod(versao: string): void {
     );
   });
   d.querySelector<HTMLButtonElement>("[data-copiar]")?.focus();
+}
+
+/** COP-12: o diálogo "Atalhos de teclado" (Suporte › Atalhos, ⌘/, "?" e a paleta); Fechar ou Esc fecham. */
+export function abrirFolhaDeAtalhos(linhas: readonly LinhaDaFolha[]): void {
+  const d = dialogo(htmlFolhaDeAtalhos(linhas));
+  d.classList.add("mc-atalhos-dialogo");
+  d.querySelector("[data-fechar]")?.addEventListener("click", () => d.close());
+  d.querySelector<HTMLButtonElement>("[data-fechar]")?.focus();
 }
 
 /**

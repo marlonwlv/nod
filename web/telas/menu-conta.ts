@@ -1,7 +1,9 @@
 import type { ContaIa } from "../../src/contracts/contas-ia.ts";
 import { nesteAparelho } from "../lib/aparelho.ts";
+import type { LinhaDaFolha } from "../lib/atalhos.ts";
 import { esc } from "../lib/render.ts";
 import { PROVEDOR } from "./cartao-ia.ts";
+import { kbd } from "./config-geral.ts";
 import { contaEmUso } from "./contas-lista.ts";
 import { ALERTA_USO, maiorUso, pctUsado, proximaDaFila, quandoNaTela } from "./uso-da-conta.ts";
 
@@ -220,6 +222,15 @@ export function teclaDoMenuConta(tecla: string, p: PosicaoNoMenu): AcaoDaTecla |
 }
 
 /** O que "Copiar informações da versão" leva à área de transferência. */
+/**
+ * COP-12 (spec do item 2): Suporte › Atalhos de teclado, ⌘/ e "?" abrem este diálogo, só com as teclas do lugar
+ * (web/lib/atalhos.ts, linhasDaFolha). A Ajuda é outro lugar: o bloco Ajuda de Configurações (o onboarding).
+ */
+export function htmlFolhaDeAtalhos(linhas: readonly LinhaDaFolha[]): string {
+  const itens = linhas.map((l) => `<div class="mc-atalho"><dt>${esc(l.titulo)}</dt><dd>${kbd(l.combinacoes)}<span class="sr-only">${esc(l.falado)}</span></dd></div>`).join("");
+  return `<div class="mc-atalhos"><h2>Atalhos de teclado</h2><dl class="mc-atalhos-lista">${itens}</dl><div class="acoes"><button class="bt" type="button" data-fechar>Fechar</button></div></div>`;
+}
+
 export function informacoesDaVersao(versao: string, navegador: string): string {
   return [`nod ${versao}`, navegador ? `Navegador: ${navegador}` : ""].filter(Boolean).join("\n");
 }

@@ -119,6 +119,14 @@ html[data-largura="recolhida"] #sidebar.sidebar .rodape button.me.conta-pilula .
 /* Sobre o nod. */
 .bot-dialogo.mc-sobre-dialogo .mc-sobre-status:empty { display: none; }
 
+/* Atalhos de teclado (COP-12): uma linha por atalho, o que faz à esquerda e as teclas à direita; a lista rola sozinha. */
+.bot-dialogo.mc-atalhos-dialogo { width: min(520px, calc(100vw - 40px)); }
+.bot-dialogo.mc-atalhos-dialogo .mc-atalhos-lista { margin: 0; max-height: min(60vh, 520px); overflow: auto; }
+.bot-dialogo.mc-atalhos-dialogo .mc-atalho { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 36px; border-bottom: 0.5px solid var(--borda); }
+.bot-dialogo.mc-atalhos-dialogo .mc-atalho:last-child { border-bottom: 0; }
+.bot-dialogo.mc-atalhos-dialogo dt { min-width: 0; font-size: 14px; line-height: 20px; color: var(--ink); }
+.bot-dialogo.mc-atalhos-dialogo dd { flex: none; margin: 0; }
+
 /* Alto contraste: o realce some (fundo forçado); o item em foco volta a ter contorno. */
 @media (forced-colors: active) {
   .bot-menu.menu-conta:not(.folha) button[role="menuitem"]:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }

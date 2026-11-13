@@ -865,6 +865,9 @@ body:has(#pg-menu) .cabecalho-pilula .pg-tip { opacity: 0 !important; }
    animam aqui, só durante html[data-barra-anim] (a barra é regravada ao trocar, então são animações, não transições).
    ===================================================================================== */
 :root { --curva-barra: cubic-bezier(0.22, 1, 0.36, 1); --dur-barra: 200ms; } /* os mesmos de densidade.css */
+/* A opacidade das duas bordas da máscara da lista (abaixo): registradas para a transição de 150 ms; 1 = sem fade. */
+@property --fade-topo { syntax: "<number>"; inherits: false; initial-value: 1; }
+@property --fade-base { syntax: "<number>"; inherits: false; initial-value: 1; }
 @media not ((hover: none) and (pointer: coarse)) {
 html:not([data-largura="recolhida"]) #sidebar.sidebar {
   /* Topo de 60: Buscar e Novo bot em círculos de 36, gap 10, à direita com 16 de margem, y = 12. */
@@ -872,7 +875,13 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar {
   & .sh .barra-alternar { display: none; }
   & .sh :is(.icone-flutua, .create-trigger) { width: 36px; height: 36px; background: var(--surface-elevated); border: 1px solid var(--borda-sutil); color: var(--icone-1); box-shadow: none; }
   & .sh :is(.icone-flutua, .create-trigger) svg { width: 16px; height: 16px; }
-  & .list { padding: 0 12px; }
+  /* Padding de 12 dos lados, com a barra de rolagem de 6 nos 6 de fora à direita: a calha fica reservada (gutter
+     stable), e a linha tem 316 com ou sem rolagem (340 − 12 − 6 − 6). */
+  & .list { padding: 0 6px 0 12px; scrollbar-gutter: stable; }
+  & .list::-webkit-scrollbar { width: 6px; }
+  & .list::-webkit-scrollbar-track, & .list::-webkit-scrollbar-corner { background: transparent; }
+  & .list::-webkit-scrollbar-thumb { min-height: 28px; border-radius: 9999px; background: transparent; }
+  & .list[data-rolando]::-webkit-scrollbar-thumb { background: var(--borda-sutil); }
   /* Fixados: colunas fixas de 95 (auto-fill: 2 em 240, 3 em 340), blocos de 95 × 92 com avatar 60 e legenda 12/16. */
   & .fixados { grid-template-columns: repeat(auto-fill, 95px); justify-content: center; gap: 12px 4px; padding: 6px 0; }
   & .fixado-bt { width: 95px; height: 92px; padding: 6px 8px 4px; gap: 6px; justify-content: flex-start; border-radius: var(--raio-12); }
@@ -914,6 +923,22 @@ html[data-largura="recolhida"] #sidebar.sidebar {
   & .fixados + .section h3, & .fixados ~ .section:first-of-type h3 { background: var(--borda-sutil); }
 }
 
+/* COP-12 (spec da barra): o fade das bordas da área rolável, nas duas larguras. Só a borda que esconde conteúdo dissolve
+   (data-fade-topo / data-fade-base, web/main.ts marcarBordasDaLista): no topo, os fixados aparecem inteiros. A opacidade
+   da máscara anima em 150 ms ease enquanto a pessoa rola e na troca compacta/expandida; no redesenho comum, troca seca. */
+#sidebar.sidebar .list {
+  --fade-lista: 14px;
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / var(--fade-topo)), #000 var(--fade-lista), #000 calc(100% - var(--fade-lista)), rgb(0 0 0 / var(--fade-base))); /* cor-fixa: canal alfa da máscara, não é cor visível */
+}
+#sidebar.sidebar .list[data-fade-topo] { --fade-topo: 0; }
+#sidebar.sidebar .list[data-fade-base] { --fade-base: 0; }
+#sidebar.sidebar .list[data-rolando], html[data-barra-anim] #sidebar.sidebar .list { transition: --fade-topo 150ms ease, --fade-base 150ms ease; }
+/* Fora do Chromium e do Safari (sem ::-webkit-scrollbar): a barra fina do sistema, invisível até rolar. */
+@supports not selector(::-webkit-scrollbar) {
+  html:not([data-largura="recolhida"]) #sidebar.sidebar .list { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  html:not([data-largura="recolhida"]) #sidebar.sidebar .list[data-rolando] { scrollbar-color: var(--borda-sutil) transparent; }
+}
+
 html[data-barra-anim="recolher"] #sidebar.sidebar .row { animation: barra-linha-recolhe var(--dur-barra) var(--curva-barra) 60ms backwards; }
 html[data-barra-anim="recolher"] #sidebar.sidebar .row .txt { animation: barra-txt-some var(--dur-barra) var(--curva-barra) backwards; }
 html[data-barra-anim="recolher"] #sidebar.sidebar :is(.search-wrap, .rodape) { animation: barra-rodape-entra var(--dur-barra) var(--curva-barra) 80ms backwards; }
@@ -925,5 +950,5 @@ html[data-barra-anim] #sidebar.sidebar .fixado-bt { animation: barra-rodape-entr
 @keyframes barra-txt-some { from { opacity: 1; flex-grow: 1; width: auto; } }
 @keyframes barra-txt-volta { from { opacity: 0; flex-grow: 0; } }
 @keyframes barra-rodape-entra { from { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { html[data-barra-anim] #sidebar.sidebar * { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { html[data-barra-anim] #sidebar.sidebar * { animation: none !important; } #sidebar.sidebar .list { transition: none !important; } }
 }

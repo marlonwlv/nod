@@ -137,7 +137,7 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
         cartao = [...caixa.querySelectorAll<HTMLElement>(".cartao-pergunta.aberta")].at(-1) ?? null;
         lugaresDoProgresso = [...caixa.querySelectorAll<HTMLElement>("[data-progresso]")];
         const eraVazia = !outra && vazia;
-        vazia = caixa.querySelector(".welcome-options") !== null;
+        vazia = caixa.querySelector(".bv-cartao") !== null;
         // A conversa vazia abre nas sugestões, no alto, e não acompanha o fim: quem rola até a opção D e começa a
         // digitar não volta ao topo quando o campo cresce. A primeira mensagem volta a acompanhar.
         if (vazia && !eraVazia) {
