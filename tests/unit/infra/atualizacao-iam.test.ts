@@ -13,4 +13,10 @@ describe("NOD-132: IAM da atualização do app no provisionar.sh", () => {
     expect(script).toMatch(/--role="projects\/\$PROJETO\/roles\/nodAssinarBlob"/);
     expect(script).not.toMatch(/serviceAccountTokenCreator/);
   });
+  it("NOD-467: garante retenção mínima de 365 dias sem encurtar uma política maior", () => {
+    expect(script).toMatch(/buckets describe "\$BUCKET_ATUALIZACOES" --raw --format='value\(retentionPolicy\.retentionPeriod\)'/);
+    expect(script).toMatch(/if \[ -z "\$RETENCAO_ATUAL" \] \|\| \[ "\$RETENCAO_ATUAL" -lt 31536000 \]; then\s+gc storage buckets update "\$BUCKET_ATUALIZACOES" --retention-period=365d/m);
+    expect(script).not.toMatch(/^gc storage buckets update "\$BUCKET_ATUALIZACOES" --retention-period=365d$/m);
+    expect(script).not.toMatch(/--lock-retention-period/);
+  });
 });
