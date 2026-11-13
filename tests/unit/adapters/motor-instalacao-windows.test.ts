@@ -80,6 +80,11 @@ describe("script de instalação do motor no Windows (ADR-151)", () => {
     expect(script).not.toMatch(/(Remove-Item|Remover|Set-Content|Out-File)[^\n]*\$Conexao/);
   });
 
+  it("a recuperação de um pareamento incompleto sugere o comando disponível na instalação manual", () => {
+    expect(script).toContain("Rode de novo: nod-motor parear ' + $NodServidor");
+    expect(script).not.toContain("Rode de novo: nod parear ' + $NodServidor");
+  });
+
   it("a Tarefa Agendada é do próprio usuário, sem admin, recriada com -Force; sem ela, a chave Run", () => {
     expect(script).toMatch(/Register-ScheduledTask [^\n]*-Force/);
     expect(script).toContain("-RunLevel Limited");
@@ -129,6 +134,10 @@ describe("script de instalação do motor no Windows (ADR-151)", () => {
 
   it("o Git só por winget, winget --scope user ou instalador com a assinatura do Git for Windows", () => {
     expect(script).toContain("'--scope', 'user'");
+    const wingetUsuario = script.indexOf("$r = Rodar $winget.Source @('install', '--id', 'Git.Git', '-e', '--scope', 'user'");
+    const wingetMaquina = script.indexOf("$r = Rodar $winget.Source @('install', '--id', 'Git.Git', '-e', '--silent'");
+    expect(wingetUsuario).toBeGreaterThan(0);
+    expect(wingetMaquina).toBeGreaterThan(wingetUsuario);
     expect(script).toContain("Get-AuthenticodeSignature");
     expect(script).toContain("$cn -cne 'Johannes Schindelin'");
     expect(script).toContain("https://github.com/git-for-windows/git/releases/download/");

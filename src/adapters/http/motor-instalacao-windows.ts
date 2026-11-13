@@ -580,7 +580,7 @@ function Principal {
     return
   }
   Write-Host ''
-  if ((Parear) -ne 0) { Falhar ('O pareamento não terminou. Rode de novo: nod parear ' + $NodServidor) }
+  if ((Parear) -ne 0) { Falhar ('O pareamento não terminou. Rode de novo: nod-motor parear ' + $NodServidor) }
   IniciarMotor
   Write-Host ''
   Write-Host 'Pronto: o motor está no ar e volta sozinho quando você entrar no Windows. Estado: nod estado'
