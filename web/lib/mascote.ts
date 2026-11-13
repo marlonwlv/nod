@@ -120,7 +120,7 @@ export function proximaViradaDoMascote(estado: Pick<Estado, "turnosVivos" | "fal
  * girava (a variante 1, recusada) e o chip piscava ao mesmo tempo. A lista de `GET trabalhos` diz qual turno é de task
  * (`turnoVivoId`), além do `trabalhoId` que o turno vivo já traz; `conversas` fica de fora (a barra relê pelo que lê).
  */
-export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "trabalhos" | "suaVez" | "agora"> & Partial<Pick<Estado, "atividades" | "falasSaindo" | "frota" | "sessao" | "computadorVisto">>, conversaId: string): EstadoMascote {
+export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "trabalhos" | "suaVez" | "agora"> & Partial<Pick<Estado, "atividades" | "falasSaindo" | "conversas" | "frota" | "sessao" | "computadorVisto">>, conversaId: string): EstadoMascote {
   const vivos = turnosVivosDaConversa(estado, conversaId);
   const aguarda = estado.suaVez?.itens.some((item) => item.decisao.conversaId === conversaId && item.decisao.tipo === "aprovacao" && item.estadoColuna !== "vencido");
   // A aprovação é o único pedido da pessoa que troca o personagem: o X precisa continuar visível mesmo com o turno vivo.
@@ -136,7 +136,13 @@ export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "tr
   }
   // NOD-216: só o pedido recém-chegado pensa; a fila antiga fica parada (abaixo de "Sua vez", que pede a pessoa).
   if (vivos.some((t) => filaRecente(t, estado.agora))) return "pensando";
-  const terminou = Object.values(estado.falasSaindo?.[conversaId] ?? {}).some((fala) => estado.agora - fala.em < FINISHED_MS);
+  const terminouNoRetrato = Object.values(estado.falasSaindo?.[conversaId] ?? {}).some((fala) => estado.agora - fala.em < FINISHED_MS);
+  const terminouNaGravada = estado.conversas?.[conversaId]?.mensagens.some((mensagem) => {
+    const idade = estado.agora - mensagem.criadoEm;
+    return mensagem.kind === "texto" && mensagem.autoria.autor_tipo === "agente" && mensagem.fimDoTurno === true
+      && mensagem.origemTurno === "conversa" && idade >= 0 && idade < FINISHED_MS;
+  });
+  const terminou = terminouNoRetrato || terminouNaGravada;
   if (terminou) return "terminou";
   // ADR-174: o computador do bot fora do ar (o mesmo sinal da barra: só para o dono) ganha do repouso e da fila.
   if (computadorForaDoAr(estado, conversaId)) return "offline";

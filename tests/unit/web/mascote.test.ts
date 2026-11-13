@@ -43,6 +43,9 @@ describe("mascote temporário", () => {
     const aprovacao = { ...rodando, suaVez: { itens: [{ decisao: { conversaId: "c1", tipo: "aprovacao" }, estadoColuna: "aberto" }] } as never };
     expect(estadoMascoteNaConversa(aprovacao, "c1")).toBe("aguardando_aprovacao");
     expect(estadoMascoteNaConversa({ ...rodando, turnosVivos: {}, falasSaindo: { c1: { t1: { em: 10_000 } } } as never }, "c1")).toBe("terminou");
+    const mensagem = { kind: "texto", autoria: { autor_tipo: "agente" }, fimDoTurno: true, origemTurno: "conversa", criadoEm: 10_000 };
+    expect(estadoMascoteNaConversa({ ...rodando, turnosVivos: {}, conversas: { c1: { mensagens: [mensagem] } } as never }, "c1")).toBe("terminou");
+    expect(estadoMascoteNaConversa({ ...rodando, turnosVivos: {}, agora: 23_001, conversas: { c1: { mensagens: [mensagem] } } as never }, "c1")).toBe("disponivel");
     expect(estadoMascoteNaConversa({ ...rodando, turnosVivos: {}, computadorVisto: { a1: "dormindo" } }, "c1")).toBe("pausado");
   });
 });
