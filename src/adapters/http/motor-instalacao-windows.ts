@@ -399,15 +399,18 @@ function MarcarIaDoNod([string]$Binario, [string]$Prefixo) {
 # Os shims que o npm gera chamam node pelo Path. Uma versao antiga da pessoa pode vir antes do Node portatil do nod;
 # os tres shims do pacote instalado pelo nod passam a chamar o NodeExe absoluto, sem alterar outros pacotes do prefixo.
 function FixarNodeNosShims([string]$Pacote, [string]$Binario) {
-  $pastaDoPacote = Join-Path (Join-Path $PastaNpm 'node_modules') $Pacote
-  $packageJson = Join-Path $pastaDoPacote 'package.json'
-  if (-not (Test-Path -LiteralPath $packageJson)) { return }
   try {
+    $pastaDoPacote = Join-Path (Join-Path $PastaNpm 'node_modules') $Pacote
+    $packageJson = Join-Path $pastaDoPacote 'package.json'
+    if (-not (Test-Path -LiteralPath $packageJson)) { return }
     $manifesto = Get-Content -LiteralPath $packageJson -Raw | ConvertFrom-Json
     $entradaRelativa = if ($manifesto.bin -is [string]) { [string]$manifesto.bin } elseif ($manifesto.bin.$Binario) { [string]$manifesto.bin.$Binario } else { [string]($manifesto.bin.PSObject.Properties | Select-Object -First 1).Value }
     if (-not $entradaRelativa) { return }
     $entrada = Join-Path $pastaDoPacote $entradaRelativa
     if (-not (Test-Path -LiteralPath $entrada)) { return }
+    # O npm também cria shims para executáveis nativos (hoje o Claude Code entrega bin/claude.exe). Esses não chamam
+    # Node e precisam conservar o shim do npm; só entradas JavaScript podem ser fixadas no Node portátil do nod.
+    if ([IO.Path]::GetExtension($entrada) -notin @('.js', '.mjs', '.cjs')) { return }
     $nodeCmd = $NodeExe.Replace('%', '%%')
     $entradaCmd = $entrada.Replace('%', '%%')
     Set-Content -LiteralPath (Join-Path $PastaNpm ($Binario + '.cmd')) -Encoding ASCII -Value @('@echo off', ('"' + $nodeCmd + '" "' + $entradaCmd + '" %*'))

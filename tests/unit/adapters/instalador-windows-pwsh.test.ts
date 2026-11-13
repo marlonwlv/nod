@@ -517,6 +517,23 @@ FixarNodeNosShims '@acme/ia' 'acme'
     expect(readFileSync(join(prefixo, "acme"), "utf8")).toContain(`exec "${node.replaceAll("\\", "/")}"`);
   });
 
+  it("FixarNodeNosShims conserva o shim do npm quando o pacote entrega um executável nativo", () => {
+    const prefixo = join(pasta, "shims-nativos");
+    const pacote = join(prefixo, "node_modules", "@acme", "nativa");
+    mkdirSync(join(pacote, "bin"), { recursive: true });
+    writeFileSync(join(pacote, "package.json"), JSON.stringify({ bin: { nativa: "bin/nativa.exe" } }));
+    writeFileSync(join(pacote, "bin", "nativa.exe"), "binário nativo");
+    writeFileSync(join(prefixo, "nativa.cmd"), "shim original do npm");
+    const { status, saida } = rodar(String.raw`
+$PastaNpm = '${prefixo}'
+$NodeExe = 'node-portatil.exe'
+function Registrar([string]$Texto) { Write-Host ('LOG=' + $Texto) }
+FixarNodeNosShims '@acme/nativa' 'nativa'
+`);
+    expect(status, saida).toBe(0);
+    expect(readFileSync(join(prefixo, "nativa.cmd"), "utf8")).toBe("shim original do npm");
+  });
+
   it("IniciarMotor só marca iniciado depois de observar o processo do motor", () => {
     const { status, saida } = rodar(String.raw`
 $Estado = @{ Parado = $false; Iniciado = $false; Modo = 'tarefa' }
@@ -532,7 +549,7 @@ Write-Host ('INICIADO=' + $Estado.Iniciado + ' CONSULTAS=' + $script:consultas)
 `);
     expect(status, saida).toBe(0);
     expect(saida).toContain("START");
-    expect(saida).toContain("INICIADO=True CONSULTAS=2");
+    expect(saida).toContain("INICIADO=True CONSULTAS=3");
   });
 
   it("PorNoPathDoUsuario é idempotente: a pasta que já está (com %VAR% ou \\ no fim) não repete, nem no Path da sessão", () => {
@@ -642,7 +659,7 @@ Write-Host ('PASSOS=' + ($script:passos -join '|'))
   it("a falha no meio marca NOD_INSTALACAO_RESULTADO=falhou e chama o RetomarMotor", () => {
     const { status, saida } = rodar(String.raw`
 $arvore = [System.Management.Automation.Language.Parser]::ParseFile($Instalador, [ref]$null, [ref]$null)
-$fim = @($arvore.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] -and $n.Body.Extent.Text -match '^\{\s*Principal' }, $true))
+$fim = @($arvore.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] -and $n.Body.Extent.Text -match '\$Trava\s*=' -and $n.Body.Extent.Text -match '(?m)^\s*Principal\s*$' }, $true))
 if ($fim.Count -ne 1) { throw 'sem o try do fim' }
 $Marca = '[nod] '
 $Log = 'instalador.log'
