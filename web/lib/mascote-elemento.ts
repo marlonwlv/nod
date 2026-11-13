@@ -1,5 +1,5 @@
 import { BotEngine } from "../vendor/bloub/engine.ts";
-import { STATE_BY_ID, POSES, type StateId } from "../vendor/bloub/states.ts";
+import { STATE_BY_ID, POSES, stateAfterElapsed, type StateId } from "../vendor/bloub/states.ts";
 import { SHAPE_BY_ID } from "../vendor/bloub/skins.ts";
 import { expressaoMascote } from "./mascote-pose.ts";
 import { FORMAS_BLOUB } from "./mascote-catalogo.ts";
@@ -154,8 +154,9 @@ class MascoteElemento extends HTMLElement {
     if (this.last && stamp - this.last < QUADRO_MS - 2) return;
     this.time += this.last ? Math.min((stamp - this.last) / 1000, .05) : 0;
     this.last = stamp;
-    if (this.state === "running" && !this.runningAssentado && this.time - this.changed >= 2) {
-      this.engine?.setState("working", this.time);
+    const depois = stateAfterElapsed(this.state, this.time - this.changed);
+    if (this.state === "running" && depois !== this.state && !this.runningAssentado) {
+      this.engine?.setState(depois, this.time);
       this.runningAssentado = true;
     }
     this.paint();

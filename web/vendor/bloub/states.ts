@@ -791,6 +791,13 @@ export const STATES: StateDef[] = [
 
 export const STATE_BY_ID = new Map(STATES.map((s) => [s.id, s]))
 
+/** Estados de passagem que assentam sozinhos sem depender de um novo fato do servidor. */
+export function stateAfterElapsed(id: StateId, elapsed: number): StateId {
+  if (id === 'running' && elapsed >= 2) return 'working'
+  if (id === 'finished' && elapsed >= 13) return 'idle'
+  return id
+}
+
 /** Ordre de lecture de la sequence complete, calque sur la video de reference. */
 /**
  * Date, en temps local, ou chaque etat est le plus lisible : c'est la pose que

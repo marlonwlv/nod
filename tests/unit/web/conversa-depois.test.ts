@@ -87,11 +87,11 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     expect(blocosAoVivo(c, { ...e, agora: AGORA + 120_000 })[0]!.html).toBe(html);
     // O morph sabe as partes e o que copiar para o mascote; o pensamento muda por dentro (data-no-lugar).
     expect(html).toContain('<details class="pensar" data-parte="pensar" data-no-lugar data-disclosure="pensar-t1" data-fase="fazendo"');
-    expect(blocos[0]!.morfar?.mascote).toMatchObject({ state: "orbit", "aria-label": "Ada · usando GitHub" });
+    expect(blocos[0]!.morfar?.mascote).toMatchObject({ state: "working", "aria-label": "Ada · usando GitHub" });
     // A narração entre ferramentas corre no cabeçalho (a primeira linha), não num balão.
     const narrando = blocosAoVivo(c, { ...e, atividades: { [C]: { t1: { ...atividade, atual: "Abrindo https://github.com/acme/loja/pull/481 agora" } } } })[0]!;
-    expect(narrando.html).toContain('<span class="fala-viva-estado">Abrindo https://github.com/acme/loja/pull/481 agora</span>');
-    expect(narrando.html).toContain('state="idle"');
+    expect(narrando.html).toContain('<span class="fala-viva-estado">Usando GitHub</span>');
+    expect(narrando.html).toContain('state="working"');
     expect(narrando.html).not.toContain('class="bubble"');
     expect(narrando.morfar?.partes.map((p) => p.chave)).toEqual(["nome", "narracao", "pensar"]);
   });

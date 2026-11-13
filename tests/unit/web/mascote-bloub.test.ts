@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BotEngine } from "../../../web/vendor/bloub/engine.ts";
-import { STATES, POSES } from "../../../web/vendor/bloub/states.ts";
+import { STATES, POSES, stateAfterElapsed } from "../../../web/vendor/bloub/states.ts";
 import { EXPRESSIONS } from "../../../web/vendor/bloub/expressions.ts";
 import { SHAPES } from "../../../web/vendor/bloub/skins.ts";
 import { CATALOGO_MASCOTE, FORMAS_BLOUB } from "../../../web/lib/mascote-catalogo.ts";
@@ -39,5 +39,11 @@ describe("catálogo original Bloub", () => {
     engine.setState("orbit", 1.5);
     engine.setState("notify", 1.7);
     expect(svgMascote(engine.sample(1.8), "interrompido", "#000000")).not.toMatch(/NaN|Infinity/);
+  });
+  it("assenta Executando em Trabalhando aos 2 s e Terminou em Parado aos 13 s", () => {
+    expect(stateAfterElapsed("running", 1.999)).toBe("running");
+    expect(stateAfterElapsed("running", 2)).toBe("working");
+    expect(stateAfterElapsed("finished", 12.999)).toBe("finished");
+    expect(stateAfterElapsed("finished", 13)).toBe("idle");
   });
 });
