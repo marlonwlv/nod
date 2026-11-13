@@ -45,9 +45,9 @@ describe("Este computador numa máquina nova, onboarding da pessoa já concluíd
     const m = montar({ iaEntrar: async () => ({ ok: true }), esteComputador: { jaViu: async () => false, marcar } });
     await m.t.verificarMaquina();
     expect(m.abrir).toHaveBeenLastCalledWith(true);
-    expect(m.t.camada()).toContain('aria-label="Este computador"');
+    expect(m.t.vista()?.camada.tipo).toBe("computador");
     expect(m.t.cobre()).toBe(true);
-    await m.t.acoes["computador-continuar"]!({ dataset: {} } as HTMLElement);
+    await m.t.acoes["computador-continuar"]!({});
     expect(marcar).toHaveBeenCalledOnce();
     expect(m.abrir).toHaveBeenLastCalledWith(false);
     expect(m.etapa).not.toHaveBeenCalled();
@@ -63,7 +63,7 @@ describe("Este computador numa máquina nova, onboarding da pessoa já concluíd
     const desligada = montar({ iaEntrar: async () => ({ ok: true }), esteComputador: { jaViu: async () => false, marcar: async () => undefined } }, concluido, false);
     await desligada.t.verificarMaquina();
     expect(desligada.abrir).not.toHaveBeenCalled();
-    expect(desligada.t.camada()).toBe("");
+    expect(desligada.t.vista()).toBeNull();
   });
 
   it("app antigo (sem a ponte do 'já vi') com a IA pronta não cobre a tela a cada sessão", async () => {
@@ -94,7 +94,7 @@ describe("conversa por texto: as respostas vão ao servidor e o pular conclui (c
     (globalThis as { window?: unknown }).window = { nodDesktop: undefined, setTimeout, clearTimeout, setInterval, clearInterval };
     return { t: criarTelaOnboarding(deps), etapa, concluir };
   }
-  const el = (valor?: string) => ({ dataset: valor ? { valor } : {} }) as unknown as HTMLElement;
+  const el = (valor?: string) => (valor ? { valor } : {});
 
   it("apelido aceito + chip do objetivo saem juntos na etapa 'configurando' e o fluxo segue (não conclui)", async () => {
     const m = comConcluir();
@@ -127,9 +127,9 @@ describe("a ida para a conversa por texto que falhou deixa tentar de novo", () =
     const m = montar(undefined, ola);
     const erro = new Error("rede");
     m.etapa.mockRejectedValueOnce(erro).mockResolvedValue(ola);
-    await m.t.acoes["onboarding-pular-ola"]!({ dataset: {} } as HTMLElement);
+    await m.t.acoes["onboarding-pular-ola"]!({});
     expect(m.etapa).toHaveBeenCalledTimes(1);
-    await m.t.acoes["onboarding-pular-ola"]!({ dataset: {} } as HTMLElement);
+    await m.t.acoes["onboarding-pular-ola"]!({});
     expect(m.etapa).toHaveBeenCalledTimes(2);
   });
 
@@ -137,12 +137,12 @@ describe("a ida para a conversa por texto que falhou deixa tentar de novo", () =
     const m = montar({ iaEntrar: async () => ({ ok: true }), esteComputador: { jaViu: async () => false, marcar: async () => undefined } }, ola);
     m.abrir(true);
     m.etapa.mockRejectedValueOnce(new Error("rede")).mockResolvedValue(ola);
-    await m.t.acoes["onboarding-pular-ola"]!({ dataset: {} } as HTMLElement);
-    expect(m.t.camada()).toContain('aria-label="Este computador"');
-    await m.t.acoes["computador-continuar"]!({ dataset: {} } as HTMLElement);
+    await m.t.acoes["onboarding-pular-ola"]!({});
+    expect(m.t.vista()?.camada.tipo).toBe("computador");
+    await m.t.acoes["computador-continuar"]!({});
     expect(m.etapa).toHaveBeenCalledTimes(1);
-    expect(m.t.camada()).toContain('aria-label="Este computador"');
-    await m.t.acoes["computador-continuar"]!({ dataset: {} } as HTMLElement);
+    expect(m.t.vista()?.camada.tipo).toBe("computador");
+    await m.t.acoes["computador-continuar"]!({});
     expect(m.etapa).toHaveBeenCalledTimes(2);
   });
 });

@@ -8,7 +8,7 @@ import { lerMsgServidor } from "../../../web/lib/ligacao-protocolo.ts";
 import { partesDaLigacao, type EstadoTelaLigacao } from "../../../web/telas/ligacao.ts";
 import { renderGeral } from "../../../web/telas/config-geral.ts";
 import {
-  conexaoDepoisDoLogin, conexaoDepoisDoVeredito, destinoAoFimDoOla, deveTestar, estadoDoCardIa, htmlCamada, htmlChamando, htmlExecutor, htmlGuia, htmlOla, htmlPainelEntrevista,
+  conexaoDepoisDoLogin, conexaoDepoisDoVeredito, destinoAoFimDoOla, deveTestar, estadoDoCardIa, htmlGuia,
   iaDaLigacao, lerTestesDeIa, situacaoDaIa, linhasContou, linhasMontado, nomeParaOTeste, notaForaDoApp, passosDaConexao, perguntaDoTeste, proximoDaConexao, RESPOSTA_TESTE_MAX,
   secaoOnboardingDetalhes, servidorDeAcordo, telaDaIa, testeSeAplica, textoComoLiberar, textoTudoMontado, type ConexaoIa, type EstadoTelaOnboarding, type TesteNaTela,
 } from "../../../web/telas/onboarding.ts";
@@ -67,30 +67,6 @@ const SEM_ACESSO: TesteDeIa = { ia: "claude-cli", estado: "nao_autenticado", cau
 const RESPONDEU: TesteDeIa = { ia: "codex-cli", estado: "pronto", resposta: "Oi, Marlon. Estou pronto para trabalhar com os seus bots." };
 
 describe("abertura e a IA do Mac", () => {
-  it("'olá' é um botão de tela cheia que pula a abertura", () => {
-    expect(htmlOla()).toContain('data-act="onboarding-pular-ola"');
-    expect(htmlOla()).toContain(">olá<");
-  });
-
-  it("procurando: só o texto da busca, sem cards", () => {
-    const h = htmlExecutor(tela({ procurando: true }));
-    expect(h).toContain("A IA dos seus bots");
-    expect(h).toContain("Procurando o Claude Code e o Codex neste Mac…");
-    expect(h).not.toContain("ob-card-ia");
-  });
-
-  it("os quatro cards: Claude e ChatGPT pelo inventário; Grok e Gemini em breve", () => {
-    const ias = [{ id: "claude-cli", estado: "nao_autenticado" }, { id: "codex-cli", estado: "ausente" }] as const;
-    const h = htmlExecutor(tela({ dados: dados({ executor: { pronto: false, ias: [...ias] } }) }));
-    for (const nome of ["Claude", "ChatGPT", "Grok", "Gemini"]) expect(h).toContain(`<b>${nome}</b>`);
-    expect(h.match(/em-breve/g)).toHaveLength(2);
-    expect(h).toContain("Claude Code instalado · falta entrar");
-    expect(h).toContain('data-act="onboarding-ia-entrar" data-ia="claude-cli"');
-    expect(h).toContain("Codex não está neste Mac");
-    expect(h).toContain('data-act="onboarding-ia-instalar" data-ia="codex-cli"');
-    expect(h).toContain("Dá para trocar ou adicionar outra depois, em Seu espaço › Provedores de IA.");
-  });
-
   it("card clicado: 'Termine no navegador…' e 'Esperando' com a roda; pronto vira 'Conectado' sem clique", () => {
     expect(estadoDoCardIa("claude-cli", [{ id: "claude-cli", estado: "nao_autenticado" }], "claude-cli")).toMatchObject({ estado: "Termine no navegador…", acao: "Esperando", act: null, girando: true });
     expect(estadoDoCardIa("codex-cli", [{ id: "codex-cli", estado: "pronto" }], null)).toMatchObject({ estado: "Conectado", tom: "ok", act: null });
@@ -216,17 +192,6 @@ describe("teste de verdade: cada estado do card de IA", () => {
     const d = comIas({ id: "claude-cli", estado: "pronto" }, { id: "codex-cli", estado: "ausente" });
     expect(estadoDoCardIa("claude-cli", d.executor.ias, null, rodando)).toMatchObject({ situacao: "testando", estado: "Claude Code encontrado · testando a resposta", acao: null, act: null, girando: true });
     expect(estadoDoCardIa("codex-cli", d.executor.ias, null, rodando)).toMatchObject({ situacao: "procurando", estado: "Procurando o Codex neste Mac…", acao: null, girando: true });
-    const h = htmlExecutor(tela({ dados: d, teste: rodando }));
-    expect(h).toContain("A IA dos seus bots");
-    expect(h).toContain("Estou testando cada uma com uma pergunta curta.");
-    expect(h).toContain("Diga oi para Marlon em uma frase curta, em português. Só a frase.");
-    expect(h).toContain('role="img" aria-label="Esperando a resposta"');
-    expect(h).toContain('role="img" aria-label="Testando"');
-    expect(h).toContain('role="img" aria-label="Procurando"');
-    expect(h).toContain("O teste gasta uma resposta curta da sua assinatura.");
-    expect(h.match(/class="ob-breve"/g)).toHaveLength(2);
-    // Enquanto testa, não há o que clicar.
-    expect(h).not.toContain("data-act=");
   });
 
   it("um teste avulso ('Testar de novo') põe só aquele card em teste", () => {
@@ -274,31 +239,6 @@ describe("teste de verdade: cada estado do card de IA", () => {
 });
 
 describe("teste de verdade: 'Falta conectar uma IA'", () => {
-  const d = comIas({ id: "claude-cli", estado: "pronto" }, { id: "codex-cli", estado: "ausente" });
-  const h = htmlExecutor(tela({ dados: d, teste: teste({ vereditos: { "claude-cli": SEM_ACESSO, "codex-cli": { ia: "codex-cli", estado: "ausente" } } }) }));
-
-  it("o título, o Claude com o aviso e os dois botões, o ChatGPT com 'Instalar e entrar', Grok e Gemini em breve", () => {
-    expect(h).toContain('<h1 tabindex="-1">Falta conectar uma IA</h1>');
-    expect(h).toContain("Testei as IAs deste Mac e nenhuma respondeu. Conecte uma e o Nod te liga em seguida.");
-    expect(h).toContain("Conta sem acesso ao Claude Code");
-    expect(h).toContain('data-act="onboarding-ia-entrar" data-ia="claude-cli">Entrar com outra conta</button>');
-    expect(h).toContain('data-act="onboarding-ia-como-liberar" data-ia="claude-cli">Como liberar</button>');
-    expect(h).toContain('data-act="onboarding-ia-instalar" data-ia="codex-cli">Instalar e entrar</button>');
-    expect(h.match(/Em breve/g)).toHaveLength(2);
-    expect(h).toContain("O nod nunca vê sua senha nem sua chave. Dá para trocar ou adicionar outra IA depois, em Seu espaço › Provedores de IA.");
-  });
-
-  it("o aviso não fica só na cor (ícone + frase) e tudo que se clica é <button>", () => {
-    expect(h).toMatch(/<span class="aviso" role="status"><svg[^>]*aria-hidden="true">.*?<\/svg>Conta sem acesso ao Claude Code<\/span>/);
-    for (const m of h.matchAll(/<(\w+)[^>]*data-act=/g)) expect(m[1]).toBe("button");
-  });
-
-  it("sem nenhuma conta logada, a frase não diz que testou", () => {
-    const nada = htmlExecutor(tela({ dados: comIas({ id: "claude-cli", estado: "ausente" }, { id: "codex-cli", estado: "nao_autenticado" }), teste: teste() }));
-    expect(nada).toContain("Não achei uma IA conectada neste Mac. Conecte uma e o Nod te liga em seguida.");
-    expect(nada).not.toContain("Testei");
-  });
-
   it("'Como liberar' explica os dois caminhos sem link nenhum", () => {
     const t = textoComoLiberar("claude-cli");
     const texto = [t.titulo, ...t.paragrafos].join(" ");
@@ -319,10 +259,6 @@ describe("teste de verdade: conectar em três passos", () => {
     expect(passos[0]).toMatchObject({ id: "instalar", titulo: "Instale o Codex", texto: "A página de instalação abriu. Quando o Codex estiver instalado neste Mac, isto continua sozinho." });
     expect(passos[0]?.acoes.map((a) => a.act)).toEqual(["onboarding-ia-pagina", "onboarding-ia-login"]);
     expect(estados(nova, undefined)).toEqual(["ativo", "depois", "depois"]);
-    const h = htmlExecutor(tela({ dados: comIas({ id: "codex-cli", estado: "ausente" }), teste: teste({ conexao: nova }) }));
-    expect(h).toContain("Conectando o ChatGPT");
-    expect(h).toContain("São três passos. Os dois primeiros são com você.");
-    expect(h).not.toMatch(/nod instalou/i);
   });
 
   it("2. entrar: com o CLI no Mac o login abre sozinho; aberto, espera a pessoa no navegador", () => {
@@ -355,14 +291,6 @@ describe("teste de verdade: conectar em três passos", () => {
     const passos = passosDaConexao(aberta, { id: "codex-cli", estado: "pronto" }, true);
     expect(passos.map((p) => p.estado)).toEqual(["feito", "feito", "ativo"]);
     expect(passos[2]).toMatchObject({ id: "testar", titulo: "Teste de resposta", texto: "O nod fez uma pergunta curta. Esperando o ChatGPT responder." });
-    const h = htmlExecutor(tela({ dados: comIas({ id: "codex-cli", estado: "pronto" }), teste: teste({ conexao: aberta, testando: ["codex-cli"] }) }));
-    expect(h).toContain("São três passos. O do meio é com você, no navegador.");
-    expect(h.match(/<li class="ob-passo /g)).toHaveLength(3);
-    expect(h).toMatch(/<li class="ob-passo ativo" aria-current="step"><span class="ob-gira passo" role="img" aria-label="Em andamento"><\/span><div class="ob-passo-txt"><b>Teste de resposta<\/b>/);
-    expect(h.match(/<span class="sr-only">Feito:<\/span>/g)).toHaveLength(2);
-    expect(h).toContain('<ol class="ob-passos" aria-live="polite">');
-    expect(h).toContain('data-act="onboarding-ia-cancelar">Cancelar</button>');
-    expect(h).toContain("o login acontece direto com a OpenAI.");
   });
 
   it("o veredito fecha a conexão quando a conta respondeu ou foi reprovada; sem login, o passo 2 continua", () => {
@@ -390,74 +318,9 @@ describe("teste de verdade: conectar em três passos", () => {
   });
 });
 
-describe("teste de verdade: 'Seus bots já têm uma IA'", () => {
-  const d = comIas({ id: "claude-cli", estado: "nao_autenticado", causa: "conta_sem_acesso" }, { id: "codex-cli", estado: "pronto" });
-
-  it("mostra a pergunta e a resposta de verdade, o Continuar e o outro provedor ainda com problema", () => {
-    const h = htmlExecutor(tela({ dados: d, teste: teste({ vereditos: { "claude-cli": SEM_ACESSO, "codex-cli": RESPONDEU }, nome: "Marlon" }) }));
-    expect(h).toContain("Seus bots já têm uma IA");
-    expect(h).toContain("O ChatGPT respondeu ao teste neste Mac. O Nod vai te ligar para montar o seu primeiro bot.");
-    expect(h).toContain("Diga oi para Marlon em uma frase curta, em português. Só a frase.");
-    expect(h).toContain("<b>Oi, Marlon. Estou pronto para trabalhar com os seus bots.</b>");
-    expect(h).toContain("Conectado · respondeu ao teste");
-    expect(h).toContain('<button type="button" class="ob-pilula grande" data-act="onboarding-ia-continuar">Continuar</button>');
-    expect(h).toContain("Conta sem acesso ao Claude Code");
-    expect(h).toContain('class="ob-pilula contorno" data-act="onboarding-ia-entrar" data-ia="claude-cli">Entrar com outra conta</button>');
-    // O bloco de explicação fica na lista; aqui o outro provedor é uma linha só.
-    expect(h).not.toContain("ob-ia-explica");
-    expect(h).toContain("Dá para trocar ou adicionar outra IA depois, em Seu espaço › Provedores de IA.");
-  });
-
-  it("sem a resposta (app antigo), só 'Conectado'", () => {
-    const h = htmlExecutor(tela({ dados: d, teste: teste({ vereditos: { "codex-cli": { ia: "codex-cli", estado: "pronto" } } }) }));
-    expect(h).toContain("O ChatGPT está conectado neste Mac.");
-    expect(h).toMatch(/<span class="ok" role="status"><svg.*?<\/svg>Conectado<\/span>/);
-    expect(h).not.toContain("respondeu ao teste");
-    expect(h).not.toContain("ob-prova");
-    expect(h).toContain('data-act="onboarding-ia-continuar"');
-  });
-
-  it("depois do Continuar, o botão fica ocupado enquanto o servidor não reconhece a IA", () => {
-    const h = htmlExecutor(tela({ dados: d, teste: teste({ vereditos: { "codex-cli": RESPONDEU }, seguindo: true }) }));
-    expect(h).toMatch(/data-act="onboarding-ia-continuar" disabled><span class="ob-gira" aria-hidden="true"><\/span>Continuar<\/button>/);
-  });
-
-  it("com as duas respondendo, a principal é o Claude e o ChatGPT aparece conectado, sem botão", () => {
-    const duas = teste({ vereditos: { "claude-cli": { ia: "claude-cli", estado: "pronto", resposta: "Oi!" }, "codex-cli": RESPONDEU } });
-    const h = htmlExecutor(tela({ dados: comIas({ id: "claude-cli", estado: "pronto" }, { id: "codex-cli", estado: "pronto" }), teste: duas }));
-    expect(h).toContain("O Claude respondeu ao teste neste Mac.");
-    expect(h).toContain("<b>Oi!</b>");
-    expect(h.match(/data-act=/g)).toHaveLength(1);
-  });
-});
-
-describe("'está te ligando'", () => {
-  it("a linha do provedor: a primeira IA pronta, com o logo; o teste ganha do servidor; sem IA do Mac, não aparece", () => {
-    expect(htmlChamando(tela({ fase: "chamando" }))).toMatch(/<p class="ob-pensa"><span class="ob-pensa-logo"><svg.*?<\/svg><\/span>Nod vai pensar com o Claude deste Mac<\/p>/);
-    const d = comIas({ id: "claude-cli", estado: "pronto" }, { id: "codex-cli", estado: "pronto" });
-    expect(htmlChamando(tela({ fase: "chamando", dados: d, teste: teste({ vereditos: { "claude-cli": SEM_ACESSO, "codex-cli": RESPONDEU } }) }))).toContain("Nod vai pensar com o ChatGPT deste Mac");
-    expect(htmlChamando(tela({ fase: "chamando", dados: dados({ executor: { pronto: true, ias: [] } }) }))).not.toContain("vai pensar");
-  });
-
-  it("Atender e 'Configurar sem voz', com a linha da voz sob o Atender e o 'saber mais'", () => {
-    const h = htmlChamando(tela({ fase: "chamando" }));
-    expect(h).toContain("<b>Nod</b><span>está te ligando</span>");
-    expect(h).toContain('data-act="onboarding-atender"');
-    expect(h).toContain('data-act="onboarding-sem-voz"');
-    expect(h).toContain("Configurar sem voz");
-    expect(h).toContain("Sua fala é transcrita pelo Google, nos EUA; nada é gravado");
-    expect(h).toContain('data-act="onboarding-saber-mais"');
-    expect(h).toContain('aria-describedby="ob-aviso-voz"');
-  });
-
-  it("depois do clique os dois botões ficam desabilitados", () => {
-    expect(htmlChamando(tela({ fase: "chamando", atendendo: true })).match(/ disabled/g)).toHaveLength(2);
-  });
-});
-
 describe("entrevista: o painel 'O que você contou'", () => {
-  it("vazio mostra o convite; preenchido, as quatro linhas com os rótulos do protótipo", () => {
-    expect(htmlPainelEntrevista(dados())).toContain("Aparece aqui durante a ligação.");
+  // O desenho do painel é React (tests/unit/web/react/onboarding/ligacao.test.tsx); aqui, as linhas.
+  it("preenchido, as quatro linhas com os rótulos do protótipo", () => {
     const d = dados({ campos: { apelido: "Marlon", comoConheceu: "Indicação", objetivo: "Responder clientes", tamanhoTime: "2_10" } });
     expect(linhasContou(d.campos)).toEqual([
       { rotulo: "Nome", valor: "Marlon" },
@@ -465,13 +328,6 @@ describe("entrevista: o painel 'O que você contou'", () => {
       { rotulo: "Quer", valor: "Responder clientes" },
       { rotulo: "Time", valor: "2 a 10" },
     ]);
-    expect(htmlPainelEntrevista(d)).toContain("<b>Marlon</b>");
-  });
-
-  it("a camada da entrevista só aparece com a ligação em tela cheia", () => {
-    expect(htmlCamada(tela({ fase: "entrevista" }), true)).toContain("ob-painel-entrevista");
-    expect(htmlCamada(tela({ fase: "entrevista" }), false)).toBe("");
-    expect(htmlCamada(tela({ fase: "configurando" }), true)).toBe("");
   });
 
   it("os chips 'Diga algo como' da ligação aparecem na tela cheia e embaixo da pílula", () => {

@@ -1,10 +1,11 @@
 import type { CamposEntrevista, EstadoOnboarding, IaNoMac, ModeloDeBot, TamanhoTime } from "../../src/contracts/onboarding.ts";
 import type { IaDesktop, ResultadoIaDesktop, TesteDeIa } from "../../src/contracts/desktop.ts";
 import { botao, esc, iconeAgente } from "../lib/render.ts";
-import { VIVO } from "../lib/copiar.ts";
 import { COMANDO_ATUALIZAR_IA, desatualizado, versaoLegivel } from "./ia-fora.ts";
 import { LOGOS_IA } from "./onboarding-logos.ts";
-import { IAS_MAC, logoDaIa, renderCartaoIa, vistaDaIa, type ContextoCartao, type UiIas } from "./cartao-ia.ts";
+import type { UiIas } from "./cartao-ia.ts";
+import type { EstadoApresentacao } from "./apresentacao.ts";
+import type { VistaComputador } from "./este-computador.ts";
 import { desteMac, nesteMac, terminalDaqui } from "../lib/plataforma-da-tela.ts";
 
 /**
@@ -51,6 +52,24 @@ export type EstadoTelaOnboarding = {
   iasMac?: UiIas | null;
 };
 
+/**
+ * ADR-179 (fase 5): o que a camada `#onboarding` mostra agora, para o React desenhar (web/react/onboarding/camada.tsx).
+ * O controlador decide a fase; cada variante leva só o que a tela dela lê.
+ */
+export type VistaCamada =
+  | { tipo: "ola" }
+  | { tipo: "apresentacao"; apres: EstadoApresentacao; emailGoogle: boolean; ligacao: boolean }
+  | { tipo: "computador"; computador: VistaComputador }
+  | { tipo: "executor"; tela: EstadoTelaOnboarding }
+  | { tipo: "chamando"; tela: EstadoTelaOnboarding }
+  | { tipo: "entrevista"; dados: EstadoOnboarding }
+  | { tipo: "guia-solta"; tela: EstadoTelaOnboarding };
+
+/** Um aviso de leitura por cima da camada ("Sua voz na ligação", "Como liberar o …"), com um "Entendi". */
+export type AvisoOnboarding = { titulo: string; paragrafos: readonly string[] };
+
+export type VistaOnboarding = { camada: VistaCamada; aviso: AvisoOnboarding | null };
+
 // ---- textos -------------------------------------------------------------------------------------------------------------
 export const TEXTO_VOZ_CURTO = "Sua fala é transcrita pelo Google, nos EUA; nada é gravado";
 
@@ -87,7 +106,8 @@ export function nomeDaGuia(d: EstadoOnboarding): string {
 
 // ---- ícones -------------------------------------------------------------------------------------------------------------
 const svg = (d: string, t = 24, largura = 1.8): string => `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${largura}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-const ICONE = {
+/** Os ícones de traço das telas do onboarding (as telas em React os desenham pelo mesmo SVG). */
+export const ICONE_OB = {
   semVoz: svg('<path d="M5 7h14M5 12h14M5 17h9"/>', 24, 1.7),
   atender: svg('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>', 26),
   aviso: svg('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>', 14, 2),
@@ -95,19 +115,11 @@ const ICONE = {
   abrir: svg('<path d="M7 17 17 7"/><path d="M8 7h9v9"/>', 12, 2),
 };
 const GIRA = '<span class="ob-gira" aria-hidden="true"></span>';
-/** A roda que é o próprio estado (sem botão ao lado): tem nome para o leitor de tela. */
-const girando = (rotulo: string, classe = "grande"): string => `<span class="ob-gira ${classe}" role="img" aria-label="${esc(rotulo)}"></span>`;
-
-// ---- 1. "olá" -----------------------------------------------------------------------------------------------------------
-/** A abertura: "olá" grande, que some sozinho em ~3,2 s; um clique pula. Nada toca antes de um clique. */
-export function htmlOla(): string {
-  return `<button type="button" class="ob-ola" data-act="onboarding-pular-ola" aria-label="Pular abertura"><span>olá</span></button>`;
-}
 
 // ---- 2. a IA dos bots -----------------------------------------------------------------------------------------------------
 type IdLogo = keyof typeof LOGOS_IA;
-type ProvedorIa = { id: IdLogo; nome: string; ia: IaDesktop | null };
-const CARDS_IA: readonly ProvedorIa[] = [
+export type ProvedorIa = { id: IdLogo; nome: string; ia: IaDesktop | null };
+export const CARDS_IA: readonly ProvedorIa[] = [
   { id: "claude", nome: "Claude", ia: "claude-cli" },
   { id: "chatgpt", nome: "ChatGPT", ia: "codex-cli" },
   { id: "grok", nome: "Grok", ia: null },
@@ -118,9 +130,13 @@ const CARDS_IA: readonly ProvedorIa[] = [
 export const ORDEM_IAS: readonly IaDesktop[] = ["claude-cli", "codex-cli"];
 /** Na tela o provedor tem o nome do produto que a pessoa assina; o CLI só aparece quando o assunto é instalar ou entrar. */
 export const NOME_IA: Record<IaDesktop, string> = { "claude-cli": "Claude", "codex-cli": "ChatGPT" };
-const NOME_CLI: Record<IaDesktop, string> = { "claude-cli": "Claude Code", "codex-cli": "Codex" };
-const LOGO_IA: Record<IaDesktop, IdLogo> = { "claude-cli": "claude", "codex-cli": "chatgpt" };
-const EMPRESA_IA: Record<IaDesktop, string> = { "claude-cli": "Anthropic", "codex-cli": "OpenAI" };
+export const NOME_CLI: Record<IaDesktop, string> = { "claude-cli": "Claude Code", "codex-cli": "Codex" };
+export const LOGO_IA: Record<IaDesktop, IdLogo> = { "claude-cli": "claude", "codex-cli": "chatgpt" };
+export const EMPRESA_IA: Record<IaDesktop, string> = { "claude-cli": "Anthropic", "codex-cli": "OpenAI" };
+export const comIa = (p: ProvedorIa): p is ProvedorIa & { ia: IaDesktop } => p.ia !== null;
+export const SEM_SENHA = "O nod nunca vê sua senha nem sua chave.";
+/** NOD-8 (definido em 2026-10-22): aponta para onde a IA se troca de fato; "Ajustes" não existe no menu. */
+export const DEPOIS_EM_AJUSTES = "Dá para trocar ou adicionar outra IA depois, em Seu espaço › Provedores de IA.";
 
 /**
  * O teste de verdade das IAs (definido em 2026-10-05). Medido em produção nesse dia: uma conta do Claude Code LOGADA,
@@ -436,191 +452,13 @@ export function conexaoDepoisDoVeredito(c: ConexaoIa, v: TesteDeIa): ConexaoIa |
   return { ...c, nota: `Ainda não há uma conta do ${NOME_IA[c.ia]} ${nesteMac()}. Termine o login no navegador e teste de novo.` };
 }
 
-// ---- 2c. as telas da IA -----------------------------------------------------------------------------------------------------
-type TelaExecutor = Pick<EstadoTelaOnboarding, "dados" | "procurando" | "iaEntrando" | "notaIa" | "teste" | "iasMac">;
-
-/** A pergunta do nod e a resposta da IA (os três pontinhos enquanto ela não vem). */
-function htmlProva(nome: string | null, nomeIa: string, resposta: string | null): string {
-  const r = resposta === null ? '<span class="ob-pontos" role="img" aria-label="Esperando a resposta"><i></i><i></i><i></i></span>' : `<b>${esc(resposta)}</b>`;
-  return `<div class="ob-prova"><div class="ob-prova-linha"><span class="ob-prova-quem">nod</span><span>${esc(perguntaDoTeste(nome))}</span></div><div class="ob-prova-linha"><span class="ob-prova-quem">${esc(nomeIa)}</span>${r}</div></div>`;
-}
-
-/**
- * NOD-171 (protótipo do Gil, estado 1): como atualizar o CLI desatualizado. "Atualizar" abre a página oficial; o comando
- * fica à mão com "Copiar". O nod não roda nada no Terminal.
- */
-function htmlComandoDeAtualizar(ia: IaDesktop, comando: string): string {
-  const cli = NOME_CLI[ia];
-  return `<div class="ob-ia-explica ob-ia-atualizar"><p>“Atualizar” abre a página oficial do ${esc(cli)} no navegador. ${terminalDaqui()}, rode:</p><div class="ob-comando"><code>${esc(comando)}</code><button type="button" class="ob-link" data-act="onboarding-ia-copiar" data-texto="${esc(comando)}" ${VIVO}>Copiar</button></div><p>O nod percebe sozinho quando a versão nova estiver instalada.</p></div>`;
-}
-
-function htmlCardIa(p: ProvedorIa & { ia: IaDesktop }, s: EstadoCardIa, nome: string | null, opcoes: { menor?: boolean } = {}): string {
-  // O "Conectado" sem a pílula verde ao lado leva o ícone: a frase não fica só na cor.
-  const marca = s.tom === "aviso" ? ICONE.aviso : s.tom === "ok" && !s.acao ? ICONE.certo : "";
-  const classeEstado = s.tom === "mudo" ? "" : ` class="${s.tom}"`;
-  const lado = s.acao
-    ? `<button type="button" class="ob-pilula${s.tom === "ok" ? " ok" : ""}${s.situacao === "desatualizado" ? " aviso" : ""}${opcoes.menor ? " contorno" : ""}"${s.act ? ` data-act="${s.act}" data-ia="${p.ia}"` : " disabled"}>${s.girando ? GIRA : ""}${esc(s.acao)}</button>`
-    : s.girando ? girando(s.situacao === "procurando" ? "Procurando" : "Testando") : "";
-  const prova = s.situacao === "testando" ? htmlProva(nome, p.nome, null) : s.resposta && !opcoes.menor ? htmlProva(nome, p.nome, s.resposta) : "";
-  const explica = s.explicacao && !opcoes.menor
-    ? `<div class="ob-ia-explica"><p>${esc(s.explicacao)}</p><button type="button" class="ob-link" data-act="onboarding-ia-como-liberar" data-ia="${p.ia}">Como liberar</button></div>`
-    : s.comando && !opcoes.menor
-      ? htmlComandoDeAtualizar(p.ia, s.comando)
-      : "";
-  return `<div class="ob-card-ia${s.tom === "aviso" && !opcoes.menor ? " aviso" : ""}${opcoes.menor ? " menor" : ""}"><div class="ob-ia-linha"><span class="ob-logo">${LOGOS_IA[p.id]}</span><div class="ob-ia-txt"><b>${esc(p.nome)}</b><span${classeEstado} role="status">${marca}${esc(s.estado)}</span></div>${lado}</div>${prova}${explica}</div>`;
-}
-
-const comIa = (p: ProvedorIa): p is ProvedorIa & { ia: IaDesktop } => p.ia !== null;
-const cabecaIa = (titulo: string, texto: string): string => `<div class="ob-cabeca"><h1 tabindex="-1">${esc(titulo)}</h1><p>${esc(texto)}</p></div>`;
-const SEM_SENHA = "O nod nunca vê sua senha nem sua chave.";
-/** NOD-8 (definido em 2026-10-22): aponta para onde a IA se troca de fato; "Ajustes" não existe no menu. */
-const DEPOIS_EM_AJUSTES = "Dá para trocar ou adicionar outra IA depois, em Seu espaço › Provedores de IA.";
-
-/** "A IA dos seus bots" enquanto o teste roda e "Falta conectar uma IA" quando nenhuma respondeu. */
-function htmlListaDeIas(e: TelaExecutor, t: TesteNaTela, tela: "testando" | "sem_ia"): string {
-  const guia = nomeDaGuia(e.dados);
-  const reprovada = ORDEM_IAS.some((ia) => { const causa = t.vereditos[ia]?.causa; return causa !== undefined && causa !== "sonda_lenta"; });
-  const cabeca = tela === "testando"
-    ? cabecaIa("A IA dos seus bots", `Seus bots trabalham com a conta que você já assina, aqui ${nesteMac()}. Estou testando cada uma com uma pergunta curta.`)
-    : cabecaIa("Falta conectar uma IA", `${reprovada ? `Testei as IAs ${desteMac()} e nenhuma respondeu.` : `Não achei uma IA conectada ${nesteMac()}.`} Conecte uma e o ${guia} te liga em seguida.`);
-  const cards = CARDS_IA.filter(comIa).map((p) => htmlCardIa(p, estadoDoCardIa(p.ia, e.dados.executor.ias, e.iaEntrando, t), t.nome)).join("");
-  const breves = CARDS_IA.filter((p) => !comIa(p)).map((p) => `<div class="ob-breve" aria-disabled="true"><span class="ob-breve-logo">${LOGOS_IA[p.id]}</span><b>${esc(p.nome)}</b><span>Em breve</span></div>`).join("");
-  const nota = e.notaIa ?? (tela === "testando" ? `${SEM_SENHA} O teste gasta uma resposta curta da sua assinatura.` : `${SEM_SENHA} ${DEPOIS_EM_AJUSTES}`);
-  const titulo = tela === "testando" ? "A IA dos seus bots" : "Falta conectar uma IA";
-  return `<section class="ob-tela ob-executor" aria-label="${titulo}">${cabeca}<div class="ob-cards-ia largo">${cards}<div class="ob-breves">${breves}</div></div><p class="ob-nota" role="status">${esc(nota)}</p></section>`;
-}
-
-/** "Conectando o {provedor}": os três passos, com o que é da pessoa e o que o nod faz sozinho. */
-function htmlConectando(e: TelaExecutor, t: TesteNaTela, c: ConexaoIa): string {
-  const nome = NOME_IA[c.ia];
-  const passos = passosDaConexao(c, e.dados.executor.ias.find((i) => i.id === c.ia), t.testando.includes(c.ia));
-  const itens = passos.map((p, i) => {
-    const marca = p.estado === "feito"
-      ? `<span class="ob-passo-marca feito">${ICONE.certo}<span class="sr-only">Feito:</span></span>`
-      : p.estado === "ativo" ? girando("Em andamento", "passo") : `<span class="ob-passo-marca" aria-hidden="true">${i + 1}</span>`;
-    const acoes = p.acoes.length
-      ? `<div class="ob-passo-acoes">${p.acoes.map((a) => `<button type="button" class="ob-link" data-act="${a.act}" data-ia="${c.ia}">${esc(a.rotulo)}${a.fora ? ICONE.abrir : ""}</button>`).join("")}</div>`
-      : "";
-    return `<li class="ob-passo ${p.estado}"${p.estado === "ativo" ? ' aria-current="step"' : ""}>${marca}<div class="ob-passo-txt"><b>${esc(p.titulo)}</b><span>${esc(p.texto)}</span>${acoes}</div></li>`;
-  }).join("");
-  const comVoce = passos[0]?.estado === "feito" ? "O do meio é com você, no navegador." : "Os dois primeiros são com você.";
-  const titulo = `Conectando o ${nome}`;
-  return `<section class="ob-tela ob-executor" aria-label="${esc(titulo)}">${cabecaIa(titulo, `São três passos. ${comVoce}`)}
-    <div class="ob-conexao"><div class="ob-ia-linha"><span class="ob-logo">${LOGOS_IA[LOGO_IA[c.ia]]}</span><div class="ob-ia-txt"><b>${esc(nome)}</b><span>Pelo ${esc(NOME_CLI[c.ia])}, com a sua conta do ${esc(nome)}</span></div><button type="button" class="ob-pilula contorno" data-act="onboarding-ia-cancelar">Cancelar</button></div>
-    <ol class="ob-passos" aria-live="polite">${itens}</ol></div>
-    <p class="ob-nota">${esc(`O nod nunca vê sua senha nem sua chave: o login acontece direto com a ${EMPRESA_IA[c.ia]}.`)}</p></section>`;
-}
-
-/** "Seus bots já têm uma IA": a pergunta e a resposta de verdade, o Continuar e o outro provedor como está. */
-function htmlConectada(e: TelaExecutor, t: TesteNaTela, ia: IaDesktop): string {
-  const guia = nomeDaGuia(e.dados);
-  const nome = NOME_IA[ia];
-  // Nesta tela o "Conectado" é a frase com o ícone, sem a pílula verde: o único botão cheio é o Continuar.
-  const cards = CARDS_IA.filter(comIa).map((p) => {
-    const s = estadoDoCardIa(p.ia, e.dados.executor.ias, e.iaEntrando, t);
-    return { p, s: s.situacao === "pronto" ? { ...s, acao: null } : s };
-  });
-  const principal = cards.find((c) => c.p.ia === ia);
-  const outros = cards.filter((c) => c.p.ia !== ia).map((c) => htmlCardIa(c.p, c.s, t.nome, { menor: true })).join("");
-  const respondeu = principal?.s.resposta ? "respondeu ao teste" : "está conectado";
-  const titulo = "Seus bots já têm uma IA";
-  return `<section class="ob-tela ob-executor" aria-label="${titulo}">${cabecaIa(titulo, `O ${nome} ${respondeu} ${nesteMac()}. O ${guia} vai te ligar para montar o seu primeiro bot.`)}
-    <div class="ob-cards-ia largo">${principal ? htmlCardIa(principal.p, principal.s, t.nome) : ""}${outros}</div>
-    <div class="ob-seguir"><button type="button" class="ob-pilula grande" data-act="onboarding-ia-continuar"${t.seguindo ? " disabled" : ""}>${t.seguindo ? GIRA : ""}Continuar</button><p class="ob-nota" role="status">${esc(e.notaIa ?? DEPOIS_EM_AJUSTES)}</p></div></section>`;
-}
-
-/**
- * A etapa "A IA dos seus bots". Com teste (dentro do app do Mac): testando, "Falta conectar uma IA", os três passos ou
- * "Seus bots já têm uma IA". Sem teste (navegador comum ou app de antes de 2026-10-05): os quatro cards de sempre, com
- * o que o servidor diz de cada IA — inclusive a causa, quando outro Mac da pessoa já a testou.
- */
-export function htmlExecutor(e: TelaExecutor): string {
-  const t = e.teste;
-  if (t && e.iasMac?.noApp) return htmlExecutorNoApp(e, t, e.iasMac);
-  if (t) {
-    const tela = telaDaIa(t);
-    const pronta = iaQueRespondeu(t.vereditos);
-    if (tela === "conectando" && t.conexao) return htmlConectando(e, t, t.conexao);
-    if (tela === "conectada" && pronta) return htmlConectada(e, t, pronta);
-    return htmlListaDeIas(e, t, tela === "testando" ? "testando" : "sem_ia");
-  }
-  const cabeca = `<div class="ob-cabeca"><h1>A IA dos seus bots</h1><p>Seus bots trabalham com a conta que você já assina, aqui ${nesteMac()}. O nod nunca vê sua senha nem sua chave.</p></div>`;
-  if (e.procurando) return `<section class="ob-tela ob-executor" aria-label="A IA dos seus bots">${cabeca}<div class="ob-procurando" role="status">${GIRA}Procurando o Claude Code e o Codex ${nesteMac()}…</div><p class="ob-nota"></p></section>`;
-  const cards = CARDS_IA.map((c) => {
-    if (!comIa(c)) {
-      return `<div class="ob-card-ia em-breve" aria-disabled="true"><div class="ob-ia-linha"><span class="ob-logo">${LOGOS_IA[c.id]}</span><div class="ob-ia-txt"><b>${esc(c.nome)}</b><span>Em breve</span></div></div></div>`;
-    }
-    return htmlCardIa(c, estadoDoCardIa(c.ia, e.dados.executor.ias, e.iaEntrando), null);
-  }).join("");
-  const nota = e.notaIa ?? "Dá para trocar ou adicionar outra depois, em Seu espaço › Provedores de IA.";
-  return `<section class="ob-tela ob-executor" aria-label="A IA dos seus bots">${cabeca}<div class="ob-cards-ia">${cards}</div><p class="ob-nota" role="status">${esc(nota)}</p></section>`;
-}
-
-/**
- * Tela 5 do plano das IAs (protótipo Onboarding, 2026-10-09): dentro do app do Mac com a ponte `ias`, a etapa é a lista
- * de cartões de Provedores de IA. O app já procurou durante o "olá"; instalar, entrar e testar acontecem dentro do
- * cartão, em até três passos com "Precisa de ajuda?"; a falha fica no passo, em âmbar, com "Tentar de novo". O teste de
- * uma frase continua sendo o do onboarding (onboarding-teste.ts): é ele que diz quem respondeu e libera o Continuar.
- */
-function htmlExecutorNoApp(e: TelaExecutor, t: TesteNaTela, ui: UiIas): string {
-  const vereditos = Object.fromEntries(Object.entries(t.vereditos).map(([ia, v]) => [ia, { estado: v.estado, ...(v.causa ? { causa: v.causa } : {}), ...(v.resposta ? { resposta: v.resposta } : {}) }]));
-  // O teste do "olá" ainda roda: a IA logada sem veredito está sendo testada.
-  const testando = IAS_MAC.filter((ia) => t.testando.includes(ia) || (t.rodando && !t.vereditos[ia] && ui.estados[ia]?.estado === "pronta"));
-  const c: ContextoCartao = { servidor: null, ui, agora: Date.now(), onde: "onboarding", vereditos, testandoNoOnboarding: testando };
-  const prontas = ORDEM_IAS.filter((ia) => t.vereditos[ia]?.estado === "pronto");
-  const procurando = IAS_MAC.every((ia) => !ui.estados[ia] || ui.estados[ia]?.estado === "procurando");
-  const titulo = prontas.length ? "Seus bots já têm uma IA" : "A IA dos seus bots";
-  const cabeca = cabecaIa(titulo, `Seus bots trabalham com a conta que você já assina, aqui ${nesteMac()}. O nod nunca vê sua senha.`);
-  if (procurando) return `<section class="ob-tela ob-executor" aria-label="${titulo}">${cabeca}<div class="ob-procurando" role="status">${GIRA}Procurando o Claude e o ChatGPT ${nesteMac()}…</div><p class="ob-nota"></p></section>`;
-  const cards = ORDEM_IAS.map((ia) => {
-    const v = vistaDaIa(ia, c);
-    return `<div class="ob-card-ia${v.passos ? " aberto" : ""}${v.tom === "aviso" ? " aviso" : ""}">${renderCartaoIa(v, ui, { verificar: false })}</div>`;
-  }).join("");
-  const [primeira, segunda] = prontas;
-  const ordem = primeira && segunda
-    ? `<div class="ordem-final"><span>Seus bots usam</span>${logoDaIa(primeira)}<b>${esc(NOME_IA[primeira])}</b><span>e, se ele parar,</span>${logoDaIa(segunda)}<b>${esc(NOME_IA[segunda])}</b></div>`
-    : "";
-  const rotulo = prontas.length === 1 && primeira ? `Continuar com o ${NOME_IA[primeira]}` : "Continuar";
-  // NOD-209: enquanto a pessoa entra com a outra conta, a IA fica fora do Continuar (cancelar volta para a de agora).
-  const trocando = IAS_MAC.find((ia) => ui.troca[ia]?.fase === "abrindo" || ui.troca[ia]?.fase === "entrando");
-  const nota = e.notaIa ?? (trocando
-    ? `Enquanto você troca, o ${NOME_IA[trocando]} fica de fora. Cancelar volta para a conta atual.`
-    : prontas.length === 0
-      ? "Conecte pelo menos uma IA para seus bots começarem."
-      : prontas.length === 1 ? "Dica: conecte as duas. Se uma chegar ao limite, a outra assume. Dá para fazer depois em Provedores de IA." : "Dá para trocar a conta ou a ordem depois em Provedores de IA.");
-  const desab = prontas.length === 0 || t.seguindo;
-  return `<section class="ob-tela ob-executor" aria-label="${titulo}">${cabeca}<div class="ob-cards-ia largo">${cards}</div>
-    <div class="ob-seguir">${ordem}<button type="button" class="ob-pilula grande" data-act="onboarding-ia-continuar"${desab ? " disabled" : ""}>${t.seguindo ? GIRA : ""}${esc(rotulo)}</button><p class="ob-nota" role="status">${esc(nota)}</p></div></section>`;
-}
-
 /** A orientação quando o clique não chega a um app do Mac (navegador comum ou app antigo). */
 export function notaForaDoApp(ia: IaDesktop, acao: "entrar" | "instalar"): string {
   if (ia === "claude-cli") return acao === "entrar" ? `${terminalDaqui()}, rode “claude auth login” e entre na sua conta; o nod percebe sozinho.` : "Instale o Claude Code (claude.com/product/claude-code) e rode “claude auth login”; o nod percebe sozinho.";
   return acao === "entrar" ? `${terminalDaqui()}, rode “codex login” e entre na sua conta; o nod percebe sozinho.` : "Instale o Codex (developers.openai.com/codex/cli) e rode “codex login”; o nod percebe sozinho.";
 }
 
-// ---- 3. "está te ligando" --------------------------------------------------------------------------------------------------
-export function htmlChamando(e: Pick<EstadoTelaOnboarding, "dados" | "atendendo" | "teste">): string {
-  const nome = nomeDaGuia(e.dados);
-  const guia = e.dados.guia;
-  const mascote = guia ? iconeAgente(guia, "xxl") : "";
-  const desab = e.atendendo ? " disabled" : "";
-  // definido em 2026-10-05: a pessoa vê com qual conta dela a guia vai pensar (some quando quem roda é o servidor).
-  const ia = iaDaLigacao(e.dados.executor.ias, e.teste?.vereditos);
-  const pensa = ia ? `<p class="ob-pensa"><span class="ob-pensa-logo">${LOGOS_IA[LOGO_IA[ia]]}</span>${esc(nome)} vai pensar com o ${esc(NOME_IA[ia])} ${desteMac()}</p>` : "";
-  return `<section class="ob-tela ob-chamando" aria-label="${esc(nome)} está te ligando">
-    <div class="ob-toque"><span class="ob-anel"></span><span class="ob-anel b"></span><div class="ob-toque-mascote">${mascote}</div></div>
-    <div class="ob-quem"><b>${esc(nome)}</b><span>está te ligando</span></div>
-    ${pensa}
-    <div class="ob-botoes-ligacao">
-      <div class="ob-botao-ligacao"><button type="button" class="ob-redondo" data-act="onboarding-sem-voz"${desab}>${ICONE.semVoz}</button><span>Configurar sem voz</span></div>
-      <div class="ob-botao-ligacao"><button type="button" class="ob-redondo atender" data-act="onboarding-atender"${desab} aria-describedby="ob-aviso-voz">${ICONE.atender}</button><span>Atender</span>
-        <p class="ob-aviso-voz" id="ob-aviso-voz">${esc(TEXTO_VOZ_CURTO)} · <button type="button" class="ob-link" data-act="onboarding-saber-mais">saber mais</button></p></div>
-    </div>
-  </section>`;
-}
-
-// ---- 4. painel da entrevista -------------------------------------------------------------------------------------------------
+// ---- 4. o que você contou (o painel da entrevista é React: web/react/onboarding/) -------------------------------------------------------------------------------------------------
 function blocoContou(c: CamposEntrevista): string {
   const linhas = linhasContou(c);
   const corpo = linhas.length
@@ -629,12 +467,6 @@ function blocoContou(c: CamposEntrevista): string {
   return `<div class="ob-bloco"><h3>O que você contou</h3>${corpo}</div>`;
 }
 
-/** Ao lado da tela cheia da ligação, durante a entrevista (por cima, à direita, sem cobrir os controles). */
-export function htmlPainelEntrevista(d: EstadoOnboarding): string {
-  return `<aside class="ob-painel-entrevista" aria-label="O que você contou" aria-live="polite">${blocoContou(d.campos)}</aside>`;
-}
-
-/** No painel da guia (detalhes) durante a configuração: "O que você contou" e "Montado até agora". */
 export function secaoOnboardingDetalhes(d: EstadoOnboarding): string {
   const montado = linhasMontado(d);
   const lista = montado.length
@@ -708,20 +540,4 @@ export function htmlGuia(e: EstadoTelaOnboarding): string {
   }
   const card = d.passo === "bot" ? cardBot(d, e.ocupado) : d.passo === "app" ? cardApp(d, e) : cardRotina(d, e.ocupado);
   return `<section class="ob-guia" aria-label="Configuração inicial">${balao}${card}</section>`;
-}
-
-/** A camada de tela cheia de cada fase (vazia na entrevista e na configuração: aí mandam a ligação e a conversa). */
-export function htmlCamada(e: EstadoTelaOnboarding, ligacaoCheia: boolean): string {
-  switch (e.fase) {
-    case "ola":
-      return htmlOla();
-    case "executor":
-      return htmlExecutor(e);
-    case "chamando":
-      return htmlChamando(e);
-    case "entrevista":
-      return ligacaoCheia ? htmlPainelEntrevista(e.dados) : "";
-    default:
-      return "";
-  }
 }
