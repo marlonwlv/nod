@@ -263,7 +263,10 @@
 .bot-menu [aria-disabled="true"]{opacity:.6;cursor:progress}
 /* definido em 2026-09-18: compensar margem do viewBox Bloub (316 unidades para corpo de ~200). */
 .icon.mascote{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.icon.mascote>svg{width:140%;height:140%;flex-shrink:0;max-width:none}
+.icon.mascote>svg{width:100%;height:100%;flex-shrink:0;max-width:none}
+.icon.mascote .mascote-zz{display:none}.icon.mascote[state="sleeping"]:not(.sm) .mascote-zz{display:block;position:absolute;inset:0;pointer-events:none}.icon.mascote .mascote-zz i{position:absolute;left:68%;top:8%;color:color-mix(in srgb,var(--ink) 55%,transparent);font:600 11px/1 system-ui;font-style:normal;animation:mascote-z 2.4s ease-out infinite}.icon.mascote .mascote-zz i:nth-child(2){animation-delay:-.8s}.icon.mascote .mascote-zz i:nth-child(3){animation-delay:-1.6s}
+@keyframes mascote-z{0%{transform:translateY(0) rotate(-34deg) scale(.6);opacity:0}25%{opacity:1}100%{transform:translateY(-12px) rotate(-34deg) scale(1);opacity:0}}
+@media (prefers-reduced-motion:reduce){.icon.mascote .mascote-zz i{animation:none;opacity:1;transform:rotate(-34deg)}.icon.mascote .mascote-zz i:nth-child(2){transform:translate(7px,-5px) rotate(-34deg)}.icon.mascote .mascote-zz i:nth-child(3){transform:translate(14px,-10px) rotate(-34deg)}}
 .mascote-catalogo .icon.mascote>svg{width:100%;height:100%}
 
 /* definido em 2026-09-18: detalhes técnicos sob demanda ("Configurar conexão", só no modo local). */
@@ -515,7 +518,9 @@
    trilho à esquerda com as notas e os grupos de ações. Pronto ("Pensou por 9 s · 2 ações"), vira uma linha de 12 px acima da
    fala, ainda abrindo. Sem cartão, sem fundo chapado e sem botão cheio. */
 /* `.ao-vivo` junto: a regra antiga `.message.ao-vivo { padding-left: 52px }` vem depois e venceria (a fala pularia 52 px no fim). */
-.message.ao-vivo.fala-viva, .message.fala-viva { padding-left: 0; animation: fala-entra .32s cubic-bezier(.2, .7, .2, 1) both; }
+.message.ao-vivo.fala-viva, .message.fala-viva { padding-left: 0; animation: fala-entra .18s cubic-bezier(.22, 1, .36, 1) both; }
+.message.fala-viva > nod-mascote { animation: fala-mascote-entra .34s cubic-bezier(.34, 1.56, .64, 1) both; }
+.message.fala-viva .msg-autor { animation: fala-rotulo-entra .18s cubic-bezier(.22, 1, .36, 1) .22s both; }
 .message.fala-viva .bubble-wrap { width: min(100%, 600px); }
 .message.fala-viva.com-texto .bubble-wrap { width: auto; }
 .fala-viva .msg-autor { min-width: 0; max-width: 100%; }
@@ -582,7 +587,9 @@
 @keyframes pensar-gira { to { transform: rotate(360deg); } }
 /* Alto contraste: o texto recortado no gradiente sumiria; volta à cor do sistema. */
 @media (forced-colors: active) { .fala-viva-estado { background: none; color: CanvasText; -webkit-text-fill-color: currentColor; animation: none; } }
-@keyframes fala-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fala-entra { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: scale(1); } }
+@keyframes fala-mascote-entra { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes fala-rotulo-entra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes fala-brilho { from { background-position: 100% 0; } to { background-position: 0 0; } }
 /* Menos movimento: nada corre, gira nem sobe; o estado e o tempo continuam escritos (o mascote já para sozinho). */
 @media (prefers-reduced-motion: reduce) {

@@ -73,12 +73,12 @@ describe("T1: a pílula no lugar do cabeçalho", () => {
     expect(html).not.toContain("aria-expanded");
   });
 
-  it("Disponível não ganha subtítulo; trabalhando, o subtítulo e o ponto verde, e o rótulo sem HTML", () => {
+  it("Disponível não ganha subtítulo; refletindo, o subtítulo e o ponto verde, e o rótulo sem HTML", () => {
     expect(renderCabecalhoConversa(cenario(), "a")).not.toContain("pilula-sub");
     const html = renderCabecalhoConversa(cenario({}, { turnosVivos: vivo() }), "a");
-    expect(html).toContain('<span class="pilula-sub" aria-hidden="true">Trabalhando</span>');
+    expect(html).toContain('<span class="pilula-sub" aria-hidden="true">Refletindo</span>');
     expect(html).toContain('class="presenca ativa"');
-    expect(html).toContain('aria-label="Painel de Eng 1 · Trabalhando"');
+    expect(html).toContain('aria-label="Painel de Eng 1 · Refletindo"');
   });
 
   it("o topo não tem mais MODO DEV, Ligar nem Parar", () => {

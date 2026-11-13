@@ -548,7 +548,7 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
   });
 
   // ———————————————————————————————————————————————— 9 ————————————————————————————————————————————————
-  it("9. o personagem muda de estado com o trabalho: disponível → trabalhando → aguardando você → disponível", { timeout: JORNADA }, async () => {
+  it("9. o personagem muda de estado com o trabalho: disponível → trabalhando → terminou → aguardando aprovação", { timeout: JORNADA }, async () => {
     const bot = await criarBot("Personagem Teste", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
     await abrirApp();
     await abrirConversa(bot);
@@ -556,16 +556,16 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     await naBarra("disponivel");
     await falar(bot, "Trabalhe um pouco [[espera: 4000]] [[texto: terminei o trabalho]]");
     await ate(`["trabalhando", "pensando", "lendo"].includes(document.querySelector('#sidebar [data-bot-contexto="${bot.id}"] nod-mascote')?.dataset.estado)`, "o personagem trabalhando");
-    // O mesmo estado na pílula da conversa.
-    expect(["trabalhando", "pensando", "lendo"]).toContain(await avaliar<string | null>(cdp, `document.querySelector(".pilula-bot nod-mascote")?.dataset.estado ?? null`));
+    // O cabeçalho fica parado: o movimento vivo pertence à barra, à conversa e a Trabalhos.
+    expect(await avaliar<string | null>(cdp, `document.querySelector(".pilula-bot nod-mascote")?.dataset.estado ?? null`)).toBe("disponivel");
     await ateResponder(bot, "terminei o trabalho");
-    await naBarra("disponivel");
+    await naBarra("terminou");
     await falar(bot, `Grave. [[tool: pedir_aprovacao ${pedirGravar("personagem")}]] [[texto: pedi]]`);
     await atePedidos(bot.id, 1);
-    await naBarra("aguardando");
+    await naBarra("aguardando_aprovacao");
     await ate(`document.querySelector('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao-nenhum"]')`, "o cartão do pedido");
     await clicar('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao-nenhum"]');
-    await naBarra("disponivel");
+    await naBarra("terminou");
   });
 
   // ———————————————————————————————————————————————— 5 ————————————————————————————————————————————————

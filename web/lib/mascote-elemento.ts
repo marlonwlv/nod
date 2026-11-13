@@ -1,5 +1,5 @@
 import { BotEngine } from "../vendor/bloub/engine.ts";
-import { STATE_BY_ID, POSES, type StateId } from "../vendor/bloub/states.ts";
+import { STATE_BY_ID, POSES, stateAfterElapsed, type StateId } from "../vendor/bloub/states.ts";
 import { SHAPE_BY_ID } from "../vendor/bloub/skins.ts";
 import { expressaoMascote } from "./mascote-pose.ts";
 import { FORMAS_BLOUB } from "./mascote-catalogo.ts";
@@ -69,6 +69,7 @@ class MascoteElemento extends HTMLElement {
   private applied = "";
   private shown = "";
   private painter: PintorMascote | null = null;
+  private runningAssentado = false;
   private get state(): StateId {
     const id = this.getAttribute("state") as StateId;
     return STATE_BY_ID.has(id) ? id : "idle";
@@ -110,6 +111,7 @@ class MascoteElemento extends HTMLElement {
     this.engine.setShape(radii(this.getAttribute("shape")), this.time);
     this.engine.setExpression(expressaoMascote(this.getAttribute("expression")), this.time);
     this.engine.setState(this.state, this.time);
+    this.runningAssentado = false;
     this.changed = this.time;
     return true;
   }
@@ -152,6 +154,11 @@ class MascoteElemento extends HTMLElement {
     if (this.last && stamp - this.last < QUADRO_MS - 2) return;
     this.time += this.last ? Math.min((stamp - this.last) / 1000, .05) : 0;
     this.last = stamp;
+    const depois = stateAfterElapsed(this.state, this.time - this.changed);
+    if (this.state === "running" && depois !== this.state && !this.runningAssentado) {
+      this.engine?.setState(depois, this.time);
+      this.runningAssentado = true;
+    }
     this.paint();
     if (!this.moving()) this.wake();
   }
@@ -173,12 +180,22 @@ class MascoteElemento extends HTMLElement {
         parados.set(chave, svg);
       }
       this.innerHTML = svg.replaceAll("@@", this.uid);
+      this.decorateSleeping();
       this.shown = chave;
       this.painter = null;
       return;
     }
     this.shown = "";
     (this.painter ??= new PintorMascote(this, this.uid, INK)).pintar(this.engine!.sample(this.time, !ESTATICOS.has(state)));
+    this.decorateSleeping();
+  }
+  private decorateSleeping(): void {
+    const existing = this.querySelector(":scope > .mascote-zz");
+    if (this.state !== "sleeping") {
+      existing?.remove();
+      return;
+    }
+    if (!existing) this.insertAdjacentHTML("beforeend", '<span class="mascote-zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>');
   }
 }
 customElements.define("nod-mascote", MascoteElemento);

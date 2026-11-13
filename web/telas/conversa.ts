@@ -21,14 +21,14 @@ import type { EstadoMascote } from "../lib/mascote.ts";
 import { iaDoBotAgora, maquinaDoBot, presencaPorMaquina } from "./maquinas.ts";
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { acordandoNaFila, motivoLegivel } from "../lib/maquina-nuvem.ts";
-import { COMET_MS, contagemDasAcoes, estadoDaFala, falaNoBalao, geracaoDoBalao, GRUPOS_A_VISTA, itensDoPensamento, textoEmLf, textoEscrevendo, WINK_MS, type AtividadeTurno, type ItemDoPensamento, type LinhaDoResumo, type VigiaDaAtividade } from "../lib/atividade.ts";
+import { COMET_MS, contagemDasAcoes, estadoDaFala, falaNoBalao, geracaoDoBalao, GRUPOS_A_VISTA, itensDoPensamento, textoEmLf, textoEscrevendo, type AtividadeTurno, type ItemDoPensamento, type LinhaDoResumo, type VigiaDaAtividade } from "../lib/atividade.ts";
 import { linhaDaFila } from "../lib/fila-do-pedido.ts";
 import { haQuanto } from "../lib/relogio.ts";
 import { FALA_SAINDO_MS, tempoDaFala } from "../lib/fala-viva.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
 import { htmlDaLinhaNoAr, htmlDaListaCompacta, htmlDoCard, htmlDoRecibo, lerRecibo } from "../lib/canvas-html.ts";
 import { dividirEmBaloes } from "../lib/baloes.ts";
-import { avatarDoBot, estadoMascoteNaConversa, mascoteAnimado, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
+import { estadoMascoteNaConversa, mascoteAnimado, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
 import { renderFaixaParada } from "./faixa-parada.ts";
 import type { Morph } from "../lib/morph.ts";
 import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../lib/computador.ts";
@@ -754,7 +754,7 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
 
 /** Paper 15: o bloco "da frente" (from_frente do gerador): rótulo, a pergunta com o fio laranja e as opções em botões de 28 px. */
 function perguntaDaFrente(m: Mensagem, titulo: string, decisaoId: string, opcoesDaPergunta: readonly string[], agente: AgenteDaFala | undefined): string {
-  const rotulo = `<div class="df-rotulo">${agente ? iconeAgente(agente, "sm", "aguardando") : ""}<span class="df-de">da frente</span><span class="df-titulo" title="${esc(titulo)}">${esc(titulo)}</span><time>${hora(m.criadoEm)}</time></div>`;
+  const rotulo = `<div class="df-rotulo">${agente ? iconeAgente(agente, "sm", "disponivel") : ""}<span class="df-de">da frente</span><span class="df-titulo" title="${esc(titulo)}">${esc(titulo)}</span><time>${hora(m.criadoEm)}</time></div>`;
   const botoes = opcoesDaPergunta.map((o) => `<button type="button" class="botao secundario df-opcao" data-act="responder-opcao" data-id="${esc(decisaoId)}" data-texto="${esc(o)}">${esc(o)}</button>`).join("");
   return `<div class="df" role="group" aria-label="${esc(`Pergunta da frente ${titulo}`)}">${rotulo}<div class="df-texto">${paragrafos(m.texto)}</div><div class="df-opcoes">${botoes}</div></div>`;
 }
@@ -1062,16 +1062,14 @@ export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agen
   // as frentes saem, e senão o estado da fala (thinking, idle + attentif, orbit). O relógio da virada (web/lib/mascote.ts)
   // redesenha quando um disparo acaba.
   const state = saindo
-    ? (estado.agora - saindo.em < WINK_MS ? "wink" : "idle")
+    ? "finished"
     : mudo !== null
       ? MASCOTE_NO_SILENCIO
-      : esperaDaPessoa(estado, t.turnoId)
-        ? "notify"
-        : a?.frentesEm !== undefined && estado.agora - a.frentesEm < COMET_MS
+      : a?.frentesEm !== undefined && estado.agora - a.frentesEm < COMET_MS
           ? "comet"
           : fala.mascote.state;
   const expression = state === "idle" && !parado ? fala.mascote.expression : null;
-  const dataEstado = state === "orbit" || state === "comet" ? "trabalhando" : state === "thinking" ? "pensando" : state === "notify" ? "aguardando" : "disponivel";
+  const dataEstado = state === "working" || state === "comet" ? "trabalhando" : state === "running" ? "executando" : state === "streaming" ? "digitando" : state === "reading" ? "lendo" : state === "thinking" ? "pensando" : state === "finished" ? "terminou" : "disponivel";
   const mascote: Record<string, string> = { state, "data-estado": dataEstado, "aria-label": rotulo, title: rotulo, ...(expression ? { expression } : {}) };
   const htmlDoMascote = agente ? mascoteDaFala(agente, mascote) : "";
   return {
@@ -1356,6 +1354,9 @@ export function renderTarefasDoBot(tarefas: readonly TarefaDoBot[]): string {
 function blocosDoTurnoVivo(t: TurnoVivo, c: ConversaEstado, estado: Estado): BlocoDaTimeline[] {
   const chave = `vivo:${t.turnoId}`;
   if (t.estado !== "rodando") return [{ chave, html: linhaNaFila(t, c, estado) }];
+  // O cartão de aprovação ocupa este lugar; perguntas continuam com o indicador vivo.
+  const aprovacao = estado.suaVez?.itens.some((i) => i.decisao.turnoId === t.turnoId && i.decisao.tipo === "aprovacao" && i.estadoColuna !== "vencido");
+  if (aprovacao) return [];
   const atividade = estado.atividades[c.conversa.id]?.[t.turnoId];
   const id = t.agenteId ?? c.conversa.agenteId;
   const agente = id ? agenteDe(estado, id) : undefined;
@@ -1883,7 +1884,7 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-381 (definido em 2026-10-27): no celular a presença vai dentro da pílula, em 12px abaixo do nome; o computador
   // continua com o ponto e a linha de baixo (`.pilula-txt` é `display: contents` e `.pilula-presenca` fica escondida).
   const presencaNaPilula = disponivel ? "" : `<span class="pilula-presenca" aria-hidden="true">${html}</span>`;
-  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}${frentesNaPilula(estado, agenteId)}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span>${a?.ownerId === estado.sessao?.pessoaId ? htmlFio(estado.computadorPessoa) : ""}</button>`;
+  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", "disponivel", "paused") : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}${frentesNaPilula(estado, agenteId)}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span>${a?.ownerId === estado.sessao?.pessoaId ? htmlFio(estado.computadorPessoa) : ""}</button>`;
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];
@@ -1925,13 +1926,25 @@ function presencaDoBot(estado: Estado, agenteId: string): { html: string; ativa:
   const esperam = new Set((estado.suaVez?.itens ?? []).filter((item) => item.decisao.conversaId === a?.conversaId && item.estadoColuna !== "vencido").map(chaveDoItem)).size;
   const sep = ` <span class="presenca-sep" aria-hidden="true">·</span> `;
   const comEsperam = esperam ? `${sep}<b>${esperam} ${esperam === 1 ? "espera" : "esperam"} você</b>` : "";
+  const porEstado: Partial<Record<EstadoMascote, string>> = {
+    lendo: "Lendo",
+    executando: "Rodando no terminal",
+    digitando: "Digitando…",
+    terminou: "Terminou",
+    aguardando_aprovacao: "Aguardando sua aprovação",
+    pausado: "Dormindo",
+    offline: "Fora do ar",
+    comemorando: "Comemorando",
+  };
   const html = emLigacao
     ? "Em ligação"
     : mascote === "trabalhando"
     ? `Trabalhando${mudo !== null ? `${sep}sem novidade há ${mudo} min` : ""}${comEsperam}`
     : mascote === "pensando"
-    ? `Pensando${comEsperam}`
-    : esperam ? "Aguardando você" : mascote === "na_fila" ? "Na fila" : estado.executor?.atual === "catcher" ? "Simulação" : (a ? esc(presencaPorMaquina(iaDoBotAgora(estado, a)) ?? "") : "") || "Disponível";
+    ? `Refletindo${comEsperam}`
+    : porEstado[mascote]
+      ? porEstado[mascote]!
+      : esperam ? "Aguardando você" : mascote === "na_fila" ? "Na fila" : estado.executor?.atual === "catcher" ? "Simulação" : (a ? esc(presencaPorMaquina(iaDoBotAgora(estado, a)) ?? "") : "") || "Disponível";
   return { html, ativa: mascoteAnimado(mascote) || emLigacao };
 }
 

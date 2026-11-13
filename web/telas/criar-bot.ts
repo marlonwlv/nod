@@ -45,7 +45,7 @@ export function htmlSeletorCor(atual: CorAgente, acao = "", semPreto = false): s
 /** O personagem do preparo: trabalha enquanto roda, comemora no fim e espera a pessoa no erro. */
 export function estadoDoPreparo(p: EstadoPreparo): EstadoMascote {
   // Enquanto roda, "lendo" (o corpo e os olhos do bot ficam à vista) com a órbita do CSS em volta, como na tela 09b.
-  return p.pronto ? "comemorando" : p.erro ? "aguardando" : "lendo";
+  return p.pronto ? "comemorando" : p.erro ? "disponivel" : "lendo";
 }
 
 const MARCA: Record<string, string> = {

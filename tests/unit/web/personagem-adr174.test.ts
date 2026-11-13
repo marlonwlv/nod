@@ -15,7 +15,7 @@ import type { FrotaDto } from "../../../src/contracts/api.ts";
 describe("personagem: estados novos", () => {
   it("todo estado do nod aponta para um estado que o motor desenha", () => {
     for (const [nod, bloub] of Object.entries(ESTADOS_BLOUB)) expect(STATE_BY_ID.has(bloub), nod).toBe(true);
-    expect(ESTADOS_BLOUB).toMatchObject({ lendo: "reading", comemorando: "celebrate", pausado: "sleeping", offline: "offline" });
+    expect(ESTADOS_BLOUB).toMatchObject({ trabalhando: "working", executando: "running", digitando: "streaming", terminou: "finished", aguardando_aprovacao: "blocked", lendo: "reading", comemorando: "celebrate", pausado: "sleeping", offline: "offline" });
   });
 
   it("offline é pose fixa: o mesmo desenho em qualquer instante, desbotado", () => {
@@ -36,7 +36,7 @@ describe("personagem: estados novos", () => {
     const rodando = { t1: { turnoId: "t1", conversaId: "c1", estado: "rodando" as const, executor: null, machineId: null, desde: 0 } };
     const comFerramenta = (texto: string) => ({ ...estadoInicial, turnosVivos: rodando, atividades: { c1: { t1: { emUso: { texto, frentes: false } } } } }) as unknown as typeof estadoInicial;
     expect(estadoMascoteNaConversa(comFerramenta("Lendo um arquivo"), "c1")).toBe("lendo");
-    expect(estadoMascoteNaConversa(comFerramenta("Rodando um comando"), "c1")).toBe("trabalhando");
+    expect(estadoMascoteNaConversa(comFerramenta("Rodando um comando"), "c1")).toBe("executando");
     expect(lendoNoTurno("Buscando na web")).toBe(true);
     expect(lendoNoTurno(null)).toBe(false);
   });
@@ -112,7 +112,7 @@ describe("preparo com %", () => {
     const parou = await rodarPreparo(novoPreparo("Lia"), etapas, (p) => vistos.push(p));
     expect(parou.erro).toBe("Lia não terminou de se preparar.");
     expect(parou.passos.map((x) => x.situacao)).toEqual(["feito", "feito", "erro", "falta"]);
-    expect(estadoDoPreparo(parou)).toBe("aguardando");
+    expect(estadoDoPreparo(parou)).toBe("disponivel");
     expect(htmlPreparo(parou, { nome: "Lia", cor: "c-teal", forma: "shape-pebble" }, { tentar: 'data-act="t"', ver: 'data-act="v"' })).toContain("Tentar de novo");
     computadorOk = true;
     const fim = await rodarPreparo(parou, etapas, () => undefined);
