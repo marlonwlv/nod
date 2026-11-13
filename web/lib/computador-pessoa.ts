@@ -512,7 +512,7 @@ export function htmlBarraDeControle(nome: string, estado: EstadoBarra): string {
  * `personagem` é o HTML do personagem do bot (htmlMascote) que gira na espera.
  */
 export function htmlTelaCheia(nome: string, personagem: string): string {
-  return `<header class="ctc-topo"><button type="button" class="ctc-sair" data-c="fechar" aria-label="Sair da tela cheia">${ICONE_TELA_CHEIA.recolher}</button></header>`
+  return `<header class="ctc-topo"><span class="ctc-fora" role="status" hidden>Fora do ar</span><button type="button" class="ctc-sair" data-c="fechar" aria-label="Sair da tela cheia">${ICONE_TELA_CHEIA.recolher}</button></header>`
     + `<div class="ctc-corpo"><div class="ctc-palco"><div class="ctc-coluna">`
     + `<div class="ctc-quadro" tabindex="-1" aria-label="Tela de ${esc(nome)}"><img class="ctc-captura" alt="" tabindex="-1" draggable="false" hidden /><div class="ctc-ultimo" hidden></div><div class="ctc-vivo"></div></div>`
     + `<div class="ctc-barra-lugar"></div></div>`

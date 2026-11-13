@@ -142,15 +142,18 @@ describe("3: cada linha abre a tela certa, com ‹ de volta ao perfil", () => {
     const tela = (extra: Partial<Estado>, bot = nina()) => renderPerfilCelular(nivel(com(bot, extra), { tipo: "computador" }));
     expect(tela({ computadorVisto: { a1: "dormindo" } } as Partial<Estado>)).toContain('data-act="computador-acordar" data-id="a1">Acordar</button>');
     expect(tela({ computadorVisto: { a1: "dormindo" }, computadorAcao: { agenteId: "a1", tipo: "acordar" } } as Partial<Estado>)).toContain('data-act="computador-acordar" data-id="a1" disabled>Acordando…</button>');
-    expect(tela({}, nina({ computadorForaDoAr: { desde: 0, motivo: "sem_resposta" } } as Partial<AgenteFrota>))).toContain('data-act="religar-computador" data-id="a1">Tentar de novo</button>');
+    const fora = tela({}, nina({ computadorForaDoAr: { desde: 0, motivo: "sem_resposta" } } as Partial<AgenteFrota>));
+    expect(fora.match(/>Tentar de novo<\/button>/g)).toHaveLength(1);
+    expect(fora).not.toContain('class="pfc-contorno" data-act="religar-computador"');
     const ligado = tela({ computadorVisto: { a1: "ligado" } } as Partial<Estado>);
     expect(ligado).not.toContain("computador-acordar");
     expect(ligado).not.toContain("religar-computador");
   });
-  it("Computador: a linha Estado e Abrir computador, com a leitura do estado", () => {
+  it("Computador: usa o cartão novo, sem repetir o título, com a leitura do estado", () => {
     const h = renderPerfilCelular(nivel(com(nina(), { computadorVisto: { a1: "ligado" } } as Partial<Estado>), { tipo: "computador" }));
-    expect(h).toContain('<span class="pfc-rotulo">Estado</span><span class="pfc-valor">Ligado</span>');
-    expect(h).toContain('class="pfc-contorno" data-act="abrir-computador" data-id="a1">Abrir computador');
+    expect(h).toContain('data-estado-miniatura="repouso"');
+    expect(h).toContain('data-act="abrir-computador" data-id="a1"');
+    expect(h).not.toContain('class="cpm-titulo"');
     expect(h).toContain('data-comp-bot="a1"');
   });
   it("a Biblioteca carrega com o perfil aberto (sem esperar a aba do desktop)", () => {

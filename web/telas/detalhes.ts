@@ -343,13 +343,14 @@ function blocoFrentes(estado: Estado, a: Bot): string {
  * imagem (Em repouso, Ativo, Ligando…, Sem conexão/Fora do ar). O clique abre a tela cheia (`abrir-computador`); fora
  * do ar, "Tentar de novo" é um link no status. Os estados e as esperas moram em web/lib/computador-estados.ts.
  */
-export function blocoComputador(estado: Estado, a: Bot): string {
+export function blocoComputador(estado: Estado, a: Bot, opcoes: { titulo?: boolean } = {}): string {
   const e = entradaDoCartao(estado, a);
   const situacao = estadoDoCartaoDoBot(a.id, e);
   const tentar = estado.computadorPessoa ? TENTAR_V2 : `data-act="religar-computador" data-id="${esc(a.id)}"`;
   // Sem o computador da pessoa (v1), o pulso de web/telas/tela-do-bot.ts lê o estado com o `data-comp-bot` à vista (sem imagem).
   const pulso = estado.computadorPessoa ? "" : `<span hidden data-comp-bot="${esc(a.id)}"></span>`;
-  return `<section class="gv-secao gv-computador cpm" id="gv-computador-${esc(a.id)}"><h3 class="cpm-titulo">Computador</h3>${htmlCartaoComputador(situacao, a, e, tentar)}${pulso}</section>`;
+  const titulo = opcoes.titulo === false ? "" : '<h3 class="cpm-titulo">Computador</h3>';
+  return `<section class="gv-secao gv-computador cpm" id="gv-computador-${esc(a.id)}">${titulo}${htmlCartaoComputador(situacao, a, e, tentar)}${pulso}</section>`;
 }
 
 /** O que o cartão lê: o computador da pessoa (v2) ou, sem ele, o pulso deste bot (v1); o turno; a tela cheia aberta. */

@@ -66,11 +66,11 @@ function pendente(): Pendente {
   const promessa = new Promise((r, j) => { resolver = r; rejeitar = j; });
   return { resolver, rejeitar, promessa };
 }
-const dto = (controle: "bot" | "pessoa") => ({ ativo: true, disponivel: true, motivo: null, atividade: [], computador: { controle, ocupadoAte: 0 } });
+const dto = (controle: "bot" | "pessoa", indisponivelDesde: number | null = null) => ({ ativo: true, disponivel: true, motivo: null, atividade: [], computador: { controle, ocupadoAte: 0, indisponivelDesde } });
 /** Só microtarefas: o setTimeout é falso aqui. */
 async function esvaziar(): Promise<void> { for (let i = 0; i < 30; i++) await Promise.resolve(); }
 
-function api(controleInicial: "bot" | "pessoa") {
+function api(controleInicial: "bot" | "pessoa", indisponivelDesde: number | null = null) {
   let controle = controleInicial;
   const chamadas: string[] = [];
   let assumir: Pendente | null = null;
@@ -79,7 +79,7 @@ function api(controleInicial: "bot" | "pessoa") {
     chamadas,
     segurarAssumir() { assumir = pendente(); return assumir; },
     segurarLeitura() { ler = pendente(); return ler; },
-    computador: vi.fn(async () => { if (ler) { const p = ler; ler = null; await p.promessa; } return dto(controle); }),
+    computador: vi.fn(async () => { if (ler) { const p = ler; ler = null; await p.promessa; } return dto(controle, indisponivelDesde); }),
     urlVivo: () => "ws://teste/vivo",
     acaoComputador: vi.fn(async () => ({ tela: { imagem: "AA", quadro: "q1" } })),
     configurarComputador: vi.fn(async (_id: string, op: string) => {
@@ -126,6 +126,18 @@ afterEach(() => {
 const BOT = { id: "a", nome: "Dev 2" };
 
 describe("barra de controle: Assistindo, Assumindo… (só depois de 300 ms) e Você está no controle", () => {
+  it("mostra Fora do ar na barra superior quando o computador cai", async () => {
+    abrirTelaCheia(api("bot", Date.now()) as never, BOT, { vivo: vncFalso().abrir });
+    await esvaziar();
+    expect(dialog.querySelector(".ctc-fora").hidden).toBe(false);
+  });
+
+  it("mantém o aviso Fora do ar escondido no estado normal", async () => {
+    abrirTelaCheia(api("bot", null) as never, BOT, { vivo: vncFalso().abrir });
+    await esvaziar();
+    expect(dialog.querySelector(".ctc-fora").hidden).toBe(true);
+  });
+
   it("estadoDaBarra: até 300 ms nada muda; depois Assumindo…; com o controle, Você está no controle", () => {
     expect(estadoDaBarra("bot", null, 1_000)).toBe("assistindo");
     expect(estadoDaBarra("bot", 1_000, 1_000 + MS_ASSUMINDO_VISIVEL - 1)).toBe("assistindo");

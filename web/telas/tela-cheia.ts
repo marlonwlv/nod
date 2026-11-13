@@ -2,6 +2,7 @@ import type { Agente } from "../../src/contracts/agente.ts";
 import type { AcaoComputador, ComputadorDto, TelaComputador } from "../../src/contracts/computador.ts";
 import type { Api } from "../lib/api.ts";
 import { AVISO_ASSUMA, estadoDaBarra, esperaParaReconectar, htmlBarraDeControle, htmlTelaCheia, MS_ASSUMINDO_VISIVEL, MS_CAPTURA_PLANO_B, MS_PLANO_B, type EstadoBarra } from "../lib/computador-pessoa.ts";
+import { foraDoAr } from "../lib/computador.ts";
 import { htmlMascote } from "../lib/mascote.ts";
 import { abrirVivoNoVnc, type AbrirVivo, type ClienteVivo } from "../lib/tela-vivo.ts";
 
@@ -104,6 +105,7 @@ export function abrirTelaCheia(api: Api, agente: AgenteDaTela, opcoes: OpcoesTel
   const espera = q(".ctc-espera");
   const esperaTxt = q(".ctc-espera-txt");
   const aviso = q(".ctc-aviso");
+  const fora = q(".ctc-fora");
   const menosMovimento = opcoes.menosMovimento ?? (() => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   let dto: ComputadorDto | undefined;
@@ -138,6 +140,7 @@ export function abrirTelaCheia(api: Api, agente: AgenteDaTela, opcoes: OpcoesTel
   function pintar(): void {
     if (terminou) return;
     dialog.dataset.fase = fase;
+    fora.hidden = !dto || !foraDoAr(dto);
     quadro.hidden = fase === "iniciando";
     const estado = estadoAgora();
     if (fase === "iniciando") { if (estadoPintado !== null) { barraLugar.innerHTML = ""; estadoPintado = null; } }

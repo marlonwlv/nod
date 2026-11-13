@@ -10,6 +10,8 @@ dialog.ctc::backdrop { background: transparent; }
 /* A barra de 44 px: o espaço dos semáforos à esquerda (88 no app do Mac, 20 na web) e o "Sair da tela cheia" a 10 px da borda. */
 .ctc-topo { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 44px; padding: 0 10px 0 20px; box-sizing: border-box; }
 .ctc.no-mac .ctc-topo { padding-left: 88px; -webkit-app-region: drag; }
+.ctc-fora { margin-right: auto; color: #ffffffa8; font-size: 12px; line-height: 18px; } /* cor-fixa: texto sobre o fundo fixo da tela cheia */
+.ctc-fora[hidden] { display: none; }
 .ctc-sair, .ctc-dev { -webkit-app-region: no-drag; }
 .ctc-sair { display: grid; place-items: center; width: 24px; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 6px; background: none; color: #ffffffd9; cursor: pointer; } /* cor-fixa: sobre o #141414 */
 .ctc-sair:hover { background: #ffffff14; } /* cor-fixa: sobre o #141414 */

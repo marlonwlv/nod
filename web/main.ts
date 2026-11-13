@@ -15,6 +15,7 @@ import { alternarExplicacao, detailsParaFecharComEsc } from "./lib/recomeco.ts";
 import { abrirPreviaArquivo } from "./telas/previa-arquivo.ts";
 import { abrirComputador, aplicarModoDevNoComputador } from "./telas/computador.ts";
 import { abrirTelaCheia } from "./telas/tela-cheia.ts";
+import { preencherMiniaturasAjuda } from "./lib/miniatura-ajuda.ts";
 import { abrirCartaoDestino, mostrarComputadorNoPainel } from "./telas/computador-chip.ts";
 import { LUGAR_CONECTAR } from "./telas/config-computador.ts";
 import { criarAcoesDaEspera } from "./lib/esperas-de-colega.ts";
@@ -3677,6 +3678,7 @@ function render(): void {
     queueMicrotask(() => telaLigacao.retomar(retomar));
   }
   renderPrincipal();
+  if (api) preencherMiniaturasAjuda(api, document);
   garantirAcessosDoApp();
   // NOD-379: com a inicial do celular à vista (o voltar do navegador por cima do Marketplace), a gaveta de app não prende
   // o foco: ela deixaria a inicial inerte.

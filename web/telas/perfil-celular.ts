@@ -7,7 +7,7 @@ import { caminhoDaPastaDoBot } from "../lib/pasta-do-bot.ts";
 import { mostraCaminhoDaPasta } from "../lib/capacidades.ts";
 import { interpolar } from "../lib/relogio.ts";
 import { botaoLigar, ICONE_LIGACAO } from "./ligacao.ts";
-import { abaBiblioteca, capitalizar, chaveCelular, classeDoRodape, destinoDoVoltar, estadoDoComputadorNaGaveta, fraseDaParada, identidadeEditavel, nivelAjustes, nomeEditavel, paiDoNivel, popoverAvatar, renderNivel, segundoPlano, semFuso, type Nivel } from "./detalhes.ts";
+import { abaBiblioteca, blocoComputador, capitalizar, chaveCelular, classeDoRodape, destinoDoVoltar, estadoDoComputadorNaGaveta, fraseDaParada, identidadeEditavel, nivelAjustes, nomeEditavel, paiDoNivel, popoverAvatar, renderNivel, segundoPlano, semFuso, type Nivel } from "./detalhes.ts";
 import { secaoOnboardingDetalhes } from "./onboarding.ts";
 import { botaoDaParada } from "../lib/execucao.ts";
 import { ehRotinaWebhook, quandoNaLista } from "./webhook.ts";
@@ -243,15 +243,9 @@ function telaCodigo(estado: Estado, a: Bot): string {
   return `<div class="pfc-grupo"><button type="button" class="pfc-linha" data-act="perfil-copiar-pasta" data-caminho="${esc(caminho)}" aria-label="${esc(`Pasta ${pasta}, copiar o caminho`)}"><span class="pfc-icone" aria-hidden="true">${ICONE.pasta}</span><span class="pfc-rotulo">Pasta</span><span class="pfc-valor">${esc(pasta)}</span></button></div>`;
 }
 
-/**
- * Computador: a linha Estado, a ação do estado (Acordar dormindo, Tentar de novo fora do ar, as mesmas do desktop) e
- * "Abrir computador" (contorno, 44). Mantém a leitura do estado com `data-comp-bot`.
- */
+/** Computador: o mesmo cartão sutil do painel desktop, preservando as ações de acordar e tentar de novo. */
 export function telaComputador(estado: Estado, a: Bot): string {
-  const v = valorComputador(estado, a);
-  const valor = v.tipo === "carregando" ? ESQUELETO : v.tipo === "erro" ? '<span aria-hidden="true">—</span><span class="sr-only">não carregou</span>' : esc(v.texto);
-  return `<section data-comp-bot="${esc(a.id)}"${v.tipo === "carregando" ? ' aria-busy="true"' : ""}><div class="pfc-grupo"><div class="pfc-linha pfc-linha-fixa"><span class="pfc-icone" aria-hidden="true">${ICONE.monitor}</span><span class="pfc-rotulo">Estado</span><span class="pfc-valor">${valor}</span></div></div>
-    ${acaoDoComputador(estado, a)}<button type="button" class="pfc-contorno" data-act="abrir-computador" data-id="${esc(a.id)}">Abrir computador</button></section>`;
+  return blocoComputador(estado, a, { titulo: false }) + acaoDoComputador(estado, a);
 }
 
 function acaoDoComputador(estado: Estado, a: Bot): string {
@@ -259,12 +253,10 @@ function acaoDoComputador(estado: Estado, a: Bot): string {
   if (estado.computadorPessoa) {
     const e = estadoDaGaveta(estado.computadorPessoa, a.id);
     if (e === "dormindo") return contorno("Acordar", 'data-act="operar-computador" data-op="acordar"');
-    if (e === "fora") return contorno("Tentar de novo", 'data-act="operar-computador" data-op="tentar_de_novo"');
     return "";
   }
   const visto = estadoDoComputadorNaGaveta(estado, a);
   const acao = estado.computadorAcao?.agenteId === a.id ? estado.computadorAcao.tipo : null;
   if (visto === "dormindo") return contorno(acao === "acordar" ? "Acordando…" : "Acordar", `data-act="computador-acordar" data-id="${esc(a.id)}"`, acao === "acordar");
-  if (visto === "fora") return contorno(acao === "religar" ? "Tentando de novo…" : "Tentar de novo", `data-act="religar-computador" data-id="${esc(a.id)}"`, acao === "religar");
   return "";
 }
