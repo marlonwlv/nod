@@ -6230,6 +6230,7 @@ function agendarBoasVindas(agenteId: string): void {
   for (const atraso of [ATRASO_PARA_REFLETIR_MS, ATRASO_PARA_PERGUNTAR_MS]) {
     window.setTimeout(() => {
       if (botRecemCriado?.agenteId !== agenteId) return;
+      esquecerRegiao("timeline");
       render();
       redesenharSidebar();
     }, atraso + 20);
