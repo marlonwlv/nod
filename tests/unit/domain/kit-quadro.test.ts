@@ -20,6 +20,7 @@ describe("kits do gerir_quadro por contexto", () => {
     const ferramenta = plano.catalogo.ferramentas.find((f) => f.nome === "gerir_quadro")!;
     expect(tipos(ferramenta.schema)).toEqual(TIPOS_DA_TAREFA);
     expect(tipos(ferramenta.schema)).toEqual(["terminei", "mudar_tarefa", "comentar", "nao_e_comigo"]);
+    expect(Object.keys(ferramenta.schema.properties!)).toEqual(["acoes"]);
     expect(Object.keys(itens(ferramenta.schema).properties!)).toEqual(["tipo", "tarefa", "status", "pr_url", "pergunta", "motivo", "texto", "responder_a"]);
     expect(plano.promptSistema).toContain("Trabalho de tarefa do quadro termina sempre numa de 4 saídas");
     expect(plano.promptSistema).not.toContain("cada coluna pode ter um responsável (a passagem, o handoff)");

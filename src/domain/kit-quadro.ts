@@ -54,12 +54,15 @@ type SchemaGerirQuadro = typeof FERRAMENTAS_QUADRO.gerir_quadro;
 const ITENS = FERRAMENTAS_QUADRO.gerir_quadro.properties.acoes.items;
 const TODOS_OS_TIPOS = ITENS.properties.tipo.enum;
 
-function comAcoes(description: string, tipos: readonly string[], properties: Record<string, JsonSchema>): JsonSchema {
+function comAcoes(description: string, tipos: readonly string[], properties: Record<string, JsonSchema>, permiteEscolherQuadro = true): JsonSchema {
   const g: SchemaGerirQuadro = FERRAMENTAS_QUADRO.gerir_quadro;
+  const acoes: JsonSchema = { ...g.properties.acoes, items: { ...ITENS, properties: { tipo: { type: "string", enum: [...tipos] }, ...properties } } };
   return {
     ...g,
     description,
-    properties: { ...g.properties, acoes: { ...g.properties.acoes, items: { ...ITENS, properties: { tipo: { type: "string", enum: [...tipos] }, ...properties } } } },
+    // O trabalho já carrega o quadro que o originou. Aceitar `quadro` aqui deixaria um turno de tarefa usar as quatro
+    // operações permitidas contra outro quadro, escapando do escopo que o kit pretende cercar.
+    properties: permiteEscolherQuadro ? { ...g.properties, acoes } : { acoes },
   };
 }
 
@@ -82,6 +85,6 @@ const { tipo: _tipo, ...PROPS_DOS_ITENS } = ITENS.properties;
 /** O schema do gerir_quadro por kit (o `gestao` é o de sempre, do contrato). */
 export const SCHEMA_DO_KIT: Record<KitQuadro, JsonSchema> = {
   gestao: FERRAMENTAS_QUADRO.gerir_quadro,
-  tarefa: comAcoes(DESCRICAO_DA_TAREFA, TIPOS_DA_TAREFA, Object.fromEntries(PROPS_DA_TAREFA.map((k) => [k, PROPRIEDADES_QUADRO[k]]))),
+  tarefa: comAcoes(DESCRICAO_DA_TAREFA, TIPOS_DA_TAREFA, Object.fromEntries(PROPS_DA_TAREFA.map((k) => [k, PROPRIEDADES_QUADRO[k]])), false),
   leve: comAcoes(DESCRICAO_LEVE, TODOS_OS_TIPOS, semAjuda(PROPS_DOS_ITENS as Record<string, JsonSchema>, PROPS_COM_AJUDA_NO_LEVE)),
 };

@@ -132,6 +132,17 @@ describe("chamarFerramenta: gates, despacho por tabela e trilha (ADR-013, EMENDA
     expect(c.trilha()).toEqual([["negacao", "gerir_quadro", "args_invalidos"]]);
   });
 
+  it("gerir_quadro da tarefa não deixa as operações permitidas escaparem para outro quadro", async () => {
+    const c = await cenario();
+    const contextual = { ...nod("gerir_quadro"), schema: SCHEMA_DO_KIT.tarefa };
+    const plano = { ...c.plano, catalogo: { ...c.plano.catalogo, ferramentas: [contextual] } };
+
+    const r = await c.chamar("gerir_quadro", { quadro: "Outro quadro", acoes: [{ tipo: "mudar_tarefa", tarefa: "T1", status: "bloqueado", pergunta: "Pessoa, qual decisão falta?", motivo: "depende da pessoa" }] }, plano);
+
+    expect(r.data).toMatchObject({ ok: false, negacao: { motivo: "args_invalidos", terminal: false } });
+    expect(c.trilha()).toEqual([["negacao", "gerir_quadro", "args_invalidos"]]);
+  });
+
   it("NOD-61 (ADR-026): buscar_conversas e ler_conversa voltam nao_confiavel — o histórico tem conteúdo de fora; args fora do schema não despacham", async () => {
     const c = await cenario();
     const p = { ...c.plano, catalogo: { ...c.plano.catalogo, ferramentas: [...c.plano.catalogo.ferramentas, nod("buscar_conversas"), nod("ler_conversa")] } };
