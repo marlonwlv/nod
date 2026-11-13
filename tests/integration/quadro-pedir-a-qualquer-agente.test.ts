@@ -97,6 +97,8 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
         { identificador: "ENG-13", titulo: "Aprovada em lote", agente: m.nomeEng },
         { identificador: "ENG-14", titulo: "Também aprovada", agente: m.nomeEng },
       ] }]));
+      // Reproduz a origem do incidente: o resumo traz tarefas escritas por uma fonte externa ao turno atual.
+      for (const tarefa of await m.tarefas()) await m.d.repos.quadros.salvarTarefa(tarefa.id, { ...tarefa, deFora: true });
       const t = await m.turnoDaAda();
       const chamar = (acoes: unknown[]) => executar(m.d, gerirQuadro, { ...t, quadro: m.nomeEng, acoes } as never);
 
