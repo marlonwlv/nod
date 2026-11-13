@@ -8,7 +8,7 @@ import type { OrigemTrabalho } from "../contracts/trabalho.ts";
  * em toda conversa, até quando ninguém falava do quadro. Agora o catálogo leva um de três kits, todos com o mesmo nome
  * (o caso de uso e o MCP não mudam; o proxy valida pelo schema do plano, então o kit também é a cerca):
  *
- * - `tarefa`: o turno de uma tarefa do quadro só vê as saídas da etapa — terminei, devolver, mudar_tarefa (status, pr_url,
+ * - `tarefa`: o turno de uma tarefa do quadro só vê as saídas da etapa — terminei, mudar_tarefa (status, pr_url,
  *   pergunta, motivo), comentar e nao_e_comigo. Sem criar_coluna, definir_passagem, pessoas nem importar.
  * - `gestao`: o gerir_quadro de sempre, quando a fala do turno é sobre o quadro (ou a pessoa pede algo dele).
  * - `leve`: o resto (conversa, rotina, pedido de colega sem assunto de quadro). Aceita TODOS os tipos (nada que funciona
@@ -20,7 +20,7 @@ import type { OrigemTrabalho } from "../contracts/trabalho.ts";
 export type KitQuadro = "tarefa" | "gestao" | "leve";
 
 /** Os tipos do kit da etapa (o turno de tarefa); `acoes: []` (consultar) vale em qualquer kit. */
-export const TIPOS_DA_TAREFA = ["terminei", "devolver", "mudar_tarefa", "comentar", "nao_e_comigo"] as const;
+export const TIPOS_DA_TAREFA = ["terminei", "mudar_tarefa", "comentar", "nao_e_comigo"] as const;
 
 const PROPS_DA_TAREFA = ["tarefa", "status", "pr_url", "pergunta", "motivo", "texto", "responder_a"] as const satisfies readonly (keyof typeof PROPRIEDADES_QUADRO)[];
 
@@ -32,9 +32,9 @@ const PROPS_COM_AJUDA_NO_LEVE = ["tarefa", "status", "pr_url", "pergunta", "agen
  * no português do dia a dia ("feito", "fazendo", "mover") — um falso positivo só custa tokens, um falso negativo cai no
  * kit leve, que ainda aceita tudo.
  */
-const PALAVRAS_DO_QUADRO = /\b(quadros?|tarefas?|colunas?|cards?|backlog|kanban|passagens?|handoff|esteira|labels?|etiquetas?|importa\w*|linear|board|issues?|responsave(l|is)|atribu\w*|bloquead[oa]s?|swimlanes?)\b/;
+const PALAVRAS_DO_QUADRO = /\b(quadros?|tarefas?|tasks?|colunas?|cards?|backlog|kanban|passagens?|handoff|esteira|labels?|etiquetas?|importa\w*|linear|board|issues?|responsave(l|is)|atribu\w*|bloquead[oa]s?|swimlanes?)\b/;
 /** O código de uma tarefa do quadro ou do Linear (ADA-12, NOD-491). */
-const CODIGO_DE_TAREFA = /\b[A-Z]{2,6}-\d{1,5}\b/;
+const CODIGO_DE_TAREFA = /\b[A-Z]{2,6}-\d{1,5}\b/i;
 
 const semAcento = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -64,7 +64,7 @@ function comAcoes(description: string, tipos: readonly string[], properties: Rec
 }
 
 const DESCRICAO_DA_TAREFA =
-  "O quadro da tarefa deste turno. Uma chamada = um lote atômico; acoes vazio ([]) só consulta. Saídas da etapa: terminei {tarefa?} (etapa concluída: vai para a próxima coluna e quem cuida dela começa); devolver {tarefa?, motivo} (precisa de ajustes: volta para a etapa de volta e o motivo vira comentário); mudar_tarefa {tarefa, status?, pr_url?, pergunta?, motivo?} (pr_url grava o PR; pergunta sem status pergunta à pessoa e a tarefa fica na coluna, com você; status bloqueado pede a pergunta com o motivo e do que você precisa; status cancelado pede o motivo); comentar {tarefa, texto, responder_a?} (sozinho; @Nome aciona aquele bot); nao_e_comigo {tarefa, motivo} (você sai de responsável e o quadro passa a tarefa adiante). Colunas, passagens, pessoas e importar não são do turno de tarefa: são da conversa da pessoa.";
+  "O quadro da tarefa deste turno. Uma chamada = um lote atômico; acoes vazio ([]) só consulta. Saídas da etapa: terminei {tarefa?} (etapa concluída: vai para a próxima coluna e quem cuida dela começa); mudar_tarefa {tarefa, status?, pr_url?, pergunta?, motivo?} (pr_url grava o PR; pergunta sem status pergunta à pessoa e a tarefa fica na coluna, com você; status bloqueado pede a pergunta com o motivo e do que você precisa; status cancelado pede o motivo); comentar {tarefa, texto, responder_a?} (sozinho; @Nome aciona aquele bot); nao_e_comigo {tarefa, motivo} (você sai de responsável e o quadro passa a tarefa adiante). Colunas, passagens, pessoas e importar não são do turno de tarefa: são da conversa da pessoa.";
 
 const DESCRICAO_LEVE =
   "Mexe no quadro de tarefas da pessoa (a aba Quadro de um bot), como ela faria na tela. Uma chamada = um lote atômico com Desfazer; acoes vazio ([]) só consulta e devolve o quadro. Os tipos mais usados: criar_tarefa {titulo, descricao?, status?, agente?} (status afazer faz o responsável começar), mudar_tarefa {tarefa, status?, agente?, pr_url?, pergunta?}, comentar {tarefa, texto}, terminei {tarefa?}, desfazer {lote?}. Também há colunas, passagens (responsável por coluna), pessoas, labels, vários quadros, importar do Linear e exibir: quando a conversa for sobre o quadro, o manual completo de cada tipo vem junto; se precisar de um deles agora, consulte o quadro antes ([]) e siga o que a recusa disser.";

@@ -3,6 +3,7 @@ import { ErroTransporteMcp } from "../../../src/adapters/mcp-proxy/cliente-mcp.t
 import { ErroBancoOcupado, ErroTxEncerrada } from "../../../src/db/tx.ts";
 import { FERRAMENTAS_NOD } from "../../../src/contracts/ferramentas-nod.ts";
 import type { FerramentaPlano, PlanoTurno } from "../../../src/contracts/plano-turno.ts";
+import { SCHEMA_DO_KIT } from "../../../src/domain/kit-quadro.ts";
 import { chamarFerramenta, errosDoSchema, validarArgsNod } from "../../../src/use-cases/chamar-ferramenta.ts";
 import type { Deps } from "../../../src/use-cases/tipos.ts";
 import { criarConectoresVivos } from "../../../src/services/conectores-vivos.ts";
@@ -118,6 +119,17 @@ describe("chamarFerramenta: gates, despacho por tabela e trilha (ADR-013, EMENDA
       ["tool_call", "lembrar", null],
     ]);
     expect(c.banco.catcher.map((r) => r.tipo)).toEqual(["tool_call"]);
+  });
+
+  it("gerir_quadro da tarefa não aceita operação que existe só no contrato global", async () => {
+    const c = await cenario();
+    const contextual = { ...nod("gerir_quadro"), schema: SCHEMA_DO_KIT.tarefa };
+    const plano = { ...c.plano, catalogo: { ...c.plano.catalogo, ferramentas: [contextual] } };
+
+    const r = await c.chamar("gerir_quadro", { acoes: [{ tipo: "criar_coluna", nome: "QA", grupo: "iniciado" }] }, plano);
+
+    expect(r.data).toMatchObject({ ok: false, negacao: { motivo: "args_invalidos", terminal: false } });
+    expect(c.trilha()).toEqual([["negacao", "gerir_quadro", "args_invalidos"]]);
   });
 
   it("NOD-61 (ADR-026): buscar_conversas e ler_conversa voltam nao_confiavel — o histórico tem conteúdo de fora; args fora do schema não despacham", async () => {

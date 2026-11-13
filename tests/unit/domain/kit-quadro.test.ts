@@ -19,7 +19,7 @@ describe("kits do gerir_quadro por contexto", () => {
     const plano = montarPlano({ ...base, modo: "delegacao", trabalho: { titulo: "Corrigir login", origem: "quadro", trabalhoMaeId: null } });
     const ferramenta = plano.catalogo.ferramentas.find((f) => f.nome === "gerir_quadro")!;
     expect(tipos(ferramenta.schema)).toEqual(TIPOS_DA_TAREFA);
-    expect(tipos(ferramenta.schema)).not.toEqual(expect.arrayContaining(["criar_coluna", "definir_passagem", "adicionar_pessoa", "importar_linear"]));
+    expect(tipos(ferramenta.schema)).toEqual(["terminei", "mudar_tarefa", "comentar", "nao_e_comigo"]);
     expect(Object.keys(itens(ferramenta.schema).properties!)).toEqual(["tipo", "tarefa", "status", "pr_url", "pergunta", "motivo", "texto", "responder_a"]);
     expect(plano.promptSistema).toContain("Trabalho de tarefa do quadro termina sempre numa de 4 saídas");
     expect(plano.promptSistema).not.toContain("cada coluna pode ter um responsável (a passagem, o handoff)");
@@ -41,7 +41,7 @@ describe("kits do gerir_quadro por contexto", () => {
   });
 
   it("detecta termos de gestão, códigos e variações com acento sem palavras comuns", () => {
-    for (const texto of ["mova o card", "quem é o responsável da tarefa?", "importe NOD-491", "configure o handoff", "crie uma coluna"]) expect(assuntoDeQuadro(texto), texto).toBe(true);
+    for (const texto of ["mova o card", "quem é o responsável da tarefa?", "importe NOD-491", "veja nod-491", "abra a task", "configure o handoff", "crie uma coluna"]) expect(assuntoDeQuadro(texto), texto).toBe(true);
     for (const texto of ["faça o relatório", "ficou feito?", "mover o arquivo", "a etapa do funil comercial"]) expect(assuntoDeQuadro(texto), texto).toBe(false);
   });
 });
