@@ -118,9 +118,14 @@ export function compararEsquemaUrl({ codigo, saida }, esperado = "nod") {
 export function compararAntiDowngrade({ codigo, saida }, esperado) {
   const valor = String(saida ?? "").trim();
   const ligada = codigo === 0 && valor === "true";
-  const veio = codigo === 0 ? `ElectronSquirrelPreventDowngrades=${valor || "(vazio)"}` : "ausente no Info.plist";
+  const ausente = codigo === 1 && /No value at that key path or invalid key path:\s*ElectronSquirrelPreventDowngrades\b/.test(valor);
+  const veio = codigo === 0
+    ? `ElectronSquirrelPreventDowngrades=${valor || "(vazio)"}`
+    : ausente
+      ? "ausente no Info.plist"
+      : `não foi possível conferir o Info.plist (saída ${codigo}: ${resumo(saida)})`;
   const esp = esperado ? "ElectronSquirrelPreventDowngrades=true" : "ausente no Info.plist (versão rc ou Electron < 44)";
-  return resultado("ElectronSquirrelPreventDowngrades", esperado ? ligada : codigo !== 0, esp, veio);
+  return resultado("ElectronSquirrelPreventDowngrades", esperado ? ligada : ausente, esp, veio);
 }
 
 /** `lipo -archs`: exatamente a arquitetura do job, nem a outra nem as duas. */

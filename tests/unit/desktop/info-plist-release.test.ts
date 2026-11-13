@@ -16,11 +16,11 @@ describe("info-plist-release.mjs (NOD-467)", () => {
     for (const v of ["1.0.0-rc.7", "1.0", "1.0.0.1", "01.0.0", "1.0.0+build", " 1.0.0", "v1.0.0", "", undefined, null, 100]) expect(versaoFinal(v), String(v)).toBe(false);
   });
 
-  it("a major do Electron sai de versão fixa ou com ^/~; o resto não liga", () => {
+  it("a major do Electron sai de versão estável fixa ou com ^/~; pré-release e o resto não ligam", () => {
     expect(majorDoElectron("43.7.1")).toBe(43);
     expect(majorDoElectron("^44.11.3")).toBe(44);
-    expect(majorDoElectron("~45.0.0-beta.1")).toBe(45);
-    for (const s of ["latest", ">=44", "44", "", undefined, "git+https://x"]) expect(majorDoElectron(s), String(s)).toBeNull();
+    expect(majorDoElectron("~45.0.0")).toBe(45);
+    for (const s of ["44.0.0-beta.1", "~45.0.0-beta.1", "latest", ">=44", "44", "", undefined, "git+https://x"]) expect(majorDoElectron(s), String(s)).toBeNull();
   });
 
   it("liga só com versão final E Electron >= 44 (o patch do 43 tem a checagem invertida)", () => {
@@ -29,6 +29,7 @@ describe("info-plist-release.mjs (NOD-467)", () => {
       ["1.0.0", "43.7.1", false],
       ["1.0.0", "43.8.10", false],
       ["1.0.0-rc.8", "44.11.3", false],
+      ["1.0.0", "44.0.0-beta.1", false],
       ["1.0.0", "44.11.3", true],
       ["1.2.3", "^45.3.2", true],
       ["1.0.0", "latest", false],

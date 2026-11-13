@@ -27,9 +27,9 @@ export function versaoFinal(versao) {
   return /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(String(versao ?? ""));
 }
 
-/** A major de uma versão fixa do Electron (`44.11.3`, `^44.1.0`, `~44.0.0`); qualquer outra coisa = null (não liga). */
+/** A major de uma versão estável do Electron (`44.11.3`, `^44.1.0`, `~44.0.0`); pré-release e o resto = null (não liga). */
 export function majorDoElectron(spec) {
-  const m = /^[\^~]?(\d+)\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.exec(String(spec ?? "").trim());
+  const m = /^[\^~]?(\d+)\.\d+\.\d+$/.exec(String(spec ?? "").trim());
   return m ? Number(m[1]) : null;
 }
 

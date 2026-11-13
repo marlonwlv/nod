@@ -268,6 +268,13 @@ describe("NOD-467: ElectronSquirrelPreventDowngrades no Info.plist do app assina
       "ElectronSquirrelPreventDowngrades: esperava ausente no Info.plist (versão rc ou Electron < 44), veio ElectronSquirrelPreventDowngrades=true",
     ]);
   });
+  it("erro ao ler o Info.plist reprova em vez de ser confundido com chave ausente", () => {
+    const erro = { codigo: 127, saida: "plutil não executou: spawnSync plutil ENOENT" };
+    expect(compararAntiDowngrade(erro, false).ok).toBe(false);
+    expect(falhasCom({ antiDowngrade: erro })).toEqual([
+      expect.stringContaining("não foi possível conferir o Info.plist"),
+    ]);
+  });
   it("x.y.z com Electron >= 44: a chave tem de estar presente e verdadeira", () => {
     expect(compararAntiDowngrade(ligada, true).ok).toBe(true);
     expect(compararAntiDowngrade(ausente, true).ok).toBe(false);
