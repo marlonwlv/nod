@@ -181,7 +181,6 @@ export type AcaoNoLote = AcaoLote & {
   aviso?: string;
 };
 export type PayloadPropostaLoteBots = { kind: "lote_bots"; resumo: string; acoes: AcaoNoLote[]; turnoId?: string };
-
 /** Pelo teto de 200 linhas: a credencial (NOD-50) mora em ferramentas-credencial.ts e as colunas (NOD-448) em quadro.ts. */
 export type { AlvoCredencial, PayloadPropostaCredencial } from "./ferramentas-credencial.ts";
 export type { ColunaNaProposta, PayloadPropostaColunasQuadro } from "./quadro.ts";

@@ -55,7 +55,7 @@ export const decisoesNoChat: CasoNod<Deps, "decisoes"> = async (deps, input) => 
     if (dias > 31) return recusa("periodo_longo", "A consulta no chat aceita até 31 dias; reduza o período ou peça o CSV mensal.");
     try {
       const r = await lerDecisoes(deps, { agenteId: agente.id, de: input.de, ate: input.ate, fuso: input.fuso, desfecho, limite: 4 });
-      const total = Object.values(r.data.contagem).reduce((a, b) => a + b, 0);
+      const total = desfecho === "tudo" ? Object.values(r.data.contagem).reduce((a, b) => a + b, 0) : r.data.contagem[desfecho];
       if (total === 0) return { data: { ok: true, total: 0, linhas: [], instrucao: "Não houve decisões nesse recorte. Diga isso numa frase curta; nenhum card foi criado." } };
       const payload: PayloadDecisoesResumo = { kind: "decisoes_resumo", agenteId: agente.id, agenteNome: agente.nome, de: input.de, ate: input.ate, desfecho, linhas: r.data.linhas, total };
       const m = await deps.repos.mensagens.criar({ conversaId: input.conversaId, turnoId: input.turnoId, autoria, kind: "sistema", texto: `${total} ${total === 1 ? "decisão" : "decisões"} de ${agente.nome}`, payload, confianca: "confiavel" });

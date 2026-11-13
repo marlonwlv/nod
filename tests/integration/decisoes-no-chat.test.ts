@@ -26,6 +26,8 @@ describeIntegracao("NOD-414: decisões pelo chat", () => {
       expect(r.data.linhas).toHaveLength(4);
       const card = (await d.repos.mensagens.listarDaConversa(bia.conversaId)).find((m) => m.payload?.kind === "decisoes_resumo");
       expect(card?.payload).toMatchObject({ kind: "decisoes_resumo", total: 6, linhas: expect.any(Array) });
+      const negadas = await executar(d, decisoesNoChat, { ...ctx, acao: "consultar", de: "2026-11-13", ate: "2026-11-13", fuso: "UTC", desfecho: "negada" });
+      expect(negadas.data).toMatchObject({ ok: true, total: 3 });
       const proibida = await executar(d, decisoesNoChat, { ...ctx, acao: "consultar", de: "2026-11-13", ate: "2026-11-13", fuso: "UTC", bot: "Lia decisões" });
       expect(proibida.data).toMatchObject({ ok: false, erro: "nao_encontrado" });
       expect(lia.agenteId).not.toBe(bia.agenteId);

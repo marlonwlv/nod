@@ -266,7 +266,7 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   if (m.kind === "sistema" && p?.kind === "decisoes_resumo") {
     const linhas = p.linhas.map((l) => `<li><span>${esc(new Date(l.em).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span> ${esc(l.frase)}</li>`).join("");
     const filtro = p.desfecho ?? "tudo";
-    return `<div class="cp"><div class="cp-titulo">${esc(`${p.total} ${p.total === 1 ? "decisão" : "decisões"} de ${p.agenteNome}`)}</div><ol class="atv-lista dec-lista">${linhas}</ol><button type="button" class="atv-link" data-act="decisoes-negadas" data-agente="${esc(p.agenteId)}" data-dia="${esc(p.de)}" data-filtro="${esc(filtro)}">Ver nas Decisões</button></div>`;
+    return `<div class="cp"><div class="cp-titulo">${esc(`${p.total} ${p.total === 1 ? "decisão" : "decisões"} de ${p.agenteNome}`)}</div><ol class="atv-lista dec-lista">${linhas}</ol><button type="button" class="atv-link" data-act="decisoes-negadas" data-agente="${esc(p.agenteId)}" data-dia="${esc(p.ate)}" data-filtro="${esc(filtro)}">Ver nas Decisões</button></div>`;
   }
   // ADA-228 (J7-5): a lista compacta dos canvas, do listar {mostrar: true}; cada nome abre o canvas.
   if (m.kind === "sistema" && p?.kind === "canvas_lista") {
