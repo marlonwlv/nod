@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { entrega as validarEntrega } from "../../../src/adapters/http/rotas/ponte-validacao.ts";
-import { cortarTexto, driverDoPlano, fotografaOTurno, iniciarLaco, resultadoDeExcecao } from "../../../src/adapters/executor/laco.ts";
+import { cortarTexto, driverDoPlano, fotografaOTurno, iniciarLaco, codigoDoErro, resultadoDeExcecao } from "../../../src/adapters/executor/laco.ts";
 import { RENOVACAO_INDEFINIDO_MS, RENOVACAO_MS, TEXTO_ENTREGA_MAX_CHARS } from "../../../src/shared/constantes.ts";
 import type { Adapter, Driver, Instance, Registry } from "../../../src/adapters/executor/spi.ts";
 import type { PlanoTurno } from "../../../src/contracts/plano-turno.ts";
@@ -1167,4 +1167,13 @@ describe("NOD-54: qual turno ganha a foto", () => {
     expect(fotografaOTurno({ pastaDoBot: undefined, modoTurno: "conversa" })).toBe(false);
   });
 });
+});
+
+describe("codigoDoErro (2026-11-13: o log do turno que lançou leva o código do sistema)", () => {
+  it("devolve o código de sistema e nada que não pareça um", () => {
+    expect(codigoDoErro(Object.assign(new Error("spawn ENAMETOOLONG"), { code: "ENAMETOOLONG" }))).toBe("ENAMETOOLONG");
+    expect(codigoDoErro(new Error("sem código"))).toBeNull();
+    expect(codigoDoErro(Object.assign(new Error("x"), { code: "C:\\Users\\pessoa" }))).toBeNull();
+    expect(codigoDoErro("texto")).toBeNull();
+  });
 });

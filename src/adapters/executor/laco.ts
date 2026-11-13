@@ -138,6 +138,12 @@ const dormirPadrao = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 const TOKENS_ZERADOS = { entrada: 0, saida: 0, cacheLeitura: 0, cacheCriacao: 0 };
 
+/** O código de sistema do erro (`ENAMETOOLONG`, `EPERM`), quando é um; só letras, números e sublinhado. */
+export function codigoDoErro(erro: unknown): string | null {
+  const codigo = erro instanceof Error ? (erro as NodeJS.ErrnoException).code : undefined;
+  return typeof codigo === "string" && /^[A-Z0-9_]{1,40}$/.test(codigo) ? codigo : null;
+}
+
 /** Resultado sintético para quando o adapter não devolveu um (exceção ou driver em sombra). */
 export function resultadoDeExcecao(erro: unknown, sinais: SinaisTurno, texto = ""): ResultadoTurno {
   const base = { texto, sessaoCli: null, sinais, custoUsd: null, tokens: TOKENS_ZERADOS, ferramentasChamadas: [], negacoesPermissao: [] };
@@ -526,7 +532,8 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
       const checkpoint = await fecharFoto();
       await entregar({ ...anotado, sinais: { ...anotado.sinais, ...sinais }, ...(causa ? { causa } : {}), ...(checkpoint ? { checkpoint } : {}) });
     } catch (erro) {
-      log("erro", "laco_turno_excecao", { turno_id: plano.turnoId, erro: erro instanceof Error ? erro.name : "desconhecido" });
+      // 2026-11-13: o código do sistema (ENAMETOOLONG, EPERM) vai junto do nome; a mensagem fica fora, porque traz caminhos.
+      log("erro", "laco_turno_excecao", { turno_id: plano.turnoId, erro: erro instanceof Error ? erro.name : "desconhecido", codigo: codigoDoErro(erro) });
       const checkpoint = await fecharFoto();
       await entregar({ ...resultadoDeExcecao(erro, sinais), ...(checkpoint ? { checkpoint } : {}) });
     } finally {
