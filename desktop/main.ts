@@ -51,7 +51,7 @@ import { cabeAprovacao, criarElevador, depsReaisDoElevador } from "./elevar-mac.
 import { ambienteDoBinarioDoNod, ativarPrefixo, candidatosDoNod, descartarPrefixo, escolherBinario, nomeDaVersao, pastasFerramentas, prefixoAtivo, prepararPrefixoNovo, type Candidato } from "./ferramentas.ts";
 import { criarVigiaDasIas, type Veredito, type VigiaDasIas } from "./vigia-ias.ts";
 import { criarFilaDeepLink, criarLogAdiado, criarReceptorDeepLink, deepLinkDoArgv } from "./deep-link.ts";
-import type { BarraDesktop, DecisoesBarraDesktop } from "../src/contracts/desktop-barra.ts";
+import type { BarraGuardadaDesktop, DecisoesBarraDesktop } from "../src/contracts/desktop-barra.ts";
 import { barraDoPedido, criarFilaDeGravacao, decisoesComPedido, lerAviso, lerContador, lerDecisoesBarra, lerPreferencias, respostaSincrona, lerTemaDesktop, opcoesDoAviso, origemDe, remetenteWebValido } from "./avisos-mac.ts";
 import { abreNoNavegador } from "./links-externos.ts";
 import { arquivoDaMidia } from "./midia-mac.ts";
@@ -226,7 +226,7 @@ function caminhoConfig() { return join(app.getPath("userData"), "conexao.enc"); 
 // A preferência mora em userData/preferencias.json: o localStorage da janela web é apagado a cada
 // conexão (clearStorageData abaixo). O aviso sai daqui, do processo principal — a página continua sem
 // permissão nenhuma (proteger) —, e só com a janela fora de foco.
-let preferencias: Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraDesktop | null; decisoesBarra: DecisoesBarraDesktop; atalhoQuickChat?: string | null; avataresNaMesa?: AvatarNaMesa[] } = { avisos: true, tema: "sistema", som: true, barra: null, decisoesBarra: {} };
+let preferencias: Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraGuardadaDesktop | null; decisoesBarra: DecisoesBarraDesktop; atalhoQuickChat?: string | null; avataresNaMesa?: AvatarNaMesa[] } = { avisos: true, tema: "sistema", som: true, barra: null, decisoesBarra: {} };
 /** ADR-173: o Quick Chat da conexão atual (recriado a cada conectar, destruído ao fechar a janela principal). */
 let quickChat: QuickChatApp | null = null;
 /** ADR-173: os avatares soltos na mesa, por bot (desktop/avatar-mesa.ts). Vivem com a conexão, como o Quick Chat. */
@@ -1622,7 +1622,7 @@ else {
       if (!lido) throw new Error("entrada_invalida");
       return definirTema(lido);
     });
-    // NOD-119: a densidade da barra. O preload pede o valor de forma síncrona e o repõe no localStorage antes da página
+    // NOD-119/ADR-179: a largura da barra. O preload pede o valor de forma síncrona e o repõe no localStorage antes da página
     // (apagado a cada conexão), para a barra abrir sem piscar. Remetente fora da janela web recebe null.
     ipcMain.on(CANAIS_DESKTOP.barraInicial, (e) => {
       e.returnValue = respostaSincrona(() => validarRemetenteWeb(e), () => preferencias.barra, null);

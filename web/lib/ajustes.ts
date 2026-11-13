@@ -36,7 +36,6 @@ export const NOME_DA_SECAO: Record<SecaoEspaco, string> = {
 
 export const AJUSTES: readonly Ajuste[] = [
   { id: "tema", secao: "geral", grupo: "Aparência", titulo: "Tema", frase: "Escolha o visual claro, escuro ou o mesmo do sistema", palavras: ["escuro", "claro", "dark", "aparência", "cor"] },
-  { id: "barra-lateral", secao: "geral", grupo: "Aparência", titulo: "Barra lateral", frase: "Escolha o tamanho da barra; com ⌘B ela fica só com os avatares", palavras: ["compacta", "densidade", "sidebar", "avatares"] },
   { id: "balao-cor", secao: "geral", grupo: "Aparência", titulo: "Cor do bot nos balões", frase: "Pinte as suas mensagens com a cor do bot da conversa, ou deixe em preto", palavras: ["acento", "accent", "balão", "cor"] },
   { id: "avisos", secao: "geral", grupo: "Avisos", titulo: "Avisar quando algo precisar de você", frase: "Receba um aviso quando um bot pedir uma decisão ou uma resposta", palavras: ["notificação", "notificações", "dock"] },
   { id: "som-mensagem", secao: "geral", grupo: "Sons", titulo: "Som de mensagem", frase: "Toque um som curto quando um bot responder", palavras: ["som", "áudio", "barulho", "mensagem"] },

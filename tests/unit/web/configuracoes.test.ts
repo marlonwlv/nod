@@ -11,19 +11,17 @@ import { htmlMenuConta } from "../../../web/telas/menu-conta.ts";
 const ler = (f: string): string => readFileSync(new URL(`../../../web/${f}`, import.meta.url), "utf8");
 
 describe("menu do avatar (critério 1)", () => {
-  const base = { faixa: null, conexao: "Conectada", quem: { nome: "Ana Lima", email: "ana@x.com" }, conta: { email: "ana@x.com", senha: true } };
+  const base = { faixa: null, conexao: "Conectada", conta: { email: "ana@x.com", senha: true } };
 
-  it("identificação (só texto), Provedores, Configurações, Agentes, Enviar feedback, Ajuda, divisória e Sair, nesta ordem", () => {
+  it("spec do item 2: Provedores de IA, Agentes, Suporte, Configurações, divisória e Sair, nesta ordem, sem o bloco de quem está logado", () => {
     const h = htmlMenuConta(base);
-    const ordem = ["mc-quem", 'data-secao="conexao"', 'data-secao="geral"', 'data-secao="agentes"', 'data-secao="feedback"', 'data-secao="ajuda"', "<hr>", 'data-conta="sair"'];
-    const pos = ordem.map((t) => h.lastIndexOf(t));
+    const ordem = ['data-sub="provedores"', 'data-secao="agentes"', 'data-sub="suporte"', 'data-secao="geral"', "<hr>", 'data-conta="sair"'];
+    const pos = ordem.map((t) => h.indexOf(t));
     for (const p of pos) expect(p).toBeGreaterThan(-1);
     expect([...pos].sort((a, b) => a - b)).toEqual(pos);
-    // A identificação fica fora do role=menu e não é um item.
-    expect(h.indexOf("mc-quem")).toBeLessThan(h.indexOf('role="menu"'));
-    expect(h).toContain('aria-label="Menu da conta de Ana Lima"');
-    expect(h).toContain("Ana Lima");
-    expect(h).toContain("ana@x.com");
+    // O nome já está no rodapé: o menu não repete quem está logado.
+    expect(h).not.toContain("mc-quem");
+    expect(h).toContain('role="menu" aria-label="Conta"');
   });
 
   it("sem fileira de interruptores nem ação de conta além de Sair", () => {
@@ -50,12 +48,8 @@ describe("menu do avatar (critério 1)", () => {
     expect(htmlMenuConta(base)).not.toContain("mc-faixa-");
   });
 
-  it("sem contas no servidor, sem Sair; sem nome, a identificação é o e-mail", () => {
+  it("sem contas no servidor, sem Sair", () => {
     expect(htmlMenuConta({ faixa: null, conexao: "Conectada" })).not.toContain("data-conta");
-    expect(htmlMenuConta({ faixa: null, conexao: "Conectada" })).not.toContain("mc-quem");
-    const soEmail = htmlMenuConta({ ...base, quem: { nome: null, email: "ana@x.com" } });
-    expect(soEmail).toContain("<b>ana@x.com</b>");
-    expect(soEmail).toContain('aria-label="Menu da conta"');
   });
 });
 
@@ -198,7 +192,7 @@ describe("Geral (critérios 4 e 5)", () => {
     // O contexto real chega ao atalho: Seu espaço, ditado e diálogo.
     const ctx = main.slice(novos, main.indexOf("});", novos));
     for (const c of ["SELETOR_CAMPO", "SELETOR_MODAL", "espaco: !!estado.espaco", "ditando: ditado.ativo()", "telaOnboarding.cobre()"]) expect(ctx, c).toContain(c);
-    expect(main).toMatch(/aria-keyshortcuts="\$\{ATALHO_NOVO_BOT\.aria\} Shift\+Enter Shift\+Space" title="Nova conversa \(\$\{ATALHO_NOVO_BOT\.texto\}\)"/);
+    expect(main).toMatch(/aria-keyshortcuts="\$\{ATALHO_NOVO_BOT\.aria\} Shift\+Enter Shift\+Space" title="Novo bot \(\$\{ATALHO_NOVO_BOT\.texto\}\) · segure para criar na hora"/);
   });
 
   it("toda ação de Geral e de Conta tem tratador no main.ts", () => {

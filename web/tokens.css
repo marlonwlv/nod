@@ -11,8 +11,11 @@
      Receita: texto 100/68/64/40 % (claro) e 100/66/54/38 % (escuro); linha 12 %, linha de controle 52 %/45 % (3:1),
      hover 6 %, ativo 9 %. O texto terciário sobe de 56 % (referência) para 64 % no claro: com 56 % ele ficava em 3,9:1.
    - fonte do sistema (SF Pro no Mac) no lugar da Geist; escala fechada de 7 tamanhos com corpo 14 (--fs-*, --lh-*);
-   - raios em escala (--raio-*), cinco níveis de sombra (--sombra-*); no escuro não há sombra: o relevo vem de uma borda
-     clara sutil (o "especular", branco a 8–12 %) e de superfícies mais claras;
+   - raios em escala (--raio-*), cinco níveis de sombra (--sombra-*); no escuro não há sombra nenhuma, menos a do campo
+     de mensagem (--sombra-campo): o relevo vem só da superfície mais clara (#1f1f1f sobre #121212);
+   - COP-12 (tema escuro fiel): texto, ícone, hover, selecionado e bordas viram a tinta com alfa (#1c1c1c no claro,
+     #f5f5f5 no escuro), sem achatar; o chat é #fcfcfc | #121212, a barra #f5f5f5 | #0e0e0e e o elevado #fff | #1f1f1f.
+     O balão da pessoa no escuro é #f5f5f52e achatado sobre o chat (#3b3b3b), para o contraste continuar calculável;
    - movimento nomeado (--dur-*, --curva*) e o shimmer de carregando (web/ds.css).
    Independentes de framework: são só variáveis CSS e valem para qualquer camada de tela.
 
@@ -34,7 +37,7 @@
   color-scheme: light;
 
   /* Superfícies, da mais funda à selecionada */
-  --surface: #ffffff;
+  --surface: #fcfcfc;
   --surface-side: #f5f5f5;
   --surface-raised: #f1f1f1;
   --surface-selected: #ebebeb;
@@ -45,8 +48,8 @@
 
   /* Texto */
   --ink: #1c1c1c;
-  --ink-2: #656565;
-  --ink-3: #6e6e6e;
+  --ink-2: #1c1c1cad;
+  --ink-3: #1c1c1c8f;
 
   /* Ação e sinal */
   --action: #1c1c1c;
@@ -134,9 +137,9 @@
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Sombra só no que flutua (menus, popovers, gavetas, diálogos); cards separam por line */
-  --shadow-pop: 0 10px 20px -3px rgba(28, 28, 28, .10), 0 4px 6px -4px rgba(28, 28, 28, .10), 0 0 0 1px rgba(28, 28, 28, .05);
+  --shadow-pop: 0 10px 20px -3px #1c1c1c1a, 0 4px 6px -4px #1c1c1c1a, 0 0 0 1px #1c1c1c01;
   /* O campo da conversa (plano "tela limpa", 2026-10-16): borda fina e uma sombra mais leve que a do que flutua */
-  --shadow-composer: 0 4px 12px -1px rgba(28, 28, 28, .08), 0 2px 4px -2px rgba(28, 28, 28, .06), 0 0 0 1px rgba(28, 28, 28, .04);
+  --shadow-composer: var(--sombra-campo);
   /* Extensões do app, fora do tokens.json: o botão das chaves e do segmentado, e o fundo atrás de diálogos */
   --shadow-knob: 0 1px 3px 0 rgba(28, 28, 28, .2);
   --backdrop: rgba(0, 0, 0, .32);
@@ -150,18 +153,18 @@
   /* ADR-167: a base e o que sai dela por opacidade (translúcidos: valem sobre qualquer fundo) */
   --base: #1c1c1c;
   --base-hover: #363636;
-  --ink-4: #a4a4a4;
-  --hover: color-mix(in srgb, var(--base) 6%, transparent);
-  --ativo: color-mix(in srgb, var(--base) 9%, transparent);
-  --borda-forte: color-mix(in srgb, var(--base) 24%, transparent);
-  --borda: color-mix(in srgb, var(--base) 12%, transparent);
-  --borda-sutil: color-mix(in srgb, var(--base) 8%, transparent);
-  --divisoria: color-mix(in srgb, var(--base) 6%, transparent);
+  --ink-4: #1c1c1c66;
+  --hover: #1c1c1c0f;
+  --ativo: #1c1c1c14;
+  --borda-forte: #1c1c1c3d;
+  --borda: #1c1c1c1f;
+  --borda-sutil: #1c1c1c14;
+  --divisoria: #1c1c1c0f;
   --surface-elevated: #ffffff;
   /* ADR-167 (Paper): o fundo do painel do bot, um tom acima da conversa. */
-  --surface-chrome: #fcfcfc;
+  --surface-chrome: #ffffff;
   /* ADR-167 (Paper 07/08): o véu do modal (Configurações, criar bot) e o da paleta ⌘K, mais leve. */
-  --veu-modal: rgba(0, 0, 0, .5);
+  --veu-modal: #00000080;
   --veu-paleta: rgba(0, 0, 0, .22);
   /* O "precisa de você" da barra (Aguardando você, telas 16/16b): laranja, texto 4,5:1 sobre a barra. */
   --aguardando: #aa6300;
@@ -174,29 +177,58 @@
   --balao-pessoa: #1c1c1c;
   --balao-pessoa-tinta: #ffffff;
   --balao-pessoa-codigo: #363636;
-  /* Cinco níveis de sombra (só no claro; no escuro viram a borda clara sutil) */
+  /* Cinco níveis de sombra (só no claro; no escuro zeram) */
   --sombra-controle: 0 1px 3px 0 rgba(28, 28, 28, .12);
-  --sombra-inline: 0 4px 12px -1px rgba(28, 28, 28, .08), 0 2px 4px -2px rgba(28, 28, 28, .06), 0 0 0 1px rgba(28, 28, 28, .04);
-  --sombra-popover: 0 10px 20px -3px rgba(28, 28, 28, .10), 0 4px 6px -4px rgba(28, 28, 28, .10), 0 0 0 1px rgba(28, 28, 28, .05);
-  --sombra-modal: 0 20px 32px -5px rgba(28, 28, 28, .10), 0 8px 12px -6px rgba(28, 28, 28, .10), 0 0 0 1px rgba(28, 28, 28, .05);
+  --sombra-inline: 0 4px 12px -1px #1c1c1c14, 0 2px 4px -2px #1c1c1c0f, 0 0 0 1px #1c1c1c01;
+  --sombra-popover: var(--sombra-menu);
+  --sombra-modal: 0 20px 32px -5px #1c1c1c1a, 0 8px 12px -6px #1c1c1c1a, 0 0 0 1px #1c1c1c01;
   --sombra-janela: 0 22px 70px 4px rgba(28, 28, 28, .56), 0 0 0 .5px rgba(28, 28, 28, .10);
   /* O brilho do shimmer de carregando (web/ds.css) */
   --shimmer-fundo: var(--ink-3);
   --shimmer-brilho: var(--ink);
+
+  /* COP-12 (tema escuro fiel): uma tinta só com alfa sobre três fundos. Os que não tinham equivalente. */
+  --surface-dialogo-cfg: #fcfcfc;
+  --surface-criar-bot: #ffffff;
+  --menu-realce: #f1f1f1;
+  --menu-submenu-aberto: #f6f6f6;
+  --icone-1: #1c1c1ceb;
+  --icone-2: #1c1c1ca8;
+  --icone-3: #1c1c1c85;
+  --link: #0b6dd3;
+  --acento: #1680f3;
+  --acento-hover: #126fd4;
+  --balao-bot: #1c1c1c0f;
+  --balao-bot-tinta: #1c1c1c;
+  --codigo-inline-fundo: #1c1c1c0a;
+  --codigo-inline-tinta: #1c1c1cad;
+  --campo-borda: #1c1c1c29;
+  --campo-borda-foco: #1c1c1c3d;
+  --separador-menu: #1c1c1c1f;
+  --scrim: #00000080;
+  --sombra-menu: 0 10px 20px -3px #1c1c1c1a, 0 4px 6px -4px #1c1c1c1a, 0 0 0 1px #1c1c1c01;
+  --sombra-pilula: 0 4px 12px -1px #1c1c1c14, 0 2px 4px -2px #1c1c1c0f, 0 0 0 1px #1c1c1c01;
+  --sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008, 0 0 0 1px #e4e4e40a;
+  /* O cartão da pergunta de boas-vindas (spec do botão +, tela 5): a sombra leve embaixo do anel (a borda); no escuro, só o anel. */
+  --sombra-cartao: 0 2px 8px #1c1c1c09;
+  --brilho-balao: inset 0 .5px 0 #ffffff29, inset 0 -.5px 0 #ffffff29, inset 0 0 0 .5px #1c1c1c0f;
+  /* O avatar de bot preto (skin encre): no escuro inverte, corpo claro e olhos escuros (web/ds.css). */
+  --mascote-preto: #0a0a0c;
+  --mascote-preto-olho: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --surface: #161616;
+    --surface: #121212;
     --surface-side: #0e0e0e;
     --surface-raised: #232323;
     --surface-selected: #2a2a2a;
     --line: #2c2c2c;
     --line-strong: #7a7a7a;
     --ink: #f5f5f5;
-    --ink-2: #a9a9a9;
-    --ink-3: #8e8e8e;
+    --ink-2: #f5f5f5a8;
+    --ink-3: #f5f5f58a;
     --action: #f5f5f5;
     --on-action: #161616;
     --signal: #4ea3f0;
@@ -220,9 +252,9 @@
     --success: #4cc38a;
     --success-soft: #132a1e;
     --on-status: #131315;
-    --shadow-pop: 0 0 0 .5px rgba(255, 255, 255, .12);
-    --shadow-composer: 0 0 0 .5px rgba(255, 255, 255, .12);
-    --shadow-knob: 0 0 0 .5px rgba(255, 255, 255, .14);
+    --shadow-pop: none;
+    --shadow-composer: var(--sombra-campo);
+    --shadow-knob: none;
     --backdrop: rgba(0, 0, 0, .7);
     --arquivo-planilha: #3fb874;
     --arquivo-documento: #5b93ef;
@@ -234,47 +266,72 @@
 
     --base: #f5f5f5;
     --base-hover: #dbdbdb;
-    --ink-4: #6b6b6b;
-    --hover: color-mix(in srgb, var(--base) 6%, transparent);
-    --ativo: color-mix(in srgb, var(--base) 9%, transparent);
-    --borda-forte: color-mix(in srgb, var(--base) 22%, transparent);
-    --borda: color-mix(in srgb, var(--base) 10%, transparent);
-    --borda-sutil: color-mix(in srgb, var(--base) 6%, transparent);
-    --divisoria: color-mix(in srgb, var(--base) 4%, transparent);
+    --ink-4: #f5f5f561;
+    --hover: #f5f5f50f;
+    --ativo: #f5f5f514;
+    --borda-forte: #f5f5f538;
+    --borda: #f5f5f51a;
+    --borda-sutil: #f5f5f50f;
+    --divisoria: #f5f5f50a;
     --surface-elevated: #1f1f1f;
-    --surface-chrome: #121212;
-    --veu-modal: rgba(0, 0, 0, .7);
+    --surface-chrome: #161616;
+    --veu-modal: #000000b2;
     --veu-paleta: rgba(0, 0, 0, .5);
     --aguardando: #e28600;
     --aguardando-ponto: #c8770c;
     --aguardando-soft: #2a1f12;
     --pronto: #0e9f5a;
     --pronto-tinta: #00ba69;
-    --balao-pessoa: #3a3a3a;
+    --balao-pessoa: #3b3b3b;
     --balao-pessoa-tinta: #f5f5f5;
     --balao-pessoa-codigo: #4a4a4a;
-    --sombra-controle: 0 0 0 .5px rgba(255, 255, 255, .10);
-    --sombra-inline: 0 0 0 .5px rgba(255, 255, 255, .12);
-    --sombra-popover: 0 0 0 .5px rgba(255, 255, 255, .12);
-    --sombra-modal: 0 0 0 .5px rgba(255, 255, 255, .12);
-    --sombra-janela: 0 0 0 .5px rgba(255, 255, 255, .14);
+    --sombra-controle: none;
+    --sombra-inline: none;
+    --sombra-popover: none;
+    --sombra-modal: none;
+    --sombra-janela: none;
     --shimmer-fundo: var(--ink-3);
     --shimmer-brilho: var(--ink);
+    --surface-dialogo-cfg: #121212;
+    --surface-criar-bot: #1f1f1f;
+    --menu-realce: #2c2c2c;
+    --menu-submenu-aberto: #262626;
+    --icone-1: #f5f5f5e6;
+    --icone-2: #f5f5f5a3;
+    --icone-3: #f5f5f580;
+    --link: #4d9bff;
+    --acento: #116dd2;
+    --acento-hover: #1784fb;
+    --balao-bot: #f5f5f50a;
+    --balao-bot-tinta: #f5f5f5;
+    --codigo-inline-fundo: #f5f5f505;
+    --codigo-inline-tinta: #f5f5f5a8;
+    --campo-borda: #f5f5f524;
+    --campo-borda-foco: #f5f5f538;
+    --separador-menu: #f5f5f51a;
+    --scrim: #000000b2;
+    --sombra-menu: none;
+    --sombra-pilula: none;
+    --sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008, 0 0 0 1px #e4e4e40a;
+    --sombra-cartao: none;
+    --brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
+    --mascote-preto: #f5f5f5;
+    --mascote-preto-olho: #121212;
   }
 }
 
 /* Mesmos valores do bloco acima: a escolha manual vence o sistema nos dois sentidos. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --surface: #161616;
+  --surface: #121212;
   --surface-side: #0e0e0e;
   --surface-raised: #232323;
   --surface-selected: #2a2a2a;
   --line: #2c2c2c;
   --line-strong: #7a7a7a;
   --ink: #f5f5f5;
-  --ink-2: #a9a9a9;
-  --ink-3: #8e8e8e;
+  --ink-2: #f5f5f5a8;
+  --ink-3: #f5f5f58a;
   --action: #f5f5f5;
   --on-action: #161616;
   --signal: #4ea3f0;
@@ -298,9 +355,9 @@
   --success: #4cc38a;
   --success-soft: #132a1e;
   --on-status: #131315;
-  --shadow-pop: 0 0 0 .5px rgba(255, 255, 255, .12);
-  --shadow-composer: 0 0 0 .5px rgba(255, 255, 255, .12);
-  --shadow-knob: 0 0 0 .5px rgba(255, 255, 255, .14);
+  --shadow-pop: none;
+  --shadow-composer: var(--sombra-campo);
+  --shadow-knob: none;
   --backdrop: rgba(0, 0, 0, .7);
   --arquivo-planilha: #3fb874;
   --arquivo-documento: #5b93ef;
@@ -312,32 +369,57 @@
 
   --base: #f5f5f5;
   --base-hover: #dbdbdb;
-  --ink-4: #6b6b6b;
-  --hover: color-mix(in srgb, var(--base) 6%, transparent);
-  --ativo: color-mix(in srgb, var(--base) 9%, transparent);
-  --borda-forte: color-mix(in srgb, var(--base) 22%, transparent);
-  --borda: color-mix(in srgb, var(--base) 10%, transparent);
-  --borda-sutil: color-mix(in srgb, var(--base) 6%, transparent);
-  --divisoria: color-mix(in srgb, var(--base) 4%, transparent);
+  --ink-4: #f5f5f561;
+  --hover: #f5f5f50f;
+  --ativo: #f5f5f514;
+  --borda-forte: #f5f5f538;
+  --borda: #f5f5f51a;
+  --borda-sutil: #f5f5f50f;
+  --divisoria: #f5f5f50a;
   --surface-elevated: #1f1f1f;
-  --surface-chrome: #121212;
-  --veu-modal: rgba(0, 0, 0, .7);
+  --surface-chrome: #161616;
+  --veu-modal: #000000b2;
   --veu-paleta: rgba(0, 0, 0, .5);
   --aguardando: #e28600;
   --aguardando-ponto: #c8770c;
   --aguardando-soft: #2a1f12;
   --pronto: #0e9f5a;
   --pronto-tinta: #00ba69;
-  --balao-pessoa: #3a3a3a;
+  --balao-pessoa: #3b3b3b;
   --balao-pessoa-tinta: #f5f5f5;
   --balao-pessoa-codigo: #4a4a4a;
-  --sombra-controle: 0 0 0 .5px rgba(255, 255, 255, .10);
-  --sombra-inline: 0 0 0 .5px rgba(255, 255, 255, .12);
-  --sombra-popover: 0 0 0 .5px rgba(255, 255, 255, .12);
-  --sombra-modal: 0 0 0 .5px rgba(255, 255, 255, .12);
-  --sombra-janela: 0 0 0 .5px rgba(255, 255, 255, .14);
+  --sombra-controle: none;
+  --sombra-inline: none;
+  --sombra-popover: none;
+  --sombra-modal: none;
+  --sombra-janela: none;
   --shimmer-fundo: var(--ink-3);
   --shimmer-brilho: var(--ink);
+  --surface-dialogo-cfg: #121212;
+  --surface-criar-bot: #1f1f1f;
+  --menu-realce: #2c2c2c;
+  --menu-submenu-aberto: #262626;
+  --icone-1: #f5f5f5e6;
+  --icone-2: #f5f5f5a3;
+  --icone-3: #f5f5f580;
+  --link: #4d9bff;
+  --acento: #116dd2;
+  --acento-hover: #1784fb;
+  --balao-bot: #f5f5f50a;
+  --balao-bot-tinta: #f5f5f5;
+  --codigo-inline-fundo: #f5f5f505;
+  --codigo-inline-tinta: #f5f5f5a8;
+  --campo-borda: #f5f5f524;
+  --campo-borda-foco: #f5f5f538;
+  --separador-menu: #f5f5f51a;
+  --scrim: #000000b2;
+  --sombra-menu: none;
+  --sombra-pilula: none;
+  --sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008, 0 0 0 1px #e4e4e40a;
+  --sombra-cartao: none;
+  --brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
+  --mascote-preto: #f5f5f5;
+  --mascote-preto-olho: #121212;
 }
 
 /* =====================================================================================

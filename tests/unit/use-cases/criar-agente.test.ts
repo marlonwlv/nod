@@ -3,6 +3,7 @@ import { criarAgente, NOME_INICIAL } from "../../../src/use-cases/criar-agente.t
 import { editarPerfil } from "../../../src/use-cases/editar-perfil.ts";
 import { fixarAgente, ocultarAgente } from "../../../src/use-cases/fixar-ocultar-agente.ts";
 import { listarFrota } from "../../../src/use-cases/listar-frota.ts";
+import { saudacaoDeBoasVindas } from "../../../src/domain/boas-vindas.ts";
 import { depsEmMemoria, esperarErro, executar } from "../../helpers/deps-l6.ts";
 
 describe("criarAgente (E1.1/E1.2/E1.3, EMENDA 17)", () => {
@@ -90,10 +91,46 @@ it("criação rápida persiste nome distinto e boas-vindas do bot sem gastar tur
   expect(a.agente.nome).toBe("Frida");
   expect(b.agente.nome).toBe("Nina");
   expect(a.agente.confirmado).toBe(false);
-  expect(a.mensagem).toMatchObject({ kind: "texto", payload: { kind: "boas_vindas" }, autoria: { autor_tipo: "agente", autor_id: a.agente.id } });
-  expect(a.mensagem.texto).toContain("Para que você quer minha ajuda?");
+  expect(a.mensagem).toMatchObject({ kind: "texto", payload: { kind: "boas_vindas", pergunta: "Para que você quer minha ajuda?" }, autoria: { autor_tipo: "agente", autor_id: a.agente.id } });
+  // Sem a pessoa no banco, a saudação fica sem nome; a pergunta mora no cartão, não no balão.
+  expect(a.mensagem.texto).toBe("Oi! Eu sou Frida. Acabamos de nos conhecer.");
   expect(banco.turnos).toHaveLength(0);
   expect(banco.concessoes).toHaveLength(0);
+});
+
+describe("boas-vindas do bot interativo (spec do botão +, tela 5)", () => {
+  it("a saudação leva o primeiro nome da pessoa; o payload traz a pergunta e as opções A, B e C", async () => {
+    const { deps, banco } = depsEmMemoria();
+    banco.pessoas.push({ tenantId: deps.escopo.tenantId, id: deps.escopo.pessoaId, nome: "Ana Souza", iniciais: "AS", email: null });
+    const { mensagem } = (await criarAgente(deps, { dono: "pessoa", interativo: true, nome: "Bia", forma: "shape-star", cor: "c-teal" })).data;
+    expect(mensagem.texto).toBe("Oi, Ana! Eu sou Bia. Acabamos de nos conhecer.");
+    expect(mensagem.payload).toEqual({ kind: "boas_vindas", pergunta: "Para que você quer minha ajuda?", opcoes: [
+      { rotulo: "Tarefas do dia a dia", texto: "Quero ajuda com tarefas do dia a dia: lembretes e organização." },
+      { rotulo: "Trabalho e projetos", texto: "Quero ajuda com meu trabalho e projetos." },
+      { rotulo: "Pesquisa e ideias", texto: "Quero ajuda com pesquisa e desenvolvimento de ideias." },
+    ] });
+  });
+
+  it("a prévia da barra mostra a pergunta enquanto a boas-vindas é a última fala", async () => {
+    const { deps } = depsEmMemoria();
+    const { agente } = (await criarAgente(deps, { dono: "pessoa", interativo: true })).data;
+    const linha = (await listarFrota(deps, {})).data.agentes.find((a) => a.id === agente.id);
+    expect(linha?.ultimaMensagem?.previa).toBe("Para que você quer minha ajuda?");
+  });
+
+  it("o bot criado sem interativo não pergunta nada (a fala de sistema de sempre)", async () => {
+    const { deps } = depsEmMemoria();
+    const { mensagem } = (await criarAgente(deps, { dono: "pessoa" })).data;
+    expect(mensagem.payload).toBeNull();
+  });
+});
+
+describe("saudacaoDeBoasVindas", () => {
+  it("só o primeiro nome; nome vazio ou ausente vira \"Oi!\"", () => {
+    expect(saudacaoDeBoasVindas("  Ana Maria Souza ", "Gil")).toBe("Oi, Ana! Eu sou Gil. Acabamos de nos conhecer.");
+    expect(saudacaoDeBoasVindas("", "Gil")).toBe("Oi! Eu sou Gil. Acabamos de nos conhecer.");
+    expect(saudacaoDeBoasVindas(null, "Gil")).toBe("Oi! Eu sou Gil. Acabamos de nos conhecer.");
+  });
 });
 
  it("modelo explícito é preservado; trocar para Sonnet limpa a sessão antiga sem apagar mensagens", async () => {

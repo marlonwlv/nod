@@ -35,6 +35,7 @@ import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../li
 import { htmlAvisoForaDoArRegistrado, htmlFio, htmlLinhaDoChat, htmlPedidoDeTela } from "../lib/computador-pessoa.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
+import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
 import { linhaNaoRodaram } from "../lib/execucao.ts";
 import { chaveDoItem, estadoDaPergunta } from "../lib/perguntas.ts";
 import { acoesComAcesso, vaiPoder } from "./rotina-precisa.ts";
@@ -1653,12 +1654,9 @@ export function inicioDaTrava(t: TurnoVivo, agora: number): number | undefined {
 export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTimeline[] {
   const sala = c.conversa.tipo === "sala";
   const agente = c.conversa.agenteId ? agenteDe(estado, c.conversa.agenteId) : undefined;
-  const acolhimento = agente && !agente.confirmado && c.mensagens.some((m) => m.payload?.kind === "boas_vindas") && !c.mensagens.some((m) => m.kind === "texto" && m.autoria.autor_tipo === "pessoa") ? `<section class="welcome-options"><h2>Por onde começamos?</h2><p>Escolha uma ideia ou escreva no chat.</p>${[
-    ["Tarefas do dia a dia", "Lembretes, organização e acompanhamento", "Quero ajuda com tarefas do dia a dia: lembretes e organização."],
-    ["Trabalho e projetos", "Prioridades, equipe, Slack e código", "Quero ajuda com meu trabalho e projetos."],
-    ["Pesquisa e ideias", "Explorar assuntos e encontrar respostas", "Quero ajuda com pesquisa e desenvolvimento de ideias."],
-    ["Ainda não sei", "Vamos descobrir juntos", "Ainda não sei. Me ajude a descobrir como você pode ser útil."],
-  ].map(([titulo, descricao, texto], i) => botao("escolher-missao", `<span class="option-key">${String.fromCharCode(65 + i)}</span><span><b>${titulo}</b><small>${descricao}</small></span><span>↗</span>`, { classe: "welcome-option", dados: { texto: texto ?? "" } })).join("")}</section>` : "";
+  // Spec do botão + (tela 5): o cartão "Para que você quer minha ajuda?" até a pessoa responder (web/telas/boas-vindas.ts).
+  const boasVindas = agente && faseDasBoasVindas(c, { recemCriado: false, confirmado: agente.confirmado }) === "pergunta" ? c.mensagens.find((m) => m.payload?.kind === "boas_vindas") : undefined;
+  const acolhimento = boasVindas?.payload?.kind === "boas_vindas" ? cartaoDeBoasVindas(boasVindas.payload, boasVindas.id) : "";
   // definido em 2026-09-24: a proposta de um pedido dobrado no "×N" não vira card próprio — sem a
   // decisão aberta ela cairia no card de revisão; o card do grupo (o mais antigo) decide por todas.
   const gemeas = idsGemeas(estado);

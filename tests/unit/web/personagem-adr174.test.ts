@@ -7,7 +7,7 @@ import { FORMAS_BLOUB } from "../../../web/lib/mascote-catalogo.ts";
 import { BotEngine } from "../../../web/vendor/bloub/engine.ts";
 import { ErroDoPreparo, marcar, novoPreparo, porcentoDe, rodarPreparo, subtituloDoPreparo, tique, type EstadoPreparo } from "../../../web/lib/preparo.ts";
 import { APPS, PASSOS, andar, apresentacaoInicial, emailDoGoogle, htmlApresentacao, passoAtual, personagemDoPasso } from "../../../web/telas/apresentacao.ts";
-import { estadoDoPreparo, etapasDoBot, htmlFormCriarBot, htmlPreparo, htmlSeletorCor, htmlSeletorForma } from "../../../web/telas/criar-bot.ts";
+import { estadoDoPreparo, etapasDoBot, htmlDialogoCriarBot, htmlPreparo, htmlSeletorCor, htmlSeletorForma } from "../../../web/telas/criar-bot.ts";
 import type { FrotaDto } from "../../../src/contracts/api.ts";
 
 /** ADR-174: o personagem do nod — estados, formas, cores, preparo com %, onboarding em 10 passos. */
@@ -137,12 +137,12 @@ describe("preparo com %", () => {
     expect(log).toEqual(["criar Lia", "vestir a1 shape-heart c-magenta"]);
   });
 
-  it("o formulário tem nome, 8 formas, 12 cores (tela 09 do Paper), Cancelar e Criar", () => {
-    const html = htmlFormCriarBot({ nome: "Lia", forma: "shape-pebble", cor: "c-teal" });
+  it("o diálogo tem nome, 8 formas, 12 cores (tela 09 do Paper), Cancelar e Criar", () => {
+    const html = htmlDialogoCriarBot({ nome: "Lia", forma: "shape-pebble", cor: "c-teal" });
     expect(html).toContain("Criar novo bot");
     expect(html).toContain('value="Lia"');
-    expect(html.match(/class="cb-forma"/g)).toHaveLength(8);
-    expect(html.match(/class="cb-cor"/g)).toHaveLength(12);
+    expect(html.match(/class="cnb-forma"/g)).toHaveLength(8);
+    expect(html.match(/class="cnb-cor"/g)).toHaveLength(12);
     expect(html).toContain(">Cancelar<");
     expect(html).toContain(">Criar<");
   });

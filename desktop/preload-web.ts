@@ -52,12 +52,15 @@ const midia: PonteMidia = {
   existe: (caminhoRelativo: string) => ipcRenderer.invoke(CANAIS_MIDIA.existe, caminhoRelativo),
   mostrarNoFinder: (caminhoRelativo: string) => ipcRenderer.invoke(CANAIS_MIDIA.mostrarNoFinder, caminhoRelativo),
 };
-// NOD-119: o localStorage da janela web é apagado a cada conexão; a densidade da barra volta dele antes do script inline
-// do index.html (mesma chave de web/lib/densidade.ts), senão a barra abriria larga e depois encolheria.
+// NOD-119/ADR-179: o localStorage da janela web é apagado a cada conexão; a largura da barra volta dele antes do script
+// inline do index.html (mesmas chaves de web/lib/densidade.ts), senão a barra abriria em 340 e depois mudaria. O valor
+// antigo (densidades) volta na chave antiga, e a web o migra uma vez; o processo principal já validou os dois.
 try {
   const barra: unknown = ipcRenderer.sendSync(CANAIS_DESKTOP.barraInicial);
+  localStorage.removeItem("nod.barra.largura");
+  localStorage.removeItem("nod.densidade");
   if (typeof barra === "string") localStorage.setItem("nod.densidade", barra);
-  else localStorage.removeItem("nod.densidade");
+  else if (typeof barra === "object" && barra !== null) localStorage.setItem("nod.barra.largura", JSON.stringify(barra));
 } catch {
   // sem preferência ou sem armazenamento: a barra abre no padrão
 }
@@ -79,7 +82,7 @@ const ponte: NodDesktop = {
   definirTema: (tema: TemaDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.definirTema, tema),
   // NOD-196: o som dos avisos; o processo principal valida o booleano.
   definirSom: (ligado: boolean) => ipcRenderer.invoke(CANAIS_DESKTOP.definirSom, ligado),
-  // NOD-119: a densidade da barra lateral; o processo principal valida o valor.
+  // NOD-119/ADR-179: a largura da barra lateral; o processo principal valida o valor.
   definirBarra: (barra: BarraDesktop | null) => ipcRenderer.invoke(CANAIS_DESKTOP.definirBarra, barra),
   definirDecisaoBarra: (mensagemId: string, decisao: DecisaoBarraDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.definirDecisaoBarra, mensagemId, decisao),
   // Modo ligação (definido em 2026-10-04, ADR-071): o acesso do macOS ao microfone e o aviso de ligação aberta.

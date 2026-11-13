@@ -239,7 +239,7 @@
      No celular a barra fica dentro da coluna; sem isto o balão encolhia para 150 px em 390 px e o Ouvir e a dica saíam da tela. */
   .message.bot.ouvivel .bubble-wrap { max-width: calc(100% - 36px); }
   .bubble { font-size: 15px; }
-  .msg-handoff, .msg-peer, .msg-rotina, .msg-consentimento, .connection-card, .card-pasta, .welcome-options,
+  .msg-handoff, .msg-peer, .msg-rotina, .msg-consentimento, .connection-card, .card-pasta, .bv-cartao,
   .liberar-card { margin-left: 0; max-width: 100%; }
   .bubble pre, .msg-peer pre { max-width: 100%; }
   /* As ações da fala (reagir, responder, reportar e ⋯; ADR-113) só aparecem depois de um toque nela (web/lib/gaveta-bots.ts),

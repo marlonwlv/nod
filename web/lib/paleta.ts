@@ -42,10 +42,10 @@ export type IdAcaoPaleta =
 
 /** As ações da paleta. `teclas` é preenchido por quem monta (o modificador muda com o lugar, web/lib/atalhos.ts). */
 export const ACOES_DA_PALETA: readonly { id: IdAcaoPaleta; titulo: string; icone: ItemPaleta["icone"]; tecla?: readonly string[]; palavras?: readonly string[] }[] = [
-  { id: "novo-bot", titulo: "Novo bot", icone: "mais", tecla: ["N"], palavras: ["criar", "nova conversa"] },
+  { id: "novo-bot", titulo: "Novo bot", icone: "mais", tecla: ["N"], palavras: ["criar", "criar bot", "nova conversa"] },
   { id: "pausar-rotinas", titulo: "Pausar todas as rotinas", icone: "relogio", palavras: ["parar", "rotinas", "agenda"] },
   { id: "quick-chat", titulo: "Abrir o Quick Chat", icone: "raio", palavras: ["janela", "rápido", "quick"] },
-  { id: "nova-sala", titulo: "Nova sala", icone: "sala", tecla: ["⇧", "N"], palavras: ["grupo", "conversa em grupo"] },
+  { id: "nova-sala", titulo: "Novo chat em grupo", icone: "sala", tecla: ["⇧", "N"], palavras: ["grupo", "conversa em grupo", "nova sala", "chat em grupo"] },
   { id: "trabalhos", titulo: "Ver os trabalhos em andamento", icone: "trabalhos", palavras: ["frentes", "aguardando"] },
   { id: "tarefas", titulo: "Ver as tarefas de todos os bots", icone: "trabalhos", palavras: ["tarefas", "quadros", "kanban"] },
   { id: "sua-vez", titulo: "Ver o que espera você", icone: "trabalhos", palavras: ["aprovações", "pedidos", "sua vez", "aguardando"] },

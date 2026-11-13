@@ -38,7 +38,8 @@ export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, Fro
     const conversa = conversas.get(agente.id) ?? null;
     const ultima = conversa ? (ultimas.get(conversa.id) ?? null) : null;
     // definido em 2026-09-28 (ADR-051): o texto do artefato leva o id para o modelo; a prévia mostra só o título.
-    const previa = ultima ? previaDaMensagem(ultima.payload?.kind === "artefato" ? `▣ ${ultima.payload.titulo}` : ultima.texto) : null;
+    // Spec do botão + (tela 5): enquanto a boas-vindas é a última fala, a prévia é a pergunta do cartão, não a saudação.
+    const previa = ultima ? previaDaMensagem(ultima.payload?.kind === "artefato" ? `▣ ${ultima.payload.titulo}` : ultima.payload?.kind === "boas_vindas" && ultima.payload.pergunta ? ultima.payload.pergunta : ultima.texto) : null;
     return {
       ...agente,
       naoLido: conversa ? comNovas.has(conversa.id) : false,

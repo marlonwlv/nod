@@ -19,8 +19,8 @@
     <!-- ADR-167: o balão da pessoa na cor do bot é opção (web/lib/balao.ts, mesma chave); o padrão é o preto. -->
     <script>try { if (localStorage.getItem("nod.balao") === "cor") document.documentElement.dataset.balao = "cor"; } catch (e) {}</script>
     <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {}</script>
-    <!-- NOD-119: densidade e largura da barra (web/lib/densidade.ts, mesma chave, valores e consulta do celular): aplicadas antes do primeiro quadro, senão a barra abre larga e encolhe. -->
-    <script>try { var d = localStorage.getItem("nod.densidade"), px = { "compacta": 200, "compacta:recolhida": 56, "compacta:larga": 340, "confortavel:recolhida": 88 }; if (Object.prototype.hasOwnProperty.call(px, d) && !matchMedia("(hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px)").matches) { var h = document.documentElement, p = d.split(":"); h.dataset.densidade = p[0]; if (p[1]) h.dataset.largura = p[1]; h.style.setProperty("--largura-barra", px[d] + "px"); } } catch (e) {}</script>
+    <!-- ADR-179: a largura da barra (web/lib/densidade.ts: mesmas chaves, migração da chave antiga, limites e consulta do celular), aplicada antes do primeiro quadro, senão a barra abre em 340 e pula. -->
+    <script>try { var s = localStorage.getItem("nod.barra.largura"), a = localStorage.getItem("nod.densidade"), b = { l: 340, c: false }; if (s) { try { var o = JSON.parse(s); if (o && typeof o === "object" && typeof o.larguraExpandida === "number" && isFinite(o.larguraExpandida) && typeof o.compacta === "boolean") b = { l: o.larguraExpandida, c: o.compacta }; } catch (e) {} } else if (a === "compacta:recolhida" || a === "confortavel:recolhida") b.c = true; else if (a === "compacta") b.l = 240; if (!matchMedia("(hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px)").matches) { var h = document.documentElement, m = Math.max(240, Math.min(400, Math.floor(innerWidth - 424))); h.dataset.barra = b.c ? "compacta" : "expandida"; if (b.c) h.dataset.largura = "recolhida"; h.style.setProperty("--largura-barra", (b.c ? 88 : Math.min(m, Math.max(240, Math.round(b.l)))) + "px"); } } catch (e) {}</script>
     <link rel="stylesheet" href="/tokens.css" />
     <link rel="stylesheet" href="/estilos.css" />
     <link rel="stylesheet" href="/interface.css" />
@@ -50,6 +50,7 @@
     <link rel="stylesheet" href="/ds.css" />
     <!-- ADR-167: a casca igual ao Paper (barra, pílula, conversa, campo e painel), depois do design system. -->
     <link rel="stylesheet" href="/casca.css" />
+    <link rel="stylesheet" href="/menu-conta.css" />
     <link rel="stylesheet" href="/mobile.css" />
     <link rel="stylesheet" href="/celular-base.css" />
     <link rel="stylesheet" href="/tab-bar-celular.css" />
@@ -62,7 +63,7 @@
     <div id="anuncio-config" class="sr-only" role="status" aria-live="polite"></div>
     <div id="anuncio-subagentes" class="sr-only" aria-live="polite"></div>
     <div id="anuncio-gestao" class="sr-only" aria-live="polite"></div>
-    <!-- NOD-119: a etiqueta do "só avatares" (nome e título no mouse e no foco); visual, o leitor de tela já ouve o aria-label. -->
+    <!-- NOD-119/ADR-179: a etiqueta e a prévia da barra compacta (nome e título no foco; a prévia do chat no mouse num bot). -->
     <div class="etiqueta-barra" id="etiqueta-barra" aria-hidden="true" hidden></div>
     <div class="app">
       <aside class="sidebar" id="sidebar" aria-label="Bots e salas"></aside>
@@ -82,8 +83,8 @@
         <section class="qd-vista" id="quadro" role="tabpanel" aria-labelledby="qd-aba-quadro" hidden></section>
       </main>
       <aside class="detalhes" id="detalhes" aria-label="Detalhes do bot"></aside>
-      <!-- NOD-119: a borda da barra (web/lib/borda-barra.ts), fora do #sidebar regravado; encaixa nas larguras de web/lib/densidade.ts. -->
-      <div class="borda-barra" id="borda-barra" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Largura da barra lateral" aria-valuemin="0" aria-valuemax="100" tabindex="0"></div>
+      <!-- ADR-179: o puxador da barra (web/lib/borda-barra.ts), fora do #sidebar regravado; os valores em px (web/lib/densidade.ts). -->
+      <div class="borda-barra" id="borda-barra" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Redimensionar barra lateral" aria-valuemin="88" aria-valuemax="400" tabindex="0"></div>
     </div>
     <!-- Seu espaço (2026-09-30): camada de tela cheia por cima do app; a tela de baixo continua montada. -->
     <div id="espaco" hidden></div>

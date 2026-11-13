@@ -1,182 +1,206 @@
 /**
- * Densidade e largura da barra lateral (NOD-119, jornada v2 W2 + C1). São duas coisas separadas:
- * - a densidade, escolhida em Configurações › Aparência: Confortável (padrão) ou Compacta;
- * - a largura, mudada pelo gesto da borda (ou pelo chat): aberta no padrão da densidade, recolhida ("só avatares") ou,
- *   só na Compacta, alargada até a largura da Confortável.
- * A barra só encaixa nestas larguras (Confortável 272 ↔ 88 desde a ADR-167 (Paper 02); Compacta 200 ↔ 56, e 340 alargada), então não vira
- * redimensionável (o ADR-060 continua valendo). Vale para este computador, como o tema (web/lib/tema.ts): localStorage
- * na web; no app do Mac, o preload repõe o valor de userData antes da página (o localStorage é apagado a cada conexão).
- * O index.html aplica a escolha antes do primeiro quadro com a mesma chave e os mesmos valores (o teste confere).
- * No celular nada muda: aplicarBarra tira os atributos e a gaveta segue a de hoje.
+ * A largura da barra lateral (ADR-179, que substitui o ADR-060 na parte da barra; antes NOD-119 com densidades).
+ * A barra é redimensionável: a pessoa arrasta a borda entre 240 e 400 px (limitado pela janela, o chat nunca fica com
+ * menos de 424), recolhe para a compacta de 88 px arrastando abaixo de 208 ou com ⌘B, e reabre a partir de 216.
+ * O estado guardado é {larguraExpandida, compacta}: recolher não perde a largura. Vale para este computador, como o tema
+ * (web/lib/tema.ts): localStorage na web; no app do Mac, o preload repõe o valor de userData antes da página (o
+ * localStorage é apagado a cada conexão). O index.html aplica a barra antes do primeiro quadro com as mesmas chaves, a
+ * mesma migração e as mesmas contas (o teste confere). No celular nada muda: pintarBarra tira os atributos e a gaveta
+ * segue a de hoje.
  */
 import type { BarraDesktop } from "../../src/contracts/desktop-barra.ts";
 
-/** Os valores guardados (os mesmos de VALORES_BARRA_DESKTOP; o Record obriga o compilador a conferir que são todos). */
-const VALIDOS: Record<BarraDesktop, true> = { compacta: true, "compacta:recolhida": true, "compacta:larga": true, "confortavel:recolhida": true };
-
-export type Densidade = "confortavel" | "compacta";
-export type Largura = "recolhida" | "padrao" | "larga";
-export type Barra = { densidade: Densidade; largura: Largura };
+export type Barra = { larguraExpandida: number; compacta: boolean };
 export type PedidoBarra = "compacta" | "so_avatares" | "normal";
 
-export const CHAVE_DENSIDADE = "nod.densidade";
-export const BARRA_PADRAO: Barra = { densidade: "confortavel", largura: "padrao" };
-export const ESCOLHAS_DENSIDADE: readonly { id: Densidade; nome: string }[] = [
-  { id: "confortavel", nome: "Confortável" },
-  { id: "compacta", nome: "Compacta" },
-];
+/** A chave nova (JSON) e a do modelo antigo de densidades, migrada uma vez. */
+export const CHAVE_BARRA = "nod.barra.largura";
+export const CHAVE_DENSIDADE_ANTIGA = "nod.densidade";
 
-/** As larguras de cada densidade, da mais estreita à mais larga (a ordem das setas e do arrasto). */
-const LARGURAS: Record<Densidade, readonly Largura[]> = {
-  confortavel: ["recolhida", "padrao"],
-  compacta: ["recolhida", "padrao", "larga"],
+export const LARGURA_PADRAO = 340;
+/** Os mesmos limites de LIMITES_BARRA_DESKTOP (src/contracts/desktop-barra.ts); a web só importa tipos de lá (ADR-018). */
+export const LARGURA_MIN = 240;
+export const LARGURA_MAX = 400;
+export const LARGURA_COMPACTA = 88;
+/** O chat nunca fica mais estreito que isto: o máximo da barra desconta ele e o painel da direita. */
+export const CHAT_MIN = 424;
+/** O painel de detalhes (3ª coluna) quando aberto. */
+export const PAINEL_DETALHES = 360;
+/** Arrastando: abaixo de 208 (240 − 32) recolhe; a compacta reabre a partir de 216. */
+export const LIMIAR_RECOLHER = LARGURA_MIN - 32;
+export const LIMIAR_REABRIR = 216;
+/** ← e → com o puxador em foco. */
+export const PASSO_TECLA = 16;
+
+export const BARRA_PADRAO: Barra = { larguraExpandida: LARGURA_PADRAO, compacta: false };
+
+/** O modelo antigo (ADR-060/NOD-119) → o novo: as recolhidas viram a compacta; a Compacta, 240; o resto, 340. */
+const MIGRACAO: Record<string, Barra> = {
+  "compacta:recolhida": { larguraExpandida: LARGURA_PADRAO, compacta: true },
+  "confortavel:recolhida": { larguraExpandida: LARGURA_PADRAO, compacta: true },
+  compacta: { larguraExpandida: LARGURA_MIN, compacta: false },
 };
-const PX: Record<Densidade, Partial<Record<Largura, number>>> = {
-  // ADR-167: só avatares em 88 px, como a barra compacta (⌘B); antes 72.
-  confortavel: { recolhida: 88, padrao: 272 },
-  compacta: { recolhida: 56, padrao: 200, larga: 340 },
-};
-/** Cada 40 px arrastados encaixam na largura seguinte. */
-export const PASSO_ARRASTO = 40;
 
 type Armazem = { getItem(chave: string): string | null; setItem(chave: string, valor: string): void; removeItem(chave: string): void };
 
-/** O valor guardado; null = o padrão (Confortável aberta), que não grava nada. */
-export function serializar(b: Barra): BarraDesktop | null {
-  const n = normalizar(b);
-  if (n.densidade === "confortavel" && n.largura === "padrao") return null;
-  return (n.largura === "padrao" ? n.densidade : `${n.densidade}:${n.largura}`) as BarraDesktop;
+const prender = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+/** O máximo da barra expandida para a janela e o painel da direita: min(400, janela − 424 − painel), nunca menos de 240. */
+export function maximo(janela: number, painel = 0): number {
+  return Math.max(LARGURA_MIN, Math.min(LARGURA_MAX, Math.floor(janela - CHAT_MIN - painel)));
 }
 
+/** A largura expandida dentro dos limites; sem janela, só 240–400. */
+export function limitar(largura: number, janela = Infinity, painel = 0): number {
+  const n = Number.isFinite(largura) ? Math.round(largura) : LARGURA_PADRAO;
+  return prender(n, LARGURA_MIN, maximo(janela, painel));
+}
+
+/** Os px na tela: 88 compacta; a expandida limitada pela janela (a guardada não muda quando a janela encolhe). */
+export function pxDaBarra(b: Barra, janela = Infinity, painel = 0): number {
+  return b.compacta ? LARGURA_COMPACTA : limitar(b.larguraExpandida, janela, painel);
+}
+
+/**
+ * O arrasto do puxador, 1:1: `ponteiroX` é a largura que o ponteiro pede (a posição na borda), `inicio` a barra quando o
+ * botão desceu e `atual` a de agora (a compacta tem a histerese 208/216). Recolher guarda a largura do início.
+ */
+export function arrasto(ponteiroX: number, inicio: Barra, atual: Barra, janela = Infinity, painel = 0): Barra {
+  if (atual.compacta) {
+    if (ponteiroX < LIMIAR_REABRIR) return { larguraExpandida: atual.larguraExpandida, compacta: true };
+    return { larguraExpandida: limitar(Math.max(LARGURA_MIN, ponteiroX), janela, painel), compacta: false };
+  }
+  if (ponteiroX < LIMIAR_RECOLHER) return { larguraExpandida: limitar(inicio.larguraExpandida), compacta: true };
+  return { larguraExpandida: limitar(ponteiroX, janela, painel), compacta: false };
+}
+
+/** ← e → com o puxador em foco: ±16 px, parado nas pontas; → na compacta abre em 240. null = a tecla não é do puxador. */
+export function barraPelaTecla(b: Barra, tecla: string, janela = Infinity, painel = 0): Barra | null {
+  if (tecla !== "ArrowLeft" && tecla !== "ArrowRight") return null;
+  if (b.compacta) return tecla === "ArrowRight" ? { larguraExpandida: LARGURA_MIN, compacta: false } : b;
+  const passo = tecla === "ArrowRight" ? PASSO_TECLA : -PASSO_TECLA;
+  return { larguraExpandida: limitar(pxDaBarra(b, janela, painel) + passo, janela, painel), compacta: false };
+}
+
+/** ⌘B: compacta ↔ expandida, voltando à última largura expandida. */
+export function alternarCompacta(b: Barra): Barra {
+  return { larguraExpandida: b.larguraExpandida, compacta: !b.compacta };
+}
+
+/** O pedido pelo chat: só avatares = a compacta; compacta = 240 expandida; normal = a última largura expandida. */
+export function pedidoDoChat(atual: Barra, pedido: PedidoBarra): Barra {
+  if (pedido === "so_avatares") return { larguraExpandida: atual.larguraExpandida, compacta: true };
+  if (pedido === "compacta") return { larguraExpandida: LARGURA_MIN, compacta: false };
+  return { larguraExpandida: atual.larguraExpandida, compacta: false };
+}
+
+export function iguais(a: Barra, b: Barra): boolean {
+  return a.compacta === b.compacta && limitar(a.larguraExpandida) === limitar(b.larguraExpandida);
+}
+
+/** Uma chave curta da barra (dependência do `lembrar` e do que a conversa acompanha). */
+export function chaveDaBarra(b: Barra): string {
+  return `${limitar(b.larguraExpandida)}${b.compacta ? ":compacta" : ""}`;
+}
+
+/** A barra em palavras (o Antes → Depois do card e o aria-valuetext do puxador). */
+export function rotuloDaLargura(b: Barra, janela = Infinity, painel = 0): string {
+  if (b.compacta) return "Só avatares";
+  const px = pxDaBarra(b, janela, painel);
+  return px <= LARGURA_MIN ? `Compacta, ${px} px` : `${px} px`;
+}
+
+/** O valor guardado (o mesmo que vai ao app do Mac): sempre dentro dos limites, em px inteiros. */
+export function serializar(b: Barra): BarraDesktop {
+  return { larguraExpandida: limitar(b.larguraExpandida), compacta: b.compacta === true };
+}
+
+/** O JSON guardado → a barra; qualquer coisa estranha volta ao padrão. */
 export function desserializar(v: string | null | undefined): Barra {
-  if (!v || !Object.hasOwn(VALIDOS, v)) return BARRA_PADRAO;
-  const [densidade, largura = "padrao"] = v.split(":") as [Densidade, Largura?];
-  return { densidade, largura };
-}
-
-export function lerBarra(armazem: Pick<Armazem, "getItem"> | null = guardado()): Barra {
+  if (!v) return BARRA_PADRAO;
   try {
-    return desserializar(armazem?.getItem(CHAVE_DENSIDADE));
+    const o: unknown = JSON.parse(v);
+    if (typeof o !== "object" || o === null) return BARRA_PADRAO;
+    const { larguraExpandida: l, compacta: c } = o as Record<string, unknown>;
+    if (typeof l !== "number" || !Number.isFinite(l) || typeof c !== "boolean") return BARRA_PADRAO;
+    return { larguraExpandida: limitar(l), compacta: c };
   } catch {
     return BARRA_PADRAO;
   }
 }
 
-/** A Confortável não tem a alargada: vira a aberta. */
-export function normalizar(b: Barra): Barra {
-  return LARGURAS[b.densidade].includes(b.largura) ? b : { densidade: b.densidade, largura: "padrao" };
+/** A chave antiga → a barra nova (desconhecido = o padrão, 340). */
+export function migrarAntiga(v: string | null | undefined): Barra {
+  return v && Object.hasOwn(MIGRACAO, v) ? MIGRACAO[v]! : BARRA_PADRAO;
 }
 
-export function pxDaBarra(b: Barra): number {
-  const n = normalizar(b);
-  return PX[n.densidade][n.largura] ?? 340;
-}
-
-/** ← (-1) recolhe, → (+1) alarga ou abre; parado nas pontas. */
-export function mover(b: Barra, passo: -1 | 1): Barra {
-  const n = normalizar(b);
-  const lista = LARGURAS[n.densidade];
-  const i = Math.min(lista.length - 1, Math.max(0, lista.indexOf(n.largura) + passo));
-  return { densidade: n.densidade, largura: lista[i]! };
-}
-
-/** Home recolhe; End abre no máximo da densidade. */
-export function extremo(b: Barra, lado: "min" | "max"): Barra {
-  const lista = LARGURAS[b.densidade];
-  return { densidade: b.densidade, largura: lado === "min" ? lista[0]! : lista[lista.length - 1]! };
-}
-
-/** Enter ou Espaço: recolhida ↔ aberta no padrão. */
-export function alternarRecolhida(b: Barra): Barra {
-  return { densidade: b.densidade, largura: b.largura === "recolhida" ? "padrao" : "recolhida" };
-}
-
-/** Dois cliques na borda: a densidade aberta no padrão. */
-export function restaurar(b: Barra): Barra {
-  return { densidade: b.densidade, largura: "padrao" };
-}
-
-/** O arrasto da borda: cada 40 px inteiros (para a esquerda, negativos) encaixam uma largura; trunca em direção a zero. */
-export function arrastar(inicio: Barra, dx: number): Barra {
-  const passos = Math.trunc(dx / PASSO_ARRASTO);
-  let b = normalizar(inicio);
-  for (let i = 0; i < Math.abs(passos); i++) b = mover(b, passos < 0 ? -1 : 1);
-  return b;
-}
-
-/** A escolha em Aparência: recolhida continua recolhida; a alargada da Compacta vira a aberta da Confortável. */
-export function escolherDensidade(b: Barra, densidade: Densidade): Barra {
-  return normalizar({ densidade, largura: b.largura });
-}
-
-/** O pedido pelo chat: Compacta entra em 200 px; só avatares recolhe na densidade atual; normal é a Confortável em 340. */
-export function pedidoDoChat(atual: Barra, pedido: PedidoBarra): Barra {
-  if (pedido === "compacta") return { densidade: "compacta", largura: "padrao" };
-  if (pedido === "so_avatares") return { densidade: atual.densidade, largura: "recolhida" };
-  return BARRA_PADRAO;
-}
-
-export function iguais(a: Barra, b: Barra): boolean {
-  const x = normalizar(a), y = normalizar(b);
-  return x.densidade === y.densidade && x.largura === y.largura;
-}
-
-/** O aria-valuetext do separador: a largura em palavras, não em pixels. */
-export function rotuloDaLargura(b: Barra): string {
-  const n = normalizar(b);
-  const dens = n.densidade === "compacta" ? "compacta" : "confortável";
-  if (n.largura === "recolhida") return `Só avatares, ${dens}`;
-  if (n.largura === "larga") return "Compacta, alargada";
-  return n.densidade === "compacta" ? "Compacta" : "Confortável";
-}
-
-/** aria-valuenow: 0 recolhida, 50 aberta, 100 no máximo da densidade. */
-export function valorDaLargura(b: Barra): number {
-  const n = normalizar(b);
-  const lista = LARGURAS[n.densidade];
-  return Math.round((lista.indexOf(n.largura) / (lista.length - 1)) * 100);
+/**
+ * A barra guardada. Sem a chave nova e com a antiga, migra uma vez: grava a nova e apaga a antiga (o app do Mac fica
+ * sabendo na primeira gravação, com aplicarBarra).
+ */
+export function lerBarra(armazem: Partial<Armazem> & Pick<Armazem, "getItem"> | null = guardado()): Barra {
+  try {
+    const nova = armazem?.getItem(CHAVE_BARRA);
+    if (nova) return desserializar(nova);
+    const antiga = armazem?.getItem(CHAVE_DENSIDADE_ANTIGA);
+    if (antiga === null || antiga === undefined) return BARRA_PADRAO;
+    const b = migrarAntiga(antiga);
+    armazem?.setItem?.(CHAVE_BARRA, JSON.stringify(serializar(b)));
+    armazem?.removeItem?.(CHAVE_DENSIDADE_ANTIGA);
+    return b;
+  } catch {
+    return BARRA_PADRAO;
+  }
 }
 
 type Raiz = { dataset: Record<string, string | undefined>; style: { setProperty(n: string, v: string): void; removeProperty(n: string): void } };
 
 /**
- * Só os atributos do <html> (o que o CSS lê). No celular, nenhum: a gaveta de hoje em qualquer densidade.
- * `buscando` com a barra recolhida abre a barra larga POR CIMA da conversa, já com a busca: a coluna continua estreita
- * (--largura-barra), o desenho é o da densidade aberta (sem data-largura) e data-sobreposta dá a largura dela.
+ * Só os atributos do <html> (o que o CSS lê). No computador: data-barra ("expandida" | "compacta") e --largura-barra;
+ * a compacta também leva data-largura="recolhida" (o gancho de sempre dos CSS da barra só com avatares).
+ * `buscando` na compacta abre a barra expandida POR CIMA da conversa, já com a busca: a coluna continua em 88, o desenho
+ * é o da expandida (sem data-largura) e data-sobreposta/--largura-sobreposta dão a largura dela. No celular, nenhum.
  */
-export function pintarBarra(b: Barra, raiz: Raiz, celular: boolean, buscando = false): void {
-  const n = normalizar(b);
+export function pintarBarra(b: Barra, raiz: Raiz, celular: boolean, buscando = false, janela = Infinity, painel = 0): void {
   delete raiz.dataset.sobreposta;
-  if (celular || (n.densidade === "confortavel" && n.largura === "padrao")) {
-    delete raiz.dataset.densidade;
+  raiz.style.removeProperty("--largura-sobreposta");
+  if (celular) {
+    delete raiz.dataset.barra;
     delete raiz.dataset.largura;
     raiz.style.removeProperty("--largura-barra");
     return;
   }
-  raiz.dataset.densidade = n.densidade;
-  raiz.style.setProperty("--largura-barra", `${pxDaBarra(n)}px`);
-  if (n.largura === "padrao") delete raiz.dataset.largura;
-  else if (n.largura === "recolhida" && buscando) {
+  raiz.dataset.barra = b.compacta ? "compacta" : "expandida";
+  raiz.style.setProperty("--largura-barra", `${pxDaBarra(b, janela, painel)}px`);
+  if (!b.compacta) delete raiz.dataset.largura;
+  else if (buscando) {
     delete raiz.dataset.largura;
-    raiz.dataset.sobreposta = String(pxDaBarra(restaurar(n)));
-  } else raiz.dataset.largura = n.largura;
+    const px = limitar(b.larguraExpandida, janela, painel);
+    raiz.dataset.sobreposta = String(px);
+    raiz.style.setProperty("--largura-sobreposta", `${px}px`);
+  } else raiz.dataset.largura = "recolhida";
 }
 
-/**
- * O executor único (Configurações, a borda e o card do chat passam por aqui): pinta o <html> e grava neste computador.
- * `gravarFora` leva ao processo principal do app do Mac, quando há.
- */
-export function aplicarBarra(b: Barra, raiz: Raiz, celular: boolean, armazem: Pick<Armazem, "setItem" | "removeItem"> | null = guardado(), gravarFora?: (v: BarraDesktop | null) => void): Barra {
-  const n = normalizar(b);
-  pintarBarra(n, raiz, celular);
-  const v = serializar(n);
+/** Grava neste computador (a chave nova; a antiga sai) e manda para fora (o app do Mac), quando há. */
+export function gravarBarra(b: Barra, armazem: Pick<Armazem, "setItem" | "removeItem"> | null = guardado(), gravarFora?: (v: BarraDesktop) => void): void {
+  const v = serializar(b);
   try {
-    if (v === null) armazem?.removeItem(CHAVE_DENSIDADE);
-    else armazem?.setItem(CHAVE_DENSIDADE, v);
+    armazem?.setItem(CHAVE_BARRA, JSON.stringify(v));
+    armazem?.removeItem(CHAVE_DENSIDADE_ANTIGA);
   } catch {
     // Armazenamento bloqueado: vale até fechar a janela.
   }
   gravarFora?.(v);
+}
+
+/**
+ * O executor único (o puxador ao soltar, as teclas, o ⌘B e o card do chat passam por aqui): pinta o <html> e grava
+ * neste computador. `gravarFora` leva ao processo principal do app do Mac, quando há.
+ */
+export function aplicarBarra(b: Barra, raiz: Raiz, celular: boolean, armazem: Pick<Armazem, "setItem" | "removeItem"> | null = guardado(), gravarFora?: (v: BarraDesktop) => void, janela = Infinity, painel = 0): Barra {
+  const n = serializar(b);
+  pintarBarra(n, raiz, celular, false, janela, painel);
+  gravarBarra(n, armazem, gravarFora);
   return n;
 }
 
@@ -189,12 +213,12 @@ function guardado(): Armazem | null {
 }
 
 /**
- * NOD-119 (revisão 7): roda `fn` uma vez, `ms` depois da última chamada. O arrasto da borda muda a barra a cada passo;
- * a conversa (o "Antes"/"já está" do card) e o preferencias.json do Mac só acompanham quando o arrasto para.
+ * NOD-119 (revisão 7): roda `fn` uma vez, `ms` depois da última chamada. A conversa (o "Antes"/"já está" do card) e o
+ * preferencias.json do Mac só acompanham quando a barra para de mudar (as teclas em sequência).
  */
 export function adiar<T>(ms: number, fn: (v: T) => void, relogio: Pick<typeof globalThis, "setTimeout" | "clearTimeout"> = globalThis): ((v: T) => void) & { agora(v: T): void } {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const cancelar = () => { if (timer !== undefined) relogio.clearTimeout(timer); timer = undefined; };
-  /** `agora` cancela o pendente e roda já: a escolha de um clique vence o arrasto que ainda não gravou (revisão 9). */
+  /** `agora` cancela o pendente e roda já: a escolha de um clique vence o que ainda não gravou (revisão 9). */
   return Object.assign((v: T) => { cancelar(); timer = relogio.setTimeout(() => { timer = undefined; fn(v); }, ms); }, { agora: (v: T) => { cancelar(); fn(v); } });
 }

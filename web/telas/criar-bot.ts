@@ -1,15 +1,12 @@
 import type { CorAgente, FormaAgente } from "../../src/contracts/agente.ts";
 import { esc, iconeAgente } from "../lib/render.ts";
 import { CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, type EstadoMascote } from "../lib/mascote.ts";
-import { ErroDoPreparo, novoPreparo, rodarPreparo, subtituloDoPreparo, tique, type EstadoPreparo, type EtapasDoPreparo } from "../lib/preparo.ts";
+import { ErroDoPreparo, subtituloDoPreparo, type EstadoPreparo, type EtapasDoPreparo } from "../lib/preparo.ts";
 
 /**
- * ADR-174 (2026-11-12, telas 09 e 09b do Paper): o modal
- * "Criar novo bot" — prévia do personagem, nome, Forma (8) e Cor (12), Cancelar/Criar — e, no mesmo cartão, o preparo
- * com a porcentagem. O cartão vira o preparo (e não uma tela inteira, como no Paper) para não mexer na navegação nem na
- * barra: decisão registrada no PR. Ao chegar a 100% o personagem comemora e a conversa do bot novo abre.
- *
- * As partes de desenho (seletores, prévia, preparo) são puras e servem também ao onboarding (passos 9 e 10).
+ * ADR-174 (2026-11-12, telas 09 e 09b do Paper): o personagem do bot — seletores de forma e cor e o preparo com % (o
+ * onboarding, passos 9 e 10, usa os dois). Spec do botão + (2026-11-12): o diálogo "Criar novo bot" (fim do arquivo)
+ * deixou de ter o preparo: Criar → "Criando…" → a conversa do bot novo, pelo mesmo criarAgente interativo do segurar.
  */
 
 export const COR_PADRAO: CorAgente = "c-blue";
@@ -75,21 +72,7 @@ export function htmlPreparo(p: EstadoPreparo, bot: { nome: string; cor: CorAgent
     <ol class="cb-passos">${linhas}</ol>${erro}</div>`;
 }
 
-/** O formulário do modal (fora o preparo). */
-export function htmlFormCriarBot(f: { nome: string; forma: FormaAgente; cor: CorAgente }): string {
-  return `<form class="cb-form" method="dialog">
-    <header class="cb-topo"><h2 id="cb-titulo">Criar novo bot</h2><button type="button" class="cb-fechar" data-cb="cancelar" aria-label="Fechar">×</button></header>
-    <div class="cb-corpo">
-      <div class="cb-previa" aria-hidden="true">${iconeAgente({ nome: f.nome || "Novo bot", cor: f.cor, forma: f.forma }, "xl")}</div>
-      <input class="cb-nome" name="nome" value="${esc(f.nome)}" maxlength="${NOME_MAX}" placeholder="Nome do bot" aria-label="Nome do bot" autocomplete="off" required />
-      <p class="cb-rotulo-grupo">Forma</p>${htmlSeletorForma(f.forma, f.cor)}
-      <p class="cb-rotulo-grupo">Cor</p>${htmlSeletorCor(f.cor)}
-    </div>
-    <footer class="cb-acoes"><button type="button" class="bt" data-cb="cancelar">Cancelar</button><button type="submit" class="bt pri" data-cb="criar">Criar</button></footer>
-  </form>`;
-}
-
-/** O que o modal precisa do app: criar e vestir o bot, conferir o computador, abrir a conversa. */
+/** O que o preparo do onboarding precisa do app: criar e vestir o bot, conferir o computador, abrir a conversa. */
 export type DepsCriarBot = {
   criar: (nome: string) => Promise<{ agenteId: string; conversaId: string }>;
   vestir: (agenteId: string, forma: FormaAgente, cor: CorAgente) => Promise<void>;
@@ -127,117 +110,213 @@ export function etapasDoBot(ctx: { nome: string; forma: FormaAgente; cor: CorAge
   };
 }
 
-/** Abre o modal; resolve quando ele fecha. */
-export function abrirCriarBot(deps: DepsCriarBot, inicial: { nome?: string } = {}, doc: Document = document): Promise<void> {
+/* ---- O diálogo "Criar novo bot" (spec do botão +, telas 1 e 2) ------------------------------------------------------
+   Clique no + e ⌘N abrem este diálogo: prévia, nome, Forma (8, linhas de 5 + 3) e Cor (12, linhas de 6 + 6),
+   Cancelar/Criar. Criar chama o MESMO criarAgente interativo do segurar (o que grava a fala boas_vindas), já com nome,
+   forma e cor; a conversa troca para o bot novo e o diálogo fecha seco. Sem preparo com %: o preparo continua só no
+   onboarding (htmlPreparo/etapasDoBot acima). */
+
+/** A ordem das cores no diálogo: preto, marrom, vermelho, laranja, âmbar, verde / turquesa, azul, violeta, rosa, cinza, creme. */
+export const ORDEM_DAS_CORES: readonly CorAgente[] = CORES_DO_SELETOR;
+/** Quantas formas e cores vão em cada linha. */
+export const LINHAS_DAS_FORMAS = [5, 3] as const;
+export const LINHAS_DAS_CORES = [6, 6] as const;
+
+export type Aparencia = { forma: FormaAgente; cor: CorAgente };
+
+const sortear = <T>(lista: readonly T[], aleatorio: () => number): T => lista[Math.min(lista.length - 1, Math.max(0, Math.floor(aleatorio() * lista.length)))] as T;
+
+/** Forma e cor sorteadas entre as do seletor. `aleatorio` devolve [0, 1) (Math.random). */
+export function sortearAparencia(aleatorio: () => number = Math.random): Aparencia {
+  return { forma: sortear(FORMAS_DO_SELETOR, aleatorio), cor: sortear(ORDEM_DAS_CORES, aleatorio) };
+}
+
+/**
+ * A memória da forma e da cor na sessão: a 1ª abertura sorteia; fechar e reabrir mantém a última escolha (mesmo sem
+ * criar). A sessão é a vida da página (o módulo), não o disco.
+ */
+export function criarMemoriaDaAparencia(aleatorio: () => number = Math.random): { atual(): Aparencia; lembrar(a: Aparencia): void } {
+  let guardada: Aparencia | null = null;
+  return {
+    atual: () => (guardada ??= sortearAparencia(aleatorio)),
+    lembrar: (a) => { guardada = { forma: a.forma, cor: a.cor }; },
+  };
+}
+
+const memoriaDaSessao = criarMemoriaDaAparencia();
+
+/** O nome que habilita Criar: algo além de espaços, até NOME_MAX. */
+export function nomeDoBotValido(nome: string): boolean {
+  const limpo = nome.trim();
+  return limpo.length > 0 && limpo.length <= NOME_MAX;
+}
+
+/** Corta a lista nas linhas dadas ([5, 3] → as 5 primeiras e as 3 seguintes). */
+export function emLinhas<T>(lista: readonly T[], linhas: readonly number[]): T[][] {
+  let i = 0;
+  return linhas.map((n) => { const linha = lista.slice(i, i + n); i += n; return linha; }).filter((l) => l.length > 0);
+}
+
+/** Os rádios de forma do diálogo, todos pintados na cor escolhida. */
+export function htmlFormasDoDialogo(atual: FormaAgente, cor: CorAgente, desabilitado = false): string {
+  const linhas = emLinhas(FORMAS_DO_SELETOR, LINHAS_DAS_FORMAS).map((linha) => `<div class="cnb-linha">${linha.map((forma) => {
+    const sel = forma === atual;
+    return `<button type="button" class="cnb-forma" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" aria-label="Forma ${NOME_DA_FORMA[forma]}" data-forma="${forma}"${desabilitado ? " disabled" : ""}>${iconeAgente({ nome: NOME_DA_FORMA[forma], cor, forma }, "sm")}</button>`;
+  }).join("")}</div>`).join("");
+  return `<div class="cnb-formas" role="radiogroup" aria-label="Forma do personagem">${linhas}</div>`;
+}
+
+/** Os rádios de cor do diálogo (bolinhas de 24 em botões de 32). */
+export function htmlCoresDoDialogo(atual: CorAgente, desabilitado = false): string {
+  const linhas = emLinhas(ORDEM_DAS_CORES, LINHAS_DAS_CORES).map((linha) => `<div class="cnb-linha">${linha.map((cor) => {
+    const sel = cor === atual;
+    return `<button type="button" class="cnb-cor" role="radio" aria-checked="${sel}" tabindex="${sel ? 0 : -1}" aria-label="Cor ${NOME_DA_COR[cor]}" data-cor="${cor}"${desabilitado ? " disabled" : ""}><span class="cor-amostra cnb-bolinha ${cor}"></span></button>`;
+  }).join("")}</div>`).join("");
+  return `<div class="cnb-cores" role="radiogroup" aria-label="Cor do personagem">${linhas}</div>`;
+}
+
+const IC_FECHAR = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>';
+
+/** O conteúdo do diálogo. `criando`: Criar vira "Criando…" e todos os controles ficam desabilitados (tela 2). */
+export function htmlDialogoCriarBot(f: { nome: string; forma: FormaAgente; cor: CorAgente; criando?: boolean; erro?: string | null }): string {
+  const criando = f.criando === true;
+  const off = criando ? " disabled" : "";
+  const podeCriar = nomeDoBotValido(f.nome) && !criando;
+  return `<form class="cnb" method="dialog" novalidate>
+    <header class="cnb-topo"><h2 id="cnb-titulo">Criar novo bot</h2><button type="button" class="cnb-fechar" data-cb="cancelar" aria-label="Fechar caixa de diálogo"${off}>${IC_FECHAR}</button></header>
+    <div class="cnb-corpo">
+      <div class="cnb-previa" aria-hidden="true">${iconeAgente({ nome: f.nome.trim() || "Novo bot", cor: f.cor, forma: f.forma }, "xl")}</div>
+      <input class="cnb-nome" name="nome" value="${esc(f.nome)}" maxlength="${NOME_MAX}" placeholder="Dê um nome ao seu bot" aria-label="Nome do bot" autocomplete="off" spellcheck="false"${off} />
+      ${htmlFormasDoDialogo(f.forma, f.cor, criando)}
+      ${htmlCoresDoDialogo(f.cor, criando)}
+      ${f.erro ? `<p class="cnb-erro" role="alert">${esc(f.erro)}</p>` : ""}
+    </div>
+    <footer class="cnb-rodape"><button type="button" class="cnb-bt cnb-cancelar" data-cb="cancelar"${off}>Cancelar</button><button type="submit" class="cnb-bt cnb-criar" data-cb="criar"${podeCriar ? "" : " disabled"}${criando ? ' aria-busy="true"' : ""}>${criando ? "Criando…" : "Criar"}</button></footer>
+  </form>`;
+}
+
+/** O pedido que sai do diálogo: o mesmo criarAgente interativo do segurar, com nome, forma e cor. */
+export type PedidoCriarBot = { nome: string; forma: FormaAgente; cor: CorAgente };
+
+/** O que o diálogo pede ao app. */
+export type DepsDialogoCriarBot = {
+  criar: (p: PedidoCriarBot) => Promise<{ agenteId: string; conversaId: string }>;
+  /** Clicou em Criar: a barra mostra a linha provisória (tela 3). */
+  aoComecar?: (p: PedidoCriarBot) => void;
+  /** A API devolveu: a conversa por trás troca para o bot novo (o diálogo fecha no quadro seguinte). */
+  aoCriar: (criado: { agenteId: string; conversaId: string }, p: PedidoCriarBot) => void;
+  /** Deu erro: some a linha provisória (o diálogo volta a deixar editar). */
+  aoFalhar?: (p: PedidoCriarBot) => void;
+  /** Depois de fechar por ter criado: o foco vai ao campo da conversa. */
+  depoisDeCriar?: (criado: { agenteId: string; conversaId: string }) => void;
+};
+
+export const ERRO_AO_CRIAR = "Não deu para criar o bot. Tente de novo.";
+
+/** Abre o diálogo "Criar novo bot"; resolve quando ele fecha (true = criou). */
+export function abrirCriarBot(deps: DepsDialogoCriarBot, inicial: { nome?: string } = {}, doc: Document = document, memoria = memoriaDaSessao): Promise<boolean> {
   doc.getElementById("criar-bot")?.remove();
   const dlg = doc.createElement("dialog");
   dlg.id = "criar-bot";
   dlg.className = "criar-bot";
-  dlg.setAttribute("aria-labelledby", "cb-titulo");
-  const f = { nome: (inicial.nome ?? "").slice(0, NOME_MAX), forma: FORMA_PADRAO, cor: COR_PADRAO };
-  let preparo: EstadoPreparo | null = null;
-  let relogio = 0;
-  const ctx = { nome: "", forma: f.forma, cor: f.cor, criado: null as { agenteId: string; conversaId: string } | null };
+  dlg.setAttribute("role", "dialog");
+  dlg.setAttribute("aria-modal", "true");
+  dlg.setAttribute("aria-labelledby", "cnb-titulo");
+  const f = { nome: (inicial.nome ?? "").slice(0, NOME_MAX), ...memoria.atual(), criando: false, erro: null as string | null };
+  let criou = false;
+  let resolver: (criou: boolean) => void = () => undefined;
 
-  const desenharForm = (): void => {
-    dlg.innerHTML = htmlFormCriarBot(f);
-    const nome = dlg.querySelector<HTMLInputElement>(".cb-nome");
-    nome?.addEventListener("input", () => { f.nome = nome.value; atualizarCriar(); });
-    atualizarCriar();
-  };
+  const campo = (): HTMLInputElement | null => dlg.querySelector<HTMLInputElement>(".cnb-nome");
+  const desenhar = (): void => { dlg.innerHTML = htmlDialogoCriarBot(f); };
   const atualizarCriar = (): void => {
-    const criar = dlg.querySelector<HTMLButtonElement>('[data-cb="criar"]');
-    if (criar) criar.disabled = !f.nome.trim();
+    const criar = dlg.querySelector<HTMLButtonElement>(".cnb-criar");
+    if (criar) criar.disabled = f.criando || !nomeDoBotValido(f.nome);
   };
-  const trocar = (forma: FormaAgente | null, cor: CorAgente | null): void => {
+  // Trocar forma ou cor regrava só a prévia e os dois grupos (o campo de nome fica, com o cursor onde estava).
+  const trocar = (forma: FormaAgente | null, cor: CorAgente | null, focar: "forma" | "cor" | null): void => {
     if (forma) f.forma = forma;
     if (cor) f.cor = cor;
-    const foco = (doc.activeElement as HTMLElement | null)?.dataset;
-    const nome = dlg.querySelector<HTMLInputElement>(".cb-nome")?.value ?? f.nome;
-    f.nome = nome;
-    desenharForm();
-    // o foco volta ao rádio que a pessoa escolheu (o formulário é regravado)
-    const sel = foco?.forma ? `[data-forma="${f.forma}"]` : foco?.cor ? `[data-cor="${f.cor}"]` : null;
-    if (sel) dlg.querySelector<HTMLElement>(sel)?.focus();
+    memoria.lembrar(f);
+    const previa = dlg.querySelector(".cnb-previa");
+    if (previa) previa.innerHTML = iconeAgente({ nome: f.nome.trim() || "Novo bot", cor: f.cor, forma: f.forma }, "xl");
+    dlg.querySelector(".cnb-formas")?.replaceWith(paraNo(htmlFormasDoDialogo(f.forma, f.cor)));
+    dlg.querySelector(".cnb-cores")?.replaceWith(paraNo(htmlCoresDoDialogo(f.cor)));
+    if (focar === "forma") dlg.querySelector<HTMLElement>(`[data-forma="${f.forma}"]`)?.focus();
+    if (focar === "cor") dlg.querySelector<HTMLElement>(`[data-cor="${f.cor}"]`)?.focus();
   };
-  const desenharPreparo = (): void => {
-    if (!preparo) return;
-    dlg.innerHTML = `<div class="cb-form preparando">${htmlPreparo(preparo, { nome: ctx.nome, cor: ctx.cor, forma: ctx.forma }, { tentar: 'data-cb="tentar"', ver: 'data-cb="ver"' })}</div>`;
+  const paraNo = (html: string): Element => {
+    const t = doc.createElement("template");
+    t.innerHTML = html;
+    return t.content.firstElementChild ?? doc.createElement("div");
   };
-  const parar = (): void => { if (relogio) clearInterval(relogio); relogio = 0; };
-  const rodar = async (): Promise<void> => {
-    if (!preparo) return;
-    parar();
-    relogio = window.setInterval(() => { if (preparo) { preparo = tique(preparo); atualizarBarra(); } }, 120);
-    const fim = await rodarPreparo(preparo, etapasDoBot(ctx, deps), (p) => { preparo = p; desenharPreparo(); });
-    parar();
-    deps.invalidar();
-    if (fim.pronto && ctx.criado) {
-      const { conversaId, agenteId } = ctx.criado;
-      window.setTimeout(() => { fechar(); deps.abrirConversa(conversaId, agenteId); }, COMEMORA_MS);
-    } else dlg.querySelector<HTMLElement>('[data-cb="tentar"]')?.focus();
-  };
-  // Só a barra e o número mudam a cada tique: regravar o cartão inteiro reiniciaria o personagem.
-  const atualizarBarra = (): void => {
-    if (!preparo) return;
-    const cheia = dlg.querySelector<HTMLElement>(".cb-barra-cheia");
-    if (cheia) cheia.style.width = `${preparo.porcento}%`;
-    dlg.querySelector(".cb-barra")?.setAttribute("aria-valuenow", String(preparo.porcento));
-    const n = dlg.querySelector(".cb-porcento");
-    if (n) n.textContent = `${preparo.porcento}%`;
-  };
-  let resolver: () => void = () => undefined;
   const fechar = (): void => {
-    parar();
     if (dlg.open) dlg.close();
     dlg.remove();
-    resolver();
+    resolver(criou);
+  };
+  const enviar = async (): Promise<void> => {
+    if (f.criando || !nomeDoBotValido(f.nome)) return;
+    const pedido: PedidoCriarBot = { nome: f.nome.trim(), forma: f.forma, cor: f.cor };
+    f.criando = true;
+    f.erro = null;
+    desenhar();
+    dlg.classList.add("criando");
+    deps.aoComecar?.(pedido);
+    try {
+      const criado = await deps.criar(pedido);
+      criou = true;
+      deps.aoCriar(criado, pedido);
+      // A conversa já trocou por trás; o diálogo fecha seco no quadro seguinte.
+      (doc.defaultView ?? window).requestAnimationFrame(() => { fechar(); deps.depoisDeCriar?.(criado); });
+    } catch {
+      f.criando = false;
+      f.erro = ERRO_AO_CRIAR;
+      dlg.classList.remove("criando");
+      deps.aoFalhar?.(pedido);
+      desenhar();
+      campo()?.focus();
+    }
   };
 
+  dlg.addEventListener("input", (ev) => {
+    if (ev.target !== campo()) return;
+    f.nome = campo()?.value ?? "";
+    atualizarCriar();
+    const previa = dlg.querySelector(".cnb-previa");
+    if (previa) previa.innerHTML = iconeAgente({ nome: f.nome.trim() || "Novo bot", cor: f.cor, forma: f.forma }, "xl");
+  });
   dlg.addEventListener("click", (ev) => {
     const alvo = ev.target instanceof Element ? ev.target : null;
-    if (!alvo) return;
-    if (alvo === dlg && !preparo) { fechar(); return; }
+    if (!alvo || f.criando) return;
+    // O scrim (o próprio <dialog> fora da caixa) fecha sem criar.
+    if (alvo === dlg) { fechar(); return; }
     const forma = alvo.closest<HTMLElement>("[data-forma]")?.dataset.forma as FormaAgente | undefined;
     const cor = alvo.closest<HTMLElement>("[data-cor]")?.dataset.cor as CorAgente | undefined;
-    if (forma || cor) { trocar(forma ?? null, cor ?? null); return; }
-    const cb = alvo.closest<HTMLElement>("[data-cb]")?.dataset.cb;
-    if (cb === "cancelar") fechar();
-    else if (cb === "tentar") void rodar();
-    else if (cb === "ver" && ctx.criado) { const { conversaId, agenteId } = ctx.criado; fechar(); deps.verOQueHouve(conversaId, agenteId); }
+    if (forma || cor) { trocar(forma ?? null, cor ?? null, forma ? "forma" : "cor"); return; }
+    if (alvo.closest<HTMLElement>("[data-cb]")?.dataset.cb === "cancelar") fechar();
   });
-  // Setas andam pelos rádios (forma e cor), como no popover do perfil.
+  // Setas andam pelos rádios (forma e cor), em volta.
   dlg.addEventListener("keydown", (ev) => {
     const alvo = ev.target instanceof HTMLElement ? ev.target : null;
-    if (!alvo || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(ev.key)) return;
+    if (!alvo || f.criando || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(ev.key)) return;
     const grupo = alvo.closest('[role="radiogroup"]');
     if (!grupo) return;
     const todos = [...grupo.querySelectorAll<HTMLElement>('[role="radio"]')];
-    const i = todos.indexOf(alvo);
     const passo = ev.key === "ArrowLeft" || ev.key === "ArrowUp" ? -1 : 1;
-    const prox = todos[(i + passo + todos.length) % todos.length];
+    const prox = todos[(todos.indexOf(alvo) + passo + todos.length) % todos.length];
     if (!prox) return;
     ev.preventDefault();
-    prox.focus();
-    trocar((prox.dataset.forma as FormaAgente | undefined) ?? null, (prox.dataset.cor as CorAgente | undefined) ?? null);
+    const forma = (prox.dataset.forma as FormaAgente | undefined) ?? null;
+    trocar(forma, (prox.dataset.cor as CorAgente | undefined) ?? null, forma ? "forma" : "cor");
   });
-  dlg.addEventListener("submit", (ev) => {
-    ev.preventDefault();
-    if (!f.nome.trim() || preparo) return;
-    ctx.nome = f.nome.trim();
-    ctx.forma = f.forma;
-    ctx.cor = f.cor;
-    preparo = novoPreparo(ctx.nome);
-    desenharPreparo();
-    dlg.querySelector<HTMLElement>(".cb-preparo-titulo")?.focus();
-    void rodar();
-  });
-  // Esc durante o preparo não fecha: o bot já está sendo criado (o X e Cancelar somem com o formulário).
-  dlg.addEventListener("cancel", (ev) => { if (preparo && !preparo.erro) ev.preventDefault(); else { ev.preventDefault(); fechar(); } });
+  // Enter no nome = Criar (o submit do formulário).
+  dlg.addEventListener("submit", (ev) => { ev.preventDefault(); void enviar(); });
+  // Esc fecha sem criar; enquanto cria, não (o bot já está sendo criado).
+  dlg.addEventListener("cancel", (ev) => { ev.preventDefault(); if (!f.criando) fechar(); });
 
-  desenharForm();
+  desenhar();
   doc.body.append(dlg);
   dlg.showModal();
-  dlg.querySelector<HTMLInputElement>(".cb-nome")?.focus();
+  campo()?.focus();
   return new Promise((r) => { resolver = r; });
 }
