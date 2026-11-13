@@ -22,8 +22,6 @@ export type KitQuadro = "tarefa" | "gestao" | "leve";
 /** Os tipos do kit da etapa (o turno de tarefa); `acoes: []` (consultar) vale em qualquer kit. */
 export const TIPOS_DA_TAREFA = ["terminei", "mudar_tarefa", "comentar", "nao_e_comigo"] as const;
 
-const PROPS_DA_TAREFA = ["tarefa", "status", "pr_url", "pergunta", "motivo", "texto", "responder_a"] as const satisfies readonly (keyof typeof PROPRIEDADES_QUADRO)[];
-
 /** No kit leve, só estas propriedades guardam a descrição (as que o bot usa sem pensar no quadro). */
 const PROPS_COM_AJUDA_NO_LEVE = ["tarefa", "status", "pr_url", "pergunta", "agente"] as const satisfies readonly (keyof typeof PROPRIEDADES_QUADRO)[];
 
@@ -66,8 +64,41 @@ function comAcoes(description: string, tipos: readonly string[], properties: Rec
   };
 }
 
+const tipo = (valor: (typeof TIPOS_DA_TAREFA)[number]): JsonSchema => ({ type: "string", enum: [valor] });
+const acao = (valor: (typeof TIPOS_DA_TAREFA)[number], properties: Record<string, JsonSchema>, required: readonly string[] = []): JsonSchema => ({
+  type: "object",
+  properties: { tipo: tipo(valor), ...properties },
+  required: ["tipo", ...required],
+  additionalProperties: false,
+});
+
+/**
+ * O `mudar_tarefa` da task não é a operação administrativa homônima: são somente as três saídas que precisam dela.
+ * Separar em alternativas faz o catálogo explicar e a execução cercar os pares de campos válidos; apenas reduzir o enum
+ * de `tipo` ainda deixaria `status: feito` (ou qualquer coluna) passar pelo schema contextual.
+ */
+const ITEM_DA_TAREFA: JsonSchema = {
+  oneOf: [
+    acao("terminei", { tarefa: PROPRIEDADES_QUADRO.tarefa }),
+    acao("mudar_tarefa", { tarefa: PROPRIEDADES_QUADRO.tarefa, pr_url: PROPRIEDADES_QUADRO.pr_url }, ["tarefa", "pr_url"]),
+    acao("mudar_tarefa", { tarefa: PROPRIEDADES_QUADRO.tarefa, pergunta: PROPRIEDADES_QUADRO.pergunta }, ["tarefa", "pergunta"]),
+    acao("mudar_tarefa", { tarefa: PROPRIEDADES_QUADRO.tarefa, status: { type: "string", enum: ["bloqueado"], description: "Bloqueia esta tarefa." }, pergunta: PROPRIEDADES_QUADRO.pergunta }, ["tarefa", "status", "pergunta"]),
+    acao("comentar", { tarefa: PROPRIEDADES_QUADRO.tarefa, texto: PROPRIEDADES_QUADRO.texto, responder_a: PROPRIEDADES_QUADRO.responder_a }, ["tarefa", "texto"]),
+    acao("nao_e_comigo", { tarefa: PROPRIEDADES_QUADRO.tarefa, motivo: PROPRIEDADES_QUADRO.motivo }, ["tarefa", "motivo"]),
+  ],
+};
+
+function schemaDaTarefa(): JsonSchema {
+  const g: SchemaGerirQuadro = FERRAMENTAS_QUADRO.gerir_quadro;
+  return {
+    ...g,
+    description: DESCRICAO_DA_TAREFA,
+    properties: { acoes: { ...g.properties.acoes, items: ITEM_DA_TAREFA } },
+  };
+}
+
 const DESCRICAO_DA_TAREFA =
-  "O quadro da tarefa deste turno. Uma chamada = um lote atômico; acoes vazio ([]) só consulta. Saídas da etapa: terminei {tarefa?} (etapa concluída: vai para a próxima coluna e quem cuida dela começa); mudar_tarefa {tarefa, status?, pr_url?, pergunta?, motivo?} (pr_url grava o PR; pergunta sem status pergunta à pessoa e a tarefa fica na coluna, com você; status bloqueado pede a pergunta com o motivo e do que você precisa; status cancelado pede o motivo); comentar {tarefa, texto, responder_a?} (sozinho; @Nome aciona aquele bot); nao_e_comigo {tarefa, motivo} (você sai de responsável e o quadro passa a tarefa adiante). Colunas, passagens, pessoas e importar não são do turno de tarefa: são da conversa da pessoa.";
+  "O quadro da tarefa deste turno. Uma chamada = um lote atômico; acoes vazio ([]) só consulta. Saídas da etapa: terminei {tarefa?} (etapa concluída: vai para a próxima coluna e quem cuida dela começa); mudar_tarefa só como {tarefa, pr_url}, {tarefa, pergunta} ou {tarefa, status: bloqueado, pergunta} (grava o PR; pergunta à pessoa sem mover; ou bloqueia com o motivo e do que você precisa); comentar {tarefa, texto, responder_a?} (sozinho; @Nome aciona aquele bot); nao_e_comigo {tarefa, motivo} (você sai de responsável e o quadro passa a tarefa adiante). Colunas, passagens, pessoas e importar não são do turno de tarefa: são da conversa da pessoa.";
 
 const DESCRICAO_LEVE =
   "Mexe no quadro de tarefas da pessoa (a aba Quadro de um bot), como ela faria na tela. Uma chamada = um lote atômico com Desfazer; acoes vazio ([]) só consulta e devolve o quadro. Os tipos mais usados: criar_tarefa {titulo, descricao?, status?, agente?} (status afazer faz o responsável começar), mudar_tarefa {tarefa, status?, agente?, pr_url?, pergunta?}, comentar {tarefa, texto}, terminei {tarefa?}, desfazer {lote?}. Também há colunas, passagens (responsável por coluna), pessoas, labels, vários quadros, importar do Linear e exibir: quando a conversa for sobre o quadro, o manual completo de cada tipo vem junto; se precisar de um deles agora, consulte o quadro antes ([]) e siga o que a recusa disser.";
@@ -85,6 +116,6 @@ const { tipo: _tipo, ...PROPS_DOS_ITENS } = ITENS.properties;
 /** O schema do gerir_quadro por kit (o `gestao` é o de sempre, do contrato). */
 export const SCHEMA_DO_KIT: Record<KitQuadro, JsonSchema> = {
   gestao: FERRAMENTAS_QUADRO.gerir_quadro,
-  tarefa: comAcoes(DESCRICAO_DA_TAREFA, TIPOS_DA_TAREFA, Object.fromEntries(PROPS_DA_TAREFA.map((k) => [k, PROPRIEDADES_QUADRO[k]])), false),
+  tarefa: schemaDaTarefa(),
   leve: comAcoes(DESCRICAO_LEVE, TODOS_OS_TIPOS, semAjuda(PROPS_DOS_ITENS as Record<string, JsonSchema>, PROPS_COM_AJUDA_NO_LEVE)),
 };

@@ -4,6 +4,7 @@ import type { Turno } from "../../../src/contracts/turno.ts";
 import { FERRAMENTAS_QUADRO } from "../../../src/contracts/ferramentas-quadro.ts";
 import { assuntoDeQuadro, SCHEMA_DO_KIT, TIPOS_DA_TAREFA } from "../../../src/domain/kit-quadro.ts";
 import { montarPlano, type EntradaPlano } from "../../../src/domain/plano-turno.ts";
+import { errosDoSchema } from "../../../src/domain/schema-args.ts";
 
 const agora = 1_000_000;
 const agente: Agente = { tenantId: "t", id: "a1", ownerId: "p", visibility: "privado", nome: "Vera", titulo: "", descricao: "resolve pedidos", dono: "pessoa", forma: "shape-square", cor: "c-red", fixado: false, oculto: false, confirmado: true, modelo: "claude-haiku-4-5-20251001", duplicadoDe: null, criadoEm: 0 };
@@ -12,7 +13,9 @@ const base: EntradaPlano = { turno, agente, memorias: [], concessoes: [], conect
 
 const gerirQuadro = (entrada: EntradaPlano) => montarPlano(entrada).catalogo.ferramentas.find((f) => f.nome === "gerir_quadro")!;
 const itens = (schema: typeof SCHEMA_DO_KIT.tarefa) => schema.properties!.acoes!.items!;
-const tipos = (schema: typeof SCHEMA_DO_KIT.tarefa) => itens(schema).properties!.tipo!.enum;
+const alternativas = (schema: typeof SCHEMA_DO_KIT.tarefa) => itens(schema).oneOf ?? [itens(schema)];
+const tipos = (schema: typeof SCHEMA_DO_KIT.tarefa) => [...new Set(alternativas(schema).flatMap((a) => a.properties?.tipo?.enum ?? []))];
+const propriedades = (schema: typeof SCHEMA_DO_KIT.tarefa) => [...new Set(alternativas(schema).flatMap((a) => Object.keys(a.properties ?? {})))];
 
 describe("kits do gerir_quadro por contexto", () => {
   it("no turno de tarefa expõe só as saídas da etapa e não lista gestão do quadro", () => {
@@ -21,7 +24,21 @@ describe("kits do gerir_quadro por contexto", () => {
     expect(tipos(ferramenta.schema)).toEqual(TIPOS_DA_TAREFA);
     expect(tipos(ferramenta.schema)).toEqual(["terminei", "mudar_tarefa", "comentar", "nao_e_comigo"]);
     expect(Object.keys(ferramenta.schema.properties!)).toEqual(["acoes"]);
-    expect(Object.keys(itens(ferramenta.schema).properties!)).toEqual(["tipo", "tarefa", "status", "pr_url", "pergunta", "motivo", "texto", "responder_a"]);
+    expect(propriedades(ferramenta.schema)).toEqual(["tipo", "tarefa", "pr_url", "pergunta", "status", "texto", "responder_a", "motivo"]);
+    for (const acao of [
+      { tipo: "terminei" },
+      { tipo: "mudar_tarefa", tarefa: "T1", pr_url: "https://github.com/marlonwlv/nod/pull/35" },
+      { tipo: "mudar_tarefa", tarefa: "T1", pergunta: "Qual decisão falta?" },
+      { tipo: "mudar_tarefa", tarefa: "T1", status: "bloqueado", pergunta: "Preciso da credencial" },
+      { tipo: "comentar", tarefa: "T1", texto: "QA concluído" },
+      { tipo: "nao_e_comigo", tarefa: "T1", motivo: "é de produto" },
+    ]) expect(errosDoSchema(ferramenta.schema, { acoes: [acao] }), JSON.stringify(acao)).toEqual([]);
+    for (const mutante of [
+      { tipo: "criar_coluna", nome: "QA" },
+      { tipo: "definir_passagem", coluna: "QA", agente: "Vera" },
+      { tipo: "mudar_tarefa", tarefa: "T1", status: "feito" },
+      { tipo: "mudar_tarefa", tarefa: "T1", titulo: "outro" },
+    ]) expect(errosDoSchema(ferramenta.schema, { acoes: [mutante] }).length, JSON.stringify(mutante)).toBeGreaterThan(0);
     expect(plano.promptSistema).toContain("Trabalho de tarefa do quadro termina sempre numa de 4 saídas");
     expect(plano.promptSistema).not.toContain("cada coluna pode ter um responsável (a passagem, o handoff)");
   });
