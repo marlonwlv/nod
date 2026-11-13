@@ -93,14 +93,24 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
   it("2026-11-13: no mesmo turno, ler o próprio quadro não tira o pedido da pessoa de uma segunda chamada que só move tarefa", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);
-      ok(await m.pessoa([{ tipo: "criar_quadro" }, { tipo: "importar_linear", itens: [{ identificador: "ENG-13", titulo: "Aprovada em lote", agente: m.nomeEng }] }]));
+      ok(await m.pessoa([{ tipo: "criar_quadro" }, { tipo: "importar_linear", itens: [
+        { identificador: "ENG-13", titulo: "Aprovada em lote", agente: m.nomeEng },
+        { identificador: "ENG-14", titulo: "Também aprovada", agente: m.nomeEng },
+      ] }]));
       const t = await m.turnoDaAda();
       const chamar = (acoes: unknown[]) => executar(m.d, gerirQuadro, { ...t, quadro: m.nomeEng, acoes } as never);
 
       ok(await chamar([]));
       expect(await m.d.repos.turnos.contaminacao(t.turnoId)).toBe("quadro");
-      ok(await chamar([{ tipo: "mudar_tarefa", tarefa: "ENG-13", status: "afazer" }]));
+      const movidas = ok(await chamar([
+        { tipo: "mudar_tarefa", tarefa: "ENG-13", status: "afazer" },
+        { tipo: "mudar_tarefa", tarefa: "ENG-14", status: "afazer" },
+      ]));
       expect((await m.tarefas()).find((x) => x.linearId === "ENG-13")).toMatchObject({ status: "fazendo", agenteId: m.eng.agenteId });
+      expect((await m.tarefas()).find((x) => x.linearId === "ENG-14")).toMatchObject({ status: "fazendo", agenteId: m.eng.agenteId });
+      if (!movidas.data.ok) throw new Error("o lote deveria ter movido as duas tarefas");
+      const filas = (movidas.data.quadro?.tarefas ?? []).flatMap((x) => x.fila ? [x.fila] : []).sort();
+      expect(filas).toEqual(["na fila (1 de 2)", "na fila (2 de 2)"]);
 
       // A exceção é estreita: depois de ler o quadro, escrever texto ainda não vira um novo pedido da pessoa.
       const recusada = await chamar([{ tipo: "mudar_tarefa", tarefa: "ENG-13", descricao: "texto vindo do quadro" }]);
