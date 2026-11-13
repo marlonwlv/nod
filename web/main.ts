@@ -6231,8 +6231,17 @@ function agendarBoasVindas(agenteId: string): void {
     window.setTimeout(() => {
       if (botRecemCriado?.agenteId !== agenteId) return;
       if (atraso === ATRASO_PARA_PERGUNTAR_MS) {
-        const conversaId = estado.frota?.agentes.find((a) => a.id === agenteId)?.conversaId;
-        if (conversaId) dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
+        const t = estado.tela;
+        const conversaId = t.tipo === "conversa" && t.agenteId === agenteId ? t.conversaId : estado.frota?.agentes.find((a) => a.id === agenteId)?.conversaId;
+        if (conversaId) {
+          dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
+          if (api) void api.conversa(conversaId).then((conversa) => {
+            dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() });
+            esquecerRegiao("timeline");
+            render();
+            redesenharSidebar();
+          });
+        }
       }
       esquecerRegiao("timeline");
       render();
