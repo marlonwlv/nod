@@ -333,6 +333,19 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * definido em 2026-11-12 (fim do turno no frame): o `id_envio` da fala mais nova da pessoa que este turno leu — a que o
+     * disparou ou a de um turno que ele absorveu. null = nenhuma com id_envio (cliente antigo, rotina, colega).
+     */
+    async idEnvioQueFechou(turnoId: string): Promise<string | null> {
+      const [l] = await conn<{ id_envio: string }[]>`
+        select m.id_envio from turnos t
+        join mensagens m on m.tenant_id = t.tenant_id and m.id = t.mensagem_origem_id
+        where t.tenant_id = ${escopo.tenantId} and (t.id = ${turnoId} or t.absorvido_por = ${turnoId}) and m.id_envio is not null
+        order by m.criado_em desc, m.id desc limit 1`;
+      return l?.id_envio ?? null;
+    },
+
+    /**
      * Leitura com trava de linha (FOR UPDATE) para quem vai ASSENTAR o turno. medido em 2026-09-16 (e2e da L9):
      * Parar e a entrega do laço correm em transações paralelas — a entrega lia `parar_solicitado_em` NULL
      * (leitura sem trava, READ COMMITTED) e só esperava o commit de Parar no UPDATE seguinte, assentando
@@ -1232,20 +1245,23 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * é o caso de uso (absorverNaSessao).
      * definido em 2026-10-07 (#189): com `ids`, só estas — as que o app confirmou ter escrito na sessão
      * (confirmarNaSessao); sem, todas as da fila, como antes (app que não confirma).
+     * C1 (2026-11-12): com `ids`, a fala com anexo entra quando está entre as confirmadas (o servidor só a oferece ao app que
+     * a escreve na sessão, `aceitaAnexos`), e o print pendente só barra as posteriores quando ele mesmo não foi confirmado.
      */
     async absorverNaSessao(turno: Turno, ids?: readonly string[]): Promise<Turno[]> {
       if (ids && ids.length === 0) return [];
       const linhas = await conn<Linha[]>`
         update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conversa_id = ${turno.conversaId} and agente_id = ${turno.agenteId}
-          and estado = 'pendente' and origem = 'conversa' and mensagem_origem_id is not null and cardinality(entrada_anexos) = 0 and id <> ${turno.id}
+          and estado = 'pendente' and origem = 'conversa' and mensagem_origem_id is not null and id <> ${turno.id}
           and trabalho_id is null
-          ${ids ? conn`and id = any(${ids as string[]}::uuid[])` : conn``}
+          ${ids ? conn`and id = any(${ids as string[]}::uuid[])` : conn`and cardinality(entrada_anexos) = 0`}
           and not exists (
             select 1 from turnos a
             where a.tenant_id = ${escopo.tenantId} and a.owner_id = ${escopo.pessoaId} and a.conversa_id = ${turno.conversaId} and a.agente_id = ${turno.agenteId}
               and a.estado = 'pendente' and a.origem = 'conversa' and a.mensagem_origem_id is not null and a.trabalho_id is null and a.id <> ${turno.id}
-              and cardinality(a.entrada_anexos) > 0 and (a.criado_em, a.id) < (turnos.criado_em, turnos.id))
+              and cardinality(a.entrada_anexos) > 0 and (a.criado_em, a.id) < (turnos.criado_em, turnos.id)
+              ${ids ? conn`and not (a.id = any(${ids as string[]}::uuid[]))` : conn``})
         returning ${conn.unsafe(COLUNAS)}`;
       return linhas.map(paraTurno).sort(porChegada);
     },

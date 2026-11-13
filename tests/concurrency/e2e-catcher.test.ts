@@ -19,6 +19,12 @@ import { describeIntegracao } from "../helpers/integracao.ts";
 import { servidorCompleto, type ServidorCompleto } from "../helpers/servidor-completo.ts";
 import { limparPessoaE2E } from "./limpeza-e2e.ts";
 
+/** O turno em que o bot está compondo, pelo frame agente.estado (2026-11-12); null = não está compondo. */
+function compondoNo(f: FrameSse): string | null {
+  const e = f.dados.estado as { compondo?: boolean; turnoId?: string | null } | undefined;
+  return e?.compondo === true ? (e.turnoId ?? null) : null;
+}
+
 const MCP_EXEMPLO = fileURLToPath(new URL("../../scripts/mcp-exemplo.mjs", import.meta.url));
 const UUID_NULO = "00000000-0000-4000-8000-000000000000";
 /** Nome ÚNICO por execução: `pedir_a_pessoa` resolve a decisora por nome entre as pessoas do tenant (EMENDA 16). */
@@ -174,8 +180,12 @@ describeIntegracao("e2e com catcher: as doze jornadas do fluxo de aceite, sem CL
     expect(t1.sinais).toEqual({ attempted: true, rejected: false, promptSubmitted: true, producedOutput: true });
     await esperarFrame("turno.encerrado", desde, (f) => f.dados.turnoId === t1.id || f.dados.turno_id === t1.id || true);
     const doTurno = frames.slice(desde).map((f) => f.tipo);
-    for (const tipo of ["turno.iniciado", "turno.delta", "proposta.nova", "mensagem.nova", "turno.encerrado"]) expect(doTurno, `frame ${tipo}`).toContain(tipo);
-    expect(frames.slice(desde).find((f) => f.tipo === "turno.delta")?.dados).toMatchObject({ texto: "pensando…", executor: "catcher" });
+    // definido em 2026-11-12: o texto do modelo não sai mais à pessoa (nada de turno.delta); ele acende o `compondo` do
+    // estado vivo do bot (frame agente.estado), e o fim do turno leva o desfecho.
+    for (const tipo of ["turno.iniciado", "agente.estado", "proposta.nova", "mensagem.nova", "turno.encerrado"]) expect(doTurno, `frame ${tipo}`).toContain(tipo);
+    expect(doTurno).not.toContain("turno.delta");
+    expect(frames.slice(desde).some((f) => f.tipo === "agente.estado" && compondoNo(f) !== null)).toBe(true);
+    expect(frames.slice(desde).find((f) => f.tipo === "turno.encerrado")?.dados).toMatchObject({ desfecho: "success" });
 
     // Nada aplicado antes da confirmação (E1.1): ainda 'Novo agente'; a proposta está pendente na conversa.
     const antes = await conversa(vera.conversaId);
@@ -549,7 +559,7 @@ describeIntegracao("e2e com catcher: as doze jornadas do fluxo de aceite, sem CL
   it("parar: durante o streaming, POST parar interrompe em < 2 s com faixa {interrompidas:1}, fala parcial e motivo parado_pela_pessoa; sem nada rodando → nadaRodando; máquina some (lease vencido) → 'maquina_sem_contato' + decisão retomar → turno novo", { timeout: JORNADA_MS }, async () => {
     const longo = Array.from({ length: 80 }, (_, i) => `[[delta: parágrafo ${i}]]`).join(" ");
     const { turnoId } = await enviar(vera.conversaId, `escreva um relatório bem longo sobre revisão de código ${longo} [[texto: relatório]]`);
-    await esperarFrame("turno.delta", frames.length - 1, (f) => f.dados.turnoId === turnoId);
+    await esperarFrame("agente.estado", frames.length - 1, (f) => compondoNo(f) === turnoId);
     const inicio = Date.now();
     const faixa = await json<FaixaParada>("POST", `conversas/${vera.conversaId}/parar`);
     expect(faixa).toMatchObject({ interrompidas: 1, naoInterrompidas: [], nadaRodando: false });
@@ -569,7 +579,7 @@ describeIntegracao("e2e com catcher: as doze jornadas do fluxo de aceite, sem CL
 
     // A máquina some no meio de um turno: o lease vence, o varredor encerra com 'maquina_sem_contato' e abre 'retomar?' em Sua vez.
     const outro = await enviar(vera.conversaId, `de novo ${longo} [[texto: outro relatório]]`);
-    await esperarFrame("turno.delta", frames.length - 1, (f) => f.dados.turnoId === outro.turnoId);
+    await esperarFrame("agente.estado", frames.length - 1, (f) => compondoNo(f) === outro.turnoId);
     await comoPessoa((trx) => trx`update turnos set lease_ate = now() - interval '1 minute' where id = ${outro.turnoId}`);
     const sumido = await esperarTurno(outro.turnoId, ["interrompido"]);
     expect(sumido.motivoInterrupcao).toBe("maquina_sem_contato");

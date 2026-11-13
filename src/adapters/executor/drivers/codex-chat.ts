@@ -22,6 +22,7 @@ import {
   usoDoPlanoDoRateLimits,
 } from "../../../domain/codex-app-server.ts";
 import { ultimaLinhaUtil } from "../../../domain/codex-stream.ts";
+import { criarFalaPorBloco } from "../../../domain/fala-por-bloco.ts";
 import { criarFalaDoMeio } from "../../../domain/mensagem-no-meio.ts";
 import { ehPastaDeTask, NATIVA_MCP_DA_PESSOA } from "../../../domain/nativas.ts";
 import { redigirECortar } from "../../../domain/segredos.ts";
@@ -197,6 +198,7 @@ async function rodarUmaVez(c: ContextoChatCodex, comTerminal: boolean): Promise<
     const pendentes: Promise<void>[] = [];
     let sinais: SinaisTurno = { ...SINAIS_ZERADOS, attempted: true };
     const meio = criarFalaDoMeio(FRONTEIRAS_CODEX);
+    const porBloco = criarFalaPorBloco(meio);
     // NOD-402 (ADR-130): nem nos bastidores da conversa — tudo vai na entrega, que o `sem_novidade` cala.
     const falaNaHora = plano.modoTurno !== "sala" && !plano.bastidores && sinks.falaIntermediaria !== undefined;
     // A entrada da sessão: aberta depois do handshake, fechada quando o modelo terminou e nada mais chegou.
@@ -234,6 +236,9 @@ async function rodarUmaVez(c: ContextoChatCodex, comTerminal: boolean): Promise<
       // ADR-083 §6: a resposta à mensagem do meio vira fala gravada agora, não passo do card.
       const resposta = meio.avaliar(ev, falaNaHora);
       if (resposta !== null && falaNaHora) sinks.falaIntermediaria!(resposta);
+      // Fala por bloco (2026-11-12): o item de mensagem concluído vira mensagem própria, sem esperar o fim da volta.
+      const doBloco = falaNaHora ? porBloco.avaliar(ev) : null;
+      if (doBloco !== null) sinks.falaIntermediaria!(doBloco);
       const depois = reduzirSinais(sinais, ev);
       for (const k of ["attempted", "rejected", "promptSubmitted", "producedOutput"] as const) if (depois[k] && !sinais[k]) pendentes.push(sinks.sinal(k));
       sinais = depois;
@@ -280,6 +285,8 @@ async function rodarUmaVez(c: ContextoChatCodex, comTerminal: boolean): Promise<
           if (ev.texto !== "") emitir({ tipo: "delta", texto: ev.texto });
           return;
         case "item":
+          // definido em 2026-11-12 (estado vivo): a mensagem do agente compõe do início ao fim do item; o raciocínio pensa.
+          if (ev.tipoItem === "agentMessage" || ev.tipoItem === "reasoning") emitir({ tipo: "fase", fase: ev.fase === "fim" ? "fim_bloco" : ev.tipoItem === "reasoning" ? "pensando" : "compondo" });
           if (ev.fase === "fim" && ev.texto !== null && ev.texto.trim() !== "") emitir({ tipo: "texto_bloco", texto: ev.texto });
           if (!ev.ferramenta || !ev.itemId) return;
           if (ev.fase === "inicio") {

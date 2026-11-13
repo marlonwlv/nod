@@ -1,3 +1,4 @@
+import type { AnexoMeta } from "../../contracts/anexo.ts";
 import type { CapacidadesHarness } from "../../contracts/harness.ts";
 import type { Inventario } from "../../contracts/inventario.ts";
 import type { PlanoTurno } from "../../contracts/plano-turno.ts";
@@ -72,7 +73,9 @@ export interface Adapter {
    * revisto em 2026-10-08 (X2): `true` = aceita para entrar; a confirmação vem depois por `mensagemEntrou(id)` (ou
    * `mensagemDevolvida(id)`) nos sinks do turno. Sem `id`, nada é confirmado.
    */
-  receberMensagem?(texto: string, id?: string): boolean;
+  receberMensagem?(texto: string, id?: string, anexos?: readonly AnexoMeta[]): boolean;
+  /** C1 (2026-11-12): o adapter escreve anexo (imagem, PDF) na sessão viva — o laço pede ao servidor a fala com anexo. */
+  aceitaAnexosNoMeio?(): boolean;
   /** true enquanto o adapter aceita mensagem nova (sessão viva com a entrada aberta). */
   aceitaMensagens?(): boolean;
   /**
