@@ -197,38 +197,41 @@ describeIntegracao("NOD-195: o ROLLBACK de cada migração nova volta o schema e
     }
   }, 60_000);
 
-  it("a limpeza atravessa a corrida de uma conexão de outro papel que está terminando", async ({ skip }) => {
+  it("a limpeza atravessa 20 vezes a corrida de uma conexão de outro papel que está terminando", async ({ skip }) => {
     if (!admin) throw new Error("conexão administrativa não foi criada");
     const urlTeste = process.env.DATABASE_URL_TEST;
     if (!urlTeste) throw new Error("DATABASE_URL_TEST ausente");
-    const banco = `nod_rollback_corrida_${process.pid}_${randomBytes(4).toString("hex")}`;
-    let app: Sql | undefined;
-    await admin.unsafe(`create database ${banco}`);
-    try {
-      const url = new URL(urlTeste);
-      url.pathname = `/${banco}`;
-      app = postgres(url.toString(), { prepare: false, max: 1, onnotice: () => {} });
-      const [papelApp] = await app<{ papel: string }[]>`select current_user as papel`;
-      const [papelDono] = await admin<{ papel: string }[]>`select current_user as papel`;
-      if (papelApp?.papel === papelDono?.papel) {
+    for (let repeticao = 0; repeticao < 20; repeticao += 1) {
+      const banco = `nod_rollback_corrida_${process.pid}_${randomBytes(4).toString("hex")}`;
+      let app: Sql | undefined;
+      await admin.unsafe(`create database ${banco}`);
+      try {
+        const url = new URL(urlTeste);
+        url.pathname = `/${banco}`;
+        app = postgres(url.toString(), { prepare: false, max: 1, onnotice: () => {} });
+        const [papelApp] = await app<{ papel: string }[]>`select current_user as papel`;
+        const [papelDono] = await admin<{ papel: string }[]>`select current_user as papel`;
+        if (papelApp?.papel === papelDono?.papel) {
+          await app.end({ timeout: 2 });
+          app = undefined;
+          await limparBancoDescartavel(admin, banco);
+          skip();
+          return;
+        }
+
+        const limpeza = limparBancoDescartavel(admin, banco);
         await app.end({ timeout: 2 });
         app = undefined;
+        if ((await limpeza) === "ocupado_por_outro_papel") {
+          expect(await limparBancoDescartavel(admin, banco), `repetição ${repeticao + 1}`).toBe("removido");
+        }
+        const [restou] = await admin<{ existe: boolean }[]>`
+          select exists (select 1 from pg_database where datname = ${banco}) as existe`;
+        expect(restou?.existe, `repetição ${repeticao + 1}`).toBe(false);
+      } finally {
+        await app?.end({ timeout: 2 });
         await limparBancoDescartavel(admin, banco);
-        skip();
-        return;
       }
-
-      const limpeza = limparBancoDescartavel(admin, banco);
-      await app.end({ timeout: 2 });
-      app = undefined;
-      if ((await limpeza) === "ocupado_por_outro_papel") {
-        expect(await limparBancoDescartavel(admin, banco)).toBe("removido");
-      }
-      const [restou] = await admin<{ existe: boolean }[]>`select exists (select 1 from pg_database where datname = ${banco}) as existe`;
-      expect(restou?.existe).toBe(false);
-    } finally {
-      await app?.end({ timeout: 2 });
-      await limparBancoDescartavel(admin, banco);
     }
   }, 60_000);
 
