@@ -47,7 +47,7 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
       if (o.sujo) await d.repos.turnos.contaminar(t.turnoId, Date.now());
       return executar(d, gerirQuadro, { ...t, acoes, quadro: o.quadro ?? nomeEng, ...(o.plano ? { plano: o.plano as never } : {}) } as never);
     };
-    return { d, eng, ada, nomeEng, nomeAda, pessoa, quadroEng, tarefas, pela: ada_ };
+    return { d, eng, ada, nomeEng, nomeAda, pessoa, quadroEng, tarefas, turnoDaAda, pela: ada_ };
   }
   const ok = <T extends { data: { ok: boolean } }>(r: T): T => { expect(r.data, JSON.stringify(r.data)).toMatchObject({ ok: true }); return r; };
   const texto = (r: { data: unknown }) => JSON.stringify(r.data);
@@ -87,6 +87,24 @@ describeIntegracao("pedir a qualquer agente para mexer num quadro (NOD-430)", ()
       expect((await m.tarefas()).find((t) => t.titulo === "A")).toMatchObject({ status: "revisao", agenteId: m.ada.agenteId });
       ok(await m.pela([{ tipo: "mudar_tarefa", tarefa: "B", excluir: true }]));
       expect((await m.tarefas()).map((t) => t.titulo)).toEqual(["A"]);
+    });
+  });
+
+  it("2026-11-13: no mesmo turno, ler o próprio quadro não tira o pedido da pessoa de uma segunda chamada que só move tarefa", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      ok(await m.pessoa([{ tipo: "criar_quadro" }, { tipo: "importar_linear", itens: [{ identificador: "ENG-13", titulo: "Aprovada em lote", agente: m.nomeEng }] }]));
+      const t = await m.turnoDaAda();
+      const chamar = (acoes: unknown[]) => executar(m.d, gerirQuadro, { ...t, quadro: m.nomeEng, acoes } as never);
+
+      ok(await chamar([]));
+      expect(await m.d.repos.turnos.contaminacao(t.turnoId)).toBe("quadro");
+      ok(await chamar([{ tipo: "mudar_tarefa", tarefa: "ENG-13", status: "afazer" }]));
+      expect((await m.tarefas()).find((x) => x.linearId === "ENG-13")).toMatchObject({ status: "fazendo", agenteId: m.eng.agenteId });
+
+      // A exceção é estreita: depois de ler o quadro, escrever texto ainda não vira um novo pedido da pessoa.
+      const recusada = await chamar([{ tipo: "mudar_tarefa", tarefa: "ENG-13", descricao: "texto vindo do quadro" }]);
+      expect(recusada.data).toMatchObject({ ok: false, instrucao: expect.stringContaining("sozinho você não pode mexer em tarefa de outro") });
     });
   });
 
