@@ -30,7 +30,7 @@ export default tseslint.config(
     languageOptions: { globals: { process: "readonly", console: "readonly" } },
   },
   {
-    files: ["**/*.ts", "**/*.mjs"],
+    files: ["**/*.ts", "**/*.tsx", "**/*.mjs"],
     rules: {
       // Sem `allow`: o único lugar com console é src/obs/log.ts (um eslint-disable, datado).
       "no-console": "error",
@@ -84,7 +84,7 @@ export default tseslint.config(
     { allowTypeImports: true },
   ),
   fronteira(
-    ["web/**/*.ts"],
+    ["web/**/*.ts", "web/**/*.tsx"],
     ["**/src/**", "node:*", "postgres"],
     "a web só faz `import type` de src/contracts e src/shared/types.ts; dado chega pela API (ADR-018, ADR-020).",
     { allowTypeImports: true },

@@ -1,0 +1,19 @@
+/* ADR-180: a grade do quadro em React. O visual é o do quadro.css (as mesmas classes qd-); aqui só o que o React muda. */
+
+/* O HTML por string dentro dos componentes não ganha caixa: o layout do card e da coluna segue o de antes. */
+.rx-qd-corpo, .rx-qd-extra, .rx-qd-ic { display: contents; }
+
+/* O card de origem fica no lugar, apagado; quem anda com o ponteiro é o flutuante (DragOverlay). */
+[data-rx-arrasta] { touch-action: manipulation; }
+.qd-grade .qd-card.qd-arrastando { opacity: .4; transform: none; box-shadow: none; }
+.rx-qd-flutuante { box-shadow: var(--shadow-pop); cursor: grabbing; list-style: none; }
+
+/* O "Mover para…" do Base UI: o menu do quadro.css, posicionado pelo Positioner (não mais absoluto no card). */
+.rx-qd-menu-pos { z-index: 30; }
+.rx-qd-menu.qd-menu { position: static; }
+.rx-qd-menu .qd-menu-it[data-highlighted] { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .qd-grade .qd-card { transition: none !important; }
+}
+.rx-qd-grade { display: contents; }

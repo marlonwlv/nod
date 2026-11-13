@@ -271,6 +271,12 @@ export function avisoDoGithub(q: Pick<QuadroDto, "avisoGithub">): Html {
   return confiar(q.avisoGithub ? `<p class="qd-aviso-gh">${esc(q.avisoGithub)}</p>` : "");
 }
 
+/** ADR-180: os cards da coluna como HTML (a grade por string) e como dado (a grade em React), com o campo de nova tarefa antes. */
+const comCartoes = (antes: Html[], cs: Card[]): Pick<Coluna, "cards" | "cartoes" | "antesDosCards"> => ({ cards: [...antes, ...cs.map(card)], cartoes: cs, antesDosCards: antes });
+
+/** ADR-180: quem desenha a grade do computador. Sem `grade` no quadroDaMeta, a grade por string (`quadro`). */
+export type DesenharGrade = (o: { colunas: Coluna[]; rotulo: string; classe: string; extras: ExtraDaGrade[] }) => Html;
+
 const rotuloDoQuadro = (q: QuadroDto, nome: string): string => (q.meta ? `Quadro ${q.meta} de ${nome}` : `Quadro de ${nome}`);
 
 /**
@@ -288,7 +294,9 @@ export function quadroDaMeta(o: { q: QuadroDto; nome: string; /** Rodada 3: o no
   /** ADA-14: o seletor de quadro (vai para dentro do cabeçalho no quadro mínimo) e se há o que trocar. */
   seletor?: Html | string; trocar?: boolean;
   /** ADA-18: no celular, o quadro do celular no lugar da grade e da lista estreita. Sem isto, o HTML do computador. */
-  celular?: CelularDoQuadro }): Html {
+  celular?: CelularDoQuadro;
+  /** ADR-180: a grade em React (web/react/quadro/) no lugar da grade por string; só quando agrupada por status. */
+  grade?: DesenharGrade }): Html {
   const por = tarefasPorStatus(o.q);
   const busca = o.busca ?? "";
   const termo = termoDaBusca(busca);
@@ -335,7 +343,8 @@ export function quadroDaMeta(o: { q: QuadroDto; nome: string; /** Rodada 3: o no
   const larguraPresa = (depois: number) => `calc(${depois} * (var(--qd-tira) + 8px) + var(--qd-tira) + 8px)`;
   const colunas: Coluna[] = vistas.map(({ c, tarefas, recolhida }, i) => ({
     status: c.id, nome: c.nome, grupo: c.grupo, icone: iconeDaColuna(c), pessoa: c.daPessoa, recolhida, recolhivel: true,
-    editavel: { fixa: c.fixa }, ...(c.prazoMin && podeTerPrazo(c) ? { prazo: prazoLegivelMin(c.prazoMin) } : {}), n: tarefas.length, cards: [...formDa(c, false), ...cartoes(tarefas, false).map(card)], vazio: nova?.coluna === c.id && !nova.estreito ? "" : vazio(c.id),
+    editavel: { fixa: c.fixa }, ...(c.prazoMin && podeTerPrazo(c) ? { prazo: prazoLegivelMin(c.prazoMin) } : {}), n: tarefas.length,
+    ...comCartoes(formDa(c, false), cartoes(tarefas, false)), vazio: nova?.coluna === c.id && !nova.estreito ? "" : vazio(c.id),
     ...(o.podeCriar && !recolhida ? { novaTarefa: { aberta: nova?.coluna === c.id && !nova.estreito } } : {}),
     ...(!recolhida ? { apos: aposDoCabecalho(cs, c, ed, contagem[c.id] ?? 0, o.nome, o.agentes, ui ? (id) => o.agente(id)?.avatar ?? null : undefined) } : {}),
     ...(ed?.tipo === "renomear" && ed.coluna === c.id && !naFolha(ed) ? { cab: campoDeRenomear(c, ed.erro) } : {}),
@@ -416,7 +425,7 @@ export function quadroDaMeta(o: { q: QuadroDto; nome: string; /** Rodada 3: o no
     ui && !cel ? topoHtml : "",
     linhaVazia,
     ...(o.celular ? [blocoDoCelular()] : [
-      quadro({ rotulo, classe: `qd-so-largo${compacto}`, colunas: colunasResp ?? colunas, extras: colunasResp ? [] : extras }),
+      (o.grade && !colunasResp ? o.grade : quadro)({ rotulo, classe: `qd-so-largo${compacto}`, colunas: colunasResp ?? colunas, extras: colunasResp ? [] : extras }),
       `<div class="qd-so-estreito${compacto}">${lista({ rotulo, antes: confiar(ordem), ...(o.podeCriar && !porResp ? { novaTarefa: true } : {}), grupos: porResp ? porResp.map(({ g, r, ts }) => ({ status: `resp-${g.chave}`, nome: r.nome, avatar: r.avatar, n: ts.length, linhas: cartoes(ts, true).map(linha), vazio: nada })) : vistas.map(({ c, tarefas, recolhida }) => ({ status: c.id, nome: c.nome, icone: iconeDaColuna(c), pessoa: c.daPessoa, recolhido: recolhida, n: tarefas.length, linhas: [...formDa(c, true), ...cartoes(tarefas, true).map(linha)], vazio: nova?.coluna === c.id && nova.estreito ? "" : vazio(c.id) })) })}` +
       `${naFolha(ed) ? folhaDasColunas(cs, ed, contagem, o.nome) : ""}</div>`]),
     ui ? modalDoQuadro({ ui, q: o.q, cs, nome: o.nome, agente: o.agente, ...(o.agentes ? { agentes: o.agentes } : {}) }) : "",
