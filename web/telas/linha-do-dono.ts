@@ -6,6 +6,7 @@ import { conversaViva, esperaNaTela, fraseDoDono, frentesDoBot, grupoDaLinha, li
 import { ICONE } from "../lib/icones.ts";
 import { duracaoCurta } from "../lib/relogio.ts";
 import { esc, hora, horaSemZero, iconeAgente } from "../lib/render.ts";
+import { avatarDoBot } from "../lib/mascote.ts";
 import { aberto, abertosDoBot, maquinasDe, meiaNoiteDe, memoriaDosBots, naFilaDaCota, pilulaDaCota, textoNaFilaDaCota, pilulaDasMaquinas, pilulaMac, ICONE_MEMORIA, leituraDoMac, maquinasDoAviso, rodandoNoMac, textoDaContagemDeMemoria, pontoTrabalho, seguradoPeloMac, situacaoDe, tempoDe, tituloCurto } from "../lib/trabalhos.ts";
 import { agente, chipTrabalhosDoBot, segmentadoDosTrabalhos } from "./trabalhos.ts";
 
@@ -227,7 +228,7 @@ function linhaDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[]
   const n = x.linha.sinal === "vivo" && x.dono.estado.frentes > 1 ? `<span class="tb-n" aria-hidden="true">${x.dono.estado.frentes}</span>` : "";
   // ADR-167 (Paper 16): ponto, mascote, "Nome  Título" e a frase embaixo (laranja quando precisa de você); à direita o
   // detalhe curto ("4 frentes"), o tempo e a seta.
-  const linha = `<button type="button" class="tt-linha tb-linha" data-act="bot-trabalhos" data-agente="${esc(x.bot.id)}" aria-expanded="${aberta}" data-grupo="${x.grupo}">${n}<span class="ponto-trabalho ${ponto}" aria-hidden="true"></span>${iconeAgente(x.bot, "sm", x.grupo === "trabalhando" ? "trabalhando" : "disponivel")}<span class="tb-meio"><span class="tb-nome"><b>${esc(x.bot.nome)}</b>${x.bot.titulo ? `<small>${esc(x.bot.titulo)}</small>` : ""}</span><span class="tb-frase">${esc(frase)}</span></span>${detalhe ? `<span class="tb-detalhe">${esc(detalhe)}</span>` : ""}<span class="tt-fim">${esc(tempo)}</span>${aberta ? ICONE.recolher : ICONE.seta}</button>`;
+  const linha = `<button type="button" class="tt-linha tb-linha" data-act="bot-trabalhos" data-agente="${esc(x.bot.id)}" aria-expanded="${aberta}" data-grupo="${x.grupo}">${n}<span class="ponto-trabalho ${ponto}" aria-hidden="true"></span>${iconeAgente(x.bot, "sm", avatarDoBot(estado, x.bot))}<span class="tb-meio"><span class="tb-nome"><b>${esc(x.bot.nome)}</b>${x.bot.titulo ? `<small>${esc(x.bot.titulo)}</small>` : ""}</span><span class="tb-frase">${esc(frase)}</span></span>${detalhe ? `<span class="tb-detalhe">${esc(detalhe)}</span>` : ""}<span class="tt-fim">${esc(tempo)}</span>${aberta ? ICONE.recolher : ICONE.seta}</button>`;
   return aberta ? linha + frentesAbertasDoBot(estado, x, todos) : linha;
 }
 
@@ -241,7 +242,7 @@ function frentesAbertasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly Trab
     // Revisão do Gil no #340: a linha corta com reticências e o fim (a hora da volta) some primeiro — o title mostra a frase inteira.
     const situacao = aberto(t) ? situacaoDe(t, todos, false, estado.agora) : "";
     const passo = situacao ? situacao.charAt(0).toUpperCase() + situacao.slice(1) : "";
-    return `<button type="button" class="tb-frente" data-act="abrir-trabalho" data-id="${esc(t.id)}"${t.estado === "precisa_de_voce" ? ' data-pede="1"' : ""}>${pontoTrabalho(t, x.bot.cor)}<span class="tb-frente-txt"><span class="tb-frente-titulo">${esc(tituloCurto(t.titulo))}</span><span class="tb-frente-passo"${passo ? ` title="${esc(passo)}"` : ""}>${esc(passo)}</span></span><span class="tb-frente-fim">${esc(fim)}</span></button>`;
+    return `<button type="button" class="tb-frente" data-act="abrir-trabalho" data-id="${esc(t.id)}"${t.estado === "precisa_de_voce" ? ' data-pede="1"' : ""}>${pontoTrabalho(t, x.bot.cor)}${iconeAgente(x.bot, "sm", avatarDoBot(estado, x.bot))}<span class="tb-frente-txt"><span class="tb-frente-titulo">${esc(tituloCurto(t.titulo))}</span><span class="tb-frente-passo"${passo ? ` title="${esc(passo)}"` : ""}>${esc(passo)}</span></span><span class="tb-frente-fim">${esc(fim)}</span></button>`;
   };
   const daConversa = x.dono.esperas.filter((e) => e.trabalhoId === null).map((d) => comAcaoLocal(d)).filter((e) => e !== null).map((e) => {
     const v = esperaNaTela(e, estado.agora);

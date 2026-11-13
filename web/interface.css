@@ -264,9 +264,9 @@
 /* definido em 2026-09-18: compensar margem do viewBox Bloub (316 unidades para corpo de ~200). */
 .icon.mascote{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .icon.mascote>svg{width:100%;height:100%;flex-shrink:0;max-width:none}
-.icon.mascote[state="sleeping"]:not(.sm)::after{content:"z  z  z";position:absolute;left:70%;top:-7px;color:color-mix(in srgb,var(--ink) 55%,transparent);font:600 11px/1 system-ui;white-space:nowrap;transform:rotate(-34deg);animation:mascote-z 2.4s ease-out infinite;pointer-events:none}
+.icon.mascote .mascote-zz{display:none}.icon.mascote[state="sleeping"]:not(.sm) .mascote-zz{display:block;position:absolute;inset:0;pointer-events:none}.icon.mascote .mascote-zz i{position:absolute;left:68%;top:8%;color:color-mix(in srgb,var(--ink) 55%,transparent);font:600 11px/1 system-ui;font-style:normal;animation:mascote-z 2.4s ease-out infinite}.icon.mascote .mascote-zz i:nth-child(2){animation-delay:-.8s}.icon.mascote .mascote-zz i:nth-child(3){animation-delay:-1.6s}
 @keyframes mascote-z{0%{transform:translateY(0) rotate(-34deg) scale(.6);opacity:0}25%{opacity:1}100%{transform:translateY(-12px) rotate(-34deg) scale(1);opacity:0}}
-@media (prefers-reduced-motion:reduce){.icon.mascote[state="sleeping"]:not(.sm)::after{animation:none;opacity:1;transform:translateY(-6px) rotate(-34deg)}}
+@media (prefers-reduced-motion:reduce){.icon.mascote .mascote-zz i{animation:none;opacity:1;transform:rotate(-34deg)}.icon.mascote .mascote-zz i:nth-child(2){transform:translate(7px,-5px) rotate(-34deg)}.icon.mascote .mascote-zz i:nth-child(3){transform:translate(14px,-10px) rotate(-34deg)}}
 .mascote-catalogo .icon.mascote>svg{width:100%;height:100%}
 
 /* definido em 2026-09-18: detalhes técnicos sob demanda ("Configurar conexão", só no modo local). */

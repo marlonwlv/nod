@@ -202,9 +202,9 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     expect(html).toContain('<div class="bubble" data-parte="balao" data-no-lugar>Pronto, fechei setembro.</div>');
     expect(html).not.toContain('class="pensar"');
     expect(html).not.toContain("data-desde");
-    // Parte 3: a fala que entrou faz o mascote piscar (`wink`) por WINK_MS; depois, repouso.
-    expect(saindo[0]!.morfar!.mascote).toMatchObject({ state: "wink", "data-estado": "disponivel" });
-    expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 2_000 })[0]!.morfar!.mascote).toMatchObject({ state: "idle" });
+    // No indicador da conversa o mascote termina junto com a linha; a piscada não volta depois da conclusão.
+    expect(saindo[0]!.morfar!.mascote).toMatchObject({ state: "finished", "data-estado": "terminou" });
+    expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 2_000 })[0]!.morfar!.mascote).toMatchObject({ state: "finished" });
     // A releitura (com a fala gravada) tira a fala que saía; e ela também some sozinha se a releitura não vier.
     const relida = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2)] } as ConversaDto, agora: AGORA + 500 });
     expect(relida.falasSaindo?.[C]).toBeUndefined();
@@ -552,11 +552,11 @@ describe("7. a linha da memória", () => {
 });
 
 describe("8. o cabeçalho com uma regra só", () => {
-  it("turno vivo e pedidos juntos: 'Trabalhando · 2 esperam você'; sem turno, 'Aguardando você'", () => {
+  it("a aprovação troca o estado mesmo durante o turno; sem turno, os pedidos seguem aguardando", () => {
     const { e } = cenario([], [pedido("d1"), pedido("d2")]);
     const vivo: Estado = { ...e, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } } };
-    expect(renderCabecalhoConversa(vivo, "a")).toContain("Refletindo <span class=\"presenca-sep\" aria-hidden=\"true\">·</span> <b>2 esperam você</b>");
-    expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando você<");
+    expect(renderCabecalhoConversa(vivo, "a")).toContain(">Aguardando sua aprovação<");
+    expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando sua aprovação<");
   });
 });
 

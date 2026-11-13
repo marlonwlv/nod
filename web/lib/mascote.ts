@@ -120,8 +120,11 @@ export function proximaViradaDoMascote(estado: Pick<Estado, "turnosVivos" | "fal
  * girava (a variante 1, recusada) e o chip piscava ao mesmo tempo. A lista de `GET trabalhos` diz qual turno é de task
  * (`turnoVivoId`), além do `trabalhoId` que o turno vivo já traz; `conversas` fica de fora (a barra relê pelo que lê).
  */
-export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "trabalhos" | "suaVez" | "agora"> & Partial<Pick<Estado, "atividades" | "falasSaindo" | "frota" | "sessao">>, conversaId: string): EstadoMascote {
+export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "trabalhos" | "suaVez" | "agora"> & Partial<Pick<Estado, "atividades" | "falasSaindo" | "frota" | "sessao" | "computadorVisto">>, conversaId: string): EstadoMascote {
   const vivos = turnosVivosDaConversa(estado, conversaId);
+  const aguarda = estado.suaVez?.itens.some((item) => item.decisao.conversaId === conversaId && item.decisao.tipo === "aprovacao" && item.estadoColuna !== "vencido");
+  // A aprovação é o único pedido da pessoa que troca o personagem: o X precisa continuar visível mesmo com o turno vivo.
+  if (aguarda) return "aguardando_aprovacao";
   const rodando = vivos.filter((t) => t.estado === "rodando");
   if (rodando.length) {
     const atividades = rodando.map((t) => estado.atividades?.[conversaId]?.[t.turnoId]);
@@ -133,12 +136,11 @@ export function estadoMascoteNaConversa(estado: Pick<Estado, "turnosVivos" | "tr
   }
   // NOD-216: só o pedido recém-chegado pensa; a fila antiga fica parada (abaixo de "Sua vez", que pede a pessoa).
   if (vivos.some((t) => filaRecente(t, estado.agora))) return "pensando";
-  const aguarda = estado.suaVez?.itens.some((item) => item.decisao.conversaId === conversaId && item.decisao.tipo === "aprovacao" && item.estadoColuna !== "vencido");
-  if (aguarda) return "aguardando_aprovacao";
   const terminou = Object.values(estado.falasSaindo?.[conversaId] ?? {}).some((fala) => estado.agora - fala.em < FINISHED_MS);
   if (terminou) return "terminou";
   // ADR-174: o computador do bot fora do ar (o mesmo sinal da barra: só para o dono) ganha do repouso e da fila.
   if (computadorForaDoAr(estado, conversaId)) return "offline";
+  if (computadorDormindo(estado, conversaId)) return "pausado";
   return vivos.some((t) => t.estado === "na_fila") ? "na_fila" : "disponivel";
 }
 
@@ -176,6 +178,11 @@ export function terminalNoTurno(texto: string | null | undefined): boolean {
 function computadorForaDoAr(estado: Partial<Pick<Estado, "frota" | "sessao">>, conversaId: string): boolean {
   const a = estado.frota?.agentes.find((x) => x.conversaId === conversaId);
   return !!a?.computadorForaDoAr && !!estado.sessao && a.ownerId === estado.sessao.pessoaId;
+}
+
+function computadorDormindo(estado: Partial<Pick<Estado, "frota" | "computadorVisto">>, conversaId: string): boolean {
+  const a = estado.frota?.agentes.find((x) => x.conversaId === conversaId);
+  return !!a && estado.computadorVisto?.[a.id] === "dormindo";
 }
 
 /** O mascote anima (gira ou pensa)? Para a presença do cabeçalho e para quem só precisa do sim ou não. */

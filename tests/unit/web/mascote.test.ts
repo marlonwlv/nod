@@ -37,4 +37,12 @@ describe("mascote temporário", () => {
     expect(avatarNaConversa(comFerramenta, "c1")).toBe("executando");
     expect(avatarNaConversa({ ...rodando, turnosVivos: {} }, "c1")).toBe("disponivel");
   });
+
+  it("mantém a aprovação acima do turno vivo e mostra término e sono pelos fatos do app", () => {
+    const rodando = { ...estadoInicial, agora: 20_000, frota: { agentes: [{ id: "a1", conversaId: "c1" }] } as never, turnosVivos: { t1: { turnoId: "t1", conversaId: "c1", estado: "rodando" as const, executor: null, machineId: null, desde: 0 } } };
+    const aprovacao = { ...rodando, suaVez: { itens: [{ decisao: { conversaId: "c1", tipo: "aprovacao" }, estadoColuna: "aberto" }] } as never };
+    expect(estadoMascoteNaConversa(aprovacao, "c1")).toBe("aguardando_aprovacao");
+    expect(estadoMascoteNaConversa({ ...rodando, turnosVivos: {}, falasSaindo: { c1: { t1: { em: 10_000 } } } as never }, "c1")).toBe("terminou");
+    expect(estadoMascoteNaConversa({ ...rodando, turnosVivos: {}, computadorVisto: { a1: "dormindo" } }, "c1")).toBe("pausado");
+  });
 });

@@ -180,12 +180,22 @@ class MascoteElemento extends HTMLElement {
         parados.set(chave, svg);
       }
       this.innerHTML = svg.replaceAll("@@", this.uid);
+      this.decorateSleeping();
       this.shown = chave;
       this.painter = null;
       return;
     }
     this.shown = "";
     (this.painter ??= new PintorMascote(this, this.uid, INK)).pintar(this.engine!.sample(this.time, !ESTATICOS.has(state)));
+    this.decorateSleeping();
+  }
+  private decorateSleeping(): void {
+    const existing = this.querySelector(":scope > .mascote-zz");
+    if (this.state !== "sleeping") {
+      existing?.remove();
+      return;
+    }
+    if (!existing) this.insertAdjacentHTML("beforeend", '<span class="mascote-zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>');
   }
 }
 customElements.define("nod-mascote", MascoteElemento);

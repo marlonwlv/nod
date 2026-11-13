@@ -21,7 +21,7 @@ import type { EstadoMascote } from "../lib/mascote.ts";
 import { iaDoBotAgora, maquinaDoBot, presencaPorMaquina } from "./maquinas.ts";
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { acordandoNaFila, motivoLegivel } from "../lib/maquina-nuvem.ts";
-import { COMET_MS, contagemDasAcoes, estadoDaFala, falaNoBalao, geracaoDoBalao, GRUPOS_A_VISTA, itensDoPensamento, textoEmLf, textoEscrevendo, WINK_MS, type AtividadeTurno, type ItemDoPensamento, type LinhaDoResumo, type VigiaDaAtividade } from "../lib/atividade.ts";
+import { COMET_MS, contagemDasAcoes, estadoDaFala, falaNoBalao, geracaoDoBalao, GRUPOS_A_VISTA, itensDoPensamento, textoEmLf, textoEscrevendo, type AtividadeTurno, type ItemDoPensamento, type LinhaDoResumo, type VigiaDaAtividade } from "../lib/atividade.ts";
 import { linhaDaFila } from "../lib/fila-do-pedido.ts";
 import { haQuanto } from "../lib/relogio.ts";
 import { FALA_SAINDO_MS, tempoDaFala } from "../lib/fala-viva.ts";
@@ -1062,14 +1062,14 @@ export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agen
   // as frentes saem, e senão o estado da fala (thinking, idle + attentif, orbit). O relógio da virada (web/lib/mascote.ts)
   // redesenha quando um disparo acaba.
   const state = saindo
-    ? (estado.agora - saindo.em < WINK_MS ? "wink" : "idle")
+    ? "finished"
     : mudo !== null
       ? MASCOTE_NO_SILENCIO
       : a?.frentesEm !== undefined && estado.agora - a.frentesEm < COMET_MS
           ? "comet"
           : fala.mascote.state;
   const expression = state === "idle" && !parado ? fala.mascote.expression : null;
-  const dataEstado = state === "working" || state === "comet" ? "trabalhando" : state === "running" ? "executando" : state === "streaming" ? "digitando" : state === "reading" ? "lendo" : state === "thinking" ? "pensando" : "disponivel";
+  const dataEstado = state === "working" || state === "comet" ? "trabalhando" : state === "running" ? "executando" : state === "streaming" ? "digitando" : state === "reading" ? "lendo" : state === "thinking" ? "pensando" : state === "finished" ? "terminou" : "disponivel";
   const mascote: Record<string, string> = { state, "data-estado": dataEstado, "aria-label": rotulo, title: rotulo, ...(expression ? { expression } : {}) };
   const htmlDoMascote = agente ? mascoteDaFala(agente, mascote) : "";
   return {
@@ -1926,13 +1926,25 @@ function presencaDoBot(estado: Estado, agenteId: string): { html: string; ativa:
   const esperam = new Set((estado.suaVez?.itens ?? []).filter((item) => item.decisao.conversaId === a?.conversaId && item.estadoColuna !== "vencido").map(chaveDoItem)).size;
   const sep = ` <span class="presenca-sep" aria-hidden="true">·</span> `;
   const comEsperam = esperam ? `${sep}<b>${esperam} ${esperam === 1 ? "espera" : "esperam"} você</b>` : "";
+  const porEstado: Partial<Record<EstadoMascote, string>> = {
+    lendo: "Lendo",
+    executando: "Rodando no terminal",
+    digitando: "Digitando…",
+    terminou: "Terminou",
+    aguardando_aprovacao: "Aguardando sua aprovação",
+    pausado: "Dormindo",
+    offline: "Fora do ar",
+    comemorando: "Comemorando",
+  };
   const html = emLigacao
     ? "Em ligação"
     : mascote === "trabalhando"
     ? `Trabalhando${mudo !== null ? `${sep}sem novidade há ${mudo} min` : ""}${comEsperam}`
     : mascote === "pensando"
     ? `Refletindo${comEsperam}`
-    : esperam ? "Aguardando você" : mascote === "na_fila" ? "Na fila" : estado.executor?.atual === "catcher" ? "Simulação" : (a ? esc(presencaPorMaquina(iaDoBotAgora(estado, a)) ?? "") : "") || "Disponível";
+    : porEstado[mascote]
+      ? porEstado[mascote]!
+      : esperam ? "Aguardando você" : mascote === "na_fila" ? "Na fila" : estado.executor?.atual === "catcher" ? "Simulação" : (a ? esc(presencaPorMaquina(iaDoBotAgora(estado, a)) ?? "") : "") || "Disponível";
   return { html, ativa: mascoteAnimado(mascote) || emLigacao };
 }
 
