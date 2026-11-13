@@ -62,7 +62,12 @@ export const marcarEDecidir: CasoDeUso<EntradaDecidir, SaidaMarcarEDecidir> = as
   const agora = deps.agora();
   const decisao = await deps.repos.decisoes.buscar(input.decisaoId);
   if (!decisao) throw new ErroDeDominio("nao_encontrado", { cause: "decisão" });
-  if ((await deps.repos.agentes.buscar(decisao.agenteId, true))?.excluidoEm || (decisao.turnoId && await deps.repos.agentes.execucaoBloqueada(decisao.turnoId))) throw new ErroDeDominio("estado_invalido");
+  if ((await deps.repos.agentes.buscar(decisao.agenteId, true))?.excluidoEm) {
+    throw new ErroDeDominio("estado_invalido", { cause: "agente da decisão excluído" });
+  }
+  if (decisao.turnoId && await deps.repos.agentes.execucaoBloqueada(decisao.turnoId)) {
+    throw new ErroDeDominio("estado_invalido", { cause: "execução do turno da decisão bloqueada" });
+  }
   if (decisao.estado !== "pendente" && decisao.estado !== "reaberta") throw new ErroDeDominio("estado_invalido", { cause: `decisão ${decisao.estado}` });
   if (decisao.tipo !== "aprovacao" && decisao.tipo !== "retomar_turno") {
     throw new ErroDeDominio("estado_invalido", { cause: `decisão do tipo ${decisao.tipo} não é decidida por este caso de uso` });
