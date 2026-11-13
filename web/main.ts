@@ -161,7 +161,7 @@ import { agendaPorLer, escNaAgenda } from "./estado/agenda.ts";
 import { diaParaFocarNoMes } from "./telas/agenda-rotinas.ts";
 import { confirmarCriarBot, criarRapido } from "./telas/confirmar-criar-bot.ts";
 import { abrirCriarBot, type DepsCriarBot, type DepsDialogoCriarBot } from "./telas/criar-bot.ts";
-import { faseDasBoasVindas, htmlRefletindo, linhaDasBoasVindas, PLACEHOLDER_DA_PERGUNTA, type FaseDasBoasVindas } from "./telas/boas-vindas.ts";
+import { ATRASO_PARA_PERGUNTAR_MS, ATRASO_PARA_REFLETIR_MS, faseDasBoasVindas, htmlRefletindo, linhaDasBoasVindas, PLACEHOLDER_DA_PERGUNTA, type FaseDasBoasVindas } from "./telas/boas-vindas.ts";
 import { USOS } from "./telas/este-mac.ts";
 import { botsDaPessoa, lerEstaMaquina, maquinaNova, maquinasDeTrabalho, nomeDeInstanciaSugerido, soComputador } from "./telas/maquinas.ts";
 import { appEncerraNoFim, ITEM_PONTE_FALHOU, itensDaPonte, itensDoServidor, textoDeRemover, type ItemDoFim } from "./telas/remover-computador.ts";
@@ -2967,7 +2967,10 @@ function renderPrincipal(): void {
       {
         // Spec do botão + (tela 4): o bot recém-criado reflete enquanto a conversa dele não chega, no lugar do "carregando".
         const bot = botGerido(t.agenteId);
-        corpo = partes ? CASCA_TIMELINE : bot && botRecemCriado && faseDasBoasVindasDe(bot) === "pensando" ? htmlRefletindo(bot, botRecemCriado.em, Date.now()) : renderTimeline(null, estado);
+        const fase = bot ? faseDasBoasVindasDe(bot) : null;
+        if (fase === "vazia") { partes = null; corpo = '<div class="timeline"></div>'; }
+        else if (bot && botRecemCriado && fase === "pensando") { partes = null; corpo = htmlRefletindo(bot, botRecemCriado.em, Date.now()); }
+        else corpo = partes ? CASCA_TIMELINE : renderTimeline(null, estado);
       }
       composer = { chave: `conversa:${t.conversaId}`, html: htmlComposer(placeholderPadrao(), (estado.frota?.agentes ?? []).filter((a) => a.id !== t.agenteId && a.ownerId === estado.sessao?.pessoaId && a.confirmado).map((a) => a.nome), { anexos: aceitaDo(botGerido(t.agenteId)?.harness), comandos: true, aprovacao: true, bot: botGerido(t.agenteId)?.nome }) };
       break;
@@ -6203,7 +6206,10 @@ let botProvisorio: { nome: string; agenteId: string | null } | null = null;
 function linhaProvisoria(): string {
   const p = botProvisorio;
   if (!p) return "";
-  if (p.agenteId && estado.frota?.agentes.some((a) => a.id === p.agenteId)) { botProvisorio = null; return ""; }
+  if (p.agenteId) {
+    const agente = estado.frota?.agentes.find((a) => a.id === p.agenteId);
+    if (agente && faseDasBoasVindasDe(agente) !== "vazia") { botProvisorio = null; return ""; }
+  }
   return `<div class="bot-row bot-provisorio selecionado" aria-busy="true"><span class="row" role="status" aria-label="${esc(p.nome)}, criando…"><span class="provisorio-av" aria-hidden="true">${IC_PESSOA_PROVISORIO}</span><span class="txt"><span class="nome-linha"><b>${esc(p.nome)}</b></span><span class="sub">Criando…</span></span></span></div>`;
 }
 /**
@@ -6216,7 +6222,18 @@ let botRecemCriado: { agenteId: string; em: number } | null = null;
 function faseDasBoasVindasDe(a: { id: string; conversaId: string; confirmado: boolean }): FaseDasBoasVindas {
   const t = estado.tela;
   const recemCriado = botRecemCriado?.agenteId === a.id && t.tipo === "conversa" && t.agenteId === a.id;
-  return faseDasBoasVindas(estado.conversas[a.conversaId], { recemCriado, confirmado: a.confirmado });
+  const decorridoMs = recemCriado && botRecemCriado ? Date.now() - botRecemCriado.em : undefined;
+  return faseDasBoasVindas(estado.conversas[a.conversaId], { recemCriado, confirmado: a.confirmado, decorridoMs });
+}
+
+function agendarBoasVindas(agenteId: string): void {
+  for (const atraso of [ATRASO_PARA_REFLETIR_MS, ATRASO_PARA_PERGUNTAR_MS]) {
+    window.setTimeout(() => {
+      if (botRecemCriado?.agenteId !== agenteId) return;
+      render();
+      redesenharSidebar();
+    }, atraso + 20);
+  }
 }
 
 const IC_PESSOA_PROVISORIO = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="5.5" r="2.5"/><path d="M3.5 13.5c.6-2.3 2.4-3.5 4.5-3.5s3.9 1.2 4.5 3.5"/></svg>';
@@ -6235,6 +6252,7 @@ function depsDialogoCriarBot(): DepsDialogoCriarBot {
     aoCriar: ({ agenteId, conversaId }, { nome }) => {
       botProvisorio = { nome, agenteId };
       botRecemCriado = { agenteId, em: Date.now() };
+      agendarBoasVindas(agenteId);
       navegar({ tipo: "conversa", conversaId, agenteId });
       dispatch({ tipo: "invalidar", quais: ["frota"] });
     },
@@ -6293,6 +6311,7 @@ function criarBotAgora(): Promise<void> {
   return agir(async () => {
     const r = await api!.criarAgente(undefined, { interativo: true });
     botRecemCriado = { agenteId: r.agente.id, em: Date.now() };
+    agendarBoasVindas(r.agente.id);
     dispatch({ tipo: "invalidar", quais: ["frota"] });
     navegar({ tipo: "conversa", conversaId: r.conversa.id, agenteId: r.agente.id });
   });

@@ -6,7 +6,7 @@ import { cartaoDeBoasVindas, faseDasBoasVindas, htmlRefletindo, linhaDasBoasVind
 
 /**
  * Spec do botão + (telas 4 e 5): depois de criar o bot interativo, ele reflete até a conversa chegar e então fala primeiro,
- * com o cartão "Para que você quer minha ajuda?". A fase sai do fluxo (o que a conversa já tem), sem relógio.
+ * com o cartão "Para que você quer minha ajuda?". O relógio segura as telas 3 e 4 mesmo quando a API responde rápido.
  */
 type M = Pick<Mensagem, "kind" | "payload" | "autoria">;
 const msg = (autor: "agente" | "pessoa", payload: Mensagem["payload"] = null): M => ({ kind: "texto", payload, autoria: { autor_tipo: autor } } as M);
@@ -14,13 +14,15 @@ const BOAS_VINDAS = msg("agente", { kind: "boas_vindas", pergunta: PERGUNTA_BOAS
 const BOT = { nome: "Bia", cor: "c-teal", forma: "shape-star" } as const;
 
 describe("faseDasBoasVindas", () => {
-  it("tela 4: o bot que esta janela criou pensa enquanto a conversa não chega; outro bot sem conversa, não", () => {
-    expect(faseDasBoasVindas(undefined, { recemCriado: true, confirmado: false })).toBe("pensando");
+  it("telas 3 e 4: a conversa nasce vazia e depois o bot reflete; outro bot sem conversa, não", () => {
+    expect(faseDasBoasVindas(undefined, { recemCriado: true, confirmado: false })).toBe("vazia");
+    expect(faseDasBoasVindas(undefined, { recemCriado: true, confirmado: false, decorridoMs: 2_100 })).toBe("pensando");
     expect(faseDasBoasVindas(undefined, { recemCriado: false, confirmado: false })).toBeNull();
   });
 
   it("tela 5: com a fala boas_vindas e nada da pessoa, a pergunta está aberta", () => {
-    expect(faseDasBoasVindas({ mensagens: [BOAS_VINDAS] }, { recemCriado: true, confirmado: false })).toBe("pergunta");
+    expect(faseDasBoasVindas({ mensagens: [BOAS_VINDAS] }, { recemCriado: true, confirmado: false, decorridoMs: 2_100 })).toBe("pensando");
+    expect(faseDasBoasVindas({ mensagens: [BOAS_VINDAS] }, { recemCriado: true, confirmado: false, decorridoMs: 6_300 })).toBe("pergunta");
     expect(faseDasBoasVindas({ mensagens: [BOAS_VINDAS] }, { recemCriado: false, confirmado: false })).toBe("pergunta");
   });
 
@@ -28,7 +30,7 @@ describe("faseDasBoasVindas", () => {
     expect(faseDasBoasVindas({ mensagens: [BOAS_VINDAS, msg("pessoa")] }, { recemCriado: false, confirmado: false })).toBeNull();
     expect(faseDasBoasVindas({ mensagens: [BOAS_VINDAS] }, { recemCriado: false, confirmado: true })).toBeNull();
     // A conversa chegou sem a fala (servidor de antes): não fica pensando para sempre.
-    expect(faseDasBoasVindas({ mensagens: [msg("agente")] }, { recemCriado: true, confirmado: false })).toBeNull();
+    expect(faseDasBoasVindas({ mensagens: [msg("agente")] }, { recemCriado: true, confirmado: false, decorridoMs: 6_300 })).toBeNull();
   });
 });
 
@@ -106,7 +108,8 @@ describe("main.ts liga as fases à barra, ao chat e ao campo", () => {
   });
 
   it("o chat reflete no lugar do carregando; o placeholder responde ao cartão; Enter no \"Outra coisa\" responde", () => {
-    expect(main).toContain('faseDasBoasVindasDe(bot) === "pensando" ? htmlRefletindo(bot, botRecemCriado.em, Date.now()) : renderTimeline(null, estado)');
+    expect(main).toContain('if (fase === "vazia") { partes = null; corpo = \'<div class="timeline"></div>\'; }');
+    expect(main).toContain('else if (bot && botRecemCriado && fase === "pensando") { partes = null; corpo = htmlRefletindo(bot, botRecemCriado.em, Date.now()); }');
     expect(main).toContain('if (bot && faseDasBoasVindasDe(bot) === "pergunta") return PLACEHOLDER_DA_PERGUNTA;');
     expect(PLACEHOLDER_DA_PERGUNTA).toBe("Digite sua resposta ou fale sobre outra coisa");
     expect(main).toMatch(/classList\?\.contains\("bv-outra-campo"\)\) \{\n\s+ev\.preventDefault\(\);\n\s+if \(ta\.value\.trim\(\)\) void responderBoasVindas\(ta\.value\.trim\(\)\);/);

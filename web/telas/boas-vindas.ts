@@ -4,20 +4,25 @@ import { esc, iconeAgente } from "../lib/render.ts";
 import { htmlDivisor } from "./divisores-de-data.ts";
 
 /**
- * Spec do botão + (telas 4 e 5): o que o bot interativo recém-criado mostra até a pessoa responder. Sem relógio: a fase sai
- * do fluxo. "pensando" é o bot que esta janela acabou de criar com a conversa dele ainda não lida do servidor — na barra o
+ * Spec do botão + (telas 3 a 5): o que o bot interativo recém-criado mostra até a pessoa responder. O relógio preserva a
+ * conversa vazia e o "Refletindo" mesmo com uma API rápida; depois disso, a fase sai do fluxo. "pensando" é o bot criado nesta janela — na barra o
  * avatar pensa e a prévia some; no chat, o divisor e "Refletindo". "pergunta" é a conversa com a fala `boas_vindas` e
  * nenhuma mensagem da pessoa: o cartão "Para que você quer minha ajuda?", o placeholder da resposta e o ponto de não lido
  * na linha, mesmo com a conversa aberta. A primeira mensagem da pessoa (uma opção, "Outra coisa" ou o campo) encerra.
  */
-export type FaseDasBoasVindas = "pensando" | "pergunta" | null;
+export type FaseDasBoasVindas = "vazia" | "pensando" | "pergunta" | null;
+
+export const ATRASO_PARA_REFLETIR_MS = 2_000;
+export const ATRASO_PARA_PERGUNTAR_MS = 6_200;
 
 export const PLACEHOLDER_DA_PERGUNTA = "Digite sua resposta ou fale sobre outra coisa";
 
 type MensagemDaFase = Pick<Mensagem, "kind" | "payload" | "autoria">;
 
 /** `recemCriado`: esta janela criou o bot (o diálogo "Criar novo bot" ou o segurar do +). */
-export function faseDasBoasVindas(c: { mensagens: readonly MensagemDaFase[] } | undefined, o: { recemCriado: boolean; confirmado: boolean }): FaseDasBoasVindas {
+export function faseDasBoasVindas(c: { mensagens: readonly MensagemDaFase[] } | undefined, o: { recemCriado: boolean; confirmado: boolean; decorridoMs?: number }): FaseDasBoasVindas {
+  if (o.recemCriado && (o.decorridoMs ?? 0) < ATRASO_PARA_REFLETIR_MS) return "vazia";
+  if (o.recemCriado && (o.decorridoMs ?? 0) < ATRASO_PARA_PERGUNTAR_MS) return "pensando";
   if (!c) return o.recemCriado ? "pensando" : null;
   if (o.confirmado || !c.mensagens.some((m) => m.payload?.kind === "boas_vindas")) return null;
   return c.mensagens.some((m) => m.kind === "texto" && m.autoria.autor_tipo === "pessoa") ? null : "pergunta";
