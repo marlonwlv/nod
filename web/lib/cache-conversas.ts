@@ -1,4 +1,4 @@
-import type { ConversaDto } from "../../src/contracts/api.ts";
+import type { ConversaComCursor, RespostaMensagensDesde } from "../../src/contracts/estado-vivo.ts";
 
 /**
  * Item 5 do chat (trocar de bot sem "carregando conversa"): o cache por conversa, com stale-while-revalidate.
@@ -31,7 +31,7 @@ export const ATRASO_DA_GRAVACAO_MS = 2000;
 /** A réplica sem uso há 10 min sai da MEMÓRIA (o IndexedDB fica); a conversa aberta e a com turno vivo nunca. */
 export const PARADA_MS = 10 * 60_000;
 
-export type RegistroDaConversa = { conversa: ConversaDto; usadaEm: number };
+export type RegistroDaConversa = { conversa: ConversaComCursor; usadaEm: number };
 
 /** O mínimo que o cache pede do lugar onde guarda (o IndexedDB na página; um mapa nos testes). */
 export interface ArmazemDeConversas {
@@ -52,11 +52,22 @@ const temporizadorPadrao: Temporizador = {
 export const chaveDaConversa = (id: string): string => `conversa:${id}`;
 const idDaChave = (chave: string): string | null => (chave.startsWith("conversa:") ? chave.slice(9) : null);
 
+/** Aplica a resposta incremental mantendo a posição das editadas e anexando as mensagens novas. */
+export function juntarMudancasDaConversa(anterior: ConversaComCursor, resposta: RespostaMensagensDesde): ConversaComCursor | null {
+  if (resposta.cursor_velho !== false || !resposta.cursor) return null;
+  if (resposta.mensagens.length === 0) return { ...anterior, cursor: resposta.cursor };
+  const mudadas = new Map(resposta.mensagens.map((m) => [m.id, m]));
+  const ids = new Set(anterior.mensagens.map((m) => m.id));
+  const mensagens = anterior.mensagens.map((m) => mudadas.get(m.id) ?? m);
+  for (const m of resposta.mensagens) if (!ids.has(m.id)) mensagens.push(m);
+  return { ...anterior, mensagens, cursor: resposta.cursor };
+}
+
 /**
  * O que vai para o cache: o DTO da conversa sem o que é só da memória (pendentes, carregadaEm) e sem o que envelhece
  * errado (turnos em curso ou na fila: guardados, voltariam "trabalhando" depois de terminar), com as últimas 200 mensagens.
  */
-export function paraGuardar(c: ConversaDto & { carregadaEm?: number; pendentes?: unknown; enviadas?: unknown }, maximo = LIMITE_DE_MENSAGENS): ConversaDto {
+export function paraGuardar(c: ConversaComCursor & { carregadaEm?: number; pendentes?: unknown; enviadas?: unknown }, maximo = LIMITE_DE_MENSAGENS): ConversaComCursor {
   const { carregadaEm: _carregadaEm, pendentes: _pendentes, enviadas: _enviadas, ...dto } = c;
   return { ...dto, mensagens: dto.mensagens.length > maximo ? dto.mensagens.slice(-maximo) : dto.mensagens, turnosEmCurso: [], turnosPendentes: [] };
 }
@@ -67,19 +78,19 @@ export type CacheDeConversas = {
   /** O espelho do armazém já foi lido (antes disso, não dá para dizer que uma conversa nunca foi aberta). */
   estaPronto(): boolean;
   /** Síncrono: a conversa guardada na memória (e ela passa a ser a mais usada), ou null. */
-  ler(id: string): ConversaDto | null;
+  ler(id: string): ConversaComCursor | null;
   /** Há réplica desta conversa (na memória ou só no armazém). */
   temGuardada(id: string): boolean;
   /** A réplica que saiu da memória volta do armazém (e passa a ser a mais usada); null se não há. */
-  carregar(id: string): Promise<ConversaDto | null>;
+  carregar(id: string): Promise<ConversaComCursor | null>;
   /** Guarda (memória já; armazém 2 s depois, por conversa) e despeja a menos usada além do limite. */
-  guardar(c: ConversaDto): void;
+  guardar(c: ConversaComCursor): void;
   apagar(id: string): void;
   /**
    * Stale-while-revalidate: busca a versão de hoje, guarda e devolve. A falha sobe (quem chama decide), o guardado fica.
    * `emSegundoPlano` (a barra em dia): não conta como uso nem traz para a memória a réplica que já tinha saído dela.
    */
-  revalidar(id: string, buscar: () => Promise<ConversaDto>, o?: { emSegundoPlano?: boolean }): Promise<ConversaDto>;
+  revalidar(id: string, buscar: (anterior: ConversaComCursor | null) => Promise<ConversaComCursor>, o?: { emSegundoPlano?: boolean }): Promise<ConversaComCursor>;
   /** Grava agora o que esperava os 2 s (a aba que some não pode perder a última releitura). */
   descarregar(): void;
   /** Tira da memória as réplicas sem uso há `parada` ms, salvo as que `manter` segura; devolve os ids. O armazém fica. */
@@ -163,7 +174,7 @@ export function criarCacheDeConversas(armazem: ArmazemDeConversas, o: { limite?:
     despejar();
   }, () => undefined).finally(() => { lido = true; });
 
-  function guardar(c: ConversaDto): void {
+  function guardar(c: ConversaComCursor): void {
     const id = c.conversa.id;
     const registro = { conversa: paraGuardar(c, maxMensagens), usadaEm: marcarUso() };
     memoria.delete(id);
@@ -207,7 +218,8 @@ export function criarCacheDeConversas(armazem: ArmazemDeConversas, o: { limite?:
     guardar,
     apagar: esquecer,
     async revalidar(id, buscar, op = {}) {
-      const nova = await buscar();
+      const anterior = memoria.get(id)?.conversa ?? (noArmazem.has(id) ? (await lerDoArmazem(id))?.conversa ?? null : null);
+      const nova = await buscar(anterior);
       if (nova.conversa.id !== id) return nova;
       if (!op.emSegundoPlano) { guardar(nova); return nova; }
       const naMemoria = memoria.get(id);

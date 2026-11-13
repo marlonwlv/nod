@@ -83,7 +83,8 @@ import type { Escopo } from "../src/shared/types.ts";
 import type { FrameSse } from "../src/contracts/frame.ts";
 import type { AnexoDaConversa } from "../src/contracts/anexo.ts";
 import { confirmacaoCaducou, HISTORICO_INICIAL, type HistoricoDoBot } from "./lib/historico-perfil.ts";
-import { armazemEmMemoria, criarCacheDeConversas, criarEsperaDoSpinner, criarRevalidacaoEmSegundoPlano, ESPERA_DO_PREFETCH_MS } from "./lib/cache-conversas.ts";
+import { armazemEmMemoria, criarCacheDeConversas, criarEsperaDoSpinner, criarRevalidacaoEmSegundoPlano, ESPERA_DO_PREFETCH_MS, juntarMudancasDaConversa } from "./lib/cache-conversas.ts";
+import type { ConversaComCursor } from "../src/contracts/estado-vivo.ts";
 import { armazemIndexedDb } from "./lib/cache-conversas-idb.ts";
 import { agenteDaTela, bibliotecaAberta, conversaAbertaTemNotaDeContas, conversaDaTela, estadoInicial, acoesAoMudarConexao, invalidacoesAoRetomar, sempreRelevante, invalidacoesDaTela, mudouNaTela, reduzir, secaoAberta, secaoDoPedido, type Acao, type Estado, type FalaPendente, type Invalidacao, type NivelGaveta, type PedidoSecao, type PerfilCelular, type SecaoEspaco, type Tela } from "./estado/reducer.ts";
 import { mascararDormindo, RetryDoAcordar, type PassosDoRetry } from "./lib/retry-computador.ts";
@@ -2174,7 +2175,7 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     const ate = ateDaBusca(q.slice(9));
     // Item 5 do chat: a leitura de hoje é a revalidação do cache (a resposta é guardada); a conversa que sumiu (404) sai dele.
     const cliente = api;
-    const conversa = await cacheConversas.revalidar(q.slice(9), () => cliente.conversa(q.slice(9), ate)).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) cacheConversas.apagar(q.slice(9)); throw e; });
+    const conversa = await cacheConversas.revalidar(q.slice(9), (anterior) => buscarConversaAtualizada(cliente, q.slice(9), anterior, { ate })).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) cacheConversas.apagar(q.slice(9)); throw e; });
     return { tipo: "hidratar-conversa", conversa: notarAlvoDaBusca(q.slice(9), ate, conversa), agora };
   }
   // QA do PR #302 (NOD-216): a conversa do bot que o dono diz trabalhando, lida fora da tela para a barra animar.
@@ -3919,6 +3920,7 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   });
   live.subscribe((ev) => {
     if (ev.tipo === "frame") receberFrame(ev.frame);
+    else if (ev.tipo === "agentes.estado") dispatch({ tipo: "hidratar-estados-vivos", estados: ev.retrato.agentes });
     else if (ev.tipo === "conexao") {
       // NOD-216: o stream que volta depois de cair relê os turnos vivos (a conversa aberta e os donos da barra), mesmo
       // com o replay: um turno.encerrado de antes do buffer deixaria o mascote animado para sempre.
@@ -4383,6 +4385,15 @@ function conversasDaBarraComReplica(): string[] {
   return [...new Set(ids)].filter((id) => id && id !== aberta && cacheConversas.temGuardada(id));
 }
 
+/** O cursor atualiza réplicas fora do estado; a conversa hidratada faz leitura inteira porque o delta só traz mensagens. */
+async function buscarConversaAtualizada(cliente: Api, id: string, anterior: ConversaComCursor | null, op: { ate?: string; incremental?: boolean } = {}): Promise<ConversaComCursor> {
+  if (!op.incremental || op.ate || !anterior?.cursor) return cliente.conversa(id, op.ate);
+  const mudancas = await cliente.conversaDesde(id, anterior.cursor);
+  // Servidor antigo ignora `depois_de` e já devolve a conversa inteira: aproveita em vez de pedir de novo.
+  if ("conversa" in mudancas) return mudancas as unknown as ConversaComCursor;
+  return juntarMudancasDaConversa(anterior, mudancas) ?? cliente.conversa(id);
+}
+
 /**
  * A barra em dia: a leitura de sempre (GET da conversa), em segundo plano — guardada sem contar como uso; a conversa que
  * já está na memória da tela (não a aberta) ganha a versão nova; a que sumiu (404) sai da réplica.
@@ -4392,7 +4403,8 @@ async function revalidarDaBarra(id: string): Promise<void> {
   const cache = cacheConversas;
   const sessao = estado.sessao;
   if (!cliente) return;
-  const conversa = await cache.revalidar(id, () => cliente.conversa(id), { emSegundoPlano: true }).catch((e: unknown) => {
+  const estavaNoEstado = !!estado.conversas[id];
+  const conversa = await cache.revalidar(id, (anterior) => buscarConversaAtualizada(cliente, id, anterior, { incremental: !estavaNoEstado }), { emSegundoPlano: true }).catch((e: unknown) => {
     if (e instanceof ErroApi && e.status === 404) cache.apagar(id);
     throw e;
   });
@@ -4444,7 +4456,7 @@ function prefetchConversa(id: string): void {
   const cliente = api;
   const sessao = estado.sessao;
   prefetchEmCurso.add(id);
-  void cacheConversas.revalidar(id, () => cliente.conversa(id))
+  void cacheConversas.revalidar(id, (anterior) => buscarConversaAtualizada(cliente, id, anterior))
     .then((conversa) => { if (api === cliente && estado.sessao === sessao && !estado.conversas[id]) dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() }); }, () => undefined)
     .finally(() => prefetchEmCurso.delete(id));
 }

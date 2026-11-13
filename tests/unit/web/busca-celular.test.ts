@@ -406,7 +406,7 @@ describe("NOD-380 revisão 7: a fala achada que a timeline recolhe", () => {
     for (const p of ["9", "6"]) expect(main).toContain(`const ate = ateDaBusca(q.slice(${p}));`);
     expect(main).toContain("notarAlvoDaBusca(q.slice(6), ate, await api.conversa(q.slice(6), ate))");
     // Item 5 do chat: a da tela passa pela revalidação do cache de conversas, com o mesmo `ate`.
-    expect(main).toContain("cacheConversas.revalidar(q.slice(9), () => cliente.conversa(q.slice(9), ate))");
+    expect(main).toContain("cacheConversas.revalidar(q.slice(9), (anterior) => buscarConversaAtualizada(cliente, q.slice(9), anterior, { ate }))");
     expect(main).toContain("notarAlvoDaBusca(q.slice(9), ate, conversa)");
     expect(main).toContain("const ateDaBusca = (conversaId: string): string | undefined => (alvoDaBusca?.conversaId === conversaId ? alvoDaBusca.mensagemId : undefined);");
   });

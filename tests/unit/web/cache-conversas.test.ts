@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConversaDto } from "../../../src/contracts/api.ts";
 import { estadoInicial, reduzir } from "../../../web/estado/reducer.ts";
-import { ATRASO_DA_GRAVACAO_MS, armazemEmMemoria, chaveDaConversa, criarCacheDeConversas, criarRevalidacaoEmSegundoPlano, PARADA_MS, paraGuardar, type ArmazemDeConversas, type RegistroDaConversa } from "../../../web/lib/cache-conversas.ts";
+import { ATRASO_DA_GRAVACAO_MS, armazemEmMemoria, chaveDaConversa, criarCacheDeConversas, criarRevalidacaoEmSegundoPlano, juntarMudancasDaConversa, PARADA_MS, paraGuardar, type ArmazemDeConversas, type RegistroDaConversa } from "../../../web/lib/cache-conversas.ts";
 
 /**
  * Item 5 do chat (trocar de bot sem "carregando conversa"): o cache por conversa com stale-while-revalidate — memória mais
@@ -67,6 +67,23 @@ describe("cache de conversas: hit", () => {
 });
 
 describe("cache de conversas: revalidação", () => {
+  it("passa a réplica anterior à busca e junta mensagens novas e editadas pelo cursor", async () => {
+    const cache = cacheImediato(armazemEmMemoria());
+    await cache.pronto;
+    const anterior = { ...dto("c1", 2), cursor: { geracao: 1, updated_seq: 2 } };
+    cache.guardar(anterior);
+    const nova = await cache.revalidar("c1", async (lida) => juntarMudancasDaConversa(lida!, {
+      cursor_velho: false,
+      cursor: { geracao: 1, updated_seq: 4 },
+      mensagens: [
+        { id: "c1-m1", conversaId: "c1", autor: "pessoa", texto: "editada", criadoEm: 1, seq: 2, updated_seq: 3 } as never,
+        { id: "c1-m2", conversaId: "c1", autor: "pessoa", texto: "fala 2", criadoEm: 2, seq: 3, updated_seq: 4 } as never,
+      ],
+    })!);
+    expect(nova.cursor).toEqual({ geracao: 1, updated_seq: 4 });
+    expect(nova.mensagens.map((m) => [m.id, m.texto])).toEqual([["c1-m0", "fala 0"], ["c1-m1", "editada"], ["c1-m2", "fala 2"]]);
+    expect(juntarMudancasDaConversa(anterior, { cursor_velho: true, cursor: { geracao: 2, updated_seq: 0 } })).toBeNull();
+  });
   it("pinta o guardado e, com a leitura de hoje, guarda e devolve a nova (memória e armazém)", async () => {
     const armazem = armazemEmMemoria();
     const cache = cacheImediato(armazem);

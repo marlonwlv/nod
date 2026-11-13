@@ -13,6 +13,7 @@ import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { TipoAnexo } from "../../src/contracts/anexo.ts";
 import type { Inventario } from "../../src/contracts/inventario.ts";
 import type { TarefaDoBot } from "../../src/contracts/turno.ts";
+import type { EstadoVivoBot } from "../../src/contracts/estado-vivo.ts";
 import type { ConversaEstado, Estado, FalaPendente, FalaSaindo, TurnoVivo } from "../estado/reducer.ts";
 import { assinatura } from "../lib/assinatura.ts";
 import { ICONE } from "../lib/icones.ts";
@@ -987,6 +988,18 @@ export function estadoVivoDoTurno(a: AtividadeTurno | undefined, espera: string 
   return { rodando: aguardando === null, compondo: fala.chave === "escrevendo", atividade, aguardando, desfecho: null };
 }
 
+/** Adapta o retrato autoritativo do servidor ao vocabulário visual do indicador. */
+export function estadoVivoDoServidor(e: EstadoVivoBot): EstadoVivoDoBot {
+  const aguardando = e.aguardando?.motivo === "aprovacao" ? "aprovacao" : e.aguardando ? "resposta" : null;
+  const atividade: EstadoVivoDoBot["atividade"] = e.atividade?.tipo === "ferramenta"
+    ? { tipo: "ferramenta", rotulo: e.atividade.detalhe ?? e.atividade.ferramenta ?? "Usando uma ferramenta", ...(e.subagentes_rodando > 0 ? { frentes: true } : {}) }
+    : e.atividade?.tipo === "thinking" ? { tipo: "thinking" } : null;
+  const desfecho: EstadoVivoDoBot["desfecho"] = e.ultimo_desfecho
+    ? { tipo: e.ultimo_desfecho.resultado === "success" ? "respondeu" : e.ultimo_desfecho.resultado === "cancelled" ? "parou" : "falhou", em: e.ultimo_desfecho.em }
+    : null;
+  return { rodando: e.rodando, compondo: e.compondo, atividade, aguardando, desfecho };
+}
+
 /** O rótulo que o indicador mostra para o turno agora (sem a permanência; os testes leem daqui). */
 export function rotuloDoIndicador(a: AtividadeTurno | undefined, espera: string | null, agora: number): RotuloDoIndicador | null {
   return estadoDoIndicador(estadoVivoDoTurno(a, espera, agora), agora);
@@ -1005,11 +1018,13 @@ const ROTULO_NA_TELA = new Map<string, NaTela>();
  * personagem fica (não reinicia a animação) e só recebe os atributos novos.
  * `parar` fica na assinatura para quem chama: o Parar agora mora no campo de mensagem.
  */
-export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agente: Pick<AgenteDaFala, "nome" | "cor" | "forma"> | undefined, estado: Estado, _parar: string, saindo?: { em: number; chave: string }): FalaViva {
+export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agente: Pick<AgenteDaFala, "id" | "nome" | "cor" | "forma"> | undefined, estado: Estado, _parar: string, saindo?: { em: number; chave: string }): FalaViva {
   const nome = agente?.nome ?? "O agente";
   const agora = estado.agora;
   // Saindo, o rótulo fica o que estava (a linha sai em 140 ms); rodando, a função única diz o estado.
-  const novo = rotuloDoIndicador(a, saindo ? null : esperaDaPessoa(estado, t.turnoId), agora) ?? VAZIO;
+  const retrato = agente ? estado.estadosVivos[agente.id] : undefined;
+  const vivo = retrato && retrato.turnoId === t.turnoId ? estadoVivoDoServidor(retrato) : estadoVivoDoTurno(a, saindo ? null : esperaDaPessoa(estado, t.turnoId), agora);
+  const novo = estadoDoIndicador(vivo, agora) ?? VAZIO;
   const { atual, pendente } = saindo && ROTULO_NA_TELA.has(t.turnoId) ? { atual: ROTULO_NA_TELA.get(t.turnoId)!, pendente: null } : rotuloComPermanencia(ROTULO_NA_TELA.get(t.turnoId), novo, agora);
   if (saindo) ROTULO_NA_TELA.delete(t.turnoId);
   else {

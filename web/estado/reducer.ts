@@ -16,6 +16,7 @@ import type { Concessao } from "../../src/contracts/concessao.ts";
 import type { Conector } from "../../src/contracts/conector.ts";
 import type { EstadoExecutor } from "../../src/contracts/executor.ts";
 import type { FrameSse, TipoFrame } from "../../src/contracts/frame.ts";
+import type { EstadoVivoBot } from "../../src/contracts/estado-vivo.ts";
 import type { Inventario } from "../../src/contracts/inventario.ts";
 import type { IasDaPessoa } from "../../src/contracts/inteligencia.ts";
 import type { UsoDoPlanoDto } from "../../src/contracts/uso-do-plano.ts";
@@ -358,6 +359,8 @@ export type Estado = {
    */
   atividades: Record<string, Record<string, AtividadeTurno>>;
   turnosVivos: Record<string, TurnoVivo>;
+  /** Retrato autoritativo do servidor por bot; o indicador cai no turno legado enquanto ele não chegou. */
+  estadosVivos: Record<string, EstadoVivoBot>;
   /**
    * NOD-348 (QA do #508): a fala viva que virou mensagem (o turno acabou, ou `turno.fala` no meio dele), por conversa e
    * por turno, até a releitura que saiu depois dela trazer a fala gravada — sem ela, a timeline ficava um quadro sem fala
@@ -710,6 +713,7 @@ export type Acao =
   | { tipo: "uso-do-mac"; uso: UsoDoMac }
   | { tipo: "experimentos"; experimentos: Experimentos; quadroLiberado?: boolean }
   | { tipo: "tempo-task"; id: string | null }
+  | { tipo: "hidratar-estados-vivos"; estados: readonly EstadoVivoBot[] }
   | { tipo: "hidratar-taxas-linhas"; taxas: TaxaDeAbertura[] };
 
 export const estadoInicial: Estado = {
@@ -726,6 +730,7 @@ export const estadoInicial: Estado = {
   conversas: {},
   atividades: {},
   turnosVivos: {},
+  estadosVivos: {},
   turnosEncerrados: [],
   subagentesDoFim: {},
   turnosDesmentidos: {},
@@ -1452,9 +1457,13 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   // pode ter trocado (limite, login, outra conta na frente), e com ela o uso da janela do anel.
   // NOD-374: o app entrou ou saiu de Fora do ar (sonda, laço ou chamada que limpou): a lateral e a tela de apps se atualizam.
   "conector.mudou": (e) => invalidar(e, "frota", "conectores"),
-  // definido em 2026-11-12: o estado vivo do bot e o cursor do computador são consumidos pela tela nova (PR do chat e
-  // fase 0 do React); aqui o reducer só os aceita, sem mudar o estado (o contrato é src/contracts/estado-vivo.ts).
-  "agente.estado": (e) => e,
+  // COP-14: o frame traz a foto inteira de um bot; substitui a anterior sem derivar estado de deltas.
+  "agente.estado": (e, f) => {
+    const agenteId = texto(f.dados.agenteId);
+    const vivo = f.dados.estado;
+    if (!agenteId || !vivo || typeof vivo !== "object" || (vivo as { agenteId?: unknown }).agenteId !== agenteId) return e;
+    return { ...e, estadosVivos: { ...e.estadosVivos, [agenteId]: vivo as EstadoVivoBot } };
+  },
   "computador.cursor": (e) => e,
   // D (2026-11-12): o estado da máquina no stream; a tela do computador (C/D) o usa — aqui ainda não muda nada.
   "computador.estado": (e) => e,
@@ -2081,6 +2090,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return { ...estado, experimentos: acao.experimentos, ...(acao.quadroLiberado !== undefined ? { quadroLiberado: acao.quadroLiberado } : {}) };
     case "tempo-task":
       return estado.tempoTaskAberto === acao.id ? estado : { ...estado, tempoTaskAberto: acao.id };
+    case "hidratar-estados-vivos":
+      return { ...estado, estadosVivos: Object.fromEntries(acao.estados.map((v) => [v.agenteId, v])) };
     case "hidratar-taxas-linhas":
       return estado.modoDev.ligado ? { ...estado, modoDev: { ...estado.modoDev, taxasLinhas: acao.taxas } } : estado;
     case "esquecer-disponibilidade-ligacao": {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { comGrupos, posicoesDosGrupos, remetenteDoBloco } from "../../../web/telas/grupos-do-chat.ts";
-import { botoesDoCampo, rotuloDoIndicador } from "../../../web/telas/conversa.ts";
+import { botoesDoCampo, estadoVivoDoServidor, rotuloDoIndicador } from "../../../web/telas/conversa.ts";
 import { estadoDoIndicador, rotuloComPermanencia, varianteDaVez, verboDaFerramenta, VARIANTES_TRABALHANDO, type EstadoVivoDoBot } from "../../../web/lib/estado-do-indicador.ts";
 import { escreverVariantes } from "../../../web/lib/fala-viva.ts";
 import { ATIVIDADE_VAZIA, type AtividadeTurno } from "../../../web/lib/atividade.ts";
@@ -78,6 +78,12 @@ describe("COP-14 item 2: a função única do estado do indicador", () => {
     const acabou = com({ emUso: { texto: "Usando Gmail", frentes: false }, acoes: [{ id: "1", rotulo: "Usou Gmail", estado: "feita", emUso: null }] });
     expect(rotuloDoIndicador(acabou, null, 0)?.texto).toBe("Refletindo");
     expect(rotuloDoIndicador(undefined, "Esperando sua aprovação", 0)?.texto).toBe("Esperando sua aprovação");
+  });
+  it("o retrato do servidor mapeia ferramenta, espera e desfecho sem depender dos deltas", () => {
+    const baseServidor = { agenteId: "a", rodando: true, compondo: false, atividade: { tipo: "ferramenta" as const, ferramenta: "Bash", detalhe: "Rodando no terminal" }, aguardando: null, subagentes_rodando: 1, ultimo_desfecho: null, vence_em: null, turnoId: "t", conversaId: "c", em: 10 };
+    expect(estadoVivoDoServidor(baseServidor)).toMatchObject({ atividade: { tipo: "ferramenta", rotulo: "Rodando no terminal", frentes: true } });
+    expect(estadoVivoDoServidor({ ...baseServidor, rodando: false, atividade: null, aguardando: { motivo: "segredo", desde: 9 } }).aguardando).toBe("resposta");
+    expect(estadoVivoDoServidor({ ...baseServidor, rodando: false, atividade: null, ultimo_desfecho: { resultado: "error", em: 10, falha: "timeout" } }).desfecho).toEqual({ tipo: "falhou", em: 10 });
   });
   it("o relógio troca a variante no lugar", () => {
     const el = { textContent: "Refletindo", getAttribute: (n: string) => ({ "data-variantes": "Refletindo|Pensando|Ponderando", "data-periodo": "2500", "data-variantes-desde": "0" } as Record<string, string>)[n] ?? null };
