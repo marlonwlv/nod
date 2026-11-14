@@ -142,8 +142,8 @@ export type PayloadMensagem =
    * chat limpo PR 4): o turno que pediu, a âncora do cartão encolhido; as gravadas antes não o têm.
    */
   | { kind: "pasta_aberta"; propostaId: string; agenteId: string; pasta: string; nome: string; onde?: string; turnoId?: string | null }
-  /** 2026-09-28 (ADR-051): só ids, o HTML não viaja com a conversa; o canvas (ADA-13, ADR-150) também: ids e contagens. */
-  | { kind: "artefato"; artefatoId: string; versao: number; titulo: string } | { kind: "canvas"; canvasId: string; agenteId: string; versao: number; titulo: string; jornadas: number; telas: number; importado: boolean; confiavel?: boolean }
+  /** 2026-09-28 (ADR-051): só ids, o HTML não viaja com a conversa; o canvas (ADA-13, ADR-150) também: ids e contagens; a lista compacta dele (ADA-228, J7-5) só o resumo. */
+  | { kind: "artefato"; artefatoId: string; versao: number; titulo: string } | { kind: "canvas"; canvasId: string; agenteId: string; versao: number; titulo: string; issue?: string | null; jornadas: number; telas: number; importado: boolean; confiavel?: boolean; origemUrl?: string | null } | import("./ferramentas-canvas.ts").PayloadCanvasLista
   /** definido em 2026-10-04 (ADR-075): a linha "Chat de voz · mm:ss"; a transcrição vem por GET ligacoes/:id/falas. */
   | PayloadLinhaLigacao
   /**
@@ -160,7 +160,7 @@ export type PayloadMensagem =
   /** ADR-099 (I3) e chat limpo (PR 3: `resposta`, `turnoRaizId`): troca-entre-bots.ts. */
   | PayloadPedidoRespondido
   /** Chat limpo, PR 4 (o cartão encolhido): cartao-encolhido.ts. */
-  | PayloadRegraPermanente | import("./ferramentas-barra.ts").PayloadAjusteBarra | import("./ferramentas-nao-lidos.ts").PayloadNaoLidosLista | import("./ferramentas-nao-lidos.ts").PayloadReciboLeitura // NOD-119: o card do ajustar_barra_lateral; NOD-449: o card e o recibo do nao_lidos.
+  | PayloadRegraPermanente | import("./ferramentas-barra.ts").PayloadAjusteBarra | import("./ferramentas-nao-lidos.ts").PayloadNaoLidosLista | import("./ferramentas-nao-lidos.ts").PayloadReciboLeitura | import("./ferramentas-decisoes.ts").PayloadDecisoesResumo // NOD-119; NOD-449; NOD-414.
   | PayloadPropostaDecidida | { kind: "aviso_pessoa" } | import("./destino-no-chat.ts").PayloadTarefaLinha // NOD-114: a fala `texto` com que o bot avisou a pessoa por conta própria (avisar_pessoa); ADA-28: a linha que aponta para a tarefa.
   | { kind: "turno_preso"; maquinaId: string; /** QA do NOD-314: a IA em que o turno está fixado (harnessFixado); null/ausente = Automático. */ ia?: string | null }; // NOD-314: pendente preso 24 h a uma máquina sem contato saiu da fila.
 

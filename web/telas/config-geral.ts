@@ -8,6 +8,7 @@ import { ESCOLHAS_DENSIDADE, type Densidade } from "../lib/densidade.ts";
 import { grupoConfig, linhaConfig, listaAninhada, segmentado, type TomStatus } from "../lib/linha-config.ts";
 import { esc } from "../lib/render.ts";
 import { ESCOLHAS_TEMA, type EscolhaTema } from "../lib/tema.ts";
+import { renderMcp, type DadosMcp } from "./config-mcp.ts";
 
 /**
  * NOD-367 (protótipo v2 do Gil, aprovado em 2026-10-26): Configurações › Geral junta o que eram Preferências e Avisos, em
@@ -96,6 +97,8 @@ export type DadosGeral = {
   quadroLiberado?: boolean;
   /** NOD-119: a densidade da barra neste computador (ausente = Confortável). */
   densidade?: Densidade;
+  /** Servidor MCP do Nod (0173): os tokens e o recém-gerado; ausente = o grupo não aparece. */
+  mcp?: DadosMcp;
 };
 
 /** NOD-119: a frase que ensina o atalho da borda. */
@@ -144,6 +147,7 @@ export function renderGeral(d: DadosGeral, ui: ConfigUi, celular = ehCelular(), 
       <h2>Geral</h2>
       ${tema}
       ${renderAvisos(d.avisos)}
+      ${d.mcp ? renderMcp(d.mcp, ui) : ""}
       ${ajuda}
       ${blocoAvancado}
     </section>`;

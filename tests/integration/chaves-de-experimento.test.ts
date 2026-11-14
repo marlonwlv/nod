@@ -83,15 +83,15 @@ describeIntegracao("chaves de experimento (ADR-111)", () => {
     // NOD-445 (ADR-146): as páginas do bot vêm no mesmo experimento, com gerir_apps.
     expect(desligado.texto).not.toContain("mcp__nod__gerir_quadro");
     expect(desligado.texto).not.toContain("mcp__nod__gerir_apps");
-    // NOD-462 (ADR-142): com gerir_quadro vem também a linha "Quadro:" (a passagem por coluna); fora ela, nada muda.
+    // ADA-29: no chat comum, sem assunto de quadro, o manual de passagens não entra; a ferramenta segue disponível.
     expect(desligado.texto).not.toMatch(/^Quadro:/m);
-    expect(ligado.texto).toMatch(/^Quadro: .*definir_passagem/m);
+    expect(ligado.texto).not.toMatch(/^Quadro:/m);
     // ADA-9 (ADR-146): com gerir_apps vem a linha "Tela inicial:" (a view padrão pelo chat); desligado, ela some.
     expect(desligado.texto).not.toMatch(/^Tela inicial:/m);
     expect(ligado.texto).toMatch(/^Tela inicial: .*gerir_apps ordenar \{pagina: "tarefas", posicao: 1\}/m);
-    // ADA-232 (ADR-155): com gerir_quadro vem também a linha das 4 saídas do trabalho de tarefa; desligado, ela some.
+    // ADA-232/ADA-29: a linha das saídas pertence ao turno de tarefa, não à conversa comum.
     expect(desligado.texto).not.toMatch(/^Trabalho de tarefa do quadro termina/m);
-    expect(ligado.texto).toMatch(/^Trabalho de tarefa do quadro termina sempre numa de 4 saídas/m);
+    expect(ligado.texto).not.toMatch(/^Trabalho de tarefa do quadro termina/m);
     const semQuadro = ligado.texto
       .split("\n")
       .filter((l) => !l.startsWith("Quadro:") && !l.startsWith("Tela inicial:") && !l.startsWith("Trabalho de tarefa do quadro termina"))

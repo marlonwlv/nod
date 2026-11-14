@@ -291,6 +291,8 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       // `acessos.desfazer_lote` (`/acessos/lotes/:id/desfazer`) passar da busca; sem o lote, o id sorteado só dava 404.
       const conectorDoFuzz = await conectorDe(sessao, `fuzz-${config.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
       const loteDoFuzz = (await srv.json<{ lote_id: string }>("POST", `conectores/${conectorDoFuzz.id}/acessos/lote`, { nivel: "leitura", bots: [meu.agente.id], chave: `fuzz:${randomUUID()}` })).lote_id;
+      // ADA-205 (ADR-166): um token MCP da pessoa, para o `mcp.revogar_token` (`/mcp/tokens/:id`) passar da busca.
+      const tokenDoFuzz = (await srv.json<{ dados: { id: string } }>("POST", "mcp/tokens", { nome: "Token do fuzz" })).dados.id;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
       await srv.json("PUT", "canvas/app", {});
       const plano = planoDoServidor({
@@ -323,6 +325,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             projetos: { daPessoa: [projetoDoFuzz], deOutraPessoa: [] },
             lotes: { daPessoa: [loteDoFuzz], deOutraPessoa: [] },
             conectores: { daPessoa: [conectorDoFuzz.id], deOutraPessoa: [] },
+            tokens: { daPessoa: [tokenDoFuzz], deOutraPessoa: [] },
           },
         },
       });

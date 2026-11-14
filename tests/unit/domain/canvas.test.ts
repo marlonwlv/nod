@@ -147,3 +147,19 @@ describe("canvas: comentários", () => {
     expect(validarComentario(v, { texto: "sem endereço" }).ok).toBe(false);
   });
 });
+
+describe("tela pendente (ADA-228, J7-4)", () => {
+  const base = (pendente?: boolean) => ({ titulo: "C", jornadas: [{ titulo: "J", telas: [{ id: "J1-1", html: "<p>a</p>" }, { id: "J1-2", ...(pendente === undefined ? {} : { pendente }) }] }] });
+  it("entra sem html (vazio) e só grava o pendente quando é true", () => {
+    const e = norm(base(true));
+    expect(e.jornadas[0]?.telas[1]).toMatchObject({ id: "J1-2", html: "", pendente: true });
+    expect("pendente" in (e.jornadas[0]?.telas[0] ?? {})).toBe(false);
+    expect(normalizarEstrutura(base(false)).ok).toBe(true); // J1-2 explícito sem html segue a regra de antes
+  });
+  it("o pino na tela pendente recusa; o post-it da jornada segue", () => {
+    const e = comHash(norm(base(true)));
+    expect(validarComentario(e, { endereco: "#J1-2", texto: "x" })).toMatchObject({ ok: false, erro: "a tela J1-2 ainda está em produção" });
+    expect(validarComentario(e, { endereco: "#J1-2", tipo: "nota", texto: "x" }).ok).toBe(true);
+    expect(validarComentario(e, { endereco: "#J1-1", texto: "x" }).ok).toBe(true);
+  });
+});

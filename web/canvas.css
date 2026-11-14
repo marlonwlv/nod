@@ -1,86 +1,370 @@
-/* ADA-13 (ADR-150): a página Canvas. Minimalista: papel liso, linhas finas, o protótipo é o que tem cor. */
-/* A vista do quadro tem 72px de respiro para a pílula flutuante; o canvas ocupa o resto, sem a rolagem da vista. */
-.qd-vista[data-pagina="canvas"] { overflow: hidden; }
-.qd-vista > .cv-host { position: absolute; inset: 64px 0 0; display: flex; width: auto; max-width: none; margin: 0; }
-.cv { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
-.cv-vazio { margin: 48px auto; max-width: 440px; color: var(--ink-2); font-size: 13.5px; line-height: 20px; text-align: center; }
-.cv-itens { list-style: none; margin: 24px auto; padding: 0; width: min(640px, 100% - 32px); display: flex; flex-direction: column; gap: 6px; }
-.cv-item { display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-.cv-item:hover { border-color: var(--line-strong); }
-.cv-item-tit { flex: 1; font-size: 14px; font-weight: 500; }
-.cv-item-meta { color: var(--ink-3); font-size: 12px; }
-.cv-issue { font: 500 11.5px/1 var(--font-mono); color: var(--ink-3); }
-.cv-topo { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
-.cv-tit { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cv-ver { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
-.cv-esp { flex: 1; }
-.cv-zoom { min-width: 40px; color: var(--ink-3); font: 12px var(--font-mono); text-align: right; }
-.cv-bt { height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink-2); font: 500 12.5px var(--font-sans); cursor: pointer; }
-.cv-bt:hover { color: var(--ink); border-color: var(--line-strong); }
-.cv-bt[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--papel); }
-.cv-bt-pri { background: var(--ink); border-color: var(--ink); color: var(--papel); }
-.cv-bt:focus-visible, .cv-item:focus-visible, .cv-palco:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.cv-abertos { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--surface-side); color: var(--ink-2); font: 500 12px/22px var(--font-sans); text-align: center; }
-.cv-corpo { display: flex; flex: 1; min-height: 0; }
-.cv-palco { position: relative; flex: 1; overflow: hidden; background: var(--surface-side); cursor: grab; touch-action: none; }
+/* ADA-13 (ADR-150) e ADA-228: a página Canvas fiel ao protótipo v4 da ADA-13 (proto/nod-ada-13-canvas/proposta.css,
+   prefixo a13- → cv-). Sem cabeçalho e sem painel: a pílula do bot encosta à esquerda, a barra de ferramentas em vidro
+   continua ao lado dela, os avisos e menus descem logo abaixo, o input de vidro fica embaixo e o balão acima dele.
+   No mundo, os textos têm tamanho fixo na tela: --cv-k é 1/zoom (preso), e o CSS multiplica. */
+
+/* ---------- A página: o canvas ocupa a vista inteira; a pílula encosta à esquerda ---------- */
+.qd-vista[data-pagina="canvas"] { overflow: hidden; padding: 0; }
+.qd-vista > .cv-host { position: absolute; inset: 0; display: flex; width: auto; max-width: none; margin: 0; }
+.stage:has(> .qd-vista[data-pagina="canvas"]:not([hidden])) > .cabecalho-pilula { align-items: flex-start; padding-left: 20px; }
+.stage:has(> .qd-vista[data-pagina="canvas"]:not([hidden])) > .cabecalho-pilula::before { display: none; }
+.cv { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.cv-link { padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; }
+.cv-link:hover { color: var(--ink); }
+.cv-forte { color: var(--ink); font-weight: 600; text-decoration: none; }
+.cv-mudo { font-size: 11.5px; color: var(--ink-3); }
+.cv-erro { margin: 0; color: var(--danger); font-size: 12px; }
+.cv-fora { padding: 0 6px; border-radius: 6px; background: var(--warning-soft); color: var(--ink-2); font-size: 11px; }
+.cv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- O palco e o mundo ---------- */
+.cv-palco { position: absolute; inset: 0; overflow: hidden; cursor: grab; touch-action: none;
+  background-color: var(--surface-side); background-image: radial-gradient(var(--line-strong) .9px, transparent 1.1px); background-size: 22px 22px; }
 .cv-palco.cv-arrastando { cursor: grabbing; }
 .cv-palco.cv-modo-pino { cursor: crosshair; }
-.cv-mundo { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; --cv-inv: 1; }
-.cv-fileira { position: absolute; display: flex; align-items: flex-start; gap: 24px; height: 120px; color: var(--ink); }
-.cv-fileira h3 { margin: 0; font-size: 44px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
-.cv-fileira > p { margin: 8px 0 0; max-width: 1200px; color: var(--ink-2); font-size: 26px; line-height: 1.35; }
-.cv-jid, .cv-tid { color: var(--ink-3); font-family: var(--font-mono); text-decoration: none; }
-.cv-jid { font-size: 30px; line-height: 56px; }
-.cv-nota-proto { margin: 0; max-width: 420px; padding: 14px 18px; border-radius: 6px; background: var(--surface); color: var(--ink-2); font-size: 20px; line-height: 1.35; }
-.cv-postits { display: flex; gap: 16px; }
-.cv-postit { width: 300px; max-height: 120px; overflow: hidden; padding: 14px 16px; border: 0; border-radius: 4px; background: #fbeea6; box-shadow: 0 2px 6px rgba(0,0,0,.08); color: #3a3410; font: 20px/1.3 var(--font-sans); text-align: left; cursor: pointer; }
-.cv-postit small { display: block; margin-top: 6px; opacity: .65; font-size: 16px; }
-.cv-mais-nota { height: 44px; padding: 0 18px; font-size: 20px; border-style: dashed; }
-.cv-tela { position: absolute; overflow: hidden; border-radius: 10px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 6px 24px rgba(0,0,0,.06); }
-.cv-tela.cv-hoje { box-shadow: 0 0 0 1px var(--line), 0 0 0 calc(4px * var(--cv-inv)) var(--signal-soft); }
-.cv-mini { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: 28px; }
+.cv-palco:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.cv-mundo { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; --cv-inv: 1; --cv-k: 1; }
+.cv-dica { position: absolute; left: 24px; bottom: 28px; z-index: 2; margin: 0; font-size: 12px; color: var(--ink-3); pointer-events: none; }
+
+/* O rótulo da jornada à esquerda, o cabeçalho de cada tela em cima, a legenda embaixo e a seta no vão. */
+.cv-rot { position: absolute; display: flex; flex-direction: column; gap: calc(2px * var(--cv-k)); padding-top: calc(20px * var(--cv-k)); }
+.cv-rot b { font-size: calc(12.5px * var(--cv-k)); font-weight: 600; color: var(--ink); }
+.cv-rot b i { font-style: normal; font-weight: 500; color: var(--ink-3); font-variant-numeric: tabular-nums; margin-right: calc(2px * var(--cv-k)); }
+.cv-rot small { font-size: calc(11px * var(--cv-k)); line-height: 1.35; color: var(--ink-3); }
+.cv-t-cab { position: absolute; display: flex; align-items: center; gap: calc(6px * var(--cv-k)); height: calc(14px * var(--cv-k)); font-size: calc(11px * var(--cv-k)); color: var(--ink-3); white-space: nowrap; }
+.cv-t-cab i { font-style: normal; font-variant-numeric: tabular-nums; }
+.cv-t-cab b { font-weight: 500; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
+.cv-t-cab .cv-tag { margin-left: calc(4px * var(--cv-k)); font-style: normal; font-size: calc(10.5px * var(--cv-k)); font-weight: 500; color: var(--signal); }
+.cv-exp { margin-left: auto; display: grid; place-items: center; padding: 0; border: 0; background: none; color: var(--ink-3); opacity: .75; cursor: pointer; }
+.cv-exp:hover { opacity: 1; color: var(--ink); }
+.cv-exp svg { width: calc(12px * var(--cv-k)); height: calc(12px * var(--cv-k)); }
+.cv-leg { position: absolute; font-size: calc(12px * var(--cv-k)); line-height: 1.4; color: var(--ink-2); }
+.cv-seta { position: absolute; height: max(1px, var(--cv-k) * 1px); background: var(--line-strong); opacity: .7; }
+.cv-alvo .cv-t-cab i { color: var(--signal); font-weight: 600; }
+
+/* A tela: a miniatura estática e, perto (a partir de 50%), o iframe vivo por cima. */
+.cv-tela { position: absolute; overflow: hidden; border-radius: calc(6px * var(--cv-k)); background: var(--surface);
+  box-shadow: 0 0 0 max(1px, var(--cv-k) * 1px) var(--line), 0 1px 2px rgba(0, 0, 0, .04); }
+.cv-tela.cv-cel { border-radius: calc(9px * var(--cv-k)); }
+.cv-tela.cv-alvo { outline: calc(2px * var(--cv-k)) solid var(--signal); outline-offset: calc(3px * var(--cv-k)); }
+.cv-mini { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: calc(12px * var(--cv-k)); }
 .cv-mini img { width: 100%; height: 100%; object-fit: cover; object-position: top; pointer-events: none; user-select: none; }
 .cv-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; pointer-events: none; }
 .cv-tela.cv-real .cv-frame { pointer-events: auto; }
 .cv-tela.cv-real { box-shadow: 0 0 0 2px var(--ink); }
 .cv-modo-pino .cv-tela.cv-real .cv-frame { pointer-events: none; }
+.cv-tela.cv-fechada::after { content: "a tela navegou · ⤢ abre de novo"; position: absolute; left: 12px; bottom: 12px; color: var(--ink-3); font-size: calc(11px * var(--cv-k)); }
+/* Em produção (J7-4): as telas que faltam ficam tracejadas; a da vez diz "montando". */
+.cv-tela.cv-fazendo { background: transparent; box-shadow: none; outline: max(1px, var(--cv-k) * 1px) dashed var(--line-strong); }
+.cv-fazendo-txt { display: inline-flex; align-items: center; gap: calc(6px * var(--cv-k)); font-size: calc(11.5px * var(--cv-k)); color: var(--ink-3); }
+.cv-t-fazendo .cv-t-cab, .cv-t-cab.cv-t-fazendo { opacity: .6; }
+/* O que mudou (J4-7, Comparar em J5-7) e a versão antiga (J5-6). */
+.cv-tela.cv-mudou { outline: calc(2px * var(--cv-k)) solid var(--signal); outline-offset: calc(3px * var(--cv-k)); }
+.cv-velha .cv-tela.cv-mudou { outline-style: dashed; }
+.cv-velha .cv-tela:not(.cv-mudou) .cv-mini { filter: saturate(.6); }
+
+/* Pinos e post-its (a mesma linguagem da moldura _nod/canvas). O pino tem tamanho fixo na tela. */
 .cv-pinos { position: absolute; inset: 0; pointer-events: none; }
-.cv-pino { position: absolute; width: 24px; height: 24px; margin: 0; padding: 0; border: 2px solid var(--papel); border-radius: 50% 50% 50% 0; background: var(--ink); color: var(--papel); font: 600 11px/20px var(--font-sans); text-align: center; transform: translate(-50%, -100%) scale(var(--cv-inv)); transform-origin: 50% 100%; pointer-events: auto; cursor: pointer; }
-.cv-pino.cv-resolvido { opacity: .45; }
-.cv-pino-novo { background: var(--signal); }
-.cv-selo { position: absolute; right: 12px; top: 12px; padding: 0 8px; border-radius: 10px; background: var(--ink); color: var(--papel); font: 600 12px/20px var(--font-sans); transform: scale(var(--cv-inv)); transform-origin: 100% 0; }
-.cv-legenda { position: absolute; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; color: var(--ink-2); font-size: 22px; line-height: 1.3; }
-.cv-legenda b { color: var(--ink); font-weight: 600; }
-.cv-legenda > span:last-child { flex-basis: 100%; color: var(--ink-3); }
-.cv-hoje-tag { padding: 0 8px; border-radius: 8px; background: var(--signal-soft); color: var(--ink); font-size: 16px; }
-.cv-tela.cv-fechada::after { content: "a tela navegou"; position: absolute; left: 12px; bottom: 12px; color: var(--ink-3); font-size: 18px; }
-.cv-lado { display: flex; flex-direction: column; gap: 10px; width: 300px; flex: none; overflow: auto; padding: 12px; border-left: 1px solid var(--line); background: var(--surface); }
-.cv-lado-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.cv-lado-cab h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
-.cv-lado .pg-link { font-size: 12px; color: var(--ink-2); }
-.cv-dica { margin: 0; color: var(--ink-3); font-size: 12.5px; line-height: 18px; }
-.cv-novo, .cv-resp { display: flex; flex-direction: column; gap: 6px; }
-.cv-novo-onde { margin: 0; color: var(--ink-2); font-size: 12px; }
-.cv-novo textarea, .cv-resp textarea { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--papel); color: var(--ink); font: 13px/18px var(--font-sans); resize: vertical; }
-.cv-novo .cv-bt-pri { align-self: flex-end; }
-.cv-resp > div { display: flex; gap: 6px; justify-content: flex-end; }
-.cv-erro { margin: 0; color: var(--danger); font-size: 12px; }
-.cv-cs, .cv-respostas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.cv-c { padding: 10px; border: 1px solid var(--line); border-radius: 8px; transition: background-color .3s; }
-.cv-c.cv-resolvido, .cv-c.cv-arquivado { opacity: .6; }
-.cv-c-luz { background: var(--surface-selected); }
-.cv-end { padding: 0; border: 0; background: none; color: var(--ink-3); font: 11.5px var(--font-mono); cursor: pointer; }
-.cv-c-cab { display: flex; align-items: baseline; gap: 6px; margin-top: 4px; font-size: 12.5px; color: var(--ink); }
-.cv-c-cab time { margin-left: auto; color: var(--ink-3); font-size: 11.5px; }
-.cv-c-txt { margin: 2px 0 0; color: var(--ink); font-size: 13px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.cv-respostas { margin: 8px 0 0 10px; padding-left: 10px; border-left: 1px solid var(--line); }
-.cv-c-acoes { display: flex; gap: 12px; margin-top: 6px; }
-.cv-fora { padding: 0 6px; border-radius: 6px; background: var(--warning-soft); color: var(--ink-2); font-size: 11px; }
-@media (max-width: 760px) { .cv-lado { display: none; } }
-@media (prefers-reduced-motion: reduce) { .cv-c { transition: none; } }
-/* O card do canvas no chat. */
-.cv-card { display: flex; align-items: center; gap: 12px; max-width: 460px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.cv-card-ic { width: 34px; height: 26px; flex: none; border-radius: 5px; background: linear-gradient(var(--line) 0 0) 4px 4px / 14px 9px no-repeat, linear-gradient(var(--line) 0 0) 16px 13px / 14px 9px no-repeat, var(--surface-side); }
-.cv-card-txt { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: 13px; color: var(--ink); }
-.cv-card-txt b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cv-card-txt span { color: var(--ink-3); font-size: 12px; }
+.cv-pino { position: absolute; z-index: 2; display: grid; place-items: center; width: 20px; height: 20px; margin: 0; padding: 0; border: 0;
+  border-radius: 50% 50% 50% 2px; background: var(--ink); color: var(--surface); font: 600 10.5px/1 var(--font-sans);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .18); transform: translate(-2px, -100%) scale(var(--cv-inv)); transform-origin: 2px 100%; pointer-events: auto; cursor: pointer; }
+.cv-pino-ativo { background: var(--signal); }
+.cv-pino-rasc { background: var(--surface); color: var(--ink); outline: 1.5px dashed var(--ink-3); }
+.cv-pino-ok { background: var(--surface); color: var(--success); outline: 1px solid var(--line-strong); opacity: .85; }
+.cv-pino-ok::after { content: "✓"; font-size: 11px; font-weight: 700; }
+.cv-pino-velho { background: var(--surface); color: var(--ink-2); outline: 1px solid var(--line-strong); box-shadow: none; }
+.cv-notas { position: absolute; display: flex; flex-direction: column; gap: calc(10px * var(--cv-k)); }
+.cv-nota { display: flex; flex-direction: column; gap: calc(4px * var(--cv-k)); width: calc(168px * var(--cv-k)); padding: calc(10px * var(--cv-k)) calc(12px * var(--cv-k));
+  border: max(1px, var(--cv-k) * 1px) solid #ece2b9; border-radius: calc(8px * var(--cv-k)); background: #fbf6e2;
+  font: inherit; font-size: calc(12px * var(--cv-k)); line-height: 1.4; color: var(--ink-2); text-align: left; overflow-wrap: anywhere; }
+button.cv-nota { cursor: pointer; }
+.cv-nota b { font-size: calc(10.5px * var(--cv-k)); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #7a6a33; }
+.cv-nota-rasc { border-style: dashed; border-color: #d9c98a; }
+.cv-nota-ok { opacity: .55; }
+.cv-nota-editando { border-color: #d9c98a; box-shadow: 0 0 0 calc(3px * var(--cv-k)) var(--signal-soft); }
+.cv-nota textarea { width: 100%; box-sizing: border-box; min-height: calc(54px * var(--cv-k)); resize: none; border: 0; outline: 0; padding: 0; background: transparent; color: var(--ink); font: inherit; }
+.cv-nota .cv-mudo { font-size: calc(10.5px * var(--cv-k)); }
+
+/* ---------- A barra de ferramentas: vidro, só traço, nenhum botão cheio; ao lado da pílula ---------- */
+.cv-topo { position: absolute; top: 14px; left: var(--cv-barra-x, 260px); right: 16px; z-index: 6; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.cv-topo > * { pointer-events: auto; }
+.cv-fer { --cv-vidro: color-mix(in srgb, var(--surface) 84%, transparent); display: flex; align-items: center; gap: 1px; height: 38px; max-width: 100%; padding: 0 5px; border-radius: 20px; white-space: nowrap;
+  background: var(--cv-vidro); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); box-sizing: border-box; overflow-x: auto; scrollbar-width: none; }
+.cv-fer::-webkit-scrollbar { display: none; }
+.cv-fer-bt { display: inline-grid; place-items: center; grid-auto-flow: column; gap: 3px; min-width: 30px; height: 30px; padding: 0 6px; border: 0; border-radius: 15px;
+  background: none; color: var(--ink-2); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; flex: none; }
+.cv-fer-bt:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.cv-fer-bt:disabled { opacity: .4; cursor: default; background: none; }
+.cv-fer-bt svg { width: 15px; height: 15px; }
+.cv-fer-on { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
+.cv-fer-n { font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cv-fer-nome { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 6px 0 10px; border: 0; border-radius: 15px; background: none; flex: none;
+  color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.cv-fer-nome:hover, .cv-fer-nome[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.cv-fer-seta { font-size: 9px; color: var(--ink-3); }
+.cv-fer-ver { height: 30px; min-width: 30px; padding: 0 8px; border: 0; border-radius: 15px; background: none; color: var(--ink-3); font: inherit; font-size: 12.5px; flex: none;
+  font-variant-numeric: tabular-nums; cursor: pointer; }
+.cv-fer-ver:hover, .cv-fer-ver[aria-expanded="true"] { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.cv-fer-velha { color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.cv-fer-nav { display: inline-flex; align-items: center; flex: none; }
+.cv-fer-onde { min-width: 34px; padding: 0 2px; text-align: center; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cv-fer-onde b { font-weight: 600; color: var(--ink); }
+.cv-fer-link svg { width: 13px; height: 13px; }
+.cv-fer-pct { min-width: 42px; height: 30px; padding: 0; border: 0; border-radius: 15px; background: none; color: var(--ink-3); font: inherit; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; cursor: pointer; display: inline-grid; place-items: center; flex: none; }
+.cv-fer-pct:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.cv-fer-fio { flex: none; width: 1px; height: 16px; margin: 0 5px; background: var(--line); }
+.cv-fer-enviar { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px 0 8px; border: 0; border-radius: 15px; background: none; flex: none;
+  color: var(--signal); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.cv-fer-enviar::before { content: ""; width: 6px; height: 6px; margin-right: 2px; border-radius: 50%; background: var(--signal); }
+.cv-fer-enviar:hover { background: var(--signal-soft); }
+.cv-fer-enviar:disabled { opacity: .6; cursor: progress; }
+.cv-fer :focus-visible, .cv-menu :focus-visible, .cv-pop :focus-visible, .cv-aviso :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* Avisos em vidro logo abaixo da barra: v2 publicada, rodada enviada, link copiado, importado, em produção. */
+.cv-aviso { display: inline-flex; align-items: center; gap: 8px; margin: 0; min-height: 32px; padding: 0 8px 0 12px; border-radius: 16px; max-width: 100%; box-sizing: border-box; font-size: 12.5px; color: var(--ink-2);
+  background: color-mix(in srgb, var(--surface) 92%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); box-shadow: 0 6px 20px -10px rgba(24, 24, 27, .22); }
+.cv-aviso > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-aviso::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--signal); }
+.cv-aviso-ok::before, .cv-aviso-velha::before, .cv-aviso-vivo::before { display: none; }
+.cv-aviso-ic { display: inline-grid; place-items: center; color: var(--success); }
+.cv-aviso-x { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 11px; background: none; color: var(--ink-3); font-size: 14px; cursor: pointer; flex: none; }
+.cv-aviso-x:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.cv-vivo { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); animation: cv-pulsa 1.6s ease-in-out infinite; }
+@keyframes cv-pulsa { 50% { box-shadow: 0 0 0 1px var(--signal-soft); } }
+.cv-pt { display: inline-block; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+.cv-est-ok { display: inline-grid; place-items: center; color: var(--success); }
+
+/* Menus que abrem da barra: vidro, logo abaixo dela; o das versões alinha com o vN. */
+.cv-menu { width: 380px; max-width: calc(100vw - 40px); box-sizing: border-box; padding: 8px; border-radius: 14px; font-size: 12.5px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); box-shadow: var(--shadow-pop); }
+.cv-menu-ver { margin-left: 64px; }
+.cv-menu-cab { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px 8px; }
+.cv-menu-cab b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.cv-menu-cab span { color: var(--ink-3); font-size: 12px; }
+.cv-vers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; max-height: 320px; overflow: auto; }
+.cv-ver { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 9px; }
+.cv-ver:hover, .cv-ver-cur { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.cv-ver-id { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cv-ver-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cv-ver-txt b { font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-ver-txt span { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-ver-ok { display: inline-grid; place-items: center; color: var(--ink-2); }
+.cv-menu-pe { display: flex; align-items: center; gap: 8px; width: 100%; margin: 6px 0 0; padding: 9px 8px 3px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink-2); font: inherit; text-align: left; cursor: pointer; }
+.cv-chave { position: relative; flex: none; width: 24px; height: 14px; border-radius: 7px; border: 1px solid var(--line-strong); box-sizing: border-box; }
+.cv-chave::after { content: ""; position: absolute; left: 2px; top: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
+.cv-chave-on { border-color: var(--ink); }
+.cv-chave-on::after { left: 12px; background: var(--ink); }
+.cv-menu h4 { margin: 8px 0 2px; padding: 0 8px; font-size: 11px; font-weight: 500; color: var(--ink-3); }
+.cv-menu ul { list-style: none; margin: 0; padding: 0; }
+.cv-mi { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: 9px; background: none; color: var(--ink-2); font: inherit; text-align: left; cursor: pointer; }
+.cv-mi:hover, .cv-mi-cur { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.cv-mi-est { display: grid; place-items: center; }
+.cv-mi-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-mi-txt b { font-weight: 600; color: var(--ink); margin-right: 2px; }
+.cv-mi-info { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+.cv-menu-todos { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; margin: 0 0 2px; padding: 8px;
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 9px 9px 0 0; background: none; color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 500; text-align: left; cursor: pointer; }
+.cv-menu-todos svg { width: 14px; height: 14px; color: var(--ink-2); }
+.cv-menu-todos:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.cv-busca { display: inline-flex; align-items: center; gap: 8px; width: 240px; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink-3); box-sizing: border-box; }
+.cv-busca svg { width: 14px; height: 14px; flex: none; }
+.cv-busca:focus-within { border-color: var(--focus-ring); box-shadow: 0 0 0 1px var(--focus-ring); }
+/* foco-ok: o anel fica na caixa (.cv-busca:focus-within) e o forced-colors cobre o input. */
+.cv-menu .cv-busca input:focus-visible { outline: none; }
+.cv-busca input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ink); font: inherit; font-size: 13px; }
+.cv-menu-busca { width: auto; display: flex; margin-bottom: 4px; }
+
+/* ---------- O pino: a caixa do novo e a conversa (popover), sem painel lateral ---------- */
+.cv-camada { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.cv-camada > * { pointer-events: auto; }
+.cv-pop { position: absolute; display: flex; flex-direction: column; gap: 8px; width: 290px; max-width: calc(100% - 24px); box-sizing: border-box; padding: 10px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-pop); }
+.cv-pop textarea { resize: none; border: 0; outline: 0; padding: 2px; min-height: 40px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; line-height: 1.45; }
+.cv-pop-acoes { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+.cv-thread { gap: 10px; max-height: 60vh; overflow: auto; }
+.cv-msg { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+.cv-msg b { font-weight: 600; color: var(--ink); }
+.cv-msg time { font-size: 11px; color: var(--ink-3); }
+.cv-msg p { margin: 2px 0 0; line-height: 1.45; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cv-av { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-side);
+  border: 1px solid var(--line); font-size: 9.5px; font-weight: 600; color: var(--ink-2); }
+.cv-av-bot { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.cv-resp { flex: 1; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; }
+
+/* ---------- O input de prompt (vidro, embaixo) e o balão acima dele ---------- */
+.cv-comp { position: absolute; left: 50%; bottom: 16px; z-index: 6; transform: translateX(-50%); width: min(600px, calc(100% - 40px)); }
+.cv-comp-box { display: flex; align-items: center; gap: 6px; min-height: 46px; padding: 4px 6px 4px 12px; box-sizing: border-box; border-radius: 23px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); box-shadow: 0 6px 20px -10px rgba(24, 24, 27, .22); }
+.cv-comp textarea { flex: 1; min-width: 0; max-height: 120px; resize: none; border: 0; outline: 0; padding: 6px 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; line-height: 20px; }
+.cv-comp-enviar { display: grid; place-items: center; flex: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 17px; background: none; color: var(--ink-3); cursor: pointer; }
+.cv-comp-escrevendo .cv-comp-enviar { background: var(--ink); color: var(--surface); }
+.cv-comp-enviar svg { width: 16px; height: 16px; }
+.cv-chip { flex: none; display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 11px;
+  font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cv-bal { position: absolute; left: 50%; bottom: 74px; z-index: 6; transform: translateX(-50%); width: min(600px, calc(100% - 40px)); max-height: 46%; overflow: auto; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 18px; font-size: 13px; line-height: 1.45; color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 90%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); box-shadow: 0 10px 30px -14px rgba(24, 24, 27, .28); }
+.cv-bal-voce { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 0; padding-right: 22px; color: var(--ink-2); }
+.cv-bal-voce .cv-chip { order: 2; }
+.cv-bal-bot { display: flex; align-items: flex-start; gap: 10px; }
+.cv-bal-corpo { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.cv-bal-corpo > p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cv-bal .pensar { margin: 0; }
+.cv-bal-pe { font-size: 12px; color: var(--ink-3); }
+.cv-bal-pe .cv-link { font-size: 12px; }
+.cv-bal-x { position: absolute; top: 6px; right: 8px; }
+
+/* ---------- Apresentar e tela cheia ---------- */
+.cv-sobre { position: fixed; inset: 0; z-index: 60; background: var(--surface-side); }
+.cv-sobre-palco { position: absolute; inset: 0; overflow: hidden; }
+.cv-real-grande { position: absolute; left: 50%; top: 66px; overflow: hidden; border-radius: 10px; border: 1px solid var(--line); box-shadow: var(--shadow-pop); background: var(--surface); transform-origin: 50% 0; }
+.cv-real-grande iframe, .cv-real-grande img { width: 100%; height: 100%; border: 0; display: block; object-fit: cover; object-position: top; }
+.cv-sobre .cv-topo { left: 20px; }
+/* J3-3: apresentando, o input segue embaixo, por cima da tela grande. */
+.cv-apresentando .cv-comp { position: fixed; z-index: 61; }
+.cv-fer-tit { padding: 0 6px 0 2px; color: var(--ink-3); font-size: 12.5px; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.cv-fer-pct-so { cursor: default; }
+.app.cv-cheia { grid-template-columns: minmax(0, 1fr); }
+/* interface.css e densidade.css fixam as colunas com seletores mais fortes (.app.com-detalhes.detalhes-ocultos,
+   html[data-densidade] .app.com-detalhes:not(.sem-sessao)): sem vencê-los, a tela cheia escondia a barra lateral e o
+   palco ficava com os 340px dela. O :not(#cv-nenhum) dá o peso de id, sem !important. */
+.app.cv-cheia:not(#cv-nenhum) { grid-template-columns: minmax(0, 1fr); }
+.app.cv-cheia > .sidebar, .app.cv-cheia > .detalhes, .app.cv-cheia > .borda-barra { display: none; }
+
+/* ---------- J1-3 · Vazio e J7-3 · Todos os canvas ---------- */
+.cv-vazio { margin: 0 auto; padding-top: 120px; max-width: 440px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--ink-2); font-size: 13.5px; line-height: 20px; text-align: center; }
+.cv-vazio p { margin: 0; color: var(--ink); font-weight: 500; }
+.cv-vazio-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); color: var(--ink-3); margin-bottom: 4px; }
+.cv-vazio-ic svg { width: 18px; height: 18px; }
+.cv-lista { flex: 1; min-height: 0; overflow: auto; padding: 104px 32px 96px; }
+.cv-lista-in { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.cv-lista-cab { display: flex; align-items: baseline; gap: 12px; }
+.cv-lista-cab h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
+.cv-lista-ctl { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.cv-filtros { display: flex; gap: 4px; }
+.cv-filtro { height: 30px; padding: 0 11px; border: 1px solid transparent; border-radius: 15px; background: none; color: var(--ink-3); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.cv-filtro i { font-style: normal; margin-left: 3px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cv-filtro:hover { color: var(--ink); }
+.cv-filtro[aria-selected="true"] { border-color: var(--line-strong); color: var(--ink); }
+.cv-grupo h3 { margin: 0 0 4px; padding: 0 10px; font-size: 11.5px; font-weight: 500; color: var(--ink-3); }
+.cv-grupo ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cv-lin-a { display: grid; grid-template-columns: 92px minmax(0, 1fr) 260px 52px; align-items: center; gap: 16px; width: 100%; padding: 8px 10px; border: 0; border-radius: 12px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cv-lin-a:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.cv-lin-a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.cv-lin-mini { position: relative; width: 92px; height: 58px; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); box-sizing: border-box;
+  background-color: var(--surface-side); background-image: radial-gradient(var(--line) 1px, transparent 1.2px); background-size: 10px 10px; }
+.cv-lin-mini img { position: absolute; left: 6px; top: 6px; width: calc(100% - 12px); height: calc(100% - 12px); object-fit: cover; object-position: top; border-radius: 4px; }
+.cv-lin-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12.5px; color: var(--ink-3); }
+.cv-lin-txt b { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-lin-est { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-lin-aprovado .cv-lin-est { color: var(--ink-3); }
+.cv-lin-a time { text-align: right; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cv-lista-nada { margin: 0; padding: 24px 10px; color: var(--ink-3); font-size: 13px; }
+
+/* ---------- No chat: o card, a linha "vN no ar", o recibo da rodada e a lista compacta ---------- */
+.cv-card { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 10px 14px; align-items: center; margin-top: 8px;
+  max-width: 440px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: inherit; text-decoration: none; font: inherit; text-align: left; cursor: pointer; }
+.cv-card:hover { border-color: var(--line-strong); }
+.cv-card-mini { grid-row: 1 / 3; width: 132px; height: 84px; overflow: hidden; border-radius: 9px; border: 1px solid var(--line); position: relative; box-sizing: border-box;
+  background-color: var(--surface-side); background-image: radial-gradient(var(--line) 1px, transparent 1.2px); background-size: 10px 10px; }
+.cv-card-mini .cv-card-telas { position: absolute; left: 8px; top: 8px; right: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.cv-card-mini .cv-card-telas i { display: block; aspect-ratio: 16 / 10; border-radius: 2px; border: 1px solid var(--line); background: var(--surface); }
+.cv-card-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 12.5px; color: var(--ink-3); }
+.cv-card-txt b { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-card-aviso { color: var(--ink-2); }
+.cv-card-aviso::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--signal); vertical-align: 1px; }
+.cv-card-origem { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cv-card-abrir { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+.cv-card:hover .cv-card-abrir { color: var(--ink); }
+.cv-atual { display: inline-flex; align-items: center; gap: 10px; margin-top: 8px; max-width: 440px; padding: 7px 12px 7px 9px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cv-atual:hover { border-color: var(--line-strong); }
+.cv-atual-ic { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--line); color: var(--ink-2); flex: none; }
+.cv-atual-ic svg { width: 14px; height: 14px; }
+.cv-atual-txt { display: flex; flex-direction: column; min-width: 0; font-size: 12px; color: var(--ink-3); }
+.cv-atual-txt b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.cv-atual-abrir { margin-left: 8px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.cv-rodada { display: flex; flex-direction: column; gap: 6px; }
+.cv-rodada-cab { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; opacity: .72; }
+.cv-rodada-cab svg { width: 13px; height: 13px; }
+.cv-rodada-cab b { font-weight: 600; }
+.cv-rodada ol, .cv-res, .cv-lst { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.cv-rodada li, .cv-res li, .cv-lst li { display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; line-height: 1.4; min-width: 0; }
+.cv-rodada li > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-rodada-id { flex: none; font-size: 12px; font-weight: 600; color: inherit; font-variant-numeric: tabular-nums; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 3px; }
+.cv-lst { margin: 6px 0 4px; }
+.cv-rodada-pe { display: block; margin-top: 4px; text-align: right; font-size: 11.5px; color: var(--ink-3); }
+
+/* ---------- Celular (390): a barra vai embaixo da pílula e rola; o input fica fixo ---------- */
+@media (max-width: 760px) {
+  .cv-topo { left: 12px; right: 12px; top: 66px; }
+  .cv-menu-ver { margin-left: 0; }
+  .cv-lin-a { grid-template-columns: 72px minmax(0, 1fr); }
+  .cv-lin-mini { width: 72px; height: 46px; }
+  .cv-lin-est, .cv-lin-a time { grid-column: 2; }
+  .cv-lista { padding: 120px 16px 96px; }
+  .cv-busca { width: 100%; }
+  .cv-dica { display: none; }
+  .cv-comp { bottom: 10px; width: calc(100% - 24px); }
+  .cv-bal { bottom: 66px; width: calc(100% - 24px); }
+}
+@media (prefers-reduced-motion: reduce) { .cv-vivo { animation: none; } }
+
+/* Alto contraste: os campos de vidro tiram o contorno; no forced-colors ele volta. */
+@media (forced-colors: active) {
+  .cv-nota textarea, .cv-busca input, .cv-menu .cv-busca input:focus-visible, .cv-pop textarea, .cv-comp textarea { outline: 2px solid CanvasText; outline-offset: 2px; }
+}
+
+/* De longe (zoom < 20%): o id e o título da tela, o rótulo da jornada e os post-its (J4-4: o protótipo os mostra no
+   "ajustar tudo", e o N abre o post-it na fileira do centro, que precisa estar à vista). */
+.cv-mundo.cv-longe .cv-leg, .cv-mundo.cv-longe .cv-rot small, .cv-mundo.cv-longe .cv-t-cab .cv-exp, .cv-mundo.cv-longe .cv-seta { display: none; }
+
+/* ADA-228 (J7-5): a lista do listar {mostrar} no chat é um balão do bot: "N esperam você:" e as linhas. */
+.cv-lst-chat { max-width: min(652px, 100%); box-sizing: border-box; padding: 12px 16px; border-radius: 18px; background: var(--surface-raised); color: var(--ink); font-size: 13.5px; }
+.cv-lst-chat .cv-lst-cab { margin: 0 0 6px; }
+.cv-lst-chat .cv-lst { margin: 0; }
+.cv-lst-chat .cv-link { flex: none; font-weight: 600; font-size: 12.5px; }
+.cv-lst-chat .cv-lst li > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ADA-228 (J1-2, Marlon 11/11): a gaveta como no protótipo: prévia em esboço, texto e Quem usa. */
+.cv-gav-previa { flex: none; height: 150px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; position: relative;
+  background-color: var(--surface); background-image: radial-gradient(var(--line) 1px, transparent 1.2px); background-size: 14px 14px; }
+.cv-gav-mundo { position: absolute; left: 18px; top: 18px; display: flex; flex-direction: column; gap: 20px; }
+.cv-gav-fila { display: flex; align-items: flex-start; }
+.cv-gav-seta { flex: none; width: 14px; height: 1px; margin-top: 29px; background: var(--line-strong); opacity: .7; }
+.cv-gav-t { flex: none; display: block; }
+.cv-gav-mini { position: relative; display: block; width: 92px; height: 58px; overflow: hidden; border-radius: 6px; background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, .04); }
+.cv-gav-mini i { position: absolute; display: block; }
+.cv-gav-mini .cv-sk-sb { left: 0; top: 0; bottom: 0; width: 20%; background: var(--surface-side); border-right: 1px solid var(--line); }
+.cv-gav-mini .cv-sk-h { left: 27%; top: 14%; width: 26%; height: 7%; border-radius: 3px; background: var(--line-strong); opacity: .55; }
+.cv-gav-mini .cv-sk-b { left: 27%; height: 9%; border-radius: 5px; background: var(--line); }
+.cv-gav-mini .cv-sk-r { left: auto; right: 8%; background: var(--ink); opacity: .78; }
+.cv-gav-mini .cv-sk-comp { left: 30%; right: 9%; bottom: 8%; height: 11%; border-radius: 7px; border: 1px solid var(--line-strong); opacity: .7; }
+.cv-gav-mini .cv-sk-card { width: 20%; height: 22%; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); }
+.cv-gav-mini .cv-sk-tile { top: 32%; width: 15%; height: 24%; border-radius: 4px; background: var(--surface-side); border: 1px solid var(--line); }
+.cv-gav-mini .cv-sk-wide { left: 28%; right: 8%; top: 64%; height: 20%; border-radius: 4px; background: var(--surface-side); }
+.cv-gav-mini .cv-sk-nv { width: 16%; height: 14%; border-radius: 4px; background: var(--signal-soft); outline: 1px solid var(--signal); }
+.cv-gav-txt { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.cv-gaveta .segmentado .seg { white-space: nowrap; }
+
+/* ADA-228 (J4-1, J4-2, Marlon 11/11): como no protótipo, o campo do pino e o Responder… não ganham contorno preto no foco:
+   o cursor já diz onde se escreve. O Responder… só escurece a borda; o teclado continua com o anel nos botões. */
+.cv-pop textarea:focus, .cv-pop textarea:focus-visible { outline: 0; }
+.cv-pop .cv-resp:focus, .cv-pop .cv-resp:focus-visible { outline: 0; border-color: var(--line-strong); }
+@media (forced-colors: active) {
+  .cv-pop textarea:focus, .cv-pop textarea:focus-visible, .cv-pop .cv-resp:focus, .cv-pop .cv-resp:focus-visible { outline: 2px solid CanvasText; outline-offset: 2px; }
+}
+.cv-av-mascote { flex: none; display: grid; place-items: center; width: 22px; height: 22px; }
+.cv-av-mascote > * { width: 22px !important; height: 22px !important; }
+/* ADA-228 (teste com a IA real): a resposta do bot no balão, com o markdown do chat, enxuta. */
+.cv-bal-txt { min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.cv-bal-txt > :first-child { margin-top: 0; }
+.cv-bal-txt > :last-child { margin-bottom: 0; }
+.cv-bal-txt p, .cv-bal-txt ul, .cv-bal-txt ol { margin: 0 0 6px; }
+.cv-bal-txt ul, .cv-bal-txt ol { padding-left: 18px; }

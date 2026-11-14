@@ -1,5 +1,6 @@
 import type { DestinoItem, ItemAprovacao } from "../contracts/item-aprovacao.ts";
 import type { DesfechoItem, MotivoAprovacaoManual } from "../contracts/motivos.ts";
+import { REGRAS_QUE_AUTORIZAM_ITEM_LOCAL } from "../domain/autoridade-item-local.ts";
 import type { Conn, Escopo } from "../shared/types.ts";
 import { data, isoOuNull, jsonb } from "./conversao.ts";
 
@@ -195,14 +196,17 @@ export function itensAprovacaoRepo(conn: Conn, escopo: Escopo) {
 
     /**
      * definido em 2026-09-24 (ADR-048): os itens APROVADOS desta pessoa que rodam no gh do Mac dela e
-     * ainda não têm desfecho. A execução é derivada, sem coluna nova: decisão decidida + item marcado
-     * + `destino.execucao = 'maquina'` + desfecho nulo.
+     * ainda não têm desfecho. A execução é derivada, sem coluna nova: decisão decidida COM AUTORIDADE + item
+     * marcado + `destino.execucao = 'maquina'` + desfecho nulo. NOD-423: autoridade é a pessoa ou uma regra de
+     * REGRAS_QUE_AUTORIZAM_ITEM_LOCAL (desfechoAutorizaItemLocal); Parar, × e regra desconhecida ficam fora.
      */
     async pendentesNaMaquina(): Promise<ItemNaMaquina[]> {
       const linhas = await conn<(Linha & { decidida_em: Date | null; tipo_desfecho: string | null })[]>`
         select ${conn.unsafe(COLUNAS.split(", ").map((c) => `i.${c}`).join(", "))}, d.decidida_em, d.desfecho->>'tipo' as tipo_desfecho
         from itens_aprovacao i join decisoes d on d.tenant_id = i.tenant_id and d.id = i.decisao_id
         where i.tenant_id = ${escopo.tenantId} and i.owner_id = ${escopo.pessoaId} and d.estado = 'decidida'
+          and (d.desfecho->>'tipo' = 'decidida'
+            or (d.desfecho->>'tipo' = 'decidida_por_regra' and d.desfecho->>'regra' = any(${[...REGRAS_QUE_AUTORIZAM_ITEM_LOCAL]}::text[])))
           and i.selecionado and i.desfecho is null and i.destino->>'execucao' = 'maquina'
         order by d.decidida_em, i.idx`;
       return linhas.map((l) => ({ item: paraItem(l), decididaEm: l.decidida_em ? l.decidida_em.getTime() : 0, porRegra: l.tipo_desfecho === "decidida_por_regra" }));

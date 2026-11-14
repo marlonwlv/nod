@@ -40,6 +40,7 @@ describe("uma fonte só: card e tarefa aberta mostram o mesmo estado", () => {
     expect(situacaoDoCard({ execucao: "fila", otimista: true })).toBe("comecando");
     expect(situacaoDoCard({ execucao: "fila" })).toBe("fila");
     expect(rotuloDaSituacao("fila", { motivoFila: null })).toBe("na fila");
+    expect(rotuloDaSituacao("fila", { motivoFila: null, posicaoFila: { n: 2, m: 5 } })).toBe("na fila (2 de 5)");
     expect(rotuloDaSituacao("fila", { motivoFila: "mesma_tarefa", naFilaDesde: 1_000, agora: 1_000 + 3 * 60_000 })).toBe("na fila há 3 min · termina a etapa anterior desta tarefa");
   });
 });

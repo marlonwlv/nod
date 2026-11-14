@@ -292,12 +292,34 @@ describe("planejarLote: tudo ou nada", () => {
     expect(p.seguradas).toEqual([]);
   });
 
-  it("no limite da corrente de bots (podeComecar false) a tarefa fica em A fazer, segurada, sem começar", () => {
+  it("no limite da corrente de bots (podeComecar false) a tarefa fica na coluna pedida, segurada, sem começar", () => {
     const p = planejar([{ tipo: "criar_tarefa", titulo: "Tela", agente: "ze 1", status: "afazer" }], { podeComecar: false });
     expect(p).toMatchObject({ comecam: [], seguradas: ["novo:0"], tarefas: [{ status: "afazer", agenteId: ZE.id }] });
-    // A passagem de mão em Fazendo, segurada, volta a A fazer sem o turno velho (codex rodada 5).
+    // A passagem de mão em Fazendo, segurada, fica em Fazendo, sem o turno velho (codex rodada 5; 2026-11-13: não volta a A fazer).
     const andando = tarefa({ status: "fazendo", agenteId: ZE.id, turnoId: "20000000-0000-4000-8000-000000000001" });
-    expect(planejar([{ tipo: "mudar_tarefa", tarefa: andando.id, agente: "ada" }], { tarefas: [andando], podeComecar: false })).toMatchObject({ seguradas: [andando.id], tarefas: [{ status: "afazer", agenteId: ADA.id, turnoId: null }] });
+    expect(planejar([{ tipo: "mudar_tarefa", tarefa: andando.id, agente: "ada" }], { tarefas: [andando], podeComecar: false })).toMatchObject({ seguradas: [andando.id], tarefas: [{ status: "fazendo", agenteId: ADA.id, turnoId: null }] });
+  });
+
+  it("2026-11-13: 13 tarefas movidas para uma coluna com passagem ficam todas nela — começam todas, ou ficam seguradas nela; nenhuma vai a outra coluna", () => {
+    const colunas = [...COLUNAS_PADRAO.slice(0, 3), { id: "plano", nome: "Plano de engenharia", grupo: "iniciado" as const, responsavel: ZE.id }, ...COLUNAS_PADRAO.slice(3)];
+    const treze = Array.from({ length: 13 }, (_, i) => tarefa({ id: `10000000-0000-4000-8000-0000000002${String(i).padStart(2, "0")}`, status: "backlog", agenteId: null }));
+    const ops = treze.map((t) => ({ tipo: "mudar_tarefa", tarefa: t.id, status: "Plano de engenharia" }));
+    for (const quem of [{}, { autor: ADA.id, autorNaConversa: true, limite: "total" as const }]) {
+      const p = planejar(ops, { tarefas: treze, colunas, ...quem });
+      if ("erro" in p) throw new Error(p.erro);
+      expect(p.comecam).toHaveLength(13);
+      expect(p.seguradas).toEqual([]);
+      expect(p.tarefas.map((t) => t.status)).toEqual(Array(13).fill("plano"));
+      expect(p.tarefas.every((t) => t.agenteId === ZE.id)).toBe(true);
+    }
+    const segurado = planejar(ops, { tarefas: treze, colunas, podeComecar: false });
+    if ("erro" in segurado) throw new Error(segurado.erro);
+    expect(segurado.comecam).toEqual([]);
+    expect(segurado.seguradas).toHaveLength(13);
+    expect(segurado.tarefas.map((t) => t.status)).toEqual(Array(13).fill("plano"));
+    // A segurada recomeça a pedido, na mesma coluna (a coluna de andamento da pessoa reabre).
+    const parada = { ...treze[0]!, status: "plano", agenteId: ZE.id };
+    expect(planejar([{ tipo: "mudar_tarefa", tarefa: parada.id, status: "Plano de engenharia" }], { tarefas: [parada], colunas })).toMatchObject({ comecam: [parada.id], tarefas: [{ status: "plano" }] });
   });
 
   it("a segurada recomeça a pedido: A fazer sobre A fazer sem turno vivo; com turno vivo, ou mexendo em outra coisa, não (revisão do PR #612)", () => {

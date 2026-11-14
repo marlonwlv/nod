@@ -1687,7 +1687,6 @@ export function planejarLote(p: {
   const porRegra = new Set(pelaColunaQueSaiu);
   // Quem não se reinicia: o bot no turno da própria tarefa. Na conversa com a pessoa ele começa a tarefa dele.
   const autorQueTrava = p.autorNaConversa ? null : p.autorAgenteId;
-  const espera = colunaDeEspera(colunas);
   const comecam: string[] = [];
   const seguradas: string[] = [];
   const respondidasIds = new Set(respondidas.map((r) => r.id));
@@ -1713,9 +1712,10 @@ export function planejarLote(p: {
     // O apelido afazer é o A fazer deste quadro: a mesma regra, com a tarefa entrando em A fazer.
     const comoAfazer = pediuAfazer.has(id) && de?.status !== t.status && deveComecar(de, { status: "afazer", agenteId: t.agenteId }, autorQueTrava, colunas);
     if (!recomeca && !comoAfazer && !deveComecar(de, t, autorQueTrava, colunas, p.vivas?.has(id) ?? false, { pelaColuna, terminei: terminadas.has(id) })) continue;
-    // No limite da corrente: fica em espera, sem turno. A passagem de mão segurada no andamento também volta à espera,
-    // sem o turno velho: ninguém a deixa "andando" (codex rodada 5).
-    if (p.podeComecar === false) { t.status = espera; t.turnoId = null; seguradas.push(id); continue; }
+    // No limite da corrente: não começa e fica sem o turno velho (codex rodada 5), mas na coluna que pediram (2026-11-13:
+    // antes voltava à espera, A fazer/"Priorizado", e a pessoa via a tarefa "sumir" da coluna que aprovou). Recomeça a
+    // pedido, mudando para a mesma coluna (recomeco/podeReabrirEm).
+    if (p.podeComecar === false) { t.turnoId = null; seguradas.push(id); continue; }
     // Começa: de A fazer vai ao andamento (Fazendo, ou a 1ª de andamento da pessoa); quem já entrou no andamento fica.
     // A coluna com passagem é a própria etapa: a tarefa fica nela (menos A fazer, que segue indo ao andamento, ADR-140).
     if (grupoDe(colunas, t.status) !== "iniciado") t.status = colunaDeAndamento(colunas) ?? t.status;

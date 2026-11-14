@@ -14,6 +14,7 @@ import { CHAVE_AVISO_RECRIADO } from "./telas/espaco.ts";
 import { marcarTelaFechadaNaAjuda } from "./lib/computador.ts";
 import { anunciarEm, criarFocoPendente, guardarPosicao, planejarSaidaDaLista, reporPosicao, type ElDaLista, type RaizDaLista } from "./lib/posicao-da-lista.ts";
 import { criarUltimaLeitura } from "./lib/ultima-leitura.ts";
+import { decidirContraEstadoVelho } from "./lib/decidir-contra-estado-velho.ts";
 import { aoVerComputador, definirTelaDoBot } from "./telas/tela-do-bot.ts";
 import { abrirWorkspace } from "./telas/workspace.ts";
 import { listaDoQuePodem, rotuloPermitir, type EscolhaLiberar } from "./telas/card-liberar.ts";
@@ -673,7 +674,9 @@ window.matchMedia("(max-width: 1099px)").addEventListener("change", marcarPainel
 // NOD-429: Conversa | Quadro na pílula, só com o experimento Quadro ligado (Configurações › Geral › Avançado) e no bot da própria pessoa (web/lib/quadro.ts).
 // NOD-429: de volta à Conversa, a conversa passa a estar "na tela" de novo e é lida.
 // ADA-13 (ADR-150): a página Canvas do bot (a pílula a mostra quando o bot tem acesso ao app).
-const canvasNaTela = criarCanvasNaTela(document, { api: () => api });
+// ADA-228: o recibo da rodada e o input de vidro vão para a conversa do bot à vista; "ver na conversa" volta à Conversa.
+const canvasNaTela = criarCanvasNaTela(document, { api: () => api, conversa: () => conversaAtual()?.conversaId ?? null, irParaConversa: () => quadroNaTela.irPara(0),
+  mascote: (id) => { const a = estado.frota?.agentes.find((x) => x.id === id); return a ? iconeAgente(a, "sm") : null; } });
 configurarAppCanvas({ ler: () => (api ? api.appCanvas() : null), aoMudar: () => render() });
 const quadroNaTela = criarQuadroNaTela(document, {
   // ADA-8: a pílula tem um dono só para o dedo (web/lib/gesto-da-pilula-na-tela.ts); a busca e o menu entram por aqui.
@@ -1100,9 +1103,9 @@ async function decidirPelaLigacao(decisaoId: string, aprovar: boolean): Promise<
   if (!api) return;
   const item = estado.suaVez?.itens.find((i) => i.decisao.id === decisaoId);
   const tipo = item?.decisao.tipo;
-  if (tipo === "aprovacao" || tipo === "gate_rotina") await api.decidir(decisaoId, { itens: (item?.itensAprovacao ?? []).map((i) => ({ id: i.id, selecionado: aprovar && i.selecionado })) });
+  if (tipo === "aprovacao" || tipo === "gate_rotina") await decidirAprovacaoReconciliando(decisaoId, { itens: (item?.itensAprovacao ?? []).map((i) => ({ id: i.id, selecionado: aprovar && i.selecionado })) });
   else if (tipo === "retomar_turno") await (aprovar ? api.retomar(decisaoId) : api.dispensar(decisaoId));
-  else await api.decidir(decisaoId, aprovar ? {} : { recusar: true });
+  else await decidirAprovacaoReconciliando(decisaoId, aprovar ? {} : { recusar: true });
   dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(item?.decisao.conversaId ? [`conversa:${item.decisao.conversaId}` as Invalidacao] : [])] });
 }
 
@@ -1740,6 +1743,23 @@ async function agir(fn: () => Promise<void>): Promise<void> {
   }
 }
 
+/**
+ * ADA-247: o POST pode perder a corrida para outra aba, uma regra ou o varredor. Confirma pelo GET autoritativo antes de
+ * tratar o 409 como sucesso já realizado; a fila sai na hora e a conversa relê o cartão como linha de desfecho.
+ */
+async function decidirAprovacaoReconciliando(id: string, corpo: Parameters<Api["decidir"]>[1]): Promise<void> {
+  await decidirContraEstadoVelho(
+    () => api!.decidir(id, corpo),
+    async () => {
+      const suaVez = await api!.suaVez(naFrente());
+      dispatch({ tipo: "hidratar-sua-vez", suaVez });
+      return !suaVez.itens.some((item) => item.decisao.id === id);
+    },
+  );
+  const conversa = conversaAtual();
+  dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(conversa ? [`conversa:${conversa.conversaId}` as Invalidacao] : [])] });
+}
+
 // ---------------------------------------------------------------------------------------------
 // Reidratação: o reducer diz O QUE mudou; aqui busca-se por REST e despacha o hidratar.
 
@@ -1821,6 +1841,7 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     return detalhe ? { tipo: "hidratar-trabalho", detalhe, agora } : { tipo: "trabalho-sumiu", id };
   }
   if (q === "chaves") return { tipo: "hidratar-chaves", chaves: (await api.chaves()).chaves };
+  if (q === "mcp-tokens") return { tipo: "hidratar-mcp-tokens", tokens: await api.mcpTokens() };
   // ADR-090: servidor sem a rota (404, versão anterior) fica sem máquinas; nenhum erro sobe.
   if (q === "maquinas") {
     relerEstaMaquina();
@@ -2050,6 +2071,7 @@ function relevante(q: Invalidacao): boolean {
   if (q === "agenda") return secao === "rotinas";
   if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala";
   if (q === "chaves") return secao === "maquinas";
+  if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
   if (q === "nuvem") return secao === "maquinas";
   if (q === "contas") return secao === "maquinas" || secao === "conexao" || ((t.tipo === "conversa" || t.tipo === "trabalho" || conversaAbertaTemNotaDeContas(estado)) && (contasFalharamEm === null || Date.now() - contasFalharamEm > ESPERA_CONTAS_MS));
@@ -2733,11 +2755,32 @@ function partesDaTimeline(): PartesDaTimeline | null {
  * fim. Com o histórico parado, só a parte ao vivo é mexida, e só nela se procura o que guardar: procurar no documento
  * inteiro (dezenas de milhares de nós numa conversa longa) a cada quadro de streaming custava mais que o próprio desenho.
  */
+const disclosuresAbertosEmTransicao = new Set<string>();
+// NOD-360 (CI da main, 14/11): a gravada pode entrar no histórico, ainda fechada, um instante antes de a fala que sai deixar
+// a região viva (as duas ficam ~100 ms na tela). Aberto nesse instante, o resumo da que sai valia só para ela, e a gravada
+// ficava fechada depois da troca: abrir ou fechar na região viva vale também para o mesmo `data-disclosure` do histórico.
+document.addEventListener("toggle", (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLDetailsElement) || !el.dataset.disclosure || !el.closest("#timeline-ao-vivo")) return;
+  const gravado = document.querySelector<HTMLDetailsElement>(`#timeline-historico details[data-disclosure="${CSS.escape(el.dataset.disclosure)}"]`);
+  if (gravado && gravado.open !== el.open) gravado.open = el.open;
+}, true);
 function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: { cascaMuda: boolean; historicoMuda: boolean; aoVivoMuda: boolean }): void {
   const t = estado.tela;
   const timeline = document.getElementById("timeline");
   const escopo: ParentNode = muda.historicoMuda ? document : document.getElementById("timeline-ao-vivo") ?? document;
   const abertos = [...escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure][open]")].map((el) => el.dataset.disclosure);
+  // NOD-360: o fim pode chegar em dois renders — primeiro a fala sai da região viva, depois entra no histórico.
+  // Guarda o estado nesse intervalo; no render único, `abertos` acima continua sendo a fonte normal.
+  if (muda.aoVivoMuda) {
+    for (const el of document.querySelectorAll<HTMLDetailsElement>("#timeline-ao-vivo details[data-disclosure]")) {
+      const chave = el.dataset.disclosure;
+      if (!chave) continue;
+      if (el.open) disclosuresAbertosEmTransicao.add(chave);
+      else disclosuresAbertosEmTransicao.delete(chave);
+    }
+  }
+  if (muda.historicoMuda) for (const chave of disclosuresAbertosEmTransicao) abertos.push(chave);
   const buscas = muda.cascaMuda ? ["busca-destinatario", "busca-marketplace"].map((id) => ({ id, valor: (document.getElementById(id) as HTMLInputElement | null)?.value ?? "" })) : [];
   // A pasta marcada no card de pasta sobrevive a um frame que re-renderiza a conversa no meio da escolha.
   const pastasMarcadas = [...escopo.querySelectorAll<HTMLInputElement>("input[data-pasta-de]:checked")].map((el) => ({ de: el.dataset.pastaDe ?? "", valor: el.value, foco: document.activeElement === el }));
@@ -2805,6 +2848,13 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     filtrarApps((document.getElementById("busca-marketplace") as HTMLInputElement | null)?.value ?? "");
   }
   for (const el of escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure]")) if (abertos.includes(el.dataset.disclosure)) el.open = true;
+  if (muda.historicoMuda) {
+    for (const chave of [...disclosuresAbertosEmTransicao]) {
+      if (document.querySelector(`#timeline-historico details[data-disclosure="${CSS.escape(chave)}"]`)) {
+        window.setTimeout(() => disclosuresAbertosEmTransicao.delete(chave), 1_000);
+      }
+    }
+  }
   if (muda.historicoMuda) artefatos.hidratar(timeline ?? document);
   if (muda.historicoMuda) diagramas.hidratar(timeline ?? document);
   if ((muda.historicoMuda || muda.cascaMuda) && t.tipo === "conversa") contarLinhasMostradas();
@@ -6015,7 +6065,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (grupos.length > 0 && capacidades.length === 0) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: "Marque pelo menos um grupo para permitir." } }); return; }
     // Chat limpo (PR 4): o consentimento leva o id desta decisão; o cartão "Acesso permitido" recebe o foco e o anúncio.
     marcarDecidida(el, id);
-    await api!.decidir(id, grupos.length > 0 ? { capacidades } : {});
+    await decidirAprovacaoReconciliando(id, grupos.length > 0 ? { capacidades } : {});
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", "conectores", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
   "dar-acesso": (el) => abrirNivel(el.dataset.id ?? "", { tipo: "dar-acesso" }),
@@ -6048,7 +6098,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       const proposta = propostaDoEstado(propostaId);
       if (!proposta || proposta.estado !== "pendente" || appsQueFaltam(proposta, estado).length > 0) return;
       await agir(async () => {
-        if (ato === "decidir-proposta") await api!.decidir(propostaId, {});
+        if (ato === "decidir-proposta") await decidirAprovacaoReconciliando(propostaId, {});
         else await api!.confirmarProposta(propostaId);
         dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
       });
@@ -6076,7 +6126,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // ADA-13: o card do canvas no chat abre a página Canvas do bot, já nesse canvas.
   "abrir-canvas": (el) => {
     if (!el.dataset.id) return;
-    canvasNaTela.querAbrir(el.dataset.id);
+    canvasNaTela.querAbrir(el.dataset.id, el.dataset.endereco ?? null);
     quadroNaTela.abrirPagina("canvas");
   },
   "abrir-computador": (el) => {
@@ -6394,7 +6444,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const agenteId = el.dataset.agente ?? estado.atividadeVista?.agenteId ?? "";
     const dia = el.dataset.dia ?? "";
     if (estado.gaveta?.nivel.tipo !== "atividade" || estado.atividadeVista?.agenteId !== agenteId) abrirNivel(agenteId, { tipo: "atividade" });
-    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho: "negada", decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
+    const filtroPedido = el.dataset.filtro;
+    const desfecho = ehFiltroDecisoes(filtroPedido) ? filtroPedido : "negada";
+    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho, decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
     focarQuandoAparecer('#detalhes [data-act="atividade-aba"][data-aba="decisoes"]', el);
   },
   "exportar-csv": () => {
@@ -6691,11 +6743,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "sondar-conector": (el) => agir(async () => void (await api!.sondarConector(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["conectores", "frota"] }))),
   "habilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", true), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
   "desabilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", false), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
-  "decidir-aprovacao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? "") }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
+  "decidir-aprovacao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? "") }))),
   // ADR-042: aprova AGORA e grava a regra para as próximas vezes, no mesmo clique.
   // definido em 2026-09-28 (emenda da ADR-037): aprova este passo e libera o computador até o fim da tarefa.
-  "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
-  "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
+  "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }))),
+  "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }))),
   // QA do PR 4 (2026-10-18): o cartão de um item não tem caixa de marcar e mandava `itens: []`, que aprova (web/lib/recusa-da-aprovacao.ts).
   "decidir-aprovacao-nenhum": (el) => agir(async () => {
     const id = el.dataset.id ?? "";
@@ -6705,8 +6757,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       return;
     }
     marcarDecidida(el, id);
-    await api!.decidir(id, { itens });
-    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+    await decidirAprovacaoReconciliando(id, { itens });
   }),
   // NOD-367: o filtro de Feedback mora em configUi (os envios abertos ficam em configUi.abertos e sobrevivem ao redesenho).
   "filtrar-relatos": (el) => {
@@ -6727,12 +6778,12 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const card = el.closest<HTMLElement>("[data-proposta]");
     const selecionados = [...(card?.querySelectorAll<HTMLInputElement>("input[data-lote-i]") ?? [])].filter((c) => c.checked).map((c) => Number(c.dataset.loteI));
     marcarDecidida(el, el.dataset.id);
-    await api!.decidir(el.dataset.id ?? "", { selecionados });
+    await decidirAprovacaoReconciliando(el.dataset.id ?? "", { selecionados });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", "gestao", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
   // Revisão 6 do #626: o card do app que não vale mais volta 409 com o `motivo`; a frase dele sai no aviso neutro (o card
   // fechou como recusado e o recibo foi gravado, então a conversa relê do mesmo jeito). Outros cards não mandam motivo.
-  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => api!.decidir(el.dataset.id ?? "", {}).then(() => undefined), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => decidirAprovacaoReconciliando(el.dataset.id ?? "", {}), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // NOD-50: o cartão de credencial. Mostrar troca o tipo do campo sem redesenhar (o valor fica onde está); a fase guarda
   // só o "mostrando", para o próximo frame não esconder o que a pessoa pediu para ver.
   "mostrar-credencial": (el) => {
@@ -6749,10 +6800,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const id = el.dataset.id ?? "";
     for (const campo of document.querySelectorAll<HTMLInputElement>(`[data-form="guardar-credencial"][data-id="${CSS.escape(id)}"] input[name="valor"]`)) campo.value = "";
     marcarFase(id, null);
-    await api!.decidir(id, { recusar: true });
+    await decidirAprovacaoReconciliando(id, { recusar: true });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
-  "recusar-decisao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { recusar: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "recusar-decisao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { recusar: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // definido em 2026-09-24 (emenda da ADR-045): a pergunta se responde pelo campo da conversa. Revisto em 2026-10-18
   // (plano "pergunta com botões"): estes são os gestos em volta do cartão e da caixa "Respondendo".
   "composer-outro": () => escolherNoComposer(true),
@@ -6811,6 +6862,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     return agir(async () => void (await api!.revogarChave(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["chaves", "maquinas", "frota"] }), focarGatilho(gatilho)));
   },
   "fechar-chave-emitida": () => dispatch({ tipo: "chave-emitida", emitida: null }),
+  "fechar-token-mcp": () => dispatch({ tipo: "mcp-token-emitido", emitido: null }),
+  "revogar-token-mcp": (el) => {
+    if (!window.confirm(`Revogar o token "${el.dataset.nome ?? ""}"? O app conectado com ele perde o acesso ao Nod na hora.`)) return;
+    return agir(async () => void (await api!.revogarTokenMcp(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["mcp-tokens"] })));
+  },
   // ADR-102: a lista única de contas (Provedores de IA) e as ações da máquina (Máquinas).
   "cl-menu": (el) => {
     const id = el.dataset.id ?? "";
@@ -7223,6 +7279,13 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     if (campo && telaLigacao.enviarTexto(campo.value)) campo.value = "";
     campo?.focus();
   },
+  "gerar-token-mcp": (form) =>
+    agir(async () => {
+      const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
+      const emitido = await api!.gerarTokenMcp(nome);
+      form.reset();
+      dispatch({ tipo: "mcp-token-emitido", emitido });
+    }),
   "emitir-chave": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";

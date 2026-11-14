@@ -34,6 +34,34 @@ async function montar(trx: Tx) {
 }
 
 describeIntegracao("ADA-28: a tarefa é a casa do trabalho (chat limpo)", () => {
+  it("ao concluir a etapa, publica no chat uma linha do resultado que aponta para a tarefa", async () => {
+    configurarTarefaCasa(true);
+    try {
+      await withRollback(MARLON, async (trx) => {
+        const m = await montar(trx);
+        const resultado = await m.fala(m.tarefa.turnoId);
+        await trx`update mensagens set texto = ${"MIL-46 pronta, com o vídeo de 68 s"} where id = ${resultado!.id}`;
+
+        const r = await aplicarLoteQuadro(depsSobre(trx, MARLON).deps, {
+          autor: { tipo: "agente", agenteId: m.beto.agenteId }, quadro: m.q.id, executor: "catcher",
+          turnoId: m.tarefa.turnoId, conversaId: m.beto.conversaId, limite: "normal",
+          ops: [{ tipo: "terminei", tarefa: m.tarefa.id }],
+        });
+        if (!r.data.ok) throw new Error(r.data.detalhe);
+
+        const mensagens = await m.daConversa();
+        expect(mensagens.find((x) => x.id === resultado!.id)?.tarefa?.id).toBe(m.tarefa.id);
+        const linhas = mensagens.filter((x) => x.payload?.kind === "tarefa_linha" && x.payload.motivo === "resultado");
+        expect(linhas).toHaveLength(1);
+        expect(linhas[0]).toMatchObject({ turnoId: null, payload: { tarefaId: m.tarefa.id, quadroId: m.q.id } });
+        expect(linhas[0]!.texto).toContain("Beto");
+        expect(r.events?.some((e) => e.kind === "mensagem_criada" && e.conversaId === m.beto.conversaId && e.dados.mensagem_id === linhas[0]!.id)).toBe(true);
+      });
+    } finally {
+      configurarTarefaCasa(false);
+    }
+  });
+
   it("com a flag, a fala do turno de tarefa vem marcada com o código; a da conversa não", async () => {
     configurarTarefaCasa(true);
     try {

@@ -17,7 +17,7 @@ export type ResumoQuadroParaBot = {
   cumprida: boolean;
   resumo: string | null;
   colunas: { id: string; nome: string; grupo: GrupoColuna; passa_para?: string; instrucoes?: string; prazo_min?: number; trava?: string }[];
-  tarefas: { id: string; codigo: string; titulo: string; status: IdColuna; agente: string | null; linear: string | null; pr: string | null; pergunta: string | null; /** ADR-162: a tarefa espera a pessoa (perguntou), na coluna do status. */ esperando_voce?: true; execucao: ExecucaoTarefa; prioridade?: Prioridade; decide?: string | null; trabalho?: TrabalhoParaBot; prs?: string[]; movimentos?: MovimentoParaBot[]; /** 0161: os nomes das labels e o prazo AAAA-MM-DD (ausentes = nenhum). */ labels?: string[]; prazo_em?: string }[];
+  tarefas: { id: string; codigo: string; titulo: string; status: IdColuna; agente: string | null; linear: string | null; pr: string | null; pergunta: string | null; /** ADR-162: a tarefa espera a pessoa (perguntou), na coluna do status. */ esperando_voce?: true; execucao: ExecucaoTarefa; /** 2026-11-13: posição legível enquanto o trabalho aguarda vaga. */ fila?: string; prioridade?: Prioridade; decide?: string | null; trabalho?: TrabalhoParaBot; prs?: string[]; movimentos?: MovimentoParaBot[]; /** 0161: os nomes das labels e o prazo AAAA-MM-DD (ausentes = nenhum). */ labels?: string[]; prazo_em?: string }[];
   /** 0161: o catálogo de labels do quadro (nome e cor); ausente = nenhuma. */
   labels?: { nome: string; cor: string }[];
   avisoGithub?: string; // NOD-421: por que os PRs não aparecem

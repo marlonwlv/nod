@@ -20,6 +20,7 @@ import { incidentesRepo } from "./incidentes.repo.ts";
 import { inventarioRepo } from "./inventario.repo.ts";
 import { itensAprovacaoRepo } from "./itens-aprovacao.repo.ts";
 import { maquinaTokensRepo } from "./maquina-tokens.repo.ts";
+import { mcpTokensRepo } from "./mcp-tokens.repo.ts";
 import { maquinasSshRepo } from "./maquinas-ssh.repo.ts";
 import { maquinasNuvemRepo } from "./maquinas-nuvem.repo.ts";
 import { credenciaisNuvemRepo } from "./credenciais-nuvem.repo.ts";
@@ -139,6 +140,7 @@ export function criarRepos(conn: Conn, escopo: Escopo): Repos {
     paradas: paradasRepo(conn, escopo),
     catcher: catcherRepo(conn, escopo),
     maquinaTokens: maquinaTokensRepo(conn, escopo),
+    mcpTokens: mcpTokensRepo(conn, escopo),
     maquinasSsh: maquinasSshRepo(conn, escopo),
     maquinasNuvem: maquinasNuvemRepo(conn, escopo),
     credenciaisNuvem: credenciaisNuvemRepo(conn, escopo),

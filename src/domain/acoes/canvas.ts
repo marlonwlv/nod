@@ -21,7 +21,7 @@ export const ACOES_CANVAS = [
   {
     id: "canvas.comentar",
     titulo: "Comentar num canvas (pino numa tela, post-it numa jornada ou resposta)",
-    schema: objeto({ canvas: P.canvas, endereco: P.endereco, tipo: P.tipo, x: P.x, y: P.y, texto: P.texto, pai_id: P.pai_id }, ["canvas", "texto"]),
+    schema: objeto({ canvas: P.canvas, versao: P.versao, endereco: P.endereco, tipo: P.tipo, x: P.x, y: P.y, texto: P.texto, pai_id: P.pai_id, rodada: P.rodada }, ["canvas", "texto"]),
     risco: "muda",
     cartaoNoChat: false,
     chat: vivo,

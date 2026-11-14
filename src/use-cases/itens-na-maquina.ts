@@ -5,15 +5,14 @@ import { argumentosComTextoFinal, assentarAprovacao } from "./decidir.ts";
 import { PRAZO_DECISAO_MS } from "./pedir-a-pessoa.ts";
 import { assuntoDoReciboAutomatico, textoAutomatico } from "./pedir-aprovacao.ts";
 import { autoriaDoAgente } from "./registrar-negacao.ts";
-import { REGRA_CARTAO_DISPENSADO, VERSAO_REGRA_CARTAO_DISPENSADO } from "../domain/decisoes.ts";
-import { REGRAS_GRAVADAS_NA_AUTORIZACAO, registrarCliques } from "./trilha-decisoes.ts";
+import { registrarCliques } from "./trilha-decisoes.ts";
 import type { Deps } from "./tipos.ts";
 
 /**
  * Itens aprovados que rodam no gh do Mac da dona (ADR-048, revisão de 2026-09-24). O servidor nunca
  * disca a máquina (ADR-021): o app desktop da pessoa PUXA estes itens pela ponte, executa pelo gh dele
- * e relata o desfecho. Sem coluna nova: o estado "aguardando seu Mac" é derivado (decisão decidida +
- * item marcado + `destino.execucao = 'maquina'` + desfecho nulo), e expira como as decisões expiram.
+ * e relata o desfecho. Sem coluna nova: o estado "aguardando seu Mac" é derivado (decisão decidida com
+ * autoridade, NOD-423 + item marcado + `destino.execucao = 'maquina'` + desfecho nulo), e expira como as decisões expiram.
  */
 export type ItemParaAMaquina = { itemId: string; capacidade: string; argumentos: Record<string, unknown> };
 
@@ -50,23 +49,13 @@ export async function concluirItemNaMaquina(deps: Deps, input: { itemId: string;
  * NOD-70: o item do gh do Mac vai à trilha aqui, uma vez, quando ESTE relato (ou o varredor) gravou o desfecho.
  * - Decidido pela PESSOA: o clique, rodando, falhando ou vencendo (a trilha registra a autorização).
  * - Decidido por regra de lote (automático, revisor…): nada, já foi na autorização (registrarAutorizadosNaMaquina).
- * - Sem autorização (card parado ou dispensado que o Mac ainda roda, NOD-423): só o que o Mac relatou EXECUTADO, com a
- *   regra de quem fechou o card — nunca como clique.
+ * NOD-423: o card parado ou dispensado não chega aqui — pendentesNaMaquina só entrega item com autoridade
+ * (desfechoAutorizaItemLocal). A guarda repete o portão: sem autoridade, nenhuma linha `tool_call`.
  */
 async function registrarNaTrilha(deps: Deps, decisaoId: string, destino: ItemDaMaquina["destino"], desfecho: DesfechoItem): Promise<void> {
   const decisao = await deps.repos.decisoes.buscar(decisaoId);
-  if (!decisao?.desfecho) return;
-  const d = decisao.desfecho;
-  // Revisão 7: só as regras de lote já gravaram na autorização; o card fechado por outra (o Parar do trabalho) grava aqui.
-  if (d.tipo === "decidida_por_regra" && REGRAS_GRAVADAS_NA_AUTORIZACAO.has(d.regra)) return;
-  // A pessoa aprovou: o clique vale como autorização, rodando ou vencendo no Mac (a trilha registra a autorização).
-  if (d.tipo === "decidida") return registrarCliques(deps, { agenteId: decisao.agenteId, turnoId: decisao.turnoId, itens: [{ destino, desfecho }] });
-  // Revisões 9 e 10: sem autorização, a linha só existe porque o efeito saiu. O item que venceu, ou que o Mac relatou como
-  // falha (o gh pode nem ter rodado), não é "Permitida". Revisão 8: nunca como clique; leva a regra de quem fechou o card.
-  if (desfecho !== "executado") return;
-  const quem = d.tipo === "decidida_por_regra" ? d : d.tipo === "dispensada" ? { regra: REGRA_CARTAO_DISPENSADO, regraVersao: VERSAO_REGRA_CARTAO_DISPENSADO } : null;
-  if (!quem) return;
-  await registrarCliques(deps, { agenteId: decisao.agenteId, turnoId: decisao.turnoId, itens: [{ destino, desfecho }] }, quem);
+  if (!decisao?.desfecho || decisao.desfecho.tipo !== "decidida") return;
+  await registrarCliques(deps, { agenteId: decisao.agenteId, turnoId: decisao.turnoId, itens: [{ destino, desfecho }] });
 }
 
 type ItemDaMaquina = Awaited<ReturnType<Deps["repos"]["itensAprovacao"]["pendentesNaMaquina"]>>[number]["item"];

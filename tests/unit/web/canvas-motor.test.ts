@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { EstruturaCanvasDto, TelaCanvasDto } from "../../../src/contracts/canvas.ts";
 import { CSP_ARTEFATO } from "../../../web/lib/artefato.ts";
 import {
-  abertosPorEndereco, ajustar, CABECA, depoisDaBusca, PAUSA_BLOBS_MS, caixaDaFileira, canvasDaUrl, documentoDaTela, escolherVivos, fracaoNaTela, hashesQueFaltam, ignorarPonteiro, lerHash, MAX_VIVOS,
-  montarLayout, noMundo, seloDaVersao, tamanhoReal, telaNoPonto, urlDoCanvas, VAO, visiveis, ZOOM_MAX, ZOOM_MIN, zoomNoPonto,
+  abertosPorEndereco, ajustar, CABECA, depoisDaBusca, PAUSA_BLOBS_MS, caixaDaFileira, canvasDaUrl, documentoDaTela, escolherVivos, fracaoNaTela, chaveOndeParou, gravarOndeParou, lerOndeParou, hashesQueFaltam, ignorarPonteiro, lerHash, MAX_VIVOS,
+  ajustarEntre, ajustarLargura, montarLayout, NOTAS, noMundo, ROTULO, seloDaVersao, tamanhoReal, telaNoPonto, urlDoCanvas, VAO, visiveis, ZOOM_MAX, ZOOM_MIN, zoomNoPonto,
 } from "../../../web/lib/canvas-motor.ts";
 
 /** ADA-13 (ADR-150): o motor da página Canvas, sem DOM. */
@@ -21,11 +21,32 @@ describe("canvas-motor: layout", () => {
     const b = l.porId.get("J1-2")!;
     const c = l.porId.get("J2-1")!;
     expect([a.w, a.h, b.w, b.h]).toEqual([1440, 900, 390, 844]);
-    expect(b.x).toBe(1440 + VAO);
+    expect(a.x).toBe(ROTULO);
+    expect(b.x).toBe(ROTULO + 1440 + VAO);
     expect(a.y).toBe(CABECA);
     expect(c.y).toBeGreaterThan(a.y + a.h);
-    expect(l.limites.w).toBe(1440 + VAO + 390);
+    expect(l.limites.w).toBe(ROTULO + 1440 + VAO + 390);
     expect(caixaDaFileira(l.fileiras[0]!).w).toBe(l.limites.w);
+  });
+  it("a fileira com post-it do protótipo reserva a coluna das notas", () => {
+    const e = { ...estrutura([[tela("J1-1")]]), notas: [{ titulo: "Decidido", texto: "x", jornada: "J1" }] };
+    expect(montarLayout(e).limites.w).toBe(ROTULO + 1440 + VAO + NOTAS);
+  });
+  it("ADA-228 (J4-4): o post-it da pessoa também reserva a coluna, para o ajustar tudo mostrá-lo", () => {
+    const e = estrutura([[tela("J1-1")], [tela("J2-1"), tela("J2-2")]]);
+    expect(montarLayout(e).limites.w).toBe(ROTULO + 1440 + VAO + 1440);
+    expect(montarLayout(e, ["J1"]).limites.w).toBe(ROTULO + 1440 + VAO + NOTAS);
+    expect(montarLayout(e, ["J2"]).limites.w).toBe(ROTULO + 2 * 1440 + 2 * VAO + NOTAS);
+  });
+  it("abrir pela largura não passa de 50% e começa abaixo da barra; ajustar cabe entre a barra e o input", () => {
+    const l = montarLayout(estrutura([[tela("J1-1"), tela("J1-2")]]));
+    const v = ajustarLargura(l.limites, { w: 1440, h: 900 });
+    expect(v.zoom).toBeCloseTo((1440 - 96) / l.limites.w);
+    expect(v.y).toBe(72);
+    expect(ajustarLargura({ x: 0, y: 0, w: 100, h: 100 }, { w: 1440, h: 900 }).zoom).toBe(0.5);
+    const a = ajustarEntre(l.limites, { w: 1440, h: 900 });
+    expect(a.y).toBeGreaterThanOrEqual(72);
+    expect(a.y + l.limites.h * a.zoom).toBeLessThanOrEqual(900 - 88 + 0.001);
   });
   it("estrutura vazia não quebra", () => {
     const l = montarLayout({ jornadas: [] });
@@ -79,17 +100,27 @@ describe("canvas-motor: visíveis e vivos", () => {
     expect(ids).toContain("J1-1");
     expect(ids).not.toContain("J1-10");
   });
-  it("no máximo 12 vivos, os mais perto do centro, e nenhum com o zoom baixo demais", () => {
+  it("ADA-228: no máximo 6 vivos, os mais perto do centro, e nenhum abaixo de 50%", () => {
     const todas = [...l.porId.values()];
     const v = { x: 0, y: 0, zoom: 0.5 };
     const vivos = escolherVivos(todas, v, { w: 1000, h: 800 }, new Set());
-    expect(vivos).toHaveLength(MAX_VIVOS);
+    expect(MAX_VIVOS).toBe(6);
+    expect(vivos).toHaveLength(6);
     expect(vivos[0]).toBe("J1-1");
-    expect(escolherVivos(todas, { ...v, zoom: 0.05 }, { w: 1000, h: 800 }, new Set())).toEqual([]);
+    expect(escolherVivos(todas, { ...v, zoom: 0.49 }, { w: 1000, h: 800 }, new Set())).toEqual([]);
+    expect(escolherVivos(todas, { ...v, zoom: 0.3 }, { w: 1000, h: 800 }, new Set())).toEqual([]);
+  });
+  it("ADA-228: onde parou ida e volta, e o lixo não vira vista", () => {
+    expect(lerOndeParou(gravarOndeParou({ x: 10.4, y: -3.6, zoom: 0.73 }))).toEqual({ x: 10, y: -4, zoom: 0.73 });
+    expect(lerOndeParou(null)).toBeNull();
+    expect(lerOndeParou("{")).toBeNull();
+    expect(lerOndeParou('{"x":1,"y":"a","zoom":1}')).toBeNull();
+    expect(lerOndeParou('{"x":1,"y":2,"zoom":99}')?.zoom).toBe(2);
+    expect(chaveOndeParou("abc")).toBe("nod.canvas.vista.abc");
   });
   it("o que já estava vivo ganha o empate (sem piscar ao rolar)", () => {
     const duas = [l.porId.get("J1-1")!, l.porId.get("J1-2")!];
-    const centro = { x: -(1440 + VAO / 2) * 0.5 + 500, y: 0, zoom: 0.5 };
+    const centro = { x: -(ROTULO + 1440 + VAO / 2) * 0.5 + 500, y: 0, zoom: 0.5 };
     expect(escolherVivos(duas, centro, { w: 1000, h: 800 }, new Set(["J1-2"]), { max: 1 })).toEqual(["J1-2"]);
     expect(escolherVivos(duas, centro, { w: 1000, h: 800 }, new Set(["J1-1"]), { max: 1 })).toEqual(["J1-1"]);
   });
@@ -172,5 +203,17 @@ describe("canvas-motor: o canvas na URL (#649 revisão 3, M3)", () => {
     expect(urlDoCanvas(`https://nod.exemplo/c/abc?canvas=${ID}#J1-2`, null)).toBe("/c/abc");
     expect(canvasDaUrl("https://nod.exemplo/?canvas=../x")).toBeNull();
     expect(canvasDaUrl("https://nod.exemplo/")).toBeNull();
+  });
+});
+
+describe("ADA-228 (J4-7): a tela que mudou diz em qual versão", () => {
+  it("a tag leva a versão quando ela vem; sem ela, só 'mudou'", async () => {
+    const { htmlDoMundo } = await import("../../../web/lib/canvas-html.ts");
+    const e = estrutura([[tela("J1-1")], [tela("J2-1"), tela("J2-2")]]);
+    const l = montarLayout(e);
+    const h = htmlDoMundo(l, e, { mudaram: new Set(["J2-1"]), versao: 4 });
+    expect(h).toContain('<span class="cv-tag">mudou na v4</span>');
+    expect(h.match(/cv-mudou/g)?.length).toBe(1);
+    expect(htmlDoMundo(l, e, { mudaram: new Set(["J2-1"]) })).toContain('<span class="cv-tag">mudou</span>');
   });
 });

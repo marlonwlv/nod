@@ -10,7 +10,9 @@ import { jsonb, ms, msOuNull } from "./conversao.ts";
  */
 
 export type Canvas = { id: string; agenteId: string; issue: string | null; titulo: string; versaoAtual: number; origemUrl: string | null; criadoEm: number; atualizadoEm: number };
-export type VersaoCanvas = { canvasId: string; versao: number; estrutura: EstruturaCanvas<string>; confianca: Confianca; criadoEm: number };
+export type VersaoCanvas = { canvasId: string; versao: number; estrutura: EstruturaCanvas<string>; confianca: Confianca; criadoEm: number; resumo: string | null };
+/** A versão leve, para o histórico (J5-6): só o id, o hash do html e o pendente de cada tela. */
+export type VersaoLeve = { versao: number; criadoEm: number; resumo: string | null; telas: { id: string; html: string; pendente?: boolean }[] };
 export type ComentarioCanvas = {
   id: string;
   canvasId: string;
@@ -25,28 +27,30 @@ export type ComentarioCanvas = {
   autorNome: string | null;
   paiId: string | null;
   versao: number;
+  /** A rodada da pessoa (J5-1..3): os pinos enviados juntos; null = comentário solto. */
+  rodada: number | null;
   confianca: Confianca;
   resolvidoEm: number | null;
   arquivadoEm: number | null;
   criadoEm: number;
 };
-export type NovoComentarioCanvas = Omit<ComentarioCanvas, "id" | "resolvidoEm" | "arquivadoEm" | "criadoEm"> & { criadoEm?: number };
+export type NovoComentarioCanvas = Omit<ComentarioCanvas, "id" | "resolvidoEm" | "arquivadoEm" | "criadoEm" | "rodada"> & { criadoEm?: number; rodada?: number | null };
 
 interface LinhaCanvas { id: string; agente_id: string; issue: string | null; titulo: string; versao_atual: number; origem_url: string | null; criado_em: Date; atualizado_em: Date }
 interface LinhaComentario {
   id: string; canvas_id: string; tela_id: string | null; jornada: string | null; tipo: string; x: number | null; y: number | null; texto: string;
-  autor_tipo: string; autor_id: string | null; autor_nome: string | null; pai_id: string | null; versao: number; confianca: Confianca;
+  autor_tipo: string; autor_id: string | null; autor_nome: string | null; pai_id: string | null; versao: number; rodada: number | null; confianca: Confianca;
   resolvido_em: Date | null; arquivado_em: Date | null; criado_em: Date;
 }
 
 const COLUNAS_CANVAS = "id, agente_id, issue, titulo, versao_atual, origem_url, criado_em, atualizado_em";
-const COLUNAS_COMENTARIO = "id, canvas_id, tela_id, jornada, tipo, x, y, texto, autor_tipo, autor_id, autor_nome, pai_id, versao, confianca, resolvido_em, arquivado_em, criado_em";
+const COLUNAS_COMENTARIO = "id, canvas_id, tela_id, jornada, tipo, x, y, texto, autor_tipo, autor_id, autor_nome, pai_id, versao, rodada, confianca, resolvido_em, arquivado_em, criado_em";
 
 const paraCanvas = (l: LinhaCanvas): Canvas => ({ id: l.id, agenteId: l.agente_id, issue: l.issue, titulo: l.titulo, versaoAtual: l.versao_atual, origemUrl: l.origem_url, criadoEm: ms(l.criado_em), atualizadoEm: ms(l.atualizado_em) });
 const paraComentario = (l: LinhaComentario): ComentarioCanvas => ({
   id: l.id, canvasId: l.canvas_id, telaId: l.tela_id, jornada: l.jornada, tipo: l.tipo === "nota" ? "nota" : "pino", x: l.x, y: l.y, texto: l.texto,
   autorTipo: l.autor_tipo === "bot" ? "bot" : l.autor_tipo === "importado" ? "importado" : "pessoa", autorId: l.autor_id, autorNome: l.autor_nome, paiId: l.pai_id,
-  versao: l.versao, confianca: l.confianca, resolvidoEm: msOuNull(l.resolvido_em), arquivadoEm: msOuNull(l.arquivado_em), criadoEm: ms(l.criado_em),
+  versao: l.versao, rodada: l.rodada, confianca: l.confianca, resolvidoEm: msOuNull(l.resolvido_em), arquivadoEm: msOuNull(l.arquivado_em), criadoEm: ms(l.criado_em),
 });
 
 /** O endereço que o domínio usa para arquivar (mora no domínio; reexportado para os testes do repo). */
@@ -133,13 +137,22 @@ export function canvasRepo(conn: Conn, escopo: Escopo) {
         where ${dona()} and id = ${id} returning ${conn.unsafe(COLUNAS_CANVAS)}`;
       return l ? paraCanvas(l) : null;
     },
-    async gravarVersao(v: { canvasId: string; versao: number; estrutura: EstruturaCanvas<string>; confianca: Confianca }): Promise<void> {
-      await conn`insert into canvas_versoes (tenant_id, owner_id, canvas_id, versao, estrutura, confianca) values (${escopo.tenantId}, ${escopo.pessoaId}, ${v.canvasId}, ${v.versao}, ${jsonb(conn, v.estrutura)}, ${v.confianca})`;
+    async gravarVersao(v: { canvasId: string; versao: number; estrutura: EstruturaCanvas<string>; confianca: Confianca; resumo?: string | null }): Promise<void> {
+      await conn`insert into canvas_versoes (tenant_id, owner_id, canvas_id, versao, estrutura, confianca, resumo) values (${escopo.tenantId}, ${escopo.pessoaId}, ${v.canvasId}, ${v.versao}, ${jsonb(conn, v.estrutura)}, ${v.confianca}, ${v.resumo ?? null})`;
     },
     async versao(canvasId: string, versao: number): Promise<VersaoCanvas | null> {
-      const [l] = await conn<{ canvas_id: string; versao: number; estrutura: EstruturaCanvas<string>; confianca: Confianca; criado_em: Date }[]>`
-        select canvas_id, versao, estrutura, confianca, criado_em from canvas_versoes where ${dona()} and canvas_id = ${canvasId} and versao = ${versao}`;
-      return l ? { canvasId: l.canvas_id, versao: l.versao, estrutura: l.estrutura, confianca: l.confianca, criadoEm: ms(l.criado_em) } : null;
+      const [l] = await conn<{ canvas_id: string; versao: number; estrutura: EstruturaCanvas<string>; confianca: Confianca; criado_em: Date; resumo: string | null }[]>`
+        select canvas_id, versao, estrutura, confianca, criado_em, resumo from canvas_versoes where ${dona()} and canvas_id = ${canvasId} and versao = ${versao}`;
+      return l ? { canvasId: l.canvas_id, versao: l.versao, estrutura: l.estrutura, confianca: l.confianca, criadoEm: ms(l.criado_em), resumo: l.resumo } : null;
+    },
+    /** Todas as versões, leves (o jsonb já recortado no banco), da mais nova para a mais antiga. */
+    async versoes(canvasId: string): Promise<VersaoLeve[]> {
+      const ls = await conn<{ versao: number; criado_em: Date; resumo: string | null; telas: VersaoLeve["telas"] }[]>`
+        select v.versao, v.criado_em, v.resumo,
+          coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', t.t->'id', 'html', t.t->'html', 'pendente', t.t->'pendente')) order by j.o, t.o)
+            from jsonb_array_elements(v.estrutura->'jornadas') with ordinality j(j, o), jsonb_array_elements(j.j->'telas') with ordinality t(t, o)), '[]'::jsonb) as telas
+        from canvas_versoes v where v.tenant_id = ${escopo.tenantId} and v.owner_id = ${escopo.pessoaId} and v.canvas_id = ${canvasId} order by v.versao desc`;
+      return ls.map((l) => ({ versao: l.versao, criadoEm: ms(l.criado_em), resumo: l.resumo, telas: l.telas }));
     },
 
     // ---------- Blobs ----------
@@ -170,8 +183,8 @@ export function canvasRepo(conn: Conn, escopo: Escopo) {
     },
     async comentar(c: NovoComentarioCanvas): Promise<ComentarioCanvas> {
       const [l] = await conn<LinhaComentario[]>`
-        insert into canvas_comentarios (tenant_id, owner_id, canvas_id, tela_id, jornada, tipo, x, y, texto, autor_tipo, autor_id, autor_nome, pai_id, versao, confianca, criado_em)
-        values (${escopo.tenantId}, ${escopo.pessoaId}, ${c.canvasId}, ${c.telaId}, ${c.jornada}, ${c.tipo}, ${c.x}, ${c.y}, ${c.texto}, ${c.autorTipo}, ${c.autorId}, ${c.autorNome}, ${c.paiId}, ${c.versao}, ${c.confianca},
+        insert into canvas_comentarios (tenant_id, owner_id, canvas_id, tela_id, jornada, tipo, x, y, texto, autor_tipo, autor_id, autor_nome, pai_id, versao, rodada, confianca, criado_em)
+        values (${escopo.tenantId}, ${escopo.pessoaId}, ${c.canvasId}, ${c.telaId}, ${c.jornada}, ${c.tipo}, ${c.x}, ${c.y}, ${c.texto}, ${c.autorTipo}, ${c.autorId}, ${c.autorNome}, ${c.paiId}, ${c.versao}, ${c.rodada ?? null}, ${c.confianca},
           ${c.criadoEm !== undefined ? new Date(c.criadoEm) : conn`clock_timestamp()`})
         returning ${conn.unsafe(COLUNAS_COMENTARIO)}`;
       if (!l) throw new Error("canvas_comentarios: insert sem linha");

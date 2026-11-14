@@ -277,3 +277,13 @@ export function itemDaRecusaDoQuadro(l: { vezes: number; em: number }): ItemDeAt
     ...(l.vezes > 1 ? { vezes: l.vezes } : {}),
   };
 }
+
+/**
+ * Critério 4 da NOD-152 (0174): o que um cliente MCP mudou em nome da pessoa. O título é o resumo que a ferramenta montou
+ * ("Moveu a tarefa ADA-12 para Done"); o detalhe diz de onde veio. `cliente` vem do initialize do cliente (texto de fora):
+ * sem caracteres invisíveis.
+ */
+export function itemDaAcaoMcp(a: { id: string; em: number; resumo: string; cliente: string }): ItemDeAtividade {
+  const cliente = semInvisiveis(a.cliente) || "cliente MCP";
+  return { id: `mcp:${a.id}`, em: a.em, categoria: null, titulo: semInvisiveis(a.resumo) || "Ação pelo MCP", detalhe: `Pelo MCP · ${cliente}` };
+}

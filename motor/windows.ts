@@ -62,9 +62,9 @@ export function comandoDeReinstalar(url: string, plataforma: NodeJS.Platform = p
   return ehWindows(plataforma) ? `irm ${url}/windows | iex` : `curl -fsSL ${url}/motor | sh`;
 }
 
-/** O comando de parear de novo: no Windows o instalador põe o `nod` no Path (nod.cmd); no Linux é o `nod-motor`. */
-export function comandoDeParear(servidor: string, plataforma: NodeJS.Platform = process.platform): string {
-  return `${ehWindows(plataforma) ? "nod" : "nod-motor"} parear ${servidor}`;
+/** O comando de parear de novo: `nod-motor` existe tanto na instalação manual quanto na feita pelo instalador. */
+export function comandoDeParear(servidor: string, _plataforma: NodeJS.Platform = process.platform): string {
+  return `nod-motor parear ${servidor}`;
 }
 
 /**

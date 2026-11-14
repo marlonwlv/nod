@@ -35,7 +35,7 @@ function lerSeFalta(): void {
   void p.then((app) => { atual = { app, erro: false }; }, () => { atual = { app: null, erro: true }; }).finally(() => { lendo = false; aoMudar(); });
 }
 
-const ICONE_CANVAS = '<span class="app-logo cv-logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5.5" width="10" height="7" rx="1.3"/><rect x="10.5" y="13" width="10" height="6.5" rx="1.3"/><path d="M8.5 12.5v3.5h2"/></svg></span>';
+const ICONE_CANVAS = '<span class="app-logo cv-logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="4.5" width="8.25" height="6" rx="1.5"/><rect x="13.5" y="4.5" width="8.25" height="6" rx="1.5"/><rect x="2.25" y="14.25" width="8.25" height="6" rx="1.5"/><path d="M13.5 17.25h8.25"/></svg></span>';
 export const DESCRICAO_CANVAS = "Os protótipos do Gil num canvas: as jornadas lado a lado, cada tela no tamanho real, com pinos e post-its que o bot lê.";
 
 export function nivelCanvasDe(app: AppCanvasDto | null, agenteId: string): "nenhum" | NivelCanvasDto {
@@ -66,31 +66,40 @@ function seletor(agenteId: string, nome: string, n: "nenhum" | NivelCanvasDto): 
   return `<div class="segmentado" role="group" aria-label="${esc(`Acesso de ${nome} ao Canvas`)}">${op("nenhum")}${op("ver_comentar")}${op("criar_publicar")}</div>`;
 }
 
+/** ADA-228 (J1-2): a prévia da gaveta, como no protótipo: duas jornadas de três telas em esboço, com a tela que mudou
+ *  marcada. Só CSS (cv-gav-*), sem imagem: segue o tema e não pesa. */
+const esboco = (miolo: string): string => `<span class="cv-gav-t"><span class="cv-gav-mini"><i class="cv-sk-sb"></i>${miolo}</span></span>`;
+const QUADRO = '<i class="cv-sk-h"></i>' + [[28, 34], [52, 34], [76, 34], [28, 62], [52, 62]].map(([l, t]) => `<i class="cv-sk-card" style="left:${l}%;top:${t}%"></i>`).join("");
+const LISTA = '<i class="cv-sk-h"></i><i class="cv-sk-tile" style="left:28%"></i><i class="cv-sk-tile" style="left:46%"></i><i class="cv-sk-tile" style="left:64%"></i><i class="cv-sk-wide"></i>';
+const CHAT = '<i class="cv-sk-b cv-sk-r" style="top:22%;width:26%"></i><i class="cv-sk-b" style="top:38%;width:40%"></i><i class="cv-sk-b cv-sk-r" style="top:58%;width:22%"></i><i class="cv-sk-comp"></i>';
+const NOVO = '<i class="cv-sk-nv" style="left:55%;top:40%"></i>';
+const fila = (telas: string[]): string => `<span class="cv-gav-fila">${telas.map(esboco).join('<span class="cv-gav-seta"></span>')}</span>`;
+export const PREVIA_CANVAS = `<div class="cv-gav-previa" aria-hidden="true"><span class="cv-gav-mundo">${fila([QUADRO, QUADRO + NOVO, LISTA])}${fila([CHAT, CHAT + NOVO, LISTA])}</span></div>`;
+const TEXTO_GAVETA = "O bot monta e atualiza canvas de telas pelo chat. Você abre na página do bot, dá zoom, abre a tela em tamanho real e comenta; o bot lê os comentários.";
+
 export function gavetaCanvas(estado: Pick<Estado, "frota" | "sessao">): string {
   lerSeFalta();
   const app = atual.app;
   const instalado = app?.instalado === true;
-  const niveis = `<section class="gaveta-secao"><h3>O que os bots podem fazer</h3>
-    <div class="nivel-caixa"><b>Ver e comentar</b><p>Listar e ler os canvas, comentar com pino ou post-it e resolver.</p></div>
-    <div class="nivel-caixa"><b>Criar e publicar</b><p>Também publicar versões novas e importar um protótipo do nod-prototipos.</p></div></section>`;
+  // ADA-228 (J1-2, Marlon 11/11): sem o card "O que os bots podem fazer": o seletor de cada bot já se explica.
   let corpo: string;
   let rodape: string;
   if (!app) {
     corpo = `<p class="gaveta-desc">${atual.erro ? "Não deu para ler o Canvas agora." : "Lendo…"}</p>`;
     rodape = "";
   } else if (!instalado) {
-    corpo = `<p class="gaveta-desc">${esc(DESCRICAO_CANVAS)}</p>${niveis}<section class="gaveta-secao"><h3>Como funciona</h3><ol class="como"><li>Instale o Canvas: os dados ficam no nod, nada sai para outro serviço.</li><li>Escolha quais bots podem usar, e com qual nível.</li><li>O bot ganha a página Canvas na pílula e a ferramenta no chat.</li></ol></section>`;
+    corpo = `${PREVIA_CANVAS}<p class="cv-gav-txt">${esc(TEXTO_GAVETA)}</p><section class="gaveta-secao"><h3>Como funciona</h3><ol class="como"><li>Instale o Canvas: os dados ficam no nod, nada sai para outro serviço.</li><li>Escolha quais bots podem usar, e com qual nível.</li><li>O bot ganha a página Canvas na pílula e a ferramenta no chat.</li></ol></section>`;
     rodape = botao("instalar-canvas", "Instalar Canvas", { classe: "pri largo" });
   } else {
     const bots = meusBots(estado);
     const linhas = bots.map((a) => `<div class="quem-linha">${iconeAgente(a, "sm")}<div class="quem-nome"><b>${esc(a.nome)}</b><small>${esc(a.titulo || "Seu bot")}</small></div>${seletor(a.id, a.nome, nivelCanvasDe(app, a.id))}</div>`).join("");
-    corpo = `<div class="gaveta-status"><span class="bolinha-ok" aria-hidden="true"></span><div><b>Instalado</b><small>Os canvas e os comentários ficam no nod</small></div></div>` +
-      `<section class="gaveta-secao"><h3>Quem usa</h3>${bots.length ? `<div class="quem-lista">${linhas}</div>` : '<p class="mudo">Você ainda não tem bots.</p>'}<p class="mudo">Dar acesso é só aqui: um bot não se dá acesso pelo chat.</p></section>${niveis}`;
-    rodape = botao("desinstalar-canvas", "Desinstalar Canvas", { classe: "link perigo" });
+    corpo = `${PREVIA_CANVAS}<p class="cv-gav-txt">${esc(TEXTO_GAVETA)}</p>` +
+      `<section class="gaveta-secao"><h3>Quem usa</h3>${bots.length ? `<div class="quem-lista">${linhas}</div>` : '<p class="mudo">Você ainda não tem bots.</p>'}<p class="mudo">Quem pode criar ganha a página Canvas na pílula. Quem só vê e comenta abre os canvas que receber, sem página própria.</p></section>`;
+    rodape = `<span></span>${botao("desinstalar-canvas", "Desinstalar", { classe: "link perigo" })}`;
   }
   return `<div class="gaveta-fundo" data-act="fechar-gaveta"></div>
-  <aside class="gaveta" role="dialog" aria-modal="true" aria-label="Canvas">
-    <div class="gaveta-cab">${ICONE_CANVAS}<div><h2>Canvas</h2><small>Do nod</small></div>${botao("fechar-gaveta", "×", { classe: "gaveta-fechar", aria: "Fechar" })}</div>
+  <aside class="gaveta cv-gaveta" role="dialog" aria-modal="true" aria-label="Canvas">
+    <div class="gaveta-cab">${ICONE_CANVAS}<div><h2>Canvas</h2><small>Do nod · sem conta, sem chave</small></div>${botao("fechar-gaveta", "×", { classe: "gaveta-fechar", aria: "Fechar" })}</div>
     <div class="gaveta-corpo">${corpo}</div>
     <div class="gaveta-rodape">${rodape}</div>
   </aside>`;

@@ -135,6 +135,7 @@ function conteudo(estado: Estado, secao: SecaoEspaco, avisos: EstadoAvisos, extr
         experimentos: estado.experimentos,
         quadroLiberado: estado.quadroLiberado ?? false,
         densidade: extras.densidade,
+        ...(estado.sessao ? { mcp: { tokens: estado.mcpTokens, emitido: estado.mcpTokenEmitido } } : {}),
       }, estado.configUi, celular);
     case "conexao":
       return renderProvedores(estado);

@@ -32,6 +32,7 @@ const TIPO_HUMANO: Record<TipoDecisao, string> = {
   rotina_atualizacao: "mudança de rotina",
   rotina_exclusao: "exclusão de rotina",
   rotina_execucao: "rodar rotina agora",
+  decisoes_exportacao: "exportar decisões",
   bot: "bot proposto",
   lote_bots: "mudanças nos seus bots",
   pergunta: "pergunta",
@@ -71,6 +72,7 @@ const PRAZO_POR_TIPO: Record<TipoDecisao, (em: string, item: Item) => string> = 
   rotina_atualizacao: nadaMudaSemVoce,
   rotina_exclusao: nadaMudaSemVoce,
   rotina_execucao: (em) => `vence ${em} · nada roda sem você`,
+  decisoes_exportacao: nadaMudaSemVoce,
   bot: nadaMudaSemVoce,
   lote_bots: nadaMudaSemVoce,
   retomar_turno: vence,
@@ -528,6 +530,10 @@ function renderAcoes(item: Item, aberta: boolean, estado: Pick<Estado, "conector
     case "rotina_execucao": {
       const p = item.proposta?.payload.kind === "rotina_execucao" ? item.proposta.payload : null;
       return `${p?.naFila ? `<p class="mini">${esc(avisoNaFila(p.naFila))}</p>` : ""}<div class="acoes">${botao("decidir-proposta", "Rodar agora", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Agora não", { id: d.id })}</div>`;
+    }
+    case "decisoes_exportacao": {
+      const p = item.proposta?.payload.kind === "decisoes_exportacao" ? item.proposta.payload : null;
+      return `${p ? `<p class="mini">${esc(p.de)} a ${esc(p.ate)} · ${p.periodos.length} ${p.periodos.length === 1 ? "arquivo" : "arquivos"}</p>` : ""}<div class="acoes">${botao("decidir-proposta", "Gerar CSV", { classe: "pri", id: d.id })}${botao("recusar-decisao", "Agora não", { id: d.id })}</div>`;
     }
     // NOD-50: o mesmo cartão da conversa — guardar daqui vai pelo mesmo POST, direto ao cofre.
     case "credencial":

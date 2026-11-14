@@ -37,7 +37,7 @@ import { motivosDaFila } from "./fila-da-tarefa.ts";
 import { pastaDoTrabalho, tituloDoTrabalho } from "../domain/trabalho.ts";
 import { pastaDoBot } from "../domain/nativas.ts";
 import type { Trabalho } from "../contracts/trabalho.ts";
-import { fecharPedidosDeDone, pedirODone, responderPelaDecisao } from "./tarefa-casa.ts";
+import { fecharPedidosDeDone, gravarLinhaDaTarefa, pedirODone, responderPelaDecisao, textoDaLinha } from "./tarefa-casa.ts";
 import { situacaoDasTarefas } from "./situacao-trabalho.ts";
 import { estadoLinha, voltaNaTela } from "../domain/quadro-execucoes.ts";
 import { registrarAvisoDoQuadro, registrarHistoricoComTrilha, type TipoAvisoDoQuadro } from "./trilha-quadro.ts";
@@ -288,6 +288,19 @@ export function falhaDoAchado(achado: { ambiguo: Quadro[] } | { semNome: string;
 }
 
 /**
+ * 2026-11-13 (quadro: mover em lote): a posição de cada tarefa na fila do quadro, "na fila (n de m)", pela ordem em que
+ * entrou (o turno mais antigo primeiro; sem hora, por último, pelo id para a ordem ser estável). Uma só na fila não ganha
+ * posição: "na fila (1 de 1)" não diz nada.
+ */
+export function posicoesNaFila(naFila: readonly { id: string; desde: number | null }[]): Map<string, { n: number; m: number }> {
+  const saida = new Map<string, { n: number; m: number }>();
+  if (naFila.length < 2) return saida;
+  const ordem = [...naFila].sort((a, b) => (a.desde ?? Infinity) - (b.desde ?? Infinity) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  ordem.forEach((t, i) => saida.set(t.id, { n: i + 1, m: ordem.length }));
+  return saida;
+}
+
+/**
  * O quadro como a tela e o bot leem (tarefas, execução de cada uma, nomes, o último lote). Sempre no escopo da dona;
  * NOD-443: `leitor` é quem lê (a dona, ou quem participa e entrou pela porta), para o "Você", o Desfazer e quem decide.
  */
@@ -304,6 +317,7 @@ export async function montarQuadro(deps: Pick<Deps, "repos" | "agora" | "escopo"
   // ADA-16 (ADR-163, sem teto próprio): por que cada tarefa na fila espera — a mesma tarefa em série ou o portão da máquina.
   const naFila = tarefas.filter((t) => t.turnoId && estados.get(t.turnoId) === "pendente" && !esperando.has(t.id));
   const motivos = await motivosDaFila(deps, naFila);
+  const posicoes = posicoesNaFila(naFila.map((t) => ({ id: t.id, desde: desdes.get(t.turnoId!) ?? null })));
   const colunas = colunasDe(q);
   // NOD-419: os últimos movimentos de cada tarefa (de quem e para quem, com os nomes).
   const movs = await repo.ultimosMovimentos(q.id, MOVIMENTOS_NA_TELA);
@@ -371,6 +385,7 @@ export async function montarQuadro(deps: Pick<Deps, "repos" | "agora" | "escopo"
     trabalhandoDesde: t.turnoId && estados.get(t.turnoId) === "despachando" ? desdes.get(t.turnoId) ?? null : null,
     naFilaDesde: t.turnoId && estados.get(t.turnoId) === "pendente" && !esperando.has(t.id) ? desdes.get(t.turnoId) ?? null : null,
     motivoFila: motivos.get(t.id) ?? null,
+    posicaoFila: posicoes.get(t.id) ?? null,
     agenteNome: t.agenteId ? nomes.get(t.agenteId) ?? null : null,
     // ADA-15: "Respondido no chat com <bot> · ver mensagem". A conversa e a mensagem são da dona: quem só participa vê o
     // bot, sem o link (ele não abre a conversa de outra pessoa).
@@ -436,7 +451,7 @@ export function resumoParaBot(q: QuadroDto, trabalhos: ReadonlyMap<string, Traba
     resumo: q.resumo,
     colunas: q.colunas.map((c) => ({ id: c.id, nome: c.nome, grupo: c.grupo, ...(c.responsavelNome ? { passa_para: c.responsavelNome } : {}), ...(c.instrucoes ? { instrucoes: c.instrucoes } : {}), ...(c.prazoMin ? { prazo_min: c.prazoMin } : {}), ...(fraseDaTrava(q.colunas, c.trava) ? { trava: fraseDaTrava(q.colunas, c.trava)! } : {}) })),
     // NOD-420: a pergunta de Bloqueado também (o bot responde "o que está travado?" sem abrir o card).
-    tarefas: q.tarefas.map((t) => ({ id: t.id, codigo: t.codigo, titulo: t.titulo, status: t.status, agente: t.agenteNome, linear: t.linearId, pr: t.prUrl, pergunta: t.esperaPessoa || esperaPessoa(q.colunas, t.status) ? t.pergunta : null, ...(t.esperaPessoa ? { esperando_voce: true } : {}), execucao: t.execucao, ...(t.prioridade && t.prioridade !== "sem" ? { prioridade: t.prioridade } : {}), ...(t.decide ? { decide: t.decide.voce ? "você" : t.decide.nome } : {}), ...(trabalhos.has(t.id) ? { trabalho: trabalhos.get(t.id)! } : {}), ...(t.prs?.length ? { prs: t.prs.map(resumoDoPr) } : {}), ...movimentosParaBot(t), ...(t.labels?.length ? { labels: t.labels.map((l) => l.nome) } : {}), ...(t.prazoEm ? { prazo_em: t.prazoEm } : {}) })),
+    tarefas: q.tarefas.map((t) => ({ id: t.id, codigo: t.codigo, titulo: t.titulo, status: t.status, agente: t.agenteNome, linear: t.linearId, pr: t.prUrl, pergunta: t.esperaPessoa || esperaPessoa(q.colunas, t.status) ? t.pergunta : null, ...(t.esperaPessoa ? { esperando_voce: true } : {}), execucao: t.execucao, ...(t.execucao === "fila" && t.posicaoFila ? { fila: `na fila (${t.posicaoFila.n} de ${t.posicaoFila.m})` } : {}), ...(t.prioridade && t.prioridade !== "sem" ? { prioridade: t.prioridade } : {}), ...(t.decide ? { decide: t.decide.voce ? "você" : t.decide.nome } : {}), ...(trabalhos.has(t.id) ? { trabalho: trabalhos.get(t.id)! } : {}), ...(t.prs?.length ? { prs: t.prs.map(resumoDoPr) } : {}), ...movimentosParaBot(t), ...(t.labels?.length ? { labels: t.labels.map((l) => l.nome) } : {}), ...(t.prazoEm ? { prazo_em: t.prazoEm } : {}) })),
     ...(q.labels?.length ? { labels: q.labels.map((l) => ({ nome: l.nome, cor: l.cor })) } : {}),
     // NOD-443: o bot de quem participa sabe o modo (no "só a dona", comentar) e quem está no quadro.
     ...(q.membros && q.dona ? { modo: q.modoConversa, dona: q.dona.nome, pessoas: q.membros.map((m) => m.nome) } : {}),
@@ -1536,6 +1551,20 @@ async function aplicarNoQuadro(deps: Deps, p: PedidoLote, qSemPrefixo: Quadro, a
   await registrarHistoricoComTrilha(deps, q.id, comMensagem, lote?.id ?? null);
   const atualizado = (await repo.buscar(q.id)) ?? q;
   events.unshift(eventoQuadro(deps, p, atualizado, lote?.id ?? null, tarefaIds));
+  // ADA-240 (ADR-159): a fala produzida pelo turno da tarefa fica na casa dela e não aparece como uma mensagem comum do
+  // chat. Quando o próprio turno conclui uma etapa, deixe no chat uma linha confiável e em tempo real apontando para o
+  // resultado. Sem essa confirmação o bot podia tratar o resultado invisível como se já tivesse sido enviado no chat.
+  const antesDaTarefa = daTarefa ? antesPorId.get(daTarefa) : null;
+  const finalDaTarefa = daTarefa ? gravadas.get(daTarefa) : null;
+  // A ida a `voce` não é resultado: `ligarDecisaoATarefa` grava logo depois a única linha "precisa de você" da ADR-159.
+  // Tratá-la como etapa concluída criaria duas linhas para a mesma pergunta (resultado + precisa).
+  if (autorAgenteId && p.conversaId && antesDaTarefa?.agenteId === autorAgenteId && finalDaTarefa && finalDaTarefa.status !== antesDaTarefa.status && finalDaTarefa.status !== "voce") {
+    const coluna = colunasFinais.find((c) => c.id === finalDaTarefa.status)?.nome;
+    events.push(...(await gravarLinhaDaTarefa(deps, {
+      motivo: "resultado", t: finalDaTarefa, q: atualizado, conversaId: p.conversaId, agenteId: autorAgenteId,
+      texto: textoDaLinha("resultado", codigoDaTarefa(atualizado.prefixo, finalDaTarefa), deQuem, coluna),
+    })));
+  }
   // NOD-415 (ADR-141): o risco de prazo (só com meta e prazo), uma vez por (quadro, meta, prazo).
   const risco = await avisarRiscoDoQuadro(deps, atualizado, finais, importadas);
   if (risco) events.push(risco);

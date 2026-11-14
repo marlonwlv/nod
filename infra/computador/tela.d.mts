@@ -40,7 +40,9 @@ type PaginaDeCookies = { isClosed(): boolean; url(): string; close(): Promise<vo
 type ContextoDeCookies = { cookies(): Promise<CookieDaTela[]>; addCookies(c: CookieDaTela[]): Promise<void>; clearCookies(): Promise<void>; pages(): PaginaDeCookies[]; newPage(): Promise<PaginaDeCookies>; newCDPSession(p: PaginaDeCookies): Promise<SessaoCdp> };
 export function apagarCookiesNoChrome(c: ContextoDeCookies, ids: IdDeCookie[]): Promise<void>;
 export const COOKIES_DEPOIS_DA_NAVEGACAO_MS: number;
+export const COOKIES_DEPOIS_DO_SET_COOKIE_MS: number;
 export function criarAgendador<T>(o: { atrasoMs: number; fazer(): void; marcar?: (f: () => void, ms: number) => T; desmarcar?: (t: T) => void }): { agendar(): void; parar(): void };
+export function acompanharSetCookie(pagina: { on(evento: "response", f: (resposta: { headerValue(nome: string): Promise<string | null> }) => void): void }, agendar: () => void): void;
 export function argsParaRolarNoChrome(saida: string, alturaDoChrome: number, geometria?: string): string[];
 export function precisaObservarDeNovo(foco: { trocou: boolean } | null, a: object): boolean;
 type DiffDeCookies = { postos?: CookieDaTela[]; removidos?: Array<{ name: string; domain: string; path: string }> };

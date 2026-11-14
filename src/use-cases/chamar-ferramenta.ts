@@ -184,6 +184,7 @@ const DESPACHO: Despacho = {
   gerir_acessos: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_acessos](deps, { ...ctx, ...args }),
   gerir_canvas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_canvas](deps, { ...ctx, ...args }),
   nao_lidos: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.nao_lidos](deps, { ...ctx, ...args }),
+  decisoes: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.decisoes](deps, { ...ctx, ...args }),
   gerir_maquinas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_maquinas](deps, { ...ctx, ...args }),
   abrir_conta: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.abrir_conta](deps, { ...ctx, ...args }),
   buscar_conversas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.buscar_conversas](deps, { ...ctx, ...args }),
@@ -317,6 +318,13 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
 
   if (ferramenta.origem === "nod") {
     if (!ehNomeNod(ferramenta.nome)) return negar("fora_do_catalogo", "ferramenta_negada");
+    // ADA-29: o gerir_quadro recebe um contrato contextual. O catálogo é também a cerca de execução:
+    // sem esta conferência, uma chamada montada fora do tools/list ainda passaria pelo schema global
+    // em despacharNod. As outras ferramentas preservam as compatibilidades de validarArgsNod.
+    if (ferramenta.nome === "gerir_quadro") {
+      const erros = errosDoSchema(ferramenta.schema, input.argumentos ?? {});
+      if (erros.length > 0) return negar("args_invalidos", "ferramenta_negada");
+    }
     const r = await despacharNod(deps, ctx, ferramenta.nome, input.argumentos ?? {});
     if ("erros" in r) return negar("args_invalidos", "ferramenta_negada");
     await registrarChamada(null);

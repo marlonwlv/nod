@@ -16,6 +16,7 @@ import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
 import type { Agente, FormaAgente, CorAgente, ModoAprovacao } from "../../src/contracts/agente.ts";
 import type { AmbienteBancoDto, ChaveEmitidaDto, ChaveMaquinaDto, ConversaDto, FrotaDto, ModoSessaoDto, RespostaMutacao, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
+import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
 import type { Concessao } from "../../src/contracts/concessao.ts";
 import { cabecalhosDoApp, cabecalhosDoGoogleApp } from "./desafio-app.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
@@ -53,7 +54,7 @@ import type { EventoTrilhaQuadro } from "../../src/contracts/trilha-quadro.ts";
 import type { Projeto, QuadrosDoBotDto } from "../../src/contracts/quadros-do-bot.ts";
 import type { EstadoExecucao, ExecucoesDaTarefa } from "../../src/contracts/quadro-execucoes.ts";
 import type { AppDto, PaginasDto } from "../../src/contracts/apps.ts";
-import type { AppCanvasDto, CanvasItemDto, ComentarioCanvasDto, NivelCanvasDto, NovoComentarioDto, VistaCanvasDto } from "../../src/contracts/canvas.ts";
+import type { AppCanvasDto, CanvasItemDto, ComentarioCanvasDto, NivelCanvasDto, NovoComentarioDto, VersaoCanvasDto, VistaCanvasDto } from "../../src/contracts/canvas.ts";
 import type { AtividadeTarefa } from "../../src/contracts/quadro-pela-conversa.ts";
 import type { EventoLinha, TaxaDeAbertura, TrabalhoDetalheDto, TrabalhosDto } from "../../src/contracts/trabalho.ts";
 import type { DisponibilidadeLigacao, FalaLigacao, Ligacao, LigacaoCriada } from "../../src/contracts/ligacao.ts";
@@ -313,7 +314,9 @@ export function criarApi(escopo: Escopo) {
     desinstalarCanvas: () => del<AppCanvasDto>("canvas/app"),
     acessoCanvas: (agenteId: string, nivel: NivelCanvasDto | null) => pedir<AppCanvasDto>("PUT", `${base}/canvas/app/acessos/${encodeURIComponent(agenteId)}`, { nivel }),
     canvasDoAgente: (agenteId: string) => get<{ canvas: CanvasItemDto[] }>(`agentes/${encodeURIComponent(agenteId)}/canvas`),
-    verCanvas: (canvasId: string) => get<VistaCanvasDto>(`canvas/${encodeURIComponent(canvasId)}`),
+    verCanvas: (canvasId: string, versao?: number) => get<VistaCanvasDto>(`canvas/${encodeURIComponent(canvasId)}${versao ? `?versao=${versao}` : ""}`),
+    /** ADA-228 (J5-6): o histórico do ▾ da versão (só leitura). */
+    versoesCanvas: (canvasId: string) => get<{ versoes: VersaoCanvasDto[] }>(`canvas/${encodeURIComponent(canvasId)}/versoes`),
     blobsCanvas: (canvasId: string, hashes: readonly string[]) => get<{ blobs: Record<string, string> }>(`canvas/${encodeURIComponent(canvasId)}/blobs?hashes=${hashes.map(encodeURIComponent).join(",")}`),
     comentarCanvas: (canvasId: string, c: NovoComentarioDto) => post<{ comentario: ComentarioCanvasDto }>(`canvas/${encodeURIComponent(canvasId)}/comentarios`, c),
     resolverComentarioCanvas: (comentarioId: string, resolvido: boolean) => post<{ comentario: ComentarioCanvasDto }>(`canvas/comentarios/${encodeURIComponent(comentarioId)}/resolver`, { resolvido }),
@@ -616,6 +619,10 @@ export function criarApi(escopo: Escopo) {
     chaves: () => get<{ chaves: ChaveMaquinaDto[] }>("maquinas/chaves"),
     emitirChave: (nome: string) => post<ChaveEmitidaDto>("maquinas/chaves", { nome }),
     revogarChave: (id: string) => del<{ ok: true }>(`maquinas/chaves/${id}`),
+    // Servidor MCP do Nod (0173): os tokens que um cliente MCP de fora usa no /api/mcp.
+    mcpTokens: () => get<TokensMcpDto>("mcp/tokens"),
+    gerarTokenMcp: (nome: string) => post<TokenMcpEmitidoDto>("mcp/tokens", { nome }),
+    revogarTokenMcp: (id: string) => del<{ ok: true }>(`mcp/tokens/${encodeURIComponent(id)}`),
     // ADR-090: as máquinas, onde cada bot trabalha, o pareamento por código e o "rodar em outra desta vez".
     maquinas: () => get<MaquinasDto>("maquinas"),
     maquinaDoBot: (agenteId: string, maquinaId: string | null) => pedir<{ agente: Agente }>("PUT", `${base}/agentes/${encodeURIComponent(agenteId)}/maquina`, { maquinaId }),

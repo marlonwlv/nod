@@ -73,7 +73,22 @@ transforma isso num app instalável do nod: o bot cria e atualiza o canvas pelo 
   como o link da tarefa (NOD-416).
 - Blobs órfãos não são coletados. **Gatilho**: `canvas_blobs` passar de 1 GB.
 
+## Emenda (ADA-228, 2026-11-05): a página Canvas fiel ao protótipo v4 do ADA-13
+
+O app passa a seguir o protótipo v4 (`gamefik.github.io/nod-prototipos/nod-ada-13-canvas/`), J1 a J7, com prints lado a
+lado no PR #677. Entram (antes eram follow-ups): o input e o balão dentro do canvas, a rodada "Enviar N" (pinos e
+post-its viram rascunho até o envio), versões com "o que mudou" e comparar, "Todos os canvas", apresentar com a barra
+`‹ J3-1 Título › % ×` e o input embaixo, tela cheia, e "Aprovado" pela regra da Ada (a tarefa ligada saiu de
+Prototipando). Divergências aceitas e por quê:
+
+- O importado mostra "não confiável" no card em vez da linha de origem: importação é sempre não confiável (#649).
+- De longe, os pinos continuam visíveis (o protótipo os esconde): a pessoa precisa achar o que comentou ao ajustar tudo.
+- O % da apresentação é só leitura, e ela não tem o 💬: comentar acontece no mundo, não na tela grande.
+- O menu de versões diz "Comparar com a anterior" (o protótipo, "com a atual"): a pergunta comum é o que mudou agora.
+- "Você" no lugar do nome da pessoa nos recibos e post-its, como no resto do nod.
+
+**Gatilho**: o Gil publicar um v5 do protótipo do ADA-13 → refazer os prints (`shots-kit`) e revisar esta lista.
+
 ## Fora deste ADR (follow-ups)
 
-Input e balão dentro do canvas, rodada "Enviar N", comparar versões, "Todos os canvas" com filtros, apresentar,
-arrastar pino/post-it, compartilhar entre pessoas, formato antigo `_nod/jornada.js`, instalar pelo chat (NOD-394).
+Arrastar pino/post-it, compartilhar entre pessoas, formato antigo `_nod/jornada.js`, instalar pelo chat (NOD-394).
