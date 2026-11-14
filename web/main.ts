@@ -2755,11 +2755,23 @@ function partesDaTimeline(): PartesDaTimeline | null {
  * fim. Com o histórico parado, só a parte ao vivo é mexida, e só nela se procura o que guardar: procurar no documento
  * inteiro (dezenas de milhares de nós numa conversa longa) a cada quadro de streaming custava mais que o próprio desenho.
  */
+const disclosuresAbertosEmTransicao = new Set<string>();
 function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: { cascaMuda: boolean; historicoMuda: boolean; aoVivoMuda: boolean }): void {
   const t = estado.tela;
   const timeline = document.getElementById("timeline");
   const escopo: ParentNode = muda.historicoMuda ? document : document.getElementById("timeline-ao-vivo") ?? document;
   const abertos = [...escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure][open]")].map((el) => el.dataset.disclosure);
+  // NOD-360: o fim pode chegar em dois renders — primeiro a fala sai da região viva, depois entra no histórico.
+  // Guarda o estado nesse intervalo; no render único, `abertos` acima continua sendo a fonte normal.
+  if (muda.aoVivoMuda) {
+    for (const el of document.querySelectorAll<HTMLDetailsElement>("#timeline-ao-vivo details[data-disclosure]")) {
+      const chave = el.dataset.disclosure;
+      if (!chave) continue;
+      if (el.open) disclosuresAbertosEmTransicao.add(chave);
+      else disclosuresAbertosEmTransicao.delete(chave);
+    }
+  }
+  if (muda.historicoMuda) for (const chave of disclosuresAbertosEmTransicao) abertos.push(chave);
   const buscas = muda.cascaMuda ? ["busca-destinatario", "busca-marketplace"].map((id) => ({ id, valor: (document.getElementById(id) as HTMLInputElement | null)?.value ?? "" })) : [];
   // A pasta marcada no card de pasta sobrevive a um frame que re-renderiza a conversa no meio da escolha.
   const pastasMarcadas = [...escopo.querySelectorAll<HTMLInputElement>("input[data-pasta-de]:checked")].map((el) => ({ de: el.dataset.pastaDe ?? "", valor: el.value, foco: document.activeElement === el }));
@@ -2827,6 +2839,13 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     filtrarApps((document.getElementById("busca-marketplace") as HTMLInputElement | null)?.value ?? "");
   }
   for (const el of escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure]")) if (abertos.includes(el.dataset.disclosure)) el.open = true;
+  if (muda.historicoMuda) {
+    for (const chave of [...disclosuresAbertosEmTransicao]) {
+      if (document.querySelector(`#timeline-historico details[data-disclosure="${CSS.escape(chave)}"]`)) {
+        window.setTimeout(() => disclosuresAbertosEmTransicao.delete(chave), 1_000);
+      }
+    }
+  }
   if (muda.historicoMuda) artefatos.hidratar(timeline ?? document);
   if (muda.historicoMuda) diagramas.hidratar(timeline ?? document);
   if ((muda.historicoMuda || muda.cascaMuda) && t.tipo === "conversa") contarLinhasMostradas();
