@@ -96,8 +96,11 @@ pessoa faz.
   (`dispensada`) e qualquer regra nova ficam fora (fail-closed): o pull não entrega, o relato atrasado com
   o id capturado antes é recusado e o varredor não o vira falha. A mesma lista filtra o SQL de
   `pendentesNaMaquina`, o repositório em memória dos testes e as regras que gravam na trilha na autorização.
-  Limite: o item que o Mac já puxou e rodou antes de o Parar chegar não se desfaz; cancelar esse caso
-  exigiria confirmar com o servidor logo antes do `gh`.
+  Limite: o Parar só fecha decisões ainda abertas (`abertasDoTrabalho`: pendente ou reaberta). O item cuja
+  decisão já tinha autoridade quando o Parar chegou (a pessoa aprovou, Sempre permitir, Automático, Total,
+  revisor) segue "aguardando seu Mac" e sai quando o Mac o puxar, até o prazo de 24 h — mesmo com o trabalho
+  parado. E o item que o Mac já puxou e rodou não se desfaz. Cancelar esses casos é decisão de produto à
+  parte (o Parar marcaria o item sem desfecho, ou o Mac confirmaria com o servidor logo antes do `gh`).
 
 ### Registro sem configuração
 
