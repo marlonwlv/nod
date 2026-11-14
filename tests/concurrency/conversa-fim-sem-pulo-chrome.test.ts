@@ -106,7 +106,10 @@ descrever("NOD-360: a fala não pula quando o turno acaba", () => {
   async function provar(largura: number, altura: number): Promise<void> {
     const bot = await criarBot(`Sem pulo ${largura}`);
     await abrirConversa(bot, largura, altura);
-    const roteiro = `Confira a posição [[tool: lembrar {"tipo":"fato","texto":"a fala deve ficar estável"}]] [[delta: ${RESPOSTA}]] [[espera: 1800]] [[texto: ${RESPOSTA}]]`;
+    // No job de navegador, as outras 280 provas deixam o runner ocupado: 1,8 s permitia que o evento final
+    // alcançasse a tela entre o `ate` e a leitura seguinte. A janela maior mantém a fala viva mensurável sem
+    // relaxar a asserção: a troca para a fala gravada ainda precisa preservar exatamente os mesmos 0 px.
+    const roteiro = `Confira a posição [[tool: lembrar {"tipo":"fato","texto":"a fala deve ficar estável"}]] [[delta: ${RESPOSTA}]] [[espera: 5000]] [[texto: ${RESPOSTA}]]`;
     await avaliar(cdp, `(() => { const t = document.getElementById("composer-texto"); t.value = ${JSON.stringify(roteiro)}; t.dispatchEvent(new Event("input", { bubbles: true })); document.querySelector('.composer [data-act="enviar"]').click(); })()`);
     await ate(`${artigoVivo}?.querySelector('.pensar') && ${artigoVivo}?.querySelector('.bubble')?.textContent.includes(${JSON.stringify(RESPOSTA)})`, "a fala viva com resumo e balão");
     await avaliar(cdp, `(() => { const a = ${artigoVivo}; a.scrollIntoView({ block: "center" }); a.querySelector(".pensar > summary").click(); })()`);
