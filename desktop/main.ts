@@ -91,7 +91,14 @@ declare const __NOD_SERVIDOR_PADRAO__: string;
 const SERVIDOR_PADRAO = typeof __NOD_SERVIDOR_PADRAO__ === "string" ? __NOD_SERVIDOR_PADRAO__ : "";
 
 /** `provisoria`: a conexão de um espaço provisório (NOD-345); só ela o "Sou da equipe" (NOD-406) pode desfazer. */
-type Config = { url: string; chave: string; provisoria?: true };
+type Config = { url: string; chave: string; provisoria?: true; pessoaId?: string };
+/**
+ * ADR-182 (2026-11-13): a partição da janela web é PERSISTENTE (`persist:`): o cache HTTP guarda o bundle (`/assets`,
+ * público e imutável, ~1,5 MB) entre aberturas do app, em vez de baixá-lo de novo a cada uma; o IndexedDB da web (a
+ * réplica das conversas e o journal de envio do chat) sobrevive também. O que é da pessoa (cookie da sessão, storage)
+ * continua sendo apagado quando a pessoa ou o servidor muda (clearStorageData em `conectar`).
+ */
+const PARTICAO_WEB = "persist:nod-web";
 const dir = dirname(fileURLToPath(import.meta.url));
 const setup = join(dir, "setup.html");
 const setupUrl = pathToFileURL(setup).href;
@@ -234,7 +241,7 @@ const avataresVivos = new Map<string, BrowserWindow>();
 function abrirAvatar(servidor: string, a: AvatarNaMesa): void {
   if (avataresVivos.has(a.agenteId)) return;
   const pos = dentroDeUmaTela(a, screen.getAllDisplays().map((d) => d.workArea));
-  const w = new BrowserWindow({ x: pos.x, y: pos.y, width: TAMANHO_AVATAR, height: TAMANHO_AVATAR, show: false, frame: false, transparent: true, hasShadow: false, resizable: false, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, alwaysOnTop: true, title: "nod", webPreferences: { partition: "nod-web", preload: join(dir, "preload-web.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true } });
+  const w = new BrowserWindow({ x: pos.x, y: pos.y, width: TAMANHO_AVATAR, height: TAMANHO_AVATAR, show: false, frame: false, transparent: true, hasShadow: false, resizable: false, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, alwaysOnTop: true, title: "nod", webPreferences: { partition: PARTICAO_WEB, preload: join(dir, "preload-web.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true } });
   w.setAlwaysOnTop(true, "floating");
   w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   proteger(w, new URL(servidor).origin);
@@ -493,7 +500,7 @@ async function ler(): Promise<Config | null> {
   try {
     if (!safeStorage.isEncryptionAvailable()) return null;
     const c = JSON.parse(safeStorage.decryptString(await readFile(caminhoConfig()))) as Config;
-    return { url: urlServidor(c.url, !app.isPackaged), chave: c.chave, ...(c.provisoria === true ? { provisoria: true as const } : {}) };
+    return { url: urlServidor(c.url, !app.isPackaged), chave: c.chave, ...(c.provisoria === true ? { provisoria: true as const } : {}), ...(typeof c.pessoaId === "string" ? { pessoaId: c.pessoaId } : {}) };
   } catch { return null; }
 }
 function proteger(w: BrowserWindow, origem?: string) {
@@ -635,6 +642,40 @@ function limparOrfaosUmaVez(): Promise<void> {
   })();
   return limpezaDeOrfaos;
 }
+/**
+ * ADR-182: a janela web, criada e carregada sem esperar o executor. Devolve a carga da página: quem chama a aguarda no
+ * fim do `conectar` (a falha de carga já cai no `did-fail-load`, que leva à tela de conexão).
+ */
+function abrirJanelaWeb(c: Config): Promise<void> {
+  const anterior = janela;
+  // definido em 2026-09-24 ("aviso no Mac"): preload próprio da janela web — só `nodDesktop` (preload-web.ts).
+  // NOD-137: nasce onde a pessoa deixou, inteira numa tela que existe; o mínimo de 900 cede numa tela mais estreita.
+  const bounds = resolverEstadoJanela(estadoJanela, telas(), TAMANHO_PADRAO_JANELA);
+  // Os bounds normais da janela maximizada vêm da memória (medirEstadoJanela): valem os da criação, já ajustados à tela.
+  estadoJanela = bounds;
+  const nova = new BrowserWindow({ x: bounds.x, y: bounds.y, width: bounds.largura, height: bounds.altura, minWidth: Math.min(LARGURA_MINIMA, bounds.largura), title: "nod", backgroundColor: fundoDaJanela(), webPreferences: { partition: PARTICAO_WEB, preload: join(dir, "preload-web.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true } });
+  if (bounds.maximizada) nova.maximize();
+  janela = nova; proteger(nova, c.url);
+  // A checagem de tela cheia é no disparo do timer; no Electron 43 isFullScreen() já é true desde o 1º resize da animação.
+  let esperaEstado: ReturnType<typeof setTimeout> | null = null;
+  const cancelarEstado = () => { if (esperaEstado) clearTimeout(esperaEstado); esperaEstado = null; };
+  const agendarEstado = () => { cancelarEstado(); esperaEstado = setTimeout(() => { esperaEstado = null; capturarEstadoJanela(nova); }, ESPERA_ESTADO_JANELA_MS); };
+  nova.on("move", agendarEstado);
+  nova.on("resize", agendarEstado);
+  nova.on("maximize", agendarEstado);
+  nova.on("unmaximize", agendarEstado);
+  nova.on("enter-full-screen", () => { cancelarEstado(); capturarEstadoJanela(nova); });
+  nova.on("close", (e) => {
+    cancelarEstado(); capturarEstadoJanela(nova);
+    // Saindo (Cmd+Q já confirmado, ou o reinício da atualização): a pergunta da ligação seguraria o quitAndInstall.
+    if (!emLigacao || encerrando) return;
+    e.preventDefault();
+    void confirmarFecharEmLigacao(nova).then((sim) => { if (sim) { definirEmLigacao(false); nova.close(); } });
+  });
+  nova.on("closed", () => { cancelarEstado(); if (janela === nova) { janela = null; definirEmLigacao(false); quickChat?.destruir(); quickChat = null; fecharAvatares(); } });
+  nova.webContents.on("did-fail-load", (_e, code, _description, _url, main) => { if (main && code !== -3) { mensagem = mensagens.servidor_fora!; void mostrarSetup(); } });
+  return nova.loadURL(c.url).then(() => { anterior?.close(); mensagem = "Conectado."; }, () => undefined);
+}
 async function conectar(c: Config) {
   conexaoDaAtualizacao = { url: c.url, chave: c.chave };
   await limparOrfaosUmaVez();
@@ -650,10 +691,19 @@ async function conectar(c: Config) {
   const dados = await r.json() as { escopo: { pessoaId: string }; machineId: string; instalacoes?: unknown };
   const cookie = r.headers.get("set-cookie")?.match(/(?:^|;\s*)nod_sessao=([^;]+)/)?.[1];
   if (!cookie || !dados.escopo?.pessoaId || !dados.machineId) throw new FalhaPonte("resposta_invalida");
-  const web = session.fromPartition("nod-web");
-  await web.clearStorageData();
+  const web = session.fromPartition(PARTICAO_WEB);
+  // ADR-182: o storage da web (localStorage, IndexedDB: a réplica das conversas, o journal de envio) só é apagado quando
+  // a pessoa ou o servidor mudou — o mesmo Mac, a mesma pessoa, reabre com o que tinha. O cookie da sessão é sempre
+  // trocado. O cache HTTP (o bundle) nunca entra aqui: é público e imutável.
+  const mesmaPessoa = configuracao?.url === c.url && configuracao?.pessoaId === dados.escopo.pessoaId;
+  await web.clearStorageData(mesmaPessoa ? { storages: ["cookies"] } : undefined);
   await web.cookies.set({ url: c.url, name: "nod_sessao", value: cookie, path: "/", httpOnly: true, secure: c.url.startsWith("https:"), sameSite: "strict" });
-  await guardar(c); configuracao = c;
+  const comPessoa: Config = { ...c, pessoaId: dados.escopo.pessoaId };
+  await guardar(comPessoa); configuracao = comPessoa;
+  // ADR-182: a janela nasce AQUI, antes de montar o executor, sondar as IAs e sincronizar as contas (segundos no Mac
+  // carregado): a pessoa vê a tela do nod enquanto isso roda. A web já trata o estado `procurando` das IAs e a lista de
+  // contas vazia até a sonda chegar (emitirEstados avisa). A carga da página corre em paralelo e é aguardada no fim.
+  const carregamento = abrirJanelaWeb(c);
   // ADR-052: o hook do nod vai empacotado ao lado do proxy; sem ele o kit do terminal não liga.
   const lig = { urlNod: c.url, proxyPath: app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked", "dist", "desktop", "proxy.mjs") : join(dir, "proxy.mjs"), hookPath: app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked", "dist", "desktop", "hook-nativas.mjs") : join(dir, "hook-nativas.mjs"), nodePath: process.execPath, electronComoNode: true, sondaSemTurno: true, prazoSondaMs: prazoSondaDoEnv(process.env), filaDoForno: process.env.NOD_FILA_DO_FORNO !== "0" };
   const envExecutor = { ...process.env, NOD_HOME: join(app.getPath("userData"), "executor") };
@@ -799,35 +849,7 @@ async function conectar(c: Config) {
     void instalacoesNoServidor?.parar();
     instalacoesNoServidor = dados.instalacoes === true ? iniciarInstalacoesNoServidor({ ponte: ponteHttp.instalacoes, env: cfg.env, agendar: agendarTimer, servidor: c.url }) : null;
   }
-  const anterior = janela;
-  // definido em 2026-09-24 ("aviso no Mac"): preload próprio da janela web — só `nodDesktop` (preload-web.ts).
-  // NOD-137: nasce onde a pessoa deixou, inteira numa tela que existe; o mínimo de 900 cede numa tela mais estreita.
-  const bounds = resolverEstadoJanela(estadoJanela, telas(), TAMANHO_PADRAO_JANELA);
-  // Os bounds normais da janela maximizada vêm da memória (medirEstadoJanela): valem os da criação, já ajustados à tela.
-  estadoJanela = bounds;
-  const nova = new BrowserWindow({ x: bounds.x, y: bounds.y, width: bounds.largura, height: bounds.altura, minWidth: Math.min(LARGURA_MINIMA, bounds.largura), title: "nod", backgroundColor: fundoDaJanela(), webPreferences: { partition: "nod-web", preload: join(dir, "preload-web.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true } });
-  if (bounds.maximizada) nova.maximize();
-  janela = nova; proteger(nova, c.url);
-  // A checagem de tela cheia é no disparo do timer; no Electron 43 isFullScreen() já é true desde o 1º resize da animação.
-  let esperaEstado: ReturnType<typeof setTimeout> | null = null;
-  const cancelarEstado = () => { if (esperaEstado) clearTimeout(esperaEstado); esperaEstado = null; };
-  const agendarEstado = () => { cancelarEstado(); esperaEstado = setTimeout(() => { esperaEstado = null; capturarEstadoJanela(nova); }, ESPERA_ESTADO_JANELA_MS); };
-  nova.on("move", agendarEstado);
-  nova.on("resize", agendarEstado);
-  nova.on("maximize", agendarEstado);
-  nova.on("unmaximize", agendarEstado);
-  nova.on("enter-full-screen", () => { cancelarEstado(); capturarEstadoJanela(nova); });
-  nova.on("close", (e) => {
-    cancelarEstado(); capturarEstadoJanela(nova);
-    // Saindo (Cmd+Q já confirmado, ou o reinício da atualização): a pergunta da ligação seguraria o quitAndInstall.
-    if (!emLigacao || encerrando) return;
-    e.preventDefault();
-    void confirmarFecharEmLigacao(nova).then((sim) => { if (sim) { definirEmLigacao(false); nova.close(); } });
-  });
-  nova.on("closed", () => { cancelarEstado(); if (janela === nova) { janela = null; definirEmLigacao(false); quickChat?.destruir(); quickChat = null; fecharAvatares(); } });
-  nova.webContents.on("did-fail-load", (_e, code, _description, _url, main) => { if (main && code !== -3) { mensagem = mensagens.servidor_fora!; void mostrarSetup(); } });
-  await nova.loadURL(c.url);
-  anterior?.close(); mensagem = "Conectado.";
+  await carregamento;
   atualizacaoApp?.conectado();
   // ADR-173: o Quick Chat nasce com a conexão, na origem do servidor desta conexão.
   quickChat?.destruir();

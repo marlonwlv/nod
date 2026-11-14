@@ -28,7 +28,7 @@ export function montarQuickChat(o: OpcoesQuickChatApp): QuickChatApp {
     const w = new BrowserWindow({
       ...pos, show: false, frame: false, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
       skipTaskbar: true, alwaysOnTop: true, title: "Quick Chat", backgroundColor: o.fundo(), roundedCorners: true, hasShadow: true,
-      webPreferences: { partition: "nod-web", preload: o.preload, nodeIntegration: false, contextIsolation: true, sandbox: true },
+      webPreferences: { partition: "persist:nod-web", preload: o.preload, nodeIntegration: false, contextIsolation: true, sandbox: true },
     });
     w.setAlwaysOnTop(true, "floating");
     w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });

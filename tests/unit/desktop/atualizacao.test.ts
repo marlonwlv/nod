@@ -240,7 +240,9 @@ describe("NOD-132: ligação no processo principal (desktop/main.ts)", () => {
   });
   it("o 426 procura a atualização e a conexão bem-sucedida arma o ciclo", () => {
     expect(main).toMatch(/r\.status === 426[^\n]*\{\n\s*aoRecusarVersao\(atualizacaoApp\);/);
-    expect(main).toContain(`anterior?.close(); mensagem = "Conectado.";\n  atualizacaoApp?.conectado();`);
+    // ADR-182: a janela nasce antes do executor e a carga é aguardada no fim do conectar; o ciclo arma depois dela.
+    expect(main).toContain(`await carregamento;\n  atualizacaoApp?.conectado();`);
+    expect(main).toContain(`anterior?.close(); mensagem = "Conectado.";`);
     expect(main).toContain("atualize_app: TEXTOS_ATUALIZACAO.atualizeApp(linkDownloadMac(process.arch)),");
     expect(TEXTOS_ATUALIZACAO.atualizeApp("https://nodbot.ai/download/mac")).toContain("https://nodbot.ai/download/mac");
   });
