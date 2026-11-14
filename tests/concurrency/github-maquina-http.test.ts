@@ -8,6 +8,7 @@ import { CAPACIDADES_GITHUB, COMANDO_GITHUB_NATIVO } from "../../src/contracts/g
 import type { PlanoTurno } from "../../src/contracts/plano-turno.ts";
 import type { Entrega } from "../../src/contracts/ponte.ts";
 import { vincularEscopo } from "../../src/db/tx.ts";
+import { criarTrabalho, REGRA_TRABALHO_PARADO } from "../../src/use-cases/trabalhos.ts";
 import type { Deps } from "../../src/use-cases/tipos.ts";
 import { autoriaPessoa } from "../helpers/fabricas.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
@@ -98,6 +99,37 @@ describeIntegracao("GitHub na máquina pela ponte HTTP (modo compartilhado)", ()
     expect(mensagens.some((m) => m.kind === "resultado_aprovacao")).toBe(true);
     expect(await (await pedir("itens-locais", {}, comGh)).json()).toEqual({ itens: [] });
   });
+
+  // NOD-423 pelo caminho real: o Parar da task (POST trabalhos/:id/parar → fecharDecisoesDoTrabalho) e o × do card vencido
+  // (POST decisoes/:id/dispensar) fecham a decisão sem dar autoridade. O Mac não puxa o item pela ponte, e o relato atrasado
+  // com o id capturado antes não grava desfecho, mensagem, retomada nem linha na trilha.
+  for (const fechar of ["Parar da task", "× do card vencido"] as const) {
+    it(`${fechar}: a ponte não entrega o item do gh e recusa o relato atrasado (NOD-423)`, async () => {
+      const { trabalhoId, turnoId, decisaoId, itemId } = await dentro(async (d) => {
+        const { trabalho } = await criarTrabalho(d, { agenteId, conversaId, titulo: `NOD-423 ${fechar}`, origem: "pessoa" });
+        const turno = await d.repos.turnos.enfileirar({ executor: "catcher", conversaId, agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "comente", entradaConfianca: "confiavel", modelo: "m", trabalhoId: trabalho.id });
+        const decisao = await d.repos.decisoes.criar({ tipo: "aprovacao", agenteId, conversaId, turnoId: turno!.id, prazoDecisaoEm: Date.now() + 3_600_000, frase: "Comentar no PR 470" });
+        const [item] = await d.repos.itensAprovacao.criarLote(decisao!.id, [{ idx: 0, texto: "Faltou teste", destino: { conector: "github", ferramenta: "pr_comentar", argumentos: { repositorio: "acme/nod", numero: 470, texto: "Faltou teste" }, execucao: "maquina" }, origemSensivel: false }]);
+        return { trabalhoId: trabalho.id, turnoId: turno!.id, decisaoId: decisao!.id, itemId: item!.id };
+      });
+      if (fechar === "Parar da task") {
+        expect((await srv.json<{ trabalho: { estado: string } }>("POST", `trabalhos/${trabalhoId}/parar`)).trabalho.estado).toBe("parado");
+        expect(await dentro((d) => d.repos.decisoes.buscar(decisaoId))).toMatchObject({ estado: "decidida", desfecho: { tipo: "decidida_por_regra", regra: REGRA_TRABALHO_PARADO } });
+      } else {
+        await dentro((d) => d.repos.decisoes.vencerPendentes(Date.now() + 2 * 3_600_000));
+        await srv.json("POST", `decisoes/${decisaoId}/dispensar`);
+        expect(await dentro((d) => d.repos.decisoes.buscar(decisaoId))).toMatchObject({ desfecho: { tipo: "dispensada" } });
+      }
+      const mensagensAntes = (await dentro((d) => d.repos.mensagens.listarDaConversa(conversaId, 200))).length;
+      expect(await (await pedir("itens-locais", {}, comGh)).json()).toEqual({ itens: [] });
+      for (const desfecho of ["executado", "falhou_na_execucao"]) expect((await pedir("itens-locais/resultado", { itemId, desfecho }, comGh)).status).toBe(200);
+      expect(await dentro((d) => d.repos.itensAprovacao.buscar(itemId))).toMatchObject({ desfecho: null });
+      expect((await dentro((d) => d.repos.trilha.doTurno(turnoId))).filter((l) => l.kind === "tool_call")).toEqual([]);
+      expect((await dentro((d) => d.repos.mensagens.listarDaConversa(conversaId, 200))).length).toBe(mensagensAntes);
+      expect((await dentro((d) => d.repos.turnos.listarDaConversa(conversaId, 200))).filter((t) => t.retomaTurnoId === turnoId)).toEqual([]);
+      expect(await (await pedir("itens-locais", {}, comGh)).json()).toEqual({ itens: [] });
+    });
+  }
 });
 
 describeIntegracao("GitHub pelo gh no modo LOCAL: só a dona da máquina (NOD_DONO_DA_MAQUINA)", () => {
