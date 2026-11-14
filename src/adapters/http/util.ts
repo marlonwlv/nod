@@ -1,13 +1,38 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { gzip } from "node:zlib";
 import { acharTextoMalFormado } from "../../domain/texto-bem-formado.ts";
 
+/** Instantâneo (2026-11-13): abaixo disto a compressão não paga o próprio custo (cabeçalho + uma ida ao threadpool). */
+export const GZIP_A_PARTIR_DE = 1024;
+
+/**
+ * Instantâneo (2026-11-13): a resposta grande (a conversa com 200 falas, o quadro) vai em gzip quando o cliente aceita —
+ * o Caddy de produção só comprime o bundle (infra/gcp/vm/Caddyfile), não a API, e a conversa crua passava de 100 KB pela
+ * internet. A compressão é assíncrona (threadpool do zlib); quem chama não espera o fim, como antes não esperava o `end`.
+ * Se outra resposta saiu no meio (o erro do roteador depois do handler), esta se cala.
+ */
 export function json(res: ServerResponse, status: number, body: unknown): void {
   const data = JSON.stringify(body);
-  res.writeHead(status, {
+  const cabecalhos = {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
+  };
+  const aceita = /\bgzip\b/.test(String(res.req?.headers["accept-encoding"] ?? ""));
+  if (!aceita || Buffer.byteLength(data) < GZIP_A_PARTIR_DE) {
+    res.writeHead(status, cabecalhos);
+    res.end(data);
+    return;
+  }
+  gzip(data, (erro, comprimido) => {
+    if (res.writableEnded || res.headersSent) return;
+    if (erro) {
+      res.writeHead(status, cabecalhos);
+      res.end(data);
+      return;
+    }
+    res.writeHead(status, { ...cabecalhos, "content-encoding": "gzip", vary: "accept-encoding" });
+    res.end(comprimido);
   });
-  res.end(data);
 }
 
 /** definido em 2026-09-16: 1 MiB de corpo é folga para qualquer rota do nod; acima disso é abuso. */

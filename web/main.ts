@@ -127,6 +127,7 @@ import { aoGuardarOrdem, definirPaginas, ordemDoAgente, paginasDoAgente, paginas
 import { criarPaginasDoServidor } from "./lib/paginas-do-servidor.ts";
 import { criarQuadroNaTela } from "./lib/quadro-na-tela.ts";
 import { comAbertaNaFrente } from "./lib/fila-do-reidratar.ts";
+import { criarLeiturasEmVoo } from "./lib/leituras-em-voo.ts";
 import { criarCanvasNaTela } from "./lib/canvas-na-tela.ts";
 import { configurarAppCanvas, esquecerErroDoCanvas, guardarAppCanvas } from "./telas/marketplace-canvas.ts";
 import { conversaDaTrilha, criarTrilhaDaConversa } from "./lib/trilha-conversa.ts";
@@ -471,7 +472,6 @@ const pilula = criarPilulaNaTela(document.getElementById("faixa-trabalhos") as H
 let pilulaAtual: { pilula: Pilula; telemetria: string | null } | null = null;
 /** O estado de cada frente do bot na última olhada (a região viva diz quando uma termina); null = conversa nova. */
 let frentesVistas: { conversaId: string; estados: Map<string, EstadoTrabalho> } | null = null;
-let reidratando = false;
 let ambienteBanco: AmbienteBancoDto | null = null;
 /**
  * Telemetria das linhas do chat (definido em 2026-10-07, #191): cada linha mostrada conta uma vez por carga da página e
@@ -2244,71 +2244,98 @@ async function alternarExperimento(chave: keyof Experimentos): Promise<void> {
   if (p.experimentos) dispatch({ tipo: "experimentos", experimentos: p.experimentos, quadroLiberado: p.quadroLiberado ?? false });
 }
 
+/**
+ * Leva 2 (2026-11-13, ADR-181): as leituras de uma passada saem JUNTAS, por chave, com teto (web/lib/leituras-em-voo.ts),
+ * e a tela redesenha conforme cada uma chega. Antes havia uma trava única (`reidratando`) e a passada era em série, com
+ * o `render` só no fim: abrir um bot na primeira carga enfileirava ~15 GETs (~80 ms cada pela internet) e a conversa só
+ * aparecia depois do último; e um clique no meio de uma passada esperava a leitura mais lenta dela (o `GET conectores`
+ * que foi ao Composio).
+ *
+ *   frame / navegar / tique ──► reidratar()
+ *     relevantes = faltas da tela + invalidações, menos: já em voo · "trabalhos"/atividade na janela deles ·
+ *                  `conversa:*` com a janela de 200 ms aberta (o 1º frame relê na hora, os seguintes viram uma só)
+ *     cada chave ──► leituras.correr(chave, lerUma)  (teto 6; a mesma chave em voo não repete o GET)
+ *     cada resposta ──► estado ──► renderNoQuadro (a frota/gestão que tira a pessoa da conversa e os não lidos pintam
+ *                       síncrono, porque o que vem depois lê o DOM)
+ *     a rede caiu numa leitura ──► ela e as que ainda esperavam vaga vão para pendentesDeRede; erro e sonda uma vez
+ */
+const TETO_EM_VOO = 6;
+const leituras = criarLeiturasEmVoo<Invalidacao>(TETO_EM_VOO);
+const JANELA_CONVERSA_MS = 200;
+const janelaConversa = criarReleituraAdiada(JANELA_CONVERSA_MS, (fn, ms) => {
+  const t = window.setTimeout(fn, ms);
+  return () => window.clearTimeout(t);
+}, () => void reidratar());
+
 async function reidratar(): Promise<void> {
-  if (!api || reidratando) return;
+  if (!api) return;
   const pendentes = [...new Set([...estado.invalidacoes, ...invalidacoesDaTela(estado)])];
   // Só o que a tela atual olha entra agora; o resto fica marcado para quando a tela abrir.
   // C5 (2026-11-12): a conversa aberta é a primeira da passada (web/lib/fila-do-reidratar.ts).
-  const relevantes = comAbertaNaFrente(pendentes.filter((q) => relevante(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente())), estado.tela.tipo === "conversa" ? estado.tela.conversaId : null);
+  const relevantes = comAbertaNaFrente(pendentes.filter((q) => relevante(q) && !leituras.emVoo(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente()) && !(q.startsWith("conversa:") && janelaConversa.pendente())), estado.tela.tipo === "conversa" ? estado.tela.conversaId : null);
   // definido em 2026-09-30: nada relevante, nada a buscar nem a redesenhar. A conversa de outro bot fica marcada
   // até ser aberta, e antes cada frame caía aqui e redesenhava a tela inteira de forma síncrona.
   if (relevantes.length === 0) return;
   const telaAntes = estado.tela;
   // NOD-136: a leitura que voltou depois de outra sessão começar não conta para o link desta.
   const lerParaDeepLink = deepLink.leitor();
-  reidratando = true;
-  let lerDepois = false;
-  let saiu = false;
-  try {
-    // definido em 2026-09-17: consumir antes do GET preserva frames recebidos durante a busca.
-    estado = reduzir(estado, { tipo: "invalidacoes-tratadas", quais: relevantes });
-    for (const [i, q] of relevantes.entries()) {
-      try {
-        const acao = await buscar(q);
-        if (acao && reduzirVendoSaida(acao)) saiu = true;
-        // NOD-136: o link `nod://` espera a frota e as salas da sessão (a conversa pode ser de uma sala).
-        const lida = acao ? leituraConta(q, { acao: acao.tipo }) : null;
-        if (lida) lerParaDeepLink(lida);
-        if (acao?.tipo === "hidratar-sua-vez") { canalAvisos.contador(avisador.atualizar(acao.suaVez)); vigiaDeSons.suaVez(acao.suaVez); }
-        if (acao?.tipo === "hidratar-nao-lidos") {
-          lerDepois = true;
-          avisador.atualizarNaoLidos(acao.naoLidos);
-          vigiaDeSons.naoLidos(acao.naoLidos);
-        }
-        if (acao?.tipo === "trabalho-sumiu") lembrarTaskAberta(estado.tela);
-      } catch (e) {
-        if (!(e instanceof ErroApi && e.status === 404)) {
-          const erro = erroDe(e);
-          if (erro && ehErroDeRede(erro)) {
-            // NOD-136: falha de rede não conta para o link (leituraConta); a leitura volta com a rede.
-            // Revisão NOD-215: a rede caiu depois das tentativas desta leitura. O resto da passada também cairia (cada
-            // GET esperaria mais 8,5 s com `reidratando` preso): guarda esta e as que faltam para quando o nod voltar.
-            for (const resto of relevantes.slice(i)) pendentesDeRede.add(resto);
-            if (estado.erro === null || ehErroDeRede(estado.erro)) estado = reduzir(estado, acaoDoErro(erro));
-            sonda.lembrar();
-            break;
-          }
-          if (erro) estado = reduzir(estado, acaoDoErro(erro));
-        }
-        // Servidor sem salas (404) ou com erro que não é de rede: sem salas nesta sessão, o link não espera mais por elas.
-        const lida = leituraConta(q, { erroDeRede: false });
-        if (lida) lerParaDeepLink(lida);
-      }
-    }
-    render();
-  } finally {
-    reidratando = false;
-  }
-  if (saiu) depoisDeSair();
-  else if (lerDepois) lerConversaDaTela();
+  const passada = { redeCaiu: false };
+  // definido em 2026-09-17: consumir antes do GET preserva frames recebidos durante a busca.
+  estado = reduzir(estado, { tipo: "invalidacoes-tratadas", quais: relevantes });
+  // A conversa relida agora abre a janela: os frames dos próximos 200 ms viram uma releitura só, no fim dela (e a
+  // resposta velha de uma leitura em voo é corrigida por essa releitura).
+  if (relevantes.some((q) => q.startsWith("conversa:"))) janelaConversa.pedir();
+  await Promise.all(relevantes.map((q) => leituras.correr(q, () => lerUma(q, passada, lerParaDeepLink))));
   // definido em 2026-09-28: a tela que mudou DURANTE a busca (clicar num bot com a primeira carga em andamento) também
   // pede o que lhe falta; antes a conversa esperava o próximo tique (15 s). Só quando a tela mudou: há falta que não se
   // resolve buscando (sem nenhuma sala, "salas" continua faltando) e voltaria a buscar sem parar.
-  const telaMudou = estado.tela !== telaAntes && invalidacoesDaTela(estado).some((q) => relevante(q));
+  const telaMudou = estado.tela !== telaAntes && invalidacoesDaTela(estado).some((q) => relevante(q) && !leituras.emVoo(q));
   // NOD-85 (Codex no PR 595): ir a um dia fora da janela durante a leitura troca a janela; a resposta velha é descartada
   // e a nova janela precisa ser lida já, não no próximo tique. agendaPorLer é falso depois de ler ou falhar: não gira.
   const agendaNova = agendaPorLer(estado.agenda) && invalidacoesDaTela(estado).includes("agenda");
-  if (telaMudou || agendaNova || estado.invalidacoes.some((q) => relevante(q))) void reidratar();
+  if (telaMudou || agendaNova || estado.invalidacoes.some((q) => relevante(q) && !leituras.emVoo(q))) void reidratar();
+}
+
+/** Uma leitura da passada: busca, aplica, redesenha e trata o erro. Nunca rejeita (a chave em voo é compartilhada). */
+async function lerUma(q: Invalidacao, passada: { redeCaiu: boolean }, lerParaDeepLink: (lida: NonNullable<ReturnType<typeof leituraConta>>) => void): Promise<void> {
+  // A rede caiu numa leitura desta passada enquanto esta esperava vaga: nem tenta (cada GET esperaria mais 8,5 s).
+  if (passada.redeCaiu) { pendentesDeRede.add(q); return; }
+  try {
+    const acao = await buscar(q);
+    let saiu = false;
+    if (acao && reduzirVendoSaida(acao)) saiu = true;
+    // NOD-136: o link `nod://` espera a frota e as salas da sessão (a conversa pode ser de uma sala).
+    const lida = acao ? leituraConta(q, { acao: acao.tipo }) : null;
+    if (lida) lerParaDeepLink(lida);
+    if (acao?.tipo === "hidratar-sua-vez") { canalAvisos.contador(avisador.atualizar(acao.suaVez)); vigiaDeSons.suaVez(acao.suaVez); }
+    if (acao?.tipo === "hidratar-nao-lidos") { avisador.atualizarNaoLidos(acao.naoLidos); vigiaDeSons.naoLidos(acao.naoLidos); }
+    if (acao?.tipo === "trabalho-sumiu") lembrarTaskAberta(estado.tela);
+    // O que vem depois lê o DOM (a rolagem da tela nova, a conversa à vista marcada como lida): pinta síncrono.
+    if (saiu) { render(); depoisDeSair(); }
+    else if (acao?.tipo === "hidratar-nao-lidos") { render(); lerConversaDaTela(); }
+    else if (acao) renderNoQuadro();
+  } catch (e) {
+    if (!(e instanceof ErroApi && e.status === 404)) {
+      const erro = erroDe(e);
+      if (erro && ehErroDeRede(erro)) {
+        // NOD-136: falha de rede não conta para o link (leituraConta); a leitura volta com a rede.
+        // Revisão NOD-215: a rede caiu. Esta leitura fica guardada para quando o nod voltar; as que ainda esperam vaga
+        // nesta passada também (lerUma, acima); o erro e a sonda saem uma vez por passada.
+        pendentesDeRede.add(q);
+        if (!passada.redeCaiu) {
+          passada.redeCaiu = true;
+          if (estado.erro === null || ehErroDeRede(estado.erro)) estado = reduzir(estado, acaoDoErro(erro));
+          sonda.lembrar();
+          renderNoQuadro();
+        }
+        return;
+      }
+      if (erro) { estado = reduzir(estado, acaoDoErro(erro)); renderNoQuadro(); }
+    }
+    // Servidor sem salas (404) ou com erro que não é de rede: sem salas nesta sessão, o link não espera mais por elas.
+    const lida = leituraConta(q, { erroDeRede: false });
+    if (lida) lerParaDeepLink(lida);
+  }
 }
 
 function relevante(q: Invalidacao): boolean {
@@ -3818,8 +3845,10 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   avisador.reiniciar();
   canalAvisos.contador(0);
   deepLink.novaSessao();
-  ambienteBanco = await api.ambiente();
+  // Leva 2 (ADR-181): a sessão entra na hora e a primeira passada já sai; o ambiente do banco (o selo "Efêmero" da barra
+  // no modo dev) chega depois e só redesenha — antes era uma ida e volta inteira antes de qualquer coisa aparecer.
   dispatch({ tipo: "sessao", escopo });
+  void api.ambiente().then((a) => { ambienteBanco = a; renderNoQuadro(); }, () => undefined);
   void api.preferencias().then((p) => {
     if (p.usoDoMac) dispatch({ tipo: "uso-do-mac", uso: p.usoDoMac });
     atualizarModoNoComposer();

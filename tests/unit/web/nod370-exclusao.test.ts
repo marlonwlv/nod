@@ -163,7 +163,8 @@ describe("NOD-370: a fiação em main.ts", () => {
   it("depois de desenhar a tela para onde a saída levou, o dispatch e a releitura leem a conversa nova", async () => {
     const main = await ler("../../../web/main.ts");
     expect(corpo(main, "function dispatch(acao: Acao): void {")).toMatch(/const saiu = reduzirVendoSaida\(acao\);[\s\S]*render\(\);\s*if \(saiu\) depoisDeSair\(\);/);
-    expect(corpo(main, "async function reidratar(")).toMatch(/if \(acao && reduzirVendoSaida\(acao\)\) saiu = true;[\s\S]*render\(\);[\s\S]*if \(saiu\) depoisDeSair\(\);/);
+    // ADR-181: a releitura é por chave (lerUma); a que tira a pessoa da conversa pinta síncrono e segue como o dispatch.
+    expect(corpo(main, "async function lerUma(")).toMatch(/if \(acao && reduzirVendoSaida\(acao\)\) saiu = true;[\s\S]*if \(saiu\) \{ render\(\); depoisDeSair\(\); \}/);
     expect(corpo(main, "function depoisDeSair(): void {")).toContain("lerConversaDaTela();");
   });
 
