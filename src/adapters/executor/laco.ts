@@ -616,7 +616,10 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
       }
       if (parado) break;
       if (!plano) {
-        await esperar(esperaVaziaMs + Math.floor(aleatorio() * jitterMs));
+        const espera = esperaVaziaMs + Math.floor(aleatorio() * jitterMs);
+        if (o.ponte.aguardarTrabalho) await Promise.race([o.ponte.aguardarTrabalho(o.pessoaId, espera), new Promise<void>((r) => (acordar = r))]);
+        else await esperar(espera);
+        acordar = null;
         continue;
       }
       await rodar(plano);

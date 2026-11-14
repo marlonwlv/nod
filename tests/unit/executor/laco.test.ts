@@ -81,6 +81,34 @@ const esperarAte = async (cond: () => boolean, ms = 3_000) => {
 };
 
 describe("laço puxar → rodar → renovar → entregar (ADR-021, ADR-009)", () => {
+  it("C1: trabalho novo acorda o laço ocioso sem esperar a soneca de 1–1,3 s", async () => {
+    const fila: PlanoTurno[] = [];
+    const ponte = ponteFalsa([]);
+    ponte.puxar = async () => fila.shift() ?? null;
+    let acordar: ((v: boolean) => void) | null = null;
+    ponte.aguardarTrabalho = async () => new Promise<boolean>((ok) => { acordar = ok; });
+    const dormidas: number[] = [];
+    const laco = iniciarLaco({
+      ponte,
+      registry: await registryCom(driverFalso()),
+      pessoaId: "p",
+      machineId: "m1",
+      relogio: Date.now,
+      esperaVaziaMs: 1_000,
+      jitterMs: 300,
+      dormir: async (ms) => { dormidas.push(ms); },
+    });
+    await esperarAte(() => acordar !== null);
+    fila.push(planoDeTeste("acordado", "[[texto: pronto]]"));
+    const avisar = acordar!;
+    acordar = null;
+    avisar(true);
+    await esperarAte(() => ponte.entregas.length === 1);
+    await laco.parar();
+    expect(ponte.entregas[0]?.turnoId).toBe("acordado");
+    expect(dormidas).toEqual([]);
+  });
+
   it("roda o plano, renova imediatamente ao marcar promptSubmitted, entrega UMA vez e dorme quando não há plano", async () => {
     const ponte = ponteFalsa([planoDeTeste("t1", "[[delta: oi]] [[texto: pronto]]")]);
     const registry = await registryCom(driverFalso());
