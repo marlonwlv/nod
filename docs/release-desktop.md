@@ -25,45 +25,58 @@ a CI.
 
 ## Passo a passo (pós-aceite)
 
-Com o `gcloud` logado numa conta com escrita no bucket e `V` igual à versão aceita (sem o `v`, ex.: `1.0.0-rc.7`):
+Com o `gcloud` logado numa conta com escrita no bucket, ajuste `V` para a versão aceita (sem o `v`, ex.: `1.0.0-rc.7`)
+e cole o bloco inteiro. Ele roda num subshell com `set -euo pipefail`: se um download ou a conferência dos hashes
+falhar, **para antes de tocar na raiz** do bucket (e o seu terminal continua aberto).
 
 ```sh
+(
+set -euo pipefail
 V=1.0.0-rc.7
+B=gs://nodbot-downloads
 D=$(mktemp -d) && cd "$D"
 
-# 1. Baixar da pasta da versão (ou dos anexos do rascunho: gh release download "v$V" -R marlonwlv/nod)
-gcloud storage cp "gs://nodbot-downloads/v$V/nod-$V-mac-arm64.dmg" "gs://nodbot-downloads/v$V/nod-$V-mac-x64.dmg" \
-  "gs://nodbot-downloads/v$V/nod-windows-x64.exe" "gs://nodbot-downloads/v$V/SHA256-*.txt" \
-  "gs://nodbot-downloads/v$V/nod-windows-x64.exe.sha256" .
+# 1. Baixar da pasta da versão, que o job `downloads` sobe com os mesmos arquivos do rascunho.
+gcloud storage cp "$B/v$V/nod-$V-mac-arm64.dmg" "$B/v$V/nod-$V-mac-x64.dmg" \
+  "$B/v$V/nod-windows-x64.exe" "$B/v$V/SHA256-*.txt" "$B/v$V/nod-windows-x64.exe.sha256" .
 
-# 2. Conferir os hashes: o que vai para a raiz é o que foi aceito
+# 2. Conferir os hashes. Os SHA256-<arch>.txt saem de `shasum -a 256 release/...` (caminho com release/).
 grep -h '\.dmg' SHA256-arm64.txt SHA256-x64.txt | sed 's#release/##' | sha256sum -c
 tr -d '\r' < nod-windows-x64.exe.sha256 | sha256sum -c
 
-# 3. Guardar os atuais para o rollback
+# 3. Guardar os atuais para o rollback, um backup por versão. --no-clobber: rodar de novo (ex.: depois de uma falha
+#    no passo 4) não troca o backup pelo que já é novo.
 for f in nod-mac-arm64.dmg nod-mac-x64.dmg nod-windows-x64.exe; do
-  gcloud storage cp "gs://nodbot-downloads/$f" "gs://nodbot-downloads/anterior/$f"
+  gcloud storage cp --no-clobber "$B/$f" "$B/anterior/antes-de-v$V/$f"
 done
 
-# 4. Trocar os nomes estáveis
-gcloud storage cp "nod-$V-mac-arm64.dmg" gs://nodbot-downloads/nod-mac-arm64.dmg
-gcloud storage cp "nod-$V-mac-x64.dmg"   gs://nodbot-downloads/nod-mac-x64.dmg
-gcloud storage cp nod-windows-x64.exe    gs://nodbot-downloads/nod-windows-x64.exe
+# 4. Trocar os nomes estáveis. --cache-control=no-store como os objetos de hoje: sem a flag o GCS serve o objeto
+#    público com cache de 1 h, e quem clicar logo depois (ou depois de um rollback) baixa a versão velha.
+gcloud storage cp --cache-control=no-store --content-type=application/x-apple-diskimage "nod-$V-mac-arm64.dmg" "$B/nod-mac-arm64.dmg"
+gcloud storage cp --cache-control=no-store --content-type=application/x-apple-diskimage "nod-$V-mac-x64.dmg" "$B/nod-mac-x64.dmg"
+gcloud storage cp --cache-control=no-store --content-type=application/x-msdos-program nod-windows-x64.exe "$B/nod-windows-x64.exe"
+echo "ok: v$V nos nomes estáveis"
+)
 ```
+
+Sem o job `downloads` ligado (`vars.NOD_RELEASE_BUCKET`), a pasta `v<versão>/` não existe: suba antes os anexos do
+rascunho para ela (`gh release download "v$V" -R marlonwlv/nod -p 'nod-*-mac-*.dmg' -p 'SHA256-*.txt' -p
+'nod-windows-x64.exe*'` e `gcloud storage cp --no-clobber ... gs://nodbot-downloads/v$V/`) e rode o bloco.
 
 ## Conferir no ar
 
 ```sh
 for a in mac mac-intel windows; do curl -sI "https://nodbot.ai/download/$a" | grep -iE '^(HTTP|location)'; done
 for f in nod-mac-arm64.dmg nod-mac-x64.dmg nod-windows-x64.exe; do
-  curl -sI "https://storage.googleapis.com/nodbot-downloads/$f" | grep -iE '^(HTTP|last-modified|content-length)'
+  curl -sI "https://storage.googleapis.com/nodbot-downloads/$f" | grep -iE '^(HTTP|last-modified|content-length|cache-control)'
 done
 ```
 
-Cada alias responde **302** para o objeto da tabela, e cada objeto responde **200** com `last-modified` de agora.
-Baixe o DMG da sua arquitetura e confira o hash com o do passo 2.
+Cada alias responde **302** para o objeto da tabela, e cada objeto responde **200** com `cache-control: no-store` e
+`last-modified` de agora. Baixe o DMG da sua arquitetura e confira o hash com o do passo 2.
 
 ## Rollback
 
-Copie de volta o que o passo 3 guardou (`gs://nodbot-downloads/anterior/<nome>` → `gs://nodbot-downloads/<nome>`) e
-repita a conferência. O site não muda: os aliases continuam os mesmos.
+Copie de volta o que o passo 3 guardou, com a mesma flag de cache:
+`gcloud storage cp --cache-control=no-store gs://nodbot-downloads/anterior/antes-de-v<versão>/<nome> gs://nodbot-downloads/<nome>`,
+e repita a conferência. O site não muda: os aliases continuam os mesmos.
