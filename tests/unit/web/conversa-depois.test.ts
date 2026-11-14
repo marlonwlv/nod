@@ -224,9 +224,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     // A releitura (com a fala gravada) tira a fala que saía; e ela também some sozinha se a releitura não vier.
     const relida = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2)] } as ConversaDto, agora: AGORA + 500 });
     expect(relida.falasSaindo?.[C]).toBeUndefined();
-    const semAGravada = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2)] } as ConversaDto, agora: AGORA + 500 });
-    expect(paradas(semAGravada, "t1")).toHaveLength(1);
-    expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 15_000 }).map((b) => b.chave)).toEqual(antes.map((b) => b.chave));
+    expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 15_000 })).toEqual([]);
     // Revisão 3: a releitura que saiu ANTES do fim (sem a fala gravada) não a tira; o tick a limpa depois de 15 s.
     const velha = reduzir(fim, { tipo: "hidratar-conversa", conversa: c as unknown as ConversaDto, agora: AGORA - 200 });
     expect(paradas(velha, T)).toHaveLength(1);
@@ -546,11 +544,11 @@ describe("7. a linha da memória", () => {
 });
 
 describe("8. o cabeçalho com uma regra só", () => {
-  it("a aprovação troca o estado mesmo durante o turno; sem turno, os pedidos seguem aguardando", () => {
+  it("turno vivo e pedidos juntos: 'Trabalhando · 2 esperam você'; sem turno, 'Aguardando você'", () => {
     const { e } = cenario([], [pedido("d1"), pedido("d2")]);
     const vivo: Estado = { ...e, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } } };
-    expect(renderCabecalhoConversa(vivo, "a")).toContain(">Aguardando sua aprovação<");
-    expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando sua aprovação<");
+    expect(renderCabecalhoConversa(vivo, "a")).toContain("Trabalhando <span class=\"presenca-sep\" aria-hidden=\"true\">·</span> <b>2 esperam você</b>");
+    expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando você<");
   });
 });
 
