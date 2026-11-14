@@ -1662,9 +1662,14 @@ function tarefaDeOutraPessoa(plano: Extract<ReturnType<typeof planejarLote>, { t
 
 /** A aba Quadro de um bot: o quadro dele montado (ou null, ainda sem quadro). Experimento desligado = nao_permitido. */
 export const verQuadro: CasoDeUso<{ agenteId: string; quadro?: string | null }, { quadro: QuadroDto | null }> = async (deps, input) => {
-  if (!(await experimentoLigado(deps))) throw new ErroDeDominio("nao_permitido", { cause: "experimento quadro desligado" });
-  // ADA-14: o quadro que a tela escolheu (se ainda for deste bot); sem ele, o padrão.
-  const q = await deps.repos.quadros.daTela(input.agenteId, input.quadro);
+  // Leva 2 (2026-11-13): a chave do experimento e a preferência saem juntas; sem `?quadro=` (a primeira leitura do bot,
+  // que a tela dispara junto com a lista do seletor, Q3) abre o último aberto que a pessoa deixou neste bot, o mesmo que
+  // `quadrosDoBot.aberto` diz (quadroAoAbrir); se ele saiu do bot, o padrão. Assim a tela não relê quando a lista chega.
+  // Com `?quadro=`, como antes (ADA-14).
+  const [ligado, lembrado] = await Promise.all([experimentoLigado(deps), input.quadro ? Promise.resolve(null) : deps.repos.preferencias.quadroAberto(input.agenteId)]);
+  if (!ligado) throw new ErroDeDominio("nao_permitido", { cause: "experimento quadro desligado" });
+  const repo = deps.repos.quadros;
+  const q = input.quadro ? await repo.daTela(input.agenteId, input.quadro) : ((lembrado ? await repo.doBot(input.agenteId, lembrado) : null) ?? await repo.doAgente(input.agenteId));
   return { data: { quadro: q ? await montarQuadro(deps, q) : null } };
 };
 
