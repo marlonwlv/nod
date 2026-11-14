@@ -51,8 +51,17 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
 
   const medida = (): Medida => ({ topo: caixa.scrollTop, altura: caixa.scrollHeight, janela: caixa.clientHeight });
 
-  function irAoFim(): void {
-    caixa.scrollTop = caixa.scrollHeight;
+  /**
+   * `acompanhar` (o conteúdo cresceu com a conversa colada): como o Grok Bot, o salto que cabe numa tela desce suave
+   * (`scrollTo` smooth, que o próximo crescimento só redireciona); maior que isso, ou sem movimento (reduced motion), vai
+   * direto. Mandar mensagem (`colar`) e abrir a conversa continuam indo direto. `topoAntes` fica no ponto de partida: a
+   * descida suave só sobe o topo, e `depoisDeRolar` não a lê como a pessoa subindo.
+   */
+  function irAoFim(acompanhar = false): void {
+    const alvo = caixa.scrollHeight - caixa.clientHeight;
+    const salto = alvo - caixa.scrollTop;
+    if (acompanhar && salto > 1 && salto <= caixa.clientHeight && suave()) caixa.scrollTo({ top: alvo, behavior: "smooth" });
+    else caixa.scrollTop = caixa.scrollHeight;
     estado = { colada: true, topoAntes: caixa.scrollTop };
   }
 
@@ -112,7 +121,7 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
   // encolhendo (o campo ganhando linhas, a faixa da pergunta). O callback roda depois do layout e antes da pintura.
   const observador = new ResizeObserver(() => {
     if (!conversa) return;
-    if (estado.colada) irAoFim();
+    if (estado.colada) irAoFim(true);
     atualizarPilula();
   });
   observador.observe(caixa);
@@ -152,7 +161,7 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
         if (conteudo) observador.observe(conteudo);
         observado = conteudo;
       }
-      if (conversa && estado.colada) irAoFim();
+      if (conversa && estado.colada) irAoFim(!outra);
       atualizarPilula();
     },
     colar() {

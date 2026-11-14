@@ -174,59 +174,46 @@ describe("a fila da conversa com a máquina acordando (situacaoNaFila)", () => {
   }
   const mac = maquina("mac", "MacBook", { plataforma: "darwin" });
 
-  it("dormindo ou acordando: 'Acordando <máquina>…' e nada de Rodar em X desta vez", () => {
+  // COP-14 (item 1): a linha da exceção diz só "Ligando a máquina…", sem botão (saíram o Cancelar, o Tentar agora e o
+  // Rodar em X desta vez da linha da fila).
+  it("dormindo ou acordando: 'Ligando a máquina…', sem botão", () => {
     for (const estado of ["dormindo", "acordando"] as const) {
       const e = naFila([maquina("vm", "vm-sp", { conectada: false, nuvem: nuvem({ estado }) }), mac]);
-      const s = situacaoNaFila(mensagem, e);
-      expect(s).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Acordando vm-sp… · costuma levar 1 a 2 min" });
-      expect(renderMensagem(mensagem, e)).not.toContain("rodar-desta-vez");
-      expect(renderMensagem(mensagem, e)).toContain('data-act="cancelar-turno"');
+      expect(situacaoNaFila(mensagem, e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Ligando a máquina…" });
+      const html = renderMensagem(mensagem, e);
+      expect(html).toContain('<div class="fila-linha" role="status">Ligando a máquina…</div>');
+      for (const fora of ["rodar-desta-vez", "cancelar-turno", "nuvem-acordar", "fila-chip"]) expect(html).not.toContain(fora);
     }
   });
 
-  it("o trabalho com `acordando` também segura a fila, pelo nome que ele traz", () => {
+  it("o trabalho com `acordando` também segura a fila", () => {
     const trabalhos = { trabalhos: [{ conversaId: C, maquina: { id: "vm", nome: "vm-sp", ehMac: false, acordando: true } }] } as unknown as TrabalhosDto;
     const e = naFila([maquina("vm", "vm-sp", { conectada: false }), mac], trabalhos);
-    expect(situacaoNaFila(mensagem, e)).toMatchObject({ texto: "Acordando vm-sp… · costuma levar 1 a 2 min" });
+    expect(situacaoNaFila(mensagem, e)).toMatchObject({ texto: "Ligando a máquina…" });
     expect(acordandoNaFila(null, { acordando: true })).toBe(true);
     expect(acordandoNaFila({ nuvem: nuvem() }, null)).toBe(false);
   });
 
-  it("revisão NOD-92 (item 14): sem capacidade, o chip diz o motivo, oferece Tentar agora e é role=status", () => {
-    const e = naFila([maquina("vm", "vm-sp", { conectada: false, nuvem: nuvem({ estado: "acordando", motivo: "sem_capacidade" }) }), mac]);
-    const s = situacaoNaFila(mensagem, e);
-    expect(s).toMatchObject({ tentarAgora: "vm" });
-    expect(s && "texto" in s ? s.texto : "").toContain("sem máquinas livres em São Paulo");
-    const html = renderMensagem(mensagem, e);
-    expect(html).not.toContain("1 a 2 min");
-    expect(html).toMatch(/class="fila-chip" role="status"/);
-    expect(html).toMatch(/data-act="nuvem-acordar"[^>]*data-maquina="vm"[^>]*>Tentar agora/);
-    expect(html).not.toContain("rodar-desta-vez");
-  });
-
-  it("revisão NOD-92 (rodada 2, item 2): o 409 do Tentar agora aparece junto do chip", () => {
+  it("sem capacidade (e mesmo com o 409 do Tentar agora guardado): a mesma linha, sem Tentar agora nem erro embaixo", () => {
     const base = naFila([maquina("vm", "vm-sp", { conectada: false, nuvem: nuvem({ estado: "acordando", motivo: "sem_capacidade" }) }), mac]);
     const e = { ...base, nuvem: { ...base.nuvem, recusa: { maquinaId: "vm", texto: "A vm-sp não pode acordar agora. Atualize a página e tente de novo." } } };
-    expect(situacaoNaFila(mensagem, e)).toMatchObject({ recusa: "A vm-sp não pode acordar agora. Atualize a página e tente de novo." });
-    expect(renderMensagem(mensagem, e)).toMatch(/class="cx-erro" role="alert">A vm-sp não pode acordar agora/);
-    const outra = { ...base, nuvem: { ...base.nuvem, recusa: { maquinaId: "mac", texto: "outra" } } };
-    expect(renderMensagem(mensagem, outra)).not.toContain("cx-erro");
+    for (const x of [base, e]) {
+      expect(situacaoNaFila(mensagem, x)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Ligando a máquina…" });
+      const html = renderMensagem(mensagem, x);
+      expect(html).toMatch(/class="fila-linha" role="status"/);
+      for (const fora of ["nuvem-acordar", "cx-erro", "rodar-desta-vez"]) expect(html).not.toContain(fora);
+    }
   });
 
-  it("o chip comum também é role=status", () => {
-    const e = naFila([maquina("vm", "vm-sp", { conectada: false, nuvem: nuvem({ estado: "dormindo" }) }), mac]);
-    expect(renderMensagem(mensagem, e)).toMatch(/class="fila-chip" role="status"/);
-  });
-
-  it("na falha (falhou_ao_acordar) o Rodar em X desta vez volta", () => {
+  it("na falha (falhou_ao_acordar): a máquina segue desligada, '{Bot} lê quando a máquina ligar', sem Rodar em X", () => {
     const e = naFila([maquina("vm", "vm-sp", { conectada: false, nuvem: nuvem({ estado: "falhou_ao_acordar" }) }), mac]);
-    expect(situacaoNaFila(mensagem, e)).toMatchObject({ destaVez: { maquinaId: "mac", nome: "MacBook" } });
-    expect(renderMensagem(mensagem, e)).toContain("Rodar em MacBook desta vez");
+    expect(situacaoNaFila(mensagem, e)).toMatchObject({ texto: "Ze 1 lê quando a máquina ligar" });
+    expect(renderMensagem(mensagem, e)).not.toContain("rodar-desta-vez");
   });
 
-  it("sem nuvem, a fila de sempre", () => {
+  it("sem nuvem: desligada diz que lê quando ligar; conectada, nenhuma linha", () => {
     const fora = naFila([maquina("vm", "vm-sp", { conectada: false }), mac]);
-    expect(situacaoNaFila(mensagem, fora)).toMatchObject({ texto: expect.stringMatching(/^Eu trabalho no vm-sp, que está desligado/), destaVez: { maquinaId: "mac" } });
-    expect(situacaoNaFila(mensagem, naFila([maquina("vm", "vm-sp")]))).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Ze 1 lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem, fora)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Ze 1 lê quando a máquina ligar" });
+    expect(situacaoNaFila(mensagem, naFila([maquina("vm", "vm-sp")]))).toBeNull();
   });
 });

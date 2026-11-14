@@ -98,25 +98,28 @@ describe("E11: o Parar no campo", () => {
     expect(tituloDoParar(cenario({}, { turnosVivos: vivo() }), "a")).toBe("Parar o que está rodando nesta conversa");
   });
 
-  it("o Parar fica alcançável enquanto o bot trabalha, mesmo com rascunho, anexo ou ditado (revisão do PR 1)", () => {
-    // Bot livre: só o Enviar, com ou sem texto.
+  it("COP-14 (item 1): um botão só à direita — Enviar com texto ou ditado, Parar com o campo vazio e o bot trabalhando", () => {
+    // Bot livre: só o Enviar, com ou sem texto (vazio, ele fica desabilitado no campo).
     expect(botoesDoCampo({ trabalhando: false, temConteudo: false, ditando: false })).toEqual({ enviar: true, parar: false });
     expect(botoesDoCampo({ trabalhando: false, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: false });
     // Trabalhando com o campo vazio: só o Parar.
     expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: false })).toEqual({ enviar: false, parar: true });
-    // Trabalhando com rascunho ou anexo, ou ditando: os dois — antes o Parar sumia aqui.
-    expect(botoesDoCampo({ trabalhando: true, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: true });
-    expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: true })).toEqual({ enviar: true, parar: true });
-    // Toda combinação com o bot trabalhando mostra o Parar.
-    for (const temConteudo of [false, true]) for (const ditando of [false, true]) expect(botoesDoCampo({ trabalhando: true, temConteudo, ditando }).parar).toBe(true);
+    // Trabalhando com rascunho, anexo ou ditado: sempre o Enviar, sem o Parar.
+    expect(botoesDoCampo({ trabalhando: true, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: false });
+    expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: true })).toEqual({ enviar: true, parar: false });
+    // Nunca os dois ao mesmo tempo, nem nenhum.
+    for (const trabalhando of [false, true]) for (const temConteudo of [false, true]) for (const ditando of [false, true]) {
+      const b = botoesDoCampo({ trabalhando, temConteudo, ditando });
+      expect(b.enviar !== b.parar).toBe(true);
+    }
   });
 
   it("o campo da conversa nasce com o Parar (secundário, com o nome do bot) antes do Enviar e o seletor de IA; a sala não tem nenhum dos dois", () => {
     const conversa = htmlComposer("x", [], { aprovacao: true, comandos: true, bot: "Eng 1" });
-    expect(conversa).toContain('<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="Parar resposta do Eng 1"');
+    expect(conversa).toContain('<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="Parar Eng 1"');
     expect(conversa).toMatch(/class="parar-envio"[^>]* hidden>/);
     expect(conversa.indexOf('data-act="parar-conversa"')).toBeLessThan(conversa.indexOf('data-act="enviar"'));
-    expect(htmlComposer("x", [], { aprovacao: true })).toContain('data-act="parar-conversa" aria-label="Parar resposta"');
+    expect(htmlComposer("x", [], { aprovacao: true })).toContain('data-act="parar-conversa" aria-label="Parar"');
     expect(conversa).toContain('id="composer-ia" data-act="seletor-ia"');
     // O seletor fica entre o texto e o microfone.
     expect(conversa.indexOf("composer-texto")).toBeLessThan(conversa.indexOf("composer-ia"));

@@ -201,20 +201,21 @@ describe("ADR-167: sons opcionais", () => {
   });
 });
 
-describe("ADR-167: balão da pessoa preto por padrão", () => {
-  it("a cor do bot é opção guardada neste computador e marcada no <html>", () => {
+describe("ADR-167 (revisto no COP-14): balão da pessoa na cor do bot por padrão", () => {
+  it("o preto é opção guardada neste computador; a cor fica marcada no <html>", () => {
     const a = armazem();
     const raiz = { dataset: {} as Record<string, string | undefined> };
+    expect(lerBalaoCor(a)).toBe(true);
+    aplicarBalaoCor(false, raiz, a);
+    expect(raiz.dataset.balao).toBeUndefined();
+    expect(a.m.get(CHAVE_BALAO)).toBe("preto");
     expect(lerBalaoCor(a)).toBe(false);
     aplicarBalaoCor(true, raiz, a);
     expect(raiz.dataset.balao).toBe("cor");
-    expect(a.m.get(CHAVE_BALAO)).toBe("cor");
-    aplicarBalaoCor(false, raiz, a);
-    expect(raiz.dataset.balao).toBeUndefined();
     expect(a.m.has(CHAVE_BALAO)).toBe(false);
   });
   it("o index.html aplica antes do primeiro quadro com a mesma chave; o CSS troca a skin pela tinta da base", () => {
-    expect(ler("index.html")).toContain(`localStorage.getItem("${CHAVE_BALAO}") === "cor"`);
+    expect(ler("index.html")).toContain(`localStorage.getItem("${CHAVE_BALAO}") !== "preto"`);
     expect(ler("ds.css")).toMatch(/html:not\(\[data-balao="cor"\]\) \[class\*="balao-c-"\] \{ --balao-fundo: var\(--balao-pessoa\);/);
   });
 });

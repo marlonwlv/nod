@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-title" content="Nod" />
     <!-- Tema escolhido em Preferências (web/lib/tema.ts, mesma chave): aplicado antes do primeiro quadro, senão o app pisca claro. -->
     <!-- ADR-167: o balão da pessoa na cor do bot é opção (web/lib/balao.ts, mesma chave); o padrão é o preto. -->
-    <script>try { if (localStorage.getItem("nod.balao") === "cor") document.documentElement.dataset.balao = "cor"; } catch (e) {}</script>
+    <script>try { if (localStorage.getItem("nod.balao") !== "preto") document.documentElement.dataset.balao = "cor"; } catch (e) { document.documentElement.dataset.balao = "cor"; }</script>
     <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {}</script>
     <!-- ADR-179: a largura da barra (web/lib/densidade.ts: mesmas chaves, migração da chave antiga, limites e consulta do celular), aplicada antes do primeiro quadro, senão a barra abre em 340 e pula. -->
     <script>try { var s = localStorage.getItem("nod.barra.largura"), a = localStorage.getItem("nod.densidade"), b = { l: 340, c: false }; if (s) { try { var o = JSON.parse(s); if (o && typeof o === "object" && typeof o.larguraExpandida === "number" && isFinite(o.larguraExpandida) && typeof o.compacta === "boolean") b = { l: o.larguraExpandida, c: o.compacta }; } catch (e) {} } else if (a === "compacta:recolhida" || a === "confortavel:recolhida") b.c = true; else if (a === "compacta") b.l = 240; if (!matchMedia("(hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px)").matches) { var h = document.documentElement, m = Math.max(240, Math.min(400, Math.floor(innerWidth - 424))); h.dataset.barra = b.c ? "compacta" : "expandida"; if (b.c) h.dataset.largura = "recolhida"; h.style.setProperty("--largura-barra", (b.c ? 88 : Math.min(m, Math.max(240, Math.round(b.l)))) + "px"); } } catch (e) {}</script>
@@ -51,6 +51,10 @@
     <!-- ADR-167: a casca igual ao Paper (barra, pílula, conversa, campo e painel), depois do design system. -->
     <link rel="stylesheet" href="/casca.css" />
     <link rel="stylesheet" href="/menu-conta.css" />
+    <!-- COP-14: o chat (base, balões, pensando, formato da resposta e troca de bot), depois da casca. -->
+    <link rel="stylesheet" href="/chat.css" />
+    <link rel="stylesheet" href="/chat-formato.css" />
+    <link rel="stylesheet" href="/chat-troca.css" />
     <link rel="stylesheet" href="/mobile.css" />
     <link rel="stylesheet" href="/celular-base.css" />
     <link rel="stylesheet" href="/tab-bar-celular.css" />

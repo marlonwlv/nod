@@ -14,9 +14,9 @@
 /* Fora do celular o ‹ da inicial não existe e a faixa que só o teria também não. */
 .abrir-bots { display: none; }
 .cabecalho.so-menu { display: none; }
-/* NOD-381: o que só o celular desenha (o + do campo, a presença dentro da pílula e o esqueleto do carregando) não existe no
-   computador; lá a pílula segue com o nome e o ponto, como antes. */
-.mais-campo, .pilula-presenca, .esqueleto-conversa { display: none; }
+/* NOD-381: o que só o celular desenha (o + do campo e a presença dentro da pílula) não existe no computador; lá a pílula
+   segue com o nome e o ponto, como antes. O esqueleto do carregando saiu (item 5 do chat: só o spinner, web/chat-troca.css). */
+.mais-campo, .pilula-presenca { display: none; }
 .pilula-txt { display: contents; }
 
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
@@ -785,12 +785,6 @@
   .artefato-acoes .bt.link { min-height: 44px; padding: 0 4px; }
   .artefato-acoes .bt.link, .artefato-dialogo .artefato-acoes .bt.sm { min-width: 44px; min-height: 44px; }
 
-  /* Carregando: três balões cinza no lugar do texto (o texto fica para o leitor de tela). */
-  .carregando-conversa { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .esqueleto-conversa { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px; }
-  .esqueleto-conversa i { display: block; height: 44px; width: 70%; border-radius: 18px; background: var(--surface-raised); animation: esqueleto-pulsa 1.4s ease-in-out infinite; }
-  .esqueleto-conversa .eq-voce { align-self: flex-end; width: 52%; }
-  .esqueleto-conversa .curto { width: 40%; }
   /* Não enviada: o balão claro com contorno tracejado e a linha "Não foi enviada · Tentar de novo" em 13 px, sem o
      vermelho (o erro é da rede, não da pessoa). NOD-431: sem a opacidade de antes, que com a cor do bot caía abaixo de
      4,5:1. */
@@ -798,7 +792,6 @@
   .fala-pendente .envio-erro { font-size: 13px; color: var(--ink-2); }
   .fala-pendente .envio-erro .bt.envio-bt { min-height: 44px; font-size: 13px; border: 0; background: none; color: var(--ink); text-decoration: underline; }
 }
-@keyframes esqueleto-pulsa { 50% { opacity: .55; } }
 
 /* NOD-42 (definido em 2026-10-28, protótipo v3): no celular a busca aberta é [✕] ( mascote ⌕ termo 3/4 │ ˄ ˅ ). O ✕ ocupa
    o lugar e o tamanho do ‹; saem o nome do bot e o "desde" (o leitor ouve pelo anúncio); tudo com 44 px. */

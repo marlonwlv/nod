@@ -153,10 +153,12 @@ describe("NOD-381: alvos de 44 px e estados", () => {
     expect(m).toMatch(/\.artefato-acoes \.bt\.link, \.artefato-dialogo \.artefato-acoes \.bt\.sm \{ min-width: 44px; min-height: 44px; \}/);
   });
 
-  it("carregando: o texto continua (leitor de tela e computador) e o esqueleto de três balões vem junto, escondido do leitor", () => {
+  it("carregando (item 5 do chat): no celular também é só o spinner — sem o texto e sem o esqueleto de três balões", () => {
     const html = renderTimeline(null, cenario());
-    expect(html).toContain("carregando conversa…");
-    expect(html).toMatch(/<div class="esqueleto-conversa" aria-hidden="true">(<i[^>]*><\/i>){3}<\/div>/);
+    expect(html).not.toContain("carregando conversa");
+    expect(html).not.toContain("esqueleto-conversa");
+    expect(html).toContain('class="giro-conversa"');
+    expect(css("mobile.css")).not.toContain(".esqueleto-conversa");
   });
 
   it("não enviada no celular: o balão claro sem opacidade (NOD-431) e a linha em 13 px sem o vermelho", () => {
@@ -176,8 +178,7 @@ describe("NOD-381: o computador não muda", () => {
       "@keyframes inicio-segurar { from { transform: none; } to { transform: scale(1.02); } } " +
       "@keyframes inicio-folha { from { transform: translateY(100%); } to { transform: none; } } " +
       ".abrir-bots { display: none; } .cabecalho.so-menu { display: none; } " +
-      ".mais-campo, .pilula-presenca, .esqueleto-conversa { display: none; } .pilula-txt { display: contents; } " +
-      "@keyframes esqueleto-pulsa { 50% { opacity: .55; } } " +
+      ".mais-campo, .pilula-presenca { display: none; } .pilula-txt { display: contents; } " +
       // NOD-449: o aviso do Desfazer sobe do pé no celular (só a consulta usa este nome).
       "@keyframes nl-sobe-c { from { opacity: 0; transform: translateY(8px); } }",
     );

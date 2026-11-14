@@ -215,6 +215,39 @@
   /* O avatar de bot preto (skin encre): no escuro inverte, corpo claro e olhos escuros (web/ds.css). */
   --mascote-preto: #0a0a0c;
   --mascote-preto-olho: #ffffff;
+  /* COP-14 (chat): o fundo do chat, o campo, os balões, o código, o spinner e o balão da pessoa na cor do bot (web/chat.css). */
+  --chat-fundo: #fcfcfc;
+  --chat-superficie: #ffffff;
+  --chat-borda-campo: #1c1c1c29;
+  --chat-borda-campo-foco: #1c1c1c3d;
+  --chat-tinta: #1c1c1c;
+  --chat-tinta-2: #1c1c1cad;
+  --chat-tinta-3: #1c1c1c8f;
+  --chat-icone: #1c1c1c85;
+  --chat-preenchido: #1c1c1c0f;
+  --chat-parar-fundo: #1c1c1c;
+  --chat-parar-quadrado: #ffffff;
+  --chat-codigo-inline: #1c1c1c0a;
+  --chat-codigo-fundo: #ffffff;
+  --chat-codigo-borda: #1c1c1c1f;
+  --chat-sx-pontuacao: #141414eb;
+  --chat-sx-string: #9e94d5;
+  --chat-sx-numero: #206595;
+  --chat-favicon-anel: #1c1c1c0f;
+  --chat-spinner-trilho: #1c1c1c14;
+  --chat-pessoa-tinta: #ffffff;
+  --chat-pessoa-azul: #126fd4;
+  --chat-pessoa-violeta: #7442d1;
+  --chat-pessoa-verde: #0d9655;
+  --chat-pessoa-turquesa: #0d9381;
+  --chat-pessoa-rosa: #c82779;
+  --chat-pessoa-vermelho: #c82532;
+  --chat-pessoa-laranja: #d2550a;
+  --chat-pessoa-ambar: #c2730b;
+  --chat-pessoa-marrom: #86592e;
+  --chat-pessoa-tinta-neutra: #1c1c1c;
+  --chat-brilho-balao: inset 0 .5px 0 #ffffff29, inset 0 -.5px 0 #ffffff29, inset 0 0 0 .5px #1c1c1c0f;
+  --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -317,6 +350,39 @@
     --brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
     --mascote-preto: #f5f5f5;
     --mascote-preto-olho: #121212;
+    /* COP-14 (chat): o fundo do chat, o campo, os balões, o código, o spinner e o balão da pessoa na cor do bot (web/chat.css). */
+    --chat-fundo: #121212;
+    --chat-superficie: #1f1f1f;
+    --chat-borda-campo: #f5f5f524;
+    --chat-borda-campo-foco: #f5f5f53d;
+    --chat-tinta: #f5f5f5;
+    --chat-tinta-2: #f5f5f5a8;
+    --chat-tinta-3: #f5f5f58a;
+    --chat-icone: #f5f5f580;
+    --chat-preenchido: #f5f5f50a;
+    --chat-parar-fundo: #f5f5f5;
+    --chat-parar-quadrado: #121212;
+    --chat-codigo-inline: #f5f5f505;
+    --chat-codigo-fundo: #161616;
+    --chat-codigo-borda: #f5f5f51a;
+    --chat-sx-pontuacao: #d6d6dd;
+    --chat-sx-string: #e394dc;
+    --chat-sx-numero: #f8c762;
+    --chat-favicon-anel: #f5f5f50f;
+    --chat-spinner-trilho: #f5f5f50f;
+    --chat-pessoa-tinta: #f5f5f5;
+    --chat-pessoa-azul: #116dd2;
+    --chat-pessoa-violeta: #7845d7;
+    --chat-pessoa-verde: #0e9f5a;
+    --chat-pessoa-turquesa: #0e9886;
+    --chat-pessoa-rosa: #cf297e;
+    --chat-pessoa-vermelho: #cf2b35;
+    --chat-pessoa-laranja: #cd5309;
+    --chat-pessoa-ambar: #c8770c;
+    --chat-pessoa-marrom: #8c5d31;
+    --chat-pessoa-tinta-neutra: #f5f5f52e;
+    --chat-brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
+    --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
   }
 }
 
@@ -420,6 +486,39 @@
   --brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
   --mascote-preto: #f5f5f5;
   --mascote-preto-olho: #121212;
+  /* COP-14 (chat): o fundo do chat, o campo, os balões, o código, o spinner e o balão da pessoa na cor do bot (web/chat.css). */
+  --chat-fundo: #121212;
+  --chat-superficie: #1f1f1f;
+  --chat-borda-campo: #f5f5f524;
+  --chat-borda-campo-foco: #f5f5f53d;
+  --chat-tinta: #f5f5f5;
+  --chat-tinta-2: #f5f5f5a8;
+  --chat-tinta-3: #f5f5f58a;
+  --chat-icone: #f5f5f580;
+  --chat-preenchido: #f5f5f50a;
+  --chat-parar-fundo: #f5f5f5;
+  --chat-parar-quadrado: #121212;
+  --chat-codigo-inline: #f5f5f505;
+  --chat-codigo-fundo: #161616;
+  --chat-codigo-borda: #f5f5f51a;
+  --chat-sx-pontuacao: #d6d6dd;
+  --chat-sx-string: #e394dc;
+  --chat-sx-numero: #f8c762;
+  --chat-favicon-anel: #f5f5f50f;
+  --chat-spinner-trilho: #f5f5f50f;
+  --chat-pessoa-tinta: #f5f5f5;
+  --chat-pessoa-azul: #116dd2;
+  --chat-pessoa-violeta: #7845d7;
+  --chat-pessoa-verde: #0e9f5a;
+  --chat-pessoa-turquesa: #0e9886;
+  --chat-pessoa-rosa: #cf297e;
+  --chat-pessoa-vermelho: #cf2b35;
+  --chat-pessoa-laranja: #cd5309;
+  --chat-pessoa-ambar: #c8770c;
+  --chat-pessoa-marrom: #8c5d31;
+  --chat-pessoa-tinta-neutra: #f5f5f52e;
+  --chat-brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
+  --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
 }
 
 /* =====================================================================================
