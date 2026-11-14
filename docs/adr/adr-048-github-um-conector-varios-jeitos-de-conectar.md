@@ -88,8 +88,16 @@ pessoa faz.
   O `aguardar` do proxy só responde "decidida" quando os itens da máquina têm desfecho, e a fala "Fiz
   sem perguntar" sai no relato, sem retomada.
 - **Modo local.** O servidor É o Mac e executa na hora, se ele é da dona.
-- **Sem coluna nova.** O estado "aguardando seu Mac" é derivado: decisão decidida, item marcado,
-  `destino.execucao = 'maquina'` e desfecho nulo.
+- **Sem coluna nova.** O estado "aguardando seu Mac" é derivado: decisão decidida com autoridade, item
+  marcado, `destino.execucao = 'maquina'` e desfecho nulo.
+- **Autoridade (NOD-423).** Decisão fechada não é aprovação. Só libera o item a pessoa (`decidida`) ou uma
+  regra de `REGRAS_QUE_AUTORIZAM_ITEM_LOCAL` (`src/domain/autoridade-item-local.ts`): consulta sem decisão,
+  Sempre permitir, Automático, Total e revisor. O Parar do trabalho (`regra:trabalho_parado`), o × do card
+  (`dispensada`) e qualquer regra nova ficam fora (fail-closed): o pull não entrega, o relato atrasado com
+  o id capturado antes é recusado e o varredor não o vira falha. A mesma lista filtra o SQL de
+  `pendentesNaMaquina`, o repositório em memória dos testes e as regras que gravam na trilha na autorização.
+  Limite: o item que o Mac já puxou e rodou antes de o Parar chegar não se desfaz; cancelar esse caso
+  exigiria confirmar com o servidor logo antes do `gh`.
 
 ### Registro sem configuração
 
@@ -177,9 +185,12 @@ Nenhum segredo do nod (`NOD_*`) chega ao gh.
   plano não marca a ferramenta.
 - `tests/unit/conectores-locais/github-rest.test.ts`: o backend REST, incluindo o 301.
 - `tests/unit/conectores-locais/github-nativo.test.ts`: a precedência do servidor e a sonda estática.
+- `tests/unit/domain/autoridade-item-local.test.ts`: a matriz da autoridade (NOD-423) e o fake em paridade.
 - `tests/integration/github-conector.test.ts`, no Postgres com rollback:
   - o plano marca só o GitHub da dona, e os portões são aplicados antes de `executarLocal`;
   - aprovação espera o Mac, é puxada e fecha uma vez; expira em 24 h;
+  - card parado ou dispensado: 0 itens puxados, relato atrasado recusado, varredor sem falha, nenhuma
+    linha `tool_call` (NOD-423); a matriz das regras autorizadoras × parada × regra desconhecida no SQL;
   - "Sempre permitir" espera no `aguardar`;
   - no modo local executa na hora;
   - troca do Composio com acessos migrados; conector manual intocado;
