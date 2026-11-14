@@ -3845,8 +3845,10 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   avisador.reiniciar();
   canalAvisos.contador(0);
   deepLink.novaSessao();
-  ambienteBanco = await api.ambiente();
+  // Leva 2 (ADR-181): a sessão entra na hora e a primeira passada já sai; o ambiente do banco (o selo "Efêmero" da barra
+  // no modo dev) chega depois e só redesenha — antes era uma ida e volta inteira antes de qualquer coisa aparecer.
   dispatch({ tipo: "sessao", escopo });
+  void api.ambiente().then((a) => { ambienteBanco = a; renderNoQuadro(); }, () => undefined);
   void api.preferencias().then((p) => {
     if (p.usoDoMac) dispatch({ tipo: "uso-do-mac", uso: p.usoDoMac });
     atualizarModoNoComposer();

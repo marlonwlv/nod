@@ -148,9 +148,18 @@ async function pedir<T>(metodo: string, url: string, corpo?: unknown, opcoesPedi
 }
 
 /** GET e mutação com chave de idempotência atravessam alguns segundos de servidor fora (web/lib/tentar-de-novo.ts). */
+/**
+ * Leva 2 (ADR-181): toda leitura tem prazo. Um GET pendurado (o Caddy segurando até 5 s na troca azul/verde, um proxy que
+ * não responde) ficava em voo para sempre e, com as leituras por chave, segurava a releitura daquela chave. Vencido, vira
+ * a falha de rede de sempre (`TimeoutError` não é `AbortError`: cai em falhaDeTransporte, é repetido e, no fim, guardado
+ * em pendentesDeRede). O prazo é por tentativa.
+ */
+export const PRAZO_GET_MS = 10_000;
+
 function pedirDeNovoSeCair<T>(metodo: string, url: string, corpo?: unknown, chave?: string): Promise<T> {
-  if (!podeRepetir(metodo, chave)) return pedir<T>(metodo, url, corpo);
-  return tentarDeNovo(() => pedir<T>(metodo, url, corpo));
+  const comPrazo = () => pedir<T>(metodo, url, corpo, metodo === "GET" && typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(PRAZO_GET_MS) } : {});
+  if (!podeRepetir(metodo, chave)) return comPrazo();
+  return tentarDeNovo(comPrazo);
 }
 
 function subir(url: string, arquivo: File, mime: string, aoProgresso?: (fracao: number) => void): Promise<AnexoMeta> {
