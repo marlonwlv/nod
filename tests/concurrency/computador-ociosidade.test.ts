@@ -241,6 +241,25 @@ describeIntegracao("computador ocioso desliga sozinho; o teto do host é neutro 
     expect(chamadas).toEqual([`parar ${c.id}`]);
   });
 
+  it("D: com a pessoa presente (nod aberto), o ocioso de 20 min não dorme; passou de 4x o limite, dorme; ausente, dorme no limite", async () => {
+    const c = await linha();
+    const listarPessoas = async () => [{ tenantId: srv.pessoa.tenantId, id: srv.pessoa.pessoaId }];
+    await envelhecer(c.id, 20);
+    expect(await varrerOciosos(srv.db, computadores(), QUINZE_MIN, { listarPessoas }, () => true)).toBe(0);
+    expect(chamadas).toEqual([]);
+    await envelhecer(c.id, 61);
+    expect(await varrerOciosos(srv.db, computadores(), QUINZE_MIN, { listarPessoas }, () => true)).toBe(1);
+    expect(chamadas).toEqual([`parar ${c.id}`]);
+  });
+
+  it("D: ausente (ninguém no stream), dorme no limite de sempre", async () => {
+    const c = await linha();
+    const listarPessoas = async () => [{ tenantId: srv.pessoa.tenantId, id: srv.pessoa.pessoaId }];
+    await envelhecer(c.id, 20);
+    expect(await varrerOciosos(srv.db, computadores(), QUINZE_MIN, { listarPessoas }, () => false)).toBe(1);
+    expect(chamadas).toEqual([`parar ${c.id}`]);
+  });
+
   it("o teto do host: a ferramenta diz os números e a saúde não anda nem zera", async () => {
     const c = await linha();
     await envelhecer(c.id, 20);

@@ -1,3 +1,4 @@
+import type { FaseDoBloco } from "../../contracts/evento-stream.ts";
 import { randomBytes } from "node:crypto";
 import { traceparentDoTurno } from "../../domain/traceparent.ts";
 import type { FluxoVivo } from "./computador.ts";
@@ -108,6 +109,8 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
    * se o servidor de fato esqueceu a máquina, a própria rota de inventário responde 409 e só então cai no `conectar`.
    */
   let conectado = false;
+  /** C1: o servidor não tem a rota do long-poll da mensagem (antigo); o laço fica na checagem de sempre. */
+  let semAguardar = false;
   /**
    * Revisão do PR #291: a reconexão do 409 em voo. Com o pool de laços, os turnos vivos recebem 409 juntos depois do
    * reinício; todos esperam a MESMA reconexão em vez de mandar N `conectar` em rajada ao servidor recém-subido.
@@ -196,6 +199,19 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
         // Revisão do PR #295: o 409 do puxar entra na mesma reconexão das renovações (uma `conectar` só por reinício).
         if (e instanceof FalhaPonte && e.codigo === "reconectar" && anuncio) await reconectar(anuncio);
         throw e;
+      }
+    },
+    /**
+     * C1 (2026-11-12): o long-poll da mensagem. Servidor antigo (404) ou falha: `false` na hora, e o laço volta à checagem
+     * de sempre (dorme a checagem e renova). A troca de rede renova a espera (ADR-171), como no puxar.
+     */
+    async aguardarMensagem(turnoId, ms) {
+      if (semAguardar) return false;
+      const token = tokens.get(turnoId);
+      try { return (await chamar<{ chegou?: unknown }>("aguardar", { turnoId, ms }, { rota404: true, renovavel: true, ...(token ? { tokenDeTurno: token } : {}) })).chegou === true; }
+      catch (e) {
+        if (e instanceof FalhaPonte && e.codigo === "rota_ausente") semAguardar = true;
+        return false;
       }
     },
     /**
@@ -453,6 +469,18 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
     ferramenta(turnoId: string, nome: string, id?: string, resumo?: string) {
       const r = resumo ? redigirResumo(resumo, RESUMO_NO_EXECUTOR_MAX) : "";
       trechos.set(turnoId, [...(trechos.get(turnoId) ?? []), { ferramenta: nome, ...(id ? { id } : {}), ...(r ? { resumo: r } : {}) }]);
+      aparar(turnoId);
+    },
+    /**
+     * definido em 2026-11-12 (estado vivo): a fase do bloco que o modelo escreve. Duas fases seguidas sem nada entre elas:
+     * só a mais nova importa (a renovação é de 1 s).
+     */
+    fase(turnoId: string, fase: FaseDoBloco) {
+      const fila = trechos.get(turnoId) ?? [];
+      const ultimo = fila[fila.length - 1];
+      if (ultimo && "fase" in ultimo) fila[fila.length - 1] = { fase };
+      else fila.push({ fase });
+      trechos.set(turnoId, fila);
       aparar(turnoId);
     },
     /** NOD-353: a chamada `id` terminou; `falhou` = tool_result.isError. */

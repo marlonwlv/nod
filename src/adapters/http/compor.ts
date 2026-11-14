@@ -53,6 +53,11 @@ import { contextoAtual } from "../../obs/contexto.ts";
 import { log } from "../../obs/log.ts";
 import { listarTodas } from "../../repositories/pessoas.repo.ts";
 import { criarBarramento, type Barramento } from "../../services/barramento.ts";
+import { criarEstadoVivo } from "../../services/estado-vivo.ts";
+import { sementeDoEstadoVivo } from "../../use-cases/semente-estado-vivo.ts";
+import { comAvisoDeMensagem, criarAvisoDeMensagem } from "../../services/aviso-de-mensagem.ts";
+import { chaveDaMaquina, maquinaNoStream } from "../../domain/computador-vivo.ts";
+import { sinalDoEvento, type SinalDoMotor } from "../../domain/estado-vivo.ts";
 import { criarConectoresVivos, type ConectoresVivos, type ConfigConectorVivo } from "../../services/conectores-vivos.ts";
 import { capturaLigada, criarCapturas } from "../../services/capturas.ts";
 import type { Conector } from "../../contracts/conector.ts";
@@ -425,7 +430,11 @@ export function comporApp(o: OpcoesCompor): App {
   });
 
   // NOD_JUNTAR_DELTAS_MS=0 volta a um frame por pedaço de texto (para medir ou isolar um problema).
-  const barramento = criarBarramento({ juntarDeltasMs: env.NOD_JUNTAR_DELTAS_MS === undefined ? JUNTAR_DELTAS_MS : Math.max(0, Number(env.NOD_JUNTAR_DELTAS_MS) || 0) });
+  // definido em 2026-11-12: o estado vivo por bot decora o barramento — todo frame publicado passa pela projeção.
+  const estadoVivo = criarEstadoVivo(criarBarramento({ juntarDeltasMs: env.NOD_JUNTAR_DELTAS_MS === undefined ? JUNTAR_DELTAS_MS : Math.max(0, Number(env.NOD_JUNTAR_DELTAS_MS) || 0) }), { agora: relogio });
+  // C1 (2026-11-12): o frame que pode trazer fala para a sessão viva acorda o long-poll do laço (aguardarMensagem).
+  const avisoDeMensagem = criarAvisoDeMensagem();
+  const barramento = comAvisoDeMensagem(estadoVivo.barramento, avisoDeMensagem);
   const interruptor = criarInterruptor();
   // revisto em 2026-10-12 (NOD-214): o token que falta na memória (o processo é novo, o turno seguiu na máquina durante o
   // deploy) é procurado pelo hash em `turno_credenciais`, no escopo que o token alega, e só vale com o turno ainda
@@ -732,7 +741,15 @@ export function comporApp(o: OpcoesCompor): App {
    * o do supervisor) e a máquina dela. Desligada: nada disto existe e as rotas `computador/*` da ponte dão 404.
    */
   const computadorNoMotor = !o.computador && env.NOD_COMPUTADORES === "motor";
-  const canalComputador = computadorNoMotor ? criarCanalComputador({ agora: relogio }) : null;
+  // D (2026-11-12): o estado da máquina vai no stream quando muda o que importa (chaveDaMaquina), não a cada foto.
+  const chavesDasMaquinas = new Map<string, string>();
+  const canalComputador = computadorNoMotor ? criarCanalComputador({ agora: relogio, aoEstado: (escopo, maquinaId, relato) => {
+    const dados = maquinaNoStream(maquinaId, relato, barramento.inscritos(escopo.pessoaId) > 0, relogio());
+    const chave = `${escopo.pessoaId}:${chaveDaMaquina(dados)}`;
+    if (chavesDasMaquinas.get(maquinaId) === chave) return;
+    chavesDasMaquinas.set(maquinaId, chave);
+    barramento.publicar(escopo.pessoaId, "computador.estado", dados);
+  } }) : null;
   // NOD-95 (ADR-138): as sessões da tela ao vivo, só com o computador no motor.
   const sessoesVivo = computadorNoMotor ? criarSessoesVivo() : null;
   const driverMotor = canalComputador ? criarDriverMotor({
@@ -810,7 +827,9 @@ export function comporApp(o: OpcoesCompor): App {
     lugarPadraoNaCriacao: computadorNoMotor ? (escopo) => lugarPadrao(ponteHttp.maquinasComComputador(escopo)) : undefined,
     cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave),
     // `saude` (emenda da ADR-037): o computador entrou ou saiu do ar — a web relê a frota só nesse caso.
-    mudou: (escopo, agenteId, saude) => { barramento.publicar(escopo.pessoaId, "computador.mudou", { agenteId, ...(saude ? { saude: true } : {}) }); } });
+    mudou: (escopo, agenteId, saude) => { barramento.publicar(escopo.pessoaId, "computador.mudou", { agenteId, ...(saude ? { saude: true } : {}) }); },
+    // D (2026-11-12): o cursor da ação do bot, efêmero (não grava), para a tela daquele bot.
+    cursor: (escopo, frame) => { barramento.publicar(escopo.pessoaId, "computador.cursor", frame); } });
   if (o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor || provedoresComputador) services.computadores = computadores;
   rodarAposCommit = async (escopo, efeito) => {
     if (efeito.tipo === "desligar_computador") return computadores.desligarExcluido(escopo, efeito.agenteId);
@@ -849,6 +868,7 @@ export function comporApp(o: OpcoesCompor): App {
     useCases,
     executor: () => executorAtual,
     agora: relogio,
+    avisoDeMensagem,
     // NOD-214: a carência do lease só no compartilhado — no modo local o reinício é o nod fechado (ADR-045).
     ...(compartilhado ? { inicioDoProcesso: o.inicioDoProcesso ?? relogio() } : {}),
     listarPessoas: o.listarPessoas,
@@ -977,6 +997,7 @@ export function comporApp(o: OpcoesCompor): App {
     tarefas: (plano, tarefas) => publicarDoPlano(plano, "turno.tarefas", { tarefas }),
     subagentes: (plano, subagentes, principalOcioso) => publicarDoPlano(plano, "turno.subagentes", { subagentes, principalOcioso: principalOcioso === true }),
     fala: (plano) => publicarDoPlano(plano, "turno.fala", {}),
+    fase: (plano, fase) => sinalDoPlano(plano, fase),
     vigia: (plano, aviso) => avisoDoVigia(plano, aviso),
     longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined,
     ...(canalComputador ? { computador: { canal: canalComputador, reconciliar: reconciliarComputador } } : {}),
@@ -1625,7 +1646,12 @@ export function comporApp(o: OpcoesCompor): App {
         return executorAtual;
       },
     }),
-    criarRotaEventos(barramento, { conexoes: conexoesSse }),
+    // Item 5 (2026-11-12): a primeira conexão da pessoa depois do reinício semeia o estado vivo do banco; o que mudar sai em
+    // `agente.estado` logo depois do retrato (o retrato segue síncrono, no mesmo tick da inscrição).
+    criarRotaEventos(barramento, { conexoes: conexoesSse, retrato: (pessoaId, escopo) => {
+      estadoVivo.hidratar(pessoaId, () => dentro(escopo, (d) => sementeDoEstadoVivo(d))).catch((e: unknown) => log("aviso", "estado_vivo_hidratar_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }));
+      return estadoVivo.retrato(pessoaId);
+    } }),
     criarRotaMetricas(),
     criarRotaDev(dentro, {
       get executor() {
@@ -1654,7 +1680,13 @@ export function comporApp(o: OpcoesCompor): App {
       trabalhosVivos.subagentes(plano.turnoId, resumo, haSubagenteTrabalhando(lista));
       dados = { ...dados, subagentes: lista, resumo };
     }
+    // definido em 2026-11-12: a resposta chega inteira (a fala gravada), nunca em pedaços — o texto do modelo continua
+    // virando passo (passos-vivos) e só acende o "compondo" do estado vivo; o `turno.delta` não sai mais à pessoa.
+    if (tipo === "turno.delta") { sinalDoPlano(plano, "texto"); return; }
     barramento.publicar(plano.autoria.conta_de_execucao, tipo, dadosDoFrameDoPlano(plano, dados));
+  }
+  function sinalDoPlano(plano: PlanoTurno, sinal: SinalDoMotor): void {
+    estadoVivo.sinal(plano.autoria.conta_de_execucao, { agenteId: plano.agenteId, turnoId: plano.turnoId, conversaId: plano.conversaId }, sinal);
   }
   // NOD-73: o vigia do turno (só avisa), igual para o app do Mac e o modo servidor — frame e log saem do mesmo lugar.
   const avisoDoVigia = criarAvisoDoVigia((plano, dados) => publicarDoPlano(plano, "turno.vigia", dados));
@@ -1700,6 +1732,8 @@ export function comporApp(o: OpcoesCompor): App {
         if (ev.tipo === "catcher") aoRegistrarCatcher({ turnoId: plano.turnoId, tipo: ev.subtipo, dados: ev.dados });
         // NOD-348 (QA do #508): o laço local manda o mesmo frame da ponte, com o `emUso` da fala viva.
         else { const f = frameVivoDoEvento(ev); if (f) publicarDoPlano(plano, f.tipo, f.dados); }
+        const sinal = sinalDoEvento(ev);
+        if (sinal) sinalDoPlano(plano, sinal);
         tarefasVivas.evento(plano.turnoId, ev);
         subagentesVivos.evento(plano.turnoId, ev);
       },

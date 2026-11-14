@@ -1,4 +1,6 @@
 import type { EstadoDoDono } from "../../contracts/dono.ts";
+import type { FimDoTurnoNoFrame } from "../../contracts/estado-vivo.ts";
+import { fimNoFrame } from "../../domain/estado-vivo.ts";
 import type { KindEvento } from "../../contracts/evento.ts";
 import type { TipoFrame } from "../../contracts/frame.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
@@ -142,7 +144,10 @@ export async function despacharPessoa(conn: Conn, escopo: Escopo, barramento: Ba
     try {
       // ADR-099 (I10, definido em 2026-10-12): o `trabalho.mudou` leva o estado do dono do bot, lido na hora de publicar
       // (depois do commit de quem mudou): a web atualiza a linha do bot sem refazer a lista. Um por bot por passada.
-      const extra = item.tipo === "trabalho_mudou" ? await estadoDoDonoNoFrame(conn, repos, agora, item.dados.agenteId, donos) : item.tipo === "turno_criado" ? await bastidoresNoFrame(conn, repos, item.turnoId, item.dados) : {};
+      const extra = item.tipo === "trabalho_mudou" ? await estadoDoDonoNoFrame(conn, repos, agora, item.dados.agenteId, donos)
+        : item.tipo === "turno_criado" ? await bastidoresNoFrame(conn, repos, item.turnoId, item.dados)
+        : item.tipo === "turno_encerrado" || item.tipo === "turno_interrompido" ? await fimDoTurnoNoFrame(conn, repos, item)
+        : {};
       // conversaId/turnoId do evento vão no frame: é como a web sabe qual conversa reidratar (definido em 2026-09-16, L9).
       barramento.publicar(escopo.pessoaId, frameDoEvento(item.tipo), { ...item.dados, ...extra, kind: item.tipo, eventoId: item.eventoId, conversaId: item.conversaId, turnoId: item.turnoId });
       // NOD-443 (ADR-143): o quadro.mudou vai também a cada pessoa do quadro (o caso de uso põe `membros`). Só o aviso de
@@ -179,6 +184,32 @@ export async function despacharPessoa(conn: Conn, escopo: Escopo, barramento: Ba
     metricas.registrar({ metrica: "outbox_abandonados", tenant_id: escopo.tenantId, pessoa_id: escopo.pessoaId }, await repos.outbox.contarAbandonados());
   }
   return resultado;
+}
+
+/**
+ * definido em 2026-11-12: o fim do turno no frame (FimDoTurnoNoFrame) — desfecho, hora em que assentou (a do evento),
+ * falha classificada e o `id_envio` da fala que o turno leu. Como o estado do dono, a leitura roda num SAVEPOINT: a falha
+ * não segura o frame, que sai sem o `id_envio`.
+ */
+async function fimDoTurnoNoFrame(conn: Conn, repos: ReturnType<typeof criarRepos>, item: { tipo: string; turnoId: string | null; dados: Record<string, unknown>; criadoEm: string }): Promise<Partial<FimDoTurnoNoFrame>> {
+  const tipo = item.tipo === "turno_encerrado" ? "turno.encerrado" : "turno.interrompido";
+  const settledAt = new Date(item.criadoEm).getTime();
+  let idEnvio: string | null = null;
+  if (item.turnoId) {
+    try {
+      await conn`savepoint fim_do_turno`;
+      try {
+        idEnvio = await repos.turnos.idEnvioQueFechou(item.turnoId);
+        await conn`release savepoint fim_do_turno`;
+      } catch (e) {
+        await conn`rollback to savepoint fim_do_turno`;
+        throw e;
+      }
+    } catch (e) {
+      log("aviso", "fim_do_turno_falhou", { turno_id: item.turnoId, erro: e instanceof Error ? e.name : "desconhecido" });
+    }
+  }
+  return fimNoFrame(tipo, item.dados, Number.isFinite(settledAt) ? settledAt : Date.now(), idEnvio) ?? {};
 }
 
 /**

@@ -1,5 +1,7 @@
 import type { TokensTurno } from "./turno.ts";
 
+export type FaseDoBloco = "compondo" | "fim_bloco" | "pensando";
+
 /**
  * Evento já interpretado de uma linha do `--output-format stream-json` (mapa-cli 2026-09-16).
  * Tipos/subtipos desconhecidos viram 'ignorado' em vez de falhar o parser.
@@ -20,6 +22,12 @@ export type EventoStream =
       plugins?: { nome: string; caminho: string }[];
     }
   | { tipo: "delta"; texto: string }
+  /**
+   * definido em 2026-11-12 (estado vivo): a fase do bloco que o modelo escreve, do `stream_event` (`--include-partial-messages`):
+   * `compondo` no content_block_start de texto, `pensando` no de thinking, `fim_bloco` no content_block_stop. No Codex, pelo
+   * início/fim dos itens de mensagem e de raciocínio. Só acende o estado vivo; nunca compõe fala nem passo.
+   */
+  | { tipo: "fase"; fase: FaseDoBloco }
   /**
    * Bloco de texto COMPLETO de uma mensagem do assistente (definido em 2026-09-28). Só compõe a fala no
    * fim do turno (classificarResultado); o texto ao vivo continua saindo dos `delta`, e ninguém publica

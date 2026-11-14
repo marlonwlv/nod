@@ -145,3 +145,31 @@ describe("saudacaoDeBoasVindas", () => {
   expect((await deps.repos.conversas.buscar(data.conversa.id))?.sessaoCli).toBeNull();
   expect(await deps.repos.mensagens.listarDaConversa(data.conversa.id)).toHaveLength(1);
  });
+
+describe("A4: id do bot gerado no cliente e o turno de apresentação (2026-11-12)", () => {
+  const ID = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
+
+  it("cria com o id do cliente; repetir com o mesmo id devolve o mesmo bot, sem eventos nem segunda conversa", async () => {
+    const { deps, banco } = depsEmMemoria();
+    const primeiro = await executar(deps, criarAgente, { dono: "pessoa", id: ID, nome: "Lia" });
+    expect(primeiro.data.agente.id).toBe(ID);
+    expect(primeiro.data.repetido).toBeUndefined();
+    const segundo = await executar(deps, criarAgente, { dono: "pessoa", id: ID.toUpperCase(), nome: "Lia" });
+    expect(segundo.data).toMatchObject({ repetido: true, agente: { id: ID }, conversa: { id: primeiro.data.conversa.id }, mensagem: { id: primeiro.data.mensagem.id } });
+    expect(segundo.events).toEqual([]);
+    expect(banco.agentes.filter((a) => a.id === ID)).toHaveLength(1);
+    expect(banco.conversas.filter((c) => c.agenteId === ID)).toHaveLength(1);
+  });
+
+  it("id que não é UUID é entrada inválida", async () => {
+    const { deps } = depsEmMemoria();
+    await esperarErro(() => criarAgente(deps, { dono: "pessoa", id: "meu-bot" }), "entrada_invalida");
+  });
+
+  it("id de um bot excluído não ressuscita nem duplica: id em uso", async () => {
+    const { deps, banco } = depsEmMemoria();
+    await executar(deps, criarAgente, { dono: "pessoa", id: ID });
+    banco.agentes.find((a) => a.id === ID)!.excluidoEm = 1;
+    await esperarErro(() => criarAgente(deps, { dono: "pessoa", id: ID }), "entrada_invalida");
+  });
+});

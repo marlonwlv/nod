@@ -55,8 +55,11 @@ export function criarRotasAgentes(d: DepsRotas, prontosPorMaquina?: (escopo: Esc
       padrao: /^\/agentes$/,
       async handler(ctx) {
         const corpo = corpoObjeto(await ctx.corpo());
-        const r = await executar(ctx.escopo, EXECUTORES_BOTS["bots.criar"], { dono: corpo.dono as DonoAgente, interativo: corpo.interativo === true, nome: textoOpcional(corpo.nome), titulo: textoOpcional(corpo.titulo), descricao: textoOpcional(corpo.descricao), modelo: textoOpcional(corpo.modelo), harness: corpo.harness as PreferenciaHarness | undefined, ...aparenciaDoCorpo(corpo) });
-        ctx.json(201, r);
+        // A4 (2026-11-12): `id` do cliente (idempotente: a repetição volta 200 com `repetido`) e `apresentar` (o bot fala primeiro).
+        const r = await executar(ctx.escopo, EXECUTORES_BOTS["bots.criar"], { dono: corpo.dono as DonoAgente, interativo: corpo.interativo === true, nome: textoOpcional(corpo.nome), titulo: textoOpcional(corpo.titulo), descricao: textoOpcional(corpo.descricao), modelo: textoOpcional(corpo.modelo), harness: corpo.harness as PreferenciaHarness | undefined,
+          harness: corpo.harness as PreferenciaHarness | undefined, ...aparenciaDoCorpo(corpo),
+          ...(corpo.id !== undefined ? { id: corpo.id as string } : {}), ...(corpo.apresentar === true ? { apresentar: true, ...(d.executor ? { executor: d.executor } : {}), ...(d.prazoDecisaoMs ? { prazoMs: d.prazoDecisaoMs } : {}) } : {}) });
+        ctx.json(r.repetido ? 200 : 201, r);
       },
     },
     {

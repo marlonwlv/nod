@@ -592,6 +592,62 @@ describe("sessão viva no laço (ADR-067)", () => {
     await laco.parar();
   });
 
+  it("C1: com o long-poll da ponte, a mensagem entra pelo aviso (sem a checagem de 3 s) e a fila de antes entra ao abrir a sessão", async () => {
+    const d = driverControlado();
+    const ponte = ponteDaSessao({ fila: ["já estava na fila"] });
+    const espera: { acordar: ((v: boolean) => void) | null } = { acordar: null };
+    let esperas = 0;
+    ponte.aguardarMensagem = async () => { esperas += 1; return new Promise<boolean>((ok) => { espera.acordar = ok; }); };
+    const laco = await cenario(d, ponte);
+    await esperarAte(() => d.recebidas.length === 1);
+    await esperarAte(() => espera.acordar !== null);
+    const antes = ponte.renovacoes.length;
+    // Sem aviso, nada renova (a checagem está em 10^6 ms no cenário).
+    await new Promise((r) => setTimeout(r, 30));
+    expect(ponte.renovacoes.length).toBe(antes);
+    let nova = true;
+    ponte.renovar = ((renovar) => async (p: PedidoRenovar) => {
+      const r = await renovar(p);
+      if (!p.aceitaMensagens || !nova) return r;
+      nova = false;
+      return { ...r, mensagens: ["chegou agora"], mensagensIds: ["m9"] };
+    })(ponte.renovar.bind(ponte));
+    const acordar = espera.acordar!;
+    espera.acordar = null;
+    acordar(true);
+    await esperarAte(() => d.recebidas.length === 2);
+    expect(d.recebidas[1]).toBe(molduraMensagemNoMeio("chegou agora"));
+    expect(esperas).toBeGreaterThanOrEqual(1);
+    d.terminar("feito");
+    await esperarAte(() => ponte.entregas.length === 1);
+    (espera.acordar as ((v: boolean) => void) | null)?.(false);
+    await laco.parar();
+  });
+
+  it("C1: a fala com anexo chega ao adapter com os metadados; o pedido diz `aceitaAnexos` só se o adapter escreve anexo", async () => {
+    const d = driverControlado();
+    const anexos: unknown[] = [];
+    const adapter = (await d.driver.create({} as never)).adapter(planoDeTeste("t1", "x"));
+    const receber = adapter.receberMensagem!.bind(adapter);
+    adapter.receberMensagem = (t, id, a) => { anexos.push(a ?? null); return receber(t, id); };
+    adapter.aceitaAnexosNoMeio = () => true;
+    const meta = { id: "a1", nome: "erro.png", mime: "image/png" as const, tamanho: 3 };
+    // A ponte HTTP não valida a forma: o que vier torto fica de fora.
+    const lixo: typeof meta = JSON.parse('{"lixo":true}');
+    const ponte = ponteDaSessao();
+    ponte.renovar = ((renovar) => async (p: PedidoRenovar) => {
+      const r = await renovar(p);
+      return p.aceitaAnexos && !anexos.length ? { ...r, mensagens: ["olha o print"], mensagensIds: ["m1"], mensagensAnexos: { m1: [meta, lixo] } } : r;
+    })(ponte.renovar.bind(ponte));
+    const laco = await cenario(d, ponte, { checagemMensagensMs: 10 });
+    await esperarAte(() => anexos.length === 1);
+    expect(anexos).toEqual([[meta]]);
+    expect(ponte.renovacoes.some((r) => r.aceitaAnexos === true)).toBe(true);
+    d.terminar("feito");
+    await esperarAte(() => ponte.entregas.length === 1);
+    await laco.parar();
+  });
+
   it("#189: a mensagem escrita na sessão é confirmada pelo id na renovação seguinte, antes da entrega", async () => {
     const d = driverControlado();
     const ponte = ponteDaSessao({ fila: ["e o prazo?"] });

@@ -36,3 +36,24 @@ describe("SSE: sessão revogada fecha o canal", () => {
     expect(texto).toContain("ping");
   });
 });
+
+describe("SSE: retrato do estado vivo ao conectar (2026-11-12)", () => {
+  it("vem logo depois do resumed, sem id:", async () => {
+    const handler = criarHandlerSse(criarBarramento(), { metricas: criarMetricas(), pingMs: 60_000, retrato: () => ({ agentes: [{ agenteId: "a1" }], em: 5 }) });
+    srv = createServer((req, res) => {
+      const ctx = { req, res, escopo: ESCOPO, params: {}, corpo: async () => null, json: () => {} } as unknown as Ctx;
+      void handler(ctx);
+    });
+    await new Promise<void>((r) => srv!.listen(0, "127.0.0.1", () => r()));
+    const { port } = srv.address() as { port: number };
+    const ac = new AbortController();
+    const res = await fetch(`http://127.0.0.1:${port}/`, { signal: ac.signal });
+    const leitor = res.body!.getReader();
+    let texto = "";
+    while (!texto.includes("agentes.estado")) texto += new TextDecoder().decode((await leitor.read()).value);
+    ac.abort();
+    const bloco = texto.split("\n\n").find((b) => b.includes("event: agentes.estado"))!;
+    expect(bloco).toBe(`event: agentes.estado\ndata: ${JSON.stringify({ agentes: [{ agenteId: "a1" }], em: 5 })}`);
+    expect(texto.indexOf("event: resumed")).toBeLessThan(texto.indexOf("event: agentes.estado"));
+  });
+});
