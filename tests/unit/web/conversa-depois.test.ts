@@ -546,11 +546,11 @@ describe("7. a linha da memória", () => {
 });
 
 describe("8. o cabeçalho com uma regra só", () => {
-  it("turno vivo e pedidos juntos: 'Trabalhando · 2 esperam você'; sem turno, 'Aguardando você'", () => {
+  it("a aprovação troca o estado mesmo durante o turno; sem turno, os pedidos seguem aguardando", () => {
     const { e } = cenario([], [pedido("d1"), pedido("d2")]);
     const vivo: Estado = { ...e, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } } };
-    expect(renderCabecalhoConversa(vivo, "a")).toContain("Trabalhando <span class=\"presenca-sep\" aria-hidden=\"true\">·</span> <b>2 esperam você</b>");
-    expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando você<");
+    expect(renderCabecalhoConversa(vivo, "a")).toContain(">Aguardando sua aprovação<");
+    expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando sua aprovação<");
   });
 });
 

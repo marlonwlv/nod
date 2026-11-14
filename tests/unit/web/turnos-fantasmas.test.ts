@@ -57,14 +57,17 @@ describe("mascote: só o turno rodando anima (NOD-216)", () => {
 
   it("rodando anima; um bot nunca anima pelo turno de outra conversa nem pelo de uma task", () => {
     const e = base({ t1: vivo("t1", { estado: "rodando" }), t2: vivo("t2", { conversaId: OUTRA, estado: "rodando" }) });
-    expect(estadoMascoteNaConversa(e, C)).toBe("trabalhando");
+    expect(estadoMascoteNaConversa(e, C)).toBe("pensando");
     expect(estadoMascoteNaConversa(base({ t2: vivo("t2", { conversaId: OUTRA, estado: "rodando" }) }), C)).toBe("disponivel");
     expect(estadoMascoteNaConversa(base({ t3: vivo("t3", { estado: "rodando", trabalhoId: "w1" }) }), C)).toBe("disponivel");
   });
 
-  it("'Sua vez' ganha da fila parada", () => {
-    const e = { ...base({ t1: vivo("t1") }), suaVez: { itens: [{ decisao: { conversaId: C }, estadoColuna: "aberta" }], incidentes: [] } } as unknown as Estado;
-    expect(estadoMascoteNaConversa(e, C)).toBe("aguardando");
+  it("aprovação ganha da fila parada; pergunta não muda o personagem", () => {
+    const item = { decisao: { conversaId: C, tipo: "aprovacao" }, estadoColuna: "pendente" };
+    const e = { ...base({ t1: vivo("t1") }), suaVez: { itens: [item], incidentes: [] } } as unknown as Estado;
+    expect(estadoMascoteNaConversa(e, C)).toBe("aguardando_aprovacao");
+    const pergunta = { ...e, suaVez: { ...e.suaVez!, itens: [{ ...item, decisao: { conversaId: C, tipo: "pergunta" } }] } } as unknown as Estado;
+    expect(estadoMascoteNaConversa(pergunta, C)).toBe("na_fila");
   });
 });
 
@@ -78,14 +81,16 @@ describe("cabeçalho e ao vivo leem a mesma regra do mascote (NOD-216)", () => {
     const cab = renderCabecalhoConversa(comConversa({ t1: vivo("t1") }), "a");
     expect(cab).toContain("Na fila");
     expect(cab).not.toContain("Trabalhando");
-    expect(cab).toContain('data-estado="na_fila"');
+    expect(cab).toContain('data-estado="disponivel"');
+    expect(cab).toContain(" paused");
     expect(cab).not.toContain('presenca ativa');
   });
 
-  it("rodando: 'Trabalhando' e mascote animado (Paper 05: só pensando, o avatar da pílula mostra '···')", () => {
+  it("rodando sem ferramenta: presença Refletindo, mas o cabeçalho fica Parado", () => {
     const cab = renderCabecalhoConversa(comConversa({ t1: vivo("t1", { estado: "rodando" }) }), "a");
-    expect(cab).toContain("Trabalhando");
-    expect(cab).toContain('data-estado="pensando"');
+    expect(cab).toContain("Refletindo");
+    expect(cab).toContain('data-estado="disponivel"');
+    expect(cab).toContain(" paused");
   });
 
   it("o turno de uma task não diz 'Trabalhando' no cabeçalho da conversa", () => {
@@ -213,7 +218,7 @@ describe("revisão do PR #302 (NOD-216)", () => {
 
   it("revisão 4 do #508: proximaViradaDoMascote também acorda quando a fala parada vence os 15 s", () => {
     const e = { ...base({ velho: vivo("velho") }), falasSaindo: { [C]: { k: { turnoId: "t1", em: AGORA - 5000, texto: "x" } } } } as unknown as Estado;
-    expect(proximaViradaDoMascote(e, AGORA)).toBe(AGORA - 5000 + FALA_SAINDO_MS);
+    expect(proximaViradaDoMascote(e, AGORA)).toBe(AGORA - 5000 + 13_000);
     const vencida = { ...e, falasSaindo: { [C]: { k: { turnoId: "t1", em: AGORA - FALA_SAINDO_MS - 1, texto: "x" } } } } as unknown as Estado;
     expect(proximaViradaDoMascote(vencida, AGORA)).toBeNull();
   });
@@ -223,15 +228,15 @@ describe("revisão do PR #302 (NOD-216)", () => {
     expect(invalidacoesAoReconectar(e)).toEqual(["trabalhos", "frota", "nao-lidos", "trabalho:w1"]);
   });
 
-  it("mascoteComAviso: o aviso ganha do mascote parado (disponível ou na fila), nunca do animado", () => {
-    expect(mascoteComAviso("disponivel", "pergunta")).toBe("aguardando");
-    expect(mascoteComAviso("na_fila", "pergunta")).toBe("aguardando");
+  it("mascoteComAviso: pergunta e outros avisos não mudam o personagem", () => {
+    expect(mascoteComAviso("disponivel", "pergunta")).toBe("disponivel");
+    expect(mascoteComAviso("na_fila", "pergunta")).toBe("na_fila");
     expect(mascoteComAviso("trabalhando", "pergunta")).toBe("trabalhando");
     expect(mascoteComAviso("pensando", "pergunta")).toBe("pensando");
     expect(mascoteComAviso("na_fila", null)).toBe("na_fila");
     // A mensagem não lida é o ponto azul, não "aguardando você".
     expect(mascoteComAviso("disponivel", "nao-lido")).toBe("disponivel");
-    expect(mascoteComAviso("disponivel", "decisao")).toBe("aguardando");
+    expect(mascoteComAviso("disponivel", "decisao")).toBe("disponivel");
   });
 
   it("turnosVivosDaConversa reusa o conjunto dos turnos de task da mesma leitura de GET trabalhos", () => {
@@ -250,7 +255,7 @@ describe("QA do PR #302: reload com o bot trabalhando e a conversa dele fechada 
     expect(e.invalidacoes).toContain(`vivos:${OUTRA}`);
     expect(e.invalidacoes).not.toContain(`vivos:${C}`);
     const depois = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(OUTRA, [{ id: "t9", estado: "despachando", desde: AGORA - 60_000, mensagemId: null }]), agora: AGORA });
-    expect(estadoMascoteNaConversa(depois, OUTRA)).toBe("trabalhando");
+    expect(estadoMascoteNaConversa(depois, OUTRA)).toBe("pensando");
     expect(estadoMascoteNaConversa(depois, C)).toBe("disponivel");
     const comFila = reduzir(base(), { tipo: "hidratar-trabalhos", trabalhos: trabalhos([dono("a", { fila: ["t1"] })]), agora: AGORA });
     expect(comFila.invalidacoes).toContain(`vivos:${C}`);

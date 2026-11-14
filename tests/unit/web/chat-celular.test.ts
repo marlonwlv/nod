@@ -55,9 +55,9 @@ describe("NOD-381: o topo da conversa", () => {
     expect(livre).toContain('<span class="pilula-txt"><span class="pilula-nome">Eng 1</span></span>');
     expect(livre).not.toContain("pilula-presenca");
     const ocupado = renderCabecalhoConversa(cenario({ turnosVivos: vivo() }), "a");
-    expect(ocupado).toContain('<span class="pilula-presenca" aria-hidden="true">Trabalhando</span>');
+    expect(ocupado).toContain('<span class="pilula-presenca" aria-hidden="true">Refletindo</span>');
     // O aria-label continua dizendo tudo: a presença visível é só desenho.
-    expect(ocupado).toContain('aria-label="Painel de Eng 1 · Trabalhando"');
+    expect(ocupado).toContain('aria-label="Painel de Eng 1 · Refletindo"');
   });
 
   it("no celular a faixa flutua sem tomar o toque, e a primeira mensagem começa abaixo da pílula (sa + 64)", () => {

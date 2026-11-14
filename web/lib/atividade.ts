@@ -543,21 +543,28 @@ export function linhaAtual(a: AtividadeTurno): string {
  * Mascote: Pensando e Escrevendo ficam atentos (idle + attentif, não `thinking`); ferramenta e frentes, `orbit`.
  */
 export type ChaveDaFala = "pensando" | "escrevendo" | "ferramenta" | "frentes";
-export type EstadoDaFala = { chave: ChaveDaFala; texto: string; mascote: { state: "idle" | "orbit" | "thinking"; expression: "attentif" | null } };
+export type EstadoDaFala = { chave: ChaveDaFala; texto: string; mascote: { state: "thinking" | "working" | "running" | "streaming" | "reading"; expression: null } };
 
-const ATENTO = { state: "idle", expression: "attentif" } as const;
-const FAZENDO = { state: "orbit", expression: null } as const;
+const TRABALHANDO = { state: "working", expression: null } as const;
+const DIGITANDO = { state: "streaming", expression: null } as const;
+const EXECUTANDO = { state: "running", expression: null } as const;
+const LENDO = { state: "reading", expression: null } as const;
 /** Parte 3 do plano "o pensamento no chat" (2026-10-26): pensando é o `thinking` do Bloub (os três pontos), não o repouso atento. */
 const PENSANDO = { state: "thinking", expression: null } as const;
 
 export function estadoDaFala(a: AtividadeTurno | undefined): EstadoDaFala {
-  if (a?.atual.trim()) return { chave: "escrevendo", texto: "Escrevendo", mascote: ATENTO };
-  if (a?.emUso) return { chave: a.emUso.frentes ? "frentes" : "ferramenta", texto: a.emUso.texto, mascote: FAZENDO };
+  if (a?.emUso) {
+    const state = !a.emUso.frentes && /^(Lendo|Buscando|Procurando|Pesquisando|Abrindo|Consultando)\b/.test(a.emUso.texto) ? LENDO
+      : /^(Rodando|Executando|No terminal)\b/i.test(a.emUso.texto) ? EXECUTANDO : TRABALHANDO;
+    return { chave: a.emUso.frentes ? "frentes" : "ferramenta", texto: a.emUso.texto, mascote: state };
+  }
+  if (a?.atual.trim()) return { chave: "escrevendo", texto: "Digitando…", mascote: DIGITANDO };
   return { chave: "pensando", texto: "Pensando", mascote: PENSANDO };
 }
 
 /** Parte 3: quanto duram os disparos únicos do mascote (ms): `wink` quando a fala entra, `comet` quando as frentes saem. */
 export const WINK_MS = 1_700;
+export const FINISHED_MS = 13_000;
 export const COMET_MS = 2_500;
 
 /** Parte 3: as frentes acabaram de sair (o `emUso` com `frentes` nasceu neste frame): o mascote faz `comet` por `COMET_MS`. */

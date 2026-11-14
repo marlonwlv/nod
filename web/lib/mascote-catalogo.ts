@@ -13,8 +13,13 @@ export const FORMAS_BLOUB: Record<FormaAgente, ShapeId> = {
 export const CATALOGO_MASCOTE = {
   idle: { nome: "Repouso", ativo: true, situacao: "Sem turno vivo nem decisão pendente" },
   thinking: { nome: "Pensando", ativo: true, situacao: "Turno na fila" },
-  orbit: { nome: "Trabalhando", ativo: true, situacao: "Turno rodando" },
-  notify: { nome: "Sua vez", ativo: true, situacao: "Decisão não vencida, sem turno vivo" },
+  orbit: { nome: "Órbita", ativo: false, situacao: "Computador do bot iniciando ou conectando" },
+  notify: { nome: "Sua vez", ativo: false, situacao: "Mantido apenas por compatibilidade" },
+  working: { nome: "Trabalhando", ativo: true, situacao: "Turno rodando com ferramenta em uso" },
+  running: { nome: "Executando", ativo: true, situacao: "Comando iniciado no terminal" },
+  streaming: { nome: "Digitando", ativo: true, situacao: "Resposta sendo escrita" },
+  finished: { nome: "Terminou", ativo: true, situacao: "Resposta acabou de entrar" },
+  blocked: { nome: "Aguardando aprovação", ativo: true, situacao: "Aprovação pendente nesta conversa" },
   // Parte 3 do plano "o pensamento no chat" (ADR-129, 2026-10-26): wink, alert e comet entram pela fala viva do chat.
   wink: { nome: "Piscadela", ativo: true, situacao: "A fala do bot acabou de entrar (disparo único no chat)" },
   wide: { nome: "Surpresa", ativo: false, situacao: "Descoberta relevante" },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BotEngine } from "../../../web/vendor/bloub/engine.ts";
-import { STATES, POSES } from "../../../web/vendor/bloub/states.ts";
+import { STATES, POSES, stateAfterElapsed } from "../../../web/vendor/bloub/states.ts";
 import { EXPRESSIONS } from "../../../web/vendor/bloub/expressions.ts";
 import { SHAPES } from "../../../web/vendor/bloub/skins.ts";
 import { CATALOGO_MASCOTE, FORMAS_BLOUB } from "../../../web/lib/mascote-catalogo.ts";
@@ -11,9 +11,7 @@ describe("catálogo original Bloub", () => {
   it("mapeia todos os estados e formas originais sem inventar estados ativos", () => {
     expect(Object.keys(CATALOGO_MASCOTE).sort()).toEqual(STATES.map(s => s.id).sort());
     expect(Object.values(FORMAS_BLOUB).sort()).toEqual(SHAPES.map(s => s.id).sort());
-    // 4 do mapa geral + wink, alert e comet da fala viva do chat (Parte 3 do plano "o pensamento no chat", ADR-129)
-    // + os 4 do personagem da ADR-174 (lendo, comemorando, dormindo, offline).
-    expect(Object.entries(CATALOGO_MASCOTE).filter(([, s]) => s.ativo).map(([id]) => id).sort()).toEqual(["alert", "celebrate", "comet", "idle", "notify", "offline", "orbit", "reading", "sleeping", "thinking", "wink"]);
+    expect(Object.entries(CATALOGO_MASCOTE).filter(([, s]) => s.ativo).map(([id]) => id).sort()).toEqual(["alert", "blocked", "celebrate", "comet", "finished", "idle", "offline", "reading", "running", "sleeping", "streaming", "thinking", "wink", "working"]);
     expect(EXPRESSIONS).toHaveLength(16);
   });
   it("mantém repouso imóvel e sem piscadas em qualquer instante", () => {
@@ -41,5 +39,11 @@ describe("catálogo original Bloub", () => {
     engine.setState("orbit", 1.5);
     engine.setState("notify", 1.7);
     expect(svgMascote(engine.sample(1.8), "interrompido", "#000000")).not.toMatch(/NaN|Infinity/);
+  });
+  it("assenta Executando em Trabalhando aos 2 s e Terminou em Parado aos 13 s", () => {
+    expect(stateAfterElapsed("running", 1.999)).toBe("running");
+    expect(stateAfterElapsed("running", 2)).toBe("working");
+    expect(stateAfterElapsed("finished", 12.999)).toBe("finished");
+    expect(stateAfterElapsed("finished", 13)).toBe("idle");
   });
 });

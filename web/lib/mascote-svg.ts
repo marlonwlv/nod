@@ -1,9 +1,11 @@
 import type { BotFrame } from "../vendor/bloub/engine.ts";
-import { DEMI_VIEWBOX as V, RAYON } from "../vendor/bloub/repere.ts";
+import { RAYON } from "../vendor/bloub/repere.ts";
 import { mixHex } from "../vendor/bloub/skins.ts";
 import { esc } from "./escape.ts";
 
 const PAPEL = "#ffffff";
+/** Corpo de raio 100 em 212 unidades: 94% do quadrado, com decoração livre para transbordar. */
+const V = 106;
 /**
  * A tinta pode ser CSS (`var(--mascote-cor)`), e aí vai em `style`: o elemento não precisa de getComputedStyle para
  * pintar. medido em 2026-09-30: o Chrome 148 também resolve var() em atributo de apresentação (getComputedStyle de um

@@ -89,9 +89,9 @@ export function personagemDoPasso(e: EstadoApresentacao): EstadoMascote {
     case "delegar": return "trabalhando";
     case "funcao": return e.funcao ? "comemorando" : "pensando";
     case "origem": return e.origem ? "comemorando" : "pensando";
-    case "apps": return e.conectando ? "aguardando" : "lendo";
+    case "apps": return e.conectando ? "pensando" : "lendo";
     case "criar": return "disponivel";
-    case "preparando": return e.preparo?.pronto ? "comemorando" : e.preparo?.erro ? "aguardando" : "lendo";
+    case "preparando": return e.preparo?.pronto ? "comemorando" : e.preparo?.erro ? "disponivel" : "lendo";
   }
 }
 
