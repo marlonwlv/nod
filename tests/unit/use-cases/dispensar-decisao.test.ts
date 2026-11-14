@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { criarRotasSuaVez } from "../../../src/adapters/http/rotas/sua-vez.ts";
 import type { Escopo } from "../../../src/shared/types.ts";
 import { dispararRotina, registrarDesfechoRotina } from "../../../src/use-cases/disparar-rotina.ts";
-import { dispensarDecisao, podeDispensar } from "../../../src/use-cases/dispensar-decisao.ts";
+import { dispensarDecisao, podeDispensar, RECUSA_DA_AJUDA } from "../../../src/use-cases/dispensar-decisao.ts";
 import { depsMemoria } from "../../helpers/deps-l7.ts";
 import { PESSOA_ANA, TENANT_PADRAO } from "../../helpers/ids.ts";
 
@@ -148,5 +148,28 @@ describe("dispensar a pergunta do computador (NOD-170)", () => {
     expect(configurarTela).toHaveBeenCalledWith("t1", { controle: "bot", ajuda: null, ajudaDecisaoId: null, atividadeEm: AGORA });
     expect(configurarComputador).not.toHaveBeenCalled();
     expect(registrar).toHaveBeenCalledWith({ computadorId: "p1", telaId: "t1", autor: "pessoa", tipo: "devolver", estado: "concluida" });
+  });
+
+  // Spec D, item 6: "Agora não" no cartão do pedido de ajuda — o bot recebe a recusa numa retomada do turno que pediu.
+  it("'Agora não' no pedido de ajuda aberto retoma o turno com a recusa; outra pergunta dispensada não retoma", async () => {
+    const d = depsMemoria({ agora: () => AGORA });
+    const agente = await d.deps.repos.agentes.criar({ nome: "Vera", dono: "pessoa", forma: "shape-hex", cor: "c-purple", modelo: "claude-haiku-4-5-20251001" });
+    const conversa = await d.deps.repos.conversas.criar({ tipo: "propria", agenteId: agente?.id ?? "" });
+    const turno = await d.deps.repos.turnos.enfileirar({ executor: "catcher", conversaId: conversa?.id ?? "", agenteId: agente?.id ?? "", origem: "conversa", prazoEm: AGORA + 10_000, profundidade: 0, entradaTexto: "entre no portal", entradaConfianca: "confiavel", modelo: "sonnet" });
+    await d.deps.repos.turnos.assentar(turno?.id ?? "", { estado: "concluido" });
+    const criar = (frase: string) => d.deps.repos.decisoes.criar({ tipo: "pergunta", agenteId: agente?.id ?? "", conversaId: conversa?.id ?? "", turnoId: turno?.id ?? null, prazoDecisaoEm: AGORA + DIA, frase });
+    const ajuda = await criar("Abra meu computador para concluir este passo: Entrar no portal");
+    const outra = await criar("qual planilha?");
+    const c1 = { id: "c1", controle: "aguardando_pessoa", ajudaDecisaoId: ajuda?.id };
+    Object.assign(d.deps.repos.computadores, { buscarVinculo: async () => c1, daPessoa: async () => null, travar: async () => c1, configurar: vi.fn(async () => undefined), registrar: vi.fn(async () => undefined) });
+
+    await dispensarDecisao(d.deps, { decisaoId: outra?.id ?? "" });
+    expect(d.banco.turnos.filter((t) => t.origem === "retomada")).toHaveLength(0);
+
+    const r = await dispensarDecisao(d.deps, { decisaoId: ajuda?.id ?? "" });
+    const retomadas = d.banco.turnos.filter((t) => t.origem === "retomada");
+    expect(retomadas).toHaveLength(1);
+    expect(retomadas[0]).toMatchObject({ retomaTurnoId: turno?.id, entradaTexto: RECUSA_DA_AJUDA });
+    expect(r.events.map((e) => e.kind)).toContain("turno_criado");
   });
 });

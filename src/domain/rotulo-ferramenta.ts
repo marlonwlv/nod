@@ -7,6 +7,7 @@ import type { DadosDaAtividade } from "../contracts/frame.ts";
 import { RESUMO_DO_PASSO_MAX } from "../contracts/quadro-comentarios.ts";
 import type { EventoStream } from "../contracts/turno.ts";
 import type { FaseDoBloco } from "../contracts/evento-stream.ts";
+import { rotuloDoComputador } from "./computador.ts";
 import { classeDaFerramenta, nomeCurtoDaFerramenta, redigirResumo, resumoDaFerramenta } from "./resumo-do-passo.ts";
 /**
  * NOD-352 (definido em 2026-10-28): cada ferramenta do nod no passado (etapas, resumo gravado, último passo do subagente)
@@ -234,24 +235,25 @@ const FRENTES = new Set(["abrir_frentes", "mandar_para_frente"]);
 /**
  * NOD-352: o rótulo no presente ("Rodando um comando", "Anotando na memória", "Usando o computador"). Conector e servidor
  * MCP de fora seguem "Usando ‹app›" (o formato da fala viva do Gil, "usando Gmail"); desconhecida é "Usando uma
- * ferramenta"; nunca o id cru nem o nome da IA.
+ * ferramenta"; nunca o id cru nem o nome da IA. D · Computador do bot (item 1): as do computador dizem o que o bot faz na
+ * tela ("Abrindo exemplo.com", "Clicando na tela"), pelo `resumo` do argumento (`rotuloDoComputador`).
  */
-export function rotuloAgora(nomeCli: string): string {
+export function rotuloAgora(nomeCli: string, resumo?: string | null): string {
   const m = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(semIaNoNome(nomeCli));
   if (!m) return de(NATIVAS, nomeCli)?.[1] ?? "Usando uma ferramenta";
   const nome = m[2]!;
   const nod = doNod(nomeCli);
   if (nod) return nod[1];
-  if (nome.startsWith("computador_")) return "Usando o computador";
+  if (nome.startsWith("computador_")) return rotuloDoComputador(nome, resumo);
   if (nome.startsWith("workspace_")) return "Usando a pasta de trabalho";
   if (m[1] === "navegador") return "Usando o navegador";
   if (/__/.test(nome) || m[1] !== "nod") return `Usando ${nomeDaFerramenta(nomeCli)}`;
   return "Usando uma ferramenta";
 }
 
-export function ferramentaEmUso(nomeCli: string): FerramentaEmUso {
+export function ferramentaEmUso(nomeCli: string, resumo?: string | null): FerramentaEmUso {
   const m = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(nomeCli);
-  return { texto: rotuloAgora(nomeCli), frentes: !!m && m[1] === "nod" && FRENTES.has(m[2]!) };
+  return { texto: rotuloAgora(nomeCli, resumo), frentes: !!m && m[1] === "nod" && FRENTES.has(m[2]!) };
 }
 
 /** NOD-353: teto do rótulo da ação, o mesmo no frame ao vivo e no resumo gravado (a troca da viva pela gravada não muda o texto). */
@@ -287,5 +289,5 @@ function comTeto(e: FerramentaEmUso): FerramentaEmUso {
  */
 export function frameDaFerramenta(nomeCli: string, id?: string, resumo?: string | null): Omit<DadosDaAtividade, "seq"> {
   const r = typeof resumo === "string" ? redigirResumo(resumo, RESUMO_DO_PASSO_MAX) : "";
-  return { nome: nomeCli, rotulo: rotuloFerramenta(nomeCli).slice(0, ROTULO_DA_ACAO_MAX), emUso: comTeto(ferramentaEmUso(nomeCli)), ...(id ? { id } : {}), resumo: r || null, classe: classeDaFerramenta(nomeCli), ferramenta: nomeCurtoDaFerramenta(nomeCli) };
+  return { nome: nomeCli, rotulo: rotuloFerramenta(nomeCli).slice(0, ROTULO_DA_ACAO_MAX), emUso: comTeto(ferramentaEmUso(nomeCli, r || null)), ...(id ? { id } : {}), resumo: r || null, classe: classeDaFerramenta(nomeCli), ferramenta: nomeCurtoDaFerramenta(nomeCli) };
 }

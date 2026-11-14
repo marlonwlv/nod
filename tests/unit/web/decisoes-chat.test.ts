@@ -484,18 +484,24 @@ describe("fila honesta: vencidos recolhidos, ×N, prazo por tipo e rótulos em p
     for (const r of [rotulo({ tipo: "expirou_sem_ninguem_ver", em }), rotulo({ tipo: "expirou_com_alguem_ciente", em }), rotulo({ tipo: "decidida", por: "p", em })]) expect(r).not.toContain("_");
   });
 
-  it("aprovação no computador: a ação concreta aparece FORA do 'Ver detalhes'; fora do computador, nada muda", () => {
+  // Spec D, item 5: a ação no computador é o cartão "Computador" (462, raio 24), com a ação crua na caixa mono.
+  it("aprovação no computador: o cartão Computador mostra a ação crua, a frase e os três botões; fora do computador, nada muda", () => {
     const itemAp = (conector: string, texto: string) => ({ tenantId: "t", id: "i", decisaoId: "d", idx: 0, textoOriginal: texto, textoFinal: texto, destino: { conector, ferramenta: "executar", argumentos: { acaoId: "a" } }, selecionado: true, origemSensivel: false, justificativa: null, marcadoPor: null, marcadoEm: null, editadoPor: null, desfecho: null, motivoManual: null });
     const aprovacao = (conector: string, texto: string): Estado => comItens([{ ...item, decisao: { ...item.decisao, tipo: "aprovacao", frase: "Ação no computador do bot" }, itensAprovacao: [itemAp(conector, texto)] }]);
-    const html = renderTimeline(conversa, aprovacao("computador", "Abrir no navegador: https://exemplo.com.br"));
-    expect(html).toContain('<div class="ap-oque">Abrir no navegador: https://exemplo.com.br</div>');
-    // Tela 06: no computador o "Ver detalhes" sai (o texto é só leitura e a ação concreta já está à vista).
+    const html = renderTimeline(conversa, aprovacao("computador", "Abrir no navegador: https://www.exemplo.com.br/guias"));
+    expect(html).toContain('class="decisao cc-cartao');
+    expect(html).toContain('<span class="cc-rotulo">Computador</span>');
+    expect(html).toContain('data-act="decidir-aprovacao-nenhum" data-id="d" title="Negar uma vez" aria-label="Negar uma vez"');
+    expect(html).toContain("<code>navegar · exemplo.com.br/guias</code>");
+    expect(html).toContain('data-act="copiar-texto" data-texto="navegar · exemplo.com.br/guias"');
+    expect(html).toContain("Abre exemplo.com.br no navegador do computador.");
+    expect(html).toContain(">Permitir no resto da tarefa</button>");
+    expect(html).toContain('data-act="decidir-aprovacao" data-id="d">Permitir uma vez</button>');
     expect(html).not.toContain("Ver detalhes");
-    expect(html).toContain("no computador do bot");
-    // A frase já diz tudo: não repete.
-    expect(renderTimeline(conversa, aprovacao("computador", "Ação no computador do bot"))).not.toContain('class="ap-oque"');
-    // Conector editável: o texto continua no campo do disclosure, sem cópia fora que ficaria velha.
-    expect(renderTimeline(conversa, aprovacao("slack", "Avisar o time"))).not.toContain('class="ap-oque"');
+    // Conector editável: o cartão de sempre, com o texto no campo do disclosure.
+    const slack = renderTimeline(conversa, aprovacao("slack", "Avisar o time"));
+    expect(slack).not.toContain("cc-cartao");
+    expect(slack).not.toContain('class="ap-oque"');
   });
 
   it("'Retomar' aberto ganha 'Dispensar' ao lado (ADR-045), sem o × repetindo o gesto; vencido segue com ×", () => {

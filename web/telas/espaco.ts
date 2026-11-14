@@ -10,7 +10,7 @@ import { pilhaDeAvatares } from "./cartao-ia.ts";
 import { renderProvedores } from "./provedores.ts";
 import { botsDaPessoa, renderMaquinas } from "./maquinas.ts";
 import { renderRelatos } from "./relatos.ts";
-import { htmlPainelComputadorDoBot } from "../lib/computador-pessoa.ts";
+import { renderSecaoComputador } from "./config-computador.ts";
 import type { EscolhaTema } from "../lib/tema.ts";
 import { renderConta, renderContaPagina, type DadosConta } from "./config-conta.ts";
 import { iniciaisDeQuem } from "./menu-conta.ts";
@@ -46,6 +46,8 @@ export const SECOES_ESPACO: readonly { id: SecaoEspaco; nome: string; icone: str
   // definido em 2026-10-10 (plano das IAs, protótipo Main): "Conexão" vira "Provedores de IA", com os logos das IAs.
   { id: "conexao", nome: "Provedores de IA", icone: pilhaDeAvatares(true) },
   { id: "maquinas", nome: "Máquinas", icone: ICONE.servidor },
+  // Especificação D, item 7: o computador dos bots, logo depois de Máquinas (o painel que morava embaixo dela).
+  { id: "computador", nome: "Computador", icone: ICONE.laptop },
   { id: "agentes", nome: "Agentes", icone: ICONE.agentes },
   // NOD-85: a agenda das rotinas, depois de Agentes (rotina é o que os agentes fazem sozinhos).
   { id: "rotinas", nome: "Rotinas", icone: ICONE.relogio },
@@ -62,6 +64,7 @@ const ICONE_DA_SECAO: Partial<Record<SecaoEspaco, string>> = {
   geral: IC16('<path d="M6.9 1.8h2.2l.4 1.7 1.3.7 1.6-.6 1.1 1.9-1.3 1.2v1.5l1.3 1.2-1.1 1.9-1.6-.6-1.3.7-.4 1.7H6.9l-.4-1.7-1.3-.7-1.6.6-1.1-1.9 1.3-1.2V7.3L2.5 6.1l1.1-1.9 1.6.6 1.3-.7z"/><circle cx="8" cy="8" r="2"/>'),
   conta: IC16('<circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14a5.2 5.2 0 0110.4 0"/>'),
   maquinas: IC16('<rect x="2" y="2.5" width="12" height="8.5" rx="1.5"/><path d="M6 14h4M8 11v3"/>'),
+  computador: IC16('<rect x="3" y="3.5" width="10" height="7" rx="1.2"/><path d="M1.5 12.5h13"/>'),
   aprovacoes: IC16('<path d="M8 2l5 2v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z"/>'),
   conexao: IC16('<path d="M8 2l1.3 3.7L13 7l-3.7 1.3L8 12l-1.3-3.7L3 7l3.7-1.3z"/>'),
 };
@@ -111,9 +114,9 @@ export function renderEspaco(estado: Estado, avisos: EstadoAvisos, volta: Volta,
   const item = (s: (typeof SECOES_ESPACO)[number]) => `<button type="button" class="espaco-item" data-act="secao-espaco" data-secao="${s.id}"${s.id === secao ? ' aria-current="page"' : ""}>${ICONE_DA_SECAO[s.id] ?? s.icone}<span>${esc(s.id === "conexao" ? "IA" : nomeDaSecao(s, estado))}</span></button>`;
   const porId = (id: SecaoEspaco) => SECOES_ESPACO.find((s) => s.id === id);
   const apps = `<button type="button" class="espaco-item" data-act="navegar" data-tela="conectores">${ICONE_APPS}<span>Apps</span></button>`;
-  const doPaper = (["geral", "conta", "maquinas", "aprovacoes"] as const).map((id) => porId(id)).filter((s) => s !== undefined).map(item).join("") + apps + (["cofre", "conexao"] as const).map((id) => porId(id)).filter((s) => s !== undefined).map(item).join("");
+  const doPaper = (["geral", "conta", "maquinas", "computador", "aprovacoes"] as const).map((id) => porId(id)).filter((s) => s !== undefined).map(item).join("") + apps + (["cofre", "conexao"] as const).map((id) => porId(id)).filter((s) => s !== undefined).map(item).join("");
   // Decisão do Marlon (rodada 2): Agentes, Rotinas e Feedback, que o Paper não desenhou, ficam no fim, num grupo à parte.
-  const resto = SECOES_ESPACO.filter((s) => !["geral", "conta", "maquinas", "aprovacoes", "cofre", "conexao"].includes(s.id)).map(item).join("");
+  const resto = SECOES_ESPACO.filter((s) => !["geral", "conta", "maquinas", "computador", "aprovacoes", "cofre", "conexao"].includes(s.id)).map(item).join("");
   const nav = `${doPaper}<span class="espaco-nav-sep" role="separator"></span>${resto}`;
   return `<div class="espaco cfg-espaco cfg-modal" role="dialog" aria-modal="true" aria-labelledby="espaco-titulo">
     <nav class="espaco-nav" aria-label="Seções das Configurações">
@@ -186,6 +189,8 @@ function conteudo(estado: Estado, secao: SecaoEspaco, avisos: EstadoAvisos, extr
       return renderProvedores(estado);
     case "maquinas":
       return `${renderSecaoMaquinas(estado)}${extras.mac ? htmlAjustesDoMac(extras.mac) : ""}`;
+    case "computador":
+      return renderSecaoComputador(estado, avisoRecriadoDispensado());
     case "agentes":
       return renderAgentes(estado);
     case "aprovacoes":
@@ -199,8 +204,7 @@ function conteudo(estado: Estado, secao: SecaoEspaco, avisos: EstadoAvisos, extr
   }
 }
 
-/** Máquinas: a lista única (com Este Mac e as chaves dentro) e, na v2, o computador do bot. */
+/** Máquinas: a lista única (com Este Mac e as chaves dentro). O computador do bot mora em Computador (especificação D, item 7). */
 function renderSecaoMaquinas(estado: Estado): string {
-  const cb = estado.computadorPessoa ? htmlPainelComputadorDoBot(estado.computadorPessoa, estado.frota?.agentes ?? [], estado.computadorUi, estado.agora, avisoRecriadoDispensado()) : "";
-  return `${renderMaquinas(estado)}${cb}`;
+  return renderMaquinas(estado);
 }

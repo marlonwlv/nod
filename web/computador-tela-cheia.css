@@ -1,0 +1,86 @@
+/*
+ * Card D, itens 3 e 4 (definido em 2026-11-12): o visualizador em tela cheia do computador do bot (web/telas/tela-cheia.ts).
+ * A janela inteira, por cima de tudo, sem scrim, sem padding externo e sem raio; fundo escuro fixo nos dois temas. As cores
+ * são fixas (a tela do bot e a barra de controle são iguais nos dois temas).
+ */
+dialog.ctc { position: fixed; inset: 0; width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-sizing: border-box; background: #141414; color: #fff; overflow: hidden; } /* cor-fixa: o fundo do visualizador, igual nos dois temas */
+dialog.ctc[open] { display: flex; flex-direction: column; }
+dialog.ctc::backdrop { background: transparent; }
+
+/* A barra de 44 px: o espaço dos semáforos à esquerda (88 no app do Mac, 20 na web) e o "Sair da tela cheia" a 10 px da borda. */
+.ctc-topo { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 44px; padding: 0 10px 0 20px; box-sizing: border-box; }
+.ctc.no-mac .ctc-topo { padding-left: 88px; -webkit-app-region: drag; }
+.ctc-fora { margin-right: auto; color: #ffffffa8; font-size: 12px; line-height: 18px; } /* cor-fixa: texto sobre o fundo fixo da tela cheia */
+.ctc-fora[hidden] { display: none; }
+.ctc-sair, .ctc-dev { -webkit-app-region: no-drag; }
+.ctc-sair { display: grid; place-items: center; width: 24px; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 6px; background: none; color: #ffffffd9; cursor: pointer; } /* cor-fixa: sobre o #141414 */
+.ctc-sair:hover { background: #ffffff14; } /* cor-fixa: sobre o #141414 */
+.ctc-sair:focus-visible, .ctc-dev:focus-visible { outline: 2px solid #4ea3f0; outline-offset: 1px; } /* cor-fixa: o --focus-ring do escuro */
+.ctc-dev { height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: #ffffff14; color: #ffffffd9; font: inherit; font-size: 12px; cursor: pointer; } /* cor-fixa: Modo dev, sobre o #141414 */
+
+/* Corpo com padding 8; o palco (1424 × 840 numa janela de 1440 × 900) é um container para o quadro caber nele. */
+.ctc-corpo { flex: 1; min-height: 0; padding: 8px; box-sizing: border-box; }
+.ctc-palco { position: relative; width: 100%; height: 100%; container-type: size; }
+/* O quadro 16:10, o maior que cabe deixando 52 px para a barra, centrado na horizontal e encostado em cima (1261 × 788). */
+.ctc-coluna { --ctc-qw: min(100cqw, (100cqh - 52px) * 16 / 10); position: absolute; top: 0; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; width: var(--ctc-qw); }
+.ctc-quadro { position: relative; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 6px; background: #f5f5f50a; box-shadow: inset 0 0 0 .5px #fcfcfc1a; outline: none; } /* cor-fixa: o quadro da tela */
+.ctc-quadro[hidden] { display: none; }
+.ctc-quadro > .ctc-captura, .ctc-quadro > .ctc-ultimo, .ctc-quadro > .ctc-vivo { position: absolute; inset: 0; }
+.ctc-quadro > .ctc-captura { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; } /* cor-fixa: fundo do VNC */
+.ctc-quadro > .ctc-vivo { overflow: hidden; background: #000; } /* cor-fixa: fundo do VNC */
+.ctc-quadro > .ctc-ultimo { display: grid; place-items: center; overflow: hidden; background: #000; } /* cor-fixa: fundo do VNC */
+.ctc-quadro > [hidden] { display: none; }
+/* Reconectando: o último quadro escurecido a 50 %. */
+.ctc[data-fase="reconectando"] .ctc-ultimo > canvas, .ctc[data-fase="reconectando"] .ctc-captura { filter: brightness(.5); }
+.ctc-quadro[data-estado="controle"] .ctc-captura { cursor: default; }
+.ctc-quadro > .ctc-captura:focus-visible { outline: 2px solid #fff; outline-offset: -3px; } /* cor-fixa: WCAG 2.4.7 sobre a tela do bot */
+
+/* A espera: no centro do palco ("Iniciando desktop"); com o quadro à vista, no centro dele ("Conectando", "Reconectando"). */
+.ctc-espera { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; pointer-events: none; }
+.ctc-espera[hidden] { display: none; }
+.ctc[data-fase="conectando"] .ctc-espera, .ctc[data-fase="reconectando"] .ctc-espera { inset: 0 auto auto 50%; width: min(100cqw, (100cqh - 52px) * 16 / 10); aspect-ratio: 16 / 10; transform: translateX(-50%); }
+.ctc-masc { display: grid; place-items: center; width: 56px; height: 56px; }
+.ctc-masc > nod-mascote { --mascote-cor: #fff; width: 56px; height: 56px; } /* cor-fixa: o personagem branco */
+.ctc-espera-txt {
+  font-size: 13px; line-height: 18px; color: transparent;
+  background: linear-gradient(90deg, #ffffff70 0%, #ffffff70 35%, #ffffffc0 50%, #ffffff70 65%, #ffffff70 100%); /* cor-fixa: o brilho da linha de atividade sobre o escuro */
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
+  animation: ds-shimmer var(--dur-shimmer) linear infinite;
+}
+
+/* ---- A barra de controle (item 4): pílula branca, igual nos dois temas ---- */
+.ctc-barra-lugar:empty { display: none; }
+.ctc-controle { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 36px; padding: 0 4px 0 12px; box-sizing: border-box; border-radius: 9999px; background: #fff; color: #1c1c1c; box-shadow: 0 10px 20px -3px #1c1c1c1a, 0 4px 6px -4px #1c1c1c1a, 0 0 0 1px #1c1c1c01; } /* cor-fixa: a pílula branca nos dois temas */
+.ctc-controle[data-estado="assistindo"], .ctc-controle[data-estado="assumindo"] { width: 248px; }
+.ctc-controle[data-estado="controle"] { width: 236px; }
+.ctc-controle[data-estado="precisa"] { width: auto; gap: 14px; }
+.ctc-acoes { display: flex; align-items: center; gap: 6px; }
+.ctc-ponto { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); flex: none; }
+.ctc-estado { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: .195px; color: #1c1c1cad; } /* cor-fixa: sobre a pílula branca */
+.ctc-controle[data-estado="controle"] .ctc-estado { color: #1c1c1c; } /* cor-fixa: sobre a pílula branca */
+.ctc-estado svg { flex: none; width: 12px; height: 12px; }
+.ctc-bt { position: relative; flex: none; height: 26px; padding: 4px 8px; box-sizing: border-box; border: 0; border-radius: 9999px; font: inherit; font-size: 13px; line-height: 18px; font-weight: 425; white-space: nowrap; cursor: pointer; }
+.ctc-bt:focus-visible { outline: 2px solid #4ea3f0; outline-offset: 2px; } /* cor-fixa: o --focus-ring */
+.ctc-assumir { background: #1c1c1c; color: #fcfcfc; box-shadow: 0 0 0 3px #1c1c1c38, 0 0 14px 3px #1c1c1c2e; } /* cor-fixa: o halo fixo */
+.ctc-assumir:disabled { opacity: .5; cursor: default; }
+.ctc-parar { background: #1c1c1c0f; color: #1c1c1c; } /* cor-fixa: sobre a pílula branca */
+.ctc-parar:hover { background: #1c1c1c1a; } /* cor-fixa: sobre a pílula branca */
+/* O pulso: uma camada por cima do halo fixo, 2400 ms linear, uma vez (um clique novo reinicia pela classe). */
+.ctc-pulso { position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 0 3px #1c1c1c38, 0 0 14px 3px #1c1c1c2e; opacity: 0; pointer-events: none; } /* cor-fixa: o halo */
+.ctc-assumir.pulsando .ctc-pulso { animation: ctc-pulso 2400ms linear 1; }
+@keyframes ctc-pulso {
+  0% { opacity: 0; transform: scale(1, 1); }
+  20% { opacity: 1; transform: scale(1.02, 1.06); }
+  50% { opacity: 0; transform: scale(1.06, 1.2); }
+  70% { opacity: .8; transform: scale(1.02, 1.06); }
+  100% { opacity: 0; transform: scale(1.06, 1.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctc-assumir.pulsando .ctc-pulso { animation: none; }
+  .ctc-espera-txt { animation: none; color: #ffffffc0; background: none; } /* cor-fixa: sobre o escuro */
+}
+@media (forced-colors: active) {
+  .ctc-controle { border: 1px solid CanvasText; }
+  .ctc-quadro { outline: 1px solid CanvasText; }
+}

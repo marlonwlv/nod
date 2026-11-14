@@ -5,11 +5,16 @@ import { criarComputadores } from "../../../src/adapters/fundo/computadores.ts";
 import { FalhaComputador } from "../../../src/domain/computador.ts";
 import type { ResultadoChamada } from "../../../src/use-cases/chamar-ferramenta.ts";
 import { MARLON } from "../use-cases/deps-l5.ts";
-import { criarCapturas } from "../../../src/services/capturas.ts";
 
-// NOD-200 (guardador da captura do turno), sobre a mesma máquina falsa do teste da NOD-161. Os casos de uso de aprovação e de pedir à pessoa não são o assunto aqui — só o "aguardar".
+// O computador do bot (aguardar a pessoa, retomar), sobre a mesma máquina falsa do teste da NOD-161. A captura do turno (NOD-200) saiu (D · Computador do bot, decisão b). Os casos de uso de aprovação e de pedir à pessoa não são o assunto aqui — só o "aguardar".
 vi.mock("../../../src/use-cases/pedir-aprovacao.ts", () => ({ pedirAprovacaoComputador: async () => ({ data: { estado: "pendente", decisao_id: "decisao-1" } }) }));
 vi.mock("../../../src/use-cases/pedir-a-pessoa.ts", () => ({ pedirAjudaDoComputador: async () => ({ data: { decisao_id: "decisao-2", estado: "pendente" } }) }));
+/** QA do card D (2026-11-14): a resposta da pessoa na conversa fecha a ajuda; aqui só importa qual decisão fechou. */
+const ajudasFechadas: string[] = [];
+vi.mock("../../../src/use-cases/responder-decisao.ts", () => ({
+  fecharComResposta: async (_d: unknown, i: { decisaoId: string }) => { ajudasFechadas.push(i.decisaoId); return { data: { decisao: { id: i.decisaoId } }, events: [] }; },
+  retomarComResposta: async () => ({ data: { mensagem: {}, turno: null }, events: [] }),
+}));
 
 const AGENTE = "agente-1";
 let computador: Computador;
@@ -29,6 +34,8 @@ let turnoOrigem = "conversa";
 let msgOrigemId: string | null = "msg-1";
 let msgCriadoEm = 2_000;
 let msgAutor: { autor_tipo: "pessoa" | "agente"; autor_id: string } = { autor_tipo: "pessoa", autor_id: MARLON.pessoaId };
+/** Quando o bot pediu ajuda (a decisão aberta). */
+let ajudaCriadaEm = 1_500;
 /** 2ª revisão: o que a retomada grava (controle, registro) e as sessões ao vivo que ela fecha. */
 const registrosTipo: string[] = [];
 const vivoFechado: string[] = [];
@@ -57,13 +64,17 @@ const deps = {
       ocupar: async (_id: string, operacao: string, ate: number) => { computador = { ...computador, operacaoId: operacao, ocupadoAte: ate }; },
       liberar: async () => { computador = { ...computador, operacaoId: null, ocupadoAte: null }; },
       registrarSucesso: async () => false,
-      configurar: async (_id: string, ajuste: { controle?: Computador["controle"] }) => { if (ajuste.controle) computador = { ...computador, controle: ajuste.controle }; },
+      configurar: async (_id: string, ajuste: { controle?: Computador["controle"]; ajudaDecisaoId?: string | null }) => {
+        if (ajuste.controle) computador = { ...computador, controle: ajuste.controle };
+        if (ajuste.ajudaDecisaoId !== undefined) computador = { ...computador, ajudaDecisaoId: ajuste.ajudaDecisaoId };
+      },
       buscarAcao: async (id: string) => ({ id, computadorId: computador.id, turnoId: "turno-1", estado: "pendente", argumentosCifrados: JSON.stringify({ tipo: "navegar", url: "https://example.com" }) }),
       gravarResultado: async () => {},
       ultimoFreio: async () => (assumiuEm === null ? null : { tipo: freioTipo, em: assumiuEm }),
     },
     turnos: { buscar: async (id: string) => ({ id, estado: "executando", agenteId: AGENTE, ownerId: MARLON.pessoaId, pararSolicitadoEm: null, motivoInterrupcao: null, criadoEm: turnoCriadoEm, origem: turnoOrigem, mensagemOrigemId: msgOrigemId }) },
     mensagens: { buscar: async (id: string) => (id === msgOrigemId ? { id, autoria: msgAutor, criadoEm: msgCriadoEm } : null) },
+    decisoes: { buscar: async (id: string) => ({ id, estado: "pendente", criadoEm: new Date(ajudaCriadaEm).toISOString() }) },
     agentes: { buscar: async () => ({ id: AGENTE, modoAprovacao: "manual" }), execucaoBloqueada: async () => false },
     paradas: { ativa: async () => false },
     events: { gravarComOutbox: async () => {} },
@@ -72,8 +83,7 @@ const deps = {
 
 let agora = 1_700_000_000_000;
 const opcoes = { executor: () => "catcher" as const, dentro: async <T>(_e: unknown, fn: (d: never) => Promise<T>) => fn(deps as never), driver, cifrar: (s: string) => s, decifrar: (s: string) => s, mudou: () => {}, agora: () => agora };
-const computadores = criarComputadores({ ...opcoes, guardarTelas: true, vivo: { fecharDaTela: (_e: unknown, agenteId: string) => { vivoFechado.push(agenteId); } } });
-const semChave = criarComputadores(opcoes);
+const computadores = criarComputadores({ ...opcoes, vivo: { fecharDaTela: (_e: unknown, agenteId: string) => { vivoFechado.push(agenteId); } } });
 
 const plano = (turnoId = "turno-1") => ({
   tenantId: MARLON.tenantId, turnoId, agenteId: AGENTE, conversaId: "conversa-1", expiraEm: Number.MAX_SAFE_INTEGER, confiancaEntrada: "nao_confiavel",
@@ -95,49 +105,16 @@ beforeEach(() => {
   enviadas.length = 0;
   proxima = null;
   assumiuEm = null; freioTipo = "assumir"; turnoCriadoEm = 0; daPessoa = true; turnoOrigem = "conversa"; msgOrigemId = "msg-1"; msgCriadoEm = 2_000; msgAutor = { autor_tipo: "pessoa", autor_id: MARLON.pessoaId };
-  registrosTipo.length = 0; vivoFechado.length = 0;
+  registrosTipo.length = 0; vivoFechado.length = 0; ajudasFechadas.length = 0; ajudaCriadaEm = 1_500;
   agora += 3_600_000; // turnos de um teste não vazam para o outro
 });
 
 const png = (n: number) => Buffer.from(`tela-${n}`).toString("base64");
 
-it("guarda a última tela do turno: a 3ª observação substitui as anteriores", async () => {
-  for (const n of [1, 2, 3]) { tela = { ...tela, imagem: png(n) }; await chamar("computador_observar", {}, "t-subst"); }
-  expect(computadores.ultimaTela("t-subst")).toBe(png(3));
-  expect(computadores.ultimaTela("t-outro")).toBeNull();
-});
-
-it("tela repetida que a dedup omite ao modelo continua sendo a captura guardada", async () => {
-  tela = { ...tela, imagem: png(7) };
-  await chamar("computador_observar", {}, "t-dedup");
-  const segunda = await chamar("computador_observar", {}, "t-dedup");
-  expect(segunda.json.tela.tela_igual_a_anterior).toBe(true);
-  expect(segunda.imagem).toBeUndefined();
-  expect(computadores.ultimaTela("t-dedup")).toBe(png(7));
-});
-
-it("ultimaTela não esquece; esquecerTurno apaga", async () => {
-  await chamar("computador_observar", {}, "t-esquecer");
-  expect(computadores.ultimaTela("t-esquecer")).toBe(tela.imagem);
-  expect(computadores.ultimaTela("t-esquecer")).toBe(tela.imagem);
-  computadores.esquecerTurno("t-esquecer");
-  expect(computadores.ultimaTela("t-esquecer")).toBeNull();
-});
-
-it("não cresce: no máximo 200 turnos (sai o mais antigo) e nada passa de 2 h", async () => {
-  for (let i = 0; i < 201; i++) await chamar("computador_observar", {}, `t-teto-${i}`);
-  expect(computadores.ultimaTela("t-teto-0")).toBeNull();
-  expect(computadores.ultimaTela("t-teto-1")).not.toBeNull();
-  expect(computadores.ultimaTela("t-teto-200")).not.toBeNull();
-  agora += 2 * 60 * 60_000 + 1;
-  expect(computadores.ultimaTela("t-teto-200")).toBeNull();
-});
-
-it("aguardando a pessoa ou resultado com erro não viram captura; a pessoa no controle o bot retoma (29/10)", async () => {
+it("aguardando a pessoa espera; a pessoa no controle o bot retoma (29/10); resultado com erro segue", async () => {
   computador = { ...computador, controle: "aguardando_pessoa" };
   const r = await chamar("computador_observar", {}, "t-aguardando");
   expect(r.json.estado).toBe("aguardando_pessoa");
-  expect(computadores.ultimaTela("t-aguardando")).toBeNull();
   // A pessoa pediu algo ao bot depois de assumir: ele retoma o computador em vez de esperar a devolução, e a ação segue.
   computador = { ...computador, controle: "pessoa" };
   assumiuEm = 1_000; turnoCriadoEm = 2_000;
@@ -148,33 +125,13 @@ it("aguardando a pessoa ou resultado com erro não viram captura; a pessoa no co
   expect(vivoFechado).toEqual([AGENTE]);
   computador = { ...computador, controle: "bot" };
   proxima = { codigoSaida: 1, tela: { quadro: "q", imagem: png(9), largura: 1, altura: 1, url: "", titulo: "", texto: "", abas: [] } } as ResultadoComputador;
-  await chamar("computador_observar", {}, "t-erro");
-  expect(computadores.ultimaTela("t-erro")).toBeNull();
+  const erro = await chamar("computador_observar", {}, "t-erro");
+  expect(erro.isError).toBe(true);
 });
 
-it("a ação executada depois da aprovação nunca grava a captura", async () => {
+it("a ação executada depois da aprovação vai ao computador uma vez", async () => {
   await computadores.executarAprovado({ ...MARLON, agenteId: AGENTE, turnoId: "turno-1", acaoId: "acao-1" });
   expect(enviadas.length).toBe(1);
-  expect(computadores.ultimaTela("turno-1")).toBeNull();
-});
-
-it("sem a chave, o guardador não guarda nada em memória", async () => {
-  await chamar("computador_observar", {}, "t-sem-chave", semChave);
-  expect(semChave.ultimaTela("t-sem-chave")).toBeNull();
-});
-
-it("capturas: desligado é sempre null; ligado lê os bytes sem esquecer (a repetição do assentar acha a mesma) e esquecer apaga", async () => {
-  await chamar("computador_observar", {}, "t-desligado");
-  expect(criarCapturas({ ligado: false, fonte: computadores }).ler("t-desligado")).toBeNull();
-  tela = { ...tela, imagem: png(4) };
-  await chamar("computador_observar", {}, "t-ligado");
-  const capturas = criarCapturas({ ligado: true, fonte: computadores });
-  expect(Buffer.from(capturas.ler("t-ligado") ?? []).toString()).toBe("tela-4");
-  expect(Buffer.from(capturas.ler("t-ligado") ?? []).toString()).toBe("tela-4");
-  capturas.esquecer("t-ligado");
-  expect(capturas.ler("t-ligado")).toBeNull();
-  expect(computadores.ultimaTela("t-ligado")).toBeNull();
-  expect(criarCapturas({ ligado: true }).ler("t-ligado")).toBeNull();
 });
 
 it("revisão do PR #599: com a pessoa no controle, rotina/colega, turno anterior ao assumir ou ajuda aberta seguem esperando", async () => {
@@ -190,7 +147,7 @@ it("revisão do PR #599: com a pessoa no controle, rotina/colega, turno anterior
     ["volta automática (retomada: cota, erro transitório, me-chame-às) criada depois do assumir", () => { turnoOrigem = "retomada"; }],
     ["rotina com daPessoa por engano", () => { turnoOrigem = "rotina"; }],
     ["mensagem anterior ao Parar (assumiu, pediu, o bot retomou, ela parou)", () => { freioTipo = "parar"; assumiuEm = 3_000; }],
-    ["pedido de ajuda do bot aberto", () => { computador = { ...computador, ajudaDecisaoId: "decisao-1" }; }],
+    ["pedido de ajuda do bot aberto depois da mensagem", () => { computador = { ...computador, ajudaDecisaoId: "decisao-1" }; ajudaCriadaEm = 3_000; }],
   ];
   for (const [nome, preparar] of casos) {
     computador = { ...computador, controle: "pessoa", ajudaDecisaoId: null };
@@ -203,6 +160,29 @@ it("revisão do PR #599: com a pessoa no controle, rotina/colega, turno anterior
     expect(enviadas.length, nome).toBe(antes);
     expect(computador.controle, nome).toBe("pessoa");
     expect(vivoFechado, nome).toEqual([]);
+  }
+});
+
+it("QA do card D: a pessoa responde na conversa depois do pedido de ajuda — a ajuda fecha e o bot segue", async () => {
+  for (const controle of ["aguardando_pessoa", "pessoa"] as const) {
+    computador = { ...computador, controle, ajudaDecisaoId: "decisao-2" };
+    ajudaCriadaEm = 1_500; msgCriadoEm = 2_000; assumiuEm = null;
+    ajudasFechadas.length = 0; registrosTipo.length = 0;
+    const r = await chamar("computador_observar", {}, `t-respondeu-${controle}`);
+    expect(r.json.estado, controle).toBeUndefined();
+    expect(computador.controle, controle).toBe("bot");
+    expect(computador.ajudaDecisaoId, controle).toBeNull();
+    expect(ajudasFechadas, controle).toEqual(["decisao-2"]);
+    expect(registrosTipo, controle).toContain("retomar");
+  }
+  // Rotina ou mensagem anterior ao pedido: a ajuda fica aberta e o bot segue esperando.
+  for (const preparar of [() => { turnoOrigem = "rotina"; }, () => { msgCriadoEm = 1_000; }]) {
+    computador = { ...computador, controle: "aguardando_pessoa", ajudaDecisaoId: "decisao-2" };
+    turnoOrigem = "conversa"; msgCriadoEm = 2_000; ajudasFechadas.length = 0;
+    preparar();
+    const r = await chamar("computador_observar", {}, `t-espera-${String(Math.random())}`);
+    expect(r.json.estado).toBe("aguardando_pessoa");
+    expect(ajudasFechadas).toEqual([]);
   }
 });
 

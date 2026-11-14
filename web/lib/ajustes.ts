@@ -27,6 +27,7 @@ export const NOME_DA_SECAO: Record<SecaoEspaco, string> = {
   geral: "Geral",
   conexao: "Provedores de IA",
   maquinas: "Máquinas",
+  computador: "Computador",
   agentes: "Agentes",
   rotinas: "Rotinas",
   aprovacoes: "Aprovações",
@@ -45,6 +46,8 @@ export const AJUSTES: readonly Ajuste[] = [
   { id: "modo-dev", secao: "geral", grupo: "Avançado", titulo: "Modo dev", frase: "Mostre o custo, os tokens e o que foi enviado ao modelo em cada resposta", palavras: ["custo", "tokens", "debug"] },
   { id: "provedores", secao: "conexao", grupo: null, titulo: "Provedores de IA", frase: "Conecte e ordene as contas de IA que seus bots usam", palavras: ["claude", "codex", "modelo", "ia", "conta"] },
   { id: "maquinas", secao: "maquinas", grupo: null, titulo: "Máquinas", frase: "Veja e gerencie os computadores onde seus bots trabalham", palavras: ["mac", "computador", "vm"] },
+  // Especificação D, item 7: o computador dos bots (telas abertas, onde mora, manutenção e logins), depois de Máquinas.
+  { id: "computador", secao: "computador", grupo: null, titulo: "Computador", frase: "Veja as telas dos bots, onde o computador mora, atualize ou saia de todos os sites", palavras: ["computador do bot", "navegador", "tela", "login", "redefinir", "atualizar", "senhas"] },
   { id: "agentes", secao: "agentes", grupo: null, titulo: "Agentes", frase: "Veja todos os seus bots e mude vários de uma vez", palavras: ["bots", "lote"] },
   { id: "rotinas", secao: "rotinas", grupo: null, titulo: "Rotinas", frase: "Veja a agenda de tudo o que roda sozinho", palavras: ["agenda", "cron", "horário"] },
   // ADR-166 (revisor): a seção Aprovações entrou junto com a busca da ADR-167 na integração.

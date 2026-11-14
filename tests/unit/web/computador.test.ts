@@ -63,13 +63,14 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
     expect(tituloDaFalha("limite_de_computadores")).toBe("Este Mac já tem o máximo de computadores ligados");
   });
 
-  // ADR-125 (NOD-349): o "fora do ar" vira o ponto vermelho na aba Computador; Ambiente (Modo dev) só leva ao diálogo.
-  it("painel: fora do ar, a aba Computador ganha o ponto vermelho (e o texto para leitor de tela); respondendo, não — e o cabeçalho fica limpo", () => {
+  // Especificação D, item 2: fora do ar, o cartão Computador diz "Fora do ar desde HH:MM" com "Tentar de novo" no status;
+  // Ambiente (Modo dev) só leva ao diálogo.
+  it("painel: fora do ar, o cartão Computador diz desde quando e traz 'Tentar de novo' no status; respondendo, não — e o cabeçalho fica limpo", () => {
     const dev = (e: Estado): Estado => ({ ...e, modoDev: { ...e.modoDev, ligado: true } });
     const fora = renderDetalhes(comFrota(nina(FORA)));
-    // ADR-167 (Paper 02): o Computador é um bloco da Atividade; o ponto fica no nome dele.
-    expect(fora).toMatch(/Computador de Nina<span class="gvn-ponto" aria-hidden="true"><\/span><span class="sr-only"> \(fora do ar\)<\/span>/);
-    expect(renderDetalhes(comFrota(nina(null)))).not.toContain("gvn-ponto");
+    expect(fora).toContain('data-estado-miniatura="fora"');
+    expect(fora).toMatch(/Fora do ar desde \d\d:\d\d<span class="cpm-sep" aria-hidden="true"> · <\/span><button type="button" class="cpm-tentar" data-act="religar-computador" data-id="a1">Tentar de novo<\/button>/);
+    expect(renderDetalhes(comFrota(nina(null)))).not.toContain("cpm-tentar");
     expect(renderDetalhes({ ...dev(comFrota(nina(FORA))), gaveta: { agenteId: "a1", nivel: { tipo: "ajustes" } } })).toContain(">Computador do bot</span>");
     expect(renderDetalhes({ ...comFrota(nina(FORA)), gaveta: { agenteId: "a1", nivel: { tipo: "ajustes" } } })).not.toContain(">Computador do bot</span>");
     expect(renderCabecalhoConversa(comFrota(nina(FORA)), "a1")).not.toContain("abrir-computador");
@@ -91,18 +92,19 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
     expect(html.indexOf("computador-pilula")).toBeLessThan(html.indexOf("computador-lateral"));
   });
 
-  // ADR-125: a tela saiu do topo da visão geral e mora na aba Computador; Detalhes abre com as rotinas.
-  it("painel: a tela do bot mora na aba Computador (ligado), com Abrir; a Atividade tem o bloco Computador que leva até ela", () => {
+  // Especificação D, item 2 (decisão a): a aba Computador saiu; o cartão da Atividade abre a tela cheia, sem imagem da tela.
+  it("painel: a Atividade tem o cartão Computador, que abre a tela do bot; nenhuma miniatura com imagem", () => {
     const detalhes = renderDetalhes(comFrota(nina(null)));
-    expect(detalhes).toContain('data-act="gaveta-aba" data-aba="computador" data-id="a1"');
+    expect(detalhes).toContain('data-act="abrir-computador" data-id="a1" aria-label="Abrir a tela de Nina"');
+    expect(detalhes).not.toContain('data-aba="computador"');
     expect(detalhes).toContain("<h3>Rotinas</h3>");
     expect(detalhes).toContain("Nenhuma rotina ainda. Peça na conversa, do seu jeito: «todo dia útil às 8, me mande as pautas»");
     const ligado = renderDetalhes(naAbaComputador(comFrota(nina(null)), "ligado"));
-    expect(ligado).toContain('data-tela-bot="a1"');
-    expect(ligado).toContain('data-comp-bot="a1"');
-    expect(ligado).toContain("Tela de Nina");
-    expect(ligado).toContain(">Abrir</span>");
-    expect(ligado).toContain("Ligado · pronto para usar");
+    expect(ligado).not.toContain("data-tela-bot");
+    expect(ligado).not.toContain("tela-preview");
+    expect(ligado).not.toContain("Abrir o computador");
+    expect(ligado).toContain("Computador de Nina");
+    expect(ligado).toContain("Em repouso");
   });
 
   it("painel: a ordem da visão geral é identidade, abas e o painel da aba (Rotinas e a linha Ajustes)", () => {
@@ -112,17 +114,13 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
     expect(ordem).toEqual([...ordem].sort((a, b) => a - b));
   });
 
-  it("painel: dormindo, sem computador e carregando têm cada um o seu texto, sem miniatura", () => {
-    const dormindo = renderDetalhes(naAbaComputador(comFrota(nina(null)), "dormindo"));
-    expect(dormindo).toContain("O computador está dormindo");
-    expect(dormindo).toContain('data-act="computador-acordar"');
-    expect(dormindo).not.toContain('data-tela-bot="a1"');
-    const acordando = renderDetalhes({ ...naAbaComputador(comFrota(nina(null)), "dormindo"), computadorAcao: { agenteId: "a1", tipo: "acordar" } });
-    expect(acordando).toContain("Acordando…");
-    expect(renderDetalhes(naAbaComputador(comFrota(nina(null)), "sem"))).toContain("Nina ainda não tem um computador próprio.");
-    const carregando = renderDetalhes(naAbaComputador(comFrota(nina(null))));
-    expect(carregando).toContain("Vendo o computador…");
-    expect(carregando).toContain('aria-busy="true"');
+  it("painel: dormindo, sem computador e carregando ficam Em repouso, sem miniatura de imagem; ocupado é Ativo", () => {
+    for (const v of ["dormindo", "sem", undefined] as const) {
+      const html = renderDetalhes(naAbaComputador(comFrota(nina(null)), v));
+      expect(html, String(v)).toContain('data-estado-miniatura="repouso"');
+      expect(html, String(v)).not.toContain('data-tela-bot="a1"');
+    }
+    expect(renderDetalhes(naAbaComputador(comFrota(nina(null)), "ocupado"))).toContain('data-estado-miniatura="ativo"');
   });
 
   it("pedido de tela: a frase do servidor vira o motivo do cartão, e outra pergunta não", () => {
@@ -131,18 +129,6 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
     expect(motivoDoPedidoDeTela("Posso arquivar o PR?")).toBeNull();
     expect(htmlCartaoTela("verificar que é humano no LinkedIn", "a1", true)).toContain('data-assumir="1"');
     expect(htmlCartaoTela("verificar que é humano no LinkedIn", "a1", false)).toContain("A tela voltou para o bot.");
-  });
-
-  it("painel: fora do ar, a aba Computador diz o motivo numa linha neutra, com 'Tentar de novo' e 'Abrir computador' (sem cartão vermelho)", () => {
-    const html = renderDetalhes(naAbaComputador(comFrota(nina(FORA))));
-    // NOD-399: o aviso neutro (círculo com "!", sem caixa vermelha).
-    expect(html).toContain('<div class="cp-fora"><div class="cp-erro cp-solto" role="status"><i class="cp-erro-ic" aria-hidden="true">!</i>');
-    expect(html).toContain("o navegador do computador não abriu");
-    expect(html).toContain('data-act="religar-computador"');
-    expect(html).toContain('data-act="abrir-computador"');
-    expect(html).not.toContain("tag-vermelha");
-    expect(renderDetalhes({ ...naAbaComputador(comFrota(nina(FORA))), computadorAcao: { agenteId: "a1", tipo: "religar" } })).toContain("Tentando de novo…");
-    expect(renderDetalhes(naAbaComputador(comFrota(nina(null)), "ligado"))).not.toContain("cp-erro");
   });
 
   it("conversa: a mensagem única é um cartão de estado; depois que o computador volta, fica sem botões", () => {

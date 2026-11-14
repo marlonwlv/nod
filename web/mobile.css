@@ -214,12 +214,9 @@
   .pilula-nome { font-size: 15px; font-weight: 600; line-height: 1.2; }
   .pilula-presenca { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; line-height: 1.2; color: var(--ink-2); }
   .pilula-presenca b { font-weight: 600; }
-  /* A linha do computador do bot fica na base da pílula (como no computador), não na base do véu sobre o chat. */
-  .cabecalho.cabecalho-pilula .pilula-bot:has(> .cb-fio) { position: relative; }
   /* QA: o ponto de presença do computador (interface.css, mais específico) vazava para a pílula do celular; aqui a
      presença é o texto de 12 px, só quando o bot não está disponível. */
   .cabecalho.cabecalho-pilula .pilula-bot .presenca { display: none; }
-  .cabecalho.cabecalho-pilula .pilula-bot > .cb-fio { left: 19px; right: 19px; border-radius: 2px; }
   /* A primeira mensagem começa abaixo da pílula (sa + 52 + 12), e a mensagem destacada também não para embaixo dela. */
   .cabecalho.cabecalho-pilula ~ .timeline-wrap { padding-top: calc(env(safe-area-inset-top) + 64px); scroll-padding-top: calc(env(safe-area-inset-top) + 64px); }
   /* C6 (2026-11-12): sobreposto, como no desktop; a lista não muda de lugar quando o aviso aparece ou some. */
