@@ -37,7 +37,7 @@ import { motivosDaFila } from "./fila-da-tarefa.ts";
 import { pastaDoTrabalho, tituloDoTrabalho } from "../domain/trabalho.ts";
 import { pastaDoBot } from "../domain/nativas.ts";
 import type { Trabalho } from "../contracts/trabalho.ts";
-import { fecharPedidosDeDone, pedirODone, responderPelaDecisao } from "./tarefa-casa.ts";
+import { fecharPedidosDeDone, gravarLinhaDaTarefa, pedirODone, responderPelaDecisao, textoDaLinha } from "./tarefa-casa.ts";
 import { situacaoDasTarefas } from "./situacao-trabalho.ts";
 import { estadoLinha, voltaNaTela } from "../domain/quadro-execucoes.ts";
 import { registrarAvisoDoQuadro, registrarHistoricoComTrilha, type TipoAvisoDoQuadro } from "./trilha-quadro.ts";
@@ -1536,6 +1536,20 @@ async function aplicarNoQuadro(deps: Deps, p: PedidoLote, qSemPrefixo: Quadro, a
   await registrarHistoricoComTrilha(deps, q.id, comMensagem, lote?.id ?? null);
   const atualizado = (await repo.buscar(q.id)) ?? q;
   events.unshift(eventoQuadro(deps, p, atualizado, lote?.id ?? null, tarefaIds));
+  // ADA-240 (ADR-159): a fala produzida pelo turno da tarefa fica na casa dela e não aparece como uma mensagem comum do
+  // chat. Quando o próprio turno conclui uma etapa, deixe no chat uma linha confiável e em tempo real apontando para o
+  // resultado. Sem essa confirmação o bot podia tratar o resultado invisível como se já tivesse sido enviado no chat.
+  const antesDaTarefa = daTarefa ? antesPorId.get(daTarefa) : null;
+  const finalDaTarefa = daTarefa ? gravadas.get(daTarefa) : null;
+  // A ida a `voce` não é resultado: `ligarDecisaoATarefa` grava logo depois a única linha "precisa de você" da ADR-159.
+  // Tratá-la como etapa concluída criaria duas linhas para a mesma pergunta (resultado + precisa).
+  if (autorAgenteId && p.conversaId && antesDaTarefa?.agenteId === autorAgenteId && finalDaTarefa && finalDaTarefa.status !== antesDaTarefa.status && finalDaTarefa.status !== "voce") {
+    const coluna = colunasFinais.find((c) => c.id === finalDaTarefa.status)?.nome;
+    events.push(...(await gravarLinhaDaTarefa(deps, {
+      motivo: "resultado", t: finalDaTarefa, q: atualizado, conversaId: p.conversaId, agenteId: autorAgenteId,
+      texto: textoDaLinha("resultado", codigoDaTarefa(atualizado.prefixo, finalDaTarefa), deQuem, coluna),
+    })));
+  }
   // NOD-415 (ADR-141): o risco de prazo (só com meta e prazo), uma vez por (quadro, meta, prazo).
   const risco = await avisarRiscoDoQuadro(deps, atualizado, finais, importadas);
   if (risco) events.push(risco);
