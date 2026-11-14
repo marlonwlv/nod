@@ -240,6 +240,25 @@ async function pedidoNovoDaPessoa(d: Deps, c: Vaga, plano: { turnoId: string; da
   return freio !== null && msg.criadoEm > freio.em;
 }
 
+/**
+ * definido em 2026-11-14 (QA do card D): a pessoa respondeu na conversa DEPOIS do pedido de ajuda do bot. É o sinal de
+ * que ela resolveu (ex.: leu o QR code pelo celular só assistindo, sem assumir). Sem isto a ajuda ficava aberta, o bot
+ * ouvia "a pessoa está com o computador" e a tela dizia "Assistindo": ninguém sabia como sair. Vale com o controle em
+ * `aguardando_pessoa` ou com a pessoa no controle e a ajuda ainda aberta (assumiu e fechou a tela). Rotina, colega e
+ * mensagem anterior ao pedido seguem esperando.
+ */
+async function respostaDaPessoaAAjuda(d: Deps, c: Vaga, plano: { turnoId: string; daPessoa?: boolean }): Promise<boolean> {
+  if (c.ajudaDecisaoId === null || plano.daPessoa !== true) return false;
+  const turno = await d.repos.turnos.buscar(plano.turnoId);
+  if (!turno || !ORIGENS_DE_PEDIDO.has(turno.origem) || !turno.mensagemOrigemId) return false;
+  const msg = await d.repos.mensagens.buscar(turno.mensagemOrigemId);
+  if (!msg || msg.autoria.autor_tipo !== "pessoa" || msg.autoria.autor_id !== d.escopo.pessoaId) return false;
+  const ajuda = await d.repos.decisoes.buscar(c.ajudaDecisaoId);
+  if (!ajuda || (ajuda.estado !== "pendente" && ajuda.estado !== "reaberta")) return false;
+  // A mensagem guarda epoch ms; a decisão, ISO.
+  return msg.criadoEm > Date.parse(ajuda.criadoEm);
+}
+
 /** NOD-96 PR 4: as operações do portão sobre a vaga, uma implementação por modelo (docker por bot; tela no da pessoa). */
 type Lugar = {
   obter(d: Deps, agenteId: string): Promise<Vaga>;
@@ -1041,12 +1060,23 @@ export function criarComputadores(o: Opcoes) {
         if (!await turnoPermitido(d, plano.turnoId, plano.agenteId)) return negar("parada_ativa");
         const schema = FERRAMENTAS_COMPUTADOR[nome as keyof typeof FERRAMENTAS_COMPUTADOR];
         if (!schema || errosDoSchema(schema, argumentos).length) return negar("args_invalidos");
-        const c = await obter(d, plano.agenteId);
+        let c = await obter(d, plano.agenteId);
         if (!c.habilitado) return negar("capacidade_desligada");
         // definido em 2026-09-24 (emenda da ADR-037): fora do ar, a ferramenta responde na hora — sem
         // Docker, sem reserva. O plano seguinte já sai sem as ferramentas computador_*.
         if (c.indisponivelDesde !== null) return { ok: true, isError: true, conteudo: JSON.stringify(foraDoArParaAgente(c)), confianca: "confiavel" };
         const aguardarPessoa = (): ResultadoChamada => { esquecerObservacao(plano.turnoId, c.id); return { ok: true, conteudo: JSON.stringify({ estado: "aguardando_pessoa", instrucao: "A pessoa está com o computador. Encerre o turno e aguarde a devolução." }), confianca: "confiavel" }; };
+        if (c.controle !== "bot" && (await respostaDaPessoaAAjuda(d, c, plano))) {
+          const decisaoId = c.ajudaDecisaoId!;
+          // Limpa a ajuda antes de fechar a decisão: fecharComResposta recusa a ajuda ainda ligada ao computador.
+          await lugar.configurar(d, c, { controle: "bot", ajuda: null, ajudaDecisaoId: null, atividadeEm: d.agora() });
+          const r = await fecharComResposta(d, { decisaoId, texto: "Respondi na conversa." });
+          if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+          await lugar.registrar(d, c, { turnoId: plano.turnoId, autor: "bot", tipo: "retomar", estado: "concluida" });
+          esquecerObservacao(plano.turnoId, c.id);
+          retomouNaTentativa = c.id;
+          c = { ...c, controle: "bot", ajuda: null, ajudaDecisaoId: null };
+        }
         if (c.controle === "aguardando_pessoa") return aguardarPessoa();
         // Revisão do PR #599 (ADR-037 emendada, ADR-138 §6): a retomada abaixo só vale para o pedido NOVO da pessoa. Um
         // turno de rotina, de colega ou que já corria quando ela assumiu, ou um pedido de ajuda do bot ainda aberto,

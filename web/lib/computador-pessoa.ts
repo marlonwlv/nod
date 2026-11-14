@@ -460,7 +460,7 @@ export function htmlLinhaTelaFechada(tipo: OperacaoLonga, nome: string): string 
 // ---- a tela cheia (card D, item 3 e 4) -------------------------------------------------------------------------------
 
 /** A barra de controle embaixo do quadro. "assumindo" só aparece se o assumir passar de MS_ASSUMINDO_VISIVEL. */
-export type EstadoBarra = "assistindo" | "assumindo" | "controle";
+export type EstadoBarra = "assistindo" | "assumindo" | "controle" | "precisa";
 
 /** Card D, item 4 (definido em 2026-11-12): até isto o assumir não muda nada na barra; depois, "Assumindo…". */
 export const MS_ASSUMINDO_VISIVEL = 300;
@@ -484,7 +484,11 @@ export function esperaParaReconectar(n: number): number {
  */
 export function estadoDaBarra(controle: ControleComputador | undefined, assumindoDesde: number | null, agora: number): EstadoBarra {
   if (controle === "pessoa") return "controle";
-  return assumindoDesde !== null && agora - assumindoDesde >= MS_ASSUMINDO_VISIVEL ? "assumindo" : "assistindo";
+  if (assumindoDesde !== null && agora - assumindoDesde >= MS_ASSUMINDO_VISIVEL) return "assumindo";
+  // definido em 2026-11-14 (QA do card D): com o pedido de ajuda do bot aberto a barra diz que ele espera a pessoa e
+  // oferece "Já resolvi". Antes ela dizia "Assistindo", como se o bot estivesse no controle, e quem resolvia só olhando
+  // (ex.: um QR code lido pelo celular) não tinha como devolver.
+  return controle === "aguardando_pessoa" ? "precisa" : "assistindo";
 }
 
 const svg12 = (corpo: string) => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corpo}</svg>`;
@@ -502,7 +506,9 @@ export function htmlBarraDeControle(nome: string, estado: EstadoBarra): string {
     ? `<span class="ctc-estado">${ICONE_TELA_CHEIA.cursorNaJanela}<span>Você está no controle</span></span><button type="button" class="ctc-bt ctc-parar" data-c="devolver">Parar</button>`
     : estado === "assumindo"
       ? `<span class="ctc-estado" role="status">${ICONE_TELA_CHEIA.olho}<span>Assumindo…</span><span class="sr-only"> ${esc(nome)} termina a ação em curso</span></span><button type="button" class="ctc-bt ctc-assumir" data-c="assumir" disabled aria-disabled="true"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`
-      : `<span class="ctc-estado">${ICONE_TELA_CHEIA.olho}<span>Assistindo</span></span><button type="button" class="ctc-bt ctc-assumir" data-c="assumir"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`;
+      : estado === "precisa"
+        ? `<span class="ctc-estado"><i class="ctc-ponto" aria-hidden="true"></i><span>Precisa de você</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-c="devolver">Já resolvi</button><button type="button" class="ctc-bt ctc-assumir" data-c="assumir"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button></span>`
+        : `<span class="ctc-estado">${ICONE_TELA_CHEIA.olho}<span>Assistindo</span></span><button type="button" class="ctc-bt ctc-assumir" data-c="assumir"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`;
   return `<div class="ctc-controle" data-estado="${estado}" role="group" aria-label="Controle da tela de ${esc(nome)}">${corpo}</div>`;
 }
 

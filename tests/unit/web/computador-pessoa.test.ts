@@ -13,6 +13,7 @@ import {
   htmlPedidoDeTela,
   textoDeEntrou,
   htmlPainelComputadorDoBot,
+  estadoDaBarra,
   htmlBarraDeControle,
   lembrarComputador,
   lerComputadorPessoa,
@@ -133,6 +134,15 @@ describe("gaveta e tela cheia", () => {
     expect(htmlBarraDeControle("Dev 2", "assistindo")).toMatch(/Assistindo[\s\S]*data-c="assumir"[\s\S]*Assumir o controle/);
     expect(htmlBarraDeControle("Dev 2", "assumindo")).toMatch(/Assumindo…[\s\S]*Dev 2 termina a ação em curso[\s\S]*disabled/);
     expect(htmlBarraDeControle("Dev 2", "controle")).toMatch(/Você está no controle[\s\S]*data-c="devolver">Parar/);
+  });
+
+  it("pedido de ajuda aberto: Precisa de você · Já resolvi · Assumir o controle (não Assistindo)", () => {
+    expect(estadoDaBarra("aguardando_pessoa", null, 0)).toBe("precisa");
+    expect(estadoDaBarra("bot", null, 0)).toBe("assistindo");
+    expect(estadoDaBarra("aguardando_pessoa", 0, 10_000)).toBe("assumindo");
+    const html = htmlBarraDeControle("Dev 2", "precisa");
+    expect(html).toMatch(/Precisa de você[\s\S]*data-c="devolver">Já resolvi[\s\S]*data-c="assumir"[\s\S]*Assumir o controle/);
+    expect(html).not.toContain("Assistindo");
   });
 });
 

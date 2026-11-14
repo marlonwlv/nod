@@ -53,6 +53,9 @@ dialog.ctc::backdrop { background: transparent; }
 .ctc-controle { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 36px; padding: 0 4px 0 12px; box-sizing: border-box; border-radius: 9999px; background: #fff; color: #1c1c1c; box-shadow: 0 10px 20px -3px #1c1c1c1a, 0 4px 6px -4px #1c1c1c1a, 0 0 0 1px #1c1c1c01; } /* cor-fixa: a pílula branca nos dois temas */
 .ctc-controle[data-estado="assistindo"], .ctc-controle[data-estado="assumindo"] { width: 248px; }
 .ctc-controle[data-estado="controle"] { width: 236px; }
+.ctc-controle[data-estado="precisa"] { width: auto; gap: 14px; }
+.ctc-acoes { display: flex; align-items: center; gap: 6px; }
+.ctc-ponto { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); flex: none; }
 .ctc-estado { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: .195px; color: #1c1c1cad; } /* cor-fixa: sobre a pílula branca */
 .ctc-controle[data-estado="controle"] .ctc-estado { color: #1c1c1c; } /* cor-fixa: sobre a pílula branca */
 .ctc-estado svg { flex: none; width: 12px; height: 12px; }

@@ -288,7 +288,8 @@ export function abrirTelaCheia(api: Api, agente: AgenteDaTela, opcoes: OpcoesTel
   }
 
   async function devolver(): Promise<void> {
-    if (terminou || !controla()) return;
+    // "Parar" no controle e "Já resolvi" com o pedido de ajuda aberto: os dois devolvem ao bot (o servidor fecha a ajuda).
+    if (terminou || !(controla() || dto?.computador.controle === "aguardando_pessoa")) return;
     vivo?.soVer(true);
     if (dto) dto = { ...dto, computador: { ...dto.computador, controle: "bot" } };
     pintar();
