@@ -177,7 +177,10 @@ export function rotasMaquinas(deps: { dentro: DentroDeTx; vmDoNod?: { planos: Pl
       metodo: "GET",
       padrao: /^\/maquinas$/,
       async handler(ctx) {
-        const { chaves, padraoId, nuvem } = await deps.dentro(ctx.escopo, async (d) => ({ chaves: await d.repos.maquinaTokens.listar(), padraoId: (await d.repos.preferencias.buscar()).maquinaPadraoId ?? null, nuvem: await nuvemDa(d) }));
+        const { chaves, padraoId, nuvem } = await deps.dentro(ctx.escopo, async (d) => {
+          const [chaves, preferencias, nuvem] = await Promise.all([d.repos.maquinaTokens.listar(), d.repos.preferencias.buscar(), nuvemDa(d)]);
+          return { chaves, padraoId: preferencias.maquinaPadraoId ?? null, nuvem };
+        });
         const vivas = new Map((deps.maquinasVivas?.(ctx.escopo) ?? []).map((m) => [m.machineId, m]));
         const maquinas: MaquinaDto[] = chaves.filter((c) => c.revogadaEm === null).map((c) => {
           const viva = vivas.get(c.id);
