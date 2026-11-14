@@ -199,22 +199,34 @@ function recolhivel(m: Mensagem): boolean {
  * frente têm outra origem e seguem recolhidos nela. Fora da rede, só a fala da pessoa sem origem conhecida fica à vista;
  * a escrita no campo da task mora na task (definido em 2026-10-08, revisão W8).
  */
-function falaDaConversaNoChat(m: Mensagem, origens: ReadonlyMap<string, string>): boolean {
+function falaDaConversaNoChat(m: Mensagem, origens: ReadonlyMap<string, string>, turnosPromovidos: ReadonlyMap<string, string>, promocoesEm: ReadonlyMap<string, number>): boolean {
   if (m.kind !== "texto") return false;
   const origem = m.trabalhoId ? origens.get(m.trabalhoId) : undefined;
-  if (origem === "rede") return m.autoria.autor_tipo === "pessoa" || m.origemTurno === "conversa";
+  if (origem === "rede" && m.trabalhoId) {
+    if (m.autoria.autor_tipo === "agente") return m.turnoId === turnosPromovidos.get(m.trabalhoId);
+    const promocaoEm = promocoesEm.get(m.trabalhoId);
+    return m.autoria.autor_tipo === "pessoa" && promocaoEm !== undefined && m.criadoEm <= promocaoEm;
+  }
   return m.autoria.autor_tipo === "pessoa" && origem === undefined;
 }
 
 function unidadesDe(mensagens: readonly Mensagem[], conhecidos: ReadonlyMap<string, TrabalhoDto>): Map<string, Unidade> {
   const unidades = new Map<string, Unidade>();
   const origens = new Map<string, string>();
-  for (const m of mensagens) if (m.payload?.kind === "trabalho_aberto") origens.set(m.payload.trabalhoId, m.payload.origem);
+  const turnosPromovidos = new Map<string, string>();
+  const promocoesEm = new Map<string, number>();
+  for (const m of mensagens) if (m.payload?.kind === "trabalho_aberto") {
+    origens.set(m.payload.trabalhoId, m.payload.origem);
+    if (m.payload.origem === "rede") {
+      if (m.turnoId) turnosPromovidos.set(m.payload.trabalhoId, m.turnoId);
+      promocoesEm.set(m.payload.trabalhoId, m.criadoEm);
+    }
+  }
   // ADR-099 (I2): o lote de frentes abre várias numa linha só.
   for (const m of mensagens) if (m.payload?.kind === "frentes_abertas") for (const f of m.payload.frentes) origens.set(f.trabalhoId, m.payload.origem);
   for (const t of conhecidos.values()) origens.set(t.id, t.origem);
   for (const m of mensagens) {
-    if (!marcada(m) || falaDaConversaNoChat(m, origens)) continue;
+    if (!marcada(m) || falaDaConversaNoChat(m, origens, turnosPromovidos, promocoesEm)) continue;
     // ADR-099 (I7 revista): a retomada entra na unidade da raiz dela — a execução da rotina e o pedido de colega não viram
     // mais trabalho, e a resposta da pessoa, a volta marcada e o retorno das frentes continuam na mesma linha.
     const chave = m.trabalhoId ? `trabalho:${m.trabalhoId}` : m.raiz ? `turno:${m.raiz.turnoId}` : m.turnoId ? `turno:${m.turnoId}` : null;
