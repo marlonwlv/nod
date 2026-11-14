@@ -1,4 +1,5 @@
 import type { TrabalhoDto } from "../../src/contracts/trabalho.ts";
+import type { DonoDto } from "../../src/contracts/dono.ts";
 import type { Estado } from "../estado/reducer.ts";
 import { donoDoBot, esperaNaTela, linhaDoDono, quemPediu, textoDaFila, textoDasEsperas, type EsperaNaTela } from "../lib/dono.ts";
 import { acaoLocal, comAcaoLocal, htmlDasAcoes } from "../lib/esperas-de-colega.ts";
@@ -120,10 +121,28 @@ function esperaNoDono(dono: NonNullable<ReturnType<typeof donoDoBot>>, trabalhoI
  * A pílula do bot, ou null quando não há nada a dizer (o bot livre, ou só "Esperando você", que tem o cartão). Exige o dono
  * do servidor (ADR-099, I10): sem ele, quem chama desenha a faixa de antes.
  */
+/**
+ * Chat (polimento, medido em 13/11 com o Claude): a mensagem que a pessoa acabou de mandar nesta conversa fica ~1 s na
+ * fila do dono antes de o bot começar, e a pílula dizia "1 pedido na fila" acima do campo nesse meio — o protótipo C1/C2b
+ * não tem nada ali (o balão já está na conversa e o indicador entra quando o bot começa), e a pílula entrando e saindo
+ * mexia a altura da conversa duas vezes. Saem da conta os pedidos que são turnos desta conversa; os de colega, de rotina
+ * e de outras conversas continuam.
+ */
+function semPedidosDaConversa(dono: DonoDto, estado: Estado, conversaId: string | null | undefined): DonoDto {
+  const daConversa = (p: DonoDto["fila"][number]): boolean => {
+    const t = estado.turnosVivos[p.turnoId];
+    return !!t && !!conversaId && t.conversaId === conversaId && !t.trabalhoId;
+  };
+  const fila = dono.fila.filter((p) => !daConversa(p));
+  const tirados = dono.fila.length - fila.length;
+  return tirados === 0 ? dono : { ...dono, fila, estado: { ...dono.estado, fila: Math.max(0, dono.estado.fila - tirados) } };
+}
+
 export function pilulaDoBot(estado: Estado, agenteId: string): Pilula | null {
   const bot: Agente | undefined = agente(estado, agenteId);
-  const doServidor = donoDoBot(estado, agenteId, bot?.conversaId);
-  if (!doServidor) return null;
+  const doDono = donoDoBot(estado, agenteId, bot?.conversaId);
+  if (!doDono) return null;
+  const doServidor = semPedidosDaConversa(doDono, estado, bot?.conversaId);
   // NOD-377: o Cobrar e o Desistir que o servidor ainda não releu (a desistida some, a cobrada já diz "cobrado agora").
   const dono = { ...doServidor, esperas: doServidor.esperas.map((x) => comAcaoLocal(x)).filter((x): x is NonNullable<typeof x> => x !== null) };
   const nome = bot?.nome ?? "bot";

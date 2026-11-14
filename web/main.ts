@@ -180,7 +180,7 @@ import { appsQueFaltam } from "./telas/rotina-precisa.ts";
 import { criarConexoes } from "./lib/conexao.ts";
 import type { Proposta } from "../src/contracts/conversa.ts";
 import { criarProgressoNaTela, progressoFechado } from "./telas/progresso-na-fala.ts";
-import { blocosAoVivo, blocosDoHistorico, pensarFechado, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, type BlocoDaTimeline } from "./telas/conversa.ts";
+import { blocosAoVivo, blocosDoHistorico, pensarFechado, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, tomarTrocaDoIndicador, type BlocoDaTimeline } from "./telas/conversa.ts";
 import { criarArtefatosVivos } from "./telas/artefatos-vivos.ts";
 import { criarDiagramasVivos } from "./telas/diagramas-vivos.ts";
 import { instalarDicaDeLink } from "./lib/dica-link.ts";
@@ -1597,6 +1597,20 @@ const relogioDaFala = criarRelogioDaFala(() => {
   trocasPendentes = escreverEstados(aoVivo, agora, PERMANENCIA_MS);
   return escreverTempos(aoVivo, agora) + trocasPendentes + escreverVariantes(aoVivo, agora);
 }, agendarNaJanela, () => document.hidden, () => (trocasPendentes > 0 ? TICK_CURTO_MS : 1000));
+/**
+ * Chat (polimento): o rótulo do indicador que esperava a permanência de 800 ms entra com um `tick` na hora (o relógio do
+ * estado anda e o render refaz o rótulo pelo caminho de sempre). Um agendamento por vez: o mais cedo ganha.
+ */
+let trocaDoIndicador: { em: number; t: number } | null = null;
+function agendarTrocaDoIndicador(em: number | null): void {
+  if (em === null || (trocaDoIndicador && trocaDoIndicador.em <= em)) return;
+  if (trocaDoIndicador) window.clearTimeout(trocaDoIndicador.t);
+  const t = window.setTimeout(() => {
+    trocaDoIndicador = null;
+    dispatch({ tipo: "tick", agora: Date.now() });
+  }, Math.max(0, em - Date.now()) + 16);
+  trocaDoIndicador = { em, t };
+}
 let anuncioPendente = 0;
 const anunciadorDoTurno = criarAnunciador((texto) => {
   const anuncio = document.getElementById("anuncio-turno");
@@ -3040,6 +3054,7 @@ function renderPrincipal(): void {
   // NOD-348: o tempo da fala viva é escrito logo depois do render (a parte trocada nasce vazia) e o anunciador vê o estado novo.
   relogioDaFala.tocar();
   anunciadorDoTurno.observar(falasNaTela());
+  agendarTrocaDoIndicador(tomarTrocaDoIndicador());
   // ADR-083 (#195): a faixa de Trabalhos fica colada em cima do campo, só na conversa e só com trabalho aberto do bot.
   // ADR-099 (parte 5): virou a linha do dono; chat limpo (PR 8): virou a pílula que se alarga, que some com a fala à vista.
   // Depois da timeline (revisão do PR 400): a medida do progresso na fala é a da timeline que acabou de ser desenhada
@@ -3171,6 +3186,16 @@ function partesDaTimeline(): PartesDaTimeline | null {
  * fim. Com o histórico parado, só a parte ao vivo é mexida, e só nela se procura o que guardar: procurar no documento
  * inteiro (dezenas de milhares de nós numa conversa longa) a cada quadro de streaming custava mais que o próprio desenho.
  */
+/**
+ * Chat (polimento, protótipo C2b "passagem para a resposta"): a resposta do bot que acabou de entrar na conversa aberta
+ * sobe 12 px com fade (`.chegou`, web/chat.css), ~100 ms depois de o indicador sair; a fala que a pessoa acabou de mandar
+ * (a pendente) sobe na hora. Só os blocos novos (`regiaoPorBlocos`); abrir a conversa ou carregar o histórico não anima.
+ * A classe é da tela: `morfarDom` a preserva quando a pendente vira a gravada no mesmo nó.
+ */
+function animarChegada(blocos: HTMLElement[]): void {
+  for (const bloco of blocos) for (const b of bloco.querySelectorAll<HTMLElement>(".message.bot:not(.fala-viva) .bubble, .fala-pendente:not([data-envio=\"gravada\"]) .message.you .bubble")) b.classList.add("chegou");
+}
+
 function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: { cascaMuda: boolean; historicoMuda: boolean; aoVivoMuda: boolean }): void {
   const t = estado.tela;
   const timeline = document.getElementById("timeline");
@@ -3199,7 +3224,7 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     esquecerRegiao("timeline-ao-vivo");
   }
   if (partes) {
-    if (muda.historicoMuda) regiaoPorBlocos("timeline-historico", partes.historico);
+    if (muda.historicoMuda) animarChegada(regiaoPorBlocos("timeline-historico", partes.historico));
     if (muda.aoVivoMuda) regiaoPorBlocos("timeline-ao-vivo", partes.aoVivo);
   }
   // O progresso das frentes entra nos lugares da fala antes de reabrir os <details> e de contar as linhas mostradas.

@@ -77,7 +77,7 @@ import { ancorasDoProgresso, comProgressoNaFala, marcadorDoProgresso } from "./p
 import { ancorasDoModo, renderLinhaDoModo } from "./linha-do-modo.ts";
 import { ROTULO_SUGESTAO } from "../lib/rotina-no-chat.ts";
 import { comGrupos } from "./grupos-do-chat.ts";
-import { estadoDoIndicador, rotuloComPermanencia, varianteDaVez, VARIANTES_TRABALHANDO, type EstadoVivoDoBot, type NaTela, type RotuloDoIndicador } from "../lib/estado-do-indicador.ts";
+import { estadoDoIndicador, PERMANENCIA_MS, rotuloComPermanencia, varianteDaVez, VARIANTES_TRABALHANDO, type EstadoVivoDoBot, type NaTela, type RotuloDoIndicador } from "../lib/estado-do-indicador.ts";
 
 /** id → nome (agentes da frota + a pessoa da sessão); id desconhecido cai no genérico, nunca no uuid. */
 export function nomesDe(estado: Estado): Record<string, string> {
@@ -1008,17 +1008,27 @@ export function rotuloDoIndicador(a: AtividadeTurno | undefined, espera: string 
 /** O rótulo na tela por turno, para a permanência de 800 ms (`rotuloComPermanencia`). Sai quando o turno sai. */
 const ROTULO_NA_TELA = new Map<string, NaTela>();
 
+/** Quando o próximo rótulo que espera a permanência pode entrar (o mais cedo dos renders desde a última leitura). */
+const TROCA: { em: number | null } = { em: null };
+
+/** Lê e zera a hora da próxima troca de rótulo; main.ts agenda um render (o `tick`) para ela. */
+export function tomarTrocaDoIndicador(): number | null {
+  const em = TROCA.em;
+  TROCA.em = null;
+  return em;
+}
+
 /**
  * COP-14 (item 2, definido em 2026-11-12): enquanto o bot trabalha, a conversa mostra só uma linha, depois do último balão:
  * o personagem de 28 px e o rótulo do que ele faz agora (`rotuloDoIndicador`), com o brilho que anda em 2,2 s. Nada do
  * texto da resposta aparece antes da hora (o reducer continua juntando o `turno.delta`; a tela não pinta); quando o turno
  * acaba, a linha sai (`saindo`, 140 ms) e a resposta gravada entra inteira, num balão só. O bloco "Pensou por N s · usou N
  * ferramentas" saiu da conversa: o detalhe das ações fica na Atividade do bot.
- * O morph troca só a parte do rótulo, cuja chave leva o id dele: o rótulo novo é um nó novo e entra subindo 4 px; o
- * personagem fica (não reinicia a animação) e só recebe os atributos novos.
+ * O morph mexe só na parte do rótulo, que fica no lugar: só a entrada do indicador sobe 4 px; as trocas escrevem no mesmo
+ * nó. O personagem fica (não reinicia a animação) e só recebe os atributos novos.
  * `parar` fica na assinatura para quem chama: o Parar agora mora no campo de mensagem.
  */
-export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agente: Pick<AgenteDaFala, "id" | "nome" | "cor" | "forma"> | undefined, estado: Estado, _parar: string, saindo?: { em: number; chave: string }): FalaViva {
+export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agente: Pick<AgenteDaFala, "id" | "nome" | "cor" | "forma"> | undefined, estado: Estado, _parar: string, saindo?: { em: number; chave: string; parado?: boolean }): FalaViva {
   const nome = agente?.nome ?? "O agente";
   const agora = estado.agora;
   // Saindo, o rótulo fica o que estava (a linha sai em 140 ms); rodando, a função única diz o estado.
@@ -1026,8 +1036,9 @@ export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agen
   const vivo = retrato && retrato.turnoId === t.turnoId ? estadoVivoDoServidor(retrato) : estadoVivoDoTurno(a, saindo ? null : esperaDaPessoa(estado, t.turnoId), agora);
   const novo = estadoDoIndicador(vivo, agora) ?? VAZIO;
   const { atual, pendente } = saindo && ROTULO_NA_TELA.has(t.turnoId) ? { atual: ROTULO_NA_TELA.get(t.turnoId)!, pendente: null } : rotuloComPermanencia(ROTULO_NA_TELA.get(t.turnoId), novo, agora);
-  if (saindo) ROTULO_NA_TELA.delete(t.turnoId);
-  else {
+  // `parado` (o turno acabou e a resposta ainda vem na releitura): o rótulo congela e continua guardado até o bloco sair.
+  if (saindo && !saindo.parado) ROTULO_NA_TELA.delete(t.turnoId);
+  else if (!saindo) {
     ROTULO_NA_TELA.set(t.turnoId, atual);
     if (ROTULO_NA_TELA.size > 50) ROTULO_NA_TELA.delete(ROTULO_NA_TELA.keys().next().value!);
   }
@@ -1037,14 +1048,18 @@ export function renderFalaViva(t: TurnoVivo, a: AtividadeTurno | undefined, agen
   const partes: { chave: string; html: string }[] = [];
   // NOD-312: o turno que recomeçou sem a sessão diz, no topo, que relê o necessário antes de seguir.
   if (t.motivoRecomeco && !saindo) partes.push({ chave: "recomeco", html: notaDasEtapas(t.motivoRecomeco, agente?.nome ?? null) });
-  // As variantes trocam no lugar pelo relógio da tela (`escreverVariantes`); o rótulo que espera a permanência entra por
-  // ele também (`escreverEstados`, `data-estado-pendente`). A chave da parte leva o id: o rótulo novo é um nó novo e sobe.
+  // As variantes trocam no lugar pelo relógio da tela (`escreverVariantes`): a mesma etapa, o mesmo nó.
   const variantes = r.variantes && r.periodoMs ? ` data-variantes="${esc(r.variantes.join("|"))}" data-periodo="${r.periodoMs}" data-variantes-desde="${atual.desde}"` : "";
-  const espera = pendente ? ` data-estado-pendente="${esc(pendente.texto)}" data-estado-desde="${atual.desde}"` : "";
+  // O rótulo que espera a permanência entra num render na hora certa (`tomarTrocaDoIndicador`, main.ts): o mesmo caminho
+  // de toda troca, sem o relógio escrever o texto novo dentro do nó velho.
+  if (pendente) TROCA.em = Math.min(TROCA.em ?? Infinity, atual.desde + PERMANENCIA_MS);
   const id = r.id.replace(/[^a-z0-9-]+/gi, "-");
-  partes.push({ chave: `rotulo-${id}`, html: `<span class="indicador-rotulo-lugar" data-parte="rotulo-${esc(id)}"${espera}><span class="indicador-rotulo fala-viva-estado${r.brilho ? " brilho" : ""}"${variantes}>${esc(texto)}</span></span>` });
+  // Chat (polimento, como o Grok Bot): o lugar do rótulo fica (`data-no-lugar`) e entra uma vez, esperando o personagem; o
+  // rótulo dentro dele fica enquanto a etapa é a mesma (`data-chave`: variante e tempo trocam no lugar) e é refeito quando a
+  // etapa muda — o novo sobe 4 px em 180 ms, sem o atraso da entrada, e o brilho recomeça com ele.
+  partes.push({ chave: "rotulo", html: `<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado${r.brilho ? " brilho" : ""}" data-chave="${esc(id)}"${variantes}>${esc(texto)}</span></span>` });
   // `saindo` vai na classe (não num atributo): o morph copia a classe da raiz, e o anunciador pula a fala que saiu.
-  const raiz = `message bot fala-viva ao-vivo indicador${saindo ? " saindo" : ""}${agente?.cor ? ` ${esc(agente.cor)}` : ""}`;
+  const raiz = `message bot fala-viva ao-vivo indicador${saindo && !saindo.parado ? " saindo" : ""}${agente?.cor ? ` ${esc(agente.cor)}` : ""}`;
   const mascote: Record<string, string> = { state: r.state, "data-estado": r.mascote, "aria-label": falado, title: falado };
   const htmlDoMascote = agente ? mascoteDaFala(agente, mascote, "sm") : "";
   return {
@@ -1339,9 +1354,15 @@ function blocoDaFalaSaindo(s: FalaSaindo, c: ConversaEstado, estado: Estado, cha
   // COP-14 (item 2): a fala que saiu entra inteira, num balão só, como a gravada vai ficar (sem avatar, sem nome), e a
   // releitura troca uma pela outra sem pulo. A chave é sempre a da fala parada: o indicador (`vivo:`) sai, o balão entra.
   const { texto } = falaNoBalao(s.atividade, true);
-  if (!texto.trim()) return [];
   const id = s.turno.agenteId ?? c.conversa.agenteId;
   const agente = id ? agenteDe(estado, id) : undefined;
+  if (!texto.trim()) {
+    // Chat (polimento): o turno acabou sem texto ao vivo (o normal desde o corte do `turno.delta`): o indicador fica
+    // parado, com a chave da fala viva (o mesmo nó, o mesmo rótulo), até a releitura trazer a resposta.
+    if (!chave.startsWith("vivo:")) return [];
+    const fala = renderFalaViva(s.turno, s.atividade, agente, estado, "", { em: s.em, chave, parado: true });
+    return [{ chave, html: fala.html, morfar: fala.morfar }];
+  }
   const k = chave.startsWith("saindo:") ? chave : `saindo:${chave.slice("vivo:".length)}`;
   const leitor = `<span class="sr-only">Mensagem de ${esc(agente?.nome ?? "o bot")}</span>`;
   return [{ chave: k, html: `<article class="message bot fala-chegou" data-turno="${esc(s.turno.turnoId)}"><div class="bubble-wrap">${leitor}<div class="bubble balao-chega">${textoFormatado(texto, { chave: k })}</div></div></article>` }];
@@ -1366,7 +1387,7 @@ export function renderMensagensAgrupadas(mensagens: Mensagem[], estado: Estado, 
  * `inicio` (QA do PR 4): na troca agrupada, o id da mensagem em que ela entrou (ver `blocoDaLinha`). `tempo` (chat limpo,
  * PR 6): o que os divisores de data precisam do bloco; o bloco sem ele não abre bloco de horário.
  */
-export type BlocoDaTimeline = { chave: string; html: string; inicio?: string; tempo?: TempoDoBloco; morfar?: Morph };
+export type BlocoDaTimeline = { chave: string; html: string; inicio?: string; tempo?: TempoDoBloco; morfar?: Morph; noLugar?: boolean };
 
 /**
  * As mensagens em blocos (revisto em 2026-10-07, #191, chat limpo): `planejarLinhas` (web/telas/linhas-do-chat.ts) diz
@@ -1643,8 +1664,10 @@ export function blocosDoHistorico(c: ConversaEstado, estado: Estado): BlocoDaTim
   const idsDasPropostas = new Set([...abertas.map((p) => p.id), ...expiradas.map((p) => p.id), ...decididos]);
   // Parte 1 do plano "o pensamento no chat": a gravada de uma fala que nasceu pendente fica com a chave do bloco da
   // pendente, e as pendentes entram depois das mensagens (são as mais novas), antes das propostas e das decisões.
-  const chaveDaPendente = (b: BlocoDaTimeline): BlocoDaTimeline => (c.enviadas?.[b.chave] ? { ...b, chave: `pendente:${c.enviadas[b.chave]}` } : b);
-  const pendentes = (c.pendentes ?? []).map((p) => ({ chave: `pendente:${p.idEnvio}`, html: renderFalaPendente(p, c, estado) }));
+  // Chat (polimento): a gravada fica embrulhada como a pendente (`data-envio="gravada"`, sem estilo) e o bloco é levado à
+  // forma nova no mesmo nó (`noLugar`, `morfarDom`): a troca pendente → gravada não recria o balão nem refaz a entrada.
+  const chaveDaPendente = (b: BlocoDaTimeline): BlocoDaTimeline => (c.enviadas?.[b.chave] ? { ...b, chave: `pendente:${c.enviadas[b.chave]}`, html: `<div class="fala-pendente" data-envio="gravada">${b.html}</div>`, noLugar: true } : b);
+  const pendentes = (c.pendentes ?? []).map((p) => ({ chave: `pendente:${p.idEnvio}`, html: renderFalaPendente(p, c, estado), noLugar: true }));
   // NOD-402 (critério 4): a mensagem de bastidores não entra entre as falas do turno da pessoa. As âncoras por posição
   // (`comEncolhidosNaAncora`, `comPedidosAncorados`) leem a MESMA lista reordenada.
   // O turno da pessoa que acabou mas cuja fala final ainda não voltou na releitura (o retrato da fala, `falasSaindo`) ainda

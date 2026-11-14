@@ -89,10 +89,10 @@ describe("a fala viva (COP-14, item 2: só o indicador; a resposta entra inteira
     let antes: ReturnType<typeof vivo> | undefined;
     for (let n = 1; n <= RESPOSTA_LONGA.length; n += 7) {
       const agora = vivo(RESPOSTA_LONGA.slice(0, n));
-      expect(agora.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-digitando"]);
+      expect(agora.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo"]);
       expect(agora.html).not.toMatch(/class="bubble[ "]/);
       expect(agora.html).not.toContain("Fechei");
-      expect(agora.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-digitando"><span class="indicador-rotulo fala-viva-estado">Digitando…</span></span>');
+      expect(agora.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado" data-chave="digitando">Digitando…</span></span>');
       expect(agora.html).toContain('aria-label="Ada está digitando"');
       if (antes) expect(planoDoMorph(antes.morfar, agora.morfar)!.partes.every((p) => p.html === null)).toBe(true);
       antes = agora;
@@ -104,8 +104,8 @@ describe("a fala viva (COP-14, item 2: só o indicador; a resposta entra inteira
   it("com ferramenta, o indicador diz o verbo dela (com brilho); a narração e o pensamento não aparecem", () => {
     const a = comFerramenta(comTexto(ATIVIDADE_VAZIA, "Vou olhar o Linear.\n\nJá volto com a lista."), "Consultou Linear", { texto: "Usando Linear", frentes: false });
     const b = comAtividade(a, false, "t-linear")[0]!;
-    expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-ferramenta-Usando-Linear"]);
-    expect(b.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-Linear"><span class="indicador-rotulo fala-viva-estado brilho">Usando Linear</span></span>');
+    expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo"]);
+    expect(b.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado brilho" data-chave="ferramenta-Usando-Linear">Usando Linear</span></span>');
     expect(b.html).toContain('aria-live="polite"');
     expect(b.html).toContain('aria-label="Ada está usando Linear"');
     expect(b.html).not.toContain("Vou olhar");
@@ -126,8 +126,11 @@ describe("a fala viva (COP-14, item 2: só o indicador; a resposta entra inteira
     expect(html).not.toContain("<nod-mascote");
   });
 
-  it("no fim do turno sem texto, nenhum bloco", () => {
-    expect(comAtividade(ATIVIDADE_VAZIA, true)).toEqual([]);
+  it("no fim do turno sem texto, o indicador fica parado (a mesma chave da fala viva, sem `saindo`) até a resposta", () => {
+    const blocos = comAtividade(ATIVIDADE_VAZIA, true);
+    expect(blocos.map((b) => b.chave)).toEqual(["vivo:t1"]);
+    expect(blocos[0]!.html).toContain("indicador");
+    expect(blocos[0]!.html).not.toContain(" saindo");
   });
 
   it("revisão 4 do PR #522: as duas tabelas do balão que chegou têm chaves de texto diferentes", () => {

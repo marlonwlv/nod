@@ -48,13 +48,16 @@
 .timeline .message.fala-viva.indicador > nod-mascote { display: block; width: 28px; height: 28px; margin: 0; flex: none; animation: indicador-personagem 340ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .timeline .message.fala-viva.indicador .bubble-wrap { flex: 1; min-width: 0; max-width: none; }
 .timeline .message.fala-viva.indicador.saindo { animation: indicador-sai 140ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.timeline .indicador-rotulo-lugar { display: inline-flex; }
-.timeline .indicador-rotulo { display: inline-block; font-size: 14px; line-height: 22px; font-weight: 425; color: var(--chat-tinta-3); animation: indicador-rotulo 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-/* O rótulo da entrada espera o personagem (220 ms); a troca de rótulo entra na hora. */
-.timeline .message.fala-viva.indicador .indicador-rotulo-lugar:only-child .indicador-rotulo { animation-delay: 220ms; }
+/* O lugar do rótulo fica do começo ao fim do turno (`data-no-lugar`): a entrada dele espera o personagem (220 ms) e roda
+   uma vez. O rótulo dentro é refeito a cada etapa e sobe 4 px em 180 ms, sem atraso (como o Grok Bot). */
+.timeline .indicador-rotulo-lugar { display: inline-flex; animation: indicador-rotulo 180ms cubic-bezier(0.22, 1, 0.36, 1) 220ms both; }
+/* O rótulo herda `.fala-viva-estado` (web/interface.css: o degradê na cor do bot, o texto transparente, 500): aqui volta ao
+   cinza do chat, sem degradê, e só o `.brilho` recorta o texto. */
+.timeline .indicador-rotulo { display: inline-block; overflow: visible; font-size: 14px; line-height: 22px; font-weight: 425; color: var(--chat-tinta-3); background-image: none; -webkit-text-fill-color: currentColor; animation: indicador-rotulo 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .timeline .indicador-rotulo.brilho {
-  color: transparent;
-  background-image: linear-gradient(90deg, var(--chat-tinta-3) 0%, var(--chat-tinta-3) 25%, var(--chat-tinta-2) 60%, var(--chat-tinta-3) 75%, var(--chat-tinta-3) 100%);
+  color: transparent; -webkit-text-fill-color: transparent;
+  /* O brilho do Grok Bot (sand-shimmer-text): 40% da tinta → a tinta inteira → 40%; o de antes (56% → 68%) quase não se via. */
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--chat-tinta) 40%, transparent) 0%, color-mix(in srgb, var(--chat-tinta) 40%, transparent) 25%, var(--chat-tinta) 60%, color-mix(in srgb, var(--chat-tinta) 40%, transparent) 75%, color-mix(in srgb, var(--chat-tinta) 40%, transparent) 100%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -66,15 +69,19 @@
 @keyframes indicador-rotulo { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes indicador-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .timeline .message.fala-viva.indicador, .timeline .message.fala-viva.indicador > nod-mascote, .timeline .indicador-rotulo { animation: none; }
-  .timeline .indicador-rotulo.brilho { animation: none; background: none; color: var(--chat-tinta-3); }
+  .timeline .message.fala-viva.indicador, .timeline .message.fala-viva.indicador > nod-mascote, .timeline .indicador-rotulo-lugar, .timeline .indicador-rotulo { animation: none; }
+  .timeline .indicador-rotulo.brilho { animation: none; background: none; color: var(--chat-tinta-3); -webkit-text-fill-color: currentColor; }
 }
 
 /* A resposta entra inteira, num balão só, subindo 12 px em 240 ms (depois da saída do indicador e ~100 ms vazios). */
 .timeline .message.fala-chegou { margin-top: 16px; }
 .timeline .bubble.balao-chega { animation: balao-chega 240ms cubic-bezier(0.23, 1, 0.32, 1) 240ms both; }
 @keyframes balao-chega { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .timeline .bubble.balao-chega { animation: none; } }
+/* A fala que acabou de chegar (`animarChegada`, main.ts), da pessoa ou a resposta do bot: como o Grok Bot (data-enter=new),
+   sobe 12 px em 240 ms, só movimento, sem fade e sem espera — o indicador sai no mesmo quadro e não sobra quadro vazio. */
+.timeline .bubble.chegou { animation: balao-sobe 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes balao-sobe { from { transform: translateY(12px); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .timeline .bubble.balao-chega, .timeline .bubble.chegou { animation: none; } }
 
 /* ---- 3. Os balões ---------------------------------------------------------------------------------------------- */
 /* Bot: à esquerda, até 560, encolhe ao conteúdo, padding 7/12, raio 18, sem borda e sem rabicho, o brilho interno. */
@@ -104,7 +111,7 @@
 /* Os cartões e as linhas do chat ficam a 16 px do que vem antes. */
 .timeline > .bloco > :is(.msg-linha, .card, .welcome-options) { margin-top: 16px; }
 
-/* O balão entra como qualquer balão: sobe 12 px com fade em 240 ms. */
+/* O balão entra como qualquer balão: sobe 12 px com fade em 240 ms. A entrada é da classe `chegou` (main.ts, `animarChegada`), não do estado do envio: a pendente que é confirmada e vira a
+   gravada fica no mesmo nó (`morfarDom`) e a animação não recomeça nem é cortada quando o `data-envio` muda. */
 /* foco-ok: o balão não recebe foco; tira só o tracejado antigo do "enviando". */
-.fala-pendente[data-envio="enviando"] .message.you .bubble { outline: 0; opacity: 1; animation: balao-chega 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
-@media (prefers-reduced-motion: reduce) { .fala-pendente[data-envio="enviando"] .message.you .bubble { animation: none; } }
+.fala-pendente[data-envio="enviando"] .message.you .bubble { outline: 0; opacity: 1; }

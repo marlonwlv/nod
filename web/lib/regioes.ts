@@ -8,6 +8,7 @@ import { levarCampos } from "./levar-campos.ts";
 import { trocarEmVolta } from "./varredura-da-busca.ts";
 import { alvoDoFoco } from "./foco-do-bloco.ts";
 import { aplicarMorph, decidirBloco, type Morph, type NoDoMorph } from "./morph.ts";
+import { morfarDom } from "./morfar-dom.ts";
 
 /**
  * NOD-348 (gatilho da ADR-114): `nod.medir=1` grava `nod:fala:morph` e `nod:fala:recriada` (performance.measure, que o
@@ -59,7 +60,8 @@ export function esquecerRegiao(id: string): void {
   blocosAplicados.delete(id);
 }
 
-type Bloco = { chave: string; html: string; morfar?: Morph };
+/** `noLugar`: o bloco que mudou é levado à forma nova no mesmo nó (`morfarDom`) quando os dois lados o marcam (o balão da pessoa). */
+type Bloco = { chave: string; html: string; morfar?: Morph; noLugar?: boolean };
 type BlocoNaTela = Bloco & { el: Element };
 const blocosAplicados = new Map<string, BlocoNaTela[]>();
 
@@ -78,14 +80,17 @@ export function blocosMudariam(id: string, blocos: readonly Bloco[]): boolean {
  * headless com o main.ts real): no fim de um turno na conversa aberta, regravar o histórico inteiro de 200 mensagens
  * (~28 mil nós) custava 381 ms e recriava 80 mascotes; em blocos, as duas escritas somaram 0,3 ms.
  */
-export function regiaoPorBlocos(id: string, blocos: readonly Bloco[]): void {
+export function regiaoPorBlocos(id: string, blocos: readonly Bloco[]): HTMLElement[] {
   const raiz = document.getElementById(id);
-  if (!raiz) return;
+  if (!raiz) return [];
   const focado = document.activeElement instanceof HTMLElement && raiz.contains(document.activeElement) ? document.activeElement : null;
   // O disclosure do <summary> focado é lido ANTES do morph (revisão do PR do pensamento no chat, 27/10): `trocarConteudo`
   // tira o summary antigo do <details> que fica (`data-no-lugar`), e depois o `closest` dele não acha mais o pai.
   const disclosureFocado = focado?.tagName === "SUMMARY" ? focado.closest<HTMLElement>("details[data-disclosure]")?.dataset.disclosure : undefined;
   const porChave = new Map((blocosAplicados.get(id) ?? []).filter((b) => b.el.parentNode === raiz).map((b) => [b.chave, b]));
+  // Chat (polimento): os blocos de chave nova que entraram (a mensagem que acabou de chegar), para quem chama animar a
+  // entrada. Na primeira escrita da região nada volta.
+  const tinha = porChave.size > 0;
   const vistos = new Set<string>();
   const novos: BlocoNaTela[] = blocos.map((b) => {
     // Chave repetida não reaproveita nada: o segundo bloco com a mesma chave sempre nasce de novo.
@@ -93,6 +98,13 @@ export function regiaoPorBlocos(id: string, blocos: readonly Bloco[]): void {
     vistos.add(b.chave);
     const decisao = decidirBloco(antes, b, SEM_MORPH);
     if (decisao.tipo === "manter" && antes) return { ...b, el: antes.el };
+    if (antes && antes.noLugar && b.noLugar && !SEM_MORPH) {
+      const molde = document.createElement("div");
+      molde.className = "bloco";
+      molde.innerHTML = b.html;
+      morfarDom(antes.el, molde);
+      return { ...b, el: antes.el };
+    }
     const medir = MEDIR && antes && b.morfar ? performance.now() : null;
     if (decisao.tipo === "morfar" && antes && aplicarMorph(antes.el as unknown as NoDoMorph, decisao.plano, criarDoHtml)) {
       if (medir !== null) performance.measure("nod:fala:morph", { start: medir, end: performance.now() });
@@ -115,14 +127,18 @@ export function regiaoPorBlocos(id: string, blocos: readonly Bloco[]): void {
   }
   blocosAplicados.set(id, novos);
   ultimoHtml.delete(id);
+  // Os de chave nova depois do primeiro que ficou: o histórico mais velho que entra no alto não conta, nem a troca de conversa.
+  const primeiroQueFicou = tinha ? novos.findIndex((b) => porChave.has(b.chave)) : -1;
+  const chegaram = primeiroQueFicou < 0 ? [] : novos.slice(primeiroQueFicou + 1).filter((b) => !porChave.has(b.chave)).map((b) => b.el as HTMLElement);
   // O botão focado morava num bloco refeito (o chip ou a barra da fala que acabou de reagir): o foco volta ao mesmo
   // botão no bloco novo, em vez de cair no <body> e perder o lugar na conversa (revisão do PR 392, em 2026-10-18).
   if (focado && !focado.isConnected) {
     const nome = focado instanceof HTMLInputElement || focado instanceof HTMLTextAreaElement ? focado.name : "";
     const campo = nome ? [...raiz.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[name], textarea[name]")].find((c) => c.name === nome) : undefined;
-    if (campo) { campo.focus({ preventScroll: true }); return; }
+    if (campo) { campo.focus({ preventScroll: true }); return chegaram; }
     alvoDoFoco<HTMLElement>(disclosureFocado ? { disclosure: disclosureFocado } : focado.dataset, raiz, document)?.focus({ preventScroll: true });
   }
+  return chegaram;
 }
 
 function criarDoHtml(html: string): NoDoMorph | null {

@@ -4,7 +4,7 @@ import type { ConversaDto, SuaVezDto } from "../../../src/contracts/api.ts";
 import type { Mensagem } from "../../../src/contracts/mensagem.ts";
 import { estadoInicial, reduzir, type ConversaEstado, type Estado } from "../../../web/estado/reducer.ts";
 import { ATIVIDADE_VAZIA, comFerramenta, comFimDaAcao, comTexto, comVigia } from "../../../web/lib/atividade.ts";
-import { blocosAoVivo, blocosDoHistorico, renderCabecalhoConversa, renderMensagem, renderResumoDasAcoes, renderTimeline } from "../../../web/telas/conversa.ts";
+import { blocosAoVivo, blocosDoHistorico, renderCabecalhoConversa, renderMensagem, renderResumoDasAcoes, renderTimeline, tomarTrocaDoIndicador } from "../../../web/telas/conversa.ts";
 import { renderCardArtefato } from "../../../web/telas/card-artefato.ts";
 import { renderTopoComposer } from "../../../web/telas/pergunta.ts";
 import { acaoHumana, previaDoItem } from "../../../web/telas/sua-vez.ts";
@@ -83,40 +83,45 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     expect(html).toMatch(/^<article class="message bot fala-viva ao-vivo indicador blue" data-turno="tc\d+" data-morfar aria-live="polite" aria-label="Ada está usando GitHub"><nod-mascote [^>]*\bsm\b[^>]*data-parte="mascote"/);
     expect(html).toContain('state="orbit"');
     expect(html).toContain(`data-turno="${T}"`);
-    expect(html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-GitHub"><span class="indicador-rotulo fala-viva-estado brilho">Usando GitHub</span></span>');
+    expect(html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado brilho" data-chave="ferramenta-Usando-GitHub">Usando GitHub</span></span>');
     // Sem o nome da IA, sem nome do bot, sem a narração, sem pensamento e sem balão.
     for (const fora of ["catcher", "Claude", "msg-autor", "Lendo o PR", "fala-narracao", 'class="pensar"', "data-desde"]) expect(html).not.toContain(fora);
     expect(html).not.toMatch(/class="bubble[ "]/);
-    expect(blocos[0]!.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-ferramenta-Usando-GitHub"]);
+    expect(blocos[0]!.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo"]);
     // O HTML não muda quando o tempo anda (sem vigia).
     expect(blocosAoVivo(c, { ...e, agora: AGORA + 120_000 })[0]!.html).toBe(html);
     expect(blocos[0]!.morfar?.mascote).toMatchObject({ state: "orbit", "data-estado": "trabalhando", "aria-label": "Ada está usando GitHub" });
     // Texto chegando depois da ferramenta: "Digitando…", cinza fixo (sem brilho), e o texto não aparece.
     const narrando = blocosAoVivo(c, { ...e, agora: AGORA + 120_000 + PASSOU, atividades: { [C]: { [T]: { ...atividade, atual: "Abrindo https://github.com/acme/loja/pull/481 agora" } } } })[0]!;
-    expect(narrando.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-digitando"><span class="indicador-rotulo fala-viva-estado">Digitando…</span></span>');
+    expect(narrando.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado" data-chave="digitando">Digitando…</span></span>');
     expect(narrando.html).toContain('aria-label="Ada está digitando"');
     expect(narrando.html).not.toContain("Abrindo https://");
-    expect(narrando.morfar?.partes.map((p) => p.chave)).toEqual(["rotulo-digitando"]);
+    expect(narrando.morfar?.partes.map((p) => p.chave)).toEqual(["rotulo"]);
   });
 
-  it("cada rótulo fica no mínimo 800 ms: o novo que chega antes espera em data-estado-pendente; depois dos 800 ms, entra", () => {
+  it("cada rótulo fica no mínimo 800 ms: o novo que chega antes espera, e o render diz quando ele pode entrar", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const usando = comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false });
     const em = (a: ReturnType<typeof comTexto>, agora: number) => blocosAoVivo(c, { ...rodando(base, a), agora })[0]!;
-    expect(em(usando, AGORA).html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-GitHub"><span class="indicador-rotulo fala-viva-estado brilho">Usando GitHub</span></span>');
-    // 500 ms depois o texto chega: o rótulo antigo fica, com o novo pendente desde a entrada do antigo.
+    tomarTrocaDoIndicador();
+    expect(em(usando, AGORA).html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado brilho" data-chave="ferramenta-Usando-GitHub">Usando GitHub</span></span>');
+    expect(tomarTrocaDoIndicador()).toBeNull();
+    // 500 ms depois o texto chega: o rótulo antigo fica, e a troca fica marcada para os 800 ms da entrada dele.
     const cedo = em(comTexto(usando, "Fechei o PR."), AGORA + 500);
-    expect(cedo.html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-GitHub" data-estado-pendente="Digitando…" data-estado-desde="${AGORA}"><span class="indicador-rotulo fala-viva-estado brilho">Usando GitHub</span></span>`);
+    expect(cedo.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado brilho" data-chave="ferramenta-Usando-GitHub">Usando GitHub</span></span>');
     expect(cedo.html).not.toContain(">Digitando…</span>");
+    expect(cedo.html).not.toContain("data-estado-pendente");
     expect(cedo.morfar!.mascote).toMatchObject({ "aria-label": "Ada está usando GitHub" });
-    // Aos 799 ms ainda espera; aos 800 ms o novo entra, sem pendente.
-    expect(em(comTexto(usando, "Fechei o PR."), AGORA + 799).html).toContain('data-estado-pendente="Digitando…"');
+    expect(tomarTrocaDoIndicador()).toBe(AGORA + PASSOU);
+    // Aos 799 ms ainda espera; aos 800 ms o novo entra, com outra `data-chave` (o rótulo é refeito e sobe).
+    expect(em(comTexto(usando, "Fechei o PR."), AGORA + 799).html).toContain(">Usando GitHub</span>");
     const depois = em(comTexto(usando, "Fechei o PR."), AGORA + PASSOU);
-    expect(depois.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo-digitando"><span class="indicador-rotulo fala-viva-estado">Digitando…</span></span>');
-    expect(depois.html).not.toContain("data-estado-pendente");
+    expect(depois.html).toContain('<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado" data-chave="digitando">Digitando…</span></span>');
+    tomarTrocaDoIndicador();
     // A troca rápida não pisca: a ferramenta seguinte, 300 ms depois, espera de novo (contada desde a entrada do "Digitando…").
     const outra = em(comFerramenta(ATIVIDADE_VAZIA, "Consultou Linear", { texto: "Usando Linear", frentes: false }), AGORA + PASSOU + 300);
-    expect(outra.html).toContain(`data-estado-pendente="Usando Linear" data-estado-desde="${AGORA + PASSOU}"><span class="indicador-rotulo fala-viva-estado">Digitando…</span>`);
+    expect(outra.html).toContain(">Digitando…</span>");
+    expect(tomarTrocaDoIndicador()).toBe(AGORA + PASSOU + PASSOU);
   });
 
   it("revisão do #508: o nome do bot com $&, $` e $' não abre atributo no mascote (replace com função)", () => {
@@ -152,7 +157,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     const b = blocosAoVivo(c, e)[0]!;
     expect(b.html).toContain('>Usando GitHub</span></span>');
     expect(b.html).toContain('aria-label="Ada está usando GitHub"');
-    expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-ferramenta-Usando-GitHub"]);
+    expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo"]);
     for (const fora of ["Ainda trabalhando", "Sem novidade", "vigia", "parar-conversa"]) expect(b.html).not.toContain(fora);
     // Sem o silêncio, o mesmo rótulo e o mesmo HTML.
     const ativo = blocosAoVivo(c, { ...e, atividades: { [C]: { [T]: { ...mudo, vigia: null } } } })[0]!;
@@ -163,7 +168,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
   it("sem ferramenta e sem texto: 'Trabalhando' (5 variantes, 5 s) antes de tudo; depois de uma ação, 'Refletindo' (3 variantes, 2,5 s)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const comeco = blocosAoVivo(c, rodando(base, undefined, AGORA))[0]!;
-    expect(comeco.html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo-trabalhando"><span class="indicador-rotulo fala-viva-estado brilho" data-variantes="Trabalhando|Cuidando disso|Organizando|Seguindo com isso|Ainda nisso" data-periodo="5000" data-variantes-desde="${AGORA}">Trabalhando</span></span>`);
+    expect(comeco.html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado brilho" data-chave="trabalhando" data-variantes="Trabalhando|Cuidando disso|Organizando|Seguindo com isso|Ainda nisso" data-periodo="5000" data-variantes-desde="${AGORA}">Trabalhando</span></span>`);
     expect(comeco.morfar!.mascote).toMatchObject({ state: "orbit", "data-estado": "trabalhando", "aria-label": "Ada está trabalhando" });
     expect(comeco.html).not.toContain("Cuidando disso<");
     // A variante da vez conta desde que o rótulo entrou (o relógio da tela troca no lugar; o render já sai com a da vez).
@@ -171,7 +176,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     // Já fez uma ação e não está com ferramenta em uso nem texto chegando (ex.: depois de um turno.fala): "Refletindo".
     const fez = { ...comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false }), emUso: null };
     const depois = blocosAoVivo(c, { ...rodando(base, fez, AGORA), agora: AGORA + 10_000 })[0]!;
-    expect(depois.html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo-refletindo"><span class="indicador-rotulo fala-viva-estado brilho" data-variantes="Refletindo|Pensando|Ponderando" data-periodo="2500" data-variantes-desde="${AGORA + 10_000}">Refletindo</span></span>`);
+    expect(depois.html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado brilho" data-chave="refletindo" data-variantes="Refletindo|Pensando|Ponderando" data-periodo="2500" data-variantes-desde="${AGORA + 10_000}">Refletindo</span></span>`);
     expect(depois.morfar!.mascote).toMatchObject({ state: "thinking", "data-estado": "pensando", "aria-label": "Ada está refletindo" });
     expect(depois.html).not.toContain("catcher");
   });
@@ -181,7 +186,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     const longo = `${"Fechei setembro, conta por conta, com os ajustes combinados. ".repeat(6)}\n\n` + "Fechei **setembro**:\n- Sul\n- Norte\n\n| Região | R$ |\n|---|---|\n| Sul | 98 |";
     for (const texto of ["Olhando", longo]) {
       const b = blocosAoVivo(c, rodando(base, comTexto(ATIVIDADE_VAZIA, texto)))[0]!;
-      expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-digitando"]);
+      expect(b.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo"]);
       expect(b.html).toContain(">Digitando…</span>");
       for (const fora of ["Olhando", "Fechei", "<strong>", "md-lista", "md-tabela", "com-texto"]) expect(b.html).not.toContain(fora);
       expect(b.html).not.toMatch(/class="bubble[ "]/);
@@ -238,7 +243,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     const { e: base, c } = cenario([msg("m1", "pessoa", 1)]);
     const comVivo = rodando(base, comTexto(comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false }), "Fechei o PR."), AGORA - 9_000);
     const vivo = blocosAoVivo(c, comVivo)[0]!;
-    expect(vivo.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo-digitando"]);
+    expect(vivo.morfar!.partes.map((p) => p.chave)).toEqual(["rotulo"]);
     expect(vivo.html).not.toContain("Fechei o PR");
     const parada = blocosAoVivo(encerrar(comVivo).conversas[C]!, encerrar(comVivo))[0]!;
     expect(parada.html).toContain("Fechei o PR.");
@@ -259,12 +264,13 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     expect(blocos.map((b) => b.html).join("")).not.toContain('class="pensar"');
   });
 
-  it("QA do #508: sem atividade nada fica saindo; o interrompido fica (QA do #534); o turno de outro bot não a tira", () => {
+  it("QA do #508: sem atividade o indicador fica parado; o interrompido fica (QA do #534); o turno de outro bot não a tira", () => {
     const { e: base } = cenario([msg("m1", "pessoa", 1)]);
     const vivo = { turnoId: T, conversaId: C, estado: "rodando" as const, executor: null, machineId: null, desde: AGORA };
     const frame = (tipo: string, dados: Record<string, unknown>, e: Estado) => reduzir(e, { tipo: "frame", frame: { tipo, dados } as never, agora: AGORA });
+    // Chat (polimento, 13/11): sem atividade (o normal sem `turno.delta`), o indicador fica parado até a resposta chegar.
     const semTexto = frame("turno.encerrado", { turnoId: T, conversaId: C }, { ...base, turnosVivos: { [T]: vivo } });
-    expect(semTexto.falasSaindo?.[C]).toBeUndefined();
+    expect(paradas(semTexto, T)).toHaveLength(1);
     const comVivo: Estado = { ...base, turnosVivos: { [T]: vivo }, atividades: { [C]: { [T]: comTexto(ATIVIDADE_VAZIA, "Olá") } } };
     // QA do #534 (27/10): o Parar também deixa a fala parada até a gravada (parcial) chegar — antes a viva sumia num quadro.
     expect(paradas(frame("turno.interrompido", { turnoId: T, conversaId: C }, comVivo), T)).toHaveLength(1);
@@ -275,7 +281,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     expect(paradas(frame("turno.interrompido", { turnoId: "t2", conversaId: C }, fim), T)).toHaveLength(1);
   });
 
-  it("QA 2 do #508: só fica parada a fala do turno rodando, da conversa aberta, fora de task e com texto", () => {
+  it("QA 2 do #508: só fica parada a fala do turno rodando, da conversa aberta e fora de task (sem texto, o indicador)", () => {
     const { e: base } = cenario([msg("m1", "pessoa", 1)]);
     const vivo = { turnoId: T, conversaId: C, estado: "rodando" as const, executor: null, machineId: null, desde: AGORA };
     const fim = (e: Estado) => reduzir(e, { tipo: "frame", frame: { tipo: "turno.encerrado", dados: { turnoId: T, conversaId: C } } as never, agora: AGORA });
@@ -283,7 +289,8 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     expect(paradas(fim(com({})), T)).toHaveLength(1);
     expect(fim(com({ estado: "na_fila" })).falasSaindo?.[C]).toBeUndefined();
     expect(fim(com({ trabalhoId: "w1" })).falasSaindo?.[C]).toBeUndefined();
-    expect(fim(com({}, comTexto(ATIVIDADE_VAZIA, "  \n "))).falasSaindo?.[C]).toBeUndefined();
+    // Só espaço em branco é como sem texto: o indicador parado (Chat, polimento de 13/11).
+    expect(paradas(fim(com({}, comTexto(ATIVIDADE_VAZIA, "  \n "))), T)).toHaveLength(1);
     expect(fim(com({}, undefined, { conversas: {} })).falasSaindo?.[C]).toBeUndefined();
   });
 

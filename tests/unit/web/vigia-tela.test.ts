@@ -30,7 +30,7 @@ function cenario(vigia: VigiaDaAtividade | null, comCartao = true): { e: Estado;
 }
 
 const corpo = (e: Estado, c: ConversaEstado) => blocosAoVivo(c, e).find((b) => b.chave.startsWith("vivo:"))!.html;
-const FERRAMENTA = '<span class="indicador-rotulo-lugar" data-parte="rotulo-ferramenta-Usando-uma-ferramenta"><span class="indicador-rotulo fala-viva-estado brilho">Usando uma ferramenta</span></span>';
+const FERRAMENTA = '<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado brilho" data-chave="ferramenta-Usando-uma-ferramenta">Usando uma ferramenta</span></span>';
 
 /**
  * COP-14 (item 2, revisto em 2026-11-12): a fala viva é só a linha do indicador. O aviso âmbar do vigia saiu dela; o
@@ -81,7 +81,7 @@ describe("vigia do turno na tela (NOD-73, revisto no COP-14)", () => {
   it("sem ferramenta nem ação: 'Trabalhando' (o estado normal), sem aviso nem Parar", () => {
     const { e, c } = cenario({ mudoDesde: AGORA - 20 * MIN, aberta: null, emFundo: 0, repeticao: null }, false);
     const html = corpo(e, c);
-    expect(html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo-trabalhando"><span class="indicador-rotulo fala-viva-estado brilho" data-variantes="Trabalhando|Cuidando disso|Organizando|Seguindo com isso|Ainda nisso" data-periodo="5000" data-variantes-desde="${AGORA}">Trabalhando</span></span>`);
+    expect(html).toContain(`<span class="indicador-rotulo-lugar" data-parte="rotulo" data-no-lugar><span class="indicador-rotulo fala-viva-estado brilho" data-chave="trabalhando" data-variantes="Trabalhando|Cuidando disso|Organizando|Seguindo com isso|Ainda nisso" data-periodo="5000" data-variantes-desde="${AGORA}">Trabalhando</span></span>`);
     expect(html).not.toContain("Ainda trabalhando");
     expect(html).not.toContain('data-parte="vigia"');
     expect(html).not.toContain('data-act="parar-conversa"');

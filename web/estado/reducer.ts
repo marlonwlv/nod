@@ -873,7 +873,10 @@ function comFalaSaindo(estado: Estado, turnoId: string | null, agora: number, fi
   // NOD-402: o turno dos bastidores nunca teve fala viva no chat — sem retrato (o `sem_novidade` não grava nada e o
   // retrato que esperava a gravada sumia aos 15 s: a mensagem que pisca e some).
   if (!turno || turno.estado !== "rodando" || turno.trabalhoId || turno.bastidores || !estado.conversas[turno.conversaId]) return estado;
-  const atividade = estado.atividades[turno.conversaId]?.[turno.turnoId];
+  // Chat (polimento): sem `turno.delta` (o corte do PR #29), o turno quase nunca tem texto ao vivo nem atividade; o
+  // indicador precisa do retrato do mesmo jeito, senão some no fim e a resposta só entra com a releitura (o vazio de
+  // ~150–250 ms e o pulo medidos em 13/11 com o Claude).
+  const atividade = estado.atividades[turno.conversaId]?.[turno.turnoId] ?? (fim ? ATIVIDADE_VAZIA : undefined);
   if (!atividade) return estado;
   if (!textoDaFala(atividade)) {
     if (!fim) return estado;
@@ -882,7 +885,8 @@ function comFalaSaindo(estado: Estado, turnoId: string | null, agora: number, fi
     // um RTT em produção), o pulo que o retrato existe para evitar. Com um retrato ou uma fala gravada do turno, o resumo
     // vai para eles, como antes; sem ação nenhuma não há o que mostrar (a gravada sem resumo também não tem pensamento).
     if (temRetratoDoTurno(estado, turno.conversaId, turno.turnoId) || gravadaDoTurno(estado, turno.conversaId, turno.turnoId)) return comAcoesNaUltimaSaindo(estado, turno.conversaId, turno.turnoId, atividade.acoes, Math.max(0, agora - turno.desde));
-    if (atividade.acoes.length === 0) return estado;
+    // Sem texto e sem gravada: o retrato é o próprio indicador (`blocoDaFalaSaindo`), que fica parado até a releitura
+    // trazer a resposta — e sai junto com a entrada dela, sem quadro vazio no meio.
   }
   // Uma por fala (revisão 4 do #508): dois `turno.fala` antes da releitura não apagam o primeiro.
   const atuais = estado.falasSaindo?.[turno.conversaId] ?? {};
@@ -911,7 +915,9 @@ function gravadaDoTurno(estado: Estado, conversaId: string, turnoId: string): bo
  */
 function gravadaDoRetrato(conversa: ConversaDto, s: FalaSaindo): boolean {
   const texto = textoDaFala(s.atividade).trim();
-  return conversa.mensagens.some((m) => m.turnoId === s.turno.turnoId && m.kind === "texto" && m.autoria.autor_tipo === "agente" && (texto ? m.texto.trim() === texto : m.payload?.kind === "acoes_do_turno"));
+  // Sem texto e sem ações (o indicador parado): qualquer fala de texto do bot no turno é a resposta que o substitui.
+  const sem = s.atividade.acoes.length === 0;
+  return conversa.mensagens.some((m) => m.turnoId === s.turno.turnoId && m.kind === "texto" && m.autoria.autor_tipo === "agente" && (texto ? m.texto.trim() === texto : sem || m.payload?.kind === "acoes_do_turno"));
 }
 
 /**
@@ -1627,8 +1633,13 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       const erro = acao.estado === "aberto" && ehErroDeRede(estado.erro) ? null : estado.erro;
       return { ...estado, conexao: { estado: acao.estado, tentativa: acao.tentativa, proximaEmMs: acao.proximaEmMs }, erro };
     }
-    case "frame":
-      return aplicarFrame(estado, acao.frame, acao.agora);
+    case "frame": {
+      // Chat (polimento): o frame que mexeu no estado também acerta o relógio. Só o `tick` (15 s) o movia, e o indicador
+      // contava a permanência de 800 ms e as variantes por um `agora` de até 15 s atrás: o rótulo trocava fora da hora.
+      // O frame que não mudou nada continua sem criar estado novo (não pinta à toa).
+      const depois = aplicarFrame(estado, acao.frame, acao.agora);
+      return depois !== estado && acao.agora > depois.agora ? { ...depois, agora: acao.agora } : depois;
+    }
     case "hidratar-gestao": {
       // NOD-370: a gestão traz os excluídos; a conversa de baixo do bot excluído vai para Início (Seu espaço fica).
       const excluidos = new Set(acao.gestao.agentes.filter((a) => a.excluidoEm).map((a) => a.id));
