@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { codificarPng, decodificarPng } from "../../../infra/computador/mascara-png.mjs";
 import { caminhoDaCaptura, caminhosDoDock, criarTela } from "../../../infra/computador/tela.mjs";
 
@@ -43,6 +43,7 @@ describe.skipIf(!CHROMIUM || !XVFB || !playwright)("a trava do dock na tela real
   let ativa = "";
   let ponteiro = "";
   let nada = "";
+  const avisos: unknown[] = [];
   const chamadas = async (prog: string) => (await readFile(log, "utf8").catch(() => "")).split("\n").filter((l) => l.startsWith(`${prog} `));
   const limparLog = () => writeFile(log, "");
 
@@ -86,7 +87,7 @@ exit 0`);
       perfilBase: join(raiz, "base"), workspace: join(raiz, "ws", "bot1"), logins: join(raiz, "logins"), tmp: join(raiz, "run/telas/bot1"),
       x11: "/tmp/.X11-unix", busEndereco: "unix:path=/nonexistent-nod-bus", sandbox: false, xvfbArgs: ["-noreset"], cookies: [], storage: [], geracao: 0,
       bin: { xvfb: XVFB, openbox: nada, chromium: CHROMIUM, xdotool, scrot, xclip, x11vnc, bwrap, tint2, arquivos: nada, terminalGrafico: nada },
-    }, () => {});
+    }, (aviso) => { avisos.push(aviso); });
     await tela.subir();
   }, 90_000);
 
@@ -310,6 +311,43 @@ exit 0`);
       // "desligada": a recusa vem da trava, não da falta de gesto do usuário (que também dá NotAllowedError).
       expect(titulo).toBe("denied|desligada");
     } finally {
+      srv.close();
+    }
+  }, 60_000);
+
+  it("NOD-434: um Set-Cookie sem navegação sobe pela fiação real da tela", async () => {
+    let recebeuPedido = () => {};
+    const pedido = new Promise<void>((r) => { recebeuPedido = r; });
+    let responderCookie = () => {};
+    const liberarCookie = new Promise<void>((r) => { responderCookie = r; });
+    const srv = http.createServer(async (req, res) => {
+      if (req.url === "/cookie") {
+        recebeuPedido();
+        await liberarCookie;
+        res.writeHead(200, { "set-cookie": "sid=qa-real; HttpOnly; Path=/", "content-type": "text/plain" });
+        res.end("ok");
+        return;
+      }
+      res.writeHead(200, { "set-cookie": "pre=controle; Path=/", "content-type": "text/html" });
+      res.end("<script>setTimeout(()=>document.cookie='nav=pronta; Path=/',300);fetch('/cookie')</script>");
+    }).listen(0, "127.0.0.1");
+    try {
+      await new Promise((ok) => srv.once("listening", ok));
+      await tela.executar({ tipo: "navegar", url: `http://127.0.0.1:${(srv.address() as AddressInfo).port}/` });
+      await pedido;
+      // O cookie criado depois da resposta só entra pela coleta da navegação: esse evento é o portão, sem relógio.
+      await vi.waitFor(() => expect(avisos).toContainEqual(expect.objectContaining({
+        tipo: "cookies",
+        diff: expect.objectContaining({ postos: expect.arrayContaining([expect.objectContaining({ name: "nav", value: "pronta" })]) }),
+      })), { timeout: 5_000 });
+      avisos.length = 0;
+      responderCookie();
+      await vi.waitFor(() => expect(avisos).toContainEqual(expect.objectContaining({
+        tipo: "cookies",
+        diff: expect.objectContaining({ postos: expect.arrayContaining([expect.objectContaining({ name: "sid", value: "qa-real" })]) }),
+      })), { timeout: 3_000 });
+    } finally {
+      responderCookie();
       srv.close();
     }
   }, 60_000);
