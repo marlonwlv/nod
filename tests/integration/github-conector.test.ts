@@ -537,6 +537,38 @@ describeIntegracao("GitHub nativo: registro sem configuração e execução na m
     });
   });
 
+  // NOD-423 (C4): o portão de autoridade não barra os lotes legítimos. Pelo pedir_aprovacao de verdade, o Automático, o Total
+  // e o lote só de leitura (consulta sem decisão) chegam ao Mac, o relato assenta uma vez e o relato repetido não faz nada.
+  for (const [caso, modo, ferramenta, argumentos, regra] of [
+    ["modo Automático", "automatico", "pr_comentar", { repositorio: "acme/nod", numero: 3, texto: "oi" }, "regra:modo_automatico"],
+    ["modo Total", "total", "pr_comentar", { repositorio: "acme/nod", numero: 3, texto: "oi" }, "regra:modo_total"],
+    ["consulta sem decisão", null, "issue_ver", { repositorio: "acme/nod", numero: 3 }, "regra:consulta_sem_decisao"],
+  ] as const) {
+    it(`d: ${caso} — o item do gh chega ao Mac e assenta uma vez só (NOD-423)`, async () => {
+      await withRollback(MARLON, async (trx) => {
+        const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
+        const { deps, repos, chamadas } = depsGithub(trx, MARLON, true);
+        await githubComAcesso(deps, repos, conversaId, agenteId);
+        if (modo) await repos.agentes.definirModoAprovacao(agenteId, modo);
+        const turnoId = await turnoDaConversa(repos, conversaId, agenteId);
+        const plano = await planoDoTurno(deps, turnoId, true);
+        const pedido = await pedirAprovacao(deps, { turnoId, agenteId, conversaId, plano, resumo: caso, itens: [{ texto: "x", destino: { conector: "github", ferramenta, argumentos } }] });
+        const decisaoId = pedido.data.estado === "pendente" ? pedido.data.decisao_id : "";
+        expect(await repos.decisoes.buscar(decisaoId)).toMatchObject({ estado: "decidida", desfecho: { tipo: "decidida_por_regra", regra } });
+        const puxados = await itensParaAMaquina(deps);
+        expect(puxados.map((p) => p.capacidade)).toEqual([ferramenta]);
+        const fim = await concluirItemNaMaquina(deps, { itemId: puxados[0]?.itemId ?? "", desfecho: "executado" });
+        expect(fim.events.map((e) => e.kind)).toEqual(["mensagem_criada"]);
+        expect(await concluirItemNaMaquina(deps, { itemId: puxados[0]?.itemId ?? "", desfecho: "falhou_na_execucao" })).toEqual({ events: [] });
+        expect((await repos.itensAprovacao.listar(decisaoId))[0]?.desfecho).toBe("executado");
+        expect((await repos.mensagens.listarDaConversa(conversaId, 50)).filter((m) => m.kind === "resultado_aprovacao")).toHaveLength(1);
+        expect((await repos.trilha.doTurno(turnoId)).filter((l) => l.kind === "tool_call" && l.motivo === "item_de_aprovacao").map((l) => l.regra)).toEqual([regra]);
+        expect(await itensParaAMaquina(deps)).toEqual([]);
+        expect(chamadas).toEqual([]);
+      });
+    });
+  }
+
   it("d, modo local: o servidor É o Mac da dona — o item aprovado roda na hora, sem esperar", async () => {
     await withRollback(MARLON, async (trx) => {
       const executados: string[] = [];
