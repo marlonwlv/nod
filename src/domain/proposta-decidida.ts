@@ -21,6 +21,8 @@ export function tituloDaProposta(p: Pick<Proposta, "payload">): string {
     // NOD-413: "Rodar agora · às 09:00".
     case "rotina_execucao":
       return com("Rodar agora", c.resumo);
+    case "decisoes_exportacao":
+      return com("CSV das decisões", c.agenteNome);
     case "bot":
       return com("Novo bot", c.nome);
     case "acesso":

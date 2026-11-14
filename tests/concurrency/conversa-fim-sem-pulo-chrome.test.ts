@@ -22,6 +22,7 @@ const chrome = existsSync(join(WEB, "index.html")) ? (() => { try { return achar
 if (process.env.NOD_QA_EXIGE_CHROME === "1" && !chrome) throw new Error("NOD-360: o CI precisa da web montada (npx vite build) e do Chromium");
 const descrever = chrome ? describeIntegracao : describe.skip;
 const RESPOSTA = "A fala terminou sem mudar de lugar.";
+const SENTINELA = "\u2063";
 const espera = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 
 type Posicao = {
@@ -72,14 +73,14 @@ descrever("NOD-360: a fala não pula quando o turno acaba", () => {
     throw new Error(`esperei ${ms} ms por ${oQue}`);
   }
 
-  async function criarBot(nome: string): Promise<{ id: string; conversaId: string }> {
+  async function criarBot(nome: string): Promise<{ id: string; conversaId: string; nome: string }> {
     const r = await srv.json<{ agente: Agente; conversa: Conversa }>("POST", "agentes", { dono: "pessoa", nome, descricao: "Testa a estabilidade da conversa" });
     agentes.push(r.agente.id);
     conversas.push(r.conversa.id);
-    return { id: r.agente.id, conversaId: r.conversa.id };
+    return { id: r.agente.id, conversaId: r.conversa.id, nome };
   }
 
-  async function abrirConversa(bot: { id: string }, largura: number, altura: number): Promise<void> {
+  async function abrirConversa(bot: { id: string; conversaId: string; nome: string }, largura: number, altura: number): Promise<void> {
     const celular = largura < 700;
     await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: largura, height: altura, deviceScaleFactor: celular ? 2 : 1, mobile: celular });
     await cdp.enviar("Emulation.setTouchEmulationEnabled", { enabled: celular, maxTouchPoints: celular ? 5 : 1 });
@@ -89,8 +90,10 @@ descrever("NOD-360: a fala não pula quando o turno acaba", () => {
       { name: "prefers-reduced-motion", value: "reduce" },
     ] });
     await cdp.enviar("Page.navigate", { url: `${srv.url}/` });
-    await ate(`document.querySelector('[data-bot-contexto="${bot.id}"] [data-act="abrir-conversa"], button[data-bot-contexto="${bot.id}"]')`, "o bot na lista");
-    await avaliar(cdp, `document.querySelector('[data-bot-contexto="${bot.id}"] [data-act="abrir-conversa"], button[data-bot-contexto="${bot.id}"]').click()`);
+    const seletor = `[data-bot-contexto="${bot.id}"] [data-act="abrir-conversa"], button[data-bot-contexto="${bot.id}"]`;
+    await ate(`[...document.querySelectorAll('${seletor}')].some((e) => e.getClientRects().length)`, "o bot visível na lista");
+    await avaliar(cdp, `[...document.querySelectorAll('${seletor}')].find((e) => e.getClientRects().length).click()`);
+    await ate(`document.querySelector("#cabecalho .pilula-nome")?.textContent === ${JSON.stringify(bot.nome)}`, "a conversa escolhida");
     await ate(`document.getElementById("composer-texto")`, "a conversa");
     await avaliar(cdp, `document.documentElement.style.scrollBehavior = "auto"`);
   }
@@ -98,23 +101,54 @@ descrever("NOD-360: a fala não pula quando o turno acaba", () => {
   const artigoVivo = `document.querySelector('#timeline .message.bot.fala-viva.ao-vivo:has(.bubble)')`;
   const artigoGravado = `[...document.querySelectorAll('#timeline .message.bot[data-mensagem]')].find((m) => m.querySelector('.bubble')?.textContent.includes(${JSON.stringify(RESPOSTA)}))`;
 
-  async function posicao(artigo: string): Promise<Posicao> {
-    return avaliar<Posicao>(cdp, `(() => { const a = ${artigo}; const b = a.querySelector(".bubble"); const p = a.querySelector(".pensar"); const ar = a.getBoundingClientRect(); const br = b.getBoundingClientRect();
-      return { topo: br.top, topoNoArtigo: br.top - ar.top, disclosure: p?.getAttribute("data-disclosure") ?? null, aberto: !!p?.open }; })()`);
+  async function abrirEMedirFalaViva(ms = 20_000): Promise<Posicao> {
+    for (let t = 0; t < ms; t += 100) {
+      const medida = await avaliar<Posicao | null>(cdp, `(() => { const a = ${artigoVivo}; const b = a?.querySelector(".bubble"); const p = a?.querySelector(".pensar");
+        if (!a || !b?.textContent.includes(${JSON.stringify(RESPOSTA)}) || !b.textContent.includes(${JSON.stringify(SENTINELA)}) || !p) return null;
+        a.scrollIntoView({ block: "center" });
+        if (!p.open) p.querySelector("summary").click();
+        const ar = a.getBoundingClientRect(); const br = b.getBoundingClientRect();
+        return { topo: br.top, topoNoArtigo: br.top - ar.top, disclosure: p.getAttribute("data-disclosure"), aberto: p.open }; })()`);
+      if (medida?.aberto) return medida;
+      await espera(100);
+    }
+    throw new Error(`esperei ${ms} ms por a fala viva com resumo e balão`);
+  }
+
+  async function enviarPelaTela(roteiro: string): Promise<void> {
+    await avaliar(cdp, `(() => { const t = document.getElementById("composer-texto"); t.value = ${JSON.stringify(roteiro)}; t.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    for (let t = 0; t < 5_000; t += 500) {
+      const entrou = await avaliar<boolean>(cdp, `(() => { const t = document.getElementById("composer-texto"); if (t.value === "") return true; document.querySelector('.composer [data-act="enviar"]').click(); return false; })()`);
+      if (entrou) return;
+      await espera(500);
+    }
+    throw new Error("o composer não aceitou o roteiro");
+  }
+
+  async function medirGravada(ms = 30_000): Promise<Posicao> {
+    for (let t = 0; t < ms; t += 20) {
+      const medida = await avaliar<Posicao | null>(cdp, `(() => {
+        const g = ${artigoGravado}; const gp = g?.querySelector('.pensar[data-fase="pronto"]');
+        if (g && gp && !g.classList.contains("ao-vivo")) { const b = g.querySelector(".bubble"); const ar = g.getBoundingClientRect(); const br = b.getBoundingClientRect();
+          return { topo: br.top, topoNoArtigo: br.top - ar.top, disclosure: gp.getAttribute("data-disclosure"), aberto: gp.open }; }
+        return null; })()`);
+      if (medida) return medida;
+      await espera(20);
+    }
+    throw new Error(`esperei ${ms} ms por a fala gravada com resumo`);
   }
 
   async function provar(largura: number, altura: number): Promise<void> {
     const bot = await criarBot(`Sem pulo ${largura}`);
     await abrirConversa(bot, largura, altura);
-    const roteiro = `Confira a posição [[tool: lembrar {"tipo":"fato","texto":"a fala deve ficar estável"}]] [[delta: ${RESPOSTA}]] [[espera: 1800]] [[texto: ${RESPOSTA}]]`;
-    await avaliar(cdp, `(() => { const t = document.getElementById("composer-texto"); t.value = ${JSON.stringify(roteiro)}; t.dispatchEvent(new Event("input", { bubbles: true })); document.querySelector('.composer [data-act="enviar"]').click(); })()`);
-    await ate(`${artigoVivo}?.querySelector('.pensar') && ${artigoVivo}?.querySelector('.bubble')?.textContent.includes(${JSON.stringify(RESPOSTA)})`, "a fala viva com resumo e balão");
-    await avaliar(cdp, `(() => { const a = ${artigoVivo}; a.scrollIntoView({ block: "center" }); a.querySelector(".pensar > summary").click(); })()`);
-    await ate(`${artigoVivo}?.querySelector('.pensar')?.open`, "o resumo vivo aberto");
-    const antes = await posicao(artigoVivo);
+    // No job de navegador, uma pausa muda pode atravessar a janela de releitura sem publicar o delta intermediário.
+    // Pulsos invisíveis mantêm o mesmo texto/layout e tornam a fala viva observável; abrir e medir no mesmo frame
+    // fecha a corrida com o evento final. A troca ainda precisa preservar exatamente os mesmos 0 px.
+    const roteiro = `Confira a posição [[tool: lembrar {"tipo":"fato","texto":"a fala deve ficar estável"}]] [[delta: ${RESPOSTA}]] [[espera: 1000]] [[delta: ${SENTINELA}]] [[espera: 15000]] [[texto: ${RESPOSTA}]]`;
+    await enviarPelaTela(roteiro);
+    const antes = await abrirEMedirFalaViva();
 
-    await ate(`${artigoGravado}?.querySelector('.pensar[data-fase="pronto"]') && !${artigoGravado}?.classList.contains("ao-vivo")`, "a fala gravada com resumo", 30_000);
-    const depois = await posicao(artigoGravado);
+    const depois = await medirGravada();
 
     expect(depois.disclosure, "o mesmo disclosure ocupa o mesmo lugar").toBe(antes.disclosure);
     expect(depois.aberto, "o resumo aberto sobrevive à troca").toBe(true);

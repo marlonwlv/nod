@@ -24,6 +24,7 @@ import { autoriaDaPessoa } from "../../../use-cases/registrar-negacao.ts";
 import { fecharComResposta, retomarComResposta } from "../../../use-cases/responder-decisao.ts";
 import { fecharPedidoDeCredencial } from "../../../use-cases/guardar-credencial.ts";
 import { retomarTurno } from "../../../use-cases/retomar-turno.ts";
+import { aplicarExportacaoDecisoes } from "../../../use-cases/decisoes-no-chat.ts";
 import type { Deps, Services } from "../../../use-cases/tipos.ts";
 import { sincronizarDasDecisoes } from "../../../use-cases/trabalhos.ts";
 import { responderErro } from "../erros.ts";
@@ -285,6 +286,15 @@ export function criarRotasDecisoes(d: DepsRotasDecisoes): Rota[] {
           const r = await comoDona(ctx.escopo, atual, (deps) => executar(deps, decidirColunasDoQuadro, { decisaoId: atual.id, recusar: recusada(corpo), executor: d.executor ?? "catcher" }));
           if (r.obsoleta) throw new ErroDeDominio("estado_invalido", { cause: "colunas_mudaram" });
           if (r.loteId) ids.lote = r.loteId;
+          const resposta: RespostaMutacao = { ok: true, ids };
+          ctx.json(200, resposta);
+          return;
+        }
+
+        if (atual.tipo === "decisoes_exportacao") {
+          if (atual.ownerId !== ctx.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado");
+          const r = await comoDona(ctx.escopo, atual, (deps) => executar(deps, aplicarExportacaoDecisoes, { propostaId: atual.id, recusar: recusada(corpo) }));
+          ids.arquivos = String(r.arquivos.length);
           const resposta: RespostaMutacao = { ok: true, ids };
           ctx.json(200, resposta);
           return;
