@@ -17,7 +17,7 @@ import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } fr
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
 import type { Agente, FormaAgente, CorAgente, ModoAprovacao } from "../../src/contracts/agente.ts";
-import type { AmbienteBancoDto, ChaveEmitidaDto, ChaveMaquinaDto, ConversaDto, FrotaDto, ModoSessaoDto, RespostaMutacao, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
+import type { AmbienteBancoDto, ChaveEmitidaDto, ChaveMaquinaDto, FrotaDto, ModoSessaoDto, RespostaMutacao, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
 import type { Concessao } from "../../src/contracts/concessao.ts";
 import { cabecalhosDoApp, cabecalhosDoGoogleApp } from "./desafio-app.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
@@ -48,6 +48,7 @@ import type { ConfirmarEmailDto, ExportacaoDto, FormasDto, MinhaContaDto, Perfil
 import type { ExecucaoRotina } from "../../src/contracts/rotina.ts";
 import type { MembroSala, Sala } from "../../src/contracts/sala.ts";
 import type { FaixaParada, Turno } from "../../src/contracts/turno.ts";
+import type { ConversaComCursor, CursorDaConversa, RespostaMensagensDesde } from "../../src/contracts/estado-vivo.ts";
 import type { ComentarioDto, ComentarioTarefa, EntradaHistoricoDto, GrupoColuna, LinhaMuralDto, LoteQuadro, ModoConversa, QuadroCompartilhadoDto, QuadroDaPessoaDto, QuadroDto, StatusTarefa, TarefaPorCodigoDto } from "../../src/contracts/quadro.ts";
 import type { FiltroImportacao, ImportacaoDto, PreviaDaTela } from "../../src/contracts/quadro-importacao.ts";
 import type { CamposDeLabel, CorLabel } from "../../src/contracts/quadro-labels.ts";
@@ -437,7 +438,8 @@ export function criarApi(escopo: Escopo) {
     definirPassagem: (agenteId: string, coluna: string, p: { agente: string | null; instrucoes: string | null; proxima?: string | null; volta_para?: string | null }) =>
       pedir<MutacaoQuadro>("PUT", `${base}/agentes/${encodeURIComponent(agenteId)}/quadro/colunas/${encodeURIComponent(coluna)}/passagem`, p),
     /** NOD-380: `ate` (o id de uma fala achada na busca) faz a janela crescer até ela, mesmo fora das 200 recentes. */
-    conversa: (id: string, ate?: string) => get<ConversaDto>(`conversas/${id}/mensagens${ate ? `?ate=${encodeURIComponent(ate)}` : ""}`),
+    conversa: (id: string, ate?: string) => get<ConversaComCursor>(`conversas/${id}/mensagens${ate ? `?ate=${encodeURIComponent(ate)}` : ""}`),
+    conversaDesde: (id: string, cursor: CursorDaConversa) => get<RespostaMensagensDesde>(`conversas/${id}/mensagens?depois_de=${cursor.updated_seq}&geracao=${cursor.geracao}`),
     /** NOD-380: a busca de mensagens do celular; 20 por página, `cursor` vem da página anterior; `signal` cancela o pedido velho. */
     buscarMensagens: (q: string, cursor: string | null = null, signal?: AbortSignal) =>
       pedir<PaginaDaBusca>("GET", `${base}/busca/mensagens?q=${encodeURIComponent(q)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, undefined, { silencioso: true, ...(signal ? { signal } : {}) }),

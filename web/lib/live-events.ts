@@ -1,4 +1,5 @@
 import type { FrameSse, TipoFrame } from "../../src/contracts/frame.ts";
+import type { EstadoVivoBot, RetratoEstadoVivo } from "../../src/contracts/estado-vivo.ts";
 
 /**
  * Transporte servidor→navegador atrás de uma interface de 4 campos (ADR-016): quem consome não
@@ -15,6 +16,7 @@ export type EstadoConexao = "parado" | "conectando" | "aberto" | "reconectando";
 
 export type EventoLive =
   | { tipo: "frame"; frame: FrameSse }
+  | { tipo: "agentes.estado"; retrato: RetratoEstadoVivo }
   | { tipo: "resumed"; resumed: boolean; streamId: string; seq: number }
   | { tipo: "conexao"; estado: EstadoConexao; tentativa: number; proximaEmMs: number | null };
 
@@ -120,6 +122,9 @@ const TIPOS: Record<TipoFrame, true> = {
   "paginas.mudaram": true,
   "canvas.mudou": true,
   "conector.mudou": true,
+  "agente.estado": true,
+  "computador.cursor": true,
+  "computador.estado": true,
   resumed: true,
 };
 
@@ -132,6 +137,26 @@ export function interpretarFrame(data: unknown): FrameSse | null {
     if (typeof f.streamId !== "string" || typeof f.seq !== "number" || typeof f.pessoaId !== "string" || typeof f.tipo !== "string") return null;
     if (!(f.tipo in TIPOS)) return null;
     return { streamId: f.streamId, seq: f.seq, pessoaId: f.pessoaId, tipo: f.tipo as TipoFrame, dados: typeof f.dados === "object" && f.dados !== null ? f.dados : {} };
+  } catch {
+    return null;
+  }
+}
+
+function estadoVivo(v: unknown): v is EstadoVivoBot {
+  if (!v || typeof v !== "object") return false;
+  const e = v as Partial<EstadoVivoBot>;
+  return typeof e.agenteId === "string" && typeof e.rodando === "boolean" && typeof e.compondo === "boolean"
+    && typeof e.subagentes_rodando === "number" && typeof e.em === "number";
+}
+
+/** O retrato não é frame numerado: chega logo depois do `resumed` e substitui a foto conhecida dos bots. */
+export function interpretarRetratoEstadoVivo(data: unknown): RetratoEstadoVivo | null {
+  if (typeof data !== "string") return null;
+  try {
+    const r = JSON.parse(data) as Partial<RetratoEstadoVivo>;
+    return Array.isArray(r.agentes) && r.agentes.every(estadoVivo) && typeof r.em === "number"
+      ? { agentes: r.agentes, em: r.em }
+      : null;
   } catch {
     return null;
   }
@@ -259,6 +284,13 @@ export function criarLiveEvents(url: string, opcoes: OpcoesLiveEvents = {}): Liv
     // `ping` fica fora de TIPOS (espelho de TipoFrame): não é frame, só sinal de vida (sse.ts, PING_MS).
     f.addEventListener("ping", () => {
       if (fonte === f) { sinal(); ultimoDadoEm = relogio.agora(); }
+    });
+    f.addEventListener("agentes.estado", (ev) => {
+      if (fonte !== f) return;
+      sinal();
+      ultimoDadoEm = relogio.agora();
+      const retrato = interpretarRetratoEstadoVivo(ev.data);
+      if (retrato) emitir({ tipo: "agentes.estado", retrato });
     });
     for (const tipo of Object.keys(TIPOS)) {
       f.addEventListener(tipo, (ev) => {

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { aplicarMorph, decidirBloco, planoDoMorph, type Morph, type NoDoMorph } from "../../../web/lib/morph.ts";
+import { aplicarMorph, decidirBloco, planoDoMorph, trocarConteudo, type Morph, type NoDoMorph } from "../../../web/lib/morph.ts";
 
 /**
  * NOD-348: a fala viva se atualiza no lugar. O projeto não tem DOM nos testes; este é o mínimo de um elemento (filhos,
@@ -261,5 +261,40 @@ describe("CSS da fala viva: movimento reduzido e alto contraste (revisão 2 do #
   });
   it("em forced-colors, o estado é texto do sistema, sem o gradiente", () => {
     expect(bloco("forced-colors: active")).toMatch(/\.fala-viva-estado \{ background: none; color: CanvasText;[^}]*animation: none;/);
+  });
+});
+
+describe("Chat (polimento, 13/11): o rótulo do indicador fica no lugar", () => {
+  /** Um elemento com tag e um filho só (o lugar do rótulo e o rótulo), no formato que `trocarConteudo` lê. */
+  const comFilho = (tag: string, attrs: Record<string, string>, filho: No): No => {
+    const no = Object.assign(new No(tag, attrs), { tagName: "SPAN" });
+    no.com(filho);
+    no.conteudo = [filho];
+    return no;
+  };
+  const rotulo = (texto: string, classe: string): No => {
+    const r = Object.assign(new No(texto, { class: classe }), { tagName: "SPAN" });
+    r.conteudo = [texto];
+    return r;
+  };
+
+  it("com um filho só, da mesma tag, o filho fica (a entrada e o brilho seguem) e recebe a classe e o texto novos", () => {
+    const antigo = rotulo("Refletindo", "indicador-rotulo brilho");
+    const velho = comFilho("lugar", { "data-parte": "rotulo", "data-rotulo": "refletindo" }, antigo);
+    const novo = comFilho("lugar", { "data-parte": "rotulo", "data-rotulo": "digitando" }, rotulo("Digitando…", "indicador-rotulo"));
+    trocarConteudo(velho, novo);
+    expect(velho.filhos[0]).toBe(antigo);
+    expect(velho.getAttribute("data-rotulo")).toBe("digitando");
+    expect(antigo.getAttribute("class")).toBe("indicador-rotulo");
+    expect(antigo.conteudo).toEqual(["Digitando…"]);
+  });
+
+  it("sem a tag (os nós dos testes de antes) ou com tags diferentes, troca os filhos como antes", () => {
+    const velho = comFilho("lugar", {}, rotulo("A", "x"));
+    const outro = Object.assign(new No("B", {}), { tagName: "DIV" });
+    const novo = comFilho("lugar", {}, outro);
+    novo.conteudo = [outro];
+    trocarConteudo(velho, novo);
+    expect(velho.conteudo).toEqual([outro]);
   });
 });

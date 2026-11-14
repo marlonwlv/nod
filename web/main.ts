@@ -1,4 +1,6 @@
-import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE, type FilaOffline, type ItemDaFila } from "./lib/fila-offline.ts";
+import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
+import { armazemComReserva, armazemDaFila, criarJournalDeEnvio, JournalEncerrado, tipoDaFalha, type ArmazemDoJournal, type Desfecho, type ItemDoJournal, type Journal } from "./lib/journal-envio.ts";
+import { armazemDoJournalIndexedDb } from "./lib/journal-envio-idb.ts";
 import { atalhoDoTeclado as atalhoDoQuickChat, type AjustesMac } from "./telas/ajustes-mac.ts";
 import { arquivoDaCaptura, botDaUrl, ehJanelaAvatar, ehJanelaQuickChat, fraseDaCaptura, htmlAvatarDaMesa, htmlBotaoCapturar, htmlTopoQuickChat } from "./lib/quick-chat.ts";
 import { botaoDaBarraSemIa, conversaAguardandoIa, dicaDoComposerSemIa, iasNoCard, idDoCardSemIa, turnosVivosDe } from "./telas/sem-ia-conversa.ts";
@@ -81,6 +83,9 @@ import type { Escopo } from "../src/shared/types.ts";
 import type { FrameSse } from "../src/contracts/frame.ts";
 import type { AnexoDaConversa } from "../src/contracts/anexo.ts";
 import { confirmacaoCaducou, HISTORICO_INICIAL, type HistoricoDoBot } from "./lib/historico-perfil.ts";
+import { armazemEmMemoria, criarCacheDeConversas, criarEsperaDoSpinner, criarRevalidacaoEmSegundoPlano, ESPERA_DO_PREFETCH_MS, juntarMudancasDaConversa } from "./lib/cache-conversas.ts";
+import type { ConversaComCursor } from "../src/contracts/estado-vivo.ts";
+import { armazemIndexedDb } from "./lib/cache-conversas-idb.ts";
 import { agenteDaTela, bibliotecaAberta, conversaAbertaTemNotaDeContas, conversaDaTela, estadoInicial, acoesAoMudarConexao, invalidacoesAoRetomar, sempreRelevante, invalidacoesDaTela, mudouNaTela, reduzir, secaoAberta, secaoDoPedido, type Acao, type Estado, type FalaPendente, type Invalidacao, type NivelGaveta, type PedidoSecao, type PerfilCelular, type SecaoEspaco, type Tela } from "./estado/reducer.ts";
 import { mascararDormindo, RetryDoAcordar, type PassosDoRetry } from "./lib/retry-computador.ts";
 import { contaApi, criarApi, minhaContaApi, ErroApi, observarRede, sessao as sessaoApi, type Api } from "./lib/api.ts";
@@ -94,7 +99,7 @@ import type { EstadoContaDto } from "../src/contracts/conta.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
 import { criarSondaDeRede } from "./lib/sonda-de-rede.ts";
 import { criarReleituraAdiada } from "./lib/releitura-adiada.ts";
-import { tabelaComo } from "./lib/texto-formatado.ts";
+import { CHECK_CODIGO_MS, tabelaComo } from "./lib/texto-formatado.ts";
 import { CHAVE_GUARDADA, lerGuardado, lerPedido, PARAMETROS_DO_PEDIDO, type PedidoPareamento } from "./lib/parear-mac.ts";
 import { abrirPareamento } from "./telas/parear-mac.ts";
 import { abrirOiDeNovo, mostrarEsteComputador } from "./telas/oi-de-novo.ts";
@@ -142,7 +147,8 @@ import { lembrar } from "./lib/lembrar.ts";
 import { atualizarGaveta } from "./lib/gaveta-render.ts";
 import { blocosMudariam, esquecerRegiao, regiao, regiaoEmVoltaDe, regiaoMudaria, regiaoPorBlocos } from "./lib/regioes.ts";
 import { mudancaSujaAGaveta, reporSeletor, salvarOuRepor } from "./lib/salvar-ou-repor.ts";
-import { criarAnunciador, criarRelogioDaFala, escreverEstados, escreverTempos, lerFalasNaTela, TICK_CURTO_MS, type FalaNaTela } from "./lib/fala-viva.ts";
+import { PERMANENCIA_MS } from "./lib/estado-do-indicador.ts";
+import { criarAnunciador, criarRelogioDaFala, escreverEstados, escreverTempos, escreverVariantes, lerFalasNaTela, TICK_CURTO_MS, type FalaNaTela } from "./lib/fala-viva.ts";
 import { criarRascunhos } from "./lib/rascunhos.ts";
 import { juntarSugestao, planoNovaRotina } from "./lib/rotina-no-chat.ts";
 import { criarRolagem } from "./lib/rolagem-na-tela.ts";
@@ -174,7 +180,7 @@ import { appsQueFaltam } from "./telas/rotina-precisa.ts";
 import { criarConexoes } from "./lib/conexao.ts";
 import type { Proposta } from "../src/contracts/conversa.ts";
 import { criarProgressoNaTela, progressoFechado } from "./telas/progresso-na-fala.ts";
-import { blocosAoVivo, blocosDoHistorico, pensarFechado, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, type BlocoDaTimeline } from "./telas/conversa.ts";
+import { blocosAoVivo, blocosDoHistorico, pensarFechado, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, tomarTrocaDoIndicador, type BlocoDaTimeline } from "./telas/conversa.ts";
 import { criarArtefatosVivos } from "./telas/artefatos-vivos.ts";
 import { criarDiagramasVivos } from "./telas/diagramas-vivos.ts";
 import { instalarDicaDeLink } from "./lib/dica-link.ts";
@@ -204,7 +210,7 @@ import { rolagemDaBarra, type Faixa } from "./lib/rolagem-barra.ts";
 import { comandoNoTexto, recentesDaConversa } from "./lib/barra.ts";
 import { ajustarAltura, arquivosDaColagem, criarBarra, escolherMencao, htmlSugestoes, sugestoesDaMencao, teclaDoCampo, type ContextoDaBarra } from "./lib/composer.ts";
 import type { ComandosDto } from "../src/contracts/comandos.ts";
-import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, opcoesDaPergunta, proximaDoComposer, textoDaLetra } from "./lib/perguntas.ts";
+import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, type ResultadoEnvio, opcoesDaPergunta, proximaDoComposer, textoDaLetra } from "./lib/perguntas.ts";
 import { acharBotao, aplicarFocoDaFila, botaoEmFoco, proximoDaFila, VALIDADE_DO_FOCO_MS, type FocoDaFila } from "./lib/foco-da-fila.ts";
 import { aplicarEncolhidos, decididaNaConversa, type DecididaNestaAba } from "./lib/foco-do-encolhido.ts";
 import { seletorDoFocoNaRegiao } from "./lib/foco-do-bloco.ts";
@@ -445,6 +451,19 @@ function marcarDecidida(el: HTMLElement, id: string | undefined): void {
 // NOD-156: a chave de idempotência da fala nasce aqui, uma por fala, e sobrevive ao reenvio depois de uma falha.
 const envios = criarEnvios();
 const rascunhos = criarRascunhos(() => { try { return localStorage; } catch { return null; } });
+/** Item 5 do chat: o cache das conversas (memória + IndexedDB, um por pessoa; até a sessão entrar, só a memória). */
+let cacheConversas = criarCacheDeConversas(armazemEmMemoria());
+/** O journal de envio da pessoa (web/lib/journal-envio.ts); nasce com a sessão. */
+let journal: Journal | null = null;
+/** A barra em dia: depois do boot, com a aba visível, relê uma por vez as conversas da barra que já têm réplica. */
+const revalidacaoDaBarra = criarRevalidacaoEmSegundoPlano({
+  candidatas: () => conversasDaBarraComReplica(),
+  revalidar: (id) => revalidarDaBarra(id),
+  visivel: () => !document.hidden,
+  agendar: (fn, ms) => void window.setTimeout(fn, ms),
+});
+/** Item 5 do chat: sem cache, a conversa anterior fica até 80 ms; depois o spinner (o redesenho agendado o mostra). */
+const esperaDoSpinner = criarEsperaDoSpinner((fn, ms) => void window.setTimeout(fn, ms), () => render());
 /**
  * O progresso na fala que a timeline mostra agora (chat limpo, PR 8): medido pela rolagem; a pílula do bot some com ele à
  * vista (web/lib/pilula.ts).
@@ -1524,6 +1543,8 @@ function dispatch(acao: Acao): void {
 function reduzirVendoSaida(acao: Acao): boolean {
   const antes = estado.tela;
   estado = reduzir(estado, sobreporPendentes(acao, perfilPendente));
+  // Journal de envio: a conversa que carregou depois do boot ganha as falas dela que ainda estão no journal.
+  if (acao.tipo === "hidratar-conversa") estado = comPendentesDoJournal(estado, acao.conversa.conversa.id);
   // NOD-379: o onboarding pendente continua abrindo no guia, não na inicial do celular.
   if (estado.onboardingAberto && !onboardingVisto) celular.fecharBots();
   onboardingVisto = !!estado.onboardingAberto;
@@ -1572,9 +1593,24 @@ let trocasPendentes = 0;
 const relogioDaFala = criarRelogioDaFala(() => {
   const aoVivo = document.getElementById("timeline-ao-vivo");
   const agora = Date.now();
-  trocasPendentes = escreverEstados(aoVivo, agora);
-  return escreverTempos(aoVivo, agora) + trocasPendentes;
+  // COP-14: a permanência do rótulo do indicador é de 800 ms (PERMANENCIA_MS); as variantes trocam no mesmo tick.
+  trocasPendentes = escreverEstados(aoVivo, agora, PERMANENCIA_MS);
+  return escreverTempos(aoVivo, agora) + trocasPendentes + escreverVariantes(aoVivo, agora);
 }, agendarNaJanela, () => document.hidden, () => (trocasPendentes > 0 ? TICK_CURTO_MS : 1000));
+/**
+ * Chat (polimento): o rótulo do indicador que esperava a permanência de 800 ms entra com um `tick` na hora (o relógio do
+ * estado anda e o render refaz o rótulo pelo caminho de sempre). Um agendamento por vez: o mais cedo ganha.
+ */
+let trocaDoIndicador: { em: number; t: number } | null = null;
+function agendarTrocaDoIndicador(em: number | null): void {
+  if (em === null || (trocaDoIndicador && trocaDoIndicador.em <= em)) return;
+  if (trocaDoIndicador) window.clearTimeout(trocaDoIndicador.t);
+  const t = window.setTimeout(() => {
+    trocaDoIndicador = null;
+    dispatch({ tipo: "tick", agora: Date.now() });
+  }, Math.max(0, em - Date.now()) + 16);
+  trocaDoIndicador = { em, t };
+}
 let anuncioPendente = 0;
 const anunciadorDoTurno = criarAnunciador((texto) => {
   const anuncio = document.getElementById("anuncio-turno");
@@ -2151,7 +2187,10 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     // Modo dev (0036): a faixa de cada resposta acompanha a conversa — o turno que acabou de assentar já tem Raio-X.
     void carregarRaioX(q.slice(9));
     const ate = ateDaBusca(q.slice(9));
-    return { tipo: "hidratar-conversa", conversa: notarAlvoDaBusca(q.slice(9), ate, await api.conversa(q.slice(9), ate)), agora };
+    // Item 5 do chat: a leitura de hoje é a revalidação do cache (a resposta é guardada); a conversa que sumiu (404) sai dele.
+    const cliente = api;
+    const conversa = await cacheConversas.revalidar(q.slice(9), (anterior) => buscarConversaAtualizada(cliente, q.slice(9), anterior, { ate })).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) cacheConversas.apagar(q.slice(9)); throw e; });
+    return { tipo: "hidratar-conversa", conversa: notarAlvoDaBusca(q.slice(9), ate, conversa), agora };
   }
   // QA do PR #302 (NOD-216): a conversa do bot que o dono diz trabalhando, lida fora da tela para a barra animar.
   if (q.startsWith("vivos:")) {
@@ -2864,6 +2903,23 @@ function abrirMenuDaPilula(ancora: HTMLElement, itens: readonly ItemDoMenuDaPilu
   });
 }
 
+/**
+ * Item 5 do chat: a conversa nova sem cache nenhum deixa a timeline como está (a conversa anterior) por até 80 ms; passado
+ * isso, o render seguinte (agendado pela espera) limpa a área e mostra só o spinner. Sem conversa anterior desenhada (a
+ * primeira carga), não há o que segurar: o spinner entra direto.
+ */
+function segurarConversaAnterior(conversaId: string, temOQuePintar: boolean): boolean {
+  // A réplica que ainda vem do IndexedDB (o boot antes do espelho, ou a que saiu da memória) também segura até 80 ms, com a
+  // casca da timeline já na tela (mesmo vazia): o spinner fica para o bot nunca aberto.
+  const historico = document.getElementById("timeline-historico");
+  const segura = historico?.firstElementChild || (historico && replicaACaminho(conversaId));
+  if (temOQuePintar || !segura) {
+    esperaDoSpinner.soltar();
+    return false;
+  }
+  return esperaDoSpinner.segurar(conversaId, performance.now());
+}
+
 function renderPrincipal(): void {
   const t = estado.tela;
   // NOD-174: a pessoa lê a frase do servidor; o código fechado fica só no <details>, para quem depura.
@@ -2872,6 +2928,8 @@ function renderPrincipal(): void {
   let corpo = "";
   let partes: PartesDaTimeline | null = null;
   let composer: { chave: string; html: string } | null = null;
+  // Item 5 do chat: sem nada para pintar da conversa nova, a anterior fica na tela até 80 ms (corte seco, sem "carregando").
+  let segurarTimeline = false;
   switch (t.tipo) {
     case "novo-bot":
       corpo = renderNovoBot(estado, { teclaSala: `${MOD_DA_PALETA} ⇧ N` });
@@ -2932,12 +2990,14 @@ function renderPrincipal(): void {
       }
       partes = partesDaTimeline();
       corpo = partes ? CASCA_TIMELINE : renderTimeline(null, estado);
+      segurarTimeline = segurarConversaAnterior(t.conversaId, partes !== null);
       composer = { chave: `conversa:${t.conversaId}`, html: htmlComposer(placeholderPadrao(), (estado.frota?.agentes ?? []).filter((a) => a.id !== t.agenteId && a.ownerId === estado.sessao?.pessoaId && a.confirmado).map((a) => a.nome), { anexos: aceitaDo(botGerido(t.agenteId)?.harness), comandos: true, aprovacao: true, bot: botGerido(t.agenteId)?.nome }) };
       break;
     case "sala":
       cabecalho = renderCabecalhoSala(estado, t.salaId);
       partes = partesDaTimeline();
       corpo = partes ? CASCA_TIMELINE : renderTimeline(null, estado);
+      segurarTimeline = segurarConversaAnterior(t.conversaId, partes !== null);
       composer = { chave: `sala:${t.salaId}`, html: htmlComposer(PLACEHOLDER_SALA, nomesDosMembros(estado, t.salaId)) };
       break;
   }
@@ -2968,7 +3028,7 @@ function renderPrincipal(): void {
   const cascaMuda = regiaoMudaria("timeline", corpo);
   const historicoMuda = cascaMuda || (partes !== null && blocosMudariam("timeline-historico", partes.historico));
   const aoVivoMuda = cascaMuda || (partes !== null && blocosMudariam("timeline-ao-vivo", partes.aoVivo));
-  if (historicoMuda || aoVivoMuda) regravarTimeline(corpo, partes, { cascaMuda, historicoMuda, aoVivoMuda });
+  if (!segurarTimeline && (historicoMuda || aoVivoMuda)) regravarTimeline(corpo, partes, { cascaMuda, historicoMuda, aoVivoMuda });
   // Chat limpo (PR 7; QA do PR 398): o progresso das frentes muda só o bloco dele, dentro da fala, sem regravá-la. O bloco
   // trocado é medido de novo antes da pílula (PR 8): ela some com o bloco à vista, e a frente nova do lote muda o bloco.
   if (progressoNaTela.desenhar(conversaDaTela(estado), estado, memoriaNaFala()) > 0) rolagem.progressoTrocado();
@@ -2994,6 +3054,7 @@ function renderPrincipal(): void {
   // NOD-348: o tempo da fala viva é escrito logo depois do render (a parte trocada nasce vazia) e o anunciador vê o estado novo.
   relogioDaFala.tocar();
   anunciadorDoTurno.observar(falasNaTela());
+  agendarTrocaDoIndicador(tomarTrocaDoIndicador());
   // ADR-083 (#195): a faixa de Trabalhos fica colada em cima do campo, só na conversa e só com trabalho aberto do bot.
   // ADR-099 (parte 5): virou a linha do dono; chat limpo (PR 8): virou a pílula que se alarga, que some com a fala à vista.
   // Depois da timeline (revisão do PR 400): a medida do progresso na fala é a da timeline que acabou de ser desenhada
@@ -3010,6 +3071,9 @@ function renderPrincipal(): void {
     fecharFolhaMais();
     const saindo = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
     if (composerDe && saindo) rascunhos.guardar(composerDe, saindo.value);
+    // Item 5 do chat: trocar de uma conversa para outra tira o foco do campo (a borda volta ao repouso em 150 ms).
+    const trocaDeConversa = composerDe !== null && /^(conversa|sala):/.test(composerDe) && /^(conversa|sala):/.test(composer?.chave ?? "");
+    const tinhaFoco = !!saindo && document.activeElement === saindo;
     composerDe = composer?.chave ?? null;
     esquecerRegiao("composer");
     esquecerRegiao("composer-pergunta");
@@ -3021,8 +3085,13 @@ function renderPrincipal(): void {
       ajustarAltura(ta);
       ta.setSelectionRange(rascunho.length, rascunho.length);
     }
-    // No celular o foco abriria o teclado a cada conversa aberta: o campo espera o toque.
-    if (!celular.ativo()) ta?.focus();
+    // No celular o foco abriria o teclado a cada conversa aberta: o campo espera o toque. Na troca de conversa, também não.
+    if (!celular.ativo() && !trocaDeConversa) ta?.focus();
+    if (trocaDeConversa && tinhaFoco) {
+      const caixa = ta?.closest<HTMLElement>(".box");
+      caixa?.classList.add("saindo-do-foco");
+      caixa?.addEventListener("animationend", () => caixa.classList.remove("saindo-do-foco"), { once: true });
+    }
     redesenharAnexos();
   }
   atualizarComposer();
@@ -3117,6 +3186,16 @@ function partesDaTimeline(): PartesDaTimeline | null {
  * fim. Com o histórico parado, só a parte ao vivo é mexida, e só nela se procura o que guardar: procurar no documento
  * inteiro (dezenas de milhares de nós numa conversa longa) a cada quadro de streaming custava mais que o próprio desenho.
  */
+/**
+ * Chat (polimento, protótipo C2b "passagem para a resposta"): a resposta do bot que acabou de entrar na conversa aberta
+ * sobe 12 px com fade (`.chegou`, web/chat.css), ~100 ms depois de o indicador sair; a fala que a pessoa acabou de mandar
+ * (a pendente) sobe na hora. Só os blocos novos (`regiaoPorBlocos`); abrir a conversa ou carregar o histórico não anima.
+ * A classe é da tela: `morfarDom` a preserva quando a pendente vira a gravada no mesmo nó.
+ */
+function animarChegada(blocos: HTMLElement[]): void {
+  for (const bloco of blocos) for (const b of bloco.querySelectorAll<HTMLElement>(".message.bot:not(.fala-viva) .bubble, .fala-pendente:not([data-envio=\"gravada\"]) .message.you .bubble")) b.classList.add("chegou");
+}
+
 function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: { cascaMuda: boolean; historicoMuda: boolean; aoVivoMuda: boolean }): void {
   const t = estado.tela;
   const timeline = document.getElementById("timeline");
@@ -3145,7 +3224,7 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     esquecerRegiao("timeline-ao-vivo");
   }
   if (partes) {
-    if (muda.historicoMuda) regiaoPorBlocos("timeline-historico", partes.historico);
+    if (muda.historicoMuda) animarChegada(regiaoPorBlocos("timeline-historico", partes.historico));
     if (muda.aoVivoMuda) regiaoPorBlocos("timeline-ao-vivo", partes.aoVivo);
   }
   // O progresso das frentes entra nos lugares da fala antes de reabrir os <details> e de contar as linhas mostradas.
@@ -3802,6 +3881,21 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   cancelarRetryDoComputador();
   // Os rascunhos são da pessoa: outra sessão, outros rascunhos.
   rascunhos.usar(`${escopo.tenantId}.${escopo.pessoaId}`);
+  // Item 5 do chat: as conversas guardadas também são da pessoa (um banco por pessoa). Lidas, a da tela que ainda espera
+  // o servidor já pinta (a primeira troca depois de recarregar vem do IndexedDB).
+  if (escopo.tenantId !== estado.sessao?.tenantId || escopo.pessoaId !== estado.sessao?.pessoaId) {
+    cacheConversas.descarregar();
+    const cache = criarCacheDeConversas(armazemIndexedDb(`${escopo.tenantId}.${escopo.pessoaId}`));
+    cacheConversas = cache;
+    // O journal de envio também é da pessoa: o da sessão anterior para de reenviar (o que ficou volta no boot dela).
+    journal?.encerrar();
+    journal = criarJournalDeEnvio({ armazem: armazemDoJournalDa(escopo), enviar: enviarDoJournal });
+    void cache.pronto.then(() => {
+      if (cache !== cacheConversas || !pintarDoCache(estado.tela)) return;
+      render();
+      void reidratar();
+    });
+  }
   api = criarApi(escopo);
   // NOD-324: a disponibilidade do ditado (e o aceite do aviso) é da sessão; a da anterior não decide o 🎤 desta.
   ditado.reiniciar();
@@ -3816,6 +3910,9 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   deepLink.novaSessao();
   ambienteBanco = await api.ambiente();
   dispatch({ tipo: "sessao", escopo });
+  // Journal de envio: depois da sessão, o que ficou (recarregou no meio, ficou sem rede) volta à conversa e é reenviado.
+  reconciliarJournal();
+  revalidacaoDaBarra.iniciar();
   void api.preferencias().then((p) => {
     if (p.usoDoMac) dispatch({ tipo: "uso-do-mac", uso: p.usoDoMac });
     atualizarModoNoComposer();
@@ -3848,6 +3945,7 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   });
   live.subscribe((ev) => {
     if (ev.tipo === "frame") receberFrame(ev.frame);
+    else if (ev.tipo === "agentes.estado") dispatch({ tipo: "hidratar-estados-vivos", estados: ev.retrato.agentes });
     else if (ev.tipo === "conexao") {
       // NOD-216: o stream que volta depois de cair relê os turnos vivos (a conversa aberta e os donos da barra), mesmo
       // com o replay: um turno.encerrado de antes do buffer deixaria o mascote animado para sempre.
@@ -4240,6 +4338,7 @@ function navegar(tela: Tela, o: { filaDeSuaVez?: boolean } = {}): void {
   if (celular.ativo() && abaDoDestino(tela) === "sua-vez" && !o.filaDeSuaVez) { trocarAbaDoInicio("sua-vez"); celular.voltarAoInicio(); return; }
   const paraInicial = celular.ativo() && tela.tipo === "inicio";
   if (!paraInicial) celular.entrarNaConversa();
+  prepararConversaAoAbrir(antes, tela);
   aoTrocarDeTela(antes, tela);
   dispatch({ tipo: "navegar", tela });
   conversaEscolhida = tela.tipo === "conversa" ? tela.conversaId : null;
@@ -4252,6 +4351,146 @@ function navegar(tela: Tela, o: { filaDeSuaVez?: boolean } = {}): void {
   lerConversaDaTela();
   if (rolaAoTopoAoNavegar(tela.tipo)) document.getElementById("timeline")?.scrollTo({ top: 0 });
 }
+
+/** Releitura de menos de 2 s (o prefetch do hover, por exemplo) já é a revalidação: abrir logo depois não lê de novo. */
+const RELEITURA_RECENTE_MS = 2000;
+
+/**
+ * Item 5 do chat (stale-while-revalidate): abrir outra conversa pinta no mesmo quadro o que houver dela — a memória
+ * (`estado.conversas`) ou o IndexedDB (web/lib/cache-conversas.ts) — e pede a leitura de hoje, que o reducer aplica por
+ * cima; a timeline troca só os blocos que mudaram, e a rolagem colada no fim continua no fim. A conversa que sai é guardada.
+ */
+function prepararConversaAoAbrir(antes: Tela, tela: Tela): void {
+  if (tela.tipo !== "conversa" && tela.tipo !== "sala") return;
+  const de = antes.tipo === "conversa" || antes.tipo === "sala" ? antes.conversaId : null;
+  if (de === tela.conversaId) return;
+  const saindo = de ? estado.conversas[de] : undefined;
+  if (saindo && saindo.carregadaEm > 0) cacheConversas.guardar(saindo);
+  if (pintarDoCache(tela)) return;
+  const c = estado.conversas[tela.conversaId];
+  if (c && Date.now() - c.carregadaEm > RELEITURA_RECENTE_MS) estado = reduzir(estado, { tipo: "invalidar", quais: [`conversa:${tela.conversaId}`] });
+}
+
+/** A conversa da tela que não está na memória mas está no cache entra no estado (o reducer pede a releitura). */
+function pintarDoCache(tela: Tela): boolean {
+  if ((tela.tipo !== "conversa" && tela.tipo !== "sala") || estado.conversas[tela.conversaId]) return false;
+  const guardada = cacheConversas.ler(tela.conversaId);
+  if (!guardada) {
+    // A réplica parada que saiu da memória (10 min) volta do IndexedDB; a espera do spinner (80 ms) cobre a leitura.
+    if (cacheConversas.temGuardada(tela.conversaId)) trazerDoArmazem(tela.conversaId);
+    return false;
+  }
+  estado = comPendentesDoJournal(reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }), tela.conversaId);
+  return true;
+}
+
+function trazerDoArmazem(id: string): void {
+  const cache = cacheConversas;
+  void cache.carregar(id).then((guardada) => {
+    const t = estado.tela;
+    if (!guardada || cache !== cacheConversas || estado.conversas[id] || (t.tipo !== "conversa" && t.tipo !== "sala") || t.conversaId !== id) return;
+    estado = comPendentesDoJournal(reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }), id);
+    render();
+    void reidratar();
+  });
+}
+
+/** Item 5 do chat: a réplica desta conversa ainda vem do IndexedDB (o espelho não foi lido, ou ela saiu da memória). */
+function replicaACaminho(conversaId: string): boolean {
+  return !cacheConversas.estaPronto() || (cacheConversas.temGuardada(conversaId) && !estado.conversas[conversaId]);
+}
+
+/** As conversas da barra que já têm réplica, sem a aberta; nenhuma enquanto a aberta espera a leitura dela (não atrapalha). */
+function conversasDaBarraComReplica(): string[] {
+  if (!api) return [];
+  const t = estado.tela;
+  const aberta = t.tipo === "conversa" || t.tipo === "sala" ? t.conversaId : null;
+  if (aberta && estado.invalidacoes.includes(`conversa:${aberta}`)) return [];
+  const ids = [...document.querySelectorAll<HTMLElement>('#sidebar [data-act="abrir-conversa"][data-conversa]')].map((el) => el.dataset.conversa ?? "");
+  return [...new Set(ids)].filter((id) => id && id !== aberta && cacheConversas.temGuardada(id));
+}
+
+/** O cursor atualiza réplicas fora do estado; a conversa hidratada faz leitura inteira porque o delta só traz mensagens. */
+async function buscarConversaAtualizada(cliente: Api, id: string, anterior: ConversaComCursor | null, op: { ate?: string; incremental?: boolean } = {}): Promise<ConversaComCursor> {
+  if (!op.incremental || op.ate || !anterior?.cursor) return cliente.conversa(id, op.ate);
+  const mudancas = await cliente.conversaDesde(id, anterior.cursor);
+  // Servidor antigo ignora `depois_de` e já devolve a conversa inteira: aproveita em vez de pedir de novo.
+  if ("conversa" in mudancas) return mudancas as unknown as ConversaComCursor;
+  return juntarMudancasDaConversa(anterior, mudancas) ?? cliente.conversa(id);
+}
+
+/**
+ * A barra em dia: a leitura de sempre (GET da conversa), em segundo plano — guardada sem contar como uso; a conversa que
+ * já está na memória da tela (não a aberta) ganha a versão nova; a que sumiu (404) sai da réplica.
+ */
+async function revalidarDaBarra(id: string): Promise<void> {
+  const cliente = api;
+  const cache = cacheConversas;
+  const sessao = estado.sessao;
+  if (!cliente) return;
+  const estavaNoEstado = !!estado.conversas[id];
+  const conversa = await cache.revalidar(id, (anterior) => buscarConversaAtualizada(cliente, id, anterior, { incremental: !estavaNoEstado }), { emSegundoPlano: true }).catch((e: unknown) => {
+    if (e instanceof ErroApi && e.status === 404) cache.apagar(id);
+    throw e;
+  });
+  const t = estado.tela;
+  const aberta = (t.tipo === "conversa" || t.tipo === "sala") && t.conversaId === id;
+  if (api === cliente && estado.sessao === sessao && !aberta && estado.conversas[id]) dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() });
+}
+
+/**
+ * Item 5 do chat: as réplicas paradas há 10 min saem da memória (a do módulo e `estado.conversas`); o IndexedDB fica e as
+ * traz de volta ao abrir. Nunca a aberta, a com turno vivo, a com fala pendente nem a com fala no journal.
+ */
+function soltarReplicasParadas(): void {
+  const t = estado.tela;
+  const aberta = t.tipo === "conversa" || t.tipo === "sala" ? t.conversaId : null;
+  const vivas = new Set(Object.values(estado.turnosVivos).map((v) => v.conversaId));
+  const noJournal = new Set((journal?.itens() ?? []).map((i) => i.item.conversaId));
+  const manter = (id: string): boolean => id === aberta || vivas.has(id) || noJournal.has(id) || !!estado.conversas[id]?.pendentes?.length || !!estado.conversas[id]?.turnosEmCurso?.length;
+  const saem = cacheConversas.despejarParadas(manter);
+  if (saem.length) estado = reduzir(estado, { tipo: "conversas-saem-da-memoria", ids: saem });
+}
+window.setInterval(soltarReplicasParadas, 60_000);
+// A aba que some grava já o que esperava os 2 s (fechar a aba não perde a última releitura).
+window.addEventListener("pagehide", () => cacheConversas.descarregar());
+document.addEventListener("visibilitychange", () => { if (document.hidden) cacheConversas.descarregar(); });
+
+/**
+ * Item 5 do chat: o mouse parado 150 ms numa linha da barra busca a conversa daquele bot (o clique já acha o que pintar).
+ * Com ela no cache, só pinta do cache (abrir revalida); sem, lê do servidor e guarda. A que já está na memória não relê.
+ */
+let prefetchDe: string | null = null;
+let prefetchTimer: number | null = null;
+const prefetchEmCurso = new Set<string>();
+document.addEventListener("pointerover", (ev) => {
+  if (ev.pointerType === "touch") return;
+  const alvo = ev.target instanceof Element ? ev.target : null;
+  const id = alvo?.closest<HTMLElement>('#sidebar [data-act="abrir-conversa"][data-conversa]')?.dataset.conversa || null;
+  if (id === prefetchDe) return;
+  prefetchDe = id;
+  if (prefetchTimer !== null) window.clearTimeout(prefetchTimer);
+  prefetchTimer = id ? window.setTimeout(() => { prefetchTimer = null; prefetchConversa(id); }, ESPERA_DO_PREFETCH_MS) : null;
+});
+
+function prefetchConversa(id: string): void {
+  const t = estado.tela;
+  if (!api || estado.conversas[id] || prefetchEmCurso.has(id) || ((t.tipo === "conversa" || t.tipo === "sala") && t.conversaId === id)) return;
+  const guardada = cacheConversas.ler(id);
+  if (guardada) { estado = reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }); return; }
+  const cliente = api;
+  const sessao = estado.sessao;
+  prefetchEmCurso.add(id);
+  void cacheConversas.revalidar(id, (anterior) => buscarConversaAtualizada(cliente, id, anterior))
+    .then((conversa) => { if (api === cliente && estado.sessao === sessao && !estado.conversas[id]) dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() }); }, () => undefined)
+    .finally(() => prefetchEmCurso.delete(id));
+}
+
+// Item 5 do chat: a miniatura da imagem que a pessoa mandou é um skeleton até a foto carregar (web/chat-troca.css).
+document.addEventListener("load", (ev) => {
+  const img = ev.target;
+  if (img instanceof HTMLImageElement && img.parentElement?.classList.contains("msg-anexo-img")) img.parentElement.classList.add("carregou");
+}, true);
 
 /** A tela de onde a pessoa sai: no celular, com a inicial à vista, é a inicial (não a conversa escondida por baixo). */
 function telaDeOrigem(): Tela {
@@ -4569,9 +4808,14 @@ async function enviarComposer(): Promise<void> {
   }
   await agir(async () => {
     let enviou = false;
+    // Journal de envio: o primeiro POST falhou e os reenvios seguem sozinhos — a trava do campo solta já (outra fala pode ir).
+    let solto = false;
     let r: Awaited<ReturnType<typeof enviarPeloComposer>>;
     try {
-      r = await enviarPeloComposer(a, alvo, destino, enviado, ids, idEnvio);
+      const j = journal;
+      r = pendente && j
+        ? await enviarPeloJournal(j, { conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, texto: pendente.texto, anexos: ids, ...(pendente.respondeA ? { respondeA: pendente.respondeA } : {}), em: pendente.em }, () => { solto = true; envios.concluir(alvo.conversaId, false); })
+        : await enviarPeloComposer(a, alvo, destino, enviado, ids, idEnvio);
       enviou = true;
       // NOD-380: depois de falar, a conversa volta à janela comum; o alvo da busca não segura mais o `?ate=`.
       alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, alvo.conversaId);
@@ -4591,14 +4835,13 @@ async function enviarComposer(): Promise<void> {
       }
       // Revisão de engenharia (27/10): o porquê (limite do plano, conversa encerrada, sem internet…) vai na própria fala,
       // com a frase que a faixa de antes mostrava — sem ele, "Não foi enviada" não dizia o que fazer.
-      // ADR-171: sem internet, a fala entra na fila offline e vai sozinha quando a conexão voltar.
-      const offline = guardarSeOffline(e, { conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, texto: pendente.texto, anexos: ids, ...(pendente.respondeA ? { respondeA: pendente.respondeA } : {}), em: Date.now() });
-      dispatch({ tipo: "fala-pendente-falhou", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, motivo: offline ? MOTIVO_OFFLINE : motivoDaFalha(e) });
+      // ADR-171 + journal: sem internet (ou 5xx), a fala segue no journal e vai sozinha no `online` ou no próximo boot.
+      dispatch({ tipo: "fala-pendente-falhou", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, motivo: motivoDoJournal(e) });
       return;
     } finally {
-      if (idEnvio) envios.concluir(alvo.conversaId, enviou);
+      if (idEnvio && !solto) envios.concluir(alvo.conversaId, enviou);
+      else if (idEnvio && enviou) envios.esquecer(alvo.conversaId, idEnvio);
     }
-    if (pendente) filaDeEnvio()?.tirar(pendente.idEnvio);
     if (pendente) dispatch({ tipo: "fala-pendente-confirmada", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, mensagemId: r.ids?.mensagem ?? null, turnoId: r.ids?.turno ?? null });
     else limparDepoisDeEnviar(ta, chave, texto);
     if (r.enviado === "resposta") anunciarPergunta(`Resposta enviada: ${enviado}`);
@@ -4611,34 +4854,81 @@ async function enviarComposer(): Promise<void> {
   });
 }
 
-/** ADR-171: a fila de envio offline da pessoa da sessão (localStorage); sem sessão ou sem armazenamento, nenhuma. */
-function filaDeEnvio(): FilaOffline | null {
-  const pessoaId = estado.sessao?.pessoaId;
-  if (!pessoaId) return null;
-  let armazem: Storage | null = null;
-  try { armazem = window.localStorage; } catch { armazem = null; }
-  return criarFilaOffline(armazem, pessoaId);
+/**
+ * Journal de envio (web/lib/journal-envio.ts): o armazém da pessoa — o IndexedDB, com a fila offline do `localStorage`
+ * (ADR-171) de reserva e de onde o que ela guardou antes passa para o IndexedDB; sem IndexedDB, só a fila (como antes).
+ */
+function armazemDoJournalDa(escopo: Escopo): ArmazemDoJournal {
+  let local: Storage | null = null;
+  try { local = window.localStorage; } catch { local = null; }
+  const fila = armazemDaFila(criarFilaOffline(local, escopo.pessoaId));
+  const idb = armazemDoJournalIndexedDb(`${escopo.tenantId}.${escopo.pessoaId}`);
+  return idb ? armazemComReserva(idb, fila) : fila;
 }
 
-/** ADR-171: o envio caiu por falta de rede — a fala vai para a fila e o motivo diz que ela vai sozinha. */
-function guardarSeOffline(e: unknown, item: ItemDaFila): boolean {
-  if (!falhouPorRede(navigator.onLine, e)) return false;
-  filaDeEnvio()?.guardar(item);
-  return true;
+/** O POST da fala do journal, pela mesma chave. Sem sessão, conta como rede (fica no journal, não vira recusa). */
+function enviarDoJournal(item: ItemDoJournal): Promise<unknown> {
+  const a = api;
+  if (!a) return Promise.reject(new DOMException("sem sessão", "AbortError"));
+  return item.respondeA ? a.enviar(item.conversaId, item.texto, item.anexos, item.idEnvio, item.respondeA) : a.enviar(item.conversaId, item.texto, item.anexos, item.idEnvio);
+}
+
+async function enviarPeloJournal(j: Journal, item: ItemDoJournal, aoFalharPrimeira?: () => void): Promise<ResultadoEnvio> {
+  const ids = idsDaResposta(await j.enviar(item, aoFalharPrimeira ? { aoFalharPrimeira } : {}));
+  return ids ? { enviado: "mensagem", ids } : { enviado: "mensagem" };
+}
+
+/** ADR-171: sem internet, o motivo diz que a fala vai sozinha (ela segue no journal); senão, a frase do erro. */
+function motivoDoJournal(e: unknown): string | undefined {
+  return falhouPorRede(navigator.onLine, e) ? MOTIVO_OFFLINE : motivoDaFalha(e);
+}
+
+function pendenteDoJournal(item: ItemDoJournal, falhou: boolean): FalaPendente {
+  return { idEnvio: item.idEnvio, texto: item.texto, anexos: [], ...(item.respondeA ? { respondeA: item.respondeA } : {}), em: item.em, estado: falhou ? "falhou" : "enviando", mensagemId: null, turnoId: null, ...(falhou ? { motivo: MOTIVO_OFFLINE } : {}) };
+}
+
+/** A conversa que carregou depois do boot mostra as falas dela que o journal ainda tem (o reducer só põe pendente em conversa carregada). */
+function comPendentesDoJournal(e: Estado, conversaId: string): Estado {
+  const j = journal;
+  if (!j || !e.conversas[conversaId]) return e;
+  let novo = e;
+  for (const { item, falhou } of j.itens()) {
+    if (item.conversaId !== conversaId || novo.conversas[conversaId]?.pendentes?.some((p) => p.idEnvio === item.idEnvio)) continue;
+    novo = reduzir(novo, { tipo: "fala-pendente", conversaId, pendente: pendenteDoJournal(item, falhou) });
+  }
+  return novo;
+}
+
+/** Como a fala do journal acabou (reconciliada no boot ou "Tentar de novo"): confirmada, ou "falhou" com o porquê. */
+function terminarDoJournal(j: Journal, item: ItemDoJournal, d: Desfecho): void {
+  if (j !== journal || (!d.ok && d.erro instanceof JournalEncerrado)) return;
+  const { conversaId, idEnvio } = item;
+  if (!d.ok) {
+    dispatch({ tipo: "fala-pendente-falhou", conversaId, idEnvio, motivo: motivoDoJournal(d.erro) });
+    if (d.erro instanceof ErroApi && d.erro.status === 401) mostrarErro(d.erro);
+    return;
+  }
+  envios.esquecer(conversaId, idEnvio);
+  // NOD-380: quem fala na conversa voltou para o fim; a janela deixa de crescer até a fala achada na busca.
+  alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, conversaId);
+  // `idsDaResposta` (revisão de engenharia, 27/10): a resposta sem `ids` (servidor de antes, no deploy) não pode virar
+  // "falhou" depois de enviada — a pendente sai e a releitura traz a gravada, como no envio pelo campo.
+  const gravados = idsDaResposta(d.resposta);
+  dispatch({ tipo: "fala-pendente-confirmada", conversaId, idEnvio, mensagemId: gravados?.mensagem ?? null, turnoId: gravados?.turno ?? null });
+  dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
 }
 
 /**
- * ADR-171: a conexão voltou (ou a página abriu): cada fala da fila volta à conversa como pendente (se a página foi
- * recarregada) e, com internet, é reenviada pela mesma chave — o servidor não duplica.
+ * Journal de envio, no boot (depois da sessão) e quando a conexão volta: o que ficou no journal volta à conversa como fala
+ * pendente e é reenviado pela mesma chave — o servidor não duplica. Substitui a drenagem da fila offline (ADR-171).
  */
-function drenarFilaOffline(): void {
-  const fila = filaDeEnvio();
-  if (!fila) return;
-  for (const item of fila.listar()) {
-    const ja = estado.conversas[item.conversaId]?.pendentes?.some((x) => x.idEnvio === item.idEnvio);
-    if (!ja) dispatch({ tipo: "fala-pendente", conversaId: item.conversaId, pendente: { idEnvio: item.idEnvio, texto: item.texto, anexos: [], ...(item.respondeA ? { respondeA: item.respondeA } : {}), em: item.em, estado: "falhou", mensagemId: null, turnoId: null, motivo: MOTIVO_OFFLINE } });
-    if (navigator.onLine) void reenviarPendente(item.conversaId, item.idEnvio);
-  }
+function reconciliarJournal(): void {
+  const j = journal;
+  if (!j || !api) return;
+  void j.reconciliar(
+    (item) => { if (j === journal && estado.conversas[item.conversaId]) dispatch({ tipo: "fala-pendente", conversaId: item.conversaId, pendente: pendenteDoJournal(item, false) }); },
+    (item, d) => terminarDoJournal(j, item, d),
+  );
 }
 
 /** Os metadados dos anexos prontos, para a fala pendente desenhar os chips como a gravada vai desenhar. */
@@ -4654,38 +4944,21 @@ function motivoDaFalha(e: unknown): string | undefined {
 
 /**
  * "Tentar de novo" da fala pendente que falhou (Parte 1): a mesma fala, pela mesma chave de idempotência (`envios` guarda
- * a chave pendente enquanto a assinatura é igual), sem passar pelo campo. Com outro envio em voo na conversa, espera.
+ * a chave pendente enquanto a assinatura é igual), sem passar pelo campo. Vai pelo journal: entra nele de novo, repete
+ * na rede e no 5xx, e o clique duplo devolve o mesmo envio (a chave já em voo).
  */
 async function reenviarPendente(conversaId: string, idEnvio: string): Promise<void> {
   const p = estado.conversas[conversaId]?.pendentes?.find((x) => x.idEnvio === idEnvio);
-  if (!p || !api) return;
-  const ids = p.anexos.map((x) => x.id);
-  // Revisão do PR (27/10): a chave é a da própria pendente (`envios` só trava o voo); e o motivo da falha anterior sai.
-  const chave = envios.iniciar(conversaId, p.texto, ids, p.respondeA, p.idEnvio);
-  if (chave === null) return;
+  const j = journal;
+  if (!p || !api || !j) return;
+  // Revisão do PR (27/10): a chave é a da própria pendente; e o motivo da falha anterior sai.
   const { motivo: _motivo, ...semMotivo } = p;
-  dispatch({ tipo: "fala-pendente", conversaId, pendente: { ...semMotivo, idEnvio: chave, estado: "enviando" } });
-  if (chave !== idEnvio) dispatch({ tipo: "fala-pendente-sai", conversaId, idEnvio });
-  const a = api;
-  let enviou = false;
+  dispatch({ tipo: "fala-pendente", conversaId, pendente: { ...semMotivo, estado: "enviando" } });
+  const item: ItemDoJournal = { conversaId, idEnvio, texto: p.texto, anexos: p.anexos.map((x) => x.id), ...(p.respondeA ? { respondeA: p.respondeA } : {}), em: p.em };
   try {
-    const r = await (p.respondeA ? a.enviar(conversaId, p.texto, ids, chave, p.respondeA) : a.enviar(conversaId, p.texto, ids, chave));
-    enviou = true;
-    // NOD-380: quem fala na conversa voltou para o fim; a janela deixa de crescer até a fala achada na busca.
-    alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, conversaId);
-    // `idsDaResposta` (revisão de engenharia, 27/10): a resposta sem `ids` (servidor de antes, no deploy) não pode virar
-    // "falhou" depois de enviada — a pendente sai e a releitura traz a gravada, como no envio pelo campo.
-    const gravados = idsDaResposta(r);
-    filaDeEnvio()?.tirar(idEnvio);
-    if (chave !== idEnvio) filaDeEnvio()?.tirar(chave);
-    dispatch({ tipo: "fala-pendente-confirmada", conversaId, idEnvio: chave, mensagemId: gravados?.mensagem ?? null, turnoId: gravados?.turno ?? null });
-    dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
-  } catch (e) {
-    const offline = guardarSeOffline(e, { conversaId, idEnvio: chave, texto: p.texto, anexos: ids, ...(p.respondeA ? { respondeA: p.respondeA } : {}), em: p.em });
-    dispatch({ tipo: "fala-pendente-falhou", conversaId, idEnvio: chave, motivo: offline ? MOTIVO_OFFLINE : motivoDaFalha(e) });
-    if (e instanceof ErroApi && e.status === 401) mostrarErro(e);
-  } finally {
-    envios.concluir(conversaId, enviou);
+    terminarDoJournal(j, item, { ok: true, resposta: await j.enviar(item) });
+  } catch (erro) {
+    terminarDoJournal(j, item, { ok: false, erro, tipo: tipoDaFalha(erro) });
   }
 }
 
@@ -6529,18 +6802,20 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // "Código copiado" no aria-label nem voltam ao "Copiar" no meio do segundo aviso.
   "copiar-codigo": async (el) => {
     const estadoEl = el.querySelector(".md-codigo-estado");
-    const mostrar = (texto: string, aria: string): void => {
+    // COP-14 (item 4): no balão do bot o botão é só ícone; a classe `copiado` troca o ícone por um check por 1,5 s.
+    const mostrar = (texto: string, aria: string, copiado = false): void => {
       if (estadoEl) estadoEl.textContent = texto;
       el.setAttribute("aria-label", aria);
+      el.classList.toggle("copiado", copiado);
     };
     try {
       await navigator.clipboard.writeText(el.closest(".md-codigo")?.querySelector("code")?.textContent ?? "");
-      mostrar(ROTULO_COPIADO, "Código copiado");
+      mostrar(ROTULO_COPIADO, "Código copiado", true);
     } catch {
       mostrar("Não copiou", "Não copiou o código");
     }
     clearTimeout(timersCopiarCodigo.get(el));
-    timersCopiarCodigo.set(el, window.setTimeout(() => mostrar("Copiar", "Copiar código"), COPIADO_MS));
+    timersCopiarCodigo.set(el, window.setTimeout(() => mostrar("Copiar", "Copiar código"), CHECK_CODIGO_MS));
   },
   "fechar-espaco": () => fecharEspaco(),
   // NOD-383: o ‹ de uma seção no celular volta para a lista das Configurações (o foco vai para a seção de onde saiu).
@@ -7353,7 +7628,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "desfazer-cancelamento": (el) => dispatch({ tipo: "desfazer-cancelamento", turnoId: el.dataset.id ?? "" }),
   // Parte 1 do plano "o pensamento no chat": a fala pendente que falhou.
   "reenviar-pendente": (el) => reenviarPendente(el.dataset.conversa ?? "", el.dataset.id ?? ""),
-  "descartar-pendente": (el) => dispatch({ tipo: "fala-pendente-sai", conversaId: el.dataset.conversa ?? "", idEnvio: el.dataset.id ?? "" }),
+  "descartar-pendente": (el) => {
+    // Descartada, a fala sai também do journal de envio (e os reenvios dela param).
+    journal?.esquecer(el.dataset.id ?? "");
+    dispatch({ tipo: "fala-pendente-sai", conversaId: el.dataset.conversa ?? "", idEnvio: el.dataset.id ?? "" });
+  },
   "dispensar-incidente": (el) => agir(async () => void (await api!.dispensarIncidente(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["sua-vez"] }))),
   // definido em 2026-09-24 (ADR-044): o grupo (app · nível) do painel sai inteiro, com um registro só.
   "revogar-acessos": (el) => agir(async () => void (await api!.revogarAcessos(el.dataset.agente ?? "", (el.dataset.ids ?? "").split(",").filter(Boolean)), dispatch({ tipo: "invalidar", quais: [`concessoes:${el.dataset.agente ?? ""}`, "frota"] }))),
@@ -8752,9 +9031,8 @@ document.addEventListener("visibilitychange", () => {
   avisarDitado("tela-bloqueou");
 });
 window.addEventListener("online", retomarStream);
-// ADR-171: a fila de envio offline sai sozinha quando a conexão volta, e uma vez logo depois de abrir a página.
-window.addEventListener("online", () => drenarFilaOffline());
-setTimeout(() => drenarFilaOffline(), 3000);
+// ADR-171 + journal de envio: o que ficou no journal sai sozinho quando a conexão volta (no boot, `iniciarSessao` reconcilia).
+window.addEventListener("online", () => reconciliarJournal());
 window.addEventListener("pageshow", retomarStream);
 window.addEventListener("focus", retomarStream);
 // Outra aba recolheu ou abriu uma seção: esta acompanha (definido em 2026-10-04).

@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-title" content="Nod" />
     <!-- Tema escolhido em Preferências (web/lib/tema.ts, mesma chave): aplicado antes do primeiro quadro, senão o app pisca claro. -->
     <!-- ADR-167: o balão da pessoa na cor do bot é opção (web/lib/balao.ts, mesma chave); o padrão é o preto. -->
-    <script>try { if (localStorage.getItem("nod.balao") === "cor") document.documentElement.dataset.balao = "cor"; } catch (e) {}</script>
+    <script>try { if (localStorage.getItem("nod.balao") !== "preto") document.documentElement.dataset.balao = "cor"; } catch (e) { document.documentElement.dataset.balao = "cor"; }</script>
     <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {}</script>
     <!-- NOD-119: densidade e largura da barra (web/lib/densidade.ts, mesma chave, valores e consulta do celular): aplicadas antes do primeiro quadro, senão a barra abre larga e encolhe. -->
     <script>try { var d = localStorage.getItem("nod.densidade"), px = { "compacta": 200, "compacta:recolhida": 56, "compacta:larga": 340, "confortavel:recolhida": 88 }; if (Object.prototype.hasOwnProperty.call(px, d) && !matchMedia("(hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px)").matches) { var h = document.documentElement, p = d.split(":"); h.dataset.densidade = p[0]; if (p[1]) h.dataset.largura = p[1]; h.style.setProperty("--largura-barra", px[d] + "px"); } } catch (e) {}</script>
@@ -50,6 +50,10 @@
     <link rel="stylesheet" href="/ds.css" />
     <!-- ADR-167: a casca igual ao Paper (barra, pílula, conversa, campo e painel), depois do design system. -->
     <link rel="stylesheet" href="/casca.css" />
+    <!-- COP-14: o chat (base, balões, pensando, formato da resposta e troca de bot), depois da casca. -->
+    <link rel="stylesheet" href="/chat.css" />
+    <link rel="stylesheet" href="/chat-formato.css" />
+    <link rel="stylesheet" href="/chat-troca.css" />
     <link rel="stylesheet" href="/mobile.css" />
     <link rel="stylesheet" href="/celular-base.css" />
     <link rel="stylesheet" href="/tab-bar-celular.css" />

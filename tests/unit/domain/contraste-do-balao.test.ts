@@ -124,12 +124,14 @@ describe("a paleta inteira, nos dois temas", () => {
     }
   }
 
-  it("toda skin tem a classe balao-c-* apontando para os próprios tokens", () => {
+  // revisto em 2026-11-12 (COP-14, item 3): o fundo e a tinta do balão seguem a paleta do chat (--chat-pessoa-*, os hex
+  // da especificação do chat nos dois temas); o fundo do código continua o da skin, calculado aqui.
+  it("toda skin tem a classe balao-c-*: fundo e tinta da paleta do chat, código da própria skin", () => {
     for (const cor of [...CORES_AGENTE, "c-lilac"]) {
       const skin = skinDa(cor);
       const regra = new RegExp(`\\.balao-${cor}\\b[^{]*\\{([^}]*)\\}`).exec(ESTILOS)?.[1] ?? "";
-      expect(regra, cor).toContain(`--balao-fundo: var(--balao-${skin});`);
-      expect(regra, cor).toContain(`--balao-tinta: var(--balao-${skin}-tinta);`);
+      expect(regra, cor).toMatch(/--balao-fundo: var\(--chat-pessoa-[a-z-]+\);/);
+      expect(regra, cor).toContain("--balao-tinta: var(--chat-pessoa-tinta);");
       expect(regra, cor).toContain(`--balao-codigo: var(--balao-${skin}-codigo);`);
     }
   });

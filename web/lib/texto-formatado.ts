@@ -77,13 +77,20 @@ function formatar(texto: string, opcoes: OpcoesTexto): string {
   // fechado (sem salto quando a cerca fecha). Sem a flag `m`, o `$` é o fim do texto.
   const aoVivo = Boolean(opcoes.aoVivo);
   const partes = texto.split(/(```[\s\S]*?(?:```|$))/g);
-  return partes.map((trecho, i) => {
-    if (i % 2 === 1) return codigo(trecho, aoVivo, opcoes.diagramas && !aoVivo ? diagramas : null);
+  const pecas = partes.map((trecho, i) => {
+    if (i % 2 === 1) return trecho;
     // NOD-204: ao vivo, a cerca que ainda está abrindo ("\n`", "\n``" no fim) não aparece crua antes da terceira crase.
     // Só o último trecho: prosa no meio do texto nunca muda. A cerca pode vir indentada até 3 espaços, como dentro de
     // um item de lista ("1. Instale:\n   ```bash"), e a indentação fica: é o que o quadro seguinte mostra.
-    if (aoVivo && i === partes.length - 1) trecho = trecho.replace(/(^|\n)( {0,3})`{1,2}$/, "$1$2");
-    return blocos(trecho).map((b) => (typeof b === "string" ? comListas(b, opcoes) : tabelaHtml(b, opcoes, tabelas++))).join("");
+    return blocos(aoVivo && i === partes.length - 1 ? trecho.replace(/(^|\n)( {0,3})`{1,2}$/, "$1$2") : trecho);
+  });
+  // COP-14 (item 4): com mais de um bloco (parágrafos separados por linha em branco, código, tabela), cada trecho de
+  // prosa vira <p>. É o que deixa o balão espaçar os blocos em 10 px (web/chat-formato.css) em vez de <br><br>. O texto
+  // de um parágrafo só, sem código nem tabela, sai como antes, sem <p>.
+  const multibloco = partes.length > 1 || pecas.some((p) => typeof p !== "string" && (p.length > 1 || p.some((b) => typeof b !== "string"))) || /\S[ \t]*\n[ \t]*\n\s*\S/.test(texto);
+  return pecas.map((peca) => {
+    if (typeof peca === "string") return codigo(peca, aoVivo, opcoes.diagramas && !aoVivo ? diagramas : null);
+    return peca.map((b) => (typeof b === "string" ? comListas(b, opcoes, multibloco) : tabelaHtml(b, opcoes, tabelas++))).join("");
   }).join("");
 }
 
@@ -110,13 +117,49 @@ function codigo(trecho: string, aoVivo: boolean, diagramas: { proximo: number } 
  * NOD-45: o bloco vira um card. No topo, o rótulo da linguagem (só quando casa com ROTULO; fora disso não aparece em
  * nenhum lugar do HTML) e, com a cerca fechada, o Copiar. main.ts copia o `textContent` do <code> do mesmo card, que
  * já desfaz o `esc`: o que se cola é o código que o bot escreveu.
+ * COP-14 (item 4): no balão do bot, o card perde a barra e o rótulo (web/chat-formato.css), o Copiar vira um botão de
+ * 20×20 no canto, só com ícone, e o ícone vira um check por CHECK_CODIGO_MS depois de copiar (classe `copiado`, main.ts).
+ * O código fechado ganha um realce simples (realcarCodigo); o aberto fica cru, porque uma string ainda sem a aspa de
+ * fechamento pintaria o resto do bloco a cada quadro.
  */
 const ROTULO = /^([A-Za-z0-9_+#.-]{1,20})\n/;
 
+/** COP-14 (item 4): quanto tempo o ícone do Copiar do bloco de código fica como check. */
+export const CHECK_CODIGO_MS = 1_500;
+
 function cardDoCodigo(codigo: string, linguagem: string, fechado: boolean): string {
   const rotulo = linguagem ? `<span class="md-codigo-ling">${esc(linguagem)}</span>` : "";
-  const copiar = fechado ? `<button type="button" data-act="copiar-codigo" aria-label="Copiar código" ${VIVO}>${ICONE_COPIAR}<span class="md-codigo-estado">Copiar</span></button>` : "";
-  return `<div class="md-codigo"><div class="md-codigo-topo">${rotulo}${copiar}</div><pre><code>${esc(codigo)}</code></pre></div>`;
+  const copiar = fechado ? `<button type="button" class="md-codigo-copiar" data-act="copiar-codigo" aria-label="Copiar código" title="Copiar código" ${VIVO}>${ICONE_COPIAR_CODIGO}${ICONE_CHECK_CODIGO}<span class="md-codigo-estado">Copiar</span></button>` : "";
+  return `<div class="md-codigo"><div class="md-codigo-topo">${rotulo}${copiar}</div><pre><code>${fechado ? realcarCodigo(codigo) : esc(codigo)}</code></pre></div>`;
+}
+
+/**
+ * COP-14 (item 4): realce de sintaxe simples, sem gramática por linguagem. Strings, números, pontuação e chaves
+ * (identificador ou string antes de ":") ganham uma classe; o resto fica na cor do texto. Tudo sai escapado e na ordem,
+ * então o `textContent` do <code> continua sendo o código exato (é o que o Copiar leva). Comentário de linha (`//`)
+ * fica sem realce, para uma aspa dentro dele não pintar o resto da linha.
+ */
+const SINTAXE = new RegExp([
+  "(\\/\\/[^\\n]*)",
+  "((?:\"(?:[^\"\\\\\\n]|\\\\.)*\"|'(?:[^'\\\\\\n]|\\\\.)*')(?=[ \\t]*:(?!:)))",
+  "(\"(?:[^\"\\\\\\n]|\\\\.)*\"?|'(?:[^'\\\\\\n]|\\\\.)*'?|`(?:[^`\\\\]|\\\\.)*`|`[^`\\n]*)",
+  "([A-Za-z_$][\\w$-]*(?=[ \\t]*:(?!:)))",
+  "([A-Za-z_$][\\w$]*)",
+  "(\\b(?:0[xX][0-9a-fA-F]+|\\d[\\d_]*(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b)",
+  "([{}\\[\\]().,;:=<>+\\-*/!&|?%^~@])",
+].join("|"), "g");
+
+export function realcarCodigo(codigo: string): string {
+  let saida = "";
+  let desde = 0;
+  for (const m of codigo.matchAll(SINTAXE)) {
+    saida += esc(codigo.slice(desde, m.index));
+    const [trecho, comentario, chaveString, string, chave, , numero] = m;
+    const classe = comentario !== undefined ? "" : chaveString !== undefined || chave !== undefined ? "sx-c" : string !== undefined ? "sx-s" : numero !== undefined ? "sx-n" : m[7] !== undefined ? "sx-p" : "";
+    saida += classe ? `<span class="${classe}">${esc(trecho)}</span>` : esc(trecho);
+    desde = m.index + trecho.length;
+  }
+  return saida + esc(codigo.slice(desde));
 }
 
 /**
@@ -146,9 +189,9 @@ export function soLinks(texto: string, agora?: Date): string {
 export const ITEM_DE_LISTA = /^ {0,3}([-*+]|\d{1,3}[.)])\s+(\S.*)$/;
 export const TITULO = /^ {0,3}#{1,6}\s+(.+?)(?:\s+#+)?\s*$/;
 
-function comListas(texto: string, opcoes: OpcoesTexto): string {
+function comListas(texto: string, opcoes: OpcoesTexto, multibloco: boolean): string {
   const linhas = texto.split("\n");
-  if (!linhas.some((l) => ITEM_DE_LISTA.test(l) || TITULO.test(l))) return emLinha(texto, opcoes);
+  if (!multibloco && !linhas.some((l) => ITEM_DE_LISTA.test(l) || TITULO.test(l))) return emLinha(texto, opcoes);
   const saida: string[] = [];
   let paragrafo: string[] = [];
   let lista: { ordenada: boolean; inicio: number; itens: string[] } | null = null;
@@ -189,6 +232,11 @@ function comListas(texto: string, opcoes: OpcoesTexto): string {
       continue;
     }
     fecharLista();
+    // COP-14 (item 4): linha em branco fecha o parágrafo; o espaço entre os dois é o gap do balão, não <br><br>.
+    if (linha.trim() === "") {
+      fecharParagrafo();
+      continue;
+    }
     paragrafo.push(linha);
   }
   fecharParagrafo();
@@ -355,6 +403,10 @@ function celulaHtml(tag: "th" | "td", texto: string, al: Alinhamento, opcoes: Op
   const miolo = prio ? `<span class="md-prio md-prio-${prio}">${esc(limpo)}</span>` : emLinha(texto, opcoes);
   return `<${tag}${classes ? ` class="${classes}"` : ""}>${miolo}</${tag}>`;
 }
+
+/** COP-14 (item 4): os dois ícones de 12 px do Copiar do bloco de código; o check só aparece com `.copiado`. */
+const ICONE_COPIAR_CODIGO = '<svg class="md-ic-copiar" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>';
+const ICONE_CHECK_CODIGO = '<svg class="md-ic-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>';
 
 const ICONE_COPIAR = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>';
 

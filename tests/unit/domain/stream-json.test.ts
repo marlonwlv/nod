@@ -538,3 +538,22 @@ describe("subagentes no stream principal (NOD-350)", () => {
     });
   });
 });
+
+describe("fase do bloco (estado vivo, 2026-11-12)", () => {
+  const ev = (event: Record<string, unknown>, extra: Record<string, unknown> = {}) => interpretarLinhaStreamJson(JSON.stringify({ type: "stream_event", event, ...extra }));
+  it("content_block_start de texto compõe, de thinking pensa; content_block_stop fecha", () => {
+    expect(ev({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })).toEqual({ tipo: "fase", fase: "compondo" });
+    expect(ev({ type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } })).toEqual({ tipo: "fase", fase: "pensando" });
+    expect(ev({ type: "content_block_stop", index: 0 })).toEqual({ tipo: "fase", fase: "fim_bloco" });
+    expect(ev({ type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "x", name: "Bash" } })).toMatchObject({ tipo: "ignorado" });
+    expect(ev({ type: "content_block_delta", delta: { type: "thinking_delta", thinking: "hm" } })).toMatchObject({ tipo: "ignorado" });
+  });
+  it("a do subagente é ignorada", () => {
+    expect(ev({ type: "content_block_start", content_block: { type: "text" } }, { parent_tool_use_id: "toolu_x" })).toMatchObject({ tipo: "ignorado", razao: "subagente" });
+  });
+  it("a fase não entra na fala nem liga producedOutput", () => {
+    const r = classificarResultado({ eventos: [{ tipo: "fase", fase: "compondo" }, { tipo: "delta", texto: "oi" }, { tipo: "texto_bloco", texto: "oi" }, { tipo: "fase", fase: "fim_bloco" }], exitCode: null, signal: "SIGTERM", stderr: "" });
+    expect(r.texto).toBe("oi");
+    expect(reduzirSinais(SINAIS_ZERADOS, { tipo: "fase", fase: "pensando" }).producedOutput).toBe(false);
+  });
+});

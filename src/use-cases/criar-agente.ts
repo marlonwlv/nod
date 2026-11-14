@@ -36,8 +36,30 @@ export type EntradaCriarAgente = {
   criadoPorAgenteId?: string;
   /** ADR-104 (revisão do PR #309): o turno de quem criou tinha lido conteúdo de fora (ADR-062); vai no evento, para a auditoria. */
   aposConteudoDeFora?: boolean;
+  /**
+   * A4 (definido em 2026-11-12): o id do bot gerado no cliente (UUID). Idempotente: repetir a criação com o mesmo id devolve
+   * o bot que já nasceu (`repetido: true`, sem eventos), nunca um segundo — o "Tentar de novo" do preparo (ADR-174).
+   */
+  id?: string;
+  /** A4: o bot fala primeiro (o turno de apresentação, apresentar-bot.ts) em vez da linha de boas-vindas fixa. */
+  apresentar?: boolean;
 };
-export type SaidaCriarAgente = { agente: Agente; conversa: Conversa; mensagem: Mensagem };
+export type SaidaCriarAgente = { agente: Agente; conversa: Conversa; mensagem: Mensagem; repetido?: true };
+
+/** A4: o id do cliente é um UUID (qualquer versão); outra forma é entrada inválida. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A4: o bot que já nasceu com este id — da pessoa, com a conversa própria e a primeira linha dela. Outro dono: id em uso. */
+async function jaCriado(deps: Parameters<typeof criarAgente>[0], id: string): Promise<SaidaCriarAgente | null> {
+  const agente = await deps.repos.agentes.buscar(id, true);
+  if (!agente) return null;
+  if (agente.ownerId !== deps.escopo.pessoaId || agente.excluidoEm) throw new ErroDeDominio("entrada_invalida", { cause: "id do bot em uso" });
+  const conversa = await deps.repos.conversas.buscarPropriaDoAgente(id);
+  const mensagens = conversa ? await deps.repos.mensagens.listarDaConversa(conversa.id) : [];
+  const mensagem = mensagens[0];
+  if (!conversa || !mensagem) throw new ErroDeDominio("estado_invalido", { cause: "bot repetido sem conversa" });
+  return { agente, conversa, mensagem, repetido: true };
+}
 
 /**
  * Criação conversacional (E1.1/E1.2/E1.3): nasce 'Novo agente' com forma/cor por round-robin,
@@ -53,6 +75,12 @@ export const criarAgente: CasoDeUso<EntradaCriarAgente, SaidaCriarAgente> = asyn
 /** O criar-agente sem a reserva do nome: só o garantirNod (onboarding.ts) chama, para criar o próprio Nod. */
 export const criarAgenteSemReserva: CasoDeUso<EntradaCriarAgente, SaidaCriarAgente> = async (deps, input) => {
   if (input.dono !== "pessoa" && input.dono !== "empresa") throw new ErroDeDominio("entrada_invalida", { cause: "dono" });
+  if (input.id !== undefined && (typeof input.id !== "string" || !UUID.test(input.id))) throw new ErroDeDominio("entrada_invalida", { cause: "id" });
+  const id = input.id?.toLowerCase();
+  if (id) {
+    const antes = await jaCriado(deps, id);
+    if (antes) return { data: antes, events: [] };
+  }
   if (input.nome !== undefined && typeof input.nome !== "string") throw new ErroDeDominio("entrada_invalida", { cause: "nome" });
   validarInteligencia(input.harness ?? "auto", input.modelo ?? "auto");
   const existentes = await deps.repos.agentes.listar({ incluirOcultos: true });
@@ -67,7 +95,12 @@ export const criarAgenteSemReserva: CasoDeUso<EntradaCriarAgente, SaidaCriarAgen
   const forma = input.forma ?? proximaForma(existentes.map((a) => a.forma));
   const cor = input.cor ?? proximaCor(existentes.map((a) => a.cor));
 
-  const criado = await deps.repos.agentes.criar({ nome, titulo, descricao, confirmado, dono: input.dono, forma, cor, modelo: input.modelo ?? "auto", harness: input.harness ?? "auto" });
+  const criado = await deps.repos.agentes.criar({ ...(id ? { id } : {}), nome, titulo, descricao, confirmado, dono: input.dono, forma, cor, modelo: input.modelo ?? "auto", harness: input.harness ?? "auto" });
+  if (!criado && id) {
+    // A4: perdeu a corrida para outra criação com o mesmo id (já commitada): devolve a que ganhou.
+    const vencedora = await jaCriado(deps, id);
+    if (vencedora) return { data: vencedora, events: [] };
+  }
   if (!criado) throw new ErroDeDominio("estado_invalido", { cause: "agente não criado" });
   // ADR-071: cada bot nasce com a sua voz nas ligações, em rodízio como o mascote (trocável no perfil).
   const agente = (await deps.repos.agentes.definirVoz(criado.id, { voz: proximaVoz(existentes.map((a) => a.voz)) })) ?? criado;
@@ -75,6 +108,8 @@ export const criarAgenteSemReserva: CasoDeUso<EntradaCriarAgente, SaidaCriarAgen
   if (!conversa) throw new ErroDeDominio("estado_invalido", { cause: "conversa não criada" });
 
   const autoria = input.criadoPorAgenteId ? autoriaDoAgente(deps.escopo, input.criadoPorAgenteId, { decididoPor: "regra:criar_bots" }) : autoriaPessoa(deps.escopo);
+  // A4: com a apresentação, quem dá o oi é o próprio bot (o turno); a conversa abre com a linha de sistema.
+  if (input.apresentar) input = { ...input, interativo: false };
   const mensagem = await deps.repos.mensagens.criar({
     conversaId: conversa.id,
     autoria: input.interativo ? autoriaDoAgente(deps.escopo, agente.id, { decididoPor: "regra:boas_vindas" }) : autoria,

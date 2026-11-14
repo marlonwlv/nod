@@ -298,13 +298,14 @@ describe("a frente da rede e a frente única", () => {
   });
 });
 
-describe("NOD-358 (revisão 6 do PR #522): a fala em vários balões", () => {
-  it("o progresso vai só no último balão", () => {
+describe("COP-14 (item 4): a fala de vários parágrafos é um balão só", () => {
+  it("o progresso vai dentro do balão único, depois do texto", () => {
     const ms = conversaDoHero().map((m) => (m.id === "b1" ? { ...m, texto: "Abri 5 frentes.\n\nTe aviso quando saírem." } : m));
     const { e, c } = diaDoPrototipoCom(ms);
     const b1 = doBloco(c, e, "b1");
     expect(b1.split("com-progresso").length - 1).toBe(1);
-    expect(b1).toContain('<div class="bubble com-progresso" data-balao="1">');
+    expect(b1).not.toContain("data-balao");
+    expect(b1).toContain('<div class="bubble com-progresso"><p class="md-paragrafo">Abri 5 frentes.</p><p class="md-paragrafo">Te aviso quando saírem.</p><div class="progresso-lugar"');
   });
 });
 

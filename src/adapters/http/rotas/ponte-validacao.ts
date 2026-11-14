@@ -88,6 +88,8 @@ export function trechos(v: unknown): TrechoVivo[] {
       continue;
     }
     if (Object.keys(o).length !== 1) continue;
+    // definido em 2026-11-12 (estado vivo): a fase do bloco, só os três valores; qualquer outro some.
+    if (o.fase === "compondo" || o.fase === "pensando" || o.fase === "fim_bloco") { saida.push({ fase: o.fase }); continue; }
     if (texto(o.texto, 16_000)) { total += o.texto.length; saida.push({ texto: o.texto }); }
     else if (nomeDeFerramenta(o.ferramenta)) saida.push({ ferramenta: o.ferramenta });
     else if (Array.isArray(o.tarefas)) { const t = tarefasDoTrecho(o.tarefas); if (t) saida.push({ tarefas: t }); }

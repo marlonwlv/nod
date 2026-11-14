@@ -342,7 +342,7 @@ describe("QA do #534: o retrato da fala e a gravada", () => {
     expect(retratos(relida(e, [], AGORA + 20))).toHaveLength(0);
   });
 
-  it("sem texto e com ações, o pensamento fica como retrato até a fala com o resumo chegar; sem ação nenhuma, nada fica", () => {
+  it("sem texto e com ações, o pensamento fica como retrato até a fala com o resumo chegar; sem ação nenhuma, o indicador parado", () => {
     let e = aplicarFrame(despachado(), frame("turno.atividade", { conversaId: CONVERSA, turnoId: TURNO, rotulo: "Leu um arquivo", id: "toolu_1" }), AGORA);
     e = aplicarFrame(e, frame("turno.acao_fim", { conversaId: CONVERSA, turnoId: TURNO, id: "toolu_1", falhou: true }), AGORA);
     const fim = aplicarFrame(e, frame("turno.encerrado", { conversaId: CONVERSA, turnoId: TURNO }), AGORA + 10);
@@ -353,8 +353,12 @@ describe("QA do #534: o retrato da fala e a gravada", () => {
     // A fala do turno sem o resumo (a do meio) não o tira; a que leva o resumo (`acoes_do_turno`), tira.
     expect(retratos(relida(fim, [gravada("Tudo certo.")], AGORA + 5))).toHaveLength(1);
     expect(retratos(relida(fim, [gravada("Tudo certo.", { kind: "acoes_do_turno", acoes: [{ rotulo: "Leu um arquivo", falhou: true }] })], AGORA + 5))).toHaveLength(0);
-    // Sem ação nem texto não há o que mostrar: nenhum retrato (a gravada sem resumo também não tem pensamento).
-    expect(aplicarFrame(despachado(), frame("turno.encerrado", { conversaId: CONVERSA, turnoId: TURNO }), AGORA + 10).falasSaindo).toBeUndefined();
+    // Chat (polimento, 13/11): sem ação nem texto, o retrato é o indicador parado até a resposta — qualquer fala do bot no
+    // turno o tira (não há resumo a esperar); a releitura de depois do fim sem a fala também.
+    const semNada = aplicarFrame(despachado(), frame("turno.encerrado", { conversaId: CONVERSA, turnoId: TURNO }), AGORA + 10);
+    expect(retratos(semNada)).toHaveLength(1);
+    expect(retratos(relida(semNada, [gravada("Pronto.")], AGORA + 5))).toHaveLength(0);
+    expect(retratos(relida(semNada, [], AGORA + 20))).toHaveLength(0);
     // Com um retrato do turno (um `turno.fala` antes), o resumo vai para ele, como antes (NOD-353): nenhum retrato a mais.
     let meio = aplicarFrame(despachado(), frame("turno.delta", { conversaId: CONVERSA, turnoId: TURNO, texto: "A do meio." }), AGORA);
     meio = aplicarFrame(meio, frame("turno.fala", { conversaId: CONVERSA, turnoId: TURNO }), AGORA + 1);

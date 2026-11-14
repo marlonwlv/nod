@@ -546,6 +546,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return a;
       },
       async criar(a) {
+        // A4: como o `on conflict (id) do nothing` do SQL.
+        if (a.id && b.agentes.some((x) => x.id === a.id)) return null;
         // 0068: como o SQL — a inteligência inteira e os derivados gravados juntos.
         const inteligencia = a.inteligencia ?? inteligenciaDoLegado(INTELIGENCIA_PADRAO, { harness: a.harness ?? "auto", modelo: a.modelo });
         const d = derivadosDa(inteligencia);
@@ -1004,6 +1006,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     },
 
     mensagens: {
+      // 2026-11-12 (cursor, 0175): o banco em memória não tem o gatilho do cursor; sem cursor, a leitura sai sem ele.
+      async mudadasDesde() {
+        return [];
+      },
+      async cursorDaConversa() {
+        return null;
+      },
       async criar(m) {
         const chave = m.idEnvio ? `${escopo.tenantId}:${m.conversaId}:${m.idEnvio}` : null;
         if (chave && b.idsDeEnvio.has(chave)) return null;
@@ -1638,6 +1647,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     },
 
     turnos: {
+      async idEnvioQueFechou() {
+        return null;
+      },
       async somarRecusasDeMidia(id, recusas) {
         const t = b.turnos.find((x) => x.id === id);
         if (!t || t.estado !== "despachando") return false;
@@ -2088,7 +2100,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async absorverNaSessao(turno, ids) {
         // NOD-286: como o SQL — fora de trabalho, e só até a primeira fala pendente com anexo do mesmo escopo.
         const escopoDaFala = doTenant(b.turnos).filter((t) => t.id !== turno.id && t.ownerId === escopo.pessoaId && t.conversaId === turno.conversaId && t.agenteId === turno.agenteId && t.estado === "pendente" && t.origem === "conversa" && t.mensagemOrigemId && !t.trabalhoId);
-        const absorvidos = ateOPrimeiroAnexo(escopoDaFala).filter((t) => !ids || ids.includes(t.id));
+        // C1: com `ids`, o print confirmado entra; o print pendente que não foi confirmado barra os posteriores.
+        if (ids && ids.length === 0) return [];
+        const absorvidos = ids ? ateOPrimeiroAnexo(escopoDaFala.map((t) => (ids.includes(t.id) ? { ...t, entradaAnexos: [] } : t))).flatMap((x) => (ids.includes(x.id) ? [escopoDaFala.find((t) => t.id === x.id)!] : [])) : ateOPrimeiroAnexo(escopoDaFala);
         for (const t of absorvidos) {
           t.estado = "interrompido";
           t.motivoInterrupcao = "absorvido";

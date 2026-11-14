@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * "cor-fixa: <motivo>" quando for de propósito igual nos dois temas.
  */
 const RAIZ = new URL("../../../web/", import.meta.url);
-const CSS = ["estilos.css", "interface.css", "navegacao.css", "ligacao.css", "onboarding.css", "personagem.css", "computador-do-bot.css", "conta.css", "configuracoes.css", "agentes-lote.css", "quadro.css", "tarefas-de-todos.css", "quadro-celular.css", "mobile.css", "celular-base.css", "tab-bar-celular.css", "ds.css", "casca.css", "design-system.css"] as const;
+const CSS = ["estilos.css", "interface.css", "navegacao.css", "ligacao.css", "onboarding.css", "personagem.css", "computador-do-bot.css", "conta.css", "configuracoes.css", "agentes-lote.css", "quadro.css", "tarefas-de-todos.css", "quadro-celular.css", "mobile.css", "celular-base.css", "tab-bar-celular.css", "ds.css", "casca.css", "chat.css", "chat-formato.css", "chat-troca.css", "design-system.css"] as const;
 const LITERAL = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/;
 const ler = (nome: string): string => readFileSync(new URL(nome, RAIZ), "utf8");
 

@@ -33,10 +33,12 @@ describe("o title do cabeçalho vai escapado (NOD-378)", () => {
     semInjecao(html);
   });
 
-  it("nome do bot na fala viva", () => {
+  it("nome do bot no aria-label e no title do indicador (COP-14, item 2)", () => {
     const t: TurnoVivo = { turnoId: "t1", conversaId: "c1", estado: "rodando", executor: null, machineId: null, desde: 0 };
     const { html } = renderFalaViva(t, undefined, { nome: MAU, cor: "azul", forma: "gota" } as never, estado, "Parar");
-    expect(html).toContain(`<b title="${MAU_ESC}">${MAU_ESC}</b>`);
+    expect(html).toContain(`aria-label="${MAU_ESC} está trabalhando"`);
+    expect(html).toContain(`title="${MAU_ESC} está trabalhando"`);
+    expect(html).not.toContain("<b title=");
     semInjecao(html);
   });
 });

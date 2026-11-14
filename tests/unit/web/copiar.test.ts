@@ -54,6 +54,6 @@ describe("mostrarCopia (NOD-8)", () => {
     expect(ler("telas/cartao-ia.ts")).toMatch(/data-act="ia-copiar-codigo"[^>]*\$\{VIVO\}>/);
     // NOD-8 passo 11: o terceiro é o comando do terminal no preparo_falhou.
     expect(ler("telas/contas-lista.ts").match(/data-act="copiar-texto"[^>]*\$\{VIVO\}>/g)).toHaveLength(3);
-    expect(ler("lib/texto-formatado.ts")).toMatch(/data-act="copiar-codigo" aria-label="Copiar código" \$\{VIVO\}>/);
+    expect(ler("lib/texto-formatado.ts")).toMatch(/data-act="copiar-codigo" aria-label="Copiar código"[^>]*\$\{VIVO\}>/);
   });
 });

@@ -16,6 +16,7 @@ import type { Concessao } from "../../src/contracts/concessao.ts";
 import type { Conector } from "../../src/contracts/conector.ts";
 import type { EstadoExecutor } from "../../src/contracts/executor.ts";
 import type { FrameSse, TipoFrame } from "../../src/contracts/frame.ts";
+import type { EstadoVivoBot } from "../../src/contracts/estado-vivo.ts";
 import type { Inventario } from "../../src/contracts/inventario.ts";
 import type { IasDaPessoa } from "../../src/contracts/inteligencia.ts";
 import type { UsoDoPlanoDto } from "../../src/contracts/uso-do-plano.ts";
@@ -358,6 +359,8 @@ export type Estado = {
    */
   atividades: Record<string, Record<string, AtividadeTurno>>;
   turnosVivos: Record<string, TurnoVivo>;
+  /** Retrato autoritativo do servidor por bot; o indicador cai no turno legado enquanto ele não chegou. */
+  estadosVivos: Record<string, EstadoVivoBot>;
   /**
    * NOD-348 (QA do #508): a fala viva que virou mensagem (o turno acabou, ou `turno.fala` no meio dele), por conversa e
    * por turno, até a releitura que saiu depois dela trazer a fala gravada — sem ela, a timeline ficava um quadro sem fala
@@ -633,6 +636,10 @@ export type Acao =
   | { tipo: "rascunho-ia"; rascunho: RascunhoInteligencia | null }
   | { tipo: "menu-ia"; agenteId: string | null }
   | { tipo: "hidratar-conversa"; conversa: ConversaDto; agora: number }
+  /** Item 5 do chat (troca sem "carregando"): a conversa guardada (web/lib/cache-conversas.ts), pintada antes da releitura. */
+  | { tipo: "conversa-do-cache"; conversa: ConversaDto }
+  /** Réplicas paradas há 10 min saem da memória (web/lib/cache-conversas.ts); o IndexedDB fica. */
+  | { tipo: "conversas-saem-da-memoria"; ids: readonly string[] }
   | { tipo: "hidratar-sua-vez"; suaVez: SuaVezDto }
   | { tipo: "hidratar-nao-lidos"; naoLidos: NaoLidosDto }
   | { tipo: "novas-desde"; conversaId: string; mensagemId: string; em: number; total: number }
@@ -706,6 +713,7 @@ export type Acao =
   | { tipo: "uso-do-mac"; uso: UsoDoMac }
   | { tipo: "experimentos"; experimentos: Experimentos; quadroLiberado?: boolean }
   | { tipo: "tempo-task"; id: string | null }
+  | { tipo: "hidratar-estados-vivos"; estados: readonly EstadoVivoBot[] }
   | { tipo: "hidratar-taxas-linhas"; taxas: TaxaDeAbertura[] };
 
 export const estadoInicial: Estado = {
@@ -722,6 +730,7 @@ export const estadoInicial: Estado = {
   conversas: {},
   atividades: {},
   turnosVivos: {},
+  estadosVivos: {},
   turnosEncerrados: [],
   subagentesDoFim: {},
   turnosDesmentidos: {},
@@ -864,7 +873,10 @@ function comFalaSaindo(estado: Estado, turnoId: string | null, agora: number, fi
   // NOD-402: o turno dos bastidores nunca teve fala viva no chat — sem retrato (o `sem_novidade` não grava nada e o
   // retrato que esperava a gravada sumia aos 15 s: a mensagem que pisca e some).
   if (!turno || turno.estado !== "rodando" || turno.trabalhoId || turno.bastidores || !estado.conversas[turno.conversaId]) return estado;
-  const atividade = estado.atividades[turno.conversaId]?.[turno.turnoId];
+  // Chat (polimento): sem `turno.delta` (o corte do PR #29), o turno quase nunca tem texto ao vivo nem atividade; o
+  // indicador precisa do retrato do mesmo jeito, senão some no fim e a resposta só entra com a releitura (o vazio de
+  // ~150–250 ms e o pulo medidos em 13/11 com o Claude).
+  const atividade = estado.atividades[turno.conversaId]?.[turno.turnoId] ?? (fim ? ATIVIDADE_VAZIA : undefined);
   if (!atividade) return estado;
   if (!textoDaFala(atividade)) {
     if (!fim) return estado;
@@ -873,7 +885,8 @@ function comFalaSaindo(estado: Estado, turnoId: string | null, agora: number, fi
     // um RTT em produção), o pulo que o retrato existe para evitar. Com um retrato ou uma fala gravada do turno, o resumo
     // vai para eles, como antes; sem ação nenhuma não há o que mostrar (a gravada sem resumo também não tem pensamento).
     if (temRetratoDoTurno(estado, turno.conversaId, turno.turnoId) || gravadaDoTurno(estado, turno.conversaId, turno.turnoId)) return comAcoesNaUltimaSaindo(estado, turno.conversaId, turno.turnoId, atividade.acoes, Math.max(0, agora - turno.desde));
-    if (atividade.acoes.length === 0) return estado;
+    // Sem texto e sem gravada: o retrato é o próprio indicador (`blocoDaFalaSaindo`), que fica parado até a releitura
+    // trazer a resposta — e sai junto com a entrada dela, sem quadro vazio no meio.
   }
   // Uma por fala (revisão 4 do #508): dois `turno.fala` antes da releitura não apagam o primeiro.
   const atuais = estado.falasSaindo?.[turno.conversaId] ?? {};
@@ -902,7 +915,9 @@ function gravadaDoTurno(estado: Estado, conversaId: string, turnoId: string): bo
  */
 function gravadaDoRetrato(conversa: ConversaDto, s: FalaSaindo): boolean {
   const texto = textoDaFala(s.atividade).trim();
-  return conversa.mensagens.some((m) => m.turnoId === s.turno.turnoId && m.kind === "texto" && m.autoria.autor_tipo === "agente" && (texto ? m.texto.trim() === texto : m.payload?.kind === "acoes_do_turno"));
+  // Sem texto e sem ações (o indicador parado): qualquer fala de texto do bot no turno é a resposta que o substitui.
+  const sem = s.atividade.acoes.length === 0;
+  return conversa.mensagens.some((m) => m.turnoId === s.turno.turnoId && m.kind === "texto" && m.autoria.autor_tipo === "agente" && (texto ? m.texto.trim() === texto : sem || m.payload?.kind === "acoes_do_turno"));
 }
 
 /**
@@ -1448,6 +1463,16 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   // pode ter trocado (limite, login, outra conta na frente), e com ela o uso da janela do anel.
   // NOD-374: o app entrou ou saiu de Fora do ar (sonda, laço ou chamada que limpou): a lateral e a tela de apps se atualizam.
   "conector.mudou": (e) => invalidar(e, "frota", "conectores"),
+  // COP-14: o frame traz a foto inteira de um bot; substitui a anterior sem derivar estado de deltas.
+  "agente.estado": (e, f) => {
+    const agenteId = texto(f.dados.agenteId);
+    const vivo = f.dados.estado;
+    if (!agenteId || !vivo || typeof vivo !== "object" || (vivo as { agenteId?: unknown }).agenteId !== agenteId) return e;
+    return { ...e, estadosVivos: { ...e.estadosVivos, [agenteId]: vivo as EstadoVivoBot } };
+  },
+  "computador.cursor": (e) => e,
+  // D (2026-11-12): o estado da máquina no stream; a tela do computador (C/D) o usa — aqui ainda não muda nada.
+  "computador.estado": (e) => e,
   "contas.mudou": (e) => invalidar(e, "contas", "maquinas", usoPlano(e)),
   "agente.mudou": (e, f) => {
     const agenteId = texto(f.dados.agente_id) ?? texto(f.dados.agenteId);
@@ -1608,8 +1633,13 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       const erro = acao.estado === "aberto" && ehErroDeRede(estado.erro) ? null : estado.erro;
       return { ...estado, conexao: { estado: acao.estado, tentativa: acao.tentativa, proximaEmMs: acao.proximaEmMs }, erro };
     }
-    case "frame":
-      return aplicarFrame(estado, acao.frame, acao.agora);
+    case "frame": {
+      // Chat (polimento): o frame que mexeu no estado também acerta o relógio. Só o `tick` (15 s) o movia, e o indicador
+      // contava a permanência de 800 ms e as variantes por um `agora` de até 15 s atrás: o rótulo trocava fora da hora.
+      // O frame que não mudou nada continua sem criar estado novo (não pinta à toa).
+      const depois = aplicarFrame(estado, acao.frame, acao.agora);
+      return depois !== estado && acao.agora > depois.agora ? { ...depois, agora: acao.agora } : depois;
+    }
     case "hidratar-gestao": {
       // NOD-370: a gestão traz os excluídos; a conversa de baixo do bot excluído vai para Início (Seu espaço fica).
       const excluidos = new Set(acao.gestao.agentes.filter((a) => a.excluidoEm).map((a) => a.id));
@@ -1651,6 +1681,27 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return { ...estado, rascunhoIa: acao.rascunho };
     case "menu-ia":
       return { ...estado, menuIa: acao.agenteId };
+    case "conversa-do-cache": {
+      // Item 5 do chat: o cache só entra onde não há nada (a leitura do servidor, mais nova, sempre ganha), sem turno vivo
+      // (o guardado vem sem `turnosEmCurso`), e pede a releitura: o que se pinta é velho e é revalidado ao abrir.
+      const conversaId = acao.conversa.conversa.id;
+      if (estado.conversas[conversaId]) return estado;
+      return invalidar({ ...estado, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: 0 } } }, `conversa:${conversaId}`);
+    }
+    case "conversas-saem-da-memoria": {
+      // Nunca a da tela, nem a com turno vivo ou fala pendente (quem chama já filtra; aqui é a trava).
+      const t = estado.tela;
+      const aberta = t.tipo === "conversa" || t.tipo === "sala" ? t.conversaId : null;
+      const vivas = new Set(Object.values(estado.turnosVivos).map((v) => v.conversaId));
+      const saem = acao.ids.filter((id) => {
+        const c = estado.conversas[id];
+        return c && id !== aberta && !vivas.has(id) && !c.pendentes?.length && !c.turnosEmCurso?.length;
+      });
+      if (saem.length === 0) return estado;
+      const conversas = { ...estado.conversas };
+      for (const id of saem) delete conversas[id];
+      return { ...estado, conversas };
+    }
     case "hidratar-conversa": {
       const conversaId = acao.conversa.conversa.id;
       // Turno aberto que a web não viu nascer (página recarregada no meio dele): o REST o devolve e ele
@@ -2050,6 +2101,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return { ...estado, experimentos: acao.experimentos, ...(acao.quadroLiberado !== undefined ? { quadroLiberado: acao.quadroLiberado } : {}) };
     case "tempo-task":
       return estado.tempoTaskAberto === acao.id ? estado : { ...estado, tempoTaskAberto: acao.id };
+    case "hidratar-estados-vivos":
+      return { ...estado, estadosVivos: Object.fromEntries(acao.estados.map((v) => [v.agenteId, v])) };
     case "hidratar-taxas-linhas":
       return estado.modoDev.ligado ? { ...estado, modoDev: { ...estado.modoDev, taxasLinhas: acao.taxas } } : estado;
     case "esquecer-disponibilidade-ligacao": {
