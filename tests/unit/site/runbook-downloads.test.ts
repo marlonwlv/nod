@@ -124,8 +124,10 @@ describe("NOD-322: o runbook dos downloads estáveis roda contra o formato do de
     }
   });
 
-  it("hash que não bate para tudo antes de tocar na raiz do bucket", () => {
-    writeFileSync(bucket(`v${V}/nod-${V}-mac-x64.dmg`), "adulterado");
+  // Regression: ISSUE-002 — tirar a conferência do .exe do runbook não quebrava nenhum teste (só o DMG x64 era adulterado).
+  // Found by /qa on 2026-11-14 (mutante no docs/release-desktop.md).
+  it.each(["nod-$V-mac-arm64.dmg", "nod-$V-mac-x64.dmg", "nod-windows-x64.exe"])("hash que não bate (%s) para tudo antes de tocar na raiz do bucket", (nome) => {
+    writeFileSync(bucket(`v${V}/${nome.replace("$V", V)}`), "adulterado");
     const r = rodarRunbook();
     expect(r.status).not.toBe(0);
     for (const f of ESTAVEIS) expect(ler(f), f).toBe(`antigo ${f}`);
