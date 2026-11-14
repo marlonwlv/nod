@@ -365,6 +365,9 @@ function linhaDosBastidores(bastidores: readonly BastidorNoPrompt[]): string {
  */
 export const PASTA_DA_TAREFA_DO_QUADRO = "Outras tarefas suas do quadro podem estar rodando agora: trabalhe na pasta desta tarefa (o diretório atual) e, num repositório, numa worktree e num branch só dela, sem mexer nos das outras.";
 
+/** ADA-240 (ADR-159): o resultado mora na tarefa; a conversa recebe uma linha que aponta para ele, não uma cópia da fala. */
+export const RESULTADO_DA_TAREFA_DO_QUADRO = "O resultado deste trabalho fica na tarefa; quando a etapa termina, a conversa recebe uma linha que aponta para ela. Ao falar dele depois, diga que está na tarefa pelo código: nunca diga que o enviou numa mensagem anterior do chat sem uma mensagem visível que confirme o envio.";
+
 const ORIGEM_DA_TASK: Record<OrigemTrabalho, string> = {
   pessoa: "que você abriu na conversa com a pessoa",
   rotina: "de uma execução de rotina sua",
@@ -604,7 +607,7 @@ export function partesDoPromptSistema(entrada: EntradaPromptSistema): { estavel:
   } else if (entrada.trabalho) {
     const naoAbre = entrada.ferramentas.some((f) => f.nome === "abrir_frentes") ? "" : " Uma task não abre outras (só a rotina abre, um nível): faça o trabalho aqui mesmo.";
     // ADA-16 (ADR-163): a tarefa do quadro roda ao mesmo tempo que as outras do bot: pasta, worktree e branch só dela.
-    const doQuadro = entrada.trabalho.origem === "quadro" ? ` ${PASTA_DA_TAREFA_DO_QUADRO}` : "";
+    const doQuadro = entrada.trabalho.origem === "quadro" ? ` ${PASTA_DA_TAREFA_DO_QUADRO} ${RESULTADO_DA_TAREFA_DO_QUADRO}` : "";
     volatil.push(`Task atual: você está na task "${entrada.trabalho.titulo}", ${ORIGEM_DA_TASK[entrada.trabalho.origem]}. Ela roda à parte da conversa: trabalhe até o fim e entregue o resultado; a pergunta e o resultado chegam à pessoa como balão da task.${naoAbre}${doQuadro}`);
   }
   const abertos = entrada.trabalhosAbertos ?? [];
