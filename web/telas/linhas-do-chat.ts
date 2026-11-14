@@ -76,7 +76,7 @@ export type PlanoMensagem =
 type Agente = NonNullable<Estado["frota"]>["agentes"][number];
 
 /** Uma execução de rotina, um pedido de colega ou um trabalho: as mensagens do mesmo trabalho (ou do mesmo turno, sem ele). */
-type Unidade = { chave: string; tipo: "rotina" | "colega" | "task" | null; mensagens: Mensagem[]; trabalhoId: string | null; trabalho: TrabalhoDto | undefined; rotinaId: string | null };
+type Unidade = { chave: string; tipo: "rotina" | "colega" | "task" | null; mensagens: Mensagem[]; trabalhoId: string | null; trabalho: TrabalhoDto | undefined; origem: string | undefined; rotinaId: string | null };
 
 /** Rotina que parou sem nada para dizer (registrarDesfechoRotina, SILENCIOSOS): nenhuma linha dela vai ao chat. */
 const DESFECHOS_SILENCIOSOS = new Set(["sem_novidade", "interrompida"]);
@@ -194,14 +194,16 @@ function recolhivel(m: Mensagem): boolean {
 }
 
 /**
- * A fala da pessoa fica no chat, salvo a que ela escreveu no campo da tela da task (definido em 2026-10-08, revisão W8):
- * essa leva o `trabalhoId` e mora na task. A da `rede` é a exceção — ali a conversa é que virou task, e a fala foi
- * escrita no chat. Sem saber a origem (o trabalho fora da lista e sem a linha "Abriu a task"), a fala fica à vista.
+ * A fala de origem continua no chat quando uma conversa vira frente pela rede (ADR-083): tanto o pedido da pessoa
+ * quanto a resposta final do bot já aconteceram na conversa antes de ganharem `trabalhoId`. Os turnos seguintes da
+ * frente têm outra origem e seguem recolhidos nela. Fora da rede, só a fala da pessoa sem origem conhecida fica à vista;
+ * a escrita no campo da task mora na task (definido em 2026-10-08, revisão W8).
  */
-function falaDaPessoaNoChat(m: Mensagem, origens: ReadonlyMap<string, string>): boolean {
-  if (m.autoria.autor_tipo !== "pessoa" || m.kind !== "texto") return false;
+function falaDaConversaNoChat(m: Mensagem, origens: ReadonlyMap<string, string>): boolean {
+  if (m.kind !== "texto") return false;
   const origem = m.trabalhoId ? origens.get(m.trabalhoId) : undefined;
-  return origem === undefined || origem === "rede";
+  if (origem === "rede") return m.autoria.autor_tipo === "pessoa" || m.origemTurno === "conversa";
+  return m.autoria.autor_tipo === "pessoa" && origem === undefined;
 }
 
 function unidadesDe(mensagens: readonly Mensagem[], conhecidos: ReadonlyMap<string, TrabalhoDto>): Map<string, Unidade> {
@@ -212,12 +214,12 @@ function unidadesDe(mensagens: readonly Mensagem[], conhecidos: ReadonlyMap<stri
   for (const m of mensagens) if (m.payload?.kind === "frentes_abertas") for (const f of m.payload.frentes) origens.set(f.trabalhoId, m.payload.origem);
   for (const t of conhecidos.values()) origens.set(t.id, t.origem);
   for (const m of mensagens) {
-    if (!marcada(m) || falaDaPessoaNoChat(m, origens)) continue;
+    if (!marcada(m) || falaDaConversaNoChat(m, origens)) continue;
     // ADR-099 (I7 revista): a retomada entra na unidade da raiz dela — a execução da rotina e o pedido de colega não viram
     // mais trabalho, e a resposta da pessoa, a volta marcada e o retorno das frentes continuam na mesma linha.
     const chave = m.trabalhoId ? `trabalho:${m.trabalhoId}` : m.raiz ? `turno:${m.raiz.turnoId}` : m.turnoId ? `turno:${m.turnoId}` : null;
     if (!chave) continue;
-    const u = unidades.get(chave) ?? { chave, tipo: null, mensagens: [], trabalhoId: m.trabalhoId ?? null, trabalho: m.trabalhoId ? conhecidos.get(m.trabalhoId) : undefined, rotinaId: null };
+    const u = unidades.get(chave) ?? { chave, tipo: null, mensagens: [], trabalhoId: m.trabalhoId ?? null, trabalho: m.trabalhoId ? conhecidos.get(m.trabalhoId) : undefined, origem: m.trabalhoId ? origens.get(m.trabalhoId) : undefined, rotinaId: null };
     u.mensagens.push(m);
     unidades.set(chave, u);
   }
@@ -225,7 +227,7 @@ function unidadesDe(mensagens: readonly Mensagem[], conhecidos: ReadonlyMap<stri
     const p = u.mensagens.map((m) => m.payload?.kind);
     const execucao = u.mensagens.find((m) => m.payload?.kind === "rotina_execucao")?.payload;
     u.rotinaId = u.trabalho?.rotinaId ?? (execucao?.kind === "rotina_execucao" ? execucao.rotinaId : null);
-    const origem = u.trabalho?.origem;
+    const origem = u.trabalho?.origem ?? u.origem;
     const deOrigem = (o: string): boolean => u.mensagens.some((m) => m.origemTurno === o || m.raiz?.origem === o);
     if (origem === "rotina" || (!origem && (p.includes("rotina_execucao") || deOrigem("rotina")))) u.tipo = "rotina";
     else if (origem === "colega" || (!origem && (p.includes("peer_pedido") || deOrigem("delegacao")))) u.tipo = "colega";
@@ -321,7 +323,7 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
     // NOD-114: o aviso que o bot mandou à pessoa (avisar_pessoa) é para ela, como a pergunta: fica à vista em qualquer
     // turno — o clique na notificação abre esta conversa, e o aviso escondido seria marcado lido sem ser visto.
     const paraPessoa = (m: Mensagem): boolean => m.payload?.kind === "pedido_a_pessoa" || m.payload?.kind === "aviso_pessoa";
-    const baloes = u.mensagens.filter((m) => paraPessoa(m) || (u.tipo !== "colega" && falou && m.destino !== "anexo" && m.kind === "texto" && m.autoria.autor_tipo === "agente" && m.fimDoTurno === true && !(m.turnoId && abriramFrentes.has(m.turnoId))));
+    const baloes = u.mensagens.filter((m) => paraPessoa(m) || (u.tipo !== "colega" && (u.trabalho?.origem ?? u.origem) !== "rede" && falou && m.destino !== "anexo" && m.kind === "texto" && m.autoria.autor_tipo === "agente" && m.fimDoTurno === true && !(m.turnoId && abriramFrentes.has(m.turnoId))));
     // O resultado do trabalho que terminou ganha a linha "… terminou · 39 min · US$ 0,88" logo acima (K5).
     const ultimoFim = [...baloes].reverse().find((m) => !paraPessoa(m));
     for (const m of baloes) {

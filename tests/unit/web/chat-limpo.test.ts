@@ -285,6 +285,25 @@ describe("revisão W7/W8/W10 (2026-10-08)", () => {
     expect(itens(pelaLista.c, pelaLista.e).map((b) => b.html).join("")).not.toContain("recado x4");
   });
 
+  it("ADA-240: a resposta final do turno promovido pela rede fica no chat com a mídia; os turnos seguintes ficam na frente", () => {
+    const trabalhoId = "4374e55a";
+    const abriu = msg("abriu", t0 + MIN, { kind: "sistema", texto: "Virou a frente MIL-46", turnoId: "070f3d5e", origemTurno: "conversa", payload: { kind: "trabalho_aberto", trabalhoId, titulo: "MIL-46", origem: "rede" } });
+    const resultado = msg("d586a3f0", t0 + 2 * MIN, {
+      turnoId: "070f3d5e", origemTurno: "conversa", trabalhoId, fimDoTurno: true,
+      texto: "MIL-46 pronta, com o vídeo de 68 s.",
+      anexos: [{ id: "a00e5a36", nome: "mil-46.mp4", mime: "video/mp4", tamanho: 5_000_000, origem: "bot", duracaoMs: 68_000 }],
+    });
+    const seguinte = msg("depois", t0 + 3 * MIN, { turnoId: "turno-da-frente", origemTurno: "retomada", trabalhoId, fimDoTurno: true, texto: "Ajustei a MIL-46." });
+    const { e, c } = cenario([daPessoa("p1", t0), abriu, resultado, seguinte]);
+    const blocos = itens(c, e);
+    const html = blocos.map((b) => b.html).join("");
+    expect(blocos.map((b) => b.chave)).toContain("d586a3f0");
+    expect(html).toContain("MIL-46 pronta, com o vídeo de 68 s.");
+    expect(html).toContain("mil-46.mp4");
+    expect(html).not.toContain("Ajustei a MIL-46.");
+    expect(c.mensagens.find((m) => m.id === "d586a3f0")?.anexos?.[0]).toMatchObject({ id: "a00e5a36", duracaoMs: 68_000 });
+  });
+
   it("W10: a linha da rotina entra no lugar da primeira mensagem ESCONDIDA da execução, nunca no de uma à vista", () => {
     const aviso = rotina("rs", t0, { kind: "sistema", texto: "A rotina reconectou o Slack" });
     const { e, c } = cenario([aviso, rotina("r1", t0 + MIN, { fimDoTurno: true, texto: "Li o #suporte: nada" })]);
