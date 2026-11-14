@@ -467,6 +467,15 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         resto.splice(primeiraQueTira, 0, ...antecipados);
         plano.casos = resto;
       }
+      // Com o caso semeado acima, a semente 1416239180 seguiu em 404 no `quadro.definir_padrao`: um `bots.ocultar` sorteado
+      // antes escondia o bot do fuzz, e o definir_padrao só acha o bot entre os visíveis ("bot \"\" não encontrado"). Um
+      // `bots.ocultar` válido com `oculto: false` no bot do fuzz entra logo antes do primeiro `definir_padrao`, e o caso
+      // semeado passa da busca com qualquer semente.
+      const primeiroPadrao = plano.casos.findIndex((c) => c.acao === "quadro.definir_padrao");
+      const baseOcultar = plano.casos.find((c) => c.acao === "bots.ocultar");
+      if (primeiroPadrao >= 0 && baseOcultar) {
+        plano.casos.splice(primeiroPadrao, 0, { ...baseOcultar, caminho: `/agentes/${meu.agente.id}/ocultar`, entrada: { ...baseOcultar.entrada, rotulo: "semeado válido", corpo: JSON.stringify({ oculto: false }) } });
+      }
       // eslint-disable-next-line no-console
       console.log(`fuzz-acoes[${config.nome}]: ${plano.acoes} ações, ${plano.casos.length} casos; sem rota:${plano.semRota.join(", ") || "nenhuma"}`);
       expect(plano.casos.length, "o plano do fuzz saiu vazio: nada seria testado").toBeGreaterThan(0);
