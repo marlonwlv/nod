@@ -13,7 +13,8 @@ import {
   htmlPedidoDeTela,
   textoDeEntrou,
   htmlPainelComputadorDoBot,
-  htmlPilula,
+  estadoDaBarra,
+  htmlBarraDeControle,
   lembrarComputador,
   lerComputadorPessoa,
   resumoDasTelas,
@@ -47,10 +48,10 @@ describe("contrato e flag", () => {
     expect(lerComputadorPessoa({ estado: "dormindo" })).toEqual({ estado: "dormindo", maquina: null, telas: [], esperando: [] });
   });
 
-  // NOD-367: as Configurações têm 6 seções fixas; o computador do bot (v2) mora dentro de Máquinas.
-  it("a v2 não acrescenta seção às Configurações; o pedido antigo cai em Máquinas", () => {
-    expect(SECOES_ESPACO.map((s) => s.id)).toEqual(["conta", "geral", "conexao", "maquinas", "agentes", "rotinas", "aprovacoes", "cofre", "feedback"]);
-    expect(secaoDoPedido("computador-do-bot")).toBe("maquinas");
+  // Especificação D, item 7: o computador do bot ganhou a seção Computador, logo depois de Máquinas.
+  it("Configurações › Computador vem depois de Máquinas; o pedido antigo cai nela", () => {
+    expect(SECOES_ESPACO.map((s) => s.id)).toEqual(["conta", "geral", "conexao", "maquinas", "computador", "agentes", "rotinas", "aprovacoes", "cofre", "feedback"]);
+    expect(secaoDoPedido("computador-do-bot")).toBe("computador");
     expect(secaoDoPedido("computadores")).toBe("maquinas");
   });
 
@@ -130,9 +131,18 @@ describe("gaveta e tela cheia", () => {
   });
 
   it("a pílula: Assistindo · Assumir o controle, depois Você está no controle · Parar", () => {
-    expect(htmlPilula("Dev 2", "assistindo")).toMatch(/Assistindo[\s\S]*Assumir o controle/);
-    expect(htmlPilula("Dev 2", "assumindo")).toContain("Assumindo… Dev 2 termina a ação em curso");
-    expect(htmlPilula("Dev 2", "controle")).toMatch(/Você está no controle[\s\S]*data-c="devolver">Parar/);
+    expect(htmlBarraDeControle("Dev 2", "assistindo")).toMatch(/Assistindo[\s\S]*data-c="assumir"[\s\S]*Assumir o controle/);
+    expect(htmlBarraDeControle("Dev 2", "assumindo")).toMatch(/Assumindo…[\s\S]*Dev 2 termina a ação em curso[\s\S]*disabled/);
+    expect(htmlBarraDeControle("Dev 2", "controle")).toMatch(/Você está no controle[\s\S]*data-c="devolver">Parar/);
+  });
+
+  it("pedido de ajuda aberto: Precisa de você · Já resolvi · Assumir o controle (não Assistindo)", () => {
+    expect(estadoDaBarra("aguardando_pessoa", null, 0)).toBe("precisa");
+    expect(estadoDaBarra("bot", null, 0)).toBe("assistindo");
+    expect(estadoDaBarra("aguardando_pessoa", 0, 10_000)).toBe("assumindo");
+    const html = htmlBarraDeControle("Dev 2", "precisa");
+    expect(html).toMatch(/Precisa de você[\s\S]*data-c="devolver">Já resolvi[\s\S]*data-c="assumir"[\s\S]*Assumir o controle/);
+    expect(html).not.toContain("Assistindo");
   });
 });
 

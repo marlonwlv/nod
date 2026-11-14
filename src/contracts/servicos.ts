@@ -50,12 +50,6 @@ export interface ServicesNod<Trx> extends ServicosLinear {
     esperandoPor?(turnoId: string): string | null;
   };
   /**
-   * definido em 2026-10-08 (NOD-200, ADR proposta): a última tela que o bot viu no turno, para virar anexo da fala.
-   * `ler` não esquece (o assentar repetido por impasse acha a mesma tela); null = chave NOD_CAPTURA_NO_TRANSCRIPT
-   * desligada ou sem tela. `esquecer` é da ponte, depois do assentar confirmado. Ausente = desligado.
-   */
-  capturas?: { ler(turnoId: string): Uint8Array | null; esquecer(turnoId: string): void };
-  /**
    * definido em 2026-10-07 (ADR-083): o que só o processo sabe dos trabalhos — a última ferramenta de cada turno vivo
    * (o "último passo" da faixa) e a pressão de memória dos Macs da pessoa (#194). Ausente = nada a mostrar.
    */

@@ -1,22 +1,32 @@
 /**
- * NOD-95 (definido em 2026-10-29, ADR-138): a tela ao vivo na tela cheia. Com a pessoa no controle, o quadro de 2 s dá
- * lugar ao VNC da tela, que chega pelo WebSocket `…/computador/vivo` (o servidor só repassa bytes). O cliente é o
- * noVNC (MPL-2.0, THIRD_PARTY_NOTICES.md), carregado só quando a pessoa assume: teclado, mouse, rolagem e a escala
- * para caber inteiro são dele. Sem conseguir ligar (servidor sem a rota, máquina sem x11vnc, módulo que não carrega),
- * devolve null e a tela cheia continua nas capturas, como antes.
+ * NOD-95 (definido em 2026-10-29, ADR-138): a tela ao vivo na tela cheia, pelo WebSocket `…/computador/vivo` (o
+ * servidor só repassa bytes). O cliente é o noVNC (MPL-2.0, THIRD_PARTY_NOTICES.md): teclado, mouse, rolagem e a escala
+ * para caber inteiro são dele. Card D (2026-11-12): também ao assistir, com `viewOnly` (e o filtro do servidor,
+ * src/adapters/computador/rfb-so-ver.ts); assumir e devolver só trocam o `viewOnly`. Sem conseguir ligar (servidor sem
+ * a rota, máquina sem x11vnc, módulo que não carrega), devolve null e a tela cheia tenta de novo.
  */
 /** `reportError` não existe em todo lugar (Node dos testes, navegadores antigos): ali, o erro só não é relatado. */
 const relatarErro = (e: Error) => { if (typeof globalThis.reportError === "function") globalThis.reportError(e); };
 
-export type ClienteVivo = { fechar(): void; focar(): void };
+export type ClienteVivo = {
+  fechar(): void;
+  focar(): void;
+  /** Card D, F4: assistir (true) ou controlar (false) na mesma conexão, sem reconectar: a tela continua igual. */
+  soVer(valor: boolean): void;
+};
 
 export type AbrirVivo = (p: {
   alvo: HTMLElement;
   url: string;
-  /** O VNC conectou: a tela cheia esconde a captura e mostra o canvas. */
+  /** Card D, F3: abre assistindo (viewOnly); o servidor filtra teclado e mouse até a pessoa assumir. */
+  soVer: boolean;
+  /** O VNC conectou: a tela cheia mostra o canvas. */
   aoLigar(): void;
-  /** O fluxo acabou (o controle mudou, a máquina caiu, o servidor fechou): a tela cheia volta às capturas. */
-  aoCair(): void;
+  /**
+   * O fluxo acabou (a máquina caiu, o servidor fechou). `ultimo` é o canvas com o último quadro (o noVNC já o tirou do
+   * alvo; ele segue com os pixels): a tela cheia o mostra escurecido enquanto reconecta.
+   */
+  aoCair(ultimo: HTMLCanvasElement | null): void;
 }) => Promise<ClienteVivo | null>;
 
 /** O pedaço do RFB do noVNC que o colar usa (o teste passa um dublê). */
@@ -51,21 +61,27 @@ export const abrirVivoNoVnc: AbrirVivo = async (p) => {
   try {
     const { default: RFB } = await import("@novnc/novnc");
     const rfb = new RFB(p.alvo, p.url, { shared: true });
+    // Card D, item 4: a tela do bot fica 1280×800 (resizeSession fica no padrão, desligado), escalada para caber no quadro, fundo preto.
     rfb.scaleViewport = true;
     rfb.clipViewport = false;
-    rfb.focusOnClick = true;
+    rfb.viewOnly = p.soVer;
+    rfb.focusOnClick = !p.soVer;
     rfb.background = "#000";
     const desligarColar = ligarColar(p.alvo, rfb);
+    let fechou = false;
     rfb.addEventListener("connect", () => p.aoLigar());
     rfb.addEventListener("disconnect", (e) => {
       // Caiu sem ser pedido: fica no console (e no log do renderer do app) como os outros erros da tela (AGENTS.md).
-      if (!(e as CustomEvent<{ clean?: boolean }>).detail?.clean) relatarErro(new Error("tela ao vivo caiu"));
+      if (!fechou && !(e as CustomEvent<{ clean?: boolean }>).detail?.clean) relatarErro(new Error("tela ao vivo caiu"));
       desligarColar();
-      p.aoCair();
+      if (!fechou) p.aoCair(canvas);
     });
+    // O canvas do noVNC nasce no construtor; guardado aqui, sobrevive ao disconnect com o último quadro.
+    const canvas = p.alvo.querySelector("canvas");
     return {
-      fechar() { try { rfb.disconnect(); } catch { /* já fechado */ } },
+      fechar() { fechou = true; try { rfb.disconnect(); } catch { /* já fechado */ } },
       focar() { try { rfb.focus(); } catch { /* sem canvas ainda */ } },
+      soVer(valor) { rfb.viewOnly = valor; rfb.focusOnClick = !valor; if (valor) { try { rfb.blur(); } catch { /* sem canvas */ } } },
     };
   } catch (e) {
     relatarErro(new Error("tela ao vivo não ligou", { cause: e }));

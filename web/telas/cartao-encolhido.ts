@@ -3,7 +3,7 @@ import type { Estado } from "../estado/reducer.ts";
 import { botao, esc, hora, paragrafos } from "../lib/render.ts";
 import { iconeDaLinha } from "../lib/card-proposta.ts";
 import { ondeLegivel } from "./card-pasta.ts";
-import { acaoHumana } from "./sua-vez.ts";
+import { acaoHumana, FRASE_ACAO_NO_COMPUTADOR, linhaNaoPermitiu } from "./sua-vez.ts";
 import { ehRotinaWebhook, enderecoNoCard, origemDaTela } from "./webhook.ts";
 
 /**
@@ -36,6 +36,8 @@ export type DadosDoEncolhido = {
   rodape?: string;
   /** O title da linha: quem decidiu e quando (o Paper tira da linha). */
   dica?: string;
+  /** Spec D, item 5: a recusa de uma ação no computador é uma linha de sistema centrada ("Você não permitiu: …"). */
+  sistema?: true;
 };
 
 /**
@@ -72,6 +74,7 @@ export function renderCartaoEncolhido(d: DadosDoEncolhido, mensagemId: string): 
   // embaixo, na linha inteira.
   const detalhes = d.detalhes ? `<details class="ce-detalhes" data-disclosure="${esc(d.detalhes.chave)}"><summary><span class="cp-sep" aria-hidden="true">·</span> <span class="ce-link">${esc(d.detalhes.rotulo)}</span></summary><div class="ce-corpo">${d.detalhes.html}</div></details>` : "";
   const extra = d.rodape ?? "";
+  if (d.sistema) return `<div class="msg-sistema cc-linha cartao-encolhido" role="group" aria-labelledby="${titulo}" data-cartao-encolhido="${id}" data-anuncio="${esc(d.anuncio)}"${d.dica ? ` title="${esc(d.dica)}"` : ""}><span id="${titulo}" tabindex="-1">${esc(d.resultado)}</span></div>`;
   // O título leva tabindex -1: o foco vai para ele quando o cartão nasce de um clique nesta aba (o botão clicado já saiu).
   return `<div class="cp-linha cp-${tipo} cartao-encolhido${extra ? " cp-com-extra" : ""}" role="group" aria-labelledby="${titulo}" data-cartao-encolhido="${id}" data-anuncio="${esc(d.anuncio)}"${d.dica ? ` title="${esc(d.dica)}"` : ""}>`
     + `${marca}<span class="cp-texto"><span class="ce-resultado">${esc(d.resultado)}</span>${sr} ${d.resultado.endsWith(":") ? "" : '<span class="cp-sep" aria-hidden="true">·</span> '}<span class="pq-titulo ce-titulo" id="${titulo}" tabindex="-1">${esc(d.titulo)}</span></span>${detalhes}`
@@ -118,6 +121,12 @@ function daAprovacao(m: Mensagem, p: Payload<"resultado_aprovacao">, estado: Est
   // Tela 06 do Paper ("Resolvido"): "Negado · <o pedido>" e "Permitido uma vez · <o pedido>"; quem decidiu e a hora ficam
   // no title (a linha é de status, não de recibo).
   const quando = `Decidido${quem} às ${hora(m.criadoEm)}`;
+  // Spec D, item 5: negar a ação no computador vira "Você não permitiu: {ação}", centrada; o bot segue o turno.
+  const [unico] = p.itens;
+  if (aprovados === 0 && total === 1 && p.frase === FRASE_ACAO_NO_COMPUTADOR && unico?.texto && quem) {
+    const linha = linhaNaoPermitiu(unico.texto);
+    return { decisaoId: p.decisaoId, titulo, resultado: linha, marca: null, anuncio: linha, dica: quando, sistema: true };
+  }
   if (aprovados === 0) return p.revisor
     ? { decisaoId: p.decisaoId, titulo, resultado: "Negado", marca: null, anuncio: `Negado: ${titulo}`, dica: quando }
     : { decisaoId: p.decisaoId, titulo, resultado: "Negado", marca: null, anuncio: `Recusado: ${titulo}`, dica: quando };

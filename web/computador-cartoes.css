@@ -1,0 +1,117 @@
+/*
+ * Spec D (Computador do bot), itens 5 e 6: o cartão da aprovação de uma ação no computador e o do pedido de ajuda
+ * (web/telas/sua-vez.ts, renderCartaoComputador e renderCartaoAjuda). Os valores claro / escuro são os das pranchetas
+ * D5 e D7; o escuro vale pela escolha manual e pelo sistema, como em tokens.css.
+ */
+.cc-cartao {
+  --cc-tinta: #1c1c1c;
+  --cc-tinta-2: #1c1c1cad;
+  --cc-x: #1c1c1ca8;
+  --cc-caixa: #1c1c1c0a;
+  --cc-mono: #00854a;
+  --cc-sec: #1c1c1c0f;
+  --cc-sec-hover: #1c1c1c17;
+  --cc-pri: #1c1c1c;
+  --cc-pri-tinta: #fcfcfc;
+  --cc-sombra: 0 0 0 .5px #1c1c1c1f, 0 2px 8px #1c1c1c09;
+}
+:root[data-theme="dark"] .cc-cartao {
+  --cc-tinta: #f5f5f5;
+  --cc-tinta-2: #f5f5f5a8;
+  --cc-x: #f5f5f5a3;
+  --cc-caixa: #f5f5f505;
+  --cc-mono: #00ba69;
+  --cc-sec: #f5f5f50a;
+  --cc-sec-hover: #f5f5f514;
+  --cc-pri: #f5f5f5;
+  --cc-pri-tinta: #121212;
+  --cc-sombra: 0 0 0 .5px #f5f5f51a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cc-cartao {
+    --cc-tinta: #f5f5f5;
+    --cc-tinta-2: #f5f5f5a8;
+    --cc-x: #f5f5f5a3;
+    --cc-caixa: #f5f5f505;
+    --cc-mono: #00ba69;
+    --cc-sec: #f5f5f50a;
+    --cc-sec-hover: #f5f5f514;
+    --cc-pri: #f5f5f5;
+    --cc-pri-tinta: #121212;
+    --cc-sombra: 0 0 0 .5px #f5f5f51a;
+  }
+}
+
+/* 462 de largura, raio 24, sem borda; alinhado à esquerda da coluna, 16 px abaixo do último balão. */
+.lista > li.cc-cartao, li.cc-cartao, .cc-cartao {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 462px;
+  max-width: 100%;
+  align-self: flex-start;
+  padding: 14px 16px 16px;
+  margin: 16px 0 0;
+  border: 0 !important;
+  border-left: 0 !important;
+  border-radius: 24px;
+  background: var(--surface-elevated);
+  box-shadow: var(--cc-sombra);
+  color: var(--cc-tinta);
+  list-style: none;
+}
+.lista > li.cc-cartao { margin-bottom: 12px; }
+
+.cc-cab { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+.cc-cab .cc-ic { flex: none; color: var(--cc-tinta); }
+.cc-rotulo { font-size: 15px; line-height: 22px; font-weight: 500; }
+.cc-cab .aprov-pedido-de { font-size: 13px; color: var(--cc-tinta-2); }
+.cc-cartao .cc-x {
+  margin-left: auto; display: inline-grid; place-items: center; width: 24px; height: 24px; min-height: 0; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: var(--cc-x); cursor: pointer;
+}
+.cc-cartao .cc-x:hover { background: var(--cc-sec); }
+
+.cc-titulo { margin: 0; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--cc-tinta); overflow-wrap: anywhere; }
+.cc-texto { margin: 0; font-size: 14px; line-height: 20px; font-weight: 425; color: var(--cc-tinta-2); overflow-wrap: anywhere; }
+.cc-cartao .ap-porque { margin: 0; }
+
+/* A caixa da ação crua: mono verde; Copiar 28×28 só no hover (e no foco, para o teclado). */
+.cc-acao { position: relative; padding: 8px 10px; border-radius: 10px; background: var(--cc-caixa); }
+.cc-acao code { display: block; padding-right: 30px; font-family: var(--font-mono); font-size: 13px; line-height: 18px; color: var(--cc-mono); background: none; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cc-acao .cc-copiar {
+  position: absolute; top: 3px; right: 3px; display: inline-grid; place-items: center; min-width: 28px; height: 28px; min-height: 0;
+  padding: 0 6px; border: 0; border-radius: 8px; background: var(--surface-elevated); color: var(--cc-tinta-2); font-size: 12px;
+  cursor: pointer; opacity: 0;
+}
+.cc-acao:hover .cc-copiar, .cc-acao .cc-copiar:focus-visible { opacity: 1; }
+@media (hover: none) { .cc-acao .cc-copiar { opacity: 1; } }
+
+/* Botões pílula de 32, à direita, gap 6. */
+.cc-botoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.cc-cartao .cc-bt {
+  height: 32px; min-height: 0; padding: 6px 14px; border: 0; border-radius: 9999px; font-size: 14px; line-height: 20px;
+  font-weight: 425; background: transparent; color: var(--cc-tinta-2); box-shadow: none; cursor: pointer; white-space: nowrap;
+}
+.cc-cartao .cc-bt:hover { background: var(--cc-sec); }
+.cc-cartao .cc-resto { font-weight: 500; background: var(--cc-sec); color: var(--cc-tinta); }
+.cc-cartao .cc-resto:hover { background: var(--cc-sec-hover); }
+.cc-cartao .cc-uma, .cc-cartao .cc-uma.pri { font-weight: 500; background: var(--cc-pri); color: var(--cc-pri-tinta); }
+.cc-cartao .cc-uma:hover { background: var(--cc-pri); opacity: .88; }
+.cc-cartao .cc-bt:disabled { opacity: .5; cursor: default; }
+
+/* Item 6: a miniatura 96×60 da tela no momento do pedido, à esquerda do título. */
+.cc-ajuda-corpo { display: flex; align-items: flex-start; gap: 12px; }
+.cc-mini { flex: none; width: 96px; height: 60px; border-radius: 8px; overflow: hidden; background: var(--cc-sec); }
+.cc-mini img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cc-mini img[hidden] { display: none; }
+.cc-ajuda-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+/* A linha que o cartão vira (negado, entrou, não entrou): a linha de sistema centrada, 12/16, terciária. */
+.msg-sistema.cc-linha { font-size: 12px; line-height: 16px; color: #1c1c1c8f; }
+:root[data-theme="dark"] .msg-sistema.cc-linha { color: #f5f5f58a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .msg-sistema.cc-linha { color: #f5f5f58a; } }
+
+/* Barra lateral enquanto espera (itens 5 e 6): o ponto à direita da linha é 8×8 laranja (cores em tokens.css). */
+#sidebar .row > .ponto-aguardando { width: 8px; height: 8px; }

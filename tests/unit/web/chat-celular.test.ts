@@ -252,8 +252,8 @@ describe("NOD-381 (revisão 1): \"ir para as novas\" não para embaixo do topo",
     }
   });
 
-  it("a linha do computador do bot fica na base da pílula, não na do véu", () => {
-    expect(css("mobile.css")).toContain(".cabecalho.cabecalho-pilula .pilula-bot:has(> .cb-fio) { position: relative; }");
+  it("D · Computador do bot: a linha de progresso do computador (.cb-fio) saiu da pílula", () => {
+    expect(css("mobile.css")).not.toContain("cb-fio");
   });
 });
 

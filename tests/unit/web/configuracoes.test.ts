@@ -61,7 +61,7 @@ describe("menu do avatar (critério 1)", () => {
 
 describe("as 6 seções (critério 2)", () => {
   it("Conta, Geral, Provedores de IA, Máquinas, Agentes, Rotinas e Feedback, nesta ordem (NOD-85)", () => {
-    expect(SECOES_ESPACO.map((s) => s.nome)).toEqual(["Conta", "Geral", "Provedores de IA", "Máquinas", "Agentes", "Rotinas", "Aprovações", "Cofre", "Feedback"]);
+    expect(SECOES_ESPACO.map((s) => s.nome)).toEqual(["Conta", "Geral", "Provedores de IA", "Máquinas", "Computador", "Agentes", "Rotinas", "Aprovações", "Cofre", "Feedback"]);
   });
 
   it("os pedidos de antes caem na seção que os absorveu", () => {
@@ -70,7 +70,8 @@ describe("as 6 seções (critério 2)", () => {
     expect(secaoDoPedido("ajuda")).toBe("geral");
     expect(secaoDoPedido("este-mac")).toBe("maquinas");
     expect(secaoDoPedido("computadores")).toBe("maquinas");
-    expect(secaoDoPedido("computador-do-bot")).toBe("maquinas");
+    // Especificação D, item 7: o computador do bot saiu de Máquinas para Computador.
+    expect(secaoDoPedido("computador-do-bot")).toBe("computador");
     expect(secaoDoPedido("relatos")).toBe("feedback");
     expect(secaoDoPedido("agentes")).toBe("agentes");
   });
@@ -86,7 +87,7 @@ describe("as 6 seções (critério 2)", () => {
       expect(html).toContain('<h1 id="espaco-titulo" class="sr-only">Configurações</h1>');
       expect(html).toContain('aria-label="Seções das Configurações"');
       // ADR-167 (Paper 07): a ordem do Paper (Geral, Conta, Máquinas, Aprovações, [Apps], IA) e depois as que o Paper não desenhou.
-      expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["geral", "conta", "maquinas", "aprovacoes", "cofre", "conexao", "agentes", "rotinas", "feedback"]);
+      expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["geral", "conta", "maquinas", "computador", "aprovacoes", "cofre", "conexao", "agentes", "rotinas", "feedback"]);
       expect(html).not.toContain("espaco-banco");
     }
   });

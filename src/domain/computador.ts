@@ -295,6 +295,45 @@ export function textoDaAtividade(tipo: string, estado: string): string {
 }
 
 /**
+ * D · Computador do bot (item 1): o rótulo da linha de atividade enquanto o bot usa o computador, no lugar do genérico
+ * "Usando o computador". `ferramenta` é o nome sem o prefixo (`computador_navegar`); `resumo` é o resumo de uma linha do
+ * argumento (`resumoDaFerramenta`, já redigido): a URL curta do navegar ("www.exemplo.com/caminho") e o `tipo` do
+ * interagir ("clicar", "digitar"…). Nunca o texto digitado, o comando nem o caminho; sempre em português. Sem resumo
+ * (app antigo), o genérico do verbo ("Abrindo uma página", "Mexendo na tela").
+ */
+const ROTULO_DO_COMPUTADOR: Readonly<Record<string, string>> = {
+  observar: "Olhando a tela", terminal: "Rodando no terminal", abas: "Trocando de aba", audio: "Ouvindo o computador",
+  arquivos: "Olhando os arquivos", ler_arquivo: "Lendo um arquivo", ler_texto: "Lendo um arquivo", gravar_texto: "Gravando um arquivo",
+  gravar_arquivo: "Gravando um arquivo", pedir_ajuda: "Pedindo ajuda a você",
+};
+const ROTULO_DA_INTERACAO: Readonly<Record<string, string>> = {
+  clicar: "Clicando na tela", arrastar: "Clicando na tela", dialogo: "Clicando na tela", digitar: "Digitando na tela",
+  tecla: "Digitando na tela", rolar: "Rolando a tela", anexar: "Anexando um arquivo",
+};
+/** O tipo do interagir que vira resumo do passo (`resumoDaFerramenta`): só a palavra do enum, nunca o resto do argumento. */
+export const TIPOS_DA_INTERACAO: readonly string[] = Object.keys(ROTULO_DA_INTERACAO);
+
+/** O domínio da URL (ou da URL curta) sem `www.`, porta, credencial nem caminho; null se não parece um domínio. */
+export function dominioDaUrl(url: string): string | null {
+  const m = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^/?#@\s]*@)?([^/?#:\s]+)/i.exec(url.trim());
+  const host = m?.[1]?.toLowerCase().replace(/^www\./, "").replace(/\.$/, "") ?? "";
+  return /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/.test(host) && host.length <= 80 ? host : null;
+}
+
+export function rotuloDoComputador(ferramenta: string, resumo?: string | null): string {
+  const curto = ferramenta.replace(/^computador_/, "");
+  if (curto === "navegar") {
+    const dominio = resumo ? dominioDaUrl(resumo) : null;
+    return dominio ? `Abrindo ${dominio}` : "Abrindo uma página";
+  }
+  if (curto === "interagir") {
+    const tipo = resumo?.trim().toLowerCase() ?? "";
+    return Object.hasOwn(ROTULO_DA_INTERACAO, tipo) ? ROTULO_DA_INTERACAO[tipo]! : "Mexendo na tela";
+  }
+  return Object.hasOwn(ROTULO_DO_COMPUTADOR, curto) ? ROTULO_DO_COMPUTADOR[curto]! : "Usando o computador";
+}
+
+/**
  * NOD-96 (ADR-122): o modelo de computador que vale no modo atual. No docker só o 'por_bot'; no motor só o
  * 'por_pessoa'. O vínculo de um bot com o outro modelo (sobra de uma troca de modo) conta como "sem computador":
  * o plano dá as ferramentas e a 1ª ação refaz o vínculo; a saúde da outra máquina não vale para ele.

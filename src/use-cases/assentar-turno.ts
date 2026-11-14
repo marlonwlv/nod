@@ -10,8 +10,7 @@ import { custoDoTurno } from "../domain/custo-turno.ts";
 import { assuntoDaInterrupcao } from "../domain/destino-no-chat.ts";
 import { causaDaEntrega } from "../domain/stream-json.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { recusaDoArquivo } from "../domain/anexo.ts";
-import { appSemJanelaReal, classificarErroFornecedor, ehErroTransitorio, fraseDoErroFornecedor, fraseDoLimiteDoPlano, horaDaFrase, horaMinuto, quandoDaFrase } from "../domain/erro-fornecedor.ts";
+import { appSemJanelaReal, classificarErroFornecedor, ehErroTransitorio, fraseDoErroFornecedor, fraseDoLimiteDoPlano, horaDaFrase, quandoDaFrase } from "../domain/erro-fornecedor.ts";
 import { descreverNegacao } from "../domain/estado-degradacao.ts";
 import { iaDaNegacao } from "../domain/harness.ts";
 import { negacoesDoTurno } from "../domain/negacao-nativa.ts";
@@ -43,7 +42,6 @@ import { postarNaSala } from "./postar-na-sala.ts";
 import { enfileirarVoltaDoFundo, entradaDaVoltaDoFundo, falasSemResposta, fundoNaCadeia, raizDaCadeia } from "./volta-do-fundo.ts";
 import { continuarAprovacoesDoTurno } from "./decidir.ts";
 import { confirmarNaSessao } from "./sessao-viva.ts";
-import { emSavepoint } from "./savepoint.ts";
 import { sincronizarDoTurno } from "./trabalhos.ts";
 import { propagarSessaoDoTurno } from "./sessao-do-turno.ts";
 import { esperaAoAssentar } from "./esperar-comando.ts";
@@ -121,36 +119,6 @@ async function fecharRetomarSuperados(deps: Deps, turno: Turno, agora: number): 
   return fechadas.map((d) => decididaPorRegra(deps, d, REGRA_RETOMAR_SUPERADO, agora));
 }
 
-/** Código do erro para o log (SQLSTATE ou nome); nunca a mensagem, que pode carregar dado. */
-function motivoDoErro(e: unknown): string {
-  const codigo = (e as { code?: unknown } | null)?.code;
-  if (typeof codigo === "string" && codigo !== "") return codigo;
-  return e instanceof Error ? e.name : "desconhecido";
-}
-
-/**
- * definido em 2026-10-08 (NOD-200, ADR proposta): a última tela que o bot viu no turno vira anexo png da fala dele.
- * Num SAVEPOINT: a falha (teto, RLS, banco) volta só o anexo, e a mensagem entra igual. O log leva o turno e o
- * motivo, nunca os bytes.
- */
-async function anexarCaptura(deps: Deps, p: { turnoId: string; conversaId: string; mensagemId: string; bytes: Uint8Array; agora: number }): Promise<void> {
-  const recusa = recusaDoArquivo("image/png", p.bytes.byteLength);
-  if (recusa) {
-    log("aviso", "captura_turno_falhou", { turno_id: p.turnoId, motivo: recusa === "tamanho" ? "acima_do_teto" : recusa });
-    return;
-  }
-  try {
-    await emSavepoint(deps, async () => {
-      const anexo = await deps.repos.anexos.criar({ conversaId: p.conversaId, nome: `tela-${horaMinuto(p.agora).replace(":", "")}.png`, mime: "image/png", conteudo: p.bytes });
-      if (!anexo) throw new ErroDeDominio("estado_invalido", { cause: "anexo_nao_criado" });
-      const presos = await deps.repos.anexos.prender([anexo.id], { conversaId: p.conversaId, mensagemId: p.mensagemId });
-      if (presos.length !== 1) throw new ErroDeDominio("estado_invalido", { cause: "anexo_nao_preso" });
-    });
-  } catch (e) {
-    log("aviso", "captura_turno_falhou", { turno_id: p.turnoId, motivo: motivoDoErro(e) });
-  }
-}
-
 /**
  * NOD-323 (ADR-126): a mídia que o bot anexou no turno (soltas, na ordem em que chegaram) vai para a fala final, em todo
  * ramo que grava fala de texto — concluído, interrompido (parcial) ou tardio. Turno sem fala de texto deixa a mídia solta,
@@ -208,8 +176,6 @@ export function desfechoDaEntrega(turno: Pick<Turno, "pararSolicitadoEm" | "leas
 export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> = async (deps, entrega) => {
   const primeira = await deps.repos.turnos.registrarEntrega(entrega.turnoId, entrega.seqLocal);
   if (!primeira) return { data: { turno: null, mensagem: null, duplicada: true, tardia: false } };
-  // NOD-200: só lida aqui — a ponte a esquece depois do assentar confirmado, em todo ramo; a repetição por impasse acha a mesma.
-  const captura = deps.services.capturas?.ler(entrega.turnoId) ?? null;
   // Trava de linha: Parar (parar_solicitado_em) pode estar commitando em paralelo; a leitura espera por ele (ADR-009: quem decide o motivo é o servidor).
   const turno = await deps.repos.turnos.buscarTravado(entrega.turnoId);
   if (!turno) throw new ErroDeDominio("nao_encontrado");
@@ -268,8 +234,6 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   const acoes: Extract<PayloadMensagem, { kind: "acoes_do_turno" }> | null = listaDeAcoes.length > 0 ? { kind: "acoes_do_turno", acoes: listaDeAcoes, duracaoMs } : null;
   const falaTexto = entrega.fala.tipo === "texto" && comandoDoTurno !== "compactar" && !resultado.causaSemIa ? traduzirSaidaDoComando(turno.entradaTexto, entrega.fala.texto, entrega.harness) : "";
   let mensagem: Mensagem | null = null;
-  /** NOD-200: a fala de texto do bot fora de sala, não silenciada nem tardia — só ela leva a captura. */
-  let falaDoBot = false;
   if (entrega.fala.tipo === "passe") {
     const agente = await deps.repos.agentes.buscar(turno.agenteId);
     mensagem = await deps.repos.mensagens.criar({
@@ -303,7 +267,6 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
       confianca: turno.entradaConfianca,
       parcial: interrompido,
     });
-    falaDoBot = !tardia;
   }
   // NOD-402 (definido em 2026-10-28): no lugar da fala cortada, uma linha curta diz que o Parar da pessoa também parou o que
   // rodava em segundo plano — sem ela, a rotina (que ela não via) sumia sem rastro no chat.
@@ -315,12 +278,10 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   const podeFalar = entrega.fala.tipo === "texto" && !resultado.causaSemIa && !silencioso && !rotinaCaida && !bastidorParado && turno.origem !== "sala" && comandoDoTurno !== "compactar";
   if (!mensagem && podeFalar && (await deps.repos.anexos.contarDoTurno(turno.id)) > 0) {
     mensagem = await deps.repos.mensagens.criar({ conversaId: turno.conversaId, turnoId: turno.id, autoria, kind: "texto", texto: "", payload: acoes, confianca: turno.entradaConfianca, parcial: interrompido });
-    falaDoBot = !tardia;
   }
   // NOD-353 (revisão do #523): a última fala saiu no meio (turno.fala) e não veio fala final — o resumo vai nela, senão a
   // fala parada some com o resumo que a tela mostrava.
   if (!mensagem && acoes && podeFalar) await deps.repos.mensagens.acoesNaUltimaFalaDoTurno(turno.id, turno.agenteId, acoes);
-  if (captura && falaDoBot && mensagem) await anexarCaptura(deps, { turnoId: turno.id, conversaId: turno.conversaId, mensagemId: mensagem.id, bytes: captura, agora });
   // NOD-323: a mídia solta do turno prende à fala final. A sala não tem anexar_midia nesta PR (plano-turno.ts); turno sem
   // fala não ganha post vazio, e a mídia solta o varredor apaga depois de um dia.
   if (mensagem && mensagem.kind === "texto") mensagem = await prenderMidiaDoTurno(deps, turno.id, mensagem);

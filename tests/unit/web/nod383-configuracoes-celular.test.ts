@@ -130,7 +130,7 @@ describe("NOD-383: Configurações em lista no celular (critério 3)", () => {
     const h = renderEspaco(aberto(true), avisos, volta, extras, true);
     expect(h).toContain('role="dialog" aria-modal="true" aria-labelledby="espaco-titulo"');
     expect(h).toContain(">Configurações</h1>");
-    expect([...h.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["conta", "geral", "conexao", "maquinas", "agentes", "rotinas", "aprovacoes", "cofre", "feedback"]);
+    expect([...h.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["conta", "geral", "conexao", "maquinas", "computador", "agentes", "rotinas", "aprovacoes", "cofre", "feedback"]);
     expect(h.match(/class="cfg-grupo"/g)).toHaveLength(3);
     expect(h).toContain("<b>Ana Lima</b><small>ana@x.com</small>");
     expect(h).toContain('<span class="cfg-item-valor">Simulação</span>');

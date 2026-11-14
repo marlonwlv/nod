@@ -9,7 +9,9 @@ import type { Estado } from "../estado/reducer.ts";
 import { checkboxesDosGrupos, type IdGrupo } from "./app-acesso.ts";
 import { pedidosAbertos } from "../lib/avisos.ts";
 import { desdeDaParada, linhaNaoRodaram } from "../lib/execucao.ts";
-import { chaveDoItem, contarFios, ehPergunta } from "../lib/perguntas.ts";
+import { chaveDoItem, contarFios, ehPergunta, estadoDaPergunta } from "../lib/perguntas.ts";
+import { motivoDoPedidoDeTela } from "../lib/computador.ts";
+import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import { botao, esc, hora, iconeAgente } from "../lib/render.ts";
 import { renderCartaoPergunta } from "./cartao-pergunta.ts";
 import { emQuanto, foraDoArDesde, haQuanto, nadaEsperando } from "../lib/relogio.ts";
@@ -611,6 +613,9 @@ function renderItemPergunta(item: Item, estado: Estado): string {
   const cab = `<div class="sv-cab">${agente ? iconeAgente(agente, "sm") : ""}<span class="sv-quem"><b>${esc(item.agenteNome)}</b> ${esc(haQuanto(item.aguardandoHaMs))}${origem ? ` · ${esc(origem)}` : ""}</span><span class="sv-acoes">${rodada > 1 ? `<span class="sv-rodada">${rodada}ª rodada</span>` : ""}${abrir}</span></div>`;
   const campo = `<div class="pq-campo"><input class="resposta" data-resposta="${esc(d.id)}" placeholder="${esc(`Responder à ${item.agenteNome}`)}" aria-label="Sua resposta" autocomplete="off" />${botao("responder", SETA_ENVIAR, { classe: "pri pq-enviar", id: d.id, aria: "Enviar resposta", titulo: "Enviar" })}</div>`;
   const ajuda = pedido?.ajudaDoComputador === true;
+  // Spec D, item 6: o pedido de ajuda aberto da própria pessoa é o cartão do computador, também em "Sua vez".
+  const motivoAjuda = ajuda && aberta && daMinhaConversa && agente ? motivoDoPedidoDeTela(pedido?.texto ?? d.frase) : null;
+  if (motivoAjuda !== null && agente) return `<li class="item-pergunta dec-${esc(item.estadoColuna)}" data-decisao="${esc(d.id)}">${cab}${renderCartaoAjuda({ decisaoId: d.id, agenteId: agente.id, nome: item.agenteNome, motivo: motivoAjuda })}</li>`;
   const extra = ajuda
     ? (daMinhaConversa ? `<div class="pq-acoes">${botao("abrir-computador", "Assumir controle", { classe: "sm", id: d.agenteId })}</div>` : "")
     : opcoes.length === 0 ? campo : "";
@@ -676,12 +681,181 @@ function renderCartaoDoRevisor(item: Item, estado: Estado, naConversa: boolean):
   return renderCartaoRevisor({ decisaoId: d.id, ...perguntaDoCartao(d.frase, itens), ...avatar, ...titulo, motivo: motivoDoCartao(itens), detalhe, sempre, ...(cabecalho ? { cabecalho } : {}), ...(rodape ? { rodape } : {}), ...pedidoDe, ...regra }, item.estadoColuna);
 }
 
+// ---- Spec D, itens 5 e 6: os cartões do computador do bot ------------------------------------------------------------
+
+const ICONE_LAPTOP = '<svg class="cc-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></svg>';
+const ICONE_X = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>';
+const ICONE_COPIAR = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="13" height="13" x="9" y="9" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+
+/** A frase (`decisao.frase`) que o servidor grava na aprovação de uma ação no computador (adapters/fundo/computadores.ts). */
+export const FRASE_ACAO_NO_COMPUTADOR = "Ação no computador do bot";
+
+/** O domínio de uma URL sem "www." ("https://www.nfse.gov.br/x" → "nfse.gov.br"); sem URL legível, o texto como veio. */
+function dominioDe(url: string): string {
+  try {
+    return new URL(/^[a-z][a-z0-9+.-]*:/iu.test(url) ? url : `https://${url}`).hostname.replace(/^www\./u, "") || url;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Spec D, item 5: a ação no computador a partir do `textoFinal` que o servidor grava (`resumoAcaoComputador`,
+ * src/domain/computador.ts; a web não executa src/). `crua`: a caixa mono ("navegar · nfse.gov.br/guias"); `frase`: o
+ * que ela faz, em uma frase; `curta`: poucas palavras, para "Aguardando você: …" e "Você não permitiu: …". Texto de
+ * formato desconhecido passa como veio.
+ */
+export function acaoDoComputador(texto: string): { crua: string; frase: string; curta: string } {
+  const t = texto.trim();
+  const depois = (prefixo: string) => (t.startsWith(prefixo) ? t.slice(prefixo.length).trim() : null);
+  const url = depois("Abrir no navegador:");
+  if (url !== null) {
+    const dominio = dominioDe(url);
+    return { crua: `navegar · ${url.replace(/^https?:\/\//iu, "").replace(/^www\./u, "")}`, frase: `Abre ${dominio} no navegador do computador.`, curta: `abrir ${dominio}` };
+  }
+  const posicao = t.match(/^Clicar na posição (\d+), (\d+)/u);
+  if (posicao) return { crua: `clicar · posição ${posicao[1]}, ${posicao[2]}`, frase: "Clica num ponto da tela que o bot acabou de olhar.", curta: "clicar na tela" };
+  const digitar = depois("Digitar na tela:");
+  if (digitar !== null) return { crua: `digitar · “${digitar}”`, frase: "Digita este texto no campo em foco.", curta: "digitar na tela" };
+  const comando = depois("Executar no terminal:");
+  if (comando !== null) return { crua: `terminal · ${comando}`, frase: "Roda este comando no terminal do computador.", curta: "rodar um comando no terminal" };
+  const tecla = depois("Pressionar");
+  if (tecla !== null && tecla !== "") return { crua: `tecla · ${tecla}`, frase: `Aperta ${tecla} no computador.`, curta: `apertar ${tecla}` };
+  const arquivo = t.match(/^([a-z_]+): (.+)$/u);
+  if (arquivo?.[1] && arquivo[2]) return { crua: `${arquivo[1].replaceAll("_", " ")} · ${arquivo[2]}`, frase: "Mexe num arquivo do computador.", curta: "mexer num arquivo" };
+  return { crua: t, frase: t.endsWith(".") ? t : `${t}.`, curta: t.charAt(0).toLowerCase() + t.slice(1) };
+}
+
+/** O item é a aprovação de UMA ação no computador do bot (o cartão do item 5). */
+export function ehAprovacaoDoComputador(item: Pick<Item, "decisao" | "itensAprovacao">): boolean {
+  const [i] = item.itensAprovacao;
+  return item.decisao.tipo === "aprovacao" && item.itensAprovacao.length === 1 && i?.destino.conector === "computador" && !i.origemSensivel;
+}
+
+/**
+ * Spec D, item 5: o cartão da aprovação de uma ação no computador. 462 px e raio 24 (web/computador-cartoes.css). O X
+ * nega uma vez (o mesmo `decidir-aprovacao-nenhum` do Esc); "Ver a tela" abre o visualizador em Assistindo
+ * (`abrir-computador` sem `data-assumir`); "Permitir no resto da tarefa" e "Permitir uma vez" são as rotas de sempre.
+ */
+export function renderCartaoComputador(item: Item, estado: Pick<Estado, "frota" | "sessao">): string {
+  const d = item.decisao;
+  const i = item.itensAprovacao[0];
+  if (!i) return "";
+  const acao = acaoDoComputador(i.textoFinal);
+  // Só a dona do bot abre a tela dele (main.ts, abrir-computador): a decisora designada não vê "Ver a tela".
+  const dono = estado.frota?.agentes.some((a) => a.id === d.agenteId && a.ownerId === estado.sessao?.pessoaId) === true;
+  const ver = dono ? botao("abrir-computador", "Ver a tela", { classe: "cc-bt cc-ver", id: d.agenteId }) : "";
+  return `<li class="decisao cc-cartao dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}" role="group" aria-label="${esc(`Pedido de ${item.agenteNome} no computador`)}">
+    <div class="cc-cab">${ICONE_LAPTOP}<span class="cc-rotulo">Computador</span>${aPedidoDe(item)}${marcaGemeas(item)}${botao("decidir-aprovacao-nenhum", ICONE_X, { classe: "cc-x", id: d.id, aria: "Negar uma vez", titulo: "Negar uma vez" })}</div>
+    <p class="cc-titulo dec-frase">${esc(perguntaDaAprovacao(item, []))}</p>
+    <p class="cc-texto">${esc(acao.frase)}</p>${porqueDaPausa(i)}
+    <div class="cc-acao"><code>${esc(acao.crua)}</code>${botao("copiar-texto", ICONE_COPIAR, { classe: "cc-copiar", dados: { texto: acao.crua }, aria: "Copiar a ação", titulo: "Copiar" })}</div>
+    <div class="cc-botoes">${ver}${botao("decidir-aprovacao-resto", "Permitir no resto da tarefa", { classe: "cc-bt cc-resto", id: d.id, titulo: "Permite esta ação e as próximas no computador até o fim desta tarefa." })}${botao("decidir-aprovacao", "Permitir uma vez", { classe: "cc-bt cc-uma pri", id: d.id })}</div>
+  </li>`;
+}
+
+/** "Você não permitiu: abrir nfse.gov.br" — a linha que o cartão do item 5 vira quando a pessoa nega. */
+export function linhaNaoPermitiu(textoDaAcao: string): string {
+  return `Você não permitiu: ${acaoDoComputador(textoDaAcao).curta}`;
+}
+
+/**
+ * Onde o bot pediu para a pessoa entrar, a partir do motivo do pedido de ajuda: "Entrar no portal de vendas" → "no portal
+ * de vendas"; "verificar na Amazon" → "na Amazon"; sem lugar legível, null. Mesma régua de `textoDeEntrou`
+ * (web/lib/computador-pessoa.ts), aqui sem o "Entrou".
+ */
+export function ondeEntrar(motivo: string): string | null {
+  const frase = motivo.split(/[.;:!?()\n]\s|[;:!?()\n]|,|\s+(?:e|para|pra|depois|com)\s+/iu)[0] ?? "";
+  const direto = frase.match(/^\s*(?:entr(?:ar|e)|logar|fa(?:zer|ça)\s+(?:o\s+)?login)\s+(n[oa]s?)\s+(.+?)[\s.]*$/iu);
+  if (direto?.[1] && direto[2]) return `${direto[1].toLowerCase()} ${direto[2]}`;
+  const nome = String.raw`\p{Lu}[\p{L}\p{N}&-]*(?:\.[\p{L}\p{N}]+)*`;
+  const achados = [...motivo.matchAll(new RegExp(String.raw`(?:^|\s)(n[oa]s?)\s+(${nome}(?:\s+${nome})*)`, "gu"))];
+  const ultimo = achados.at(-1);
+  return ultimo?.[1] && ultimo[2] ? `${ultimo[1]} ${ultimo[2]}` : null;
+}
+
+const semPontoFinal = (s: string): string => s.trim().replace(/[.\s]+$/u, "");
+const comMaiuscula = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Os textos do pedido de ajuda (item 6): o título do cartão, a prévia da barra e as duas linhas de depois. */
+export function textosDaAjuda(motivo: string): { titulo: string; previa: string; entrou: string; naoEntrou: string } {
+  const onde = ondeEntrar(motivo);
+  const curto = semPontoFinal(motivo);
+  return onde
+    ? { titulo: `Entre ${onde}`, previa: `entrar ${onde}`, entrou: `Entrou ${onde}`, naoEntrou: `Você não entrou ${onde}` }
+    : { titulo: comMaiuscula(curto), previa: curto.charAt(0).toLowerCase() + curto.slice(1), entrou: "Entrou no site", naoEntrou: "Você não entrou no site" };
+}
+
+/**
+ * Spec D, item 6: o cartão do pedido de ajuda (login, 2FA, CAPTCHA), no mesmo formato do item 5. A miniatura 96×60 é a
+ * única imagem da tela fora do visualizador: `src` quando houver a captura do momento do pedido; sem ela, o fundo
+ * neutro (o `data-tela-bot` deixa quem tiver a captura preenchê-la). "Assumir o controle" abre o visualizador já no
+ * controle (`abrir-computador` com `data-assumir="1"`); "Agora não" e o X dispensam o pedido (`dispensar`), e o bot
+ * recebe a recusa (src/use-cases/dispensar-decisao.ts, RECUSA_DA_AJUDA).
+ */
+export function renderCartaoAjuda(o: { decisaoId: string; agenteId: string; nome: string; motivo: string; src?: string | null }): string {
+  const t = textosDaAjuda(o.motivo);
+  const mini = o.src ? `<img src="${esc(o.src)}" alt="" />` : '<img alt="" hidden />';
+  const texto = `${comMaiuscula(semPontoFinal(o.motivo))}. Assuma o controle, entre e clique em Parar. ${o.nome} não vê o que você digita.`;
+  return `<div class="cc-cartao cc-ajuda" role="group" aria-label="${esc(`${o.nome} pede ajuda no computador`)}" data-ajuda="${esc(o.decisaoId)}">
+    <div class="cc-cab">${ICONE_LAPTOP}<span class="cc-rotulo">Computador</span>${botao("dispensar", ICONE_X, { classe: "cc-x", id: o.decisaoId, aria: "Agora não", titulo: "Agora não" })}</div>
+    <div class="cc-ajuda-corpo"><span class="cc-mini${o.src ? "" : " sem-imagem"}" data-tela-bot="${esc(o.agenteId)}">${mini}</span><div class="cc-ajuda-txt"><p class="cc-titulo">${esc(t.titulo)}</p><p class="cc-texto">${esc(texto)}</p></div></div>
+    <div class="cc-botoes">${botao("dispensar", "Agora não", { classe: "cc-bt cc-ver", id: o.decisaoId })}${botao("abrir-computador", "Assumir o controle", { classe: "cc-bt cc-uma pri", id: o.agenteId, dados: { assumir: "1", pedido: o.motivo } })}</div>
+  </div>`;
+}
+
+/**
+ * O pedido de ajuda de uma fala do bot na conversa (`computador_pedir_ajuda`, reconhecido pela frase): aberto, o cartão;
+ * depois de Parar, a linha "Entrou no {site}"; depois de "Agora não", "Você não entrou no {site}". `linha` diz que o
+ * resultado é uma linha de sistema centrada (quem desenha a conversa a põe fora do balão do bot). null: não é pedido de
+ * ajuda. Fechar a tela sem terminar não fecha o pedido (o servidor ignora o fechar com ajuda aberta): o cartão fica.
+ */
+export function cartaoDoPedidoDeAjuda(m: Mensagem, estado: Estado): { html: string; linha: boolean } | null {
+  if (m.payload?.kind !== "pedido_a_pessoa") return null;
+  const motivo = motivoDoPedidoDeTela(m.texto);
+  if (motivo === null) return null;
+  const decisaoId = m.payload.decisaoId;
+  const t = textosDaAjuda(motivo);
+  const e = estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], decisaoId);
+  const linha = (texto: string) => ({ html: `<div class="msg-sistema cc-linha">${esc(texto)}</div>`, linha: true });
+  switch (e.tipo) {
+    case "aberta": {
+      const agente = estado.frota?.agentes.find((a) => a.id === m.autoria.autor_id);
+      // Só a dona do bot assume a tela dele (main.ts, abrir-computador); quem só vê lê a linha de espera.
+      if (!agente || agente.ownerId !== estado.sessao?.pessoaId) return linha(`Esperando alguém ${t.previa}`);
+      return { html: renderCartaoAjuda({ decisaoId, agenteId: agente.id, nome: agente.nome, motivo }), linha: false };
+    }
+    case "respondida":
+      return linha(t.entrou);
+    case "deixada":
+      return linha(t.naoEntrou);
+    case "vencida":
+      return linha(`Sem resposta · ${t.titulo}`);
+    case "de_outra":
+    case "encerrada":
+      return linha(t.entrou);
+  }
+}
+
+/**
+ * A barra lateral enquanto espera (itens 5 e 6): o pedido do computador vira "Aguardando você: abrir nfse.gov.br" ou
+ * "Aguardando você: entrar no portal" no lugar da frase genérica. Os outros pedidos passam como vieram.
+ */
+export function pedidoParaAguardando<T extends Pick<Item, "decisao" | "itensAprovacao" | "pedido">>(item: T): T {
+  const [i] = item.itensAprovacao;
+  if (ehAprovacaoDoComputador(item) && i) return { ...item, decisao: { ...item.decisao, frase: acaoDoComputador(i.textoFinal).curta } };
+  const motivo = item.pedido?.ajudaDoComputador ? motivoDoPedidoDeTela(item.pedido.texto) : null;
+  if (motivo !== null) return { ...item, decisao: { ...item.decisao, frase: textosDaAjuda(motivo).previa } };
+  return item;
+}
+
 function renderItem(item: Item, estado: Estado, naConversa = false): string {
   const d = item.decisao;
   const aberta = item.estadoColuna !== "vencido";
   if (ehPergunta(d.tipo)) return renderItemPergunta(item, estado);
   // ADR-175: na conversa, a aprovação que é só mensagens que saem vira rascunhos (com a barra "Enviar todos" em conversa.ts).
   if (aberta && naConversa && ehDecisaoDeRascunhos(item)) return renderDecisaoDeRascunhos(item);
+  if (aberta && ehAprovacaoDoComputador(item)) return renderCartaoComputador(item, estado);
   if (aberta && d.tipo === "aprovacao" && ehCartaoDoRevisor(item.itensAprovacao)) return renderCartaoDoRevisor(item, estado, naConversa);
   if (aberta && d.tipo === "aprovacao" && item.itensAprovacao.length > 0) return renderCardAprovacao(item, estado);
   const relogio = aberta ? `aguardando ${haQuanto(item.aguardandoHaMs)} · ${PRAZO_POR_TIPO[d.tipo](emQuanto(item.recusaAutomaticaEmMs), item)}` : rotuloVencido(d, estado.agora);
