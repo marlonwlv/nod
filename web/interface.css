@@ -547,7 +547,9 @@
 .pensar[data-fase="pronto"] > summary { min-height: 20px; }
 /* ADA-2 F5 (issue 290, ADR-156): com ferramenta, o pronto é a linha "🔧 Usou N ferramentas ›" — 14 px --ink-3, sem fundo nem
    borda, celular e computador; a seta › gira 90° ao abrir. A duração fica no title/aria-label. */
-.pensar[data-fase="pronto"] > .pensar-cab.pensar-ferr { display: inline-flex; gap: 6px; max-width: 100%; color: var(--ink-3); background: none; border: 0; }
+/* NOD-360 (14/11): flex com fit-content, não inline-flex — a caixa inline abria uma linha em volta do summary e a folga da
+   linha de base somava ~1 px ao <details>: o balão descia quando o turno acabava. A largura segue a do texto. */
+.pensar[data-fase="pronto"] > .pensar-cab.pensar-ferr { display: flex; width: fit-content; gap: 6px; max-width: 100%; color: var(--ink-3); background: none; border: 0; }
 .pensar[data-fase="pronto"] > .pensar-ferr .fala-viva-estado { font-size: 14px; font-weight: 500; color: var(--ink-3); }
 .pensar[data-fase="pronto"] > .pensar-ferr:hover .fala-viva-estado { color: var(--ink-2); -webkit-text-fill-color: var(--ink-2); }
 .pensar-ferr-ic { flex: none; width: 16px; height: 16px; }
