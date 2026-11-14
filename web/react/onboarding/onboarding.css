@@ -1,0 +1,49 @@
+/*
+ * ADR-179 (fase 5, região #onboarding): o que é só do React. As telas usam as classes de sempre (web/onboarding.css,
+ * web/interface.css); aqui fica o Dialog do Base UI, que não é um <dialog> nativo e por isso não tem ::backdrop nem o
+ * centro automático do navegador.
+ */
+.rx-fundo-dialogo {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  backdrop-filter: blur(3px);
+  z-index: 1000;
+}
+
+.rx-dialogo {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  margin: 0;
+  z-index: 1001;
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+}
+
+.rx-dialogo:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rx-fundo-dialogo[data-starting-style],
+  .rx-fundo-dialogo[data-ending-style] {
+    opacity: 0;
+  }
+  .rx-fundo-dialogo {
+    transition: opacity 0.15s ease;
+  }
+}
+
+/* NOD-8: o botão de copiar não muda de largura entre "Copiar" e "✓ Copiado" (a mesma regra dos [data-act] de copiar). */
+.rx-copiar {
+  box-sizing: content-box;
+  min-width: 10ch;
+  text-align: center;
+}
+
+/* O invólucro de um ícone em SVG (pecas.tsx, Svg): some do layout, o SVG fica onde o desenho por string o punha. */
+.rx-svg {
+  display: contents;
+}

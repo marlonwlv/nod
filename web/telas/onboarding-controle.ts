@@ -3,16 +3,15 @@ import type { Ligacao } from "../../src/contracts/ligacao.ts";
 import type { CamposEntrevista, EstadoOnboarding, EtapaOnboarding } from "../../src/contracts/onboarding.ts";
 import type { Api } from "../lib/api.ts";
 import { esc } from "../lib/render.ts";
-import { mostrarCopia, type RelogioDoCopiar } from "../lib/copiar.ts";
-import { dialogo } from "./gestao-agentes.ts";
+import type { DadosDaAcao } from "../react/onboarding/tipos.ts";
 import { TEXTO_CONSENTIMENTO, VERSAO_CONSENTIMENTO } from "./ligacao.ts";
 import { criarTesteDeIas } from "./onboarding-teste.ts";
 import type { UiIas } from "./cartao-ia.ts";
 import { criarEsteComputador } from "./este-computador.ts";
 import { htmlConversaTexto, LINHA_PULOU, SO_OLHAR, type PassoTexto } from "./conversa-texto.ts";
-import { destinoAoFimDoOla, htmlCamada, htmlGuia, notaForaDoApp, ORDEM_IAS, textoComoLiberar, type EstadoTelaOnboarding, type FaseTela } from "./onboarding.ts";
+import { destinoAoFimDoOla, htmlGuia, notaForaDoApp, ORDEM_IAS, textoComoLiberar, type AvisoOnboarding, type EstadoTelaOnboarding, type FaseTela, type VistaOnboarding } from "./onboarding.ts";
 import { nesteMac } from "../lib/plataforma-da-tela.ts";
-import { APPS, andar, apresentacaoInicial, emailDoGoogle, htmlApresentacao, nomeDoBot, passoAtual, PASSOS, type EstadoApresentacao } from "./apresentacao.ts";
+import { APPS, andar, apresentacaoInicial, emailDoGoogle, nomeDoBot, passoAtual, PASSOS, type EstadoApresentacao } from "./apresentacao.ts";
 import { COMEMORA_MS, etapasDoBot, type DepsCriarBot } from "./criar-bot.ts";
 import { ErroDoPreparo, novoPreparo, rodarPreparo, tique } from "../lib/preparo.ts";
 
@@ -57,6 +56,11 @@ export type DepsOnboarding = {
   invalidar: () => void;
   erro: (e: unknown) => void;
   aoMudar: () => void;
+  /**
+   * ADR-179 (fase 5): redesenha só a camada (o tique de 120 ms da barra do preparo), sem o render do app inteiro. Sem
+   * isto, `aoMudar`.
+   */
+  redesenhar?: () => void;
   /** As IAs do app do Mac (web/telas/cartao-ia.ts): com a ponte `ias`, a etapa da IA usa o cartão de Provedores de IA. */
   iasMac?: () => UiIas;
   /**
@@ -76,23 +80,6 @@ export type DepsOnboarding = {
 };
 
 export type TelaOnboarding = ReturnType<typeof criarTelaOnboarding>;
-
-/**
- * A camada do onboarding é regravada inteira quando muda (web/lib/regioes.ts) e o botão com o foco some junto. definido
- * em 2026-10-05, com as telas da IA que mudam sozinhas: quem chama guarda o foco ANTES de regravar e o devolve depois —
- * ao mesmo botão (mesma ação, mesma IA) ou, se a tela trocou, ao título dela, que o leitor de tela anuncia. Sem foco na
- * camada (a pessoa está num diálogo, ou não usa o teclado), não mexe em nada.
- */
-export function guardarFocoDaCamada(raiz: HTMLElement | null): () => void {
-  const ativo = document.activeElement;
-  if (!raiz || !(ativo instanceof HTMLElement) || !raiz.contains(ativo)) return () => undefined;
-  const { act, ia } = ativo.dataset;
-  return () => {
-    if (raiz.contains(document.activeElement)) return;
-    const mesmo = act ? [...raiz.querySelectorAll<HTMLButtonElement>("button[data-act]")].find((b) => b.dataset.act === act && b.dataset.ia === ia && !b.disabled) : undefined;
-    (mesmo ?? raiz.querySelector<HTMLElement>("h1[tabindex]"))?.focus();
-  };
-}
 
 export function criarTelaOnboarding(deps: DepsOnboarding) {
   let olaPassou = false;
@@ -118,6 +105,8 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
   let passoTexto: PassoTexto = { passo: "apelido" };
   let textoOcupado = false;
   let textoErro: string | null = null;
+  /** O aviso de leitura aberto por cima da camada ("Sua voz na ligação", "Como liberar o …"). */
+  let aviso: AvisoOnboarding | null = null;
   /** A pessoa pulou as perguntas (ou só quer olhar): a linha fica na conversa do Nod. */
   let pulouEm: string | null = null;
   // ADR-174: o onboarding em 10 passos. `pelaLigacao`: a pessoa escolheu "Prefiro conversar por voz" (o caminho antigo).
@@ -204,19 +193,26 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     };
   }
 
-  /** A camada da região `#onboarding` (vazia fora das fases de tela cheia e da entrevista). */
-  function camada(): string {
+  /** O que a região `#onboarding` mostra (null fora das fases de tela cheia e da entrevista); o desenho é React. */
+  function vista(): VistaOnboarding | null {
     const e = estadoTela();
-    if (!e) return "";
+    if (!e) return null;
     agendarPelaFase(e);
-    // Sem guia, a configuração é uma camada por cima do app: precisa de uma saída.
-    if (e.fase === "computador") return computador.html();
+    const com = (camada: VistaOnboarding["camada"]): VistaOnboarding => ({ camada, aviso });
+    if (e.fase === "computador") return com({ tipo: "computador", computador: computador.vista() });
     if (e.fase === "ola" && comApresentacao()) {
       const conectando = APPS.find((a) => deps.conectando(a.slug))?.slug ?? null;
-      return `<div class="ap-camada">${htmlApresentacao({ ...apres, conectando }, { emailGoogle: emailDoGoogle(deps.email?.()), ligacao: !jornadaA() })}</div>`;
+      return com({ tipo: "apresentacao", apres: { ...apres, conectando }, emailGoogle: emailDoGoogle(deps.email?.()), ligacao: !jornadaA() });
     }
-    if (e.fase === "configurando" && !e.dados.guia) return `<div class="ob-guia-solta">${htmlGuia(e)}<button type="button" class="ob-link ob-depois" data-act="onboarding-depois">Fazer depois</button></div>`;
-    return htmlCamada(e, deps.ligacao.cheia());
+    // Sem guia, a configuração é uma camada por cima do app: precisa de uma saída ("Fazer depois").
+    if (e.fase === "configurando" && !e.dados.guia) return com({ tipo: "guia-solta", tela: e });
+    switch (e.fase) {
+      case "ola": return com({ tipo: "ola" });
+      case "executor": return com({ tipo: "executor", tela: e });
+      case "chamando": return com({ tipo: "chamando", tela: e });
+      case "entrevista": return deps.ligacao.cheia() ? com({ tipo: "entrevista", dados: e.dados }) : null;
+      default: return null;
+    }
   }
 
   /** Os efeitos de cada fase (timer do olá, sonda do Mac, conclusão) — idempotentes, chamados a cada desenho. */
@@ -331,11 +327,13 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     await teste.testar(ia);
   }
 
+  function mostrarAviso(a: AvisoOnboarding | null): void {
+    aviso = a;
+    deps.aoMudar();
+  }
+
   function comoLiberar(ia: IaDesktop): void {
-    const t = textoComoLiberar(ia);
-    const d = dialogo(`<div class="ligacao-consentimento"><h2>${esc(t.titulo)}</h2>${t.paragrafos.map((p) => `<p>${esc(p)}</p>`).join("")}<div class="acoes"><button class="bt pri" type="button" data-fechar>Entendi</button></div></div>`);
-    d.querySelector("[data-fechar]")?.addEventListener("click", () => d.close());
-    d.querySelector<HTMLButtonElement>("[data-fechar]")?.focus();
+    mostrarAviso(textoComoLiberar(ia));
   }
 
   /** O Atender: o clique é o consentimento de voz e o gesto que libera áudio e microfone. */
@@ -481,9 +479,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
   }
 
   function saberMais(): void {
-    const d = dialogo(`<div class="ligacao-consentimento"><h2>Sua voz na ligação</h2><p>${esc(TEXTO_CONSENTIMENTO)}</p><div class="acoes"><button class="bt pri" type="button" data-fechar>Entendi</button></div></div>`);
-    d.querySelector("[data-fechar]")?.addEventListener("click", () => d.close());
-    d.querySelector<HTMLButtonElement>("[data-fechar]")?.focus();
+    mostrarAviso({ titulo: "Sua voz na ligação", paragrafos: [TEXTO_CONSENTIMENTO] });
   }
 
   async function conectarApp(slug: string): Promise<void> {
@@ -503,16 +499,13 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     deps.aoMudar();
   }
 
-  /** NOD-8: o relógio do "✓ Copiado" do botão que copia o comando de atualizar o CLI. */
-  const relogioDoCopiar: RelogioDoCopiar = { agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => clearTimeout(id), timers: new WeakMap() };
-  const iaDoClique = (el: HTMLElement): IaDesktop => (el.dataset.ia === "codex-cli" ? "codex-cli" : "claude-cli");
+  const iaDoClique = (d: DadosDaAcao): IaDesktop => (d.ia === "codex-cli" ? "codex-cli" : "claude-cli");
 
   // ---- ADR-174: os 10 passos -------------------------------------------------------------------------------------------
-  function mudarApres(novo: EstadoApresentacao, focarTitulo = false): void {
-    const mudouPasso = novo.passo !== apres.passo;
+  /** Um passo novo: o título dele recebe o foco no componente (web/react/onboarding/apresentacao.tsx). */
+  function mudarApres(novo: EstadoApresentacao): void {
     apres = novo;
     deps.aoMudar();
-    if (focarTitulo || mudouPasso) requestAnimationFrame(() => document.querySelector<HTMLElement>(".ap-camada #ap-titulo, .ap-camada .cb-preparo-titulo")?.focus());
   }
 
   function guardarRespostas(): void {
@@ -562,11 +555,8 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
       if (!apres.preparo) return;
       const p = tique(apres.preparo);
       apres = { ...apres, preparo: p };
-      // Só a barra muda a cada tique (regravar a camada reiniciaria o personagem).
-      const cheia = document.querySelector<HTMLElement>(".ap-camada .cb-barra-cheia");
-      if (cheia) cheia.style.width = `${p.porcento}%`;
-      const n = document.querySelector(".ap-camada .cb-porcento");
-      if (n) n.textContent = `${p.porcento}%`;
+      // Só a camada redesenha a cada tique; o React mexe na barra e no número, sem recriar o personagem.
+      (deps.redesenhar ?? deps.aoMudar)();
     }, 120);
     const fim = await rodarPreparo(apres.preparo, etapas, (p) => { apres = { ...apres, preparo: p }; deps.aoMudar(); });
     window.clearInterval(relogioPreparo);
@@ -579,7 +569,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     deps.irParaConversa(conversaId, agenteId);
   }
 
-  const acoesApres: Record<string, (el: HTMLElement) => Promise<void> | void> = {
+  const acoesApres: Record<string, (d: DadosDaAcao) => Promise<void> | void> = {
     "apres-seguir": () => mudarApres(andar(apres, 1)),
     "apres-voltar": () => mudarApres(andar(apres, -1)),
     "apres-pular": () => {
@@ -587,25 +577,28 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
       mudarApres(andar({ ...apres, ...(p === "funcao" ? { funcao: null } : p === "origem" ? { origem: null } : {}) }, 1));
       guardarRespostas();
     },
-    "apres-escolher": (el) => {
-      const valor = el.dataset.valor ?? null;
-      if (el.dataset.campo === "funcao") apres = { ...apres, funcao: valor };
-      else if (el.dataset.campo === "origem") apres = { ...apres, origem: valor };
+    // O botão clicado continua no DOM (o React não o recria): o foco fica nele sem ajuda.
+    "apres-escolher": (d) => {
+      const valor = d.valor ?? null;
+      if (d.campo === "funcao") apres = { ...apres, funcao: valor };
+      else if (d.campo === "origem") apres = { ...apres, origem: valor };
       guardarRespostas();
       deps.aoMudar();
-      requestAnimationFrame(() => document.querySelector<HTMLElement>(`.ap-camada [data-valor="${CSS.escape(valor ?? "")}"]`)?.focus());
     },
-    "apres-forma": (el) => {
-      const forma = el.dataset.forma;
-      if (forma) { apres = { ...apres, forma: forma as EstadoApresentacao["forma"] }; deps.aoMudar(); requestAnimationFrame(() => document.querySelector<HTMLElement>(`.ap-camada [data-forma="${forma}"]`)?.focus()); }
+    "apres-forma": (d) => {
+      if (d.forma) { apres = { ...apres, forma: d.forma as EstadoApresentacao["forma"] }; deps.aoMudar(); }
     },
-    "apres-cor": (el) => {
-      const cor = el.dataset.cor;
-      if (cor) { apres = { ...apres, cor: cor as EstadoApresentacao["cor"] }; deps.aoMudar(); requestAnimationFrame(() => document.querySelector<HTMLElement>(`.ap-camada [data-cor="${cor}"]`)?.focus()); }
+    "apres-cor": (d) => {
+      if (d.cor) { apres = { ...apres, cor: d.cor as EstadoApresentacao["cor"] }; deps.aoMudar(); }
+    },
+    // O nome e a primeira mensagem do passo 9 ficam no campo (estado do componente): aqui só se guardam, sem redesenhar.
+    "apres-digitar": (d) => {
+      if (d.campo === "nome") apres = { ...apres, nome: d.valor ?? "" };
+      else if (d.campo === "primeira") apres = { ...apres, primeira: d.valor ?? "" };
     },
     // O login do app abre DENTRO do clique (o navegador bloqueia a janela fora dele); o acesso do bot sai no preparo.
-    "apres-conectar": (el) => {
-      const slug = el.dataset.slug;
+    "apres-conectar": (d) => {
+      const slug = d.slug;
       if (!slug) return;
       deps.iniciarConexao(slug, async () => {
         if (!apres.apps.includes(slug)) apres = { ...apres, apps: [...apres.apps, slug] };
@@ -617,7 +610,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     "apres-criar": () => {
       if (!nomeDoBot(apres)) return;
       const nomesApps = APPS.filter((a) => apres.apps.includes(a.slug)).map((a) => a.nome);
-      mudarApres({ ...apres, passo: PASSOS.indexOf("preparando"), preparo: novoPreparo(nomeDoBot(apres), nomesApps) }, true);
+      mudarApres({ ...apres, passo: PASSOS.indexOf("preparando"), preparo: novoPreparo(nomeDoBot(apres), nomesApps) });
       void prepararBot();
     },
     "apres-tentar": () => void prepararBot(),
@@ -625,45 +618,27 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     "apres-ver": () => { pelaLigacao = true; deps.aoMudar(); void passarOla(); },
   };
 
-  // O nome e a primeira mensagem do passo 9 mudam sem regravar a camada (o foco e o cursor ficam onde estão).
-  if (typeof document !== "undefined") document.addEventListener("input", (ev) => {
-    const alvo = ev.target;
-    if (!(alvo instanceof HTMLInputElement || alvo instanceof HTMLTextAreaElement) || !alvo.dataset.campoApres) return;
-    if (alvo.dataset.campoApres === "nome") {
-      apres = { ...apres, nome: alvo.value };
-      const nome = nomeDoBot(apres) || "seu bot";
-      const enviar = document.querySelector<HTMLButtonElement>(".ap-camada .ap-enviar");
-      if (enviar) enviar.disabled = !nomeDoBot(apres);
-      const campo = document.querySelector<HTMLTextAreaElement>('.ap-camada [data-campo-apres="primeira"]');
-      if (campo) { campo.placeholder = `O que ${nome} deve fazer primeiro?`; campo.setAttribute("aria-label", campo.placeholder); }
-    } else apres = { ...apres, primeira: alvo.value };
-  });
-  if (typeof document !== "undefined") document.addEventListener("keydown", (ev) => {
-    const alvo = ev.target;
-    if (!(alvo instanceof HTMLElement) || !alvo.closest(".ap-camada")) return;
-    if (ev.key === "Enter" && !ev.shiftKey && alvo.dataset.campoApres) { ev.preventDefault(); acoesApres["apres-criar"]?.(alvo); return; }
-    // ← → andam pelos passos fora dos campos e dos rádios (como no protótipo).
-    if (alvo.matches("input, textarea, [role=radio]") || passoAtual(apres) === "preparando") return;
-    if (ev.key === "ArrowRight" && !document.querySelector(".ap-camada .ap-seguir[disabled]") && passoAtual(apres) !== "criar") { ev.preventDefault(); mudarApres(andar(apres, 1)); }
-    if (ev.key === "ArrowLeft") { ev.preventDefault(); mudarApres(andar(apres, -1)); }
-  });
+  /** O "Criar bot" do card guiado (a camada solta, em React, e o bloco na conversa da guia, por string). */
+  function criarBotGuiado(nome: string, descricao: string, decisao: string | undefined): Promise<void> | void {
+    if (!nome) return;
+    return agir((a) => (decisao ? a.decidirBot(decisao, { nome, descricao }) : a.botDoOnboarding(nome, descricao)));
+  }
 
-  const acoes: Record<string, (el: HTMLElement) => Promise<void> | void> = {
+  /**
+   * As ações pelo nome, com os dados do clique (`d`: o `dataset` do botão na delegação do main.ts, ou o objeto que o
+   * componente React passa). As da camada só vêm do React; as do bloco na conversa da guia, da delegação.
+   */
+  const acoes: Record<string, (d: DadosDaAcao) => Promise<void> | void> = {
     ...acoesApres,
     "onboarding-pular-ola": () => passarOla(),
     "onboarding-depois": () => fazerDepois(),
-    "onboarding-ia-entrar": (el) => iaNoMac(iaDoClique(el), "entrar"),
-    "onboarding-ia-instalar": (el) => iaNoMac(iaDoClique(el), "instalar"),
-    "onboarding-ia-testar": (el) => testarIa(iaDoClique(el)),
-    "onboarding-ia-como-liberar": (el) => comoLiberar(iaDoClique(el)),
-    // NOD-171: o comando que atualiza o CLI desatualizado vai para a área de transferência; o botão diz se copiou.
-    // NOD-8: "✓ Copiado" por 2 s e volta (web/lib/copiar.ts); antes ficava "Copiado" para sempre.
-    "onboarding-ia-copiar": async (el) => {
-      const ok = await navigator.clipboard.writeText(el.dataset.texto ?? "").then(() => true, () => false);
-      mostrarCopia(el, ok, relogioDoCopiar);
-    },
-    "onboarding-ia-pagina": (el) => teste.abrirInstalacao(iaDoClique(el)),
-    "onboarding-ia-login": (el) => teste.abrirLogin(iaDoClique(el)),
+    "onboarding-ia-entrar": (d) => iaNoMac(iaDoClique(d), "entrar"),
+    "onboarding-ia-instalar": (d) => iaNoMac(iaDoClique(d), "instalar"),
+    "onboarding-ia-testar": (d) => testarIa(iaDoClique(d)),
+    "onboarding-ia-como-liberar": (d) => comoLiberar(iaDoClique(d)),
+    "onboarding-fechar-aviso": () => mostrarAviso(null),
+    "onboarding-ia-pagina": (d) => teste.abrirInstalacao(iaDoClique(d)),
+    "onboarding-ia-login": (d) => teste.abrirLogin(iaDoClique(d)),
     "onboarding-ia-cancelar": () => teste.cancelar(),
     "onboarding-ia-continuar": () => teste.seguir(),
     "onboarding-atender": () => atender(),
@@ -674,35 +649,32 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
       try { await semVoz(); } catch (e) { deps.erro(e); } finally { atendendo = false; deps.aoMudar(); }
     },
     "onboarding-saber-mais": () => saberMais(),
-    "onboarding-recusar-bot": (el) => agir((a) => a.decidirBot(el.dataset.id ?? "", { recusar: true })),
-    "onboarding-conectar-app": (el) => conectarApp(el.dataset.slug ?? ""),
-    "onboarding-permitir-app": (el) => agir((a) => a.decidir(el.dataset.id ?? "", {})),
-    "onboarding-escolher-rotina": (el) => agir((a) => a.rotinaDoOnboarding(Number(el.dataset.indice ?? "0"))),
-    "onboarding-criar-rotina-proposta": (el) => agir((a) => a.decidir(el.dataset.id ?? "", {})),
+    "onboarding-recusar-bot": (d) => agir((a) => a.decidirBot(d.id ?? "", { recusar: true })),
+    "onboarding-bot-enviar": (d) => criarBotGuiado((d.nome ?? "").trim(), (d.descricao ?? "").trim(), d.decisao),
+    "onboarding-conectar-app": (d) => conectarApp(d.slug ?? ""),
+    "onboarding-permitir-app": (d) => agir((a) => a.decidir(d.id ?? "", {})),
+    "onboarding-escolher-rotina": (d) => agir((a) => a.rotinaDoOnboarding(Number(d.indice ?? "0"))),
+    "onboarding-criar-rotina-proposta": (d) => agir((a) => a.decidir(d.id ?? "", {})),
     "onboarding-de-novo": () => deNovo(),
     // ADA-242: a tela "Este computador" e a conversa por texto (só com NOD_ONBOARDING_TEXTO).
-    "computador-instalar": (el) => computador.acoes["computador-instalar"](iaDoClique(el)),
-    "computador-entrar": (el) => computador.acoes["computador-entrar"](iaDoClique(el)),
-    "computador-abrir": (el) => computador.acoes["computador-abrir"](iaDoClique(el)),
-    "computador-conferir": (el) => computador.acoes["computador-conferir"](iaDoClique(el)),
-    "computador-cancelar": (el) => computador.acoes["computador-cancelar"](iaDoClique(el)),
+    "computador-instalar": (d) => computador.acoes["computador-instalar"](iaDoClique(d)),
+    "computador-entrar": (d) => computador.acoes["computador-entrar"](iaDoClique(d)),
+    "computador-abrir": (d) => computador.acoes["computador-abrir"](iaDoClique(d)),
+    "computador-conferir": (d) => computador.acoes["computador-conferir"](iaDoClique(d)),
+    "computador-cancelar": (d) => computador.acoes["computador-cancelar"](iaDoClique(d)),
+    "computador-codigo": (d) => computador.colarCodigo(iaDoClique(d), d.codigo ?? ""),
     "computador-continuar": () => sairDoComputador(),
     "computador-pular": () => sairDoComputador(),
     "texto-apelido-sim": () => { passoTexto = { passo: "objetivo", apelido: deps.nomeSugerido?.() ?? null }; deps.aoMudar(); },
-    "texto-objetivo": (el) => enviarRespostas(passoTexto.passo === "apelido" ? null : passoTexto.apelido, el.dataset.valor ?? null),
+    "texto-objetivo": (d) => enviarRespostas(passoTexto.passo === "apelido" ? null : passoTexto.apelido, d.valor ?? null),
     "texto-pular": () => pularPerguntas(),
   };
 
   const forms: Record<string, (form: HTMLFormElement) => Promise<void> | void> = {
     "onboarding-bot": (form) => {
       const dados = new FormData(form);
-      const nome = String(dados.get("nome") ?? "").trim();
-      const descricao = String(dados.get("descricao") ?? "").trim();
-      if (!nome) return;
-      const decisao = form.dataset.decisaoBot;
-      return agir((a) => (decisao ? a.decidirBot(decisao, { nome, descricao }) : a.botDoOnboarding(nome, descricao)));
+      return criarBotGuiado(String(dados.get("nome") ?? "").trim(), String(dados.get("descricao") ?? "").trim(), form.dataset.decisaoBot);
     },
-    "computador-codigo": (form) => computador.colarCodigo(form.dataset.ia === "codex-cli" ? "codex-cli" : "claude-cli", String(new FormData(form).get("codigo") ?? "")),
     "texto-apelido": (form) => {
       const apelido = String(new FormData(form).get("apelido") ?? "").trim();
       if (!apelido) return;
@@ -745,6 +717,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
       apres = apresentacaoInicial();
       pelaLigacao = false;
       ctxBot.criado = null;
+      aviso = null;
       teste.recomecar();
       hidratar(await api().etapaOnboarding({ etapa: "ola" }));
       deps.abrir(true);
@@ -755,7 +728,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
   }
 
   return {
-    camada,
+    vista,
     /** A camada cobre o app (olá, IA, "está te ligando"): o main deixa a `.app` inerte. */
     cobre: (): boolean => {
       const e = estadoTela();
@@ -821,6 +794,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
       passoTexto = { passo: "apelido" };
       textoErro = null;
       pulouEm = null;
+      aviso = null;
       apres = apresentacaoInicial();
       pelaLigacao = false;
       ctxBot.criado = null;

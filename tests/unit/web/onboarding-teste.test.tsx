@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IaDesktop, ResultadoIaDesktop, TesteDeIa } from "../../../src/contracts/desktop.ts";
 import type { EstadoOnboarding, IaNoMac } from "../../../src/contracts/onboarding.ts";
 import { criarTesteDeIas, LEITURAS_ESPERANDO_O_SERVIDOR, TESTE_IA_MAX_MS, TESTES_SOZINHOS_MAX, type PonteDeIa } from "../../../web/telas/onboarding-teste.ts";
-import { destinoAoFimDoOla, estadoDoCardIa, htmlExecutor, passosDaConexao, telaDaIa } from "../../../web/telas/onboarding.ts";
+import { render } from "@testing-library/react";
+import { Executor } from "../../../web/react/onboarding/executor.tsx";
+import { destinoAoFimDoOla, estadoDoCardIa, passosDaConexao, telaDaIa } from "../../../web/telas/onboarding.ts";
 
 /**
  * O teste de verdade das IAs no onboarding (definido em 2026-10-05), com uma ponte falsa do Mac no lugar de
@@ -90,7 +92,13 @@ function montar(ias: IaNoMac[], ponte: PonteDeIa | undefined, opcoes: { apelido?
     destino: () => destinoAoFimDoOla(t.naTela()),
     card: (ia: IaDesktop) => estadoDoCardIa(ia, d.executor.ias, null, t.naTela()),
     passos: () => { const c = t.naTela()?.conexao; return c ? passosDaConexao(c, d.executor.ias.find((i) => i.id === c.ia), t.naTela()?.testando.includes(c.ia) ?? false).map((p) => p.estado) : null; },
-    html: () => htmlExecutor({ dados: d, procurando: false, iaEntrando: null, notaIa: null, teste: t.naTela() }),
+    // ADR-179 (fase 5): a tela é React; o HTML desenhado é o que a pessoa veria agora.
+    html: () => {
+      const r = render(<Executor e={{ dados: d, procurando: false, iaEntrando: null, notaIa: null, teste: t.naTela() }} executar={() => undefined} copiar={async () => true} cartao={{ agir: () => undefined, digitarCodigo: () => undefined, colarCodigo: () => undefined, copiar: async () => true }} />);
+      const h = r.container.innerHTML;
+      r.unmount();
+      return h;
+    },
   };
 }
 
@@ -447,7 +455,7 @@ describe("Continuar: a ligação espera o servidor concordar", () => {
     await m.t.seguir();
     expect(m.eventos).toEqual(["fim: com teste", "reler", "fica na etapa da IA"]);
     expect(m.t.naTela()?.seguindo).toBe(true);
-    expect(m.html()).toMatch(/data-act="onboarding-ia-continuar" disabled>/);
+    expect(m.html()).toMatch(/class="ob-pilula grande" disabled="">/);
     m.sonda();
     expect(m.ligou()).toBe(false);
     m.servidor([claude("nao_autenticado", "conta_sem_acesso"), codex("pronto")]);

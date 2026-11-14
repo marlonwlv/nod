@@ -4,7 +4,7 @@ import type { IaDesktop, NodDesktop } from "../../../src/contracts/desktop.ts";
 import type { EstadoIa } from "../../../src/contracts/estado-ia.ts";
 import type { IaNoMac } from "../../../src/contracts/onboarding.ts";
 import { CHIPS_OBJETIVO, htmlConversaTexto, nomeDoEmail } from "../../../web/telas/conversa-texto.ts";
-import { criarEsteComputador, estadoDaTela, htmlEsteComputador, LOGIN_DEMOROU_MS, telaDaIa, type FonteIa } from "../../../web/telas/este-computador.ts";
+import { criarEsteComputador, estadoDaTela, LOGIN_DEMOROU_MS, telaDaIa, type FonteIa } from "../../../web/telas/este-computador.ts";
 
 /**
  * ADA-242 (spec onboarding-jornada-a §3–4, protótipo prancha-a 2a–2g): "Este computador" é uma função pura sobre o
@@ -51,38 +51,6 @@ describe("estadoDaTela pelo inventário (Windows)", () => {
     expect(estadoDaTela(fontes, 0)).toMatchObject({ tela: "2a", principal: "codex-cli" });
     expect(estadoDaTela({ "claude-cli": inv("ausente"), "codex-cli": { inventario: { id: "codex-cli", estado: "nao_autenticado" } } }, 0, "codex-cli")).toMatchObject({ tela: "2b", principal: "codex-cli" });
     expect(estadoDaTela({}, 0).principal).toBe("claude-cli");
-  });
-});
-
-describe("htmlEsteComputador", () => {
-  const vista = { agora: 0, emFoco: null, ocupado: false, colarCodigo: true, nota: null };
-  it("2c: Instalar e entrar nas duas IAs e Pular por agora; 2a: Continuar e a conta", () => {
-    const c = htmlEsteComputador({ ...vista, fontes: { "claude-cli": inv("ausente"), "codex-cli": { inventario: { id: "codex-cli", estado: "ausente" } } } });
-    expect(c).toContain('data-estado="2c"');
-    expect(c.match(/data-act="computador-instalar"/g)).toHaveLength(2);
-    expect(c).toContain('data-act="computador-pular"');
-    expect(c).toContain("Também funciona sozinho ou como reserva do Claude.");
-    expect(c).not.toContain("Outras IAs");
-    const a = htmlEsteComputador({ ...vista, fontes: { "claude-cli": mac("pronta", { conta: { email: "ana@x.com" } as EstadoIa["conta"] }) } });
-    expect(a).toContain("O Claude já está aqui.");
-    expect(a).toContain("Conectado como ana@x.com");
-    expect(a).toContain('data-act="computador-continuar"');
-  });
-
-  it("2f: Conferir de novo, Abrir de novo e o campo do código só com a ponte do Mac; 2d: Cancelar no lugar de Pular", () => {
-    const f = { "claude-cli": mac("entrando", { login: login({ verificarDeNovo: true }) }) };
-    const comCampo = htmlEsteComputador({ ...vista, fontes: f });
-    expect(comCampo).toContain('data-act="computador-conferir"');
-    expect(comCampo).toContain('data-form="computador-codigo"');
-    expect(htmlEsteComputador({ ...vista, colarCodigo: false, fontes: f })).not.toContain('data-form="computador-codigo"');
-    const d = htmlEsteComputador({ ...vista, fontes: { "claude-cli": mac("entrando", { login: login({}) }) } });
-    expect(d).toContain('data-act="computador-cancelar"');
-    expect(d).not.toContain('data-act="computador-pular"');
-  });
-
-  it("escapa a conta vinda do CLI", () => {
-    const h = htmlEsteComputador({ ...vista, fontes: { "claude-cli": mac("pronta", { conta: { email: "<img src=x>" } as EstadoIa["conta"] }) } });
-    expect(h).not.toContain("<img src=x>");
   });
 });
 
@@ -142,7 +110,6 @@ describe("criarEsteComputador", () => {
     const c = criarEsteComputador({ ponte: () => ({ ias } as unknown as NodDesktop), estadosMac: () => estados, inventario: () => [], reler: async () => undefined, agora: () => 0, aoMudar: () => undefined });
     await c.acoes["computador-instalar"]("claude-cli");
     expect(c.estado().tela).toBe("2e");
-    expect(c.html()).toContain("Tentar de novo");
     expect(entrar).not.toHaveBeenCalled();
   });
 
@@ -151,9 +118,9 @@ describe("criarEsteComputador", () => {
     let entrou = 0;
     const m = montar({ iaInstalar: async () => ({ ok: true }), iaEntrar: async () => (++entrou === 1 ? { ok: false, motivo: "nao_instalado" } : { ok: true }) }, inventario);
     await m.c.acoes["computador-instalar"]("claude-cli");
-    const h = m.c.html();
-    expect(h).not.toContain("Não deu para abrir o login");
-    expect(h).toContain("Termine a instalação do Claude");
+    const nota = m.c.vista().nota ?? "";
+    expect(nota).not.toContain("Não deu para abrir o login");
+    expect(nota).toContain("Termine a instalação do Claude");
     expect(m.c.estado().tela).toBe("2c");
     await m.c.sondar();
     expect(m.reler).toHaveBeenCalled();
@@ -169,9 +136,6 @@ describe("o CLI abaixo do piso (desatualizado) tem saída: atualizar, não só e
   it("Mac 'desatualizada' e Windows 'cli_antigo' não viram 2b; o botão atualiza e segue para o login", async () => {
     expect(telaDaIa(mac("desatualizada"), 0)).toBe("2c");
     expect(telaDaIa(inv("nao_autenticado", { causa: "cli_antigo" }), 0)).toBe("2c");
-    const h = htmlEsteComputador({ agora: 0, emFoco: null, ocupado: false, colarCodigo: true, nota: null, fontes: { "claude-cli": mac("desatualizada") } });
-    expect(h).toContain("Atualizar e entrar");
-    expect(h).not.toContain('data-act="computador-entrar"');
 
     const chamadas: string[] = [];
     const estados: Partial<Record<IaDesktop, EstadoIa>> = { "claude-cli": { ia: "claude-cli", estado: "desatualizada", mensagem: "", em: 0 } };
@@ -187,11 +151,12 @@ describe("o CLI abaixo do piso (desatualizado) tem saída: atualizar, não só e
 });
 
 describe("os formulários do onboarding chegam ao submit do documento", () => {
-  it("todo form do controle (o nome, o objetivo escrito, o código do login) está no FORMS do web/main.ts", () => {
+  // O código do login de "Este computador" saiu daqui: a tela é React e o formulário chama a ação pelo nome (ADR-179).
+  it("todo form do controle (o nome, o objetivo escrito) está no FORMS do web/main.ts", () => {
     const controle = readFileSync(new URL("../../../web/telas/onboarding-controle.ts", import.meta.url), "utf8");
     const bloco = controle.slice(controle.indexOf("const forms: Record<string"), controle.indexOf("\n  };", controle.indexOf("const forms: Record<string")));
     const chaves = [...bloco.matchAll(/^\s{4}"([a-z-]+)": \(form\)/gm)].map((m) => m[1]);
-    expect(chaves).toEqual(expect.arrayContaining(["onboarding-bot", "computador-codigo", "texto-apelido", "texto-objetivo"]));
+    expect(chaves).toEqual(expect.arrayContaining(["onboarding-bot", "texto-apelido", "texto-objetivo"]));
     const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
     const forms = main.slice(main.indexOf("const FORMS: Record<string"), main.indexOf("\n};", main.indexOf("const FORMS: Record<string")));
     const espalha = /\.\.\.[^\n]*telaOnboarding\.forms/.test(forms);

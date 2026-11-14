@@ -50,7 +50,8 @@ describe("mostrarCopia (NOD-8)", () => {
 
   it("os botões de copiar do HTML (onboarding, contas, cartão da IA, bloco de código) levam o aria-live", () => {
     const ler = (f: string) => readFileSync(new URL(`../../../web/${f}`, import.meta.url), "utf8");
-    expect(ler("telas/onboarding.ts")).toMatch(/data-act="onboarding-ia-copiar" data-texto="\$\{esc\(comando\)\}" \$\{VIVO\}>/);
+    // ADR-179 (fase 5): no onboarding o Copiar é o BotaoCopiar do React, que nasce com a região viva.
+    expect(ler("react/onboarding/cartao-ia.tsx")).toMatch(/className=\{`\$\{classe\} rx-copiar`\} aria-live="polite"/);
     expect(ler("telas/cartao-ia.ts")).toMatch(/data-act="ia-copiar-codigo"[^>]*\$\{VIVO\}>/);
     // NOD-8 passo 11: o terceiro é o comando do terminal no preparo_falhou.
     expect(ler("telas/contas-lista.ts").match(/data-act="copiar-texto"[^>]*\$\{VIVO\}>/g)).toHaveLength(3);

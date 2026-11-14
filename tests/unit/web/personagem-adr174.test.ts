@@ -6,7 +6,6 @@ import { SHAPE_BY_ID } from "../../../web/vendor/bloub/skins.ts";
 import { FORMAS_BLOUB } from "../../../web/lib/mascote-catalogo.ts";
 import { BotEngine } from "../../../web/vendor/bloub/engine.ts";
 import { ErroDoPreparo, marcar, novoPreparo, porcentoDe, rodarPreparo, subtituloDoPreparo, tique, type EstadoPreparo } from "../../../web/lib/preparo.ts";
-import { APPS, PASSOS, andar, apresentacaoInicial, emailDoGoogle, htmlApresentacao, passoAtual, personagemDoPasso } from "../../../web/telas/apresentacao.ts";
 import { estadoDoPreparo, etapasDoBot, htmlDialogoCriarBot, htmlPreparo, htmlSeletorCor, htmlSeletorForma } from "../../../web/telas/criar-bot.ts";
 import type { FrotaDto } from "../../../src/contracts/api.ts";
 
@@ -148,64 +147,5 @@ describe("preparo com %", () => {
   });
 });
 
-describe("onboarding em 10 passos", () => {
-  const ctx = { emailGoogle: false, ligacao: true };
+// O onboarding em 10 passos (o modelo e o desenho, em React) está em tests/unit/web/react/onboarding/apresentacao.test.tsx.
 
-  it("tem os 10 passos do onboarding, na ordem", () => {
-    expect(PASSOS).toEqual(["boas-vindas", "conhecer", "computador", "trabalho", "delegar", "funcao", "origem", "apps", "criar", "preparando"]);
-  });
-
-  it("cada passo desenha o título, os pontos e a saída certa", () => {
-    let e = apresentacaoInicial();
-    const html0 = htmlApresentacao(e, ctx);
-    expect(html0).toContain("Sua equipe de bots");
-    expect(html0).toContain("Prefiro conversar por voz");
-    expect(htmlApresentacao(e, { ...ctx, ligacao: false })).not.toContain("Prefiro conversar por voz");
-    const titulos = ["Este é o nod", "Ele tem o próprio computador", "Dê um trabalho a cada bot", "Passe qualquer tarefa ao seu time", "No que você mais vai trabalhar?", "Como você conheceu o nod?", "Conecte seus apps"];
-    for (const titulo of titulos) {
-      e = andar(e, 1);
-      const html = htmlApresentacao(e, ctx);
-      expect(html, titulo).toContain(titulo);
-      expect(html).toContain(`Passo ${e.passo + 1} de 10`);
-      expect(html).toContain('data-act="apres-voltar"');
-    }
-    expect(passoAtual(e)).toBe("apps");
-    expect(htmlApresentacao(e, ctx)).toContain("Agora não");
-    expect(htmlApresentacao({ ...e, apps: ["gmail"] }, ctx)).toContain(">Conectado<");
-    expect(htmlApresentacao(e, { ...ctx, emailGoogle: true })).toContain("Sugerido");
-  });
-
-  it("função e origem só seguem com uma escolha, mas dá para pular", () => {
-    const e = { ...apresentacaoInicial(), passo: PASSOS.indexOf("funcao") };
-    expect(htmlApresentacao(e, ctx)).toMatch(/data-act="apres-seguir" disabled/);
-    expect(htmlApresentacao(e, ctx)).toContain('data-act="apres-pular"');
-    expect(htmlApresentacao({ ...e, funcao: "Vendas" }, ctx)).not.toMatch(/data-act="apres-seguir" disabled/);
-    expect(personagemDoPasso({ ...e, funcao: "Vendas" })).toBe("comemorando");
-  });
-
-  it("chegar ao passo 9 com uma função sugere o nome; o passo 9 cria com cor, forma e a primeira mensagem", () => {
-    const e = andar({ ...apresentacaoInicial(), passo: PASSOS.indexOf("apps"), funcao: "Finanças" }, 1);
-    expect(passoAtual(e)).toBe("criar");
-    expect(e.nome).toBe("Nina");
-    const html = htmlApresentacao(e, ctx);
-    expect(html).toContain("O que Nina deve fazer primeiro?");
-    expect(html).toContain('data-act="apres-criar"');
-    expect(html).not.toContain("c-black");
-    expect(andar(e, 1).passo).toBe(PASSOS.indexOf("criar"));
-  });
-
-  it("o preparo não volta e mostra a barra com %", () => {
-    const e = { ...apresentacaoInicial(), nome: "Lia", passo: PASSOS.indexOf("preparando"), preparo: marcar(novoPreparo("Lia"), "criado", "feito") };
-    expect(andar(e, -1).passo).toBe(e.passo);
-    const html = htmlApresentacao(e, ctx);
-    expect(html).toContain("Preparando Lia");
-    expect(html).toContain('aria-valuenow="25"');
-    expect(html).not.toContain('data-act="apres-voltar"');
-  });
-
-  it("e-mail do Google sugere Gmail e Agenda", () => {
-    expect(emailDoGoogle("ana@gmail.com")).toBe(true);
-    expect(emailDoGoogle("ana@empresa.com.br")).toBe(false);
-    expect(APPS.map((a) => a.slug)).toEqual(["gmail", "googlecalendar", "slack", "linear"]);
-  });
-});
