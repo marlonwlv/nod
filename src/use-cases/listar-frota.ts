@@ -21,11 +21,18 @@ import type { CasoDeUso } from "./tipos.ts";
  */
 export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, FrotaDto> = async (deps, input) => {
   const agora = deps.agora();
-  const agentes = await deps.repos.agentes.listar(input.gerenciar ? { incluirOcultos: true, incluirExcluidos: true } : {});
-  // definido em 2026-09-24 (emenda da ADR-037): uma consulta para a frota inteira, não uma por agente.
-  const foraDoAr = await deps.repos.computadores.foraDoAr(modeloDoModo(deps.services.computadores?.porPessoa));
-  // definido em 2026-09-29 (0039): "não lido" sai do "lido até" da conversa, não da coluna agentes.nao_lido.
-  const comNovas = new Set((await deps.repos.leituras.resumo()).map((r) => r.conversaId));
+  // Leva 2 (ADR-183): o que não depende da lista de agentes sai junto com ela (eram 6 idas ao banco em fila).
+  const [agentes, foraDoAr, resumo, motores, todosConectores, times] = await Promise.all([
+    deps.repos.agentes.listar(input.gerenciar ? { incluirOcultos: true, incluirExcluidos: true } : {}),
+    // definido em 2026-09-24 (emenda da ADR-037): uma consulta para a frota inteira, não uma por agente.
+    deps.repos.computadores.foraDoAr(modeloDoModo(deps.services.computadores?.porPessoa)),
+    // definido em 2026-09-29 (0039): "não lido" sai do "lido até" da conversa, não da coluna agentes.nao_lido.
+    deps.repos.leituras.resumo(),
+    deps.repos.inventario.listar(),
+    deps.repos.conectores.listar(),
+    timesDaBarra(deps),
+  ]);
+  const comNovas = new Set(resumo.map((r) => r.conversaId));
   const agenteIds = agentes.map((a) => a.id);
   const conversas = await deps.repos.conversas.propriasDosAgentes(agenteIds);
   const conversaIds = [...conversas.values()].map((c) => c.id);
@@ -49,10 +56,9 @@ export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, Fro
     };
   });
 
-  const motores = await deps.repos.inventario.listar();
   const inventario: Inventario = motores.find((m) => m.motor === "claude-cli")?.inventario ?? motores.find((m) => m.motor === "catcher")?.inventario ?? inventarioAusente(agora);
 
-  const negacoes: Negacao[] = (await deps.repos.conectores.listar())
+  const negacoes: Negacao[] = todosConectores
     // definido em 2026-10-26 (NOD-374): só a falha que persistiu (ou o acesso recusado) vira "Fora do ar".
     .filter(falhaVisivel)
     .map((c): Negacao => ({
@@ -67,6 +73,5 @@ export const listarFrota: CasoDeUso<{ agora?: number; gerenciar?: boolean }, Fro
       ...(c.habilitado ? {} : { semRessonda: true as const }),
     }));
 
-  const times = await timesDaBarra(deps);
   return { data: { agentes: linhas, inventario, negacoes, times, ...(deps.services.revisor?.config.ligado ? { revisor: true as const } : {}) } };
 };

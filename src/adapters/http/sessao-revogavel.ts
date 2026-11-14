@@ -28,7 +28,9 @@ export const TOCAR_A_CADA_MS = 5 * 60_000;
 const CACHE_MAX = 10_000;
 
 export function criarGuardaSessao(db: Db, agora: () => number = Date.now): GuardaSessao {
-  const cache = new Map<string, { ok: boolean; ate: number }>();
+  // Leva 2 (ADR-183): o cache guarda a PROMESSA, não só o resultado — a leva de ~15 GETs de abrir um bot chega junta,
+  // erra o cache ao mesmo tempo e fazia ~15 `sessaoViva` no pool; agora a primeira consulta serve às outras.
+  const cache = new Map<string, { p: Promise<boolean>; ate: number }>();
   const chave = (e: Escopo, sid: string | null) => `${e.tenantId}:${e.pessoaId}:${sid ?? "-"}`;
   const esquecerPessoa = (e: Escopo) => {
     const prefixo = `${e.tenantId}:${e.pessoaId}:`;
@@ -40,19 +42,23 @@ export function criarGuardaSessao(db: Db, agora: () => number = Date.now): Guard
       const k = chave(escopo, sid);
       const t = agora();
       const c = cache.get(k);
-      if (c && c.ate > t) return c.ok;
-      let ok: boolean;
-      if (sid) {
-        const viva = await sessaoViva(db, sid, escopo);
-        ok = viva !== null;
-        if (viva && t - viva.ultimoUsoEm > TOCAR_A_CADA_MS) await tocarSessao(db, sid, TOCAR_A_CADA_MS);
-      } else {
+      if (c && c.ate > t) return c.p;
+      const p = (async (): Promise<boolean> => {
+        if (sid) {
+          const viva = await sessaoViva(db, sid, escopo);
+          // O "usada há X min" da lista de sessões não segura o pedido: a gravação sai sem esperar (a falha dela não
+          // invalida a sessão, só atrasa o carimbo).
+          if (viva && t - viva.ultimoUsoEm > TOCAR_A_CADA_MS) void tocarSessao(db, sid, TOCAR_A_CADA_MS).catch(() => undefined);
+          return viva !== null;
+        }
         // Revisão do PR 506: depois da purga não sobra corte nem pessoa; sem a pessoa, o cookie antigo não vale.
-        ok = (await corteDaPessoa(db, escopo)) === null && (await pessoaExiste(db, escopo));
-      }
+        return (await corteDaPessoa(db, escopo)) === null && (await pessoaExiste(db, escopo));
+      })();
       if (cache.size >= CACHE_MAX) cache.clear();
-      cache.set(k, { ok, ate: t + CACHE_MS });
-      return ok;
+      cache.set(k, { p, ate: t + CACHE_MS });
+      // A consulta que falhou (banco fora) não fica guardada como resposta: o próximo pedido consulta de novo.
+      p.catch(() => { if (cache.get(k)?.p === p) cache.delete(k); });
+      return p;
     },
     async criar(escopo, origem, aparelho) {
       return criarSessaoConta(db, { ...escopo, origem, aparelho });

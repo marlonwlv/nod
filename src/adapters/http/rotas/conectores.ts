@@ -105,11 +105,11 @@ export function rotasConectores(deps: DepsRotasConectores): Rota[] {
       async handler(ctx) {
         // definido em 2026-09-25: cada ação sai com o grupo (ler, criar, editar, comentar, apagar) — a web
         // mostra "Ler e alterar" e os grupos do card sem refazer a classificação (src/domain/grupos-de-acesso.ts).
-        const conectores = await deps.dentro(ctx.escopo, async (d) => (await d.repos.conectores.listar()).map((c) => {
-          const p = conectorPublico(c);
-          return { ...p, catalogo: p.catalogo.map((cap) => ({ ...cap, grupo: grupoDaCapacidade(cap) })) };
-        }));
-        const cifrada = await deps.dentro(ctx.escopo, (d) => d.repos.composio.chave());
+        // Leva 2 (ADR-183): as duas leituras na mesma transação, juntas (eram duas tx em série).
+        const { conectores, cifrada } = await deps.dentro(ctx.escopo, async (d) => {
+          const [lista, chave] = await Promise.all([d.repos.conectores.listar(), d.repos.composio.chave()]);
+          return { cifrada: chave, conectores: lista.map((c) => { const p = conectorPublico(c); return { ...p, catalogo: p.catalogo.map((cap) => ({ ...cap, grupo: grupoDaCapacidade(cap) })) }; }) };
+        });
         const marketplace = await catalogo(ctx.escopo.tenantId, cifrada);
         ctx.json(200, { conectores, marketplace, composioConfigurado: !!cifrada });
       },
