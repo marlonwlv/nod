@@ -1,6 +1,5 @@
 import type { DestinoItem } from "../contracts/item-aprovacao.ts";
-import { REGRA_APROVACAO_PERMANENTE, REGRA_CONSULTA_SEM_DECISAO } from "../domain/aprovacao-permanente.ts";
-import { REGRA_MODO_AUTOMATICO, REGRA_MODO_TOTAL, REGRA_REVISOR } from "../domain/modo-aprovacao.ts";
+import { REGRAS_QUE_AUTORIZAM_ITEM_LOCAL } from "../domain/autoridade-item-local.ts";
 import { KIND_CARTAO, MOTIVO_ITEM_DE_APROVACAO, REGRA_CARTAO, REGRA_CLIQUE, VERSAO_REGRA_CARTAO, VERSAO_REGRA_CLIQUE } from "../domain/decisoes.ts";
 import type { LoteAutomatico } from "./pedir-aprovacao.ts";
 import { nomeParaTrilha } from "./registrar-negacao.ts";
@@ -94,5 +93,8 @@ export async function registrarCliques(
   }
 }
 
-/** As regras que liberam um lote (automático ou revisor): o item do Mac delas já foi à trilha na autorização. */
-export const REGRAS_GRAVADAS_NA_AUTORIZACAO: ReadonlySet<string> = new Set([REGRA_MODO_AUTOMATICO, REGRA_MODO_TOTAL, REGRA_REVISOR, REGRA_APROVACAO_PERMANENTE, REGRA_CONSULTA_SEM_DECISAO]);
+/**
+ * As regras que liberam um lote (automático ou revisor): o item do Mac delas já foi à trilha na autorização. NOD-423: é a
+ * mesma lista que autoriza o item a sair pelo Mac (uma fonte só, no domínio).
+ */
+export const REGRAS_GRAVADAS_NA_AUTORIZACAO: ReadonlySet<string> = new Set(REGRAS_QUE_AUTORIZAM_ITEM_LOCAL);

@@ -2,6 +2,7 @@ import { contasIaMemoria, estadoContasIaMemoria, type EstadoContasIaMemoria } fr
 import type { CondicaoDaVolta } from "../../src/contracts/quadro-execucoes.ts";
 import { temFalha, type EstadoDisjuntor } from "../../src/domain/disjuntor-conector.ts";
 import { ehDecisao, MOTIVOS_DE_CONECTOR_FORA } from "../../src/domain/decisoes.ts";
+import { desfechoAutorizaItemLocal } from "../../src/domain/autoridade-item-local.ts";
 import type { ConfigGithubApp } from "../../src/repositories/github-app.repo.ts";
 import type { AnexoDaConversa, MimeAnexo, RecusasMidia } from "../../src/contracts/anexo.ts";
 import type { LinhaOnboarding } from "../../src/repositories/onboarding.repo.ts";
@@ -2493,7 +2494,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async pendentesNaMaquina() {
         return doTenant(b.itens).flatMap((item) => {
           const d = doTenant(b.decisoes).find((x) => x.id === item.decisaoId);
-          if (!d || d.estado !== "decidida" || !item.selecionado || item.desfecho !== null || item.destino.execucao !== "maquina") return [];
+          // NOD-423: o mesmo predicado do SQL (desfechoAutorizaItemLocal); o fake não pode ser mais permissivo que o Postgres.
+          if (!d || d.estado !== "decidida" || !desfechoAutorizaItemLocal(d.desfecho) || !item.selecionado || item.desfecho !== null || item.destino.execucao !== "maquina") return [];
           return [{ item, decididaEm: d.desfecho ? Date.parse(d.desfecho.em) : 0, porRegra: d.desfecho?.tipo === "decidida_por_regra" }];
         });
       },
