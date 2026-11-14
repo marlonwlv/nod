@@ -300,8 +300,9 @@ describe("NOD-381 (revisão 2)", () => {
     expect(main).toContain('if (escolha === "anexar") { d.close(); controle.escolher(escolha); } else { controle.escolher(escolha); d.close(); }');
   });
 
-  it("com erro na tela, a lista não ganha folga dobrada (há avisos sr-only entre o #erro e a lista)", () => {
-    expect(m).toContain(".cabecalho.cabecalho-pilula + #erro:not(:empty) ~ .timeline-wrap { padding-top: 12px; scroll-padding-top: 12px; }");
+  it("com erro na tela, a lista não muda de lugar: o #erro é sobreposto (C6), abaixo da área segura e da pílula", () => {
+    expect(m).toContain(".cabecalho.cabecalho-pilula + #erro:not(:empty) { top: calc(env(safe-area-inset-top) + 56px); }");
+    expect(m).not.toContain("#erro:not(:empty) ~ .timeline-wrap");
   });
 
   it("sem o + (folha vazia), o texto não encosta na borda; a caixa fica 8 px acima da área segura", () => {

@@ -5,6 +5,7 @@ import { expressaoMascote } from "./mascote-pose.ts";
 import { FORMAS_BLOUB } from "./mascote-catalogo.ts";
 import { PintorMascote, svgMascote } from "./mascote-svg.ts";
 import { CONSULTA_MOVIMENTO_REDUZIDO, instanteDoMascote, lacoDoMascoteSegue, movimentoReduzido } from "./movimento.ts";
+import { criarGuardaDeMotores } from "./motores-do-mascote.ts";
 
 // medido em 2026-09-30: criar 200 mascotes num innerHTML custava ~1 s síncrono, com 1.000 pinturas e 1.000
 // getComputedStyle — 4 pinturas por mascote no upgrade —, e 10 mascotes animados, 9 a 16 ms de CPU por quadro, cada um
@@ -53,6 +54,8 @@ reduced.addEventListener("change", () => { for (const el of conectados) el.wake(
 const observer = new IntersectionObserver(entries => {
   for (const entry of entries) (entry.target as MascoteElemento).setVisible(entry.isIntersecting);
 });
+/** C3: o motor de quem saiu, pela chave `data-motor`, para o elemento recriado no mesmo instante retomar. */
+const motores = criarGuardaDeMotores<BotEngine>(() => performance.now());
 /** Quadro parado (repouso assentado ou reduced-motion) por estado|forma|expressão|fixo; "@@" é o lugar do id. */
 const parados = new Map<string, string>();
 
@@ -78,11 +81,20 @@ class MascoteElemento extends HTMLElement {
   }
   connectedCallback(): void {
     conectados.add(this);
-    // Como antes: o motor nasce em repouso e funde para o estado pedido; em repouso não há fusão nenhuma.
-    this.engine = new BotEngine(100, "idle", radii(this.getAttribute("shape")), expressaoMascote(this.getAttribute("expression")));
-    this.time = 0;
-    this.changed = -Infinity;
-    this.applied = `idle|${this.getAttribute("shape")}|${this.getAttribute("expression")}`;
+    // C3 (2026-11-12): o elemento recriado (a região regravada) retoma o motor de quem acabou de sair com a mesma chave.
+    const guardado = motores.retomar(this.getAttribute("data-motor"));
+    if (guardado) {
+      this.engine = guardado.motor;
+      this.time = guardado.tempo;
+      this.changed = guardado.mudou;
+      this.applied = guardado.aplicado;
+    } else {
+      // Como antes: o motor nasce em repouso e funde para o estado pedido; em repouso não há fusão nenhuma.
+      this.engine = new BotEngine(100, "idle", radii(this.getAttribute("shape")), expressaoMascote(this.getAttribute("expression")));
+      this.time = 0;
+      this.changed = -Infinity;
+      this.applied = `idle|${this.getAttribute("shape")}|${this.getAttribute("expression")}`;
+    }
     this.apply();
     this.wake();
   }
@@ -91,6 +103,7 @@ class MascoteElemento extends HTMLElement {
     ativos.delete(this);
     if (this.observed) observer.unobserve(this);
     this.observed = false;
+    if (this.engine) motores.guardar(this.getAttribute("data-motor"), { motor: this.engine, tempo: this.time, aplicado: this.applied, mudou: this.changed });
     this.engine = null;
     this.painter = null;
     this.shown = "";

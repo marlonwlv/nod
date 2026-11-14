@@ -4,6 +4,7 @@ import type { ConversaDto, SuaVezDto } from "../../../src/contracts/api.ts";
 import type { Mensagem } from "../../../src/contracts/mensagem.ts";
 import { estadoInicial, reduzir, type ConversaEstado, type Estado } from "../../../web/estado/reducer.ts";
 import { ATIVIDADE_VAZIA, comFerramenta, comFimDaAcao, comTexto, comVigia } from "../../../web/lib/atividade.ts";
+import { FALA_ORFA_MS } from "../../../web/lib/fala-viva.ts";
 import { blocosAoVivo, blocosDoHistorico, renderCabecalhoConversa, renderMensagem, renderResumoDasAcoes, renderTimeline } from "../../../web/telas/conversa.ts";
 import { renderCardArtefato } from "../../../web/telas/card-artefato.ts";
 import { renderTopoComposer } from "../../../web/telas/pergunta.ts";
@@ -205,10 +206,13 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     // Parte 3: a fala que entrou faz o mascote piscar (`wink`) por WINK_MS; depois, repouso.
     expect(saindo[0]!.morfar!.mascote).toMatchObject({ state: "wink", "data-estado": "disponivel" });
     expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 2_000 })[0]!.morfar!.mascote).toMatchObject({ state: "idle" });
-    // A releitura (com a fala gravada) tira a fala que saía; e ela também some sozinha se a releitura não vier.
-    const relida = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2)] } as ConversaDto, agora: AGORA + 500 });
+    // A releitura com a fala gravada tira a fala que saía. C2 (2026-11-12): a que não traz a gravada não tira, e ela não
+    // some mais aos 15 s — só o retrato órfão (turno acabado, nenhuma gravada) sai, em FALA_ORFA_MS.
+    const relida = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2, { turnoId: "t1", texto: "Pronto, fechei setembro." })] } as ConversaDto, agora: AGORA + 500 });
     expect(relida.falasSaindo?.[C]).toBeUndefined();
-    expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 15_000 })).toEqual([]);
+    const semAGravada = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2)] } as ConversaDto, agora: AGORA + 500 });
+    expect(paradas(semAGravada, "t1")).toHaveLength(1);
+    expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 15_000 }).map((b) => b.chave)).toEqual(antes.map((b) => b.chave));
     // Revisão 3: a releitura que saiu ANTES do fim (sem a fala gravada) não a tira; o tick a limpa depois de 15 s.
     const velha = reduzir(fim, { tipo: "hidratar-conversa", conversa: c as unknown as ConversaDto, agora: AGORA - 200 });
     expect(paradas(velha, "t1")).toHaveLength(1);
@@ -221,8 +225,8 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     const dto = c as unknown as ConversaDto;
     const outra = { ...dto, conversa: { ...dto.conversa, id: "outra-conversa" }, mensagens: [] } as ConversaDto;
     expect(paradas(reduzir(fim, { tipo: "hidratar-conversa", conversa: outra, agora: AGORA + 500 }), "t1")).toHaveLength(1);
-    expect(paradas(reduzir(fim, { tipo: "tick", agora: AGORA + 14_000 }), "t1")).toHaveLength(1);
-    expect(reduzir(fim, { tipo: "tick", agora: AGORA + 15_000 }).falasSaindo).toEqual({});
+    expect(paradas(reduzir(fim, { tipo: "tick", agora: AGORA + 15_000 }), "t1")).toHaveLength(1);
+    expect(reduzir(fim, { tipo: "tick", agora: AGORA + FALA_ORFA_MS }).falasSaindo).toEqual({});
   });
 
   it("NOD-353 / Parte 2: com ferramenta, a fala parada final leva o pensamento pronto ('Usou N ferramentas', ADR-156), na mesma chave de disclosure da viva", () => {
@@ -249,7 +253,9 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     const comVivo: Estado = { ...base, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } }, atividades: { [C]: { t1: a } } };
     const meio = reduzir(comVivo, { tipo: "frame", frame: { tipo: "turno.fala", dados: { turnoId: "t1", conversaId: C } } as never, agora: AGORA });
     const blocos = blocosAoVivo(meio.conversas[C]!, meio);
-    expect(blocos.map((b) => b.chave)).toEqual([`saindo:t1:${AGORA}:0`, "vivo:t1"]);
+    // C1 (2026-11-12): o retrato fica com a chave da fala viva (o mesmo nó, sem animar de novo); a fala viva que recomeça
+    // é um balão novo, com chave nova.
+    expect(blocos.map((b) => b.chave)).toEqual(["vivo:t1", "vivo:t1:1"]);
     expect(blocos[0]!.html).toContain("Primeira parte.");
     expect(blocos[1]!.html).not.toContain("Primeira parte.");
     // NOD-353: a fala do meio que saiu não tem o pensamento (a gravada dela também não); a viva do turno segue com ele.
@@ -347,13 +353,13 @@ describe("2. a parte ao vivo é a Ada falando", () => {
     e = frame("turno.fala", com(e, "Primeira."), AGORA);
     e = frame("turno.fala", com(e, "Segunda."), AGORA + 100);
     const blocos = blocosAoVivo(c, e);
-    expect(blocos.map((b) => b.chave)).toEqual([`saindo:t1:${AGORA}:0`, `saindo:t1:${AGORA + 100}:1`, "vivo:t1"]);
+    expect(blocos.map((b) => b.chave)).toEqual(["vivo:t1", "vivo:t1:1", "vivo:t1:2"]);
     expect(blocos[0]!.html).toContain("Primeira.");
     expect(blocos[1]!.html).toContain("Segunda.");
     const parado = frame("turno.interrompido", e, AGORA + 200);
     expect(paradas(parado, "t1")).toHaveLength(2);
-    // Sem fala viva, a última fala parada do turno fica com a chave da fala viva.
-    expect(blocosAoVivo(c, parado).map((b) => b.chave)).toEqual([`saindo:t1:${AGORA}:0`, "vivo:t1"]);
+    // Sem fala viva, cada fala parada segue com a chave dela (C1): nenhum nó troca; só a viva vazia sai.
+    expect(blocosAoVivo(c, parado).map((b) => b.chave)).toEqual(["vivo:t1", "vivo:t1:1"]);
   });
 
   it("revisão 4 do #508: a fala parada do turno que acabou vem antes das vivas (sala, turno novo)", () => {

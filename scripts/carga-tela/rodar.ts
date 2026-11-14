@@ -23,8 +23,18 @@ const repo = resolve(process.env.CARGA_REPO ?? join(AQUI, "../.."));
 const BOTS = 12;
 const TROCAS = Number(process.env.CARGA_TROCAS ?? 150);
 
+/**
+ * dropdb/createdb no banco efêmero: pelo container (o padrão) ou, com CARGA_PG_BIN (a pasta `bin` de um Postgres
+ * local, ex.: `$(mise where postgres@16.15)/bin`), direto na porta CARGA_BANCO_PORTA, para máquina sem Docker.
+ */
 function docker(...args: string[]): void {
-  execFileSync("docker", ["exec", container(), ...args], { stdio: "inherit" });
+  const bin = process.env.CARGA_PG_BIN;
+  if (!bin) {
+    execFileSync("docker", ["exec", container(), ...args], { stdio: "inherit" });
+    return;
+  }
+  const [cmd = "", ...resto] = args;
+  execFileSync(join(bin, cmd), ["-h", "127.0.0.1", "-p", String(CONFIG.bancoPorta), ...resto], { stdio: "inherit" });
 }
 
 async function subirApi(webDir?: string): Promise<ChildProcess> {

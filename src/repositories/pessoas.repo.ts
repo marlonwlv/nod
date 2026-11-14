@@ -64,6 +64,12 @@ export function pessoasRepo(conn: Conn, escopo: Escopo) {
       const l = linhas[0];
       return l ? paraPessoa(l) : null;
     },
+    /** Q5 (2026-11-12): vários de uma vez (uma consulta), para os nomes do quadro sem uma ida por pessoa. */
+    async buscarVarias(ids: readonly string[]): Promise<Pessoa[]> {
+      if (ids.length === 0) return [];
+      const linhas = await conn<Linha[]>`select tenant_id, id, nome, iniciais, email from pessoas where tenant_id = ${escopo.tenantId} and id = any(${[...ids]}::uuid[])`;
+      return linhas.map(paraPessoa);
+    },
     async listarDoTenant(): Promise<Pessoa[]> {
       const linhas = await conn<Linha[]>`select tenant_id, id, nome, iniciais, email from pessoas where tenant_id = ${escopo.tenantId} order by nome`;
       return linhas.map(paraPessoa);
