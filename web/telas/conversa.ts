@@ -27,7 +27,7 @@ import { linhaDaFila } from "../lib/fila-do-pedido.ts";
 import { chaveDaFalaViva, tempoDaFala } from "../lib/fala-viva.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
 import { htmlDaLinhaNoAr, htmlDaListaCompacta, htmlDoCard, htmlDoRecibo, lerRecibo } from "../lib/canvas-html.ts";
-import { estadoMascoteNaConversa, mascoteAnimado, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
+import { avatarDoBot, estadoMascoteNaConversa, mascoteAnimado, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
 import { renderFaixaParada } from "./faixa-parada.ts";
 import type { Morph } from "../lib/morph.ts";
 import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../lib/computador.ts";

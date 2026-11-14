@@ -28,7 +28,7 @@ manter o desenho por string cresce com cada tela; o de trocar tudo de uma vez é
    componente só redesenha quando o pedaço selecionado muda — um frame do SSE de outra conversa não o toca.
 6. **Fica como está**: o reducer, `api.ts`, `live-events.ts`, o SSE, `texto-formatado.ts` e a lógica pura de `web/lib`.
    Os componentes chamam essas funções; não há "versão React" delas.
-7. **Bibliotecas extras só na fase que pedir**: react-query, dnd-kit e motion não entram agora.
+7. **Bibliotecas extras só na fase que pedir**: react-query, dnd-kit e motion não entram agora. Quais são e as regras de cada uma: [ADR-180](adr-180-bibliotecas-da-migracao-react-e-grade-do-quadro.md).
 8. **Testes de componente** no projeto `componentes` do vitest (happy-dom + Testing Library, `tests/unit/**/*.test.tsx`),
    rodado junto pelo `npm run test:unit`. `tests/unit/web/react-regras.test.ts` trava: `.tsx` sem `data-act`, CSS de
    componente sem cor literal e sem `@tailwind`/`@apply`, e o componente de exemplo fora do app.

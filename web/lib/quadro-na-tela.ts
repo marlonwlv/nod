@@ -15,7 +15,7 @@ import { previaDoComentario, textoDaPrevia } from "./previa-comentario.ts";
 import { direcaoDaTroca, ehModo, turnoDoQuadro, ADIAR_ATE_MS, ARRASTO_ATE_MS, ECO_DA_PESSOA_MS, GESTO_MS, RESERVA_MS, movimentoDaTroca, releComecando, TURNO_MUDA_A_EXECUCAO, VIGIA_DO_QUADRO_MS, deveVigiarQuadro, type ModoDaConversa } from "./quadro.ts";
 import { dicaDeMover, nomeNaPrevia, previaDaTarefa } from "./acionamento.ts";
 import { abrirDialogoDeHandoff } from "../telas/dialogo-handoff.ts";
-import { aceitaPassagem, comColunas, FAIXA_DO_PRAZO, fraseDoErroDeColuna, nomeRepetido, passoDeMover, porqueNaoRemove, prazoEmMin, prazoLegivelMin, reciboDaResposta, reciboDeMover, saidaComErroDesiste, seletorDoFocoDaColuna, soltarEm, type EdicaoDeColuna, type Lado, type UnidadeDePrazo } from "./colunas.ts";
+import { aceitaPassagem, comColunas, iconeDaColuna, FAIXA_DO_PRAZO, fraseDoErroDeColuna, nomeRepetido, passoDeMover, porqueNaoRemove, prazoEmMin, prazoLegivelMin, reciboDaResposta, reciboDeMover, saidaComErroDesiste, seletorDoFocoDaColuna, soltarEm, type EdicaoDeColuna, type Lado, type UnidadeDePrazo } from "./colunas.ts";
 import { ErroApi, ehRecusaDoServidor } from "./erro-api.ts";
 import { aplicarMudanca, desfazerMudanca, enfileirarMudanca, patchDoMover, reaplicarFila, tiqueDoRelogio, TIQUE_MS, type MudancaNoAr } from "./otimista-do-quadro.ts";
 import { anunciarEm } from "./posicao-da-lista.ts";
@@ -37,7 +37,10 @@ import { PARAMETRO_TAREFA, acesos, codigoDaTarefa, acoesDaNovaTarefa, fraseDoErr
 import type { ExibirDoQuadro, VisaoDoQuadro } from "../../src/contracts/raio-x.ts";
 import { VISOES_DO_QUADRO } from "../telas/quadro-celular.ts";
 import { criarCelularDoQuadro, seletorDoFocoDaFolha } from "./celular-do-quadro.ts";
-import { confiar, quadroVazio, type Aviso, type Filtro, type Html } from "../telas/quadro.ts";
+import { confiar, iconeDe, quadroVazio, type Aviso, type Filtro, type Html } from "../telas/quadro.ts";
+import type { GradeNaTela } from "../react/quadro/grade-na-tela.tsx";
+import type { DestinoDoMover } from "../react/quadro/card-da-grade.tsx";
+import { reactNoQuadro } from "./react-no-quadro.ts";
 import { contarNaVista, ehFiltro, termoDaBusca } from "./vista-do-quadro.ts";
 import type { QuadrosDoBotDto } from "../../src/contracts/quadros-do-bot.ts";
 import { mostraSeletor, quadroQueAbre, seletorDeQuadro, type CriandoNoSeletor } from "../telas/seletor-de-quadro.ts";
@@ -392,6 +395,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
 
   /* ---------- NOD-442: o quadro de verdade ---------- */
   const dd = o.dados;
+  /** ADR-180: a grade em React (só com a chave ligada e o módulo já baixado); null = a grade por string. */
+  let gradeRx: GradeNaTela | null = null;
   /**
    * ADA-5 (definido em 2026-11-04): a pílula é o composer do chat (web/lib/composer.ts): altura até 170 px, @, /, colar e
    * clipe, Enter (no celular quebra a linha), Esc. A delegação é no document filtrada pela pílula: sobrevive à regravação.
@@ -723,7 +728,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     const seletor = seletorDeQuadro(sel, { aberto: selAberto, busca: selBusca, criando: selCriando, erro: selErro });
     // Quadro mínimo: no computador o seletor mora no cabeçalho (o item "Trocar de quadro…" do menu o abre).
     const noCab = !noCelular();
-    return confiar((noCab ? "" : seletor) + quadroDaMeta({ q, ...(noCab && mostraSeletor(sel) ? { seletor, trocar: true } : {}), projeto: sel?.projetos.find((p) => p.id === q?.projetoId)?.nome ?? null, nome, agente: dd.agente, voceNome: dd.voce?.() ?? null, filtro: filtroRapido(), alternadas, acesas, edicao, agora: Date.now(), editandoMeta, ...(comPessoas ? { pessoas: { painel, mural, hora: dd.hora, erro: erroPessoas } } : {}), ...(agentes ? { agentes } : {}), ...(importando ? { importando } : {}), ...(recusa ? { avisos: new Map([[recusa.tarefa, recusa.aviso]]) } : {}), busca, exibir: { ...exibirDoQuadro(), aberto: exibirAberto }, maisAberto, nova, podeCriar: !!dd.api()?.criarTarefa, ui: barraUi.ui(), ...(noCelular() ? { celular: { visao: visaoDoQuadro(), folha: cel.folha() } } : {}) }));
+    return confiar((noCab ? "" : seletor) + quadroDaMeta({ q, ...(noCab && mostraSeletor(sel) ? { seletor, trocar: true } : {}), projeto: sel?.projetos.find((p) => p.id === q?.projetoId)?.nome ?? null, nome, agente: dd.agente, voceNome: dd.voce?.() ?? null, filtro: filtroRapido(), alternadas, acesas, edicao, agora: Date.now(), editandoMeta, ...(comPessoas ? { pessoas: { painel, mural, hora: dd.hora, erro: erroPessoas } } : {}), ...(agentes ? { agentes } : {}), ...(importando ? { importando } : {}), ...(recusa ? { avisos: new Map([[recusa.tarefa, recusa.aviso]]) } : {}), busca, exibir: { ...exibirDoQuadro(), aberto: exibirAberto }, maisAberto, nova, podeCriar: !!dd.api()?.criarTarefa, ui: barraUi.ui(), ...(noCelular() ? { celular: { visao: visaoDoQuadro(), folha: cel.folha() } } : gradeRx ? { grade: gradeRx.desenhar } : {}) }));
   }
 
   /** ADA-18: o quadro do celular (o teste injeta; o app lê a consulta canônica a cada desenho). */
@@ -895,6 +900,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     const movimentosAbertos = mesmaVista && conteudo.querySelector<HTMLDetailsElement>("details.qd-hist")?.open === true;
     conteudo.innerHTML = html;
     htmlDesenhado = html;
+    // ADR-180: a grade em React volta para a vaga que o desenho deixou (o mesmo nó, só o que mudou é redesenhado).
+    gradeRx?.encaixar(conteudo);
     // ADA-302: a folha da tarefa no celular sobe (qd-sobe, 24 px) só quando abre. O innerHTML recria o article e, sem isto,
     // cada desenho da mesma vista (o passo novo do run aberto, o frame) subia de novo: o texto lido descia 24 px e voltava
     // em 220 ms, por cima da âncora (medido a 390: 3 px aos 80 ms do passo).
@@ -1753,7 +1760,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   /** O gesto segura a regravação até ADIAR_ATE_MS; o arrasto de card ou de coluna e o dedo que segue mexendo, até soltar
    * (revisão 3: a grade recriada no meio do arrasto mandava o dragend a um nó fora do documento e o card ficava preso;
    * revisão 5: a `.qd-grade` recriada aos 3 s cortava a rolagem horizontal com o dedo ainda na tela). */
-  const arrastando = (): boolean => !!cardArrastado || !!arrasto?.ativo;
+  const arrastando = (): boolean => !!cardArrastado || !!arrasto?.ativo || !!gradeRx?.arrastando();
   const seguraGesto = (desde: number): boolean => Date.now() - desde < (arrastando() || gesto.dedoMexendo() ? ARRASTO_ATE_MS : gestoAtivo() ? ADIAR_ATE_MS : 0);
   // Revisão 10: só o que o desenho recria (a .qd-conteudo); a pílula do rodapé fica no lugar e não segura nada.
   const segura = (desde: number): boolean => seguraGesto(desde) || campoComFocoNoToque(doc, vista()?.querySelector(":scope > .qd-conteudo"));
@@ -3948,7 +3955,11 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (!sec || !tarefa) return;
     ev.preventDefault();
     cardArrastado = null;
-    const c = colunaDe(sec.dataset["coluna"]);
+    soltarCardEm(tarefa, sec.dataset["coluna"]);
+  });
+  /** O card solto numa coluna (o arrasto por string, o da grade em React e o "Mover para…" dela). */
+  function soltarCardEm(tarefa: string, coluna: string | undefined): void {
+    const c = colunaDe(coluna);
     if (!c || q?.tarefas.find((x) => x.id === tarefa)?.status === c.id) {
       desenharVista();
       // 2026-11-10 (o "Switch to Manual ordering" do Multica): soltar na própria coluna com outra ordem não reordena; diz por quê.
@@ -3957,7 +3968,22 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       return;
     }
     pessoaSolta(tarefa, c);
-  });
+  }
+  /** ADR-180: o "Mover para…" da grade em React (a mesma regra e o mesmo texto do menu por string e da dica ao arrastar). */
+  const destinosDoCard = (tarefa: string): DestinoDoMover[] => {
+    const t = q?.tarefas.find((x) => x.id === tarefa);
+    if (!q || !t) return [];
+    const cs = comColunas(q).colunas;
+    const nomeDe = nomeNaPrevia(cs, t);
+    return cs.filter((c) => c.id !== t.status).map((c) => ({ id: c.id, nome: c.nome, icone: iconeDe({ status: c.id, icone: iconeDaColuna(c), pessoa: c.daPessoa }), nota: dicaDeMover(previaDaTarefa(t, c.id, cs), nomeDe, false) }));
+  };
+  // ADR-180: a grade em React, com a chave ligada (?quadro-react=1). O módulo chega depois; até lá, a grade por string.
+  if (dd && reactNoQuadro(doc.defaultView?.location.href ?? "", doc.defaultView?.localStorage ?? null)) {
+    void import("../react/quadro/grade-na-tela.tsx").then((m) => {
+      gradeRx = m.criarGradeNaTela(doc, { soltar: soltarCardEm, dica: (t, c) => dicaAoSoltar(t, c), destinos: destinosDoCard, arrastando: () => {} });
+      desenharVista();
+    });
+  }
 
   // NOD-448: arrastar a coluna (o cabeçalho, ou a alça ≡ na folha do celular), só dentro do grupo.
   doc.addEventListener("pointerdown", (ev) => {
