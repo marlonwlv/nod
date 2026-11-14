@@ -45,3 +45,9 @@ declare module "@novnc/novnc" {
     sendKey(keysym: number, code: string | null, down?: boolean): void;
   }
 }
+
+/**
+ * ADR-179 (fase 1 do React): cada componente React importa o próprio CSS (`import "./x.css"`); o Vite junta no
+ * bundle de quem usa o componente. Import só de efeito, sem módulo CSS.
+ */
+declare module "*.css";

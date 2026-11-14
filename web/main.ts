@@ -89,6 +89,7 @@ import { resolverProvaNoNavegador } from "./lib/prova-trabalho.ts";
 import { abreProvisorio, CHAVE_EQUIPE, decidirPareamento, criarContaNoChat, equipeNoApp, fraseDoErro as fraseDoErroDeConta, linkDaEquipe, type PassoPareamento } from "./telas/conta-no-chat.ts";
 import { criarMinhaConta } from "./telas/minha-conta.ts";
 import { reduzirFoto } from "./lib/reduzir-foto.ts";
+import { criarLoja } from "./react/loja.ts";
 import { deveLembrar, htmlLembrete, jaFalou, marcarFalou } from "./telas/lembrete-conta.ts";
 import type { EstadoContaDto } from "../src/contracts/conta.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
@@ -413,6 +414,8 @@ document.addEventListener("toggle", (ev) => {
  * exige o app aberto: sem executor a tela continua respondendo (web-sem-app).
  */
 let estado: Estado = estadoInicial;
+/** ADR-179 (fase 1 do React): a mesma `estado` vista pelas regiões React (useLoja). render() avisa; nenhuma região montada ainda. */
+const lojaDoEstado = criarLoja(() => estado);
 /** Janela do Desfazer ao cancelar uma mensagem da fila. */
 const CANCELAR_DESFAZER_MS = 5_000;
 let api: Api | null = null;
@@ -3650,6 +3653,7 @@ function agendarViradaDoMascote(): void {
 }
 
 function render(): void {
+  lojaDoEstado.avisar();
   if (ajusteDoLink && estado.sessao && estado.frota && !celular.ativo()) {
     const id = ajusteDoLink;
     ajusteDoLink = null;
