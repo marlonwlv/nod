@@ -329,6 +329,32 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
           },
         },
       });
+      // ADA-14: as outras ações novas com o quadro ou o projeto na rota levam, além do sorteio, um caso válido com o id
+      // real ("base plausível": o enxugar das ações do quadro sempre o mantém). Sem ele, o sorteio de ids podia nunca
+      // acertar o quadro real (a CI do #697 caiu no `quadro.vincular_bot` com a semente 3626997374).
+      const validoDaAda14: Record<string, { caminho: string; corpo: unknown }> = {
+        "quadro.vincular_bot": { caminho: `/quadros/${quadroDoFuzz}/bots`, corpo: { bot: segundo.agente.id } },
+        "quadro.editar_projeto": { caminho: `/projetos/${projetoDoFuzz}`, corpo: { nome: "Projeto do fuzz" } },
+        "quadro.arquivar_projeto": { caminho: `/projetos/${projetoDoFuzz}/arquivar`, corpo: null },
+        "quadro.restaurar_projeto": { caminho: `/projetos/${projetoDoFuzz}/restaurar`, corpo: null },
+        "quadro.remover_label": { caminho: `/agentes/${meu.agente.id}/quadro/labels/${encodeURIComponent(labelQueSai)}`, corpo: null },
+      };
+      // O fuzz-noturno de 14/11 (main 94460b87, semente 1416239180, N=200) caiu no `quadro.definir_padrao`: os casos
+      // semeados abaixo só entravam no enxuto do PR (N <= 20), e na noturna o sorteio de (bot, quadro) nunca juntou o bot
+      // da pessoa com o quadro real (tudo em 404). Na noturna, cada uma destas ações ganha o caso válido na posição do
+      // primeiro caso dela, como no PR; o sorteio inteiro continua depois.
+      if (N > 20) {
+        const validosDaNoturna: Record<string, { caminho: string; corpo: unknown }> = {
+          ...validoDaAda14,
+          "quadro.definir_padrao": { caminho: `/agentes/${meu.agente.id}/quadros/${encodeURIComponent(quadroDoFuzz)}/padrao`, corpo: null },
+        };
+        for (const [acao, valido] of Object.entries(validosDaNoturna)) {
+          const i = plano.casos.findIndex((c) => c.acao === acao);
+          if (i < 0) continue;
+          const base = plano.casos[i]!;
+          plano.casos.splice(i, 0, { ...base, caminho: valido.caminho, entrada: { rotulo: "base plausível", corpo: valido.corpo === null ? null : JSON.stringify(valido.corpo) } });
+        }
+      }
       // NOD-445, custo no PR (N <= 20; a noturna fica inteira): as rotas de remover e restaurar app não leem o corpo, então
       // as N entradas viravam N sorteios do mesmo caminho (com a semente 1257342993: 2 de 20 e 1 de 20 passaram da busca).
       // Cada uma fica com um caso por id que importa (o app vivo, o removido, o da outra pessoa pelo bot dela e pelo meu,
@@ -360,16 +386,6 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             for (const [q, b] of pares) enxuto.push({ ...c, caminho: `/quadros/${q}/bots/${b}`, entrada: { rotulo: "base plausível", corpo: null } });
             continue;
           }
-          // ADA-14: as outras ações novas com o quadro ou o projeto na rota levam, além do sorteio, um caso válido com o id
-          // real ("base plausível": o enxugar das ações do quadro sempre o mantém). Sem ele, o sorteio de ids podia nunca
-          // acertar o quadro real (a CI do #697 caiu no `quadro.vincular_bot` com a semente 3626997374).
-          const validoDaAda14: Record<string, { caminho: string; corpo: unknown }> = {
-            "quadro.vincular_bot": { caminho: `/quadros/${quadroDoFuzz}/bots`, corpo: { bot: segundo.agente.id } },
-            "quadro.editar_projeto": { caminho: `/projetos/${projetoDoFuzz}`, corpo: { nome: "Projeto do fuzz" } },
-            "quadro.arquivar_projeto": { caminho: `/projetos/${projetoDoFuzz}/arquivar`, corpo: null },
-            "quadro.restaurar_projeto": { caminho: `/projetos/${projetoDoFuzz}/restaurar`, corpo: null },
-            "quadro.remover_label": { caminho: `/agentes/${meu.agente.id}/quadro/labels/${encodeURIComponent(labelQueSai)}`, corpo: null },
-          };
           const valido = validoDaAda14[c.acao];
           if (valido && n === 1) enxuto.push({ ...c, caminho: valido.caminho, entrada: { rotulo: "base plausível", corpo: valido.corpo === null ? null : JSON.stringify(valido.corpo) } });
           if (c.acao === "paginas.remover_app" || c.acao === "paginas.restaurar_app") {
