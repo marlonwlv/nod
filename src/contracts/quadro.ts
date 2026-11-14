@@ -6,13 +6,11 @@ import type { CamposDeLabel, LabelDto, OpLabel } from "./quadro-labels.ts";
  * O quadro-agente (definido em 2026-10-31, NOD-442; base visual NOD-429): uma meta com prazo, tarefas em colunas de
  * status, e cada tarefa com um bot responsável que começa sozinho. Só tipos (EMENDA 26): o domínio puro mora em
  * src/domain/quadro.ts, o banco na 0133.
- *
  * Um quadro por bot anfitrião (quem o criou): ele mora na aba Quadro da conversa desse bot (NOD-429). Qualquer bot da
  * pessoa mexe nele pelas mesmas ações (ADR-135, domínio `quadro`).
  */
 import type { LinhaDeSistema, PrNaTela } from "./prs-da-tarefa.ts"; import type { OpcoesDoQuadro, Prioridade } from "./quadro-opcoes.ts";
 export type { CiPr, EstadoPr, LinhaDeSistema, PrDaTarefa, PrLido, PrNaTela, TipoLinhaTarefa } from "./prs-da-tarefa.ts";
-
 /**
  * As colunas padrão, na ordem (os mesmos de web/lib/quadro.ts, que a NOD-429 já desenha). Definido em 2026-11-01
  * (NOD-448): são ids reservados com o comportamento de sempre. ADR-162: `voce` não é coluna, é a marca "esperando a pessoa".
@@ -134,6 +132,8 @@ export type TarefaDto = TarefaQuadro & {
   naColunaDesde?: number | null; // NOD-420: epoch ms da entrada na coluna atual; null fora do Postgres
   /** NOD-460: epoch ms do despacho do turno vivo (null = não roda). ADR-163: na fila desde e o motivo real (série ou portão). */
   trabalhandoDesde?: number | null; naFilaDesde?: number | null; motivoFila?: "mesma_tarefa" | "memoria" | "processador" | "disco" | null;
+  /** 2026-11-13 (mover em lote): a posição na fila do quadro, "na fila (n de m)", pela ordem de entrada; só com m ≥ 2. */
+  posicaoFila?: { n: number; m: number } | null;
   prs?: PrNaTela[]; // NOD-421: os PRs ligados e as linhas de sistema (CI, conflito, merge)
   linhas?: LinhaDeSistema[]; estadoLinha?: import("./quadro-execucoes.ts").EstadoLinhaTarefa | null; // ADA-232: o card numa linha
   movimentos?: MovimentoDto[]; // NOD-419: os últimos movimentos (o mais novo primeiro)
