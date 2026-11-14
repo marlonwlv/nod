@@ -4,7 +4,7 @@ import { lstat, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { areaDoChrome, APAGAR_COOKIES_MS, PREPARO_DO_CHROME_MS, PRAZO_DO_CDP_MS, PRAZO_DOS_COOKIES_MS, caminhoDaCaptura, negarPermissoes, PERMISSOES_NEGADAS_COM_DOCK, semCapturaDeTela, quadroVale, criarGuardaDaSelecao, gravarSelecaoDoX, BOTOES_DO_BOT_COM_DOCK, pontoNaJanela, pontosDoToque, prazoParaFecharOChrome, RESTO_DA_ACAO_MS, ORCAMENTO_DO_RELANCAMENTO_MS, PRAZO_DE_GRACA_MS, PROGRAMAS_SO_DO_DOCK, programasParaEsconder, ABAS_TENTADAS_NO_CDP, apagarCookiesNoChrome, atenderNoPrazo, esperarQueSaia, PRAZO_FECHAR_ENVENENADA_MS, PRAZO_LIMPAR_COOKIES_NA_TELA_MS, argsDoBwrapDaTela, argsParaRolarNoChrome, capturaTrazOChrome, fecharOuMatar, ORCAMENTO_DO_FECHAR, paiDoProcesso, PRAZO_DA_ACAO_NA_TELA_MS, PRAZO_FECHAR_CHROME_MS, PRAZO_LIMPAR_STORAGE_NA_TELA_MS, responderNoPrazo, argsDoBwrapDoDock, binarioDisponivel, caminhosDoDock, cicloDoChrome, CLASSE_DO_CHROME, CLASSES_DO_CHROME_NO_OPENBOX, comFocoNoChrome, COOKIES_DEPOIS_DA_NAVEGACAO_MS, cookiesDoRelancamento, criarAgendador, criarCookiesDaTela, DOCK_ALTURA, TETO_DO_TMP_DO_DOCK, dockPossivel, focarJanelaDoChrome, janelaParaFocar, lancadorDesktop, OPENBOX_XML, precisaObservarDeNovo, prepararPastaDoDock, regraDoDockVale, tint2rc, tocaNoDock, vigiarFifo } from "../../../infra/computador/tela.mjs";
+import { areaDoChrome, APAGAR_COOKIES_MS, PREPARO_DO_CHROME_MS, PRAZO_DO_CDP_MS, PRAZO_DOS_COOKIES_MS, caminhoDaCaptura, negarPermissoes, PERMISSOES_NEGADAS_COM_DOCK, semCapturaDeTela, quadroVale, criarGuardaDaSelecao, gravarSelecaoDoX, BOTOES_DO_BOT_COM_DOCK, pontoNaJanela, pontosDoToque, prazoParaFecharOChrome, RESTO_DA_ACAO_MS, ORCAMENTO_DO_RELANCAMENTO_MS, PRAZO_DE_GRACA_MS, PROGRAMAS_SO_DO_DOCK, programasParaEsconder, ABAS_TENTADAS_NO_CDP, apagarCookiesNoChrome, atenderNoPrazo, esperarQueSaia, PRAZO_FECHAR_ENVENENADA_MS, PRAZO_LIMPAR_COOKIES_NA_TELA_MS, argsDoBwrapDaTela, argsParaRolarNoChrome, capturaTrazOChrome, fecharOuMatar, ORCAMENTO_DO_FECHAR, paiDoProcesso, PRAZO_DA_ACAO_NA_TELA_MS, PRAZO_FECHAR_CHROME_MS, PRAZO_LIMPAR_STORAGE_NA_TELA_MS, responderNoPrazo, argsDoBwrapDoDock, binarioDisponivel, caminhosDoDock, cicloDoChrome, CLASSE_DO_CHROME, CLASSES_DO_CHROME_NO_OPENBOX, comFocoNoChrome, COOKIES_DEPOIS_DA_NAVEGACAO_MS, COOKIES_DEPOIS_DO_SET_COOKIE_MS, cookiesDoRelancamento, criarAgendador, criarCookiesDaTela, acompanharSetCookie, DOCK_ALTURA, TETO_DO_TMP_DO_DOCK, dockPossivel, focarJanelaDoChrome, janelaParaFocar, lancadorDesktop, OPENBOX_XML, precisaObservarDeNovo, prepararPastaDoDock, regraDoDockVale, tint2rc, tocaNoDock, vigiarFifo } from "../../../infra/computador/tela.mjs";
 import { vizinhosDoTmp } from "../../../infra/computador/isolamento.mjs";
 import { chaveDoCookie } from "../../../infra/computador/loja-cookies.mjs";
 import { mandarAoFilho, PRAZO_ACAO_MS, PRAZO_FECHAR_TELA_MS, PRAZO_LIMPAR_STORAGE_MS } from "../../../infra/computador/supervisor.mjs";
@@ -747,6 +747,24 @@ describe("os cookies sobem logo depois da navegação (revisão 8 do PR #600)", 
     ag.parar();
     expect(marcados[1]?.vivo).toBe(false);
     expect(COOKIES_DEPOIS_DA_NAVEGACAO_MS).toBeLessThanOrEqual(1000);
+  });
+});
+
+describe("NOD-434: o login manual assenta antes de uma queda abrupta", () => {
+  it("só Set-Cookie agenda a coleta, sem esperar navegação nem a rodada de 10 s", async () => {
+    let aoResponder: ((r: { headerValue: (nome: string) => Promise<string | null> }) => void) | undefined;
+    let coletas = 0;
+    const pagina = { on: (evento: string, f: typeof aoResponder) => { if (evento === "response") aoResponder = f; } };
+    acompanharSetCookie(pagina, () => { coletas += 1; });
+
+    aoResponder?.({ headerValue: async (nome) => nome === "set-cookie" ? "sid=novo; HttpOnly" : null });
+    aoResponder?.({ headerValue: async () => null });
+    aoResponder?.({ headerValue: async () => { throw new Error("CDP caiu"); } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(coletas).toBe(1);
+    expect(COOKIES_DEPOIS_DO_SET_COOKIE_MS).toBeLessThan(COOKIES_DEPOIS_DA_NAVEGACAO_MS);
   });
 });
 
