@@ -2756,6 +2756,15 @@ function partesDaTimeline(): PartesDaTimeline | null {
  * inteiro (dezenas de milhares de nós numa conversa longa) a cada quadro de streaming custava mais que o próprio desenho.
  */
 const disclosuresAbertosEmTransicao = new Set<string>();
+// NOD-360 (CI da main, 14/11): a gravada pode entrar no histórico, ainda fechada, um instante antes de a fala que sai deixar
+// a região viva (as duas ficam ~100 ms na tela). Aberto nesse instante, o resumo da que sai valia só para ela, e a gravada
+// ficava fechada depois da troca: abrir ou fechar na região viva vale também para o mesmo `data-disclosure` do histórico.
+document.addEventListener("toggle", (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLDetailsElement) || !el.dataset.disclosure || !el.closest("#timeline-ao-vivo")) return;
+  const gravado = document.querySelector<HTMLDetailsElement>(`#timeline-historico details[data-disclosure="${CSS.escape(el.dataset.disclosure)}"]`);
+  if (gravado && gravado.open !== el.open) gravado.open = el.open;
+}, true);
 function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: { cascaMuda: boolean; historicoMuda: boolean; aoVivoMuda: boolean }): void {
   const t = estado.tela;
   const timeline = document.getElementById("timeline");
