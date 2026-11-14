@@ -21,6 +21,13 @@ describe("aviso de mensagem", () => {
     expect(aviso.esperando("p1")).toBe(0);
   });
 
+  it("guarda um aviso que chegou antes da espera, sem repetir depois de consumido", async () => {
+    const aviso = criarAvisoDeMensagem();
+    aviso.avisar("p1");
+    expect(await aviso.aguardar("p1", 10_000)).toBe(true);
+    expect(await aviso.aguardar("p1", 5)).toBe(false);
+  });
+
   it("o barramento decorado acorda com mensagem.nova, turno.iniciado, trabalho.mudou e quadro.mudou — não com o resto", async () => {
     const aviso = criarAvisoDeMensagem();
     const b = comAvisoDeMensagem(criarBarramento(), aviso);

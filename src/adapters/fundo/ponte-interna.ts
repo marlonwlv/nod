@@ -550,6 +550,13 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       }
     },
 
+    // C1 (2026-11-14): a ponte interna não tem o long-poll HTTP de `puxar`; o mesmo aviso do envio corta a soneca ociosa.
+    ...(deps.avisoDeMensagem ? {
+      aguardarTrabalho(pessoaId: string, ms: number): Promise<boolean> {
+        return deps.avisoDeMensagem!.aguardar(pessoaId, ms);
+      },
+    } : {}),
+
     // C1 (2026-11-12): o long-poll da mensagem — acorda quando sai, para a pessoa do turno, um frame que pode trazer fala.
     ...(deps.avisoDeMensagem ? {
       async aguardarMensagem(turnoId: string, ms: number): Promise<boolean> {

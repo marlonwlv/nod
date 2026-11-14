@@ -164,6 +164,8 @@ export interface PonteInterna extends PonteAguardaMensagem {
   /** ADR-085: `maquina` é a leitura do Mac que pede (ausente = app antigo ou sem leitura). ADR-130: `soDaPessoa` = drenando
    * para se atualizar (ADR-100), só aceita o que a pessoa espera agora (conversa, ligação, `pessoa_esperando`). */
   puxar(pessoaId: string, maquina?: LeituraMemoria, opcoes?: OpcoesDoPuxar): Promise<PlanoTurno | null>;
+  /** C1: a ponte interna espera trabalho novo; na HTTP o próprio `puxar` já faz long-poll. */
+  aguardarTrabalho?(pessoaId: string, ms: number): Promise<boolean>;
   renovar(p: PedidoRenovar): Promise<RespostaRenovar>;
   entregar(e: Entrega): Promise<void>;
   desconectar(machineId: string): Promise<void>;
