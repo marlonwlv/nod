@@ -23,6 +23,7 @@ import { pedirAprovacao } from "../../src/use-cases/pedir-aprovacao.ts";
 import { permitirSempre } from "../../src/use-cases/permitir-sempre.ts";
 import { dispensarDecisao } from "../../src/use-cases/dispensar-decisao.ts";
 import { REGRA_TRABALHO_PARADO } from "../../src/use-cases/trabalhos.ts";
+import { REGRAS_QUE_AUTORIZAM_ITEM_LOCAL } from "../../src/domain/autoridade-item-local.ts";
 import { registrarConector } from "../../src/use-cases/registrar-conector.ts";
 import type { Deps } from "../../src/use-cases/tipos.ts";
 import { depsSobre } from "../helpers/deps-l7.ts";
@@ -424,94 +425,74 @@ describeIntegracao("GitHub nativo: registro sem configuração e execução na m
     });
   });
 
-  it("d: card do Mac fechado por outra regra (o Parar do trabalho) que o Mac ainda executa vai à trilha com essa regra (NOD-70, revisão 7)", async () => {
-    await withRollback(MARLON, async (trx) => {
-      const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
-      const { deps, repos } = depsGithub(trx, MARLON, true);
-      await githubComAcesso(deps, repos, conversaId, agenteId);
-      const turnoId = await turnoDaConversa(repos, conversaId, agenteId);
-      const plano = await planoDoTurno(deps, turnoId, true);
-      const pedido = await pedirAprovacao(deps, { turnoId, agenteId, conversaId, plano, resumo: "Comentar", itens: [{ texto: "oi", destino: { conector: "github", ferramenta: "pr_comentar", argumentos: { repositorio: "acme/nod", numero: 1, texto: "oi" } } }] });
-      const decisaoId = pedido.data.estado === "pendente" ? pedido.data.decisao_id : "";
-      expect(await repos.decisoes.fecharPorRegra(decisaoId, { regra: REGRA_TRABALHO_PARADO, regraVersao: 1, agora: deps.agora() })).not.toBeNull();
-      // Hoje o Mac ainda puxa o item (causa raiz em issue à parte); o efeito que sai não pode sumir da trilha.
-      const puxados = await itensParaAMaquina(deps);
-      expect(puxados).toHaveLength(1);
-      await concluirItemNaMaquina(deps, { itemId: puxados[0]?.itemId ?? "", desfecho: "executado" });
-      const linhas = (await repos.trilha.doTurno(turnoId)).filter((l) => l.kind === "tool_call" && l.ferramenta === "github__pr_comentar").map((l) => l.regra);
-      expect(linhas).toEqual([REGRA_TRABALHO_PARADO]);
-    });
-  });
-
-  it("d: card parado que o Mac nunca rodou e venceu não vira 'Permitida' na trilha (NOD-70, revisão 9)", async () => {
-    await withRollback(MARLON, async (trx) => {
-      let agora = Date.now();
-      const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
-      const base = depsGithub(trx, MARLON, true);
-      const deps: Deps = { ...base.deps, agora: () => agora };
-      await githubComAcesso(deps, base.repos, conversaId, agenteId);
-      const turnoId = await turnoDaConversa(base.repos, conversaId, agenteId);
-      const plano = await planoDoTurno(deps, turnoId, true);
-      const pedido = await pedirAprovacao(deps, { turnoId, agenteId, conversaId, plano, resumo: "Comentar", itens: [{ texto: "oi", destino: { conector: "github", ferramenta: "pr_comentar", argumentos: { repositorio: "acme/nod", numero: 1, texto: "oi" } } }] });
-      const decisaoId = pedido.data.estado === "pendente" ? pedido.data.decisao_id : "";
-      expect(await base.repos.decisoes.fecharPorRegra(decisaoId, { regra: REGRA_TRABALHO_PARADO, regraVersao: 1, agora })).not.toBeNull();
-      agora += 25 * HORA;
-      expect((await expirarItensNaMaquina(deps)).expirados).toBe(1);
-      expect((await base.repos.trilha.doTurno(turnoId)).filter((l) => l.kind === "tool_call")).toEqual([]);
-    });
-  });
-
-  // Revisão 10: sem autorização, a linha só existe porque o efeito saiu; o Mac relata falha também quando o gh nem rodou.
-  for (const fechar of ["parado", "dispensado"] as const) {
-    for (const como of ["relato de falha", "varredor"] as const) {
-      it(`d: card ${fechar} do Mac com ${como} não vai à trilha como 'Permitida' (NOD-70, revisão 10)`, async () => {
-        await withRollback(MARLON, async (trx) => {
-          let agora = Date.now();
-          const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
-          const base = depsGithub(trx, MARLON, true);
-          const deps: Deps = { ...base.deps, agora: () => agora };
-          await githubComAcesso(deps, base.repos, conversaId, agenteId);
-          const turnoId = await turnoDaConversa(base.repos, conversaId, agenteId);
-          const plano = await planoDoTurno(deps, turnoId, true);
-          const pedido = await pedirAprovacao(deps, { turnoId, agenteId, conversaId, plano, resumo: "Comentar", itens: [{ texto: "oi", destino: { conector: "github", ferramenta: "pr_comentar", argumentos: { repositorio: "acme/nod", numero: 1, texto: "oi" } } }] });
-          const decisaoId = pedido.data.estado === "pendente" ? pedido.data.decisao_id : "";
-          if (fechar === "parado") expect(await base.repos.decisoes.fecharPorRegra(decisaoId, { regra: REGRA_TRABALHO_PARADO, regraVersao: 1, agora })).not.toBeNull();
-          else {
-            await base.repos.decisoes.vencerPendentes(agora + 30 * HORA);
-            await dispensarDecisao(deps, { decisaoId });
-          }
-          if (como === "varredor") {
-            agora += 25 * HORA;
-            await expirarItensNaMaquina(deps);
-          } else {
-            const puxados = await itensParaAMaquina(deps);
-            expect(puxados).toHaveLength(1);
-            await concluirItemNaMaquina(deps, { itemId: puxados[0]?.itemId ?? "", desfecho: "falhou_na_execucao" });
-          }
-          expect((await base.repos.itensAprovacao.listar(decisaoId))[0]?.desfecho).toBe("falhou_na_execucao");
-          expect((await base.repos.trilha.doTurno(turnoId)).filter((l) => l.kind === "tool_call")).toEqual([]);
-        });
-      });
-    }
+  /** O card do Mac de um comentário, como o turno pede; devolve a decisão e o item (o id que o Mac teria capturado). */
+  async function cardDoMac(deps: Deps, repos: Repos, conversaId: string, agenteId: string) {
+    await githubComAcesso(deps, repos, conversaId, agenteId);
+    const turnoId = await turnoDaConversa(repos, conversaId, agenteId);
+    const plano = await planoDoTurno(deps, turnoId, true);
+    const pedido = await pedirAprovacao(deps, { turnoId, agenteId, conversaId, plano, resumo: "Comentar", itens: [{ texto: "oi", destino: { conector: "github", ferramenta: "pr_comentar", argumentos: { repositorio: "acme/nod", numero: 1, texto: "oi" } } }] });
+    const decisaoId = pedido.data.estado === "pendente" ? pedido.data.decisao_id : "";
+    const [item] = await repos.itensAprovacao.listar(decisaoId);
+    return { turnoId, decisaoId, itemId: item?.id ?? "" };
   }
 
-  it("d: card vencido e dispensado (×) que o Mac ainda roda NÃO vira 'Você aprovou no cartão' (NOD-70, revisão 8)", async () => {
-    await withRollback(MARLON, async (trx) => {
-      const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
-      const { deps, repos } = depsGithub(trx, MARLON, true);
-      await githubComAcesso(deps, repos, conversaId, agenteId);
-      const turnoId = await turnoDaConversa(repos, conversaId, agenteId);
-      const plano = await planoDoTurno(deps, turnoId, true);
-      const pedido = await pedirAprovacao(deps, { turnoId, agenteId, conversaId, plano, resumo: "Comentar", itens: [{ texto: "oi", destino: { conector: "github", ferramenta: "pr_comentar", argumentos: { repositorio: "acme/nod", numero: 1, texto: "oi" } } }] });
-      const decisaoId = pedido.data.estado === "pendente" ? pedido.data.decisao_id : "";
-      await repos.decisoes.vencerPendentes(deps.agora() + 30 * HORA);
-      await dispensarDecisao(deps, { decisaoId });
-      // Hoje o Mac ainda puxa o item (NOD-423); se puxar, a linha não pode dizer que a pessoa aprovou.
-      for (const i of await itensParaAMaquina(deps)) await concluirItemNaMaquina(deps, { itemId: i.itemId, desfecho: "executado" });
-      const regras = (await repos.trilha.doTurno(turnoId)).filter((l) => l.kind === "tool_call" && l.ferramenta === "github__pr_comentar").map((l) => l.regra);
-      expect(regras).toEqual(["regra:cartao_dispensado"]);
+  // NOD-423: decisão fechada não é aprovação. O Parar do trabalho e o × do card não liberam o item do gh do Mac: o pull
+  // não o entrega, o relato atrasado (id capturado antes) é recusado e o varredor não fabrica falha — nada vai à trilha.
+  for (const fechar of ["parado", "dispensado"] as const) {
+    it(`d: card ${fechar} — o Mac não puxa o item, o relato atrasado é recusado e a trilha não ganha tool_call (NOD-423)`, async () => {
+      await withRollback(MARLON, async (trx) => {
+        const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
+        const { deps, repos, chamadas } = depsGithub(trx, MARLON, true);
+        const { turnoId, decisaoId, itemId } = await cardDoMac(deps, repos, conversaId, agenteId);
+        if (fechar === "parado") expect(await repos.decisoes.fecharPorRegra(decisaoId, { regra: REGRA_TRABALHO_PARADO, regraVersao: 1, agora: deps.agora() })).not.toBeNull();
+        else {
+          await repos.decisoes.vencerPendentes(deps.agora() + 30 * HORA);
+          await dispensarDecisao(deps, { decisaoId });
+        }
+        const mensagensAntes = (await repos.mensagens.listarDaConversa(conversaId, 50)).length;
+        expect(await itensParaAMaquina(deps)).toEqual([]);
+        for (const desfecho of ["executado", "falhou_na_execucao"] as const) expect((await concluirItemNaMaquina(deps, { itemId, desfecho })).events).toEqual([]);
+        expect((await repos.itensAprovacao.listar(decisaoId))[0]?.desfecho).toBeNull();
+        expect((await repos.trilha.doTurno(turnoId)).filter((l) => l.kind === "tool_call")).toEqual([]);
+        expect((await repos.mensagens.listarDaConversa(conversaId, 50)).length).toBe(mensagensAntes);
+        expect((await repos.turnos.listarDaConversa(conversaId, 50)).filter((t) => t.origem === "retomada" && t.retomaTurnoId === turnoId)).toEqual([]);
+        expect(chamadas).toEqual([]);
+      });
     });
-  });
+
+    it(`d: card ${fechar} que vence no prazo do Mac — o varredor não o conta nem o vira falha (NOD-423)`, async () => {
+      await withRollback(MARLON, async (trx) => {
+        let agora = Date.now();
+        const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
+        const base = depsGithub(trx, MARLON, true);
+        const deps: Deps = { ...base.deps, agora: () => agora };
+        const { turnoId, decisaoId } = await cardDoMac(deps, base.repos, conversaId, agenteId);
+        if (fechar === "parado") expect(await base.repos.decisoes.fecharPorRegra(decisaoId, { regra: REGRA_TRABALHO_PARADO, regraVersao: 1, agora })).not.toBeNull();
+        else {
+          await base.repos.decisoes.vencerPendentes(agora + 30 * HORA);
+          await dispensarDecisao(deps, { decisaoId });
+        }
+        agora += 25 * HORA;
+        expect(await expirarItensNaMaquina(deps)).toEqual({ expirados: 0, events: [] });
+        expect((await base.repos.itensAprovacao.listar(decisaoId))[0]?.desfecho).toBeNull();
+        expect((await base.repos.trilha.doTurno(turnoId)).filter((l) => l.kind === "tool_call")).toEqual([]);
+      });
+    });
+  }
+
+  // NOD-423 (fail-closed): no Postgres, só a pessoa ou uma regra autorizadora libera o item; qualquer outra regra que fecha
+  // a decisão (inclusive uma que ainda não existe) não. A mesma matriz roda no fake (tests/unit/domain/autoridade-item-local).
+  for (const [regra, sai] of [...REGRAS_QUE_AUTORIZAM_ITEM_LOCAL.map((r) => [r, true] as const), [REGRA_TRABALHO_PARADO, false] as const, ["regra:inventada_amanha", false] as const]) {
+    it(`d: decisão fechada por ${regra} ${sai ? "libera" : "não libera"} o item do Mac (NOD-423)`, async () => {
+      await withRollback(MARLON, async (trx) => {
+        const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
+        const { deps, repos } = depsGithub(trx, MARLON, true);
+        const { decisaoId, itemId } = await cardDoMac(deps, repos, conversaId, agenteId);
+        expect(await repos.decisoes.fecharPorRegra(decisaoId, { regra: regra as `regra:${string}`, regraVersao: 1, agora: deps.agora() })).not.toBeNull();
+        expect((await repos.itensAprovacao.pendentesNaMaquina()).map((p) => p.item.id)).toEqual(sai ? [itemId] : []);
+      });
+    });
+  }
 
   it("d: 'Sempre permitir' num turno vivo — o turno espera (aguardar) o Mac executar; a fala 'Fiz sem perguntar' sai quando ele relata, sem retomada", async () => {
     await withRollback(MARLON, async (trx) => {
