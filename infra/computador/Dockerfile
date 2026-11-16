@@ -11,7 +11,8 @@ WORKDIR /opt/nod
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY *.mjs ./
+COPY shell-visual/ ./shell-visual/
 RUN mkdir -p /workspace /home/node/.config && chown -R node:node /workspace /home/node
 USER node
-ENV DISPLAY=:99 HOME=/home/node HTTP_PROXY=http://egress:3128 HTTPS_PROXY=http://egress:3128 http_proxy=http://egress:3128 https_proxy=http://egress:3128 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1
+ENV DISPLAY=:99 HOME=/home/node NOD_SHELL_VISUAL=desligado NOD_SHELL_VISUAL_PACOTE=/opt/nod/shell-visual NOD_SHELL_VISUAL_ESTADO=/home/node/.local/state/nod/shell-visual HTTP_PROXY=http://egress:3128 HTTPS_PROXY=http://egress:3128 http_proxy=http://egress:3128 https_proxy=http://egress:3128 NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1
 CMD ["node", "runtime.mjs"]

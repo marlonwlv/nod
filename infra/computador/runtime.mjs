@@ -9,6 +9,7 @@ import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import { setTimeout as delay } from 'node:timers/promises';
 import { lerTexto, gravarTexto } from './texto.mjs';
+import { prepararShellVisual } from './shell-visual.mjs';
 import { codigoDaAcao, codigoDaSubida, falhaDe, primeiraLinha, PRAZO_NAVEGADOR_MS, TRAVAS_DO_PERFIL } from './falhas.mjs';
 const exec = promisify(execFile);
 const run = (bin,args,options={}) => exec(bin,args,{timeout:25000,maxBuffer:4*1024*1024,...options});
@@ -160,6 +161,12 @@ async function perfilSaiuLimpo() {
 }
 
 async function subir() {
+  // NOD-497: Docker usa o mesmo bundle que Orgo. A flag nasce desligada até o Paper aprovado existir; habilitar sem um
+  // bundle íntegro falha antes de abrir o display, em vez de misturar versões ou inventar uma aparência parcial.
+  await prepararShellVisual({
+    origem: process.env.NOD_SHELL_VISUAL_PACOTE ?? '/opt/nod/shell-visual',
+    estado: process.env.NOD_SHELL_VISUAL_ESTADO ?? '/home/node/.local/state/nod/shell-visual',
+  });
   await mkdir('/workspace/downloads',{recursive:true});
   await mkdir('/home/node/profile',{recursive:true});
   process.env.DBUS_SESSION_BUS_ADDRESS=(await run('dbus-daemon',['--session','--fork','--print-address=1'])).stdout.trim();

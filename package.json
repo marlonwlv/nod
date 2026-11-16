@@ -51,6 +51,8 @@
     "desktop:windows": "npm run desktop:build -- --windows && electron-builder --win --x64 --publish never --config electron-builder-windows.yml",
     "desktop:pack": "npm run desktop:build && electron-builder --mac --dir --publish never",
     "computador:build": "node scripts/computador/build.ts",
+    "computador:shell": "node scripts/computador/shell-visual.ts",
+    "qa:shell-visual": "node scripts/qa-shell-visual/relatorio.ts",
     "computador:orfaos": "node scripts/computadores-orfaos.ts",
     "computador:legado": "node scripts/computador-legado.ts",
     "paridade": "node scripts/paridade.ts"
