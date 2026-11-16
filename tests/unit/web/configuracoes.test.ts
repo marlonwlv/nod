@@ -161,7 +161,7 @@ describe("Geral (critérios 4 e 5)", () => {
 
   it("NOD-117: o bloco Ajuda é a folha, com os 14 atalhos nas teclas do lugar e texto para leitor de tela", () => {
     const ajudaDe = (html: string) => html.slice(html.indexOf('id="ajuda"'), html.indexOf("Avançado"));
-    const titulos = ["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Nova sala", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"];
+    const titulos = ["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Novo chat em grupo", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"];
     const casos: [Parameters<typeof renderGeral>[3], string, string][] = [
       ["app-mac", "<kbd>⌘</kbd><kbd>N</kbd>", "Command N"],
       ["navegador-mac", "<kbd>⌃</kbd><kbd>N</kbd>", "Control N"],
@@ -193,7 +193,7 @@ describe("Geral (critérios 4 e 5)", () => {
     // O contexto real chega ao atalho: Seu espaço, ditado e diálogo.
     const ctx = main.slice(novos, main.indexOf("});", novos));
     for (const c of ["SELETOR_CAMPO", "SELETOR_MODAL", "espaco: !!estado.espaco", "ditando: ditado.ativo()", "telaOnboarding.cobre()"]) expect(ctx, c).toContain(c);
-    expect(main).toMatch(/aria-keyshortcuts="\$\{ATALHO_NOVO_BOT\.aria\} Shift\+Enter Shift\+Space" title="Novo bot \(\$\{ATALHO_NOVO_BOT\.texto\}\) · segure para criar na hora"/);
+    expect(main).toMatch(/aria-keyshortcuts="\$\{ATALHO_NOVO_BOT\.aria\} \$\{ATALHO_NOVA_SALA\.aria\} Shift\+Enter Shift\+Space" title="Novo \(\$\{ATALHO_NOVO_BOT\.texto\} bot · \$\{ATALHO_NOVA_SALA\.texto\} grupo\) · segure para criar um bot na hora"/);
   });
 
   it("toda ação de Geral e de Conta tem tratador no main.ts", () => {

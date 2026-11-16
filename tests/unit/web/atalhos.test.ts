@@ -227,7 +227,7 @@ describe("NOD-117: índice e vizinho", () => {
 describe("NOD-117: folha e rótulo do +", () => {
   it("14 linhas (9 da NOD-117 e 5 da ADR-167), com as teclas do lugar (NOD-461: ⌥← → na de página e a linha de mover)", () => {
     const app = linhasDaFolha("app-mac");
-    expect(app.map((l) => l.titulo)).toEqual(["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Nova sala", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"]);
+    expect(app.map((l) => l.titulo)).toEqual(["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Novo chat em grupo", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"]);
     expect(app[0]!.combinacoes).toEqual([["⌘", "N"]]);
     expect(app[3]!.combinacoes).toEqual([["⌘", "["], ["⌘", "]"], ["⌥", "←"], ["⌥", "→"]]);
     expect(app[4]!.combinacoes).toEqual([["⌥", "⇧", "←"], ["⌥", "⇧", "→"]]);
