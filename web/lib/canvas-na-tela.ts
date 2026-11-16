@@ -750,7 +750,9 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     const api = o.api();
     const id = aberto;
     const d = dados;
-    if (!api || !id || !d || enviando || !rascunhos.length) return;
+    if (!api || !id || !d || enviando) return;
+    soltarNota();
+    if (!rascunhos.length) { desenharPinos(); desenharTopo(); return; }
     enviando = true; desenharTopo();
     // Revisão do #677: a conversa e o nome são os do bot de agora; a pessoa pode trocar de bot antes do recibo.
     const conversa = o.conversa?.() ?? null;
@@ -910,10 +912,11 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
       case "expandir": { const t = el.dataset["tela"] ?? ""; fechadas.delete(t); q(`.cv-tela[data-tela="${CSS.escape(t)}"]`)?.classList.remove("cv-fechada"); if (irPara(t, { real: true })) marcarHash(t); return; }
       case "thread": novo = null; soltarNota(); erroThread = ""; thread = thread === id ? null : id; desenharPinos(); desenharCamada(); if (thread) q<HTMLInputElement>("#cv-resp-in")?.focus(); return;
       case "rascunho": {
+        soltarNota();
         const r = rascunhos.find((x) => x.id === id);
-        if (!r) return;
+        if (!r) { desenharPinos(); desenharTopo(); return; }
         thread = null;
-        if (r.tipo === "pino") { novo = { endereco: r.endereco, x: r.x ?? 0.5, y: r.y ?? 0.5, rasc: r.id }; desenharCamada(); q<HTMLTextAreaElement>("#cv-novo-in")?.focus(); }
+        if (r.tipo === "pino") { novo = { endereco: r.endereco, x: r.x ?? 0.5, y: r.y ?? 0.5, rasc: r.id }; desenharPinos(); desenharCamada(); q<HTMLTextAreaElement>("#cv-novo-in")?.focus(); }
         else { notaEm = r.endereco; notaRascunho = r.id; desenharPinos(); const n = q<HTMLTextAreaElement>("#cv-nota-in"); if (n) { n.value = r.texto; n.focus(); } desenharTopo(); }
         return;
       }
