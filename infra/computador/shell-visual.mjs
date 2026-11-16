@@ -101,7 +101,10 @@ async function conferirVersao(raiz, manifestoEsperado = null) {
 }
 
 async function ponteiro(estado, nome) {
-  const alvo = await readlink(path.join(estado, nome)).catch(() => null);
+  const alvo = await readlink(path.join(estado, nome)).catch((erro) => {
+    if (erro?.code === 'ENOENT') return null;
+    falhar('shell_ponteiro_invalido');
+  });
   if (alvo === null) return null;
   const prefixo = 'versoes/';
   if (!alvo.startsWith(prefixo) || alvo.includes('..') || !VERSAO_RE.test(alvo.slice(prefixo.length))) falhar('shell_ponteiro_invalido');

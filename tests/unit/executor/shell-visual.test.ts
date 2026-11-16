@@ -114,6 +114,14 @@ describe("shell visual compartilhado", () => {
     expect((await recuperarShellVisual({ estado })).versao).toBe("paper-v2");
   });
 
+  it("falha fechado quando um ponteiro foi corrompido como arquivo comum", async () => {
+    const origem = await pasta(); await bundle(origem, "paper-v1"); const estado = path.join(await pasta(), "estado");
+    await aplicarShellVisual({ origem, estado, versao: "paper-v1" });
+    const { rm } = await import("node:fs/promises"); await rm(path.join(estado, "atual")); await writeFile(path.join(estado, "atual"), "versoes/paper-v1");
+    await expect(verificarShellVisual({ estado })).rejects.toMatchObject({ code: "shell_ponteiro_invalido" });
+    await expect(aplicarShellVisual({ origem, estado, versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_ponteiro_invalido" });
+  });
+
   it("remove trava órfã mas não atropela atualização viva", async () => {
     const origem = await pasta(); await bundle(origem, "paper-v1"); const estado = path.join(await pasta(), "estado"); const trava = path.join(estado, ".aplicando");
     await mkdir(trava, { recursive: true });
