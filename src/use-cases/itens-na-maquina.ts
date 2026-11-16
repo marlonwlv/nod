@@ -39,6 +39,9 @@ export async function itensParaAMaquina(deps: Deps): Promise<ItemParaAMaquina[]>
 export async function concluirItemNaMaquina(deps: Deps, input: { itemId: string; desfecho: Extract<DesfechoItem, "executado" | "falhou_na_execucao"> }): Promise<{ events: RuntimeEvent[] }> {
   const pendente = (await deps.repos.itensAprovacao.pendentesNaMaquina()).find((p) => p.item.id === input.itemId);
   if (!pendente) return { events: [] };
+  // O Mac pode ter puxado o item antes do prazo e só relatar depois. O pull já esconde vencidos; o relato precisa repetir
+  // o mesmo portão para não ganhar a corrida do varredor e assentar como executado algo que venceu após 24 h.
+  if (deps.agora() - pendente.decididaEm >= PRAZO_ITEM_NA_MAQUINA_MS) return { events: [] };
   const gravado = await deps.repos.itensAprovacao.registrarDesfechoSeAberto(input.itemId, input.desfecho);
   if (!gravado) return { events: [] };
   await registrarNaTrilha(deps, pendente.item.decisaoId, pendente.item.destino, input.desfecho);

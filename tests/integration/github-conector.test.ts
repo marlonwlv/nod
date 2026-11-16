@@ -416,6 +416,11 @@ describeIntegracao("GitHub nativo: registro sem configuração e execução na m
       expect((await expirarItensNaMaquina(deps)).expirados).toBe(0);
       agora += 2 * HORA;
       expect(await itensParaAMaquina(deps)).toEqual([]);
+      // O Mac pode ter capturado o id antes das 24 h e relatar depois. O resultado atrasado não pode ganhar a corrida
+      // do varredor: o item continua aberto para vencer como falha.
+      const [item] = await base.repos.itensAprovacao.listar(decisaoId);
+      expect(await concluirItemNaMaquina(deps, { itemId: item?.id ?? "", desfecho: "executado" })).toEqual({ events: [] });
+      expect((await base.repos.itensAprovacao.listar(decisaoId))[0]?.desfecho).toBeNull();
       const r = await expirarItensNaMaquina(deps);
       expect(r.expirados).toBe(1);
       expect((await base.repos.itensAprovacao.listar(decisaoId))[0]?.desfecho).toBe("falhou_na_execucao");
