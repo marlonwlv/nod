@@ -38,7 +38,8 @@ npx wrangler deploy -c site/wrangler.jsonc
 Publica a pasta `site/` em https://nodbot-site.nodbot.workers.dev (e em nodbot.ai, depois que o domínio for ligado).
 Não há deploy automático nem preview por PR: para testar antes do merge, use o `wrangler dev` local ou
 `npx wrangler versions upload -c site/wrangler.jsonc`, que devolve uma URL de versão sem mexer na produção.
-O `deploy.yml` do app não toca nesta pasta (ela está no `.dockerignore`).
+O build Docker do app inclui o fonte do Worker para o typecheck; o estado local e os arquivos de ambiente do site
+ficam fora do contexto. A imagem final não inclui `site/`, e o `deploy.yml` do app não publica o Worker.
 
 ## Indexação e CTAs (NOD-322)
 
