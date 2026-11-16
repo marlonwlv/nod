@@ -415,6 +415,7 @@
   .nl-aviso .nl-desfazer { height: 40px; font-size: 15px; }
   /* A frase da recusa das páginas (revisão 6 do PR 626): ocupa a largura entre as margens e quebra em até três linhas. */
   .nl-aviso.nl-aviso-frase { width: auto; max-width: none; padding: 12px 16px; line-height: 20px; }
+  .nlc-abrir { min-height: var(--cel-alvo); }
   .nlc-abrir time { display: none; }
   .nlc-check { width: var(--cel-alvo); height: var(--cel-alvo); top: 50%; right: 6px; }
   .tela-formulario { margin: 4px auto; }
