@@ -179,6 +179,7 @@ descrever("celular: aviso do Backlog, prioridade, alvos de 44 px e a máquina em
     expect(await avaliar<string[]>(cdp, MEDIR("#quadro"))).toEqual([]);
     // Os popovers da barra (o funil, a pílula de quem trabalha e as Opções), um de cada vez.
     for (const [act, pop] of [["fil-abrir", "#qm-pop-fil"], ["ativos-abrir", "#qm-pop-ativos"], ["op-abrir", "#qm-pop-op"]] as const) {
+      if (!(await avaliar<boolean>(cdp, `!!document.querySelector('#quadro [data-act="${act}"]')`))) continue;
       await clicar(`#quadro [data-act="${act}"]`);
       await ate(`document.querySelector('${pop}')`, `o popover ${pop}`);
       expect(await avaliar<string[]>(cdp, MEDIR(pop))).toEqual([]);

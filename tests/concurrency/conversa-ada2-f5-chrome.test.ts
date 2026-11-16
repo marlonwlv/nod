@@ -295,12 +295,14 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
 
     // Revisão do PR #703: a fala de vários balões (um por parágrafo) que abre com bloco de código. Todos os balões se escondem,
     // então todos ganham cópia; e as setas/Home andam só entre os itens do menu (o Copiar do código na cópia é inert).
+    const botLonga = await criarBot("Longa F5");
+    await abrir(390, 844);
+    await abrirConversa(botLonga);
     const LONGA = "```\nx = 1\n```\n\nDepois do código, o parágrafo da fala longa.";
-    await avaliar(cdp, `(() => { const ta = document.getElementById("composer-texto"); ta.focus(); ta.value = ${JSON.stringify(`Mais uma [[texto: ${LONGA}]]`)}; ta.dispatchEvent(new Event("input", { bubbles: true })); })()`);
-    await clicar('.composer [data-act="enviar"]');
+    await srv.json("POST", `conversas/${botLonga.conversaId}/mensagens`, { texto: `Mais uma [[texto: ${LONGA}]]` });
     const seletorDaLonga = `[...document.querySelectorAll("#timeline .message.bot[data-mensagem]")].find((m) => [...m.querySelectorAll(".bubble")].some((b) => b.textContent.includes("parágrafo da fala longa")))`;
     await ate(`(${seletorDaLonga})?.querySelectorAll(".bubble").length >= 2 && (${seletorDaLonga}).querySelector('[data-act="copiar-codigo"]')`, "a fala longa em balões, com o código", 25_000);
-    await tocar(650, seletorDaLonga);
+    await tocar(650, seletorDaLonga, ".bubble:last-of-type");
     await ate(`document.querySelector(".bot-menu.menu-fala-seg")`, "o menu da fala longa");
     const longa = await avaliar<{ baloes: number; copias: number; textos: boolean }>(cdp, `(() => { const d = document.querySelector(".bot-menu.menu-fala-seg"); const m = ${seletorDaLonga};
       const copias = [...d.querySelectorAll(".fala-copia")];
@@ -332,7 +334,7 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     expect(q).toMatchObject({ mais: "block", clipe: "none", pilEsq: "52px", enviarBorda: "solid true", enviarFundo: "rgba(0, 0, 0, 0)", enviarLargura: 46, clipeLargura: 46, act: "anexar" });
   }, 90_000);
 
-  it("1280: o computador fica como era — sem +, caixa com borda própria, card cheio — e o ⋯ ganha Criar tarefa disto", async () => {
+  it("1280: o computador mantém o +, caixa com borda própria, card cheio — e o ⋯ ganha Criar tarefa disto", async () => {
     const bot = await criarBot("Mesa F5");
     await abrir(1280, 800);
     await abrirConversa(bot);
@@ -340,7 +342,7 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     const mesa = await avaliar<{ mais: string; caixaBorda: string; antes: string; cardFundo: string }>(cdp, `(() => { const box = document.querySelector(".composer .box");
       return { mais: getComputedStyle(box.querySelector(".mais-campo")).display, caixaBorda: getComputedStyle(box).borderTopWidth, antes: getComputedStyle(box, "::before").content,
         cardFundo: getComputedStyle(document.querySelector("#timeline .cp .cp-sim")).backgroundColor }; })()`);
-    expect(mesa.mais).toBe("none");
+    expect(mesa.mais).toBe("grid");
     expect(mesa.caixaBorda).not.toBe("0px");
     expect(mesa.antes).toBe("none");
     expect(mesa.cardFundo).not.toBe("rgba(0, 0, 0, 0)");

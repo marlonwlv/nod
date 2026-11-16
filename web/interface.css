@@ -521,6 +521,10 @@
 .fala-viva .msg-autor { min-width: 0; max-width: 100%; }
 .fala-viva .msg-autor b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pensar { margin: 0 0 8px; color: var(--ink); }
+.message.fala-viva .pensar { margin-bottom: 6px; }
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .message.fala-viva .pensar { margin-bottom: 8px; }
+}
 .pensar > summary { display: flex; align-items: center; gap: 9px; max-width: 100%; min-height: 24px; box-sizing: border-box;
   position: relative; left: -6px; padding: 2px 6px; border-radius: var(--raio-6); list-style: none; cursor: pointer; }
 .pensar > summary::-webkit-details-marker { display: none; }

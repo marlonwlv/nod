@@ -352,9 +352,9 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 /* ---- A fala viva (Paper 05): "··· Pensando" — o mascote pequeno à esquerda; o tempo e a seta só no hover ---- */
 .timeline .message.fala-viva > nod-mascote { display: block; width: 24px; height: 22px; margin: 0 14px 0 3px; flex: none; }
 .timeline .message.fala-viva .bubble-wrap { flex: 1; min-width: 0; }
-/* Paper 05/05b (rodada 4): a fala viva no fim da conversa encosta no campo como o Paper (16 px do wrap), sem os 18 px
-   de margem das mensagens; com algo depois dela (um cartão), a margem volta. */
-.timeline .bloco:has(> .message.fala-viva:last-child):not(:has(~ .bloco > *)) > .message.fala-viva { margin-bottom: 0; }
+/* Paper 05/05b (rodada 4): a última fala do bot encosta no campo como o Paper (16 px do wrap), sem os 18 px
+   de margem das mensagens; manter a mesma regra depois de gravá-la evita o salto no fim do turno. */
+.timeline .bloco:has(> .message.bot:last-child):not(:has(~ .bloco > *)) > .message.bot { margin-bottom: 0; }
 .timeline .message.fala-viva .pensar[data-fase="pensando"] :is(.pensar-meta, .pensar-seta) { visibility: hidden; }
 .timeline .message.fala-viva .pensar[data-fase="pensando"]:hover :is(.pensar-meta, .pensar-seta) { visibility: visible; }
 .timeline .message.fala-viva .fala-viva-estado { font-size: var(--fs-corpo); color: var(--ink-2); }
