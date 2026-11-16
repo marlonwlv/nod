@@ -88,6 +88,11 @@ const PRAZO_POR_TIPO: Record<TipoDecisao, (em: string, item: Item) => string> = 
   quadro_exclusao: nadaMudaSemVoce,
 };
 
+/** O que acontece quando o prazo do item passa, com o `em` já escrito ("recusa automática em 12 min"; PRAZO_POR_TIPO). */
+export function prazoDoPedido(item: Item, em: string): string {
+  return PRAZO_POR_TIPO[item.decisao.tipo](em, item);
+}
+
 /** Regras que fecham decisão sem pessoa (ADR-042), em frase curta; regra sem tradução cai no genérico. */
 const REGRA_HUMANA: Readonly<Record<string, string>> = {
   "regra:rotina_nao_retoma": "fechado: a rotina não retoma",

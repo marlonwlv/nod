@@ -452,6 +452,18 @@
    toque. A folha sobe com `transform` (não há retângulo da pílula de onde abrir). */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .pf-fechada { height: 44px; max-width: calc(100% - 8px); }
+  /* A pílula "N esperam você" (2026-11-16, Paper P5): alvo de 44 px, o prazo curto ("12 min") num rótulo à parte e sem o
+     × (dispensar não é essencial e brigaria com o toque). A de Trabalhos, na mesma linha, também com 44 px. */
+  .stage > .lugar-pendencias, .lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos { padding: 0 12px; }
+  .lugar-pendencias .pilula-pend { height: 44px; }
+  .pp-dispensar { display: none; }
+  .lugar-pendencias .pp-botao { padding: 0 12px; }
+  .pp-longo { display: none; }
+  .pp-curto { display: inline; }
+  .lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .faixa-trab-lugar { margin-top: -54px; }
+  .lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .faixa-trab-lugar > * { max-width: calc(100% - 196px); }
+  .lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .pilula-trab { height: 44px; }
+  .lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .pf-fechada { bottom: 10px; max-width: calc(100% - 196px); }
   .pf-memoria { width: 44px; height: 44px; margin: 0 0 0 -10px; }
   .pf-moldura { position: fixed; z-index: 41; left: 0; right: 0; bottom: 0; }
   .pf-painel { max-height: 82dvh; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); border: 0; border-radius: 18px 18px 0 0; clip-path: none; opacity: 1;

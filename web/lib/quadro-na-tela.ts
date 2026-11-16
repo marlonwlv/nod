@@ -224,7 +224,7 @@ const CAMPOS_COM_RASCUNHO = "textarea.qd-resp-in[id], textarea.qd-com-in[id]";
 const SEM_PARAR_DEPOIS_DE_ENVIAR_MS = 600;
 
 /** Os pedaços do palco que são "a conversa": saem juntos quando o Quadro entra. */
-export const LADO_DA_CONVERSA = ["timeline", "pilula-novas", "faixa-trabalhos", "composer"] as const;
+export const LADO_DA_CONVERSA = ["timeline", "pilula-novas", "pendencias", "faixa-trabalhos", "composer"] as const;
 
 export interface QuadroNaTela {
   /**

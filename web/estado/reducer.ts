@@ -532,6 +532,11 @@ export type Estado = {
   composer: Record<string, EscolhaComposer>;
   /** A citação do campo por conversa (CitacaoNoCampo); ausente = a mensagem não responde a nenhuma fala. */
   citacoes: Record<string, CitacaoNoCampo>;
+  /**
+   * O × da pílula "N esperam você" (item 10 dos acessos devolvidos, 2026-11-16): os ids dos pedidos que a pessoa já viu e
+   * dispensou, por conversa. Só em memória, de propósito: recarregar mostra de novo (web/lib/pendencias.ts).
+   */
+  pendenciasDispensadas: Record<string, readonly string[]>;
   conexao: { estado: EstadoConexao; tentativa: number; proximaEmMs: number | null };
   /** O que a próxima volta do main precisa buscar por REST (conjunto, sem duplicata). */
   invalidacoes: Invalidacao[];
@@ -621,6 +626,7 @@ export type Acao =
   /** Abre ou fecha uma linha recolhida das Configurações. */
   | { tipo: "config-recolhe"; id: string }
   | { tipo: "tick"; agora: number }
+  | { tipo: "dispensar-pendencias"; conversaId: string; ids: readonly string[] }
   | { tipo: "cancelando-turno"; turnoId: string; agora: number }
   | { tipo: "desfazer-cancelamento"; turnoId: string }
   | { tipo: "conexao"; estado: EstadoConexao; tentativa: number; proximaEmMs: number | null }
@@ -796,6 +802,7 @@ export const estadoInicial: Estado = {
   faixaParada: null,
   composer: {},
   citacoes: {},
+  pendenciasDispensadas: {},
   conexao: { estado: "parado", tentativa: 0, proximaEmMs: null },
   invalidacoes: [],
   agora: 0,
@@ -2137,6 +2144,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       if (t.tipo !== "trabalho" || t.id !== acao.id) return estado;
       return resolverInicio({ ...estado, tela: t.voltar, invalidacoes: estado.invalidacoes.filter((q) => q !== `trabalho:${acao.id}`) });
     }
+    case "dispensar-pendencias":
+      return { ...estado, pendenciasDispensadas: { ...estado.pendenciasDispensadas, [acao.conversaId]: [...acao.ids] } };
     case "faixa-trabalhos":
       return estado.faixaTrabalhosAberta === acao.agenteId ? estado : { ...estado, faixaTrabalhosAberta: acao.agenteId };
     case "bot-trabalhos":
