@@ -49,7 +49,7 @@ describeIntegracao("mensagem nova com aprovação aberta: o pedido é substituí
       expect(decisao?.desfecho).toMatchObject({ tipo: "decidida_por_regra", regra: REGRA_APROVACAO_SUBSTITUIDA });
       const itens = await c.repos.itensAprovacao.listar(decisaoId);
       expect(itens.every((i) => !i.selecionado && i.desfecho === null)).toBe(true);
-      expect(r.events.some((e) => e.kind === "decisao_decidida" && e.dados?.regra === REGRA_APROVACAO_SUBSTITUIDA)).toBe(true);
+      expect((r.events ?? []).some((e) => e.kind === "decisao_decidida" && e.dados?.regra === REGRA_APROVACAO_SUBSTITUIDA)).toBe(true);
       const recibos = (await c.repos.mensagens.listarDaConversa(c.conversaId, 50)).filter((m) => m.kind === "resultado_aprovacao");
       expect(recibos).toHaveLength(1);
       expect(recibos[0]?.payload).toMatchObject({ kind: "resultado_aprovacao", decisaoId, substituida: true });
@@ -63,7 +63,7 @@ describeIntegracao("mensagem nova com aprovação aberta: o pedido é substituí
     await withRollback(MARLON, async (trx) => {
       const c = await cenario(trx);
       const r = await enviarMensagem(c.deps, { conversaId: c.conversaId, texto: "oi" });
-      expect(r.events.some((e) => e.kind === "decisao_decidida")).toBe(false);
+      expect((r.events ?? []).some((e) => e.kind === "decisao_decidida")).toBe(false);
     });
   });
 });
