@@ -54,7 +54,7 @@ const MARCA: Record<Exclude<MarcaDoEncolhido, null>, string> = {
 };
 
 /** O leitor de tela ouve o estado depois da linha (a marca é desenho). */
-const NOME_DA_MARCA: Record<Exclude<MarcaDoEncolhido, null>, string> = { ok: "feito", falha: "não saiu", regra: "regra", "sem-resposta": "sem resposta" };
+const NOME_DA_MARCA: Record<Exclude<MarcaDoEncolhido, null>, string> = { ok: "feito", falha: "não saiu", regra: "regra", "sem-resposta": "você mandou outra mensagem antes de responder" };
 
 /**
  * NOD-399: o card decidido vira UMA linha (`.cp-linha` de web/card-proposta.css): a marca, o resultado ("✓ Confirmado
