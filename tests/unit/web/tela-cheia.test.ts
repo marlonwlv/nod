@@ -66,11 +66,12 @@ function pendente(): Pendente {
   const promessa = new Promise((r, j) => { resolver = r; rejeitar = j; });
   return { resolver, rejeitar, promessa };
 }
-const dto = (controle: "bot" | "pessoa", indisponivelDesde: number | null = null) => ({ ativo: true, disponivel: true, motivo: null, atividade: [], computador: { controle, ocupadoAte: 0, indisponivelDesde } });
+type Controle = "bot" | "pessoa" | "aguardando_pessoa";
+const dto = (controle: Controle, indisponivelDesde: number | null = null, ajuda: string | null = null) => ({ ativo: true, disponivel: true, motivo: null, atividade: [], computador: { id: "c1", habilitado: true, controle, ocupadoAte: 0, indisponivelDesde, ajuda } });
 /** Só microtarefas: o setTimeout é falso aqui. */
 async function esvaziar(): Promise<void> { for (let i = 0; i < 30; i++) await Promise.resolve(); }
 
-function api(controleInicial: "bot" | "pessoa", indisponivelDesde: number | null = null) {
+function api(controleInicial: Controle, indisponivelDesde: number | null = null) {
   let controle = controleInicial;
   const chamadas: string[] = [];
   let assumir: Pendente | null = null;
@@ -361,5 +362,48 @@ describe("fechar: só pelo botão; Esc não fecha; no controle devolve", () => {
     await esvaziar();
     expect(estadoDaBarraNaTela()).toBe("assistindo");
     expect(vnc.soVer.at(-1)).toBe(true);
+  });
+});
+
+describe("item 5: o título do topo diz de quem é a tela e o pedido de ajuda", () => {
+  const titulo = () => dialog.querySelector(".ctc-titulo");
+
+  it("abre com Tela de Dev 2; o dialog usa o h1 como nome", async () => {
+    abrirTelaCheia(api("bot") as never, BOT, { vivo: vncFalso().abrir });
+    await esvaziar();
+    expect(titulo().innerHTML).toContain("Tela de Dev 2");
+    expect(dialog.getAttribute("aria-labelledby")).toBe("ctc-titulo");
+    expect(dialog.getAttribute("aria-label")).toBe("Tela de Dev 2");
+  });
+
+  it("aberta pelo pedido, com o bot esperando a pessoa: o pedido aparece no topo", async () => {
+    const a = api("aguardando_pessoa");
+    abrirTelaCheia(a as never, BOT, { pedido: "Entre no banco", vivo: vncFalso().abrir });
+    await esvaziar();
+    expect(titulo().innerHTML).toContain("Dev 2 precisa de você");
+    expect(titulo().innerHTML).toContain(" · Entre no banco");
+    expect(titulo().getAttribute("title")).toBe("Dev 2 precisa de você · Entre no banco");
+    expect(dialog.querySelector(".ctc-pedido").textContent).toBe("Entre no banco");
+  });
+
+  it("o bot pede ajuda com a tela aberta: a leitura de 2 s atualiza o título; depois do Já resolvi, volta", async () => {
+    const a = api("bot");
+    abrirTelaCheia(a as never, BOT, { vivo: vncFalso().abrir });
+    await esvaziar();
+    const escritas = titulo().historico.length;
+    a.computador.mockImplementation(async () => dto("aguardando_pessoa", null, "Leia o QR code"));
+    vi.advanceTimersByTime(2_000);
+    await esvaziar();
+    expect(titulo().innerHTML).toContain("Dev 2 precisa de você");
+    expect(titulo().innerHTML).toContain("Leia o QR code");
+    // A leitura seguinte, igual, não reescreve o título (não rouba o foco nem relê).
+    vi.advanceTimersByTime(2_000);
+    await esvaziar();
+    expect(titulo().historico.length).toBe(escritas + 1);
+    a.computador.mockImplementation(async () => dto("bot"));
+    dialog.clicar("devolver");
+    await esvaziar();
+    expect(titulo().innerHTML).toContain("Tela de Dev 2");
+    expect(dialog.querySelector(".ctc-pedido").textContent).toBe("");
   });
 });

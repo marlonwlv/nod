@@ -70,3 +70,30 @@ describe("Configurações › Computador (especificação D, item 7)", () => {
     expect(renderSecaoComputador(com(null))).toContain("O computador dos bots ainda não está ligado nesta conta.");
   });
 });
+
+describe("Acessos · computador, item 8: o porquê nas Configurações", () => {
+  const GB = 1024 ** 3;
+  it("fora do ar: o desde junto do status e o motivo embaixo; as telas abertas esperam o computador", () => {
+    const desde = new Date(2026, 10, 16, 14, 2).getTime();
+    const html = renderSecaoComputador(com(pc({ estado: "fora_do_ar", falha: { motivo: "sem_resposta", desde }, memoria: { usadaMb: 2150, totalMb: 8192 }, telas: [{ agenteId: "a1", estado: "aberta", controle: "bot", memoriaMb: 1, titulo: "nfse.prefeitura.gov.br", ultimaAcaoEm: Date.now() }] })));
+    expect(html).toContain("Fora do ar desde 14:02 · ");
+    expect(html).toContain('<span class="cpc-detalhe">O computador parou de responder. Enquanto isso, os bots trabalham sem ele.</span>');
+    expect(html).toContain('<i class="cpc-ponto" aria-hidden="true"></i>Esperando o computador · nfse.prefeitura.gov.br');
+  });
+
+  it("macOS antigo: a faixa com Conectar uma VM", () => {
+    const html = renderSecaoComputador(com(pc({ preparo: { estado: "macos_antigo", desde: 0 } })));
+    expect(html).toContain("O computador do bot pede macOS 13 ou mais novo");
+    expect(html).toContain('data-act="conectar-sempre-ligada"');
+    expect(html).toContain("Conectar uma VM");
+  });
+
+  it("baixando: a barra com aria-valuenow e o X de Y; saudável, nada disso", () => {
+    const html = renderSecaoComputador(com(pc({ estado: "dormindo", preparo: { estado: "baixando", bytes: 1.2 * GB, total: 3.4 * GB, desde: 0 } })));
+    expect(html).toContain('aria-label="Baixando o computador" aria-valuemin="0" aria-valuemax="100" aria-valuenow="35"');
+    expect(html).toContain("Baixando o computador · 1,2 GB de 3,4 GB · 35%");
+    const ok = renderSecaoComputador(com(pc()));
+    expect(ok).not.toContain("cpc-detalhe");
+    expect(ok).not.toContain("macOS 13");
+  });
+});
