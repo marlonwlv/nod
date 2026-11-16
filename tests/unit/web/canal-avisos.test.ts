@@ -100,6 +100,50 @@ describe("canal de avisos: som (NOD-196)", () => {
     expect(aoMudar).not.toHaveBeenCalled();
     expect(c.ligado()).toBe(true);
   });
+
+  it("dois toques simultâneos no som são aplicados em ordem e cancelam a alternância", async () => {
+    const mac = ponte();
+    const pendentes: Array<(prefs: PreferenciasDesktop) => void> = [];
+    mac.definirSom = (ligado) => new Promise((resolve) => pendentes.push(() => resolve({ ...PADRAO, som: ligado })));
+    const { canal: c } = canal(mac);
+    await esperarMicrotarefas();
+
+    const primeiro = c.alternarSom?.();
+    const segundo = c.alternarSom?.();
+    await esperarMicrotarefas();
+    expect(pendentes).toHaveLength(1);
+    pendentes.shift()?.(PADRAO);
+    await esperarMicrotarefas();
+    expect(pendentes).toHaveLength(1);
+    pendentes.shift()?.(PADRAO);
+    await Promise.all([primeiro, segundo]);
+    expect(c.som?.()).toBe(true);
+  });
+});
+
+describe("canal de avisos: concorrência dos interruptores", () => {
+  it("dois toques simultâneos nos avisos são aplicados em ordem e cancelam a alternância", async () => {
+    const mac = ponte();
+    const chamados: boolean[] = [];
+    const pendentes: Array<(prefs: PreferenciasDesktop) => void> = [];
+    mac.definirAvisos = (ligado) => {
+      chamados.push(ligado);
+      return new Promise((resolve) => pendentes.push(() => resolve({ ...PADRAO, avisos: ligado })));
+    };
+    const { canal: c } = canal(mac);
+    await esperarMicrotarefas();
+
+    const primeiro = c.alternar();
+    const segundo = c.alternar();
+    await esperarMicrotarefas();
+    expect(chamados).toEqual([false]);
+    pendentes.shift()?.(PADRAO);
+    await esperarMicrotarefas();
+    expect(chamados).toEqual([false, true]);
+    pendentes.shift()?.(PADRAO);
+    await Promise.all([primeiro, segundo]);
+    expect(c.ligado()).toBe(true);
+  });
 });
 
 describe("canal de avisos: app antigo (NOD-196)", () => {
