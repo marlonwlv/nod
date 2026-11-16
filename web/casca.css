@@ -1026,3 +1026,13 @@ html[data-barra-anim] #sidebar.sidebar .fixado-bt { animation: barra-rodape-entr
 #erro > .erro > .erro-fechar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 @keyframes erro-entra { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { #erro > .erro { animation: none; } }
+
+/* O "Parado por você" (validação de 2026-11-16): linha discreta na coluna do bot, como o recibo de um pedido — ícone
+   de parar, texto cinza em corpo 2, sem caixa nem vermelho. Era uma caixa vermelha com contagens. */
+.timeline .faixa.faixa-parada {
+  display: flex; align-items: center; gap: 6px; max-width: none; margin: 10px 0 0; padding: 2px; border: 0; border-radius: 0;
+  background: none; color: var(--ink-3); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2);
+}
+.timeline .faixa.faixa-parada .faixa-parada-ic { flex: none; color: var(--ink-3); }
+.timeline .faixa.faixa-parada .faixa-parada-sep { color: var(--ink-3); }
+

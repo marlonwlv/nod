@@ -4978,6 +4978,8 @@ async function enviarComposer(): Promise<void> {
   if (!texto && ids.length === 0) return;
   // Quem manda mensagem quer ver a própria mensagem e a resposta: a conversa volta a acompanhar o fim.
   rolagem.colar();
+  // O "Parado por você" é da parada anterior: a mensagem nova a deixa para trás (web/telas/faixa-parada.ts).
+  if (estado.faixaParada) dispatch({ tipo: "faixa", faixa: null });
   // definido em 2026-09-24 (emenda da ADR-045): com pergunta aberta, a mensagem RESPONDE por
   // POST decisoes/:id/responder (a retomada nasce lá), salvo "Outro assunto".
   if (ids.length === 0 && (await comandoDoNod(texto, alvo))) {
