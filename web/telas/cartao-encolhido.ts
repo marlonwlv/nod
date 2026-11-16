@@ -20,7 +20,7 @@ import { ehRotinaWebhook, enderecoNoCard, origemDaTela } from "./webhook.ts";
  */
 
 /** `ok`: ✓ verde; `falha`: ! em vermelho; `regra`: o cadeado; null (recusa): a linha discreta, sem a caixa. */
-export type MarcaDoEncolhido = "ok" | "falha" | "regra" | null;
+export type MarcaDoEncolhido = "ok" | "falha" | "regra" | "sem-resposta" | null;
 
 export type DadosDoEncolhido = {
   /** A decisão ou a proposta: a chave do foco e do anúncio de quem decidiu nesta aba (web/lib/foco-do-encolhido.ts). */
@@ -49,10 +49,12 @@ const MARCA: Record<Exclude<MarcaDoEncolhido, null>, string> = {
   ok: iconeDaLinha("ok"),
   falha: '<svg class="cp-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.6"/><path d="M8 11v.01"/></svg>',
   regra: iconeDaLinha("ok"),
+  // Item 10, rodada 2: o pedido que a mensagem nova substituiu — nem feito nem negado; a seta aponta a conversa abaixo.
+  "sem-resposta": '<svg class="cp-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5"/></svg>',
 };
 
 /** O leitor de tela ouve o estado depois da linha (a marca é desenho). */
-const NOME_DA_MARCA: Record<Exclude<MarcaDoEncolhido, null>, string> = { ok: "feito", falha: "não saiu", regra: "regra" };
+const NOME_DA_MARCA: Record<Exclude<MarcaDoEncolhido, null>, string> = { ok: "feito", falha: "não saiu", regra: "regra", "sem-resposta": "sem resposta" };
 
 /**
  * NOD-399: o card decidido vira UMA linha (`.cp-linha` de web/card-proposta.css): a marca, o resultado ("✓ Confirmado
@@ -122,6 +124,9 @@ function daAprovacao(m: Mensagem, p: Payload<"resultado_aprovacao">, estado: Est
   // no title (a linha é de status, não de recibo).
   const quando = `Decidido${quem} às ${hora(m.criadoEm)}`;
   // Spec D, item 5: negar a ação no computador vira "Você não permitiu: {ação}", centrada; o bot segue o turno.
+  // Item 10, rodada 2 (src/use-cases/substituir-aprovacoes.ts): a pessoa mandou outra mensagem com o pedido aberto. Como o
+  // "Asked again below" do app de referência: não é "Negado" — o bot segue pela mensagem nova e pede de novo se precisar.
+  if (p.substituida) return { decisaoId: p.decisaoId, titulo, resultado: "Sem resposta", marca: "sem-resposta", anuncio: `Sem resposta: ${titulo}`, dica: `Você mandou outra mensagem antes de responder, às ${hora(m.criadoEm)}. Nada rodou.` };
   const [unico] = p.itens;
   if (aprovados === 0 && total === 1 && p.frase === FRASE_ACAO_NO_COMPUTADOR && unico?.texto && quem) {
     const linha = linhaNaoPermitiu(unico.texto);

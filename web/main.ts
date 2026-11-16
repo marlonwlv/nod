@@ -5006,17 +5006,9 @@ async function enviarComposer(): Promise<void> {
       else if (idEnvio && enviou) envios.esquecer(alvo.conversaId, idEnvio);
     }
     if (pendente) dispatch({ tipo: "fala-pendente-confirmada", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, mensagemId: r.ids?.mensagem ?? null, turnoId: r.ids?.turno ?? null });
-    // Item 10, rodada 2 (web/lib/recusa-da-aprovacao.ts): a mensagem comum com aprovação aberta é "não, faça isto". Depois
-    // de a mensagem estar salva (nada se perde se a recusa falhar), recusa cada aprovação aberta da conversa com o corpo
-    // do Negar; o turno que esperava solta e o bot lê a mensagem na hora.
-    if (r.enviado === "mensagem" && !alvo.salaId) {
-      const abertas = aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId);
-      for (const aberta of abertas) {
-        const itens = itensDaRecusa([], aberta.itensAprovacao);
-        if (itens) await a.decidir(aberta.decisao.id, { itens });
-      }
-      if (abertas.length > 0) dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
-    }
+    // Item 10, rodada 2: com aprovação aberta, o servidor fechou o pedido como substituído no envio
+    // (src/use-cases/substituir-aprovacoes.ts); a fila "Sua vez" relê para o cartão sair.
+    if (r.enviado === "mensagem" && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0) dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
     else limparDepoisDeEnviar(ta, chave, texto);
     if (r.enviado === "resposta") anunciarPergunta(`Resposta enviada: ${enviado}`);
     if (r.enviado === "mensagem" && !pendente) limparAnexos(alvo.conversaId);

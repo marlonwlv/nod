@@ -15,11 +15,9 @@ export function itensDaRecusa(doCartao: readonly MarcaDeItem[], daFila: readonly
 }
 
 /**
- * Mensagem nova com aprovação aberta (item 10 dos acessos devolvidos, rodada 2, 2026-11-16). Antes, a mensagem entrava no
- * turno que esperava a aprovação e o bot só a lia depois do clique no cartão: a pessoa mandava três mensagens e nada
- * acontecia. Agora vale a convenção do Claude Code (o motor do nod): falar com o bot com um pedido aberto é "não, faça
- * isto" — o envio recusa as aprovações abertas da conversa (o mesmo corpo do Negar) e o bot segue lendo a mensagem.
- * Só aprovação: pergunta, acesso e gate de rotina têm caminho próprio. A vencida já se recusou sozinha.
+ * Mensagem nova com aprovação aberta (item 10 dos acessos devolvidos, rodada 2, 2026-11-16). O servidor fecha as
+ * aprovações abertas da conversa como substituídas no envio (src/use-cases/substituir-aprovacoes.ts) — como o app de
+ * referência e o bot-hq; não é recusa. Aqui só o que a tela precisa: saber se há alguma, para o placeholder avisar.
  */
 export type AprovacaoAberta = { decisao: { id: string; conversaId: string; tipo: string }; estadoColuna: string; itensAprovacao: readonly { id: string }[] };
 

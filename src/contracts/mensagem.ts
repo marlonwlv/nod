@@ -59,7 +59,7 @@ export type PayloadMensagem =
    * definido em 2026-10-03: `frase` (o pedido) e `texto` por item entram para a web desenhar o recibo compacto da
    * decisão sem reler o texto redigido; as mensagens gravadas antes não os têm. `revisor` (modos, PR 4): o cartão era do revisor ("Negado por você").
    */
-  | { kind: "resultado_aprovacao"; decisaoId: string; frase?: string; itens: { idx: number; desfecho: DesfechoItem; texto?: string }[]; revisor?: true }
+  | { kind: "resultado_aprovacao"; decisaoId: string; frase?: string; itens: { idx: number; desfecho: DesfechoItem; texto?: string }[]; revisor?: true; /** item 10, rodada 2: a mensagem nova substituiu o pedido (sem resposta, não recusa) */ substituida?: true }
   /**
    * `causa` (definido em 2026-10-05): a IA estava logada e a conta não serviu (src/contracts/inventario.ts).
    * `modelo` (NOD-171): o harness está pronto, mas o modelo escolhido no agente não é aceito por ele; a tela pede outro

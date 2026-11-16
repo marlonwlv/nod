@@ -62,12 +62,28 @@ describe("a pílula dos pedidos fora da tela", () => {
 describe("mensagem com aprovação aberta", () => {
   const item = (id: string, conversaId: string, tipo = "aprovacao", estadoColuna = "aguardando") => ({ decisao: { id, conversaId, tipo }, estadoColuna, itensAprovacao: [{ id: `${id}-i` }] });
 
-  it("recusa só as aprovações abertas desta conversa", () => {
+  it("acha só as aprovações abertas desta conversa", () => {
     const itens = [item("a", "c1"), item("b", "c2"), item("c", "c1", "pergunta"), item("d", "c1", "aprovacao", "vencido"), item("e", "c1")];
     expect(aprovacoesAbertasDaConversa(itens, "c1").map((i) => i.decisao.id)).toEqual(["a", "e"]);
   });
 
   it("o campo diz o que mandar mensagem faz", () => {
     expect(PLACEHOLDER_COM_APROVACAO).toBe("Ou diga o que fazer em vez disso");
+  });
+});
+
+describe("o pedido substituído pela mensagem nova", () => {
+  it("o encolhido diz 'Sem resposta', com a seta neutra, não 'Negado'", async () => {
+    const { dadosDoEncolhido, renderCartaoEncolhido } = await import("../../../web/telas/cartao-encolhido.ts");
+    const { estadoInicial } = await import("../../../web/estado/reducer.ts");
+    const pessoa = { autor_tipo: "pessoa", autor_id: "p", sob_procuracao_de: null, conta_de_execucao: "p", executor: "catcher", locality: "local", locality_reason: "tudo_local_nesta_rodada", machine_id: null, decidido_por: "pessoa", regra_versao: 1 } as const;
+    const m = { tenantId: "t", id: "r1", conversaId: "c1", turnoId: "t1", autoria: pessoa, kind: "resultado_aprovacao", texto: "sem resposta", confianca: "confiavel", parcial: false, criadoEm: Date.parse("2026-11-16T19:30:00Z"), destino: "chat",
+      payload: { kind: "resultado_aprovacao", decisaoId: "d1", frase: "Frida quer rodar um comando no seu Mac", itens: [{ idx: 0, desfecho: "retirado_pela_pessoa", texto: "mkdir x" }], substituida: true } } as never;
+    const e = { ...estadoInicial, sessao: { pessoaId: "p" } } as never;
+    const d = dadosDoEncolhido(m, e);
+    expect(d).toMatchObject({ resultado: "Sem resposta", marca: "sem-resposta" });
+    const html = renderCartaoEncolhido(d!, "r1");
+    expect(html).toContain("cp-sem-resposta");
+    expect(html).not.toContain("Negado");
   });
 });
