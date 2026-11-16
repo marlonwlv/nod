@@ -156,6 +156,22 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .timeline .message.bot .bubble-wrap { max-width: 600px; }
 .timeline .message.bot .bubble:not(.com-progresso) { padding: 7px 14px; font-size: var(--fs-corpo); line-height: var(--lh-conversa); color: var(--balao-bot-tinta); }
 .timeline .message.bot .bubble + .bubble { margin-top: 10px; }
+/* Item 10, rodada 2 (2026-11-16): os cartões da conversa seguem a coluna do bot. O recuo de 52 px era o do mascote ao lado
+   da fala, que saiu daqui (regra de cima); sem ele o cartão começava 52 px para dentro e grudava no balão de quem pediu
+   (margem de cima negativa). Agora: mesma borda esquerda e mesma largura (560) da fala do bot, e o respiro de uma fala. */
+.timeline .decisoes-ancoradas { margin: 0 0 18px; width: min(560px, 100%); }
+.timeline :is(.cp, .cp-linha, .cp-erro) { --cp-recuo: 0px; }
+/* O cartão do terminal e do computador (rodada 2): o comando numa linha, o inteiro atrás de "Ver o comando"; o porquê curto. */
+.aprov-card .bt.aprov-fechar { margin-left: auto; }
+.aprov-card .ap-comando.ap-uma-linha { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.aprov-card .ap-comando-longo { margin: 12px 16px 0; }
+.aprov-card .ap-comando-longo > summary { display: flex; flex-direction: column; gap: 6px; list-style: none; cursor: pointer; }
+.aprov-card .ap-comando-longo > summary::-webkit-details-marker { display: none; }
+.aprov-card .ap-comando-longo > summary .ap-comando { margin: 0; }
+.aprov-card .ap-comando-longo .ap-ver { font-size: var(--fs-corpo-2); color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
+.aprov-card .ap-comando-longo[open] > summary .ap-comando { display: none; }
+.aprov-card .ap-comando-longo[open] > pre.ap-comando { margin: 6px 0 0; }
+.aprov-card .ap-porque.ap-porque-curto { margin-top: 10px; }
 
 /* =====================================================================================
    Campo de mensagem: 680 px, raio 22, ＋ | texto | 🎤 | ↑ (o anexo, o modo e a IA moram no ＋)
