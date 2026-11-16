@@ -562,7 +562,7 @@ function daFase(c: Cancelamento): SituacaoFila {
 export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { turnoId: string }) | null {
   if (m.autoria.autor_tipo !== "pessoa") return null;
   const c = estado.conversas[m.conversaId];
-  if (!c || c.conversa.salaId) return null;
+  if (!c?.conversa || c.conversa.salaId) return null;
   // A fase local (o clique desta aba) manda sobre a leitura: o turno já cancelado ou absorvido ainda mostra o desfecho.
   const local = Object.entries(estado.cancelando).find(([, x]) => x.mensagemId === m.id && x.conversaId === m.conversaId);
   if (local) return { ...daFase(local[1]), turnoId: local[0] };

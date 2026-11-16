@@ -15,7 +15,7 @@ dialog.ctc::backdrop { background: transparent; }
 .ctc-tit-nome, .ctc-tit-pedido { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ctc-tit-quem { flex: none; color: #ffffffe0; } /* cor-fixa: quem pede, mais claro que o pedido */
 .ctc-tit-curto { display: none; }
-/* O --warning do tema claro some no #141414: o ponto usa o âmbar do escuro, igual nos dois temas. */
+/* O --warning do tema claro some no fundo escuro fixo da tela cheia: o ponto usa o âmbar do escuro, igual nos dois temas. */
 .ctc-tit-ponto { flex: none; width: 6px; height: 6px; border-radius: 50%; background: #ebbd6a; } /* cor-fixa: o --warning do escuro */
 .ctc-pedido { display: none; }
 .ctc-fora { margin-right: auto; color: #ffffffa8; font-size: 12px; line-height: 18px; } /* cor-fixa: texto sobre o fundo fixo da tela cheia */
