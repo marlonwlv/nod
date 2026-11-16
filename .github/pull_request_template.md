@@ -6,10 +6,17 @@
 
 ## Como testei
 
-<!-- Os testes novos e o que você rodou. Mudança de interface: print ou vídeo curto. -->
+<!-- Os testes novos e o que você rodou. -->
 
 - [ ] `npm run check` verde na minha máquina
 - [ ] Teste novo cobre a mudança (ou explico abaixo por que não dá)
+
+## Evidência visual
+
+<!-- Marque uma opção. Se houver mudança visual, anexe screenshots antes/depois ou dos estados relevantes. -->
+
+- [ ] Há mudança visual: anexei as screenshots acima
+- [ ] Não se aplica: não há impacto visual. Justificativa: <!-- escreva aqui -->
 
 ## O que ficou de fora
 
