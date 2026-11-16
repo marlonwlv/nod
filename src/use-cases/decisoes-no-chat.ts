@@ -101,13 +101,18 @@ export const aplicarExportacaoDecisoes: CasoDeUso<{ propostaId: string; recusar:
     return { data: { arquivos: [] } };
   }
   const p = proposta.payload;
-  const arquivos = [] as { nome: string; corpo: string }[];
+  const arquivos = [] as { nome: string; corpo: string; cortado: boolean }[];
   for (const periodo of p.periodos) {
     const r = await exportarDecisoesCsv(deps, { agenteId: p.agenteId, de: periodo.de, ate: periodo.ate, fuso: p.fuso, desfecho: p.desfecho });
     arquivos.push(r.data);
   }
   const autoria = autoriaAgente(proposta.agenteId, deps.escopo.pessoaId);
-  const m = await deps.repos.mensagens.criar({ conversaId: proposta.conversaId, turnoId: decidida.turnoId, autoria, kind: "sistema", assunto: "sistema.generico", texto: arquivos.length === 1 ? "CSV das decisões" : `${arquivos.length} CSVs mensais das decisões`, payload: null, confianca: "confiavel" });
+  const titulo = arquivos.length === 1 ? "CSV das decisões" : `${arquivos.length} CSVs mensais das decisões`;
+  const cortados = arquivos.filter((arquivo) => arquivo.cortado).length;
+  const texto = cortados === 0
+    ? titulo
+    : `${titulo} · ${cortados === 1 ? "1 arquivo chegou" : `${cortados} arquivos chegaram`} ao limite de 50.000 decisões; escolha um período menor para ver o resto`;
+  const m = await deps.repos.mensagens.criar({ conversaId: proposta.conversaId, turnoId: decidida.turnoId, autoria, kind: "sistema", assunto: "sistema.generico", texto, payload: null, confianca: "confiavel" });
   if (!m) throw new ErroDeDominio("estado_invalido", { cause: "mensagem não criada" });
   const ids: string[] = [];
   for (const arquivo of arquivos) {
