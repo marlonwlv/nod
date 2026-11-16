@@ -27,6 +27,10 @@
 .composer .box:has(textarea:placeholder-shown) > .send, .composer .box > .send:disabled { background: var(--chat-preenchido); color: var(--chat-icone); }
 .composer .box > .parar-envio { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); border: 0; }
 .composer .box > .parar-envio svg { width: 14px; height: 14px; }
+/* Acessos do campo (3b): o Parar ao lado do Enviar (rascunho com o bot trabalhando) é secundário — sem fundo, preenchido
+   só no hover e no foco; o Enviar continua o único botão cheio. Gravando, o celular tem o Parar âmbar (mobile.css). */
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])) { background: transparent; color: var(--chat-tinta-2); }
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])):is(:hover, :focus-visible) { background: var(--chat-preenchido); color: var(--chat-tinta); }
 
 /* A exceção do nod: a mensagem que só vai ser lida quando a máquina ligar. Linha como o separador, à direita, sem botão. */
 .timeline .fila-linha { margin-top: 4px; font-size: 12px; line-height: 16px; font-weight: 425; color: var(--chat-tinta-3); text-align: right; }

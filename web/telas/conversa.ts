@@ -1968,10 +1968,12 @@ export function pararNoCampoDaTela(estado: Estado): boolean {
  * manda), os dois. Sem trabalho, só o Enviar.
  */
 export function botoesDoCampo(p: { trabalhando: boolean; temConteudo: boolean; ditando: boolean }): { enviar: boolean; parar: boolean } {
-  // COP-14 (item 1): um botão só à direita — com texto (ou o ditado), sempre Enviar, mesmo com o bot trabalhando; com o
-  // campo vazio e o bot trabalhando, Parar; vazio e parado, o Enviar desabilitado.
-  const parar = p.trabalhando && !p.temConteudo && !p.ditando;
-  return { enviar: !parar, parar };
+  // COP-14 (item 1), revisto em 2026-11-16 (acessos do campo, 3b: parar sem apagar o rascunho): com o campo vazio e o bot
+  // trabalhando, só o Parar (cheio, na ponta); com texto, anexo ou o ditado e o bot trabalhando, os dois — o Enviar segue
+  // na ponta e é a ação do Enter, o Parar fica logo antes dele como secundário (sem fundo; web/casca.css e web/chat.css),
+  // como na pílula do quadro (web/lib/quadro-na-tela.ts). Antes o Parar sumia com rascunho e, para parar, era preciso
+  // apagar o texto. Parado, só o Enviar (desabilitado com o campo vazio).
+  return { enviar: !p.trabalhando || p.temConteudo || p.ditando, parar: p.trabalhando };
 }
 
 /** O título do Parar do campo (revisto em 2026-10-22, NOD-311): ele para só a conversa, nunca as tasks. */

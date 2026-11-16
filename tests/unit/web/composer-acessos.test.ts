@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { renderChipModo } from "../../../web/telas/aprovacoes.ts";
-import { htmlComposer } from "../../../web/telas/conversa.ts";
+import { botoesDoCampo, htmlComposer } from "../../../web/telas/conversa.ts";
 
 /**
  * Acessos do campo (3c): a IA e o modo de aprovação voltam ao campo do computador, entre o texto e o 🎤, revelados no
@@ -77,5 +77,31 @@ describe("Ignorar todas as aprovações sempre à vista no campo (acessos 3a)", 
     const m = css("mobile.css");
     expect(m).toContain(".composer .mais-campo[data-atencao] { position: relative; color: var(--warning); }");
     expect(m).toMatch(/\.composer \.mais-campo\[data-atencao\]::after \{[^}]*background: var\(--warning\)/);
+  });
+});
+
+describe("Parar o turno sem apagar o rascunho (acessos 3b)", () => {
+  it("o Parar fica enquanto o bot trabalha; com rascunho ou ditado, ao lado do Enviar", () => {
+    expect(botoesDoCampo({ trabalhando: true, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: true });
+    expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: false })).toEqual({ enviar: false, parar: true });
+    expect(botoesDoCampo({ trabalhando: false, temConteudo: false, ditando: false })).toEqual({ enviar: true, parar: false });
+    expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: true })).toEqual({ enviar: true, parar: true });
+  });
+
+  it("o Parar vem logo antes do Enviar no DOM (o seletor do secundário depende disso)", () => {
+    const h = htmlComposer("x", [], { aprovacao: true, bot: "Ada" });
+    expect(h).toMatch(/<button type="button" class="parar-envio"[^>]*>.*?<\/button><button class="send"/);
+  });
+
+  it("ao lado do Enviar à vista o Parar é secundário (sem fundo, só tokens); gravando, o celular segue com o dele", () => {
+    for (const [arquivo, tinta, hover] of [["casca.css", "--ink-2", "--hover"], ["chat.css", "--chat-tinta-2", "--chat-preenchido"]] as const) {
+      const c = css(arquivo);
+      const repouso = /\.composer \.box:not\(\.gravando\) > \.parar-envio:has\(\+ \.send:not\(\[hidden\]\)\) \{([^}]*)\}/.exec(c);
+      expect(repouso?.[1]).toContain("background: transparent");
+      expect(repouso?.[1]).toContain(`color: var(${tinta})`);
+      const realce = /\.parar-envio:has\(\+ \.send:not\(\[hidden\]\)\):is\(:hover, :focus-visible\) \{([^}]*)\}/.exec(c);
+      expect(realce?.[1]).toContain(`background: var(${hover})`);
+      expect(repouso?.[1]).not.toMatch(/#[0-9a-f]{3,8}\b|rgb/);
+    }
   });
 });

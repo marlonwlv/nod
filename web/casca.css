@@ -200,6 +200,10 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .composer .box > .send { background: var(--action); color: var(--on-action); }
 .composer .box > .send:disabled, .composer .box > .send[aria-disabled="true"] { background: var(--hover); color: var(--ink-3); opacity: 1; }
 .composer .box > .parar-envio { background: var(--action); color: var(--on-action); }
+/* Acessos do campo (3b): com o rascunho e o bot trabalhando o Parar fica ao lado do Enviar como secundário (sem fundo); o
+   Enviar segue o único botão cheio. Sozinho, com o campo vazio, o Parar continua cheio. */
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])) { background: transparent; color: var(--ink-2); }
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])):is(:hover, :focus-visible) { background: var(--hover); color: var(--ink); }
 .composer .box > :is(.send, .parar-envio, .mic) svg { width: 16px; height: 16px; }
 .composer .nota:empty { display: none; }
 
