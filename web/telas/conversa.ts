@@ -1362,7 +1362,8 @@ function blocoDaFalaSaindo(s: FalaSaindo, c: ConversaEstado, estado: Estado, cha
     const fala = renderFalaViva(s.turno, s.atividade, agente, estado, "", { em: s.em, chave, parado: true });
     return [{ chave, html: fala.html, morfar: fala.morfar }];
   }
-  const k = chave.startsWith("saindo:") ? chave : `saindo:${chave.slice("vivo:".length)}`;
+  // C1: o retrato conserva a chave da fala viva; o morph troca indicador por balão sem recriar o nó.
+  const k = chave;
   const leitor = `<span class="sr-only">Mensagem de ${esc(agente?.nome ?? "o bot")}</span>`;
   return [{ chave: k, html: `<article class="message bot fala-chegou" data-turno="${esc(s.turno.turnoId)}"><div class="bubble-wrap">${leitor}<div class="bubble balao-chega">${textoFormatado(texto, { chave: k })}</div></div></article>` }];
 }

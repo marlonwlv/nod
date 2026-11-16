@@ -919,7 +919,7 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar {
   & .row .txt { flex: 1 1 0; opacity: 1; }
   & .nome-linha { font-weight: var(--peso-medio); letter-spacing: .14px; }
   & .nome-linha b { font-weight: inherit; }
-  & .row .txt > span:not(.nome-linha) { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); letter-spacing: .195px; }
+  & .row .txt > span:not(.nome-linha, .sub-aguardando) { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); letter-spacing: .195px; }
 }
 
 /* Compacta (88): some a busca do topo; fixados e seções viram botões de 54 × 54 (avatar 36, raio 12) em x = 17, passo de

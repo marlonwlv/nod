@@ -113,9 +113,9 @@ describe("a fala viva (COP-14, item 2: só o indicador; a resposta entra inteira
     expect(b.html).not.toContain("fala-narracao");
   });
 
-  it("no fim do turno, a resposta entra inteira num balão só, com a chave saindo:", () => {
+  it("no fim do turno, a resposta entra inteira num balão só, conservando a chave viva", () => {
     const blocos = comAtividade(comTexto(ATIVIDADE_VAZIA, RESPOSTA_LONGA), true);
-    expect(blocos.map((b) => b.chave)).toEqual(["saindo:t1"]);
+    expect(blocos.map((b) => b.chave)).toEqual(["vivo:t1"]);
     const html = blocos[0]!.html;
     expect(html).toContain('<article class="message bot fala-chegou" data-turno="t1">');
     expect(conta(html, /class="bubble[ "]/)).toBe(1);

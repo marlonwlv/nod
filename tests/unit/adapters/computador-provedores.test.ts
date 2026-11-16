@@ -317,6 +317,29 @@ describe("seletor de provedor (o DriverComputador de sempre)", () => {
     await expect(driver.iniciar(ID, ESCOPO)).rejects.toMatchObject({ motivo: "nao_iniciou" });
     expect((await driver.estado(ID, ESCOPO)).disponivel).toBe(false);
   });
+
+  it("usa o mesmo contrato vivo: Orgo autentica upstream e Docker abre somente a origem local", async () => {
+    const eventos: string[] = [];
+    const acessoTela = vi.fn(async () => ({ tipo: "vnc_websocket" as const, url: "wss://www.orgo.ai/desktops/pc/ws/websockify", token: "segredo", validoAte: null }));
+    const orgo = { ...provedorFalso("orgo", eventos), capacidades: { ...provedorFalso("orgo", eventos).capacidades, telaAoVivo: "vnc_websocket" as const }, acessoTela };
+    const origem = { enviar: vi.fn(), aoDados: vi.fn(), aoFechar: vi.fn(), fechar: vi.fn() };
+    const abrirVivo = vi.fn(async () => origem);
+    const anexarVivo = vi.fn(() => true);
+    const config = { padrao: null, global: "orgo" as const, porPessoa: {}, porBot: {} };
+    const driver = criarDriverPorProvedor({ config, provedores: { orgo }, agenteDe: async () => BOT, abrirVivo, anexarVivo });
+    await driver.vivo!(ID, { sessao: "s", token: "t" }, ESCOPO);
+    expect(acessoTela).toHaveBeenCalledWith({ id: ID, escopo: ESCOPO });
+    expect(abrirVivo).toHaveBeenCalledWith(expect.objectContaining({ token: "segredo" }));
+    expect(anexarVivo).toHaveBeenCalledWith("s", "t", origem);
+
+    const abrirLocal = vi.fn(async () => origem);
+    const docker = { ...provedorFalso("docker", eventos), capacidades: { ...provedorFalso("docker", eventos).capacidades, telaAoVivo: "vnc_websocket" as const }, abrirTelaAoVivo: abrirLocal };
+    const local = criarDriverPorProvedor({ config: { ...config, global: "docker" }, provedores: { docker }, agenteDe: async () => BOT, abrirVivo, anexarVivo });
+    await local.vivo!(ID, { sessao: "sd", token: "td" }, ESCOPO);
+    expect(abrirLocal).toHaveBeenCalledWith({ id: ID, escopo: ESCOPO });
+    expect(anexarVivo).toHaveBeenLastCalledWith("sd", "td", origem);
+    expect(abrirVivo).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("Docker como provedor", () => {
@@ -330,9 +353,14 @@ describe("Docker como provedor", () => {
   };
 
   it("veste o driver de sempre: ações e saúde passam direto", async () => {
-    const p = criarProvedorDocker({}, { driver: base, docker: vi.fn() });
+    const origem = { enviar: vi.fn(), aoDados: vi.fn(), aoFechar: vi.fn(), fechar: vi.fn() };
+    const abrirVivo = vi.fn(async () => origem);
+    const p = criarProvedorDocker({}, { driver: base, docker: vi.fn(), abrirVivo });
     expect(await p.executar!({ id: ID }, { tipo: "observar" })).toEqual({ saida: "do runtime" });
     expect(await p.saude({ id: ID })).toMatchObject({ estado: "parado", pronto: false, reinicios: 2 });
+    expect(p.capacidades.telaAoVivo).toBe("vnc_websocket");
+    expect(await p.abrirTelaAoVivo!({ id: ID, escopo: ESCOPO })).toBe(origem);
+    expect(abrirVivo).toHaveBeenCalledWith(ID);
   });
 
   it("snapshot copia os dois volumes com a imagem local, sem rede; ligado é recusado", async () => {

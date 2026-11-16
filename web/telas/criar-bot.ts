@@ -1,4 +1,6 @@
 import type { CorAgente, FormaAgente } from "../../src/contracts/agente.ts";
+export { COR_PADRAO, FORMA_PADRAO, NOME_MAX } from "../lib/aparencia-do-bot.ts";
+import { NOME_MAX } from "../lib/aparencia-do-bot.ts";
 import { esc, iconeAgente } from "../lib/render.ts";
 import { CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, type EstadoMascote } from "../lib/mascote.ts";
 import { ErroDoPreparo, subtituloDoPreparo, type EstadoPreparo, type EtapasDoPreparo } from "../lib/preparo.ts";
@@ -8,10 +10,6 @@ import { ErroDoPreparo, subtituloDoPreparo, type EstadoPreparo, type EtapasDoPre
  * onboarding, passos 9 e 10, usa os dois). Spec do botão + (2026-11-12): o diálogo "Criar novo bot" (fim do arquivo)
  * deixou de ter o preparo: Criar → "Criando…" → a conversa do bot novo, pelo mesmo criarAgente interativo do segurar.
  */
-
-export const COR_PADRAO: CorAgente = "c-blue";
-export const FORMA_PADRAO: FormaAgente = "shape-pebble";
-export const NOME_MAX = 40;
 
 /**
  * Tela 09 do Paper: o seletor mostra 8 formas e 12 cores, nesta ordem. As outras continuam válidas (bots antigos, a

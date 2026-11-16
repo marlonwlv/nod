@@ -40,10 +40,11 @@ describe("C1: a fala do meio fica com a chave até virar gravada", () => {
     const blocos = blocosAoVivo(meio.conversas[C]!, meio);
     expect(blocos.map((b) => b.chave)).toEqual(["vivo:t1", "vivo:t1:1"]);
     expect(blocos[0]!.html).toContain("Primeira parte.");
-    // A fala viva seguinte escreve no bloco novo, e a chave do retrato não muda com ela.
+    // A fala viva seguinte ocupa o bloco novo, e a chave do retrato não muda com ela; o texto cru segue oculto.
     const depois = { ...meio, atividades: { [C]: { t1: comTexto(ATIVIDADE_VAZIA, "Segunda parte.") } } };
     expect(chaves(depois)).toEqual(["vivo:t1", "vivo:t1:1"]);
-    expect(blocosAoVivo(depois.conversas[C]!, depois)[1]!.html).toContain("Segunda parte.");
+    expect(blocosAoVivo(depois.conversas[C]!, depois)[1]!.html).toContain("Digitando…");
+    expect(blocosAoVivo(depois.conversas[C]!, depois)[1]!.html).not.toContain("Segunda parte.");
   });
 
   it("a releitura que traz a gravada tira só o retrato: a fala viva segue com a chave dela (o nó não troca)", () => {

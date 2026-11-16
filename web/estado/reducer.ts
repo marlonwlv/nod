@@ -1799,7 +1799,10 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // C2 (2026-11-12): o retrato sai quando a gravada está na conversa — a da tela primeiro, depois a da resposta —, nunca
       // só por ser de antes desta releitura (a releitura que saiu antes da gravada o tirava e a fala sumia até a próxima).
       const tela = estado.conversas[conversaId];
-      const fica = (s: FalaSaindo): boolean => !(tela && gravadaDoRetrato(tela, s)) && !gravadaDoRetrato(acao.conversa, s) && retratoFica({ ...semSumidos, turnosVivos: promovidos }, conversaId, s, acao.agora);
+      const fica = (s: FalaSaindo): boolean => {
+        const indicadorVazioEncerrado = !promovidos[s.turno.turnoId] && !textoDaFala(s.atividade).trim() && s.atividade.acoes.length === 0 && acao.agora > s.em;
+        return !indicadorVazioEncerrado && !(tela && gravadaDoRetrato(tela, s)) && !gravadaDoRetrato(acao.conversa, s) && retratoFica({ ...semSumidos, turnosVivos: promovidos }, conversaId, s, acao.agora);
+      };
       return { ...semFalasSaindo(semSumidos, (s, c) => c !== conversaId || fica(s)), turnosVivos: promovidos, atividades, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: acao.agora, ...extras } } };
     }
     case "hidratar-sua-vez": {

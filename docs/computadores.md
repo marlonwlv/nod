@@ -64,6 +64,9 @@ O computador vem de um **provedor**: o Docker do servidor (padrão com `NOD_COMP
 
 O Orgo só existe com `NOD_COMPUTADOR_ORGO=1`. A chave da conta Orgo da pessoa fica no cofre: conector `orgo`, chave `ORGO_API_KEY`, guardada pelo cartão do `pedir_credencial`; nunca no env do servidor. Os computadores nascem no workspace `nod` da conta dela, com o nome `nod-<id>`. Trocar de provedor não leva arquivos nem logins. Valor desconhecido é ignorado com o aviso `computador_provedor_config` no log.
 
+O transporte ao vivo, o fallback Docker, o ensaio real do Orgo e a fronteira entre tela, display e shell estão em
+[Computador ao vivo](computador-ao-vivo.md).
+
 ### Ciclo de vida no host (NOD-170)
 
 | Variável | Padrão | O que faz |

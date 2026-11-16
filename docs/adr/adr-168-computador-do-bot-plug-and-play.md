@@ -94,7 +94,7 @@ desde 18/09), o que faz ele ser difícil de pôr de pé é estrutural, não um b
 | excluir | `DELETE /computers/{id}` | completa (irreversível) |
 | saúde | `GET /computers/{id}/health` (não muda nada) + `POST …/heal` | completa; mais rica que a do Docker |
 | tela (captura) | `GET /computers/{id}/screenshot?response_format=base64&format=png` | completa |
-| tela ao vivo | `wss://www.orgo.ai/desktops/{instance}/ws/websockify?token=<vnc_password>` (noVNC); WebRTC opcional | completa no provedor; **falta no nod** o proxy dessa sessão para a web (hoje a tela ao vivo é só do motor, ADR-138) |
+| tela ao vivo | `wss://www.orgo.ai/desktops/{instance}/ws/websockify?token=<vnc_password>` (noVNC); WebRTC opcional | relay autenticado no servidor; senha não chega ao navegador; Docker usa o mesmo relay via socket Unix interno, sem porta pública; falta o ensaio Orgo com conta real e o aluguel bot→display |
 | mouse e teclado | `POST click` (botão, duplo, repetição), `drag`, `type`, `key` (keysyms do X), `scroll` | completa |
 | terminal | `POST /computers/{id}/bash` (até 300 s, saída combinada + código); PTY por WebSocket `…/ws/terminal` | completa (o driver usa o `bash`) |
 | arquivos | pelo `bash` (base64 em pedaços), dentro de `/root/workspace` | completa pelo shell; `/files/upload` e `/files/export` são a loja do workspace (URL assinada, até 2 GB) e ficam para arquivos grandes |

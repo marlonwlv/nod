@@ -180,6 +180,10 @@ async function subir() {
   });
   start('Xvfb',[':99','-screen','0','1280x800x24','-nolisten','tcp']);
   await delay(500);
+  // NOD-496: o framebuffer nunca ganha porta TCP. Só a ponte iniciada pelo servidor dentro deste mesmo container
+  // alcança o socket Unix; a rede interna da máquina e o proxy de saída não enxergam o VNC.
+  await unlink('/tmp/nod-vnc.sock').catch(()=>{});
+  start('x11vnc',['-display',':99','-forever','-shared','-nopw','-rfbport','0','-rfbportv6','0','-unixsock','/tmp/nod-vnc.sock']);
   // definido em 2026-10-16: sem decoração e maximizado, o recorte da tela é o navegador, não uma janela
   // no meio do cinza. Medido nesta imagem: janela 1280×760 em 0,30 deixava faixa de wallpaper.
   await writeFile('/tmp/nod-openbox.xml',`<?xml version="1.0" encoding="UTF-8"?>

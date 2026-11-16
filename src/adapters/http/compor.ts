@@ -747,8 +747,15 @@ export function comporApp(o: OpcoesCompor): App {
     chavesDasMaquinas.set(maquinaId, chave);
     barramento.publicar(escopo.pessoaId, "computador.estado", dados);
   } }) : null;
-  // NOD-95 (ADR-138): as sessões da tela ao vivo, só com o computador no motor.
-  const sessoesVivo = computadorNoMotor ? criarSessoesVivo() : null;
+  // Computador ao vivo: o mesmo relay público atende o motor local, o Docker e provedores externos com VNC WebSocket;
+  // não se monta uma rota inútil quando nenhum deles existe.
+  const configProvedoresLida = !o.computador && !computadorNoMotor ? configDeProvedores(env) : null;
+  // A escolha por env não basta para ligar uma integração de terceiro: a flag explícita continua desligada por padrão;
+  // a chave ainda é exigida por pessoa, diretamente do cofre, antes de qualquer chamada ao Orgo.
+  const orgoHabilitado = env.NOD_COMPUTADOR_ORGO === "1";
+  const provedoresEmUsoAgora = configProvedoresLida ? provedoresEmUso(configProvedoresLida.config) : [];
+  const temVivoExterno = (orgoHabilitado && provedoresEmUsoAgora.includes("orgo")) || provedoresEmUsoAgora.includes("docker");
+  const sessoesVivo = computadorNoMotor || temVivoExterno ? criarSessoesVivo() : null;
   const driverMotor = canalComputador ? criarDriverMotor({
     env,
     canal: canalComputador,
@@ -804,19 +811,20 @@ export function comporApp(o: OpcoesCompor): App {
    */
   const provedoresComputador = (() => {
     if (o.computador || driverMotor) return null;
-    const { config, avisos } = configDeProvedores(env);
+    const { config, avisos } = configProvedoresLida ?? configDeProvedores(env);
     for (const aviso of avisos) log("aviso", "computador_provedor_config", { aviso });
     const emUso = provedoresEmUso(config);
     if (!emUso.length) return null;
     const provedores: Partial<Record<IdProvedorComputador, ProvedorDeComputador>> = {};
     if (emUso.includes("docker")) provedores.docker = criarProvedorDocker(env);
-    if (emUso.includes("orgo")) provedores.orgo = criarProvedorOrgo({ env, chaveDe: (escopo) => dentro(escopo, async (d) => {
+    if (orgoHabilitado && emUso.includes("orgo")) provedores.orgo = criarProvedorOrgo({ env, chaveDe: (escopo) => dentro(escopo, async (d) => {
       const c = await d.repos.conectores.buscarPorSlug("orgo");
       if (!c?.envCifrado) return null;
       const lido = JSON.parse(decifrar(c.envCifrado, chave)) as Record<string, unknown>;
       return typeof lido.ORGO_API_KEY === "string" && lido.ORGO_API_KEY ? lido.ORGO_API_KEY : null;
     }) });
-    return { config, driver: criarDriverPorProvedor({ config, provedores, agenteDe: (id, escopo) => dentro(escopo, (d) => d.repos.computadores.agenteDoComputador(id)) }) };
+    return { config, driver: criarDriverPorProvedor({ config, provedores, agenteDe: (id, escopo) => dentro(escopo, (d) => d.repos.computadores.agenteDoComputador(id)),
+      ...(sessoesVivo ? { anexarVivo: (sessao, token, origem) => sessoesVivo.anexarMotor(sessao, token, origem) } : {}) }) };
   })();
   const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? provedoresComputador?.driver ?? criarDriverDocker(env), executor: () => executorAtual,
     porPessoa: computadorNoMotor,

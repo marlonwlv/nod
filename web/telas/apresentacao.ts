@@ -1,7 +1,7 @@
 import type { CorAgente, FormaAgente } from "../../src/contracts/agente.ts";
 import type { EstadoMascote } from "../lib/mascote.ts";
 import type { EstadoPreparo } from "../lib/preparo.ts";
-import { COR_PADRAO, FORMA_PADRAO, NOME_MAX } from "./criar-bot.ts";
+import { COR_PADRAO, FORMA_PADRAO, NOME_MAX } from "../lib/aparencia-do-bot.ts";
 
 /**
  * ADR-174 (2026-11-12, tela 13 do Paper): o onboarding inteiro, em 10 passos curtos com o personagem como fio

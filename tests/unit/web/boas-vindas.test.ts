@@ -50,7 +50,7 @@ describe("htmlRefletindo (tela 4)", () => {
   const agora = new Date(2026, 10, 13, 9, 12).getTime();
   const h = htmlRefletindo(BOT, agora, agora);
   it("o divisor de hoje e, à esquerda, o mascote pensando na cor do bot com \"Refletindo\" e o brilho da fala viva", () => {
-    expect(h).toContain('<div class="time-sep" role="separator" aria-label="Hoje 9:12">Hoje 9:12</div>');
+    expect(h).toContain('<div class="time-sep" role="separator" aria-label="Hoje 09:12">Hoje 09:12</div>');
     expect(h).toMatch(/<article class="message bot fala-viva bv-pensando c-teal" role="status" aria-label="Bia está refletindo">/);
     expect(h).toMatch(/<nod-mascote [^>]*data-estado="pensando" state="thinking"/);
     expect(h).toContain('<span class="fala-viva-estado" aria-hidden="true">Refletindo</span>');

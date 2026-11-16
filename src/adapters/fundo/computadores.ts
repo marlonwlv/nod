@@ -994,11 +994,14 @@ export function criarComputadores(o: Opcoes) {
      * reserva das ações: o que corre depois é um fluxo, não uma ação, e o bot já está parado pelo controle.
      */
     async vivo(escopo: Escopo, agenteId: string, sessao: SessaoVivo, modo: { assistir?: boolean } = {}): Promise<void> {
-      if (!porPessoa || !o.driver.vivo) throw new ErroDeDominio("nao_encontrado");
+      if (!o.driver.vivo) throw new ErroDeDominio("nao_encontrado");
       const c = await o.dentro(escopo, async (d) => {
         const c = await obter(d, agenteId);
         // Card D, F3: quem assiste vê com o bot no controle; teclado e mouse ficam no filtro da sessão (vivo.ts).
         if (modo.assistir) {
+          // No modo por provedor, `obter` também devolve a linha desabilitada. Recuse antes de abrir a origem VNC:
+          // a reconferência posterior fecha a sessão, mas não pode ser a primeira barreira de autorização.
+          if (!c.habilitado) throw new ErroDeDominio("nao_permitido");
           if (c.indisponivelDesde !== null) throw new ErroDeDominio("estado_invalido", { cause: "computador fora do ar" });
           if (c.telaId && operacaoViva(await d.repos.computadores.daPessoa(), d.agora())) throw new ErroDeDominio("estado_invalido", { cause: "atualizando" });
           return c;
@@ -1014,7 +1017,12 @@ export function criarComputadores(o: Opcoes) {
     },
     /** Revisão do PR #599: a sessão ao vivo reconfere isto; só a pessoa no controle, com a tela habilitada, segue. */
     async vivoAindaPode(escopo: Escopo, agenteId: string): Promise<boolean> {
-      if (!porPessoa) return false;
+      if (!porPessoa) return o.dentro(escopo, async (d) => {
+        const agente = await d.repos.agentes.buscar(agenteId);
+        if (!agente || agente.ownerId !== escopo.pessoaId) return false;
+        const c = await d.repos.computadores.buscarDoAgente(agenteId);
+        return Boolean(c?.habilitado && c.controle === "pessoa" && c.indisponivelDesde === null);
+      });
       // 2ª revisão: só lê (como o `consultar`) — o `obter` vincula, cria e trava a tela a cada 10 s por sessão.
       return o.dentro(escopo, async (d) => {
         const agente = await d.repos.agentes.buscar(agenteId);
@@ -1032,7 +1040,13 @@ export function criarComputadores(o: Opcoes) {
      * `mexer`: a pessoa está no controle (as mesmas regras do `vivoAindaPode`).
      */
     async vivoPodeAssistir(escopo: Escopo, agenteId: string): Promise<{ ver: boolean; mexer: boolean }> {
-      if (!porPessoa) return { ver: false, mexer: false };
+      if (!porPessoa) return o.dentro(escopo, async (d) => {
+        const agente = await d.repos.agentes.buscar(agenteId);
+        if (!agente || agente.ownerId !== escopo.pessoaId) return { ver: false, mexer: false };
+        const c = await d.repos.computadores.buscarDoAgente(agenteId);
+        if (!c?.habilitado || c.indisponivelDesde !== null) return { ver: false, mexer: false };
+        return { ver: true, mexer: c.controle === "pessoa" };
+      });
       return o.dentro(escopo, async (d) => {
         const agente = await d.repos.agentes.buscar(agenteId);
         if (!agente || agente.ownerId !== escopo.pessoaId) return { ver: false, mexer: false };

@@ -708,7 +708,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       const resp = dd.agentes?.();
       // 2026-11-10 (a issue do Multica): a linha do tempo, o chip do topo e a lateral (Registro, Entregas, Runs no tempo).
       const voceNome = dd.voce?.() ?? null;
-      const partes = coms.partes(t, { colunas: comColunas(q).colunas, agente: dd.agente, nomes: (resp ?? []).map((a) => a.nome), passos: (turno, n) => trabs.passosDe(turno, n), quadro: q, ...(trabalhos !== undefined ? { trabalho: trabalhos } : {}), voceIniciais: voceNome ? iniciais(voceNome) || null : null });
+      const partes = coms.partes(t, { colunas: comColunas(q).colunas, agente: dd.agente, nomes: (resp ?? []).map((a) => a.nome), passos: (turno, n) => trabs.passosDe(turno, n), quadro: q, runsNaLinha: ehCelular(), ...(trabalhos !== undefined ? { trabalho: trabalhos } : {}), voceIniciais: voceNome ? iniciais(voceNome) || null : null });
       if (ehCelular()) {
         // ADA-17 (ADR-148): a mesma tarefa, os mesmos dados e handlers; só a árvore muda no celular.
         const trabalho = trabs.vista(t.id, { bloqueada: t.status === "bloqueado" || (t.esperaPessoa === true && t.voltarPara !== null), agenteId: t.agenteId, conversaAtual: chave });

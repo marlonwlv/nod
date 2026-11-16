@@ -3,7 +3,7 @@ import type { CapacidadesProvedor, ProvedorDeComputador, RefComputador, SaudeCom
 import { FalhaComputador } from "../../../domain/computador.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import { log } from "../../../obs/log.ts";
-import { criarDriverDocker, docker as dockerPadrao } from "../docker.ts";
+import { abrirVncDocker, criarDriverDocker, docker as dockerPadrao } from "../docker.ts";
 
 /**
  * ADR-168 (definido em 2026-11-12): o Docker próprio do nod (ADR-037) como `ProvedorDeComputador`. O ciclo e o plano de
@@ -19,7 +19,7 @@ import { criarDriverDocker, docker as dockerPadrao } from "../docker.ts";
 export const CAPACIDADES_DOCKER: CapacidadesProvedor = {
   retomarComMemoria: false,
   snapshot: "completo",
-  telaAoVivo: "capturas",
+  telaAoVivo: "vnc_websocket",
   terminal: "comando",
   navegador: "playwright",
   audio: true,
@@ -30,7 +30,7 @@ type Docker = typeof dockerPadrao;
 
 const ROTULO = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
-export function criarProvedorDocker(env: Readonly<Record<string, string | undefined>>, extra: { driver?: DriverComputador; docker?: Docker } = {}): ProvedorDeComputador {
+export function criarProvedorDocker(env: Readonly<Record<string, string | undefined>>, extra: { driver?: DriverComputador; docker?: Docker; abrirVivo?: typeof abrirVncDocker } = {}): ProvedorDeComputador {
   const driver = extra.driver ?? criarDriverDocker(env);
   const docker = extra.docker ?? dockerPadrao;
   const imagem = env.NOD_COMPUTADOR_IMAGEM || "nod-computador:1";
@@ -80,5 +80,6 @@ export function criarProvedorDocker(env: Readonly<Record<string, string | undefi
     saude,
     ligados: () => driver.ligados(),
     executar: (ref, acao, autor) => driver.executar(ref.id, acao, ref.escopo, autor),
+    abrirTelaAoVivo: (ref) => (extra.abrirVivo ?? abrirVncDocker)(ref.id),
   };
 }

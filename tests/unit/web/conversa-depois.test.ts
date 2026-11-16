@@ -215,17 +215,20 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     const fim = encerrar(comVivo);
     expect(fim.turnosVivos[T]).toBeUndefined();
     const saindo = blocosAoVivo(fim.conversas[C]!, fim);
-    expect(saindo.map((b) => b.chave)).toEqual([`saindo:${T}`]);
+    expect(saindo.map((b) => b.chave)).toEqual([`vivo:${T}`]);
     const html = saindo[0]!.html;
     expect(html).toMatch(/^<article class="message bot fala-chegou" data-turno="tc\d+"><div class="bubble-wrap"><span class="sr-only">Mensagem de Ada<\/span><div class="bubble balao-chega">/);
     expect(html).toContain("Pronto, fechei setembro.");
     expect(html.match(/class="bubble[ "]/g)).toHaveLength(1);
     for (const fora of ["indicador", "nod-mascote", "msg-autor", 'class="pensar"', "data-desde"]) expect(html).not.toContain(fora);
     // A releitura (com a fala gravada) tira a fala que saía; e ela também some sozinha se a releitura não vier.
-    const relida = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2)] } as ConversaDto, agora: AGORA + 500 });
+    const relida = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2, { turnoId: T, texto: "Pronto, fechei setembro." })] } as ConversaDto, agora: AGORA + 500 });
     expect(relida.falasSaindo?.[C]).toBeUndefined();
-    expect(blocosAoVivo(fim.conversas[C]!, { ...fim, agora: AGORA + 15_000 })).toEqual([]);
-    // Revisão 3: a releitura que saiu ANTES do fim (sem a fala gravada) não a tira; o tick a limpa depois de 15 s.
+    const semAGravada = reduzir(fim, { tipo: "hidratar-conversa", conversa: { ...(c as unknown as ConversaDto), mensagens: [msg("m1", "pessoa", 1), msg("m2", "agente", 2)] } as ConversaDto, agora: AGORA + 500 });
+    expect(paradas(semAGravada, T)).toHaveLength(1);
+    const semOrfao = reduzir(fim, { tipo: "tick", agora: AGORA + 61_000 });
+    expect(blocosAoVivo(semOrfao.conversas[C]!, semOrfao)).toEqual([]);
+    // Revisão 3: a releitura que saiu ANTES do fim (sem a fala gravada) não a tira; o tick limpa o órfão depois de 60 s.
     const velha = reduzir(fim, { tipo: "hidratar-conversa", conversa: c as unknown as ConversaDto, agora: AGORA - 200 });
     expect(paradas(velha, T)).toHaveLength(1);
     // QA 3 / QA do #534: é a gravada, não o instante, que decide; a releitura de OUTRA conversa não tira as desta.
@@ -235,8 +238,8 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     const dto = c as unknown as ConversaDto;
     const outra = { ...dto, conversa: { ...dto.conversa, id: "outra-conversa" }, mensagens: [] } as ConversaDto;
     expect(paradas(reduzir(fim, { tipo: "hidratar-conversa", conversa: outra, agora: AGORA + 500 }), T)).toHaveLength(1);
-    expect(paradas(reduzir(fim, { tipo: "tick", agora: AGORA + 14_000 }), T)).toHaveLength(1);
-    expect(reduzir(fim, { tipo: "tick", agora: AGORA + 15_000 }).falasSaindo).toEqual({});
+    expect(paradas(reduzir(fim, { tipo: "tick", agora: AGORA + 59_000 }), T)).toHaveLength(1);
+    expect(reduzir(fim, { tipo: "tick", agora: AGORA + 60_000 }).falasSaindo).toEqual({});
   });
 
   it("com ferramenta: durante o turno só 'Digitando…'; no fim, o balão único sem o bloco 'Usou N ferramentas'", () => {
@@ -255,7 +258,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     const comVivo = rodando(base, comTexto(comFerramenta(ATIVIDADE_VAZIA, "Consultou GitHub", { texto: "Usando GitHub", frentes: false }), "Primeira parte."), AGORA);
     const meio = reduzir(comVivo, { tipo: "frame", frame: { tipo: "turno.fala", dados: { turnoId: T, conversaId: C } } as never, agora: AGORA });
     const blocos = blocosAoVivo(meio.conversas[C]!, meio);
-    expect(blocos.map((b) => b.chave)).toEqual([`saindo:${T}:${AGORA}:0`, `vivo:${T}`]);
+    expect(blocos.map((b) => b.chave)).toEqual([`vivo:${T}`, `vivo:${T}:1`]);
     expect(blocos[0]!.html).toContain('class="message bot fala-chegou"');
     expect(blocos[0]!.html).toContain("Primeira parte.");
     // Duas mensagens na mesma rodada: o indicador volta a aparecer depois da primeira.
@@ -345,7 +348,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     e = frame("turno.fala", com(e, "Primeira."), AGORA);
     e = frame("turno.fala", com(e, "Segunda."), AGORA + 100);
     const blocos = blocosAoVivo(c, e);
-    expect(blocos.map((b) => b.chave)).toEqual([`saindo:${T}:${AGORA}:0`, `saindo:${T}:${AGORA + 100}:1`, `vivo:${T}`]);
+    expect(blocos.map((b) => b.chave)).toEqual([`vivo:${T}`, `vivo:${T}:1`, `vivo:${T}:2`]);
     expect(blocos[0]!.html).toContain("Primeira.");
     expect(blocos[1]!.html).toContain("Segunda.");
     expect(blocos[2]!.html).toContain("indicador-rotulo");
@@ -353,7 +356,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     expect(paradas(parado, T)).toHaveLength(2);
     // Sem indicador, os dois balões ficam, cada um com a sua chave de fala parada.
     const depois = blocosAoVivo(c, parado);
-    expect(depois.map((b) => b.chave).every((k) => k.startsWith("saindo:"))).toBe(true);
+    expect(depois.map((b) => b.chave)).toEqual([`vivo:${T}`, `vivo:${T}:1`]);
     expect(depois.map((b) => b.html).join("")).not.toContain("indicador");
   });
 
@@ -364,7 +367,7 @@ describe("2. a parte ao vivo é o indicador da Ada (COP-14, item 2)", () => {
     expect(blocosAoVivo(c, e).map((b) => b.chave)).toEqual([`vivo:${T}`, "vivo:t2"]);
     const fim = encerrar(e);
     const blocos = blocosAoVivo(fim.conversas[C]!, fim);
-    expect(blocos.map((b) => b.chave)).toEqual([`saindo:${T}`, "vivo:t2"]);
+    expect(blocos.map((b) => b.chave)).toEqual([`vivo:${T}`, "vivo:t2"]);
     expect(blocos[0]!.html).toContain('<div class="bubble balao-chega">');
     expect(blocos[0]!.html).toContain("Feito.");
   });
@@ -544,11 +547,11 @@ describe("7. a linha da memória", () => {
 });
 
 describe("8. o cabeçalho com uma regra só", () => {
-  it("turno vivo e pedidos juntos: 'Trabalhando · 2 esperam você'; sem turno, 'Aguardando você'", () => {
+  it("a aprovação troca o estado mesmo durante o turno; sem turno, os pedidos seguem aguardando", () => {
     const { e } = cenario([], [pedido("d1"), pedido("d2")]);
     const vivo: Estado = { ...e, turnosVivos: { t1: { turnoId: "t1", conversaId: C, estado: "rodando", executor: null, machineId: null, desde: AGORA } } };
-    expect(renderCabecalhoConversa(vivo, "a")).toContain("Trabalhando <span class=\"presenca-sep\" aria-hidden=\"true\">·</span> <b>2 esperam você</b>");
-    expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando você<");
+    expect(renderCabecalhoConversa(vivo, "a")).toContain(">Aguardando sua aprovação<");
+    expect(renderCabecalhoConversa(e, "a")).toContain(">Aguardando sua aprovação<");
   });
 });
 

@@ -553,12 +553,13 @@ const LENDO = { state: "reading", expression: null } as const;
 const PENSANDO = { state: "thinking", expression: null } as const;
 
 export function estadoDaFala(a: AtividadeTurno | undefined): EstadoDaFala {
+  // O texto novo encerra a ferramenta anterior: o indicador vira "Digitando…" no mesmo frame.
+  if (a?.atual.trim()) return { chave: "escrevendo", texto: "Digitando…", mascote: DIGITANDO };
   if (a?.emUso) {
     const state = !a.emUso.frentes && /^(Lendo|Buscando|Procurando|Pesquisando|Abrindo|Consultando)\b/.test(a.emUso.texto) ? LENDO
       : /^(Rodando|Executando|No terminal)\b/i.test(a.emUso.texto) ? EXECUTANDO : TRABALHANDO;
     return { chave: a.emUso.frentes ? "frentes" : "ferramenta", texto: a.emUso.texto, mascote: state };
   }
-  if (a?.atual.trim()) return { chave: "escrevendo", texto: "Digitando…", mascote: DIGITANDO };
   return { chave: "pensando", texto: "Pensando", mascote: PENSANDO };
 }
 

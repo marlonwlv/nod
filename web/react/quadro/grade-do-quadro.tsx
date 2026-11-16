@@ -3,7 +3,6 @@ import { DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection
 import { SortableContext, verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import type { Html, PartesDaColuna } from "../../telas/quadro.ts";
 import { CardDaGrade, CardFlutuante, type DadosDoCard, type DestinoDoMover } from "./card-da-grade.tsx";
-import "./grade-do-quadro.css";
 
 /**
  * ADR-180 (fase 2 do React): a grade do quadro no computador. As colunas e os cards vêm prontos do quadro-real.ts (as

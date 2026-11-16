@@ -81,16 +81,16 @@ describe("cabeçalho e ao vivo leem a mesma regra do mascote (NOD-216)", () => {
     const cab = renderCabecalhoConversa(comConversa({ t1: vivo("t1") }), "a");
     expect(cab).toContain("Na fila");
     expect(cab).not.toContain("Trabalhando");
-    expect(cab).toContain('data-estado="disponivel"');
-    expect(cab).toContain(" paused");
+    expect(cab).toContain('data-estado="na_fila"');
+    expect(cab).toContain('state="idle"');
     expect(cab).not.toContain('presenca ativa');
   });
 
-  it("rodando sem ferramenta: presença Refletindo, mas o cabeçalho fica Parado", () => {
+  it("rodando sem ferramenta: presença e cabeçalho ficam Refletindo", () => {
     const cab = renderCabecalhoConversa(comConversa({ t1: vivo("t1", { estado: "rodando" }) }), "a");
     expect(cab).toContain("Refletindo");
-    expect(cab).toContain('data-estado="disponivel"');
-    expect(cab).toContain(" paused");
+    expect(cab).toContain('data-estado="pensando"');
+    expect(cab).toContain('state="thinking"');
   });
 
   it("o turno de uma task não diz 'Trabalhando' no cabeçalho da conversa", () => {

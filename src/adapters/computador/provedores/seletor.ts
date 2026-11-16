@@ -4,6 +4,9 @@ import { FalhaComputador } from "../../../domain/computador.ts";
 import { escolherProvedor } from "../../../domain/provedor-computador.ts";
 import { log } from "../../../obs/log.ts";
 import { criarExecutorPorPrimitivas } from "./primitivas.ts";
+import { abrirOrigemRfb } from "../relay-vnc.ts";
+import type { LadoVivo } from "../vivo.ts";
+import type { SessaoVivo } from "../../../contracts/computador-vivo.ts";
 
 type Escopo = { tenantId: string; pessoaId: string };
 
@@ -21,6 +24,10 @@ export type OpcoesSeletor = {
   provedores: Partial<Record<IdProvedorComputador, ProvedorDeComputador>>;
   /** O bot do computador (repos.computadores.agenteDoComputador), para a regra por bot. Sem escopo, null. */
   agenteDe: (id: string, escopo: Escopo) => Promise<string | null>;
+  /** Pareia uma origem já autenticada com a sessão pública; URL e segredo nunca saem dos adapters. */
+  anexarVivo?: (sessao: string, token: string, origem: LadoVivo) => boolean;
+  /** Injetável para o teste do seletor; em produção abre e autentica o relay RFB. */
+  abrirVivo?: typeof abrirOrigemRfb;
 };
 
 export type DriverPorProvedor = DriverComputador & {
@@ -96,6 +103,16 @@ export function criarDriverPorProvedor(o: OpcoesSeletor): DriverPorProvedor {
       const ex = executores.get(p.id);
       if (!ex) throw new FalhaComputador("acao_falhou", { detalhe: `o provedor ${p.id} não tem plano de dados` });
       return ex.executar(ref(id, escopo), acao);
+    },
+    async vivo(id: string, sessao: SessaoVivo, escopo?: Escopo) {
+      const p = await provedorDe(id, escopo);
+      if (!escopo || p.capacidades.telaAoVivo !== "vnc_websocket" || (!p.acessoTela && !p.abrirTelaAoVivo) || !o.anexarVivo) throw new FalhaComputador("nao_iniciou", { detalhe: "o provedor usa capturas para esta tela" });
+      const origem = p.abrirTelaAoVivo
+        ? await p.abrirTelaAoVivo(ref(id, escopo))
+        : await (o.abrirVivo ?? abrirOrigemRfb)(await p.acessoTela!(ref(id, escopo)));
+      if (o.anexarVivo(sessao.sessao, sessao.token, origem)) return;
+      origem.fechar(1008, "sessao encerrada");
+      throw new FalhaComputador("acao_falhou", { detalhe: "a sessão ao vivo expirou" });
     },
     async ligados() {
       const todos = new Set<string>();
