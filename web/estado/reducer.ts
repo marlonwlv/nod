@@ -1,6 +1,7 @@
 import type { Agente, CorAgente, FormaAgente } from "../../src/contracts/agente.ts";
 import type { MotivoRecomeco } from "../../src/contracts/turno.ts";
 import { ehMotivoRecomeco } from "../lib/recomeco.ts";
+import { aposReleitura, reduzirCancelamento, type AcaoDoCancelamento, type Cancelamento } from "../lib/cancelar-na-fila.ts";
 import type { AnexoDaConversa } from "../../src/contracts/anexo.ts";
 import type { AtividadeDto } from "../../src/contracts/atividade.ts";
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
@@ -387,8 +388,8 @@ export type Estado = {
    * depois não os traz de volta — sem isto, o GET conversa que saiu antes do GET trabalhos devolvia o fantasma.
    */
   turnosDesmentidos: Readonly<Record<string, number>>;
-  /** Cancelar da fila tem 5 s de Desfazer antes de ir ao servidor (turnoId → instante do clique). */
-  cancelando: Record<string, number>;
+  /** Cancelar só a mensagem na fila (web/lib/cancelar-na-fila.ts): turnoId → a fase do cancelamento dela. */
+  cancelando: Readonly<Record<string, Cancelamento>>;
   salas: { sala: Sala; membros: MembroSala[] }[];
   suaVez: SuaVezDto | null;
   /** Não lidos (0039): o que chegou depois do "lido até" de cada conversa; null = ainda não carregou. */
@@ -621,8 +622,7 @@ export type Acao =
   /** Abre ou fecha uma linha recolhida das Configurações. */
   | { tipo: "config-recolhe"; id: string }
   | { tipo: "tick"; agora: number }
-  | { tipo: "cancelando-turno"; turnoId: string; agora: number }
-  | { tipo: "desfazer-cancelamento"; turnoId: string }
+  | AcaoDoCancelamento
   | { tipo: "conexao"; estado: EstadoConexao; tentativa: number; proximaEmMs: number | null }
   | { tipo: "frame"; frame: FrameSse; agora: number }
   | { tipo: "hidratar-gestao"; gestao: FrotaDto }
@@ -1657,12 +1657,12 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "fala-pendente-sai":
       return comPendentes(estado, acao.conversaId, (ps) => ps.filter((p) => p.idEnvio !== acao.idEnvio));
     case "cancelando-turno":
-      return { ...estado, cancelando: { ...estado.cancelando, [acao.turnoId]: acao.agora } };
+    case "turno-cancelado":
+    case "cancelamento-recusado":
+    case "desfazer-expirou":
     case "desfazer-cancelamento": {
-      if (!(acao.turnoId in estado.cancelando)) return estado;
-      const cancelando = { ...estado.cancelando };
-      delete cancelando[acao.turnoId];
-      return { ...estado, cancelando };
+      const cancelando = reduzirCancelamento(estado.cancelando, acao);
+      return cancelando === estado.cancelando ? estado : { ...estado, cancelando };
     }
     case "tick": {
       // definido em 2026-09-24 (ADR-045): nenhum evento diz que o Mac voltou (o fechamento do aviso é do
@@ -1800,7 +1800,9 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // só por ser de antes desta releitura (a releitura que saiu antes da gravada o tirava e a fala sumia até a próxima).
       const tela = estado.conversas[conversaId];
       const fica = (s: FalaSaindo): boolean => !(tela && gravadaDoRetrato(tela, s)) && !gravadaDoRetrato(acao.conversa, s) && retratoFica({ ...semSumidos, turnosVivos: promovidos }, conversaId, s, acao.agora);
-      return { ...semFalasSaindo(semSumidos, (s, c) => c !== conversaId || fica(s)), turnosVivos: promovidos, atividades, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: acao.agora, ...extras } } };
+      // O "Já entrou no turno · não deu para cancelar" sai na releitura (depois do mínimo na tela).
+      const cancelando = aposReleitura(estado.cancelando, conversaId, acao.agora);
+      return { ...semFalasSaindo(semSumidos, (s, c) => c !== conversaId || fica(s)), cancelando, turnosVivos: promovidos, atividades, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: acao.agora, ...extras } } };
     }
     case "hidratar-sua-vez": {
       // A escolha do campo só vale enquanto a conversa tem pergunta aberta: respondida ou deixada pra lá
