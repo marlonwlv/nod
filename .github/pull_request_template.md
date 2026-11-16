@@ -15,8 +15,10 @@
 
 <!-- Marque uma opção. Se houver mudança visual, anexe screenshots antes/depois ou dos estados relevantes. -->
 
-- [ ] Há mudança visual: anexei as screenshots acima
+- [ ] Há mudança visual: anexei as screenshots abaixo
 - [ ] Não se aplica: não há impacto visual. Justificativa: <!-- escreva aqui -->
+
+<!-- Arraste as screenshots aqui. -->
 
 ## O que ficou de fora
 
