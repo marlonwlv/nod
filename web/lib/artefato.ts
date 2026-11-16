@@ -75,17 +75,31 @@ export type MensagemDoArtefato = { tipo: "estado"; dados: unknown; json: string 
  * dois PUTs sem fila concluíram invertidos e o mais velho sobrescreveu o clique mais recente. Artefatos
  * diferentes continuam independentes; uma falha também não bloqueia a próxima tentativa.
  */
-export function criarFilaDeSalvamentos(salvar: (artefatoId: string, dados: unknown) => Promise<unknown>): (artefatoId: string, dados: unknown) => Promise<void> {
-  const filas = new Map<string, Promise<void>>();
-  return (artefatoId, dados) => {
-    const anterior = filas.get(artefatoId);
+export type FilaDeSalvamentos = {
+  salvar(artefatoId: string, dados: unknown): Promise<void>;
+  /** Envia por keepalive só o estado mais novo ainda em voo ou na fila, somado ao debounce que ainda não entrou nela. */
+  descarregarAoSair(salvarAoSair: (artefatoId: string, dados: unknown) => void, extras?: Iterable<readonly [string, unknown]>): void;
+};
+
+export function criarFilaDeSalvamentos(salvar: (artefatoId: string, dados: unknown) => Promise<unknown>): FilaDeSalvamentos {
+  const filas = new Map<string, { dados: unknown; promessa: Promise<void> }>();
+  const salvarEmOrdem = (artefatoId: string, dados: unknown) => {
+    const anterior = filas.get(artefatoId)?.promessa;
     const atual = (anterior ? anterior.catch(() => undefined) : Promise.resolve())
       .then(() => salvar(artefatoId, dados))
       .then(() => undefined);
-    filas.set(artefatoId, atual);
-    const limpar = () => { if (filas.get(artefatoId) === atual) filas.delete(artefatoId); };
+    filas.set(artefatoId, { dados, promessa: atual });
+    const limpar = () => { if (filas.get(artefatoId)?.promessa === atual) filas.delete(artefatoId); };
     void atual.then(limpar, limpar);
     return atual;
+  };
+  return {
+    salvar: salvarEmOrdem,
+    descarregarAoSair(salvarAoSair, extras = []) {
+      const maisRecentes = new Map([...filas].map(([id, p]) => [id, p.dados] as const));
+      for (const [id, dados] of extras) maisRecentes.set(id, dados);
+      for (const [id, dados] of maisRecentes) salvarAoSair(id, dados);
+    },
   };
 }
 

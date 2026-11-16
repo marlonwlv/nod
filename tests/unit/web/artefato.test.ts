@@ -100,9 +100,9 @@ describe("gravação concorrente do estado", () => {
     const chamadas: Array<{ id: string; dados: unknown; concluir(): void }> = [];
     const fila = criarFilaDeSalvamentos((id, dados) => new Promise<void>((concluir) => chamadas.push({ id, dados, concluir })));
 
-    const primeira = fila("a", { ordem: 1 });
-    const segunda = fila("a", { ordem: 2 });
-    const outra = fila("b", { ordem: 1 });
+    const primeira = fila.salvar("a", { ordem: 1 });
+    const segunda = fila.salvar("a", { ordem: 2 });
+    const outra = fila.salvar("b", { ordem: 1 });
     await Promise.resolve();
     expect(chamadas.map((c) => [c.id, c.dados])).toEqual([["a", { ordem: 1 }], ["b", { ordem: 1 }]]);
 
@@ -121,11 +121,32 @@ describe("gravação concorrente do estado", () => {
       chamadas.push(dados);
       if (chamadas.length === 1) throw new Error("rede caiu");
     });
-    const primeira = fila("a", 1);
-    const segunda = fila("a", 2);
+    const primeira = fila.salvar("a", 1);
+    const segunda = fila.salvar("a", 2);
     await expect(primeira).rejects.toThrow("rede caiu");
     await expect(segunda).resolves.toBeUndefined();
     expect(chamadas).toEqual([1, 2]);
+  });
+
+  it("leva ao pagehide o estado mais novo mesmo quando ele ainda está atrás de outro PUT", async () => {
+    const concluir: Array<() => void> = [];
+    const fila = criarFilaDeSalvamentos(() => new Promise<void>((resolve) => concluir.push(resolve)));
+    const primeira = fila.salvar("a", { ordem: 1 });
+    const segunda = fila.salvar("a", { ordem: 2 });
+    await Promise.resolve();
+
+    const keepalive: Array<[string, unknown]> = [];
+    fila.descarregarAoSair((id, dados) => keepalive.push([id, dados]), [["b", { ordem: 3 }]]);
+    expect(keepalive).toEqual([["a", { ordem: 2 }], ["b", { ordem: 3 }]]);
+
+    concluir[0]?.();
+    await primeira;
+    await Promise.resolve();
+    concluir[1]?.();
+    await segunda;
+    keepalive.length = 0;
+    fila.descarregarAoSair((id, dados) => keepalive.push([id, dados]));
+    expect(keepalive).toEqual([]);
   });
 });
 
