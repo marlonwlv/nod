@@ -999,6 +999,7 @@ export function criarComputadores(o: Opcoes) {
         const c = await obter(d, agenteId);
         // Card D, F3: quem assiste vê com o bot no controle; teclado e mouse ficam no filtro da sessão (vivo.ts).
         if (modo.assistir) {
+          if (!c.habilitado) throw new ErroDeDominio("nao_permitido");
           if (c.indisponivelDesde !== null) throw new ErroDeDominio("estado_invalido", { cause: "computador fora do ar" });
           if (c.telaId && operacaoViva(await d.repos.computadores.daPessoa(), d.agora())) throw new ErroDeDominio("estado_invalido", { cause: "atualizando" });
           return c;

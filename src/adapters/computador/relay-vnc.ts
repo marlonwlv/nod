@@ -69,10 +69,11 @@ async function autenticarUpstream(fila: FilaBytes, enviar: (b: Buffer) => void, 
 
 const comoBuffer = (dados: RawData): Buffer => Array.isArray(dados) ? Buffer.concat(dados) : Buffer.from(dados as ArrayBuffer);
 
-export async function abrirOrigemRfb(acesso: AcessoTelaAoVivo, o: { criarSocket?: CriarSocket; prazoMs?: number } = {}): Promise<LadoVivo> {
+export async function abrirOrigemRfb(acesso: AcessoTelaAoVivo, o: { criarSocket?: CriarSocket; prazoMs?: number; agora?: () => number } = {}): Promise<LadoVivo> {
+  if (acesso.validoAte !== null && acesso.validoAte <= (o.agora ?? Date.now)()) throw new Error("origem_vnc_expirada");
   const url = validarUrlVncExterna(acesso.url);
   url.searchParams.set("token", acesso.token);
-  const ws = (o.criarSocket ?? ((u, protocolos) => new WebSocket(u, protocolos, { perMessageDeflate: false, followRedirects: false })))(url.toString(), ["binary"]);
+  const ws = (o.criarSocket ?? ((u, protocolos) => new WebSocket(u, protocolos, { perMessageDeflate: false, followRedirects: false, maxPayload: VNC_FILA_MAX_BYTES })))(url.toString(), ["binary"]);
   const fila = new FilaBytes();
   let pronto = false;
   let fechou = false;
@@ -83,7 +84,11 @@ export async function abrirOrigemRfb(acesso: AcessoTelaAoVivo, o: { criarSocket?
   let serverInit: Buffer<ArrayBufferLike> = Buffer.alloc(0);
   let sobraUpstream: Buffer<ArrayBufferLike> = Buffer.alloc(0);
   const encerrar = (): void => { if (fechou) return; fechou = true; fila.fechar(new Error("origem_vnc_fechada")); avisarFechamento?.(); };
-  ws.on("message", (dados: RawData) => { const b = comoBuffer(dados); if (pronto) emitir?.(b); else fila.entrar(b); });
+  ws.on("message", (dados: RawData) => {
+    const b = comoBuffer(dados);
+    if (b.length > VNC_FILA_MAX_BYTES) { ws.terminate(); encerrar(); return; }
+    if (pronto) emitir?.(b); else fila.entrar(b);
+  });
   ws.on("close", encerrar);
   ws.on("error", encerrar);
 
@@ -127,7 +132,7 @@ export async function abrirOrigemRfb(acesso: AcessoTelaAoVivo, o: { criarSocket?
   return {
     enviar(bytes) { navegador = Buffer.concat([navegador, bytes]); if (navegador.length > VNC_FILA_MAX_BYTES) { ws.terminate(); encerrar(); return; } processarNavegador(); },
     aoDados(fn) { emitir = fn; mandar(Buffer.from("RFB 003.008\n")); },
-    aoFechar(fn) { avisarFechamento = fn; },
+    aoFechar(fn) { if (fechou) queueMicrotask(fn); else avisarFechamento = fn; },
     fechar() { try { ws.close(); } catch { /* já fechou */ } encerrar(); },
   };
 }

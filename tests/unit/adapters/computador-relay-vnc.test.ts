@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { abrirOrigemRfb, respostaVnc, validarUrlVncExterna } from "../../../src/adapters/computador/relay-vnc.ts";
+import { abrirOrigemRfb, respostaVnc, validarUrlVncExterna, VNC_FILA_MAX_BYTES } from "../../../src/adapters/computador/relay-vnc.ts";
 
 const SENHA = "senha-vnc";
 const DESAFIO = Buffer.from([...Array(16).keys()]);
@@ -12,6 +12,7 @@ class VncFalso extends EventEmitter {
   etapa = 0;
   autenticou = false;
   recebeu: Buffer[] = [];
+  terminou = false;
   constructor() {
     super();
     queueMicrotask(() => { this.emit("open"); this.emit("message", Buffer.from("RFB 003.008\n")); });
@@ -29,7 +30,7 @@ class VncFalso extends EventEmitter {
     this.recebeu.push(b);
   }
   close(): void { this.emit("close"); }
-  terminate(): void { this.emit("close"); }
+  terminate(): void { this.terminou = true; this.emit("close"); }
 }
 
 describe("relay RFB autenticado de provedor externo", () => {
@@ -79,6 +80,43 @@ describe("relay RFB autenticado de provedor externo", () => {
       "wss://www.orgo.ai/outro",
     ]) await expect(abrirOrigemRfb({ tipo: "vnc_websocket", url, token: SENHA, validoAte: null }, { criarSocket })).rejects.toThrow("origem_vnc_recusada");
     expect(criarSocket).not.toHaveBeenCalled();
+  });
+
+  it("recusa a credencial expirada antes de abrir socket", async () => {
+    const criarSocket = vi.fn();
+    await expect(abrirOrigemRfb(
+      { tipo: "vnc_websocket", url: "wss://www.orgo.ai/desktops/a/ws/websockify", token: SENHA, validoAte: 999 },
+      { criarSocket, agora: () => 1_000 },
+    )).rejects.toThrow("origem_vnc_expirada");
+    expect(criarSocket).not.toHaveBeenCalled();
+  });
+
+  it("derruba o upstream que manda um quadro acima do limite", async () => {
+    const socket = new VncFalso();
+    const origem = await abrirOrigemRfb(
+      { tipo: "vnc_websocket", url: "wss://www.orgo.ai/desktops/a/ws/websockify", token: SENHA, validoAte: null },
+      { criarSocket: () => socket as never },
+    );
+    const saida: Buffer[] = [];
+    origem.aoDados((b) => saida.push(Buffer.from(b)));
+    await esperar();
+    saida.length = 0;
+    socket.emit("message", Buffer.alloc(VNC_FILA_MAX_BYTES + 1));
+    expect(socket.terminou).toBe(true);
+    expect(saida).toEqual([]);
+  });
+
+  it("avisa a sessão quando o upstream cai antes do pareamento", async () => {
+    const socket = new VncFalso();
+    const origem = await abrirOrigemRfb(
+      { tipo: "vnc_websocket", url: "wss://www.orgo.ai/desktops/a/ws/websockify", token: SENHA, validoAte: null },
+      { criarSocket: () => socket as never },
+    );
+    socket.close();
+    const fechou = vi.fn();
+    origem.aoFechar(fechou);
+    await esperar();
+    expect(fechou).toHaveBeenCalledOnce();
   });
 
   it("mantém o vetor VNC Auth estável e valida só o endpoint público do Orgo", () => {
