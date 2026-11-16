@@ -329,6 +329,32 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
           },
         },
       });
+      // ADA-14: as outras ações novas com o quadro ou o projeto na rota levam, além do sorteio, um caso válido com o id
+      // real ("base plausível": o enxugar das ações do quadro sempre o mantém). Sem ele, o sorteio de ids podia nunca
+      // acertar o quadro real (a CI do #697 caiu no `quadro.vincular_bot` com a semente 3626997374).
+      const validoDaAda14: Record<string, { caminho: string; corpo: unknown }> = {
+        "quadro.vincular_bot": { caminho: `/quadros/${quadroDoFuzz}/bots`, corpo: { bot: segundo.agente.id } },
+        "quadro.editar_projeto": { caminho: `/projetos/${projetoDoFuzz}`, corpo: { nome: "Projeto do fuzz" } },
+        "quadro.arquivar_projeto": { caminho: `/projetos/${projetoDoFuzz}/arquivar`, corpo: null },
+        "quadro.restaurar_projeto": { caminho: `/projetos/${projetoDoFuzz}/restaurar`, corpo: null },
+        "quadro.remover_label": { caminho: `/agentes/${meu.agente.id}/quadro/labels/${encodeURIComponent(labelQueSai)}`, corpo: null },
+      };
+      // O fuzz-noturno de 14/11 (main 94460b87, semente 1416239180, N=200) caiu no `quadro.definir_padrao`: os casos
+      // semeados abaixo só entravam no enxuto do PR (N <= 20), e na noturna o sorteio de (bot, quadro) nunca juntou o bot
+      // da pessoa com o quadro real (tudo em 404). Na noturna, cada uma destas ações ganha o caso válido na posição do
+      // primeiro caso dela, como no PR; o sorteio inteiro continua depois.
+      if (N > 20) {
+        const validosDaNoturna: Record<string, { caminho: string; corpo: unknown }> = {
+          ...validoDaAda14,
+          "quadro.definir_padrao": { caminho: `/agentes/${meu.agente.id}/quadros/${encodeURIComponent(quadroDoFuzz)}/padrao`, corpo: null },
+        };
+        for (const [acao, valido] of Object.entries(validosDaNoturna)) {
+          const i = plano.casos.findIndex((c) => c.acao === acao);
+          if (i < 0) continue;
+          const base = plano.casos[i]!;
+          plano.casos.splice(i, 0, { ...base, caminho: valido.caminho, entrada: { rotulo: "base plausível", corpo: valido.corpo === null ? null : JSON.stringify(valido.corpo) } });
+        }
+      }
       // NOD-445, custo no PR (N <= 20; a noturna fica inteira): as rotas de remover e restaurar app não leem o corpo, então
       // as N entradas viravam N sorteios do mesmo caminho (com a semente 1257342993: 2 de 20 e 1 de 20 passaram da busca).
       // Cada uma fica com um caso por id que importa (o app vivo, o removido, o da outra pessoa pelo bot dela e pelo meu,
@@ -360,16 +386,6 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             for (const [q, b] of pares) enxuto.push({ ...c, caminho: `/quadros/${q}/bots/${b}`, entrada: { rotulo: "base plausível", corpo: null } });
             continue;
           }
-          // ADA-14: as outras ações novas com o quadro ou o projeto na rota levam, além do sorteio, um caso válido com o id
-          // real ("base plausível": o enxugar das ações do quadro sempre o mantém). Sem ele, o sorteio de ids podia nunca
-          // acertar o quadro real (a CI do #697 caiu no `quadro.vincular_bot` com a semente 3626997374).
-          const validoDaAda14: Record<string, { caminho: string; corpo: unknown }> = {
-            "quadro.vincular_bot": { caminho: `/quadros/${quadroDoFuzz}/bots`, corpo: { bot: segundo.agente.id } },
-            "quadro.editar_projeto": { caminho: `/projetos/${projetoDoFuzz}`, corpo: { nome: "Projeto do fuzz" } },
-            "quadro.arquivar_projeto": { caminho: `/projetos/${projetoDoFuzz}/arquivar`, corpo: null },
-            "quadro.restaurar_projeto": { caminho: `/projetos/${projetoDoFuzz}/restaurar`, corpo: null },
-            "quadro.remover_label": { caminho: `/agentes/${meu.agente.id}/quadro/labels/${encodeURIComponent(labelQueSai)}`, corpo: null },
-          };
           const valido = validoDaAda14[c.acao];
           if (valido && n === 1) enxuto.push({ ...c, caminho: valido.caminho, entrada: { rotulo: "base plausível", corpo: valido.corpo === null ? null : JSON.stringify(valido.corpo) } });
           if (c.acao === "paginas.remover_app" || c.acao === "paginas.restaurar_app") {
@@ -420,6 +436,19 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         const caminho = segs.map((s, j) => (j > 0 && SEMEADOS[segs[j - 1]!] !== undefined ? encodeURIComponent(SEMEADOS[segs[j - 1]!]!) : s)).join("/");
         plano.casos.splice(i, 0, { ...base, caminho });
       }
+      // O #685 e a main 6efd24bd ficaram vermelhos com a semente 2841792856 no `canvas.comentar`: os casos que caíam no canvas
+      // semeado traziam um `pai_id` sorteado (404 "o comentário a responder não está neste canvas") ou um corpo quebrado.
+      // Cada ação do canvas ganha um caso com o id semeado e um corpo válido, na posição do primeiro caso dela.
+      const DO_CANVAS: Record<string, { caminho: string; corpo: Record<string, unknown> }> = {
+        "canvas.comentar": { caminho: `/canvas/${meuCanvas.canvas}/comentarios`, corpo: { texto: "caso semeado do fuzz", endereco: "#J1-1", tipo: "pino", x: 0.25, y: 0.75 } },
+        "canvas.resolver_comentario": { caminho: `/canvas/comentarios/${meuCanvas.comentario}/resolver`, corpo: { resolvido: true } },
+      };
+      for (const [acao, semeado] of Object.entries(DO_CANVAS)) {
+        const i = plano.casos.findIndex((c) => c.acao === acao);
+        if (i < 0) continue;
+        const base = plano.casos[i]!;
+        plano.casos.splice(i, 0, { ...base, caminho: semeado.caminho, entrada: { ...base.entrada, rotulo: "semeado válido", corpo: JSON.stringify(semeado.corpo) } });
+      }
       // As labels: cada ação ganha um caso com a label dela no `:lid`, na posição do primeiro caso dela (passa com qualquer
       // semente). O editar fica com a que não sai.
       for (const [acao, label] of [["quadro.remover_label", labelQueSai], ["quadro.editar_label", labelQueFica]] as const) {
@@ -437,6 +466,15 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         const resto = plano.casos.filter((c, i) => !depois(c, i));
         resto.splice(primeiraQueTira, 0, ...antecipados);
         plano.casos = resto;
+      }
+      // Com o caso semeado acima, a semente 1416239180 seguiu em 404 no `quadro.definir_padrao`: um `bots.ocultar` sorteado
+      // antes escondia o bot do fuzz, e o definir_padrao só acha o bot entre os visíveis ("bot \"\" não encontrado"). Um
+      // `bots.ocultar` válido com `oculto: false` no bot do fuzz entra logo antes do primeiro `definir_padrao`, e o caso
+      // semeado passa da busca com qualquer semente.
+      const primeiroPadrao = plano.casos.findIndex((c) => c.acao === "quadro.definir_padrao");
+      const baseOcultar = plano.casos.find((c) => c.acao === "bots.ocultar");
+      if (primeiroPadrao >= 0 && baseOcultar) {
+        plano.casos.splice(primeiroPadrao, 0, { ...baseOcultar, caminho: `/agentes/${meu.agente.id}/ocultar`, entrada: { ...baseOcultar.entrada, rotulo: "semeado válido", corpo: JSON.stringify({ oculto: false }) } });
       }
       // eslint-disable-next-line no-console
       console.log(`fuzz-acoes[${config.nome}]: ${plano.acoes} ações, ${plano.casos.length} casos; sem rota:${plano.semRota.join(", ") || "nenhuma"}`);
@@ -572,7 +610,10 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         const teto = Number(process.env.FUZZ_TETO_S ?? "");
         if (N <= 20 && teto > 0) expect(total, `o fuzz do PR passou de ${teto} s (critério 7 do NOD-398)`).toBeLessThan(teto);
       }
-    }, PRAZO_DO_FUZZ_MS);
+    // Sem retry (o vitest.config dá 1 na CI): a semente é a mesma, então refazer repete as entradas, e o beforeAll não
+    // roda de novo; o fuzz do servidor de contas já encerrou a sessão de partida (sair de todos), e a segunda tentativa só
+    // dava "POST agentes → 401 Sua sessão terminou" por cima da falha de verdade (o #685, run 42061739845).
+    }, { timeout: PRAZO_DO_FUZZ_MS, retry: 0 });
 
     // Critério 4 (NOD-398): ação arriscada ou pessoa_confirma nunca roda sem decisão. Lista e risco vêm do registro (lote +
     // riscoDe), os argumentos do gerador. Para cada item e cada modo em que ela tem de esperar, o gerir_bots do Nod (o
