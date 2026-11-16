@@ -284,12 +284,15 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .detalhes .gv-cab-link { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
 .detalhes .gv-cab-link .gv-chev { opacity: 0; color: var(--ink-3); }
 .detalhes .gv-cab-link:hover .gv-chev, .detalhes .gv-cab-link:focus-visible .gv-chev { opacity: 1; }
+/* Validação de 2026-11-16: o cartão das seções (Frentes, Ajustes, Rotinas) segue o do Computador (.cpm-cartao): sem
+   sombra, 4 px de respiro e a linha com raio 8 — o hover fica dentro do cartão, não na borda. Antes tinha sombra e linhas
+   de ponta a ponta, e os dois cartões do mesmo painel pareciam de famílias diferentes. */
 .detalhes .gv-cartao {
-  border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-inline); overflow: hidden;
+  padding: 4px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: none; overflow: hidden;
 }
 .detalhes .gv-cartao > * + * { border-top: 0; position: relative; }
-.detalhes .gv-cartao > * + *::before { content: ""; position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: var(--divisoria); }
-.detalhes .gv-linha { min-height: 52px; box-sizing: border-box; padding: 8px 12px; gap: 10px; border-radius: 0; }
+.detalhes .gv-cartao > * + *::before { content: ""; position: absolute; top: 0; left: 8px; right: 8px; height: 1px; background: var(--divisoria); }
+.detalhes .gv-linha { min-height: 52px; box-sizing: border-box; padding: 8px 8px 8px 12px; gap: 10px; border-radius: 8px; }
 .detalhes .gv-linha:hover { background: var(--hover); }
 .detalhes .gv-linha > .gv-ic, .detalhes .gv-linha > svg:first-child { width: 16px; height: 16px; color: var(--ink-2); flex: none; }
 .detalhes .gv-linha-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink); font-weight: var(--peso-regular); }
@@ -993,3 +996,33 @@ html[data-barra-anim] #sidebar.sidebar .fixado-bt { animation: barra-rodape-entr
 @keyframes barra-rodape-entra { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { html[data-barra-anim] #sidebar.sidebar * { animation: none !important; } #sidebar.sidebar .list { transition: none !important; } }
 }
+
+/* =====================================================================================
+   O erro de uma ação (validação de 2026-11-16): aviso compacto, não faixa. Antes era uma faixa vermelha de ponta a ponta
+   com o "Detalhes" aberto embaixo — feia e invasiva. Como o aviso passageiro do app de referência e do bot-hq: um cartão
+   branco centrado logo abaixo da pílula do cabeçalho, com o ícone vermelho (o vermelho fica só no ícone, como o âmbar do
+   aviso de estado), a frase em tinta, Relatar e Detalhes discretos e o × de ícone. Some sozinho (main.ts).
+   ===================================================================================== */
+#erro:not(:empty) { display: flex; justify-content: center; }
+#erro > .erro {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; width: fit-content; max-width: min(680px, calc(100% - 32px));
+  box-sizing: border-box; margin: 10px 16px 0; padding: 7px 6px 7px 12px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12);
+  background: var(--surface-elevated); box-shadow: var(--shadow-pop); color: var(--ink); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2);
+  animation: erro-entra var(--dur-normal) ease both;
+}
+#erro > .erro > .erro-ic { flex: none; color: var(--danger); }
+#erro > .erro > .erro-txt { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+#erro > .erro > .erro-relatar { flex: none; }
+#erro > .erro > .erro-detalhe { flex: none; margin: 0; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+#erro > .erro > .erro-detalhe > summary { list-style: none; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+#erro > .erro > .erro-detalhe > summary::-webkit-details-marker { display: none; }
+#erro > .erro > .erro-detalhe[open] { order: 10; flex-basis: 100%; padding: 2px 0 3px 26px; }
+#erro > .erro > .erro-detalhe[open] > code { display: block; margin-top: 4px; font-size: var(--fs-legenda); color: var(--ink-2); overflow-wrap: anywhere; }
+#erro > .erro > .erro-fechar {
+  display: grid; place-items: center; flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--raio-full);
+  background: transparent; color: var(--ink-3); cursor: pointer;
+}
+#erro > .erro > .erro-fechar:hover { background: var(--hover); color: var(--ink); }
+#erro > .erro > .erro-fechar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+@keyframes erro-entra { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #erro > .erro { animation: none; } }
