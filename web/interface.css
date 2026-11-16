@@ -689,8 +689,7 @@
 .fala-pendente[data-envio="falhou"] .message.you .bubble .chip-comando { background: var(--surface-raised); color: var(--ink-2); }
 .fala-pendente .envio-erro { display: flex; justify-content: flex-end; align-items: center; gap: 10px; font-size: var(--fs-rotulo); color: var(--danger); margin: -17px 0 22px; }
 .fala-pendente .envio-erro .bt.envio-bt { font-size: var(--fs-rotulo); font-weight: 500; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--raio-8); padding: 2px 8px; }
-.message.you.fila-na_fila .bubble, .message.you.fila-cancelando .bubble { --balao-fundo: var(--surface); --balao-tinta: var(--ink); --balao-codigo: var(--surface-raised); background: var(--surface); border: 1px dashed var(--ink-3); color: var(--ink); }
-.message.you.fila-na_fila .bubble .chip-comando, .message.you.fila-cancelando .bubble .chip-comando, .message.you.fila-cancelada .bubble .chip-comando { background: var(--surface-raised); color: var(--ink-2); }
+.message.you.fila-cancelada .bubble .chip-comando { background: var(--surface-raised); color: var(--ink-2); }
 .message.you.fila-cancelada .bubble { --balao-fundo: var(--surface); --balao-tinta: var(--ink); --balao-codigo: var(--surface-raised); background: var(--surface); border: 1px dashed var(--line-strong); color: var(--ink-3); text-decoration: line-through; }
 .fila-chip { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 4px; font-size: var(--fs-rotulo); color: var(--ink-2); }
 .fila-chip.cancelada { color: var(--ink-3); }

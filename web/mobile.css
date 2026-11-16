@@ -444,6 +444,10 @@
   .linha-espera .linha-centro { max-width: 100%; }
   /* Protótipo NOD-92: a linha da fila ("Acordando …", "Rodar em X desta vez", Cancelar) quebra em vez de vazar em 390 px. */
   .fila-chip { flex-wrap: wrap; row-gap: 2px; text-align: right; }
+  /* Acessos · fila: a linha quebra à direita, o texto fica em 12 px e o Cancelar/Desfazer ganha alvo de 44 px pelo ::after. */
+  .timeline .fila-linha { overflow-wrap: anywhere; }
+  .timeline .fila-linha .bt.link { position: relative; }
+  .timeline .fila-linha .bt.link::after { content: ""; position: absolute; inset: -14px -8px; }
   .nv-sono, .nv-conectar { padding-left: 18px; }
 }
 

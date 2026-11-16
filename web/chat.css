@@ -28,8 +28,16 @@
 .composer .box > .parar-envio { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); border: 0; }
 .composer .box > .parar-envio svg { width: 14px; height: 14px; }
 
-/* A exceção do nod: a mensagem que só vai ser lida quando a máquina ligar. Linha como o separador, à direita, sem botão. */
-.timeline .fila-linha { margin-top: 4px; font-size: 12px; line-height: 16px; font-weight: 425; color: var(--chat-tinta-3); text-align: right; }
+/* Acessos · fila (2026-11-16): a linha pequena embaixo da fala na fila, à direita: "Na fila · Cancelar", "Cancelando…",
+   "Cancelada · não rodou · Desfazer"… O botão é texto (tinta-2, peso 500, sem vermelho), no tamanho da linha; o padding
+   à direita deixa o anel de foco inteiro na borda da coluna. O balão na fila NÃO apaga (o branco sobre a cor do bot já
+   está perto de 4,5:1, NOD-431): o "em voo" é só o `aria-busy` e esta linha. */
+.timeline .fila-linha { margin-top: 4px; padding-right: 3px; font-size: 12px; line-height: 16px; font-weight: 425; color: var(--chat-tinta-3); text-align: right; }
+.timeline .fila-linha .bt.link { display: inline; min-height: 0; padding: 0; border: 0; background: none; font: inherit; font-weight: 500; color: var(--chat-tinta-2); vertical-align: baseline; }
+.timeline .fila-linha .bt.link:hover { color: var(--chat-tinta); text-decoration: underline; }
+.timeline .fila-linha .bt.link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; border-radius: 3px; }
+/* A cancelada veste o balão "não enviada": superfície, contorno tracejado line-strong e tinta-2 (não parece fala que vai rodar). */
+.timeline .message.you.fila-cancelada .bubble { --balao-fundo: var(--surface); --balao-tinta: var(--ink); --balao-codigo: var(--surface-raised); background: var(--surface); border: 1px dashed var(--line-strong); color: var(--ink-2); text-decoration: none; box-shadow: none; }
 
 /* As ações no hover: 24 × 24, sem fundo, ícone de 16, sem animação; à direita do balão do bot, à esquerda do da pessoa. */
 .timeline .message .bubble-wrap { position: relative; }
