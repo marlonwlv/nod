@@ -91,7 +91,10 @@ describe("site estático (site/)", () => {
     expect(existsSync(join(SITE, "404.html"))).toBe(true);
     const wrangler = ler("wrangler.jsonc");
     expect(wrangler).toMatch(/"name":\s*"nodbot-site"/);
+    expect(wrangler).toMatch(/"main":\s*"worker\.ts"/);
     expect(wrangler).toMatch(/"directory":\s*"\."/);
+    expect(wrangler).toMatch(/"binding":\s*"ASSETS"/);
+    expect(wrangler).toMatch(/"run_worker_first":\s*true/);
     expect(wrangler).toMatch(/"not_found_handling":\s*"404-page"/);
   });
 
@@ -111,7 +114,7 @@ describe("site estático (site/)", () => {
       .split("\n")
       .map((l) => l.trim())
       .filter((l) => l && !l.startsWith("#"));
-    expect(ignorados).toEqual(expect.arrayContaining(["wrangler.jsonc", "README.md", ".wrangler"]));
+    expect(ignorados).toEqual(expect.arrayContaining(["wrangler.jsonc", "worker.ts", "README.md", ".wrangler"]));
   });
 
   it("8. todo link /download/* da página tem redirect 302 para um .dmg (ou o .exe do Windows, ADA-226) em https no _redirects", () => {

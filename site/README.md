@@ -14,7 +14,7 @@ nem dependência: o `index.html` traz CSS e JS inline e não faz nenhuma requisi
 | `robots.txt`, `sitemap.xml` | Tudo liberado; sitemap só com a home. |
 | `og.png` | Prévia de link 1200×630 (hero da w4). Para trocar, use um **nome novo**: fica 1 dia em cache, e Slack/WhatsApp guardam a prévia. |
 | `favicon.svg`, `icon-192.png`, `apple-touch-icon.png` | Copiados de `web/public`. |
-| `wrangler.jsonc`, `.assetsignore` | Config do Worker. O `.assetsignore` impede que `wrangler.jsonc`, este README e o `.wrangler/` do `wrangler dev` subam. |
+| `worker.ts`, `wrangler.jsonc`, `.assetsignore` | O Worker força `www` para o domínio canônico preservando caminho/query e entrega o restante aos assets. O `.assetsignore` impede que o código/config, este README e o `.wrangler/` do `wrangler dev` subam como arquivos públicos. |
 
 O teste `tests/unit/site/site-estatico.test.ts` (roda no `npm run test:unit`) guarda esse contrato.
 
@@ -66,7 +66,7 @@ Feito na NOD-321/NOD-322; fica como referência para refazer o domínio.
 3. ~~Projeto Pages~~ — não se aplica: o Worker `nodbot-site` já existe.
 4. Rodar `npx wrangler deploy -c site/wrangler.jsonc` e conferir `https://nodbot-site.nodbot.workers.dev/`: 200, a w4 e os cabeçalhos no `curl -I`.
 5. Em Workers & Pages → `nodbot-site` → Settings → Domains & Routes, adicionar o Custom Domain `nodbot.ai`. Esperar o certificado ativo.
-6. No DNS, criar `A www 192.0.2.1` com proxy ligado. Em Rules → Bulk Redirects, lista com origem `www.nodbot.ai`, destino `https://nodbot.ai`, 301, com Preserve query string, Subpath matching e Preserve path suffix ligados; criar e **ativar** a regra.
+6. No DNS, manter `www` com proxy ligado e ligado ao mesmo Worker. O `worker.ts` responde 301 para `https://nodbot.ai`, preservando caminho e query; a regra Bulk Redirect antiga pode continuar como defesa em profundidade, mas o site não depende dela.
 7. Não ligar HSTS na zona e não mexer no modo SSL nem no proxy do `app`.
 8. Verificar:
    - `curl -sI https://nodbot.ai/` → 200 com os cabeçalhos; `http://nodbot.ai/` → https.
