@@ -514,6 +514,13 @@ describe("linha de comando no Windows (2026-11-13: turno de bot com quatro conec
     expect(tamanhoNaLinhaDeComando(emArquivos.args)).toBeLessThan(TETO_DA_LINHA_NO_WINDOWS);
   });
 
+  it("um catálogo grande também cabe depois de tirar os argumentos longos da linha", () => {
+    const { args } = montarArgs({ plano: planoComConectores(12, 100), mcpJson: "C:\\Users\\pessoa\\nod\\turno-x\\mcp.json", terminal, systemPrompt: true, snapshotOff: true, windows: true });
+    const emArquivos = argsComArquivos(args, "C:\\turno-x");
+    expect(tamanhoNaLinhaDeComando(emArquivos.args)).toBeLessThan(TETO_DA_LINHA_NO_WINDOWS);
+    expect(valor(emArquivos.args, "--allowedTools")).toBe("mcp__nod,ToolSearch");
+  });
+
   it("troca só o valor das flags longas pelo caminho do arquivo, com o mesmo conteúdo, e deixa o resto na ordem", () => {
     const { args } = montarArgs({ plano: planoComConectores(1, 2), mcpJson: "m", terminal, systemPrompt: true, snapshotOff: true, windows: true });
     const prompt = valor(args, "--system-prompt")!;

@@ -246,7 +246,10 @@ const FLAG_EM_ARQUIVO = {
 /**
  * definido em 2026-11-13: os args do turno com o prompt de sistema e o `--settings` em arquivos de `dir` (o tmpdir do
  * turno, apagado no fim), para a linha de comando caber no teto do Windows. O conteúdo é o mesmo, byte a byte; muda só
- * por onde o CLI o lê. Sondado no CLI 2.1.323: `--system-prompt-file`, `--append-system-prompt-file` e `--settings
+ * por onde o CLI o lê. Se o catálogo sozinho ainda passar do teto, `--allowedTools` aprova o servidor `mcp__nod`
+ * inteiro: a documentação do CLI define que o nome do servidor sem a ferramenta permite todas as ferramentas dele, e
+ * esse servidor é o proxy escopado pelo token do turno, cujo `tools/list` já contém exatamente o catálogo do plano.
+ * Sondado no CLI 2.1.323: `--system-prompt-file`, `--append-system-prompt-file` e `--settings
  * <arquivo>` respondem como as formas em linha; o `--help` cita as duas primeiras como `--system-prompt[-file]`, por
  * isso elas não aparecem na lista de flags lida do help. Sem piso próprio na tabela: só entram quando a forma em linha
  * falharia de certeza (rodarTurno), então uma versão que não as conhecesse não perde turno que hoje funciona.
@@ -266,6 +269,14 @@ export function argsComArquivos(args: readonly string[], dir: string): { args: s
     saida.push(regra.flag, caminho);
     arquivos.push({ caminho, conteudo });
     i++;
+  }
+  if (tamanhoNaLinhaDeComando(saida) > TETO_DA_LINHA_NO_WINDOWS) {
+    const i = saida.indexOf("--allowedTools");
+    const permitidas = i === -1 ? undefined : saida[i + 1];
+    if (permitidas !== undefined) {
+      const compactas = [...new Set(permitidas.split(",").map((nome) => nome.startsWith("mcp__nod__") ? "mcp__nod" : nome))];
+      saida[i + 1] = compactas.join(",");
+    }
   }
   return { args: saida, arquivos };
 }
