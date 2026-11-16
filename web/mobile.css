@@ -410,13 +410,13 @@
   .nl-abrir { padding: 12px 16px; border-radius: 0; }
   .nl-previa { -webkit-line-clamp: 2; line-clamp: 2; }
   .nl-l1 .chip { max-width: 130px; }
-  .nl-check { width: 40px; height: 40px; top: 4px; right: 8px; }
+  .nl-check { width: var(--cel-alvo); height: var(--cel-alvo); top: 2px; right: 6px; }
   .nl-aviso { left: 16px; right: 16px; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 72px); transform: none; max-width: none; justify-content: space-between; font-size: 15px; padding: 6px 6px 6px 16px; animation-name: nl-sobe-c; }
   .nl-aviso .nl-desfazer { height: 40px; font-size: 15px; }
   /* A frase da recusa das páginas (revisão 6 do PR 626): ocupa a largura entre as margens e quebra em até três linhas. */
   .nl-aviso.nl-aviso-frase { width: auto; max-width: none; padding: 12px 16px; line-height: 20px; }
   .nlc-abrir time { display: none; }
-  .nlc-check { width: 40px; height: 40px; }
+  .nlc-check { width: var(--cel-alvo); height: var(--cel-alvo); top: 50%; right: 6px; }
   .tela-formulario { margin: 4px auto; }
   .tela-volta { margin-bottom: 14px; }
   .search > span { flex: none; white-space: nowrap; }
