@@ -88,7 +88,7 @@ export type AcaoAtalho =
   | { tipo: "focar-campo" }
   /** ⌘L leva o texto selecionado na conversa para o campo, como citação. */
   | { tipo: "selecao-no-campo" }
-  /** ⌘⇧N nova sala (conversa em grupo). */
+  /** ⌘⇧N novo chat em grupo (a tela nova-sala). */
   | { tipo: "nova-sala" }
   /** ⌘K a paleta de tudo: bots, conversas, ajustes e ações. */
   | { tipo: "paleta" };
@@ -288,7 +288,7 @@ export function linhasDaFolha(lugar: LugarTeclado): LinhaDaFolha[] {
     { titulo: "Buscar bots, conversas, ajustes e ações", combinacoes: [[k(busca), "K"]], falado: `${fala(busca)} K` },
     { titulo: "Modo dev", combinacoes: [[k(busca), shift, "D"]], falado: `${fala(busca)} Shift D` },
     { titulo: "Fechar e voltar", combinacoes: [["esc"]], falado: "Esc" },
-    { titulo: "Nova sala", combinacoes: [[k(m), shift, "N"]], falado: `${fala(m)} Shift N` },
+    { titulo: "Novo chat em grupo", combinacoes: [[k(m), shift, "N"]], falado: `${fala(m)} Shift N` },
     { titulo: "Barra lateral só com avatares", combinacoes: [[k(m), "B"]], falado: `${fala(m)} B` },
     { titulo: "Configurações", combinacoes: [[k(m), ","]], falado: `${fala(m)} vírgula` },
     { titulo: "Ir ao campo de mensagem", combinacoes: [[k(m), "I"]], falado: `${fala(m)} I` },
@@ -306,4 +306,10 @@ export function teclasDoBot(lugar: LugarTeclado, n: number): string[] | null {
 export function atalhoDoNovoBot(lugar: LugarTeclado): { texto: string; aria: string } {
   const m = MOD_DE[lugar];
   return { texto: lugar === "outro" ? `${NOME[m][lugar]}+N` : `${NOME[m][lugar]}N`, aria: `${ARIA[m]}+N` };
+}
+
+/** O rótulo e o aria-keyshortcuts do "Novo chat em grupo" (mod+⇧+N) no lugar: "⇧⌘N" no app do Mac, "Alt+Shift+N" fora dele. */
+export function atalhoDaNovaSala(lugar: LugarTeclado): { texto: string; aria: string } {
+  const m = MOD_DE[lugar];
+  return { texto: lugar === "outro" ? `${NOME[m][lugar]}+Shift+N` : `⇧${NOME[m][lugar]}N`, aria: `${ARIA[m]}+Shift+N` };
 }

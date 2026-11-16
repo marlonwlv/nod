@@ -28,7 +28,7 @@ export function renderNovaSala(estado: Estado): string {
   const agentes = estado.frota?.agentes ?? [];
   const opcoes = agentes.map((a) => `<label class="opcao"><input type="checkbox" name="agenteIds" value="${esc(a.id)}" /> ${avatarAgente(a, "sm")} ${esc(a.nome)}</label>`).join("");
   return `<section class="tela tela-nova-sala">
-    <header class="tela-cab"><h1>Nova sala</h1><span class="chip">2 a 6 bots · entre os selecionados, o primeiro da lista lidera</span></header>
+    <header class="tela-cab"><h1>Novo chat em grupo</h1><span class="chip">2 a 6 bots · entre os selecionados, o primeiro da lista lidera</span></header>
     <form class="form" data-form="criar-sala">
       <label>Nome <input name="nome" placeholder="revisão" required maxlength="60" /></label>
       <div class="opcoes">${opcoes || '<p class="mudo">Crie ao menos dois bots primeiro.</p>'}</div>

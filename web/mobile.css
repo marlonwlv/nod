@@ -132,6 +132,14 @@
   .bot-menu.menu-conta.folha::before { content: ""; display: block; width: 36px; height: 4px; margin: 0 auto 10px; border-radius: 2px; background: var(--line-strong); }
   .bot-menu.menu-conta.folha::backdrop { background: var(--backdrop); }
   .bot-menu.menu-conta.folha button { min-height: 52px; font-size: 16px; }
+  /* O menu "Novo" do + também vira folha de baixo: título "Novo" e dois itens de 44 px (Novo bot, Novo chat em grupo). */
+  .bot-menu.menu-mais.folha { left: 0 !important; right: 0; top: auto !important; bottom: 0; width: 100%; max-width: none;
+    box-sizing: border-box; padding: 8px 8px calc(12px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; border-bottom: 0;
+    animation: inicio-folha .24s cubic-bezier(.2, .8, .2, 1); }
+  .bot-menu.menu-mais.folha::before { content: ""; display: block; width: 36px; height: 4px; margin: 0 auto 10px; border-radius: 2px; background: var(--line-strong); }
+  .bot-menu.menu-mais.folha::backdrop { background: var(--backdrop); }
+  .bot-menu.menu-mais.folha .menu-nome { margin: 4px 16px 8px; }
+  .bot-menu.menu-mais.folha button[role="menuitem"] { min-height: 48px; gap: 16px; padding: 0 16px; font-size: 16px; }
 
   /* Carregando, erro e vazio (protótipo v3). */
   .inicio-aviso { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin: 0; padding: 4px 20px; font-size: 14px; color: var(--ink-2); }
