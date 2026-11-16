@@ -42,8 +42,8 @@ describe("IA e modo no campo do computador (acessos 3c)", () => {
     const b = blocoDoMouseFino(css("casca.css"));
     expect(b).toMatch(/\.composer \.box > :is\(#composer-ia, #composer-modo\) \{\s*visibility: hidden; opacity: 0;/);
     expect(b).toMatch(/\.composer \.box:is\(:hover, :focus-within\) > :is\(#composer-ia, #composer-modo\)[^{]*\{\s*visibility: visible; opacity: 1;/);
-    expect(b).toContain('#composer-modo[aria-expanded="true"]');
-    expect(b).toContain('#composer-ia[aria-expanded="true"]');
+    // Com o menu de um aberto, os DOIS ficam (antes o outro sumia e deixava o buraco do lugar guardado).
+    expect(b).toMatch(/\.composer \.box:has\(> :is\(#composer-ia, #composer-modo\)\[aria-expanded="true"\]\) > :is\(#composer-ia, #composer-modo\)[^{]*\{\s*visibility: visible; opacity: 1;/);
     // A transição usa o token de duração, nunca um tempo solto.
     expect(b).toContain("var(--dur-normal)");
   });
@@ -103,5 +103,16 @@ describe("Parar o turno sem apagar o rascunho (acessos 3b)", () => {
       expect(realce?.[1]).toContain(`background: var(${hover})`);
       expect(repouso?.[1]).not.toMatch(/#[0-9a-f]{3,8}\b|rgb/);
     }
+  });
+});
+
+describe("o menu do modo no tamanho dos outros menus", () => {
+  it("segue o menu da IA: 336 de largura, itens 8/10, ícone de 16 e a descrição em rótulo", () => {
+    const c = css("interface.css");
+    expect(c).toContain(".bot-menu.modo-menu { width: min(336px, calc(100vw - 24px)); padding: 6px; border-radius: var(--raio-14); }");
+    expect(c).toContain(".bot-menu.ia-sel-menu { width: min(336px, calc(100vw - 24px));");
+    expect(c).toContain(".bot-menu.modo-menu button.modo-item { align-items: flex-start; gap: 10px; padding: 8px 10px;");
+    expect(c).toContain(".modo-item .modo-ic svg { width: 16px; height: 16px; }");
+    expect(c).toContain(".modo-item .modo-txt small { font-size: var(--fs-rotulo);");
   });
 });

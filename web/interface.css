@@ -1399,19 +1399,23 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .modo-chip:hover .modo-dica, .modo-chip:focus-visible .modo-dica { opacity: 1; transition-delay: .3s; }
 .modo-chip:focus-visible .modo-dica { transition-delay: 0s; }
 .modo-chip[aria-expanded="true"] .modo-dica { opacity: 0; }
-.bot-menu.modo-menu { width: min(540px, calc(100vw - 24px)); padding: 14px 8px 8px; }
-.bot-menu.modo-menu .menu-nome { margin: 0 12px 6px; font-size: var(--fs-corpo-2); }
-.bot-menu.modo-menu button.modo-item { align-items: flex-start; gap: 14px; padding: 10px 12px; }
+/* Calibrado com o menu da IA (ia-sel-menu, o mesmo campo): 336 de largura, 6 de respiro, raio 14, itens 8/10 com ícone de
+   16, o nome em corpo e a descrição em rótulo cinza. Era 540 com ícone de 20 e descrição em corpo 2 — o dobro do vizinho. */
+.bot-menu.modo-menu { width: min(336px, calc(100vw - 24px)); padding: 6px; border-radius: var(--raio-14); }
+.bot-menu.modo-menu .menu-nome { margin: 8px 10px 4px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.bot-menu.modo-menu button.modo-item { align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: var(--raio-10); }
 .bot-menu.modo-menu button > span { width: auto; font-size: inherit; }
-.modo-item .modo-ic { display: inline-flex; margin-top: 1px; color: var(--ink-2); }
-.modo-item .modo-txt { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.modo-item .modo-ic { display: inline-flex; margin-top: 2px; color: var(--ink-2); }
+.modo-item .modo-ic svg { width: 16px; height: 16px; }
+.modo-item .modo-txt { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .modo-item .modo-txt b { font-weight: 400; font-size: var(--fs-corpo); color: var(--ink); }
-.modo-item .modo-txt small { font-size: var(--fs-corpo-2); line-height: 1.45; color: var(--ink-2); }
-.modo-item .modo-check { display: inline-flex; margin-top: 2px; color: var(--ink); }
+.modo-item .modo-txt small { font-size: var(--fs-rotulo); line-height: 1.45; color: var(--ink-3); }
+.modo-item .modo-check { display: inline-flex; margin-top: 3px; color: var(--ink); }
+.modo-item .modo-check svg { width: 14px; height: 14px; }
 .modo-item.modo-automatico .modo-ic { color: var(--ink); }
 .modo-item.modo-total .modo-ic, .modo-item.modo-total .modo-txt b, .modo-item.modo-total .modo-txt small { color: var(--warning); }
 /* A confirmação do total, ancorada na opção (borda âmbar suave, sem faixa): o texto em tinta e os dois botões. */
-.modo-confirma { display: flex; flex-direction: column; gap: 8px; margin: 0 12px 4px 46px; padding: 10px 12px; border: 1px solid var(--warning-line); border-radius: var(--raio-10); }
+.modo-confirma { display: flex; flex-direction: column; gap: 8px; margin: 0 10px 4px 36px; padding: 10px 12px; border: 1px solid var(--warning-line); border-radius: var(--raio-10); }
 .modo-confirma-txt { margin: 0; font-size: var(--fs-corpo-2); line-height: 1.45; color: var(--ink); }
 .modo-confirma-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
 .bot-menu.modo-menu .modo-confirma-acoes button { width: auto; min-height: 32px; padding: 7px 14px; border: 1px solid var(--line-strong); border-radius: var(--raio-10); background: var(--surface); color: var(--ink); font-size: var(--fs-corpo-2); line-height: 1.45; }
@@ -1419,7 +1423,7 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .bot-menu.modo-menu .modo-confirma-acoes button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .bot-menu.modo-menu .modo-confirma-acoes .modo-confirma-sim { border-color: var(--action); background: var(--action); color: var(--on-action); }
 .bot-menu.modo-menu .modo-confirma-acoes .modo-confirma-sim:hover, .bot-menu.modo-menu .modo-confirma-acoes .modo-confirma-sim:focus-visible { background: var(--action); opacity: .88; }
-.modo-menu .modo-rodape { margin: 4px 4px 0; padding: 10px 8px 4px; border-top: 1px solid var(--line); font-size: var(--fs-rotulo); color: var(--ink-3); }
+.modo-menu .modo-rodape { margin: 5px 4px 0; padding: 8px 6px 4px; border-top: 1px solid var(--line); font-size: var(--fs-rotulo); line-height: 1.45; color: var(--ink-3); }
 /* O porquê de um card que parou mesmo com o modo automático (motivo_manual, 0040). */
 .ap-porque { display: flex; align-items: flex-start; gap: 7px; margin: 6px 0 0; font-size: var(--fs-rotulo); line-height: 1.45; color: var(--warning); }
 .ap-porque svg { flex: none; margin-top: 1px; }

@@ -172,13 +172,14 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 /* Acessos do campo (3c): a IA e o modo voltam ao campo, entre o texto e o 🎤 (o anexo segue no ＋). Com mouse, em repouso
    ficam no lugar mas escondidos — o lugar é guardado, então nada pula quando aparecem, e o visibility hidden os tira do
    Tab; no hover e no foco do campo aparecem (Tab: texto → IA → modo → 🎤 → enviar). Sem mouse fino (tela de toque
-   grande), ficam sempre à vista. 3a: "Ignorar todas as aprovações" ligado fica sempre à vista, fora do hover. */
+   grande), ficam sempre à vista. Com o menu de um aberto, os dois ficam (o foco foi para o menu, fora do campo, e o
+   outro sumia deixando o buraco do lugar guardado). 3a: "Ignorar todas as aprovações" ligado fica sempre à vista, fora do hover. */
 @media (hover: hover) and (pointer: fine) {
   .composer .box > :is(#composer-ia, #composer-modo) {
     visibility: hidden; opacity: 0; transition: opacity var(--dur-normal) ease, visibility 0s linear var(--dur-normal);
   }
   .composer .box:is(:hover, :focus-within) > :is(#composer-ia, #composer-modo),
-  .composer .box > #composer-modo[aria-expanded="true"], .composer .box > #composer-ia[aria-expanded="true"] {
+  .composer .box:has(> :is(#composer-ia, #composer-modo)[aria-expanded="true"]) > :is(#composer-ia, #composer-modo) {
     visibility: visible; opacity: 1; transition-delay: 0s;
   }
   /* 3a: com "Ignorar todas as aprovações" ligado o chip âmbar (interface.css) fica sempre à vista, para a dona e para
