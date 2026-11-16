@@ -86,7 +86,7 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     if (!srv) return;
     await srv.fechar();
     // O que a lista fixa da limpeza não conhece: "Sempre permitir" (permissoes_permanentes aponta o item) e os ajustes de
-    // aprovação (ADR-166). Como a própria pessoa (nod_app: as policies de RLS são dela), sob o escopo dela.
+    // aprovação (ADR-167). Como a própria pessoa (nod_app: as policies de RLS são dela), sob o escopo dela.
     const escopo = { tenantId: srv.pessoa.tenantId, pessoaId: srv.pessoa.pessoaId };
     await srv.db.begin(async (trx) => {
       await vincularEscopo(trx, escopo);
@@ -224,7 +224,7 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     await ate(`document.querySelector("#timeline li.decisao.aprov-card[data-decisao]")`, "o cartão de aprovação");
     expect(await texto('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao"]')).toBe("Permitir uma vez");
     expect(await texto('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao-sempre"]')).toMatch(/^Sempre permitir /);
-    expect(await avaliar<string | null>(cdp, `document.querySelector('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao-nenhum"]')?.getAttribute("aria-label") ?? null`)).toBe("Negar");
+    expect(await avaliar<string | null>(cdp, `document.querySelector('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao-nenhum"]')?.getAttribute("aria-label") ?? null`)).toBe("Negar e fechar");
     expect(await existe('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao-nenhum"] kbd')).toBe(true);
 
     // (b) Esc com o foco no cartão nega (no campo de texto, o Esc é do campo).
@@ -577,7 +577,7 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     await falar(bot, `Pergunte. [[tool: pedir_a_pessoa {"tipo":"pergunta","texto":"Posso arquivar o PR 7?"}]] [[texto: perguntei]]`);
     const linha = `#sidebar [data-bot-contexto="${bot.id}"]`;
     await ate(`document.querySelector('${linha}[data-aguardando] .sub-aguardando')`, "a linha aguardando");
-    expect(await texto(`${linha} .sub-aguardando`)).toBe("Aguardando você: Posso arquivar o PR 7?");
+    expect(await texto(`${linha} .sub-aguardando`)).toBe("Aguardando você: Posso arquivar o PR 7");
     // Laranja: a cor vem de --aguardando (o valor é do CSS; aqui só que é a variável, e não a do não lido).
     const cor = await avaliar<{ sub: string; ref: string }>(cdp, `(() => { const v = getComputedStyle(document.documentElement).getPropertyValue("--aguardando").trim(); const p = document.createElement("i"); p.style.color = v; document.body.append(p); const ref = getComputedStyle(p).color; p.remove(); return { sub: getComputedStyle(document.querySelector('${linha} .sub-aguardando')).color, ref }; })()`);
     expect(cor.ref).not.toBe("");

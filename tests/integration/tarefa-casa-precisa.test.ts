@@ -61,7 +61,9 @@ describeIntegracao("ADA-28: um único Precisa de você", () => {
         const t = await m.repos.quadros.tarefa(m.tarefa.id);
         expect(t?.status).toBe("voce");
         expect(t?.pergunta).toBe("Uso a paleta nova ou a antiga?");
-        const [linha] = await m.linhas();
+        const linhas = await m.linhas();
+        expect(linhas).toHaveLength(1);
+        const [linha] = linhas;
         expect(linha?.payload).toMatchObject({ kind: "tarefa_linha", motivo: "precisa", tarefaId: m.tarefa.id, quadroId: m.q.id });
         expect(linha?.texto).toMatch(/precisa de você$/);
         // O aviso "Preciso de você no quadro" não sai: a Sua vez já tem o cartão da decisão.

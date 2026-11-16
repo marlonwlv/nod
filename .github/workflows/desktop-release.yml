@@ -173,6 +173,10 @@ jobs:
             export CSC_IDENTITY_AUTO_DISCOVERY=false
             ASSINATURA=(--config.mac.identity=null --config.mac.notarize=false --config.dmg.sign=false)
           fi
+          # NOD-467 (ADR-149): ElectronSquirrelPreventDowngrades só com versão x.y.z e Electron >= 44 (o script imprime o
+          # argumento ou nada); o verificador do pacote confere o Info.plist com a mesma regra.
+          ANTI_DOWNGRADE="$(node scripts/desktop/info-plist-release.mjs)"
+          if [ -n "$ANTI_DOWNGRADE" ]; then ASSINATURA+=("$ANTI_DOWNGRADE"); fi
           for tentativa in 1 2 3; do
             if npx electron-builder --mac dmg zip --"$ARCH" --publish never "${ASSINATURA[@]}"; then break; fi
             if [ "$tentativa" -eq 3 ]; then exit 1; fi

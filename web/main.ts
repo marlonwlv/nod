@@ -22,6 +22,7 @@ import { CHAVE_AVISO_RECRIADO } from "./telas/espaco.ts";
 import { marcarTelaFechadaNaAjuda } from "./lib/computador.ts";
 import { anunciarEm, criarFocoPendente, guardarPosicao, planejarSaidaDaLista, reporPosicao, type ElDaLista, type RaizDaLista } from "./lib/posicao-da-lista.ts";
 import { criarUltimaLeitura } from "./lib/ultima-leitura.ts";
+import { decidirContraEstadoVelho } from "./lib/decidir-contra-estado-velho.ts";
 import { aoVerComputador, definirTelaDoBot } from "./telas/tela-do-bot.ts";
 import { abrirWorkspace } from "./telas/workspace.ts";
 import { listaDoQuePodem, rotuloPermitir, type EscolhaLiberar } from "./telas/card-liberar.ts";
@@ -260,11 +261,11 @@ import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deve
 // NOD-117: as teclas dos atalhos mudam com o lugar (app do Mac, navegador no Mac, Windows/Linux): web/lib/atalhos.ts.
 const LUGAR_TECLADO = lugarAtual();
 const ATALHO_NOVO_BOT = atalhoDoNovoBot(LUGAR_TECLADO);
-/** ADR-167: o modificador mostrado nas teclas da paleta ⌘K (o mesmo da folha de atalhos). */
+/** ADR-168: o modificador mostrado nas teclas da paleta ⌘K (o mesmo da folha de atalhos). */
 const MOD_DA_PALETA = LUGAR_TECLADO === "app-mac" ? "⌘" : LUGAR_TECLADO === "navegador-mac" ? "⌃" : "Alt";
 
 /**
- * ADR-167 (tela 08): a paleta ⌘K de tudo. Os itens saem do estado na hora de abrir: os bots na ordem da barra (o DOM, como
+ * ADR-168 (tela 08): a paleta ⌘K de tudo. Os itens saem do estado na hora de abrir: os bots na ordem da barra (o DOM, como
  * o ⌘1–9), os trabalhos do mais recente, os ajustes do catálogo e as ações. Ela vive fora do render() (web/lib/paleta-na-tela.ts).
  */
 const paleta = criarPaleta({
@@ -327,7 +328,7 @@ function executarDaPaleta(item: ItemPaleta): void {
     case "tema-escuro": escolherTema("escuro"); render(); return;
     case "tema-sistema": escolherTema("sistema"); render(); return;
     case "pausar-rotinas": void pausarTodasAsRotinas(); return;
-    // ADR-167 (tela 01): a vitrine do design system, página interna.
+    // ADR-168 (tela 01): a vitrine do design system, página interna.
     case "design-system": window.open("/design-system.html", "_blank", "noopener"); return;
     // No app do Mac o ⌥Espaço abre o Quick Chat; no navegador, a mesma janela numa janela pequena.
     case "quick-chat": window.open("/?janela=quick-chat", "nod-quick-chat", "width=608,height=440"); return;
@@ -345,7 +346,7 @@ function abrirPaleta(): void {
 }
 
 /**
- * ADR-167: leva ao ajuste — abre as Configurações na seção dele e, quando a linha existe (id="ajuste-<id>"), rola até ela e
+ * ADR-168: leva ao ajuste — abre as Configurações na seção dele e, quando a linha existe (id="ajuste-<id>"), rola até ela e
  * a realça. A folha de atalhos é o bloco Ajuda.
  */
 function irAoAjuste(id: string): void {
@@ -355,7 +356,8 @@ function irAoAjuste(id: string): void {
   // O link de fora (ou a paleta) leva à linha mesmo com uma busca aberta nas Configurações: a busca sai.
   termoAjustes = "";
   abrirEspaco(a.secao);
-  // A seção que carrega depois (Aprovações) desenha a linha quando os dados chegam: procura por até ~3 s.
+  // A seção que carrega depois (Aprovações) desenha a linha quando os dados chegam. As linhas condicionais (time e apps)
+  // dependem de mais de uma leitura; em máquina ocupada, 3 s acabavam antes delas e o link profundo não era aplicado.
   // O redesenho da seção que acabou de carregar troca o nó: o realce é reposto na linha nova até o fim dele.
   const manterRealce = (ate: number): void => {
     if (Date.now() >= ate) { document.getElementById(`ajuste-${a.id}`)?.classList.remove("realce"); return; }
@@ -366,20 +368,20 @@ function irAoAjuste(id: string): void {
     const linha = document.getElementById(`ajuste-${a.id}`);
     if (linha) { levarAo(linha); manterRealce(Date.now() + REALCE_MS); } else if (resta > 0) setTimeout(() => procurar(resta - 1), 100);
   };
-  requestAnimationFrame(() => procurar(30));
+  requestAnimationFrame(() => procurar(100));
 }
-/** ADR-167: o que as Configurações leem do design system novo (balão, sons e a busca dos ajustes). */
+/** ADR-168: o que as Configurações leem do design system novo (balão, sons e a busca dos ajustes). */
 function extrasDoDs(): { balaoCor: boolean; sons: ReturnType<typeof lerSons>; buscaAjustes: string } {
   return { balaoCor: lerBalaoCor(), sons: lerSons(), buscaAjustes: termoAjustes };
 }
-/** O que as Configurações ganharam na frente nova: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
+/** O que as Configurações ganharam na frente nova: o visual (ADR-168), Aprovações (ADR-167) e o Mac (ADR-174). Num só
  * extra para o render() de Seu espaço caber na guarda da NOD-370. */
 function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null } {
   return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now()), mac: ajustesMac };
 }
-/** ADR-167: o termo da busca das Configurações; fechar as Configurações ou escolher um achado o limpa. */
+/** ADR-168: o termo da busca das Configurações; fechar as Configurações ou escolher um achado o limpa. */
 let termoAjustes = "";
-/** ADR-167: os sons opcionais (web/lib/sons.ts). O AudioContext nasce no primeiro som (o navegador exige um gesto antes). */
+/** ADR-168: os sons opcionais (web/lib/sons.ts). O AudioContext nasce no primeiro som (o navegador exige um gesto antes). */
 let contextoDeAudio: AudioContext | null = null;
 const vigiaDeSons = criarVigiaDeSons({
   escolha: () => lerSons(),
@@ -414,7 +416,7 @@ let estado: Estado = estadoInicial;
 const CANCELAR_DESFAZER_MS = 5_000;
 let api: Api | null = null;
 
-/** ADR-166: Configurações › Aprovações. O estado é da seção (web/lib/ajustes-aprovacao.ts); a lista de bots é a da dona. */
+/** ADR-167: Configurações › Aprovações. O estado é da seção (web/lib/ajustes-aprovacao.ts); a lista de bots é a da dona. */
 function botsDaTelaAprovacoes(): BotDaTela[] {
   return botsDaPessoa(estado).map((a) => ({ id: a.id, nome: a.nome, modo: a.modoPedido ?? a.modoAprovacao ?? "manual" }));
 }
@@ -690,7 +692,7 @@ function sairDasRecentes(devolverFoco = true, depois?: () => void): void {
 }
 // Esc fecha a folha antes de qualquer outro Esc (na janela, em captura: antes dos ouvintes do document); o Tab fica
 // preso nela (role=dialog, aria-modal).
-// ADR-166: Enter salva e Esc cancela a regra em edição nas Aprovações, antes do Esc que fecha as Configurações.
+// ADR-167: Enter salva e Esc cancela a regra em edição nas Aprovações, antes do Esc que fecha as Configurações.
 window.addEventListener("keydown", (ev) => {
   if (telaAprovacoes.tecla(ev)) ev.stopImmediatePropagation();
 }, true);
@@ -698,7 +700,7 @@ document.addEventListener("input", (ev) => {
   const el = ev.target as HTMLElement;
   if (el instanceof HTMLInputElement && el.dataset.apvCampo) telaAprovacoes.digitar(el.value);
 });
-// ADR-166 (tela 06): a caixa "Salvar como regra" troca o rótulo do botão; no lote, a contagem do "Permitir os N".
+// ADR-167 (tela 06): a caixa "Salvar como regra" troca o rótulo do botão; no lote, a contagem do "Permitir os N".
 document.addEventListener("change", (ev) => {
   const el = ev.target as HTMLElement;
   if (!(el instanceof HTMLInputElement)) return;
@@ -716,9 +718,9 @@ document.addEventListener("change", (ev) => {
     card?.querySelector<HTMLButtonElement>('[data-act="iguais-permitir"]')?.toggleAttribute("disabled", n === 0);
   }
 });
-// ADR-166 (tela 06): Esc nega o cartão de aprovação em que está o foco (no lote, nega todos). Fora de um cartão, o Esc
+// ADR-167 (tela 06): Esc nega o cartão de aprovação em que está o foco (no lote, nega todos). Fora de um cartão, o Esc
 // segue para quem já o usava (menus, citação, Configurações). O campo de texto da regra não nega: lá o Esc é do campo.
-// ADR-167 (Paper 04): Enter no "Para:" ou no campo da nova conversa abre a sugestão marcada; ↑ ↓ trocam a marcada.
+// ADR-168 (Paper 04): Enter no "Para:" ou no campo da nova conversa abre a sugestão marcada; ↑ ↓ trocam a marcada.
 document.addEventListener("keydown", (ev) => {
   const alvo = ev.target as HTMLElement | null;
   if (!alvo || (alvo.id !== "busca-destinatario" && alvo.id !== "nc-texto")) return;
@@ -1249,7 +1251,7 @@ const telaOnboarding = criarTelaOnboarding({
   // ADA-242: a jornada A (texto, sem ligação) só com NOD_ONBOARDING_TEXTO.
   texto: () => contas?.onboardingTexto === true,
   nomeSugerido: () => nomeDoEmail(quemEsta()?.email),
-  // ADR-174: o onboarding em 10 passos cria o bot com cor e forma (o mesmo preparo do "Criar novo bot").
+  // ADR-175: o onboarding em 10 passos cria o bot com cor e forma (o mesmo preparo do "Criar novo bot").
   criarBot: () => depsCriarBot(),
   email: () => quemEsta()?.email ?? null,
   dados: () => estado.onboarding,
@@ -1365,9 +1367,9 @@ async function decidirPelaLigacao(decisaoId: string, aprovar: boolean): Promise<
   if (!api) return;
   const item = estado.suaVez?.itens.find((i) => i.decisao.id === decisaoId);
   const tipo = item?.decisao.tipo;
-  if (tipo === "aprovacao" || tipo === "gate_rotina") await api.decidir(decisaoId, { itens: (item?.itensAprovacao ?? []).map((i) => ({ id: i.id, selecionado: aprovar && i.selecionado })) });
+  if (tipo === "aprovacao" || tipo === "gate_rotina") await decidirAprovacaoReconciliando(decisaoId, { itens: (item?.itensAprovacao ?? []).map((i) => ({ id: i.id, selecionado: aprovar && i.selecionado })) });
   else if (tipo === "retomar_turno") await (aprovar ? api.retomar(decisaoId) : api.dispensar(decisaoId));
-  else await api.decidir(decisaoId, aprovar ? {} : { recusar: true });
+  else await decidirAprovacaoReconciliando(decisaoId, aprovar ? {} : { recusar: true });
   dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(item?.decisao.conversaId ? [`conversa:${item.decisao.conversaId}` as Invalidacao] : [])] });
 }
 
@@ -2006,6 +2008,23 @@ async function agir(fn: () => Promise<void>): Promise<void> {
   }
 }
 
+/**
+ * ADA-247: o POST pode perder a corrida para outra aba, uma regra ou o varredor. Confirma pelo GET autoritativo antes de
+ * tratar o 409 como sucesso já realizado; a fila sai na hora e a conversa relê o cartão como linha de desfecho.
+ */
+async function decidirAprovacaoReconciliando(id: string, corpo: Parameters<Api["decidir"]>[1]): Promise<void> {
+  await decidirContraEstadoVelho(
+    () => api!.decidir(id, corpo),
+    async () => {
+      const suaVez = await api!.suaVez(naFrente());
+      dispatch({ tipo: "hidratar-sua-vez", suaVez });
+      return !suaVez.itens.some((item) => item.decisao.id === id);
+    },
+  );
+  const conversa = conversaAtual();
+  dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(conversa ? [`conversa:${conversa.conversaId}` as Invalidacao] : [])] });
+}
+
 // ---------------------------------------------------------------------------------------------
 // Reidratação: o reducer diz O QUE mudou; aqui busca-se por REST e despacha o hidratar.
 
@@ -2087,12 +2106,13 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     return detalhe ? { tipo: "hidratar-trabalho", detalhe, agora } : { tipo: "trabalho-sumiu", id };
   }
   if (q === "chaves") return { tipo: "hidratar-chaves", chaves: (await api.chaves()).chaves };
+  if (q === "mcp-tokens") return { tipo: "hidratar-mcp-tokens", tokens: await api.mcpTokens() };
   // ADR-090: servidor sem a rota (404, versão anterior) fica sem máquinas; nenhum erro sobe.
   if (q === "maquinas") {
     relerEstaMaquina();
     const [maquinas, ondeRoda] = await Promise.all([
       api.maquinas().catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return { maquinas: [], padraoId: null }; throw e; }),
-      // ADR-169: um extra da seção; qualquer falha deixa a tela como antes.
+      // ADR-170: um extra da seção; qualquer falha deixa a tela como antes.
       api.ondeRoda().catch(() => null),
     ]);
     return { tipo: "hidratar-maquinas", maquinas: ondeRoda ? { ...maquinas, ondeRoda } : maquinas };
@@ -2323,6 +2343,7 @@ function relevante(q: Invalidacao): boolean {
   if (q === "agenda") return secao === "rotinas";
   if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala";
   if (q === "chaves") return secao === "maquinas";
+  if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
   if (q === "nuvem") return secao === "maquinas";
   if (q === "contas") return secao === "maquinas" || secao === "conexao" || ((t.tipo === "conversa" || t.tipo === "trabalho" || conversaAbertaTemNotaDeContas(estado)) && (contasFalharamEm === null || Date.now() - contasFalharamEm > ESPERA_CONTAS_MS));
@@ -2387,7 +2408,7 @@ function conteudoDaAbaQuadros(): string {
   });
 }
 
-/** ADR-167 (telas 02–05 do Paper): os ícones da casca no desenho do Paper (caixa 16, traço 1.4). */
+/** ADR-168 (telas 02–05 do Paper): os ícones da casca no desenho do Paper (caixa 16, traço 1.4). */
 const IC_PAPER = (corpo: string, t = 16): string => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corpo}</svg>`;
 const IC_BARRA = IC_PAPER('<rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/>');
 const IC_LUPA = IC_PAPER('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/>');
@@ -2401,7 +2422,7 @@ function iniciaisDe(nome: string | null | undefined): string {
   if (!partes.length) return "eu";
   return ((partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1]?.[0] ?? "" : "")).toUpperCase();
 }
-/** ADR-167: o ícone da linha fixa "Trabalhos" (a maleta, o mesmo desenho do antigo ícone do topo). */
+/** ADR-168: o ícone da linha fixa "Trabalhos" (a maleta, o mesmo desenho do antigo ícone do topo). */
 const ICONE_TRABALHOS_LINHA = '<svg class="linha-fixa-ic" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="14" height="11" rx="2.2"/><path d="M7.5 5.5V4.2a1.2 1.2 0 0 1 1.2-1.2h2.6a1.2 1.2 0 0 1 1.2 1.2v1.3"/><path d="M3 10h14"/></svg>';
 
 /** Paper 02 (rodada 3 da casca): "Automático · 6 regras" no painel — os ajustes do bot lidos uma vez por bot e carga. */
@@ -2416,7 +2437,7 @@ aoPedirRegrasDoBot((agenteId) => {
   }).catch(() => undefined);
 });
 
-/** ADR-167: as tarefas em andamento de todos os quadros, para o número da linha "Tarefas" (lido no fundo, no máximo 1×/min). */
+/** ADR-168: as tarefas em andamento de todos os quadros, para o número da linha "Tarefas" (lido no fundo, no máximo 1×/min). */
 let tarefasDaBarra: { n: number; bots: string[]; em: number } | null = null;
 let lendoTarefasDaBarra = false;
 function tarefasAbertasConhecidas(): number {
@@ -2473,7 +2494,7 @@ function renderSidebar(estado: Estado): string {
   const arrastavel = (a: (typeof agentes)[number]) => (ehCelular ? "" : a.ownerId === estado.sessao?.pessoaId && a.papel !== "nod" ? ` draggable="true" data-arrastavel="${esc(a.id)}"` : "");
   const avisos = new Map(agentes.map((a): [string, AvisoBot] => [a.id, (abertas.get(a.id) ?? 0) > 0 ? "decisao" : perguntas.get(a.id) ? "pergunta" : temNovas(a.conversaId, estado) ? "nao-lido" : ""]));
   const avisoDe = (a: (typeof agentes)[number]): AvisoBot => avisos.get(a.id) ?? "";
-  // ADR-167 (telas 16/16b): o pedido aberto mora na linha do bot — "Aguardando você: {motivo}" em laranja, o ponto laranja
+  // ADR-168 (telas 16/16b): o pedido aberto mora na linha do bot — "Aguardando você: {motivo}" em laranja, o ponto laranja
   // e o clique que abre a conversa no cartão pendente. Sem caixa nem sino separados.
   const pedidos = pedidosAbertos(estado.suaVez);
   const aguardandoDe = aguardandoPorAgente(pedidos);
@@ -2648,7 +2669,7 @@ function renderSidebar(estado: Estado): string {
     </div>
     ${renderTabBar(abaDoInicio, { pedidos: contagemDaAbaSuaVez(estado.suaVez), naoLidas: comNovas })}`;
   }
-  // ADR-167 (tela 16): "Trabalhos" vira linha fixa da barra, abaixo dos fixados, com o contador discreto ("N aguardando" em
+  // ADR-168 (tela 16): "Trabalhos" vira linha fixa da barra, abaixo dos fixados, com o contador discreto ("N aguardando" em
   // laranja quando algo pede a pessoa). O sino e o ícone de Trabalhos do topo saíram: o que eles diziam mora aqui e na
   // linha de cada bot. "N aguardando" é um botão à parte que leva ao pedido (um só: a conversa no cartão; vários: Sua vez).
   const nAbertos = (estado.trabalhos?.trabalhos ?? []).filter(aberto).length;
@@ -2659,7 +2680,7 @@ function renderSidebar(estado: Estado): string {
     : 'data-act="navegar" data-tela="sua-vez"';
   const linhaTrabalhos = meus.length ? `<div class="linha-fixa linha-trabalhos"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="trabalhos" aria-current="${t.tipo === "trabalhos" ? "page" : "false"}" aria-label="${esc(rotuloDosTrabalhos({ abertos: nAbertos, aguardando: pedidos.length }))}" data-etiqueta="Trabalhos">${ICONE_TRABALHOS_LINHA}<span class="linha-fixa-nome">Trabalhos</span>${contTrab?.tom === "neutro" ? `<span class="linha-fixa-cont" aria-hidden="true">${esc(contTrab.texto)}</span>` : ""}</button>${contTrab?.tom === "aguardando" ? `<button type="button" class="linha-fixa-aguardando" ${irAoPedido} aria-label="${esc(pedidos.length === 1 && pedidos[0] ? `${pedidos[0].agenteNome} precisa de você` : `${pedidos.length} pedidos esperando por você`)}"><i class="ponto-aguardando" aria-hidden="true"></i><span>${esc(contTrab.texto)}</span></button>` : ""}</div>` : "";
   // Tela 18d do Paper (rodada 2): a linha "Tarefas" abre a página Tarefas de todos os bots (`{ tipo: "tarefas" }`).
-  // ADR-167 (telas 02–05 do Paper): a linha fixa fica acima de "Trabalhos"; o número é o de tarefas abertas que a tela já conhece.
+  // ADR-168 (telas 02–05 do Paper): a linha fixa fica acima de "Trabalhos"; o número é o de tarefas abertas que a tela já conhece.
   const nTarefas = tarefasAbertasConhecidas();
   const linhaTarefas = meus.length && estado.experimentos.quadro ? `<div class="linha-fixa linha-tarefas"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="tarefas" aria-current="${t.tipo === "tarefas" ? "page" : "false"}" aria-label="Tarefas${nTarefas ? `, ${nTarefas} abertas` : ""}" data-etiqueta="Tarefas">${IC_QUADRO.replace("<svg ", '<svg class="linha-fixa-ic" ')}<span class="linha-fixa-nome">Tarefas</span>${nTarefas ? `<span class="linha-fixa-cont" aria-hidden="true">${nTarefas}</span>` : ""}</button></div>` : "";
   const quem = quemEsta();
@@ -2910,7 +2931,7 @@ function renderPrincipal(): void {
     // ADR-083 (#195/#196): "Todos os trabalhos", a tela da task e a tela provisória de uma linha do chat.
     case "trabalhos":
       // ADR-099 (parte 5): com o dono de cada bot no servidor, uma linha por bot; sem ele (servidor anterior), por task.
-      // ADR-167 (Paper 16): "Por bot | Por frente" no topo; o filtro escolhido é a vista por frente.
+      // ADR-168 (Paper 16): "Por bot | Por frente" no topo; o filtro escolhido é a vista por frente.
       corpo = temDonos(estado) && !t.filtro ? renderTrabalhosPorBot(estado) : renderTodosOsTrabalhos(estado, t.filtro, temDonos(estado));
       break;
     case "trabalho":
@@ -3121,11 +3142,32 @@ function partesDaTimeline(): PartesDaTimeline | null {
  * fim. Com o histórico parado, só a parte ao vivo é mexida, e só nela se procura o que guardar: procurar no documento
  * inteiro (dezenas de milhares de nós numa conversa longa) a cada quadro de streaming custava mais que o próprio desenho.
  */
+const disclosuresAbertosEmTransicao = new Set<string>();
+// NOD-360 (CI da main, 14/11): a gravada pode entrar no histórico, ainda fechada, um instante antes de a fala que sai deixar
+// a região viva (as duas ficam ~100 ms na tela). Aberto nesse instante, o resumo da que sai valia só para ela, e a gravada
+// ficava fechada depois da troca: abrir ou fechar na região viva vale também para o mesmo `data-disclosure` do histórico.
+document.addEventListener("toggle", (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLDetailsElement) || !el.dataset.disclosure || !el.closest("#timeline-ao-vivo")) return;
+  const gravado = document.querySelector<HTMLDetailsElement>(`#timeline-historico details[data-disclosure="${CSS.escape(el.dataset.disclosure)}"]`);
+  if (gravado && gravado.open !== el.open) gravado.open = el.open;
+}, true);
 function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: { cascaMuda: boolean; historicoMuda: boolean; aoVivoMuda: boolean }): void {
   const t = estado.tela;
   const timeline = document.getElementById("timeline");
   const escopo: ParentNode = muda.historicoMuda ? document : document.getElementById("timeline-ao-vivo") ?? document;
   const abertos = [...escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure][open]")].map((el) => el.dataset.disclosure);
+  // NOD-360: o fim pode chegar em dois renders — primeiro a fala sai da região viva, depois entra no histórico.
+  // Guarda o estado nesse intervalo; no render único, `abertos` acima continua sendo a fonte normal.
+  if (muda.aoVivoMuda) {
+    for (const el of document.querySelectorAll<HTMLDetailsElement>("#timeline-ao-vivo details[data-disclosure]")) {
+      const chave = el.dataset.disclosure;
+      if (!chave) continue;
+      if (el.open) disclosuresAbertosEmTransicao.add(chave);
+      else disclosuresAbertosEmTransicao.delete(chave);
+    }
+  }
+  if (muda.historicoMuda) for (const chave of disclosuresAbertosEmTransicao) abertos.push(chave);
   const buscas = muda.cascaMuda ? ["busca-destinatario", "busca-marketplace"].map((id) => ({ id, valor: (document.getElementById(id) as HTMLInputElement | null)?.value ?? "" })) : [];
   // A pasta marcada no card de pasta sobrevive a um frame que re-renderiza a conversa no meio da escolha.
   const pastasMarcadas = [...escopo.querySelectorAll<HTMLInputElement>("input[data-pasta-de]:checked")].map((el) => ({ de: el.dataset.pastaDe ?? "", valor: el.value, foco: document.activeElement === el }));
@@ -3193,6 +3235,13 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     filtrarApps((document.getElementById("busca-marketplace") as HTMLInputElement | null)?.value ?? "");
   }
   for (const el of escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure]")) if (abertos.includes(el.dataset.disclosure)) el.open = true;
+  if (muda.historicoMuda) {
+    for (const chave of [...disclosuresAbertosEmTransicao]) {
+      if (document.querySelector(`#timeline-historico details[data-disclosure="${CSS.escape(chave)}"]`)) {
+        window.setTimeout(() => disclosuresAbertosEmTransicao.delete(chave), 1_000);
+      }
+    }
+  }
   if (muda.historicoMuda) artefatos.hidratar(timeline ?? document);
   if (muda.historicoMuda) diagramas.hidratar(timeline ?? document);
   if ((muda.historicoMuda || muda.cascaMuda) && t.tipo === "conversa") contarLinhasMostradas();
@@ -3208,7 +3257,7 @@ function placeholderPadrao(): string {
   // Jornada C: com a fala guardada e nenhuma IA pronta, a dica diz quando o bot responde (o envio continua liberado).
   const c = estado.conversas[t.conversaId];
   if (c && conversaAguardandoIa({ [t.conversaId]: { mensagens: c.mensagens } }, iasNoCard(estado), turnosVivosDe(estado))) return `${dicaDoComposerSemIa(nome)}…`;
-  // ADR-167 (Paper 02): "Mensagem para Ada", sem reticências.
+  // ADR-168 (Paper 02): "Mensagem para Ada", sem reticências.
   return `Mensagem para ${nome}`;
 }
 
@@ -3222,7 +3271,7 @@ function atualizarComposer(): void {
   const alvo = conversaAtual();
   const caixa = document.querySelector<HTMLElement>("#composer .composer");
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
-  // ADR-167: o seletor de modelo também vive no campo da task, que não tem conversa própria aqui.
+  // ADR-168: o seletor de modelo também vive no campo da task, que não tem conversa própria aqui.
   if (!alvo || !caixa || !ta) { atualizarSeletorIa(); return; }
   const nota = document.getElementById("composer-nota");
   const a = aparenciaDoComposer(modoDoComposer(estado, alvo.conversaId), estado, { placeholder: placeholderPadrao(), nota: nota?.dataset.padrao ?? "" }, alvo.conversaId);
@@ -3295,7 +3344,7 @@ function atualizarSeletorIa(): void {
 }
 
 /**
- * ADR-167: o seletor de modelo está em todo campo que fala com UM bot — a conversa dele e a task (frente) dele. Na sala,
+ * ADR-168: o seletor de modelo está em todo campo que fala com UM bot — a conversa dele e a task (frente) dele. Na sala,
  * com vários bots, não há um modelo só, e o campo fica sem ele.
  */
 function agenteDoSeletor(): string | null {
@@ -3683,7 +3732,7 @@ function render(): void {
   // NOD-379: com a inicial do celular à vista (o voltar do navegador por cima do Marketplace), a gaveta de app não prende
   // o foco: ela deixaria a inicial inerte.
   prenderFocoNaGaveta(celular.botsAbertos() ? null : gavetaDoApp);
-  // ADR-173: o Quick Chat e o botão de captura antes do foco, que vale sobre o DOM já completo (guarda da NOD-370).
+  // ADR-174: o Quick Chat e o botão de captura antes do foco, que vale sobre o DOM já completo (guarda da NOD-370).
   pintarQuickChat();
   codigo?.();
   focoPendente.aplicar();
@@ -4595,7 +4644,7 @@ async function enviarComposer(): Promise<void> {
       }
       // Revisão de engenharia (27/10): o porquê (limite do plano, conversa encerrada, sem internet…) vai na própria fala,
       // com a frase que a faixa de antes mostrava — sem ele, "Não foi enviada" não dizia o que fazer.
-      // ADR-171: sem internet, a fala entra na fila offline e vai sozinha quando a conexão voltar.
+      // ADR-172: sem internet, a fala entra na fila offline e vai sozinha quando a conexão voltar.
       const offline = guardarSeOffline(e, { conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, texto: pendente.texto, anexos: ids, ...(pendente.respondeA ? { respondeA: pendente.respondeA } : {}), em: Date.now() });
       dispatch({ tipo: "fala-pendente-falhou", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, motivo: offline ? MOTIVO_OFFLINE : motivoDaFalha(e) });
       return;
@@ -4615,7 +4664,7 @@ async function enviarComposer(): Promise<void> {
   });
 }
 
-/** ADR-171: a fila de envio offline da pessoa da sessão (localStorage); sem sessão ou sem armazenamento, nenhuma. */
+/** ADR-172: a fila de envio offline da pessoa da sessão (localStorage); sem sessão ou sem armazenamento, nenhuma. */
 function filaDeEnvio(): FilaOffline | null {
   const pessoaId = estado.sessao?.pessoaId;
   if (!pessoaId) return null;
@@ -4624,7 +4673,7 @@ function filaDeEnvio(): FilaOffline | null {
   return criarFilaOffline(armazem, pessoaId);
 }
 
-/** ADR-171: o envio caiu por falta de rede — a fala vai para a fila e o motivo diz que ela vai sozinha. */
+/** ADR-172: o envio caiu por falta de rede — a fala vai para a fila e o motivo diz que ela vai sozinha. */
 function guardarSeOffline(e: unknown, item: ItemDaFila): boolean {
   if (!falhouPorRede(navigator.onLine, e)) return false;
   filaDeEnvio()?.guardar(item);
@@ -4632,7 +4681,7 @@ function guardarSeOffline(e: unknown, item: ItemDaFila): boolean {
 }
 
 /**
- * ADR-171: a conexão voltou (ou a página abriu): cada fala da fila volta à conversa como pendente (se a página foi
+ * ADR-172: a conexão voltou (ou a página abriu): cada fala da fila volta à conversa como pendente (se a página foi
  * recarregada) e, com internet, é reenviada pela mesma chave — o servidor não duplica.
  */
 function drenarFilaOffline(): void {
@@ -4911,7 +4960,7 @@ function alternarConfirmaWebhook(el: HTMLElement, abrir: boolean): void {
   else gatilho?.focus();
 }
 
-// ---- Quick Chat e captura (ADR-173) ---------------------------------------------------------------------------------
+// ---- Quick Chat e captura (ADR-174) ---------------------------------------------------------------------------------
 // `?janela=quick-chat`: a janela pequena do atalho global (desktop/quick-chat.ts). O modo é lido uma vez; o CSS
 // (`html[data-janela="quick-chat"]`) faz o resto. O topo mora fora do #app regravado, e só é repintado quando a lista de
 // bots ou o bot aberto mudam. O Capturar entra ao lado do clipe em qualquer janela do app do Mac (o composer não é
@@ -4925,7 +4974,7 @@ let botPedidoNaUrl = modoQuickChat ? botDaUrl(window.location.search) : null;
 let botsNaMesa: string[] = [];
 if (modoQuickChat) void window.nodDesktop?.naMesa?.().then((ids) => { botsNaMesa = ids; assinaturaQuickChat = ""; render(); }).catch(() => undefined);
 let assinaturaQuickChat = "";
-/** ADR-173: os ajustes do Mac (Configurações › Máquinas); null fora do app do Mac. */
+/** ADR-174: os ajustes do Mac (Configurações › Máquinas); null fora do app do Mac. */
 let ajustesMac: AjustesMac | null = null;
 async function carregarAjustesMac(): Promise<void> {
   const ponte = window.nodDesktop;
@@ -5644,14 +5693,14 @@ function marcacoesDe(decisaoId: string): { id: string; selecionado: boolean; tex
   if (!raiz) return [];
   return [...raiz.querySelectorAll<HTMLInputElement>("input[data-item]")].map((cb) => {
     const id = cb.getAttribute("data-item") ?? "";
-    // ADR-175: o corpo do rascunho é um <textarea>; o texto final do cartão de aprovação, um <input>.
+    // ADR-176: o corpo do rascunho é um <textarea>; o texto final do cartão de aprovação, um <input>.
     const texto = raiz.querySelector<HTMLInputElement | HTMLTextAreaElement>(`input[data-item-texto="${CSS.escape(id)}"], textarea[data-item-texto="${CSS.escape(id)}"]`)?.value;
     return { id, selecionado: cb.checked, ...(texto !== undefined ? { textoFinal: texto } : {}) };
   });
 }
 
 /**
- * ADR-175: "Enviar todos" e "Descartar todos" da barra de rascunhos. Uma chamada a `decisoes/:id/decidir` por decisão, a
+ * ADR-176: "Enviar todos" e "Descartar todos" da barra de rascunhos. Uma chamada a `decisoes/:id/decidir` por decisão, a
  * mesma do cartão de aprovação: enviar leva o que está marcado e o texto de cada caixa; descartar manda tudo desmarcado
  * (`itensDaRecusa`, nunca `itens: []`, que aprovaria). Em sequência: a primeira falha para o resto e aparece como erro.
  */
@@ -5662,7 +5711,7 @@ async function enviarRascunhos(el: HTMLElement, enviar: boolean): Promise<void> 
     const itens = enviar ? marcas : itensDaRecusa(marcas, estado.suaVez?.itens.find((i) => i.decisao.id === id)?.itensAprovacao ?? []);
     if (!itens || itens.length === 0) continue;
     marcarDecidida(el, id);
-    await api!.decidir(id, { itens });
+    await decidirAprovacaoReconciliando(id, { itens });
   }
   dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
 }
@@ -5897,7 +5946,7 @@ function aoSoltarOrdem(lista: string, ordem: string[]): void {
 }
 instalarOrdemArrastavel(document, aoSoltarOrdem);
 
-/** ADR-167 (Paper 04): na nova conversa, o termo vai para "Criar o bot “Ce”" e a 1ª sugestão ganha o ↵. */
+/** ADR-168 (Paper 04): na nova conversa, o termo vai para "Criar o bot “Ce”" e a 1ª sugestão ganha o ↵. */
 function marcarSugestaoDaNovaConversa(texto: string): void {
   const pop = document.querySelector<HTMLElement>(".nc-pop");
   if (!pop) return;
@@ -5932,7 +5981,7 @@ function escolherNaNovaConversa(): void {
 
 function filtrarBots(texto: string, raiz = "#sidebar"): void {
   const termo = texto.trim().toLowerCase();
-  // ADR-167 (Paper 04): na nova conversa, "Ce" acha quem tem uma palavra que começa com "ce" (Cecília), não "Clarice".
+  // ADR-168 (Paper 04): na nova conversa, "Ce" acha quem tem uma palavra que começa com "ce" (Cecília), não "Clarice".
   const casa = raiz === ".contact-picker" ? (b: string) => termo === "" || ` ${b}`.includes(` ${termo}`) : (b: string) => b.includes(termo);
   for (const el of document.querySelectorAll<HTMLElement>(`${raiz} [data-busca]`)) el.hidden = !casa(el.dataset.busca ?? "");
   // Buscando, as seções recolhidas mostram o que casa (navegacao.css) — por atributo, sem redesenhar a barra no meio da
@@ -6149,7 +6198,7 @@ const acoesDaMemoria: Record<string, (el: HTMLElement) => Promise<void> | void> 
 };
 
 /** Cria um bot em branco e abre a conversa dele. */
-/** ADR-174: o que o modal "Criar novo bot" (web/telas/criar-bot.ts) e o onboarding pedem ao app. */
+/** ADR-175: o que o modal "Criar novo bot" (web/telas/criar-bot.ts) e o onboarding pedem ao app. */
 function depsCriarBot(): DepsCriarBot {
   return {
     criar: async (nome) => {
@@ -6182,9 +6231,9 @@ function pedidoDoCard(el: HTMLElement): PedidoBarra | null {
 }
 
 const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
-  // ADR-166: Configurações › Aprovações (os modos, as regras do revisor, os níveis por app).
+  // ADR-167: Configurações › Aprovações (os modos, as regras do revisor, os níveis por app).
   ...telaAprovacoes.acoes,
-  // ADR-166: "Aprovado pela sua regra · Editar" (linha embaixo da fala) abre Aprovações já editando a regra.
+  // ADR-167: "Aprovado pela sua regra · Editar" (linha embaixo da fala) abre Aprovações já editando a regra.
   "apv-editar-da-linha": (el) => {
     const regra = el.dataset.regra;
     if (!regra) return;
@@ -6660,7 +6709,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (grupos.length > 0 && capacidades.length === 0) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: "Marque pelo menos um grupo para permitir." } }); return; }
     // Chat limpo (PR 4): o consentimento leva o id desta decisão; o cartão "Acesso permitido" recebe o foco e o anúncio.
     marcarDecidida(el, id);
-    await api!.decidir(id, grupos.length > 0 ? { capacidades } : {});
+    await decidirAprovacaoReconciliando(id, grupos.length > 0 ? { capacidades } : {});
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", "conectores", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
   "dar-acesso": (el) => abrirNivel(el.dataset.id ?? "", { tipo: "dar-acesso" }),
@@ -6693,7 +6742,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       const proposta = propostaDoEstado(propostaId);
       if (!proposta || proposta.estado !== "pendente" || appsQueFaltam(proposta, estado).length > 0) return;
       await agir(async () => {
-        if (ato === "decidir-proposta") await api!.decidir(propostaId, {});
+        if (ato === "decidir-proposta") await decidirAprovacaoReconciliando(propostaId, {});
         else await api!.confirmarProposta(propostaId);
         dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
       });
@@ -6705,7 +6754,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     else navegar({ tipo: "inicio" });
   },
   // NOD-383: no celular, segurar o + pergunta antes ("Criar um bot agora?"); só Criar chama o criarAgente.
-  // ADR-174 (tela 09 do Paper): o toque em "Criar novo bot" (Nova conversa) abre o modal com nome, forma e cor, e o
+  // ADR-175 (tela 09 do Paper): o toque em "Criar novo bot" (Nova conversa) abre o modal com nome, forma e cor, e o
   // preparo com % no mesmo cartão. O nome digitado na busca vem preenchido. Segurar o + continua criando direto.
   "criar-rapido": () => void abrirCriarBot(depsCriarBot(), { nome: (document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value.trim() ?? "" }),
   // NOD-383: segurar o + do topo. No celular o toque longo sai sem querer: pergunta antes; no desktop cria direto.
@@ -6836,13 +6885,13 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "ditado-parar": () => ditado.concluir("campo"),
   "remover-anexo": (el) => removerAnexo(el.dataset.id ?? ""),
   "abrir-busca": () => (celular.ativo() ? abrirBusca() : abrirPaleta()),
-  // ADR-167 (Paper): o botão de recolher do topo da barra (o mesmo ⌘B), a engrenagem do rodapé (⌘,) e a linha Tarefas.
+  // ADR-168 (Paper): o botão de recolher do topo da barra (o mesmo ⌘B), a engrenagem do rodapé (⌘,) e a linha Tarefas.
   "alternar-barra": () => { executarAtalho({ tipo: "barra" }); },
   "abrir-ajustes": () => abrirEspaco("geral"),
   "abrir-tarefas": (el) => abrirTarefasDaBarra(el.dataset.agente),
   "fechar-nova-conversa": () => navegar({ tipo: "inicio" }),
   "nc-enviar": () => escolherNaNovaConversa(),
-  // ADR-167: copia o link de um ajuste (`#ajuste=<id>`); quem abre o link chega nas Configurações já na linha.
+  // ADR-168: copia o link de um ajuste (`#ajuste=<id>`); quem abre o link chega nas Configurações já na linha.
   "ir-ao-ajuste": (el) => { termoAjustes = ""; irAoAjuste(el.dataset.ajuste ?? ""); },
   "alternar-balao-cor": () => { aplicarBalaoCor(!lerBalaoCor(), document.documentElement); render(); },
   "alternar-som-app": (el) => {
@@ -7063,7 +7112,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const agenteId = el.dataset.agente ?? estado.atividadeVista?.agenteId ?? "";
     const dia = el.dataset.dia ?? "";
     if (estado.gaveta?.nivel.tipo !== "atividade" || estado.atividadeVista?.agenteId !== agenteId) abrirNivel(agenteId, { tipo: "atividade" });
-    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho: "negada", decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
+    const filtroPedido = el.dataset.filtro;
+    const desfecho = ehFiltroDecisoes(filtroPedido) ? filtroPedido : "negada";
+    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho, decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
     focarQuandoAparecer('#detalhes [data-act="atividade-aba"][data-aba="decisoes"]', el);
   },
   "exportar-csv": () => {
@@ -7167,7 +7218,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "abrir-conversa": (el) => {
     // NOD-119: escolher um bot na barra aberta por cima (recolhida + busca) fecha a busca, para a barra voltar a recolher.
     if (document.documentElement.dataset.sobreposta && el.closest("#sidebar")) fecharBusca();
-    // ADR-167 (tela 16b): a linha que diz "Aguardando você" abre a conversa rolada até o cartão pendente, realçado.
+    // ADR-168 (tela 16b): a linha que diz "Aguardando você" abre a conversa rolada até o cartão pendente, realçado.
     if (el.dataset.pendente) return verPerguntaNaConversa(el.dataset.conversa ?? "", el.dataset.agente ?? "", el.dataset.pendente);
     navegar({ tipo: "conversa", conversaId: el.dataset.conversa ?? "", agenteId: el.dataset.agente ?? "" });
   },
@@ -7201,7 +7252,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "alternar-avisos": () => canalAvisos.alternar(),
   // NOD-115: o redesenho vem do aoMudar do canal, quando a ponte devolve as preferências. A seção é refeita: quem
   // alternou pelo teclado continua no interruptor.
-  // ADR-173: as famílias do Mac (desligadas por padrão) e o atalho do Quick Chat; o processo principal valida tudo.
+  // ADR-174: as famílias do Mac (desligadas por padrão) e o atalho do Quick Chat; o processo principal valida tudo.
   "alternar-ferramenta-mac": async (el) => {
     const familia = el.dataset.familia;
     const ponte = window.nodDesktop;
@@ -7379,19 +7430,19 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "sondar-conector": (el) => agir(async () => void (await api!.sondarConector(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["conectores", "frota"] }))),
   "habilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", true), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
   "desabilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", false), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
-  "decidir-aprovacao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? "") }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
+  "decidir-aprovacao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? "") }))),
   // ADR-042: aprova AGORA e grava a regra para as próximas vezes, no mesmo clique.
   // definido em 2026-09-28 (emenda da ADR-037): aprova este passo e libera o computador até o fim da tarefa.
-  "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
-  "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
-  // ADR-166 (tela 06): permitir e, com "Salvar como regra" marcado, gravar a regra "Pode fazer sem perguntar" no bot do
+  "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }))),
+  "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }))),
+  // ADR-167 (tela 06): permitir e, com "Salvar como regra" marcado, gravar a regra "Pode fazer sem perguntar" no bot do
   // cartão. A aprovação sai primeiro (é o que a pessoa pediu agora); a regra que falhar avisa, sem desfazer a aprovação.
   "decidir-aprovacao-com-regra": (el) => agir(async () => {
     const id = el.dataset.id ?? "";
     const marca = document.querySelector<HTMLInputElement>(`[data-cr-regra-marca="${CSS.escape(id)}"]`);
     const texto = document.querySelector<HTMLInputElement>(`[data-cr-regra-texto="${CSS.escape(id)}"]`)?.value.trim() ?? "";
     marcarDecidida(el, id);
-    await api!.decidir(id, { itens: marcacoesDe(id) });
+    await decidirAprovacaoReconciliando(id, { itens: marcacoesDe(id) });
     if (marca?.checked && texto && el.dataset.agente) {
       try {
         await api!.criarRegraRevisor({ agenteId: el.dataset.agente, lista: "permitir", texto, origem: "sugestao" });
@@ -7401,17 +7452,17 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     }
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
   }),
-  // ADR-166 (tela 06, "Em lote"): cada pedido marcado é decidido pela rota de sempre; o desmarcado fica esperando.
+  // ADR-167 (tela 06, "Em lote"): cada pedido marcado é decidido pela rota de sempre; o desmarcado fica esperando.
   "iguais-permitir": (el) => agir(async () => {
     const card = el.closest<HTMLElement>(".aprov-iguais");
     const ids = [...(card?.querySelectorAll<HTMLInputElement>("input[data-igual]") ?? [])].filter((c) => c.checked).map((c) => c.dataset.igual ?? "").filter(Boolean);
-    for (const id of ids) await api!.decidir(id, { itens: [] });
+    for (const id of ids) await decidirAprovacaoReconciliando(id, { itens: [] });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
   }),
   "iguais-negar": (el) => agir(async () => {
     for (const id of (el.dataset.iguais ?? "").split(",").filter(Boolean)) {
       const itens = itensDaRecusa([], estado.suaVez?.itens.find((i) => i.decisao.id === id)?.itensAprovacao ?? []);
-      if (itens) await api!.decidir(id, { itens });
+      if (itens) await decidirAprovacaoReconciliando(id, { itens });
     }
     dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
   }),
@@ -7420,7 +7471,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     render();
   },
   // QA do PR 4 (2026-10-18): o cartão de um item não tem caixa de marcar e mandava `itens: []`, que aprova (web/lib/recusa-da-aprovacao.ts).
-  // ADR-175: o rascunho de uma decisão com vários sai da lista (ou volta) sem decidir; o envio é pela barra.
+  // ADR-176: o rascunho de uma decisão com vários sai da lista (ou volta) sem decidir; o envio é pela barra.
   "rascunho-alternar": (el) => {
     const cartao = el.closest<HTMLElement>("[data-rascunho]");
     const caixa = cartao?.querySelector<HTMLInputElement>("input[data-item]");
@@ -7439,8 +7490,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       return;
     }
     marcarDecidida(el, id);
-    await api!.decidir(id, { itens });
-    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+    await decidirAprovacaoReconciliando(id, { itens });
   }),
   // NOD-367: o filtro de Feedback mora em configUi (os envios abertos ficam em configUi.abertos e sobrevivem ao redesenho).
   "filtrar-relatos": (el) => {
@@ -7463,12 +7513,12 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const card = el.closest<HTMLElement>("[data-proposta]");
     const selecionados = [...(card?.querySelectorAll<HTMLInputElement>("input[data-lote-i]") ?? [])].filter((c) => c.checked).map((c) => Number(c.dataset.loteI));
     marcarDecidida(el, el.dataset.id);
-    await api!.decidir(el.dataset.id ?? "", { selecionados });
+    await decidirAprovacaoReconciliando(el.dataset.id ?? "", { selecionados });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", "gestao", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
   // Revisão 6 do #626: o card do app que não vale mais volta 409 com o `motivo`; a frase dele sai no aviso neutro (o card
   // fechou como recusado e o recibo foi gravado, então a conversa relê do mesmo jeito). Outros cards não mandam motivo.
-  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => api!.decidir(el.dataset.id ?? "", {}).then(() => undefined), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => decidirAprovacaoReconciliando(el.dataset.id ?? "", {}), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // NOD-50: o cartão de credencial. Mostrar troca o tipo do campo sem redesenhar (o valor fica onde está); a fase guarda
   // só o "mostrando", para o próximo frame não esconder o que a pessoa pediu para ver.
   "mostrar-credencial": (el) => {
@@ -7485,10 +7535,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const id = el.dataset.id ?? "";
     for (const campo of document.querySelectorAll<HTMLInputElement>(`[data-form="guardar-credencial"][data-id="${CSS.escape(id)}"] input[name="valor"]`)) campo.value = "";
     marcarFase(id, null);
-    await api!.decidir(id, { recusar: true });
+    await decidirAprovacaoReconciliando(id, { recusar: true });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
-  "recusar-decisao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { recusar: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "recusar-decisao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { recusar: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // definido em 2026-09-24 (emenda da ADR-045): a pergunta se responde pelo campo da conversa. Revisto em 2026-10-18
   // (plano "pergunta com botões"): estes são os gestos em volta do cartão e da caixa "Respondendo".
   "composer-outro": () => escolherNoComposer(true),
@@ -7547,6 +7597,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     return agir(async () => void (await api!.revogarChave(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["chaves", "maquinas", "frota"] }), focarGatilho(gatilho)));
   },
   "fechar-chave-emitida": () => dispatch({ tipo: "chave-emitida", emitida: null }),
+  "fechar-token-mcp": () => dispatch({ tipo: "mcp-token-emitido", emitido: null }),
+  "revogar-token-mcp": (el) => {
+    if (!window.confirm(`Revogar o token "${el.dataset.nome ?? ""}"? O app conectado com ele perde o acesso ao Nod na hora.`)) return;
+    return agir(async () => void (await api!.revogarTokenMcp(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["mcp-tokens"] })));
+  },
   // ADR-102: a lista única de contas (Provedores de IA) e as ações da máquina (Máquinas).
   "cl-menu": (el) => {
     const id = el.dataset.id ?? "";
@@ -7959,6 +8014,13 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     if (campo && telaLigacao.enviarTexto(campo.value)) campo.value = "";
     campo?.focus();
   },
+  "gerar-token-mcp": (form) =>
+    agir(async () => {
+      const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
+      const emitido = await api!.gerarTokenMcp(nome);
+      form.reset();
+      dispatch({ tipo: "mcp-token-emitido", emitido });
+    }),
   "emitir-chave": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
@@ -8114,7 +8176,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
 
 instalarDicaDeLink(document);
 
-// ADR-175: ⌘↵ (Ctrl+↵ fora do Mac) é o "Enviar todos" da barra de rascunhos (rascunhos-de-envio.ts decide quando vale).
+// ADR-176: ⌘↵ (Ctrl+↵ fora do Mac) é o "Enviar todos" da barra de rascunhos (rascunhos-de-envio.ts decide quando vale).
 document.addEventListener("keydown", (ev) => {
   const barra = document.querySelector<HTMLElement>('.re-barra [data-act="rascunhos-enviar-todos"]');
   const alvo = ev.target as HTMLElement | null;
@@ -8514,7 +8576,7 @@ document.addEventListener("click", (ev) => {
 }, true);
 
 document.addEventListener("keydown", (ev) => {
-  // ADR-167: no computador ⌘K abre a paleta de tudo; no celular, a busca de tela cheia de sempre.
+  // ADR-168: no computador ⌘K abre a paleta de tudo; no celular, a busca de tela cheia de sempre.
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); if (celular.ativo() || !estado.sessao) abrirBusca(); else abrirPaleta(); return; }
   // NOD-42: ⌘F/Ctrl+F abre a busca na pílula; ⌘G/⇧⌘G andam (e abrem, se fechada). Fora da conversa, segue o padrão.
   // No Mac só o ⌘ (Ctrl+F é "avançar um caractere" no campo de texto do macOS).
@@ -8659,7 +8721,7 @@ document.addEventListener("input", (ev) => {
   // NOD-444: digitar no campo tira a sugestão da nova rotina.
   if ((ta as HTMLElement).id === "composer-texto") mostrarSugestaoRotina(false);
   if ((ta as HTMLElement).dataset?.actInput === "midia-audio-ir") { irNoAudio(ta as unknown as HTMLInputElement); return; }
-  // ADR-167: a busca dos ajustes redesenha as Configurações (o campo volta com o foco pelo data-manter-foco).
+  // ADR-168: a busca dos ajustes redesenha as Configurações (o campo volta com o foco pelo data-manter-foco).
   if ((ta as HTMLElement).id === "busca-ajustes") { termoAjustes = ta.value; render(); return; }
   if ((ta as HTMLElement).matches?.("[data-agenda-busca]")) { dispatch({ tipo: "agenda-ui", mudanca: { busca: ta.value } }); return; }
   // O código do Claude atravessa o redesenho do cartão (o foco volta pelo `manterFocoDoCodigo`).
@@ -8756,7 +8818,7 @@ document.addEventListener("visibilitychange", () => {
   avisarDitado("tela-bloqueou");
 });
 window.addEventListener("online", retomarStream);
-// ADR-171: a fila de envio offline sai sozinha quando a conexão volta, e uma vez logo depois de abrir a página.
+// ADR-172: a fila de envio offline sai sozinha quando a conexão volta, e uma vez logo depois de abrir a página.
 window.addEventListener("online", () => drenarFilaOffline());
 setTimeout(() => drenarFilaOffline(), 3000);
 window.addEventListener("pageshow", retomarStream);
@@ -9900,7 +9962,7 @@ function botaoDoBotNoAtalho(a: { tipo: "ir-ao-bot"; n: number } | { tipo: "vizin
 /** Faz o atalho; false quando não há alvo (aí não faz nada). */
 function executarAtalho(a: AcaoAtalho): boolean {
   if (a.tipo === "folha") { abrirEspaco("ajuda"); return true; }
-  // ADR-167: os atalhos novos que não colidem com os do nod.
+  // ADR-168: os atalhos novos que não colidem com os do nod.
   if (a.tipo === "barra") { mudarBarra(alternarRecolhida(barraAtual), true); anunciar(barraAtual.largura === "recolhida" ? "Barra só com avatares" : "Barra aberta"); return true; }
   if (a.tipo === "ajustes") { abrirEspaco("geral"); return true; }
   if (a.tipo === "paleta") { abrirPaleta(); return true; }
@@ -9933,7 +9995,7 @@ function executarAtalho(a: AcaoAtalho): boolean {
 }
 
 /**
- * ADR-167 (⌘L, "Add selection to prompt"): o texto selecionado numa fala da conversa aberta vira a citação do
+ * ADR-168 (⌘L, "Add selection to prompt"): o texto selecionado numa fala da conversa aberta vira a citação do
  * campo ("Respondendo · trecho"), como o Responder do menu da fala. Fora de uma fala, nada (a tecla segue livre).
  */
 function levarSelecaoAoCampo(): boolean {
@@ -10031,7 +10093,7 @@ function nomeParaAsIniciais(): string | null {
   return null;
 }
 
-/** ADR-167 (Paper 02): o rodapé da barra mostra o nome da pessoa; lido uma vez de Minha conta, no fundo. */
+/** ADR-168 (Paper 02): o rodapé da barra mostra o nome da pessoa; lido uma vez de Minha conta, no fundo. */
 let nomeLidoDoRodape: string | null | undefined;
 function nomeDoRodape(): string | null {
   if (nomeLidoDoRodape === undefined) {

@@ -1,4 +1,4 @@
-# ADR-175: Rascunhos de envio, cartões ricos e conduta da voz
+# ADR-176: Rascunhos de envio, cartões ricos e conduta da voz
 
 Status: proposta (2026-11-12, frente "Assistente pessoal" a partir da pesquisa de referência; decisão do Marlon
 "respostas ricas: tudo"). Usa a API de aprovação sem mudá-la (ADR-042, E4.3).

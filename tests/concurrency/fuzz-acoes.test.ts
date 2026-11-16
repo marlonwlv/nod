@@ -293,7 +293,9 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       // `acessos.desfazer_lote` (`/acessos/lotes/:id/desfazer`) passar da busca; sem o lote, o id sorteado só dava 404.
       const conectorDoFuzz = await conectorDe(sessao, `fuzz-${config.nome.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
       const loteDoFuzz = (await srv.json<{ lote_id: string }>("POST", `conectores/${conectorDoFuzz.id}/acessos/lote`, { nivel: "leitura", bots: [meu.agente.id], chave: `fuzz:${randomUUID()}` })).lote_id;
-      // ADR-166: uma regra do revisor de cada pessoa, para o `:id` de `aprovacoes.editar_regra` e `aprovacoes.apagar_regra`
+      // ADA-205 (ADR-166): um token MCP da pessoa, para o `mcp.revogar_token` (`/mcp/tokens/:id`) passar da busca.
+      const tokenDoFuzz = (await srv.json<{ dados: { id: string } }>("POST", "mcp/tokens", { nome: "Token do fuzz" })).dados.id;
+      // ADR-167: uma regra do revisor de cada pessoa, para o `:id` de `aprovacoes.editar_regra` e `aprovacoes.apagar_regra`
       // (`/aprovacoes/regras/:id`) passar da busca; sem ela, todo id sorteado dava 404.
       type ComRegra = { regra: { id: string } };
       const regraDoFuzz = (await srv.json<ComRegra>("POST", "aprovacoes/regras", { agenteId: null, lista: "perguntar", texto: "Regra do fuzz" })).regra.id;
@@ -330,6 +332,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             projetos: { daPessoa: [projetoDoFuzz], deOutraPessoa: [] },
             lotes: { daPessoa: [loteDoFuzz], deOutraPessoa: [] },
             conectores: { daPessoa: [conectorDoFuzz.id], deOutraPessoa: [] },
+            tokens: { daPessoa: [tokenDoFuzz], deOutraPessoa: [] },
             regras: { daPessoa: [regraDoFuzz], deOutraPessoa: [regraDela] },
           },
         },

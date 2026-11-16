@@ -259,7 +259,7 @@ RegistrarInicio
 Write-Host ('MODO=' + $Estado.Modo + ' CHAMADAS=' + ($script:chamadas -join ' | '))
 `);
     expect(status, saida).toBe(0);
-    expect(saida).toContain("MODO=tarefa CHAMADAS=Register nod-motor-S-1-5-21-9 | RemoveRun nod-motor-S-1-5-21-9\n");
+    expect(saida).toContain("MODO=tarefa CHAMADAS=Register nod-motor-S-1-5-21-9 | Unregister | RemoveRun nod-motor-S-1-5-21-9 | RemoveRun nod-motor\n");
   });
 
   // Revisão do PR #658: a reserva pela chave Run cria a chave quando ela falta (o New-ItemProperty só cria o valor) e
@@ -296,13 +296,13 @@ Write-Host ('MODO=' + $Estado.Modo + ' CHAMADAS=' + ($script:chamadas -join ' | 
       const { status, saida } = cenario(false, false, true);
       expect(status, saida).toBe(0);
       expect(saida).toContain("LOG=tarefa agendada recusada: Acesso negado");
-      expect(saida).toContain("MODO=run CHAMADAS=Unregister | New-Item HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run | Run nod-motor");
+      expect(saida).toContain("MODO=run CHAMADAS=Unregister | New-Item HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run | Unregister | Run nod-motor");
     });
 
     it("com a chave, só grava o valor (sem recriar a chave)", () => {
       const { status, saida } = cenario(true, false, true);
       expect(status, saida).toBe(0);
-      expect(saida).toContain("MODO=run CHAMADAS=Unregister | Run nod-motor");
+      expect(saida).toContain("MODO=run CHAMADAS=Unregister | Unregister | Run nod-motor");
     });
 
     it("a tarefa antiga que não sai fica no lugar da chave Run (nunca as duas)", () => {
@@ -315,7 +315,7 @@ Write-Host ('MODO=' + $Estado.Modo + ' CHAMADAS=' + ($script:chamadas -join ' | 
     it("a tarefa antiga que sai dá lugar à chave Run", () => {
       const { status, saida } = cenario(true, true, true);
       expect(status, saida).toBe(0);
-      expect(saida).toContain("MODO=run CHAMADAS=Unregister | Run nod-motor");
+      expect(saida).toContain("MODO=run CHAMADAS=Unregister | Unregister | Run nod-motor");
     });
   });
   // Revisão do PR #658 (rodada final): o script roda dentro de `& { … }`, então $Pasta é do bloco e $script:Pasta é
@@ -440,10 +440,14 @@ New-Item -ItemType Directory -Path (Join-Path $fonte 'node-v24.19.0-win-x64') -F
 $zipPronto = Join-Path '${base}' 'pronto.zip'
 Compress-Archive -Path (Join-Path $fonte 'node-v24.19.0-win-x64') -DestinationPath $zipPronto
 $soma = if ($${somaCerta}) { (Get-FileHash -LiteralPath $zipPronto -Algorithm SHA256).Hash.ToLowerInvariant() } else { '0' * 64 }
+$textoSomas = ('1' * 64) + '  node-v24.19.0-x64.msi' + [char]10 + $soma + '  node-v24.19.0-win-x64.zip' + [char]10
+$arquivoSomas = Join-Path '${base}' 'somas-oficiais.txt'
+[IO.File]::WriteAllText($arquivoSomas, $textoSomas)
+$Sha256SomasNode = (Get-FileHash -LiteralPath $arquivoSomas -Algorithm SHA256).Hash.ToLowerInvariant()
 $script:baixados = New-Object System.Collections.Generic.List[string]
 function Baixar([string]$Url, [string]$Destino) {
   $script:baixados.Add((Split-Path -Leaf $Url))
-  if ($Url.EndsWith('SHASUMS256.txt')) { [IO.File]::WriteAllText($Destino, ('1' * 64) + '  node-v24.19.0-x64.msi' + [char]10 + $soma + '  node-v24.19.0-win-x64.zip' + [char]10) }
+  if ($Url.EndsWith('SHASUMS256.txt')) { Copy-Item -LiteralPath $arquivoSomas -Destination $Destino }
   else { Copy-Item -LiteralPath $zipPronto -Destination $Destino }
 }
 try { InstalarNode } catch { Write-Host ('FALHOU=' + $_.Exception.Message) }
@@ -492,6 +496,60 @@ Write-Host ('OK=' + $ok + ' NPM=' + $script:npm)
     expect(status, saida).toBe(0);
     expect(saida).toContain("PASSO=Claude Code 9.9.9");
     expect(saida).toContain("OK=True NPM=0");
+  });
+
+  it("FixarNodeNosShims troca cmd, ps1 e sh para o Node portátil absoluto", () => {
+    const prefixo = join(pasta, "shims-fixos");
+    const pacote = join(prefixo, "node_modules", "@acme", "ia");
+    mkdirSync(join(pacote, "bin"), { recursive: true });
+    writeFileSync(join(pacote, "package.json"), JSON.stringify({ bin: { acme: "bin/cli.js" } }));
+    writeFileSync(join(pacote, "bin", "cli.js"), "// cli");
+    const node = join(pasta, "node-portatil", "node.exe");
+    const { status, saida } = rodar(String.raw`
+$PastaNpm = '${prefixo}'
+$NodeExe = '${node}'
+function Registrar([string]$Texto) { Write-Host ('LOG=' + $Texto) }
+FixarNodeNosShims '@acme/ia' 'acme'
+`);
+    expect(status, saida).toBe(0);
+    expect(readFileSync(join(prefixo, "acme.cmd"), "utf8")).toContain(`"${node}" "${join(pacote, "bin", "cli.js")}" %*`);
+    expect(readFileSync(join(prefixo, "acme.ps1"), "utf8")).toContain(`& '${node}' '${join(pacote, "bin", "cli.js")}' @args`);
+    expect(readFileSync(join(prefixo, "acme"), "utf8")).toContain(`exec "${node.replaceAll("\\", "/")}"`);
+  });
+
+  it("FixarNodeNosShims conserva o shim do npm quando o pacote entrega um executável nativo", () => {
+    const prefixo = join(pasta, "shims-nativos");
+    const pacote = join(prefixo, "node_modules", "@acme", "nativa");
+    mkdirSync(join(pacote, "bin"), { recursive: true });
+    writeFileSync(join(pacote, "package.json"), JSON.stringify({ bin: { nativa: "bin/nativa.exe" } }));
+    writeFileSync(join(pacote, "bin", "nativa.exe"), "binário nativo");
+    writeFileSync(join(prefixo, "nativa.cmd"), "shim original do npm");
+    const { status, saida } = rodar(String.raw`
+$PastaNpm = '${prefixo}'
+$NodeExe = 'node-portatil.exe'
+function Registrar([string]$Texto) { Write-Host ('LOG=' + $Texto) }
+FixarNodeNosShims '@acme/nativa' 'nativa'
+`);
+    expect(status, saida).toBe(0);
+    expect(readFileSync(join(prefixo, "nativa.cmd"), "utf8")).toBe("shim original do npm");
+  });
+
+  it("IniciarMotor só marca iniciado depois de observar o processo do motor", () => {
+    const { status, saida } = rodar(String.raw`
+$Estado = @{ Parado = $false; Iniciado = $false; Modo = 'tarefa' }
+$NomeDaTarefa = 'nod-motor-S-1'
+$script:consultas = 0
+function Start-ScheduledTask { Write-Host 'START' }
+function PidsDoMotor { $script:consultas++; if ($script:consultas -ge 2) { return @(4242) }; return @() }
+function Start-Sleep { param($Milliseconds) }
+function Get-Date { $script:agora++; return ([datetime]'2026-01-01').AddSeconds($script:agora) }
+function Falhar([string]$Texto) { throw $Texto }
+IniciarMotor
+Write-Host ('INICIADO=' + $Estado.Iniciado + ' CONSULTAS=' + $script:consultas)
+`);
+    expect(status, saida).toBe(0);
+    expect(saida).toContain("START");
+    expect(saida).toContain("INICIADO=True CONSULTAS=3");
   });
 
   it("PorNoPathDoUsuario é idempotente: a pasta que já está (com %VAR% ou \\ no fim) não repete, nem no Path da sessão", () => {
@@ -601,7 +659,7 @@ Write-Host ('PASSOS=' + ($script:passos -join '|'))
   it("a falha no meio marca NOD_INSTALACAO_RESULTADO=falhou e chama o RetomarMotor", () => {
     const { status, saida } = rodar(String.raw`
 $arvore = [System.Management.Automation.Language.Parser]::ParseFile($Instalador, [ref]$null, [ref]$null)
-$fim = @($arvore.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] -and $n.Body.Extent.Text -match '^\{\s*Principal' }, $true))
+$fim = @($arvore.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] -and $n.Body.Extent.Text -match '\$Trava\s*=' -and $n.Body.Extent.Text -match '(?m)^\s*Principal\s*$' }, $true))
 if ($fim.Count -ne 1) { throw 'sem o try do fim' }
 $Marca = '[nod] '
 $Log = 'instalador.log'

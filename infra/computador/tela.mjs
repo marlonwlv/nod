@@ -964,6 +964,12 @@ export function ehCookieDeSessao(c) {
 export const SINCRONIA_DE_COOKIES_MS = 10_000;
 /** Revisão 8: quanto depois de uma navegação da aba os cookies sobem (o logout pelo VNC quase sempre navega). */
 export const COOKIES_DEPOIS_DA_NAVEGACAO_MS = 1000;
+/**
+ * NOD-434: uma resposta com Set-Cookie é o ponto em que o login já entrou no Chrome. A loja cifrada precisa recebê-lo
+ * antes de a pessoa conseguir desligar a VM; esperar a navegação ou a rodada de 10 s deixava essa janela aberta.
+ * Cem milissegundos juntam a rajada de respostas do callback sem adiar o assentamento até o fim da página.
+ */
+export const COOKIES_DEPOIS_DO_SET_COOKIE_MS = 100;
 
 /**
  * Revisão 8 do PR #600: junta as navegações de um intervalo num envio só. O primeiro `agendar` marca o envio para
@@ -980,6 +986,16 @@ export function criarAgendador({ atrasoMs, fazer, marcar = setTimeout, desmarcar
     },
     parar() { if (marcado) desmarcar(marcado); marcado = null; },
   };
+}
+
+/**
+ * NOD-434: observa só respostas que realmente trazem Set-Cookie. `headerValue` usa os cabeçalhos completos do
+ * Playwright (inclusive Set-Cookie); falha de CDP fica para a sincronia periódica, sem derrubar a página.
+ */
+export function acompanharSetCookie(pagina, agendar) {
+  pagina.on('response', (resposta) => {
+    void resposta.headerValue('set-cookie').then((valor) => { if (valor) agendar(); }, () => {});
+  });
 }
 
 /** Teto de lápides por tela: as mais antigas saem primeiro. */
@@ -1613,6 +1629,7 @@ export function criarTela(config, avisar) {
   }
 
   function acompanhar(p) {
+    acompanharSetCookie(p, () => cookiesDepoisDoSetCookie.agendar());
     p.on('framenavigated', (f) => {
       anotarOrigem(f.url());
       if (f === p.mainFrame()) { mudar(); cookiesDepoisDaNavegacao.agendar(); }
@@ -1759,6 +1776,7 @@ export function criarTela(config, avisar) {
   const sincronia = setInterval(() => { if (context && !fechando) mandarCookies().catch(() => {}); }, SINCRONIA_DE_COOKIES_MS);
   sincronia.unref?.();
   const cookiesDepoisDaNavegacao = criarAgendador({ atrasoMs: COOKIES_DEPOIS_DA_NAVEGACAO_MS, fazer: () => { if (context && !fechando) mandarCookies().catch(() => {}); } });
+  const cookiesDepoisDoSetCookie = criarAgendador({ atrasoMs: COOKIES_DEPOIS_DO_SET_COOKIE_MS, fazer: () => { if (context && !fechando) mandarCookies().catch(() => {}); } });
   /** Aplica o que outra tela mudou (repasse do supervisor). A foto conhecida muda junto: não volta como diff. */
   const receberCookies = (diff) => cookies.receber(context, diff);
 
@@ -1952,6 +1970,7 @@ export function criarTela(config, avisar) {
     fechando = true;
     clearInterval(sincronia);
     cookiesDepoisDaNavegacao.parar();
+    cookiesDepoisDoSetCookie.parar();
     // Com prazo (revisão 11): uma abertura presa num Chrome congelado não impede a tela de fechar.
     await comPrazo(ciclo.esperar(), ORCAMENTO_DO_FECHAR.esperarAbertura);
     // A última sincronia tem uma fatia só (revisão 12): com o Chrome congelado, o que não subiu fica para a próxima tela.

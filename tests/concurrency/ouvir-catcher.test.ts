@@ -12,6 +12,7 @@ import { definirDestinoDoLog } from "../../src/obs/log.ts";
 import { criarRepos } from "../../src/repositories/index.ts";
 import { autoriaAgente } from "../helpers/fabricas.ts";
 import { servidorCompleto, type ServidorCompleto } from "../helpers/servidor-completo.ts";
+import { describeIntegracao } from "../helpers/integracao.ts";
 import { limparPessoaE2E } from "./limpeza-e2e.ts";
 
 /**
@@ -38,6 +39,7 @@ function vozObservada(): ProvedoresVoz & { pedidos: Pedido[] } {
   };
 }
 
+describeIntegracao("ouvir uma resposta ponta a ponta", () => {
 let srv: ServidorCompleto;
 let voz: ReturnType<typeof vozObservada>;
 const extras: ServidorCompleto[] = [];
@@ -177,4 +179,6 @@ it("teto diário de caracteres → 429, sem chamar o TTS", async () => {
   const r2 = await ouvir(s3, mensagemId);
   expect(r2.status).toBe(429);
   expect(v3.pedidos.length).toBe(pedidos);
+});
+
 });

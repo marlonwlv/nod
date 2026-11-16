@@ -1,4 +1,4 @@
-# ADR-177: Dinheiro e segredos sem o bot ver (passkey no gasto, cartão virtual, 1Password)
+# ADR-178: Dinheiro e segredos sem o bot ver (passkey no gasto, cartão virtual, 1Password)
 
 Status: proposta (2026-11-12, frente "Assistente pessoal"; decisões "1Password e passkeys" e "pagamentos").
 

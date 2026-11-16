@@ -32,6 +32,14 @@ O computador por bot (ADR-037) está desligado em produção (sem `NOD_COMPUTADO
    checkpoint de hoje): a tela manda ao supervisor o diff depois de cada ação, o supervisor funde (último a escrever por
    `lastAccess` e sequência), grava atômico e repassa às outras telas por `addCookies`/`clearCookies`; quem abre depois
    sobe com a loja aplicada. Alvo: menos de 1 s entre telas. Só cookies nesta versão (senhas e storage na NOD-97).
+
+   **Emenda de 2026-11-13 (NOD-434):** o login manual pela tela ao vivo podia cair na janela entre o `Set-Cookie` e a
+   próxima foto do contexto (1 s depois da navegação ou 10 s pela sincronia). O fechamento limpo tirava uma última foto;
+   numa morte abrupta ela não existia, e reabrir o perfil pedia login porque o SQLite `Cookies` é deliberadamente
+   descartado: a fonte de verdade é `cookies.enc`. A tela agora observa respostas com `Set-Cookie` e assenta a foto em
+   até 100 ms, mantendo a rodada de 10 s e o fechamento como redes de segurança. Falha ao ler o cabeçalho não derruba a
+   página. Gatilho de reversão: a coleta elevar em mais de 5% a CPU ociosa de uma tela ou atrasar a resposta da página;
+   nesse caso, manter o evento e aumentar só a coalescência, sem voltar a depender do SQLite do perfil.
 3. **Um keyring por máquina, com o Safe Storage determinístico.** Um gnome-keyring, desbloqueado com
    `HMAC(NOD_CREDENTIAL_KEY, "nod-computador:"+id)` (como hoje), que vai no comando `iniciar` selado para a chave X25519
    do supervisor e nunca toca o disco. A senha "Chromium Safe Storage" é gravada antes do primeiro Chrome como

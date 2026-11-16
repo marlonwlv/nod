@@ -272,17 +272,41 @@ describe("revisão W7/W8/W10 (2026-10-08)", () => {
     expect(itens(acabou.c, acabou.e)[0]?.html).toContain("rodou 1 vez · 09:00 · nada para você");
   });
 
-  it("W8: o que a pessoa escreveu no campo da task mora na task; na `rede` (a conversa virou task) e sem saber a origem, fica no chat", () => {
+  it("W8: o que a pessoa escreveu no campo da task mora na task; na `rede`, só a fala anterior à promoção fica no chat", () => {
     const naTask = (id: string, trabalhoId: string): Mensagem => msg(id, t0 + 5 * MIN, { autoria: { autor_tipo: "pessoa", autor_id: "p" } as never, origemTurno: null, trabalhoId, texto: `recado ${id}` });
     const aberta = (trabalhoId: string, origem: "pessoa" | "rede"): Mensagem => msg(`a-${trabalhoId}`, t0, { kind: "sistema", texto: "Abriu", payload: { kind: "trabalho_aberto", trabalhoId, titulo: `Task ${trabalhoId}`, origem }, turnoId: "tc", origemTurno: "conversa" });
-    const { e, c } = cenario([aberta("tb-1", "pessoa"), naTask("x1", "tb-1"), aberta("tb-2", "rede"), naTask("x2", "tb-2"), naTask("x3", "tb-desconhecida")]);
+    const daConversa = { ...naTask("x2", "tb-2"), criadoEm: t0 - MIN };
+    const { e, c } = cenario([aberta("tb-1", "pessoa"), naTask("x1", "tb-1"), daConversa, aberta("tb-2", "rede"), naTask("x2-seguinte", "tb-2"), naTask("x3", "tb-desconhecida")]);
     const html = itens(c, e).map((b) => b.html).join("");
     expect(html).not.toContain("recado x1");
     expect(html).toContain("recado x2");
+    expect(html).not.toContain("recado x2-seguinte");
     expect(html).toContain("recado x3");
     // Pela lista de trabalhos também (a linha "Abriu a task" saiu da janela carregada).
     const pelaLista = cenario([naTask("x4", "tb-4")], { trabalhos: { trabalhos: [trabalho("tb-4")], pressao: null, memoriaTotalMb: null } });
     expect(itens(pelaLista.c, pelaLista.e).map((b) => b.html).join("")).not.toContain("recado x4");
+  });
+
+  it("ADA-240: a resposta final do turno promovido pela rede fica no chat com a mídia; os turnos seguintes ficam na frente", () => {
+    const trabalhoId = "4374e55a";
+    const abriu = msg("abriu", t0 + MIN, { kind: "sistema", texto: "Virou a frente MIL-46", turnoId: "070f3d5e", origemTurno: "conversa", payload: { kind: "trabalho_aberto", trabalhoId, titulo: "MIL-46", origem: "rede" } });
+    const resultado = msg("d586a3f0", t0 + 2 * MIN, {
+      turnoId: "070f3d5e", origemTurno: "conversa", trabalhoId, fimDoTurno: true,
+      texto: "MIL-46 pronta, com o vídeo de 68 s.",
+      anexos: [{ id: "a00e5a36", nome: "mil-46.mp4", mime: "video/mp4", tamanho: 5_000_000, origem: "bot", duracaoMs: 68_000 }],
+    });
+    const seguinte = msg("depois", t0 + 3 * MIN, { turnoId: "turno-da-frente", origemTurno: "retomada", trabalhoId, fimDoTurno: true, texto: "Ajustei a MIL-46." });
+    const pedido = msg("p1", t0, { autoria: { autor_tipo: "pessoa", autor_id: "p" } as never, trabalhoId, texto: "Faça a MIL-46." });
+    const recadoSeguinte = msg("p2", t0 + 4 * MIN, { autoria: { autor_tipo: "pessoa", autor_id: "p" } as never, trabalhoId, texto: "Ajuste também a capa." });
+    const { e, c } = cenario([pedido, abriu, resultado, seguinte, recadoSeguinte]);
+    const blocos = itens(c, e);
+    const html = blocos.map((b) => b.html).join("");
+    expect(blocos.map((b) => b.chave)).toContain("d586a3f0");
+    expect(html).toContain("MIL-46 pronta, com o vídeo de 68 s.");
+    expect(html).toContain("mil-46.mp4");
+    expect(html).not.toContain("Ajustei a MIL-46.");
+    expect(html).not.toContain("Ajuste também a capa.");
+    expect(c.mensagens.find((m) => m.id === "d586a3f0")?.anexos?.[0]).toMatchObject({ id: "a00e5a36", duracaoMs: 68_000 });
   });
 
   it("W10: a linha da rotina entra no lugar da primeira mensagem ESCONDIDA da execução, nunca no de uma à vista", () => {

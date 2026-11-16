@@ -104,6 +104,7 @@ import { gerirMaquinas } from "../../use-cases/gerir-maquinas.ts";
 import { gerirCanvas } from "../../use-cases/gerir-canvas.ts";
 import { criarImportador, origensDoAmbiente } from "../canvas/importador.ts";
 import { naoLidosNoChat } from "../../use-cases/nao-lidos-no-chat.ts";
+import { decisoesNoChat } from "../../use-cases/decisoes-no-chat.ts";
 import { buscarConversas, lerConversa } from "../../use-cases/buscar-conversas.ts";
 import { abrirConta } from "../../use-cases/abrir-conta.ts";
 import { pedirAPessoa } from "../../use-cases/pedir-a-pessoa.ts";
@@ -133,6 +134,9 @@ import type { IdDriver, Registry } from "../executor/spi.ts";
 import type { IniciarLaco } from "../fundo/orquestrador-turnos.ts";
 import { criarPonteInterna, VERSAO_MINIMA_APP, type PonteInternaNod } from "../fundo/ponte-interna.ts";
 import { autorizarChaveMaquina } from "./autorizar-chave-maquina.ts";
+import { autorizarTokenMcp } from "./autorizar-token-mcp.ts";
+import { rotasMcpTokens } from "./rotas/mcp-tokens.ts";
+import type { DepsServidorMcp } from "./mcp/servidor-mcp.ts";
 import { segredoEfetivo } from "./sessao.ts";
 import { comporContas, type ContasMontadas } from "./compor-contas.ts";
 import { situacaoDaConta } from "../../repositories/contas.repo.ts";
@@ -316,6 +320,8 @@ export type App = {
   /** Modo compartilhado: último contato de uma máquina pela ponte HTTP (o varredor de lease fecha o aviso de queda quando ela volta, ADR-045). */
   ultimoContatoDaMaquina(machineId: string): number | null;
   autorizarMaquina(token: string): ReturnType<typeof autorizarChaveMaquina>;
+  /** Servidor MCP do Nod (0173): valida o token do cliente MCP e diz a versão que o initialize anuncia. */
+  mcp: { autorizar(token: string, cliente: string | null): ReturnType<typeof autorizarTokenMcp>; versaoNod: string; registrarAcao: NonNullable<DepsServidorMcp["registrarAcao"]> };
   /** Liga o registry sondado (boot), os snapshots das sondas por driver e quem liga um driver DEPOIS do boot (interruptor). */
   ligarRegistry(registry: Registry, inventarios?: Partial<Record<IdDriver, Inventario>>, ativar?: AtivarDriver): void;
   /** NOD-323 (J6): a URL deste servidor, que só existe depois do listen — o laço local sobe por ela a mídia da fala. */
@@ -452,7 +458,7 @@ export function comporApp(o: OpcoesCompor): App {
     return tenants.get(pessoaId) ?? null;
   }
 
-  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
+  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, decisoesNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
 
   // NOD-351: a situação da conta para abrir_conta, lida na transação do turno (sem outra conexão do pool). Liga tarde: as
   // contas nascem depois, sobre `dentro`; false = desligadas, e abrir_conta volta `indisponivel`.
@@ -504,7 +510,7 @@ export function comporApp(o: OpcoesCompor): App {
     if (!detectorGh || (await donoDaMaquinaLocal()) !== escopo.pessoaId) return false;
     return detectorGh.logado();
   }
-  // ADR-173: a máquina do turno é um Mac DA PESSOA do turno? Só então as ferramentas do conector `mac` entram no plano.
+  // ADR-174: a máquina do turno é um Mac DA PESSOA do turno? Só então as ferramentas do conector `mac` entram no plano.
   async function macDaPessoa(escopo: Escopo, maquinaDoTurno?: string | null): Promise<boolean> {
     if (maquinaDoTurno && (compartilhado || maquinaDaPonte(escopo, maquinaDoTurno))) return ponteHttp.maquina(escopo, maquinaDoTurno)?.plataforma === "darwin";
     if (compartilhado) return false;
@@ -784,7 +790,7 @@ export function comporApp(o: OpcoesCompor): App {
     if (desfecho === "diferente") log("aviso", "computador_supervisor_diferente", { computador_id: relato.computadorId, maquina_id: maquinaId });
   }
   /**
-   * ADR-168 (NOD computador plug and play): fora do motor, o computador do bot vem de um PROVEDOR escolhido por
+   * ADR-169 (NOD computador plug and play): fora do motor, o computador do bot vem de um PROVEDOR escolhido por
    * configuração (bot > pessoa > global > NOD_COMPUTADORES=docker). Só NOD_COMPUTADORES=docker monta o mesmo Docker de
    * antes; o Orgo só existe com NOD_COMPUTADOR_ORGO=1 e a chave da pessoa vem do cofre (conector `orgo`, ORGO_API_KEY).
    */
@@ -905,6 +911,14 @@ export function comporApp(o: OpcoesCompor): App {
   // ADR-108 (revisão do PR 2, C5): as IAs prontas nas máquinas da ponte HTTP (as VMs, no modo local) contam por máquina.
   const ponte = criarPonteInterna(db, { ...depsPonte, prontosPorMaquina: (pessoaId) => ponteHttp.prontosPorMaquinaDaPessoa(pessoaId) });
   const autorizarMaquina = (token: string) => autorizarChaveMaquina(db, token, relogio());
+  const mcp: App["mcp"] = {
+    autorizar: (token, cliente) => autorizarTokenMcp(db, token, relogio(), cliente),
+    versaoNod: versaoDoServidor(),
+    // Critério 4 da NOD-152 (0174): o que o cliente MCP mudou aparece na Atividade do bot, marcado "Pelo MCP".
+    registrarAcao: async (identidade, a) => {
+      await dentro({ tenantId: identidade.tenantId, pessoaId: identidade.pessoaId }, (d) => d.repos.mcpTokens.registrarAcao({ tokenId: identidade.tokenId, agenteId: a.agenteId, ferramenta: a.ferramenta, resumo: a.resumo }));
+    },
+  };
   // ADR-102 (2026-10-13): os logins de contas pela tela e o pareamento por código/convite (em memória, src/services).
   const logins = criarLoginsNaMaquina(relogio);
   /**
@@ -1523,7 +1537,7 @@ export function comporApp(o: OpcoesCompor): App {
       ...(compartilhado ? {} : Object.fromEntries(ponte.maquinasConectadas().map((m) => [m.machineId, (Object.entries(m.harnesses ?? {}) as [IdHarness, Inventario | undefined][]).filter(([, i]) => i?.estado === "pronto").map(([h]) => h)]))),
     })),
     ...rotasTimes(depsRotas),
-    // ADR-166: Ajustes > Aprovações; o teto do modo é do admin (NOD_ADMINS, a mesma lista das flags).
+    // ADR-167: Ajustes > Aprovações; o teto do modo é do admin (NOD_ADMINS, a mesma lista das flags).
     ...criarRotasAjustesAprovacao(depsRotas, (env.NOD_ADMINS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)),
     ...criarRotasConversas(depsRotas),
     ...criarRotasBusca(depsRotas, { poolMax: lerPoolMax(env) }),
@@ -1592,15 +1606,16 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasTrilha({ dentro }),
     // ADR-090: o motor sem janela da versão deste servidor (dist/motor) e o script que o instala numa máquina Linux.
     // NOD-132 (ADR-149): o feed da atualização do app do Mac, fora da trava 426. Versão vazia = 204 para todos.
-    // ADR-170: as flags remotas da pessoa (a web e o app leem) e o canal de teste do app pelas mesmas flags.
+    // ADR-171: as flags remotas da pessoa (a web e o app leem) e o canal de teste do app pelas mesmas flags.
     ...rotasFlags({ fonte: fonteFlags }),
     ...rotasAtualizacaoApp({ config: configAtualizacaoApp, versaoMinima: VERSAO_MINIMA_APP, teste: configTesteApp, canalDe: (escopo) => canalDasFlags(fonteFlags.avaliar(escopo)), publicadaEm: new Date(relogio()).toISOString().replace(/\.\d{3}Z$/, "Z"),
       assinar: configAtualizacaoApp ? cachearAssinador(o.assinadorAtualizacaoApp ?? criarAssinadorGcs({ bucket: configAtualizacaoApp.bucket, fonteToken: criarFonteDeToken({ env }) }), { agora: relogio }) : null }),
     ...rotasMotor({ pasta: env.NOD_MOTOR_DIR ?? resolve("dist/motor"), versao: versaoDoServidor(), ...(env.NOD_COMPUTADORES === "motor" ? { computador: true } : {}), ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
     ...rotasContasIa({ dentro, logins, dispositivo, compartilhado, onboardingTexto, avisar: avisarContas, maquinaViva: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id), plataformaDaMaquina: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).find((m) => m.machineId === id)?.plataforma ?? null, maquinaAtualizaIas: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id && m.atualizaIas), aoRenomear: (escopo, id, nome) => ponteHttp.renomear(escopo, id, nome) }),
     ...(compartilhado ? rotasInstalacoesSsh({ dentro, instalacoes, dispositivo, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }) : []),
+    ...rotasMcpTokens({ dentro, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
     ...rotasMaquinas({ dentro, pareamento: criarPareamentoMaquina(relogio), dispositivo, maquinasVivas: (escopo) => ponteHttp.maquinasDaPessoa(escopo), pareadaPorConvite, ...(compartilhado ? {} : { servidorNoMac: { api: `http://127.0.0.1:${numero(env.NOD_API_PORT, 8888)}` } }) , nuvem: nuvemLigada,
-      // ADR-169: a VM do Nod (opção 3) só aparece disponível com NOD_VM_DO_NOD=1; o driver padrão é o seco (nada na nuvem).
+      // ADR-170: a VM do Nod (opção 3) só aparece disponível com NOD_VM_DO_NOD=1; o driver padrão é o seco (nada na nuvem).
       ...(env.NOD_VM_DO_NOD === "1" ? { vmDoNod: { planos: planosDoEnv(env.NOD_VM_DO_NOD_PLANOS), driver: env.NOD_VM_DO_NOD_DRIVER === "gcp" ? "gcp" as const : "seco" as const } } : {}) }),
     ...(nuvemLigada ? rotasNuvem({ dentro, segredo: segredoEfetivo(env.NOD_LOGIN === "google" ? "google" : "stub", env.NOD_SESSAO_SEGREDO), oauth: oauthNuvem(env), conta: o.nuvem?.conta ?? criarContaGcp({ contaFaturamento: env.NOD_NUVEM_CONTA_FATURAMENTO ?? null }), ...(o.nuvem?.fetchImpl ? { fetchImpl: o.nuvem.fetchImpl } : {}), cifrar: (t) => cifrar(t, chave), provedorDa: async (escopo, credencialId) => provedorDaChave(await dentro(escopo, (d) => d.repos.credenciaisNuvem.chaveCifrada(credencialId))), ...(criacaoNuvem ? { registrarConvite: criacaoNuvem.registrarConvite } : {}), agora: relogio }) : []),
     // definido em 2026-09-16: NOD_LONGPOLL_MS encurta a fatia do long-poll de aprovação (testes/e2e); default LONGPOLL_APROVACAO_MS.
@@ -1752,6 +1767,7 @@ export function comporApp(o: OpcoesCompor): App {
     compartilhado,
     ultimoContatoDaMaquina: (machineId) => ponteHttp.ultimoContato(machineId),
     autorizarMaquina,
+    mcp,
     ligarRegistry(registry, inventarios, ativar) {
       registryLigado = registry;
       if (automatico) driverPreferido = registry["claude-cli"].estado === "pronto" ? "claude-cli" : registry["codex-cli"]?.estado === "pronto" ? "codex-cli" : "claude-cli";

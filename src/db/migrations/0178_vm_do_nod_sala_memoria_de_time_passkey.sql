@@ -1,5 +1,5 @@
--- definido em 2026-11-12 (frente de comportamento): a persistência que os PRs #732 (ADR-169 e ADR-172) e
--- #735 (ADR-177) deixaram só no domínio puro. Quatro peças, todas escopadas por pessoa com nod_escopar_tabela:
+-- definido em 2026-11-12 (frente de comportamento): a persistência que os PRs #732 (ADR-170 e ADR-173) e
+-- #735 (ADR-178) deixaram só no domínio puro. Quatro peças, todas escopadas por pessoa com nod_escopar_tabela:
 --
 -- vms_do_nod: o pedido da VM do Nod (opção 3 da decisão 1), UMA por pessoa (uma box por usuário).
 --   Guarda o plano, o nome estável `nod-box-…` (nomeDaVmDoNod), o requestId idempotente, o driver (seco = só previsão) e

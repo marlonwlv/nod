@@ -1,4 +1,4 @@
-# ADR-178: MDM (só origem https) e checagem de aparelho no teste grátis
+# ADR-179: MDM (só origem https) e checagem de aparelho no teste grátis
 
 Status: proposta (2026-11-12, frente "Assistente pessoal"; decisão "MDM e checagem de aparelho", com "teto de modo do
 admin, já agora").

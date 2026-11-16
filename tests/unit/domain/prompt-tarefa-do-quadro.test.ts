@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Agente } from "../../../src/contracts/agente.ts";
 import type { Turno } from "../../../src/contracts/turno.ts";
 import { montarPlano, type EntradaPlano } from "../../../src/domain/plano-turno.ts";
-import { PASTA_DA_TAREFA_DO_QUADRO, secaoDaLinha } from "../../../src/domain/prompt-sistema.ts";
+import { PASTA_DA_TAREFA_DO_QUADRO, RESULTADO_DA_TAREFA_DO_QUADRO, secaoDaLinha } from "../../../src/domain/prompt-sistema.ts";
 
 /** ADA-16 (ADR-163): o turno da tarefa do quadro roda no trabalho dela, ao mesmo tempo que as outras tarefas do bot. */
 const agora = 1_000_000;
@@ -16,6 +16,8 @@ describe("prompt da tarefa do quadro (ADA-16)", () => {
     const linha = volatil.split("\n").find((l) => l.startsWith("Task atual:"))!;
     expect(linha).toContain('"Tela de login", de uma tarefa do quadro, que roda à parte da conversa e das suas outras tarefas');
     expect(linha).toContain(PASTA_DA_TAREFA_DO_QUADRO);
+    expect(linha).toContain(RESULTADO_DA_TAREFA_DO_QUADRO);
+    expect(linha).toContain("nunca diga que o enviou numa mensagem anterior do chat");
     expect(secaoDaLinha(linha)).toBe("contexto");
   });
 
@@ -23,6 +25,7 @@ describe("prompt da tarefa do quadro (ADA-16)", () => {
     for (const origem of ["pessoa", "rotina"] as const) {
       const { volatil } = montarPlano({ ...base, modo: "conversa", trabalho: { titulo: "X", origem, trabalhoMaeId: null } }).promptSistemaPartes!;
       expect(volatil).not.toContain(PASTA_DA_TAREFA_DO_QUADRO);
+      expect(volatil).not.toContain(RESULTADO_DA_TAREFA_DO_QUADRO);
     }
   });
 });

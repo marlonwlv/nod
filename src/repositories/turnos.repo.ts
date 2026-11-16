@@ -873,10 +873,25 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       return l ? paraTurno(l) : null;
     },
 
-    /** ADR-052 (0033): o turno trouxe conteúdo da web pelas nativas. A primeira marca fica. */
-    async contaminar(id: string, agora: number): Promise<boolean> {
-      const r = await conn`update turnos set contaminado_em = coalesce(contaminado_em, ${data(agora)}) where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}`;
+    /**
+     * ADR-052 (0033): o turno trouxe conteúdo da web pelas nativas. A primeira marca fica.
+     * 0176 (2026-11-13): `origem` "quadro" = o que entrou foi só o próprio quadro da pessoa (o gerir_quadro). A marca
+     * `contaminado_so_quadro` vale enquanto TODA contaminação do turno for essa; qualquer outra a desliga para sempre
+     * (o UPDATE lê os valores de antes: só o primeiro contaminar a liga, e só um "quadro" a mantém).
+     */
+    async contaminar(id: string, agora: number, origem: "quadro" | "outra" = "outra"): Promise<boolean> {
+      const soQuadro = origem === "quadro";
+      const r = await conn`update turnos set contaminado_em = coalesce(contaminado_em, ${data(agora)}),
+          contaminado_so_quadro = case when contaminado_em is null then ${soQuadro} else (contaminado_so_quadro and ${soQuadro}) end
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}`;
       return r.count === 1;
+    },
+
+    /** 0176: o que contaminou o turno — nada, só o próprio quadro da pessoa, ou outra coisa (a página, o e-mail…). */
+    async contaminacao(id: string): Promise<"nenhuma" | "quadro" | "outra"> {
+      const [l] = await conn<{ em: Date | null; so_quadro: boolean }[]>`select contaminado_em as em, contaminado_so_quadro as so_quadro from turnos where tenant_id = ${escopo.tenantId} and id = ${id}`;
+      if (!l || l.em === null) return "nenhuma";
+      return l.so_quadro ? "quadro" : "outra";
     },
 
     /** NOD-114 (revisão): a task de cada turno numa consulta só — "Sua vez" leva o trabalhoId de cada item sem uma leitura por item. */

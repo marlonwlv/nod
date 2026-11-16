@@ -91,7 +91,7 @@ export type OpcoesBoot = {
   capturador?: OpcoesCompor["capturador"];
   /** NOD-132, só em teste: o assinador falso da URL do ZIP (vale com NOD_APP_VERSAO_PUBLICADA). Default: signBlob do IAM. */
   assinadorAtualizacaoApp?: OpcoesCompor["assinadorAtualizacaoApp"];
-  /** ADR-115, só em teste: a API falsa do revisor (o e2e das regras do Automático, ADR-166). Default: a da Anthropic. */
+  /** ADR-115, só em teste: a API falsa do revisor (o e2e das regras do Automático, ADR-167). Default: a da Anthropic. */
   revisor?: OpcoesCompor["revisor"];
 };
 
@@ -228,6 +228,8 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     autorizarTokenTurno: app.tokens.autorizarComBanco,
     // ADR-092: também no modo local — a VM da pessoa (o motor da ADR-090) puxa turnos deste Mac pela ponte.
     autorizarMaquina: app.autorizarMaquina,
+    // Servidor MCP do Nod (0173): POST /api/mcp com o token gerado nos Ajustes.
+    mcp: app.mcp,
     sessao: sessao.modo === "google" && app.contas ? { ...sessao, google: { ...sessao.google, ...(app.contas.google ? { conta: app.contas.google } : {}) } } : sessao,
     ...(app.contas ? { contas: { guarda: app.contas.guarda, google: app.contas.google !== null, bootstrap: app.contas.bootstrap, minhaConta: !!app.contas.minhaConta, onboardingTexto: app.contas.onboardingTexto, rotas: app.contas.rotas } } : {}),
     verificarSaude,

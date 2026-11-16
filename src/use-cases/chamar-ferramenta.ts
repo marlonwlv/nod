@@ -179,7 +179,7 @@ const DESPACHO: Despacho = {
   responder_pedido: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.responder_pedido](deps, { ...ctx, ...args }),
   pedir_credencial: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.pedir_credencial](deps, { ...ctx, ...args }),
   avisar_pessoa: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.avisar_pessoa](deps, { ...ctx, ...args }),
-  // ADR-175: os cartões ricos (voo, hotel, carro, mapa, clima, carrinho, arquivo) numa fala do bot.
+  // ADR-176: os cartões ricos (voo, hotel, carro, mapa, clima, carrinho, arquivo) numa fala do bot.
   mostrar_cartoes: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.mostrar_cartoes](deps, { ...ctx, ...args }),
   gerir_quadro: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_quadro](deps, { ...ctx, ...args }),
   gerir_apps: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_apps](deps, { ...ctx, ...args }),
@@ -188,6 +188,7 @@ const DESPACHO: Despacho = {
   gerir_acessos: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_acessos](deps, { ...ctx, ...args }),
   gerir_canvas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_canvas](deps, { ...ctx, ...args }),
   nao_lidos: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.nao_lidos](deps, { ...ctx, ...args }),
+  decisoes: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.decisoes](deps, { ...ctx, ...args }),
   gerir_maquinas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.gerir_maquinas](deps, { ...ctx, ...args }),
   abrir_conta: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.abrir_conta](deps, { ...ctx, ...args }),
   buscar_conversas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.buscar_conversas](deps, { ...ctx, ...args }),
@@ -321,6 +322,13 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
 
   if (ferramenta.origem === "nod") {
     if (!ehNomeNod(ferramenta.nome)) return negar("fora_do_catalogo", "ferramenta_negada");
+    // ADA-29: o gerir_quadro recebe um contrato contextual. O catálogo é também a cerca de execução:
+    // sem esta conferência, uma chamada montada fora do tools/list ainda passaria pelo schema global
+    // em despacharNod. As outras ferramentas preservam as compatibilidades de validarArgsNod.
+    if (ferramenta.nome === "gerir_quadro") {
+      const erros = errosDoSchema(ferramenta.schema, input.argumentos ?? {});
+      if (erros.length > 0) return negar("args_invalidos", "ferramenta_negada");
+    }
     const r = await despacharNod(deps, ctx, ferramenta.nome, input.argumentos ?? {});
     if ("erros" in r) return negar("args_invalidos", "ferramenta_negada");
     await registrarChamada(null);
@@ -352,7 +360,7 @@ export const chamarFerramentaFase1: CasoDeUso<EntradaChamarFerramenta, SaidaFase
   // direto rodavam sem card no modo manual (só o prompt pedia pedir_aprovacao), e um colega apagava direto no
   // automático o que, pedido por item, pararia em `acao_arriscada`. Quem não passaria sozinho no card recebe a
   // negação transitória "peça aprovação" e cai no pedir_aprovacao, com o motivo gravado no item.
-  // ADR-166: o nível que a dona deu a esta ferramenta (Ajustes > Aprovações) e o só leitura do bot, ANTES de qualquer
+  // ADR-167: o nível que a dona deu a esta ferramenta (Ajustes > Aprovações) e o só leitura do bot, ANTES de qualquer
   // modo. Bloqueado e escrita em só leitura voltam negados (transitória: o bot segue e conta à pessoa); "Sempre pedir"
   // numa leitura volta como "peça aprovação" (a leitura não passa pela decisão abaixo); o resto vai à decisão.
   const ajustes = await ajustesDoBot(deps, input.agenteId);
