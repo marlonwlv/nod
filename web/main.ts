@@ -1,4 +1,5 @@
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
+import { cancelarNaFila, desfazerCancelamento } from "./lib/cancelar-na-fila.ts";
 import { armazemComReserva, armazemDaFila, criarJournalDeEnvio, JournalEncerrado, tipoDaFalha, type ArmazemDoJournal, type Desfecho, type ItemDoJournal, type Journal } from "./lib/journal-envio.ts";
 import { armazemDoJournalIndexedDb } from "./lib/journal-envio-idb.ts";
 import { atalhoDoTeclado as atalhoDoQuickChat, type AjustesMac } from "./telas/ajustes-mac.ts";
@@ -427,8 +428,6 @@ document.addEventListener("toggle", (ev) => {
 let estado: Estado = estadoInicial;
 /** ADR-179 (fase 1 do React): a mesma `estado` vista pelas regiões React (useLoja). render() avisa; nenhuma região montada ainda. */
 const lojaDoEstado = criarLoja(() => estado);
-/** Janela do Desfazer ao cancelar uma mensagem da fila. */
-const CANCELAR_DESFAZER_MS = 5_000;
 let api: Api | null = null;
 
 /** ADR-166: Configurações › Aprovações. O estado é da seção (web/lib/ajustes-aprovacao.ts); a lista de bots é a da dona. */
@@ -5108,6 +5107,96 @@ function motivoDaFalha(e: unknown): string | undefined {
   return erro ? erroDaAcao(erro).mensagem : undefined;
 }
 
+/** A fala da pessoa ligada ao turno na fila (a linha só tem o turno; o reducer guarda a conversa e a mensagem). */
+function falaDoTurnoNaFila(turnoId: string): { conversaId: string; mensagemId: string } | null {
+  const local = estado.cancelando[turnoId];
+  if (local) return { conversaId: local.conversaId, mensagemId: local.mensagemId };
+  for (const [conversaId, c] of Object.entries(estado.conversas)) {
+    const t = c?.turnosEmCurso.find((x) => x.id === turnoId);
+    if (t?.mensagemId) return { conversaId, mensagemId: t.mensagemId };
+  }
+  return null;
+}
+
+const seletorDaLinha = (act: string, turnoId: string): string => `.fila-linha [data-act="${act}"][data-id="${CSS.escape(turnoId)}"]`;
+
+function cancelarDaFila(turnoId: string): void {
+  const fala = falaDoTurnoNaFila(turnoId);
+  const a = api;
+  if (!turnoId || !fala || !a) return;
+  const origem = document.activeElement ?? document.body;
+  avisador.acaoPropria();
+  void cancelarNaFila({
+    cancelarTurno: (id) => a.cancelarTurno(id),
+    dispatch,
+    estado: () => estado.cancelando,
+    agora: () => Date.now(),
+    agendar: (fn, ms) => void window.setTimeout(fn, ms),
+    invalidar: (conversaId) => dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] }),
+    mostrarErro,
+    focarDesfazer: (id) => focarQuandoAparecer(seletorDaLinha("desfazer-cancelamento", id), origem),
+    focarTentarDeNovo: (id) => focarQuandoAparecer(seletorDaLinha("cancelar-turno", id), origem),
+    focarCampoSeSaiu: (id) => window.setTimeout(() => {
+      const ativo = document.activeElement as HTMLElement | null;
+      const perdeu = !ativo || ativo === document.body || !ativo.isConnected || ativo.matches(seletorDaLinha("desfazer-cancelamento", id));
+      if (perdeu) document.getElementById("composer-texto")?.focus();
+    }, 50),
+  }, { turnoId, ...fala });
+}
+
+/**
+ * O Desfazer da fala cancelada: sem anexo, a mesma fala vai de novo pelo journal (`conversas.enviar`, chave nova) e entra
+ * no fim da fila; com anexo (que já está preso à mensagem cancelada), o texto e os arquivos voltam ao campo vazio.
+ */
+function desfazerDaFila(turnoId: string): void {
+  desfazerCancelamento({
+    dispatch,
+    estado: () => estado.cancelando,
+    fala: (conversaId, mensagemId) => {
+      const m = estado.conversas[conversaId]?.mensagens.find((x) => x.id === mensagemId);
+      if (!m) return null;
+      const respondeA = m.payload?.kind === "resposta_a_fala" ? m.payload.respondeA.mensagemId : undefined;
+      return { texto: m.texto, anexos: (m.anexos ?? []).filter((x) => x.origem !== "bot"), ...(respondeA ? { respondeA } : {}) };
+    },
+    reenviar: reenviarDaFila,
+    campoVazio: (conversaId) => {
+      const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+      return conversaAtual()?.conversaId === conversaId && !!ta && ta.value.trim() === "" && (anexosPendentes.get(conversaId) ?? []).length === 0;
+    },
+    devolverAoCampo: (conversaId, texto, anexos) => {
+      const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+      if (ta) { escreverNoCampo(ta, texto); ajustarAltura(ta); atualizarBarra(ta); }
+      if (composerDe) rascunhos.guardar(composerDe, texto);
+      const tenant = estado.sessao?.tenantId;
+      if (!tenant || anexos.length === 0) return;
+      // Os bytes voltam da rota do anexo e sobem de novo como anexo novo (o de antes ficou preso à fala cancelada).
+      void Promise.all(anexos.map(async (x) => {
+        const r = await fetch(`/api/t/${encodeURIComponent(tenant)}/conversas/${encodeURIComponent(conversaId)}/anexos/${encodeURIComponent(x.id)}`, { credentials: "same-origin" });
+        if (!r.ok) throw new Error(`anexo ${r.status}`);
+        return new File([await r.blob()], x.nome, { type: x.mime });
+      })).then((arquivos) => { if (conversaAtual()?.conversaId === conversaId) adicionarArquivos(arquivos); }, mostrarErro);
+    },
+    focarCampo: () => document.getElementById("composer-texto")?.focus(),
+  }, turnoId);
+}
+
+/** O reenvio do Desfazer: o mesmo caminho da mensagem comum do campo (fala pendente + journal), sem passar pelo campo. */
+function reenviarDaFila(conversaId: string, texto: string, respondeA?: string): boolean {
+  const j = journal;
+  if (!api || !j) return false;
+  const idEnvio = envios.iniciar(conversaId, texto, [], respondeA);
+  if (!idEnvio) return false;
+  const em = Date.now();
+  dispatch({ tipo: "fala-pendente", conversaId, pendente: { idEnvio, texto, anexos: [], ...(respondeA ? { respondeA } : {}), em, estado: "enviando", mensagemId: null, turnoId: null } });
+  rolagem.colar();
+  const item: ItemDoJournal = { conversaId, idEnvio, texto, anexos: [], ...(respondeA ? { respondeA } : {}), em };
+  void j.enviar(item).then(
+    (resposta) => { envios.concluir(conversaId, true); terminarDoJournal(j, item, { ok: true, resposta }); },
+    (erro) => { envios.concluir(conversaId, false); terminarDoJournal(j, item, { ok: false, erro, tipo: tipoDaFalha(erro) }); },
+  );
+  return true;
+}
+
 /**
  * "Tentar de novo" da fala pendente que falhou (Parte 1): a mesma fala, pela mesma chave de idempotência (`envios` guarda
  * a chave pendente enquanto a assinatura é igual), sem passar pelo campo. Vai pelo journal: entra nele de novo, repete
@@ -7891,26 +7980,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   duplicar: (el) => { const a = botGerido(el.dataset.id); if (a) acaoDoBot(a, "duplicar"); },
   revogar: (el) => agir(async () => void (await api!.revogar(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: [`concessoes:${el.dataset.agente ?? ""}`, "frota"] }))),
   // definido em 2026-09-24 (ADR-045): "Entendi" no aviso de queda do Mac.
-  // definido em 2026-09-24: Cancelar de UMA mensagem da fila. Fica 5 s em "Cancelando… Desfazer" só na
-  // web; depois disso vai ao servidor. Desfazer antes do prazo não toca o servidor (nada a reenfileirar).
-  "cancelar-turno": (el) => {
-    const turnoId = el.dataset.id ?? "";
-    if (!turnoId) return;
-    dispatch({ tipo: "cancelando-turno", turnoId, agora: Date.now() });
-    window.setTimeout(() => {
-      if (!(turnoId in estado.cancelando)) return;
-      void agir(async () => {
-        try {
-          await api!.cancelarTurno(turnoId);
-        } finally {
-          dispatch({ tipo: "desfazer-cancelamento", turnoId });
-          const alvo = conversaAtual();
-          if (alvo) dispatch({ tipo: "invalidar", quais: [`conversa:${alvo.conversaId}`] });
-        }
-      });
-    }, CANCELAR_DESFAZER_MS);
-  },
-  "desfazer-cancelamento": (el) => dispatch({ tipo: "desfazer-cancelamento", turnoId: el.dataset.id ?? "" }),
+  // Cancelar só a mensagem na fila (revisto em 2026-11-16, web/lib/cancelar-na-fila.ts): o POST sai na hora do clique
+  // (a absorção acontece no próximo passo do bot, e os 5 s locais de antes perdiam a corrida); o Desfazer vem depois do OK.
+  "cancelar-turno": (el) => cancelarDaFila(el.dataset.id ?? ""),
+  "desfazer-cancelamento": (el) => desfazerDaFila(el.dataset.id ?? ""),
   // Parte 1 do plano "o pensamento no chat": a fala pendente que falhou.
   "reenviar-pendente": (el) => reenviarPendente(el.dataset.conversa ?? "", el.dataset.id ?? ""),
   "descartar-pendente": (el) => {

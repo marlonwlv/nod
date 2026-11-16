@@ -15,6 +15,7 @@ import type { Inventario } from "../../src/contracts/inventario.ts";
 import type { TarefaDoBot } from "../../src/contracts/turno.ts";
 import type { EstadoVivoBot } from "../../src/contracts/estado-vivo.ts";
 import type { ConversaEstado, Estado, FalaPendente, FalaSaindo, TurnoVivo } from "../estado/reducer.ts";
+import type { Cancelamento } from "../lib/cancelar-na-fila.ts";
 import { assinatura } from "../lib/assinatura.ts";
 import { ICONE } from "../lib/icones.ts";
 import { botao, dataHora, esc, hora, iconeAgente, paragrafos } from "../lib/render.ts";
@@ -530,20 +531,45 @@ export function midiasDoBot(m: Mensagem, estado: Estado): string {
 const temMidiaDoBot = (m: Mensagem): boolean => m.autoria.autor_tipo !== "pessoa" && (m.anexos ?? []).some((a) => a.origem === "bot" || ehCaptura(m, a));
 
 /**
- * COP-14 (item 1, definido em 2026-11-12): a mensagem mandada com o bot trabalhando entra como qualquer balão — sem chip
- * "Na fila", sem relógio, sem Cancelar/Desfazer e sem "Cancelada · não rodou"; quem quer interromper usa o Parar do campo.
- * No servidor nada muda: a sessão viva absorve a mensagem no turno em curso, e o resto é lido junto no próximo turno.
- * Fica só a exceção do nod: a mensagem não vai ser lida logo porque a máquina do bot está desligada, acordando ou sem IA.
- * Aí uma linha discreta embaixo do balão diz isso, sem botão.
+ * COP-14 (item 1, definido em 2026-11-12) e Acessos · fila (revisto em 2026-11-16): a mensagem mandada com o bot
+ * trabalhando entra como qualquer balão — sem chip, sem relógio e sem apagar a cor (o "em voo" é só `data-na-fila` e
+ * `aria-busy` na linha). Embaixo dela, alinhada à direita, uma linha pequena enquanto há o que fazer: "Na fila · Cancelar"
+ * (ou a exceção do nod — máquina desligada, acordando ou sem IA — com o mesmo Cancelar). O Cancelar vai ao servidor na
+ * hora (web/lib/cancelar-na-fila.ts) e a linha segue a fase: "Cancelando…", "Cancelada · não rodou · Desfazer" por 5 s,
+ * "Já entrou no turno · não deu para cancelar" (409) ou "Não consegui cancelar · Tentar de novo". Sala e tela da task
+ * continuam sem Cancelar (NOD-376: o recado da task não tem desfazer). Nada de "lê quando terminar o turno atual".
  */
-type SituacaoFila = { tipo: "na_fila"; texto: string };
+type SituacaoFila = {
+  tipo: "na_fila" | "cancelando" | "cancelada" | "tarde" | "erro" | "oculta";
+  texto: string;
+  /** O botão de texto da linha (Cancelar, Desfazer ou Tentar de novo). */
+  botao?: { act: "cancelar-turno" | "desfazer-cancelamento"; rotulo: string; aria: string };
+};
+
+const CANCELAR = { act: "cancelar-turno", rotulo: "Cancelar", aria: "Cancelar só esta mensagem" } as const;
+
+function daFase(c: Cancelamento): SituacaoFila {
+  switch (c.fase) {
+    case "cancelando": return { tipo: "cancelando", texto: "Cancelando…" };
+    case "cancelada": return { tipo: "cancelada", texto: c.aviso ? `Cancelada · ${c.aviso}` : "Cancelada · não rodou", ...(c.desfazivel ? { botao: { act: "desfazer-cancelamento", rotulo: "Desfazer", aria: "Desfazer o cancelamento desta mensagem" } } : {}) };
+    case "voltou": return { tipo: "cancelada", texto: "Cancelada · voltou para o campo" };
+    case "desfeita": return { tipo: "oculta", texto: "" };
+    case "tarde": return { tipo: "tarde", texto: "Já entrou no turno · não deu para cancelar" };
+    case "erro": return { tipo: "erro", texto: "Não consegui cancelar", botao: { act: "cancelar-turno", rotulo: "Tentar de novo", aria: "Tentar cancelar esta mensagem de novo" } };
+  }
+}
 
 export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { turnoId: string }) | null {
   if (m.autoria.autor_tipo !== "pessoa") return null;
   const c = estado.conversas[m.conversaId];
-  if (!c) return null;
+  if (!c || c.conversa.salaId) return null;
+  // A fase local (o clique desta aba) manda sobre a leitura: o turno já cancelado ou absorvido ainda mostra o desfecho.
+  const local = Object.entries(estado.cancelando).find(([, x]) => x.mensagemId === m.id && x.conversaId === m.conversaId);
+  if (local) return { ...daFase(local[1]), turnoId: local[0] };
+  const cancelado = c.turnosCancelados.find((t) => t.mensagemId === m.id);
+  if (cancelado) return { tipo: "cancelada", texto: "Cancelada · não rodou", turnoId: cancelado.id };
   const emCurso = c.turnosEmCurso.find((t) => t.mensagemId === m.id);
-  if (!emCurso) return null;
+  if (!emCurso || emCurso.estado !== "pendente" || emCurso.trabalhoId) return null;
   // O estado VIVO manda: o frame turno.iniciado 'despachado' tira a linha antes do REST reler a conversa.
   if (estado.turnosVivos[emCurso.id]?.estado !== "na_fila") return null;
   const agente = c.conversa.agenteId ? agenteDe(estado, c.conversa.agenteId) : undefined;
@@ -551,14 +577,16 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
   const destaVez = emCurso.maquinaDestaVez ? (estado.maquinas?.maquinas ?? []).find((x) => x.id === emCurso.maquinaDestaVez) ?? null : null;
   const doBot = destaVez ?? (agente ? maquinaDoBot(estado, agente) : null);
   const doTrabalho = (estado.trabalhos?.trabalhos ?? []).find((t) => t.conversaId === c.conversa.id && t.maquina?.acordando)?.maquina ?? null;
-  if (acordandoNaFila(doBot, doTrabalho)) return { tipo: "na_fila", turnoId: emCurso.id, texto: "Ligando a máquina…" };
-  if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) return { tipo: "na_fila", turnoId: emCurso.id, texto: `${nome} está sem IA configurada` };
-  if (doBot && !doBot.conectada) return { tipo: "na_fila", turnoId: emCurso.id, texto: `${nome} lê quando a máquina ligar` };
-  return null;
+  const naFila = (texto: string): SituacaoFila & { turnoId: string } => ({ tipo: "na_fila", texto, botao: CANCELAR, turnoId: emCurso.id });
+  if (acordandoNaFila(doBot, doTrabalho)) return naFila("Ligando a máquina…");
+  if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) return naFila(`${nome} está sem IA configurada`);
+  if (doBot && !doBot.conectada) return naFila(`${nome} lê quando a máquina ligar`);
+  return naFila("Na fila");
 }
 
-function renderSituacaoFila(s: SituacaoFila): string {
-  return `<div class="fila-linha" role="status">${esc(s.texto)}</div>`;
+function renderSituacaoFila(s: SituacaoFila & { turnoId: string }): string {
+  const bt = s.botao ? `<span class="fila-sep" aria-hidden="true"> · </span>${botao(s.botao.act, s.botao.rotulo, { classe: "link", id: s.turnoId, aria: s.botao.aria })}` : "";
+  return `<div class="fila-linha" role="status" data-fila="${s.tipo}"><span>${esc(s.texto)}</span>${bt}</div>`;
 }
 
 /**
@@ -670,7 +698,9 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const pergunta = !ehPessoa && m.payload?.kind === "pedido_a_pessoa" ? m.payload : null;
   const resposta = ehPessoa && m.payload?.kind === "resposta_a_pedido" ? m.payload : null;
   if (resposta && respostaPorOpcao(m, estado)) return "";
-  const fila = situacaoNaFila(m, estado);
+  // Sala e tela da task (que passa o `chipDaFala`) não têm Cancelar.
+  const fila = sala || opcoes.chipDaFala !== undefined ? null : situacaoNaFila(m, estado);
+  if (fila?.tipo === "oculta") return "";
   // "respondendo", não "resposta": `.resposta` já é o campo do card de Retomar (estilos.css).
   // definido em 2026-10-16: computador_pedir_ajuda não pede senha no balão — vira o cartão "Abrir computador" no lugar
   // do cartão da pergunta.
@@ -678,7 +708,7 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const telaAberta = motivoTela !== null && pergunta ? estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], pergunta.decisaoId).tipo === "aberta" : false;
   const ouvivel = podeOuvir(m, estado, sala);
   const lendo = estado.leitura?.mensagemId === m.id && ouvivel;
-  const classes = `message ${ehPessoa ? "you" : "bot"}${ehPessoa ? classeDoBalao(estado, m.conversaId) : ""}${ouvivel ? " ouvivel" : ""}${lendo ? " lendo" : ""}${pergunta ? " pergunta" : ""}${motivoTela !== null ? " com-tela" : ""}${resposta ? " respondendo" : ""}${fila ? ` fila-${fila.tipo}` : ""}`;
+  const classes = `message ${ehPessoa ? "you" : "bot"}${ehPessoa ? classeDoBalao(estado, m.conversaId) : ""}${ouvivel ? " ouvivel" : ""}${lendo ? " lendo" : ""}${pergunta ? " pergunta" : ""}${motivoTela !== null ? " com-tela" : ""}${resposta ? " respondendo" : ""}${fila?.tipo === "cancelada" ? " fila-cancelada" : ""}`;
   // O progresso vai dentro do balão do bot; no da pessoa (a rede) e no cartão da pergunta (o turno que abriu frentes e
   // terminou perguntando), embaixo dele — o cartão não tem onde recebê-lo, e sem isso o bloco sumia (revisão do PR 398).
   const progressoDentro = !ehPessoa && !pergunta ? (opcoes.progresso ?? "") : "";
@@ -696,7 +726,8 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m) && !progressoDentro) && m.texto.trim() === "" ? "" : ehPessoa
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, `${metaTags}${progressoDentro}`, progressoDentro !== "");
-  return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}>
+  const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
+  return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${emVoo}>
     ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
 }

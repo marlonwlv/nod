@@ -176,13 +176,14 @@ describe("a fila da conversa com a máquina acordando (situacaoNaFila)", () => {
 
   // COP-14 (item 1): a linha da exceção diz só "Ligando a máquina…", sem botão (saíram o Cancelar, o Tentar agora e o
   // Rodar em X desta vez da linha da fila).
-  it("dormindo ou acordando: 'Ligando a máquina…', sem botão", () => {
+  it("dormindo ou acordando: 'Ligando a máquina…', só com o Cancelar da fala", () => {
     for (const estado of ["dormindo", "acordando"] as const) {
       const e = naFila([maquina("vm", "vm-sp", { conectada: false, nuvem: nuvem({ estado }) }), mac]);
-      expect(situacaoNaFila(mensagem, e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Ligando a máquina…" });
+      expect(situacaoNaFila(mensagem, e)).toMatchObject({ tipo: "na_fila", turnoId: "t2", texto: "Ligando a máquina…" });
       const html = renderMensagem(mensagem, e);
-      expect(html).toContain('<div class="fila-linha" role="status">Ligando a máquina…</div>');
-      for (const fora of ["rodar-desta-vez", "cancelar-turno", "nuvem-acordar", "fila-chip"]) expect(html).not.toContain(fora);
+      expect(html).toContain("<span>Ligando a máquina…</span>");
+      expect(html).toContain('data-act="cancelar-turno" data-id="t2"');
+      for (const fora of ["rodar-desta-vez", "nuvem-acordar", "fila-chip"]) expect(html).not.toContain(fora);
     }
   });
 
@@ -198,7 +199,7 @@ describe("a fila da conversa com a máquina acordando (situacaoNaFila)", () => {
     const base = naFila([maquina("vm", "vm-sp", { conectada: false, nuvem: nuvem({ estado: "acordando", motivo: "sem_capacidade" }) }), mac]);
     const e = { ...base, nuvem: { ...base.nuvem, recusa: { maquinaId: "vm", texto: "A vm-sp não pode acordar agora. Atualize a página e tente de novo." } } };
     for (const x of [base, e]) {
-      expect(situacaoNaFila(mensagem, x)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Ligando a máquina…" });
+      expect(situacaoNaFila(mensagem, x)).toMatchObject({ tipo: "na_fila", turnoId: "t2", texto: "Ligando a máquina…" });
       const html = renderMensagem(mensagem, x);
       expect(html).toMatch(/class="fila-linha" role="status"/);
       for (const fora of ["nuvem-acordar", "cx-erro", "rodar-desta-vez"]) expect(html).not.toContain(fora);
@@ -211,9 +212,9 @@ describe("a fila da conversa com a máquina acordando (situacaoNaFila)", () => {
     expect(renderMensagem(mensagem, e)).not.toContain("rodar-desta-vez");
   });
 
-  it("sem nuvem: desligada diz que lê quando ligar; conectada, nenhuma linha", () => {
+  it("sem nuvem: desligada diz que lê quando ligar; conectada, a linha comum 'Na fila'", () => {
     const fora = naFila([maquina("vm", "vm-sp", { conectada: false }), mac]);
-    expect(situacaoNaFila(mensagem, fora)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Ze 1 lê quando a máquina ligar" });
-    expect(situacaoNaFila(mensagem, naFila([maquina("vm", "vm-sp")]))).toBeNull();
+    expect(situacaoNaFila(mensagem, fora)).toMatchObject({ tipo: "na_fila", turnoId: "t2", texto: "Ze 1 lê quando a máquina ligar" });
+    expect(situacaoNaFila(mensagem, naFila([maquina("vm", "vm-sp")]))).toMatchObject({ texto: "Na fila" });
   });
 });
