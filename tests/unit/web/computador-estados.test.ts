@@ -7,7 +7,10 @@ import {
   criarMaquinaDoCartao,
   entradaDoComputador,
   estadoSemEspera,
+  explicarComputador,
   htmlCartaoComputador,
+  situacaoDaPessoa,
+  situacaoDoBot,
   htmlCartaoDoComputador,
   textoDoStatus,
   type EntradaDoCartao,
@@ -195,5 +198,52 @@ describe("especificação D, item 2: o HTML do cartão", () => {
   it("o retrato sem esperas (o nome de antes) segue servindo quem ainda o chama", () => {
     expect(htmlCartaoDoComputador(pc({ estado: "fora_do_ar" }), BOT, AGORA)).toContain('data-estado-miniatura="fora"');
     expect(htmlCartaoDoComputador(pc(), BOT, AGORA)).toContain('data-estado-miniatura="repouso"');
+  });
+});
+
+describe("Acessos · computador, item 8: por que o computador não funciona, numa frase só", () => {
+  const GB = 1024 ** 3;
+  it("fora do ar: com o motivo (o mesmo texto do domínio) e sem ele; a ação é Tentar de novo", () => {
+    const com = explicarComputador({ fora: { desde: AGORA, motivo: "maquina_sem_contato" } }, "Ada");
+    expect(com).toMatchObject({ caso: "fora", titulo: "Fora do ar", detalhe: "A máquina do computador não está respondendo.", acao: "tentar", desde: AGORA, motivo: "a máquina do computador não está respondendo" });
+    expect(explicarComputador({ fora: { desde: null, motivo: null } }, "Ada")).toMatchObject({ caso: "fora", detalhe: null, motivo: null, acao: "tentar" });
+  });
+
+  it("sem computador próprio, ambiente indisponível (sem ação) e nada a explicar", () => {
+    expect(explicarComputador({ semComputador: true }, "Ada")).toMatchObject({ caso: "sem", detalhe: "Ada ainda não tem um computador próprio. Ganha um na primeira vez que precisar usar a tela.", acao: null });
+    expect(explicarComputador({ indisponivel: true, fora: { desde: AGORA, motivo: "sem_resposta" } }, "Ada")).toMatchObject({ caso: "indisponivel", detalhe: "Ambiente indisponível agora. O computador volta quando o ambiente voltar.", acao: null });
+    expect(explicarComputador({}, "Ada")).toBeNull();
+    expect(explicarComputador(situacaoDaPessoa(pc()), "Ada")).toBeNull();
+  });
+
+  it("baixando (X de Y e %), pausado (tentar agora) e macOS antigo (Conectar uma VM)", () => {
+    const baixando = explicarComputador({ preparo: { estado: "baixando", bytes: 1.2 * GB, total: 3.4 * GB, desde: 0 } }, "Ada");
+    expect(baixando).toMatchObject({ caso: "baixando", titulo: "Preparando · 35%", detalhe: "Baixando o computador · 1,2 GB de 3,4 GB · 35%", progresso: { pct: 35 } });
+    expect(explicarComputador({ preparo: { estado: "pausado_sem_internet", bytes: GB, total: 2 * GB, desde: 0 } }, "Ada")).toMatchObject({ caso: "pausado", detalhe: "Download pausado · sem internet. Continua sozinho quando a conexão voltar.", acao: "tentar_download" });
+    expect(explicarComputador({ preparo: { estado: "macos_antigo", desde: 0 } }, "Ada")).toMatchObject({ caso: "macos_antigo", titulo: "Não roda neste Mac", detalhe: "Pede macOS 13 ou mais novo. Numa VM Linux sempre ligada, ele roda.", acao: "conectar_vm" });
+    expect(explicarComputador({ preparo: { estado: "pronto", desde: 0 } }, "Ada")).toBeNull();
+  });
+
+  it("as situações: o computador da pessoa e o GET do bot", () => {
+    expect(situacaoDaPessoa(pc({ estado: "fora_do_ar", falha: { motivo: "sem_resposta", desde: AGORA } })).fora).toEqual({ desde: AGORA, motivo: "sem_resposta" });
+    const c = { id: null, indisponivelDesde: null, falhaMotivo: null };
+    expect(situacaoDoBot({ disponivel: true, computador: c } as never)).toEqual({ indisponivel: false, fora: null, semComputador: true });
+    expect(situacaoDoBot({ disponivel: false, computador: { ...c, id: "x", indisponivelDesde: AGORA, falhaMotivo: "nao_iniciou" } } as never)).toEqual({ indisponivel: true, fora: { desde: AGORA, motivo: "nao_iniciou" }, semComputador: false });
+  });
+
+  it("o cartão traz a 2ª linha (.cpm-detalhe) só quando há o que explicar", () => {
+    const fora = explicarComputador({ fora: { desde: AGORA, motivo: "sem_resposta" } }, "Ada");
+    const html = htmlCartaoComputador("fora", BOT, entrada({ foraDesde: AGORA }), TENTAR_V2, fora);
+    expect(html).toContain('<small class="cpm-detalhe">O computador parou de responder.</small>');
+    expect(html).toContain("Tentar de novo");
+    expect(html).toContain("cpm-linha com-detalhe");
+    const macos = htmlCartaoComputador("repouso", BOT, entrada(), TENTAR_V2, explicarComputador({ preparo: { estado: "macos_antigo", desde: 0 } }, "Ada"));
+    expect(macos).toContain(">Não roda neste Mac<");
+    expect(macos).toContain('data-act="conectar-sempre-ligada">Conectar uma VM</button>');
+    const baixando = htmlCartaoComputador("ligando", BOT, entrada(), TENTAR_V2, explicarComputador({ preparo: { estado: "baixando", bytes: 0.5 * GB, total: GB, desde: 0 } }, "Ada"));
+    expect(baixando).toContain('role="progressbar" aria-label="Baixando o computador" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"');
+    const saudavel = htmlCartaoComputador("ativo", BOT, entrada(), TENTAR_V2, null);
+    expect(saudavel).not.toContain("cpm-detalhe");
+    expect(saudavel).not.toContain("com-detalhe");
   });
 });

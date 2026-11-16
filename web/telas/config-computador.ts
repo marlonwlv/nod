@@ -1,7 +1,7 @@
 import type { LugarDoComputador } from "../../src/contracts/computador.ts";
 import type { Estado } from "../estado/reducer.ts";
-import { htmlMiniatura, TENTAR_V2, type EstadoDaMiniatura } from "../lib/computador-estados.ts";
-import { dicaDaOperacao, htmlDialogoDoPainel, ICONE_CB, link, pctDaOperacao, tamanhoEmPalavras, textoAppDesatualizado, type ComputadorPessoaDto, type ComputadorUi, type OperacaoPessoa, type TelaDaPessoa } from "../lib/computador-pessoa.ts";
+import { explicarComputador, htmlMiniatura, situacaoDaPessoa, TENTAR_V2, type EstadoDaMiniatura } from "../lib/computador-estados.ts";
+import { dicaDaOperacao, horaCurta, htmlDialogoDoPainel, ICONE_CB, link, pctDaOperacao, preparoAtivo, tamanhoEmPalavras, textoAppDesatualizado, type ComputadorPessoaDto, type ComputadorUi, type OperacaoPessoa, type TelaDaPessoa } from "../lib/computador-pessoa.ts";
 import { ICONE } from "../lib/icones.ts";
 import { htmlMascote } from "../lib/mascote.ts";
 import { esc } from "../lib/render.ts";
@@ -57,8 +57,8 @@ function memoria(dto: ComputadorPessoaDto): string {
 const grupo = (titulo: string, corpo: string, id = ""): string =>
   `<section class="cpc-grupo"${id ? ` aria-labelledby="${id}"` : ""}><h3 class="cpc-grupo-tit"${id ? ` id="${id}"` : ""}>${esc(titulo)}</h3><div class="cpc-cartao">${corpo}</div></section>`;
 
-const linha = (p: { ic?: string; titulo: string; texto?: string; lado?: string; attrs?: string; classe?: string }): string =>
-  `<div class="cpc-linha${p.classe ? ` ${p.classe}` : ""}"${p.attrs ? ` ${p.attrs}` : ""}>${p.ic ?? ""}<span class="cpc-txt"><b>${esc(p.titulo)}</b>${p.texto ? `<span>${p.texto}</span>` : ""}</span>${p.lado ?? ""}</div>`;
+const linha = (p: { ic?: string; titulo: string; texto?: string; extra?: string; lado?: string; attrs?: string; classe?: string; selo?: string }): string =>
+  `<div class="cpc-linha${p.classe ? ` ${p.classe}` : ""}"${p.attrs ? ` ${p.attrs}` : ""}>${p.ic ?? ""}<span class="cpc-txt"><b>${esc(p.titulo)}${p.selo ? ` <span class="cpc-selo">${esc(p.selo)}</span>` : ""}</b>${p.texto ? `<span>${p.texto}</span>` : ""}${p.extra ?? ""}</span>${p.lado ?? ""}</div>`;
 
 const botao = (rotulo: string, attrs: string, desabilitado = false): string =>
   `<button type="button" class="cpc-bt" ${attrs}${desabilitado ? " disabled" : ""}>${esc(rotulo)}</button>`;
@@ -68,20 +68,32 @@ function grupoDoComputador(dto: ComputadorPessoaDto, bots: readonly Bot[]): stri
   const ativo = dto.telas.find((t) => t.estado !== "fechada" && telaAtiva(t));
   const dono = (ativo && bots.find((b) => b.id === ativo.agenteId)) ?? bots[0];
   const mini = htmlMiniatura(estado, { nome: dono?.nome ?? "Computador", cor: estado === "ativo" ? (dono?.cor ?? "c-gray") : "c-gray", forma: dono?.forma ?? "" });
-  const partes = [dto.operacao ? (dicaDaOperacao(dto) ?? PALAVRA[estado]) : PALAVRA[estado], memoria(dto)].filter(Boolean).join(" · ");
-  const progresso = dto.operacao
-    ? `<div class="cpc-progresso" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctDaOperacao(dto)}"><i style="width:${pctDaOperacao(dto)}%"></i></div>`
+  // Item 8 (Acessos · computador): o motivo junto do "Fora do ar desde 14:02" e, no app do Mac, a barra do download.
+  const ex = explicarComputador(situacaoDaPessoa(dto), "O bot");
+  const palavra = estado === "fora" && ex?.caso === "fora" && ex.desde !== null ? `Fora do ar desde ${horaCurta(ex.desde)}` : PALAVRA[estado];
+  const partes = [dto.operacao ? (dicaDaOperacao(dto) ?? palavra) : palavra, memoria(dto)].filter(Boolean).join(" · ");
+  const extra = estado === "fora" && ex?.caso === "fora"
+    ? `<span class="cpc-detalhe">${esc(`${ex.detalhe ?? "O computador parou de responder."} Enquanto isso, os bots trabalham sem ele.`)}</span>`
+    : !dto.operacao && (ex?.caso === "baixando" || ex?.caso === "pausado") && ex.detalhe
+      ? `<span class="cpc-detalhe">${esc(ex.detalhe)}${ex.caso === "pausado" ? ` ${link("tentar agora", 'data-act="vm-tentar-agora"')}` : ""}</span>`
+      : "";
+  const pct = dto.operacao ? pctDaOperacao(dto) : ex?.caso === "baixando" || ex?.caso === "pausado" ? ex.progresso?.pct ?? 0 : null;
+  const progresso = pct !== null
+    ? `<div class="cpc-progresso" role="progressbar" aria-label="${dto.operacao ? "Progresso" : "Baixando o computador"}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>`
     : "";
-  return grupo("Computador dos bots", linha({ ic: mini, titulo: "Computador dos bots", texto: esc(partes), classe: "cpc-pc", ...(estado === "fora" ? { lado: `<span class="cpc-lado">${botao("Tentar de novo", TENTAR_V2)}</span>` } : {}) }) + progresso);
+  return grupo("Computador dos bots", linha({ ic: mini, titulo: "Computador dos bots", texto: esc(partes), extra, classe: "cpc-pc", ...(estado === "fora" ? { lado: `<span class="cpc-lado">${botao("Tentar de novo", TENTAR_V2)}</span>` } : {}) }) + progresso);
 }
 
 function grupoDasTelas(dto: ComputadorPessoaDto, bots: readonly Bot[]): string {
   const telas = dto.telas.filter((t) => t.estado !== "fechada");
+  const fora = estadoDoComputadorDosBots(dto) === "fora";
   const linhas = telas.map((t) => {
     const b = bots.find((x) => x.id === t.agenteId);
     const nome = b?.nome ?? "Bot";
     const ativa = telaAtiva(t);
-    const sub = `<i class="cpc-ponto${ativa ? " ativo" : ""}" aria-hidden="true"></i>${esc(ativa ? (t.titulo ? `Ativo · ${t.titulo}` : "Ativo") : "Em repouso")}`;
+    // Item 8: com o computador fora do ar, a tela não está "Ativa": ela espera o computador voltar.
+    const rotulo = fora ? "Esperando o computador" : ativa ? "Ativo" : "Em repouso";
+    const sub = `<i class="cpc-ponto${ativa && !fora ? " ativo" : ""}" aria-hidden="true"></i>${esc(t.titulo && (ativa || fora) ? `${rotulo} · ${t.titulo}` : rotulo)}`;
     return linha({ ic: b ? `<span class="cpc-avatar">${htmlMascote(b, "sm", "disponivel", 'aria-hidden="true"').replace(' role="img"', "")}</span>` : "", titulo: nome, texto: sub, lado: botao("Abrir", `data-act="abrir-computador" data-id="${esc(t.agenteId)}" aria-label="${esc(`Abrir a tela de ${nome}`)}"`), classe: "cpc-tela" });
   }).join("");
   const esperando = dto.esperando.map((id) => bots.find((b) => b.id === id)?.nome ?? "Bot");
@@ -128,6 +140,8 @@ export function renderSecaoComputador(estado: Estado, avisoRecriadoDispensado = 
   const faixas = [
     dto.aviso_recriado && !avisoRecriadoDispensado ? faixa("Entre nos sites de novo uma vez", "O computador do bot foi recriado e os logins não vieram junto. Da próxima vez que um bot precisar de um site com login, ele pede para você entrar; o login vale para todos.", botao("Entendi", 'data-act="entendi-computador"')) : "",
     (() => { const app = textoAppDesatualizado(dto); return app ? faixa(app.titulo, esc(app.apoio), app.acoes.join("")) : ""; })(),
+    // Item 8 (Acessos · computador): a faixa do macOS antigo volta, com o caminho da VM sempre ligada.
+    preparoAtivo(dto)?.estado === "macos_antigo" ? faixa("O computador do bot pede macOS 13 ou mais novo", "Este Mac não roda o computador do bot. Numa VM Linux sempre ligada, ele roda.", link("Conectar uma VM", 'data-act="conectar-sempre-ligada"')) : "",
   ].join("");
   const grupos = [
     grupoDoComputador(dto, bots),

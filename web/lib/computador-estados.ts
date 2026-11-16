@@ -1,4 +1,8 @@
+import type { ComputadorDto } from "../../src/contracts/computador.ts";
+import type { MotivoFalhaComputador } from "../../src/contracts/motivos.ts";
+import type { VmLocalAnunciada } from "../../src/contracts/vm-local.ts";
 import type { ComputadorPessoaDto } from "./computador-pessoa.ts";
+import { MOTIVO_FALHA_TEXTO, tituloDaFalha } from "./computador.ts";
 import { esc } from "./escape.ts";
 import { htmlMascote } from "./mascote.ts";
 
@@ -254,15 +258,108 @@ export function htmlMiniatura(estado: EstadoDaMiniatura, bot: Pick<BotDoCartao, 
   return `<span class="cpm-mini ${esc(cor)}" data-miniatura="${estado}" aria-hidden="true">${miolo}</span>`;
 }
 
+// ---- por que o computador não funciona (Acessos · computador, item 8) -----------------------------------------------
+
+/** O que se sabe do computador, venha ele do computador da pessoa (v2), do GET do bot (v1) ou da frota. */
+export type SituacaoDoComputador = {
+  /** Fora do ar: desde quando e por quê (null = sem motivo conhecido). */
+  fora?: { desde: number | null; motivo: MotivoFalhaComputador | null } | null;
+  /** O ambiente do servidor (Docker, cofre, imagem) não está disponível. */
+  indisponivel?: boolean;
+  /** O bot nunca teve um computador próprio (v1: `computador.id === null`). */
+  semComputador?: boolean;
+  /** O preparo da VM local (só no app do Mac). */
+  preparo?: VmLocalAnunciada | null;
+};
+
+export type CasoDoComputador = "fora" | "indisponivel" | "sem" | "baixando" | "pausado" | "macos_antigo";
+
+/**
+ * Uma frase por estado e, quando dá para agir, uma ação só: o mesmo texto no cartão do painel, nas Configurações e na
+ * tela cheia. `titulo` é o status curto; `detalhe`, a 2ª linha; `motivo`, o motivo da falha em minúsculas (para compor
+ * "Fora do ar desde 14:02 · <motivo>").
+ */
+export type ExplicacaoDoComputador = {
+  caso: CasoDoComputador;
+  titulo: string;
+  detalhe: string | null;
+  acao: "tentar" | "conectar_vm" | "tentar_download" | null;
+  progresso: { pct: number; texto: string } | null;
+  desde: number | null;
+  motivo: string | null;
+};
+
+/** "870 MB", "1,1 GB" (a mesma conta de tamanhoEmPalavras em computador-pessoa.ts, que importa este módulo). */
+function tamanho(bytes: number): string {
+  const mb = bytes / 1024 ** 2;
+  if (mb < 1000) return `${Math.max(0, Math.round(mb))} MB`;
+  return `${(mb / 1024).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GB`;
+}
+
+/**
+ * Acessos · computador, item 8 (definido em 2026-11-16): por que o computador não funciona, em uma frase. Junta os
+ * textos que estavam espalhados (MOTIVO_FALHA_TEXTO/tituloDaFalha, a linha do preparo, o macOS antigo). null = nada a
+ * explicar (o estado saudável continua com uma linha só). A ordem é a do que bloqueia primeiro: o ambiente, a queda, o
+ * preparo no Mac, a primeira vez.
+ */
+export function explicarComputador(s: SituacaoDoComputador, nomeDoBot: string): ExplicacaoDoComputador | null {
+  const base = { acao: null, progresso: null, desde: null, motivo: null } as const;
+  if (s.indisponivel) return { ...base, caso: "indisponivel", titulo: "Indisponível", detalhe: "Ambiente indisponível agora. O computador volta quando o ambiente voltar." };
+  if (s.fora) {
+    const motivo = s.fora.motivo ? MOTIVO_FALHA_TEXTO[s.fora.motivo] : null;
+    return { ...base, caso: "fora", titulo: "Fora do ar", detalhe: s.fora.motivo ? `${tituloDaFalha(s.fora.motivo)}.` : null, acao: "tentar", desde: s.fora.desde, motivo };
+  }
+  const p = s.preparo;
+  if (p?.estado === "macos_antigo") return { ...base, caso: "macos_antigo", titulo: "Não roda neste Mac", detalhe: "Pede macOS 13 ou mais novo. Numa VM Linux sempre ligada, ele roda.", acao: "conectar_vm" };
+  if (p && (p.estado === "baixando" || p.estado === "pausado_sem_internet")) {
+    const pct = p.total ? Math.max(0, Math.min(100, Math.floor(((p.bytes ?? 0) / p.total) * 100))) : 0;
+    const quanto = p.total ? ` · ${tamanho(p.bytes ?? 0)} de ${tamanho(p.total)}` : "";
+    if (p.estado === "pausado_sem_internet") return { ...base, caso: "pausado", titulo: "Download pausado", detalhe: "Download pausado · sem internet. Continua sozinho quando a conexão voltar.", acao: "tentar_download", progresso: { pct, texto: `${pct}%` } };
+    return { ...base, caso: "baixando", titulo: `Preparando · ${pct}%`, detalhe: `Baixando o computador${quanto} · ${pct}%`, progresso: { pct, texto: p.total ? `${tamanho(p.bytes ?? 0)} de ${tamanho(p.total)}` : `${pct}%` } };
+  }
+  if (s.semComputador) return { ...base, caso: "sem", titulo: "Ainda sem computador", detalhe: `${nomeDoBot} ainda não tem um computador próprio. Ganha um na primeira vez que precisar usar a tela.` };
+  return null;
+}
+
+/** O computador da pessoa (v2): fora do ar com o motivo e o preparo da VM local. */
+export function situacaoDaPessoa(dto: ComputadorPessoaDto): SituacaoDoComputador {
+  return { fora: dto.estado === "fora_do_ar" ? { desde: dto.falha?.desde ?? dto.semContatoDesde ?? null, motivo: dto.falha?.motivo ?? null } : null, preparo: dto.preparo ?? null };
+}
+
+/** O GET do computador do bot (v1, e a tela cheia nos dois modelos). */
+export function situacaoDoBot(dto: Pick<ComputadorDto, "computador" | "disponivel">): SituacaoDoComputador {
+  const c = dto.computador;
+  return { indisponivel: !dto.disponivel, fora: c.indisponivelDesde !== null ? { desde: c.indisponivelDesde, motivo: c.falhaMotivo } : null, semComputador: c.id === null };
+}
+
+/**
+ * A 2ª linha do cartão (12 px, terciária), só quando há o que explicar: o motivo, o ambiente, a primeira vez, o
+ * download com a barra fina, o macOS antigo com "Conectar uma VM". O "Tentar de novo" do fora do ar já está no status.
+ */
+export function htmlDetalheDoComputador(ex: ExplicacaoDoComputador | null): string {
+  if (!ex?.detalhe) return "";
+  const acao = ex.acao === "conectar_vm"
+    ? ` <button type="button" class="cpm-tentar" data-act="conectar-sempre-ligada">Conectar uma VM</button>`
+    : ex.acao === "tentar_download"
+      ? ` <button type="button" class="cpm-tentar" data-act="vm-tentar-agora">tentar agora</button>`
+      : "";
+  const barra = ex.caso === "baixando" && ex.progresso
+    ? `<span class="cpm-barra" role="progressbar" aria-label="Baixando o computador" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${ex.progresso.pct}"><i style="width:${ex.progresso.pct}%"></i></span>`
+    : "";
+  return `<small class="cpm-detalhe">${esc(ex.detalhe)}${acao}</small>${barra}`;
+}
+
 /**
  * O cartão: a linha de 52 px com "Computador de {Bot}", o status e a miniatura. A linha inteira é o botão que abre a
  * tela cheia (o botão cobre a linha; "Tentar de novo" fica por cima dele, no status). Sem `data-tela-bot`: nenhuma
- * imagem da tela entra aqui (web/telas/tela-do-bot.ts só pinta em quem tem esse atributo).
+ * imagem da tela entra aqui (web/telas/tela-do-bot.ts só pinta em quem tem esse atributo). Item 8: com algo a explicar
+ * (`ex`), entra a 2ª linha `.cpm-detalhe`; fora do fora do ar, o status curto é o da explicação.
  */
-export function htmlCartaoComputador(estado: EstadoDaMiniatura, bot: BotDoCartao, e: Pick<EntradaDoCartao, "semConexao" | "foraDesde">, tentar: string): string {
-  const status = esc(textoDoStatus(estado, e));
+export function htmlCartaoComputador(estado: EstadoDaMiniatura, bot: BotDoCartao, e: Pick<EntradaDoCartao, "semConexao" | "foraDesde">, tentar: string, ex: ExplicacaoDoComputador | null = null): string {
+  const status = esc(ex && ex.caso !== "fora" ? ex.titulo : textoDoStatus(estado, e));
   const link = estado === "fora" ? `<span class="cpm-sep" aria-hidden="true"> · </span><button type="button" class="cpm-tentar" ${tentar}>Tentar de novo</button>` : "";
-  return `<div class="cpm-cartao" data-cartao-computador="${esc(bot.id)}" data-estado-miniatura="${estado}"><div class="cpm-linha"><button type="button" class="cpm-abrir" data-act="abrir-computador" data-id="${esc(bot.id)}" aria-label="${esc(`Abrir a tela de ${bot.nome}`)}"></button><span class="cpm-txt"><b>${esc(`Computador de ${bot.nome}`)}</b><small class="cpm-status">${status}${link}</small></span>${htmlMiniatura(estado, bot)}</div></div>`;
+  const detalhe = htmlDetalheDoComputador(ex);
+  return `<div class="cpm-cartao" data-cartao-computador="${esc(bot.id)}" data-estado-miniatura="${estado}"><div class="cpm-linha${detalhe ? " com-detalhe" : ""}"><button type="button" class="cpm-abrir" data-act="abrir-computador" data-id="${esc(bot.id)}" aria-label="${esc(`Abrir a tela de ${bot.nome}`)}"></button><span class="cpm-txt"><b>${esc(`Computador de ${bot.nome}`)}</b><small class="cpm-status">${status}${link}</small>${detalhe}</span>${htmlMiniatura(estado, bot)}</div></div>`;
 }
 
 /** O "Tentar de novo" do computador da pessoa (v2): a operação de sempre. */

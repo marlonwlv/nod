@@ -4,7 +4,7 @@ import type { RotinaDto } from "../../src/contracts/api.ts";
 import type { AbaGaveta, Estado, EstadoComputadorBot, NivelGaveta } from "../estado/reducer.ts";
 import { botao, dataHora, esc, hora, iconeAgente } from "../lib/render.ts";
 import { ICONE } from "../lib/icones.ts";
-import { ENTRADA_PARADA, TENTAR_V2, entradaDoComputador, estadoDoCartaoDoBot, htmlCartaoComputador, telaCheiaAberta, type EntradaDoCartao } from "../lib/computador-estados.ts";
+import { ENTRADA_PARADA, TENTAR_V2, entradaDoComputador, estadoDoCartaoDoBot, explicarComputador, htmlCartaoComputador, situacaoDaPessoa, telaCheiaAberta, type EntradaDoCartao } from "../lib/computador-estados.ts";
 import { ATALHO_SEMPRE_LIGADA, botaoDaParada, desdeDaParada, linhaOndeRoda, pedeAtalhoNaExecucao, rotuloExecucao } from "../lib/execucao.ts";
 import { avatarDoBot, mascoteAnimado, CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
 import { botaoLigar, htmlLinhaLigar, VELOCIDADES, VOZES } from "./ligacao.ts";
@@ -350,7 +350,11 @@ export function blocoComputador(estado: Estado, a: Bot, opcoes: { titulo?: boole
   // Sem o computador da pessoa (v1), o pulso de web/telas/tela-do-bot.ts lê o estado com o `data-comp-bot` à vista (sem imagem).
   const pulso = estado.computadorPessoa ? "" : `<span hidden data-comp-bot="${esc(a.id)}"></span>`;
   const titulo = opcoes.titulo === false ? "" : '<h3 class="cpm-titulo">Computador</h3>';
-  return `<section class="gv-secao gv-computador cpm" id="gv-computador-${esc(a.id)}">${titulo}${htmlCartaoComputador(situacao, a, e, tentar)}${pulso}</section>`;
+  // Item 8 (Acessos · computador): a 2ª linha só quando há o que explicar — o motivo do fora do ar (no v1, o da frota), o
+  // download e o macOS antigo (só no app do Mac).
+  const situacaoDoPc = estado.computadorPessoa ? situacaoDaPessoa(estado.computadorPessoa) : { fora: a.computadorForaDoAr ?? null };
+  const ex = explicarComputador(situacaoDoPc, a.nome);
+  return `<section class="gv-secao gv-computador cpm" id="gv-computador-${esc(a.id)}">${titulo}${htmlCartaoComputador(situacao, a, e, tentar, ex)}${pulso}</section>`;
 }
 
 /** O que o cartão lê: o computador da pessoa (v2) ou, sem ele, o pulso deste bot (v1); o turno; a tela cheia aberta. */
