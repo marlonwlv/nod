@@ -181,6 +181,9 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
   .composer .box > #composer-modo[aria-expanded="true"], .composer .box > #composer-ia[aria-expanded="true"] {
     visibility: visible; opacity: 1; transition-delay: 0s;
   }
+  /* 3a: com "Ignorar todas as aprovações" ligado o chip âmbar (interface.css) fica sempre à vista, para a dona e para
+     quem conversa com o bot dela — o aviso de risco não depende do hover; a IA ao lado continua só no hover e no foco. */
+  .composer .box > #composer-modo[data-modo="total"] { visibility: visible; opacity: 1; transition-delay: 0s; }
 }
 .composer .box > .mais-campo {
   display: grid; place-items: center; width: 30px; height: 30px; flex: none; padding: 0; margin: 0; border: 0; border-radius: var(--raio-full);
