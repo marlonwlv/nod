@@ -387,6 +387,10 @@
 .computador-pilula[data-fase=assistindo] .computador-pilula-sep,.computador-pilula[data-fase=assistindo] .computador-pilula-dica{opacity:0;transition:opacity .15s}
 .computador-viewport:hover .computador-pilula[data-fase=assistindo] :is(.computador-pilula-sep,.computador-pilula-dica),.computador-pilula[data-fase=assistindo]:focus-within :is(.computador-pilula-sep,.computador-pilula-dica),.computador-viewport:has(img:focus-visible) .computador-pilula[data-fase=assistindo] :is(.computador-pilula-sep,.computador-pilula-dica){opacity:1}
 @media (pointer:coarse){.computador-pilula .dica-clique{display:none}.computador-pilula .dica-toque{display:inline}.computador-pilula[data-fase=assistindo] :is(.computador-pilula-sep,.computador-pilula-dica){opacity:1}}
+@media (pointer:coarse){
+  .computador-dialog .computador-fechar{width:44px;height:44px}
+  .computador-dialog .computador-pilula-bt{min-width:44px;min-height:44px;margin:-7px -4px;padding:0 4px}
+}
 .computador-dialog.computador-assistindo .computador-viewport img{cursor:pointer}
 /* "Seu clique só assumiu": linha discreta no topo da tela, some sozinha. */
 .computador-assumiu{position:absolute;z-index:2;top:10px;left:50%;transform:translateX(-50%);margin:0;max-width:calc(100% - 24px);padding:5px 12px;border-radius:999px;background:#1c1c1ecc;color:#f4f4f5;font-size:12px;opacity:0;pointer-events:none;transition:opacity .2s} /* cor-fixa: aviso sobre a tela */
