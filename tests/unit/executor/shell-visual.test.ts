@@ -73,9 +73,20 @@ describe("shell visual compartilhado", () => {
     const origem = await pasta(); const manifesto = await bundle(origem, "paper-v1");
     expect(() => validarManifestoShellVisual({ ...manifesto, arquivos: [{ caminho: "../fora", sha256: "a".repeat(64) }] })).toThrow("shell_arquivos_invalidos");
     expect(() => validarManifestoShellVisual({ ...manifesto, apps: { browser: manifesto.apps.browser } })).toThrow("shell_apps_invalidos");
+    expect(() => validarManifestoShellVisual({ ...manifesto, breakpoints: [manifesto.breakpoints[0], manifesto.breakpoints[0]] })).toThrow("shell_breakpoints_invalidos");
+    expect(() => validarManifestoShellVisual({ ...manifesto, apps: { ...manifesto.apps, files: manifesto.apps.browser } })).toThrow("shell_papeis_apps_sobrepostos");
     const alvo = path.join(origem, "alvo"); await writeFile(alvo, "x"); await symlink(alvo, path.join(origem, "link"));
     const comLink = { ...manifesto, arquivos: [...manifesto.arquivos, { caminho: "link", sha256: sha("x") }] };
     await writeFile(path.join(origem, "manifesto.json"), JSON.stringify(comLink));
+    await expect(aplicarShellVisual({ origem, estado: path.join(await pasta(), "estado"), versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_arquivo_invalido" });
+  });
+
+  it("não segue symlink em diretório pai de um arquivo do bundle", async () => {
+    const origem = await pasta(); const fora = await pasta(); const manifesto = await bundle(origem, "paper-v1");
+    const { rm } = await import("node:fs/promises"); await rm(path.join(origem, "tema"), { recursive: true });
+    await mkdir(path.join(fora, "tema"));
+    for (const item of manifesto.arquivos.filter((a) => a.caminho.startsWith("tema/"))) await writeFile(path.join(fora, item.caminho), item.caminho.includes("openbox") ? "<openbox>paper-v1</openbox>" : item.caminho.includes("tint2") ? "panel=paper-v1" : "PNG:paper-v1");
+    await symlink(path.join(fora, "tema"), path.join(origem, "tema"));
     await expect(aplicarShellVisual({ origem, estado: path.join(await pasta(), "estado"), versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_arquivo_invalido" });
   });
 
@@ -94,5 +105,14 @@ describe("shell visual compartilhado", () => {
     await expect(aplicarShellVisual({ origem, estado, versao: "paper-v1", agora: 1_000 })).rejects.toMatchObject({ code: "shell_em_atualizacao" });
     await utimes(trava, new Date(0), new Date(0));
     expect((await aplicarShellVisual({ origem, estado, versao: "paper-v1", agora: 5 * 60_000 + 1 })).alterou).toBe(true);
+  });
+
+  it("não toma trava antiga de um processo que ainda está vivo", async () => {
+    const origem = await pasta(); await bundle(origem, "paper-v1"); const estado = path.join(await pasta(), "estado"); const trava = path.join(estado, ".aplicando");
+    await mkdir(trava, { recursive: true });
+    const statProc = await readFile(`/proc/${process.pid}/stat`, "utf8"); const inicio = statProc.slice(statProc.lastIndexOf(")") + 2).split(" ")[19];
+    await writeFile(path.join(trava, "dono.json"), JSON.stringify({ pid: process.pid, inicio, token: "vivo" }));
+    await utimes(trava, new Date(0), new Date(0));
+    await expect(aplicarShellVisual({ origem, estado, versao: "paper-v1", agora: 5 * 60_000 + 1 })).rejects.toMatchObject({ code: "shell_em_atualizacao" });
   });
 });

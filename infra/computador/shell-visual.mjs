@@ -1,6 +1,6 @@
 // NOD-497: pacote visual único para qualquer Linux que hospede o computador do Nod. O conteúdo visual vem do Paper;
 // este módulo só instala, valida e alterna versões sem interpretar instruções do bundle nem executar arquivos dele.
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
 import { copyFile, lstat, mkdir, readFile, readlink, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -35,6 +35,7 @@ export function validarManifestoShellVisual(m) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || m.schema !== 1 || !VERSAO_RE.test(m.versao ?? '')) falhar('shell_manifesto_invalido');
   if (m.fonte !== 'paper') falhar('shell_fonte_invalida');
   if (!Array.isArray(m.breakpoints) || !m.breakpoints.length || m.breakpoints.some((b) => !Number.isSafeInteger(b?.largura) || !Number.isSafeInteger(b?.altura) || b.largura < 320 || b.altura < 320 || b.largura > 7680 || b.altura > 4320)) falhar('shell_breakpoints_invalidos');
+  if (new Set(m.breakpoints.map((b) => `${b.largura}x${b.altura}`)).size !== m.breakpoints.length) falhar('shell_breakpoints_invalidos');
   const vistos = new Set();
   if (!Array.isArray(m.arquivos) || !m.arquivos.length) falhar('shell_arquivos_invalidos');
   for (const a of m.arquivos) {
@@ -47,11 +48,28 @@ export function validarManifestoShellVisual(m) {
   };
   conferirMapa(m.papeis, PAPEIS_DO_SHELL, 'shell_papeis_invalidos');
   conferirMapa(m.apps, APPS_DO_SHELL, 'shell_apps_invalidos');
+  const papeisEApps = [...Object.values(m.papeis), ...Object.values(m.apps)];
+  if (new Set(papeisEApps).size !== papeisEApps.length) falhar('shell_papeis_apps_sobrepostos');
   return m;
 }
 
 async function sha256(arquivo) {
   return createHash('sha256').update(await readFile(arquivo)).digest('hex');
+}
+
+async function conferirDiretorioReal(raiz) {
+  const info = await lstat(raiz).catch(() => null);
+  if (!info?.isDirectory() || info.isSymbolicLink()) falhar('shell_raiz_invalida');
+}
+
+async function conferirPaisSemLinks(raiz, caminho) {
+  await conferirDiretorioReal(raiz);
+  let atual = raiz;
+  for (const parte of caminho.split('/').slice(0, -1)) {
+    atual = path.join(atual, parte);
+    const info = await lstat(atual).catch(() => null);
+    if (!info?.isDirectory() || info.isSymbolicLink()) falhar('shell_arquivo_invalido');
+  }
 }
 
 async function lerManifesto(raiz) {
@@ -64,6 +82,7 @@ async function lerManifesto(raiz) {
 }
 
 async function conferirArquivo(raiz, item) {
+  await conferirPaisSemLinks(raiz, item.caminho);
   const arquivo = path.join(raiz, item.caminho);
   const info = await lstat(arquivo).catch(() => null);
   if (!info?.isFile() || info.isSymbolicLink()) falhar('shell_arquivo_invalido');
@@ -72,6 +91,7 @@ async function conferirArquivo(raiz, item) {
 }
 
 async function conferirVersao(raiz, manifestoEsperado = null) {
+  await conferirDiretorioReal(raiz);
   const manifesto = await lerManifesto(raiz);
   if (manifestoEsperado && JSON.stringify(manifesto) !== JSON.stringify(manifestoEsperado)) falhar('shell_versao_divergente');
   for (const item of manifesto.arquivos) await conferirArquivo(raiz, item);
@@ -93,24 +113,53 @@ async function trocarPonteiro(estado, nome, alvo) {
   await rename(temporario, path.join(estado, nome));
 }
 
+async function inicioDoProcesso(pid) {
+  const statProc = await readFile(`/proc/${pid}/stat`, 'utf8').catch(() => null);
+  if (!statProc) return null;
+  // O nome entre parênteses pode conter espaços; os campos após ele começam no estado (campo 3).
+  return statProc.slice(statProc.lastIndexOf(')') + 2).split(' ')[19] ?? null;
+}
+
 async function comTrava(estado, fn, agora = Date.now()) {
   await mkdir(estado, { recursive: true, mode: 0o700 });
+  await conferirDiretorioReal(estado);
   const trava = path.join(estado, '.aplicando');
+  const dono = { pid: process.pid, inicio: await inicioDoProcesso(process.pid), token: randomBytes(16).toString('hex') };
+  const arquivoDono = path.join(trava, 'dono.json');
+  const aindaSouDono = async () => {
+    const lido = await readFile(arquivoDono, 'utf8').then(JSON.parse).catch(() => null);
+    return lido?.token === dono.token;
+  };
+  const confirmarDono = async () => { if (!await aindaSouDono()) falhar('shell_trava_perdida'); };
   const tomar = async () => {
-    try { await mkdir(trava, { mode: 0o700 }); return; } catch (e) { if (e?.code !== 'EEXIST') throw e; }
+    try {
+      await mkdir(trava, { mode: 0o700 });
+      await writeFile(arquivoDono, JSON.stringify(dono), { mode: 0o600, flag: 'wx' });
+      return;
+    } catch (e) { if (e?.code !== 'EEXIST') throw e; }
     const info = await stat(trava).catch(() => null);
     if (!info || agora - info.mtimeMs <= TRAVA_VELHA_MS) falhar('shell_em_atualizacao');
-    await rm(trava, { recursive: true, force: true });
-    try { await mkdir(trava, { mode: 0o700 }); } catch { falhar('shell_em_atualizacao'); }
+    const ocupante = await readFile(arquivoDono, 'utf8').then(JSON.parse).catch(() => null);
+    if (ocupante?.pid && ocupante?.inicio && await inicioDoProcesso(ocupante.pid) === ocupante.inicio) falhar('shell_em_atualizacao');
+    const orfa = path.join(estado, `.aplicando-orfa-${dono.token}`);
+    try { await rename(trava, orfa); } catch { falhar('shell_em_atualizacao'); }
+    try {
+      await mkdir(trava, { mode: 0o700 });
+      await writeFile(arquivoDono, JSON.stringify(dono), { mode: 0o600, flag: 'wx' });
+      await rm(orfa, { recursive: true, force: true });
+    } catch {
+      await rename(orfa, trava).catch(() => {});
+      falhar('shell_em_atualizacao');
+    }
   };
   await tomar();
-  try { return await fn(); } finally { await rm(trava, { recursive: true, force: true }); }
+  try { return await fn(confirmarDono); } finally { if (await aindaSouDono()) await rm(trava, { recursive: true, force: true }); }
 }
 
 /** Instala uma versão imutável e troca `atual` por rename atômico. Nunca segue symlink vindo do bundle. */
 export async function aplicarShellVisual({ origem, estado, versao, agora = Date.now() }) {
   if (!VERSAO_RE.test(versao ?? '')) falhar('shell_versao_invalida');
-  return comTrava(estado, async () => {
+  return comTrava(estado, async (confirmarDono) => {
     const manifesto = await lerManifesto(origem);
     if (manifesto.versao !== versao) falhar('shell_versao_divergente');
     const atual = await ponteiro(estado, 'atual');
@@ -144,6 +193,7 @@ export async function aplicarShellVisual({ origem, estado, versao, agora = Date.
         throw e;
       }
     }
+    await confirmarDono();
     if (atual) await trocarPonteiro(estado, 'anterior', atual);
     await trocarPonteiro(estado, 'atual', `versoes/${versao}`);
     return { alterou: true, versao, raiz: destino };
@@ -152,13 +202,14 @@ export async function aplicarShellVisual({ origem, estado, versao, agora = Date.
 
 /** Volta para a versão anterior sem apagar nenhuma versão; a versão desfeita vira a próxima recuperação. */
 export async function recuperarShellVisual({ estado, agora = Date.now() }) {
-  return comTrava(estado, async () => {
+  return comTrava(estado, async (confirmarDono) => {
     const atual = await ponteiro(estado, 'atual');
     const anterior = await ponteiro(estado, 'anterior');
     if (!atual || !anterior || atual === anterior) falhar('shell_sem_versao_anterior');
     await conferirVersao(path.join(estado, anterior));
     // O ponteiro que muda o desktop vem primeiro: queda entre os renames já deixa o rollback efetivado. A nova chamada
     // só completa o ponteiro de retorno, sem voltar a versão que motivou a recuperação.
+    await confirmarDono();
     await trocarPonteiro(estado, 'atual', anterior);
     await trocarPonteiro(estado, 'anterior', atual);
     return { versao: anterior.slice('versoes/'.length), raiz: path.join(estado, anterior) };

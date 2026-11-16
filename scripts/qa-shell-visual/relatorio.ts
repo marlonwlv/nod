@@ -3,9 +3,27 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validarManifestoShellVisual } from "../../infra/computador/shell-visual.mjs";
 
+function crc32(b: Buffer): number { let crc = 0xffffffff; for (const byte of b) { crc ^= byte; for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1)); } return (crc ^ 0xffffffff) >>> 0; }
+
 export function dimensoesPng(dados: Buffer): { largura: number; altura: number } {
-  if (dados.length < 24 || dados.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" || dados.subarray(12, 16).toString("ascii") !== "IHDR") throw new Error("screenshot_png_invalido");
-  return { largura: dados.readUInt32BE(16), altura: dados.readUInt32BE(20) };
+  if (dados.length < 45 || dados.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") throw new Error("screenshot_png_invalido");
+  let offset = 8; let largura = 0; let altura = 0; let ihdr = false; let idat = false; let iend = false;
+  while (offset + 12 <= dados.length) {
+    const tamanho = dados.readUInt32BE(offset); const fim = offset + 12 + tamanho;
+    if (fim > dados.length) throw new Error("screenshot_png_invalido");
+    const tipo = dados.subarray(offset + 4, offset + 8).toString("ascii");
+    if (crc32(dados.subarray(offset + 4, fim - 4)) !== dados.readUInt32BE(fim - 4)) throw new Error("screenshot_png_invalido");
+    if (!ihdr && tipo !== "IHDR") throw new Error("screenshot_png_invalido");
+    if (tipo === "IHDR") {
+      if (ihdr || tamanho !== 13) throw new Error("screenshot_png_invalido");
+      largura = dados.readUInt32BE(offset + 8); altura = dados.readUInt32BE(offset + 12); ihdr = largura > 0 && altura > 0;
+    } else if (tipo === "IDAT") idat = true;
+    else if (tipo === "IEND") { if (tamanho !== 0 || fim !== dados.length) throw new Error("screenshot_png_invalido"); iend = true; }
+    offset = fim;
+    if (iend) break;
+  }
+  if (!ihdr || !idat || !iend) throw new Error("screenshot_png_invalido");
+  return { largura, altura };
 }
 
 const escapar = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
