@@ -2,7 +2,7 @@
 // este módulo só instala, valida e alterna versões sem interpretar instruções do bundle nem executar arquivos dele.
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { access, copyFile, lstat, mkdir, readFile, readlink, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, readFile, readlink, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export const FLAG_SHELL_VISUAL = 'NOD_SHELL_VISUAL';
@@ -55,8 +55,11 @@ async function sha256(arquivo) {
 }
 
 async function lerManifesto(raiz) {
+  const arquivo = path.join(raiz, 'manifesto.json');
+  const info = await lstat(arquivo).catch(() => null);
+  if (!info?.isFile() || info.isSymbolicLink()) falhar('shell_manifesto_ausente');
   let m;
-  try { m = JSON.parse(await readFile(path.join(raiz, 'manifesto.json'), 'utf8')); } catch { falhar('shell_manifesto_ausente'); }
+  try { m = JSON.parse(await readFile(arquivo, 'utf8')); } catch { falhar('shell_manifesto_ausente'); }
   return validarManifestoShellVisual(m);
 }
 
@@ -85,6 +88,7 @@ async function ponteiro(estado, nome) {
 
 async function trocarPonteiro(estado, nome, alvo) {
   const temporario = path.join(estado, `.${nome}.${process.pid}.${Date.now()}`);
+  await rm(temporario, { force: true });
   await symlink(alvo, temporario);
   await rename(temporario, path.join(estado, nome));
 }
@@ -117,7 +121,9 @@ export async function aplicarShellVisual({ origem, estado, versao, agora = Date.
     const versoes = path.join(estado, 'versoes');
     const destino = path.join(versoes, versao);
     await mkdir(versoes, { recursive: true, mode: 0o700 });
-    if (await access(destino).then(() => true, () => false)) {
+    const destinoExistente = await lstat(destino).catch(() => null);
+    if (destinoExistente) {
+      if (!destinoExistente.isDirectory() || destinoExistente.isSymbolicLink()) falhar('shell_versao_invalida');
       await conferirVersao(destino, manifesto);
     } else {
       const staging = path.join(estado, `.staging-${versao}-${process.pid}-${agora}`);
@@ -151,8 +157,10 @@ export async function recuperarShellVisual({ estado, agora = Date.now() }) {
     const anterior = await ponteiro(estado, 'anterior');
     if (!atual || !anterior || atual === anterior) falhar('shell_sem_versao_anterior');
     await conferirVersao(path.join(estado, anterior));
-    await trocarPonteiro(estado, 'anterior', atual);
+    // O ponteiro que muda o desktop vem primeiro: queda entre os renames já deixa o rollback efetivado. A nova chamada
+    // só completa o ponteiro de retorno, sem voltar a versão que motivou a recuperação.
     await trocarPonteiro(estado, 'atual', anterior);
+    await trocarPonteiro(estado, 'anterior', atual);
     return { versao: anterior.slice('versoes/'.length), raiz: path.join(estado, anterior) };
   }, agora);
 }

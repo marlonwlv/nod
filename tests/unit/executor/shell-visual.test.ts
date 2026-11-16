@@ -79,6 +79,15 @@ describe("shell visual compartilhado", () => {
     await expect(aplicarShellVisual({ origem, estado: path.join(await pasta(), "estado"), versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_arquivo_invalido" });
   });
 
+  it("não segue manifesto nem versão instalada por symlink", async () => {
+    const origem = await pasta(); await bundle(origem, "paper-v1"); const real = path.join(origem, "manifesto-real.json");
+    await writeFile(real, await readFile(path.join(origem, "manifesto.json"))); const { rm } = await import("node:fs/promises"); await rm(path.join(origem, "manifesto.json")); await symlink(real, path.join(origem, "manifesto.json"));
+    await expect(aplicarShellVisual({ origem, estado: path.join(await pasta(), "estado"), versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_manifesto_ausente" });
+
+    const origem2 = await pasta(); await bundle(origem2, "paper-v1"); const estado = path.join(await pasta(), "estado"); await mkdir(path.join(estado, "versoes"), { recursive: true }); await symlink(origem2, path.join(estado, "versoes", "paper-v1"));
+    await expect(aplicarShellVisual({ origem: origem2, estado, versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_versao_invalida" });
+  });
+
   it("remove trava órfã mas não atropela atualização viva", async () => {
     const origem = await pasta(); await bundle(origem, "paper-v1"); const estado = path.join(await pasta(), "estado"); const trava = path.join(estado, ".aplicando");
     await mkdir(trava, { recursive: true });
