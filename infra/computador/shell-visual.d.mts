@@ -16,4 +16,4 @@ export function validarManifestoShellVisual(m: unknown): ManifestoShellVisual;
 export function aplicarShellVisual(o: { origem: string; estado: string; versao: string; agora?: number }): Promise<{ alterou: boolean; versao: string; raiz: string }>;
 export function recuperarShellVisual(o: { estado: string; agora?: number }): Promise<{ versao: string; raiz: string }>;
 export function verificarShellVisual(o: { estado: string }): Promise<{ versao: string; raiz: string; manifesto: ManifestoShellVisual } | null>;
-export function prepararShellVisual(o: { env?: NodeJS.ProcessEnv; origem: string; estado: string; agora?: number }): Promise<{ habilitado: boolean; versao: string | null; raiz: string | null; alterou: boolean }>;
+export function prepararShellVisual(o: { env?: NodeJS.ProcessEnv; origem: string; estado: string; agora?: number }): Promise<{ habilitado: false; versao: null; raiz: null; alterou: false } | { habilitado: true; versao: string; raiz: string; alterou: boolean; manifesto: ManifestoShellVisual }>;

@@ -16,6 +16,7 @@ const TRAVA_VELHA_MS = 5 * 60_000;
 function falhar(codigo) {
   const e = new Error(codigo);
   e.code = codigo;
+  e.codigo = codigo;
   throw e;
 }
 
@@ -50,6 +51,7 @@ export function validarManifestoShellVisual(m) {
   conferirMapa(m.apps, APPS_DO_SHELL, 'shell_apps_invalidos');
   const papeisEApps = [...Object.values(m.papeis), ...Object.values(m.apps)];
   if (new Set(papeisEApps).size !== papeisEApps.length) falhar('shell_papeis_apps_sobrepostos');
+  if (new Set(Object.values(m.apps).map((p) => path.basename(p))).size !== APPS_DO_SHELL.length) falhar('shell_apps_invalidos');
   return m;
 }
 
@@ -113,6 +115,29 @@ async function trocarPonteiro(estado, nome, alvo) {
   await rename(temporario, path.join(estado, nome));
 }
 
+const ARQUIVO_RECUPERACAO = '.recuperando.json';
+
+function ponteiroValido(alvo) {
+  const prefixo = 'versoes/';
+  return typeof alvo === 'string' && alvo.startsWith(prefixo) && !alvo.includes('..') && VERSAO_RE.test(alvo.slice(prefixo.length));
+}
+
+async function lerRecuperacao(estado) {
+  const arquivo = path.join(estado, ARQUIVO_RECUPERACAO);
+  const info = await lstat(arquivo).catch(() => null);
+  if (!info) return null;
+  if (!info.isFile() || info.isSymbolicLink()) falhar('shell_recuperacao_invalida');
+  const plano = await readFile(arquivo, 'utf8').then(JSON.parse).catch(() => null);
+  if (!plano || !ponteiroValido(plano.atual) || !ponteiroValido(plano.anterior) || plano.atual === plano.anterior) falhar('shell_recuperacao_invalida');
+  return plano;
+}
+
+async function gravarRecuperacao(estado, plano) {
+  const temporario = path.join(estado, `.${ARQUIVO_RECUPERACAO}.${process.pid}.${Date.now()}`);
+  await writeFile(temporario, `${JSON.stringify(plano)}\n`, { mode: 0o600, flag: 'wx' });
+  await rename(temporario, path.join(estado, ARQUIVO_RECUPERACAO));
+}
+
 async function inicioDoProcesso(pid) {
   const statProc = await readFile(`/proc/${pid}/stat`, 'utf8').catch(() => null);
   if (!statProc) return null;
@@ -170,6 +195,7 @@ export async function aplicarShellVisual({ origem, estado, versao, agora = Date.
     const versoes = path.join(estado, 'versoes');
     const destino = path.join(versoes, versao);
     await mkdir(versoes, { recursive: true, mode: 0o700 });
+    await conferirDiretorioReal(versoes);
     const destinoExistente = await lstat(destino).catch(() => null);
     if (destinoExistente) {
       if (!destinoExistente.isDirectory() || destinoExistente.isSymbolicLink()) falhar('shell_versao_invalida');
@@ -203,15 +229,24 @@ export async function aplicarShellVisual({ origem, estado, versao, agora = Date.
 /** Volta para a versão anterior sem apagar nenhuma versão; a versão desfeita vira a próxima recuperação. */
 export async function recuperarShellVisual({ estado, agora = Date.now() }) {
   return comTrava(estado, async (confirmarDono) => {
+    const pendente = await lerRecuperacao(estado);
+    if (pendente) {
+      await conferirVersao(path.join(estado, pendente.anterior));
+      await confirmarDono();
+      await trocarPonteiro(estado, 'atual', pendente.anterior);
+      await trocarPonteiro(estado, 'anterior', pendente.atual);
+      await rm(path.join(estado, ARQUIVO_RECUPERACAO));
+      return { versao: pendente.anterior.slice('versoes/'.length), raiz: path.join(estado, pendente.anterior) };
+    }
     const atual = await ponteiro(estado, 'atual');
     const anterior = await ponteiro(estado, 'anterior');
     if (!atual || !anterior || atual === anterior) falhar('shell_sem_versao_anterior');
     await conferirVersao(path.join(estado, anterior));
-    // O ponteiro que muda o desktop vem primeiro: queda entre os renames já deixa o rollback efetivado. A nova chamada
-    // só completa o ponteiro de retorno, sem voltar a versão que motivou a recuperação.
     await confirmarDono();
+    await gravarRecuperacao(estado, { atual, anterior });
     await trocarPonteiro(estado, 'atual', anterior);
     await trocarPonteiro(estado, 'anterior', atual);
+    await rm(path.join(estado, ARQUIVO_RECUPERACAO));
     return { versao: anterior.slice('versoes/'.length), raiz: path.join(estado, anterior) };
   }, agora);
 }
@@ -229,5 +264,6 @@ export async function prepararShellVisual({ env = process.env, origem, estado, a
   const versao = selecaoDoShellVisual(env);
   if (versao === null) return { habilitado: false, versao: null, raiz: null, alterou: false };
   const aplicado = await aplicarShellVisual({ origem, estado, versao, agora });
-  return { habilitado: true, ...aplicado };
+  const verificado = await verificarShellVisual({ estado });
+  return { habilitado: true, ...aplicado, manifesto: verificado.manifesto };
 }

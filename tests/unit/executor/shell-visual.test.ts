@@ -97,6 +97,21 @@ describe("shell visual compartilhado", () => {
 
     const origem2 = await pasta(); await bundle(origem2, "paper-v1"); const estado = path.join(await pasta(), "estado"); await mkdir(path.join(estado, "versoes"), { recursive: true }); await symlink(origem2, path.join(estado, "versoes", "paper-v1"));
     await expect(aplicarShellVisual({ origem: origem2, estado, versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_versao_invalida" });
+
+    const origem3 = await pasta(); await bundle(origem3, "paper-v1"); const estado3 = path.join(await pasta(), "estado"); const fora = await pasta();
+    await mkdir(estado3, { recursive: true }); await symlink(fora, path.join(estado3, "versoes"));
+    await expect(aplicarShellVisual({ origem: origem3, estado: estado3, versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_raiz_invalida" });
+    await expect(readFile(path.join(fora, "paper-v1", "manifesto.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("retoma rollback interrompido entre os dois ponteiros", async () => {
+    const raiz = await pasta(); const estado = path.join(await pasta(), "estado"); const v1 = path.join(raiz, "v1"); const v2 = path.join(raiz, "v2");
+    await mkdir(v1); await mkdir(v2); await bundle(v1, "paper-v1"); await bundle(v2, "paper-v2");
+    await aplicarShellVisual({ origem: v1, estado, versao: "paper-v1" }); await aplicarShellVisual({ origem: v2, estado, versao: "paper-v2" });
+    const { rm } = await import("node:fs/promises"); await rm(path.join(estado, "atual")); await symlink("versoes/paper-v1", path.join(estado, "atual"));
+    await writeFile(path.join(estado, ".recuperando.json"), JSON.stringify({ atual: "versoes/paper-v2", anterior: "versoes/paper-v1" }));
+    expect((await recuperarShellVisual({ estado })).versao).toBe("paper-v1");
+    expect((await recuperarShellVisual({ estado })).versao).toBe("paper-v2");
   });
 
   it("remove trava órfã mas não atropela atualização viva", async () => {

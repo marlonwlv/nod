@@ -2,7 +2,7 @@ import { chromium } from 'playwright-core';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomBytes, createHmac, createCipheriv, createDecipheriv } from 'node:crypto';
-import { mkdir, readFile, writeFile, realpath, readdir, stat, unlink, rename } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile, realpath, readdir, stat, unlink, rename } from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
 import process from 'node:process';
@@ -163,7 +163,7 @@ async function perfilSaiuLimpo() {
 async function subir() {
   // NOD-497: Docker usa o mesmo bundle que Orgo. A flag nasce desligada até o Paper aprovado existir; habilitar sem um
   // bundle íntegro falha antes de abrir o display, em vez de misturar versões ou inventar uma aparência parcial.
-  await prepararShellVisual({
+  const shellVisual = await prepararShellVisual({
     origem: process.env.NOD_SHELL_VISUAL_PACOTE ?? '/opt/nod/shell-visual',
     estado: process.env.NOD_SHELL_VISUAL_ESTADO ?? '/home/node/.local/state/nod/shell-visual',
   });
@@ -189,7 +189,16 @@ async function subir() {
   await delay(500);
   // definido em 2026-10-16: sem decoração e maximizado, o recorte da tela é o navegador, não uma janela
   // no meio do cinza. Medido nesta imagem: janela 1280×760 em 0,30 deixava faixa de wallpaper.
-  await writeFile('/tmp/nod-openbox.xml',`<?xml version="1.0" encoding="UTF-8"?>
+  let openbox = '/tmp/nod-openbox.xml';
+  if (shellVisual.habilitado) {
+    const arquivo = (papel) => path.join(shellVisual.raiz, shellVisual.manifesto.papeis[papel]);
+    openbox = arquivo('openbox');
+    const aplicativos = '/home/node/.local/share/applications';
+    await mkdir(aplicativos, { recursive: true });
+    for (const launcher of Object.values(shellVisual.manifesto.apps)) await copyFile(path.join(shellVisual.raiz, launcher), path.join(aplicativos, path.basename(launcher)));
+    start('feh', ['--no-fehbg', '--bg-fill', arquivo('wallpaper')]);
+    start('tint2', ['-c', arquivo('tint2')]);
+  } else await writeFile(openbox,`<?xml version="1.0" encoding="UTF-8"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
   <applications>
     <application class="*">
@@ -198,7 +207,7 @@ async function subir() {
     </application>
   </applications>
 </openbox_config>`);
-  start('openbox',['--config-file','/tmp/nod-openbox.xml']);
+  start('openbox',['--config-file',openbox]);
   await run('pulseaudio',['--start','--exit-idle-time=-1']);
   await run('pactl',['load-module','module-null-sink','sink_name=nod','sink_properties=device.description=nod']);
   await run('pactl',['set-default-sink','nod']);
