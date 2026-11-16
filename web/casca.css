@@ -161,6 +161,10 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
    (margem de cima negativa). Agora: mesma borda esquerda e mesma largura (560) da fala do bot, e o respiro de uma fala. */
 .timeline .decisoes-ancoradas { margin: 16px 0 18px; width: min(560px, 100%); }
 .timeline :is(.cp, .cp-linha, .cp-erro) { --cp-recuo: 0px; }
+/* O recibo do pedido decidido ("Permitido uma vez · …") tinha margem de cima negativa (-6) e entrava 4 px no balão da
+   fala de cima, que aqui tem fundo. Agora: 10 px abaixo do balão, e um recibo logo abaixo do outro a 10 px (as falas
+   seguintes já trazem os 16 px delas). */
+.timeline .cp-linha.cartao-encolhido, .timeline .cp-linha.cartao-encolhido.cp-com-extra { margin: 10px 0 0; }
 /* O cartão do terminal e do computador (rodada 2): o comando numa linha, o inteiro atrás de "Ver o comando"; o porquê curto. */
 .aprov-card .bt.aprov-fechar { margin-left: auto; }
 .aprov-card .ap-comando.ap-uma-linha { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

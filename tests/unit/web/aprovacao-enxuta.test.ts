@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { aprovacoesAbertasDaConversa, PLACEHOLDER_COM_APROVACAO } from "../../../web/lib/recusa-da-aprovacao.ts";
 import { pilulaDosPedidos } from "../../../web/lib/rolagem.ts";
@@ -85,5 +86,12 @@ describe("o pedido substituído pela mensagem nova", () => {
     const html = renderCartaoEncolhido(d!, "r1");
     expect(html).toContain("cp-sem-resposta");
     expect(html).not.toContain("Negado");
+  });
+});
+
+describe("o recibo do pedido decidido", () => {
+  it("fica 10 px abaixo do balão, sem margem negativa entrando nele", () => {
+    const c = readFileSync(new URL("../../../web/casca.css", import.meta.url), "utf8");
+    expect(c).toContain(".timeline .cp-linha.cartao-encolhido, .timeline .cp-linha.cartao-encolhido.cp-com-extra { margin: 10px 0 0; }");
   });
 });
