@@ -18,6 +18,8 @@ const BWRAP_RODA = (() => {
   try { execFileSync("/usr/bin/bwrap", ["--ro-bind", "/", "/", "--dev", "/dev", "--", "/bin/true"], { stdio: "ignore" }); return true; } catch { return false; }
 })();
 
+const argumentoDoShell = (valor: string): string => `'${valor.replaceAll("'", `'\\''`)}'`;
+
 /** NOD-410 (30/10): o dock do desktop, como o do Grok — tint2 embaixo com Chrome, Arquivos e Terminal, e as janelas abertas. */
 describe("o dock do desktop", () => {
   it("o tint2rc é um painel embaixo, com os lançadores e a barra de janelas, sem relógio nem bandeja", () => {
@@ -121,13 +123,13 @@ describe("o dock do desktop", () => {
     try {
       const args = argsDoBwrapDaTela({ run, tmp }, true);
       const sh = (cmd: string) => { try { execFileSync("bwrap", [...args, "--", "/bin/sh", "-c", cmd], { stdio: "pipe" }); return 0; } catch (e) { return (e as { status: number }).status; } };
-      expect(sh(`echo ok > ${tmp}/ok`)).toBe(0);
-      expect(sh(`test -e ${path.join(r.pasta, "dock-terminal.sh")}`)).not.toBe(0);
-      expect(sh(`echo mal > ${path.join(r.pasta, "dock-terminal.sh")}`)).not.toBe(0);
+      expect(sh(`echo ok > ${argumentoDoShell(path.join(tmp, "ok"))}`)).toBe(0);
+      expect(sh(`test -e ${argumentoDoShell(path.join(r.pasta, "dock-terminal.sh"))}`)).not.toBe(0);
+      expect(sh(`echo mal > ${argumentoDoShell(path.join(r.pasta, "dock-terminal.sh"))}`)).not.toBe(0);
       expect(await readFile(path.join(r.pasta, "dock-terminal.sh"), "utf8")).not.toContain("mal");
       // Revisão 21: a captura crua também fica de fora.
       await writeFile(caminhoDaCaptura(tmp), "captura");
-      expect(sh(`test -e ${caminhoDaCaptura(tmp)}`)).not.toBe(0);
+      expect(sh(`test -e ${argumentoDoShell(caminhoDaCaptura(tmp))}`)).not.toBe(0);
     } finally {
       await rm(run, { recursive: true, force: true });
     }
@@ -1153,7 +1155,7 @@ describe("o Chrome que não fecha e o pedido que passa do prazo (revisão 13 do 
       await writeFile(path.join(dirs.perfil, "Cookies"), "segredo");
       await writeFile(path.join(dirs.logins, "loja"), "segredo");
       const args = argsDoBwrapDoDock({ raiz: pc, run: path.join(raiz, "run"), workspace: dirs.workspace }, dirs.dock);
-      const sh = `for f in ${dirs.perfil}/Cookies ${dirs.logins}/loja ${dirs.outro}; do [ -e "$f" ] && echo "viu $f"; done; echo ok > ${dirs.workspace}/a && echo escreveu; touch ${dirs.dock}/x 2>/dev/null && echo dock-gravavel; true`;
+      const sh = `for f in ${argumentoDoShell(path.join(dirs.perfil, "Cookies"))} ${argumentoDoShell(path.join(dirs.logins, "loja"))} ${argumentoDoShell(dirs.outro)}; do [ -e "$f" ] && echo "viu $f"; done; echo ok > ${argumentoDoShell(path.join(dirs.workspace, "a"))} && echo escreveu; touch ${argumentoDoShell(path.join(dirs.dock, "x"))} 2>/dev/null && echo dock-gravavel; true`;
       const saida = execFileSync("/usr/bin/bwrap", [...args, "--", "/bin/sh", "-c", sh]).toString();
       expect(saida.trim().split("\n")).toEqual(["escreveu"]);
     } finally {

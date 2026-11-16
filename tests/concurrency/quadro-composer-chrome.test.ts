@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
@@ -124,7 +124,7 @@ window.__colar = (nome) => {
 const MOTOR_FALSO = "export function iniciarDitado(o) { window.__motor = o; return { concluir(q) { (window.__concluiu ??= []).push(q); }, descartar() { window.__descartado = true; } }; }";
 
 async function pagina(dir: string): Promise<string> {
-  const js = await build({ stdin: { contents: ENTRADA, resolveDir: RAIZ.pathname, loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent",
+  const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent",
     plugins: [{ name: "motor-falso", setup(b) {
       b.onResolve({ filter: /lib\/ditado\.ts$/ }, () => ({ path: "motor-falso", namespace: "falso" }));
       b.onLoad({ filter: /.*/, namespace: "falso" }, () => ({ contents: MOTOR_FALSO, loader: "js" }));
