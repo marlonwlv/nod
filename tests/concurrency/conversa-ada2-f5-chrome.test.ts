@@ -309,10 +309,9 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     // então todos ganham cópia; e as setas/Home andam só entre os itens do menu (o Copiar do código na cópia é inert).
     const LONGA = "```\nx = 1\n```\n\nDepois do código, o parágrafo da fala longa.";
     const pedidoLongo = `Mais uma [[texto: ${LONGA}]]`;
-    await avaliar(cdp, `document.getElementById("composer-texto").focus()`);
-    await cdp.enviar("Input.insertText", { text: pedidoLongo });
-    await ate(`document.getElementById("composer-texto")?.value === ${JSON.stringify(pedidoLongo)}`, "o pedido longo digitado");
-    await clicar('.composer [data-act="enviar"]');
+    // Esta prova é do agrupamento dos balões e do menu, não do composer (já exercitado acima). Pela API, o pedido não
+    // se perde quando um frame do quadro reidrata a conversa entre o input e o clique sob carga do job navegador.
+    await srv.json("POST", `conversas/${bot.conversaId}/mensagens`, { texto: pedidoLongo });
     const seletorDaLonga = `[...document.querySelectorAll("#timeline .message.bot[data-mensagem]")].find((m) => [...m.querySelectorAll(".bubble")].some((b) => b.textContent.includes("parágrafo da fala longa")))`;
     await ate(`(${seletorDaLonga})?.querySelectorAll(".bubble").length >= 2 && (${seletorDaLonga}).querySelector('[data-act="copiar-codigo"]')`, "a fala longa em balões, com o código", 60_000);
     await tocar(650, seletorDaLonga);

@@ -523,7 +523,12 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
   it("8. criar bot com cor e forma, e o preparo com %", { timeout: JORNADA }, async () => {
     await abrirApp();
     await avaliar(cdp, `document.body.click()`);
-    await avaliar(cdp, `(() => { const b = [...document.querySelectorAll('[data-act="novo-bot-dialogo"]')].find((el) => el.offsetParent); if (!b) throw new Error("não achei o botão Novo bot visível"); b.click(); })()`);
+    // A frota pode receber o último frame do onboarding logo depois de abrirApp e trocar o botão entre a leitura e o
+    // clique. Reencontra o controle a cada tentativa e para pelo efeito observável, em vez de depender daquele nó.
+    for (let t = 0; t < 200 && !(await existe("dialog.criar-bot[open] .cb-nome")); t++) {
+      await avaliar(cdp, `(() => { const b = [...document.querySelectorAll('[data-act="novo-bot-dialogo"]')].find((el) => el.offsetParent); b?.click(); })()`);
+      await espera(100);
+    }
     await ate(`document.querySelector("dialog.criar-bot[open] .cb-nome")`, "o modal Criar novo bot");
     expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cb-formas [role=radio][data-forma]').length`)).toBe(13);
     expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cb-cores [role=radio][data-cor]').length`)).toBe(14);
