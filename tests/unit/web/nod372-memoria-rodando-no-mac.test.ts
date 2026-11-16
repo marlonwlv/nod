@@ -123,7 +123,7 @@ describe("os cinco pontos com as máquinas no DTO (critérios 1–5 e 7)", () =>
     const e = estadoCom(dtoCom([doMac("mac"), naVm("vm"), trabalho("fila", { estado: "na_fila", maquina: null })], "amarela"));
     const p = pontos(e);
     expect(p.todos).toContain('<span class="pm-detalhe">· 1 rodando aqui</span>');
-    expect(p.porBot).toContain('<span class="pm-detalhe">· 1 rodando aqui</span>');
+    expect(p.porBot).toContain("Seu Mac está com pouca memória · 1 frente rodando aqui"); // a faixa do Paper 16 (rodada 3)
     expect(p.agora).toContain('<span class="atv-hora">Agora</span>');
     expect(p.agora).toContain("Pouca memória no seu Mac");
     expect(p.agora).toContain("1 rodando aqui");
@@ -136,7 +136,7 @@ describe("os cinco pontos com as máquinas no DTO (critérios 1–5 e 7)", () =>
     const e = estadoCom(dtoCom([doMac("a"), doMac("b"), naVm("vm")], "vermelha"));
     const p = pontos(e);
     expect(p.todos).toContain("· pode travar; 2 rodando aqui");
-    expect(p.porBot).toContain("· pode travar; 2 rodando aqui");
+    expect(p.porBot).toContain("· pode travar; 2 frentes rodando aqui");
     expect(p.pilula?.texto).toBe("Seu Mac está quase sem memória · pode travar; 2 rodando aqui");
     expect(p.pilula?.nivel).toBe("vermelha");
   });
@@ -205,10 +205,10 @@ describe("disco e máquinas como hoje (critério 6)", () => {
     const sem = (ts: TrabalhoDto[]): Estado => estadoCom({ trabalhos: ts, pressao: "amarela", memoriaTotalMb: null, donos: [] });
     const um = pontos(sem([naVm("vm")]));
     expect(um.todos).toContain("· 1 trabalho aberto");
-    expect(um.porBot).toContain("· 1 trabalho aberto");
+    expect(um.porBot).toContain("· 1 frente aberta");
     const zero = pontos(sem([]));
     expect(zero.todos).toContain("· 0 trabalhos abertos");
-    expect(zero.porBot).toContain("· 0 trabalhos abertos");
+    expect(zero.porBot).toContain("· 0 frentes abertas");
   });
 
   it("a VM segurando trabalho: a pílula das máquinas aparece mesmo sem memória no Mac", () => {

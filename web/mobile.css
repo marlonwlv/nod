@@ -14,9 +14,9 @@
 /* Fora do celular o ‹ da inicial não existe e a faixa que só o teria também não. */
 .abrir-bots { display: none; }
 .cabecalho.so-menu { display: none; }
-/* NOD-381: o que só o celular desenha (o + do campo, a presença dentro da pílula e o esqueleto do carregando) não existe no
-   computador; lá a pílula segue com o nome e o ponto, como antes. */
-.mais-campo, .pilula-presenca, .esqueleto-conversa { display: none; }
+/* NOD-381: o que só o celular desenha (o + do campo e a presença dentro da pílula) não existe no computador; lá a pílula
+   segue com o nome e o ponto, como antes. O esqueleto do carregando saiu (item 5 do chat: só o spinner, web/chat-troca.css). */
+.mais-campo, .pilula-presenca { display: none; }
 .pilula-txt { display: contents; }
 
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
@@ -214,17 +214,13 @@
   .pilula-nome { font-size: 15px; font-weight: 600; line-height: 1.2; }
   .pilula-presenca { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; line-height: 1.2; color: var(--ink-2); }
   .pilula-presenca b { font-weight: 600; }
-  /* A linha do computador do bot fica na base da pílula (como no computador), não na base do véu sobre o chat. */
-  .cabecalho.cabecalho-pilula .pilula-bot:has(> .cb-fio) { position: relative; }
   /* QA: o ponto de presença do computador (interface.css, mais específico) vazava para a pílula do celular; aqui a
      presença é o texto de 12 px, só quando o bot não está disponível. */
   .cabecalho.cabecalho-pilula .pilula-bot .presenca { display: none; }
-  .cabecalho.cabecalho-pilula .pilula-bot > .cb-fio { left: 19px; right: 19px; border-radius: 2px; }
   /* A primeira mensagem começa abaixo da pílula (sa + 52 + 12), e a mensagem destacada também não para embaixo dela. */
   .cabecalho.cabecalho-pilula ~ .timeline-wrap { padding-top: calc(env(safe-area-inset-top) + 64px); scroll-padding-top: calc(env(safe-area-inset-top) + 64px); }
-  .cabecalho.cabecalho-pilula + #erro:not(:empty) { position: relative; z-index: 5; margin-top: calc(env(safe-area-inset-top) + 56px); }
-  /* Revisão 2: entre o #erro e a lista há os avisos sr-only, então o irmão é `~`, não `+`; e a folga da rolagem segue. */
-  .cabecalho.cabecalho-pilula + #erro:not(:empty) ~ .timeline-wrap { padding-top: 12px; scroll-padding-top: 12px; }
+  /* C6 (2026-11-12): sobreposto, como no desktop; a lista não muda de lugar quando o aviso aparece ou some. */
+  .cabecalho.cabecalho-pilula + #erro:not(:empty) { top: calc(env(safe-area-inset-top) + 56px); }
 
   /* ---- A conversa ---- */
   .timeline-wrap { padding: 14px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left)); overflow-x: hidden;
@@ -239,7 +235,7 @@
      No celular a barra fica dentro da coluna; sem isto o balão encolhia para 150 px em 390 px e o Ouvir e a dica saíam da tela. */
   .message.bot.ouvivel .bubble-wrap { max-width: calc(100% - 36px); }
   .bubble { font-size: 15px; }
-  .msg-handoff, .msg-peer, .msg-rotina, .msg-consentimento, .connection-card, .card-pasta, .welcome-options,
+  .msg-handoff, .msg-peer, .msg-rotina, .msg-consentimento, .connection-card, .card-pasta, .bv-cartao,
   .liberar-card { margin-left: 0; max-width: 100%; }
   .bubble pre, .msg-peer pre { max-width: 100%; }
   /* As ações da fala (reagir, responder, reportar e ⋯; ADR-113) só aparecem depois de um toque nela (web/lib/gaveta-bots.ts),
@@ -323,7 +319,7 @@
   .modo-confirma { margin-left: 12px; }
   .modo-confirma-acoes { flex-direction: column; }
   .bot-menu.modo-menu .modo-confirma-acoes button { min-height: 44px; width: 100%; justify-content: center; }
-  /* ADR-095 (as fotos do Grok no iPhone, docs/referencias/ditado-grok/): gravando, a linha do campo vira três pílulas —
+  /* ADR-095 (as fotos de referência no iPhone): gravando, a linha do campo vira três pílulas —
      ■ (para e põe no campo) | tempo e nível | enviar largo (para e envia direto). O resto do campo some até acabar. */
   .composer .mic { width: 44px; height: 44px; background: transparent; }
   .composer .box.gravando { border-radius: 0; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; background: transparent; box-shadow: none; padding: 0; gap: 10px; min-height: 52px; align-items: stretch; }
@@ -787,12 +783,6 @@
   .artefato-acoes .bt.link { min-height: 44px; padding: 0 4px; }
   .artefato-acoes .bt.link, .artefato-dialogo .artefato-acoes .bt.sm { min-width: 44px; min-height: 44px; }
 
-  /* Carregando: três balões cinza no lugar do texto (o texto fica para o leitor de tela). */
-  .carregando-conversa { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .esqueleto-conversa { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px; }
-  .esqueleto-conversa i { display: block; height: 44px; width: 70%; border-radius: 18px; background: var(--surface-raised); animation: esqueleto-pulsa 1.4s ease-in-out infinite; }
-  .esqueleto-conversa .eq-voce { align-self: flex-end; width: 52%; }
-  .esqueleto-conversa .curto { width: 40%; }
   /* Não enviada: o balão claro com contorno tracejado e a linha "Não foi enviada · Tentar de novo" em 13 px, sem o
      vermelho (o erro é da rede, não da pessoa). NOD-431: sem a opacidade de antes, que com a cor do bot caía abaixo de
      4,5:1. */
@@ -800,7 +790,6 @@
   .fala-pendente .envio-erro { font-size: 13px; color: var(--ink-2); }
   .fala-pendente .envio-erro .bt.envio-bt { min-height: 44px; font-size: 13px; border: 0; background: none; color: var(--ink); text-decoration: underline; }
 }
-@keyframes esqueleto-pulsa { 50% { opacity: .55; } }
 
 /* NOD-42 (definido em 2026-10-28, protótipo v3): no celular a busca aberta é [✕] ( mascote ⌕ termo 3/4 │ ˄ ˅ ). O ✕ ocupa
    o lugar e o tamanho do ‹; saem o nome do bot e o "desde" (o leitor ouve pelo anúncio); tudo com 44 px. */

@@ -10,7 +10,7 @@ import { FERRAMENTA_ANEXAR_MIDIA } from "../../contracts/ferramentas-proxy.ts";
 import { anexarMidias, respostaAnexar } from "../executor/midia-local.ts";
 import { criarClienteNod, ehFalhaTransporte, type ClienteNod } from "../executor/cliente-nod.ts";
 import { PROTOCOLO_MCP } from "./cliente-mcp.ts";
-import { executarGithubNaMaquina } from "../conectores-locais/github/maquina.ts";
+import { executarConectorNaMaquina } from "../conectores-locais/maquina.ts";
 import { continuarResposta, cortarResposta, type Resto } from "./corte.ts";
 import { CODIGO, erro, interpretar, resposta, type IdJsonRpc } from "./jsonrpc.ts";
 import { criarLineSplitter } from "./line-splitter.ts";
@@ -39,7 +39,7 @@ export type OpcoesProxy = {
   diagnostico?: (evento: string, campos?: Record<string, string | number | boolean | null>) => void;
   /** ADR-048: ambiente desta máquina para o gh (default process.env) e quem executa (injetável no teste). */
   ambiente?: Readonly<Record<string, string | undefined>>;
-  executarNaMaquina?: typeof executarGithubNaMaquina;
+  executarNaMaquina?: typeof executarConectorNaMaquina;
   /** Fatias de espera por uma aprovação no mesmo turno (default ESPERA_APROVACAO_NO_TURNO_MS / LONGPOLL_APROVACAO_MS). */
   fatiasAprovacao?: number;
   /** NOD-323: o HOME onde fica `~/nod` (default o do processo). Injetável no teste. */
@@ -205,7 +205,7 @@ export function criarProxy(opcoes: OpcoesProxy): Proxy {
       return resposta(id, texto(JSON.stringify({ estado: "pendente", decisao_id: r.aguardar, instrucao: INSTRUCAO_PENDENTE })));
     }
     if ("executarLocal" in r) {
-      // ADR-048: o servidor já decidiu tudo; aqui só o EFEITO, pelo gh desta máquina. O plano puxado
+      // ADR-048: o servidor já decidiu tudo; aqui só o EFEITO, pelo gh desta máquina (ou, ADR-173, pelos apps do Mac). O plano puxado
       // tem de concordar (ferramenta marcada "maquina" e a mesma capacidade) — senão nada roda.
       const capacidade = r.executarLocal.capacidade;
       if (ferramenta.execucao !== "maquina" || !ferramenta.nome.endsWith(`__${capacidade}`)) {
@@ -214,12 +214,14 @@ export function criarProxy(opcoes: OpcoesProxy): Proxy {
         return resposta(id, conteudoNegado(n, agora()));
       }
       // O corte é daqui (com resto para ler_mais), não da máquina: ela devolve tudo.
-      const local = await (opcoes.executarNaMaquina ?? executarGithubNaMaquina)({ capacidade, argumentos: r.executarLocal.argumentos, ambiente: opcoes.ambiente ?? process.env, orcamentoChars: Number.POSITIVE_INFINITY });
+      const local = await (opcoes.executarNaMaquina ?? executarConectorNaMaquina)({ capacidade, argumentos: r.executarLocal.argumentos, ambiente: opcoes.ambiente ?? process.env, orcamentoChars: Number.POSITIVE_INFINITY, nomeFerramenta: ferramenta.nome });
       diag("execucao_local", { nome, codigo: local.codigo });
       await cliente.execucaoLocal?.(nome, local.codigo).catch(() => undefined);
       const origem = v.plano.catalogo.servidores.find((s) => s.conectorId === ferramenta.conectorId)?.nome ?? nome;
       const texto = envolverNaoConfiavel(neutralizarDelimitadores(cortarGuardando(local.conteudo, orcamento, { origem, naoConfiavel: true, computador: false })), origem, false);
-      return resposta(id, { content: [{ type: "text", text: texto }], ...(local.isError ? { isError: true } : {}) });
+      // ADR-173: o controle de tela do Mac devolve o print depois de cada ação.
+      const imagem = "imagem" in local && local.imagem ? [{ type: "image", ...local.imagem }] : [];
+      return resposta(id, { content: [{ type: "text", text: texto }, ...imagem], ...(local.isError ? { isError: true } : {}) });
     }
     if (!r.ok) {
       diag("negacao_servidor", { nome, motivo: r.negacao.motivo, terminal: r.negacao.terminal });

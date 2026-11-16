@@ -5,6 +5,7 @@ import type { AcaoDeBusca } from "./menu.ts";
 import type { EstadoIa } from "../src/contracts/estado-ia.ts";
 import { CANAIS_MIDIA, type PonteMidia } from "../src/contracts/midia-desktop.ts";
 import { CANAIS_REMOVER, type OpcoesRemover } from "../src/contracts/remover-computador.ts";
+import { CANAIS_MAC, type FamiliaMac } from "../src/contracts/desktop-mac.ts";
 
 /**
  * Preload da JANELA WEB (definido em 2026-09-24, "aviso no Mac"): a página é remota, então a ponte é a
@@ -51,12 +52,15 @@ const midia: PonteMidia = {
   existe: (caminhoRelativo: string) => ipcRenderer.invoke(CANAIS_MIDIA.existe, caminhoRelativo),
   mostrarNoFinder: (caminhoRelativo: string) => ipcRenderer.invoke(CANAIS_MIDIA.mostrarNoFinder, caminhoRelativo),
 };
-// NOD-119: o localStorage da janela web é apagado a cada conexão; a densidade da barra volta dele antes do script inline
-// do index.html (mesma chave de web/lib/densidade.ts), senão a barra abriria larga e depois encolheria.
+// NOD-119/ADR-179: o localStorage da janela web é apagado a cada conexão; a largura da barra volta dele antes do script
+// inline do index.html (mesmas chaves de web/lib/densidade.ts), senão a barra abriria em 340 e depois mudaria. O valor
+// antigo (densidades) volta na chave antiga, e a web o migra uma vez; o processo principal já validou os dois.
 try {
   const barra: unknown = ipcRenderer.sendSync(CANAIS_DESKTOP.barraInicial);
+  localStorage.removeItem("nod.barra.largura");
+  localStorage.removeItem("nod.densidade");
   if (typeof barra === "string") localStorage.setItem("nod.densidade", barra);
-  else localStorage.removeItem("nod.densidade");
+  else if (typeof barra === "object" && barra !== null) localStorage.setItem("nod.barra.largura", JSON.stringify(barra));
 } catch {
   // sem preferência ou sem armazenamento: a barra abre no padrão
 }
@@ -78,7 +82,7 @@ const ponte: NodDesktop = {
   definirTema: (tema: TemaDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.definirTema, tema),
   // NOD-196: o som dos avisos; o processo principal valida o booleano.
   definirSom: (ligado: boolean) => ipcRenderer.invoke(CANAIS_DESKTOP.definirSom, ligado),
-  // NOD-119: a densidade da barra lateral; o processo principal valida o valor.
+  // NOD-119/ADR-179: a largura da barra lateral; o processo principal valida o valor.
   definirBarra: (barra: BarraDesktop | null) => ipcRenderer.invoke(CANAIS_DESKTOP.definirBarra, barra),
   definirDecisaoBarra: (mensagemId: string, decisao: DecisaoBarraDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.definirDecisaoBarra, mensagemId, decisao),
   // Modo ligação (definido em 2026-10-04, ADR-071): o acesso do macOS ao microfone e o aviso de ligação aberta.
@@ -112,6 +116,18 @@ const ponte: NodDesktop = {
   // ADA-245 (jornada D): "Remover o nod deste computador"; o processo principal valida as opções. No Mac o app fica
   // (sem fecharAposRemover): a tela de Fim volta a Computadores.
   removerDaqui: (opcoes: OpcoesRemover) => ipcRenderer.invoke(CANAIS_REMOVER.removerDaqui, { manterIas: opcoes?.manterIas === true, manterConexao: opcoes?.manterConexao === true }),
+  // ADR-173: Quick Chat, captura e ferramentas do Mac; o processo principal valida cada argumento.
+  capturarTela: () => ipcRenderer.invoke(CANAIS_MAC.capturarTela),
+  atalhoQuickChat: () => ipcRenderer.invoke(CANAIS_MAC.atalhoQuickChat),
+  definirAtalhoQuickChat: (atalho: string | null) => ipcRenderer.invoke(CANAIS_MAC.definirAtalhoQuickChat, atalho),
+  quickChatExpandir: () => ipcRenderer.invoke(CANAIS_MAC.quickChatExpandir),
+  quickChatEsconder: () => ipcRenderer.invoke(CANAIS_MAC.quickChatEsconder),
+  montarNaMesa: (agenteId: string) => ipcRenderer.invoke(CANAIS_MAC.montarNaMesa, agenteId),
+  desmontarDaMesa: (agenteId: string) => ipcRenderer.invoke(CANAIS_MAC.desmontarDaMesa, agenteId),
+  naMesa: () => ipcRenderer.invoke(CANAIS_MAC.naMesa),
+  quickChatAbrir: (agenteId: string) => ipcRenderer.invoke(CANAIS_MAC.quickChatAbrir, agenteId),
+  ferramentasMac: () => ipcRenderer.invoke(CANAIS_MAC.ferramentasMac),
+  definirFerramentaMac: (familia: FamiliaMac, ligada: boolean) => ipcRenderer.invoke(CANAIS_MAC.definirFerramentaMac, familia, ligada),
   aoAbrir: (fn: (alvo: AlvoAviso) => void) => {
     // Um ouvinte só (a página registra uma vez; recarregar recria o preload). O evento do IPC não vai à página.
     ipcRenderer.removeAllListeners(CANAIS_DESKTOP.abrir);

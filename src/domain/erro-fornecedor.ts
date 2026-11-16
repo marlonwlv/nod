@@ -10,7 +10,13 @@ import { compararVersoesDoApp } from "./versao-app.ts";
  * mudam sem aviso; o que não casa fica `desconhecido`, e o pior caso é a frase de antes. Sem classe para crédito: sem
  * fixture confiável (fora de escopo na NOD-174; o limite do plano é a NOD-171). A rede entrou no `transitorio` (NOD-309).
  */
-export const CLASSES_ERRO_FORNECEDOR = ["login_expirado", "teto_de_gasto", "limite_de_uso", "contexto_cheio", "autocompactacao", "transitorio", "desconhecido"] as const;
+/**
+ * revisto em 2026-11-12 (ADR-171, falhas de turno tipadas: usageLimit, unpaidInvoice, rateLimit,
+ * regionUnsupported, contentBlocked): entram `fatura_em_aberto`, `limite_por_minuto`, `regiao_sem_suporte` e
+ * `conteudo_bloqueado`. O "Credit balance is too low" e o 429 por minuto deixam de ser `desconhecido`. `limite_por_minuto`
+ * NÃO é `limite_de_uso` (não troca de conta) nem `transitorio` (o fundo não repete sozinho: a frase pede um minuto).
+ */
+export const CLASSES_ERRO_FORNECEDOR = ["login_expirado", "teto_de_gasto", "fatura_em_aberto", "limite_de_uso", "limite_por_minuto", "contexto_cheio", "autocompactacao", "regiao_sem_suporte", "conteudo_bloqueado", "transitorio", "desconhecido"] as const;
 export type ClasseErroFornecedor = (typeof CLASSES_ERRO_FORNECEDOR)[number];
 
 /**
@@ -53,6 +59,14 @@ const PADROES: readonly (readonly [Exclude<ClasseErroFornecedor, "desconhecido">
   ["teto_de_gasto", [
     /monthly spend limit/i,
   ]],
+  ["fatura_em_aberto", [
+    /credit balance is too low/i,
+    /insufficient_quota/i,
+    /\b402\b.{0,40}payment required/i,
+    /payment required/i,
+    /billing (?:hard )?limit/i,
+    /unpaid invoice/i,
+  ]],
   ["limite_de_uso", [
     /usage limit/i,
     /usage_limit_reached/i,
@@ -60,6 +74,14 @@ const PADROES: readonly (readonly [Exclude<ClasseErroFornecedor, "desconhecido">
     /(?:session|weekly) limit/i,
     // Qualquer janela do plano ("session", "weekly", "opus"), menos "rate": "hit your rate limit" é o 429 por minuto.
     /hit your (?!rate\b)\w+ limit/i,
+  ]],
+  // Depois do limite do plano: "usage limit" com 429 é o plano; o 429 sem ele é o limite por minuto da API.
+  ["limite_por_minuto", [
+    /rate_limit_error/i,
+    /hit your rate limit/i,
+    /\b429\b/,
+    /too many requests/i,
+    /rate limit/i,
   ]],
   ["contexto_cheio", [
     /prompt is too long/i,
@@ -71,6 +93,17 @@ const PADROES: readonly (readonly [Exclude<ClasseErroFornecedor, "desconhecido">
     /autocompact is thrashing/i,
     // NOD-480: o código do 2.1.309 no `result` (`api_error: autocompact_thrashing`, repro do #718).
     /autocompact_thrashing/i,
+  ]],
+  ["regiao_sem_suporte", [
+    /unsupported_country_region_territory/i,
+    /not available in your (?:country|region)/i,
+    /(?:country|region|territory) (?:is )?not supported/i,
+  ]],
+  ["conteudo_bloqueado", [
+    /content[_ ](?:policy|filter|management)/i,
+    /usage polic(?:y|ies)/i,
+    /flagged (?:as|by|for)/i,
+    /safety (?:system|filter)/i,
   ]],
   // NOD-309: sobrecarga, 5xx e rede. O 5xx só com contexto de HTTP ("API Error: 502", "status 503", o nome do status):
   // um "500" solto pode ser contagem de tokens. Rede: os códigos do Node e do undici e o corte do stream do Codex.
@@ -117,6 +150,10 @@ export const FRASE_ERRO_FORNECEDOR: Readonly<Record<Exclude<ClasseErroFornecedor
   // turno não repete). O que resolve é um pedido menor ou um modelo com mais contexto, não o /nova-sessao.
   autocompactacao: "o histórico enche de novo logo depois de resumido e {o} parou, mesmo numa sessão nova; divida o pedido em partes menores ou escolha um modelo com mais contexto",
   transitorio: "o serviço {do} está instável ou fora do ar; tente de novo em alguns minutos",
+  fatura_em_aberto: "a conta {do} está sem crédito ou com fatura em aberto; {confira}",
+  limite_por_minuto: "{o} recebeu pedidos demais em pouco tempo; espere um minuto e peça de novo",
+  regiao_sem_suporte: "{o} não atende a região de onde este computador sai para a internet; troque de rede ou de IA",
+  conteudo_bloqueado: "{o} recusou o pedido pela política de conteúdo dele; reformule o pedido",
 };
 
 /**

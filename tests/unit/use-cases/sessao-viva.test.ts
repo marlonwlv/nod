@@ -244,3 +244,30 @@ describe("mensagem no meio só em turno de conversa (ADR-083 §6, #189)", () => 
     expect((await confirmarNaSessao(d.deps, { turnoId: vivo.id, executor: "local", ids: [a.id] })).data.confirmadas).toBe(0);
   });
 });
+
+describe("C1: fala com imagem no meio do turno (2026-11-12)", () => {
+  it("com aceitaAnexos (e confirma): [A, print B, C] são oferecidos na ordem, com os metadados do print; a confirmação absorve os três", async () => {
+    const { d, agenteId, conversaId } = await cenario();
+    const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
+    const anexo = await d.deps.repos.anexos.criar({ conversaId, nome: "erro.png", mime: "image/png", conteudo: new Uint8Array([1, 2, 3]) });
+    const a = await turno(d, agenteId, conversaId, { texto: "A" });
+    const b = await turno(d, agenteId, conversaId, { texto: "olha esse erro", anexos: [anexo!.id] });
+    const c = await turno(d, agenteId, conversaId, { texto: "ignora, já resolvi" });
+    const r = await absorverNaSessao(d.deps, { turnoId: vivo.id, executor: "local", confirma: true, aceitaAnexos: true });
+    expect(r.data.ids).toEqual([a.id, b.id, c.id]);
+    expect(r.data.anexos).toEqual({ [b.id]: [expect.objectContaining({ id: anexo!.id, nome: "erro.png", mime: "image/png" })] });
+    expect([a.estado, b.estado, c.estado]).toEqual(["pendente", "pendente", "pendente"]);
+    const confirmado = await confirmarNaSessao(d.deps, { turnoId: vivo.id, executor: "local", ids: [a.id, b.id, c.id] });
+    expect(confirmado.data.confirmadas).toBe(3);
+    expect([a.estado, b.estado, c.estado]).toEqual(["interrompido", "interrompido", "interrompido"]);
+  });
+
+  it("sem aceitaAnexos (app antigo): o corte de sempre, nada de metadados", async () => {
+    const { d, agenteId, conversaId } = await cenario();
+    const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
+    const a = await turno(d, agenteId, conversaId, { texto: "A" });
+    await turno(d, agenteId, conversaId, { texto: "print", anexos: [randomUUID()] });
+    const r = await absorverNaSessao(d.deps, { turnoId: vivo.id, executor: "local", confirma: true });
+    expect(r.data).toEqual({ textos: ["A"], ids: [a.id] });
+  });
+});

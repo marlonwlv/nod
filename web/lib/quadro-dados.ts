@@ -124,8 +124,9 @@ export function opcoesDeStatus(colunas: readonly Pick<ColunaDto, "id" | "nome" |
  * NOD-416: os bots que podem ser o Responsável da tarefa aberta: os ativos da pessoa. O Nod fica fora (ele não pega
  * tarefa do quadro; revisão do PR #623), e também os excluídos, os ocultos e os de outra pessoa.
  */
-export function responsaveisDaTarefa(agentes: readonly { id: string; nome: string; papel?: string | null; ownerId?: string | null; excluidoEm?: number | null; oculto?: boolean | null }[], pessoaId: string | null | undefined): { id: string; nome: string }[] {
-  return agentes.filter((a) => a.papel !== "nod" && !a.excluidoEm && !a.oculto && !!pessoaId && a.ownerId === pessoaId).map((a) => ({ id: a.id, nome: a.nome }));
+export function responsaveisDaTarefa(agentes: readonly { id: string; nome: string; titulo?: string | null; papel?: string | null; ownerId?: string | null; excluidoEm?: number | null; oculto?: boolean | null }[], pessoaId: string | null | undefined): { id: string; nome: string; titulo?: string }[] {
+  // Rodada 3: o título vai junto ("Chico · Tech Lead" no seletor da passagem, tela 18c do Paper).
+  return agentes.filter((a) => a.papel !== "nod" && !a.excluidoEm && !a.oculto && !!pessoaId && a.ownerId === pessoaId).map((a) => ({ id: a.id, nome: a.nome, ...(a.titulo ? { titulo: a.titulo } : {}) }));
 }
 
 /** NOD-416: o "Mover para…": os outros quadros da pessoa (o da tarefa fica de fora), pelo nome do bot. */

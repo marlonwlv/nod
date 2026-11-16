@@ -28,6 +28,9 @@ export async function limparPessoaE2E(db: Db, dbDono: Db, escopo: Escopo, ids: {
     await trx`delete from lotes_de_frentes where owner_id = ${p}`;
     await trx`delete from computador_acoes where owner_id = ${p}`;
     await trx`delete from gastos where owner_id = ${p}`;
+    // O catcher pode registrar a execução com o owner do agente, enquanto o turno pertence à pessoa do teste.
+    // Limpa também pela FK antes de apagar os turnos; só owner_id deixava uma linha órfã na drenagem local.
+    await trx`delete from catcher_registros where turno_id in (select id from turnos where owner_id = ${p})`;
     await trx`delete from catcher_registros where owner_id = ${p}`;
     // 0093 (ADR-115): o registro do modo aponta para decisões e turnos (PR 6: o total também grava).
     await trx`delete from acoes_pelo_modo where owner_id = ${p}`;

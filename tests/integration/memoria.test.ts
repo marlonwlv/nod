@@ -11,7 +11,7 @@ import { withRollback } from "../helpers/with-rollback.ts";
 
 const PRONTO = { estado: "pronto" as const, versao: "teste", em: 0 };
 
-describeIntegracao("memória por bot (Grok Bot: memória não é fonte)", () => {
+describeIntegracao("memória por bot (memória não é fonte)", () => {
   it("lembrar (ferramenta) grava com origem 'agente' e a mensagem 'anotei' no turno; a pessoa lista, edita e apaga", async () => {
     await withRollback(MARLON, async (trx) => {
       const deps = depsSobreTrx(trx, MARLON);

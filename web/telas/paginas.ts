@@ -46,7 +46,9 @@ export function docaDePaginas(o: { nome: string; paginas: readonly Pagina[]; ord
   // A ordem de exibição (arrastável, por agente); `data-pagina` segue o índice de dentro e a 1ª posição é a casa do agente.
   const ordem = o.ordem && o.ordem.length === total ? o.ordem : o.paginas.map((_, i) => i);
   const t = rotuloDasTeclas(o.mac ?? ehMac(globalThis.navigator?.platform));
-  const teclas = `<span class="pg-tip-tec">${esc(t.trocar)} troca · ${esc(t.mover)} move</span>`;
+  // Paper 17 (rodada 2): cada tecla da dica numa caixinha (.ds-kbd), "troca" e "move" em cinza.
+  const kbd = (s: string): string => `<span class="ds-teclas">${s.split(/\s+/).filter(Boolean).flatMap((p) => (/^[A-Za-z]+$/.test(p) ? [p] : [...p])).map((k) => `<kbd class="ds-kbd">${esc(k)}</kbd>`).join("")}</span>`;
+  const teclas = `<span class="pg-tip-tec">${kbd(t.trocar)} troca ${kbd(t.mover)} move</span>`;
   const abas = total < 2 ? "" : ordem.map((i, pos) => {
     const p = o.paginas[i] as Pagina;
     // A casa só ganha marca quando a pessoa a escolheu (a conversa na frente é o de sempre, sem marca).
@@ -102,7 +104,36 @@ function corpoDoApp(a: AppDto): string {
     const paras = (a.dados?.texto ?? "").split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
     return `<div class="pg-doc">${paras.map((t) => `<p>${esc(t)}</p>`).join("")}</div>${itens.length ? `<ul class="pg-lista">${itens.map(item).join("")}</ul>` : ""}`;
   }
+  // Paper 17b (rodada 2): a lista com coluna ou "desde" vira tabela — nome com as iniciais, detalhe, a coluna em chip
+  // (laranja quando pede você) e o desde à direita.
+  if (itens.some((i) => i.coluna || i.desde)) return tabelaDoApp(itens);
   return `<ul class="pg-lista">${itens.map(item).join("")}</ul>`;
+}
+
+const iniciais = (t: string): string => t.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
+
+function tabelaDoApp(itens: readonly ItemDoRetrato[]): string {
+  const cab = '<div class="pg-tab-cab" role="row"><span role="columnheader">Nome</span><span role="columnheader">Detalhe</span><span role="columnheader">Coluna</span><span role="columnheader" class="pg-tab-desde">Desde</span></div>';
+  const linhas = itens.map((i) => `<div class="pg-tab-linha${i.pede ? " pg-item-pede" : ""}" role="row"><span role="cell" class="pg-tab-nome"><i class="pg-item-pt" aria-hidden="true"></i><span class="pg-tab-ini" aria-hidden="true">${esc(iniciais(i.titulo))}</span><span class="pg-tab-tit">${esc(i.titulo)}</span>${i.pede ? '<span class="qd-sr">, pede você</span>' : ""}</span><span role="cell" class="pg-tab-det">${esc(i.detalhe ?? "")}</span><span role="cell">${i.coluna ? `<span class="pg-tab-chip">${esc(i.coluna)}</span>` : ""}</span><span role="cell" class="pg-tab-desde">${esc(i.desde ?? i.valor ?? "")}</span></div>`).join("");
+  return `<div class="pg-tabela" role="table">${cab}${linhas}</div>`;
+}
+
+/** "Lista", "Quadro", "Painel", "Doc": a forma no subtítulo da página. */
+const NOME_DA_FORMA: Readonly<Record<FormaDoApp, string>> = { lista: "Lista", quadro: "Quadro", painel: "Painel", doc: "Doc" };
+
+/** "há 12 min", "há 3 h", "há 2 dias": quando o bot atualizou o retrato. */
+function haQuanto(ms: number): string {
+  const min = Math.max(0, Math.round(ms / 60_000));
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `há ${h} h` : `há ${Math.round(h / 24)} ${Math.round(h / 24) === 1 ? "dia" : "dias"}`;
+}
+
+/** Paper 17b: "Lista · a Ada atualiza pelo Gmail · há 12 min" (a fonte de conector pelo nome do app, com a inicial maiúscula). */
+function subtituloDoApp(a: AppDto, bot: string, agora: number): string {
+  const fonte = a.fonte === "conector" && a.fonteRef ? ` pelo ${a.fonteRef.charAt(0).toUpperCase()}${a.fonteRef.slice(1)}` : a.fonte === "tarefas" ? " pelas tarefas" : a.fonte === "arquivo" ? " por um arquivo" : "";
+  return [NOME_DA_FORMA[a.forma], `${bot.includes(" ") ? bot : `a ${bot}`} atualiza${fonte}`, a.atualizadoEm ? haQuanto(agora - a.atualizadoEm) : ""].filter(Boolean).join(" · ");
 }
 
 /**
@@ -113,12 +144,17 @@ function corpoDoApp(a: AppDto): string {
  * vazio: sem leitura no ar, nada fica em aria-busy para sempre (revisão 4 do #626).
  * O nome da página vai no topo (com mais de um app, a presença sai da pílula).
  */
-export function paginaDoApp(p: Pagina, bot: string, o: { lendo?: boolean } = {}): Html {
+export function paginaDoApp(p: Pagina, bot: string, o: { lendo?: boolean; agora?: number } = {}): Html {
   const a = p.app;
   if (!a) return confiar("");
-  const topo = `<header class="pg-app-topo"><span class="pg-app-ic${a.erroFonte ? " pg-apagado" : ""}" aria-hidden="true">${ICONE_DA_PAGINA[a.icone] ?? ICONE_DA_PAGINA.app}</span><h2 id="pg-app-tit">${esc(a.nome)}</h2></header>`;
+  // Paper 17b (rodada 2): o ícone em caixa de 36, o nome 22 e o subtítulo; à direita "N pedem você" em laranja.
+  const pedem = a.estado === "pronto" ? (a.dados?.itens ?? []).filter((i) => i.pede).length : 0;
+  const chip = pedem ? `<span class="pg-app-pedem"><i class="pg-item-pt" aria-hidden="true"></i>${pedem === 1 ? "1 pede você" : `${pedem} pedem você`}</span>` : "";
+  const topo = `<header class="pg-app-topo"><span class="pg-app-ic${a.erroFonte ? " pg-apagado" : ""}" aria-hidden="true">${ICONE_DA_PAGINA[a.icone] ?? ICONE_DA_PAGINA.app}</span><span class="pg-app-titulos"><h2 id="pg-app-tit">${esc(a.nome)}</h2><span class="pg-app-sub">${esc(subtituloDoApp(a, bot, o.agora ?? Date.now()))}</span></span>${chip}</header>`;
+  // O pé: a regra do laranja e o lembrete de que as ações saem pela conversa.
+  const pe = a.estado === "pronto" ? `<p class="pg-app-pe">${a.regraPede ? `<span class="pg-app-regra"><i class="pg-item-pt" aria-hidden="true"></i>Pede você: ${esc(a.regraPede)}</span>` : "<span></span>"}<span>As ações saem pela conversa</span></p>` : "";
   const sec = (classe: string, corpo: string, extra = ""): Html =>
-    confiar(`<section class="pg-app ${classe}" aria-labelledby="pg-app-tit" data-app="${esc(a.id)}"${extra}>${topo}${corpo}</section>`);
+    confiar(`<section class="pg-app ${classe}" aria-labelledby="pg-app-tit" data-app="${esc(a.id)}"${extra}>${topo}${corpo}${classe.startsWith("pg-app-") && !["pg-app-erro", "pg-app-vazio", "pg-app-carregando"].includes(classe) ? pe : ""}</section>`);
   if (a.estado === "erro") {
     return sec("pg-app-erro", `<p class="pg-app-linha">${esc(bot)} não consegue ler a fonte deste app: ${esc(a.erroFonte ?? "")}. <button type="button" class="pg-link" data-act="app-reconectar" data-app="${esc(a.id)}">Pedir acesso de novo</button></p>` +
       (a.dados?.itens.length || a.dados?.texto ? `<div class="pg-app-velho">${corpoDoApp(a)}</div>` : ""));
@@ -132,12 +168,15 @@ export function paginaDoApp(p: Pagina, bot: string, o: { lendo?: boolean } = {})
 
 /** O menu do ícone da doca (segurar, botão direito ou Shift+F10): mover, editar pela conversa e remover (só app). */
 export function menuDaPagina(o: { p: Pagina; pos: number; total: number }): Html {
-  const it = (act: string, rot: string, desligado = false): string =>
-    `<button type="button" role="menuitem" class="pg-menu-it" data-act="${act}" tabindex="-1"${desligado ? ' aria-disabled="true"' : ""}>${rot}</button>`;
+  // Paper 17b (rodada 3 da casca): cada item com o ícone (‹ › lápis lixeira), o traço antes de Remover e Remover em vermelho.
+  const svg = (d: string): string => `<svg class="pg-menu-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const IC = { antes: svg('<path d="m15 18-6-6 6-6"/>'), depois: svg('<path d="m9 18 6-6-6-6"/>'), lapis: svg('<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>'), lixo: svg('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>') };
+  const it = (act: string, rot: string, ic: string, desligado = false, classe = ""): string =>
+    `<button type="button" role="menuitem" class="pg-menu-it${classe}" data-act="${act}" tabindex="-1"${desligado ? ' aria-disabled="true"' : ""}>${ic}${rot}</button>`;
   const itens = [
-    it("pagina-antes", "Mover para a esquerda", o.pos === 0),
-    it("pagina-depois", "Mover para a direita", o.pos >= o.total - 1),
-    ...(o.p.app ? [it("app-editar", "Editar pela conversa"), it("app-remover", "Remover da pílula")] : []),
+    it("pagina-antes", "Mover para a esquerda", IC.antes, o.pos === 0),
+    it("pagina-depois", "Mover para a direita", IC.depois, o.pos >= o.total - 1),
+    ...(o.p.app ? [it("app-editar", "Editar pela conversa", IC.lapis), '<hr class="pg-menu-traco" role="separator">', it("app-remover", "Remover da pílula", IC.lixo, false, " pg-menu-perigo")] : []),
   ];
   return confiar(`<div class="pg-menu" id="pg-menu" role="menu" aria-label="${esc(o.p.nome)}" data-pg-id="${esc(o.p.id)}">${itens.join("")}</div>`);
 }

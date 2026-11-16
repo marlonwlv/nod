@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
 import type { AcaoComputador, AmbienteComputador, DriverComputador, ResultadoComputador } from "../../contracts/computador.ts";
+import type { FluxoTelaAoVivo } from "../../contracts/provedor-computador.ts";
 import { MOTIVOS_FALHA_COMPUTADOR, type MotivoFalhaComputador } from "../../contracts/motivos.ts";
 import { FalhaComputador, limiteDoAmbiente } from "../../domain/computador.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
@@ -39,7 +40,7 @@ const SEM_DAEMON = /cannot connect to the docker daemon|is the docker daemon run
  * linha do stderr como detalhe (o log a resume e redige). Antes tudo era "estado_invalido".
  * `padrao` é o que a falha significa NAQUELE passo (image inspect → imagem_ausente, create → nao_iniciou).
  */
-async function docker(args: string[], entrada?: string, timeout = 70_000, padrao: MotivoFalhaComputador = "sem_resposta"): Promise<string> {
+export async function docker(args: string[], entrada?: string, timeout = 70_000, padrao: MotivoFalhaComputador = "sem_resposta"): Promise<string> {
   const r = await rodar(args, entrada, timeout);
   if (r.codigo === 0) return r.saida;
   if (r.semDocker || SEM_DAEMON.test(r.erro)) throw new FalhaComputador("docker_indisponivel", { detalhe: r.erro || "docker não encontrado" });
@@ -62,6 +63,69 @@ function lerPing(saida: string): Ping | null {
 }
 
 const pausa = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+export const VNC_DOCKER_FILA_MAX_BYTES = 8 * 1024 * 1024;
+
+type ProcessoVnc = {
+  stdout: {
+    on(evento: "data", fn: (bytes: Buffer) => void): unknown;
+    on(evento: "error" | "end", fn: () => void): unknown;
+  };
+  stderr: { on(evento: "data", fn: (bytes: Buffer) => void): unknown };
+  stdin: { writableLength: number; on(evento: "error", fn: () => void): unknown; write(bytes: Buffer): unknown; end(): unknown };
+  on(evento: "error" | "close", fn: () => void): unknown;
+  kill(sinal: NodeJS.Signals): unknown;
+};
+type SpawnVnc = (comando: string, args: string[], opcoes: { stdio: ["pipe", "pipe", "pipe"] }) => ProcessoVnc;
+
+/**
+ * NOD-496: liga o relay ao x11vnc pelo namespace do próprio container. `docker exec` não publica porta e o processo
+ * interno só disca `/tmp/nod-vnc.sock`. Fechar qualquer ponta mata a ponte e, portanto, a sessão do x11vnc.
+ */
+export function abrirVncDocker(id: string, spawnImpl: SpawnVnc = spawn): Promise<FluxoTelaAoVivo> {
+  if (!/^[a-f0-9-]{36}$/.test(id)) return Promise.reject(new ErroDeDominio("entrada_invalida"));
+  const p = spawnImpl("docker", ["exec", "-i", `nod-computador-${id}`, "node", "/opt/nod/vnc-bridge.mjs"], { stdio: ["pipe", "pipe", "pipe"] });
+  let dados: ((bytes: Uint8Array) => void) | null = null;
+  let pendentes = Buffer.alloc(0);
+  let fechou: (() => void) | null = null;
+  let encerrado = false;
+  const encerrar = (matar = false) => { if (encerrado) return; encerrado = true; if (matar) p.kill("SIGTERM"); fechou?.(); };
+  p.stdout.on("data", (b: Buffer) => {
+    if (encerrado) return;
+    if (dados) return void dados(b);
+    // O socket Unix envia o greeting RFB assim que o `docker exec` conecta, antes de o seletor conseguir parear a
+    // origem com a sessão. Guardar esse começo evita uma conexão muda; o mesmo teto fecha um processo que produza sem
+    // consumidor em vez de transformar a janela de pareamento em memória sem limite.
+    if (pendentes.length + b.length > VNC_DOCKER_FILA_MAX_BYTES) return encerrar(true);
+    pendentes = Buffer.concat([pendentes, b]);
+  });
+  // O bridge fecha stdout quando o socket Unix do x11vnc cai. O `docker exec -i` pode continuar esperando stdin;
+  // tratar `end` e matá-lo garante que a sessão saiba da queda e a web reconecte/caia para capturas.
+  p.stdout.on("end", () => encerrar(true));
+  p.stdout.on("error", () => encerrar(true));
+  // Sem consumidor, um erro repetido do CLI poderia lotar o pipe de stderr e impedir o fechamento.
+  p.stderr.on("data", () => undefined);
+  p.stdin.on("error", () => encerrar(true));
+  p.on("error", encerrar);
+  p.on("close", encerrar);
+  return Promise.resolve({
+    enviar(bytes) {
+      if (encerrado) return;
+      if (p.stdin.writableLength + bytes.byteLength > VNC_DOCKER_FILA_MAX_BYTES) {
+        p.kill("SIGTERM");
+        encerrar();
+        return;
+      }
+      p.stdin.write(Buffer.from(bytes));
+    },
+    aoDados(fn) {
+      dados = fn;
+      if (pendentes.length) { const inicio = pendentes; pendentes = Buffer.alloc(0); fn(inicio); }
+    },
+    aoFechar(fn) { fechou = fn; if (encerrado) queueMicrotask(fn); },
+    fechar() { if (encerrado) return; p.stdin.end(); p.kill("SIGTERM"); encerrar(); },
+  });
+}
+
 export function criarDriverDocker(env: Readonly<Record<string, string | undefined>>): DriverComputador {
   const imagem = env.NOD_COMPUTADOR_IMAGEM || "nod-computador:1";
   const habilitado = env.NOD_COMPUTADORES === "docker";

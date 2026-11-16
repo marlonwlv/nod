@@ -136,32 +136,38 @@ describe("Trabalhos com uma linha por bot (quadro 05)", () => {
   it("os grupos Precisa de você, Trabalhando e Esperando, e os livres numa linha; o topo conta bots", () => {
     const html = renderTrabalhosPorBot(base());
     expect(html).toContain("<p>1 bot trabalhando · 1 esperando · 1 precisa de você</p>");
-    const ordem = ["Precisa de você · 1", "Trabalhando · 1", "Esperando · 1"].map((t) => html.indexOf(t));
+    // ADR-167 (Paper 16): o número do grupo vem em cinza, sem o "·".
+    const ordem = ['Precisa de você <span class="tb-conta">1</span>', 'Trabalhando <span class="tb-conta">1</span>', 'Esperando <span class="tb-conta">1</span>'].map((t) => html.indexOf(t));
     expect(ordem.every((i) => i > 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
-    expect(html).toContain('<p class="tb-livres">Livres: Nod, Eng 1</p>');
+    expect(html).toContain('<span class="tb-livres-rot">Livres</span>');
+    expect(html).toContain('<span class="tb-livres-nomes">Nod, Eng 1</span>');
     // Uma linha por bot, não por task.
     expect(html.match(/class="tt-linha tb-linha"/g)).toHaveLength(3);
     expect(html).not.toContain("tt-filtros");
+    expect(html).toContain('data-act="filtro-trabalhos" data-id="por-bot" aria-pressed="true">Por bot');
   });
 
-  it("cada linha: ponto, mascote, nome, a frase e o detalhe curto, o tempo", () => {
+  it("cada linha (Paper 16): ponto, mascote, nome e título, a frase embaixo, o detalhe curto e o tempo à direita", () => {
     const html = renderTrabalhosPorBot(base());
-    expect(html).toMatch(/<span class="ponto-trabalho precisa"[^>]*><\/span><span class="tt-bot">.*<b>Ze 1<\/b><\/span><span class="tt-meio"><span class="tt-titulo">Como seguir com o #845\?<\/span><span class="tt-passo">2 pedidos na fila<\/span><\/span><span class="tt-fim">há 33 min<\/span>/);
-    expect(html).toContain('<span class="tt-titulo">Trabalhando em 2 frentes</span><span class="tt-passo">1 pedido na fila</span>');
+    expect(html).toMatch(/<span class="ponto-trabalho precisa"[^>]*><\/span><nod-mascote[^>]*><\/nod-mascote><span class="tb-meio"><span class="tb-nome"><b>Ze 1<\/b>(<small>[^<]*<\/small>)?<\/span><span class="tb-frase">Como seguir com o #845\?<\/span><\/span><span class="tb-detalhe">1 pedido<\/span><span class="tt-fim">há 33 min<\/span>/);
+    // Rodada 3 da casca (Paper 16): a frente mais antiga como frase, "2 frentes" à direita e o número antes do ponto.
+    expect(html).toContain('<span class="tb-frase">GFK-1866 · publicar versão completa</span></span><span class="tb-detalhe">2 frentes</span>');
+    expect(html).toContain('<span class="tb-n" aria-hidden="true">2</span><span class="ponto-trabalho c-teal pulso-trab"');
     expect(html).toContain('<span class="ponto-trabalho c-teal pulso-trab"');
-    expect(html).toContain('<span class="ponto-trabalho fora-do-mac" aria-hidden="true"></span><span class="tt-bot">');
-    expect(html).toContain('<span class="tt-titulo">Esperando Ze 1</span></span><span class="tt-fim">desde ');
+    expect(html).toContain('<span class="ponto-trabalho fora-do-mac" aria-hidden="true"></span><nod-mascote');
+    expect(html).toContain('<span class="tb-frase">Esperando Ze 1</span></span><span class="tb-detalhe">35 min</span><span class="tt-fim">desde ');
   });
 
-  it("clicar no bot abre as frentes dele embaixo da linha (abertas, terminadas hoje, a fila)", () => {
+  it("clicar no bot abre as frentes dele embaixo da linha (abertas e a fila)", () => {
     const e = reduzir(base(), { tipo: "bot-trabalhos", agenteId: "ze2" });
     const html = renderTrabalhosPorBot(e);
     expect(html).toContain('data-act="bot-trabalhos" data-agente="ze2" aria-expanded="true"');
     expect(html).toContain('<div class="tb-frentes" role="group" aria-label="Frentes de Ze 2">');
     expect(html).toContain('data-act="abrir-trabalho" data-id="g66"');
-    expect(html).toContain('<span class="tb-frente-fim">frente · 22 min</span>');
-    expect(html).toContain("GFK-1868 · preservar Ferons");
+    expect(html).toContain('<span class="tb-frente-fim">22 min</span>');
+    // Rodada 3 (Paper 16): só as abertas e a fila; a terminada de hoje fica em "Por frente".
+    expect(html).not.toContain("GFK-1868 · preservar Ferons");
     expect(html).toContain("Na fila: pedido do Leonardo");
     // Revisão do Gil no #340: a linha corta com reticências; o title traz a frase inteira (e some sem frase).
     const passos = [...html.matchAll(/<span class="tb-frente-passo"( title="([^"]*)")?>([^<]*)<\/span>/g)];
@@ -185,9 +191,10 @@ describe("Trabalhos com uma linha por bot (quadro 05)", () => {
 
   it("o bot que só conversa: trabalhando pelo turno ao vivo da conversa, não pelo GET trabalhos (que fica velho)", () => {
     const comVelho = estadoCom([], [dono({ agenteId: "nod", principal: "trabalhando", conversaTrabalhando: true })], { tela: { tipo: "trabalhos" } });
-    expect(renderTrabalhosPorBot(comVelho)).toContain("Livres: Nod");
+    // Rodada 3 (Paper 16): "Livres" são todos os bots sem linha, não só os donos.
+    expect(renderTrabalhosPorBot(comVelho)).toContain('<span class="tb-livres-nomes">Nod, Ze 1, Ze 2 e mais 2</span>');
     const vivo = { ...comVelho, turnosVivos: { t1: { turnoId: "t1", conversaId: "c-nod", estado: "rodando" as const, executor: null, machineId: null, desde: AGORA, trabalhoId: null } } };
-    expect(renderTrabalhosPorBot(vivo)).toContain('<span class="tt-titulo">Trabalhando na conversa</span>');
+    expect(renderTrabalhosPorBot(vivo)).toContain('<span class="tb-frase">Trabalhando na conversa</span>');
   });
 
   it("NOD-369: o topo por bot fica sem o custo de hoje (mesmo com um que sobre no estado); a pílula da memória continua", () => {
@@ -197,7 +204,7 @@ describe("Trabalhos com uma linha por bot (quadro 05)", () => {
     expect(html).not.toContain("tt-custo");
     expect(html).not.toContain("custo-hoje");
     expect(renderTrabalhosPorBot(base())).not.toContain("US$");
-    expect(html).toContain("Pouca memória no seu Mac");
+    expect(html).toContain("Seu Mac está com pouca memória");
   });
 });
 

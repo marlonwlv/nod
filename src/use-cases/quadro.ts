@@ -37,7 +37,7 @@ import { motivosDaFila } from "./fila-da-tarefa.ts";
 import { pastaDoTrabalho, tituloDoTrabalho } from "../domain/trabalho.ts";
 import { pastaDoBot } from "../domain/nativas.ts";
 import type { Trabalho } from "../contracts/trabalho.ts";
-import { fecharPedidosDeDone, gravarLinhaDaTarefa, pedirODone, responderPelaDecisao, textoDaLinha } from "./tarefa-casa.ts";
+import { fecharPedidosDeDone, pedirODone, responderPelaDecisao } from "./tarefa-casa.ts";
 import { situacaoDasTarefas } from "./situacao-trabalho.ts";
 import { estadoLinha, voltaNaTela } from "../domain/quadro-execucoes.ts";
 import { registrarAvisoDoQuadro, registrarHistoricoComTrilha, type TipoAvisoDoQuadro } from "./trilha-quadro.ts";
@@ -288,88 +288,88 @@ export function falhaDoAchado(achado: { ambiguo: Quadro[] } | { semNome: string;
 }
 
 /**
- * 2026-11-13 (quadro: mover em lote): a posição de cada tarefa na fila do quadro, "na fila (n de m)", pela ordem em que
- * entrou (o turno mais antigo primeiro; sem hora, por último, pelo id para a ordem ser estável). Uma só na fila não ganha
- * posição: "na fila (1 de 1)" não diz nada.
- */
-export function posicoesNaFila(naFila: readonly { id: string; desde: number | null }[]): Map<string, { n: number; m: number }> {
-  const saida = new Map<string, { n: number; m: number }>();
-  if (naFila.length < 2) return saida;
-  const ordem = [...naFila].sort((a, b) => (a.desde ?? Infinity) - (b.desde ?? Infinity) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  ordem.forEach((t, i) => saida.set(t.id, { n: i + 1, m: ordem.length }));
-  return saida;
-}
-
-/**
  * O quadro como a tela e o bot leem (tarefas, execução de cada uma, nomes, o último lote). Sempre no escopo da dona;
  * NOD-443: `leitor` é quem lê (a dona, ou quem participa e entrou pela porta), para o "Você", o Desfazer e quem decide.
  */
 export async function montarQuadro(deps: Pick<Deps, "repos" | "agora" | "escopo"> & { services?: Pick<Deps["services"], "trabalhosVivos" | "maquinas"> }, q: Quadro, leitor: string = deps.escopo.pessoaId): Promise<QuadroDto> {
   const repo = deps.repos.quadros;
   const donaId = deps.escopo.pessoaId;
-  const tarefas = await repo.tarefas(q.id);
-  const estados = await repo.estadosDosTurnos(tarefas.map((t) => t.turnoId).filter((id): id is string => id !== null));
-  // NOD-460: desde quando cada turno vivo trabalha (o selo "Trabalhando · há N min" do card).
-  // ADA-16 (ADR-163): e desde quando cada um espera na fila ("na fila há X min"); a fila é o pendente da mesma cadeia.
-  const desdes = await repo.desdeDosTurnos(tarefas.flatMap((t) => (t.turnoId && ["despachando", "pendente"].includes(estados.get(t.turnoId) ?? "") ? [t.turnoId] : [])));
-  // A volta marcada é um pendente que espera a hora: entra na consulta e sai "esperando", não "na fila".
-  const esperando = await repo.tarefasEsperando(tarefas.filter((t) => t.turnoId && estados.get(t.turnoId) !== "despachando"));
-  // ADA-16 (ADR-163, sem teto próprio): por que cada tarefa na fila espera — a mesma tarefa em série ou o portão da máquina.
-  const naFila = tarefas.filter((t) => t.turnoId && estados.get(t.turnoId) === "pendente" && !esperando.has(t.id));
-  const motivos = await motivosDaFila(deps, naFila);
-  const posicoes = posicoesNaFila(naFila.map((t) => ({ id: t.id, desde: desdes.get(t.turnoId!) ?? null })));
   const colunas = colunasDe(q);
-  // NOD-419: os últimos movimentos de cada tarefa (de quem e para quem, com os nomes).
-  const movs = await repo.ultimosMovimentos(q.id, MOVIMENTOS_NA_TELA);
-  const ids = new Set([q.agenteId, ...tarefas.map((t) => t.agenteId).filter((id): id is string => id !== null), ...colunas.map((c) => c.responsavel).filter((id): id is string => Boolean(id)),
+  // Q5 (definido em 2026-11-12): eram ~20 await em série, um por consulta, e uma ida por bot e por pessoa para os nomes.
+  // Agora em quatro ondas: o que só depende do quadro sai junto (o postgres.js enfileira na conexão da transação, sem
+  // esperar a ida e a volta de cada uma), depois o que depende das tarefas, e os nomes num lote por tabela.
+  const [tarefas, movs, ultimoSemBarreira, membros, comentarios, marcas, prsDoQuadro, avisoGithub, linhasDoQuadro, labels, importadas, imp, assumidoEm] = await Promise.all([
+    repo.tarefas(q.id),
+    // NOD-419: os últimos movimentos de cada tarefa (de quem e para quem, com os nomes).
+    repo.ultimosMovimentos(q.id, MOVIMENTOS_NA_TELA),
+    repo.ultimoLote(q.id),
+    // NOD-443: as pessoas do quadro, os nomes de quem pediu (quem saiu também tem nome) e quem decide cada pendência (D5).
+    repo.membros(q.id),
+    repo.comentarios(q.id, 50),
+    // NOD-420: desde quando a tarefa está na coluna (a tela mostra "parada há" e o prazo).
+    repo.marcasDeAviso(q.id),
+    // NOD-421: os PRs ligados e as linhas de sistema (uma consulta cada, agrupadas por tarefa).
+    repo.prsDoQuadro(q.id),
+    // NOD-443 (revisão 5 do PR #628, achado 4): o aviso do GitHub fala da conexão e dos repos da dona — só ela o vê.
+    leitor === donaId ? repo.avisoGithub(q.id) : Promise.resolve(null),
+    repo.linhasDoQuadro(q.id),
+    // 0161: o catálogo de labels (cada tarefa leva as suas resolvidas, na ordem do catálogo).
+    repo.labels(q.id),
+    deps.repos.quadroImportacoes.importadas(q.id),
+    // NOD-422: a última importação do Linear (sem a conversa de onde veio, que a tela não usa).
+    deps.repos.quadroImportacoes.ultima(q.id),
+    // NOD-422 (PR 2): o quadro assumiu a esteira (a tela mostra e oferece o Desfazer).
+    deps.repos.quadroImportacoes.assumidoEm(q.id),
+  ]);
+  const tarefaIds = tarefas.map((t) => t.id);
+  const idsAgentes = new Set([q.agenteId, ...tarefas.map((t) => t.agenteId).filter((id): id is string => id !== null), ...colunas.map((c) => c.responsavel).filter((id): id is string => Boolean(id)),
     ...movs.flatMap((m) => [m.agenteAntes, m.agenteDepois, m.autor.tipo === "agente" ? m.autor.agenteId : null]).filter((id): id is string => id !== null)]);
-  const nomes = new Map<string, string>();
-  for (const id of ids) {
-    const a = await deps.repos.agentes.buscar(id, true);
-    if (a) nomes.set(id, a.nome);
-  }
-  const ultimoSemBarreira = await repo.ultimoLote(q.id);
-  // O lote que um mover_quadro invalidou não aparece para desfazer (revisão 2 do PR #623).
-  const ultimo = ultimoSemBarreira && !(await repo.mudouDeQuadroDepois(ultimoSemBarreira.id, q.id)) ? ultimoSemBarreira : null;
-  // NOD-443: as pessoas do quadro, os nomes de quem pediu (quem saiu também tem nome) e quem decide cada pendência (D5).
-  const membros = await repo.membros(q.id);
   const naLista = new Set(membros.map((m) => m.pessoaId));
-  const nomesPessoa = new Map<string, string>(membros.map((m) => [m.pessoaId, m.nome]));
-  const nomeDe = async (id: string): Promise<string> => {
-    if (!nomesPessoa.has(id)) nomesPessoa.set(id, (await deps.repos.pessoas.buscar(id))?.nome ?? "alguém");
-    return nomesPessoa.get(id)!;
-  };
-  const donaNome = await nomeDe(donaId);
-  const comentarios = await repo.comentarios(q.id, 50);
   // Quem saiu também conta: a pendência dela volta à dona dizendo quem era.
   const varias = membros.length > 0 || comentarios.length > 0 || tarefas.some((t) => t.pedidoPor && t.pedidoPor !== donaId);
+  const decisoes = new Map(tarefas.filter((t) => varias && t.status === "voce").map((t) => [t.id, quemDecide({ pedidoPor: t.pedidoPor, donaId, membros: naLista })]));
+  const idsPessoas = new Set<string>([donaId, ...(varias ? tarefas.flatMap((t) => (t.pedidoPor && t.pedidoPor !== donaId ? [t.pedidoPor] : [])) : []),
+    ...[...decisoes.values()].flatMap((d) => (d.saiu ? [d.pessoaId, d.saiu] : [d.pessoaId])), ...comentarios.flatMap((c) => (c.pedidoPor ? [c.pedidoPor] : []))]);
+  for (const m of membros) idsPessoas.delete(m.pessoaId);
+  const [estados, situacoes, comFrente, agentes, pessoas, barrado] = await Promise.all([
+    repo.estadosDosTurnos(tarefas.map((t) => t.turnoId).filter((id): id is string => id !== null)),
+    // ADA-232: o estado do card numa linha (o trabalho vivo, a volta marcada e a frente aberta de cada tarefa).
+    situacaoDasTarefas(deps, tarefaIds),
+    deps.repos.trabalhos.tarefasComFrenteAberta(tarefaIds),
+    deps.repos.agentes.buscarVarios([...idsAgentes], true),
+    deps.repos.pessoas.buscarVarias([...idsPessoas]),
+    // O lote que um mover_quadro invalidou não aparece para desfazer (revisão 2 do PR #623).
+    ultimoSemBarreira ? repo.mudouDeQuadroDepois(ultimoSemBarreira.id, q.id) : Promise.resolve(false),
+  ]);
+  // NOD-460: desde quando cada turno vivo trabalha (o selo "Trabalhando · há N min" do card).
+  // ADA-16 (ADR-163): e desde quando cada um espera na fila ("na fila há X min"); a fila é o pendente da mesma cadeia.
+  // A volta marcada é um pendente que espera a hora: entra na consulta e sai "esperando", não "na fila".
+  const [desdes, esperando] = await Promise.all([
+    repo.desdeDosTurnos(tarefas.flatMap((t) => (t.turnoId && ["despachando", "pendente"].includes(estados.get(t.turnoId) ?? "") ? [t.turnoId] : []))),
+    repo.tarefasEsperando(tarefas.filter((t) => t.turnoId && estados.get(t.turnoId) !== "despachando")),
+  ]);
+  // ADA-16 (ADR-163, sem teto próprio): por que cada tarefa na fila espera — a mesma tarefa em série ou o portão da máquina.
+  const motivos = await motivosDaFila(deps, tarefas.filter((t) => t.turnoId && estados.get(t.turnoId) === "pendente" && !esperando.has(t.id)));
+  const nomes = new Map<string, string>(agentes.map((a) => [a.id, a.nome]));
+  const ultimo = ultimoSemBarreira && !barrado ? ultimoSemBarreira : null;
+  const nomesPessoa = new Map<string, string>([...pessoas.map((p): [string, string] => [p.id, p.nome]), ...membros.map((m): [string, string] => [m.pessoaId, m.nome])]);
+  const nomeDe = (id: string): string => nomesPessoa.get(id) ?? "alguém";
+  const donaNome = nomeDe(donaId);
   const extras = new Map<string, Pick<TarefaDto, "pedidoPorNome" | "decide">>();
   if (varias) {
     for (const t of tarefas) {
-      const pedido = t.pedidoPor && t.pedidoPor !== donaId ? (t.pedidoPor === leitor ? "você" : await nomeDe(t.pedidoPor)) : null;
-      let decide: TarefaDto["decide"] = null;
-      if (t.status === "voce") {
-        const d = quemDecide({ pedidoPor: t.pedidoPor, donaId, membros: naLista });
-        decide = { pessoaId: d.pessoaId, nome: await nomeDe(d.pessoaId), voce: d.pessoaId === leitor, saiu: d.saiu ? await nomeDe(d.saiu) : null };
-      }
+      const pedido = t.pedidoPor && t.pedidoPor !== donaId ? (t.pedidoPor === leitor ? "você" : nomeDe(t.pedidoPor)) : null;
+      const d = decisoes.get(t.id);
+      const decide: TarefaDto["decide"] = d ? { pessoaId: d.pessoaId, nome: nomeDe(d.pessoaId), voce: d.pessoaId === leitor, saiu: d.saiu ? nomeDe(d.saiu) : null } : null;
       extras.set(t.id, { pedidoPorNome: pedido, decide });
     }
   }
-  // NOD-420: desde quando a tarefa está na coluna (a tela mostra "parada há" e o prazo).
-  const marcas = await repo.marcasDeAviso(q.id);
-  // NOD-421: os PRs ligados e as linhas de sistema (uma consulta cada, agrupadas por tarefa).
   // O branch fica de fora do DTO: nome de fora que a tela não mostra (o casamento é no servidor).
   const prs = new Map<string, PrNaTela[]>();
-  for (const { tarefaId, branch: _branch, mergePendente: _pendente, ...p } of await repo.prsDoQuadro(q.id)) prs.set(tarefaId, [...(prs.get(tarefaId) ?? []), p]);
-  // NOD-443 (revisão 5 do PR #628, achado 4): o aviso do GitHub fala da conexão e dos repos da dona — só ela o vê.
-  const avisoGithub = leitor === donaId ? await repo.avisoGithub(q.id) : null;
+  for (const { tarefaId, branch: _branch, mergePendente: _pendente, ...p } of prsDoQuadro) prs.set(tarefaId, [...(prs.get(tarefaId) ?? []), p]);
   const linhas = new Map<string, LinhaDeSistema[]>();
-  for (const { tarefaId, ...l } of await repo.linhasDoQuadro(q.id)) linhas.set(tarefaId, [...(linhas.get(tarefaId) ?? []), l]);
-  // ADA-232: o estado do card numa linha (o trabalho vivo, a volta marcada e a frente aberta de cada tarefa).
-  const situacoes = await situacaoDasTarefas(deps, tarefas.map((t) => t.id));
-  // 0161: o catálogo de labels (cada tarefa leva as suas resolvidas, na ordem do catálogo).
-  const catalogo = (await repo.labels(q.id)).map((l) => ({ id: l.id, nome: l.nome, cor: l.cor }));
-  const comFrente = await deps.repos.trabalhos.tarefasComFrenteAberta(tarefas.map((t) => t.id));
+  for (const { tarefaId, ...l } of linhasDoQuadro) linhas.set(tarefaId, [...(linhas.get(tarefaId) ?? []), l]);
+  const catalogo = labels.map((l) => ({ id: l.id, nome: l.nome, cor: l.cor }));
   const dtos: TarefaDto[] = tarefas.map((t) => ({
     ...t,
     // ADR-162: a tarefa que espera a pessoa aparece na coluna de onde veio (o status `voce` não é coluna), com a marca.
@@ -385,7 +385,6 @@ export async function montarQuadro(deps: Pick<Deps, "repos" | "agora" | "escopo"
     trabalhandoDesde: t.turnoId && estados.get(t.turnoId) === "despachando" ? desdes.get(t.turnoId) ?? null : null,
     naFilaDesde: t.turnoId && estados.get(t.turnoId) === "pendente" && !esperando.has(t.id) ? desdes.get(t.turnoId) ?? null : null,
     motivoFila: motivos.get(t.id) ?? null,
-    posicaoFila: posicoes.get(t.id) ?? null,
     agenteNome: t.agenteId ? nomes.get(t.agenteId) ?? null : null,
     // ADA-15: "Respondido no chat com <bot> · ver mensagem". A conversa e a mensagem são da dona: quem só participa vê o
     // bot, sem o link (ele não abre a conversa de outra pessoa).
@@ -399,9 +398,7 @@ export async function montarQuadro(deps: Pick<Deps, "repos" | "agora" | "escopo"
   }));
   // NOD-415 (ADR-141): o que terminou antes de a meta ser posta não entra no "N de M".
   // Revisão 4 do PR #630 (decisão 3 da Ada): nem o que veio do Linear.
-  const { feitas, total } = progresso(tarefasDaMeta(tarefas, q.metaDesde, colunas, await deps.repos.quadroImportacoes.importadas(q.id)), colunas);
-  // NOD-422: a última importação do Linear (sem a conversa de onde veio, que a tela não usa).
-  const imp = await deps.repos.quadroImportacoes.ultima(q.id);
+  const { feitas, total } = progresso(tarefasDaMeta(tarefas, q.metaDesde, colunas, importadas), colunas);
   // Revisão do PR #630: a 'trazendo' parada (o processo caiu no meio) já aparece como falhou, e a tela para de reler; a
   // próxima tentativa a marca no banco (conferirImportacao).
   const parada = imp ? importacaoParada(imp, deps.agora()) : false;
@@ -420,13 +417,13 @@ export async function montarQuadro(deps: Pick<Deps, "repos" | "agora" | "escopo"
     total,
     importacao,
     // NOD-422 (PR 2): o quadro assumiu a esteira (a tela mostra e oferece o Desfazer).
-    assumidoEm: await deps.repos.quadroImportacoes.assumidoEm(q.id),
+    assumidoEm,
     ...(varias || leitor !== donaId
       ? {
           voce: { pessoaId: leitor, papel: leitor === donaId ? ("dona" as const) : ("membro" as const), podeDesfazer: ultimo !== null && ultimo.desfeitoEm === null && podeDesfazer({ lotePedidoPor: ultimo.pedidoPor, quemPede: leitor, donaId }) },
           dona: { pessoaId: donaId, nome: donaNome },
           membros,
-          comentarios: await Promise.all(comentarios.map(async (c): Promise<ComentarioQuadroDto> => ({ id: c.id, tarefaId: c.tarefaId, texto: c.texto, deFora: c.deFora, criadoEm: c.criadoEm, assinatura: c.pedidoPor ? assinatura({ pessoaId: c.pedidoPor, pessoaNome: await nomeDe(c.pedidoPor), botNome: c.viaNome, quemLe: leitor }) : (c.viaNome ?? "Um bot") }))),
+          comentarios: comentarios.map((c): ComentarioQuadroDto => ({ id: c.id, tarefaId: c.tarefaId, texto: c.texto, deFora: c.deFora, criadoEm: c.criadoEm, assinatura: c.pedidoPor ? assinatura({ pessoaId: c.pedidoPor, pessoaNome: nomeDe(c.pedidoPor), botNome: c.viaNome, quemLe: leitor }) : (c.viaNome ?? "Um bot") })),
         }
       : {}),
     avisoGithub,
@@ -451,7 +448,7 @@ export function resumoParaBot(q: QuadroDto, trabalhos: ReadonlyMap<string, Traba
     resumo: q.resumo,
     colunas: q.colunas.map((c) => ({ id: c.id, nome: c.nome, grupo: c.grupo, ...(c.responsavelNome ? { passa_para: c.responsavelNome } : {}), ...(c.instrucoes ? { instrucoes: c.instrucoes } : {}), ...(c.prazoMin ? { prazo_min: c.prazoMin } : {}), ...(fraseDaTrava(q.colunas, c.trava) ? { trava: fraseDaTrava(q.colunas, c.trava)! } : {}) })),
     // NOD-420: a pergunta de Bloqueado também (o bot responde "o que está travado?" sem abrir o card).
-    tarefas: q.tarefas.map((t) => ({ id: t.id, codigo: t.codigo, titulo: t.titulo, status: t.status, agente: t.agenteNome, linear: t.linearId, pr: t.prUrl, pergunta: t.esperaPessoa || esperaPessoa(q.colunas, t.status) ? t.pergunta : null, ...(t.esperaPessoa ? { esperando_voce: true } : {}), execucao: t.execucao, ...(t.execucao === "fila" && t.posicaoFila ? { fila: `na fila (${t.posicaoFila.n} de ${t.posicaoFila.m})` } : {}), ...(t.prioridade && t.prioridade !== "sem" ? { prioridade: t.prioridade } : {}), ...(t.decide ? { decide: t.decide.voce ? "você" : t.decide.nome } : {}), ...(trabalhos.has(t.id) ? { trabalho: trabalhos.get(t.id)! } : {}), ...(t.prs?.length ? { prs: t.prs.map(resumoDoPr) } : {}), ...movimentosParaBot(t), ...(t.labels?.length ? { labels: t.labels.map((l) => l.nome) } : {}), ...(t.prazoEm ? { prazo_em: t.prazoEm } : {}) })),
+    tarefas: q.tarefas.map((t) => ({ id: t.id, codigo: t.codigo, titulo: t.titulo, status: t.status, agente: t.agenteNome, linear: t.linearId, pr: t.prUrl, pergunta: t.esperaPessoa || esperaPessoa(q.colunas, t.status) ? t.pergunta : null, ...(t.esperaPessoa ? { esperando_voce: true } : {}), execucao: t.execucao, ...(t.prioridade && t.prioridade !== "sem" ? { prioridade: t.prioridade } : {}), ...(t.decide ? { decide: t.decide.voce ? "você" : t.decide.nome } : {}), ...(trabalhos.has(t.id) ? { trabalho: trabalhos.get(t.id)! } : {}), ...(t.prs?.length ? { prs: t.prs.map(resumoDoPr) } : {}), ...movimentosParaBot(t), ...(t.labels?.length ? { labels: t.labels.map((l) => l.nome) } : {}), ...(t.prazoEm ? { prazo_em: t.prazoEm } : {}) })),
     ...(q.labels?.length ? { labels: q.labels.map((l) => ({ nome: l.nome, cor: l.cor })) } : {}),
     // NOD-443: o bot de quem participa sabe o modo (no "só a dona", comentar) e quem está no quadro.
     ...(q.membros && q.dona ? { modo: q.modoConversa, dona: q.dona.nome, pessoas: q.membros.map((m) => m.nome) } : {}),
@@ -1551,20 +1548,6 @@ async function aplicarNoQuadro(deps: Deps, p: PedidoLote, qSemPrefixo: Quadro, a
   await registrarHistoricoComTrilha(deps, q.id, comMensagem, lote?.id ?? null);
   const atualizado = (await repo.buscar(q.id)) ?? q;
   events.unshift(eventoQuadro(deps, p, atualizado, lote?.id ?? null, tarefaIds));
-  // ADA-240 (ADR-159): a fala produzida pelo turno da tarefa fica na casa dela e não aparece como uma mensagem comum do
-  // chat. Quando o próprio turno conclui uma etapa, deixe no chat uma linha confiável e em tempo real apontando para o
-  // resultado. Sem essa confirmação o bot podia tratar o resultado invisível como se já tivesse sido enviado no chat.
-  const antesDaTarefa = daTarefa ? antesPorId.get(daTarefa) : null;
-  const finalDaTarefa = daTarefa ? gravadas.get(daTarefa) : null;
-  // A ida a `voce` não é resultado: `ligarDecisaoATarefa` grava logo depois a única linha "precisa de você" da ADR-159.
-  // Tratá-la como etapa concluída criaria duas linhas para a mesma pergunta (resultado + precisa).
-  if (autorAgenteId && p.conversaId && antesDaTarefa?.agenteId === autorAgenteId && finalDaTarefa && finalDaTarefa.status !== antesDaTarefa.status && finalDaTarefa.status !== "voce") {
-    const coluna = colunasFinais.find((c) => c.id === finalDaTarefa.status)?.nome;
-    events.push(...(await gravarLinhaDaTarefa(deps, {
-      motivo: "resultado", t: finalDaTarefa, q: atualizado, conversaId: p.conversaId, agenteId: autorAgenteId,
-      texto: textoDaLinha("resultado", codigoDaTarefa(atualizado.prefixo, finalDaTarefa), deQuem, coluna),
-    })));
-  }
   // NOD-415 (ADR-141): o risco de prazo (só com meta e prazo), uma vez por (quadro, meta, prazo).
   const risco = await avisarRiscoDoQuadro(deps, atualizado, finais, importadas);
   if (risco) events.push(risco);
@@ -1679,9 +1662,14 @@ function tarefaDeOutraPessoa(plano: Extract<ReturnType<typeof planejarLote>, { t
 
 /** A aba Quadro de um bot: o quadro dele montado (ou null, ainda sem quadro). Experimento desligado = nao_permitido. */
 export const verQuadro: CasoDeUso<{ agenteId: string; quadro?: string | null }, { quadro: QuadroDto | null }> = async (deps, input) => {
-  if (!(await experimentoLigado(deps))) throw new ErroDeDominio("nao_permitido", { cause: "experimento quadro desligado" });
-  // ADA-14: o quadro que a tela escolheu (se ainda for deste bot); sem ele, o padrão.
-  const q = await deps.repos.quadros.daTela(input.agenteId, input.quadro);
+  // Leva 2 (2026-11-13): a chave do experimento e a preferência saem juntas; sem `?quadro=` (a primeira leitura do bot,
+  // que a tela dispara junto com a lista do seletor, Q3) abre o último aberto que a pessoa deixou neste bot, o mesmo que
+  // `quadrosDoBot.aberto` diz (quadroAoAbrir); se ele saiu do bot, o padrão. Assim a tela não relê quando a lista chega.
+  // Com `?quadro=`, como antes (ADA-14).
+  const [ligado, lembrado] = await Promise.all([experimentoLigado(deps), input.quadro ? Promise.resolve(null) : deps.repos.preferencias.quadroAberto(input.agenteId)]);
+  if (!ligado) throw new ErroDeDominio("nao_permitido", { cause: "experimento quadro desligado" });
+  const repo = deps.repos.quadros;
+  const q = input.quadro ? await repo.daTela(input.agenteId, input.quadro) : ((lembrado ? await repo.doBot(input.agenteId, lembrado) : null) ?? await repo.doAgente(input.agenteId));
   return { data: { quadro: q ? await montarQuadro(deps, q) : null } };
 };
 

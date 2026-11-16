@@ -57,7 +57,8 @@ describe("lista única de contas (ADR-102)", () => {
   it("ADR-105: o e-mail e a organização vêm do servidor, em qualquer máquina (fora do app também)", () => {
     const comEmail = { ...CONTAS, contas: [PESSOAL, GPT, { ...LUMEN, email: "pessoa1@exemplo.com", organizacao: "Lumen" }] };
     const html = renderListaDeContas(ctx({ contas: comEmail }));
-    expect(html).toContain("pessoa1@exemplo.com · organização Lumen · pelo Claude Code");
+    // Rodada 3 (tela 19 do Paper): "e-mail · organização · pelo CLI", sem a palavra "organização".
+    expect(html).toContain("pessoa1@exemplo.com · Lumen · pelo Claude Code");
     // O Detalhes da conta também.
     expect(renderListaDeContas(ctx({ contas: comEmail, ui: { detalhe: LUMEN.id } }))).toContain("<dt>Conta</dt><dd>pessoa1@exemplo.com · Lumen</dd>");
   });
@@ -65,7 +66,7 @@ describe("lista única de contas (ADR-102)", () => {
   it("ADR-105: o app do Mac que conhece a conta ganha do servidor (é o que o CLI disse agora)", () => {
     const comEmail = { ...CONTAS, contas: [PESSOAL, GPT, { ...LUMEN, email: "antigo@exemplo.com", organizacao: "Lumen" }] };
     const html = renderListaDeContas(ctx({ contas: comEmail, noApp: true, detalhes: { maquinaId: MAC, contas: [{ impressao: LUMEN.impressao, ia: "claude-cli", email: "pessoa1@exemplo.com", organizacao: "Lumen SA", plano: "Team" }] } }));
-    expect(html).toContain("pessoa1@exemplo.com · organização Lumen SA · pelo Claude Code");
+    expect(html).toContain("pessoa1@exemplo.com · Lumen SA · pelo Claude Code");
     expect(html).not.toContain("antigo@");
   });
 
@@ -194,11 +195,11 @@ describe("lista única de contas (ADR-102)", () => {
     expect(html).toContain(`role="switch" aria-checked="true" data-act="cl-fila" data-id="${PESSOAL.id}"`);
     expect(html).toContain(`role="switch" aria-checked="false" data-act="cl-fila" data-id="${LUMEN.id}"`);
     expect(html).toContain("Quando uma conta acabar");
-    for (const r of REGRAS_DA_FILA) expect(html).toContain(`<b>${r.titulo}:</b>`);
+    for (const r of REGRAS_DA_FILA) expect(html).toContain(`<dt>${r.titulo}</dt>`); // tela 19: tabela de duas colunas
     // Revisão do PR 2 (I1): só no Claude nada se perde; no ChatGPT a task com sessão recomeçaria do resumo noutra conta.
     expect(REGRAS_DA_FILA[0]?.texto).toContain("No Claude, nada se perde.");
     expect(REGRAS_DA_FILA[0]?.texto).toContain("No ChatGPT, a task com sessão recomeçaria do resumo noutra conta");
-    expect(html).toContain("Outra IA:</b> só nos bots em Automático");
+    expect(html).toContain("<dt>Outra IA</dt><dd>só nos bots em Automático");
     expect(html).toContain("o Nod recomenda esperar ou trocar");
     // Fora da fila e livre: a linha diz isso (no lugar de "Disponível").
     const foraLivre = { ...CONTAS, contas: [PESSOAL, GPT, { ...LUMEN, noLimiteAte: null }] };
@@ -284,11 +285,11 @@ describe("lista única de contas (ADR-102)", () => {
     it("Nova conta: na VM sem a IA, 'o nod instala o ChatGPT nela'; abaixo do piso, 'atualiza'; com ela, o de sempre", () => {
       const nova = { ia: "codex-cli" as const, apelido: "", maquinas: [] };
       const com = (o: Partial<MaquinaDto>) => renderListaDeContas(ctx({ maquinas: [maquina(VM, "vm-bots", o)], ui: { nova } }));
-      expect(com({ ias: { "codex-cli": "ausente" } })).toContain("o nod instala o ChatGPT nela e o login aparece aqui");
-      expect(com({ ias: { "codex-cli": "ausente" }, iasDetalhe: { "codex-cli": { causa: "cli_antigo", versao: "0.158.0", minima: "0.159.0" } } })).toContain("o nod atualiza o ChatGPT nela");
-      expect(com({ ias: { "codex-cli": "nao_autenticado" } })).toContain("o login aparece aqui na tela");
-      expect(com({ ias: {} })).toContain("o login aparece aqui na tela");
-      expect(com({ ias: { "codex-cli": "ausente" }, iasDetalhe: { "codex-cli": { causa: "sonda_lenta" } } })).not.toContain("o nod instala");
+      expect(com({ ias: { "codex-cli": "ausente" } })).toContain("O nod instala o ChatGPT nela e o login aparece aqui"); // tela 19b: a dica começa em maiúscula
+      expect(com({ ias: { "codex-cli": "ausente" }, iasDetalhe: { "codex-cli": { causa: "cli_antigo", versao: "0.158.0", minima: "0.159.0" } } })).toContain("O nod atualiza o ChatGPT nela");
+      expect(com({ ias: { "codex-cli": "nao_autenticado" } })).toContain("O login aparece aqui na tela");
+      expect(com({ ias: {} })).toContain("O login aparece aqui na tela");
+      expect(com({ ias: { "codex-cli": "ausente" }, iasDetalhe: { "codex-cli": { causa: "sonda_lenta" } } })).not.toContain("O nod instala");
     });
   });
 
@@ -565,7 +566,7 @@ describe("o uso de cada conta na lista (NOD-302 CA12; NOD-12)", () => {
     expect(html).toContain('aria-label="Semana"');
     expect(html).toContain("O ChatGPT não informou o uso desta conta");
     // A Lumen (sem o campo) não ganha bloco nenhum; a Pessoal (alerta) diz o que acontece sem outra conta na fila.
-    expect(html.match(/class="cl-uso"/g)).toHaveLength(1);
+    expect(html.match(/class="cl-uso /g)).toHaveLength(1);
     expect(html).toContain("Sem outra conta do Claude na fila: no limite, as rotinas esperam até renovar.");
     expect(html).not.toContain("cl-cota");
     const amanha = AGORA + 30 * 3_600_000;

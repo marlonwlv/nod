@@ -383,12 +383,13 @@ describe("NOD-155: o prompt em parte estável e parte volátil (cache por prefix
     // linha nova do "já liberei" (pedir_acesso na hora) em conversa e delegação. Regenerado em 2026-10-20 (NOD-317): saiu a
     // menção a anotar_pendencia na linha do terminal (a entrada não tem mais pendências nem a ferramenta). Regenerado em
     // 2026-10-19 (PR 6 dos modos de aprovação): as linhas "Aprovações:" e "Terminal:" do total não dizem mais que a
-    // credencial para. Regenerado em 2026-10-31 (NOD-444): linha nova só na conversa (perguntar o horário e repropor sem duplicar); rotina e delegação seguem iguais.
+    // credencial para. Regenerado em 2026-10-31 (NOD-444): linha nova só na conversa (perguntar o horário e repropor sem duplicar); rotina e delegação seguem iguais. Regenerado em
+    // 2026-11-12 (D · Computador do bot, item 1): a linha do computador pede o aviso "Você pode acompanhar pelo [Computador](nod-computador:)".
     const digital = (s: string) => createHash("sha256").update([...s.split("\n")].sort().join("\n")).digest("hex");
     const esperado = {
-      conversa: "130f8999654cf0c4be9687808c8f93b4d09a197cb038794b39c843a62b1264d0",
-      rotina: "8bf80039d21e1818db0f51276851dbc4086d24fcf50455f39b4ef70fa44509c3",
-      delegacao: "e72dc08f94bde1c4694c3445b27f28f2b55f4b9c523c14878da958dbaf54b092",
+      conversa: "842c198b60fe746fdb1f2339f6e99de0ac965fc0c408a429d8c339cca9c9be4b",
+      rotina: "e6069f8e1911daa74a9d3226c7e764b93555c74e0219755f34b37e784d13cc6d",
+      delegacao: "67eb4b570b391dd8e77592428f4e19cce7d2f274d588b2b961d86a31c092a550",
     };
     const obtido = { conversa: "", rotina: "", delegacao: "" };
     for (const modo of ["conversa", "rotina", "delegacao"] as const) obtido[modo] = digital(montarPromptSistema({ ...base, ...turnoA, profundidade: 1, modo }));

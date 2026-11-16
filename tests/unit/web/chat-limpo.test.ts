@@ -74,7 +74,8 @@ function cenario(mensagens: Mensagem[], extra: Partial<Estado> = {}, conversa: P
 }
 
 const itens = (c: ConversaEstado, e: Estado) => blocosDoHistorico(c, e).filter((b) => !b.chave.startsWith("sep:"));
-const ehBalao = (html: string): boolean => /^\s*<article class="message /.test(html);
+// COP-14 (item 3): o balão do histórico pode levar data-grupo/data-group-start antes da classe (./grupos-do-chat.ts).
+const ehBalao = (html: string): boolean => /^\s*<article (?:data-grupo="[a-z]+" (?:data-group-start )?)?class="message /.test(html);
 const ehLinha = (html: string): boolean => /^\s*<div class="linha-centro-wrap"/.test(html);
 
 describe("a semente da filha 03: 11 itens, 9 você↔bot", () => {
@@ -319,7 +320,7 @@ describe("revisão W7/W8/W10 (2026-10-08)", () => {
   });
 });
 
-describe("quem pede a um colega (padrão Grok)", () => {
+describe("quem pede a um colega", () => {
   it("'Enviou mensagem para Chico' no pedido e 'N mensagens com Chico' na volta; a fala de quem pediu continua balão", () => {
     const handoff = msg("h1", t0, { turnoId: "t-pede", origemTurno: "conversa", kind: "handoff", texto: "x", payload: { kind: "handoff", de: "clarice", para: "chico", motivo: "revisar", tarefaId: "tarefa-1", trabalhoId: "tb-chico" } });
     const resposta = msg("h2", t0 + 30 * MIN, { turnoId: "t-volta", origemTurno: "retomada", kind: "peer_ask", texto: "Revisei", payload: { kind: "peer_ask", agenteId: "chico", nome: "Chico", naoSupervisionado: true, tarefaId: "tarefa-1", delegada: true } });

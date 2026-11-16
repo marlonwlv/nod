@@ -44,11 +44,26 @@ import { USO_DO_MAC_PADRAO } from "../../contracts/raio-x.ts";
 import { ESPACO_FUNDO_MS, portaoDoMac } from "../../domain/memoria-mac.ts";
 import type { Deps, Services, UseCasesNod } from "../../use-cases/tipos.ts";
 import type { TokenTurno } from "../../services/token-turno.ts";
+import type { AvisoDeMensagem } from "../../services/aviso-de-mensagem.ts";
+import { AGUARDAR_MENSAGEM_MS } from "../../contracts/estado-vivo.ts";
+import type { AnexoMeta } from "../../contracts/anexo.ts";
 
 /** ADR-130: a fala da pessoa que esperou mais que isto para começar vira a linha `fala_esperou`. */
 const FALA_ESPEROU_MS = 10_000;
 
 /** definido em 2026-09-16: versão mínima do app = a do package.json desta rodada; a ponte HTTP compara quando entrar (ADR-021). */
+
+/** ADR-171 (definido em 2026-11-12): o último log de recursos de cada turno, para 1 linha por minuto (renovação a cada ~10 s). */
+const recursosLogados = new Map<string, number>();
+const INTERVALO_LOG_RECURSOS_MS = 60_000;
+function registrarRecursosDoTurno(t: { turnoId: string; mb: number; cpuPct?: number }, agenteId: string | null, agora: number): void {
+  const antes = recursosLogados.get(t.turnoId);
+  if (antes !== undefined && agora - antes < INTERVALO_LOG_RECURSOS_MS) return;
+  recursosLogados.set(t.turnoId, agora);
+  if (recursosLogados.size > 2000) for (const [id, em] of recursosLogados) if (agora - em > 10 * INTERVALO_LOG_RECURSOS_MS) recursosLogados.delete(id);
+  log("info", "turno_recursos", { turno_id: t.turnoId, agente_id: agenteId, memoria_mb: t.mb, cpu_pct: t.cpuPct ?? null });
+}
+
 export const VERSAO_MINIMA_APP = "0.1.0";
 
 export type DepsPonte = {
@@ -57,6 +72,8 @@ export type DepsPonte = {
   agora?: Relogio;
   /** 'local' (claude-cli) ou 'catcher' — o que a máquina conectada de fato roda. Função = valor VIVO (o interruptor de executor troca em tempo de execução). */
   executor?: Executor | (() => Executor);
+  /** C1 (2026-11-12): o aviso que acorda o long-poll da mensagem (aguardarMensagem). Ausente = a ponte não oferece o verbo. */
+  avisoDeMensagem?: Pick<AvisoDeMensagem, "aguardar">;
   /** Fonte das pessoas para resolver tenant de um pessoaId; só em teste (default: tabela pessoas). */
   listarPessoas?: () => Promise<Pick<Pessoa, "tenantId" | "id">[]>;
   /** Depois de entregar: soltar o processo do interruptor (criarInterruptor().esquecer). */
@@ -533,6 +550,26 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       }
     },
 
+    // C1 (2026-11-14): a ponte interna não tem o long-poll HTTP de `puxar`; o mesmo aviso do envio corta a soneca ociosa.
+    ...(deps.avisoDeMensagem ? {
+      aguardarTrabalho(pessoaId: string, ms: number): Promise<boolean> {
+        return deps.avisoDeMensagem!.aguardar(pessoaId, ms);
+      },
+    } : {}),
+
+    // C1 (2026-11-12): o long-poll da mensagem — acorda quando sai, para a pessoa do turno, um frame que pode trazer fala.
+    ...(deps.avisoDeMensagem ? {
+      async aguardarMensagem(turnoId: string, ms: number): Promise<boolean> {
+        const escopo = escopos.get(turnoId);
+        if (!escopo) return false;
+        // A rede de 2 min (ADR-083) promove na renovação: a espera volta no prazo dela, para a promoção não atrasar.
+        const despachado = despachados.get(turnoId);
+        const ateARede = despachado ? despachado.em + (deps.redeMs ?? REDE_MS) - agora() : -1;
+        const teto = ateARede > 0 ? Math.min(AGUARDAR_MENSAGEM_MS, ateARede + 50) : AGUARDAR_MENSAGEM_MS;
+        return deps.avisoDeMensagem!.aguardar(escopo.pessoaId, Math.min(Math.max(0, ms), teto));
+      },
+    } : {}),
+
     async renovar(p: PedidoRenovar): Promise<RespostaRenovar> {
       esquecerVencidos();
       const escopo = escopos.get(p.turnoId);
@@ -546,7 +583,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       for (const id of p.mensagensDevolvidas ?? []) jaOferecidas.delete(id);
       // NOD-293 (E9): a oferecida há mais de REOFERTA_MS sem confirmação se perdeu no caminho — entra de novo abaixo.
       soltarOferecidasPerdidas(jaOferecidas, agora());
-      const { ativo, motivo, mensagens, ids, semMoldura, doDonoSemTrabalho } = await abrirTxEscopada(db, escopo)(async (trx) => {
+      const { ativo, motivo, mensagens, ids, semMoldura, anexos, doDonoSemTrabalho } = await abrirTxEscopada(db, escopo)(async (trx) => {
         const d = depsDe(trx, escopo);
         // NOD-214: a sessão do CLI fica no turno já na renovação — a entrega pode se perder num reinício.
         const r = await d.repos.turnos.renovarLease(p.turnoId, p.machineId, p.sinais, agora(), p.sessaoCli ? { sessaoCli: p.sessaoCli } : {});
@@ -565,10 +602,12 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         }
         let textos: string[] = [];
         let ids: string[] = [];
+        let anexos: Record<string, AnexoMeta[]> = {};
         if (r.ativo && p.aceitaMensagens) {
-          const a = await absorverNaSessao(d, { turnoId: p.turnoId, executor, confirma, jaOferecidas: [...jaOferecidas.keys()] });
+          const a = await absorverNaSessao(d, { turnoId: p.turnoId, executor, confirma, jaOferecidas: [...jaOferecidas.keys()], aceitaAnexos: p.aceitaAnexos === true });
           textos = a.data.textos;
           ids = a.data.ids;
+          anexos = a.data.anexos ?? {};
           events.push(...(a.events ?? []));
         }
         // ADR-083 (#193): a fala mandada à task (tela da task ou mandar_para_task) entra no turno vivo dela.
@@ -611,6 +650,8 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         let mudanca: MudancaDePressao | undefined;
         if (p.memoria) {
           await d.repos.trabalhos.atualizarMemoria(p.memoria.porTurno);
+          // ADR-171: memória e CPU do grupo do turno, por bot, no log (no máximo 1 linha por turno por minuto).
+          for (const t of p.memoria.porTurno) if (t.turnoId === p.turnoId) registrarRecursosDoTurno(t, turno?.agenteId ?? null, Date.now());
           mudanca = deps.registrarMemoria?.(escopo.pessoaId, p.machineId, p.memoria);
           if (mudanca?.mudou) events.push(eventoPressao(d, mudanca, p.memoria));
         }
@@ -621,7 +662,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
           if (mudanca) deps.desfazerMemoria?.(escopo.pessoaId, mudanca);
           throw e;
         }
-        return { ativo: r.ativo, motivo: r.motivo, mensagens: textos, ids, semMoldura, doDonoSemTrabalho: turno !== null && !turno.trabalhoId && (turno.origem === "conversa" || turno.origem === "retomada") };
+        return { ativo: r.ativo, motivo: r.motivo, mensagens: textos, ids, semMoldura, anexos, doDonoSemTrabalho: turno !== null && !turno.trabalhoId && (turno.origem === "conversa" || turno.origem === "retomada") };
       });
       // #189: o que o app confirmou já saiu da fila (absorvido): não está mais "oferecido e esperando confirmação".
       if (ativo) for (const id of p.mensagensEntregues ?? []) jaOferecidas.delete(id);
@@ -652,7 +693,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         for (const id of ids) jaOferecidas.set(id, em);
         oferecidas.set(p.turnoId, jaOferecidas);
       }
-      return { ativo, versaoMinimaApp: VERSAO_MINIMA_APP, ...(!ativo && motivo ? { motivo } : {}), ...(mensagens.length ? { mensagens, mensagensIds: ids } : {}), ...(semMoldura.length ? { mensagensSemMoldura: semMoldura } : {}) };
+      return { ativo, versaoMinimaApp: VERSAO_MINIMA_APP, ...(!ativo && motivo ? { motivo } : {}), ...(mensagens.length ? { mensagens, mensagensIds: ids } : {}), ...(semMoldura.length ? { mensagensSemMoldura: semMoldura } : {}), ...(Object.keys(anexos).length ? { mensagensAnexos: anexos } : {}) };
     },
 
     async entregar(e: Entrega) {
@@ -768,8 +809,6 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       avisosDeEtapa.delete(e.turnoId);
       adotadosNaEntrega.delete(e.turnoId);
       deps.services.tokenTurno.revogar(e.turnoId);
-      // NOD-200: a captura do turno sai só com o assentar confirmado; na falha fica, como o escopo, para a entrega repetida.
-      deps.services.capturas?.esquecer(e.turnoId);
       deps.esquecerTurno?.(e.turnoId);
     },
 

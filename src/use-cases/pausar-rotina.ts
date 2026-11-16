@@ -12,7 +12,7 @@ import type { CasoDeUso } from "./tipos.ts";
  * POST rotinas/:id/pausar e /ativar, e as ferramentas pausar_rotina/reativar_rotina. Pausada não
  * entra no tick do scheduler (índice parcial `estado = 'ativa'`). Reativar recalcula a próxima
  * execução a partir de `agora`: janelas perdidas durante a pausa não são repostas (definido em
- * 2026-09-16: mesma regra do disparo — o Grok Bot também não repõe). Só a dona muda estado: o
+ * 2026-09-16: mesma regra do disparo, que também não repõe). Só a dona muda estado: o
  * repositório devolve null para quem não é.
  *
  * `autoria` é opcional porque quem escreve a mensagem muda: pela rota é a pessoa; pela ferramenta

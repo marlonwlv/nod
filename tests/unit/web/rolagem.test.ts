@@ -118,6 +118,7 @@ describe("rolar ao topo ao navegar", () => {
     "quadro-compartilhado": true,
     "nova-sala": true,
     trabalhos: true,
+    tarefas: true,
     linha: true,
   };
 

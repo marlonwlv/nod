@@ -3,7 +3,7 @@ import type { FalhaDitado } from "../lib/ditado-protocolo.ts";
 import { ICONE_LIGACAO } from "./ligacao.ts";
 
 /**
- * O microfone do campo de mensagem (definido em 2026-10-11, ADR-095; referência do Grok em docs/referencias/ditado-grok/).
+ * O microfone do campo de mensagem (definido em 2026-10-11, ADR-095).
  *
  * - 🎤 começa a gravar: o placeholder vira "Ouvindo…", aparece a pílula `■ 0:08 ••••` e o ➤ vira ↑.
  * - ■ para e põe o texto no campo, para conferir e enviar (o jeito do computador).
@@ -15,7 +15,7 @@ import { ICONE_LIGACAO } from "./ligacao.ts";
  */
 
 const QUADRADO = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1" y="1" width="12" height="12" rx="2.5" fill="currentColor"/></svg>';
-/** definido em 2026-10-11 (as fotos do Grok): 12 barras no nível; no computador o CSS as mostra como pontos. */
+/** definido em 2026-10-11 (fotos de referência): 12 barras no nível; no computador o CSS as mostra como pontos. */
 const BARRAS = 12;
 
 /** O botão do microfone (escondido até a disponibilidade chegar) e a pílula da gravação. */

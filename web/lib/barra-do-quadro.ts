@@ -43,7 +43,7 @@ const MENU_ITENS = '#qm-pop-quadro [role="menuitem"]';
 const SAEM_DO_MENU = new Set(["painel-pessoas", "painel-atividade", "trazer-linear", "quadro-seletor", "remover-quadro"]);
 /** O botão que abriu cada popover (o foco volta para ele ao fechar). */
 function voltaDo(p: PopoverDaBarra): string {
-  return p === "filtros" ? '[data-act="fil-abrir"]' : p === "opcoes" ? '[data-act="op-abrir"]' : p === "quadro" ? '.qm-cab-bt' : '[data-act="ativos-abrir"]';
+  return p === "filtros" ? '[data-act="fil-abrir"]' : p === "opcoes" ? '[data-act="op-abrir"], .qm-cab-bt' : p === "quadro" ? '.qm-cab-bt' : '[data-act="ativos-abrir"]';
 }
 
 export function criarBarraDoQuadro(d: DepsDaBarra) {

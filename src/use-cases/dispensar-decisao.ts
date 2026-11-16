@@ -2,8 +2,9 @@ import { TIPOS_DISPENSAVEIS_ABERTOS, type Decisao, type TipoDecisao } from "../c
 import type { RuntimeEvent } from "../contracts/evento.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { ajudaDoComputador } from "./ajuda-do-computador.ts";
-import { autoriaPessoa, evento } from "./autoria-evento.ts";
+import { autoriaPessoa, evento, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import { registrarDesfechoRotina } from "./disparar-rotina.ts";
+import { enfileirarRetomada } from "./enfileirar-retomada.ts";
 import { avisarFalhaDelegacao } from "./entregar-resposta-peer.ts";
 import { fecharGemeas } from "./fechar-gemeas.ts";
 import type { DepsSuaVez } from "./listar-sua-vez.ts";
@@ -47,7 +48,14 @@ export async function dispensarDecisao(deps: DepsSuaVez, input: { decisaoId: str
   return { data: { decisao }, events };
 }
 
-export type SaidaDepoisDeDispensar = { gemeas: string[]; rotinaId: string | null; computadorDevolvido: boolean };
+export type SaidaDepoisDeDispensar = { gemeas: string[]; rotinaId: string | null; computadorDevolvido: boolean; turnoRetomadaId?: string | null };
+
+/**
+ * Spec D, item 6 (definido em 2026-11-12): o "Agora não" do pedido de ajuda do computador é a recusa da pessoa, e o bot
+ * a recebe — o turno que pediu ajuda encerrou esperando a devolução, e sem esta entrada o bot ficava parado. A frase é
+ * fixa: não repete o motivo (texto do bot) nem pede de novo o mesmo passo.
+ */
+export const RECUSA_DA_AJUDA = "A pessoa respondeu \"Agora não\" ao seu pedido de ajuda no computador e não entrou. Não peça de novo o mesmo passo agora: siga com o que dá para fazer sem ele, ou diga em uma frase o que ficou faltando.";
 
 /**
  * FASE 2 — pela DONA (definido em 2026-09-24): o que dispensar muda fora da própria decisão.
@@ -76,10 +84,21 @@ export async function depoisDeDispensar(deps: DepsSuaVez, input: { decisao: Deci
       events.push(...((await avisarFalhaDelegacao(deps, { turnoId: d.turnoId, motivo: "a pessoa deixou a pergunta sem resposta" })).events ?? []));
     }
   }
-  const computadorDevolvido = await devolverComputador(deps, d);
+  const ajuda = await devolverComputador(deps, d);
+  let turnoRetomadaId: string | null = null;
+  // Spec D, item 6: só o pedido ainda aberto (o "Limpar vencidos" não acorda o bot) e com o turno que pediu.
+  if (ajuda.eraAjuda && d.turnoId && (antes === "pendente" || antes === "reaberta")) {
+    const original = await deps.repos.turnos.buscar(d.turnoId);
+    if (original) {
+      const agora = deps.agora();
+      const { turno, nova } = await enfileirarRetomada(deps, { original, prazoEm: agora + PRAZO_DECISAO_PADRAO_MS, entradaTexto: RECUSA_DA_AJUDA, reenvios: original.reenvios + 1 });
+      turnoRetomadaId = turno?.id ?? null;
+      if (turno && nova) events.push(evento(deps.escopo, { kind: "turno_criado", autoria: autoriaPessoa(deps.escopo), agora, conversaId: d.conversaId, turnoId: turno.id, dados: { origem: "retomada", retoma_turno_id: original.id, decisao_id: d.id } }));
+    }
+  }
   // Revisão do épico (S2, 2026-10-08): dispensada, a decisão não segura mais a task do turno dela.
   events.push(...(await sincronizarDasDecisoes(deps, [d])));
-  return { data: { gemeas: gemeas.data.fechadas, rotinaId, computadorDevolvido }, events };
+  return { data: { gemeas: gemeas.data.fechadas, rotinaId, computadorDevolvido: ajuda.devolvido, turnoRetomadaId }, events };
 }
 
 /**
@@ -87,15 +106,15 @@ export async function depoisDeDispensar(deps: DepsSuaVez, input: { decisao: Deci
  * ao bot, com a ação registrada como a "Devolver ao bot" da tela. Takeover em curso (controle
  * 'pessoa') só termina por devolução explícita (ADR-037): aí sai só o vínculo com o pedido.
  */
-async function devolverComputador(deps: DepsSuaVez, d: Decisao): Promise<boolean> {
-  if (d.tipo !== "pergunta") return false;
+async function devolverComputador(deps: DepsSuaVez, d: Decisao): Promise<{ eraAjuda: boolean; devolvido: boolean }> {
+  if (d.tipo !== "pergunta") return { eraAjuda: false, devolvido: false };
   // NOD-96: no computador da pessoa o pedido de ajuda é da tela do bot (ajudaDoComputador).
   const c = await ajudaDoComputador(deps.repos, d.agenteId);
-  if (!c || c.ajudaDecisaoId !== d.id) return false;
+  if (!c || c.ajudaDecisaoId !== d.id) return { eraAjuda: false, devolvido: false };
   const devolver = c.controle === "aguardando_pessoa";
   await c.configurar(devolver ? { controle: "bot", ajuda: null, ajudaDecisaoId: null, atividadeEm: deps.agora() } : { ajuda: null, ajudaDecisaoId: null });
   if (devolver) await c.registrarDevolver();
-  return devolver;
+  return { eraAjuda: true, devolvido: devolver };
 }
 
 export const dispensarDecisaoComoCaso: CasoDeUso<{ decisaoId: string }, { decisao: Decisao }> = dispensarDecisao;

@@ -1,7 +1,7 @@
 // Chrome DevTools Protocol mínimo para o teste de carga da tela: acha o Chrome for Testing do cache do Playwright
 // (ou CARGA_CHROME), abre headless e fala com a aba por WebSocket (o Node 24 tem WebSocket global).
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -15,7 +15,7 @@ function acharChrome(): string {
   const cache = join(homedir(), process.platform === "darwin" ? "Library/Caches/ms-playwright" : ".cache/ms-playwright");
   const versoes = existsSync(cache) ? readdirSync(cache).filter((d) => /^chromium-\d+$/.test(d)).sort().reverse() : [];
   for (const v of versoes) {
-    for (const rel of ["chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing", "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing", "chrome-mac/Chromium.app/Contents/MacOS/Chromium", "chrome-linux/chrome"]) {
+    for (const rel of ["chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing", "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing", "chrome-mac/Chromium.app/Contents/MacOS/Chromium", "chrome-linux/chrome", "chrome-linux64/chrome"]) {
       const p = join(cache, v, rel);
       if (existsSync(p)) return p;
     }
@@ -23,12 +23,24 @@ function acharChrome(): string {
   throw new Error("Chrome não encontrado: instale com `npx playwright install chromium` ou defina CARGA_CHROME");
 }
 
-export async function abrirChrome(porta: number, perfil: string): Promise<{ cdp: Cdp; chrome: ChildProcess }> {
+export function portaDoDevTools(perfil: string): number | null {
+  try {
+    const porta = Number(readFileSync(join(perfil, "DevToolsActivePort"), "utf8").split("\n", 1)[0]);
+    return Number.isInteger(porta) && porta > 0 && porta <= 65_535 ? porta : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function abrirChrome(_porta: number, perfil: string): Promise<{ cdp: Cdp; chrome: ChildProcess }> {
   rmSync(perfil, { recursive: true, force: true });
   mkdirSync(perfil, { recursive: true });
   const chrome = spawn(acharChrome(), [
     "--headless=new",
-    `--remote-debugging-port=${porta}`,
+    // O próprio Chrome escolhe uma porta livre e a publica em DevToolsActivePort. Os testes de navegador rodam em série
+    // no mesmo processo e chrome.kill() não espera o socket fechar; reutilizar a porta derivada do PID falhava no teste
+    // seguinte, depois de centenas de jornadas verdes (medido na CI do PR #89 em 2026-11-16).
+    "--remote-debugging-port=0",
     `--user-data-dir=${perfil}`,
     "--no-first-run",
     "--no-default-browser-check",
@@ -48,6 +60,8 @@ export async function abrirChrome(porta: number, perfil: string): Promise<{ cdp:
   for (let i = 0; i < 400 && !alvo; i++) {
     await new Promise((r) => setTimeout(r, 200));
     try {
+      const porta = portaDoDevTools(perfil);
+      if (!porta) continue;
       const lista = (await (await fetch(`http://127.0.0.1:${porta}/json/list`)).json()) as { type: string; webSocketDebuggerUrl: string }[];
       alvo = lista.find((t) => t.type === "page");
     } catch {

@@ -14,7 +14,6 @@ import type { Destino } from "./destino-no-chat.ts";
 import type { PayloadPedidoRespondido, PayloadPeerPedido } from "./troca-entre-bots.ts";
 import type { AncoraDoConsentimento, PayloadPropostaDecidida, PayloadRegraPermanente } from "./cartao-encolhido.ts";
 import type { DesfechoItem, DesfechoRotina, MotivoFalhaComputador, MotivoNegacao, MotivoPasse } from "./motivos.ts";
-
 /** Marca de confiança é propriedade do CONTEÚDO, nunca do nome da ferramenta (ADR-026). */
 /**
  * definido em 2026-10-15 (NOD-257, H5): o pedido a colega parado na fila e o porquê. Não é gravado: `lerConversa` o põe
@@ -43,7 +42,8 @@ export type KindMensagem =
 
 /** Payload tipado por kind: estado de controle nunca se lê do texto (Regra 9, GRUPO.passe-tipado). */
 export type PayloadMensagem =
-  | { kind: "boas_vindas" } | { kind: "acoes_do_turno"; acoes: { rotulo: string; falhou?: true; vezes?: number }[]; duracaoMs?: number } // NOD-353: resumo das ações; duracaoMs (26/10, "Pensou por 9 s" na gravada)
+  | { kind: "boas_vindas"; pergunta?: string; opcoes?: { rotulo: string; texto: string }[] } // botão +, tela 5; as gravadas antes não têm pergunta/opções
+  | { kind: "acoes_do_turno"; acoes: { rotulo: string; falhou?: true; vezes?: number }[]; duracaoMs?: number } // NOD-353: resumo das ações; duracaoMs (26/10, "Pensou por 9 s" na gravada)
   /** `trabalhoId` (2026-10-07, ADR-083): o trabalho de quem RECEBEU o pedido. `nomePara` (2026-10-18, chat limpo PR 3): o nome dele no momento. */
   | { kind: "handoff"; de: string; para: string; motivo: string; tarefaId?: string; trabalhoId?: string; fila?: FilaDoPedido; nomePara?: string }
   /** ADR-047/058 e chat limpo (PR 3, `nome`): troca-entre-bots.ts. */
@@ -143,7 +143,7 @@ export type PayloadMensagem =
    */
   | { kind: "pasta_aberta"; propostaId: string; agenteId: string; pasta: string; nome: string; onde?: string; turnoId?: string | null }
   /** 2026-09-28 (ADR-051): só ids, o HTML não viaja com a conversa; o canvas (ADA-13, ADR-150) também: ids e contagens; a lista compacta dele (ADA-228, J7-5) só o resumo. */
-  | { kind: "artefato"; artefatoId: string; versao: number; titulo: string } | { kind: "canvas"; canvasId: string; agenteId: string; versao: number; titulo: string; issue?: string | null; jornadas: number; telas: number; importado: boolean; confiavel?: boolean; origemUrl?: string | null } | import("./ferramentas-canvas.ts").PayloadCanvasLista
+  | { kind: "artefato"; artefatoId: string; versao: number; titulo: string } | { kind: "canvas"; canvasId: string; agenteId: string; versao: number; titulo: string; issue?: string | null; jornadas: number; telas: number; importado: boolean; confiavel?: boolean; origemUrl?: string | null } | import("./ferramentas-canvas.ts").PayloadCanvasLista | import("./ferramentas-cartoes.ts").PayloadCartoes
   /** definido em 2026-10-04 (ADR-075): a linha "Chat de voz · mm:ss"; a transcrição vem por GET ligacoes/:id/falas. */
   | PayloadLinhaLigacao
   /**
@@ -193,7 +193,7 @@ export type Mensagem = {
   raiz?: { turnoId: string; origem: OrigemTurno };
   trabalhoId?: string | null; fimDoTurno?: boolean;
   bastidores?: boolean; turnoDesde?: number; // NOD-402 (ADR-130): gravada por turno dos bastidores da conversa; `turnos.criado_em` (relógio do banco, o das mensagens). Ausentes = não, ou servidor antigo.
-  motivoRecomeco?: MotivoRecomeco; // NOD-312: o turno da fala recomeçou sem a sessão. Ausente = normal ou servidor antigo.
+  motivoRecomeco?: MotivoRecomeco; idEnvio?: string; // NOD-312: o turno da fala recomeçou sem a sessão (ausente = normal). C4 (2026-11-12): `idEnvio`, a chave do envio da pessoa (NOD-156), casa a pendente na web.
   destino?: Destino; tarefa?: import("./destino-no-chat.ts").TarefaDaMensagem; // ADR-114: o destino da tabela DESTINO, resolvido no servidor (só na conversa própria); ADA-28: a tarefa do turno.
   checkpoint?: import("./checkpoint.ts").CheckpointDaFala; // NOD-54 (ADR-134): na fala final do turno que mudou arquivos, o "Desfazer N arquivos" do ⋯. Ausente = sem checkpoint ou vencido.
 };

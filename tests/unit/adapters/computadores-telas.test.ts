@@ -1,4 +1,4 @@
-import type { LugarDoComputador } from "../../../src/contracts/computador.ts";
+import type { Computador, LugarDoComputador } from "../../../src/contracts/computador.ts";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { AcaoComputador, DriverComputador, ResultadoComputador } from "../../../src/contracts/computador.ts";
 import type { ComputadorDaPessoa, EstadoTelaComputador, TelaComputadorBot } from "../../../src/contracts/computador-motor.ts";
@@ -1014,6 +1014,61 @@ it("revisão do PR #599: o ao vivo só com a pessoa no controle, no ar e sem ope
   pedidos.length = 0;
   await comVivo.vivo(MARLON, A, sessao);
   expect(pedidos).toEqual(["tela-a"]);
+});
+
+it("card D, F3/F4: assistir ao vivo com o bot no controle; assumir libera o teclado da sessão, devolver tira sem fechar", async () => {
+  const pedidos: string[] = [];
+  const trocas: string[] = [];
+  const comVivo = criarComputadores({
+    executor: () => "catcher", porPessoa: true, driver: { ...driver, vivo: async (id) => { pedidos.push(id); } }, cifrar: (s) => s, decifrar: (s) => s, mudou: () => {}, agora: () => agora,
+    lugarPadraoNaCriacao: () => "maquina-inicial",
+    dentro: async <T>(_e: unknown, fn: (d: never) => Promise<T>) => fn(deps() as never),
+    dormir: async (ms) => { agora += ms; },
+    vivo: { fecharDaTela: (_e, agenteId) => { trocas.push(`fechar:${agenteId}`); }, liberarDaTela: (_e, agenteId) => { trocas.push(`liberar:${agenteId}`); } },
+  });
+  const sessao = { sessao: "s", token: "t" };
+  mudar("tela-a", { estado: "aberta" });
+  await comVivo.vivo(MARLON, A, sessao, { assistir: true });
+  expect(pedidos).toEqual(["tela-a"]);
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: true, mexer: false });
+  await comVivo.configurar(MARLON, A, "assumir");
+  expect(trocas).toEqual([`liberar:${A}`]);
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: true, mexer: true });
+  await comVivo.configurar(MARLON, A, "devolver");
+  expect(trocas).toEqual([`liberar:${A}`, `fechar:${A}`]);
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: true, mexer: false });
+  // Fora do ar: nem assistir.
+  pessoa = { ...pessoa, indisponivelDesde: agora };
+  await expect(comVivo.vivo(MARLON, A, sessao, { assistir: true })).rejects.toMatchObject({ codigo: "estado_invalido" });
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: false, mexer: false });
+  pessoa = { ...pessoa, indisponivelDesde: null };
+});
+
+it("provedor: computador desabilitado não abre uma janela de relay nem para assistir", async () => {
+  const pedidos: string[] = [];
+  const desligado: Computador = {
+    id: "00000000-0000-4000-8000-0000000000c1", agenteId: A, habilitado: false, controle: "bot", politica: "autonomo",
+    ajuda: null, ajudaDecisaoId: null, ocupadoAte: null, operacaoId: null, criadoEm: T0, falhasSeguidas: 0,
+    falhaMotivo: null, indisponivelDesde: null,
+  };
+  const depsProvedor = () => {
+    const d = deps();
+    return { ...d, repos: { ...d.repos, computadores: {
+      ...d.repos.computadores,
+      obter: async () => desligado,
+      travar: async () => desligado,
+      buscarDoAgente: async () => desligado,
+    } } };
+  };
+  const comVivo = criarComputadores({
+    executor: () => "catcher", porPessoa: false, driver: { ...driver, vivo: async (id) => { pedidos.push(id); } },
+    cifrar: (s) => s, decifrar: (s) => s, mudou: () => {}, agora: () => agora,
+    dentro: async <T>(_e: unknown, fn: (d: never) => Promise<T>) => fn(depsProvedor() as never),
+  });
+
+  await expect(comVivo.vivo(MARLON, A, { sessao: "s", token: "t" }, { assistir: true })).rejects.toMatchObject({ codigo: "nao_permitido" });
+  expect(pedidos).toEqual([]);
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: false, mexer: false });
 });
 
 it("revisão do PR #599 (NOD-410): bot sem tela no computador ligado da pessoa — o painel vem com o ativo dela, para o Abrir o computador assumir", async () => {

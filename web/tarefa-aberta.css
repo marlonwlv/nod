@@ -123,9 +123,12 @@
 .ta-chip-op-desc { font-size: 11.5px; color: var(--ink-3); }
 
 /* A pílula do bot embaixo segue a coluna do conteúdo (as contas de quadro.css, com as larguras desta tela). */
+/* Com a tela 18b (rodada 4: a .qd-tarefa sem teto, a mesma caixa da .qc-wrap; a .qd-t-corpo com -24 de cada lado, a
+   lateral de 360 e o miolo com 56 / 40 de recuo), a caixa fica sobre o texto do miolo: 56 - 24 à esquerda e
+   360 - 24 + 40 à direita. */
 @container (min-width: 701px) {
-  .qd-vista:has(.qd-tarefa.ta) > .qc-wrap { padding-inline: max(0px, calc((min(100%, 1240px) - 1120px) / 2)); }
-  .qd-vista:has(.qd-tarefa.ta) > .qc-wrap > .qc-caixa { max-width: none; margin: 0 calc(260px + 36px) 0 0; }
+  .qd-vista:has(.qd-tarefa.ta) > .qc-wrap { padding-inline: 0; }
+  .qd-vista:has(.qd-tarefa.ta) > .qc-wrap > .qc-caixa { max-width: none; margin: 0 calc(360px - 24px + 40px) 0 calc(56px - 24px); }
 }
 
 /* A lateral: propriedades e seções recolhíveis. */
@@ -264,3 +267,275 @@
 .ta-citar:hover { border-color: var(--line-strong); }
 .ta-citar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 @media (forced-colors: active) { .ta-prop-op:focus-visible, .ta-menu-op:focus-visible { outline: 2px solid CanvasText; outline-offset: -2px; } }
+/* ---------- Tela 18b do Paper (rodada 2, 12/11) ----------
+   Conteúdo à esquerda (padding 56 / 40, blocos a 16), a lateral de 360 (a mesma do painel da casca, web/casca.css) com a borda fina e seções com chevron, título
+   26/32, os chips de estado acima do título, o cartão "te perguntou" com a borda laranja e as Propriedades em linhas de
+   34 com o rótulo de 92 e o valor como texto (o select só aparece no hover e no foco). */
+.ta.qd-tarefa { max-width: none; gap: 0; }
+.ta .qd-t-corpo, .ta.qd-com-lado .qd-t-corpo { grid-template-columns: minmax(0, 1fr) 360px; gap: 0; align-items: stretch; }
+.ta .qd-t-principal { padding: 8px 40px 24px 56px; gap: 16px; }
+.ta .qd-lado { padding: 8px 0 24px 24px; border-left: 1px solid var(--divisoria); font-size: 13px; }
+.ta .qd-t-cab { padding-left: 0; }
+.ta-estado { display: flex; flex-wrap: wrap; gap: 8px; }
+.ta-estado .ta-espera { height: 22px; margin: 0; padding: 0 8px; gap: 5px; border: 0; background: var(--aguardando-soft); color: var(--aguardando); font: 500 12px/16px var(--font-sans); }
+.ta-estado .ta-espera:hover { border: 0; color: var(--aguardando); }
+.ta-estado .ta-espera span { font-size: inherit; filter: none; }
+.ta-estado .ta-trabalhando { height: 22px; padding: 0 8px 0 3px; gap: 5px; border: 0; background: var(--hover); color: var(--ink-2); font: 500 12px/16px var(--font-sans); }
+.ta-estado .ta-trabalhando .ta-pilha-av .icon.mascote, .ta-estado .ta-trabalhando .ta-pilha-av .qd-anel { width: 16px !important; height: 16px !important; min-width: 16px; }
+.ta-estado .ta-pulso { display: none; }
+.ta .ta-tit { padding: 0 6px; font-size: 26px; line-height: 32px; font-weight: 500; letter-spacing: -.015em; }
+.ta .ta-tit:focus:not(:focus-visible) { background: none; box-shadow: none; outline: none; }
+.ta .ta-desc { padding: 0 6px; font-size: 14px; line-height: 20px; }
+
+.ta-perg-card { margin: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; border: 1px solid color-mix(in srgb, var(--aguardando-ponto) 33%, transparent); border-radius: 12px; background: var(--surface-elevated); box-shadow: var(--sombra-inline); }
+:root[data-theme="dark"] .ta-perg-card { box-shadow: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ta-perg-card { box-shadow: none; } }
+.ta-perg-cab { display: flex; align-items: center; gap: 8px; }
+.ta-perg-av { line-height: 0; }
+.ta-perg-av .icon.mascote, .ta-perg-av .qd-anel { width: 20px !important; height: 20px !important; min-width: 20px; }
+.ta-perg-tit { margin: 0; flex: 1; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); }
+.ta-perg-hora { font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.ta-perg-txt { margin: 0; font-size: 14px; line-height: 20px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ta-perg-form.qd-resp-form { display: flex; align-items: center; gap: 8px; margin: 0; }
+.ta-perg-in.qd-resp-in { flex: 1; min-width: 0; height: 32px; min-height: 32px; padding: 6px 12px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: 10px; background: var(--surface); font: 400 14px/20px var(--font-sans); color: var(--ink); resize: none; }
+.ta-perg-in.qd-resp-in::placeholder { color: var(--ink-4); }
+.ta-perg-in.qd-resp-in:focus { border-color: var(--signal); outline: none; box-shadow: 0 0 0 3px var(--signal-soft); }
+@media (forced-colors: active) { .ta-perg-in.qd-resp-in:focus-visible { outline: 2px solid CanvasText; } }
+.ta-perg-enviar { flex: none; height: 32px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); font: 500 14px/20px var(--font-sans); cursor: pointer; }
+.ta-perg-enviar:hover { background: var(--base-hover); }
+.ta-perg-enviar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ta-perg-seguir { flex: none; }
+
+/* A lateral: seções com o chevron, linhas de 34, rótulo de 92, select que parece texto. */
+.ta .qd-lado-sec { padding: 12px 0; border-top: 1px solid var(--divisoria); }
+.ta .qd-lado-sec:first-child { border-top-color: transparent; }
+.ta .qd-lado .qd-rotulo { display: flex; align-items: center; gap: 6px; height: 24px; margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); letter-spacing: 0; text-transform: none; }
+.ta .qd-lado .qd-rotulo .qd-n { font-size: 12px; font-weight: 400; color: var(--ink-3); }
+.ta .ta-sec-tg { gap: 6px; font-weight: 600; }
+.ta svg.ta-sec-seta { width: 12px; height: 12px; flex: none; color: var(--ink-4); transition: transform .12s; }
+.ta svg.ta-sec-fechada { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) { .ta svg.ta-sec-seta { transition: none; } }
+.ta .qd-props { grid-template-columns: 92px minmax(0, 1fr); gap: 0 10px; }
+.ta .qd-props dt, .ta .qd-props dd { min-height: 34px; display: flex; align-items: center; }
+.ta .qd-props dt { font-size: 13px; color: var(--ink-3); }
+.ta .qd-props dd { gap: 6px; font-size: 13px; }
+.ta .qd-props .qd-sel { width: auto; max-width: 100%; height: 28px; min-height: 28px; margin-left: -8px; padding: 0 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); font: 400 13px/18px var(--font-sans); appearance: none; -webkit-appearance: none; cursor: pointer; }
+.ta .qd-props .qd-sel:hover { background: var(--hover); }
+.ta .qd-props .qd-sel:focus-visible { border-color: var(--borda-forte); outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.ta .qd-branch { font: 400 12px/16px var(--font-mono); background: none; padding: 0; color: var(--ink); }
+.ta-pedida { display: inline-flex; align-items: center; gap: 6px; }
+.ta-pedida .qd-anel { width: 18px !important; height: 18px !important; min-width: 18px; font-size: 7.5px; }
+.qd-vista:has(.qd-tarefa.ta) { --qd-fundo: var(--surface); }
+.ta-perg-form.qd-resp-form { flex-direction: row; flex-wrap: nowrap; }
+.ta-perg-form .ta-perg-seguir { height: 32px; padding: 0 8px; border: 0; background: none; color: var(--ink-3); font-size: 12px; }
+
+/* A linha do tempo como no Paper: itens soltos (avatar de 24, nome e hora, o texto), sem cartão; o evento do quadro com o
+   círculo cinza no lugar do avatar; o campo de comentário de uma linha (40, raio 12) com o Enviar secundário. */
+.ta .ta-tempo { margin-top: 0; gap: 14px; }
+.ta .ta-sec { font-size: 14px; line-height: 20px; }
+.ta .ta-lista { gap: 14px; }
+.ta .ta-th { padding: 0; border: 0; border-radius: 0; background: none; }
+.ta .ta-th-pergunta { border: 0; }
+.ta .ta-com-nome { font-size: 13px; }
+.ta .ta-com-cab { font-size: 12px; margin-bottom: 2px; }
+.ta .ta-com-txt { font-size: 13px; line-height: 18px; }
+.ta .ta-com-acao { font-size: 12px; margin-top: 2px; }
+.ta .ta-com-av .qd-anel, .ta .ta-com-av .icon.mascote { border-radius: 999px; }
+.ta .ta-ev { align-items: center; gap: 10px; padding: 0; font-size: 13px; color: var(--ink-2); }
+.ta .ta-ev b { font-weight: 600; color: var(--ink); }
+.ta .ta-ev-ponto { width: 24px; height: 24px; transform: none; background: var(--hover); }
+.ta .ta-run { padding: 0; border: 0; }
+.ta .ta-campo.qd-com-form { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 6px 0 12px; border: 1px solid var(--borda); border-radius: 12px; background: var(--surface); }
+.ta .ta-campo .qd-com-in { flex: 1; min-height: 20px; padding: 10px 0; font-size: 13px; line-height: 18px; }
+.ta .ta-campo .ta-campo-pe { min-height: 0; flex: none; }
+.ta .ta-campo .ta-enviar { height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--hover); color: var(--ink); font: 500 13px/18px var(--font-sans); }
+.ta .ta-campo .ta-enviar kbd { display: none; }
+
+/* PRs e runs da lateral. */
+.ta-pr { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.ta-pr-link { font-weight: 500; color: var(--ink); text-decoration: none; }
+.ta-pr-link:hover { text-decoration: underline; }
+.ta-pr-chip { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--hover); color: var(--ink-2); font: 500 12px/16px var(--font-sans); white-space: nowrap; }
+.ta-pr-chip i { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+.ta-pr-chip.ta-pr-pendente, .ta-pr-chip.ta-pr-conflito { background: var(--aguardando-soft); color: var(--aguardando); }
+.ta-pr-chip.ta-pr-falhou { background: var(--danger-soft); color: var(--danger); }
+.ta-pr-chip.ta-pr-ok { background: var(--success-soft); color: var(--success); }
+.ta .ta-regs { gap: 0; }
+.ta .ta-reg { height: 30px; gap: 8px; font-size: 13px; }
+.ta .ta-reg .ta-reg-nome { flex: 1; font-weight: 400; }
+.ta .ta-reg-av .icon.mascote, .ta .ta-reg-av .qd-anel { width: 16px !important; height: 16px !important; min-width: 16px; }
+.ta .ta-reg-ic { flex: none; color: var(--success); }
+.ta .ta-reg-ic-falhou { color: var(--danger); }
+.ta .ta-reg-dur { font-size: 12px; color: var(--ink-3); }
+.ta .ta-reg-custo { width: 64px; text-align: right; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+/* Labels e Prazo na lateral (campos-da-tarefa.ts): o chip e a data como texto; o campo, o × e o Limpar aparecem no hover
+   e no foco (no toque, sempre). */
+.ta .qd-props .qd-labels-campo { flex-wrap: wrap; gap: 4px; }
+.ta .qd-props .qd-label { height: 20px; padding: 0 7px; gap: 5px; border: 1px solid var(--borda); border-radius: 999px; background: none; font-size: 11px; line-height: 16px; font-weight: 500; color: var(--ink-2); }
+.ta .qd-props .qd-label-x, .ta .qd-props .qd-label-form, .ta .qd-props .qd-prazo-limpar { display: none; }
+.ta .qd-props dd:hover .qd-label-x, .ta .qd-props dd:focus-within .qd-label-x, .ta .qd-props dd:hover .qd-prazo-limpar, .ta .qd-props dd:focus-within .qd-prazo-limpar { display: inline-flex; }
+.ta .qd-props dd:hover .qd-label-form, .ta .qd-props dd:focus-within .qd-label-form, .ta .qd-props .qd-labels-campo:not(:has(.qd-label)) .qd-label-form { display: flex; }
+@media (hover: none) { .ta .qd-props .qd-label-x, .ta .qd-props .qd-prazo-limpar { display: inline-flex; } .ta .qd-props .qd-label-form { display: flex; } }
+.ta .qd-props .qd-data { height: 28px; margin-left: -8px; padding: 0 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); font: 400 13px/18px var(--font-sans); }
+.ta .qd-props .qd-data:hover { background: var(--hover); }
+.ta .qd-props .qd-data::-webkit-calendar-picker-indicator { opacity: 0; }
+.ta .qd-props .qd-data:hover::-webkit-calendar-picker-indicator, .ta .qd-props .qd-data:focus::-webkit-calendar-picker-indicator { opacity: .6; }
+.ta .qd-props .qd-prazo-tom { font-size: 12px; color: var(--ink-3); }
+.ta .ta-run[data-estado="rodando"] .ta-run-av::after { display: none; }
+
+/* O caminho "‹ Quadro NOD / NOD-514" sobe para a linha da pílula (y 30), como no Paper; o cabeçalho deixa o clique passar
+   fora da pílula. */
+.qd-vista:has(.qd-tarefa.ta) { padding-top: 14px; }
+.stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qd-tarefa.ta) > .cabecalho-pilula { pointer-events: none; }
+.stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qd-tarefa.ta) > .cabecalho-pilula > * { pointer-events: auto; }
+.stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qd-tarefa.ta) > .cabecalho-pilula::before { display: none; }
+.ta .qd-t-cab { min-height: 32px; margin-bottom: 18px; }
+
+/* ---------- Rodada 3 (tela 18b do Paper) ----------
+   O "⋯" e o "×" no canto do topo; a linha do run é um botão (abre "Runs no tempo"); o bloco do NOD-418 no Registro:
+   "Recado ao agente" (o campo é uma pílula até ganhar o foco) e "Ver na conversa", sem o título nem o tracejado. */
+.ta .qd-t-cab .ta-cab-dir { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.ta-cab-bt { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--ink-2); cursor: pointer; list-style: none; }
+.ta-cab-bt::-webkit-details-marker { display: none; }
+.ta-cab-bt:hover { background: var(--hover); color: var(--ink); }
+.ta-cab-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ta-fechar { border: 1px solid var(--borda); background: var(--surface-elevated); box-shadow: var(--sombra-controle); }
+.ta-menu { position: relative; }
+.ta-menu-pop { position: absolute; right: 0; top: 34px; z-index: 20; min-width: 180px; padding: 4px; border: 1px solid var(--borda); border-radius: 12px; background: var(--surface-elevated); box-shadow: var(--sombra-flutuante, 0 8px 24px rgba(0, 0, 0, .12)); }
+.ta-menu-it { display: flex; width: 100%; height: 30px; align-items: center; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.ta-menu-it:hover, .ta-menu-it:focus-visible { background: var(--hover); outline: none; }
+.ta .ta-reg-bt { display: flex; flex: 1; min-width: 0; height: 100%; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ta .ta-reg-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 6px; }
+.ta .ta-reg-bt .ta-reg-nome { flex: 1; }
+.ta .ta-reg-trab { margin-top: 10px; padding-top: 0; border-top: 0; }
+.qd-trab-compacto { gap: 6px; }
+.qd-trab-acoes-c { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.qd-trab-recado-pilula { display: inline-flex; margin: 0; }
+.qd-trab-recado-pilula .qd-com-in { width: 9.6em; height: 28px; min-height: 28px; padding: 5px 10px; border: 0; border-radius: 999px; background: var(--hover); color: var(--ink); font-size: 13px; font-weight: var(--peso-medio); line-height: 18px; resize: none; overflow: hidden; cursor: pointer; }
+.qd-trab-recado-pilula .qd-com-in::placeholder { color: var(--ink); opacity: 1; }
+.qd-trab-recado-pilula .qd-com-bt { display: none; }
+.qd-trab-recado-pilula:is(:focus-within, :has(.qd-com-in:not(:placeholder-shown))) { flex: 1 0 100%; gap: 6px; }
+.qd-trab-recado-pilula:is(:focus-within, :has(.qd-com-in:not(:placeholder-shown))) .qd-com-in { flex: 1; width: auto; height: auto; min-height: 32px; border: 1px solid var(--borda); border-radius: 10px; background: var(--surface); font-weight: var(--peso-regular); cursor: text; }
+.qd-trab-recado-pilula:is(:focus-within, :has(.qd-com-in:not(:placeholder-shown))) .qd-com-in::placeholder { color: var(--ink-3); }
+.qd-trab-recado-pilula:is(:focus-within, :has(.qd-com-in:not(:placeholder-shown))) .qd-com-bt { display: inline-flex; }
+.qd-trab-acoes-c .qd-link { font-size: 13px; color: var(--ink-2); }
+.qd-trab-recado-pilula:not(:focus-within):not(:has(.qd-com-in:not(:placeholder-shown))) .qd-com-in { width: 122px; white-space: nowrap; text-overflow: clip; }
+.qd-trab-acoes-c .qd-link.qd-trab-ver, .qd-trab-acoes-c .qd-link { text-decoration: none; }
+.qd-trab-acoes-c .qd-link:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.qd-trab-form.qd-trab-recado-pilula { border: 0; padding: 0; background: none; box-shadow: none; }
+.qd-trab-recado-pilula:not(:focus-within):not(:has(.qd-com-in:not(:placeholder-shown))) .qd-com-in { width: 130px; }
+/* Rodada 3 (tela 18b do Paper): as Propriedades em linhas de 38 e os runs em 34; a pílula do recado com 24. */
+.ta .qd-props dt, .ta .qd-props dd { min-height: 38px; }
+.ta .ta-reg { height: 34px; }
+.qd-trab-recado-pilula:not(:focus-within):not(:has(.qd-com-in:not(:placeholder-shown))) .qd-com-in { height: 24px; min-height: 24px; padding: 3px 8px; font-size: 12px; line-height: 18px; width: 120px; }
+.ta .ta-reg-trab { margin-top: 8px; }
+@media (forced-colors: active) { .ta-menu-it:focus-visible { outline: 2px solid CanvasText; outline-offset: -2px; } }
+
+/* ---------- Rodada 4 (tela 18b do Paper, à risca) ----------
+   O miolo começa na borda da barra (56 de recuo) e a lateral vai até a borda da janela (24 dentro); cada seção da lateral
+   tem a linha em cima (a primeira também) e as linhas são de 34 com 4 entre elas. Status "● Fazendo ⌄" com o ponto na cor
+   do bot; Prazo "14 nov  em 2 dias"; "Pedida por" com as iniciais no anel neutro. Na linha do tempo, o evento é um item
+   ("Quadro · 10:02", a frase, "acionou Dante"), a hora é a do relógio e a @menção é texto. O anel das iniciais usa os
+   tokens globais --anel-fundo / --anel-borda (web/ds.css). */
+.ta .qd-t-corpo, .ta.qd-com-lado .qd-t-corpo { margin-inline: -24px; }
+.ta .qd-lado { padding: 8px 24px 24px 24px; }
+.ta .qd-lado-sec:first-child { border-top-color: var(--divisoria); }
+.ta .qd-lado-sec { display: flex; flex-direction: column; gap: 4px; }
+.ta .qd-lado .qd-rotulo { margin: 0; color: var(--ink-2); }
+.ta .qd-lado .qd-rotulo .ta-sec-tg { color: var(--ink-2); }
+.ta .qd-props { row-gap: 4px; margin: 0; }
+.ta .qd-props dt, .ta .qd-props dd { min-height: 34px; margin: 0; }
+.ta .qd-lado-vazio { margin: 0; font-size: 13px; line-height: 18px; color: var(--ink-3); }
+/* Os runs a 30 com 4 entre eles; "Recado ao agente" e "Ver na conversa" de 24 (o botão secundário e o fantasma do Paper). */
+.ta .ta-regs { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; }
+.ta .ta-reg-trab { margin-top: 0; padding-top: 6px; }
+.ta .qd-trab-acoes-c { gap: 6px; }
+.ta .qd-trab-recado-pilula .qd-com-in { width: 9.2em; height: 24px; min-height: 24px; padding: 3px 8px; border-radius: 999px; font-size: 12px; line-height: 18px; font-weight: 500; }
+.ta .qd-trab-acoes-c > .qd-link, .ta .qd-trab-acoes-c > button:not(.qd-com-bt) { height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-2); text-decoration: none; }
+
+/* Status: o ponto (cor do bot responsável; cinza sem ninguém), o select como texto e o chevron. */
+.ta-st-campo { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.ta-st-ponto { width: 8px; height: 8px; flex: none; border-radius: 999px; background: var(--mascote-cor, var(--ink-3)); }
+.ta .ta-st-campo .qd-sel { margin-left: 0; padding: 0; height: 18px; min-height: 18px; border: 0; }
+.ta .ta-st-campo .qd-sel:hover { background: none; }
+.ta-st-campo:hover { color: var(--ink); }
+.ta-st-campo:has(.qd-sel:hover) .ta-st-seta { color: var(--ink-2); }
+.ta-st-seta { flex: none; color: var(--ink-4); pointer-events: none; }
+/* O select ocupa o campo todo (ponto, nome e chevron) para o clique abrir a lista. */
+.ta .ta-st-campo .qd-sel { position: static; }
+.ta-st-campo::after { content: ""; position: absolute; inset: -4px -6px; pointer-events: none; border-radius: 8px; }
+
+/* Responsável: o mascote solto (sem o anel do estado). */
+.ta-resp-campo .qd-sel { margin-left: 0; padding-left: 0; }
+.ta .ta-resp-campo .qd-sel { margin-left: 0; padding: 0; border: 0; height: 18px; min-height: 18px; }
+
+/* Prazo: o texto do Paper; o campo de data fica por cima, invisível, e o ícone do calendário cobre o campo inteiro. */
+.ta-prazo { position: relative; flex-wrap: nowrap; gap: 6px; }
+.ta-prazo-vista { display: inline-flex; align-items: baseline; gap: 6px; pointer-events: none; }
+.ta-prazo-data { font-size: 13px; line-height: 18px; color: var(--ink); }
+.ta-prazo-sem { font-size: 13px; line-height: 18px; color: var(--ink-3); }
+.ta .ta-prazo .qd-prazo-tom { font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.ta .ta-prazo .qd-prazo-tom[data-tom="vencida"] { color: var(--danger); }
+.ta .ta-prazo .qd-prazo-tom[data-tom="hoje"] { color: var(--warning); }
+.ta .qd-props .ta-prazo-in { position: absolute; inset: -5px -8px; width: auto; height: auto; margin: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; color: transparent; opacity: 1; cursor: pointer; }
+.ta .qd-props .ta-prazo-in::-webkit-datetime-edit { opacity: 0; }
+.ta .qd-props .ta-prazo-in::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+.ta .qd-props .ta-prazo-in:hover { background: transparent; }
+.ta .qd-props .ta-prazo-in:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; }
+.ta .ta-prazo .qd-prazo-limpar { position: relative; z-index: 1; margin-left: auto; font-size: 12px; }
+
+/* "Pedida por" e o "Você" da linha do tempo: as iniciais no anel neutro do Paper. */
+.ta .ta-pedida .qd-anel, .ta .ta-com-av .qd-anel { border: 1px solid var(--anel-borda); background: var(--anel-fundo); color: var(--ink-2); font-weight: 500; }
+.ta .ta-pedida .qd-anel { font-size: 8px; }
+.ta .ta-com-av .qd-anel { font-size: 10px; border-radius: 999px; }
+
+/* O PR: o ícone do PR do Paper (14, tinta 2). */
+.ta-pr-ic { flex: none; color: var(--ink-2); }
+
+/* O caminho do topo: "‹" redondo de 30, "Quadro NOD" em tinta 2, "/" em tinta 4 e o código em mono 13/500. */
+.ta .qd-t-cab { margin-left: -8px; gap: 6px; }
+.ta .qd-voltar { gap: 6px; padding: 0 4px 0 0; border-radius: 999px; font-size: 13px; color: var(--ink-2); }
+.ta .qd-voltar:hover { background: none; color: var(--ink); }
+.ta .qd-voltar > svg { width: 30px; height: 30px; padding: 8px; box-sizing: border-box; border-radius: 999px; color: var(--ink-2); }
+.ta .qd-voltar:hover > svg { background: var(--hover); }
+.ta .qd-t-sep { color: var(--ink-4); font-size: 13px; }
+.ta .qd-t-cab .qd-id { font: 500 13px/18px var(--font-mono); color: var(--ink); letter-spacing: 0; }
+
+/* O cartão da pergunta: o "e seguir" (ADA-15) só aparece com a resposta escrita (vazio, o cartão é o do Paper). */
+.ta-perg-form:has(.ta-perg-in:placeholder-shown) .ta-perg-seguir { display: none; }
+
+/* A linha do tempo: "Atividade 4" (14/600 e o número em 13 cinza, 6 acima), itens a 14, o campo a 16. */
+.ta .ta-tempo { gap: 16px; }
+.ta .ta-sec { display: flex; align-items: center; gap: 8px; padding-top: 6px; font-size: 14px; line-height: 20px; font-weight: 600; }
+.ta .ta-sec-n { font-size: 13px; line-height: 18px; font-weight: 400; color: var(--ink-3); }
+.ta .ta-lista { gap: 14px; }
+.ta .ta-ev { display: flex; align-items: flex-start; gap: 10px; padding: 0; font-size: 13px; color: var(--ink-2); }
+.ta .ta-ev-ponto { display: inline-grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 999px; background: var(--hover); color: var(--ink-3); transform: none; }
+.ta .ta-ev-corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ta .ta-ev-cab, .ta .ta-com-cab { position: relative; display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.ta .ta-ev-cab b, .ta .ta-com-nome { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); }
+.ta .ta-ev-cab .ta-ev-hora, .ta .ta-com-cab time { margin-left: 0; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.ta .ta-ev-txt { margin: 0; font-size: 13px; line-height: 18px; color: var(--ink-2); overflow-wrap: anywhere; }
+.ta .ta-ev-sub, .ta .ta-com-acao { margin: 0; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.ta .ta-ev-acao { margin-left: auto; font-size: 12px; opacity: 0; transition: opacity .12s; }
+.ta .ta-ev:hover .ta-ev-acao, .ta .ta-ev:focus-within .ta-ev-acao { opacity: 1; }
+@media (hover: none) { .ta .ta-ev-acao { opacity: 1; } }
+.ta .ta-ev-desfeito .ta-ev-txt { text-decoration: line-through; }
+.ta .ta-com { gap: 10px; }
+.ta .ta-com-av { padding-top: 0; }
+.ta .ta-com-corpo { display: flex; flex-direction: column; gap: 2px; }
+.ta .ta-com-txt { margin: 0; font-size: 13px; line-height: 18px; color: var(--ink); }
+.ta .ta-men { padding: 0; border-radius: 0; background: none; font-weight: inherit; color: inherit; }
+.ta .ta-reg { height: 30px; min-height: 30px; }
+.ta .ta-pe { padding: 0; }
+.ta .ta-st-campo .qd-sel, .ta .ta-resp-campo .qd-sel { field-sizing: content; }
+.ta .qd-lado .ta-pr, .ta .qd-props .qd-label { align-items: center; }
+.ta .ta-com-cab .ta-com-acoes { position: absolute; right: 0; top: -3px; }
+
+/* Estreito com a tela 18b (a vista de 700px ou menos): as regras da rodada 2 e 4 acima (lateral de 360, -24 de margem, o
+   recuo de 56 / 40) vêm depois da consulta estreita do começo e a desfaziam; o painel volta a descer, sem a borda do lado. */
+@container (max-width: 700px) {
+  .ta .qd-t-corpo, .ta.qd-com-lado .qd-t-corpo { grid-template-columns: minmax(0, 1fr); gap: 18px; margin-inline: 0; }
+  .ta .qd-t-principal { padding: 8px 0 16px; }
+  .ta .qd-lado { padding: 16px 0 0; border-left: 0; border-top: 1px solid var(--divisoria); }
+}

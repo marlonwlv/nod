@@ -5,7 +5,7 @@
 FROM node:24.19.0-bookworm-slim
 ARG TARGETARCH
 LABEL org.opencontainers.image.title="nod-computador" app.nod.computador.arch="${TARGETARCH}"
-RUN apt-get update && apt-get install -y --no-install-recommends chromium xvfb openbox tint2 feh pcmanfm xfce4-terminal xdotool scrot xclip dbus-x11 pulseaudio ffmpeg python3 python3-venv git curl xterm fonts-liberation ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends chromium xvfb x11vnc openbox tint2 feh pcmanfm xfce4-terminal xdotool scrot xclip dbus-x11 pulseaudio ffmpeg python3 python3-venv git curl xterm fonts-liberation ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN apt-get update && apt-get install -y --no-install-recommends gnome-keyring libsecret-1-0 libsecret-tools && rm -rf /var/lib/apt/lists/*
 WORKDIR /opt/nod
 COPY package*.json ./

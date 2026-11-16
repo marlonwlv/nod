@@ -38,6 +38,8 @@ export interface LinhaMensagem {
   criado_em: Date;
   /** 0091 (chat limpo): o que a mensagem é; null = fala ou linha sem backfill. Fica no servidor: a web recebe o destino. */
   assunto: string | null;
+  /** 0057: a chave de idempotência do envio da pessoa; vai à web (C4) para casar a fala pendente com a gravada. */
+  id_envio?: string | null;
 }
 
 /** NOD-380: uma linha da busca de mensagens (`buscarTexto`), com o instante em texto de µs para o cursor. */
@@ -61,7 +63,7 @@ export interface LinhaAchada {
 export type FalaDaPessoa = { id: string; conversaId: string; texto: string; criadoEm: number };
 
 export const COLUNAS_MENSAGEM =
-  "tenant_id, id, conversa_id, turno_id, autor_tipo, autor_id, sob_procuracao_de, conta_de_execucao, executor, locality, locality_reason, machine_id, decidido_por, regra_versao, kind, texto, payload, confianca, parcial, criado_em, assunto";
+  "tenant_id, id, conversa_id, turno_id, autor_tipo, autor_id, sob_procuracao_de, conta_de_execucao, executor, locality, locality_reason, machine_id, decidido_por, regra_versao, kind, texto, payload, confianca, parcial, criado_em, assunto, id_envio";
 
 export function paraMensagem(l: LinhaMensagem): Mensagem {
   return {
@@ -87,6 +89,7 @@ export function paraMensagem(l: LinhaMensagem): Mensagem {
     confianca: l.confianca,
     parcial: l.parcial,
     criadoEm: ms(l.criado_em),
+    ...(l.id_envio ? { idEnvio: l.id_envio } : {}),
   };
 }
 
@@ -453,6 +456,34 @@ export function mensagensRepo(conn: Conn, escopo: Escopo) {
       }
       const linhas = await selectComTurno(conn, escopo.tenantId, recorteDaJanela(conn, escopo.tenantId, conversaId, limite, opcoes.tetoAnexos));
       return linhas.map((l) => ({ ...paraMensagemComTurno(l), destino: destinoDaLinha(l) }));
+    },
+
+    /**
+     * definido em 2026-11-12 (cursor por conversa, 0175): as mensagens que mudaram depois de `depoisDe` (updated_seq), em
+     * ordem de mudança, com `limite + 1` para quem chama saber que passou do teto. Mesmo formato do GET da conversa
+     * (paraMensagemComTurno; `comDestino` na conversa própria, e aqui vem TODA mudança — o cliente esconde o que não é
+     * de destino `chat`, como a janela faz), mais `seq` e `updated_seq`. O `fimDoTurno` sai do recorte: a fala antiga de um turno que
+     * ganhou fala nova não muda de linha — o cliente recalcula pelo turno.
+     */
+    async mudadasDesde(conversaId: string, depoisDe: number, limite: number, opcoes: { comDestino?: boolean } = {}): Promise<(Mensagem & { seq: number; updated_seq: number })[]> {
+      const linhas = await selectComTurno(conn, escopo.tenantId, conn`
+        select ${conn.unsafe(COLUNAS_MENSAGEM)}, seq, updated_seq from mensagens
+        where tenant_id = ${escopo.tenantId} and conversa_id = ${conversaId} and updated_seq > ${depoisDe}
+        order by updated_seq limit ${limite + 1}`);
+      return linhas
+        .map((l) => {
+          const c = l as LinhaComTurno & { seq: string | number; updated_seq: string | number };
+          return { ...paraMensagemComTurno(l), ...(opcoes.comDestino ? { destino: destinoDaLinha(l) } : {}), seq: Number(c.seq), updated_seq: Number(c.updated_seq) };
+        })
+        .sort((a, b) => a.updated_seq - b.updated_seq);
+    },
+
+    /** O cursor da conversa (0175): a geração e o maior updated_seq dela (0 = vazia). null = conversa fora do escopo. */
+    async cursorDaConversa(conversaId: string): Promise<{ geracao: number; updated_seq: number } | null> {
+      const [l] = await conn<{ geracao: number; maior: string | null }[]>`
+        select c.geracao, (select max(m.updated_seq) from mensagens m where m.tenant_id = c.tenant_id and m.conversa_id = c.id) as maior
+        from conversas c where c.tenant_id = ${escopo.tenantId} and c.id = ${conversaId}`;
+      return l ? { geracao: l.geracao, updated_seq: Number(l.maior ?? 0) } : null;
     },
 
     /**

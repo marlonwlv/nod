@@ -174,7 +174,10 @@ descrever("NOD-442 no Chrome real", () => {
   type Eixos = { caixa: { x: number; w: number }; coluna: { x: number; w: number }; lado: { x: number; y: number; w: number }; colunaFim: number; vista: number; rolagem: number };
   const eixos = () => avaliar<Eixos>(cdp, `(() => {
     const r = (s) => document.querySelector(s).getBoundingClientRect();
-    const p = r("#quadro .qc-pil"), c = r("#quadro .qd-t-principal"), l = r("#quadro .qd-lado");
+    // Tela 18b (rodada 4): a .qd-t-principal tem recuo (56 / 40); a coluna da tarefa é a caixa do texto, sem ele.
+    const cp = getComputedStyle(document.querySelector("#quadro .qd-t-principal")), c0 = r("#quadro .qd-t-principal");
+    const c = { left: c0.left + parseFloat(cp.paddingLeft), right: c0.right - parseFloat(cp.paddingRight), bottom: c0.bottom, get width() { return this.right - this.left; } };
+    const p = r("#quadro .qc-pil"), l = r("#quadro .qd-lado");
     return { caixa: { x: (p.left + p.right) / 2, w: p.width }, coluna: { x: (c.left + c.right) / 2, w: c.width }, lado: { x: l.left, y: l.top, w: l.width },
       colunaFim: c.bottom, vista: ((v, cs) => v.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight))(document.querySelector("#quadro"), getComputedStyle(document.querySelector("#quadro"))), rolagem: document.getElementById("quadro").scrollWidth - document.getElementById("quadro").clientWidth };
   })()`);
@@ -315,10 +318,13 @@ descrever("NOD-442 no Chrome real", () => {
     expect(await avaliar<number>(cdp, "window.__arrastes")).toBe(0);
     await avaliar(cdp, `document.querySelector('${campo}').setSelectionRange(17, 17)`);
     // Selecionar com o mouse (apertar antes do texto, arrastar até o fim): seleciona o texto, não arrasta o card.
-    const y = r0.y + 20, fimX = r0.x + r0.w - 16;
-    await mouse("mousePressed", r0.x + 13, y);
-    for (const f of [0.25, 0.5, 0.75, 1]) await mouse("mouseMoved", r0.x + 13 + (fimX - r0.x - 13) * f, y + (r0.h - 30) * f);
-    await mouse("mouseReleased", fimX, r0.y + r0.h - 10);
+    // Cartões rodada 4: a coluna mínima de 196 deixa o campo do card estreito (~100 px) e, focado, ele cresce para 64 e quebra
+    // o texto em linhas; a medida é a do campo de agora (do começo do texto ao fim da última linha), não a de antes de focar.
+    const r1 = await avaliar<{ x: number; y: number; w: number; h: number }>(cdp, `(() => { const b = document.querySelector('${campo}').getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; })()`);
+    const y = r1.y + 12, fimX = r1.x + r1.w - 4, fimY = r1.y + r1.h - 6;
+    await mouse("mousePressed", r1.x + 9, y);
+    for (const f of [0.25, 0.5, 0.75, 1]) await mouse("mouseMoved", r1.x + 9 + (fimX - r1.x - 9) * f, y + (fimY - y) * f);
+    await mouse("mouseReleased", fimX, fimY);
     const sel = await avaliar<{ ini: number; fim: number; arrastes: number; foco: string }>(cdp, `(() => { const t = document.querySelector('${campo}');
       return { ini: t.selectionStart, fim: t.selectionEnd, arrastes: window.__arrastes, foco: document.activeElement?.className ?? "" }; })()`);
     process.stdout.write(`[NOD-420] seleção ${sel.ini}..${sel.fim}, dragstart ${sel.arrastes}\n`);

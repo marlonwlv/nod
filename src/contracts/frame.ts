@@ -68,6 +68,19 @@ export type TipoFrame =
   | "conta.abrir"
   /** definido em 2026-10-27 (NOD-374): um app da pessoa entrou ou saiu de "Fora do ar" ({}). A web relê a frota e os conectores. */
   | "conector.mudou"
+  /**
+   * definido em 2026-11-12: o estado vivo de UM bot mudou: `DadosFrameEstadoVivo` {agenteId, estado} (src/contracts/estado-vivo.ts),
+   * o estado inteiro. Sai do servidor (src/services/estado-vivo.ts); o retrato de todos vai ao conectar (`agentes.estado`).
+   */
+  | "agente.estado"
+  /**
+   * definido em 2026-11-12: o cursor do computador de um bot, efêmero (sem gravar): `DadosFrameCursor`
+   * (src/contracts/estado-vivo.ts). Sai da ação do bot (clicar, arrastar, rolar, digitar) quando o servidor a manda ao
+   * computador; a web mostra só na tela daquele bot (`bot`).
+   */
+  | "computador.cursor"
+  /** D (2026-11-12): o estado da máquina do computador mudou: `DadosFrameMaquina` (src/contracts/estado-vivo.ts). */
+  | "computador.estado"
   | "resumed";
 
 /**

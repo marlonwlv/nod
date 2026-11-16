@@ -1,3 +1,4 @@
+import type { OpcoesOndeRodaDto } from "./vm-do-nod.ts";
 import type { IdHarness } from "./harness.ts";
 import type { EpochMs } from "./ids.ts";
 import type { CausaInventario, CausaSemIa, Inventario } from "./inventario.ts";
@@ -48,7 +49,9 @@ export type DetalheDaIaNaMaquina = { causa?: CausaInventario | CausaSemIa | "lim
  * neste Mac, e as máquinas da lista só pegam os bots escolhidos para elas. `api` é o endereço da API neste Mac (o que a VM
  * alcança pelo túnel SSH). Ausente = modo compartilhado ("qualquer uma").
  */
-export type MaquinasDto = { maquinas: MaquinaDto[]; padraoId: string | null; servidorNoMac?: { api: string } };
+export type MaquinasDto = { maquinas: MaquinaDto[]; padraoId: string | null; servidorNoMac?: { api: string };
+  /** ADR-169: as três opções de onde o agente roda (GET maquinas/onde-roda, lido junto); ausente com o servidor antigo. */
+  ondeRoda?: OpcoesOndeRodaDto };
 
 /** Uma máquina da pessoa como a tela a nomeia: o Mac ("seu Mac") ou outra, pelo nome que ela anunciou ("nod-motor-teste"). */
 export type MaquinaDoTrabalho = {

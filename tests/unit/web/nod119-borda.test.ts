@@ -1,21 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { barraPelaTecla, ligarBorda, ligarEtiqueta, textoDaEtiqueta } from "../../../web/lib/borda-barra.ts";
+import { dadosDaPrevia, ligarBorda, ligarEtiqueta, MS_PREVIA, textoDaEtiqueta } from "../../../web/lib/borda-barra.ts";
 import type { Barra } from "../../../web/lib/densidade.ts";
 
-/** NOD-119 (W2): a borda e a etiqueta usam tipos de DOM, então quem checa este arquivo é o tsconfig.web.json. */
-const B = (densidade: Barra["densidade"], largura: Barra["largura"] = "padrao"): Barra => ({ densidade, largura });
+/** NOD-119/ADR-179: o puxador e a etiqueta usam tipos de DOM, então quem checa este arquivo é o tsconfig.web.json. */
+const B = (larguraExpandida: number, compacta = false): Barra => ({ larguraExpandida, compacta });
 
-describe("NOD-119: a borda da barra (DOM)", () => {
-  it("as teclas: ← → Home End Enter Espaço; outras não são da borda", () => {
-    expect(barraPelaTecla(B("compacta"), "ArrowLeft")).toEqual(B("compacta", "recolhida"));
-    expect(barraPelaTecla(B("compacta"), "ArrowRight")).toEqual(B("compacta", "larga"));
-    expect(barraPelaTecla(B("compacta"), "Home")).toEqual(B("compacta", "recolhida"));
-    expect(barraPelaTecla(B("compacta", "recolhida"), "End")).toEqual(B("compacta", "larga"));
-    expect(barraPelaTecla(B("confortavel"), "Enter")).toEqual(B("confortavel", "recolhida"));
-    expect(barraPelaTecla(B("confortavel", "recolhida"), " ")).toEqual(B("confortavel"));
-    expect(barraPelaTecla(B("confortavel"), "a")).toBeNull();
-  });
-
+describe("ADR-179: o puxador da barra (DOM)", () => {
   class Elemento extends EventTarget {
     attrs = new Map<string, string>();
     classes = new Set<string>();
@@ -26,35 +16,93 @@ describe("NOD-119: a borda da barra (DOM)", () => {
     releasePointerCapture() {}
   }
   const evento = (tipo: string, extra: Record<string, unknown>) => Object.assign(new Event(tipo, { cancelable: true }), extra);
-
-  it("teclado, dois cliques e arrasto passam pelo controle; o aria acompanha", () => {
+  const relogio = { setTimeout: (() => 0) as unknown as typeof setTimeout, clearTimeout: (() => undefined) as typeof clearTimeout };
+  const montar = (inicial: Barra, janela = 1440, painel = 0) => {
     const borda = new Elemento();
-    let atual = B("compacta");
-    const mudancas: Barra[] = [];
-    ligarBorda(borda as unknown as HTMLElement, { obter: () => atual, mudar: (b) => { atual = b; mudancas.push(b); } });
-    expect(borda.getAttribute("aria-valuetext")).toBe("Compacta");
+    let atual = inicial;
+    const pintadas: Barra[] = [];
+    const gravadas: Barra[] = [];
+    ligarBorda(borda as unknown as HTMLElement, {
+      obter: () => atual,
+      medidas: () => ({ janela, painel }),
+      pintar: (b) => { atual = b; pintadas.push(b); },
+      gravar: (b) => { atual = b; gravadas.push(b); },
+    }, relogio);
+    return { borda, pintadas, gravadas, atual: () => atual };
+  };
+
+  it("o aria em px: valor, mínimo 88 e o máximo da janela", () => {
+    const { borda } = montar(B(300), 1100, 360);
+    expect(borda.getAttribute("aria-valuenow")).toBe("300");
+    expect(borda.getAttribute("aria-valuemin")).toBe("88");
+    expect(borda.getAttribute("aria-valuemax")).toBe("316");
+    expect(borda.getAttribute("aria-valuetext")).toBe("300 px");
+  });
+
+  it("← → gravam 16 px; duplo clique não faz nada", () => {
+    const m = montar(B(340));
     const tecla = evento("keydown", { key: "ArrowLeft" });
-    borda.dispatchEvent(tecla);
+    m.borda.dispatchEvent(tecla);
     expect(tecla.defaultPrevented).toBe(true);
-    expect(atual).toEqual(B("compacta", "recolhida"));
-    // Na ponta, ← não muda nada.
-    borda.dispatchEvent(evento("keydown", { key: "ArrowLeft" }));
-    expect(mudancas).toHaveLength(1);
-    borda.dispatchEvent(evento("dblclick", {}));
-    expect(atual).toEqual(B("compacta"));
-    borda.dispatchEvent(evento("pointerdown", { button: 0, clientX: 100, pointerId: 1 }));
-    expect(borda.classes.has("arrastando")).toBe(true);
-    borda.dispatchEvent(evento("pointermove", { clientX: 130, pointerId: 1 }));
-    expect(atual).toEqual(B("compacta"));
-    borda.dispatchEvent(evento("pointermove", { clientX: 141, pointerId: 1 }));
-    expect(atual).toEqual(B("compacta", "larga"));
+    expect(m.atual()).toEqual(B(324));
+    m.borda.dispatchEvent(evento("keydown", { key: "ArrowRight" }));
+    expect(m.atual()).toEqual(B(340));
+    m.borda.dispatchEvent(evento("keydown", { key: "Enter" }));
+    m.borda.dispatchEvent(evento("dblclick", {}));
+    expect(m.gravadas).toEqual([B(324), B(340)]);
+  });
+
+  it("o arrasto pinta ao vivo, 1:1, para no máximo, recolhe abaixo de 208 e só grava ao soltar", () => {
+    const m = montar(B(340));
+    m.borda.dispatchEvent(evento("pointerdown", { button: 0, clientX: 343, pointerId: 1 }));
+    expect(m.borda.classes.has("arrastando")).toBe(true);
+    m.borda.dispatchEvent(evento("pointermove", { clientX: 303, pointerId: 1 }));
+    expect(m.atual()).toEqual(B(300));
+    m.borda.dispatchEvent(evento("pointermove", { clientX: 900, pointerId: 1 }));
+    expect(m.atual()).toEqual(B(400));
     // Outro ponteiro não arrasta.
-    borda.dispatchEvent(evento("pointermove", { clientX: 0, pointerId: 2 }));
-    expect(atual).toEqual(B("compacta", "larga"));
-    borda.dispatchEvent(evento("pointerup", { pointerId: 1 }));
-    expect(borda.classes.has("arrastando")).toBe(false);
-    borda.dispatchEvent(evento("pointermove", { clientX: 0, pointerId: 1 }));
-    expect(atual).toEqual(B("compacta", "larga"));
+    m.borda.dispatchEvent(evento("pointermove", { clientX: 0, pointerId: 2 }));
+    expect(m.atual()).toEqual(B(400));
+    m.borda.dispatchEvent(evento("pointermove", { clientX: 150, pointerId: 1 }));
+    expect(m.atual()).toEqual(B(340, true));
+    expect(m.borda.classes.has("encaixando")).toBe(true);
+    expect(m.gravadas).toEqual([]);
+    m.borda.dispatchEvent(evento("pointerup", { pointerId: 1 }));
+    expect(m.borda.classes.has("arrastando")).toBe(false);
+    expect(m.gravadas).toEqual([B(340, true)]);
+    m.borda.dispatchEvent(evento("pointermove", { clientX: 300, pointerId: 1 }));
+    expect(m.atual()).toEqual(B(340, true));
+  });
+
+  it("a compacta reabre a partir de 216 e segue o ponteiro", () => {
+    const m = montar(B(340, true));
+    m.borda.dispatchEvent(evento("pointerdown", { button: 0, clientX: 88, pointerId: 1 }));
+    m.borda.dispatchEvent(evento("pointermove", { clientX: 215, pointerId: 1 }));
+    expect(m.atual()).toEqual(B(340, true));
+    m.borda.dispatchEvent(evento("pointermove", { clientX: 216, pointerId: 1 }));
+    expect(m.atual()).toEqual(B(240));
+    m.borda.dispatchEvent(evento("pointermove", { clientX: 280, pointerId: 1 }));
+    expect(m.atual()).toEqual(B(280));
+    m.borda.dispatchEvent(evento("pointerup", { pointerId: 1 }));
+    expect(m.gravadas).toEqual([B(280)]);
+  });
+
+  it("soltar sem mudar não grava", () => {
+    const m = montar(B(340));
+    m.borda.dispatchEvent(evento("pointerdown", { button: 0, clientX: 340, pointerId: 1 }));
+    m.borda.dispatchEvent(evento("pointerup", { pointerId: 1 }));
+    expect(m.gravadas).toEqual([]);
+  });
+
+  it("a prévia é só dos bots: nome e a última mensagem da linha", () => {
+    const el = (a: Record<string, string>, ultima?: string) => ({
+      getAttribute: (n: string) => a[n] ?? null,
+      querySelector: () => (ultima === undefined ? null : { textContent: ` ${ultima} ` }),
+    }) as unknown as Element;
+    expect(dadosDaPrevia(el({ "data-act": "abrir-conversa", "data-etiqueta": "Ada · PM" }, "Fechei o plano"))).toEqual({ nome: "Ada · PM", ultima: "Fechei o plano" });
+    expect(dadosDaPrevia(el({ "data-act": "abrir-conversa", "data-etiqueta": "Ada · PM" }))).toEqual({ nome: "Ada · PM", ultima: "" });
+    expect(dadosDaPrevia(el({ "data-act": "navegar", "aria-label": "Tarefas" }))).toBeNull();
+    expect(MS_PREVIA).toBe(280);
   });
 
   it("a etiqueta lê data-etiqueta e, nos botões, o aria-label", () => {

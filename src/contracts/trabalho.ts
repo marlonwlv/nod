@@ -180,7 +180,7 @@ export type LeituraProcessador = {
  * Memória que o Mac manda na renovação (#194): o nível do macOS e a soma do RSS do grupo de processos de cada turno.
  * ADR-085: também no `puxar` (sem `porTurno`), para o servidor saber do Mac mesmo sem turno rodando, e com o processador.
  */
-export type LeituraMemoria = { nivel: NivelPressao; totalMb: number; porTurno: { turnoId: string; mb: number }[]; processador?: LeituraProcessador; disco?: LeituraDisco | null };
+export type LeituraMemoria = { nivel: NivelPressao; totalMb: number; porTurno: { turnoId: string; mb: number; cpuPct?: number }[]; processador?: LeituraProcessador; disco?: LeituraDisco | null };
 
 /**
  * Disco do Mac (definido em 2026-10-09, #219, emenda à ADR-085): o espaço livre e o total do volume de `~/nod`, em MB

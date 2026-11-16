@@ -164,8 +164,10 @@ describe("NOD-352: varredura de passado e presente", () => {
   it("os critérios com copy fechada (Gil)", () => {
     expect([rotuloFerramenta("Monitor"), rotuloAgora("Monitor")]).toEqual(["Acompanhou um processo", "Acompanhando um processo"]);
     for (const n of ["Task", "Agent", "spawn_agent"]) expect([rotuloFerramenta(n), rotuloAgora(n)]).toEqual(["Chamou um subagente", "Chamando um subagente"]);
+    // D · Computador do bot (item 1): no presente, cada uma diz o que faz na tela (tests/unit/domain/rotulo-computador.test.ts).
     for (const n of Object.keys(FERRAMENTAS_COMPUTADOR)) {
-      expect([rotuloFerramenta(`mcp__nod__${n}`), rotuloAgora(`mcp__nod__${n}`), nomeDaFerramenta(`mcp__nod__${n}`)]).toEqual(["Usou o computador", "Usando o computador", "Computador"]);
+      expect([rotuloFerramenta(`mcp__nod__${n}`), nomeDaFerramenta(`mcp__nod__${n}`)]).toEqual(["Usou o computador", "Computador"]);
+      expect(rotuloAgora(`mcp__nod__${n}`)).not.toBe("Usando o computador");
     }
     for (const n of Object.keys(FERRAMENTAS_WORKSPACE)) expect(rotuloAgora(`mcp__nod__${n}`)).toBe("Usando a pasta de trabalho");
   });

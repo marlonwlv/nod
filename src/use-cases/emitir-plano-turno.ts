@@ -30,6 +30,8 @@ import { temSessaoNaIa } from "../domain/troca-de-ia.ts";
 import type { MotivoRecomeco, Turno } from "../contracts/turno.ts";
 import { MOTIVO_FALHA_EM_PORTUGUES, modeloDoModo } from "../domain/computador.ts";
 import { COMANDO_GITHUB_NATIVO, SLUG_GITHUB } from "../contracts/github.ts";
+import { COMANDO_MAC_NATIVO, SLUG_MAC } from "../contracts/mac.ts";
+import { ferramentasMacNoPlano } from "../domain/mac.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { ehNod } from "../domain/nod.ts";
 import { marcarExecucaoNaMaquina } from "../domain/github.ts";
@@ -71,6 +73,11 @@ export type EntradaEmitirPlano = {
    * As ferramentas do GitHub nativo DELA vão marcadas para rodar na máquina (o proxy executa).
    */
   ghNaMaquina?: boolean;
+  /**
+   * ADR-173 (definido em 2026-11-12): a máquina DESTE turno é um Mac da pessoa do turno. As ferramentas do conector
+   * `mac` DELA vão marcadas para rodar na máquina; sem isso (VM Linux, servidor, Windows, ausente) elas saem do plano.
+   */
+  macNaMaquina?: boolean;
   /**
    * NOD-164 (emenda à ADR-072): o modelo da ligação por harness, já lido e validado pelo compositor
    * (`lerModelosLigacao` sobre o env do servidor). Ausente = MODELOS_LIGACAO_PADRAO. O caso de uso não lê `process.env`.
@@ -586,6 +593,14 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   } else if (motivoRecomeco) {
     // QA (bug 2): a fala com "/" vai crua, mas o turno recomeçou do mesmo jeito — o Raio-X diz isso, como a marca da fala.
     partesDoRecomeco = { motivo: motivoRecomeco, avisoChars: 0, resumoChars: 0, historicoChars: JSON.stringify(historico).length };
+  }
+  {
+    // ADR-173: Mail, Notas, Calendário, Lembretes, Contatos e iMessage só existem no Mac da pessoa; fora dele, somem.
+    const meuMac = guardados.find((c) => c.slug === SLUG_MAC && c.comando === COMANDO_MAC_NATIVO && c.ownerId === deps.escopo.pessoaId);
+    const deOutro = guardados.filter((c) => c.slug === SLUG_MAC && c.comando === COMANDO_MAC_NATIVO && c.ownerId !== deps.escopo.pessoaId);
+    parcial.catalogo.ferramentas = ferramentasMacNoPlano(parcial.catalogo.ferramentas, meuMac?.id ?? null, input.macNaMaquina === true);
+    // O Mac de uma pessoa nunca serve ao turno de outra: o conector `mac` de outra pessoa sai sempre.
+    for (const c of deOutro) parcial.catalogo.ferramentas = ferramentasMacNoPlano(parcial.catalogo.ferramentas, c.id, false);
   }
   if (input.ghNaMaquina) {
     // O login do gh serve à dona: só o conector github DELA roda na máquina; o de outra pessoa, nunca.

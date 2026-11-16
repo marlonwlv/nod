@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FrameSse } from "../../../src/contracts/frame.ts";
-import { calcularBackoffMs, criarLiveEvents, interpretarFrame, PRAZO_SILENCIO_MS, urlComSince, type EventoLive, type FonteSse } from "../../../web/lib/live-events.ts";
+import { calcularBackoffMs, criarLiveEvents, interpretarFrame, interpretarRetratoEstadoVivo, PRAZO_SILENCIO_MS, urlComSince, type EventoLive, type FonteSse } from "../../../web/lib/live-events.ts";
 
 type Ouvinte = (ev: { data?: unknown; lastEventId?: string }) => void;
 
@@ -94,6 +94,14 @@ function montar(aleatorio = () => 0.5) {
 const frame = (seq: number, tipo: FrameSse["tipo"] = "mensagem.nova", streamId = "s1"): FrameSse => ({ streamId, seq, pessoaId: "p", tipo, dados: { seq } });
 
 describe("live-events: interface de 4 campos sobre EventSource (ADR-016)", () => {
+  it("entrega o retrato agentes.estado fora da sequência de frames", () => {
+    const m = montar();
+    m.live.connect();
+    const retrato = { agentes: [{ agenteId: "a1", rodando: true, compondo: false, atividade: null, aguardando: null, subagentes_rodando: 0, ultimo_desfecho: null, vence_em: null, turnoId: "t1", conversaId: "c1", em: 10 }], em: 10 };
+    m.fontes[0]?.disparar("agentes.estado", { data: JSON.stringify(retrato) });
+    expect(m.eventos.at(-1)).toEqual({ tipo: "agentes.estado", retrato });
+    expect(interpretarRetratoEstadoVivo("{}" )).toBeNull();
+  });
   it("connect abre a fonte; resumed:false dispara reidratação; frames chegam na ordem e duplicata é descartada", () => {
     const m = montar();
     m.live.connect();

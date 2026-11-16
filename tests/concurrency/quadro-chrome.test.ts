@@ -328,7 +328,8 @@ descrever("NOD-429 no Chrome real", () => {
     const nome = await avaliar<{ x: number; y: number }>(cdp, `(() => { const r = document.querySelector("#cabecalho .pilula-bot").getBoundingClientRect(); return { x: r.left + 10, y: r.top + r.height / 2 }; })()`);
     expect(await avaliar<number>(cdp, `document.querySelector("#cabecalho .pg-doca").getBoundingClientRect().width`)).toBe(0);
     await cdp.enviar("Input.dispatchMouseEvent", { type: "mouseMoved", x: nome.x, y: nome.y });
-    // Amostra a largura a cada quadro até assentar: a mola passa do alvo antes de parar.
+    // Amostra a largura a cada quadro até assentar: a mola passa do alvo antes de parar. O alvo é o offsetWidth do miolo
+    // (rodada 3 da casca, Paper 17: o scrollWidth contava as dicas absolutas que vazam e deixava ~100 px vazios no fim).
     const m = await avaliar<{ max: number; fim: number; alvo: number; aberta: boolean }>(cdp, `new Promise((ok) => {
       const d = document.querySelector("#cabecalho .pg-doca");
       let max = 0, n = 0, parada = 0, antes = -1;
@@ -337,7 +338,7 @@ descrever("NOD-429 no Chrome real", () => {
         max = Math.max(max, w);
         parada = w > 0 && Math.abs(w - antes) < 0.01 ? parada + 1 : 0;
         antes = w;
-        if (parada > 10 || ++n > 300) ok({ max, fim: w, alvo: d.firstElementChild.scrollWidth, aberta: d.parentElement.classList.contains("pg-aberta") });
+        if (parada > 10 || ++n > 300) ok({ max, fim: w, alvo: d.firstElementChild.offsetWidth, aberta: d.parentElement.classList.contains("pg-aberta") });
         else requestAnimationFrame(passo);
       };
       requestAnimationFrame(passo);

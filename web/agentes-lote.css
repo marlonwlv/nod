@@ -3,61 +3,61 @@
    Sem fundo chapado e sem botão cheio: a linha marcada ganha um tom leve e o confirmar é de contorno. */
 
 /* ---------- A caixa ---------- */
-.lote-cb { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: -4px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--surface); cursor: pointer; }
-.lote-cb-caixa { box-sizing: border-box; display: grid; place-items: center; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: 4px; background: var(--surface); }
+.lote-cb { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-right: -4px; padding: 0; border: 0; border-radius: var(--raio-8); background: none; color: var(--surface); cursor: pointer; }
+.lote-cb-caixa { box-sizing: border-box; display: grid; place-items: center; width: 16px; height: 16px; border: 1.5px solid var(--line-strong); border-radius: var(--raio-4); background: var(--surface); }
 .lote-cb-caixa svg { width: 12px; height: 12px; }
 .lote-cb[aria-checked="true"] .lote-cb-caixa, .lote-cb[aria-checked="mixed"] .lote-cb-caixa { border-color: var(--ink); background: var(--ink); }
 .lote-cb:hover .lote-cb-caixa { border-color: var(--ink-2); }
 .lote-cb:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; }
 /* A caixa aparece ao passar o mouse ou com o foco, e fica em todas as linhas depois da 1ª marcada. */
 .lote-linha { padding-left: 8px; }
-.lote-linha .lote-cb { opacity: 0; transition: opacity .12s; }
+.lote-linha .lote-cb { opacity: 0; transition: opacity var(--dur-rapido); }
 .lote-linha:hover .lote-cb, .lote-linha:focus-within .lote-cb, .lote-ligado .lote-linha .lote-cb { opacity: 1; }
 .lote-linha.lote-marcada { background: color-mix(in srgb, var(--surface-selected) 60%, transparent); }
 
 /* ---------- O topo: Selecionar todos (e, no celular, Selecionar / Cancelar) ---------- */
 .lote-cab { display: flex; align-items: center; gap: 8px; min-height: 36px; margin: -6px 0 8px; padding-left: 9px; }
 .lote-todos { display: inline-flex; align-items: center; width: auto; gap: 8px; padding-right: 8px; color: var(--surface); }
-.lote-todos-txt { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.lote-todos-txt { font-size: var(--fs-corpo-2); font-weight: 500; color: var(--ink-2); }
 .lote-cab .lote-todos { opacity: 0; }
 .lote-cab:hover .lote-todos, .lote-cab .lote-todos:focus-visible, .lote-cab.ligado .lote-todos, .cfg-agentes:has(.lote-linha:hover) .lote-todos { opacity: 1; }
 /* Revisão 2: sem hover (tablet, toque com tela larga), as caixas e o Selecionar todos ficam à vista, como o "…" da lista. */
 @media (hover: none) { .lote-linha .lote-cb, .lote-cab .lote-todos { opacity: 1; } }
 .lote-selecionar, .lote-cancelar-topo { display: none; margin-left: auto; }
-.lote-bt-texto { min-height: 36px; padding: 0 12px; border: 0; border-radius: 9px; background: none; color: var(--ink-2); font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; }
+.lote-bt-texto { min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--raio-10); background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo); font-weight: 500; cursor: pointer; }
 .lote-bt-texto:hover { background: var(--surface-raised); color: var(--ink); }
 .lote-bt-texto:focus-visible, .lote-conf:focus-visible, .lote-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* ---------- A mensagem na linha ---------- */
 .lote-linha .lc-txt small { display: flex; flex-direction: column; }
-.lote-msg { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin-top: 4px; font-size: 12.5px; color: var(--ink-3); }
+.lote-msg { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin-top: 4px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
 .lote-msg .lc-status { white-space: normal; }
 .lote-gira { flex: none; box-sizing: border-box; width: 11px; height: 11px; border: 1.5px solid var(--ink-3); border-top-color: transparent; border-radius: 50%; animation: lote-gira .9s linear infinite; }
 @keyframes lote-gira { to { transform: rotate(1turn); } }
 .lote-msg-erro { color: var(--danger); }
 .lote-tentar { position: relative; padding: 0; border: 0; background: none; color: var(--danger); font: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .lote-tentar::after { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; margin-top: -22px; }
-.lote-tentar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
+.lote-tentar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--raio-4); }
 
 /* ---------- A barra de lote, presa ao pé da lista ---------- */
-.lote-barra { position: sticky; bottom: 16px; z-index: 20; display: flex; align-items: center; gap: 8px; margin: 4px 0 0; padding: 8px 8px 8px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-pop); }
-.lote-n { margin-right: auto; font-size: 13.5px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.lote-barra { position: sticky; bottom: 16px; z-index: 20; display: flex; align-items: center; gap: 8px; margin: 4px 0 0; padding: 8px 8px 8px 16px; border: 1px solid var(--line); border-radius: var(--raio-14); background: var(--surface); box-shadow: var(--shadow-pop); }
+.lote-n { margin-right: auto; font-size: var(--fs-corpo); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
 .lote-barra-acoes { display: flex; gap: 8px; }
-.lote-bt { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 12px 4px 10px; border: 1px solid var(--line); border-radius: 10px; background: none; color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 500; text-align: left; cursor: pointer; }
+.lote-bt { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 12px 4px 10px; border: 1px solid var(--line); border-radius: var(--raio-10); background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo); font-weight: 500; text-align: left; cursor: pointer; }
 .lote-bt svg { flex: none; width: 16px; height: 16px; color: var(--ink-2); }
 .lote-bt > span { min-width: 0; display: flex; flex-direction: column; }
-.lote-bt small { display: block; overflow: hidden; font-size: 12px; font-weight: 400; line-height: 1.3; color: var(--ink-3); text-overflow: ellipsis; white-space: nowrap; }
+.lote-bt small { display: block; overflow: hidden; font-size: var(--fs-rotulo); font-weight: 400; line-height: 1.3; color: var(--ink-3); text-overflow: ellipsis; white-space: nowrap; }
 .lote-bt:hover, .lote-bt[aria-expanded="true"] { border-color: var(--line-strong); background: var(--surface-raised); }
 .lote-bt[aria-disabled="true"] { opacity: .45; cursor: default; }
 
 /* ---------- O seletor com a prévia, em cima da barra ---------- */
-.lote-pop { position: absolute; right: 0; bottom: calc(100% + 8px); box-sizing: border-box; width: 420px; max-width: 100%; max-height: min(70vh, 560px); overflow-y: auto; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-pop); }
-.lote-pop h3 { margin: 0 0 10px; font-size: 14.5px; font-weight: 600; color: var(--ink); }
-.lote-ops { border: 1px solid var(--line); border-radius: 12px; }
+.lote-pop { position: absolute; right: 0; bottom: calc(100% + 8px); box-sizing: border-box; width: 420px; max-width: 100%; max-height: min(70vh, 560px); overflow-y: auto; padding: 16px; border: 1px solid var(--line); border-radius: var(--raio-14); background: var(--surface); box-shadow: var(--shadow-pop); }
+.lote-pop h3 { margin: 0 0 10px; font-size: var(--fs-corpo); font-weight: 600; color: var(--ink); }
+.lote-ops { border: 1px solid var(--line); border-radius: var(--raio-12); }
 .lote-ops > * + * { border-top: 1px solid var(--line); }
 .lote-op { min-height: 52px; padding: 9px 12px; cursor: pointer; }
-.lote-ops > .lote-op:first-child { border-radius: 11px 11px 0 0; }
-.lote-ops > .lote-op:last-child { border-radius: 0 0 11px 11px; }
+.lote-ops > .lote-op:first-child { border-radius: var(--raio-12) var(--raio-12) 0 0; }
+.lote-ops > .lote-op:last-child { border-radius: 0 0 var(--raio-12) var(--raio-12); }
 .lote-op .lc-ic { min-width: 20px; }
 .lote-op .lc-ic svg, .lote-op .lote-logo svg { width: 17px; height: 17px; }
 .lote-op:hover { background: var(--surface-raised); }
@@ -71,13 +71,13 @@
 .lote-op-off b, .lote-op-off .lc-ic { color: var(--ink-3); }
 .lote-op-off .lote-radio { border-style: dashed; }
 .lote-previa { margin: 12px 2px 0; }
-.lote-previa p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+.lote-previa p { margin: 0; font-size: var(--fs-corpo); line-height: 1.5; color: var(--ink-2); }
 .lote-previa b { font-weight: 600; color: var(--ink); }
-.lote-previa .lote-aviso { display: flex; align-items: flex-start; gap: 7px; margin-top: 6px; font-size: 12.5px; color: var(--ink-3); }
+.lote-previa .lote-aviso { display: flex; align-items: flex-start; gap: 7px; margin-top: 6px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
 .lote-aviso svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--warning); }
 .lote-aviso-mudo svg { color: var(--ink-3); }
 .lote-pop-acoes { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-.lote-conf { min-height: 36px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.lote-conf { min-height: 36px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--raio-10); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo); font-weight: 600; cursor: pointer; }
 .lote-conf:hover:not(:disabled) { background: var(--surface-raised); }
 .lote-conf:disabled { opacity: .45; cursor: default; }
 

@@ -201,6 +201,13 @@ export function interpretarLinhaStreamJson(linha: string): EventoStream {
       const delta = obj(ev["delta"]);
       if (delta?.["type"] === "text_delta") return { tipo: "delta", texto: str(delta["text"]) };
     }
+    // definido em 2026-11-12 (estado vivo): a fase do bloco. O thinking_delta repetido não vira evento: o start já diz.
+    if (ev?.["type"] === "content_block_start") {
+      const tipoBloco = obj(ev["content_block"])?.["type"];
+      if (tipoBloco === "text") return { tipo: "fase", fase: "compondo" };
+      if (tipoBloco === "thinking" || tipoBloco === "redacted_thinking") return { tipo: "fase", fase: "pensando" };
+    }
+    if (ev?.["type"] === "content_block_stop") return { tipo: "fase", fase: "fim_bloco" };
     // O message_delta fecha a chamada com o usage completo dela (o do message_start ainda não tem a saída).
     if (ev?.["type"] === "message_delta" && obj(ev["usage"])) {
       const usage = obj(ev["usage"]);

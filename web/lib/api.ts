@@ -1,5 +1,7 @@
 import type { PreviaDoMoverDto } from "../../src/contracts/previa-mover.ts";
 import type { Prioridade } from "../../src/contracts/quadro-opcoes.ts";
+import type { CofreDto } from "../../src/contracts/cofre.ts";
+import type { AjustesAprovacao, ListaRegra, NivelDeFerramenta, NivelFerramenta, RegraRevisor, TetoModo, TipoNivel } from "../../src/contracts/ajustes-aprovacao.ts";
 import type { Time, TimeNaLista } from "../../src/contracts/time.ts";
 import type { ModoAcionar, PassosDoRunDto, PreviaComentarioDto, RunDaTarefa } from "../../src/contracts/quadro-comentarios.ts";
 import type { DetalheVersaoPerfil, ListaVersoesPerfil, VersaoPerfil } from "../../src/contracts/versoes-perfil.ts";
@@ -15,11 +17,11 @@ import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } fr
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
 import type { Agente, FormaAgente, CorAgente, ModoAprovacao } from "../../src/contracts/agente.ts";
-import type { AmbienteBancoDto, ChaveEmitidaDto, ChaveMaquinaDto, ConversaDto, FrotaDto, ModoSessaoDto, RespostaMutacao, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
-import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
+import type { AmbienteBancoDto, ChaveEmitidaDto, ChaveMaquinaDto, FrotaDto, ModoSessaoDto, RespostaMutacao, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
 import type { Concessao } from "../../src/contracts/concessao.ts";
 import { cabecalhosDoApp, cabecalhosDoGoogleApp } from "./desafio-app.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
+import type { OpcoesOndeRodaDto } from "../../src/contracts/vm-do-nod.ts";
 import type { OpcoesRemover, PreviaRemoverDto, ResultadoRemoverDto } from "../../src/contracts/remover-computador.ts";
 import type { InstalacaoCriadaDto, InstalacaoSshDto, MetodoSsh } from "../../src/contracts/instalacoes-ssh.ts";
 import type { CadastroDto, EntrarDto, EsperaPareamentoDto, EstadoContaDto, EstadoPareamentoDto, ImportarDto, PareamentoAbertoDto, PedirPareamentoDto, RedefinirDto, SessoesDto, TrocarSenhaDto, VerificarDto } from "../../src/contracts/conta.ts";
@@ -46,6 +48,7 @@ import type { ConfirmarEmailDto, ExportacaoDto, FormasDto, MinhaContaDto, Perfil
 import type { ExecucaoRotina } from "../../src/contracts/rotina.ts";
 import type { MembroSala, Sala } from "../../src/contracts/sala.ts";
 import type { FaixaParada, Turno } from "../../src/contracts/turno.ts";
+import type { ConversaComCursor, CursorDaConversa, RespostaMensagensDesde } from "../../src/contracts/estado-vivo.ts";
 import type { ComentarioDto, ComentarioTarefa, EntradaHistoricoDto, GrupoColuna, LinhaMuralDto, LoteQuadro, ModoConversa, QuadroCompartilhadoDto, QuadroDaPessoaDto, QuadroDto, StatusTarefa, TarefaPorCodigoDto } from "../../src/contracts/quadro.ts";
 import type { FiltroImportacao, ImportacaoDto, PreviaDaTela } from "../../src/contracts/quadro-importacao.ts";
 import type { CamposDeLabel, CorLabel } from "../../src/contracts/quadro-labels.ts";
@@ -146,9 +149,18 @@ async function pedir<T>(metodo: string, url: string, corpo?: unknown, opcoesPedi
 }
 
 /** GET e mutação com chave de idempotência atravessam alguns segundos de servidor fora (web/lib/tentar-de-novo.ts). */
+/**
+ * Leva 2 (ADR-181): toda leitura tem prazo. Um GET pendurado (o Caddy segurando até 5 s na troca azul/verde, um proxy que
+ * não responde) ficava em voo para sempre e, com as leituras por chave, segurava a releitura daquela chave. Vencido, vira
+ * a falha de rede de sempre (`TimeoutError` não é `AbortError`: cai em falhaDeTransporte, é repetido e, no fim, guardado
+ * em pendentesDeRede). O prazo é por tentativa.
+ */
+export const PRAZO_GET_MS = 10_000;
+
 function pedirDeNovoSeCair<T>(metodo: string, url: string, corpo?: unknown, chave?: string): Promise<T> {
-  if (!podeRepetir(metodo, chave)) return pedir<T>(metodo, url, corpo);
-  return tentarDeNovo(() => pedir<T>(metodo, url, corpo));
+  const comPrazo = () => pedir<T>(metodo, url, corpo, metodo === "GET" && typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(PRAZO_GET_MS) } : {});
+  if (!podeRepetir(metodo, chave)) return comPrazo();
+  return tentarDeNovo(comPrazo);
 }
 
 function subir(url: string, arquivo: File, mime: string, aoProgresso?: (fracao: number) => void): Promise<AnexoMeta> {
@@ -435,7 +447,8 @@ export function criarApi(escopo: Escopo) {
     definirPassagem: (agenteId: string, coluna: string, p: { agente: string | null; instrucoes: string | null; proxima?: string | null; volta_para?: string | null }) =>
       pedir<MutacaoQuadro>("PUT", `${base}/agentes/${encodeURIComponent(agenteId)}/quadro/colunas/${encodeURIComponent(coluna)}/passagem`, p),
     /** NOD-380: `ate` (o id de uma fala achada na busca) faz a janela crescer até ela, mesmo fora das 200 recentes. */
-    conversa: (id: string, ate?: string) => get<ConversaDto>(`conversas/${id}/mensagens${ate ? `?ate=${encodeURIComponent(ate)}` : ""}`),
+    conversa: (id: string, ate?: string) => get<ConversaComCursor>(`conversas/${id}/mensagens${ate ? `?ate=${encodeURIComponent(ate)}` : ""}`),
+    conversaDesde: (id: string, cursor: CursorDaConversa) => get<RespostaMensagensDesde>(`conversas/${id}/mensagens?depois_de=${cursor.updated_seq}&geracao=${cursor.geracao}`),
     /** NOD-380: a busca de mensagens do celular; 20 por página, `cursor` vem da página anterior; `signal` cancela o pedido velho. */
     buscarMensagens: (q: string, cursor: string | null = null, signal?: AbortSignal) =>
       pedir<PaginaDaBusca>("GET", `${base}/busca/mensagens?q=${encodeURIComponent(q)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, undefined, { silencioso: true, ...(signal ? { signal } : {}) }),
@@ -484,7 +497,7 @@ export function criarApi(escopo: Escopo) {
     // Revisão W12 (2026-10-08): o último lote sai no `pagehide`; com keepalive o POST termina depois de a aba fechar.
     telemetriaLinhas: (eventos: readonly EventoLinha[]) => pedir<RespostaMutacao>("POST", `${base}/telemetria/linhas`, { eventos }, { keepalive: true, silencioso: true }),
     taxasLinhas: () => get<TaxaDeAbertura[]>("telemetria/linhas"),
-    criarAgente: (nome?: string, perfil?: { titulo?: string; descricao?: string; interativo?: boolean }) => post<{ agente: Agente; conversa: Conversa }>("agentes", { dono: "pessoa", nome, ...perfil }),
+    criarAgente: (nome?: string, perfil?: { titulo?: string; descricao?: string; interativo?: boolean; forma?: FormaAgente; cor?: CorAgente }) => post<{ agente: Agente; conversa: Conversa }>("agentes", { dono: "pessoa", nome, ...perfil }),
     /** NOD-20: voz e vozVelocidade vão no mesmo PATCH; `versao` = a versão do perfil que a mudança gravou (null = nada mudou). */
     editarPerfil: (id: string, perfil: { nome?: string; titulo?: string; descricao?: string; modelo?: string; harness?: PreferenciaHarness; esforco?: string; forma?: FormaAgente; cor?: CorAgente; voz?: IdVozNod | null; vozVelocidade?: VelocidadeVoz }) =>
       patch<{ agente: Agente; versao?: number | null }>(`agentes/${id}`, perfil),
@@ -496,6 +509,16 @@ export function criarApi(escopo: Escopo) {
     // ADR-059: o botão de aprovações do campo; o servidor escreve a troca na conversa do bot. O total exige `confirmado`
     // (o segundo clique do menu, emenda de 2026-10-18): sem ele o servidor responde 400.
     mudarModoAprovacao: (id: string, modo: ModoAprovacao, confirmado = false) => post<{ agente: Agente; mudou: boolean }>(`agentes/${id}/modo-aprovacao`, confirmado ? { modo, confirmado: true } : { modo }),
+    // ADR-166: Ajustes > Aprovações (regras do revisor, níveis por app, só leitura, teto do admin).
+    // Paper 07 (rodada 2): Configurações › Cofre — nome, app e data das chaves guardadas; nunca o valor.
+    cofre: () => get<CofreDto>("cofre"),
+    ajustesAprovacao: (agenteId: string | null) => get<AjustesAprovacao>(`aprovacoes/ajustes${agenteId ? `?agente=${encodeURIComponent(agenteId)}` : ""}`),
+    criarRegraRevisor: (corpo: { agenteId: string | null; lista: ListaRegra; texto: string; origem?: "pessoa" | "sugestao" }) => post<{ regra: RegraRevisor }>("aprovacoes/regras", corpo),
+    editarRegraRevisor: (id: string, texto: string) => patch<{ regra: RegraRevisor }>(`aprovacoes/regras/${encodeURIComponent(id)}`, { texto }),
+    apagarRegraRevisor: (id: string) => del<{ apagada: boolean }>(`aprovacoes/regras/${encodeURIComponent(id)}`),
+    definirNivelFerramenta: (corpo: { agenteId: string | null; conector: string; ferramenta?: string; tipo: TipoNivel; nivel: NivelFerramenta }) => post<{ nivel: NivelDeFerramenta }>("aprovacoes/niveis", corpo),
+    definirSoLeitura: (id: string, soLeitura: boolean) => post<{ agente: Agente }>(`agentes/${encodeURIComponent(id)}/so-leitura`, { soLeitura }),
+    definirTetoModo: (teto: TetoModo | null) => post<{ teto: TetoModo | null }>("aprovacoes/teto", { teto }),
     fixar: (id: string, fixado?: boolean) => post<{ agente: Agente }>(`agentes/${id}/fixar`, fixado === undefined ? {} : { fixado }),
     ocultar: (id: string, oculto?: boolean) => post<{ agente: Agente }>(`agentes/${id}/ocultar`, oculto === undefined ? {} : { oculto }),
     duplicar: (id: string) => post<{ agente: Agente; conversa: Conversa }>(`agentes/${id}/duplicar`),
@@ -619,12 +642,10 @@ export function criarApi(escopo: Escopo) {
     chaves: () => get<{ chaves: ChaveMaquinaDto[] }>("maquinas/chaves"),
     emitirChave: (nome: string) => post<ChaveEmitidaDto>("maquinas/chaves", { nome }),
     revogarChave: (id: string) => del<{ ok: true }>(`maquinas/chaves/${id}`),
-    // Servidor MCP do Nod (0173): os tokens que um cliente MCP de fora usa no /api/mcp.
-    mcpTokens: () => get<TokensMcpDto>("mcp/tokens"),
-    gerarTokenMcp: (nome: string) => post<TokenMcpEmitidoDto>("mcp/tokens", { nome }),
-    revogarTokenMcp: (id: string) => del<{ ok: true }>(`mcp/tokens/${encodeURIComponent(id)}`),
     // ADR-090: as máquinas, onde cada bot trabalha, o pareamento por código e o "rodar em outra desta vez".
     maquinas: () => get<MaquinasDto>("maquinas"),
+    // ADR-169: as três opções de onde o agente roda; o servidor antigo dá 404 e a tela fica como antes.
+    ondeRoda: () => get<OpcoesOndeRodaDto>("maquinas/onde-roda"),
     maquinaDoBot: (agenteId: string, maquinaId: string | null) => pedir<{ agente: Agente }>("PUT", `${base}/agentes/${encodeURIComponent(agenteId)}/maquina`, { maquinaId }),
     moverBots: (maquinaId: string, agentes: string[]) => pedir<{ movidos: number }>("PUT", `${base}/maquinas/${encodeURIComponent(maquinaId)}/bots`, { agentes }),
     maquinaPadrao: (maquinaId: string | null) => pedir<{ padraoId: string | null }>("PUT", `${base}/maquinas/padrao`, { maquinaId }),

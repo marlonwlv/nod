@@ -50,12 +50,6 @@ export interface ServicesNod<Trx> extends ServicosLinear {
     esperandoPor?(turnoId: string): string | null;
   };
   /**
-   * definido em 2026-10-08 (NOD-200, ADR proposta): a última tela que o bot viu no turno, para virar anexo da fala.
-   * `ler` não esquece (o assentar repetido por impasse acha a mesma tela); null = chave NOD_CAPTURA_NO_TRANSCRIPT
-   * desligada ou sem tela. `esquecer` é da ponte, depois do assentar confirmado. Ausente = desligado.
-   */
-  capturas?: { ler(turnoId: string): Uint8Array | null; esquecer(turnoId: string): void };
-  /**
    * definido em 2026-10-07 (ADR-083): o que só o processo sabe dos trabalhos — a última ferramenta de cada turno vivo
    * (o "último passo" da faixa) e a pressão de memória dos Macs da pessoa (#194). Ausente = nada a mostrar.
    */
@@ -161,8 +155,8 @@ export interface UseCasesNod<Deps> {
   verAppsConectados: CasoNod<Deps, "ver_apps_conectados">;
   registrarRelatoDoNod: CasoNod<Deps, "registrar_relato">;
   criarBots: CasoNod<Deps, "criar_bots">; responderPedido: CasoNod<Deps, "responder_pedido">; pedirCredencial: CasoNod<Deps, "pedir_credencial">;
-  avisarPessoa: CasoNod<Deps, "avisar_pessoa">; ajustarBarraLateral: CasoNod<Deps, "ajustar_barra_lateral">;
-  abrirConta: CasoNod<Deps, "abrir_conta">; buscarConversas: CasoNod<Deps, "buscar_conversas">; lerConversa: CasoNod<Deps, "ler_conversa">; gerirQuadro: CasoNod<Deps, "gerir_quadro">; gerirApps: CasoNod<Deps, "gerir_apps">; naoLidosNoChat: CasoNod<Deps, "nao_lidos">; decisoesNoChat: CasoNod<Deps, "decisoes">; gerirTimes: CasoNod<Deps, "gerir_times">; gerirAcessos: CasoNod<Deps, "gerir_acessos">; gerirCanvas: CasoNod<Deps, "gerir_canvas">; gerirMaquinas: CasoNod<Deps, "gerir_maquinas">; removerComputador: CasoNod<Deps, "remover_computador">;
+  avisarPessoa: CasoNod<Deps, "avisar_pessoa">; mostrarCartoes: CasoNod<Deps, "mostrar_cartoes">; ajustarBarraLateral: CasoNod<Deps, "ajustar_barra_lateral">;
+  abrirConta: CasoNod<Deps, "abrir_conta">; buscarConversas: CasoNod<Deps, "buscar_conversas">; lerConversa: CasoNod<Deps, "ler_conversa">; gerirQuadro: CasoNod<Deps, "gerir_quadro">; gerirApps: CasoNod<Deps, "gerir_apps">; naoLidosNoChat: CasoNod<Deps, "nao_lidos">; gerirTimes: CasoNod<Deps, "gerir_times">; gerirAcessos: CasoNod<Deps, "gerir_acessos">; gerirCanvas: CasoNod<Deps, "gerir_canvas">; gerirMaquinas: CasoNod<Deps, "gerir_maquinas">; removerComputador: CasoNod<Deps, "remover_computador">;
 }
 
 /** Mapa nome da ferramenta → chave em UseCasesNod (o despacho é por tabela, não por if). */
@@ -195,5 +189,5 @@ export const USE_CASE_POR_FERRAMENTA = {
   gerir_bots: "gerirBots",
   ver_apps_conectados: "verAppsConectados",
   registrar_relato: "registrarRelatoDoNod",
-  criar_bots: "criarBots", responder_pedido: "responderPedido", pedir_credencial: "pedirCredencial", avisar_pessoa: "avisarPessoa", abrir_conta: "abrirConta", buscar_conversas: "buscarConversas", ler_conversa: "lerConversa", ajustar_barra_lateral: "ajustarBarraLateral", gerir_quadro: "gerirQuadro", gerir_apps: "gerirApps", nao_lidos: "naoLidosNoChat", decisoes: "decisoesNoChat", gerir_times: "gerirTimes", gerir_acessos: "gerirAcessos", gerir_canvas: "gerirCanvas", gerir_maquinas: "gerirMaquinas", remover_computador: "removerComputador",
+  criar_bots: "criarBots", responder_pedido: "responderPedido", pedir_credencial: "pedirCredencial", avisar_pessoa: "avisarPessoa", mostrar_cartoes: "mostrarCartoes", abrir_conta: "abrirConta", buscar_conversas: "buscarConversas", ler_conversa: "lerConversa", ajustar_barra_lateral: "ajustarBarraLateral", gerir_quadro: "gerirQuadro", gerir_apps: "gerirApps", nao_lidos: "naoLidosNoChat", gerir_times: "gerirTimes", gerir_acessos: "gerirAcessos", gerir_canvas: "gerirCanvas", gerir_maquinas: "gerirMaquinas", remover_computador: "removerComputador",
 } as const satisfies Record<NomeFerramentaNod, keyof UseCasesNod<unknown>>;

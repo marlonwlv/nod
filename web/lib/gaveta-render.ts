@@ -6,6 +6,7 @@ import { lembrar } from "./lembrar.ts";
 import { lembrancaDaMidia } from "./midia.ts";
 import { preservandoCampo, reaplicarAviso } from "./gaveta-identidade.ts";
 import { regiao, regiaoMudaria } from "./regioes.ts";
+import { aoMudarOsCartoes, versaoDosCartoes } from "./computador-estados.ts";
 
 /**
  * Definido em 2026-10-12 (GFK-2027): texto não salvo fica no DOM; a Inteligência tem o rascunho no reducer e
@@ -26,7 +27,15 @@ if (typeof document !== "undefined") {
   document.addEventListener("pointercancel", soltar, true);
 }
 
+/**
+ * Especificação D, item 2: o cartão Computador muda sozinho (o repouso 19 s depois do bot, 0,8 s depois de fechar a tela).
+ * Quando muda, o painel se redesenha com o último estado; a versão dos cartões entra na memória do render.
+ */
+let ultimaChamada: { estado: Estado; gavetaSuja: string | null } | null = null;
+aoMudarOsCartoes(() => { const u = ultimaChamada; if (u && typeof document !== "undefined") atualizarGaveta(u.estado, u.gavetaSuja); });
+
 export function atualizarGaveta(estado: Estado, gavetaSuja: string | null): void {
+  ultimaChamada = { estado, gavetaSuja };
   if (ponteiroNaGaveta) { adiado = { estado, gavetaSuja }; return; }
   adiado = null;
   const inteligencia = estado.gaveta?.nivel.tipo === "inteligencia";
@@ -38,7 +47,7 @@ export function atualizarGaveta(estado: Estado, gavetaSuja: string | null): void
   // NOD-326: a Biblioteca lê a lembrança da mídia (o que saiu da pasta, este Mac), que mora fora do estado.
   // NOD-382: no celular, o perfil do bot no estilo do iOS; o desktop segue com a gaveta de sempre.
   const celular = ehCelular();
-  const html = lembrar("detalhes", estado, [lembrancaDaMidia.sumiram.size, lembrancaDaMidia.esteMac, celular], celular ? renderPerfilCelular : renderDetalhes);
+  const html = lembrar("detalhes", estado, [lembrancaDaMidia.sumiram.size, lembrancaDaMidia.esteMac, celular, versaoDosCartoes()], celular ? renderPerfilCelular : renderDetalhes);
   if (!regiaoMudaria("detalhes", html)) return;
   if (campo) {
     const seletor = `[data-campo="${CSS.escape(campo.dataset.campo ?? "")}"][data-id="${CSS.escape(campo.dataset.id ?? "")}"]`;

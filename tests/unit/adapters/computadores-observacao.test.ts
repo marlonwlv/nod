@@ -80,6 +80,18 @@ beforeEach(() => {
   agora += 3_600_000; // turnos de um teste não vazam para o outro
 });
 
+it("não abre o ao vivo de um computador desligado nem para assistir", async () => {
+  const vivo = vi.fn(async () => {});
+  driver.vivo = vivo;
+  computador = { ...computador, habilitado: false };
+  try {
+    await expect(computadores.vivo(MARLON, AGENTE, { sessao: "s", token: "t" }, { assistir: true })).rejects.toMatchObject({ codigo: "nao_permitido" });
+    expect(vivo).not.toHaveBeenCalled();
+  } finally {
+    delete driver.vivo;
+  }
+});
+
 it("duas observações iguais no turno: a segunda sai sem imagem, com as marcas e quadro novo", async () => {
   const primeira = await chamar("computador_observar");
   expect(primeira.imagem).toEqual({ mimeType: "image/png", data: tela.imagem });

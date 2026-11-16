@@ -8,14 +8,19 @@ import type { ColunaDto, QuadroDto, TarefaDto } from "../../src/contracts/quadro
 import { acionaNaColuna, iconeDaColuna } from "../lib/colunas.ts";
 import { agentesComTarefa, ehComigo, trabalhandoAgora, type Filtro } from "../lib/vista-do-quadro.ts";
 import { esc } from "../lib/escape.ts";
+import { iniciais } from "../lib/render.ts";
 import { NOME_DA_PRIORIDADE, PRIORIDADES, chipsDosFiltros, haQuantoTempo, opcoesAjustadas, prioridadeDe, CAMPOS_PADRAO, prazoEmMs, prazoDa, type CampoDoFiltro, type DescritorDeCampo, type TarefaDoFiltro, type CondicaoDoFiltro, type ContextoDoFiltro, type OpcoesEfetivas } from "../lib/opcoes-do-quadro.ts";
 import type { UiDaBarra } from "./opcoes-quadro.ts";
-import { barraMinima, chipsDosFiltrosHtml, iconeDaPrioridade, modalDaNovaTarefa, pilulaDosAtivos, popoverDasOpcoes, popoverDosFiltros, type QuemNoQuadro, type ValorDoFiltro, type ValoresDoFiltro } from "./opcoes-quadro.ts";
+import { barraMinima, chipsDosFiltrosHtml, iconeDaPrioridade, modalDaNovaTarefa, popoverDasOpcoes, segmentoDasPessoas, popoverDosFiltros, type QuemNoQuadro, type ValorDoFiltro, type ValoresDoFiltro } from "./opcoes-quadro.ts";
 import { anel, confiar, iconeDe, type Card, type Html } from "./quadro.ts";
 
 type AgenteDoQuadro = (agenteId: string) => { avatar: Html; nome: string } | null;
 
-const VOCE_AV = (): Html => anel("V", "Você", true);
+
+/** Os bots ligados ao quadro, tenham tarefa ou não: o dono do quadro e os responsáveis (passagem) das colunas. */
+export function botsLigadosAoQuadro(q: Pick<QuadroDto, "agenteId">, cs: readonly Pick<ColunaDto, "responsavel">[]): string[] {
+  return [...new Set([q.agenteId, ...cs.map((c) => c.responsavel ?? null)].filter((x): x is string => !!x))];
+}
 const SEM_AV = (): Html => anel("–", "Sem responsável");
 
 /** O nome e o avatar de um responsável ("sem" ou o id do bot; ADR-162: a espera da pessoa não é responsável). */
@@ -64,19 +69,24 @@ function chipDoFiltroRapido(f: Filtro, q: QuadroDto, agente: AgenteDoQuadro): st
 }
 
 /** A barra do quadro minimalista, com os popovers e os chips dos filtros ligados. */
-export function barraDoQuadroMinimo(o: { q: QuadroDto; cs: readonly ColunaDto[]; agente: AgenteDoQuadro; filtro: Filtro; busca: string; ui: UiDaBarra; op: OpcoesEfetivas; recolhidas: boolean; compacto: boolean; podeCriar: boolean; /** O nome e o menu do quadro (menu-do-quadro.ts), à esquerda do funil. */ cab?: Html }): Html {
+export function barraDoQuadroMinimo(o: { q: QuadroDto; cs: readonly ColunaDto[]; agente: AgenteDoQuadro; /** Rodada 3: o nome de quem está logado (as iniciais do "Você"); sem ele, "V". */ voceNome?: string | null; filtro: Filtro; busca: string; ui: UiDaBarra; op: OpcoesEfetivas; recolhidas: boolean; compacto: boolean; podeCriar: boolean; /** O nome e o menu do quadro (menu-do-quadro.ts), à esquerda do funil. */ cab?: Html }): Html {
   const { q, ui } = o;
   const valores = valoresDoFiltro(q, o.cs, o.agente);
   const nomeDoValor = (c: CondicaoDoFiltro): string => valores[c.campo]?.find((v) => v.valor === c.valor)?.nome ?? c.valor;
   const rodando = new Set(q.tarefas.filter((t) => trabalhandoAgora(t) && t.agenteId).map((t) => t.agenteId!));
-  const quem: QuemNoQuadro[] = agentesComTarefa(q.tarefas).map((c) => {
+  // Rodada 3 (tela 18 do Paper): além de quem tem tarefa, os bots ligados ao quadro sem tarefa (o dono e os responsáveis
+  // das colunas), com 0, no fim.
+  const comTarefa = agentesComTarefa(q.tarefas);
+  const ligados = botsLigadosAoQuadro(q, o.cs).filter((id) => !comTarefa.some((c) => c.agenteId === id) && o.agente(id)).map((agenteId) => ({ agenteId, n: 0 }));
+  // O dono do quadro vem primeiro (no Paper, "Você · Ada · Dante · Chico · Gil" no quadro da Ada).
+  const quem: QuemNoQuadro[] = [...comTarefa, ...ligados].sort((a, b) => Number(b.agenteId === q.agenteId) - Number(a.agenteId === q.agenteId)).map((c) => {
     const r = nomeDoResponsavel(c.agenteId, q, o.agente);
     return { filtro: `agente:${c.agenteId}`, nome: r.nome, avatar: r.avatar, n: c.n, rodando: rodando.has(c.agenteId), ativo: o.filtro === `agente:${c.agenteId}` };
   });
+  // Tela 18 do Paper: Você sempre primeiro (o que espera você), depois os bots na ordem de quem tem mais tarefa.
   const comigo = q.tarefas.filter((t) => ehComigo(t, q.colunas)).length;
-  if (comigo) quem.push({ filtro: "comigo", nome: "Você", avatar: VOCE_AV(), n: comigo, rodando: false, ativo: o.filtro === "comigo" });
-  // Quem roda primeiro (a pílula mostra quem está trabalhando).
-  quem.sort((a, b) => Number(b.rodando) - Number(a.rodando));
+  const voceIniciais = o.voceNome ? iniciais(o.voceNome) || "V" : "V";
+  quem.unshift({ filtro: "comigo", nome: "Você", avatar: anel(voceIniciais, "Você", true), n: comigo, rodando: false, ativo: o.filtro === "comigo" });
   const rapido = chipDoFiltroRapido(o.filtro, q, o.agente);
   const chips = chipsDosFiltrosHtml(chipsDosFiltros(ui.filtros, nomeDoValor, ui.negados), rapido ? { texto: rapido, act: "filtro-do-quadro", filtro: "todos" } : undefined);
   return barraMinima({
@@ -84,7 +94,8 @@ export function barraDoQuadroMinimo(o: { q: QuadroDto; cs: readonly ColunaDto[];
     filtroAberto: ui.aberto === "filtros",
     popFiltros: ui.aberto === "filtros" ? popoverDosFiltros({ filtros: ui.filtros, valores, campo: ui.campo, busca: ui.buscaFiltro, negados: ui.negados }) : "",
     busca: o.busca,
-    ativos: pilulaDosAtivos({ quem, aberta: ui.aberto === "ativos", total: q.tarefas.length }),
+    ativos: segmentoDasPessoas({ quem, total: q.tarefas.length }),
+    vista: o.op.vista,
     opAberto: ui.aberto === "opcoes",
     opAjustadas: opcoesAjustadas(o.op) || !o.recolhidas || o.compacto,
     popOpcoes: ui.aberto === "opcoes" ? popoverDasOpcoes({ op: o.op, colunas: o.cs.map((c) => ({ id: c.id, nome: c.nome, icone: iconeDe({ status: c.id, icone: iconeDaColuna(c), pessoa: c.daPessoa }) })), recolhidas: o.recolhidas, compacto: o.compacto, comDado: { labels: !!valores.label, prazo: !!valores.prazo } }) : "",
@@ -107,7 +118,7 @@ export function ajustarCard(c: Card, t: TarefaDto, op: OpcoesEfetivas, q: Quadro
   if (p.has("prioridade")) { r.prioridade = iconeDaPrioridade(prioridadeDe(t)); r.prioridadeNome = NOME_DA_PRIORIDADE[prioridadeDe(t)]; }
   if (p.has("descricao") && t.descricao.trim()) r.descricao = t.descricao.trim().slice(0, DESCRICAO_NO_CARD);
   if (!p.has("responsavel")) delete r.responsavel;
-  if (p.has("datas")) r.atualizado = `Atualizado ${haQuantoTempo(t.mudadoEm, agora)}`;
+  if (p.has("datas")) r.atualizado = haQuantoTempo(t.mudadoEm, agora); // Tela 18 do Paper: "há 1 h", sem o "Atualizado".
   if (!p.has("pr")) { delete r.pr; if (r.tags) r.tags = r.tags.filter((x) => !/^PR\b/.test(x)); }
   if (!p.has("linear") && r.tags) r.tags = r.tags.filter((x) => x !== "Linear");
   if (r.tags && !r.tags.length) delete r.tags;

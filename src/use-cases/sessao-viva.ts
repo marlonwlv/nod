@@ -1,7 +1,8 @@
+import type { AnexoMeta } from "../contracts/anexo.ts";
 import type { Executor } from "../contracts/evento.ts";
 import type { OrigemTurno, Turno } from "../contracts/turno.ts";
 import { ehComandoDeTurno } from "../domain/comandos.ts";
-import { ateOPrimeiroAnexo, ateOPrimeiroComando } from "../domain/ordem-das-falas.ts";
+import { ateOPrimeiroAnexo, ateOPrimeiroComando, porChegada } from "../domain/ordem-das-falas.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
 import { contaminarSeAbsorveuDeFora } from "./coordenar-trabalhos.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
@@ -72,19 +73,26 @@ export async function aceitaNaSessao(deps: Deps, t: Turno): Promise<boolean> {
  * em vez de sumir como `interrompido/absorvido` (`laco_mensagem_sem_sessao`). `jaOferecidas` evita entregá-las de novo
  * enquanto a confirmação não volta. Sem `confirma` (app antigo), saem `absorvido` na hora, como antes.
  */
-export const absorverNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; confirma?: boolean; jaOferecidas?: readonly string[] }, { textos: string[]; ids: string[] }> = async (deps, e) => {
+export const absorverNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; confirma?: boolean; jaOferecidas?: readonly string[]; aceitaAnexos?: boolean }, { textos: string[]; ids: string[]; anexos?: Record<string, AnexoMeta[]> }> = async (deps, e) => {
   const nada = { data: { textos: [], ids: [] } };
   const turno = await deps.repos.turnos.buscar(e.turnoId);
   if (!turno || !(await aceitaNaSessao(deps, turno))) return nada;
   // NOD-286: corta na primeira fala pendente com anexo (a que veio depois do print espera com ele). NOD-23: e na
   // primeira que é comando da conversa com turno próprio (ateOPrimeiroComando).
   const daSessao = (await deps.repos.turnos.pendentesDaPessoa(turno.conversaId)).filter((t) => t.id !== turno.id && t.agenteId === turno.agenteId && t.origem === "conversa" && Boolean(t.mensagemOrigemId) && !t.trabalhoId);
-  const absorviveis = ateOPrimeiroComando(ateOPrimeiroAnexo(daSessao), ehComandoDeTurno);
+  // C1 (2026-11-12): o app que escreve anexo na sessão viva (`aceitaAnexos`, só com `confirma`) recebe a fala com imagem
+  // no meio do turno, com os metadados; sem ele, o corte de sempre (o anexo espera o próximo turno).
+  const comAnexo = e.aceitaAnexos === true && e.confirma === true;
+  const absorviveis = ateOPrimeiroComando(comAnexo ? [...daSessao].sort(porChegada) : ateOPrimeiroAnexo(daSessao), ehComandoDeTurno);
   if (e.confirma) {
-    // A já oferecida sai depois do corte: ela nunca tem anexo nem é comando, então não muda onde a fila para.
+    // A já oferecida sai depois do corte: ela nunca é comando (nem tem anexo, sem `aceitaAnexos`), então não muda onde a fila para.
     const fora = new Set(e.jaOferecidas ?? []);
     const fila = absorviveis.filter((t) => !fora.has(t.id));
-    return { data: { textos: fila.map((t) => t.entradaTexto), ids: fila.map((t) => t.id) } };
+    const anexos: Record<string, AnexoMeta[]> = {};
+    if (comAnexo) {
+      for (const t of fila) if (t.entradaAnexos.length > 0) anexos[t.id] = await deps.repos.anexos.metas(t.entradaAnexos);
+    }
+    return { data: { textos: fila.map((t) => t.entradaTexto), ids: fila.map((t) => t.id), ...(Object.keys(anexos).length ? { anexos } : {}) } };
   }
   // App que não confirma: absorve só as que passaram pelos cortes (o repositório refaz o corte do anexo no SQL).
   const absorvidos = await deps.repos.turnos.absorverNaSessao(turno, absorviveis.map((t) => t.id));

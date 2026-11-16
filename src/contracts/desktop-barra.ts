@@ -4,11 +4,19 @@
  * em CANAIS_DESKTOP, com os outros.
  */
 /**
- * A densidade e a largura da barra guardadas por computador (web/lib/densidade.ts; userData no app do Mac). Só estes
- * valores; a Confortável aberta é o padrão e não grava nada (null).
+ * ADR-179: a barra redimensionável guardada por computador (web/lib/densidade.ts; userData no app do Mac): a última
+ * largura expandida, em px inteiros entre LIMITES_BARRA_DESKTOP, e se está compacta (88 px). Recolher não perde a largura.
  */
-export const VALORES_BARRA_DESKTOP = ["compacta", "compacta:recolhida", "compacta:larga", "confortavel:recolhida"] as const;
-export type BarraDesktop = (typeof VALORES_BARRA_DESKTOP)[number];
+export type BarraDesktop = { larguraExpandida: number; compacta: boolean };
+export const LIMITES_BARRA_DESKTOP = { min: 240, max: 400 } as const;
+/**
+ * Os valores do modelo antigo de densidades (ADR-060/NOD-119), que ainda podem estar no preferencias.json de quem
+ * atualizou o app. O preload os repõe na chave antiga e a web migra uma vez (web/lib/densidade.ts, migrarAntiga).
+ */
+export const VALORES_BARRA_ANTIGOS = ["compacta", "compacta:recolhida", "compacta:larga", "confortavel:recolhida"] as const;
+export type BarraAntigaDesktop = (typeof VALORES_BARRA_ANTIGOS)[number];
+/** O que o preferencias.json pode guardar: o valor novo ou, até a primeira gravação, o antigo. */
+export type BarraGuardadaDesktop = BarraDesktop | BarraAntigaDesktop;
 /**
  * As decisões do card (aplicada ou recusada) por mensagem, guardadas no preferencias.json do app do Mac, que apaga o
  * localStorage a cada conexão (revisão 4 do #597). Só as últimas MAX_DECISOES_BARRA_DESKTOP.
@@ -19,7 +27,7 @@ export const MAX_DECISOES_BARRA_DESKTOP = 50;
 
 /** Os métodos da barra na ponte (NodDesktop). Opcionais: o app instalado antes da NOD-119 não tem, a web confere. */
 export type PonteBarraDesktop = {
-  /** A densidade e a largura da barra; null = o padrão. */
+  /** A largura expandida e o estado compacto da barra; null = o padrão. */
   definirBarra?(barra: BarraDesktop | null): Promise<void>;
   /** A decisão do card do chat, que o preload repõe no localStorage a cada conexão. */
   definirDecisaoBarra?(mensagemId: string, decisao: DecisaoBarraDesktop): Promise<void>;

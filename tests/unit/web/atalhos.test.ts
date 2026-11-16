@@ -225,9 +225,9 @@ describe("NOD-117: índice e vizinho", () => {
 });
 
 describe("NOD-117: folha e rótulo do +", () => {
-  it("9 linhas, com as teclas do lugar (NOD-461: ⌥← → na de página e a linha de mover)", () => {
+  it("14 linhas (9 da NOD-117 e 5 da ADR-167), com as teclas do lugar (NOD-461: ⌥← → na de página e a linha de mover)", () => {
     const app = linhasDaFolha("app-mac");
-    expect(app.map((l) => l.titulo)).toEqual(["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar agentes", "Modo dev", "Fechar e voltar"]);
+    expect(app.map((l) => l.titulo)).toEqual(["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Nova sala", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"]);
     expect(app[0]!.combinacoes).toEqual([["⌘", "N"]]);
     expect(app[3]!.combinacoes).toEqual([["⌘", "["], ["⌘", "]"], ["⌥", "←"], ["⌥", "→"]]);
     expect(app[4]!.combinacoes).toEqual([["⌥", "⇧", "←"], ["⌥", "⇧", "→"]]);
@@ -335,5 +335,35 @@ describe("NOD-461: ⌥← → troca e ⌥⇧← → move a página, de qualquer 
 
   it("o colchete segue sem `seta` (⌘[ ⌘] não abrem a doca)", () => {
     expect(atalhoDoTeclado(tecla("BracketRight", "]", { metaKey: true }), ctx("app-mac", { paginas: 3 }))).toEqual({ tipo: "pagina", passo: 1 });
+  });
+});
+
+describe("ADR-167: os atalhos novos que não colidem", () => {
+  it.each(LUGARES)("⌘B, ⌘, , ⌘I, ⌘L e ⌘⇧N no modificador do lugar (%s)", (lugar) => {
+    expect(atalhoDoTeclado(tecla("KeyB", "b", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "barra" });
+    expect(atalhoDoTeclado(tecla("Comma", ",", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "ajustes" });
+    expect(atalhoDoTeclado(tecla("KeyI", "i", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "focar-campo" });
+    expect(atalhoDoTeclado(tecla("KeyL", "l", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "selecao-no-campo" });
+    expect(atalhoDoTeclado(tecla("KeyN", "N", { ...MOD[lugar], shiftKey: true }), ctx(lugar))).toEqual({ tipo: "nova-sala" });
+  });
+
+  it("no navegador do Mac, num campo, ⌃B ⌃I ⌃L são do macOS; ⌃, segue valendo", () => {
+    const c = ctx("navegador-mac", { emCampo: true });
+    for (const [code, key] of [["KeyB", "b"], ["KeyI", "i"], ["KeyL", "l"]] as const) expect(atalhoDoTeclado(tecla(code, key, { ctrlKey: true }), c)).toBeNull();
+    expect(atalhoDoTeclado(tecla("Comma", ",", { ctrlKey: true }), c)).toEqual({ tipo: "ajustes" });
+    // No app do Mac (⌘) o campo não segura: ⌘B recolhe a barra mesmo escrevendo.
+    expect(atalhoDoTeclado(tecla("KeyB", "b", { metaKey: true }), ctx("app-mac", { emCampo: true }))).toEqual({ tipo: "barra" });
+  });
+
+  it("os de antes não mudam: ⌘N, ⌘[ da pílula e ⌘⇧[ do vizinho", () => {
+    expect(atalhoDoTeclado(tecla("KeyN", "n", { metaKey: true }), ctx("app-mac"))).toEqual({ tipo: "novo-bot" });
+    expect(atalhoDoTeclado(tecla("BracketLeft", "[", { metaKey: true }), ctx("app-mac", { paginas: 2 }))).toEqual({ tipo: "pagina", passo: -1 });
+    expect(atalhoDoTeclado(tecla("BracketLeft", "{", { metaKey: true, shiftKey: true }), ctx("app-mac"))).toEqual({ tipo: "vizinho", passo: -1 });
+  });
+
+  it("diálogo aberto, celular e Seu espaço seguram os novos", () => {
+    expect(atalhoDoTeclado(tecla("KeyB", "b", { metaKey: true }), ctx("app-mac", { dialogo: true }))).toBeNull();
+    expect(atalhoDoTeclado(tecla("KeyB", "b", { metaKey: true }), ctx("app-mac", { celular: true }))).toBeNull();
+    expect(atalhoDoTeclado(tecla("Comma", ",", { metaKey: true }), ctx("app-mac", { espaco: true }))).toBeNull();
   });
 });

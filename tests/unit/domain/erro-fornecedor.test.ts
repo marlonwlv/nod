@@ -55,13 +55,26 @@ const AMOSTRAS: Record<(typeof CLASSES_ERRO_FORNECEDOR)[number], string[]> = {
     "TypeError: fetch failed",
     "stream disconnected before completion: error sending request",
   ],
-  desconhecido: [
+  // ADR-171 (2026-11-12): o crédito e o 429 por minuto ganharam classe própria; continuam fora do `limite_de_uso`.
+  fatura_em_aberto: [
     "success | Credit balance is too low",
-    // 429 da API não é o plano: sem "usage limit", fica a frase de sempre.
+    'unexpected status 429 Too Many Requests: {"error":{"type":"insufficient_quota","message":"You exceeded your current quota"}}',
+  ],
+  limite_por_minuto: [
+    // 429 da API não é o plano: sem "usage limit", não troca de conta.
     'API Error: 429 {"type":"error","error":{"type":"rate_limit_error","message":"Number of request tokens has exceeded your per-minute rate limit"}}',
     // NOD-293 (QA): "hit your rate limit" é o 429 por minuto, não o plano — não pode disparar a troca de conta.
     "success | You've hit your rate limit. Please wait a moment and try again.",
     "API Error: 429 You have hit your rate limit for requests per minute",
+  ],
+  regiao_sem_suporte: [
+    'unexpected status 403 Forbidden: {"error":{"code":"unsupported_country_region_territory","message":"Country, region, or territory not supported"}}',
+  ],
+  conteudo_bloqueado: [
+    "API Error: 400 Output blocked by content filtering policy",
+    "Your request was flagged as potentially violating our usage policy.",
+  ],
+  desconhecido: [
     "error_max_turns",
     // "500" solto (contagem de tokens) não é 5xx.
     "prompt used 500 tokens of cache",

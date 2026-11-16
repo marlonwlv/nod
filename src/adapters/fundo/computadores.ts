@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { cursorDaAcao, type PosicaoCursor } from "../../domain/computador-vivo.ts";
+import type { DadosFrameCursor } from "../../contracts/estado-vivo.ts";
 import type { AcaoComputador, Computador, ComputadorDto, ControleComputador, DriverComputador, OrigemControle, PoliticaComputador, RegistroComputador, ResultadoComputador } from "../../contracts/computador.ts";
 import type { ComputadorDaPessoa, ComputadorDaPessoaDto, EstadoComputadorDaPessoa, EstadoComputadorRelatado, OperacaoComputador, OperacaoDaPessoa, TelaComputadorBot } from "../../contracts/computador-motor.ts";
 import type { SessaoVivo } from "../../contracts/computador-vivo.ts";
@@ -24,6 +26,8 @@ import type { Deps } from "../../use-cases/tipos.ts";
 type Dentro = <T>(escopo: Escopo, fn: (d: Deps) => Promise<T>) => Promise<T>;
 /** `saude`: o computador entrou ou saiu do ar — a frota (lateral, cabeçalho, painel) precisa reler. */
 type Opcoes = { executor(): "local" | "catcher"; dentro: Dentro; driver: DriverComputador; cifrar(s: string): string; decifrar(s: string): string; mudou(escopo: Escopo, agenteId: string, saude?: boolean): void; agora?: () => number;
+  /** D (2026-11-12): o frame `computador.cursor` da ação do bot. Ausente = não emite. */
+  cursor?(escopo: Escopo, frame: DadosFrameCursor): void;
   /** NOD-200: guarda a última tela do turno para virar anexo da fala (NOD_CAPTURA_NO_TRANSCRIPT). Desligado, nada fica em memória. */
   guardarTelas?: boolean;
   /**
@@ -35,7 +39,7 @@ type Opcoes = { executor(): "local" | "catcher"; dentro: Dentro; driver: DriverC
   /** NOD-365: escolhido uma vez, no INSERT do computador da pessoa; mudanças posteriores no inventário não o movem. */
   lugarPadraoNaCriacao?: (escopo: Escopo) => string | null;
   /** NOD-95 (ADR-138): as sessões da tela ao vivo, para acabarem quando o controle sai da pessoa. */
-  vivo?: { fecharDaTela(escopo: Escopo, agenteId: string): void };
+  vivo?: { fecharDaTela(escopo: Escopo, agenteId: string): void; liberarDaTela?(escopo: Escopo, agenteId: string): void };
   dormir?: (ms: number) => Promise<void> };
 /**
  * NOD-96 PR 4: onde a ação roda. No modo docker é o computador do bot (`telaId` nulo, `computadorId` = `id`). No modo
@@ -195,12 +199,6 @@ function comoErroDeDominio(e: unknown): unknown {
 const OBSERVACAO_TTL_MS = 30 * 60_000;
 const OBSERVACOES_MAX = 500;
 const AVISO_TELA_IGUAL = "Tela igual à anterior; use computador_observar com forcar: true para vê-la de novo.";
-/**
- * definido em 2026-10-08 (NOD-200): a última tela do turno, para anexar à fala do bot no assentar. Fica 2 h
- * (turno longo com aprovação no meio) e no máximo 200 turnos (sai o mais antigo); o assentar a toma e esquece.
- */
-const TELA_DO_TURNO_TTL_MS = 2 * 60 * 60_000;
-const TELAS_DO_TURNO_MAX = 200;
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 /** "O computador está fora do ar desde …" para o agente, sem tocar no Docker (falha rápida). */
@@ -246,6 +244,25 @@ async function pedidoNovoDaPessoa(d: Deps, c: Vaga, plano: { turnoId: string; da
   // 4ª revisão: o freio é o último assumir OU parar — depois do Parar, a mensagem de antes não reabre a tela.
   const freio = await d.repos.computadores.ultimoFreio(c.computadorId, c.telaId);
   return freio !== null && msg.criadoEm > freio.em;
+}
+
+/**
+ * definido em 2026-11-14 (QA do card D): a pessoa respondeu na conversa DEPOIS do pedido de ajuda do bot. É o sinal de
+ * que ela resolveu (ex.: leu o QR code pelo celular só assistindo, sem assumir). Sem isto a ajuda ficava aberta, o bot
+ * ouvia "a pessoa está com o computador" e a tela dizia "Assistindo": ninguém sabia como sair. Vale com o controle em
+ * `aguardando_pessoa` ou com a pessoa no controle e a ajuda ainda aberta (assumiu e fechou a tela). Rotina, colega e
+ * mensagem anterior ao pedido seguem esperando.
+ */
+async function respostaDaPessoaAAjuda(d: Deps, c: Vaga, plano: { turnoId: string; daPessoa?: boolean }): Promise<boolean> {
+  if (c.ajudaDecisaoId === null || plano.daPessoa !== true) return false;
+  const turno = await d.repos.turnos.buscar(plano.turnoId);
+  if (!turno || !ORIGENS_DE_PEDIDO.has(turno.origem) || !turno.mensagemOrigemId) return false;
+  const msg = await d.repos.mensagens.buscar(turno.mensagemOrigemId);
+  if (!msg || msg.autoria.autor_tipo !== "pessoa" || msg.autoria.autor_id !== d.escopo.pessoaId) return false;
+  const ajuda = await d.repos.decisoes.buscar(c.ajudaDecisaoId);
+  if (!ajuda || (ajuda.estado !== "pendente" && ajuda.estado !== "reaberta")) return false;
+  // A mensagem guarda epoch ms; a decisão, ISO.
+  return msg.criadoEm > Date.parse(ajuda.criadoEm);
 }
 
 /** NOD-96 PR 4: as operações do portão sobre a vaga, uma implementação por modelo (docker por bot; tela no da pessoa). */
@@ -425,18 +442,6 @@ export function criarComputadores(o: Opcoes) {
     observacoes.set(chave, { ...hashes, em: agora() });
     for (const [k, v] of observacoes) if (observacoes.size > OBSERVACOES_MAX || agora() - v.em > OBSERVACAO_TTL_MS) observacoes.delete(k); else break;
   }
-  /** NOD-200: base64 da última tela do turno (qualquer computador), antes da dedup. */
-  const telasDoTurno = new Map<string, { imagem: string; em: number }>();
-  function guardarTela(turnoId: string, imagem: string): void {
-    telasDoTurno.delete(turnoId);
-    telasDoTurno.set(turnoId, { imagem, em: agora() });
-    for (const [k, v] of telasDoTurno) if (telasDoTurno.size > TELAS_DO_TURNO_MAX || agora() - v.em > TELA_DO_TURNO_TTL_MS) telasDoTurno.delete(k); else break;
-  }
-  function ultimaTela(turnoId: string): string | null {
-    const v = telasDoTurno.get(turnoId);
-    if (v && agora() - v.em > TELA_DO_TURNO_TTL_MS) { telasDoTurno.delete(turnoId); return null; }
-    return v?.imagem ?? null;
-  }
   function ultimaObservacao(chave: string): HashesObservacao | undefined {
     const v = observacoes.get(chave);
     if (v && agora() - v.em > OBSERVACAO_TTL_MS) { observacoes.delete(chave); return undefined; }
@@ -588,6 +593,17 @@ export function criarComputadores(o: Opcoes) {
     }
   }
 
+  /** D: onde o cursor de cada bot ficou (memória do processo; o rolar e o digitar acontecem ali). */
+  const cursores = new Map<string, PosicaoCursor>();
+  function emitirCursor(escopo: Escopo, agenteId: string, acao: AcaoComputador): void {
+    if (!o.cursor) return;
+    const frame = cursorDaAcao(acao, agenteId, cursores.get(agenteId) ?? null, agora());
+    if (!frame) return;
+    cursores.delete(agenteId);
+    cursores.set(agenteId, { x: frame.x, y: frame.y });
+    if (cursores.size > 1000) cursores.delete(cursores.keys().next().value!);
+    try { o.cursor(escopo, frame); } catch (e) { log("aviso", "computador_cursor_falhou", { agente_id: agenteId, erro: e instanceof Error ? e.name : "desconhecido" }); }
+  }
   async function executar(escopo: Escopo, r: Reserva): Promise<ResultadoComputador> {
     let estado: "concluida" | "falhou" = "falhou";
     let falha: FalhaComputador | null = null;
@@ -617,6 +633,8 @@ export function criarComputadores(o: Opcoes) {
             if (!estadoAtual.permitido) { if (estadoAtual.desligar) await o.driver.parar(r.computador.id, escopo); throw new ErroDeDominio("nao_permitido"); }
             ligado = true;
           }
+          // D (2026-11-12): o cursor da ação do bot vai à tela da pessoa quando o comando sai ao computador.
+          if (r.autor === "bot") emitirCursor(escopo, r.computador.agenteId, r.acao);
           resultado = await o.driver.executar(r.computador.id, r.acao, escopo, r.autor);
           break;
         } catch (e) {
@@ -937,6 +955,8 @@ export function criarComputadores(o: Opcoes) {
       // NOD-95: a pessoa deixou o controle; a tela ao vivo dela (se houver) acaba junto. O "iniciar" também devolve o
       // controle ao bot (revisão do PR #599): sem fechar aqui, um cliente VNC seguia mandando teclado e mouse.
       if (operacao === "devolver" || operacao === "parar" || operacao === "iniciar") o.vivo?.fecharDaTela(escopo, agenteId);
+      // Card D, F4: assumiu; a tela de quem já assiste passa teclado e mouse antes de a resposta voltar (sem reconectar).
+      if (operacao === "assumir") o.vivo?.liberarDaTela?.(escopo, agenteId);
       let sucesso = false;
       let falha: FalhaComputador | null = null;
       let ligou = false;
@@ -973,10 +993,19 @@ export function criarComputadores(o: Opcoes) {
      * operação em curso; o driver manda o `vivo` à máquina com a sessão que o WebSocket da web abriu. Não passa pela
      * reserva das ações: o que corre depois é um fluxo, não uma ação, e o bot já está parado pelo controle.
      */
-    async vivo(escopo: Escopo, agenteId: string, sessao: SessaoVivo): Promise<void> {
-      if (!porPessoa || !o.driver.vivo) throw new ErroDeDominio("nao_encontrado");
+    async vivo(escopo: Escopo, agenteId: string, sessao: SessaoVivo, modo: { assistir?: boolean } = {}): Promise<void> {
+      if (!o.driver.vivo) throw new ErroDeDominio("nao_encontrado");
       const c = await o.dentro(escopo, async (d) => {
         const c = await obter(d, agenteId);
+        // Card D, F3: quem assiste vê com o bot no controle; teclado e mouse ficam no filtro da sessão (vivo.ts).
+        if (modo.assistir) {
+          // No modo por provedor, `obter` também devolve a linha desabilitada. Recuse antes de abrir a origem VNC:
+          // a reconferência posterior fecha a sessão, mas não pode ser a primeira barreira de autorização.
+          if (!c.habilitado) throw new ErroDeDominio("nao_permitido");
+          if (c.indisponivelDesde !== null) throw new ErroDeDominio("estado_invalido", { cause: "computador fora do ar" });
+          if (c.telaId && operacaoViva(await d.repos.computadores.daPessoa(), d.agora())) throw new ErroDeDominio("estado_invalido", { cause: "atualizando" });
+          return c;
+        }
         if (!c.habilitado || c.controle !== "pessoa") throw new ErroDeDominio("nao_permitido");
         if (c.indisponivelDesde !== null) throw new ErroDeDominio("estado_invalido", { cause: "computador fora do ar" });
         if (c.telaId && operacaoViva(await d.repos.computadores.daPessoa(), d.agora())) throw new ErroDeDominio("estado_invalido", { cause: "atualizando" });
@@ -988,7 +1017,12 @@ export function criarComputadores(o: Opcoes) {
     },
     /** Revisão do PR #599: a sessão ao vivo reconfere isto; só a pessoa no controle, com a tela habilitada, segue. */
     async vivoAindaPode(escopo: Escopo, agenteId: string): Promise<boolean> {
-      if (!porPessoa) return false;
+      if (!porPessoa) return o.dentro(escopo, async (d) => {
+        const agente = await d.repos.agentes.buscar(agenteId);
+        if (!agente || agente.ownerId !== escopo.pessoaId) return false;
+        const c = await d.repos.computadores.buscarDoAgente(agenteId);
+        return Boolean(c?.habilitado && c.controle === "pessoa" && c.indisponivelDesde === null);
+      });
       // 2ª revisão: só lê (como o `consultar`) — o `obter` vincula, cria e trava a tela a cada 10 s por sessão.
       return o.dentro(escopo, async (d) => {
         const agente = await d.repos.agentes.buscar(agenteId);
@@ -999,6 +1033,28 @@ export function criarComputadores(o: Opcoes) {
         // 4ª revisão: o Parar vale pelo freio, não pelo estado da tela (logo depois do assumir, a tela pode estar fechada).
         if (!p || !t || t.controle !== "pessoa" || p.indisponivelDesde !== null) return false;
         return (await d.repos.computadores.ultimoFreio(p.id, t.id))?.tipo !== "parar";
+      });
+    },
+    /**
+     * Card D, F3: a sessão de quem assiste reconfere isto. `ver`: a tela segue sendo da pessoa e o computador no ar;
+     * `mexer`: a pessoa está no controle (as mesmas regras do `vivoAindaPode`).
+     */
+    async vivoPodeAssistir(escopo: Escopo, agenteId: string): Promise<{ ver: boolean; mexer: boolean }> {
+      if (!porPessoa) return o.dentro(escopo, async (d) => {
+        const agente = await d.repos.agentes.buscar(agenteId);
+        if (!agente || agente.ownerId !== escopo.pessoaId) return { ver: false, mexer: false };
+        const c = await d.repos.computadores.buscarDoAgente(agenteId);
+        if (!c?.habilitado || c.indisponivelDesde !== null) return { ver: false, mexer: false };
+        return { ver: true, mexer: c.controle === "pessoa" };
+      });
+      return o.dentro(escopo, async (d) => {
+        const agente = await d.repos.agentes.buscar(agenteId);
+        if (!agente || agente.ownerId !== escopo.pessoaId) return { ver: false, mexer: false };
+        const p = await d.repos.computadores.daPessoa();
+        if (!p || p.indisponivelDesde !== null) return { ver: false, mexer: false };
+        const t = await d.repos.computadorTelas.buscar(p.id, agenteId);
+        if (!t || t.controle !== "pessoa") return { ver: true, mexer: false };
+        return { ver: true, mexer: (await d.repos.computadores.ultimoFreio(p.id, t.id))?.tipo !== "parar" };
       });
     },
     async humano(escopo: Escopo, agenteId: string, valor: unknown): Promise<ResultadoComputador> {
@@ -1037,19 +1093,30 @@ export function criarComputadores(o: Opcoes) {
         if (!await turnoPermitido(d, plano.turnoId, plano.agenteId)) return negar("parada_ativa");
         const schema = FERRAMENTAS_COMPUTADOR[nome as keyof typeof FERRAMENTAS_COMPUTADOR];
         if (!schema || errosDoSchema(schema, argumentos).length) return negar("args_invalidos");
-        const c = await obter(d, plano.agenteId);
+        let c = await obter(d, plano.agenteId);
         if (!c.habilitado) return negar("capacidade_desligada");
         // definido em 2026-09-24 (emenda da ADR-037): fora do ar, a ferramenta responde na hora — sem
         // Docker, sem reserva. O plano seguinte já sai sem as ferramentas computador_*.
         if (c.indisponivelDesde !== null) return { ok: true, isError: true, conteudo: JSON.stringify(foraDoArParaAgente(c)), confianca: "confiavel" };
         const aguardarPessoa = (): ResultadoChamada => { esquecerObservacao(plano.turnoId, c.id); return { ok: true, conteudo: JSON.stringify({ estado: "aguardando_pessoa", instrucao: "A pessoa está com o computador. Encerre o turno e aguarde a devolução." }), confianca: "confiavel" }; };
+        if (c.controle !== "bot" && (await respostaDaPessoaAAjuda(d, c, plano))) {
+          const decisaoId = c.ajudaDecisaoId!;
+          // Limpa a ajuda antes de fechar a decisão: fecharComResposta recusa a ajuda ainda ligada ao computador.
+          await lugar.configurar(d, c, { controle: "bot", ajuda: null, ajudaDecisaoId: null, atividadeEm: d.agora() });
+          const r = await fecharComResposta(d, { decisaoId, texto: "Respondi na conversa." });
+          if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+          await lugar.registrar(d, c, { turnoId: plano.turnoId, autor: "bot", tipo: "retomar", estado: "concluida" });
+          esquecerObservacao(plano.turnoId, c.id);
+          retomouNaTentativa = c.id;
+          c = { ...c, controle: "bot", ajuda: null, ajudaDecisaoId: null };
+        }
         if (c.controle === "aguardando_pessoa") return aguardarPessoa();
         // Revisão do PR #599 (ADR-037 emendada, ADR-138 §6): a retomada abaixo só vale para o pedido NOVO da pessoa. Um
         // turno de rotina, de colega ou que já corria quando ela assumiu, ou um pedido de ajuda do bot ainda aberto,
         // seguem esperando: o Assumir continua sendo o freio dela.
         if (c.controle === "pessoa" && !(await pedidoNovoDaPessoa(d, c, plano))) return aguardarPessoa();
         // definido em 2026-10-29 (1º ensaio no Mac, pedido do Marlon; revê a NOD-97): a pessoa estava no controle e PEDIU
-        // algo ao bot — a mensagem é o sinal de que terminou. O bot retoma na hora, como no Grok: controle volta ao bot,
+        // algo ao bot — a mensagem é o sinal de que terminou. O bot retoma na hora: o controle volta ao bot,
         // a tela ao vivo dela acaba (fora da transação) e a linha "retomou o computador" fica no painel. Só o pedido de
         // ajuda do próprio bot (aguardando_pessoa, acima) segue esperando a pessoa.
         if (c.controle === "pessoa") {
@@ -1086,6 +1153,8 @@ export function criarComputadores(o: Opcoes) {
         // ações da MESMA tarefa. Nunca vale em turno não confiável (ADR-026) nem depois da web (ADR-062: a marca de
         // 0033 ficava de fora, e o terminal já a olhava — autorizar-comando.ts).
         // revisto em 2026-10-01 (ADR-066): saiu o gate da rotina; quem pede a pessoa é a política do computador e o modo.
+        // ADR-166: o bot em só leitura só observa e lê no computador dele; o que muda algo é negado, sem cartão.
+        if (alteraComputador(acao) && (await d.repos.agentes.buscar(plano.agenteId))?.soLeitura === true) return negar("capacidade_desligada");
         const liberadaNaTarefa = plano.confiancaEntrada === "confiavel" && alteraComputador(acao) && !(await d.repos.turnos.contaminado(plano.turnoId)) && await computadorLiberadoNaTarefa(d, plano.turnoId);
         // ADR-059: o modo do bot aprova a ação no computador DELE como aprova o resto. Nada ali é "arriscado" no
         // sentido do Mac (o computador é isolado, ADR-037). ADR-066: conteúdo de fora não para o automático nem o total.
@@ -1131,7 +1200,6 @@ export function criarComputadores(o: Opcoes) {
         let tela: Record<string, unknown> | undefined = r.tela ? { ...r.tela, imagem: undefined } : undefined;
         let aviso: string | undefined;
         // NOD-200: a captura é a tela que o bot viu, inclusive a repetida que a dedup abaixo omite ao modelo.
-        if (o.guardarTelas && !isError && r.tela?.imagem && resultado.computador.controle === "bot") guardarTela(plano.turnoId, r.tela.imagem);
         // NOD-161: a tela igual à última entregue no turno sai sem imagem/texto. Resultado com erro não
         // conta como entregue e sai inteiro; quadro, url, título, abas e diálogo saem sempre.
         if (r.tela && !isError) {
@@ -1365,12 +1433,6 @@ export function criarComputadores(o: Opcoes) {
         }
       })();
       return { concluida };
-    },
-    /** NOD-200: a última tela guardada do turno (base64), sem esquecer; null se não há. */
-    ultimaTela,
-    /** NOD-200: a ponte chama depois do assentar confirmado (serviço `capturas.esquecer`). */
-    esquecerTurno(turnoId: string): void {
-      telasDoTurno.delete(turnoId);
     },
     /** ADR-083 (S5): quem segurava o computador quando este turno o pediu pela última vez; null = não espera. */
     esperandoPor(turnoId: string): string | null {

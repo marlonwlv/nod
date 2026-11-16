@@ -504,7 +504,7 @@ export function resumoDaPilula(lista: readonly TrabalhoDto[]): { ponto: "precisa
 }
 
 /** O chip de memória das pranchas M1–M3: traço na cor do texto da pílula (currentColor), sem cor própria. */
-const ICONE_MEMORIA = '<svg class="pm-icone" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"></rect><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"></path></svg>';
+export const ICONE_MEMORIA = '<svg class="pm-icone" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"></rect><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"></path></svg>';
 
 /**
  * O que a pílula de memória conta: "rodando" (NOD-372, com as máquinas no DTO: os trabalhos rodando no Mac, "N rodando
