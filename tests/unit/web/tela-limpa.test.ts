@@ -98,19 +98,20 @@ describe("E11: o Parar no campo", () => {
     expect(tituloDoParar(cenario({}, { turnosVivos: vivo() }), "a")).toBe("Parar o que está rodando nesta conversa");
   });
 
-  it("COP-14 (item 1): um botão só à direita — Enviar com texto ou ditado, Parar com o campo vazio e o bot trabalhando", () => {
+  it("COP-14 (item 1, revisto nos acessos 3b): o Parar nunca some enquanto o bot trabalha — com rascunho, ao lado do Enviar", () => {
     // Bot livre: só o Enviar, com ou sem texto (vazio, ele fica desabilitado no campo).
     expect(botoesDoCampo({ trabalhando: false, temConteudo: false, ditando: false })).toEqual({ enviar: true, parar: false });
     expect(botoesDoCampo({ trabalhando: false, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: false });
     // Trabalhando com o campo vazio: só o Parar.
     expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: false })).toEqual({ enviar: false, parar: true });
-    // Trabalhando com rascunho, anexo ou ditado: sempre o Enviar, sem o Parar.
-    expect(botoesDoCampo({ trabalhando: true, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: false });
-    expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: true })).toEqual({ enviar: true, parar: false });
-    // Nunca os dois ao mesmo tempo, nem nenhum.
+    // Trabalhando com rascunho, anexo ou ditado: os dois (parar sem apagar o rascunho).
+    expect(botoesDoCampo({ trabalhando: true, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: true });
+    expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: true })).toEqual({ enviar: true, parar: true });
+    // Nunca nenhum; o Parar aparece exatamente quando o bot trabalha.
     for (const trabalhando of [false, true]) for (const temConteudo of [false, true]) for (const ditando of [false, true]) {
       const b = botoesDoCampo({ trabalhando, temConteudo, ditando });
-      expect(b.enviar !== b.parar).toBe(true);
+      expect(b.enviar || b.parar).toBe(true);
+      expect(b.parar).toBe(trabalhando);
     }
   });
 

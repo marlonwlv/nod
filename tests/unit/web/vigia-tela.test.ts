@@ -97,12 +97,12 @@ describe("um Parar só na tela (NOD-354, revisto no COP-14: o Parar mora só no 
     return noCampo + (corpo(e, c).match(/data-act="parar-(?:conversa|sala)"/g) ?? []).length;
   };
 
-  it("conversa própria em silêncio: campo vazio, 1 Parar (o do campo); com texto ou ditado, o campo mostra Enviar e nenhum Parar", () => {
+  it("conversa própria em silêncio: 1 Parar (o do campo), com o campo vazio e também com texto ou ditado (acessos 3b: ao lado do Enviar)", () => {
     const { e, c } = cenario(MUDO);
     expect(htmlComposer("x", [], { aprovacao: true, bot: "Ada" })).toContain('data-act="parar-conversa" aria-label="Parar Ada"');
     expect(pararNoCampoDaConversa(e, C)).toBe(true);
     expect(visiveis(e, c)).toBe(1);
-    for (const [temConteudo, ditando] of [[true, false], [false, true], [true, true]] as const) expect(visiveis(e, c, { temConteudo, ditando })).toBe(0);
+    for (const [temConteudo, ditando] of [[true, false], [false, true], [true, true]] as const) expect(visiveis(e, c, { temConteudo, ditando })).toBe(1);
     // Também na repetição sem silêncio.
     const rep = cenario({ mudoDesde: null, aberta: null, emFundo: 0, repeticao: { rotulo: "Gmail", vezes: 5 } });
     expect(visiveis(rep.e, rep.c)).toBe(1);

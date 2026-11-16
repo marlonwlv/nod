@@ -27,6 +27,10 @@
 .composer .box:has(textarea:placeholder-shown) > .send, .composer .box > .send:disabled { background: var(--chat-preenchido); color: var(--chat-icone); }
 .composer .box > .parar-envio { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); border: 0; }
 .composer .box > .parar-envio svg { width: 14px; height: 14px; }
+/* Acessos do campo (3b): o Parar ao lado do Enviar (rascunho com o bot trabalhando) é secundário — sem fundo, preenchido
+   só no hover e no foco; o Enviar continua o único botão cheio. Gravando, o celular tem o Parar âmbar (mobile.css). */
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])) { background: transparent; color: var(--chat-tinta-2); }
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])):is(:hover, :focus-visible) { background: var(--chat-preenchido); color: var(--chat-tinta); }
 
 /* Acessos · fila (2026-11-16): a linha pequena embaixo da fala na fila, à direita: "Na fila · Cancelar", "Cancelando…",
    "Cancelada · não rodou · Desfazer"… O botão é texto (tinta-2, peso 500, sem vermelho), no tamanho da linha; o padding

@@ -188,7 +188,24 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
   transition: border-color var(--dur-normal) ease;
 }
 .composer .box:focus-within { border-color: var(--campo-borda-foco); }
-.composer .box > :is(.clipe, #composer-modo, #composer-ia) { display: none; }
+.composer .box > .clipe { display: none; }
+/* Acessos do campo (3c): a IA e o modo voltam ao campo, entre o texto e o 🎤 (o anexo segue no ＋). Com mouse, em repouso
+   ficam no lugar mas escondidos — o lugar é guardado, então nada pula quando aparecem, e o visibility hidden os tira do
+   Tab; no hover e no foco do campo aparecem (Tab: texto → IA → modo → 🎤 → enviar). Sem mouse fino (tela de toque
+   grande), ficam sempre à vista. Com o menu de um aberto, os dois ficam (o foco foi para o menu, fora do campo, e o
+   outro sumia deixando o buraco do lugar guardado). 3a: "Ignorar todas as aprovações" ligado fica sempre à vista, fora do hover. */
+@media (hover: hover) and (pointer: fine) {
+  .composer .box > :is(#composer-ia, #composer-modo) {
+    visibility: hidden; opacity: 0; transition: opacity var(--dur-normal) ease, visibility 0s linear var(--dur-normal);
+  }
+  .composer .box:is(:hover, :focus-within) > :is(#composer-ia, #composer-modo),
+  .composer .box:has(> :is(#composer-ia, #composer-modo)[aria-expanded="true"]) > :is(#composer-ia, #composer-modo) {
+    visibility: visible; opacity: 1; transition-delay: 0s;
+  }
+  /* 3a: com "Ignorar todas as aprovações" ligado o chip âmbar (interface.css) fica sempre à vista, para a dona e para
+     quem conversa com o bot dela — o aviso de risco não depende do hover; a IA ao lado continua só no hover e no foco. */
+  .composer .box > #composer-modo[data-modo="total"] { visibility: visible; opacity: 1; transition-delay: 0s; }
+}
 .composer .box > .mais-campo {
   display: grid; place-items: center; width: 30px; height: 30px; flex: none; padding: 0; margin: 0; border: 0; border-radius: var(--raio-full);
   background: transparent; color: var(--ink-2);
@@ -204,6 +221,10 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .composer .box > .send { background: var(--action); color: var(--on-action); }
 .composer .box > .send:disabled, .composer .box > .send[aria-disabled="true"] { background: var(--hover); color: var(--ink-3); opacity: 1; }
 .composer .box > .parar-envio { background: var(--action); color: var(--on-action); }
+/* Acessos do campo (3b): com o rascunho e o bot trabalhando o Parar fica ao lado do Enviar como secundário (sem fundo); o
+   Enviar segue o único botão cheio. Sozinho, com o campo vazio, o Parar continua cheio. */
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])) { background: transparent; color: var(--ink-2); }
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])):is(:hover, :focus-visible) { background: var(--hover); color: var(--ink); }
 .composer .box > :is(.send, .parar-envio, .mic) svg { width: 16px; height: 16px; }
 .composer .nota:empty { display: none; }
 

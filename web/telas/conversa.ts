@@ -2000,10 +2000,12 @@ export function pararNoCampoDaTela(estado: Estado): boolean {
  * manda), os dois. Sem trabalho, só o Enviar.
  */
 export function botoesDoCampo(p: { trabalhando: boolean; temConteudo: boolean; ditando: boolean }): { enviar: boolean; parar: boolean } {
-  // COP-14 (item 1): um botão só à direita — com texto (ou o ditado), sempre Enviar, mesmo com o bot trabalhando; com o
-  // campo vazio e o bot trabalhando, Parar; vazio e parado, o Enviar desabilitado.
-  const parar = p.trabalhando && !p.temConteudo && !p.ditando;
-  return { enviar: !parar, parar };
+  // COP-14 (item 1), revisto em 2026-11-16 (acessos do campo, 3b: parar sem apagar o rascunho): com o campo vazio e o bot
+  // trabalhando, só o Parar (cheio, na ponta); com texto, anexo ou o ditado e o bot trabalhando, os dois — o Enviar segue
+  // na ponta e é a ação do Enter, o Parar fica logo antes dele como secundário (sem fundo; web/casca.css e web/chat.css),
+  // como na pílula do quadro (web/lib/quadro-na-tela.ts). Antes o Parar sumia com rascunho e, para parar, era preciso
+  // apagar o texto. Parado, só o Enviar (desabilitado com o campo vazio).
+  return { enviar: !p.trabalhando || p.temConteudo || p.ditando, parar: p.trabalhando };
 }
 
 /** O título do Parar do campo (revisto em 2026-10-22, NOD-311): ele para só a conversa, nunca as tasks. */
@@ -2054,14 +2056,16 @@ export function htmlComposer(placeholder: string, sugestoes: readonly string[] =
   // O "/" (definido em 2026-09-28): a lista abre acima do campo; a dica diz o que o comando escrito faz.
   const barra = opcoes.comandos ? '<div class="barra-lista" id="barra-lista" role="listbox" aria-label="Comandos" hidden></div><div class="barra-dica" id="barra-dica" hidden></div>' : "";
   // ADR-059: o botão do modo de aprovação (só na conversa própria); main.ts troca o miolo. A faixa acima do campo saiu
-  // em 2026-10-18 (Fase 4, PR 2).
+  // em 2026-10-18 (Fase 4, PR 2). Acessos do campo (3c): o modo mora logo depois do seletor de IA, num grupo "IA · modo"
+  // entre o texto e o 🎤 — a ordem do Tab segue a visual (texto → IA → modo → 🎤 → enviar) e nada entra à esquerda do
+  // texto; no computador o grupo aparece no hover e no foco do campo (web/casca.css).
   const chip = opcoes.aprovacao ? HTML_CHIP_MODO : "";
   const seletor = opcoes.aprovacao || opcoes.seletor ? HTML_SELETOR_IA : "";
   const parar = opcoes.aprovacao ? `<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="${esc(rotuloDoParar(opcoes.bot))}" title="Parar o que está rodando nesta conversa" hidden>${QUADRADO}</button>` : "";
   // NOD-381 (definido em 2026-10-27): no celular o clipe, o modo e a IA saem de dentro do campo e moram na folha do +
   // (web/telas/folha-mais.ts); o + só nasce quando há o que abrir e o computador nunca o vê (web/mobile.css).
   const mais = aceita || opcoes.aprovacao ? `<button type="button" class="mais-campo" data-act="abrir-mais" aria-label="Anexar, modo e IA" aria-haspopup="menu" aria-expanded="false">${MAIS}</button>` : "";
-  return `<div class="composer"><div class="composer-pergunta" id="composer-pergunta"></div>${htmlSugestaoRotina()}${barra}<div class="box${aceita ? " com-anexos" : ""}${chip ? " com-modo" : ""}${mais ? " com-mais" : ""}">${lista}${mais}${anexar}${chip}<textarea id="composer-texto" rows="1" placeholder="${esc(placeholder)}" data-sugestoes="${esc(JSON.stringify(sugestoes))}"></textarea>${resumo}${seletor}${htmlPilulaDitado()}${htmlBotaoDitado()}${parar}<button class="send" data-act="enviar" aria-label="Enviar">${SETA_ENVIAR}</button></div>
+  return `<div class="composer"><div class="composer-pergunta" id="composer-pergunta"></div>${htmlSugestaoRotina()}${barra}<div class="box${aceita ? " com-anexos" : ""}${chip ? " com-modo" : ""}${mais ? " com-mais" : ""}">${lista}${mais}${anexar}<textarea id="composer-texto" rows="1" placeholder="${esc(placeholder)}" data-sugestoes="${esc(JSON.stringify(sugestoes))}"></textarea>${resumo}${seletor}${chip}${htmlPilulaDitado()}${htmlBotaoDitado()}${parar}<button class="send" data-act="enviar" aria-label="Enviar">${SETA_ENVIAR}</button></div>
   <p class="nota" id="composer-nota" data-padrao=""></p></div>`;
 }
 

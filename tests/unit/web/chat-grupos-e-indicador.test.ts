@@ -92,9 +92,9 @@ describe("COP-14 item 2: a função única do estado do indicador", () => {
   });
 });
 
-describe("COP-14 item 1: um botão à direita do campo", () => {
-  it("com texto, Enviar mesmo trabalhando; vazio e trabalhando, Parar; vazio e parado, Enviar", () => {
-    expect(botoesDoCampo({ trabalhando: true, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: false });
+describe("COP-14 item 1 (revisto, acessos 3b): os botões à direita do campo", () => {
+  it("com texto e trabalhando, Enviar e Parar (o rascunho fica); vazio e trabalhando, Parar; vazio e parado, Enviar", () => {
+    expect(botoesDoCampo({ trabalhando: true, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: true });
     expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: false })).toEqual({ enviar: false, parar: true });
     expect(botoesDoCampo({ trabalhando: false, temConteudo: false, ditando: false })).toEqual({ enviar: true, parar: false });
   });
