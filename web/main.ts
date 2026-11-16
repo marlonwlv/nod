@@ -99,6 +99,7 @@ import { reduzirFoto } from "./lib/reduzir-foto.ts";
 import { criarLoja } from "./react/loja.ts";
 import { deveLembrar, htmlLembrete, jaFalou, marcarFalou } from "./telas/lembrete-conta.ts";
 import type { EstadoContaDto } from "../src/contracts/conta.ts";
+import { criarLeituraDeNovo } from "./lib/leitura-de-novo.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
 import { criarSondaDeRede } from "./lib/sonda-de-rede.ts";
 import { criarReleituraAdiada } from "./lib/releitura-adiada.ts";
@@ -2423,6 +2424,12 @@ async function reidratar(): Promise<void> {
   if (telaMudou || agendaNova || estado.invalidacoes.some((q) => relevante(q) && !leituras.emVoo(q))) void reidratar();
 }
 
+/** A leitura de fundo que falhou com 5xx volta à fila em 2, 5 e 10 s antes de o erro ir à tela. */
+const leituraDeNovo = criarLeituraDeNovo<Invalidacao>({
+  agendar: (fn, ms) => window.setTimeout(fn, ms),
+  reler: (q) => dispatch({ tipo: "invalidar", quais: [q] }),
+});
+
 /** Uma leitura da passada: busca, aplica, redesenha e trata o erro. Nunca rejeita (a chave em voo é compartilhada). */
 async function lerUma(q: Invalidacao, passada: { redeCaiu: boolean }, lerParaDeepLink: (lida: NonNullable<ReturnType<typeof leituraConta>>) => void): Promise<void> {
   // A rede caiu numa leitura desta passada enquanto esta esperava vaga: nem tenta (cada GET esperaria mais 8,5 s).
@@ -2441,9 +2448,12 @@ async function lerUma(q: Invalidacao, passada: { redeCaiu: boolean }, lerParaDee
     if (saiu) { render(); depoisDeSair(); }
     else if (acao?.tipo === "hidratar-nao-lidos") { render(); lerConversaDaTela(); }
     else if (acao) renderNoQuadro();
+    leituraDeNovo.deuCerto(q);
   } catch (e) {
     if (!(e instanceof ErroApi && e.status === 404)) {
       const erro = erroDe(e);
+      // A leitura de fundo que o servidor recusou com 5xx tenta de novo calada (web/lib/leitura-de-novo.ts).
+      if (erro && !ehErroDeRede(erro) && leituraDeNovo.falhou(q, erro) === "calar") return;
       if (erro && ehErroDeRede(erro)) {
         // NOD-136: falha de rede não conta para o link (leituraConta); a leitura volta com a rede.
         // Revisão NOD-215: a rede caiu. Esta leitura fica guardada para quando o nod voltar; as que ainda esperam vaga
@@ -2890,8 +2900,33 @@ function htmlDoErro(e: ErroNaTela): string {
     return avisoDeEstado({ tom: "info", titulo: "Reconectando…", texto: e.mensagem, extra: detalhes, papel: "status", classe: "aviso-compacto aviso-reconectando" });
   }
   const nod = e.codigo === "erro_da_tela" ? (estado.frota?.agentes ?? []).find((a) => a.papel === "nod" && a.ownerId === estado.sessao?.pessoaId) : undefined;
-  const relatar = nod ? ` ${botao("abrir-conversa", "Relatar", { classe: "sm", dados: { conversa: nod.conversaId, agente: nod.id } })}` : "";
-  return `<div class="erro" role="alert">${esc(e.mensagem)}${relatar} ${botao("fechar-erro", "×", { classe: "sm" })}${detalhes}</div>`;
+  const relatar = nod ? botao("abrir-conversa", "Relatar", { classe: "sm erro-relatar", dados: { conversa: nod.conversaId, agente: nod.id } }) : "";
+  // Validação de 2026-11-16: o aviso compacto (casca.css) — ícone, a frase, Relatar, Detalhes e o × de ícone — no lugar
+  // da faixa vermelha de ponta a ponta; some sozinho em 8 s (sumirErroDaAcao).
+  return `<div class="erro" role="alert">${IC_ERRO}<span class="erro-txt">${esc(e.mensagem)}</span>${relatar}${detalhes}<button type="button" class="erro-fechar" data-act="fechar-erro" aria-label="Fechar o aviso">${IC_FECHAR_ERRO}</button></div>`;
+}
+
+const IC_ERRO = '<svg class="erro-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5"/><path d="M12 16h.01"/></svg>';
+const IC_FECHAR_ERRO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+/**
+ * O erro de uma ação some sozinho em 8 s, como o aviso passageiro do app de referência e do bot-hq; com o ponteiro ou o
+ * foco nele (lendo, abrindo Detalhes, indo ao Relatar), espera mais 2 s e confere de novo. O "Reconectando…" não entra:
+ * ele some quando a rede volta.
+ */
+const SUMICO_DO_ERRO_MS = 8000;
+let erroComPrazo: ErroNaTela | null = null;
+function sumirErroDaAcao(): void {
+  const e = estado.erro;
+  if (e === null || ehErroDeRede(e) || e === erroComPrazo) return;
+  erroComPrazo = e;
+  const conferir = (): void => {
+    if (estado.erro !== e) return;
+    const aviso = document.querySelector("#erro .erro");
+    if (aviso?.matches(":hover, :focus-within") || aviso?.querySelector("details[open]")) { window.setTimeout(conferir, 2000); return; }
+    dispatch({ tipo: "erro", erro: null });
+  };
+  window.setTimeout(conferir, SUMICO_DO_ERRO_MS);
 }
 
 /**
@@ -3048,6 +3083,7 @@ function renderPrincipal(): void {
   const t = estado.tela;
   // NOD-174: a pessoa lê a frase do servidor; o código fechado fica só no <details>, para quem depura.
   const erro = estado.erro ? htmlDoErro(estado.erro) : "";
+  sumirErroDaAcao();
   let cabecalho = "";
   let corpo = "";
   let partes: PartesDaTimeline | null = null;
