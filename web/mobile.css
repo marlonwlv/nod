@@ -845,3 +845,12 @@
 }
 
 @keyframes nl-sobe-c { from { opacity: 0; transform: translateY(8px); } }
+
+/* Acessos · computador, item 5 (definido em 2026-11-16): no celular o topo da tela cheia diz só "{Bot} · precisa de você"
+   e o pedido inteiro desce para baixo da pílula, centrado em 14 px; o Sair ganha 44 px de alvo. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .ctc-tit-longo, .ctc-tit-pedido { display: none; }
+  .ctc-tit-curto { display: inline; }
+  .ctc-pedido:not(:empty) { display: block; max-width: 100%; margin: 0; font-size: 14px; line-height: 20px; text-align: center; color: #ffffffa8; } /* cor-fixa: sobre o fundo fixo da tela cheia */
+  .ctc-sair { width: 44px; height: 44px; margin-right: -10px; }
+}

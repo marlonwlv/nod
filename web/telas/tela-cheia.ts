@@ -1,7 +1,7 @@
 import type { Agente } from "../../src/contracts/agente.ts";
 import type { AcaoComputador, ComputadorDto, TelaComputador } from "../../src/contracts/computador.ts";
 import type { Api } from "../lib/api.ts";
-import { AVISO_ASSUMA, estadoDaBarra, esperaParaReconectar, htmlBarraDeControle, htmlTelaCheia, MS_ASSUMINDO_VISIVEL, MS_CAPTURA_PLANO_B, MS_PLANO_B, type EstadoBarra } from "../lib/computador-pessoa.ts";
+import { AVISO_ASSUMA, estadoDaBarra, esperaParaReconectar, htmlBarraDeControle, htmlTelaCheia, htmlTituloDaTelaCheia, MS_ASSUMINDO_VISIVEL, tituloDaTelaCheia, MS_CAPTURA_PLANO_B, MS_PLANO_B, type EstadoBarra } from "../lib/computador-pessoa.ts";
 import { foraDoAr } from "../lib/computador.ts";
 import { htmlMascote } from "../lib/mascote.ts";
 import { abrirVivoNoVnc, type AbrirVivo, type ClienteVivo } from "../lib/tela-vivo.ts";
@@ -24,7 +24,7 @@ import { abrirVivoNoVnc, type AbrirVivo, type ClienteVivo } from "../lib/tela-vi
 export type OpcoesTelaCheia = {
   /** Abre já no controle (o pedido de ajuda). */
   assumir?: boolean;
-  /** O pedido de ajuda: vira a descrição da região para o leitor de tela. */
+  /** O pedido de ajuda: vira a descrição da região para o leitor de tela e o título do topo (item 5). */
   pedido?: string | null;
   /** Avisado quando o controle muda: o painel e o cartão releem o computador. */
   aoMudar?: () => void;
@@ -82,6 +82,9 @@ export function abrirTelaCheia(api: Api, agente: AgenteDaTela, opcoes: OpcoesTel
   // (atalhos, Esc das outras telas) o reconhecem como modal.
   dialog.setAttribute("role", "region");
   dialog.setAttribute("aria-label", `Tela de ${agente.nome}`);
+  // Item 5 (definido em 2026-11-16): o h1 visível do topo dá o nome; o aria-label fica para quem procura a tela aberta
+  // (web/lib/computador-estados.ts, `[aria-label^="Tela de "]`).
+  dialog.setAttribute("aria-labelledby", "ctc-titulo");
   if (opcoes.pedido) dialog.setAttribute("aria-description", opcoes.pedido);
   if (typeof window !== "undefined" && (window as { nodDesktop?: unknown }).nodDesktop !== undefined) dialog.classList.add("no-mac");
   const personagem = htmlMascote({ nome: agente.nome, cor: agente.cor ?? "c-gray", forma: agente.forma ?? "shape-circle" }, "", "trabalhando");
@@ -106,6 +109,8 @@ export function abrirTelaCheia(api: Api, agente: AgenteDaTela, opcoes: OpcoesTel
   const esperaTxt = q(".ctc-espera-txt");
   const aviso = q(".ctc-aviso");
   const fora = q(".ctc-fora");
+  const titulo = q(".ctc-titulo");
+  const pedidoEl = q(".ctc-pedido");
   const menosMovimento = opcoes.menosMovimento ?? (() => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   let dto: ComputadorDto | undefined;
@@ -115,6 +120,7 @@ export function abrirTelaCheia(api: Api, agente: AgenteDaTela, opcoes: OpcoesTel
   let assumindoDesde: number | null = null;
   let timerAssumindo = 0;
   let estadoPintado: EstadoBarra | null = null;
+  let tituloPintado = "";
   let lendo = false;
   /** A abertura terminou (a primeira observação já abriu a tela): daqui em diante a leitura religa o VNC se faltar. */
   let preparado = false;
@@ -137,9 +143,26 @@ export function abrirTelaCheia(api: Api, agente: AgenteDaTela, opcoes: OpcoesTel
   const botOcupado = () => (dto?.computador.ocupadoAte ?? 0) > Date.now();
   const estadoAgora = (): EstadoBarra => estadoDaBarra(dto?.computador.controle, assumindoDesde, Date.now());
 
+  /**
+   * Item 5: "Tela de Nina" ou "Nina precisa de você · <pedido>". O pedido vem da leitura de 2 s (o bot pediu ajuda com a
+   * tela já aberta) ou de quem abriu. Só reescreve quando muda: não rouba o foco nem vira região viva.
+   */
+  function pintarTitulo(): void {
+    const controle = dto?.computador.controle;
+    const pedido = dto?.computador.ajuda ?? opcoes.pedido ?? null;
+    const html = htmlTituloDaTelaCheia(agente.nome, controle, pedido);
+    if (html === tituloPintado) return;
+    tituloPintado = html;
+    titulo.innerHTML = html;
+    const texto = tituloDaTelaCheia(agente.nome, controle, pedido);
+    titulo.setAttribute("title", texto);
+    pedidoEl.textContent = texto === `Tela de ${agente.nome}` ? "" : (pedido ?? "").trim();
+  }
+
   function pintar(): void {
     if (terminou) return;
     dialog.dataset.fase = fase;
+    pintarTitulo();
     fora.hidden = !dto || !foraDoAr(dto);
     quadro.hidden = fase === "iniciando";
     const estado = estadoAgora();
