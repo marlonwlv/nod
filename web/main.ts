@@ -195,8 +195,7 @@ import { ehIa, fraseDoMotivoDaNota, inventarioDaIa, pedeInstalar } from "./telas
 import { renderRotinas } from "./telas/rotinas.ts";
 import { nomesDosMembros, renderCabecalhoSala, renderNovaSala } from "./telas/sala.ts";
 import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
-import { aparenciaDoComposer, renderPilulaPendencias } from "./telas/pergunta.ts";
-import { emOrdemDePrazo, pendenciasDaConversa, proximoDoCiclo } from "./lib/pendencias.ts";
+import { aparenciaDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
 import { mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
 import { acessosNaTela, chaveDoClique } from "./lib/acessos-otimistas.ts";
@@ -221,7 +220,7 @@ import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, type
 import { acharBotao, aplicarFocoDaFila, botaoEmFoco, proximoDaFila, VALIDADE_DO_FOCO_MS, type FocoDaFila } from "./lib/foco-da-fila.ts";
 import { aplicarEncolhidos, decididaNaConversa, type DecididaNestaAba } from "./lib/foco-do-encolhido.ts";
 import { seletorDoFocoNaRegiao } from "./lib/foco-do-bloco.ts";
-import { itensDaRecusa } from "./lib/recusa-da-aprovacao.ts";
+import { aprovacoesAbertasDaConversa, itensDaRecusa, PLACEHOLDER_COM_APROVACAO } from "./lib/recusa-da-aprovacao.ts";
 import { atalhoEnviarTodos } from "./telas/rascunhos-de-envio.ts";
 import { criarEnvios, enviarUmaVez } from "./lib/envio-idempotente.ts";
 import { iniciarMotorLigacao } from "./lib/ligacao.ts";
@@ -3433,17 +3432,18 @@ function atualizarComposer(): void {
   const caixa = document.querySelector<HTMLElement>("#composer .composer");
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
   // ADR-167: o seletor de modelo também vive no campo da task, que não tem conversa própria aqui.
-  // A pílula "N esperam você" só existe com o campo da conversa (quem só lê não tem campo, e não a vê).
-  if (!alvo || !caixa || !ta) { desenharPendencias(null); atualizarSeletorIa(); return; }
-  desenharPendencias(alvo.conversaId);
+  if (!alvo || !caixa || !ta) { atualizarSeletorIa(); return; }
   const nota = document.getElementById("composer-nota");
   const a = aparenciaDoComposer(modoDoComposer(estado, alvo.conversaId), estado, { placeholder: placeholderPadrao(), nota: nota?.dataset.padrao ?? "" }, alvo.conversaId);
   regiao("composer-pergunta", a.topo);
   // ADR-094: no celular o texto de ajuda inteiro quebrava em duas linhas dentro do campo; lá fica o curto, e o leitor de
   // tela continua ouvindo o completo.
-  const placeholder = celular.ativo() ? "Mensagem" : a.placeholder;
+  // Item 10, rodada 2: com aprovação aberta e o campo no modo comum, mandar mensagem recusa o pedido (enviarComposer).
+  const comPedido = a.placeholder === placeholderPadrao() && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0;
+  const rotulo = comPedido ? PLACEHOLDER_COM_APROVACAO : a.placeholder;
+  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : rotulo;
   if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-  if (ta.getAttribute("aria-label") !== a.placeholder) ta.setAttribute("aria-label", a.placeholder);
+  if (ta.getAttribute("aria-label") !== rotulo) ta.setAttribute("aria-label", rotulo);
   // Plano "tela limpa" (2026-10-16, T5): a dica "Enter envia…" saiu. Plano "pergunta com botões" (2026-10-18): a nota do
   // modo resposta e o clipe desligado também — com pergunta aberta o campo não muda.
   if (nota && nota.textContent !== a.nota) nota.textContent = a.nota;
@@ -3451,47 +3451,6 @@ function atualizarComposer(): void {
   atualizarSeletorIa();
   atualizarMais();
   atualizarParar();
-}
-
-/**
- * A pílula "N esperam você" (2026-11-16, item 10 dos acessos devolvidos; web/telas/pergunta.ts renderPilulaPendencias). O
- * prazo dela anda com o tique de `estado.agora` (sem relógio novo); o foco que estava num botão dela volta ao mesmo botão
- * depois do redesenho, e some com ela para o campo.
- */
-function desenharPendencias(conversaId: string | null): void {
-  const lugar = document.getElementById("pendencias");
-  const ativo = document.activeElement;
-  const focado = lugar && ativo instanceof HTMLElement && lugar.contains(ativo) ? ativo.dataset.act ?? null : null;
-  regiao("pendencias", conversaId ? renderPilulaPendencias(estado, conversaId) : "");
-  if (!focado || (document.activeElement instanceof HTMLElement && lugar?.contains(document.activeElement))) return;
-  const volta = lugar?.querySelector<HTMLElement>(`[data-act="${CSS.escape(focado)}"]`) ?? lugar?.querySelector<HTMLElement>("button");
-  if (volta) volta.focus({ preventScroll: true });
-  else document.getElementById("composer-texto")?.focus({ preventScroll: true });
-}
-
-/** O último pedido a que a pílula levou, por conversa: o próximo clique vai ao seguinte, em ciclo (web/lib/pendencias.ts). */
-let ultimaPendencia: { conversaId: string; id: string } | null = null;
-
-/**
- * Clique na pílula "N esperam você": leva ao cartão do pedido que vence primeiro; de novo, ao próximo (em ciclo). O cartão
- * ganha o realce e o foco vai ao primeiro botão dele. Fora da janela carregada, espera o desenho como o atalho das rotinas
- * (levarAoPedidoQuandoDesenhar) e, sem ele, abre a faixa de Trabalhos; nunca rola em silêncio para um cartão errado.
- */
-function verPendencia(conversaId: string): void {
-  const ordem = emOrdemDePrazo(pendenciasDaConversa(estado.suaVez, conversaId), estado.agora).map((i) => i.decisao.id);
-  const id = proximoDoCiclo(ordem, ultimaPendencia?.conversaId === conversaId ? ultimaPendencia.id : null);
-  if (!id) return;
-  ultimaPendencia = { conversaId, id };
-  const t = estado.tela;
-  levarAoPedidoQuandoDesenhar(conversaId, t.tipo === "conversa" ? t.agenteId : null, id, true);
-}
-
-/** O × da pílula: esconde até chegar outro pedido (ou um destes entrar nos 10 min antes de vencer). Só em memória. */
-function dispensarPendencias(conversaId: string): void {
-  const ids = pendenciasDaConversa(estado.suaVez, conversaId).map((i) => i.decisao.id);
-  dispatch({ tipo: "dispensar-pendencias", conversaId, ids });
-  // A pílula sumiu com o foco nela: o foco vai ao campo, não ao <body>.
-  document.getElementById("composer-texto")?.focus({ preventScroll: true });
 }
 
 /**
@@ -5047,6 +5006,17 @@ async function enviarComposer(): Promise<void> {
       else if (idEnvio && enviou) envios.esquecer(alvo.conversaId, idEnvio);
     }
     if (pendente) dispatch({ tipo: "fala-pendente-confirmada", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, mensagemId: r.ids?.mensagem ?? null, turnoId: r.ids?.turno ?? null });
+    // Item 10, rodada 2 (web/lib/recusa-da-aprovacao.ts): a mensagem comum com aprovação aberta é "não, faça isto". Depois
+    // de a mensagem estar salva (nada se perde se a recusa falhar), recusa cada aprovação aberta da conversa com o corpo
+    // do Negar; o turno que esperava solta e o bot lê a mensagem na hora.
+    if (r.enviado === "mensagem" && !alvo.salaId) {
+      const abertas = aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId);
+      for (const aberta of abertas) {
+        const itens = itensDaRecusa([], aberta.itensAprovacao);
+        if (itens) await a.decidir(aberta.decisao.id, { itens });
+      }
+      if (abertas.length > 0) dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
+    }
     else limparDepoisDeEnviar(ta, chave, texto);
     if (r.enviado === "resposta") anunciarPergunta(`Resposta enviada: ${enviado}`);
     if (r.enviado === "mensagem" && !pendente) limparAnexos(alvo.conversaId);
@@ -5862,29 +5832,16 @@ function levarAo(alvo: AlvoDoAtalho, realcar = true): void {
 function verPerguntaNaConversa(conversaId: string, agenteId: string, decisaoId: string): void {
   if (!conversaId || !decisaoId) return;
   navegar({ tipo: "conversa", conversaId, agenteId });
-  levarAoPedidoQuandoDesenhar(conversaId, agenteId, decisaoId);
-}
-
-/**
- * O miolo de verPerguntaNaConversa (e da pílula "N esperam você"): espera até ~3 s a timeline desenhar o balão ou o cartão
- * do pedido e leva até ele; sem ele, abre a faixa de trabalhos (sem bot, numa sala, não faz nada). `focarBotao`: o foco
- * vai ao primeiro botão do cartão (Paper "Acessos · pendências", P4: "Negar", o mais seguro de um Enter sem querer).
- */
-function levarAoPedidoQuandoDesenhar(conversaId: string, agenteId: string | null, decisaoId: string, focarBotao = false): void {
   const id = CSS.escape(decisaoId);
   const ate = Date.now() + 3000;
   const tentar = (): void => {
     // A pessoa saiu da conversa nesses 3 s: o atalho não a puxa de volta.
-    const t = estado.tela;
-    if ((t.tipo !== "conversa" && t.tipo !== "sala") || t.conversaId !== conversaId) return;
+    if (estado.tela.tipo !== "conversa" || estado.tela.conversaId !== conversaId) return;
     const alvo = document.querySelector<HTMLElement>(`[data-pergunta="${id}"], [data-decisao="${id}"], [data-proposta="${id}"]`);
     const passo = passoDoAtalho(alvo !== null, Date.now(), ate);
     if (passo === "tentar") window.setTimeout(tentar, 100);
-    else if (passo === "faixa") { if (agenteId) dispatch({ tipo: "faixa-trabalhos", agenteId }); }
-    else if (alvo) {
-      levarAo(alvo);
-      if (focarBotao) alvo.querySelector<HTMLElement>("button:not([disabled])")?.focus({ preventScroll: true });
-    }
+    else if (passo === "faixa") dispatch({ tipo: "faixa-trabalhos", agenteId });
+    else if (alvo) levarAo(alvo);
   };
   window.setTimeout(tentar, 0);
 }
@@ -8112,8 +8069,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "ver-pergunta": (el) => verPergunta(el.dataset.id ?? ""),
   // definido em 2026-10-15 (NOD-270): da lista de rotinas ao balão da pergunta que segura a rotina, na conversa dela.
   "ver-pergunta-da-rotina": (el) => verPerguntaNaConversa(el.dataset.conversa ?? "", el.dataset.agente ?? "", el.dataset.id ?? ""),
-  "ver-decisao": (el) => (el.dataset.pendencias ? verPendencia(el.dataset.pendencias) : verDecisao(el.dataset.id ?? "")),
-  "dispensar-pendencias": (el) => dispensarPendencias(el.dataset.conversa ?? ""),
+  "ver-decisao": (el) => verDecisao(el.dataset.id ?? ""),
   // A resposta pronta é TEXTO da pessoa (EMENDA 16): o toque manda as palavras da opção por `responder`.
   // Desligada enquanto `ocupado` (o cartão desenha as opções com disabled): o clique duplo não manda duas respostas.
   "responder-opcao": (el) =>

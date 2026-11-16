@@ -306,20 +306,6 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .pilula-trab .pt-passo { color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pilula-trab > svg:last-child { width: 14px; height: 14px; color: var(--ink-3); }
 
-/* A pílula "N esperam você" (2026-11-16, Paper "Acessos · pendências"): o mesmo desenho da pílula do trabalho acima, na
-   mesma linha, à esquerda. A de Trabalhos (a recolhida ou a do bot) sobe para essa linha, à direita, e perde o "· N
-   precisam de você" para não contar duas vezes; o lugar dela deixa o clique passar do lado esquerdo. */
-.stage > .lugar-pendencias { padding: 0 64px; }
-.lugar-pendencias .pend-lugar { padding: 0 0 10px; }
-.lugar-pendencias .pilula-pend { height: 30px; border-radius: var(--raio-full); border-color: var(--borda-sutil); background: var(--surface-elevated); box-shadow: var(--sombra-controle); }
-.lugar-pendencias .pilula-pend.perto { border-color: var(--warning-line); }
-.lugar-pendencias .pp-botao { border-radius: var(--raio-full); padding: 0 6px 0 12px; }
-.lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .faixa-trab-lugar { justify-content: flex-end; margin-top: -40px; pointer-events: none; }
-.lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .faixa-trab-lugar > * { pointer-events: auto; max-width: calc(100% - 260px); overflow: hidden; }
-.lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .pt-precisa { display: none; }
-.lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .pf-fechada { bottom: 7px; left: auto; right: 0; max-width: calc(100% - 260px); transform: none; }
-.lugar-pendencias:not(:empty) + .lugar-faixa-trabalhos .pilula-frentes.escondida .pf-fechada { transform: translateY(12px); }
-
 /* ---- A tabela da fala vira o cartão do Paper ("Linear · time NOD"): raio 12, linhas de 40, sem fundo no cabeçalho ---- */
 .timeline .md-tabela { border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-inline); overflow: hidden; max-width: 558px; }
 .timeline .md-tabela table { border: 0; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }

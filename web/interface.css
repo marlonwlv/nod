@@ -1637,9 +1637,20 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 /* Artefato: "Abrir em nova aba" (card-artefato.ts). */
 .artefato-nova-aba { display: inline-flex; align-items: center; gap: 4px; }
 .artefato-nova-aba svg { flex: none; }
-/* Revisto em 2026-10-04 (ADR-070): o que espera você é "novo para você", no azul de sinal. A faixa "N coisas esperam
-   você" que usava as regras .espera* saiu (Paper, rodada 2); no lugar dela, a pílula .pilula-pend (2026-11-16). */
+/* "N coisas esperam você" acima do campo (pergunta.ts renderEspera). Revisto em 2026-10-04 (ADR-070): o que espera
+   você é "novo para você", no azul de sinal; o resto da faixa é neutro. */
 .tag-azul { color: var(--signal); border-color: transparent; background: var(--signal-soft); }
+.espera { margin: 0 0 8px; border: 1px solid var(--line); border-radius: var(--raio-14); background: var(--surface); overflow: hidden; }
+.espera-cab { display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: var(--fs-corpo-2); font-weight: 600; color: var(--ink); background: var(--surface-side); border-bottom: 1px solid var(--line); }
+.espera-n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--signal); color: var(--on-signal); font-size: var(--fs-legenda); }
+.espera ol { list-style: none; margin: 0; padding: 0; max-height: 168px; overflow: auto; }
+.espera li { display: flex; align-items: center; gap: 10px; padding: 7px 10px 7px 14px; border-top: 1px solid var(--line); font-size: var(--fs-corpo-2); color: var(--ink-2); line-height: 1.4; }
+.espera li:first-child { border-top: 0; }
+.espera-ord { width: 14px; flex: none; text-align: center; font-size: var(--fs-legenda); color: var(--ink-3); }
+.espera .tag { flex: none; }
+.esp-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.esp-txt small { display: block; margin-top: 1px; font-size: var(--fs-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
+.espera li .bt.link { flex: none; min-height: 28px; white-space: nowrap; color: var(--ink); }
 .lista > li.decisao.realce, .card-acesso.realce, [data-proposta].realce { box-shadow: 0 0 0 3px var(--warning-line); transition: box-shadow var(--dur-lento) ease; }
 /* Artefato como fala do bot (conversa.ts renderMensagem): mascote, nome e hora; o card ocupa a coluna do balão. */
 .message.com-artefato .bubble-wrap { width: min(100%, 760px); }
@@ -1809,30 +1820,6 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 .pilula-trab b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
 .pilula-trab > svg { color: var(--ink-3); }
 .pt-precisa { color: var(--signal); }
-
-/* A pílula "N esperam você" (2026-11-16, item 10 dos acessos devolvidos; Paper "Acessos · pendências", P1–P6): o molde da
-   .pilula-trab, à esquerda dela na mesma linha. Duas partes: o botão que leva ao pedido (contagem e prazo; o anel de foco
-   só nele) e o × separado. Neutra em repouso; com o prazo a menos de 1 h, o trecho do prazo e a borda vão para o aviso. */
-.lugar-pendencias { flex: none; padding: 0 30px; }
-.lugar-pendencias:empty { display: none; }
-.lugar-pendencias > * { max-width: 760px; margin-left: auto; margin-right: auto; }
-.pend-lugar { display: flex; justify-content: flex-start; padding: 6px 16px 2px; }
-.pilula-pend { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; height: 28px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--raio-14);
-  background: var(--surface-side); color: var(--ink-2); font-size: var(--fs-corpo-2); }
-.pilula-pend.perto { border-color: var(--warning-line); }
-.pp-botao { display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 100%; padding: 0 6px 0 9px; border: 0; border-radius: var(--raio-14); background: none; color: inherit; font: inherit; cursor: pointer; }
-.pp-botao:hover { background: var(--surface-raised); }
-.pp-botao:focus-visible { background: var(--surface-raised); outline: 2px solid var(--ink-3); outline-offset: 1px; }
-.pp-sino { display: grid; flex: none; place-items: center; color: var(--ink-3); }
-.pp-sino svg { width: 14px; height: 14px; }
-.pp-conta { white-space: nowrap; }
-.pp-conta b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
-.pp-prazo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 6px; border-radius: var(--raio-8); background: var(--warning-soft); color: var(--warning); font-variant-numeric: tabular-nums; }
-.pp-curto { display: none; }
-.pp-dispensar { display: grid; flex: none; place-items: center; width: 22px; height: 22px; margin-right: 3px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink-3); cursor: pointer; }
-.pp-dispensar svg { width: 12px; height: 12px; }
-.pp-dispensar:hover, .pp-dispensar:focus-visible { background: var(--surface-raised); color: var(--ink-2); }
-.pp-dispensar:focus-visible { outline: 2px solid var(--ink-3); outline-offset: 1px; }
 
 /* A pílula do bot acima do campo (chat limpo, PR 8; plano, Parte 4 · 4c; protótipo D4BE2-pilula-alarga): no lugar da linha
    do dono. Fechada, uma pílula clean centrada, flutuando acima do campo; o clique a alarga no lugar com as frentes. O painel

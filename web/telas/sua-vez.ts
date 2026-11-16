@@ -88,11 +88,6 @@ const PRAZO_POR_TIPO: Record<TipoDecisao, (em: string, item: Item) => string> = 
   quadro_exclusao: nadaMudaSemVoce,
 };
 
-/** O que acontece quando o prazo do item passa, com o `em` já escrito ("recusa automática em 12 min"; PRAZO_POR_TIPO). */
-export function prazoDoPedido(item: Item, em: string): string {
-  return PRAZO_POR_TIPO[item.decisao.tipo](em, item);
-}
-
 /** Regras que fecham decisão sem pessoa (ADR-042), em frase curta; regra sem tradução cai no genérico. */
 const REGRA_HUMANA: Readonly<Record<string, string>> = {
   "regra:rotina_nao_retoma": "fechado: a rotina não retoma",
@@ -374,7 +369,7 @@ function renderCardAprovacao(item: Item, estado: Estado): string {
   // Rodada 2 do item 10: no terminal e no computador a pergunta já diz onde ("…no seu Mac?"); a linha de baixo só repetia.
   const sub = naMaquina ? "" : onde ? `${onde.charAt(0).toUpperCase()}${onde.slice(1)}` : "";
   // O "Esc" do cabeçalho repetia o do Negar; o prazo e o "pedido há…" seguem no title do cabeçalho.
-  return `<li class="decisao aprov-card dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}">
+  return `<li class="decisao aprov-card dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}" data-nome="${esc(item.agenteNome)}">
     <div class="aprov-cab" title="${esc(`${prazo} · pedido ${haQuanto(item.aguardandoHaMs)}`)}">${agente ? `<span class="aprov-av">${iconeAgente(agente, "", "aguardando_aprovacao")}</span>` : '<span class="aprov-ponto" aria-hidden="true"></span>'}<span class="aprov-quem">${esc(d.frase)}</span>${aPedidoDe(item)}${marcaGemeas(item)}${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}${botao("decidir-aprovacao-nenhum", "×", { classe: "aprov-fechar", id: d.id, aria: "Negar e fechar" })}</div>
     <p class="aprov-titulo dec-frase">${esc(perguntaDaAprovacao(item, conectores))}</p>
     ${sub ? `<p class="aprov-onde">${esc(sub)}</p>` : ""}

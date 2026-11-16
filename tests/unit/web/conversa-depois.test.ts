@@ -6,7 +6,7 @@ import { estadoInicial, reduzir, type ConversaEstado, type Estado } from "../../
 import { ATIVIDADE_VAZIA, comFerramenta, comFimDaAcao, comTexto, comVigia } from "../../../web/lib/atividade.ts";
 import { blocosAoVivo, blocosDoHistorico, renderCabecalhoConversa, renderMensagem, renderResumoDasAcoes, renderTimeline, tomarTrocaDoIndicador } from "../../../web/telas/conversa.ts";
 import { renderCardArtefato } from "../../../web/telas/card-artefato.ts";
-import { renderPilulaPendencias, renderTopoComposer } from "../../../web/telas/pergunta.ts";
+import { renderTopoComposer } from "../../../web/telas/pergunta.ts";
 import { acaoHumana, previaDoItem } from "../../../web/telas/sua-vez.ts";
 
 /** O canvas "Uma conversa de verdade · depois" (2026-10-03), item a item. */
@@ -552,12 +552,8 @@ describe("8. o cabeçalho com uma regra só", () => {
   });
 });
 
-/**
- * revisto em 2026-11-16 (item 10 dos acessos devolvidos): a lista continua fora do topo do campo, mas a dona devolveu o
- * acesso por causa do prazo — a pílula "N esperam você" (renderPilulaPendencias) só conta e leva ao cartão.
- */
-describe("9. nada de lista 'N coisas esperam você' acima do campo (Paper, rodada 2: a faixa repetia os cartões); a pílula conta", () => {
-  it("com pergunta e outros pedidos, o topo do campo não lista os pedidos: cada um está no seu cartão, e a pílula os conta", () => {
+describe("9. nada de 'N coisas esperam você' acima do campo (Paper, rodada 2: a faixa repetia os cartões)", () => {
+  it("com pergunta e outros pedidos, o topo do campo não lista os pedidos: cada um está no seu cartão", () => {
     const pergunta = { ...pedido("q1", { tipo: "pergunta", criadoEm: "2026-10-03T14:30:00Z", itens: [] }), decisao: { ...pedido("q1").decisao, tipo: "pergunta" as const, frase: "Posso mandar o painel?", criadoEm: "2026-10-03T14:30:00Z" } };
     const gate = { ...pedido("g1"), decisao: { ...pedido("g1").decisao, tipo: "gate_rotina" as const } };
     const { e } = cenario([], [pergunta, pedido("d1"), gate]);
@@ -565,9 +561,6 @@ describe("9. nada de lista 'N coisas esperam você' acima do campo (Paper, rodad
     expect(html).toBe("");
     expect(html).not.toContain("esperam você");
     expect(html).not.toContain('data-act="ver-decisao"');
-    const pilula = renderPilulaPendencias(e, C);
-    expect(pilula).toContain("<b>2</b> esperam você");
-    expect(pilula).not.toContain(pergunta.decisao.frase);
   });
 });
 

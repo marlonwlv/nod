@@ -505,24 +505,3 @@ parou de responder" — culpando a máquina pela falha do servidor. Diagnóstico
 `quedas_esgotadas`, a espera ou o teto estão curtos: subir. Se a pessoa clicar "Retomar" numa conversa cuja frase diz
 "o servidor do nod não respondeu" e a máquina de fato estava fora (presença mentiu), voltar a culpar a máquina e revisar
 `OFFLINE_MS`.
-
-## Emenda de 2026-11-16 — a pílula "N esperam você" volta junto do campo
-
-**Contexto.** A rodada 2 do Paper tirou a faixa "N coisas esperam você" de cima do campo porque ela repetia os cartões.
-Com isso, a aprovação ou o acesso que ficou para cima na conversa podia vencer sem ser visto. A dona do produto devolveu
-o acesso por causa do prazo, no molde minimalista (Paper "Acessos · pendências", P1–P6).
-
-**Decisão.** Uma pílula, não uma lista: o sino e "N esperam você", à esquerda da pílula de Trabalhos, na mesma linha
-(`renderPilulaPendencias` em `web/telas/pergunta.ts`, regras puras em `web/lib/pendencias.ts`). Conta o mesmo que a faixa
-contava (os pedidos abertos da conversa que não são pergunta). Com o primeiro a vencer a menos de 1 h, ganha o prazo de
-`PRAZO_POR_TIPO` ("recusa automática em 12 min") no tom de aviso; sem isso, fica neutra. O clique leva ao cartão que vence
-primeiro e, de novo, ao próximo, em ciclo; fora da janela carregada, espera o desenho e abre a faixa de Trabalhos. O ×
-guarda os ids só em memória: a pílula volta com um pedido novo ou quando um dispensado entra nos 10 min antes de vencer.
-No celular, 44 px, o prazo curto e sem ×. Com ela à vista, a pílula de Trabalhos perde o "· N precisam de você".
-
-**No chat: nenhuma ação nova.** A pílula só navega (`ver-decisao`, que já existia) e mexe em estado local
-(`dispensar-pendencias`, sem rota). O pedido continua no próprio cartão da conversa, e decidir segue `nunca` no chat
-(`cartoes.decidir`, "cartão se decide no cartão").
-
-**Gatilho de reversão.** Se a pílula voltar a ser lida como repetição dos cartões (a crítica da rodada 2), ou se o × for
-usado na maioria das vezes em que ela aparece, ela sai de novo e o prazo passa a viver só no cartão.

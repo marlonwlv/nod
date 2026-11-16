@@ -4,11 +4,8 @@ import type { FioDaPergunta } from "../../src/contracts/pedido.ts";
 import type { Estado } from "../estado/reducer.ts";
 import { estadoDaPergunta, fiosDaConversa, iconeBalao, inicioDaPergunta, mensagemDaPergunta, modoDoComposer, rodadaEscrita, type ItemPergunta, type ModoComposer } from "../lib/perguntas.ts";
 import { botao, esc, hora } from "../lib/render.ts";
-import { ICONE } from "../lib/icones.ts";
-import { emOrdemDePrazo, pendenciasDaConversa, pilulaPendenciasVisivel, PRAZO_PERTO_MS, venceEmMs } from "../lib/pendencias.ts";
-import { duracaoCurta, emQuanto } from "../lib/relogio.ts";
 import { renderCartaoPergunta, rodapeDaConversa, type SituacaoDoCartao } from "./cartao-pergunta.ts";
-import { prazoDoPedido, rotuloVencido } from "./sua-vez.ts";
+import { rotuloVencido } from "./sua-vez.ts";
 
 /**
  * Perguntas viram conversa (emenda da ADR-045, definido em 2026-09-24). revisto em 2026-10-18 (plano "pergunta com
@@ -155,34 +152,6 @@ export function renderTopoComposer(modo: ModoComposer, estado: Estado, conversaI
   // cita vai como mensagem comum, e a pergunta segue aberta). O × da caixa tira a citação e a da pergunta volta.
   const citacao = conversaId ? estado.citacoes[conversaId] : undefined;
   return citacao ? renderCaixaCitacao(citacao) : renderRespondendo(modo, estado);
-}
-
-/**
- * A pílula "N esperam você" junto do campo (definido em 2026-11-16, item 10 dos acessos devolvidos; Paper "Acessos ·
- * pendências", P1–P6). revisto em 2026-11-16: a faixa "N coisas esperam você" saiu na rodada 2 do Paper porque repetia os
- * cartões; a dona devolveu o acesso por causa do prazo. A pílula não repete o cartão: conta os pedidos abertos da conversa
- * (web/lib/pendencias.ts), mostra o prazo do primeiro a vencer só quando falta menos de 1 h (no tom de aviso) e leva ao
- * cartão dele; de novo, ao próximo (main.ts, verPendencia). O × esconde até chegar outro pedido. Mesmo molde da pílula
- * de Trabalhos, à esquerda dela. Vazia sem pedido ou dispensada.
- */
-export function renderPilulaPendencias(estado: Estado, conversaId: string): string {
-  const itens = pendenciasDaConversa(estado.suaVez, conversaId);
-  if (!pilulaPendenciasVisivel(itens, estado.pendenciasDispensadas[conversaId], estado.agora)) return "";
-  const [primeiro] = emOrdemDePrazo(itens, estado.agora);
-  if (!primeiro) return "";
-  const n = itens.length;
-  const vence = venceEmMs(primeiro, estado.agora);
-  const perto = vence < PRAZO_PERTO_MS;
-  // "vence em 25 min · nada muda sem você" fica só "vence em 25 min": a pílula diz o prazo; o resto mora no cartão.
-  const [prazo = ""] = prazoDoPedido(primeiro, emQuanto(vence)).split(" · ");
-  const conta = `<b>${n}</b> ${n === 1 ? "espera você" : "esperam você"}`;
-  // No celular (mobile.css) fica só o curto ("12 min"), num rótulo à parte; o inteiro segue no aria-label.
-  const prazoHtml = perto ? `<span class="pp-prazo"><span class="pp-longo">${esc(prazo)}</span><span class="pp-curto">${esc(duracaoCurta(vence))}</span></span>` : "";
-  const aria = `Ver o que espera você: ${n} ${n === 1 ? "pedido" : "pedidos"}${perto ? `, ${n === 1 ? "ele" : "o primeiro"} ${prazo}` : ""}`;
-  const dica = `${primeiro.decisao.frase}\nEnter leva ao pedido · de novo, ao próximo`;
-  const ir = `<button type="button" class="pp-botao" data-act="ver-decisao" data-id="${esc(primeiro.decisao.id)}" data-pendencias="${esc(conversaId)}" aria-label="${esc(aria)}" title="${esc(dica)}"><span class="pp-sino" aria-hidden="true">${ICONE.sino}</span><span class="pp-conta">${conta}</span>${prazoHtml}</button>`;
-  const fechar = `<button type="button" class="pp-dispensar" data-act="dispensar-pendencias" data-conversa="${esc(conversaId)}" aria-label="Esconder até chegar outro pedido" title="Dispensar">${ICONE.fechar}</button>`;
-  return `<div class="pend-lugar"><div class="pilula-pend${perto ? " perto" : ""}" role="group" aria-label="O que espera você">${ir}${fechar}</div></div>`;
 }
 
 export type AparenciaComposer = {
