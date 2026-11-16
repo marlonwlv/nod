@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ESTADO_MAX_BYTES_ARTEFATO } from "../../../src/contracts/artefato.ts";
 import type { Mensagem } from "../../../src/contracts/mensagem.ts";
 import { estadoInicial, type ConversaEstado, type Estado } from "../../../web/estado/reducer.ts";
-import { ALTURA_MAX, ALTURA_MIN, CSP_ARTEFATO, documentoDoArtefato, ESTADO_MAX_BYTES, iframeDoArtefato, jsonParaScript, lerMensagemDoArtefato, nomeDoArquivo, SANDBOX_ARTEFATO } from "../../../web/lib/artefato.ts";
+import { ALTURA_MAX, ALTURA_MIN, criarFilaDeSalvamentos, CSP_ARTEFATO, documentoDoArtefato, ESTADO_MAX_BYTES, iframeDoArtefato, jsonParaScript, lerMensagemDoArtefato, nomeDoArquivo, SANDBOX_ARTEFATO } from "../../../web/lib/artefato.ts";
 import { renderTimeline } from "../../../web/telas/conversa.ts";
 
 /**
@@ -92,6 +92,40 @@ describe("filtro do postMessage", () => {
     expect(lerMensagemDoArtefato(ev({ nod: "altura", px: 5 }), janela)).toEqual({ tipo: "altura", px: ALTURA_MIN });
     expect(lerMensagemDoArtefato(ev({ nod: "altura", px: 99_999 }), janela)).toEqual({ tipo: "altura", px: ALTURA_MAX });
     expect(lerMensagemDoArtefato(ev({ nod: "altura", px: 640.4 }), janela)).toEqual({ tipo: "altura", px: 640 });
+  });
+});
+
+describe("gravação concorrente do estado", () => {
+  it("preserva a ordem no mesmo artefato, sem bloquear artefatos diferentes", async () => {
+    const chamadas: Array<{ id: string; dados: unknown; concluir(): void }> = [];
+    const fila = criarFilaDeSalvamentos((id, dados) => new Promise<void>((concluir) => chamadas.push({ id, dados, concluir })));
+
+    const primeira = fila("a", { ordem: 1 });
+    const segunda = fila("a", { ordem: 2 });
+    const outra = fila("b", { ordem: 1 });
+    await Promise.resolve();
+    expect(chamadas.map((c) => [c.id, c.dados])).toEqual([["a", { ordem: 1 }], ["b", { ordem: 1 }]]);
+
+    chamadas[0]?.concluir();
+    await primeira;
+    await Promise.resolve();
+    expect(chamadas.map((c) => [c.id, c.dados])).toEqual([["a", { ordem: 1 }], ["b", { ordem: 1 }], ["a", { ordem: 2 }]]);
+    chamadas[1]?.concluir();
+    chamadas[2]?.concluir();
+    await Promise.all([segunda, outra]);
+  });
+
+  it("continua a fila depois de uma falha", async () => {
+    const chamadas: unknown[] = [];
+    const fila = criarFilaDeSalvamentos(async (_id, dados) => {
+      chamadas.push(dados);
+      if (chamadas.length === 1) throw new Error("rede caiu");
+    });
+    const primeira = fila("a", 1);
+    const segunda = fila("a", 2);
+    await expect(primeira).rejects.toThrow("rede caiu");
+    await expect(segunda).resolves.toBeUndefined();
+    expect(chamadas).toEqual([1, 2]);
   });
 });
 
