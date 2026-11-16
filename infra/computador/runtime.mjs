@@ -2,14 +2,16 @@ import { chromium } from 'playwright-core';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomBytes, createHmac, createCipheriv, createDecipheriv } from 'node:crypto';
-import { copyFile, mkdir, readFile, writeFile, realpath, readdir, stat, unlink, rename } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, realpath, readdir, stat, unlink, rename } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import net from 'node:net';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import { setTimeout as delay } from 'node:timers/promises';
 import { lerTexto, gravarTexto } from './texto.mjs';
 import { prepararShellVisual } from './shell-visual.mjs';
+import { dimensoesShell, lancadorShellSeguro, renderizarHomeShell } from './shell-visual-runtime.mjs';
 import { codigoDaAcao, codigoDaSubida, falhaDe, primeiraLinha, PRAZO_NAVEGADOR_MS, TRAVAS_DO_PERFIL } from './falhas.mjs';
 const exec = promisify(execFile);
 const run = (bin,args,options={}) => exec(bin,args,{timeout:25000,maxBuffer:4*1024*1024,...options});
@@ -22,6 +24,7 @@ let pronto = false;
 let falha = null;
 let context = null;
 let page = null;
+let dimensoes = { largura: 1280, altura: 800 };
 let revision = randomBytes(32).toString('hex');
 const quadros=new Map();
 let dialogo=null;
@@ -51,7 +54,7 @@ async function tela() {
   const quadro=randomBytes(32).toString('hex');
   quadros.set(quadro,{revision,em:Date.now()});
   for(const [id,q] of quadros) if(Date.now()-q.em>120000 || quadros.size>256) quadros.delete(id);
-  return {quadro,imagem:(await readFile('/tmp/tela.png')).toString('base64'),largura:1280,altura:800,
+  return {quadro,imagem:(await readFile('/tmp/tela.png')).toString('base64'),largura:dimensoes.largura,altura:dimensoes.altura,
     url:p.url(),titulo:dialogo?'Diálogo do navegador':await p.title().catch(()=>''),dialogo:dialogo?{tipo:dialogo.type(),mensagem:dialogo.message()}:undefined,texto:dialogo?dialogo.message():(await p.locator('body').innerText({timeout:1000}).catch(()=>'')).slice(0,12000),
     abas:await Promise.all(context.pages().map(async t=>({url:t.url(),titulo:dialogo?'Navegador':await t.title().catch(()=>''),ativa:t===p})))};
 }
@@ -161,8 +164,9 @@ async function perfilSaiuLimpo() {
 }
 
 async function subir() {
-  // NOD-497: Docker usa o mesmo bundle que Orgo. A flag nasce desligada até o Paper aprovado existir; habilitar sem um
-  // bundle íntegro falha antes de abrir o display, em vez de misturar versões ou inventar uma aparência parcial.
+  // NOD-497: Docker usa o mesmo bundle que Orgo. Habilitar sem um bundle íntegro falha antes de abrir o display,
+  // em vez de misturar versões. O conteúdo do bundle nunca vira comando: launchers vêm da lista fixa abaixo.
+  dimensoes = dimensoesShell();
   const shellVisual = await prepararShellVisual({
     origem: process.env.NOD_SHELL_VISUAL_PACOTE ?? '/opt/nod/shell-visual',
     estado: process.env.NOD_SHELL_VISUAL_ESTADO ?? '/home/node/.local/state/nod/shell-visual',
@@ -185,7 +189,7 @@ async function subir() {
       });
     });segredo.listen('/tmp/nod-keyring.sock');
   });
-  start('Xvfb',[':99','-screen','0','1280x800x24','-nolisten','tcp']);
+  start('Xvfb',[':99','-screen','0',`${dimensoes.largura}x${dimensoes.altura}x24`,'-nolisten','tcp']);
   await delay(500);
   // definido em 2026-10-16: sem decoração e maximizado, o recorte da tela é o navegador, não uma janela
   // no meio do cinza. Medido nesta imagem: janela 1280×760 em 0,30 deixava faixa de wallpaper.
@@ -195,7 +199,10 @@ async function subir() {
     openbox = arquivo('openbox');
     const aplicativos = '/home/node/.local/share/applications';
     await mkdir(aplicativos, { recursive: true });
-    for (const launcher of Object.values(shellVisual.manifesto.apps)) await copyFile(path.join(shellVisual.raiz, launcher), path.join(aplicativos, path.basename(launcher)));
+    for (const [app, icone] of Object.entries(shellVisual.manifesto.apps)) {
+      const caminhoIcone = path.join(shellVisual.raiz, icone);
+      await writeFile(path.join(aplicativos, `nod-${app}.desktop`), lancadorShellSeguro(app, caminhoIcone), { mode: 0o600 });
+    }
     start('feh', ['--no-fehbg', '--bg-fill', arquivo('wallpaper')]);
     start('tint2', ['-c', arquivo('tint2')]);
   } else await writeFile(openbox,`<?xml version="1.0" encoding="UTF-8"?>
@@ -221,7 +228,7 @@ async function subir() {
       chromiumSandbox:false,proxy:{server:'http://egress:3128',bypass:'localhost,127.0.0.1'},
       // definido em 2026-10-16: sem sandbox (cap-drop ALL) o Chromium pinta a faixa "unsupported command-line flag: --no-sandbox". --test-type tira a faixa. Medido nesta imagem: a faixa cobria o about:blank.
       // --hide-crash-restore-bubble e perfilSaiuLimpo: o container morre no meio da sessão e o Chromium abre "Restore pages?". Medido nesta imagem depois de docker stop.
-      args:['--password-store=gnome-libsecret','--start-maximized','--window-size=1280,800','--window-position=0,0','--disable-dev-shm-usage','--disable-quic','--autoplay-policy=no-user-gesture-required','--test-type','--hide-crash-restore-bubble'],
+      args:['--password-store=gnome-libsecret','--start-maximized',`--window-size=${dimensoes.largura},${dimensoes.altura}`,'--window-position=0,0','--disable-dev-shm-usage','--disable-quic','--autoplay-policy=no-user-gesture-required','--test-type','--hide-crash-restore-bubble'],
     });
   } catch(e) { throw falhaDe('navegador_nao_abriu',e); }
   context.setDefaultTimeout(15000);
@@ -232,8 +239,22 @@ async function subir() {
     await context.addCookies(cookies);
   } catch(e) { if(e.code!=='ENOENT') throw falhaDe('cofre_invalido','os cookies guardados não abriram'); }
   page = context.pages()[0] ?? await context.newPage();
+  if (shellVisual.habilitado) {
+    const agora = new Date();
+    const template = await readFile(path.join(shellVisual.raiz, shellVisual.manifesto.papeis.home), 'utf8');
+    const home = renderizarHomeShell(template, {
+      nome: process.env.NOD_SHELL_NOME ?? 'Nod',
+      papel: process.env.NOD_SHELL_PAPEL ?? 'Agente',
+      display: process.env.DISPLAY ?? ':99',
+      hora: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }).format(agora),
+      data: new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(agora),
+    }).replaceAll('wallpaper-nod.svg', pathToFileURL(path.join(shellVisual.raiz, shellVisual.manifesto.papeis.wallpaper)).href);
+    const homeArquivo = '/tmp/nod-shell-home.html';
+    await writeFile(homeArquivo, home, { mode: 0o600 });
+    await page.goto(`file://${homeArquivo}`, { waitUntil: 'domcontentloaded' });
+  }
   // A janela já existe; se o openbox não maximizou, o xdotool encosta no framebuffer. Falha aqui não derruba o boot.
-  await exec('xdotool',['search','--onlyvisible','--class','Chromium','windowmove','0','0','windowsize','1280','800'],{timeout:4000}).catch(()=>{});
+  await exec('xdotool',['search','--onlyvisible','--class','Chromium','windowmove','0','0','windowsize',String(dimensoes.largura),String(dimensoes.altura)],{timeout:4000}).catch(()=>{});
   context.pages().forEach(acompanhar);
   context.on('page',p=>{acompanhar(p);page=p;mudar();});
   if(falha) return;

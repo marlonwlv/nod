@@ -1,0 +1,13 @@
+{
+  "source": "https://app.paper.design/file/01M7JF24SH30ZFZ0R3SE55F0AZ/p-3-1/1F7-1",
+  "canvas": { "width": 1440, "height": 900, "pixelRatio": 2 },
+  "breakpoints": {
+    "desktop": { "minWidth": 1180, "reference": "1440x900", "mode": "shell 16:10" },
+    "tablet": { "minWidth": 768, "maxWidth": 1179, "mode": "viewer 4:3; painel em folha" },
+    "mobile": { "minWidth": 390, "maxWidth": 767, "reference": "358x570", "mode": "prompt fixo" }
+  },
+  "minimumViewportWidth": 390,
+  "displayIsolation": "one session/display per agent",
+  "apps": ["Browser", "Terminal", "Files"],
+  "parityTarget": ["Docker", "Orgo"]
+}

@@ -20,8 +20,8 @@ function png(largura: number, altura: number, valor = 0) {
 
 it("gera o QA visual lado a lado para todos os breakpoints", async () => {
   const raiz = await dir(); const docker = path.join(raiz, "docker"); const orgo = path.join(raiz, "orgo"); const saida = path.join(raiz, "saida"); await mkdir(docker); await mkdir(orgo);
-  const arquivos = ["openbox", "tint2", "wallpaper", "browser", "files", "terminal"].map((nome) => ({ caminho: nome, sha256: createHash("sha256").update(nome).digest("hex") }));
-  const manifesto = { schema: 1, versao: "paper-v1", fonte: "paper", breakpoints: [{ largura: 1280, altura: 800 }], arquivos, papeis: { openbox: "openbox", tint2: "tint2", wallpaper: "wallpaper" }, apps: { browser: "browser", files: "files", terminal: "terminal" } };
+  const arquivos = ["home", "openbox", "tint2", "wallpaper", "browser", "files", "terminal"].map((nome) => ({ caminho: nome, sha256: createHash("sha256").update(nome).digest("hex") }));
+  const manifesto = { schema: 1, versao: "paper-v1", fonte: "paper", breakpoints: [{ largura: 1280, altura: 800 }], arquivos, papeis: { home: "home", openbox: "openbox", tint2: "tint2", wallpaper: "wallpaper" }, apps: { browser: "browser", files: "files", terminal: "terminal" } };
   const mf = path.join(raiz, "manifesto.json"); await writeFile(mf, JSON.stringify(manifesto));
   await writeFile(path.join(docker, "1280x800.png"), png(1280, 800)); await writeFile(path.join(orgo, "1280x800.png"), png(1280, 800));
   expect(await gerarRelatorioLadoALado({ manifesto: mf, docker, orgo, saida })).toMatchObject({ versao: "paper-v1", capturas: [{ breakpoint: "1280x800" }] });
@@ -31,8 +31,8 @@ it("gera o QA visual lado a lado para todos os breakpoints", async () => {
 
 it("recusa screenshot no breakpoint errado", async () => {
   const raiz = await dir(); const docker = path.join(raiz, "docker"); const orgo = path.join(raiz, "orgo"); await mkdir(docker); await mkdir(orgo);
-  const arquivos = ["openbox", "tint2", "wallpaper", "browser", "files", "terminal"].map((nome) => ({ caminho: nome, sha256: createHash("sha256").update(nome).digest("hex") }));
-  const manifesto = { schema: 1, versao: "paper-v1", fonte: "paper", breakpoints: [{ largura: 1280, altura: 800 }], arquivos, papeis: { openbox: "openbox", tint2: "tint2", wallpaper: "wallpaper" }, apps: { browser: "browser", files: "files", terminal: "terminal" } };
+  const arquivos = ["home", "openbox", "tint2", "wallpaper", "browser", "files", "terminal"].map((nome) => ({ caminho: nome, sha256: createHash("sha256").update(nome).digest("hex") }));
+  const manifesto = { schema: 1, versao: "paper-v1", fonte: "paper", breakpoints: [{ largura: 1280, altura: 800 }], arquivos, papeis: { home: "home", openbox: "openbox", tint2: "tint2", wallpaper: "wallpaper" }, apps: { browser: "browser", files: "files", terminal: "terminal" } };
   const mf = path.join(raiz, "manifesto.json"); await writeFile(mf, JSON.stringify(manifesto));
   await writeFile(path.join(docker, "1280x800.png"), png(800, 600)); await writeFile(path.join(orgo, "1280x800.png"), png(1280, 800));
   await expect(gerarRelatorioLadoALado({ manifesto: mf, docker, orgo, saida: path.join(raiz, "saida") })).rejects.toThrow("screenshot_dimensao_invalida:docker:1280x800.png");
@@ -40,8 +40,8 @@ it("recusa screenshot no breakpoint errado", async () => {
 
 it("recusa provedores com pixels diferentes no mesmo breakpoint", async () => {
   const raiz = await dir(); const docker = path.join(raiz, "docker"); const orgo = path.join(raiz, "orgo"); await mkdir(docker); await mkdir(orgo);
-  const arquivos = ["openbox", "tint2", "wallpaper", "browser", "files", "terminal"].map((nome) => ({ caminho: nome, sha256: createHash("sha256").update(nome).digest("hex") }));
-  const manifesto = { schema: 1, versao: "paper-v1", fonte: "paper", breakpoints: [{ largura: 1280, altura: 800 }], arquivos, papeis: { openbox: "openbox", tint2: "tint2", wallpaper: "wallpaper" }, apps: { browser: "browser", files: "files", terminal: "terminal" } };
+  const arquivos = ["home", "openbox", "tint2", "wallpaper", "browser", "files", "terminal"].map((nome) => ({ caminho: nome, sha256: createHash("sha256").update(nome).digest("hex") }));
+  const manifesto = { schema: 1, versao: "paper-v1", fonte: "paper", breakpoints: [{ largura: 1280, altura: 800 }], arquivos, papeis: { home: "home", openbox: "openbox", tint2: "tint2", wallpaper: "wallpaper" }, apps: { browser: "browser", files: "files", terminal: "terminal" } };
   const mf = path.join(raiz, "manifesto.json"); await writeFile(mf, JSON.stringify(manifesto));
   const a = png(1280, 800); const c = png(1280, 800, 1);
   await writeFile(path.join(docker, "1280x800.png"), a); await writeFile(path.join(orgo, "1280x800.png"), c);

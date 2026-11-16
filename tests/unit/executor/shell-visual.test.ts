@@ -15,17 +15,18 @@ async function bundle(raiz: string, versao: string, sufixo = versao) {
   const conteudos: Record<string, string> = {
     "tema/openbox.xml": `<openbox>${sufixo}</openbox>`,
     "tema/tint2rc": `panel=${sufixo}`,
+    "tema/home.html": `<main>${sufixo}</main>`,
     "tema/wallpaper.png": `PNG:${sufixo}`,
-    "apps/browser.desktop": `Browser:${sufixo}`,
-    "apps/files.desktop": `Files:${sufixo}`,
-    "apps/terminal.desktop": `Terminal:${sufixo}`,
+    "apps/browser.svg": `Browser:${sufixo}`,
+    "apps/files.svg": `Files:${sufixo}`,
+    "apps/terminal.svg": `Terminal:${sufixo}`,
   };
   for (const [nome, conteudo] of Object.entries(conteudos)) { await mkdir(path.dirname(path.join(raiz, nome)), { recursive: true }); await writeFile(path.join(raiz, nome), conteudo); }
   const manifesto = {
     schema: 1 as const, versao, fonte: "paper" as const, breakpoints: [{ largura: 1280, altura: 800 }, { largura: 1440, altura: 900 }],
     arquivos: Object.entries(conteudos).map(([caminho, conteudo]) => ({ caminho, sha256: sha(conteudo) })),
-    papeis: { openbox: "tema/openbox.xml", tint2: "tema/tint2rc", wallpaper: "tema/wallpaper.png" },
-    apps: { browser: "apps/browser.desktop", files: "apps/files.desktop", terminal: "apps/terminal.desktop" },
+    papeis: { home: "tema/home.html", openbox: "tema/openbox.xml", tint2: "tema/tint2rc", wallpaper: "tema/wallpaper.png" },
+    apps: { browser: "apps/browser.svg", files: "apps/files.svg", terminal: "apps/terminal.svg" },
   };
   await writeFile(path.join(raiz, "manifesto.json"), JSON.stringify(manifesto));
   return manifesto;
@@ -85,7 +86,7 @@ describe("shell visual compartilhado", () => {
     const origem = await pasta(); const fora = await pasta(); const manifesto = await bundle(origem, "paper-v1");
     const { rm } = await import("node:fs/promises"); await rm(path.join(origem, "tema"), { recursive: true });
     await mkdir(path.join(fora, "tema"));
-    for (const item of manifesto.arquivos.filter((a) => a.caminho.startsWith("tema/"))) await writeFile(path.join(fora, item.caminho), item.caminho.includes("openbox") ? "<openbox>paper-v1</openbox>" : item.caminho.includes("tint2") ? "panel=paper-v1" : "PNG:paper-v1");
+    for (const item of manifesto.arquivos.filter((a) => a.caminho.startsWith("tema/"))) await writeFile(path.join(fora, item.caminho), item.caminho.includes("openbox") ? "<openbox>paper-v1</openbox>" : item.caminho.includes("tint2") ? "panel=paper-v1" : item.caminho.includes("home") ? "<main>paper-v1</main>" : "PNG:paper-v1");
     await symlink(path.join(fora, "tema"), path.join(origem, "tema"));
     await expect(aplicarShellVisual({ origem, estado: path.join(await pasta(), "estado"), versao: "paper-v1" })).rejects.toMatchObject({ code: "shell_arquivo_invalido" });
   });

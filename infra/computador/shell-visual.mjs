@@ -8,7 +8,7 @@ import path from 'node:path';
 export const FLAG_SHELL_VISUAL = 'NOD_SHELL_VISUAL';
 export const SHELL_VISUAL_DESLIGADO = 'desligado';
 export const APPS_DO_SHELL = Object.freeze(['browser', 'files', 'terminal']);
-export const PAPEIS_DO_SHELL = Object.freeze(['openbox', 'tint2', 'wallpaper']);
+export const PAPEIS_DO_SHELL = Object.freeze(['home', 'openbox', 'tint2', 'wallpaper']);
 const VERSAO_RE = /^[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$/;
 const SHA_RE = /^[a-f0-9]{64}$/;
 const TRAVA_VELHA_MS = 5 * 60_000;

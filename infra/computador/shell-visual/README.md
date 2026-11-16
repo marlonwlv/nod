@@ -1,10 +1,7 @@
-# Shell visual do computador
+# Shell visual compartilhado
 
-Este diretório recebe o bundle exportado do Paper do Gil. A NOD-497 deixa a infraestrutura pronta, mas não inclui
-aparência provisória: sem `manifesto.json`, `NOD_SHELL_VISUAL` permanece `desligado` e o desktop atual continua ativo.
+O bundle `paper-v2` é a exportação versionada da fonte de verdade do Gil no Paper. O ZIP recebido na NOD-497 foi conferido pelo SHA-256 `1efb2fc36d2045eb89833e53b31777bfc83dd6ddf72b9542dfc1d98fae36dcb1`; dele vieram o wallpaper, os tokens, a configuração e as referências PNG 2×. O HTML e os launchers são implementação local declarativa: nenhum JSX ou comando do export é executado e nenhum asset do Bot HQ foi incluído.
 
-O bundle aprovado traz um `manifesto.json` de schema 1, os três papéis visuais (`openbox`, `tint2`, `wallpaper`), os
-launchers reais (`browser`, `files`, `terminal`), checksums SHA-256 e os breakpoints de QA. Docker e Orgo instalam
-exatamente este mesmo diretório; a ativação é atômica, idempotente e mantém a versão anterior para recuperação.
+Faixas: desktop `≥1180 px`, tablet `768–1179 px` e mobile `390–767 px`. Os breakpoints representativos do manifesto são `1440×900`, `1024×768` e `390×844`. Docker e Orgo aplicam o mesmo manifesto; a instalação valida todos os checksums, é idempotente, troca a versão atomicamente e preserva a anterior para recuperação.
 
-Nenhum asset ou marca do Bot HQ pode entrar aqui.
+Os apps Browser, Terminal e Files são programas reais e seus launchers são gerados pelo runtime a partir de uma lista fixa. Os cinco prints adicionais do Marlon não vieram no pacote; por isso a validação humana complementar continua pendente.
