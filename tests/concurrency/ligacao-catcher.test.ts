@@ -14,6 +14,7 @@ import type { Rotina } from "../../src/contracts/rotina.ts";
 import type { Turno } from "../../src/contracts/turno.ts";
 import type { MsgMidiaServidor } from "../../src/contracts/voz.ts";
 import { servidorCompleto, type ServidorCompleto } from "../helpers/servidor-completo.ts";
+import { describeIntegracao } from "../helpers/integracao.ts";
 import { limparPessoaE2E } from "./limpeza-e2e.ts";
 
 /**
@@ -22,6 +23,7 @@ import { limparPessoaE2E } from "./limpeza-e2e.ts";
  * do app: abre a mídia com cookie e Origin, ouve a saudação, fala por texto e por áudio, desliga. Confere a linha
  * "Chat de voz", a transcrição, o resumo do bot e o turno-cérebro concluído.
  */
+describeIntegracao("ligação ponta a ponta com o catcher", () => {
 let srv: ServidorCompleto;
 const criados = { agentes: [] as string[], conversas: [] as string[] };
 
@@ -439,4 +441,6 @@ describe("a rede cai com o card na tela (NOD-168)", () => {
     cli.ws.send(JSON.stringify({ t: "tchau" }));
     await cli.esperarMsg((m) => m.t === "fim", "fim");
   }, 60_000);
+});
+
 });
