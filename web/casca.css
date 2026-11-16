@@ -964,13 +964,13 @@ html[data-barra-anim] #sidebar.sidebar .fixado-bt { animation: barra-rodape-entr
    ===================================================================================== */
 #erro:not(:empty) { display: flex; justify-content: center; }
 #erro > .erro {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; width: fit-content; max-width: min(560px, calc(100% - 32px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; width: fit-content; max-width: min(680px, calc(100% - 32px));
   box-sizing: border-box; margin: 10px 16px 0; padding: 7px 6px 7px 12px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12);
   background: var(--surface-elevated); box-shadow: var(--shadow-pop); color: var(--ink); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2);
   animation: erro-entra var(--dur-normal) ease both;
 }
 #erro > .erro > .erro-ic { flex: none; color: var(--danger); }
-#erro > .erro > .erro-txt { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+#erro > .erro > .erro-txt { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
 #erro > .erro > .erro-relatar { flex: none; }
 #erro > .erro > .erro-detalhe { flex: none; margin: 0; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
 #erro > .erro > .erro-detalhe > summary { list-style: none; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
