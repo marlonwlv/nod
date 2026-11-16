@@ -56,7 +56,6 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   mostrar_cartoes: ["Mostrou cartões", "Mostrando cartões"],
   gerir_quadro: ["Mexeu no quadro", "Mexendo no quadro"],
   gerir_apps: ["Mexeu nas páginas", "Mexendo nas páginas"],
-  decisoes: ["Consultou as decisões", "Consultando as decisões"],
   gerir_canvas: ["Mexeu no Canvas", "Mexendo no Canvas"],
   gerir_times: ["Organizou os times", "Organizando os times"],
   remover_computador: ["Pediu para remover um computador", "Pedindo para remover um computador"],

@@ -7,14 +7,13 @@ export type SaidasPacote = {
   helpers: { nome: string; entitlements: string }[];
   microfone: SaidaComando;
   esquemaUrl: SaidaComando;
-  antiDowngrade: SaidaComando;
   lipo: string;
   staplerApp: SaidaComando;
   staplerDmg: SaidaComando;
   spctlApp: SaidaComando;
   spctlDmg: SaidaComando;
 };
-export type EsperadoPacote = { teamId: string; arch: string; entitlements: readonly string[]; microfone: string; antiDowngrade: boolean };
+export type EsperadoPacote = { teamId: string; arch: string; entitlements: readonly string[]; microfone: string };
 
 export const ARCH_DO_LIPO: Readonly<Record<string, string>>;
 export const STAPLER_TENTATIVAS: number;
@@ -30,7 +29,6 @@ export function conferirHelpersEncontrados(helpers: readonly string[]): Conferen
 export function lerTextoMicrofone(yaml: string): string;
 export function compararMicrofone(saida: SaidaComando, esperado: string): Conferencia;
 export function compararEsquemaUrl(saida: SaidaComando, esperado?: string): Conferencia;
-export function compararAntiDowngrade(saida: SaidaComando, esperado: boolean): Conferencia;
 export function interpretarLipo(saida: string, arch: string): Conferencia;
 export function interpretarStapler(alvo: string, saida: SaidaComando): Conferencia;
 export function interpretarSpctl(alvo: string, saida: SaidaComando): Conferencia;

@@ -6,9 +6,6 @@ coverage
 .vite
 *.log
 prototypes
-# O fonte do Worker entra no typecheck; estado e ambiente local do site não entram no build.
-site/.wrangler
-site/.dev.vars*
-site/.env*
+site
 
 release

@@ -4,7 +4,6 @@ import WebSocket from "ws";
 import type { EstadoOnboarding } from "../../src/contracts/onboarding.ts";
 import type { MsgMidiaServidor } from "../../src/contracts/voz.ts";
 import { servidorCompleto, type ServidorCompleto } from "../helpers/servidor-completo.ts";
-import { describeIntegracao } from "../helpers/integracao.ts";
 import { limparPessoaE2E } from "./limpeza-e2e.ts";
 
 /**
@@ -15,7 +14,6 @@ import { limparPessoaE2E } from "./limpeza-e2e.ts";
  * pessoa aprova falando ("pode criar"), o bot nasce, a Nina pede o app e propõe a rotina PARA o bot novo, e o
  * onboarding termina.
  */
-describeIntegracao("onboarding por ligação com o catcher", () => {
 let srv: ServidorCompleto;
 const criados = { agentes: [] as string[], conversas: [] as string[] };
 
@@ -225,4 +223,3 @@ it("o Nod (a guia, ADR-081) liga, entrevista, encolhe, propõe o bot aprovado po
   expect(deNovo.guia?.id).toBe(chamando.guia?.id);
   await srv.json("POST", "onboarding/concluir");
 }, 90_000);
-});

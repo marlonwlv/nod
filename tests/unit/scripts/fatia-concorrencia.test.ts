@@ -1,8 +1,7 @@
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ehDeNavegador, fatia, listarArquivos } from "../../../scripts/ci/fatia-concorrencia.ts";
 
-const raiz = fileURLToPath(new URL("../../..", import.meta.url));
+const raiz = new URL("../../..", import.meta.url).pathname;
 
 describe("fatia-concorrencia (a CI divide a concorrência em jobs)", () => {
   it("as fatias numeradas cobrem todos os arquivos sem navegador, sem repetir e sem sobrar", () => {
