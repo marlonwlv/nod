@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { AmbienteComputador } from "../../../contracts/computador.ts";
 import type { AcessoTelaAoVivo, BotaoMouse, CapacidadesProvedor, EstadoNoProvedor, PrimitivasDeComputador, ProvedorDeComputador, RefComputador, SaudeComputador } from "../../../contracts/provedor-computador.ts";
 import { FalhaComputador } from "../../../domain/computador.ts";
@@ -14,7 +15,7 @@ import { log } from "../../../obs/log.ts";
  * recebe por `chaveDe(escopo)` a cada chamada e não a guarda (a chave revogada para de funcionar na hora).
  *
  * Mapeamento (tabela completa na ADR-168):
- *   criar     POST /computers (workspace + nome `nod-<id>`, Idempotency-Key)      iniciar  POST /computers/{id}/start|resume
+ *   criar     POST /computers (nome escopado por tenant/pessoa/id)               iniciar  POST /computers/{id}/start|resume
  *   parar     POST /computers/{id}/stop (arquiva o disco: fica `frozen`)          retomar  POST /computers/{id}/resume
  *   suspender POST /computers/{id}/suspend (memória e disco)                      saúde    GET /computers/{id}/health
  *   snapshot  POST /computers/{id}/clone (a foto é um computador novo; não há restaurar no lugar)
@@ -73,7 +74,31 @@ export function teclaParaOrgo(k: string): string {
 
 const BOTAO: Record<BotaoMouse, string> = { esquerdo: "left", direito: "right", meio: "middle" };
 
-export const nomeNoOrgo = (id: string) => `nod-${id}`;
+const chaveEscopada = (ref: RefComputador) => {
+  const escopo = escopoDeRef(ref);
+  return `${escopo.tenantId}:${escopo.pessoaId}:${ref.id}`;
+};
+const escopoDeRef = (ref: Pick<RefComputador, "escopo">): Escopo => {
+  if (!ref.escopo) throw new FalhaComputador("nao_iniciou", { detalhe: "o computador no Orgo precisa do escopo de quem chama" });
+  return ref.escopo;
+};
+const sufixoEscopo = (escopo: Escopo) => createHash("sha256").update(`${escopo.tenantId}:${escopo.pessoaId}`).digest("hex").slice(0, 12);
+/** O UUID só é único dentro do tenant; o nome remoto inclui um hash do escopo para nunca colidir entre contas lógicas. */
+export const nomeNoOrgo = (id: string, escopo?: Escopo) => `nod-${escopo ? `${sufixoEscopo(escopo)}-` : ""}${id}`;
+
+/** A URL vem da API do provedor: só o HTTPS oficial pode virar um WebSocket aberto pelo servidor. */
+export function urlVncDoOrgo(connectionUrl: string): string {
+  let u: URL;
+  try { u = new URL(connectionUrl); } catch { throw new FalhaComputador("sem_resposta", { detalhe: "o Orgo devolveu uma URL de tela inválida" }); }
+  if (u.protocol !== "https:" || u.username || u.password || !(u.hostname === "orgo.ai" || u.hostname.endsWith(".orgo.ai"))) {
+    throw new FalhaComputador("sem_resposta", { detalhe: "o Orgo devolveu uma origem de tela não permitida" });
+  }
+  u.protocol = "wss:";
+  u.pathname = `${u.pathname.replace(/\/$/, "")}/ws/websockify`;
+  u.search = "";
+  u.hash = "";
+  return u.toString();
+}
 
 export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
   const habilitado = o.env.NOD_COMPUTADOR_ORGO === "1";
@@ -83,14 +108,13 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
   const agora = o.agora ?? Date.now;
   const pausa = o.pausa ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const fetchImpl: Fetch = o.fetchImpl ?? ((url, init) => fetch(url, init));
-  /** O UUID do Orgo de cada computador nosso; cache só de id (nunca da chave nem da senha do VNC, que gira). */
+  /** O UUID do Orgo por tenant+pessoa+computador; nunca guarda a chave nem a senha do VNC, que gira. */
   const idNoOrgo = new Map<string, string>();
   const workspaceDe = new Map<string, string>();
+  /** Uma criação por computador neste processo; o Idempotency-Key cobre reinício e múltiplos servidores. */
+  const criacoes = new Map<string, Promise<void>>();
 
-  const escopoDe = (ref: RefComputador | Pick<RefComputador, "escopo"> | undefined): Escopo => {
-    if (!ref?.escopo) throw new FalhaComputador("nao_iniciou", { detalhe: "o computador no Orgo precisa do escopo de quem chama" });
-    return ref.escopo;
-  };
+  const escopoDe = (ref: RefComputador | Pick<RefComputador, "escopo"> | undefined): Escopo => escopoDeRef(ref ?? {});
 
   async function chamar<T>(escopo: Escopo, metodo: string, caminho: string, corpo?: unknown, extra: Record<string, string> = {}): Promise<T> {
     if (!habilitado) throw new FalhaComputador("nao_iniciou", { detalhe: "NOD_COMPUTADOR_ORGO desligado" });
@@ -112,13 +136,12 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
       clearTimeout(timer);
     }
     if (r.ok) return (await r.json().catch(() => ({}))) as T;
-    // O corpo de erro do Orgo é {"error": "..."}; pode citar o pedido, nunca a chave (ela vai só no header).
-    const corpoErro = (await r.text().catch(() => "")).slice(0, 300);
-    const detalhe = `Orgo ${metodo} ${caminho.split("?")[0]} → ${r.status} ${corpoErro}`;
+    // A resposta é conteúdo externo e pode ecoar cabeçalhos ou dados da pessoa. O log/erro leva só rota e status.
+    const detalhe = `Orgo ${metodo} ${caminho.split("?")[0]} → ${r.status}`;
     if (r.status === 401 || r.status === 403) throw new FalhaComputador("nao_iniciou", { detalhe: `${detalhe} (chave recusada ou sem permissão)` });
     if (r.status === 404) throw new FalhaComputador("sem_resposta", { detalhe });
     if (r.status === 409) throw new FalhaComputador("ocupado", { detalhe });
-    if (r.status === 429) throw new FalhaComputador("ocupado", { detalhe: `${detalhe} (limite de requisições)` });
+    if (r.status === 402 || r.status === 429) throw new FalhaComputador("limite_de_computadores", { detalhe: `${detalhe}. Pare outro computador no Orgo ou ajuste o limite do plano e tente de novo.` });
     throw new FalhaComputador(r.status >= 500 ? "sem_resposta" : "acao_falhou", { detalhe });
   }
 
@@ -126,34 +149,36 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
   async function workspace(escopo: Escopo): Promise<Workspace | null> {
     const lista = await chamar<{ workspaces?: Workspace[]; projects?: Workspace[] }>(escopo, "GET", "/workspaces");
     const ws = (lista.workspaces ?? lista.projects ?? []).find((w) => w.name === nomeWorkspace) ?? null;
-    if (ws) workspaceDe.set(escopo.pessoaId, ws.id);
+    if (ws) workspaceDe.set(`${escopo.tenantId}:${escopo.pessoaId}`, ws.id);
     return ws;
   }
   async function idDoWorkspace(escopo: Escopo): Promise<string> {
-    const em = workspaceDe.get(escopo.pessoaId);
+    const chaveEscopo = `${escopo.tenantId}:${escopo.pessoaId}`;
+    const em = workspaceDe.get(chaveEscopo);
     if (em) return em;
     const ws = await workspace(escopo);
     if (ws) return ws.id;
-    const novo = await chamar<{ id: string }>(escopo, "POST", "/workspaces", { name: nomeWorkspace }, { "idempotency-key": `nod-workspace-${escopo.pessoaId}` });
-    workspaceDe.set(escopo.pessoaId, novo.id);
+    const novo = await chamar<{ id: string }>(escopo, "POST", "/workspaces", { name: nomeWorkspace }, { "idempotency-key": `nod-workspace-${sufixoEscopo(escopo)}` });
+    workspaceDe.set(chaveEscopo, novo.id);
     return novo.id;
   }
 
-  /** O computador no Orgo pelo nome `nod-<id>` (não há listagem de computadores: vem do workspace). */
+  /** O computador no Orgo pelo nome escopado (não há listagem geral: os computadores vêm do workspace). */
   async function achar(ref: RefComputador): Promise<ComputadorOrgo | null> {
     const escopo = escopoDe(ref);
-    const conhecido = idNoOrgo.get(ref.id);
+    const chave = chaveEscopada(ref);
+    const conhecido = idNoOrgo.get(chave);
     if (conhecido) {
       const c = await chamar<ComputadorOrgo>(escopo, "GET", `/computers/${conhecido}`).catch((e: unknown) => {
         if (e instanceof FalhaComputador && e.motivo === "sem_resposta" && e.detalhe?.includes("→ 404")) return null;
         throw e;
       });
       if (c && c.status !== "deleted") return c;
-      idNoOrgo.delete(ref.id);
+      idNoOrgo.delete(chave);
     }
     const ws = await workspace(escopo);
-    const c = ws?.desktops?.find((d) => d.name === nomeNoOrgo(ref.id) && d.status !== "deleted") ?? null;
-    if (c) idNoOrgo.set(ref.id, c.id);
+    const c = ws?.desktops?.find((d) => d.name === nomeNoOrgo(ref.id, escopo) && d.status !== "deleted") ?? null;
+    if (c) idNoOrgo.set(chave, c.id);
     return c;
   }
   async function exigir(ref: RefComputador): Promise<ComputadorOrgo> {
@@ -162,12 +187,23 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
     return c;
   }
 
-  async function criar(ref: RefComputador): Promise<void> {
+  async function criarUmaVez(ref: RefComputador): Promise<void> {
     if (await achar(ref)) return;
     const escopo = escopoDe(ref);
-    const c = await chamar<ComputadorOrgo>(escopo, "POST", "/computers", { workspace_id: await idDoWorkspace(escopo), name: nomeNoOrgo(ref.id), os: "linux", ram, resolution: RESOLUCAO }, { "idempotency-key": `nod-criar-${ref.id}` });
-    idNoOrgo.set(ref.id, c.id);
+    const c = await chamar<ComputadorOrgo>(escopo, "POST", "/computers", { workspace_id: await idDoWorkspace(escopo), name: nomeNoOrgo(ref.id, escopo), os: "linux", ram, resolution: RESOLUCAO }, { "idempotency-key": `nod-criar-${sufixoEscopo(escopo)}-${ref.id}` });
+    idNoOrgo.set(chaveEscopada(ref), c.id);
     log("info", "computador_orgo_criado", { computador_id: ref.id });
+  }
+
+  async function criar(ref: RefComputador): Promise<void> {
+    // O mesmo UUID de pessoa e computador pode existir em tenants diferentes; juntar essas promessas faria o segundo
+    // tenant acreditar que seu display foi criado quando só o primeiro recebeu a máquina remota.
+    const chave = chaveEscopada(ref);
+    const emCurso = criacoes.get(chave);
+    if (emCurso) return emCurso;
+    const nova = criarUmaVez(ref).finally(() => criacoes.delete(chave));
+    criacoes.set(chave, nova);
+    return nova;
   }
 
   async function esperarLigado(ref: RefComputador): Promise<void> {
@@ -274,15 +310,18 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
     },
     async snapshot(ref, rotulo) {
       const c = await exigir(ref);
-      const nome = `${nomeNoOrgo(ref.id)}-foto-${rotulo.replace(/[^a-z0-9-]/gi, "").slice(0, 24) || "sem-rotulo"}`;
+      const nome = `${nomeNoOrgo(ref.id, escopoDe(ref))}-foto-${rotulo.replace(/[^a-z0-9-]/gi, "").slice(0, 24) || "sem-rotulo"}`;
       const copia = await chamar<{ id: string }>(escopoDe(ref), "POST", `/computers/${c.id}/clone`, { name: nome });
       return { snapshotId: copia.id };
     },
     async excluir(ref) {
+      // Remover ganha de uma criação concorrente. Sem esperar, a busca podia concluir "não existe" enquanto o POST de
+      // criação ainda estava em voo, deixando uma máquina órfã logo depois de a remoção responder sucesso.
+      await criacoes.get(chaveEscopada(ref))?.catch(() => undefined);
       const c = await achar(ref);
       if (!c) return;
       await chamar(escopoDe(ref), "DELETE", `/computers/${c.id}`);
-      idNoOrgo.delete(ref.id);
+      idNoOrgo.delete(chaveEscopada(ref));
     },
     saude,
     async ligados() {
@@ -294,7 +333,7 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
     async acessoTela(ref): Promise<AcessoTelaAoVivo> {
       const c = await chamar<ComputadorOrgo>(escopoDe(ref), "GET", `/computers/${(await exigir(ref)).id}`);
       if (!c.connection_url || !c.vnc_password) throw new FalhaComputador("sem_resposta", { detalhe: "o Orgo não deu a tela ao vivo (computador desligado?)" });
-      return { tipo: "vnc_websocket", url: `${c.connection_url.replace(/^http/, "ws")}/ws/websockify`, token: c.vnc_password, validoAte: null };
+      return { tipo: "vnc_websocket", url: urlVncDoOrgo(c.connection_url), token: c.vnc_password, validoAte: null };
     },
   };
 }

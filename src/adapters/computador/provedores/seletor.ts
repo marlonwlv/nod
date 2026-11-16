@@ -47,9 +47,11 @@ export function criarDriverPorProvedor(o: OpcoesSeletor): DriverPorProvedor {
   }
   /** Quem ligou cada computador neste processo (para desligar no antigo quando a escolha muda). */
   const ligadoEm = new Map<string, IdProvedorComputador>();
+  const chaveDe = (id: string, escopo?: Escopo) => escopo ? `${escopo.tenantId}:${escopo.pessoaId}:${id}` : `sem-escopo:${id}`;
 
   async function escolher(id: string, escopo?: Escopo): Promise<IdProvedorComputador | null> {
-    const agenteId = escopo ? await o.agenteDe(id, escopo).catch(() => null) : null;
+    // Falha fechada: erro ao ler o vínculo não pode cair no provedor global e abrir o perfil em outra conta.
+    const agenteId = escopo ? await o.agenteDe(id, escopo) : null;
     return escolherProvedor(o.config, { pessoaId: escopo?.pessoaId ?? null, agenteId });
   }
   async function provedorDe(id: string, escopo?: Escopo): Promise<ProvedorDeComputador> {
@@ -81,21 +83,23 @@ export function criarDriverPorProvedor(o: OpcoesSeletor): DriverPorProvedor {
     },
     async iniciar(id, escopo) {
       const p = await provedorDe(id, escopo);
-      const antes = ligadoEm.get(id);
+      const chave = chaveDe(id, escopo);
+      const antes = ligadoEm.get(chave);
       if (antes && antes !== p.id) {
         log("info", "computador_provedor_trocado", { computador_id: id, de: antes, para: p.id });
         await o.provedores[antes]?.parar(ref(id, escopo)).catch(() => undefined);
       }
       await p.iniciar(ref(id, escopo));
-      ligadoEm.set(id, p.id);
+      ligadoEm.set(chave, p.id);
     },
     async parar(id, escopo) {
       const p = await provedorDe(id, escopo);
       await p.parar(ref(id, escopo));
-      const antes = ligadoEm.get(id);
+      const chave = chaveDe(id, escopo);
+      const antes = ligadoEm.get(chave);
       if (antes && antes !== p.id) await o.provedores[antes]?.parar(ref(id, escopo)).catch(() => undefined);
-      ligadoEm.delete(id);
-      executores.get(p.id)?.esquecer(id);
+      ligadoEm.delete(chave);
+      executores.get(p.id)?.esquecer(ref(id, escopo));
     },
     async executar(id, acao, escopo, autor) {
       const p = await provedorDe(id, escopo);

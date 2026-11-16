@@ -42,9 +42,11 @@ export function criarExecutorPorPrimitivas(p: PrimitivasDeComputador, o: OpcoesP
   const agora = o.agora ?? Date.now;
   const novoId = o.novoId ?? (() => randomBytes(32).toString("hex"));
   const estados = new Map<string, EstadoQuadros>();
-  const estado = (id: string) => {
-    let e = estados.get(id);
-    if (!e) { e = novoEstadoQuadros(novoId()); estados.set(id, e); }
+  const chaveDe = (ref: RefComputador) => ref.escopo ? `${ref.escopo.tenantId}:${ref.escopo.pessoaId}:${ref.id}` : `sem-escopo:${ref.id}`;
+  const estado = (ref: RefComputador) => {
+    const chave = chaveDe(ref);
+    let e = estados.get(chave);
+    if (!e) { e = novoEstadoQuadros(novoId()); estados.set(chave, e); }
     return e;
   };
   const raiz = posix.resolve(o.raiz);
@@ -73,15 +75,15 @@ export function criarExecutorPorPrimitivas(p: PrimitivasDeComputador, o: OpcoesP
   async function tela(ref: RefComputador): Promise<TelaComputador> {
     const t = await p.capturarTela(ref);
     const quadro = novoId();
-    anotarQuadro(estado(ref.id), quadro, agora());
+    anotarQuadro(estado(ref), quadro, agora());
     // Sem Playwright não há URL, título, texto nem abas: o bot lê a imagem (instrução no detalhe das ações de navegador).
     return { quadro, imagem: t.png, largura: t.largura, altura: t.altura, url: "", titulo: "", texto: "", abas: [] };
   }
 
   function exigirQuadro(ref: RefComputador, quadro: string) {
-    if (!quadroValido(estado(ref.id), quadro, agora())) throw new FalhaComputador("tela_alterada");
+    if (!quadroValido(estado(ref), quadro, agora())) throw new FalhaComputador("tela_alterada");
   }
-  const mudou = (ref: RefComputador) => mudarRevisao(estado(ref.id), novoId());
+  const mudou = (ref: RefComputador) => mudarRevisao(estado(ref), novoId());
 
   async function lerBytes(ref: RefComputador, absoluto: string, teto: number): Promise<Buffer> {
     const saida = await rodar(ref, `${resolver(absoluto)}[ -f "$A" ] || { echo nao_e_arquivo >&2; exit 1; }; [ "$(stat -c %s -- "$A")" -le ${teto} ] || exit 98; base64 -w0 -- "$A"`);
@@ -198,7 +200,7 @@ export function criarExecutorPorPrimitivas(p: PrimitivasDeComputador, o: OpcoesP
     }
   }
 
-  return { executar, esquecer: (id: string) => { estados.delete(id); } };
+  return { executar, esquecer: (ref: RefComputador) => { estados.delete(chaveDe(ref)); } };
 }
 
 /** O mesmo corte de página de infra/computador/texto.mjs: orçamento em caracteres escapados para JSON, Unicode inteiro. */

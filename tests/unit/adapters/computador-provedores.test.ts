@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { DriverComputador } from "../../../src/contracts/computador.ts";
 import type { PrimitivasDeComputador, ProvedorDeComputador } from "../../../src/contracts/provedor-computador.ts";
 import { criarProvedorDocker } from "../../../src/adapters/computador/provedores/docker.ts";
-import { criarProvedorOrgo, estadoDoOrgo, nomeNoOrgo, teclaParaOrgo } from "../../../src/adapters/computador/provedores/orgo.ts";
+import { criarProvedorOrgo, estadoDoOrgo, nomeNoOrgo, teclaParaOrgo, urlVncDoOrgo } from "../../../src/adapters/computador/provedores/orgo.ts";
 import { criarExecutorPorPrimitivas, paginar, PEDACO_BASE64 } from "../../../src/adapters/computador/provedores/primitivas.ts";
 import { criarDriverPorProvedor } from "../../../src/adapters/computador/provedores/seletor.ts";
 import { FalhaComputador } from "../../../src/domain/computador.ts";
@@ -118,6 +118,15 @@ describe("ações do nod sobre primitivas (provedor de fora)", () => {
     await expect(ex.executar(ref, { tipo: "clicar", x: 1, y: 1, quadro: t2!.quadro })).rejects.toMatchObject({ motivo: "tela_alterada" });
   });
 
+  it("quadros do mesmo UUID em tenants diferentes não se autorizam", async () => {
+    const p = { capturarTela: async () => ({ png: PNG, largura: 1280, altura: 800 }), clicar: vi.fn(async () => undefined) } as unknown as PrimitivasDeComputador;
+    const ex = criarExecutorPorPrimitivas(p, { raiz: "/workspace" });
+    const outro = { id: ID, escopo: { tenantId: "t2", pessoaId: PESSOA } };
+    const { tela } = await ex.executar(ref, { tipo: "observar" });
+    await expect(ex.executar(outro, { tipo: "clicar", x: 1, y: 1, quadro: tela!.quadro })).rejects.toMatchObject({ motivo: "tela_alterada" });
+    expect(p.clicar).not.toHaveBeenCalled();
+  });
+
   it("o que a máquina de fora não tem responde acao_falhou com o que fazer, nunca sucesso", async () => {
     const ex = criarExecutorPorPrimitivas({} as PrimitivasDeComputador, { raiz: "/workspace" });
     for (const acao of [{ tipo: "audio", segundos: 2 }, { tipo: "dialogo", aceitar: true, quadro: "q" }, { tipo: "anexar", caminho: "a", quadro: "q" }] as const) {
@@ -183,10 +192,11 @@ function orgoFalso(estado: { status: string; existe: boolean; saude?: string }) 
   const fetchImpl = async (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => {
     const caminho = url.replace("https://www.orgo.ai/api", "");
     chamadas.push({ metodo: init.method, url: caminho, corpo: init.body ? JSON.parse(init.body) : undefined, headers: init.headers });
-    const pc = { id: "orgo-uuid", name: nomeNoOrgo(ID), status: estado.status, connection_url: "https://www.orgo.ai/desktops/abc", vnc_password: "senha-vnc" };
+    const pc = { id: "orgo-uuid", name: nomeNoOrgo(ID, ESCOPO), status: estado.status, connection_url: "https://www.orgo.ai/desktops/abc", vnc_password: "senha-vnc" };
     if (init.method === "GET" && caminho === "/workspaces") return resp(200, { workspaces: [{ id: "ws1", name: "nod", desktops: estado.existe ? [pc] : [] }] });
     if (init.method === "POST" && caminho === "/computers") { estado.existe = true; estado.status = "running"; return resp(201, pc); }
-    if (init.method === "GET" && caminho === "/computers/orgo-uuid") return resp(200, pc);
+    if (init.method === "GET" && caminho === "/computers/orgo-uuid") return estado.existe ? resp(200, pc) : resp(404, { error: "não achei" });
+    if (init.method === "DELETE" && caminho === "/computers/orgo-uuid") { estado.existe = false; estado.status = "deleted"; return resp(200, { success: true }); }
     if (caminho === "/computers/orgo-uuid/start") { estado.status = "running"; return resp(200, { success: true }); }
     if (caminho === "/computers/orgo-uuid/stop") { estado.status = "frozen"; return resp(200, { success: true }); }
     if (caminho === "/computers/orgo-uuid/health") return resp(200, { overall: estado.saude ?? "healthy", checks: [] });
@@ -224,14 +234,102 @@ describe("driver Orgo (pela documentação, sem conta)", () => {
     const p = criarProvedorOrgo({ env, chaveDe: async () => CHAVE, fetchImpl: f.fetchImpl, pausa: async () => undefined });
     await p.iniciar(ref);
     const criar = f.chamadas.find((c) => c.metodo === "POST" && c.url === "/computers")!;
-    expect(criar.corpo).toMatchObject({ workspace_id: "ws1", name: `nod-${ID}`, os: "linux", resolution: "1280x800x24" });
-    expect(criar.headers["idempotency-key"]).toBe(`nod-criar-${ID}`);
+    expect(criar.corpo).toMatchObject({ workspace_id: "ws1", name: nomeNoOrgo(ID, ESCOPO), os: "linux", resolution: "1280x800x24" });
+    expect(criar.headers["idempotency-key"]).toMatch(new RegExp(`^nod-criar-[a-f0-9]{12}-${ID}$`));
     for (const c of f.chamadas) {
       expect(c.headers.authorization).toBe(`Bearer ${CHAVE}`);
       expect(c.url).not.toContain(CHAVE);
       expect(JSON.stringify(c.corpo ?? {})).not.toContain(CHAVE);
     }
     expect((await p.saude(ref)).pronto).toBe(true);
+  });
+
+  it("duas criações concorrentes alugam um display só", async () => {
+    const f = orgoFalso({ status: "running", existe: false });
+    const p = criarProvedorOrgo({ env, chaveDe: async () => CHAVE, fetchImpl: f.fetchImpl, pausa: async () => undefined });
+    await Promise.all([p.criar(ref), p.criar(ref)]);
+    expect(f.chamadas.filter((c) => c.metodo === "POST" && c.url === "/computers")).toHaveLength(1);
+  });
+
+  it("criações concorrentes do mesmo UUID de pessoa e computador em tenants diferentes não se juntam", async () => {
+    let liberarPrimeira!: () => void;
+    const primeiraPendente = new Promise<void>((resolve) => { liberarPrimeira = resolve; });
+    const chamadas: { url: string; chave: string; corpo?: Record<string, unknown> }[] = [];
+    let primeiraLista = true;
+    const fetchImpl = async (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => {
+      const caminho = url.replace("https://www.orgo.ai/api", "");
+      const chave = init.headers.authorization ?? "";
+      chamadas.push({ url: caminho, chave, ...(init.body ? { corpo: JSON.parse(init.body) as Record<string, unknown> } : {}) });
+      if (caminho === "/workspaces") {
+        if (primeiraLista) { primeiraLista = false; await primeiraPendente; }
+        return { status: 200, ok: true, json: async () => ({ workspaces: [{ id: `ws-${chave}`, name: "nod", desktops: [] }] }), text: async () => "" };
+      }
+      if (caminho === "/computers") {
+        return { status: 201, ok: true, json: async () => ({ id: `pc-${chave}`, status: "running" }), text: async () => "" };
+      }
+      return { status: 404, ok: false, json: async () => ({}), text: async () => "" };
+    };
+    const p = criarProvedorOrgo({ env, chaveDe: async (escopo) => `chave-${escopo.tenantId}`, fetchImpl });
+    const outroTenant = { id: ID, escopo: { tenantId: "t2", pessoaId: PESSOA } };
+    const primeira = p.criar(ref);
+    await vi.waitFor(() => expect(chamadas).toHaveLength(1));
+    const segunda = p.criar(outroTenant);
+    await vi.waitFor(() => expect(chamadas.some((c) => c.chave === "Bearer chave-t2")).toBe(true));
+    liberarPrimeira();
+    await Promise.all([primeira, segunda]);
+    const criadas = chamadas.filter((c) => c.url === "/computers");
+    expect(criadas).toHaveLength(2);
+    expect(new Set(criadas.map((c) => c.corpo?.name)).size).toBe(2);
+  });
+
+  it("remoção concorrente espera a criação e vence, sem deixar display órfão", async () => {
+    let liberarCriacao!: () => void;
+    const criacaoPendente = new Promise<void>((resolve) => { liberarCriacao = resolve; });
+    let primeiraLista = true;
+    let existe = false;
+    const chamadas: string[] = [];
+    const pc = () => ({ id: "orgo-uuid", name: nomeNoOrgo(ID, ESCOPO), status: existe ? "running" : "deleted" });
+    const fetchImpl = async (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => {
+      const caminho = url.replace("https://www.orgo.ai/api", "");
+      chamadas.push(`${init.method} ${caminho}`);
+      if (caminho === "/workspaces") {
+        if (primeiraLista) { primeiraLista = false; await criacaoPendente; }
+        return { status: 200, ok: true, json: async () => ({ workspaces: [{ id: "ws1", name: "nod", desktops: existe ? [pc()] : [] }] }), text: async () => "" };
+      }
+      if (init.method === "POST" && caminho === "/computers") {
+        existe = true;
+        return { status: 201, ok: true, json: async () => pc(), text: async () => "" };
+      }
+      if (init.method === "GET" && caminho === "/computers/orgo-uuid") {
+        return existe
+          ? { status: 200, ok: true, json: async () => pc(), text: async () => "" }
+          : { status: 404, ok: false, json: async () => ({}), text: async () => "" };
+      }
+      if (init.method === "DELETE" && caminho === "/computers/orgo-uuid") {
+        existe = false;
+        return { status: 200, ok: true, json: async () => ({ success: true }), text: async () => "" };
+      }
+      return { status: 404, ok: false, json: async () => ({}), text: async () => "" };
+    };
+    const p = criarProvedorOrgo({ env, chaveDe: async () => CHAVE, fetchImpl });
+    const criando = p.criar(ref);
+    await vi.waitFor(() => expect(chamadas).toEqual(["GET /workspaces"]));
+    const removendo = p.excluir!(ref);
+    liberarCriacao();
+    await Promise.all([criando, removendo]);
+    expect(existe).toBe(false);
+    expect(chamadas).toContain("DELETE /computers/orgo-uuid");
+  });
+
+  it("remove e recupera o display do mesmo bot sem reutilizar o perfil de outro", async () => {
+    const estado = { status: "running", existe: true };
+    const f = orgoFalso(estado);
+    const p = criarProvedorOrgo({ env, chaveDe: async () => CHAVE, fetchImpl: f.fetchImpl, pausa: async () => undefined });
+    await p.excluir!(ref);
+    expect(estado.existe).toBe(false);
+    await p.iniciar(ref);
+    expect(estado.existe).toBe(true);
+    expect(f.chamadas.filter((c) => c.metodo === "POST" && c.url === "/computers")).toHaveLength(1);
   });
 
   it("parado (frozen) liga com start; parar arquiva com stop", async () => {
@@ -249,6 +347,15 @@ describe("driver Orgo (pela documentação, sem conta)", () => {
     const e = (await p.iniciar(ref).catch((x: unknown) => x)) as FalhaComputador;
     expect(e.motivo).toBe("nao_iniciou");
     expect(e.detalhe).not.toContain(CHAVE);
+  });
+
+  it("limite do provedor vira orientação fixa e não repete o corpo externo", async () => {
+    const p = criarProvedorOrgo({ env, chaveDe: async () => CHAVE, fetchImpl: async () => ({ status: 429, ok: false, json: async () => ({}), text: async () => '{"error":"texto externo com sk_live_vazada"}' }) });
+    const e = (await p.iniciar(ref).catch((x: unknown) => x)) as FalhaComputador;
+    expect(e.motivo).toBe("limite_de_computadores");
+    expect(e.detalhe).toContain("Pare outro computador no Orgo");
+    expect(e.detalhe).not.toContain("texto externo");
+    expect(e.detalhe).not.toContain("sk_live_vazada");
   });
 
   it("as ações do bot passam pela camada de primitivas e viram as rotas do Orgo", async () => {
@@ -270,6 +377,9 @@ describe("driver Orgo (pela documentação, sem conta)", () => {
     expect(estadoDoOrgo("suspended")).toBe("suspenso");
     expect(estadoDoOrgo("??")).toBe("erro");
     expect(teclaParaOrgo("ArrowDown")).toBe("Down");
+    expect(urlVncDoOrgo("https://edge.orgo.ai/desktops/abc?segredo=fora")).toBe("wss://edge.orgo.ai/desktops/abc/ws/websockify");
+    expect(() => urlVncDoOrgo("http://127.0.0.1:8080")).toThrowError(expect.objectContaining({ motivo: "sem_resposta" }));
+    expect(nomeNoOrgo(ID, ESCOPO)).not.toBe(nomeNoOrgo(ID, { tenantId: "t2", pessoaId: PESSOA }));
   });
 });
 
@@ -298,6 +408,50 @@ describe("seletor de provedor (o DriverComputador de sempre)", () => {
     expect((await driver.executar(outro, { tipo: "observar" }, ESCOPO)).saida).toBe("docker");
     expect(await driver.provedorDe(ID, ESCOPO)).toBe("orgo");
     expect([...await driver.ligados()].sort()).toEqual(["docker-ligado", "orgo-ligado"]);
+  });
+
+  it("dois bots simultâneos mantêm displays, perfis e quadros isolados", async () => {
+    const vistos: string[] = [];
+    const primitivas: PrimitivasDeComputador = {
+      capturarTela: async (ref) => { vistos.push(ref.id); return { png: Buffer.from(ref.id).toString("base64"), largura: 1280, altura: 800 }; },
+      clicar: async () => undefined, arrastar: async () => undefined, digitar: async () => undefined,
+      tecla: async () => undefined, rolar: async () => undefined,
+      comando: async () => ({ saida: "", codigoSaida: 0 }), abrirUrl: async () => undefined,
+    };
+    const orgo: ProvedorDeComputador = {
+      ...provedorFalso("orgo", []), executar: undefined, primitivas, raizDeTrabalho: "/workspace",
+    };
+    const { config } = configDeProvedores({ NOD_COMPUTADOR_PROVEDOR: "orgo" });
+    const driver = criarDriverPorProvedor({ config, provedores: { orgo }, agenteDe: async (id) => id === ID ? BOT : "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee" });
+    const outro = "22222222-3333-4444-8555-666666666666";
+    const [a, b] = await Promise.all([
+      driver.executar(ID, { tipo: "observar" }, ESCOPO),
+      driver.executar(outro, { tipo: "observar" }, ESCOPO),
+    ]);
+    expect(vistos.sort()).toEqual([ID, outro].sort());
+    expect(a.tela?.imagem).not.toBe(b.tela?.imagem);
+    await expect(driver.executar(outro, { tipo: "clicar", x: 1, y: 1, quadro: a.tela!.quadro }, ESCOPO)).rejects.toMatchObject({ motivo: "tela_alterada" });
+  });
+
+  it("o mesmo computador UUID em tenants diferentes não compartilha quadro nem ciclo de provedor", async () => {
+    const eventos: string[] = [];
+    const primitivas: PrimitivasDeComputador = {
+      capturarTela: async (ref) => ({ png: Buffer.from(ref.escopo!.tenantId).toString("base64"), largura: 1280, altura: 800 }),
+      clicar: async () => undefined, arrastar: async () => undefined, digitar: async () => undefined,
+      tecla: async () => undefined, rolar: async () => undefined,
+      comando: async () => ({ saida: "", codigoSaida: 0 }), abrirUrl: async () => undefined,
+    };
+    const orgo: ProvedorDeComputador = { ...provedorFalso("orgo", eventos), executar: undefined, primitivas, raizDeTrabalho: "/workspace" };
+    const docker = provedorFalso("docker", eventos);
+    const mapa: Record<string, "docker" | "orgo"> = { [BOT]: "docker" };
+    const config = { padrao: null, global: null, porPessoa: {}, porBot: mapa };
+    const outroEscopo = { tenantId: "99999999-0000-4000-8000-000000000001", pessoaId: "99999999-0000-4000-8000-000000000002" };
+    const driver = criarDriverPorProvedor({ config, provedores: { docker, orgo }, agenteDe: async (_id, escopo) => escopo.tenantId === ESCOPO.tenantId ? BOT : "bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee" });
+    mapa["bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee"] = "orgo";
+
+    await driver.iniciar(ID, ESCOPO);
+    await driver.iniciar(ID, outroEscopo);
+    expect(eventos).toEqual([`docker:iniciar:${ID}`, `orgo:iniciar:${ID}`]);
   });
 
   it("a escolha mudou com o computador ligado: desliga no antigo antes de ligar no novo", async () => {
@@ -339,6 +493,18 @@ describe("seletor de provedor (o DriverComputador de sempre)", () => {
     expect(abrirLocal).toHaveBeenCalledWith({ id: ID, escopo: ESCOPO });
     expect(anexarVivo).toHaveBeenLastCalledWith("sd", "td", origem);
     expect(abrirVivo).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha ao ler a identidade do bot não cai no provedor global", async () => {
+    const eventos: string[] = [];
+    const { config } = configDeProvedores({ NOD_COMPUTADOR_PROVEDOR: "docker", NOD_COMPUTADOR_PROVEDOR_POR_BOT: JSON.stringify({ [BOT]: "orgo" }) });
+    const driver = criarDriverPorProvedor({
+      config,
+      provedores: { docker: provedorFalso("docker", eventos), orgo: provedorFalso("orgo", eventos) },
+      agenteDe: async () => { throw new Error("banco indisponível"); },
+    });
+    await expect(driver.executar(ID, { tipo: "observar" }, ESCOPO)).rejects.toThrow("banco indisponível");
+    expect(eventos).toEqual([]);
   });
 });
 

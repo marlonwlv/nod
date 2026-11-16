@@ -1,6 +1,6 @@
 # ADR-168 — O computador do bot é plug and play: uma interface de provedor e a escolha por configuração
 
-Status: proposta · Data: 2026-11-12 (frente "Plataforma e time", pesquisa de referência) · Emenda a
+Status: aceita na NOD-498 · Data: 2026-11-16 · Emenda a
 [ADR-037](adr-037-computadores-por-bot.md) ("o `DriverComputador` permite substituir Docker por um provedor de máquinas
 remotas") e convive com a [ADR-122](adr-122-o-computador-da-pessoa-roda-no-motor.md) (motor) e a
 [ADR-127](adr-127-supervisor-do-computador-na-vm-do-mac.md) (VM do Mac).
@@ -78,7 +78,8 @@ desde 18/09), o que faz ele ser difícil de pôr de pé é estrutural, não um b
    conector `orgo`, chave `ORGO_API_KEY`, guardada pelo cartão do `pedir_credencial` (alvo `conector`). O driver a lê do
    cofre a cada chamada (`chaveDe(escopo)` em `compor.ts`), só no header `Authorization`; nunca no env do servidor, no
    código, na URL, no corpo, no log ou no detalhe do erro (teste). Os computadores ficam no workspace `nod` da conta da
-   pessoa, com o nome `nod-<id do computador>` (não há listagem de computadores no Orgo: o id deles vem do workspace).
+   pessoa, com o nome `nod-<hash do tenant:pessoa>-<id do computador>` (o UUID do banco só é único dentro do tenant; o
+   hash impede colisão se duas pessoas compartilham uma conta Orgo). Não há listagem geral: os ids vêm do workspace.
    Opções: `NOD_ORGO_URL`, `NOD_ORGO_WORKSPACE_NOME`, `NOD_ORGO_RAM_GB` (padrão 4).
 
 ## Como o Orgo cobre a interface
@@ -111,6 +112,11 @@ desde 18/09), o que faz ele ser difícil de pôr de pé é estrutural, não um b
   dizem o caminho pela tela. Quem precisa do texto continua no Docker ou no motor.
 - Custos: o Orgo cobra da conta da pessoa (plano ou hora). O nod não cria conta, workspace pago nem computador sozinho:
   só quando a pessoa configurou o provedor, guardou a chave e o bot ligou o computador.
+- Cada bot resolve sempre o mesmo id de computador/display e, portanto, o mesmo perfil. Duas criações concorrentes são
+  unificadas no processo e pelo `Idempotency-Key`; excluir e criar de novo recupera o vínculo sem reaproveitar a sessão de
+  outro bot. Quadros de captura também são separados por id e escopo.
+- O teto do Docker continua mostrando os números do host. Quota do provedor vira orientação neutra para parar um
+  computador sem uso ou ajustar o plano; o corpo externo da falha nunca entra no log nem na interface.
 
 ## Fora deste recorte
 
