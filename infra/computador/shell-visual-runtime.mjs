@@ -39,3 +39,20 @@ export function lancadorShellSeguro(app, icone) {
   if (!configuracao || !path.isAbsolute(icone) || icone.includes('\n')) throw new Error('shell_app_invalido');
   return `[Desktop Entry]\nType=Application\nName=${configuracao.nome}\nExec=${configuracao.comando}\nIcon=${icone}\nTerminal=false\nCategories=Utility;\n`;
 }
+
+export function tint2ShellSeguro(template, lancadores) {
+  if (typeof template !== 'string' || !Array.isArray(lancadores) || lancadores.length !== 3 || lancadores.some((p) => !path.isAbsolute(p) || p.includes('\n'))) throw new Error('shell_tint2_inseguro');
+  const linhas = template.split(/\r?\n/);
+  let i = 0;
+  const saida = linhas.map((linha) => /^launcher_item_app\s*=/.test(linha) ? `launcher_item_app = ${lancadores[i++] ?? ''}` : linha);
+  if (i !== lancadores.length || saida.some((linha) => /^launcher_item_app\s*=\s*$/.test(linha))) throw new Error('shell_tint2_inseguro');
+  return saida.join('\n');
+}
+
+export function temaOpenboxShellSeguro(template) {
+  if (typeof template !== 'string' || /<!DOCTYPE|<!ENTITY|<script\b/i.test(template)) throw new Error('shell_openbox_inseguro');
+  const nome = /<name>\s*([^<]{1,80})\s*<\/name>/i.exec(template)?.[1]?.trim();
+  const borda = /<keepBorder>\s*(yes|no)\s*<\/keepBorder>/i.exec(template)?.[1]?.toLowerCase() ?? 'no';
+  if (!nome || !/^[\w .-]+$/.test(nome)) throw new Error('shell_openbox_inseguro');
+  return { nome, manterBorda: borda };
+}

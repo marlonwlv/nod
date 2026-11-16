@@ -3,7 +3,9 @@ import { mkdtemp, mkdir, readFile, symlink, utimes, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { ARQUIVOS_DO_SHELL_VISUAL, VERSAO_SHELL_VISUAL } from "../../../infra/computador/shell-visual-distribuicao.mjs";
 import { aplicarShellVisual, prepararShellVisual, recuperarShellVisual, selecaoDoShellVisual, validarManifestoShellVisual, verificarShellVisual } from "../../../infra/computador/shell-visual.mjs";
+import { prepararShellDoSupervisor } from "../../../infra/computador/supervisor.mjs";
 
 const temporarios: string[] = [];
 afterEach(async () => { const { rm } = await import("node:fs/promises"); await Promise.all(temporarios.splice(0).map((p) => rm(p, { recursive: true, force: true }))); });
@@ -33,6 +35,13 @@ async function bundle(raiz: string, versao: string, sufixo = versao) {
 }
 
 describe("shell visual compartilhado", () => {
+  it("empacota todos os arquivos declarados da versão aprovada", async () => {
+    expect(VERSAO_SHELL_VISUAL).toBe("paper-v2");
+    for (const relativo of Object.values(ARQUIVOS_DO_SHELL_VISUAL)) {
+      await expect(readFile(path.resolve("infra/computador/shell-visual", VERSAO_SHELL_VISUAL, relativo))).resolves.toBeTruthy();
+    }
+  });
+
   it("fica desligado sem flag e não toca no estado", async () => {
     const origem = await pasta(); const estado = path.join(await pasta(), "estado");
     expect(selecaoDoShellVisual({})).toBeNull();
@@ -48,6 +57,15 @@ describe("shell visual compartilhado", () => {
     expect(a.alterou).toBe(true); expect(b.alterou).toBe(true);
     expect((await verificarShellVisual({ estado: docker }))?.manifesto).toEqual((await verificarShellVisual({ estado: orgo }))?.manifesto);
     expect((await aplicarShellVisual({ origem, estado: docker, versao: "paper-v1", agora: 11 })).alterou).toBe(false);
+  });
+
+  it("o supervisor do motor aplica o bundle uma vez antes de abrir telas", async () => {
+    const origem = await pasta(); await bundle(origem, "paper-v1");
+    const estado = path.join(await pasta(), "estado");
+    const env = { NOD_SHELL_VISUAL: "paper-v1", NOD_SHELL_VISUAL_PACOTE: origem, NOD_SHELL_VISUAL_ESTADO: estado };
+    expect((await prepararShellDoSupervisor(env)).alterou).toBe(true);
+    expect((await prepararShellDoSupervisor(env)).alterou).toBe(false);
+    expect((await verificarShellVisual({ estado }))?.versao).toBe("paper-v1");
   });
 
   it("preserva a versão ativa se o checksum novo divergir", async () => {

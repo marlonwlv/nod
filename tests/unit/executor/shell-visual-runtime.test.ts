@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dimensoesShell, lancadorShellSeguro, renderizarHomeShell } from "../../../infra/computador/shell-visual-runtime.mjs";
+import { dimensoesShell, lancadorShellSeguro, renderizarHomeShell, temaOpenboxShellSeguro, tint2ShellSeguro } from "../../../infra/computador/shell-visual-runtime.mjs";
 
 describe("runtime do shell visual", () => {
   it("usa dimensões padrão e aceita os limites dos breakpoints", () => {
@@ -18,5 +18,13 @@ describe("runtime do shell visual", () => {
     expect(lancadorShellSeguro("files", "/opt/nod/apps/files.svg")).toContain("Exec=/usr/bin/pcmanfm /workspace");
     expect(() => lancadorShellSeguro("files", "relativo.svg")).toThrow("shell_app_invalido");
     expect(() => lancadorShellSeguro("outro" as "files", "/tmp/x.svg")).toThrow("shell_app_invalido");
+  });
+
+  it("usa só o tema do Openbox e troca apenas os três launchers do tint2", () => {
+    expect(temaOpenboxShellSeguro("<theme><name>Clearlooks</name><keepBorder>no</keepBorder></theme>")).toEqual({ nome: "Clearlooks", manterBorda: "no" });
+    expect(() => temaOpenboxShellSeguro('<!DOCTYPE x [<!ENTITY x SYSTEM "file:///etc/passwd">]><name>x</name>')).toThrow("shell_openbox_inseguro");
+    const template = "launcher_item_app = a\nlauncher_item_app = b\nlauncher_item_app = c\n";
+    expect(tint2ShellSeguro(template, ["/run/browser.desktop", "/run/terminal.desktop", "/run/files.desktop"])).toContain("launcher_item_app = /run/files.desktop");
+    expect(() => tint2ShellSeguro(template, ["relativo", "/run/b", "/run/c"])).toThrow("shell_tint2_inseguro");
   });
 });

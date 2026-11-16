@@ -13,6 +13,7 @@ export const PRAZO_VIVO_MS: number;
 export const TOQUE_VIVO_MS: number;
 export const BATIMENTO_MS: number;
 export const DISPLAY_BASE: number;
+export function prepararShellDoSupervisor(env?: Record<string, string | undefined>): Promise<{ habilitado: boolean; versao: string | null; raiz: string | null; alterou: boolean }>;
 export function memoriaDaArvore(pid: number | undefined): number | null;
 export function binariosDoAmbiente(env?: Record<string, string | undefined>): Record<string, string | null>;
 export function chromiumDoPlaywright(env?: Record<string, string | undefined>): string;

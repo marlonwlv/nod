@@ -29,8 +29,17 @@ import { gravarOrigem, lerEstado, lerTudo, limparStorage, pastaDoStorage } from 
 import { arquivoDasSenhas, esquecerSenhas, lerSenhas, recolherSenhas } from './login-senhas.mjs';
 import { RESOLV_DO_STUB, vizinhosDoTmp } from './isolamento.mjs';
 import { desempacotar, desmarcarSaida, empacotar, gravarLoja as gravarLojaImportada, marcarSaida, PARTE_BYTES, partir, recuperar, saiuEm, TETO_LOJA_BYTES, VALIDADE_IMPORTACAO_MS, venceu } from './troca-logins.mjs';
+import { prepararShellVisual } from './shell-visual.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
+
+export function prepararShellDoSupervisor(env = process.env) {
+  return prepararShellVisual({
+    env,
+    origem: env.NOD_SHELL_VISUAL_PACOTE,
+    estado: env.NOD_SHELL_VISUAL_ESTADO,
+  });
+}
 export const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 export const TIPOS = ['iniciar', 'abrir_tela', 'acao', 'fechar_tela', 'parar', 'atualizar', 'redefinir', 'sair_de_todos', 'esquecer_senhas', 'apagar_perfil', 'exportar_logins', 'importar_logins', 'cancelar_exportacao', 'marcar_saida', 'vivo'];
 /**
@@ -135,7 +144,7 @@ export function binariosDoAmbiente(env = process.env) {
     bwrap: env.NOD_PC_BWRAP === 'nao' ? null : (env.NOD_PC_BWRAP ?? 'bwrap'), xdotool: env.NOD_PC_XDOTOOL ?? 'xdotool', xclip: env.NOD_PC_XCLIP ?? 'xclip',
     scrot: env.NOD_PC_SCROT ?? 'scrot', x11vnc: env.NOD_PC_X11VNC ?? 'x11vnc', dbus: env.NOD_PC_DBUS ?? 'dbus-daemon',
     // NOD-410: o dock do desktop. Ausentes na máquina, a tela sobe sem dock (só o Chrome), como antes.
-    tint2: env.NOD_PC_TINT2 ?? 'tint2', xsetroot: env.NOD_PC_XSETROOT ?? 'xsetroot', terminalGrafico: env.NOD_PC_TERMINAL_GRAFICO ?? 'xfce4-terminal', arquivos: env.NOD_PC_ARQUIVOS ?? 'pcmanfm', keyring: env.NOD_PC_KEYRING ?? 'gnome-keyring-daemon', secretTool: env.NOD_PC_SECRET_TOOL ?? 'secret-tool',
+    tint2: env.NOD_PC_TINT2 ?? 'tint2', feh: env.NOD_PC_FEH ?? 'feh', xsetroot: env.NOD_PC_XSETROOT ?? 'xsetroot', terminalGrafico: env.NOD_PC_TERMINAL_GRAFICO ?? 'xfce4-terminal', arquivos: env.NOD_PC_ARQUIVOS ?? 'pcmanfm', keyring: env.NOD_PC_KEYRING ?? 'gnome-keyring-daemon', secretTool: env.NOD_PC_SECRET_TOOL ?? 'secret-tool',
   };
 }
 
@@ -1080,6 +1089,8 @@ export async function escutarControle(servidor, caminho) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.umask(0o077);
+  // Uma única aplicação por serviço evita corrida entre telas. Os filhos só leem e validam a versão já assentada.
+  await prepararShellDoSupervisor();
   // Depois do Atualizar o processo sai e o systemd (Restart=always) o sobe de novo com os arquivos do disco.
   const aoAtualizar = () => void supervisor.encerrar().finally(() => process.exit(0));
   const supervisor = criarSupervisor({ raiz: process.env.NOD_PC_RAIZ, run: process.env.NOD_PC_RUN, terminal: process.env.NOD_PC_TERMINAL, aoAtualizar });
