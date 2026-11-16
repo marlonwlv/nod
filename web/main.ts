@@ -220,7 +220,7 @@ import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, type
 import { acharBotao, aplicarFocoDaFila, botaoEmFoco, proximoDaFila, VALIDADE_DO_FOCO_MS, type FocoDaFila } from "./lib/foco-da-fila.ts";
 import { aplicarEncolhidos, decididaNaConversa, type DecididaNestaAba } from "./lib/foco-do-encolhido.ts";
 import { seletorDoFocoNaRegiao } from "./lib/foco-do-bloco.ts";
-import { itensDaRecusa } from "./lib/recusa-da-aprovacao.ts";
+import { aprovacoesAbertasDaConversa, itensDaRecusa, PLACEHOLDER_COM_APROVACAO } from "./lib/recusa-da-aprovacao.ts";
 import { atalhoEnviarTodos } from "./telas/rascunhos-de-envio.ts";
 import { criarEnvios, enviarUmaVez } from "./lib/envio-idempotente.ts";
 import { iniciarMotorLigacao } from "./lib/ligacao.ts";
@@ -3438,9 +3438,12 @@ function atualizarComposer(): void {
   regiao("composer-pergunta", a.topo);
   // ADR-094: no celular o texto de ajuda inteiro quebrava em duas linhas dentro do campo; lá fica o curto, e o leitor de
   // tela continua ouvindo o completo.
-  const placeholder = celular.ativo() ? "Mensagem" : a.placeholder;
+  // Item 10, rodada 2: com aprovação aberta e o campo no modo comum, mandar mensagem recusa o pedido (enviarComposer).
+  const comPedido = a.placeholder === placeholderPadrao() && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0;
+  const rotulo = comPedido ? PLACEHOLDER_COM_APROVACAO : a.placeholder;
+  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : rotulo;
   if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-  if (ta.getAttribute("aria-label") !== a.placeholder) ta.setAttribute("aria-label", a.placeholder);
+  if (ta.getAttribute("aria-label") !== rotulo) ta.setAttribute("aria-label", rotulo);
   // Plano "tela limpa" (2026-10-16, T5): a dica "Enter envia…" saiu. Plano "pergunta com botões" (2026-10-18): a nota do
   // modo resposta e o clipe desligado também — com pergunta aberta o campo não muda.
   if (nota && nota.textContent !== a.nota) nota.textContent = a.nota;
@@ -5003,6 +5006,9 @@ async function enviarComposer(): Promise<void> {
       else if (idEnvio && enviou) envios.esquecer(alvo.conversaId, idEnvio);
     }
     if (pendente) dispatch({ tipo: "fala-pendente-confirmada", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, mensagemId: r.ids?.mensagem ?? null, turnoId: r.ids?.turno ?? null });
+    // Item 10, rodada 2: com aprovação aberta, o servidor fechou o pedido como substituído no envio
+    // (src/use-cases/substituir-aprovacoes.ts); a fila "Sua vez" relê para o cartão sair.
+    if (r.enviado === "mensagem" && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0) dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
     else limparDepoisDeEnviar(ta, chave, texto);
     if (r.enviado === "resposta") anunciarPergunta(`Resposta enviada: ${enviado}`);
     if (r.enviado === "mensagem" && !pendente) limparAnexos(alvo.conversaId);

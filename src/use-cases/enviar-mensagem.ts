@@ -23,6 +23,7 @@ import { aguardaIa, falaSemIa, PRAZO_SEM_IA_MS } from "../domain/sem-ia.ts";
 import { log } from "../obs/log.ts";
 import { autoriaAgente, autoriaPessoa, evento, inventarioAusente, motorDe, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import { fiosDaConversa } from "./fios-da-pergunta.ts";
+import { substituirAprovacoesAbertas } from "./substituir-aprovacoes.ts";
 import { donosDosBots, presencaDasMaquinas } from "./estado-do-dono.ts";
 import { trabalhosParaDto } from "./trabalhos.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
@@ -151,6 +152,8 @@ export const enviarMensagem: CasoDeUso<EntradaEnviarMensagem, SaidaEnviarMensage
   }
 
   const events = [evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { mensagem_id: mensagem.id, kind: "texto" } })];
+  // Item 10, rodada 2 (2026-11-16): a fala nova substitui as aprovações abertas da conversa própria (src/use-cases/substituir-aprovacoes.ts).
+  if (conversa.tipo === "propria") events.push(...(await substituirAprovacoesAbertas(deps, conversa.id)));
   let negacao: Mensagem | null = null;
   if (guarda) {
     negacao = await deps.repos.mensagens.criar({

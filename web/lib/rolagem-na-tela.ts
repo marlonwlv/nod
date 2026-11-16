@@ -1,5 +1,5 @@
 import { chaveDoProgresso, progressoNaTela, SEM_PROGRESSO, type ProgressoNaTela } from "./pilula.ts";
-import { depoisDeRolar, distanciaDoFim, permanenciaDaLinha, pilulaDaPergunta, pilulaDasNovas, type LinhaNaJanela, type Medida, type Permanencia, type PerguntaNaJanela } from "./rolagem.ts";
+import { depoisDeRolar, distanciaDoFim, permanenciaDaLinha, pilulaDaPergunta, pilulaDasNovas, pilulaDosPedidos, type LinhaNaJanela, type Medida, type Permanencia, type PedidosNaJanela, type PerguntaNaJanela } from "./rolagem.ts";
 
 /**
  * A rolagem da conversa na tela (definido em 2026-10-05): o estado "colada no fim" e a pílula da base, ligados à caixa
@@ -85,6 +85,23 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
     return { decisaoId: cartao.dataset.cartaoPergunta ?? "", nome: cartao.dataset.nome ?? "O bot", posicao };
   }
 
+  /**
+   * Os cartões de aprovação abertos (item 10, rodada 2): procurados a cada medida (são poucos e somem quando decididos, sem
+   * o histórico mudar). Um à vista basta para não haver pílula; fora, o mais perto por baixo, senão o mais perto por cima.
+   */
+  function pedidosNaJanela(): PedidosNaJanela | null {
+    const cartoes = [...caixa.querySelectorAll<HTMLElement>("li.aprov-card[data-decisao]")];
+    if (cartoes.length === 0) return null;
+    const c = caixa.getBoundingClientRect();
+    const medidos = cartoes.map((el) => ({ el, r: el.getBoundingClientRect() }));
+    const base = { total: cartoes.length, nome: "" };
+    if (medidos.some(({ r }) => r.bottom > c.top && r.top < c.bottom)) return { ...base, decisaoId: "", posicao: "visivel" };
+    const abaixo = medidos.find(({ r }) => r.top >= c.bottom);
+    const alvo = abaixo ?? medidos.filter(({ r }) => r.bottom <= c.top).at(-1);
+    if (!alvo) return null;
+    return { ...base, decisaoId: alvo.el.dataset.decisao ?? "", nome: alvo.el.dataset.nome ?? "O bot", posicao: abaixo ? "abaixo" : "acima" };
+  }
+
   /** O bloco que o lugar mostra agora (`.progresso[data-frentes]`, o filho dele); null com o lugar vazio. */
   function blocoNoLugar(lugar: HTMLElement): HTMLElement | null {
     const el = lugar.isConnected ? lugar.firstElementChild : null;
@@ -109,9 +126,10 @@ export function criarRolagem(caixa: HTMLElement, lugarDaPilula: HTMLElement, sua
 
   function atualizarPilula(): void {
     medirProgresso();
-    // A linha "Novas" é medida sempre (é a medida que a dá por vista); a pílula da pergunta ganha da das novas.
+    // A linha "Novas" é medida sempre (é a medida que a dá por vista); a pílula da pergunta ganha da dos pedidos, e esta
+    // da das novas (as duas primeiras seguram o bot).
     const novas = conversa ? pilulaDasNovas(linhaNaJanela()) : "";
-    const html = conversa ? pilulaDaPergunta(perguntaNaJanela()) || novas : "";
+    const html = conversa ? pilulaDaPergunta(perguntaNaJanela()) || pilulaDosPedidos(pedidosNaJanela()) || novas : "";
     if (html === pilulaHtml) return;
     pilulaHtml = html;
     lugarDaPilula.innerHTML = html;

@@ -349,10 +349,15 @@ function renderCardAprovacao(item: Item, estado: Estado): string {
   const agente = estado.frota?.agentes.find((a) => a.id === d.agenteId);
   let corpo: string;
   if (unico) {
+    // Item 10 dos acessos devolvidos, rodada 2 (2026-11-16, como o cartão do app de referência): no terminal e no
+    // computador o cartão é a pergunta, uma linha do que vai rodar e o porquê curto. A prévia "O que vai ser enviado"
+    // repetia o comando (os argumentos do terminal SÃO o comando) e saiu daqui; o comando longo fica atrás de "Ver o comando".
     const acao = unico.destino.conector === "terminal"
-      ? `<pre class="ap-comando"><code>${esc(unico.textoFinal)}</code></pre>`
+      ? comandoEmUmaLinha(unico.textoFinal)
       : unico.destino.conector === "computador" && unico.textoFinal.trim() !== d.frase.trim() ? `<div class="ap-oque">${esc(unico.textoFinal)}</div>` : "";
-    corpo = `${acao}${previaDoItem(unico)}${porqueDaPausa(unico, revisor)}${tagDesfecho(unico, true)}${naMaquina ? "" : detalheTecnico(unico)}`;
+    corpo = naMaquina
+      ? `${acao}${porqueCurto(unico, revisor)}${tagDesfecho(unico, true)}`
+      : `${acao}${previaDoItem(unico)}${porqueDaPausa(unico, revisor)}${tagDesfecho(unico, true)}${detalheTecnico(unico)}`;
   } else {
     const linha = (i: Item["itensAprovacao"][number]): string => `<li class="aprov-item${i.origemSensivel ? " sensivel" : ""}">
       <label class="aprov-marca"><input type="checkbox" data-item="${esc(i.id)}" ${i.selecionado ? "checked" : ""} /><span class="aprov-item-txt">${esc(i.textoFinal)}</span></label><small class="aprov-item-onde">${esc(umApp ? (conectores.find((c) => c.slug === umApp)?.nome ?? umApp) : ondeAcontece(conectores, i.destino.conector))}</small>
@@ -361,9 +366,11 @@ function renderCardAprovacao(item: Item, estado: Estado): string {
     corpo = `<ul class="aprov-itens">${itens.map(linha).join("")}</ul>`;
   }
   const onde = umApp ? (umApp === "computador" || umApp === "terminal" ? ondeAcontece(conectores, umApp) : `no ${conectores.find((c) => c.slug === umApp)?.nome ?? umApp}`) : "";
-  const sub = [onde ? `${onde.charAt(0).toUpperCase()}${onde.slice(1)}` : "", naMaquina ? "Dá para mudar depois em Aprovações." : ""].filter(Boolean).join(" · ");
-  return `<li class="decisao aprov-card dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}">
-    <div class="aprov-cab">${agente ? `<span class="aprov-av">${iconeAgente(agente, "", "aguardando_aprovacao")}</span>` : '<span class="aprov-ponto" aria-hidden="true"></span>'}<span class="aprov-quem">${esc(d.frase)}</span>${aPedidoDe(item)}${marcaGemeas(item)}${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}<span class="aprov-esc" title="${esc(`${prazo} · pedido ${haQuanto(item.aguardandoHaMs)}`)}">Esc</span>${botao("decidir-aprovacao-nenhum", "×", { classe: "aprov-fechar", id: d.id, aria: "Negar e fechar" })}</div>
+  // Rodada 2 do item 10: no terminal e no computador a pergunta já diz onde ("…no seu Mac?"); a linha de baixo só repetia.
+  const sub = naMaquina ? "" : onde ? `${onde.charAt(0).toUpperCase()}${onde.slice(1)}` : "";
+  // O "Esc" do cabeçalho repetia o do Negar; o prazo e o "pedido há…" seguem no title do cabeçalho.
+  return `<li class="decisao aprov-card dec-${esc(item.estadoColuna)} tipo-${esc(d.tipo)}" data-decisao="${esc(d.id)}" data-nome="${esc(item.agenteNome)}">
+    <div class="aprov-cab" title="${esc(`${prazo} · pedido ${haQuanto(item.aguardandoHaMs)}`)}">${agente ? `<span class="aprov-av">${iconeAgente(agente, "", "aguardando_aprovacao")}</span>` : '<span class="aprov-ponto" aria-hidden="true"></span>'}<span class="aprov-quem">${esc(d.frase)}</span>${aPedidoDe(item)}${marcaGemeas(item)}${item.estadoColuna === "reaberto" ? '<span class="tag tag-ambar">reaberta</span>' : ""}${botao("decidir-aprovacao-nenhum", "×", { classe: "aprov-fechar", id: d.id, aria: "Negar e fechar" })}</div>
     <p class="aprov-titulo dec-frase">${esc(perguntaDaAprovacao(item, conectores))}</p>
     ${sub ? `<p class="aprov-onde">${esc(sub)}</p>` : ""}
     ${corpo}
@@ -426,6 +433,33 @@ export function porqueDaPausa(i: Pick<Item["itensAprovacao"][number], "motivoMan
             ? "Parou para você: esta ferramenta não está no alcance do bot agora (app desligado ou sem acesso)."
             : "";
   return frase ? `<p class="ap-porque">${ic}<span>${esc(frase)}</span></p>` : "";
+}
+
+/** Acima disto (ou com quebra de linha) o comando do cartão fecha atrás de "Ver o comando". */
+const COMANDO_CURTO = 90;
+
+/**
+ * O comando do terminal no cartão (item 10, rodada 2, 2026-11-16; o "View the command" do app de referência): curto, numa
+ * linha só; longo ou com várias linhas, a primeira linha cortada e o inteiro num <details> "Ver o comando". Nunca some:
+ * quem aprova um `rm -r` vê o que roda sem abrir nada.
+ */
+export function comandoEmUmaLinha(comando: string): string {
+  const texto = comando.trim();
+  if (texto.length <= COMANDO_CURTO && !texto.includes("\n")) return `<code class="ap-comando ap-uma-linha">${esc(texto)}</code>`;
+  const [primeira = ""] = texto.split("\n");
+  return `<details class="ap-comando-longo"><summary><code class="ap-comando ap-uma-linha">${esc(primeira)}</code><span class="ap-ver">Ver o comando</span></summary><pre class="ap-comando"><code>${esc(texto)}</code></pre></details>`;
+}
+
+/**
+ * O porquê da pausa em uma linha, para o cartão do terminal e do computador (item 10, rodada 2): no arriscado, só o
+ * risco ("Apaga pastas inteiras."); a frase inteira de porqueDaPausa vai no title. Os outros motivos seguem iguais.
+ */
+export function porqueCurto(i: Pick<Item["itensAprovacao"][number], "motivoManual" | "justificativa" | "origemSensivel">, revisor = false): string {
+  if (i.motivoManual !== "acao_arriscada" || i.origemSensivel || !i.justificativa) return porqueDaPausa(i, revisor);
+  const risco = `${i.justificativa.charAt(0).toUpperCase()}${i.justificativa.slice(1).replace(/[.]+$/u, "")}.`;
+  const longa = `Parou para você: ${risco.charAt(0).toLowerCase()}${risco.slice(1)}${revisor ? "" : " Na aprovação automática, o arriscado sempre pergunta."}`;
+  const icone = porqueDaPausa(i, revisor).match(/<svg[\s\S]*?<\/svg>/u)?.[0] ?? "";
+  return `<p class="ap-porque ap-porque-curto" title="${esc(longa)}">${icone}<span>${esc(risco)}</span></p>`;
 }
 
 function renderAprovacao(item: Item, aberta: boolean, conectores: Estado["conectores"], revisor = false): string {
