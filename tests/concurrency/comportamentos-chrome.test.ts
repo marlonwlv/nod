@@ -520,41 +520,29 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
   });
 
   // ———————————————————————————————————————————————— 8 ————————————————————————————————————————————————
-  it("8. criar bot com cor e forma, e o preparo com %", { timeout: JORNADA }, async () => {
+  it("8. criar bot com cor e forma", { timeout: JORNADA }, async () => {
     await abrirApp();
-    await avaliar(cdp, `document.body.click()`);
-    // A frota pode receber o último frame do onboarding logo depois de abrirApp e trocar o botão entre a leitura e o
-    // clique. Reencontra o controle a cada tentativa e para pelo efeito observável, em vez de depender daquele nó.
-    for (let t = 0; t < 200 && !(await existe("dialog.criar-bot[open] .cb-nome")); t++) {
-      await avaliar(cdp, `(() => { const b = [...document.querySelectorAll('[data-act="novo-bot-dialogo"]')].find((el) => el.offsetParent); b?.click(); })()`);
-      await espera(100);
-    }
-    await ate(`document.querySelector("dialog.criar-bot[open] .cb-nome")`, "o modal Criar novo bot");
-    expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cb-formas [role=radio][data-forma]').length`)).toBe(13);
-    expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cb-cores [role=radio][data-cor]').length`)).toBe(14);
+    await avaliar(cdp, `document.activeElement?.blur()`);
+    // Um teste anterior pode ter deixado a barra recolhida: nesse estado o botão continua hidratado no DOM, mas não
+    // está visível. Dispara a ação pública do + pelo nó atual, sem depender do desenho da barra nem do modificador que
+    // o Chrome anuncia para a plataforma.
+    await avaliar(cdp, `document.querySelector('[data-act="novo-bot-dialogo"]')?.click()`);
+    await ate(`document.querySelector("dialog.criar-bot[open] .cnb-nome")`, "o modal Criar novo bot");
+    expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cnb-formas [role=radio][data-forma]').length`)).toBe(8);
+    expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cnb-cores [role=radio][data-cor]').length`)).toBe(12);
     expect(await avaliar<boolean>(cdp, `document.querySelector('dialog.criar-bot [data-cb="criar"]').disabled`)).toBe(true);
-    await avaliar(cdp, `(() => { const i = document.querySelector("dialog.criar-bot .cb-nome"); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "Bolota"); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
-    await clicar('dialog.criar-bot [data-forma="shape-heart"]');
+    await avaliar(cdp, `(() => { const i = document.querySelector("dialog.criar-bot .cnb-nome"); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "Bolota"); i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await clicar('dialog.criar-bot [data-forma="shape-cloud"]');
     await clicar('dialog.criar-bot [data-cor="c-purple"]');
-    await ate(`document.querySelector('dialog.criar-bot [data-forma="shape-heart"]').getAttribute("aria-checked") === "true" && document.querySelector('dialog.criar-bot [data-cor="c-purple"]').getAttribute("aria-checked") === "true"`, "forma e cor marcadas");
+    await ate(`document.querySelector('dialog.criar-bot [data-forma="shape-cloud"]').getAttribute("aria-checked") === "true" && document.querySelector('dialog.criar-bot [data-cor="c-purple"]').getAttribute("aria-checked") === "true"`, "forma e cor marcadas");
     // A prévia veste o personagem com a escolha.
-    expect(await avaliar<string>(cdp, `document.querySelector("dialog.criar-bot .cb-previa nod-mascote").className`)).toMatch(/c-purple.*shape-heart|shape-heart.*c-purple/);
-    expect(await avaliar<string>(cdp, `document.querySelector("dialog.criar-bot .cb-nome").value`)).toBe("Bolota");
+    expect(await avaliar<string>(cdp, `document.querySelector("dialog.criar-bot .cnb-previa nod-mascote").className`)).toMatch(/c-purple.*shape-cloud|shape-cloud.*c-purple/);
+    expect(await avaliar<string>(cdp, `document.querySelector("dialog.criar-bot .cnb-nome").value`)).toBe("Bolota");
     await clicar('dialog.criar-bot [data-cb="criar"]');
-    await ate(`document.querySelector("dialog.criar-bot .cb-barra[role=progressbar]")`, "o preparo");
-    const visto: number[] = [];
-    for (let t = 0; t < 300 && !(await existe('dialog.criar-bot .cb-preparo[data-fim="pronto"]')); t++) {
-      const v = await avaliar<number>(cdp, `Number(document.querySelector("dialog.criar-bot .cb-barra")?.getAttribute("aria-valuenow") ?? -1)`);
-      if (v >= 0) visto.push(v);
-      if (await existe('dialog.criar-bot .cb-preparo[data-fim="erro"]')) throw new Error(`o preparo deu erro: ${await texto("dialog.criar-bot .cb-erro")}`);
-      await espera(80);
-    }
-    expect(await texto("dialog.criar-bot .cb-porcento")).toBe("100%");
-    expect(await avaliar<string | null>(cdp, `document.querySelector("dialog.criar-bot .cb-preparo nod-mascote")?.dataset.estado ?? null`)).toBe("comemorando");
-    expect(visto.some((v) => v > 0 && v < 100)).toBe(true);
+    await ate(`document.querySelector('dialog.criar-bot .cnb-criar[aria-busy="true"]')`, "o estado Criando");
     await ate(`!document.querySelector("dialog.criar-bot") && document.getElementById("composer-texto")`, "a conversa do bot novo");
     const bolota = (await srv.json<{ agentes: { id: string; nome: string; forma: string; cor: string; conversaId: string }[] }>("GET", "frota")).agentes.find((a) => a.nome === "Bolota");
-    expect(bolota).toMatchObject({ forma: "shape-heart", cor: "c-purple" });
+    expect(bolota).toMatchObject({ forma: "shape-cloud", cor: "c-purple" });
     if (bolota) { agentes.push(bolota.id); conversas.push(bolota.conversaId); }
   });
 
