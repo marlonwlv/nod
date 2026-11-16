@@ -890,6 +890,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(await avaliar<string>(cdp, `document.querySelector(".pg-dica")?.textContent ?? ""`)).toBe("passe o mouse ou deslize de lado na pílula · Alt ← → troca");
     await avaliar(cdp, `window.__quadro.irPara(1)`);
     // Abrir a doca (aqui pelo foco) guarda a marca.
+    await cdp.enviar("Page.bringToFront");
     await avaliar(cdp, `document.querySelector('${aba("quadro")}').focus()`);
     expect(await avaliar<string | null>(cdp, `localStorage.getItem("nod.paginas.dica")`)).toBe("1");
   }, 30_000);

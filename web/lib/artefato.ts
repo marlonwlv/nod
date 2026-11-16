@@ -71,6 +71,39 @@ export function iframeDoArtefato(p: { documento: string; titulo: string; chave: 
 export type MensagemDoArtefato = { tipo: "estado"; dados: unknown; json: string } | { tipo: "altura"; px: number };
 
 /**
+ * Mantém a ordem das marcações do mesmo artefato mesmo quando a rede demora. Medido em 2026-11-16:
+ * dois PUTs sem fila concluíram invertidos e o mais velho sobrescreveu o clique mais recente. Artefatos
+ * diferentes continuam independentes; uma falha também não bloqueia a próxima tentativa.
+ */
+export type FilaDeSalvamentos = {
+  salvar(artefatoId: string, dados: unknown): Promise<void>;
+  /** Envia por keepalive só o estado mais novo ainda em voo ou na fila, somado ao debounce que ainda não entrou nela. */
+  descarregarAoSair(salvarAoSair: (artefatoId: string, dados: unknown) => void, extras?: Iterable<readonly [string, unknown]>): void;
+};
+
+export function criarFilaDeSalvamentos(salvar: (artefatoId: string, dados: unknown) => Promise<unknown>): FilaDeSalvamentos {
+  const filas = new Map<string, { dados: unknown; promessa: Promise<void> }>();
+  const salvarEmOrdem = (artefatoId: string, dados: unknown) => {
+    const anterior = filas.get(artefatoId)?.promessa;
+    const atual = (anterior ? anterior.catch(() => undefined) : Promise.resolve())
+      .then(() => salvar(artefatoId, dados))
+      .then(() => undefined);
+    filas.set(artefatoId, { dados, promessa: atual });
+    const limpar = () => { if (filas.get(artefatoId)?.promessa === atual) filas.delete(artefatoId); };
+    void atual.then(limpar, limpar);
+    return atual;
+  };
+  return {
+    salvar: salvarEmOrdem,
+    descarregarAoSair(salvarAoSair, extras = []) {
+      const maisRecentes = new Map([...filas].map(([id, p]) => [id, p.dados] as const));
+      for (const [id, dados] of extras) maisRecentes.set(id, dados);
+      for (const [id, dados] of maisRecentes) salvarAoSair(id, dados);
+    },
+  };
+}
+
+/**
  * O filtro do postMessage: só vale a mensagem cuja `source` é a janela DESTE iframe (outra página, outro
  * artefato ou a extensão do navegador não passam) e cuja origem é a opaca do sandbox ("null"). Forma e
  * tamanho conferidos aqui; o servidor confere de novo.
