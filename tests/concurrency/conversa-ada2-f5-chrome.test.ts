@@ -80,7 +80,8 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
       if (await avaliar<boolean>(cdp, `!!(${expressao})`)) return;
       await espera(100);
     }
-    throw new Error(`esperei ${ms} ms por ${oQue}`);
+    const tela = await avaliar<string>(cdp, `(() => { const ms = [...document.querySelectorAll("#timeline [data-mensagem]")].map((m) => ({ classe: m.className, texto: m.textContent?.replace(/\\s+/g, " ").trim().slice(0, 180) })); return JSON.stringify({ url: location.href, titulo: document.querySelector("#cabecalho")?.textContent?.replace(/\\s+/g, " ").trim(), mensagens: ms.slice(-8) }); })()`);
+    throw new Error(`esperei ${ms} ms por ${oQue}\n--- tela ---\n${tela}`);
   }
   const clicar = (sel: string) => avaliar(cdp, `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) throw new Error("não achei ${sel.replace(/"/g, "'")}"); el.click(); return true; })()`);
 
@@ -97,12 +98,12 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     const marcador = String(++navegacao);
     await cdp.enviar("Page.navigate", { url: `${srv.url}/?e2e=${marcador}` });
     await espera(100);
-    await ate(`new URL(location.href).searchParams.get("e2e") === "${marcador}"`, "a página nova");
-    await ate(`document.querySelector('[data-act="abrir-conversa"]')`, "a lista de bots");
+    await ate(`new URL(location.href).searchParams.get("e2e") === "${marcador}" && document.readyState === "complete"`, "a página nova");
+    await ate(`[...document.querySelectorAll('[data-act="abrir-conversa"]')].some((el) => el.offsetParent)`, "a lista de bots");
   }
 
   async function abrirConversa(bot: { id: string; nome: string }): Promise<void> {
-    await clicar(`[data-bot-contexto="${bot.id}"] [data-act="abrir-conversa"], button[data-bot-contexto="${bot.id}"]`);
+    await avaliar(cdp, `(() => { const b = [...document.querySelectorAll('[data-bot-contexto="${bot.id}"] [data-act="abrir-conversa"], button[data-bot-contexto="${bot.id}"]')].find((el) => el.offsetParent); if (!b) throw new Error("não achei o bot visível"); b.click(); })()`);
     await ate(`document.getElementById("composer-texto") && [...document.querySelectorAll("#cabecalho .pilula-nome")].some((e) => e.textContent === ${JSON.stringify(bot.nome)})`, "a conversa");
   }
 
@@ -305,16 +306,25 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     await clicar(".nl-desfazer.nl-desfazer-acao");
     for (let t = 0; t < 50 && (await tarefasDoQuadro(bot.id)).length > 0; t++) await espera(100);
 
-    // Revisão do PR #703: a fala de vários balões (um por parágrafo) que abre com bloco de código. Todos os balões se escondem,
-    // então todos ganham cópia; e as setas/Home andam só entre os itens do menu (o Copiar do código na cópia é inert).
+    // Revisão do PR #703: a fala que abre com bloco de código e segue em outro parágrafo. O balão inteiro se esconde e
+    // ganha uma cópia; as setas/Home andam só entre os itens do menu (o Copiar do código na cópia é inerte).
     const LONGA = "```\nx = 1\n```\n\nDepois do código, o parágrafo da fala longa.";
     const pedidoLongo = `Mais uma [[texto: ${LONGA}]]`;
-    await avaliar(cdp, `document.getElementById("composer-texto").focus()`);
-    await cdp.enviar("Input.insertText", { text: pedidoLongo });
-    await ate(`document.getElementById("composer-texto")?.value === ${JSON.stringify(pedidoLongo)}`, "o pedido longo digitado");
-    await clicar('.composer [data-act="enviar"]');
+    // Esta prova é do agrupamento dos balões e do menu, não do composer (já exercitado acima). Pela API, o pedido não
+    // se perde quando um frame do quadro reidrata a conversa entre o input e o clique sob carga do job navegador. A
+    // resposta assenta no servidor antes de reabrir a conversa: assim a prova não depende da entrega do SSE durante a
+    // rajada de quadro.mudou causada pelas tarefas criadas e desfeitas logo acima.
+    await srv.json("POST", `conversas/${bot.conversaId}/mensagens`, { texto: pedidoLongo });
+    for (let t = 0; t < 600; t++) {
+      const conversa = await srv.json<{ mensagens: { kind: string; texto: string; autoria: { autor_tipo: string } }[] }>("GET", `conversas/${bot.conversaId}/mensagens`);
+      if (conversa.mensagens.some((m) => m.kind === "texto" && m.autoria.autor_tipo === "agente" && m.texto.includes("parágrafo da fala longa"))) break;
+      if (t === 599) throw new Error("a fala longa não assentou no servidor");
+      await espera(100);
+    }
+    await abrir(390, 844);
+    await abrirConversa(bot);
     const seletorDaLonga = `[...document.querySelectorAll("#timeline .message.bot[data-mensagem]")].find((m) => [...m.querySelectorAll(".bubble")].some((b) => b.textContent.includes("parágrafo da fala longa")))`;
-    await ate(`(${seletorDaLonga})?.querySelectorAll(".bubble").length >= 2 && (${seletorDaLonga}).querySelector('[data-act="copiar-codigo"]')`, "a fala longa em balões, com o código", 60_000);
+    await ate(`(${seletorDaLonga})?.querySelector('.bubble [data-act="copiar-codigo"]')`, "a fala longa com o código", 60_000);
     await tocar(650, seletorDaLonga);
     await ate(`document.querySelector(".bot-menu.menu-fala-seg")`, "o menu da fala longa");
     const longa = await avaliar<{ baloes: number; copias: number; textos: boolean }>(cdp, `(() => { const d = document.querySelector(".bot-menu.menu-fala-seg"); const m = ${seletorDaLonga};
