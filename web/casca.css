@@ -168,7 +168,20 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
   transition: border-color var(--dur-normal) ease;
 }
 .composer .box:focus-within { border-color: var(--campo-borda-foco); }
-.composer .box > :is(.clipe, #composer-modo, #composer-ia) { display: none; }
+.composer .box > .clipe { display: none; }
+/* Acessos do campo (3c): a IA e o modo voltam ao campo, entre o texto e o 🎤 (o anexo segue no ＋). Com mouse, em repouso
+   ficam no lugar mas escondidos — o lugar é guardado, então nada pula quando aparecem, e o visibility hidden os tira do
+   Tab; no hover e no foco do campo aparecem (Tab: texto → IA → modo → 🎤 → enviar). Sem mouse fino (tela de toque
+   grande), ficam sempre à vista. 3a: "Ignorar todas as aprovações" ligado fica sempre à vista, fora do hover. */
+@media (hover: hover) and (pointer: fine) {
+  .composer .box > :is(#composer-ia, #composer-modo) {
+    visibility: hidden; opacity: 0; transition: opacity var(--dur-normal) ease, visibility 0s linear var(--dur-normal);
+  }
+  .composer .box:is(:hover, :focus-within) > :is(#composer-ia, #composer-modo),
+  .composer .box > #composer-modo[aria-expanded="true"], .composer .box > #composer-ia[aria-expanded="true"] {
+    visibility: visible; opacity: 1; transition-delay: 0s;
+  }
+}
 .composer .box > .mais-campo {
   display: grid; place-items: center; width: 30px; height: 30px; flex: none; padding: 0; margin: 0; border: 0; border-radius: var(--raio-full);
   background: transparent; color: var(--ink-2);
