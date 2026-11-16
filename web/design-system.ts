@@ -25,7 +25,11 @@ const IC = {
   brilho: ic('<path d="M8 2l1.3 3.7L13 7l-3.7 1.3L8 12l-1.3-3.7L3 7l3.7-1.3z"/>', 12),
   refazer: ic('<path d="M13 8a5 5 0 11-1.6-3.7M13 2.8v2.7h-2.7"/>', 12),
   seta: ic('<path d="M4.5 6.5L8 10l3.5-3.5"/>', 12),
+  sino: ic('<path d="M12 6a4 4 0 0 0-8 0c0 4.3-1.7 5-1.7 5.7h11.4c0-.7-1.7-1.4-1.7-5.7M6.7 13.7h2.6"/>', 14),
+  fechar: ic('<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>', 12),
 };
+/** A pílula "N esperam você" (2026-11-16, Paper "Acessos · pendências"): neutra em repouso; com o prazo perto, o aviso. */
+const pend = (n: number, prazo = ""): string => `<span class="dsv-pend${prazo ? " perto" : ""}"><span class="dsv-pend-ir">${IC.sino}<b>${n}</b> ${n === 1 ? "espera você" : "esperam você"}${prazo ? `<span class="dsv-pend-prazo">${prazo}</span>` : ""}</span><span class="dsv-pend-x">${IC.fechar}</span></span>`;
 const m = (forma: FormaAgente, cor: CorAgente, estado: Parameters<typeof htmlMascote>[2] = "disponivel", t = 36): string =>
   htmlMascote({ nome: "nod", forma, cor }, "", estado, `style="width:${t}px;height:${t}px"`);
 const estadoDoMotor = (id: StateId, t = 56): string => m("shape-pebble", "c-purple", "disponivel", t)
@@ -70,6 +74,9 @@ const componentes = `<section class="dsv-col"><h2>Componentes</h2><p class="dsv-
   <h3>Chips e atalhos</h3>
   <div class="dsv-bts"><span class="dsv-chip ok"><i></i>Ativo</span><span class="dsv-chip">Pausada</span><span class="dsv-chip aviso"><i></i>Sua vez</span><span class="dsv-chip novo">Novo</span><span class="dsv-chip perigo">× Falhou</span></div>
   <div class="dsv-bts dsv-kbds"><kbd class="ds-kbd">⌘</kbd><kbd class="ds-kbd">K</kbd><small>·</small><kbd class="ds-kbd">⌘</kbd><kbd class="ds-kbd">B</kbd><small>·</small><kbd class="ds-kbd">Esc</kbd></div>
+  <h3>Pílula acima do campo · o que espera você</h3>
+  <div class="dsv-bts">${pend(2)}${pend(1)}</div>
+  <div class="dsv-bts">${pend(2, "recusa automática em 12 min")}${pend(1, "vence em 25 min")}</div>
   <h3>Balões</h3>
   <div class="dsv-balao"><span>Põe as duas no ciclo atual</span></div><p class="dsv-bot">O bot fala sem balão, direto na conversa.</p>
   <h3>Avatar · formas do nod</h3>

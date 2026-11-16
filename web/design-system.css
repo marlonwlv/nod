@@ -96,3 +96,10 @@ body.dsv { margin: 0; background: var(--surface); color: var(--ink); font-family
 .dsv-estados { gap: 26px; align-items: flex-start; }
 .dsv-estados b { font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); }
 .dsv-sinal small { margin-top: 2px; }
+.dsv-pend { display: inline-flex; align-items: center; height: 30px; box-sizing: border-box; border: 1px solid var(--borda-sutil); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle); color: var(--ink-2); font-size: var(--fs-corpo-2); }
+.dsv-pend.perto { border-color: var(--warning-line); }
+.dsv-pend-ir { display: inline-flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; }
+.dsv-pend-ir > svg { color: var(--ink-3); }
+.dsv-pend b { color: var(--ink); font-weight: var(--peso-medio); }
+.dsv-pend-prazo { padding: 1px 6px; border-radius: var(--raio-8); background: var(--warning-soft); color: var(--warning); }
+.dsv-pend-x { display: grid; place-items: center; width: 22px; height: 22px; margin-right: 3px; color: var(--ink-3); }
