@@ -159,7 +159,7 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 /* Item 10, rodada 2 (2026-11-16): os cartões da conversa seguem a coluna do bot. O recuo de 52 px era o do mascote ao lado
    da fala, que saiu daqui (regra de cima); sem ele o cartão começava 52 px para dentro e grudava no balão de quem pediu
    (margem de cima negativa). Agora: mesma borda esquerda e mesma largura (560) da fala do bot, e o respiro de uma fala. */
-.timeline .decisoes-ancoradas { margin: 0 0 18px; width: min(560px, 100%); }
+.timeline .decisoes-ancoradas { margin: 16px 0 18px; width: min(560px, 100%); }
 .timeline :is(.cp, .cp-linha, .cp-erro) { --cp-recuo: 0px; }
 /* O cartão do terminal e do computador (rodada 2): o comando numa linha, o inteiro atrás de "Ver o comando"; o porquê curto. */
 .aprov-card .bt.aprov-fechar { margin-left: auto; }
