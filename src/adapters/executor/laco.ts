@@ -6,6 +6,7 @@ import { capacidadesDe } from "../../domain/harness.ts";
 import { type CapacidadesNoMeio, criarRastreadorDaVolta, decidirMensagemNoMeio, molduraDaInterrupcao, molduraMensagemNoMeio } from "../../domain/mensagem-no-meio.ts";
 import { SINAIS_ZERADOS } from "../../domain/stream-json.ts";
 import { AVALIACAO_VIGIA_MS, criarVigiaTurno } from "../../domain/vigia-turno.ts";
+import { conversaComAPessoa } from "../../domain/modo-aprovacao.ts";
 import { log } from "../../obs/log.ts";
 import type { AnexoMeta } from "../../contracts/anexo.ts";
 import { AGUARDAR_MENSAGEM_MS } from "../../contracts/estado-vivo.ts";
@@ -343,8 +344,10 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
             // fronteira (ADR-185). O recado do trabalho (sem moldura) nunca interrompe.
             const fala = id === undefined || !semMoldura.includes(id);
             const decisao = fala
-              ? decidirMensagemNoMeio({ estado: volta.estado(), textoDaVolta: volta.textoDaVolta(), jaInterrompeu, daConversa: plano.modoTurno === "conversa" && plano.daPessoa !== false && !plano.bastidores, capacidades: noMeio })
+              ? decidirMensagemNoMeio({ estado: volta.estado(), textoDaVolta: volta.textoDaVolta(), jaInterrompeu, daConversa: conversaComAPessoa(plano.modoTurno) && plano.daPessoa !== false && !plano.bastidores, capacidades: noMeio })
               : ({ tipo: "entregar" } as const);
+            // ADR-186: cada decisão no log da máquina (o estado e por quê), para acompanhar a regra em todo harness.
+            if (fala) log("info", "laco_mensagem_no_meio", { turno_id: plano.turnoId, estado: volta.estado(), decisao: decisao.tipo, modo: plano.modoTurno ?? null, da_pessoa: plano.daPessoa ?? null, bastidores: plano.bastidores ?? null, interrompe_volta: noMeio.interrompeVolta, ja_interrompeu: jaInterrompeu, pode: typeof adapterAtual?.interromperVolta === "function" });
             const interrompeu = decisao.tipo === "interromper_e_entregar" && adapterAtual?.interromperVolta?.() === true;
             if (interrompeu) {
               jaInterrompeu = true;

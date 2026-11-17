@@ -1,59 +1,67 @@
-# ADR-186 — Mensagem nova interrompe a escrita pura do bot
+# ADR-186 — Mensagem nova interrompe a escrita do bot: uma regra do nod para todo harness
 
-Status: **proposta** (2026-11-16, para leitura do dono antes de implementar) · Relacionadas:
-[ADR-067](adr-067-sessao-viva-o-turno-segue-ate-o-bot-terminar.md) (sessão viva),
-[ADR-185](adr-185-o-parar-nao-perde-o-que-a-pessoa-disse.md) (escrita na sessão não é lida).
+Status: aceita (2026-11-16, validação da preview) · Relacionadas:
+[ADR-036](adr-036-harnesses-e-modelos.md) (harness × modelo), [ADR-067](adr-067-sessao-viva-o-turno-segue-ate-o-bot-terminar.md)
+(sessão viva), [ADR-185](adr-185-o-parar-nao-perde-o-que-a-pessoa-disse.md) (escrita na sessão não é lida).
 
 ## Contexto
 
-Com o bot escrevendo uma resposta longa, a mensagem nova da pessoa ("na verdade, só 3 frases") entra na sessão viva mas
-só é lida na fronteira seguinte: o fim de uma ferramenta ou da resposta (ADR-185). Quando o bot está **só escrevendo**,
-não há ferramenta no caminho, e a fronteira é o fim da resposta inteira: ele termina os 10 tópicos que ninguém quer mais
-e só então responde à correção. Custa tempo, custa tokens e parece que o bot não ouve.
+Com o bot escrevendo uma resposta longa, a correção da pessoa ("na verdade, só 3 frases") só era lida no fim da resposta
+inteira: escrita na sessão é lida na fronteira seguinte (o fim de uma ferramenta ou da resposta, ADR-185), e quem só
+escreve não tem fronteira no caminho.
 
-Comparação de 2026-11-16, com o mesmo roteiro nos três apps:
+Comparação de 2026-11-16, mesmo roteiro: o app de referência leu a correção no meio e respondeu em 3 tópicos; o OpenBot
+(com "Orientar", o padrão dele) terminou as 20 seções antes de responder; o bot-hq põe na fila. O que muda o rumo no meio
+é **interromper a volta**, não entregar a mensagem: o `turn/steer` do Codex também só é lido depois do item em curso.
 
-- **App de referência:** leu a correção no meio e respondeu "Fechado, aqui vai em 3 tópicos" — os 10 nunca saíram.
-- **OpenBot** (com "Orientar", o padrão dele): a mensagem entrou na conversa, mas o agente terminou as 20 seções e só
-  depois respondeu às 3 frases — a mesma limitação do nod.
-- **bot-hq:** fila; a correção roda depois do turno inteiro.
+A regra precisa valer para N harnesses — Claude Code e Codex hoje; Cursor, Hermes e outros agentes por ACP depois — e
+não pode morar em cada driver.
 
-## Decisão proposta
+## Decisão
 
-1. **"Escrita pura" é o estado em que nada pode ficar pela metade:** o turno da conversa (não frente, não rotina) está
-   numa volta gerando texto ou pensamento, **sem ferramenta aberta** (nenhum `tool_use` sem o `tool_result`) e sem
-   subagente ou comando em segundo plano. O driver do Claude já acompanha isso (`tool_use`/`tool_result`, `emFundo`).
-2. **Mensagem nova durante a escrita pura interrompe a geração, não a sessão.** O driver manda ao CLI o pedido de
-   interrupção da volta pelo stdin (`control_request` `interrupt` do stream-json, o mesmo que o SDK usa) — o processo e
-   a sessão continuam. O CLI encerra a volta e lê em seguida a mensagem que já está no stdin; o bot responde com as duas
-   à vista (a resposta parcial e a correção). Várias mensagens seguidas geram uma interrupção só.
-3. **Com uma ferramenta aberta, nada muda:** a mensagem espera a fronteira (ADR-185), para não deixar um arquivo meio
-   gravado ou um comando sem resultado.
-4. **O texto que já tinha saído fica, marcado "parcial"**, como no Parar — é honesto e já custou. O selo da mensagem da
-   pessoa passa a "Lida" na hora.
-5. **Só o driver do Claude nesta rodada.** O Codex tem `turn/steer` nativo e segue como está; outro driver sem a
-   interrupção de volta mantém a ADR-185.
+1. **Uma política do nod, pura** (`decidirMensagemNoMeio`, `src/domain/mensagem-no-meio.ts`). Entrada: o estado da volta e o
+   que o harness sabe fazer. Saída: entregar ou interromper e entregar.
+   - `escrevendo` (texto ou pensamento, sem ferramenta aberta nem trabalho em segundo plano), na conversa com a pessoa
+     (`conversaComAPessoa`: `conversa` ou `criacao`, da faixa dela, fora dos bastidores), com `interrompeVolta`:
+     **interrompe a volta e a mensagem abre a seguinte**. Uma vez por volta (a rajada não interrompe de novo).
+   - `acao_aberta` / `segundo_plano` / `entre_voltas`, frente, rotina ou harness sem a capacidade: entrega e espera a
+     fronteira (ADR-185) — nada fica pela metade.
+2. **O estado da volta sai dos eventos normalizados** que todo driver já emite (`delta`, `tool_use`, `tool_result`,
+   `tarefa_fundo`, `result`), num rastreador do laço do executor. Nenhum driver sabe o que é "escrita pura".
+3. **O harness implementa só a primitiva** `interromperVolta()` (para a volta sem matar a sessão) e emite a volta cortada como
+   fala própria marcada (`falaIntermediaria(texto, { interrompida: true })`), antes da resposta. O laço interrompe ANTES de
+   entregar a mensagem.
+4. **Capacidades medidas, não supostas**, em `CAPACIDADES_HARNESS` (o mínimo garantido; o driver pode completar na hora,
+   como o ACP faria pelo `initialize`). Sonda reaproveitável: `scripts/sonda-mensagem-no-meio.ts`.
+   - `interrompeVolta`: o harness para a volta e a sessão segue.
+   - `parcialNoHistorico`: o texto cortado fica no histórico. Sem, a moldura da mensagem leva o começo dele
+     (`TRECHO_DA_PARCIAL_MAX`), para o modelo saber o que já tinha escrito.
+5. **Servidor e tela não sabem o harness:** a fala cortada é gravada `parcial` com `payload.kind = "fala_interrompida"`; a
+   conversa mostra "Interrompido pela sua mensagem · hora", recolhida (o mesmo desenho do "Parado por você").
 
-## A medir antes de implementar
+## Medições (2026-11-16)
 
-- Se o CLI da versão em uso aceita o `control_request` `interrupt` em `--input-format stream-json` e **mantém a sessão
-  viva** depois (sonda como a de 2026-09-16, `mapa-cli`). Se não aceitar, a alternativa é encerrar o processo e retomar a
-  sessão (`--resume`) com a mensagem nova — mais lenta (~2 a 5 s) e só se a sonda mostrar que a interrupção não existe.
-- O que o modelo recebe depois da interrupção: se a resposta parcial entra no histórico (ela precisa entrar, senão o bot
-  não sabe o que já escreveu).
+| Harness | `interrompeVolta` | Parcial no histórico | Correção respondida (sonda) |
+|---|---|---|---|
+| Claude Code 2.1.326 (`control_request` interrupt) | sim, <100 ms | sim | 2,8 s |
+| Codex 0.162.1 (`turn/interrupt`) | sim, 5 ms | **não** ("Não cheguei a escrevê-las") | 3,1 s |
+| ACP (`session/cancel`, obrigatório no protocolo) | sim, por contrato — medir no driver | depende do agente | — |
+| Cursor, Hermes (sem driver) | não | — | espera a fronteira / fila |
+
+Ponta a ponta na 5280: Claude (Opus) — correção lida e respondida em 3 frases, texto cortado recolhido; o atraso foi a
+entrega da mensagem ao laço (~6,5 s, a janela do "Cancelar" da fila). GPT-5.6 Luna — da correção à resposta em 3 s.
 
 ## Alternativas descartadas
 
-- **Esperar a fronteira sempre** (hoje): o problema descrito.
-- **Interromper também com ferramenta aberta:** deixa efeito pela metade (arquivo, comando, mensagem enviada).
-- **Perguntar à pessoa ("interromper?"):** atrito em toda correção, que é justamente quando ela tem pressa.
-- **Botão "Orientar" na mensagem (OpenBot):** a pessoa teria de saber que existe; e o Orientar dele, no teste, não mudou
-  nada enquanto o agente só escrevia.
+- **Steer/Orientar** (entregar no meio sem interromper): medido no Codex e no OpenBot, não muda o rumo de quem só escreve.
+- **Regra por driver:** cada harness novo reimplementaria a decisão; um teste de conformidade não cobriria.
+- **Interromper com ferramenta aberta:** deixa efeito pela metade.
+- **Perguntar à pessoa:** atrito justamente quando ela tem pressa.
 
 ## Gatilhos de reversão
 
-- Respostas que "perdem o fio" depois da interrupção (o modelo não vê o que já tinha escrito): voltar a esperar a
-  fronteira até a sonda achar como manter a parcial no histórico.
-- Interrupção que derruba a sessão (o turno recomeça sem contexto) mais de uma vez por semana no log: desligar o corte.
-- Custo por conversa sobe em vez de cair (interrupções seguidas que recomeçam a mesma resposta): pôr um piso de texto
-  (ex.: só interromper depois de N tokens escritos) ou um teto de interrupções por turno.
+- Respostas que perdem o fio depois do corte (o modelo não sabe o que escreveu) num harness marcado `parcialNoHistorico`:
+  desligar a capacidade para ele (a moldura passa a levar o trecho).
+- `laco_volta_interrompida_por_mensagem` seguido de turno que recomeça sem sessão mais de uma vez por semana: desligar
+  `interrompeVolta` do harness até a sonda passar de novo.
+- Custo por conversa sobe (interrupções em série): teto de interrupções por turno.

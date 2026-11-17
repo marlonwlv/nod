@@ -783,7 +783,8 @@ describe("sessão viva no laço (ADR-067)", () => {
 
   it("ADR-186: com o bot só escrevendo na conversa e um harness que para a volta, o laço interrompe ANTES de entregar; sem a parcial no histórico, o trecho vai na moldura", async () => {
     const d = driverControlado({ capacidades: { ...SESSAO_VIVA, interrompeVolta: true, parcialNoHistorico: false }, interrompe: true });
-    const ponte = ponteDaSessao({ fila: ["só 3 frases"], plano: { modoTurno: "conversa" } });
+    // Bot novo conversa em modo "criacao": também é conversa com a pessoa (conversaComAPessoa; o teste real pegou isso).
+    const ponte = ponteDaSessao({ fila: ["só 3 frases"], plano: { modoTurno: "criacao" } });
     const laco = await cenario(d, ponte);
     d.sinks()!.evento({ tipo: "delta", texto: "1. Origens do chá" });
     expect(await d.sinks()!.ocioso!()).toBe(true);

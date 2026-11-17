@@ -3,7 +3,7 @@ import type { EventoStream } from "../../../src/contracts/turno.ts";
 import { CAPACIDADES_HARNESS, SEM_CAPACIDADES } from "../../../src/contracts/harness.ts";
 import { criarRastreadorDaVolta, decidirMensagemNoMeio, molduraDaInterrupcao, TRECHO_DA_PARCIAL_MAX } from "../../../src/domain/mensagem-no-meio.ts";
 
-const RESULT: EventoStream = { tipo: "result", sucesso: true, subtype: "success", sessaoCli: null, texto: "", custoUsd: null, tokens: { entrada: 0, saida: 0, cacheLeitura: 0, cacheCriacao: 0 }, numTurnos: 1, negacoesPermissao: [] } as EventoStream;
+const RESULT = { tipo: "result", sucesso: true, subtype: "success", sessaoCli: null, texto: "", custoUsd: null, tokens: { entrada: 0, saida: 0, cacheLeitura: 0, cacheCriacao: 0 }, numTurnos: 1, negacoesPermissao: [] } as unknown as EventoStream;
 const delta = (texto: string): EventoStream => ({ tipo: "delta", texto });
 const COM = { interrompeVolta: true, parcialNoHistorico: true };
 
