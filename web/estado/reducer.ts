@@ -1380,7 +1380,12 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     const anterior = e.turnosVivos[turnoId];
     const trabalhoId = texto(f.dados.trabalhoId) ?? texto(f.dados.trabalho_id) ?? anterior?.trabalhoId ?? null;
     const vivo: TurnoVivo = { turnoId, conversaId, estado, executor: texto(f.dados.executor) ?? anterior?.executor ?? null, machineId: texto(f.dados.machine_id) ?? anterior?.machineId ?? null, desde: estado === "rodando" && anterior?.estado !== "rodando" ? agora : (anterior?.desde ?? agora), trabalhoId, vistoEm: agora, chegouEm: anterior?.chegouEm ?? agora, origem: texto(f.dados.origem) ?? anterior?.origem ?? null, agenteId: texto(f.dados.agente_id) ?? texto(f.dados.agenteId) ?? anterior?.agenteId ?? null, motivoRecomeco: motivoDoFrame(f.dados.motivo_recomeco) ?? anterior?.motivoRecomeco ?? null, ...(!trabalhoId && (bastidoresDoFrame(f.dados) || anterior?.bastidores) ? { bastidores: true } : {}), ...(typeof f.dados.despachadoEm === "number" ? { despachadoEm: f.dados.despachadoEm } : anterior?.despachadoEm !== undefined ? { despachadoEm: anterior.despachadoEm } : {}), ...(typeof f.dados.criadoEm === "number" ? { criadoEm: f.dados.criadoEm } : anterior?.criadoEm !== undefined ? { criadoEm: anterior.criadoEm } : {}) };
-    return invalidar({ ...e, turnosVivos: { ...e.turnosVivos, [turnoId]: vivo } }, conv(f), "trabalhos");
+    // ADR-185: o "Parado por você" é da parada anterior. A fala que o Parar devolveu à fila roda logo em seguida, e a faixa
+    // (no fim da conversa) ficaria embaixo da resposta nova: um turno do chat que começa a rodar na conversa aberta a tira.
+    // O texto interrompido continua marcado como "parcial".
+    const aberta = e.tela.tipo === "conversa" && e.tela.conversaId === conversaId;
+    const tiraFaixa = e.faixaParada !== null && estado === "rodando" && !trabalhoId && aberta;
+    return invalidar({ ...e, turnosVivos: { ...e.turnosVivos, [turnoId]: vivo }, ...(tiraFaixa ? { faixaParada: null } : {}) }, conv(f), "trabalhos");
   },
   "turno.delta": (e, f, agora) => {
     if (turnoDeLigacao(f.dados)) return e;

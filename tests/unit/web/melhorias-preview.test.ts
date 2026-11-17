@@ -59,3 +59,13 @@ describe("ADR-185: o selo da fala que o turno vivo absorveu", () => {
   });
 });
 
+describe("ADR-185: a faixa do Parar sai quando a fala devolvida começa a rodar", () => {
+  it("turno do chat despachado na conversa aberta tira o 'Parado por você'; o da frente não", () => {
+    const base = { ...estadoInicial, tela: { tipo: "conversa", conversaId: "c1" }, faixaParada: { interrompidas: 1, naoInterrompidas: [], jaEntregues: [], nadaRodando: false } } as never;
+    const frame = (dados: Record<string, unknown>) => ({ tipo: "frame", frame: { tipo: "turno.iniciado", dados: { conversaId: "c1", turnoId: "t9", kind: "turno_despachado", ...dados } }, agora: 10 }) as never;
+    expect(reduzir(base, frame({})).faixaParada).toBeNull();
+    expect(reduzir(base, frame({ trabalhoId: "f1" })).faixaParada).not.toBeNull();
+    expect(reduzir(base, frame({ kind: "turno_criado" })).faixaParada).not.toBeNull();
+  });
+});
+
