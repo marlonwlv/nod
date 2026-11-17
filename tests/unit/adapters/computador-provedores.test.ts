@@ -127,6 +127,18 @@ describe("ações do nod sobre primitivas (provedor de fora)", () => {
     expect(p.clicar).not.toHaveBeenCalled();
   });
 
+  it("quadros de displays diferentes da mesma máquina não invalidam nem autorizam o vizinho", async () => {
+    const p = { capturarTela: async () => ({ png: PNG, largura: 1280, altura: 800 }), clicar: vi.fn(async () => undefined) } as unknown as PrimitivasDeComputador;
+    const ex = criarExecutorPorPrimitivas(p, { raiz: "/workspace" });
+    const a = { ...ref, telaId: "11111111-1111-4111-8111-111111111111", agenteId: BOT };
+    const b = { ...ref, telaId: "22222222-2222-4222-8222-222222222222", agenteId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
+    const qa = (await ex.executar(a, { tipo: "observar" })).tela!.quadro;
+    const qb = (await ex.executar(b, { tipo: "observar" })).tela!.quadro;
+    await ex.executar(a, { tipo: "clicar", x: 1, y: 1, quadro: qa });
+    await ex.executar(b, { tipo: "clicar", x: 2, y: 2, quadro: qb });
+    await expect(ex.executar(b, { tipo: "clicar", x: 3, y: 3, quadro: qa })).rejects.toMatchObject({ motivo: "tela_alterada" });
+  });
+
   it("o que a máquina de fora não tem responde acao_falhou com o que fazer, nunca sucesso", async () => {
     const ex = criarExecutorPorPrimitivas({} as PrimitivasDeComputador, { raiz: "/workspace" });
     for (const acao of [{ tipo: "audio", segundos: 2 }, { tipo: "dialogo", aceitar: true, quadro: "q" }, { tipo: "anexar", caminho: "a", quadro: "q" }] as const) {
@@ -274,6 +286,28 @@ describe("driver Orgo (pela documentação, sem conta)", () => {
     expect(f.chamadas.filter((c) => c.metodo === "POST" && c.url === "/computers")).toHaveLength(0);
     await Promise.all(bots.map((bot) => p.primitivas!.capturarTela!(bot)));
     for (const display of refs.values()) expect(f.chamadas.some((c) => c.url.includes(`screenshot?screen=${display}`))).toBe(true);
+  });
+
+  it("falha fechada: erro transitório ao validar screen não apaga nem realoca o display", async () => {
+    const f = orgoFalso({ status: "running", existe: true });
+    let display: string | null = "screen-1";
+    let limpar = 0;
+    f.screens.push({ id: "screen-1" });
+    const fetchImpl = async (...args: Parameters<typeof f.fetchImpl>) => {
+      const caminho = args[0].replace("https://www.orgo.ai/api", "");
+      if (caminho.endsWith("/screens/screen-1")) return { status: 503, ok: false, json: async () => ({}), text: async () => "" };
+      return f.fetchImpl(...args);
+    };
+    const p = criarProvedorOrgo({ env, chaveDe: async () => CHAVE, fetchImpl, pausa: async () => undefined,
+      displayRefDe: async () => display,
+      displaysRefDoComputador: async () => display ? [display] : [],
+      fixarDisplayRef: async (_tela, ref) => { if (ref === null) limpar++; display = ref; return true; },
+    });
+    const bot = { ...ref, telaId: "11111111-1111-4111-8111-111111111111", agenteId: BOT };
+    await expect(p.primitivas!.capturarTela!(bot)).rejects.toMatchObject({ motivo: "sem_resposta" });
+    expect(display).toBe("screen-1");
+    expect(limpar).toBe(0);
+    expect(f.screens).toHaveLength(1);
   });
 
   it("criações concorrentes do mesmo UUID de pessoa e computador em tenants diferentes não se juntam", async () => {
@@ -447,6 +481,20 @@ describe("seletor de provedor (o DriverComputador de sempre)", () => {
     expect(new Set(refs.map((r) => r.telaId))).toEqual(new Set(telas.map((t) => t.telaId)));
     expect(new Set(refs.map((r) => r.agenteId))).toEqual(new Set(telas.map((t) => t.agenteId)));
     expect([...await driver.ligados()]).toEqual(expect.arrayContaining(telas.map((t) => t.telaId)));
+  });
+
+  it("override por bot não divide a máquina compartilhada da pessoa entre provedores", async () => {
+    const eventos: string[] = [];
+    const { config } = configDeProvedores({
+      NOD_COMPUTADORES: "docker",
+      NOD_COMPUTADOR_PROVEDOR_POR_BOT: JSON.stringify({ [BOT]: "orgo" }),
+    });
+    const driver = criarDriverPorProvedor({ config, provedores: { docker: provedorFalso("docker", eventos), orgo: provedorFalso("orgo", eventos) },
+      localizar: async (id) => ({ computadorId: ID, telaId: id, agenteId: id === "tela-a" ? BOT : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }),
+    });
+    await driver.iniciar("tela-a", ESCOPO);
+    await driver.iniciar("tela-b", ESCOPO);
+    expect(eventos).toEqual([`docker:iniciar:${ID}`, `docker:iniciar:${ID}`]);
   });
 
   it("cada bot usa o seu provedor; o agente e o portão não mudam", async () => {

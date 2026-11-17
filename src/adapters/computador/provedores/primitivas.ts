@@ -42,7 +42,12 @@ export function criarExecutorPorPrimitivas(p: PrimitivasDeComputador, o: OpcoesP
   const agora = o.agora ?? Date.now;
   const novoId = o.novoId ?? (() => randomBytes(32).toString("hex"));
   const estados = new Map<string, EstadoQuadros>();
-  const chaveDe = (ref: RefComputador) => ref.escopo ? `${ref.escopo.tenantId}:${ref.escopo.pessoaId}:${ref.id}` : `sem-escopo:${ref.id}`;
+  // Quadros autorizam uma ação numa tela, não na máquina inteira. Sem a tela na chave, observar no bot A
+  // invalidava o quadro do bot B (e, pior, um quadro de A podia autorizar uma ação em B enquanto ainda válido).
+  const chaveDe = (ref: RefComputador) => {
+    const alvo = ref.telaId ?? ref.id;
+    return ref.escopo ? `${ref.escopo.tenantId}:${ref.escopo.pessoaId}:${alvo}` : `sem-escopo:${alvo}`;
+  };
   const estado = (ref: RefComputador) => {
     const chave = chaveDe(ref);
     let e = estados.get(chave);

@@ -63,7 +63,9 @@ export function criarDriverPorProvedor(o: OpcoesSeletor): DriverPorProvedor {
   }
   async function escolher(ref: RefComputador): Promise<IdProvedorComputador | null> {
     // Falha fechada: erro ao ler o vínculo não pode cair no provedor global e abrir o perfil em outra conta.
-    return escolherProvedor(o.config, { pessoaId: ref.escopo?.pessoaId ?? null, agenteId: ref.agenteId ?? null });
+    // Uma máquina compartilhada não pode ser repartida por overrides de bot: isso criaria uma máquina Docker e outra
+    // Orgo para a mesma pessoa. Overrides por bot continuam valendo apenas no contrato legado sem computador_tela.
+    return escolherProvedor(o.config, { pessoaId: ref.escopo?.pessoaId ?? null, agenteId: ref.telaId ? null : ref.agenteId ?? null });
   }
   async function provedorDe(id: string, escopo?: Escopo): Promise<{ p: ProvedorDeComputador; ref: RefComputador; qual: IdProvedorComputador }> {
     const ref = await refDe(id, escopo);

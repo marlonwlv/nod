@@ -248,7 +248,12 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
     const c = await exigir(ref);
     const gravado = await o.displayRefDe?.(ref.telaId, escopo) ?? null;
     if (gravado) {
-      const existe = await chamar<DisplayOrgo>(escopo, "GET", `/computers/${c.id}/screens/${encodeURIComponent(gravado)}`).then(() => true, () => false);
+      const existe = await chamar<DisplayOrgo>(escopo, "GET", `/computers/${c.id}/screens/${encodeURIComponent(gravado)}`).then(() => true, (e: unknown) => {
+        // Só 404 prova que o display desapareceu. Credencial recusada, timeout e 5xx falham fechados: apagar o vínculo
+        // nesses casos perderia a tela válida e criaria outra a cada instabilidade do provedor.
+        if (e instanceof FalhaComputador && e.motivo === "sem_resposta" && e.detalhe?.includes("→ 404")) return false;
+        throw e;
+      });
       if (existe) return gravado;
       await o.fixarDisplayRef?.(ref.telaId, null, escopo);
     }

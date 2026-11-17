@@ -64,16 +64,23 @@ export function computadorTelasRepo(conn: Conn, escopo: Escopo) {
       return l?.provedor_ref ?? null;
     },
     async fixarProvedorRef(id: string, ref: string | null): Promise<boolean> {
-      try {
-        const linhas = await conn`update computador_telas set provedor_ref = ${ref}
+      if (ref === null) {
+        const linhas = await conn`update computador_telas set provedor_ref = null
           where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} returning id`;
         return linhas.length === 1;
-      } catch (e) {
-        // Duas instâncias podem enxergar o mesmo screen livre. O índice parcial decide a vencedora; a perdedora
-        // relê e aluga outro, sem deixar a transação ou a referência do bot pela metade.
-        if ((e as { code?: unknown }).code === "23505") return false;
-        throw e;
       }
+      const [alvo] = await conn<{ computador_id: string }[]>`select computador_id from computador_telas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}`;
+      if (!alvo) return false;
+      // Um UNIQUE violado aborta a transação Postgres inteira, mesmo se o erro for capturado em JS. Serializar pelo
+      // display antes de consultar evita a violação e funciona também entre processos/cores diferentes.
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`${escopo.tenantId}:${alvo.computador_id}:${ref}`}, 0))`;
+      const linhas = await conn`update computador_telas t set provedor_ref = ${ref}
+        where t.tenant_id = ${escopo.tenantId} and t.owner_id = ${escopo.pessoaId} and t.id = ${id}
+          and not exists (select 1 from computador_telas outra where outra.tenant_id = t.tenant_id
+            and outra.computador_id = t.computador_id and outra.provedor_ref = ${ref} and outra.id <> t.id)
+        returning id`;
+      return linhas.length === 1;
     },
     async provedoresRef(computadorId: string): Promise<string[]> {
       const linhas = await conn<{ provedor_ref: string }[]>`select provedor_ref from computador_telas
