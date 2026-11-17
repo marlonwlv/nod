@@ -5,12 +5,13 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { DriverComputador } from "../../../src/contracts/computador.ts";
 import type { PrimitivasDeComputador, ProvedorDeComputador } from "../../../src/contracts/provedor-computador.ts";
-import { criarProvedorDocker } from "../../../src/adapters/computador/provedores/docker.ts";
+import { criarControleDockerCompartilhado, criarProvedorDocker } from "../../../src/adapters/computador/provedores/docker.ts";
 import { criarProvedorOrgo, estadoDoOrgo, nomeNoOrgo, teclaParaOrgo, urlVncDoOrgo } from "../../../src/adapters/computador/provedores/orgo.ts";
 import { criarExecutorPorPrimitivas, paginar, PEDACO_BASE64 } from "../../../src/adapters/computador/provedores/primitivas.ts";
 import { criarDriverPorProvedor } from "../../../src/adapters/computador/provedores/seletor.ts";
 import { FalhaComputador } from "../../../src/domain/computador.ts";
 import { configDeProvedores, escolherProvedor, lerMapaDeProvedores, provedoresEmUso } from "../../../src/domain/provedor-computador.ts";
+import { gerarParX25519 } from "../../../src/adapters/computador/selo.ts";
 
 /**
  * ADR-168: o computador do bot plug and play. Sem rede, sem Docker, sem conta no Orgo: o Docker e o fetch são falsos, e a
@@ -292,6 +293,26 @@ describe("driver Orgo (pela documentação, sem conta)", () => {
     expect(f.chamadas.filter((c) => c.metodo === "POST" && c.url === "/computers")).toHaveLength(0);
     await Promise.all(bots.map((bot) => p.primitivas!.capturarTela!(bot)));
     for (const display of refs.values()) expect(f.chamadas.some((c) => c.url.includes(`screenshot?screen=${display}`))).toBe(true);
+  });
+
+  it("a quota de displays continua exata com alugueis concorrentes", async () => {
+    const f = orgoFalso({ status: "running", existe: true });
+    const refs = new Map<string, string>();
+    const p = criarProvedorOrgo({ env: { ...env, NOD_ORGO_DISPLAY_MAX: "2" }, chaveDe: async () => CHAVE, fetchImpl: f.fetchImpl,
+      displayRefDe: async (tela) => refs.get(tela) ?? null,
+      displaysRefDoComputador: async () => [...refs.values()],
+      fixarDisplayRef: async (tela, display) => {
+        if (!display) return refs.delete(tela);
+        if ([...refs.values()].includes(display)) return false;
+        refs.set(tela, display);
+        return true;
+      },
+    });
+    const telas = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", "33333333-3333-4333-8333-333333333333"];
+    const resultados = await Promise.allSettled(telas.map((telaId, i) => p.iniciar({ ...ref, telaId, agenteId: `00000000-0000-4000-8000-00000000000${i}` })));
+    expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(2);
+    expect(resultados.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect(f.screens).toHaveLength(2);
   });
 
   it("falha fechada: erro transitório ao validar screen não apaga nem realoca o display", async () => {
@@ -649,5 +670,45 @@ describe("Docker como provedor", () => {
     const ligado = criarProvedorDocker({}, { driver: { ...base, ligados: async () => new Set([ID]) }, docker });
     await expect(ligado.snapshot!({ id: ID }, "x")).rejects.toMatchObject({ motivo: "ocupado" });
     await expect(p.snapshot!({ id: ID }, "Rótulo Inválido")).rejects.toMatchObject({ codigo: "entrada_invalida" });
+  });
+
+  it("duas pessoas ligando juntas não furam o teto de máquinas do host", async () => {
+    const supervisorPub = gerarParX25519().publica;
+    const criados = new Set<string>();
+    const rodando = new Set<string>();
+    const docker = vi.fn(async (args: string[], entrada?: string) => {
+      if (args[0] === "ps") {
+        const foto = [...rodando].filter((n) => n.startsWith("nod-computador-")).join("\n");
+        await Promise.resolve();
+        return foto;
+      }
+      if (args[0] === "image" && args[1] === "inspect") return "sha256:imagem";
+      if (args[0] === "network" && args[1] === "inspect") return "ok";
+      if (args[0] === "inspect" && args[1] === "--format") {
+        const nome = args.at(-1)!;
+        if (!criados.has(nome)) throw new Error("não existe");
+        if (args[2] === "{{.State.Running}}") return rodando.has(nome) ? "true\n" : "false\n";
+        if (args[2] === "{{json .Config.Cmd}}") return '["node","supervisor.mjs"]';
+        if (args[2] === "{{.Image}}") return "sha256:imagem";
+      }
+      if (args[0] === "inspect") {
+        if (!criados.has(args[1]!)) throw new Error("não existe");
+        return "ok";
+      }
+      if (args[0] === "create") { criados.add(args[args.indexOf("--name") + 1]!); return "ok"; }
+      if (args[0] === "start") { rodando.add(args[1]!); return "ok"; }
+      if (args[0] === "exec" && args.includes("test")) return "";
+      if (args[0] === "exec" && args.some((a) => a.endsWith("/cliente-unico.mjs"))) {
+        const pedido = JSON.parse(entrada ?? "{}") as { sonda?: boolean; comando?: { id?: string } };
+        return pedido.sonda ? JSON.stringify({ estado: { supervisorPub } }) : JSON.stringify({ resultado: { id: pedido.comando?.id, desfecho: "ok" } });
+      }
+      return "ok";
+    });
+    const controle = criarControleDockerCompartilhado({ NOD_COMPUTADORES: "docker", NOD_CREDENTIAL_KEY: "a".repeat(64), NOD_COMPUTADORES_MAX: "1" }, docker);
+    const outro = "22222222-3333-4444-8555-666666666666";
+    const resultados = await Promise.allSettled([controle.iniciar({ id: ID }), controle.iniciar({ id: outro })]);
+    expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(resultados.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect([...rodando].filter((n) => n.startsWith("nod-computador-"))).toHaveLength(1);
   });
 });

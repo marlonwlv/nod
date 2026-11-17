@@ -247,6 +247,9 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
   /** Uma única promessa por tela impede duas screens remotas para o mesmo bot no mesmo processo. O índice do banco
    * fecha a mesma corrida entre processos. */
   const alugueis = new Map<string, Promise<string>>();
+  // O limite remoto e a criação da screen formam uma região crítica por máquina. O índice do banco impede duas
+  // telas de fixarem a mesma referência, mas sozinho não impede três POSTs simultâneos de furarem maxDisplays.
+  const filasDeDisplays = new Map<string, Promise<void>>();
   async function alugarDisplay(ref: RefComputador): Promise<string> {
     if (!ref.telaId || !ref.agenteId) throw new FalhaComputador("nao_iniciou", { detalhe: "display sem identidade do bot" });
     const escopo = escopoDe(ref);
@@ -282,7 +285,13 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
     const chave = `${chaveEscopada(ref)}:${ref.telaId ?? "maquina"}`;
     const atual = alugueis.get(chave);
     if (atual) return atual;
-    const novo = alugarDisplay(ref).finally(() => alugueis.delete(chave));
+    const maquina = chaveEscopada(ref);
+    const anterior = filasDeDisplays.get(maquina) ?? Promise.resolve();
+    const novo = anterior.catch(() => undefined).then(() => alugarDisplay(ref));
+    const fim = novo.then(() => undefined, () => undefined);
+    filasDeDisplays.set(maquina, fim);
+    void fim.finally(() => { if (filasDeDisplays.get(maquina) === fim) filasDeDisplays.delete(maquina); });
+    void novo.finally(() => alugueis.delete(chave)).catch(() => undefined);
     alugueis.set(chave, novo);
     return novo;
   }

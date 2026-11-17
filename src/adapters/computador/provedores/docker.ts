@@ -59,6 +59,9 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
   };
   const rodando = async (nome: string) => (await docker(["inspect", "--format", "{{.State.Running}}", nome], undefined, 5_000).catch(() => "false")).trim() === "true";
   const subidas = new Map<string, Promise<void>>();
+  // A leitura do teto e a criação precisam ser uma única região crítica. Sem a fila, duas pessoas que ligassem
+  // máquinas diferentes no mesmo tick viam a mesma foto de `docker ps` e ambas passavam pelo último lugar.
+  let filaDeCapacidade: Promise<void> = Promise.resolve();
   const ligados = async () => {
     const saida = await docker(["ps", "--filter", "label=nod.computador=true", "--filter", "name=^nod-computador-", "--format", "{{.Names}}"], undefined, 5_000);
     return new Set(saida.split("\n").map((l) => /^nod-computador-([a-f0-9-]{36})$/.exec(l.trim())?.[1]).filter((id): id is string => Boolean(id)));
@@ -106,7 +109,9 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
   function subir(id: string): Promise<void> {
     const atual = subidas.get(id);
     if (atual) return atual;
-    const nova = subirUma(id).finally(() => subidas.delete(id));
+    const nova = filaDeCapacidade.catch(() => undefined).then(() => subirUma(id));
+    filaDeCapacidade = nova.then(() => undefined, () => undefined);
+    void nova.finally(() => subidas.delete(id)).catch(() => undefined);
     subidas.set(id, nova);
     return nova;
   }
