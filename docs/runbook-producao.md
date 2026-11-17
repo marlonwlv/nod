@@ -191,6 +191,23 @@ perdido. Não use o `docker logs` para histórico.
    depender do fuso da VM: `sudo journalctl -u nod-motor --since "2026-10-23 16:00 UTC" --until "2026-10-23 16:35 UTC"`
    e `sudo journalctl -u nod-motor-atualizar` para as atualizações.
 
+### `executor_indisponivel` durante um deploy
+
+O inventário das máquinas conectadas vive na memória do servidor. Uma troca azul/verde recria o processo e, por alguns
+segundos, o servidor não conhece o motor que continuou no ar. O próximo `puxar` recebe a ordem de reconectar, o motor
+registra `motor_reanuncio` com `motivo=servidor_esqueceu_a_maquina` e anuncia o inventário outra vez. Turnos de fundo
+interrompidos nessa janela voltam pela régua de queda; isso não prova falha do CLI.
+
+Para separar reconexão de falha real, correlacione três fatos na mesma janela:
+
+1. no servidor, a cor ativa foi recriada pelo deploy;
+2. no journal do motor, `motor_reanuncio` é seguido por `motor_anunciou` com a IA em `pronto`;
+3. o turno tem `motivo_interrupcao=executor_indisponivel` sem `motivo_falha` terminal.
+
+`nao_autenticado` e `motor_ausente` pedem ação na máquina; `limite_do_plano` e `sem_conta` seguem a espera da conta ou
+da cota. Se o processo do motor ficou vivo, não houve OOM e o anúncio voltou `pronto`, não atribua a interrupção a
+login, atualização do CLI ou processo morto. Investigue a troca do servidor e a latência até o reanúncio.
+
 Os mesmos exemplos, com o "como o filtro funciona", estão em [deploy-gcp.md](deploy-gcp.md#logs).
 
 ## Rollback de código: definido na NOD-173
