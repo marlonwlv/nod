@@ -135,3 +135,17 @@
    gravada fica no mesmo nó (`morfarDom`) e a animação não recomeça nem é cortada quando o `data-envio` muda. */
 /* foco-ok: o balão não recebe foco; tira só o tracejado antigo do "enviando". */
 .fala-pendente[data-envio="enviando"] .message.you .bubble { outline: 0; opacity: 1; }
+
+/* ADR-185 (validação de 2026-11-16): o texto que a pessoa parou no meio. A linha fixa embaixo do balão, no estilo do recibo
+   de um pedido (cinza, corpo 2, ícone de parar), no lugar do selo "parcial"; e o texto recolhido nas primeiras linhas,
+   esmaecendo, até ela pedir "Mostrar o texto todo". Só o interrompido: a resposta completa segue inteira. */
+.timeline .message.texto-recolhido .bubble { max-height: calc(var(--lh-conversa) * 5 + 14px); overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); } /* cor-fixa: máscara, só o alfa conta */
+.timeline .message.texto-recolhido .bubble + .bubble { display: none; }
+.timeline .linha-parada { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; padding: 0 2px;
+  font-size: 13px; line-height: 18px; color: var(--chat-tinta-3); }
+.timeline .linha-parada .lp-ic { flex: none; }
+.timeline .linha-parada .lp-mais { padding: 0; border: 0; background: none; font: inherit; color: var(--chat-tinta-2); cursor: pointer; }
+.timeline .linha-parada .lp-mais:hover { color: var(--chat-tinta); text-decoration: underline; text-underline-offset: 2px; }
+.timeline .linha-parada .lp-mais:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; border-radius: 3px; }
+

@@ -56,6 +56,8 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar {
   & .linha-fixa-bt { height: 32px; padding: 0 10px; gap: 10px; border-radius: var(--raio-8); font-size: var(--fs-corpo); line-height: var(--lh-corpo); color: var(--ink); }
   & .linha-fixa-ic { width: 16px; height: 16px; color: var(--ink-2); }
   & .linha-fixa-cont { color: var(--ink-3); font-size: var(--fs-rotulo); }
+  /* "Não lidos" (validação de 2026-11-16): o número em azul, a cor do que é novo (--signal); o resto da linha é a de Trabalhos. */
+  & .linha-fixa-cont.linha-fixa-novas { color: var(--signal); font-weight: var(--peso-medio); }
   & .linha-fixa:has(.linha-fixa-aguardando) { background: var(--ativo); }
 
   /* Times: o rótulo de 12 px (28 px com 12 de respiro em cima), sem chevron nem ⋯ à vista. */

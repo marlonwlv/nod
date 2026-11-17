@@ -192,6 +192,8 @@ export type Mensagem = {
    */
   raiz?: { turnoId: string; origem: OrigemTurno };
   trabalhoId?: string | null; fimDoTurno?: boolean;
+  /** Validação de 2026-11-16 (ADR-185): a fala parcial do turno que a PESSOA parou — quando ela apertou Parar. Ausente = não. */
+  paradaPelaPessoaEm?: number;
   bastidores?: boolean; turnoDesde?: number; // NOD-402 (ADR-130): gravada por turno dos bastidores da conversa; `turnos.criado_em` (relógio do banco, o das mensagens). Ausentes = não, ou servidor antigo.
   motivoRecomeco?: MotivoRecomeco; idEnvio?: string; // NOD-312: o turno da fala recomeçou sem a sessão (ausente = normal). C4 (2026-11-12): `idEnvio`, a chave do envio da pessoa (NOD-156), casa a pendente na web.
   destino?: Destino; tarefa?: import("./destino-no-chat.ts").TarefaDaMensagem; // ADR-114: o destino da tabela DESTINO, resolvido no servidor (só na conversa própria); ADA-28: a tarefa do turno.

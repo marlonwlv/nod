@@ -143,7 +143,7 @@ export function assuntoDaNova(m: { kind: KindMensagem; payload?: PayloadMensagem
 }
 
 /** A linha lida com o turno (ADR-083, S2): a origem do turno, o trabalho e se é a última fala de um turno encerrado. */
-type LinhaComTurno = LinhaMensagem & { midia_recusas?: RecusasMidia | null; turno_origem: OrigemTurno | null; turno_bastidores?: boolean | null; turno_criado_em?: Date | null; trabalho_id: string | null; fim_do_turno: boolean | null; raiz_id: string | null; raiz_origem: OrigemTurno | null; motivo_recomeco?: MotivoRecomeco | null; primeira?: boolean | null; frente_de_lote: boolean | null } & LinhaDoCheckpoint & LinhaDaTarefa;
+type LinhaComTurno = LinhaMensagem & { midia_recusas?: RecusasMidia | null; turno_origem: OrigemTurno | null; turno_bastidores?: boolean | null; turno_criado_em?: Date | null; turno_parado_em?: Date | null; trabalho_id: string | null; fim_do_turno: boolean | null; raiz_id: string | null; raiz_origem: OrigemTurno | null; motivo_recomeco?: MotivoRecomeco | null; primeira?: boolean | null; frente_de_lote: boolean | null } & LinhaDoCheckpoint & LinhaDaTarefa;
 /** ADA-28 (ADR-159): a tarefa do turno que gravou a linha (left join; só com NOD_TAREFA_CASA=1). */
 type LinhaDaTarefa = { tq_id?: string | null; tq_quadro_id?: string | null; tq_numero?: number | null; tq_linear_id?: string | null; tq_prefixo?: string | null };
 /** NOD-54 (0120): o checkpoint da fala (left join; nulo sem checkpoint ou vencido). */
@@ -188,7 +188,7 @@ function paraMensagemComTurno(l: LinhaComTurno): Mensagem {
   const checkpoint = l.ck_estado && l.ck_arquivos && l.ck_total != null
     ? { checkpoint: checkpointDaFala({ estado: l.ck_estado, arquivos: l.ck_arquivos, total: l.ck_total, feitos: l.ck_feitos ?? 0, desfeitoEm: l.ck_desfeito_em ? ms(l.ck_desfeito_em) : null, resultado: l.ck_resultado ?? null, falha: l.ck_falha ?? null }) }
     : {};
-  return { ...paraMensagem(l), origemTurno: l.turno_origem, trabalhoId: l.trabalho_id, fimDoTurno: l.fim_do_turno === true, ...(l.turno_bastidores === true && !l.trabalho_id ? { bastidores: true } : {}), ...(l.turno_criado_em ? { turnoDesde: new Date(l.turno_criado_em).getTime() } : {}), ...recusas, ...(l.motivo_recomeco ? { motivoRecomeco: l.motivo_recomeco } : {}), ...(l.raiz_id && l.raiz_origem ? { raiz: { turnoId: l.raiz_id, origem: l.raiz_origem } } : {}), ...checkpoint, ...tarefaDaLinha(l) };
+  return { ...paraMensagem(l), origemTurno: l.turno_origem, trabalhoId: l.trabalho_id, fimDoTurno: l.fim_do_turno === true, ...(l.turno_bastidores === true && !l.trabalho_id ? { bastidores: true } : {}), ...(l.turno_criado_em ? { turnoDesde: new Date(l.turno_criado_em).getTime() } : {}), ...recusas, ...(l.motivo_recomeco ? { motivoRecomeco: l.motivo_recomeco } : {}), ...(l.parcial && l.turno_parado_em ? { paradaPelaPessoaEm: new Date(l.turno_parado_em).getTime() } : {}), ...(l.raiz_id && l.raiz_origem ? { raiz: { turnoId: l.raiz_id, origem: l.raiz_origem } } : {}), ...checkpoint, ...tarefaDaLinha(l) };
 }
 
 /** ADA-28 (ADR-159): a marca `tarefa` da mensagem gravada num turno de tarefa (ou de frente dela). */
@@ -232,7 +232,7 @@ function lateralDaTarefa(conn: Conn, tenantId: string) {
 
 function selectComTurno(conn: Conn, tenantId: string, recorte: ReturnType<Conn>) {
   return conn<LinhaComTurno[]>`
-    select m.*, t.origem as turno_origem, t.bastidores as turno_bastidores, case when t.despachado_em - greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) >= make_interval(secs => ${FILA_SEGURA_MS / 1000}) then t.despachado_em else greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) end as turno_criado_em, t.midia_recusas, t.motivo_recomeco, coalesce(t.trabalho_id, o.trabalho_id) as trabalho_id, rz.raiz_id, rz.raiz_origem,
+    select m.*, t.origem as turno_origem, t.bastidores as turno_bastidores, case when t.despachado_em - greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) >= make_interval(secs => ${FILA_SEGURA_MS / 1000}) then t.despachado_em else greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) end as turno_criado_em, t.midia_recusas, t.motivo_recomeco, t.parar_solicitado_em as turno_parado_em, coalesce(t.trabalho_id, o.trabalho_id) as trabalho_id, rz.raiz_id, rz.raiz_origem,
       coalesce(w.forma = 'frente' and w.lote_id is not null, false) as frente_de_lote,
       -- O desfazendo preso (a máquina sumiu) aparece como falhou: a tela oferece "Tentar de novo" e não prende o bot (NOD-54).
       case when ck.estado = 'desfazendo' and ck.pedido_em < now() - make_interval(secs => ${PRAZO_DESFAZENDO_MS / 1000}) then 'falhou' else ck.estado end as ck_estado,

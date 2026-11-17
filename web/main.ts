@@ -101,6 +101,7 @@ import { reduzirFoto } from "./lib/reduzir-foto.ts";
 import { criarLoja } from "./react/loja.ts";
 import { deveLembrar, htmlLembrete, jaFalou, marcarFalou } from "./telas/lembrete-conta.ts";
 import type { EstadoContaDto } from "../src/contracts/conta.ts";
+import { alternarTexto } from "./lib/textos-abertos.ts";
 import { criarLeituraDeNovo } from "./lib/leitura-de-novo.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
 import { criarSondaDeRede } from "./lib/sonda-de-rede.ts";
@@ -2792,8 +2793,13 @@ function renderSidebar(estado: Estado): string {
   const buscando = buscaAberta || termoBusca() !== "";
   // definido em 2026-09-29 (0039, canvas "Não lidos"): o ícone só existe com algo não lido (ou com a tela aberta).
   const comNovas = (estado.naoLidos?.conversas ?? []).some((c) => temNovas(c.conversaId, estado));
-  const naoLidos = comNovas || t.tipo === "nao-lidos"
-    ? `<button class="icone-topo nao-lidos-bt" data-act="navegar" data-tela="nao-lidos" aria-current="${t.tipo === "nao-lidos" ? "page" : "false"}" aria-label="${esc(rotuloNaoLidos(estado))}" title="Não lidos">${BANDEJA}${comNovas ? '<span class="ponto-novo" aria-hidden="true"></span>' : ""}</button>`
+  // Validação de 2026-11-16: "Não lidos" saiu do topo (aparecia entre a lupa e o + e empurrava o +) e virou linha fixa logo
+  // abaixo de "Trabalhos", com o número de conversas em azul (--signal, a cor do que é novo). O topo fica só com comandos
+  // (buscar, criar); os lugares com contagem moram na lista. Abaixo de "Trabalhos" para nada que já estava na tela mudar
+  // de lugar quando ela aparece. Só existe com algo não lido (ou com a tela aberta), como o ícone.
+  const nNovas = (estado.naoLidos?.conversas ?? []).filter((c) => temNovas(c.conversaId, estado)).length;
+  const linhaNaoLidos = comNovas || t.tipo === "nao-lidos"
+    ? `<div class="linha-fixa linha-nao-lidos"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="nao-lidos" aria-current="${t.tipo === "nao-lidos" ? "page" : "false"}" aria-label="${esc(rotuloNaoLidos(estado))}" data-etiqueta="Não lidos">${BANDEJA.replace("<svg ", '<svg class="linha-fixa-ic" ')}<span class="linha-fixa-nome">Não lidos</span>${nNovas ? `<span class="linha-fixa-cont linha-fixa-novas" aria-hidden="true">${nNovas}</span>` : ""}</button></div>`
     : "";
   if (ehCelular) {
     // O Nod está sempre lá: "vazio" é não ter nenhum outro bot (ele fica na grade, acima do convite).
@@ -2835,7 +2841,7 @@ function renderSidebar(estado: Estado): string {
   const quem = quemEsta();
   const nomeRodape = quem?.nome ?? quem?.email ?? "";
   const html = `<div class="search-wrap">
-      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.compacta ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button>${naoLidos}<span class="create-actions"><button class="create-trigger icone-flutua" data-act="menu-do-mais" data-segurar="segurar-mais" aria-haspopup="menu" aria-expanded="false" aria-label="Novo (segure para criar um bot na hora)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} ${ATALHO_NOVA_SALA.aria} Shift+Enter Shift+Space" title="Novo (${ATALHO_NOVO_BOT.texto} bot · ${ATALHO_NOVA_SALA.texto} grupo) · segure para criar um bot na hora"><span class="segurar-anel" aria-hidden="true"></span>${IC_MAIS}</button></span></div>
+      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.compacta ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button><span class="create-actions"><button class="create-trigger icone-flutua" data-act="menu-do-mais" data-segurar="segurar-mais" aria-haspopup="menu" aria-expanded="false" aria-label="Novo (segure para criar um bot na hora)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} ${ATALHO_NOVA_SALA.aria} Shift+Enter Shift+Space" title="Novo (${ATALHO_NOVO_BOT.texto} bot · ${ATALHO_NOVA_SALA.texto} grupo) · segure para criar um bot na hora"><span class="segurar-anel" aria-hidden="true"></span>${IC_MAIS}</button></span></div>
       <label class="search"${buscando ? "" : " hidden"}><span>⌕</span><input id="busca-bots" placeholder="Buscar agentes…" aria-label="Buscar agentes" autocomplete="off" /><kbd>esc</kbd></label>
     </div>
     ${renderIncidentes(estado)}
@@ -2843,6 +2849,7 @@ function renderSidebar(estado: Estado): string {
       ${grade}
       ${linhaTarefas}
       ${linhaTrabalhos}
+      ${linhaNaoLidos}
       ${linhaProvisoria()}
       ${bots || listaVaziaDaBarra({ falhou: frotaFalhou, temFrota: !!estado.frota, botsDaEquipe: daEquipe.length }, SILHUETAS_DA_BARRA)}
       ${equipe}
@@ -7897,6 +7904,13 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (comFoco) document.querySelector<HTMLElement>('[data-act="alternar-som"]')?.focus({ preventScroll: true });
   },
   "fechar-faixa": () => dispatch({ tipo: "faixa", faixa: null }),
+  // ADR-185: abre ou recolhe o texto que a pessoa parou no meio (web/lib/textos-abertos.ts).
+  "alternar-texto": (el) => {
+    const id = el.dataset.id;
+    if (!id) return;
+    alternarTexto(id);
+    render();
+  },
   enviar: () => enviarComposer(),
   "sondar-inventario": () => agir(async () => dispatch({ tipo: "hidratar-inventario", inventario: await api!.inventario(true) })),
   "trocar-executor": (el) =>

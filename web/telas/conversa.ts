@@ -1,3 +1,4 @@
+import { textoAberto } from "../lib/textos-abertos.ts";
 import { avisoNaFila } from "../lib/executar-rotina.ts";
 import { renderCardColunas } from "./card-colunas.ts";
 import { renderCardImportacao } from "./card-importacao.ts";
@@ -575,7 +576,7 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
   if (naSessao) {
     if (naSessao.lidoEm !== null) return { tipo: "lida", texto: "Lida", turnoId: naSessao.id };
     const bot = c.conversa.agenteId ? agenteDe(estado, c.conversa.agenteId)?.nome : undefined;
-    return { tipo: "na_sessao", texto: `Entregue · ${bot ?? "O bot"} lê ao fim do passo atual`, turnoId: naSessao.id };
+    return { tipo: "na_sessao", texto: `Entregue · ${bot ?? "O bot"} lê quando terminar o que está fazendo`, turnoId: naSessao.id };
   }
   const emCurso = c.turnosEmCurso.find((t) => t.mensagemId === m.id);
   if (!emCurso || emCurso.estado !== "pendente" || emCurso.trabalhoId) return null;
@@ -591,6 +592,24 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
   if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) return naFila(`${nome} está sem IA configurada`);
   if (doBot && !doBot.conectada) return naFila(`${nome} lê quando a máquina ligar`);
   return naFila("Na fila");
+}
+
+const QUADRADO_PARADO = '<svg class="lp-ic" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>';
+
+/** ADR-185: a linha fixa embaixo do texto que a pessoa parou, com o "Mostrar o texto todo" / "Mostrar menos". */
+function linhaDaParada(mensagemId: string, em: number, recolhido: boolean): string {
+  const bt = `<button type="button" class="lp-mais" data-act="alternar-texto" data-id="${esc(mensagemId)}" aria-expanded="${recolhido ? "false" : "true"}">${recolhido ? "Mostrar o texto todo" : "Mostrar menos"}</button>`;
+  return `<div class="linha-parada">${QUADRADO_PARADO}<span>Parado por você · ${esc(hora(em))}</span><span class="lp-sep" aria-hidden="true">·</span>${bt}</div>`;
+}
+
+/**
+ * ADR-185: o caso comum do Parar ("Parado por você", nada fora do esperado) já está na linha do texto parado; a faixa do
+ * fim da conversa só sai quando não há esse texto (o bot parou antes de escrever) ou quando conta algo inesperado.
+ */
+function faixaQueFalta(f: Estado["faixaParada"], mensagens: readonly Mensagem[]): Estado["faixaParada"] {
+  if (!f || f.nadaRodando || f.naoInterrompidas.length || f.jaEntregues.length) return f;
+  const ultimaDoBot = [...mensagens].reverse().find((m) => m.autoria.autor_tipo === "agente" && m.kind === "texto");
+  return ultimaDoBot?.paradaPelaPessoaEm ? null : f;
 }
 
 function renderSituacaoFila(s: SituacaoFila & { turnoId: string }): string {
@@ -698,7 +717,7 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // modo dev e no Raio-X (`ondeRodou`, ./modo-dev.ts); "não confiável" e "parcial" ficam, porque dizem algo do texto.
   const tags = ehPessoa || m.payload?.kind === "peer_pedido" || m.payload?.kind === "boas_vindas"
     ? ""
-    : [m.confianca === "nao_confiavel" ? '<span class="tag tag-ambar" title="conteúdo de conector ou de outro bot">não confiável</span>' : "", m.parcial ? '<span class="tag tag-cinza">parcial</span>' : ""].filter(Boolean).join("");
+    : [m.confianca === "nao_confiavel" ? '<span class="tag tag-ambar" title="conteúdo de conector ou de outro bot">não confiável</span>' : "", m.parcial && !m.paradaPelaPessoaEm ? '<span class="tag tag-cinza">parcial</span>' : ""].filter(Boolean).join("");
   const metaTags = tags ? `<div class="meta-tags">${tags}</div>` : "";
   // definido em 2026-09-24 (emenda da ADR-045): a pergunta de pedir_a_pessoa é esta fala; a mensagem que a respondeu
   // leva o rótulo, e a retomada vira uma linha logo depois. revisto em 2026-10-18 (plano "pergunta com botões", Parte 2):
@@ -717,7 +736,12 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const telaAberta = motivoTela !== null && pergunta ? estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], pergunta.decisaoId).tipo === "aberta" : false;
   const ouvivel = podeOuvir(m, estado, sala);
   const lendo = estado.leitura?.mensagemId === m.id && ouvivel;
-  const classes = `message ${ehPessoa ? "you" : "bot"}${ehPessoa ? classeDoBalao(estado, m.conversaId) : ""}${ouvivel ? " ouvivel" : ""}${lendo ? " lendo" : ""}${pergunta ? " pergunta" : ""}${motivoTela !== null ? " com-tela" : ""}${resposta ? " respondendo" : ""}${fila?.tipo === "cancelada" ? " fila-cancelada" : ""}`;
+  // ADR-185 (validação de 2026-11-16): o texto que a pessoa parou no meio — a linha "Parado por você · hora" no lugar do
+  // "parcial", e recolhido até ela abrir (web/lib/textos-abertos.ts). Só o interrompido; a resposta completa segue inteira.
+  const parado = !ehPessoa && m.paradaPelaPessoaEm ? m.paradaPelaPessoaEm : null;
+  const recolhido = parado !== null && !textoAberto(m.id);
+  const linhaParada = parado !== null ? linhaDaParada(m.id, parado, recolhido) : "";
+  const classes = `message ${ehPessoa ? "you" : "bot"}${recolhido ? " texto-recolhido" : ""}${ehPessoa ? classeDoBalao(estado, m.conversaId) : ""}${ouvivel ? " ouvivel" : ""}${lendo ? " lendo" : ""}${pergunta ? " pergunta" : ""}${motivoTela !== null ? " com-tela" : ""}${resposta ? " respondendo" : ""}${fila?.tipo === "cancelada" ? " fila-cancelada" : ""}`;
   // O progresso vai dentro do balão do bot; no da pessoa (a rede) e no cartão da pergunta (o turno que abriu frentes e
   // terminou perguntando), embaixo dele — o cartão não tem onde recebê-lo, e sem isso o bloco sumia (revisão do PR 398).
   const progressoDentro = !ehPessoa && !pergunta ? (opcoes.progresso ?? "") : "";
@@ -737,7 +761,7 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, `${metaTags}${progressoDentro}`, progressoDentro !== "");
   const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${emVoo}>
-    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
+    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
 }
 
@@ -1640,7 +1664,7 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
     { chave: "computador", html: linhaDoComputador(c, estado) },
-    { chave: "faixa", html: renderFaixaParada(estado.faixaParada) },
+    { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada, c.mensagens)) },
   ];
   return blocos.filter((b) => b.html !== "");
 }

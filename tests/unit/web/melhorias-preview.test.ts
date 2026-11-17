@@ -47,9 +47,9 @@ describe("ADR-185: o selo da fala que o turno vivo absorveu", () => {
     return { ...e, frota: { agentes: [{ id: "a", nome: "Nina", conversaId: C }] } as never };
   };
 
-  it("escrita e não lida: 'Entregue · <bot> lê ao fim do passo atual', sem Cancelar (ela já está na sessão)", () => {
+  it("escrita e não lida: 'Entregue · <bot> lê quando terminar o que está fazendo', sem Cancelar (ela já está na sessão)", () => {
     const s = situacaoNaFila(mensagem, comSessao(null));
-    expect(s).toMatchObject({ tipo: "na_sessao", texto: "Entregue · Nina lê ao fim do passo atual", turnoId: "t2" });
+    expect(s).toMatchObject({ tipo: "na_sessao", texto: "Entregue · Nina lê quando terminar o que está fazendo", turnoId: "t2" });
     expect(s?.botao).toBeUndefined();
     expect(renderMensagem(mensagem, comSessao(null))).toContain('data-fila="na_sessao"');
   });
@@ -69,3 +69,56 @@ describe("ADR-185: a faixa do Parar sai quando a fala devolvida começa a rodar"
   });
 });
 
+describe("ADR-185: o texto que a pessoa parou no meio", () => {
+  const C = "c1";
+  const PARADO = Date.UTC(2026, 10, 16, 21, 22);
+  const fala = (extra: Partial<Mensagem>) => ({ tenantId: "t", id: "b1", conversaId: C, turnoId: "t1", autoria: { autor_tipo: "agente", autor_id: "a" }, kind: "texto", texto: "1. Uma lenda\n\nTexto longo", payload: null, confianca: "confiavel", parcial: true, criadoEm: PARADO, ...extra }) as unknown as Mensagem;
+  const estadoCom = (m: Mensagem) => {
+    const conversa: ConversaDto = {
+      conversa: { tenantId: "t", id: C, ownerId: "p", visibility: "privado", tipo: "propria", agenteId: "a", salaId: null, sessaoCli: null, criadoEm: 1 },
+      mensagens: [m], turnosPendentes: [], turnosEmCurso: [], turnosCancelados: [], propostas: [], fios: [],
+    };
+    return { ...reduzir(estadoInicial, { tipo: "hidratar-conversa", conversa, agora: PARADO }), frota: { agentes: [{ id: "a", nome: "Nina", conversaId: C }] } as never };
+  };
+
+  it("parado pela pessoa: a linha 'Parado por você · hora' no lugar do 'parcial', e o texto recolhido", () => {
+    const m = fala({ paradaPelaPessoaEm: PARADO });
+    const h = renderMensagem(m, estadoCom(m));
+    expect(h).toContain('class="linha-parada"');
+    expect(h).toContain("Parado por você · ");
+    expect(h).toContain('data-act="alternar-texto"');
+    expect(h).toContain("Mostrar o texto todo");
+    expect(h).toMatch(/class="message bot[^"]* texto-recolhido/);
+    expect(h).not.toContain(">parcial<");
+  });
+
+  it("parcial por outro motivo (queda, limite): fica o 'parcial', sem linha e sem recolher", () => {
+    const m = fala({});
+    const h = renderMensagem(m, estadoCom(m));
+    expect(h).toContain(">parcial<");
+    expect(h).not.toContain("linha-parada");
+    expect(h).not.toContain("texto-recolhido");
+  });
+
+  it("resposta completa e longa segue inteira", () => {
+    const m = fala({ parcial: false, texto: "x".repeat(5000) });
+    expect(renderMensagem(m, estadoCom(m))).not.toContain("texto-recolhido");
+  });
+
+  it("CSS: recolhe só a .texto-recolhido, e a linha usa o cinza do chat", () => {
+    const c = css("chat.css");
+    expect(c).toMatch(/\.timeline \.message\.texto-recolhido \.bubble \{ max-height:/);
+    expect(c).toMatch(/\.timeline \.linha-parada \{[^}]*color: var\(--chat-tinta-3\);/);
+  });
+});
+
+
+describe("Não lidos: linha fixa abaixo de Trabalhos, fora do topo", () => {
+  it("o topo tem só lupa e +; a linha vem logo depois de Trabalhos, com o número em azul", () => {
+    const m = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
+    expect(m).not.toContain('class="icone-topo nao-lidos-bt"');
+    expect(m).toContain('<div class="linha-fixa linha-nao-lidos">');
+    expect(m).toMatch(/\$\{linhaTrabalhos\}\s*\$\{linhaNaoLidos\}/);
+    expect(css("casca.css")).toContain("& .linha-fixa-cont.linha-fixa-novas { color: var(--signal);");
+  });
+});
