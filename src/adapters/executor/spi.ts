@@ -61,6 +61,11 @@ export type SinksTurno = {
   mensagemEntrou?(id: string): void;
   /** X2: a mensagem `id` não vai entrar (a volta que a levaria foi recusada, ou a sessão acabou com ela na fila). */
   mensagemDevolvida?(id: string): void;
+  /**
+   * ADR-185 (definido em 2026-11-16): o modelo LEU a mensagem `id` que entrou na sessão — o CLI chegou à fronteira
+   * seguinte à escrita (o fim de uma ferramenta ou da resposta). Entrar não é ler: até aqui o Parar a devolve à fila.
+   */
+  mensagemLida?(id: string): void;
 };
 
 export interface Adapter {
@@ -78,6 +83,8 @@ export interface Adapter {
   aceitaAnexosNoMeio?(): boolean;
   /** true enquanto o adapter aceita mensagem nova (sessão viva com a entrada aberta). */
   aceitaMensagens?(): boolean;
+  /** ADR-185: o adapter avisa `mensagemLida` (o laço manda `informaLeitura` ao servidor). Sem isto, entrar = ler. */
+  informaLeitura?(): boolean;
   /**
    * definido em 2026-10-07 (ADR-083, #194): o grupo de processos do turno (o pid do líder, que nasce com
    * `detached: true`), para o amostrador somar a memória dele. null = ainda não subiu ou já saiu. Só os drivers com

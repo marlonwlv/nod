@@ -32,6 +32,8 @@ export type KindEvento =
   | "turno_despachado"
   | "turno_encerrado"
   | "turno_interrompido"
+  // ADR-185: o bot leu a fala que o turno vivo absorveu (a conversa troca "lê ao fim do passo atual" por "Lida").
+  | "turno_lido"
   | "decisao_criada"
   | "decisao_decidida"
   | "decisao_vencida"

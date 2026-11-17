@@ -104,7 +104,7 @@ export const absorverNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; 
  * #189: o app escreveu estas mensagens na sessão do turno vivo. Só agora cada uma sai interrompido/'absorvido'
  * apontando para ele (a tela tira o "na fila"). A que já não está pendente (Cancelar chegou antes) fica como está.
  */
-export const confirmarNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; ids: readonly string[] }, { confirmadas: number }> = async (deps, e) => {
+export const confirmarNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; ids: readonly string[]; informaLeitura?: boolean }, { confirmadas: number }> = async (deps, e) => {
   if (e.ids.length === 0) return { data: { confirmadas: 0 } };
   const turno = await deps.repos.turnos.buscar(e.turnoId);
   if (!turno) return { data: { confirmadas: 0 } };
@@ -114,7 +114,9 @@ export const confirmarNaSessao: CasoDeUso<{ turnoId: string; executor: Executor;
   const lidos = await avisosDeRecadoLido(deps, e.ids);
   // Revisão do épico (S18, 2026-10-08): no turno de um trabalho, as confirmadas são os recados da faixa DELE (a fala da
   // pessoa na tela da task, o mandar_para_task) — o absorverNaSessao só olha a conversa (`trabalho_id is null`).
-  const absorvidos = turno.trabalhoId ? await deps.repos.turnos.absorverDoTrabalho(turno, e.ids) : await deps.repos.turnos.absorverNaSessao(turno, e.ids);
+  // ADR-185: o app que informa leitura grava a absorção como "escrita, não lida"; o lido vem depois (marcarLidosNaSessao).
+  const o = { informaLeitura: e.informaLeitura === true };
+  const absorvidos = turno.trabalhoId ? await deps.repos.turnos.absorverDoTrabalho(turno, e.ids, o) : await deps.repos.turnos.absorverNaSessao(turno, e.ids, o);
   if (turno.trabalhoId) await contaminarSeAbsorveuDeFora(deps, turno.id, absorvidos);
   return { data: { confirmadas: absorvidos.length }, events: [...eventosDeAbsorcao(deps, e.executor, turno.id, absorvidos), ...lidos] };
 };
@@ -124,3 +126,17 @@ function eventosDeAbsorcao(deps: Deps, executor: Executor, turnoId: string, abso
   const autoria = autoriaPessoa(deps.escopo, executor);
   return absorvidos.map((a) => evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: a.conversaId, turnoId: a.id, dados: { motivo: "absorvido", absorvido_por: turnoId } }));
 }
+
+/**
+ * ADR-185 (definido em 2026-11-16): o app avisa que o bot LEU as falas que escreveu na sessão do turno vivo (o CLI chegou
+ * à fronteira seguinte à escrita: o fim de uma ferramenta ou da resposta). A conversa troca "lê ao fim do passo atual"
+ * por "Lida", e o Parar deixa de devolvê-las à fila.
+ */
+export const marcarLidosNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; ids: readonly string[] }, { lidas: number }> = async (deps, e) => {
+  if (e.ids.length === 0) return { data: { lidas: 0 } };
+  const lidos = await deps.repos.turnos.marcarLidosNaSessao(e.turnoId, e.ids);
+  const agora = deps.agora();
+  const autoria = autoriaPessoa(deps.escopo, e.executor);
+  const conversas = [...new Set(lidos.map((t) => t.conversaId))];
+  return { data: { lidas: lidos.length }, events: conversas.map((conversaId) => evento(deps.escopo, { kind: "turno_lido", autoria, agora, conversaId, turnoId: e.turnoId, dados: { lidas: lidos.filter((t) => t.conversaId === conversaId).length } })) };
+};

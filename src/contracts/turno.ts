@@ -81,6 +81,8 @@ export type Turno = {
   mensagemOrigemId?: string | null;
   /** Turno que respondeu por este, quando ele foi lido junto com outro (motivo 'absorvido'). */
   absorvidoPor?: string | null;
+  /** ADR-185: quando o bot leu a fala que o turno vivo absorveu; null = escrita na sessão e ainda não lida. */
+  lidoNaSessaoEm?: number | null;
   trabalhoId?: string | null; // ADR-083: o trabalho deste turno; null = turno da conversa
   acordarEm?: number | null; // ADR-086: a volta marcada ("me chame às 16:00") — a fila só a entrega a partir daqui
   /** NOD-272 (0088): a pessoa está olhando ("Testar agora", "Permitir e rodar agora" e as frentes deles) — conta como conversa na cota. */

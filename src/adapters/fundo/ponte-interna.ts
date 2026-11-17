@@ -26,7 +26,7 @@ import type { Db, Escopo, Relogio, Tx } from "../../shared/types.ts";
 import { assentarTurno, type SaidaAssentarTurno } from "../../use-cases/assentar-turno.ts";
 import { despacharTurno } from "../../use-cases/despachar-turno.ts";
 import { avisarFundoSeguradoPelaCota, type EntradaFundoSegurado } from "../../use-cases/fundo-segurado-pela-cota.ts";
-import { absorverNaSessao, confirmarNaSessao, gravarFalasDaSessao } from "../../use-cases/sessao-viva.ts";
+import { absorverNaSessao, confirmarNaSessao, gravarFalasDaSessao, marcarLidosNaSessao } from "../../use-cases/sessao-viva.ts";
 import { absorverNoTrabalho, promoverNaRede } from "../../use-cases/coordenar-trabalhos.ts";
 import { avisosDeRecadoLido, ofertarRecadosDoQuadro } from "../../use-cases/quadro-execucoes.ts";
 import { avisoDaEtapaNaSessao } from "../../use-cases/etapa-presa.ts";
@@ -597,8 +597,13 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         }
         // Turno parado (ativo:false) não confirma: a resposta não vai sair, e a mensagem fica para o próximo turno.
         if (r.ativo && p.mensagensEntregues?.length) {
-          const c = await confirmarNaSessao(d, { turnoId: p.turnoId, executor, ids: p.mensagensEntregues });
+          const c = await confirmarNaSessao(d, { turnoId: p.turnoId, executor, ids: p.mensagensEntregues, informaLeitura: p.informaLeitura === true });
           events.push(...(c.events ?? []));
+        }
+        // ADR-185: depois da confirmação (a mesma renovação pode trazer a escrita e a leitura da mesma fala).
+        if (r.ativo && p.mensagensLidas?.length) {
+          const l = await marcarLidosNaSessao(d, { turnoId: p.turnoId, executor, ids: p.mensagensLidas });
+          events.push(...(l.events ?? []));
         }
         let textos: string[] = [];
         let ids: string[] = [];

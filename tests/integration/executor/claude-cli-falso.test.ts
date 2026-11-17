@@ -841,6 +841,33 @@ describe("driver claude-cli contra o binário falso (contrato empírico 2026-09-
       expect(falas[0]).toMatch(/^Recebi: A pessoa escreveu enquanto você trabalhava: «qual é o prazo\?»/);
       expect(resultado).toMatchObject({ desfecho: "sucesso", texto: "Revisei as três." });
     });
+
+    it("ADR-185: escrita no meio da volta entra na hora e só é LIDA na fronteira seguinte (o tool_result)", async () => {
+      const { instance } = await instanciar("mensagem-no-meio", {}, { ...HELP, NOD_FALSO_MEIO_CEDO: "1" });
+      const adapter = instance.adapter(planoDeTeste(dir));
+      const linha: string[] = [];
+      let mandou = false;
+      const espiao = sinksEspiao({});
+      await adapter.rodarTurno({
+        ...espiao.sinks,
+        evento: (e) => {
+          espiao.sinks.evento(e);
+          if (e.tipo === "tool_result" || e.tipo === "result") linha.push(e.tipo);
+          if (e.tipo === "delta" && !mandou) mandou = adapter.receberMensagem!(molduraMensagemNoMeio("qual é o prazo?"), "m1");
+        },
+        falaIntermediaria: () => undefined,
+        mensagemEntrou: (id) => linha.push(`entrou:${id}`),
+        mensagemLida: (id) => linha.push(`lida:${id}`),
+        ocioso: async () => false,
+      });
+      expect(adapter.informaLeitura?.()).toBe(true);
+      const entrou = linha.indexOf("entrou:m1"), lida = linha.indexOf("lida:m1");
+      expect(entrou).toBeGreaterThanOrEqual(0);
+      expect(lida).toBeGreaterThan(entrou);
+      // Entre a escrita e a leitura há uma fronteira: o CLI só lê ali.
+      expect(linha.slice(entrou, lida).some((x) => x === "tool_result" || x === "result")).toBe(true);
+      expect(linha.filter((x) => x === "lida:m1")).toHaveLength(1);
+    });
   });
 
   describe("capacidades anunciadas (X9, revisão do épico #188)", () => {

@@ -540,7 +540,7 @@ const temMidiaDoBot = (m: Mensagem): boolean => m.autoria.autor_tipo !== "pessoa
  * continuam sem Cancelar (NOD-376: o recado da task não tem desfazer). Nada de "lê quando terminar o turno atual".
  */
 type SituacaoFila = {
-  tipo: "na_fila" | "cancelando" | "cancelada" | "tarde" | "erro" | "oculta";
+  tipo: "na_fila" | "cancelando" | "cancelada" | "tarde" | "erro" | "oculta" | "na_sessao" | "lida";
   texto: string;
   /** O botão de texto da linha (Cancelar, Desfazer ou Tentar de novo). */
   botao?: { act: "cancelar-turno" | "desfazer-cancelamento"; rotulo: string; aria: string };
@@ -568,6 +568,15 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
   if (local) return { ...daFase(local[1]), turnoId: local[0] };
   const cancelado = c.turnosCancelados.find((t) => t.mensagemId === m.id);
   if (cancelado) return { tipo: "cancelada", texto: "Cancelada · não rodou", turnoId: cancelado.id };
+  // ADR-185 (definido em 2026-11-16): a fala que o turno vivo absorveu. Escrita na sessão não é lida: o bot só a lê no fim
+  // do passo em que está (de uma ferramenta ou da resposta). O selo diz isso, e vira "Lida" quando ele chega lá; some
+  // quando o turno acaba. Sem Cancelar: ela já está na sessão. Se a pessoa parar antes, ela volta para a fila.
+  const naSessao = c.turnosNaSessao?.find((t) => t.mensagemId === m.id);
+  if (naSessao) {
+    if (naSessao.lidoEm !== null) return { tipo: "lida", texto: "Lida", turnoId: naSessao.id };
+    const bot = c.conversa.agenteId ? agenteDe(estado, c.conversa.agenteId)?.nome : undefined;
+    return { tipo: "na_sessao", texto: `Entregue · ${bot ?? "O bot"} lê ao fim do passo atual`, turnoId: naSessao.id };
+  }
   const emCurso = c.turnosEmCurso.find((t) => t.mensagemId === m.id);
   if (!emCurso || emCurso.estado !== "pendente" || emCurso.trabalhoId) return null;
   // O estado VIVO manda: o frame turno.iniciado 'despachado' tira a linha antes do REST reler a conversa.

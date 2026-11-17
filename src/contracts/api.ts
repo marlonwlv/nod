@@ -61,6 +61,11 @@ export type ConversaDto = DonoNaConversa & TrocasNaConversa & AcoesDoModoNaConve
   turnosEmCurso: TurnoEmCursoDto[];
   /** Turnos que a pessoa cancelou antes de rodar: a mensagem que os disparou mostra "Cancelada · não rodou". */
   turnosCancelados: { id: string; mensagemId: string }[];
+  /**
+   * ADR-185 (definido em 2026-11-16): as falas da pessoa que um turno vivo absorveu (escritas na sessão dele). `lidoEm`
+   * null = o bot ainda não as leu (a fala mostra "lê ao fim do passo atual"); com hora, "Lida". Ausente = servidor antigo.
+   */
+  turnosNaSessao?: { id: string; mensagemId: string; absorvidoPor: string; lidoEm: number | null }[];
   /** Propostas PENDENTES da conversa (E1.1): o cartão da web nasce daqui, nunca de um kind de Mensagem (definido em 2026-09-16, L9). */
   propostas: Proposta[];
   /** definido em 2026-09-24 (fio da pergunta): os fios com mensagem na janela carregada, com o estado derivado. */

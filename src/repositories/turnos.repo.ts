@@ -59,6 +59,7 @@ interface Linha {
   criado_em: Date;
   mensagem_origem_id: string | null;
   absorvido_por: string | null;
+  lido_na_sessao_em: Date | null;
   sob_procuracao_de: string | null;
   ligacao_id: string | null;
   trabalho_id: string | null;
@@ -77,7 +78,7 @@ interface Linha {
 export type SessaoDoTurno = { sessaoCli: string; executor: string; harness: string | null; contaId: string | null; machineId: string | null };
 
 const COLUNAS =
-  "tenant_id, id, owner_id, conversa_id, agente_id, origem, estado, attempted, rejected, prompt_submitted, produced_output, machine_id, lease_ate, prazo_em, motivo_interrupcao, motivo_falha, sem_novidade_motivo, retoma_turno_id, profundidade, reenvios, parar_solicitado_em, entrada_texto, entrada_anexos, entrada_confianca, custo_usd, modelo, harness, executor, criado_em, mensagem_origem_id, absorvido_por, sob_procuracao_de, ligacao_id, trabalho_id, acordar_em, pessoa_esperando, decidido_por, despachado_em, tentativas_transitorias, maquina_desta_vez, bastidores, motivo_recomeco";
+  "tenant_id, id, owner_id, conversa_id, agente_id, origem, estado, attempted, rejected, prompt_submitted, produced_output, machine_id, lease_ate, prazo_em, motivo_interrupcao, motivo_falha, sem_novidade_motivo, retoma_turno_id, profundidade, reenvios, parar_solicitado_em, entrada_texto, entrada_anexos, entrada_confianca, custo_usd, modelo, harness, executor, criado_em, mensagem_origem_id, absorvido_por, lido_na_sessao_em, sob_procuracao_de, ligacao_id, trabalho_id, acordar_em, pessoa_esperando, decidido_por, despachado_em, tentativas_transitorias, maquina_desta_vez, bastidores, motivo_recomeco";
 
 function paraTurno(l: Linha): Turno {
   return {
@@ -109,6 +110,7 @@ function paraTurno(l: Linha): Turno {
     criadoEm: ms(l.criado_em),
     mensagemOrigemId: l.mensagem_origem_id,
     absorvidoPor: l.absorvido_por,
+    lidoNaSessaoEm: msOuNull(l.lido_na_sessao_em),
     sobProcuracaoDe: l.sob_procuracao_de,
     ligacaoId: l.ligacao_id,
     trabalhoId: l.trabalho_id,
@@ -1120,7 +1122,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       // (pendente, com a entrada da retomada da queda) e é a única que aponta para este turno, o sucesso tardio a
       // absorve: o trabalho terminou e não roda de novo. Já despachada, vale a regra de antes (a fala vira parcial).
       await conn`
-        update turnos r set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${id}, lease_ate = null
+        update turnos r set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${id}, lease_ate = null, lido_na_sessao_em = now()
         where r.tenant_id = ${escopo.tenantId} and r.owner_id = ${escopo.pessoaId} and r.retoma_turno_id = ${id}
           and r.estado = 'pendente' and starts_with(r.entrada_texto, ${ENTRADA_DA_RETOMADA_DA_QUEDA})
           and exists (select 1 from turnos t where t.tenant_id = ${escopo.tenantId} and t.id = ${id} and t.estado = 'interrompido'
@@ -1196,7 +1198,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      */
     async absorverDelegacao(id: string, porTurnoId: string): Promise<Turno | null> {
       const [l] = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${porTurnoId}, lease_ate = null
+        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${porTurnoId}, lease_ate = null, lido_na_sessao_em = now()
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and origem = 'delegacao' and estado = 'pendente'
         returning ${conn.unsafe(COLUNAS)}`;
       return l ? paraTurno(l) : null;
@@ -1215,7 +1217,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       // NOD-23: com `ids`, só estas (o caso de uso cortou no primeiro comando da conversa); vazio = nenhuma.
       if (ids && ids.length === 0) return { turno, absorvidos: [] };
       const linhas = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null
+        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null, lido_na_sessao_em = now()
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conversa_id = ${turno.conversaId} and agente_id = ${turno.agenteId}
           and estado = 'pendente' and origem in ('conversa', 'sala') and mensagem_origem_id is not null and id <> ${turno.id}
           and trabalho_id is not distinct from ${turno.trabalhoId ?? null}::uuid
@@ -1248,10 +1250,11 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * C1 (2026-11-12): com `ids`, a fala com anexo entra quando está entre as confirmadas (o servidor só a oferece ao app que
      * a escreve na sessão, `aceitaAnexos`), e o print pendente só barra as posteriores quando ele mesmo não foi confirmado.
      */
-    async absorverNaSessao(turno: Turno, ids?: readonly string[]): Promise<Turno[]> {
+    async absorverNaSessao(turno: Turno, ids?: readonly string[], o: { informaLeitura?: boolean } = {}): Promise<Turno[]> {
+      const lidoAgora = o.informaLeitura !== true;
       if (ids && ids.length === 0) return [];
       const linhas = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null
+        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null, lido_na_sessao_em = case when ${lidoAgora}::boolean then now() end
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conversa_id = ${turno.conversaId} and agente_id = ${turno.agenteId}
           and estado = 'pendente' and origem = 'conversa' and mensagem_origem_id is not null and id <> ${turno.id}
           and trabalho_id is null
@@ -1273,10 +1276,11 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * primeira fala pendente com anexo da faixa (a posterior espera com ela).
      * revisto em 2026-10-08 (revisão do épico, S18): com `ids`, só estas — as que o app confirmou (confirmarNaSessao).
      */
-    async absorverDoTrabalho(turno: Turno, ids?: readonly string[]): Promise<Turno[]> {
+    async absorverDoTrabalho(turno: Turno, ids?: readonly string[], o: { informaLeitura?: boolean } = {}): Promise<Turno[]> {
       if (!turno.trabalhoId || (ids && ids.length === 0)) return [];
+      const lidoAgora = o.informaLeitura !== true;
       const linhas = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null
+        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null, lido_na_sessao_em = case when ${lidoAgora}::boolean then now() end
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and trabalho_id = ${turno.trabalhoId}
           and estado = 'pendente' and mensagem_origem_id is not null and cardinality(entrada_anexos) = 0 and id <> ${turno.id}
           ${ids ? conn`and id = any(${ids as string[]}::uuid[])` : conn``}
@@ -1286,6 +1290,44 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
               and a.estado = 'pendente' and a.mensagem_origem_id is not null and a.id <> ${turno.id}
               and cardinality(a.entrada_anexos) > 0 and (a.criado_em, a.id) < (turnos.criado_em, turnos.id))
         returning ${conn.unsafe(COLUNAS)}`;
+      return linhas.map(paraTurno).sort(porChegada);
+    },
+
+    /**
+     * ADR-185 (definido em 2026-11-16): o app avisou que o bot LEU estas falas que o turno vivo absorveu (o CLI chegou à
+     * fronteira seguinte à escrita). Só as ainda não lidas mudam; devolve as que mudaram.
+     */
+    async marcarLidosNaSessao(turnoId: string, ids: readonly string[]): Promise<Turno[]> {
+      if (ids.length === 0) return [];
+      const linhas = await conn<Linha[]>`
+        update turnos set lido_na_sessao_em = now()
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and absorvido_por = ${turnoId}
+          and motivo_interrupcao = 'absorvido' and lido_na_sessao_em is null and id = any(${ids as string[]}::uuid[])
+        returning ${conn.unsafe(COLUNAS)}`;
+      return linhas.map(paraTurno).sort(porChegada);
+    },
+
+    /**
+     * ADR-185: o Parar não perde o que a pessoa disse. As falas que o turno parado absorveu e o bot não chegou a ler
+     * voltam a 'pendente', na ordem em que chegaram, e rodam depois como turno próprio. Devolve as que voltaram.
+     */
+    async devolverNaoLidos(turnoId: string): Promise<Turno[]> {
+      const linhas = await conn<Linha[]>`
+        update turnos set estado = 'pendente', motivo_interrupcao = null, absorvido_por = null, lease_ate = null
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and absorvido_por = ${turnoId}
+          and estado = 'interrompido' and motivo_interrupcao = 'absorvido' and lido_na_sessao_em is null
+          and mensagem_origem_id is not null
+        returning ${conn.unsafe(COLUNAS)}`;
+      return linhas.map(paraTurno).sort(porChegada);
+    },
+
+    /** ADR-185: as falas que turnos ainda vivos absorveram (a conversa mostra "lê ao fim do passo atual" × "Lida"). */
+    async absorvidosPorVivos(conversaId: string): Promise<Turno[]> {
+      const linhas = await conn<Linha[]>`
+        select ${conn.unsafe(COLUNAS.split(", ").map((c) => `a.${c}`).join(", "))} from turnos a
+        join turnos v on v.tenant_id = a.tenant_id and v.id = a.absorvido_por
+        where a.tenant_id = ${escopo.tenantId} and a.owner_id = ${escopo.pessoaId} and a.conversa_id = ${conversaId}
+          and a.motivo_interrupcao = 'absorvido' and a.mensagem_origem_id is not null and v.estado in ('pendente', 'despachando')`;
       return linhas.map(paraTurno).sort(porChegada);
     },
 

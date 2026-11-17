@@ -107,6 +107,13 @@ export type PedidoRenovar = {
   mensagensEntregues?: string[];
   /** #189: ids que o adapter não conseguiu escrever (a sessão fechou entre o pedido e a resposta): ficam na fila. */
   mensagensDevolvidas?: string[];
+  /**
+   * ADR-185 (definido em 2026-11-16): este app informa quando o bot LÊ o que foi escrito na sessão. Com isto, a absorção
+   * confirmada em `mensagensEntregues` nasce "não lida"; sem, nasce lida, como antes (app antigo, Codex).
+   */
+  informaLeitura?: boolean;
+  /** ADR-185: ids escritos na sessão que o bot já leu (o CLI chegou à fronteira seguinte à escrita). */
+  mensagensLidas?: string[];
   /** definido em 2026-10-07 (ADR-083, #194): a memória do Mac, amostrada uma vez por máquina a cada 30 s. */
   memoria?: LeituraMemoria;
   /**

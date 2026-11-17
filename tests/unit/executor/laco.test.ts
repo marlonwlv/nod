@@ -423,7 +423,7 @@ describe("laço puxar → rodar → renovar → entregar (ADR-021, ADR-009)", ()
 type SinksControlados = Parameters<Adapter["rodarTurno"]>[0];
 /** O driver de teste declara o que faz (ADR-083 §5): por padrão, a sessão viva do Claude sem processo próprio. */
 const SESSAO_VIVA: CapacidadesHarness = { ...SEM_CAPACIDADES, mensagemNoMeio: true };
-function driverControlado(o: { capacidades?: CapacidadesHarness; aceita?: () => boolean; grupo?: number; confirma?: boolean } = {}): {
+function driverControlado(o: { capacidades?: CapacidadesHarness; aceita?: () => boolean; grupo?: number; confirma?: boolean; leitura?: boolean } = {}): {
   driver: Driver;
   sinks: () => SinksControlados | null;
   terminar: (texto?: string) => void;
@@ -456,6 +456,7 @@ function driverControlado(o: { capacidades?: CapacidadesHarness; aceita?: () => 
       return true;
     },
     ...(o.grupo !== undefined ? { grupoDeProcessos: () => o.grupo ?? null } : {}),
+    ...(o.leitura ? { informaLeitura: () => true } : {}),
   };
   const instance: Instance = { async sondar() { return { estado: "pronto", versao: "falso", em: 0 }; }, adapter: () => adapter, async dispose() {} };
   return {
@@ -773,6 +774,37 @@ describe("sessão viva no laço (ADR-067)", () => {
     d.terminar("pronto");
     await esperarAte(() => ponte.entregas.length === 1);
     expect(ponte.entregas[0]!.mensagensEntregues).toBeUndefined();
+    await laco.parar();
+  });
+
+  it("ADR-185: o adapter que informa leitura diz isso ao servidor; a lida vai uma vez na renovação seguinte", async () => {
+    const d = driverControlado({ leitura: true });
+    const ponte = ponteDaSessao({ fila: ["resume em 3"] });
+    const laco = await cenario(d, ponte);
+    expect(await d.sinks()!.ocioso!()).toBe(true);
+    await esperarAte(() => ponte.renovacoes.some((r) => r.mensagensEntregues?.includes("m1")));
+    expect(ponte.renovacoes.find((r) => r.mensagensEntregues?.includes("m1"))?.informaLeitura).toBe(true);
+    expect(ponte.renovacoes.some((r) => r.mensagensLidas?.length)).toBe(false);
+    d.sinks()!.mensagemLida!("m1");
+    await esperarAte(() => ponte.renovacoes.some((r) => r.mensagensLidas?.includes("m1")));
+    const antes = ponte.renovacoes.length;
+    d.sinks()!.falaIntermediaria!("depois");
+    await esperarAte(() => ponte.renovacoes.length > antes);
+    expect(ponte.renovacoes.slice(antes).some((r) => r.mensagensLidas?.includes("m1"))).toBe(false);
+    d.terminar("ok");
+    await esperarAte(() => ponte.entregas.length === 1);
+    await laco.parar();
+  });
+
+  it("ADR-185: o adapter sem leitura (Codex, app antigo) não manda informaLeitura: entrar continua sendo ler", async () => {
+    const d = driverControlado();
+    const ponte = ponteDaSessao({ fila: ["resume em 3"] });
+    const laco = await cenario(d, ponte);
+    expect(await d.sinks()!.ocioso!()).toBe(true);
+    await esperarAte(() => ponte.renovacoes.some((r) => r.mensagensEntregues?.includes("m1")));
+    expect(ponte.renovacoes.some((r) => r.informaLeitura)).toBe(false);
+    d.terminar("ok");
+    await esperarAte(() => ponte.entregas.length === 1);
     await laco.parar();
   });
 

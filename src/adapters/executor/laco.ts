@@ -251,6 +251,8 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
     // conseguiu escrever (a sessão fechou). O servidor só tira da fila as confirmadas; o resto vira turno próprio.
     let entregues: string[] = [];
     let devolvidas: string[] = [];
+    // ADR-185: as que o modelo já leu (o adapter avisou `mensagemLida`), ainda não confirmadas ao servidor.
+    let lidas: string[] = [];
     let medirGrupo = false;
     // NOD-214: a sessão do CLI (do `init`), mandada em toda renovação — o servidor a grava cedo e a volta de um turno
     // perdido no reinício retoma a mesma sessão. E os ids já escritos na sessão: a renovação repetida depois de uma
@@ -259,7 +261,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
     const escritas = new Set<string>();
     /** QA da NOD-214: as que o adapter avisou que entraram (mensagemEntrou) — só essas a repetida confirma de novo. */
     const entraram = new Set<string>();
-    const aConfirmar = () => entregues.length > 0 || devolvidas.length > 0;
+    const aConfirmar = () => entregues.length > 0 || devolvidas.length > 0 || lidas.length > 0;
     // X5 (revisto em 2026-10-08): a última leitura de memória que o servidor confirmou (o número da amostra e quando).
     let memoriaEnviada: { amostra: number; em: number } | null = null;
     /** NOD-245: a renovação extra agendada depois de um `indefinido` (uma só por vez; a resposta boa volta à batida normal). */
@@ -280,6 +282,8 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
         const enviadas = [...falas];
         const confirmar = [...entregues];
         const devolver = [...devolvidas];
+        const lidasAgora = [...lidas];
+        const informaLeitura = adapterAtual?.informaLeitura?.() === true;
         const aceita = aceitando && adapterAtual?.aceitaMensagens?.() === true;
         // C1 (2026-11-12): o driver que escreve anexo na sessão viva recebe também a fala com imagem.
         const aceitaAnexos = aceita && adapterAtual?.aceitaAnexosNoMeio?.() === true;
@@ -303,6 +307,8 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
             // A presença do campo diz ao servidor que este app confirma o que escreveu (#189).
             ...(aceita || confirmar.length ? { mensagensEntregues: confirmar } : {}),
             ...(devolver.length ? { mensagensDevolvidas: devolver } : {}),
+            ...(informaLeitura ? { informaLeitura: true } : {}),
+            ...(lidasAgora.length ? { mensagensLidas: lidasAgora } : {}),
             ...(memoria ? { memoria } : {}),
             ...(sessaoCli ? { sessaoCli } : {}),
           });
@@ -317,6 +323,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
           if (confirmou) {
             entregues = entregues.filter((id) => !confirmar.includes(id));
             devolvidas = devolvidas.filter((id) => !devolver.includes(id));
+            lidas = lidas.filter((id) => !lidasAgora.includes(id));
             if (memoria) memoriaEnviada = { amostra, em: agora };
           }
           const ids = r.mensagensIds ?? [];
@@ -560,6 +567,11 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
         },
         mensagemDevolvida(id) {
           if (!devolvidas.includes(id)) devolvidas.push(id);
+          void renovar();
+        },
+        // ADR-185: o modelo leu o que entrou; vai na próxima renovação (a conversa troca o selo por "Lida").
+        mensagemLida(id) {
+          if (!lidas.includes(id)) lidas.push(id);
           void renovar();
         },
         async ocioso() {

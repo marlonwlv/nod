@@ -426,9 +426,11 @@ export function criarPonteHttpServidor(d: {
       const fs = falas(b.falas);
       // #189: o que o app escreveu na sessão (confirmado) e o que não conseguiu (fica na fila).
       const entregues = idsDeMensagens(b.mensagensEntregues), devolvidas = idsDeMensagens(b.mensagensDevolvidas);
+      // ADR-185: o app que informa quando o bot LÊ o que foi escrito na sessão (a absorção nasce não lida).
+      const lidas = idsDeMensagens(b.mensagensLidas);
       // ADR-083 (#194): a memória do Mac, amostrada uma vez por máquina e mandada em cada renovação.
       const mem = memoria(b.memoria);
-      const r = await c.ponte.renovar({ turnoId, machineId: ctx.params.chaveId!, sinais: s, eventos: [], ...(fs.length ? { falas: fs } : {}), ...(b.aceitaMensagens === true ? { aceitaMensagens: true } : {}), ...(b.aceitaAnexos === true ? { aceitaAnexos: true } : {}), ...(entregues ? { mensagensEntregues: entregues } : {}), ...(devolvidas?.length ? { mensagensDevolvidas: devolvidas } : {}), ...(mem ? { memoria: mem } : {}), ...(sessaoCli ? { sessaoCli } : {}) });
+      const r = await c.ponte.renovar({ turnoId, machineId: ctx.params.chaveId!, sinais: s, eventos: [], ...(fs.length ? { falas: fs } : {}), ...(b.aceitaMensagens === true ? { aceitaMensagens: true } : {}), ...(b.aceitaAnexos === true ? { aceitaAnexos: true } : {}), ...(entregues ? { mensagensEntregues: entregues } : {}), ...(devolvidas?.length ? { mensagensDevolvidas: devolvidas } : {}), ...(b.informaLeitura === true ? { informaLeitura: true } : {}), ...(lidas?.length ? { mensagensLidas: lidas } : {}), ...(mem ? { memoria: mem } : {}), ...(sessaoCli ? { sessaoCli } : {}) });
       if (fs.length && r.ativo) d.fala?.(plano);
       if (r.ativo && texto(b.delta, 16_000) && b.delta) d.delta(plano, b.delta);
       if (r.ativo) for (const t of trechos(b.trechos)) {

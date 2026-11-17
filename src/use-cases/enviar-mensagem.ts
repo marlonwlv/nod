@@ -269,7 +269,7 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
   const doBot = conversa.tipo === "propria" ? conversa.agenteId : null;
   // Instantâneo (2026-11-13): tudo o que só depende da conversa sai numa leva; o que depende das falas lidas, na seguinte.
   // Antes eram ~12 idas ao banco em fila para cada abertura de conversa.
-  const [lidas, turnosPendentes, vivos, propostas, turnosRecentes, abertos, presenca] = await Promise.all([
+  const [lidas, turnosPendentes, vivos, propostas, turnosRecentes, abertos, presenca, naSessao] = await Promise.all([
     // Chat limpo (ADR-114, PR 2): na conversa própria a janela conta só os itens de chat (os avisos que saem moram na
     // Atividade do bot), traz os `anexo` desde o corte e cada mensagem leva o destino resolvido no servidor. Na sala, nada muda.
     // NOD-380: com `ate` fora da janela de sempre, os anexos têm o mesmo teto da janela; com o teto de sempre (300), o piso deles cortava a fala achada.
@@ -281,7 +281,10 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
     // Os abertos do bot da conversa (a faixa, ADR-083); conversa de sala não tem bot próprio: lista vazia.
     doBot ? deps.repos.trabalhos.abertosDoAgente(doBot) : Promise.resolve([]),
     doBot ? presencaDasMaquinas(deps, deps.services.maquinas) : Promise.resolve(undefined),
+    // ADR-185: as falas que um turno vivo absorveu, e se o bot já as leu (o selo embaixo da fala).
+    deps.repos.turnos.absorvidosPorVivos(conversa.id),
   ]);
+  const turnosNaSessao = naSessao.flatMap((t) => (t.mensagemOrigemId && t.absorvidoPor ? [{ id: t.id, mensagemId: t.mensagemOrigemId, absorvidoPor: t.absorvidoPor, lidoEm: t.lidoNaSessaoEm ?? null }] : []));
   // NOD-200: a fala do bot também pode ter anexo (a captura de tela do turno), e não só a mensagem da pessoa.
   const anexos = await deps.repos.anexos.daConversa(lidas.filter((m) => m.autoria.autor_tipo === "pessoa" || m.kind === "texto").map((m) => m.id));
   const comAnexos = anexos.size === 0 ? lidas : lidas.map((m) => (anexos.has(m.id) ? { ...m, anexos: anexos.get(m.id) } : m));
@@ -313,7 +316,7 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
     // (telas A1 e A2): também o que o revisor do Automático liberou.
     conversa.tipo === "propria" ? acoesDoModoNaConversa(deps, mensagens) : Promise.resolve(undefined),
   ]);
-  return { data: { conversa, mensagens, turnosPendentes, turnosEmCurso, turnosCancelados, propostas, fios, trabalhos, dono, reacoes, ...(pedidosDeColega ? { pedidosDeColega } : {}), ...(acoesDoModo ? { acoesDoModo } : {}), ...(cursor ? { cursor } : {}) } };
+  return { data: { conversa, mensagens, turnosPendentes, turnosEmCurso, turnosCancelados, turnosNaSessao, propostas, fios, trabalhos, dono, reacoes, ...(pedidosDeColega ? { pedidosDeColega } : {}), ...(acoesDoModo ? { acoesDoModo } : {}), ...(cursor ? { cursor } : {}) } };
 };
 
 /**

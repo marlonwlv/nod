@@ -536,6 +536,10 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
           // X1 (revisto em 2026-10-08): o modelo está parado entre voltas (o último evento foi um `result`). Uma mensagem
           // escrita agora abre a próxima volta, sem narração de antes no caminho: a próxima fala já é a resposta.
           let entreVoltas = false;
+          // ADR-185 (definido em 2026-11-16): as mensagens que entraram no stdin no MEIO de uma volta e o CLI ainda não leu.
+          // Ele as lê na fronteira seguinte (X1: o tool_result ou o result); só então o laço as dá por lidas ao servidor —
+          // até lá o Parar as devolve à fila. Entre voltas a escrita abre a volta seguinte: lida na hora.
+          const naoLidas: string[] = [];
           let sinksDoTurno: SinksTurno | null = null;
 
           return {
@@ -550,10 +554,15 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 }
                 processo.escrever(mensagemClaude(texto, baixados));
                 // X1: no meio da volta, o CLI só lê a mensagem na fronteira seguinte (tool_result ou result).
+                const abreAVolta = entreVoltas;
                 if (entreVoltas) meio.armar();
                 else meio.absorveu();
                 // X2: o stdin aceitou a escrita: a mensagem entrou na sessão.
                 if (id !== undefined) sinksDoTurno?.mensagemEntrou?.(id);
+                if (id !== undefined) {
+                  if (abreAVolta) sinksDoTurno?.mensagemLida?.(id);
+                  else naoLidas.push(id);
+                }
               };
               // C1 (2026-11-12): a fala com imagem baixa os bytes antes de escrever; as falas seguem na ordem em que chegaram.
               if (!anexos?.length && escritasNaFila === 0) {
@@ -568,6 +577,7 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
               return true;
             },
             aceitaAnexosNoMeio: () => entradaAberta && Boolean(lig.urlNod),
+            informaLeitura: () => true,
             grupoDeProcessos: () => processo?.pid ?? null,
 
             async rodarTurno(sinks): Promise<ResultadoTurno> {
@@ -778,6 +788,8 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                     else if (ev.tipo === "result") anotarSinal(vigia, { tipo: "fim_da_volta" }, Date.now());
                     else if (ev.tipo === "delta" || ev.tipo === "texto_bloco" || ev.tipo === "init") anotarSinal(vigia, { tipo: "token" }, Date.now());
                     rearmar(vigia);
+                    // ADR-185: a fronteira em que o CLI lê o que esperava no stdin.
+                    if ((ev.tipo === "tool_result" || ev.tipo === "result") && naoLidas.length > 0) for (const id of naoLidas.splice(0)) sinks.mensagemLida?.(id);
                     if (ev.tipo === "result") entreVoltas = true;
                     else if (ev.tipo === "delta" || ev.tipo === "texto_bloco" || ev.tipo === "tool_use" || ev.tipo === "init") entreVoltas = false;
                     if (ev.tipo === "tarefa_fundo") {

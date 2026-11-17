@@ -43,6 +43,8 @@ export const FRAME_POR_EVENTO: Record<KindEvento, TipoFrame> = {
   turno_despachado: "turno.iniciado",
   turno_encerrado: "turno.encerrado",
   turno_interrompido: "turno.interrompido",
+  // ADR-185: só diz "releia a conversa" (o selo da fala lida); o frame da reação faz exatamente isso no reducer.
+  turno_lido: "reacao.mudou",
   decisao_criada: "decisao.nova",
   decisao_decidida: "decisao.decidida",
   decisao_vencida: "decisao.vencida",
