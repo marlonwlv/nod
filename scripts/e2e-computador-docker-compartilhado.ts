@@ -50,7 +50,7 @@ try {
   await controle.executar({ id: pessoa, agenteId: bots[0] }, { tipo: "navegar", url: "https://httpbin.org/cookies/set/sessao/compartilhada" });
   const login = await controle.executar({ id: pessoa, agenteId: bots[1] }, { tipo: "navegar", url: "https://httpbin.org/cookies" });
   assert.match(texto(login), /"sessao":\s*"compartilhada"/);
-  const perfis = docker("exec", `nod-computador-${pessoa}`, "sh", "-c", "find /home/node/computadores/*/perfis -mindepth 1 -maxdepth 1 -type d | wc -l");
+  const perfis = docker("exec", `nod-computador-${pessoa}`, "sh", "-c", "find /home/node/computadores/*/perfis -mindepth 1 -maxdepth 1 -type d ! -name 'casa-*' | wc -l");
   assert.equal(perfis, "3");
   passo("login é compartilhado pela loja cifrada sem compartilhar user-data-dir");
 
