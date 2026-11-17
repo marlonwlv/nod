@@ -92,6 +92,15 @@ describe("ADR-185: o texto que a pessoa parou no meio", () => {
     expect(h).not.toContain(">parcial<");
   });
 
+  it("ADR-186: interrompida pela mensagem nova: 'Interrompido pela sua mensagem · hora', recolhida, sem 'parcial' (mesmo se o turno depois foi parado)", () => {
+    const m = fala({ payload: { kind: "fala_interrompida", por: "mensagem_nova" }, paradaPelaPessoaEm: PARADO + 60_000 } as Partial<Mensagem>);
+    const h = renderMensagem(m, estadoCom(m));
+    expect(h).toContain("Interrompido pela sua mensagem · ");
+    expect(h).not.toContain("Parado por você");
+    expect(h).toMatch(/class="message bot[^"]* texto-recolhido/);
+    expect(h).not.toContain(">parcial<");
+  });
+
   it("parcial por outro motivo (queda, limite): fica o 'parcial', sem linha e sem recolher", () => {
     const m = fala({});
     const h = renderMensagem(m, estadoCom(m));

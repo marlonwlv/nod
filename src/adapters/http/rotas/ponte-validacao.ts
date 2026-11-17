@@ -109,7 +109,8 @@ export function falas(v: unknown): FalaIntermediaria[] {
   return v.map((f) => {
     const o = objeto(f);
     exigir(typeof o.seq === "number" && Number.isSafeInteger(o.seq) && o.seq >= 1 && texto(o.texto));
-    return { seq: o.seq, texto: o.texto };
+    // ADR-186: a volta que a mensagem da pessoa interrompeu (só `true` conta; o resto é fala comum).
+    return { seq: o.seq, texto: o.texto, ...(o.interrompida === true ? { interrompida: true as const } : {}) };
   });
 }
 /** definido em 2026-10-07 (ADR-083, #194): no máximo um RSS por turno vivo; 64 cobre o pico de 25 turnos do diário. */

@@ -19,7 +19,7 @@ import { pastaValidaNoWindows } from "../../../domain/caminhos.ts";
 import { baixarAnexos, mensagemClaude, type AnexoBaixado } from "../anexos-turno.ts";
 import type { AnexoMeta } from "../../../contracts/anexo.ts";
 import { rodarLigacaoClaude } from "./claude-ligacao.ts";
-import { classificarSessao, fimDoStderr, eventosDaLinhaStreamJson, reduzirSinais, SINAIS_ZERADOS, textoDaRodada } from "../../../domain/stream-json.ts";
+import { classificarSessao, fimDoStderr, eventosDaLinhaStreamJson, reduzirSinais, SINAIS_ZERADOS, textoDaRodada, textoDaVoltaInterrompida } from "../../../domain/stream-json.ts";
 import { capacidadesDe, versaoMinimaDoModelo } from "../../../domain/harness.ts";
 import { criarFalaPorBloco } from "../../../domain/fala-por-bloco.ts";
 import { criarFalaDoMeio } from "../../../domain/mensagem-no-meio.ts";
@@ -540,6 +540,9 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
           // Ele as lê na fronteira seguinte (X1: o tool_result ou o result); só então o laço as dá por lidas ao servidor —
           // até lá o Parar as devolve à fila. Entre voltas a escrita abre a volta seguinte: lida na hora.
           const naoLidas: string[] = [];
+          // ADR-186: o laço pediu para parar a volta (a pessoa mandou mensagem com o bot só escrevendo). O `result` que
+          // vier fecha a volta interrompida: o texto dela vira fala própria, marcada, antes da resposta à mensagem.
+          let interrompendo = false;
           let sinksDoTurno: SinksTurno | null = null;
 
           return {
@@ -578,6 +581,14 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
             },
             aceitaAnexosNoMeio: () => entradaAberta && Boolean(lig.urlNod),
             informaLeitura: () => true,
+            // ADR-186 (medido em 2026-11-16, CLI 2.1.326): o `control_request` interrupt pelo stdin para a volta em <100 ms;
+            // a sessão continua e lê a mensagem que vier em seguida. Entre voltas não há o que parar.
+            interromperVolta(): boolean {
+              if (!entradaAberta || !processo || entreVoltas || interrompendo) return false;
+              processo.escrever(`${JSON.stringify({ type: "control_request", request_id: `nod-interrupt-${randomUUID()}`, request: { subtype: "interrupt" } })}\n`);
+              interrompendo = true;
+              return true;
+            },
             grupoDeProcessos: () => processo?.pid ?? null,
 
             async rodarTurno(sinks): Promise<ResultadoTurno> {
@@ -800,6 +811,18 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                     if (ev.tipo === "result") {
                       rodadas.push(eventos.slice(inicioDaRodada));
                       inicioDaRodada = eventos.length;
+                      // ADR-186: a volta que a mensagem interrompeu sai já, marcada, e as anteriores ainda não faladas antes dela
+                      // (a ordem da conversa fica: o que ele escreveu, a mensagem, a resposta).
+                      if (interrompendo) {
+                        interrompendo = false;
+                        if (falaNaHora) {
+                          for (; rodadasFaladas < rodadas.length; rodadasFaladas++) {
+                            const ultima = rodadasFaladas === rodadas.length - 1;
+                            const texto = ultima ? textoDaVoltaInterrompida(rodadas[rodadasFaladas]!, meio) : textoDaRodada(rodadas[rodadasFaladas]!, meio);
+                            if (texto.trim() !== "") sinks.falaIntermediaria!(texto, ultima ? { interrompida: true } : undefined);
+                          }
+                        }
+                      }
                       if (viva) decidindo = decidindo.then(aposRodada).catch(() => fechar());
                     }
                     const depois = reduzirSinais(sinais, ev);

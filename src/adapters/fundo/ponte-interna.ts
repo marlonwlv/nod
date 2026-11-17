@@ -592,7 +592,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         if (p.eventos.length) await d.repos.events.gravarComOutbox(p.eventos);
         const events: RuntimeEvent[] = [];
         if (novas.length) {
-          const g = await gravarFalasDaSessao(d, { turnoId: p.turnoId, machineId: p.machineId, executor, textos: novas.map((f) => f.texto) });
+          const g = await gravarFalasDaSessao(d, { turnoId: p.turnoId, machineId: p.machineId, executor, textos: novas.map((f) => f.texto), interrompidas: novas.flatMap((f, i) => (f.interrompida ? [i] : [])) });
           events.push(...(g.events ?? []));
         }
         // Turno parado (ativo:false) não confirma: a resposta não vai sair, e a mensagem fica para o próximo turno.

@@ -560,6 +560,16 @@ export function textoDaRodada(eventos: readonly EventoStream[], falaDoMeio?: Fal
   return classificarResultado({ eventos, exitCode: 0, signal: null, stderr: "", falaDoMeio }).texto;
 }
 
+/**
+ * ADR-186: o texto da volta que a mensagem da pessoa interrompeu. O motor pode cortar a volta sem fechar o bloco (o Codex
+ * não manda o item concluído; o Claude manda o `assistant` parcial): sem bloco, valem os `delta` que já tinham saído.
+ */
+export function textoDaVoltaInterrompida(eventos: readonly EventoStream[], falaDoMeio?: FalaDoMeioNoTurno): string {
+  const doBloco = textoDaRodada(eventos, falaDoMeio);
+  if (doBloco.trim() !== "") return doBloco;
+  return eventos.map((e) => (e.tipo === "delta" ? e.texto : "")).join("").trim();
+}
+
 const somarTokens = (a: TokensTurno, b: TokensTurno): TokensTurno => ({
   entrada: a.entrada + b.entrada,
   saida: a.saida + b.saida,

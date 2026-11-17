@@ -38,6 +38,18 @@ async function turno(d: D, agenteId: string, conversaId: string, o: { origem?: O
 }
 
 describe("gravarFalasDaSessao (ADR-067)", () => {
+  it("ADR-186: a volta interrompida pela mensagem da pessoa vira fala parcial com a marca; as outras seguem comuns", async () => {
+    const { d, agenteId, conversaId } = await cenario();
+    const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
+    const r = await gravarFalasDaSessao(d.deps, { turnoId: vivo.id, machineId: "m1", executor: "local", textos: ["Antes.", "1. Origens do chá"], interrompidas: [1] });
+    expect(r.data.gravadas).toBe(2);
+    const doBot = d.banco.mensagens.filter((m) => m.turnoId === vivo.id);
+    expect(doBot.map((m) => [m.texto, m.parcial, m.payload])).toEqual([
+      ["Antes.", false, null],
+      ["1. Origens do chá", true, { kind: "fala_interrompida", por: "mensagem_nova" }],
+    ]);
+  });
+
   it("turno vivo: cada fala vira mensagem do bot na conversa, com mensagem_criada; texto vazio não entra", async () => {
     const { d, agenteId, conversaId } = await cenario();
     const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });

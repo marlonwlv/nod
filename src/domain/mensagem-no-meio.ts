@@ -91,3 +91,97 @@ export function criarFalaDoMeio(fronteiras: readonly EventoStream["tipo"][] = FR
     obrigatorios,
   };
 }
+
+/**
+ * ADR-186 (definido em 2026-11-16): o que fazer com a mensagem da pessoa que chega no meio de um turno — UMA regra do nod,
+ * igual para todo harness. O harness só diz o que sabe fazer (`CapacidadesHarness`, medido pela sonda
+ * scripts/sonda-mensagem-no-meio.ts); o estado do bot sai dos eventos normalizados que todo driver já emite.
+ *
+ * - `escrevendo` (texto ou pensamento, sem ferramenta aberta nem trabalho em segundo plano): nada fica pela metade se a
+ *   volta parar. Com `interrompeVolta`, a volta é interrompida e a mensagem abre a seguinte, na mesma sessão — o bot não
+ *   termina um texto que a pessoa já mudou. Sem a capacidade, ela espera a fronteira (ADR-185).
+ * - `acao_aberta` / `segundo_plano`: espera a fronteira — interromper deixaria um arquivo meio gravado ou um comando sem
+ *   resultado.
+ * - `entre_voltas`: a mensagem já abre a próxima volta; nada a interromper.
+ * Uma interrupção por volta: a segunda mensagem da mesma rajada só entra na volta já interrompida.
+ */
+export type EstadoDaVolta = "entre_voltas" | "escrevendo" | "acao_aberta" | "segundo_plano";
+
+export type RastreadorDaVolta = {
+  evento(ev: EventoStream): void;
+  estado(): EstadoDaVolta;
+  /** O texto que o modelo já escreveu nesta volta (os `delta`), para o trecho da parcial. */
+  textoDaVolta(): string;
+};
+
+export function criarRastreadorDaVolta(): RastreadorDaVolta {
+  const abertas = new Set<string>();
+  const emFundo = new Set<string>();
+  let entre = true;
+  let texto = "";
+  return {
+    evento(ev) {
+      switch (ev.tipo) {
+        case "init":
+        case "fase":
+          entre = false;
+          break;
+        case "delta":
+          entre = false;
+          texto += ev.texto;
+          break;
+        case "texto_bloco":
+          entre = false;
+          break;
+        case "tool_use":
+          entre = false;
+          abertas.add(ev.id);
+          break;
+        case "tool_result":
+          abertas.delete(ev.toolUseId);
+          break;
+        case "tarefa_fundo":
+          if (ev.estado === "terminada") emFundo.delete(ev.id);
+          else if (ev.emFundo !== false) emFundo.add(ev.id);
+          break;
+        case "result":
+          entre = true;
+          texto = "";
+          abertas.clear();
+          break;
+        default:
+          break;
+      }
+    },
+    estado() {
+      if (emFundo.size > 0) return "segundo_plano";
+      if (abertas.size > 0) return "acao_aberta";
+      return entre ? "entre_voltas" : "escrevendo";
+    },
+    textoDaVolta: () => texto,
+  };
+}
+
+/** O que a regra precisa saber do harness (o pedaço de `CapacidadesHarness` que ela lê). */
+export type CapacidadesNoMeio = { interrompeVolta: boolean; parcialNoHistorico: boolean };
+
+export type DecisaoNoMeio = { tipo: "entregar" } | { tipo: "interromper_e_entregar"; trechoDaParcial: string | null };
+
+/** Quanto da parcial vai na moldura quando o harness não a guarda no histórico (o começo basta para o modelo se achar). */
+export const TRECHO_DA_PARCIAL_MAX = 600;
+
+export function decidirMensagemNoMeio(o: { estado: EstadoDaVolta; textoDaVolta: string; jaInterrompeu: boolean; daConversa: boolean; capacidades: CapacidadesNoMeio }): DecisaoNoMeio {
+  if (!o.daConversa || !o.capacidades.interrompeVolta || o.jaInterrompeu || o.estado !== "escrevendo") return { tipo: "entregar" };
+  const parcial = o.textoDaVolta.trim();
+  const trecho = o.capacidades.parcialNoHistorico || parcial === "" ? null : parcial.length > TRECHO_DA_PARCIAL_MAX ? `${parcial.slice(0, TRECHO_DA_PARCIAL_MAX)}…` : parcial;
+  return { tipo: "interromper_e_entregar", trechoDaParcial: trecho };
+}
+
+/**
+ * A moldura da mensagem que interrompeu a volta. Com o trecho (o harness não guarda a parcial no histórico — o Codex, medido
+ * em 2026-11-16), o modelo sabe o que já tinha escrito e que a pessoa o viu.
+ */
+export function molduraDaInterrupcao(texto: string, trechoDaParcial: string | null): string {
+  const antes = trechoDaParcial ? `Você estava respondendo assim quando a pessoa mandou uma mensagem nova (ela viu o que você escreveu até aqui): «${trechoDaParcial.replaceAll("«", "‹").replaceAll("»", "›")}». ` : "Você parou a resposta anterior porque a pessoa mandou uma mensagem nova. ";
+  return `${antes}A mensagem dela: «${texto}». Responda considerando o que ela pediu agora; não repita o que já tinha escrito, a não ser que ela peça.`;
+}

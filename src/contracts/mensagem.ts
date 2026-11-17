@@ -42,6 +42,8 @@ export type KindMensagem =
 
 /** Payload tipado por kind: estado de controle nunca se lê do texto (Regra 9, GRUPO.passe-tipado). */
 export type PayloadMensagem =
+  /** ADR-186 (definido em 2026-11-16): a fala do bot que a mensagem nova da pessoa interrompeu no meio (`parcial` = true). */
+  | { kind: "fala_interrompida"; por: "mensagem_nova" }
   | { kind: "boas_vindas"; pergunta?: string; opcoes?: { rotulo: string; texto: string }[] } // botão +, tela 5; as gravadas antes não têm pergunta/opções
   | { kind: "acoes_do_turno"; acoes: { rotulo: string; falhou?: true; vezes?: number }[]; duracaoMs?: number } // NOD-353: resumo das ações; duracaoMs (26/10, "Pensou por 9 s" na gravada)
   /** `trabalhoId` (2026-10-07, ADR-083): o trabalho de quem RECEBEU o pedido. `nomePara` (2026-10-18, chat limpo PR 3): o nome dele no momento. */

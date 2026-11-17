@@ -86,7 +86,7 @@ export type Entrega = {
  * Uma volta do modelo numa sessão viva que não encerrou o turno (definido em 2026-10-01, ADR-067). `seq` sobe de 1 em
  * 1 por turno: o servidor grava cada uma uma vez só, mesmo que a renovação seja repetida.
  */
-export type FalaIntermediaria = { seq: number; texto: string };
+export type FalaIntermediaria = { seq: number; texto: string; /** ADR-186: a volta que a mensagem nova da pessoa interrompeu. */ interrompida?: true };
 export type PedidoRenovar = {
   turnoId: string;
   machineId: string;

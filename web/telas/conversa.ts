@@ -597,9 +597,9 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
 const QUADRADO_PARADO = '<svg class="lp-ic" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>';
 
 /** ADR-185: a linha fixa embaixo do texto que a pessoa parou, com o "Mostrar o texto todo" / "Mostrar menos". */
-function linhaDaParada(mensagemId: string, em: number, recolhido: boolean): string {
+function linhaDaParada(mensagemId: string, rotulo: string, em: number, recolhido: boolean): string {
   const bt = `<button type="button" class="lp-mais" data-act="alternar-texto" data-id="${esc(mensagemId)}" aria-expanded="${recolhido ? "false" : "true"}">${recolhido ? "Mostrar o texto todo" : "Mostrar menos"}</button>`;
-  return `<div class="linha-parada">${QUADRADO_PARADO}<span>Parado por você · ${esc(hora(em))}</span><span class="lp-sep" aria-hidden="true">·</span>${bt}</div>`;
+  return `<div class="linha-parada">${QUADRADO_PARADO}<span>${esc(rotulo)} · ${esc(hora(em))}</span><span class="lp-sep" aria-hidden="true">·</span>${bt}</div>`;
 }
 
 /**
@@ -717,7 +717,7 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // modo dev e no Raio-X (`ondeRodou`, ./modo-dev.ts); "não confiável" e "parcial" ficam, porque dizem algo do texto.
   const tags = ehPessoa || m.payload?.kind === "peer_pedido" || m.payload?.kind === "boas_vindas"
     ? ""
-    : [m.confianca === "nao_confiavel" ? '<span class="tag tag-ambar" title="conteúdo de conector ou de outro bot">não confiável</span>' : "", m.parcial && !m.paradaPelaPessoaEm ? '<span class="tag tag-cinza">parcial</span>' : ""].filter(Boolean).join("");
+    : [m.confianca === "nao_confiavel" ? '<span class="tag tag-ambar" title="conteúdo de conector ou de outro bot">não confiável</span>' : "", m.parcial && !m.paradaPelaPessoaEm && m.payload?.kind !== "fala_interrompida" ? '<span class="tag tag-cinza">parcial</span>' : ""].filter(Boolean).join("");
   const metaTags = tags ? `<div class="meta-tags">${tags}</div>` : "";
   // definido em 2026-09-24 (emenda da ADR-045): a pergunta de pedir_a_pessoa é esta fala; a mensagem que a respondeu
   // leva o rótulo, e a retomada vira uma linha logo depois. revisto em 2026-10-18 (plano "pergunta com botões", Parte 2):
@@ -738,9 +738,13 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const lendo = estado.leitura?.mensagemId === m.id && ouvivel;
   // ADR-185 (validação de 2026-11-16): o texto que a pessoa parou no meio — a linha "Parado por você · hora" no lugar do
   // "parcial", e recolhido até ela abrir (web/lib/textos-abertos.ts). Só o interrompido; a resposta completa segue inteira.
-  const parado = !ehPessoa && m.paradaPelaPessoaEm ? m.paradaPelaPessoaEm : null;
-  const recolhido = parado !== null && !textoAberto(m.id);
-  const linhaParada = parado !== null ? linhaDaParada(m.id, parado, recolhido) : "";
+  // ADR-186: a fala que a mensagem nova da pessoa interrompeu tem a mesma linha e o mesmo recolhido, com o porquê dela.
+  const corte: { rotulo: string; em: number } | null = ehPessoa ? null
+    : m.payload?.kind === "fala_interrompida" ? { rotulo: "Interrompido pela sua mensagem", em: m.criadoEm }
+    : m.paradaPelaPessoaEm ? { rotulo: "Parado por você", em: m.paradaPelaPessoaEm }
+    : null;
+  const recolhido = corte !== null && !textoAberto(m.id);
+  const linhaParada = corte !== null ? linhaDaParada(m.id, corte.rotulo, corte.em, recolhido) : "";
   const classes = `message ${ehPessoa ? "you" : "bot"}${recolhido ? " texto-recolhido" : ""}${ehPessoa ? classeDoBalao(estado, m.conversaId) : ""}${ouvivel ? " ouvivel" : ""}${lendo ? " lendo" : ""}${pergunta ? " pergunta" : ""}${motivoTela !== null ? " com-tela" : ""}${resposta ? " respondendo" : ""}${fila?.tipo === "cancelada" ? " fila-cancelada" : ""}`;
   // O progresso vai dentro do balão do bot; no da pessoa (a rede) e no cartão da pergunta (o turno que abriu frentes e
   // terminou perguntando), embaixo dele — o cartão não tem onde recebê-lo, e sem isso o bloco sumia (revisão do PR 398).

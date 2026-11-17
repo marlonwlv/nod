@@ -3,7 +3,7 @@ import type { AnuncioMaquina, Entrega, FalaIntermediaria, PonteInterna, VigiaViv
 import type { EventoStream, ResultadoTurno, SinaisTurno } from "../../contracts/turno.ts";
 import { ehErroDeDominio } from "../../domain/erro.ts";
 import { capacidadesDe } from "../../domain/harness.ts";
-import { molduraMensagemNoMeio } from "../../domain/mensagem-no-meio.ts";
+import { type CapacidadesNoMeio, criarRastreadorDaVolta, decidirMensagemNoMeio, molduraDaInterrupcao, molduraMensagemNoMeio } from "../../domain/mensagem-no-meio.ts";
 import { SINAIS_ZERADOS } from "../../domain/stream-json.ts";
 import { AVALIACAO_VIGIA_MS, criarVigiaTurno } from "../../domain/vigia-turno.ts";
 import { log } from "../../obs/log.ts";
@@ -244,6 +244,11 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
     // `seq` uma vez), quantas mensagens novas da pessoa entraram, e se ainda pedimos mensagens ao servidor.
     let falas: FalaIntermediaria[] = [];
     let seqFala = 0;
+    // ADR-186: o estado da volta (dos eventos normalizados de qualquer driver) e se esta volta já foi interrompida por
+    // uma mensagem; e o que o harness deste turno sabe fazer.
+    const volta = criarRastreadorDaVolta();
+    let jaInterrompeu = false;
+    let noMeio: CapacidadesNoMeio = { interrompeVolta: false, parcialNoHistorico: false };
     let mensagensRecebidas = 0;
     // definido em 2026-10-07 (ADR-083 §5): só pede mensagens a driver que declara `mensagemNoMeio` (lido abaixo).
     let aceitando = false;
@@ -333,7 +338,19 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
             // ADR-083 §6: a mensagem chega com a moldura ("responda a ela primeiro"), igual em todo driver. X3 (revisto
             // em 2026-10-08): o que vem do trabalho entra como veio — o recado do bot cru, a fala da pessoa já com a moldura
             // dela (NOD-376, definido em 2026-10-27).
-            const entrada = id !== undefined && semMoldura.includes(id) ? texto : molduraMensagemNoMeio(texto);
+            // ADR-186: a mesma regra para todo harness. Com o bot só escrevendo e um harness que para a volta sem matar a
+            // sessão, a volta é interrompida ANTES de a mensagem entrar, e a mensagem abre a seguinte; sem, ela espera a
+            // fronteira (ADR-185). O recado do trabalho (sem moldura) nunca interrompe.
+            const fala = id === undefined || !semMoldura.includes(id);
+            const decisao = fala
+              ? decidirMensagemNoMeio({ estado: volta.estado(), textoDaVolta: volta.textoDaVolta(), jaInterrompeu, daConversa: plano.modoTurno === "conversa" && plano.daPessoa !== false && !plano.bastidores, capacidades: noMeio })
+              : ({ tipo: "entregar" } as const);
+            const interrompeu = decisao.tipo === "interromper_e_entregar" && adapterAtual?.interromperVolta?.() === true;
+            if (interrompeu) {
+              jaInterrompeu = true;
+              log("info", "laco_volta_interrompida_por_mensagem", { turno_id: plano.turnoId, com_trecho: decisao.trechoDaParcial !== null });
+            }
+            const entrada = !fala ? texto : interrompeu && decisao.tipo === "interromper_e_entregar" ? molduraDaInterrupcao(texto, decisao.trechoDaParcial) : molduraMensagemNoMeio(texto);
             // NOD-214: já escrita nesta sessão (a confirmação se perdeu): não escreve de novo, só confirma outra vez. QA da
             // NOD-214: a que ainda não entrou (o adapter vai escrever) espera o mensagemEntrou/mensagemDevolvida dela (X2).
             if (id !== undefined && escritas.has(id)) {
@@ -496,6 +513,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
       }
       const capacidades = registro.driver.meta.capacidades ?? capacidadesDe(registro.driver.meta.id);
       aceitando = capacidades.mensagemNoMeio;
+      noMeio = { interrompeVolta: capacidades.interrompeVolta === true, parcialNoHistorico: capacidades.parcialNoHistorico === true };
       medirGrupo = capacidades.processoProprio;
       // NOD-310 (emenda da ADR-108 §5): o turno com passagem de bastão leva o estado do git e do PR da pasta da task,
       // lido nesta máquina agora (o servidor não vê o disco). Vale igual para todo driver. Nunca derruba o turno.
@@ -547,6 +565,9 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
           if (s === "promptSubmitted") await renovar();
         },
         evento(ev) {
+          volta.evento(ev);
+          // Uma interrupção por volta: a volta seguinte (aberta pela mensagem) pode ser interrompida de novo.
+          if (ev.tipo === "result") jaInterrompeu = false;
           if (ev.tipo === "init" && ev.sessaoCli) sessaoCli = ev.sessaoCli;
           o.aoEvento?.(plano, ev);
           avisar(vigia.registrar(ev, o.relogio()));
@@ -554,9 +575,9 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
         delta(texto) {
           o.aoDelta?.(plano, texto);
         },
-        falaIntermediaria(texto) {
+        falaIntermediaria(texto, f) {
           seqFala += 1;
-          falas.push({ seq: seqFala, texto: cortarTexto(texto) });
+          falas.push({ seq: seqFala, texto: cortarTexto(texto), ...(f?.interrompida ? { interrompida: true as const } : {}) });
           void renovar();
         },
         // X2 (revisto em 2026-10-08): só o que entrou na sessão é confirmado; o devolvido volta para a fila do servidor.
