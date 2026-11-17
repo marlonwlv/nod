@@ -62,7 +62,8 @@ import { removerDaquiNoMac, type DepsRemoverDaqui } from "./remover-daqui.ts";
 import type { EstaMaquina } from "../src/contracts/desktop-esta-maquina.ts";
 import { estaMaquinaDe } from "../src/domain/esta-maquina.ts";
 import { abrirPrimeiroUsoDaVm, focarJanela, LARGURA_MINIMA, lerEstadoJanela, medirEstadoJanela, resolverEstadoJanela, type EstadoJanela } from "./janela.ts";
-import { estadoDoMicrofone, lerEmLigacao, permitirChecagemDeMidia, permitirPedidoDeMidia, TEXTO_FECHAR_EM_LIGACAO } from "./permissoes-midia.ts";
+import { AJUSTES_DO_MICROFONE, estadoDoMicrofone, lerEmLigacao, permitirChecagemDeMidia, permitirPedidoDeMidia, TEXTO_FECHAR_EM_LIGACAO } from "./permissoes-midia.ts";
+import { CANAIS_MICROFONE } from "../src/contracts/desktop-microfone.ts";
 import type { EstadoMicrofone } from "../src/contracts/desktop.ts";
 import { criarDetectorGh, executarGithubNaMaquina } from "../src/adapters/conectores-locais/github/maquina.ts";
 import { pedirProvisorio, segredoDeTroca, servidorOfereceProvisorio, trocarChaveDoApp, verificadorNovo, verificadorValido } from "./conta-provisoria.ts";
@@ -1515,6 +1516,8 @@ else {
       await gravarPreferencias();
     });
     ipcMain.handle(CANAIS_DESKTOP.microfone, (e) => { validarRemetenteWeb(e); return acessoAoMicrofone(); });
+    // O "Abrir Ajustes" do aviso de microfone negado: direto em Privacidade › Microfone (endereço fixo, nunca da página).
+    ipcMain.handle(CANAIS_MICROFONE.ajustes, (e) => { validarRemetenteWeb(e); return shell.openExternal(AJUSTES_DO_MICROFONE.darwin).then(() => true, () => false); });
     ipcMain.handle(CANAIS_DESKTOP.emLigacao, (e, ativa: unknown) => {
       validarRemetenteWeb(e);
       const lido = lerEmLigacao(ativa);

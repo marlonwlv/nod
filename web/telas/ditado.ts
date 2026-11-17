@@ -1,5 +1,7 @@
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { FalhaDitado } from "../lib/ditado-protocolo.ts";
+import { desteMac } from "../lib/plataforma-da-tela.ts";
+import { ondeLiberarMicrofone } from "../lib/microfone-do-sistema.ts";
 import { ICONE_LIGACAO } from "./ligacao.ts";
 
 /**
@@ -64,7 +66,7 @@ export function ditadoNaPilula(campo: CampoDaPilula, texto: string, destino: "ca
   campo.setSelectionRange(campo.value.length, campo.value.length);
 }
 
-/** O aviso de cada falha. `noApp` muda onde liberar o microfone (Ajustes do Sistema × navegador). */
+/** O aviso de cada falha. `noApp` muda onde liberar o microfone (Ajustes do Sistema ou Configurações × navegador). */
 export function textoDaFalha(f: FalhaDitado | "vazio" | "teto" | "tela-bloqueou" | "aviso-mudou", noApp: boolean): string {
   switch (f) {
     // NOD-324: o servidor pede outra versão do aviso que a desta página; o texto do diálogo aqui é o velho.
@@ -72,9 +74,9 @@ export function textoDaFalha(f: FalhaDitado | "vazio" | "teto" | "tela-bloqueou"
     case "aviso-mudou":
       return noApp ? "O aviso sobre a voz mudou. Feche e abra o app para ditar." : "O aviso sobre a voz mudou. Atualize a página para ditar.";
     case "microfone-negado":
-      return noApp ? "Libere o microfone em Ajustes do Sistema › Privacidade › Microfone para ditar." : "Libere o microfone para este site nos ajustes do navegador para ditar.";
+      return noApp ? ondeLiberarMicrofone() : "Libere o microfone para este site nos ajustes do navegador para ditar.";
     case "microfone-restrito":
-      return "O microfone deste Mac está bloqueado por quem administra o computador.";
+      return `O microfone ${desteMac()} está bloqueado por quem administra o computador.`;
     case "microfone-indisponivel":
       return "Nenhum microfone encontrado. Conecte um e tente de novo.";
     case "sem_consentimento":

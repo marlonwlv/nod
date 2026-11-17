@@ -4,6 +4,7 @@ import type { BarraDesktop, DecisaoBarraDesktop } from "../src/contracts/desktop
 import type { AcaoDeBusca } from "./menu.ts";
 import type { EstadoIa } from "../src/contracts/estado-ia.ts";
 import { CANAIS_MIDIA, type PonteMidia } from "../src/contracts/midia-desktop.ts";
+import { CANAIS_MICROFONE } from "../src/contracts/desktop-microfone.ts";
 import { CANAIS_REMOVER, type OpcoesRemover } from "../src/contracts/remover-computador.ts";
 
 /**
@@ -83,6 +84,7 @@ const ponte: NodDesktop = {
   definirDecisaoBarra: (mensagemId: string, decisao: DecisaoBarraDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.definirDecisaoBarra, mensagemId, decisao),
   // Modo ligação (definido em 2026-10-04, ADR-071): o acesso do macOS ao microfone e o aviso de ligação aberta.
   microfone: () => ipcRenderer.invoke(CANAIS_DESKTOP.microfone),
+  ajustesMicrofone: () => ipcRenderer.invoke(CANAIS_MICROFONE.ajustes), // o botão do aviso de microfone negado
   emLigacao: (ativa: boolean) => ipcRenderer.invoke(CANAIS_DESKTOP.emLigacao, ativa),
   // Onboarding (definido em 2026-10-04, ADR-077): os cards de IA — login do CLI e página oficial de instalação.
   iaEntrar: (ia: IaDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.iaEntrar, ia),

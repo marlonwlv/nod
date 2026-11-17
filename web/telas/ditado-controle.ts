@@ -19,7 +19,8 @@ export type DepsDitado = {
    * em que a gravação começou (ADA-5: o do chat ou o da pílula do Quadro).
    */
   aoTexto(texto: string, destino: "campo" | "enviar", ta: HTMLTextAreaElement | null): void;
-  avisar(texto: string): void;
+  /** `falha` (quando há): o motivo, para o banner do microfone negado ganhar o botão que abre os ajustes do sistema. */
+  avisar(texto: string, falha?: string): void;
   noApp(): boolean;
   /**
    * ADA-5: o composer que está na tela (o `#composer` do chat ou a pílula do Quadro). A gravação fica no composer em que
@@ -188,7 +189,7 @@ export function criarControleDitado(d: DepsDitado): ControleDitado {
       mostrar("parado");
       // NOD-324: a falta do aviso nunca vira banner; o motor já fechou o microfone.
       if (ev.codigo === "sem_consentimento") return void aposSemConsentimento(viaDialogo);
-      d.avisar(textoDaFalha(ev.codigo, d.noApp()));
+      d.avisar(textoDaFalha(ev.codigo, d.noApp()), ev.codigo);
     }
   }
 

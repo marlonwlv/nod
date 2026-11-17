@@ -108,6 +108,7 @@ import "./pwa.ts";
 import { avatar, botao, dataHora, esc, hora as horaDaFala, iconeAgente } from "./lib/render.ts";
 import { COPIADO_MS, mostrarCopia, ROTULO_COPIADO, type RelogioDoCopiar } from "./lib/copiar.ts";
 import { avisoDeEstado } from "./lib/aviso-estado.ts";
+import { abrirAjustesDoMicrofone, botaoAjustesDoMicrofone, CODIGO_DITADO_MICROFONE, podeAbrirAjustesDoMicrofone } from "./lib/microfone-do-sistema.ts";
 import { aplicarTema, lerTema, type EscolhaTema } from "./lib/tema.ts";
 import { adiar, aplicarBarra, escolherDensidade, lerBarra, pedidoDoChat, pintarBarra, serializar, type Barra, type PedidoBarra } from "./lib/densidade.ts";
 import type { BarraDesktop } from "../src/contracts/desktop-barra.ts";
@@ -974,7 +975,7 @@ const ditado = criarControleDitado({
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
   },
-  avisar: (texto) => dispatch({ tipo: "erro", erro: { codigo: "ditado", mensagem: texto } }),
+  avisar: (texto, falha) => dispatch({ tipo: "erro", erro: { codigo: falha === "microfone-negado" ? CODIGO_DITADO_MICROFONE : "ditado", mensagem: texto } }),
   noApp: () => window.nodDesktop !== undefined,
 });
 function avisarDitado(f: Parameters<typeof textoDaFalha>[0]): void {
@@ -2383,7 +2384,9 @@ function htmlDoErro(e: ErroNaTela): string {
   }
   const nod = e.codigo === "erro_da_tela" ? (estado.frota?.agentes ?? []).find((a) => a.papel === "nod" && a.ownerId === estado.sessao?.pessoaId) : undefined;
   const relatar = nod ? ` ${botao("abrir-conversa", "Relatar", { classe: "sm", dados: { conversa: nod.conversaId, agente: nod.id } })}` : "";
-  return `<div class="erro" role="alert">${esc(e.mensagem)}${relatar} ${botao("fechar-erro", "×", { classe: "sm" })}${detalhes}</div>`;
+  // O microfone negado no ditado, no app: o botão leva direto à tela do sistema que o libera.
+  const ajustes = e.codigo === CODIGO_DITADO_MICROFONE && window.nodDesktop !== undefined && podeAbrirAjustesDoMicrofone() ? ` ${botaoAjustesDoMicrofone("sm")}` : "";
+  return `<div class="erro" role="alert">${esc(e.mensagem)}${relatar}${ajustes} ${botao("fechar-erro", "×", { classe: "sm" })}${detalhes}</div>`;
 }
 
 /**
@@ -5642,6 +5645,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "ligacao-aprovar": (el) => agir(() => telaLigacao.decidir(el.dataset.id ?? "", true)),
   "ligacao-recusar": (el) => agir(() => telaLigacao.decidir(el.dataset.id ?? "", false)),
   "ligacao-retomar-audio": () => telaLigacao.retomarAudio(),
+  // O aviso de microfone negado (ligação e ditado, no app): abre Privacidade › Microfone do sistema.
+  "microfone-ajustes": () => abrirAjustesDoMicrofone(),
   "ligacao-sugestao": (el) => { telaLigacao.enviarTexto(el.dataset.texto ?? ""); },
   // Rede de segurança (2026-10-05): a IA do Mac caiu no meio da ligação.
   "ligacao-continuar-ia": (el) => telaLigacao.continuarCom(el.dataset.ia === "codex-cli" ? "codex-cli" : "claude-cli"),
