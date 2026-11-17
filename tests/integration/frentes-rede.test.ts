@@ -83,7 +83,7 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
       expect((await m.repos.turnos.buscar(vivo.id))?.trabalhoId).toBe(frente.id);
       // A linha na conversa do dono: "Virou a frente".
       const linha = (await m.repos.mensagens.listarDaConversa(m.conversaId, 50)).find((x) => x.payload?.kind === "trabalho_aberto");
-      expect(linha?.texto).toBe(`Virou a frente ${frente.titulo}`);
+      expect(linha?.texto).toBe(`Virou a tarefa ${frente.titulo}`);
       expect(r.events?.some((e) => e.kind === "mensagem_criada")).toBe(true);
 
       // A próxima fala da pessoa: turno do dono, sem sessão, sem bifurcar e com o histórico recente no prompt.
@@ -168,7 +168,7 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
     });
   });
 
-  it("mensagem só com link, só com emoji ou vazia: a frente da rede vira 'Frente da conversa' (plano chat limpo, PR 5)", async () => {
+  it("mensagem só com link, só com emoji ou vazia: a frente da rede vira 'Tarefa da conversa' (plano chat limpo, PR 5)", async () => {
     await withRollback(MARLON, async (trx) => {
       // Um bot por mensagem: a conversa tem um turno do dono despachando por vez.
       for (const texto of ["https://github.com/gamefik/nod/pull/391", "🎉🎉", ""]) {
@@ -176,7 +176,7 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
         const vivo = await m.turno({ texto });
         await m.despachar(vivo.id);
         const frente = (await m.promover(vivo.id, { sessaoCli: null, maquinaBifurca: false })).data.trabalho!;
-        expect(frente).toMatchObject({ forma: "frente", origem: "rede", titulo: "Frente da conversa" });
+        expect(frente).toMatchObject({ forma: "frente", origem: "rede", titulo: "Tarefa da conversa" });
       }
     });
   });

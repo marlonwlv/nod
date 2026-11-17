@@ -159,7 +159,7 @@ export function leituraDaMaquina(estado: Pick<Estado, "trabalhos">, id: string):
     l.memoriaBotsMb > 0 ? `os bots usam ${memoriaLegivel(l.memoriaBotsMb)}` : "",
   ].filter(Boolean).join(" · ");
   const porque = l.motivoEspera === null ? ""
-    : l.seguraTudoNovo ? " Com o disco quase sem espaço, nenhuma task nova começa nela; as que já rodam continuam."
+    : l.seguraTudoNovo ? " Com o disco quase sem espaço, nenhuma tarefa nova começa nela; as que já rodam continuam."
       : " Rotinas e pedidos entre bots que ainda não começaram esperam; o que você pede começa.";
   return { curto, nivel, status, texto: `Agora: ${numeros}.${porque}` };
 }

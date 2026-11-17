@@ -70,20 +70,20 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
 
   it("um lote: \"5 frentes\" e \"3 de 5 prontas\", com o ponto vivo; o botão abre o painel (aria-expanded, aria-controls)", () => {
     const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono({ principal: "trabalhando", frentes: 2 })), "orq", SEM_PROGRESSO));
-    expect(p.pilula.texto).toBe("5 frentes");
+    expect(p.pilula.texto).toBe("5 tarefas");
     expect(p.pilula.resto).toEqual(["3 de 5 prontas"]);
-    expect(p.partes.botao).toBe('<span class="pf-ponto vivo" aria-hidden="true"></span><span class="pf-texto">5 frentes</span><span class="sr-only">, </span><span class="pf-resto">3 de 5 prontas</span>' + p.partes.botao.slice(p.partes.botao.indexOf("<svg")));
+    expect(p.partes.botao).toBe('<span class="pf-ponto vivo" aria-hidden="true"></span><span class="pf-texto">5 tarefas</span><span class="sr-only">, </span><span class="pf-resto">3 de 5 prontas</span>' + p.partes.botao.slice(p.partes.botao.indexOf("<svg")));
     const html = htmlDaPilula(p.partes, { aberta: false, escondida: false });
     expect(html).toContain(`<button type="button" class="pf-botao" data-act="pilula" aria-expanded="false" aria-controls="${ID_PAINEL}">`);
   });
 
   it("o título do lote vem do servidor (PR 5, `tituloDoLote`) quando ele manda; a frente sozinha diz o que está fazendo", () => {
     const comTitulo = HEROS.map((t) => ({ ...t, tituloDoLote: "frentes de hero" }));
-    expect(daPilula(pilulaNaConversa(estadoCom(comTitulo, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe(`${HEROS.length} frentes de hero`);
+    expect(daPilula(pilulaNaConversa(estadoCom(comTitulo, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe(`${HEROS.length} tarefas de hero`);
     const outroAssunto = HEROS.map((t) => ({ ...t, tituloDoLote: "Roteiros do hero" }));
-    expect(daPilula(pilulaNaConversa(estadoCom(outroAssunto, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe(`${HEROS.length} frentes · Roteiros do hero`);
-    const jaContado = HEROS.map((t) => ({ ...t, tituloDoLote: "5 frentes de hero" }));
-    expect(daPilula(pilulaNaConversa(estadoCom(jaContado, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe("5 frentes de hero");
+    expect(daPilula(pilulaNaConversa(estadoCom(outroAssunto, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe(`${HEROS.length} tarefas · Roteiros do hero`);
+    const jaContado = HEROS.map((t) => ({ ...t, tituloDoLote: "5 tarefas de hero" }));
+    expect(daPilula(pilulaNaConversa(estadoCom(jaContado, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe("5 tarefas de hero");
     const sozinha = [frente("h", "Hero do site", { loteId: "l2", lote: { id: "l2", abertoEm: AGORA, frentes: 1, abertas: 1 }, ultimoPasso: "montando o layout" })];
     const p = daPilula(pilulaNaConversa(estadoCom(sozinha, dono()), "orq", SEM_PROGRESSO));
     expect([p.pilula.texto, ...p.pilula.resto]).toEqual(["Hero do site", "montando o layout"]);
@@ -95,8 +95,8 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
     expect(p.pilula.texto).toBe("2 lotes");
     expect(p.pilula.resto).toEqual(["4 de 7 prontas"]);
     // Alargada, separa por lote.
-    expect(p.partes.corpo).toContain('<h3 class="pf-lote">5 frentes · 3 de 5 prontas</h3>');
-    expect(p.partes.corpo).toContain('<h3 class="pf-lote">2 frentes · 1 de 2 prontas</h3>');
+    expect(p.partes.corpo).toContain('<h3 class="pf-lote">5 tarefas · 3 de 5 prontas</h3>');
+    expect(p.partes.corpo).toContain('<h3 class="pf-lote">2 tarefas · 1 de 2 prontas</h3>');
   });
 
   it("sem frentes: a espera com o ponto vazado (\"Esperando a CI do #845 · 38 min\") ou a fila (\"1 pedido na fila\")", () => {
@@ -152,7 +152,7 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
 
   it("o cabeçalho com o resumo e \"fechar\"; no pé, \"Ver na conversa ↑\" (com a fala na janela) e \"Parar\"", () => {
     // Paper 15c: o ponto na cor do bot, o título forte e só "N de M prontas" em cinza; "⌄ fechar".
-    expect(p.partes.cab).toContain('<span class="pf-cab-titulo"><b>5 frentes</b><span class="pf-cab-resto">3 de 5 prontas</span></span>');
+    expect(p.partes.cab).toContain('<span class="pf-cab-titulo"><b>5 tarefas</b><span class="pf-cab-resto">3 de 5 prontas</span></span>');
     expect(p.partes.cab).toContain(`class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">`);
     expect(p.partes.cab).toMatch(/<\/svg>fechar<\/button>$/);
     expect(p.partes.pe).toContain('data-act="pilula-ver-na-conversa">Ver na conversa');
@@ -166,18 +166,18 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     const d = dono({ esperando: 1, motivoEspera: "a CI do #845", fila: 1 }, [{ tipo: "comando", trabalhoId: "w5", motivo: "a CI do #845", desde: AGORA - 38 * MIN, comando: "gh pr checks 845 --watch", ultimaLinha: "checks · pending", tentativa: 2, tentativas: 3 }], [{ turnoId: "t1", de: "colega", nome: "Leonardo", desde: new Date(2026, 9, 18, 1, 2).getTime() }]);
     const corpo = daPilula(pilulaNaConversa(estadoCom(HEROS, d), "orq", SEM_PROGRESSO)).partes.corpo;
     expect(corpo.indexOf('<h3 class="pf-secao">Esperando</h3>')).toBeGreaterThan(corpo.indexOf("Hero w4"));
-    expect(corpo).toContain('<code class="pf-comando">gh pr checks 845 --watch</code><span class="pf-sub mono">última linha: checks · pending</span><span class="pf-sub">volta quando a CI do #845 terminar · tentativa 2 de 3 · da frente Hero w5 · Boot do time</span></span><span class="pf-item-fim">38 min</span>');
+    expect(corpo).toContain('<code class="pf-comando">gh pr checks 845 --watch</code><span class="pf-sub mono">última linha: checks · pending</span><span class="pf-sub">volta quando a CI do #845 terminar · tentativa 2 de 3 · da tarefa Hero w5 · Boot do time</span></span><span class="pf-item-fim">38 min</span>');
     expect(corpo.indexOf('<h3 class="pf-secao">Na fila</h3>')).toBeGreaterThan(corpo.indexOf("Esperando</h3>"));
     expect(corpo).toContain('<span class="pf-item-titulo">Pedido do Leonardo</span></span><span class="pf-item-fim">01:02</span>');
   });
 
   it("o painel é uma região com nome; fechado ele é `hidden`, aberto não", () => {
     const fechada = htmlDaPilula(p.partes, { aberta: false, escondida: false });
-    expect(fechada).toContain(`<section class="pf-painel" id="${ID_PAINEL}" role="region" aria-label="Frentes de Orquestrador de Sites" hidden>`);
+    expect(fechada).toContain(`<section class="pf-painel" id="${ID_PAINEL}" role="region" aria-label="Tarefas de Orquestrador de Sites" hidden>`);
     const aberta = htmlDaPilula(p.partes, { aberta: true, escondida: false });
     expect(aberta).toContain('<div class="pilula-frentes" data-estado="aberta">');
     expect(aberta).toContain('aria-expanded="true"');
-    expect(aberta).toContain('role="region" aria-label="Frentes de Orquestrador de Sites"><div class="pf-cab">');
+    expect(aberta).toContain('role="region" aria-label="Tarefas de Orquestrador de Sites"><div class="pf-cab">');
     // No celular a folha tem o fundo que fecha ao toque, fora do Tab e da árvore de acessibilidade.
     expect(aberta).toContain('<button type="button" class="pf-fundo" data-act="pilula" data-recolher="1" tabindex="-1" aria-hidden="true"></button>');
   });

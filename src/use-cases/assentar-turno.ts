@@ -1281,7 +1281,7 @@ async function aposErroTransitorioNoFundo(
   });
   const ia = p.ia ? nomeDaIa(p.ia) : "IA";
   const chave = turno.trabalhoId ? "frente" : daRotina ? "rotina" : "pedido";
-  const pedido = chave === "frente" ? "Esta task" : chave === "rotina" ? "Esta execução da rotina" : "Este pedido";
+  const pedido = chave === "frente" ? "Esta tarefa" : chave === "rotina" ? "Esta execução da rotina" : "Este pedido";
   if (decisao.tipo === "desistir") {
     log("aviso", "fundo_desistiu", { turno_id: turno.id, causa: "erro_transitorio", motivo: decisao.motivo, tentativas, fundo: chave });
     // Quem pediu ao colega lê UMA vez que parou de tentar; a conversa do bot fica com o aviso de sempre (quem chamou).

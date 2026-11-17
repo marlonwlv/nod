@@ -85,7 +85,7 @@ export function renderFaixaTrabalhos(estado: Estado, agenteId: string): string {
     const r = resumoDaPilula(lista);
     const ponto = r.ponto === "trabalhando" ? `${esc(bot?.cor ?? "")} pulso-trab` : r.ponto;
     const precisa = r.precisa > 0 && r.precisa < n ? `<span class="pt-precisa">· ${r.precisa} ${r.precisa === 1 ? "precisa" : "precisam"} de você</span>` : "";
-    return `<div class="faixa-trab-lugar"><button type="button" class="pilula-trab" data-act="faixa-trabalhos" data-recolher="0" aria-expanded="false" aria-label="Abrir os trabalhos de ${esc(nome)}: ${n} ${n === 1 ? "aberto" : "abertos"}"><span class="ponto-trabalho ${ponto}" aria-hidden="true"></span>${n === 1 && lista[0] ? umTrabalhoNaPilula(lista[0]) : `<span><b>${n}</b> ${r.texto}</span>`}${precisa}${ICONE.recolher}</button></div>`;
+    return `<div class="faixa-trab-lugar"><button type="button" class="pilula-trab" data-act="faixa-trabalhos" data-recolher="0" aria-expanded="false" aria-label="Abrir as tarefas de ${esc(nome)}: ${n} ${n === 1 ? "aberta" : "abertas"}"><span class="ponto-trabalho ${ponto}" aria-hidden="true"></span>${n === 1 && lista[0] ? umTrabalhoNaPilula(lista[0]) : `<span><b>${n}</b> ${r.texto}</span>`}${precisa}${ICONE.recolher}</button></div>`;
   }
   const todos = trabalhosConhecidos(estado, bot?.conversaId);
   const segurando = estado.trabalhos?.segurando === true;
@@ -96,12 +96,12 @@ export function renderFaixaTrabalhos(estado: Estado, agenteId: string): string {
   // "Trabalhos · Cecília": sem "do"/"da" — o nome do bot não diz o gênero (o print do Marlon tinha "Trabalhos do Cecília").
   // ADR-167 (Paper 15c): com um lote de frentes, o cabeçalho é o do lote ("5 frentes do Dante · 2 de 5 prontas").
   const lote = lista.find((t) => t.lote)?.lote;
-  const titulo = lote ? lista.find((t) => t.tituloDoLote)?.tituloDoLote ?? `${lote.frentes} frentes` : null;
+  const titulo = lote ? lista.find((t) => t.tituloDoLote)?.tituloDoLote ?? `${lote.frentes} tarefas` : null;
   const prontas = lote ? todos.filter((t) => t.lote?.id === lote.id && t.estado === "terminado").length : 0;
   const cab = titulo && lote
     ? `<span class="ft-lote"><i class="ponto-aguardando" aria-hidden="true"></i><b>${esc(titulo)}</b><span class="ft-prontas">${prontas} de ${lote.frentes} prontas</span></span>`
-    : `<span>Trabalhos · ${esc(nome)}</span><span class="ft-n">${n}</span>`;
-  return `<section class="faixa-trab" aria-label="Trabalhos de ${esc(nome)}"><div class="ft-cab">${cab}<button type="button" class="ft-recolher" data-act="faixa-trabalhos" data-recolher="1" aria-expanded="true" aria-label="Recolher em pílula" title="Recolher em pílula">${ICONE.abrir}${titulo ? '<span class="ft-fechar">fechar</span>' : ""}</button></div>${linhas}</section>`;
+    : `<span>Tarefas · ${esc(nome)}</span><span class="ft-n">${n}</span>`;
+  return `<section class="faixa-trab" aria-label="Tarefas de ${esc(nome)}"><div class="ft-cab">${cab}<button type="button" class="ft-recolher" data-act="faixa-trabalhos" data-recolher="1" aria-expanded="true" aria-label="Recolher em pílula" title="Recolher em pílula">${ICONE.abrir}${titulo ? '<span class="ft-fechar">fechar</span>' : ""}</button></div>${linhas}</section>`;
 }
 
 // ---- barra lateral (#196, K8 variante 3) -------------------------------------------------------------------------------
@@ -122,7 +122,7 @@ export function chipTrabalhosDoBot(estado: Estado, a: Pick<Agente, "id" | "cor" 
   const esperando = lista.filter((t) => emEspera(t)).length;
   const soEspera = !trabalhando && esperando > 0 && !lista.some((t) => t.estado === "precisa_de_voce" || t.estado === "fechado_ocioso");
   const n = lista.length;
-  const titulo = `${n} ${n === 1 ? "trabalho aberto" : "trabalhos abertos"}${esperando > 0 ? ` · ${esperando} esperando` : ""}`;
+  const titulo = `${n} ${n === 1 ? "tarefa aberta" : "tarefas abertas"}${esperando > 0 ? ` · ${esperando} esperando` : ""}`;
   const ponto = soEspera ? "fora-do-mac" : `${esc(a.cor)}${trabalhando ? " pulso-trab" : ""}`;
   return `<span class="chip-trab" title="${titulo}"><span class="ponto-trabalho ${ponto}" aria-hidden="true"></span>${n}</span>`;
 }
@@ -134,7 +134,7 @@ export function renderIconeTrabalhos(estado: Estado): string {
   const n = (estado.trabalhos?.trabalhos ?? []).filter(aberto).length;
   const naTela = estado.tela.tipo === "trabalhos";
   if (n === 0 && !naTela) return "";
-  return `<button class="icone-topo trabalhos-bt" data-act="navegar" data-tela="trabalhos" aria-current="${naTela ? "page" : "false"}" aria-label="Trabalhos: ${n} ${n === 1 ? "aberto" : "abertos"}" title="Trabalhos">${ICONE_TRABALHOS}${n ? `<span class="contagem-topo" aria-hidden="true">${n}</span>` : ""}</button>`;
+  return `<button class="icone-topo trabalhos-bt" data-act="navegar" data-tela="trabalhos" aria-current="${naTela ? "page" : "false"}" aria-label="Tarefas: ${n} ${n === 1 ? "aberta" : "abertas"}" title="Tarefas">${ICONE_TRABALHOS}${n ? `<span class="contagem-topo" aria-hidden="true">${n}</span>` : ""}</button>`;
 }
 
 // ---- gaveta e "Todos os trabalhos" (#196, K3/K9/M3) ----------------------------------------------------------------------
@@ -169,7 +169,7 @@ export function renderGavetaTrabalhos(estado: Estado, agenteId: string): string 
     return `<section class="gv-secao tr-grupo" data-grupo="${g.chave}"><h3>${g.titulo} · ${grupos[g.chave].length}</h3><div class="gv-cartao">${linhas}</div></section>`;
   });
   if (!estado.trabalhos && secoes.length === 0) return '<p class="mudo">carregando…</p>';
-  return secoes.join("") || '<p class="mudo">Nenhuma task hoje. Quando o bot abrir uma, ela aparece aqui — e no chat, numa linha.</p>';
+  return secoes.join("") || '<p class="mudo">Nenhuma tarefa hoje. Quando o bot abrir uma, ela aparece aqui — e no chat, numa linha.</p>';
 }
 
 /**
@@ -203,7 +203,7 @@ const FILTROS: { id: FiltroTrabalhos; nome: string }[] = [
  */
 /** ADR-167 (Paper 16): o segmentado "Por bot | Por frente" do topo de Trabalhos (só com o dono de cada bot no servidor). */
 export function segmentadoDosTrabalhos(porBot: boolean): string {
-  return `<div class="tt-vista" role="group" aria-label="Ver os trabalhos"><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="por-bot" aria-pressed="${porBot}">Por bot</button><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="todos" aria-pressed="${!porBot}">Por frente</button></div>`;
+  return `<div class="tt-vista" role="group" aria-label="Ver as tarefas"><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="por-bot" aria-pressed="${porBot}">Por bot</button><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="todos" aria-pressed="${!porBot}">Por tarefa</button></div>`;
 }
 
 export function renderTodosOsTrabalhos(estado: Estado, filtro: FiltroTrabalhos = "todos", comPorBot = false): string {
@@ -233,9 +233,9 @@ export function renderTodosOsTrabalhos(estado: Estado, filtro: FiltroTrabalhos =
     return `<button type="button" class="tt-linha" data-act="abrir-trabalho" data-id="${esc(t.id)}">${pontoTrabalho(t, bot?.cor)}<span class="tt-bot">${bot ? iconeAgente(bot, "sm") : ""}<b>${esc(bot?.nome ?? "bot")}</b></span><span class="tt-meio">${tituloDaLinha(t, "tt-titulo")}${etiqueta(t)}<span class="tt-passo"${dica ? ` title="${esc(dica)}"` : ""}>${esc(passo)}</span></span><span class="tt-fim">${esc(fim + mem)}</span></button>`;
   };
   const secoes = GRUPOS.filter((g) => grupos[g.chave].length > 0).map((g) => `<section class="tt-grupo" data-grupo="${g.chave}"><h2>${g.titulo} · ${grupos[g.chave].length}${g.chave === "trabalhando" && grupos.trabalhando.some((t) => t.memoriaMb !== null) ? " · os que mais usam memória primeiro" : ""}</h2><div class="tt-lista">${grupos[g.chave].map(linha).join("")}</div></section>`).join("");
-  const vazio = filtro === "todos" ? "Nenhum bot está trabalhando agora. Quando um bot abrir uma task, rodar uma rotina ou atender um colega, aparece aqui." : "Nada com este filtro hoje.";
-  return `<section class="tela-trabalhos" aria-label="Todos os trabalhos">
-    <header class="tt-cab"><div><h1>Trabalhos</h1><p>${esc(resumoDosTrabalhos(agrupar(todos, estado.agora), memoriaDosBots(estado.trabalhos)))}</p></div>${comPorBot ? segmentadoDosTrabalhos(false) : ""}<div class="tt-filtros" role="group" aria-label="Filtrar trabalhos">${filtros}</div></header>
+  const vazio = filtro === "todos" ? "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui." : "Nada com este filtro hoje.";
+  return `<section class="tela-trabalhos" aria-label="Todas as tarefas">
+    <header class="tt-cab"><div><h1>Tarefas</h1><p>${esc(resumoDosTrabalhos(agrupar(todos, estado.agora), memoriaDosBots(estado.trabalhos)))}</p></div>${comPorBot ? segmentadoDosTrabalhos(false) : ""}<div class="tt-filtros" role="group" aria-label="Filtrar tarefas">${filtros}</div></header>
     ${pilulaDaCota(estado.trabalhos.cota, todos, estado.agora, estado.trabalhos.pedidosNaFila)}${pilula}
     ${secoes || `<p class="tt-vazio">${vazio}</p>`}
   </section>`;
@@ -255,7 +255,7 @@ function pedidaPor(t: TrabalhoDto, estado: Estado): string {
  */
 export function renderTopoTrabalho(estado: Estado, id: string): string {
   const t = trabalhoPorId(estado, id);
-  if (!t) return '<div class="tk-topo"><span class="tk-chip">carregando a task…</span></div>';
+  if (!t) return '<div class="tk-topo"><span class="tk-chip">carregando a tarefa…</span></div>';
   const bot = agente(estado, t.agenteId);
   const nome = bot?.nome ?? "bot";
   // definido em 2026-10-08 (QA do épico, K7): no pedido de colega, o chip mostra quem pediu › quem faz.
@@ -267,14 +267,14 @@ export function renderTopoTrabalho(estado: Estado, id: string): string {
   const fora = emEspera(t);
   const status = !aberto(t) ? `${situacaoDe(t)} · ${tempoDe(t, estado.agora)}` : fora ? situacaoDe(t, [], false, estado.agora) : t.estado === "rodando" ? "trabalhando" : situacaoDe(t);
   const abertoCartao = estado.tempoTaskAberto === t.id;
-  const botaoStatus = `<button type="button" class="tk-status${fora ? " fora-do-mac" : ""}" data-act="tempo-task" data-id="${esc(t.id)}" aria-expanded="${abertoCartao}" title="Ver o tempo da task">${esc(status)}${ICONE_ABRIR_TEMPO}</button>`;
+  const botaoStatus = `<button type="button" class="tk-status${fora ? " fora-do-mac" : ""}" data-act="tempo-task" data-id="${esc(t.id)}" aria-expanded="${abertoCartao}" title="Ver o tempo da tarefa">${esc(status)}${ICONE_ABRIR_TEMPO}</button>`;
   const chip = `<span class="tk-chip">${pontoTrabalho(t, bot?.cor)}${quemPediu}${bot ? iconeAgente(bot, "sm", t.estado === "rodando" && !fora ? "trabalhando" : "disponivel") : ""}<span class="tk-titulo">${esc(t.titulo)}</span>${botaoStatus}</span>`;
   const espera = t.esperandoComputadorDe ? `<p class="tk-espera" role="status">esperando o computador do ${esc(nome)} (em uso por: ${esc(t.esperandoComputadorDe)})</p>` : "";
   // Paper 15b (rodada 2): a frente tem "← Conversa" à esquerda e "Parar frente" à direita, no topo; a linha de quem pediu
   // desce para o começo da conversa da frente (`metaDaFrente`). A task de outra forma segue como era.
   if (t.forma === "frente") {
     const voltar = `<button type="button" class="tk-voltar" data-act="fechar-trabalho" aria-label="Voltar para a conversa">${ICONE_VOLTAR}<span>Conversa</span></button>`;
-    const parar = aberto(t) ? `<button type="button" class="tk-parar-frente" data-act="parar-trabalho" data-id="${esc(t.id)}">${ICONE_PARAR}Parar frente</button>` : "";
+    const parar = aberto(t) ? `<button type="button" class="tk-parar-frente" data-act="parar-trabalho" data-id="${esc(t.id)}">${ICONE_PARAR}Parar tarefa</button>` : "";
     return `<div class="tk-topo tk-topo-frente">${voltar}${chip}${parar}${abertoCartao ? cartaoDoTempoDaFrente(t, estado.agora, bot?.cor) : ""}${espera}${linhaDaEsperaDaMaquina(t, estado)}${linhaDaEsperaDaConta(t, estado.agora)}${acoesDeFazer(t, estado, t.conversaId)}</div>`;
   }
   return `<div class="tk-topo">${chip}${abertoCartao ? cartaoDoTempo(t, estado.agora) : ""}<p class="tk-linha">${esc(linhaDeQuemPediu(t, estado))}</p>${espera}${linhaDaEsperaDaMaquina(t, estado)}${linhaDaEsperaDaConta(t, estado.agora)}${acoesDeFazer(t, estado, t.conversaId)}</div>`;
@@ -287,7 +287,7 @@ const ICONE_PARAR = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"
 function linhaDeQuemPediu(t: TrabalhoDto, estado: Estado): string {
   const nome = agente(estado, t.agenteId)?.nome ?? "bot";
   const frente = t.forma === "frente";
-  return [`${frente ? "Frente" : "task"} do ${nome}, ${pedidaPor(t, estado)}`, `com os acessos do ${nome}`, t.pasta ? (frente ? t.pasta : `pasta ${t.pasta}`) : "", custoDaFrente(t) !== null ? `${custoDaFrente(t)} até agora` : ""].filter(Boolean).join(" · ");
+  return [`Tarefa do ${nome}, ${pedidaPor(t, estado)}`, `com os acessos do ${nome}`, t.pasta ? (frente ? t.pasta : `pasta ${t.pasta}`) : "", custoDaFrente(t) !== null ? `${custoDaFrente(t)} até agora` : ""].filter(Boolean).join(" · ");
 }
 
 /**
@@ -331,9 +331,9 @@ function cartaoDoTempo(t: TrabalhoDto, agora: number): string {
   // ADR-086 (combinado com o protótipo "Nod — tempo da task"): a espera não ocupa o Mac, e a pessoa vê que a task volta
   // sozinha — no próprio rodapé, um fecho só e a hora uma vez.
   const rodape = colega
-    ? `<div class="tk-pop-rodape"><span>${esc(colega.nome)} recebeu o pedido às ${esc(hora(colega.desde))} · fora do Mac, volta sozinha</span>${colega.trabalhoId ? `<button type="button" class="tk-pop-link" data-act="abrir-trabalho" data-id="${esc(colega.trabalhoId)}">Ver task</button>` : ""}</div>`
+    ? `<div class="tk-pop-rodape"><span>${esc(colega.nome)} recebeu o pedido às ${esc(hora(colega.desde))} · fora do Mac, volta sozinha</span>${colega.trabalhoId ? `<button type="button" class="tk-pop-link" data-act="abrir-trabalho" data-id="${esc(colega.trabalhoId)}">Ver tarefa</button>` : ""}</div>`
     : volta ? `<div class="tk-pop-rodape"><span>fora do Mac · volta ${esc(quandoVolta(volta, agora))}</span></div>` : "";
-  return `<div class="tk-pop" role="group" aria-label="Tempo da task">
+  return `<div class="tk-pop" role="group" aria-label="Tempo da tarefa">
     <div class="tk-pop-linha tk-pop-total"><span>${aberto(t) ? "Aberta há" : "Durou"}</span><b>${esc(duracaoCurta(abertaMs))}</b></div>
     <div class="tk-pop-barra" role="img" aria-label="Trabalhou ${esc(duracaoCurta(trabalhouMs))}, esperou ${esc(duracaoCurta(esperouMs))}"><span style="width:${pct}%"></span></div>
     <div class="tk-pop-linha"><span class="tk-pop-ponto trabalhou" aria-hidden="true"></span><span>Trabalhando</span><b>${esc(duracaoCurta(trabalhouMs))}</b></div>
@@ -354,9 +354,9 @@ export function cartaoDoTempoDaFrente(t: TrabalhoDto, agora: number, cor?: strin
   const volta = esperandoColega(t) ? null : voltaMarcada(t);
   const colega = esperandoColega(t);
   const rodape = colega
-    ? `<div class="tk-pop-rodape"><span>${esc(colega.nome)} recebeu o pedido às ${esc(hora(colega.desde))} · fora do Mac, volta sozinha</span>${colega.trabalhoId ? `<button type="button" class="tk-pop-link" data-act="abrir-trabalho" data-id="${esc(colega.trabalhoId)}">Ver task</button>` : ""}</div>`
+    ? `<div class="tk-pop-rodape"><span>${esc(colega.nome)} recebeu o pedido às ${esc(hora(colega.desde))} · fora do Mac, volta sozinha</span>${colega.trabalhoId ? `<button type="button" class="tk-pop-link" data-act="abrir-trabalho" data-id="${esc(colega.trabalhoId)}">Ver tarefa</button>` : ""}</div>`
     : volta ? `<div class="tk-pop-rodape"><span>fora do Mac · volta ${esc(quandoVolta(volta, agora))}</span></div>` : "";
-  return `<div class="tk-pop tk-pop-frente${classeCor}" role="group" aria-label="Tempo da frente">`
+  return `<div class="tk-pop tk-pop-frente${classeCor}" role="group" aria-label="Tempo da tarefa">`
     + `<div class="tk-pop-total">${aberto(t) ? "Aberta há" : "Durou"} ${esc(duracaoCurta(abertaMs))}</div>`
     + `<div class="tk-pop-barra" role="img" aria-label="Trabalhou ${esc(duracaoCurta(trabalhouMs))}, esperou ${esc(duracaoCurta(esperouMs))}">${seg(trabalhouMs, "trabalhou")}${seg(esperouMs, "esperou")}</div>`
     + `<div class="tk-pop-pe"><span>Trabalhando ${esc(duracaoCurta(trabalhouMs))}</span><span class="tk-pop-esperou">Esperando ${esc(duracaoCurta(esperouMs))}</span></div>`
@@ -365,7 +365,7 @@ export function cartaoDoTempoDaFrente(t: TrabalhoDto, agora: number, cor?: strin
 
 function aberturaDaTask(t: TrabalhoDto, estado: Estado): string {
   const quem = t.pedidoPorNome ?? agente(estado, t.pedidoPorAgenteId)?.nome ?? "colega";
-  const texto = t.origem === "colega" ? `pedido do ${quem} · a resposta volta para o ${quem}` : t.origem === "rotina" ? `execução da rotina ${t.rotinaNome ?? ""}`.trim() : t.origem === "rede" ? "a conversa virou task" : "aberta por você na conversa";
+  const texto = t.origem === "colega" ? `pedido do ${quem} · a resposta volta para o ${quem}` : t.origem === "rotina" ? `execução da rotina ${t.rotinaNome ?? ""}`.trim() : t.origem === "rede" ? "a conversa virou tarefa" : "aberta por você na conversa";
   return `<div class="time-sep">${esc(hora(t.criadoEm))} · ${esc(texto)}</div>`;
 }
 
@@ -387,7 +387,7 @@ export function renderTelaTrabalho(estado: Estado, id: string): string {
 export function blocosDoHistoricoDaTask(estado: Estado, id: string): BlocoDaTimeline[] {
   const d = estado.trabalhoDetalhe[id];
   const t = d?.trabalho ?? trabalhoPorId(estado, id);
-  if (!t) return [{ chave: "carregando", html: '<p class="mudo tk-carregando">carregando a task…</p>' }];
+  if (!t) return [{ chave: "carregando", html: '<p class="mudo tk-carregando">carregando a tarefa…</p>' }];
   // NOD-376: a fala da pessoa ainda sem resposta leva o chip "Na fila" / "Entregue" (some quando o bot responde).
   const bot = agente(estado, t.agenteId)?.nome ?? "o bot";
   // A reabertura (turno.iniciado) relê o detalhe (RELEEM_A_TASK), então o estado aqui não fica o de antes dela.
@@ -395,7 +395,7 @@ export function blocosDoHistoricoDaTask(estado: Estado, id: string): BlocoDaTime
     const f = d?.falasNaFila?.find((x) => x.mensagemId === mid);
     return f ? { chipDaFala: chipDaFalaNaFrente(f.situacao, bot, { rodando: Boolean(t.turnoVivoId), precisaDeVoce: t.estado === "precisa_de_voce" }) } : {};
   };
-  const mensagens = d ? d.mensagens.map((m) => ({ chave: m.id, html: renderMensagem(m, estado, false, chip(m.id)) })) : [{ chave: "carregando", html: '<p class="mudo tk-carregando">carregando a conversa da task…</p>' }];
+  const mensagens = d ? d.mensagens.map((m) => ({ chave: m.id, html: renderMensagem(m, estado, false, chip(m.id)) })) : [{ chave: "carregando", html: '<p class="mudo tk-carregando">carregando a conversa da tarefa…</p>' }];
   // Paper 15b: a frente começa pela linha de quem pediu, no lugar do separador da abertura.
   const abertura = t.forma === "frente" ? `<p class="tk-meta">${esc(linhaDeQuemPediu(t, estado))}</p>` : aberturaDaTask(t, estado);
   return [{ chave: "abertura", html: abertura }, ...mensagens];
@@ -494,7 +494,7 @@ export function blocosAoVivoDaTask(estado: Estado, id: string): BlocoDaTimeline[
 
 /** Os botões embaixo do campo da task: Parar task (só com ela aberta; main.ts esconde ao terminar) e Fechar. */
 export function htmlAcoesDaTask(id: string): string {
-  return `<div class="tk-acoes">${botao("parar-trabalho", "Parar task", { id, classe: "tk-parar" })}${botao("fechar-trabalho", "Fechar", { classe: "tk-fechar" })}</div>`;
+  return `<div class="tk-acoes">${botao("parar-trabalho", "Parar tarefa", { id, classe: "tk-parar" })}${botao("fechar-trabalho", "Fechar", { classe: "tk-fechar" })}</div>`;
 }
 
 // ---- a tela provisória de uma linha (#191) ------------------------------------------------------------------------------

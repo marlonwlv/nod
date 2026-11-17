@@ -126,15 +126,15 @@ describe("lista única de contas (ADR-102)", () => {
     expect(remover).toContain("Vão parar: <b>Login no Safari</b> (vm-bots) e <b>a conversa com Ze 1</b> (Mac).");
     const nenhuma = renderListaDeContas(ctx({ ui: { confirmar: { tipo: "sair", contaId: PESSOAL.id, maquinaId: VM, frentes: [] } } }));
     expect(nenhuma).not.toContain("Vão parar");
-    expect(nenhuma).toContain('<p class="cl-caixa" role="status">Nenhuma frente usa esta conta agora.</p>');
+    expect(nenhuma).toContain('<p class="cl-caixa" role="status">Nenhuma tarefa usa esta conta agora.</p>');
     expect(nenhuma).toContain("A vm-bots fica sem conta de IA");
     const semConferir = renderListaDeContas(ctx({ ui: { confirmar: { tipo: "sair", contaId: PESSOAL.id, maquinaId: VM, frentes: null } } }));
-    expect(semConferir).toContain('<p class="cl-caixa cl-caixa-aviso" role="status">Não deu para conferir se alguma frente usa esta conta. Se houver alguma, ela para ao sair.</p>');
+    expect(semConferir).toContain('<p class="cl-caixa cl-caixa-aviso" role="status">Não deu para conferir se alguma tarefa usa esta conta. Se houver alguma, ela para ao sair.</p>');
     expect(semConferir).toContain('data-act="cl-confirmar"');
     const removerSemConferir = renderListaDeContas(ctx({ ui: { confirmar: { tipo: "remover", contaId: PESSOAL.id, frentes: null } } }));
     expect(removerSemConferir).toContain("Se houver alguma, ela para ao remover.");
     const pendente = renderListaDeContas(ctx({ ui: { confirmar: { tipo: "sair", contaId: PESSOAL.id, maquinaId: VM } } }));
-    expect(pendente).toContain('<p class="cl-caixa" role="status">Conferindo as frentes que usam esta conta…</p>');
+    expect(pendente).toContain('<p class="cl-caixa" role="status">Conferindo as tarefas que usam esta conta…</p>');
     expect(pendente).toContain('data-act="cl-confirmar" disabled aria-busy="true"');
     // Revisor do PR #429: o foco vai ao "Cancelar" já ao abrir, durante a busca (até 5 s).
     expect(pendente).toContain('data-act="cl-confirmar-fechar" data-cl-autofoco>Cancelar</button>');
@@ -196,9 +196,9 @@ describe("lista única de contas (ADR-102)", () => {
     expect(html).toContain(`role="switch" aria-checked="false" data-act="cl-fila" data-id="${LUMEN.id}"`);
     expect(html).toContain("Quando uma conta acabar");
     for (const r of REGRAS_DA_FILA) expect(html).toContain(`<dt>${r.titulo}</dt>`); // tela 19: tabela de duas colunas
-    // Revisão do PR 2 (I1): só no Claude nada se perde; no ChatGPT a task com sessão recomeçaria do resumo noutra conta.
+    // Revisão do PR 2 (I1): só no Claude nada se perde; no ChatGPT a tarefa com sessão recomeçaria do resumo noutra conta.
     expect(REGRAS_DA_FILA[0]?.texto).toContain("No Claude, nada se perde.");
-    expect(REGRAS_DA_FILA[0]?.texto).toContain("No ChatGPT, a task com sessão recomeçaria do resumo noutra conta");
+    expect(REGRAS_DA_FILA[0]?.texto).toContain("No ChatGPT, a tarefa com sessão recomeçaria do resumo noutra conta");
     expect(html).toContain("<dt>Outra IA</dt><dd>só nos bots em Automático");
     expect(html).toContain("o Nod recomenda esperar ou trocar");
     // Fora da fila e livre: a linha diz isso (no lugar de "Disponível").

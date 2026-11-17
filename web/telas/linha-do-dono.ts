@@ -52,7 +52,7 @@ export function memoriaDoMac(estado: Estado, agenteId: string, conversaId: strin
   const semMemoria = maquinas !== undefined && rodandoAqui === 0;
   const alvo = disco ? `data-act="secao-espaco" data-secao="${disco.ehMac ? "este-mac" : "maquinas"}"` : 'data-act="navegar" data-tela="trabalhos"';
   const texto = disco
-    ? `${disco.ehMac ? "Pouco espaço no disco do seu Mac" : `Pouco espaço no disco em ${disco.nome}`} · nenhuma task nova começa`
+    ? `${disco.ehMac ? "Pouco espaço no disco do seu Mac" : `Pouco espaço no disco em ${disco.nome}`} · nenhuma tarefa nova começa`
     : semMemoria ? null : nivel === "amarela" ? `Pouca memória no seu Mac · ${n}` : nivel === "vermelha" ? `Seu Mac está quase sem memória · pode travar; ${n}` : null;
   if (!texto) return null;
   return { texto, nivel: disco || nivel === "vermelha" ? "vermelha" : "amarela", alvo, abertos, rodandoAqui, disco: Boolean(disco) };
@@ -107,7 +107,7 @@ function fraseDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[]
   const desde = e.desde ?? estado.agora;
   // Paper 16 (rodada 3 da casca): à direita, a contagem curta ("4 frentes", "1 frente", "1 aprovação") e o tempo — "desde
   // 10:05" para quem tem frentes, "há 3 min" para o pedido sem frente; o resto (esperas, fila) fica no title da linha.
-  const frentes = e.frentes > 0 ? plural(e.frentes, "frente", "frentes") : "";
+  const frentes = e.frentes > 0 ? plural(e.frentes, "tarefa", "tarefas") : "";
   if (x.grupo === "precisa") {
     const ds = decisoesDoBot(estado, x.bot.id);
     const d = ds[0];
@@ -186,8 +186,8 @@ export function renderTrabalhosPorBot(estado: Estado): string {
   // ADR-167 (Paper 16): "Livres", os mascotes e os nomes (até três, depois "e mais N").
   const nomes = nomesLivres.length > 4 ? `${nomesLivres.slice(0, 3).join(", ")} e mais ${nomesLivres.length - 3}` : nomesLivres.join(", ");
   const livresHtml = nomesLivres.length ? `<p class="tb-livres"><span class="tb-livres-rot">Livres</span><span class="tb-livres-av" aria-hidden="true">${livres.map((b) => iconeAgente(b, "sm")).join("")}</span><span class="tb-livres-nomes">${esc(nomes)}</span></p>` : "";
-  const vazio = linhas.length ? "" : `<p class="tt-vazio">Nenhum bot está trabalhando agora. Quando um bot começar uma frente, esperar algo ou precisar de você, aparece aqui.</p>`;
-  return `<section class="tela-trabalhos" aria-label="Trabalhos">
+  const vazio = linhas.length ? "" : `<p class="tt-vazio">Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui.</p>`;
+  return `<section class="tela-trabalhos" aria-label="Tarefas">
     <header class="tt-cab"><div><h1>Trabalhos</h1><p>${esc(resumoPorBot(linhas, memoriaDosBots(estado.trabalhos)))}</p></div>${segmentadoDosTrabalhos(true)}</header>
     ${pilulaDaCota(estado.trabalhos.cota, todos, estado.agora, estado.trabalhos.pedidosNaFila)}${pilulaDoTopo(estado)}
     ${secoes}${vazio}${livresHtml}
@@ -215,7 +215,7 @@ function pilulaDoTopo(estado: Estado): string {
 function faixaDeMemoria(nivel: string | null, n: number, rotulo: "rodando" | "abertos"): string {
   if (nivel !== "amarela" && nivel !== "vermelha") return "";
   if (rotulo === "rodando" && n <= 0) return "";
-  const conta = rotulo === "rodando" ? `${n} ${n === 1 ? "frente rodando" : "frentes rodando"} aqui` : `${n} ${n === 1 ? "frente aberta" : "frentes abertas"}`;
+  const conta = rotulo === "rodando" ? `${n} ${n === 1 ? "tarefa rodando" : "tarefas rodando"} aqui` : `${n} ${n === 1 ? "tarefa aberta" : "tarefas abertas"}`;
   const frase = nivel === "amarela" ? "Seu Mac está com pouca memória · " : "Seu Mac está quase sem memória · pode travar; ";
   return `<button type="button" class="tb-faixa-memoria ${nivel}" data-act="secao-espaco" data-secao="este-mac"${nivel === "vermelha" ? ' role="alert"' : ""}>${ICONE_MEMORIA}<span class="tb-faixa-txt">${frase}${esc(conta)}</span><span class="tb-faixa-ver">Ver${ICONE.seta}</span></button>`;
 }
@@ -262,5 +262,5 @@ function frentesAbertasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly Trab
   void terminadas;
   const corpo = [...abertas.map(frente), daConversa, fila].join("");
   const conversa = `<button type="button" class="tb-abrir-conversa" data-act="abrir-conversa" data-conversa="${esc(x.bot.conversaId)}" data-agente="${esc(x.bot.id)}">Abrir a conversa com ${esc(x.bot.nome)} ›</button>`;
-  return `<div class="tb-frentes" role="group" aria-label="Frentes de ${esc(x.bot.nome)}">${corpo || '<p class="tb-sub">Nenhuma frente hoje.</p>'}${conversa}</div>`;
+  return `<div class="tb-frentes" role="group" aria-label="Tarefas de ${esc(x.bot.nome)}">${corpo || '<p class="tb-sub">Nenhuma tarefa hoje.</p>'}${conversa}</div>`;
 }

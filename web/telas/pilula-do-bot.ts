@@ -61,9 +61,9 @@ function tituloDoGrupo(ts: readonly Pick<TrabalhoDto, "titulo" | "tituloDoLote">
   const doServidor = ts.map((t) => t.tituloDoLote?.trim()).find(Boolean);
   // O modelo dá o assunto ("frentes de hero", 2 a 5 palavras, PR 5); a pílula põe a conta na frente, como no protótipo
   // D4BE2 ("5 frentes de hero"). Título que já começa com um número fica como veio.
-  if (doServidor) return /^\d/.test(doServidor) ? doServidor : /^frentes\b/i.test(doServidor) ? `${ts.length} ${doServidor}` : `${ts.length} frentes · ${doServidor}`;
+  if (doServidor) return /^\d/.test(doServidor) ? doServidor : /^(frentes|tarefas)\b/i.test(doServidor) ? `${ts.length} ${doServidor.replace(/^frentes\b/i, "tarefas")}` : `${ts.length} tarefas · ${doServidor}`;
   const [unica] = ts;
-  return ts.length === 1 && unica ? tituloCurto(unica.titulo) : `${ts.length} frentes`;
+  return ts.length === 1 && unica ? tituloCurto(unica.titulo) : `${ts.length} tarefas`;
 }
 
 const VIVAS: readonly FrenteNaFala["estado"][] = ["rodando", "precisa", "esperando"];
@@ -250,7 +250,7 @@ function linhaDaMemoria(p: Pilula): string {
   const mb = p.abertas.reduce((s, t) => s + (t.memoriaMb ?? 0), 0);
   if (p.memoria || mb <= 0) return "";
   const qto = mb >= 1024 ? `${(mb / 1024).toFixed(1).replace(".", ",")} GB` : `${Math.round(mb)} MB`;
-  return `<p class="pf-memoria-info">${CHIP}As frentes do ${esc(p.nome)} usam ${qto} do seu Mac</p>`;
+  return `<p class="pf-memoria-info">${CHIP}As tarefas do ${esc(p.nome)} usam ${qto} do seu Mac</p>`;
 }
 const CHIP = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg>';
 
@@ -293,7 +293,7 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
     naConversa ? `<button type="button" class="pf-ver" data-act="pilula-ver-na-conversa">Ver na conversa${SETA_SOBE}</button>` : "",
     p.abertas.length ? `<button type="button" class="pf-parar" data-act="pilula-parar">${PARAR}Parar</button>` : "",
   ].join("");
-  const rotulo = p.grupos.length ? `Frentes de ${p.nome}` : `O que ${p.nome} está esperando`;
+  const rotulo = p.grupos.length ? `Tarefas de ${p.nome}` : `O que ${p.nome} está esperando`;
   return { chave: p.agenteId, botao, memoria, rotulo, cab, corpo: corpoDaPilula(p, mascote), pe, telemetria: chaveDaTelemetria(p.grupos) };
 }
 

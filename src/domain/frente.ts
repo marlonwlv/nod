@@ -124,9 +124,9 @@ export const DONO_INTEGRA = "Num repositório, dê a cada frente o repo e o bran
 
 /** "Começou a frente X" ou "Começou 3 frentes: A, B e C" (texto da mensagem `sistema`; a web desenha pelo payload). */
 export function textoFrentesAbertas(titulos: readonly string[]): string {
-  if (titulos.length === 1) return `Começou a frente ${titulos[0]}`;
+  if (titulos.length === 1) return `Começou a tarefa ${titulos[0]}`;
   const lista = titulos.length === 2 ? `${titulos[0]} e ${titulos[1]}` : `${titulos.slice(0, -1).join(", ")} e ${titulos.at(-1)}`;
-  return `Começou ${titulos.length} frentes: ${lista}`;
+  return `Começou ${titulos.length} tarefas: ${lista}`;
 }
 
 /**
@@ -137,7 +137,7 @@ export function textoFrentesAbertas(titulos: readonly string[]): string {
  */
 export function tituloDoLote(titulo: string | null, frentes: number, primeira: string): string {
   if (titulo) return titulo;
-  return frentes === 1 ? primeira : `${frentes} frentes`;
+  return frentes === 1 ? primeira : `${frentes} tarefas`;
 }
 
 /** definido em 2026-10-12 (I2): da última fala da frente, o resumo sem chamada leva até isto (o teto do texto é 1000). */

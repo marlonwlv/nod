@@ -436,7 +436,7 @@ export async function fecharPorMemoria(deps: DepsTrabalho, turnoId: string): Pro
   const fechado = await deps.repos.trabalhos.mudarEstado(t.id, "fechado_ocioso", deps.agora());
   if (!fechado) return { fechou: false, events: [] };
   const autoria = autoriaAgente({ agenteId: t.agenteId, contaDeExecucao: deps.escopo.pessoaId, executor: "catcher", decididoPor: "regra:memoria" });
-  const linha = await deps.repos.mensagens.criar({ conversaId: t.conversaId, autoria, kind: "sistema", assunto: "memoria.task_fechada", texto: `Fechei a task "${t.titulo}", parada esperando você, para liberar memória. Ela volta do mesmo ponto quando você responder.`, confianca: "confiavel" });
+  const linha = await deps.repos.mensagens.criar({ conversaId: t.conversaId, autoria, kind: "sistema", assunto: "memoria.task_fechada", texto: `Fechei a tarefa "${t.titulo}", parada esperando você, para liberar memória. Ela volta do mesmo ponto quando você responder.`, confianca: "confiavel" });
   const events = [eventoTrabalhoMudou(deps, fechado)];
   if (linha) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora: deps.agora(), conversaId: t.conversaId, dados: { mensagem_id: linha.id, kind: "sistema", trabalho_id: t.id } }));
   return { fechou: true, events };

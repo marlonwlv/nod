@@ -19,10 +19,10 @@ describe("itens da Atividade", () => {
   });
 
   it("frentes e tasks redigem de novo pelo payload; a task abre a tela dela", () => {
-    expect(itemDaMensagem(msg({ kind: "sistema", texto: "Abriu a task X", payload: { kind: "trabalho_aberto", trabalhoId: "w", titulo: "Hero w5", origem: "pessoa" } }), "trabalho.aberto")).toMatchObject({ categoria: "frentes", titulo: "Abriu a task Hero w5", detalhe: null, alvo: { trabalhoId: "w" } });
-    const lote = itemDaMensagem(msg({ kind: "sistema", texto: "Começou 2 frentes", payload: { kind: "frentes_abertas", loteId: "l", origem: "pessoa", frentes: [{ trabalhoId: "a", titulo: "Hero w1" }, { trabalhoId: "b", titulo: "Hero w2" }] } }), "frentes.abertas");
-    expect(lote).toMatchObject({ titulo: "Começou 2 frentes", detalhe: "Hero w1 · Hero w2" });
-    expect(itemDaMensagem(msg({ kind: "sistema", texto: "A frente terminou", payload: { kind: "frentes_terminadas", loteId: "l", frentes: [{ trabalhoId: "a", titulo: "Hero w1", estado: "terminado" }] } }), "frentes.terminadas").titulo).toBe("A frente Hero w1 terminou");
+    expect(itemDaMensagem(msg({ kind: "sistema", texto: "Abriu a tarefa X", payload: { kind: "trabalho_aberto", trabalhoId: "w", titulo: "Hero w5", origem: "pessoa" } }), "trabalho.aberto")).toMatchObject({ categoria: "frentes", titulo: "Abriu a tarefa Hero w5", detalhe: null, alvo: { trabalhoId: "w" } });
+    const lote = itemDaMensagem(msg({ kind: "sistema", texto: "Começou 2 tarefas", payload: { kind: "frentes_abertas", loteId: "l", origem: "pessoa", frentes: [{ trabalhoId: "a", titulo: "Hero w1" }, { trabalhoId: "b", titulo: "Hero w2" }] } }), "frentes.abertas");
+    expect(lote).toMatchObject({ titulo: "Começou 2 tarefas", detalhe: "Hero w1 · Hero w2" });
+    expect(itemDaMensagem(msg({ kind: "sistema", texto: "A frente terminou", payload: { kind: "frentes_terminadas", loteId: "l", frentes: [{ trabalhoId: "a", titulo: "Hero w1", estado: "terminado" }] } }), "frentes.terminadas").titulo).toBe("A tarefa Hero w1 terminou");
   });
 
   it("sem payload, o rótulo do assunto e o texto como detalhe, cortado", () => {
@@ -45,8 +45,8 @@ describe("itens da Atividade", () => {
   it("o trabalho: um item pelo começo e um pelo fim, só os que caem no dia", () => {
     const faixa = { ini: 1_000, fim: 2_000 };
     const t = { id: "w", titulo: "Roteiros", forma: "frente" as const, origem: "rotina", estado: "terminado", criadoEm: 1_100, terminadoEm: 1_100 + 39 * 60_000 };
-    expect(itensDoTrabalho(t, faixa).map((i) => i.titulo)).toEqual(["Começou a frente Roteiros"]);
-    expect(itensDoTrabalho({ ...t, terminadoEm: 1_900 }, faixa).map((i) => [i.titulo, i.detalhe])).toEqual([["Começou a frente Roteiros", "da rotina"], ["Terminou Roteiros", "em 1 min"]]);
+    expect(itensDoTrabalho(t, faixa).map((i) => i.titulo)).toEqual(["Começou a tarefa Roteiros"]);
+    expect(itensDoTrabalho({ ...t, terminadoEm: 1_900 }, faixa).map((i) => [i.titulo, i.detalhe])).toEqual([["Começou a tarefa Roteiros", "da rotina"], ["Terminou Roteiros", "em 1 min"]]);
     expect(itensDoTrabalho({ ...t, forma: "task", criadoEm: 500, terminadoEm: 1_500, estado: "falhou" }, faixa).map((i) => i.titulo)).toEqual(["Roteiros falhou"]);
   });
 

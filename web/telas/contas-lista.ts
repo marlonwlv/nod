@@ -375,9 +375,9 @@ function chaveDaFila(c: ContaIa): string {
 
 /** ADR-108 (R8, canvas Main): não há regra para configurar — só como o Nod age quando uma conta acaba. */
 export const REGRAS_DA_FILA: readonly { titulo: string; texto: string }[] = [
-  { titulo: "Mesma IA", texto: "passa sozinho para a próxima conta ligada na fila. No Claude, nada se perde. No ChatGPT, a task com sessão recomeçaria do resumo noutra conta: o Nod recomenda esperar ou seguir, e você decide." },
+  { titulo: "Mesma IA", texto: "passa sozinho para a próxima conta ligada na fila. No Claude, nada se perde. No ChatGPT, a tarefa com sessão recomeçaria do resumo noutra conta: o Nod recomenda esperar ou seguir, e você decide." },
   { titulo: "Outra IA", texto: "só nos bots em Automático. A conversa segue na hora." },
-  { titulo: "Tasks em andamento", texto: "trocar de IA faz a task recomeçar do resumo. Por isso o Nod recomenda esperar ou trocar, pela hora em que a conta volta, e você decide." },
+  { titulo: "Tarefas em andamento", texto: "trocar de IA faz a tarefa recomeçar do resumo. Por isso o Nod recomenda esperar ou trocar, pela hora em que a conta volta, e você decide." },
 ];
 
 /** O formulário "Adicionar conta" (G1-P2): provedor, apelido e em quais máquinas entrar. */
@@ -480,9 +480,9 @@ const emLista = (itens: readonly string[]): string => (itens.length < 2 ? itens.
  * falhou), o aviso diz o risco e não bloqueia: a pessoa decide. Os quatro estados ficam em role="status".
  */
 function avisoDasFrentes(x: ContextoContas, frentes: readonly FrenteAtivaDaConta[] | null | undefined, acao: "sair" | "remover"): string {
-  if (frentes === undefined) return `<p class="cl-caixa" role="status">Conferindo as frentes que usam esta conta…</p>`;
-  if (frentes === null) return `<p class="cl-caixa cl-caixa-aviso" role="status">Não deu para conferir se alguma frente usa esta conta. Se houver alguma, ela para ao ${acao}.</p>`;
-  if (!frentes.length) return `<p class="cl-caixa" role="status">Nenhuma frente usa esta conta agora.</p>`;
+  if (frentes === undefined) return `<p class="cl-caixa" role="status">Conferindo as tarefas que usam esta conta…</p>`;
+  if (frentes === null) return `<p class="cl-caixa cl-caixa-aviso" role="status">Não deu para conferir se alguma tarefa usa esta conta. Se houver alguma, ela para ao ${acao}.</p>`;
+  if (!frentes.length) return `<p class="cl-caixa" role="status">Nenhuma tarefa usa esta conta agora.</p>`;
   const itens = frentes.map((f) => {
     const rotulo = `<b>${esc(f.titulo ?? `a conversa com ${f.agente}`)}</b>`;
     if (acao === "sair") return rotulo;

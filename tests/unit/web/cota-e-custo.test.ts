@@ -33,7 +33,7 @@ function estadoCom(trabalhos: Partial<TrabalhosDto>, extra: Partial<Estado> = {}
 }
 
 describe("a cota da IA na tela", () => {
-  it("a linha da task diz que espera a cota", () => {
+  it("a linha da tarefa diz que espera a cota", () => {
     expect(situacaoDe(trabalho("a", { esperaDaCota: true }), [], false, AGORA)).toBe("esperando a cota da IA");
     expect(situacaoDe(trabalho("b"), [], false, AGORA)).toBe("na fila");
   });
@@ -48,7 +48,7 @@ describe("a cota da IA na tela", () => {
     expect(pilulaDaCota(undefined, [], AGORA)).toBe("");
   });
 
-  it("Todos os trabalhos mostra a pílula da cota e a linha da task segurada", () => {
+  it("Todas as tarefas mostra a pílula da cota e a linha da tarefa segurada", () => {
     const html = renderTodosOsTrabalhos(estadoCom({ trabalhos: [trabalho("Rotina das 9h", { esperaDaCota: true })], cota: { situacao: "reserva", ias: ["claude-cli"], voltaEm: AGORA + 2 * HORA } }));
     expect(html).toContain("A cota da IA está no fim");
     expect(html).toContain("esperando a cota da IA");
@@ -60,7 +60,7 @@ describe("a cota da IA na tela", () => {
 describe("NOD-369: o topo de Trabalhos sem o custo de hoje", () => {
   const semUsdNoTopo = (html: string) => {
     const topo = html.slice(html.indexOf('<header class="tt-cab">'), html.indexOf("</header>") + 9);
-    expect(topo).toContain("<h1>Trabalhos</h1>");
+    expect(topo).toContain("<h1>Tarefas</h1>");
     expect(topo).not.toContain("US$");
     expect(topo).not.toContain("tt-custo");
     expect(topo).not.toContain("custo-hoje");
@@ -68,7 +68,7 @@ describe("NOD-369: o topo de Trabalhos sem o custo de hoje", () => {
     expect(html).not.toContain("tt-custo");
   };
 
-  it("Todos os trabalhos: sem botão nem valor, com gasto de task e com ou sem trabalho", () => {
+  it("Todas as tarefas: sem botão nem valor, com gasto de task e com ou sem trabalho", () => {
     semUsdNoTopo(renderTodosOsTrabalhos(estadoCom({})));
     semUsdNoTopo(renderTodosOsTrabalhos(estadoCom({ trabalhos: [trabalho("cara", { custoUsd: 18.2, estado: "rodando", iniciadoEm: AGORA - HORA })] })));
   });
@@ -98,7 +98,7 @@ describe("NOD-369: o topo de Trabalhos sem o custo de hoje", () => {
     expect(renderTodosOsTrabalhos(estadoCom({ trabalhos: [trabalho("sem custo", { estado: "rodando", iniciadoEm: AGORA - HORA })] }))).not.toContain("US$");
   });
 
-  it("o custo por task continua no topo da task (fora do escopo, não pode regredir)", () => {
+  it("o custo por task continua no topo da tarefa (fora do escopo, não pode regredir)", () => {
     const e = estadoCom({ trabalhos: [trabalho("t1", { custoUsd: 0.88, estado: "rodando", iniciadoEm: AGORA - HORA })] });
     expect(renderTopoTrabalho(e, "t1")).toContain("US$ 0,88 até agora");
     const semCusto = estadoCom({ trabalhos: [trabalho("t2", { estado: "rodando", iniciadoEm: AGORA - HORA })] });

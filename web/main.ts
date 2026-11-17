@@ -1783,7 +1783,7 @@ function avisarMotivoDaNota(motivo: Parameters<typeof fraseDoMotivoDaNota>[0]): 
 
 /** QA do NOD-314: o motivo do "Rodar em <outra> desta vez" da task (200 sem mover nada). */
 function avisarMotivoDaTask(motivo: string | null | undefined): void {
-  if (motivo === "ja_refeito") dispatch({ tipo: "erro", erro: { codigo: "task_ja_refeito", mensagem: "Esta task já foi mandada para essa máquina; nada foi repetido." } });
+  if (motivo === "ja_refeito") dispatch({ tipo: "erro", erro: { codigo: "task_ja_refeito", mensagem: "Esta tarefa já foi mandada para essa máquina; nada foi repetido." } });
 }
 
 function mostrarErro(e: unknown): void {
@@ -2833,7 +2833,7 @@ function renderSidebar(estado: Estado): string {
   const irAoPedido = pedidos.length === 1 && primeiroPedido
     ? `data-act="abrir-conversa" data-conversa="${esc(primeiroPedido.conversaId)}" data-agente="${esc(primeiroPedido.agenteId)}" data-pendente="${esc(primeiroPedido.id)}"`
     : 'data-act="navegar" data-tela="sua-vez"';
-  const linhaTrabalhos = meus.length ? `<div class="linha-fixa linha-trabalhos"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="trabalhos" aria-current="${t.tipo === "trabalhos" ? "page" : "false"}" aria-label="${esc(rotuloDosTrabalhos({ abertos: nAbertos, aguardando: pedidos.length }))}" data-etiqueta="Trabalhos">${ICONE_TRABALHOS_LINHA}<span class="linha-fixa-nome">Trabalhos</span>${contTrab?.tom === "neutro" ? `<span class="linha-fixa-cont" aria-hidden="true">${esc(contTrab.texto)}</span>` : ""}</button>${contTrab?.tom === "aguardando" ? `<button type="button" class="linha-fixa-aguardando" ${irAoPedido} aria-label="${esc(pedidos.length === 1 && pedidos[0] ? `${pedidos[0].agenteNome} precisa de você` : `${pedidos.length} pedidos esperando por você`)}"><i class="ponto-aguardando" aria-hidden="true"></i><span>${esc(contTrab.texto)}</span></button>` : ""}</div>` : "";
+  const linhaTrabalhos = meus.length ? `<div class="linha-fixa linha-trabalhos"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="trabalhos" aria-current="${t.tipo === "trabalhos" ? "page" : "false"}" aria-label="${esc(rotuloDosTrabalhos({ abertos: nAbertos, aguardando: pedidos.length }))}" data-etiqueta="Tarefas">${ICONE_TRABALHOS_LINHA}<span class="linha-fixa-nome">Tarefas</span>${contTrab?.tom === "neutro" ? `<span class="linha-fixa-cont" aria-hidden="true">${esc(contTrab.texto)}</span>` : ""}</button>${contTrab?.tom === "aguardando" ? `<button type="button" class="linha-fixa-aguardando" ${irAoPedido} aria-label="${esc(pedidos.length === 1 && pedidos[0] ? `${pedidos[0].agenteNome} precisa de você` : `${pedidos.length} pedidos esperando por você`)}"><i class="ponto-aguardando" aria-hidden="true"></i><span>${esc(contTrab.texto)}</span></button>` : ""}</div>` : "";
   // Tela 18d do Paper (rodada 2): a linha "Tarefas" abre a página Tarefas de todos os bots (`{ tipo: "tarefas" }`).
   // ADR-167 (telas 02–05 do Paper): a linha fixa fica acima de "Trabalhos"; o número é o de tarefas abertas que a tela já conhece.
   const nTarefas = tarefasAbertasConhecidas();
@@ -3143,8 +3143,8 @@ function renderPrincipal(): void {
       corpo = CASCA_TIMELINE_TASK;
       // Paper 15b: na frente, "Mensagem para esta frente" e as ações no topo (← Conversa, Parar frente).
       composer = trabalhoPorId(estado, t.id)?.forma === "frente"
-        ? { chave: `trabalho:${t.id}`, html: htmlComposer("Mensagem para esta frente", [], { seletor: true }) }
-        : { chave: `trabalho:${t.id}`, html: htmlComposer("Escreva para esta task…", [], { seletor: true }) + htmlAcoesDaTask(t.id) };
+        ? { chave: `trabalho:${t.id}`, html: htmlComposer("Mensagem para esta tarefa", [], { seletor: true }) }
+        : { chave: `trabalho:${t.id}`, html: htmlComposer("Escreva para esta tarefa…", [], { seletor: true }) + htmlAcoesDaTask(t.id) };
       break;
     case "linha":
       corpo = `<div class="timeline tk-timeline">${renderTelaLinha(estado, t)}</div>`;
@@ -5739,7 +5739,7 @@ function acaoDoMenuDaFala(fala: Mensagem, acao: string, ancora: HTMLElement): vo
     rolagem.colar();
     await a.enviar(fala.conversaId, textoAbrirTask(fala), [], crypto.randomUUID(), fala.id);
     dispatch({ tipo: "invalidar", quais: [`conversa:${fala.conversaId}`] });
-    anunciar("Pedido enviado: abrir uma task com esta mensagem");
+    anunciar("Pedido enviado: abrir uma tarefa com esta mensagem");
   });
   if (acao === "lembrar") void agir(async () => {
     await a.criarMemoria(bot, "fato", textoParaLembrar(fala), fala.conversaId);
@@ -6199,7 +6199,7 @@ function pararPelaPilula(): void {
     await Promise.allSettled(frentes.map((x) => api!.pararTrabalho(x.id)));
     dispatch({ tipo: "invalidar", quais: ["trabalhos", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   });
-  pedirGestao(textoPararTasks(frentes, p.nome), `${listaPararTasks(frentes)}<p>O que já foi feito fica.</p>`, frentes.length === 1 ? "Parar a task" : "Parar tudo", parar, true);
+  pedirGestao(textoPararTasks(frentes, p.nome), `${listaPararTasks(frentes)}<p>O que já foi feito fica.</p>`, frentes.length === 1 ? "Parar a tarefa" : "Parar tudo", parar, true);
 }
 
 /** "Ver aprovação" (definido em 2026-10-03): da lista "N coisas esperam você" ao card do pedido na timeline. */

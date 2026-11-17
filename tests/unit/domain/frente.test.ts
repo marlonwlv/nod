@@ -85,14 +85,14 @@ describe("regras puras das frentes (ADR-099, I2)", () => {
   it("o título do lote (plano chat limpo, PR 5): o do modelo; sem ele, a frente (uma) ou 'N frentes'", () => {
     expect(tituloDoLote("frentes de hero", 5, "Hero da home")).toBe("frentes de hero");
     expect(tituloDoLote(null, 1, "Roteiros de animação")).toBe("Roteiros de animação");
-    expect(tituloDoLote(null, 3, "Login no Safari")).toBe("3 frentes");
+    expect(tituloDoLote(null, 3, "Login no Safari")).toBe("3 tarefas");
     expect(tituloDoLote("frentes de hero", 1, "Hero da home")).toBe("frentes de hero");
   });
 
   it("a linha do lote: uma frente pelo nome, várias pela contagem e a lista", () => {
-    expect(textoFrentesAbertas(["Login"])).toBe("Começou a frente Login");
-    expect(textoFrentesAbertas(["Login", "CI"])).toBe("Começou 2 frentes: Login e CI");
-    expect(textoFrentesAbertas(["A", "B", "C"])).toBe("Começou 3 frentes: A, B e C");
+    expect(textoFrentesAbertas(["Login"])).toBe("Começou a tarefa Login");
+    expect(textoFrentesAbertas(["Login", "CI"])).toBe("Começou 2 tarefas: Login e CI");
+    expect(textoFrentesAbertas(["A", "B", "C"])).toBe("Começou 3 tarefas: A, B e C");
   });
 
   it("a entrada da frente: a moldura, o pedido e, se houver, o repositório e o branch de partida", () => {

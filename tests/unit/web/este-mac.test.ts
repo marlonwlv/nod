@@ -171,7 +171,7 @@ describe("espera por memória e disco", () => {
     expect(situacaoDe({ ...pessoaPorDisco, depoisDeTrabalhoId: antes.id }, [antes], true)).toBe("começa depois da Migrar");
   });
 
-  it("a pílula do disco: 'Pouco espaço no disco', com o Ver para Este Mac; em Todos os trabalhos ela vem antes da de memória", () => {
+  it("a pílula do disco: 'Pouco espaço no disco', com o Ver para Este Mac; em Todas as tarefas ela vem antes da de memória", () => {
     const p = pilulaMac(true, 1, true, "disco");
     expect(p).toContain("<b>Pouco espaço no disco</b>");
     expect(p).toContain("1 trabalho espera espaço no disco");
@@ -192,7 +192,7 @@ describe("espera por memória e disco", () => {
   it("Este Mac: o disco com o livre à vista e o porquê atrás do clique, com os limites do servidor; crítico, vermelho e quem espera", () => {
     const html = renderEsteMac(estadoCom([rodando, pessoaPorDisco], { segurando: true, motivoEspera: "disco", seguraTudoNovo: true, disco: critico }));
     expect(html).toContain('<details class="mac-det" data-disclosure="mac-Disco"><summary class="mac-medidor"><b>Disco</b><span class="mac-barra nivel-vermelha" aria-hidden="true"><i style="width: 100%"></i></span><span>2 GB livres</span></summary>');
-    expect(html).toContain("2 GB livres de 466 GB. Com menos de 10 GB livres, rotinas e pedidos entre bots esperam; com menos de 3 GB, nenhuma task nova começa, em qualquer opção. As que já rodam continuam. É o espaço livre que o macOS informa aos apps; pode ser um pouco menor que o do Finder. As pastas dos bots ficam em ~/nod.");
+    expect(html).toContain("2 GB livres de 466 GB. Com menos de 10 GB livres, rotinas e pedidos entre bots esperam; com menos de 3 GB, nenhuma tarefa nova começa, em qualquer opção. As que já rodam continuam. É o espaço livre que o macOS informa aos apps; pode ser um pouco menor que o do Finder. As pastas dos bots ficam em ~/nod.");
     expect(html).toContain("1 esperando espaço no disco");
     expect(html).toContain("Esperando espaço no disco · 1");
     expect(html).toContain("Pouco espaço no disco");

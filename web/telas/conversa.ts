@@ -317,7 +317,7 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   // o motivo e o atalho para a task dele ficam atrás de "detalhes".
   if (p?.kind === "peer_ask" && p.falhou) {
     const motivo = m.texto.replace(/^[\s\S]*?não concluiu:\s*/, "");
-    const link = p.trabalhoId ? `<button type="button" class="pf-link" data-act="abrir-trabalho" data-id="${esc(p.trabalhoId)}">Ver a task do ${esc(p.nome)}</button>` : "";
+    const link = p.trabalhoId ? `<button type="button" class="pf-link" data-act="abrir-trabalho" data-id="${esc(p.trabalhoId)}">Ver a tarefa do ${esc(p.nome)}</button>` : "";
     return `<div class="msg-peer-falhou"><details data-disclosure="peer-falhou-${esc(m.id)}"><summary><span>${esc(p.nome)} não conseguiu terminar o pedido</span><span class="pf-detalhes">detalhes</span></summary><div class="pf-corpo"><span>${esc(motivo)}</span>${link}</div></details></div>`;
   }
   if (p?.kind === "peer_ask") return `<div class="msg-peer"><div class="handoff-titulo">↙ <b>${p.falhou ? "Não concluído por" : "Resposta de"} ${esc(p.nome)}</b></div><div>${textoFormatado(m.texto, { chave: m.id })}</div><small class="mudo">Contribuição de outro bot · confira as fontes</small></div>`;
@@ -630,7 +630,7 @@ export function chipDaFalaNaFrente(situacao: "na_fila" | "entregue" | "lendo", b
     : situacao === "entregue" ? `Entregue · ${bot} lê ao fim do passo atual`
     : frente.precisaDeVoce ? `Na fila · ${bot} lê depois que você responder o que ele perguntou`
     : frente.rodando ? `Na fila · ${bot} lê no próximo passo`
-    : `Na fila · ${bot} volta à frente para responder`;
+    : `Na fila · ${bot} volta à tarefa para responder`;
   return `<div class="fila-chip" role="status"><span class="fila-relogio" aria-hidden="true"></span>${esc(texto)}</div>`;
 }
 
@@ -758,8 +758,8 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // Paper 15 (rodada 2): a pergunta aberta de uma frente ("da task …") vira o bloco "da frente": o mascote pequeno, "da
   // frente" e o título, a pergunta com o fio laranja à esquerda e as opções como botões. Respondida, vencida ou sem opções,
   // segue o cartão da pergunta.
-  const daFrente = pergunta && motivoTela === null && m.trabalhoId && opcoes.etiqueta?.startsWith("da task ") && (pergunta.opcoes?.length ?? 0) > 0 && estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], pergunta.decisaoId).tipo === "aberta"
-    ? perguntaDaFrente(m, opcoes.etiqueta.slice("da task ".length), pergunta.decisaoId, pergunta.opcoes ?? [], agente)
+  const daFrente = pergunta && motivoTela === null && m.trabalhoId && opcoes.etiqueta?.startsWith("da tarefa ") && (pergunta.opcoes?.length ?? 0) > 0 && estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], pergunta.decisaoId).tipo === "aberta"
+    ? perguntaDaFrente(m, opcoes.etiqueta.slice("da tarefa ".length), pergunta.decisaoId, pergunta.opcoes ?? [], agente)
     : null;
   if (daFrente) return `<article class="message bot da-frente" data-mensagem="${esc(m.id)}" data-pergunta="${esc(pergunta?.decisaoId ?? "")}"><div class="bubble-wrap">${daFrente}</div></article>`;
   // Item 6: no computador da pessoa o pedido de ajuda é o cartão "Entre no {site}"; resolvido, vira linha de sistema.
@@ -776,9 +776,9 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
 
 /** Paper 15: o bloco "da frente" (from_frente do gerador): rótulo, a pergunta com o fio laranja e as opções em botões de 28 px. */
 function perguntaDaFrente(m: Mensagem, titulo: string, decisaoId: string, opcoesDaPergunta: readonly string[], agente: AgenteDaFala | undefined): string {
-  const rotulo = `<div class="df-rotulo">${agente ? iconeAgente(agente, "sm", "disponivel") : ""}<span class="df-de">da frente</span><span class="df-titulo" title="${esc(titulo)}">${esc(titulo)}</span><time>${hora(m.criadoEm)}</time></div>`;
+  const rotulo = `<div class="df-rotulo">${agente ? iconeAgente(agente, "sm", "disponivel") : ""}<span class="df-de">da tarefa</span><span class="df-titulo" title="${esc(titulo)}">${esc(titulo)}</span><time>${hora(m.criadoEm)}</time></div>`;
   const botoes = opcoesDaPergunta.map((o) => `<button type="button" class="botao secundario df-opcao" data-act="responder-opcao" data-id="${esc(decisaoId)}" data-texto="${esc(o)}">${esc(o)}</button>`).join("");
-  return `<div class="df" role="group" aria-label="${esc(`Pergunta da frente ${titulo}`)}">${rotulo}<div class="df-texto">${paragrafos(m.texto)}</div><div class="df-opcoes">${botoes}</div></div>`;
+  return `<div class="df" role="group" aria-label="${esc(`Pergunta da tarefa ${titulo}`)}">${rotulo}<div class="df-texto">${paragrafos(m.texto)}</div><div class="df-opcoes">${botoes}</div></div>`;
 }
 
 /**
@@ -1971,7 +1971,7 @@ function frentesNaPilula(estado: Estado, agenteId: string): string {
   const frentes = (estado.trabalhos?.trabalhos ?? []).filter((t) => t.agenteId === agenteId && t.forma === "frente" && aberto(t));
   if (frentes.length < 2) return "";
   const pede = frentes.some((t) => t.estado === "precisa_de_voce");
-  return `<span class="pilula-frentes">${pede ? '<i class="ponto-aguardando" aria-hidden="true"></i>' : ""}${frentes.length} frentes</span>`;
+  return `<span class="pilula-frentes">${pede ? '<i class="ponto-aguardando" aria-hidden="true"></i>' : ""}${frentes.length} tarefas</span>`;
 }
 
 /**

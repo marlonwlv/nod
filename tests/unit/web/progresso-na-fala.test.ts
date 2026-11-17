@@ -121,7 +121,7 @@ describe("o bloco mora na fala que abriu as frentes", () => {
     expect(resumoLido(b1)).toBe("3 de 5 prontas · Hero w3 e Hero w5 rodando");
     expect(b1).toContain('<b class="progresso-principal">3 de 5 prontas</b>');
     expect(b1).toContain('<span class="progresso-ver">ver as 5</span>');
-    expect(b1).toContain('aria-label="Frentes: 3 de 5 prontas"');
+    expect(b1).toContain('aria-label="Tarefas: 3 de 5 prontas"');
   });
 
   it("'ver as 5' abre a lista no lugar: prontas com ✓ e a hora, rodando com o último passo (ao vivo, senão o do servidor) e o tempo; cada título abre a frente", () => {
@@ -242,7 +242,7 @@ describe("sem âncora, sem bloco", () => {
   });
 
   it("a rotina que abriu frentes: o 'comecei…' segue escondido, então não há bloco (a pílula do PR 8 cobre)", () => {
-    const ms = [msg("r1", t0, { turnoId: "tr", origemTurno: "rotina", fimDoTurno: true, texto: "Comecei 2 frentes" }), abriu(HEROS.slice(0, 2), { turnoId: "tr", origemTurno: "rotina" })];
+    const ms = [msg("r1", t0, { turnoId: "tr", origemTurno: "rotina", fimDoTurno: true, texto: "Comecei 2 tarefas" }), abriu(HEROS.slice(0, 2), { turnoId: "tr", origemTurno: "rotina" })];
     const { e, c } = cenario(ms, lista([trabalho("w1"), trabalho("w2")]));
     expect(renderHistoricoDaTimeline(c, e)).not.toContain("progresso");
   });
@@ -251,7 +251,7 @@ describe("sem âncora, sem bloco", () => {
     const semDestino = conversaDoHero().map(({ destino: _d, ...m }) => m as Mensagem);
     const { e, c } = cenario(semDestino, lista([trabalho("w1")]));
     const html = renderHistoricoDaTimeline(c, e);
-    expect(html).toContain("Começou 5 frentes");
+    expect(html).toContain("Começou 5 tarefas");
     expect(html).not.toContain('<section class="progresso"');
   });
 });
@@ -265,7 +265,7 @@ describe("a frente da rede e a frente única", () => {
     ];
     const { e, c } = cenario(ms, lista([trabalho("wr", { titulo: "Migrar relatórios", origem: "rede", ultimoPasso: "convertendo o lote 2", iniciadoEm: AGORA - 8 * MIN })]));
     const p1 = doBloco(c, e, "p1");
-    expect(p1).toContain('<section class="progresso progresso-uma" data-frentes="wr" aria-label="Frente Migrar relatórios: rodando">');
+    expect(p1).toContain('<section class="progresso progresso-uma" data-frentes="wr" aria-label="Tarefa Migrar relatórios: rodando">');
     // Embaixo do balão (fora dele), antes do fim do artigo.
     expect(p1.indexOf("</div>", p1.indexOf('class="bubble"'))).toBeLessThan(p1.indexOf('<section class="progresso'));
     expect(p1).toContain('<span class="progresso-passo">convertendo o lote 2</span>');
@@ -274,7 +274,7 @@ describe("a frente da rede e a frente única", () => {
     expect(p1).not.toContain("ver as");
   });
 
-  it("a rede que terminou: a resposta final dela (balão 'da task …' do mesmo turno) não puxa o bloco do balão da pessoa", () => {
+  it("a rede que terminou: a resposta final dela (balão 'da tarefa …' do mesmo turno) não puxa o bloco do balão da pessoa", () => {
     const ms = [
       daPessoa("p1", t0, { texto: "Migra os relatórios do financeiro", trabalhoId: "wr" }),
       anexo("ta", t0 + 2 * MIN, { kind: "trabalho_aberto", trabalhoId: "wr", titulo: "Migrar relatórios", origem: "rede" }, { turnoId: "tr", origemTurno: "conversa", trabalhoId: "wr" }),
@@ -401,9 +401,9 @@ describe("o progresso na tela troca só o lugar", () => {
     expect(lugar.innerHTML).toMatch(/^<section class="progresso" data-frentes="[^"]+"/);
     expect(lugar.innerHTML).not.toContain("progresso-memoria");
     // O ponto chega sem a frente andar: só o lugar é trocado, com o ponto ao lado do número.
-    const memoria = { texto: "Pouca memória no seu Mac · 2 trabalhos abertos", nivel: "amarela" as const };
+    const memoria = { texto: "Pouca memória no seu Mac · 2 tarefas abertas", nivel: "amarela" as const };
     expect(tela.desenhar(c, e, memoria)).toBe(1);
-    expect(lugar.innerHTML).toContain('<span class="progresso-memoria amarela" role="img" aria-label="Pouca memória no seu Mac · 2 trabalhos abertos"');
+    expect(lugar.innerHTML).toContain('<span class="progresso-memoria amarela" role="img" aria-label="Pouca memória no seu Mac · 2 tarefas abertas"');
     expect(tela.desenhar(c, e, memoria)).toBe(0);
     expect(blocoDaAbertura("fa", c, e, memoria)).toBe(lugar.innerHTML);
   });

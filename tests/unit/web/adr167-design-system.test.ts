@@ -61,7 +61,7 @@ describe("ADR-167: Aguardando você (telas 16/16b)", () => {
     expect(contadorDosTrabalhos({ abertos: 4, aguardando: 2 })).toEqual({ texto: "2 aguardando", tom: "aguardando" });
     expect(contadorDosTrabalhos({ abertos: 4, aguardando: 0 })).toEqual({ texto: "4", tom: "neutro" });
     expect(contadorDosTrabalhos({ abertos: 0, aguardando: 0 })).toBeNull();
-    expect(rotuloDosTrabalhos({ abertos: 1, aguardando: 2 })).toBe("Trabalhos, 1 aberto, 2 aguardando você");
+    expect(rotuloDosTrabalhos({ abertos: 1, aguardando: 2 })).toBe("Tarefas, 1 aberta, 2 aguardando você");
   });
   it("a barra: sem sino nem ícone de Trabalhos no topo do computador; a linha leva ao cartão pendente", () => {
     const main = ler("main.ts");

@@ -134,7 +134,7 @@ describe("7: Detalhes com as Rotinas e a linha Ajustes", () => {
     expect(html).not.toContain('data-nivel="nova-rotina"');
     // ADR-167 (Paper 02): o título "Ajustes" do painel leva ao nível (as linhas embaixo são Aprovações e Quadro).
     expect(html).toContain('data-act="gaveta" data-nivel="ajustes" data-agente="a1" data-origem="ajustes"');
-    expect(html).toContain("Ajustes: ligar, trabalhos, memória, missão e acessos");
+    expect(html).toContain("Ajustes: ligar, tarefas, memória, missão e acessos");
   });
 });
 

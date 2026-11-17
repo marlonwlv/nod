@@ -463,8 +463,8 @@ export function juntar(nomes: readonly string[]): string {
  * títulos reais viravam um parágrafo em letra de título; agora vão numa lista no corpo (`listaPararTasks`).
  */
 export function textoPararTasks(lista: readonly Pick<TrabalhoDto, "titulo">[], nomeDoBot = "bot"): string {
-  if (lista.length === 1) return `Parar a task ${lista[0]?.titulo ?? ""}?`;
-  return `Parar as ${lista.length} tasks do ${nomeDoBot}?`;
+  if (lista.length === 1) return `Parar a tarefa ${lista[0]?.titulo ?? ""}?`;
+  return `Parar as ${lista.length} tarefas do ${nomeDoBot}?`;
 }
 
 /** Os títulos das tasks que o Parar da pílula vai parar, um por linha (vazio com uma task só: o título já diz). */
@@ -513,7 +513,7 @@ export const ICONE_MEMORIA = '<svg class="pm-icone" width="14" height="14" viewB
 export type RotuloMemoria = "rodando" | "abertos";
 
 export function textoDaContagemDeMemoria(n: number, rotulo: RotuloMemoria): string {
-  return rotulo === "rodando" ? `${n} rodando aqui` : `${n} ${n === 1 ? "trabalho aberto" : "trabalhos abertos"}`;
+  return rotulo === "rodando" ? `${n} rodando aqui` : `${n} ${n === 1 ? "tarefa aberta" : "tarefas abertas"}`;
 }
 
 /**
@@ -584,5 +584,5 @@ export function acoesDeFazer(t: TrabalhoDto | undefined, estado: Pick<Estado, "t
     : outras.length
       ? botao("trabalho-depois", `Fazer depois da ${esc(outras[outras.length - 1]?.titulo ?? "")}`, { classe: "sm", id: t.id, dados: { depois: outras[outras.length - 1]?.id ?? "" } })
       : "";
-  return `<div class="linha-acoes">${depois}${botao("trabalho-fazer-aqui", "Fazer aqui", { classe: "sm", id: t.id, titulo: "cancela a task e responde aqui na conversa" })}</div>`;
+  return `<div class="linha-acoes">${depois}${botao("trabalho-fazer-aqui", "Fazer aqui", { classe: "sm", id: t.id, titulo: "cancela a tarefa e responde aqui na conversa" })}</div>`;
 }

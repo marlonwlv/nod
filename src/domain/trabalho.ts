@@ -78,7 +78,7 @@ export function tituloOuNada(texto: string): string | null {
 export const PALAVRAS_TITULO_PROVISORIO = 6;
 export const CARACTERES_TITULO_PROVISORIO = 40;
 /** O reserva do título provisório, quando a mensagem não tem letra (só link, emoji, "??" ou nada). */
-export const TITULO_PROVISORIO_RESERVA = "Frente da conversa";
+export const TITULO_PROVISORIO_RESERVA = "Tarefa da conversa";
 
 // A saudação do começo ("Oi", "Bom dia", "E aí", "Tudo bem?"), com o vocativo curto que vem depois ("Oi Nina,").
 // revisto em 2026-10-18 (QA do PR 5): também a do espanhol ("Hola, ¿puedes arreglar…" dava "Hola, ¿puedes arreglar el
@@ -195,7 +195,7 @@ function primeiraOracao(corpo: string): string {
  * "Abre uma task com isto: «começo da fala…»". definido em 2026-10-18 (rebase do PR 5 sobre o #392): o título sai do
  * assunto citado; sem isso, a primeira oração dava "Abre uma task com isto".
  */
-const PEDIDO_TASK_DA_FALA = /^Abre uma task com isto: «([^»]+)»$/u;
+const PEDIDO_TASK_DA_FALA = /^Abre uma (?:task|tarefa) com isto: «([^»]+)»$/u;
 
 export function tituloProvisorio(texto: string): string {
   texto = PEDIDO_TASK_DA_FALA.exec(texto.trim())?.[1] ?? texto;
@@ -389,5 +389,5 @@ export function promoveNaRede(p: { origem: OrigemTurno; modo?: ModoTurno | null;
 /** O que a linha "Abriu a task …" diz por origem (texto da mensagem `sistema`; a web desenha pelo payload). */
 export function textoTrabalhoAberto(titulo: string, origem: OrigemTrabalho): string {
   // revisto em 2026-10-12 (ADR-099, I8): a rede promove a frente, não mais a task.
-  return origem === "rede" ? `Virou a frente ${titulo}` : `Abriu a task ${titulo}`;
+  return origem === "rede" ? `Virou a tarefa ${titulo}` : `Abriu a tarefa ${titulo}`;
 }

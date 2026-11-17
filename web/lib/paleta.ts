@@ -46,7 +46,7 @@ export const ACOES_DA_PALETA: readonly { id: IdAcaoPaleta; titulo: string; icone
   { id: "pausar-rotinas", titulo: "Pausar todas as rotinas", icone: "relogio", palavras: ["parar", "rotinas", "agenda"] },
   { id: "quick-chat", titulo: "Abrir o Quick Chat", icone: "raio", palavras: ["janela", "rápido", "quick"] },
   { id: "nova-sala", titulo: "Novo chat em grupo", icone: "sala", tecla: ["⇧", "N"], palavras: ["grupo", "conversa em grupo", "nova sala", "chat em grupo"] },
-  { id: "trabalhos", titulo: "Ver os trabalhos em andamento", icone: "trabalhos", palavras: ["frentes", "aguardando"] },
+  { id: "trabalhos", titulo: "Ver as tarefas em andamento", icone: "trabalhos", palavras: ["trabalhos", "frentes", "aguardando"] },
   { id: "tarefas", titulo: "Ver as tarefas de todos os bots", icone: "trabalhos", palavras: ["tarefas", "quadros", "kanban"] },
   { id: "sua-vez", titulo: "Ver o que espera você", icone: "trabalhos", palavras: ["aprovações", "pedidos", "sua vez", "aguardando"] },
   { id: "nao-lidos", titulo: "Ver não lidos", icone: "conversa", palavras: ["novas", "mensagens"] },

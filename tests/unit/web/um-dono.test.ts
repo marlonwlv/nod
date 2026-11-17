@@ -54,9 +54,9 @@ const comando = (extra: Partial<EsperaDoDonoDto> = {}): EsperaDoDonoDto => ({
 describe("a linha acima do campo, por prioridade (quadro 08)", () => {
   it("Esperando você > Trabalhando em N frentes > Esperando X > N na fila > livre (some)", () => {
     const voce = linhaDoDono(dono({ esperandoVoce: 1, frentes: 2, fila: 1 }, [], [pedido(1)]), AGORA);
-    expect(voce).toEqual({ sinal: "voce", texto: "Esperando você", extras: ["2 frentes trabalhando", "1 pedido na fila"], quantos: 1 });
+    expect(voce).toEqual({ sinal: "voce", texto: "Esperando você", extras: ["2 tarefas trabalhando", "1 pedido na fila"], quantos: 1 });
     const trab = linhaDoDono(dono({ frentes: 3, esperando: 1, motivoEspera: "a CI do #845" }), AGORA);
-    expect(trab).toEqual({ sinal: "vivo", texto: "Trabalhando em 3 frentes", extras: ["esperando a CI do #845"], quantos: 3 });
+    expect(trab).toEqual({ sinal: "vivo", texto: "Trabalhando em 3 tarefas", extras: ["esperando a CI do #845"], quantos: 3 });
     const esp = linhaDoDono(dono({ esperando: 1, motivoEspera: "a CI do #845", desde: AGORA - 38 * MIN, fila: 2 }, [], [pedido(1), pedido(2)]), AGORA);
     expect(esp).toEqual({ sinal: "espera", texto: "Esperando a CI do #845", extras: ["38 min", "2 pedidos na fila"], quantos: 1 });
     expect(linhaDoDono(dono({ fila: 2 }, [], [pedido(1), pedido(2)]), AGORA)).toEqual({ sinal: "fila", texto: "2 pedidos na fila", extras: [], quantos: 2 });
@@ -70,7 +70,7 @@ describe("a linha acima do campo, por prioridade (quadro 08)", () => {
   });
 
   it("textos de contagem: uma frente no singular, várias esperas sem motivo, fila misturada com frentes na vez", () => {
-    expect(linhaDoDono(dono({ frentes: 1 }), AGORA)?.texto).toBe("Trabalhando em 1 frente");
+    expect(linhaDoDono(dono({ frentes: 1 }), AGORA)?.texto).toBe("Trabalhando em 1 tarefa");
     expect(linhaDoDono(dono({ frentes: 1, esperando: 3, motivoEspera: "a CI" }), AGORA)?.extras).toEqual(["3 esperando"]);
     expect(linhaDoDono(dono({ esperando: 3, motivoEspera: "a CI", desde: AGORA - 5 * MIN }), AGORA)?.extras).toEqual(["5 min", "mais 2 esperando"]);
     expect(textoDaFila({ fila: 3 }, 1)).toBe("3 na fila");
@@ -81,7 +81,7 @@ describe("a linha acima do campo, por prioridade (quadro 08)", () => {
 
 describe("as esperas e a fila em frase (a pílula alargada lê daqui)", () => {
   it("as esperas em frase: comando, volta marcada e colega; quem pediu o que está na fila", () => {
-    expect(esperaNaTela(comando({ ultimaLinha: null }), AGORA, "Mobile")).toEqual({ titulo: "gh pr checks 845 --watch", comando: true, linhas: ["volta quando a CI do #845 terminar · tentativa 2 de 3 · da frente Mobile"], tempo: "38 min" });
+    expect(esperaNaTela(comando({ ultimaLinha: null }), AGORA, "Mobile")).toEqual({ titulo: "gh pr checks 845 --watch", comando: true, linhas: ["volta quando a CI do #845 terminar · tentativa 2 de 3 · da tarefa Mobile"], tempo: "38 min" });
     const volta = esperaNaTela({ tipo: "volta", trabalhoId: null, motivo: "o deploy terminar", desde: AGORA - 10 * MIN, acordaEm: new Date(2026, 9, 11, 19, 5).getTime() }, AGORA);
     expect(volta.titulo).toBe("Volta às 19:05");
     expect(volta.linhas).toEqual(["o deploy terminar"]);
@@ -151,8 +151,8 @@ describe("Trabalhos com uma linha por bot (quadro 05)", () => {
   it("cada linha (Paper 16): ponto, mascote, nome e título, a frase embaixo, o detalhe curto e o tempo à direita", () => {
     const html = renderTrabalhosPorBot(base());
     expect(html).toMatch(/<span class="ponto-trabalho precisa"[^>]*><\/span><nod-mascote[^>]*><\/nod-mascote><span class="tb-meio"><span class="tb-nome"><b>Ze 1<\/b>(<small>[^<]*<\/small>)?<\/span><span class="tb-frase">Como seguir com o #845\?<\/span><\/span><span class="tb-detalhe">1 pedido<\/span><span class="tt-fim">há 33 min<\/span>/);
-    // Rodada 3 da casca (Paper 16): a frente mais antiga como frase, "2 frentes" à direita e o número antes do ponto.
-    expect(html).toContain('<span class="tb-frase">GFK-1866 · publicar versão completa</span></span><span class="tb-detalhe">2 frentes</span>');
+    // Rodada 3 da casca (Paper 16): a frente mais antiga como frase, "2 tarefas" à direita e o número antes do ponto.
+    expect(html).toContain('<span class="tb-frase">GFK-1866 · publicar versão completa</span></span><span class="tb-detalhe">2 tarefas</span>');
     expect(html).toContain('<span class="tb-n" aria-hidden="true">2</span><span class="ponto-trabalho c-teal pulso-trab"');
     expect(html).toContain('<span class="ponto-trabalho c-teal pulso-trab"');
     expect(html).toContain('<span class="ponto-trabalho fora-do-mac" aria-hidden="true"></span><nod-mascote');
@@ -163,7 +163,7 @@ describe("Trabalhos com uma linha por bot (quadro 05)", () => {
     const e = reduzir(base(), { tipo: "bot-trabalhos", agenteId: "ze2" });
     const html = renderTrabalhosPorBot(e);
     expect(html).toContain('data-act="bot-trabalhos" data-agente="ze2" aria-expanded="true"');
-    expect(html).toContain('<div class="tb-frentes" role="group" aria-label="Frentes de Ze 2">');
+    expect(html).toContain('<div class="tb-frentes" role="group" aria-label="Tarefas de Ze 2">');
     expect(html).toContain('data-act="abrir-trabalho" data-id="g66"');
     expect(html).toContain('<span class="tb-frente-fim">22 min</span>');
     // Rodada 3 (Paper 16): só as abertas e a fila; a terminada de hoje fica em "Por frente".

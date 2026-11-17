@@ -111,7 +111,7 @@ describe("assentarTurno: a conta da IA chegou ao limite (várias contas)", () =>
       expect(volta).toMatchObject([{ estado: "pendente", origem: "retomada", trabalhoId: c.trabalhoId, acordarEm: T0 + DUAS_HORAS }]);
       const novas = c.banco.mensagens.slice(c.antes);
       expect(novas).toHaveLength(1);
-      expect(novas[0]?.texto).toMatch(/^A conta 1 do Claude Code chegou ao limite\. Esta task espera e volta sozinha (às|em \d\d\/\d\d às) \d\d:\d\d, de onde parou\.$/);
+      expect(novas[0]?.texto).toMatch(/^A conta 1 do Claude Code chegou ao limite\. Esta tarefa espera e volta sozinha (às|em \d\d\/\d\d às) \d\d:\d\d, de onde parou\.$/);
     });
   }
 });

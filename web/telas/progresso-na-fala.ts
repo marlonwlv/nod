@@ -229,7 +229,7 @@ export function htmlProgresso(frentes: readonly FrenteNaFala[], p: { chave: stri
   if (frentes.length === 1) {
     const curto = tituloCurto(unica.titulo);
     const detalhe = unica.passo ?? (unica.terminouEm && unica.estado !== "sem_noticia" ? `${ROTULO[unica.estado]} às ${hora(unica.terminouEm)}` : ROTULO[unica.estado]);
-    return `<section class="progresso progresso-uma" data-frentes="${ids}" aria-label="${esc(`Frente ${curto}: ${ROTULO[unica.estado]}`)}"><div class="progresso-item ${unica.estado}">${icone(unica.estado)}<span class="progresso-corpo progresso-em-linha"><button type="button" class="progresso-titulo" data-act="abrir-trabalho" data-id="${esc(unica.trabalhoId)}"${curto === unica.titulo ? "" : ` title="${esc(unica.titulo)}"`}>${esc(curto)}</button><span class="progresso-passo">${esc(detalhe)}</span></span>${memoria}${unica.tempo ? `<span class="progresso-fim">${esc(unica.tempo)}</span>` : ""}</div></section>`;
+    return `<section class="progresso progresso-uma" data-frentes="${ids}" aria-label="${esc(`Tarefa ${curto}: ${ROTULO[unica.estado]}`)}"><div class="progresso-item ${unica.estado}">${icone(unica.estado)}<span class="progresso-corpo progresso-em-linha"><button type="button" class="progresso-titulo" data-act="abrir-trabalho" data-id="${esc(unica.trabalhoId)}"${curto === unica.titulo ? "" : ` title="${esc(unica.titulo)}"`}>${esc(curto)}</button><span class="progresso-passo">${esc(detalhe)}</span></span>${memoria}${unica.tempo ? `<span class="progresso-fim">${esc(unica.tempo)}</span>` : ""}</div></section>`;
   }
   const { principal, resto } = resumoDoProgresso(frentes);
   // Paper 15 (ADR-167): a barra enche da esquerda com as prontas, depois as que pararam e as que esperam, e termina nas que
@@ -242,7 +242,7 @@ export function htmlProgresso(frentes: readonly FrenteNaFala[], p: { chave: stri
   const resumo = `<summary class="progresso-resumo" data-act="abrir-progresso" data-linha-tipo="frentes" data-linha-chave="${esc(`frentes:${p.chave}`)}" data-agente="${esc(p.agenteId)}"><span class="progresso-txt">${texto}</span><span class="progresso-ver">ver as ${frentes.length}</span><span class="progresso-ocultar">ocultar</span>${chev}</summary>`;
   // Paper 15: a lista vem aberta; fechada pela pessoa, fica fechada (`progressoFechado`).
   const aberta = !FECHADOS.has(p.chave);
-  return `<section class="progresso" data-frentes="${ids}" aria-label="${esc(`Frentes: ${principal}`)}"><div class="progresso-barra" aria-hidden="true">${barra}</div><details class="progresso-det" data-disclosure="progresso-${esc(p.chave)}"${aberta ? " open" : ""}>${resumo}<ul class="progresso-lista">${[...naBarra].reverse().map((f) => itemDaFrente(f, p.mascote ?? "")).join("")}</ul></details></section>`;
+  return `<section class="progresso" data-frentes="${ids}" aria-label="${esc(`Tarefas: ${principal}`)}"><div class="progresso-barra" aria-hidden="true">${barra}</div><details class="progresso-det" data-disclosure="progresso-${esc(p.chave)}"${aberta ? " open" : ""}>${resumo}<ul class="progresso-lista">${[...naBarra].reverse().map((f) => itemDaFrente(f, p.mascote ?? "")).join("")}</ul></details></section>`;
 }
 
 /** As aberturas da janela por id, uma vez por lista de mensagens (a tela pede a cada quadro). */

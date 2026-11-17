@@ -123,7 +123,7 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
       const novas = c.banco.mensagens.slice(c.antes);
       expect(novas.map((m) => m.kind)).toEqual(["sistema"]);
       expect(novas[0]?.payload ?? null).toBeNull();
-      expect(novas[0]?.texto).toMatch(/^A cota do Claude Code chegou ao limite\. Esta task espera e volta sozinha (às|em \d\d\/\d\d às) \d\d:\d\d, de onde parou\.$/);
+      expect(novas[0]?.texto).toMatch(/^A cota do Claude Code chegou ao limite\. Esta tarefa espera e volta sozinha (às|em \d\d\/\d\d às) \d\d:\d\d, de onde parou\.$/);
       expect(r.events.map((e) => e.kind)).toEqual(expect.arrayContaining(["turno_interrompido", "turno_criado", "mensagem_criada"]));
       // A task segue aberta (a volta está na fila), não "não terminou".
       expect((await c.deps.repos.trabalhos.buscar(c.trabalhoId!))?.estado).not.toBe("falhou");
