@@ -214,6 +214,24 @@ describe("driver Docker: log computador_iniciado mede o boot (NOD-162)", () => {
     expect(iniciados()).toEqual([expect.objectContaining({ partida: "quente", reiniciou: true, ok: true })]);
   });
 
+  it("runtime zumbi reinicia somente o container da máquina consultada e fica pronto", async () => {
+    host({ ligados: [ID], rodando: true });
+    let primeiroPing = true;
+    responder = ((anterior) => (args: string[]) => {
+      if (args[0] === "exec" && args.includes("/opt/nod/client.mjs") && primeiroPing) {
+        primeiroPing = false;
+        return { saida: JSON.stringify({ resultado: { pronto: false, falha: "navegador_nao_abriu", detalhe: "o navegador fechou" } }) };
+      }
+      return anterior(args);
+    })(responder);
+
+    await criarDriverDocker(ENV).iniciar(ID);
+
+    expect(comandos().filter((c) => c.startsWith("restart "))).toEqual([`restart --time 10 nod-computador-${ID}`]);
+    expect(comandos()).not.toContain(`restart --time 10 nod-egress-${ID}`);
+    expect(iniciados()).toEqual([expect.objectContaining({ partida: "quente", reiniciou: true, ok: true })]);
+  });
+
   // QA NOD-162: no Mac carregado o 1º ping estoura os 3 s. Ping sem resposta não mostra cofre trancado nem
   // código parado, e nada foi reiniciado: não pode contar como reinício na medição.
   it("de pé, mas o 1º ping não responde (prazo estourado): quente sem reiniciou", async () => {

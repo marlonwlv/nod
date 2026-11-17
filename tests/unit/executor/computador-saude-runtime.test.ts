@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { navegadorEstaVivo, reconciliarSaudeDoNavegador } from "../../../infra/computador/saude-runtime.mjs";
 
@@ -7,6 +8,12 @@ const contexto = (conectado: boolean, paginasFechadas: boolean[]) => ({
 });
 
 describe("saúde do navegador no runtime Docker", () => {
+  it("liga a reconciliação ao ping que o driver consulta antes de cada ação", async () => {
+    const runtime = await readFile("infra/computador/runtime.mjs", "utf8");
+    expect(runtime).toContain("import { reconciliarSaudeDoNavegador } from './saude-runtime.mjs';");
+    expect(runtime).toMatch(/if\s*\(pedido\?\.tipo\s*===\s*'ping'\)\s*\{[\s\S]*?reconciliarSaudeDoNavegador\(pronto,\s*falha,\s*context\)[\s\S]*?socket\.end/);
+  });
+
   it("mantém pronto enquanto Chromium e ao menos uma página estão vivos", () => {
     const vivo = contexto(true, [false]);
     expect(navegadorEstaVivo(vivo)).toBe(true);
