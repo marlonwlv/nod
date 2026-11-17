@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { enviarMensagem, lerConversa } from "../../src/use-cases/enviar-mensagem.ts";
 import { parar } from "../../src/use-cases/parar.ts";
-import { confirmarNaSessao, marcarLidosNaSessao } from "../../src/use-cases/sessao-viva.ts";
+import { confirmarNaSessao, gravarFalasDaSessao, marcarLidosNaSessao } from "../../src/use-cases/sessao-viva.ts";
 import { agenteComConversa } from "../helpers/fabricas.ts";
 import { PESSOA_MARLON, TENANT_PADRAO } from "../helpers/ids.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
@@ -21,10 +21,11 @@ describeIntegracao("ADR-185: o Parar não perde o que a pessoa disse", () => {
   async function cenario(trx: Trx) {
     const { repos, agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Nina" });
     const vivo = await repos.turnos.enfileirar({ executor: "catcher", conversaId, agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "faça 10 tópicos", entradaConfianca: "confiavel", modelo: "m" });
-    expect((await repos.turnos.reivindicar({ machineId: randomUUID(), agora: Date.now() }))?.id).toBe(vivo?.id);
+    const machineId = randomUUID();
+    expect((await repos.turnos.reivindicar({ machineId, agora: Date.now() }))?.id).toBe(vivo?.id);
     const deps = depsSobre(repos, MARLON, { services: servicosDeTeste({}), trx });
     const falar = async (texto: string) => (await enviarMensagem(deps, { conversaId, texto, inventario: PRONTO })).data.turno.id;
-    return { repos, deps, conversaId, vivo: vivo?.id ?? "", falar };
+    return { repos, deps, conversaId, vivo: vivo?.id ?? "", falar, machineId };
   }
 
   it("a não lida volta a 'pendente'; a lida fica absorvida; a que esperava na fila continua lá", async () => {
@@ -54,6 +55,19 @@ describeIntegracao("ADR-185: o Parar não perde o que a pessoa disse", () => {
       expect((await c.repos.turnos.buscar(absorvida))?.lidoNaSessaoEm).not.toBeNull();
       await parar(c.deps, { conversaId: c.conversaId });
       expect((await c.repos.turnos.buscar(absorvida))?.estado).toBe("interrompido");
+    });
+  });
+
+  it("ADR-186 (revisão): a fala pausada vira retomada quando a resposta seguinte traz a marca (jsonb no Postgres)", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const c = await cenario(trx);
+      await gravarFalasDaSessao(c.deps, { turnoId: c.vivo, machineId: c.machineId, executor: "catcher", textos: ["1. Primeiro Reinado"], interrompidas: [0] });
+      await gravarFalasDaSessao(c.deps, { turnoId: c.vivo, machineId: c.machineId, executor: "catcher", textos: ["[[continua]] Dois mais dois é 4."] });
+      const falas = (await c.repos.mensagens.listarDaConversa(c.conversaId, 50)).filter((m) => m.turnoId === c.vivo);
+      expect(falas.map((m) => [m.texto, m.payload])).toEqual([
+        ["1. Primeiro Reinado", { kind: "fala_interrompida", por: "mensagem_nova", retomou: true }],
+        ["Dois mais dois é 4.", null],
+      ]);
     });
   });
 });

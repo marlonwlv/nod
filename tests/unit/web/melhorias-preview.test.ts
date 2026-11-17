@@ -101,6 +101,15 @@ describe("ADR-185: o texto que a pessoa parou no meio", () => {
     expect(h).not.toContain(">parcial<");
   });
 
+  it("ADR-186 (revisão): retomada depois de responder: 'Pausado para te responder', inteira, sem recolher nem botão", () => {
+    const m = fala({ payload: { kind: "fala_interrompida", por: "mensagem_nova", retomou: true } } as Partial<Mensagem>);
+    const h = renderMensagem(m, estadoCom(m));
+    expect(h).toContain("Pausado para te responder · ");
+    expect(h).toContain("linha-pausada");
+    expect(h).not.toContain("texto-recolhido");
+    expect(h).not.toContain("alternar-texto");
+  });
+
   it("parcial por outro motivo (queda, limite): fica o 'parcial', sem linha e sem recolher", () => {
     const m = fala({});
     const h = renderMensagem(m, estadoCom(m));

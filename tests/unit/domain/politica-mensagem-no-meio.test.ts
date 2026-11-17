@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EventoStream } from "../../../src/contracts/turno.ts";
 import { CAPACIDADES_HARNESS, SEM_CAPACIDADES } from "../../../src/contracts/harness.ts";
-import { criarRastreadorDaVolta, decidirMensagemNoMeio, molduraDaInterrupcao, TRECHO_DA_PARCIAL_MAX } from "../../../src/domain/mensagem-no-meio.ts";
+import { criarRastreadorDaVolta, decidirMensagemNoMeio, extrairMarcaDeRetomada, MARCA_DE_RETOMADA, molduraDaInterrupcao, TRECHO_DA_PARCIAL_MAX } from "../../../src/domain/mensagem-no-meio.ts";
 
 const RESULT = { tipo: "result", sucesso: true, subtype: "success", sessaoCli: null, texto: "", custoUsd: null, tokens: { entrada: 0, saida: 0, cacheLeitura: 0, cacheCriacao: 0 }, numTurnos: 1, negacoesPermissao: [] } as unknown as EventoStream;
 const delta = (texto: string): EventoStream => ({ tipo: "delta", texto });
@@ -48,9 +48,28 @@ describe("ADR-186: uma regra para todo harness", () => {
 
   it("harness que não guarda a parcial (Codex): o trecho vai na moldura, cortado no teto", () => {
     const d = decidirMensagemNoMeio({ ...base, textoDaVolta: "x".repeat(2000), capacidades: { interrompeVolta: true, parcialNoHistorico: false } });
-    expect(d.tipo === "interromper_e_entregar" && d.trechoDaParcial?.length).toBe(TRECHO_DA_PARCIAL_MAX + 1);
+    // O começo (o assunto) e o FIM (onde parou), para o modelo continuar dali.
+    const longa = `${"a".repeat(1000)}${"b".repeat(1000)}`;
+    const t = decidirMensagemNoMeio({ ...base, textoDaVolta: longa, capacidades: { interrompeVolta: true, parcialNoHistorico: false } });
+    expect(t.tipo === "interromper_e_entregar" && t.trechoDaParcial).toMatch(/^a+ \[…\] b+$/);
+    expect(t.tipo === "interromper_e_entregar" && t.trechoDaParcial!.length).toBeLessThanOrEqual(TRECHO_DA_PARCIAL_MAX + 10);
+    expect(d.tipo).toBe("interromper_e_entregar");
     expect(molduraDaInterrupcao("só 3 frases", "1. Origens «x»")).toContain("«1. Origens ‹x›»");
     expect(molduraDaInterrupcao("só 3 frases", null)).toContain("A mensagem dela: «só 3 frases»");
+  });
+
+  it("a moldura deixa o modelo decidir: correção segue o novo; à parte ou acréscimo continua de onde parou, com a marca", () => {
+    const m = molduraDaInterrupcao("quanto é 2+2?", null);
+    expect(m).toContain("se ela mudou ou corrigiu o pedido, siga o pedido novo");
+    expect(m).toContain("Se é uma pergunta ou um assunto à parte, responda curto e depois continue a resposta anterior exatamente de onde parou");
+    expect(m).toContain("Se ela acrescentou algo ao pedido, continue de onde parou e inclua o acréscimo");
+    expect(m).toContain(MARCA_DE_RETOMADA);
+  });
+
+  it("a marca de retomada sai do texto (no começo ou depois de uma linha) e diz que houve", () => {
+    expect(extrairMarcaDeRetomada("[[continua]] Dois mais dois é 4.\n\n2. Segundo Reinado")).toEqual({ texto: "Dois mais dois é 4.\n\n2. Segundo Reinado", retomou: true });
+    expect(extrairMarcaDeRetomada("Dois mais dois é 4.\n[[CONTINUA]]\n2. Segundo Reinado")).toEqual({ texto: "Dois mais dois é 4.\n2. Segundo Reinado", retomou: true });
+    expect(extrairMarcaDeRetomada("A revolução em uma frase.")).toEqual({ texto: "A revolução em uma frase.", retomou: false });
   });
 
   it("as capacidades medidas: Claude e Codex param a volta; só o Claude guarda a parcial; harness sem medição, nada", () => {

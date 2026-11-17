@@ -167,21 +167,42 @@ export type CapacidadesNoMeio = { interrompeVolta: boolean; parcialNoHistorico: 
 
 export type DecisaoNoMeio = { tipo: "entregar" } | { tipo: "interromper_e_entregar"; trechoDaParcial: string | null };
 
-/** Quanto da parcial vai na moldura quando o harness não a guarda no histórico (o começo basta para o modelo se achar). */
+/**
+ * Quanto da parcial vai na moldura quando o harness não a guarda no histórico: o começo (o assunto) e o FIM (onde parou —
+ * para continuar dali, revisão de 2026-11-16, pergunta à parte).
+ */
 export const TRECHO_DA_PARCIAL_MAX = 600;
+const COMECO_DO_TRECHO = 220;
 
 export function decidirMensagemNoMeio(o: { estado: EstadoDaVolta; textoDaVolta: string; jaInterrompeu: boolean; daConversa: boolean; capacidades: CapacidadesNoMeio }): DecisaoNoMeio {
   if (!o.daConversa || !o.capacidades.interrompeVolta || o.jaInterrompeu || o.estado !== "escrevendo") return { tipo: "entregar" };
   const parcial = o.textoDaVolta.trim();
-  const trecho = o.capacidades.parcialNoHistorico || parcial === "" ? null : parcial.length > TRECHO_DA_PARCIAL_MAX ? `${parcial.slice(0, TRECHO_DA_PARCIAL_MAX)}…` : parcial;
+  const trecho = o.capacidades.parcialNoHistorico || parcial === "" ? null : parcial.length > TRECHO_DA_PARCIAL_MAX ? `${parcial.slice(0, COMECO_DO_TRECHO)} […] ${parcial.slice(-(TRECHO_DA_PARCIAL_MAX - COMECO_DO_TRECHO))}` : parcial;
   return { tipo: "interromper_e_entregar", trechoDaParcial: trecho };
 }
 
 /**
- * A moldura da mensagem que interrompeu a volta. Com o trecho (o harness não guarda a parcial no histórico — o Codex, medido
- * em 2026-11-16), o modelo sabe o que já tinha escrito e que a pessoa o viu.
+ * A marca que o modelo põe no começo da resposta quando RETOMA o que estava fazendo (pergunta à parte, acréscimo). O
+ * servidor a tira do texto e marca a fala pausada como retomada: ela não é recolhida e diz "Pausado para te responder".
+ */
+export const MARCA_DE_RETOMADA = "[[continua]]";
+
+/** Tira a marca de retomada do texto (onde ela estiver — o modelo às vezes a põe depois de uma linha) e diz se havia. */
+export function extrairMarcaDeRetomada(texto: string): { texto: string; retomou: boolean } {
+  const re = /\[\[continua\]\][ \t]*\n?/gi;
+  if (!re.test(texto)) return { texto, retomou: false };
+  return { texto: texto.replace(re, "").replace(/^\s+/, ""), retomou: true };
+}
+
+/**
+ * A moldura da mensagem que pausou a volta (revista em 2026-11-16 depois da validação: a pergunta à parte "quanto é 2+2?"
+ * fazia o bot largar a pesquisa). Quem sabe se a mensagem corrige o pedido, acrescenta a ele ou é um assunto à parte é o
+ * modelo, que entende a frase — o nod não adivinha. Com o trecho (o harness não guarda a parcial no histórico — o Codex,
+ * medido em 2026-11-16), o modelo sabe o que já tinha escrito e onde parou.
  */
 export function molduraDaInterrupcao(texto: string, trechoDaParcial: string | null): string {
-  const antes = trechoDaParcial ? `Você estava respondendo assim quando a pessoa mandou uma mensagem nova (ela viu o que você escreveu até aqui): «${trechoDaParcial.replaceAll("«", "‹").replaceAll("»", "›")}». ` : "Você parou a resposta anterior porque a pessoa mandou uma mensagem nova. ";
-  return `${antes}A mensagem dela: «${texto}». Responda considerando o que ela pediu agora; não repita o que já tinha escrito, a não ser que ela peça.`;
+  const antes = trechoDaParcial
+    ? `Sua resposta foi pausada porque a pessoa mandou uma mensagem nova; ela viu o que você escreveu até aqui: «${trechoDaParcial.replaceAll("«", "‹").replaceAll("»", "›")}». `
+    : "Sua resposta foi pausada porque a pessoa mandou uma mensagem nova; ela viu o que você escreveu até aqui. ";
+  return `${antes}A mensagem dela: «${texto}». Decida pelo que ela quis: se ela mudou ou corrigiu o pedido, siga o pedido novo e não continue o anterior. Se é uma pergunta ou um assunto à parte, responda curto e depois continue a resposta anterior exatamente de onde parou, sem repetir o que já escreveu. Se ela acrescentou algo ao pedido, continue de onde parou e inclua o acréscimo. Sempre que for continuar a resposta anterior, comece a sua resposta com ${MARCA_DE_RETOMADA} (o nod tira essa marca; a pessoa não a vê).`;
 }

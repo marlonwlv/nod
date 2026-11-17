@@ -1120,6 +1120,11 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         }
         return saida;
       },
+      async marcarRetomada(turnoId) {
+        const pausadas = doTenant(b.mensagens).filter((x) => x.turnoId === turnoId && x.payload?.kind === "fala_interrompida" && !x.payload.retomou);
+        for (const m of pausadas) m.payload = { kind: "fala_interrompida", por: "mensagem_nova", retomou: true };
+        return pausadas.length;
+      },
       async marcarParcial(id, parcial) {
         const m = doTenant(b.mensagens).find((x) => x.id === id);
         if (!m) return false;

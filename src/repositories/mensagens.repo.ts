@@ -789,6 +789,18 @@ export function mensagensRepo(conn: Conn, escopo: Escopo) {
       return new Map(linhas.map((l) => [l.conversa_id, paraMensagem(l)]));
     },
 
+    /**
+     * ADR-186 (revisão de 2026-11-16): o bot retomou o que estava fazendo depois de responder à mensagem que o pausou
+     * (pergunta à parte, acréscimo). As falas pausadas deste turno ainda não retomadas passam a `retomou: true`.
+     */
+    async marcarRetomada(turnoId: string): Promise<number> {
+      const r = await conn`
+        update mensagens set payload = payload || ${conn.json({ retomou: true })}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and turno_id = ${turnoId}
+          and payload->>'kind' = 'fala_interrompida' and coalesce(payload->>'retomou', '') <> 'true'`;
+      return r.count;
+    },
+
     async marcarParcial(id: string, parcial: boolean): Promise<boolean> {
       const r = await conn`update mensagens set parcial = ${parcial} where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}`;
       return r.count === 1;

@@ -38,6 +38,18 @@ async function turno(d: D, agenteId: string, conversaId: string, o: { origem?: O
 }
 
 describe("gravarFalasDaSessao (ADR-067)", () => {
+  it("ADR-186 (revisão): a resposta que retoma vem com a marca; ela sai do texto e a fala pausada do turno vira retomada", async () => {
+    const { d, agenteId, conversaId } = await cenario();
+    const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
+    await gravarFalasDaSessao(d.deps, { turnoId: vivo.id, machineId: "m1", executor: "local", textos: ["1. Primeiro Reinado"], interrompidas: [0] });
+    await gravarFalasDaSessao(d.deps, { turnoId: vivo.id, machineId: "m1", executor: "local", textos: ["[[continua]] Dois mais dois é 4.\n\n2. Segundo Reinado"] });
+    const doBot = d.banco.mensagens.filter((m) => m.turnoId === vivo.id);
+    expect(doBot.map((m) => [m.texto, m.payload])).toEqual([
+      ["1. Primeiro Reinado", { kind: "fala_interrompida", por: "mensagem_nova", retomou: true }],
+      ["Dois mais dois é 4.\n\n2. Segundo Reinado", null],
+    ]);
+  });
+
   it("ADR-186: a volta interrompida pela mensagem da pessoa vira fala parcial com a marca; as outras seguem comuns", async () => {
     const { d, agenteId, conversaId } = await cenario();
     const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });

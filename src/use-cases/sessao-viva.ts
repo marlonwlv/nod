@@ -2,6 +2,7 @@ import type { AnexoMeta } from "../contracts/anexo.ts";
 import type { Executor } from "../contracts/evento.ts";
 import type { OrigemTurno, Turno } from "../contracts/turno.ts";
 import { ehComandoDeTurno } from "../domain/comandos.ts";
+import { extrairMarcaDeRetomada } from "../domain/mensagem-no-meio.ts";
 import { ateOPrimeiroAnexo, ateOPrimeiroComando, porChegada } from "../domain/ordem-das-falas.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
 import { contaminarSeAbsorveuDeFora } from "./coordenar-trabalhos.ts";
@@ -30,7 +31,10 @@ export const gravarFalasDaSessao: CasoDeUso<{ turnoId: string; machineId: string
   const agora = deps.agora();
   const autoria = autoriaAgente({ agenteId: turno.agenteId, contaDeExecucao: turno.ownerId, executor: e.executor, machineId: e.machineId });
   const events = [];
-  for (const [i, texto] of e.textos.entries()) {
+  for (const [i, bruto] of e.textos.entries()) {
+    // ADR-186: a resposta que RETOMA o que o bot fazia vem com a marca; ela sai do texto e a fala pausada vira "retomada".
+    const { texto, retomou } = extrairMarcaDeRetomada(bruto);
+    if (retomou) await deps.repos.mensagens.marcarRetomada(turno.id);
     if (texto.trim() === "") continue;
     // ADR-186: a volta interrompida pela mensagem da pessoa é parcial e leva a marca (a conversa a recolhe, com a linha
     // "Interrompido pela sua mensagem").
