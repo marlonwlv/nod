@@ -68,7 +68,7 @@ export type PayloadMensagem =
    * `ia` não. A web decide "já voltou" e nomeia a IA por `ia`; valor fora do catálogo da web não vale (nada se infere).
    * As negações gravadas antes não o têm: a web nunca conclui "já voltou" por inferência de outra IA.
    */
-  | { kind: "negacao"; classe: "ferramenta_negada" | "conector_indisponivel" | "plano_ausente"; nome: string; motivo: MotivoNegacao; terminal: boolean; causa?: CausaSemIa; modelo?: string; causaNativa?: CausaNativa; vezes?: number; ia?: IdHarness; anexo?: TipoAnexo; /** jornada C: fala fixa sem IA, turno guardado (src/domain/sem-ia.ts) */ aguardaIa?: true }
+  | { kind: "negacao"; classe: "ferramenta_negada" | "conector_indisponivel" | "plano_ausente"; nome: string; motivo: MotivoNegacao; terminal: boolean; causa?: CausaSemIa; modelo?: string; causaNativa?: CausaNativa; vezes?: number; ia?: IdHarness; anexo?: TipoAnexo; /** a máquina que recusou o turno no despacho (id da chave); a web diz o estado das contas nela */ maquina?: string; /** jornada C: fala fixa sem IA, turno guardado (src/domain/sem-ia.ts) */ aguardaIa?: true }
   /**
    * definido em 2026-10-05: o bot em "automático" passou a responder por outra IA porque a conta da primeira não
    * serviu. Linha de sistema, dita uma vez por troca; o turno que falhou foi repetido na outra IA.

@@ -19,6 +19,7 @@ import { ICONE } from "../lib/icones.ts";
 import { botao, dataHora, esc, hora, iconeAgente, paragrafos } from "../lib/render.ts";
 import type { EstadoMascote } from "../lib/mascote.ts";
 import { iaDoBotAgora, maquinaDoBot, presencaPorMaquina } from "./maquinas.ts";
+import { semIaNaMaquina, type SemIaNaMaquina } from "./contas-na-maquina.ts";
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { acordandoNaFila, motivoLegivel } from "../lib/maquina-nuvem.ts";
 import { COMET_MS, contagemDasAcoes, estadoDaFala, falaNoBalao, geracaoDoBalao, GRUPOS_A_VISTA, itensDoPensamento, textoEmLf, textoEscrevendo, WINK_MS, type AtividadeTurno, type ItemDoPensamento, type LinhaDoResumo, type VigiaDaAtividade } from "../lib/atividade.ts";
@@ -476,13 +477,31 @@ function avisoSemExecutor(m: Mensagem, estado: Estado): string {
     const a = iaDoAlvo ? inventarioDaIa(estado, iaDoAlvo)?.atualizacao : undefined;
     return linhaIaVoltou(iaDoAlvo, a?.fase === "sucesso" && a.em > m.criadoEm ? a : null);
   }
+  // definido em 2026-11-17: a recusa é da MÁQUINA (a que recusou no despacho; nas antigas e no envio, a do bot), e a cota
+  // da tela é da conta. Com a máquina conhecida, o aviso a nomeia, diz o estado de cada conta nela e abre as contas DELA.
+  const sem = semIaDaMaquinaDoAviso(estado, negacao, bot ?? null, fixado);
+  const onde = sem ? ` na ${sem.nome}` : "";
+  const estadoDasContas = !sem ? "" : sem.conectada ? (sem.frase ? ` ${sem.frase}` : "") : ` A ${sem.nome} está sem contato com o Nod.`;
   return avisoDeEstado({
     tom: "erro",
     titulo: "Nenhum trabalho começou.",
-    texto: `${nome ?? "O bot"} não pôde começar: nenhuma IA está pronta agora. Sua mensagem fica guardada: quando a IA voltar, ${nome ?? "o bot"} responde sozinho.`,
+    texto: `${nome ?? "O bot"} não pôde começar: nenhuma IA está pronta agora${onde}.${estadoDasContas} Sua mensagem fica guardada: quando a IA voltar, ${nome ?? "o bot"} responde sozinho.`,
     extra: detalhes,
-    acao: botao("secao-espaco", "Conectar IA", { classe: "pri sm", dados: { secao: "conexao" } }),
+    acao: !sem ? botao("secao-espaco", "Conectar IA", { classe: "pri sm", dados: { secao: "conexao" } })
+      : sem.conectada ? botao("cl-gerenciar", `Ver contas na ${esc(sem.nome)}`, { classe: "pri sm", dados: { maquina: sem.maquina.id } })
+      : botao("secao-espaco", "Ver máquinas", { classe: "pri sm", dados: { secao: "maquinas" } }),
   });
+}
+
+/** A máquina do aviso sem IA: a que recusou (`maquina` da negação); sem ela, a do bot. null = não se sabe qual, ou sem contas. */
+function semIaDaMaquinaDoAviso(estado: Estado, negacao: { maquina?: string } | null, bot: FrotaDto["agentes"][number] | null, fixado: IdIa | null): SemIaNaMaquina | null {
+  const lista = estado.maquinas?.maquinas ?? [];
+  const contas = estado.contasIa;
+  if (!contas?.disponivel) return null;
+  const maquina = (negacao?.maquina ? lista.find((m) => m.id === negacao.maquina) : undefined) ?? (bot ? maquinaDoBot(estado, bot) : null);
+  if (!maquina) return null;
+  const ia = fixado === "claude-cli" || fixado === "codex-cli" ? fixado : null;
+  return semIaNaMaquina({ maquina, maquinas: lista, contas: contas.contas, agora: estado.agora, ia });
 }
 
 /**

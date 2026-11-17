@@ -202,7 +202,7 @@ async function envioRepetido(deps: Deps, existente: Mensagem, texto: string, ane
  */
 export async function mensagemExecutorIndisponivel(
   deps: Deps,
-  p: { conversaId: string; turnoId: string; agenteId: string; executor: Executor; inventario: Inventario; agora: number; harness?: string; modeloInvalido?: string; anexoNaoLido?: TipoAnexo; semIaOnde?: "maquinas" | "maquina_do_bot" },
+  p: { conversaId: string; turnoId: string; agenteId: string; executor: Executor; inventario: Inventario; agora: number; harness?: string; modeloInvalido?: string; anexoNaoLido?: TipoAnexo; semIaOnde?: "maquinas" | "maquina_do_bot"; maquinaId?: string },
 ): Promise<Mensagem | null> {
   // NOD-171: o harness escolhido e o inventário DELE; sem harness (turno antigo, catcher), o do motor.
   const nome = p.harness ?? motorDe(p.executor);
@@ -221,7 +221,7 @@ export async function mensagemExecutorIndisponivel(
     kind: "negacao",
     // NOD-285 (revisão do Gil no #345): o tipo do arquivo vai no payload para a web dar à negação o aviso próprio.
     texto: p.anexoNaoLido ? redigir("anexo-nao-lido", p.agora, { motivo }) : redigir("executor-indisponivel", p.agora, { motivo, desde: horaDaFrase(p.inventario.em, p.agora) }),
-    payload: { kind: "negacao", classe: "plano_ausente", nome, motivo: "plano_ausente", terminal: true, ...(ia ? { ia } : {}), ...(p.modeloInvalido !== undefined ? { modelo: p.modeloInvalido } : {}), ...(p.anexoNaoLido ? { anexo: p.anexoNaoLido } : {}) },
+    payload: { kind: "negacao", classe: "plano_ausente", nome, motivo: "plano_ausente", terminal: true, ...(ia ? { ia } : {}), ...(p.modeloInvalido !== undefined ? { modelo: p.modeloInvalido } : {}), ...(p.anexoNaoLido ? { anexo: p.anexoNaoLido } : {}), ...(p.maquinaId ? { maquina: p.maquinaId } : {}) },
     confianca: "confiavel",
   });
 }
