@@ -729,6 +729,16 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         if (!r.data.tardia && r.data.turno?.motivoInterrupcao === "maquina_sem_contato") registroPadrao.incrementar({ metrica: "pos_restart", desfecho: "perdido", origem: "maquina_sumida", tenant_id: escopo.tenantId });
         // NOD-245: o turno adotado que o reinício derrubou (a máquina desistiu antes de o servidor voltar).
         if (!r.data.tardia && r.data.turno?.motivoInterrupcao === "reinicio_servidor") registroPadrao.incrementar({ metrica: "pos_restart", desfecho: "perdido", origem: "restart_servidor", tenant_id: escopo.tenantId });
+        // NOD-452: distribuição para escolher o teto pelo p99 real. Só metadados fechados; nenhum texto, id ou argumento.
+        const medido = r.data.turno;
+        const despachadoEm = medido?.despachadoEm;
+        if (!r.data.duplicada && medido?.bastidores === true && !medido.trabalhoId && despachadoEm != null) {
+          log("info", "turno_bastidores_duracao", {
+            origem: medido.origem,
+            desfecho: medido.estado,
+            duracao_ms: Math.max(0, agora() - despachadoEm),
+          });
+        }
         const extras = deps.depoisDeAssentar && !r.data.duplicada ? await deps.depoisDeAssentar(d, { entrega: e, saida: r.data }) : [];
         const events = [...(r.events ?? []), ...extras];
         if (events.length) await d.repos.events.gravarComOutbox(events);

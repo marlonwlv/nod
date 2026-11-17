@@ -1660,6 +1660,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async fundosPresos() {
         return [];
       },
+      async bastidoresAcimaDoTeto(agora, tetoMs) {
+        return b.turnos.filter((t) => t.estado === "despachando" && t.bastidores === true && !t.trabalhoId && t.despachadoEm != null && t.despachadoEm <= agora - tetoMs);
+      },
       async encerrarOrfao() {
         return null;
       },

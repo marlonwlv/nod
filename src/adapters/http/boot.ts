@@ -29,7 +29,7 @@ import { sincronizarPrsDoQuadro } from "../../use-cases/prs-do-quadro.ts";
 import { executar } from "./rotas/dentro-de-tx.ts";
 import { limiteDoAmbiente } from "../../domain/computador.ts";
 import { iniciarVarredorExpiracao } from "../fundo/varredor-expiracao.ts";
-import { INTERVALO_VARREDOR_LEASE_MS, iniciarVarredorLease } from "../fundo/varredor-lease.ts";
+import { INTERVALO_VARREDOR_LEASE_MS, iniciarVarredorLease, lerTetoBastidoresMs } from "../fundo/varredor-lease.ts";
 import { comporApp, type App, type AtivarDriver, type EnvApp, type OpcoesCompor } from "./compor.ts";
 import { lerModelosLigacao } from "../../domain/modelo-ligacao.ts";
 import { lerDominiosAdmitidos } from "../../domain/dominios-admitidos.ts";
@@ -368,6 +368,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
       opcoes: {
         listarPessoas: o.listarPessoas,
         prazoDecisaoMs: Number(env.NOD_PRAZO_DECISAO_MS) || undefined,
+        tetoBastidoresMs: lerTetoBastidoresMs(env.NOD_TETO_BASTIDORES_MS),
         // Só no compartilhado: no modo local o servidor É o nod no Mac — reiniciar é "nod fechado".
         ...(app.compartilhado ? { inicioDoProcesso, ultimoContato: (id: string) => app.ultimoContatoDaMaquina(id) } : {}),
       },

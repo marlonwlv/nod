@@ -1527,6 +1527,20 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       return linhas.map(paraTurno);
     },
 
+    /**
+     * NOD-452: turnos da faixa serial dos bastidores que ultrapassaram o teto operacional.
+     * Só conversa sem trabalho; frentes e tarefas têm seus próprios freios. A flag desligada nem chama esta leitura.
+     */
+    async bastidoresAcimaDoTeto(agora: number, tetoMs: number): Promise<Turno[]> {
+      const linhas = await conn<Linha[]>`
+        select ${conn.unsafe(COLUNAS)} from turnos
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}
+          and estado = 'despachando' and bastidores and trabalho_id is null and despachado_em is not null
+          and despachado_em <= ${data(agora - tetoMs)}
+        order by despachado_em, id`;
+      return linhas.map(paraTurno);
+    },
+
     async despachandoDaPessoa(): Promise<Turno[]> {
       const linhas = await conn<Linha[]>`
         select ${conn.unsafe(COLUNAS)} from turnos where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and estado = 'despachando' order by criado_em`;

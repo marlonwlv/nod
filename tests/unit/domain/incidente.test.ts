@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { destinoDaQueda, INCIDENTE_VISIVEL_MS, incidenteVisivel, JANELA_MESCLA_INCIDENTE_MS, juntarQuedas, maquinaVoltou, motivoDaQueda, ultimoSinalDoTurno, type QuedaDeMaquina } from "../../../src/domain/incidente.ts";
+import { destinoDaQueda, ehMotivoDaQueda, INCIDENTE_VISIVEL_MS, incidenteVisivel, JANELA_MESCLA_INCIDENTE_MS, juntarQuedas, maquinaVoltou, motivoDaQueda, ultimoSinalDoTurno, type QuedaDeMaquina } from "../../../src/domain/incidente.ts";
 import { LEASE_MS, OFFLINE_MS } from "../../../src/shared/constantes.ts";
 
 const H = 3_600_000;
@@ -18,6 +18,10 @@ describe("queda da máquina (ADR-045)", () => {
     expect(motivoDaQueda({ leaseAte: boot - 1 + LEASE_MS }, 11 * H, boot)).toBe("reinicio_servidor");
     expect(motivoDaQueda({ leaseAte: boot + LEASE_MS }, 11 * H, boot)).toBe("maquina_sem_contato");
     expect(motivoDaQueda({ leaseAte: boot - 1 + LEASE_MS }, 11 * H, null)).toBe("maquina_sem_contato");
+  });
+
+  it("o teto dos bastidores não vira queda de máquina", () => {
+    expect(ehMotivoDaQueda("turno_travado")).toBe(false);
   });
 
   it("a máquina voltou quando puxou há menos que OFFLINE_MS (a régua da presença)", () => {

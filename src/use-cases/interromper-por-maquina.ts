@@ -50,7 +50,7 @@ export type SaidaQuedaDaMaquina = {
  * Por que o varredor assentou o turno: uma queda (MotivoDaQueda) ou, desde 2026-10-20 (NOD-293 A7), a máquina removida —
  * a pessoa revogou a chave com o turno rodando. A removida tem Retomar como a queda, mas nenhum aviso de "sem contato".
  */
-type MotivoDoVarredor = MotivoDaQueda | "maquina_removida";
+type MotivoDoVarredor = MotivoDaQueda | "maquina_removida" | "turno_travado";
 
 /**
  * Um turno JÁ interrompido pela queda, com o que se sabe dela. `servidorFalhou` (NOD-386): o lease venceu com a máquina
@@ -82,7 +82,7 @@ async function consequencias(deps: DepsQueda, c: Caido & { rotinaId: string | nu
   }
   if (c.rotinaId) {
     // NOD-386: a rotina que desistiu com a máquina em contato não culpa a máquina no histórico.
-    const r = await registrarDesfechoRotina(deps, { turnoId: turno.id, desfecho: "interrompida", motivo: c.servidorFalhou && motivo === "maquina_sem_contato" ? "servidor_nao_respondeu" : motivo });
+    const r = await registrarDesfechoRotina(deps, { turnoId: turno.id, desfecho: "interrompida", motivo: motivo === "turno_travado" ? "tempo_esgotado" : c.servidorFalhou && motivo === "maquina_sem_contato" ? "servidor_nao_respondeu" : motivo });
     events.push(...(r.events ?? []));
     return { decisaoId: null, rotinaId: c.rotinaId, rotina: true };
   }
@@ -235,7 +235,7 @@ async function aplicar(deps: DepsQueda, caidos: readonly Caido[], prazoMs: numbe
     // ADR-083: o trabalho do turno caído vira "precisa de você" (o card Retomar) ou "falhou" (rotina, sem retomada).
     events.push(...(await sincronizarDoTurno(deps, c.turno)));
     saida.interrompidos.push(c.turno.id);
-    if (c.motivo !== "maquina_removida") saida.porMotivo[c.motivo] += 1;
+    if (c.motivo !== "maquina_removida" && c.motivo !== "turno_travado") saida.porMotivo[c.motivo] += 1;
     if (r.decisaoId) saida.decisoes.push(r.decisaoId);
     if (r.rotinaId) saida.rotinas.push(r.rotinaId);
     // NOD-386: com a máquina em contato o servidor falhou — nenhum aviso de máquina sem contato.
@@ -328,6 +328,24 @@ export async function interromperPorMaquina(deps: DepsQueda, input: EntradaVarre
   // Depois das quedas: a mesma ordem de travas (a trava por pessoa dos incidentes antes das janelas de rotina).
   for (const p of parados) r.events.push(...(await aposParada(deps, p.turno, p.perdidoDesde)));
   r.data.interrompidos.push(...parados.map((p) => p.turno.id));
+  return r;
+}
+
+/**
+ * NOD-452: o teto da faixa de bastidores é uma queda controlada. Interrompe primeiro e só depois cria a
+ * retomada, pela mesma regra do fundo; assim o turno velho nunca roda em paralelo com o próximo da faixa.
+ */
+export async function interromperBastidoresComTeto(deps: DepsQueda, turnos: readonly Turno[]): Promise<{ data: SaidaQuedaDaMaquina; events: RuntimeEvent[] }> {
+  const agora = deps.agora();
+  const caidos: Caido[] = [];
+  for (const candidato of turnos) {
+    if (!candidato.bastidores || candidato.estado !== "despachando") continue;
+    const turno = await deps.repos.turnos.interromper(candidato.id, "turno_travado", { ultimoSinalEm: agora });
+    if (!turno) continue;
+    caidos.push({ turno, motivo: "turno_travado", perdidoDesde: agora, maquinaPresente: true, servidorFalhou: false });
+  }
+  const r = await aplicar(deps, caidos, undefined);
+  for (const c of caidos) log("aviso", "bastidor_teto_atingido", { turno_id: c.turno.id, origem: c.turno.origem, duracao_ms: Math.max(0, agora - (c.turno.despachadoEm ?? agora)) });
   return r;
 }
 

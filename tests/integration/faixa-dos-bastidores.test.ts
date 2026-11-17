@@ -4,6 +4,7 @@ import type { OrigemTurno } from "../../src/contracts/turno.ts";
 import { criarAgente } from "../../src/use-cases/criar-agente.ts";
 import { despacharTurno } from "../../src/use-cases/despachar-turno.ts";
 import { enviarMensagem, lerConversa } from "../../src/use-cases/enviar-mensagem.ts";
+import { interromperBastidoresComTeto } from "../../src/use-cases/interromper-por-maquina.ts";
 import { depsSobreTrx, executar, MARLON } from "../helpers/deps-l6.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
@@ -99,6 +100,25 @@ describeIntegracao("ADR-130: a conversa do bot tem a faixa da pessoa e a dos bas
       expect((await deps.repos.turnos.buscar(rotina.id))?.estado).toBe("pendente");
       // Fora da drenagem, a rotina sai (nos bastidores, ao lado da fala que roda).
       expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId).toBe(rotina.id);
+    });
+  });
+
+  it("NOD-452: a rotina acima do teto cai, o pedido seguinte sai e a rotina ganha retomada", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const deps = depsSobreTrx(trx, MARLON);
+      const { data: criado } = await executar(deps, criarAgente, { dono: "pessoa" });
+      const rotina = await fundo(deps, criado, "rotina");
+      const colega = await fundo(deps, criado, "delegacao");
+      const maquina = randomUUID();
+      expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId).toBe(rotina.id);
+      const agora = Date.now();
+      await trx`update turnos set despachado_em = to_timestamp(${agora - 120_000} / 1000.0) where id = ${rotina.id}`;
+      const candidatos = await deps.repos.turnos.bastidoresAcimaDoTeto(agora, 60_000);
+      const corte = await interromperBastidoresComTeto({ ...deps, agora: () => agora, aleatorio: () => 0.5 }, candidatos);
+      expect(corte.data.interrompidos).toEqual([rotina.id]);
+      expect((await deps.repos.turnos.buscar(rotina.id))?.motivoInterrupcao).toBe("turno_travado");
+      expect(await deps.repos.turnos.retomadaNaFila(rotina.id)).not.toBeNull();
+      expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId).toBe(colega.id);
     });
   });
 });
