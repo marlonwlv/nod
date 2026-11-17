@@ -5750,6 +5750,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "ligacao-retomar-audio": () => telaLigacao.retomarAudio(),
   // O aviso de microfone negado (ligação e ditado, no app): abre Privacidade › Microfone do sistema.
   "microfone-ajustes": () => abrirAjustesDoMicrofone(),
+  // O × do aviso de microfone que o ditado põe acima do campo (web/telas/ditado-controle.ts).
+  "ditado-aviso-fechar": (el) => el.closest(".ditado-aviso")?.remove(),
   "ligacao-sugestao": (el) => { telaLigacao.enviarTexto(el.dataset.texto ?? ""); },
   // Rede de segurança (2026-10-05): a IA do Mac caiu no meio da ligação.
   "ligacao-continuar-ia": (el) => telaLigacao.continuarCom(el.dataset.ia === "codex-cli" ? "codex-cli" : "claude-cli"),
