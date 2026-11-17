@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ResultadoTurno } from "../../../src/contracts/turno.ts";
 import { LEASE_MS } from "../../../src/shared/constantes.ts";
 import { assentarTurno, desfechoDaEntrega, REGRA_ENTREGA_TARDIA } from "../../../src/use-cases/assentar-turno.ts";
 import { criarAgente } from "../../../src/use-cases/criar-agente.ts";
 import { dispararRotina } from "../../../src/use-cases/disparar-rotina.ts";
-import { interromperPorMaquina } from "../../../src/use-cases/interromper-por-maquina.ts";
+import { interromperBastidoresComTeto, interromperPorMaquina } from "../../../src/use-cases/interromper-por-maquina.ts";
 import { enfileirarRetomada } from "../../../src/use-cases/enfileirar-retomada.ts";
 import { ENTRADA_DA_RETOMADA_DA_QUEDA } from "../../../src/domain/cota-da-ia.ts";
 import { depsEmMemoria, executar, MARLON } from "../../helpers/deps-l6.ts";
@@ -149,6 +149,23 @@ describe("ADR-131: o motor parou no meio do turno (atualização sozinha, restar
       motivoInterrupcao: "turno_travado",
       motivoFalha: null,
     });
+  });
+
+  it("NOD-452: a telemetria do teto leva só origem, desfecho e duração", async () => {
+    const c = await cenario("rotina");
+    const turno = c.banco.turnos.find((t) => t.id === c.turnoId)!;
+    const linhas: Record<string, unknown>[] = [];
+    const saida = vi.spyOn(console, "log").mockImplementation((linha: string) => { linhas.push(JSON.parse(linha) as Record<string, unknown>); });
+    try {
+      await interromperBastidoresComTeto(c.deps, [turno]);
+    } finally {
+      saida.mockRestore();
+    }
+    const teto = linhas.find((linha) => linha.evento === "bastidor_teto_atingido");
+    expect(teto).toMatchObject({ origem: "rotina", desfecho: "interrupcao_solicitada", duracao_ms: 0 });
+    expect(teto).not.toHaveProperty("turno_id");
+    expect(teto).not.toHaveProperty("texto");
+    expect(teto).not.toHaveProperty("args");
   });
 
   it("NOD-452: a entrega do processo cortado libera a faixa com retomada pela política do fundo", async () => {
