@@ -33,6 +33,8 @@ npm run db:migrate:test
 
 No ambiente do servidor, configure `NOD_COMPUTADORES=docker` e uma `NOD_CREDENTIAL_KEY` de 32 bytes em hexadecimal, secreta e estável. Não use a chave pública de exemplo com contas reais. Reinicie o servidor nod. A imagem padrão é `nod-computador:1`; `NOD_COMPUTADOR_IMAGEM` permite fixar outra versão. `NOD_COMPUTADOR_RUNTIME` seleciona um runtime Docker já instalado e validado no host.
 
+Volumes criados antes do isolamento por tenant continuam disponíveis somente com adoção explícita: defina `NOD_COMPUTADOR_LEGADO_POR_ID` como um objeto JSON `UUID → hash`, em que o hash são os 12 primeiros hex de SHA-256 sobre `tenantId:pessoaId`. Sem o mapeamento, o escopo recebe volumes novos; isso evita entregar login legado a outro tenant com UUID colidente.
+
 `npm run computador:build` constrói a imagem para `linux/arm64` e `linux/amd64` (buildx) e carrega a da arquitetura do host como `nod-computador:1`. A outra arquitetura roda emulada: sem o binfmt do QEMU (o Docker Desktop já traz), ela vira só um aviso e a nativa fica pronta; para construí-la, instale com `docker run --privileged --rm tonistiigi/binfmt --install arm64,amd64`. Sem o plugin buildx, o comando cai no `docker build` de antes (só a nativa). Com `NOD_COMPUTADOR_PLATAFORMAS=linux/amd64` (ou `linux/arm64`), `--plataformas` ou `--saida`, qualquer falha é erro. `-- --saida <pasta>` grava também um `docker save` por arquitetura, que é o que entra no disco da VM local do Mac (`infra/vm-local/`, ADR-123).
 
 O computador é provisionado ao ligar pela interface ou na primeira ação autorizada do bot. A imagem precisa estar preparada antecipadamente: uma solicitação do bot não instala Docker nem constrói imagens.

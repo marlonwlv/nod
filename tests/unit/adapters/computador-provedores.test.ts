@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -670,6 +671,18 @@ describe("Docker como provedor", () => {
     const ligado = criarProvedorDocker({}, { driver: { ...base, ligados: async () => new Set([ID]) }, docker });
     await expect(ligado.snapshot!({ id: ID }, "x")).rejects.toMatchObject({ motivo: "ocupado" });
     await expect(p.snapshot!({ id: ID }, "Rótulo Inválido")).rejects.toMatchObject({ codigo: "entrada_invalida" });
+
+    const hash = createHash("sha256").update(`${ESCOPO.tenantId}:${ESCOPO.pessoaId}`).digest("hex").slice(0, 12);
+    const dockerLegado = vi.fn(async () => "");
+    const migrado = criarProvedorDocker({ NOD_COMPUTADOR_LEGADO_POR_ID: JSON.stringify({ [ID]: hash }) }, { driver: base, docker: dockerLegado });
+    await migrado.snapshot!({ id: ID, escopo: ESCOPO }, "segura");
+    const copiaLegada = (dockerLegado.mock.calls[1] as unknown as [string[]])[0].join(" ");
+    expect(copiaLegada).toContain(`source=nod-computador-${ID}-home,target=/de,readonly`);
+
+    const outroEscopo = { tenantId: "99999999-0000-4000-8000-000000000001", pessoaId: ESCOPO.pessoaId };
+    await migrado.snapshot!({ id: ID, escopo: outroEscopo }, "isolada");
+    const copiaDoOutro = (dockerLegado.mock.calls[5] as unknown as [string[]])[0].join(" ");
+    expect(copiaDoOutro).not.toContain(`source=nod-computador-${ID}-home,target=/de,readonly`);
   });
 
   it("duas pessoas ligando juntas não furam o teto de máquinas do host", async () => {
@@ -710,6 +723,42 @@ describe("Docker como provedor", () => {
     expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(resultados.filter((r) => r.status === "rejected")).toHaveLength(1);
     expect([...rodando].filter((n) => n.startsWith("nod-computador-"))).toHaveLength(1);
+  });
+
+  it("o mesmo UUID em tenants diferentes recebe containers e volumes diferentes", async () => {
+    const supervisorPub = gerarParX25519().publica;
+    const criados = new Set<string>();
+    const chamadas: string[][] = [];
+    const docker = vi.fn(async (args: string[], entrada?: string) => {
+      chamadas.push(args);
+      if (args[0] === "ps") return "";
+      if (args[0] === "image" && args[1] === "inspect") return "sha256:imagem";
+      if (args[0] === "network" && args[1] === "inspect") return "ok";
+      if (args[0] === "inspect" && args[1] === "--format") return "false\n";
+      if (args[0] === "inspect") {
+        if (!criados.has(args[1]!)) throw new Error("não existe");
+        return "ok";
+      }
+      if (args[0] === "create") { criados.add(args[args.indexOf("--name") + 1]!); return "ok"; }
+      if (args[0] === "exec" && args.includes("test")) return "";
+      if (args[0] === "exec" && args.some((a) => a.endsWith("/cliente-unico.mjs"))) {
+        const pedido = JSON.parse(entrada ?? "{}") as { sonda?: boolean; comando?: { id?: string } };
+        return pedido.sonda ? JSON.stringify({ estado: { supervisorPub } }) : JSON.stringify({ resultado: { id: pedido.comando?.id, desfecho: "ok" } });
+      }
+      return "ok";
+    });
+    const controle = criarControleDockerCompartilhado({ NOD_COMPUTADORES: "docker", NOD_CREDENTIAL_KEY: "a".repeat(64) }, docker);
+    const outroEscopo = { tenantId: "99999999-0000-4000-8000-000000000001", pessoaId: ESCOPO.pessoaId };
+    await controle.iniciar({ id: ID, escopo: ESCOPO });
+    await controle.iniciar({ id: ID, escopo: outroEscopo });
+
+    const maquinas = chamadas
+      .filter((a) => a[0] === "create" && a.includes("--name"))
+      .map((a) => a[a.indexOf("--name") + 1]!)
+      .filter((nome) => nome.startsWith("nod-computador-"));
+    expect(new Set(maquinas).size).toBe(2);
+    const volumes = chamadas.filter((a) => a[0] === "volume" && a[1] === "create").map((a) => a.at(-1));
+    expect(new Set(volumes).size).toBe(4);
   });
 
   it("prepara os volumes rootless, desliga só o sandbox interno do Chromium e assina todo comando efetivo", async () => {
