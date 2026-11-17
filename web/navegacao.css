@@ -9,29 +9,41 @@
 }
 
 /* ---- Arrastar na barra --------------------------------------------------------------
-   A origem esmaece, a grade mostra a vaga "Fixar", a seção de destino ganha fundo e a linha diz onde o bot entra.
-   "+ Nova seção", a grade vazia e "Meus agentes" vazio só aparecem enquanto se arrasta. */
+   A origem esmaece no lugar, um cartão do bot segue o ponteiro, a grade mostra a vaga "Fixar" e a seção sob o ponteiro
+   ganha o fundo de realce inteiro (cabeçalho e linhas), sem borda, rótulo ou linha de inserção: na seção não se escolhe
+   lugar (web/lib/arrastar.ts, ordemAoSoltarNaSecao). A grade vazia só aparece enquanto se arrasta; "Sem seção" vazia
+   não aparece. Revisto em 2026-11-16. */
 #sidebar [draggable="true"] { -webkit-user-drag: element; }
-#sidebar .origem-arrasto { opacity: .35; }
-.fantasma-arrasto { position: fixed; top: -1000px; left: -1000px; z-index: 50; background: var(--surface); border-radius: var(--raio-14);
-  box-shadow: var(--shadow-pop); }
-.fixados[data-vazio], .section[data-vazio], .nova-secao-alvo { display: none; }
-/* definido em 2026-10-06: arrastando, a lista ganha um fôlego embaixo — o último bot não encosta no rodapé e sobra onde
-   mirar para soltá-lo no fim; a rolagem automática (web/lib/arrastar.ts) leva até lá. */
-.arrastando-bot .list { padding-bottom: 72px; }
+#sidebar .origem-arrasto { opacity: .5; }
+/* O navegador congela o :hover onde se pegou o bot e, depois de soltar, até o ponteiro andar (hoverDepoisDeSoltar): nos
+   dois casos o hover velho sai; ao soltar, a linha sob o ponteiro acende. O selecionado fica. */
+#sidebar:is(.arrastando-bot, [data-sem-hover]) :is(.bot-row:not(.hover-no-ponto):not(:has(> .row[aria-current="true"])), .fixado-bt:not([aria-current="true"]), .novo-time):hover { background: none; }
+#sidebar .bot-row.hover-no-ponto, #sidebar .fixado.hover-no-ponto > .fixado-bt:not([aria-current="true"]) { background: var(--hover); }
+#sidebar:is(.arrastando-bot, [data-sem-hover]) .secao-cab:hover:not(:focus-visible) { color: inherit; }
+#sidebar:is(.arrastando-bot, [data-sem-hover]) :is(.secao-cab:hover, .time-cab:hover .secao-cab)[aria-expanded="true"]:not(:focus-visible) > svg { opacity: 0; }
+#sidebar:is(.arrastando-bot, [data-sem-hover]) .time-cab:hover:not(:focus-within) .time-mais:not([aria-expanded="true"]) { opacity: 0; }
+.fixados[data-vazio], .section[data-vazio] { display: none; }
 .arrastando-bot .fixados[data-vazio] { display: grid; }
-.arrastando-bot .section[data-vazio] { display: block; min-height: 44px; }
 .fixados-vazio { grid-column: 1 / -1; margin: 0; padding: 18px 12px; border: 1.5px dashed var(--line-strong); border-radius: var(--raio-14); text-align: center;
   font-size: var(--fs-corpo-2); color: var(--ink-3); }
 .vaga-fixar { display: flex; align-items: flex-end; justify-content: center; min-height: 118px; padding-bottom: 12px; box-sizing: border-box;
   border: 1.5px dashed var(--line-strong); border-radius: var(--raio-14); background: var(--surface-raised); font-size: var(--fs-legenda); color: var(--ink); }
-.section.alvo-soltar { border-radius: var(--raio-14); background: var(--surface-raised); box-shadow: inset 0 0 0 1.5px var(--line-strong); }
-.section.alvo-soltar > h3::after { content: "Soltar aqui"; font-size: var(--fs-rotulo); color: var(--ink); }
-.linha-insercao { position: relative; height: 2px; margin: 0 6px; border-radius: 1px; background: var(--ink); }
-.linha-insercao::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
-.arrastando-bot .nova-secao-alvo { display: block; margin: 6px 0 10px; padding: 12px; border: 1.5px dashed var(--line-strong); border-radius: var(--raio-12);
-  text-align: center; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-.nova-secao-alvo.alvo-soltar { border-color: var(--ink); background: var(--surface-raised); color: var(--ink); }
+.section.alvo-soltar { border-radius: var(--raio-8); background: var(--alvo-soltar); }
+/* O cartão: 80×90 centrado no ponteiro (posicaoDoFantasma), fundo da superfície elevada a 90 %, raio 12, sombra de
+   popover (nenhuma no escuro); avatar 60 e nome 12/16 numa linha. Ao pegar, aparece e cresce para 1,04 com uma mola
+   curta; com "Reduzir movimento", já entra pronto. */
+.fantasma-bot { position: fixed; z-index: 1000; width: 80px; height: 90px; pointer-events: none; transform: scale(1.04); }
+.fantasma-bot::before { content: ""; position: absolute; inset: 0; border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--shadow-pop); opacity: .9; }
+.fantasma-bot-corpo { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; padding: 4px 8px; box-sizing: border-box; }
+.fantasma-bot-avatar.icon { flex: none; width: 60px; height: 60px; }
+.fantasma-bot-legenda { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo);
+  font-weight: 400; letter-spacing: .12px; color: var(--ink); }
+@media (prefers-reduced-motion: no-preference) {
+  .fantasma-bot { animation: fantasma-bot-cresce .2s cubic-bezier(.22, 1, .36, 1) both; }
+  .fantasma-bot::before { animation: fantasma-bot-aparece .2s cubic-bezier(.22, 1, .36, 1) both; }
+}
+@keyframes fantasma-bot-cresce { from { transform: scale(1); } to { transform: scale(1.04); } }
+@keyframes fantasma-bot-aparece { from { opacity: 0; } to { opacity: .9; } }
 
 /* ---- Seções que recolhem (definido em 2026-10-04, web/lib/secoes.ts) -----------------
    O título é o botão e ocupa a linha inteira. A seta só aparece no hover (no toque, sempre, mais clara) e fica à vista
@@ -991,7 +1003,7 @@ div.mac-medidor { padding-right: 36px; }
 .gvn-nome:focus, .gvn-sub:focus { outline: none; border-radius: var(--raio-6); background: var(--surface-raised); }
 @media (forced-colors: active) { .gvn-nome:focus, .gvn-sub:focus { outline: 2px solid CanvasText; } }
 .gvn-nome:focus-visible, .gvn-sub:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.gvn-erro-linha { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; font-size: var(--fs-rotulo); line-height: 16px; color: var(--ink-2); }
+.gvn-erro-linha { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-2); }
 .gvn-erro-linha:has(> .gvn-erro:empty) { display: none; }
 .gvn-erro-icone { flex: none; display: grid; color: var(--danger); }
 
@@ -1046,7 +1058,7 @@ div.mac-medidor { padding-right: 36px; }
 .gvn-acao-texto:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .gvn-acao-texto:disabled { color: var(--ink-3); cursor: default; text-decoration: none; }
 /* A rotina parada (ADR-044): o aviso na linha de baixo, neutro; só o ícone em --warning (é espera, não erro). */
-.gvn-parada { display: grid; grid-template-columns: 14px 1fr; align-items: start; gap: 2px 6px; flex-basis: 100%; box-sizing: border-box; margin: -4px 0 0; padding: 0 14px 10px; font-size: var(--fs-rotulo); line-height: 16px; color: var(--ink-2); background: none; border: 0; }
+.gvn-parada { display: grid; grid-template-columns: 14px 1fr; align-items: start; gap: 2px 6px; flex-basis: 100%; box-sizing: border-box; margin: -4px 0 0; padding: 0 14px 10px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-2); background: none; border: 0; }
 .gvn-parada-icone { display: grid; margin-top: 1px; color: var(--warning); }
 .gvn-parada > .gvn-acao-texto { grid-column: 2; justify-self: start; margin-left: -4px; font-size: var(--fs-corpo-2); }
 
@@ -1283,7 +1295,8 @@ div.mac-medidor { padding-right: 36px; }
 .time-mais:hover, .time-mais:focus-visible { color: var(--ink); background: var(--surface-raised); }
 @media (hover: none) { .time-mais { opacity: .7; width: 44px; height: 44px; } }
 #sidebar[data-buscando] .time-mais { display: none; }
-.time-vazio { margin: 2px 8px 6px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--raio-10); font-size: var(--fs-corpo-2); color: var(--ink-3); }
+/* A seção vazia é só a frase, na largura da seção e alinhada ao nome dela (2026-11-16). */
+.time-vazio { margin: 3px 0 0; padding: 6px 9px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); letter-spacing: .12px; color: var(--ink-3); }
 .section[data-recolhida] > .time-vazio, #sidebar[data-buscando] .time-vazio { display: none; }
 .time-editando { margin-bottom: 4px; }
 .time-nome-campo { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: var(--raio-8); background: var(--surface);
@@ -1296,7 +1309,6 @@ div.mac-medidor { padding-right: 36px; }
   text-align: left; font: inherit; font-size: var(--fs-corpo-2); color: var(--ink-3); cursor: pointer; }
 .novo-time.nova-secao-alvo[hidden] { display: none; }
 .novo-time:hover, .novo-time:focus-visible { color: var(--ink); background: var(--surface-raised); }
-.arrastando-bot .novo-time.nova-secao-alvo { display: block; padding: 12px; border: 1.5px dashed var(--line-strong); border-radius: var(--raio-12); text-align: center; }
 .bot-row.selecionado { border-radius: var(--raio-10); background: color-mix(in srgb, var(--action) 12%, transparent); }
 .selecao-rodape { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--line);
   border-radius: var(--raio-12); background: var(--surface-raised); box-shadow: var(--shadow-pop); font-size: var(--fs-corpo-2); color: var(--ink-2); }

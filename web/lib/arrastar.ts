@@ -5,8 +5,9 @@ type Bot = FrotaDto["agentes"][number];
 
 /**
  * Arrastar na barra lateral (definido em 2026-09-30, canvas "Menu, sidebar e gaveta"): um grupo é a grade de fixados
- * ou uma seção ("" = Meus agentes). Soltar manda ao servidor a ordem inteira do grupo de destino (0041) e a barra se
- * reorganiza na hora, sem esperar a frota voltar.
+ * ou uma seção ("" = Sem seção). Soltar manda ao servidor a ordem inteira do grupo de destino (0041) e a barra se
+ * reorganiza na hora, sem esperar a frota voltar. Na grade o ponto de soltar escolhe a vaga; numa seção, não
+ * (ordemAoSoltarNaSecao).
  */
 export type Destino = { grupo: "fixados" } | { grupo: "secao"; secao: string };
 
@@ -25,6 +26,33 @@ export function ordemAoSoltar(agentes: readonly Bot[], pessoaId: string, id: str
   grupo.splice(Math.max(0, Math.min(indice, grupo.length)), 0, id);
   return grupo;
 }
+
+/**
+ * Soltar numa seção (definido em 2026-11-16, jornada "Arrastar bot para seção"): a seção inteira é o alvo e o ponto
+ * onde se solta não escolhe lugar. O bot entra no fim da seção; solto na seção em que já está, nada muda (null): não
+ * há reordenar dentro da seção arrastando.
+ */
+export function ordemAoSoltarNaSecao(agentes: readonly Bot[], pessoaId: string, id: string, secao: string): string[] | null {
+  const bot = agentes.find((b) => b.id === id);
+  if (!bot || (!bot.fixado && chaveDoTime(bot.secao ?? "") === chaveDoTime(secao))) return null;
+  return ordemAoSoltar(agentes, pessoaId, id, { grupo: "secao", secao }, Infinity);
+}
+
+/**
+ * O cartão que segue o ponteiro enquanto se arrasta um bot: 80×90, centrado no ponteiro. A escala de 1,04 ao pegar é
+ * do CSS (.fantasma-bot); o centro não muda com ela.
+ */
+export const FANTASMA = { largura: 80, altura: 90 } as const;
+export const posicaoDoFantasma = (x: number, y: number): { x: number; y: number } => ({ x: x - FANTASMA.largura / 2, y: y - FANTASMA.altura / 2 });
+
+/** O que o leitor de tela ouve em cada passo do arrasto. */
+export const frasesDoArrasto = {
+  pegou: (nome: string): string => `Você pegou ${nome}`,
+  sobre: (nome: string, alvo: string): string => `${nome} está sobre ${alvo}`,
+  fora: (nome: string): string => `${nome} não está sobre uma área para soltar`,
+  soltou: (nome: string, alvo: string | null): string => (alvo ? `Você soltou ${nome} em ${alvo}` : `Você soltou ${nome}`),
+  cancelou: (nome: string): string => `O arraste de ${nome} foi cancelado`,
+};
 
 /** A frota como ela fica depois de soltar: o bot muda de grupo e o grupo inteiro ganha as posições novas. */
 export function frotaAoSoltar(agentes: readonly Bot[], id: string, destino: Destino, ordem: readonly string[]): Bot[] {

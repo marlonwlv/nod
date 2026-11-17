@@ -33,6 +33,7 @@ const ESPERADO: Record<string, readonly [string, string]> = {
   "--menu-submenu-aberto": ["#f6f6f6", "#262626"],
   "--ativo": ["#1c1c1c14", "#f5f5f514"],
   "--hover": ["#1c1c1c0f", "#f5f5f50f"],
+  "--alvo-soltar": ["#1c1c1c0f", "#f5f5f50a"],
   "--balao-pessoa-tinta": ["#ffffff", "#f5f5f5"],
   "--balao-bot": ["#1c1c1c0f", "#f5f5f50a"],
   "--balao-bot-tinta": ["#1c1c1c", "#f5f5f5"],

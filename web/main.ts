@@ -214,7 +214,7 @@ import type { TimeNaLista } from "../src/contracts/time.ts";
 import { instalarDeslizeLida } from "./lib/deslize-lida-dom.ts";
 import { teclaNaoLidos } from "./lib/teclado-nao-lidos.ts";
 import { fraseDaContagemNoAviso, fraseDoAviso } from "./lib/frase-leitura.ts";
-import { frotaAoSoltar, ordemAoSoltar, velocidadeAutoRolagem, type Destino } from "./lib/arrastar.ts";
+import { frasesDoArrasto, frotaAoSoltar, ordemAoSoltar, ordemAoSoltarNaSecao, posicaoDoFantasma, velocidadeAutoRolagem, type Destino } from "./lib/arrastar.ts";
 import { bordasDaLista, rolagemDaBarra, type Faixa } from "./lib/rolagem-barra.ts";
 import { comandoNoTexto, recentesDaConversa } from "./lib/barra.ts";
 import { ajustarAltura, arquivosDaColagem, criarBarra, escolherMencao, htmlSugestoes, sugestoesDaMencao, teclaDoCampo, type ContextoDaBarra } from "./lib/composer.ts";
@@ -2737,8 +2737,8 @@ function renderSidebar(estado: Estado): string {
     ? gradeDoCelular(fixados.map(bloco).join(""), fixados.length)
     : `<section class="fixados" aria-label="Fixados" data-grupo="fixados"${fixados.length ? "" : " data-vazio"}>${fixados.map(bloco).join("")}${fixados.length ? "" : '<p class="fixados-vazio">Solte aqui para fixar</p>'}</section>`;
   // NOD-437 (protótipo aprovado): as seções viraram times, na ordem da conta; o Sem time é um deles (sozinho, sem
-  // cabeçalho). Cada time é um alvo de soltar (data-grupo); o "+ Novo time" fica sempre à vista, no fim, e também recebe
-  // o bot arrastado (cria o time com ele).
+  // cabeçalho). Cada time é um alvo de soltar (data-grupo); o "+ Novo time" fica no fim e não é alvo de arrasto
+  // (2026-11-16: o time novo com um bot nasce pelo menu do bot, "Mudar de time").
   const times = timesComBots(comuns.filter((a) => !a.fixado), estado.frota?.times);
   const blocoDoTime = (tm: TimeDaBarra<(typeof agentes)[number]>, i: number) => {
     const lista = tm.bots.map((a) => ({ conversaId: a.conversaId, aviso: avisoDe(a), alerta: alertaDe(a) }));
@@ -2753,7 +2753,7 @@ function renderSidebar(estado: Estado): string {
   };
   const novoTime = edicaoTime?.alvo === "novo" ? `<section class="section time time-novo">${campoDoNome({ alvo: "novo", valor: edicaoTime.valor, aviso: avisoDoNome(edicaoTime.valor, times)?.texto ?? null })}</section>` : "";
   const selecao = selecaoBots.size && !ehCelular ? `<div class="selecao-rodape" role="toolbar" aria-label="Bots selecionados"><span>${textoDaSelecao(selecaoBots.size)}</span><button type="button" data-act="mudar-time-selecao" aria-haspopup="menu">Mudar de time…</button><button type="button" class="selecao-limpar" data-act="limpar-selecao" aria-label="Limpar seleção">✕</button></div>` : "";
-  const bots = meus.length ? times.map(blocoDoTime).join("") + novoTime + `<button type="button" class="novo-time nova-secao-alvo" data-act="novo-time" data-grupo="nova-secao"${novoTime ? " hidden" : ""}>+ Novo time</button>` + selecao : "";
+  const bots = meus.length ? times.map(blocoDoTime).join("") + novoTime + `<button type="button" class="novo-time nova-secao-alvo" data-act="novo-time"${novoTime ? " hidden" : ""}>+ Novo time</button>` + selecao : "";
   const avisoNod = nod ? avisoDe(nod) : "";
   const nodDiscreto = nod && !nod.fixado && !ehCelular
     ? `<button class="nod-topo" data-bot-contexto="${esc(nod.id)}"${atual(nod.conversaId)} data-act="abrir-conversa" data-conversa="${esc(nod.conversaId)}" data-agente="${esc(nod.id)}" aria-label="Abrir o Nod${avisoNod ? ` (${ESPERA[avisoNod]})` : ""}" title="Nod">${LOGO_NOD}<span>Nod</span>${avisoNod ? `<span class="nod-topo-aviso" data-aviso="${avisoNod}" aria-hidden="true"></span>` : ""}</button>`
@@ -10183,14 +10183,20 @@ document.addEventListener("drop", (ev) => {
 });
 document.addEventListener("dragend", () => { if (arrastandoTime) encerrarArrastoDeTime(); });
 
-// ---- arrastar na barra lateral (definido em 2026-09-30, canvas "Menu, sidebar e gaveta") ---------------------------------
-// Soltar na grade fixa, numa seção move, em "+ Nova seção" pede o nome. A barra se reorganiza na hora (frotaAoSoltar) e o
-// servidor recebe a ordem inteira do grupo de destino (0041). Esc ou soltar fora devolve o bot: o navegador cancela o arrasto.
+// ---- arrastar na barra lateral (definido em 2026-09-30, canvas "Menu, sidebar e gaveta"; seção revista em 2026-11-16) ----
+// Na grade fixa, o ponto de soltar escolhe a vaga ("Fixar"). Numa seção, a seção inteira é o alvo: ganha o fundo de
+// realce, sem linha de inserção, e o bot entra no fim dela (na mesma seção, nada muda; seção recolhida continua
+// recolhida). Um cartão do bot (.fantasma-bot) segue o ponteiro; a imagem nativa do arrasto fica transparente. A barra se
+// reorganiza na hora e o servidor recebe a ordem inteira do grupo de destino (0041). Esc ou soltar fora devolve o bot.
 let arrastandoBot: string | null = null;
-let alvoArrasto: { destino: Destino | "nova"; indice: number; el: HTMLElement } | null = null;
+let nomeArrastado = "";
+let alvoArrasto: { destino: Destino; indice: number; el: HTMLElement } | null = null;
+let fantasmaBot: HTMLElement | null = null;
+const IMAGEM_VAZIA = new Image();
+IMAGEM_VAZIA.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 function limparIndicadores(): void {
-  for (const n of document.querySelectorAll("#sidebar .vaga-fixar, #sidebar .linha-insercao")) n.remove();
+  for (const n of document.querySelectorAll("#sidebar .vaga-fixar")) n.remove();
   for (const n of document.querySelectorAll("#sidebar .alvo-soltar")) n.classList.remove("alvo-soltar");
 }
 
@@ -10199,18 +10205,48 @@ function encerrarArrasto(): void {
   limparIndicadores();
   document.getElementById("sidebar")?.classList.remove("arrastando-bot");
   for (const n of document.querySelectorAll("#sidebar .origem-arrasto")) n.classList.remove("origem-arrasto");
-  // A seção aberta só pelo arrasto volta a recolher: o render abaixo não a refaz quando o HTML não mudou. Se o bot foi
-  // solto nela, o drop já a abriu de vez e o render desenha a seção aberta.
-  for (const s of document.querySelectorAll("#sidebar [data-aberta-no-arrasto]")) {
-    s.removeAttribute("data-aberta-no-arrasto");
-    s.setAttribute("data-recolhida", "");
-    for (const n of s.querySelectorAll(":scope > [data-escondida-no-arrasto]")) { n.removeAttribute("data-escondida-no-arrasto"); n.classList.add("escondida"); }
-  }
+  fantasmaBot?.remove();
+  fantasmaBot = null;
   arrastandoBot = null;
+  nomeArrastado = "";
   alvoArrasto = null;
   if (quadroDaRolagem) cancelAnimationFrame(quadroDaRolagem);
   quadroDaRolagem = 0;
   render();
+}
+
+/** O nome do alvo como a pessoa o lê (a grade é "Fixados"; a seção sem nome é "Sem seção"). */
+function nomeDoAlvo(grupo: HTMLElement): string {
+  return grupo.dataset.grupo === "fixados" ? (grupo.getAttribute("aria-label") ?? "Fixados") : nomeDoTime({ nome: grupo.dataset.secao ?? "" });
+}
+
+/** O cartão do bot que segue o ponteiro: o avatar da própria linha, maior, e o nome numa linha. */
+function criarFantasmaBot(el: HTMLElement, nome: string): HTMLElement {
+  const fantasma = document.createElement("div");
+  fantasma.className = "fantasma-bot";
+  fantasma.setAttribute("aria-hidden", "true");
+  const corpo = document.createElement("div");
+  corpo.className = "fantasma-bot-corpo";
+  const avatar = el.querySelector(".icon")?.cloneNode(true);
+  if (avatar instanceof HTMLElement) {
+    for (const a of ["data-motor", "title", "aria-label", "role", "id"]) avatar.removeAttribute(a);
+    avatar.classList.add("fantasma-bot-avatar");
+    corpo.append(avatar);
+  }
+  const legenda = document.createElement("span");
+  legenda.className = "fantasma-bot-legenda";
+  legenda.textContent = nome;
+  corpo.append(legenda);
+  fantasma.append(corpo);
+  document.body.append(fantasma);
+  return fantasma;
+}
+
+function moverFantasma(x: number, y: number): void {
+  if (!fantasmaBot) return;
+  const p = posicaoDoFantasma(x, y);
+  fantasmaBot.style.left = `${p.x}px`;
+  fantasmaBot.style.top = `${p.y}px`;
 }
 
 /**
@@ -10240,104 +10276,131 @@ function passoDaRolagem(): void {
   if (passo === 0) return;
   const antes = lista.scrollTop;
   lista.scrollTop = antes + passo;
-  if (lista.scrollTop !== antes) quadroDaRolagem = requestAnimationFrame(passoDaRolagem);
+  if (lista.scrollTop === antes) return;
+  // A lista andou sob o ponteiro parado: o realce acompanha o que ficou embaixo dele.
+  const grupo = document.elementFromPoint(x, y)?.closest<HTMLElement>("#sidebar [data-grupo]");
+  if (grupo) marcarAlvo(grupo, x, y);
+  quadroDaRolagem = requestAnimationFrame(passoDaRolagem);
 }
 
-/** O índice é contado entre os OUTROS bots do grupo; a vaga e a linha não entram na conta, então não oscilam. */
+/** Grade: a vaga é medida entre os OUTROS fixados (a vaga não entra na conta, então não oscila). Seção: a seção inteira. */
 function marcarAlvo(grupo: HTMLElement, x: number, y: number): void {
-  if (grupo.dataset.grupo === "nova-secao") {
+  if (grupo.dataset.grupo !== "fixados") {
     if (alvoArrasto?.el === grupo) return;
     limparIndicadores();
     grupo.classList.add("alvo-soltar");
-    alvoArrasto = { destino: "nova", indice: 0, el: grupo };
+    alvoArrasto = { destino: { grupo: "secao", secao: grupo.dataset.secao ?? "" }, indice: Infinity, el: grupo };
+    anunciarGestao(frasesDoArrasto.sobre(nomeArrastado, nomeDoAlvo(grupo)));
     return;
   }
-  const fixados = grupo.dataset.grupo === "fixados";
-  const itens = [...grupo.querySelectorAll<HTMLElement>(fixados ? ":scope > .fixado" : ":scope > .bot-row")].filter((n) => n.dataset.arrastavel !== arrastandoBot);
+  const itens = [...grupo.querySelectorAll<HTMLElement>(":scope > .fixado")].filter((n) => n.dataset.arrastavel !== arrastandoBot);
   let indice = itens.length;
   for (const [i, n] of itens.entries()) {
     const r = n.getBoundingClientRect();
-    if (fixados ? y < r.top || (y <= r.bottom && x < r.left + r.width / 2) : y < r.top + r.height / 2) { indice = i; break; }
+    if (y < r.top || (y <= r.bottom && x < r.left + r.width / 2)) { indice = i; break; }
   }
   if (alvoArrasto?.el === grupo && alvoArrasto.indice === indice) return;
+  if (alvoArrasto?.el !== grupo) anunciarGestao(frasesDoArrasto.sobre(nomeArrastado, nomeDoAlvo(grupo)));
   limparIndicadores();
-  alvoArrasto = { destino: fixados ? { grupo: "fixados" } : { grupo: "secao", secao: grupo.dataset.secao ?? "" }, indice, el: grupo };
-  const antesDe = itens[indice] ?? (fixados ? grupo.querySelector(".fixados-vazio") : null);
+  alvoArrasto = { destino: { grupo: "fixados" }, indice, el: grupo };
   const marca = document.createElement("div");
   marca.setAttribute("aria-hidden", "true");
-  if (fixados) { marca.className = "vaga-fixar"; marca.textContent = "Fixar"; } else { marca.className = "linha-insercao"; grupo.classList.add("alvo-soltar"); }
-  grupo.insertBefore(marca, antesDe);
+  marca.className = "vaga-fixar";
+  marca.textContent = "Fixar";
+  grupo.insertBefore(marca, itens[indice] ?? grupo.querySelector(".fixados-vazio"));
 }
 
 function soltarBot(id: string, destino: Destino, indice: number): void {
   const frota = estado.frota;
   const pessoaId = estado.sessao?.pessoaId;
   if (!frota || !pessoaId || !api) return;
-  const ordem = ordemAoSoltar(frota.agentes, pessoaId, id, destino, indice);
+  const ordem = destino.grupo === "secao" ? ordemAoSoltarNaSecao(frota.agentes, pessoaId, id, destino.secao) : ordemAoSoltar(frota.agentes, pessoaId, id, destino, indice);
+  if (!ordem) return;
   dispatch({ tipo: "hidratar-frota", frota: { ...frota, agentes: frotaAoSoltar(frota.agentes, id, destino, ordem) } });
-  void agir(async () => {
-    await mudarGestao(() => api!.organizarAgente(id, destino.grupo === "fixados" ? { fixado: true, ordem } : { fixado: false, secao: destino.secao, ordem }));
+  // Sem o `ocupado` do agir(): a barra já mudou na hora, e o cursor de espera anunciaria uma espera que não existe.
+  avisador.acaoPropria();
+  dispatch({ tipo: "erro", erro: null });
+  void mudarGestao(() => api!.organizarAgente(id, destino.grupo === "fixados" ? { fixado: true, ordem } : { fixado: false, secao: destino.secao, ordem })).catch(() => {
+    // mudarGestao já mostrou o erro; a barra volta ao que o servidor tem.
+    dispatch({ tipo: "invalidar", quais: ["frota"] });
   });
 }
 
-function pedirNovaSecao(id: string): void {
-  pedirNovoTimeCom([id]);
+/**
+ * O :hover depois de soltar (HTML5): o navegador só o refaz quando o ponteiro anda, e até lá ele fica na linha que
+ * ocupou o lugar de onde o bot saiu. Até o primeiro movimento, o hover velho sai (`data-sem-hover`) e a linha sob o
+ * ponteiro acende (`.hover-no-ponto`).
+ */
+function hoverDepoisDeSoltar(x: number | null, y: number | null): void {
+  const barra = document.getElementById("sidebar");
+  if (!barra) return;
+  barra.setAttribute("data-sem-hover", "");
+  if (x === null || y === null) return;
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    if (!barra.hasAttribute("data-sem-hover")) return;
+    document.elementFromPoint(x, y)?.closest<HTMLElement>("#sidebar .bot-row, #sidebar .fixado")?.classList.add("hover-no-ponto");
+  }));
 }
+document.addEventListener("pointermove", () => {
+  const barra = document.getElementById("sidebar");
+  if (!barra?.hasAttribute("data-sem-hover")) return;
+  barra.removeAttribute("data-sem-hover");
+  for (const n of barra.querySelectorAll(".hover-no-ponto")) n.classList.remove("hover-no-ponto");
+});
 
 document.addEventListener("dragstart", (ev) => {
   const el = (ev.target as HTMLElement).closest?.<HTMLElement>("#sidebar [data-arrastavel]");
   if (!el || !ev.dataTransfer) return;
   arrastandoBot = el.dataset.arrastavel ?? null;
+  nomeArrastado = el.querySelector<HTMLElement>("[data-etiqueta]")?.dataset.etiqueta ?? "";
   ev.dataTransfer.effectAllowed = "move";
   ev.dataTransfer.setData("application/x-nod-bot", arrastandoBot ?? "");
-  // O fantasma é uma cópia do bot com sombra, fora da tela: o navegador fotografa e ela sai no mesmo quadro.
-  const r = el.getBoundingClientRect();
-  const fantasma = el.cloneNode(true) as HTMLElement;
-  fantasma.classList.add("fantasma-arrasto");
-  fantasma.style.width = `${r.width}px`;
-  document.body.append(fantasma);
-  ev.dataTransfer.setDragImage(fantasma, ev.clientX - r.left, ev.clientY - r.top);
-  window.setTimeout(() => fantasma.remove(), 0);
-  // A origem esmaece e os alvos aparecem só depois da foto do fantasma.
+  ev.dataTransfer.setDragImage(IMAGEM_VAZIA, 0, 0);
+  fantasmaBot = criarFantasmaBot(el, nomeArrastado);
+  moverFantasma(ev.clientX, ev.clientY);
+  anunciarGestao(frasesDoArrasto.pegou(nomeArrastado));
+  // A origem esmaece e a barra entra no modo de arrasto no quadro seguinte (mudar o DOM no dragstart cancela o arrasto).
   window.requestAnimationFrame(() => {
     if (arrastandoBot !== el.dataset.arrastavel) return;
     el.classList.add("origem-arrasto");
     document.getElementById("sidebar")?.classList.add("arrastando-bot");
   });
 });
+// O cartão e o realce andam pelo mesmo `dragover` (o navegador o repete com o ponteiro parado), então não se desencontram.
 document.addEventListener("dragover", (ev) => {
   if (!arrastandoBot) return;
+  moverFantasma(ev.clientX, ev.clientY);
   rolarNoArrasto(ev.clientX, ev.clientY);
   const grupo = (ev.target as HTMLElement).closest?.<HTMLElement>("#sidebar [data-grupo]");
   if (!grupo) {
-    if (alvoArrasto) { limparIndicadores(); alvoArrasto = null; }
+    if (alvoArrasto) { limparIndicadores(); alvoArrasto = null; anunciarGestao(frasesDoArrasto.fora(nomeArrastado)); }
     return;
   }
   ev.preventDefault();
   if (ev.dataTransfer) ev.dataTransfer.dropEffect = "move";
-  // Seção recolhida abre ao passar com o bot (definido em 2026-10-04): as linhas aparecem e a posição de soltar é medida
-  // nelas — escondidas, todas mediam zero e o bot ia sempre para o fim. Ao fim do arrasto, encerrarArrasto desfaz.
-  if (grupo.hasAttribute("data-recolhida")) {
-    grupo.removeAttribute("data-recolhida");
-    grupo.setAttribute("data-aberta-no-arrasto", "");
-    for (const n of grupo.querySelectorAll(":scope > .bot-row.escondida")) { n.classList.remove("escondida"); n.setAttribute("data-escondida-no-arrasto", ""); }
-  }
   marcarAlvo(grupo, ev.clientX, ev.clientY);
 });
 document.addEventListener("drop", (ev) => {
   if (!arrastandoBot) return;
   ev.preventDefault();
+  // O alvo é o que está sob o ponteiro na hora de soltar (a lista pode ter rolado sem outro dragover).
+  const sob = (ev.target as HTMLElement).closest?.<HTMLElement>("#sidebar [data-grupo]");
+  if (sob) marcarAlvo(sob, ev.clientX, ev.clientY);
   const id = arrastandoBot;
   const alvo = alvoArrasto;
-  // Soltou numa seção recolhida: ela fica aberta, para o bot não sumir da vista.
-  const idTime = alvo && alvo.destino !== "nova" && alvo.destino.grupo === "secao" ? alvo.el.dataset.timeId : undefined;
-  if (idTime && estado.frota?.times?.find((t) => t.id === idTime)?.recolhido) recolherTime(idTime, false);
+  const nome = nomeArrastado;
+  const onde = alvo ? nomeDoAlvo(alvo.el) : null;
   encerrarArrasto();
-  if (!alvo) return;
-  if (alvo.destino === "nova") pedirNovaSecao(id);
-  else soltarBot(id, alvo.destino, alvo.indice);
+  anunciarGestao(frasesDoArrasto.soltou(nome, onde));
+  if (alvo) soltarBot(id, alvo.destino, alvo.indice);
+  hoverDepoisDeSoltar(ev.clientX, ev.clientY);
 });
-document.addEventListener("dragend", () => encerrarArrasto());
+document.addEventListener("dragend", () => {
+  if (!arrastandoBot) return;
+  anunciarGestao(frasesDoArrasto.cancelou(nomeArrastado));
+  encerrarArrasto();
+  hoverDepoisDeSoltar(null, null);
+});
 
 // ---- Máquinas (ADR-090): conectar uma VM por código e escolher onde cada bot trabalha --------------------------------------
 function abrirCodigoDeMaquinaGuardado(): void {

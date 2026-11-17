@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FrotaDto } from "../../../src/contracts/api.ts";
-import { FAIXA_AUTO_ROLAGEM, frotaAoSoltar, ordemAoSoltar, ROLAGEM_MAX_POR_QUADRO, velocidadeAutoRolagem } from "../../../web/lib/arrastar.ts";
+import { FAIXA_AUTO_ROLAGEM, FANTASMA, frasesDoArrasto, frotaAoSoltar, ordemAoSoltar, ordemAoSoltarNaSecao, posicaoDoFantasma, ROLAGEM_MAX_POR_QUADRO, velocidadeAutoRolagem } from "../../../web/lib/arrastar.ts";
 
 type Bot = FrotaDto["agentes"][number];
 const bot = (id: string, criadoEm: number, extra: Partial<Bot> = {}): Bot => ({ id, ownerId: "p", nome: id, fixado: false, secao: "", posicao: null, criadoEm, ...extra }) as Bot;
@@ -38,6 +38,53 @@ describe("arrastar na barra lateral (canvas “Menu, sidebar e gaveta”)", () =
     const fixado = frotaAoSoltar(frota, "dev2", { grupo: "fixados" }, ["dev2", "clarice", "milton"]);
     expect(fixado.filter((b) => b.fixado && b.ownerId === "p").map((b) => b.id)).toEqual(["dev2", "clarice", "milton"]);
     expect(fixado.find((b) => b.id === "dev2")?.secao).toBe("Devs");
+  });
+});
+
+describe("soltar numa seção: a seção inteira é o alvo, sem escolher lugar", () => {
+  const frota = [
+    bot("clarice", 1, { fixado: true, posicao: 0 }),
+    bot("nina", 2),
+    bot("dev1", 3, { secao: "Devs", posicao: 0 }),
+    bot("dev2", 4, { secao: "Devs", posicao: 1 }),
+    bot("da-ana", 5, { ownerId: "ana", secao: "Devs" }),
+  ];
+
+  it("de outra seção, o bot entra no fim da seção de destino", () => {
+    expect(ordemAoSoltarNaSecao(frota, "p", "nina", "Devs")).toEqual(["dev1", "dev2", "nina"]);
+    expect(ordemAoSoltarNaSecao(frota, "p", "dev1", "")).toEqual(["nina", "dev1"]);
+  });
+
+  it("na seção em que já está, nada muda (não há reordenar arrastando dentro da seção)", () => {
+    expect(ordemAoSoltarNaSecao(frota, "p", "dev2", "Devs")).toBeNull();
+    expect(ordemAoSoltarNaSecao(frota, "p", "dev2", "devs")).toBeNull();
+    expect(ordemAoSoltarNaSecao(frota, "p", "nina", "")).toBeNull();
+  });
+
+  it("um fixado solto numa seção sai da grade e vai para o fim dela", () => {
+    expect(ordemAoSoltarNaSecao(frota, "p", "clarice", "")).toEqual(["nina", "clarice"]);
+  });
+
+  it("bot que não existe não gera pedido", () => {
+    expect(ordemAoSoltarNaSecao(frota, "p", "sumiu", "Devs")).toBeNull();
+  });
+});
+
+describe("cartão do bot que segue o ponteiro", () => {
+  it("é 80×90 e fica centrado no ponteiro", () => {
+    expect(FANTASMA).toEqual({ largura: 80, altura: 90 });
+    expect(posicaoDoFantasma(200, 300)).toEqual({ x: 160, y: 255 });
+  });
+});
+
+describe("o que o leitor de tela ouve no arrasto", () => {
+  it("pegar, passar sobre, sair, soltar e cancelar", () => {
+    expect(frasesDoArrasto.pegou("Teste Fichas")).toBe("Você pegou Teste Fichas");
+    expect(frasesDoArrasto.sobre("Teste Fichas", "Organizadores")).toBe("Teste Fichas está sobre Organizadores");
+    expect(frasesDoArrasto.fora("Teste Fichas")).toBe("Teste Fichas não está sobre uma área para soltar");
+    expect(frasesDoArrasto.soltou("Teste Fichas", "Sem seção")).toBe("Você soltou Teste Fichas em Sem seção");
+    expect(frasesDoArrasto.soltou("Teste Fichas", null)).toBe("Você soltou Teste Fichas");
+    expect(frasesDoArrasto.cancelou("Teste Fichas")).toBe("O arraste de Teste Fichas foi cancelado");
   });
 });
 
