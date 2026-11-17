@@ -58,6 +58,13 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
     return { maquina: `nod-computador-${id}`, proxy: `nod-egress-${id}`, rede: `nod-rede-${id}` };
   };
   const rodando = async (nome: string) => (await docker(["inspect", "--format", "{{.State.Running}}", nome], undefined, 5_000).catch(() => "false")).trim() === "true";
+  const esperarPronto = async (maquina: string) => {
+    for (let i = 0; i < 120; i++) {
+      if (await docker(["exec", maquina, "test", "-S", "/tmp/nod-computer.sock"], undefined, 2_000).then(() => true, () => false)) return;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    throw new FalhaComputador("nao_ficou_pronto", { detalhe: "o supervisor Docker não abriu o socket" });
+  };
   const subidas = new Map<string, Promise<void>>();
   // A leitura do teto e a criação precisam ser uma única região crítica. Sem a fila, duas pessoas que ligassem
   // máquinas diferentes no mesmo tick viam a mesma foto de `docker ps` e ambas passavam pelo último lugar.
@@ -69,6 +76,7 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
   async function subirUma(id: string): Promise<void> {
     if (!habilitado || !credencialOk) throw new ErroDeDominio("nao_permitido");
     const n = validar(id);
+    let maquinaJaRodando = false;
     const existe = await docker(["inspect", n.maquina], undefined, 5_000).then(() => true, () => false);
     if (existe) {
       const [cmd, imagemAtual, imagemNova] = await Promise.all([
@@ -81,7 +89,18 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
       if (!cmd.includes("docker-runtime.mjs") || imagemAtual.trim() !== imagemNova.trim()) {
         if (await rodando(n.maquina)) await docker(["stop", "--time", "20", n.maquina], undefined, 30_000).catch(() => undefined);
         await docker(["rm", n.maquina], undefined, 30_000, "nao_iniciou");
-      } else if (await rodando(n.maquina)) return;
+      } else if (await rodando(n.maquina)) {
+        maquinaJaRodando = true;
+        // `docker restart` devolve quando o init já subiu, não quando os sockets dos filhos estão prontos. Sem esta
+        // espera, a primeira ação após um restart podia falhar no TOFU embora o container estivesse saudável.
+        const proxyExiste = await docker(["inspect", n.proxy], undefined, 5_000).then(() => true, () => false);
+        if (proxyExiste) {
+          if (!await rodando(n.proxy)) await docker(["start", n.proxy], undefined, 70_000, "nao_iniciou");
+          await esperarPronto(n.maquina);
+          return;
+        }
+        // Um proxy removido à mão é reconstruído abaixo sem reiniciar a máquina que já está viva.
+      }
     }
     const ativos = await ligados();
     if (!ativos.has(id) && ativos.size >= limite.maximo) throw new FalhaComputador("limite_de_computadores", { limite, detalhe: `${ativos.size} ligados, máximo ${limite.maximo}` });
@@ -108,12 +127,8 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
       "--mount", `type=volume,source=${n.maquina}-home,target=/home/node`, "--mount", `type=volume,source=${n.maquina}-workspace,target=/workspace`,
       ...(env.NOD_COMPUTADOR_RUNTIME ? ["--runtime", env.NOD_COMPUTADOR_RUNTIME] : []), imagem,
     ], undefined, 70_000, "nao_iniciou");
-    await docker(["start", n.maquina], undefined, 70_000, "nao_iniciou");
-    for (let i = 0; i < 120; i++) {
-      if (await docker(["exec", n.maquina, "test", "-S", "/tmp/nod-computer.sock"], undefined, 2_000).then(() => true, () => false)) return;
-      await new Promise((r) => setTimeout(r, 250));
-    }
-    throw new FalhaComputador("nao_ficou_pronto", { detalhe: "o supervisor Docker não abriu o socket" });
+    if (!maquinaJaRodando) await docker(["start", n.maquina], undefined, 70_000, "nao_iniciou");
+    await esperarPronto(n.maquina);
   }
   function subir(id: string): Promise<void> {
     const atual = subidas.get(id);
@@ -207,7 +222,7 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
         if (!ref.agenteId) throw new FalhaComputador("acao_falhou");
         const n = validar(ref.id);
         const saida = await docker([
-          "run", "--rm", "-i", "--network", n.rede, "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only", "--user", "1000:1000",
+          "run", "--rm", "-i", "--network", "none", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only", "--user", "1000:1000",
           "--tmpfs", "/tmp:rw,nosuid,size=64m,uid=1000,gid=1000", "--workdir", "/workspace",
           "--mount", `type=volume,source=${n.maquina}-workspace,target=/workspace,volume-subpath=${ref.id}/${ref.agenteId}`,
           "--entrypoint", "node", imagem, "/opt/nod/terminal-sidecar.mjs",

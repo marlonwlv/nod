@@ -749,9 +749,37 @@ describe("Docker como provedor", () => {
     const maquina = chamadas.find((a) => a[0] === "create" && a.includes(`nod-computador-${ID}`))!;
     expect(maquina).toEqual(expect.arrayContaining(["--security-opt", "no-new-privileges", "--cap-drop", "ALL", "--env", "NOD_PC_CHROMIUM_SANDBOX=nao", "--env", "NOD_PC_BWRAP=nao", "--env", "NOD_PC_TERMINAL_EXTERNO=sim"]));
     const terminal = chamadas.find((a) => a[0] === "run" && a.includes("/opt/nod/terminal-sidecar.mjs"))!;
-    expect(terminal).toEqual(expect.arrayContaining(["--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "1000:1000", "--mount", `type=volume,source=nod-computador-${ID}-workspace,target=/workspace,volume-subpath=${ID}/${BOT}`]));
+    expect(terminal).toEqual(expect.arrayContaining(["--network", "none", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "1000:1000", "--mount", `type=volume,source=nod-computador-${ID}-workspace,target=/workspace,volume-subpath=${ID}/${BOT}`]));
     expect(comandos).toHaveLength(3);
     for (const comando of comandos) expect(conferirAssinatura(publicaDeAssinatura(credencial, ID), comando as never)).toBe(true);
     expect(comandos.at(-1)).toMatchObject({ tipo: "acao", agenteId: BOT });
+  });
+
+  it("espera o socket voltar antes do TOFU quando o container já reiniciou", async () => {
+    const supervisorPub = gerarParX25519().publica;
+    const maquina = `nod-computador-${ID}`;
+    let sondasDoSocket = 0;
+    const docker = vi.fn(async (args: string[], entrada?: string) => {
+      if (args[0] === "inspect" && args[1] === maquina) return "ok";
+      if (args[0] === "inspect" && args[1] === "--format") {
+        if (args[2] === "{{.State.Running}}") return "true\n";
+        if (args[2] === "{{json .Config.Cmd}}") return '["node","docker-runtime.mjs"]';
+        if (args[2] === "{{.Image}}") return "sha256:imagem";
+      }
+      if (args[0] === "image" && args[1] === "inspect") return "sha256:imagem";
+      if (args[0] === "exec" && args.includes("test")) {
+        sondasDoSocket += 1;
+        if (sondasDoSocket < 2) throw new Error("socket ainda não abriu");
+        return "";
+      }
+      if (args[0] === "exec" && args.some((a) => a.endsWith("/cliente-unico.mjs"))) {
+        const pedido = JSON.parse(entrada ?? "{}") as { sonda?: boolean; comando?: { id?: string } };
+        return pedido.sonda ? JSON.stringify({ estado: { supervisorPub } }) : JSON.stringify({ resultado: { id: pedido.comando?.id, desfecho: "ok" } });
+      }
+      return "ok";
+    });
+    const controle = criarControleDockerCompartilhado({ NOD_COMPUTADORES: "docker", NOD_CREDENTIAL_KEY: "a".repeat(64) }, docker);
+    await controle.iniciar({ id: ID });
+    expect(sondasDoSocket).toBe(2);
   });
 });
