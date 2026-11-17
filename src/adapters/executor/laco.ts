@@ -47,6 +47,12 @@ export type OpcoesLaco = {
   renovacaoIndefinidoMs?: number;
   /** ADR-067: de quanto em quanto a sessão viva pergunta por mensagem nova da pessoa (injetável no teste). */
   checagemMensagensMs?: number;
+  /**
+   * ADR-186: a mensagem da pessoa interrompe a escrita do bot (padrão). `false` = o comportamento de antes (ela espera a
+   * fronteira, ADR-185) — a chave de reversão da ADR, e o jeito de comparar os dois. Ausente: `NOD_INTERROMPER_ESCRITA=0`
+   * no ambiente do executor desliga.
+   */
+  interromperEscrita?: boolean;
   /** Deltas são efêmeros: vão direto ao barramento (L8), nunca pelo outbox. */
   aoDelta?: (plano: PlanoTurno, texto: string) => void;
   /** ADR-067: o servidor gravou uma fala intermediária deste turno — a tela limpa o texto ao vivo que ela já mostrava. */
@@ -218,6 +224,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
   const renovacaoMs = o.renovacaoMs ?? RENOVACAO_MS;
   const renovacaoIndefinidoMs = o.renovacaoIndefinidoMs ?? RENOVACAO_INDEFINIDO_MS;
   const checagemMensagensMs = o.checagemMensagensMs ?? CHECAGEM_MENSAGENS_MS;
+  const interromperEscrita = o.interromperEscrita ?? process.env.NOD_INTERROMPER_ESCRITA !== "0";
   const vigiaMs = o.vigiaMs ?? AVALIACAO_VIGIA_MS;
   let parado = false;
   let acordar: (() => void) | null = null;
@@ -516,7 +523,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
       }
       const capacidades = registro.driver.meta.capacidades ?? capacidadesDe(registro.driver.meta.id);
       aceitando = capacidades.mensagemNoMeio;
-      noMeio = { interrompeVolta: capacidades.interrompeVolta === true, parcialNoHistorico: capacidades.parcialNoHistorico === true };
+      noMeio = { interrompeVolta: interromperEscrita && capacidades.interrompeVolta === true, parcialNoHistorico: capacidades.parcialNoHistorico === true };
       medirGrupo = capacidades.processoProprio;
       // NOD-310 (emenda da ADR-108 §5): o turno com passagem de bastão leva o estado do git e do PR da pasta da task,
       // lido nesta máquina agora (o servidor não vê o disco). Vale igual para todo driver. Nunca derruba o turno.

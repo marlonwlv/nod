@@ -487,13 +487,14 @@ function ponteDaSessao(o: { fila?: string[]; ativo?: (p: PedidoRenovar) => boole
 }
 
 describe("sessão viva no laço (ADR-067)", () => {
-  async function cenario(d: ReturnType<typeof driverControlado>, ponte: PonteFalsa, extra: { relogio?: () => number; aoFalaGravada?: () => void; checagemMensagensMs?: number; aoVigia?: (p: PlanoTurno, aviso: VigiaVivo) => void; vigiaMs?: number; memoria?: Parameters<typeof iniciarLaco>[0]["memoria"]; renovacaoMs?: number } = {}) {
+  async function cenario(d: ReturnType<typeof driverControlado>, ponte: PonteFalsa, extra: { relogio?: () => number; aoFalaGravada?: () => void; checagemMensagensMs?: number; aoVigia?: (p: PlanoTurno, aviso: VigiaVivo) => void; vigiaMs?: number; memoria?: Parameters<typeof iniciarLaco>[0]["memoria"]; renovacaoMs?: number; interromperEscrita?: boolean } = {}) {
     const registry = await registryCom(d.driver);
     const laco = iniciarLaco({
       ponte, registry, pessoaId: "p", machineId: "m1",
       relogio: extra.relogio ?? Date.now,
       renovacaoMs: extra.renovacaoMs ?? 10 ** 6,
       checagemMensagensMs: extra.checagemMensagensMs ?? 10 ** 6,
+      ...(extra.interromperEscrita !== undefined ? { interromperEscrita: extra.interromperEscrita } : {}),
       ...(extra.aoFalaGravada ? { aoFalaGravada: extra.aoFalaGravada } : {}),
       ...(extra.aoVigia ? { aoVigia: extra.aoVigia } : {}),
       ...(extra.vigiaMs ? { vigiaMs: extra.vigiaMs } : {}),
@@ -789,9 +790,22 @@ describe("sessão viva no laço (ADR-067)", () => {
     d.sinks()!.evento({ tipo: "delta", texto: "1. Origens do chá" });
     expect(await d.sinks()!.ocioso!()).toBe(true);
     expect(d.voltasInterrompidas()).toBe(1);
-    expect(d.recebidas[0]).toContain("Você estava respondendo assim");
+    expect(d.recebidas[0]).toContain("Sua resposta foi pausada porque a pessoa mandou uma mensagem nova");
     expect(d.recebidas[0]).toContain("«1. Origens do chá»");
     expect(d.recebidas[0]).toContain("A mensagem dela: «só 3 frases»");
+    d.terminar("ok");
+    await esperarAte(() => ponte.entregas.length === 1);
+    await laco.parar();
+  });
+
+  it("ADR-186: a chave desligada (NOD_INTERROMPER_ESCRITA=0) volta ao comportamento de antes: só entrega", async () => {
+    const d = driverControlado({ capacidades: { ...SESSAO_VIVA, interrompeVolta: true, parcialNoHistorico: true }, interrompe: true });
+    const ponte = ponteDaSessao({ fila: ["só 3 frases"], plano: { modoTurno: "conversa" } });
+    const laco = await cenario(d, ponte, { interromperEscrita: false });
+    d.sinks()!.evento({ tipo: "delta", texto: "1. Origens" });
+    expect(await d.sinks()!.ocioso!()).toBe(true);
+    expect(d.voltasInterrompidas()).toBe(0);
+    expect(d.recebidas[0]).toContain("A pessoa escreveu enquanto você trabalhava");
     d.terminar("ok");
     await esperarAte(() => ponte.entregas.length === 1);
     await laco.parar();
