@@ -13,6 +13,7 @@ import { lerTexto, gravarTexto } from './texto.mjs';
 import { prepararShellVisual } from './shell-visual.mjs';
 import { dimensoesShell, lancadorShellSeguro, renderizarHomeShell } from './shell-visual-runtime.mjs';
 import { codigoDaAcao, codigoDaSubida, falhaDe, primeiraLinha, PRAZO_NAVEGADOR_MS, TRAVAS_DO_PERFIL } from './falhas.mjs';
+import { reconciliarSaudeDoNavegador } from './saude-runtime.mjs';
 const exec = promisify(execFile);
 const run = (bin,args,options={}) => exec(bin,args,{timeout:25000,maxBuffer:4*1024*1024,...options});
 const filhos = [];
@@ -130,7 +131,10 @@ const server=net.createServer({allowHalfOpen:true},socket=>{
   socket.on('end',async()=>{
     let pedido;
     try{pedido=JSON.parse(corpo);}catch{socket.end(JSON.stringify({erro:'acao_falhou'}));return;}
-    if(pedido?.tipo==='ping'){socket.end(JSON.stringify({resultado:{pronto,falha:falha?.codigo??null,detalhe:falha?.detalhe??null}}));return;}
+    if(pedido?.tipo==='ping'){
+      ({ pronto, falha } = reconciliarSaudeDoNavegador(pronto, falha, context));
+      socket.end(JSON.stringify({resultado:{pronto,falha:falha?.codigo??null,detalhe:falha?.detalhe??null}}));return;
+    }
     // Ainda subindo, ou parado num código: a ação não roda, e o servidor sabe por quê.
     if(!pronto){socket.end(JSON.stringify({erro:falha?.codigo??'sem_resposta'}));return;}
     if(ocupado){socket.end(JSON.stringify({erro:'ocupado'}));return;}
@@ -236,6 +240,7 @@ async function subir() {
     });
   } catch(e) { throw falhaDe('navegador_nao_abriu',e); }
   context.setDefaultTimeout(15000);
+  context.on('close',()=>{({ pronto, falha } = reconciliarSaudeDoNavegador(pronto, falha, context));});
   try {
     const b=await readFile('/home/node/cookies.enc');
     const decipher=createDecipheriv('aes-256-gcm',chaveEstado,b.subarray(0,12));decipher.setAuthTag(b.subarray(12,28));
