@@ -46,7 +46,7 @@ describe("ordem das páginas da pílula (arrastar para virar a casa)", () => {
     const ids = [...html.matchAll(/class="pg-ic[^"]*"[^>]*data-pagina="(\d)"/g)].map((m) => m[1]);
     expect(ids).toEqual(["1", "0", "2"]);
     expect(html).toContain('class="pg-ic pg-casa"');
-    expect(html).toContain('aria-label="Tarefas, abre primeiro"');
+    expect(html).toContain('aria-label="Quadro, abre primeiro"');
     expect([...html.matchAll(/class="pg-pt[^"]*" data-pagina="(\d)"/g)].map((m) => m[1])).toEqual(["1", "0", "2"]);
     // Ordem que não bate com as páginas (cenário mudou): cai na de sempre.
     expect(docaDePaginas({ nome: "Ada", paginas: tres, ordem: [1] })).toContain('data-pagina="0" data-pg-id="conversa" data-pos="0"');

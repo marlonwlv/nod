@@ -454,7 +454,7 @@ export function linhaDoTempo(d: DadosDaLinha): string {
   if (d.criadaPor && d.criadaEm) {
     const quem = /, pela (.+)$/.exec(d.criadaPor)?.[1] ?? d.criadaPor;
     const resumo = (d.criadaResumo ?? "").trim();
-    const oque = /^criou a tarefa\b/i.test(resumo) ? resumo.replace(/^criou/i, "criou") : "criou a tarefa";
+    const oque = /^criou o card\b/i.test(resumo) ? resumo.replace(/^criou/i, "criou") : /^criou a tarefa\b/i.test(resumo) ? resumo.replace(/^criou a tarefa/i, "criou o card") : "criou o card";
     topo.push({ em: d.criadaEm - 1, ev: { id: "criada", chave: "criada" }, html: itemDoQuadro({ em: d.criadaEm, agora: d.agora, texto: esc(frase(`${quem} ${oque}`)) }) });
   }
   const threads = new Map<string, Item[]>();

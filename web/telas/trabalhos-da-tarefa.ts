@@ -135,7 +135,7 @@ export function fraseDaVolta(v: NonNullable<ExecucaoDto["volta"]>, hora: (em: nu
   const quando = v.quando === "ci" ? `Volto quando a CI ${pr ? `do PR #${pr}` : "do PR"} terminar`
     : v.quando === "merge" ? `Volto quando ${doPr} for mergeado`
       : v.quando === "conflito" ? `Volto se ${doPr} ficar com conflito`
-        : v.quando === "tarefa" ? `Volto quando ${v.tarefa ?? "a outra tarefa"} andar`
+        : v.quando === "tarefa" ? `Volto quando ${v.tarefa ?? "o outro card"} andar`
           : v.em !== null ? `Volto às ${hora(v.em)}` : "Volto depois";
   return v.motivo ? `${quando} · ${v.motivo}` : quando;
 }

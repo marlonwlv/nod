@@ -175,7 +175,7 @@ describeIntegracao("e2e com catcher: a jornada do quadro-agente, da meta ao merg
     q = await quando(ada.agenteId, "meta cumprida", (x) => x.cumpridoEm !== null);
     expect(q).toMatchObject({ feitas: 2, total: 2 });
     expect(tarefa(q, "Seção de planos")).toMatchObject({ status: "feito", prUrl: PR_A, resposta: expect.stringContaining("Em reais.") });
-    expect(q.resumo).toEqual(expect.stringContaining("2 de 2 tarefas feitas"));
+    expect(q.resumo).toEqual(expect.stringContaining("2 de 2 cards feitos"));
 
     // Ao vivo em outro aparelho: os dois fluxos receberam as mudanças do quadro, de quem quer que tenha feito.
     for (const frames of aparelhos.map((a) => a.frames)) {

@@ -31,7 +31,7 @@ export function itensDoMenuSegurado(m: Mensagem, estado: Estado, temQuadro: bool
   const topo: ItemSegurado[] = [];
   if (podeResponder(m, estado)) topo.push({ acao: "responder", icone: ICONE_DA_FALA.responder, texto: "Responder" });
   if (temTexto) topo.push({ acao: "copiar", icone: ICONE_DA_FALA.copiar, texto: "Copiar" });
-  if (temTexto && temQuadro && botDaFala(m, estado)) topo.push({ acao: "criar-tarefa", icone: ICONE_DA_FALA.task, texto: "Criar tarefa disto" });
+  if (temTexto && temQuadro && botDaFala(m, estado)) topo.push({ acao: "criar-tarefa", icone: ICONE_DA_FALA.task, texto: "Criar card disto" });
   const resto: ItemSegurado[] = itensDoMenu(m, estado, temQuadro)
     .filter((i) => i.acao !== "copiar" && i.acao !== "criar-tarefa")
     .map((i) => ({ acao: i.acao, icone: i.icone, texto: i.texto, ...(i.desabilitado ? { desabilitado: true } : {}) }));

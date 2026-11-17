@@ -614,7 +614,7 @@ export function resumoDaMeta(q: { prazo: string | null; colunas?: readonly Colun
   const prazo = q.prazo ? (hoje <= q.prazo ? `, no prazo (${prazoLegivel(q.prazo)})` : `, depois do prazo (${prazoLegivel(q.prazo)})`) : "";
   const quem = [...new Set(validas.map((t) => (t.agenteId ? nomes.get(t.agenteId) : undefined)).filter((n): n is string => Boolean(n)))];
   const prs = validas.map((t) => numeroDoPr(t.prUrl)).filter((n): n is number => n !== null).map((n) => `#${n}`);
-  return [`${validas.length} de ${validas.length} tarefas feitas${prazo}.`, quem.length ? `Feito por ${quem.join(", ")}.` : "", prs.length ? `PRs: ${prs.join(", ")}.` : ""].filter(Boolean).join(" ");
+  return [`${validas.length} de ${validas.length} cards feitos${prazo}.`, quem.length ? `Feito por ${quem.join(", ")}.` : "", prs.length ? `PRs: ${prs.join(", ")}.` : ""].filter(Boolean).join(" ");
 }
 
 /** O que o lote fez, numa frase (a faixa do quadro e o histórico mostram). */

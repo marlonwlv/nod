@@ -30,11 +30,11 @@ const quadroBase = (o: Partial<QuadroDto> = {}): QuadroDto => ({
 describe("NOD-422 · o card da prévia na conversa (direção A)", () => {
   it("aberto: título com a contagem, as 3 linhas, o mapa em Detalhes e Trazer / Agora não; tudo escapado", () => {
     const h = renderCardImportacao({ id: "p1", estado: "pendente" }, payload, true);
-    expect(h).toContain("Trazer 3 tarefas do Linear (NOD) para o quadro de Eng &lt;Nod&gt;");
+    expect(h).toContain("Trazer 3 cards do Linear (NOD) para o quadro de Eng &lt;Nod&gt;");
     expect(h).toContain("Ninguém começa");
     expect(h).toContain("1 precisa de você");
     expect(h).toContain("Sem coluna, vão para o Backlog: Triagem &lt;i&gt;");
-    expect(h).toContain("Implementando · 2 tarefas · <span class=\"ci-quem\">Faustino &lt;b&gt;</span>");
+    expect(h).toContain("Implementando · 2 cards · <span class=\"ci-quem\">Faustino &lt;b&gt;</span>");
     expect(h).not.toContain("QA ·"); // coluna sem tarefa não entra no mapa
     expect(h).toContain('data-act="decidir-proposta"');
     expect(h).toContain('data-act="recusar-decisao"');
@@ -54,7 +54,7 @@ describe("NOD-422 · a linha de progresso e o resultado", () => {
     expect(linhaDaImportacao(null)).toBeNull();
     expect(linhaDaImportacao(imp({}))).toEqual({ texto: "Trazendo do Linear · 120 de 190", tipo: "andando" });
     expect(linhaDaImportacao(imp({ estado: "falhou", erro: "Parei em 120 de 190: o Linear não respondeu. Nada mudou no quadro." }))?.tipo).toBe("erro");
-    expect(linhaDaImportacao(imp({ estado: "aplicada", trazidas: 190, colunas: 11 }))?.texto).toBe("Trouxe 190 tarefas do Linear (NOD) para 11 colunas · ninguém foi acionado");
+    expect(linhaDaImportacao(imp({ estado: "aplicada", trazidas: 190, colunas: 11 }))?.texto).toBe("Trouxe 190 cards do Linear (NOD) para 11 colunas · ninguém foi acionado");
     expect(linhaDaImportacao(imp({ estado: "desfeita" }))).toBeNull();
   });
 
@@ -80,7 +80,7 @@ describe("NOD-422 · a linha de progresso e o resultado", () => {
 describe("NOD-422 · o painel \"Trazer do Linear…\" pela tela", () => {
   it("prévia: a mesma do card, com Trazer N; enviando desabilita", () => {
     const h = painelDeImportacao({ fase: "previa", time: "NOD", filtro: null, previa, anfitriaoNome: "Ada" });
-    expect(h).toContain("Trazer 3 tarefas do Linear (NOD) para o quadro de Ada");
+    expect(h).toContain("Trazer 3 cards do Linear (NOD) para o quadro de Ada");
     expect(h).toContain('data-act="importar-confirmar"');
     expect(h).toContain("Agora não");
     expect(painelDeImportacao({ fase: "enviando", time: "NOD", filtro: null, previa })).toMatch(/data-act="importar-confirmar" disabled/);
@@ -148,7 +148,7 @@ describe("NOD-422 · a origem na tarefa: histórico e comentários do Linear", (
   it("a linha do histórico diz Linear e o estado (ou fechada)", () => {
     const h = { id: "h", autorAgenteId: null, campo: "linear", de: null, para: "Implementando", deNome: null, paraNome: null, autor: "pessoa", autorNome: null, criadoEm: 0 } as unknown as EntradaHistoricoDto;
     expect(linhaDoHistorico(h, 0)).toMatchObject({ quem: "Linear", oque: "em Implementando" });
-    expect(linhaDoHistorico({ ...h, para: null }, 0).oque).toBe("fechada no Linear");
+    expect(linhaDoHistorico({ ...h, para: null }, 0).oque).toBe("fechado no Linear");
   });
 
   it("o comentário trazido mostra quem escreveu lá, com \"· no Linear\", nunca \"Você\"", () => {
@@ -179,10 +179,10 @@ describe("NOD-422 · a importação em 'Sua vez'", () => {
 
   it("importacao_linear: a prévia (título, linhas e mapa) antes do Trazer / Agora não, escapada", () => {
     const h = renderSuaVez(comFila([item("importacao_linear", proposta)]));
-    expect(h).toContain("Trazer 3 tarefas do Linear (NOD) para o quadro de Eng &lt;Nod&gt;");
+    expect(h).toContain("Trazer 3 cards do Linear (NOD) para o quadro de Eng &lt;Nod&gt;");
     expect(h).toContain("1 precisa de você");
     expect(h).toContain("Sem coluna, vão para o Backlog: Triagem &lt;i&gt;");
-    expect(h).toContain("Implementando · 2 tarefas");
+    expect(h).toContain("Implementando · 2 cards");
     expect(h).toContain(">Trazer</button>");
     expect(h).toContain("Faustino &lt;b&gt;");
     expect(h).not.toContain("Faustino <b>");

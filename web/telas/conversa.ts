@@ -335,7 +335,7 @@ export function linhaDaTarefa(m: Pick<Mensagem, "texto" | "criadoEm">, p: Extrac
   const i = texto.indexOf(p.codigo);
   const antes = i >= 0 ? texto.slice(0, i) : "";
   const depois = i >= 0 ? texto.slice(i + p.codigo.length) : ` ${texto}`;
-  const codigo = `<button type="button" class="linha-link md-tarefa-link" data-act="abrir-tarefa-quadro" data-agente="${esc(p.agenteId)}" data-tarefa="${esc(p.tarefaId)}" aria-label="Abrir tarefa ${esc(p.codigo)} no quadro">${esc(p.codigo)}</button>`;
+  const codigo = `<button type="button" class="linha-link md-tarefa-link" data-act="abrir-tarefa-quadro" data-agente="${esc(p.agenteId)}" data-tarefa="${esc(p.tarefaId)}" aria-label="Abrir o card ${esc(p.codigo)} no quadro">${esc(p.codigo)}</button>`;
   return `<div class="linha-centro-wrap"><span class="linha-centro estatica linha-tarefa linha-tarefa-${p.motivo}" data-tarefa="${esc(p.tarefaId)}">${esc(antes)}${codigo}${esc(depois)}<span class="linha-hora">· ${esc(hora(m.criadoEm))}</span></span></div>`;
 }
 

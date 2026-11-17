@@ -319,8 +319,8 @@ export function proximaCurta(quando: number | null | undefined, agora: number): 
 function resumoDoQuadro(estado: Estado, agenteId: string): string {
   void estado;
   const r = resumosDosQuadros.get(agenteId);
-  if (!r) return "Tarefas";
-  const partes = [r.andando ? `${r.andando} em andamento` : "", r.bloqueadas ? `${r.bloqueadas} ${r.bloqueadas === 1 ? "bloqueada" : "bloqueadas"}` : ""].filter(Boolean);
+  if (!r) return "Cards";
+  const partes = [r.andando ? `${r.andando} em andamento` : "", r.bloqueadas ? `${r.bloqueadas} ${r.bloqueadas === 1 ? "bloqueado" : "bloqueados"}` : ""].filter(Boolean);
   return partes.join(" · ") || "Nada em andamento";
 }
 

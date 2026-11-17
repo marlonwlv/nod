@@ -670,8 +670,8 @@ export function avisoDoFreio(t: Pick<TarefaQuadro, "titulo" | "deFora">, f: { ti
   // Revisão 8 do PR #629: de turno não confiável, o motivo do laço sai sem os nomes das colunas (que um turno de fora pode
   // ter escrito); o card guarda o motivo completo.
   const motivo = deTurnoDeFora && f.tipo === "laco" ? MOTIVO_LACO_SEM_NOMES : f.motivo;
-  if (bloqueou) return semTitulo ? `Uma tarefa do quadro foi para Bloqueado: ${motivo}` : `"${t.titulo}" foi para Bloqueado: ${motivo}`;
-  return semTitulo ? `Numa tarefa do quadro: ${motivo}` : `Em "${t.titulo}": ${motivo}`;
+  if (bloqueou) return semTitulo ? `Um card do quadro foi para Bloqueado: ${motivo}` : `"${t.titulo}" foi para Bloqueado: ${motivo}`;
+  return semTitulo ? `Num card do quadro: ${motivo}` : `Em "${t.titulo}": ${motivo}`;
 }
 
 /**

@@ -34,9 +34,9 @@ export function sugestoesDoQuadro(q: Pick<QuadroDto, "tarefas" | "colunas"> | nu
   if (espera) { const c = codigoSeguro(espera); s.push({ tipo: "abrir", rotulo: c ? `Responder ${c}` : "Responder o que espera você", tarefaId: espera.id }); }
   const travada = q.tarefas.find((t) => t.status === "bloqueado" && codigoSeguro(t));
   const ct = travada ? codigoSeguro(travada) : null;
-  if (ct) s.push({ tipo: "texto", rotulo: `Por que ${ct} travou?`, texto: `Por que a ${ct} está bloqueada e do que ela precisa?` });
+  if (ct) s.push({ tipo: "texto", rotulo: `Por que ${ct} travou?`, texto: `Por que o ${ct} está bloqueado e do que ele precisa?` });
   if (vivas.length) s.push({ tipo: "texto", rotulo: "Resumo do quadro", texto: "Me dá um resumo do quadro: o que andou, o que está parado e com quem." });
-  else s.push({ tipo: "texto", rotulo: "Por onde começo?", texto: "Me ajuda a montar as primeiras tarefas deste quadro." });
+  else s.push({ tipo: "texto", rotulo: "Por onde começo?", texto: "Me ajuda a montar os primeiros cards deste quadro." });
   if (s.length < MAX_SUGESTOES && vivas.length) s.push({ tipo: "texto", rotulo: "O que está parado?", texto: "O que está parado no quadro e por quê?" });
   return s.slice(0, MAX_SUGESTOES);
 }

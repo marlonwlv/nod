@@ -164,7 +164,7 @@ export function itensDoMenu(m: Mensagem, estado: Estado, temQuadro = false): Ite
   // NOD-323 (J2): com duas ou mais mídias do bot que estão no nod, uma por uma para a pasta de downloads. No topo (p7_menu).
   if (baixaveis(m.anexos ?? []).length >= 2) itens.push({ acao: "baixar-tudo", icone: ICONE_DA_FALA.baixar, texto: "Baixar tudo" });
   if (m.texto.trim() !== "") itens.push({ acao: "copiar", icone: ICONE_DA_FALA.copiar, texto: "Copiar texto" });
-  if (m.texto.trim() !== "" && temQuadro && botDaFala(m, estado)) itens.push({ acao: "criar-tarefa", icone: ICONE_DA_FALA.task, texto: "Criar tarefa disto" });
+  if (m.texto.trim() !== "" && temQuadro && botDaFala(m, estado)) itens.push({ acao: "criar-tarefa", icone: ICONE_DA_FALA.task, texto: "Criar card disto" });
   if (podeResponder(m, estado) && botDaFala(m, estado)) itens.push({ acao: "abrir-task", icone: ICONE_DA_FALA.task, texto: "Abrir tarefa com isto" });
   // A fala não confiável (de conector ou de outro bot, ADR-062) não vira memória num clique: a memória entra em todo prompt
   // do bot e a linha "Anotei …" nasce confiável. Quem quiser guardar escreve em Memória (revisão do PR 392, 2026-10-18).

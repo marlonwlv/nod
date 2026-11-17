@@ -93,7 +93,7 @@ describe("quadroDaMeta no quadro mínimo", () => {
   it("com o menu aberto, as ações estão lá; meta, prazo e progresso vêm do quadro", () => {
     const h = tela(q({ meta: "Lançar", prazo: "2026-11-20", feitas: 0, total: 1 }), { ui: ui({ aberto: "quadro" }) });
     expect(h).toContain("Lançar · até 20 nov");
-    expect(h).toContain("0 de 1 feitas · faltam 10 dias");
+    expect(h).toContain("0 de 1 feitos · faltam 10 dias");
     for (const act of ["editar-meta", "qmenu-prazo", "painel-pessoas", "painel-atividade", "trazer-linear", "remover-quadro"]) expect(h).toContain(`data-act="${act}"`);
   });
 

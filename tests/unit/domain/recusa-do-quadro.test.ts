@@ -18,7 +18,7 @@ describe("recusa do quadro com caminho (ADA-26)", () => {
         }
       }
     }
-    expect(fraseParaPessoa("entrada_invalida", "ADA-17")).toContain("cancela a ADA-17");
+    expect(fraseParaPessoa("entrada_invalida", "ADA-17")).toContain("cancela o ADA-17");
     expect(fraseParaPessoa("sem_conector", null)).toBeNull();
   });
 

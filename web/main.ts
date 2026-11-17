@@ -2837,7 +2837,7 @@ function renderSidebar(estado: Estado): string {
   // Tela 18d do Paper (rodada 2): a linha "Tarefas" abre a página Tarefas de todos os bots (`{ tipo: "tarefas" }`).
   // ADR-167 (telas 02–05 do Paper): a linha fixa fica acima de "Trabalhos"; o número é o de tarefas abertas que a tela já conhece.
   const nTarefas = tarefasAbertasConhecidas();
-  const linhaTarefas = meus.length && estado.experimentos.quadro ? `<div class="linha-fixa linha-tarefas"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="tarefas" aria-current="${t.tipo === "tarefas" ? "page" : "false"}" aria-label="Tarefas${nTarefas ? `, ${nTarefas} abertas` : ""}" data-etiqueta="Tarefas">${IC_QUADRO.replace("<svg ", '<svg class="linha-fixa-ic" ')}<span class="linha-fixa-nome">Tarefas</span>${nTarefas ? `<span class="linha-fixa-cont" aria-hidden="true">${nTarefas}</span>` : ""}</button></div>` : "";
+  const linhaTarefas = meus.length && estado.experimentos.quadro ? `<div class="linha-fixa linha-tarefas"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="tarefas" aria-current="${t.tipo === "tarefas" ? "page" : "false"}" aria-label="Cards${nTarefas ? `, ${nTarefas} abertos` : ""}" data-etiqueta="Cards">${IC_QUADRO.replace("<svg ", '<svg class="linha-fixa-ic" ')}<span class="linha-fixa-nome">Cards</span>${nTarefas ? `<span class="linha-fixa-cont" aria-hidden="true">${nTarefas}</span>` : ""}</button></div>` : "";
   const quem = quemEsta();
   const nomeRodape = quem?.nome ?? quem?.email ?? "";
   const html = `<div class="search-wrap">
@@ -2858,7 +2858,7 @@ function renderSidebar(estado: Estado): string {
     ${avisoDoMotor}
     <div class="rodape">
       <button type="button" class="me conta-pilula${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${menuContaAberto() ? "true" : "false"}"${falhaMotor ? ' data-etiqueta="Sua IA não está conectada"' : ""} aria-label="Menu da conta${nomeRodape ? ` de ${esc(nomeRodape)}` : ""}: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}" title="${esc(nomeRodape || "Menu da conta")}"><span class="av-me">${esc(iniciaisDe(quem?.nome))}</span>${falhaMotor ? '<span class="me-fora" aria-hidden="true">!</span>' : avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}<span class="me-conexao conexao-${esc(estado.conexao.estado)}" title="eventos ao vivo: ${esc(estado.conexao.estado)}"></span>${nomeRodape ? `<span class="me-nome">${esc(nomeRodape)}</span>` : ""}</button>
-      ${linhaTarefas ? `<button type="button" class="rodape-ic rodape-tarefas" data-act="navegar" data-tela="tarefas" aria-label="Tarefas" data-etiqueta="Tarefas">${IC_QUADRO}</button>` : ""}
+      ${linhaTarefas ? `<button type="button" class="rodape-ic rodape-tarefas" data-act="navegar" data-tela="tarefas" aria-label="Cards" data-etiqueta="Cards">${IC_QUADRO}</button>` : ""}
       <button type="button" class="rodape-ic conectar-bt" data-act="navegar" data-tela="conectores" aria-current="${t.tipo === "conectores" ? "true" : "false"}" aria-label="Conectar aplicativos" title="Conectar aplicativos" data-etiqueta="Conectar aplicativos">${IC_GRADE}</button>
     </div>`;
   // NOD-119: na barra recolhida nenhum title nativo (a etiqueta escura o substitui; dois balões juntos confundem).
@@ -5786,12 +5786,12 @@ async function criarTarefaDaFala(fala: Mensagem, botId: string): Promise<void> {
       const tarefaId = r.lote?.tarefaIds[0] ?? null;
       const loteId = r.lote?.id ?? null;
       const aviso = mostrarAvisoDesfazer({
-        texto: "Tarefa criada",
+        texto: "Card criado",
         ...(tarefaId ? { abrir: { rotulo: "Abrir", aoAbrir: () => quadroNaTela.abrirTarefa(botId, tarefaId) } } : {}),
-        ...(loteId ? { aoDesfazer: () => agir(async () => { await a.desfazerLoteQuadro(botId, loteId); anunciar("Tarefa desfeita"); }) } : {}),
+        ...(loteId ? { aoDesfazer: () => agir(async () => { await a.desfazerLoteQuadro(botId, loteId); anunciar("Card desfeito"); }) } : {}),
       });
       aviso.dataset.tarefa = tarefaId ?? "";
-      anunciar("Tarefa criada no quadro");
+      anunciar("Card criado no quadro");
     });
   } finally {
     criandoTarefaDaFala = false;
@@ -10403,14 +10403,14 @@ async function abrirTarefaGuardada(): Promise<void> {
     // Revisão 2 do PR #623: espera a lista de bots chegar (não o teto inteiro) e, sem o bot nela, diz em vez de calar.
     const bot = await botDoLink(() => botGerido(r.agenteId), () => !!estado.frota, (ms) => new Promise((ok) => window.setTimeout(ok, ms)));
     if (!bot) {
-      dispatch({ tipo: "erro", erro: { codigo: "nao_encontrado", mensagem: `A tarefa ${codigo} é de um bot que não está na sua lista (excluído, oculto ou de outra pessoa).`, status: 404 } });
+      dispatch({ tipo: "erro", erro: { codigo: "nao_encontrado", mensagem: `O card ${codigo} é de um bot que não está na sua lista (excluído, oculto ou de outra pessoa).`, status: 404 } });
       return;
     }
     navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
     quadroNaTela.abrirTarefa(bot.id, r.tarefaId, r.quadroId);
   } catch (e) {
     // Código que não existe (ou de outra pessoa: a RLS dá 404): diz qual; o resto (rede) segue o erro de sempre.
-    if (e instanceof ErroApi && e.status === 404) dispatch({ tipo: "erro", erro: { codigo: e.codigo, mensagem: `Tarefa ${codigo} não encontrada.`, status: 404 } });
+    if (e instanceof ErroApi && e.status === 404) dispatch({ tipo: "erro", erro: { codigo: e.codigo, mensagem: `Card ${codigo} não encontrado.`, status: 404 } });
     else mostrarErro(e);
   }
 }

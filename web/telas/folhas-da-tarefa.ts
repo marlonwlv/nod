@@ -32,9 +32,9 @@ export function folhaDeStatus(t: Pick<TarefaDto, "status">, colunas: readonly Pi
  * (src/adapters/http/rotas/quadro.ts, CAMPOS_DA_TAREFA) e o `motivo` não chegaria (follow-up registrado no PR #699).
  */
 export function folhaDeCancelar(titulo: string): string {
-  return `<p class="qd-fo-frase">Cancelar <strong>${esc(titulo)}</strong>? O bot para e a tarefa sai do quadro ativo.</p>` +
+  return `<p class="qd-fo-frase">Cancelar <strong>${esc(titulo)}</strong>? O bot para e o card sai do quadro ativo.</p>` +
     `<div class="qd-fo-acoes"><button type="button" class="qd-bt" data-folha-acao="status-voltar">Voltar</button>` +
-    `<button type="button" class="qd-bt qd-bt-perigo" data-folha-acao="cancelar-ok" data-folha-foco>Cancelar tarefa</button></div>`;
+    `<button type="button" class="qd-bt qd-bt-perigo" data-folha-acao="cancelar-ok" data-folha-foco>Cancelar card</button></div>`;
 }
 
 /**
