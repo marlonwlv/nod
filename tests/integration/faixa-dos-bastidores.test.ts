@@ -125,7 +125,11 @@ describeIntegracao("ADR-130: a conversa do bot tem a faixa da pessoa e a dos bas
       const depoisDoLease = (cortado?.leaseAte ?? agora) + 1;
       const assentado = await interromperPorMaquina({ ...deps, agora: () => depoisDoLease, aleatorio: () => 0.5 }, { turnos: cortado ? [cortado] : [] });
       expect(assentado.data.interrompidos).toEqual([rotina.id]);
-      expect(await deps.repos.turnos.retomadaNaFila(rotina.id)).not.toBeNull();
+      // `retomadaNaFila` só devolve voltas já acordadas; esta precisa ficar pendente no backoff de 30 s.
+      const [retomada] = await trx<{ estado: string; acordar_em: Date | null }[]>`
+        select estado, acordar_em from turnos where retoma_turno_id = ${rotina.id} order by criado_em desc limit 1`;
+      expect(retomada).toMatchObject({ estado: "pendente" });
+      expect(retomada?.acordar_em?.getTime()).toBe(depoisDoLease + 30_000);
       expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId).toBe(colega.id);
     });
   });

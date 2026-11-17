@@ -311,6 +311,9 @@ export async function interromperPorMaquina(deps: DepsQueda, input: EntradaVarre
     const perdidoDesde = ultimoSinalDoTurno(vencido, agora);
     const turno = await deps.repos.turnos.interromper(vencido.id, motivo, { ultimoSinalEm: perdidoDesde, leaseVencidoEm: agora });
     if (!turno) continue;
+    // NOD-452: o UPDATE decide pela linha viva. Se Parar limpou a marca do teto depois da leitura de `vencidos`, sua
+    // prioridade precisa seguir também nas consequências (sem retomada), não só no motivo persistido.
+    const motivoConfirmado: MotivoDoVarredor | "parado_pela_pessoa" = turno.motivoInterrupcao === "parado_pela_pessoa" ? "parado_pela_pessoa" : motivo;
     // NOD-214: a sessão que a renovação gravou no turno vale como a da entrega que não veio (a próxima mensagem a
     // retoma), e a credencial sai — o turno assentado não é mais adotável. Sem credencial (turno de antes da 0073), nada.
     const cred = await deps.repos.turnoCredenciais.buscar(turno.id);
@@ -320,11 +323,11 @@ export async function interromperPorMaquina(deps: DepsQueda, input: EntradaVarre
       if (sessao) await propagarSessaoDoTurno(deps, { turno, sessaoCli: sessao.sessaoCli, executor: cred.executor, harness: cred.harness, maquinaBifurca: false });
       await deps.repos.turnoCredenciais.apagar(turno.id);
     }
-    if (motivo === "parado_pela_pessoa") parados.push({ turno, perdidoDesde });
+    if (motivoConfirmado === "parado_pela_pessoa") parados.push({ turno, perdidoDesde });
     else {
       // NOD-386: só no modo compartilhado (o varredor sabe o contato da máquina) dá para dizer que ela estava de pé.
       const maquinaPresente = input.maquinaPresente ? input.maquinaPresente(vencido.machineId) : true;
-      caidos.push({ turno, motivo, perdidoDesde, maquinaPresente, servidorFalhou: motivo === "maquina_sem_contato" && input.maquinaPresente !== undefined && maquinaPresente });
+      caidos.push({ turno, motivo: motivoConfirmado, perdidoDesde, maquinaPresente, servidorFalhou: motivoConfirmado === "maquina_sem_contato" && input.maquinaPresente !== undefined && maquinaPresente });
     }
   }
   const r = await aplicar(deps, caidos, input.prazoMs);

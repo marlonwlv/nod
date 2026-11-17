@@ -1170,7 +1170,10 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      */
     async interromper(id: string, motivo: MotivoInterrupcao, o: { ultimoSinalEm?: number; leaseVencidoEm?: number } = {}): Promise<Turno | null> {
       const [l] = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = ${motivo},
+        update turnos set estado = 'interrompido', motivo_interrupcao = ${o.leaseVencidoEm === undefined
+          ? conn`${motivo}`
+          : conn`case when parar_solicitado_em is not null and motivo_interrupcao is distinct from 'turno_travado'
+              then 'parado_pela_pessoa'::motivo_interrupcao else ${motivo}::motivo_interrupcao end`},
           ultimo_sinal_em = coalesce(ultimo_sinal_em, ${o.ultimoSinalEm !== undefined ? data(o.ultimoSinalEm) : null}), lease_ate = null
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and estado in ('pendente', 'despachando')
           ${o.leaseVencidoEm !== undefined ? conn`and (lease_ate is null or lease_ate < ${data(o.leaseVencidoEm)})` : conn``}

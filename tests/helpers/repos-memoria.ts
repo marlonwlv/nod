@@ -2060,7 +2060,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         // NOD-241: a guarda do varredor, como o UPDATE do repo real (o lease renovado no meio não é interrompido).
         if (o.leaseVencidoEm !== undefined && t.leaseAte !== null && t.leaseAte >= o.leaseVencidoEm) return null;
         t.estado = "interrompido";
-        t.motivoInterrupcao = motivo;
+        // NOD-452: a decisão usa a linha viva, não a leitura anterior do varredor; Parar sempre vence o teto.
+        t.motivoInterrupcao = o.leaseVencidoEm !== undefined && t.pararSolicitadoEm !== null && t.motivoInterrupcao !== "turno_travado" ? "parado_pela_pessoa" : motivo;
         if (o.ultimoSinalEm !== undefined && !ULTIMO_SINAL.has(t)) ULTIMO_SINAL.set(t, o.ultimoSinalEm);
         t.leaseAte = null;
         return t;
