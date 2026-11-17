@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 const DIR = new URL("../../../src/contracts/", import.meta.url);
 
+const contarLinhas = (fonte: string) => fonte === "" ? 0 : fonte.split("\n").length - Number(fonte.endsWith("\n"));
+
 /** EMENDA 26: src/contracts contém só tipos e `as const`; nenhum import sai da pasta (critério da L2). */
 describe("src/contracts é fechado", () => {
   const arquivos = readdirSync(DIR).filter((f) => f.endsWith(".ts"));
@@ -26,9 +28,15 @@ describe("src/contracts é fechado", () => {
   it("os contratos divididos pela NOD-425 ficam abaixo de 180 linhas", () => {
     const divididos = ["desktop.ts", "ferramentas-nod.ts", "mensagem.ts", "servicos.ts"];
     for (const f of divididos) {
-      const linhas = readFileSync(new URL(f, DIR), "utf8").split("\n").length;
+      const linhas = contarLinhas(readFileSync(new URL(f, DIR), "utf8"));
       expect(linhas, `${f} tem ${linhas} linhas`).toBeLessThan(180);
     }
+  });
+
+  it("conta a quebra final sem inventar uma linha vazia", () => {
+    expect(contarLinhas("linha\n")).toBe(1);
+    expect(contarLinhas("linha")).toBe(1);
+    expect(contarLinhas("")).toBe(0);
   });
 
   it("os contratos divididos pela NOD-425 têm no máximo uma declaração irmã por linha", () => {
