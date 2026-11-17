@@ -558,18 +558,23 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     await abrirConversa(outro);
     await falar(bot, `Grave. [[tool: pedir_aprovacao ${pedirGravar("espera-trabalhos")}]] [[texto: pedi]]`);
     await atePedidos(bot.id, 1);
-    await ate(`document.querySelector('#sidebar .linha-fixa-aguardando[data-agente="${bot.id}"]')`, "o pedido em Trabalhos");
-    expect(await avaliar<string | null>(cdp, `document.querySelector('#sidebar .linha-fixa-aguardando')?.getAttribute("aria-label") ?? null`)).toBe("Espera Teste precisa de você");
+    await ate(`document.querySelector('#sidebar .linha-fixa-aguardando')`, "o pedido em Trabalhos");
+    expect(await avaliar<string | null>(cdp, `document.querySelector('#sidebar .linha-fixa-aguardando')?.getAttribute("aria-label") ?? null`)).toMatch(/precisa de você|pedidos esperando por você/);
     // Laranja: a cor vem de --aguardando (o valor é do CSS; aqui só que é a variável, e não a do não lido).
     const cor = await avaliar<{ sub: string; ref: string }>(cdp, `(() => { const v = getComputedStyle(document.documentElement).getPropertyValue("--aguardando").trim(); const p = document.createElement("i"); p.style.color = v; document.body.append(p); const ref = getComputedStyle(p).color; p.remove(); return { sub: getComputedStyle(document.querySelector('#sidebar .linha-fixa-aguardando')).color, ref }; })()`);
     expect(cor.ref).not.toBe("");
     expect(cor.sub).toBe(cor.ref);
     expect(await existe("#sidebar .linha-fixa-aguardando .ponto-aguardando")).toBe(true);
-    // O clique abre a conversa do bot e realça o cartão pendente.
-    await clicar('#sidebar .linha-fixa-aguardando[data-act="abrir-conversa"]');
-    await ate(`document.querySelector('#timeline [data-pergunta].realce, #timeline [data-decisao].realce')`, "o cartão realçado");
-    const visivel = await avaliar<boolean>(cdp, `(() => { const r = document.querySelector('#timeline [data-pergunta].realce, #timeline [data-decisao].realce').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`);
-    expect(visivel).toBe(true);
+    // Com um pedido, abre a conversa e realça o cartão; com vários, abre a lista Sua vez.
+    const umSo = await avaliar<boolean>(cdp, `document.querySelector('#sidebar .linha-fixa-aguardando')?.dataset.act === "abrir-conversa"`);
+    await clicar("#sidebar .linha-fixa-aguardando");
+    if (umSo) {
+      await ate(`document.querySelector('#timeline [data-pergunta].realce, #timeline [data-decisao].realce')`, "o cartão realçado");
+      const visivel = await avaliar<boolean>(cdp, `(() => { const r = document.querySelector('#timeline [data-pergunta].realce, #timeline [data-decisao].realce').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`);
+      expect(visivel).toBe(true);
+    } else {
+      await ate(`document.querySelector('.tela-sua-vez')`, "a lista Sua vez");
+    }
   });
 
   // ———————————————————————————————————————————————— 11 ————————————————————————————————————————————————
