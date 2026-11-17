@@ -369,6 +369,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       obterDaPessoa: async () => { throw new Error("use o banco para testar o computador da pessoa"); },
       fixarMaquina: async () => undefined, fixarSupervisor: async () => null, esquecerSupervisor: async () => undefined,
       iniciarOperacao: async () => false, progredirOperacao: async () => false, terminarOperacao: async () => false, arquivarLegado: async () => [], legadosArquivados: async () => [],
+      legadosParaMigrar: async () => [], concluirMigracaoLegado: async () => false,
       trocarSupervisor: async () => false, fixarLugar: async () => false, adicionarSaidaPendente: async () => false, saidaMarcada: async () => {}, avisoRecriado: async () => false, atividadeDaPessoa: async () => [],
     },
     computadorTelas: {

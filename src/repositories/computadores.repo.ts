@@ -283,6 +283,39 @@ export function computadoresRepo(conn: Conn, escopo: Escopo) {
       if (ids.length > 0) await conn`update agentes set computador_id = null where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and computador_id = any(${ids}::uuid[])`;
       return ids;
     },
+    /**
+     * NOD-498: origens Docker ainda sem recibo de cópia. O vínculo atual é a fonte primária; para um legado que a
+     * rotina antiga já arquivou, a última ação do próprio computador recupera o bot. Sem identidade inequívoca ele
+     * volta com agente nulo: a rotina aborta antes de tocar em qualquer volume.
+     */
+    async legadosParaMigrar(destinoId: string): Promise<{ id: string; agenteId: string | null; arquivadoEm: number | null }[]> {
+      const linhas = await conn<{ id: string; agente_id: string | null; arquivado_em: Date | null }[]>`select c.id,
+          coalesce(a.id, lateral_acao.agente_id) as agente_id, c.arquivado_em
+        from computadores c
+        left join agentes a on a.tenant_id = c.tenant_id and a.owner_id = c.owner_id and a.computador_id = c.id and a.excluido_em is null
+        left join lateral (
+          select ca.agente_id from computador_acoes ca where ca.tenant_id = c.tenant_id and ca.owner_id = c.owner_id
+            and ca.computador_id = c.id and ca.agente_id is not null order by ca.em desc, ca.id desc limit 1
+        ) lateral_acao on true
+        where c.tenant_id = ${escopo.tenantId} and c.owner_id = ${escopo.pessoaId} and c.modelo = 'por_bot'
+          and c.legado_migrado_em is null and c.id <> ${destinoId}
+        order by c.criado_em, c.id`;
+      return linhas.map((l) => ({ id: l.id, agenteId: l.agente_id, arquivadoEm: l.arquivado_em?.getTime() ?? null }));
+    },
+    /** Grava o recibo e só então arquiva/desvincula. Repetir o mesmo recibo é sucesso; outro destino/bot é recusado. */
+    async concluirMigracaoLegado(id: string, agenteId: string, destinoId: string, em: number): Promise<boolean> {
+      const linhas = await conn`update computadores set legado_migrado_para = ${destinoId},
+          legado_migrado_agente_id = ${agenteId}, legado_migrado_em = ${new Date(em)},
+          arquivado_em = coalesce(arquivado_em, ${new Date(em)})
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and modelo = 'por_bot'
+          and (legado_migrado_em is null or (legado_migrado_para = ${destinoId} and legado_migrado_agente_id = ${agenteId}))
+        returning id`;
+      if (linhas.length !== 1) return false;
+      await conn`update agentes set computador_id = ${destinoId}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${agenteId}
+          and excluido_em is null and (computador_id = ${id} or computador_id is null or computador_id = ${destinoId})`;
+      return true;
+    },
     /** NOD-96 PR 5 (`npm run computador:legado`): os computadores por bot já arquivados, com a data do arquivamento. */
     async legadosArquivados(): Promise<{ id: string; arquivadoEm: number }[]> {
       const linhas = await conn<{ id: string; arquivado_em: Date }[]>`select id, arquivado_em from computadores

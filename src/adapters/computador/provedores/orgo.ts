@@ -105,7 +105,12 @@ export function urlVncDoOrgo(connectionUrl: string): string {
 }
 
 export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
-  const habilitado = o.env.NOD_COMPUTADOR_ORGO === "1";
+  const solicitado = o.env.NOD_COMPUTADOR_ORGO === "1";
+  // A REST pública do Orgo entrega telas distintas, mas o bash continua root na máquina inteira e não oferece o
+  // supervisor que serializa cookies/storage do ADR-122. Até o template compartilhado ser validado numa conta real,
+  // produção falha fechada. `fetchImpl` só existe nos testes de contrato e nunca vem de configuração/credencial.
+  const contratoSeguro = o.fetchImpl !== undefined;
+  const habilitado = solicitado && contratoSeguro;
   const base = (o.env.NOD_ORGO_URL || BASE_ORGO).replace(/\/$/, "");
   const nomeWorkspace = o.env.NOD_ORGO_WORKSPACE_NOME || "nod";
   const ram = Number(o.env.NOD_ORGO_RAM_GB) || 4;
@@ -335,7 +340,8 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
   };
 
   async function ambiente(ref?: Pick<RefComputador, "escopo">): Promise<AmbienteComputador> {
-    if (!habilitado) return { disponivel: false, motivo: "Configure NOD_COMPUTADOR_ORGO=1 no servidor para usar o Orgo." };
+    if (!solicitado) return { disponivel: false, motivo: "Configure NOD_COMPUTADOR_ORGO=1 no servidor para usar o Orgo." };
+    if (!contratoSeguro) return { disponivel: false, motivo: "O Orgo permanece desligado até o template com isolamento e logins compartilhados ser validado." };
     if (ref?.escopo && !(await o.chaveDe(ref.escopo))) return { disponivel: false, motivo: "Guarde a chave do Orgo (conector orgo, ORGO_API_KEY) para ligar o computador." };
     return { disponivel: true, motivo: null };
   }

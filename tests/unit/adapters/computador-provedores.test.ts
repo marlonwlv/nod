@@ -237,6 +237,12 @@ describe("driver Orgo (pela documentação, sem conta)", () => {
     expect(f.chamadas).toEqual([]);
   });
 
+  it("produção falha fechada mesmo com a flag até o contrato seguro do template Orgo ser validado", async () => {
+    const p = criarProvedorOrgo({ env, chaveDe: async () => CHAVE });
+    await expect(p.ambiente({ escopo: ESCOPO })).resolves.toMatchObject({ disponivel: false, motivo: expect.stringMatching(/isolamento e logins compartilhados/) });
+    await expect(p.iniciar(ref)).rejects.toMatchObject({ motivo: "nao_iniciou" });
+  });
+
   it("sem a chave no cofre: diz para pedir com pedir_credencial, sem chamar a rede", async () => {
     const f = orgoFalso({ status: "running", existe: true });
     const p = criarProvedorOrgo({ env, chaveDe: async () => null, fetchImpl: f.fetchImpl });
