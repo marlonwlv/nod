@@ -136,6 +136,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
     let sqlConta: string;
     let desbloquear: () => void;
     let home = "";
+    let salaSemeada: { salaId: string; conversaId: string } | null = null;
     const outraEscopo: Escopo = { tenantId: "", pessoaId: randomUUID() };
     const outroTenant: Escopo = { tenantId: randomUUID(), pessoaId: randomUUID() };
 
@@ -162,6 +163,18 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       if (home) rmSync(home, { recursive: true, force: true });
       if (!srv) return;
       await srv.fechar();
+      // A sala não tem rota de exclusão. Tire a semente e sua conversa cíclica juntas antes da varredura genérica, que
+      // apaga tabela por tabela e por isso não consegue atravessar as duas FKs deferidas sala ↔ conversa.
+      if (salaSemeada) {
+        const sala = salaSemeada;
+        await srv.dbDono.begin(async (trx) => {
+          await trx`delete from paradas where tenant_id = ${srv.pessoa.tenantId} and conversa_id = ${sala.conversaId}`;
+          await trx`delete from mensagens where tenant_id = ${srv.pessoa.tenantId} and conversa_id = ${sala.conversaId}`;
+          await trx`delete from sala_membros where tenant_id = ${srv.pessoa.tenantId} and sala_id = ${sala.salaId}`;
+          await trx`delete from conversas where tenant_id = ${srv.pessoa.tenantId} and id = ${sala.conversaId}`;
+          await trx`delete from salas where tenant_id = ${srv.pessoa.tenantId} and id = ${sala.salaId}`;
+        });
+      }
       // Primeiro a varredura pelo catálogo (toda tabela com owner_id, apagada pela própria pessoa), depois a limpeza do e2e
       // (conta, sessões, pessoa). Ela apaga e só então conta: a falha aqui é linha que NÃO DÁ para apagar como a dona (FK
       // sem par, policy sem delete, tabela fora do grant), não "a limpeza esqueceu uma tabela" — o catálogo cobre isso.
@@ -368,7 +381,8 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         await d.tx((trx) => trx`update maquinas_nuvem set estado = 'dormindo', desejado = 'dormindo', estado_desde = now() where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${nuvem[1]!}`);
         return { decisoes, decisaoRetomar: decisaoRetomar.id, propostas, turnos, incidentes: [incidente.id], trabalhos, memorias, diarios, contas, chaves, nuvem };
       });
-      const salaDoFuzz = (await srv.json<{ ids: { salaId: string } }>("POST", "salas", { nome: "Sala do fuzz", agenteIds: [meu.agente.id, segundo.agente.id] })).ids.salaId;
+      salaSemeada = (await srv.json<{ ids: { salaId: string; conversaId: string } }>("POST", "salas", { nome: "Sala do fuzz", agenteIds: [meu.agente.id, segundo.agente.id] })).ids;
+      const salaDoFuzz = salaSemeada.salaId;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
       await srv.json("PUT", "canvas/app", {});
       const plano = planoDoServidor({
