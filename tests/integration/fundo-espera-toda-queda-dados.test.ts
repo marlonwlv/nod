@@ -65,7 +65,8 @@ describeIntegracao("fundo espera por toda queda: dados (NOD-309, 0098)", () => {
       const atual = (await repos.turnos.enfileirar({ ...novo, origem: "retomada", retomaTurnoId: c.id }))!;
       // raiz: sinal 1 ms antes (fora); a: sinal na borda; b: sem sinal, pela criação; c: corte pelo teto (também conta).
       expect(await repos.turnos.quedasDaCadeia(raiz.id, atual.id, desde)).toBe(3);
-      expect(await repos.turnos.quedasDaCadeia(raiz.id, b.id, desde)).toBe(1);
+      // `exceto` tira só o turno informado; os descendentes dele continuam na cadeia.
+      expect(await repos.turnos.quedasDaCadeia(raiz.id, b.id, desde)).toBe(2);
       expect(await repos.turnos.quedasDaCadeia(raiz.id, atual.id, 0)).toBe(4);
     });
   });
