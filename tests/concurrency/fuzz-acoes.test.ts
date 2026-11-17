@@ -323,6 +323,10 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         // seguinte aguardar 5 s. Interrompidos continuam exercitando a busca e as transições sem simular execução viva.
         await d.tx((trx) => trx`update turnos set estado = 'interrompido', motivo_interrupcao = 'parado_pela_pessoa'
           where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = any(${turnos}::uuid[])`);
+        // A retomada válida criaria outro turno pendente no meio do plano. Fechada, a decisão ainda é encontrada pelo
+        // handler e prova a leitura da entidade (409), sem iniciar trabalho que o ambiente de fuzz não despacha.
+        await d.tx((trx) => trx`update decisoes set estado = 'decidida', decidida_em = now()
+          where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${decisaoRetomar.id}`);
         const incidente = await d.repos.incidentes.abrir({ tipo: "mac_sem_contato", machineId: null, comecouEm: agora - 1_000, voltouEm: agora, rotinas: 0, conversas: 1, agentes: [meu.agente.id] });
         if (!incidente) throw new Error("incidente do fuzz");
 
