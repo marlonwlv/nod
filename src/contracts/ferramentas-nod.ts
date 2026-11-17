@@ -66,7 +66,7 @@ export const FERRAMENTAS_NOD = {
   pedir_aprovacao: {
     type: "object",
     description:
-      "Submete itens de efeito externo para aprovação em lista. Se voltar 'pendente', ENCERRE o turno: a decisão retoma depois.",
+      "Submete ações de apps/conectores para aprovação em lista. Computador e terminal não entram aqui: chame computador_interagir/computador_terminal diretamente; o adaptador deles aplica o modo de aprovação e cria o cartão quando necessário. Se voltar 'pendente', ENCERRE o turno: a decisão retoma depois.",
     properties: {
       resumo: { type: "string", description: "Resumo do lote em uma frase.", minLength: 1 },
       itens: {
@@ -79,7 +79,7 @@ export const FERRAMENTAS_NOD = {
             destino: {
               type: "object",
               properties: {
-                conector: { type: "string", description: "Slug do conector.", minLength: 1 },
+                conector: { type: "string", description: "Slug de um app/conector. Nunca use computador ou terminal; chame computador_interagir/computador_terminal diretamente.", minLength: 1, not: { type: "string", enum: ["computador", "terminal"] } },
                 ferramenta: { type: "string", description: "Ferramenta do conector.", minLength: 1 },
                 argumentos: { type: "object", description: "Argumentos da chamada." },
               },
@@ -171,7 +171,7 @@ export type ResultadoPedirAprovacao =
   | { estado: "decidida"; itens: { idx: number; desfecho: string }[] }
   | { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a decisão retoma depois" }
   /** ADR-062: argumento fora do schema do conector — o bot corrige e pede de novo. NOD-443: quem pediu saiu do quadro. */
-  | { estado: "recusada"; erros: string[]; instrucao: "corrija os argumentos e chame pedir_aprovacao de novo" | "não peça de novo; encerre o turno" | "não peça de novo: diga à pessoa o que ficou de fora e por quê" };
+  | { estado: "recusada"; erros: string[]; instrucao: "corrija os argumentos e chame pedir_aprovacao de novo" | "não peça de novo; encerre o turno" | "não peça de novo: diga à pessoa o que ficou de fora e por quê" | "chame computador_interagir ou computador_terminal diretamente; o adaptador aplica a aprovação" };
 export type ResultadoPedirAPessoa = { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a resposta retoma depois" };
 export type ResultadoOk = { ok: true };
 export type ResultadoPedirABot = { ok: true; tarefa_id: string; instrucao: string; livres: { id: string; nome: string }[] } | { ok: false; erro: "espera_circular" | "ja_pedido" | "experimento_desligado" | "sem_quadro" | "tarefa_invalida" | "colega_fora_do_quadro" | "colega_nao_acionado"; instrucao: string }; // ADR-099: espera circular; NOD-259: ja_pedido; NOD-417: os da tarefa

@@ -189,6 +189,10 @@ export function criarProxy(opcoes: OpcoesProxy): Proxy {
       return resposta(id, conteudoNegado(n, agora()));
     }
     servidorForaDesde = null;
+    if ("erroHttp" in r) {
+      diag("erro_http", { nome, status: r.erroHttp.status, codigo: r.erroHttp.codigo });
+      return resposta(id, { content: [{ type: "text", text: JSON.stringify(r.erroHttp) }], isError: true });
+    }
     if ("aguardar" in r) {
       // definido em 2026-09-28 (0032): espera no PRÓPRIO turno, em fatias, até ESPERA_APROVACAO_NO_TURNO_MS. A
       // pessoa aprova e o bot segue com o resultado na mão; antes a espera era uma fatia de 20 s e cada ação

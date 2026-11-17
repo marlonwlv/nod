@@ -8,7 +8,8 @@ import type { ResultadoChamada } from "../../../src/use-cases/chamar-ferramenta.
 import { MARLON } from "../use-cases/deps-l5.ts";
 
 // NOD-161: os casos de uso de aprovação e de pedir à pessoa não são o assunto aqui — só o "aguardar".
-vi.mock("../../../src/use-cases/pedir-aprovacao.ts", () => ({ pedirAprovacaoComputador: async () => ({ data: { estado: "pendente", decisao_id: "decisao-1" } }) }));
+const pedidosDeAprovacao = vi.hoisted(() => [] as unknown[]);
+vi.mock("../../../src/use-cases/pedir-aprovacao.ts", () => ({ pedirAprovacaoComputador: async (_d: unknown, p: unknown) => { pedidosDeAprovacao.push(p); return { data: { estado: "pendente", decisao_id: "decisao-1" } }; } }));
 const pedidosDeAjuda = vi.hoisted(() => [] as { texto: string }[]);
 vi.mock("../../../src/use-cases/pedir-a-pessoa.ts", () => ({ pedirAjudaDoComputador: async (_d: unknown, p: { texto: string }) => { pedidosDeAjuda.push(p); return { data: { decisao_id: "decisao-2", estado: "pendente" } }; } }));
 
@@ -19,6 +20,8 @@ let quadroValido: string | null;
 const enviadas: AcaoComputador[] = [];
 /** Resposta pronta para a próxima ação (sem tela, com erro…); null = a tela de sempre. */
 let proxima: ResultadoComputador | null;
+let modo: "manual" | "automatico";
+let registros: number;
 
 /** A máquina falsa reproduz o runtime: quadro novo a cada tela e clique só com o quadro da última. */
 const driver: DriverComputador = {
@@ -40,7 +43,7 @@ const deps = {
   repos: {
     computadores: {
       obter: async () => computador, travar: async () => computador,
-      registrar: async () => ({ id: "registro-1" }), concluir: async () => {},
+      registrar: async () => ({ id: `registro-${++registros}` }), concluir: async () => {},
       ocupar: async (_id: string, operacao: string, ate: number) => { computador = { ...computador, operacaoId: operacao, ocupadoAte: ate }; },
       liberar: async () => { computador = { ...computador, operacaoId: null, ocupadoAte: null }; },
       registrarSucesso: async () => false,
@@ -49,7 +52,7 @@ const deps = {
       gravarResultado: async () => {},
     },
     turnos: { buscar: async (id: string) => ({ id, estado: "executando", agenteId: AGENTE, ownerId: MARLON.pessoaId, pararSolicitadoEm: null, motivoInterrupcao: null }) },
-    agentes: { buscar: async () => ({ id: AGENTE, modoAprovacao: "manual" }), execucaoBloqueada: async () => false },
+    agentes: { buscar: async () => ({ id: AGENTE, modoAprovacao: modo }), execucaoBloqueada: async () => false },
     paradas: { ativa: async () => false },
     events: { gravarComOutbox: async () => {} },
   },
@@ -61,7 +64,7 @@ const computadores = criarComputadores({ executor: () => "catcher", dentro: asyn
 const plano = (turnoId = "turno-1") => ({
   tenantId: MARLON.tenantId, turnoId, agenteId: AGENTE, conversaId: "conversa-1", expiraEm: Number.MAX_SAFE_INTEGER, confiancaEntrada: "nao_confiavel",
   autoria: { conta_de_execucao: MARLON.pessoaId },
-  catalogo: { ferramentas: ["computador_observar", "computador_navegar", "computador_interagir", "computador_pedir_ajuda"].map((nome) => ({ nome, origem: "computador" })) },
+  catalogo: { ferramentas: ["computador_observar", "computador_navegar", "computador_interagir", "computador_terminal", "computador_pedir_ajuda"].map((nome) => ({ nome, origem: "computador" })) },
 }) as never;
 
 type Ok = Extract<ResultadoChamada, { ok: true }>;
@@ -77,6 +80,9 @@ beforeEach(() => {
   quadroValido = null;
   enviadas.length = 0;
   proxima = null;
+  modo = "manual";
+  registros = 0;
+  pedidosDeAprovacao.length = 0;
   agora += 3_600_000; // turnos de um teste não vazam para o outro
 });
 
@@ -157,6 +163,26 @@ it("depois de aguardar aprovação, a próxima observação sai completa", async
   const r = await chamar("computador_observar");
   expect(r.imagem).toBeDefined();
   expect(r.json.tela).not.toHaveProperty("texto_igual_ao_anterior");
+});
+
+it("ação externa direta: no manual cria um único registro e um único cartão pelo adaptador do computador", async () => {
+  computador.politica = "supervisionado";
+  const r = await computadores.chamar(MARLON, plano(), "computador_navegar", { url: "https://example.com/seguro" });
+  expect(r).toEqual({ aguardar: "decisao-1" });
+  expect(registros).toBe(1);
+  expect(pedidosDeAprovacao).toHaveLength(1);
+  expect(pedidosDeAprovacao[0]).toMatchObject({ itens: [{ destino: { conector: "computador", ferramenta: "executar", argumentos: { acaoId: "registro-1" } } }] });
+  expect(enviadas).toHaveLength(0);
+});
+
+it("ação externa direta: no automático é autoaprovada sem decisão ou cartão duplicado", async () => {
+  computador.politica = "supervisionado";
+  modo = "automatico";
+  const r = await computadores.chamar(MARLON, plano(), "computador_terminal", { comando: "printf ok" });
+  expect(r).toMatchObject({ ok: true, isError: false });
+  expect(registros).toBe(1);
+  expect(pedidosDeAprovacao).toHaveLength(0);
+  expect(enviadas).toHaveLength(1);
 });
 
 it("depois de pedir_ajuda, a próxima observação sai completa", async () => {

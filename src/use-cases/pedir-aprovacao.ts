@@ -120,6 +120,9 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
   const nivelPorIdx: (NivelFerramenta | undefined)[] = [];
   const barrados: string[] = [];
   for (const [idxItem, item] of input.itens.entries()) {
+    if (!computador && (item.destino.conector === "computador" || item.destino.conector === "terminal")) {
+      return { saida: { data: { estado: "recusada", erros: [`itens[${idxItem}]: ${item.destino.conector} usa o adaptador direto`], instrucao: "chame computador_interagir ou computador_terminal diretamente; o adaptador aplica a aprovação" }, events: [] } };
+    }
     if (item.destino.conector === "computador") {
       if (!computador) throw new ErroDeDominio("nao_permitido");
       const id = item.destino.argumentos?.acaoId;
