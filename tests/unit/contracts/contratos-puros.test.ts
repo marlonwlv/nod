@@ -22,6 +22,14 @@ describe("src/contracts é fechado", () => {
     }
   });
 
+  it("os contratos divididos pela NOD-425 ficam abaixo de 180 linhas", () => {
+    const divididos = ["desktop.ts", "ferramentas-nod.ts", "mensagem.ts", "servicos.ts"];
+    for (const f of divididos) {
+      const linhas = readFileSync(new URL(f, DIR), "utf8").split("\n").length;
+      expect(linhas, `${f} tem ${linhas} linhas`).toBeLessThan(180);
+    }
+  });
+
   // NOD-194: `import()` de cada um dos ~22 contratos, transformados pelo vite na hora. medido em 2026-10-07: 5,3 s
   // (estouro do padrão de 5 s) com o Mac em load ~950; 30 s dá ~5x e um import travado continua falhando.
   it("sem lógica (EMENDA 26): nenhum export é função nem contém função; fonte sem `function`, arrow em valor ou Object.*()", { timeout: 30_000 }, async () => {

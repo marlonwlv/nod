@@ -1,25 +1,33 @@
-import type { ResultadoPedirAcesso } from "./acesso.ts";
-import type { MotivoPasse, MotivoSemNovidade } from "./motivos.ts";
 import { FERRAMENTAS_ROTINA, PARA_BOT } from "./ferramentas-rotina.ts";
-import { FERRAMENTAS_PERFIL, type ArgsAtualizarPerfil, type ArgsVerColegas, type ResultadoAtualizarPerfil, type ResultadoVerColegas } from "./ferramentas-perfil.ts";
-import { FERRAMENTAS_ARTEFATO, type ContratoFerramentasArtefato } from "./ferramentas-artefato.ts";
-import { FERRAMENTAS_LIGACAO, type ContratoFerramentasLigacao } from "./ferramentas-ligacao.ts";
-import { FERRAMENTAS_TRABALHO, type ContratoFerramentasTrabalho } from "./ferramentas-trabalho.ts";
-import { FERRAMENTAS_FRENTE, type ContratoFerramentasFrente } from "./ferramentas-frente.ts";
-import { FERRAMENTAS_DO_NOD, type ContratoFerramentasDoNod } from "./ferramentas-do-nod.ts";
-import { FERRAMENTAS_CRIAR_BOTS, type ContratoFerramentasCriarBots } from "./ferramentas-criar-bots.ts";
-import { FERRAMENTAS_RESPONDER_PEDIDO, type ContratoFerramentasResponderPedido } from "./ferramentas-responder-pedido.ts";
-import { FERRAMENTAS_CREDENCIAL, type ContratoFerramentasCredencial } from "./ferramentas-credencial.ts";
-import { FERRAMENTAS_AVISO, type ContratoFerramentasAviso } from "./ferramentas-aviso.ts"; import { FERRAMENTAS_BARRA, type ContratoFerramentasBarra } from "./ferramentas-barra.ts";
-import { FERRAMENTAS_CONTA, type ContratoFerramentasConta } from "./ferramentas-conta.ts"; import { FERRAMENTAS_QUADRO, type ContratoFerramentasQuadro } from "./ferramentas-quadro.ts"; import { FERRAMENTAS_APPS, type ContratoFerramentasApps } from "./ferramentas-apps.ts"; import { FERRAMENTAS_CONVERSAS, type ContratoFerramentasConversas } from "./ferramentas-conversas.ts"; import { FERRAMENTAS_NAO_LIDOS, type ContratoFerramentasNaoLidos } from "./ferramentas-nao-lidos.ts"; import { FERRAMENTAS_TIMES, type ContratoFerramentasTimes } from "./ferramentas-times.ts"; import { FERRAMENTAS_ACESSOS, type ContratoFerramentasAcessos } from "./ferramentas-acessos.ts"; import { FERRAMENTAS_CANVAS, type ContratoFerramentasCanvas } from "./ferramentas-canvas.ts"; import { FERRAMENTAS_MAQUINAS, type ContratoFerramentasMaquinas } from "./ferramentas-maquinas.ts"; import { FERRAMENTAS_COMPUTADORES, type ContratoFerramentasComputadores } from "./ferramentas-computadores.ts";
-import { FERRAMENTAS_DECISOES, type ContratoFerramentasDecisoes } from "./ferramentas-decisoes.ts";
-import { SCHEMA_PEDIR_A_PESSOA, type ArgsPedirAPessoa } from "./pedido.ts";
-import type { ArgsAtualizarRotina, ArgsCriarRotina, ArgsExcluirRotina, ArgsExecutarRotina, ArgsListarRotinas, ArgsPausarRotina, ArgsReativarRotina, ArgsVerAgenda, ResultadoAlternarRotina, ResultadoCriarRotina, ResultadoListarRotinas, ResultadoPropostaRotina, ResultadoVerAgenda } from "./ferramentas-rotina.ts";
+import { FERRAMENTAS_PERFIL } from "./ferramentas-perfil.ts";
+import { FERRAMENTAS_ARTEFATO } from "./ferramentas-artefato.ts";
+import { FERRAMENTAS_LIGACAO } from "./ferramentas-ligacao.ts";
+import { FERRAMENTAS_TRABALHO } from "./ferramentas-trabalho.ts";
+import { FERRAMENTAS_FRENTE } from "./ferramentas-frente.ts";
+import { FERRAMENTAS_DO_NOD } from "./ferramentas-do-nod.ts";
+import { FERRAMENTAS_CRIAR_BOTS } from "./ferramentas-criar-bots.ts";
+import { FERRAMENTAS_RESPONDER_PEDIDO } from "./ferramentas-responder-pedido.ts";
+import { FERRAMENTAS_CREDENCIAL } from "./ferramentas-credencial.ts";
+import { FERRAMENTAS_AVISO } from "./ferramentas-aviso.ts";
+import { FERRAMENTAS_BARRA } from "./ferramentas-barra.ts";
+import { FERRAMENTAS_CONTA } from "./ferramentas-conta.ts";
+import { FERRAMENTAS_QUADRO } from "./ferramentas-quadro.ts";
+import { FERRAMENTAS_APPS } from "./ferramentas-apps.ts";
+import { FERRAMENTAS_CONVERSAS } from "./ferramentas-conversas.ts";
+import { FERRAMENTAS_NAO_LIDOS } from "./ferramentas-nao-lidos.ts";
+import { FERRAMENTAS_TIMES } from "./ferramentas-times.ts";
+import { FERRAMENTAS_ACESSOS } from "./ferramentas-acessos.ts";
+import { FERRAMENTAS_CANVAS } from "./ferramentas-canvas.ts";
+import { FERRAMENTAS_MAQUINAS } from "./ferramentas-maquinas.ts";
+import { FERRAMENTAS_COMPUTADORES } from "./ferramentas-computadores.ts";
+import { FERRAMENTAS_DECISOES } from "./ferramentas-decisoes.ts";
+import { SCHEMA_PEDIR_A_PESSOA } from "./pedido.ts";
 import type { JsonSchema } from "./json-schema.ts";
 export type { JsonSchema } from "./json-schema.ts";
 export type { ArgsPedirAPessoa } from "./pedido.ts";
 export type { ArgsAtualizarPerfil, ArgsVerColegas, AppDoColega, ColegaListado, ResultadoAtualizarPerfil, ResultadoVerColegas } from "./ferramentas-perfil.ts";
 export type { ArgsAtualizarRotina, ArgsCriarRotina, ArgsExcluirRotina, ArgsExecutarRotina, ArgsListarRotinas, ArgsPausarRotina, ArgsReativarRotina, ArgsVerAgenda, ResultadoAlternarRotina, ResultadoCriarRotina, ResultadoListarRotinas, ResultadoPropostaRotina, ResultadoVerAgenda, RotinaListada } from "./ferramentas-rotina.ts";
+export type { ArgsEncaminhar, ArgsLembrar, ArgsPassar, ArgsPedirABot, ArgsPedirAcesso, ArgsPedirAprovacao, ArgsSemNovidade, ContratoFerramentaNod, ItemPedidoAprovacao, ResultadoLembrar, ResultadoOk, ResultadoPedirABot, ResultadoPedirAPessoa, ResultadoPedirAprovacao } from "./ferramentas-nod-contrato.ts";
 
 /**
  * As ferramentas nod (cinquenta em 2026-11-08, com o gerir_maquinas da ADA-243 e o remover_computador da ADA-245; quarenta e oito em 2026-11-07, com o gerir_acessos da ADA-241; quarenta e sete em 2026-11-04, com o gerir_canvas da ADA-13; quarenta e seis em 2026-11-02, com o gerir_times da NOD-437 e o gerir_apps da NOD-445; quarenta e quatro em 2026-11-01, com o nao_lidos da NOD-449; quarenta e três em 2026-10-31, com o gerir_quadro da NOD-442; quarenta e duas em 2026-10-29: ajustar_barra_lateral da NOD-119, buscar_conversas e ler_conversa da NOD-61 e ver_agenda da NOD-85; contadas pelo teste; eram VINTE E UMA na contagem original) (EMENDA 16 acrescenta pedir_a_pessoa; sem_novidade entra em 2026-09-21
@@ -152,48 +160,3 @@ export const NOMES_FERRAMENTAS_NOD = [
   "anotar_entrevista", "concluir_entrevista", "propor_bot", "abrir_task", "mandar_para_task",
   "gerir_bots", "ver_apps_conectados", "registrar_relato", "me_chame_as", "esperar_comando", "abrir_frentes", "mandar_para_frente", "devolver_resumo", "criar_bots", "responder_pedido", "pedir_credencial", "avisar_pessoa", "abrir_conta", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "gerir_quadro", "nao_lidos", "decisoes", "gerir_apps", "gerir_times", "gerir_canvas", "gerir_acessos", "gerir_maquinas", "remover_computador",
 ] as const satisfies readonly NomeFerramentaNod[];
-
-export type ArgsLembrar = { tipo: "preferencia" | "fato" | "resumo"; texto: string };
-export type ArgsPedirAcesso = { conector: string; capacidades: string[]; nivel: "leitura" | "escrita"; nao_pedido: string[]; para?: string; para_bot?: string };
-export type ItemPedidoAprovacao = {
-  texto: string;
-  destino: { conector: string; ferramenta: string; argumentos: Record<string, unknown> };
-  origem_conector?: string;
-};
-export type ArgsPedirAprovacao = { resumo: string; itens: ItemPedidoAprovacao[] };
-export type ArgsPassar = { motivo: MotivoPasse };
-export type ArgsSemNovidade = { motivo: MotivoSemNovidade };
-export type ArgsEncaminhar = { para_agente: string; motivo: string };
-export type ArgsPedirABot = { agente: string; pedido: string; contexto?: string; tarefa?: string };
-
-/** ADR-065: capacidade que muda de turno para turno não vira memória — volta recusada, com o motivo para o bot ler. */
-export type ResultadoLembrar = { ok: true; id: string } | { ok: false; recusado: string };
-export type ResultadoPedirAprovacao =
-  | { estado: "decidida"; itens: { idx: number; desfecho: string }[] }
-  | { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a decisão retoma depois" }
-  /** ADR-062: argumento fora do schema do conector — o bot corrige e pede de novo. NOD-443: quem pediu saiu do quadro. */
-  | { estado: "recusada"; erros: string[]; instrucao: "corrija os argumentos e chame pedir_aprovacao de novo" | "não peça de novo; encerre o turno" };
-export type ResultadoPedirAPessoa = { estado: "pendente"; decisao_id: string; instrucao: "encerre o turno; a resposta retoma depois" };
-export type ResultadoOk = { ok: true };
-export type ResultadoPedirABot = { ok: true; tarefa_id: string; instrucao: string; livres: { id: string; nome: string }[] } | { ok: false; erro: "espera_circular" | "ja_pedido" | "experimento_desligado" | "sem_quadro" | "tarefa_invalida" | "colega_fora_do_quadro" | "colega_nao_acionado"; instrucao: string }; // ADR-099: espera circular; NOD-259: ja_pedido; NOD-417: os da tarefa
-
-/** Args ↔ resultado por nome: contrato entre proxy, chamar-ferramenta e UseCasesNod. */
-export type ContratoFerramentaNod = ContratoFerramentasArtefato & ContratoFerramentasLigacao & ContratoFerramentasTrabalho & ContratoFerramentasFrente & ContratoFerramentasDoNod & ContratoFerramentasCriarBots & ContratoFerramentasResponderPedido & ContratoFerramentasCredencial & ContratoFerramentasAviso & ContratoFerramentasBarra & ContratoFerramentasConta & ContratoFerramentasConversas & ContratoFerramentasQuadro & ContratoFerramentasApps & ContratoFerramentasNaoLidos & ContratoFerramentasTimes & ContratoFerramentasAcessos & ContratoFerramentasCanvas & ContratoFerramentasMaquinas & ContratoFerramentasComputadores & ContratoFerramentasDecisoes & {
-  lembrar: { args: ArgsLembrar; resultado: ResultadoLembrar };
-  atualizar_perfil: { args: ArgsAtualizarPerfil; resultado: ResultadoAtualizarPerfil };
-  pedir_acesso: { args: ArgsPedirAcesso; resultado: ResultadoPedirAcesso };
-  criar_rotina: { args: ArgsCriarRotina; resultado: ResultadoCriarRotina };
-  listar_rotinas: { args: ArgsListarRotinas; resultado: ResultadoListarRotinas }; ver_agenda: { args: ArgsVerAgenda; resultado: ResultadoVerAgenda };
-  pausar_rotina: { args: ArgsPausarRotina; resultado: ResultadoAlternarRotina };
-  reativar_rotina: { args: ArgsReativarRotina; resultado: ResultadoAlternarRotina };
-  atualizar_rotina: { args: ArgsAtualizarRotina; resultado: ResultadoPropostaRotina };
-  excluir_rotina: { args: ArgsExcluirRotina; resultado: ResultadoPropostaRotina };
-  executar_rotina: { args: ArgsExecutarRotina; resultado: ResultadoPropostaRotina };
-  pedir_aprovacao: { args: ArgsPedirAprovacao; resultado: ResultadoPedirAprovacao };
-  pedir_a_pessoa: { args: ArgsPedirAPessoa; resultado: ResultadoPedirAPessoa };
-  passar: { args: ArgsPassar; resultado: ResultadoOk };
-  encaminhar: { args: ArgsEncaminhar; resultado: ResultadoOk };
-  sem_novidade: { args: ArgsSemNovidade; resultado: ResultadoOk };
-  pedir_a_bot: { args: ArgsPedirABot; resultado: ResultadoPedirABot };
-  ver_colegas: { args: ArgsVerColegas; resultado: ResultadoVerColegas };
-};
