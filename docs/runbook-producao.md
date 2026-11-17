@@ -204,6 +204,27 @@ Para separar reconexão de falha real, correlacione três fatos na mesma janela:
 2. no journal do motor, `motor_reanuncio` é seguido por `motor_anunciou` com a IA em `pronto`;
 3. o turno tem `motivo_interrupcao=executor_indisponivel` sem `motivo_falha` terminal.
 
+Reproduza a conferência sem ler mensagens (troque apenas a janela, sempre em UTC):
+
+```bash
+sudo journalctl -u nod-motor --since "2026-10-28 03:00 UTC" --until "2026-10-28 05:00 UTC" \
+  --no-pager -o short-iso | grep -E 'motor_reanuncio|motor_anunciou|Starting|Stopping|Stopped|OOM|Killed'
+sudo journalctl -u nod-motor-atualizar --since "2026-10-28 03:00 UTC" --until "2026-10-28 05:00 UTC" --no-pager
+sudo journalctl --list-boots --no-pager
+```
+
+No banco, agrupe somente metadados da mesma janela por hora, `motivo_falha` e presença de `trabalho_id`; não selecione
+`entrada_texto`. Compare os horários com o Cloud Logging pelo passo 2 acima e procure a criação da nova cor ou a
+ausência da antiga imediatamente antes de cada `motor_reanuncio`.
+
+**Caso observado em 2026-10-28 (NOD-454).** Os 58 turnos de frente se distribuíram em 18, 1, 2, 3, 19, 13 e 2 nas
+horas 00, 01, 08, 09, 14, 15 e 16 de Brasília. Nas duas janelas de pico, o mesmo processo do motor permaneceu vivo;
+cada pedido `servidor_esqueceu_a_maquina` foi seguido em 1–7 s por anúncio de Claude e Codex em `pronto`. O boot da
+VM atravessou o dia, não houve OOM nem atualização do CLI nas janelas, e o Cloud Logging mostrou a cor do servidor
+sendo recriada antes dos reanúncios. A causa foi a perda esperada do inventário em memória durante deploys, não login,
+token, cota ou morte do executor. Como os turnos sem `motivo_falha` terminal entram na régua de queda e retomada, não
+houve correção de runtime.
+
 `nao_autenticado` e `motor_ausente` pedem ação na máquina; `limite_do_plano` e `sem_conta` seguem a espera da conta ou
 da cota. Se o processo do motor ficou vivo, não houve OOM e o anúncio voltou `pronto`, não atribua a interrupção a
 login, atualização do CLI ou processo morto. Investigue a troca do servidor e a latência até o reanúncio.
