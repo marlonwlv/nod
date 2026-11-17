@@ -985,6 +985,10 @@ export function criarSupervisor(op) {
   return {
     tratar,
     carregar,
+    async prepararEstado(computadorId) {
+      if (!ID_VALIDO.test(String(computadorId ?? ''))) return null;
+      return estadoDe(await obter(computadorId));
+    },
     varrer,
     estados: () => [...computadores.values()].map(estadoDe),
     ouvir(f) { ouvintes.add(f); return () => ouvintes.delete(f); },
@@ -1064,7 +1068,11 @@ export function servirControle(supervisor) {
         let m;
         try { m = JSON.parse(linha); } catch { escrever({ tipo: 'resultado', id: '', desfecho: 'falhou', motivo: 'acao_falhou' }); continue; }
         // MensagemAoSupervisor (NOD-96 PR 3) é o envelope do motor; o comando cru segue aceito.
-        if (m?.tipo === 'pedir_estado') { for (const e of supervisor.estados()) escrever({ tipo: 'estado', ...e }); continue; }
+        if (m?.tipo === 'pedir_estado') {
+          if (m.computadorId === undefined) for (const e of supervisor.estados()) escrever({ tipo: 'estado', ...e });
+          else void supervisor.prepararEstado(m.computadorId).then((e) => { if (e) escrever({ tipo: 'estado', ...e }); });
+          continue;
+        }
         if (m?.tipo === 'vivo') { void abrirVivo(m.comando); return; }
         const cmd = m?.tipo === 'comando' && m.comando && typeof m.comando === 'object' ? m.comando : m;
         // O `vivo` só vale como mensagem própria (acima): pelo envelope comum ele não tem como ligar o fluxo.

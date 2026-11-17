@@ -74,6 +74,29 @@ async function iniciar(sup: Supervisor) {
 }
 
 describe("supervisor", () => {
+  it("a sonda cria somente o estado TOFU, sem fabricar comando não assinado", async () => {
+    const { sup, dir } = await montar();
+    const caminho = join(dir, "sonda.sock");
+    const srv = servirControle(sup);
+    await escutarControle(srv, caminho);
+    limpar.push(() => new Promise((r) => srv.close(r)));
+    const foto = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const s = connect(caminho);
+      limpar.push(() => s.destroy());
+      let buf = "";
+      s.on("error", reject);
+      s.on("connect", () => s.write(`${JSON.stringify({ tipo: "pedir_estado", computadorId: ID })}\n`));
+      s.on("data", (b) => {
+        buf += b;
+        const i = buf.indexOf("\n");
+        if (i >= 0) resolve(JSON.parse(buf.slice(0, i)) as Record<string, unknown>);
+      });
+    });
+    expect(foto).toMatchObject({ tipo: "estado", computadorId: ID, ligado: false });
+    expect(foto.supervisorPub).toEqual(expect.any(String));
+    expect(sup.estados()).toHaveLength(1);
+  });
+
   it("recusa comando sem a chave do servidor fixada, fixa no primeiro iniciar (TOFU) e liga a máquina", async () => {
     const { sup, registro, dir } = await montar();
     expect((await sup.tratar(cmd({ tipo: "parar" }))).motivo).toBe("acao_falhou");

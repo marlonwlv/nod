@@ -21,6 +21,8 @@ export function destinoDoResolv(arquivo?: string): string;
 export type Supervisor = {
   tratar(cmd: unknown): Promise<{ id: string; desfecho: "ok" | "falhou" | "esperando_tela"; motivo?: string; quem?: string[]; resultado?: Record<string, unknown>; progresso?: { pct: number; etapa: string }; supervisorPub?: string; logins?: { parte: number; total: number; dados: string } }>;
   carregar(): Promise<void>;
+  /** Cria somente o estado e a chave pública de uma máquina nova, sem aceitar comando sem assinatura. */
+  prepararEstado(computadorId: string): Promise<ReturnType<Supervisor["estados"]>[number] | null>;
   /** NOD-365: apaga as pastas que saíram desta máquina há 30 dias ou mais; devolve os ids apagados. */
   varrer(): Promise<string[]>;
   estados(): Array<{ computadorId: string; ligado: boolean; supervisorPub: string; ligadoDesde: number | null; memoriaTotalMb: number; operacao: { tipo: string; pct: number; etapa: string } | null; telas: Array<{ agenteId: string; estado: string; ultimaAcaoEm: number | null; titulo: string | null; memoriaMb: number | null }> }>;
