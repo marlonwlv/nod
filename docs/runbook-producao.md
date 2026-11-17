@@ -204,18 +204,37 @@ Para separar reconexão de falha real, correlacione três fatos na mesma janela:
 2. no journal do motor, `motor_reanuncio` é seguido por `motor_anunciou` com a IA em `pronto`;
 3. o turno tem `motivo_interrupcao=executor_indisponivel` sem `motivo_falha` terminal.
 
-Reproduza a conferência sem ler mensagens (troque apenas a janela, sempre em UTC):
+Reproduza a conferência sem ler mensagens (troque apenas a janela, sempre em UTC). Em 28/10, as duas janelas de
+pico foram 03:00–05:00 UTC e 17:00–20:00 UTC:
 
 ```bash
-sudo journalctl -u nod-motor --since "2026-10-28 03:00 UTC" --until "2026-10-28 05:00 UTC" \
-  --no-pager -o short-iso | grep -E 'motor_reanuncio|motor_anunciou|Starting|Stopping|Stopped|OOM|Killed'
-sudo journalctl -u nod-motor-atualizar --since "2026-10-28 03:00 UTC" --until "2026-10-28 05:00 UTC" --no-pager
+for janela in "03:00 05:00" "17:00 20:00"; do
+  read -r inicio fim <<< "$janela"
+  sudo journalctl -u nod-motor --since "2026-10-28 $inicio UTC" --until "2026-10-28 $fim UTC" \
+    --no-pager -o short-iso | grep -E 'motor_reanuncio|motor_anunciou|Starting|Stopping|Stopped|OOM|Killed'
+  sudo journalctl -u nod-motor-atualizar --since "2026-10-28 $inicio UTC" \
+    --until "2026-10-28 $fim UTC" --no-pager
+done
 sudo journalctl --list-boots --no-pager
 ```
 
-No banco, agrupe somente metadados da mesma janela por hora, `motivo_falha` e presença de `trabalho_id`; não selecione
-`entrada_texto`. Compare os horários com o Cloud Logging pelo passo 2 acima e procure a criação da nova cor ou a
-ausência da antiga imediatamente antes de cada `motor_reanuncio`.
+No banco, agrupe somente metadados; não selecione `entrada_texto`:
+
+```sql
+SELECT to_char(date_trunc('hour', criado_em AT TIME ZONE 'America/Sao_Paulo'), 'YYYY-MM-DD HH24:00') AS hora_brt,
+       motivo_falha, trabalho_id IS NOT NULL AS turno_de_frente, count(*) AS turnos
+  FROM turnos
+ WHERE criado_em >= timestamptz '2026-10-28 03:00:00+00'
+   AND criado_em <  timestamptz '2026-10-29 03:00:00+00'
+   AND motivo_interrupcao = 'executor_indisponivel'
+ GROUP BY 1, 2, 3
+ ORDER BY 1, 2 NULLS FIRST, 3;
+```
+
+Compare os horários com o Cloud Logging pelo comando do passo 2 acima, usando cada uma das duas janelas, e procure a
+criação da nova cor ou a ausência da antiga imediatamente antes de cada `motor_reanuncio`. Se a retenção do banco já
+expirou, a contagem histórica não pode ser refeita: preserve a saída agregada no registro do incidente e use os journals
+e o Cloud Logging para a correlação temporal.
 
 **Caso observado em 2026-10-28 (NOD-454).** Os 58 turnos de frente se distribuíram em 18, 1, 2, 3, 19, 13 e 2 nas
 horas 00, 01, 08, 09, 14, 15 e 16 de Brasília. Nas duas janelas de pico, o mesmo processo do motor permaneceu vivo;
