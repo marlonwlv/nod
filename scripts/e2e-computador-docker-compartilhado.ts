@@ -13,6 +13,7 @@ const controle = criarControleDockerCompartilhado({
 const pessoa = randomUUID();
 const outraPessoa = randomUUID();
 const bots = Array.from({ length: 3 }, () => randomUUID());
+const manter = process.env.NOD_SMOKE_MANTER === "1";
 const docker = (...args: string[]) => execFileSync("docker", args, { encoding: "utf8" }).trim();
 const passo = (nome: string) => process.stdout.write(`ok     ${nome}\n`);
 const texto = (r: Awaited<ReturnType<typeof controle.executar>>) => r.tela?.texto ?? "";
@@ -84,6 +85,9 @@ try {
   passo("tenants diferentes recebem containers e volumes diferentes");
   process.stdout.write("\ntodas as checagens Docker compartilhadas passaram\n");
 } finally {
-  await limpar(pessoa);
-  await limpar(outraPessoa);
+  if (manter) process.stdout.write(`recursos mantidos para diagnóstico: ${pessoa} ${outraPessoa}\n`);
+  else {
+    await limpar(pessoa);
+    await limpar(outraPessoa);
+  }
 }
