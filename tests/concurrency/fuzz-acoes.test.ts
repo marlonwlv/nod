@@ -81,18 +81,19 @@ let faltando: readonly string[] = REGISTRO_DE_ACOES.map((a) => a.id).filter((id)
 // chegam à rota, que valida: esse 400 é leitura da entrada. O teste confere que os rótulos ainda existem no gerador.
 const ROTULOS_QUEBRADOS = new Set(["json quebrado", "não json", "null no topo"]);
 const SO_404_403_ACEITAS = new Set([
-  "bots.cobrar_colega", "memoria.desfazer_diario", "apps.sondar", "apps.habilitar", "apps.desabilitar", "maquinas.aprovar_dispositivo",
-  "cartoes.reabrir", "cartoes.dispensar", "cartoes.confirmar_proposta", "cartoes.recusar_proposta", "turnos.cancelar", "incidentes.dispensar",
-  "modo.contestar", "salas.parar", "trabalhos.parar", "trabalhos.fazer_aqui", "voz.encerrar", "memoria.apagar", "contas_ia.remover",
-  "maquinas.revogar_chave", "conversas.tirar_pasta", "voz.apagar_falas",
-  "maquinas.confiar_ssh", "maquinas.cancelar_ssh", "nuvem.dormir", "nuvem.acordar", "nuvem.excluir_maquina",
-  // Revisão 12: lê o corpo antes de buscar a decisão, mas o fuzz não semeia decisões; sem corpo quebrado, sempre 404.
-  "cartoes.decidir",
+  "bots.cobrar_colega", "apps.sondar", "apps.habilitar", "apps.desabilitar", "maquinas.aprovar_dispositivo",
+  "modo.contestar", "voz.encerrar", "conversas.tirar_pasta", "voz.apagar_falas",
+  "maquinas.confiar_ssh", "maquinas.cancelar_ssh",
   // Revisão 11: oscilam pela semente (algumas sementes só sorteiam entradas que passam da validação e caem no 404). Medido
   // com as sementes 1, 424242, 3979170113 e a do HEAD local.
-  "contas_ia.tentar_de_novo", "conversas.desfazer_turno", "apps.credenciais", "apps.github_app", "turnos.retomar_decisao",
-  // Revisão 13: com 401/429 fora da conta da leitura, oscila também (a semente 3509089577 só lhe deu 404/401/429).
-  "maquinas.desconectar",
+  "conversas.desfazer_turno", "apps.credenciais", "apps.github_app",
+]);
+/** NOD-409: têm entidade e caso válido explícitos; voltar ao teto raso reprova já no PR, não só no noturno. */
+const ACOES_SEMEADAS_NOD409 = new Set([
+  "cartoes.reabrir", "cartoes.dispensar", "cartoes.confirmar_proposta", "cartoes.recusar_proposta", "cartoes.decidir",
+  "turnos.cancelar", "turnos.retomar_decisao", "incidentes.dispensar", "salas.parar", "trabalhos.parar", "trabalhos.fazer_aqui",
+  "memoria.desfazer_diario", "memoria.apagar", "contas_ia.remover", "contas_ia.tentar_de_novo", "maquinas.revogar_chave",
+  "maquinas.desconectar", "nuvem.dormir", "nuvem.acordar", "nuvem.excluir_maquina",
 ]);
 /**
  * Revisão 16: ação NOVA (fora de ACOES_CONHECIDAS_NOD398) que não dá para semear sai do veredito só por aqui, com a issue
@@ -315,6 +316,9 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
           if (!turno) throw new Error("turno do fuzz");
           turnos.push(turno.id);
         }
+        const decisaoRetomar = await d.repos.decisoes.criar({ tipo: "retomar_turno", agenteId: meu.agente.id, conversaId: meu.conversa.id, turnoId: turnos[3]!, prazoDecisaoEm: agora + 3_600_000, frase: "Retomar turno do fuzz?" });
+        if (!decisaoRetomar) throw new Error("decisão de retomada do fuzz");
+        decisoes.push(decisaoRetomar.id);
         const incidente = await d.repos.incidentes.abrir({ tipo: "mac_sem_contato", machineId: null, comecouEm: agora - 1_000, voltouEm: agora, rotinas: 0, conversas: 1, agentes: [meu.agente.id] });
         if (!incidente) throw new Error("incidente do fuzz");
 
@@ -350,7 +354,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
           nuvem.push(maquina.id);
         }
         await d.tx((trx) => trx`update maquinas_nuvem set estado = 'dormindo', desejado = 'dormindo', estado_desde = now() where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${nuvem[1]!}`);
-        return { decisoes, propostas, turnos, incidentes: [incidente.id], trabalhos, memorias, diarios, contas, chaves, nuvem };
+        return { decisoes, decisaoRetomar: decisaoRetomar.id, propostas, turnos, incidentes: [incidente.id], trabalhos, memorias, diarios, contas, chaves, nuvem };
       });
       const salaDoFuzz = (await srv.json<{ ids: { salaId: string } }>("POST", "salas", { nome: "Sala do fuzz", agenteIds: [meu.agente.id, segundo.agente.id] })).ids.salaId;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
@@ -436,14 +440,34 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
           // ADA-14: as outras ações novas com o quadro ou o projeto na rota levam, além do sorteio, um caso válido com o id
           // real ("base plausível": o enxugar das ações do quadro sempre o mantém). Sem ele, o sorteio de ids podia nunca
           // acertar o quadro real (a CI do #697 caiu no `quadro.vincular_bot` com a semente 3626997374).
-          const validoDaAda14: Record<string, { caminho: string; corpo: unknown }> = {
+          const validoPorAcao: Record<string, { caminho: string; corpo: unknown }> = {
             "quadro.vincular_bot": { caminho: `/quadros/${quadroDoFuzz}/bots`, corpo: { bot: segundo.agente.id } },
             "quadro.editar_projeto": { caminho: `/projetos/${projetoDoFuzz}`, corpo: { nome: "Projeto do fuzz" } },
             "quadro.arquivar_projeto": { caminho: `/projetos/${projetoDoFuzz}/arquivar`, corpo: null },
             "quadro.restaurar_projeto": { caminho: `/projetos/${projetoDoFuzz}/restaurar`, corpo: null },
             "quadro.remover_label": { caminho: `/agentes/${meu.agente.id}/quadro/labels/${encodeURIComponent(labelQueSai)}`, corpo: null },
+            "cartoes.reabrir": { caminho: `/decisoes/${sementes.decisoes[0]}/reabrir`, corpo: null },
+            "cartoes.dispensar": { caminho: `/decisoes/${sementes.decisoes[1]}/dispensar`, corpo: null },
+            "cartoes.decidir": { caminho: `/decisoes/${sementes.decisoes[2]}/decidir`, corpo: {} },
+            "cartoes.confirmar_proposta": { caminho: `/propostas/${sementes.propostas[3]}/confirmar`, corpo: null },
+            "cartoes.recusar_proposta": { caminho: `/propostas/${sementes.propostas[4]}/recusar`, corpo: null },
+            "turnos.cancelar": { caminho: `/turnos/${sementes.turnos[0]}/cancelar`, corpo: null },
+            "turnos.retomar_decisao": { caminho: `/decisoes/${sementes.decisaoRetomar}/retomar`, corpo: { texto: "Retomar o fuzz" } },
+            "incidentes.dispensar": { caminho: `/incidentes/${sementes.incidentes[0]}/dispensar`, corpo: null },
+            "salas.parar": { caminho: `/salas/${salaDoFuzz}/parar`, corpo: null },
+            "trabalhos.parar": { caminho: `/trabalhos/${sementes.trabalhos[0]}/parar`, corpo: null },
+            "trabalhos.fazer_aqui": { caminho: `/trabalhos/${sementes.trabalhos[1]}/fazer-aqui`, corpo: null },
+            "memoria.desfazer_diario": { caminho: `/agentes/${meu.agente.id}/memoria/diario/${sementes.diarios[0]}/desfazer`, corpo: null },
+            "memoria.apagar": { caminho: `/agentes/${meu.agente.id}/memoria/${sementes.memorias[1]}`, corpo: null },
+            "contas_ia.remover": { caminho: `/contas-ia/${sementes.contas[0]}`, corpo: null },
+            "contas_ia.tentar_de_novo": { caminho: `/contas-ia/${sementes.contas[1]}/tentar-de-novo`, corpo: {} },
+            "maquinas.revogar_chave": { caminho: `/maquinas/chaves/${sementes.chaves[3]}`, corpo: null },
+            "maquinas.desconectar": { caminho: `/maquinas/${sementes.chaves[4]}/desconectar`, corpo: { sairDasContas: false } },
+            "nuvem.dormir": { caminho: `/nuvem/maquinas/${sementes.nuvem[0]}/dormir`, corpo: null },
+            "nuvem.acordar": { caminho: `/nuvem/maquinas/${sementes.nuvem[1]}/acordar`, corpo: null },
+            "nuvem.excluir_maquina": { caminho: `/nuvem/maquinas/${sementes.nuvem[2]}`, corpo: null },
           };
-          const valido = validoDaAda14[c.acao];
+          const valido = validoPorAcao[c.acao];
           if (valido && n === 1) enxuto.push({ ...c, caminho: valido.caminho, entrada: { rotulo: "base plausível", corpo: valido.corpo === null ? null : JSON.stringify(valido.corpo) } });
           if (c.acao === "paginas.remover_app" || c.acao === "paginas.restaurar_app") {
             if (n > 1) continue;
@@ -598,6 +622,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       const rotasSemHandler = rotasPublicasSemHandler(plano.casos, rotasQueChegaram);
       // Revisão 14: só quem chegou ao handler neste servidor; quem não chegou vai ao próximo (`faltando`).
       const so404 = [...chegaram].filter((a) => !alemDaBusca.has(a)).sort();
+      const semeadasAindaRasas = so404.filter((a) => ACOES_SEMEADAS_NOD409.has(a));
       for (const a of chegaram) fuzzadasTodas.add(a);
       for (const a of alemDaBusca) alemDaBuscaTodas.add(a);
       // eslint-disable-next-line no-console
@@ -614,6 +639,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       if (ordem === CONFIGURACOES.length - 1) expect.soft(acoesNovasSemLeitura({ fuzzadas: fuzzadasTodas, alemDaBusca: alemDaBuscaTodas, conhecidas: new Set([...ACOES_CONHECIDAS_NOD398, ...Object.keys(ISENCOES_DE_ACOES_NOVAS)]) }), `semente ${SEMENTE}: ações novas do registro que em nenhum servidor passaram de 404/403/401/429 (semear a entidade no fuzz; se não der, pôr em ISENCOES_DE_ACOES_NOVAS com a issue)`).toEqual([]);
       expect(vazamentos, `servidor ${config.nome}: respostas com o bot da outra pessoa`).toEqual([]);
       expect(violacoes, `servidor ${config.nome}\n${relatarViolacoes(SEMENTE, N, violacoes)}`).toEqual([]);
+      expect(semeadasAindaRasas, `servidor ${config.nome}: ações da NOD-409 voltaram a receber só 404/403/401/429`).toEqual([]);
       // Cada rota de conta montada neste servidor tem de ter lido a entrada pelo menos uma vez (não só 403/429).
       // Teto (revisões 10 a 14): ação fora da lista que só recebe 404/403/401/429. Com N pequeno (PR) a amostra muda a cada
       // push e o resultado das ações que já existiam oscila, então para elas só avisa e reprova com N >= 100 (noturno). As
