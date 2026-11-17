@@ -56,7 +56,7 @@ try {
 
   for (let i = 0; i < bots.length; i++) {
     const r = await controle.executar({ id: pessoa, agenteId: bots[i] }, { tipo: "terminal", comando: `printf bot-${i + 1} > proprio.txt; pwd` });
-    assert.match(r.saida ?? "", new RegExp(`/workspace/${bots[i]}$`));
+    assert.equal(r.saida?.trim(), "/workspace");
   }
   const cruzado = await controle.executar({ id: pessoa, agenteId: bots[0] }, { tipo: "terminal", comando: `cat ../${bots[1]}/proprio.txt 2>/dev/null || printf bloqueado` });
   assert.equal(cruzado.saida, "bloqueado");
