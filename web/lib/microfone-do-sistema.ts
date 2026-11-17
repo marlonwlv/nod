@@ -8,6 +8,9 @@ import { botao } from "./render.ts";
  * Na web pura nada muda: quem libera é o navegador.
  */
 
+/** A ponte do app, sem depender do DOM (os testes da tela também passam pelo tsconfig do servidor). */
+const ponte = (): { ajustesMicrofone?: () => Promise<boolean> } | undefined => (globalThis as { nodDesktop?: { ajustesMicrofone?: () => Promise<boolean> } }).nodDesktop;
+
 /** O código do banner do ditado quando o microfone foi negado: é ele que ganha o botão (main.ts `htmlDoErro`). */
 export const CODIGO_DITADO_MICROFONE = "ditado_microfone";
 
@@ -20,7 +23,7 @@ export function ondeLiberarMicrofone(windows = plataformaDaTela() === "windows")
 
 /** O app sabe abrir a tela do sistema? (O app de antes desta versão e a web pura não.) */
 export function podeAbrirAjustesDoMicrofone(): boolean {
-  return typeof window !== "undefined" && typeof window.nodDesktop?.ajustesMicrofone === "function";
+  return typeof ponte()?.ajustesMicrofone === "function";
 }
 
 export function botaoAjustesDoMicrofone(classe = "pri sm", windows = plataformaDaTela() === "windows"): string {
@@ -29,7 +32,7 @@ export function botaoAjustesDoMicrofone(classe = "pri sm", windows = plataformaD
 
 /** O clique: abre a tela do sistema (o endereço é do processo principal; a página só pede). */
 export function abrirAjustesDoMicrofone(): void {
-  void window.nodDesktop?.ajustesMicrofone?.().catch(() => false);
+  void ponte()?.ajustesMicrofone?.().catch(() => false);
 }
 
 /**
@@ -45,5 +48,5 @@ export function falhaDoMicrofone(nome: string, windowsNoApp: boolean): "microfon
 
 /** O app do Windows (a janela tem a ponte e o user-agent é do Windows). */
 export function windowsNoApp(): boolean {
-  return typeof window !== "undefined" && window.nodDesktop !== undefined && plataformaDaTela() === "windows";
+  return ponte() !== undefined && plataformaDaTela() === "windows";
 }
