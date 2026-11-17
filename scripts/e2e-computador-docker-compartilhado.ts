@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { criarControleDockerCompartilhado } from "../src/adapters/computador/provedores/docker.ts";
 
-const imagem = process.env.NOD_COMPUTADOR_IMAGEM ?? "nod-computador:xumbrega";
+const imagem = process.env.NOD_COMPUTADOR_IMAGEM ?? "nod-computador:compartilhado";
 const controle = criarControleDockerCompartilhado({
   NOD_COMPUTADORES: "docker",
   NOD_COMPUTADOR_IMAGEM: imagem,
