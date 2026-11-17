@@ -1585,7 +1585,7 @@ export function criarTela(config, avisar) {
         // NOD-96 (28/10): o Chromium cria o SingletonSocket em $TMPDIR/org.chromium.Chromium.XXXXXX/, e o caminho de um
         // socket unix tem teto de 108 bytes. O tmp da tela (/run/nod-computador-pc/<uuid>/telas/<uuid>) passa disso com os
         // ids reais e o Chrome morria ao abrir ("Socket path too long"). No bwrap o /tmp já é um tmpfs só desta tela.
-        chromiumSandbox: config.sandbox !== false, env: { ...ambienteX, TMPDIR: '/tmp' },
+        chromiumSandbox: config.chromiumSandbox !== false, env: { ...ambienteX, TMPDIR: '/tmp' },
         args: ['--password-store=gnome-libsecret', '--start-maximized', `--window-size=1280,${alturaDoChrome}`, '--window-position=0,0', '--disable-dev-shm-usage', '--disable-quic', '--autoplay-policy=no-user-gesture-required', '--test-type', '--hide-crash-restore-bubble', '--no-first-run', '--no-default-browser-check'],
       });
     } catch (e) {

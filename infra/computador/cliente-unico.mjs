@@ -20,7 +20,9 @@ const terminar = (valor) => {
   process.stdout.write(JSON.stringify(valor));
   socket.end();
 };
-socket.on('connect', () => socket.write(`${JSON.stringify(comando)}\n`));
+// A sonda pede somente a foto pública do socket. Ela não fabrica um comando sem assinatura: todo comando que chega a
+// `supervisor.tratar` continua autenticado, inclusive quando o servidor é alcançado pelo caminho HTTP do preview.
+socket.on('connect', () => socket.write(`${JSON.stringify(pedido.sonda === true ? { tipo: 'pedir_estado' } : comando)}\n`));
 socket.on('data', (bytes) => {
   buf += bytes.toString();
   let i;

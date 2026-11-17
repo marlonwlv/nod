@@ -37,7 +37,7 @@ async function montar(leitura = () => ({ memoria: "verde" as unknown, processado
     xvfb: "Xvfb", openbox: "openbox", chromium: "chromium", bwrap: null, xdotool: "xdotool", xclip: "xclip", scrot: "scrot",
   };
   const terminal = join(dir, "term.sock");
-  const st = criarServidorTerminal({ raiz: join(dir, "raiz") });
+  const st = criarServidorTerminal({ raiz: join(dir, "raiz"), bwrap: null });
   await escutar(st, terminal);
   limpar.push(() => new Promise((r) => st.close(r)));
   const logs: string[] = [];

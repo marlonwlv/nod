@@ -11,7 +11,7 @@ import { criarExecutorPorPrimitivas, paginar, PEDACO_BASE64 } from "../../../src
 import { criarDriverPorProvedor } from "../../../src/adapters/computador/provedores/seletor.ts";
 import { FalhaComputador } from "../../../src/domain/computador.ts";
 import { configDeProvedores, escolherProvedor, lerMapaDeProvedores, provedoresEmUso } from "../../../src/domain/provedor-computador.ts";
-import { gerarParX25519 } from "../../../src/adapters/computador/selo.ts";
+import { conferirAssinatura, gerarParX25519, publicaDeAssinatura } from "../../../src/adapters/computador/selo.ts";
 
 /**
  * ADR-168: o computador do bot plug and play. Sem rede, sem Docker, sem conta no Orgo: o Docker e o fetch são falsos, e a
@@ -710,5 +710,44 @@ describe("Docker como provedor", () => {
     expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(resultados.filter((r) => r.status === "rejected")).toHaveLength(1);
     expect([...rodando].filter((n) => n.startsWith("nod-computador-"))).toHaveLength(1);
+  });
+
+  it("prepara os volumes rootless, desliga só o sandbox interno do Chromium e assina todo comando efetivo", async () => {
+    const credencial = "a".repeat(64);
+    const supervisorPub = gerarParX25519().publica;
+    const criados = new Set<string>();
+    const comandos: Array<Record<string, unknown>> = [];
+    const chamadas: string[][] = [];
+    const docker = vi.fn(async (args: string[], entrada?: string) => {
+      chamadas.push(args);
+      if (args[0] === "ps") return "";
+      if (args[0] === "image" && args[1] === "inspect") return "sha256:imagem";
+      if (args[0] === "network" && args[1] === "inspect") return "ok";
+      if (args[0] === "inspect" && args[1] === "--format") return "false\n";
+      if (args[0] === "inspect") {
+        if (!criados.has(args[1]!)) throw new Error("não existe");
+        return "ok";
+      }
+      if (args[0] === "create") { criados.add(args[args.indexOf("--name") + 1]!); return "ok"; }
+      if (args[0] === "exec" && args.includes("test")) return "";
+      if (args[0] === "exec" && args.some((a) => a.endsWith("/cliente-unico.mjs"))) {
+        const pedido = JSON.parse(entrada ?? "{}") as { sonda?: boolean; comando: Record<string, unknown> };
+        if (pedido.sonda) return JSON.stringify({ estado: { supervisorPub } });
+        comandos.push(pedido.comando);
+        return JSON.stringify({ resultado: { id: pedido.comando.id, desfecho: "ok" } });
+      }
+      return "ok";
+    });
+    const controle = criarControleDockerCompartilhado({ NOD_COMPUTADORES: "docker", NOD_CREDENTIAL_KEY: credencial }, docker);
+    await controle.iniciar({ id: ID });
+    await controle.executar({ id: ID, agenteId: BOT }, { tipo: "terminal", comando: "pwd" });
+
+    const init = chamadas.find((a) => a[0] === "run" && a.includes("chown"));
+    expect(init).toEqual(expect.arrayContaining(["--network", "none", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--user", "0:0"]));
+    const maquina = chamadas.find((a) => a[0] === "create" && a.includes(`nod-computador-${ID}`))!;
+    expect(maquina).toEqual(expect.arrayContaining(["--security-opt", "no-new-privileges", "--cap-drop", "ALL", "--env", "NOD_PC_CHROMIUM_SANDBOX=nao"]));
+    expect(comandos).toHaveLength(3);
+    for (const comando of comandos) expect(conferirAssinatura(publicaDeAssinatura(credencial, ID), comando as never)).toBe(true);
+    expect(comandos.at(-1)).toMatchObject({ tipo: "acao", agenteId: BOT });
   });
 });

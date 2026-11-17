@@ -31,7 +31,7 @@ export type Supervisor = {
   encerrar(): Promise<void>;
 };
 export function criarSupervisor(op: {
-  raiz?: string; run?: string; terminal?: string; resolv?: string | null; x11?: string; bin?: Record<string, string | null>; sandbox?: boolean; xvfbArgs?: string[];
+  raiz?: string; run?: string; terminal?: string; resolv?: string | null; x11?: string; bin?: Record<string, string | null>; sandbox?: boolean; chromiumSandbox?: boolean; xvfbArgs?: string[];
   /** O tela.mjs a rodar (padrão: NOD_PC_TELA ou o do lado do supervisor). */
   tela?: string; ambienteTela?: Record<string, string>; leitura?: () => { memoria: unknown; processador: unknown }; agora?: () => number; log?: (m: string) => void; batimentoMs?: number; varreduraMs?: number;
   /** Chamado logo depois do `ok` do Atualizar: no serviço, sai para o systemd subir de novo com os arquivos novos. */
