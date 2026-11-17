@@ -188,7 +188,7 @@ export function renderTrabalhosPorBot(estado: Estado): string {
   const livresHtml = nomesLivres.length ? `<p class="tb-livres"><span class="tb-livres-rot">Livres</span><span class="tb-livres-av" aria-hidden="true">${livres.map((b) => iconeAgente(b, "sm")).join("")}</span><span class="tb-livres-nomes">${esc(nomes)}</span></p>` : "";
   const vazio = linhas.length ? "" : `<p class="tt-vazio">Nenhum bot está trabalhando agora. Quando um bot começar uma tarefa, esperar algo ou precisar de você, aparece aqui.</p>`;
   return `<section class="tela-trabalhos" aria-label="Tarefas">
-    <header class="tt-cab"><div><h1>Trabalhos</h1><p>${esc(resumoPorBot(linhas, memoriaDosBots(estado.trabalhos)))}</p></div>${segmentadoDosTrabalhos(true)}</header>
+    <header class="tt-cab"><div><h1>Tarefas</h1><p>${esc(resumoPorBot(linhas, memoriaDosBots(estado.trabalhos)))}</p></div>${segmentadoDosTrabalhos(true)}</header>
     ${pilulaDaCota(estado.trabalhos.cota, todos, estado.agora, estado.trabalhos.pedidosNaFila)}${pilulaDoTopo(estado)}
     ${secoes}${vazio}${livresHtml}
   </section>`;

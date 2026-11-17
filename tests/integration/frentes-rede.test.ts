@@ -213,4 +213,29 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
       expect((await m.repos.mensagens.doTrabalho(frente.id)).map((x) => x.id)).toEqual(expect.arrayContaining([antes.id, depois.id]));
     });
   });
+
+  // ADR-187 §3 (rodada de 2026-11-17 com bot novo): o bot esperava os subagentes e só leu "quanto é dois mais dois?" depois
+  // da promoção — a resposta nascia na frente e a conversa ficava sem ela. A fala absorvida e não lida volta à conversa.
+  it("a fala da pessoa absorvida e ainda não lida volta à fila da conversa; a já lida fica com a frente", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx, "claude-cli");
+      const vivo = await m.turno({ texto: "faça duas pesquisas em paralelo" });
+      await m.despachar(vivo.id);
+      const pergunta = async (texto: string) => {
+        const msg = (await m.falaDaPessoa(texto))!;
+        return (await m.repos.turnos.enfileirar({ executor: "catcher", conversaId: m.conversaId, agenteId: m.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: texto, entradaConfianca: "confiavel", modelo: "auto", harness: "claude-cli", mensagemOrigemId: msg.id }))!;
+      };
+      const naoLida = await pergunta("quanto é dois mais dois?");
+      const lida = await pergunta("como está indo?");
+      const vivoT = (await m.repos.turnos.buscar(vivo.id))!;
+      expect((await m.repos.turnos.absorverNaSessao(vivoT, [naoLida.id, lida.id], { informaLeitura: true })).length).toBe(2);
+      await m.repos.turnos.marcarLidosNaSessao(vivo.id, [lida.id]);
+
+      const r = await m.promover(vivo.id, { sessaoCli: null, maquinaBifurca: false });
+      expect(r.data.trabalho).toBeTruthy();
+      expect(await m.repos.turnos.buscar(naoLida.id)).toMatchObject({ estado: "pendente", absorvidoPor: null, trabalhoId: null });
+      expect(await m.repos.turnos.buscar(lida.id)).toMatchObject({ estado: "interrompido", absorvidoPor: vivo.id });
+      expect(r.events?.some((e) => e.kind === "turno_criado" && e.turnoId === naoLida.id)).toBe(true);
+    });
+  });
 });

@@ -358,5 +358,12 @@ export const promoverNaRede: CasoDeUso<{ turnoId: string; despachadoEm: number; 
   // dele a retomaria junto com a frente (dois CLIs na mesma sessão). O dono volta com o histórico recente.
   if (segue === "largar_sessao") await deps.repos.conversas.atualizarSessaoCli(turno.conversaId, null);
   events.push(...(await linhaTrabalhoAberto(deps, trabalho, turno.id)));
+  // ADR-187 §3 (definido em 2026-11-17, rodada das duas pesquisas com bot novo): a fala da pessoa que o turno absorveu e o
+  // bot ainda não leu (ele esperava os subagentes) volta à fila da conversa, como no Parar (ADR-185). Promovido, o turno
+  // larga a faixa da conversa, então ela responde já; sem isso, a resposta ao "quanto é dois mais dois?" nascia na frente.
+  const agora = deps.agora();
+  for (const volta of await deps.repos.turnos.devolverNaoLidos(turno.id)) {
+    events.push(evento(deps.escopo, { kind: "turno_criado", autoria: autoriaPessoa(deps.escopo), agora, conversaId: volta.conversaId, turnoId: volta.id, dados: { origem: volta.origem, agente_id: volta.agenteId, devolvido_pela_rede: true } }));
+  }
   return { data: { trabalho }, events };
 };

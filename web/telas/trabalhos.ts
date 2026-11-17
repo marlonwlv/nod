@@ -203,7 +203,7 @@ const FILTROS: { id: FiltroTrabalhos; nome: string }[] = [
  */
 /** ADR-167 (Paper 16): o segmentado "Por bot | Por frente" do topo de Trabalhos (só com o dono de cada bot no servidor). */
 export function segmentadoDosTrabalhos(porBot: boolean): string {
-  return `<div class="tt-vista" role="group" aria-label="Ver as tarefas"><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="por-bot" aria-pressed="${porBot}">Por bot</button><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="todos" aria-pressed="${!porBot}">Por tarefa</button></div>`;
+  return `<div class="tt-vista" role="group" aria-label="Ver as tarefas"><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="por-bot" aria-pressed="${porBot}">Por bot</button><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="todos" aria-pressed="${!porBot}">Por estado</button></div>`;
 }
 
 export function renderTodosOsTrabalhos(estado: Estado, filtro: FiltroTrabalhos = "todos", comPorBot = false): string {

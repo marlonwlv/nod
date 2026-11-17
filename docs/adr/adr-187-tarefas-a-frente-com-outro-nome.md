@@ -30,7 +30,10 @@ tem visualizador.
 2. **Nada muda na coordenação.** A conversa continua recebendo "Trabalhos em andamento" e decidindo se uma mensagem é
    para uma tarefa (`mandar_para_frente`); falar dentro da tarefa vai direto a ela; o resultado volta à conversa.
 3. **A rede de 2 min promove dali para a frente.** As falas do bot ditas no turno ANTES da promoção ficam na conversa;
-   só as de depois são da tarefa. A pergunta à parte respondida antes da promoção não some mais.
+   só as de depois são da tarefa. A pergunta à parte respondida antes da promoção não some mais. E a fala da pessoa que
+   o turno absorveu e o bot ainda não leu (ele esperava um subagente ou um comando) volta à fila da conversa na
+   promoção, como no Parar (ADR-185): o turno largou a faixa da conversa, e ela responde já. O texto já foi escrito na
+   sessão; a tarefa ainda pode respondê-lo do lado dela, e essa resposta fica só na tela da tarefa.
 4. **O quadro é um plugin que usa o nod, nunca o contrário.** A tela Tarefas não conhece o quadro; uma tarefa aberta por um
    card mostra só a origem ("do Quadro"), como mostra "da rotina". Ligar card e tarefa na tela fica para quando o plugin
    for separado.
@@ -65,3 +68,5 @@ As decisões 5 a 9 entram por etapas, cada uma validada na preview antes da segu
   medir a taxa de `abrir_frentes` por pedido longo antes e depois da etapa 1.
 - A rede de 2 min passa a deixar na conversa uma fala que era do trabalho (texto longo do resultado aparecendo nas duas
   telas): voltar a promover o turno inteiro e separar a resposta à parte de outro jeito.
+- A pessoa estranha a mesma pergunta respondida na conversa e de novo dentro da tarefa (a fala devolvida já estava na
+  sessão): avisar a tarefa, na promoção, que a conversa responde aquelas falas.
