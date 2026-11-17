@@ -104,7 +104,7 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
       "create", "--name", n.maquina, "--label", "nod.computador=true", "--restart", "unless-stopped", "--network", n.rede,
       "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only", "--memory", "2g", "--cpus", "2", "--pids-limit", "768", "--shm-size", "512m",
       "--tmpfs", "/tmp:rw,nosuid,size=512m,uid=1000,gid=1000", "--tmpfs", "/run:rw,nosuid,size=64m,uid=1000,gid=1000",
-      "--env", "NOD_PC_CHROMIUM_SANDBOX=nao",
+      "--env", "NOD_PC_CHROMIUM_SANDBOX=nao", "--env", "NOD_PC_BWRAP=nao", "--env", "NOD_PC_TERMINAL_EXTERNO=sim",
       "--mount", `type=volume,source=${n.maquina}-home,target=/home/node`, "--mount", `type=volume,source=${n.maquina}-workspace,target=/workspace`,
       ...(env.NOD_COMPUTADOR_RUNTIME ? ["--runtime", env.NOD_COMPUTADOR_RUNTIME] : []), imagem,
     ], undefined, 70_000, "nao_iniciou");
@@ -203,6 +203,17 @@ export function criarControleDockerCompartilhado(env: Readonly<Record<string, st
       await iniciar(ref);
       const r = await enviar(ref, "acao", acao, autor);
       if (r.desfecho !== "ok") throw new FalhaComputador(r.motivo ?? "acao_falhou");
+      if (acao.tipo === "terminal" && (r.resultado as { terminalExterno?: unknown } | undefined)?.terminalExterno === true) {
+        if (!ref.agenteId) throw new FalhaComputador("acao_falhou");
+        const n = validar(ref.id);
+        const saida = await docker([
+          "run", "--rm", "-i", "--network", n.rede, "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only", "--user", "1000:1000",
+          "--tmpfs", "/tmp:rw,nosuid,size=64m,uid=1000,gid=1000", "--workdir", "/workspace",
+          "--mount", `type=volume,source=${n.maquina}-workspace,target=/workspace,volume-subpath=${ref.id}/${ref.agenteId}`,
+          "--entrypoint", "node", imagem, "/opt/nod/terminal-sidecar.mjs",
+        ], JSON.stringify({ comando: acao.comando }), 30_000, "acao_falhou");
+        try { return JSON.parse(saida) as Awaited<ReturnType<DriverComputador["executar"]>>; } catch { throw new FalhaComputador("sem_resposta"); }
+      }
       return r.resultado ?? {};
     },
     async estado(ref) {

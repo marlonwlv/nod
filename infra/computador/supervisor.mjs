@@ -201,6 +201,7 @@ function esperarDoFilho(filho, cond, prazoMs) {
  */
 export function criarSupervisor(op) {
   const raiz = op.raiz ?? '/var/lib/nod-computador';
+  const workspaceRaiz = op.workspaceRaiz ?? raiz;
   const run = op.run ?? '/run/nod-computador';
   const x11 = op.x11 ?? '/tmp/.X11-unix';
   const resolv = op.resolv !== undefined ? op.resolv : (existsSync(RESOLV_DO_STUB) ? RESOLV_DO_STUB : null);
@@ -219,7 +220,7 @@ export function criarSupervisor(op) {
     return {
       raiz: d, estado: path.join(d, 'estado'), perfis: path.join(d, 'perfis'), perfilBase: path.join(d, 'perfil-base'),
       logins: path.join(d, 'logins'), loja: path.join(d, 'logins', 'principal', 'cookies.enc'), storage: pastaDoStorage(path.join(d, 'logins')), senhas: arquivoDasSenhas(path.join(d, 'logins')), keyring: path.join(d, 'keyring'),
-      workspace: path.join(d, 'workspace'), run: path.join(run, id), bus: path.join(run, id, 'bus'),
+      workspace: path.join(workspaceRaiz, id), run: path.join(run, id), bus: path.join(run, id, 'bus'),
     };
   };
 
@@ -548,6 +549,10 @@ export function criarSupervisor(op) {
   }
 
   async function acao(c, cmd) {
+    if (cmd.acao.tipo === 'terminal' && op.terminalExterno) {
+      await mkdir(path.join(c.d.workspace, cmd.agenteId), { recursive: true, mode: 0o700 });
+      return resultado(cmd.id, 'ok', { resultado: { terminalExterno: true } });
+    }
     const aberta = await abrirTela(c, cmd.agenteId, cmd.uso);
     if (aberta.esperando) return resultado(cmd.id, 'esperando_tela', { quem: aberta.esperando });
     if (!aberta.ok) return falhou(cmd.id, aberta.motivo);
@@ -1101,7 +1106,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   await prepararShellDoSupervisor();
   // Depois do Atualizar o processo sai e o systemd (Restart=always) o sobe de novo com os arquivos do disco.
   const aoAtualizar = () => void supervisor.encerrar().finally(() => process.exit(0));
-  const supervisor = criarSupervisor({ raiz: process.env.NOD_PC_RAIZ, run: process.env.NOD_PC_RUN, terminal: process.env.NOD_PC_TERMINAL, chromiumSandbox: process.env.NOD_PC_CHROMIUM_SANDBOX !== 'nao', aoAtualizar });
+  const supervisor = criarSupervisor({ raiz: process.env.NOD_PC_RAIZ, workspaceRaiz: process.env.NOD_PC_WORKSPACE_RAIZ, run: process.env.NOD_PC_RUN, terminal: process.env.NOD_PC_TERMINAL, sandbox: process.env.NOD_PC_BWRAP !== 'nao', chromiumSandbox: process.env.NOD_PC_CHROMIUM_SANDBOX !== 'nao', terminalExterno: process.env.NOD_PC_TERMINAL_EXTERNO === 'sim', aoAtualizar });
   await supervisor.carregar();
   const servidor = servirControle(supervisor);
   await escutarControle(servidor, process.env.NOD_PC_SOCKET ?? '/run/nod-computador/ctl.sock');

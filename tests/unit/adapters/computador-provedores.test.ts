@@ -729,23 +729,27 @@ describe("Docker como provedor", () => {
         return "ok";
       }
       if (args[0] === "create") { criados.add(args[args.indexOf("--name") + 1]!); return "ok"; }
+      if (args[0] === "run" && args.includes("/opt/nod/terminal-sidecar.mjs")) return JSON.stringify({ saida: "/workspace", codigoSaida: 0 });
       if (args[0] === "exec" && args.includes("test")) return "";
       if (args[0] === "exec" && args.some((a) => a.endsWith("/cliente-unico.mjs"))) {
         const pedido = JSON.parse(entrada ?? "{}") as { sonda?: boolean; comando: Record<string, unknown> };
         if (pedido.sonda) return JSON.stringify({ estado: { supervisorPub } });
         comandos.push(pedido.comando);
-        return JSON.stringify({ resultado: { id: pedido.comando.id, desfecho: "ok" } });
+        const acao = pedido.comando.acao as { tipo?: string } | undefined;
+        return JSON.stringify({ resultado: { id: pedido.comando.id, desfecho: "ok", ...(acao?.tipo === "terminal" ? { resultado: { terminalExterno: true } } : {}) } });
       }
       return "ok";
     });
     const controle = criarControleDockerCompartilhado({ NOD_COMPUTADORES: "docker", NOD_CREDENTIAL_KEY: credencial }, docker);
     await controle.iniciar({ id: ID });
-    await controle.executar({ id: ID, agenteId: BOT }, { tipo: "terminal", comando: "pwd" });
+    expect(await controle.executar({ id: ID, agenteId: BOT }, { tipo: "terminal", comando: "pwd" })).toMatchObject({ saida: "/workspace", codigoSaida: 0 });
 
     const init = chamadas.find((a) => a[0] === "run" && a.includes("chown"));
     expect(init).toEqual(expect.arrayContaining(["--network", "none", "--cap-drop", "ALL", "--cap-add", "CHOWN", "--user", "0:0"]));
     const maquina = chamadas.find((a) => a[0] === "create" && a.includes(`nod-computador-${ID}`))!;
-    expect(maquina).toEqual(expect.arrayContaining(["--security-opt", "no-new-privileges", "--cap-drop", "ALL", "--env", "NOD_PC_CHROMIUM_SANDBOX=nao"]));
+    expect(maquina).toEqual(expect.arrayContaining(["--security-opt", "no-new-privileges", "--cap-drop", "ALL", "--env", "NOD_PC_CHROMIUM_SANDBOX=nao", "--env", "NOD_PC_BWRAP=nao", "--env", "NOD_PC_TERMINAL_EXTERNO=sim"]));
+    const terminal = chamadas.find((a) => a[0] === "run" && a.includes("/opt/nod/terminal-sidecar.mjs"))!;
+    expect(terminal).toEqual(expect.arrayContaining(["--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "1000:1000", "--mount", `type=volume,source=nod-computador-${ID}-workspace,target=/workspace,volume-subpath=${ID}/${BOT}`]));
     expect(comandos).toHaveLength(3);
     for (const comando of comandos) expect(conferirAssinatura(publicaDeAssinatura(credencial, ID), comando as never)).toBe(true);
     expect(comandos.at(-1)).toMatchObject({ tipo: "acao", agenteId: BOT });
