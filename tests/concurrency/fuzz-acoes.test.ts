@@ -260,8 +260,8 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       const [meuApp, meuAppRemovido, appDela] = [await appDe(sessao, meu, "Vagas", false), await appDe(sessao, meu, "Leads", true), await appDe(outra, dela, "Vagas", false)];
       // NOD-437: um time de cada pessoa (e o Sem time da pessoa) para o `/times/:id`: renomear e excluir passam da busca.
       type ComTime = { time: { id: string } };
-      const timeDoFuzz = (await srv.json<ComTime>("POST", "times", { nome: "Time do fuzz" })).time.id;
-      const timeDela = (await srv.json<ComTime>("POST", "times", { nome: "Time dela" }, outra)).time.id;
+      const timeDoFuzz = (await srv.json<ComTime>("POST", "times", { nome: `Time do fuzz ${ordem}` })).time.id;
+      const timeDela = (await srv.json<ComTime>("POST", "times", { nome: `Time dela ${ordem}` }, outra)).time.id;
       const semTimeDoFuzz = (await srv.json<{ times: { id: string; semTime: boolean }[] }>("POST", "times/sincronizar", {})).times.find((t) => t.semTime)!.id;
       // ADA-13 (#649): um canvas com uma tela e um comentário em cada pessoa, para `canvas.comentar` (`/canvas/:id`) e
       // `canvas.resolver_comentario` (`/canvas/comentarios/:id`) passarem da busca.
@@ -350,7 +350,7 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         const credencial = await d.repos.credenciaisNuvem.gravar({ provedor: "gcp", projeto: "nod-fuzz-example", contaServico: "nod-fuzz@example.invalid", chaveCifrada: "cifrada-no-teste" });
         const nuvem: string[] = [];
         for (let i = 0; i < 3; i++) {
-          const maquina = await d.repos.maquinasNuvem.criarConectada({ credencialId: credencial.id, maquinaId: chaves[i]!, ref: { projeto: "nod-fuzz-example", zona: "southamerica-east1-a", nome: `fuzz-${i}` }, agora });
+          const maquina = await d.repos.maquinasNuvem.criarConectada({ credencialId: credencial.id, maquinaId: chaves[i]!, ref: { projeto: "nod-fuzz-example", zona: "southamerica-east1-a", nome: `fuzz-${ordem}-${i}` }, agora });
           nuvem.push(maquina.id);
         }
         await d.tx((trx) => trx`update maquinas_nuvem set estado = 'dormindo', desejado = 'dormindo', estado_desde = now() where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${nuvem[1]!}`);
@@ -397,7 +397,9 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             salas: { daPessoa: [salaDoFuzz], deOutraPessoa: [] },
             trabalhos: { daPessoa: sementes.trabalhos, deOutraPessoa: [] },
             memoria: { daPessoa: sementes.memorias, deOutraPessoa: [] },
-            diario: { daPessoa: sementes.diarios, deOutraPessoa: [] },
+            // O diário 0 é exclusivo do desfazer. Se os casos aleatórios também sortearem as entradas 1/2, podem apagar
+            // antes as memórias reservadas para `memoria.apagar` e transformar o caso válido explícito em 404.
+            diario: { daPessoa: sementes.diarios.slice(0, 1), deOutraPessoa: [] },
             "contas-ia": { daPessoa: sementes.contas, deOutraPessoa: [] },
             chaves: { daPessoa: sementes.chaves, deOutraPessoa: [] },
             // `/maquinas/:id` e `/nuvem/maquinas/:id` compartilham o segmento. Os casos válidos explícitos abaixo
