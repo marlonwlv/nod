@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const DIR = new URL("../../../src/contracts/", import.meta.url);
@@ -27,6 +28,24 @@ describe("src/contracts é fechado", () => {
     for (const f of divididos) {
       const linhas = readFileSync(new URL(f, DIR), "utf8").split("\n").length;
       expect(linhas, `${f} tem ${linhas} linhas`).toBeLessThan(180);
+    }
+  });
+
+  it("os contratos divididos pela NOD-425 têm no máximo uma declaração irmã por linha", () => {
+    const divididos = ["desktop.ts", "ferramentas-nod.ts", "mensagem.ts", "servicos.ts"];
+    for (const f of divididos) {
+      const fonte = readFileSync(new URL(f, DIR), "utf8");
+      const arquivo = ts.createSourceFile(f, fonte, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const conferir = (declaracoes: readonly ts.Node[]) => {
+        const linhas = declaracoes.map((declaracao) => arquivo.getLineAndCharacterOfPosition(declaracao.getStart(arquivo)).line + 1);
+        expect(new Set(linhas).size, `${f} agrupa declarações irmãs na mesma linha`).toBe(linhas.length);
+      };
+      conferir(arquivo.statements);
+      const visitar = (no: ts.Node) => {
+        if (ts.isInterfaceDeclaration(no)) conferir(no.members);
+        ts.forEachChild(no, visitar);
+      };
+      visitar(arquivo);
     }
   });
 

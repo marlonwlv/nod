@@ -70,8 +70,13 @@ export interface ServicesNod<Trx> extends ServicosLinear {
     trocouUsoDoMac?(pessoaId: string): void;
   };
   /** A tela fala por máquina (2026-10-09): a leitura e o nome de cada máquina (trabalho.ts). Ausente = só a junta. */ maquinas?: ServicoDasMaquinas;
-  /** ADA-13 (ADR-150): o importador do Canvas, fora da tx; ausente = importar recusa. */ canvas?: { importar(url: string): Promise<import("./ferramentas-canvas.ts").ResultadoImportarCanvas> }; /** ADR-115 (2026-10-18): o revisor do Automático (revisao.ts). Ausente ou `config.ligado: false` = a decisão de hoje. */ revisor?: ServicoRevisor;
-  /** NOD-84 (ADR-139): a cifra do endereço do webhook; ausente = modo local. */ webhooks?: { cifrar(texto: string): string }; relogio: () => number;
+  /** ADA-13 (ADR-150): o importador do Canvas, fora da tx; ausente = importar recusa. */
+  canvas?: { importar(url: string): Promise<import("./ferramentas-canvas.ts").ResultadoImportarCanvas> };
+  /** ADR-115 (2026-10-18): o revisor do Automático (revisao.ts). Ausente ou `config.ligado: false` = a decisão de hoje. */
+  revisor?: ServicoRevisor;
+  /** NOD-84 (ADR-139): a cifra do endereço do webhook; ausente = modo local. */
+  webhooks?: { cifrar(texto: string): string };
+  relogio: () => number;
   tokenTurno: {
     /** definido em 2026-09-16 (L9, pendência L5 §2): cunhar RECEBE a identidade — `autorizar` a devolve, logo ela entra aqui. */
     cunhar(turnoId: string, identidade: IdentidadeSemTurno): string;
