@@ -44,12 +44,22 @@ import { USO_DO_MAC_PADRAO } from "../../contracts/raio-x.ts";
 import { ESPACO_FUNDO_MS, portaoDoMac } from "../../domain/memoria-mac.ts";
 import type { Deps, Services, UseCasesNod } from "../../use-cases/tipos.ts";
 import type { TokenTurno } from "../../services/token-turno.ts";
+import type { Turno } from "../../contracts/turno.ts";
 
 /** ADR-130: a fala da pessoa que esperou mais que isto para começar vira a linha `fala_esperou`. */
 const FALA_ESPEROU_MS = 10_000;
 
 /** definido em 2026-09-16: versão mínima do app = a do package.json desta rodada; a ponte HTTP compara quando entrar (ADR-021). */
 export const VERSAO_MINIMA_APP = "0.1.0";
+
+/** NOD-452: contrato fechado da medição usada para escolher o teto; conteúdo e identificadores não entram. */
+export function metadadosDuracaoBastidores(
+  turno: Pick<Turno, "bastidores" | "trabalhoId" | "despachadoEm" | "origem" | "estado"> | null | undefined,
+  agora: number,
+): { origem: Turno["origem"]; desfecho: Turno["estado"]; duracao_ms: number } | null {
+  if (turno?.bastidores !== true || turno.trabalhoId || turno.despachadoEm == null) return null;
+  return { origem: turno.origem, desfecho: turno.estado, duracao_ms: Math.max(0, agora - turno.despachadoEm) };
+}
 
 export type DepsPonte = {
   services: Services;
@@ -730,15 +740,8 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         // NOD-245: o turno adotado que o reinício derrubou (a máquina desistiu antes de o servidor voltar).
         if (!r.data.tardia && r.data.turno?.motivoInterrupcao === "reinicio_servidor") registroPadrao.incrementar({ metrica: "pos_restart", desfecho: "perdido", origem: "restart_servidor", tenant_id: escopo.tenantId });
         // NOD-452: distribuição para escolher o teto pelo p99 real. Só metadados fechados; nenhum texto, id ou argumento.
-        const medido = r.data.turno;
-        const despachadoEm = medido?.despachadoEm;
-        if (!r.data.duplicada && medido?.bastidores === true && !medido.trabalhoId && despachadoEm != null) {
-          log("info", "turno_bastidores_duracao", {
-            origem: medido.origem,
-            desfecho: medido.estado,
-            duracao_ms: Math.max(0, agora() - despachadoEm),
-          });
-        }
+        const duracao = !r.data.duplicada ? metadadosDuracaoBastidores(r.data.turno, agora()) : null;
+        if (duracao) log("info", "turno_bastidores_duracao", duracao);
         const extras = deps.depoisDeAssentar && !r.data.duplicada ? await deps.depoisDeAssentar(d, { entrega: e, saida: r.data }) : [];
         const events = [...(r.events ?? []), ...extras];
         if (events.length) await d.repos.events.gravarComOutbox(events);
