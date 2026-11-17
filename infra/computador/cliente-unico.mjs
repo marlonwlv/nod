@@ -14,8 +14,11 @@ if (!comando?.id || !comando?.computadorId) process.exit(2);
 
 const socket = net.connect(process.env.NOD_PC_SOCKET ?? '/tmp/nod-computer.sock');
 let buf = '';
+let terminou = false;
 const timer = setTimeout(() => { socket.destroy(); process.exit(1); }, 65_000);
 const terminar = (valor) => {
+  if (terminou) return;
+  terminou = true;
   clearTimeout(timer);
   process.stdout.write(JSON.stringify(valor));
   socket.end();
