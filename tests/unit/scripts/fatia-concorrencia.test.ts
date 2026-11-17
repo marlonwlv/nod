@@ -26,6 +26,16 @@ describe("fatia-concorrencia (a CI divide a concorrência em jobs)", () => {
     expect(n.every((a) => /-chrome\.test\.ts$|tela-capturar|qa-pelas-acoes/.test(a))).toBe(true);
   });
 
+  it("navegador:N/2 divide só os de navegador, cobrindo todos sem repetir", () => {
+    const todos = listarArquivos(raiz);
+    const n1 = fatia(todos, "navegador:1/2");
+    const n2 = fatia(todos, "navegador:2/2");
+    expect(n1.length).toBeGreaterThan(0);
+    expect(n2.length).toBeGreaterThan(0);
+    expect([...n1, ...n2].sort()).toEqual(fatia(todos, "navegador"));
+    expect([...n1, ...n2].every(ehDeNavegador)).toBe(true);
+  });
+
   it("a gulosa é determinística e manda os dois maiores para fatias diferentes", () => {
     const lista = [
       { caminho: "tests/concurrency/a.test.ts", bytes: 100 },
@@ -38,11 +48,15 @@ describe("fatia-concorrencia (a CI divide a concorrência em jobs)", () => {
     expect(fatia(lista, "1/2")).toEqual(["tests/concurrency/a.test.ts", "tests/concurrency/d.test.ts"]);
     expect(fatia(lista, "2/2")).toEqual(["tests/concurrency/b.test.ts", "tests/concurrency/c.test.ts"]);
     expect(fatia(lista, "navegador")).toEqual(["tests/concurrency/x-chrome.test.ts"]);
+    expect(fatia(lista, "navegador:1/2")).toEqual(["tests/concurrency/x-chrome.test.ts"]);
+    expect(fatia(lista, "navegador:2/2")).toEqual([]);
   });
 
   it("recusa fatia inválida", () => {
     const lista = [{ caminho: "tests/concurrency/a.test.ts", bytes: 1 }];
     expect(() => fatia(lista, "0/2")).toThrow(/inválida/);
     expect(() => fatia(lista, "3/2")).toThrow(/maior/);
+    expect(() => fatia(lista, "navegador:3/2")).toThrow(/maior/);
+    expect(() => fatia(lista, "navegador/2")).toThrow(/inválida/);
   });
 });

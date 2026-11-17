@@ -1,4 +1,4 @@
-# Jobs paralelos (Práticas §9): lint+typecheck e unit sem banco; integração, concorrência (2 fatias) e navegador com
+# Jobs paralelos (Práticas §9): lint+typecheck e unit sem banco; integração, concorrência (2 fatias) e navegador (2 fatias) com
 # Postgres, cada um no próprio service container (porta sorteada pelo Docker: .github/actions/banco-de-teste).
 # Os jobs com banco MIGRAM e NÃO rodam seed (Práticas §6): cada teste cria as próprias linhas.
 # CI=1 (padrão do GitHub) faz o skip de integração virar ERRO em tests/helpers/integracao.ts.
@@ -154,11 +154,18 @@ jobs:
           FUZZ_TETO_S: "150"
 
   # Os testes com Chromium de verdade (os `*-chrome`, a tela.capturar e o bot de QA da NOD-398): precisam da web
-  # montada (dist/web) e do binário; medidos em 2026-11-04 somam ~5 min.
-  navegador:
+  # montada (dist/web) e do binário; medidos em 2026-11-04 somavam ~5 min. Em 2026-11-17 o job inteiro levava 8,5 min
+  # (6,4 só de testes) e era o último da CI a terminar: virou duas fatias pelo mesmo script da concorrência. A fatia é
+  # por arquivo, então a do quadro-rolagem-chrome (~3 min sozinho) é o piso.
+  navegador-fatia:
+    name: navegador ${{ matrix.fatia }}/2
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        fatia: [1, 2]
     services:
       postgres:
         image: postgres:16
@@ -213,7 +220,7 @@ jobs:
           fi
           timeout 30 "$CHROME" --headless=new $SEM_SANDBOX --dump-dom about:blank >/dev/null
           echo "NOD_CHROME=$CHROME" >> "$GITHUB_ENV"
-      - run: npx vitest run --project concurrency $(node scripts/ci/fatia-concorrencia.ts navegador)
+      - run: npx vitest run --project concurrency $(node scripts/ci/fatia-concorrencia.ts navegador:${{ matrix.fatia }}/2)
         env:
           QA_RELATORIO_DIR: ${{ github.workspace }}/qa-relatorio
           # Só neste job (que montou a web e o Chromium) a falta deles reprova; no desktop-release o check pula a captura.
@@ -226,13 +233,28 @@ jobs:
         if: success() || failure()
         continue-on-error: true
         with:
-          name: qa-relatorio
+          # Um nome por fatia: duas fatias subindo o mesmo nome derrubariam o upload da segunda.
+          name: qa-relatorio-${{ matrix.fatia }}
           path: qa-relatorio/
           if-no-files-found: warn
           retention-days: 14
       # O relatório também no resumo do job (revisão 7): lê sem baixar o zip; os prints seguem no artefato.
       - if: success() || failure()
         run: if [ -f qa-relatorio/qa-relatorio.md ]; then cat qa-relatorio/qa-relatorio.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+  # O check `navegador` é obrigatório na proteção da main. Este job mantém esse nome e só passa se as duas fatias
+  # passaram: a proteção não muda, e uma fatia vermelha, cancelada ou pulada no meio reprova o check.
+  navegador:
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+    needs: navegador-fatia
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTADO: ${{ needs.navegador-fatia.result }}
+        run: |
+          echo "fatias do navegador: $RESULTADO"
+          test "$RESULTADO" = success
 
   # definido em 2026-11-05: o smoke da janela do app do Mac (scripts/desktop/smoke-window.mjs) só rodava no
   # desktop-release, e três das seis releases vermelhas desde a rc.1 caíram nele por PRs que mexeram no preload dias
