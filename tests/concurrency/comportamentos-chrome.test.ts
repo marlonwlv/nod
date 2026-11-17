@@ -552,11 +552,12 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
 
   // ———————————————————————————————————————————————— 5 ————————————————————————————————————————————————
   it("5. o pedido pendente aparece em Trabalhos; o clique abre a conversa rolada até o cartão", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Espera Teste", "manual");
+    const bot = await criarBot("Espera Teste", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
     const outro = await criarBot("Outro Teste", "manual");
     await abrirApp();
     await abrirConversa(outro);
-    await falar(bot, `Pergunte. [[tool: pedir_a_pessoa {"tipo":"pergunta","texto":"Posso arquivar o PR 7?"}]] [[texto: perguntei]]`);
+    await falar(bot, `Grave. [[tool: pedir_aprovacao ${pedirGravar("espera-trabalhos")}]] [[texto: pedi]]`);
+    await atePedidos(bot.id, 1);
     await ate(`document.querySelector('#sidebar .linha-fixa-aguardando[data-agente="${bot.id}"]')`, "o pedido em Trabalhos");
     expect(await avaliar<string | null>(cdp, `document.querySelector('#sidebar .linha-fixa-aguardando')?.getAttribute("aria-label") ?? null`)).toBe("Espera Teste precisa de você");
     // Laranja: a cor vem de --aguardando (o valor é do CSS; aqui só que é a variável, e não a do não lido).
