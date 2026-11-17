@@ -319,6 +319,10 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
         const decisaoRetomar = await d.repos.decisoes.criar({ tipo: "retomar_turno", agenteId: meu.agente.id, conversaId: meu.conversa.id, turnoId: turnos[3]!, prazoDecisaoEm: agora + 3_600_000, frase: "Retomar turno do fuzz?" });
         if (!decisaoRetomar) throw new Error("decisão de retomada do fuzz");
         decisoes.push(decisaoRetomar.id);
+        // As ações precisam encontrar turnos reais, mas sementes pendentes mantêm `quieto` ocupado e fazem cada escrita
+        // seguinte aguardar 5 s. Interrompidos continuam exercitando a busca e as transições sem simular execução viva.
+        await d.tx((trx) => trx`update turnos set estado = 'interrompido', motivo_interrupcao = 'parado_pela_pessoa'
+          where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = any(${turnos}::uuid[])`);
         const incidente = await d.repos.incidentes.abrir({ tipo: "mac_sem_contato", machineId: null, comecouEm: agora - 1_000, voltouEm: agora, rotinas: 0, conversas: 1, agentes: [meu.agente.id] });
         if (!incidente) throw new Error("incidente do fuzz");
 
@@ -328,6 +332,10 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
           if (!trabalho) throw new Error("trabalho do fuzz");
           trabalhos.push(trabalho.id);
         }
+        // `fazer_aqui` encontra a entidade e responde pela regra de negócio, sem criar um turno pendente que tornaria o
+        // restante do fuzz artificialmente serial por esperas de quietude.
+        await d.tx((trx) => trx`update trabalhos set estado = 'terminado', terminado_em = now()
+          where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${trabalhos[1]!}`);
         const memorias: string[] = [];
         const diarios: string[] = [];
         for (let i = 0; i < 3; i++) {
