@@ -53,7 +53,7 @@ descrever("acessos do campo (Chrome real)", () => {
 
   afterAll(async () => {
     cdp?.fechar();
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    if (dir) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     if (!srv) return;
     await srv.fechar();
     await limparPessoaE2E(srv.db, srv.dbDono, srv.pessoa, { agentes, conversas });
@@ -111,9 +111,12 @@ descrever("acessos do campo (Chrome real)", () => {
     await abrirConversa(bot);
     await repouso();
     const comIa = await avaliar<boolean>(cdp, `!document.getElementById("composer-ia").hidden`);
+    // O Chrome headless não permite emular hover/pointer pelo CDP. Nesse ambiente a regra responsiva mantém os
+    // controles visíveis; em Chrome desktop real ela os recolhe. Testamos as duas ramificações conforme a mídia real.
+    const ocultavel = await avaliar<boolean>(cdp, `matchMedia("(hover: hover) and (pointer: fine)").matches`);
     const antes = await estilo("#composer-texto");
-    expect(await estilo("#composer-modo")).toMatchObject({ vis: "hidden" });
-    if (comIa) expect(await estilo("#composer-ia")).toMatchObject({ vis: "hidden" });
+    expect(await estilo("#composer-modo")).toMatchObject({ vis: ocultavel ? "hidden" : "visible" });
+    if (comIa) expect(await estilo("#composer-ia")).toMatchObject({ vis: ocultavel ? "hidden" : "visible" });
 
     await avaliar(cdp, `document.getElementById("composer-texto").focus()`);
     await espera(100);
@@ -143,7 +146,8 @@ descrever("acessos do campo (Chrome real)", () => {
     const aviso = await avaliar<string>(cdp, `(() => { const p = document.createElement("i"); p.style.color = "var(--warning)"; document.body.append(p); const c = getComputedStyle(p).color; p.remove(); return c; })()`);
     expect(await avaliar<string | null>(cdp, `document.getElementById("composer-modo").getAttribute("data-modo")`)).toBe("total");
     expect(await estilo("#composer-modo")).toMatchObject({ vis: "visible", cor: aviso });
-    if (await avaliar<boolean>(cdp, `!document.getElementById("composer-ia").hidden`)) expect(await estilo("#composer-ia")).toMatchObject({ vis: "hidden" });
+    const ocultavel = await avaliar<boolean>(cdp, `matchMedia("(hover: hover) and (pointer: fine)").matches`);
+    if (await avaliar<boolean>(cdp, `!document.getElementById("composer-ia").hidden`)) expect(await estilo("#composer-ia")).toMatchObject({ vis: ocultavel ? "hidden" : "visible" });
   }, 90_000);
 
   it("3b · 1280: trabalhando com rascunho, Parar e Enviar; o Parar para o turno e o rascunho fica", async () => {
