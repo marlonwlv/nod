@@ -13,6 +13,7 @@ type Linha = {
   controle: ControleComputador; politica: PoliticaComputador; ajuda: string | null; ajuda_decisao_id: string | null;
   operacao_id: string | null; ocupado_ate: Date | null; ultima_atividade_em: Date; memoria_mb: number | null;
   falha_motivo: MotivoFalhaComputador | null; criado_em: Date;
+  provedor_ref: string | null;
 };
 const tela = (l: Linha): TelaComputadorBot => ({
   id: l.id, computadorId: l.computador_id, agenteId: l.agente_id, estado: l.estado, esperandoDesde: l.esperando_desde?.getTime() ?? null,
@@ -55,6 +56,30 @@ export function computadorTelasRepo(conn: Conn, escopo: Escopo) {
       const linhas = await conn<Linha[]>`select * from computador_telas where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}
         and computador_id = ${computadorId} order by ultima_atividade_em desc, id`;
       return linhas.map(tela);
+    },
+    /** Referência opaca do display no provider. A trava + índice único fecham duas alocações concorrentes. */
+    async provedorRef(id: string): Promise<string | null> {
+      const [l] = await conn<{ provedor_ref: string | null }[]>`select provedor_ref from computador_telas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}`;
+      return l?.provedor_ref ?? null;
+    },
+    async fixarProvedorRef(id: string, ref: string | null): Promise<boolean> {
+      try {
+        const linhas = await conn`update computador_telas set provedor_ref = ${ref}
+          where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} returning id`;
+        return linhas.length === 1;
+      } catch (e) {
+        // Duas instâncias podem enxergar o mesmo screen livre. O índice parcial decide a vencedora; a perdedora
+        // relê e aluga outro, sem deixar a transação ou a referência do bot pela metade.
+        if ((e as { code?: unknown }).code === "23505") return false;
+        throw e;
+      }
+    },
+    async provedoresRef(computadorId: string): Promise<string[]> {
+      const linhas = await conn<{ provedor_ref: string }[]>`select provedor_ref from computador_telas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and computador_id = ${computadorId}
+          and provedor_ref is not null order by id`;
+      return linhas.map((l) => l.provedor_ref);
     },
     /** A fila da régua: as telas esperando vez, da que chegou primeiro à última. */
     async fila(computadorId: string): Promise<TelaComputadorBot[]> {

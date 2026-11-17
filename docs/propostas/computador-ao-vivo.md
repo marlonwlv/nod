@@ -10,6 +10,10 @@ Base comparada:
 
 Esta é uma proposta de implementação. Nenhum código de produto foi alterado.
 
+> Atualização de 2026-11-17: a entrega da NOD-498 tornou este documento histórico. Onde ele descreve “computador por
+> bot” ou diz que o aluguel bot→display falta, prevalece a ADR-168 corrigida: uma máquina/container por pessoa/espaço,
+> uma tela e workspace por bot, e autenticação compartilhada por loja serializada — nunca pelo mesmo `user-data-dir`.
+
 ## Conclusão
 
 O Nod não precisa copiar a arquitetura do Bot HQ. A maior parte difícil já existe no Nod com garantias melhores: noVNC,

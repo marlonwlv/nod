@@ -50,9 +50,13 @@ export type OpcoesOrgo = {
   fetchImpl?: Fetch;
   agora?: () => number;
   pausa?: (ms: number) => Promise<void>;
+  displayRefDe?: (telaId: string, escopo: Escopo) => Promise<string | null>;
+  fixarDisplayRef?: (telaId: string, ref: string | null, escopo: Escopo) => Promise<boolean>;
+  displaysRefDoComputador?: (computadorId: string, escopo: Escopo) => Promise<string[]>;
 };
 
 type ComputadorOrgo = { id: string; name: string; status: string; connection_url?: string | null; vnc_password?: string | null };
+type DisplayOrgo = { id: string; display?: string; width?: number; height?: number; default?: boolean };
 
 /** O status do Orgo no vocabulário do nod. `frozen` é o parado normal (o stop arquiva o disco). */
 export function estadoDoOrgo(status: string | undefined): EstadoNoProvedor {
@@ -105,6 +109,7 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
   const base = (o.env.NOD_ORGO_URL || BASE_ORGO).replace(/\/$/, "");
   const nomeWorkspace = o.env.NOD_ORGO_WORKSPACE_NOME || "nod";
   const ram = Number(o.env.NOD_ORGO_RAM_GB) || 4;
+  const maxDisplays = Math.max(1, Number(o.env.NOD_ORGO_DISPLAY_MAX) || 4);
   const agora = o.agora ?? Date.now;
   const pausa = o.pausa ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const fetchImpl: Fetch = o.fetchImpl ?? ((url, init) => fetch(url, init));
@@ -225,6 +230,51 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
     if (estado === "parado") await chamar(escopo, "POST", `/computers/${c.id}/start`, {});
     else if (estado === "suspenso") await chamar(escopo, "POST", `/computers/${c.id}/resume`, {});
     await esperarLigado(ref);
+    if (ref.telaId && ref.agenteId) await display(ref);
+  }
+
+  const queryDisplay = (ref: RefComputador, id: string | null) => id && id !== "default" ? `?screen=${encodeURIComponent(id)}` : "";
+  async function listarDisplays(ref: RefComputador, computador?: ComputadorOrgo): Promise<DisplayOrgo[]> {
+    const c = computador ?? await exigir(ref);
+    const r = await chamar<DisplayOrgo[] | { screens?: DisplayOrgo[] }>(escopoDe(ref), "GET", `/computers/${c.id}/screens`);
+    return Array.isArray(r) ? r : r.screens ?? [];
+  }
+  /** Uma única promessa por tela impede duas screens remotas para o mesmo bot no mesmo processo. O índice do banco
+   * fecha a mesma corrida entre processos. */
+  const alugueis = new Map<string, Promise<string>>();
+  async function alugarDisplay(ref: RefComputador): Promise<string> {
+    if (!ref.telaId || !ref.agenteId) throw new FalhaComputador("nao_iniciou", { detalhe: "display sem identidade do bot" });
+    const escopo = escopoDe(ref);
+    const c = await exigir(ref);
+    const gravado = await o.displayRefDe?.(ref.telaId, escopo) ?? null;
+    if (gravado) {
+      const existe = await chamar<DisplayOrgo>(escopo, "GET", `/computers/${c.id}/screens/${encodeURIComponent(gravado)}`).then(() => true, () => false);
+      if (existe) return gravado;
+      await o.fixarDisplayRef?.(ref.telaId, null, escopo);
+    }
+    for (let tentativa = 0; tentativa < maxDisplays + 1; tentativa++) {
+      const [existentes, ocupados] = await Promise.all([listarDisplays(ref, c), o.displaysRefDoComputador?.(ref.id, escopo) ?? Promise.resolve([])]);
+      const usados = new Set(ocupados.filter(Boolean));
+      let livre = existentes.find((s) => !usados.has(s.id));
+      if (!livre) {
+        if (existentes.length >= maxDisplays) throw new FalhaComputador("limite_de_computadores", { detalhe: `limite de displays da máquina compartilhada: ${maxDisplays}; feche o display de outro bot` });
+        livre = await chamar<DisplayOrgo>(escopo, "POST", `/computers/${c.id}/screens`, {});
+      }
+      if (livre?.id && await o.fixarDisplayRef?.(ref.telaId, livre.id, escopo)) {
+        log("info", "computador_display_alugado", { computador_id: ref.id, agente_id: ref.agenteId, display: livre.id });
+        return livre.id;
+      }
+      // Outra instância ganhou o mesmo display entre a leitura e o UPDATE; relê as referências e tenta o próximo.
+    }
+    throw new FalhaComputador("nao_iniciou", { detalhe: "não foi possível persistir um display exclusivo para o bot" });
+  }
+  function display(ref: RefComputador): Promise<string> {
+    const chave = `${chaveEscopada(ref)}:${ref.telaId ?? "maquina"}`;
+    const atual = alugueis.get(chave);
+    if (atual) return atual;
+    const novo = alugarDisplay(ref).finally(() => alugueis.delete(chave));
+    alugueis.set(chave, novo);
+    return novo;
   }
 
   async function saude(ref: RefComputador): Promise<SaudeComputador> {
@@ -241,33 +291,34 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
   const primitivas: PrimitivasDeComputador = {
     async capturarTela(ref) {
       const c = await exigir(ref);
-      const r = await chamar<{ image?: string; width?: number; height?: number }>(escopoDe(ref), "GET", `/computers/${c.id}/screenshot?response_format=base64&format=png`);
+      const q = queryDisplay(ref, ref.telaId ? await display(ref) : null);
+      const r = await chamar<{ image?: string; width?: number; height?: number }>(escopoDe(ref), "GET", `/computers/${c.id}/screenshot${q}${q ? "&" : "?"}response_format=base64&format=png`);
       if (!r.image) throw new FalhaComputador("sem_resposta", { detalhe: "captura vazia do Orgo" });
       return { png: r.image.replace(/^data:image\/\w+;base64,/, ""), largura: r.width ?? 1280, altura: r.height ?? 800 };
     },
     async clicar(ref, p) {
       const c = await exigir(ref);
-      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/click`, { x: Math.round(p.x), y: Math.round(p.y), button: BOTAO[p.botao], ...(p.vezes === 2 ? { double: true } : p.vezes > 2 ? { repeat: p.vezes } : {}) });
+      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/click${queryDisplay(ref, await display(ref))}`, { x: Math.round(p.x), y: Math.round(p.y), button: BOTAO[p.botao], ...(p.vezes === 2 ? { double: true } : p.vezes > 2 ? { repeat: p.vezes } : {}) });
     },
     async arrastar(ref, p) {
       const c = await exigir(ref);
-      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/drag`, { start_x: Math.round(p.x), start_y: Math.round(p.y), end_x: Math.round(p.destinoX), end_y: Math.round(p.destinoY) });
+      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/drag${queryDisplay(ref, await display(ref))}`, { start_x: Math.round(p.x), start_y: Math.round(p.y), end_x: Math.round(p.destinoX), end_y: Math.round(p.destinoY) });
     },
     async digitar(ref, texto) {
       const c = await exigir(ref);
-      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/type`, { text: texto });
+      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/type${queryDisplay(ref, await display(ref))}`, { text: texto });
     },
     async tecla(ref, tecla) {
       const c = await exigir(ref);
-      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/key`, { key: teclaParaOrgo(tecla) });
+      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/key${queryDisplay(ref, await display(ref))}`, { key: teclaParaOrgo(tecla) });
     },
     async rolar(ref, p) {
       const c = await exigir(ref);
-      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/scroll`, { x: Math.round(p.x), y: Math.round(p.y), direction: p.delta < 0 ? "up" : "down", amount: Math.max(1, Math.min(20, Math.round(Math.abs(p.delta) / 100) || 1)) });
+      await chamar(escopoDe(ref), "POST", `/computers/${c.id}/scroll${queryDisplay(ref, await display(ref))}`, { x: Math.round(p.x), y: Math.round(p.y), direction: p.delta < 0 ? "up" : "down", amount: Math.max(1, Math.min(20, Math.round(Math.abs(p.delta) / 100) || 1)) });
     },
     async comando(ref, comando, prazoMs) {
       const c = await exigir(ref);
-      const r = await chamar<{ output?: string; exit_code?: number; success?: boolean }>(escopoDe(ref), "POST", `/computers/${c.id}/bash`, { command: comando, timeout: Math.max(1, Math.ceil(prazoMs / 1000)) });
+      const r = await chamar<{ output?: string; exit_code?: number; success?: boolean }>(escopoDe(ref), "POST", `/computers/${c.id}/bash${queryDisplay(ref, ref.telaId ? await display(ref) : null)}`, { command: comando, timeout: Math.max(1, Math.ceil(prazoMs / 1000)) });
       return { saida: r.output ?? "", codigoSaida: typeof r.exit_code === "number" ? r.exit_code : r.success === false ? 1 : 0 };
     },
     async abrirUrl(ref, url) {
@@ -291,6 +342,8 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
     criar,
     iniciar,
     async parar(ref) {
+      // Fechar uma tela no Nod não para a máquina compartilhada nem apaga o display persistente do bot.
+      if (ref.telaId) return;
       const c = await achar(ref);
       if (!c || estadoDoOrgo(c.status) !== "ligado") return;
       await chamar(escopoDe(ref), "POST", `/computers/${c.id}/stop`, {});
@@ -329,11 +382,14 @@ export function criarProvedorOrgo(o: OpcoesOrgo): ProvedorDeComputador {
       return new Set<string>();
     },
     primitivas,
-    raizDeTrabalho: "/root/workspace",
+    raizDeTrabalho: (ref) => `/root/workspaces/${ref.agenteId ?? "compartilhado"}`,
     async acessoTela(ref): Promise<AcessoTelaAoVivo> {
       const c = await chamar<ComputadorOrgo>(escopoDe(ref), "GET", `/computers/${(await exigir(ref)).id}`);
       if (!c.connection_url || !c.vnc_password) throw new FalhaComputador("sem_resposta", { detalhe: "o Orgo não deu a tela ao vivo (computador desligado?)" });
-      return { tipo: "vnc_websocket", url: urlVncDoOrgo(c.connection_url), token: c.vnc_password, validoAte: null };
+      const screen = ref.telaId ? await display(ref) : null;
+      const url = new URL(urlVncDoOrgo(c.connection_url));
+      if (screen && screen !== "default") url.searchParams.set("screen", screen);
+      return { tipo: "vnc_websocket", url: url.toString(), token: c.vnc_password, validoAte: null };
     },
   };
 }

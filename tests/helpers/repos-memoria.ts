@@ -373,6 +373,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     },
     computadorTelas: {
       buscar: async () => null, porId: async () => null, obter: async () => null, travar: async () => null, doComputador: async () => [], fila: async () => [],
+      provedorRef: async () => null, fixarProvedorRef: async () => false, provedoresRef: async () => [],
       mudarEstado: async () => false, configurar: async () => undefined, ocupar: async () => undefined, liberar: async () => undefined,
       relatar: async () => undefined, registrarFalha: async () => undefined, apagar: async () => undefined,
     },
