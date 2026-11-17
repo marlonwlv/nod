@@ -4,7 +4,7 @@ import type { OrigemTurno } from "../../src/contracts/turno.ts";
 import { criarAgente } from "../../src/use-cases/criar-agente.ts";
 import { despacharTurno } from "../../src/use-cases/despachar-turno.ts";
 import { enviarMensagem, lerConversa } from "../../src/use-cases/enviar-mensagem.ts";
-import { interromperBastidoresComTeto } from "../../src/use-cases/interromper-por-maquina.ts";
+import { interromperBastidoresComTeto, interromperPorMaquina } from "../../src/use-cases/interromper-por-maquina.ts";
 import { depsSobreTrx, executar, MARLON } from "../helpers/deps-l6.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
@@ -116,7 +116,15 @@ describeIntegracao("ADR-130: a conversa do bot tem a faixa da pessoa e a dos bas
       const candidatos = await deps.repos.turnos.bastidoresAcimaDoTeto(agora, 60_000);
       const corte = await interromperBastidoresComTeto({ ...deps, agora: () => agora, aleatorio: () => 0.5 }, candidatos);
       expect(corte.data.interrompidos).toEqual([rotina.id]);
-      expect((await deps.repos.turnos.buscar(rotina.id))?.motivoInterrupcao).toBe("turno_travado");
+      const cortado = await deps.repos.turnos.buscar(rotina.id);
+      expect(cortado).toMatchObject({ estado: "despachando", motivoInterrupcao: "turno_travado", pararSolicitadoEm: agora });
+      // A marca manda o executor parar, mas mantém a faixa ocupada até ele entregar ou perder o lease.
+      expect(await deps.repos.turnos.renovarLease(rotina.id, maquina, {}, agora)).toMatchObject({ ativo: false, motivo: "parado" });
+      expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano).toBeNull();
+
+      const depoisDoLease = (cortado?.leaseAte ?? agora) + 1;
+      const assentado = await interromperPorMaquina({ ...deps, agora: () => depoisDoLease, aleatorio: () => 0.5 }, { turnos: cortado ? [cortado] : [] });
+      expect(assentado.data.interrompidos).toEqual([rotina.id]);
       expect(await deps.repos.turnos.retomadaNaFila(rotina.id)).not.toBeNull();
       expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId).toBe(colega.id);
     });

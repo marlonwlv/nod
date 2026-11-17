@@ -1661,7 +1661,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return [];
       },
       async bastidoresAcimaDoTeto(agora, tetoMs) {
-        return b.turnos.filter((t) => t.estado === "despachando" && t.bastidores === true && !t.trabalhoId && t.despachadoEm != null && t.despachadoEm <= agora - tetoMs);
+        return b.turnos.filter((t) => t.estado === "despachando" && t.bastidores === true && !t.trabalhoId && t.pararSolicitadoEm === null && t.despachadoEm != null && t.despachadoEm <= agora - tetoMs);
+      },
+      async pedirInterrupcaoPorTeto(id, agora) {
+        const t = b.turnos.find((x) => x.id === id && x.estado === "despachando" && x.bastidores === true && !x.trabalhoId && x.pararSolicitadoEm === null);
+        if (!t) return null;
+        t.pararSolicitadoEm = agora;
+        t.motivoInterrupcao = "turno_travado";
+        return t;
       },
       async encerrarOrfao() {
         return null;
@@ -1687,7 +1694,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           for (const t of todos) if (t.retomaTurnoId && cadeia.has(t.retomaTurnoId) && !cadeia.has(t.id)) { cadeia.add(t.id); mudou = true; }
         }
         return todos.filter((t) => cadeia.has(t.id) && t.id !== exceto && t.estado === "interrompido"
-          && (MOTIVOS_DE_QUEDA as readonly string[]).includes(t.motivoInterrupcao ?? "") && !QUEDAS_FORA_DO_TETO.includes(t.motivoInterrupcao ?? "") && !(MOTIVOS_FALHA_SEM_QUEDA as readonly string[]).includes(t.motivoFalha ?? "")
+          && ((MOTIVOS_DE_QUEDA as readonly string[]).includes(t.motivoInterrupcao ?? "") || t.motivoInterrupcao === "turno_travado") && !QUEDAS_FORA_DO_TETO.includes(t.motivoInterrupcao ?? "") && !(MOTIVOS_FALHA_SEM_QUEDA as readonly string[]).includes(t.motivoFalha ?? "")
           && (ULTIMO_SINAL.get(t) ?? t.criadoEm) >= desde).length;
       },
       async reescreverFundoDoBot(agenteId: string, para: { harness: NonNullable<Turno["harness"]>; modelo: string }) {
@@ -2159,6 +2166,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         for (const t of doTenant(b.turnos)) {
           if (ids.includes(t.id) && t.estado === "despachando") {
             t.pararSolicitadoEm ??= em;
+            if (t.motivoInterrupcao === "turno_travado") t.motivoInterrupcao = null;
             n += 1;
           }
         }

@@ -97,7 +97,7 @@ export function iniciarVarredorLease(p: {
    * revisto em 2026-10-01 (ADR-067): o token de turno não expira mais por relógio, então o turno que o varredor
    * encerrou tem o token revogado aqui — senão ele ficaria vivo em memória até o servidor reiniciar.
    */
-  aoInterromper?: (turnoIds: string[]) => void;
+  aoInterromper?: (turnoIds: string[]) => void | Promise<void>;
   /** NOD-267: chamado ao TERMINAR cada tick (sucesso ou erro); o tick pulado por `rodando` não bate. */
   aoBater?: () => void;
 }): { parar(): Promise<void> } {
@@ -112,7 +112,7 @@ export function iniciarVarredorLease(p: {
     try {
       const r = await varrer(p.db, inicio, p.opcoes);
       const interrompidos = Object.values(r).flatMap((x) => x.interrompidos);
-      if (interrompidos.length) p.aoInterromper?.(interrompidos);
+      if (interrompidos.length) await p.aoInterromper?.(interrompidos);
     } finally {
       rodando = false;
       logarTickLento("varredor_lease", relogio() - inicio, intervaloMs);

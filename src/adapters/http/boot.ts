@@ -373,7 +373,14 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
         ...(app.compartilhado ? { inicioDoProcesso, ultimoContato: (id: string) => app.ultimoContatoDaMaquina(id) } : {}),
       },
       // ADR-067: o token sem relógio some junto com o turno que o lease encerrou.
-      aoInterromper: (ids) => { for (const id of ids) app.services.tokenTurno.revogar(id); },
+      aoInterromper: async (ids) => {
+        // NOD-452: no executor local, espera o SIGTERM antes de o tick terminar; no remoto a renovação vê a marca no banco.
+        await Promise.all(ids.map(async (id) => {
+          try { await app.services.interruptor.interromper(id); }
+          catch (e) { log("aviso", "interrupcao_do_varredor_falhou", { turno_id: id, erro: e instanceof Error ? e.name : "desconhecido" }); }
+          finally { app.services.tokenTurno.revogar(id); }
+        }));
+      },
       aoBater: batimentos.registrar("varredor_lease", iv.leaseMs ?? INTERVALO_VARREDOR_LEASE_MS),
     });
     varredorExpiracao = iniciarVarredorExpiracao(db, { services: app.services, useCases: app.useCases, agora, intervaloMs: iv.expiracaoMs, executor: () => app.executor }, { listarPessoas: o.listarPessoas });

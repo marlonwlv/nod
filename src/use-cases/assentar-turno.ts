@@ -38,7 +38,7 @@ import { rotinaDoTurno } from "./apoio-l7.ts";
 import { registrarDesfechoRotina } from "./disparar-rotina.ts";
 import { avisarEsperaAoRemetente } from "./entregar-resposta-peer.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
-import { aposQuedaDaMaquina } from "./interromper-por-maquina.ts";
+import { aposQuedaDaMaquina, aposTetoDosBastidores } from "./interromper-por-maquina.ts";
 import { postarNaSala } from "./postar-na-sala.ts";
 import { enfileirarVoltaDoFundo, entradaDaVoltaDoFundo, falasSemResposta, fundoNaCadeia, raizDaCadeia } from "./volta-do-fundo.ts";
 import { continuarAprovacoesDoTurno } from "./decidir.ts";
@@ -176,7 +176,10 @@ type Desfecho = { estado: "concluido" | "interrompido"; motivoInterrupcao: Motiv
  * — maquina_sem_contato, o mesmo desfecho do varredor. Sucesso depois do lease vencido é trabalho
  * TERMINADO e assenta como concluído.
  */
-export function desfechoDaEntrega(turno: Pick<Turno, "pararSolicitadoEm" | "leaseAte">, resultado: Entrega["resultado"], agora: number, o: { adotada?: boolean } = {}): Desfecho {
+export function desfechoDaEntrega(turno: Pick<Turno, "pararSolicitadoEm" | "leaseAte"> & { motivoInterrupcao?: MotivoInterrupcao | null }, resultado: Entrega["resultado"], agora: number, o: { adotada?: boolean } = {}): Desfecho {
+  // NOD-452: o pedido do teto ganhou a linha antes do processo terminar. Mesmo uma conclusão que correu junto perde
+  // para o corte já confirmado no banco; do contrário a próxima faixa poderia começar enquanto o processo velho segue.
+  if (turno.motivoInterrupcao === "turno_travado") return { estado: "interrompido", motivoInterrupcao: "turno_travado", motivoFalha: null };
   if (resultado.desfecho === "sucesso") return { estado: "concluido", motivoInterrupcao: null, motivoFalha: null };
   // definido em 2026-10-05: a conta da IA não serviu — o mesmo desfecho de quando o inventário já barra o despacho
   // (despachar-turno.ts, recusarPorExecutor): nenhum trabalho começou.
@@ -235,6 +238,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // servidor reiniciou no meio do turno adotado — a mesma regra de queda, com o motivo dela (sem aviso de queda do Mac).
   const motivoDaQuedaNaEntrega: MotivoDaQueda | null = !tardia && ehMotivoDaQueda(desfecho.motivoInterrupcao) ? desfecho.motivoInterrupcao : null;
   const quedaDaMaquina = motivoDaQuedaNaEntrega !== null;
+  const tetoDosBastidores = !tardia && desfecho.motivoInterrupcao === "turno_travado";
   // Lido AGORA: assentar zera lease_ate, e o último sinal de vida (lease − LEASE_MS) é o começo do aviso.
   const perdidoDesde = ultimoSinalDoTurno(turno, agora);
   const caiuAntes = tardia && ehMotivoDaQueda(turno.motivoInterrupcao) && resultado.desfecho !== "sucesso";
@@ -252,7 +256,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // NOD-402 (ADR-130): o turno dos bastidores da conversa que a pessoa parou (o Parar do chat também para a rotina e o
   // colega, NOD-252) não deixa no chat a fala cortada ("Vou verificar…") de um trabalho que ela nem via: a execução fica
   // no histórico da rotina, como a do pendente parado.
-  const bastidorParado = interrompido && turno.bastidores === true && !turno.trabalhoId && (desfecho.motivoInterrupcao === "parado_pela_pessoa" || turno.motivoInterrupcao === "parado_pela_pessoa");
+  const bastidorParado = interrompido && turno.bastidores === true && !turno.trabalhoId && (desfecho.motivoInterrupcao === "parado_pela_pessoa" || desfecho.motivoInterrupcao === "turno_travado" || turno.motivoInterrupcao === "parado_pela_pessoa");
   const autoria = autoriaAgente({ agenteId: turno.agenteId, contaDeExecucao: turno.ownerId, executor, machineId: entrega.machineId });
   const events: RuntimeEvent[] = [...(confirmadas?.events ?? [])];
 
@@ -502,6 +506,10 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     // A MESMA regra do varredor (interromper-por-maquina.ts): sem a linha 'sistema' e o evento daqui,
     // que dariam à rotina uma mensagem no chat e à conversa duas linhas para a mesma queda.
     const q = await aposQuedaDaMaquina(deps, assentado, { perdidoDesde, motivo: motivoDaQuedaNaEntrega });
+    events.push(...q.events);
+  } else if (tetoDosBastidores) {
+    // O processo já terminou e a transação ainda segura a linha: a retomada nasce antes de a faixa ser liberada.
+    const q = await aposTetoDosBastidores(deps, assentado, agora);
     events.push(...q.events);
   } else if (resultado.causaSemIa && contaDoTurnoId && entrega.harness && (trocou = await aposContaDaListaSemAcesso(deps, { turno, assentado, executor, contaId: contaDoTurnoId, machineId: entrega.machineId, ia: entrega.harness, causa: resultado.causaSemIa, autoria, agora, custoUsd }))) {
     events.push(...trocou);

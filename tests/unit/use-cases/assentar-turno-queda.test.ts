@@ -143,6 +143,36 @@ describe("assentarTurno: entrega depois de o Mac cair (ADR-045)", () => {
 describe("ADR-131: o motor parou no meio do turno (atualização sozinha, restart, app fechado)", () => {
   const doMotor: ResultadoTurno = { ...cortado, causa: "reinicio_do_motor" };
 
+  it("NOD-452: o corte já pedido vence até uma conclusão concorrente", () => {
+    expect(desfechoDaEntrega({ pararSolicitadoEm: T0, leaseAte: T0 + LEASE_MS, motivoInterrupcao: "turno_travado" }, pronto, T0)).toEqual({
+      estado: "interrompido",
+      motivoInterrupcao: "turno_travado",
+      motivoFalha: null,
+    });
+  });
+
+  it("NOD-452: a entrega do processo cortado libera a faixa com retomada pela política do fundo", async () => {
+    const c = await cenario("rotina");
+    const turno = c.banco.turnos.find((t) => t.id === c.turnoId)!;
+    turno.pararSolicitadoEm = T0;
+    turno.motivoInterrupcao = "turno_travado";
+    const r = await c.entregar(pronto);
+    expect(r.data.turno).toMatchObject({ estado: "interrompido", motivoInterrupcao: "turno_travado" });
+    expect(c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId)).toHaveLength(1);
+    expect(c.banco.decisoes).toEqual([]);
+  });
+
+  it("NOD-452: o Parar pedido depois do teto vence e não deixa retomada", async () => {
+    const c = await cenario("rotina");
+    const turno = c.banco.turnos.find((t) => t.id === c.turnoId)!;
+    turno.pararSolicitadoEm = T0;
+    turno.motivoInterrupcao = "turno_travado";
+    await c.deps.repos.turnos.pedirInterrupcao([c.turnoId], T0 + 1);
+    expect(turno.motivoInterrupcao).toBeNull();
+    await c.entregar(cortado);
+    expect(c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId)).toEqual([]);
+  });
+
   it("desfechoDaEntrega: a causa reinicio_do_motor é queda, não trabalho incompleto; o Parar vence; o sucesso fica sucesso", () => {
     const livre = { pararSolicitadoEm: null, leaseAte: T0 + LEASE_MS };
     expect(desfechoDaEntrega(livre, doMotor, T0)).toEqual({ estado: "interrompido", motivoInterrupcao: "reinicio_do_motor", motivoFalha: null });
