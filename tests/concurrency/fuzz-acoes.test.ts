@@ -293,6 +293,66 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
       const loteDoFuzz = (await srv.json<{ lote_id: string }>("POST", `conectores/${conectorDoFuzz.id}/acessos/lote`, { nivel: "leitura", bots: [meu.agente.id], chave: `fuzz:${randomUUID()}` })).lote_id;
       // ADA-205 (ADR-166): um token MCP da pessoa, para o `mcp.revogar_token` (`/mcp/tokens/:id`) passar da busca.
       const tokenDoFuzz = (await srv.json<{ dados: { id: string } }>("POST", "mcp/tokens", { nome: "Token do fuzz" })).dados.id;
+      // NOD-409: entidades que as ações abaixo procuram ANTES de validar o restante da entrada. Sem ids reais, o fuzz
+      // chegava ao handler, mas media só o 404/403 da busca/guarda. Há mais de uma instância dos recursos consumíveis:
+      // uma ação destrutiva não pode deixar as irmãs rasas por ter rodado primeiro na ordem da semente.
+      const sementes = await srv.app.dentro({ tenantId: sessao.tenantId, pessoaId: sessao.pessoaId }, async (d) => {
+        const agora = d.agora();
+        const decisoes: string[] = [];
+        const propostas: string[] = [];
+        for (let i = 0; i < 6; i++) {
+          const proposta = await d.repos.propostas.criar({ conversaId: meu.conversa.id, agenteId: meu.agente.id, payload: { kind: "perfil", nome: `Perfil do fuzz ${i}` } });
+          if (!proposta) throw new Error("proposta do fuzz");
+          propostas.push(proposta.id);
+          const decisao = await d.repos.decisoes.criar({ id: proposta.id, tipo: "perfil", agenteId: meu.agente.id, conversaId: meu.conversa.id, turnoId: null, prazoDecisaoEm: agora + 3_600_000, frase: `Perfil do fuzz ${i}` });
+          if (!decisao) throw new Error("decisão do fuzz");
+          decisoes.push(decisao.id);
+        }
+
+        const turnos: string[] = [];
+        for (let i = 0; i < 4; i++) {
+          const turno = await d.repos.turnos.enfileirar({ executor: "catcher", conversaId: meu.conversa.id, agenteId: meu.agente.id, origem: "conversa", prazoEm: agora + 600_000, profundidade: 0, entradaTexto: `Turno do fuzz ${i}`, entradaConfianca: "confiavel", modelo: "sonnet", harness: "claude-cli" });
+          if (!turno) throw new Error("turno do fuzz");
+          turnos.push(turno.id);
+        }
+        const incidente = await d.repos.incidentes.abrir({ tipo: "mac_sem_contato", machineId: null, comecouEm: agora - 1_000, voltouEm: agora, rotinas: 0, conversas: 1, agentes: [meu.agente.id] });
+        if (!incidente) throw new Error("incidente do fuzz");
+
+        const trabalhos: string[] = [];
+        for (let i = 0; i < 3; i++) {
+          const trabalho = await d.repos.trabalhos.criar({ agenteId: meu.agente.id, conversaId: meu.conversa.id, titulo: `Trabalho do fuzz ${i}`, origem: "pessoa", pasta: `~/nod/fuzz/trabalho-${i}` });
+          if (!trabalho) throw new Error("trabalho do fuzz");
+          trabalhos.push(trabalho.id);
+        }
+        const memorias: string[] = [];
+        const diarios: string[] = [];
+        for (let i = 0; i < 3; i++) {
+          const memoria = await d.repos.memorias.criar({ agenteId: meu.agente.id, tipo: "fato", texto: `Memória do fuzz ${i}`, origem: "pessoa" });
+          if (!memoria) throw new Error("memória do fuzz");
+          memorias.push(memoria.id);
+          const ids = await d.tx((trx) => trx<{ id: string }[]>`select id from memoria_diario where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and memoria_id = ${memoria.id} order by criado_em desc limit 1`);
+          if (ids[0]) diarios.push(ids[0].id);
+        }
+
+        const chaves: string[] = [];
+        for (let i = 0; i < 5; i++) {
+          const chave = await d.repos.maquinaTokens.criar({ nome: `Máquina do fuzz ${i}`, prefixo: randomBytes(4).toString("hex"), hash: randomBytes(32) });
+          if (!chave) throw new Error("chave de máquina do fuzz");
+          chaves.push(chave.id);
+        }
+        await d.repos.contasIa.doAnuncio(chaves[0]!, Array.from({ length: 4 }, (_, i) => ({ impressao: (i + 1).toString(16).padStart(64, "0"), ia: "claude-cli" as const, estado: "pronta" as const, plano: "Max", corporativa: false, logadaEm: agora - 60_000 })), agora);
+        const contas = (await d.repos.contasIa.listar()).contas.map((c) => c.id);
+
+        const credencial = await d.repos.credenciaisNuvem.gravar({ provedor: "gcp", projeto: "nod-fuzz-example", contaServico: "nod-fuzz@example.invalid", chaveCifrada: "cifrada-no-teste" });
+        const nuvem: string[] = [];
+        for (let i = 0; i < 3; i++) {
+          const maquina = await d.repos.maquinasNuvem.criarConectada({ credencialId: credencial.id, maquinaId: chaves[i]!, ref: { projeto: "nod-fuzz-example", zona: "southamerica-east1-a", nome: `fuzz-${i}` }, agora });
+          nuvem.push(maquina.id);
+        }
+        await d.tx((trx) => trx`update maquinas_nuvem set estado = 'dormindo', desejado = 'dormindo', estado_desde = now() where tenant_id = ${sessao.tenantId} and owner_id = ${sessao.pessoaId} and id = ${nuvem[1]!}`);
+        return { decisoes, propostas, turnos, incidentes: [incidente.id], trabalhos, memorias, diarios, contas, chaves, nuvem };
+      });
+      const salaDoFuzz = (await srv.json<{ ids: { salaId: string } }>("POST", "salas", { nome: "Sala do fuzz", agenteIds: [meu.agente.id, segundo.agente.id] })).ids.salaId;
       // O app instalado, para o `canvas.dar_acesso` (`/canvas/app/acessos/:bot`) passar da guarda "instale antes".
       await srv.json("PUT", "canvas/app", {});
       const plano = planoDoServidor({
@@ -326,6 +386,19 @@ for (const [ordem, config] of CONFIGURACOES.entries()) {
             lotes: { daPessoa: [loteDoFuzz], deOutraPessoa: [] },
             conectores: { daPessoa: [conectorDoFuzz.id], deOutraPessoa: [] },
             tokens: { daPessoa: [tokenDoFuzz], deOutraPessoa: [] },
+            decisoes: { daPessoa: sementes.decisoes, deOutraPessoa: [] },
+            propostas: { daPessoa: sementes.propostas, deOutraPessoa: [] },
+            turnos: { daPessoa: sementes.turnos, deOutraPessoa: [] },
+            incidentes: { daPessoa: sementes.incidentes, deOutraPessoa: [] },
+            salas: { daPessoa: [salaDoFuzz], deOutraPessoa: [] },
+            trabalhos: { daPessoa: sementes.trabalhos, deOutraPessoa: [] },
+            memoria: { daPessoa: sementes.memorias, deOutraPessoa: [] },
+            diario: { daPessoa: sementes.diarios, deOutraPessoa: [] },
+            "contas-ia": { daPessoa: sementes.contas, deOutraPessoa: [] },
+            chaves: { daPessoa: sementes.chaves, deOutraPessoa: [] },
+            // `/maquinas/:id` e `/nuvem/maquinas/:id` compartilham o segmento. Os casos válidos explícitos abaixo
+            // garantem o tipo certo; aqui entram ambos para manter o gerador genérico e ainda fuzzar o tipo trocado.
+            maquinas: { daPessoa: [...sementes.chaves, ...sementes.nuvem], deOutraPessoa: [] },
           },
         },
       });
