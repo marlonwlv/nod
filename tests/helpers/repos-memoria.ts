@@ -2,6 +2,7 @@ import { contasIaMemoria, estadoContasIaMemoria, type EstadoContasIaMemoria } fr
 import type { CondicaoDaVolta } from "../../src/contracts/quadro-execucoes.ts";
 import { temFalha, type EstadoDisjuntor } from "../../src/domain/disjuntor-conector.ts";
 import { ehDecisao, MOTIVOS_DE_CONECTOR_FORA } from "../../src/domain/decisoes.ts";
+import { desfechoAutorizaItemLocal } from "../../src/domain/autoridade-item-local.ts";
 import type { ConfigGithubApp } from "../../src/repositories/github-app.repo.ts";
 import type { AnexoDaConversa, MimeAnexo, RecusasMidia } from "../../src/contracts/anexo.ts";
 import type { LinhaOnboarding } from "../../src/repositories/onboarding.repo.ts";
@@ -93,7 +94,7 @@ export type BancoMemoria = {
   anexos: {
     tenantId: string; ownerId: string; id: string; conversaId: string; mensagemId: string | null; nome: string; mime: MimeAnexo; bytes: Buffer; criadoEm: number;
     // NOD-323: a mídia do bot.
-    origem?: "bot"; turnoId?: string; sha256?: string; semBytes?: boolean; caminhoRelativo?: string; machineId?: string | null; tamanho?: number; largura?: number; altura?: number; duracaoMs?: number;
+    origem?: "bot"; turnoId?: string | null; sha256?: string; semBytes?: boolean; caminhoRelativo?: string; machineId?: string | null; tamanho?: number; largura?: number; altura?: number; duracaoMs?: number;
   }[];
   midiaRecusas: Map<string, { motivo: string; n: number }[]>;
   /** ADR-051 (0031): artefato, versões e o estado por pessoa (UNIQUE tenant+artefato+owner reproduzido). */
@@ -158,6 +159,8 @@ export type BancoMemoria = {
   liberacoesDispensadas: Map<string, number>;
   /** 0033: turnos que trouxeram conteúdo da web pelas nativas. */
   contaminados: Set<string>;
+  /** 0176: subconjunto cuja única origem de contaminação foi o próprio quadro da pessoa. */
+  contaminadosSoQuadro: Set<string>;
   /** ADR-130 (0121): os turnos dos bastidores da conversa (a coluna `turnos.bastidores` do repo real). */
   bastidores: Set<string>;
   githubApp: Map<string, ConfigGithubApp>;
@@ -257,6 +260,7 @@ export function criarBancoMemoria(): { banco: BancoMemoria; repos(escopo?: Escop
     leituras: new Map(),
     liberacoesDispensadas: new Map(),
     contaminados: new Set(),
+    contaminadosSoQuadro: new Set(),
     bastidores: new Set(),
     githubApp: new Map(),
     composioSessoes: new Map(),
@@ -842,6 +846,11 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const l = { tenantId: escopo.tenantId, ownerId: escopo.pessoaId, id: randomUUID(), conversaId: a.conversaId, mensagemId: null, nome: a.nome, mime: a.mime, bytes: Buffer.from(a.conteudo), criadoEm: Date.now() };
         b.anexos.push(l);
         return { id: l.id, nome: l.nome, mime: l.mime, tamanho: l.bytes.byteLength, conversaId: l.conversaId, mensagemId: null };
+      },
+      async criarGerado(a) {
+        const l = { tenantId: escopo.tenantId, ownerId: escopo.pessoaId, id: randomUUID(), conversaId: a.conversaId, mensagemId: a.mensagemId, nome: a.nome, mime: a.mime, bytes: Buffer.from(a.conteudo), criadoEm: Date.now(), origem: "bot" as const, turnoId: a.turnoId };
+        b.anexos.push(l);
+        return { id: l.id, nome: l.nome, mime: l.mime, tamanho: l.bytes.byteLength, conversaId: l.conversaId, mensagemId: l.mensagemId, origem: "bot" as const };
       },
       async buscar(id) {
         const l = doTenant(b.anexos).find((x) => x.id === id);
@@ -1792,10 +1801,16 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async terminalLiberado(raizId: string) {
         return b.terminalLiberado.has(raizId);
       },
-      async contaminar(id: string) {
+      async contaminar(id: string, _agora: number, origem: "quadro" | "outra" = "outra") {
         if (!doTenant(b.turnos).some((t) => t.id === id && t.ownerId === escopo.pessoaId)) return false;
+        if (!b.contaminados.has(id) && origem === "quadro") b.contaminadosSoQuadro.add(id);
+        else if (origem !== "quadro") b.contaminadosSoQuadro.delete(id);
         b.contaminados.add(id);
         return true;
+      },
+      async contaminacao(id: string) {
+        if (!b.contaminados.has(id)) return "nenhuma" as const;
+        return b.contaminadosSoQuadro.has(id) ? "quadro" as const : "outra" as const;
       },
       async trabalhosDosTurnos(ids: readonly string[]) {
         return new Map(doTenant(b.turnos).filter((t) => ids.includes(t.id)).map((t) => [t.id, t.trabalhoId ?? null] as [string, string | null]));
@@ -2479,7 +2494,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async pendentesNaMaquina() {
         return doTenant(b.itens).flatMap((item) => {
           const d = doTenant(b.decisoes).find((x) => x.id === item.decisaoId);
-          if (!d || d.estado !== "decidida" || !item.selecionado || item.desfecho !== null || item.destino.execucao !== "maquina") return [];
+          // NOD-423: o mesmo predicado do SQL (desfechoAutorizaItemLocal); o fake não pode ser mais permissivo que o Postgres.
+          if (!d || d.estado !== "decidida" || !desfechoAutorizaItemLocal(d.desfecho) || !item.selecionado || item.desfecho !== null || item.destino.execucao !== "maquina") return [];
           return [{ item, decididaEm: d.desfecho ? Date.parse(d.desfecho.em) : 0, porRegra: d.desfecho?.tipo === "decidida_por_regra" }];
         });
       },

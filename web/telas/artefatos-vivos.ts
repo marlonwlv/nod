@@ -1,5 +1,5 @@
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
-import { ALTURA_INICIAL, documentoDoArtefato, iframeDoArtefato, lerMensagemDoArtefato, nomeDoArquivo } from "../lib/artefato.ts";
+import { ALTURA_INICIAL, criarFilaDeSalvamentos, documentoDoArtefato, iframeDoArtefato, lerMensagemDoArtefato, nomeDoArquivo } from "../lib/artefato.ts";
 import { botao, esc } from "../lib/render.ts";
 
 /**
@@ -51,6 +51,7 @@ export function criarArtefatosVivos(deps: DepsArtefatos) {
   const pendentes = new Map<string, { dados: unknown; timer: number }>();
   const falhas = new Map<string, number>();
   let estacionamento: HTMLDivElement | null = null;
+  const filaDeSalvamentos = criarFilaDeSalvamentos(deps.salvar);
 
   const chave = (artefatoId: string, versao: number) => `${artefatoId}:${versao}`;
   const versaoAtual = (artefatoId: string) => atuais.get(artefatoId) ?? 0;
@@ -63,7 +64,7 @@ export function criarArtefatosVivos(deps: DepsArtefatos) {
   }
 
   function gravar(artefatoId: string, dados: unknown): void {
-    deps.salvar(artefatoId, dados).then(() => status(artefatoId, ""), () => status(artefatoId, "Não foi possível salvar o que você marcou."));
+    filaDeSalvamentos.salvar(artefatoId, dados).then(() => status(artefatoId, ""), () => status(artefatoId, "Não foi possível salvar o que você marcou."));
   }
 
   function agendar(artefatoId: string, dados: unknown): void {
@@ -201,10 +202,9 @@ export function criarArtefatosVivos(deps: DepsArtefatos) {
   }
   window.addEventListener("message", aoReceber);
   window.addEventListener("pagehide", () => {
-    for (const [artefatoId, p] of pendentes) {
-      window.clearTimeout(p.timer);
-      deps.salvarAoSair(artefatoId, p.dados);
-    }
+    const noDebounce = [...pendentes].map(([id, p]) => [id, p.dados] as const);
+    for (const p of pendentes.values()) window.clearTimeout(p.timer);
+    filaDeSalvamentos.descarregarAoSair(deps.salvarAoSair, noDebounce);
     pendentes.clear();
   });
 

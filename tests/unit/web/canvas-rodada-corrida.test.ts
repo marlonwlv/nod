@@ -39,18 +39,19 @@ function montarCenario() {
     addEventListener: (t: string, f: (ev: unknown) => void) => void ouvintes.set(t, f),
   };
   const comentarios: Adiado<{ comentario: unknown }>[] = [];
+  const comentados: unknown[] = [];
   const enviados: { conversa: string; texto: string }[] = [];
   let conversa = "conv-gil";
   const api = {
     canvasDoAgente: async () => ({ canvas: [item("cvA", 2), item("cvB", 1)] }),
     verCanvas: async (id: string) => vista(id),
-    comentarCanvas: () => { const a = adiado<{ comentario: unknown }>(); comentarios.push(a); return a.promessa; },
+    comentarCanvas: (_id: string, corpo: unknown) => { const a = adiado<{ comentario: unknown }>(); comentados.push(corpo); comentarios.push(a); return a.promessa; },
     enviar: async (c: string, texto: string) => { enviados.push({ conversa: c, texto }); },
   };
   const tela = criarCanvasNaTela(doc as never, { api: () => api as never, conversa: () => conversa });
   const clicar = (cv: string, id?: string): void => ouvintes.get("click")?.({ target: { closest: (s: string) => (s === "[data-cv]" ? { dataset: { cv, ...(id ? { id } : {}) }, closest: () => null } : null) } });
   const tecla = (key: string, alvo: unknown): void => ouvintes.get("keydown")?.({ key, target: alvo, preventDefault() {}, shiftKey: false, isComposing: false });
-  return { store, tela, host, clicar, tecla, topo, nota, comentarios, enviados, trocarConversa: (c: string) => { conversa = c; } };
+  return { store, tela, host, clicar, tecla, topo, nota, comentarios, comentados, enviados, trocarConversa: (c: string) => { conversa = c; } };
 }
 
 describe("canvas-na-tela: Enviar N › com a pessoa trocando de canvas no meio", () => {
@@ -122,6 +123,33 @@ describe("canvas-na-tela: Enviar N › com a pessoa trocando de canvas no meio",
 });
 
 describe("canvas-na-tela: Esc com a nota em rascunho aberta", () => {
+  it("envia o texto visível da nota em edição, não a versão anterior", async () => {
+    const c = montarCenario();
+    c.store.set("nod.canvas.rodada.cvA", JSON.stringify([rasc("a1", "antes")]));
+    c.tela.querAbrir("cvA");
+    c.tela.montar(c.host as never, "ag1", "Gil");
+    await tique();
+    c.clicar("rascunho", "a1");
+    c.nota.value = "depois";
+    c.clicar("enviar-rodada");
+    await tique();
+    expect(c.comentados).toMatchObject([{ texto: "depois" }]);
+    c.comentarios[0]!.resolver({ comentario: { id: "k1" } });
+    await tique();
+    expect(c.store.get("nod.canvas.rodada.cvA")).toBeUndefined();
+  });
+  it("assenta a primeira nota antes de abrir outra para edição", async () => {
+    const c = montarCenario();
+    c.store.set("nod.canvas.rodada.cvA", JSON.stringify([rasc("a1", "antes"), rasc("a2", "segunda")]));
+    c.tela.querAbrir("cvA");
+    c.tela.montar(c.host as never, "ag1", "Gil");
+    await tique();
+    c.clicar("rascunho", "a1");
+    c.nota.value = "editada";
+    c.clicar("rascunho", "a2");
+    expect((JSON.parse(c.store.get("nod.canvas.rodada.cvA") ?? "[]") as { texto: string }[]).map((r) => r.texto)).toEqual(["editada", "segunda"]);
+    expect(c.nota.value).toBe("segunda");
+  });
   it("reabrir uma nota em rascunho e apertar Esc não a apaga", async () => {
     const c = montarCenario();
     c.store.set("nod.canvas.rodada.cvA", JSON.stringify([rasc("a1", "nota guardada")]));

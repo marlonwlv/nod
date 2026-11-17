@@ -79,7 +79,8 @@ import { mascararDormindo, RetryDoAcordar, type PassosDoRetry } from "./lib/retr
 import { contaApi, criarApi, minhaContaApi, ErroApi, observarRede, sessao as sessaoApi, type Api } from "./lib/api.ts";
 import { reagirACota } from "./lib/cota-provisorio.ts";
 import { resolverProvaNoNavegador } from "./lib/prova-trabalho.ts";
-import { abreProvisorio, CHAVE_EQUIPE, decidirPareamento, criarContaNoChat, equipeNoApp, fraseDoErro as fraseDoErroDeConta, linkDaEquipe, type PassoPareamento } from "./telas/conta-no-chat.ts";
+import { abreProvisorio, CHAVE_EQUIPE, decidirPareamento, criarContaNoChat, equipeNoApp, fraseDoErro as fraseDoErroDeConta, linkDaEquipe, saidaParaConta, type PassoPareamento } from "./telas/conta-no-chat.ts";
+import { etapaDaIntencao, htmlEntrarPrimeiro, intencaoDe, mostrarEntrarPrimeiro, type IntencaoEntrada } from "./telas/entrar-primeiro.ts";
 import { criarMinhaConta } from "./telas/minha-conta.ts";
 import { reduzirFoto } from "./lib/reduzir-foto.ts";
 import { deveLembrar, htmlLembrete, jaFalou, marcarFalou } from "./telas/lembrete-conta.ts";
@@ -239,6 +240,7 @@ import { renderAbaQuadros, renderAbaSuaVez, renderFolhaRecentes, renderTabBar, r
 import { ligarTecladoVisivel } from "./lib/teclado-visivel.ts";
 import type { ItemDoMenuDaPilula } from "./lib/gesto-da-pilula.ts";
 import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deveMostrarDica, escFechaABusca, gravarMarca, lerMarca, type Marcas, type ViaDaBusca } from "./lib/descoberta-da-busca.ts";
+import { comVerificadorDoProvisorio, criarTravaDeSessao } from "./lib/trava-sessao.ts";
 // NOD-117: as teclas dos atalhos mudam com o lugar (app do Mac, navegador no Mac, Windows/Linux): web/lib/atalhos.ts.
 const LUGAR_TECLADO = lugarAtual();
 const ATALHO_NOVO_BOT = atalhoDoNovoBot(LUGAR_TECLADO);
@@ -346,7 +348,11 @@ let entrada: {
   conta?: { etapa: "entrar" | "recuperar"; erro: string | null; enviadoPara: string | null; ocupado: boolean };
   /** NOD-345: a página do link de recuperação (`#redefinir=<token>`); o token sai da URL na hora. */
   redefinir?: { token: string; erro: string | null; vencido: boolean; ocupado: boolean } | null;
+  /** #81: a tela "Já usa o nod?" da primeira visita na web, antes do espaço provisório. */
+  primeiro?: { ocupado: boolean; erro: string | null } | null;
 } = { modo: null, recusado: false };
+/** Login e criação do espaço mudam o mesmo cookie; nunca podem correr em paralelo nesta aba. */
+const travaDaSessao = criarTravaDeSessao();
 
 // definido em 2026-09-24 (revisão da interface): a tela principal é o chat; quem esconde o painel do
 // bot espera achá-lo escondido na próxima conversa e no próximo carregamento.
@@ -995,6 +1001,11 @@ const telaOnboarding = criarTelaOnboarding({
   aberto: () => estado.onboardingAberto,
   hidratar: (o) => dispatch({ tipo: "hidratar-onboarding", onboarding: o }),
   abrir: (aberto) => dispatch({ tipo: "onboarding-aberto", aberto }),
+  // #78: na web, num espaço sem conta, a etapa da IA deixa entrar na conta (onde estão os bots e o motor do outro computador).
+  entrarNaConta: {
+    disponivel: () => saidaParaConta({ contas: contas !== null, noApp: window.nodDesktop !== undefined, estado: contaAtual }),
+    entrar: () => void telaConta.abrir("inicio", true),
+  },
   ligacao: { ativa: () => telaLigacao.ativa(), cheia: () => telaLigacao.cheia(), atenderOnboarding: (l) => telaLigacao.atenderOnboarding(l) },
   garantirAgente: async (agenteId) => {
     for (let i = 0; i < 6 && api; i++) {
@@ -2758,11 +2769,32 @@ function partesDaTimeline(): PartesDaTimeline | null {
  * fim. Com o histórico parado, só a parte ao vivo é mexida, e só nela se procura o que guardar: procurar no documento
  * inteiro (dezenas de milhares de nós numa conversa longa) a cada quadro de streaming custava mais que o próprio desenho.
  */
+const disclosuresAbertosEmTransicao = new Set<string>();
+// NOD-360 (CI da main, 14/11): a gravada pode entrar no histórico, ainda fechada, um instante antes de a fala que sai deixar
+// a região viva (as duas ficam ~100 ms na tela). Aberto nesse instante, o resumo da que sai valia só para ela, e a gravada
+// ficava fechada depois da troca: abrir ou fechar na região viva vale também para o mesmo `data-disclosure` do histórico.
+document.addEventListener("toggle", (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLDetailsElement) || !el.dataset.disclosure || !el.closest("#timeline-ao-vivo")) return;
+  const gravado = document.querySelector<HTMLDetailsElement>(`#timeline-historico details[data-disclosure="${CSS.escape(el.dataset.disclosure)}"]`);
+  if (gravado && gravado.open !== el.open) gravado.open = el.open;
+}, true);
 function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: { cascaMuda: boolean; historicoMuda: boolean; aoVivoMuda: boolean }): void {
   const t = estado.tela;
   const timeline = document.getElementById("timeline");
   const escopo: ParentNode = muda.historicoMuda ? document : document.getElementById("timeline-ao-vivo") ?? document;
   const abertos = [...escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure][open]")].map((el) => el.dataset.disclosure);
+  // NOD-360: o fim pode chegar em dois renders — primeiro a fala sai da região viva, depois entra no histórico.
+  // Guarda o estado nesse intervalo; no render único, `abertos` acima continua sendo a fonte normal.
+  if (muda.aoVivoMuda) {
+    for (const el of document.querySelectorAll<HTMLDetailsElement>("#timeline-ao-vivo details[data-disclosure]")) {
+      const chave = el.dataset.disclosure;
+      if (!chave) continue;
+      if (el.open) disclosuresAbertosEmTransicao.add(chave);
+      else disclosuresAbertosEmTransicao.delete(chave);
+    }
+  }
+  if (muda.historicoMuda) for (const chave of disclosuresAbertosEmTransicao) abertos.push(chave);
   const buscas = muda.cascaMuda ? ["busca-destinatario", "busca-marketplace"].map((id) => ({ id, valor: (document.getElementById(id) as HTMLInputElement | null)?.value ?? "" })) : [];
   // A pasta marcada no card de pasta sobrevive a um frame que re-renderiza a conversa no meio da escolha.
   const pastasMarcadas = [...escopo.querySelectorAll<HTMLInputElement>("input[data-pasta-de]:checked")].map((el) => ({ de: el.dataset.pastaDe ?? "", valor: el.value, foco: document.activeElement === el }));
@@ -2830,6 +2862,13 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     filtrarApps((document.getElementById("busca-marketplace") as HTMLInputElement | null)?.value ?? "");
   }
   for (const el of escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure]")) if (abertos.includes(el.dataset.disclosure)) el.open = true;
+  if (muda.historicoMuda) {
+    for (const chave of [...disclosuresAbertosEmTransicao]) {
+      if (document.querySelector(`#timeline-historico details[data-disclosure="${CSS.escape(chave)}"]`)) {
+        window.setTimeout(() => disclosuresAbertosEmTransicao.delete(chave), 1_000);
+      }
+    }
+  }
   if (muda.historicoMuda) artefatos.hidratar(timeline ?? document);
   if (muda.historicoMuda) diagramas.hidratar(timeline ?? document);
   if ((muda.historicoMuda || muda.cascaMuda) && t.tipo === "conversa") contarLinhasMostradas();
@@ -3137,17 +3176,19 @@ const contaDaEntrada = (m: Partial<NonNullable<typeof entrada.conta>>) => { entr
 function entrarPelaTela(form: HTMLFormElement): Promise<void> {
   const d = new FormData(form);
   return trabalharNaEntrada(async () => {
-    try {
-      const r = await contaApi.entrar(String(d.get("email") ?? "").trim(), String(d.get("senha") ?? ""));
-      if (r.resultado === "recusado") return contaDaEntrada({ erro: ERRO_ENTRAR });
-      if (r.resultado === "entrou" && r.trocaApp && window.nodDesktop?.trocarConta) {
-        if (await window.nodDesktop.trocarConta(r.trocaApp).catch(() => false)) return;
-        return contaDaEntrada({ erro: FALHA_TROCA_APP });
+    await travaDaSessao.executar(async () => {
+      try {
+        const r = await contaApi.entrar(String(d.get("email") ?? "").trim(), String(d.get("senha") ?? ""));
+        if (r.resultado === "recusado") return contaDaEntrada({ erro: ERRO_ENTRAR });
+        if (r.resultado === "entrou" && r.trocaApp && window.nodDesktop?.trocarConta) {
+          if (await window.nodDesktop.trocarConta(r.trocaApp).catch(() => false)) return;
+          return contaDaEntrada({ erro: FALHA_TROCA_APP });
+        }
+        window.location.reload();
+      } catch (e) {
+        contaDaEntrada({ erro: fraseDoErroDeConta(e) });
       }
-      window.location.reload();
-    } catch (e) {
-      contaDaEntrada({ erro: fraseDoErroDeConta(e) });
-    }
+    });
   });
 }
 function recuperarPelaTela(form: HTMLFormElement): Promise<void> {
@@ -3210,6 +3251,17 @@ function renderEntrada(): string {
     ? `<p class="erro" role="alert">Não foi possível entrar com essa conta. Se ela ainda não tem acesso ao nod, peça para ser cadastrada.</p>`
     : "";
   if (!m) return `<section class="tela entrar"><h1>nod</h1><p class="mudo">carregando…</p></section>`;
+  if (entrada.primeiro && m.contas) {
+    const p = entrada.primeiro;
+    return htmlEntrarPrimeiro({
+      google: m.contas.google,
+      codigoPorEmail: m.contas.onboardingTexto === true,
+      equipe: linkDaEquipe({ loginGoogle: m.modo === "google", contaGoogle: m.contas.google, noApp: false, url: sessaoApi.urlGoogle }),
+      formEmailSenha: htmlEntradaConta(),
+      ocupado: p.ocupado,
+      erro: p.erro,
+    });
+  }
   if (m.modo === "google") {
     // NOD-345: com contas, quem não é da equipe entra com o e-mail (o Google da equipe continua aqui).
     return `<section class="tela entrar"><h1>nod</h1><p>Entre com a sua conta Google.</p>${doMac}${recusa}<a class="bt pri" href="${esc(sessaoApi.urlGoogle)}">Entrar com Google</a>${m.contas ? htmlEntradaConta() : ""}</section>`;
@@ -3664,7 +3716,13 @@ async function boot(): Promise<void> {
         // tela, sem executor. Sessão do app que caiu volta à tela de entrar.
         // NOD-406: a volta recusada do Google da equipe fica na tela de entrada, com o motivo, sem abrir um provisório.
         // A marca da equipe: quem já entrou pelo Google da equipe neste navegador volta à tela de entrar.
-        if (abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() }) && (await provisorioDaWeb())) {
+        const abre = abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() });
+        // #81: na primeira visita deste navegador, pergunta "Já usa o nod?" antes de abrir um espaço provisório novo.
+        if (mostrarEntrarPrimeiro({ abreProvisorio: abre, temVerificador: temVerificador() })) {
+          entrada = { ...entrada, primeiro: { ocupado: false, erro: null } };
+          return render();
+        }
+        if (abre && (await provisorioDaWeb())) {
           await iniciarSessao(await sessaoApi.atual());
           // O link da tarefa também vale na primeira visita, no espaço provisório (revisão do PR #623).
           void abrirTarefaGuardada(); abrirQuadroGuardado();
@@ -3681,28 +3739,72 @@ async function boot(): Promise<void> {
 
 /** NOD-345: o verificador desta instalação na web (aleatório, guardado; perder = um espaço novo, o antigo fica). */
 const CHAVE_VERIFICADOR = "nod-instalacao";
-async function provisorioDaWeb(): Promise<boolean> {
-  let v: string | null = null;
-  try { v = window.localStorage.getItem(CHAVE_VERIFICADOR); } catch { /* sem storage: um verificador por visita */ }
-  if (!v || !/^[A-Za-z0-9_-]{32,128}$/.test(v)) {
-    const b = crypto.getRandomValues(new Uint8Array(32));
-    v = btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    try { window.localStorage.setItem(CHAVE_VERIFICADOR, v); } catch { /* idem */ }
+function temVerificador(): boolean {
+  try { return /^[A-Za-z0-9_-]{32,128}$/.test(window.localStorage.getItem(CHAVE_VERIFICADOR) ?? ""); } catch { return false; }
+}
+
+/**
+ * #81: a escolha na tela "Já usa o nod?". Google, código por e-mail e pareamento pedem sessão (exigirSessao no servidor):
+ * abre o espaço provisório, tira o onboarding da frente e segue para o passo escolhido. "Começar sem conta" é o de antes.
+ */
+async function seguirEntrarPrimeiro(i: IntencaoEntrada): Promise<void> {
+  if (!entrada.primeiro || entrada.primeiro.ocupado) return;
+  entrada = { ...entrada, primeiro: { ocupado: true, erro: null } };
+  render();
+  if (!(await provisorioDaWeb())) {
+    const erro = entrada.conta?.erro === LIMITE_PROVISORIO ? LIMITE_PROVISORIO : "Não deu para falar com o nod agora. Tente de novo.";
+    entrada = { ...entrada, primeiro: { ocupado: false, erro } };
+    return render();
   }
+  entrada = { ...entrada, primeiro: null };
   try {
-    await contaApi.provisorioWeb(v);
-    return true;
-  } catch (e) {
-    if (e instanceof ErroApi && e.desafio && e.bits) {
-      const resposta = await resolverProvaNoNavegador(e.desafio, e.bits);
-      if (resposta !== null) {
-        try { await contaApi.provisorioWeb(v, { desafio: e.desafio, resposta }); return true; } catch { /* mostra o limite abaixo */ }
-      }
+    await iniciarSessao(await sessaoApi.atual());
+    void abrirTarefaGuardada(); abrirQuadroGuardado();
+    await lerContas(null);
+    if (i === "sem-conta") return;
+    // O onboarding do espaço provisório abriria por cima do cartão: lido agora, ele resolve (abre uma vez) e fecha aqui.
+    if (estado.onboarding === undefined && api) dispatch({ tipo: "hidratar-onboarding", onboarding: await api.onboarding().catch(() => null) });
+    dispatch({ tipo: "onboarding-aberto", aberto: false });
+    const etapa = etapaDaIntencao(i);
+    if (etapa) return void (await telaConta.abrir(etapa, true));
+    try {
+      window.location.assign((await contaApi.google(false)).url);
+    } catch {
+      await telaConta.abrir("inicio", true);
     }
-    // Muitos espaços novos da mesma rede (NAT de escritório, CGNAT): a tela de entrada diz por quê, em vez de só aparecer.
-    if (e instanceof ErroApi && e.status === 429) entrada = { ...entrada, conta: { etapa: "entrar", enviadoPara: null, ocupado: false, ...entrada.conta, erro: LIMITE_PROVISORIO } };
-    return false;
+  } catch (e) {
+    mostrarErroDoBoot(e);
   }
+}
+async function provisorioDaWeb(): Promise<boolean> {
+  return travaDaSessao.executar(async () => {
+    // O login pode ter vencido a corrida enquanto o boot esperava a trava. Nesse caso, mantém a sessão da conta.
+    try { await sessaoApi.atual(); return true; } catch (e) { if (!(e instanceof ErroApi && e.status === 401)) return false; }
+    return comVerificadorDoProvisorio({
+      ler: () => { try { return window.localStorage.getItem(CHAVE_VERIFICADOR); } catch { return null; } },
+      gravar: (v) => { try { window.localStorage.setItem(CHAVE_VERIFICADOR, v); } catch { /* sem storage: um verificador por visita */ } },
+      gerar: () => {
+        const b = crypto.getRandomValues(new Uint8Array(32));
+        return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      },
+      abrir: async (v) => {
+        try {
+          await contaApi.provisorioWeb(v);
+          return true;
+        } catch (e) {
+          if (e instanceof ErroApi && e.desafio && e.bits) {
+            const resposta = await resolverProvaNoNavegador(e.desafio, e.bits);
+            if (resposta !== null) {
+              try { await contaApi.provisorioWeb(v, { desafio: e.desafio, resposta }); return true; } catch { /* mostra o limite abaixo */ }
+            }
+          }
+          // Muitos espaços novos da mesma rede (NAT de escritório, CGNAT): a tela de entrada diz por quê, em vez de só aparecer.
+          if (e instanceof ErroApi && e.status === 429) entrada = { ...entrada, conta: { etapa: "entrar", enviadoPara: null, ocupado: false, ...entrada.conta, erro: LIMITE_PROVISORIO } };
+          return false;
+        }
+      },
+    });
+  });
 }
 
 /** NOD-346: o servidor não diz se a conta existiu (sem enumeração); a dica cobre quem excluiu e voltou depois do prazo. */
@@ -5617,6 +5719,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   }),
   ...(telaMinhaConta.acoes as Record<string, (el: HTMLElement) => Promise<void> | void>),
   "conta-abrir": (el) => { try { marcarFalou(window.localStorage); } catch { /* sem storage */ } return telaConta.acoes["conta-abrir"]?.(el); },
+  "entrada-primeiro": (el) => { const i = intencaoDe(el.dataset.intencao); if (i) void seguirEntrarPrimeiro(i); },
   "entrada-ir": (el) => { entrada = { ...entrada, conta: { etapa: el.dataset.etapa === "recuperar" ? "recuperar" : "entrar", erro: null, enviadoPara: null, ocupado: false }, redefinir: null }; render(); },
   // NOD-345: "Mostrar" a senha troca o tipo do campo ali mesmo (o valor nunca sai do DOM).
   "conta-mostrar": (el) => {
@@ -5741,7 +5844,12 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     }
     setTimeout(() => { el.textContent = antes; }, 1500);
   },
-  entrar: (el) => agir(async () => { await iniciarSessao(await sessaoApi.entrar(el.dataset.pessoa ?? "")); void abrirTarefaGuardada(); abrirQuadroGuardado(); await lerContas(null); }),
+  entrar: (el) => agir(async () => {
+    await travaDaSessao.executar(async () => {
+      await iniciarSessao(await sessaoApi.entrar(el.dataset.pessoa ?? ""));
+      void abrirTarefaGuardada(); abrirQuadroGuardado(); await lerContas(null);
+    });
+  }),
   navegar: (el) => {
     const tela = el.dataset.tela;
     if (tela === "conectores") abrirMarketplace();
@@ -6421,7 +6529,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const agenteId = el.dataset.agente ?? estado.atividadeVista?.agenteId ?? "";
     const dia = el.dataset.dia ?? "";
     if (estado.gaveta?.nivel.tipo !== "atividade" || estado.atividadeVista?.agenteId !== agenteId) abrirNivel(agenteId, { tipo: "atividade" });
-    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho: "negada", decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
+    const filtroPedido = el.dataset.filtro;
+    const desfecho = ehFiltroDecisoes(filtroPedido) ? filtroPedido : "negada";
+    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho, decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
     focarQuandoAparecer('#detalhes [data-act="atividade-aba"][data-aba="decisoes"]', el);
   },
   "exportar-csv": () => {

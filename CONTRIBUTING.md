@@ -47,7 +47,8 @@ Enquanto trabalha, rode só o que mexeu (`npx vitest run caminho/do/teste`) e o 
 3. Preencha o template: o que muda, por quê, como testou e o que ficou de fora.
 4. A CI precisa estar verde (lint, typecheck, unit, integration, e2e, navegador e gitleaks). Ela roda em runners do
    GitHub, sem nenhum segredo, inclusive em PR de fork. PR em rascunho não roda CI: marque como pronto quando quiser.
-5. Mudança de interface leva print ou vídeo curto.
+5. Se o PR muda a interface, inclua screenshots de antes e depois. Quando “antes” não fizer sentido, mostre os
+   estados relevantes. Sem impacto visual, marque “Não se aplica” no template e justifique em uma frase.
 6. Nada de segredo, chave, IP de servidor, e-mail ou dado de pessoa real no código, nos testes ou nos commits. O job
    `gitleaks` reprova segredo; o resto é revisão.
 

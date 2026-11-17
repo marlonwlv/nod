@@ -86,6 +86,15 @@ export function anexosRepo(conn: Conn, escopo: Escopo) {
       return l ? paraAnexo(l) : null;
     },
 
+    /** NOD-414: arquivo gerado pelo servidor e já preso à resposta do bot. */
+    async criarGerado(a: { conversaId: string; mensagemId: string; turnoId: string | null; nome: string; mime: MimeAnexo; conteudo: Uint8Array }): Promise<AnexoGuardado | null> {
+      const [l] = await conn<Linha[]>`
+        insert into anexos (tenant_id, owner_id, conversa_id, mensagem_id, turno_id, nome, mime, tamanho, conteudo, origem)
+        values (${escopo.tenantId}, ${escopo.pessoaId}, ${a.conversaId}, ${a.mensagemId}, ${a.turnoId}, ${a.nome}, ${a.mime}, ${a.conteudo.byteLength}, ${semCopia(a.conteudo)}, 'bot')
+        returning ${conn.unsafe(META)}`;
+      return l ? { ...paraAnexo(l), origem: "bot" } : null;
+    },
+
     async buscar(id: string): Promise<AnexoGuardado | null> {
       const [l] = await conn<(Linha & { origem: OrigemAnexo; sem_bytes: boolean })[]>`
         select ${conn.unsafe(META)}, origem, sem_bytes from anexos where tenant_id = ${escopo.tenantId} and id = ${id}`;

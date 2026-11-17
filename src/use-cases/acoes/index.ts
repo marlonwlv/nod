@@ -7,6 +7,7 @@ import { EXECUTORES_MAQUINAS } from "./maquinas.ts";
 import { EXECUTORES_QUADRO } from "./quadro.ts";
 import { EXECUTORES_ROTINAS } from "./rotinas.ts";
 import { EXECUTORES_TIMES } from "./times.ts";
+import { EXECUTORES_DECISOES } from "./decisoes.ts";
 
 /** A união das tabelas id → executor único (ADR-135): o teste dos executores compara as chaves com as ações `vivo`. */
-export const EXECUTORES = { ...EXECUTORES_BOTS, ...EXECUTORES_QUADRO, ...EXECUTORES_CONVERSA, ...EXECUTORES_APPS, ...EXECUTORES_TIMES, ...EXECUTORES_CANVAS, ...EXECUTORES_ACESSOS, ...EXECUTORES_MAQUINAS, ...EXECUTORES_ROTINAS } as const;
+export const EXECUTORES = { ...EXECUTORES_BOTS, ...EXECUTORES_QUADRO, ...EXECUTORES_CONVERSA, ...EXECUTORES_APPS, ...EXECUTORES_TIMES, ...EXECUTORES_CANVAS, ...EXECUTORES_ACESSOS, ...EXECUTORES_MAQUINAS, ...EXECUTORES_ROTINAS, ...EXECUTORES_DECISOES } as const;

@@ -13,7 +13,10 @@ domínio está na Cloudflare, onde o Worker `nodbot-site` já foi criado com a w
 
 1. `site/` passa a ser a pasta publicada, **sem build**: a w4 em `index.html` (só o head muda), `404.html`,
    `_headers`, `_redirects`, `robots.txt`, `sitemap.xml`, ícones e `og.png`. Saem o site Vite, os scripts `site:*` e
-   o `site:build` da CI; `site` entra no `.dockerignore`.
+   o `site:build` da CI. Emenda de 2026-11-16 (NOD-494): `site/` permanece no contexto do estágio de compilação
+   Docker porque o teste do domínio canônico importa `site/worker.ts` e entra no `tsconfig.server.json`.
+   O `.dockerignore` exclui o estado local `.wrangler` e os arquivos de ambiente `.dev.vars*`/`.env*` do site.
+   O Dockerfile continua copiando apenas o app e seus artefatos para a imagem final; o site segue no Worker.
 2. O site fica **fora da GCP**, no Worker `nodbot-site` com static assets (`site/wrangler.jsonc`,
    `assets.directory: "."`, `not_found_handling: "404-page"`), publicado por `npx wrangler deploy -c site/wrangler.jsonc`.
    Não usa a integração Git do Pages: sem token no repo e sem build remoto do monorepo.

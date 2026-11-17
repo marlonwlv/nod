@@ -96,6 +96,8 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
   let modo: "pino" | "nota" | null = null;
   let novo: { endereco: string; x: number; y: number; rasc?: string } | null = null;
   let notaEm: string | null = null;
+  /** O post-it salvo que está sendo editado; ele só sai do armazenamento quando a edição termina. */
+  let notaRascunho: string | null = null;
   let rascunhos: Rascunho[] = [];
   let thread: string | null = null;
   let erroThread = "";
@@ -163,7 +165,7 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     aberto = id;
     todos = false;
     if (trocou) {
-      dados = null; layout = null; real = null; novo = null; thread = null; notaEm = null; modo = null; menu = null; vendo = null; versoes = null; comparar = false;
+      dados = null; layout = null; real = null; novo = null; thread = null; notaEm = null; notaRascunho = null; modo = null; menu = null; vendo = null; versoes = null; comparar = false;
       novaVersao = null; origemUmaVez = false; passageiros = []; fechados.clear();
       rascunhos = lerRascunhos(ler(win, chaveRodada(id)));
       fecharVivos(); desenhar();
@@ -220,7 +222,8 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     const api = o.api();
     const id = aberto;
     if (!api || !id || !dados) return;
-    menu = null; novo = null; thread = null; modo = null; notaEm = null;
+    soltarNota();
+    menu = null; novo = null; thread = null; modo = null;
     if (n === dados.canvas.versao) { vendo = null; montarMundo(); aplicarVista(); return; }
     try {
       const d = await api.verCanvas(id, n);
@@ -697,12 +700,21 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
   const salvarRascunhos = (): void => { if (aberto) guardar(win, chaveRodada(aberto), rascunhos.length ? JSON.stringify(rascunhos) : null); };
   const novoId = (): string => `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
+  function assentarNota(texto: string): void {
+    if (!notaEm) return;
+    const t = texto.trim();
+    if (notaRascunho) {
+      rascunhos = t ? rascunhos.map((r) => (r.id === notaRascunho ? { ...r, texto: t } : r)) : rascunhos.filter((r) => r.id !== notaRascunho);
+    } else if (t) rascunhos = [...rascunhos, { id: novoId(), tipo: "nota", endereco: notaEm, texto: t }];
+    salvarRascunhos();
+    notaEm = null;
+    notaRascunho = null;
+  }
+
   /** Fecha o editor de nota sem perder o que a pessoa escreveu: o texto vira rascunho do canvas aberto (Esc, outro modo, outro canvas). */
   function soltarNota(): void {
     if (!notaEm) return;
-    const t = q<HTMLTextAreaElement>("#cv-nota-in")?.value.trim() ?? "";
-    if (t) { rascunhos = [...rascunhos, { id: novoId(), tipo: "nota", endereco: notaEm, texto: t }]; salvarRascunhos(); }
-    notaEm = null;
+    assentarNota(q<HTMLTextAreaElement>("#cv-nota-in")?.value ?? "");
   }
 
   function trocarModo(m: "pino" | "nota" | null): void {
@@ -710,8 +722,8 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     soltarNota();
     modo = modo === m ? null : m;
     novo = null; thread = null;
-    if (modo === "nota") { notaEm = jornadaDoCentro(); modo = null; desenharPinos(); win?.requestAnimationFrame(() => q<HTMLTextAreaElement>("#cv-nota-in")?.focus()); }
-    else notaEm = null;
+    if (modo === "nota") { notaEm = jornadaDoCentro(); notaRascunho = null; modo = null; desenharPinos(); win?.requestAnimationFrame(() => q<HTMLTextAreaElement>("#cv-nota-in")?.focus()); }
+    else { notaEm = null; notaRascunho = null; }
     palco()?.classList.toggle("cv-modo-pino", modo === "pino");
     desenharTopo(); desenharCamada(); desenharPinos();
   }
@@ -728,9 +740,7 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
   }
   function guardarNota(texto: string): void {
     if (!notaEm || !texto.trim()) return;
-    rascunhos = [...rascunhos, { id: novoId(), tipo: "nota", endereco: notaEm, texto: texto.trim() }];
-    notaEm = null;
-    salvarRascunhos();
+    assentarNota(texto);
     desenharPinos(); desenharTopo();
     palco()?.focus();
   }
@@ -740,7 +750,9 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
     const api = o.api();
     const id = aberto;
     const d = dados;
-    if (!api || !id || !d || enviando || !rascunhos.length) return;
+    if (!api || !id || !d || enviando) return;
+    soltarNota();
+    if (!rascunhos.length) { desenharPinos(); desenharTopo(); return; }
     enviando = true; desenharTopo();
     // Revisão do #677: a conversa e o nome são os do bot de agora; a pessoa pode trocar de bot antes do recibo.
     const conversa = o.conversa?.() ?? null;
@@ -900,11 +912,12 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
       case "expandir": { const t = el.dataset["tela"] ?? ""; fechadas.delete(t); q(`.cv-tela[data-tela="${CSS.escape(t)}"]`)?.classList.remove("cv-fechada"); if (irPara(t, { real: true })) marcarHash(t); return; }
       case "thread": novo = null; soltarNota(); erroThread = ""; thread = thread === id ? null : id; desenharPinos(); desenharCamada(); if (thread) q<HTMLInputElement>("#cv-resp-in")?.focus(); return;
       case "rascunho": {
+        soltarNota();
         const r = rascunhos.find((x) => x.id === id);
-        if (!r) return;
+        if (!r) { desenharPinos(); desenharTopo(); return; }
         thread = null;
-        if (r.tipo === "pino") { novo = { endereco: r.endereco, x: r.x ?? 0.5, y: r.y ?? 0.5, rasc: r.id }; desenharCamada(); q<HTMLTextAreaElement>("#cv-novo-in")?.focus(); }
-        else { rascunhos = rascunhos.filter((x) => x.id !== id); salvarRascunhos(); notaEm = r.endereco; desenharPinos(); const n = q<HTMLTextAreaElement>("#cv-nota-in"); if (n) { n.value = r.texto; n.focus(); } desenharTopo(); }
+        if (r.tipo === "pino") { novo = { endereco: r.endereco, x: r.x ?? 0.5, y: r.y ?? 0.5, rasc: r.id }; desenharPinos(); desenharCamada(); q<HTMLTextAreaElement>("#cv-novo-in")?.focus(); }
+        else { notaEm = r.endereco; notaRascunho = r.id; desenharPinos(); const n = q<HTMLTextAreaElement>("#cv-nota-in"); if (n) { n.value = r.texto; n.focus(); } desenharTopo(); }
         return;
       }
       case "tirar-rascunho": if (novo?.rasc) { const r = novo.rasc; rascunhos = rascunhos.filter((x) => x.id !== r); novo = null; salvarRascunhos(); desenharPinos(); desenharCamada(); desenharTopo(); } return;
@@ -1062,11 +1075,12 @@ export function criarCanvasNaTela(doc: Document, o: DepsCanvasNaTela): CanvasNaT
       nome = n;
       const outro = ag !== agenteId;
       const novoHost = h !== host || !h.firstElementChild;
+      if (outro) soltarNota();
       host = h;
       ligar(h);
       if (outro) {
         agenteId = ag; lista = null; erroLista = false; aberto = null; dados = null; layout = null; todos = false; vendo = null; versoes = null;
-        blobs.clear(); ausentes.clear(); pausaBlobsAte = 0; fecharVivos(); rascunhos = []; novo = null; thread = null; balao = null; menu = null;
+        blobs.clear(); ausentes.clear(); pausaBlobsAte = 0; fecharVivos(); rascunhos = []; novo = null; notaEm = null; notaRascunho = null; modo = null; thread = null; balao = null; menu = null;
         desenhar();
         void lerLista();
       }

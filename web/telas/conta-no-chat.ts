@@ -271,6 +271,15 @@ export function decidirPareamento(s: {
   return "entrar";
 }
 
+/**
+ * #78: a saída "Entrar na sua conta" da etapa da IA do onboarding. Só na web (fora do app), com contas ligadas e num
+ * espaço sem conta e sem equipe: o provisório que a web abre sozinha para quem chega sem sessão. É ali que cai quem já
+ * usa o nod noutro computador e abre pelo celular; sem a saída, a camada da IA cobria a tela e o menu da conta.
+ */
+export function saidaParaConta(s: { contas: boolean; noApp: boolean; estado: { conta?: unknown; legado?: unknown } | null }): boolean {
+  return s.contas && !s.noApp && s.estado !== null && !s.estado.conta && !s.estado.legado;
+}
+
 /** NOD-406: no app, a equipe sai do provisório pela ponte do processo principal (o Google abriria fora do app). */
 export function equipeNoApp(s: { loginGoogle: boolean; contaGoogle: boolean; noApp: boolean; ponte: boolean }): boolean {
   return s.loginGoogle && !s.contaGoogle && s.noApp && s.ponte;

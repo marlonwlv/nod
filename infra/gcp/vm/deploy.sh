@@ -284,6 +284,8 @@ NOD_LIGACAO=${NOD_LIGACAO:-admins}
 NOD_ADMINS=${NOD_ADMINS:-}
 # NOD-415 (ADR-141): quadros só para os admins até o Marlon liberar (desligado | admins | todos).
 NOD_QUADROS=${NOD_QUADROS:-admins}
+# Emenda de 2026-11-13 (ADR-141): pessoas liberadas só para o quadro (e apps e Canvas), sem virar admin (config.env).
+NOD_QUADROS_PESSOAS=${NOD_QUADROS_PESSOAS:-}
 # NOD-421: os PRs do GitHub na tarefa (config.env); o token vem do Secret Manager, se existir.
 NOD_QUADRO_GITHUB_REPOS=$NOD_QUADRO_GITHUB_REPOS
 NOD_QUADRO_GITHUB_TOKEN=$QUADRO_GITHUB_TOKEN

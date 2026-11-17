@@ -46,6 +46,8 @@ export function temAvisosDoApp(ponte: NodDesktop | undefined): ponte is PonteAvi
 
 export function canalMac(mac: PonteAvisosDesktop, aoAbrir: (alvo: AlvoAviso) => void, aoMudar: () => void): CanalAvisos {
   let prefs: PreferenciasDesktop = { avisos: true, tema: "sistema", som: true, bloqueados: false };
+  let filaAvisos = Promise.resolve();
+  let filaSom = Promise.resolve();
   const aplicar = (lido: PreferenciasDesktop): void => {
     // App de antes de 2026-10-07 não devolve `som`: vale o padrão (ligado), sem disparar um aoMudar à toa.
     const p: PreferenciasDesktop = { ...lido, som: typeof lido.som === "boolean" ? lido.som : true };
@@ -61,7 +63,7 @@ export function canalMac(mac: PonteAvisosDesktop, aoAbrir: (alvo: AlvoAviso) => 
     // Bloqueado continua tentando: se a pessoa liberar nos Ajustes, o próximo aviso aparece e o estado volta.
     ligado: () => prefs.avisos,
     reler,
-    alternar: () => mac.definirAvisos(!prefs.avisos).then(aplicar, () => undefined),
+    alternar: () => (filaAvisos = filaAvisos.then(() => mac.definirAvisos(!prefs.avisos).then(aplicar, () => undefined))),
     // NOD-114: o app do Mac de antes do alvo "trabalho" recusa o aviso (devolve false); a segunda tentativa vai com a
     // conversa do bot, que todo app aceita. No app novo o false é foco ou aviso desligado, e a conversa cai no mesmo false.
     mostrar: (aviso) =>
@@ -77,7 +79,7 @@ export function canalMac(mac: PonteAvisosDesktop, aoAbrir: (alvo: AlvoAviso) => 
     const situacao = canal.estado;
     canal.estado = () => ({ ...situacao(), som: prefs.som });
     canal.som = () => prefs.som;
-    canal.alternarSom = () => definirSom(!prefs.som).then(aplicar, () => undefined);
+    canal.alternarSom = () => (filaSom = filaSom.then(() => definirSom(!prefs.som).then(aplicar, () => undefined)));
   }
   return canal;
 }

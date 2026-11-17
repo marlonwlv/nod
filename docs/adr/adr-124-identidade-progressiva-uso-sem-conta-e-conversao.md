@@ -112,6 +112,26 @@ recusada do Google mostra o motivo e tira a marca. Valem os gatilhos de reversã
 dias); além deles, qualquer abuso de bootstrap visível no gasto do dia. Reverter é `NOD_BOOTSTRAP` vazio no
 `config.env` e o deploy (as contas já criadas seguem entrando).
 
+### Emenda de 2026-11-16 (#81): a primeira visita na web pergunta "Já usa o nod?"
+
+Na web, a §2 criava um espaço provisório na primeira visita de qualquer navegador. Quem já tinha conta e um computador
+com o motor, e abria a web pelo celular, caía num espaço vazio sem IA, coberto pelo onboarding (#78). A partir de agora,
+na **primeira visita deste navegador** (sem o verificador `nod-instalacao`) e só onde o provisório abriria
+(`abreProvisorio`), a web mostra antes a tela "Já usa o nod?": entrar com Google, código por e-mail, e-mail e senha,
+código de outro computador e o link da equipe, ao lado de **"Começar sem conta"**, com o mesmo peso. "Começar sem conta"
+segue o caminho de antes, então o uso sem conta continua sem portão: é uma pergunta, não um cadastro.
+
+- Entrar com e-mail e senha não cria espaço. Google, código por e-mail e pareamento exigem sessão: o provisório é criado
+  no clique, o onboarding sai da frente e o cartão de conta abre na etapa escolhida. Entrar numa conta existente a partir
+  desse provisório vazio passa pela escolha da §3 (importar ou cancelar). O servidor não muda.
+- Com a conta, os bots e o despacho são os da pessoa (ADR-031, ADR-102): a web mostra os bots servidos pelo motor do
+  outro computador.
+- O app não muda: o provisório dele vem pelo processo principal, com a chave de máquina.
+
+**Gatilho de reversão:** se, nos 14 dias seguintes ao deploy, os espaços provisórios criados pela web caírem mais de 30%
+sem que as entradas em conta vindas da web subam, a pergunta virou barreira. Nesse caso, voltar a abrir o provisório
+direto e deixar a entrada só no onboarding (#79).
+
 ## Impacto nas decisões anteriores
 
 - **ADR-030:** deixa de valer a regra “login só consulta pessoa admitida”. A allowlist e a admissão por domínio ficam

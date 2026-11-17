@@ -306,7 +306,18 @@ export function estadoDoApp(a: Pick<AppDoBot, "dados" | "erroFonte" | "forma">):
 export function normalizarRetrato(v: unknown): RetratoDoApp | null {
   if (!v || typeof v !== "object") return null;
   const o = v as { itens?: unknown; texto?: unknown };
-  const corta = (x: unknown, n: number): string | undefined => (typeof x === "string" && x.trim() ? x.trim().slice(0, n) : undefined);
+  const corta = (x: unknown, n: number): string | undefined => {
+    if (typeof x !== "string") return undefined;
+    const limpo = x.trim();
+    if (!limpo) return undefined;
+    let fim = 0;
+    let pontos = 0;
+    for (const caractere of limpo) {
+      if (pontos++ === n) break;
+      fim += caractere.length;
+    }
+    return limpo.slice(0, fim);
+  };
   const itens: ItemDoRetrato[] = [];
   for (const bruto of Array.isArray(o.itens) ? o.itens.slice(0, MAX_ITENS_DO_RETRATO) : []) {
     if (!bruto || typeof bruto !== "object") continue;

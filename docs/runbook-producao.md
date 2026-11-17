@@ -191,6 +191,63 @@ perdido. Não use o `docker logs` para histórico.
    depender do fuso da VM: `sudo journalctl -u nod-motor --since "2026-10-23 16:00 UTC" --until "2026-10-23 16:35 UTC"`
    e `sudo journalctl -u nod-motor-atualizar` para as atualizações.
 
+### `executor_indisponivel` durante um deploy
+
+O inventário das máquinas conectadas vive na memória do servidor. Uma troca azul/verde recria o processo e, por alguns
+segundos, o servidor não conhece o motor que continuou no ar. O próximo `puxar` recebe a ordem de reconectar, o motor
+registra `motor_reanuncio` com `motivo=servidor_esqueceu_a_maquina` e anuncia o inventário outra vez. Turnos de fundo
+interrompidos nessa janela voltam pela régua de queda; isso não prova falha do CLI.
+
+Para separar reconexão de falha real, correlacione três fatos na mesma janela:
+
+1. no servidor, a cor ativa foi recriada pelo deploy;
+2. no journal do motor, `motor_reanuncio` é seguido por `motor_anunciou` com a IA em `pronto`;
+3. o turno tem `motivo_interrupcao=executor_indisponivel` sem `motivo_falha` terminal.
+
+Reproduza a conferência sem ler mensagens (troque apenas a janela, sempre em UTC). Em 28/10, as duas janelas de
+pico foram 03:00–05:00 UTC e 17:00–20:00 UTC:
+
+```bash
+for janela in "03:00 05:00" "17:00 20:00"; do
+  read -r inicio fim <<< "$janela"
+  sudo journalctl -u nod-motor --since "2026-10-28 $inicio UTC" --until "2026-10-28 $fim UTC" \
+    --no-pager -o short-iso | grep -E 'motor_reanuncio|motor_anunciou|Starting|Stopping|Stopped|OOM|Killed'
+  sudo journalctl -u nod-motor-atualizar --since "2026-10-28 $inicio UTC" \
+    --until "2026-10-28 $fim UTC" --no-pager
+done
+sudo journalctl --list-boots --no-pager
+```
+
+No banco, agrupe somente metadados; não selecione `entrada_texto`:
+
+```sql
+SELECT to_char(date_trunc('hour', criado_em AT TIME ZONE 'America/Sao_Paulo'), 'YYYY-MM-DD HH24:00') AS hora_brt,
+       motivo_falha, trabalho_id IS NOT NULL AS turno_de_frente, count(*) AS turnos
+  FROM turnos
+ WHERE criado_em >= timestamptz '2026-10-28 03:00:00+00'
+   AND criado_em <  timestamptz '2026-10-29 03:00:00+00'
+   AND motivo_interrupcao = 'executor_indisponivel'
+ GROUP BY 1, 2, 3
+ ORDER BY 1, 2 NULLS FIRST, 3;
+```
+
+Compare os horários com o Cloud Logging pelo comando do passo 2 acima, usando cada uma das duas janelas, e procure a
+criação da nova cor ou a ausência da antiga imediatamente antes de cada `motor_reanuncio`. Se a retenção do banco já
+expirou, a contagem histórica não pode ser refeita: preserve a saída agregada no registro do incidente e use os journals
+e o Cloud Logging para a correlação temporal.
+
+**Caso observado em 2026-10-28 (NOD-454).** Os 58 turnos de frente se distribuíram em 18, 1, 2, 3, 19, 13 e 2 nas
+horas 00, 01, 08, 09, 14, 15 e 16 de Brasília. Nas duas janelas de pico, o mesmo processo do motor permaneceu vivo;
+cada pedido `servidor_esqueceu_a_maquina` foi seguido em 1–7 s por anúncio de Claude e Codex em `pronto`. O boot da
+VM atravessou o dia, não houve OOM nem atualização do CLI nas janelas, e o Cloud Logging mostrou a cor do servidor
+sendo recriada antes dos reanúncios. A causa foi a perda esperada do inventário em memória durante deploys, não login,
+token, cota ou morte do executor. Como os turnos sem `motivo_falha` terminal entram na régua de queda e retomada, não
+houve correção de runtime.
+
+`nao_autenticado` e `motor_ausente` pedem ação na máquina; `limite_do_plano` e `sem_conta` seguem a espera da conta ou
+da cota. Se o processo do motor ficou vivo, não houve OOM e o anúncio voltou `pronto`, não atribua a interrupção a
+login, atualização do CLI ou processo morto. Investigue a troca do servidor e a latência até o reanúncio.
+
 Os mesmos exemplos, com o "como o filtro funciona", estão em [deploy-gcp.md](deploy-gcp.md#logs).
 
 ## Rollback de código: definido na NOD-173

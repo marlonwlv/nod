@@ -22,6 +22,9 @@
 .cc-rodape { margin: 0; display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
 .cc-link.bt { border: 0; background: none; color: var(--ink-2); font-size: 14px; }
 .cc-link.bt:hover { background: var(--surface-raised); color: var(--ink); }
+.entrar-primeiro .bt { min-height: 44px; }
+.entrar-primeiro .cc-campo input, .entrar-primeiro .cc-mostrar { box-sizing: border-box; min-height: 44px; }
+.entrar-primeiro .cc-mostrar { min-width: 44px; }
 .cc-erro { margin: 0; font-size: 14px; color: var(--danger); }
 .cc-ok { margin: 0; font-size: 14px; color: var(--success); }
 .cc-resolvida { align-self: center; margin: 0; font-size: 13px; color: var(--ink-3); text-align: center; }
@@ -106,6 +109,10 @@
 .linha-tempo .feito { color: var(--success); border-color: var(--success); }
 
 @media (max-width: 760px) {
+  .entrar-primeiro { margin-block: 0; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .entrar-primeiro .cc-sem-conta { position: fixed; z-index: 5; left: 12px; right: 12px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; margin: 0; padding: 8px; box-shadow: var(--shadow-pop); }
+  .entrar-primeiro .cc-sem-conta .cc-titulo, .entrar-primeiro .cc-sem-conta .cc-texto { display: none; }
+  .entrar-primeiro .cc-sem-conta .cc-acoes, .entrar-primeiro .cc-sem-conta .bt { width: 100%; justify-content: center; }
   .conta-pagina { padding-bottom: 54px; }
   .conta-cab { margin-bottom: 14px; }
   .conta-cab p { font-size: 13px; }

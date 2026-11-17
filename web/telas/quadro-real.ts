@@ -111,7 +111,7 @@ export function cardDaTarefa(t: TarefaDto, agente: AgenteDoQuadro, acesa = false
     // 2026-11-10 (uma fonte só, web/lib/estado-do-trabalho.ts): "começando" só no card otimista do mover; a fila do
     // servidor diz "na fila · motivo", o mesmo rótulo da tarefa aberta.
     ...(situacao === "comecando" ? { estadoTexto: rotuloDaSituacao("comecando") } : {}),
-    ...(situacao === "fila" ? { estadoTexto: rotuloDaSituacao("fila", { motivoFila: t.motivoFila, naFilaDesde: t.naFilaDesde, ...(o.agora ? { agora: o.agora } : {}) }) } : {}),
+    ...(situacao === "fila" ? { estadoTexto: rotuloDaSituacao("fila", { motivoFila: t.motivoFila, naFilaDesde: t.naFilaDesde, posicaoFila: t.posicaoFila, ...(o.agora ? { agora: o.agora } : {}) }) } : {}),
     ...(linha?.tipo === "esperando" ? { esperando: { motivo: linha.motivo } } : {}),
     ...(execucao === "rodando" && o.agora && t.trabalhandoDesde ? { rodandoHa: haQuanto(t.trabalhandoDesde, o.agora) } : {}),
     ...(t.status === "bloqueado" ? { motivo: t.pergunta ?? "bloqueada" } : {}),

@@ -49,6 +49,12 @@ export type EstadoTelaOnboarding = {
    * bots" usa o mesmo cartão de Provedores de IA (tela 5 do plano das IAs); sem ela, as telas de 2026-10-05.
    */
   iasMac?: UiIas | null;
+  /**
+   * #78: na web (fora do app), num espaço sem conta que a própria web criou. Quem já usa o nod noutro computador abre o
+   * nod pelo celular ou por outro navegador e cai aqui; a IA dos bots dele está no motor do outro computador, na conta
+   * dele. A etapa da IA ganha a saída "Entrar na sua conta"; sem ela, a camada cobria a tela inteira sem caminho de volta.
+   */
+  entrarNaConta?: boolean;
 };
 
 // ---- textos -------------------------------------------------------------------------------------------------------------
@@ -437,7 +443,7 @@ export function conexaoDepoisDoVeredito(c: ConexaoIa, v: TesteDeIa): ConexaoIa |
 }
 
 // ---- 2c. as telas da IA -----------------------------------------------------------------------------------------------------
-type TelaExecutor = Pick<EstadoTelaOnboarding, "dados" | "procurando" | "iaEntrando" | "notaIa" | "teste" | "iasMac">;
+type TelaExecutor = Pick<EstadoTelaOnboarding, "dados" | "procurando" | "iaEntrando" | "notaIa" | "teste" | "iasMac" | "entrarNaConta">;
 
 /** A pergunta do nod e a resposta da IA (os três pontinhos enquanto ela não vem). */
 function htmlProva(nome: string | null, nomeIa: string, resposta: string | null): string {
@@ -545,7 +551,8 @@ export function htmlExecutor(e: TelaExecutor): string {
     return htmlListaDeIas(e, t, tela === "testando" ? "testando" : "sem_ia");
   }
   const cabeca = `<div class="ob-cabeca"><h1>A IA dos seus bots</h1><p>Seus bots trabalham com a conta que você já assina, aqui ${nesteMac()}. O nod nunca vê sua senha nem sua chave.</p></div>`;
-  if (e.procurando) return `<section class="ob-tela ob-executor" aria-label="A IA dos seus bots">${cabeca}<div class="ob-procurando" role="status">${GIRA}Procurando o Claude Code e o Codex ${nesteMac()}…</div><p class="ob-nota"></p></section>`;
+  const conta = htmlEntrarNaConta(e);
+  if (e.procurando) return `<section class="ob-tela ob-executor" aria-label="A IA dos seus bots">${cabeca}<div class="ob-procurando" role="status">${GIRA}Procurando o Claude Code e o Codex ${nesteMac()}…</div><p class="ob-nota"></p>${conta}</section>`;
   const cards = CARDS_IA.map((c) => {
     if (!comIa(c)) {
       return `<div class="ob-card-ia em-breve" aria-disabled="true"><div class="ob-ia-linha"><span class="ob-logo">${LOGOS_IA[c.id]}</span><div class="ob-ia-txt"><b>${esc(c.nome)}</b><span>Em breve</span></div></div></div>`;
@@ -553,7 +560,16 @@ export function htmlExecutor(e: TelaExecutor): string {
     return htmlCardIa(c, estadoDoCardIa(c.ia, e.dados.executor.ias, e.iaEntrando), null);
   }).join("");
   const nota = e.notaIa ?? "Dá para trocar ou adicionar outra depois, em Seu espaço › Provedores de IA.";
-  return `<section class="ob-tela ob-executor" aria-label="A IA dos seus bots">${cabeca}<div class="ob-cards-ia">${cards}</div><p class="ob-nota" role="status">${esc(nota)}</p></section>`;
+  return `<section class="ob-tela ob-executor" aria-label="A IA dos seus bots">${cabeca}<div class="ob-cards-ia">${cards}</div><p class="ob-nota" role="status">${esc(nota)}</p>${conta}</section>`;
+}
+
+/**
+ * #78: a saída da etapa da IA para quem já tem conta (a web num espaço sem conta, `entrarNaConta`). O clique fecha a camada
+ * e abre o cartão de conta na conversa do Nod, com as mesmas portas do menu da conta: e-mail, código e o Google da equipe.
+ */
+export function htmlEntrarNaConta(e: Pick<EstadoTelaOnboarding, "entrarNaConta">): string {
+  if (!e.entrarNaConta) return "";
+  return `<div class="ob-outra-conta"><p>Já usa o nod em outro computador? Seus bots e a IA deles estão na sua conta.</p><button type="button" class="ob-pilula contorno" data-act="onboarding-entrar-na-conta">Entrar na sua conta</button></div>`;
 }
 
 /**

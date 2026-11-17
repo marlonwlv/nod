@@ -693,6 +693,10 @@ describe("ADA-16 (ADR-163): o card diz rodando, na fila há X min ou esperando",
     expect(h).not.toMatch(/limite|vaga/);
   });
 
+  it("2026-11-13: o card mostra a posição da tarefa quando há mais de uma na fila", () => {
+    expect(html({ execucao: "fila", naFilaDesde: 1, motivoFila: null, posicaoFila: { n: 2, m: 5 } })).toContain("na fila (2 de 5) há 12 min");
+  });
+
   it("2026-11-10 (uma fonte só): \"começando\" só no card otimista do mover; a fila do servidor diz \"na fila · motivo\"", () => {
     const servidor = html({ execucao: "fila", naFilaDesde: agora - 30_000, motivoFila: "mesma_tarefa" });
     expect(servidor).not.toContain("começando");
