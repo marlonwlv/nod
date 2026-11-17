@@ -3,6 +3,7 @@
 // preso numa conexão que também recebe batimentos.
 import net from 'node:net';
 import process from 'node:process';
+import { clearTimeout, setTimeout } from 'node:timers';
 
 let entrada = '';
 for await (const parte of process.stdin) entrada += parte;
