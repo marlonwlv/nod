@@ -232,8 +232,8 @@ function lateralDaTarefa(conn: Conn, tenantId: string) {
 
 function selectComTurno(conn: Conn, tenantId: string, recorte: ReturnType<Conn>) {
   return conn<LinhaComTurno[]>`
-    select m.*, t.origem as turno_origem, t.bastidores as turno_bastidores, case when t.despachado_em - greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) >= make_interval(secs => ${FILA_SEGURA_MS / 1000}) then t.despachado_em else greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) end as turno_criado_em, t.midia_recusas, t.motivo_recomeco, t.parar_solicitado_em as turno_parado_em, coalesce(t.trabalho_id, o.trabalho_id) as trabalho_id, rz.raiz_id, rz.raiz_origem,
-      coalesce(w.forma = 'frente' and w.lote_id is not null, false) as frente_de_lote,
+    select m.*, t.origem as turno_origem, t.bastidores as turno_bastidores, case when t.despachado_em - greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) >= make_interval(secs => ${FILA_SEGURA_MS / 1000}) then t.despachado_em else greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) end as turno_criado_em, t.midia_recusas, t.motivo_recomeco, t.parar_solicitado_em as turno_parado_em, coalesce(case when w.origem = 'rede' and m.criado_em < w.criado_em then null else t.trabalho_id end, o.trabalho_id) as trabalho_id, rz.raiz_id, rz.raiz_origem,
+      coalesce(w.forma = 'frente' and w.lote_id is not null and not (w.origem = 'rede' and m.criado_em < w.criado_em), false) as frente_de_lote,
       -- O desfazendo preso (a máquina sumiu) aparece como falhou: a tela oferece "Tentar de novo" e não prende o bot (NOD-54).
       case when ck.estado = 'desfazendo' and ck.pedido_em < now() - make_interval(secs => ${PRAZO_DESFAZENDO_MS / 1000}) then 'falhou' else ck.estado end as ck_estado,
       ck.arquivos as ck_arquivos, ck.total as ck_total, ck.feitos as ck_feitos, ck.desfeito_em as ck_desfeito_em, ck.resultado as ck_resultado,
@@ -319,7 +319,18 @@ const autorDaLinha = (conn: Conn) => conn`case when m.autor_tipo = 'agente'
  * de engenharia, item 8): tem assunto nulo, mas a web a esconde (mora na tela da task); conta como `anexo`, senão um dia de
  * cinco frentes enchia a janela delas. Só a fala do bot: a da pessoa fica no chat (a da rede foi escrita no chat).
  */
-const falaDeTrabalho = (conn: Conn) => conn`(m.assunto is null and m.kind = 'texto' and m.autor_tipo = 'agente' and t.trabalho_id is not null)`;
+const falaDeTrabalho = (conn: Conn) =>
+  conn`(m.assunto is null and m.kind = 'texto' and m.autor_tipo = 'agente' and t.trabalho_id is not null and not ${antesDaRede(conn)})`;
+
+/**
+ * ADR-187 §3 (definido em 2026-11-17, rodada de validação das duas pesquisas): a fala que o bot disse no turno ANTES de a
+ * rede de 2 min o promover continua da conversa — a resposta à pergunta à parte não some. Só o que veio depois é da frente.
+ * `trabalhos.criado_em` e `mensagens.criado_em` são `clock_timestamp()`, então a comparação vale também dentro de uma
+ * transação de teste.
+ */
+function antesDaRede(conn: Conn) {
+  return conn`exists (select 1 from trabalhos wr where wr.tenant_id = t.tenant_id and wr.id = t.trabalho_id and wr.origem = 'rede' and m.criado_em < wr.criado_em)`;
+}
 
 /**
  * O recorte da janela da conversa própria (listarComTurno com `comDestino`): `chat` são os `limite` itens de chat mais
@@ -691,7 +702,7 @@ export function mensagensRepo(conn: Conn, escopo: Escopo) {
           order by m.criado_em desc, m.id desc limit ${TETO_ANEXOS_DA_JANELA}
         )
         select ${conn.unsafe(COLUNAS_MENSAGEM.split(", ").map((c) => `m0.${c}`).join(", "))}, ${colunaPrimeira(conn, "m0")},
-          coalesce(w0.forma = 'frente' and w0.lote_id is not null, false) as frente_de_lote
+          coalesce(w0.forma = 'frente' and w0.lote_id is not null and not (w0.origem = 'rede' and m0.criado_em < w0.criado_em), false) as frente_de_lote
         from (select id from chat union all select id from fora) j
         join mensagens m0 on m0.tenant_id = ${escopo.tenantId} and m0.id = j.id
         left join turnos t0 on t0.tenant_id = m0.tenant_id and t0.id = m0.turno_id

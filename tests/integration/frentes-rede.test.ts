@@ -8,7 +8,7 @@ import { criarTokenTurno } from "../../src/services/token-turno.ts";
 import { assentarTurno } from "../../src/use-cases/assentar-turno.ts";
 import { promoverNaRede } from "../../src/use-cases/coordenar-trabalhos.ts";
 import { emitirPlanoTurno } from "../../src/use-cases/emitir-plano-turno.ts";
-import { agenteComConversa, autoriaPessoa } from "../helpers/fabricas.ts";
+import { agenteComConversa, autoriaAgente, autoriaPessoa } from "../helpers/fabricas.ts";
 import { PESSOA_MARLON, TENANT_PADRAO } from "../helpers/ids.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { depsSobre, servicosDeTeste } from "../helpers/l5.ts";
@@ -189,6 +189,28 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
       const r = await promoverNaRede(m.deps, { turnoId: vivo.id, despachadoEm: Date.now() - REDE_MS, fezFerramenta: true, harness: null, sessaoCli: null, maquinaBifurca: false, modo: "conversa" });
       expect(r.data.trabalho).toBeNull();
       expect((await m.repos.turnos.buscar(vivo.id))?.trabalhoId).toBeNull();
+    });
+  });
+
+  // ADR-187 §3 (rodada de validação de 2026-11-17, roteiro das duas pesquisas): o turno promovido levava para a frente as
+  // falas que o bot já tinha dito nele, inclusive a resposta à pergunta à parte ("Dois mais dois é 4"), e elas sumiam do chat.
+  it("as falas do bot ditas antes da promoção ficam na conversa; só as de depois são da frente", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx, "codex-cli");
+      await m.falaDaPessoa("faça duas pesquisas em paralelo");
+      const vivo = await m.turno({ texto: "faça duas pesquisas em paralelo" });
+      await m.despachar(vivo.id);
+      const fala = (texto: string) => m.repos.mensagens.criar({ conversaId: m.conversaId, turnoId: vivo.id, autoria: autoriaAgente(m.agenteId, PESSOA_MARLON), kind: "texto", texto, confianca: "confiavel" });
+      const antes = (await fala("Dois mais dois é 4."))!;
+
+      const frente = (await m.promover(vivo.id, { sessaoCli: null, maquinaBifurca: false })).data.trabalho!;
+      const depois = (await fala("O texto do queijo ficou pronto."))!;
+
+      const chat = await m.repos.mensagens.listarComTurno(m.conversaId, 50);
+      expect(chat.find((x) => x.id === antes.id)?.trabalhoId).toBeNull();
+      expect(chat.find((x) => x.id === depois.id)?.trabalhoId).toBe(frente.id);
+      // A tela da frente continua com o turno inteiro (o que veio antes é o começo do trabalho).
+      expect((await m.repos.mensagens.doTrabalho(frente.id)).map((x) => x.id)).toEqual(expect.arrayContaining([antes.id, depois.id]));
     });
   });
 });
