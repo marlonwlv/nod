@@ -313,6 +313,19 @@ function detalhes(c: ContaIa, x: ContextoContas, d:{ email: string | null; organ
     </div>`;
 }
 
+/**
+ * definido em 2026-11-17: "Em uso" sem filtro fazia a pessoa achar que a conta servia a todos os bots, e o bot da VM onde
+ * o login dela venceu parava com "nenhuma IA está pronta". Pronta em todas as máquinas conectadas: "Em uso". Senão diz
+ * onde ("Em uso na nod-motor-teste", "Em uso no Mac e mais 1").
+ */
+export function emUsoOnde(c: ContaIa, x: Pick<ContextoContas, "maquinas">): string {
+  const conectadas = x.maquinas.filter((m) => m.conectada && m.papel !== "computador");
+  const onde = conectadas.filter((m) => prontaEm(c, m.id));
+  if (onde.length === 0 || onde.length === conectadas.length) return "Em uso";
+  const [primeira, ...resto] = onde.map((m) => nomeCurto(m, x.maquinas));
+  return `Em uso na ${primeira}${resto.length ? ` e mais ${resto.length}` : ""}`;
+}
+
 function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null): string {
   const filtro = x.ui.filtro;
   const fora = filtro !== null && !prontaEm(c, filtro);
@@ -320,7 +333,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
   const nome = nomeDaContaNaTela(c);
   const [classe, estado] = noLimite(c, x.agora)
     ? ["e-limite", `No limite até ${quandoNaTela(c.noLimiteAte!, x.agora)}`]
-    : c.id === usada ? ["e-uso", filtro ? `Em uso na ${nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas)}` : "Em uso"]
+    : c.id === usada ? ["e-uso", filtro ? `Em uso na ${nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas)}` : emUsoOnde(c, x)]
     : c.entraNaTrocaAutomatica ? ["e-disp", "Disponível"] : ["e-fora", "Fora da fila"];
   const ident = [d?.email, d?.organizacao ? `organização ${d.organizacao}` : null, `pelo ${PROVEDOR[c.ia].cli}`].filter(Boolean).join(" · ");
   const renomear = x.ui.renomear === c.id

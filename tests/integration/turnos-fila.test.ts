@@ -211,10 +211,14 @@ describeIntegracao("fila de turnos (ADR-010): enviar → despachar → assentar,
       const deps = depsSobreTrx(trx, MARLON);
       const { data: criado } = await executar(deps, criarAgente, { dono: "pessoa" });
       const { data: enviado } = await executar(deps, enviarMensagem, { conversaId: criado.conversa.id, texto: "oi", inventario: PRONTO });
-      const { data, events } = await executar(deps, despacharTurno, { machineId: randomUUID(), executor: "local", inventario: { estado: "nao_autenticado", motivo: "faça login no claude", em: 5 } });
+      const machineId = randomUUID();
+      const { data, events } = await executar(deps, despacharTurno, { machineId, executor: "local", inventario: { estado: "nao_autenticado", motivo: "faça login no claude", em: 5 } });
       expect(data).toMatchObject({ plano: null, motivo: "executor_indisponivel" });
       expect(await deps.repos.turnos.buscar(enviado.turno.id)).toMatchObject({ estado: "interrompido", motivoInterrupcao: "executor_indisponivel", motivoFalha: "nao_autenticado" });
-      expect((await deps.repos.mensagens.ultimaDaConversa(criado.conversa.id))?.texto).toContain("nenhuma IA pronta na máquina deste bot");
+      const negacao = await deps.repos.mensagens.ultimaDaConversa(criado.conversa.id);
+      expect(negacao?.texto).toContain("nenhuma IA pronta na máquina deste bot");
+      // definido em 2026-11-17: a negação leva a máquina que recusou, para a web dizer o estado das contas NELA.
+      expect(negacao?.payload).toMatchObject({ kind: "negacao", maquina: machineId });
       expect(events.map((e) => e.kind)).toEqual(["turno_interrompido", "mensagem_criada"]);
     });
   });

@@ -696,6 +696,8 @@ details[open] > summary .rx-seta { transform: translateY(-4px) rotate(45deg); }
 
 /* O "/" do campo (definido em 2026-09-28; canvas "Comandos /"): a lista acima do campo, a dica e o chip na mensagem. */
 .composer { position: relative; }
+/* O aviso de falha do microfone do ditado, logo acima da caixa (web/telas/ditado-controle.ts). */
+.composer .ditado-aviso { margin: 0 0 8px; }
 .barra-lista { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; width: min(660px, 100%); max-height: 420px; overflow: auto;
   display: flex; flex-direction: column; gap: 1px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
   box-shadow: var(--shadow-pop); }

@@ -11,8 +11,14 @@ describe("descreverNegacao (ADR-029: nome, causa e relógio)", () => {
   });
   it("tempo esgotado não se chama 'servidor fora': diz que não respondeu a tempo e o que fazer", () => {
     const t = descreverNegacao({ classe: "conector_indisponivel", nome: "gmail__GMAIL_FETCH_EMAILS", motivo: "timeout_transporte", desde: agora, terminal: false }, agora);
-    expect(t).toBe("conector gmail__GMAIL_FETCH_EMAILS não respondeu a tempo: a chamada pode ser grande demais; tente pedir menos itens ou só metadados");
+    expect(t).toMatch(/^conector gmail__GMAIL_FETCH_EMAILS não respondeu a tempo: o resultado é desconhecido\./);
+    expect(t).toContain("tente pedir menos itens ou só metadados");
     expect(t).not.toContain("servidor fora");
+  });
+  it("tempo esgotado numa ação que altera algo: pode ter sido concluída, conferir antes de repetir ou dizer que falhou", () => {
+    const t = descreverNegacao({ classe: "conector_indisponivel", nome: "gerir_bots", motivo: "timeout_transporte", desde: agora, terminal: false }, agora);
+    expect(t).toContain("pode ter sido concluída mesmo assim");
+    expect(t).toContain("antes de repetir ou de dizer que falhou");
   });
   it("NOD-157: acesso recusado (401/403) não se chama 'servidor fora': diz que o app recusou e pede reconexão", () => {
     const t = descreverNegacao({ classe: "conector_indisponivel", nome: "gmail__GMAIL_FETCH_EMAILS", motivo: "falha_tecnica", causa: "acesso_recusado", desde: agora, terminal: false }, agora);

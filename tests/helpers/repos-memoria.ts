@@ -2942,6 +2942,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         b.concessoes.push(concessao);
         return concessao;
       },
+      async concederVarias(c) {
+        const saida: Concessao[] = [];
+        for (const capacidade of new Set(c.capacidades)) {
+          const nova = await this.conceder({ agenteId: c.agenteId, conectorId: c.conectorId, capacidade, mensagemId: c.mensagemId });
+          if (nova) saida.push(nova);
+        }
+        return saida;
+      },
       async buscar(id) {
         return doTenant(b.concessoes).find((c) => c.id === id) ?? null;
       },

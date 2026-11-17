@@ -35,8 +35,8 @@ export type PreferenciasDesktop = {
 };
 
 /**
- * O acesso do macOS ao microfone (definido em 2026-10-04, ADR-071): "concedido" pode pedir o microfone; "negado" a
- * pessoa desligou nos Ajustes do Sistema; "restrito" um perfil de gestão do Mac proíbe.
+ * O acesso do sistema ao microfone (definido em 2026-10-04, ADR-071): "concedido" pode pedir o microfone; "negado" a
+ * pessoa desligou nos Ajustes do Sistema (ou nas Configurações do Windows); "restrito" um perfil de gestão do Mac proíbe.
  */
 export type EstadoMicrofone = "concedido" | "negado" | "restrito";
 
@@ -90,7 +90,7 @@ export type PonteIas = {
 // ADR-101: as várias contas ficam em contas-desktop.ts (o teto de 200 linhas por contrato).
 export type { ContaNaTela, ContasNaTela, DetalheDaConta, DetalhesDasContas, PonteContas } from "./contas-desktop.ts";
 
-export type NodDesktop = import("./desktop-barra.ts").PonteBarraDesktop & import("./desktop-conta-app.ts").PonteContaNoApp & import("./desktop-esta-maquina.ts").PonteEstaMaquina & import("./remover-computador.ts").PonteRemoverDesktop & { // NOD-119 barra; ADA-242 conta; ADA-243 estaMaquina; ADA-245 remover
+export type NodDesktop = import("./desktop-barra.ts").PonteBarraDesktop & import("./desktop-microfone.ts").PonteMicrofone & import("./desktop-conta-app.ts").PonteContaNoApp & import("./desktop-esta-maquina.ts").PonteEstaMaquina & import("./remover-computador.ts").PonteRemoverDesktop & { // NOD-119 barra; ADA-242 conta; ADA-243 estaMaquina; ADA-245 remover
   /** Mostra o aviso só se a janela do nod não estiver na frente; devolve se mostrou. */
   avisar?(aviso: AvisoDesktop): Promise<boolean>;
   /** O número no ícone do Dock: pedidos abertos (0 apaga). */
@@ -148,52 +148,8 @@ export type NodDesktop = import("./desktop-barra.ts").PonteBarraDesktop & import
   vmTentarAgora?(): Promise<void>; // NOD-93: retoma já o download pausado da VM local (sem a VM: nada). Ausente = app antigo.
   aoAbrir?(fn: (alvo: AlvoAviso) => void): void; // a pessoa clicou num aviso: a web abre o alvo.
   aoBuscar?(fn: (acao: "abrir" | "proxima" | "anterior") => void): void; // NOD-42: Editar › Buscar (ausente = app antigo).
-  aoDeepLink?(fn: () => void): void; deepLinkPendente?(): Promise<AlvoAviso | null>; // NOD-136: aviso sem dado; o pull esvazia a fila.
+  aoDeepLink?(fn: () => void): void;
+  deepLinkPendente?(): Promise<AlvoAviso | null>; // NOD-136: aviso sem dado; o pull esvazia a fila.
 };
 
-/** Canais de IPC da janela web; nenhum outro chega ao processo principal por ela. */
-export const CANAIS_DESKTOP = {
-  avisar: "nod:avisar",
-  contador: "nod:contador",
-  preferencias: "nod:preferencias",
-  definirAvisos: "nod:definir-avisos",
-  definirTema: "nod:definir-tema",
-  definirSom: "nod:definir-som", definirBarra: "nod:definir-barra", barraInicial: "nod:barra-inicial", definirDecisaoBarra: "nod:definir-decisao-barra", decisoesBarraIniciais: "nod:decisoes-barra-iniciais", // NOD-119: a barra
-  abrir: "nod:abrir", buscar: "nod:buscar", deepLink: "nod:deep-link", deepLinkPendente: "nod:deep-link-pendente", // NOD-42, NOD-136
-  microfone: "nod:microfone", estaMaquina: "nod:esta-maquina", // ADA-243: a chave pareada deste computador
-  emLigacao: "nod:em-ligacao",
-  iaEntrar: "nod:ia-entrar",
-  iaInstalar: "nod:ia-instalar",
-  iaTestar: "nod:ia-testar",
-  // definido em 2026-10-09 (PonteIas): o estado único e as ações dentro do app; `iaMudou` vai do processo principal à página.
-  iaEstados: "nod:ia-estados",
-  iaInstalarNoApp: "nod:ia-instalar-no-app",
-  iaEntrarNoApp: "nod:ia-entrar-no-app",
-  iaAbrirLink: "nod:ia-abrir-link",
-  iaColarCodigo: "nod:ia-colar-codigo",
-  iaCancelar: "nod:ia-cancelar",
-  iaVerificar: "nod:ia-verificar",
-  iaAtualizar: "nod:ia-atualizar", // NOD-9 (2026-10-23): atualizar o CLI pelo app.
-  iaMudou: "nod:ia-mudou",
-  // definido em 2026-10-12 (ADR-101): as várias contas; `contasMudaram` vai do processo principal à página.
-  contasListar: "nod:contas-listar",
-  contasUsar: "nod:contas-usar",
-  contasAdicionar: "nod:contas-adicionar",
-  contasRemover: "nod:contas-remover",
-  contasFecharFalha: "nod:contas-fechar-falha",
-  contasMover: "nod:contas-mover",
-  contasRenomear: "nod:contas-renomear",
-  contasDefinirModo: "nod:contas-definir-modo",
-  contasDefinirTroca: "nod:contas-definir-troca",
-  contasMudaram: "nod:contas-mudaram",
-  // ADR-102 (2026-10-13): e-mail e organização das contas deste Mac, para a lista única da tela.
-  contasDetalhes: "nod:contas-detalhes",
-  trocarConta: "nod:trocar-conta", // NOD-345 (ADR-124): a troca de espaço depois de entrar numa conta pela janela do app.
-  desafioConta: "nod:desafio-conta",
-  googleAbrir: "nod:google-abrir", googleIr: "nod:google-ir", googleCancelar: "nod:google-cancelar", esteComputadorJaViu: "nod:este-computador-ja-viu", esteComputadorMarcar: "nod:este-computador-marcar", // ADA-242
-  souDaEquipe: "nod:sou-da-equipe", // NOD-406: a equipe sai do espaço provisório e volta à tela de conexão de antes.
-  vmTentarAgora: "nod:vm-tentar-agora", // NOD-93 (ADR-127): o "tentar agora" do download pausado da VM local.
-} as const;
-
-/** Tetos do que a página pode mandar ao macOS (o corpo que a web redige tem até 140). */
-export const LIMITES_AVISO = { titulo: 120, corpo: 300, id: 64, contador: 9_999 } as const;
+export { CANAIS_DESKTOP, LIMITES_AVISO } from "./desktop-canais.ts";

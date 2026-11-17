@@ -1,16 +1,14 @@
 import type { ContasNoLimite, IaComConta } from "./contas-ia.ts";
-import type { AnexoDaConversa, RecusasMidia, TipoAnexo } from "./anexo.ts";
+import type { TipoAnexo } from "./anexo.ts";
 import type { PayloadLinhaLigacao } from "./ligacao.ts";
-import type { Autoria } from "./evento.ts";
 import type { IdHarness } from "./harness.ts";
 import type { CAUSA_LIMITE, CausaSemIa } from "./inventario.ts";
-import type { EpochMs, TenantId } from "./ids.ts";
+import type { EpochMs } from "./ids.ts";
 import type { CausaNativa } from "./negacao.ts";
 import type { EstadoTrabalho, OrigemTrabalho } from "./trabalho.ts";
-import type { ContaNoLimite, MotivoRecomeco, OrigemTurno } from "./turno.ts";
+import type { ContaNoLimite } from "./turno.ts";
 import type { PayloadTrocaDeIa } from "./troca-de-ia.ts";
 import type { PayloadRotinaEvento, PayloadRotinaRitmo } from "./rotina.ts";
-import type { Destino } from "./destino-no-chat.ts";
 import type { PayloadPedidoRespondido, PayloadPeerPedido } from "./troca-entre-bots.ts";
 import type { AncoraDoConsentimento, PayloadPropostaDecidida, PayloadRegraPermanente } from "./cartao-encolhido.ts";
 import type { DesfechoItem, DesfechoRotina, MotivoFalhaComputador, MotivoNegacao, MotivoPasse } from "./motivos.ts";
@@ -70,7 +68,7 @@ export type PayloadMensagem =
    * `ia` não. A web decide "já voltou" e nomeia a IA por `ia`; valor fora do catálogo da web não vale (nada se infere).
    * As negações gravadas antes não o têm: a web nunca conclui "já voltou" por inferência de outra IA.
    */
-  | { kind: "negacao"; classe: "ferramenta_negada" | "conector_indisponivel" | "plano_ausente"; nome: string; motivo: MotivoNegacao; terminal: boolean; causa?: CausaSemIa; modelo?: string; causaNativa?: CausaNativa; vezes?: number; ia?: IdHarness; anexo?: TipoAnexo; /** jornada C: fala fixa sem IA, turno guardado (src/domain/sem-ia.ts) */ aguardaIa?: true }
+  | { kind: "negacao"; classe: "ferramenta_negada" | "conector_indisponivel" | "plano_ausente"; nome: string; motivo: MotivoNegacao; terminal: boolean; causa?: CausaSemIa; modelo?: string; causaNativa?: CausaNativa; vezes?: number; ia?: IdHarness; anexo?: TipoAnexo; /** a máquina que recusou o turno no despacho (id da chave); a web diz o estado das contas nela */ maquina?: string; /** jornada C: fala fixa sem IA, turno guardado (src/domain/sem-ia.ts) */ aguardaIa?: true }
   /**
    * definido em 2026-10-05: o bot em "automático" passou a responder por outra IA porque a conta da primeira não
    * serviu. Linha de sistema, dita uma vez por troca; o turno que falhou foi repetido na outra IA.
@@ -164,36 +162,4 @@ export type PayloadMensagem =
   | PayloadPropostaDecidida | { kind: "aviso_pessoa" } | import("./destino-no-chat.ts").PayloadTarefaLinha // NOD-114: a fala `texto` com que o bot avisou a pessoa por conta própria (avisar_pessoa); ADA-28: a linha que aponta para a tarefa.
   | { kind: "turno_preso"; maquinaId: string; /** QA do NOD-314: a IA em que o turno está fixado (harnessFixado); null/ausente = Automático. */ ia?: string | null }; // NOD-314: pendente preso 24 h a uma máquina sem contato saiu da fila.
 
-export type Mensagem = {
-  tenantId: TenantId;
-  id: string;
-  conversaId: string;
-  turnoId: string | null;
-  autoria: Autoria;
-  kind: KindMensagem;
-  texto: string;
-  payload: PayloadMensagem | null;
-  confianca: Confianca;
-  /** Turno interrompido no meio do streaming deixa a fala parcial marcada (ADR-010). */
-  parcial: boolean;
-  criadoEm: EpochMs;
-  anexos?: AnexoDaConversa[]; // ADR-046 (só metadados); na fala do bot, a captura (NOD-200) e a mídia dele (ADR-126)
-  midiaRecusas?: RecusasMidia; // NOD-323: o que o bot não conseguiu anexar (código e contagem), na fala final
-  /**
-   * definido em 2026-10-07 (ADR-083, épico #188): de onde veio o turno que gravou a mensagem, para a web agrupar sem
-   * adivinhar. `origemTurno`: a origem do turno (null = sem turno, como a fala da pessoa); `trabalhoId`: o trabalho do
-   * turno (null = turno da conversa); `fimDoTurno`: é a última fala de um turno já encerrado — as outras falas desse
-   * turno foram do meio (ADR-067). Ausentes = servidor anterior ao épico.
-   */
-  origemTurno?: OrigemTurno | null;
-  /**
-   * definido em 2026-10-12 (ADR-099, I7 revista): o turno de uma retomada leva a raiz da cadeia dele (o turno que ela continua, até 10
-   * saltos). A execução de rotina e o pedido de colega não viram mais trabalho: sem a raiz, a resposta da pessoa, a volta marcada e o retorno das frentes saíam da linha agrupada "da rotina" / "Pedido do …".
-   */
-  raiz?: { turnoId: string; origem: OrigemTurno };
-  trabalhoId?: string | null; fimDoTurno?: boolean;
-  bastidores?: boolean; turnoDesde?: number; // NOD-402 (ADR-130): gravada por turno dos bastidores da conversa; `turnos.criado_em` (relógio do banco, o das mensagens). Ausentes = não, ou servidor antigo.
-  motivoRecomeco?: MotivoRecomeco; // NOD-312: o turno da fala recomeçou sem a sessão. Ausente = normal ou servidor antigo.
-  destino?: Destino; tarefa?: import("./destino-no-chat.ts").TarefaDaMensagem; // ADR-114: o destino da tabela DESTINO, resolvido no servidor (só na conversa própria); ADA-28: a tarefa do turno.
-  checkpoint?: import("./checkpoint.ts").CheckpointDaFala; // NOD-54 (ADR-134): na fala final do turno que mudou arquivos, o "Desfazer N arquivos" do ⋯. Ausente = sem checkpoint ou vencido.
-};
+export type { Mensagem } from "./mensagem-modelo.ts";

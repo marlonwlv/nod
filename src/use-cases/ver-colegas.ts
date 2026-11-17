@@ -68,6 +68,8 @@ export const verColegas: CasoNod<Deps, "ver_colegas"> = async (deps, input) => {
       id: a.id,
       nome: a.nome,
       titulo: a.titulo,
+      // definido em 2026-11-16: sem o time, o Nod não conferia o "mover" nem dizia em que time cada bot ficou.
+      secao: a.secao ? a.secao : null,
       descricao: inteiro ? a.descricao : cortar(a.descricao, DESCRICAO_RESUMIDA),
       rotinas: rotinas.map((r) => ({ id: r.id, quando: quandoDaRotina(r), estado: r.estado, instrucao: cortar(r.instrucao, inteiro ? INSTRUCAO_INTEIRA : INSTRUCAO_ROTINA_NO_PROMPT) })),
       apps,
