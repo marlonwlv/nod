@@ -101,7 +101,7 @@ import { reduzirFoto } from "./lib/reduzir-foto.ts";
 import { criarLoja } from "./react/loja.ts";
 import { deveLembrar, htmlLembrete, jaFalou, marcarFalou } from "./telas/lembrete-conta.ts";
 import type { EstadoContaDto } from "../src/contracts/conta.ts";
-import { alternarTexto } from "./lib/textos-abertos.ts";
+import { alternarTexto, versaoDosTextos } from "./lib/textos-abertos.ts";
 import { criarLeituraDeNovo } from "./lib/leitura-de-novo.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
 import { criarSondaDeRede } from "./lib/sonda-de-rede.ts";
@@ -3336,7 +3336,7 @@ function partesDaTimeline(): PartesDaTimeline | null {
   // O chip de link do Slack diz "mensagem das HH:MM" no mesmo dia e "de DD/MM" depois: o dia é um extra.
   // Chat limpo (PR 7): o progresso das frentes na fala lê o ao vivo e o relógio, então não entra aqui — a fala leva só o
   // lugar dele, que `progressoNaTela` enche depois (web/telas/progresso-na-fala.ts); a fala não é regravada quando uma frente anda.
-  const historico = lembrar("timeline-historico", estado, [new Date().toDateString(), versaoDasFases(), versaoDasDecisoesDaBarra(), barraNaConversa, ehCelular()], (e) => {
+  const historico = lembrar("timeline-historico", estado, [new Date().toDateString(), versaoDasFases(), versaoDasDecisoesDaBarra(), barraNaConversa, ehCelular(), versaoDosTextos()], (e) => {
     const conversa = conversaDaTela(e);
     return conversa ? blocosDoHistorico(conversa, e) : [];
   });

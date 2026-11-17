@@ -122,3 +122,17 @@ describe("Não lidos: linha fixa abaixo de Trabalhos, fora do topo", () => {
     expect(css("casca.css")).toContain("& .linha-fixa-cont.linha-fixa-novas { color: var(--signal);");
   });
 });
+
+describe("ADR-185: abrir o texto parado redesenha o histórico memorizado", () => {
+  it("a versão dos textos abertos sobe a cada clique e entra nas dependências do histórico", async () => {
+    const { alternarTexto, versaoDosTextos, textoAberto } = await import("../../../web/lib/textos-abertos.ts");
+    const antes = versaoDosTextos();
+    expect(alternarTexto("x")).toBe(true);
+    expect(textoAberto("x")).toBe(true);
+    expect(versaoDosTextos()).toBe(antes + 1);
+    expect(alternarTexto("x")).toBe(false);
+    const m = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
+    expect(m).toMatch(/lembrar\("timeline-historico", estado, \[[^\]]*versaoDosTextos\(\)\]/);
+  });
+});
+
