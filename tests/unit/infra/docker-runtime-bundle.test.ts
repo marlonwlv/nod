@@ -8,3 +8,11 @@ describe("bundle da imagem HTTP", () => {
     expect(dockerfile).toMatch(/RUN node -e .*src\/adapters\/http\/server\.ts/);
   });
 });
+
+describe("runtime da imagem do computador", () => {
+  it("prepara a pasta dos sockets antes de iniciar os dois processos", () => {
+    const runtime = readFileSync("infra/computador/docker-runtime.mjs", "utf8");
+    expect(runtime).toContain("await mkdir(run, { recursive: true })");
+    expect(runtime.indexOf("await mkdir(run")).toBeLessThan(runtime.indexOf("spawn(process.execPath"));
+  });
+});

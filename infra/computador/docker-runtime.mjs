@@ -1,7 +1,12 @@
 // O container compartilhado tem dois processos de privilégio igual: o supervisor (perfis/display) e o terminal
 // (comandos no workspace isolado pelo bwrap). Um derruba o outro para o restart do Docker recuperar o conjunto inteiro.
 import { spawn } from 'node:child_process';
+import { chmod, mkdir } from 'node:fs/promises';
 import process from 'node:process';
+
+const run = process.env.NOD_PC_RUN ?? '/tmp/nod-pc';
+await mkdir(run, { recursive: true });
+await chmod(run, 0o700);
 
 const filhos = ['terminal.mjs', 'supervisor.mjs'].map((arquivo) => spawn(process.execPath, [arquivo], {
   cwd: import.meta.dirname,
