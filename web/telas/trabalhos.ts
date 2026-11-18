@@ -253,9 +253,9 @@ function pedidaPor(t: TrabalhoDto, estado: Estado): string {
  * O topo da tela da task, no lugar do cabeçalho: o chip (ponto vivo, mascote, título, tempo) e a linha "task do Dev 1,
  * pedida pelo Chico · com os acessos do Dev 1 · pasta …". Quando o computador do bot está com outro trabalho, diz qual.
  */
-export function renderTopoTrabalho(estado: Estado, id: string): string {
+export function renderTopoTrabalho(estado: Estado, id: string, fileira?: (fim: string) => string): string {
   const t = trabalhoPorId(estado, id);
-  if (!t) return '<div class="tk-topo"><span class="tk-chip">carregando a tarefa…</span></div>';
+  if (!t) return fileira ? `<div class="tk-topo tk-topo-abas">${fileira("")}</div>` : '<div class="tk-topo"><span class="tk-chip">carregando a tarefa…</span></div>';
   const bot = agente(estado, t.agenteId);
   const nome = bot?.nome ?? "bot";
   // definido em 2026-10-08 (QA do épico, K7): no pedido de colega, o chip mostra quem pediu › quem faz.
@@ -272,6 +272,15 @@ export function renderTopoTrabalho(estado: Estado, id: string): string {
   const espera = t.esperandoComputadorDe ? `<p class="tk-espera" role="status">esperando o computador do ${esc(nome)} (em uso por: ${esc(t.esperandoComputadorDe)})</p>` : "";
   // Paper 15b (rodada 2): a frente tem "← Conversa" à esquerda e "Parar frente" à direita, no topo; a linha de quem pediu
   // desce para o começo da conversa da frente (`metaDaFrente`). A task de outra forma segue como era.
+  // ADR-187 §6 (lote B, passo 3, 2026-11-18): com a fileira de abas, ela é o topo — "‹ Conversa" e o título moram nela; o
+  // status (que abre o cartão do tempo) e o Parar ficam no fim dela, à direita, até o Parar ir para o campo.
+  if (fileira) {
+    const parar = aberto(t) ? `<button type="button" class="tk-parar-frente" data-act="parar-trabalho" data-id="${esc(t.id)}">${ICONE_PARAR}Parar</button>` : "";
+    const cartao = abertoCartao ? (t.forma === "frente" ? cartaoDoTempoDaFrente(t, estado.agora, bot?.cor) : cartaoDoTempo(t, estado.agora)) : "";
+    const linha = t.forma === "frente" ? "" : `<p class="tk-linha">${esc(linhaDeQuemPediu(t, estado))}</p>`;
+    const extras = `${linha}${espera}${linhaDaEsperaDaMaquina(t, estado)}${linhaDaEsperaDaConta(t, estado.agora)}${acoesDeFazer(t, estado, t.conversaId)}`;
+    return `<div class="tk-topo tk-topo-abas">${fileira(botaoStatus + parar)}${cartao}${extras ? `<div class="tk-topo-extras">${extras}</div>` : ""}</div>`;
+  }
   if (t.forma === "frente") {
     const voltar = `<button type="button" class="tk-voltar" data-act="fechar-trabalho" aria-label="Voltar para a conversa">${ICONE_VOLTAR}<span>Conversa</span></button>`;
     const parar = aberto(t) ? `<button type="button" class="tk-parar-frente" data-act="parar-trabalho" data-id="${esc(t.id)}">${ICONE_PARAR}Parar tarefa</button>` : "";

@@ -187,7 +187,7 @@ export function progressoFechado(chave: string, fechado: boolean): void {
 }
 
 const ROTULO: Record<EstadoNaFala, string> = { pronta: "pronta", rodando: "rodando", precisa: "precisa de você", esperando: "esperando", parada: "parada", falhou: "não terminou", sem_noticia: "sem notícia" };
-const IC_OK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+export const IC_OK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 
 function icone(e: EstadoNaFala): string {
   if (e === "pronta") return `<span class="progresso-ic pronta">${IC_OK}</span>`;

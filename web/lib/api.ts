@@ -492,6 +492,8 @@ export function criarApi(escopo: Escopo) {
     // 0059: o aviso fechado fica com a pessoa (ADR-187 §5, a dica das tarefas, uma vez por pessoa).
     fecharAviso: (chave: string) => post<Preferencias>("preferencias/avisos-fechados", { chave }),
     pararTrabalho: (id: string) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/parar`),
+    // ADR-187 §6 (2026-11-18): o nome novo da tarefa, dado na aba.
+    renomearTrabalho: (id: string, titulo: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/titulo`, { titulo }),
     // NOD-377: o Cobrar e o Desistir da espera de colega vencida.
     cobrarEspera: (agenteId: string, tarefaId: string) => post<{ ok: true; cobradoEm: number; cobrancas: number }>(`agentes/${encodeURIComponent(agenteId)}/esperas-de-colega/${encodeURIComponent(tarefaId)}/cobrar`),
     desistirDaEspera: (agenteId: string, tarefaId: string) => post<{ ok: true }>(`agentes/${encodeURIComponent(agenteId)}/esperas-de-colega/${encodeURIComponent(tarefaId)}/desistir`),

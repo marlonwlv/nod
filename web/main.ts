@@ -165,7 +165,9 @@ import { rolaAoTopoAoNavegar } from "./lib/rolagem.ts";
 import { anunciosDeFim, aoEsconder, aoSumir, SEM_PROGRESSO, teclaNaPilula, type ProgressoNaTela } from "./lib/pilula.ts";
 import { criarPilulaNaTela } from "./lib/pilula-na-tela.ts";
 import { memoriaNaPilula, pilulaNaConversa, type NovaTarefaNaAba, type Pilula } from "./telas/pilula-do-bot.ts";
-import { botAceitaTarefa, CHAVE_DICA_TAREFAS, dicaDasTarefasPendente, PLACEHOLDER_NOVA_TAREFA, renderNovaTarefa, renderTopoNovaTarefa } from "./telas/nova-tarefa.ts";
+import { botAceitaTarefa, CHAVE_DICA_TAREFAS, dicaDasTarefasPendente, PLACEHOLDER_NOVA_TAREFA, renderNovaTarefa } from "./telas/nova-tarefa.ts";
+import { abasDoBot, htmlDoMenuDaAba, htmlDoMenuDasOutras, outrasDaFileira, renderFileiraDeAbas } from "./telas/abas-de-tarefa.ts";
+import { abrirAba, CHAVE_DAS_ABAS, fecharAba, gravarAbas, lerAbas, podarAbas, tarefaAcabou, trocarDeTela, vizinhaAoFechar, type AbaDeTarefa } from "./lib/abas-de-tarefa.ts";
 import { guardarCampo, restaurarCampo } from "./lib/campos-de-decisao.ts";
 import { renderNovoBot } from "./telas/novo-bot.ts";
 import { renderNovaRotina } from "./telas/nova-rotina.ts";
@@ -257,7 +259,7 @@ import { criarPaleta } from "./lib/paleta-na-tela.ts";
 import { itensDaPaleta, type ItemPaleta } from "./lib/paleta.ts";
 import { aguardandoPorAgente, contadorDosTrabalhos, rotuloDosTrabalhos, textoAguardando } from "./lib/aguardando.ts";
 import { pedidosAbertos } from "./lib/avisos.ts";
-import { aberto, abertosDoBot, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, trabalhoPorId, trabalhosConhecidos } from "./lib/trabalhos.ts";
+import { aberto, abertosDoBot, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "./lib/trabalhos.ts";
 import type { EventoTrilhaQuadro } from "../src/contracts/trilha-quadro.ts";
 import { criarTelemetria } from "./lib/telemetria-linhas.ts";
 import { chaveDaAtividade, criarVigiaDaAtividade, diaLocal, ehFiltroAtividade, fusoLocal, rotuloDoDia } from "./lib/atividade-do-bot.ts";
@@ -531,6 +533,26 @@ function contarLinhasMostradas(): void {
  * sessionStorage desta aba e, na próxima sessão, a task abre de novo. As outras telas abrem como sempre.
  */
 const CHAVE_TASK_ABERTA = "nod.taskAberta";
+
+/**
+ * ADR-187 §6 (lote B, passo 3, definido em 2026-11-18): as abas das tarefas que a pessoa abriu (as regras moram em
+ * web/lib/abas-de-tarefa.ts). Quais estão abertas fica no localStorage deste navegador, conveniência de quem vê; sem
+ * storage, a fileira funciona do mesmo jeito, só não lembra depois de recarregar.
+ */
+let abasDeTarefa: AbaDeTarefa[] = (() => {
+  try { return lerAbas(window.localStorage.getItem(CHAVE_DAS_ABAS)); } catch { return []; }
+})();
+function guardarAbas(novas: AbaDeTarefa[]): void {
+  const mudou = gravarAbas(novas) !== gravarAbas(abasDeTarefa);
+  abasDeTarefa = novas;
+  if (!mudou) return;
+  try { window.localStorage.setItem(CHAVE_DAS_ABAS, gravarAbas(novas)); } catch { /* sem storage, as abas valem só nesta página */ }
+}
+/** A aba com o nome em edição (duplo clique, F2 ou "Renomear"): o campo é redesenhado com o texto e o cursor de agora. */
+let renomeandoAba: { id: string; texto: string; inicio: number | null; fim: number | null } | null = null;
+/** O nome novo, enquanto o servidor não devolve a tarefa com ele (a aba não pisca o nome velho). */
+const titulosDasAbas = new Map<string, string>();
+let ultimoCliqueNaAba: { id: string; em: number } | null = null;
 function lembrarTaskAberta(tela: Tela): void {
   try {
     if (tela.tipo === "trabalho") window.sessionStorage.setItem(CHAVE_TASK_ABERTA, JSON.stringify({ id: tela.id, voltar: tela.voltar.tipo === "conversa" || tela.voltar.tipo === "trabalhos" ? tela.voltar : { tipo: "inicio" } }));
@@ -3101,6 +3123,7 @@ function renderPrincipal(): void {
   let composer: { chave: string; html: string } | null = null;
   // Item 5 do chat: sem nada para pintar da conversa nova, a anterior fica na tela até 80 ms (corte seco, sem "carregando").
   let segurarTimeline = false;
+  let comAbas = false;
   switch (t.tipo) {
     case "novo-bot":
       corpo = renderNovoBot(estado);
@@ -3138,8 +3161,13 @@ function renderPrincipal(): void {
       // ADR-167 (Paper 16): "Por bot | Por frente" no topo; o filtro escolhido é a vista por frente.
       corpo = temDonos(estado) && !t.filtro ? renderTrabalhosPorBot(estado) : renderTodosOsTrabalhos(estado, t.filtro, temDonos(estado));
       break;
-    case "trabalho":
-      cabecalho = renderTopoTrabalho(estado, t.id);
+    case "trabalho": {
+      // ADR-187 §6 (Paper 4k e 4p): a tarefa em tela cheia, com a fileira de abas no topo.
+      sincronizarAbas(t.id);
+      // O bot vem da tarefa ou, enquanto ela carrega (recém-criada, recarregada), da aba guardada.
+      const botDaAba = trabalhoPorId(estado, t.id)?.agenteId ?? abasDeTarefa.find((a) => a.id === t.id)?.agenteId;
+      cabecalho = renderTopoTrabalho(estado, t.id, botDaAba ? fileiraDeAbas(botDaAba, t.id) : undefined);
+      comAbas = !!botDaAba;
       // Por blocos como a conversa (definido em 2026-10-08, revisão W1, ADR-061): o texto ao vivo só mexe na parte ao vivo.
       partes = partesDaTask(t.id);
       anunciarSubagentes(t.id);
@@ -3149,12 +3177,16 @@ function renderPrincipal(): void {
         ? { chave: `trabalho:${t.id}`, html: htmlComposer("Mensagem para esta tarefa", [], { seletor: true }) }
         : { chave: `trabalho:${t.id}`, html: htmlComposer("Escreva para esta tarefa…", [], { seletor: true }) + htmlAcoesDaTask(t.id) };
       break;
+    }
     case "linha":
       corpo = `<div class="timeline tk-timeline">${renderTelaLinha(estado, t)}</div>`;
       break;
     // ADR-187 §7 (Paper 3b): a tarefa nova, limpa; a primeira mensagem a cria (criarTarefaNova).
     case "nova-tarefa":
-      cabecalho = renderTopoNovaTarefa(estado, t.agenteId);
+      // ADR-187 §6 (Paper 4p): a tarefa nova entra na fileira como a aba "Nova tarefa", ativa, até a primeira mensagem.
+      sincronizarAbas(null);
+      cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null)("")}</div>`;
+      comAbas = true;
       corpo = renderNovaTarefa(estado, t.agenteId, levarContextoNaTarefa);
       composer = { chave: `nova-tarefa:${t.agenteId}`, html: htmlComposer(PLACEHOLDER_NOVA_TAREFA, [], { seletor: true }) };
       break;
@@ -3200,6 +3232,8 @@ function renderPrincipal(): void {
   buscaNaConversa.encaixar(document.getElementById("cabecalho"));
   document.getElementById("cabecalho")?.classList.toggle("so-menu", cabecalho === "");
   document.getElementById("cabecalho")?.classList.toggle("cabecalho-task", t.tipo === "trabalho" || t.tipo === "nova-tarefa");
+  document.getElementById("cabecalho")?.classList.toggle("cabecalho-abas", comAbas);
+  focarRenomeio();
   // Plano "tela limpa" (2026-10-16, T1): na conversa própria o cabeçalho é a pílula flutuante sobre o chat.
   document.getElementById("cabecalho")?.classList.toggle("cabecalho-pilula", t.tipo === "conversa");
   marcarPainelNaPilula();
@@ -4700,6 +4734,11 @@ function telaDeOrigem(): Tela {
 
 /** O que muda fora do reducer quando a tela troca: por `navegar` ou, na NOD-370, quando o bot da conversa saiu da frota. */
 function aoTrocarDeTela(antes: Tela, tela: Tela): void {
+  // ADR-187 §6: sair de uma tarefa que terminou fecha a aba dela (a de entrada é aberta no render, que conhece o bot).
+  if (antes.tipo === "trabalho" && (tela.tipo !== "trabalho" || tela.id !== antes.id)) {
+    guardarAbas(trocarDeTela(abasDeTarefa, { saindo: antes.id, acabou: tarefaAcabou(trabalhoPorId(estado, antes.id)?.estado), entrando: null }));
+    if (renomeandoAba?.id === antes.id) renomeandoAba = null;
+  }
   // NOD-380: a janela que cresce até a fala achada vale enquanto a pessoa está naquela conversa.
   if (alvoDaBusca && ((tela.tipo !== "conversa" && tela.tipo !== "sala") || tela.conversaId !== alvoDaBusca.conversaId)) alvoDaBusca = null;
   // A gaveta aberta só para um nível (ou a sobreposta, na janela estreita) fecha quando a conversa muda.
@@ -4737,6 +4776,124 @@ function abrirTrabalho(id: string): void {
 function fecharTask(): void {
   const voltar = telaAoFechar(estado.tela);
   if (voltar) navegar(voltar);
+}
+
+// ---- ADR-187 §6 (lote B, passo 3, 2026-11-18): a fileira de abas da tarefa (Paper 4j opção 1, 4o e 4p) ----------------
+
+/** A tarefa à vista vira aba (agora que o bot dela é conhecido) e saem as que a tela não conhece mais. */
+function sincronizarAbas(ativa: string | null): void {
+  let lista = abasDeTarefa;
+  const tr = ativa ? trabalhoPorId(estado, ativa) : undefined;
+  if (tr) lista = abrirAba(lista, { id: tr.id, agenteId: tr.agenteId });
+  if (estado.trabalhos) lista = podarAbas(lista, (id) => trabalhoPorId(estado, id) !== undefined, ativa);
+  guardarAbas(lista);
+  for (const [id, titulo] of titulosDasAbas) if (trabalhoPorId(estado, id)?.titulo === titulo) titulosDasAbas.delete(id);
+}
+
+/** A fileira do bot da tela; `fim` é o que renderTopoTrabalho põe à direita (o status e o Parar). */
+function fileiraDeAbas(agenteId: string, ativa: string | null): (fim: string) => string {
+  return (fim) => renderFileiraDeAbas(estado, {
+    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas,
+    renomeando: renomeandoAba && renomeandoAba.id === ativa ? renomeandoAba : null,
+    novaTarefa: botAceitaTarefa(estado, agenteId) ? { texto: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria } : null,
+  });
+}
+
+/** "‹ Conversa": a conversa do bot da fileira (a fileira some lá); sem ela na frota, o Fechar de sempre. */
+function voltarParaAConversa(agenteId: string): void {
+  const bot = estado.frota?.agentes.find((a) => a.id === agenteId);
+  if (bot?.conversaId) navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
+  else fecharTask();
+}
+
+/** O × da aba (e "Fechar aba" no menu): a à vista dá lugar à da direita, à da esquerda ou, sem nenhuma, à Conversa. */
+function fecharAbaDeTarefa(id: string): void {
+  if (!id) return;
+  const t = estado.tela;
+  const ativa = t.tipo === "trabalho" && t.id === id;
+  const agenteId = abasDeTarefa.find((a) => a.id === id)?.agenteId ?? trabalhoPorId(estado, id)?.agenteId ?? "";
+  const vizinha = ativa ? vizinhaAoFechar(abasDoBot(estado, abasDeTarefa, agenteId, id), id) : null;
+  if (renomeandoAba?.id === id) renomeandoAba = null;
+  guardarAbas(fecharAba(abasDeTarefa, id));
+  if (!ativa) { render(); return; }
+  if (vizinha) abrirTrabalho(vizinha);
+  else voltarParaAConversa(agenteId);
+}
+
+/** O menu da aba (Paper 4p): pela seta ⌄, pelo clique direito, pelo toque longo e pela tecla de menu. */
+function abrirMenuDaAba(id: string, ancora: HTMLElement, ponto?: { x: number; y: number }): void {
+  if (!id) return;
+  const r = ancora.getBoundingClientRect();
+  abrirMenuDaBarra(htmlDoMenuDaAba(trabalhoPorId(estado, id)), ancora, ponto ?? { x: r.left - 4, y: r.bottom }, (b) => {
+    const acao = b.dataset.abaAcao;
+    if (acao === "renomear") comecarRenomeio(id);
+    else if (acao === "tarefas") navegar({ tipo: "trabalhos" });
+    else if (acao === "fechar") fecharAbaDeTarefa(id);
+    else if (acao === "parar") void agir(async () => {
+      await api!.pararTrabalho(id);
+      dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
+    });
+  });
+}
+
+/** "N outras ⌄": as abas que não couberam e as tarefas abertas do bot que a pessoa ainda não abriu. */
+function abrirMenuDasOutras(agenteId: string, ancora: HTMLElement): void {
+  const t = estado.tela;
+  const outras = outrasDaFileira(estado, abasDeTarefa, agenteId, t.tipo === "trabalho" ? t.id : null);
+  const r = ancora.getBoundingClientRect();
+  abrirMenuDaBarra(htmlDoMenuDasOutras(outras), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
+    if (b.hasAttribute("data-tela-tarefas")) navegar({ tipo: "trabalhos" });
+    else if (b.dataset.id) abrirTrabalho(b.dataset.id);
+  });
+}
+
+/** O nome entra em edição na própria aba (que passa a ser a à vista), com o texto todo selecionado. */
+function comecarRenomeio(id: string): void {
+  const tr = trabalhoPorId(estado, id);
+  if (!tr) return;
+  const t = estado.tela;
+  if (t.tipo !== "trabalho" || t.id !== id) abrirTrabalho(id);
+  const texto = titulosDasAbas.get(id) ?? tituloCurto(tr.titulo);
+  renomeandoAba = { id, texto, inicio: 0, fim: texto.length };
+  render();
+}
+
+/**
+ * Enter (ou sair do campo) salva; Esc desfaz. O nome novo aparece na hora (`titulosDasAbas`) e o servidor confirma pelo
+ * `trabalho_mudou`; recusado, volta o de antes e o erro aparece como em toda ação. `focarAba`: o teclado volta à aba.
+ */
+function terminarRenomeio(salvar: boolean, o: { redesenhar?: boolean; focarAba?: boolean } = {}): void {
+  const r = renomeandoAba;
+  if (!r) return;
+  renomeandoAba = null;
+  const tr = trabalhoPorId(estado, r.id);
+  const novo = r.texto.replace(/\s+/g, " ").trim();
+  const mudou = salvar && !!tr && novo !== "" && novo !== (titulosDasAbas.get(r.id) ?? tituloCurto(tr.titulo));
+  if (mudou) titulosDasAbas.set(r.id, novo);
+  if (o.redesenhar !== false) render();
+  if (o.focarAba) document.querySelector<HTMLElement>(`.abas-tarefa .at-aba[data-aba="${CSS.escape(r.id)}"] .at-ir`)?.focus({ preventScroll: true });
+  if (!mudou || !api) return;
+  const a = api;
+  void agir(async () => {
+    try {
+      await a.renomearTrabalho(r.id, novo);
+    } catch (e) {
+      titulosDasAbas.delete(r.id);
+      render();
+      throw e;
+    }
+    dispatch({ tipo: "invalidar", quais: [`trabalho:${r.id}`, "trabalhos"] });
+  });
+}
+
+/** Depois do redesenho: o campo do nome (refeito com o cabeçalho) volta a ter o foco e o cursor de antes. */
+function focarRenomeio(): void {
+  if (!renomeandoAba) return;
+  const campo = document.getElementById("at-nome");
+  if (!(campo instanceof HTMLInputElement) || document.activeElement === campo) return;
+  campo.focus({ preventScroll: true });
+  const fim = campo.value.length;
+  campo.setSelectionRange(Math.min(renomeandoAba.inicio ?? fim, fim), Math.min(renomeandoAba.fim ?? fim, fim));
 }
 
 /** ADR-187 §7 (Paper 3e): o "Levar o contexto da conversa" da tarefa nova; cada tarefa nova começa sem ele (limpa). */
@@ -4795,6 +4952,8 @@ async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Pr
     }
     limparDepoisDeEnviar(ta, chave, texto);
     marcarDicaDasTarefasVista();
+    // ADR-187 §6: a aba "Nova tarefa" vira a aba dela já, antes de a lista relida trazer a tarefa.
+    guardarAbas(abrirAba(abasDeTarefa, { id, agenteId: tela.agenteId }));
     dispatch({ tipo: "invalidar", quais: ["trabalhos", `trabalho:${id}`] });
     if (estado.tela === tela) navegar({ tipo: "trabalho", id, voltar: tela.voltar });
   }));
@@ -8057,6 +8216,20 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     navegar({ tipo: "linha", conversaId: el.dataset.conversa ?? "", mensagens: (el.dataset.mensagens ?? "").split(",").filter(Boolean), titulo: el.dataset.titulo ?? "", voltar: t.tipo === "trabalho" || t.tipo === "linha" ? t.voltar : t, ...(tipo === "rotina" ? { rotina: true } : {}) });
   },
   "fechar-trabalho": () => fecharTask(),
+  // ADR-187 §6 (Paper 4p): a fileira de abas. Clicar troca de tarefa; o segundo clique em até 400 ms renomeia.
+  "aba-tarefa": (el) => {
+    const id = el.dataset.id ?? "";
+    const agora = performance.now();
+    const duplo = ehCliqueDuplo(ultimoCliqueNaAba, id, agora);
+    ultimoCliqueNaAba = duplo ? null : { id, em: agora };
+    if (duplo) { comecarRenomeio(id); return; }
+    const t = estado.tela;
+    if (t.tipo !== "trabalho" || t.id !== id) abrirTrabalho(id);
+  },
+  "menu-aba-tarefa": (el) => abrirMenuDaAba(el.dataset.id ?? "", el.closest<HTMLElement>(".at-aba") ?? el),
+  "fechar-aba-tarefa": (el) => fecharAbaDeTarefa(el.dataset.id ?? ""),
+  "aba-conversa": (el) => voltarParaAConversa(el.dataset.agente ?? ""),
+  "abas-outras": (el) => abrirMenuDasOutras(el.dataset.agente ?? "", el),
   "parar-trabalho": (el) => agir(async () => {
     const id = el.dataset.id ?? "";
     await api!.pararTrabalho(id);
@@ -9656,6 +9829,50 @@ document.addEventListener("keydown", (ev) => {
   ev.preventDefault();
   const acao = ACOES[el.dataset.segurar ?? ""];
   if (acao) void acao(el);
+});
+
+// ADR-187 §6 (Paper 4p): o clique direito na aba abre o menu dela (no celular, o toque longo é o segurar da aba).
+document.addEventListener("contextmenu", (ev) => {
+  const aba = (ev.target as HTMLElement).closest?.<HTMLElement>(".abas-tarefa .at-aba[data-aba]");
+  if (!aba || aba.classList.contains("renomeando")) return;
+  ev.preventDefault();
+  if (celular.ativo()) return;
+  encerrarSegurar();
+  abrirMenuDaAba(aba.dataset.aba ?? "", aba, ev.clientX || ev.clientY ? { x: ev.clientX, y: ev.clientY } : undefined);
+});
+// O nome em edição: Enter salva e Esc desfaz (antes do Esc que fecha a tarefa); F2 na aba começa a edição.
+window.addEventListener("keydown", (ev) => {
+  const alvo = ev.target as HTMLElement | null;
+  if (ev.key === "F2" && !ev.repeat) {
+    const id = alvo?.closest?.<HTMLElement>(".abas-tarefa .at-ir[data-id]")?.dataset.id;
+    if (id) { ev.preventDefault(); comecarRenomeio(id); }
+    return;
+  }
+  if (alvo?.id !== "at-nome" || !renomeandoAba) return;
+  if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); ev.stopImmediatePropagation(); terminarRenomeio(true, { focarAba: true }); }
+  else if (ev.key === "Escape") { ev.preventDefault(); ev.stopImmediatePropagation(); terminarRenomeio(false, { focarAba: true }); }
+}, true);
+document.addEventListener("input", (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLInputElement) || el.id !== "at-nome" || !renomeandoAba) return;
+  renomeandoAba.texto = el.value;
+  renomeandoAba.inicio = el.selectionStart;
+  renomeandoAba.fim = el.selectionEnd;
+});
+document.addEventListener("selectionchange", () => {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLInputElement) || el.id !== "at-nome" || !renomeandoAba) return;
+  renomeandoAba.inicio = el.selectionStart;
+  renomeandoAba.fim = el.selectionEnd;
+});
+// Sair do campo salva. Indo a um botão (outra aba, o ×), o clique dele redesenha: aqui não, senão o botão sob o ponteiro
+// é trocado entre o apertar e o soltar e o clique se perde. O redesenho que refaz o campo devolve o foco (focarRenomeio).
+document.addEventListener("focusout", (ev) => {
+  const el = ev.target as HTMLElement;
+  if (el.id !== "at-nome" || !renomeandoAba) return;
+  const indo = (ev as FocusEvent).relatedTarget as HTMLElement | null;
+  if (indo?.closest?.("[data-act]")) { terminarRenomeio(true, { redesenhar: false }); return; }
+  setTimeout(() => { if (renomeandoAba && document.activeElement?.id !== "at-nome") terminarRenomeio(true); }, 0);
 });
 
 // O menu do bot na barra lateral: abre onde o cursor está; pelo teclado (Shift+F10, tecla de menu) o evento vem sem
