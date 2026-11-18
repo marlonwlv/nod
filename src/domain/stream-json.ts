@@ -399,6 +399,7 @@ export function classificarResultado(entrada: {
   const obrigatorios = entrada.falaDoMeio?.obrigatorios;
   const jaFaladas: string[] = [];
   const jaFaladasCruas: string[] = [];
+  const posicoesFaladas: number[] = [];
   let ultimaFerramenta = -1;
   // definido em 2026-10-11: o motivo de cada negação do hook do nod, pelo nome da ferramenta que o tool_use pediu.
   const nomePorId = new Map<string, string>();
@@ -434,6 +435,7 @@ export function classificarResultado(entrada: {
       if (falados?.has(ev)) {
         jaFaladas.push(normalizar(ev.texto));
         jaFaladasCruas.push(ev.texto);
+        posicoesFaladas.push(posicao);
       }
       else blocos.push({ texto: ev.texto, posicao, obrigatorio: obrigatorios?.has(ev) === true });
     }
@@ -452,7 +454,14 @@ export function classificarResultado(entrada: {
     // NOD-174: na falha, o `result` é o erro do CLI em inglês, não fala do bot — fica só no `erroCru`. O que o modelo
     // escreveu antes do erro continua (vira parcial no servidor).
     const doResult = result.sucesso && !jaFalado(result.texto) ? result.texto : "";
-    const final = doResult || juntarBlocos(depois) || juntarBlocos(todos) || deltas;
+    // Validação de 2026-11-17 (ADR-187): o final já saiu como fala do meio (a resposta à mensagem da pessoa era também o
+    // último texto depois da última ferramenta) — a entrega fica vazia em vez de cair nos blocos de antes. Caía na
+    // narração ("Vou delegar a pesquisa a um subagente."), e o resumo da tarefa da rede saía dela, sem o texto de 11 mil
+    // caracteres que a tarefa escreveu. Vazia, a entrega leva as ações para a última fala (assentar-turno).
+    const finalJaFalado = (result.sucesso && result.texto.trim() !== "" && jaFalado(result.texto)) || posicoesFaladas.some((p) => p > ultimaFerramenta);
+    // Os deltas que não fecharam bloco nenhum (o catcher) continuam; os dos blocos de antes, não.
+    const deltasForaDosBlocos = blocos.reduce((t, x) => t.replace(x.texto, ""), deltas);
+    const final = doResult || juntarBlocos(depois) || (finalJaFalado ? (deltasForaDosBlocos.trim() === "" ? "" : deltasForaDosBlocos) : juntarBlocos(todos) || deltas);
     const anteriores = blocos.filter((b) => b.posicao < ultimaFerramenta);
     const antes = anteriores.map((b) => b.texto);
     const fala = comporFalaContada(antes, final, new Set(anteriores.flatMap((b, i) => (b.obrigatorio ? [i] : []))));
