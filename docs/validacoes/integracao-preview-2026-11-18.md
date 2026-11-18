@@ -41,3 +41,45 @@ visual recusam explicitamente a ação semântica não suportada, com teste; nã
 implementação nova de navegação semântica nesses provedores.
 Seis PNGs antigos de referência/QA, não necessários ao runtime e não aprovados pelo scanner público,
 foram removidos da árvore publicada e do manifesto de assets, mantendo cópias locais privadas.
+
+## Validações locais
+
+- Lint, typecheck completo, cercas do domínio e das migrações passaram.
+- Build Vite passou; mantém os avisos de tamanho de bundles já presentes nessa interface.
+- Navegador/runtime: 17/17 testes passaram.
+- Testes de conflitos: 252 passaram inicialmente; a referência do prompt foi atualizada após
+  revisão das instruções combinadas. A saída para conta foi adaptada e testada no componente React.
+- A rodada geral de unitários/componentes teve 14.446 aprovados, 37 ignorados e seis falhas.
+  Corrigidos os encaixes do rótulo semântico, da distribuição das imagens e da reconciliação das
+  aprovações do preview. O reteste dos seis arquivos afetados passou: 184/184, incluindo o prompt.
+  A falha restante nessa rodada era `ENOTEMPTY` na limpeza temporária do teste de fila; passou no
+  reteste sem alteração nesse teste ou no mecanismo da fila.
+
+A execução de `npm run check` ocorreu uma vez e parou na etapa unitária. As etapas de banco
+foram executadas separadamente depois das correções, em banco exclusivo da worktree. Não se
+apresenta essa primeira execução como um `check` inteiramente verde.
+
+Integração com banco: 2.778 testes passaram na rodada de 338 arquivos. Um teste de freios do
+quadro excedeu 20 segundos e foi separado para reteste. A outra falha é a asserção de uso do
+índice `trabalhos_pkey` em `pedir-a-bot.test.ts`; ela foi reproduzida também numa worktree limpa
+em `e7a538af`, a base original do preview, com o mesmo ambiente de banco. O teste e o repositório
+de pedidos não foram alterados pela integração; não foi feita otimização SQL fora do escopo.
+
+O reteste isolado dos dois cenários de laço do quadro passou na integração (2/2), sem alteração
+do mecanismo. Conformidade passou: 24 arquivos, 113 testes, incluindo RLS e migrações.
+
+
+Concorrência: 145 arquivos executados, 143 aprovados e dois com falha; 761 testes aprovados,
+sete ignorados e dois com falha. A criação de bot com cor e forma excedeu a espera pela conversa
+nova na rodada geral; passou isoladamente tanto na base original quanto na integração, sem
+mudança de código. O teste `conversa-fim-sem-pulo-chrome` vindo da outra origem exige balão e
+resumo durante o turno. O preview já usa somente um indicador de atividade nessa fase, sem
+resposta parcial. O mesmo teste, copiado sem alterações para a base original e executado contra o build dela,
+falha pelo mesmo motivo. Essa incompatibilidade permanece explícita,
+sem enfraquecer ou ignorar o teste e sem redesenhar a conversa fora do escopo solicitado.
+
+Assim, esta branch é uma integração para continuidade, com as duas ressalvas locais persistentes
+(asserção do índice SQL e contrato visual herdado), e não uma certificação de toda a suíte verde.
+Não houve atualização de `main`, de `preview/grokbot`, instalação da integração no preview,
+PR adicional ou deploy. O scanner público passou (3.910 arquivos, nenhum arquivo proibido ou achado do gitleaks); os registros
+com sessões, identificadores e capturas ficaram privados.
