@@ -112,10 +112,15 @@ describe("regras puras das frentes (ADR-099, I2)", () => {
       }
     }
     expect(resumoSemChamada({ estado: "terminado", ultimaFala: "Corrigi o login." })).toEqual({ feito: "Corrigi o login." });
+    // Validação de 2026-11-17: o corte se anuncia, para o dono não dizer à pessoa que o texto veio pela metade.
+    const longo = resumoSemChamada({ estado: "terminado", ultimaFala: "palavra ".repeat(400) }).feito;
+    expect(longo).toContain("… [o nod cortou este resumo aqui; a fala original tem 3199 caracteres e não veio cortada]");
+    expect(longo.length).toBeLessThanOrEqual(1000);
     expect(resumoSemChamada({ estado: "terminado", ultimaFala: null }).feito).toBe("A frente terminou sem dizer o que fez.");
     expect(resumoSemChamada({ estado: "falhou", ultimaFala: "Rodando os testes" })).toMatchObject({ feito: "A frente falhou antes de devolver o resumo. Última fala: Rodando os testes", falta: expect.any(String) });
     expect(resumoSemChamada({ estado: "parado", ultimaFala: null }).feito).toBe("A pessoa parou a frente antes do fim.");
-    expect(resumoSemChamada({ estado: "terminado", ultimaFala: longa }).feito.length).toBe(CORTE_DA_ULTIMA_FALA);
+    // O trecho da fala vai até o corte (com as reticências); o aviso do nod vem depois dele.
+    expect(resumoSemChamada({ estado: "terminado", ultimaFala: longa }).feito.split(" [o nod cortou")[0]!.length).toBe(CORTE_DA_ULTIMA_FALA);
   });
 
   it("toda recusa do resumo vira instrução com o campo", () => {

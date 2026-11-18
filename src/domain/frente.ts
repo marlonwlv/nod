@@ -145,7 +145,9 @@ export const CORTE_DA_ULTIMA_FALA = 600;
 
 function cortar(texto: string): string {
   const limpo = texto.replace(/\s+/g, " ").trim();
-  return limpo.length > CORTE_DA_ULTIMA_FALA ? `${limpo.slice(0, CORTE_DA_ULTIMA_FALA - 1).trimEnd()}…` : limpo;
+  // Validação de 2026-11-17 (ADR-187): o corte diz que é do nod. Sem isso o dono lia a fala cortada como texto que veio
+  // pela metade e dizia à pessoa que faltava o fim (a tarefa da rede tinha entregue 9.262 caracteres inteiros).
+  return limpo.length > CORTE_DA_ULTIMA_FALA ? `${limpo.slice(0, CORTE_DA_ULTIMA_FALA - 1).trimEnd()}… [o nod cortou este resumo aqui; a fala original tem ${texto.trim().length} caracteres e não veio cortada]` : limpo;
 }
 
 /**
