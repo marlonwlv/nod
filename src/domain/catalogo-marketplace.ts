@@ -20,8 +20,8 @@ const ORDEM = new Map(APPS_MARKETPLACE.map((a, i) => [a.slug, i]));
 /**
  * definido em 2026-09-29 (ADR-057): o slug que vira conector. É o `SLUG` de
  * src/use-cases/registrar-conector.ts e o grupo das rotas `/marketplace/:slug/conectar|verificar`, com
- * o teto de 64 do provedor: toolkit com `_` no slug não cabe num conector, e botão que não conecta não
- * entra na grade.
+ * o teto de 64 do provedor. O `_` do provedor chega aqui já traduzido para `-` (toolkits-composio.ts);
+ * o que ainda não casar não conecta, e botão que não conecta não entra na grade.
  */
 const SLUG_CONECTAVEL = /^[a-z0-9][a-z0-9-]{0,63}$/;
 

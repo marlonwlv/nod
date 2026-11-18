@@ -63,8 +63,28 @@ it("descobre aliases sem transformar slugs desconhecidos nem inventar disponibil
   }
   expect(mesclarCatalogo([], gerenciados).some((a) => a.slug === "granola-mcp")).toBe(false);
   expect(mesclarCatalogo([], gerenciados).some((a) => a.slug === "fireflies")).toBe(false);
-  expect(toolkitComposio("outro-app")).toBe("outro-app");
-  expect(slugDoToolkit("outro_app")).toBe("outro_app");
+  expect(toolkitComposio("google-search-console")).toBe("google_search_console");
+  expect(slugDoToolkit("google_search_console")).toBe("google-search-console");
+});
+
+it("libera qualquer toolkit gerenciado com sublinhado, sem curadoria, e o conecta pelo slug exato", async () => {
+  const pedidos: unknown[] = [];
+  const f: typeof fetch = async (url, init) => {
+    if (init?.body) pedidos.push(JSON.parse(String(init.body)));
+    if (String(url).includes("/toolkits")) return Response.json({ items: [
+      { slug: "google_maps", name: "Google Maps", composio_managed_auth_schemes: ["OAUTH2"], meta: { description: "Maps", categories: [] } },
+      { slug: "zoho_books", name: "Zoho Books", composio_managed_auth_schemes: ["OAUTH2"] },
+      { slug: "sem_login", name: "Sem login", composio_managed_auth_schemes: [] },
+    ] });
+    if (String(url).endsWith("/session")) return Response.json({ session_id: "trs_test", mcp: { url: "https://backend.composio.dev/mcp" } });
+    return Response.json({ redirect_url: "https://connect.composio.dev/login", connected_account_id: "ca_test" });
+  };
+  const c = criarClienteComposio("fake", f);
+  const apps = mesclarCatalogo([], await c.gerenciados());
+  expect(apps.filter((a) => a.doCatalogo).map((a) => a.slug)).toEqual(["google-maps", "zoho-books"]);
+  await c.criarSessao("nod:tenant:pessoa", "zoho-books");
+  await c.autorizar("trs_test", "zoho-books");
+  expect(pedidos).toEqual([expect.objectContaining({ toolkits: { enable: ["zoho_books"] } }), { toolkit: "zoho_books" }]);
 });
 
 it("recusa colisão com alias reservado no catálogo remoto e mantém falha OAuth fechada", async () => {

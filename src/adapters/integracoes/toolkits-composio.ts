@@ -1,21 +1,22 @@
 /**
- * definido em 2026-11-18 (emenda ADR-057): aliases explícitos preservam o contrato
- * [a-z0-9-] do conector e do banco. Não normalizar toolkits desconhecidos: a troca
- * genérica de underscore por hífen colidiria com outros slugs do provedor.
+ * definido em 2026-11-18 (emenda ADR-057): o conector e o banco aceitam [a-z0-9-], o Composio
+ * usa [a-z0-9_]. A tradução é geral: `_` do provedor vira `-` no Nod e volta a `_` em toda chamada.
+ * Ela é inversível porque o slug remoto com hífen é recusado (`toolkitAceito`): sem ele, nenhum
+ * slug do Nod tem duas origens. Catálogo de 2026-11-18: 1.818 toolkits, nenhum com hífen, 25 com
+ * login gerenciado escondidos pelo sublinhado. A lista fixa de apelidos que existia antes cobria 6.
+ *
+ * Gatilho de reversão: o provedor publicar um slug com hífen. Ele fica fora da grade (não colide),
+ * e a regra precisa de outra forma de distinguir `a-b` de `a_b`.
  */
-const TOOLKITS: Readonly<Record<string, string>> = {
-  "microsoft-teams": "microsoft_teams",
-  "one-drive": "one_drive",
-  "share-point": "share_point",
-  "granola-mcp": "granola_mcp",
-  "read-ai-mcp": "read_ai_mcp",
-  "otter-ai-mcp": "otter_ai_mcp",
-};
-
 export function toolkitComposio(slug: string): string {
-  return Object.hasOwn(TOOLKITS, slug) ? TOOLKITS[slug]! : slug;
+  return slug.replace(/-/g, "_");
 }
 
 export function slugDoToolkit(toolkit: string): string {
-  return Object.entries(TOOLKITS).find(([, valor]) => valor === toolkit)?.[0] ?? toolkit;
+  return toolkit.replace(/_/g, "-");
+}
+
+/** O slug remoto que a tradução consegue ida e volta. */
+export function toolkitAceito(toolkit: string): boolean {
+  return !toolkit.includes("-");
 }

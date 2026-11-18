@@ -1,4 +1,4 @@
-import { slugDoToolkit, toolkitComposio } from "./toolkits-composio.ts";
+import { slugDoToolkit, toolkitAceito, toolkitComposio } from "./toolkits-composio.ts";
 import { COMPOSIO_POR_CAPACIDADE_GITHUB } from "../../contracts/github.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import type { ArgsGithub } from "../../domain/github.ts";
@@ -170,7 +170,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
         const tk = o.toolkit as Record<string, unknown> | string | undefined;
         const slugRemoto = (typeof tk === "string" ? tk : typeof tk?.slug === "string" ? tk.slug : null)?.toLowerCase();
         if (!slugRemoto || !/^[a-z0-9_-]{1,64}$/.test(slugRemoto)) continue;
-        if (toolkitComposio(slugRemoto) !== slugRemoto) continue;
+        if (!toolkitAceito(slugRemoto)) continue;
         const slug = slugDoToolkit(slugRemoto);
         if (o.status === "DISABLED" || o.deleted === true) continue;
         const meta = (tk && typeof tk === "object" ? tk : {}) as Record<string, unknown>;
@@ -198,7 +198,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
           const o = it as Record<string, unknown>;
           const slugRemoto = typeof o.slug === "string" ? o.slug.toLowerCase() : null;
           if (!slugRemoto || !/^[a-z0-9_-]{1,64}$/.test(slugRemoto)) continue;
-          if (toolkitComposio(slugRemoto) !== slugRemoto) continue;
+          if (!toolkitAceito(slugRemoto)) continue;
           const slug = slugDoToolkit(slugRemoto);
           if (porSlug.has(slug)) continue;
           const gerenciado = Array.isArray(o.composio_managed_auth_schemes) && o.composio_managed_auth_schemes.length > 0;

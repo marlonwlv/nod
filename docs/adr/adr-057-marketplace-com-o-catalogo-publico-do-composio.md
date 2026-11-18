@@ -146,14 +146,19 @@ publica. A lista de slugs com arquivo próprio mora em `LOGOS_OFICIAIS` (`web/te
 
 ## Emenda — toolkits Microsoft e reuniões (2026-11-18)
 
-O item 3 passa a aceitar aliases EXPLÍCITOS na borda Composio: `microsoft-teams` →
-`microsoft_teams`, `one-drive` → `one_drive`, `share-point` → `share_point`,
-`granola-mcp` → `granola_mcp`, `read-ai-mcp` → `read_ai_mcp` e `otter-ai-mcp` →
-`otter_ai_mcp`. Banco, rotas, concessões e nomes dos conectores mantêm `[a-z0-9-]`.
-O adaptador traduz catálogo recebido, sessão, link, conferência de conta e fixação;
-nomes das ferramentas permanecem os oficiais. Slugs remotos que coincidam com um
-alias local reservado são descartados, evitando selecionar outro toolkit por colisão.
-Nenhuma normalização genérica; demais slugs com `_` continuam fora do catálogo público.
+O item 3 passa a traduzir o slug na borda Composio, de forma GERAL: o `_` do provedor vira
+`-` no Nod (`microsoft_teams` → `microsoft-teams`, `zoho_books` → `zoho-books`) e volta a `_`
+em toda chamada. Banco, rotas, concessões e nomes dos conectores mantêm `[a-z0-9-]`.
+O adaptador traduz catálogo recebido, sessão, link, conferência de conta e fixação
+(`src/adapters/integracoes/toolkits-composio.ts`); nomes das ferramentas permanecem os oficiais.
+A tradução só é inversível porque slug remoto com hífen é descartado: nenhum slug do Nod
+tem duas origens, e nenhuma colisão escolhe outro toolkit.
+
+Revisto no mesmo dia, contra o catálogo real (1.818 toolkits, nenhum com hífen): a primeira
+versão desta emenda tinha seis aliases fixos e deixava de fora 25 toolkits com login
+gerenciado (Google Maps, Analytics, Search Console, Zoho, Microsoft 365, Word, PowerPoint,
+To Do, Power BI, anúncios do Pinterest/Reddit/TikTok, entre outros). Uma lista por app
+obrigaria um PR por app; a regra geral libera todos e qualquer um que o provedor publicar.
 
 A nova curadoria só aparece com evidência do provedor (`exigeProvedor`): não entra
 no piso offline. Outlook, Teams, OneDrive, SharePoint e Fathom têm OAuth gerenciado
@@ -166,5 +171,6 @@ Mantêm-se as sessões privadas da ADR-041 e o gateway de capacidades da ADR-013
 Consentimento Microsoft e restrições de plano aparecem na gaveta. Não há migração,
 novo fluxo de segredos, API de gravação ou tratamento de credencial no modelo.
 Detalhes, fontes e limites: [Microsoft e reuniões](../integracoes-microsoft-reunioes.md).
-Gatilho de revisão: mudança de slug oficial, colisão de alias ou falha real no login;
+Gatilho de revisão: o provedor publicar um slug com hífen (fica fora da grade e a regra
+precisa de outra forma de distinguir `a-b` de `a_b`), mudança de slug oficial ou falha real no login;
 nenhuma dessas situações autoriza cair em outro toolkit/conta.

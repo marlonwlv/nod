@@ -2,7 +2,7 @@
 
 Data: 2026-11-18. Base: origin/main. Um PR; sem merge/deploy nesta entrega.
 
-1. `feat(integracoes): mapear toolkits Microsoft e reuniões`: aliases explícitos na borda Composio para preservar slugs de conectores, banco, rotas, concessões e nomes MCP. Curadoria em português, orientação de consentimento Microsoft e disponibilidade condicionada ao provedor.
+1. `feat(integracoes): mapear toolkits Microsoft e reuniões`: tradução geral `_` ↔ `-` na borda Composio (revisto: começou com seis aliases fixos) para preservar slugs de conectores, banco, rotas, concessões e nomes MCP. Curadoria em português, orientação de consentimento Microsoft e disponibilidade condicionada ao provedor.
 2. `test(integracoes): provar descoberta, conexão e isolamento`: contratos HTTP/MCP falsos, conta de outra pessoa/toolkit recusada, ferramentas concretas sem concessão automática, leitura versus escrita e chamadas representativas sem efeito externo.
 3. `docs(integracoes): registrar suporte e lacunas`: fontes oficiais, autenticação, ações e limites; testes afetados, typecheck, check completo uma vez e varredura OSS.
 
