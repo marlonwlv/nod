@@ -2866,7 +2866,7 @@ function renderSidebar(estado: Estado): string {
   const quem = quemEsta();
   const nomeRodape = quem?.nome ?? quem?.email ?? "";
   const html = `<div class="search-wrap">
-      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.compacta ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button><span class="create-actions"><button class="create-trigger icone-flutua" data-act="novo-bot-dialogo" data-segurar="segurar-mais" aria-label="Novo bot (segure para criar na hora)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} Shift+Enter Shift+Space" title="Novo bot (${ATALHO_NOVO_BOT.texto}) · segure para criar na hora"><span class="segurar-anel" aria-hidden="true"></span>${IC_MAIS}</button></span></div>
+      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.compacta ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button><span class="create-actions"><button class="create-trigger icone-flutua" data-act="novo-bot-dialogo" data-segurar="segurar-mais" aria-label="Novo bot (segure para criar na hora)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} Shift+Enter Shift+Space" title="Novo bot (${ATALHO_NOVO_BOT.texto}) · segure para criar na hora"><span class="segurar-liquido" aria-hidden="true"><span class="sl-tinta"><span class="sl-onda"></span></span></span>${IC_MAIS}</button></span></div>
       <label class="search"${buscando ? "" : " hidden"}><span>⌕</span><input id="busca-bots" placeholder="Buscar agentes…" aria-label="Buscar agentes" autocomplete="off" /><kbd>esc</kbd></label>
     </div>
     ${renderIncidentes(estado)}
@@ -9860,7 +9860,7 @@ window.nod = { estado: () => estado, agente: () => agenteDaTela(estado) };
 // Segurar um gatilho por MS_SEGURAR dispara a ação de data-segurar; o clique curto
 // segue para o data-act normal. Mesma ideia do contextmenu abaixo: um gesto alternativo
 // sobre um botão que já tem um clique primário.
-// Fonte única do tempo do hold: o CSS lê --ms-segurar para a animação do anel,
+// Fonte única do tempo do hold: o CSS lê --ms-segurar para o líquido que enche o +,
 // senão os dois relógios andam separados e o anel fecha fora de hora.
 const MS_SEGURAR = 500;
 document.documentElement.style.setProperty("--ms-segurar", `${MS_SEGURAR}ms`);
