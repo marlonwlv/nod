@@ -1764,10 +1764,14 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * A rede de 2 min (ADR-083, #193): o turno de conversa que está rodando passa a ser do trabalho. Só o que ainda roda
      * e ainda não tem trabalho — duas renovações seguidas não promovem duas vezes.
      */
-    async vincularTrabalho(id: string, trabalhoId: string): Promise<Turno | null> {
+    /**
+     * Liga o turno ao trabalho: o da rede (despachando, promovido no meio) ou, ADR-187 §7 (definido em 2026-11-18), o
+     * primeiro turno da tarefa que a pessoa abriu pela tela (pendente, na mesma transação que o criou).
+     */
+    async vincularTrabalho(id: string, trabalhoId: string, estado: "despachando" | "pendente" = "despachando"): Promise<Turno | null> {
       const [l] = await conn<Linha[]>`
         update turnos set trabalho_id = ${trabalhoId}
-        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and trabalho_id is null and estado = 'despachando'
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and trabalho_id is null and estado = ${estado}
         returning ${conn.unsafe(COLUNAS)}`;
       return l ? paraTurno(l) : null;
     },

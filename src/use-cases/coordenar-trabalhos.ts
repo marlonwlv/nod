@@ -1,4 +1,4 @@
-import { semCitacao } from "../domain/citacao.ts";
+import { semCitacao, textoParaOBot } from "../domain/citacao.ts";
 import type { Executor, RuntimeEvent } from "../contracts/evento.ts";
 import type { ModoTurno } from "../contracts/plano-turno.ts";
 import type { Trabalho, TrabalhoDto } from "../contracts/trabalho.ts";
@@ -6,10 +6,11 @@ import type { Turno } from "../contracts/turno.ts";
 import { RETORNO_DO_LOTE } from "../domain/cota-da-ia.ts";
 import { capacidadesDe } from "../domain/harness.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { ehFrente, molduraDaFrente, semLinhaDeEmpurrar, seguimentoNaRede } from "../domain/frente.ts";
+import { ehFrente, entradaDaTarefaDaPessoa, FALAS_DO_CONTEXTO, molduraDaFrente, molduraDaTarefaDaPessoa, semLinhaDeEmpurrar, seguimentoNaRede, type FalaDoContexto } from "../domain/frente.ts";
 import { conversaDepoisDoFim, FALA_DEPOIS_DO_FIM } from "../domain/fala-na-frente.ts";
 import { molduraFalaNaFrente } from "../domain/mensagem-no-meio.ts";
-import { promoveNaRede, tituloProvisorio, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
+import { promoveNaRede, tituloDoTrabalho, tituloProvisorio, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
+import { ehFalaSemIa } from "../domain/sem-ia.ts";
 import { ehUuid } from "./apoio-l7.ts";
 import { autoriaAgente, autoriaPessoa, evento, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
@@ -36,7 +37,8 @@ function entradaDaTask(titulo: string, pedido: string, deRotina: boolean): strin
 function pedidoSemMoldura(titulo: string, entrada: string): string {
   for (const deRotina of [false, true]) {
     // revisto em 2026-10-12 (ADR-099, I2): a frente nasce com a moldura dela (molduraDaFrente); a task de antes, com esta.
-    for (const moldura of [entradaDaTask(titulo, "", deRotina), molduraDaFrente(titulo, deRotina)]) {
+    // ADR-187 §7 (2026-11-18): e a tarefa que a pessoa abriu pela tela (o contexto da conversa, se levou, fica no pedido).
+    for (const moldura of [entradaDaTask(titulo, "", deRotina), molduraDaFrente(titulo, deRotina), molduraDaTarefaDaPessoa(titulo)]) {
       // revisto em 2026-10-12 (ADR-099, I4): a linha de empurrar é da frente; no dono ela não faz sentido.
       if (entrada.startsWith(moldura)) return semLinhaDeEmpurrar(entrada.slice(moldura.length));
     }
@@ -128,6 +130,81 @@ export const mensagemParaTrabalho: CasoDeUso<{ trabalhoId: string; texto: string
   const [dto] = await trabalhosParaDto(deps, [(await deps.repos.trabalhos.buscar(t.id)) ?? t]);
   return { data: { trabalho: dto!, mensagemTurnoId: r.turno.id }, events: r.events };
 };
+
+/**
+ * POST agentes/:id/tarefas {texto, levarConversa?}: a pessoa abre uma tarefa pela tela (ADR-187 §7, lote B, passo 2,
+ * definido em 2026-11-18: ⌘N, o "+" da aba presa ao campo, "Abrir uma tarefa" da dica). A tela abre limpa e nada é criado
+ * antes da primeira mensagem; é ela que chega aqui e vira o pedido.
+ *
+ * Mesmo desenho da rede de 2 min (promoverNaRede): um lote de uma frente aberto pelo PRÓPRIO turno dela, então o fecho
+ * (fechar-lote.ts) acorda o dono uma vez com o resumo e a conversa diz o que ficou pronto. A fala da pessoa é gravada
+ * como a fala na tarefa (`mensagemOrigemId`), por isso mora na tela da tarefa e não no chat. O turno nasce sem trabalho e
+ * é ligado a ele na mesma transação (o lote precisa do turno; o trabalho, do lote): o despachante nunca o vê solto.
+ * "Levar o contexto da conversa" junta à entrada as últimas falas do chat com o dono (blocoDoContexto, com teto).
+ */
+export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; levarConversa?: boolean }, { trabalho: TrabalhoDto; turnoId: string }> = async (deps, input) => {
+  const texto = typeof input.texto === "string" ? input.texto.trim() : "";
+  if (texto === "") throw new ErroDeDominio("texto_vazio");
+  if (!ehUuid(input.agenteId)) throw new ErroDeDominio("nao_encontrado");
+  const agente = await deps.repos.agentes.buscar(input.agenteId);
+  if (!agente || agente.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado");
+  const conversa = await deps.repos.conversas.buscarPropriaDoAgente(agente.id);
+  if (!conversa) throw new ErroDeDominio("nao_encontrado", { cause: "conversa própria do bot" });
+  const agora = deps.agora();
+  // Como a fala na tarefa (enfileirarNoTrabalho): a pessoa falou de novo, a parada da conversa do bot se encerra.
+  await deps.repos.paradas.encerrarAbertas({ conversaId: conversa.id, agora });
+  const contexto = input.levarConversa === true ? await contextoDaConversa(deps, conversa.id, agente.nome) : { falas: [], deFora: false };
+  const titulo = tituloProvisorio(texto);
+  const autoria = autoriaPessoa(deps.escopo);
+  const mensagem = await deps.repos.mensagens.criar({ conversaId: conversa.id, autoria, kind: "texto", texto, confianca: "confiavel" });
+  if (!mensagem) throw new ErroDeDominio("nao_permitido");
+  const turno = await deps.repos.turnos.enfileirar({
+    conversaId: conversa.id,
+    agenteId: agente.id,
+    origem: "conversa",
+    // A primeira fala da tarefa conta na cota do espaço sem conta, como a fala na tarefa (NOD-408).
+    contaCotaProvisorio: true,
+    trabalhoId: null,
+    prazoEm: agora + PRAZO_DECISAO_PADRAO_MS,
+    profundidade: 0,
+    entradaTexto: entradaDaTarefaDaPessoa({ titulo: tituloDoTrabalho(titulo), pedido: texto, contexto: contexto.falas }),
+    entradaConfianca: "confiavel",
+    modelo: agente.modelo,
+    harness: agente.harness,
+    // NOD-206: palpite de quem enfileira; o plano grava o executor real.
+    executor: "catcher",
+    mensagemOrigemId: mensagem.id,
+    // A pessoa está olhando a tela da tarefa (NOD-272): a cota não a segura como fundo.
+    pessoaEsperando: true,
+  });
+  if (!turno) throw new ErroDeDominio("estado_invalido", { cause: "turno da tarefa não criado" });
+  // A fala de fora que veio no contexto marca o turno (ADR-062), como o recado repassado pela conversa.
+  if (contexto.deFora) await deps.repos.turnos.contaminar(turno.id, agora);
+  const lote = await deps.repos.frentes.criarLote({ agenteId: agente.id, abertoPorTurnoId: turno.id, trabalhoId: null, avisarACadaUma: false });
+  if (!lote) throw new ErroDeDominio("estado_invalido", { cause: "lote da tarefa não criado" });
+  const { trabalho, events } = await criarTrabalho(deps, { agenteId: agente.id, conversaId: conversa.id, titulo, origem: "pessoa", forma: "frente", loteId: lote.id, pessoaEsperando: true });
+  const ligado = await deps.repos.turnos.vincularTrabalho(turno.id, trabalho.id, "pendente");
+  if (!ligado) throw new ErroDeDominio("estado_invalido", { cause: "turno da tarefa sem trabalho" });
+  events.push(
+    evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { mensagem_id: mensagem.id, kind: "texto", trabalho_id: trabalho.id } }),
+    evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { origem: turno.origem, agente_id: agente.id, trabalhoId: trabalho.id } }),
+    ...(await linhaTrabalhoAberto(deps, trabalho, turno.id)),
+    ...(await sincronizarTrabalho(deps, trabalho.id)),
+  );
+  const [dto] = await trabalhosParaDto(deps, [(await deps.repos.trabalhos.buscar(trabalho.id)) ?? trabalho]);
+  return { data: { trabalho: dto!, turnoId: turno.id }, events };
+};
+
+/** As falas do chat com o dono (sem as das tarefas, os avisos e as falas sem IA), para "Levar o contexto da conversa". */
+async function contextoDaConversa(deps: Deps, conversaId: string, nomeDoBot: string): Promise<{ falas: FalaDoContexto[]; deFora: boolean }> {
+  const doChat = (await deps.repos.mensagens.listarComTurno(conversaId, FALAS_DO_CONTEXTO * 3, { comDestino: true }))
+    .filter((m) => m.kind === "texto" && !m.trabalhoId && (m.destino ?? "chat") === "chat" && !m.bastidores && !ehFalaSemIa(m))
+    .slice(-FALAS_DO_CONTEXTO);
+  return {
+    falas: doChat.map((m) => ({ autor: m.autoria.autor_tipo === "pessoa" ? "pessoa" : nomeDoBot, texto: textoParaOBot(m) })),
+    deFora: doChat.some((m) => m.confianca !== "confiavel"),
+  };
+}
 
 /**
  * definido em 2026-10-08 (revisão do épico, S9): "Fazer aqui" e "Fazer depois" são da task que a pessoa (ou a rede, que

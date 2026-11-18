@@ -2274,8 +2274,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async doTrabalho(trabalhoId) {
         return doTenant(b.turnos).filter((t) => t.trabalhoId === trabalhoId).sort((x, y) => x.criadoEm - y.criadoEm);
       },
-      async vincularTrabalho(id, trabalhoId) {
-        const t = doTenant(b.turnos).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.trabalhoId && x.estado === "despachando");
+      async vincularTrabalho(id, trabalhoId, estado = "despachando") {
+        const t = doTenant(b.turnos).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.trabalhoId && x.estado === estado);
         if (!t) return null;
         t.trabalhoId = trabalhoId;
         return t;

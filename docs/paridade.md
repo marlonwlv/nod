@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **203**, mais 3 só de leitura. No chat: **74 vivas**, 3 parciais, 89 faltando e 40 que nunca vão para o chat. Piso de vivas: 74.
+Ações de pessoa que mudam algo: **204**, mais 3 só de leitura. No chat: **74 vivas**, 4 parciais, 89 faltando e 40 que nunca vão para o chat. Piso de vivas: 74.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -198,6 +198,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 | Ação | O que faz | Risco | No chat | Rotas |
 | --- | --- | --- | --- | --- |
+| `trabalhos.abrir` | Abrir uma tarefa | muda | parcial (`abrir_task`): pelo chat quem escreve o pedido é o bot (abrir_task, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato | `POST ^\/agentes\/(?<id>[^/]+)\/trabalhos$` |
 | `trabalhos.parar` | Parar um trabalho | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/parar$` |
 | `trabalhos.enviar` | Mandar uma mensagem num trabalho | muda | nunca: é o próprio chat | `POST ^\/trabalhos\/(?<id>[^/]+)\/mensagens$` |
 | `trabalhos.depois` | Deixar um trabalho para depois | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/depois$` |

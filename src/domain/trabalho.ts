@@ -445,5 +445,6 @@ function linhaCurtaDe(texto: string, max: number): string {
 /** O que a linha "Abriu a task …" diz por origem (texto da mensagem `sistema`; a web desenha pelo payload). */
 export function textoTrabalhoAberto(titulo: string, origem: OrigemTrabalho): string {
   // revisto em 2026-10-12 (ADR-099, I8): a rede promove a frente, não mais a task.
-  return origem === "rede" ? `Virou a tarefa ${titulo}` : `Abriu a tarefa ${titulo}`;
+  // ADR-187 §7 (2026-11-18): a tarefa que a pessoa abriu pela tela (as do bot abrem pela linha `frentes_abertas`).
+  return origem === "rede" ? `Virou a tarefa ${titulo}` : origem === "pessoa" ? `Você abriu a tarefa ${titulo}` : `Abriu a tarefa ${titulo}`;
 }

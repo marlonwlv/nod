@@ -56,6 +56,47 @@ export function entradaDaFrente(p: { titulo: string; pedido: string; deRotina: b
 }
 
 /**
+ * ADR-187 §7 (lote B, passo 2, definido em 2026-11-18): a tarefa que a pessoa abriu pela tela (⌘N, o "+" da aba), sem o
+ * dono no meio. O pedido é a primeira mensagem dela, escrita na própria tarefa; a conversa com o dono não a viu.
+ */
+export function molduraDaTarefaDaPessoa(titulo: string): string {
+  return `[nod] Tarefa "${titulo}", aberta pela pessoa direto na tela de tarefas: o pedido abaixo é a primeira mensagem dela, escrita aqui, e a conversa com você não o viu. Ela acompanha por esta tela; faça o trabalho até o fim e devolva o que fez com devolver_resumo.\n`;
+}
+
+/**
+ * "Levar o contexto da conversa" (Paper 3e, definido em 2026-11-18): as últimas falas da conversa com o dono, cada uma
+ * cortada, com um teto no total. Sem isso a tarefa nasce limpa (Paper 3d), que é o padrão.
+ */
+export const FALAS_DO_CONTEXTO = 12;
+export const CARACTERES_POR_FALA_DO_CONTEXTO = 600;
+export const CARACTERES_DO_CONTEXTO = 6000;
+
+export type FalaDoContexto = { autor: string; texto: string };
+
+/** O bloco do contexto: as falas mais novas cabem primeiro; vazio quando não há fala. */
+export function blocoDoContexto(falas: readonly FalaDoContexto[]): string {
+  const linhas: string[] = [];
+  let total = 0;
+  for (const f of [...falas].slice(-FALAS_DO_CONTEXTO).reverse()) {
+    const texto = f.texto.replace(/\s+/g, " ").trim();
+    if (!texto) continue;
+    const cortado = texto.length > CARACTERES_POR_FALA_DO_CONTEXTO ? `${texto.slice(0, CARACTERES_POR_FALA_DO_CONTEXTO - 1)}…` : texto;
+    const linha = `- ${f.autor}: ${cortado}`;
+    if (total + linha.length > CARACTERES_DO_CONTEXTO) break;
+    total += linha.length;
+    linhas.unshift(linha);
+  }
+  if (!linhas.length) return "";
+  return `[nod] A pessoa trouxe para esta tarefa as últimas falas da conversa com você (contexto, não pedido novo):\n${linhas.join("\n")}`;
+}
+
+/** A entrada do primeiro turno da tarefa da pessoa: a moldura, o pedido, o contexto (se ela levou) e a linha de empurrar. */
+export function entradaDaTarefaDaPessoa(p: { titulo: string; pedido: string; contexto?: readonly FalaDoContexto[] }): string {
+  const contexto = blocoDoContexto(p.contexto ?? []);
+  return `${molduraDaTarefaDaPessoa(p.titulo)}${p.pedido.trim()}\n\n${contexto ? `${contexto}\n\n` : ""}${linhaDeEmpurrar(false, false)}`;
+}
+
+/**
  * Como o dono segue depois que a rede de 2 min promove o turno dele a frente (definido em 2026-10-12, ADR-099, I8). Só
  * as capacidades declaradas e o anúncio da máquina decidem, nunca o nome do harness:
  * - `bifurcar`: o harness bifurca e a máquina do turno anunciou isso — a frente fica com a sessão e a próxima fala do

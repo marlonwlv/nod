@@ -1,6 +1,6 @@
 import type { RespostaMutacao } from "../../../contracts/api.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
-import { fazerAqui, fazerDepois, mensagemParaTrabalho } from "../../../use-cases/coordenar-trabalhos.ts";
+import { abrirTarefaDaPessoa, fazerAqui, fazerDepois, mensagemParaTrabalho } from "../../../use-cases/coordenar-trabalhos.ts";
 import { cobrarEspera, desistirDaEspera } from "../../../use-cases/esperas-de-colega.ts";
 import { detalharTrabalho, listarTrabalhos, pararTrabalho } from "../../../use-cases/trabalhos.ts";
 import { registrarLinhas, taxasDasLinhas } from "../../../use-cases/telemetria-linhas.ts";
@@ -42,6 +42,19 @@ export function criarRotasTrabalhos(d: DepsRotas): Rota[] {
         const r = await executar(ctx.escopo, pararTrabalho, { trabalhoId: ctx.params.id ?? "" });
         const resposta: RespostaMutacao & { trabalho: typeof r.trabalho; interrompidos: number } = { ok: true, ids: { trabalho: r.trabalho.id }, trabalho: r.trabalho, interrompidos: r.interrompidos };
         ctx.json(200, resposta);
+      },
+    },
+    {
+      // ADR-187 §7 (2026-11-18): a pessoa abre uma tarefa pela tela (⌘N, o "+" da aba); a primeira mensagem é o pedido.
+      metodo: "POST", acao: "trabalhos.abrir",
+      padrao: new RegExp(`^/agentes/${ID}/trabalhos$`),
+      async handler(ctx) {
+        const corpo = corpoObjeto(await ctx.corpo());
+        const agenteId = ctx.params.id ?? "";
+        if (!UUID.test(agenteId)) throw new ErroDeDominio("nao_encontrado");
+        const r = await executar(ctx.escopo, abrirTarefaDaPessoa, { agenteId, texto: texto(corpo.texto), levarConversa: corpo.levarConversa === true });
+        const resposta: RespostaMutacao & { trabalho: typeof r.trabalho } = { ok: true, ids: { trabalho: r.trabalho.id, turno: r.turnoId }, trabalho: r.trabalho };
+        ctx.json(201, resposta);
       },
     },
     {
