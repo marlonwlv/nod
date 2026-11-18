@@ -377,7 +377,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * 0068: `harnessesAuto` (ausente = os prontos) são as IAs desta máquina que valem para o turno do Automático — sem a
      * que está no limite enquanto a pessoa tiver outra fora dele (iasParaOAutomatico).
      */
-    async reivindicar(p: { machineId: string; agora: number; harnessesProntos?: readonly string[]; harnessesAuto?: readonly string[]; harnessesProntosPessoa?: readonly string[]; aceitaLigacao?: boolean; segurarFundo?: boolean; espacarFundo?: boolean; segurarNovo?: boolean; fundoSemPrazo?: boolean; soComoAlvo?: boolean; soDaPessoa?: boolean; cota?: PortaoDaCota | null; declinio?: { ias: readonly string[]; auto: boolean } | null }): Promise<Turno | null> {
+    async reivindicar(p: { machineId: string; agora: number; harnessesProntos?: readonly string[]; harnessesAuto?: readonly string[]; harnessesProntosPessoa?: readonly string[]; harnessesAutoPessoa?: readonly string[]; aceitaLigacao?: boolean; segurarFundo?: boolean; espacarFundo?: boolean; segurarNovo?: boolean; fundoSemPrazo?: boolean; soComoAlvo?: boolean; soDaPessoa?: boolean; cota?: PortaoDaCota | null; declinio?: { ias: readonly string[]; auto: boolean } | null }): Promise<Turno | null> {
       const dentro = async (trx: Conn): Promise<Turno | null> => {
         await trx`select pg_advisory_xact_lock(hashtext(${`${escopo.tenantId}:${escopo.pessoaId}`}))`;
         // NOD-94 (emenda 11 da ADR-090): a máquina só-computador nunca pega turno, venha o puxar de onde vier (o papel é o
@@ -403,14 +403,21 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
               and (t.acordar_em is null or t.acordar_em <= ${data(p.agora)})
               -- ADR-090 (revisão do PR): a máquina que é o alvo do turno o pega mesmo sem a IA pronta; o despacho recusa nomeando a
               -- IA (NOD-171), em vez de o turno esperar em silêncio uma máquina que nunca vai pegá-lo.
-              ${p.harnessesProntos === undefined ? trx`` : trx`and (${alvo} = ${p.machineId} or (t.harness = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0}) or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[]))
+              ${p.harnessesProntos === undefined ? trx`` : trx`and (${alvo} = ${p.machineId}
+                or (t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})
+                or (t.harness = 'auto' and t.modelo <> 'auto' and (${iaDoTurno} = any(${[...(p.harnessesAuto ?? p.harnessesProntos)]}::text[])
+                  or (${iaDoTurno} <> all(${[...(p.harnessesAutoPessoa ?? p.harnessesProntosPessoa ?? p.harnessesProntos)]}::text[]) and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})))
+                or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[]))
                 ${p.harnessesProntosPessoa === undefined ? trx`` : trx`or (t.harness <> 'auto' and ${iaDoTurno} <> all(${[...p.harnessesProntosPessoa]}::text[]))`})`}
               and exists (select 1 from agentes a where a.tenant_id = t.tenant_id and a.id = t.agente_id and a.excluido_em is null and a.geracao_execucao = t.geracao_execucao)
               -- Jornada C do onboarding (2026-11-07): a fala da pessoa guardada sem IA (a negação aguardaIa do turno, gravada
               -- só com NOD_ONBOARDING_TEXTO=1) espera uma máquina com a IA dela pronta — a máquina-alvo sem IA não a pega para
               -- recusar, como faz com o resto (acima). Rotina, catcher, ligação e o turno sem a fala guardada não mudam.
               ${p.harnessesProntos === undefined ? trx`` : trx`and not (t.origem = 'conversa'
-                and not ((t.harness = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0}) or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[])))
+                and not ((t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})
+                  or (t.harness = 'auto' and t.modelo <> 'auto' and (${iaDoTurno} = any(${[...(p.harnessesAuto ?? p.harnessesProntos)]}::text[])
+                    or (${iaDoTurno} <> all(${[...(p.harnessesAutoPessoa ?? p.harnessesProntosPessoa ?? p.harnessesProntos)]}::text[]) and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})))
+                  or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[])))
                 and exists (select 1 from mensagens g where g.tenant_id = t.tenant_id and g.turno_id = t.id and g.kind = 'negacao' and g.payload->>'aguardaIa' = 'true'))`}
               -- definido em 2026-10-22 (ADR-121, NOD-92): a máquina na nuvem que adormece, dorme ou acorda não pega turno até
               -- falar com o servidor depois de ligar (ligou_em). Sob a mesma trava da pessoa que o dormir toma: o turno
