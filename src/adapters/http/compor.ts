@@ -1,3 +1,4 @@
+import { comAppsHospedados } from "./apps-hospedados.ts";
 import type { EfeitoAposCommit } from "../../contracts/acoes.ts";
 import { criarLoginsNaMaquina, PRAZO_DESCONEXAO_MS, PRAZO_REMOCAO_MS } from "../../services/logins-na-maquina.ts";
 import { anunciarContasDaMaquina } from "../../use-cases/contas-ia.ts";
@@ -460,7 +461,14 @@ export function comporApp(o: OpcoesCompor): App {
   configurarRotinasFora(lerRotinasFora(env));
   // ADA-28 (ADR-159): NOD_TAREFA_CASA=1 liga a jornada chat × quadro (desligada até o protótipo e as suposições).
   configurarTarefaCasa(lerTarefaCasa(env));
-  const depsSemPorta = (trx: Tx, escopo: Escopo): Deps => ({ repos: criarRepos(trx, escopo), services, useCases, tx: (fn) => fn(trx), escopo, agora: relogio, fusoPadrao, modeloPadrao, ...(contasLigadas ? { situacaoConta: () => situacaoDaConta(trx, escopo) } : {}) });
+  const appsHospedados = env.NOD_APPS_HOSPEDADOS === "1";
+  const chaveApps = env.NOD_COMPOSIO_API_KEY?.trim();
+  const chaveAppsCifrada = chaveApps ? cifrar(chaveApps, chave) : null;
+  const depsBase = (trx: Tx, escopo: Escopo): Deps => ({ repos: criarRepos(trx, escopo), services, useCases, tx: (fn) => fn(trx), escopo, agora: relogio, fusoPadrao, modeloPadrao, ...(contasLigadas ? { situacaoConta: () => situacaoDaConta(trx, escopo) } : {}) });
+  const depsSemPorta = (trx: Tx, escopo: Escopo): Deps => {
+    const deps = depsBase(trx, escopo);
+    return appsHospedados ? comAppsHospedados(deps, chaveAppsCifrada) : deps;
+  };
   // NOD-443 (ADR-143): a porta para o quadro da dona, na mesma transação (o turno do bot de quem participa).
   const depsDe = (trx: Tx, escopo: Escopo): Deps => comPortas(trx, escopo, (e) => depsSemPorta(trx, e));
   const depsSobre = (trx: Tx): Deps => depsDe(trx, escopoDoContexto());
@@ -1556,8 +1564,8 @@ export function comporApp(o: OpcoesCompor): App {
     // serviço, que receberia o cookie da pessoa. Só liga quando o servidor escuta no loopback (ou em todas as interfaces).
     // Revisão 12: o boot passa o host EFETIVO do listen (`o.host` vence o env); flag ligada e host recusado deixam aviso.
     ...rotasTela({ capturador: capturaDeTelaLigada(env, compartilhado) ? (o.capturador ?? criarCapturadorCdp()) : null }),
-    ...rotasMarketplace({ dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave), admins: (env.NOD_ADMINS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean), aoTrocarApp: (t) => cofreDoApp.esquecer(t) }),
-    ...rotasConectores({ dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave) }),
+    ...rotasMarketplace({ appsHospedados, dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave), admins: (env.NOD_ADMINS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean), aoTrocarApp: (t) => cofreDoApp.esquecer(t) }),
+    ...rotasConectores({ appsHospedados, dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave) }),
     ...rotasCredencial({ dentro, cifrar: (t) => cifrar(t, chave), decifrar: (t) => decifrar(t, chave) }),
     ...rotasTrilha({ dentro }),
     // ADR-090: o motor sem janela da versão deste servidor (dist/motor) e o script que o instala numa máquina Linux.

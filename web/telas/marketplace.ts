@@ -201,7 +201,7 @@ export function renderMarketplace(estado: Estado): string {
   // definido em 2026-10-04: o mesmo "‹ <de onde veio>" de Seu espaço, com o mascote do bot e o Esc.
   const volta = tela?.voltar ? voltaDaTela(estado, tela.voltar) : null;
   const retorno = volta ? `<div class="tela-volta"><button type="button" class="tela-voltar" data-act="voltar-conexao" aria-keyshortcuts="Escape" title="Voltar para ${esc(volta.rotulo)} (Esc)">${ICONE.voltar}${volta.icone}<span>${esc(volta.rotulo)}</span></button><kbd>esc</kbd></div>` : "";
-  const semComposio = estado.composioConfigurado ? "" : `<p class="mkt-aviso">Para conectar a maioria dos apps, o Composio do time precisa estar configurado. ${botao("abrir-avancado", "Configurar", { classe: "link" })}</p>`;
+  const semComposio = estado.composioConfigurado ? "" : estado.appsHospedados ? `<p class="mkt-aviso">O serviço de conexão de apps está indisponível neste servidor. Tente novamente mais tarde. Você não precisa fornecer uma chave de infraestrutura.</p>` : `<p class="mkt-aviso">Para conectar a maioria dos apps, o Composio do time precisa estar configurado. ${botao("abrir-avancado", "Configurar", { classe: "link" })}</p>`;
   const aviso = estado.avisoConexao ? `<p class="connection-notice" role="status">${esc(estado.avisoConexao)}</p>` : "";
   const aberta = tela?.gaveta ? estado.marketplace.find((a) => a.slug === tela.gaveta?.slug) : undefined;
   return `<div class="mkt">

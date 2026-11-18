@@ -256,6 +256,18 @@ if [ -n "$NOD_QUADRO_GITHUB_REPOS" ] && [ -z "$QUADRO_GITHUB_TOKEN" ]; then
   echo "aviso: NOD_QUADRO_GITHUB_REPOS ligado sem o segredo nod-github-quadro-token: os PRs do quadro não sincronizam (docs/deploy-gcp.md, Token dos PRs do quadro)" >&2
   NOD_QUADRO_GITHUB_TENANTS=""
 fi
+# Instalação oficial: a infraestrutura é do servidor, nunca uma chave pedida ao usuário.
+NOD_APPS_HOSPEDADOS="$(limpo "${NOD_APPS_HOSPEDADOS:-1}")"
+case "$NOD_APPS_HOSPEDADOS" in 0|1) ;; *) echo "NOD_APPS_HOSPEDADOS só aceita 0 ou 1" >&2; exit 1 ;; esac
+COMPOSIO_SERVICO=""
+if [ "$NOD_APPS_HOSPEDADOS" = 1 ]; then
+  COMPOSIO_SERVICO="$(segredo nod-composio-api-key 2>/dev/null || true)"
+  # Evita injeção/interpolação no env_file. Nunca imprime o valor.
+  [[ -z "$COMPOSIO_SERVICO" || "$COMPOSIO_SERVICO" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "formato inválido no segredo nod-composio-api-key" >&2; exit 1; }
+  if [ -z "$COMPOSIO_SERVICO" ]; then
+    echo "aviso: apps hospedados sem credencial de serviço; tenants novos verão serviço indisponível" >&2
+  fi
+fi
 # Só o env da cor nova muda: a velha, que ainda drena, nunca recebe config nova.
 cat >"nod-$NOVA.env.novo" <<EOF
 NOD_LOGIN=google
@@ -273,6 +285,8 @@ NOD_DB_POOL_MAX=15
 DATABASE_URL_DONO=postgres://nod_dono:$PG_SENHA_DONO@$SQL_IP:5432/nod?sslmode=require
 NOD_SESSAO_SEGREDO=$SESSAO_SEGREDO
 NOD_CREDENTIAL_KEY=$CREDENTIAL_KEY
+NOD_APPS_HOSPEDADOS=$NOD_APPS_HOSPEDADOS
+NOD_COMPOSIO_API_KEY=$COMPOSIO_SERVICO
 NOD_GOOGLE_CLIENT_ID=$GOOGLE_ID
 NOD_GOOGLE_CLIENT_SECRET=$GOOGLE_SEGREDO
 NOD_GOOGLE_REDIRECT_URI=https://$NOD_DOMINIO/api/sessao/google/callback

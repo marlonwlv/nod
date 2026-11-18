@@ -3931,7 +3931,7 @@ const conexoes = criarConexoes({
 function iniciarConexao(slug: string, depois: (() => Promise<void>) | null = null): void {
   if (!slug) return;
   // O GitHub não depende do Composio (ADR-048): o servidor tenta o gh desta máquina e o token antes.
-  if (!estado.composioConfigurado && slug !== "github") {
+  if (!estado.composioConfigurado && !estado.appsHospedados && estado.carregado.conectores && slug !== "github") {
     abrirMarketplace(true);
     dispatch({ tipo: "aviso-conexao", texto: "Para conectar apps, adicione a chave do Composio do time abaixo." });
     return;
@@ -6207,7 +6207,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     marcarDecidida(el, propostaId);
     iniciarConexao(slug, async () => {
       const r = await api!.conectores();
-      dispatch({ tipo: "hidratar-conectores", conectores: r.conectores, marketplace: r.marketplace, composioConfigurado: r.composioConfigurado });
+      dispatch({ tipo: "hidratar-conectores", conectores: r.conectores, marketplace: r.marketplace, composioConfigurado: r.composioConfigurado, appsHospedados: r.appsHospedados });
       // A proposta ainda tem de estar à vista e pendente: sumiu (decidida, recusada, de outra sessão), nada é confirmado.
       const proposta = propostaDoEstado(propostaId);
       if (!proposta || proposta.estado !== "pendente" || appsQueFaltam(proposta, estado).length > 0) return;

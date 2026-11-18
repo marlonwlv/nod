@@ -11,6 +11,7 @@ import type { Rota } from "../roteador.ts";
 import { executar, type DentroDeTx } from "./dentro-de-tx.ts";
 
 export type DepsRotasConectores = {
+  appsHospedados?: boolean;
   dentro: DentroDeTx;
   /** Cifra o env do conector com a chave do servidor (NOD_CREDENTIAL_KEY via src/db/cifra.ts, composto pela L9). */
   cifrar: (texto: string) => string;
@@ -111,7 +112,7 @@ export function rotasConectores(deps: DepsRotasConectores): Rota[] {
         }));
         const cifrada = await deps.dentro(ctx.escopo, (d) => d.repos.composio.chave());
         const marketplace = await catalogo(ctx.escopo.tenantId, cifrada);
-        ctx.json(200, { conectores, marketplace, composioConfigurado: !!cifrada });
+        ctx.json(200, { conectores, marketplace, composioConfigurado: !!cifrada, appsHospedados: deps.appsHospedados === true });
       },
     },
     {

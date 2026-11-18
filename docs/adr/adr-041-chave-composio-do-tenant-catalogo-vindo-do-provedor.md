@@ -77,3 +77,26 @@ gerenciado pelo Composio (`composio_managed_auth_schemes` no `GET /toolkits`), e
 apps". A premissa do contexto ("Notion, Linear e Google Sheets … nunca conectariam") vale só para os
 toolkits sem login gerenciado. Segundo a documentação do provedor, esses três têm login gerenciado. O
 gatilho "mais de ~40 itens" foi atendido com seção e busca, sem paginação.
+
+## Emenda: instalação oficial sem chave de infraestrutura (2026-11-18)
+
+O modo `NOD_APPS_HOSPEDADOS=1` usa a credencial `NOD_COMPOSIO_API_KEY` exclusivamente no backend.
+Tenants novos não precisam configurar Composio. Projetos antigos mantêm prioridade da chave do tenant,
+para suas sessões existentes continuarem no mesmo projeto. Sem modo hospedado, permanece o self-hosted.
+O deploy oficial habilita esse modo e lê `nod-composio-api-key` do Secret Manager; ausência de segredo
+é indisponibilidade do serviço para tenants novos, nunca um convite a fornecer chave de infraestrutura.
+
+OAuth continua por `nod:<tenant>:<pessoa>` e a verificação confere pessoa, toolkit e conta ativa antes
+de fixar a conta na sessão. Concessões de ferramentas continuam separadas da conexão.
+O segredo fica cifrado no env de cada conector no banco do servidor (como antes); não integra o plano
+remoto, frontend ou desktop. O catálogo público contém só os nomes das variáveis, nunca seus valores.
+Rotação de chave exige reconectar os conectores que armazenam a versão antiga; automatizar rotação é posterior.
+
+Criar/verificar sessão exige autenticação Nod e escopo da sessão, com teto de 30 requisições/pessoa/minuto
+mais 300/processo/minuto. A estrutura em memória é limitada pelo teto global. Deploy azul/verde ou múltiplas
+réplicas multiplicam o teto pelo número de processos; quotas distribuídas/faturamento não estão implementados.
+Configurar a infraestrutura pela web ou chat fica vedado no modo hospedado.
+
+Nenhum recurso comercial fechado foi adicionado. A configuração pública é uma capacidade do backend;
+o operador provisiona o segredo fora do repositório. O catálogo ainda usa seu piso/cache se o provedor falhar,
+mas conexão/verificação retornam erro técnico, sem transformar falha em conta desconectada.

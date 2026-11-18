@@ -122,3 +122,15 @@ describe("o ‹ de volta no topo do Marketplace (definido em 2026-10-04)", () =>
     expect(html).toContain('title="Voltar para Milton (Esc)"');
   });
 });
+
+it("apps hospedados não pedem chave, inclusive com infraestrutura indisponível", () => {
+  for (const composioConfigurado of [true, false]) {
+    const estado = { ...base, appsHospedados: true, composioConfigurado };
+    const grade = renderConectores(estado);
+    if (!composioConfigurado) expect(grade).toContain("serviço de conexão de apps está indisponível");
+    expect(grade).not.toContain("Composio do time precisa");
+    const avancado = renderConectores({ ...estado, tela: { tipo: "conectores", avancado: true } });
+    expect(avancado).not.toContain('data-form="configurar-composio"');
+    expect(avancado).not.toContain("Cole a chave");
+  }
+});

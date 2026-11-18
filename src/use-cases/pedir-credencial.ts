@@ -63,6 +63,7 @@ async function cartaoRepetido(deps: Deps, ctx: ContextoFerramenta, payload: Payl
 async function alvoDoPedido(deps: Deps, args: ArgsPedirCredencial): Promise<Omit<PayloadPropostaCredencial, "kind" | "para" | "turnoId"> | ErroPedirCredencial> {
   // A chave do Composio vale para o time inteiro (ADR-041): o bot só a pede quando ainda não há nenhuma; trocar a que existe
   // é na tela do Composio, por quem sabe por quê (revisão do PR #553).
+  if (args.alvo === "composio" && deps.appsHospedados && !(await deps.repos.composio.chave())) throw new ErroDeDominio("conector_indisponivel");
   if (args.alvo === "composio" && (await deps.repos.composio.chave())) return "composio_ja_configurado";
   if (args.alvo !== "conector") return { alvo: args.alvo, conectorId: null, app: NOMES[args.alvo], chave: null };
   const slug = (args.conector ?? "").trim();
