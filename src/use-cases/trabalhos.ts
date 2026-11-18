@@ -21,7 +21,7 @@ import { acabaLogo, DISCO_ALERTA_MB, DISCO_CRITICO_MB, esperaDoMac, esperaNaMaqu
 import { pastaDoBot } from "../domain/nativas.ts";
 import { nomeDaMaquina, semContatoDesde as semContatoDaMaquina } from "../domain/presenca-da-maquina.ts";
 import { ehFrente, tituloDoLote } from "../domain/frente.ts";
-import { estadoDoTrabalho, linhaCurta, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
+import { estadoDoTrabalho, linhaCurta, linhaDaFala, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
 import type { ExtrasTrabalho, NovoTrabalho } from "../repositories/trabalhos.repo.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
 import { colegaComCota } from "./cota-do-colega.ts";
@@ -208,7 +208,7 @@ export async function trabalhosParaDto(deps: Pick<Deps, "repos" | "services" | "
       rotinaNome: e?.rotinaNome ? linhaCurta(e.rotinaNome) : null,
       // O nome da última ferramenta do turno vivo (o processo sabe) ganha da última fala, que pode ser de minutos atrás.
       // NOD-350: e a contagem dos subagentes que ainda trabalham ganha das duas (o bot pode ter falado e estar esperando).
-      ultimoPasso: (vivo ? (deps.services.trabalhosVivos?.resumoSubagentes?.(vivo) ?? deps.services.trabalhosVivos?.ultimaFerramenta(vivo)) : null) ?? (e?.ultimaFala ? linhaCurta(e.ultimaFala) : null),
+      ultimoPasso: (vivo ? (deps.services.trabalhosVivos?.resumoSubagentes?.(vivo) ?? deps.services.trabalhosVivos?.ultimaFerramenta(vivo)) : null) ?? (e?.ultimaFala ? linhaDaFala(e.ultimaFala) : null),
       turnoVivoId: vivo,
       // revisto em 2026-10-08 (ADR-085): a memória é a do processo vivo. Sem turno vivo (esperando você, um colega ou a
       // vez na fila) não há processo, e a última leitura gravada fazia "Todos os trabalhos" somar vários GB que o Mac

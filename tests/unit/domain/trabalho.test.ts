@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PRAZO_GUARDA, RAZAO_MAXIMA_LINEAR, razaoDeCrescimento } from "../../helpers/crescimento.ts";
 import { CAPACIDADES_HARNESS, SEM_CAPACIDADES } from "../../../src/contracts/harness.ts";
 import { seguimentoNaRede } from "../../../src/domain/frente.ts";
-import { CARACTERES_TITULO_PROVISORIO, esperaDoTrabalho, estadoDoTrabalho, linhaCurta, PALAVRAS_TITULO_PROVISORIO, pastaDoTrabalho, pastaRelativa, podeAbrirTask, podeMandarParaTask, promoveNaRede, REDE_MS, slugDoTrabalho, TITULO_PROVISORIO_RESERVA, tituloDoTrabalho, tituloOuNada, tituloProvisorio, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
+import { CARACTERES_TITULO_PROVISORIO, esperaDoTrabalho, estadoDoTrabalho, linhaCurta, linhaDaFala, PALAVRAS_TITULO_PROVISORIO, pastaDoTrabalho, pastaRelativa, podeAbrirTask, podeMandarParaTask, promoveNaRede, REDE_MS, slugDoTrabalho, TITULO_PROVISORIO_RESERVA, tituloDoTrabalho, tituloOuNada, tituloProvisorio, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
 
 const base: FatosTrabalho = { estadoAtual: "na_fila", iniciado: false, parando: 0, despachando: 0, pendentes: 0, esperandoOutro: false, decisaoPendente: false, aguardandoColega: false, ultimo: null };
 
@@ -244,5 +244,24 @@ describe("esperaDoTrabalho (ADR-099, parte 1: esperar não é trabalhar)", () =>
     ["na fila não é espera", { ...rodando, estado: "na_fila" as const, esperandoColega: colega }, null],
   ])("%s", (_nome, t, esperado) => {
     expect(esperaDoTrabalho(t)).toBe(esperado);
+  });
+});
+
+describe("linhaDaFala (validação de 2026-11-17: o resumo do cartão das tarefas vinha com markdown cru)", () => {
+  it("tira ênfase, código em linha e link da primeira linha", () => {
+    expect(linhaDaFala("O texto está pronto e salvo como `pao.md`. Tem **1.509 palavras** e [8 fontes](https://x.y/z).")).toBe("O texto está pronto e salvo como pao.md. Tem 1.509 palavras e 8 fontes.");
+    expect(linhaDaFala("Feito, *quase* tudo e ~~nada~~ mais")).toBe("Feito, quase tudo e nada mais");
+  });
+  it("título, citação, item de lista e régua viram texto, ou somem", () => {
+    expect(linhaDaFala("## História do pão\n\nTexto")).toBe("História do pão");
+    expect(linhaDaFala("---\n> - [x] **Pronto**")).toBe("Pronto");
+    expect(linhaDaFala("```ts\nconst a = 1;")).toBe("const a = 1;");
+  });
+  it("não mexe em snake_case, conta e asterisco solto", () => {
+    expect(linhaDaFala("rodei o meu_script_novo: 2 * 3 = 6")).toBe("rodei o meu_script_novo: 2 * 3 = 6");
+  });
+  it("corta depois de limpar: a marcação não gasta os 80 caracteres", () => {
+    const fala = `**${"a".repeat(78)}**`;
+    expect(linhaDaFala(fala)).toBe("a".repeat(78));
   });
 });

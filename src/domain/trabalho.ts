@@ -36,6 +36,36 @@ export function linhaCurta(texto: string): string {
 }
 
 /**
+ * O último passo que vem da fala do bot: a primeira linha como texto corrido, depois `linhaCurta` (validação de
+ * 2026-11-17: o cartão das tarefas, a tela Tarefas e o painel mostravam "**1.509 palavras**" e "`pao.md`" crus, porque a
+ * fala é markdown e a linha é texto). Tira título, citação, item de lista, régua, cerca de código, link, código em linha
+ * e ênfase; não mexe em snake_case nem em "2 * 3".
+ */
+export function linhaDaFala(texto: string): string {
+  for (const l of texto.split("\n")) {
+    const limpa = semMarcacao(l).replace(/\s+/g, " ").trim();
+    if (limpa !== "") return linhaCurta(limpa);
+  }
+  return linhaCurta("");
+}
+
+function semMarcacao(linha: string): string {
+  const s = linha.trim();
+  if (/^([-*_])(\s*\1){2,}$/u.test(s) || /^(```|~~~)/u.test(s)) return "";
+  return s
+    .replace(/^(?:>\s?)+/u, "")
+    .replace(/^#{1,6}\s+(.*?)\s*#*$/u, "$1")
+    .replace(/^(?:[-*+•]|\d{1,3}[.)])\s+(?:\[[ xX]\]\s+)?/u, "")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)\s]*\)/gu, "$1")
+    .replace(/`([^`]+)`/gu, "$1")
+    .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/gu, "$2")
+    .replace(/~~(?=\S)(.+?)(?<=\S)~~/gu, "$1")
+    .replace(/(^|[^\p{L}\p{N}*])\*(?=\S)([^*]+?)(?<=\S)\*(?![\p{L}\p{N}*])/gu, "$1$2")
+    .replace(/(^|[^\p{L}\p{N}_])_(?=\S)([^_]+?)(?<=\S)_(?![\p{L}\p{N}_])/gu, "$1$2");
+}
+
+/**
  * Os primeiros `n` caracteres (unidades UTF-16) sem partir um par substituto: a letra fora do plano básico ("𝐀", o CJK
  * da extensão B) cortada ao meio deixava meia letra no título, que o UTF-8 do Postgres e do JSON trocam por "�".
  * definido em 2026-10-18 (revisão do PR 5).
