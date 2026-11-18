@@ -17,7 +17,7 @@ const ID = "pc1";
 const limpar: Array<() => Promise<unknown> | unknown> = [];
 afterEach(async () => { for (const f of limpar.splice(0).reverse()) await f(); });
 
-async function montar(leitura = () => ({ memoria: "verde" as unknown, processador: "verde" as unknown }), aoAtualizar?: () => void, agora?: () => number, extra: { tela?: string } = {}) {
+async function montar(leitura = () => ({ memoria: "verde" as unknown, processador: "verde" as unknown }), aoAtualizar?: () => void, agora?: () => number, extra: { tela?: string; workspaceRaiz?: string; terminalExterno?: boolean } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "nod-supervisor-test-"));
   limpar.push(() => rm(dir, { recursive: true, force: true }));
   const bin = async (nome: string, corpo: string) => {
@@ -37,7 +37,7 @@ async function montar(leitura = () => ({ memoria: "verde" as unknown, processado
     xvfb: "Xvfb", openbox: "openbox", chromium: "chromium", bwrap: null, xdotool: "xdotool", xclip: "xclip", scrot: "scrot",
   };
   const terminal = join(dir, "term.sock");
-  const st = criarServidorTerminal({ raiz: join(dir, "raiz") });
+  const st = criarServidorTerminal({ raiz: join(dir, "raiz"), bwrap: null });
   await escutar(st, terminal);
   limpar.push(() => new Promise((r) => st.close(r)));
   const logs: string[] = [];
@@ -74,6 +74,36 @@ async function iniciar(sup: Supervisor) {
 }
 
 describe("supervisor", () => {
+  it("no Docker valida e assina o terminal, mas delega a execução ao sidecar isolado", async () => {
+    const { sup } = await montar(undefined, undefined, undefined, { terminalExterno: true });
+    await iniciar(sup);
+    const r = await sup.tratar(cmd({ tipo: "acao", agenteId: "bot1", acao: { tipo: "terminal", comando: "pwd" } }));
+    expect(r).toMatchObject({ desfecho: "ok", resultado: { terminalExterno: true } });
+  });
+
+  it("a sonda cria somente o estado TOFU, sem fabricar comando não assinado", async () => {
+    const { sup, dir } = await montar();
+    const caminho = join(dir, "sonda.sock");
+    const srv = servirControle(sup);
+    await escutarControle(srv, caminho);
+    limpar.push(() => new Promise((r) => srv.close(r)));
+    const foto = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const s = connect(caminho);
+      limpar.push(() => s.destroy());
+      let buf = "";
+      s.on("error", reject);
+      s.on("connect", () => s.write(`${JSON.stringify({ tipo: "pedir_estado", computadorId: ID })}\n`));
+      s.on("data", (b) => {
+        buf += b;
+        const i = buf.indexOf("\n");
+        if (i >= 0) resolve(JSON.parse(buf.slice(0, i)) as Record<string, unknown>);
+      });
+    });
+    expect(foto).toMatchObject({ tipo: "estado", computadorId: ID, ligado: false });
+    expect(foto.supervisorPub).toEqual(expect.any(String));
+    expect(sup.estados()).toHaveLength(1);
+  });
+
   it("recusa comando sem a chave do servidor fixada, fixa no primeiro iniciar (TOFU) e liga a máquina", async () => {
     const { sup, registro, dir } = await montar();
     expect((await sup.tratar(cmd({ tipo: "parar" }))).motivo).toBe("acao_falhou");

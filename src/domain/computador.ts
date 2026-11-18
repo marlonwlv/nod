@@ -80,7 +80,7 @@ export const MOTIVO_FALHA_EM_PORTUGUES: Readonly<Record<MotivoFalhaComputador, s
   acao_falhou: "a ação falhou dentro do computador",
   tela_alterada: "a tela mudou desde a última observação",
   ocupado: "outra ação estava em andamento",
-  limite_de_computadores: "este Mac já tem o máximo de computadores ligados",
+  limite_de_computadores: "o provedor chegou ao limite de computadores ligados",
   maquina_sem_contato: "a máquina do computador não está respondendo",
   faltam_pacotes: "faltam pacotes do computador na máquina",
   sem_suporte: "a máquina não consegue rodar o computador",
@@ -135,7 +135,7 @@ export const TEXTO_ATUALIZANDO = "O computador está atualizando; tento de novo 
 export function instrucaoDaFalha(motivo: MotivoFalhaComputador, limite: LimiteDeComputadores | null = null, maquina: string | null = null): string {
   const ligar = textoDeLigar(motivo, maquina);
   if (ligar) return `${ligar}. Nada foi executado. Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.${caminhoParaAPessoa(motivo)}`;
-  if (motivo === "limite_de_computadores") return `${limite ? textoDoLimite(limite) : "Este Mac já tem o máximo de computadores ligados. Nada foi executado."} Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.`;
+  if (motivo === "limite_de_computadores") return `${limite ? textoDoLimite(limite) : "O provedor chegou ao limite de computadores ligados. Pare um computador sem uso ou ajuste o limite do plano. Nada foi executado."} Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.`;
   if (motivo === "faltam_pacotes" || motivo === "sem_suporte") return `O computador não está disponível: ${MOTIVO_FALHA_EM_PORTUGUES[motivo]}. Nada foi executado. Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.`;
   // NOD-96 PR 5: a operação da pessoa (Atualizar, Redefinir, Sair de todos) é espera, não erro.
   if (motivo === "atualizando") return TEXTO_ATUALIZANDO;

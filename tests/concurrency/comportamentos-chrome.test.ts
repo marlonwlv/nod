@@ -149,7 +149,7 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     if (!onboardingConcluido) { await srv.json("POST", "onboarding/concluir", {}); onboardingConcluido = true; }
     await navegar(hash);
     await ate(`document.querySelector('[data-act="abrir-conversa"]')`, "a lista de bots");
-    await ate(`document.querySelector('[data-act="novo-bot-dialogo"]')`, "o app hidratado", 60_000);
+    await ate(`document.querySelector('[data-act="menu-do-mais"]')`, "o app hidratado", 60_000);
   }
 
   async function abrirConversa(bot: { id: string }): Promise<void> {
@@ -339,39 +339,21 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
   });
 
   // ———————————————————————————————————————————————— 3 ————————————————————————————————————————————————
-  it("3. aprovação em lote: pedidos iguais viram um cartão na conversa, com 'Permitir os N' e 'Negar todos'", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Lote Teste", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
+  it("3. uma mensagem nova substitui a aprovação aberta: nada antigo roda e só o pedido mais recente fica", { timeout: JORNADA }, async () => {
+    const bot = await criarBot("Substituição Teste", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
     await abrirApp();
     await abrirConversa(bot);
-    // O pedir_aprovacao encerra o turno: um pedido por fala, três falas (o lote junta pedidos de turnos diferentes).
-    for (const [n, t] of ["lote-a", "lote-b", "lote-c"].entries()) {
-      await falar(bot, `Grave ${t}. [[tool: pedir_aprovacao ${pedirGravar(t)}]] [[texto: pedi ${t}]]`);
-      await atePedidos(bot.id, n + 1);
-    }
-    await ate(`document.querySelector("#timeline li.aprov-iguais[data-iguais]")`, "o cartão em lote na conversa");
-    await ate(`document.querySelector("#timeline li.aprov-iguais").dataset.iguais.split(",").length === 3`, "os 3 no lote");
-    expect(await avaliar<number>(cdp, `document.querySelectorAll("#timeline li.decisao.aprov-card:not(.aprov-iguais)").length`)).toBe(0);
-    expect(await texto('#timeline [data-act="iguais-permitir"]')).toBe("Permitir os 3");
-    // Desmarca um: o botão conta 2, e só os 2 saem; o desmarcado é negado.
-    await avaliar(cdp, `(() => { const c = document.querySelectorAll("#timeline li.aprov-iguais input[data-igual]")[2]; c.click(); })()`);
-    expect(await texto('#timeline [data-act="iguais-permitir"]')).toBe("Permitir os 2");
-    await clicar('#timeline [data-act="iguais-permitir"]');
-    await ateGravar("lote-b");
-    await ateGravar("lote-a");
-    await espera(800);
-    expect(gravados().some((l) => l.includes("lote-c"))).toBe(false);
-    await ate(`!document.querySelector("#timeline li.aprov-iguais")`, "o lote resolvido");
-    // Negar todos (Esc no cartão do lote).
-    for (const [n, t] of ["lote-d", "lote-e"].entries()) {
-      await falar(bot, `Grave ${t}. [[tool: pedir_aprovacao ${pedirGravar(t)}]] [[texto: pedi ${t}]]`);
-      await atePedidos(bot.id, n + 1);
-    }
-    await ate(`document.querySelector("#timeline li.aprov-iguais[data-iguais]")`, "o 2º lote");
-    await avaliar(cdp, `document.querySelector('#timeline [data-act="iguais-permitir"]').focus()`);
-    await tecla("Escape", { vk: 27 });
-    await ate(`!document.querySelector("#timeline li.aprov-iguais")`, "o lote negado");
-    await espera(500);
-    expect(gravados().some((l) => l.includes("lote-d") || l.includes("lote-e"))).toBe(false);
+    await falar(bot, `Grave antigo. [[tool: pedir_aprovacao ${pedirGravar("substituido-antigo")}]] [[texto: pedi antigo]]`);
+    await atePedidos(bot.id, 1);
+    await falar(bot, `Grave novo. [[tool: pedir_aprovacao ${pedirGravar("substituido-novo")}]] [[texto: pedi novo]]`);
+    await atePedidos(bot.id, 1);
+    await ate(`[...document.querySelectorAll("#timeline .cartao-encolhido .ce-resultado")].some((e) => e.textContent === "Sem resposta")`, "o recibo do pedido substituído");
+    expect(await avaliar<number>(cdp, `document.querySelectorAll("#timeline li.decisao.aprov-card[data-decisao]").length`)).toBe(1);
+    expect(await existe("#timeline li.aprov-iguais[data-iguais]")).toBe(false);
+    expect(gravados().some((l) => l.includes("substituido-antigo"))).toBe(false);
+    await clicar('#timeline li.decisao.aprov-card [data-act="decidir-aprovacao"]');
+    await ateGravar("substituido-novo");
+    expect(gravados().some((l) => l.includes("substituido-antigo"))).toBe(false);
   });
 
   // ———————————————————————————————————————————————— 4 ————————————————————————————————————————————————
@@ -526,7 +508,9 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     // Um teste anterior pode ter deixado a barra recolhida: nesse estado o botão continua hidratado no DOM, mas não
     // está visível. Dispara a ação pública do + pelo nó atual, sem depender do desenho da barra nem do modificador que
     // o Chrome anuncia para a plataforma.
-    await avaliar(cdp, `document.querySelector('[data-act="novo-bot-dialogo"]')?.click()`);
+    await avaliar(cdp, `document.querySelector('[data-act="menu-do-mais"]')?.click()`);
+    await ate(`document.querySelector('[data-mais="novo-bot"]')`, "a ação de criar bot");
+    await avaliar(cdp, `document.querySelector('[data-mais="novo-bot"]')?.click()`);
     await ate(`document.querySelector("dialog.criar-bot[open] .cnb-nome")`, "o modal Criar novo bot");
     expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cnb-formas [role=radio][data-forma]').length`)).toBe(8);
     expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cnb-cores [role=radio][data-cor]').length`)).toBe(12);
@@ -567,25 +551,30 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
   });
 
   // ———————————————————————————————————————————————— 5 ————————————————————————————————————————————————
-  it("5. 'Aguardando você: {motivo}' em laranja na linha do bot; o clique abre a conversa rolada até o cartão", { timeout: JORNADA }, async () => {
-    const bot = await criarBot("Espera Teste", "manual");
+  it("5. o pedido pendente aparece em Trabalhos; o clique abre a conversa rolada até o cartão", { timeout: JORNADA }, async () => {
+    const bot = await criarBot("Espera Teste", "manual", [{ conectorId: conectorGravar, capacidade: "gravar" }]);
     const outro = await criarBot("Outro Teste", "manual");
     await abrirApp();
     await abrirConversa(outro);
-    await falar(bot, `Pergunte. [[tool: pedir_a_pessoa {"tipo":"pergunta","texto":"Posso arquivar o PR 7?"}]] [[texto: perguntei]]`);
-    const linha = `#sidebar [data-bot-contexto="${bot.id}"]`;
-    await ate(`document.querySelector('${linha}[data-aguardando] .sub-aguardando')`, "a linha aguardando");
-    expect(await texto(`${linha} .sub-aguardando`)).toBe("Aguardando você: Posso arquivar o PR 7");
+    await falar(bot, `Grave. [[tool: pedir_aprovacao ${pedirGravar("espera-trabalhos")}]] [[texto: pedi]]`);
+    await atePedidos(bot.id, 1);
+    await ate(`document.querySelector('#sidebar .linha-fixa-aguardando')`, "o pedido em Trabalhos");
+    expect(await avaliar<string | null>(cdp, `document.querySelector('#sidebar .linha-fixa-aguardando')?.getAttribute("aria-label") ?? null`)).toMatch(/precisa de você|pedidos esperando por você/);
     // Laranja: a cor vem de --aguardando (o valor é do CSS; aqui só que é a variável, e não a do não lido).
-    const cor = await avaliar<{ sub: string; ref: string }>(cdp, `(() => { const v = getComputedStyle(document.documentElement).getPropertyValue("--aguardando").trim(); const p = document.createElement("i"); p.style.color = v; document.body.append(p); const ref = getComputedStyle(p).color; p.remove(); return { sub: getComputedStyle(document.querySelector('${linha} .sub-aguardando')).color, ref }; })()`);
+    const cor = await avaliar<{ sub: string; ref: string }>(cdp, `(() => { const v = getComputedStyle(document.documentElement).getPropertyValue("--aguardando").trim(); const p = document.createElement("i"); p.style.color = v; document.body.append(p); const ref = getComputedStyle(p).color; p.remove(); return { sub: getComputedStyle(document.querySelector('#sidebar .linha-fixa-aguardando')).color, ref }; })()`);
     expect(cor.ref).not.toBe("");
     expect(cor.sub).toBe(cor.ref);
-    expect(await existe(`${linha} .ponto-aguardando`)).toBe(true);
-    // O clique abre a conversa do bot e realça o cartão pendente.
-    await clicar(`${linha} [data-act="abrir-conversa"]`);
-    await ate(`document.querySelector('#timeline [data-pergunta].realce, #timeline [data-decisao].realce')`, "o cartão realçado");
-    const visivel = await avaliar<boolean>(cdp, `(() => { const r = document.querySelector('#timeline [data-pergunta].realce, #timeline [data-decisao].realce').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`);
-    expect(visivel).toBe(true);
+    expect(await existe("#sidebar .linha-fixa-aguardando .ponto-aguardando")).toBe(true);
+    // Com um pedido, abre a conversa e realça o cartão; com vários, abre a lista Sua vez.
+    const umSo = await avaliar<boolean>(cdp, `document.querySelector('#sidebar .linha-fixa-aguardando')?.dataset.act === "abrir-conversa"`);
+    await clicar("#sidebar .linha-fixa-aguardando");
+    if (umSo) {
+      await ate(`document.querySelector('#timeline [data-pergunta].realce, #timeline [data-decisao].realce')`, "o cartão realçado");
+      const visivel = await avaliar<boolean>(cdp, `(() => { const r = document.querySelector('#timeline [data-pergunta].realce, #timeline [data-decisao].realce').getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; })()`);
+      expect(visivel).toBe(true);
+    } else {
+      await ate(`document.querySelector('.tela-sua-vez')`, "a lista Sua vez");
+    }
   });
 
   // ———————————————————————————————————————————————— 11 ————————————————————————————————————————————————

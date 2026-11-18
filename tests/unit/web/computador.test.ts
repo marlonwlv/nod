@@ -54,13 +54,13 @@ describe("computador do bot: erro real e aviso único na web (emenda da ADR-037)
     const limite = { maximo: 3, ociosoMin: 15 };
     const bateu = registro({ tipo: "iniciar", autor: "pessoa", motivo: "limite_de_computadores", em: T0 });
     expect(mensagemDoLimite({ ativo: false, atividade: [bateu], limite })).toBe("Este Mac já tem 3 computadores ligados, o limite. Nada foi executado. Os computadores sem uso há 15 min desligam sozinhos.");
-    expect(mensagemDoLimite({ ativo: false, atividade: [bateu] })).toBe("Este Mac já tem o máximo de computadores ligados. Nada foi executado.");
+    expect(mensagemDoLimite({ ativo: false, atividade: [bateu] })).toBe("O provedor chegou ao limite de computadores ligados. Pare um computador sem uso ou ajuste o limite do plano. Nada foi executado.");
     // Ligou depois (ou outra ação veio por cima), ou a falha foi outra: sem cartão do limite.
     expect(mensagemDoLimite({ ativo: true, atividade: [bateu], limite })).toBeNull();
     expect(mensagemDoLimite({ ativo: false, atividade: [registro({ tipo: "iniciar", estado: "concluida", motivo: null, em: T0 + H }), bateu], limite })).toBeNull();
     expect(mensagemDoLimite({ ativo: false, atividade: [registro({ em: T0 })], limite })).toBeNull();
     expect(mensagemDoLimite({ ativo: false, atividade: [], limite })).toBeNull();
-    expect(tituloDaFalha("limite_de_computadores")).toBe("Este Mac já tem o máximo de computadores ligados");
+    expect(tituloDaFalha("limite_de_computadores")).toBe("O provedor chegou ao limite de computadores ligados");
   });
 
   // Especificação D, item 2: fora do ar, o cartão Computador diz "Fora do ar desde HH:MM" com "Tentar de novo" no status;

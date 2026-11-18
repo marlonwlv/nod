@@ -57,6 +57,13 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
     expect(r.events[0]?.dados).toMatchObject({ motivo_falha: "limite_do_plano", ia_no_limite: "claude-cli", renova_em: T0 + DUAS_HORAS });
   });
 
+  it("Automático legado com Sonnet cai no Codex sem carregar o modelo do Claude", async () => {
+    const c = await cenario();
+    c.turno().modelo = "sonnet";
+    await c.entregar(limiteDoClaude(T0 + DUAS_HORAS), "claude-cli");
+    expect(c.banco.turnos.filter((t) => t.id !== c.turnoId)).toMatchObject([{ estado: "pendente", harness: "codex-cli", modelo: "auto", reenvios: 1 }]);
+  });
+
   it("a ordem do bot decide para onde vai; o Codex no limite sem horário fica fora por 1 h", async () => {
     const c = await cenario({ pedido: { ordem: ["codex-cli", "claude-cli"] } });
     await c.entregar(limiteDoCodex, "codex-cli");

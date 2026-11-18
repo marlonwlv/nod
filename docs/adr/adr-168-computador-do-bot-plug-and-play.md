@@ -1,11 +1,32 @@
-# ADR-168 — O computador do bot é plug and play: uma interface de provedor e a escolha por configuração
+# ADR-168 — O computador da pessoa é plug and play; cada bot tem uma tela privada
 
-Status: proposta · Data: 2026-11-12 (frente "Plataforma e time", pesquisa de referência) · Emenda a
+Status: aceita na NOD-498 · Data: 2026-11-16 · Emenda a
 [ADR-037](adr-037-computadores-por-bot.md) ("o `DriverComputador` permite substituir Docker por um provedor de máquinas
 remotas") e convive com a [ADR-122](adr-122-o-computador-da-pessoa-roda-no-motor.md) (motor) e a
 [ADR-127](adr-127-supervisor-do-computador-na-vm-do-mac.md) (VM do Mac).
 
 > Numeração: 166 em diante; a 164 é da frente de aprovações e a 165 fica para a do design system.
+
+## Correção de arquitetura (2026-11-17)
+
+A primeira implementação desta ADR interpretou “computador do bot” literalmente e preservou `modelo=por_bot` fora do
+motor. Isso contradizia a NOD-498, o Paper e a referência Bot HQ: criava um container Orgo/Docker por bot, multiplicava
+custo e impedia reaproveitar login. Esta seção substitui todo trecho conflitante abaixo.
+
+- A unidade de alocação é `(tenant, pessoa)`: um computador/container e um disco por pessoa/espaço em cada provedor.
+- A unidade de interação é a `computador_tela`: um display X, perfil Chromium e workspace privado por bot. O id recebido
+  pelo portão é resolvido para `{computadorId, telaId, agenteId}` antes de chegar ao provedor.
+- Login compartilhado **não** significa abrir o mesmo `user-data-dir` em Chromiums concorrentes. Docker usa o supervisor
+  da ADR-122: perfis independentes e uma loja cifrada/serializada de cookies, localStorage e senhas; Orgo aluga screens
+  distintas na mesma máquina e persiste o vínculo opaco na tela.
+- O limite de máquinas conta pessoas com máquina ligada. O limite de displays é separado (`NOD_ORGO_DISPLAY_MAX`, 4 por
+  padrão). Fechar uma tela não para a máquina nem as telas vizinhas; só uma operação da pessoa inteira para a máquina.
+- Arquivos ficam sob a identidade do bot (`/home/node/computadores/<computador>/workspaces/<agente>` no supervisor e
+  `/root/workspaces/<agente>` no Orgo). Uma área compartilhada só pode ser exposta explicitamente; perfis vizinhos não.
+- O índice único de `computador_telas.provedor_ref` e uma nova tentativa fecham a corrida entre servidores ao alugar
+  screens. Tenant e pessoa entram no nome remoto e em toda consulta, impedindo cruzamento entre contas lógicas.
+- Linhas antigas `por_bot` são legado somente leitura até a migração confirmada. Seus volumes não são removidos; a
+  reconciliação é idempotente e só arquiva o vínculo depois de copiar o workspace/perfil para a pasta do agente.
 
 ## Contexto: por que o computador falha hoje
 
@@ -52,7 +73,7 @@ desde 18/09), o que faz ele ser difícil de pôr de pé é estrutural, não um b
    tela — nunca um sucesso de mentira. Assim um provedor novo implementa ~8 chamadas HTTP e herda o resto.
 3. **O seletor monta o `DriverComputador` de sempre** (`provedores/seletor.ts`). O portão (`fundo/computadores.ts`), as
    ferramentas `computador_*`, o plano de turno e o agente não mudam. A cada chamada ele escolhe o provedor do
-   computador e delega; `ligados` é a união. Se a escolha muda com o computador ligado, desliga no antigo antes de ligar
+   display, resolve a máquina compartilhada e delega; `ligados` é a união das máquinas e telas. Se a escolha muda com o computador ligado, desliga no antigo antes de ligar
    no novo (log `computador_provedor_trocado`). **Arquivos e logins não migram entre provedores**: cada um tem o seu disco.
 4. **A escolha é configuração** (`src/domain/provedor-computador.ts`, lida só no boot, em `compor.ts`), com precedência
    **bot > pessoa > global > padrão**:
@@ -67,18 +88,20 @@ desde 18/09), o que faz ele ser difícil de pôr de pé é estrutural, não um b
    Valor desconhecido ou JSON torto é ignorado com aviso no boot (`computador_provedor_config`) e nunca vira outro
    provedor: um erro de digitação não pode mandar o computador de alguém para a nuvem de um terceiro. Provedor escolhido e
    não montado falha fechado (`nao_iniciou`), sem cair em outro. Sem nenhuma variável, nada muda.
-5. **O motor fica no caminho próprio.** Ele é um computador POR PESSOA com uma tela por bot (`porPessoa` no portão), não
-   cabe na escolha por bot. `NOD_COMPUTADORES=motor` continua como está; o seletor só existe fora dele.
-6. **Docker adaptado** (`provedores/docker.ts`): veste o driver de sempre (nenhuma linha do `subir` mudou) e acrescenta
+5. **Todos os provedores usam o modelo por pessoa.** Motor, Docker e Orgo compartilham `computadores.modelo=por_pessoa`
+   e `computador_telas`; a escolha por bot só escolhe onde a mesma máquina/tela é executada.
+6. **Docker adaptado** (`provedores/docker.ts`): sobe um container com o supervisor multi-tela da ADR-122 e acrescenta
    saúde explícita e **snapshot dos volumes** (-home e -workspace copiados para `…-foto-<rótulo>-*` com a própria imagem
    do computador, `--network none`, só com o computador desligado; restaurar é a cópia de volta). `excluir` não existe:
    volumes guardam logins de alguém (ADR-037).
-7. **Orgo como driver de exemplo** (`provedores/orgo.ts`, atrás de `NOD_COMPUTADOR_ORGO=1`). Escrito pela documentação
+7. **Orgo como driver de exemplo** (`provedores/orgo.ts`, atrás de `NOD_COMPUTADOR_ORGO=1`). Uma máquina por pessoa e
+   uma screen persistida por bot, conforme a referência Bot HQ. Escrito pela documentação
    (docs.orgo.ai, spec 2.0.0), sem conta: os testes usam um `fetch` falso. **A chave é da pessoa e mora no cofre**: o
    conector `orgo`, chave `ORGO_API_KEY`, guardada pelo cartão do `pedir_credencial` (alvo `conector`). O driver a lê do
    cofre a cada chamada (`chaveDe(escopo)` em `compor.ts`), só no header `Authorization`; nunca no env do servidor, no
    código, na URL, no corpo, no log ou no detalhe do erro (teste). Os computadores ficam no workspace `nod` da conta da
-   pessoa, com o nome `nod-<id do computador>` (não há listagem de computadores no Orgo: o id deles vem do workspace).
+   pessoa, com o nome `nod-<hash do tenant:pessoa>-<id do computador>` (o UUID do banco só é único dentro do tenant; o
+   hash impede colisão se duas pessoas compartilham uma conta Orgo). Não há listagem geral: os ids vêm do workspace.
    Opções: `NOD_ORGO_URL`, `NOD_ORGO_WORKSPACE_NOME`, `NOD_ORGO_RAM_GB` (padrão 4).
 
 ## Como o Orgo cobre a interface
@@ -106,11 +129,16 @@ desde 18/09), o que faz ele ser difícil de pôr de pé é estrutural, não um b
 
 - Trocar de provedor é escrever um arquivo em `adapters/computador/provedores/` com ~8 chamadas (as primitivas) e o ciclo,
   pôr o id em `PROVEDORES_COMPUTADOR` e no `compor.ts`. Nada no agente, nas ferramentas, no portão nem na web.
-- O Docker de hoje continua idêntico com `NOD_COMPUTADORES=docker` (os 132 testes do computador passam sem mudança).
+- O Docker reutiliza o supervisor multi-tela; a imagem antiga de um runtime/Chromium por container deixa de ser o CMD.
 - Com um provedor só de tela, o bot perde o texto da página e o controle de abas do Playwright; as instruções de erro
   dizem o caminho pela tela. Quem precisa do texto continua no Docker ou no motor.
 - Custos: o Orgo cobra da conta da pessoa (plano ou hora). O nod não cria conta, workspace pago nem computador sozinho:
   só quando a pessoa configurou o provedor, guardou a chave e o bot ligou o computador.
+- Cada bot resolve sempre o mesmo id de computador/display e, portanto, o mesmo perfil. Duas criações concorrentes são
+  unificadas no processo e pelo `Idempotency-Key`; excluir e criar de novo recupera o vínculo sem reaproveitar a sessão de
+  outro bot. Quadros de captura também são separados por id e escopo.
+- O teto do Docker continua mostrando os números do host. Quota do provedor vira orientação neutra para parar um
+  computador sem uso ou ajustar o plano; o corpo externo da falha nunca entra no log nem na interface.
 
 ## Fora deste recorte
 

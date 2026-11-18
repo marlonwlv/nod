@@ -201,6 +201,7 @@ function esperarDoFilho(filho, cond, prazoMs) {
  */
 export function criarSupervisor(op) {
   const raiz = op.raiz ?? '/var/lib/nod-computador';
+  const workspaceRaiz = op.workspaceRaiz ?? raiz;
   const run = op.run ?? '/run/nod-computador';
   const x11 = op.x11 ?? '/tmp/.X11-unix';
   const resolv = op.resolv !== undefined ? op.resolv : (existsSync(RESOLV_DO_STUB) ? RESOLV_DO_STUB : null);
@@ -219,7 +220,7 @@ export function criarSupervisor(op) {
     return {
       raiz: d, estado: path.join(d, 'estado'), perfis: path.join(d, 'perfis'), perfilBase: path.join(d, 'perfil-base'),
       logins: path.join(d, 'logins'), loja: path.join(d, 'logins', 'principal', 'cookies.enc'), storage: pastaDoStorage(path.join(d, 'logins')), senhas: arquivoDasSenhas(path.join(d, 'logins')), keyring: path.join(d, 'keyring'),
-      workspace: path.join(d, 'workspace'), run: path.join(run, id), bus: path.join(run, id, 'bus'),
+      workspace: path.join(workspaceRaiz, id), run: path.join(run, id), bus: path.join(run, id, 'bus'),
     };
   };
 
@@ -477,7 +478,7 @@ export function criarSupervisor(op) {
         tipo: 'abrir',
         config: {
           agenteId, display, raiz, run, ocultar: [path.dirname(terminal)], resolv, resolvEm, perfil: path.join(c.d.perfis, agenteId), perfilBase: c.d.perfilBase, workspace: path.join(c.d.workspace, agenteId),
-          logins: c.d.logins, tmp: path.join(c.d.run, 'telas', agenteId), scripts: path.join(c.d.raiz, 'bwrap', agenteId), x11, bus: c.d.bus, busEndereco: c.busEndereco, bin, sandbox: op.sandbox !== false,
+          logins: c.d.logins, tmp: path.join(c.d.run, 'telas', agenteId), scripts: path.join(c.d.raiz, 'bwrap', agenteId), x11, bus: c.d.bus, busEndereco: c.busEndereco, bin, sandbox: op.sandbox !== false, chromiumSandbox: op.chromiumSandbox !== false,
           xvfbArgs: op.xvfbArgs, cookies: cookiesVivos(loja, agora()), storage: storage.itens, geracao: storage.geracao, senhas,
         },
       });
@@ -535,7 +536,7 @@ export function criarSupervisor(op) {
     });
   }
 
-  function pedirAoTerminal(computadorId, comando) {
+  function pedirAoTerminal(computadorId, agenteId, comando) {
     return new Promise((resolve) => {
       const s = net.connect(terminal);
       let corpo = '';
@@ -543,11 +544,15 @@ export function criarSupervisor(op) {
       s.on('data', (b) => { corpo += b; });
       s.on('error', () => resolve({ erro: 'sem_resposta' }));
       s.on('close', () => { try { resolve(JSON.parse(corpo)); } catch { resolve({ erro: 'sem_resposta' }); } });
-      s.end(JSON.stringify({ computadorId, comando }));
+      s.end(JSON.stringify({ computadorId, agenteId, comando }));
     });
   }
 
   async function acao(c, cmd) {
+    if (cmd.acao.tipo === 'terminal' && op.terminalExterno) {
+      await mkdir(path.join(c.d.workspace, cmd.agenteId), { recursive: true, mode: 0o700 });
+      return resultado(cmd.id, 'ok', { resultado: { terminalExterno: true } });
+    }
     const aberta = await abrirTela(c, cmd.agenteId, cmd.uso);
     if (aberta.esperando) return resultado(cmd.id, 'esperando_tela', { quem: aberta.esperando });
     if (!aberta.ok) return falhou(cmd.id, aberta.motivo);
@@ -558,7 +563,7 @@ export function criarSupervisor(op) {
       let extra = {};
       let pedido = cmd.acao;
       if (cmd.acao.tipo === 'terminal') {
-        const r = await pedirAoTerminal(c.id, cmd.acao.comando);
+        const r = await pedirAoTerminal(c.id, cmd.agenteId, cmd.acao.comando);
         if (r.erro) {
           log(`terminal de ${cmd.agenteId}: ${r.erro}`);
           return falhou(cmd.id, r.erro === 'nao_iniciou' ? 'nao_iniciou' : 'acao_falhou');
@@ -985,6 +990,10 @@ export function criarSupervisor(op) {
   return {
     tratar,
     carregar,
+    async prepararEstado(computadorId) {
+      if (!ID_VALIDO.test(String(computadorId ?? ''))) return null;
+      return estadoDe(await obter(computadorId));
+    },
     varrer,
     estados: () => [...computadores.values()].map(estadoDe),
     ouvir(f) { ouvintes.add(f); return () => ouvintes.delete(f); },
@@ -1064,7 +1073,11 @@ export function servirControle(supervisor) {
         let m;
         try { m = JSON.parse(linha); } catch { escrever({ tipo: 'resultado', id: '', desfecho: 'falhou', motivo: 'acao_falhou' }); continue; }
         // MensagemAoSupervisor (NOD-96 PR 3) é o envelope do motor; o comando cru segue aceito.
-        if (m?.tipo === 'pedir_estado') { for (const e of supervisor.estados()) escrever({ tipo: 'estado', ...e }); continue; }
+        if (m?.tipo === 'pedir_estado') {
+          if (m.computadorId === undefined) for (const e of supervisor.estados()) escrever({ tipo: 'estado', ...e });
+          else void supervisor.prepararEstado(m.computadorId).then((e) => { if (e) escrever({ tipo: 'estado', ...e }); });
+          continue;
+        }
         if (m?.tipo === 'vivo') { void abrirVivo(m.comando); return; }
         const cmd = m?.tipo === 'comando' && m.comando && typeof m.comando === 'object' ? m.comando : m;
         // O `vivo` só vale como mensagem própria (acima): pelo envelope comum ele não tem como ligar o fluxo.
@@ -1093,7 +1106,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   await prepararShellDoSupervisor();
   // Depois do Atualizar o processo sai e o systemd (Restart=always) o sobe de novo com os arquivos do disco.
   const aoAtualizar = () => void supervisor.encerrar().finally(() => process.exit(0));
-  const supervisor = criarSupervisor({ raiz: process.env.NOD_PC_RAIZ, run: process.env.NOD_PC_RUN, terminal: process.env.NOD_PC_TERMINAL, aoAtualizar });
+  const supervisor = criarSupervisor({ raiz: process.env.NOD_PC_RAIZ, workspaceRaiz: process.env.NOD_PC_WORKSPACE_RAIZ, run: process.env.NOD_PC_RUN, terminal: process.env.NOD_PC_TERMINAL, sandbox: process.env.NOD_PC_BWRAP !== 'nao', chromiumSandbox: process.env.NOD_PC_CHROMIUM_SANDBOX !== 'nao', terminalExterno: process.env.NOD_PC_TERMINAL_EXTERNO === 'sim', aoAtualizar });
   await supervisor.carregar();
   const servidor = servirControle(supervisor);
   await escutarControle(servidor, process.env.NOD_PC_SOCKET ?? '/run/nod-computador/ctl.sock');

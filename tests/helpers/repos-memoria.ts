@@ -47,8 +47,6 @@ import { cotaSegura, ehVoltaDoFundo, ENTRADA_DA_RETOMADA_DA_QUEDA, ENTRADA_DA_VO
 import { MODO_APROVACAO_INICIAL } from "../../src/domain/modo-aprovacao.ts";
 import { recusaPendente } from "../../src/domain/rotina-webhook.ts";
 import { harnessFixado } from "../../src/domain/harness.ts";
-import { iaDoModelo } from "../../src/domain/ia-do-modelo.ts";
-import { HARNESS_LEGADO } from "../../src/contracts/harness.ts";
 import { derivadosDa, INTELIGENCIA_PADRAO, inteligenciaDoLegado } from "../../src/domain/inteligencia.ts";
 import type { ConectorGuardado } from "../../src/repositories/conectores.repo.ts";
 import type { EventoGravavel } from "../../src/repositories/events.repo.ts";
@@ -319,12 +317,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       .sort((x, y) => y.instanteAgendado - x.instanteAgendado);
     return abertas;
   };
-  /** A regra de seguradoPelaCotaSql (turnos.repo.ts): a IA fixada (ou a do modelo), o tipo do turno e o portão da cota. */
+  /** A regra de seguradoPelaCotaSql (turnos.repo.ts): a IA fixada ou o portão do Automático, mais o tipo do turno. */
   const seguradoPelaCota = (t: Turno, cota: PortaoDaCota): boolean => {
     if (t.origem === "ligacao") return false;
-    const ia = harnessFixado(t.harness, t.modelo) ?? (t.modelo !== "auto" ? iaDoModelo(t.modelo) : null);
+    const ia = harnessFixado(t.harness, t.modelo);
     const trabalho = t.trabalhoId ? (doTenant(b.trabalhos).find((x) => x.id === t.trabalhoId) ?? null) : null;
-    const auto = t.harness === "auto" && t.modelo === "auto";
+    const auto = t.harness === "auto";
     const naReserva = auto ? cota.autoReserva : cota.reserva.includes(ia ?? "");
     const noLimite = auto ? cota.autoLimite : cota.limite.includes(ia ?? "");
     return cotaSegura(tipoParaCota(t, trabalho), noLimite ? "limite" : naReserva ? "reserva" : "livre");
@@ -369,10 +367,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       obterDaPessoa: async () => { throw new Error("use o banco para testar o computador da pessoa"); },
       fixarMaquina: async () => undefined, fixarSupervisor: async () => null, esquecerSupervisor: async () => undefined,
       iniciarOperacao: async () => false, progredirOperacao: async () => false, terminarOperacao: async () => false, arquivarLegado: async () => [], legadosArquivados: async () => [],
+      legadosParaMigrar: async () => [], concluirMigracaoLegado: async () => false,
       trocarSupervisor: async () => false, fixarLugar: async () => false, adicionarSaidaPendente: async () => false, saidaMarcada: async () => {}, avisoRecriado: async () => false, atividadeDaPessoa: async () => [],
     },
     computadorTelas: {
       buscar: async () => null, porId: async () => null, obter: async () => null, travar: async () => null, doComputador: async () => [], fila: async () => [],
+      provedorRef: async () => null, fixarProvedorRef: async () => false, provedoresRef: async () => [],
       mudarEstado: async () => false, configurar: async () => undefined, ocupar: async () => undefined, liberar: async () => undefined,
       relatar: async () => undefined, registrarFalha: async () => undefined, apagar: async () => undefined,
     },
@@ -1726,7 +1726,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return alvo.length;
       },
       async anteciparEsperasDaCota(ia: string | null, opcoes: { turnoId?: string; agenteId?: string } = {}) {
-        const iaDe = (t: Turno): string | null => (t.harness ?? "auto") !== "auto" ? t.harness! : t.modelo === "auto" ? null : (iaDoModelo(t.modelo) ?? HARNESS_LEGADO);
+        const iaDe = (t: Turno): string | null => harnessFixado(t.harness, t.modelo);
         const alvo = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.estado === "pendente" && (t.acordarEm ?? null) !== null && t.entradaTexto.startsWith(ENTRADA_DA_VOLTA_DA_COTA)
           && (opcoes.turnoId === undefined || t.id === opcoes.turnoId) && (opcoes.agenteId === undefined || t.agenteId === opcoes.agenteId)
           && (ia === null || iaDe(t) === null || iaDe(t) === ia));

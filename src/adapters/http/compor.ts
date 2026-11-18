@@ -817,17 +817,26 @@ export function comporApp(o: OpcoesCompor): App {
     if (!emUso.length) return null;
     const provedores: Partial<Record<IdProvedorComputador, ProvedorDeComputador>> = {};
     if (emUso.includes("docker")) provedores.docker = criarProvedorDocker(env);
-    if (orgoHabilitado && emUso.includes("orgo")) provedores.orgo = criarProvedorOrgo({ env, chaveDe: (escopo) => dentro(escopo, async (d) => {
-      const c = await d.repos.conectores.buscarPorSlug("orgo");
-      if (!c?.envCifrado) return null;
-      const lido = JSON.parse(decifrar(c.envCifrado, chave)) as Record<string, unknown>;
-      return typeof lido.ORGO_API_KEY === "string" && lido.ORGO_API_KEY ? lido.ORGO_API_KEY : null;
-    }) });
-    return { config, driver: criarDriverPorProvedor({ config, provedores, agenteDe: (id, escopo) => dentro(escopo, (d) => d.repos.computadores.agenteDoComputador(id)),
+    if (orgoHabilitado && emUso.includes("orgo")) provedores.orgo = criarProvedorOrgo({ env,
+      chaveDe: (escopo) => dentro(escopo, async (d) => {
+        const c = await d.repos.conectores.buscarPorSlug("orgo");
+        if (!c?.envCifrado) return null;
+        const lido = JSON.parse(decifrar(c.envCifrado, chave)) as Record<string, unknown>;
+        return typeof lido.ORGO_API_KEY === "string" && lido.ORGO_API_KEY ? lido.ORGO_API_KEY : null;
+      }),
+      displayRefDe: (telaId, escopo) => dentro(escopo, (d) => d.repos.computadorTelas.provedorRef(telaId)),
+      fixarDisplayRef: (telaId, ref, escopo) => dentro(escopo, (d) => d.repos.computadorTelas.fixarProvedorRef(telaId, ref)),
+      displaysRefDoComputador: (computadorId, escopo) => dentro(escopo, (d) => d.repos.computadorTelas.provedoresRef(computadorId)),
+    });
+    return { config, driver: criarDriverPorProvedor({ config, provedores, localizar: (id, escopo) => dentro(escopo, async (d) => {
+      const [p, t] = await Promise.all([d.repos.computadores.daPessoa(), d.repos.computadorTelas.porId(id)]);
+      if (!p || (t ? t.computadorId !== p.id : id !== p.id)) return null;
+      return { computadorId: p.id, telaId: t?.id ?? null, agenteId: t?.agenteId ?? null };
+    }),
       ...(sessoesVivo ? { anexarVivo: (sessao, token, origem) => sessoesVivo.anexarMotor(sessao, token, origem) } : {}) }) };
   })();
   const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? provedoresComputador?.driver ?? criarDriverDocker(env), executor: () => executorAtual,
-    porPessoa: computadorNoMotor,
+    porPessoa: computadorNoMotor || provedoresComputador !== null,
     ...(sessoesVivo ? { vivo: sessoesVivo } : {}),
     lugarPadraoNaCriacao: computadorNoMotor ? (escopo) => lugarPadrao(ponteHttp.maquinasComComputador(escopo)) : undefined,
     cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave),

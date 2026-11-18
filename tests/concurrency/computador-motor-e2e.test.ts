@@ -57,7 +57,7 @@ describeIntegracao("computador da pessoa: servidor → ponte → motor → super
       secretTool: await bin("secret-tool", "cat >/dev/null"),
       xvfb: "Xvfb", openbox: "openbox", chromium: "chromium", bwrap: null, xdotool: "xdotool", xclip: "xclip", scrot: "scrot",
     };
-    terminal = criarServidorTerminal({ raiz: join(dir, "raiz") });
+    terminal = criarServidorTerminal({ raiz: join(dir, "raiz"), bwrap: null });
     await escutar(terminal, join(dir, "term.sock"));
     sup = criarSupervisor({
       raiz: join(dir, "raiz"), run: join(dir, "run"), terminal: join(dir, "term.sock"), bin: binarios, tela: TELA_FALSA,
