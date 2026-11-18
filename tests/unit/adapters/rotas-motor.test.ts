@@ -51,6 +51,19 @@ describe("rotas do motor (ADR-090)", () => {
     }
   });
 
+  it("inclui os processos do computador no manifesto quando eles estão habilitados", async () => {
+    const pasta = await mkdtemp(join(tmpdir(), "nod-dist-motor-computador-"));
+    const nomes = ["nod-motor.mjs", "proxy.mjs", "hook-nativas.mjs", "computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"];
+    for (const nome of nomes) await writeFile(join(pasta, nome), `// ${nome}\n`);
+    const servidor = await servidorDeTeste(rotasMotor({ pasta, versao: "0.5.0-rc.1", computador: true }));
+    try {
+      const manifesto = (await (await fetch(`${servidor.url}/api/motor/manifesto`)).json()) as { arquivos: Record<string, string> };
+      expect(Object.keys(manifesto.arquivos).sort()).toEqual([...nomes].sort());
+    } finally {
+      await servidor.close();
+    }
+  });
+
   it("/motor redireciona para o script (o curl -L segue)", async () => {
     const r = await fetch(`${srv.url}/motor`, { redirect: "manual" });
     expect(r.status).toBe(302);

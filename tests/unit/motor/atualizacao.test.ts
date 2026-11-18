@@ -155,6 +155,29 @@ describe("o motor se atualiza sozinho (ADR-100): no motor", () => {
     expect(drenos).toEqual(["fundo", "tudo", false]);
   });
 
+  it("pede atualização quando só um processo do computador está diferente", async () => {
+    const igual = await montar("// nod-motor.mjs\n");
+    const computador = await mkdtemp(join(tmpdir(), "nod-motor-computador-"));
+    await writeFile(join(computador, "supervisor.mjs"), "// supervisor atual\n");
+    await writeFile(join(computador, "tela.mjs"), "// tela antiga\n");
+    await writeFile(join(computador, "terminal.mjs"), "// terminal atual\n");
+    const arquivos = {
+      "nod-motor.mjs": sha("// nod-motor.mjs\n"),
+      "proxy.mjs": sha("// proxy.mjs\n"),
+      "hook-nativas.mjs": sha("// hook-nativas.mjs\n"),
+      "computador-supervisor.mjs": sha("// supervisor atual\n"),
+      "computador-tela.mjs": sha("// tela nova\n"),
+      "computador-terminal.mjs": sha("// terminal atual\n"),
+    };
+    const buscar = (async () => new Response(JSON.stringify({ versao: "0.5.0", arquivos }), { status: 200 })) as typeof fetch;
+    const drenos: Drenagem[] = [];
+    const a = iniciarAtualizacao({ url: "https://nod", dir: igual.dir, dirComputador: computador, pastaDoMotor: igual.pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: (s) => drenos.push(s), buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0 });
+    await a.agora();
+    expect(drenos).toEqual(["fundo", "tudo"]);
+    await expect(readFile(arquivoDoPedido(igual.pasta), "utf8")).resolves.toContain('"versao":"0.5.0"');
+    a.parar();
+  });
+
   it("ADR-131: só fundo rodando — pede o reinício por cima dele (o servidor o retoma); sem reiniciar, a fala volta a sair", async () => {
     const { dir, pasta, buscar } = await montar("// motor novo\n");
     const drenos: Drenagem[] = [];
@@ -244,5 +267,17 @@ describe("o motor se atualiza sozinho (ADR-100): na instalação", () => {
     expect(execFileSync(process.execPath, ["-e", codigo, tmp, ...nomes], { encoding: "utf8" })).toBe("0.5.0");
     await manifesto({ ...Object.fromEntries(nomes.map((n) => [n, sha(`// ${n}\n`)])), "hook-nativas.mjs": sha("adulterado") });
     expect(() => execFileSync(process.execPath, ["-e", codigo, tmp, ...nomes], { stdio: "pipe" })).toThrow();
+  });
+
+  it("com computador, confere, instala e reinicia também supervisor, tela e terminal", () => {
+    const comComputador = scriptDeInstalacao({ servidor: "https://nod.exemplo.com", versao: "0.5.0", computador: true });
+    const atualizador = /<<'NODATUALIZAR'\n([\s\S]*?)\nNODATUALIZAR\n/.exec(comComputador)![1]!;
+    for (const nome of ["computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"]) {
+      expect(atualizador).toMatch(new RegExp(`for ARQUIVO in [^\\n]*${nome}[^\\n]*; do\\n  curl .*api/motor/arquivos/\\$ARQUIVO`));
+      expect(atualizador).toContain(`$TMP/${nome}`);
+    }
+    expect(atualizador).toContain('"/opt/nod-motor/computador/supervisor.mjs"');
+    expect(atualizador).toContain("systemctl try-restart nod-computador.service nod-computador-terminal.service");
+    execFileSync("sh", ["-n"], { input: atualizador });
   });
 });

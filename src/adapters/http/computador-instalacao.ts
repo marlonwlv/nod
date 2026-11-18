@@ -15,9 +15,9 @@
  * (nod-pc-arquivos) para trocar arquivos com os bots.
  */
 
-/** Os arquivos do computador em dist/motor (servidos em /api/motor/arquivos/<nome> só com a flag). */
-export const ARQUIVOS_DO_COMPUTADOR = ["computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"] as const;
-export type ArquivoDoComputador = (typeof ARQUIVOS_DO_COMPUTADOR)[number];
+import { ARQUIVOS_DO_COMPUTADOR, DESTINOS_DO_COMPUTADOR, type ArquivoDoComputador } from "../../domain/atualizacao-do-motor.ts";
+
+export { ARQUIVOS_DO_COMPUTADOR, type ArquivoDoComputador } from "../../domain/atualizacao-do-motor.ts";
 
 /** A versão do playwright-core do supervisor (a mesma de infra/computador/package.json; um teste confere). */
 export const PLAYWRIGHT_DO_COMPUTADOR = "1.63.0";
@@ -146,9 +146,7 @@ ${endurecimento(true)}
 
 /** O nome em /opt/nod-motor/computador de cada arquivo baixado. */
 const DESTINO: Record<ArquivoDoComputador, string> = {
-  "computador-supervisor.mjs": "supervisor.mjs",
-  "computador-tela.mjs": "tela.mjs",
-  "computador-terminal.mjs": "terminal.mjs",
+  ...DESTINOS_DO_COMPUTADOR,
 };
 
 /**

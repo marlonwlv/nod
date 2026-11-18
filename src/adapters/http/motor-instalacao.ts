@@ -20,7 +20,7 @@
  * byte a byte.
  */
 import { CONVITE } from "../../shared/convite.ts";
-import { ARQUIVOS_DO_MOTOR } from "../../domain/atualizacao-do-motor.ts";
+import { ARQUIVOS_DO_COMPUTADOR, ARQUIVOS_DO_MOTOR, DESTINOS_DO_COMPUTADOR } from "../../domain/atualizacao-do-motor.ts";
 import { blocoDoComputador } from "./computador-instalacao.ts";
 import { PISO_CLI } from "../executor/flag-floors.ts";
 
@@ -63,6 +63,7 @@ export function scriptDeInstalacao(o: { servidor: string; versao: string; convit
   if (!/^https?:\/\/[a-z0-9.:-]+$/.test(o.servidor) || !/^[0-9A-Za-z.+-]+$/.test(o.versao)) throw new Error("servidor_ou_versao_invalida");
   const convite = o.convite && CONVITE_NO_SCRIPT.test(o.convite) ? o.convite : "";
   const comp = o.papel === "computador";
+  const atualizaveis = o.computador ? [...ARQUIVOS_DO_MOTOR, ...ARQUIVOS_DO_COMPUTADOR] : ARQUIVOS_DO_MOTOR;
   /** A linha de etapa (só no modo computador; no de sempre, nada muda). */
   const etapa = (id: EtapaDoScript) => (comp ? `etapa ${id}\n` : "");
   /** O motivo de uma falha conhecida (só no modo computador). */
@@ -282,10 +283,10 @@ case "$SERVIDOR" in
   *) echo "servidor inválido em /etc/nod-motor/servidor" >&2; exit 1 ;;
 esac
 curl -fsS --max-time 60 "$SERVIDOR/api/motor/manifesto" -o "$TMP/manifesto.json"
-for ARQUIVO in ${ARQUIVOS_DO_MOTOR.join(" ")}; do
+for ARQUIVO in ${atualizaveis.join(" ")}; do
   curl -fsS --max-time 300 "$SERVIDOR/api/motor/arquivos/$ARQUIVO" -o "$TMP/$ARQUIVO"
 done
-VERSAO=$("$NODE" -e 'const fs=require("fs"),c=require("crypto");const d=process.argv[1];const m=JSON.parse(fs.readFileSync(d+"/manifesto.json","utf8"));for(const n of process.argv.slice(2)){const h=c.createHash("sha256").update(fs.readFileSync(d+"/"+n)).digest("hex");if(!m.arquivos||m.arquivos[n]!==h){console.error("o arquivo "+n+" não bate com o manifesto");process.exit(1)}}process.stdout.write(String(m.versao||"?"))' "$TMP" ${ARQUIVOS_DO_MOTOR.join(" ")})
+VERSAO=$("$NODE" -e 'const fs=require("fs"),c=require("crypto");const d=process.argv[1];const m=JSON.parse(fs.readFileSync(d+"/manifesto.json","utf8"));for(const n of process.argv.slice(2)){const h=c.createHash("sha256").update(fs.readFileSync(d+"/"+n)).digest("hex");if(!m.arquivos||m.arquivos[n]!==h){console.error("o arquivo "+n+" não bate com o manifesto");process.exit(1)}}process.stdout.write(String(m.versao||"?"))' "$TMP" ${atualizaveis.join(" ")})
 rm -rf "$APP.novo"
 mkdir -p "$APP.novo"
 for ARQUIVO in ${ARQUIVOS_DO_MOTOR.join(" ")}; do
@@ -296,7 +297,9 @@ rm -rf "$APP.anterior"
 mv "$APP" "$APP.anterior"
 # Se a segunda troca falhar, a anterior volta: a máquina nunca fica sem motor.
 mv "$APP.novo" "$APP" || { mv "$APP.anterior" "$APP"; exit 1; }
-systemctl restart nod-motor
+${o.computador ? `${ARQUIVOS_DO_COMPUTADOR.map((nome) => `install -o root -g root -m 644 "$TMP/${nome}" "/opt/nod-motor/computador/${DESTINOS_DO_COMPUTADOR[nome]}"`).join("\n")}
+systemctl try-restart nod-computador.service nod-computador-terminal.service >/dev/null 2>&1 || true
+` : ""}systemctl restart nod-motor
 echo "motor atualizado: $VERSAO"
 NODATUALIZAR
 $SUDO chmod 755 /usr/local/sbin/nod-motor-atualizar

@@ -60,7 +60,8 @@ export function rotasMotor(o: { pasta: string; versao: string; urlPublica?: stri
       async handler(ctx) {
         const arquivos: Record<string, string> = {};
         try {
-          for (const nome of ARQUIVOS_DO_MOTOR) arquivos[nome] = createHash("sha256").update(await readFile(join(o.pasta, nome))).digest("hex");
+          const nomes = o.computador ? [...ARQUIVOS_DO_MOTOR, ...ARQUIVOS_DO_COMPUTADOR] : ARQUIVOS_DO_MOTOR;
+          for (const nome of nomes) arquivos[nome] = createHash("sha256").update(await readFile(join(o.pasta, nome))).digest("hex");
         } catch {
           ctx.json(404, { codigo: "nao_encontrado", mensagem: "Este servidor não tem o motor empacotado (npm run motor:build)." });
           return;
