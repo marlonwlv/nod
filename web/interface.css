@@ -1781,7 +1781,7 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 .ponto-trabalho.na-fila { background: transparent; border: 1.5px solid var(--line-strong); }
 .ponto-trabalho.fora-do-mac { background: transparent; border: 1.5px solid var(--warning); }
 .ponto-trabalho.feito { display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 0; background: none; color: var(--success); font-size: var(--fs-rotulo); line-height: 1; }
-:is(.ft-linha, .tt-linha, .tr-linha, .pilula-trab) > .ponto-trabalho:not(.feito) { margin: 0 3px; }
+:is(.ft-linha, .tr-linha, .pilula-trab) > .ponto-trabalho:not(.feito) { margin: 0 3px; }
 .ponto-trabalho.feito.parado { color: var(--ink-3); font-size: 9px; }
 .ponto-trabalho.feito.falhou { color: var(--danger); font-weight: 700; }
 /* K8, variante 3: o ponto pisca de leve (opacidade, 1,6 s) enquanto há task rodando; sem animação para quem pediu menos movimento. */
@@ -1909,7 +1909,6 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 .p377-item { align-items: flex-start; }
 .p377-item .pf-ponto { margin-top: 6px; }
 .p377-acoes-tb { padding-left: 26px; }
-.p377-frente .tb-frente-fim { white-space: nowrap; }
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .p377-acoes { gap: 0 24px; margin-top: 0; }
   .p377-acao { min-height: 44px; min-width: 44px; }
@@ -1949,37 +1948,10 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 /* O ponto da memória no bloco de progresso (PR 8), ao lado do número: a frase só no title e no nome acessível. */
 .progresso-memoria { display: inline-block; width: 7px; height: 7px; margin: 0 2px 1px 7px; border-radius: 50%; background: var(--warning); vertical-align: middle; }
 .progresso-memoria.vermelha { background: var(--danger); }
-/* A ordem da fila em Trabalhos por bot. */
-.ld-ordem { flex: none; width: 14px; font-size: var(--fs-rotulo); color: var(--ink-3); text-align: center; font-variant-numeric: tabular-nums; }
 
 /* O sinal do bot na barra lateral (ADR-099, parte 5): um ponto — vivo, vazado ou azul — e o número de frentes se mais de uma. */
 .chip-trab.sinal-dono { justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; }
 .sinal-n { font-size: var(--fs-legenda); font-variant-numeric: tabular-nums; }
-
-/* Trabalhos com uma linha por bot (quadro 05): as frentes abrem embaixo do bot, recuadas, com um fio à esquerda. */
-.tb-linha > svg { flex: none; color: var(--ink-3); }
-.tb-frentes { display: flex; flex-direction: column; margin: 0 10px 8px 46px; padding-left: 12px; border-left: 1px solid var(--line); }
-.tb-frente { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 30px; padding: 0 8px; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink);
-  font: inherit; font-size: var(--fs-corpo-2); text-align: left; cursor: pointer; }
-.tb-frente:hover, .tb-frente:focus-visible { background: var(--surface-raised); }
-.tb-frente.estatica { cursor: default; }
-.tb-frente.estatica:hover { background: none; }
-.tb-frente > .ponto-trabalho:not(.feito) { margin: 0 3px; }
-.tb-frente-titulo { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tb-frente-passo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-.tb-frente-fim { flex: none; margin-left: auto; font-size: var(--fs-rotulo); color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.tb-abrir-conversa { align-self: flex-start; margin: 4px 0 0; padding: 4px 8px; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-3); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; }
-.tb-abrir-conversa:hover, .tb-abrir-conversa:focus-visible { background: var(--surface-raised); color: var(--ink-2); }
-.tb-sub { margin: 4px 8px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-.tb-livres { margin: 0; padding: 0 14px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-/* Estreito (celular, painel apertado): a frase do bot desce para a segunda linha, inteira, embaixo do nome. */
-@media (max-width: 760px) {
-  .tt-linha.tb-linha { flex-wrap: wrap; row-gap: 2px; height: auto; min-height: 44px; padding: 10px 14px; }
-  .tt-linha.tb-linha .tt-bot { flex: 1 1 auto; width: auto; }
-  .tt-linha.tb-linha .tt-meio { order: 5; flex-basis: 100%; padding-left: 26px; }
-  .tt-linha.tb-linha .tt-meio .tt-titulo { font-weight: 400; color: var(--ink-2); }
-  .tt-linha.tb-linha .tt-meio .tt-passo { display: none; }
-}
 
 /* As linhas das frentes na conversa (ADR-099, parte 5, quadros 02 e 06): "●●● Começou 3 frentes: A, B e C · 15:02",
    "✓ 3 frentes terminaram · 17:55" e "↩ Respondi ao pedido de X". */
@@ -2058,38 +2030,9 @@ span.pilula-memoria { padding-right: 12px; cursor: default; }
 .parar-lista { margin: 0 0 12px; padding-left: 18px; color: var(--ink-2); font-size: var(--fs-corpo); line-height: 1.6; }
 .parar-lista li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* "Todos os trabalhos" (K9/M3). */
-.tela-trabalhos { display: flex; flex-direction: column; gap: 18px; max-width: 900px; margin: 0 auto; padding: 26px 24px; }
-.tt-cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
-.tt-cab h1 { margin: 0; font-size: var(--fs-titulo-2); font-weight: 600; }
-.tt-cab p { margin: 4px 0 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
-.tela-trabalhos > .linha-centro-wrap { margin: 0 auto; }
-.tt-filtros { display: flex; gap: 6px; }
-.tt-filtro { padding: 5px 11px; border: 1px solid var(--line); border-radius: var(--raio-14); background: var(--surface); color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; }
-.tt-filtro.ativo { border-color: var(--action); background: var(--action); color: var(--on-action); }
-.tt-grupo h2 { margin: 0 0 4px; padding: 0 14px; font-size: var(--fs-corpo-2); font-weight: 400; color: var(--ink-3); }
-.tt-lista { display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--line); border-radius: var(--raio-14); }
-/* revisto em 2026-10-09: toda linha com 44 px e as mesmas colunas (ponto de 14 px, bot, meio, fim) em todos os grupos. */
-.tt-linha { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; padding: 0 14px; border: 0; border-radius: var(--raio-10); background: none; color: var(--ink);
-  font: inherit; text-align: left; cursor: pointer; }
-.tt-linha:hover, .tt-linha:focus-visible { background: var(--surface-raised); }
-.tt-bot { display: inline-flex; flex: none; align-items: center; gap: 6px; width: 120px; font-size: var(--fs-corpo-2); overflow: hidden; }
-.tt-bot .icon.sm { width: 20px; height: 20px; min-width: 20px; border-radius: var(--raio-8); }
-.tt-bot b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tt-meio { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-.tt-meio .etiqueta-origem { flex: none; margin-left: 0; }
-.tt-linha:hover .etiqueta-origem, .tt-linha:focus-visible .etiqueta-origem { background: var(--surface); }
-.tt-titulo { flex: 0 1 auto; min-width: 0; font-size: var(--fs-corpo); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tt-passo { flex: 0 0 auto; min-width: 0; max-width: 40%; font-size: var(--fs-corpo-2); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tt-fim { flex: none; font-size: var(--fs-rotulo); color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.tt-vazio { margin: 20px 0; text-align: center; color: var(--ink-3); }
 .tr-grupo .gv-linha-txt b { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; white-space: normal; }
 .tr-grupo .etiqueta-origem { margin-left: 0; }
-/* No celular (revisto em 2026-10-09): a coluna do bot continua fixa (mais estreita) para os títulos alinharem, e a etiqueta
-   sai junto do passo — ela espremia o título até sumir ("pedido do Chico" comia a linha do Dev 1). */
 @media (max-width: 760px) {
-  .tt-bot { width: 88px; }
-  .tt-passo, .tt-meio .etiqueta-origem { display: none; }
   .lugar-faixa-trabalhos { padding: 0 12px; }
 }
 

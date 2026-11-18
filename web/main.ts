@@ -264,10 +264,10 @@ import type { EventoTrilhaQuadro } from "../src/contracts/trilha-quadro.ts";
 import { criarTelemetria } from "./lib/telemetria-linhas.ts";
 import { chaveDaAtividade, criarVigiaDaAtividade, diaLocal, ehFiltroAtividade, fusoLocal, rotuloDoDia } from "./lib/atividade-do-bot.ts";
 import { anuncioDoFiltro, chaveDasDecisoes, diaDoDeslize, ehFiltroDecisoes, ehPeriodoDoCsv, periodoDoCsv, totalDoFiltro, type ExportarCsv } from "./lib/decisoes-do-bot.ts";
-import { anuncioDosSubagentes, blocosAoVivoDaTask, blocosDoHistoricoDaTask, renderIconeTrabalhos, renderTelaLinha, renderTodosOsTrabalhos, renderTopoTrabalho } from "./telas/trabalhos.ts";
+import { anuncioDosSubagentes, blocosAoVivoDaTask, blocosDoHistoricoDaTask, renderIconeTrabalhos, renderTelaLinha, renderTopoTrabalho } from "./telas/trabalhos.ts";
+import { botsDaNovaTarefa, htmlDoMenuDaNovaTarefa, htmlDoMenuDeBots, renderTelaTarefas } from "./telas/tela-tarefas.ts";
 import { campoDaTarefa, htmlSaidaDaParada, perguntaAberta, TEXTO_CONTINUAR, type CampoDaTarefa } from "./telas/tarefa-detalhada.ts";
-import { renderTrabalhosPorBot, sinalDoBot, sinalNaGrade } from "./telas/linha-do-dono.ts";
-import { temDonos } from "./lib/dono.ts";
+import { sinalDoBot, sinalNaGrade } from "./telas/linha-do-dono.ts";
 import { executarRotinaComConfirmacao } from "./lib/executar-rotina.ts";
 import { copiarPorSelecao, type DocParaCopiar } from "./lib/copiar-por-selecao.ts";
 import { criarBuscaNaConversa } from "./telas/busca-na-conversa.ts";
@@ -3158,9 +3158,8 @@ function renderPrincipal(): void {
       break;
     // ADR-083 (#195/#196): "Todos os trabalhos", a tela da task e a tela provisória de uma linha do chat.
     case "trabalhos":
-      // ADR-099 (parte 5): com o dono de cada bot no servidor, uma linha por bot; sem ele (servidor anterior), por task.
-      // ADR-167 (Paper 16): "Por bot | Por frente" no topo; o filtro escolhido é a vista por frente.
-      corpo = temDonos(estado) && !t.filtro ? renderTrabalhosPorBot(estado) : renderTodosOsTrabalhos(estado, t.filtro, temDonos(estado));
+      // ADR-187 §8 (Paper 5a e 5b): abre em "Por bot" (com o dono de cada bot no servidor); "Por estado" é a outra vista.
+      corpo = renderTelaTarefas(estado, t);
       break;
     case "trabalho": {
       // ADR-187 §6 (Paper 4k e 4p): a tarefa em tela cheia, com a fileira de abas no topo.
@@ -4879,6 +4878,17 @@ function abrirMenuDaAba(id: string, ancora: HTMLElement, ponto?: { x: number; y:
   });
 }
 
+/** "Todos os bots ▾" da tela Tarefas (ADR-187 §8, Paper 5a): escolher um bot filtra as duas vistas; "Todos os bots" volta. */
+function abrirMenuDeBotsDasTarefas(ancora: HTMLElement): void {
+  const t = estado.tela;
+  if (t.tipo !== "trabalhos") return;
+  const r = ancora.getBoundingClientRect();
+  abrirMenuDaBarra(htmlDoMenuDeBots(estado, t.bot), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
+    const { bot: _antes, ...resto } = t;
+    navegar(b.dataset.bot ? { ...resto, bot: b.dataset.bot } : resto);
+  });
+}
+
 /** "N outras ⌄": as abas que não couberam e as tarefas abertas do bot que a pessoa ainda não abriu. */
 function abrirMenuDasOutras(agenteId: string, ancora: HTMLElement): void {
   const t = estado.tela;
@@ -4942,19 +4952,37 @@ function focarRenomeio(): void {
 /** ADR-187 §7 (Paper 3e): o "Levar o contexto da conversa" da tarefa nova; cada tarefa nova começa sem ele (limpa). */
 let levarContextoNaTarefa = false;
 
-/** O bot da tela para uma tarefa nova: o da conversa, o da tarefa aberta ou o da própria tarefa nova. */
+/**
+ * O bot da tela para uma tarefa nova: o da conversa, o da tarefa aberta ou o da própria tarefa nova. Na tela Tarefas
+ * (ADR-187 §8), o bot escolhido em "Todos os bots ▾", o bot aberto na lista ou, com um bot só que aceita, ele.
+ */
 function botDaTarefaNova(): string | null {
   const t = estado.tela;
+  if (t.tipo === "trabalhos") {
+    const unico = botsDaNovaTarefa(estado);
+    const id = [t.bot, estado.botAbertoEmTrabalhos, unico.length === 1 ? unico[0]?.id : null].find((x) => botAceitaTarefa(estado, x));
+    return id ?? null;
+  }
   const id = t.tipo === "conversa" || t.tipo === "nova-tarefa" ? t.agenteId : t.tipo === "trabalho" ? trabalhoPorId(estado, t.id)?.agenteId ?? null : null;
   return botAceitaTarefa(estado, id) ? id : null;
 }
 
 /**
  * ADR-187 §7 (definido em 2026-11-18): ⌘N, o "+" da aba e o "Abrir uma tarefa" da dica abrem a tarefa nova, limpa, do
- * bot da tela. Nada é criado antes da primeira mensagem. Já nela, a tecla só devolve o foco ao campo.
+ * bot da tela. Nada é criado antes da primeira mensagem. Já nela, a tecla só devolve o foco ao campo. Na tela Tarefas
+ * sem bot escolhido (ADR-187 §8, 2026-11-18), o "+ Nova tarefa" abre o menu "Nova tarefa com" para a pessoa escolher.
  */
-function abrirNovaTarefa(): void {
-  const id = botDaTarefaNova();
+function abrirNovaTarefa(ancora?: HTMLElement, escolhido?: string): void {
+  const id = escolhido ?? botDaTarefaNova();
+  if (!id && estado.tela.tipo === "trabalhos") {
+    const bots = botsDaNovaTarefa(estado);
+    const alvo = ancora ?? document.querySelector<HTMLElement>('.tela-tarefas [data-act="nova-tarefa"]');
+    if (bots.length && alvo) {
+      const r = alvo.getBoundingClientRect();
+      abrirMenuDaBarra(htmlDoMenuDaNovaTarefa(bots), alvo, { x: r.right - 284, y: r.bottom }, (b) => { if (b.dataset.bot) abrirNovaTarefa(undefined, b.dataset.bot); });
+      return;
+    }
+  }
   if (!id) { anunciar("Abra a conversa de um bot seu para abrir uma tarefa"); return; }
   const t = estado.tela;
   if (t.tipo === "nova-tarefa" && t.agenteId === id) { document.getElementById("composer-texto")?.focus(); return; }
@@ -8256,7 +8284,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // A tela da task (#195): Parar task para só ela; Fechar (ou Esc) volta para onde a pessoa estava.
   "abrir-trabalho": (el) => abrirTrabalho(el.dataset.id ?? ""),
   // ADR-187 §5 e §7 (2026-11-18): o "+" da aba, a aba "+ Nova tarefa", o "Abrir uma tarefa" da dica e o contexto da conversa.
-  "nova-tarefa": () => abrirNovaTarefa(),
+  "nova-tarefa": (el) => abrirNovaTarefa(el),
   "nova-tarefa-contexto": () => { levarContextoNaTarefa = !levarContextoNaTarefa; render(); },
   "dica-tarefas-entendi": () => { marcarDicaDasTarefasVista(); document.getElementById("composer-texto")?.focus({ preventScroll: true }); },
   // Chat limpo (PR 7): "ver as 5" do progresso na fala abre no lugar, como a troca; a abertura conta para o gatilho da
@@ -8365,11 +8393,18 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   },
   // "Esperando você" leva à mensagem do bot com a pergunta (a decisão fica na conversa, nunca acima do campo).
   "ir-a-pergunta": (el) => irAoQueEsperaVoce(el.dataset.id ?? null),
-  "filtro-trabalhos": (el) => {
-    const f = el.dataset.id;
-    if (f === "por-bot") { navegar({ tipo: "trabalhos" }); return; }
-    if (f === "todos" || f === "voce" || f === "rotinas" || f === "bots") navegar({ tipo: "trabalhos", filtro: f });
+  // ADR-187 §8 (Paper 5a e 5b): a vista, os chips e o bot da tela Tarefas trocam a tela e guardam o resto da escolha.
+  "vista-tarefas": (el) => {
+    const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const };
+    const bot = el.dataset.bot ?? t.bot;
+    navegar({ tipo: "trabalhos", ...(el.dataset.id === "por-estado" ? { filtro: "todos" as const } : {}), ...(t.mostrar ? { mostrar: t.mostrar } : {}), ...(bot ? { bot } : {}) });
   },
+  "mostrar-tarefas": (el) => {
+    const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const };
+    const m = el.dataset.id;
+    if (m === "abertas" || m === "feitas" || m === "todas") navegar({ ...t, mostrar: m });
+  },
+  "bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),
   "parar-sala": (el) =>
     agir(async () => {
       dispatch({ tipo: "faixa", faixa: await api!.pararSala(el.dataset.id ?? "") });

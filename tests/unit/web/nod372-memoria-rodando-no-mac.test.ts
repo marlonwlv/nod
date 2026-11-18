@@ -7,9 +7,10 @@ import { diaLocal } from "../../../web/lib/atividade-do-bot.ts";
 import { estadoInicial, reduzir, type Estado } from "../../../web/estado/reducer.ts";
 import { pilulaMemoria, rodandoNoMac } from "../../../web/lib/trabalhos.ts";
 import { renderAtividade } from "../../../web/telas/atividade.ts";
-import { memoriaDoMac, renderTrabalhosPorBot } from "../../../web/telas/linha-do-dono.ts";
+import { memoriaDoMac } from "../../../web/telas/linha-do-dono.ts";
 import { memoriaNaPilula } from "../../../web/telas/pilula-do-bot.ts";
-import { renderTodosOsTrabalhos } from "../../../web/telas/trabalhos.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
+
 
 /**
  * NOD-372 (2026-10-26): o Marlon via "Pouca memória no seu Mac · 3 tarefas abertas" com tudo rodando na VM. A pílula de
@@ -50,18 +51,22 @@ function estadoCom(dto: TrabalhosDto, extra: Partial<Estado> = {}): Estado {
   };
 }
 
-/** Os cinco pontos de uma vez: topo de Todas as tarefas, topo por bot, "Agora" da Atividade, pílula do bot. */
-function pontos(e: Estado): { todos: string; porBot: string; agora: string; pilula: ReturnType<typeof memoriaNaPilula> } {
+/**
+ * Os pontos de uma vez: a tela Tarefas (as duas vistas), "Agora" da Atividade e a aba do bot. ADR-187 §8 (2026-11-18): a
+ * tela Tarefas deixou de repetir o aviso da máquina (mora no selo da aba das tarefas); `tarefas` só confere que ele não
+ * volta para lá.
+ */
+function pontos(e: Estado): { tarefas: string; agora: string; pilula: ReturnType<typeof memoriaNaPilula> } {
   const hoje = diaLocal(AGORA);
   const d: AtividadeDto = { dia: hoje, itens: [], total: 0, truncados: 0, diaAnterior: null };
   const comAtividade = reduzir(reduzir({ ...e, tela: { tipo: "conversa", conversaId: C, agenteId: "ada" } }, { tipo: "gaveta", agenteId: "ada", nivel: { tipo: "atividade" } }), { tipo: "hidratar-atividade", agenteId: "ada", dia: hoje, atividade: d });
-  return { todos: renderTodosOsTrabalhos(e), porBot: renderTrabalhosPorBot(e), agora: renderAtividade(comAtividade, BOT as never), pilula: memoriaNaPilula(e, "ada", C) };
+  const tarefas = renderTelaTarefas(e, { tipo: "trabalhos", filtro: "todos", mostrar: "todas" }) + renderTelaTarefas(e, { tipo: "trabalhos" });
+  for (const aviso of ["pilula-memoria", "tb-faixa-memoria", "Pouca memória", "Pouco espaço no disco", "está ocupad", "máquinas ocupadas"]) expect(tarefas).not.toContain(aviso);
+  return { tarefas, agora: renderAtividade(comAtividade, BOT as never), pilula: memoriaNaPilula(e, "ada", C) };
 }
 
 function semMemoriaEmLugarNenhum(e: Estado): void {
   const p = pontos(e);
-  expect(p.todos).not.toContain("pilula-memoria");
-  expect(p.porBot).not.toContain("pilula-memoria");
   expect(p.agora).not.toContain('<span class="atv-hora">Agora</span>');
   expect(p.pilula).toBeNull();
   expect(memoriaDoMac(e, "ada", C)).toBeNull();
@@ -119,11 +124,9 @@ describe("os cinco pontos com as máquinas no DTO (critérios 1–5 e 7)", () =>
     semMemoriaEmLugarNenhum(estadoCom(dtoCom([doMac("colega", { esperandoColega: { agenteId: "x", nome: "Chico", desde: AGORA } as never }), doMac("cmd", { esperandoComando: { motivo: "a CI", desde: AGORA } }), doMac("fila", { estado: "na_fila" })], "amarela")));
   });
 
-  it("um rodando no Mac + outro na VM: pílula com '1 rodando aqui' nos cinco pontos", () => {
+  it("um rodando no Mac + outro na VM: '1 rodando aqui' na 'Agora' e na aba do bot", () => {
     const e = estadoCom(dtoCom([doMac("mac"), naVm("vm"), trabalho("fila", { estado: "na_fila", maquina: null })], "amarela"));
     const p = pontos(e);
-    expect(p.todos).toContain('<span class="pm-detalhe">· 1 rodando aqui</span>');
-    expect(p.porBot).toContain("Seu Mac está com pouca memória · 1 tarefa rodando aqui"); // a faixa do Paper 16 (rodada 3)
     expect(p.agora).toContain('<span class="atv-hora">Agora</span>');
     expect(p.agora).toContain("Pouca memória no seu Mac");
     expect(p.agora).toContain("1 rodando aqui");
@@ -136,8 +139,7 @@ describe("os cinco pontos com as máquinas no DTO (critérios 1–5 e 7)", () =>
   it("vermelha com dois no Mac: 'pode travar; 2 rodando aqui'", () => {
     const e = estadoCom(dtoCom([doMac("a"), doMac("b"), naVm("vm")], "vermelha"));
     const p = pontos(e);
-    expect(p.todos).toContain("· pode travar; 2 rodando aqui");
-    expect(p.porBot).toContain("· pode travar; 2 tarefas rodando aqui");
+    expect(p.agora).toContain("pode travar");
     expect(p.pilula?.curto).toBe("Este Mac quase sem memória");
     expect(p.pilula?.nivel).toBe("vermelha");
   });
@@ -145,25 +147,21 @@ describe("os cinco pontos com as máquinas no DTO (critérios 1–5 e 7)", () =>
   it("a pílula do bot e o 'Agora' contam só os do bot rodando no Mac (o de outro bot no Mac não conta para a Ada)", () => {
     const e = estadoCom(dtoCom([naVm("da-ada"), doMac("do-chico", { agenteId: "chico", conversaId: "c-chico" })], "amarela"));
     const p = pontos(e);
-    expect(p.todos).toContain("· 1 rodando aqui");
     expect(p.pilula).toBeNull();
     expect(p.agora).not.toContain('<span class="atv-hora">Agora</span>');
   });
 });
 
 describe("disco e máquinas como hoje (critério 6)", () => {
-  it("disco crítico sem trabalho no Mac: o aviso de disco segue no topo, na 'Agora' e na pílula do bot", () => {
+  it("disco crítico sem trabalho no Mac: o aviso de disco segue na 'Agora'", () => {
     const disco = { livreMb: 1_000, totalMb: 30_000, nivel: "vermelha" as const, alertaMb: 10_240, criticoMb: 3_072 };
     const e = estadoCom(dtoCom([naVm("vm", { esperaDoMac: "disco" })], "amarela", { mac: { motivoEspera: "disco", seguraTudoNovo: true, disco } }));
     const p = pontos(e);
-    expect(p.todos).toContain("Pouco espaço no disco");
-    expect(p.porBot).toContain("Pouco espaço no disco");
     expect(p.agora).toContain("Pouco espaço no disco do seu Mac");
     expect(memoriaDoMac(e, "ada", C)).toMatchObject({ disco: true, nivel: "vermelha", abertos: 1, rodandoAqui: 0 });
     // ADR-187 (4t, 2026-11-18): a tarefa da Ada roda na VM — o disco cheio do Mac não é dela, e a aba não avisa (antes
-    // avisava, e a pessoa não entendia o porquê). Os topos de Tarefas e a "Agora" seguem com o disco.
+    // avisava, e a pessoa não entendia o porquê). A "Agora" segue com o disco.
     expect(p.pilula).toBeNull();
-    expect(p.todos).not.toContain("Pouca memória");
   });
 
   it("disco crítico com o trabalho do bot parado na fila do Mac: a pílula do bot mostra o disco", () => {
@@ -172,52 +170,13 @@ describe("disco e máquinas como hoje (critério 6)", () => {
     expect(memoriaNaPilula(e, "ada", C)).toMatchObject({ nivel: "vermelha", curto: "Sem espaço em Este Mac", texto: "As tarefas rodam em Este Mac: o disco está cheio e nenhuma tarefa nova começa. Ver a máquina." });
   });
 
-  it("o Mac segurando por memória com tudo na VM: nem a de memória nem o 'Seu Mac está ocupado' (revisão do PR #537)", () => {
-    const e = estadoCom(dtoCom([naVm("vm")], "amarela", { mac: { motivoEspera: "memoria" } }));
-    const p = pontos(e);
-    expect(p.todos).not.toContain("pilula-memoria");
-    expect(p.porBot).not.toContain("pilula-memoria");
-  });
-
-  it("o Mac segurando por memória um trabalho que espera por ele: o 'Seu Mac está ocupado' segue", () => {
-    const e = estadoCom(dtoCom([naVm("vm"), doMac("espera", { estado: "na_fila", seguravel: true, esperaDoMac: "memoria" })], "amarela", { mac: { motivoEspera: "memoria" } }));
-    const p = pontos(e);
-    expect(p.todos).toContain("Seu Mac está ocupado");
-    expect(p.porBot).toContain("Seu Mac está ocupado");
-    expect(p.todos).not.toContain("Pouca memória");
-  });
-
-  it("só o Mac que segura por memória sai: por processador, ou a VM por memória, a pílula das máquinas segue (QA do PR #537)", () => {
-    const porProcessador = pontos(estadoCom(dtoCom([naVm("vm")], "verde", { mac: { processador: "vermelha", motivoEspera: "processador" } })));
-    expect(porProcessador.todos).toContain("Seu Mac está ocupado");
-    const vmPorMemoria = pontos(estadoCom(dtoCom([naVm("vm")], "amarela", { mac: { motivoEspera: "memoria" }, vm: { pressao: "amarela", motivoEspera: "memoria" } })));
-    expect(vmPorMemoria.todos).toContain("nod-motor-teste está com pouca memória");
-    expect(vmPorMemoria.todos).not.toContain("máquinas ocupadas");
-    expect(vmPorMemoria.porBot).toContain("nod-motor-teste está com pouca memória");
-  });
-
-  it("o que espera a VM não segura o Mac na pílula: fica só a da VM, não '2 máquinas ocupadas'", () => {
-    const e = estadoCom(dtoCom([naVm("espera", { estado: "na_fila", seguravel: true, esperaDoMac: "processador" })], "amarela", { mac: { motivoEspera: "memoria" }, vm: { processador: "vermelha", motivoEspera: "processador" } }));
-    const p = pontos(e);
-    expect(p.todos).toContain("nod-motor-teste está ocupada");
-    expect(p.todos).not.toContain("máquinas ocupadas");
-  });
-
-  it("o servidor anterior (sem máquinas no DTO): os dois topos seguem contando os abertos", () => {
-    const sem = (ts: TrabalhoDto[]): Estado => estadoCom({ trabalhos: ts, pressao: "amarela", memoriaTotalMb: null, donos: [] });
-    const um = pontos(sem([naVm("vm")]));
-    expect(um.todos).toContain("· 1 tarefa aberta");
-    expect(um.porBot).toContain("· 1 tarefa aberta");
-    const zero = pontos(sem([]));
-    expect(zero.todos).toContain("· 0 tarefas abertas");
-    expect(zero.porBot).toContain("· 0 tarefas abertas");
-  });
-
-  it("a VM segurando trabalho: a pílula das máquinas aparece mesmo sem memória no Mac", () => {
-    const e = estadoCom(dtoCom([naVm("a", { estado: "na_fila", esperaDoMac: "processador" })], "amarela", { vm: { processador: "vermelha", motivoEspera: "processador" } }));
-    const p = pontos(e);
-    expect(p.todos).toContain("nod-motor-teste está ocupada");
-    expect(p.porBot).toContain("nod-motor-teste está ocupada");
-    expect(p.todos).not.toContain("Pouca memória");
+  // ADR-187 §8 (2026-11-18): as pílulas das máquinas saíram da tela Tarefas; `pontos` confere que nenhuma volta, nos casos
+  // que antes as mostravam (o Mac segurando por memória ou processador, a VM segurando, o servidor sem máquinas).
+  it("a tela Tarefas não mostra o aviso da máquina em nenhum dos casos de antes", () => {
+    pontos(estadoCom(dtoCom([naVm("vm")], "amarela", { mac: { motivoEspera: "memoria" } })));
+    pontos(estadoCom(dtoCom([naVm("vm"), doMac("espera", { estado: "na_fila", seguravel: true, esperaDoMac: "memoria" })], "amarela", { mac: { motivoEspera: "memoria" } })));
+    pontos(estadoCom(dtoCom([naVm("vm")], "verde", { mac: { processador: "vermelha", motivoEspera: "processador" } })));
+    pontos(estadoCom(dtoCom([naVm("a", { estado: "na_fila", esperaDoMac: "processador" })], "amarela", { vm: { processador: "vermelha", motivoEspera: "processador" } })));
+    pontos(estadoCom({ trabalhos: [naVm("vm")], pressao: "amarela", memoriaTotalMb: null, donos: [] }));
   });
 });

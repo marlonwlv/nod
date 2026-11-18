@@ -406,7 +406,7 @@
   /* ---- Telas e formulários: uma coluna ---- */
   .tela { min-width: 0; }
   .tela-conectores { padding: 4px 0 24px !important; }
-  .tela-nao-lidos, .tela-trabalhos { padding: 4px 0 24px; }
+  .tela-nao-lidos { padding: 4px 0 24px; }
   /* NOD-449: no celular a prévia tem 2 linhas, a linha vai de ponta a ponta e o aviso fica acima da barra de baixo. */
   .tela-nao-lidos .nl-topo { padding: 4px 16px 10px; }
   .tela-nao-lidos .nl-lista { margin: 0; }
@@ -490,9 +490,6 @@
   .dec-filtros .atv-filtro { flex: none; }
   .dec-item.aberto .dec-detalhe { margin: 0 4px 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); }
   .dec-dia { touch-action: pan-y; }
-  .tb-frente-passo { display: none; }
-  .tb-frentes { margin-left: 22px; }
-  .tb-frente { min-height: 40px; }
 }
 
 /* O progresso na fala e a linha do turno vivo no celular (chat limpo, PR 7): alvos de toque de 40 px, sem mudar o desenho. */

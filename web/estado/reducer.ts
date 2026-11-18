@@ -86,8 +86,12 @@ export type Tela =
   | { tipo: "nova-sala" }
   /** Tela 18d do Paper: as tarefas dos quadros de todos os bots da pessoa (web/lib/tarefas-de-todos-na-tela.ts). */
   | { tipo: "tarefas" }
-  /** ADR-083 (#196): "Todos os trabalhos" — os de todos os bots da pessoa, com os filtros De você / Rotinas / Entre bots. */
-  | { tipo: "trabalhos"; filtro?: FiltroTrabalhos }
+  /**
+   * ADR-083 (#196) e ADR-187 §8 (lote B, passo 5, 2026-11-18; Paper 5a e 5b): a tela Tarefas. Sem `filtro`, "Por bot" (a
+   * vista com que ela abre); com ele, "Por estado" (De você / Rotinas / Entre bots ficaram só no estado, sem chip).
+   * `mostrar`: os chips Abertas (ausente) / Feitas / Todas; `bot`: o "Todos os bots ▾" com um bot escolhido.
+   */
+  | { tipo: "trabalhos"; filtro?: FiltroTrabalhos; mostrar?: MostrarTarefas; bot?: string }
   /**
    * ADR-083 (#195): a tela da task. `voltar` é a tela de onde a pessoa veio (o Fechar e o Esc voltam para ela); abrir
    * outra task de dentro de uma task mantém o `voltar` de fora.
@@ -108,6 +112,9 @@ export type Tela =
 
 /** Os filtros de "Todos os trabalhos": De você (pessoa e rede), Rotinas e Entre bots (colega). */
 export type FiltroTrabalhos = "todos" | "voce" | "rotinas" | "bots";
+
+/** ADR-187 §8 (Paper 5a): as tarefas abertas (o padrão), as que terminaram hoje ou as duas. */
+export type MostrarTarefas = "abertas" | "feitas" | "todas";
 
 /**
  * "Seu espaço" (definido em 2026-09-30, canvas "Menu, sidebar e gaveta"): o que é da CONTA abre pelo menu do avatar numa

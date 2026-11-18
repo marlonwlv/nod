@@ -9,7 +9,11 @@ import { ESTADOS_ABERTOS, agrupar, filtrar, foraDoMac, listaPararTasks, memoriaL
 import { comFerramenta, comTexto, ATIVIDADE_VAZIA } from "../../../web/lib/atividade.ts";
 import { renderDetalhes } from "../../../web/telas/detalhes.ts";
 import { renderTaxasLinhas } from "../../../web/telas/modo-dev.ts";
-import { chipTrabalhosDoBot, htmlAcoesDaTask, renderFaixaTrabalhos, renderGavetaTrabalhos, renderIconeTrabalhos, renderTelaTrabalho, renderTodosOsTrabalhos, renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
+import { chipTrabalhosDoBot, htmlAcoesDaTask, renderFaixaTrabalhos, renderGavetaTrabalhos, renderIconeTrabalhos, renderTelaTrabalho, renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+
+// ADR-187 §8 (2026-11-18): "Todas as tarefas" virou a vista Por estado da tela Tarefas, com o chip Todas.
+const renderTodosOsTrabalhos = (e: Estado, filtro: "todos" | "voce" | "rotinas" | "bots" = "todos"): string => renderTelaTarefas(e, { tipo: "trabalhos", filtro, mostrar: "todas" });
 
 /** As telas dos trabalhos (#195, filha 07; #196, filha 08): faixa, tela da task, barra, gaveta, "Todas as tarefas", memória. */
 
@@ -353,17 +357,20 @@ describe("gaveta e 'Todas as tarefas' (#196, K3/K9/M3)", () => {
     expect(renderDetalhes({ ...e, gaveta: { agenteId: "leo", nivel: { tipo: "trabalhos" } } })).toContain("Tarefas de Leonardo");
   });
 
-  it("'Todas as tarefas': todos os bots, o resumo, a memória de cada um e os filtros De você / Rotinas / Entre bots", () => {
+  // ADR-187 §8 (Paper 5b, 2026-11-18): o resumo do topo, a memória por linha e os chips De você / Rotinas / Entre bots
+  // saíram; os grupos contam no rótulo e o filtro por origem segue no estado da tela (sem chip).
+  it("'Todas as tarefas' (Por estado, Todas): todos os bots, os que mais usam memória primeiro e o filtro por origem", () => {
     const e = estadoCom(lista, { tela: { tipo: "trabalhos" }, trabalhos: { trabalhos: lista, pressao: null, memoriaTotalMb: 3174 } });
     const html = renderTodosOsTrabalhos(e);
-    expect(html).toContain("3 trabalhando · 1 na fila · 1 precisa de você · os bots usam 3,1 GB do seu Mac");
-    // QA (2026-10-08): com 0 MB (nenhum harness com processo próprio) a frase da memória some, em vez de "0 MB".
-    expect(renderTodosOsTrabalhos({ ...e, trabalhos: { trabalhos: lista, pressao: null, memoriaTotalMb: 0 } })).not.toContain("os bots usam");
+    expect(html).toContain("Precisa de você · 1");
+    expect(html).toContain("Trabalhando · 3");
+    expect(html).toContain("Na fila · 1");
+    expect(html).toContain("Feitas hoje · 1");
+    expect(html).not.toContain("os bots usam");
     expect(html.indexOf("Login do app")).toBeLessThan(html.indexOf("Revisar dados"));
     expect(html.indexOf("Revisar dados")).toBeLessThan(html.indexOf("Migrar relatórios"));
-    expect(html).toContain("2,1 GB");
-    expect(html).toContain("os que mais usam memória primeiro");
-    expect(html).toContain('data-act="filtro-trabalhos" data-id="bots" aria-pressed="false"');
+    expect(html).not.toContain("2,1 GB");
+    expect(html).not.toContain("filtro-trabalhos");
     const bots = renderTodosOsTrabalhos(e, "bots");
     expect(bots).toContain("Login do app");
     expect(bots).not.toContain("Migrar relatórios");
@@ -397,7 +404,6 @@ describe("esperar não é trabalhar (ADR-099, parte 1)", () => {
   it("'Todas as tarefas': '1 trabalhando · 13 esperando · 1 na fila' e o grupo Esperando entre Trabalhando e Na fila", () => {
     const e = estadoCom(dia, { tela: { tipo: "trabalhos" }, trabalhos: { trabalhos: dia, pressao: null, memoriaTotalMb: 300 } });
     const html = renderTodosOsTrabalhos(e);
-    expect(html).toContain("1 trabalhando · 13 esperando · 1 na fila · os bots usam 300 MB do seu Mac");
     const ordem = ["Trabalhando · 1", "Esperando · 13", "Na fila · 1"].map((t) => html.indexOf(t));
     expect(ordem.every((i) => i >= 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
@@ -436,11 +442,13 @@ describe("memória (#196, M1/M2/M3)", () => {
     expect(pilulaMemoria("vermelha", 24)).toContain("<b>Seu Mac está quase sem memória</b><span class=\"pm-detalhe\">· pode travar; 24 rodando aqui</span>");
   });
 
-  it("no topo de 'Todas as tarefas' sob pressão", () => {
+  // ADR-187 §8 (2026-11-18): o aviso da máquina mora no selo da aba das tarefas (web/lib/aviso-da-maquina.ts); a tela
+  // Tarefas não o repete.
+  it("a tela Tarefas sob pressão não repete o aviso da máquina; a pílula segue com as cores", () => {
     const e = estadoCom([trabalho("a")], { tela: { tipo: "trabalhos" }, pressao: "amarela" });
     const html = renderTodosOsTrabalhos(e);
-    expect(html.indexOf("Pouca memória no seu Mac")).toBeGreaterThan(-1);
-    expect(html.indexOf("Pouca memória no seu Mac")).toBeLessThan(html.indexOf("Trabalhando ·"));
+    expect(html).not.toContain("Pouca memória no seu Mac");
+    expect(html).toContain("Trabalhando · 1");
     expect(css).toMatch(/\.pilula-memoria\.amarela \{ background: var\(--warning-soft\);/);
     expect(css).toMatch(/\.pilula-memoria\.vermelha \{ background: var\(--danger-soft\);/);
   });

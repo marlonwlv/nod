@@ -126,7 +126,8 @@ describe("a tarefa nova (Paper 3b e 3e)", () => {
   it("no main: ⌘N, o \"+\" e a dica abrem a tarefa nova; a primeira mensagem a cria e marca a dica como vista", () => {
     const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
     expect(main).toContain('if (a.tipo === "nova-tarefa") { abrirNovaTarefa(); return true; }');
-    expect(main).toContain('"nova-tarefa": () => abrirNovaTarefa(),');
+    // ADR-187 §8 (2026-11-18): o botão passa a si mesmo, para o menu "Nova tarefa com" da tela Tarefas abrir junto dele.
+    expect(main).toContain('"nova-tarefa": (el) => abrirNovaTarefa(el),');
     expect(main).toContain('if (tela.tipo === "nova-tarefa") return criarTarefaNova(tela);');
     expect(main).toContain("id = (await a.abrirTarefa(tela.agenteId, texto, levar)).trabalho.id;");
     const criar = main.slice(main.indexOf("async function criarTarefaNova"), main.indexOf("async function criarTarefaNova") + 1400);

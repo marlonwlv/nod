@@ -459,44 +459,8 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .cfg-modal .espaco-conteudo .cfg-secao > h2, .cfg-modal .espaco-conteudo > section > h2:first-child { margin: 0 0 14px; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3); letter-spacing: var(--tracking-titulo-3); font-weight: var(--peso-medio); }
 
 
-/* ---- Trabalhos (Paper 16): 760 px no centro, "Por bot | Por frente", seções com o número em cinza, linhas de 60 ---- */
-.tela-trabalhos { width: 100%; max-width: 760px; margin: 0 auto; padding: 15px 0 32px; box-sizing: border-box; } /* rodada 3: 760 de largura de fato (o pai é flex) e o título a 41 do topo, como o Paper 16 */
-.tela-trabalhos .tt-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0 0 20px; }
-.tela-trabalhos .tt-cab h1 { margin: 0; font-size: var(--fs-titulo-2); line-height: var(--lh-titulo-2); letter-spacing: var(--tracking-titulo-2); font-weight: var(--peso-medio); }
-.tela-trabalhos .tt-cab p { margin: 2px 0 0; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }
-.tt-vista { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--raio-10); background: var(--hover); flex: none; }
-.tt-vista-op { height: 26px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--raio-8); background: none; font-size: var(--fs-corpo-2); color: var(--ink-2); }
-.tt-vista-op[aria-pressed="true"] { background: var(--surface-elevated); color: var(--ink); font-weight: var(--peso-medio); box-shadow: var(--sombra-controle); }
-.tela-trabalhos .tb-grupo, .tela-trabalhos .tt-grupo { margin: 0 0 18px; padding: 0; border: 0; }
+/* O ponto de quem precisa de você (Paper 16), no laranja de aguardando. */
 .ponto-trabalho.precisa { background: var(--aguardando-ponto); }
-.tela-trabalhos .tb-grupo > h2 { margin: 0 0 6px; padding: 0 4px; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-medio); color: var(--ink-2); }
-.tela-trabalhos .tb-conta { margin-left: 4px; color: var(--ink-3); font-weight: var(--peso-regular); }
-.tela-trabalhos .tb-grupo .tt-lista { border: 0; background: none; box-shadow: none; display: flex; flex-direction: column; gap: 0; }
-.tela-trabalhos .tb-linha { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 16px 8px 14px; border: 0; border-radius: var(--raio-12); background: none; text-align: left; }
-.tela-trabalhos .tb-linha:hover { background: var(--hover); }
-.tela-trabalhos .tb-linha[aria-expanded="true"] { background: var(--hover); border-radius: var(--raio-12) var(--raio-12) 0 0; }
-.tela-trabalhos .tb-linha .icon { width: 32px; height: 32px; flex: none; margin: 0; }
-.tela-trabalhos .tb-meio { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.tela-trabalhos .tb-nome { display: flex; align-items: baseline; gap: 8px; }
-.tela-trabalhos .tb-nome b { font-size: var(--fs-corpo); line-height: var(--lh-corpo); font-weight: var(--peso-medio); color: var(--ink); }
-.tela-trabalhos .tb-nome small { font-size: var(--fs-rotulo); color: var(--ink-3); }
-.tela-trabalhos .tb-frase { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tela-trabalhos .tb-linha[data-grupo="precisa"] .tb-frase { color: var(--aguardando); }
-.tela-trabalhos .tb-detalhe, .tela-trabalhos .tb-linha .tt-fim { flex: none; font-size: var(--fs-rotulo); color: var(--ink-3); white-space: nowrap; }
-.tela-trabalhos .tb-detalhe { margin-right: 12px; }
-.tela-trabalhos .tb-linha > svg:last-child { width: 14px; height: 14px; color: var(--ink-3); flex: none; }
-.tela-trabalhos .tb-frentes { margin: 0 0 6px; padding: 4px 16px 12px 60px; border-radius: 0 0 var(--raio-12) var(--raio-12); background: var(--surface-elevated); border: 1px solid var(--borda-sutil); border-top: 0; box-shadow: var(--sombra-inline); }
-.tela-trabalhos .tb-grupo:has(.tb-linha[aria-expanded="true"]) .tb-linha[aria-expanded="true"] { background: var(--surface-raised); }
-.tela-trabalhos .tb-frente { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 0; border: 0; background: none; text-align: left; width: 100%; }
-.tela-trabalhos .tb-frente-titulo { font-size: var(--fs-corpo-2); color: var(--ink); font-weight: var(--peso-medio); }
-.tela-trabalhos .tb-frente-passo { flex: 1; min-width: 0; font-size: var(--fs-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tela-trabalhos .tb-frente-fim { font-size: var(--fs-rotulo); color: var(--ink-3); }
-.tela-trabalhos .tb-abrir-conversa { margin-top: 4px; padding: 6px 0; border: 0; background: none; font-size: var(--fs-corpo-2); color: var(--ink); font-weight: var(--peso-medio); }
-.tela-trabalhos .tb-livres { display: flex; align-items: center; gap: 12px; margin: 6px 0 0; padding: 0 4px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-.tela-trabalhos .tb-livres-rot { color: var(--ink-2); }
-.tela-trabalhos .tb-livres-av { display: inline-flex; gap: 6px; }
-.tela-trabalhos .tb-livres-av .icon { width: 20px; height: 20px; margin: 0; }
-
 
 /* ---- Painel com frentes (Paper 15): marca à esquerda (ponto laranja, mascote rodando, anel, ✓), o tempo à direita ---- */
 .detalhes .gv-frentes .gv-linha .icon.sm { width: 16px; height: 16px; flex: none; margin: 0; }
@@ -853,27 +817,8 @@ html:not([data-largura="recolhida"]) #sidebar .linha-fixa-aguardando:hover { tex
 #sidebar .fixado-sinal[data-sinal="voce"] i { background: var(--aguardando); }
 #sidebar .fixado-sinal[data-sinal="novo"] i { background: var(--signal); }
 html[data-largura="recolhida"] #sidebar .fixado-sinal { top: 2px; right: 6px; }
-/* Paper 16 (rodada 3): a frente aberta em duas linhas (o título e o passo embaixo, a pergunta em laranja), o tempo à
-   direita; o número de frentes antes do ponto da linha do bot. */
-.tela-trabalhos .tb-frente { min-height: 45px; padding: 0; box-sizing: border-box; align-items: center; }
-.tela-trabalhos .tb-frentes { padding-left: 65px; }
-.tela-trabalhos .tb-frente-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.tela-trabalhos .tb-frente-txt .tb-frente-titulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tela-trabalhos .tb-frente[data-pede] .tb-frente-passo { color: var(--aguardando); }
-.tela-trabalhos .tb-n { margin-right: -6px; font-size: var(--fs-legenda); color: var(--ink-2); }
-.tela-trabalhos .tb-grupo { margin-bottom: 0; } /* rodada 3: o respiro entre os grupos é só o gap da tela (Paper 16, ~19) */
 /* O mascote esperando você leva o ponto laranja do Paper (16, 16b), não o azul de novidade. */
 nod-mascote[data-estado="aguardando"]:not([data-aviso="pergunta"], [data-aviso="nao-lido"]) { --nod-aviso: var(--aguardando); }
-/* Paper 16 (rodada 3): a faixa da memória em Trabalhos — cinza, da largura da tela, 40 de altura, "Ver ›" à direita. */
-.tela-trabalhos .tb-faixa-memoria { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; margin: 0 0 4px; padding: 0 14px; box-sizing: border-box; border: 0; border-radius: var(--raio-10); background: var(--hover); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); text-align: left; cursor: pointer; }
-.tela-trabalhos .tb-faixa-memoria .pm-icone { color: var(--ink-2); flex: none; }
-.tela-trabalhos .tb-faixa-memoria.vermelha { background: var(--danger-soft); }
-.tela-trabalhos .tb-faixa-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tela-trabalhos .tb-faixa-ver { display: inline-flex; align-items: center; gap: 6px; font-weight: var(--peso-medio); }
-.tela-trabalhos .tb-faixa-ver svg { width: 12px; height: 12px; color: var(--ink-3); }
-.tela-trabalhos .tt-cab { margin-bottom: 4px; }
-.tela-trabalhos .tb-faixa-memoria { margin: 0; }
-.tela-trabalhos .tb-linha { padding-left: 8px; }
 @media not ((hover: none) and (pointer: coarse)) {
 /* Paper 17 (rodada 3): o "+ pedir um app" num círculo tracejado e a dica que nasce à esquerda do ícone (não centrada). */
 .cabecalho-pilula .pg-pedir { border: 1px dashed var(--line-strong); border-radius: var(--raio-full); }

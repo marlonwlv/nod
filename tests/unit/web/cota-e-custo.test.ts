@@ -5,7 +5,11 @@ import type { FrameSse } from "../../../src/contracts/frame.ts";
 import type { TrabalhoDto, TrabalhosDto } from "../../../src/contracts/trabalho.ts";
 import { aplicarFrame, estadoInicial, invalidacoesDaTela, type Estado } from "../../../web/estado/reducer.ts";
 import { pilulaDaCota, situacaoDe } from "../../../web/lib/trabalhos.ts";
-import { renderTodosOsTrabalhos, renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
+import { renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+
+// ADR-187 §8 (2026-11-18): "Todas as tarefas" virou a vista Por estado da tela Tarefas, com o chip Todas.
+const renderTodosOsTrabalhos = (e: Estado): string => renderTelaTarefas(e, { tipo: "trabalhos", filtro: "todos", mostrar: "todas" });
 
 /** ADR-099 §7 (definido em 2026-10-12): a cota da IA na tela Trabalhos. NOD-369: o custo de hoje saiu do topo. */
 
@@ -59,7 +63,7 @@ describe("a cota da IA na tela", () => {
 // (`GET custo-hoje`); a web não mostra nem pede.
 describe("NOD-369: o topo de Trabalhos sem o custo de hoje", () => {
   const semUsdNoTopo = (html: string) => {
-    const topo = html.slice(html.indexOf('<header class="tt-cab">'), html.indexOf("</header>") + 9);
+    const topo = html.slice(html.indexOf('<header class="tf-cab">'), html.indexOf("</header>") + 9);
     expect(topo).toContain("<h1>Tarefas</h1>");
     expect(topo).not.toContain("US$");
     expect(topo).not.toContain("tt-custo");

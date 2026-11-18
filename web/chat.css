@@ -372,3 +372,112 @@
 /* No celular o enviar e o parar viram o círculo de 44 (celular-base.css); o Parar da tarefa segue em pílula, com 44 de alto. */
 @media (hover: none) and (pointer: coarse) { .composer .box:not(.gravando) > .parar-envio.parar-tarefa { width: auto; padding: 0 14px 0 12px; border-radius: var(--raio-full); } }
 @media (prefers-reduced-motion: reduce) { .tk-timeline .tk-gira { animation: none; } }
+
+/* ADR-187 §8 (lote B, passo 5, 2026-11-18; Paper 5a "Por bot", 5b "Por estado"): a tela Tarefas. Medidas do Paper: topo
+   28/56/12 com 16 entre as linhas, título 26/32 em 600, segmentado 13/18 (2 de moldura, 4/12 por opção), "+ Nova tarefa"
+   em pílula escura (8/14), chips 13/18 (5/12) e o traço de 1×18; os rótulos em 11/14 maiúsculo; Por bot em cartões de
+   raio 14 com o contorno de 0,5 px, linhas de 48 (16 dos lados, 12 entre as partes: nome 90, tempo 60); Por estado em
+   linhas de 52 (bot 120, origem 120, tempo 60) e a que precisa de você no azul a 5 %. */
+/* A tela ocupa a área inteira: a folga do .timeline-wrap (12/70) não vale aqui (o topo do Paper é 28/56). */
+.timeline-wrap:has(> .tela-tarefas) { padding: 0; }
+.tela-tarefas { display: flex; flex-direction: column; width: 100%; max-width: 1100px; margin: 0 auto; padding: 28px 56px 24px; box-sizing: border-box;
+  color: var(--chat-tinta); font-size: 12px; line-height: 16px; }
+.tela-tarefas button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.tela-tarefas button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 8px; }
+.tela-tarefas .tf-cab { display: flex; align-items: center; gap: 16px; }
+.tela-tarefas .tf-cab h1 { flex: none; margin: 0; font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: -0.01em; }
+.tela-tarefas .tf-espaco { flex: 1 1 0; }
+.tela-tarefas .tf-vista { display: flex; padding: 2px; border-radius: 8px; background: var(--chat-preenchido); }
+.tela-tarefas .tf-vista-op { padding: 4px 12px; border-radius: 6px; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); white-space: nowrap; }
+.tela-tarefas .tf-vista-op[aria-pressed="true"] { background: var(--chat-superficie); box-shadow: 0 0 0 0.5px var(--chat-aba-contorno); color: var(--chat-tinta); font-weight: 500; }
+.tela-tarefas .tf-vista-op:not([aria-pressed="true"]):hover { color: var(--chat-tinta); }
+.tela-tarefas .tf-nova { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--chat-tinta); color: var(--chat-superficie); font-size: 13px; line-height: 18px; font-weight: 500; white-space: nowrap; }
+.tela-tarefas .tf-nova:hover { background: color-mix(in srgb, var(--chat-tinta) 85%, transparent); }
+.tela-tarefas .tf-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0 12px; }
+.tela-tarefas .tf-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 999px; background: var(--chat-chip-fundo); font-size: 13px; line-height: 18px; color: var(--chat-tinta); white-space: nowrap; }
+.tela-tarefas .tf-chip:hover { background: var(--chat-preenchido); }
+.tela-tarefas .tf-chip[aria-pressed="true"] { background: var(--chat-tinta); color: var(--chat-superficie); }
+.tela-tarefas .tf-traco { flex: none; width: 1px; height: 18px; margin: 0 4px; background: var(--chat-aba-contorno); }
+.tela-tarefas > .linha-centro-wrap { margin: 0 0 8px; }
+.tela-tarefas .tf-lista { display: flex; flex-direction: column; padding-top: 8px; }
+.tela-tarefas .tf-rotulo { margin: 0; padding: 22px 12px 10px; font-size: 11px; line-height: 14px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-2); }
+.tela-tarefas .tf-grupo:first-child .tf-rotulo { padding-top: 8px; }
+.tela-tarefas .tf-ic { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; }
+.tela-tarefas .pf-precisa { color: var(--chat-aba-precisa); }
+.tela-tarefas .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
+.tela-tarefas .pf-anel-arco { stroke: var(--chat-tinta); }
+.tela-tarefas .pf-anel:not(.at-quieto) { animation: pf-anel-gira 1s linear infinite; }
+.tela-tarefas .tf-espera { color: var(--chat-tinta-4); }
+.tela-tarefas .at-feita { display: inline-flex; color: var(--chat-tinta-2); }
+.tela-tarefas .at-feita svg { width: 12px; height: 12px; }
+.tela-tarefas .at-parada { color: var(--chat-tinta-3); }
+.tela-tarefas .at-falhou { color: var(--danger); }
+.tela-tarefas .tf-tempo { flex: none; width: 60px; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Por bot: o cartão do grupo e a linha de cada bot. */
+.tela-tarefas .tf-cartao { display: flex; flex-direction: column; padding: 4px 0; border-radius: 14px; background: var(--chat-superficie); box-shadow: 0 0 0 0.5px var(--chat-aba-contorno); }
+.tela-tarefas .tf-bot + .tf-bot { border-top: 0.5px solid var(--chat-spinner-trilho); }
+.tela-tarefas .tf-linha-bot { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; padding: 0 16px; box-sizing: border-box; }
+.tela-tarefas .tf-linha-bot:hover .tf-titulo { text-decoration: underline; text-decoration-color: var(--chat-aba-contorno); text-underline-offset: 3px; }
+.tela-tarefas .tf-linha-bot .tf-ic svg { width: 10px; height: 10px; }
+.tela-tarefas .tf-av { display: inline-flex; flex: none; width: 18px; height: 18px; }
+.tela-tarefas .tf-av .icon { width: 100%; height: 100%; margin: 0; }
+.tela-tarefas .tf-nome { flex: none; width: 90px; overflow: hidden; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-titulo { flex: 1 1 0; min-width: 0; overflow: hidden; font-size: 14px; line-height: 20px; white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-contas { flex: none; max-width: 40%; overflow: hidden; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-seta { flex: none; color: var(--chat-tinta-2); }
+/* O bot aberto: as tarefas dele num trilho com o traço à esquerda (60 de recuo, 16 depois do traço), linhas de 34. */
+.tela-tarefas .tf-tarefas-do-bot { padding: 0 16px 6px 60px; }
+.tela-tarefas .tf-trilho { display: flex; flex-direction: column; padding-left: 16px; border-left: 1px solid var(--chat-spinner-trilho); }
+.tela-tarefas .tf-tarefa-bot { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 34px; padding: 0 8px; margin-left: -8px; box-sizing: content-box; border-radius: 8px; }
+.tela-tarefas button.tf-tarefa-bot:hover { background: var(--chat-chip-fundo); }
+.tela-tarefas .tf-tarefa-bot.estatica { cursor: default; }
+.tela-tarefas .tf-tarefa-bot .tf-t-titulo { flex: none; width: 240px; overflow: hidden; font-size: 13px; line-height: 18px; white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-tarefa-bot[data-estado="precisa_de_voce"] .tf-t-titulo, .tela-tarefas .tf-tarefa-bot[data-estado="fechado_ocioso"] .tf-t-titulo { font-weight: 500; }
+.tela-tarefas .tf-tarefa-bot .tf-t-passo { flex: 1 1 0; min-width: 0; overflow: hidden; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-tarefa-bot:is([data-estado="precisa_de_voce"], [data-estado="fechado_ocioso"]) .tf-t-passo { color: var(--chat-aba-precisa); }
+.tela-tarefas .tf-ordem { font-size: 11px; color: var(--chat-tinta-3); }
+.tela-tarefas .tf-rodape { display: flex; align-items: center; gap: 16px; min-height: 34px; font-size: 13px; line-height: 18px; }
+.tela-tarefas .tf-mais { color: var(--chat-tinta-2); }
+.tela-tarefas .tf-mais:hover { color: var(--chat-tinta); }
+.tela-tarefas .tf-abrir-conversa { font-weight: 500; }
+.tela-tarefas .tf-sub { margin: 8px 0; font-size: 13px; color: var(--chat-tinta-3); }
+.tela-tarefas .tf-livres { margin: 0; padding: 18px 12px 0; font-size: 13px; line-height: 20px; color: var(--chat-tinta-2); }
+.tela-tarefas .tf-vazio { margin: 8px 12px; font-size: 13px; line-height: 20px; color: var(--chat-tinta-2); }
+/* Por estado: uma linha por tarefa, sem cartão. */
+.tela-tarefas[data-vista="por-estado"] .tf-rotulo { padding: 18px 0 6px; letter-spacing: 0.04em; color: var(--chat-tinta-3); }
+.tela-tarefas[data-vista="por-estado"] .tf-grupo:first-child .tf-rotulo { padding-top: 12px; }
+.tela-tarefas .tf-tarefas { display: flex; flex-direction: column; }
+.tela-tarefas .tf-tarefa { display: flex; align-items: center; gap: 12px; width: 100%; height: 52px; padding: 0 12px; box-sizing: border-box; border-bottom: 0.5px solid var(--chat-spinner-trilho); }
+.tela-tarefas .tf-tarefa .tf-ic { width: 16px; }
+.tela-tarefas .tf-tarefa .tf-ic svg { width: 14px; height: 14px; }
+.tela-tarefas .tf-tarefa .tf-ic .pf-precisa { width: 10px; height: 10px; }
+.tela-tarefas .tf-tarefa:hover { background: var(--chat-chip-fundo); }
+.tela-tarefas .tf-tarefa[data-grupo="precisa"] { margin-bottom: 4px; border-bottom: 0; border-radius: 10px; background: var(--chat-precisa-fundo); }
+.tela-tarefas .tf-meio { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; }
+.tela-tarefas .tf-tarefa .tf-t-titulo { overflow: hidden; font-size: 14px; line-height: 20px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-tarefa .tf-t-passo { overflow: hidden; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-tarefa[data-grupo="precisa"] .tf-t-passo { color: var(--chat-aba-precisa); }
+.tela-tarefas .tf-quem { display: flex; flex: none; align-items: center; gap: 6px; width: 120px; overflow: hidden; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); white-space: nowrap; }
+.tela-tarefas .tf-quem > .icon { flex: none; width: 14px; height: 14px; margin: 0; }
+.tela-tarefas .tf-quem > span { overflow: hidden; text-overflow: ellipsis; }
+.tela-tarefas .tf-origem { flex: none; width: 120px; }
+.tela-tarefas .tf-origem-chip { display: inline-flex; max-width: 100%; padding: 2px 8px; box-sizing: border-box; overflow: hidden; border-radius: 999px; background: var(--chat-chip-fundo);
+  font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+/* Os menus de "Todos os bots ▾" e de "+ Nova tarefa" usam a moldura do menu da aba (280, raio 12). */
+.bot-menu .tf-menu-item { display: flex; align-items: center; width: 100%; }
+.bot-menu .tf-menu-item nod-mascote { flex: none; width: 18px; height: 18px; margin: 0; }
+.bot-menu .tf-menu-ok { display: inline-flex; margin-left: auto; color: var(--chat-tinta-2); }
+@media (prefers-reduced-motion: reduce) { .tela-tarefas .pf-anel { animation: none; } }
+@media (max-width: 760px) {
+  .tela-tarefas { padding: 20px 16px 24px; }
+  .tela-tarefas .tf-cab { gap: 12px; }
+  .tela-tarefas .tf-contas, .tela-tarefas .tf-origem { display: none; }
+  .tela-tarefas .tf-nome { width: auto; max-width: 30%; }
+  .tela-tarefas .tf-quem { width: auto; max-width: 30%; }
+  .tela-tarefas .tf-tarefas-do-bot { padding-left: 24px; }
+  .tela-tarefas .tf-tarefa-bot .tf-t-titulo { width: auto; flex: 1 1 0; min-width: 0; }
+  .tela-tarefas .tf-tarefa-bot .tf-t-passo { display: none; }
+  .tela-tarefas .tf-rodape { flex-wrap: wrap; row-gap: 0; }
+}
+/* No celular estreito, o "+ Nova tarefa" desce para a linha de baixo em vez de cortar o segmentado. */
+@media (max-width: 420px) { .tela-tarefas .tf-cab { flex-wrap: wrap; } }

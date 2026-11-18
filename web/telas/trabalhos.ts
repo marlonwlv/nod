@@ -1,12 +1,12 @@
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { TrabalhoDto } from "../../src/contracts/trabalho.ts";
-import type { Estado, FiltroTrabalhos, Tela } from "../estado/reducer.ts";
+import type { Estado, Tela } from "../estado/reducer.ts";
 import { linhaAtual, type AtividadeTurno, type SubagenteNaTela, type SubagentesDoTurno } from "../lib/atividade.ts";
 import { ICONE } from "../lib/icones.ts";
 import { botao, esc, hora, iconeAgente } from "../lib/render.ts";
 import { duracaoCurta } from "../lib/relogio.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
-import { aberto, abertosDoBot, acoesDeFazer, agrupar, dicaSemContato, emEspera, esperaDaContaDe, esperandoColega, esperandoMaquina, etiquetaOrigem, quandoVolta, textoDaEsperaDaConta, voltaMarcada, filtrar, leituraDoMac, maquinasDe, memoriaDosBots, memoriaLegivel, pilulaDaCota, pilulaDasMaquinas, pilulaMac, pilulaMemoria, pontoTrabalho, maquinasDoAviso, rodandoNoMac, resumoDaPilula, seguradoPeloMac, situacaoDe, tempoDe, temposDaTask, tituloCurto, trabalhoPorId, trabalhosConhecidos, type GruposTrabalhos } from "../lib/trabalhos.ts";
+import { aberto, abertosDoBot, acoesDeFazer, agrupar, emEspera, esperaDaContaDe, esperandoColega, esperandoMaquina, etiquetaOrigem, quandoVolta, textoDaEsperaDaConta, voltaMarcada, pontoTrabalho, resumoDaPilula, situacaoDe, tempoDe, temposDaTask, tituloCurto, trabalhoPorId, trabalhosConhecidos, type GruposTrabalhos } from "../lib/trabalhos.ts";
 import { chipDaFalaNaFrente, renderMensagem, type BlocoDaTimeline } from "./conversa.ts";
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { horariosDaRotina } from "./linhas-do-chat.ts";
@@ -171,75 +171,6 @@ export function renderGavetaTrabalhos(estado: Estado, agenteId: string): string 
   });
   if (!estado.trabalhos && secoes.length === 0) return '<p class="mudo">carregando…</p>';
   return secoes.join("") || '<p class="mudo">Nenhuma tarefa hoje. Quando o bot abrir uma, ela aparece aqui — e no chat, numa linha.</p>';
-}
-
-/**
- * Contagem do topo de "Todos os trabalhos": "1 trabalhando · 11 esperando · 1 na fila · 2 precisam de você · os bots usam
- * 3,1 GB do seu Mac". Revisto em 2026-10-09 (a tela fala por máquina): a memória por máquina ("0,4 GB do seu Mac e 0,7 GB
- * na nod-motor-teste"). Revisto em 2026-10-12 (ADR-099, parte 1): "trabalhando" no lugar de "rodando", e quem só espera
- * conta à parte.
- */
-function resumoDosTrabalhos(g: GruposTrabalhos, memoria: string): string {
-  const partes = [
-    `${g.trabalhando.length} trabalhando`,
-    g.esperando.length ? `${g.esperando.length} esperando` : "",
-    g.fila.length ? `${g.fila.length} na fila` : "",
-    g.precisa.length ? `${g.precisa.length} ${g.precisa.length === 1 ? "precisa" : "precisam"} de você` : "",
-    // definido em 2026-10-08 (QA): sem leitura útil (0 MB, harness sem processo próprio) a frase some em vez de dizer "0 MB".
-    memoria,
-  ];
-  return partes.filter(Boolean).join(" · ");
-}
-
-const FILTROS: { id: FiltroTrabalhos; nome: string }[] = [
-  { id: "todos", nome: "Todos" },
-  { id: "voce", nome: "De você" },
-  { id: "rotinas", nome: "Rotinas" },
-  { id: "bots", nome: "Entre bots" },
-];
-
-/**
- * "Todos os trabalhos" (K9/M3): os grupos da gaveta com os trabalhos de todos os bots, o filtro por origem e a memória
- * de cada um — os que mais usam primeiro. Sob pressão, a pílula de memória fica no topo.
- */
-/** ADR-167 (Paper 16): o segmentado "Por bot | Por frente" do topo de Trabalhos (só com o dono de cada bot no servidor). */
-export function segmentadoDosTrabalhos(porBot: boolean): string {
-  return `<div class="tt-vista" role="group" aria-label="Ver as tarefas"><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="por-bot" aria-pressed="${porBot}">Por bot</button><button type="button" class="tt-vista-op" data-act="filtro-trabalhos" data-id="todos" aria-pressed="${!porBot}">Por estado</button></div>`;
-}
-
-export function renderTodosOsTrabalhos(estado: Estado, filtro: FiltroTrabalhos = "todos", comPorBot = false): string {
-  if (!estado.trabalhos) return '<section class="tela-trabalhos"><p class="mudo">carregando…</p></section>';
-  const todos = estado.trabalhos.trabalhos;
-  const grupos = agrupar(filtrar(todos, filtro), estado.agora);
-  const filtros = FILTROS.map((f) => `<button type="button" class="tt-filtro${f.id === filtro ? " ativo" : ""}" data-act="filtro-trabalhos" data-id="${f.id}" aria-pressed="${f.id === filtro}">${f.nome}</button>`).join("");
-  const abertos = todos.filter(aberto).length;
-  // ADR-085: a pílula de memória já diz que o Mac está apertado; sem ela, a do Mac ocupado (pelo uso que a pessoa escolheu).
-  const segurando = estado.trabalhos.segurando === true;
-  // #219: uma pílula só; o disco quase cheio vai na frente da de memória (é o que pede a mão da pessoa).
-  const motivo = estado.trabalhos.motivoEspera ?? null;
-  const esperam = todos.filter((t) => seguradoPeloMac(t, segurando)).length;
-  // Revisto em 2026-10-09 (a tela fala por máquina): a pílula nomeia quem segura (o Mac ou a VM); a de memória é só do Mac
-  // e, desde a NOD-372, só com trabalho rodando nele (contando só esses).
-  const maquinas = maquinasDe(estado.trabalhos);
-  const pilula = maquinas
-    ? pilulaDasMaquinas(maquinas.filter((m) => m.motivoEspera === "disco"), todos) || pilulaMemoria(leituraDoMac(estado.trabalhos).pressao, rodandoNoMac(todos).length, false) || pilulaDasMaquinas(maquinasDoAviso(maquinas, todos), todos)
-    : (motivo === "disco" ? pilulaMac(segurando, esperam, true, motivo) : "") || pilulaMemoria(estado.pressao, abertos, false, "abertos") || pilulaMac(segurando, esperam, true, motivo);
-  const linha = (t: TrabalhoDto): string => {
-    const bot = agente(estado, t.agenteId);
-    const mem = aberto(t) && t.memoriaMb !== null ? ` · ${memoriaLegivel(t.memoriaMb)}` : "";
-    const fim = aberto(t) ? (t.estado === "na_fila" ? "" : tempoDe(t, estado.agora)) : hora(t.terminadoEm ?? t.criadoEm);
-    const passo = situacaoDe(t, todos, segurando, estado.agora);
-    // Revisão do Gil no #336: o passo corta (40%, some no estreito) — o title leva o texto inteiro e o que fazer.
-    const dica = passo.includes(" · sem contato") ? dicaSemContato(t, estado.agora) : "";
-    return `<button type="button" class="tt-linha" data-act="abrir-trabalho" data-id="${esc(t.id)}">${pontoTrabalho(t, bot?.cor)}<span class="tt-bot">${bot ? iconeAgente(bot, "sm") : ""}<b>${esc(bot?.nome ?? "bot")}</b></span><span class="tt-meio">${tituloDaLinha(t, "tt-titulo")}${etiqueta(t)}<span class="tt-passo"${dica ? ` title="${esc(dica)}"` : ""}>${esc(passo)}</span></span><span class="tt-fim">${esc(fim + mem)}</span></button>`;
-  };
-  const secoes = GRUPOS.filter((g) => grupos[g.chave].length > 0).map((g) => `<section class="tt-grupo" data-grupo="${g.chave}"><h2>${g.titulo} · ${grupos[g.chave].length}${g.chave === "trabalhando" && grupos.trabalhando.some((t) => t.memoriaMb !== null) ? " · os que mais usam memória primeiro" : ""}</h2><div class="tt-lista">${grupos[g.chave].map(linha).join("")}</div></section>`).join("");
-  const vazio = filtro === "todos" ? "Nenhum bot está trabalhando agora. Quando um bot abrir uma tarefa, rodar uma rotina ou atender um colega, aparece aqui." : "Nada com este filtro hoje.";
-  return `<section class="tela-trabalhos" aria-label="Todas as tarefas">
-    <header class="tt-cab"><div><h1>Tarefas</h1><p>${esc(resumoDosTrabalhos(agrupar(todos, estado.agora), memoriaDosBots(estado.trabalhos)))}</p></div>${comPorBot ? segmentadoDosTrabalhos(false) : ""}<div class="tt-filtros" role="group" aria-label="Filtrar tarefas">${filtros}</div></header>
-    ${pilulaDaCota(estado.trabalhos.cota, todos, estado.agora, estado.trabalhos.pedidosNaFila)}${pilula}
-    ${secoes || `<p class="tt-vazio">${vazio}</p>`}
-  </section>`;
 }
 
 // ---- a tela da task (#195, K2/K7) ---------------------------------------------------------------------------------------
