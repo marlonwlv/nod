@@ -3713,8 +3713,12 @@ function fecharFolhaMais(): void {
   folhaMais = null;
 }
 
-/** O que a folha do + mostra para o bot da tela (`linhasDoBot`). */
+/**
+ * O que a folha do + mostra para o bot da tela (`linhasDoBot`). Validação de 2026-11-18: no computador o + só anexa (a IA
+ * e o modo de aprovação já aparecem no hover do campo) e abre o seletor de arquivo direto, sem a folha do celular.
+ */
 function linhasDaFolhaMais(): LinhasDaFolhaMais {
+  if (!ehCelular()) return { anexar: document.getElementById("composer-arquivos") !== null, modo: null, ia: null };
   const t = estado.tela;
   const bot = t.tipo === "conversa" ? botGerido(t.agenteId) : undefined;
   const d = agenteDoSeletor() ? dadosDoSeletor(estado, agenteDoSeletor()!) : null;
@@ -3757,6 +3761,7 @@ function atualizarMais(): void {
 function abrirFolhaMais(el: HTMLElement): void {
   const l = linhasDaFolhaMais();
   if (linhasVisiveis(l).length === 0) return;
+  if (!ehCelular()) { document.getElementById("composer-arquivos")?.click(); return; }
   fecharMenuIa();
   const chave = composerDe;
   const d = dialogo(renderFolhaMais(l), true);
