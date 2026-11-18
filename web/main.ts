@@ -7051,7 +7051,13 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     conta: (qual) => void abrirDoMenuConta(qual),
     acao: (qual) => (qual === "atalhos" ? abrirAtalhos() : abrirSobreONod(__NOD_VERSAO__)),
   }, celular.ativo()),
-  "secao-espaco": (el) => abrirEspaco((el.dataset.secao as SecaoEspaco | undefined) ?? "conexao"),
+  "secao-espaco": (el) => {
+    abrirEspaco((el.dataset.secao as SecaoEspaco | undefined) ?? "conexao");
+    // ADR-187 (4t, 2026-11-18): o selo da aba das tarefas abre Máquinas NA máquina apertada — rola até a linha dela e a
+    // realça. A seção pode chegar depois (a lista das máquinas carrega): tenta por até ~1,5 s.
+    const maquina = el.dataset.maquina;
+    if (maquina) realcarMaquina(maquina);
+  },
   // NOD-85: a agenda das rotinas (Configurações › Rotinas).
   "agenda-ir": (el) => { if (el.dataset.dia) dispatch({ tipo: "agenda-ir", dia: el.dataset.dia }); },
   "agenda-mes": (el) => {
@@ -11343,4 +11349,16 @@ function voltarNivel(): void {
     return;
   }
   fecharNivel();
+}
+
+/** ADR-187 (4t): rola até a linha da máquina em Máquinas e a realça por 2,4 s; espera a seção aparecer (até 12 quadros de 120 ms). */
+function realcarMaquina(id: string, tentativa = 0): void {
+  const linha = [...document.querySelectorAll<HTMLElement>("[data-maquina-linha]")].find((e) => e.dataset.maquinaLinha === id);
+  if (!linha) {
+    if (tentativa < 12) setTimeout(() => realcarMaquina(id, tentativa + 1), 120);
+    return;
+  }
+  linha.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  linha.classList.add("maq-realce");
+  setTimeout(() => linha.classList.remove("maq-realce"), 2400);
 }

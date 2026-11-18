@@ -197,13 +197,13 @@ describe("o ponto da memória na pílula do bot (decisão tomada 5; PR 8)", () =
     expect(memoriaNaPilula(base({ conversas: conversa([{ id: "m", conversaId: C } as Mensagem]), trabalhos: trabalhos("amarela"), pressao: "amarela" }), "ada", C)).toBeNull();
   });
 
-  it("na pílula: um ponto ao lado dela, com a frase no title e no nome acessível; a frase inteira só dentro da alargada", () => {
+  it("ADR-187 (4t): na aba, o selo com o texto ao lado dela (servidor sem máquinas: o texto do Mac); a frase no title e na alargada", () => {
     const livre = { agenteId: "ada", principal: "livre", frentes: 0, conversaTrabalhando: false, esperandoVoce: 0, esperando: 0, fila: 0, motivoEspera: null, desde: null };
     const e = base({ conversas: conversa([msgLimpa]), trabalhos: { ...trabalhos("amarela"), donos: [{ estado: livre, esperas: [], fila: [] }] } as never, pressao: "amarela" });
     const p = pilulaNaConversa(e, "ada", SEM_PROGRESSO);
     if (p.tipo !== "pilula") throw new Error("sem pílula");
-    expect(p.partes.memoria).toContain('class="pf-memoria amarela" data-act="navegar" data-tela="trabalhos" title="Pouca memória no seu Mac · 1 tarefa aberta" aria-label="Pouca memória no seu Mac · 1 tarefa aberta"');
-    expect(p.partes.memoria).not.toContain("Pouca memória no seu Mac</");
+    expect(p.partes.memoria).toContain('class="pf-selo amarela" data-act="navegar" data-tela="trabalhos" title="Pouca memória no seu Mac · 1 tarefa aberta" aria-label="Pouca memória no seu Mac · 1 tarefa aberta"');
+    expect(p.partes.memoria).toContain("<span>Pouca memória no seu Mac · 1 tarefa aberta</span></button>");
     expect(p.partes.botao).not.toContain("memória");
     expect(p.partes.corpo).toContain('class="pf-memoria-linha amarela" data-act="navegar" data-tela="trabalhos"><span class="pf-memoria-ponto" aria-hidden="true"></span>Pouca memória no seu Mac · 1 tarefa aberta</button>');
   });

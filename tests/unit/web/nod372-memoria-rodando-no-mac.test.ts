@@ -128,7 +128,8 @@ describe("os cinco pontos com as máquinas no DTO (critérios 1–5 e 7)", () =>
     expect(p.agora).toContain("Pouca memória no seu Mac");
     expect(p.agora).toContain("1 rodando aqui");
     expect(p.agora).not.toContain("tarefas abertas");
-    expect(p.pilula).toEqual({ texto: "Pouca memória no seu Mac · 1 rodando aqui", nivel: "amarela", alvo: 'data-act="navegar" data-tela="trabalhos"' });
+    // ADR-187 (4t, 2026-11-18): a aba das tarefas fala da máquina pelo nome e abre Máquinas nela.
+    expect(p.pilula).toEqual({ texto: "As tarefas rodam em Este Mac: a memória está apertada e elas podem ficar lentas. Ver a máquina.", curto: "Pouca memória em Este Mac", nivel: "amarela", alvo: 'data-act="secao-espaco" data-secao="maquinas" data-maquina="mac-1"' });
     expect(memoriaDoMac(e, "ada", C)).toMatchObject({ abertos: 3, rodandoAqui: 1 });
   });
 
@@ -137,7 +138,7 @@ describe("os cinco pontos com as máquinas no DTO (critérios 1–5 e 7)", () =>
     const p = pontos(e);
     expect(p.todos).toContain("· pode travar; 2 rodando aqui");
     expect(p.porBot).toContain("· pode travar; 2 tarefas rodando aqui");
-    expect(p.pilula?.texto).toBe("Seu Mac está quase sem memória · pode travar; 2 rodando aqui");
+    expect(p.pilula?.curto).toBe("Este Mac quase sem memória");
     expect(p.pilula?.nivel).toBe("vermelha");
   });
 
@@ -159,15 +160,16 @@ describe("disco e máquinas como hoje (critério 6)", () => {
     expect(p.porBot).toContain("Pouco espaço no disco");
     expect(p.agora).toContain("Pouco espaço no disco do seu Mac");
     expect(memoriaDoMac(e, "ada", C)).toMatchObject({ disco: true, nivel: "vermelha", abertos: 1, rodandoAqui: 0 });
-    // Revisão do PR #537: a pílula do bot (e o ponto na fala, que lê dela) sumia com o disco cheio e nada rodando no Mac.
-    expect(p.pilula).toMatchObject({ nivel: "vermelha", texto: "Pouco espaço no disco do seu Mac · nenhuma tarefa nova começa" });
+    // ADR-187 (4t, 2026-11-18): a tarefa da Ada roda na VM — o disco cheio do Mac não é dela, e a aba não avisa (antes
+    // avisava, e a pessoa não entendia o porquê). Os topos de Tarefas e a "Agora" seguem com o disco.
+    expect(p.pilula).toBeNull();
     expect(p.todos).not.toContain("Pouca memória");
   });
 
   it("disco crítico com o trabalho do bot parado na fila do Mac: a pílula do bot mostra o disco", () => {
     const disco = { livreMb: 1_000, totalMb: 30_000, nivel: "vermelha" as const, alertaMb: 10_240, criticoMb: 3_072 };
     const e = estadoCom(dtoCom([doMac("fila", { estado: "na_fila", esperaDoMac: "disco" })], "verde", { mac: { motivoEspera: "disco", seguraTudoNovo: true, disco } }));
-    expect(memoriaNaPilula(e, "ada", C)).toMatchObject({ nivel: "vermelha", texto: "Pouco espaço no disco do seu Mac · nenhuma tarefa nova começa" });
+    expect(memoriaNaPilula(e, "ada", C)).toMatchObject({ nivel: "vermelha", curto: "Sem espaço em Este Mac", texto: "As tarefas rodam em Este Mac: o disco está cheio e nenhuma tarefa nova começa. Ver a máquina." });
   });
 
   it("o Mac segurando por memória com tudo na VM: nem a de memória nem o 'Seu Mac está ocupado' (revisão do PR #537)", () => {

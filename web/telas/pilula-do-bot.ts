@@ -5,7 +5,8 @@ import { donoDoBot, esperaNaTela, linhaDoDono, quemPediu, textoDaFila, textoDasE
 import { acaoLocal, comAcaoLocal, htmlDasAcoes } from "../lib/esperas-de-colega.ts";
 import { pilulaEscondida, type ProgressoNaTela } from "../lib/pilula.ts";
 import { esc, hora, iconeAgente } from "../lib/render.ts";
-import { aberto, esperandoMaquina, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { aberto, emEspera, esperandoMaquina, maquinasDe, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { avisoDaMaquina } from "../lib/aviso-da-maquina.ts";
 import { memoriaDoMac } from "./linha-do-dono.ts";
 import { conversaLimpa } from "./linhas-do-chat.ts";
 import { frentesNaFala, itemDaFrente, type FrenteNaFala, type MemoriaNoProgresso } from "./progresso-na-fala.ts";
@@ -43,7 +44,8 @@ export type Pilula = {
   grupos: GrupoDaPilula[];
   esperas: EsperaNaTela[];
   fila: { quem: string; desde: number }[];
-  memoria: (MemoriaNoProgresso & { alvo: string }) | null;
+  /** ADR-187 (4t): o aviso da máquina das tarefas; `curto` é o texto do selo ao lado da aba. */
+  memoria: (MemoriaNoProgresso & { alvo: string; curto?: string }) | null;
   /** NOD-377: o resto fechado diz "sem resposta há 26h" (em cinza). */
   vencida?: boolean;
   /** As frentes abertas que o "Parar" da pílula para. */
@@ -194,9 +196,19 @@ export function pilulaDoBot(estado: Estado, agenteId: string): Pilula | null {
  * A memória do Mac como a pílula a mostra: só na conversa limpa e com trabalho aberto do bot (como o ponto do PR 2). A
  * memória em si só vem com trabalho do bot rodando no Mac (NOD-372, em memoriaDoMac); o disco cheio, com qualquer aberto.
  */
-export function memoriaNaPilula(estado: Estado, agenteId: string, conversaId: string | null | undefined): (MemoriaNoProgresso & { alvo: string }) | null {
+export function memoriaNaPilula(estado: Estado, agenteId: string, conversaId: string | null | undefined): (MemoriaNoProgresso & { alvo: string; curto?: string }) | null {
   const c = conversaId ? estado.conversas[conversaId] : undefined;
   if (!c?.mensagens || !conversaLimpa(c.mensagens)) return null;
+  // ADR-187 (4t, escolhido em 2026-11-18): com as máquinas no DTO, o aviso é da máquina onde as tarefas deste bot rodam
+  // (memória, processador ou disco), pelo nome dela, e o clique abre Máquinas nela. Servidor anterior: o aviso do Mac.
+  const maquinas = maquinasDe(estado.trabalhos);
+  if (maquinas) {
+    // Como na NOD-372: conta a tarefa rodando de verdade (fora de espera de colega, comando ou volta) — e a que a própria
+    // máquina segura (`esperaDoMac`: disco, memória, processador), que é justamente o que o aviso explica.
+    const pesam = trabalhosConhecidos(estado, conversaId).filter((t) => t.agenteId === agenteId && ((t.estado === "rodando" && !emEspera(t)) || (aberto(t) && !!t.esperaDoMac)));
+    const a = avisoDaMaquina(maquinas, pesam.map((t) => t.maquina));
+    return a ? { texto: a.frase, curto: a.curto, nivel: a.nivel, alvo: `data-act="secao-espaco" data-secao="maquinas" data-maquina="${esc(a.maquinaId)}"` } : null;
+  }
   const m = memoriaDoMac(estado, agenteId, conversaId);
   return m && m.abertos > 0 ? { texto: m.texto, nivel: m.nivel, alvo: m.alvo } : null;
 }
@@ -210,6 +222,7 @@ export const ID_PAINEL = "pf-painel";
 // quem precisa da pessoa, com os traços do protótipo.
 const SETA_CIMA = '<svg class="pf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.25 L5 3.75 L7.5 6.25"/></svg>';
 const ANEL_RODANDO = '<svg class="pf-aba-ic pf-anel" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle class="pf-anel-trilho" cx="7" cy="7" r="5.5"/><path class="pf-anel-arco" d="M7 1.5 A5.5 5.5 0 0 1 12.5 7"/></svg>';
+const TRIANGULO = '<svg class="pf-selo-ic" width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1.6 L12.9 12 H1.1 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><path d="M7 5.4 V8.2 M7 10.1 V10.2" stroke="var(--chat-superficie)" stroke-width="1.4" stroke-linecap="round"/></svg>';
 const PONTO_PRECISA = '<svg class="pf-aba-ic pf-precisa" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>';
 const SETA_BAIXO = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 const SETA_SOBE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
@@ -293,7 +306,9 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
   const precisa = p.grupos.some((g) => g.frentes.some((f) => f.estado === "precisa"));
   const icone = p.grupos.length && precisa ? PONTO_PRECISA : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);
   const botao = `${icone}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
-  const memoria = p.memoria ? `<button type="button" class="pf-memoria ${p.memoria.nivel}" ${p.memoria.alvo} title="${esc(p.memoria.texto)}" aria-label="${esc(p.memoria.texto)}"><span class="pf-memoria-ponto" aria-hidden="true"></span></button>` : "";
+  // ADR-187 (4t, opção A): o selo ao lado da aba diz o problema e a máquina; o ponto sem texto saiu. Sem `curto` (servidor
+  // anterior), o texto do aviso do Mac.
+  const memoria = p.memoria ? `<button type="button" class="pf-selo ${p.memoria.nivel}" ${p.memoria.alvo} title="${esc(p.memoria.texto)}" aria-label="${esc(p.memoria.texto)}">${TRIANGULO}<span>${esc(p.memoria.curto ?? p.memoria.texto)}</span></button>` : "";
   // Paper 15c: o ponto, o título forte e só "N de M prontas" em cinza (o resto está na lista logo abaixo); sem lote, tudo.
   const doCab = p.grupos.length ? p.resto.slice(0, 1) : p.resto;
   // O ponto na cor do bot (Paper: "ponto na cor do bot = bot trabalhando"); a classe só aceita o formato c-<nome>.
