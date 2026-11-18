@@ -339,3 +339,13 @@ it("atividade recente adia REST e impede que GET anterior apague o turno", () =>
   expect(e.turnosVivos.t1?.estado).toBe("rodando");
   expect(Object.keys(e.turnosVivos)).toEqual(["t1"]);
 });
+
+
+it("progresso sem início conserva dono e trabalho sem aparecer como turno da conversa", () => {
+  const e = aplicarFrame(reduzir(base(), { tipo: "hidratar-conversa", conversa: conversa(), agora: AGORA - 1 }), {
+    streamId: "s", seq: 1, pessoaId: "p", tipo: "turno.atividade",
+    dados: { conversaId: C, turnoId: "task", trabalhoId: "w1", agenteId: "a", rotulo: "Usou o computador" },
+  }, AGORA);
+  expect(e.turnosVivos.task).toMatchObject({ estado: "rodando", trabalhoId: "w1", agenteId: "a" });
+  expect(turnosVivosDaConversa(e, C)).toEqual([]);
+});

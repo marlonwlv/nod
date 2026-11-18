@@ -1320,6 +1320,9 @@ function confirmarProgresso(e: Estado, f: FrameSse, turnoId: string, conversaId:
   if (anterior?.estado === "rodando" || (!anterior && !guardaAoVivo(e, conversaId))) return e.turnosVivos;
   const vivo: TurnoVivo = { ...anterior, turnoId, conversaId, estado: "rodando", executor: anterior?.executor ?? null,
     machineId: anterior?.machineId ?? null, desde: agora,
+    trabalhoId: texto(f.dados.trabalhoId) ?? texto(f.dados.trabalho_id) ?? anterior?.trabalhoId ?? null,
+    agenteId: texto(f.dados.agenteId) ?? texto(f.dados.agente_id) ?? anterior?.agenteId ?? null,
+    origem: texto(f.dados.origem) ?? anterior?.origem ?? null,
     vistoEm: agora, ...(bastidoresDoFrame(f.dados) ? { bastidores: true } : {}) };
   return { ...e.turnosVivos, [turnoId]: vivo };
 }
