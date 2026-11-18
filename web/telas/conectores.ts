@@ -80,7 +80,7 @@ export function renderConectores(estado: Estado): string {
     ${botao("navegar-marketplace", "← Marketplace", { classe: "link" })}
     <h1>Configurações avançadas</h1>
     ${estado.avisoConexao ? `<p class="connection-notice" role="status">${esc(estado.avisoConexao)}</p>` : ""}
-    ${composio(estado.composioConfigurado)}
+    ${estado.appsHospedados ? "" : composio(estado.composioConfigurado)}
     ${avancadoGithub(temToken)}
     <h2 class="marketplace-heading">Seus MCPs e permissões</h2>
     <details class="registrar"><summary>＋ Adicionar servidor MCP próprio</summary>

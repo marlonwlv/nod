@@ -409,6 +409,7 @@ export type Estado = {
   conectores: Conector[];
   marketplace: AppComLogo[];
   composioConfigurado: boolean;
+  appsHospedados?: boolean;
   /**
    * definido em 2026-09-25: os apps com login em andamento (a janela do provedor aberta e a web
    * perguntando ao servidor, sozinha, se terminou). `falhou` = a frase do que deu errado; o card oferece
@@ -643,7 +644,7 @@ export type Acao =
   | { tipo: "hidratar-execucoes"; rotinaId: string; execucoes: ExecucaoRotina[] }
   | { tipo: "alternar-historico"; rotinaId: string }
   | { tipo: "lista-de-pasta"; propostaId: string; lista: "curta" | "todas" }
-  | { tipo: "hidratar-conectores"; conectores: Conector[]; marketplace?: AppComLogo[]; composioConfigurado?: boolean }
+  | { tipo: "hidratar-conectores"; conectores: Conector[]; marketplace?: AppComLogo[]; composioConfigurado?: boolean; appsHospedados?: boolean }
   | { tipo: "hidratar-concessoes"; agenteId: string; concessoes: Concessao[]; liberacoesDispensadas?: Record<string, number> }
   | { tipo: "hidratar-memorias"; agenteId: string; memorias: Memoria[]; aRevisar?: number }
   | { tipo: "hidratar-diario"; agenteId: string; pagina: PaginaDiario; anexar?: boolean }
@@ -1868,7 +1869,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "aviso-conexao":
       return { ...estado, avisoConexao: acao.texto };
     case "hidratar-conectores":
-      return { ...estado, conectores: acao.conectores, marketplace: acao.marketplace ?? estado.marketplace, composioConfigurado: acao.composioConfigurado ?? estado.composioConfigurado, carregado: estado.carregado.conectores ? estado.carregado : { ...estado.carregado, conectores: true } };
+      return { ...estado, conectores: acao.conectores, marketplace: acao.marketplace ?? estado.marketplace, composioConfigurado: acao.composioConfigurado ?? estado.composioConfigurado, appsHospedados: acao.appsHospedados ?? estado.appsHospedados, carregado: estado.carregado.conectores ? estado.carregado : { ...estado.carregado, conectores: true } };
     case "hidratar-concessoes":
       // Sem as dispensas na resposta, o que havia fica: sem saber o que a pessoa dispensou, o cartão de liberar não aparece.
       return { ...estado, concessoes: { ...estado.concessoes, [acao.agenteId]: acao.concessoes }, liberacoesDispensadas: acao.liberacoesDispensadas ? { ...estado.liberacoesDispensadas, [acao.agenteId]: acao.liberacoesDispensadas } : estado.liberacoesDispensadas };

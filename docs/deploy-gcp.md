@@ -494,3 +494,18 @@ em [runbook-producao.md](runbook-producao.md#7-monitor-externo-e-reinício-autom
 
 Custo esperado, coberto pelos créditos do programa GFS: VM `e2-medium`, Cloud SQL `db-custom-1-3840`
 com 10 GB SSD, IP fixo e tráfego baixo, mais as duas VMs de runner do CI (`e2-standard-4`, disco de 100 GB cada).
+
+## Apps hospedados sem chave no desktop
+
+O deploy oficial usa `NOD_APPS_HOSPEDADOS=1` por padrão. Provisione `nod-composio-api-key` no Secret
+Manager do projeto e dê à identidade da VM acesso de leitura a esse segredo, pelo fluxo privado de
+credenciais da operação. Não ponha o valor em `config.env`, na release, no desktop nem em comentários.
+O deploy leva o valor apenas ao env protegido da nova cor. Sem o segredo, tenants novos recebem
+serviço indisponível; tenants antigos com projeto próprio continuam funcionando. `NOD_APPS_HOSPEDADOS=0`
+retorna ao modo self-hosted (configuração por tenant).
+
+Validação de ativação: conta Nod em tenant novo, sem `composio_configuracoes` e sem chave local;
+GET conectores deve indicar `appsHospedados: true` e `composioConfigurado: true`. Conectar abre o
+consentimento do app; verificar só habilita depois da conta ativa. Repetir com segunda pessoa e outro
+tenant: logins e ferramentas não se compartilham. Diagnóstico deve registrar códigos, nunca segredo ou
+corpo de erro do provedor. Não considerar deploy saudável como prova de OAuth real.

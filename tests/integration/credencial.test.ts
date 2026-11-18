@@ -1,3 +1,4 @@
+import { comAppsHospedados } from "../../src/adapters/http/apps-hospedados.ts";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import { expect, it, onTestFinished, vi } from "vitest";
@@ -34,6 +35,17 @@ const SEGREDO = "exk_live_NOD50_s3gr3d0_que_nao_pode_vazar_9f2c";
  * VALOR em todas as tabelas legíveis (mensagens, events, propostas, decisões, trilha, turnos…) e em tudo o que foi logado.
  */
 describeIntegracao("cartão de pedido de credencial (NOD-50)", () => {
+  it("modo hospedado nunca cria cartão de chave de infraestrutura, mesmo sem serviço", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const c = await cenario(trx);
+      Object.assign(c.deps, comAppsHospedados(c.deps, null));
+      await expect(c.pedir({ alvo: "composio" })).rejects.toMatchObject({ codigo: "conector_indisponivel" });
+      Object.assign(c.deps, comAppsHospedados(c.deps, cifra("infra-ficticia")));
+      expect((await c.pedir({ alvo: "composio" })).data).toMatchObject({ estado: "recusada", erro: "composio_ja_configurado" });
+      expect(await trx`select id from propostas where payload->>'kind' = 'credencial'`).toHaveLength(0);
+    });
+  });
+
   async function cenario(trx: Tx, opcoes: { modo?: "manual" | "automatico" | "total"; sonda?: (n: number, env: Record<string, string> | undefined) => ResultadoSonda | Promise<ResultadoSonda>; fetchImpl?: typeof fetch } = {}) {
     const { agenteId, conversaId } = await agenteComConversa(trx, MARLON, { nome: "Ada", ...(opcoes.modo ? { modo: opcoes.modo } : {}) });
     const { deps, repos } = depsSobre(trx, MARLON, { agora: () => AGORA });

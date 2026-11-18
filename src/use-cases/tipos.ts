@@ -16,6 +16,8 @@ export type Services = ServicesNod<Tx>;
  * por tabela (EMENDA 5). A rota/serviço grava `events` via repos.events.gravarComOutbox na MESMA tx.
  */
 export interface Deps {
+  /** Infraestrutura de apps administrada pelo servidor, nunca pedida à pessoa. */
+  appsHospedados?: boolean;
   repos: Repos;
   services: Services;
   useCases: UseCasesNod;

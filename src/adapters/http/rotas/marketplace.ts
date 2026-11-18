@@ -1,3 +1,4 @@
+import { limitadorAppsHospedados } from "../apps-hospedados.ts";
 import { COMANDO_GITHUB_NATIVO, ENV_TOKEN_GITHUB, SLUG_GITHUB } from "../../../contracts/github.ts";
 import { APPS_MARKETPLACE } from "../../../contracts/marketplace.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
@@ -17,6 +18,7 @@ import { executar, type DentroDeTx } from "./dentro-de-tx.ts";
 import { conferirChaveComposio, conferirTokenGithub } from "./segredos-de-app.ts";
 
 export type OpcoesRotasMarketplace = {
+  appsHospedados?: boolean;
   dentro: DentroDeTx;
   cifrar: (s: string) => string;
   decifrar: (s: string) => string;
@@ -38,6 +40,7 @@ export type OpcoesRotasMarketplace = {
 };
 
 export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
+  const limitar = limitadorAppsHospedados(op.agora);
   const cliente = (chave: string) => criarClienteComposio(chave, op.fetchImpl);
   const esperar = op.esperar ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const agora = op.agora ?? (() => Date.now());
@@ -66,7 +69,7 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       if (s.ok) await executar(d, aoConectarApp, { slug });
       return s;
     });
-  return [
+  const rotas: Rota[] = [
     /**
      * Jeito 3 (ADR-048): token pessoal no campo avançado. O GitHub é perguntado ANTES de guardar
      * (GET /user): token recusado não vira conector "conectado" que falha na primeira chamada. Guardar
@@ -108,12 +111,14 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       ctx.json(200, { configurado: true, appId, instalacaoId });
     } },
     { metodo: "POST", acao: "apps.configurar_marketplace", padrao: /^\/marketplace\/configurar$/, async handler(ctx) {
+      if (op.appsHospedados) throw new ErroDeDominio("nao_permitido");
       const body = await ctx.corpo() as { chave?: unknown } | null;
       const chave = await conferirChaveComposio(body?.chave, op.fetchImpl);
       await op.dentro(ctx.escopo, async (d) => { await d.repos.composio.salvarChave(op.cifrar(chave)); });
       ctx.json(200, { configurado: true });
     } },
     { metodo: "POST", acao: "apps.conectar", padrao: /^\/marketplace\/(?<slug>[a-z0-9-]+)\/conectar$/, async handler(ctx) {
+      if (op.appsHospedados) limitar(ctx.escopo);
       const app = acharApp(ctx.params.slug ?? "");
       if (app.slug === SLUG_GITHUB) {
         // ADR-048: o que já está pronto ganha. gh logado nesta máquina (ou o App da organização no
@@ -140,8 +145,8 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
         }
       }
       const cifrada = await op.dentro(ctx.escopo, (d) => d.repos.composio.chave());
-      if (!cifrada && app.slug === SLUG_GITHUB) { ctx.json(200, { conectado: false, frase: fraseSemJeito(false) }); return; }
-      if (!cifrada) throw new ErroDeDominio("integracao_nao_configurada");
+      if (!cifrada && app.slug === SLUG_GITHUB && !op.appsHospedados) { ctx.json(200, { conectado: false, frase: fraseSemJeito(false) }); return; }
+      if (!cifrada) throw new ErroDeDominio(op.appsHospedados ? "conector_indisponivel" : "integracao_nao_configurada");
       const chave = op.decifrar(cifrada);
       // definido em 2026-09-29 (ADR-057): app do catálogo público não tem curadoria; o conector nasce com
       // o nome que a grade mostrou, não com o slug. O catálogo acabou de ser lido pela tela: sai do cache.
@@ -172,8 +177,10 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       ctx.json(200, { url: link.url, conectorId });
     } },
     { metodo: "POST", acao: "apps.verificar", padrao: /^\/marketplace\/(?<slug>[a-z0-9-]+)\/verificar$/, async handler(ctx) {
+      if (op.appsHospedados) limitar(ctx.escopo);
       const app = acharApp(ctx.params.slug ?? "");
       const { cifrada, sessao } = await op.dentro(ctx.escopo, async (d) => ({ cifrada: await d.repos.composio.chave(), sessao: await d.repos.composio.sessao(app.slug) }));
+      if (!cifrada && op.appsHospedados) throw new ErroDeDominio("conector_indisponivel");
       if (!cifrada || !sessao) throw new ErroDeDominio("estado_invalido");
       // Revisão do PR #264: o teto de 20 s conta desde aqui; a consulta da conta e o fixarConta saem dele também.
       const inicio = agora();
@@ -207,4 +214,14 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       ctx.json(200, { conectado: r.ok, ...(r.ok ? {} : { falhou: true, causa }), conector: r.conector });
     } },
   ];
+  return rotas.map((rota) => {
+    if (!op.appsHospedados || (rota.acao !== "apps.conectar" && rota.acao !== "apps.verificar")) return rota;
+    return { ...rota, async handler(ctx) {
+      try { await rota.handler(ctx); } catch (e) {
+        // Recusa da chave do SERVIÇO não é falta de OAuth e não deve pedir chave ao usuário.
+        if (e instanceof ErroDeDominio && e.codigo === "integracao_autenticacao") throw new ErroDeDominio("conector_indisponivel");
+        throw e;
+      }
+    } };
+  });
 }

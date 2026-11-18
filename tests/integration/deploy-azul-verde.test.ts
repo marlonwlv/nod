@@ -940,3 +940,19 @@ describe.skipIf(process.platform !== "linux")("deploy.sh: um deploy por vez na V
     expect(await marcador()).toBe("azul");
   });
 });
+
+describe("apps hospedados", () => {
+  it("deploy oficial provisiona só o backend e não imprime a chave", async () => {
+    const r = deploy();
+    expect(r.status).toBe(0);
+    expect(await ler("nod-azul.env")).toContain("NOD_APPS_HOSPEDADOS=1\nNOD_COMPOSIO_API_KEY=segredo-falso");
+    expect(await ler("gcloud.log")).toContain("nod-composio-api-key");
+    expect(r.stdout + r.stderr).not.toContain("segredo-falso");
+  });
+  it("sem segredo mantém modo hospedado indisponível, sem voltar a pedir chave", async () => {
+    const r = deploy({ FALHA_SEGREDO: "nod-composio-api-key" });
+    expect(r.status).toBe(0);
+    expect(await ler("nod-azul.env")).toContain("NOD_APPS_HOSPEDADOS=1\nNOD_COMPOSIO_API_KEY=\n");
+    expect(r.stderr).toContain("apps hospedados sem credencial de serviço");
+  });
+});
