@@ -1,3 +1,4 @@
+/* global window, document, setTimeout -- callbacks de page.evaluate executam no navegador. */
 import { after, before, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from '../../infra/computador/node_modules/playwright-core/index.mjs';
