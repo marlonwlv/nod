@@ -235,6 +235,10 @@
   --chat-sx-numero: #206595;
   --chat-favicon-anel: #1c1c1c0f;
   --chat-spinner-trilho: #1c1c1c14;
+  /* ADR-187 §5 (protótipo P1, 2026-11-17): a aba das tarefas presa ao campo e o ponto de "precisa de você" nela. */
+  --chat-aba-fundo: #f4f4f2;
+  --chat-aba-contorno: #1c1c1c1f;
+  --chat-aba-precisa: #2563eb;
   --chat-pessoa-tinta: #ffffff;
   --chat-pessoa-azul: #126fd4;
   --chat-pessoa-violeta: #7442d1;
@@ -370,6 +374,9 @@
     --chat-sx-numero: #f8c762;
     --chat-favicon-anel: #f5f5f50f;
     --chat-spinner-trilho: #f5f5f50f;
+    --chat-aba-fundo: #262626;
+    --chat-aba-contorno: #f5f5f51f;
+    --chat-aba-precisa: #60a5fa;
     --chat-pessoa-tinta: #f5f5f5;
     --chat-pessoa-azul: #116dd2;
     --chat-pessoa-violeta: #7845d7;
@@ -506,6 +513,9 @@
   --chat-sx-numero: #f8c762;
   --chat-favicon-anel: #f5f5f50f;
   --chat-spinner-trilho: #f5f5f50f;
+  --chat-aba-fundo: #262626;
+  --chat-aba-contorno: #f5f5f51f;
+  --chat-aba-precisa: #60a5fa;
   --chat-pessoa-tinta: #f5f5f5;
   --chat-pessoa-azul: #116dd2;
   --chat-pessoa-violeta: #7845d7;

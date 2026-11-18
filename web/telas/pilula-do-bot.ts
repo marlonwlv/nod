@@ -206,7 +206,11 @@ export function memoriaNaPilula(estado: Estado, agenteId: string, conversaId: st
 /** O id do painel: um só na tela (a pílula é da conversa à vista). */
 export const ID_PAINEL = "pf-painel";
 
-const SETA_CIMA = '<svg class="pf-seta" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>';
+// ADR-187 §5 (protótipo P1, Paper "Aba das tarefas"): a seta de 10 px, o anel de 12 px de quem roda e o ponto de 8 px de
+// quem precisa da pessoa, com os traços do protótipo.
+const SETA_CIMA = '<svg class="pf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.25 L5 3.75 L7.5 6.25"/></svg>';
+const ANEL_RODANDO = '<svg class="pf-aba-ic pf-anel" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle class="pf-anel-trilho" cx="7" cy="7" r="5.5"/><path class="pf-anel-arco" d="M7 1.5 A5.5 5.5 0 0 1 12.5 7"/></svg>';
+const PONTO_PRECISA = '<svg class="pf-aba-ic pf-precisa" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>';
 const SETA_BAIXO = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 const SETA_SOBE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
 
@@ -283,8 +287,12 @@ function corpoDaPilula(p: Pilula, mascote = ""): string {
  * tem para onde levar e não aparece.
  */
 export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">, mascote = ""): PartesDaPilula {
-  const resto = p.resto.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">${esc(p.resto.join(" · "))}</span>` : "";
-  const botao = `${ponto(p.sinal)}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
+  // P1: o resto começa com o separador ("12 tarefas · 1 precisa de você · 3 prontas"); com tarefas, o ícone diz o estado —
+  // o ponto azul quando alguma precisa da pessoa, o anel quando alguma roda; sem tarefas (espera, fila), o ponto de antes.
+  const resto = p.resto.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${esc(p.resto.join(" · "))}</span>` : "";
+  const precisa = p.grupos.some((g) => g.frentes.some((f) => f.estado === "precisa"));
+  const icone = p.grupos.length && precisa ? PONTO_PRECISA : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);
+  const botao = `${icone}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
   const memoria = p.memoria ? `<button type="button" class="pf-memoria ${p.memoria.nivel}" ${p.memoria.alvo} title="${esc(p.memoria.texto)}" aria-label="${esc(p.memoria.texto)}"><span class="pf-memoria-ponto" aria-hidden="true"></span></button>` : "";
   // Paper 15c: o ponto, o título forte e só "N de M prontas" em cinza (o resto está na lista logo abaixo); sem lote, tudo.
   const doCab = p.grupos.length ? p.resto.slice(0, 1) : p.resto;

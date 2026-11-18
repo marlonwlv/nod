@@ -153,14 +153,24 @@
 
 
 /* ---- ADR-187 §5 (lote B, passo 1, 2026-11-17): a pílula vira a aba presa ao campo (protótipo P1) ----------------------
-   A faixa da pílula tem a largura do campo; a aba encosta à esquerda (20 px), sem a borda de baixo, e cobre 1 px da borda
-   de cima do campo, com o fundo e a borda dele: parece sair do campo. Antes era uma pílula solta, no centro, com sombra. */
+   A faixa da pílula tem a largura do campo; a aba encosta à esquerda (20 px), em cima da borda do campo, e parece sair
+   dele. Antes era uma pílula solta, no centro, com sombra. */
 .stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 max(70px, calc((100% - 960px) / 2)); }
 @media (max-width: 760px) { .stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 24px; } }
 /* O teto de 760 dos filhos da faixa (interface.css) centrava a pílula num campo de 960: a aba caía 100 px para dentro. */
 .lugar-faixa-trabalhos > .pilula-frentes { max-width: 960px; }
-.pilula-frentes .pf-fechada { left: 20px; bottom: -1px; height: 32px; transform: none; border: 1px solid var(--chat-borda-campo); border-bottom: 0;
-  border-radius: 12px 12px 0 0; background: var(--chat-superficie); box-shadow: none; }
-.pilula-frentes .pf-botao { gap: 6px; padding: 0 12px; border-radius: 12px 12px 0 0; font-size: 13px; }
-.pilula-frentes .pf-botao:hover { background: var(--chat-preenchido); }
+/* Os valores são os do Paper ("Aba das tarefas", P1): fundo cinza, anel de 1 px, cantos de cima em 12, padding 6/12/8,
+   vão de 8, texto 13/18 (o número em 500, o resto em cinza), seta de 10, anel de 12 de quem roda, ponto azul de 8 de quem
+   precisa da pessoa. */
+.pilula-frentes .pf-fechada { left: 20px; bottom: 0; height: auto; transform: none; border: 0; border-radius: 12px 12px 0 0;
+  background: var(--chat-aba-fundo); box-shadow: 0 0 0 1px var(--chat-aba-contorno); }
+.pilula-frentes .pf-botao { gap: 8px; height: auto; padding: 6px 12px 8px; border-radius: 12px 12px 0 0; color: var(--chat-tinta); font-size: 13px; line-height: 18px; }
 .pilula-frentes .pf-texto { font-weight: 500; }
+.pilula-frentes .pf-resto, .pilula-frentes .pf-seta { color: var(--chat-tinta-2); }
+.pilula-frentes .pf-aba-ic { flex: none; }
+.pilula-frentes .pf-precisa { color: var(--chat-aba-precisa); }
+.pilula-frentes .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
+.pilula-frentes .pf-anel-arco { stroke: var(--chat-tinta); }
+.pilula-frentes .pf-anel { animation: pf-anel-gira 1s linear infinite; }
+@keyframes pf-anel-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pilula-frentes .pf-anel { animation: none; } }

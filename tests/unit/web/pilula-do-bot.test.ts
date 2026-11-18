@@ -73,7 +73,9 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
     const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono({ principal: "trabalhando", frentes: 2 })), "orq", SEM_PROGRESSO));
     expect(p.pilula.texto).toBe("5 tarefas");
     expect(p.pilula.resto).toEqual(["3 prontas"]);
-    expect(p.partes.botao).toBe('<span class="pf-ponto vivo" aria-hidden="true"></span><span class="pf-texto">5 tarefas</span><span class="sr-only">, </span><span class="pf-resto">3 prontas</span>' + p.partes.botao.slice(p.partes.botao.indexOf("<svg")));
+    // P1: o anel de quem roda na frente, "5 tarefas" e o resto em cinza depois do separador, e a seta de 10 px.
+    expect(p.partes.botao.startsWith('<svg class="pf-aba-ic pf-anel"')).toBe(true);
+    expect(p.partes.botao).toContain('<span class="pf-texto">5 tarefas</span><span class="sr-only">, </span><span class="pf-resto">· 3 prontas</span><svg class="pf-seta" width="10" height="10"');
     const html = htmlDaPilula(p.partes, { aberta: false, escondida: false });
     expect(html).toContain(`<button type="button" class="pf-botao" data-act="pilula" aria-expanded="false" aria-controls="${ID_PAINEL}">`);
   });
