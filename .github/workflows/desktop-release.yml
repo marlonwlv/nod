@@ -258,8 +258,8 @@ jobs:
             release/SHA256-*.txt
           if-no-files-found: error
   # NOD-93 (ADR-127): o disco da VM local do Mac, um por arquitetura, com o computador da ADR-122 instalado pelo mesmo
-  # blocoDoComputador do Linux (infra/vm-local/construir-disco.sh), sem docker. Cada disco nasce num runner da própria arquitetura: o virt-customize roda o
-  # apt do convidado. Atrás da variável de repositório NOD_VM_LOCAL=1, como o app (a flag de mesmo nome): sem ela o
+  # blocoDoComputador do Linux (infra/vm-local/construir-disco.sh), sem docker. Cada disco nasce num runner da própria arquitetura: o apt do
+  # convidado roda em chroot. Atrás da variável de repositório NOD_VM_LOCAL=1, como o app (a flag de mesmo nome): sem ela o
   # release segue só com os DMGs.
   vm-local:
     needs: verify
@@ -297,8 +297,9 @@ jobs:
       # definido em 2026-11-05: o disco só muda quando muda o que entra nele (a origem: computador-*.mjs, computador.sh
       # e a versão do node; e infra/vm-local: base Debian, arquivos do convidado e o script). A versão do app fica só
       # no NOME do arquivo. Então o disco é guardado no cache do Actions pela hash desses insumos e, quando nada
-      # mudou, o job renomeia o disco guardado em vez de montar outro: o arm64 levava 53 min (sem /dev/kvm no
-      # runner, o apt do convidado roda em emulação; o runner arm64 do Blacksmith também não tem KVM, sonda #674).
+      # mudou, o job renomeia o disco guardado em vez de montar outro: com o libguestfs o arm64 levava 53 min (sem
+      # /dev/kvm no runner, o apt do convidado rodava em emulação; o runner arm64 do Blacksmith também não tem KVM,
+      # sonda #674). Desde 2026-11-17 o apt roda em chroot (construir-disco.sh) e o cache poupa só a reconstrução.
       - name: Hash dos insumos do disco
         id: insumos
         run: |
@@ -325,23 +326,12 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libguestfs-tools qemu-utils zstd
-          # No arm64: firmware UEFI (AAVMF) e o ROM da virtio-net (ipxe-qemu) para o appliance do libguestfs subir.
-          if [ "$ARCH" = arm64 ]; then sudo apt-get install -y --no-install-recommends qemu-efi-aarch64 ipxe-qemu; fi
-          # O runner arm64 não tem /dev/kvm: o appliance roda em TCG (mais lento).
-          if [ ! -c /dev/kvm ]; then echo "LIBGUESTFS_BACKEND_SETTINGS=force_tcg" >> "$GITHUB_ENV"; fi
-          # O libguestfs do Ubuntu lê o kernel do host para montar o appliance; ele vem 0600.
-          sudo chmod 0644 /boot/vmlinuz-*
-          # Como root, o passt troca para nobody e não grava o pid na pasta 0700 do libguestfs ("passt exited with
-          # status 1" no virt-customize --network). Sem o passt, o libguestfs usa a rede SLIRP do qemu, que o
-          # construir-disco.sh configura no appliance (REDE_DO_APPLIANCE).
-          if [ -x /usr/bin/passt ]; then sudo mv /usr/bin/passt /usr/bin/passt.desligado; fi
+          # definido em 2026-11-17: o disco é montado em loop e o apt do convidado roda em chroot, nativo. Sem
+          # libguestfs: ele sobe uma VM para mexer no disco e, sem /dev/kvm no runner arm64, ela rodava emulada.
+          sudo apt-get install -y --no-install-recommends qemu-utils cloud-guest-utils gdisk e2fsprogs fdisk zstd
       - name: Disco da VM
         if: steps.guardado.outputs.cache-hit != 'true'
         run: sudo -E bash infra/vm-local/construir-disco.sh "$ARCH" "$VERSAO" dist/vm-local/origem release
-      - name: Diagnóstico do libguestfs
-        if: failure() && steps.guardado.outputs.cache-hit != 'true'
-        run: sudo libguestfs-test-tool 2>&1 | tail -120 || true
       - name: Guardar o disco para a próxima release
         if: steps.guardado.outputs.cache-hit != 'true'
         run: |
