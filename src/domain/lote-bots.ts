@@ -38,7 +38,7 @@ export type AcaoResolvida = AcaoLote & {
 
 export type Problema = { i: number; motivo: string };
 
-const PRECISA_DE_BOT: ReadonlySet<TipoAcaoLote> = new Set(["duplicar", "editar", "mover", "excluir", "criar_rotina", "dar_acesso", "mudar_modo", "restaurar_versao"]);
+const PRECISA_DE_BOT: ReadonlySet<TipoAcaoLote> = new Set(["duplicar", "editar", "mover", "excluir", "restaurar", "fixar", "ocultar", "criar_rotina", "dar_acesso", "mudar_modo", "restaurar_versao"]);
 const CRIA_BOT: ReadonlySet<TipoAcaoLote> = new Set(["criar", "duplicar"]);
 
 function vazio(v: string | undefined): boolean {
@@ -87,7 +87,7 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
           alvoNome = resolvidas[origem]?.tipo === "criar" ? acoes[origem]?.nome ?? alvo : `${resolvidas[origem]?.alvoNome ?? alvo} (cópia)`;
         }
       } else {
-        const r = resolverBot(alvo, bots, pessoaId);
+        const r = resolverBot(alvo, bots, pessoaId, a.tipo === "restaurar");
         if ("motivo" in r) erro(r.motivo);
         else { alvoId = r.bot.id; alvoNome = r.bot.nome; }
       }
@@ -107,6 +107,12 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
         break;
       case "mover":
         if (a.secao === undefined) erro("mover precisa da seção (\"\" tira da seção)");
+        break;
+      case "fixar":
+        if (typeof a.fixado !== "boolean") erro("fixar precisa de fixado (true ou false)");
+        break;
+      case "ocultar":
+        if (typeof a.oculto !== "boolean") erro("ocultar precisa de oculto (true ou false)");
         break;
       case "criar_rotina":
         if (vazio(a.cron) || vazio(a.fuso_iana) || vazio(a.instrucao)) erro("criar_rotina precisa de cron, fuso_iana e instrucao");
@@ -152,15 +158,15 @@ export function validarLote(acoes: readonly AcaoLote[], bots: readonly BotDoLote
 }
 
 /** Um bot da pessoa por id ou nome exato (sem diferenciar maiúsculas); o motivo diz por que não serve. */
-export function resolverBot(alvo: string, bots: readonly BotDoLote[], pessoaId: string): { bot: BotDoLote } | { motivo: string } {
+export function resolverBot(alvo: string, bots: readonly BotDoLote[], pessoaId: string, permitirExcluido = false): { bot: BotDoLote } | { motivo: string } {
   const porId = bots.find((b) => b.id === alvo);
-  const candidatos = porId ? [porId] : bots.filter((b) => b.nome.trim().toLowerCase() === alvo.trim().toLowerCase() && b.excluidoEm === null);
+  const candidatos = porId ? [porId] : bots.filter((b) => b.nome.trim().toLowerCase() === alvo.trim().toLowerCase() && (permitirExcluido || b.excluidoEm === null));
   if (candidatos.length === 0) return { motivo: `não achei o bot "${alvo}" entre os seus` };
   if (candidatos.length > 1) return { motivo: `há mais de um bot chamado "${alvo}": use o id (ver_colegas)` };
   const bot = candidatos[0]!;
   if (ehNod(bot)) return { motivo: "o Nod não mexe em si mesmo" };
   if (bot.ownerId !== pessoaId || bot.dono !== "pessoa") return { motivo: `"${bot.nome}" não é um bot seu` };
-  if (bot.excluidoEm !== null) return { motivo: `"${bot.nome}" foi excluído` };
+  if (bot.excluidoEm !== null && !permitirExcluido) return { motivo: `"${bot.nome}" foi excluído` };
   return { bot };
 }
 

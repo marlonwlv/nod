@@ -78,6 +78,14 @@ describe("validarLote (ADR-082)", () => {
     if (!r.ok) expect(r.problemas.map((p) => p.i)).toEqual([0, 1]);
   });
 
+  it("restaurar resolve bot excluído e fixar/ocultar exigem estado explícito para repetição idempotente", () => {
+    expect(valida([{ tipo: "restaurar", bot: "Dev antigo" }]).ok).toBe(true);
+    const r = valida([{ tipo: "fixar", bot: "Dev 1" }, { tipo: "ocultar", bot: "Dev 2" }]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.problemas.map((p) => p.motivo)).toEqual(["fixar precisa de fixado (true ou false)", "ocultar precisa de oculto (true ou false)"]);
+    expect(valida([{ tipo: "fixar", bot: "Dev 1", fixado: true }, { tipo: "ocultar", bot: "Dev 2", oculto: false }]).ok).toBe(true);
+  });
+
   it("QA independente do PR #706: acesso em lote, padrão do app e Desfazer não entram pelo gerir_bots (só pelo gerir_acessos, que monta o card)", () => {
     // Pelo gerir_bots o executor rodaria com a regra do modo do Nod; a confirmação de Ler e alterar só vem do card.
     for (const tipo of ["acessos_em_lote", "padrao_acesso", "desfazer_acessos"]) {

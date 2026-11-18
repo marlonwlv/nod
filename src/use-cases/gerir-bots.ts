@@ -48,6 +48,9 @@ const VERBO: Record<AcaoLote["tipo"], string> = {
   editar: "Editar",
   mover: "Mover",
   excluir: "Excluir",
+  restaurar: "Restaurar",
+  fixar: "Fixar",
+  ocultar: "Ocultar",
   criar_rotina: "Criar rotina",
   dar_acesso: "Dar acesso",
   mudar_modo: "Mudar modo",
@@ -69,7 +72,7 @@ function linhaDeAcessos(a: Pick<AcaoNoLote, "tipo" | "app" | "nivel_lote" | "bot
 }
 
 /** Uma linha legível da ação (a mensagem de sistema do desfecho). */
-export function linhaDaAcao(a: Pick<AcaoNoLote, "tipo" | "alvoNome" | "secao" | "app" | "nivel" | "modo" | "versao" | "membros" | "nivel_lote" | "bots_nomes" | "todos" | "assume_nome">): string {
+export function linhaDaAcao(a: Pick<AcaoNoLote, "tipo" | "alvoNome" | "secao" | "app" | "nivel" | "modo" | "versao" | "fixado" | "oculto" | "membros" | "nivel_lote" | "bots_nomes" | "todos" | "assume_nome">): string {
   if (a.tipo === "acessos_em_lote" || a.tipo === "padrao_acesso" || a.tipo === "desfazer_acessos") return linhaDeAcessos(a);
   if (a.tipo === "excluir_time") return `Excluir o time ${a.alvoNome} (${a.membros?.length ? `${listaFalada(a.membros)} ${a.membros.length === 1 ? "foi" : "foram"} para Sem time` : "sem bots"})`;
   if (a.tipo === "remover_computador") {
@@ -79,6 +82,8 @@ export function linhaDaAcao(a: Pick<AcaoNoLote, "tipo" | "alvoNome" | "secao" | 
     return `Remover o nod de ${a.alvoNome} (${n ? `${listaFalada(a.membros!)} ${destino}` : "sem bots"})`;
   }
   if (a.tipo === "restaurar_versao") return `Restaurar a versão ${a.versao ?? "?"} do perfil de ${a.alvoNome}`;
+  if (a.tipo === "fixar") return `${a.fixado ? "Fixar" : "Desafixar"} ${a.alvoNome}`;
+  if (a.tipo === "ocultar") return `${a.oculto ? "Ocultar" : "Mostrar"} ${a.alvoNome}`;
   const extra = a.tipo === "mover" ? ` para ${a.secao ? `"${a.secao}"` : "Sem time"}` : a.tipo === "dar_acesso" ? ` ao ${a.app} (${a.nivel === "escrita" ? "ler e alterar" : "ler"})` : a.tipo === "mudar_modo" ? ` para ${a.modo}` : "";
   return `${VERBO[a.tipo]} ${a.alvoNome}${extra}`;
 }
@@ -148,6 +153,18 @@ async function executarAcao(deps: Deps, a: AcaoLote & { alvoNome: string }, botI
       const aberto = await abrirPedidoDeAcesso(deps, { conversaId: conversa.id, agenteId: alvo, turnoId: null, payload, conector, autoria: autoriaDoAgente(deps.escopo, ctx.nodId) });
       const decidido = await decidirAcesso(deps, { decisaoId: aberto.proposta.id, recusar: false, executor: "catcher", ...(ctx.porRegra ? { porRegra: ctx.porRegra } : {}) });
       return { botId: alvo, nome: a.alvoNome, events: [...semCard(aberto.events), ...(decidido.events ?? [])] };
+    }
+    case "restaurar": {
+      const r = await EXECUTORES_BOTS["bots.restaurar"](deps, { agenteId: exigirAlvo() });
+      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
+    }
+    case "fixar": {
+      const r = await EXECUTORES_BOTS["bots.fixar"](deps, { agenteId: exigirAlvo(), fixado: a.fixado });
+      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
+    }
+    case "ocultar": {
+      const r = await EXECUTORES_BOTS["bots.ocultar"](deps, { agenteId: exigirAlvo(), oculto: a.oculto });
+      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
     }
     case "excluir_time": {
       // NOD-437: o card de "Excluir o time Produção?" aprovado roda o mesmo executor da tela (DELETE /times/:id).

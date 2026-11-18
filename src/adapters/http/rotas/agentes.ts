@@ -1,12 +1,10 @@
 import type { PreferenciaHarness } from "../../../contracts/harness.ts";
 import type { Escopo } from "../../../shared/types.ts";
 import type { IdHarness } from "../../../contracts/harness.ts";
-import { gerirAgente } from "../../../use-cases/gerir-agente.ts";
 import type { DonoAgente, FormaAgente, CorAgente } from "../../../contracts/agente.ts";
 import type { TipoMemoria } from "../../../contracts/memoria.ts";
 import { apagarMemoria, desfazerEntradaDiario, editarMemoria, listarDiarioMemoria, listarMemorias, revisarDiarioMemoria } from "../../../use-cases/editar-memorias.ts";
 import { EXECUTORES_BOTS } from "../../../use-cases/acoes/bots.ts";
-import { fixarAgente, ocultarAgente } from "../../../use-cases/fixar-ocultar-agente.ts";
 import { registrarMemoria } from "../../../use-cases/lembrar.ts";
 import { definirInteligenciaDoBot, lerInteligenciaDoBot } from "../../../use-cases/inteligencia.ts";
 import { decidirTrocaDeIa } from "../../../use-cases/trocas-de-ia.ts";
@@ -37,7 +35,7 @@ export function criarRotasAgentes(d: DepsRotas, prontosPorMaquina?: (escopo: Esc
       ctx.json(200, await executar(ctx.escopo, EXECUTORES_BOTS["bots.excluir"], { agenteId: ctx.params.id ?? "" }));
     } },
     { metodo: "POST", acao: "bots.restaurar", padrao: new RegExp(`^/agentes/${ID}/restaurar$`), async handler(ctx) {
-      ctx.json(200, await executar(ctx.escopo, gerirAgente, { agenteId: ctx.params.id ?? "", acao: "restaurar" }));
+      ctx.json(200, await executar(ctx.escopo, EXECUTORES_BOTS["bots.restaurar"], { agenteId: ctx.params.id ?? "" }));
     } },
     {
       metodo: "POST", acao: "bots.criar",
@@ -154,7 +152,7 @@ export function criarRotasAgentes(d: DepsRotas, prontosPorMaquina?: (escopo: Esc
       padrao: new RegExp(`^/agentes/${ID}/fixar$`),
       async handler(ctx) {
         const corpo = corpoObjeto(await ctx.corpo());
-        ctx.json(200, await executar(ctx.escopo, fixarAgente, { agenteId: ctx.params.id ?? "", fixado: typeof corpo.fixado === "boolean" ? corpo.fixado : undefined }));
+        ctx.json(200, await executar(ctx.escopo, EXECUTORES_BOTS["bots.fixar"], { agenteId: ctx.params.id ?? "", fixado: typeof corpo.fixado === "boolean" ? corpo.fixado : undefined }));
       },
     },
     {
@@ -162,7 +160,7 @@ export function criarRotasAgentes(d: DepsRotas, prontosPorMaquina?: (escopo: Esc
       padrao: new RegExp(`^/agentes/${ID}/ocultar$`),
       async handler(ctx) {
         const corpo = corpoObjeto(await ctx.corpo());
-        ctx.json(200, await executar(ctx.escopo, ocultarAgente, { agenteId: ctx.params.id ?? "", oculto: typeof corpo.oculto === "boolean" ? corpo.oculto : undefined }));
+        ctx.json(200, await executar(ctx.escopo, EXECUTORES_BOTS["bots.ocultar"], { agenteId: ctx.params.id ?? "", oculto: typeof corpo.oculto === "boolean" ? corpo.oculto : undefined }));
       },
     },
     {

@@ -66,6 +66,19 @@ describe("card do lote do Nod", () => {
     expect(h).toContain("começa em Aprovar automaticamente; mude em Aprovações");
   });
 
+  it("mostra restaurar, fixar/desafixar e ocultar/mostrar com o estado pedido", () => {
+    const h = renderCardLote({ id: "p4" }, { kind: "lote_bots", resumo: "Organizar bots", acoes: [
+      acao(0, { tipo: "restaurar", alvoNome: "Antigo" }),
+      acao(1, { tipo: "fixar", alvoNome: "Dev", fixado: false }),
+      acao(2, { tipo: "ocultar", alvoNome: "QA", oculto: false }),
+    ] }, true);
+    expect(h).toContain('aria-label="Restaurar Antigo"');
+    expect(h).toContain('aria-label="Desafixar Dev"');
+    expect(h).toContain('aria-label="Mostrar QA"');
+    expect(linhaDaAcao({ tipo: "fixar", alvoNome: "Dev", fixado: false })).toBe("Desafixar Dev");
+    expect(linhaDaAcao({ tipo: "ocultar", alvoNome: "QA", oculto: false })).toBe("Mostrar QA");
+  });
+
   it("2026-10-18: ligar o total pelo Nod diz que só liga com o ok da pessoa", () => {
     const h = renderCardLote({ id: "p2" }, { kind: "lote_bots", resumo: "Dev 1 sem aprovações", acoes: [acao(0, { tipo: "mudar_modo", alvoNome: "Dev 1", modo: "total", motivo: "ligar_total", botId: "b1" })] }, true);
     expect(h).toContain("para sem aprovações");
