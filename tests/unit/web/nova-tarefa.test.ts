@@ -92,9 +92,11 @@ describe("a dica das tarefas (Paper 4q, opção C, uma vez por pessoa)", () => {
 });
 
 describe("a tarefa nova (Paper 3b e 3e)", () => {
-  it("só no bot da pessoa, confirmado, que não é o Nod", () => {
+  it("só no bot da pessoa que não é o Nod — o perfil ainda não confirmado também aceita", () => {
     const e = estadoCom([]);
     expect(botAceitaTarefa(e, "ada")).toBe(true);
+    const naoConfirmada = { ...e, frota: { ...e.frota!, agentes: e.frota!.agentes.map((a) => (a.id === "ada" ? { ...a, confirmado: false } : a)) } };
+    expect(botAceitaTarefa(naoConfirmada, "ada")).toBe(true);
     expect(botAceitaTarefa(e, "nod")).toBe(false);
     expect(botAceitaTarefa(e, "outra")).toBe(false);
     expect(botAceitaTarefa(e, null)).toBe(false);

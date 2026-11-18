@@ -15,13 +15,15 @@ export const CHAVE_DICA_TAREFAS = "dica:tarefas";
 type Agente = NonNullable<Estado["frota"]>["agentes"][number];
 
 /**
- * O bot aceita uma tarefa aberta pela pessoa? Só o bot dela, confirmado, que não seja o Nod (o Nod cuida da conta, não
- * abre tarefas). As outras guardas (a conversa carregada, com IA, fora das boas-vindas) dependem da tela e ficam no main.
+ * O bot aceita uma tarefa aberta pela pessoa? Só o bot dela que não seja o Nod (o Nod cuida da conta, não abre tarefas).
+ * As outras guardas (a conversa carregada, com IA, fora das boas-vindas) dependem da tela e ficam no main. Validação de
+ * 2026-11-18: o perfil ainda não confirmado não segura — o bot já conversa e abre tarefas sozinho (a Frida abriu duas), e
+ * o servidor (abrirTarefaDaPessoa) também não olha o `confirmado`; só a aba sumia.
  */
 export function botAceitaTarefa(estado: Pick<Estado, "frota" | "sessao">, agenteId: string | null | undefined): agenteId is string {
   if (!agenteId || !estado.sessao) return false;
   const bot: Agente | undefined = estado.frota?.agentes.find((a) => a.id === agenteId);
-  return !!bot && bot.ownerId === estado.sessao.pessoaId && bot.confirmado !== false && bot.papel !== "nod";
+  return !!bot && bot.ownerId === estado.sessao.pessoaId && bot.papel !== "nod";
 }
 
 /** A dica ainda não foi vista (e as preferências já chegaram: antes disso nada aparece, para não piscar). */
