@@ -8,7 +8,8 @@ import type { ResultadoChamada } from "../../../src/use-cases/chamar-ferramenta.
 import { MARLON } from "../use-cases/deps-l5.ts";
 
 // NOD-161: os casos de uso de aprovação e de pedir à pessoa não são o assunto aqui — só o "aguardar".
-vi.mock("../../../src/use-cases/pedir-aprovacao.ts", () => ({ pedirAprovacaoComputador: async () => ({ data: { estado: "pendente", decisao_id: "decisao-1" } }) }));
+const aprovar = vi.hoisted(() => vi.fn(async () => ({ data: { estado: "pendente", decisao_id: "decisao-1" } })));
+vi.mock("../../../src/use-cases/pedir-aprovacao.ts", () => ({ pedirAprovacaoComputador: aprovar }));
 const pedidosDeAjuda = vi.hoisted(() => [] as { texto: string }[]);
 vi.mock("../../../src/use-cases/pedir-a-pessoa.ts", () => ({ pedirAjudaDoComputador: async (_d: unknown, p: { texto: string }) => { pedidosDeAjuda.push(p); return { data: { decisao_id: "decisao-2", estado: "pendente" } }; } }));
 
@@ -227,5 +228,23 @@ it("controle humano recusa também observação e clique semânticos", async () 
     expect(r).toHaveProperty("ok", true);
     if ("ok" in r && r.ok) expect(JSON.parse(r.conteudo)).toHaveProperty("estado", "aguardando_pessoa");
   }
+  expect(enviadas).toHaveLength(0);
+});
+
+it.each(["automatico", "total"])("%s executa pelo gateway mesmo com aprovação indisponível", async (modoAprovacao) => {
+  computador.politica = "supervisionado";
+  const modo = vi.spyOn(deps.repos.agentes, "buscar").mockResolvedValue({ id: AGENTE, modoAprovacao });
+  aprovar.mockRejectedValueOnce(new Error("indisponivel"));
+  try {
+    const r = await chamar("computador_navegar", { url: "https://example.com" });
+    expect(r.isError).toBe(false);
+    expect(enviadas).toHaveLength(1);
+  } finally { modo.mockRestore(); aprovar.mockReset(); aprovar.mockResolvedValue({ data: { estado: "pendente", decisao_id: "decisao-1" } }); }
+});
+
+it("manual não executa quando aprovação está indisponível", async () => {
+  computador.politica = "supervisionado";
+  aprovar.mockRejectedValueOnce(new Error("indisponivel"));
+  await expect(computadores.chamar(MARLON, plano(), "computador_navegar", { url: "https://example.com" })).rejects.toThrow("indisponivel");
   expect(enviadas).toHaveLength(0);
 });

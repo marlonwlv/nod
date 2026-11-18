@@ -99,6 +99,12 @@ const montarFase1 = (computador: boolean, comRevisor = false) => async (deps: De
   if (await quemPediuSaiuDoQuadro(deps, input.turnoId)) {
     return { saida: { data: { estado: "recusada", erros: ["quem pediu esta tarefa não participa mais do quadro: o pedido deixou de valer"], instrucao: "não peça de novo; encerre o turno" }, events: [] } };
   }
+  // 2026-11-18: computador tem gateway próprio; destino inventado não é indisponibilidade.
+  if (!computador && input.itens.some((i) => i.destino.conector === "computador" ||
+    (i.destino.conector === "nod" && i.destino.ferramenta.startsWith("computador_")))) {
+    return { saida: { data: { estado: "recusada", erros: ["Destino de computador não é conector de aprovação. Nada foi executado. Use diretamente a ferramenta computador_* disponível. Se a pessoa pediu confirmação antes, use pedir_a_pessoa e espere a resposta. Não contorne aprovação pendente nem falha de autorização."],
+      instrucao: "use o gateway do computador; respeite o modo vigente e a confirmação solicitada" }, events: [] } };
+  }
   const propostas: PropostaItem[] = [];
   const conectorIdPorIdx: (string | null)[] = [];
   // ADR-059: a capacidade de destino é arriscada (apagar, merge, aprovar PR)? Lido do catálogo do CONECTOR.
