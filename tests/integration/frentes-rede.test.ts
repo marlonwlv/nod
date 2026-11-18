@@ -236,6 +236,8 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
       expect(await m.repos.turnos.buscar(naoLida.id)).toMatchObject({ estado: "pendente", absorvidoPor: null, trabalhoId: null });
       expect(await m.repos.turnos.buscar(lida.id)).toMatchObject({ estado: "interrompido", absorvidoPor: vivo.id });
       expect(r.events?.some((e) => e.kind === "turno_criado" && e.turnoId === naoLida.id)).toBe(true);
+      // ADR-187 §3: só a não lida vai para o aviso que a sessão da tarefa recebe (a ponte o manda cru, sem moldura).
+      expect(r.data.devolvidas).toEqual(["quanto é dois mais dois?"]);
     });
   });
 

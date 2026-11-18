@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PRAZO_GUARDA, RAZAO_MAXIMA_LINEAR, razaoDeCrescimento } from "../../helpers/crescimento.ts";
 import { CAPACIDADES_HARNESS, SEM_CAPACIDADES } from "../../../src/contracts/harness.ts";
 import { seguimentoNaRede } from "../../../src/domain/frente.ts";
-import { CARACTERES_TITULO_PROVISORIO, esperaDoTrabalho, estadoDoTrabalho, linhaCurta, linhaDaFala, PALAVRAS_TITULO_PROVISORIO, pastaDoTrabalho, pastaRelativa, podeAbrirTask, podeMandarParaTask, promoveNaRede, REDE_MS, REDE_NAO_LIDA_MS, slugDoTrabalho, TITULO_PROVISORIO_RESERVA, tituloDoTrabalho, tituloOuNada, tituloProvisorio, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
+import { avisoDasFalasDevolvidas, CARACTERES_TITULO_PROVISORIO, esperaDoTrabalho, estadoDoTrabalho, linhaCurta, linhaDaFala, PALAVRAS_TITULO_PROVISORIO, pastaDoTrabalho, pastaRelativa, podeAbrirTask, podeMandarParaTask, promoveNaRede, REDE_MS, REDE_NAO_LIDA_MS, slugDoTrabalho, TITULO_PROVISORIO_RESERVA, tituloDoTrabalho, tituloOuNada, tituloProvisorio, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
 
 const base: FatosTrabalho = { estadoAtual: "na_fila", iniciado: false, parando: 0, despachando: 0, pendentes: 0, esperandoOutro: false, decisaoPendente: false, aguardandoColega: false, ultimo: null };
 
@@ -270,5 +270,24 @@ describe("linhaDaFala (validação de 2026-11-17: o resumo do cartão das tarefa
   it("corta depois de limpar: a marcação não gasta os 80 caracteres", () => {
     const fala = `**${"a".repeat(78)}**`;
     expect(linhaDaFala(fala)).toBe("a".repeat(78));
+  });
+});
+
+describe("avisoDasFalasDevolvidas (ADR-187 §3, validação de 2026-11-17: a tarefa respondia de novo o '2+2')", () => {
+  it("cita as falas, diz que a conversa já respondeu e manda seguir só com o pedido", () => {
+    const um = avisoDasFalasDevolvidas(["2+2?"]);
+    expect(um).toContain("«2+2?»");
+    expect(um).toContain("já respondeu a esta mensagem");
+    expect(um).toContain("Não responda a ela aqui; siga só com o pedido.");
+    const dois = avisoDasFalasDevolvidas(["2+2?", "como está indo?"]);
+    expect(dois).toContain("«2+2?», «como está indo?»");
+    expect(dois).toContain("Não responda a elas aqui");
+  });
+  it("corta a fala longa em 120 caracteres e junta as linhas", () => {
+    const aviso = avisoDasFalasDevolvidas([`linha um\n${"x".repeat(300)}`]);
+    const citada = /«([^»]*)»/.exec(aviso)?.[1] ?? "";
+    expect(citada.length).toBe(120);
+    expect(citada.startsWith("linha um x")).toBe(true);
+    expect(citada.endsWith("…")).toBe(true);
   });
 });

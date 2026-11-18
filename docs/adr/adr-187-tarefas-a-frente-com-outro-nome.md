@@ -33,7 +33,9 @@ tem visualizador.
    só as de depois são da tarefa. A pergunta à parte respondida antes da promoção não some mais. E a fala da pessoa que
    o turno absorveu e o bot ainda não leu (ele esperava um subagente ou um comando) volta à fila da conversa na
    promoção, como no Parar (ADR-185): o turno largou a faixa da conversa, e ela responde já. O texto já foi escrito na
-   sessão; a tarefa ainda pode respondê-lo do lado dela, e essa resposta fica só na tela da tarefa. E a rede não espera
+   sessão, então a sessão da tarefa recebe junto um aviso do nod ("a conversa já respondeu a «…»; siga só com o pedido"),
+   cru, sem a moldura de fala da pessoa — sem ele, a tarefa respondia de novo e a resposta chegava à conversa com a entrega
+   (validação de 2026-11-17: "2 + 2 = 4." no começo do texto da pesquisa). E a rede não espera
    os 2 min quando uma fala da pessoa absorvida está há 8 s sem leitura (`REDE_NAO_LIDA_MS`): o bot está preso num
    subagente ou num comando, e a conversa larga o pedido e responde já (na validação, "quanto é dois mais dois?" esperou
    80 s; com 15 s de limite, 24 s). Só vale com o app que informa a leitura.
@@ -73,5 +75,5 @@ As decisões 5 a 9 entram por etapas, cada uma validada na preview antes da segu
   telas): voltar a promover o turno inteiro e separar a resposta à parte de outro jeito.
 - Pedidos curtos viram tarefa à toa porque a pessoa escreveu no meio (a promoção pela fala não lida passa a abrir
   tarefa em pedido que terminaria em menos de 1 min): subir `REDE_NAO_LIDA_MS` ou exigir um tempo mínimo de turno.
-- A pessoa estranha a mesma pergunta respondida na conversa e de novo dentro da tarefa (a fala devolvida já estava na
-  sessão): avisar a tarefa, na promoção, que a conversa responde aquelas falas.
+- A tarefa ainda responde a fala devolvida apesar do aviso (o modelo ignora o "[aviso do nod]"): tirar a fala da sessão
+  antes de ela ser lida, o que hoje nenhum harness permite, ou filtrar a resposta na entrega.

@@ -427,6 +427,21 @@ export function promoveNaRede(p: { origem: OrigemTurno; modo?: ModoTurno | null;
   return doDono && !p.trabalhoId && p.estado === "despachando" && naHora && p.fezFerramenta && (p.capacidades.bifurcaSessao || !p.capacidades.retomaSessao);
 }
 
+/**
+ * ADR-187 §3 (validação de 2026-11-17): o aviso que a sessão do turno promovido recebe quando a rede devolve à conversa as
+ * falas que ele ainda não tinha lido. Elas já estão escritas na sessão; sem o aviso, a tarefa respondia de novo ("2 + 2 =
+ * 4.") e a resposta chegava à conversa junto com a entrega. Cada fala vai cortada em 120 caracteres.
+ */
+export function avisoDasFalasDevolvidas(falas: readonly string[]): string {
+  const citadas = falas.map((f) => `«${linhaCurtaDe(f, 120)}»`).join(", ");
+  return `[aviso do nod] Este pedido seguiu em segundo plano. A conversa com a pessoa já respondeu a ${falas.length === 1 ? "esta mensagem" : "estas mensagens"}: ${citadas}. Não responda a ${falas.length === 1 ? "ela" : "elas"} aqui; siga só com o pedido.`;
+}
+
+function linhaCurtaDe(texto: string, max: number): string {
+  const t = texto.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${cortar(t, max - 1).trimEnd()}…` : t;
+}
+
 /** O que a linha "Abriu a task …" diz por origem (texto da mensagem `sistema`; a web desenha pelo payload). */
 export function textoTrabalhoAberto(titulo: string, origem: OrigemTrabalho): string {
   // revisto em 2026-10-12 (ADR-099, I8): a rede promove a frente, não mais a task.

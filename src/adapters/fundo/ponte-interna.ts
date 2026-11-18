@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Executor, RuntimeEvent } from "../../contracts/evento.ts";
 import { HARNESSES, type IdHarness } from "../../contracts/harness.ts";
 import type { LimitesIa } from "../../contracts/inteligencia.ts";
@@ -36,7 +36,7 @@ import { relatarEspera as relatarEsperaDaMaquina } from "../../use-cases/esperar
 import { relatarDesfazer as relatarDesfazerDaMaquina } from "../../use-cases/desfazer-turno.ts";
 import type { DesfazerParaRodar, RelatoDesfazer } from "../../contracts/checkpoint.ts";
 import type { EsperaParaRodar, RelatoEspera, RespostaRelatoEspera } from "../../contracts/espera.ts";
-import { REDE_MS, REDE_NAO_LIDA_MS } from "../../domain/trabalho.ts";
+import { avisoDasFalasDevolvidas, REDE_MS, REDE_NAO_LIDA_MS } from "../../domain/trabalho.ts";
 import type { MudancaDePressao } from "./trabalhos-vivos.ts";
 import type { LeituraDisco, LeituraMemoria, NivelPressao } from "../../contracts/trabalho.ts";
 import type { UsoDoMac } from "../../contracts/raio-x.ts";
@@ -697,23 +697,33 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       // ela sairia duas vezes (no turno promovido e no turno próprio que a mensagem viraria). NOD-293 (E9): só conta a que
       // está dentro da janela de REOFERTA_MS — a perdida saiu do mapa acima e, se ainda pendente, está em `ids`.
       const semMensagemNoAr = ids.length === 0 && jaOferecidas.size === 0;
+      const daRede: { aviso: { id: string; texto: string } | null } = { aviso: null };
       if (ativo && doDonoSemTrabalho && despachado && harness !== null && semMensagemNoAr && (agora() - despachado.em >= redeMs || (naoLidaDesde !== null && agora() - naoLidaDesde >= REDE_NAO_LIDA_MS)) && deps.fezFerramenta?.(p.turnoId)) {
         await abrirTxEscopada(db, escopo)(async (trx) => {
           const d = depsDe(trx, escopo);
           const r = await promoverNaRede(d, { turnoId: p.turnoId, despachadoEm: despachado.em, fezFerramenta: true, harness, sessaoCli: despachado.sessaoCli, sessaoExecutor: executores.get(p.turnoId) ?? null, maquinaBifurca, modo: despachado.modo, redeMs });
           if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+          // ADR-187 §3: as falas devolvidas à conversa já estão na sessão; o aviso vai cru (sem a moldura de fala da
+          // pessoa), com um id próprio que não é de turno nenhum — a confirmação dele não acha nada para absorver.
+          if (r.data.devolvidas?.length) daRede.aviso = { id: randomUUID(), texto: avisoDasFalasDevolvidas(r.data.devolvidas) };
         }).catch((e: unknown) => log("aviso", "rede_promover_falhou", { turno_id: p.turnoId, erro: e instanceof Error ? e.name : "desconhecido" }));
       }
+      // O aviso vai no fim da resposta, com id e sem moldura. Só com os ids alinhados aos textos (um aviso de etapa sem id
+      // no meio desalinharia o id do aviso): nesse caso raro ele fica de fora, e a tarefa pode responder de novo.
+      const comAviso = daRede.aviso !== null && mensagens.length === ids.length;
+      const mensagensDaResposta = comAviso ? [...mensagens, daRede.aviso!.texto] : mensagens;
+      const idsDaResposta = comAviso ? [...ids, daRede.aviso!.id] : ids;
+      const semMolduraDaResposta = comAviso ? [...semMoldura, daRede.aviso!.id] : semMoldura;
       if (novas.length) falasGravadas.set(p.turnoId, novas.at(-1)!.seq);
       if (ativo && naoLidaDesde !== null) naoLidas.set(p.turnoId, naoLidaDesde);
       else naoLidas.delete(p.turnoId);
       if (ativo) vistos.set(p.turnoId, agora());
       if (confirma && ativo) {
         const em = agora();
-        for (const id of ids) jaOferecidas.set(id, em);
+        for (const id of idsDaResposta) jaOferecidas.set(id, em);
         oferecidas.set(p.turnoId, jaOferecidas);
       }
-      return { ativo, versaoMinimaApp: VERSAO_MINIMA_APP, ...(!ativo && motivo ? { motivo } : {}), ...(mensagens.length ? { mensagens, mensagensIds: ids } : {}), ...(semMoldura.length ? { mensagensSemMoldura: semMoldura } : {}), ...(Object.keys(anexos).length ? { mensagensAnexos: anexos } : {}) };
+      return { ativo, versaoMinimaApp: VERSAO_MINIMA_APP, ...(!ativo && motivo ? { motivo } : {}), ...(mensagensDaResposta.length ? { mensagens: mensagensDaResposta, mensagensIds: idsDaResposta } : {}), ...(semMolduraDaResposta.length ? { mensagensSemMoldura: semMolduraDaResposta } : {}), ...(Object.keys(anexos).length ? { mensagensAnexos: anexos } : {}) };
     },
 
     async entregar(e: Entrega) {

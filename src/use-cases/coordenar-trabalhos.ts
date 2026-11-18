@@ -316,7 +316,7 @@ export async function contaminarSeAbsorveuDeFora(deps: Pick<Deps, "repos" | "ago
  * segue sai de `seguimentoNaRede`: bifurcando (a próxima fala sai com `bifurcar`, emitir-plano-turno), largando a sessão
  * da conversa (ela foi com a frente; o próximo turno do dono recebe o histórico) ou já sem sessão (Codex).
  */
-export const promoverNaRede: CasoDeUso<{ turnoId: string; despachadoEm: number; fezFerramenta: boolean; harness: string | null; sessaoCli: string | null; sessaoExecutor?: Executor | null; maquinaBifurca?: boolean; modo?: ModoTurno | null; redeMs?: number }, { trabalho: Trabalho | null }> = async (deps, input) => {
+export const promoverNaRede: CasoDeUso<{ turnoId: string; despachadoEm: number; fezFerramenta: boolean; harness: string | null; sessaoCli: string | null; sessaoExecutor?: Executor | null; maquinaBifurca?: boolean; modo?: ModoTurno | null; redeMs?: number }, { trabalho: Trabalho | null; devolvidas?: string[] }> = async (deps, input) => {
   const turno = await deps.repos.turnos.buscar(input.turnoId);
   // Sem harness no plano (catcher puro), não há capacidade declarada para decidir: não promove.
   if (!turno || !input.harness) return { data: { trabalho: null } };
@@ -364,8 +364,11 @@ export const promoverNaRede: CasoDeUso<{ turnoId: string; despachadoEm: number; 
   // bot ainda não leu (ele esperava os subagentes) volta à fila da conversa, como no Parar (ADR-185). Promovido, o turno
   // larga a faixa da conversa, então ela responde já; sem isso, a resposta ao "quanto é dois mais dois?" nascia na frente.
   const agora = deps.agora();
+  const devolvidas: string[] = [];
   for (const volta of await deps.repos.turnos.devolverNaoLidos(turno.id)) {
+    devolvidas.push(volta.entradaTexto);
     events.push(evento(deps.escopo, { kind: "turno_criado", autoria: autoriaPessoa(deps.escopo), agora, conversaId: volta.conversaId, turnoId: volta.id, dados: { origem: volta.origem, agente_id: volta.agenteId, devolvido_pela_rede: true } }));
   }
-  return { data: { trabalho }, events };
+  // Quem roda o turno avisa a sessão de que a conversa responde estas (avisoDasFalasDevolvidas): elas já foram escritas nela.
+  return { data: { trabalho, ...(devolvidas.length ? { devolvidas } : {}) }, events };
 };
