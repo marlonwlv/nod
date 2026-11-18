@@ -1,3 +1,4 @@
+import { slugDoToolkit, toolkitComposio } from "./toolkits-composio.ts";
 import { COMPOSIO_POR_CAPACIDADE_GITHUB } from "../../contracts/github.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import type { ArgsGithub } from "../../domain/github.ts";
@@ -167,8 +168,10 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
         if (!it || typeof it !== "object") continue;
         const o = it as Record<string, unknown>;
         const tk = o.toolkit as Record<string, unknown> | string | undefined;
-        const slug = (typeof tk === "string" ? tk : typeof tk?.slug === "string" ? tk.slug : null)?.toLowerCase();
-        if (!slug || !/^[a-z0-9_-]{1,64}$/.test(slug)) continue;
+        const slugRemoto = (typeof tk === "string" ? tk : typeof tk?.slug === "string" ? tk.slug : null)?.toLowerCase();
+        if (!slugRemoto || !/^[a-z0-9_-]{1,64}$/.test(slugRemoto)) continue;
+        if (toolkitComposio(slugRemoto) !== slugRemoto) continue;
+        const slug = slugDoToolkit(slugRemoto);
         if (o.status === "DISABLED" || o.deleted === true) continue;
         const meta = (tk && typeof tk === "object" ? tk : {}) as Record<string, unknown>;
         const logo = logoDoProvedor(meta.logo ?? (meta.meta as Record<string, unknown> | undefined)?.logo ?? o.logo);
@@ -193,8 +196,11 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
         for (const it of r.items as unknown[]) {
           if (!it || typeof it !== "object") continue;
           const o = it as Record<string, unknown>;
-          const slug = typeof o.slug === "string" ? o.slug.toLowerCase() : null;
-          if (!slug || !/^[a-z0-9_-]{1,64}$/.test(slug) || porSlug.has(slug)) continue;
+          const slugRemoto = typeof o.slug === "string" ? o.slug.toLowerCase() : null;
+          if (!slugRemoto || !/^[a-z0-9_-]{1,64}$/.test(slugRemoto)) continue;
+          if (toolkitComposio(slugRemoto) !== slugRemoto) continue;
+          const slug = slugDoToolkit(slugRemoto);
+          if (porSlug.has(slug)) continue;
           const gerenciado = Array.isArray(o.composio_managed_auth_schemes) && o.composio_managed_auth_schemes.length > 0;
           if (!gerenciado || o.no_auth === true || o.is_local_toolkit === true || o.type === "custom") continue;
           const meta = (o.meta && typeof o.meta === "object" ? o.meta : {}) as Record<string, unknown>;
@@ -216,7 +222,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
     },
     async criarSessao(userId: string, toolkit: string) {
       const r = await pedir("/tool_router/session", {
-        user_id: userId, toolkits: { enable: [toolkit] }, preload: { tools: "all" },
+        user_id: userId, toolkits: { enable: [toolkitComposio(toolkit)] }, preload: { tools: "all" },
         manage_connections: { enable: false }, workbench: { enable: false, enable_proxy_execution: false },
         search: { enable: false }, execute: { enable_multi_execute: false },
       });
@@ -226,7 +232,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       return { id: r.session_id, url: url.href };
     },
     async autorizar(sessaoId: string, toolkit: string) {
-      const r = await pedir(`/tool_router/session/${encodeURIComponent(sessaoId)}/link`, { toolkit });
+      const r = await pedir(`/tool_router/session/${encodeURIComponent(sessaoId)}/link`, { toolkit: toolkitComposio(toolkit) });
       if (typeof r.redirect_url !== "string" || typeof r.connected_account_id !== "string") throw new ErroDeDominio("conector_indisponivel");
       const url = urlDoProvedor(r.redirect_url, ["app.composio.dev", "connect.composio.dev", "backend.composio.dev"]);
       return { url: url.href, contaId: r.connected_account_id };
@@ -249,7 +255,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
     async conectado(contaId: string, userId: string, toolkit: string) {
       const r = await pedir(`/connected_accounts/${encodeURIComponent(contaId)}`);
       const t = r.toolkit as { slug?: unknown } | undefined;
-      return r.status === "ACTIVE" && r.is_disabled !== true && r.user_id === userId && t?.slug === toolkit;
+      return r.status === "ACTIVE" && r.is_disabled !== true && r.user_id === userId && t?.slug === toolkitComposio(toolkit);
     },
     /**
      * NOD-212: a resposta do PATCH traz `tool_router_tools`, as ferramentas que a sessão expõe depois de fixar a conta.
@@ -257,7 +263,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
      * noutro formato) e ninguém conclui nada dela. `avisos` são só os códigos (ex.: PRELOAD_TOOLS_HIGH_CONTEXT_USAGE).
      */
     async fixarConta(sessaoId: string, toolkit: string, contaId: string): Promise<{ ferramentas: number | null; avisos: string[] }> {
-      const r = await requisitar("PATCH", `/tool_router/session/${encodeURIComponent(sessaoId)}`, { connected_accounts: { [toolkit]: [contaId] } }).catch(() => null);
+      const r = await requisitar("PATCH", `/tool_router/session/${encodeURIComponent(sessaoId)}`, { connected_accounts: { [toolkitComposio(toolkit)]: [contaId] } }).catch(() => null);
       if (!r?.ok) throw new ErroDeDominio("conector_indisponivel");
       const lido: unknown = await r.json().catch(() => null);
       const corpo = lido && typeof lido === "object" && !Array.isArray(lido) ? lido as Record<string, unknown> : null;

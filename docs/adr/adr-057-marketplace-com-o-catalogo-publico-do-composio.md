@@ -143,3 +143,28 @@ Ficaram com o do Composio:
 **Gatilho de revisão:** uma marca trocar o ícone e o arquivo guardado ficar para trás do que ela mesma
 publica. A lista de slugs com arquivo próprio mora em `LOGOS_OFICIAIS` (`web/telas/marketplace.ts`), e
 `tests/unit/web/logo-app.test.ts` confere que cada um existe em `web/public/logos/`.
+
+## Emenda — toolkits Microsoft e reuniões (2026-11-18)
+
+O item 3 passa a aceitar aliases EXPLÍCITOS na borda Composio: `microsoft-teams` →
+`microsoft_teams`, `one-drive` → `one_drive`, `share-point` → `share_point`,
+`granola-mcp` → `granola_mcp`, `read-ai-mcp` → `read_ai_mcp` e `otter-ai-mcp` →
+`otter_ai_mcp`. Banco, rotas, concessões e nomes dos conectores mantêm `[a-z0-9-]`.
+O adaptador traduz catálogo recebido, sessão, link, conferência de conta e fixação;
+nomes das ferramentas permanecem os oficiais. Slugs remotos que coincidam com um
+alias local reservado são descartados, evitando selecionar outro toolkit por colisão.
+Nenhuma normalização genérica; demais slugs com `_` continuam fora do catálogo público.
+
+A nova curadoria só aparece com evidência do provedor (`exigeProvedor`): não entra
+no piso offline. Outlook, Teams, OneDrive, SharePoint e Fathom têm OAuth gerenciado
+na documentação consultada; Fireflies exige API key e Granola/Read AI/Otter têm
+DCR_OAUTH sem OAuth gerenciado. Estes últimos entram pelo catálogo de auth configs,
+ou se o provedor vier a declarar autenticação gerenciada. Curadoria não cria auth
+config e não prova login. Todos continuam conteúdo externo (ADR-026).
+
+Mantêm-se as sessões privadas da ADR-041 e o gateway de capacidades da ADR-013.
+Consentimento Microsoft e restrições de plano aparecem na gaveta. Não há migração,
+novo fluxo de segredos, API de gravação ou tratamento de credencial no modelo.
+Detalhes, fontes e limites: [Microsoft e reuniões](../integracoes-microsoft-reunioes.md).
+Gatilho de revisão: mudança de slug oficial, colisão de alias ou falha real no login;
+nenhuma dessas situações autoriza cair em outro toolkit/conta.

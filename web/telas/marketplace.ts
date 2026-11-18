@@ -171,7 +171,7 @@ function gaveta(estado: Estado, app: AppComLogo, passo: "detalhes" | "quem-usa")
       : `${s === "atencao" ? botao("conectar-app", "Entrar de novo", { classe: "pri", id: app.slug }) : ""}${botao("desconectar-app", `Desconectar ${esc(app.nome)}`, { classe: "link perigo", id: c.id })}`;
   } else {
     const falha = login?.falhou ? blocoFalhou(login.falhou) : "";
-    corpo = `${falha}<p class="gaveta-desc">${esc(app.descricao)}</p>${oQueLibera(estado, app.slug)}${comoFunciona(app.nome)}`;
+    corpo = `${falha}<p class="gaveta-desc">${esc(app.descricao)}</p>${app.orientacaoConexao ? `<p class="gaveta-desc">${esc(app.orientacaoConexao)}</p>` : ""}${oQueLibera(estado, app.slug)}${comoFunciona(app.nome)}`;
     rodape = botao("conectar-app", `${login?.falhou ? "Tentar de novo" : `Conectar ${esc(app.nome)}`} ${SETA_EXTERNA}`, { classe: "pri largo", id: app.slug });
   }
   return `<div class="gaveta-fundo" data-act="fechar-gaveta"></div>
