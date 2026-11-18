@@ -1200,7 +1200,7 @@ function comAtividade(estado: Estado, conversaId: string, turnoId: string, mudar
   // Parte 2 do plano "o pensamento no chat": o cabeçalho do pensamento (com a permanência) acompanha cada mudança.
   const antiga = daConversa[turnoId];
   const nova = mudar(antiga);
-  return { ...estado.atividades, [conversaId]: { ...daConversa, [turnoId]: agora === undefined ? nova : comCabecalho(comFrentesEm(antiga, nova, agora), agora) } };
+  return { ...estado.atividades, [conversaId]: { ...daConversa, [turnoId]: agora === undefined ? nova : { ...comCabecalho(comFrentesEm(antiga, nova, agora), agora), recebidoEm: agora } } };
 }
 
 /**
@@ -1317,9 +1317,9 @@ function motivoDoFrame(v: unknown): MotivoRecomeco | null {
 /** Definido em 2026-11-18: progresso comprova despacho mesmo se os frames de início se perderam. */
 function confirmarProgresso(e: Estado, f: FrameSse, turnoId: string, conversaId: string, agora: number): Estado["turnosVivos"] {
   const anterior = e.turnosVivos[turnoId];
-  if (!anterior && !guardaAoVivo(e, conversaId)) return e.turnosVivos;
+  if (anterior?.estado === "rodando" || (!anterior && !guardaAoVivo(e, conversaId))) return e.turnosVivos;
   const vivo: TurnoVivo = { ...anterior, turnoId, conversaId, estado: "rodando", executor: anterior?.executor ?? null,
-    machineId: anterior?.machineId ?? null, desde: anterior?.estado === "rodando" ? anterior.desde : agora,
+    machineId: anterior?.machineId ?? null, desde: agora,
     vistoEm: agora, ...(bastidoresDoFrame(f.dados) ? { bastidores: true } : {}) };
   return { ...e.turnosVivos, [turnoId]: vivo };
 }
@@ -1337,7 +1337,7 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     // Parar — a tela da ligação mostra o que ele faz. O servidor marca o frame com `modo: "ligacao"` (e `origem`).
     if (turnoDeLigacao(f.dados)) return invalidar(e, conv(f));
     // dados.kind distingue "na fila" (turno_criado) de "rodando" (turno_despachado) — pendência L8 §5.
-    if (e.turnosEncerrados.includes(turnoId) || turnoId in e.turnosDesmentidos) return e;
+    if (e.turnosEncerrados.includes(turnoId) || (!e.turnosVivos[turnoId] && turnoId in e.turnosDesmentidos)) return e;
     const anterior = e.turnosVivos[turnoId];
     const estado = f.dados.kind === "turno_despachado" || anterior?.estado === "rodando" ? "rodando" : "na_fila";
     const trabalhoId = texto(f.dados.trabalhoId) ?? texto(f.dados.trabalho_id) ?? anterior?.trabalhoId ?? null;
@@ -1350,7 +1350,7 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     const conversaId = texto(f.dados.conversaId);
     const trecho = typeof f.dados.texto === "string" ? f.dados.texto : "";
     if (!turnoId || !conversaId) return e;
-    if (e.turnosEncerrados.includes(turnoId) || turnoId in e.turnosDesmentidos) return e;
+    if (e.turnosEncerrados.includes(turnoId) || (!e.turnosVivos[turnoId] && turnoId in e.turnosDesmentidos)) return e;
     const turnosVivos = confirmarProgresso(e, f, turnoId, conversaId, agora);
     if (!guardaAoVivo(e, conversaId) || deBastidores(e, f.dados, turnoId)) return turnosVivos === e.turnosVivos ? e : { ...e, turnosVivos };
     return { ...e, turnosVivos, atividades: comAtividade(e, conversaId, turnoId, (a) => comTexto(a, trecho), agora) };
@@ -1361,7 +1361,7 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     const conversaId = texto(f.dados.conversaId);
     if (!turnoId || !conversaId || !guardaAoVivo(e, conversaId)) return e;
     const rotulo = texto(f.dados.rotulo) ?? "Usou uma ferramenta";
-    if (e.turnosEncerrados.includes(turnoId) || turnoId in e.turnosDesmentidos) return e;
+    if (e.turnosEncerrados.includes(turnoId) || (!e.turnosVivos[turnoId] && turnoId in e.turnosDesmentidos)) return e;
     const turnosVivos = confirmarProgresso(e, f, turnoId, conversaId, agora);
     if (deBastidores(e, f.dados, turnoId)) return turnosVivos === e.turnosVivos ? e : { ...e, turnosVivos };
     return { ...e, turnosVivos, atividades: comAtividade(e, conversaId, turnoId, (a) => comFerramenta(a, rotulo, emUsoDoFrame(f.dados.emUso), idDaAcao(f.dados.id)), agora) };
@@ -1685,7 +1685,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // de task (`trabalhoId`) é da tela da task (hidratar-trabalho).
       // Revisão: a resposta sem `turnosEmCurso` (servidor antigo, resposta parcial) não diz que nada roda — não tira nada.
       const naLeitura = new Set(emCurso.map((t) => t.id));
-      const sumiram = leuTurnos ? Object.values(estado.turnosVivos).filter((v) => v.conversaId === conversaId && !v.trabalhoId && !naLeitura.has(v.turnoId) && confirmadoAntes(v, acao.agora)).map((v) => v.turnoId) : [];
+      const sumiram = leuTurnos ? Object.values(estado.turnosVivos).filter((v) => v.conversaId === conversaId && !v.trabalhoId && !naLeitura.has(v.turnoId) && confirmadoAntes(v, acao.agora) && (estado.atividades[conversaId]?.[v.turnoId]?.recebidoEm ?? 0) < acao.agora).map((v) => v.turnoId) : [];
       const semSumidos = semDesmentidos(estado, sumiram, acao.agora);
       const turnosVivos = novos.length === 0 ? semSumidos.turnosVivos : { ...semSumidos.turnosVivos };
       // `chegouEm`: o relógio da web, nunca adiante do `desde` do banco (o relógio da web atrasado faria a fila "pensar").

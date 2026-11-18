@@ -25,6 +25,8 @@ export type SubagenteNaTela = SubagenteVivo & { recebidoEm: number; fimEm: numbe
 export type SubagentesDoTurno = { lista: SubagenteNaTela[]; resumo: string | null };
 
 export type AtividadeTurno = {
+  /** Último frame recebido; relógio da web, sem invalidar o histórico da conversa. */
+  recebidoEm?: number;
   /** Texto desde a última ferramenta (ou desde o início, se ainda não houve nenhuma). */
   atual: string;
   /** Últimas etapas fechadas; `totalEtapas` conta também as descartadas pelo teto. */

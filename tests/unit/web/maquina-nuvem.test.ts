@@ -227,6 +227,6 @@ describe("a fila da conversa com a máquina acordando (situacaoNaFila)", () => {
   it("sem nuvem, a fila de sempre", () => {
     const fora = naFila([maquina("vm", "vm-sp", { conectada: false }), mac]);
     expect(situacaoNaFila(mensagem, fora)).toMatchObject({ texto: expect.stringMatching(/^Eu trabalho no vm-sp, que está desligado/), destaVez: { maquinaId: "mac" } });
-    expect(situacaoNaFila(mensagem, naFila([maquina("vm", "vm-sp")]))).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Ze 1 lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem, naFila([maquina("vm", "vm-sp")]))).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · aguardando Ze 1 começar" });
   });
 });

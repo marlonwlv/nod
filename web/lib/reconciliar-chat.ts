@@ -8,6 +8,6 @@ export function invalidacoesDoChatSemProgresso(estado: Estado, agora: number, vi
   if (!id) return [];
   const lidaEm = estado.conversas[id]?.carregadaEm ?? 0;
   const parado = Object.values(estado.turnosVivos).some((t) => t.conversaId === id && !t.trabalhoId && !t.bastidores
-    && agora - Math.max(t.vistoEm ?? t.desde, lidaEm) >= INTERVALO_RECONCILIACAO_MS);
+    && agora - Math.max(t.vistoEm ?? t.desde, lidaEm, estado.atividades[id]?.[t.turnoId]?.recebidoEm ?? 0) >= INTERVALO_RECONCILIACAO_MS);
   return parado ? [`conversa:${id}`] : [];
 }

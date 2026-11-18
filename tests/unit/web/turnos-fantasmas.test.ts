@@ -327,3 +327,15 @@ it("reconciliação REST é limitada à conversa visível, sem progresso, e cess
   e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(), agora: AGORA + INTERVALO_RECONCILIACAO_MS + 2 });
   expect(invalidacoesDoChatSemProgresso(e, AGORA + 100_000, true)).toEqual([]);
 });
+
+
+it("atividade recente adia REST e impede que GET anterior apague o turno", () => {
+  let e = reduzir(base({ t1: vivo("t1", { estado: "rodando", vistoEm: AGORA - H }) }), { tipo: "navegar", tela: { tipo: "conversa", conversaId: C, agenteId: "a" } });
+  e = aplicarFrame(e, { streamId: "s", seq: 1, pessoaId: "p", tipo: "turno.atividade", dados: { conversaId: C, turnoId: "t1", rotulo: "Usou o computador" } }, AGORA);
+  expect(invalidacoesDoChatSemProgresso(e, AGORA + 1, true)).toEqual([]);
+  e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(), agora: AGORA - 1 });
+  expect(e.turnosVivos.t1?.estado).toBe("rodando");
+  e = aplicarFrame(e, { streamId: "s", seq: 2, pessoaId: "p", tipo: "turno.iniciado", dados: { conversaId: C, turnoId: "t1", kind: "turno_criado" } }, AGORA + 1);
+  expect(e.turnosVivos.t1?.estado).toBe("rodando");
+  expect(Object.keys(e.turnosVivos)).toEqual(["t1"]);
+});
