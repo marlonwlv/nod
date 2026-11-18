@@ -11,6 +11,7 @@ import { linhaDaFila } from "../lib/fila-do-pedido.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
 import { mesmoDia, PAUSA_QUE_ABRE_BLOCO_MS } from "./divisores-de-data.ts";
 import { etiquetaDoWebhook } from "./webhook.ts";
+import { marcadorDoProgresso } from "./progresso-na-fala.ts";
 
 /**
  * Chat limpo (definido em 2026-10-07, #191/#195, ADR-083): o que NÃO é a conversa entre a pessoa e o bot sai do caminho.
@@ -403,6 +404,12 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
   });
   for (const m of mensagens) {
     if (m.payload?.kind !== "trabalho_aberto" || planos.has(m.id)) continue;
+    // ADR-187 (validação de 2026-11-17, protótipo 1d): a da rede aparece do lado do bot, onde o turno parou de falar na
+    // conversa, com o cartão da tarefa embaixo (o lugar do progresso). Antes o cartão ia no balão da pessoa, à direita.
+    if (m.destino === "anexo" && m.payload.origem === "rede") {
+      planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: htmlDaRede(m.id) });
+      continue;
+    }
     // Chat limpo (ADR-114): a abertura é `anexo` — dá o título e a origem acima, mas não vira linha (mora na Atividade).
     if (m.destino === "anexo") {
       planos.set(m.id, { tipo: "oculta" });
@@ -739,4 +746,9 @@ function linhaFrentesTerminadas(frentes: readonly { trabalhoId: string; titulo: 
   const resto = [falhou ? `${falhou} ${falhou === 1 ? "falhou" : "falharam"}` : "", parou ? `${parou} ${parou === 1 ? "parou" : "pararam"}` : ""].filter(Boolean);
   const texto = resto.length ? `${frentes.length} tarefas voltaram · ${resto.join(" · ")}` : `${frentes.length} tarefas terminaram`;
   return `<div class="linha-centro-wrap"><span class="linha-centro estatica linha-terminou">${sinal}<span>${esc(texto)} · ${esc(hora(criadoEm))}</span></span></div>`;
+}
+
+/** A tarefa que a rede abriu (ADR-187, protótipo 1d): a linha discreta que diz o porquê e o lugar do cartão vivo. */
+function htmlDaRede(mensagemId: string): string {
+  return `<article class="message bot rede-virou" data-mensagem="${esc(mensagemId)}"><div class="bubble-wrap"><p class="rede-virou-linha"><span class="linha-ic" aria-hidden="true">${ICONE.seta}</span>Seguiu numa tarefa para o chat ficar livre</p>${marcadorDoProgresso(mensagemId)}</div></article>`;
 }

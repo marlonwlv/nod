@@ -73,12 +73,8 @@ export function ancorasDoProgresso(mensagens: readonly Mensagem[], visivel: (m: 
         if (x && x.turnoId === a.turnoId && x.kind === "texto" && x.autoria.autor_tipo === "agente" && visivel(x)) alvo = x;
       }
     }
-    // A frente da rede não tem fala antes: o turno promovido virou a frente e as falas dele moram nela. O bloco fica no
-    // balão da pessoa que pediu (o servidor marca a mensagem dela com o trabalho do turno que ela disparou).
-    if (a.rede) {
-      const ids = new Set(a.frentes.map((f) => f.trabalhoId));
-      alvo = mensagens.find((x) => x.kind === "texto" && x.autoria.autor_tipo === "pessoa" && x.trabalhoId && ids.has(x.trabalhoId) && visivel(x));
-    }
+    // A frente da rede não procura âncora: a linha dela ("Seguiu numa tarefa…", linhas-do-chat.ts) já traz o lugar do
+    // bloco, do lado do bot (ADR-187, 2026-11-17). Antes o bloco ia no balão da pessoa que pediu.
     if (alvo) ancoras.set(alvo.id, [...(ancoras.get(alvo.id) ?? []), a.id]);
   });
   return ancoras;

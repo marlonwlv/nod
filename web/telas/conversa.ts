@@ -1556,6 +1556,9 @@ function linhaDepoisDaFala(linhas: readonly LinhaDaConversa[], mensagens: readon
     const k = m.payload?.kind;
     const tipo = planos.get(m.id)?.tipo;
     if (!m.turnoId || (tipo !== "linha" && tipo !== "troca") || (k !== "trabalho_aberto" && k !== "frentes_abertas" && k !== "recado_a_frente" && k !== "handoff")) return;
+    // ADR-187: a da rede nasce DEPOIS das falas do turno na conversa; as de depois são da tarefa (a resposta final dela
+    // desceria a linha e o cartão para baixo da entrega).
+    if (m.payload?.kind === "trabalho_aberto" && m.payload.origem === "rede") return;
     let alvo = -1;
     for (let j = i + 1; j < mensagens.length; j++) {
       const x = mensagens[j];

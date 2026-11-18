@@ -257,24 +257,29 @@ describe("sem âncora, sem bloco", () => {
 });
 
 describe("a frente da rede e a frente única", () => {
-  it("a rede não tem fala antes: o bloco entra embaixo do balão da pessoa que virou a frente, numa linha só", () => {
+  it("ADR-187: a rede tem a linha dela do lado do bot, com o bloco embaixo, numa linha só; o balão da pessoa fica sem bloco", () => {
     const ms = [
       daPessoa("p1", t0, { texto: "Migra os relatórios do financeiro", trabalhoId: "wr" }),
       msg("r1", t0 + MIN, { turnoId: "tr", origemTurno: "conversa", trabalhoId: "wr", texto: "Convertendo o lote 1" }),
       anexo("ta", t0 + 2 * MIN, { kind: "trabalho_aberto", trabalhoId: "wr", titulo: "Migrar relatórios", origem: "rede" }, { turnoId: "tr", origemTurno: "conversa", trabalhoId: "wr" }),
     ];
     const { e, c } = cenario(ms, lista([trabalho("wr", { titulo: "Migrar relatórios", origem: "rede", ultimoPasso: "convertendo o lote 2", iniciadoEm: AGORA - 8 * MIN })]));
-    const p1 = doBloco(c, e, "p1");
-    expect(p1).toContain('<section class="progresso progresso-uma" data-frentes="wr" aria-label="Tarefa Migrar relatórios: rodando">');
-    // Embaixo do balão (fora dele), antes do fim do artigo.
-    expect(p1.indexOf("</div>", p1.indexOf('class="bubble"'))).toBeLessThan(p1.indexOf('<section class="progresso'));
-    expect(p1).toContain('<span class="progresso-passo">convertendo o lote 2</span>');
-    expect(p1).toContain('<span class="progresso-fim">8 min</span>');
-    expect(p1).not.toContain("progresso-barra");
-    expect(p1).not.toContain("ver as");
+    expect(doBloco(c, e, "p1")).not.toContain("progresso");
+    const linha = doBloco(c, e, "linha:ta");
+    expect(linha).toContain('class="message bot rede-virou"');
+    expect(linha).toContain("Seguiu numa tarefa para o chat ficar livre");
+    expect(linha.indexOf("Seguiu numa tarefa")).toBeLessThan(linha.indexOf('<section class="progresso'));
+    expect(linha).toContain('<section class="progresso progresso-uma" data-frentes="wr" aria-label="Tarefa Migrar relatórios: rodando">');
+    expect(linha).toContain('<span class="progresso-passo">convertendo o lote 2</span>');
+    expect(linha).toContain('<span class="progresso-fim">8 min</span>');
+    expect(linha).not.toContain("progresso-barra");
+    expect(linha).not.toContain("ver as");
+    // A fala de antes da promoção vem antes da linha (a linha não desce para depois das falas do turno).
+    const chaves = blocos(c, e).map((b) => b.chave);
+    expect(chaves.indexOf("r1")).toBeLessThan(chaves.indexOf("linha:ta"));
   });
 
-  it("a rede que terminou: a resposta final dela (balão 'da tarefa …' do mesmo turno) não puxa o bloco do balão da pessoa", () => {
+  it("a rede que terminou: a resposta final dela (balão 'da tarefa …' do mesmo turno) não puxa o bloco nem a linha", () => {
     const ms = [
       daPessoa("p1", t0, { texto: "Migra os relatórios do financeiro", trabalhoId: "wr" }),
       anexo("ta", t0 + 2 * MIN, { kind: "trabalho_aberto", trabalhoId: "wr", titulo: "Migrar relatórios", origem: "rede" }, { turnoId: "tr", origemTurno: "conversa", trabalhoId: "wr" }),
@@ -284,7 +289,9 @@ describe("a frente da rede e a frente única", () => {
     const { e, c } = cenario(ms, lista([feita]));
     expect(doBloco(c, e, "r9")).toContain("Migrei os 3 lotes.");
     expect(doBloco(c, e, "r9")).not.toContain("progresso");
-    expect(doBloco(c, e, "p1")).toContain('<section class="progresso progresso-uma"');
+    expect(doBloco(c, e, "linha:ta")).toContain('<section class="progresso progresso-uma"');
+    const chaves = blocos(c, e).map((b) => b.chave);
+    expect(chaves.indexOf("linha:ta")).toBeLessThan(chaves.indexOf("r9"));
   });
 
   it("uma frente só (o abrir_task de sempre): a linha com o título e o passo; pronta, 'pronta às HH:MM'", () => {
