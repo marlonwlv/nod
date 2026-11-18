@@ -11,6 +11,8 @@ const AMOSTRAS: Record<(typeof CLASSES_ERRO_FORNECEDOR)[number], string[]> = {
   login_expirado: [
     "success | Invalid API key · Please run /login",
     "success | OAuth token has expired. Please obtain a new token or refresh your existing token.",
+    // Observado em produção em 2026-11-18: Claude Code 2.1.296, sessão que não conseguiu renovar.
+    "success | Failed to authenticate: OAuth session expired and could not be refreshed",
     "success | Not logged in · Please run /login",
     'success | API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
     "unexpected status 401 Unauthorized: Missing bearer or basic authentication in header",
