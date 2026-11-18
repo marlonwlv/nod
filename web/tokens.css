@@ -271,6 +271,11 @@
   --chat-pessoa-tinta-neutra: #1c1c1c;
   --chat-brilho-balao: inset 0 .5px 0 #ffffff29, inset 0 -.5px 0 #ffffff29, inset 0 0 0 .5px #1c1c1c0f;
   --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
+  /* ADR-187 §5 (lote B passo 6, 2026-11-18; Paper 1c e P1): o cartão vivo — a sombra dele, o segmento da tarefa que anda e o
+     da que ainda não começou. */
+  --chat-cartao-sombra: 0 0 0 .5px #1c1c1c1f, 0 2px 6px #1c1c1c0a;
+  --chat-barra-andando: #1c1c1c40;
+  --chat-barra-vazia: #1c1c1c14;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -424,6 +429,9 @@
     --chat-pessoa-tinta-neutra: #f5f5f52e;
     --chat-brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
     --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
+    --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
+    --chat-barra-andando: #f5f5f540;
+    --chat-barra-vazia: #f5f5f514;
   }
 }
 
@@ -578,6 +586,9 @@
   --chat-pessoa-tinta-neutra: #f5f5f52e;
   --chat-brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
   --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
+  --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
+  --chat-barra-andando: #f5f5f540;
+  --chat-barra-vazia: #f5f5f514;
 }
 
 /* =====================================================================================

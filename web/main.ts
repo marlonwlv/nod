@@ -192,7 +192,7 @@ import { renderConectores } from "./telas/conectores.ts";
 import { appsQueFaltam } from "./telas/rotina-precisa.ts";
 import { criarConexoes } from "./lib/conexao.ts";
 import type { Proposta } from "../src/contracts/conversa.ts";
-import { criarProgressoNaTela, progressoFechado } from "./telas/progresso-na-fala.ts";
+import { criarProgressoNaTela } from "./telas/progresso-na-fala.ts";
 import { blocosAoVivo, blocosDoHistorico, pensarFechado, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, tomarTrocaDoIndicador, type BlocoDaTimeline } from "./telas/conversa.ts";
 import { criarArtefatosVivos } from "./telas/artefatos-vivos.ts";
 import { criarDiagramasVivos } from "./telas/diagramas-vivos.ts";
@@ -6523,10 +6523,10 @@ function progressoDaPilula(p: Pilula, soAVista = false): HTMLElement | null {
   return null;
 }
 
-/** A pílula fechou sozinha com o foco dentro: o foco vai ao "ver as N" do bloco que entrou na vista (ou ao título da frente). */
+/** A pílula fechou sozinha com o foco dentro: o foco vai à primeira linha (ou chip) do cartão vivo que entrou na vista. */
 function focarProgressoNaFala(p: Pilula): void {
   const bloco = progressoDaPilula(p, true);
-  bloco?.querySelector<HTMLElement>(".progresso-resumo, .progresso-titulo")?.focus({ preventScroll: true });
+  bloco?.querySelector<HTMLElement>("[data-act]")?.focus({ preventScroll: true });
 }
 
 /** "Ver na conversa ↑": fecha a pílula, rola até a fala com o progresso e a realça (como o protótipo D4BE2). */
@@ -8287,16 +8287,6 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "nova-tarefa": (el) => abrirNovaTarefa(el),
   "nova-tarefa-contexto": () => { levarContextoNaTarefa = !levarContextoNaTarefa; render(); },
   "dica-tarefas-entendi": () => { marcarDicaDasTarefasVista(); document.getElementById("composer-texto")?.focus({ preventScroll: true }); },
-  // Chat limpo (PR 7): "ver as 5" do progresso na fala abre no lugar, como a troca; a abertura conta para o gatilho da
-  // ADR-099 ("detalhe das frentes aberto em mais de 30%"), no tipo `frentes`.
-  "abrir-progresso": (el) => {
-    const chave = (el.dataset.linhaChave ?? "").replace(/^frentes:/, "");
-    // Paper 15: a lista nasce aberta; o clique que a fecha fica lembrado (`progressoFechado`).
-    if (el.closest("details")?.open) return progressoFechado(chave, true);
-    progressoFechado(chave, false);
-    const tipo = tipoLinha(el.dataset.linhaTipo);
-    if (tipo) telemetria.aberta({ tipo, agenteId: el.dataset.agente ?? "", chaveLinha: el.dataset.linhaChave ?? "" });
-  },
   // Chat limpo (PR 3): a troca abre no lugar (o <details> cuida disso); só a abertura conta na telemetria da ADR-083.
   "abrir-troca": (el) => {
     if (el.closest("details")?.open) return;

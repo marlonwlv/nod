@@ -3,7 +3,7 @@ import type { Estado } from "../estado/reducer.ts";
 import { dividirAbas, type AbaDeTarefa } from "../lib/abas-de-tarefa.ts";
 import { esc } from "../lib/render.ts";
 import { aberto, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "../lib/trabalhos.ts";
-import { ANEL_RODANDO, PONTO_PRECISA } from "./pilula-do-bot.ts";
+import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
 import { IC_OK } from "./progresso-na-fala.ts";
 import { agente } from "./trabalhos.ts";
 

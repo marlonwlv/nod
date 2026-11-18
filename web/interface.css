@@ -631,41 +631,19 @@
 .atividade-ok { width: 14px; flex: none; color: var(--success); font-weight: 700; }
 .atividade-etapas li.atividade-anteriores { padding-left: 24px; color: var(--ink-3); font-size: var(--fs-rotulo); border-top: 0; }
 
-/* O progresso na fala que abriu as frentes (definido em 2026-10-18, chat limpo, PR 7; protótipo "4", com a fala à vista):
-   um cartão claro dentro do balão do bot, com a barra (um segmento por frente) e "3 de 5 prontas · … · ver as 5", que abre
-   a lista no lugar. Na frente da rede, embaixo do balão da pessoa. */
+/* O progresso na fala que abriu as frentes (definido em 2026-10-18, chat limpo, PR 7): o lugar dele embaixo da fala. O cartão
+   vivo em si (ADR-187 §5, lote B passo 6, 2026-11-18) mora em chat.css; as peças `.progresso-item` abaixo são da lista de
+   subagentes da tarefa (trabalhos.ts, P350). */
 /* A largura mínima vai na coluna da fala (QA do PR 398): no balão, `min(100%, …)` era 100% de uma coluna do tamanho do texto e
    não valia nada — "Abri 2 frentes." apertava o cartão em ~200 px. O 86% é o mesmo teto do `max-width` da coluna. */
 .bubble-wrap:has(> .bubble > .progresso-lugar), .bubble-wrap:has(> .progresso-lugar) { min-width: min(86%, 440px); }
 /* O lugar que a fala guarda para o bloco (QA do PR 398): o bloco é trocado nele sem regravar a fala; não muda o desenho. */
 .progresso-lugar { display: contents; }
-.progresso { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--raio-12); color: var(--ink); font-size: var(--fs-corpo-2); line-height: 1.45; }
-.message.you .progresso { width: min(100%, 420px); margin: 6px 0 0 auto; box-sizing: border-box; }
 /* ADR-187 (protótipo 1d, 2026-11-17): a tarefa que a rede abriu — a linha discreta do lado do bot e o cartão logo embaixo. */
 .rede-virou-linha { display: flex; align-items: center; gap: 4px; margin: 0 0 0 2px; color: var(--ink-3); font-size: var(--fs-legenda); line-height: 1.4; }
 .rede-virou-linha .linha-ic svg { width: 12px; height: 12px; }
-.rede-virou .progresso { margin-top: 6px; }
-.progresso-barra { display: flex; gap: 3px; }
-.progresso-seg { flex: 1; height: 4px; border-radius: var(--raio-2); background: var(--line); }
-.progresso-seg.pronta { background: var(--success); }
-.progresso-seg.rodando { background: color-mix(in srgb, var(--success) 40%, var(--surface)); }
-.progresso-seg.precisa { background: var(--signal); }
-.progresso-seg.parada { background: color-mix(in srgb, var(--line-strong) 45%, var(--surface)); }
-.progresso-seg.falhou { background: var(--danger); }
-.progresso-resumo { display: flex; align-items: center; gap: 8px; min-height: 24px; cursor: pointer; list-style: none; border-radius: var(--raio-6); }
-.progresso-resumo::-webkit-details-marker { display: none; }
-.progresso-resumo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.progresso-txt { flex: 1; min-width: 0; }
-.progresso-resto { color: var(--ink-3); }
-.progresso-ver, .progresso-ocultar { flex: none; white-space: nowrap; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
-.progresso-ocultar, .progresso-det[open] > summary .progresso-ver { display: none; }
-.progresso-det[open] > summary .progresso-ocultar { display: inline; }
-.progresso-lista { display: flex; flex-direction: column; margin: 8px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); list-style: none; }
 .progresso-item { display: flex; align-items: center; gap: 9px; padding: 5px 0; }
 .progresso-corpo { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.progresso-em-linha { flex-direction: row; align-items: baseline; gap: 6px; }
-.progresso-em-linha .progresso-passo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.progresso-em-linha .progresso-passo::before { content: "· "; }
 .progresso-titulo { align-self: flex-start; max-width: 100%; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .progresso-titulo:hover { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .progresso-titulo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--raio-4); }
@@ -1882,8 +1860,6 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 .pf-fechar:focus-visible, .pf-ver:focus-visible, .pf-parar:focus-visible, .pf-memoria-linha:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .pf-miolo { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .pf-lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.pf-lista .progresso-item { padding: 6px 0; }
-.pf-lista .progresso-item.pf-depois { border-top: 1px solid var(--line); }
 .pf-lote, .pf-secao { margin: 10px 0 2px; font-size: var(--fs-rotulo); font-weight: 400; color: var(--ink-3); }
 .pf-miolo > :first-child { margin-top: 0; }
 .pf-item { display: flex; align-items: center; gap: 9px; padding: 6px 0; }

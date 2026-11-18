@@ -519,31 +519,10 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 }
 
 /* =====================================================================================
-   Rodada 2 — o cartão do lote na fala (Paper 15, progress_block): texto solto da fala, cartão com borda sutil e sombra
-   de controle, raio 14, padding 12/14/10, gap 10; barra de 6 px (gap 3); resumo numa linha em 13/18 ("2 de 5 prontas"
-   forte, "·" em ink-4, "1 precisa de você" laranja); lista aberta com linhas de 44 px, ícone em 18 px, título 13 médio e
-   o passo em 12. As cores da barra: pronta verde, rodando a tinta, precisa laranja, esperando a borda forte.
+   Rodada 2 — as peças de linha do Paper 15 (linhas de 44 px, ícone em 18 px, título 13 médio e o passo em 12), hoje só na
+   lista de subagentes da tarefa (P350). O cartão vivo da conversa saiu daqui em 2026-11-18 (ADR-187 §5, chat.css).
    ===================================================================================== */
 @media not ((hover: none) and (pointer: coarse)) {
-.timeline .bubble-wrap:has(> .bubble > .progresso-lugar) { width: min(100%, 620px); min-width: 0; }
-.timeline .progresso { gap: 10px; margin-top: 14px; padding: 12px 14px 10px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-14, 14px); background: var(--surface-elevated); box-shadow: var(--sombra-controle); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
-.timeline .progresso-seg { height: 6px; border-radius: var(--raio-full); background: var(--borda); }
-.timeline .progresso-seg.pronta { background: var(--pronto); }
-.timeline .progresso-seg.rodando { background: var(--action); }
-.timeline .progresso-seg.precisa { background: var(--aguardando-ponto); }
-.timeline .progresso-seg:is(.esperando, .sem_noticia) { background: var(--borda-forte); }
-.timeline .progresso-seg.parada { background: var(--ink-3); }
-.timeline .progresso-resumo { gap: 6px; min-height: 18px; }
-.timeline .progresso-txt { display: flex; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; color: var(--ink-2); }
-.timeline .progresso-principal { font-weight: var(--peso-forte); color: var(--ink); }
-.timeline .progresso-resto { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
-.timeline .progresso-sep { color: var(--ink-4); padding: 0 6px; font-size: 0; }
-.timeline .progresso-sep::before { content: "·"; font-size: var(--fs-corpo-2); }
-.timeline .progresso-parte.precisa { color: var(--aguardando); font-weight: var(--peso-medio); }
-.timeline :is(.progresso-ver, .progresso-ocultar) { color: var(--ink-2); font-weight: var(--peso-medio); text-decoration: none; }
-.timeline .progresso-chev { flex: none; color: var(--ink-3); margin-left: -2px; }
-.timeline .progresso-det[open] > summary .progresso-chev { transform: rotate(180deg); }
-.timeline .progresso-lista { margin: 12px -10px -4px; padding: 0; border-top: 0; }
 .timeline .progresso-item { min-height: 44px; box-sizing: border-box; padding: 5px 10px; gap: 10px; border-radius: var(--raio-10); }
 .timeline .progresso-item > .progresso-ic { width: 18px; height: 18px; }
 .timeline .progresso-titulo { font-weight: var(--peso-medio); line-height: var(--lh-corpo-2); }
@@ -576,7 +555,6 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 }
 /* `.esperando` (o aviso de espera do card de acesso, interface.css) também é o estado da frente: no bloco e na pílula
    o segmento e a linha não herdam aquela caixa. */
-.progresso-seg.esperando { display: block; padding: 0; margin: 0; gap: 0; }
 .progresso-item.esperando { margin: 0; background: transparent; font-size: inherit; }
 .progresso-ic.com-mascote { width: 18px; height: 18px; }
 .progresso-ic.com-mascote::before { content: none; }
@@ -584,9 +562,9 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 /* Paper 15b (rodada 4): o passo de agora da frente com o mascote do bot girando (o "run" do Paper), numa coluna de 18. */
 .passo-ic-mascote { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: none; }
 .passo-ic-mascote > nod-mascote.icon.mascote { --mascote-tam: 18px; width: 18px; height: 18px; min-width: 18px; min-height: 18px; margin: 0; }
-@media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-txt { align-items: baseline; } .timeline .progresso-item.esperando { padding: 5px 10px; border-radius: var(--raio-10); } }
+@media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-item.esperando { padding: 5px 10px; border-radius: var(--raio-10); } }
 .progresso-ic.esperando { padding: 0; margin: 0; gap: 0; background: transparent; border-radius: 0; font-size: inherit; }
-@media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-passo::first-letter, .pf-lista .progresso-passo::first-letter { text-transform: uppercase; } }
+@media not ((hover: none) and (pointer: coarse)) { .timeline .progresso-passo::first-letter { text-transform: uppercase; } }
 
 /* A pílula do bot aberta acima do campo (Paper 15c, s15c): cartão de 680 px, raio 18, padding 4/4/0, sombra de popover;
    cabeçalho de 40 px (ponto, "5 frentes do Dante" forte, "2 de 5 prontas" em cinza, "⌄ fechar" fantasma); linhas de 42 px
@@ -603,20 +581,6 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .pf-fechar { gap: 4px; height: 24px; padding: 0 8px; border-radius: var(--raio-8); background: transparent; color: var(--ink-2); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
 .pf-fechar:hover { background: var(--hover); }
 .pf-miolo { padding: 0 4px; }
-.pf-lista .progresso-item { min-height: 42px; box-sizing: border-box; padding: 5px 10px; gap: 10px; border-radius: var(--raio-10); }
-.pf-lista .progresso-item.pf-depois { border-top: 0; margin-top: 9px; position: relative; }
-.pf-lista .progresso-item.pf-depois::before { content: ""; position: absolute; left: 10px; right: 10px; top: -5px; height: 1px; background: var(--divisoria); }
-.pf-lista .progresso-ic { width: 18px; height: 18px; }
-.pf-lista .progresso-titulo { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-medio); }
-.pf-lista .progresso-passo { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf-lista .progresso-item.precisa .progresso-passo { color: var(--aguardando); }
-.pf-lista .progresso-fim { font-size: var(--fs-rotulo); color: var(--ink-3); }
-.pf-lista .progresso-ic.pronta { color: var(--pronto-tinta); }
-.pf-lista .progresso-ic.precisa::before { background: var(--aguardando-ponto); box-shadow: 0 0 0 3px var(--aguardando-soft); }
-.pf-lista .progresso-ic.rodando::before { background: var(--action); }
-.pf-lista .progresso-ic.esperando::before { width: 9px; height: 9px; border: 1.6px solid var(--ink-3); }
-.pf-responder { flex: none; height: 24px; padding: 0 8px; margin-right: 8px; border: 0; border-radius: var(--raio-8); background: var(--hover); color: var(--ink); font: inherit; font-size: var(--fs-rotulo); font-weight: var(--peso-medio); cursor: pointer; }
-.pf-responder:hover { background: var(--ativo); }
 .pf-lote, .pf-secao { margin: 0; padding: 10px 10px 2px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); font-weight: var(--peso-medio); color: var(--ink-3); }
 .pf-item { min-height: 42px; box-sizing: border-box; padding: 5px 10px; gap: 10px; }
 .pf-item > .pf-ponto { width: 9px; height: 9px; margin: 0 4.5px; border: 1.6px solid var(--ink-3); animation: none; }

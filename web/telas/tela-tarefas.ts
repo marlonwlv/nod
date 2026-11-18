@@ -9,7 +9,7 @@ import { esc, hora, horaSemZero, iconeAgente } from "../lib/render.ts";
 import { aberto, agrupar, dicaSemContato, emEspera, filtrar, meiaNoiteDe, naFilaDaCota, pilulaDaCota, situacaoDe, tempoDe, textoNaFilaDaCota, tituloCurto, type GruposTrabalhos } from "../lib/trabalhos.ts";
 import { iconeDaAba } from "./abas-de-tarefa.ts";
 import { botAceitaTarefa } from "./nova-tarefa.ts";
-import { ANEL_RODANDO, PONTO_PRECISA } from "./pilula-do-bot.ts";
+import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
 import { IC_OK } from "./progresso-na-fala.ts";
 import { agente } from "./trabalhos.ts";
 

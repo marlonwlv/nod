@@ -139,14 +139,26 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
 describe("a pílula alargada (protótipo D4BE2)", () => {
   const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono()), "orq", progresso([], ["w1", "w2", "w3", "w4", "w5"])));
 
-  it("rodando primeiro, com o último passo e o tempo; depois as prontas da mais nova para a mais velha (Paper 15c), com ✓; o traço entre as duas", () => {
+  it("ADR-187 §5 (Paper 4d, 2026-11-18): a linha do cartão vivo — rodando primeiro com o passo, depois as prontas da mais nova para a mais velha, com o estado curto à direita", () => {
     const ordem = [...p.partes.corpo.matchAll(/data-id="(w\d)"/g)].map((m) => m[1]);
     expect(ordem).toEqual(["w3", "w5", "w4", "w2", "w1"]);
-    expect(p.partes.corpo).toContain('Hero w3 · Terminal retrô</button><span class="sr-only"> (rodando)</span><span class="progresso-passo">ajustando o contraste</span></span><span class="progresso-fim">12 min</span>');
-    expect(p.partes.corpo).toContain('<span class="progresso-passo">rodando os testes</span></span><span class="progresso-fim">9 min</span>');
-    expect(p.partes.corpo).toContain('<li class="progresso-item pf-depois pronta">');
-    expect(p.partes.corpo).toContain('<span class="progresso-fim">01:09</span>');
-    expect(p.partes.corpo.match(/pf-depois/g)).toHaveLength(1);
+    expect(p.partes.corpo).toContain('<button type="button" class="tv-linha" data-act="abrir-trabalho" data-id="w3" data-estado="rodando">');
+    expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w3 · Terminal retrô</span><span class="sr-only"> (rodando)</span><span class="tv-estado">ajustando o contraste</span></span></button>');
+    expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w1 · Aurora</span><span class="tv-estado">pronta</span>');
+    // Na lista da aba a linha inteira abre a tarefa: sem "Ver", sem o tempo e sem o traço entre as que andam e as prontas.
+    expect(p.partes.corpo).not.toContain("tv-ver");
+    expect(p.partes.corpo).not.toContain("pf-depois");
+  });
+
+  it("Paper 4d: a que precisa de você em cima, realçada, com \"precisa de você\"; e \"+ Nova tarefa ⌘N\" no fim quando a pessoa pode abrir uma", () => {
+    const comPergunta = HEROS.map((t) => (t.id === "w5" ? { ...t, estado: "precisa_de_voce" as const, ultimoPasso: "Posso incluir a Ásia?" } : t));
+    const n = { atalho: "⌘N", aria: "Meta+N" };
+    const corpo = daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO, n)).partes.corpo;
+    expect([...corpo.matchAll(/data-id="(w\d)"/g)].map((m) => m[1])).toEqual(["w5", "w3", "w4", "w2", "w1"]);
+    expect(corpo).toContain('data-id="w5" data-estado="precisa"');
+    expect(corpo).toContain('<span class="tv-estado">precisa de você</span>');
+    expect(corpo).toMatch(/<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="Meta\+N">\+ Nova tarefa <kbd class="pf-nova-atalho">⌘N<\/kbd><\/button>$/);
+    expect(daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO)).partes.corpo).not.toContain("pf-nova-linha");
   });
 
   it("o cabeçalho com o resumo e \"fechar\"; no pé, \"Ver na conversa ↑\" (com a fala na janela) e \"Parar\"", () => {

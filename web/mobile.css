@@ -473,7 +473,7 @@
   .pf-cab { min-height: 44px; }
   .pf-fechar { min-height: 44px; padding: 0 14px; }
   /* NOD-381: as linhas e os botões do painel de frentes com alvo de 44 px (eram 40). */
-  .pf-lista .progresso-item, .pf-item { min-height: 44px; }
+  .pf-lista .tv-linha, .pf-item { min-height: 44px; }
   .pf-ver, .pf-parar { min-height: 44px; min-width: 44px; }
   /* QA: o chip fechado tinha 42 px de altura dentro da moldura de 44. */
   .pf-botao { min-height: 44px; }
@@ -494,8 +494,7 @@
 
 /* O progresso na fala e a linha do turno vivo no celular (chat limpo, PR 7): alvos de toque de 40 px, sem mudar o desenho. */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
-  .progresso-resumo { min-height: 40px; }
-  .progresso-titulo { min-height: 32px; }
+  .progresso .tv-linha, .progresso :is(.tv-chip, .tv-mais) { min-height: 40px; }
   .pensar > summary { min-height: 44px; }
   .message.ao-vivo { padding-left: 35px; }
   .message.ao-vivo.fala-viva, .message.fala-viva { padding-left: 0; }
