@@ -2,7 +2,7 @@ import type { RespostaMutacao } from "../../../contracts/api.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import { abrirTarefaDaPessoa, fazerAqui, fazerDepois, mensagemParaTrabalho } from "../../../use-cases/coordenar-trabalhos.ts";
 import { cobrarEspera, desistirDaEspera } from "../../../use-cases/esperas-de-colega.ts";
-import { detalharTrabalho, listarTrabalhos, pararTrabalho } from "../../../use-cases/trabalhos.ts";
+import { detalharTrabalho, listarTrabalhos, pararTrabalho, renomearTrabalho } from "../../../use-cases/trabalhos.ts";
 import { registrarLinhas, taxasDasLinhas } from "../../../use-cases/telemetria-linhas.ts";
 import type { Rota } from "../roteador.ts";
 import { corpoObjeto, criarExecutor, texto, type DepsRotas } from "./executar-caso.ts";
@@ -41,6 +41,17 @@ export function criarRotasTrabalhos(d: DepsRotas): Rota[] {
       async handler(ctx) {
         const r = await executar(ctx.escopo, pararTrabalho, { trabalhoId: ctx.params.id ?? "" });
         const resposta: RespostaMutacao & { trabalho: typeof r.trabalho; interrompidos: number } = { ok: true, ids: { trabalho: r.trabalho.id }, trabalho: r.trabalho, interrompidos: r.interrompidos };
+        ctx.json(200, resposta);
+      },
+    },
+    {
+      // ADR-187 §6 (2026-11-18): a pessoa renomeia a tarefa na aba (duplo clique no nome ou "Renomear" no menu dela).
+      metodo: "POST", acao: "trabalhos.renomear",
+      padrao: new RegExp(`^/trabalhos/${ID}/titulo$`),
+      async handler(ctx) {
+        const corpo = corpoObjeto(await ctx.corpo());
+        const r = await executar(ctx.escopo, renomearTrabalho, { trabalhoId: ctx.params.id ?? "", titulo: texto(corpo.titulo) });
+        const resposta: RespostaMutacao & { trabalho: typeof r.trabalho } = { ok: true, ids: { trabalho: r.trabalho.id }, trabalho: r.trabalho };
         ctx.json(200, resposta);
       },
     },

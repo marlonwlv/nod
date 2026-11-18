@@ -69,6 +69,9 @@ export const ACOES_CONVERSA = [
     cartaoNoChat: false,
     chat: { estado: "parcial", via: { ferramenta: "abrir_task" }, falta: "pelo chat quem escreve o pedido é o bot (abrir_task, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato" },
   },
+  // ADR-187 §6 (2026-11-18): renomear a tarefa na aba. No chat ainda não: nenhuma ferramenta do bot muda o título (a
+  // mesma onda das irmãs parar, depois e fazer_aqui).
+  { id: "trabalhos.renomear", titulo: "Renomear uma tarefa", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "trabalhos.parar", titulo: "Parar um trabalho", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "trabalhos.enviar", titulo: "Mandar uma mensagem num trabalho", risco: "muda", cartaoNoChat: false, chat: PROPRIO_CHAT },
   { id: "trabalhos.depois", titulo: "Deixar um trabalho para depois", risco: "muda", cartaoNoChat: false, chat: falta },

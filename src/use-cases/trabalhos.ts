@@ -21,7 +21,7 @@ import { acabaLogo, DISCO_ALERTA_MB, DISCO_CRITICO_MB, esperaDoMac, esperaNaMaqu
 import { pastaDoBot } from "../domain/nativas.ts";
 import { nomeDaMaquina, semContatoDesde as semContatoDaMaquina } from "../domain/presenca-da-maquina.ts";
 import { ehFrente, tituloDoLote } from "../domain/frente.ts";
-import { estadoDoTrabalho, linhaCurta, linhaDaFala, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
+import { estadoDoTrabalho, linhaCurta, linhaDaFala, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, tituloOuNada, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
 import type { ExtrasTrabalho, NovoTrabalho } from "../repositories/trabalhos.repo.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
 import { colegaComCota } from "./cota-do-colega.ts";
@@ -474,6 +474,20 @@ export async function travarTrabalhoComTurnos(deps: Pick<Deps, "repos">, trabalh
   if (!t) throw new ErroDeDominio("nao_encontrado");
   return { ...t, turnos };
 }
+
+/**
+ * ADR-187 §6 (definido em 2026-11-18): a pessoa renomeia a tarefa na própria aba (POST trabalhos/:id/titulo). O título
+ * passa pela mesma regra do nascimento (`tituloOuNada`: primeira linha, 80 caracteres, com letra); sem letra, entrada
+ * inválida. Só o nome muda: a pasta e a sessão continuam. O frame `trabalho_mudou` faz a aba, a pílula e a tela Tarefas relerem.
+ */
+export const renomearTrabalho: CasoDeUso<{ trabalhoId: string; titulo: string }, { trabalho: TrabalhoDto }> = async (deps, input) => {
+  const titulo = tituloOuNada(input.titulo);
+  if (!titulo) throw new ErroDeDominio("entrada_invalida", { cause: "titulo" });
+  const t = await deps.repos.trabalhos.renomear(input.trabalhoId, titulo);
+  if (!t) throw new ErroDeDominio("nao_encontrado");
+  const [dto] = await trabalhosParaDto(deps, [t]);
+  return { data: { trabalho: dto! }, events: [eventoTrabalhoMudou(deps, t)] };
+};
 
 /**
  * Parar uma task só (POST trabalhos/:id/parar): interrompe os pendentes dela, pede a interrupção do que roda (a

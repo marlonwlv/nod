@@ -1586,6 +1586,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         t.depoisDeTrabalhoId = depoisDeId;
         return semDonoTrabalho(t);
       },
+      async renomear(id, titulo) {
+        const t = doTenant(b.trabalhos).find((x) => x.id === id && x.ownerId === escopo.pessoaId);
+        if (!t) return null;
+        t.titulo = titulo;
+        return semDonoTrabalho(t);
+      },
       async redeComSessao(conversaId, sessaoCli) {
         const t = doTenant(b.trabalhos).filter((x) => x.conversaId === conversaId && x.origem === "rede" && x.sessaoCli === sessaoCli).sort((x, y) => y.criadoEm - x.criadoEm)[0];
         return t ? semDonoTrabalho(t) : null;

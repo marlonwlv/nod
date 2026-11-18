@@ -377,6 +377,15 @@ export function trabalhosRepo(conn: Conn, escopo: Escopo) {
       return l ? paraTrabalho(l) : null;
     },
 
+    /** ADR-187 §6 (2026-11-18): a pessoa renomeia a tarefa pela aba (duplo clique ou o menu dela). Null = não é dela. */
+    async renomear(id: string, titulo: string): Promise<Trabalho | null> {
+      const [l] = await conn<Linha[]>`
+        update trabalhos set titulo = ${titulo}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}
+        returning ${conn.unsafe(COLUNAS)}`;
+      return l ? paraTrabalho(l) : null;
+    },
+
     /**
      * A rede de 2 min (#193): a próxima mensagem da conversa segue numa CÓPIA desta sessão quando ela é de um trabalho
      * `rede` (o turno promovido continua nela).
