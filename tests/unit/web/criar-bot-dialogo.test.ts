@@ -100,14 +100,15 @@ describe("o HTML do diálogo (tela 1)", () => {
 describe("ligação no app", () => {
   const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
 
-  it("o + abre o menu Novo no clique e cria na hora no segurar; o tooltip diz os dois atalhos e o segurar", () => {
+  // ADR-187 §7 (2026-11-18): o chat em grupo ficou sem tecla (o ⌘⇧N é do novo bot); o tooltip diz o do bot e o segurar.
+  it("o + abre o menu Novo no clique e cria na hora no segurar; o tooltip diz o atalho e o segurar", () => {
     expect(main).toContain('data-act="menu-do-mais" data-segurar="segurar-mais" aria-haspopup="menu" aria-expanded="false"');
-    expect(main).toContain('title="Novo (${ATALHO_NOVO_BOT.texto} bot · ${ATALHO_NOVA_SALA.texto} grupo) · segure para criar um bot na hora"');
+    expect(main).toContain('title="Novo (${ATALHO_NOVO_BOT.texto} bot) · segure para criar um bot na hora"');
     expect(main).toContain('"menu-do-mais": (el) => abrirMenuDoMais(el),');
     expect(main).not.toMatch(/class="create-trigger[^"]*" data-act="navegar" data-tela="novo-bot"/);
   });
 
-  it("⌘N abre o diálogo (não a tela Nova conversa)", () => {
+  it("⌘⇧N abre o diálogo (não a tela Nova conversa)", () => {
     const bloco = main.slice(main.indexOf('if (a.tipo === "novo-bot") {'), main.indexOf('if (a.tipo === "novo-bot") {') + 200);
     expect(bloco).toContain("abrirDialogoCriarBot()");
     expect(bloco).not.toContain('navegar({ tipo: "novo-bot" })');

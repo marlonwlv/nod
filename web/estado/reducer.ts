@@ -94,6 +94,12 @@ export type Tela =
    */
   | { tipo: "trabalho"; id: string; voltar: Tela }
   /**
+   * ADR-187 §7 (lote B, passo 2, 2026-11-18): a tarefa nova da pessoa, ainda sem nada no servidor (Paper 3b, "O chat limpo
+   * da tarefa nova"). A primeira mensagem cria a tarefa e a tela vira a `trabalho` dela; sair antes não deixa nada.
+   * `levarConversa` é o "Levar o contexto da conversa" (Paper 3e).
+   */
+  | { tipo: "nova-tarefa"; agenteId: string; voltar: Tela; levarConversa?: true }
+  /**
    * definido em 2026-10-07 (#191): a tela provisória de uma linha do chat sem trabalho por trás (execuções antigas de
    * rotina, pedido a colega de antes do ADR-083): as mensagens que a linha recolheu, na ordem, com Fechar.
    */
@@ -587,6 +593,11 @@ export type Estado = {
   experimentos: Experimentos;
   /** NOD-415 (ADR-141): a flag NOD_QUADROS libera os quadros para esta pessoa (ausente = não liberado). */
   quadroLiberado?: boolean;
+  /**
+   * Os avisos da tela que a pessoa já fechou (`preferencias.avisosFechados`, 0059), lidos de `GET preferencias`; null =
+   * ainda não chegaram (nenhuma dica de uma vez aparece antes, para não piscar). ADR-187 §5: a dica das tarefas.
+   */
+  avisosFechados?: readonly string[] | null;
   /** O cartão do tempo aberto no topo da task (protótipo "Nod — tempo da task"): o id da task, ou null. */
   tempoTaskAberto: string | null;
 };
@@ -677,6 +688,8 @@ export type Acao =
   | { tipo: "onboarding-texto"; ligado: boolean }
   | { tipo: "hidratar-relatos"; relatos: Relato[] | null; erro?: boolean }
   | { tipo: "modo-dev"; ligado: boolean }
+  /** ADR-187 §5 (2026-11-18): os avisos fechados da pessoa (a leitura de `GET preferencias` ou um aviso que ela fechou agora). */
+  | { tipo: "avisos-fechados"; chaves: readonly string[] }
   | { tipo: "hidratar-raio-x"; conversaId: string; raioX: RaioXConversa }
   | { tipo: "chave-emitida"; emitida: ChaveEmitidaDto | null }
   | { tipo: "faixa"; faixa: FaixaParada | null }
@@ -1591,6 +1604,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // cru do fornecedor — não pode ficar na tela da próxima sessão (ADR-002).
       return { ...estado, sessao: acao.escopo, chaves: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.chaves : null, maquinas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.maquinas : null, computadorPessoa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.computadorPessoa : null, instalarSsh: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.instalarSsh : null, contasIa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.contasIa : null, detalhesContas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.detalhesContas : null, relatos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.relatos : null, chaveEmitida: null,
         modoDev: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.modoDev : { ligado: false, raioX: {} },
+        avisosFechados: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.avisosFechados ?? null : null,
         naoLidos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.naoLidos : null, novasDesde: {},
         citacoes: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.citacoes : {},
         carregado: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.carregado : estadoInicial.carregado,
@@ -2067,6 +2081,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     // Desligado, os resumos saem da memória: religar busca de novo, com o que mudou nesse meio-tempo.
     case "modo-dev":
       return { ...estado, modoDev: { ligado: acao.ligado, raioX: acao.ligado ? estado.modoDev.raioX : {} } };
+    case "avisos-fechados":
+      return { ...estado, avisosFechados: [...new Set([...(estado.avisosFechados ?? []), ...acao.chaves])] };
     case "hidratar-raio-x":
       return estado.modoDev.ligado ? { ...estado, modoDev: { ...estado.modoDev, raioX: { ...estado.modoDev.raioX, [acao.conversaId]: acao.raioX } } } : estado;
     case "chave-emitida":

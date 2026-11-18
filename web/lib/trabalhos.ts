@@ -542,12 +542,12 @@ export function pilulaMemoria(nivel: NivelPressao | null, contagem: number, comV
  * uma linha), o `voltar` de fora continua — Fechar nunca vira uma pilha de tasks.
  */
 export function telaDaTask(atual: Tela, id: string): Extract<Tela, { tipo: "trabalho" }> {
-  return { tipo: "trabalho", id, voltar: atual.tipo === "trabalho" || atual.tipo === "linha" ? atual.voltar : atual };
+  return { tipo: "trabalho", id, voltar: atual.tipo === "trabalho" || atual.tipo === "linha" || atual.tipo === "nova-tarefa" ? atual.voltar : atual };
 }
 
 /** Para onde o Fechar (ou o Esc) da tela da task e da tela provisória leva; null = não é uma delas. */
 export function telaAoFechar(atual: Tela): Tela | null {
-  return atual.tipo === "trabalho" || atual.tipo === "linha" ? atual.voltar : null;
+  return atual.tipo === "trabalho" || atual.tipo === "linha" || atual.tipo === "nova-tarefa" ? atual.voltar : null;
 }
 
 /**

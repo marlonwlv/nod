@@ -59,7 +59,7 @@ import type { EstadoExecucao, ExecucoesDaTarefa } from "../../src/contracts/quad
 import type { AppDto, PaginasDto } from "../../src/contracts/apps.ts";
 import type { AppCanvasDto, CanvasItemDto, ComentarioCanvasDto, NivelCanvasDto, NovoComentarioDto, VersaoCanvasDto, VistaCanvasDto } from "../../src/contracts/canvas.ts";
 import type { AtividadeTarefa } from "../../src/contracts/quadro-pela-conversa.ts";
-import type { EventoLinha, TaxaDeAbertura, TrabalhoDetalheDto, TrabalhosDto } from "../../src/contracts/trabalho.ts";
+import type { EventoLinha, TaxaDeAbertura, TrabalhoDetalheDto, TrabalhoDto, TrabalhosDto } from "../../src/contracts/trabalho.ts";
 import type { DisponibilidadeLigacao, FalaLigacao, Ligacao, LigacaoCriada } from "../../src/contracts/ligacao.ts";
 import type { IaDaLigacao } from "../../src/contracts/voz.ts";
 import type { AcaoComandoVoz } from "../../src/contracts/voz.ts";
@@ -487,6 +487,10 @@ export function criarApi(escopo: Escopo) {
     trabalhos: (agenteId?: string) => get<TrabalhosDto>(agenteId ? `trabalhos?agenteId=${encodeURIComponent(agenteId)}` : "trabalhos"),
     trabalho: (id: string) => get<TrabalhoDetalheDto>(`trabalhos/${encodeURIComponent(id)}`),
     escreverNoTrabalho: (id: string, texto: string) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/mensagens`, { texto }),
+    // ADR-187 §7 (2026-11-18): a tarefa nova da pessoa nasce da primeira mensagem dela (⌘N, o "+" da aba).
+    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa }),
+    // 0059: o aviso fechado fica com a pessoa (ADR-187 §5, a dica das tarefas, uma vez por pessoa).
+    fecharAviso: (chave: string) => post<Preferencias>("preferencias/avisos-fechados", { chave }),
     pararTrabalho: (id: string) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/parar`),
     // NOD-377: o Cobrar e o Desistir da espera de colega vencida.
     cobrarEspera: (agenteId: string, tarefaId: string) => post<{ ok: true; cobradoEm: number; cobrancas: number }>(`agentes/${encodeURIComponent(agenteId)}/esperas-de-colega/${encodeURIComponent(tarefaId)}/cobrar`),

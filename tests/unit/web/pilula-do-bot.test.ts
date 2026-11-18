@@ -267,7 +267,8 @@ describe("alargar, Esc e o foco", () => {
     expect(pilulaNaConversa(estadoCom(prontas, dono()), "orq", SEM_PROGRESSO).tipo).toBe("nada");
     const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
     const desenhar = main.slice(main.indexOf("function desenharPilula(): void {"), main.indexOf("function anunciarFrentesTerminadas("));
-    expect(desenhar).toMatch(/if \(p\.tipo === "nada"\) \{\n\s+const ao = aoSumir\(/);
+    // ADR-187 §5: a aba "+ Nova tarefa" (vazia) no lugar da pílula também tira o foco de dentro dela.
+    expect(desenhar).toMatch(/if \(p\.tipo === "nada" \|\| p\.tipo === "vazia"\) \{\n\s+const ao = aoSumir\(/);
     expect(desenhar).toMatch(/ao\.foco === "campo"\) document\.getElementById\("composer-texto"\)\?\.focus/);
   });
 

@@ -122,7 +122,9 @@ describe("ADR-167: paleta ⌘K (tela 08)", () => {
     expect(itens[0]).toMatchObject({ grupo: "Bots", titulo: "Ada · PM", sub: "Feito. NOD-512", teclas: ["⌘", "1"] });
     expect(itens.find((i) => i.chave === "trab:t1")).toMatchObject({ grupo: "Conversas", sub: "Gil · ontem" });
     expect(itens.find((i) => i.chave === "ajuste:tema")).toMatchObject({ grupo: "Ajustes", sub: "Configurações › Geral › Aparência" });
-    expect(itens.find((i) => i.chave === "acao:novo-bot")).toMatchObject({ grupo: "Ações", teclas: ["⌘", "N"] });
+    // ADR-187 §7 (2026-11-18): ⌘N é a nova tarefa; o novo bot foi para ⌘⇧N.
+    expect(itens.find((i) => i.chave === "acao:nova-tarefa")).toMatchObject({ grupo: "Ações", teclas: ["⌘", "N"] });
+    expect(itens.find((i) => i.chave === "acao:novo-bot")).toMatchObject({ grupo: "Ações", teclas: ["⌘", "⇧", "N"] });
     expect(itens.filter((i) => i.grupo === "Ações")).toHaveLength(ACOES_DA_PALETA.length);
   });
   it("frente de comportamento: as salas (conversas em grupo) entram em Conversas e abrem a sala", () => {

@@ -239,6 +239,9 @@
   --chat-aba-fundo: #f4f4f2;
   --chat-aba-contorno: #1c1c1c1f;
   --chat-aba-precisa: #2563eb;
+  /* ADR-187 §5 e §7 (lote B, passo 2, 2026-11-18; Paper 4q e 3b): a tecla da aba "+ Nova tarefa" e o fundo dos chips. */
+  --chat-tinta-4: #1c1c1c59;
+  --chat-chip-fundo: #1c1c1c0a;
   --chat-aviso-fundo: #fbf0df;
   --chat-aviso-contorno: #da830e59;
   --chat-aviso-tinta: #8a5200;
@@ -384,6 +387,8 @@
     --chat-aba-fundo: #262626;
     --chat-aba-contorno: #f5f5f51f;
     --chat-aba-precisa: #60a5fa;
+    --chat-tinta-4: #f5f5f559;
+    --chat-chip-fundo: #f5f5f50f;
     --chat-aviso-fundo: #3a2a12;
     --chat-aviso-contorno: #e2860066;
     --chat-aviso-tinta: #f5c47a;
@@ -530,6 +535,8 @@
   --chat-aba-fundo: #262626;
   --chat-aba-contorno: #f5f5f51f;
   --chat-aba-precisa: #60a5fa;
+  --chat-tinta-4: #f5f5f559;
+  --chat-chip-fundo: #f5f5f50f;
   --chat-aviso-fundo: #3a2a12;
   --chat-aviso-contorno: #e2860066;
   --chat-aviso-tinta: #f5c47a;

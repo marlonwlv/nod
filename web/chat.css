@@ -186,3 +186,43 @@
 .pilula-frentes .pf-selo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 /* A linha da máquina que o selo abriu em Máquinas. */
 .cfg-maq.maq-realce { border-radius: var(--raio-10); box-shadow: 0 0 0 2px var(--chat-aviso-icone); transition: box-shadow var(--dur-lento) ease; }
+
+/* ---- ADR-187 §5 e §7 (lote B, passo 2, 2026-11-18): a nova tarefa da pessoa ---------------------------------------------
+   Paper 4q (opção B): sem tarefas, a aba nunca some — "+ Nova tarefa ⌘N", discreta (texto 13 em cinza, tecla 12 mais
+   clara, padding 5/12/7, a mesma forma da aba que conta); com tarefas, um "+" pequeno à direita dela (padding 5/10/7, 4 px
+   de vão). Opção C: a dica, um cartão acima da aba (raio 12, anel de 0,5 px, padding 12/14, título 13/18 em 600, texto
+   12/17, ações 12/16 com 12 de vão), uma vez por pessoa. */
+.pilula-frentes .pf-mais { display: flex; align-items: center; justify-content: center; margin-left: -2px; padding: 5px 10px 7px; border: 0; border-radius: 12px 12px 0 0;
+  background: var(--chat-aba-fundo); box-shadow: 0 0 0 1px var(--chat-aba-contorno); color: var(--chat-tinta-2); font: inherit; line-height: 18px; cursor: pointer; }
+.pilula-frentes .pf-mais svg { display: block; width: 12px; height: 18px; }
+.pilula-frentes .pf-mais:hover { color: var(--chat-tinta); }
+.pilula-frentes .pf-mais:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pilula-frentes.pf-vazia .pf-botao.pf-nova { gap: 6px; padding: 5px 12px 7px; color: var(--chat-tinta-2); font-weight: var(--peso-regular); }
+.pilula-frentes.pf-vazia .pf-nova:hover { color: var(--chat-tinta); }
+.pilula-frentes.pf-vazia .pf-nova-atalho { padding: 0; border: 0; background: none; color: var(--chat-tinta-4); font: inherit; font-size: 12px; line-height: 16px; }
+.pilula-frentes .pf-dica { position: absolute; z-index: 4; left: 0; bottom: 40px; display: flex; flex-direction: column; gap: 6px; width: min(100%, 520px); box-sizing: border-box;
+  padding: 12px 14px; border-radius: 12px; background: var(--chat-superficie); box-shadow: 0 0 0 0.5px var(--chat-aba-contorno), var(--shadow-pop); }
+.pilula-frentes .pf-dica h3 { margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--chat-tinta); }
+.pilula-frentes .pf-dica p { margin: 0; font-size: 12px; line-height: 17px; color: var(--chat-tinta-2); }
+.pilula-frentes .pf-dica-acoes { display: flex; gap: 12px; }
+.pilula-frentes .pf-dica-acoes button { padding: 0; border: 0; background: none; font: inherit; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); cursor: pointer; }
+.pilula-frentes .pf-dica-acoes .pf-dica-abrir { font-weight: 500; color: var(--chat-tinta); }
+.pilula-frentes .pf-dica-acoes button:hover { text-decoration: underline; text-underline-offset: 2px; }
+.pilula-frentes .pf-dica-acoes button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 3px; }
+/* A dica cobre o fim da conversa: a folga embaixo da timeline cresce com ela. */
+.stage.com-pilula-frentes:has(.pf-dica) > .timeline-wrap { padding-bottom: 150px; }
+
+/* Paper 3b ("O chat limpo da tarefa nova"): a pergunta no meio (22/28 em 500), o texto 14/20 em cinza e o chip "Levar o
+   contexto da conversa" (13/18, fundo de 4 %, raio cheio, padding 6/12); ligado (Paper 3e), o fundo da aba, o anel e o ✓. */
+.stage > .timeline-wrap > .timeline.nt-timeline { margin: auto; max-width: 780px; }
+.nt-vazia { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0 16px; text-align: center; }
+.nt-vazia h2 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 500; letter-spacing: -0.01em; color: var(--chat-tinta); }
+.nt-vazia .nt-texto { margin: 0; font-size: 14px; line-height: 20px; color: var(--chat-tinta-2); }
+.nt-vazia .nt-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding-top: 10px; }
+.nt-vazia .nt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: var(--raio-full); background: var(--chat-chip-fundo);
+  color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px; cursor: pointer; }
+.nt-vazia .nt-chip:hover { background: var(--hover); }
+.nt-vazia .nt-chip[aria-pressed="true"] { background: var(--chat-aba-fundo); box-shadow: 0 0 0 1px var(--chat-aba-contorno); }
+.nt-vazia .nt-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.nt-topo .nt-titulo { font-weight: var(--peso-regular); }
+.nt-topo .nt-titulo b { font-weight: 600; }

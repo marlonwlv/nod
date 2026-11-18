@@ -2,9 +2,10 @@ import { esc } from "../lib/render.ts";
 import { dialogo } from "./gestao-agentes.ts";
 
 /**
- * O menu "Novo" do + da barra (clique, Enter/Espaço e clique direito): "Novo bot" (⌘N) e "Novo chat em grupo" (⇧⌘N).
+ * O menu "Novo" do + da barra (clique, Enter/Espaço e clique direito): "Novo bot" (⇧⌘N desde a ADR-187 §7, que deu o ⌘N à
+ * nova tarefa) e "Novo chat em grupo" (sem tecla desde então).
  * No computador ele nasce ancorado no +; no celular (`folha`) sobe da base com o título "Novo" e itens de 44 px.
- * O segurar do + continua criando o bot na hora e o ⌘N continua indo direto ao diálogo "Criar novo bot".
+ * O segurar do + continua criando o bot na hora e o ⇧⌘N vai direto ao diálogo "Criar novo bot".
  */
 export type EscolhaDoMais = "novo-bot" | "nova-sala";
 

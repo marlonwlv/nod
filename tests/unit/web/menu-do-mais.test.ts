@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { abrirMenuDoMais, htmlMenuDoMais } from "../../../web/telas/menu-do-mais.ts";
-import { atalhoDaNovaSala } from "../../../web/lib/atalhos.ts";
+import { atalhoDoNovoBot } from "../../../web/lib/atalhos.ts";
 
 /** O + da barra abre o menu "Novo" (Novo bot e Novo chat em grupo), no computador ancorado e no celular como folha. */
 const esvaziar = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0)); };
@@ -72,9 +72,12 @@ describe("menu Novo do +", () => {
     expect(htmlMenuDoMais({ atalhoBot: "⌘N", atalhoGrupo: "⇧⌘N", folha: true })).toContain("Novo chat em grupo");
   });
 
-  it("o atalho do grupo segue o lugar", () => {
-    expect(atalhoDaNovaSala("app-mac")).toEqual({ texto: "⇧⌘N", aria: "Meta+Shift+N" });
-    expect(atalhoDaNovaSala("outro")).toEqual({ texto: "Alt+Shift+N", aria: "Alt+Shift+N" });
+  // ADR-187 §7 (2026-11-18): o ⌘⇧N passou do grupo para o novo bot (o ⌘N é da nova tarefa); o grupo ficou sem tecla.
+  it("o atalho do novo bot segue o lugar, e o grupo sem tecla não mostra nenhuma", () => {
+    expect(atalhoDoNovoBot("app-mac")).toEqual({ texto: "⇧⌘N", aria: "Meta+Shift+N" });
+    expect(atalhoDoNovoBot("outro")).toEqual({ texto: "Alt+Shift+N", aria: "Alt+Shift+N" });
+    const html = htmlMenuDoMais({ atalhoBot: "⇧⌘N", atalhoGrupo: "", folha: false });
+    expect(html.match(/class="mc-meta"/g)).toHaveLength(1);
   });
 });
 
