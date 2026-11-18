@@ -25,6 +25,7 @@ import { fraseDaDecisao } from "../domain/contas-da-ia.ts";
 import { decidirLimiteDaConta, ehIaComConta, fraseDoLimiteDaConta, voltaDaIa, type ContaDaPessoa, type DecisaoDoLimiteDaConta } from "../domain/contas-da-pessoa.ts";
 import type { IaComConta } from "../contracts/contas-ia.ts";
 import { harnessFixado } from "../domain/harness.ts";
+import { iaDoModelo } from "../domain/ia-do-modelo.ts";
 import { temSessaoNaIa } from "../domain/troca-de-ia.ts";
 import { contasDaIaDoTurno, criarNotaDeContas, escolherContaDoTurno, lerContasDaMaquina, type ContasDaMaquina } from "./contas-do-turno.ts";
 import { avisarTrocaDeIa, contaForaDaFila, contaQueParou, lerIas, maquinaDasTasks, outraIaParaAsTasks, quandoAIaVolta } from "./trocas-de-ia.ts";
@@ -569,7 +570,7 @@ async function aposLimite(
 ): Promise<RuntimeEvent[] | null> {
   const { turno, autoria, agora } = p;
   // ADR-108 (R4): o turno de uma task não é refeito noutra IA aqui — quem decide é aposLimiteDaIaNoFundo (a sessão).
-  if (turno.origem !== "conversa" || turno.harness !== "auto" || turno.modelo !== "auto" || turno.trabalhoId) return null;
+  if (turno.origem !== "conversa" || harnessFixado(turno.harness, turno.modelo) !== null || turno.trabalhoId) return null;
   const [agente, preferencias] = await Promise.all([deps.repos.agentes.buscar(turno.agenteId), deps.repos.preferencias.buscar()]);
   if (!agente) return null;
   const interrompido = evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: p.motivoInterrupcao, motivo_falha: p.motivoFalha, ia_no_limite: p.ia, renova_em: p.renovaEm, custo_usd: p.custoUsd } });
@@ -614,7 +615,7 @@ async function aposLimite(
     entradaAnexos: turno.entradaAnexos,
     entradaConfianca: turno.entradaConfianca,
     // NOD-268: fixo na IA escolhida (modelo `auto` = a escolha do bot para ela, senão o recomendado).
-    modelo: turno.modelo,
+    modelo: iaDoModelo(turno.modelo) === para ? turno.modelo : "auto",
     harness: para,
     reenvios: turno.reenvios + 1,
     executor: p.executor,
@@ -1350,7 +1351,7 @@ async function aposContaSemAcesso(
     evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: "executor_indisponivel", motivo_falha: "nao_autenticado", causa, custo_usd: p.custoUsd } }),
   ];
   // NOD-268: no teto de reenvios, a negação com a causa (a conta sem acesso não volta sozinha com a hora).
-  const repete = turno.origem === "conversa" && turno.harness === "auto" && turno.modelo === "auto" && p.harness !== null && p.outraIa !== null && p.outraIa !== p.harness && podeReenviar(turno);
+  const repete = turno.origem === "conversa" && harnessFixado(turno.harness, turno.modelo) === null && p.harness !== null && p.outraIa !== null && p.outraIa !== p.harness && podeReenviar(turno);
   if (repete && p.harness && p.outraIa) {
     const linha = await deps.repos.mensagens.criar({
       conversaId: turno.conversaId,

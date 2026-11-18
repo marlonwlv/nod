@@ -185,6 +185,13 @@ it("NOD-171: com os prontos da pessoa, o computador com Claude reivindica o fixa
     expect(await repos.turnos.reivindicar({ machineId: randomUUID(), agora: Date.now(), harnessesProntos: ["claude-cli"], harnessesProntosPessoa: ["claude-cli"] })).toMatchObject({ id: turno!.id });
   });
 });
+it("Automático com Sonnet pode ser reivindicado pela máquina que só tem Codex", async () => {
+  await withRollback(escopo, async (trx) => {
+    const { repos, agenteId, conversaId } = await agenteComConversa(trx, escopo);
+    const turno = await repos.turnos.enfileirar({ executor: "catcher", agenteId, conversaId, origem: "conversa", prazoEm: Date.now() + 60000, profundidade: 0, entradaTexto: "oi", entradaConfianca: "confiavel", modelo: "sonnet", harness: "auto" });
+    expect(await repos.turnos.reivindicar({ machineId: randomUUID(), agora: Date.now(), harnessesProntos: ["codex-cli"], harnessesProntosPessoa: ["codex-cli"] })).toMatchObject({ id: turno!.id, harness: "auto", modelo: "sonnet" });
+  });
+});
 
 });
 

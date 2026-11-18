@@ -274,7 +274,7 @@ async function adiarNoAutomatico(
   p: { turno: Turno; executor: Executor; prontos?: readonly string[]; noLimite?: readonly string[]; agora: number },
 ): Promise<{ data: SaidaDespacharTurno; events: RuntimeEvent[] } | null> {
   const { turno, agora } = p;
-  if (turno.origem !== "conversa" || turno.harness !== "auto" || turno.modelo !== "auto" || (turno.acordarEm ?? null) !== null || turno.pararSolicitadoEm !== null) return null;
+  if (turno.origem !== "conversa" || harnessFixado(turno.harness, turno.modelo) !== null || (turno.acordarEm ?? null) !== null || turno.pararSolicitadoEm !== null) return null;
   const prontos = p.prontos ?? [];
   if (prontos.length === 0 || !prontos.every((id) => p.noLimite?.includes(id))) return null;
   const limites = (await deps.repos.preferencias.buscar()).iasNoLimite;
