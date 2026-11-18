@@ -3327,7 +3327,9 @@ function anunciarSubagentes(id: string): void {
 
 /** A tela da task em duas partes: o histórico lembrado (só muda com mensagem nova) e o ao vivo do turno do trabalho. */
 function partesDaTask(id: string): PartesDaTimeline {
-  return { historico: lembrar("task-historico", estado, [id, versaoDasFases(), versaoDasDecisoesDaBarra(), barraNaConversa, ehCelular()], (e) => blocosDoHistoricoDaTask(e, id)), aoVivo: blocosAoVivoDaTask(estado, id) };
+  // Validação de 2026-11-17: com a versão dos textos abertos (ADR-185), o "Mostrar o texto todo" do texto parado na tela da
+  // tarefa redesenha; sem ela, o clique abria o texto só na memória e a tela seguia recolhida.
+  return { historico: lembrar("task-historico", estado, [id, versaoDasFases(), versaoDasDecisoesDaBarra(), barraNaConversa, ehCelular(), versaoDosTextos()], (e) => blocosDoHistoricoDaTask(e, id)), aoVivo: blocosAoVivoDaTask(estado, id) };
 }
 
 function partesDaTimeline(): PartesDaTimeline | null {

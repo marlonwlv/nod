@@ -151,6 +151,8 @@ describe("ADR-185: abrir o texto parado redesenha o histórico memorizado", () =
     expect(alternarTexto("x")).toBe(false);
     const m = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
     expect(m).toMatch(/lembrar\("timeline-historico", estado, \[[^\]]*versaoDosTextos\(\)\]/);
+    // Validação de 2026-11-17: a tela da tarefa também (o texto parado nela não abria).
+    expect(m).toMatch(/lembrar\("task-historico", estado, \[[^\]]*versaoDosTextos\(\)\]/);
   });
 });
 
