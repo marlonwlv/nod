@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PRAZO_GUARDA, RAZAO_MAXIMA_LINEAR, razaoDeCrescimento } from "../../helpers/crescimento.ts";
 import { CAPACIDADES_HARNESS, SEM_CAPACIDADES } from "../../../src/contracts/harness.ts";
 import { seguimentoNaRede } from "../../../src/domain/frente.ts";
-import { CARACTERES_TITULO_PROVISORIO, esperaDoTrabalho, estadoDoTrabalho, linhaCurta, linhaDaFala, PALAVRAS_TITULO_PROVISORIO, pastaDoTrabalho, pastaRelativa, podeAbrirTask, podeMandarParaTask, promoveNaRede, REDE_MS, slugDoTrabalho, TITULO_PROVISORIO_RESERVA, tituloDoTrabalho, tituloOuNada, tituloProvisorio, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
+import { CARACTERES_TITULO_PROVISORIO, esperaDoTrabalho, estadoDoTrabalho, linhaCurta, linhaDaFala, PALAVRAS_TITULO_PROVISORIO, pastaDoTrabalho, pastaRelativa, podeAbrirTask, podeMandarParaTask, promoveNaRede, REDE_MS, REDE_NAO_LIDA_MS, slugDoTrabalho, TITULO_PROVISORIO_RESERVA, tituloDoTrabalho, tituloOuNada, tituloProvisorio, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
 
 const base: FatosTrabalho = { estadoAtual: "na_fila", iniciado: false, parando: 0, despachando: 0, pendentes: 0, esperandoOutro: false, decisaoPendente: false, aguardandoColega: false, ultimo: null };
 
@@ -193,6 +193,13 @@ describe("promoveNaRede (rede de 2 min)", () => {
     expect(promoveNaRede({ ...ok, fezFerramenta: false })).toBe(false);
     expect(promoveNaRede({ ...ok, trabalhoId: "w" })).toBe(false);
     expect(promoveNaRede({ ...ok, estado: "pendente" })).toBe(false);
+    // ADR-187 (2026-11-17): a fala não lida há REDE_NAO_LIDA_MS adianta a rede; as outras condições continuam valendo.
+    const cedo = { ...ok, despachadoHaMs: 30_000 };
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: REDE_NAO_LIDA_MS })).toBe(true);
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: REDE_NAO_LIDA_MS - 1 })).toBe(false);
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: null })).toBe(false);
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: REDE_NAO_LIDA_MS, fezFerramenta: false })).toBe(false);
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: REDE_NAO_LIDA_MS, origem: "rotina" })).toBe(false);
     for (const origem of ["sala", "rotina", "delegacao", "retomada", "ligacao", "peer"] as const) expect(promoveNaRede({ ...ok, origem })).toBe(false);
   });
   it("ADR-099 (I8): a retomada do dono em modo conversa também; a de rotina, colega, sala ou sem modo, não", () => {

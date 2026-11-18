@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import type { IdHarness } from "../../src/contracts/harness.ts";
 import type { ResultadoTurno } from "../../src/contracts/turno.ts";
 import { comCitacao, trechoDaCitacao } from "../../src/domain/citacao.ts";
-import { REDE_MS } from "../../src/domain/trabalho.ts";
+import { REDE_MS, REDE_NAO_LIDA_MS } from "../../src/domain/trabalho.ts";
 import { criarTokenTurno } from "../../src/services/token-turno.ts";
 import { assentarTurno } from "../../src/use-cases/assentar-turno.ts";
 import { promoverNaRede } from "../../src/use-cases/coordenar-trabalhos.ts";
@@ -236,6 +236,43 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
       expect(await m.repos.turnos.buscar(naoLida.id)).toMatchObject({ estado: "pendente", absorvidoPor: null, trabalhoId: null });
       expect(await m.repos.turnos.buscar(lida.id)).toMatchObject({ estado: "interrompido", absorvidoPor: vivo.id });
       expect(r.events?.some((e) => e.kind === "turno_criado" && e.turnoId === naoLida.id)).toBe(true);
+    });
+  });
+
+  it("ADR-187: a fala absorvida e não lida há REDE_NAO_LIDA_MS promove antes dos 2 min; recente ou já lida, não", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx, "claude-cli");
+      const vivo = await m.turno({ texto: "faça duas pesquisas em paralelo" });
+      await m.despachar(vivo.id);
+      const msg = (await m.falaDaPessoa("quanto é dois mais dois?"))!;
+      const pergunta = (await m.repos.turnos.enfileirar({ executor: "catcher", conversaId: m.conversaId, agenteId: m.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: msg.texto, entradaConfianca: "confiavel", modelo: "auto", harness: "claude-cli", mensagemOrigemId: msg.id }))!;
+      await m.repos.turnos.absorverNaSessao((await m.repos.turnos.buscar(vivo.id))!, [pergunta.id], { informaLeitura: true });
+      // O turno roda há 30 s: longe dos 2 min.
+      const cedo = () => promoverNaRede(m.deps, { turnoId: vivo.id, despachadoEm: Date.now() - 30_000, fezFerramenta: true, harness: "claude-cli", sessaoCli: null, sessaoExecutor: "local", maquinaBifurca: false, modo: "conversa" });
+
+      expect((await cedo()).data.trabalho).toBeNull();
+      await trx`update turnos set criado_em = now() - make_interval(secs => ${(REDE_NAO_LIDA_MS + 5_000) / 1000}) where id = ${pergunta.id}`;
+      expect(await m.repos.turnos.naoLidaMaisAntiga(vivo.id)).toBeLessThanOrEqual(Date.now() - REDE_NAO_LIDA_MS);
+
+      const r = await cedo();
+      expect(r.data.trabalho).toMatchObject({ origem: "rede", forma: "frente" });
+      expect(await m.repos.turnos.buscar(pergunta.id)).toMatchObject({ estado: "pendente", absorvidoPor: null });
+    });
+  });
+
+  it("ADR-187: a fala que o bot já leu não adianta a rede", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx, "claude-cli");
+      const vivo = await m.turno({ texto: "faça duas pesquisas em paralelo" });
+      await m.despachar(vivo.id);
+      const msg = (await m.falaDaPessoa("como está indo?"))!;
+      const pergunta = (await m.repos.turnos.enfileirar({ executor: "catcher", conversaId: m.conversaId, agenteId: m.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: msg.texto, entradaConfianca: "confiavel", modelo: "auto", harness: "claude-cli", mensagemOrigemId: msg.id }))!;
+      await m.repos.turnos.absorverNaSessao((await m.repos.turnos.buscar(vivo.id))!, [pergunta.id], { informaLeitura: true });
+      await trx`update turnos set criado_em = now() - interval '60 seconds' where id = ${pergunta.id}`;
+      await m.repos.turnos.marcarLidosNaSessao(vivo.id, [pergunta.id]);
+      expect(await m.repos.turnos.naoLidaMaisAntiga(vivo.id)).toBeNull();
+      const r = await promoverNaRede(m.deps, { turnoId: vivo.id, despachadoEm: Date.now() - 30_000, fezFerramenta: true, harness: "claude-cli", sessaoCli: null, sessaoExecutor: "local", maquinaBifurca: false, modo: "conversa" });
+      expect(r.data.trabalho).toBeNull();
     });
   });
 });

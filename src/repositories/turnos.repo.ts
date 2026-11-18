@@ -1321,6 +1321,20 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       return linhas.map(paraTurno).sort(porChegada);
     },
 
+    /**
+     * ADR-187 (definido em 2026-11-17): quando chegou a fala mais antiga que este turno absorveu e o bot ainda não leu
+     * (null se não há). A rede de 2 min promove antes por ela (`promoveNaRede`). Só o app que informa a leitura deixa
+     * `lido_na_sessao_em` nulo, então o app antigo nunca adianta a promoção.
+     */
+    async naoLidaMaisAntiga(turnoId: string): Promise<number | null> {
+      const [l] = await conn<{ em: Date | null }[]>`
+        select min(criado_em) as em from turnos
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and absorvido_por = ${turnoId}
+          and estado = 'interrompido' and motivo_interrupcao = 'absorvido' and lido_na_sessao_em is null
+          and mensagem_origem_id is not null`;
+      return l?.em ? l.em.getTime() : null;
+    },
+
     /** ADR-185: as falas que turnos ainda vivos absorveram (a conversa mostra "lê ao fim do passo atual" × "Lida"). */
     async absorvidosPorVivos(conversaId: string): Promise<Turno[]> {
       const linhas = await conn<Linha[]>`

@@ -405,15 +405,25 @@ export function soltarPorMemoria(p: { nivel: "verde" | "amarela" | "vermelha" | 
 export const REDE_MS = 120_000;
 
 /**
+ * ADR-187 (validação de 2026-11-17): a fala da pessoa que o turno absorveu e o bot não leu há isto (ele esperava um
+ * subagente) promove o turno antes dos 2 min. Medido no mesmo dia: "quanto é dois mais dois?" esperou 80 s pela rede. O
+ * app renova a cada `AGUARDAR_MENSAGEM_MS` (20 s) com a sessão aberta, então a promoção sai uns 20 s depois da fala.
+ */
+export const REDE_NAO_LIDA_MS = 15_000;
+
+/**
  * A rede de 2 min (#193): só o turno do dono com a pessoa (nada de sala, ligação, rotina ou colega), sem trabalho,
  * rodando há REDE_MS, que já chamou ao menos uma ferramenta. `redeMs` existe só para o e2e (ausente, vale REDE_MS).
  * revisto em 2026-10-12 (ADR-099, I8): também a retomada do dono em modo conversa, e com harness que bifurca OU que nem
  * retoma sessão (o dono segue com o histórico). As capacidades são as declaradas do harness; quem escolhe entre bifurcar
  * e largar a sessão é a máquina (`seguimentoNaRede`, domain/frente.ts).
+ * revisto em 2026-11-17 (ADR-187): `naoLidaHaMs` (há quanto tempo a fala absorvida mais antiga espera leitura) promove
+ * antes, a partir de REDE_NAO_LIDA_MS — a conversa larga o pedido e responde a pessoa já.
  */
-export function promoveNaRede(p: { origem: OrigemTurno; modo?: ModoTurno | null; trabalhoId: string | null | undefined; estado: EstadoTurno; despachadoHaMs: number; fezFerramenta: boolean; capacidades: CapacidadesHarness; redeMs?: number }): boolean {
+export function promoveNaRede(p: { origem: OrigemTurno; modo?: ModoTurno | null; trabalhoId: string | null | undefined; estado: EstadoTurno; despachadoHaMs: number; fezFerramenta: boolean; capacidades: CapacidadesHarness; redeMs?: number; naoLidaHaMs?: number | null }): boolean {
   const doDono = p.origem === "conversa" || (p.origem === "retomada" && p.modo === "conversa");
-  return doDono && !p.trabalhoId && p.estado === "despachando" && p.despachadoHaMs >= (p.redeMs ?? REDE_MS) && p.fezFerramenta && (p.capacidades.bifurcaSessao || !p.capacidades.retomaSessao);
+  const naHora = p.despachadoHaMs >= (p.redeMs ?? REDE_MS) || (p.naoLidaHaMs ?? -1) >= REDE_NAO_LIDA_MS;
+  return doDono && !p.trabalhoId && p.estado === "despachando" && naHora && p.fezFerramenta && (p.capacidades.bifurcaSessao || !p.capacidades.retomaSessao);
 }
 
 /** O que a linha "Abriu a task …" diz por origem (texto da mensagem `sistema`; a web desenha pelo payload). */

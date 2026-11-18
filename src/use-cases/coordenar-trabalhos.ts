@@ -309,7 +309,8 @@ export async function contaminarSeAbsorveuDeFora(deps: Pick<Deps, "repos" | "ago
 
 /**
  * A rede de 2 min (ADR-083 §2, #193): na renovação, o turno do dono que passou de 2 min trabalhando (e já chamou
- * ferramenta) vira trabalho `rede`. O processo segue intocado; a sessão dele passa a ser do trabalho.
+ * ferramenta) vira trabalho `rede`; ou antes, quando uma fala da pessoa absorvida espera leitura há REDE_NAO_LIDA_MS
+ * (ADR-187, 2026-11-17). O processo segue intocado; a sessão dele passa a ser do trabalho.
  * revisto em 2026-10-12 (ADR-099, I8): o turno promovido vira FRENTE (`forma='frente'`, num lote de uma frente aberto
  * pelo próprio turno), também a retomada do dono em modo conversa, e sem exigir que o harness bifurque. Como o dono
  * segue sai de `seguimentoNaRede`: bifurcando (a próxima fala sai com `bifurcar`, emitir-plano-turno), largando a sessão
@@ -320,7 +321,8 @@ export const promoverNaRede: CasoDeUso<{ turnoId: string; despachadoEm: number; 
   // Sem harness no plano (catcher puro), não há capacidade declarada para decidir: não promove.
   if (!turno || !input.harness) return { data: { trabalho: null } };
   const capacidades = capacidadesDe(input.harness);
-  if (!promoveNaRede({ origem: turno.origem, modo: input.modo, trabalhoId: turno.trabalhoId, estado: turno.estado, despachadoHaMs: deps.agora() - input.despachadoEm, fezFerramenta: input.fezFerramenta, capacidades, redeMs: input.redeMs })) return { data: { trabalho: null } };
+  const naoLida = await deps.repos.turnos.naoLidaMaisAntiga(turno.id);
+  if (!promoveNaRede({ origem: turno.origem, modo: input.modo, trabalhoId: turno.trabalhoId, estado: turno.estado, despachadoHaMs: deps.agora() - input.despachadoEm, fezFerramenta: input.fezFerramenta, capacidades, redeMs: input.redeMs, naoLidaHaMs: naoLida === null ? null : deps.agora() - naoLida })) return { data: { trabalho: null } };
   // NOD-293 (G10/N9, definido em 2026-10-20): o retorno do lote é a volta das frentes ao dono, não um pedido novo. Promovido,
   // virava outra frente num lote novo — e as frentes que acabavam em segundos pareciam promovidas pela rede.
   // Com `avisar_a_cada_uma`, os retornos intermediários não ficam em `lotes_de_frentes.retorno_turno_id` (só o último fecha o

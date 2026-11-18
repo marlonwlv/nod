@@ -36,7 +36,7 @@ import { relatarEspera as relatarEsperaDaMaquina } from "../../use-cases/esperar
 import { relatarDesfazer as relatarDesfazerDaMaquina } from "../../use-cases/desfazer-turno.ts";
 import type { DesfazerParaRodar, RelatoDesfazer } from "../../contracts/checkpoint.ts";
 import type { EsperaParaRodar, RelatoEspera, RespostaRelatoEspera } from "../../contracts/espera.ts";
-import { REDE_MS } from "../../domain/trabalho.ts";
+import { REDE_MS, REDE_NAO_LIDA_MS } from "../../domain/trabalho.ts";
 import type { MudancaDePressao } from "./trabalhos-vivos.ts";
 import type { LeituraDisco, LeituraMemoria, NivelPressao } from "../../contracts/trabalho.ts";
 import type { UsoDoMac } from "../../contracts/raio-x.ts";
@@ -583,7 +583,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       for (const id of p.mensagensDevolvidas ?? []) jaOferecidas.delete(id);
       // NOD-293 (E9): a oferecida há mais de REOFERTA_MS sem confirmação se perdeu no caminho — entra de novo abaixo.
       soltarOferecidasPerdidas(jaOferecidas, agora());
-      const { ativo, motivo, mensagens, ids, semMoldura, anexos, doDonoSemTrabalho } = await abrirTxEscopada(db, escopo)(async (trx) => {
+      const { ativo, motivo, mensagens, ids, semMoldura, anexos, doDonoSemTrabalho, naoLidaDesde } = await abrirTxEscopada(db, escopo)(async (trx) => {
         const d = depsDe(trx, escopo);
         // NOD-214: a sessão do CLI fica no turno já na renovação — a entrega pode se perder num reinício.
         const r = await d.repos.turnos.renovarLease(p.turnoId, p.machineId, p.sinais, agora(), p.sessaoCli ? { sessaoCli: p.sessaoCli } : {});
@@ -667,7 +667,10 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
           if (mudanca) deps.desfazerMemoria?.(escopo.pessoaId, mudanca);
           throw e;
         }
-        return { ativo: r.ativo, motivo: r.motivo, mensagens: textos, ids, semMoldura, anexos, doDonoSemTrabalho: turno !== null && !turno.trabalhoId && (turno.origem === "conversa" || turno.origem === "retomada") };
+        const doDonoSemTrabalho = turno !== null && !turno.trabalhoId && (turno.origem === "conversa" || turno.origem === "retomada");
+        // ADR-187 (2026-11-17): a fala absorvida e ainda não lida adianta a rede; lida depois da confirmação acima.
+        const naoLidaDesde = doDonoSemTrabalho ? await d.repos.turnos.naoLidaMaisAntiga(p.turnoId) : null;
+        return { ativo: r.ativo, motivo: r.motivo, mensagens: textos, ids, semMoldura, anexos, doDonoSemTrabalho, naoLidaDesde };
       });
       // #189: o que o app confirmou já saiu da fila (absorvido): não está mais "oferecido e esperando confirmação".
       if (ativo) for (const id of p.mensagensEntregues ?? []) jaOferecidas.delete(id);
@@ -684,7 +687,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       // ela sairia duas vezes (no turno promovido e no turno próprio que a mensagem viraria). NOD-293 (E9): só conta a que
       // está dentro da janela de REOFERTA_MS — a perdida saiu do mapa acima e, se ainda pendente, está em `ids`.
       const semMensagemNoAr = ids.length === 0 && jaOferecidas.size === 0;
-      if (ativo && doDonoSemTrabalho && despachado && harness !== null && semMensagemNoAr && agora() - despachado.em >= redeMs && deps.fezFerramenta?.(p.turnoId)) {
+      if (ativo && doDonoSemTrabalho && despachado && harness !== null && semMensagemNoAr && (agora() - despachado.em >= redeMs || (naoLidaDesde !== null && agora() - naoLidaDesde >= REDE_NAO_LIDA_MS)) && deps.fezFerramenta?.(p.turnoId)) {
         await abrirTxEscopada(db, escopo)(async (trx) => {
           const d = depsDe(trx, escopo);
           const r = await promoverNaRede(d, { turnoId: p.turnoId, despachadoEm: despachado.em, fezFerramenta: true, harness, sessaoCli: despachado.sessaoCli, sessaoExecutor: executores.get(p.turnoId) ?? null, maquinaBifurca, modo: despachado.modo, redeMs });
