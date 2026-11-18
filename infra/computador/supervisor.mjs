@@ -527,12 +527,16 @@ export function criarSupervisor(op) {
   }
 
   function pedirATela(t, mensagem, prazoMs = PRAZO_ACAO_MS) {
+    // O filho pode ter soltado o IPC um instante antes de o evento `exit` trocar o estado para fechada. Nesse intervalo,
+    // abrirTela ainda enxerga a tela como aberta. Marcar que nada foi entregue permite relançar e repetir com segurança;
+    // uma ação enviada que caiu sem resposta continua sem retry, porque pode ter produzido efeito.
+    if (!t.proc?.connected) return Promise.resolve({ erro: 'sem_resposta', naoEnviada: true });
     const id = randomUUID();
     return new Promise((resolve) => {
       const timer = setTimeout(() => { t.pendentes.delete(id); try { t.proc.kill('SIGKILL'); } catch { /* segue */ } resolve({ erro: 'sem_resposta' }); }, prazoMs);
       const responder = (m) => { clearTimeout(timer); t.pendentes.delete(id); resolve(m); };
       t.pendentes.set(id, responder);
-      if (!mandarAoFilho(t.proc, { ...mensagem, id }, () => responder({ erro: 'sem_resposta' }))) responder({ erro: 'sem_resposta' });
+      if (!mandarAoFilho(t.proc, { ...mensagem, id }, () => responder({ erro: 'sem_resposta', naoEnviada: true }))) responder({ erro: 'sem_resposta', naoEnviada: true });
     });
   }
 
@@ -556,7 +560,7 @@ export function criarSupervisor(op) {
     const aberta = await abrirTela(c, cmd.agenteId, cmd.uso);
     if (aberta.esperando) return resultado(cmd.id, 'esperando_tela', { quem: aberta.esperando });
     if (!aberta.ok) return falhou(cmd.id, aberta.motivo);
-    const t = c.telas.get(cmd.agenteId);
+    let t = c.telas.get(cmd.agenteId);
     if (t.ocupada) return falhou(cmd.id, 'ocupado');
     t.ocupada = true;
     try {
@@ -572,7 +576,24 @@ export function criarSupervisor(op) {
         pedido = { tipo: 'observar' };
       }
       // Revisão 10 do PR #600: a tela sabe se a ação é da pessoa (a trava do dock é só contra o bot).
-      const m = await pedirATela(t, { tipo: 'acao', acao: pedido, ...(cmd.pessoa === true ? { pessoa: true } : {}) });
+      const mensagem = { tipo: 'acao', acao: pedido, ...(cmd.pessoa === true ? { pessoa: true } : {}) };
+      let m = await pedirATela(t, mensagem);
+      if (m.erro === 'sem_resposta' && m.naoEnviada === true) {
+        // O IPC caiu antes do envio, mas o `exit` ainda não atualizou a foto da tela. Substitui a entrada velha para
+        // abrirTela esperar um filho novo ficar pronto e repete uma única vez. Não repete resposta perdida/timeout.
+        t.ocupada = false;
+        if (c.telas.get(cmd.agenteId) === t) {
+          c.telas.set(cmd.agenteId, { estado: 'fechada', ultimaAcaoEm: t.ultimaAcaoEm });
+          relatarEstado(c);
+        }
+        const reaberta = await abrirTela(c, cmd.agenteId, cmd.uso);
+        if (reaberta.esperando) return resultado(cmd.id, 'esperando_tela', { quem: reaberta.esperando });
+        if (!reaberta.ok) return falhou(cmd.id, reaberta.motivo);
+        t = c.telas.get(cmd.agenteId);
+        if (t.ocupada) return falhou(cmd.id, 'ocupado');
+        t.ocupada = true;
+        m = await pedirATela(t, mensagem);
+      }
       if (m.erro) {
         log(`ação ${cmd.acao.tipo} de ${cmd.agenteId}: ${m.erro} ${m.detalhe ?? ''}`);
         return falhou(cmd.id, ['tela_alterada', 'sem_resposta', 'ocupado'].includes(m.erro) ? m.erro : 'acao_falhou');

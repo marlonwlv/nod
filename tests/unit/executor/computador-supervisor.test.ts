@@ -143,6 +143,43 @@ describe("supervisor", () => {
     expect(sup.estados()[0]?.telas).toEqual([expect.objectContaining({ agenteId: "bot1", estado: "esperando" })]);
   });
 
+  it("relança e repete a ação que chegou depois de o IPC cair, antes do exit atualizar a tela", async () => {
+    const tela = join(tmpdir(), `nod-tela-cai-antes-do-envio-${process.pid}-${Date.now()}.mjs`);
+    await writeFile(tela, `
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+let cfg = null;
+let abertura = 0;
+process.on("message", async (m) => {
+  if (m.tipo === "abrir") {
+    cfg = m.config;
+    await mkdir(cfg.workspace, { recursive: true });
+    const marca = path.join(cfg.workspace, "aberturas.txt");
+    abertura = Number(await readFile(marca, "utf8").catch(() => "0")) + 1;
+    await writeFile(marca, String(abertura));
+    process.send({ tipo: "pronta" });
+  } else if (m.tipo === "vivo" && abertura === 1) {
+    process.disconnect();
+    setTimeout(() => process.exit(0), 80);
+  } else if (m.tipo === "acao") {
+    process.send({ tipo: "resposta", id: m.id, resultado: { texto: "retomou", abertura } });
+  } else if (m.tipo === "fechar") {
+    process.send({ tipo: "fechada" });
+    process.exit(0);
+  }
+});
+`);
+    limpar.push(() => rm(tela, { force: true }));
+    const { sup } = await montar(undefined, undefined, undefined, { tela });
+    await iniciar(sup);
+    expect(await sup.tratar(cmd({ tipo: "acao", agenteId: "bot1", acao: { tipo: "observar" } }))).toMatchObject({ desfecho: "ok", resultado: { abertura: 1 } });
+    const vivo = sup.tratar(cmd({ tipo: "vivo", agenteId: "bot1", vivo: { sessao: "s", token: "t" } }));
+    await new Promise((r) => setTimeout(r, 20));
+    const retomada = await sup.tratar(cmd({ tipo: "acao", agenteId: "bot1", acao: { tipo: "clicar", x: 1, y: 1 } }));
+    expect(retomada).toMatchObject({ desfecho: "ok", resultado: { texto: "retomou", abertura: 2 } });
+    expect(await vivo).toMatchObject({ desfecho: "falhou" });
+  });
+
   it("sair de todos zera a loja; redefinir troca a chave do supervisor e mantém logins/", async () => {
     const { sup, dir } = await montar();
     await iniciar(sup);
