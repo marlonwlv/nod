@@ -556,3 +556,21 @@
 }
 /* No celular estreito, o "+ Nova tarefa" desce para a linha de baixo em vez de cortar o segmentado. */
 @media (max-width: 420px) { .tela-tarefas .tf-cab { flex-wrap: wrap; } }
+/* Validação de 2026-11-18: com arquivo no campo, três andares como no app de referência — os cartões em cima, o texto
+   no meio e, embaixo, o + à esquerda e IA · 🎤 · enviar à direita. Só a ordem visual muda (o Tab segue o HTML: + → texto
+   → IA → 🎤 → enviar). A contagem "1 de 5 · 8 B" sai daqui: o cartão já mostra nome e tamanho. */
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) { flex-wrap: wrap; padding: 10px 8px 8px; row-gap: 6px; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .anexos-fila { order: 0; flex: 1 0 100%; padding: 0 2px; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > textarea { order: 1; flex: 1 0 100%; box-sizing: border-box; padding: 4px 6px; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .mais-campo { order: 2; margin-right: auto; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > :not(.anexos-fila, textarea, .mais-campo) { order: 3; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .anexos-resumo { display: none; }
+/* O + do campo responde: no hover escurece o fundo e a cor; no clique afunda (92%) e volta com um leve repique. Só
+   transform e cor animam; sem movimento reduzido, o afundar some e fica a troca de cor. */
+.composer .box > .mais-campo { transition: background-color 120ms ease, color 120ms ease, transform 220ms cubic-bezier(.3, 1.6, .5, 1); }
+.composer .box > .mais-campo:hover { background: color-mix(in srgb, var(--chat-tinta) 12%, var(--chat-preenchido)); color: var(--chat-tinta); }
+.composer .box > .mais-campo:active { transform: scale(.88); transition-duration: 60ms; }
+.composer .box > .mais-campo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .composer .box > .mais-campo, .composer .box > .mais-campo:active { transform: none; transition: background-color 120ms ease, color 120ms ease; } }
+/* Com arquivo, o enviar fica aceso mesmo sem texto (o arquivo sozinho já é a mensagem). */
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .send:not(:disabled) { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); }

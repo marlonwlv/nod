@@ -3535,7 +3535,7 @@ function atualizarComposer(): void {
   // Item 10, rodada 2: com aprovação aberta e o campo no modo comum, mandar mensagem recusa o pedido (enviarComposer).
   const comPedido = a.placeholder === placeholderPadrao() && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0;
   const rotulo = comPedido ? PLACEHOLDER_COM_APROVACAO : a.placeholder;
-  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : rotulo;
+  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : comPedido ? rotulo : placeholderComArquivo(rotulo);
   if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
   if (ta.getAttribute("aria-label") !== rotulo) ta.setAttribute("aria-label", rotulo);
   // Plano "tela limpa" (2026-10-16, T5): a dica "Enter envia…" saiu. Plano "pergunta com botões" (2026-10-18): a nota do
@@ -3566,7 +3566,7 @@ function atualizarCampoDaTarefa(): void {
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
   if (t.tipo !== "trabalho" || !ta) return;
   const c = campoDaTela(t.id);
-  const placeholder = celular.ativo() ? "Mensagem" : c.placeholder;
+  const placeholder = celular.ativo() ? "Mensagem" : placeholderComArquivo(c.placeholder);
   if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
   if (ta.getAttribute("aria-label") !== c.placeholder) ta.setAttribute("aria-label", c.placeholder);
   const nota = document.getElementById("composer-nota");
@@ -5626,7 +5626,24 @@ function redesenharAnexos(): void {
   fila.hidden = itens.length === 0;
   const r = document.getElementById("composer-resumo");
   if (r) r.textContent = resumoAnexos(itens);
+  // O texto de dentro do campo muda quando o primeiro arquivo entra ou o último sai (não a cada passo do upload).
+  const com = arquivosNoCampo();
+  if (com !== comArquivoNoCampo) { comArquivoNoCampo = com; atualizarComposer(); }
   atualizarParar();
+}
+
+/**
+ * Validação de 2026-11-18: com arquivo no campo o texto é opcional, e o campo diz isso (como o app de referência). A
+ * tarefa nova fica fora: ela precisa do pedido escrito.
+ */
+const PLACEHOLDER_COM_ARQUIVO = "Adicione uma mensagem ou aperte enviar";
+let comArquivoNoCampo = false;
+function arquivosNoCampo(): boolean {
+  const alvo = filaDosAnexos();
+  return !!alvo && estado.tela.tipo !== "nova-tarefa" && (anexosPendentes.get(alvo.chave) ?? []).some((i) => i.estado !== "erro");
+}
+function placeholderComArquivo(base: string): string {
+  return arquivosNoCampo() ? PLACEHOLDER_COM_ARQUIVO : base;
 }
 
 function limparAnexos(conversaId: string): void {
