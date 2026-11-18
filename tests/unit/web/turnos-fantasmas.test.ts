@@ -349,3 +349,16 @@ it("progresso sem início conserva dono e trabalho sem aparecer como turno da co
   expect(e.turnosVivos.task).toMatchObject({ estado: "rodando", trabalhoId: "w1", agenteId: "a" });
   expect(turnosVivosDaConversa(e, C)).toEqual([]);
 });
+
+it("GET trabalhos anterior ao progresso não apaga o turno nem bloqueia os próximos frames", () => {
+  let e = reduzir(base({ t1: vivo("t1", { estado: "rodando", vistoEm: AGORA - H }) }), { tipo: "hidratar-conversa", conversa: conversa(C, [{ id: "t1", estado: "despachando", desde: AGORA - H, mensagemId: null }]), agora: AGORA - 10 });
+  const frame = { streamId: "s", seq: 1, pessoaId: "p", tipo: "turno.atividade" as const, dados: { conversaId: C, turnoId: "t1", rotulo: "Usou o computador" } };
+  e = aplicarFrame(e, frame, AGORA);
+  e = reduzir(e, { tipo: "hidratar-trabalhos", trabalhos: trabalhos([dono("a")]), agora: AGORA - 1 });
+  expect(e.turnosVivos.t1?.estado).toBe("rodando");
+  expect(e.turnosDesmentidos.t1).toBeUndefined();
+  e = aplicarFrame(e, { ...frame, seq: 2 }, AGORA + 1);
+  expect(e.atividades[C]?.t1?.recebidoEm).toBe(AGORA + 1);
+  e = reduzir(e, { tipo: "hidratar-trabalhos", trabalhos: trabalhos([dono("a")]), agora: AGORA + 2 });
+  expect(e.turnosVivos.t1).toBeUndefined();
+});

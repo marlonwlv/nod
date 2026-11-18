@@ -1063,7 +1063,7 @@ function reconciliarPelosDonos(estado: Estado, trabalhos: TrabalhosDto, leituraE
     const naFila = new Set(dono.fila.map((p) => p.turnoId));
     const trabalhando = propriaTrabalhando(dono.estado);
     for (const v of Object.values(estado.turnosVivos)) {
-      if (v.conversaId !== conversaId || v.trabalhoId || !confirmadoAntes(v, leituraEm)) continue;
+      if (v.conversaId !== conversaId || v.trabalhoId || !confirmadoAntes(v, leituraEm) || (estado.atividades[conversaId]?.[v.turnoId]?.recebidoEm ?? 0) >= leituraEm) continue;
       // Revisão: o "na fila" fora da fila com o bot trabalhando pode ser o mesmo turno, já despachado (o frame
       // turno_despachado perdido ou ainda a caminho) — fica; e só a origem que a fila lista pode ser desmentida por ela.
       const desmentido = v.estado === "rodando"
