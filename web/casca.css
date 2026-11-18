@@ -342,8 +342,11 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .timeline .md-tabela :is(th, td) { height: 40px; box-sizing: border-box; padding: 0 14px; border: 0; background: none; font-size: var(--fs-corpo-2); vertical-align: middle; }
 .timeline .md-tabela th { font-weight: var(--peso-regular); color: var(--ink-2); }
 .timeline .md-tabela tr + tr :is(td, th), .timeline .md-tabela tbody tr :is(td, th) { border-top: 1px solid var(--divisoria); }
-.timeline .md-tabela .md-tabela-rodape { display: none; }
-.timeline .md-tabela:hover .md-tabela-rodape, .timeline .md-tabela:focus-within .md-tabela-rodape { display: flex; }
+/* Validação de 2026-11-18: o rodapé com display none→flex mudava a altura do cartão no hover e a fala pulava. O lugar
+   dele fica guardado e ele só aparece (opacidade, 120 ms); escondido, não recebe clique nem foco de leitor. */
+.timeline .md-tabela .md-tabela-rodape { opacity: 0; visibility: hidden; transition: opacity 120ms ease, visibility 0s linear 120ms; }
+.timeline .md-tabela:hover .md-tabela-rodape, .timeline .md-tabela:focus-within .md-tabela-rodape { opacity: 1; visibility: visible; transition: opacity 120ms ease, visibility 0s; }
+@media (prefers-reduced-motion: reduce) { .timeline .md-tabela .md-tabela-rodape, .timeline .md-tabela:hover .md-tabela-rodape { transition: none; } }
 
 
 /* ---- Paleta ⌘K (Paper 08): véu leve, 640 px a 110 do topo, linhas de 44 com avatar de 20 ---- */
