@@ -61,7 +61,7 @@ const computadores = criarComputadores({ executor: () => "catcher", dentro: asyn
 const plano = (turnoId = "turno-1") => ({
   tenantId: MARLON.tenantId, turnoId, agenteId: AGENTE, conversaId: "conversa-1", expiraEm: Number.MAX_SAFE_INTEGER, confiancaEntrada: "nao_confiavel",
   autoria: { conta_de_execucao: MARLON.pessoaId },
-  catalogo: { ferramentas: ["computador_observar", "computador_navegar", "computador_interagir", "computador_pedir_ajuda"].map((nome) => ({ nome, origem: "computador" })) },
+  catalogo: { ferramentas: ["computador_elementos", "computador_observar", "computador_navegar", "computador_interagir", "computador_pedir_ajuda"].map((nome) => ({ nome, origem: "computador" })) },
 }) as never;
 
 type Ok = Extract<ResultadoChamada, { ok: true }>;
@@ -135,7 +135,7 @@ it("clique com o quadro da observação deduplicada é aceito (não vira tela_al
   expect(deduplicada.imagem).toBeUndefined();
   const clique = await chamar("computador_interagir", { tipo: "clicar", quadro: deduplicada.json.tela.quadro, x: 10, y: 10 });
   expect(clique.isError).toBe(false);
-  expect(clique.json).not.toHaveProperty("erro");
+  expect(clique.json).not.toHaveProperty("estado", "aguardando_pessoa");
 });
 
 it("depois de aguardar aprovação, a próxima observação sai completa", async () => {
@@ -203,4 +203,29 @@ it("resultado sem tela ou com isError não mexe no mapa", async () => {
   expect(erro.imagem).toEqual({ mimeType: "image/png", data: "iVBORw0KGgoBBBB=" });
   expect(erro.json.tela).toMatchObject({ texto: "outro" });
   expect((await chamar("computador_observar")).json.tela).toMatchObject({ tela_igual_a_anterior: true, texto_igual_ao_anterior: true });
+});
+
+it("elementos passa pelo gateway, preserva saída não confiável e não inventa screenshot", async () => {
+  proxima = { pagina: { observacao: "a".repeat(64), url: "https://example.com", titulo: "Fixture", elementos: [], textos: ["Dado externo"], truncada: false } };
+  const r = await chamar("computador_elementos", { operacao: "observar" });
+  expect(enviadas).toEqual([{ tipo: "elementos", operacao: "observar" }]);
+  expect(r.confianca).toBe("nao_confiavel");
+  expect(r.json.pagina).toMatchObject({ textos: ["Dado externo"] });
+  expect(r.imagem).toBeUndefined();
+});
+it("clique semântico supervisionado exige aprovação antes do driver", async () => {
+  computador.politica = "supervisionado";
+  const r = await computadores.chamar(MARLON, plano(), "computador_elementos", { operacao: "clicar", observacao: "a".repeat(64), referencia: "b".repeat(64) });
+  expect(r).toHaveProperty("aguardar");
+  expect(enviadas).toHaveLength(0);
+});
+
+it("controle humano recusa também observação e clique semânticos", async () => {
+  computador.controle = "pessoa";
+  for (const args of [{ operacao: "observar" }, { operacao: "clicar", observacao: "a".repeat(64), referencia: "b".repeat(64) }]) {
+    const r = await computadores.chamar(MARLON, plano(), "computador_elementos", args);
+    expect(r).toHaveProperty("ok", true);
+    if ("ok" in r && r.ok) expect(JSON.parse(r.conteudo)).toHaveProperty("estado", "aguardando_pessoa");
+  }
+  expect(enviadas).toHaveLength(0);
 });

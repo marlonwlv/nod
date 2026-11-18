@@ -1,0 +1,140 @@
+import { randomBytes } from 'node:crypto';
+import { setTimeout as esperar } from 'node:timers/promises';
+
+const token = () => randomBytes(32).toString('hex');
+const PRAZO = 120_000;
+const MAX_ELEMENTOS = 150;
+const MAX_TEXTOS = 12_000;
+const EDITAVEIS = new Set(['textbox', 'searchbox', 'combobox', 'spinbutton']);
+
+/**
+ * Adaptador de MotorNavegador. Recebe a página da sessão existente: não cria perfil nem toca credenciais.
+ * O chamador mantém a mesma reserva/fila das ações visuais. Não repetir efeitos após erro/timeout.
+ */
+export function criarNavegador({ pagina, revisao, invalidar, agora = Date.now }) {
+  let observada = null;
+  async function limpar() {
+    const anterior = observada;
+    observada = null;
+    if (anterior) await Promise.all([...anterior.alvos.values()].map(a => a.handle.dispose().catch(() => {})));
+  }
+  async function observar(filtro) {
+    await limpar();
+    const p = await pagina();
+    const r = revisao();
+    const id = token();
+    const alvos = new Map();
+    const elementos = [];
+    const textos = [];
+    let caracteres = 0;
+    let truncada = false;
+    const vistos = new Set();
+    const frames = p.frames();
+    if (frames.length > 20) throw new Error("acao_falhou");
+    let visitados = 0;
+    const fotos = [];
+    try {
+      for (let i = 0; i < frames.length; i++) {
+        const frame = frames[i];
+        const arvore = await frame.locator('body').ariaSnapshotJSON({ timeout: 3000 });
+        fotos.push({ frame, arvore: JSON.stringify(arvore) });
+        async function visitar(nodes, editavel = false) {
+          for (const n of Array.isArray(nodes) ? nodes : [nodes]) {
+            if (!n || typeof n !== 'object') continue;
+            if (++visitados > 3000) { truncada = true; return; }
+            const protegido = editavel || EDITAVEIS.has(n.role);
+            if (!protegido && n.text && caracteres < MAX_TEXTOS) {
+              const t = String(n.text).slice(0, MAX_TEXTOS - caracteres);
+              textos.push(t); caracteres += t.length;
+            }
+            const nome = n.name ?? '';
+            if (n.role && n.role !== 'text' && n.role !== 'generic' && (!filtro || n.role === filtro.papel && (filtro.nome === undefined || nome === filtro.nome))) {
+              const chave = JSON.stringify([i, n.role, nome]);
+              if (!vistos.has(chave)) {
+                vistos.add(chave);
+                if (elementos.length >= MAX_ELEMENTOS) truncada = true;
+                else {
+                  const locator = frame.getByRole(n.role, { name: nome, exact: true });
+                  // Nunca escolher first/nth silenciosamente quando há nomes duplicados.
+                  if (await locator.count() === 1) {
+                    const handle = await locator.elementHandle({ timeout: 1000 });
+                    if (handle && !(await handle.evaluate(el => el.matches('input[type=password]')))) {
+                      const referencia = token();
+                      const semantica = await locator.ariaSnapshot({ timeout: 1000 });
+                      alvos.set(referencia, { handle, locator, semantica, frame, url: frame.url() });
+                      elementos.push({ referencia, papel: n.role, nome: String(nome).slice(0, 1000), frame: i });
+                    } else await handle?.dispose();
+                  }
+                }
+              }
+            }
+            if (n.children) await visitar(n.children, protegido);
+          }
+        }
+        await visitar(arvore);
+      }
+      if (r !== revisao() || p !== await pagina()) throw new Error('tela_alterada');
+      observada = { id, p, r, em: agora(), alvos, fotos };
+      return { pagina: { observacao: id, url: p.url(), titulo: await p.title(), elementos, textos, truncada } };
+    } catch (e) {
+      await Promise.all([...alvos.values()].map(a => a.handle.dispose().catch(() => {})));
+      throw e;
+    }
+  }
+  async function conferir(a) {
+    const o = observada;
+    const p = await pagina();
+    const alvo = o?.alvos.get(a.referencia);
+    if (!o || o.id !== a.observacao || o.p !== p || o.r !== revisao() || agora() - o.em > PRAZO || !alvo || alvo.frame.isDetached() || alvo.url !== alvo.frame.url()) throw new Error('tela_alterada');
+    if (p.frames().length !== o.fotos.length) throw new Error('tela_alterada');
+    for (const foto of o.fotos) {
+      if (foto.frame.isDetached() || JSON.stringify(await foto.frame.locator('body').ariaSnapshotJSON({ timeout: 1000 })) !== foto.arvore) throw new Error('tela_alterada');
+    }
+    if (await alvo.locator.count() !== 1 || !(await alvo.locator.evaluate((el, antigo) => el === antigo && el.isConnected, alvo.handle)) || await alvo.locator.ariaSnapshot({ timeout: 1000 }) !== alvo.semantica) throw new Error('tela_alterada');
+    if (await alvo.handle.evaluate(el => el.matches('input[type=password]'))) throw new Error('acao_falhou');
+    return alvo;
+  }
+  async function condicao(a) {
+    const p = await pagina();
+    const matches = [];
+    for (const f of p.frames()) {
+      const l = f.getByRole(a.papel, { ...(a.nome === undefined ? {} : { name: a.nome, exact: true }), includeHidden: true });
+      const n = await l.count();
+      if (n > 1) return false;
+      if (n === 1) matches.push(l);
+    }
+    if (matches.length > 1) return false;
+    if (!matches.length) return a.condicao === 'oculto';
+    const l = matches[0];
+    if (a.condicao === 'oculto') return !(await l.isVisible());
+    if (!(await l.isVisible())) return false;
+    if (a.condicao === 'visivel') return true;
+    // Texto renderizado, nunca inputValue (senha e outros valores não são extraídos).
+    return await l.innerText({ timeout: 1000 }) === a.texto;
+  }
+  return {
+    async executar(a) {
+      if (a.operacao === 'observar' || a.operacao === 'localizar') return observar(a.operacao === 'localizar' ? a : undefined);
+      if (a.operacao === 'esperar' || a.operacao === 'verificar') {
+        const fim = agora() + (a.operacao === 'esperar' ? a.timeoutMs ?? 5000 : 0);
+        let satisfeita;
+        do {
+          satisfeita = await condicao(a);
+          if (satisfeita || agora() >= fim) break;
+          // Poll de uma condição externa; não é atraso para decidir ordem de ações.
+          await esperar(100);
+        } while (agora() <= fim);
+        return { verificacao: { satisfeita } };
+      }
+      const alvo = await conferir(a);
+      // Invalida ANTES do efeito; resposta perdida não torna a referência reutilizável.
+      invalidar();
+      try {
+        if (a.operacao === 'clicar') await alvo.handle.click({ timeout: 3000 });
+        else if (a.operacao === 'preencher') await alvo.handle.fill(a.texto, { timeout: 3000 });
+        else throw new Error('acao_falhou');
+      } finally { await limpar(); }
+      return observar();
+    },
+  };
+}

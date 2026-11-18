@@ -53,7 +53,8 @@
     "computador:build": "node scripts/computador/build.ts",
     "computador:orfaos": "node scripts/computadores-orfaos.ts",
     "computador:legado": "node scripts/computador-legado.ts",
-    "paridade": "node scripts/paridade.ts"
+    "paridade": "node scripts/paridade.ts",
+    "test:computador:elementos": "npm ci --prefix infra/computador && node --test tests/computador/navegador.test.mjs"
   },
   "simple-git-hooks": {
     "pre-commit": "if command -v mise >/dev/null 2>&1; then mise exec -- npx lint-staged; else npx lint-staged; fi"

@@ -17,3 +17,7 @@ Riscos: sites sem acessibilidade exigem alternativa visual; DOM pode mudar entre
 ## Evidências
 
 A preencher com os resultados efetivamente executados. WhatsApp só será examinado se existir sessão autorizada disponível; envio externo depende de destinatário e conteúdo explicitamente autorizados. A fixture local cobre envio sem terceiros.
+
+## Próxima etapa: autenticação
+
+Requisito registrado, sem implementar nesta entrega: login uma vez reutilizável entre bots autorizados; formulário protegido no chat, com opção de cofre, mantendo senha fora do modelo, histórico, logs e observações. O adaptador recebe uma página da sessão existente, não gerencia credenciais; uma futura política de sessão/autenticação pode fornecer a página sem mudar o contrato de navegação.

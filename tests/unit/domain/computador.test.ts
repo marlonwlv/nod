@@ -20,3 +20,20 @@ it.each([
   {tipo:"ler_texto",caminho:"a.txt",inicio:1}, {tipo:"ler_texto",caminho:"a.txt",inicio:0.5},
   {tipo:"gravar_texto",caminho:"a.txt",texto:"novo",revisao:"inventada"},
 ])("falha fechado para comando malformado %j", valor => { expect(()=>validarAcaoComputador(valor)).toThrow("entrada_invalida"); });
+
+it("valida o contrato semântico e separa leitura de efeito", () => {
+  const acao = validarAcaoComputador({ tipo: "elementos", operacao: "preencher", observacao: quadro, referencia: quadro, texto: "Olá" });
+  expect(alteraComputador(acao)).toBe(true);
+  expect(alteraComputador(validarAcaoComputador({ tipo: "elementos", operacao: "observar" }))).toBe(false);
+  expect(alteraComputador(validarAcaoComputador({ tipo: "elementos", operacao: "verificar", papel: "status", condicao: "texto", texto: "Enviado" }))).toBe(false);
+});
+it.each([
+  { operacao: "executarJS", papel: "button" },
+  { operacao: "clicar", observacao: "velha", referencia: quadro },
+  { operacao: "preencher", observacao: quadro, referencia: quadro },
+  { operacao: "esperar", papel: "button", condicao: "visivel", timeoutMs: 10001 },
+  { operacao: "verificar", papel: "status", condicao: "texto" },
+  { operacao: "localizar", papel: "button;script" },
+])("recusa pedido semântico inválido %j", a => {
+  expect(() => validarAcaoComputador({ tipo: "elementos", ...a })).toThrow("entrada_invalida");
+});

@@ -181,6 +181,23 @@ export function validarAcaoComputador(valor: unknown): AcaoComputador {
     return c || ".";
   };
   switch (a.tipo) {
+    case "elementos": {
+      const operacao = texto("operacao", 20);
+      if (operacao === "observar") return { tipo: a.tipo, operacao };
+      if (operacao === "clicar" || operacao === "preencher") {
+        const observacao = texto("observacao", 64), referencia = texto("referencia", 64);
+        if (![observacao, referencia].every(v => /^[a-f0-9]{64}$/.test(v))) throw new ErroDeDominio("entrada_invalida");
+        return operacao === "clicar" ? { tipo: a.tipo, operacao, observacao, referencia } : { tipo: a.tipo, operacao, observacao, referencia, texto: texto("texto") };
+      }
+      const papel = texto("papel", 50);
+      if (!/^[a-z]+$/.test(papel)) throw new ErroDeDominio("entrada_invalida");
+      const nome = a.nome === undefined ? {} : { nome: texto("nome", 1000) };
+      if (operacao === "localizar") return { tipo: a.tipo, operacao, papel, ...nome };
+      if (operacao !== "esperar" && operacao !== "verificar") throw new ErroDeDominio("entrada_invalida");
+      const condicao = texto("condicao", 20);
+      if (condicao !== "visivel" && condicao !== "oculto" && condicao !== "texto") throw new ErroDeDominio("entrada_invalida");
+      return { tipo: a.tipo, operacao, papel, ...nome, condicao, ...(condicao === "texto" ? { texto: texto("texto") } : {}), ...(a.timeoutMs === undefined ? {} : { timeoutMs: numero("timeoutMs", 0, 10000) }) };
+    }
     case "observar":
       if (a.forcar !== undefined && typeof a.forcar !== "boolean") throw new ErroDeDominio("entrada_invalida");
       return a.forcar === undefined ? { tipo: a.tipo } : { tipo: a.tipo, forcar: a.forcar };
@@ -226,6 +243,7 @@ export function validarAcaoComputador(valor: unknown): AcaoComputador {
 }
 
 export function alteraComputador(a: AcaoComputador): boolean {
+  if (a.tipo === "elementos") return a.operacao === "clicar" || a.operacao === "preencher";
   return !["observar", "arquivos", "ler_arquivo", "ler_texto", "audio"].includes(a.tipo) && !(a.tipo === "abas" && a.aba === undefined);
 }
 
@@ -279,7 +297,7 @@ export function textoPedidoDeTela(motivo: string): string {
  * fixo por tipo, sem argumentos (a URL, o texto digitado e o comando não aparecem); tipo desconhecido vira o genérico.
  */
 const ATIVIDADE_EM_PORTUGUES: Readonly<Record<string, string>> = {
-  observar: "olhou a tela", navegar: "abriu uma página", clicar: "clicou", arrastar: "arrastou", dialogo: "respondeu um diálogo",
+  elementos: "usou os elementos da página", observar: "olhou a tela", navegar: "abriu uma página", clicar: "clicou", arrastar: "arrastou", dialogo: "respondeu um diálogo",
   audio: "ouviu o áudio", digitar: "digitou", tecla: "apertou uma tecla", rolar: "rolou a página", abas: "trocou de aba",
   arquivos: "olhou os arquivos", ler_arquivo: "leu um arquivo", ler_texto: "leu um arquivo", gravar_texto: "editou um arquivo",
   gravar_arquivo: "gravou um arquivo", anexar: "anexou um arquivo", terminal: "rodou um comando", pedir_ajuda: "pediu ajuda",
