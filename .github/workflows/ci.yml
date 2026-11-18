@@ -220,6 +220,11 @@ jobs:
           fi
           timeout 30 "$CHROME" --headless=new $SEM_SANDBOX --dump-dom about:blank >/dev/null
           echo "NOD_CHROME=$CHROME" >> "$GITHUB_ENV"
+      - name: Navegação por elementos em Chromium real
+        if: matrix.fatia == 1
+        run: |
+          npm ci --prefix infra/computador
+          node --test tests/computador/navegador.test.mjs
       - run: npx vitest run --project concurrency $(node scripts/ci/fatia-concorrencia.ts navegador:${{ matrix.fatia }}/2)
         env:
           QA_RELATORIO_DIR: ${{ github.workspace }}/qa-relatorio

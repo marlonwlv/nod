@@ -310,3 +310,15 @@ describe("driver Docker: log computador_iniciado mede o boot (NOD-162)", () => {
     expect(entradas).toContain(cofre);
   });
 });
+
+it("encaminha contrato semântico ao runtime sem converter em pixels nem repetir após falha", async () => {
+  const acao = { tipo: "elementos" as const, operacao: "clicar" as const, observacao: "a".repeat(64), papel: "button", nome: "Enviar", referencia: "b".repeat(64) };
+  responder = args => ({ saida: args[0] === "inspect" ? "true 0" : JSON.stringify({ resultado: { verificacao: { satisfeita: true } } }) });
+  const driver = criarDriverDocker(ENV);
+  expect(await driver.executar(ID, acao)).toEqual({ verificacao: { satisfeita: true } });
+  expect(JSON.parse(entradas.at(-1)!)).toEqual(acao);
+  chamadas.length = 0;
+  responder = args => args[0] === "inspect" ? { saida: "true 0" } : { codigo: 1, erro: "sem_resposta" };
+  await expect(driver.executar(ID, acao)).rejects.toBeInstanceOf(FalhaComputador);
+  expect(chamadas.filter(c => c[0] === "exec")).toHaveLength(1);
+});

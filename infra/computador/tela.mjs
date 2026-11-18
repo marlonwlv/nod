@@ -15,6 +15,7 @@ import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import { setTimeout as esperar } from 'node:timers/promises';
 import { clearInterval, clearTimeout, setInterval, setTimeout } from 'node:timers';
+import { criarNavegador } from './navegador.mjs';
 import { lerTexto, gravarTexto } from './texto.mjs';
 import { codigoDaAcao, falhaDe, primeiraLinha, PRAZO_NAVEGADOR_MS, TRAVAS_DO_PERFIL } from './falhas.mjs';
 import { argsDoBwrap, aspas, scriptDoBwrap, vizinhosDoTmp } from './isolamento.mjs';
@@ -1897,9 +1898,11 @@ export function criarTela(config, avisar) {
     return argsParaRolarNoChrome(r?.stdout ?? '', alturaDoChrome, geometriaDoChrome);
   }
 
+  const navegador = criarNavegador({ pagina: atual, revisao: () => revision, invalidar: mudar });
   const acao = (a, pessoa = false) => naFila(() => acaoSemFila(a, pessoa));
 
   async function acaoSemFila(a, pessoa) {
+    if (a.tipo === 'elementos') return navegador.executar(a);
     const observado = quadros.get(a.quadro);
     if ('quadro' in a && !quadroVale(observado, revision, Date.now())) throw new Error('tela_alterada');
     const ws = (c, novo) => caminhoNoWorkspace(config.workspace, c, novo);
