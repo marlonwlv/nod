@@ -384,11 +384,12 @@ describe("NOD-155: o prompt em parte estável e parte volátil (cache por prefix
     // menção a anotar_pendencia na linha do terminal (a entrada não tem mais pendências nem a ferramenta). Regenerado em
     // 2026-10-19 (PR 6 dos modos de aprovação): as linhas "Aprovações:" e "Terminal:" do total não dizem mais que a
     // credencial para. Regenerado em 2026-10-31 (NOD-444): linha nova só na conversa (perguntar o horário e repropor sem duplicar); rotina e delegação seguem iguais.
+    // 2026-11-18: orientação semântica como padrão; alternativa visual explícita (+255 caracteres estáveis).
     const digital = (s: string) => createHash("sha256").update([...s.split("\n")].sort().join("\n")).digest("hex");
     const esperado = {
-      conversa: "130f8999654cf0c4be9687808c8f93b4d09a197cb038794b39c843a62b1264d0",
-      rotina: "8bf80039d21e1818db0f51276851dbc4086d24fcf50455f39b4ef70fa44509c3",
-      delegacao: "e72dc08f94bde1c4694c3445b27f28f2b55f4b9c523c14878da958dbaf54b092",
+      conversa: "cabc6401c1a5d7da1e9807ed452a176bfae06100c15d4ebf72956771a7b76372",
+      rotina: "98ab903889b68f9b55cc350a16428b0d20b447d5dfce598f8f96655113c8f19d",
+      delegacao: "7de1a58cad40dcffaafcd3aa95717c300a200216d55ef1a5aa6bb6e579b4e11c",
     };
     const obtido = { conversa: "", rotina: "", delegacao: "" };
     for (const modo of ["conversa", "rotina", "delegacao"] as const) obtido[modo] = digital(montarPromptSistema({ ...base, ...turnoA, profundidade: 1, modo }));

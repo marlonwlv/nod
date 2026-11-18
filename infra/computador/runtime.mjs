@@ -8,6 +8,7 @@ import net from 'node:net';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import { setTimeout as delay } from 'node:timers/promises';
+import { criarNavegador } from './navegador.mjs';
 import { lerTexto, gravarTexto } from './texto.mjs';
 import { codigoDaAcao, codigoDaSubida, falhaDe, primeiraLinha, PRAZO_NAVEGADOR_MS, TRAVAS_DO_PERFIL } from './falhas.mjs';
 const exec = promisify(execFile);
@@ -66,7 +67,9 @@ function tecla(k) {
   const nomes={Control:'ctrl',Meta:'super',Enter:'Return',ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Space:'space',Backspace:'BackSpace',PageUp:'Prior',PageDown:'Next'};
   return k.split('+').map(x=>nomes[x]??x).join('+');
 }
+const navegador = criarNavegador({ pagina: atual, revisao: () => revision, invalidar: mudar });
 async function acao(a) {
+  if (a.tipo === 'elementos') return navegador.executar(a);
   const observado=quadros.get(a.quadro);
   if('quadro' in a && (!observado || observado.revision!==revision || Date.now()-observado.em>120000)) throw new Error('tela_alterada');
   const p=await atual();
