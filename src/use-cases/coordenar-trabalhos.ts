@@ -1,3 +1,4 @@
+import { excedeQuantidade } from "../domain/anexo.ts";
 import { semCitacao, textoParaOBot } from "../domain/citacao.ts";
 import type { Executor, RuntimeEvent } from "../contracts/evento.ts";
 import type { ModoTurno } from "../contracts/plano-turno.ts";
@@ -6,7 +7,7 @@ import type { Turno } from "../contracts/turno.ts";
 import { RETORNO_DO_LOTE } from "../domain/cota-da-ia.ts";
 import { capacidadesDe } from "../domain/harness.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { ehFrente, entradaDaTarefaDaPessoa, FALAS_DO_CONTEXTO, molduraDaFrente, molduraDaTarefaDaPessoa, semLinhaDeEmpurrar, seguimentoNaRede, type FalaDoContexto } from "../domain/frente.ts";
+import { ehFrente, entradaDaTarefaDaPessoa, FALAS_DO_CONTEXTO, pedidoSemMoldura, seguimentoNaRede, type FalaDoContexto } from "../domain/frente.ts";
 import { conversaDepoisDoFim, FALA_DEPOIS_DO_FIM } from "../domain/fala-na-frente.ts";
 import { molduraFalaNaFrente } from "../domain/mensagem-no-meio.ts";
 import { promoveNaRede, tituloDoTrabalho, tituloProvisorio, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
@@ -14,37 +15,13 @@ import { ehFalaSemIa } from "../domain/sem-ia.ts";
 import { ehUuid } from "./apoio-l7.ts";
 import { autoriaAgente, autoriaPessoa, evento, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
-import { criarTrabalho, linhaTrabalhoAberto, marcarParado, sincronizarTrabalho, trabalhosParaDto, travarTrabalhoComTurnos } from "./trabalhos.ts";
+import { criarTrabalho, devolverGuardados, linhaTrabalhoAberto, marcarParado, sincronizarTrabalho, trabalhosParaDto, travarTrabalhoComTurnos } from "./trabalhos.ts";
 
 /**
  * A conversa coordena (definido em 2026-10-07, ADR-083 §7, issue #193): repassar um recado, "Fazer depois da …", "Fazer
  * aqui" e a rede de 2 min. O estado do trabalho continua saindo de `sincronizarTrabalho`. Abrir e repassar pelo bot
  * moram em frentes.ts desde 2026-10-12 (ADR-099, I2).
  */
-
-/** A moldura do pedido da task de antes das frentes (ADR-099, I2): o "Fazer aqui" de uma task antiga ainda a tira. */
-function entradaDaTask(titulo: string, pedido: string, deRotina: boolean): string {
-  return deRotina
-    ? `[nod] Task "${titulo}", aberta pela sua rotina. Faça o trabalho até o fim e entregue o resultado.\n${pedido}`
-    : `[nod] Task "${titulo}", aberta por você na conversa com a pessoa. Ela acompanha pela tela da task; faça o trabalho até o fim e entregue o resultado.\n${pedido}`;
-}
-
-/**
- * O pedido sem a moldura da task (definido em 2026-10-08, QA do épico): o "Fazer aqui" manda o pedido para a CONVERSA, e
- * a moldura dizia ao bot que a pessoa "acompanha pela tela da task" — que ele estava numa task que acabou de ser
- * desfeita. Entrada sem a moldura (a da rede é a mensagem da pessoa) volta como está.
- */
-function pedidoSemMoldura(titulo: string, entrada: string): string {
-  for (const deRotina of [false, true]) {
-    // revisto em 2026-10-12 (ADR-099, I2): a frente nasce com a moldura dela (molduraDaFrente); a task de antes, com esta.
-    // ADR-187 §7 (2026-11-18): e a tarefa que a pessoa abriu pela tela (o contexto da conversa, se levou, fica no pedido).
-    for (const moldura of [entradaDaTask(titulo, "", deRotina), molduraDaFrente(titulo, deRotina), molduraDaTarefaDaPessoa(titulo)]) {
-      // revisto em 2026-10-12 (ADR-099, I4): a linha de empurrar é da frente; no dono ela não faz sentido.
-      if (entrada.startsWith(moldura)) return semLinhaDeEmpurrar(entrada.slice(moldura.length));
-    }
-  }
-  return entrada;
-}
 
 /** A conversa própria do bot: é ali que a linha "Abriu a task …" e o resultado aparecem. */
 export async function conversaDoBot(deps: Deps, turno: Turno): Promise<string> {
@@ -61,16 +38,25 @@ export async function conversaDoBot(deps: Deps, turno: Turno): Promise<string> {
  * O turno é a RETOMADA do último turno dele, para seguir no modo e na procuração dele (rotina, colega ou conversa).
  * Rodando, a renovação o absorve no meio (absorverNoTrabalho); senão ele roda quando a faixa estiver livre.
  */
-export async function enfileirarNoTrabalho(deps: Deps, t: Trabalho, p: { texto: string; entrada: string; deQuem: "pessoa" | { agenteId: string; turno: Turno }; decididoPor?: string }): Promise<{ turno: Turno; events: RuntimeEvent[] }> {
+export async function enfileirarNoTrabalho(deps: Deps, t: Trabalho, p: { texto: string; entrada: string; deQuem: "pessoa" | { agenteId: string; turno: Turno }; decididoPor?: string; anexos?: readonly string[] }): Promise<{ turno: Turno; events: RuntimeEvent[] }> {
   const agora = deps.agora();
   // Revisão do épico (S10, 2026-10-08): a pessoa falou de novo — a parada da conversa do trabalho se encerra, como a
   // mensagem na conversa faz (enviar-mensagem.ts). Sem isto o turno do recado morria `parado_pela_pessoa` no despacho.
   if (p.deQuem === "pessoa") await deps.repos.paradas.encerrarAbertas({ conversaId: t.conversaId, agora });
   const turnos = await deps.repos.turnos.doTrabalho(t.id);
   const ultimo = turnos.filter((x) => x.motivoInterrupcao !== "absorvido").at(-1) ?? null;
+  // ADR-187 §6 + ADR-185 (definido em 2026-11-18): a pessoa continua a tarefa que parou — o que ela tinha dito e a tarefa
+  // não leu volta à fila antes desta fala (mais antigo, roda primeiro). Lido depois de `ultimo`: a fala nova retoma o
+  // último turno que rodou, não um recado que ainda não rodou.
+  const devolvidos = p.deQuem === "pessoa" ? await devolverGuardados(deps, t) : [];
   const autoria = p.deQuem === "pessoa" ? autoriaPessoa(deps.escopo) : autoriaAgente({ agenteId: p.deQuem.agenteId, contaDeExecucao: deps.escopo.pessoaId, executor: "catcher" });
   const mensagem = await deps.repos.mensagens.criar({ conversaId: t.conversaId, autoria, kind: "texto", texto: p.texto, confianca: p.deQuem === "pessoa" ? "confiavel" : "nao_confiavel" });
   if (!mensagem) throw new ErroDeDominio("nao_permitido");
+  // ADR-187 §6 (definido em 2026-11-18): o campo da tarefa tem o clipe do campo da conversa; o arquivo é da conversa do
+  // trabalho (o mesmo upload) e vai preso à fala e à entrada do turno, como em enviar-mensagem.ts.
+  const anexoIds = p.deQuem === "pessoa" ? [...new Set(p.anexos ?? [])] : [];
+  const anexos = anexoIds.length ? await deps.repos.anexos.prender(anexoIds, { conversaId: t.conversaId, mensagemId: mensagem.id }) : [];
+  if (anexos.length !== anexoIds.length) throw new ErroDeDominio("entrada_invalida", { cause: "anexo de outra conversa, já enviado ou inexistente" });
   const agente = await deps.repos.agentes.buscar(t.agenteId);
   const turno = await deps.repos.turnos.enfileirar({
     conversaId: t.conversaId,
@@ -91,7 +77,7 @@ export async function enfileirarNoTrabalho(deps: Deps, t: Trabalho, p: { texto: 
     executor: ultimo?.executor ?? (p.deQuem === "pessoa" ? "catcher" : p.deQuem.turno.executor),
     mensagemOrigemId: mensagem.id,
     // NOD-285: o recado que o bot repassa à frente dele leva o arquivo da fala da pessoa (a frente é o próprio bot).
-    entradaAnexos: p.deQuem === "pessoa" ? [] : p.deQuem.turno.entradaAnexos,
+    entradaAnexos: p.deQuem === "pessoa" ? anexos.map((a) => a.id) : p.deQuem.turno.entradaAnexos,
     ...(p.decididoPor ? { decididoPor: p.decididoPor } : {}),
   });
   if (!turno) throw new ErroDeDominio("estado_invalido", { cause: "turno do recado não criado" });
@@ -100,6 +86,7 @@ export async function enfileirarNoTrabalho(deps: Deps, t: Trabalho, p: { texto: 
   // que o escreveu, como o abrir_task faz — senão a página lida na conversa entrava limpa na task.
   if (p.deQuem !== "pessoa" && (p.deQuem.turno.entradaConfianca !== "confiavel" || (await deps.repos.turnos.contaminado(p.deQuem.turno.id)))) await deps.repos.turnos.contaminar(turno.id, agora);
   const events: RuntimeEvent[] = [
+    ...devolvidos.map((v) => evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: v.conversaId, turnoId: v.id, dados: { origem: v.origem, agente_id: v.agenteId, trabalhoId: t.id, devolvido_ao_continuar: true } })),
     evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: t.conversaId, turnoId: turno.id, dados: { mensagem_id: mensagem.id, kind: "texto", trabalho_id: t.id } }),
     evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: t.conversaId, turnoId: turno.id, dados: { origem: turno.origem, agente_id: t.agenteId, trabalhoId: t.id } }),
     // NOD-256 (F1.3): só a pessoa reabre a task num estado final; o recado do bot cai antes (mandarParaFrente recusa).
@@ -111,10 +98,12 @@ export async function enfileirarNoTrabalho(deps: Deps, t: Trabalho, p: { texto: 
   return { turno, events };
 }
 
-/** POST trabalhos/:id/mensagens: a pessoa escreve na tela da task. */
-export const mensagemParaTrabalho: CasoDeUso<{ trabalhoId: string; texto: string }, { trabalho: TrabalhoDto; mensagemTurnoId: string }> = async (deps, input) => {
+/** POST trabalhos/:id/mensagens: a pessoa escreve na tela da task (ADR-187 §6, 2026-11-18: com os anexos do clipe). */
+export const mensagemParaTrabalho: CasoDeUso<{ trabalhoId: string; texto: string; anexos?: readonly string[] }, { trabalho: TrabalhoDto; mensagemTurnoId: string }> = async (deps, input) => {
   const texto = typeof input.texto === "string" ? input.texto.trim() : "";
-  if (texto === "") throw new ErroDeDominio("texto_vazio");
+  const anexos = [...new Set((input.anexos ?? []).filter((a): a is string => typeof a === "string"))];
+  if (texto === "" && anexos.length === 0) throw new ErroDeDominio("texto_vazio");
+  if (excedeQuantidade(anexos.length)) throw new ErroDeDominio("entrada_invalida", { cause: "anexos demais" });
   const t = await deps.repos.trabalhos.buscar(input.trabalhoId);
   if (!t) throw new ErroDeDominio("nao_encontrado");
   // NOD-376: a fala da pessoa entra na frente com a moldura "responda primeiro" (rodando ou reaberta); a mensagem gravada
@@ -126,7 +115,7 @@ export const mensagemParaTrabalho: CasoDeUso<{ trabalhoId: string; texto: string
   const depoisDoFim = ehFrente(t) && (t.estado === "terminado" || conversaDepoisDoFim(await deps.repos.turnos.doTrabalho(t.id)));
   // Revisão 5 do PR #539 (definido em 2026-10-27): só a frente ganha a moldura; a task comum (rotina, colega) segue com o texto cru, como antes.
   const entrada = !ehFrente(t) || /^\/[\w.:-]+(\s|$)/.test(texto) ? texto : molduraFalaNaFrente(texto, { frenteAcabou: depoisDoFim });
-  const r = await enfileirarNoTrabalho(deps, t, { texto, entrada, deQuem: "pessoa", ...(depoisDoFim ? { decididoPor: FALA_DEPOIS_DO_FIM } : {}) });
+  const r = await enfileirarNoTrabalho(deps, t, { texto, entrada, deQuem: "pessoa", anexos, ...(depoisDoFim ? { decididoPor: FALA_DEPOIS_DO_FIM } : {}) });
   const [dto] = await trabalhosParaDto(deps, [(await deps.repos.trabalhos.buscar(t.id)) ?? t]);
   return { data: { trabalho: dto!, mensagemTurnoId: r.turno.id }, events: r.events };
 };

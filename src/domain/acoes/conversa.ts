@@ -73,6 +73,9 @@ export const ACOES_CONVERSA = [
   // mesma onda das irmãs parar, depois e fazer_aqui).
   { id: "trabalhos.renomear", titulo: "Renomear uma tarefa", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "trabalhos.parar", titulo: "Parar um trabalho", risco: "muda", cartaoNoChat: false, chat: falta },
+  // ADR-187 §6 (2026-11-18, Paper 4l): "Encerrar a tarefa" parada. No chat ainda não: nenhuma ferramenta do bot encerra a
+  // tarefa (a mesma onda das irmãs parar e renomear); continuar é falar nela (trabalhos.enviar).
+  { id: "trabalhos.encerrar", titulo: "Encerrar uma tarefa parada", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "trabalhos.enviar", titulo: "Mandar uma mensagem num trabalho", risco: "muda", cartaoNoChat: false, chat: PROPRIO_CHAT },
   { id: "trabalhos.depois", titulo: "Deixar um trabalho para depois", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "trabalhos.fazer_aqui", titulo: "Fazer um trabalho aqui", risco: "muda", cartaoNoChat: false, chat: falta },

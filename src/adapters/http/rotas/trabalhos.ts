@@ -2,7 +2,7 @@ import type { RespostaMutacao } from "../../../contracts/api.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import { abrirTarefaDaPessoa, fazerAqui, fazerDepois, mensagemParaTrabalho } from "../../../use-cases/coordenar-trabalhos.ts";
 import { cobrarEspera, desistirDaEspera } from "../../../use-cases/esperas-de-colega.ts";
-import { detalharTrabalho, listarTrabalhos, pararTrabalho, renomearTrabalho } from "../../../use-cases/trabalhos.ts";
+import { detalharTrabalho, encerrarTrabalho, listarTrabalhos, pararTrabalho, renomearTrabalho } from "../../../use-cases/trabalhos.ts";
 import { registrarLinhas, taxasDasLinhas } from "../../../use-cases/telemetria-linhas.ts";
 import type { Rota } from "../roteador.ts";
 import { corpoObjeto, criarExecutor, texto, type DepsRotas } from "./executar-caso.ts";
@@ -40,7 +40,17 @@ export function criarRotasTrabalhos(d: DepsRotas): Rota[] {
       padrao: new RegExp(`^/trabalhos/${ID}/parar$`),
       async handler(ctx) {
         const r = await executar(ctx.escopo, pararTrabalho, { trabalhoId: ctx.params.id ?? "" });
-        const resposta: RespostaMutacao & { trabalho: typeof r.trabalho; interrompidos: number } = { ok: true, ids: { trabalho: r.trabalho.id }, trabalho: r.trabalho, interrompidos: r.interrompidos };
+        const resposta: RespostaMutacao & { trabalho: typeof r.trabalho; interrompidos: number; recadosGuardados: number } = { ok: true, ids: { trabalho: r.trabalho.id }, trabalho: r.trabalho, interrompidos: r.interrompidos, recadosGuardados: r.recadosGuardados };
+        ctx.json(200, resposta);
+      },
+    },
+    {
+      // ADR-187 §6 (2026-11-18, Paper 4l): "Encerrar a tarefa" — a parada (ou que falhou) passa a terminada.
+      metodo: "POST", acao: "trabalhos.encerrar",
+      padrao: new RegExp(`^/trabalhos/${ID}/encerrar$`),
+      async handler(ctx) {
+        const r = await executar(ctx.escopo, encerrarTrabalho, { trabalhoId: ctx.params.id ?? "" });
+        const resposta: RespostaMutacao & { trabalho: typeof r.trabalho } = { ok: true, ids: { trabalho: r.trabalho.id }, trabalho: r.trabalho };
         ctx.json(200, resposta);
       },
     },
@@ -74,7 +84,10 @@ export function criarRotasTrabalhos(d: DepsRotas): Rota[] {
       padrao: new RegExp(`^/trabalhos/${ID}/mensagens$`),
       async handler(ctx) {
         const corpo = corpoObjeto(await ctx.corpo());
-        const r = await executar(ctx.escopo, mensagemParaTrabalho, { trabalhoId: ctx.params.id ?? "", texto: texto(corpo.texto) });
+        // ADR-187 §6 (2026-11-18): os anexos do clipe do campo da tarefa (ids soltos da conversa do trabalho).
+        const anexos = Array.isArray(corpo.anexos) ? corpo.anexos.filter((a): a is string => typeof a === "string" && UUID.test(a)) : [];
+        if (Array.isArray(corpo.anexos) && anexos.length !== corpo.anexos.length) throw new ErroDeDominio("entrada_invalida", { cause: "anexos" });
+        const r = await executar(ctx.escopo, mensagemParaTrabalho, { trabalhoId: ctx.params.id ?? "", texto: texto(corpo.texto), anexos });
         const resposta: RespostaMutacao = { ok: true, ids: { trabalho: r.trabalho.id, turno: r.mensagemTurnoId } };
         ctx.json(201, resposta);
       },

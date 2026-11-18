@@ -2154,6 +2154,11 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         for (const t of voltam) Object.assign(t, { estado: "pendente", motivoInterrupcao: null, absorvidoPor: null, leaseAte: null });
         return voltam.sort((x, y) => x.criadoEm - y.criadoEm);
       },
+      async devolverRecadosParados(trabalhoId) {
+        const voltam = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.trabalhoId === trabalhoId && t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && t.mensagemOrigemId && !t.despachadoEm && !t.pararSolicitadoEm);
+        for (const t of voltam) Object.assign(t, { estado: "pendente", motivoInterrupcao: null, leaseAte: null });
+        return voltam.sort((x, y) => x.criadoEm - y.criadoEm);
+      },
       async naoLidaMaisAntiga(turnoId) {
         const ts = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.absorvidoPor === turnoId && t.estado === "interrompido" && t.motivoInterrupcao === "absorvido" && !t.lidoNaSessaoEm && t.mensagemOrigemId);
         return ts.length ? Math.min(...ts.map((t) => t.criadoEm)) : null;
@@ -4295,6 +4300,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       gravar: async () => [],
       marcarFalha: async () => false,
       daCadeia: async () => ({ passos: [], fim: true }),
+      doTrabalho: async () => [],
       resumo: async (raizes: readonly string[]) => new Map(raizes.map((r) => [r, { n: 0, ultimo: null }])),
       podar: async () => 0,
     },

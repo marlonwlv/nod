@@ -1329,6 +1329,21 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * ADR-187 §6 + ADR-185 (definido em 2026-11-18): o recado da pessoa que esperava na fila da tarefa quando ela a parou
+     * (o Parar o interrompe sem nunca ter rodado: `despachado_em` nulo) volta a 'pendente' quando ela continua a tarefa, na
+     * ordem em que chegou — é a primeira coisa que a tarefa lê. Devolve os que voltaram.
+     */
+    async devolverRecadosParados(trabalhoId: string): Promise<Turno[]> {
+      const linhas = await conn<Linha[]>`
+        update turnos set estado = 'pendente', motivo_interrupcao = null, lease_ate = null
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and trabalho_id = ${trabalhoId}
+          and estado = 'interrompido' and motivo_interrupcao = 'parado_pela_pessoa' and mensagem_origem_id is not null
+          and despachado_em is null and parar_solicitado_em is null
+        returning ${conn.unsafe(COLUNAS)}`;
+      return linhas.map(paraTurno).sort(porChegada);
+    },
+
+    /**
      * ADR-187 (definido em 2026-11-17): quando chegou a fala mais antiga que este turno absorveu e o bot ainda não leu
      * (null se não há). A rede de 2 min promove antes por ela (`promoveNaRede`). Só o app que informa a leitura deixa
      * `lido_na_sessao_em` nulo, então o app antigo nunca adianta a promoção.

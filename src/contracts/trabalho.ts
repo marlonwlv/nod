@@ -5,6 +5,7 @@ import type { CamposDeFrente } from "./frente.ts";
 import type { EpochMs, TenantId } from "./ids.ts";
 import type { Mensagem } from "./mensagem.ts";
 import type { PlataformaMaquina } from "./ponte.ts";
+import type { PassoDoRun } from "./quadro-comentarios.ts";
 import type { CotaNosTrabalhos, CotaNoTrabalho, LeituraDaMaquinaViva, LeituraDeMaquinaDto, MaquinaDoTrabalho } from "./maquina.ts";
 
 /**
@@ -153,7 +154,19 @@ export type TrabalhosDto = {
 } & CotaNosTrabalhos & DonosNosTrabalhos;
 
 /** GET trabalhos/:id: a tela da task. `mensagens`: as do trabalho (com as falas do meio); `falasNaFila`: NOD-376, domain/fala-na-frente.ts. */
-export type TrabalhoDetalheDto = { trabalho: TrabalhoDto; mensagens: Mensagem[]; falasNaFila?: { mensagemId: string; situacao: "na_fila" | "entregue" | "lendo" }[] };
+/**
+ * GET trabalhos/:id. ADR-187 §6 (definido em 2026-11-18, a conversa detalhada da tarefa): `passos` são os últimos passos
+ * gravados dos turnos dela (ADR-165), cada um com o turno; `pedidoDoBot` é o pedido que o dono escreveu ao abrir a frente
+ * (sem a moldura do nod) — a tarefa que a pessoa abriu tem o pedido na primeira fala dela. `guardada` (ADR-185): a fala
+ * que a pessoa mandou e a tarefa não leu antes do Parar; volta à fila quando ela continua.
+ */
+export type TrabalhoDetalheDto = {
+  trabalho: TrabalhoDto;
+  mensagens: Mensagem[];
+  falasNaFila?: { mensagemId: string; situacao: "na_fila" | "entregue" | "lendo" | "guardada" }[];
+  passos?: (PassoDoRun & { turnoId: string })[];
+  pedidoDoBot?: string | null;
+};
 
 /** Linhas do chat (#191); `atividade`: ADR-114; `troca`: bots numa linha; `frentes`: "ver as N"; `revisor`: "Revisor liberou … · ver" (modos, PR 4). */
 export type TipoLinha = "rotina" | "bots" | "task" | "atividade" | "troca" | "frentes" | "revisor";

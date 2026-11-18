@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Agente } from "../../../src/contracts/agente.ts";
 import { FERRAMENTAS_NOD } from "../../../src/contracts/ferramentas-nod.ts";
 import type { Turno } from "../../../src/contracts/turno.ts";
+import { pedidoDoDono, pedidoSemMoldura } from "../../../src/domain/frente.ts";
 import { BRANCH_NA_FRENTE_ATUAL, branchDaFrente, CORTE_DA_ULTIMA_FALA, DONO_INTEGRA, ehFrente, entradaDaFrente, instrucaoDoResumoInvalido, molduraDaFrente, resumoSemChamada, TEXTO_APROVACAO_VENCIDA, TEXTO_PERGUNTA_VENCIDA, semLinhaDeEmpurrar, textoFrentesAbertas, tituloDoLote } from "../../../src/domain/frente.ts";
 import { errosDoSchema } from "../../../src/domain/schema-args.ts";
 import { montarPlano, type EntradaPlano } from "../../../src/domain/plano-turno.ts";
@@ -209,5 +210,18 @@ describe("resumoSemChamada (NOD-282, G5): a decisão vencida pelo tipo", () => {
     expect(resumoSemChamada({ estado: "falhou", ultimaFala: "Posso enviar?", perguntaVencida: true, vencidaTipo: "aprovacao" }).feito).toBe(`A frente parou: ${TEXTO_APROVACAO_VENCIDA}.`);
     expect(resumoSemChamada({ estado: "falhou", ultimaFala: "Qual?", perguntaVencida: true, vencidaTipo: "pergunta" }).feito).toBe(`A frente parou: ${TEXTO_PERGUNTA_VENCIDA}.`);
     expect(resumoSemChamada({ estado: "falhou", ultimaFala: "Qual?", perguntaVencida: true }).feito).toBe(`A frente parou: ${TEXTO_PERGUNTA_VENCIDA}.`);
+  });
+});
+
+describe("pedidoDoDono (ADR-187 §6, Paper 4k)", () => {
+  it("tira a moldura do nod e a linha de empurrar, mesmo com a tarefa renomeada depois", () => {
+    const entrada = entradaDaFrente({ titulo: "Revisar o PR", pedido: "Revise o PR #821: rode os testes e confira o rollback.", deRotina: false });
+    expect(pedidoDoDono(entrada)).toBe("Revise o PR #821: rode os testes e confira o rollback.");
+    expect(pedidoSemMoldura("Outro nome", entrada)).toBe(entrada);
+  });
+
+  it("entrada sem moldura (a fala da pessoa) não é pedido do dono", () => {
+    expect(pedidoDoDono("quanto é dois mais dois?")).toBeNull();
+    expect(pedidoDoDono("[nod] só a moldura")).toBeNull();
   });
 });

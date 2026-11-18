@@ -121,6 +121,43 @@ export function linhaDeEmpurrar(podeEmpurrar: boolean, temRepositorio: boolean):
   return temRepositorio ? "Não empurre: devolva o branch e o SHA." : "Se mexer num repositório, não empurre: devolva o branch e o SHA.";
 }
 
+/** A moldura do pedido da task de antes das frentes (ADR-099, I2): o "Fazer aqui" de uma task antiga ainda a tira. */
+function entradaDaTask(titulo: string, pedido: string, deRotina: boolean): string {
+  return deRotina
+    ? `[nod] Task "${titulo}", aberta pela sua rotina. Faça o trabalho até o fim e entregue o resultado.\n${pedido}`
+    : `[nod] Task "${titulo}", aberta por você na conversa com a pessoa. Ela acompanha pela tela da task; faça o trabalho até o fim e entregue o resultado.\n${pedido}`;
+}
+
+/**
+ * O pedido sem a moldura da task (definido em 2026-10-08, QA do épico): o "Fazer aqui" manda o pedido para a CONVERSA, e
+ * a moldura dizia ao bot que a pessoa "acompanha pela tela da task" — que ele estava numa task que acabou de ser
+ * desfeita. Entrada sem a moldura (a da rede é a mensagem da pessoa) volta como está.
+ */
+export function pedidoSemMoldura(titulo: string, entrada: string): string {
+  for (const deRotina of [false, true]) {
+    // revisto em 2026-10-12 (ADR-099, I2): a frente nasce com a moldura dela (molduraDaFrente); a task de antes, com esta.
+    // ADR-187 §7 (2026-11-18): e a tarefa que a pessoa abriu pela tela (o contexto da conversa, se levou, fica no pedido).
+    for (const moldura of [entradaDaTask(titulo, "", deRotina), molduraDaFrente(titulo, deRotina), molduraDaTarefaDaPessoa(titulo)]) {
+      // revisto em 2026-10-12 (ADR-099, I4): a linha de empurrar é da frente; no dono ela não faz sentido.
+      if (entrada.startsWith(moldura)) return semLinhaDeEmpurrar(entrada.slice(moldura.length));
+    }
+  }
+  return entrada;
+}
+
+/**
+ * ADR-187 §6 (definido em 2026-11-18, Paper 4k): o pedido que o dono escreveu ao abrir a frente, para o cartão "Pedido" da
+ * tela da tarefa — a entrada do primeiro turno sem a linha de moldura do nod (uma linha só, que começa em "[nod] "; pela
+ * linha e não pelo texto dela, porque a aba renomeia a tarefa e a moldura leva o título de antes) e sem a de empurrar.
+ * Entrada sem moldura (a fala da pessoa na rede, a tarefa que ela abriu) não é pedido do dono: null.
+ */
+export function pedidoDoDono(entrada: string): string | null {
+  const quebra = entrada.indexOf("\n");
+  if (!entrada.startsWith("[nod] ") || quebra < 0) return null;
+  const pedido = semLinhaDeEmpurrar(entrada.slice(quebra + 1)).trim();
+  return pedido === "" ? null : pedido;
+}
+
 /** O pedido da frente sem a linha de empurrar (o "Fazer aqui" o devolve ao dono, que não devolve resumo nem branch). */
 export function semLinhaDeEmpurrar(texto: string): string {
   for (const pode of [true, false]) {

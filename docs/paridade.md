@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **205**, mais 3 só de leitura. No chat: **74 vivas**, 4 parciais, 90 faltando e 40 que nunca vão para o chat. Piso de vivas: 74.
+Ações de pessoa que mudam algo: **206**, mais 3 só de leitura. No chat: **74 vivas**, 4 parciais, 91 faltando e 40 que nunca vão para o chat. Piso de vivas: 74.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -201,6 +201,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `trabalhos.abrir` | Abrir uma tarefa | muda | parcial (`abrir_task`): pelo chat quem escreve o pedido é o bot (abrir_task, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato | `POST ^\/agentes\/(?<id>[^/]+)\/trabalhos$` |
 | `trabalhos.renomear` | Renomear uma tarefa | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/titulo$` |
 | `trabalhos.parar` | Parar um trabalho | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/parar$` |
+| `trabalhos.encerrar` | Encerrar uma tarefa parada | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/encerrar$` |
 | `trabalhos.enviar` | Mandar uma mensagem num trabalho | muda | nunca: é o próprio chat | `POST ^\/trabalhos\/(?<id>[^/]+)\/mensagens$` |
 | `trabalhos.depois` | Deixar um trabalho para depois | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/depois$` |
 | `trabalhos.fazer_aqui` | Fazer um trabalho aqui | muda | falta (NOD-397) | `POST ^\/trabalhos\/(?<id>[^/]+)\/fazer-aqui$` |
@@ -365,5 +366,5 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 - **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
 - **NOD-395** (Onda 3: conta e segurança): `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`
 - **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`
-- **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`
+- **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.encerrar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`
 - **NOD-400** (Onda 4b: contas de IA): `bots.decidir_troca_de_ia`, `contas_ia.ordenar`, `contas_ia.mudar_modo`, `contas_ia.editar`, `contas_ia.sair`, `contas_ia.remover`, `contas_ia.seguir`, `contas_ia.tentar_de_novo`, `contas_ia.entrar`, `contas_ia.codigo_do_login`, `contas_ia.cancelar_login`, `contas_ia.trocar_executor`
