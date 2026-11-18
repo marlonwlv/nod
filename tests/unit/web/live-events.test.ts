@@ -375,3 +375,17 @@ describe("live-events: interface de 4 campos sobre EventSource (ADR-016)", () =>
     expect(urlComSince("/e?x=1", "s:1")).toBe("/e?x=1&since=s%3A1");
   });
 });
+
+
+it("stream trocado ou lacuna sem erro de socket pede snapshot e não duplica frames", () => {
+  const m = montar(); m.live.connect();
+  m.fontes[0]!.frame(frame(1));
+  m.fontes[0]!.frame(frame(3));
+  expect(m.reidratacoes()).toBe(1);
+  m.fontes[0]!.frame(frame(3));
+  expect(m.reidratacoes()).toBe(1);
+  m.fontes[0]!.frame(frame(1, "turno.atividade", "novo"));
+  expect(m.reidratacoes()).toBe(2);
+  expect(m.eventos.filter((e) => e.tipo === "frame")).toHaveLength(3);
+  m.live.disconnect();
+});

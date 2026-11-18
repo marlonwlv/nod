@@ -27,15 +27,15 @@ describe("fila da conversa: cada mensagem com seu Cancelar", () => {
 
   it("uma na fila: lê quando terminar; duas: lê junto com as outras", () => {
     const uma = comConversa({ turnosEmCurso: [emCurso("rodando", "despachando", "m1"), emCurso("t2", "pendente", "m2")] });
-    expect(situacaoNaFila(mensagem("m2"), uma)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Nina lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem("m2"), uma)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · aguardando Nina começar" });
     expect(situacaoNaFila(mensagem("m1"), uma)).toBeNull();
     const duas = comConversa({ turnosEmCurso: [emCurso("t2", "pendente", "m2"), emCurso("t3", "pendente", "m3")] });
-    expect(situacaoNaFila(mensagem("m3"), duas)).toEqual({ tipo: "na_fila", turnoId: "t3", texto: "Na fila · Nina lê junto com as outras quando terminar" });
+    expect(situacaoNaFila(mensagem("m3"), duas)).toEqual({ tipo: "na_fila", turnoId: "t3", texto: "Na fila · aguardando Nina começar" });
   });
 
   it("NOD-402: a rotina na fila dos bastidores não conta como outra mensagem da pessoa", () => {
     const e = comConversa({ turnosEmCurso: [{ ...emCurso("r1", "pendente", null), origem: "rotina", bastidores: true } as never, emCurso("t2", "pendente", "m2")] });
-    expect(situacaoNaFila(mensagem("m2"), e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Nina lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem("m2"), e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · aguardando Nina começar" });
   });
 
   it("Cancelar mostra Desfazer por 5 s só na web; cancelada no servidor vira 'não rodou'", () => {
@@ -97,7 +97,7 @@ describe("fila da conversa com a máquina do bot fora do ar (ADR-090, protótipo
 
   it("máquina do bot conectada: a fila de sempre", () => {
     const e = com("vm", [maquina("vm", "vm-sp", true)]);
-    expect(situacaoNaFila(mensagem("m2"), e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Ze 1 lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem("m2"), e)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · aguardando Ze 1 começar" });
   });
 
   it("QA do NOD-314 (achado 7): o turno mandado 'desta vez' para outra máquina espera ESSA máquina, não a do bot", () => {
@@ -106,6 +106,6 @@ describe("fila da conversa com a máquina do bot fora do ar (ADR-090, protótipo
     expect(situacaoNaFila(mensagem("m2"), fora)).toMatchObject({ texto: expect.stringMatching(/^Na fila · MacBook não responde/) });
     // A do bot fora do ar, mas a desta vez conectada: a fila de sempre (não acusa a do bot).
     const viva = { ...fora, maquinas: { maquinas: [maquina("vm", "vm-sp", false), maquina("mac", "MacBook", true)], padraoId: null } };
-    expect(situacaoNaFila(mensagem("m2"), viva)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · Ze 1 lê quando terminar o turno atual" });
+    expect(situacaoNaFila(mensagem("m2"), viva)).toEqual({ tipo: "na_fila", turnoId: "t2", texto: "Na fila · aguardando Ze 1 começar" });
   });
 });

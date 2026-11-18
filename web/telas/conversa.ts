@@ -621,8 +621,7 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
     const la = estado.frota?.agentes.find((a) => a.conversaId === outra.conversaId);
     return { tipo: "na_fila", turnoId: emCurso.id, texto: `Na fila · ${nome} está respondendo em ${la ? `#${la.nome}` : "outra conversa"}` };
   }
-  const naFila = Object.values(estado.turnosVivos).filter((t) => t.conversaId === c.conversa.id && t.estado === "na_fila" && !t.bastidores && !(t.turnoId in estado.cancelando)).length;
-  return { tipo: "na_fila", turnoId: emCurso.id, texto: naFila > 1 ? `Na fila · ${nome} lê junto com as outras quando terminar` : `Na fila · ${nome} lê quando terminar o turno atual` };
+  return { tipo: "na_fila", turnoId: emCurso.id, texto: `Na fila · aguardando ${nome} começar` };
 }
 
 function renderSituacaoFila(s: SituacaoFila, turnoId: string): string {

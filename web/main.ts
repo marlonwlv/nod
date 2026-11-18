@@ -1,3 +1,4 @@
+import { invalidacoesDoChatSemProgresso } from "./lib/reconciliar-chat.ts";
 import { botaoDaBarraSemIa, conversaAguardandoIa, dicaDoComposerSemIa, iasNoCard, idDoCardSemIa, turnosVivosDe } from "./telas/sem-ia-conversa.ts";
 import { escNoEspaco, focoAoAbrirEspaco, voltarParaLista } from "./lib/navegacao-config.ts";
 import { perfilMudou } from "./lib/perfil-mudou.ts";
@@ -3621,6 +3622,8 @@ async function boot(): Promise<void> {
   let ticks = 0;
   window.setInterval(() => {
     ticks += 1;
+    const reconciliar = invalidacoesDoChatSemProgresso(estado, Date.now(), document.visibilityState === "visible");
+    if (reconciliar.length) estado = reduzir(estado, { tipo: "invalidar", quais: reconciliar });
     // definido em 2026-09-24 ("aviso no Mac"): a decisora designada que não é dona não recebe frame
     // decisao.* (o outbox manda à dona); sem isto o pedido dela só aparecia — e só avisava — quando
     // outra coisa relesse "Sua vez".

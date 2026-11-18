@@ -256,7 +256,7 @@ describe("reduzir: hidratar e navegar", () => {
     let e = aplicarFrame(comConversa(), frame("turno.iniciado", { conversaId: CONVERSA, turnoId: TURNO, kind: "turno_despachado" }), AGORA);
     e = aplicarFrame(e, frame("turno.delta", { conversaId: CONVERSA, turnoId: TURNO, texto: "x" }), AGORA);
     e = aplicarFrame(e, frame("turno.delta", { conversaId: CONVERSA, turnoId: "outro", texto: "morto" }), AGORA);
-    e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversaVazia(), agora: AGORA });
+    e = reduzir(e, { tipo: "hidratar-conversa", conversa: { ...conversaVazia(), turnosEmCurso: [{ id: TURNO, estado: "despachando", desde: AGORA, mensagemId: null }] }, agora: AGORA + 1 });
     expect(Object.keys(e.atividades[CONVERSA] ?? {})).toEqual([TURNO]);
   });
 

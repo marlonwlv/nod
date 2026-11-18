@@ -172,6 +172,8 @@ export function criarLiveEvents(url: string, opcoes: OpcoesLiveEvents = {}): Liv
   const aoFrame = (frame: FrameSse, lastEventId: string | undefined): void => {
     // Duplicata (mesmo stream, seq já visto) é descartada: o servidor entrega pelo menos uma vez.
     if (ultimo && ultimo.streamId === frame.streamId && frame.seq <= ultimo.seq && frame.tipo !== "resumed") return;
+    // Definido em 2026-11-18: stream novo ou lacuna exigem snapshot REST, mesmo sem erro do socket.
+    const lacuna = ultimo && frame.tipo !== "resumed" && (ultimo.streamId !== frame.streamId || frame.seq > ultimo.seq + 1);
     ultimo = { streamId: frame.streamId, seq: frame.seq };
     ultimoId = lastEventId && lastEventId !== "" ? lastEventId : `${frame.streamId}:${frame.seq}`;
     if (frame.tipo === "resumed") {
@@ -181,6 +183,7 @@ export function criarLiveEvents(url: string, opcoes: OpcoesLiveEvents = {}): Liv
       return;
     }
     emitir({ tipo: "frame", frame });
+    if (lacuna) opcoes.aoReidratar?.();
   };
 
   const cancelarVigia = (): void => {
