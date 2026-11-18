@@ -692,6 +692,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         b.memorias.push(memoria);
         return memoria;
       },
+      async criarDoAgenteSeAusente(m) {
+        const existente = doTenant(b.memorias).find((x) => x.agenteId === m.agenteId && x.tipo === m.tipo && x.texto === m.texto && x.origem === "agente");
+        if (existente) return { memoria: existente, criada: false };
+        const memoria: Memoria = { tenantId: escopo.tenantId, id: randomUUID(), agenteId: m.agenteId, tipo: m.tipo, texto: m.texto, origem: "agente", criadoEm: agora() };
+        b.memorias.push(memoria);
+        return { memoria, criada: true };
+      },
       async buscar(id) {
         return doTenant(b.memorias).find((m) => m.id === id) ?? null;
       },
