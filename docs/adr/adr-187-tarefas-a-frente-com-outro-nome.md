@@ -59,6 +59,13 @@ tem visualizador.
 
 As decisões 5 a 9 entram por etapas, cada uma validada na preview antes da seguinte; esta ADR registra o destino.
 
+Lote B (decisões 5 a 8) entregue na preview em 2026-11-18, em seis passos (a aba presa ao campo, a tarefa aberta pela
+pessoa, as abas em tela cheia, a conversa detalhada com o Parar no campo, a tela Tarefas e o cartão vivo). Junto, o
+**aviso da máquina** (protótipo 4t, opção A): ao lado da aba, um selo diz o problema e a máquina pelo nome ("Pouca
+memória em nod-vm", "Processador no limite em …", "Sem espaço em …"), só quando as tarefas daquele bot rodam nela (ou
+são seguradas por ela); o clique abre Máquinas na linha dela. Substitui o ponto âmbar sem texto, que só olhava o Mac e,
+no disco, qualquer máquina. A decisão 9 (arquivos) é o lote C.
+
 ## Alternativas descartadas
 
 - **Tarefa num painel ao lado da conversa:** mais leve para responder, mas a pessoa preferiu tela cheia com abas.
