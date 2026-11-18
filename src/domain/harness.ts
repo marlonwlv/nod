@@ -43,10 +43,9 @@ export function causaHarnessIndisponivel(e: unknown): CausaHarnessIndisponivel |
  * modelo escolhido fica na IA DONA do modelo (iaDoModelo: GPT → Codex, Claude → Claude Code); modelo desconhecido, no
  * legado (é o `validarInteligencia` que o recusa, nomeando esse harness).
  */
-export function harnessFixado(harness: string | undefined, modelo: string): IdHarness | null {
+export function harnessFixado(harness: string | undefined, _modelo: string): IdHarness | null {
   const pedido = harness ?? "auto";
-  if (pedido !== "auto") return pedido as IdHarness;
-  return modelo === "auto" ? null : (iaDoModelo(modelo) ?? HARNESS_LEGADO);
+  return pedido === "auto" ? null : pedido as IdHarness;
 }
 
 /**
@@ -67,7 +66,14 @@ export function resolverHarness(p: { harness?: PreferenciaHarness; modelo: strin
     }
     throw e;
   }
-  const ordem = p.ordem ?? ordemEfetiva({ preferido: p.preferido });
+  const ordemBase = p.ordem ?? ordemEfetiva({ preferido: p.preferido });
+  // No Automático, o modelo escolhido é uma preferência, não uma trava de fornecedor. Isto importa sobretudo para
+  // agentes antigos, que guardavam `auto` + `sonnet`: se o Claude está no limite ou fora do ar, o Codex precisa receber
+  // o seu próprio modelo recomendado, nunca a string `sonnet`. Uma IA explicitamente fixada continua sem fallback.
+  const iaPreferidaPeloModelo = pedido === "auto" ? iaDoModelo(p.modelo) : null;
+  const ordem = iaPreferidaPeloModelo
+    ? [iaPreferidaPeloModelo, ...ordemBase.filter((ia) => ia !== iaPreferidaPeloModelo)]
+    : ordemBase;
   // NOD-285 (K1): com anexo, o Automático só considera a IA pronta que lê TODOS os tipos (o `noLimite` continua valendo
   // entre elas). A IA fixa já foi conferida na entrada (enviar-mensagem) e segue a regra de antes.
   const tipos = [...new Set(p.tiposDeAnexo ?? [])];
@@ -79,7 +85,8 @@ export function resolverHarness(p: { harness?: PreferenciaHarness; modelo: strin
   }
   const escolhido = fixo ?? iaDoAutomatico({ ordem, prontos, noLimite: p.noLimite });
   if (!escolhido || !p.prontos.includes(escolhido)) throw new ErroDeDominio("executor_indisponivel", { cause: escolhido ? ({ harness: escolhido } satisfies CausaHarnessIndisponivel) : undefined });
-  return { harness: escolhido, ...modeloERaciocinio(escolhido, p.escolhas, p.modelo) };
+  const modeloDoEscolhido = pedido === "auto" && iaPreferidaPeloModelo !== escolhido ? "auto" : p.modelo;
+  return { harness: escolhido, ...modeloERaciocinio(escolhido, p.escolhas, modeloDoEscolhido) };
 }
 
 /** O modelo mais potente do harness (MODELO_MAIS_POTENTE); null para harness ainda sem catálogo. */
