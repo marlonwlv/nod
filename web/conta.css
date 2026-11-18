@@ -15,6 +15,10 @@
 .cc-mostrar { border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); padding: 8px; border-radius: var(--raio-8); cursor: pointer; }
 .cc-mostrar:hover { background: var(--surface-raised); color: var(--ink); }
 .cc-codigo { font-family: var(--font-mono); font-size: var(--fs-titulo-2); letter-spacing: .3em; text-align: center; }
+
+/* #84: o QR do pareamento, sempre preto no branco (a câmera não lê o invertido do tema escuro). */
+.cc-qr { display: flex; justify-content: center; margin: 4px 0 8px; }
+.cc-qr .qr { width: 184px; height: 184px; border-radius: 8px; }
 .cc-codigo-grande { margin: 4px 0; font-family: var(--font-mono); font-size: 36px; font-weight: 600; letter-spacing: .18em; text-align: center; color: var(--ink); }
 .cc-simbolos { margin: 4px 0; display: flex; justify-content: center; gap: 18px; font-size: 34px; }
 .cc-acoes { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -22,6 +26,9 @@
 .cc-rodape { margin: 0; display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
 .cc-link.bt { border: 0; background: none; color: var(--ink-2); font-size: var(--fs-corpo); }
 .cc-link.bt:hover { background: var(--surface-raised); color: var(--ink); }
+.entrar-primeiro .bt { min-height: 44px; }
+.entrar-primeiro .cc-campo input, .entrar-primeiro .cc-mostrar { box-sizing: border-box; min-height: 44px; }
+.entrar-primeiro .cc-mostrar { min-width: 44px; }
 .cc-erro { margin: 0; font-size: var(--fs-corpo); color: var(--danger); }
 .cc-ok { margin: 0; font-size: var(--fs-corpo); color: var(--success); }
 .cc-resolvida { align-self: center; margin: 0; font-size: var(--fs-corpo-2); color: var(--ink-3); text-align: center; }
@@ -106,6 +113,10 @@
 .linha-tempo .feito { color: var(--success); border-color: var(--success); }
 
 @media (max-width: 760px) {
+  .entrar-primeiro { margin-block: 0; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .entrar-primeiro .cc-sem-conta { position: fixed; z-index: 5; left: 12px; right: 12px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; margin: 0; padding: 8px; box-shadow: var(--shadow-pop); }
+  .entrar-primeiro .cc-sem-conta .cc-titulo, .entrar-primeiro .cc-sem-conta .cc-texto { display: none; }
+  .entrar-primeiro .cc-sem-conta .cc-acoes, .entrar-primeiro .cc-sem-conta .bt { width: 100%; justify-content: center; }
   .conta-pagina { padding-bottom: 54px; }
   .conta-cab { margin-bottom: 14px; }
   .conta-cab p { font-size: 13px; }

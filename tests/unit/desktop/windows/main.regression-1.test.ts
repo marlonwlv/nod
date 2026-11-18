@@ -30,8 +30,8 @@ describe("QA #678: o IPC só atende a tela de conexão", () => {
     // 5/11: os canais da janela web (`nod:ia-*`) passam pela guarda da janela (login-ia-windows.ts `daJanelaWeb`).
     const daJanela = main.match(/ipcMain\.handle\(CANAIS_DESKTOP\.ia\w+, \(e, ia: unknown\) => \{\s*const lida = iaDaJanela\(e, ia\);\s*if \(!lida\) throw new Error\("entrada_invalida"\);/g) ?? [];
     // ADA-242: o Google no app e o "já vi" da janela web passam pela mesma guarda (`daJanela`, daJanelaWeb).
-    const contaDaJanela = main.match(/ipcMain\.handle\(CANAIS_DESKTOP\.(?:desafioConta|trocarConta|google\w+|esteComputador\w+|estaMaquina), (?:async )?\(e(?:, (?:url|codigo): unknown)?\) => (?:\{ if \(!?daJanela\(e\)\)|\(daJanela\(e\) \?)/g) ?? [];
-    expect(contaDaJanela).toHaveLength(8); // ADA-243: + estaMaquina
+    const contaDaJanela = main.match(/ipcMain\.handle\(CANAIS_(?:DESKTOP\.(?:desafioConta|trocarConta|google\w+|esteComputador\w+|estaMaquina|microfone)|MICROFONE\.ajustes), (?:async )?\(e(?:, (?:url|codigo): unknown)?\) => (?:\{ if \(!?daJanela\(e\)\)|\(daJanela\(e\) \?)/g) ?? [];
+    expect(contaDaJanela).toHaveLength(10); // ADA-243: + estaMaquina; 17/11: + microfone e ajustes do microfone
     expect(main).toMatch(/const daJanela = \(e: IpcMainInvokeEvent\) => daJanelaWeb\(e, janela, conexao \? new URL\(conexao\.url\)\.origin : null\);/);
     // ADA-245: os canais do "Remover o nod deste computador" passam pela mesma guarda da janela, antes de tudo.
     const doRemover = main.match(/ipcMain\.handle\(CANAIS_REMOVER\.\w+, (?:async )?\(e(?:, opcoes: unknown)?\)(?:: (?:Promise<[^>]+>|boolean))? => \{\s*if \(!daJanela\(e\)\) throw new Error\("origem_invalida"\);/g) ?? [];

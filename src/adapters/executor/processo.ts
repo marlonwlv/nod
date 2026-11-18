@@ -359,7 +359,16 @@ export function iniciarProcesso(o: {
     return processoQueNaoNasceu(erro);
   }
   // ADR-147: `detached` no Windows abre um console novo e não cria grupo; lá a árvore é do taskkill.
-  const filho = spawn(alvo.bin, alvo.args, { cwd: o.cwd, env, stdio: [o.stdin ?? "pipe", "pipe", "pipe"], detached: !windows, windowsHide: true });
+  // definido em 2026-11-13: o `spawn` também LANÇA na hora, em vez de emitir 'error' — no Windows, a linha de comando
+  // acima de 32.767 caracteres dá `ENAMETOOLONG` síncrono (medido no Node 24.19.0). Sem o try, a exceção subia até o laço
+  // e o turno virava um erro genérico, sem código no log; agora é o fim com erro de spawn, como o ENOENT.
+  let filho: ReturnType<typeof spawn>;
+  try {
+    filho = spawn(alvo.bin, alvo.args, { cwd: o.cwd, env, stdio: [o.stdin ?? "pipe", "pipe", "pipe"], detached: !windows, windowsHide: true });
+  } catch (erro) {
+    if (grupo) void fecharGrupoDoTurno(grupo);
+    return processoQueNaoNasceu(erro instanceof Error ? erro : new Error(String(erro)));
+  }
   const pid = filho.pid;
   // ADR-089: o relógio antes e depois do spawn cerca o início que o `ps` vai mostrar para este líder.
   // Revisão 14b do PR #642 (M1): o registro deste spawn, por identidade — o pid sozinho pode já ser de outro turno.

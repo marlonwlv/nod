@@ -29,7 +29,7 @@ import { sincronizarPrsDoQuadro } from "../../use-cases/prs-do-quadro.ts";
 import { executar } from "./rotas/dentro-de-tx.ts";
 import { limiteDoAmbiente } from "../../domain/computador.ts";
 import { iniciarVarredorExpiracao } from "../fundo/varredor-expiracao.ts";
-import { INTERVALO_VARREDOR_LEASE_MS, iniciarVarredorLease } from "../fundo/varredor-lease.ts";
+import { INTERVALO_VARREDOR_LEASE_MS, iniciarVarredorLease, lerTetoBastidoresMs } from "../fundo/varredor-lease.ts";
 import { comporApp, type App, type AtivarDriver, type EnvApp, type OpcoesCompor } from "./compor.ts";
 import { lerModelosLigacao } from "../../domain/modelo-ligacao.ts";
 import { lerDominiosAdmitidos } from "../../domain/dominios-admitidos.ts";
@@ -228,6 +228,8 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     autorizarTokenTurno: app.tokens.autorizarComBanco,
     // ADR-092: também no modo local — a VM da pessoa (o motor da ADR-090) puxa turnos deste Mac pela ponte.
     autorizarMaquina: app.autorizarMaquina,
+    // Servidor MCP do Nod (0173): POST /api/mcp com o token gerado nos Ajustes.
+    mcp: app.mcp,
     sessao: sessao.modo === "google" && app.contas ? { ...sessao, google: { ...sessao.google, ...(app.contas.google ? { conta: app.contas.google } : {}) } } : sessao,
     ...(app.contas ? { contas: { guarda: app.contas.guarda, google: app.contas.google !== null, bootstrap: app.contas.bootstrap, minhaConta: !!app.contas.minhaConta, onboardingTexto: app.contas.onboardingTexto, rotas: app.contas.rotas } } : {}),
     verificarSaude,
@@ -368,11 +370,19 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
       opcoes: {
         listarPessoas: o.listarPessoas,
         prazoDecisaoMs: Number(env.NOD_PRAZO_DECISAO_MS) || undefined,
+        tetoBastidoresMs: lerTetoBastidoresMs(env.NOD_TETO_BASTIDORES_MS),
         // Só no compartilhado: no modo local o servidor É o nod no Mac — reiniciar é "nod fechado".
         ...(app.compartilhado ? { inicioDoProcesso, ultimoContato: (id: string) => app.ultimoContatoDaMaquina(id) } : {}),
       },
       // ADR-067: o token sem relógio some junto com o turno que o lease encerrou.
-      aoInterromper: (ids) => { for (const id of ids) app.services.tokenTurno.revogar(id); },
+      aoInterromper: async (ids) => {
+        // NOD-452: no executor local, espera o SIGTERM antes de o tick terminar; no remoto a renovação vê a marca no banco.
+        await Promise.all(ids.map(async (id) => {
+          try { await app.services.interruptor.interromper(id); }
+          catch (e) { log("aviso", "interrupcao_do_varredor_falhou", { turno_id: id, erro: e instanceof Error ? e.name : "desconhecido" }); }
+          finally { app.services.tokenTurno.revogar(id); }
+        }));
+      },
       aoBater: batimentos.registrar("varredor_lease", iv.leaseMs ?? INTERVALO_VARREDOR_LEASE_MS),
     });
     varredorExpiracao = iniciarVarredorExpiracao(db, { services: app.services, useCases: app.useCases, agora, intervaloMs: iv.expiracaoMs, executor: () => app.executor }, { listarPessoas: o.listarPessoas });

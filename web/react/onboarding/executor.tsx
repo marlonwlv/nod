@@ -15,7 +15,7 @@ import type { Executar } from "./tipos.ts";
  * decisões de cada tela são as de web/telas/onboarding.ts (`telaDaIa`, `estadoDoCardIa`, `passosDaConexao`); aqui só o
  * desenho e os cliques.
  */
-type TelaExecutor = Pick<EstadoTelaOnboarding, "dados" | "procurando" | "iaEntrando" | "notaIa" | "teste" | "iasMac">;
+type TelaExecutor = Pick<EstadoTelaOnboarding, "dados" | "procurando" | "iaEntrando" | "notaIa" | "teste" | "iasMac" | "entrarNaConta">;
 type Props = { e: TelaExecutor; executar: Executar; copiar: (t: string) => Promise<boolean>; cartao: AcoesDoCartaoIa };
 
 function Cabeca({ titulo, texto }: { titulo: string; texto: string }) {
@@ -208,7 +208,8 @@ export function Executor({ e, executar, copiar, cartao }: Props) {
     return <ListaDeIas e={e} t={t} tela={tela === "testando" ? "testando" : "sem_ia"} executar={executar} copiar={copiar} />;
   }
   const cabeca = <div className="ob-cabeca"><h1>A IA dos seus bots</h1><p>Seus bots trabalham com a conta que você já assina, aqui {nesteMac()}. O nod nunca vê sua senha nem sua chave.</p></div>;
-  if (e.procurando) return <section className="ob-tela ob-executor" aria-label="A IA dos seus bots">{cabeca}<div className="ob-procurando" role="status"><Gira />Procurando o Claude Code e o Codex {nesteMac()}…</div><p className="ob-nota" /></section>;
+  const conta = e.entrarNaConta ? <div className="ob-outra-conta"><p>Já usa o nod em outro computador? Seus bots e a IA deles estão na sua conta.</p><button type="button" className="ob-pilula contorno" onClick={() => executar("onboarding-entrar-na-conta")}>Entrar na sua conta</button></div> : null;
+  if (e.procurando) return <section className="ob-tela ob-executor" aria-label="A IA dos seus bots">{cabeca}<div className="ob-procurando" role="status"><Gira />Procurando o Claude Code e o Codex {nesteMac()}…</div><p className="ob-nota" />{conta}</section>;
   return (
     <section className="ob-tela ob-executor" aria-label="A IA dos seus bots">
       {cabeca}
@@ -217,7 +218,7 @@ export function Executor({ e, executar, copiar, cartao }: Props) {
           ? <CardIa key={p.id} p={p} s={estadoDoCardIa(p.ia, e.dados.executor.ias, e.iaEntrando)} nome={null} executar={executar} copiar={copiar} />
           : <div key={p.id} className="ob-card-ia em-breve" aria-disabled="true"><div className="ob-ia-linha"><Svg html={LOGOS_IA[p.id]} className="ob-logo" /><div className="ob-ia-txt"><b>{p.nome}</b><span>Em breve</span></div></div></div>)}
       </div>
-      <p className="ob-nota" role="status">{e.notaIa ?? "Dá para trocar ou adicionar outra depois, em Seu espaço › Provedores de IA."}</p>
+      <p className="ob-nota" role="status">{e.notaIa ?? "Dá para trocar ou adicionar outra depois, em Seu espaço › Provedores de IA."}</p>{conta}
     </section>
   );
 }

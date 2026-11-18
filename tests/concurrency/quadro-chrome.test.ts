@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
@@ -129,7 +129,7 @@ window.__regravar = () => {
 
 /** O index.html de verdade, com todos os CSS do app embutidos na ordem dele e o JS do teste no lugar do main.ts. */
 async function pagina(dir: string): Promise<string> {
-  const js = await build({ stdin: { contents: ENTRADA, resolveDir: RAIZ.pathname, loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
+  const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
   let html = readFileSync(new URL("web/index.html", RAIZ), "utf8");
   html = html.replace(/<link rel="stylesheet" href="\/([\w-]+\.css)" \/>/g, (_, f: string) => `<style>${readFileSync(new URL(`web/${f}`, RAIZ), "utf8")}</style>`);
   html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<script>${js.outputFiles[0]!.text}</script>`);
@@ -891,6 +891,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(await avaliar<string>(cdp, `document.querySelector(".pg-dica")?.textContent ?? ""`)).toBe("passe o mouse ou deslize de lado na pílula · Alt ← → troca");
     await avaliar(cdp, `window.__quadro.irPara(1)`);
     // Abrir a doca (aqui pelo foco) guarda a marca.
+    await cdp.enviar("Page.bringToFront");
     await avaliar(cdp, `document.querySelector('${aba("quadro")}').focus()`);
     expect(await avaliar<string | null>(cdp, `localStorage.getItem("nod.paginas.dica")`)).toBe("1");
   }, 30_000);

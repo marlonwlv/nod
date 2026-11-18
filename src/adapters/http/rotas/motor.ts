@@ -32,10 +32,10 @@ export function rotasMotor(o: { pasta: string; versao: string; urlPublica?: stri
         ctx.res.end(scriptDeInstalacao({ servidor, versao: o.versao, convite: busca.get("convite"), papel: papelDoScript(busca.get("papel")), ...(o.computador ? { computador: true } : {}) }));
       },
     },
-    {
+    ...(["GET", "HEAD"] as const).map((metodo): Rota => ({
       // ADR-151 (ADA-32): `irm https://<nod>/windows | iex`. O mesmo contrato do script do Linux, em PowerShell; só HTTPS
       // (HTTP só em loopback, para o servidor de teste da CI).
-      metodo: "GET",
+      metodo,
       padrao: /^\/motor\/instalar-windows$/,
       publica: true,
       async handler(ctx) {
@@ -48,9 +48,9 @@ export function rotasMotor(o: { pasta: string; versao: string; urlPublica?: stri
         try { script = scriptDeInstalacaoWindows({ servidor, versao: o.versao, convite }); }
         catch { ctx.json(400, { codigo: "entrada_invalida", mensagem: "A versão deste servidor não cabe no script do Windows." }); return; }
         ctx.res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
-        ctx.res.end(script);
+        ctx.res.end(metodo === "HEAD" ? undefined : script);
       },
-    },
+    })),
     {
       // ADR-100: o que o motor compara para saber se está igual ao servidor, e o que o atualizador confere depois de
       // baixar. O sha256 de cada arquivo, não a versão: vários merges saem com o mesmo número.

@@ -123,3 +123,17 @@ chat. Só a mensagem gravada, quando há algo para a pessoa, aparece.
 - **Interromper a rotina quando a pessoa fala.** Perde trabalho e custo, e a rotina recomeça do zero.
 - **Voltar a rotina e o pedido de colega a trabalhos (ADR-083 S7).** Perde o dono que decide na entrada (ADR-099 1a);
   os bastidores mantêm o dono, só sem bloquear a pessoa.
+
+## Emenda NOD-452 (2026-11-17): teto medido para a faixa dos bastidores
+
+Um turno da faixa dos bastidores que ultrapassa o teto operacional vira `turno_travado`, é interrompido e recebe uma
+retomada em outra execução pela regra única de `espera-no-fundo`. A retomada acorda depois do primeiro degrau do
+backoff; assim o próximo pedido já enfileirado sai antes dela. O processo velho é interrompido antes de a faixa ser
+liberada: dois turnos da mesma faixa nunca rodam juntos.
+
+O teto vem de `NOD_TETO_BASTIDORES_MS`; vazio ou zero mede sem cortar. Cada assentamento da faixa registra somente
+origem, desfecho e duração, para calcular p50/p90/p95/p99 sem texto, argumento ou identificador. Produção liga o valor
+só depois de amostra suficiente. Tarefas e frentes ficam fora: o corte vale apenas para `bastidores=true` sem trabalho.
+
+Esta é a exceção restrita à regra “nenhum relógio de trabalho” da ADR-067: conversa da pessoa, sala, ligação e trabalhos
+continuam sem duração máxima; apenas a fila serial invisível dos bastidores tem o freio para não bloquear os seguintes.

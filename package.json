@@ -1,6 +1,6 @@
 {
   "name": "nod",
-  "version": "1.0.0-rc.7",
+  "version": "1.0.0-rc.8",
   "description": "Um lugar onde agentes preparam decisões e uma pessoa decide.",
   "type": "module",
   "engines": {
@@ -55,7 +55,8 @@
     "qa:shell-visual": "node scripts/qa-shell-visual/relatorio.ts",
     "computador:orfaos": "node scripts/computadores-orfaos.ts",
     "computador:legado": "node scripts/computador-legado.ts",
-    "paridade": "node scripts/paridade.ts"
+    "paridade": "node scripts/paridade.ts",
+    "test:computador:elementos": "npm ci --prefix infra/computador && node --test tests/computador/navegador.test.mjs"
   },
   "simple-git-hooks": {
     "pre-commit": "if command -v mise >/dev/null 2>&1; then mise exec -- npx lint-staged; else npx lint-staged; fi"

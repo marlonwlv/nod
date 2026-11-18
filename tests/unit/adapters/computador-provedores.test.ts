@@ -143,7 +143,7 @@ describe("ações do nod sobre primitivas (provedor de fora)", () => {
 
   it("o que a máquina de fora não tem responde acao_falhou com o que fazer, nunca sucesso", async () => {
     const ex = criarExecutorPorPrimitivas({} as PrimitivasDeComputador, { raiz: "/workspace" });
-    for (const acao of [{ tipo: "audio", segundos: 2 }, { tipo: "dialogo", aceitar: true, quadro: "q" }, { tipo: "anexar", caminho: "a", quadro: "q" }] as const) {
+    for (const acao of [{ tipo: "elementos", operacao: "observar" }, { tipo: "audio", segundos: 2 }, { tipo: "dialogo", aceitar: true, quadro: "q" }, { tipo: "anexar", caminho: "a", quadro: "q" }] as const) {
       const e = await ex.executar(ref, acao).catch((x: unknown) => x);
       expect(e).toBeInstanceOf(FalhaComputador);
       expect((e as FalhaComputador).motivo).toBe("acao_falhou");

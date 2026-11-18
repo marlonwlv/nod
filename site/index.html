@@ -896,6 +896,7 @@ $ testes
   <div><h2>O time no dia a dia.</h2></div>
   <p class="ap">Uma pessoa real, um dia de trabalho com o nod.</p>
  </div>
+ <!-- NOD-322: o vídeo real vem na NOD-333 e não bloqueia o site; até lá o play só mostra "Vídeo em produção". -->
  <div class="vbox" id="vbox">
   <button class="vplay" id="vplay" type="button" aria-label="Assistir ao vídeo (em produção)">
    <svg viewBox="0 70 180 180" aria-hidden="true"><circle cx="90" cy="160" r="90" fill="#0a0a0a"/><g id="eyes7"><g id="lid7"><rect fill="#fff" x="58" y="132" width="17" height="38" rx="8.5" transform="rotate(-10 66 151)"/><rect fill="#fff" x="105" y="132" width="17" height="38" rx="8.5" transform="rotate(10 113 151)"/></g></g></svg>
@@ -981,7 +982,6 @@ function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAl
 function grp(){var ts=[];return{at:function(f,ms){ts.push(setTimeout(f,ms))},stop:function(){ts.forEach(clearTimeout);ts=[]}}}
 var toastEl=null,toastT=0;
 function toast(t){toastEl=toastEl||document.getElementById('toast');toastEl.textContent=t;toastEl.classList.add('show');clearTimeout(toastT);toastT=setTimeout(function(){toastEl.classList.remove('show')},1800)}
-document.addEventListener('click',function(e){var a=e.target.closest('[data-pend]');if(a){e.preventDefault();toast('Link em breve')}});
 
 /* ---------- palavras que se preenchem ---------- */
 function split(el){var ws=el.textContent.trim().split(/\s+/);el.innerHTML=ws.map(function(w){return '<span class="w">'+w+'</span>'}).join(' ');return $$('.w',el)}

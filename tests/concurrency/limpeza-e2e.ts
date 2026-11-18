@@ -15,6 +15,8 @@ export async function limparPessoaE2E(db: Db, dbDono: Db, escopo: Escopo, ids: {
   await db.begin(async (trx) => {
     await vincularEscopo(trx, escopo);
     await trx`set local lock_timeout = '5s'`;
+    await trx`delete from mcp_acoes where owner_id = ${p}`;
+    await trx`delete from mcp_tokens where owner_id = ${p}`;
     await trx`delete from relato_prosa where owner_id = ${p}`;
     await trx`delete from relatos where owner_id = ${p}`;
     await trx`delete from turno_diagnosticos where owner_id = ${p}`;
@@ -112,6 +114,9 @@ export async function limparTenantE2E(dbDono: Db, tenantId: string): Promise<voi
  */
 export async function varrerSobrasDaPessoa(db: Db, dbDono: Db, escopo: Escopo): Promise<string[]> {
   const tabelas = (await db<{ t: string }[]>`select c.table_name as t from information_schema.columns c join information_schema.tables x on x.table_schema = c.table_schema and x.table_name = c.table_name where c.table_schema = 'public' and c.column_name = 'owner_id' and x.table_type = 'BASE TABLE' order by 1`).map((r) => r.t);
+  // Sala e conversa apontam uma para a outra por FKs deferidas. Apagá-las em savepoints separados parece funcionar,
+  // mas derruba o commit da passada; trate o ciclo como uma unidade depois que as dependências comuns forem removidas.
+  const tabelasSemCiclo = tabelas.filter((t) => t !== "salas" && t !== "conversas");
   const contar = async (): Promise<string[]> => {
     const sobras: string[] = [];
     // A contagem é do DONO (vê toda tabela, com ou sem grant à app) com o escopo vinculado (as de FORCE RLS também). Não
@@ -131,7 +136,7 @@ export async function varrerSobrasDaPessoa(db: Db, dbDono: Db, escopo: Escopo): 
     let falhou = 0;
     await db.begin(async (trx) => {
       await vincularEscopo(trx, escopo);
-      for (const t of tabelas) {
+      for (const t of tabelasSemCiclo) {
         await trx
           .savepoint(async (s) => {
             apagou += (await s`delete from ${s(t)} where owner_id = ${escopo.pessoaId}`).count;
@@ -140,6 +145,14 @@ export async function varrerSobrasDaPessoa(db: Db, dbDono: Db, escopo: Escopo): 
             falhou++;
           });
       }
+      await trx
+        .savepoint(async (s) => {
+          apagou += (await s`delete from salas where owner_id = ${escopo.pessoaId}`).count;
+          apagou += (await s`delete from conversas where owner_id = ${escopo.pessoaId}`).count;
+        })
+        .catch(() => {
+          falhou++;
+        });
     });
     if (falhou === 0 || apagou === 0) break;
   }

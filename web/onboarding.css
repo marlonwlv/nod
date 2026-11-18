@@ -91,6 +91,10 @@
 
 /* "Seus bots já têm uma IA": o Continuar e a nota. */
 .ob-seguir { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+/* #78: a saída da etapa da IA para quem já tem conta (web, espaço sem conta); 44 px de alvo no celular (ADR-094). */
+.ob-outra-conta { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 4px; text-align: center; }
+.ob-outra-conta p { margin: 0; font-size: 13px; color: var(--ink-2); max-width: 560px; }
+.ob-outra-conta .ob-pilula.contorno { height: 44px; }
 
 /* O botão do onboarding: pílula na cor de ação (o "Conectado" da IA em sucesso). */
 .ob-pilula { border: 0; background: var(--action); color: var(--on-action); border-radius: 999px; padding: 0 18px; height: 40px; font: inherit; font-size: 14px;

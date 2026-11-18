@@ -24,7 +24,7 @@ import type { Deps } from "./tipos.ts";
  *    leu a web (ADR-062) cria, como o Matheus decidiu, e a criação leva `apos_conteudo_de_fora` no evento;
  * 2. o pedido inteiro é validado antes, com os nomes TRAVADOS (agentes.travarNomesDeBots) e comparados com todos os
  *    bots que a pessoa vê; qualquer problema e nada é criado, e tudo roda num SAVEPOINT só (um erro no meio volta o lote);
- * 3. o bot novo nasce como qualquer bot criado pela pessoa: sem apps, sem rotinas, sem memória e em Aprovar
+ * 3. o bot novo nasce como qualquer bot criado pela pessoa: com o padrão de cada app (ADA-241), sem rotinas, sem memória e em Aprovar
  *    automaticamente (criarAgente, MODO_APROVACAO_INICIAL; revisto em 2026-10-20, NOD-316, emenda da ADR-059 §1).
  *    A pessoa muda em Aprovações. Quem pede não muda.
  */

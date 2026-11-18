@@ -50,6 +50,12 @@ export type EstadoTelaOnboarding = {
    * bots" usa o mesmo cartão de Provedores de IA (tela 5 do plano das IAs); sem ela, as telas de 2026-10-05.
    */
   iasMac?: UiIas | null;
+  /**
+   * #78: na web (fora do app), num espaço sem conta que a própria web criou. Quem já usa o nod noutro computador abre o
+   * nod pelo celular ou por outro navegador e cai aqui; a IA dos bots dele está no motor do outro computador, na conta
+   * dele. A etapa da IA ganha a saída "Entrar na sua conta"; sem ela, a camada cobria a tela inteira sem caminho de volta.
+   */
+  entrarNaConta?: boolean;
 };
 
 /**

@@ -7,6 +7,7 @@ import type { IdVozNod, VelocidadeVoz } from "../../src/contracts/vozes.ts";
 import { ErroApi, type Api } from "../lib/api.ts";
 import type { EventoMotor, MotorLigacao, OpcoesMotor } from "../lib/ligacao.ts";
 import type { EstadoLocalLigacao, MotivoAvaliacaoLigacao } from "../lib/ligacao-protocolo.ts";
+import { podeAbrirAjustesDoMicrofone } from "../lib/microfone-do-sistema.ts";
 import { esquecerRegiao, regiao, regiaoMudaria } from "../lib/regioes.ts";
 import { esc } from "../lib/render.ts";
 import { duracaoRelogio } from "../lib/relogio.ts";
@@ -208,7 +209,7 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
     if (estado === "reconectando") { mudar((e) => ({ ...e, fase: "reconectando" })); return; }
     if (estado === "conectado") { mudar((e) => ({ ...e, fase: e.fase === "reconectando" ? "ouvindo" : e.fase })); return; }
     if (estado === "audio-suspenso") { mudar((e) => ({ ...e, audioSuspenso: true })); return; }
-    const aviso = avisoDoEstadoLocal(estado, noApp);
+    const aviso = avisoDoEstadoLocal(estado, noApp, podeAbrirAjustesDoMicrofone());
     if (estado === "caiu" || estado === "encerrada-pelo-servidor" || estado === "voz-fora" || estado === "ja-em-ligacao" || estado === "sessao-expirada") {
       terminar(aviso?.texto ?? null, estado === "caiu" || estado === "encerrada-pelo-servidor");
       return;

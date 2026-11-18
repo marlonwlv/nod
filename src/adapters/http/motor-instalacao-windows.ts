@@ -25,6 +25,8 @@ import { NODE_DO_MOTOR } from "./motor-instalacao.ts";
  * Agendador, que é da máquina: o nome leva o SID do usuário (`nod-motor-<SID>`) para cada conta ter a sua.
  */
 export const TAREFA_DO_MOTOR_WINDOWS = "nod-motor";
+/** SHA-256 do SHASUMS256.txt oficial de NODE_DO_MOTOR; atualizar junto da versão do Node. */
+export const SHA256_SHASUMS_DO_NODE = "be0629ee2bcd8e40bb856abdd3407f0762101b76bd60a36b8867f637733631c0";
 
 /** `https://host[:porta]` ou `http://` só em loopback (o servidor de teste da CI). */
 const SERVIDOR_NO_SCRIPT = /^(https:\/\/[a-z0-9.-]+(:\d{1,5})?|http:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?)$/;
@@ -55,6 +57,7 @@ $NodServidor = '${o.servidor}'
 $NodVersao = '${o.versao}'
 $NodConvite = '${convite}'
 $NodeVersao = '${NODE_DO_MOTOR}'
+$Sha256SomasNode = '${SHA256_SHASUMS_DO_NODE}'
 $PisoClaude = '${PISO_CLI["claude-cli"]}'
 $PisoCodex = '${PISO_CLI["codex-cli"]}'
 $ArquivosDoMotor = @(${arquivos})
@@ -63,6 +66,13 @@ $env:NOD_INSTALACAO_RESULTADO = ''
 if ($env:OS -ne 'Windows_NT' -or -not $env:LOCALAPPDATA -or -not $env:APPDATA) {
   $env:NOD_INSTALACAO_RESULTADO = 'falhou'
   Write-Host ([string][char]0x2717 + ' Este comando é para o Windows. No Linux, use: curl -fsSL ' + $NodServidor + '/motor | sh') -ForegroundColor Red
+  return
+}
+# Tipos .NET usados abaixo ([WindowsIdentity], [guid] e [Mutex]) nao funcionam em ConstrainedLanguage. A guarda vem
+# antes do primeiro deles para a pessoa receber a explicacao, em vez de um erro de linguagem do PowerShell.
+if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
+  $env:NOD_INSTALACAO_RESULTADO = 'falhou'
+  Write-Host ([string][char]0x2717 + ' O PowerShell desta máquina está em modo restrito (política da empresa). O nod não instala assim: fale com quem cuida das máquinas.') -ForegroundColor Red
   return
 }
 # A raiz do Agendador e da maquina: com um nome so, a segunda conta do PC sobrescreveria (ou adotaria) a tarefa da primeira.
@@ -84,6 +94,8 @@ $Taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
 $ArgumentosDoMotor = '--headless "' + $NodeExe + '" "' + $MotorMjs + '" rodar'
 $Tmp = Join-Path $Pasta ('tmp-' + [guid]::NewGuid().ToString('n'))
 $Estado = @{ Parado = $false; Iniciado = $false; Modo = '' }
+$Trava = $null
+$TravaAdquirida = $false
 
 function Passo([string]$Texto) { Write-Host ([string][char]0x2713 + ' ' + $Texto) -ForegroundColor Green }
 function Aviso([string]$Texto) { Write-Host ('! ' + $Texto) -ForegroundColor Yellow }
@@ -214,7 +226,6 @@ function PorNaFrenteDoPathDoUsuario([string]$PastaNaFrente) {
 }
 
 function Conferir {
-  if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { Falhar 'O PowerShell desta máquina está em modo restrito (política da empresa). O nod não instala assim: fale com quem cuida das máquinas.' }
   $arq = $env:PROCESSOR_ARCHITEW6432
   if (-not $arq) { $arq = $env:PROCESSOR_ARCHITECTURE }
   if ($arq -ne 'AMD64') { Falhar 'Por enquanto o nod roda só em Windows x64.' }
@@ -341,6 +352,7 @@ function InstalarNode {
   $base = 'https://nodejs.org/dist/v' + $NodeVersao + '/'
   Baixar ($base + 'SHASUMS256.txt') $somas
   Baixar ($base + $nome + '.zip') $zip
+  if ((Sha256 $somas) -ne $Sha256SomasNode) { Falhar 'A lista oficial de somas do Node não confere com a versão fixada pelo nod. Nada foi trocado: rode de novo.' }
   $linha = Get-Content -LiteralPath $somas | Where-Object { $_ -match ('^[0-9a-f]{64}\s+' + [regex]::Escape($nome + '.zip') + '$') } | Select-Object -First 1
   if (-not $linha -or (Sha256 $zip) -ne ($linha -split '\s+')[0]) { Falhar 'O Node baixado não confere (sha256). Nada foi trocado: rode de novo.' }
   $extraido = Join-Path $Tmp 'node'
@@ -384,13 +396,41 @@ function MarcarIaDoNod([string]$Binario, [string]$Prefixo) {
   } catch { Registrar ('marca das IAs: ' + $_.Exception.Message) }
 }
 
+# Os shims que o npm gera chamam node pelo Path. Uma versao antiga da pessoa pode vir antes do Node portatil do nod;
+# os tres shims do pacote instalado pelo nod passam a chamar o NodeExe absoluto, sem alterar outros pacotes do prefixo.
+function FixarNodeNosShims([string]$Pacote, [string]$Binario) {
+  try {
+    $pastaDoPacote = Join-Path (Join-Path $PastaNpm 'node_modules') $Pacote
+    $packageJson = Join-Path $pastaDoPacote 'package.json'
+    if (-not (Test-Path -LiteralPath $packageJson)) { return }
+    $manifesto = Get-Content -LiteralPath $packageJson -Raw | ConvertFrom-Json
+    $entradaRelativa = if ($manifesto.bin -is [string]) { [string]$manifesto.bin } elseif ($manifesto.bin.$Binario) { [string]$manifesto.bin.$Binario } else { [string]($manifesto.bin.PSObject.Properties | Select-Object -First 1).Value }
+    if (-not $entradaRelativa) { return }
+    $entrada = Join-Path $pastaDoPacote $entradaRelativa
+    if (-not (Test-Path -LiteralPath $entrada)) { return }
+    # O npm também cria shims para executáveis nativos (hoje o Claude Code entrega bin/claude.exe). Esses não chamam
+    # Node e precisam conservar o shim do npm; só entradas JavaScript podem ser fixadas no Node portátil do nod.
+    if ([IO.Path]::GetExtension($entrada) -notin @('.js', '.mjs', '.cjs')) { return }
+    $nodeCmd = $NodeExe.Replace('%', '%%')
+    $entradaCmd = $entrada.Replace('%', '%%')
+    Set-Content -LiteralPath (Join-Path $PastaNpm ($Binario + '.cmd')) -Encoding ASCII -Value @('@echo off', ('"' + $nodeCmd + '" "' + $entradaCmd + '" %*'))
+    $nodePs = $NodeExe.Replace("'", "''")
+    $entradaPs = $entrada.Replace("'", "''")
+    Set-Content -LiteralPath (Join-Path $PastaNpm ($Binario + '.ps1')) -Encoding UTF8 -Value ("& '" + $nodePs + "' '" + $entradaPs + "' @args")
+    $nodeSh = $NodeExe.Replace('\\', '/').Replace('"', '\\"')
+    $entradaSh = $entrada.Replace('\\', '/').Replace('"', '\\"')
+    Set-Content -LiteralPath (Join-Path $PastaNpm $Binario) -Encoding ASCII -Value @('#!/bin/sh', ('exec "' + $nodeSh + '" "' + $entradaSh + '" "$@"'))
+  } catch { Registrar ('shims de ' + $Binario + ': ' + $_.Exception.Message) }
+}
+
 # O npm do Node do nod, chamado pelo node (e nao pelo npm.cmd: o cmd.exe leria o >= do pacote como redirecionamento).
 function InstalarIa([string]$Pacote, [string]$Binario, [string]$Piso, [string]$Nome) {
   $antes = VersaoDoBinario $Binario
-  if ($antes -and $antes -ge [version]$Piso) { Passo ($Nome + ' ' + $antes); return $true }
+  if ($antes -and $antes -ge [version]$Piso) { FixarNodeNosShims $Pacote $Binario; Passo ($Nome + ' ' + $antes); return $true }
   Write-Host ('Instalando o ' + $Nome + '...')
   $npm = Join-Path $PastaNode 'node_modules\npm\bin\npm-cli.js'
   $r = Rodar $NodeExe @($npm, 'install', '-g', '--prefix', $PastaNpm, '--no-fund', '--no-audit', '--loglevel=error', ($Pacote + '@>=' + $Piso))
+  FixarNodeNosShims $Pacote $Binario
   if (-not $antes) { MarcarIaDoNod $Binario $PastaNpm }
   $depois = VersaoDoBinario $Binario
   if ($depois -and $depois -ge [version]$Piso) { Passo ($Nome + ' ' + $depois); return $true }
@@ -459,7 +499,10 @@ function RegistrarInicio {
     $quem = New-ScheduledTaskPrincipal -UserId $usuario -LogonType Interactive -RunLevel Limited
     $ajustes = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartInterval (New-TimeSpan -Minutes 1) -RestartCount 999 -MultipleInstances IgnoreNew
     Register-ScheduledTask -TaskName $NomeDaTarefa -TaskPath '\' -Action $acao -Trigger $gatilho -Principal $quem -Settings $ajustes -Description 'Nod: o motor desta máquina (ADR-151)' -Force | Out-Null
+    # A versao inicial da ADR-151 usava \nod-motor para todas as contas. A tarefa por SID substitui e remove a antiga.
+    Unregister-ScheduledTask -TaskName '${TAREFA_DO_MOTOR_WINDOWS}' -TaskPath '\' -Confirm:$false -ErrorAction SilentlyContinue
     Remove-ItemProperty -Path $ChaveRun -Name $NomeDaTarefa -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $ChaveRun -Name '${TAREFA_DO_MOTOR_WINDOWS}' -ErrorAction SilentlyContinue
     $Estado.Modo = 'tarefa'
     Passo ('inicia sozinho no login (Tarefa Agendada ' + $NomeDaTarefa + ')')
   } catch {
@@ -475,6 +518,8 @@ function RegistrarInicio {
     # O New-ItemProperty cria o valor, nao a chave: num perfil sem a chave Run ele falharia. Sem -Force no New-Item
     # (numa chave que existe, ele a recriaria vazia).
     if (-not (Test-Path -LiteralPath $ChaveRun)) { New-Item -Path $ChaveRun | Out-Null }
+    Unregister-ScheduledTask -TaskName '${TAREFA_DO_MOTOR_WINDOWS}' -TaskPath '\' -Confirm:$false -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $ChaveRun -Name '${TAREFA_DO_MOTOR_WINDOWS}' -ErrorAction SilentlyContinue
     New-ItemProperty -Path $ChaveRun -Name $NomeDaTarefa -Value ('"' + $Conhost + '" ' + $ArgumentosDoMotor) -PropertyType String -Force | Out-Null
     $Estado.Modo = 'run'
     Aviso 'O Windows não deixou criar a Tarefa Agendada: o motor inicia no login pela chave Run do usuário (sem reinício automático se cair).'
@@ -484,6 +529,9 @@ function RegistrarInicio {
 function IniciarMotor {
   if ($Estado.Modo -eq 'tarefa') { Start-ScheduledTask -TaskName $NomeDaTarefa -TaskPath '\' }
   else { Start-Process -FilePath $Conhost -ArgumentList $ArgumentosDoMotor -WindowStyle Hidden | Out-Null }
+  $ate = (Get-Date).AddSeconds(15)
+  while ((PidsDoMotor).Count -eq 0 -and (Get-Date) -lt $ate) { Start-Sleep -Milliseconds 250 }
+  if ((PidsDoMotor).Count -eq 0) { Falhar ('O motor foi instalado, mas não iniciou. Confira ' + $Log + ' e rode de novo.') }
   $Estado.Iniciado = $true
 }
 
@@ -535,13 +583,23 @@ function Principal {
     return
   }
   Write-Host ''
-  if ((Parear) -ne 0) { Falhar ('O pareamento não terminou. Rode de novo: nod parear ' + $NodServidor) }
+  if ((Parear) -ne 0) { Falhar ('O pareamento não terminou. Rode de novo: nod-motor parear ' + $NodServidor) }
   IniciarMotor
   Write-Host ''
   Write-Host 'Pronto: o motor está no ar e volta sozinho quando você entrar no Windows. Estado: nod estado'
 }
 
 try {
+  $Trava = New-Object Threading.Mutex($false, 'Local\nod-motor-instalador')
+  try {
+    if (-not $Trava.WaitOne(0)) { Falhar 'Já há outra instalação do nod rodando neste Windows. Espere ela terminar e rode de novo.' }
+    $TravaAdquirida = $true
+  } catch [Threading.AbandonedMutexException] {
+    # O processo anterior morreu sem liberar a trava. O .NET já entrega a propriedade ao lançar esta exceção; seguir
+    # recupera a instalação interrompida e o finally libera a trava normalmente para as próximas tentativas.
+    $TravaAdquirida = $true
+    Registrar 'a instalação anterior terminou sem liberar a trava; retomando'
+  }
   Principal
   $env:NOD_INSTALACAO_RESULTADO = 'ok'
 } catch {
@@ -553,6 +611,9 @@ try {
   else { Write-Host ([string][char]0x2717 + ' A instalação parou: ' + $mensagem) -ForegroundColor Red }
   Write-Host ('Rode o comando de novo. Detalhes em ' + $Log)
   RetomarMotor
+} finally {
+  if ($TravaAdquirida) { try { $Trava.ReleaseMutex() } catch { $null = $_ } }
+  if ($Trava) { $Trava.Dispose() }
 }
 }
 `;

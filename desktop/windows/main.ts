@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, session, shell, Tray, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, session, shell, systemPreferences, Tray, type IpcMainInvokeEvent } from "electron";
 import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
@@ -14,13 +14,15 @@ import { criarGoogleNoApp } from "../google-conta.ts";
 import { lerIaDesktop } from "../ia-mac.ts";
 import { abreNoNavegador } from "../links-externos.ts";
 import { CANAIS_DESKTOP } from "../../src/contracts/desktop.ts";
+import { CANAIS_MICROFONE } from "../../src/contracts/desktop-microfone.ts";
+import { AJUSTES_DO_MICROFONE, estadoDoMicrofoneWindows } from "../permissoes-midia.ts";
 import { CANAIS_REMOVER, type ResultadoRemoverDaqui } from "../../src/contracts/remover-computador.ts";
 import { lerOpcoesRemover } from "../../src/shared/opcoes-remover.ts";
 import type { EstaMaquina } from "../../src/contracts/desktop-esta-maquina.ts";
 import { estaMaquinaDe } from "../../src/domain/esta-maquina.ts";
 import { abrirInstalacao, daJanelaWeb, entrarNaIa } from "./login-ia-windows.ts";
 import { ARGS_DO_INSTALADOR, criarAtualizadorWindows, gravadorConferindo } from "./atualizador.ts";
-import { daTelaDeSetup as daTelaDeSetupPura, deveTentarProvisorio, maisUmaLinha, passoAoAbrir, passoDaSessao, servidorDoApp, telaDaFalhaDePareamento, TEXTOS_WINDOWS, travarPermissoes, urlDaTelaDeSetup, type TelaDoSetup } from "./fluxo.ts";
+import { daTelaDeSetup as daTelaDeSetupPura, deveTentarProvisorio, maisUmaLinha, passoAoAbrir, passoDaSessao, servidorDoApp, permissoesDaJanela, telaDaFalhaDePareamento, TEXTOS_WINDOWS, urlDaTelaDeSetup, type TelaDoSetup } from "./fluxo.ts";
 import { rodarInstalacao } from "./instalacao.ts";
 import { comandoDeReligar, comandoDeStatus, INTERVALO_DO_VIGIA_MS, TEXTO_DO_ESTADO, vigiar, type EstadoDoMotor } from "./motor-status.ts";
 import { FalhaPareamentoWindows, linkDePareamento, parearPorDispositivo } from "./pareamento.ts";
@@ -40,6 +42,8 @@ const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Wind
 
 let setup: BrowserWindow | null = null;
 let janela: BrowserWindow | null = null;
+/** A origem que a janela web carregou: a única que ganha o microfone (permissoesDaJanela). */
+let origemDaJanela: string | null = null;
 let bandeja: Tray | null = null;
 let conexao: ConexaoMotor | null = null;
 let telaAtual: TelaDoSetup = { tela: "abrindo" };
@@ -168,6 +172,7 @@ async function entrar(c: ConexaoMotor) {
 
 function abrirJanela(url: string) {
   const origem = new URL(url).origin;
+  origemDaJanela = origem;
   if (janela && !janela.isDestroyed()) { void janela.loadURL(`${origem}/`); janela.show(); return; }
   // 5/11: a ponte mínima dos cartões de IA (preload-web-windows.ts); sem ela a web mandava a pessoa ao PowerShell.
   janela = new BrowserWindow({ width: 1280, height: 820, minWidth: 900, minHeight: 600, title: "nod", icon: icone(), autoHideMenuBar: true, webPreferences: { partition: PARTITION_DA_JANELA, preload: join(dir, "preload-web-windows.cjs"), contextIsolation: true, sandbox: true, nodeIntegration: false } });
@@ -180,7 +185,9 @@ function abrirJanela(url: string) {
   });
   janela.webContents.on("will-redirect", (e, u) => { try { if (new URL(u).origin !== origem) e.preventDefault(); } catch { e.preventDefault(); } });
   janela.webContents.on("will-frame-navigate", (e) => { if (!e.isMainFrame && !/^about:(srcdoc|blank)$/.test(e.url)) e.preventDefault(); });
-  travarPermissoes(janela.webContents.session);
+  // O microfone (ligação e ditado): só áudio, só desta janela e da origem do servidor (fluxo.ts permissoesDaJanela).
+  const desta = janela;
+  permissoesDaJanela(janela.webContents.session, () => (desta.isDestroyed() ? null : desta.webContents), () => origemDaJanela);
   // Fechar a janela deixa o nod na bandeja (o motor segue de qualquer jeito); Sair fica no menu da bandeja.
   janela.on("close", (e) => { if (!saindo) { e.preventDefault(); janela?.hide(); } });
   void janela.loadURL(`${origem}/`);
@@ -331,6 +338,14 @@ else {
       const m = await carregarMaquinaDoMotor(pastaMotor());
       const r: EstaMaquina | null = estaMaquinaDe({ id: m?.id, nome: hostname(), plataforma: "win32" });
       return r;
+    });
+    // 17/11/2026 (o microfone no Windows): antes de abrir o microfone a página confere o acesso do Windows; negado, o
+    // aviso traz "Abrir Configurações", que vai direto a Privacidade e segurança › Microfone (endereço fixo daqui).
+    ipcMain.handle(CANAIS_DESKTOP.microfone, (e) => { if (!daJanela(e)) throw new Error("entrada_invalida");
+      return estadoDoMicrofoneWindows(systemPreferences.getMediaAccessStatus("microphone"));
+    });
+    ipcMain.handle(CANAIS_MICROFONE.ajustes, async (e) => { if (!daJanela(e)) throw new Error("entrada_invalida");
+      return shell.openExternal(AJUSTES_DO_MICROFONE.win32).then(() => true, () => false);
     });
     // ADA-245 (jornada D): "Remover o nod deste computador", só da página do servidor conectado.
     //  - qual é este computador vem do estaMaquina da ADA-243 (acima: o maquina.json que o motor grava ao conectar);

@@ -296,3 +296,12 @@ describe("pedirAprovacao com o modo do bot (ADR-059)", () => {
     expect((await pedir(deps, c, planoCom(["email__enviar"]))).data.estado).toBe("pendente");
   });
 });
+
+it.each(["nod", "computador"])("recusa computador via %s sem criar cartão ou executar conector", async (conector) => {
+  const { deps, banco } = depsFalsos();
+  const c = await cenario(deps);
+  const r = await pedirAprovacao(deps, { ...c, resumo: "enviar mensagem", itens: [{ texto: "oi", destino: { conector, ferramenta: "computador_interagir", argumentos: { tipo: "tecla", tecla: "ENTER" } } }] });
+  expect(r.data).toMatchObject({ estado: "recusada", instrucao: expect.stringContaining("respeite o modo vigente") });
+  expect(banco.decisoes).toHaveLength(0);
+  expect(r.events).toEqual([]);
+});

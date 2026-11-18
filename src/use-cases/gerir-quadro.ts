@@ -1,5 +1,5 @@
 import type { CasoNod } from "../contracts/servicos.ts";
-import type { QuadroDto, ResultadoGerirQuadro } from "../contracts/quadro.ts";
+import type { OpQuadro, QuadroDto, ResultadoGerirQuadro } from "../contracts/quadro.ts";
 import { LIMITE_ACIONAMENTOS_HORA } from "../domain/freios-quadro.ts";
 import type { LinkDeTarefa } from "../contracts/quadro-pela-conversa.ts";
 import { ehOpDeTrabalho, lerOps } from "../domain/quadro.ts";
@@ -110,22 +110,47 @@ async function procuracaoDoTurno(deps: Deps, dono: string, turno: Pick<Turno, "i
   return turno.sobProcuracaoDe && turno.sobProcuracaoDe !== deps.escopo.pessoaId && (await tarefaDeQuemParticipa(deps, dono, turno)) ? turno.sobProcuracaoDe : null;
 }
 
-/** NOD-443 (revisão 2, achado 3): o quadro devolvido traz conteúdo que não é de quem lê (ADR-047). */
-function conteudoDeFora(q: QuadroDto, leitor: string): boolean {
-  if (q.voce?.papel === "membro" || (q.dona && q.dona.pessoaId !== leitor)) return true;
-  if (q.tarefas.some((t) => t.deFora || (t.pedidoPor != null && t.pedidoPor !== leitor))) return true;
-  return (q.comentarios ?? []).some((c) => c.deFora);
+/**
+ * NOD-443 (revisão 2, achado 3): o quadro devolvido traz conteúdo que não é de quem lê (ADR-047). 2026-11-13 (0176): e
+ * de onde — "quadro" = só o próprio quadro da pessoa (tarefas e comentários que o Linear ou um turno de fora escreveram);
+ * "outra" = o quadro de outra pessoa ou o que outra pessoa pediu. null = nada de fora.
+ */
+function conteudoDeFora(q: QuadroDto, leitor: string): "quadro" | "outra" | null {
+  if (q.voce?.papel === "membro" || (q.dona && q.dona.pessoaId !== leitor)) return "outra";
+  if (q.tarefas.some((t) => t.pedidoPor != null && t.pedidoPor !== leitor)) return "outra";
+  return q.tarefas.some((t) => t.deFora) || (q.comentarios ?? []).some((c) => c.deFora) ? "quadro" : null;
+}
+
+/**
+ * 2026-11-13 (0176): o passo só MOVE tarefas que já existem — coluna, prioridade, não iniciar, parar quem estava, ou o
+ * terminei. Não escreve texto (título, descrição, pergunta, motivo, PR, labels), não atribui (agente), não cancela nem
+ * exclui. É o que um 2º gerir_quadro no turno da pessoa ainda faz depois de ler o próprio quadro dela.
+ */
+const CAMPOS_DE_MOVER = new Set(["tipo", "tarefa", "status", "prioridade", "sem_iniciar", "parar_anterior"]);
+export function soMoveTarefas(ops: readonly OpQuadro[]): boolean {
+  return ops.length > 0 && ops.every((o) => {
+    if (o.tipo === "terminei") return Object.keys(o).every((k) => k === "tipo" || k === "tarefa");
+    if (o.tipo !== "mudar_tarefa") return false;
+    if (!Object.entries(o).every(([k, v]) => CAMPOS_DE_MOVER.has(k) || v === undefined)) return false;
+    return o.status === undefined || !/^cancel/i.test(o.status.trim());
+  });
+}
+
+/** 0176: marca o turno que leu conteúdo de fora, com a origem. Não marca o turno que já entrou não confiável. */
+async function marcarFora(deps: Deps, turno: Pick<Turno, "id" | "entradaConfianca">, origem: "quadro" | "outra" | null): Promise<void> {
+  if (origem && turno.entradaConfianca === "confiavel") await deps.repos.turnos.contaminar(turno.id, deps.agora(), origem);
 }
 
 /** Só leitura (acoes vazio): o resumo do quadro e os trabalhos; contamina o turno como a escrita (conteudoDeFora). */
-async function consultar(deps: Deps, agenteId: string, quadro: string | undefined, turno: Pick<Turno, "id" | "executor">, limpo: boolean, procuracao: string | null): Promise<{ data: ResultadoGerirQuadro }> {
+async function consultar(deps: Deps, agenteId: string, quadro: string | undefined, turno: Pick<Turno, "id" | "executor" | "entradaConfianca">, procuracao: string | null): Promise<{ data: ResultadoGerirQuadro }> {
   // Revisão 8 do PR #634 (bloqueante): sob a procuração de quem participa, a consulta acha só o quadro do turno, como o
   // lote (acharQuadro com porProcuracao): nem o quadro de outra pessoa em que a dona participa, nem os outros dela.
   if (procuracao) {
     const q = await acharQuadro(deps, { autor: { tipo: "agente", agenteId }, ops: [], executor: turno.executor, turnoId: turno.id, pedidoPor: procuracao, porProcuracao: true }, []);
     if (!q || "ambiguo" in q || "semNome" in q) return recusa("nao_encontrado", "quadro não encontrado");
     const dto = await montarQuadro(deps, q, procuracao);
-    if (limpo && conteudoDeFora(dto, deps.escopo.pessoaId)) await deps.repos.turnos.contaminar(turno.id, deps.agora());
+    // Sob procuração, o quadro é da dona e quem pediu participa: nunca "só o quadro" de quem fala.
+    if (conteudoDeFora(dto, deps.escopo.pessoaId)) await marcarFora(deps, turno, "outra");
     return { data: { ok: true, quadro: resumoParaBot(dto, await trabalhosParaBot(deps, dto.tarefas.map((t) => t.id))), lote_id: null, comecaram: [], instrucao: "Só leitura: nada mudou." } };
   }
   // NOD-455 (decisão 1 da Ada): o quadro de outra pessoa segue o experimento e a flag da DONA (dentro da porta), não os
@@ -133,11 +158,11 @@ async function consultar(deps: Deps, agenteId: string, quadro: string | undefine
   const compartilhado = await consultarPelaPorta(deps, { autor: { tipo: "agente", agenteId }, ops: [], executor: turno.executor, turnoId: turno.id, ...(quadro !== undefined ? { quadro } : {}) });
   if (compartilhado && "ambiguo" in compartilhado) {
     // Os nomes dos quadros de outras pessoas são conteúdo de fora (ADR-047).
-    if (limpo) await deps.repos.turnos.contaminar(turno.id, deps.agora());
+    await marcarFora(deps, turno, "outra");
     return recusa("entrada_invalida", compartilhado.ambiguo);
   }
   if (compartilhado) {
-    if (limpo) await deps.repos.turnos.contaminar(turno.id, deps.agora());
+    await marcarFora(deps, turno, "outra");
     return { data: { ok: true, quadro: resumoParaBot(compartilhado), lote_id: null, comecaram: [], instrucao: "Só leitura: nada mudou." } };
   }
   if (!(await experimentoLigado(deps))) return recusa("experimento_desligado", "o quadro está desligado nos experimentos da pessoa");
@@ -146,7 +171,7 @@ async function consultar(deps: Deps, agenteId: string, quadro: string | undefine
   if (achado && ("ambiguo" in achado || "semNome" in achado)) { const f = falhaDoAchado(achado, agentes); return recusa(f.erro, f.detalhe); }
   if (!achado) return recusa("sem_quadro", "não há quadro: crie com criar_quadro");
   const dto = await montarQuadro(deps, achado);
-  if (limpo && conteudoDeFora(dto, deps.escopo.pessoaId)) await deps.repos.turnos.contaminar(turno.id, deps.agora());
+  await marcarFora(deps, turno, conteudoDeFora(dto, deps.escopo.pessoaId));
   return {
     data: { ok: true, quadro: resumoParaBot(dto, await trabalhosParaBot(deps, dto.tarefas.map((t) => t.id))), lote_id: null, comecaram: [], instrucao: "Só leitura: nada mudou." },
   };
@@ -214,11 +239,13 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
   // O turno que mandaram parar (troca de responsável, Desfazer, cancelamento) não escreve mais no quadro (revisão rodada 3).
   if (turno.pararSolicitadoEm != null || turno.estado === "interrompido") return recusa("entrada_invalida", "este turno foi parado: a tarefa mudou de mão ou foi desfeita");
   // Limpo = confiável e nada de fora entrou durante o turno (a página lida, o e-mail): o mesmo corte do avisar_pessoa.
-  const limpo = turno.entradaConfianca === "confiavel" && !(await deps.repos.turnos.contaminado(turno.id));
+  // 0176: `contaminacao` "quadro" = o que entrou foi só o próprio quadro da pessoa (o 1º gerir_quadro deste turno).
+  const contaminacao = turno.entradaConfianca === "confiavel" ? await deps.repos.turnos.contaminacao(turno.id) : "outra";
+  const limpo = contaminacao === "nenhuma";
   // Revisão 5 do PR #625: `acoes: []` só consulta: o resumo do quadro com o trabalho atual de cada tarefa (a mesma vista
   // da tela, verTrabalhos), sem lote nem Desfazer. Vem antes do lerOps (que recusa a lista vazia).
   if (Array.isArray(input.acoes) && input.acoes.length === 0) {
-    const r = await consultar(deps, input.agenteId, input.quadro, turno, limpo, await procuracaoDoTurno(deps, agente.ownerId, turno));
+    const r = await consultar(deps, input.agenteId, input.quadro, turno, await procuracaoDoTurno(deps, agente.ownerId, turno));
     if (r.data.ok && r.data.quadro) await registrarConsultaDoQuadro(deps, r.data.quadro.id, input.agenteId);
     return r;
   }
@@ -365,19 +392,26 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
           : `Nada mudou ainda: excluir o quadro do ${nome} espera a pessoa no card desta conversa (Excluir / Agora não). Diga isso em uma frase e encerre.`;
     return { data: { ok: true, quadro: null, lote_id: null, comecaram: [], proposta_id: ex.data.propostaId, instrucao, ...(ex.data.aplicada ? { aplicada: true } : {}) }, events: ex.events };
   }
+  // 2026-11-13 (0176; quadro: mover em lote): o 1º gerir_quadro do turno devolve o quadro e, se ele tem tarefa escrita
+  // pelo Linear ou por um turno de fora, contamina o turno. Antes, o 2º gerir_quadro no MESMO turno da pessoa caía no
+  // limite normal ("sozinho você não pode mexer em tarefa de outro") e ela tinha de pedir de novo. Agora, se a única
+  // coisa de fora foi o próprio quadro dela e o passo só move tarefas (soMoveTarefas), ele ainda vale como pedido dela.
+  // Escrever texto, atribuir, cancelar, excluir, colunas e o resto seguem no limite normal (a injeção pela descrição de
+  // uma tarefa só consegue mover cards, e o lote tem Desfazer).
+  const base = { autor: { tipo: "agente" as const, agenteId: input.agenteId }, ...(input.quadro !== undefined ? { quadro: input.quadro } : {}), ops, executor: turno.executor };
+  const moverPelaPessoa = !limpo && contaminacao === "quadro" && naConversa(turno) && !deOutroDono && !procuracao && !trabalhoOp
+    && soMoveTarefas(ops) && !(await vaiParaQuadroDeOutraPessoa(deps, base));
+  const pedidoDela = limpo || moverPelaPessoa;
   const pedido: PedidoLote = {
-    autor: { tipo: "agente", agenteId: input.agenteId },
-    ...(input.quadro !== undefined ? { quadro: input.quadro } : {}),
-    ops,
-    executor: turno.executor,
+    ...base,
     turnoId: turno.id,
     profundidade: turno.profundidade,
     conversaId: input.conversaId,
-    origemConfiavel: limpo,
+    origemConfiavel: pedidoDela,
     autorNaConversa: naConversa(turno),
     ...(procuracao ? { pedidoPor: procuracao, porProcuracao: true } : {}),
     // NOD-430: controle total só a pedido da pessoa, na conversa e num turno limpo; senão o limite normal.
-    limite: naConversa(turno) && limpo ? "total" : "normal",
+    limite: naConversa(turno) && pedidoDela ? "total" : "normal",
     // ADA-15: as falas da pessoa neste turno (a que o abriu e as que entraram nele), já filtradas no repositório.
     ...(comFala ? { falas: await deps.repos.mensagens.falasDaPessoaNoTurno(turno.id, turno.conversaId) } : {}),
   };
@@ -388,14 +422,17 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
   if (!r.data.ok) {
     // Revisão 8 do PR #634 (alto): a recusa no quadro de outra pessoa traz o título da tarefa ou o nome da dona, que são
     // conteúdo de fora (ADR-047): contamina o turno como a leitura. O quadro fechado não conta (não devolve nada dele).
-    if (limpo && !procuracao && (await vaiParaQuadroDeOutraPessoa(deps, pedido))) await deps.repos.turnos.contaminar(turno.id, deps.agora());
+    if (!procuracao && (await vaiParaQuadroDeOutraPessoa(deps, pedido))) await marcarFora(deps, turno, "outra");
     return { data: { ok: false, erro: r.data.erro, instrucao: `${r.data.detalhe}. ${INSTRUCAO[r.data.erro]}` }, events: r.events };
   }
   const { quadro, lote, comecaram, desfeito } = r.data;
   // O resultado mostra ao bot o título e a pergunta de cada tarefa: se alguma foi escrita por um turno não confiável
   // (deFora), o turno de quem leu fica contaminado, como no buscar_conversas (ADR-062 §6; revisão rodada 5). NOD-443
   // (revisão 2, achado 3; ADR-047): também o quadro de outra pessoa e o que outra pessoa pediu ou comentou.
-  if (limpo && quadro && conteudoDeFora(quadro, deps.escopo.pessoaId)) await deps.repos.turnos.contaminar(turno.id, deps.agora());
+  if (quadro) {
+    const fora = conteudoDeFora(quadro, deps.escopo.pessoaId);
+    await marcarFora(deps, turno, fora && procuracao ? "outra" : fora);
+  }
   const feito = r.data.trabalho;
   const partes = [feito ? fraseDoTrabalho(trabalhoOp!.tipo, feito) : r.data.removido ? "Quadro removido: o bot voltou a ser um agente comum (a conversa e a memória ficaram). Não tem Desfazer; para outro quadro, criar_quadro." : desfeito ? "Desfeito." : r.data.comentario ? "Comentário gravado na tarefa." : "Feito."];
   // NOD-416: mudar de quadro não tem lote (nem Desfazer) e não aciona ninguém; o código antigo continua abrindo.
@@ -415,13 +452,17 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
     const juntados = r.data.juntados ?? 0;
     if (r.data.freados) partes.push(`Ninguém foi acionado: esta tarefa passou de ${LIMITE_ACIONAMENTOS_HORA} acionamentos na última hora (freio). O comentário ficou gravado; diga à pessoa e espere a resposta dela.`);
     else if (!r.data.seguradas) partes.push(comecaram.length ? `Acionou: ${comecaram.map((c) => c.agenteNome).join(", ")}${juntados ? ` (${juntados === 1 ? "um já estava" : `${juntados} já estavam`} na fila para esta tarefa e o comentário se juntou ao trabalho dele)` : ""}.` : "Ninguém foi acionado: o comentário aciona o responsável da tarefa (numa thread, o agente da thread) e os @nomes de outros bots do quadro, nunca quem escreveu; @todos não aciona o responsável.");
-  } else if (comecaram.length && !feito) partes.push(`Começaram: ${comecaram.map((c) => c.agenteNome).join(", ")} (cada um recebeu a tarefa como pedido).`);
+  } else if (comecaram.length && !feito) {
+    partes.push(`Começaram: ${comecaram.map((c) => c.agenteNome).join(", ")} (cada um recebeu a tarefa como pedido).`);
+    // 2026-11-13: o lote grande não descarta nada: todas ficam na coluna pedida e entram na fila da máquina.
+    if (comecaram.length > 1) partes.push(`As ${comecaram.length} ficaram na coluna pedida e entraram na fila: começam sozinhas conforme a máquina abre vaga (o card mostra rodando ou "na fila (n de m)"). Não mova de novo.`);
+  }
   for (const s of r.data.seguemNaEtapa ?? []) partes.push(`${s.agenteNome} segue trabalhando na etapa de antes (não foi parado): termina o que faz, sem mudar mais o status. Diga isso à pessoa (para parar junto, o mover leva parar_anterior true).`);
   if (r.data.mandadosAgora) partes.push("O comentário entrou no turno em andamento do responsável (lê no próximo passo).");
   if (r.data.comentario && "paiId" in r.data.comentario && r.data.comentario.paiId) partes.push(`Ficou na thread ${r.data.comentario.paiId} (para responder nela, responder_a com esse id).`);
   else if (r.data.comentario) partes.push(`Para responder a este comentário na mesma thread: responder_a "${r.data.comentario.id}".`);
   if (r.data.seguradas && r.data.comentario) partes.push("A corrente de bots chegou ao limite: o comentário ficou gravado e ninguém foi acionado.");
-  else if (r.data.seguradas) partes.push(`${r.data.seguradas === 1 ? "Uma tarefa ficou" : `${r.data.seguradas} tarefas ficaram`} na espera sem começar: a corrente de bots chegou ao limite. Diga à pessoa: ela começa a tarefa pela conversa com você (mudar_tarefa com status afazer, num turno dela).`);
+  else if (r.data.seguradas) partes.push(`${r.data.seguradas === 1 ? "Uma tarefa ficou" : `${r.data.seguradas} tarefas ficaram`} na coluna pedida, sem começar: a corrente de bots chegou ao limite (bot chamado por bot, sem a pessoa no meio). Diga à pessoa: ela começa pela conversa com você (mudar_tarefa para a mesma coluna, num turno dela).`);
   // ADA-15: o card guarda a fala literal da pessoa, com o link da mensagem; o texto do bot não entra.
   if (comFala && lote) partes.push("A resposta no card é a fala literal da pessoa, com o link para a mensagem; o histórico guarda de qual fala veio.");
   if (r.data.ajustada) partes.push("Um passo de coluna foi para a posição válida mais próxima: as colunas só mudam de lugar dentro do próprio grupo.");
