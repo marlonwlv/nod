@@ -322,7 +322,9 @@
 .abas-tarefa .at-titulo { overflow: hidden; max-width: 220px; white-space: nowrap; text-overflow: ellipsis; }
 .abas-tarefa .ativa .at-titulo { font-weight: 600; }
 .abas-tarefa .at-conversa:hover, .abas-tarefa .at-outras:hover, .abas-tarefa .at-aba:not(.ativa) .at-ir:hover { color: var(--chat-tinta); }
-.abas-tarefa .at-seta { display: flex; flex: none; align-items: center; justify-content: center; width: 0; height: 20px; margin-left: -8px; overflow: hidden;
+/* Validação de 2026-11-18: padding 0 — fechada, a seta tinha largura 0 mas o padding de botão do navegador (6 px de
+   cada lado) deixava uma mancha cinza do fundo dela no lugar. */
+.abas-tarefa .at-seta { display: flex; flex: none; align-items: center; justify-content: center; width: 0; height: 20px; padding: 0; margin-left: -8px; overflow: hidden;
   border-radius: 5px; background: var(--chat-spinner-trilho); color: var(--chat-tinta); transition: width var(--dur-rapido) ease, margin var(--dur-rapido) ease; }
 .abas-tarefa .at-aba:is(:hover, :focus-within) .at-seta { width: 20px; margin-left: 0; }
 .abas-tarefa .at-fechar { display: flex; flex: none; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border-radius: 4px;
