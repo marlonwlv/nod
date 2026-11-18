@@ -90,3 +90,27 @@ DCR/API key dos condicionais, catálogo real com annotations, paginação e uma 
 Falha deve manter o app desconectado; nunca trocar toolkit, pessoa ou conceder tudo automaticamente.
 A infraestrutura existente ainda depende da configuração Composio; esta frente não duplica o
 provisionamento que está sendo desenvolvido em paralelo. Sem merge/deploy nesta entrega.
+
+### Resultado local (2026-11-18)
+
+Node 24.19.0; banco PostgreSQL descartável e exclusivo desta worktree.
+`npm run check` foi executado uma vez: lint, typecheck dos cinco projetos e cercas de
+domínio/migração passaram. A etapa unitária teve 13.656 testes aprovados, 70 pulados e
+três falhas: duas referências antigas do prompt e um timeout de 60 s em
+`limpeza-das-tasks.test.ts` (mais timeout no seu afterEach). As referências foram
+atualizadas após conferir a mudança só na lista de apps; não se alterou o código de limpeza.
+Os quatro arquivos retestados passaram (149 testes), incluindo o timeout; os testes de
+aliases passaram separadamente (11). Lint dos ajustes e typecheck da web passaram.
+
+Como o comando check para na primeira etapa vermelha, as etapas restantes foram
+executadas sequencialmente, sem repetir a suíte unitária completa: integração passou
+(333 arquivos, 2.784 testes) e conformidade passou (113 testes). Os testes de conexão
+usaram HTTP/MCP simulados; a RLS foi exercitada no banco real descartável.
+
+Concorrência: 724 testes aprovados, 29 pulados e uma falha na primeira abertura do
+computador (`computador-motor-e2e.test.ts`, `acao_falhou`). Esse caso passou no reteste
+isolado (1 aprovado; outros 7 desse arquivo não selecionados), sem mudança na área.
+A limpeza dos bancos de teste passou. Os pulos da suíte ampla não são prova de aceite
+para suas jornadas; esta entrega não afirma OAuth real nem homologação de gravações.
+A execução inicial do check, portanto, não foi verde de ponta a ponta: as falhas e os
+retestes estão discriminados acima. A CI do PR ainda deve conferir o conjunto final.
