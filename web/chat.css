@@ -106,6 +106,9 @@
 /* ---- 3. Os balões ---------------------------------------------------------------------------------------------- */
 /* Bot: à esquerda, até 560, encolhe ao conteúdo, padding 7/12, raio 18, sem borda e sem rabicho, o brilho interno. */
 .timeline .message.bot .bubble-wrap { max-width: 560px; }
+/* Validação de 2026-11-17: o cartão "Para que você quer minha ajuda?" alinha com os balões do bot. A margem de 52 px
+   (interface.css) era a coluna do mascote, que o chat não tem mais. */
+.timeline .bv-cartao { margin-left: 0; width: min(560px, 100%); }
 .timeline .message.bot .bubble, .timeline .message.bot .bubble:not(.com-progresso) {
   width: fit-content; max-width: 560px; box-sizing: border-box; padding: 7px 12px; border: 0; border-radius: 18px;
   background: var(--chat-preenchido); color: var(--chat-tinta); box-shadow: var(--chat-brilho-balao);
