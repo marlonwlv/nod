@@ -6503,7 +6503,11 @@ function novaTarefaNaAba(t: Extract<Tela, { tipo: "conversa" }>): NovaTarefaNaAb
   if (!c) return null;
   if (conversaAguardandoIa({ [t.conversaId]: { mensagens: c.mensagens } }, iasNoCard(estado), turnosVivosDe(estado))) return null;
   const bot = botGerido(t.agenteId);
-  if (!bot || faseDasBoasVindasDe(bot) !== null) return null;
+  if (!bot) return null;
+  // Validação de 2026-11-18: a aba aparece já na pergunta das boas-vindas ("Para que você quer minha ajuda?"), não só
+  // depois da primeira fala; só fica fora nos segundos em que o bot recém-criado ainda reflete (a conversa vazia).
+  const fase = faseDasBoasVindasDe(bot);
+  if (fase === "vazia" || fase === "pensando") return null;
   return { atalho: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria, dica: dicaDasTarefasPendente(estado) ? { nome: bot.nome } : null };
 }
 
