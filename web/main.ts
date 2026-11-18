@@ -165,7 +165,7 @@ import { rolaAoTopoAoNavegar } from "./lib/rolagem.ts";
 import { anunciosDeFim, aoEsconder, aoSumir, SEM_PROGRESSO, teclaNaPilula, type ProgressoNaTela } from "./lib/pilula.ts";
 import { criarPilulaNaTela } from "./lib/pilula-na-tela.ts";
 import { memoriaNaPilula, pilulaNaConversa, type NovaTarefaNaAba, type Pilula } from "./telas/pilula-do-bot.ts";
-import { botAceitaTarefa, CHAVE_DICA_TAREFAS, dicaDasTarefasPendente, PLACEHOLDER_NOVA_TAREFA, renderNovaTarefa } from "./telas/nova-tarefa.ts";
+import { botAceitaTarefa, PLACEHOLDER_NOVA_TAREFA, renderNovaTarefa } from "./telas/nova-tarefa.ts";
 import { abasDoBot, htmlDoMenuDaAba, htmlDoMenuDasOutras, outrasDaFileira, renderFileiraDeAbas } from "./telas/abas-de-tarefa.ts";
 import { abrirAba, CHAVE_DAS_ABAS, fecharAba, gravarAbas, lerAbas, podarAbas, tarefaAcabou, trocarDeTela, vizinhaAoFechar, type AbaDeTarefa } from "./lib/abas-de-tarefa.ts";
 import { guardarCampo, restaurarCampo } from "./lib/campos-de-decisao.ts";
@@ -4809,8 +4809,6 @@ function abrirMarketplace(avancado = false): void {
 /** Abre a tela da task; de dentro de outra task (ou de uma linha), o Fechar continua voltando para a tela de fora. */
 function abrirTrabalho(id: string): void {
   if (!id) return;
-  // ADR-187 §5 (Paper 4q, C): a dica das tarefas some quando a pessoa abre a primeira.
-  marcarDicaDasTarefasVista();
   navegar(telaDaTask(telaDeOrigem(), id));
 }
 
@@ -4997,13 +4995,6 @@ function abrirNovaTarefa(ancora?: HTMLElement, escolhido?: string): void {
   requestAnimationFrame(() => document.getElementById("composer-texto")?.focus());
 }
 
-/** A dica das tarefas (Paper 4q, C) foi vista: some agora e fica com a pessoa (`preferencias.avisosFechados`). */
-function marcarDicaDasTarefasVista(): void {
-  if (!dicaDasTarefasPendente(estado)) return;
-  dispatch({ tipo: "avisos-fechados", chaves: [CHAVE_DICA_TAREFAS] });
-  void api?.fecharAviso(CHAVE_DICA_TAREFAS).catch(() => undefined);
-}
-
 /**
  * O campo da tarefa nova: a primeira mensagem cria a tarefa (`POST agentes/:id/trabalhos`) e a tela vira a da tarefa,
  * com a fala dela já lá. Falhou: o texto fica no campo e nada foi criado.
@@ -5027,7 +5018,6 @@ async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Pr
       throw e;
     }
     limparDepoisDeEnviar(ta, chave, texto);
-    marcarDicaDasTarefasVista();
     // ADR-187 §6: a aba "Nova tarefa" vira a aba dela já, antes de a lista relida trazer a tarefa.
     guardarAbas(abrirAba(abasDeTarefa, { id, agenteId: tela.agenteId }));
     dispatch({ tipo: "invalidar", quais: ["trabalhos", `trabalho:${id}`] });
@@ -6508,7 +6498,7 @@ function novaTarefaNaAba(t: Extract<Tela, { tipo: "conversa" }>): NovaTarefaNaAb
   // depois da primeira fala; só fica fora nos segundos em que o bot recém-criado ainda reflete (a conversa vazia).
   const fase = faseDasBoasVindasDe(bot);
   if (fase === "vazia" || fase === "pensando") return null;
-  return { atalho: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria, dica: dicaDasTarefasPendente(estado) ? { nome: bot.nome } : null };
+  return { atalho: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria };
 }
 
 /** "Hero w3 pronta": só quando uma frente do bot da conversa à vista termina, nunca a cada passo (web/lib/pilula.ts). */
@@ -8295,7 +8285,6 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // ADR-187 §5 e §7 (2026-11-18): o "+" da aba, a aba "+ Nova tarefa", o "Abrir uma tarefa" da dica e o contexto da conversa.
   "nova-tarefa": (el) => abrirNovaTarefa(el),
   "nova-tarefa-contexto": () => { levarContextoNaTarefa = !levarContextoNaTarefa; render(); },
-  "dica-tarefas-entendi": () => { marcarDicaDasTarefasVista(); document.getElementById("composer-texto")?.focus({ preventScroll: true }); },
   // Chat limpo (PR 3): a troca abre no lugar (o <details> cuida disso); só a abertura conta na telemetria da ADR-083.
   "abrir-troca": (el) => {
     if (el.closest("details")?.open) return;

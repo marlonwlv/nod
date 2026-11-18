@@ -5,12 +5,9 @@ import { agente } from "./trabalhos.ts";
 /**
  * A tarefa nova da pessoa (ADR-187 §7, lote B, passo 2, definido em 2026-11-18; Paper "O chat limpo da tarefa nova", 3b, e
  * "Levando a conversa", 3e). Abre por ⌘N (Alt+N fora do Mac, ⌃N no navegador do Mac), pelo "+" da aba presa ao campo e
- * pelo "Abrir uma tarefa" da dica. A tela nasce limpa e nada existe no servidor até a primeira mensagem, que vira o pedido
+ * pela aba "+ Nova tarefa". A tela nasce limpa e nada existe no servidor até a primeira mensagem, que vira o pedido
  * (`POST agentes/:id/trabalhos`); sair antes não deixa nada. Aqui só o HTML e as regras sem DOM; o resto mora no main.
  */
-
-/** A chave da dica das tarefas em `preferencias.avisosFechados` (0059): uma vez por pessoa, não por bot. */
-export const CHAVE_DICA_TAREFAS = "dica:tarefas";
 
 type Agente = NonNullable<Estado["frota"]>["agentes"][number];
 
@@ -24,11 +21,6 @@ export function botAceitaTarefa(estado: Pick<Estado, "frota" | "sessao">, agente
   if (!agenteId || !estado.sessao) return false;
   const bot: Agente | undefined = estado.frota?.agentes.find((a) => a.id === agenteId);
   return !!bot && bot.ownerId === estado.sessao.pessoaId && bot.papel !== "nod";
-}
-
-/** A dica ainda não foi vista (e as preferências já chegaram: antes disso nada aparece, para não piscar). */
-export function dicaDasTarefasPendente(estado: Pick<Estado, "avisosFechados">): boolean {
-  return Array.isArray(estado.avisosFechados) && !estado.avisosFechados.includes(CHAVE_DICA_TAREFAS);
 }
 
 const ICONE_VOLTAR = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5L2.5 8 7 12.5"/><path d="M2.5 8H13.5"/></svg>';

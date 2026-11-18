@@ -363,10 +363,11 @@ export type PilulaNaConversa =
 
 /**
  * ADR-187 §5 e §7 (lote B, passo 2, 2026-11-18): a pessoa pode abrir uma tarefa deste bot daqui. Quem chama decide (a
- * conversa do próprio bot, dele, confirmado, com IA e fora das boas-vindas); `atalho` é o texto da tecla no lugar ("⌘N",
- * "⌃N", "Alt+N") e `aria` o aria-keyshortcuts. `dica` traz o nome do bot quando a dica das tarefas ainda não foi vista.
+ * conversa do próprio bot, com IA e fora dos segundos em que o bot novo reflete); `atalho` é o texto da tecla no lugar
+ * ("⌘N", "⌃N", "Alt+N") e `aria` o aria-keyshortcuts. A dica das tarefas (Paper 4q, C) saiu na validação de 2026-11-18:
+ * poluía a conversa, e a aba se explica sozinha.
  */
-export type NovaTarefaNaAba = { atalho: string; aria: string; dica?: { nome: string } | null };
+export type NovaTarefaNaAba = { atalho: string; aria: string };
 
 const MAIS_DA_ABA = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M6 2v8M2 6h8"/></svg>';
 
@@ -375,17 +376,9 @@ function htmlDoMais(n: NovaTarefaNaAba): string {
   return `<button type="button" class="pf-mais" data-act="nova-tarefa" aria-label="Nova tarefa" title="Nova tarefa (${esc(n.atalho)})" aria-keyshortcuts="${esc(n.aria)}">${MAIS_DA_ABA}</button>`;
 }
 
-/** A dica das tarefas (Paper 4q, opção C, "Jeito C"): uma vez por pessoa, some com "Entendi" ou com a primeira tarefa dela. */
-export function htmlDaDicaDasTarefas(n: Pick<NovaTarefaNaAba, "atalho">, nome: string): string {
-  return `<section class="pf-dica" aria-labelledby="pf-dica-titulo"><h3 id="pf-dica-titulo">Trabalhos longos viram tarefas</h3>`
-    + `<p>Quando o pedido demora, ${esc(nome)} abre uma tarefa e o chat fica livre. Você também pode abrir uma: ${esc(n.atalho)}.</p>`
-    + `<div class="pf-dica-acoes"><button type="button" class="pf-dica-abrir" data-act="nova-tarefa">Abrir uma tarefa</button><button type="button" class="pf-dica-entendi" data-act="dica-tarefas-entendi">Entendi</button></div></section>`;
-}
-
-/** Sem tarefas (Paper 4q, opção B): a aba discreta "+ Nova tarefa ⌘N", com a dica acima dela enquanto não foi vista. */
+/** Sem tarefas (Paper 4q, opção B): a aba discreta "+ Nova tarefa ⌘N". */
 export function htmlDaAbaVazia(n: NovaTarefaNaAba): string {
-  const dica = n.dica ? htmlDaDicaDasTarefas(n, n.dica.nome) : "";
-  return `<div class="pilula-frentes pf-vazia" data-estado="fechada">${dica}<div class="pf-fechada"><button type="button" class="pf-botao pf-nova" data-act="nova-tarefa" aria-keyshortcuts="${esc(n.aria)}"><span class="pf-nova-texto">+ Nova tarefa</span><kbd class="pf-nova-atalho" aria-hidden="true">${esc(n.atalho)}</kbd></button></div></div>`;
+  return `<div class="pilula-frentes pf-vazia" data-estado="fechada"><div class="pf-fechada"><button type="button" class="pf-botao pf-nova" data-act="nova-tarefa" aria-keyshortcuts="${esc(n.aria)}"><span class="pf-nova-texto">+ Nova tarefa</span><kbd class="pf-nova-atalho" aria-hidden="true">${esc(n.atalho)}</kbd></button></div></div>`;
 }
 
 /**

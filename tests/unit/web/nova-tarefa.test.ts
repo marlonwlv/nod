@@ -3,16 +3,16 @@ import { describe, expect, it } from "vitest";
 import type { DonoDto } from "../../../src/contracts/dono.ts";
 import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
 import { blocoDoContexto, CARACTERES_DO_CONTEXTO, entradaDaTarefaDaPessoa, FALAS_DO_CONTEXTO } from "../../../src/domain/frente.ts";
-import { estadoInicial, reduzir, type Estado } from "../../../web/estado/reducer.ts";
+import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
 import { SEM_PROGRESSO } from "../../../web/lib/pilula.ts";
 import { rolaAoTopoAoNavegar } from "../../../web/lib/rolagem.ts";
 import { telaAoFechar, telaDaTask } from "../../../web/lib/trabalhos.ts";
-import { botAceitaTarefa, CHAVE_DICA_TAREFAS, dicaDasTarefasPendente, renderNovaTarefa, renderTopoNovaTarefa } from "../../../web/telas/nova-tarefa.ts";
+import { botAceitaTarefa, renderNovaTarefa, renderTopoNovaTarefa } from "../../../web/telas/nova-tarefa.ts";
 import { htmlDaPilula, pilulaNaConversa, type NovaTarefaNaAba } from "../../../web/telas/pilula-do-bot.ts";
 
 /**
  * ADR-187 §5 e §7 (lote B, passo 2, 2026-11-18): a nova tarefa da pessoa. A aba presa ao campo nunca some (Paper 4q,
- * opção B: "+ Nova tarefa ⌘N" sem tarefas e o "+" ao lado da que conta), a dica uma vez por pessoa (opção C), a tela da
+ * opção B: "+ Nova tarefa ⌘N" sem tarefas e o "+" ao lado da que conta; a dica da opção C saiu na validação de 2026-11-18), a tela da
  * tarefa nova limpa (Paper 3b) com o "Levar o contexto da conversa" (3e) e a entrada que o servidor monta.
  */
 
@@ -68,29 +68,6 @@ describe("a aba presa ao campo sem tarefas (Paper 4q, opção B)", () => {
   });
 });
 
-describe("a dica das tarefas (Paper 4q, opção C, uma vez por pessoa)", () => {
-  it("acima da aba vazia, com o nome do bot e a tecla do lugar, \"Abrir uma tarefa\" e \"Entendi\"", () => {
-    const p = pilulaNaConversa(estadoCom([]), "ada", SEM_PROGRESSO, { ...NOVA, dica: { nome: "Ada" } });
-    const html = p.tipo === "vazia" ? p.html : "";
-    expect(html).toContain('<h3 id="pf-dica-titulo">Trabalhos longos viram tarefas</h3>');
-    expect(html).toContain("<p>Quando o pedido demora, Ada abre uma tarefa e o chat fica livre. Você também pode abrir uma: ⌘N.</p>");
-    expect(html).toContain('<button type="button" class="pf-dica-abrir" data-act="nova-tarefa">Abrir uma tarefa</button><button type="button" class="pf-dica-entendi" data-act="dica-tarefas-entendi">Entendi</button>');
-    expect(html.indexOf("pf-dica")).toBeLessThan(html.indexOf("pf-fechada"));
-  });
-
-  it("só depois de as preferências chegarem, e nunca de novo depois de vista; a sessão de outra pessoa esquece", () => {
-    const e = estadoCom([]);
-    expect(dicaDasTarefasPendente(e)).toBe(false);
-    const lidas = reduzir(e, { tipo: "avisos-fechados", chaves: ["modo:total"] });
-    expect(dicaDasTarefasPendente(lidas)).toBe(true);
-    const vista = reduzir(lidas, { tipo: "avisos-fechados", chaves: [CHAVE_DICA_TAREFAS] });
-    expect(vista.avisosFechados).toEqual(["modo:total", CHAVE_DICA_TAREFAS]);
-    expect(dicaDasTarefasPendente(vista)).toBe(false);
-    expect(reduzir(vista, { tipo: "sessao", escopo: { tenantId: "t", pessoaId: "outra" } }).avisosFechados).toBeNull();
-    expect(reduzir(vista, { tipo: "sessao", escopo: { tenantId: "t", pessoaId: "p" } }).avisosFechados).toEqual(vista.avisosFechados);
-  });
-});
-
 describe("a tarefa nova (Paper 3b e 3e)", () => {
   it("só no bot da pessoa que não é o Nod — o perfil ainda não confirmado também aceita", () => {
     const e = estadoCom([]);
@@ -125,7 +102,7 @@ describe("a tarefa nova (Paper 3b e 3e)", () => {
     expect(rolaAoTopoAoNavegar("nova-tarefa")).toBe(true);
   });
 
-  it("no main: ⌘N, o \"+\" e a dica abrem a tarefa nova; a primeira mensagem a cria e marca a dica como vista", () => {
+  it("no main: ⌘N e o \"+\" abrem a tarefa nova; a primeira mensagem a cria; a dica das tarefas saiu (2026-11-18)", () => {
     const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
     expect(main).toContain('if (a.tipo === "nova-tarefa") { abrirNovaTarefa(); return true; }');
     // ADR-187 §8 (2026-11-18): o botão passa a si mesmo, para o menu "Nova tarefa com" da tela Tarefas abrir junto dele.
@@ -133,7 +110,8 @@ describe("a tarefa nova (Paper 3b e 3e)", () => {
     expect(main).toContain('if (tela.tipo === "nova-tarefa") return criarTarefaNova(tela);');
     expect(main).toContain("id = (await a.abrirTarefa(tela.agenteId, texto, levar)).trabalho.id;");
     const criar = main.slice(main.indexOf("async function criarTarefaNova"), main.indexOf("async function criarTarefaNova") + 1400);
-    expect(criar).toContain("marcarDicaDasTarefasVista();");
+    expect(criar).toContain("id = (await a.abrirTarefa(");
+    expect(main).not.toContain("dica-tarefas-entendi");
   });
 });
 

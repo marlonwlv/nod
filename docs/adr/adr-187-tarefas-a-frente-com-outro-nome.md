@@ -43,8 +43,8 @@ tem visualizador.
    card mostra só a origem ("do Quadro"), como mostra "da rotina". Ligar card e tarefa na tela fica para quando o plugin
    for separado.
 5. **Na conversa:** a pílula presa ao campo nunca some (sem tarefas, "+ Nova tarefa ⌘N") e um cartão vivo por pedido
-   (com várias tarefas, barra de progresso e uma linha por tarefa; acima de cinco, chips). Uma dica explica as tarefas
-   uma vez por pessoa.
+   (com várias tarefas, barra de progresso e uma linha por tarefa; acima de cinco, chips). A dica que explicava as tarefas
+   uma vez por pessoa saiu na validação de 2026-11-18: poluía a conversa, e a aba se explica sozinha.
 6. **A tarefa abre em tela cheia, com abas** — só das tarefas que a pessoa abriu, só dentro de uma tarefa; a aba fecha
    sozinha quando a tarefa termina e a pessoa sai dela; "+" na fileira abre uma tarefa nova; as ações da tarefa ficam na
    própria aba (hover ou foco, clique direito, duplo clique renomeia). Dentro da tarefa, a conversa é detalhada (pedido,

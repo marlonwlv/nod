@@ -200,17 +200,6 @@
 .pilula-frentes.pf-vazia .pf-botao.pf-nova { gap: 6px; padding: 5px 12px 7px; color: var(--chat-tinta-2); font-weight: var(--peso-regular); }
 .pilula-frentes.pf-vazia .pf-nova:hover { color: var(--chat-tinta); }
 .pilula-frentes.pf-vazia .pf-nova-atalho { padding: 0; border: 0; background: none; color: var(--chat-tinta-4); font: inherit; font-size: 12px; line-height: 16px; }
-.pilula-frentes .pf-dica { position: absolute; z-index: 4; left: 0; bottom: 40px; display: flex; flex-direction: column; gap: 6px; width: min(100%, 520px); box-sizing: border-box;
-  padding: 12px 14px; border-radius: 12px; background: var(--chat-superficie); box-shadow: 0 0 0 0.5px var(--chat-aba-contorno), var(--shadow-pop); }
-.pilula-frentes .pf-dica h3 { margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--chat-tinta); }
-.pilula-frentes .pf-dica p { margin: 0; font-size: 12px; line-height: 17px; color: var(--chat-tinta-2); }
-.pilula-frentes .pf-dica-acoes { display: flex; gap: 12px; }
-.pilula-frentes .pf-dica-acoes button { padding: 0; border: 0; background: none; font: inherit; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); cursor: pointer; }
-.pilula-frentes .pf-dica-acoes .pf-dica-abrir { font-weight: 500; color: var(--chat-tinta); }
-.pilula-frentes .pf-dica-acoes button:hover { text-decoration: underline; text-underline-offset: 2px; }
-.pilula-frentes .pf-dica-acoes button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 3px; }
-/* A dica cobre o fim da conversa: a folga embaixo da timeline cresce com ela. */
-.stage.com-pilula-frentes:has(.pf-dica) > .timeline-wrap { padding-bottom: 150px; }
 
 /* ---- ADR-187 §5 (lote B, passo 6, 2026-11-18): o cartão vivo na conversa e a lista aberta da aba ---------------------------
    Valores do Paper (1c "Duas tarefas em paralelo", 1d "Rede de 2 min", P1 "Pílula P1 + cartão vivo", 4d e "Aba das tarefas"):
