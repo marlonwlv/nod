@@ -184,8 +184,12 @@ describe("a tela da tarefa (#195, K2/K7)", () => {
     expect(html).toContain("· pedido do Chico · a resposta volta para o Chico");
     expect(html).toContain("Dev 1, pega o login");
     expect(html).toContain("Pego. Reproduzi o bug.");
-    expect(html).toContain('<div class="passo"><span class="passo-ok" aria-hidden="true">✓</span><span>Criou a worktree.</span></div>');
-    expect(html).toContain('<div class="passo passo-agora">');
+    // ADR-187 §6 (lote B, passo 4, Paper 4k): a narração do meio da volta é o balão cinza; a ferramenta feita, a linha com ✓;
+    // a de agora, o anel girando.
+    expect(html).toContain('<div class="tk-narracao"><div class="tk-narracao-balao">');
+    expect(html).toContain("Criou a worktree.");
+    expect(html).toContain('<span class="tk-passo-rot">Bash</span>');
+    expect(html).toContain('<div class="tk-agora" role="status">');
     expect(css).toMatch(/\.passo \{ display: flex; align-items: center; justify-content: center;/);
   });
 

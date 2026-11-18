@@ -259,12 +259,13 @@ import { criarPaleta } from "./lib/paleta-na-tela.ts";
 import { itensDaPaleta, type ItemPaleta } from "./lib/paleta.ts";
 import { aguardandoPorAgente, contadorDosTrabalhos, rotuloDosTrabalhos, textoAguardando } from "./lib/aguardando.ts";
 import { pedidosAbertos } from "./lib/avisos.ts";
-import { aberto, abertosDoBot, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "./lib/trabalhos.ts";
+import { aberto, abertosDoBot, acoesDeFazer, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "./lib/trabalhos.ts";
 import type { EventoTrilhaQuadro } from "../src/contracts/trilha-quadro.ts";
 import { criarTelemetria } from "./lib/telemetria-linhas.ts";
 import { chaveDaAtividade, criarVigiaDaAtividade, diaLocal, ehFiltroAtividade, fusoLocal, rotuloDoDia } from "./lib/atividade-do-bot.ts";
 import { anuncioDoFiltro, chaveDasDecisoes, diaDoDeslize, ehFiltroDecisoes, ehPeriodoDoCsv, periodoDoCsv, totalDoFiltro, type ExportarCsv } from "./lib/decisoes-do-bot.ts";
-import { anuncioDosSubagentes, blocosAoVivoDaTask, blocosDoHistoricoDaTask, htmlAcoesDaTask, renderIconeTrabalhos, renderTelaLinha, renderTodosOsTrabalhos, renderTopoTrabalho } from "./telas/trabalhos.ts";
+import { anuncioDosSubagentes, blocosAoVivoDaTask, blocosDoHistoricoDaTask, renderIconeTrabalhos, renderTelaLinha, renderTodosOsTrabalhos, renderTopoTrabalho } from "./telas/trabalhos.ts";
+import { campoDaTarefa, htmlSaidaDaParada, perguntaAberta, TEXTO_CONTINUAR, type CampoDaTarefa } from "./telas/tarefa-detalhada.ts";
 import { renderTrabalhosPorBot, sinalDoBot, sinalNaGrade } from "./telas/linha-do-dono.ts";
 import { temDonos } from "./lib/dono.ts";
 import { executarRotinaComConfirmacao } from "./lib/executar-rotina.ts";
@@ -3172,10 +3173,13 @@ function renderPrincipal(): void {
       partes = partesDaTask(t.id);
       anunciarSubagentes(t.id);
       corpo = CASCA_TIMELINE_TASK;
-      // Paper 15b: na frente, "Mensagem para esta frente" e as ações no topo (← Conversa, Parar frente).
-      composer = trabalhoPorId(estado, t.id)?.forma === "frente"
-        ? { chave: `trabalho:${t.id}`, html: htmlComposer("Mensagem para esta tarefa", [], { seletor: true }) }
-        : { chave: `trabalho:${t.id}`, html: htmlComposer("Escreva para esta tarefa…", [], { seletor: true }) + htmlAcoesDaTask(t.id) };
+      // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k e 4s): o campo da tarefa é o da conversa (o clipe, o seletor de IA,
+      // o ditado), com o Parar da tarefa no lugar do enviar; o que muda com o estado (o texto de dentro, a linha de baixo,
+      // as saídas da parada) o atualizarCampoDaTarefa troca sem regravar o campo.
+      {
+        const botDaTarefa = botDaAba ? botGerido(botDaAba) : undefined;
+        composer = { chave: `trabalho:${t.id}`, html: htmlComposer(campoDaTela(t.id).placeholder, [], { seletor: true, anexos: aceitaDo(botDaTarefa?.harness), bot: botDaTarefa?.nome, tarefa: t.id }) };
+      }
       break;
     }
     case "linha":
@@ -3520,6 +3524,8 @@ function atualizarComposer(): void {
   const alvo = conversaAtual();
   const caixa = document.querySelector<HTMLElement>("#composer .composer");
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18): o campo da tarefa segue o estado dela, com o clipe, o + e o Parar dela.
+  if (estado.tela.tipo === "trabalho" && caixa && ta) { atualizarCampoDaTarefa(); atualizarSeletorIa(); atualizarMais(); atualizarParar(); return; }
   // ADR-167: o seletor de modelo também vive no campo da task, que não tem conversa própria aqui.
   if (!alvo || !caixa || !ta) { atualizarSeletorIa(); return; }
   const nota = document.getElementById("composer-nota");
@@ -3542,6 +3548,35 @@ function atualizarComposer(): void {
   atualizarParar();
 }
 
+/** ADR-187 §6 (lote B, passo 4, 2026-11-18): o estado do campo da tarefa `id` (web/telas/tarefa-detalhada.ts). */
+function campoDaTela(id: string): CampoDaTarefa {
+  const d = estado.trabalhoDetalhe[id];
+  const tr = d?.trabalho ?? trabalhoPorId(estado, id);
+  const bot = tr ? (botGerido(tr.agenteId)?.nome ?? "o bot") : "o bot";
+  const guardadas = (d?.falasNaFila ?? []).filter((f) => f.situacao === "guardada").length;
+  return campoDaTarefa(tr, bot, guardadas);
+}
+
+/**
+ * Paper 4k, 4l, 4m e 4n: o campo da tarefa segue o estado dela sem ser regravado (ADR-020) — o texto de dentro, a linha de
+ * baixo ("A Ada está trabalhando · o recado entra no meio do trabalho" e "Esc para parar"), o anel azul de quando ela
+ * espera a pessoa e, parada, "Continuar de onde parou" e "Encerrar a tarefa" acima do campo.
+ */
+function atualizarCampoDaTarefa(): void {
+  const t = estado.tela;
+  const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+  if (t.tipo !== "trabalho" || !ta) return;
+  const c = campoDaTela(t.id);
+  const placeholder = celular.ativo() ? "Mensagem" : c.placeholder;
+  if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+  if (ta.getAttribute("aria-label") !== c.placeholder) ta.setAttribute("aria-label", c.placeholder);
+  const nota = document.getElementById("composer-nota");
+  const html = c.nota ? `<span class="tk-nota">${esc(c.nota)}</span>${c.dica ? `<span class="tk-nota-dica" aria-hidden="true">${esc(c.dica)}</span>` : ""}` : "";
+  if (nota && nota.dataset.tarefa !== html) { nota.innerHTML = html; nota.dataset.tarefa = html; nota.classList.add("tk-nota-linha"); }
+  regiao("composer-pergunta", c.saida ? htmlSaidaDaParada(t.id) : "");
+  document.querySelector("#composer .composer .box")?.classList.toggle("tk-precisa-campo", c.precisa);
+}
+
 /**
  * O Parar do campo (plano "tela limpa", 2026-10-16, decisão E11; revisão do PR 1): enquanto há turno vivo do chat na
  * conversa da tela (NOD-311: task não conta; NOD-354: `pararNoCampoDaTela`), o Parar fica à vista como botão secundário ao lado do Enviar — mesmo com rascunho, anexo ou o ditado gravando,
@@ -3551,13 +3586,15 @@ function atualizarParar(): void {
   // ADA-5: o Enviar ⇄ Parar da pílula segue o mesmo turno vivo (e volta ao rótulo certo depois do ditado).
   quadroNaTela.atualizarPilula();
   const t = estado.tela;
-  const parar = document.querySelector<HTMLButtonElement>('#composer .parar-envio[data-act="parar-conversa"]');
+  const parar = document.querySelector<HTMLButtonElement>('#composer .parar-envio:is([data-act="parar-conversa"], [data-act="parar-trabalho"])');
   const enviar = document.querySelector<HTMLButtonElement>('#composer .send[data-act="enviar"]');
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
   if (!parar || !enviar || !ta) return;
-  const alvo = conversaAtual();
-  const anexos = alvo && !alvo.salaId ? (anexosPendentes.get(alvo.conversaId) ?? []).length : 0;
-  const b = botoesDoCampo({ trabalhando: pararNoCampoDaTela(estado), temConteudo: ta.value.trim() !== "" || anexos > 0, ditando: ditado.ativo() });
+  const fila = filaDosAnexos();
+  const anexos = fila ? (anexosPendentes.get(fila.chave) ?? []).length : 0;
+  // ADR-187 §6 (2026-11-18): no campo da tarefa, o Parar é o dela (a tarefa trabalhando ou na fila), com a mesma regra.
+  const trabalhando = t.tipo === "trabalho" ? campoDaTela(t.id).parar : pararNoCampoDaTela(estado);
+  const b = botoesDoCampo({ trabalhando, temConteudo: ta.value.trim() !== "" || anexos > 0, ditando: ditado.ativo() });
   if (parar.hidden !== !b.parar) parar.hidden = !b.parar;
   if (enviar.hidden !== !b.enviar) enviar.hidden = !b.enviar;
   if (b.parar && t.tipo === "conversa") {
@@ -4824,9 +4861,15 @@ function fecharAbaDeTarefa(id: string): void {
 function abrirMenuDaAba(id: string, ancora: HTMLElement, ponto?: { x: number; y: number }): void {
   if (!id) return;
   const r = ancora.getBoundingClientRect();
-  abrirMenuDaBarra(htmlDoMenuDaAba(trabalhoPorId(estado, id)), ancora, ponto ?? { x: r.left - 4, y: r.bottom }, (b) => {
+  const tr = trabalhoPorId(estado, id);
+  abrirMenuDaBarra(htmlDoMenuDaAba(tr, { fazerNaConversa: acoesDeFazer(tr, estado, tr?.conversaId) !== "" }), ancora, ponto ?? { x: r.left - 4, y: r.bottom }, (b) => {
     const acao = b.dataset.abaAcao;
     if (acao === "renomear") comecarRenomeio(id);
+    else if (acao === "fazer-aqui") void agir(async () => {
+      await api!.trabalhoFazerAqui(id);
+      dispatch({ tipo: "invalidar", quais: ["trabalhos", `trabalho:${id}`] });
+      if (tr) voltarParaAConversa(tr.agenteId);
+    });
     else if (acao === "tarefas") navegar({ tipo: "trabalhos" });
     else if (acao === "fechar") fecharAbaDeTarefa(id);
     else if (acao === "parar") void agir(async () => {
@@ -5185,13 +5228,23 @@ async function enviarParaTrabalho(id: string): Promise<void> {
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
   const chave = composerDe;
   const texto = ta?.value.trim() ?? "";
-  if (!ta || !api || !texto) return;
+  // ADR-187 §6 (2026-11-18): o clipe do campo da tarefa — não sai com arquivo pela metade, como na conversa.
+  const filaChave = `trabalho:${id}`;
+  const fila = anexosPendentes.get(filaChave) ?? [];
+  if (fila.some((i) => i.estado === "enviando")) return;
+  const ids = fila.flatMap((i) => (i.estado === "pronto" && i.meta ? [i.meta.id] : []));
+  if (!ta || !api || (!texto && ids.length === 0)) return;
   const a = api;
   rolagem.colar();
+  // Paper 4n: com a tarefa esperando a pessoa, a resposta livre do campo responde a pergunta dela (como o campo da conversa).
+  const d = estado.trabalhoDetalhe[id];
+  const pergunta = d && ids.length === 0 ? perguntaAberta(d.trabalho, d.mensagens) : null;
   // Revisão W3 (2026-10-08): Enter + botão não mandam o mesmo recado duas vezes (a rota da task não leva `idEnvio`).
   await enviarUmaVez(envios, `trabalho:${id}`, texto, () => agir(async () => {
     try {
-      await a.escreverNoTrabalho(id, texto);
+      if (pergunta) await a.responder(pergunta.decisaoId, texto);
+      else await a.escreverNoTrabalho(id, texto, ids);
+      if (ids.length) limparAnexos(filaChave);
     } catch (e) {
       if (e instanceof ErroApi && e.codigo === "cota_provisorio") {
         await telaConta.abrir("cota", false);
@@ -5511,10 +5564,25 @@ function aceitaDo(harness: string | undefined): Aceita | undefined {
   return aceitaDoBot(estado.executor?.harnesses, harness);
 }
 
-function redesenharAnexos(): void {
+/**
+ * ADR-187 §6 (lote B, passo 4, 2026-11-18): onde vão os anexos do campo da tela — a fila (por conversa; a da tarefa tem a
+ * dela, `trabalho:<id>`, para o rascunho de uma não aparecer na outra) e a conversa que recebe o upload (a do trabalho).
+ * Sala não tem clipe.
+ */
+function filaDosAnexos(): { chave: string; conversaId: string } | null {
+  const t = estado.tela;
+  if (t.tipo === "trabalho") {
+    const conversaId = (estado.trabalhoDetalhe[t.id]?.trabalho ?? trabalhoPorId(estado, t.id))?.conversaId;
+    return conversaId ? { chave: `trabalho:${t.id}`, conversaId } : null;
+  }
   const alvo = conversaAtual();
-  if (!alvo || alvo.salaId) return;
-  const itens = anexosPendentes.get(alvo.conversaId) ?? [];
+  return alvo && !alvo.salaId ? { chave: alvo.conversaId, conversaId: alvo.conversaId } : null;
+}
+
+function redesenharAnexos(): void {
+  const alvo = filaDosAnexos();
+  if (!alvo) return;
+  const itens = anexosPendentes.get(alvo.chave) ?? [];
   // ADA-5: a fila é uma só (a da conversa); aparece no campo do chat e na pílula do Quadro.
   const pilula = document.querySelector<HTMLElement>('#quadro [data-composer="fila"]');
   if (pilula) { pilula.innerHTML = renderItensAnexo(itens); pilula.hidden = itens.length === 0; }
@@ -5535,13 +5603,13 @@ function limparAnexos(conversaId: string): void {
 }
 
 function adicionarArquivos(arquivos: readonly File[], doQuadro?: Aceita): void {
-  const alvo = conversaAtual();
+  const alvo = filaDosAnexos();
   const input = document.getElementById("composer-arquivos") as HTMLInputElement | null;
-  if (!alvo || alvo.salaId || !api || (!input && !doQuadro) || arquivos.length === 0) return;
+  if (!alvo || !api || (!input && !doQuadro) || arquivos.length === 0) return;
   const aceita = doQuadro ?? (input?.dataset.aceita as Aceita | undefined) ?? "tudo";
   const conversaId = alvo.conversaId;
-  const fila = anexosPendentes.get(conversaId) ?? [];
-  anexosPendentes.set(conversaId, fila);
+  const fila = anexosPendentes.get(alvo.chave) ?? [];
+  anexosPendentes.set(alvo.chave, fila);
   const a = api;
   for (const arquivo of arquivos) {
     const validos = fila.filter((i) => i.estado !== "erro").length;
@@ -5560,12 +5628,12 @@ function adicionarArquivos(arquivos: readonly File[], doQuadro?: Aceita): void {
 }
 
 function removerAnexo(chave: string): void {
-  const alvo = conversaAtual();
+  const alvo = filaDosAnexos();
   if (!alvo) return;
-  const fila = anexosPendentes.get(alvo.conversaId) ?? [];
+  const fila = anexosPendentes.get(alvo.chave) ?? [];
   const item = fila.find((i) => i.chave === chave);
   if (item?.previa) URL.revokeObjectURL(item.previa);
-  anexosPendentes.set(alvo.conversaId, fila.filter((i) => i.chave !== chave));
+  anexosPendentes.set(alvo.chave, fila.filter((i) => i.chave !== chave));
   redesenharAnexos();
 }
 
@@ -8235,6 +8303,20 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     await api!.pararTrabalho(id);
     dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
   }),
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4l): as saídas da tarefa parada. Continuar é falar nela (o recado
+  // guardado no Parar volta antes, no servidor); Encerrar a dá por terminada e fecha a aba, como o ×.
+  "continuar-tarefa": (el) => estado.ocupado ? undefined : agir(async () => {
+    const id = el.dataset.id ?? "";
+    await api!.escreverNoTrabalho(id, TEXTO_CONTINUAR);
+    dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
+    document.getElementById("composer-texto")?.focus({ preventScroll: true });
+  }),
+  "encerrar-tarefa": (el) => estado.ocupado ? undefined : agir(async () => {
+    const id = el.dataset.id ?? "";
+    await api!.encerrarTrabalho(id);
+    dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
+    fecharAbaDeTarefa(id);
+  }),
   "trabalho-depois": (el) => estado.ocupado ? undefined : agir(async () => {
     await api!.trabalhoDepois(el.dataset.id ?? "", el.dataset.depois ?? "");
     dispatch({ tipo: "invalidar", quais: ["trabalhos", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
@@ -8465,7 +8547,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       const texto = el.dataset.texto ?? "";
       await api!.responder(el.dataset.id ?? "", texto);
       pedirFocoDaFila(el.dataset.id ?? "");
-      dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(alvo ? [`conversa:${alvo.conversaId}` as Invalidacao] : [])] });
+      // ADR-187 §6 (Paper 4n): respondida dentro da tarefa, a tarefa relê (a pergunta sai e ela volta a trabalhar).
+      const tela = estado.tela;
+      dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(alvo ? [`conversa:${alvo.conversaId}` as Invalidacao] : []), ...(tela.tipo === "trabalho" ? [`trabalho:${tela.id}` as Invalidacao, "trabalhos" as Invalidacao] : [])] });
       anunciarPergunta(`Resposta enviada: ${texto}`);
     }),
   // A decisora designada que não é dona da conversa responde em "Sua vez" (não lê a conversa de outra pessoa).
@@ -9570,6 +9654,14 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && estado.tela.tipo === "conectores" && estado.tela.voltar && !celular.botsAbertos() && !(ev.target as HTMLElement).closest?.("dialog, input, textarea, select")) { ev.preventDefault(); void ACOES["voltar-conexao"]?.(document.body); return; }
   // A tela da task (e a provisória de uma linha) fecha no Esc — menos com algo digitado no campo dela.
   // NOD-379: com a inicial do celular à vista, o Esc não age na tela escondida por baixo (Marketplace, Trabalho, linha).
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k: "Esc para parar"): com a tarefa trabalhando, o Esc a para — também
+  // com o recado pela metade no campo (o rascunho fica). Menu, diálogo e o nome em edição têm o Esc deles antes.
+  if (ev.key === "Escape" && !ev.defaultPrevented && estado.tela.tipo === "trabalho" && campoDaTela(estado.tela.id).parar && !celular.botsAbertos() && !buscaNaConversa.aberta() && !ditado.ativo() && !document.querySelector("dialog[open], .bot-menu") && !(ev.target as HTMLElement).closest?.("dialog, input, select, #detalhes")) {
+    ev.preventDefault();
+    const parar = document.querySelector<HTMLElement>('#composer .parar-envio[data-act="parar-trabalho"]');
+    if (parar) void ACOES["parar-trabalho"]?.(parar);
+    return;
+  }
   if (ev.key === "Escape" && (estado.tela.tipo === "trabalho" || estado.tela.tipo === "linha" || estado.tela.tipo === "nova-tarefa") && !celular.botsAbertos() && !buscaNaConversa.aberta() && !(ev.target as HTMLElement).closest?.("dialog, input, select, #detalhes") && !((ev.target as HTMLTextAreaElement).id === "composer-texto" && (ev.target as HTMLTextAreaElement).value.trim())) { ev.preventDefault(); fecharTask(); return; }
   // NOD-382: Esc na visão geral do perfil do celular volta à origem, como o ‹ (no campo do nome, o Esc só desfaz).
   if (ev.key === "Escape" && ehCelular() && estado.perfilCelular && !estado.gaveta && !estado.avatarAberto && (ev.target as HTMLElement).closest?.("#detalhes") && !(ev.target as HTMLElement).closest?.("input, textarea, dialog")) { ev.preventDefault(); fecharPerfil(); return; }

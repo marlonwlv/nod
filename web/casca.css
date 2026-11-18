@@ -735,18 +735,13 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .tk-pop-frente .tk-pop-rodape { margin-top: 10px; }
 .tk-timeline { max-width: 680px; margin: 0 auto; }
 .tk-timeline .tk-meta { margin: 0 0 16px; padding: 0 2px; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
-/* A ordem do Paper: a linha de quem pediu, os passos, o de agora, os subagentes e depois as falas da pessoa (que ficam no
-   histórico, mas chegaram depois do começo dos passos). */
-.tk-timeline:has(> #timeline-historico > .bloco > .tk-meta) { display: flex; flex-direction: column; }
-.tk-timeline:has(> #timeline-historico > .bloco > .tk-meta) > .timeline-parte { display: contents; }
-.tk-timeline .tk-meta { order: -1; }
-.tk-timeline:has(> #timeline-historico > .bloco > .tk-meta) .bloco > .message { order: 3; }
+/* ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k): a conversa da tarefa vai na ordem em que as coisas aconteceram — o
+   histórico (web/telas/tarefa-detalhada.ts) já intercala falas e passos; saiu a reordenação do Paper 15b, que mandava as
+   falas da pessoa para depois dos passos. */
 .tk-timeline .passo { justify-content: flex-start; min-height: 28px; padding: 0 2px; gap: 10px; text-align: left; color: var(--ink-2); }
 .tk-timeline .passo-ok { width: 18px; color: var(--pronto-tinta); }
 .tk-timeline .passo-agora { color: var(--ink); }
 .tk-timeline .passo-agora .ponto-trabalho { width: 8px; height: 8px; margin: 0 5px; }
-.tk-timeline .bloco > .passo-agora { order: 1; }
-.tk-timeline .bloco > .p350-subs { order: 2; }
 .tk-timeline .p350-subs { align-items: stretch; gap: 0; margin: 4px 0 4px 28px; padding: 0 4px 6px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-14); background: var(--surface-elevated); box-shadow: var(--sombra-controle); }
 .tk-timeline .p350-cab { padding: 10px 12px 4px; min-height: 0; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); color: var(--ink-2); }
 .tk-timeline .p350-cab .ponto-trabalho, .tk-timeline .p350-cab .passo-ok { display: none; }

@@ -164,11 +164,12 @@ describe("a fileira (web/telas/abas-de-tarefa.ts, Paper 4p)", () => {
     expect(htmlDoMenuDaAba(tarefa("t1", { estado: "terminado" }))).not.toContain("parar");
   });
 
-  it("com a fileira, ela é o topo da tarefa: o status e o Parar vão para o fim dela, sem o \"← Conversa\" antigo", () => {
+  it("com a fileira, ela é o topo da tarefa só com as abas: o Parar foi para o campo (passo 4), sem o \"← Conversa\" antigo", () => {
     const e = estadoCom([tarefa("t1")]);
     const topo = renderTopoTrabalho(e, "t1", (fim) => `<nav>${fim}</nav>`);
-    expect(topo).toMatch(/^<div class="tk-topo tk-topo-abas"><nav><button type="button" class="tk-status"/);
-    expect(topo).toContain('data-act="parar-trabalho" data-id="t1"');
+    expect(topo).toBe('<div class="tk-topo tk-topo-abas"><nav></nav></div>');
+    expect(topo).not.toContain('data-act="parar-trabalho"');
+    expect(topo).not.toContain("tk-status");
     expect(topo).not.toContain('data-act="fechar-trabalho"');
     expect(renderTopoTrabalho(e, "t1")).toContain('data-act="fechar-trabalho"');
   });

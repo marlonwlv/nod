@@ -1,7 +1,7 @@
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { TrabalhoDto } from "../../src/contracts/trabalho.ts";
 import type { Estado, FiltroTrabalhos, Tela } from "../estado/reducer.ts";
-import { linhaAtual, resumoEtapa, type AtividadeTurno, type SubagenteNaTela, type SubagentesDoTurno } from "../lib/atividade.ts";
+import { linhaAtual, type AtividadeTurno, type SubagenteNaTela, type SubagentesDoTurno } from "../lib/atividade.ts";
 import { ICONE } from "../lib/icones.ts";
 import { botao, esc, hora, iconeAgente } from "../lib/render.ts";
 import { duracaoCurta } from "../lib/relogio.ts";
@@ -11,6 +11,7 @@ import { chipDaFalaNaFrente, renderMensagem, type BlocoDaTimeline } from "./conv
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { horariosDaRotina } from "./linhas-do-chat.ts";
 import { custoDaFrente } from "./modo-dev.ts";
+import { cartaoPrecisaDeVoce, conversaDaTarefa, falaDoPedido, htmlEntrega, htmlNarracao, htmlPassos, htmlPedido, itensDaVolta, itensDosPassos, linhaDoAgora, linhaDoFim, perguntaAberta } from "./tarefa-detalhada.ts";
 
 /**
  * As telas dos trabalhos (ADR-083, épico #188; protótipo "Chat limpo", pranchas K1–K9 e M1–M3): a faixa de Trabalhos em
@@ -274,12 +275,13 @@ export function renderTopoTrabalho(estado: Estado, id: string, fileira?: (fim: s
   // desce para o começo da conversa da frente (`metaDaFrente`). A task de outra forma segue como era.
   // ADR-187 §6 (lote B, passo 3, 2026-11-18): com a fileira de abas, ela é o topo — "‹ Conversa" e o título moram nela; o
   // status (que abre o cartão do tempo) e o Parar ficam no fim dela, à direita, até o Parar ir para o campo.
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k e 4s): o Parar foi para o campo da tarefa (no lugar do enviar) e o
+  // estado mora no ícone da aba e na linha embaixo do campo — a fileira fica só com as abas. "Fazer aqui" saiu do topo (o
+  // Paper não o tem) e mora no menu da aba. Ficam embaixo dela só as esperas que pedem a mão da pessoa (o computador
+  // ocupado, a máquina sem contato, a conta no limite).
   if (fileira) {
-    const parar = aberto(t) ? `<button type="button" class="tk-parar-frente" data-act="parar-trabalho" data-id="${esc(t.id)}">${ICONE_PARAR}Parar</button>` : "";
-    const cartao = abertoCartao ? (t.forma === "frente" ? cartaoDoTempoDaFrente(t, estado.agora, bot?.cor) : cartaoDoTempo(t, estado.agora)) : "";
-    const linha = t.forma === "frente" ? "" : `<p class="tk-linha">${esc(linhaDeQuemPediu(t, estado))}</p>`;
-    const extras = `${linha}${espera}${linhaDaEsperaDaMaquina(t, estado)}${linhaDaEsperaDaConta(t, estado.agora)}${acoesDeFazer(t, estado, t.conversaId)}`;
-    return `<div class="tk-topo tk-topo-abas">${fileira(botaoStatus + parar)}${cartao}${extras ? `<div class="tk-topo-extras">${extras}</div>` : ""}</div>`;
+    const extras = `${espera}${linhaDaEsperaDaMaquina(t, estado)}${linhaDaEsperaDaConta(t, estado.agora)}`;
+    return `<div class="tk-topo tk-topo-abas">${fileira("")}${extras ? `<div class="tk-topo-extras">${extras}</div>` : ""}</div>`;
   }
   if (t.forma === "frente") {
     const voltar = `<button type="button" class="tk-voltar" data-act="fechar-trabalho" aria-label="Voltar para a conversa">${ICONE_VOLTAR}<span>Conversa</span></button>`;
@@ -400,14 +402,27 @@ export function blocosDoHistoricoDaTask(estado: Estado, id: string): BlocoDaTime
   // NOD-376: a fala da pessoa ainda sem resposta leva o chip "Na fila" / "Entregue" (some quando o bot responde).
   const bot = agente(estado, t.agenteId)?.nome ?? "o bot";
   // A reabertura (turno.iniciado) relê o detalhe (RELEEM_A_TASK), então o estado aqui não fica o de antes dela.
+  // ADR-185 (2026-11-18): "Guardada" só enquanto a tarefa está parada — continuada, a fala volta à fila e o chip muda.
   const chip = (mid: string) => {
     const f = d?.falasNaFila?.find((x) => x.mensagemId === mid);
-    return f ? { chipDaFala: chipDaFalaNaFrente(f.situacao, bot, { rodando: Boolean(t.turnoVivoId), precisaDeVoce: t.estado === "precisa_de_voce" }) } : {};
+    if (!f || (f.situacao === "guardada" && t.estado !== "parado")) return {};
+    return { chipDaFala: chipDaFalaNaFrente(f.situacao, bot, { rodando: Boolean(t.turnoVivoId), precisaDeVoce: t.estado === "precisa_de_voce" }) };
   };
-  const mensagens = d ? d.mensagens.map((m) => ({ chave: m.id, html: renderMensagem(m, estado, false, chip(m.id)) })) : [{ chave: "carregando", html: '<p class="mudo tk-carregando">carregando a conversa da tarefa…</p>' }];
   // Paper 15b: a frente começa pela linha de quem pediu, no lugar do separador da abertura.
   const abertura = t.forma === "frente" ? `<p class="tk-meta">${esc(linhaDeQuemPediu(t, estado))}</p>` : aberturaDaTask(t, estado);
-  return [{ chave: "abertura", html: abertura }, ...mensagens];
+  if (!d) return [{ chave: "abertura", html: abertura }, { chave: "carregando", html: '<p class="mudo tk-carregando">carregando a conversa da tarefa…</p>' }];
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k): a conversa detalhada — o pedido num cartão, depois as falas e,
+  // entre elas, os passos com o que cada um fez; a pergunta aberta vira o cartão "precisa de você" (Paper 4n).
+  const daPessoa = d.pedidoDoBot ? null : falaDoPedido(t, d.mensagens);
+  const pedido = d.pedidoDoBot ? htmlPedido(d.pedidoDoBot, bot) : daPessoa ? htmlPedido(daPessoa.texto, "você") : "";
+  const aberta = perguntaAberta(t, d.mensagens);
+  const mensagens = [...d.mensagens].sort((a, b) => a.criadoEm - b.criadoEm).filter((m) => m.id !== daPessoa?.id);
+  const itens = conversaDaTarefa(mensagens, d.passos ?? [], t.turnoVivoId);
+  const blocos = itens.map((i): BlocoDaTimeline => i.tipo === "passos"
+    ? { chave: `passos:${i.passos[0]!.seq}`, html: htmlPassos(i.passos) }
+    : i.tipo === "narracao" ? { chave: i.chave, html: htmlNarracao(i.texto, i.chave) }
+    : { chave: i.m.id, html: aberta?.m.id === i.m.id ? cartaoPrecisaDeVoce(i.m, bot, aberta.decisaoId, aberta.opcoes) : renderMensagem(i.m, estado, false, chip(i.m.id)) });
+  return [{ chave: "abertura", html: abertura }, ...(pedido ? [{ chave: "pedido", html: pedido }] : []), ...blocos];
 }
 
 /**
@@ -474,9 +489,14 @@ export function anuncioDosSubagentes(estado: Estado, id: string): string | null 
   return t ? (subagentesDaTask(estado, t, atividadeDe(estado, t))?.resumo ?? null) : null;
 }
 
-/** O AO VIVO da tela da task: os passos feitos, os subagentes, o de agora (ou o texto que o bot escreve) e a linha do fim. */
+/**
+ * O AO VIVO da tela da task: os passos do turno que roda (os gravados e os que chegam pelos frames, com o argumento), os
+ * subagentes, o de agora (ou o texto que o bot escreve) e o fim — a linha de quem parou ou do feito e a entrega.
+ * ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k, 4l e 4m).
+ */
 export function blocosAoVivoDaTask(estado: Estado, id: string): BlocoDaTimeline[] {
-  const t = estado.trabalhoDetalhe[id]?.trabalho ?? trabalhoPorId(estado, id);
+  const d = estado.trabalhoDetalhe[id];
+  const t = d?.trabalho ?? trabalhoPorId(estado, id);
   if (!t) return [];
   const bot = agente(estado, t.agenteId);
   const a = atividadeDe(estado, t);
@@ -484,19 +504,27 @@ export function blocosAoVivoDaTask(estado: Estado, id: string): BlocoDaTimeline[
   // O bot já falou e só os subagentes ficaram: o "agora" é o cabeçalho deles, sem segunda linha pulsando (critério 2) —
   // nem "Começando…" quando todos voltaram e o bot ainda não recomeçou.
   const soEles = !!a?.subagentes && !principalAtivo(a);
-  // Paper 15b (casca, rodada 4): o passo de agora e os subagentes que trabalham levam o mascote do bot girando (o "run"
-  // do Paper), no lugar do ponto na cor dele.
   const mascote = bot ? iconeAgente(bot, "sm", "trabalhando") : "";
-  const icAgora = mascote ? `<span class="passo-ic-mascote" aria-hidden="true">${mascote}</span>` : `<span class="ponto-trabalho ${esc(bot?.cor ?? "")} pulso-trab" aria-hidden="true"></span>`;
-  const feitos = (a?.etapas ?? []).map((e) => `<div class="passo"><span class="passo-ok" aria-hidden="true">✓</span><span>${esc(resumoEtapa(e.texto))}</span></div>`).join("");
+  // Os passos já gravados do turno que roda (a volta anterior, ou o começo desta para quem abriu a tela no meio) e a volta
+  // de agora pelos frames, na ordem, sem repetir a chamada que os dois têm.
+  const gravados = t.turnoVivoId ? (d?.passos ?? []).filter((p) => p.turnoId === t.turnoVivoId) : [];
+  const ids = new Set(gravados.map((p) => p.acaoId).filter((x): x is string => x !== null));
+  const daVolta = a ? itensDaVolta(a, ids) : [];
+  const feitos = [...itensDosPassos(gravados, d?.mensagens ?? []), ...daVolta]
+    .map((i, n) => (i.tipo === "passos" ? htmlPassos(i.passos) : i.tipo === "narracao" ? htmlNarracao(i.texto, `volta:${t.id}:${n}`) : "")).join("");
+  const rodando = a?.acoes.filter((x) => x.estado === "rodando" && !x.frentes).at(-1);
+  // O texto do "agora" no presente ("Rodando um comando"), do frame; sem ele (app antigo), a narração ou a última ferramenta.
+  const presente = rodando?.emUso && rodando.emUso !== "Usando uma ferramenta" ? rodando.emUso : null;
   const agora = soEles ? "" : t.estado === "rodando" && a
     ? a.atual.trim() && a.ferramentas === 0
       ? `<article class="message bot streaming ao-vivo">${bot ? iconeAgente(bot, "md", "trabalhando") : ""}<div class="bubble-wrap"><div class="bubble">${textoFormatado(a.atual, { chave: `task:${t.id}`, aoVivo: true })}<span class="cursor">▍</span></div></div></article>`
-      : `<div class="passo passo-agora">${icAgora}<span>${esc(linhaAtual(a))}</span></div>`
-    : t.estado === "rodando"
-      ? `<div class="passo passo-agora">${icAgora}<span>${esc(t.ultimoPasso ?? "trabalhando…")}</span></div>`
+      : linhaDoAgora(presente ?? linhaAtual(a), rodando?.resumo ?? null)
+    : t.estado === "rodando" && !emEspera(t)
+      ? linhaDoAgora(t.ultimoPasso ?? "trabalhando…", null)
       : "";
-  const fim = !aberto(t) ? `<div class="linha-centro-wrap"><span class="linha-centro estatica"><span class="linha-ok" aria-hidden="true">${t.estado === "terminado" ? "✓" : "■"}</span><b>${esc(t.titulo)}</b><span>${esc(situacaoDe(t))} · ${esc(tempoDe(t, estado.agora))}${custoDaFrente(t) !== null ? ` · ${esc(custoDaFrente(t))}` : ""}</span></span></div>` : "";
+  const nome = bot?.nome ?? "o bot";
+  const ultimaFala = [...(d?.mensagens ?? [])].filter((m) => m.autoria.autor_tipo !== "pessoa" && m.kind === "texto").sort((x, y) => x.criadoEm - y.criadoEm).at(-1)?.texto ?? null;
+  const fim = !aberto(t) ? `${htmlEntrega(t, ultimaFala)}${linhaDoFim(t, nome)}` : "";
   const subagentes = subs ? blocoDosSubagentes(subs, a, bot?.cor ?? "", estado.agora, mascote) : "";
   return [{ chave: "passos", html: feitos }, { chave: "subagentes", html: subagentes }, { chave: "agora", html: agora }, { chave: "fim", html: fim }].filter((b) => b.html !== "");
 }

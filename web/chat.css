@@ -305,3 +305,70 @@
   .abas-tarefa { overflow-x: auto; padding: 0 12px; scrollbar-width: none; }
   .abas-tarefa .at-titulo { max-width: 140px; }
 }
+
+/* ---- ADR-187 §6 (lote B, passo 4, 2026-11-18): dentro da tarefa (Paper 4k, 4l, 4m, 4n e 4s) ----------------------------
+   Valores do Paper: a linha de abertura em 12/16 cinza, centrada; o cartão do pedido com fundo de 3 %, contorno de 0,5 px,
+   raio 12 e padding 12/14 (rótulo 11/14 maiúsculo a 0,06em; texto 14/21); os passos em linhas de 28 com vão 10, o ✓ de 14,
+   o que fez em 14/20 a 85 % e o argumento em 13/18 cinza; o "agora" com o anel girando, o texto em 500 e o detalhe em mono
+   12/18 recuado 24; o cartão "precisa de você" em azul a 5 % (contorno 1 px a 25 %, raio 14, rótulo 12/16 em 600
+   maiúsculo, texto 15/22, opções em pílula 13/18 com padding 7/14, a primeira cheia); a linha do fim 12/16 cinza com o
+   quadrado de 8 (raio 2) ou o ✓; as saídas da parada em pílula branca (contorno 1 px a 15 %, padding 6/12, 13/18); o
+   Parar do campo em pílula escura de 32 (raio 16, padding 0 12 0 10, vão 8, quadrado de 10 com raio 2, 13/18 em 500); a
+   linha embaixo do campo em 12/16 cinza, com "Esc para parar" à direita; o campo esperando a pessoa com o anel azul de 1,5. */
+.tk-timeline .tk-meta { margin: 0 0 14px; padding: 0; text-align: center; font-size: 12px; line-height: 16px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-pedido { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--chat-pedido-fundo); box-shadow: inset 0 0 0 0.5px var(--chat-pedido-contorno); }
+.tk-timeline .tk-pedido-rot, .tk-timeline .tk-entrega-rot { font-size: 11px; line-height: 14px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-2); }
+.tk-timeline .tk-pedido-txt { font-size: 14px; line-height: 21px; color: var(--chat-tinta); }
+.tk-timeline :is(.tk-pedido-txt, .tk-entrega-txt, .tk-precisa-txt) > :first-child { margin-top: 0; }
+.tk-timeline :is(.tk-pedido-txt, .tk-entrega-txt, .tk-precisa-txt) > :last-child { margin-bottom: 0; }
+.tk-timeline .tk-narracao { display: flex; margin: 0 0 14px; }
+.tk-timeline .tk-narracao-balao { max-width: 620px; box-sizing: border-box; padding: 7px 12px; border-radius: 18px; background: var(--chat-preenchido); font-size: 15px; line-height: 22px; color: var(--chat-tinta); }
+.tk-timeline .tk-narracao-balao > :first-child { margin-top: 0; }
+.tk-timeline .tk-narracao-balao > :last-child { margin-bottom: 0; }
+.tk-timeline .tk-passos { display: flex; flex-direction: column; gap: 2px; margin: 0 0 14px; padding-left: 4px; }
+.tk-timeline .tk-passo { display: flex; align-items: center; gap: 10px; min-height: 28px; min-width: 0; }
+.tk-timeline .tk-passo-ic { display: inline-flex; flex: none; width: 14px; height: 14px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-passo.falhou .tk-passo-ic { color: var(--chat-critico-tinta); }
+.tk-timeline .tk-passo-rot { flex: none; font-size: 14px; line-height: 20px; color: var(--chat-tinta-passo); }
+.tk-timeline .tk-passo-res { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; line-height: 18px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-passos-antes > summary { display: flex; align-items: center; min-height: 28px; padding-left: 24px; font-size: 13px; line-height: 18px; color: var(--chat-tinta-3); cursor: pointer; list-style: none; }
+.tk-timeline .tk-passos-antes > summary::-webkit-details-marker { display: none; }
+.tk-timeline .tk-passos-antes > summary:hover { color: var(--chat-tinta); }
+.tk-timeline .tk-passos-antes > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 6px; }
+.tk-timeline .tk-agora { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding-left: 4px; }
+.tk-timeline .tk-agora-linha { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.tk-timeline .tk-agora .tk-passo-ic { color: var(--chat-tinta); }
+.tk-timeline .tk-agora-txt { font-size: 14px; line-height: 20px; font-weight: 500; color: var(--chat-tinta); }
+.tk-timeline .tk-agora-detalhe { margin-left: 24px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 12px; line-height: 18px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-gira { animation: tk-gira 1s linear infinite; }
+@keyframes tk-gira { to { transform: rotate(360deg); } }
+.tk-timeline .tk-precisa { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--chat-precisa-fundo); box-shadow: inset 0 0 0 1px var(--chat-precisa-contorno); }
+.tk-timeline .tk-precisa-rot { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--chat-aba-precisa); }
+.tk-timeline .tk-precisa-ic { display: inline-flex; width: 14px; height: 14px; }
+.tk-timeline .tk-precisa-txt { font-size: 15px; line-height: 22px; color: var(--chat-tinta); }
+.tk-timeline .tk-opcoes { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.tk-timeline .tk-opcao { padding: 7px 14px; border: 0; border-radius: 999px; background: var(--chat-superficie); box-shadow: 0 0 0 1px var(--chat-saida-contorno); color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px; cursor: pointer; }
+.tk-timeline .tk-opcao.primeira { background: var(--chat-parar-fundo); box-shadow: none; color: var(--chat-parar-quadrado); font-weight: 500; }
+.tk-timeline .tk-opcao:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.tk-timeline .tk-fim { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 14px; padding: 4px 0; font-size: 12px; line-height: 16px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-fim-quadrado { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--chat-tinta-3); }
+.tk-timeline .tk-fim-ok { display: inline-flex; width: 14px; height: 14px; color: var(--chat-tinta); }
+.tk-timeline .tk-fim.falhou .tk-fim-ok { color: var(--chat-critico-tinta); }
+.tk-timeline .tk-entrega { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--chat-superficie); box-shadow: inset 0 0 0 1px var(--chat-pedido-contorno); }
+.tk-timeline .tk-entrega-txt { font-size: 15px; line-height: 22px; color: var(--chat-tinta); }
+.tk-timeline :is(.tk-entrega-falta, .tk-entrega-ref) { margin: 0; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); }
+.composer .tk-saida { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; padding-left: 4px; }
+.composer .tk-saida-bt { padding: 6px 12px; border: 0; border-radius: 999px; background: var(--chat-superficie); box-shadow: 0 0 0 1px var(--chat-saida-contorno); color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px; cursor: pointer; }
+.composer .tk-saida-bt:hover { background: var(--chat-preenchido); }
+.composer .tk-saida-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.composer .box > .parar-envio.parar-tarefa { display: inline-flex; align-items: center; gap: 8px; width: auto; height: 32px; padding: 0 12px 0 10px; border-radius: 16px; font: inherit; font-size: 13px; line-height: 18px; font-weight: 500; }
+.composer .box > .parar-envio.parar-tarefa[hidden] { display: none; }
+.composer .box > .parar-envio.parar-tarefa svg { width: 10px; height: 10px; }
+.composer .box.tk-precisa-campo { border-color: transparent; box-shadow: 0 0 0 1.5px var(--chat-aba-precisa), var(--chat-sombra-campo); }
+.composer .nota.tk-nota-linha { display: flex; justify-content: space-between; gap: 12px; padding: 6px 14px 0; text-align: left; font-size: 12px; line-height: 16px; color: var(--chat-tinta-3); }
+.composer .nota.tk-nota-linha:empty { display: none; }
+.composer .nota.tk-nota-linha .tk-nota-dica { flex: none; }
+@media (max-width: 760px) { .composer .nota.tk-nota-linha .tk-nota-dica { display: none; } }
+/* No celular o enviar e o parar viram o círculo de 44 (celular-base.css); o Parar da tarefa segue em pílula, com 44 de alto. */
+@media (hover: none) and (pointer: coarse) { .composer .box:not(.gravando) > .parar-envio.parar-tarefa { width: auto; padding: 0 14px 0 12px; border-radius: var(--raio-full); } }
+@media (prefers-reduced-motion: reduce) { .tk-timeline .tk-gira { animation: none; } }

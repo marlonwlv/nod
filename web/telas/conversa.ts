@@ -624,9 +624,11 @@ function renderSituacaoFila(s: SituacaoFila & { turnoId: string }): string {
  * NOD-376: o chip da fala que a pessoa escreveu na tela da frente — o mesmo `.fila-chip` discreto da conversa, sem o
  * Cancelar (o turno do recado não tem Desfazer). A situação vem do detalhe da task (`falasNaFila`).
  */
-export function chipDaFalaNaFrente(situacao: "na_fila" | "entregue" | "lendo", bot: string, frente: { rodando: boolean; precisaDeVoce?: boolean }): string {
+export function chipDaFalaNaFrente(situacao: "na_fila" | "entregue" | "lendo" | "guardada", bot: string, frente: { rodando: boolean; precisaDeVoce?: boolean }): string {
   const texto =
-    situacao === "lendo" ? `Entregue · ${bot} está lendo agora`
+    // ADR-187 §6 + ADR-185 (2026-11-18, Paper 4s): a tarefa parou antes de ler; a fala volta à fila quando ela continua.
+    situacao === "guardada" ? `Guardada · ${bot} lê quando a tarefa continuar`
+    : situacao === "lendo" ? `Entregue · ${bot} está lendo agora`
     : situacao === "entregue" ? `Entregue · ${bot} lê ao fim do passo atual`
     : frente.precisaDeVoce ? `Na fila · ${bot} lê depois que você responder o que ele perguntou`
     : frente.rodando ? `Na fila · ${bot} lê no próximo passo`
@@ -2054,6 +2056,9 @@ export const rotuloDoParar = (nome: string | undefined): string => (nome ? `Para
 
 const QUADRADO = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1" y="1" width="12" height="12" rx="2.5" fill="currentColor"/></svg>';
 
+/** Paper 4k: o quadrado de 10 com raio 2 do Parar da tarefa. */
+const QUADRADO_TAREFA = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" rx="2" fill="currentColor"/></svg>';
+
 const MAIS = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
 const CLIPE = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5 12.6 19.9a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8"/></svg>';
@@ -2080,7 +2085,7 @@ export function htmlSugestaoRotina(): string {
  * entre o texto e o microfone, e o Parar (secundário, redondo, escondido) logo antes do Enviar — o Enviar continua na
  * ponta, onde a pessoa o procura; o main mostra cada um pelo `botoesDoCampo`. `bot` dá o nome do Parar ("Parar resposta do Eng 1").
  */
-export function htmlComposer(placeholder: string, sugestoes: readonly string[] = [], opcoes: { anexos?: Aceita; comandos?: boolean; aprovacao?: boolean; bot?: string; /** ADR-167: o seletor de modelo sem o resto da conversa própria (o campo da task). */ seletor?: boolean } = {}): string {
+export function htmlComposer(placeholder: string, sugestoes: readonly string[] = [], opcoes: { anexos?: Aceita; comandos?: boolean; aprovacao?: boolean; bot?: string; /** ADR-167: o seletor de modelo sem o resto da conversa própria (o campo da task). */ seletor?: boolean; /** ADR-187 §6 (2026-11-18): o campo da tarefa com este id — o Parar dela, com rótulo, no lugar do enviar. */ tarefa?: string } = {}): string {
   const lista = sugestoes.length ? `<div class="autocomplete" id="autocomplete" hidden></div>` : "";
   const aceita = opcoes.anexos;
   const accept = aceita === "sem_pdf" ? "image/*,.txt,.md,.csv,.json" : "image/*,application/pdf,.pdf,.txt,.md,.csv,.json";
@@ -2097,7 +2102,11 @@ export function htmlComposer(placeholder: string, sugestoes: readonly string[] =
   // texto; no computador o grupo aparece no hover e no foco do campo (web/casca.css).
   const chip = opcoes.aprovacao ? HTML_CHIP_MODO : "";
   const seletor = opcoes.aprovacao || opcoes.seletor ? HTML_SELETOR_IA : "";
-  const parar = opcoes.aprovacao ? `<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="${esc(rotuloDoParar(opcoes.bot))}" title="Parar o que está rodando nesta conversa" hidden>${QUADRADO}</button>` : "";
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k e 4s): o campo da tarefa tem o Parar dela, no mesmo lugar e com a
+  // mesma regra do da conversa (botoesDoCampo), em pílula com o rótulo; ele para só a tarefa, nunca a conversa.
+  const parar = opcoes.tarefa
+    ? `<button type="button" class="parar-envio parar-tarefa" data-act="parar-trabalho" data-id="${esc(opcoes.tarefa)}" aria-label="Parar a tarefa" title="Parar só esta tarefa (Esc)" hidden>${QUADRADO_TAREFA}<span>Parar</span></button>`
+    : opcoes.aprovacao ? `<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="${esc(rotuloDoParar(opcoes.bot))}" title="Parar o que está rodando nesta conversa" hidden>${QUADRADO}</button>` : "";
   // NOD-381 (definido em 2026-10-27): no celular o clipe, o modo e a IA saem de dentro do campo e moram na folha do +
   // (web/telas/folha-mais.ts); o + só nasce quando há o que abrir e o computador nunca o vê (web/mobile.css).
   const mais = aceita || opcoes.aprovacao ? `<button type="button" class="mais-campo" data-act="abrir-mais" aria-label="Anexar, modo e IA" aria-haspopup="menu" aria-expanded="false">${MAIS}</button>` : "";

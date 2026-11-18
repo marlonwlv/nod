@@ -241,6 +241,15 @@
   --chat-aba-precisa: #2563eb;
   /* ADR-187 §5 e §7 (lote B, passo 2, 2026-11-18; Paper 4q e 3b): a tecla da aba "+ Nova tarefa" e o fundo dos chips. */
   --chat-tinta-4: #1c1c1c59;
+  /* ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k, 4l e 4n): dentro da tarefa — o cartão do pedido (3 % e o contorno
+     de 0,5 px a 8 %), a tinta do passo (85 %), o contorno das saídas da parada (15 %) e o cartão "precisa de você" (azul a
+     5 % com o contorno a 25 %). */
+  --chat-pedido-fundo: #1c1c1c08;
+  --chat-pedido-contorno: #1c1c1c14;
+  --chat-tinta-passo: #1c1c1cd9;
+  --chat-saida-contorno: #1c1c1c26;
+  --chat-precisa-fundo: #2563eb0d;
+  --chat-precisa-contorno: #2563eb40;
   --chat-chip-fundo: #1c1c1c0a;
   --chat-aviso-fundo: #fbf0df;
   --chat-aviso-contorno: #da830e59;
@@ -388,6 +397,12 @@
     --chat-aba-contorno: #f5f5f51f;
     --chat-aba-precisa: #60a5fa;
     --chat-tinta-4: #f5f5f559;
+    --chat-pedido-fundo: #f5f5f508;
+    --chat-pedido-contorno: #f5f5f514;
+    --chat-tinta-passo: #f5f5f5d9;
+    --chat-saida-contorno: #f5f5f526;
+    --chat-precisa-fundo: #60a5fa14;
+    --chat-precisa-contorno: #60a5fa4d;
     --chat-chip-fundo: #f5f5f50f;
     --chat-aviso-fundo: #3a2a12;
     --chat-aviso-contorno: #e2860066;
@@ -536,6 +551,12 @@
   --chat-aba-contorno: #f5f5f51f;
   --chat-aba-precisa: #60a5fa;
   --chat-tinta-4: #f5f5f559;
+  --chat-pedido-fundo: #f5f5f508;
+  --chat-pedido-contorno: #f5f5f514;
+  --chat-tinta-passo: #f5f5f5d9;
+  --chat-saida-contorno: #f5f5f526;
+  --chat-precisa-fundo: #60a5fa14;
+  --chat-precisa-contorno: #60a5fa4d;
   --chat-chip-fundo: #f5f5f50f;
   --chat-aviso-fundo: #3a2a12;
   --chat-aviso-contorno: #e2860066;

@@ -117,12 +117,16 @@ export function htmlDoMenuDasOutras(outras: readonly TrabalhoDto[]): string {
  * a tarefa aberta, Parar a tarefa em vermelho depois do traço. Arquivos, Finder e Copiar link do protótipo ficam para
  * quando a tarefa tiver endereço e lista de arquivos próprios.
  */
-export function htmlDoMenuDaAba(t: Pick<TrabalhoDto, "titulo" | "estado"> | undefined): string {
+export function htmlDoMenuDaAba(t: Pick<TrabalhoDto, "titulo" | "estado"> | undefined, o: { fazerNaConversa?: boolean } = {}): string {
   const nome = esc(tituloCurto(t?.titulo ?? "Tarefa"));
   const parar = t && aberto(t) ? '<hr><button type="button" role="menuitem" class="danger" data-aba-acao="parar">Parar a tarefa</button>' : "";
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18): o "Fazer aqui" saiu do topo da tarefa (o Paper não o tem) e mora aqui, com
+  // o nome do que faz, só quando valia lá (a tarefa sozinha que a pessoa pediu, ainda não terminada: acoesDeFazer).
+  const fazer = o.fazerNaConversa ? '<button type="button" role="menuitem" data-aba-acao="fazer-aqui">Fazer na conversa<span class="at-menu-dica">· cancela a tarefa</span></button>' : "";
   return `<div role="menu" class="menu-aba-corpo" aria-label="Ações da tarefa ${nome}"><p class="menu-nome">Esta tarefa</p>`
     + '<button type="button" role="menuitem" data-aba-acao="renomear">Renomear<span class="at-menu-dica">· duplo clique</span></button>'
     + '<button type="button" role="menuitem" data-aba-acao="tarefas">Ver na tela Tarefas</button>'
+    + fazer
     + '<button type="button" role="menuitem" data-aba-acao="fechar">Fechar aba</button>'
     + `${parar}</div>`;
 }
