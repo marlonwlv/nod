@@ -202,6 +202,10 @@ construir() { # arch versao origem saida
 
   passo "compactar e publicar"
   # Devolve ao arquivo os blocos livres da raiz (o que o virt-sparsify fazia): o zstd não carrega resto de apt apagado.
+  # medido em 2026-11-18: o sync vem antes porque o ext4 só entrega ao fstrim os blocos de arquivo apagado depois de
+  # gravar o diário. Sem ele o cache do apt recém-apagado ficava no disco: 1066 MiB comprimido no arm64 (run
+  # 44228609474) contra 762 MiB do libguestfs (run 42937321194).
+  ext sync -f "$RAIZ"
   ext fstrim "$RAIZ"
   desmontar
   # medido em 2026-11-05 (release rc.3, run 41911353290): o -19 levava 14 min no amd64 e 9 min no arm64, com o disco

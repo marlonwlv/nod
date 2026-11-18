@@ -38,7 +38,7 @@ describe("infra/vm-local/construir-disco.sh (NOD-93)", () => {
       "mount /dev/loopNp1", "mount /dev/loopNp15", "mount -t proc", "mount -t sysfs", "mount --bind /dev ", "mount --bind /dev/pts", "mount -t tmpfs",
       "curl", "curl", "conferir sha256", "resolv.conf do host e policy-rc.d", "chroot", "install -d", "cp -r", "chown -R root:root", "chroot", "chroot",
       "install -D", "install -D", "install -D", "install -D", "install -D", "chroot", "chroot", "devolver resolv.conf", "truncate -s 0",
-      "fstrim", "umount -R", "losetup -d", "zstd", "sha256",
+      "sync -f", "fstrim", "umount -R", "losetup -d", "zstd", "sha256",
     ];
     expect(linhas.map((l, i) => (l.startsWith(`[simular] ${ordem[i]}`) ? ordem[i] : l))).toEqual(ordem);
     expect(linhas[0]).toContain("/bookworm/20261021-2638/debian-12-genericcloud-arm64-20261021-2638.qcow2");
@@ -66,6 +66,8 @@ describe("infra/vm-local/construir-disco.sh (NOD-93)", () => {
     // O machine-id sai vazio no disco: cada VM gera o seu no 1º boot.
     expect(linhas.find((l) => l.startsWith("[simular] truncate"))).toMatch(/\/raiz\/etc\/machine-id$/);
     /* eslint-enable no-restricted-syntax */
+    // O sync vem antes do fstrim: sem ele o ext4 não devolve os blocos do cache do apt recém-apagado.
+    expect(linhas.findIndex((l) => l.startsWith("[simular] sync -f")) + 1).toBe(linhas.findIndex((l) => l.startsWith("[simular] fstrim")));
     // O disco só é comprimido depois de desmontado.
     expect(linhas.findIndex((l) => l.includes("losetup -d"))).toBeLessThan(linhas.findIndex((l) => l.startsWith("[simular] zstd")));
     expect(saida.trim().split("\n").at(-1)).toBe(join(tmp, "saida", "nod-vm-1.0.0-rc.1-arm64.img.zst"));
