@@ -156,9 +156,11 @@ export function pilulaDoBot(estado: Estado, agenteId: string): Pilula | null {
   if (grupos.length > 0) {
     const [g] = grupos;
     const um = grupos.length === 1 && g;
-    const texto = um ? g.titulo : `${grupos.length} lotes`;
     const prontas = grupos.reduce((s, x) => s + x.prontas, 0);
     const total = grupos.reduce((s, x) => s + x.total, 0);
+    // ADR-187 §5 (protótipo P1, lote B passo 1): a aba conta as tarefas ("12 tarefas · 1 precisa de você · 3 prontas"); com
+    // uma só, o nome curto dela e o que ela faz. Antes o texto era o título do lote ("5 frentes de hero") ou "2 lotes".
+    const texto = total === 1 ? "1 tarefa" : `${total} tarefas`;
     // A frente parada à espera da pessoa (a pergunta dela mora na tela da frente, sem cartão nesta conversa) entra em
     // contagem, como no bloco da fala ("1 precisa de você"): a linha do dono a dizia com "Esperando você", e com a fala à
     // vista a pílula some (revisão do PR 400). A frente sozinha já diz o estado dela.
@@ -169,7 +171,8 @@ export function pilulaDoBot(estado: Estado, agenteId: string): Pilula | null {
     const jaDita = sozinha?.estado === "esperando" && esperaNoDono(dono, sozinha.trabalhoId, todos) ? 1 : 0;
     const outras = e.esperando - jaDita;
     const esperasNoResto = outras <= 0 ? "" : jaDita ? `${outras} esperando` : textoDasEsperas(e);
-    const resto = [um ? estadoDoGrupo(g) : `${prontas} de ${total} prontas`, precisam ? (precisam === 1 ? "1 precisa de você" : `${precisam} precisam de você`) : "", esperasNoResto, e.fila > 0 ? textoDaFila(e, dono.fila.length) : ""].filter(Boolean);
+    const contagem = total === 1 && um ? [tituloCurto(g.titulo), estadoDoGrupo(g)] : [precisam ? (precisam === 1 ? "1 precisa de você" : `${precisam} precisam de você`) : "", prontas ? (prontas === 1 ? "1 pronta" : `${prontas} prontas`) : "", prontas === 0 && !precisam ? "rodando" : ""];
+    const resto = [...contagem, esperasNoResto, e.fila > 0 ? textoDaFila(e, dono.fila.length) : ""].filter(Boolean);
     const vivo = grupos.some((x) => x.frentes.some((f) => f.estado === "rodando"));
     const doLote = new Set(grupos.flatMap((x) => x.ids));
     const esperasForaDoLote = dono.esperas.filter((x) => !x.trabalhoId || !doLote.has(x.trabalhoId)).length;

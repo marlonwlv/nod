@@ -151,3 +151,16 @@
 .timeline .linha-parada .lp-mais:hover { color: var(--chat-tinta); text-decoration: underline; text-underline-offset: 2px; }
 .timeline .linha-parada .lp-mais:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; border-radius: 3px; }
 
+
+/* ---- ADR-187 §5 (lote B, passo 1, 2026-11-17): a pílula vira a aba presa ao campo (protótipo P1) ----------------------
+   A faixa da pílula tem a largura do campo; a aba encosta à esquerda (20 px), sem a borda de baixo, e cobre 1 px da borda
+   de cima do campo, com o fundo e a borda dele: parece sair do campo. Antes era uma pílula solta, no centro, com sombra. */
+.stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 max(70px, calc((100% - 960px) / 2)); }
+@media (max-width: 760px) { .stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 24px; } }
+/* O teto de 760 dos filhos da faixa (interface.css) centrava a pílula num campo de 960: a aba caía 100 px para dentro. */
+.lugar-faixa-trabalhos > .pilula-frentes { max-width: 960px; }
+.pilula-frentes .pf-fechada { left: 20px; bottom: -1px; height: 32px; transform: none; border: 1px solid var(--chat-borda-campo); border-bottom: 0;
+  border-radius: 12px 12px 0 0; background: var(--chat-superficie); box-shadow: none; }
+.pilula-frentes .pf-botao { gap: 6px; padding: 0 12px; border-radius: 12px 12px 0 0; font-size: 13px; }
+.pilula-frentes .pf-botao:hover { background: var(--chat-preenchido); }
+.pilula-frentes .pf-texto { font-weight: 500; }

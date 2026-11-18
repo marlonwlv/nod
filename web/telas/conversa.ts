@@ -73,7 +73,7 @@ import { escolhaEfetiva, iasDaTela, inteligenciaDoBot } from "./inteligencia.ts"
 import { htmlBotaoDitado, htmlPilulaDitado } from "./ditado.ts";
 import { renderLinhaLigacao } from "./ligacao.ts";
 import { conversaLimpa, emOrdemDoChat, htmlTroca, juntarTrocas, lugarDosBastidores, NENHUM_TURNO_VIVO, planejarLinhas, type PlanoMensagem, type TurnosDaPessoaVivos } from "./linhas-do-chat.ts";
-import { aberto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { trabalhosConhecidos } from "../lib/trabalhos.ts";
 import { TEXTO_FALHA_LEITURA } from "../lib/ouvir.ts";
 import { acoesDaFala, chipsDeReacao, citacaoAcimaDoBalao } from "./acoes-da-fala.ts";
 import { desfazerDaFala } from "./desfazer.ts";
@@ -1954,7 +1954,7 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-381 (definido em 2026-10-27): no celular a presença vai dentro da pílula, em 12px abaixo do nome; o computador
   // continua com o ponto e a linha de baixo (`.pilula-txt` é `display: contents` e `.pilula-presenca` fica escondida).
   const presencaNaPilula = disponivel ? "" : `<span class="pilula-presenca" aria-hidden="true">${html}</span>`;
-  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}${frentesNaPilula(estado, agenteId)}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
+  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];
@@ -1965,16 +1965,8 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
 
 const ICONE_PAINEL = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></svg>';
 
-/**
- * ADR-167 (Paper 15/15c): com frentes abertas, a pílula diz "· 4 frentes" depois do título, com o ponto laranja quando
- * alguma precisa da pessoa. Uma frente só (ou nenhuma) não aparece: a conversa já mostra o trabalho.
- */
-function frentesNaPilula(estado: Estado, agenteId: string): string {
-  const frentes = (estado.trabalhos?.trabalhos ?? []).filter((t) => t.agenteId === agenteId && t.forma === "frente" && aberto(t));
-  if (frentes.length < 2) return "";
-  const pede = frentes.some((t) => t.estado === "precisa_de_voce");
-  return `<span class="pilula-frentes">${pede ? '<i class="ponto-aguardando" aria-hidden="true"></i>' : ""}${frentes.length} tarefas</span>`;
-}
+// ADR-187 §5 (lote B, passo 1, 2026-11-17): a contagem de tarefas saiu do topo ("· 2 tarefas" ao lado do nome, ADR-167):
+// ela mora na aba presa ao campo (protótipo P1), e o topo fica só com o bot.
 
 /**
  * A presença do bot na conversa, em HTML curto (os separadores e a contagem em negrito) e se o ponto fica verde.
