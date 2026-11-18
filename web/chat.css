@@ -412,7 +412,8 @@
 .tela-tarefas .at-feita svg { width: 12px; height: 12px; }
 .tela-tarefas .at-parada { color: var(--chat-tinta-3); }
 .tela-tarefas .at-falhou { color: var(--danger); }
-.tela-tarefas .tf-tempo { flex: none; width: 60px; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* min-width, não width (2026-11-18): "há menos de 1 min" não cabia em 60 px e vazava da borda do cartão e da linha. */
+.tela-tarefas .tf-tempo { flex: none; min-width: 60px; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Por bot: o cartão do grupo e a linha de cada bot. */
 .tela-tarefas .tf-cartao { display: flex; flex-direction: column; padding: 4px 0; border-radius: 14px; background: var(--chat-superficie); box-shadow: 0 0 0 0.5px var(--chat-aba-contorno); }
 .tela-tarefas .tf-bot + .tf-bot { border-top: 0.5px solid var(--chat-spinner-trilho); }
