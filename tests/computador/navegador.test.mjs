@@ -130,3 +130,30 @@ test('efeito concluído seguido de falha de observação não permite reenviar',
   await page.evaluate(() => { document.documentElement.appendChild(document.createElement('body')); document.body.innerHTML = '<p role="status">Enviado uma vez</p>'; });
   assert.equal((await motor.executar({ operacao: 'verificar', papel: 'status', condicao: 'texto', texto: 'Enviado uma vez' })).verificacao.satisfeita, true);
 });
+
+test('coleta concorrente mantém ordem, limite e exclusão de alvos ambíguos', async () => {
+  await page.setContent('<button>Duplicado</button><button>Duplicado</button>' + Array.from({ length: 170 }, (_, i) => `<button>Alvo ${i}</button>`).join(''));
+  const r = await observar();
+  assert.deepEqual(r.pagina.elementos.map(e => e.nome), Array.from({ length: 150 }, (_, i) => `Alvo ${i}`));
+  assert.equal(r.pagina.truncada, true);
+  assert.equal(new Set(r.pagina.elementos.map(e => e.referencia)).size, 150);
+});
+
+test('falha num lote descarta handles de leituras que terminam depois da falha', { timeout: 5000 }, async () => {
+  let descartados = 0;
+  let liberar;
+  const portao = new Promise(resolve => { liberar = resolve; });
+  const criarHandle = () => ({ dispose: async () => { descartados++; }, evaluate: async () => false });
+  const frame = {
+    locator: () => ({ ariaSnapshotJSON: async () => [{ role: 'button', name: 'Falha' }, { role: 'button', name: 'Tardio' }], evaluate: async () => [] }),
+    getByRole: (_papel, { name }) => ({
+      count: async () => 1,
+      elementHandle: async () => { if (name === 'Tardio') await portao; return criarHandle(); },
+      ariaSnapshot: async () => { if (name === 'Falha') { liberar(); throw new Error('falha_fixture'); } return 'botão'; },
+    }),
+    url: () => 'https://fixture.invalid',
+  };
+  const local = criarNavegador({ pagina: async () => ({ frames: () => [frame] }), revisao: () => 'fixa', invalidar: () => {} });
+  await assert.rejects(local.executar({ operacao: 'observar' }), /falha_fixture/);
+  assert.equal(descartados, 2);
+});
