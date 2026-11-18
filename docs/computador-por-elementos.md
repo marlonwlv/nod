@@ -16,7 +16,28 @@ Riscos: sites sem acessibilidade exigem alternativa visual; DOM pode mudar entre
 
 ## Evidências
 
-A preencher com os resultados efetivamente executados. WhatsApp só será examinado se existir sessão autorizada disponível; envio externo depende de destinatário e conteúdo explicitamente autorizados. A fixture local cobre envio sem terceiros.
+Validação em 18/11/2026, com Node 24 e Chromium real:
+
+- QA final: 15 testes de navegador (14 do adaptador e 1 ponta a ponta), 108 unitários relacionados e typecheck aprovados. Fixture de mensageria local confirma preenchimento, envio e resultado de negócio; nenhum envio a terceiros.
+- Ponta a ponta: ferramenta/gateway → IPC real → supervisor/tela → Chromium/Xvfb, com perfil descartável. Duas ações concorrentes com a mesma referência produzem um único efeito. Controle humano bloqueia execução e retomada explícita permite nova observação.
+- Obsolescência: substituição DOM, mudança de destinatário, revisão visual, expiração e reinício recusam referências antigas. Envio seguido de falha na observação não pode ser repetido com a referência consumida. Cookies sintéticos preservados.
+- Três mutantes independentes de QA foram detectados: remover comparação de destinatário/árvore, vínculo papel/nome da aprovação e identidade DOM.
+- Integração: 367 aprovados e 2.407 pulados; conformidade: 27 aprovados e 86 pulados; concorrência: 262 aprovados e 492 pulados. Sem banco configurado, estes resultados não provam os casos pulados nem reservas distribuídas com banco real.
+- `npm run check` foi executado uma vez: lint, tipos, fronteiras e migrações passaram; a etapa unitária teve 13.656 aprovados, 37 pulados e cinco falhas. Fingerprints do prompt e orçamento da nova ferramenta foram ajustados deliberadamente, com testes focados verdes; timeout do teste de deploy passou isolado. Duas falhas de cookies (`computador-sair-storage`, `cookies_sem_resposta`) também ocorreram na base intacta `120d9ca0`. Portanto, o check completo não está verde neste ambiente. As etapas posteriores foram executadas separadamente, com os totais acima.
+
+Revisão independente, uma rodada (04:04:07–04:09:58 UTC): um alto corrigido (texto editável exposto na observação) e um médio corrigido (aprovação sem nome/papel legível). Ambos tiveram regressões que falharam antes e passaram depois. A segunda opinião `/codex` não foi executada: a skill instalada impede esse provedor no host Codex; não representa uma segunda revisão independente.
+
+QA independente, uma rodada (04:10:56–04:14:06 UTC): um médio corrigido (texto cortado sem `truncada=true`), com regressão vermelha antes e verde depois. Nenhum bloqueante identificado nas duas rodadas. Início da frente: 03:42:30 UTC; PR draft criado às 03:48:01 UTC. Horário de disponibilização e tamanho final constam no PR; merge e deploy não realizados nesta frente.
+
+Limites da prova: Docker não está instalado neste ambiente; o transporte Docker tem regressões unitárias, mas não houve execução de contêiner real. Não há adaptador Orgo na base examinada. A fixture IPC não usa bwrap e não prova isolamento do sistema operacional. Não havia sessão autorizada de WhatsApp conectada ao ensaio; não houve prova de login privado ou de persistência entre reinícios em produção. O fluxo completo do app com banco não foi iniciado. Perfis existentes não foram copiados nem modificados.
+
+Antes de cada push, scanner OSS externo comparado com a base: os mesmos sete achados de imagens já existentes, sem achados novos; gitleaks sem vazamentos. O scanner não consta nesta base pública, e seu resultado global não é anunciado como limpo.
+
+## Entrega e operação
+
+O bot recebe `computador_elementos` como caminho padrão para páginas acessíveis; os dois runtimes existentes encaminham a ação ao mesmo adaptador. A mudança não exige flag, migração de perfil ou novo login. Em referências recusadas ou resultado incerto, observar e verificar antes de decidir outra ação; nunca repetir automaticamente um efeito.
+
+CI externa, merge e deploy precisam ser acompanhados pelo dono após a entrega da frente. Os testes locais não substituem esses gates nem autorizam anunciar produção validada.
 
 ## Próxima etapa: autenticação
 
