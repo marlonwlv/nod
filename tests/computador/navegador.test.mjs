@@ -95,3 +95,37 @@ test('recusa rótulo de aprovação diferente do alvo real antes do efeito', asy
   await assert.rejects(motor.executar({ operacao: 'clicar', ...a, nome: 'Cancelar' }), /tela_alterada/);
   assert.equal(await page.getByRole('status').innerText(), 'Ainda não enviado');
 });
+
+// Regression: QA-001 — texto cortado precisa avisar que a observação é parcial.
+// Found by /qa on 2026-11-18
+// Report: .gstack/qa-reports/qa-report-elementos-2026-11-18.md
+test('sinaliza truncamento de texto mesmo sem atingir o limite de elementos', async () => {
+  await page.setContent(`<p>${'a'.repeat(12001)}</p>`);
+  const r = await observar();
+  assert.equal(r.pagina.textos.join('').length, 12000);
+  assert.equal(r.pagina.truncada, true);
+  await page.setContent(`<p>${'a'.repeat(12000)}</p>`);
+  assert.equal((await observar()).pagina.truncada, false);
+  await page.setContent(`<p>${'a'.repeat(12000)}</p><p>omitido</p>`);
+  assert.equal((await observar()).pagina.truncada, true);
+});
+
+test('espera mudança real da condição e preserva cookies da sessão fornecida', async () => {
+  await page.context().addCookies([{ name: 'sessao_fixture', value: 'valor_sintetico', domain: 'fixture.invalid', path: '/' }]);
+  const cookies = await page.context().cookies();
+  await page.evaluate(() => { setTimeout(() => { document.querySelector('[role=status]').textContent = 'Concluído'; }, 150); });
+  assert.equal((await motor.executar({ operacao: 'esperar', papel: 'status', condicao: 'texto', texto: 'Concluído', timeoutMs: 2000 })).verificacao.satisfeita, true);
+  await observar();
+  assert.deepEqual(await page.context().cookies(), cookies);
+});
+
+test('efeito concluído seguido de falha de observação não permite reenviar', async () => {
+  await page.setContent('<button onclick="window.envios=(window.envios||0)+1;document.body.remove()">Enviar</button>');
+  const a = alvo(await observar(), 'Enviar');
+  await assert.rejects(motor.executar({ operacao: 'clicar', ...a }));
+  assert.equal(await page.evaluate(() => window.envios), 1);
+  await assert.rejects(motor.executar({ operacao: 'clicar', ...a }), /tela_alterada/);
+  assert.equal(await page.evaluate(() => window.envios), 1);
+  await page.evaluate(() => { document.documentElement.appendChild(document.createElement('body')); document.body.innerHTML = '<p role="status">Enviado uma vez</p>'; });
+  assert.equal((await motor.executar({ operacao: 'verificar', papel: 'status', condicao: 'texto', texto: 'Enviado uma vez' })).verificacao.satisfeita, true);
+});

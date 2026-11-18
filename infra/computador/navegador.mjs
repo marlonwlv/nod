@@ -64,8 +64,14 @@ export function criarNavegador({ pagina, revisao, invalidar, agora = Date.now })
           }
           visitarDom(body);
           return saida;
-        }, MAX_TEXTOS - caracteres);
-        for (const t of publicos) { textos.push(t); caracteres += t.length; }
+        }, MAX_TEXTOS - caracteres + 1);
+        for (const t of publicos) {
+          const restante = MAX_TEXTOS - caracteres;
+          if (t.length > restante) truncada = true;
+          const texto = t.slice(0, restante);
+          if (texto) textos.push(texto);
+          caracteres += texto.length;
+        }
         async function visitar(nodes) {
           for (const n of Array.isArray(nodes) ? nodes : [nodes]) {
             if (!n || typeof n !== 'object') continue;
