@@ -215,14 +215,14 @@ it("elementos passa pelo gateway, preserva saída não confiável e não inventa
 });
 it("clique semântico supervisionado exige aprovação antes do driver", async () => {
   computador.politica = "supervisionado";
-  const r = await computadores.chamar(MARLON, plano(), "computador_elementos", { operacao: "clicar", observacao: "a".repeat(64), referencia: "b".repeat(64) });
+  const r = await computadores.chamar(MARLON, plano(), "computador_elementos", { operacao: "clicar", observacao: "a".repeat(64), papel: "button", nome: "Enviar", referencia: "b".repeat(64) });
   expect(r).toHaveProperty("aguardar");
   expect(enviadas).toHaveLength(0);
 });
 
 it("controle humano recusa também observação e clique semânticos", async () => {
   computador.controle = "pessoa";
-  for (const args of [{ operacao: "observar" }, { operacao: "clicar", observacao: "a".repeat(64), referencia: "b".repeat(64) }]) {
+  for (const args of [{ operacao: "observar" }, { operacao: "clicar", observacao: "a".repeat(64), papel: "button", nome: "Enviar", referencia: "b".repeat(64) }]) {
     const r = await computadores.chamar(MARLON, plano(), "computador_elementos", args);
     expect(r).toHaveProperty("ok", true);
     if ("ok" in r && r.ok) expect(JSON.parse(r.conteudo)).toHaveProperty("estado", "aguardando_pessoa");

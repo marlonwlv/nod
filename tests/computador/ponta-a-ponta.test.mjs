@@ -61,7 +61,7 @@ test('ferramenta real, controle humano, fila IPC e navegador persistente', { tim
     const elementos = args => chamar('computador_elementos', args);
     await chamar('computador_navegar', { url: `http://127.0.0.1:${http.address().port}` });
     let r = await elementos({ operacao: 'observar' });
-    const ref = nome => ({ observacao: r.pagina.observacao, referencia: r.pagina.elementos.find(e => e.nome === nome).referencia });
+    const ref = nome => ({ observacao: r.pagina.observacao, nome, papel: r.pagina.elementos.find(e => e.nome === nome).papel, referencia: r.pagina.elementos.find(e => e.nome === nome).referencia });
     r = await elementos({ operacao: 'preencher', ...ref('Mensagem'), texto: 'Envio controlado' });
     const clique = { tipo: 'elementos', operacao: 'clicar', ...ref('Enviar') };
     // A fila real recebe duas ações simultâneas com a mesma referência: só a primeira pode produzir efeito.

@@ -16,7 +16,7 @@ beforeEach(async () => {
   motor = criarNavegador({ pagina: async () => page, revisao: () => revision, invalidar: () => { revision += '.'; } });
 });
 const observar = () => motor.executar({ operacao: 'observar' });
-const alvo = (r, nome) => ({ observacao: r.pagina.observacao, referencia: r.pagina.elementos.find(e => e.nome === nome)?.referencia });
+const alvo = (r, nome) => ({ observacao: r.pagina.observacao, ...r.pagina.elementos.find(e => e.nome === nome) });
 test('observar → localizar → preencher → clicar → verificar envio, sem pixels', async () => {
   let r = await motor.executar({ operacao: 'localizar', papel: 'textbox', nome: 'Mensagem' });
   assert.equal(r.pagina.elementos.length, 1);
@@ -79,4 +79,19 @@ test('observação expirada e ação que falha não podem ser reaproveitadas', a
   // fill em botão falha antes de produzir efeito; mesmo assim a referência é consumida.
   await assert.rejects(motor.executar({ operacao: 'preencher', ...b, texto: 'inválido' }));
   await assert.rejects(motor.executar({ operacao: 'clicar', ...b }), /tela_alterada/);
+});
+
+test('não extrai conteúdo editável sem role, inclusive descendentes e shadow DOM', async () => {
+  await page.setContent('<h1>Texto público</h1><div contenteditable><span>rascunho-privado</span><p>outro-privado</p><h2>titulo-privado</h2></div><div id="host"></div>');
+  await page.locator('#host').evaluate(el => { el.attachShadow({ mode: 'open' }).innerHTML = '<div contenteditable>shadow-privado</div><p>Texto shadow público</p>'; });
+  const r = await observar();
+  assert.doesNotMatch(JSON.stringify(r), /rascunho-privado|outro-privado|shadow-privado|titulo-privado/);
+  assert.ok(r.pagina.textos.includes('Texto público'));
+  assert.ok(r.pagina.textos.includes('Texto shadow público'));
+});
+
+test('recusa rótulo de aprovação diferente do alvo real antes do efeito', async () => {
+  const a = alvo(await observar(), 'Enviar');
+  await assert.rejects(motor.executar({ operacao: 'clicar', ...a, nome: 'Cancelar' }), /tela_alterada/);
+  assert.equal(await page.getByRole('status').innerText(), 'Ainda não enviado');
 });

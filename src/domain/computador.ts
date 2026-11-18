@@ -186,8 +186,10 @@ export function validarAcaoComputador(valor: unknown): AcaoComputador {
       if (operacao === "observar") return { tipo: a.tipo, operacao };
       if (operacao === "clicar" || operacao === "preencher") {
         const observacao = texto("observacao", 64), referencia = texto("referencia", 64);
+        const papel = texto("papel", 50), nome = texto("nome", 1000);
+        if (!/^[a-z]+$/.test(papel)) throw new ErroDeDominio("entrada_invalida");
         if (![observacao, referencia].every(v => /^[a-f0-9]{64}$/.test(v))) throw new ErroDeDominio("entrada_invalida");
-        return operacao === "clicar" ? { tipo: a.tipo, operacao, observacao, referencia } : { tipo: a.tipo, operacao, observacao, referencia, texto: texto("texto") };
+        return operacao === "clicar" ? { tipo: a.tipo, operacao, observacao, referencia, papel, nome } : { tipo: a.tipo, operacao, observacao, referencia, papel, nome, texto: texto("texto") };
       }
       const papel = texto("papel", 50);
       if (!/^[a-z]+$/.test(papel)) throw new ErroDeDominio("entrada_invalida");
@@ -248,6 +250,10 @@ export function alteraComputador(a: AcaoComputador): boolean {
 }
 
 export function resumoAcaoComputador(a: AcaoComputador): string {
+  if (a.tipo === "elementos" && (a.operacao === "clicar" || a.operacao === "preencher")) {
+    const alvo = `${a.papel} ${JSON.stringify(a.nome)} da página observada`;
+    return a.operacao === "clicar" ? `Clicar em ${alvo}` : `Preencher ${alvo}: ${a.texto}`;
+  }
   if (a.tipo === "terminal") return `Executar no terminal: ${a.comando}`;
   if (a.tipo === "navegar") return `Abrir no navegador: ${a.url}`;
   if (a.tipo === "clicar") return `Clicar na posição ${a.x}, ${a.y} da tela observada`;

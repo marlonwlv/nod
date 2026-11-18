@@ -2,8 +2,8 @@
 export type PedidoNavegador =
   | { operacao: "observar" }
   | { operacao: "localizar"; papel: string; nome?: string }
-  | { operacao: "clicar"; observacao: string; referencia: string }
-  | { operacao: "preencher"; observacao: string; referencia: string; texto: string }
+  | { operacao: "clicar"; observacao: string; referencia: string; papel: string; nome: string }
+  | { operacao: "preencher"; observacao: string; referencia: string; papel: string; nome: string; texto: string }
   | { operacao: "esperar" | "verificar"; papel: string; nome?: string; condicao: "visivel" | "oculto" | "texto"; texto?: string; timeoutMs?: number };
 export type ElementoNavegador = { referencia: string; papel: string; nome: string; frame: number };
 export type PaginaNavegador = {

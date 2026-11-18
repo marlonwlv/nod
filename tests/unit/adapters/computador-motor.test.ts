@@ -418,7 +418,7 @@ describe("driver motor: operações da pessoa (NOD-96 PR 5)", () => {
 });
 
 it("contrato semântico atravessa o canal assinado sem alteração e sem replay", async () => {
-  const acao = { tipo: "elementos" as const, operacao: "preencher" as const, observacao: "a".repeat(64), referencia: "b".repeat(64), texto: "fixture" };
+  const acao = { tipo: "elementos" as const, operacao: "preencher" as const, observacao: "a".repeat(64), papel: "button", nome: "Enviar", referencia: "b".repeat(64), texto: "fixture" };
   const m = mundo({ responder: (c) => c.tipo === "acao" ? { id: c.id, desfecho: "falhou", motivo: "sem_resposta" } : { id: c.id, desfecho: "ok" } });
   await m.driver.iniciar(ID);
   await expect(m.driver.executar(ID, acao)).rejects.toMatchObject({ motivo: "sem_resposta" });
