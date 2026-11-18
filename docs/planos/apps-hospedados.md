@@ -54,3 +54,20 @@ provisionar seu segredo e validar OAuth/reconexão com duas contas reais. Não e
 A chave não vai para desktop/web/logs; continua cifrada no banco do backend em cada conector, conforme ADR-041.
 Não há migração de projetos antigos, rotação automática ou quota distribuída. O catálogo mantém o fallback
 pré-existente; `composioConfigurado` indica configuração, não um health-check do fornecedor.
+
+## Resultado local (2026-11-18)
+
+140 testes afetados passaram; lint, typecheck e cercas de domínio/migrações passaram.
+O `npm run check` foi executado uma vez: 13.649 testes unitários passaram, 70 foram pulados e um
+caso inalterado de `tests/unit/executor/limpeza-das-tasks.test.ts` excedeu 60 segundos. O mesmo caso
+passou isolado na árvore limpa de `origin/main` em 17,6 segundos. O check parou nessa fase;
+as suítes gerais seguintes não foram executadas por ele. Os testes afetados de integração,
+Postgres/RLS e concorrência foram executados separadamente e passaram.
+
+Dois mutantes foram detectados: retirar o fallback da credencial hospedada faz falhar a jornada
+com composição real; retirar a comparação do dono remoto faz falhar o teste de isolamento OAuth.
+Ambas as mutações foram revertidas, sem alterar o código entregue.
+
+Varredura OSS: gitleaks sem segredos; sete alertas de imagens já existentes, idênticos aos da árvore
+limpa da base. Nenhum achado novo. Revisão local realizada; revisão independente e OAuth real de
+produção não estão comprovados. PR deve permanecer em draft até os gates finais do responsável.
