@@ -96,15 +96,15 @@ function diaDoPrototipoCom(mensagens: Mensagem[]): { e: Estado; c: ConversaEstad
 }
 
 describe("o bloco mora na fala que abriu as frentes", () => {
-  it("dentro do balão da última fala do turno, depois do texto; a abertura não vira linha e as outras falas não ganham nada", () => {
+  it("embaixo do balão da última fala do turno, fora dele (ADR-187); a abertura não vira linha e as outras falas não ganham nada", () => {
     const { e, c } = diaDoPrototipo();
     const chaves = blocos(c, e).map((b) => b.chave);
     expect(chaves).toEqual(["p1", "b0", "b1", "p2", "b2"]);
     const b1 = doBloco(c, e, "b1");
-    expect(b1).toContain('<div class="bubble com-progresso">');
+    expect(b1).not.toContain("com-progresso");
     expect(b1.indexOf("Te mostro quando as 5 ficarem prontas")).toBeLessThan(b1.indexOf('<section class="progresso"'));
-    // Dentro do balão: a seção fecha e logo depois fecha o balão.
-    expect(b1).toContain("</section></div>");
+    // Fora do balão: o balão fecha antes de o bloco começar.
+    expect(b1.indexOf("</div>", b1.indexOf("Te mostro quando as 5 ficarem prontas"))).toBeLessThan(b1.indexOf('<section class="progresso"'));
     for (const outra of ["p1", "b0", "p2", "b2"]) expect(doBloco(c, e, outra)).not.toContain("progresso");
     // O marcador não sobra na tela.
     expect(blocos(c, e).some((b) => b.html.includes("<!--progresso:"))).toBe(false);
@@ -299,13 +299,14 @@ describe("a frente da rede e a frente única", () => {
 });
 
 describe("COP-14 (item 4): a fala de vários parágrafos é um balão só", () => {
-  it("o progresso vai dentro do balão único, depois do texto", () => {
+  it("o progresso vai embaixo do balão único, fora dele (ADR-187)", () => {
     const ms = conversaDoHero().map((m) => (m.id === "b1" ? { ...m, texto: "Abri 5 frentes.\n\nTe aviso quando saírem." } : m));
     const { e, c } = diaDoPrototipoCom(ms);
     const b1 = doBloco(c, e, "b1");
-    expect(b1.split("com-progresso").length - 1).toBe(1);
+    expect(b1).not.toContain("com-progresso");
     expect(b1).not.toContain("data-balao");
-    expect(b1).toContain('<div class="bubble com-progresso"><p class="md-paragrafo">Abri 5 frentes.</p><p class="md-paragrafo">Te aviso quando saírem.</p><div class="progresso-lugar"');
+    expect(b1).toContain('<div class="bubble"><p class="md-paragrafo">Abri 5 frentes.</p><p class="md-paragrafo">Te aviso quando saírem.</p></div>');
+    expect(b1.indexOf("Te aviso quando saírem.")).toBeLessThan(b1.indexOf('<div class="progresso-lugar"'));
   });
 });
 

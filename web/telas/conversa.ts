@@ -670,8 +670,7 @@ export const ETIQUETA_CURTA = 16;
  * `etiqueta` (definido em 2026-10-07, #191/#195): a fala que chega de uma rotina ou de uma task leva "da rotina …" /
  * "da task …" ao lado do nome — é balão porque é para a pessoa, mas não é resposta à última mensagem dela.
  * `progresso` (chat limpo, PR 7): o marcador do bloco de progresso das frentes que esta fala abriu (./progresso-na-fala.ts).
- * Na fala do bot ele fica dentro do balão, depois do texto (protótipo "4"); no balão da pessoa (a frente da rede), embaixo
- * dele. Nos dois, antes das reações: o progresso é conteúdo da fala; a reação é sobre ela (decisão 20 do plano).
+ * Fica embaixo do balão (da fala do bot ou, na frente da rede, do balão da pessoa; ADR-187), antes das reações: o progresso é conteúdo da fala; a reação é sobre ela (decisão 20 do plano).
  * `diagramas` (NOD-328): só a timeline de conversa e sala liga; Trabalhos reaproveita esta função e fica com o card.
  * `linhaDoModo` (PR 6 dos modos de aprovação, telas Y1 e Y2): a linha discreta do que o "Ignorar todas" rodou sem a
  * pessoa neste turno (./linha-do-modo.ts), logo embaixo do balão do bot e antes das reações.
@@ -751,10 +750,10 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const recolhido = corte !== null && corte.recolhivel && !textoAberto(m.id);
   const linhaParada = corte !== null ? linhaDaParada(m.id, corte.rotulo, corte.em, recolhido, corte.recolhivel) : "";
   const classes = `message ${ehPessoa ? "you" : "bot"}${recolhido ? " texto-recolhido" : ""}${ehPessoa ? classeDoBalao(estado, m.conversaId) : ""}${ouvivel ? " ouvivel" : ""}${lendo ? " lendo" : ""}${pergunta ? " pergunta" : ""}${motivoTela !== null ? " com-tela" : ""}${resposta ? " respondendo" : ""}${fila?.tipo === "cancelada" ? " fila-cancelada" : ""}`;
-  // O progresso vai dentro do balão do bot; no da pessoa (a rede) e no cartão da pergunta (o turno que abriu frentes e
-  // terminou perguntando), embaixo dele — o cartão não tem onde recebê-lo, e sem isso o bloco sumia (revisão do PR 398).
-  const progressoDentro = !ehPessoa && !pergunta ? (opcoes.progresso ?? "") : "";
-  const progressoFora = ehPessoa || pergunta ? (opcoes.progresso ?? "") : "";
+  // O progresso vai embaixo do balão, nunca dentro (ADR-187, validação de 2026-11-17: dentro, a fala perdia o balão e
+  // destoava das outras; o protótipo P1 desenha o cartão vivo solto). Vale para a fala do bot, o balão da pessoa (a rede)
+  // e o cartão da pergunta (o turno que abriu frentes e terminou perguntando, revisão do PR 398).
+  const progressoFora = opcoes.progresso ?? "";
   // Paper 15 (rodada 2): a pergunta aberta de uma frente ("da task …") vira o bloco "da frente": o mascote pequeno, "da
   // frente" e o título, a pergunta com o fio laranja à esquerda e as opções como botões. Respondida, vencida ou sem opções,
   // segue o cartão da pergunta.
@@ -765,9 +764,9 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // Item 6: no computador da pessoa o pedido de ajuda é o cartão "Entre no {site}"; resolvido, vira linha de sistema.
   const ajuda = motivoTela !== null && estado.computadorPessoa ? cartaoDoPedidoDeAjuda(m, estado) : null;
   if (ajuda?.linha) return ajuda.html;
-  const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m) && !progressoDentro) && m.texto.trim() === "" ? "" : ehPessoa
+  const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m)) && m.texto.trim() === "" ? "" : ehPessoa
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
-      : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, `${metaTags}${progressoDentro}`, progressoDentro !== "");
+      : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, metaTags);
   const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${emVoo}>
     ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
@@ -785,8 +784,8 @@ function perguntaDaFrente(m: Mensagem, titulo: string, decisaoId: string, opcoes
  * COP-14 (item 4, definido em 2026-11-12): uma resposta do bot é um balão só — saiu a divisão por parágrafo (NOD-358).
  * O bot só manda dois balões quando manda duas mensagens de verdade, e aí elas se agrupam (./grupos-do-chat.ts).
  */
-function baloesDoBot(texto: string, chave: string, diagramas: boolean, depois: string, comProgresso: boolean): string {
-  return `<div class="bubble${comProgresso ? " com-progresso" : ""}">${textoFormatado(texto, { chave, diagramas })}${depois}</div>`;
+function baloesDoBot(texto: string, chave: string, diagramas: boolean, depois: string): string {
+  return `<div class="bubble">${textoFormatado(texto, { chave, diagramas })}${depois}</div>`;
 }
 
 function renderProposta(p: Proposta, estado: Estado, propostas: readonly Proposta[]): string {

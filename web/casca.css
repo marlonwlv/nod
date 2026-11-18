@@ -561,7 +561,6 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
    o passo em 12. As cores da barra: pronta verde, rodando a tinta, precisa laranja, esperando a borda forte.
    ===================================================================================== */
 @media not ((hover: none) and (pointer: coarse)) {
-.timeline .message.bot .bubble.com-progresso { background: transparent; padding: 0 2px; border-radius: 0; font-size: var(--fs-corpo); line-height: var(--lh-conversa); color: var(--ink); }
 .timeline .bubble-wrap:has(> .bubble > .progresso-lugar) { width: min(100%, 620px); min-width: 0; }
 .timeline .progresso { gap: 10px; margin-top: 14px; padding: 12px 14px 10px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-14, 14px); background: var(--surface-elevated); box-shadow: var(--sombra-controle); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
 .timeline .progresso-seg { height: 6px; border-radius: var(--raio-full); background: var(--borda); }

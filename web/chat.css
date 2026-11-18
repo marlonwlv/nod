@@ -111,7 +111,6 @@
   background: var(--chat-preenchido); color: var(--chat-tinta); box-shadow: var(--chat-brilho-balao);
 }
 /* Os blocos internos ficam a 10 px pela margem entre irmãos (web/chat-formato.css), não por flex: o texto em linha não empilha. */
-.timeline .message.bot .bubble.com-progresso { width: auto; }
 /* Pessoa: à direita, até min(80%, 560, 100% − 82), padding 7/12, raio 18, o mesmo brilho; 8 px entre parágrafos. */
 .timeline .message.you .bubble { max-width: min(80%, 560px, calc(100% - 82px)); box-sizing: border-box; padding: 7px 12px; border-radius: 18px; box-shadow: var(--chat-brilho-balao); }
 .timeline .message.you .bubble-wrap { max-width: min(80%, 560px, calc(100% - 82px)); display: flex; flex-direction: column; align-items: flex-end; margin-left: auto; }

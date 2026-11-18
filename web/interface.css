@@ -1940,8 +1940,8 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
   .pf-ponto.vivo, .pf-painel.entrando :is(.pf-cab, .pf-lista > li, .pf-lote, .pf-secao, .pf-memoria-linha, .pf-pe) { animation: none; }
 }
 /* O "Ver na conversa ↑" realça a fala com o progresso, como o anel do protótipo. */
-.bubble.com-progresso.realce, .progresso.realce { box-shadow: 0 0 0 3px var(--ink); transition: box-shadow var(--dur-lento) ease; }
-@media (prefers-reduced-motion: reduce) { .bubble.com-progresso.realce, .progresso.realce { transition: none; } }
+.progresso.realce { box-shadow: 0 0 0 3px var(--ink); transition: box-shadow var(--dur-lento) ease; }
+@media (prefers-reduced-motion: reduce) { .progresso.realce { transition: none; } }
 /* O ponto da memória no bloco de progresso (PR 8), ao lado do número: a frase só no title e no nome acessível. */
 .progresso-memoria { display: inline-block; width: 7px; height: 7px; margin: 0 2px 1px 7px; border-radius: 50%; background: var(--warning); vertical-align: middle; }
 .progresso-memoria.vermelha { background: var(--danger); }
