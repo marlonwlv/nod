@@ -46,6 +46,20 @@ describeIntegracao("a tarefa aberta pela pessoa (ADR-187 §7)", () => {
     });
   });
 
+  it("com o clipe: os anexos soltos da conversa do bot prendem na fala do pedido e entram no turno; id de fora derruba tudo", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const anexo = (await m.repos.anexos.criar({ conversaId: m.ada.conversaId, nome: "briefing.md", mime: "text/markdown", conteudo: new TextEncoder().encode("# briefing") }))!;
+      const r = await abrirTarefaDaPessoa(m.deps, { agenteId: m.ada.agenteId, texto: "Leia o briefing e escreva a landing", anexos: [anexo.id] });
+      const turno = (await m.repos.turnos.buscar(r.data.turnoId))!;
+      expect(turno.entradaAnexos).toEqual([anexo.id]);
+      const presos = (await m.repos.anexos.daMensagens([turno.mensagemOrigemId!])).get(turno.mensagemOrigemId!) ?? [];
+      expect(presos.map((a) => a.id)).toEqual([anexo.id]);
+      // O mesmo anexo, já preso, não serve de novo: nada da segunda tarefa fica gravado.
+      await expect(abrirTarefaDaPessoa(m.deps, { agenteId: m.ada.agenteId, texto: "De novo", anexos: [anexo.id] })).rejects.toBeInstanceOf(ErroDeDominio);
+    });
+  });
+
   it("levando a conversa: as últimas falas do chat entram na entrada, sem as das outras tarefas", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);

@@ -489,7 +489,7 @@ export function criarApi(escopo: Escopo) {
     // ADR-187 §6 (2026-11-18): com os anexos do clipe do campo da tarefa (ids soltos da conversa do trabalho).
     escreverNoTrabalho: (id: string, texto: string, anexos: readonly string[] = []) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/mensagens`, anexos.length ? { texto, anexos } : { texto }),
     // ADR-187 §7 (2026-11-18): a tarefa nova da pessoa nasce da primeira mensagem dela (⌘N, o "+" da aba).
-    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa }),
+    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean, anexos: readonly string[] = []) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa, ...(anexos.length ? { anexos } : {}) }),
     // 0059: o aviso fechado fica com a pessoa (ADR-187 §5, a dica das tarefas, uma vez por pessoa).
     fecharAviso: (chave: string) => post<Preferencias>("preferencias/avisos-fechados", { chave }),
     pararTrabalho: (id: string) => post<RespostaMutacao & { recadosGuardados?: number }>(`trabalhos/${encodeURIComponent(id)}/parar`),

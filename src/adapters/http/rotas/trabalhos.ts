@@ -73,7 +73,10 @@ export function criarRotasTrabalhos(d: DepsRotas): Rota[] {
         const corpo = corpoObjeto(await ctx.corpo());
         const agenteId = ctx.params.id ?? "";
         if (!UUID.test(agenteId)) throw new ErroDeDominio("nao_encontrado");
-        const r = await executar(ctx.escopo, abrirTarefaDaPessoa, { agenteId, texto: texto(corpo.texto), levarConversa: corpo.levarConversa === true });
+        // Validação de 2026-11-18: os anexos do clipe do campo da tarefa nova (ids soltos da conversa do bot).
+        const anexos = Array.isArray(corpo.anexos) ? corpo.anexos.filter((a): a is string => typeof a === "string" && UUID.test(a)) : [];
+        if (Array.isArray(corpo.anexos) && anexos.length !== corpo.anexos.length) throw new ErroDeDominio("entrada_invalida", { cause: "anexos" });
+        const r = await executar(ctx.escopo, abrirTarefaDaPessoa, { agenteId, texto: texto(corpo.texto), levarConversa: corpo.levarConversa === true, anexos });
         const resposta: RespostaMutacao & { trabalho: typeof r.trabalho } = { ok: true, ids: { trabalho: r.trabalho.id, turno: r.turnoId }, trabalho: r.trabalho };
         ctx.json(201, resposta);
       },

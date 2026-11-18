@@ -131,9 +131,12 @@ export const mensagemParaTrabalho: CasoDeUso<{ trabalhoId: string; texto: string
  * é ligado a ele na mesma transação (o lote precisa do turno; o trabalho, do lote): o despachante nunca o vê solto.
  * "Levar o contexto da conversa" junta à entrada as últimas falas do chat com o dono (blocoDoContexto, com teto).
  */
-export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; levarConversa?: boolean }, { trabalho: TrabalhoDto; turnoId: string }> = async (deps, input) => {
+export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; levarConversa?: boolean; anexos?: readonly string[] }, { trabalho: TrabalhoDto; turnoId: string }> = async (deps, input) => {
   const texto = typeof input.texto === "string" ? input.texto.trim() : "";
   if (texto === "") throw new ErroDeDominio("texto_vazio");
+  // Validação de 2026-11-18: o clipe do campo da tarefa nova (ids soltos da conversa do bot), como na fala na tarefa.
+  const anexoIds = [...new Set((input.anexos ?? []).filter((a): a is string => typeof a === "string"))];
+  if (excedeQuantidade(anexoIds.length)) throw new ErroDeDominio("entrada_invalida", { cause: "anexos demais" });
   if (!ehUuid(input.agenteId)) throw new ErroDeDominio("nao_encontrado");
   const agente = await deps.repos.agentes.buscar(input.agenteId);
   if (!agente || agente.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado");
@@ -147,6 +150,9 @@ export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; l
   const autoria = autoriaPessoa(deps.escopo);
   const mensagem = await deps.repos.mensagens.criar({ conversaId: conversa.id, autoria, kind: "texto", texto, confianca: "confiavel" });
   if (!mensagem) throw new ErroDeDominio("nao_permitido");
+  // Prende só o que é solto, desta conversa e da dona; qualquer id que sobrar derruba a tx inteira (enviarMensagem).
+  const anexos = anexoIds.length ? await deps.repos.anexos.prender(anexoIds, { conversaId: conversa.id, mensagemId: mensagem.id }) : [];
+  if (anexos.length !== anexoIds.length) throw new ErroDeDominio("entrada_invalida", { cause: "anexo de outra conversa, já enviado ou inexistente" });
   const turno = await deps.repos.turnos.enfileirar({
     conversaId: conversa.id,
     agenteId: agente.id,
@@ -163,6 +169,7 @@ export const abrirTarefaDaPessoa: CasoDeUso<{ agenteId: string; texto: string; l
     // NOD-206: palpite de quem enfileira; o plano grava o executor real.
     executor: "catcher",
     mensagemOrigemId: mensagem.id,
+    entradaAnexos: anexos.map((a) => a.id),
     // A pessoa está olhando a tela da tarefa (NOD-272): a cota não a segura como fundo.
     pessoaEsperando: true,
   });

@@ -3190,7 +3190,8 @@ function renderPrincipal(): void {
       cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null)("")}</div>`;
       comAbas = true;
       corpo = renderNovaTarefa(estado, t.agenteId, levarContextoNaTarefa);
-      composer = { chave: `nova-tarefa:${t.agenteId}`, html: htmlComposer(PLACEHOLDER_NOVA_TAREFA, [], { seletor: true }) };
+      // Validação de 2026-11-18: o campo da tarefa nova tem o clipe, como o da tarefa (a fila sobe na conversa do bot).
+      composer = { chave: `nova-tarefa:${t.agenteId}`, html: htmlComposer(PLACEHOLDER_NOVA_TAREFA, [], { seletor: true, anexos: aceitaDo(botGerido(t.agenteId)?.harness) }) };
       break;
     case "conversa":
       if (comQuadro(t.agenteId)) lerPaginas(t.agenteId);
@@ -5002,13 +5003,18 @@ async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Pr
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
   const chave = composerDe;
   const texto = ta?.value.trim() ?? "";
+  // Validação de 2026-11-18: os anexos do clipe vão no pedido; não sai com arquivo pela metade, como na conversa.
+  const filaChave = `nova-tarefa:${tela.agenteId}`;
+  const fila = anexosPendentes.get(filaChave) ?? [];
+  if (fila.some((i) => i.estado === "enviando")) return;
+  const ids = fila.flatMap((i) => (i.estado === "pronto" && i.meta ? [i.meta.id] : []));
   if (!ta || !api || !texto) return;
   const a = api;
   const levar = levarContextoNaTarefa;
   await enviarUmaVez(envios, `nova-tarefa:${tela.agenteId}`, texto, () => agir(async () => {
     let id: string;
     try {
-      id = (await a.abrirTarefa(tela.agenteId, texto, levar)).trabalho.id;
+      id = (await a.abrirTarefa(tela.agenteId, texto, levar, ids)).trabalho.id;
     } catch (e) {
       if (e instanceof ErroApi && e.codigo === "cota_provisorio") {
         await telaConta.abrir("cota", false);
@@ -5017,6 +5023,7 @@ async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Pr
       throw e;
     }
     limparDepoisDeEnviar(ta, chave, texto);
+    if (fila.length) limparAnexos(filaChave);
     // ADR-187 §6: a aba "Nova tarefa" vira a aba dela já, antes de a lista relida trazer a tarefa.
     guardarAbas(abrirAba(abasDeTarefa, { id, agenteId: tela.agenteId }));
     dispatch({ tipo: "invalidar", quais: ["trabalhos", `trabalho:${id}`] });
@@ -5593,6 +5600,10 @@ function aceitaDo(harness: string | undefined): Aceita | undefined {
  */
 function filaDosAnexos(): { chave: string; conversaId: string } | null {
   const t = estado.tela;
+  if (t.tipo === "nova-tarefa") {
+    const conversaId = estado.frota?.agentes.find((a) => a.id === t.agenteId)?.conversaId;
+    return conversaId ? { chave: `nova-tarefa:${t.agenteId}`, conversaId } : null;
+  }
   if (t.tipo === "trabalho") {
     const conversaId = (estado.trabalhoDetalhe[t.id]?.trabalho ?? trabalhoPorId(estado, t.id))?.conversaId;
     return conversaId ? { chave: `trabalho:${t.id}`, conversaId } : null;
