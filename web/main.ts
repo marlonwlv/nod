@@ -54,7 +54,6 @@ import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
 import { instalarOrdemArrastavel } from "./lib/ordem-arrastavel.ts";
 import { chaveDoMenuDaIa, ordemDoPasso } from "./lib/ordem.ts";
-import { abrirMenuDoMais as abrirMenuNovo } from "./telas/menu-do-mais.ts";
 import { abrirFolhaCompartilhar, abrirMenu, abrirMenuCompartilhar, abrirFolhaDeAtalhos, abrirMenuConta, abrirSobreONod, confirmarExclusaoNaFolha, menuContaAberto, dialogo, pedirGestao, textoDuplicar, type BotGerido, type AcaoGestao } from "./telas/gestao-agentes.ts";
 import { perfilAoAbrir, perfilAoAbrirNivel, saidaDoPerfil } from "./telas/perfil-celular.ts";
 import { criarMarcaDoPerfil, planoDaSaida } from "./lib/lista-apos-saida.ts";
@@ -2839,7 +2838,7 @@ function renderSidebar(estado: Estado): string {
     return `<div class="inicio-topo">
       <button class="me me-topo${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${estado.espaco ? "true" : "false"}" aria-label="Menu da conta: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}"><span class="av-me">eu</span>${avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}</button>
       ${renderTituloCompacto(abaDoInicio)}
-      <span class="inicio-topo-acoes">${renderIconeTrabalhos(estado)}<button class="create-trigger" data-act="menu-do-mais" data-segurar="segurar-mais" aria-haspopup="menu" aria-expanded="false" aria-label="Novo (segure para criar um bot na hora)">${MAIS}</button></span>
+      <span class="inicio-topo-acoes">${renderIconeTrabalhos(estado)}<button class="create-trigger" data-act="novo-bot-dialogo" data-segurar="segurar-mais" aria-label="Novo bot (segure para criar na hora)">${MAIS}</button></span>
     </div>
     ${renderIncidentes(estado)}
     ${ambiente}
@@ -2867,7 +2866,7 @@ function renderSidebar(estado: Estado): string {
   const quem = quemEsta();
   const nomeRodape = quem?.nome ?? quem?.email ?? "";
   const html = `<div class="search-wrap">
-      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.compacta ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button><span class="create-actions"><button class="create-trigger icone-flutua" data-act="menu-do-mais" data-segurar="segurar-mais" aria-haspopup="menu" aria-expanded="false" aria-label="Novo (segure para criar um bot na hora)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} Shift+Enter Shift+Space" title="Novo (${ATALHO_NOVO_BOT.texto} bot) · segure para criar um bot na hora"><span class="segurar-anel" aria-hidden="true"></span>${IC_MAIS}</button></span></div>
+      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.compacta ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button><span class="create-actions"><button class="create-trigger icone-flutua" data-act="novo-bot-dialogo" data-segurar="segurar-mais" aria-label="Novo bot (segure para criar na hora)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} Shift+Enter Shift+Space" title="Novo bot (${ATALHO_NOVO_BOT.texto}) · segure para criar na hora"><span class="segurar-anel" aria-hidden="true"></span>${IC_MAIS}</button></span></div>
       <label class="search"${buscando ? "" : " hidden"}><span>⌕</span><input id="busca-bots" placeholder="Buscar agentes…" aria-label="Buscar agentes" autocomplete="off" /><kbd>esc</kbd></label>
     </div>
     ${renderIncidentes(estado)}
@@ -7153,17 +7152,6 @@ function abrirDialogoCriarBot(nome = ""): void {
   void abrirCriarBot(depsDialogoCriarBot(), { nome });
 }
 
-/** O menu "Novo" do + (clique, teclado e clique direito; no celular, folha de baixo): Novo bot e Novo chat em grupo. */
-function abrirMenuDoMais(ancora: HTMLElement, ponto?: { x: number; y: number }): void {
-  abrirMenuNovo(ancora, {
-    atalhoBot: ATALHO_NOVO_BOT.texto,
-    atalhoGrupo: "",
-    folha: celular.ativo(),
-    ponto,
-    escolher: (qual) => (qual === "novo-bot" ? abrirDialogoCriarBot() : navegar({ tipo: "nova-sala" })),
-  });
-}
-
 /** ADR-174: o que o onboarding pede ao app (o preparo com %, web/telas/criar-bot.ts). */
 function depsCriarBot(): DepsCriarBot {
   return {
@@ -7739,10 +7727,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // NOD-383: no celular, segurar o + pergunta antes ("Criar um bot agora?"); só Criar chama o criarAgente.
   // Spec do botão + (tela 1): "Criar o bot “…”" (Nova conversa) abre o diálogo "Criar novo bot" com o nome digitado.
   "criar-rapido": () => abrirDialogoCriarBot((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value.trim() ?? ""),
-  // Spec do botão + (tela 1): ⌘N (e a paleta) abrem o diálogo. Segurar o + 500 ms continua criando na hora (segurar-mais).
+  // Spec do botão + (tela 1): o clique no + da barra, o ⌘⇧N e a paleta abrem o diálogo. Segurar o + 500 ms continua criando
+  // na hora (segurar-mais). Validação de 2026-11-18: o menu "Novo" (Novo bot, Novo chat em grupo) saiu; o chat em grupo
+  // fica só na busca (⌘K, web/lib/paleta.ts).
   "novo-bot-dialogo": () => abrirDialogoCriarBot(),
-  // O clique (ou Enter/Espaço) no + abre o menu "Novo": Novo bot e Novo chat em grupo. Só abre o menu, sem efeito.
-  "menu-do-mais": (el) => abrirMenuDoMais(el),
   // NOD-383: segurar o + do topo. No celular o toque longo sai sem querer: pergunta antes; no desktop cria direto.
   "segurar-mais": () => void criarRapido(celular.ativo(), () => confirmarCriarBot(LOGO_NOD), criarBotAgora),
   "escolher-missao": (el) => responderBoasVindas(el.dataset.texto ?? ""),
@@ -9993,16 +9981,9 @@ document.addEventListener("focusout", (ev) => {
 // O menu do bot na barra lateral: abre onde o cursor está; pelo teclado (Shift+F10, tecla de menu) o evento vem sem
 // posição e o menu abre ao lado do bot.
 document.addEventListener("contextmenu", (ev) => {
-  // Spec do botão + : o clique direito no + abre "Novo bot" (⌘N) e "Novo chat em grupo".
-  const mais = (ev.target as HTMLElement).closest<HTMLElement>("#sidebar .create-trigger");
-  if (mais) {
-    ev.preventDefault();
-    // No celular o toque longo dispara contextmenu: ali o gesto é o segurar (que pergunta antes), não o menu.
-    if (celular.ativo()) return;
-    encerrarSegurar();
-    abrirMenuDoMais(mais, ev.clientX || ev.clientY ? { x: ev.clientX, y: ev.clientY } : undefined);
-    return;
-  }
+  // O + da barra não tem menu desde a validação de 2026-11-18; o clique direito (e o toque longo do celular, que é o
+  // segurar) não abre o menu do navegador por cima dele.
+  if ((ev.target as HTMLElement).closest("#sidebar .create-trigger")) { ev.preventDefault(); return; }
   // NOD-437: o clique direito no cabeçalho do time abre o mesmo menu do ⋯.
   const cab = (ev.target as HTMLElement).closest<HTMLElement>("#sidebar .time-cab");
   const idTime = cab?.querySelector<HTMLElement>("[data-time]")?.dataset.time;

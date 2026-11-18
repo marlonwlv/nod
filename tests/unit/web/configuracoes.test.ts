@@ -194,7 +194,7 @@ describe("Geral (critérios 4 e 5)", () => {
     // O contexto real chega ao atalho: Seu espaço, ditado e diálogo.
     const ctx = main.slice(novos, main.indexOf("});", novos));
     for (const c of ["SELETOR_CAMPO", "SELETOR_MODAL", "espaco: !!estado.espaco", "ditando: ditado.ativo()", "telaOnboarding.cobre()"]) expect(ctx, c).toContain(c);
-    expect(main).toMatch(/aria-keyshortcuts="\$\{ATALHO_NOVO_BOT\.aria\} Shift\+Enter Shift\+Space" title="Novo \(\$\{ATALHO_NOVO_BOT\.texto\} bot\) · segure para criar um bot na hora"/);
+    expect(main).toMatch(/aria-keyshortcuts="\$\{ATALHO_NOVO_BOT\.aria\} Shift\+Enter Shift\+Space" title="Novo bot \(\$\{ATALHO_NOVO_BOT\.texto\}\) · segure para criar na hora"/);
   });
 
   it("toda ação de Geral e de Conta tem tratador no main.ts", () => {

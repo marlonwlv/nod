@@ -68,12 +68,6 @@ dialog.criar-bot.criando .cnb-criar { background: var(--action); color: var(--on
 .bot-provisorio b { font-weight: var(--peso-medio); }
 .bot-provisorio.selecionado { background: var(--ativo); }
 
-/* ---- o menu do botão direito do + ("Novo bot" ⌘N, "Novo chat em grupo") -------------------------------------------- */
-.bot-menu.menu-mais { width: 240px; }
-.bot-menu.menu-mais button > span { width: auto; font-size: inherit; }
-.bot-menu.menu-mais button > svg { flex: none; color: var(--icone-2, var(--ink-2)); }
-.bot-menu.menu-mais .mc-meta { margin-left: auto; color: var(--ink-3); font-size: var(--fs-corpo-2); }
-
 
 /* ---- o preparo com % ---------------------------------------------------------------------------------------------- */
 .cb-preparo { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; max-width: 360px; margin: 0 auto; text-align: center; }
