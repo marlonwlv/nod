@@ -6,6 +6,7 @@ import type { EstadoIa } from "../src/contracts/estado-ia.ts";
 import { CANAIS_MIDIA, type PonteMidia } from "../src/contracts/midia-desktop.ts";
 import { CANAIS_REMOVER, type OpcoesRemover } from "../src/contracts/remover-computador.ts";
 import { CANAIS_MAC, type FamiliaMac } from "../src/contracts/desktop-mac.ts";
+import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type PedidoReinicio, type PonteAtualizacaoApp } from "../src/contracts/desktop-atualizacao.ts";
 
 /**
  * Preload da JANELA WEB (definido em 2026-09-24, "aviso no Mac"): a página é remota, então a ponte é a
@@ -74,7 +75,20 @@ try {
 } catch {
   // sem decisões guardadas: os cards pedem o clique
 }
+/** ADR-188: a atualização do app na janela web; o processo principal decide e valida cada pedido. */
+const atualizacaoApp: NonNullable<PonteAtualizacaoApp["atualizacaoApp"]> = {
+  estado: () => ipcRenderer.invoke(CANAIS_ATUALIZACAO.estado),
+  aoMudar: (fn: (estado: AtualizacaoNaTela) => void) => {
+    ipcRenderer.removeAllListeners(CANAIS_ATUALIZACAO.mudou);
+    ipcRenderer.on(CANAIS_ATUALIZACAO.mudou, (_evento, estado: AtualizacaoNaTela) => fn(estado));
+  },
+  reiniciar: (pedido: PedidoReinicio) => ipcRenderer.invoke(CANAIS_ATUALIZACAO.reiniciar, { quando: pedido?.quando }),
+  procurar: () => ipcRenderer.invoke(CANAIS_ATUALIZACAO.procurar),
+  definirSozinho: (ligado: boolean) => ipcRenderer.invoke(CANAIS_ATUALIZACAO.definirSozinho, ligado === true),
+  avisoVisto: () => ipcRenderer.invoke(CANAIS_ATUALIZACAO.avisoVisto),
+};
 const ponte: NodDesktop = {
+  atualizacaoApp,
   avisar: (aviso: AvisoDesktop) => ipcRenderer.invoke(CANAIS_DESKTOP.avisar, aviso),
   contador: (n: number) => ipcRenderer.invoke(CANAIS_DESKTOP.contador, n),
   preferencias: () => ipcRenderer.invoke(CANAIS_DESKTOP.preferencias),

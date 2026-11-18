@@ -19,6 +19,7 @@ import { renderGeral } from "./config-geral.ts";
 import { renderAgendaRotinas, tituloDaAgendaCelular, valorDaAgenda } from "./agenda-rotinas.ts";
 import { buscarAjustes, caminhoDoAjuste } from "../lib/ajustes.ts";
 import type { EscolhaSons } from "../lib/sons.ts";
+import { renderSobre } from "./atualizacao-app.ts";
 
 /**
  * ADR-167 (Configurações): a busca dos ajustes. Com termo, o conteúdo vira a lista do que casa — título, frase e
@@ -55,6 +56,8 @@ export const SECOES_ESPACO: readonly { id: SecaoEspaco; nome: string; icone: str
   { id: "aprovacoes", nome: "Aprovações", icone: ICONE.escudo },
   // Paper 07 (rodada 2): as chaves guardadas pelos cartões dos bots, entre Apps e IA no computador.
   { id: "cofre", nome: "Cofre", icone: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="10.5" r="3"/><path d="M7.6 8.4L13.5 2.5M11.5 4.5l1.5 1.5M10 6l1.2 1.2"/></svg>' },
+  // ADR-188: a versão do app e a atualização, logo antes de Feedback (que continua por último).
+  { id: "sobre", nome: "Sobre o nod", icone: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v3.6M8 5.1v.1"/></svg>' },
   { id: "feedback", nome: "Feedback", icone: ICONE.bandeira },
 ];
 
@@ -104,6 +107,8 @@ export type ExtrasEspaco = {
   cofre?: () => string;
   /** ADR-173: Quick Chat e ferramentas do Mac; só no app do Mac (null/ausente na web, no Windows e na VM). */
   mac?: AjustesMac | null;
+  /** ADR-188: Configurações › Sobre o nod (a versão e a atualização do app). */
+  sobre?: () => string;
 };
 
 export function renderEspaco(estado: Estado, avisos: EstadoAvisos, volta: Volta, extras: ExtrasEspaco, celular = ehCelular()): string {
@@ -201,6 +206,8 @@ function conteudo(estado: Estado, secao: SecaoEspaco, avisos: EstadoAvisos, extr
       return extras.cofre?.() ?? '<section class="cfg-secao"><h2>Cofre</h2><p class="lc-nota">Abrindo o cofre…</p></section>';
     case "feedback":
       return renderRelatos(estado);
+    case "sobre":
+      return extras.sobre?.() ?? renderSobre(null, false, Date.now());
   }
 }
 

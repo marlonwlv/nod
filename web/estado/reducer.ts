@@ -178,7 +178,8 @@ export type ConectarMaquina = {
 };
 
 /** NOD-367 (protótipo v2): as seções das Configurações, nesta ordem na lateral. NOD-85: Rotinas entre Agentes e Feedback. */
-export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "computador" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "feedback";
+/** ADR-188: "sobre" (Sobre o nod): a versão do app e a atualização, antes de Feedback. */
+export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "computador" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "sobre" | "feedback";
 /**
  * O que um ponto de entrada pode pedir: as 6 seções, as de antes da NOD-367 (avisos, preferências, este Mac,
  * computadores, computador do bot, relatos), que caem na seção que as absorveu, e "ajuda" (Geral, no bloco Ajuda).

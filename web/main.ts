@@ -204,6 +204,8 @@ import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncid
 import { aparenciaDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
 import { mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
+import { criarAtualizacaoNaWeb } from "./lib/atualizacao-app.ts";
+import { cartaoAtualizacao, renderSobre, TEXTOS_ATZ } from "./telas/atualizacao-app.ts";
 import { acessosNaTela, chaveDoClique } from "./lib/acessos-otimistas.ts";
 import { gavetaDeAcessos, loteDeEscritaPedeConfirmacao, ROTULO } from "./telas/acessos-do-app.ts";
 import { conectorDoApp, meusBots, nivelReal } from "./telas/app-acesso.ts";
@@ -399,8 +401,8 @@ function extrasDoDs(): { balaoCor: boolean; sons: ReturnType<typeof lerSons>; bu
 }
 /** O que as Configurações ganharam na frente nova: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
  * extra para o render() de Seu espaço caber na guarda da NOD-370. */
-function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null } {
-  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now()), mac: ajustesMac };
+function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null; sobre: () => string } {
+  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now()), mac: ajustesMac, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
 }
 /** ADR-167: o termo da busca das Configurações; fechar as Configurações ou escolher um achado o limpa. */
 let termoAjustes = "";
@@ -2881,6 +2883,7 @@ function renderSidebar(estado: Estado): string {
     </div>
     ${ambiente}
     ${avisoDoMotor}
+    ${cartaoAtualizacao(atualizacaoNaWeb.tela(), barraAtual.compacta)}
     <div class="rodape">
       <button type="button" class="me conta-pilula${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${menuContaAberto() ? "true" : "false"}"${falhaMotor ? ' data-etiqueta="Sua IA não está conectada"' : ""} aria-label="Menu da conta${nomeRodape ? ` de ${esc(nomeRodape)}` : ""}: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}" title="${esc(nomeRodape || "Menu da conta")}"><span class="av-me">${esc(iniciaisDe(quem?.nome))}</span>${falhaMotor ? '<span class="me-fora" aria-hidden="true">!</span>' : avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}<span class="me-conexao conexao-${esc(estado.conexao.estado)}" title="eventos ao vivo: ${esc(estado.conexao.estado)}"></span>${nomeRodape ? `<span class="me-nome">${esc(nomeRodape)}</span>` : ""}</button>
       ${linhaTarefas ? `<button type="button" class="rodape-ic rodape-tarefas" data-act="navegar" data-tela="tarefas" aria-label="Cards" data-etiqueta="Cards">${IC_QUADRO}</button>` : ""}
@@ -4087,7 +4090,7 @@ function prenderFocoNaGaveta(slug: string | null): void {
  * (digitar na busca filtra direto, no ouvinte de input).
  */
 function redesenharSidebar(): void {
-  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", barraAtual.compacta, JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo, botProvisorio ? `${botProvisorio.nome}:${botProvisorio.agenteId ?? ""}` : ""], renderSidebar);
+  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", barraAtual.compacta, JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo, botProvisorio ? `${botProvisorio.nome}:${botProvisorio.agenteId ?? ""}` : "", JSON.stringify(atualizacaoNaWeb.tela())], renderSidebar);
   // NOD-119/ADR-179: no celular a barra é a gaveta de sempre; o <html> só leva a largura no computador (virar o aparelho muda).
   pintarBarraAgora();
   if (!regiaoMudaria("sidebar", html)) return;
@@ -4101,6 +4104,7 @@ function redesenharSidebar(): void {
   const focoNoTime = focoDoTime();
   const focoNaTabBar = alvoDoFocoNaTabBar(document.activeElement);
   regiao("sidebar", html);
+  retomarSegurar();
   devolverFocoDoTime(focoNoTime);
   if (focoNaTabBar) document.querySelector<HTMLElement>(`#sidebar ${focoNaTabBar}`)?.focus({ preventScroll: true });
   const novaBusca = document.getElementById("busca-bots") as HTMLInputElement | null;
@@ -5844,6 +5848,16 @@ function alternarConfirmaWebhook(el: HTMLElement, abrir: boolean): void {
 // regravado dentro da mesma conversa, então o botão fica até a próxima troca de conversa).
 const modoQuickChat = ehJanelaQuickChat(window.location.search);
 const modoAvatar = ehJanelaAvatar(window.location.search);
+/**
+ * ADR-188: a atualização do app do Mac na janela principal (o cartão da barra e Configurações › Sobre o nod). O Quick
+ * Chat e os avatares na mesa não mostram: o aviso "atualizado" sairia em cada janela.
+ */
+const atualizacaoNaWeb = criarAtualizacaoNaWeb({
+  ponte: () => (modoQuickChat || modoAvatar ? undefined : window.nodDesktop?.atualizacaoApp),
+  aoMudar: () => render(),
+  avisarAtualizado: (versao) => { mostrarAvisoDesfazer({ texto: TEXTOS_ATZ.atualizado(versao), abrir: { rotulo: "Ver", aoAbrir: () => abrirEspaco("sobre") } }); },
+});
+void atualizacaoNaWeb.carregar();
 if (modoQuickChat) document.documentElement.dataset.janela = "quick-chat";
 if (modoAvatar) document.documentElement.dataset.janela = "avatar";
 /** O avatar da mesa abre o Quick Chat já num bot: a página navega para ele uma vez, quando a frota chegar. */
@@ -7761,6 +7775,21 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "novo-bot-dialogo": () => abrirDialogoCriarBot(),
   // NOD-383: segurar o + do topo. No celular o toque longo sai sem querer: pergunta antes; no desktop cria direto.
   "segurar-mais": () => void criarRapido(celular.ativo(), () => confirmarCriarBot(LOGO_NOD), criarBotAgora),
+  // ADR-188: o cartão "Atualizar o nod". Segurar até encher pede o reinício; o clique curto só balança (lembra de segurar).
+  "reiniciar-app": () => atualizacaoNaWeb.reiniciar("agora"),
+  "atualizar-app-dica": (el) => {
+    el.classList.remove("atz-dica");
+    void el.offsetWidth; // reinicia a animação num segundo clique seguido
+    el.classList.add("atz-dica");
+    window.setTimeout(() => el.classList.remove("atz-dica"), 700);
+  },
+  "atualizar-app-agora": () => atualizacaoNaWeb.reiniciar("agora"),
+  "atualizar-app-forcar": () => atualizacaoNaWeb.reiniciar("forcar"),
+  "atualizar-app-quando-livre": () => atualizacaoNaWeb.reiniciar("quandoLivre"),
+  "atualizar-app-cancelar-espera": () => atualizacaoNaWeb.reiniciar("cancelarEspera"),
+  "atualizar-app-fechar": () => atualizacaoNaWeb.fecharPergunta(),
+  "atualizar-app-procurar": () => atualizacaoNaWeb.procurar(),
+  "atualizar-app-sozinho": () => atualizacaoNaWeb.definirSozinho(!(atualizacaoNaWeb.tela()?.estado.sozinho ?? true)),
   "escolher-missao": (el) => responderBoasVindas(el.dataset.texto ?? ""),
   // NOD-56: a captura da tela do bot ao fim do turno, ampliada sobre a conversa.
   // NOD-327: o card de CSV/PDF abre a prévia num modal claro sobre a conversa.
@@ -9892,12 +9921,32 @@ window.nod = { estado: () => estado, agente: () => agenteDaTela(estado) };
 // senão os dois relógios andam separados e o anel fecha fora de hora.
 const MS_SEGURAR = 500;
 document.documentElement.style.setProperty("--ms-segurar", `${MS_SEGURAR}ms`);
-let segurando: { el: HTMLElement; timer: number; disparou: boolean } | null = null;
+let segurando: { el: HTMLElement; timer: number; disparou: boolean; acao: string; inicio: number } | null = null;
+/** ADR-188: o botão pode pedir outro tempo (`data-segurar-ms`, o cartão de atualizar usa 800); fora de 300–3000, o padrão. */
+function msDoSegurar(el: HTMLElement): number {
+  const ms = Number(el.dataset.segurarMs);
+  return Number.isFinite(ms) && ms >= 300 && ms <= 3000 ? ms : MS_SEGURAR;
+}
+/**
+ * ADR-188: a barra foi regravada no meio do gesto (um frame do SSE): o botão novo herda o gesto e a tinta continua de onde
+ * estava (o atraso negativo adianta a transição), em vez de recomeçar vazia.
+ */
+function retomarSegurar(): void {
+  const s = segurando;
+  if (!s || s.disparou || s.el.isConnected) return;
+  const novo = document.querySelector<HTMLElement>(`[data-segurar="${CSS.escape(s.acao)}"]`);
+  if (!novo) { encerrarSegurar(); return; }
+  novo.style.setProperty("--ms-segurar", `${msDoSegurar(novo)}ms`);
+  novo.style.setProperty("--segurar-atraso", `-${Math.round(performance.now() - s.inicio)}ms`);
+  novo.classList.add("segurando");
+  s.el = novo;
+}
 
 function encerrarSegurar(): boolean | undefined {
   if (!segurando) return;
   clearTimeout(segurando.timer);
   segurando.el.classList.remove("segurando");
+  segurando.el.style.removeProperty("--segurar-atraso");
   const disparou = segurando.disparou;
   segurando = null;
   return disparou;
@@ -9910,7 +9959,9 @@ document.addEventListener("pointerdown", (ev) => {
   encerrarSegurar();
   ultimoHoldDisparou = false;
   const acao = el.dataset.segurar ?? "";
-  const alvo = { el, disparou: false } as { el: HTMLElement; timer: number; disparou: boolean };
+  const ms = msDoSegurar(el);
+  el.style.setProperty("--ms-segurar", `${ms}ms`);
+  const alvo = { el, disparou: false, acao, inicio: performance.now() } as { el: HTMLElement; timer: number; disparou: boolean; acao: string; inicio: number };
   alvo.timer = window.setTimeout(() => {
     alvo.disparou = true;
     // O sidebar é regravado por innerHTML a cada frame do SSE: o botão de agora pode não
@@ -9918,7 +9969,7 @@ document.addEventListener("pointerdown", (ev) => {
     for (const n of document.querySelectorAll<HTMLElement>(".segurando")) n.classList.remove("segurando");
     const fn = ACOES[acao];
     if (fn) void fn(alvo.el);
-  }, MS_SEGURAR);
+  }, ms);
   segurando = alvo;
   el.classList.add("segurando");
 });
