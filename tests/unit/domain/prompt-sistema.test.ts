@@ -204,7 +204,7 @@ describe("montarPromptSistema", () => {
     expect(rotina).not.toContain("Conexões cadastradas");
     expect(rotina).not.toContain("Apps do marketplace");
     expect(rotina).not.toContain("LER_TUDO");
-    expect(rotina).toMatch(/Apps que você pode pedir com pedir_acesso \(slug\): [a-z_, ]*gmail[a-z_, ]*interno/);
+    expect(rotina).toMatch(/Apps que você pode pedir com pedir_acesso \(slug\): [a-z_, -]*gmail[a-z_, -]*interno/);
     const conversa = montarPromptSistema({ agente, memorias: [], ferramentas: [f("pedir_acesso")], pessoaNome: "Marlon", modo: "conversa", conectores });
     expect(conversa).toContain("Conexões cadastradas");
     expect(conversa).toContain("Apps do marketplace");
@@ -387,10 +387,11 @@ describe("NOD-155: o prompt em parte estável e parte volátil (cache por prefix
     // 2026-11-18: orientação semântica como padrão; alternativa visual explícita (+255 caracteres estáveis).
     const digital = (s: string) => createHash("sha256").update([...s.split("\n")].sort().join("\n")).digest("hex");
     // 2026-11-18: atualização deliberada da política do computador (gateway único e confirmação explícita).
+    // 2026-11-18: catálogo Microsoft/reuniões; só a linha de apps/slugs mudou.
     const esperado = {
-      conversa: "1ebe2d3c277c654f2f76bb80567116a8dc8f34e3dfbe7296a0c0dc30e3ac8d9e",
-      rotina: "672eaf5e9e1b350a3df342ed534ac20a12a23193098a90b94ceb86eb16e4752e",
-      delegacao: "663cca6527b32617771b992c49c8d90196b5841fe6b943e55fab1aa894af69a7",
+      conversa: "e9c5f67f9b4d32d86070e75641c38debe4adfef55225e219d103810fcd567a91",
+      rotina: "ae9ac43544fc2245aaf1719c3760925721beb6a954f936448e9bd4ac76a3df5f",
+      delegacao: "f38cb169ec27ba031107605732f447777bcae63ef6ace3b0d7bdaff64b8366bc",
     };
     const obtido = { conversa: "", rotina: "", delegacao: "" };
     for (const modo of ["conversa", "rotina", "delegacao"] as const) obtido[modo] = digital(montarPromptSistema({ ...base, ...turnoA, profundidade: 1, modo }));

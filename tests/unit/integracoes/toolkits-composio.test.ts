@@ -69,12 +69,12 @@ it("descobre aliases sem transformar slugs desconhecidos nem inventar disponibil
 
 it("recusa colisão com alias reservado no catálogo remoto e mantém falha OAuth fechada", async () => {
   const f: typeof fetch = async () => Response.json({ items: [
-    { slug: "one-drive", toolkit: { slug: "one-drive" }, composio_managed_auth_schemes: ["OAUTH2"] },
-    { slug: "one_drive", toolkit: { slug: "one_drive" }, composio_managed_auth_schemes: ["OAUTH2"] },
+    { slug: "one-drive", name: "colisao", toolkit: { slug: "one-drive", name: "colisao" }, composio_managed_auth_schemes: ["OAUTH2"] },
+    { slug: "one_drive", name: "oficial", toolkit: { slug: "one_drive", name: "oficial" }, composio_managed_auth_schemes: ["OAUTH2"] },
   ] });
   const c = criarClienteComposio("fake", f);
-  expect((await c.catalogo()).map((a) => a.slug)).toEqual(["one-drive"]);
-  expect((await c.gerenciados()).map((a) => a.slug)).toEqual(["one-drive"]);
+  expect(await c.catalogo()).toEqual([{ slug: "one-drive", nome: "oficial", logo: null }]);
+  expect(await c.gerenciados()).toEqual([{ slug: "one-drive", nome: "oficial", logo: null, descricao: "", categorias: [] }]);
   const recusado = criarClienteComposio("fake", async () => Response.json({ error: "admin approval required" }, { status: 403 }));
   await expect(recusado.autorizar("trs_test", "microsoft-teams")).rejects.toMatchObject({ codigo: "integracao_autenticacao" });
 });

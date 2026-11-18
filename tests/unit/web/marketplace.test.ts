@@ -124,9 +124,14 @@ describe("o ‹ de volta no topo do Marketplace (definido em 2026-10-04)", () =>
   });
 });
 
-it("orienta consentimento Microsoft na gaveta antes do login", () => {
+it.each(["desconectado", "conectando", "atencao"])("orienta consentimento Microsoft na gaveta: %s", (situacao) => {
   const app = APPS_MARKETPLACE.find((a) => a.slug === "microsoft-teams")!;
-  const html = renderConectores({ ...base, marketplace: [{ ...app, logo: null }], tela: { tipo: "conectores", gaveta: { slug: app.slug, passo: "detalhes" } } });
+  const html = renderConectores({
+    ...base, marketplace: [{ ...app, logo: null }],
+    conectores: situacao === "atencao" ? [conector(app.slug, { ultimaFalha: { motivo: "conector_indisponivel", em: 200 } })] : [],
+    conectando: situacao === "conectando" ? { [app.slug]: { url: "https://login.example.test", falhou: null } } : {},
+    tela: { tipo: "conectores", gaveta: { slug: app.slug, passo: "detalhes" } },
+  });
   expect(html).toContain("administrador Microsoft Entra");
   expect(html).toContain("Aplicativos empresariais");
   expect(html).toContain('data-id="microsoft-teams"');

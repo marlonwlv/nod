@@ -64,8 +64,9 @@ sem pedir a chave de infraestrutura Composio à pessoa e sem expor segredos ao m
 
 Se o login Composio não servir, o caminho viável é validar o MCP oficial com OAuth DCR:
 [Read AI](https://support.read.ai/hc/en-us/articles/49381158409491-MCP-Server),
-[Otter](https://help.otter.ai/hc/en-us/articles/35287607569687-Otter-MCP-Server) e o MCP Granola
-referenciado na documentação Composio. Isso exige descoberta OAuth, armazenamento protegido e
+[Otter](https://help.otter.ai/hc/en-us/articles/35287607569687-Otter-MCP-Server) e [Granola](https://www.granola.ai/blog/granola-mcp), em `https://mcp.granola.ai/mcp`.
+O guia Granola distingue Basic (notas dos últimos 30 dias, sem transcrições) de planos pagos
+(histórico e transcrições); Enterprise pode exigir habilitação pelo administrador. Isso exige descoberta OAuth, armazenamento protegido e
 renovação de tokens: cadastrar apenas uma URL no conector HTTP não implementa esse fluxo.
 Não há cliente OAuth paralelo ou serviço privado novo neste PR.
 

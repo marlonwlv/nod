@@ -171,13 +171,13 @@ function gaveta(estado: Estado, app: AppComLogo, passo: "detalhes" | "quem-usa")
       : `${s === "atencao" ? botao("conectar-app", "Entrar de novo", { classe: "pri", id: app.slug }) : ""}${botao("desconectar-app", `Desconectar ${esc(app.nome)}`, { classe: "link perigo", id: c.id })}`;
   } else {
     const falha = login?.falhou ? blocoFalhou(login.falhou) : "";
-    corpo = `${falha}<p class="gaveta-desc">${esc(app.descricao)}</p>${app.orientacaoConexao ? `<p class="gaveta-desc">${esc(app.orientacaoConexao)}</p>` : ""}${oQueLibera(estado, app.slug)}${comoFunciona(app.nome)}`;
+    corpo = `${falha}<p class="gaveta-desc">${esc(app.descricao)}</p>${oQueLibera(estado, app.slug)}${comoFunciona(app.nome)}`;
     rodape = botao("conectar-app", `${login?.falhou ? "Tentar de novo" : `Conectar ${esc(app.nome)}`} ${SETA_EXTERNA}`, { classe: "pri largo", id: app.slug });
   }
   return `<div class="gaveta-fundo" data-act="fechar-gaveta"></div>
   <aside class="gaveta" role="dialog" aria-modal="true" aria-label="${esc(app.nome)}">
     <div class="gaveta-cab">${logoApp(estado, app.slug, app.nome)}<div><h2>${esc(app.nome)}</h2><small>${esc(app.categoria)}</small></div>${botao("fechar-gaveta", "×", { classe: "gaveta-fechar", aria: "Fechar" })}</div>
-    <div class="gaveta-corpo">${corpo}</div>
+    <div class="gaveta-corpo">${corpo}${s !== "conectado" && app.orientacaoConexao ? `<p class="gaveta-desc">${esc(app.orientacaoConexao)}</p>` : ""}</div>
     <div class="gaveta-rodape">${rodape}</div>
   </aside>`;
 }
