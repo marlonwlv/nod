@@ -406,10 +406,11 @@ export const REDE_MS = 120_000;
 
 /**
  * ADR-187 (validação de 2026-11-17): a fala da pessoa que o turno absorveu e o bot não leu há isto (ele esperava um
- * subagente) promove o turno antes dos 2 min. Medido no mesmo dia: "quanto é dois mais dois?" esperou 80 s pela rede. O
- * app renova a cada `AGUARDAR_MENSAGEM_MS` (20 s) com a sessão aberta, então a promoção sai uns 20 s depois da fala.
+ * subagente) promove o turno antes dos 2 min. Medido no mesmo dia: "quanto é dois mais dois?" esperou 80 s pela rede; com
+ * 15 s e a renovação de 20 s, 24 s. Com 8 s e o long-poll voltando no prazo (ponte-interna, `naoLidas`), a promoção sai
+ * uns 9 s depois da fala.
  */
-export const REDE_NAO_LIDA_MS = 15_000;
+export const REDE_NAO_LIDA_MS = 8_000;
 
 /**
  * A rede de 2 min (#193): só o turno do dono com a pessoa (nada de sala, ligação, rotina ou colega), sem trabalho,

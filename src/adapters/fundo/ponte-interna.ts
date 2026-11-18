@@ -241,6 +241,12 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
    */
   const despachados = new Map<string, { em: number; sessaoCli: string | null; bifurcou: boolean; modo: PlanoTurno["modoTurno"] | null; conta?: string | null }>();
   /**
+   * ADR-187 (2026-11-17): quando chegou a fala absorvida mais antiga que o turno ainda não leu, vista na última renovação.
+   * O long-poll (`aguardarMensagem`) volta quando ela completa REDE_NAO_LIDA_MS, para a rede promover na hora e não na
+   * renovação seguinte (medido no mesmo dia: 20 s de espera a mais). Some com `despachados`.
+   */
+  const naoLidas = new Map<string, number>();
+  /**
    * Revisão do épico (S21, 2026-10-08): a última vez que o turno foi puxado ou renovado. Passado o lease sem notícia, o
    * varredor de lease o encerra no banco e a entrega talvez nunca chegue: `oferecidas` e `despachados` dele saem aqui
    * (o escopo fica: a entrega tardia ainda assenta, ADR-045). Antes só a entrega os limpava.
@@ -304,6 +310,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       avisosDeEtapa.delete(turnoId);
       oferecidas.delete(turnoId);
       despachados.delete(turnoId);
+      naoLidas.delete(turnoId);
       adotadosNaEntrega.delete(turnoId);
     }
   }
@@ -565,7 +572,10 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         // A rede de 2 min (ADR-083) promove na renovação: a espera volta no prazo dela, para a promoção não atrasar.
         const despachado = despachados.get(turnoId);
         const ateARede = despachado ? despachado.em + (deps.redeMs ?? REDE_MS) - agora() : -1;
-        const teto = ateARede > 0 ? Math.min(AGUARDAR_MENSAGEM_MS, ateARede + 50) : AGUARDAR_MENSAGEM_MS;
+        const naoLida = naoLidas.get(turnoId);
+        const ateANaoLida = naoLida === undefined ? -1 : naoLida + REDE_NAO_LIDA_MS - agora();
+        const prazos = [AGUARDAR_MENSAGEM_MS, ...(ateARede > 0 ? [ateARede + 50] : []), ...(ateANaoLida > 0 ? [ateANaoLida + 50] : [])];
+        const teto = Math.min(...prazos);
         return deps.avisoDeMensagem!.aguardar(escopo.pessoaId, Math.min(Math.max(0, ms), teto));
       },
     } : {}),
@@ -695,6 +705,8 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         }).catch((e: unknown) => log("aviso", "rede_promover_falhou", { turno_id: p.turnoId, erro: e instanceof Error ? e.name : "desconhecido" }));
       }
       if (novas.length) falasGravadas.set(p.turnoId, novas.at(-1)!.seq);
+      if (ativo && naoLidaDesde !== null) naoLidas.set(p.turnoId, naoLidaDesde);
+      else naoLidas.delete(p.turnoId);
       if (ativo) vistos.set(p.turnoId, agora());
       if (confirma && ativo) {
         const em = agora();
@@ -813,6 +825,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       falasGravadas.delete(e.turnoId);
       oferecidas.delete(e.turnoId);
       despachados.delete(e.turnoId);
+      naoLidas.delete(e.turnoId);
       vistos.delete(e.turnoId);
       avisosDeEtapa.delete(e.turnoId);
       adotadosNaEntrega.delete(e.turnoId);

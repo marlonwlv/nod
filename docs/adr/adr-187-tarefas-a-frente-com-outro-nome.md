@@ -34,9 +34,9 @@ tem visualizador.
    o turno absorveu e o bot ainda não leu (ele esperava um subagente ou um comando) volta à fila da conversa na
    promoção, como no Parar (ADR-185): o turno largou a faixa da conversa, e ela responde já. O texto já foi escrito na
    sessão; a tarefa ainda pode respondê-lo do lado dela, e essa resposta fica só na tela da tarefa. E a rede não espera
-   os 2 min quando uma fala da pessoa absorvida está há 15 s sem leitura (`REDE_NAO_LIDA_MS`): o bot está preso num
+   os 2 min quando uma fala da pessoa absorvida está há 8 s sem leitura (`REDE_NAO_LIDA_MS`): o bot está preso num
    subagente ou num comando, e a conversa larga o pedido e responde já (na validação, "quanto é dois mais dois?" esperou
-   80 s). Só vale com o app que informa a leitura.
+   80 s; com 15 s de limite, 24 s). Só vale com o app que informa a leitura.
 4. **O quadro é um plugin que usa o nod, nunca o contrário.** A tela Tarefas não conhece o quadro; uma tarefa aberta por um
    card mostra só a origem ("do Quadro"), como mostra "da rotina". Ligar card e tarefa na tela fica para quando o plugin
    for separado.
