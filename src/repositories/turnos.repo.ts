@@ -216,7 +216,7 @@ export type Assentamento = {
   ultimoSinalEm?: number;
 };
 
-/** NOD-213: a IA do turno `t` — a fixada, ou a dona do modelo escolhido (iaDoModelo, pelos `modelosPorIa`), ou o legado. */
+/** A IA fixa do turno `t`; só é usada quando `harness` não é Automático. */
 function iaDoTurnoSql(c: Conn) {
   const porIa = modelosPorIa();
   return c`(case when t.harness <> 'auto' then t.harness else coalesce((select x.ia from unnest(${porIa.modelos}::text[], ${porIa.ias}::text[]) as x(modelo, ia) where x.modelo = t.modelo), ${HARNESS_LEGADO}) end)`;
@@ -232,7 +232,7 @@ function iaDoTurnoSql(c: Conn) {
  */
 function seguradoPelaCotaSql(c: Conn, cota: PortaoDaCota) {
   const iaDoTurno = iaDoTurnoSql(c);
-  const naCota = (ias: readonly string[], auto: boolean) => c`(case when t.harness = 'auto' and t.modelo = 'auto' then ${auto}::boolean else ${iaDoTurno} = any(${[...ias]}::text[]) end)`;
+  const naCota = (ias: readonly string[], auto: boolean) => c`(case when t.harness = 'auto' then ${auto}::boolean else ${iaDoTurno} = any(${[...ias]}::text[]) end)`;
   // NOD-272: o turno que a pessoa está olhando ("Testar agora" e as frentes dele) também nunca espera.
   return c`(t.origem <> 'ligacao' and not t.pessoa_esperando and (
                 (((t.trabalho_id is null and t.origem in ('rotina', 'delegacao', 'peer'))
@@ -377,7 +377,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * 0068: `harnessesAuto` (ausente = os prontos) são as IAs desta máquina que valem para o turno do Automático — sem a
      * que está no limite enquanto a pessoa tiver outra fora dele (iasParaOAutomatico).
      */
-    async reivindicar(p: { machineId: string; agora: number; harnessesProntos?: readonly string[]; harnessesAuto?: readonly string[]; harnessesProntosPessoa?: readonly string[]; aceitaLigacao?: boolean; segurarFundo?: boolean; espacarFundo?: boolean; segurarNovo?: boolean; fundoSemPrazo?: boolean; soComoAlvo?: boolean; soDaPessoa?: boolean; cota?: PortaoDaCota | null; declinio?: { ias: readonly string[]; auto: boolean } | null }): Promise<Turno | null> {
+    async reivindicar(p: { machineId: string; agora: number; harnessesProntos?: readonly string[]; harnessesAuto?: readonly string[]; harnessesProntosPessoa?: readonly string[]; harnessesAutoPessoa?: readonly string[]; aceitaLigacao?: boolean; segurarFundo?: boolean; espacarFundo?: boolean; segurarNovo?: boolean; fundoSemPrazo?: boolean; soComoAlvo?: boolean; soDaPessoa?: boolean; cota?: PortaoDaCota | null; declinio?: { ias: readonly string[]; auto: boolean } | null }): Promise<Turno | null> {
       const dentro = async (trx: Conn): Promise<Turno | null> => {
         await trx`select pg_advisory_xact_lock(hashtext(${`${escopo.tenantId}:${escopo.pessoaId}`}))`;
         // NOD-94 (emenda 11 da ADR-090): a máquina só-computador nunca pega turno, venha o puxar de onde vier (o papel é o
@@ -403,14 +403,21 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
               and (t.acordar_em is null or t.acordar_em <= ${data(p.agora)})
               -- ADR-090 (revisão do PR): a máquina que é o alvo do turno o pega mesmo sem a IA pronta; o despacho recusa nomeando a
               -- IA (NOD-171), em vez de o turno esperar em silêncio uma máquina que nunca vai pegá-lo.
-              ${p.harnessesProntos === undefined ? trx`` : trx`and (${alvo} = ${p.machineId} or (t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0}) or (not (t.harness = 'auto' and t.modelo = 'auto') and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[]))
-                ${p.harnessesProntosPessoa === undefined ? trx`` : trx`or (not (t.harness = 'auto' and t.modelo = 'auto') and ${iaDoTurno} <> all(${[...p.harnessesProntosPessoa]}::text[]))`})`}
+              ${p.harnessesProntos === undefined ? trx`` : trx`and (${alvo} = ${p.machineId}
+                or (t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})
+                or (t.harness = 'auto' and t.modelo <> 'auto' and (${iaDoTurno} = any(${[...(p.harnessesAuto ?? p.harnessesProntos)]}::text[])
+                  or (${iaDoTurno} <> all(${[...(p.harnessesAutoPessoa ?? p.harnessesProntosPessoa ?? p.harnessesProntos)]}::text[]) and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})))
+                or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[]))
+                ${p.harnessesProntosPessoa === undefined ? trx`` : trx`or (t.harness <> 'auto' and ${iaDoTurno} <> all(${[...p.harnessesProntosPessoa]}::text[]))`})`}
               and exists (select 1 from agentes a where a.tenant_id = t.tenant_id and a.id = t.agente_id and a.excluido_em is null and a.geracao_execucao = t.geracao_execucao)
               -- Jornada C do onboarding (2026-11-07): a fala da pessoa guardada sem IA (a negação aguardaIa do turno, gravada
               -- só com NOD_ONBOARDING_TEXTO=1) espera uma máquina com a IA dela pronta — a máquina-alvo sem IA não a pega para
               -- recusar, como faz com o resto (acima). Rotina, catcher, ligação e o turno sem a fala guardada não mudam.
               ${p.harnessesProntos === undefined ? trx`` : trx`and not (t.origem = 'conversa'
-                and not ((t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0}) or (not (t.harness = 'auto' and t.modelo = 'auto') and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[])))
+                and not ((t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})
+                  or (t.harness = 'auto' and t.modelo <> 'auto' and (${iaDoTurno} = any(${[...(p.harnessesAuto ?? p.harnessesProntos)]}::text[])
+                    or (${iaDoTurno} <> all(${[...(p.harnessesAutoPessoa ?? p.harnessesProntosPessoa ?? p.harnessesProntos)]}::text[]) and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})))
+                  or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[])))
                 and exists (select 1 from mensagens g where g.tenant_id = t.tenant_id and g.turno_id = t.id and g.kind = 'negacao' and g.payload->>'aguardaIa' = 'true'))`}
               -- definido em 2026-10-22 (ADR-121, NOD-92): a máquina na nuvem que adormece, dorme ou acorda não pega turno até
               -- falar com o servidor depois de ligar (ligou_em). Sob a mesma trava da pessoa que o dormir toma: o turno
@@ -478,7 +485,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
               ${declinio === null ? trx`` : trx`and not (${alvo} is null and t.origem <> 'ligacao'
                 and greatest(t.criado_em, t.acordar_em) > ${data(p.agora - ESPERA_DECLINIO_MS)}
                 and not exists (select 1 from trabalhos w where w.tenant_id = t.tenant_id and w.id = t.trabalho_id and w.sessao_cli is not null)
-                and ((t.harness = 'auto' and t.modelo = 'auto' and ${declinio.auto}::boolean) or (not (t.harness = 'auto' and t.modelo = 'auto') and ${iaDoTurno} = any(${[...declinio.ias]}::text[]))))`}
+                and ((t.harness = 'auto' and ${declinio.auto}::boolean) or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...declinio.ias]}::text[]))))`}
             -- Ligação primeiro; depois a fala da pessoa; depois o que não é rotina nem pedido de colega (o turno ou o trabalho
             -- dele); depois a ordem.
             order by (t.origem = 'ligacao') desc,
@@ -688,7 +695,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
           and starts_with(t.entrada_texto, ${ENTRADA_DA_VOLTA_DA_COTA})
           ${opcoes.turnoId === undefined ? conn`` : conn`and t.id = ${opcoes.turnoId}`}
           ${opcoes.agenteId === undefined ? conn`` : conn`and t.agente_id = ${opcoes.agenteId}`}
-          ${ia === null ? conn`` : conn`and ((t.harness = 'auto' and t.modelo = 'auto')
+          ${ia === null ? conn`` : conn`and (t.harness = 'auto'
             or (case when t.harness <> 'auto' then t.harness else coalesce((select x.ia from unnest(${porIa.modelos}::text[], ${porIa.ias}::text[]) as x(modelo, ia) where x.modelo = t.modelo), ${HARNESS_LEGADO}) end) = ${ia})`}
         returning t.id`;
       return linhas.map((l) => l.id);
