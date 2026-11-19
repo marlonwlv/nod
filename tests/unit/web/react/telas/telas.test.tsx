@@ -6,7 +6,8 @@ import { criarTelasNoReact, vagaDaTela } from "../../../../../web/react/telas/te
 
 /** ADR-179 (as telas no lugar da conversa): a tela monta na vaga da região e desmonta antes de a vaga sair. */
 describe("telas no React", () => {
-  const acoes = { naoLidos: { abrirConversa: vi.fn(), abrirSala: vi.fn(), marcarLida: vi.fn(), marcarTudo: vi.fn() } };
+  const acoes = { naoLidos: { abrirConversa: vi.fn(), abrirSala: vi.fn(), marcarLida: vi.fn(), marcarTudo: vi.fn() },
+    rotinas: { pausar: vi.fn(), ativar: vi.fn(), testar: vi.fn(), alternarExecucoes: vi.fn(), abrirConversa: vi.fn(), verPergunta: vi.fn(), novaRotina: vi.fn() } };
   const e: Estado = { ...estadoInicial, naoLidos: { conversas: [] } };
 
   it("monta na vaga, fica enquanto a vaga fica e desmonta antes de a região trocar de HTML", () => {

@@ -67,7 +67,11 @@ desmonta o root antes de a região ser regravada. Chave `?telas-react=0` (`react
 ela desligada (ou com o módulo a caminho), o desenho por string de sempre. A primeira é **Não lidos**
 (`web/react/telas/nao-lidos.tsx`), com o mesmo DOM da tela por string (o teste compara os dois): o teclado e o deslize do
 celular seguem nas mesmas classes. Na régua, Não lidos com 8 bots: 0 / 0 / 6,3 ms (maior tarefa / TBT / tecla p95) em
-React e 0 / 0 / 6,9 por string no mesmo build; 106 nós criados contra 147.
+React e 0 / 0 / 6,9 por string no mesmo build; 106 nós criados contra 147. A segunda é **Rotinas** (`web/react/telas/rotinas.tsx`): a estrutura
+e os botões da rotina em componentes (pausar, ativar, testar, execuções, conversa, nova rotina, ver a pergunta), com as
+ações extraídas no main em funções que a tela por string também chama; os pedaços que `web/lib/execucao.ts` monta para
+várias telas (a parada, a espera, onde roda) entram pelo conversor da ADR-189, com a ação deles na delegação, até
+`execucao.ts` virar componente.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

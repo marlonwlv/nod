@@ -560,6 +560,15 @@ if (telasNoReact) {
         marcarLida: (conversaId, nome) => marcarComDesfazer(conversaId, nome),
         marcarTudo: () => marcarTudoComDesfazer(),
       },
+      rotinas: {
+        pausar: (id) => void pausarRotina(id),
+        ativar: (id) => void ativarRotina(id),
+        testar: (id, agenteId, botao) => void executarRotina(id, agenteId, botao),
+        alternarExecucoes: (id) => alternarExecucoes(id),
+        abrirConversa: (conversaId, agenteId) => navegar({ tipo: "conversa", conversaId, agenteId }),
+        verPergunta: (conversaId, agenteId, decisaoId) => verPerguntaNaConversa(conversaId, agenteId, decisaoId),
+        novaRotina: () => navegar({ tipo: "nova-rotina" }),
+      },
     });
     if (estado.sessao) render();
   }, () => {
@@ -2239,6 +2248,32 @@ function decidirRitmo(el: HTMLElement): Promise<void> {
   });
 }
 
+/**
+ * As ações de uma rotina (a tela Rotinas por string, pelo `data-act`, e a em React, por prop): pausar (até uma data, ou
+ * sem prazo), ativar, testar agora e abrir ou fechar as últimas execuções.
+ */
+function pausarRotina(id: string, ate?: string): Promise<void> {
+  return agir(async () => void (await api!.pausarRotina(id, ate), dispatch({ tipo: "invalidar", quais: ["rotinas"] })));
+}
+function ativarRotina(id: string): Promise<void> {
+  return agir(async () => void (await api!.ativarRotina(id), dispatch({ tipo: "invalidar", quais: ["rotinas"] })));
+}
+/** `ancora`: o botão que pediu (o diálogo "rodar mais uma" abre junto dele). */
+function executarRotina(id: string, agenteId: string, ancora: HTMLElement): Promise<void> {
+  return agir(async () => {
+    // NOD-272: com execução já aberta, pergunta antes no diálogo próprio (A1 do Gil no #335); cancelar não roda nada.
+    const r = await executarRotinaComConfirmacao((o) => api!.executarRotina(id, o), (p) => abrirRodarMaisUma(p, ancora));
+    if (!r) return;
+    dispatch({ tipo: "invalidar", quais: ["rotinas", `execucoes:${id}`, ...(r.ids.bloqueada ? (["sua-vez", `conversa:${r.ids.conversaId ?? ""}`] as const) : [])] });
+    navegar({ tipo: "conversa", conversaId: r.ids.conversaId ?? "", agenteId });
+  });
+}
+function alternarExecucoes(id: string): void {
+  const abrindo = !estado.historicoAberto[id];
+  dispatch({ tipo: "alternar-historico", rotinaId: id });
+  if (abrindo) dispatch({ tipo: "invalidar", quais: [`execucoes:${id}`] });
+}
+
 /** NOD-449: depois de marcar ou desfazer, a lista, os pontos da barra e a conversa aberta (o card e o recibo do chat). */
 function invalidarLeitura(): void {
   const t = estado.tela;
@@ -3424,7 +3459,7 @@ function renderPrincipal(): void {
       corpo = '<div id="qcp" class="qcp-casco"></div>';
       break;
     case "rotinas":
-      corpo = renderRotinas(estado);
+      corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("rotinas") : renderRotinas(estado);
       break;
     case "conectores":
       corpo = renderConectores(estado);
@@ -8801,14 +8836,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   },
   // definido em 2026-09-24 (emenda da ADR-044): parada pelo pré-voo (`ids.bloqueada`), o teste não roda —
   // a conversa abre com o card de acesso "rotina parada" e o botão que a destrava; "Sua vez" relê.
-  "executar-rotina": (el) => agir(async () => {
-    const id = el.dataset.id ?? "";
-    // NOD-272: com execução já aberta, pergunta antes no diálogo próprio (A1 do Gil no #335); cancelar não roda nada.
-    const r = await executarRotinaComConfirmacao((o) => api!.executarRotina(id, o), (p) => abrirRodarMaisUma(p, el));
-    if (!r) return;
-    dispatch({ tipo: "invalidar", quais: ["rotinas", `execucoes:${el.dataset.id ?? ""}`, ...(r.ids.bloqueada ? (["sua-vez", `conversa:${r.ids.conversaId ?? ""}`] as const) : [])] });
-    navegar({ tipo: "conversa", conversaId: r.ids.conversaId ?? "", agenteId: el.dataset.agente ?? "" });
-  }),
+  "executar-rotina": (el) => executarRotina(el.dataset.id ?? "", el.dataset.agente ?? "", el),
   // NOD-84: o Copiar do endereço busca o inteiro na hora (só a dona; nunca fica no estado). ClipboardItem com a promessa
   // para o Safari não perder o gesto; sem ele, writeText. O ícone vira ✓ por 2 s e a região viva diz "Copiado".
   "webhook-copiar": (el) => copiarDoWebhook(el, async (id) => `${location.origin}${(await api!.enderecoWebhook(id)).caminho}`, "Endereço copiado"),
@@ -9085,7 +9113,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "dispensar-incidente": (el) => agir(async () => void (await api!.dispensarIncidente(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["sua-vez"] }))),
   // definido em 2026-09-24 (ADR-044): o grupo (app · nível) do painel sai inteiro, com um registro só.
   "revogar-acessos": (el) => agir(async () => void (await api!.revogarAcessos(el.dataset.agente ?? "", (el.dataset.ids ?? "").split(",").filter(Boolean)), dispatch({ tipo: "invalidar", quais: [`concessoes:${el.dataset.agente ?? ""}`, "frota"] }))),
-  "pausar-rotina": (el) => agir(async () => void (await api!.pausarRotina(el.dataset.id ?? "", el.dataset.ate || undefined), dispatch({ tipo: "invalidar", quais: ["rotinas"] }))),
+  "pausar-rotina": (el) => pausarRotina(el.dataset.id ?? "", el.dataset.ate || undefined),
   // NOD-412: "Pausar até…" com data e hora escolhidas no campo ao lado (hora local, no fuso da rotina).
   "pausar-rotina-escolhida": (el) => {
     const campo = el.parentElement?.querySelector<HTMLInputElement>("input[data-ate-rotina]");
@@ -9093,13 +9121,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (!ate) { campo?.focus(); return; }
     agir(async () => void (await api!.pausarRotina(el.dataset.id ?? "", ate.slice(0, 16)), dispatch({ tipo: "invalidar", quais: ["rotinas"] })));
   },
-  "ativar-rotina": (el) => agir(async () => void (await api!.ativarRotina(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["rotinas"] }))),
-  "ver-execucoes": (el) => {
-    const id = el.dataset.id ?? "";
-    const abrindo = !estado.historicoAberto[id];
-    dispatch({ tipo: "alternar-historico", rotinaId: id });
-    if (abrindo) dispatch({ tipo: "invalidar", quais: [`execucoes:${id}`] });
-  },
+  "ativar-rotina": (el) => ativarRotina(el.dataset.id ?? ""),
+  "ver-execucoes": (el) => alternarExecucoes(el.dataset.id ?? ""),
   "sondar-conector": (el) => agir(async () => void (await api!.sondarConector(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["conectores", "frota"] }))),
   "habilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", true), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
   "desabilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", false), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),

@@ -4,6 +4,7 @@ import type { Estado } from "../../estado/reducer.ts";
 import type { Loja } from "../loja.ts";
 import { MARCA_REGIAO } from "../regioes.tsx";
 import { TelaNaoLidos, type AcoesDeNaoLidos } from "./nao-lidos.tsx";
+import { TelaRotinas, type AcoesDeRotinas } from "./rotinas.tsx";
 
 /**
  * ADR-179 (as telas no lugar da conversa): a tela que ocupa a região `#timeline` no lugar da conversa, em React. O main
@@ -11,10 +12,10 @@ import { TelaNaoLidos, type AcoesDeNaoLidos } from "./nao-lidos.tsx";
  * fica (o mesmo HTML não regrava a região). Trocar de tela desmonta o root ANTES de a região ser regravada: um root
  * cujo nó saiu do documento sem `unmount` segue vivo, assinando a loja.
  *
- * As telas migradas até aqui: Não lidos. As outras seguem pelo desenho por string (o `corpo` de sempre).
+ * As telas migradas até aqui: Não lidos e Rotinas. As outras seguem pelo desenho por string (o `corpo` de sempre).
  */
-export type TelaNoReact = "nao-lidos";
-export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos }
+export type TelaNoReact = "nao-lidos" | "rotinas";
+export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas }
 
 const CLASSE = "rx-tela";
 /** O HTML que o main põe na região no lugar do desenho por string da tela. */
@@ -45,7 +46,7 @@ export function criarTelasNoReact(loja: Loja<Estado>, acoes: AcoesDasTelas): Tel
       vaga.setAttribute(MARCA_REGIAO, `tela-${tela}`);
       const raiz = createRoot(vaga, { identifierPrefix: `tela-${tela}-` });
       atual = { tela, vaga, raiz };
-      raiz.render(<StrictMode>{tela === "nao-lidos" ? <TelaNaoLidos loja={loja} acoes={acoes.naoLidos} /> : null}</StrictMode>);
+      raiz.render(<StrictMode>{tela === "nao-lidos" ? <TelaNaoLidos loja={loja} acoes={acoes.naoLidos} /> : <TelaRotinas loja={loja} acoes={acoes.rotinas} />}</StrictMode>);
     },
     antesDeRegravar(html) {
       if (atual && !html.includes(vagaDaTela(atual.tela))) desmontar();
