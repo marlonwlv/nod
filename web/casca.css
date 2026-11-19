@@ -617,7 +617,7 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
    no fim como "Depois: …" com o relógio, sem a caixa (a que está em andamento é o passo que roda).
    ===================================================================================== */
 @media not ((hover: none) and (pointer: coarse)) {
-.timeline .message.fala-viva:has(.pensar:not([data-fase="pensando"])) > nod-mascote { display: none; }
+.timeline .message.fala-viva:has(.pensar:not([data-fase="pensando"])) > nod-mascote.mascote { display: none; }
 .timeline .fala-viva .pensar:not([data-fase="pronto"]) > summary .fala-viva-estado { font-size: var(--fs-corpo-2); font-weight: var(--peso-regular); }
 .timeline .fala-viva .pensar-dentro { display: flex; flex-direction: column; }
 .timeline .fala-viva .pensar-lista { order: 1; margin: 2px 0 0; padding: 0; border-left: 0; display: flex; flex-direction: column; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); }

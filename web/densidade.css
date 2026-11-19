@@ -12,7 +12,8 @@
 .app { position: relative; --largura-barra-auto: 340px; }
 html[data-barra] .app { transition: grid-template-columns var(--dur-barra) var(--curva-barra); }
 /* Arrastando, nada anima (1:1); recolher ou reabrir no meio do arrasto (.encaixando) anima como o ⌘B. */
-html:has(.borda-barra.arrastando:not(.encaixando)) :is(.app, .app *, .borda-barra) { transition: none !important; }
+/* ADR-189: a classe no <html> vem do JS do arrasto (borda-barra.ts); `html:has(...) .app *` invalidava a página inteira. */
+html.borda-arrastando:not(.borda-encaixando) :is(.app, .app *, .borda-barra) { transition: none !important; }
 
 /* ---- O puxador: 12 px centrados na borda, invisível, cursor col-resize ---------------- */
 .borda-barra { position: absolute; top: 0; bottom: 0; z-index: 6; width: 12px; cursor: col-resize; touch-action: none; background: none;
@@ -22,7 +23,7 @@ html:has(.borda-barra.arrastando:not(.encaixando)) :is(.app, .app *, .borda-barr
 .borda-barra:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -5px; border-radius: var(--raio-full); }
 @media (forced-colors: active) { .borda-barra:focus-visible { outline: 2px solid Highlight; } }
 .sem-sessao .borda-barra { display: none; }
-html:has(.borda-barra.arrastando) { cursor: col-resize; user-select: none; }
+html.borda-arrastando { cursor: col-resize; user-select: none; }
 
 /* ---- Compacta (88 px, só avatares): botões de 54 × 54 com avatar 36 em x = 17, passo de 58 ------------------------
    Nome e prévia não saem com display: somem por opacidade e flex-grow (o ⌘B anima; casca.css desenha o resto). */

@@ -117,7 +117,7 @@
 .pc-barra { height: 6px; border-radius: var(--raio-full); background: var(--surface-raised); overflow: hidden; }
 .pc-barra i { display: block; height: 100%; border-radius: inherit; background: var(--ink-2); transition: width var(--dur-mais-lento) ease; }
 .pc-barra.cheia i { background: var(--warning); }
-.pc-cartao:has(.pc-barra.cheia) .pc-mem-cab span:last-child { color: var(--warning); font-weight: 500; }
+.pc-cartao:has(.pc-barra.cheia) .pc-mem-cab .pc-mem-valor { color: var(--warning); font-weight: 500; }
 .pc-barra.grande { height: 6px; margin: 10px 0 4px; }
 .pc-barra.grande i { background: var(--signal); }
 .maq-estado .ob-gira { width: 10px; height: 10px; }

@@ -620,9 +620,9 @@ export function htmlPainelComputadorDoBot(dto: ComputadorPessoaDto, bots: readon
   const cheia = memoriaCheia(dto);
   const memoria = dto.estado === "dormindo" || pct === null
     ? ""
-    : `<div class="pc-memoria"><div class="pc-mem-cab"><span>Memória</span><span>${abertas.length} ${abertas.length === 1 ? "tela" : "telas"} · ${pct}%${cheia ? " · cheia" : ""}</span></div><div class="pc-barra${cheia ? " cheia" : ""}" role="meter" aria-label="Memória em uso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
+    : `<div class="pc-memoria"><div class="pc-mem-cab"><span>Memória</span><span class="pc-mem-valor">${abertas.length} ${abertas.length === 1 ? "tela" : "telas"} · ${pct}%${cheia ? " · cheia" : ""}</span></div><div class="pc-barra${cheia ? " cheia" : ""}" role="meter" aria-label="Memória em uso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
   const progresso = dto.operacao
-    ? `<div class="pc-prog-inline"><div class="pc-mem-cab"><span>${esc(NOME_OPERACAO[dto.operacao.tipo].gerundio)} o computador</span><span>${pctDaOperacao(dto)}%</span></div><div class="pc-barra grande" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctDaOperacao(dto)}"><i style="width:${pctDaOperacao(dto)}%"></i></div>${htmlEtapas(dto.operacao.tipo, dto.operacao.etapa, pctDaOperacao(dto))}</div>`
+    ? `<div class="pc-prog-inline"><div class="pc-mem-cab"><span>${esc(NOME_OPERACAO[dto.operacao.tipo].gerundio)} o computador</span><span class="pc-mem-valor">${pctDaOperacao(dto)}%</span></div><div class="pc-barra grande" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctDaOperacao(dto)}"><i style="width:${pctDaOperacao(dto)}%"></i></div>${htmlEtapas(dto.operacao.tipo, dto.operacao.etapa, pctDaOperacao(dto))}</div>`
     : "";
   // NOD-93: o download da VM local (o primeiro uso no Mac), com a barra e os MB; pausado diz que continua sozinho.
   const prep = preparoAtivo(dto);

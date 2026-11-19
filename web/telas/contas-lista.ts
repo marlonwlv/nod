@@ -595,7 +595,7 @@ export function renderListaDeContas(x: ContextoContas): string {
   const nota = x.ui.nota ? `<p class="cl-nota" role="status">${esc(x.ui.nota)}</p>` : "";
   return `${abas}
     ${vazio}
-    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem"><span>${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span>arraste para mudar</span>${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${seletorDeMaquina(x)}${formNova(x)}</span>`}</div>
+    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem"><span class="prov-ordem-titulo">${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span class="prov-ordem-dica">arraste para mudar</span>${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${seletorDeMaquina(x)}${formNova(x)}</span>`}</div>
     <ol class="espaco-cartao cl-lista" data-ordem-lista="contas" aria-label="Suas contas de IA, em ordem de uso">${linhas}${loginsSemConta(x)}</ol>` : ""}
     ${nota}
     ${filtro || (!x.ui.nova && (n > 0 || x.ui.logins.length > 0)) ? "" : formNova(x)}

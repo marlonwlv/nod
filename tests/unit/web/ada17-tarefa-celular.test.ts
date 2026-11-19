@@ -337,7 +337,7 @@ describe("ADA-17: o CSS do celular (lido como texto; celular.test.ts garante que
   it("critério 7: um composer só, colado embaixo; a pílula do quadro sai com a tarefa aberta", () => {
     expect(ultimo(".qd-cel-composer", "position")).toBe("sticky");
     expect(ultimo(".qd-cel-composer", "bottom")).toBe("0");
-    expect(ultimo(".qd-vista:has(> .qd-conteudo > .qd-tarefa-cel) > .qc-wrap > :not(.qd-anuncio)", "display")).toBe("none");
+    expect(ultimo(".qd-vista:has(> .qd-conteudo > .qd-tarefa-cel) > .qc-wrap > .qc-caixa", "display")).toBe("none");
   });
   it("critério 10: alvos de 44 e campos de 16", () => {
     for (const s of [".qd-chip-cel", ".qd-cel-enviar"]) expect(ultimo(s, "height"), s).toBe("var(--cel-alvo)");

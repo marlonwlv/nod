@@ -367,11 +367,11 @@
 /* O menu da aba e o de "N outras" (Paper 4p): 280 de largura, raio 12, padding 6, itens 14/20 com padding 7/10, o rótulo
    "Esta tarefa" em 11 maiúsculo e o Parar em vermelho depois do traço. */
 .bot-menu:has(> .menu-aba-corpo) { width: 280px; padding: 6px; border-radius: 12px; }
-.bot-menu:has(> .menu-aba-corpo) .menu-nome { margin: 0; padding: 6px 10px 4px; font-size: 11px; line-height: 14px;
+.bot-menu > .menu-aba-corpo .menu-nome { margin: 0; padding: 6px 10px 4px; font-size: 11px; line-height: 14px;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-3); }
-.bot-menu:has(> .menu-aba-corpo) button { gap: 8px; padding: 7px 10px; border-radius: 8px; font-size: 14px; line-height: 20px; }
-.bot-menu:has(> .menu-aba-corpo) button > span { width: auto; font-size: inherit; }
-.bot-menu:has(> .menu-aba-corpo) hr { margin: 4px 0; border-top-width: 0.5px; }
+.bot-menu > .menu-aba-corpo button { gap: 8px; padding: 7px 10px; border-radius: 8px; font-size: 14px; line-height: 20px; }
+.bot-menu > .menu-aba-corpo button > span { width: auto; font-size: inherit; }
+.bot-menu > .menu-aba-corpo hr { margin: 4px 0; border-top-width: 0.5px; }
 .bot-menu .at-menu-dica { margin-left: 4px; color: var(--chat-tinta-3); }
 .bot-menu .at-item-titulo { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .bot-menu .at-item .pf-precisa { color: var(--chat-aba-precisa); }
@@ -641,10 +641,11 @@
    no meio e, embaixo, o + à esquerda e IA · 🎤 · enviar à direita. Só a ordem visual muda (o Tab segue o HTML: + → texto
    → IA → 🎤 → enviar). A contagem "1 de 5 · 8 B" sai daqui: o cartão já mostra nome e tamanho. */
 .composer .box.com-anexos:has(> .anexos-fila:not([hidden])) { flex-wrap: wrap; padding: 10px 8px 8px; row-gap: 6px; }
-.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .anexos-fila { order: 0; flex: 1 0 100%; padding: 0 2px; }
-.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > textarea { order: 1; flex: 1 0 100%; box-sizing: border-box; padding: 4px 6px; }
-.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .mais-campo { order: 2; margin-right: auto; }
-.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > :not(.anexos-fila, textarea, .mais-campo) { order: 3; }
+/* ADR-189: a fila, o campo e o + vão para antes (ordens negativas) e o resto fica no 0 de sempre, na mesma ordem relativa;
+   um `> :not(...)` com `:has()` fazia o Chrome invalidar a página inteira a cada nó que entrava no DOM. */
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .anexos-fila { order: -3; flex: 1 0 100%; padding: 0 2px; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > #composer-texto { order: -2; flex: 1 0 100%; box-sizing: border-box; padding: 4px 6px; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .mais-campo { order: -1; margin-right: auto; }
 .composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .anexos-resumo { display: none; }
 /* O + do campo responde: no hover escurece o fundo e a cor; no clique afunda (92%) e volta com um leve repique. Só
    transform e cor animam; sem movimento reduzido, o afundar some e fica a troca de cor. */

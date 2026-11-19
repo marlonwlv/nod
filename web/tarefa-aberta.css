@@ -387,7 +387,8 @@
    fora da pílula. */
 .qd-vista:has(.qd-tarefa.ta) { padding-top: 14px; }
 .stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qd-tarefa.ta) > .cabecalho-pilula { pointer-events: none; }
-.stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qd-tarefa.ta) > .cabecalho-pilula > * { pointer-events: auto; }
+/* ADR-189: sem o `:has()` — com o pai em `auto` os filhos já são `auto`; o `> *` com `:has()` invalidava a página inteira. */
+.stage.qd-no-quadro > .cabecalho-pilula > * { pointer-events: auto; }
 .stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qd-tarefa.ta) > .cabecalho-pilula::before { display: none; }
 .ta .qd-t-cab { min-height: 32px; margin-bottom: 18px; }
 
@@ -416,7 +417,8 @@
 .qd-trab-recado-pilula .qd-com-bt { display: none; }
 .qd-trab-recado-pilula:is(:focus-within, :has(.qd-com-in:not(:placeholder-shown))) { flex: 1 0 100%; gap: 6px; }
 .qd-trab-recado-pilula:is(:focus-within, :has(.qd-com-in:not(:placeholder-shown))) .qd-com-in { flex: 1; width: auto; height: auto; min-height: 32px; border: 1px solid var(--borda); border-radius: 10px; background: var(--surface); font-weight: var(--peso-regular); cursor: text; }
-.qd-trab-recado-pilula:is(:focus-within, :has(.qd-com-in:not(:placeholder-shown))) .qd-com-in::placeholder { color: var(--ink-3); }
+/* ADR-189: com texto no campo o placeholder nem aparece; o `:has()` com `::placeholder` (shadow do navegador) invalidava a página inteira. */
+.qd-trab-recado-pilula:focus-within .qd-com-in::placeholder { color: var(--ink-3); }
 .qd-trab-recado-pilula:is(:focus-within, :has(.qd-com-in:not(:placeholder-shown))) .qd-com-bt { display: inline-flex; }
 .qd-trab-acoes-c .qd-link { font-size: 13px; color: var(--ink-2); }
 .qd-trab-recado-pilula:not(:focus-within):not(:has(.qd-com-in:not(:placeholder-shown))) .qd-com-in { width: 122px; white-space: nowrap; text-overflow: clip; }

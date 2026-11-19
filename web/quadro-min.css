@@ -228,8 +228,8 @@
 
 /* O mascote desenha o bicho em ~63% da caixa (viewBox com folga para a animação): nos avatares pequenos do quadro
    ele cresce até a borda da caixa, para ler como avatar e não como um ponto. */
-.qd-vista:has(.qm-barra) .qd-quem nod-mascote, .qm-av nod-mascote { overflow: visible; display: inline-grid; place-items: center; }
-.qd-vista:has(.qm-barra) .qd-quem nod-mascote svg, .qm-av nod-mascote svg { width: 158% !important; height: 158% !important; margin: -29% !important; flex: none; }
+.qd-vista:has(.qm-barra) .qd-quem nod-mascote.mascote, .qm-av nod-mascote { overflow: visible; display: inline-grid; place-items: center; }
+.qd-vista:has(.qm-barra) .qd-quem nod-mascote .mascote-svg, .qm-av nod-mascote svg { width: 158% !important; height: 158% !important; margin: -29% !important; flex: none; }
 
 /* NOD-463: a prioridade nas Propriedades da tarefa aberta e na linha da lista. */
 .qm-t-pri { display: inline-flex; align-items: center; gap: 6px; }

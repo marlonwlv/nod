@@ -11,7 +11,9 @@ input, select, textarea { font: inherit; color: inherit; }
 /* O contorno só no teclado (web/lib/modo-de-foco.ts): depois de um clique ou toque ele some em todo lugar, inclusive nos
    anéis de box-shadow dos campos; no alto contraste do sistema (forced-colors) ele fica sempre. */
 @media not (forced-colors: active) {
-  html[data-foco="ponteiro"] :is(:focus-visible, :has(:focus-visible)) { outline-color: transparent !important; }
+  /* ADR-189: `:focus-within` no lugar de `:has(:focus-visible)` (o mesmo efeito: o pai que desenha o anel do filho). Com o
+     `:has()` de sujeito universal, todo elemento virava âncora e cada nó novo recalculava o estilo da página inteira. */
+  html[data-foco="ponteiro"] :is(:focus-visible, :focus-within) { outline-color: transparent !important; }
   html[data-foco="ponteiro"] :focus-within:is(input, select, textarea, [class*="busca"], [class*="campo"]) { box-shadow: none !important; }
 }
 [hidden] { display: none !important; }

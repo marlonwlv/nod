@@ -28,7 +28,7 @@ export function svgMascote(f: BotFrame, id: string, ink: string, paper = PAPEL):
       : `<circle cx="${d.x}" cy="${d.y}" r="${d.r}" ${fill} opacity="${d.opacity}"/>`;
   }).join("");
   const arcs = (side: "front" | "back") => f.arcs.map((a, i) => `<path d="${esc(a[side])}" fill="none" stroke="url(#${id}-a${i})" stroke-width="${a.width}" stroke-linecap="round" opacity="${a.opacity}"/>`).join("");
-  return `<svg viewBox="-${V} -${V} ${2*V} ${2*V}" aria-hidden="true"><defs>
+  return `<svg class="mascote-svg" viewBox="-${V} -${V} ${2*V} ${2*V}" aria-hidden="true"><defs>
     <mask id="${id}" maskUnits="userSpaceOnUse" x="-${V}" y="-${V}" width="${2*V}" height="${2*V}"><path d="${esc(f.bodyPath)}" fill="white"/>
     ${f.eyes.map(e => `<path d="${esc(e.d)}" transform="${e.matrix}" fill="black" opacity="${e.alpha}"/>`).join("")}
     ${f.notch ? `<circle cx="${f.notch.x}" cy="${f.notch.y}" r="${f.notch.r}" fill="black"/>` : ""}</mask>

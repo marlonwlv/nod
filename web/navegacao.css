@@ -1314,8 +1314,8 @@ div.mac-medidor { padding-right: 36px; }
 /* ---- Tela 19 do Paper (Provedores de IA): "3 contas · em ordem de uso  arraste para mudar" à esquerda e "Adicionar conta"
    no mesmo cabeçalho, à direita; "Quando uma conta acabar" vira uma tabela de duas colunas. ---- */
 .prov-ordem:has(.prov-ordem-acoes) { align-items: center; justify-content: flex-start; }
-.prov-ordem:has(.prov-ordem-acoes) span:first-child { font-size: var(--fs-corpo); font-weight: var(--peso-medio); color: var(--ink); }
-.prov-ordem:has(.prov-ordem-acoes) > span:nth-child(2) { font-size: var(--fs-rotulo); }
+.prov-ordem:has(.prov-ordem-acoes) > .prov-ordem-titulo { font-size: var(--fs-corpo); font-weight: var(--peso-medio); color: var(--ink); }
+.prov-ordem:has(.prov-ordem-acoes) > .prov-ordem-dica { font-size: var(--fs-rotulo); }
 .prov-ordem-acoes { margin-left: auto; display: inline-flex; gap: 8px; }
 .prov-ordem-acoes .cl-adicionar { margin-top: 0; height: 28px; min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--raio-8); background: var(--hover); color: var(--ink); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
 .prov-ordem-acoes .cl-adicionar:hover { background: var(--ativo); }
