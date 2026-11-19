@@ -73,6 +73,14 @@ grade por string 111 / 717 / 82; grade em React 77 / 43 / 46. Soltar → card na
 string, 45 / 81 em React. A chave continua desligada por padrão: ligar ainda pede as três jornadas de Chrome arrastando
 por ponteiro e o teste de mão (decisão 2, item 6).
 
+**As jornadas por ponteiro** (2026-11-19): `tests/concurrency/quadro-grade-react-chrome.test.ts` monta o quadro com a
+chave ligada e arrasta com `Input.dispatchMouseEvent` (o ponteiro de verdade), cobrindo o que as três jornadas de arrasto
+nativo provam para a grade por string: o Responder dentro do card arrastável seleciona texto e não pega o card (par da
+`quadro-jornada`), soltar arquivo no quadro anexa na pílula (par da `quadro-composer`) e a releitura no meio do arrasto
+espera soltar e não tira a grade do documento (par da `quadro-rolagem`); mais o arrasto entre colunas com o flutuante e a
+dica, e o "Mover para…" pelo teclado. As três jornadas de arrasto nativo ficam como estão: com a grade em React ligada,
+elas provam a volta por string (`?quadro-react=0`). Falta só o teste de mão para ligar por padrão.
+
 ## Gatilho de reversão
 
 - A régua do `scripts/carga-tela` (cenário `quadro`) pior com a chave ligada e sem correção nesta fase: a chave fica
