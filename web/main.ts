@@ -578,6 +578,19 @@ if (telasNoReact) {
         aoDesenhar: () => filtrarBots((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value ?? "", ".contact-picker"),
       },
       tarefas: { fonte: tarefasDeTodos, avatar: depsDasTarefas.avatar, abrirTarefa: depsDasTarefas.abrirTarefa, abrirPagina: depsDasTarefas.abrirPagina },
+      trabalhos: {
+        vista: (porEstado, botEscolhido) => {
+          const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const };
+          const bot = botEscolhido ?? t.bot;
+          navegar({ tipo: "trabalhos", ...(porEstado ? { filtro: "todos" as const } : {}), ...(t.mostrar ? { mostrar: t.mostrar } : {}), ...(bot ? { bot } : {}) });
+        },
+        mostrar: (m) => { const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const }; navegar({ ...t, mostrar: m }); },
+        menuDeBots: (botao) => abrirMenuDeBotsDasTarefas(botao),
+        novaTarefa: (botao) => abrirNovaTarefa(botao),
+        alternarBot: (id) => dispatch({ tipo: "bot-trabalhos", agenteId: estado.botAbertoEmTrabalhos !== id ? id : null }),
+        abrirTrabalho: (id) => abrirTrabalho(id),
+        abrirConversa: (conversaId, agenteId) => navegar({ tipo: "conversa", conversaId, agenteId }),
+      },
     });
     if (estado.sessao) render();
   }, () => {
@@ -3481,7 +3494,7 @@ function renderPrincipal(): void {
     // ADR-083 (#195/#196): "Todos os trabalhos", a tela da task e a tela provisória de uma linha do chat.
     case "trabalhos":
       // ADR-187 §8 (Paper 5a e 5b): abre em "Por bot" (com o dono de cada bot no servidor); "Por estado" é a outra vista.
-      corpo = renderTelaTarefas(estado, t);
+      corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("trabalhos") : renderTelaTarefas(estado, t);
       break;
     case "trabalho": {
       // ADR-187 §6 (Paper 4k e 4p): a tarefa em tela cheia, com a fileira de abas no topo.

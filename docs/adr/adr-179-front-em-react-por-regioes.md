@@ -78,7 +78,10 @@ no fim do render achar os nós. A quarta é **Tarefas de todos** (`web/react/tel
 (`web/lib/tarefas-de-todos-na-tela.ts`) segue lendo os quadros e relendo no `quadro.mudou` e passa a avisar quem assina
 (`dados`/`assinar`); a tela guarda a vista, a busca e os filtros. A vaga leva a classe do casco que o CSS lê
 (`tdt-casco`), mas não o `id="tdt"`: o controlador só desenha nele por string. Na régua, 0 / 0 / 6,2 ms em React e
-0 / 0 / 7,7 por string.
+0 / 0 / 7,7 por string. A quinta é a tela **Tarefas** (`trabalhos`, ADR-187 §8; `web/react/telas/tarefas.tsx`), Por bot
+e Por estado: as regras (o grupo de cada bot, o título, as contas, o tempo, o passo) são as funções puras de
+`web/telas/tela-tarefas.ts`, exportadas e usadas pelas duas; o componente só troca a marcação. As esperas de colega
+(Cobrar, Desistir) e a pílula da cota entram pelo conversor.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

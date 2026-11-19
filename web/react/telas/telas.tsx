@@ -8,6 +8,7 @@ import { TelaNaoLidos, type AcoesDeNaoLidos } from "./nao-lidos.tsx";
 import { TelaRotinas, type AcoesDeRotinas } from "./rotinas.tsx";
 import { TelaNovoBot, type AcoesDoNovoBot } from "./novo-bot.tsx";
 import { TelaTarefasDeTodos, type AcoesDasTarefas } from "./tarefas-de-todos.tsx";
+import { TelaTarefas, type AcoesDasTarefasDosBots } from "./tarefas.tsx";
 
 /**
  * ADR-179 (as telas no lugar da conversa): a tela que ocupa a região `#timeline` no lugar da conversa, em React. O main
@@ -18,11 +19,11 @@ import { TelaTarefasDeTodos, type AcoesDasTarefas } from "./tarefas-de-todos.tsx
  * O 1º desenho de cada tela é síncrono (`flushSync`): o foco que o main põe no fim do render (o campo da nova conversa,
  * a linha de Não lidos) acha os nós já no documento.
  *
- * As telas migradas até aqui: Não lidos, Rotinas, a nova conversa (Novo bot) e Tarefas de todos. As outras seguem pelo
- * desenho por string.
+ * As telas migradas até aqui: Não lidos, Rotinas, a nova conversa (Novo bot), Tarefas de todos (Cards) e Tarefas
+ * (`trabalhos`). As outras seguem pelo desenho por string.
  */
-export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot" | "tarefas";
-export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot; tarefas: AcoesDasTarefas }
+export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot" | "tarefas" | "trabalhos";
+export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot; tarefas: AcoesDasTarefas; trabalhos: AcoesDasTarefasDosBots }
 
 const CLASSE = "rx-tela";
 /** A classe do casco que o CSS da tela lê (`.timeline-wrap:has(> .tdt-casco)`), na própria vaga. */
@@ -58,7 +59,8 @@ export function criarTelasNoReact(loja: Loja<Estado>, acoes: AcoesDasTelas): Tel
       const conteudo: ReactNode = tela === "nao-lidos" ? <TelaNaoLidos loja={loja} acoes={acoes.naoLidos} />
         : tela === "rotinas" ? <TelaRotinas loja={loja} acoes={acoes.rotinas} />
           : tela === "novo-bot" ? <TelaNovoBot loja={loja} acoes={acoes.novoBot} />
-            : <TelaTarefasDeTodos acoes={acoes.tarefas} />;
+            : tela === "tarefas" ? <TelaTarefasDeTodos acoes={acoes.tarefas} />
+              : <TelaTarefas loja={loja} acoes={acoes.trabalhos} />;
       flushSync(() => raiz.render(<StrictMode>{conteudo}</StrictMode>));
     },
     antesDeRegravar(html) {
