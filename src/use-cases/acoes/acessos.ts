@@ -248,7 +248,14 @@ const definirPadrao: CasoDeUso<{ conectorId: string; nivel: NivelDeAcesso; aplic
       await d.repos.concessoes.travar(bot.id, conector.id);
       // A marca é lida DEPOIS da trava: quem a pessoa acabou de escolher (outra tx, mesma trava) não volta ao padrão.
       const atual = nivelDoConjunto(conector.catalogo, (await conjuntoAtual(d, bot.id, conector.id)).map((c) => c.capacidade));
-      if (!segueOPadrao(await d.repos.acessos.marca(bot.id, conector.id), atual, anterior)) continue;
+      const marca = await d.repos.acessos.marca(bot.id, conector.id);
+      if (!segueOPadrao(marca, atual, anterior)) {
+        // QA r109: marcado 'padrao' mas fora do padrão anterior (um card aprovado, uma rotina) é porque deixou de seguir.
+        // Sem gravar isso, na troca seguinte o conjunto dele coincidia com o padrão anterior e ele "voltava a seguir":
+        // padrão Nenhum → card aprovado dá Ler → padrão Ler → padrão Nenhum tirava o Ler aprovado.
+        if (marca === "padrao") await d.repos.acessos.marcar(bot.id, conector.id, "pessoa" satisfies MarcaDeAcesso);
+        continue;
+      }
       if (atual !== input.nivel) {
         events.push(...(await aplicar(d, bot.id, conector, { nivel: input.nivel }, input)).events);
         aplicados.push({ agenteId: bot.id, nome: bot.nome });
