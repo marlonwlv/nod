@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 
 /**
  * NOD-322: contrato final dos CTAs do nodbot.ai antes de liberar a indexação. Discord oficial, downloads por
- * sistema/arquitetura no bucket público nodbot-downloads, vídeo não bloqueante (NOD-333) e o runbook da cópia
- * manual para os nomes estáveis amarrado ao _redirects.
+ * sistema/arquitetura no bucket público nodbot-downloads, vídeo não bloqueante (NOD-333) e o runbook da promoção
+ * manual da versão aceita amarrado ao _redirects.
  */
 const RAIZ = join(import.meta.dirname, "../../..");
 const ler = (arquivo: string) => readFileSync(join(RAIZ, arquivo), "utf8");
@@ -47,10 +47,10 @@ describe("NOD-322: CTAs reais e indexação liberada", () => {
     expect([...convites]).toEqual([DISCORD]);
   });
 
-  it("os aliases de download vão (302) para os nomes estáveis exatos no bucket nodbot-downloads", () => {
-    expect(redirects.get("/download/mac")).toEqual({ destino: `${BUCKET}nod-mac-arm64.dmg`, status: "302" });
-    expect(redirects.get("/download/mac-intel")).toEqual({ destino: `${BUCKET}nod-mac-x64.dmg`, status: "302" });
-    expect(redirects.get("/download/windows")).toEqual({ destino: `${BUCKET}nod-windows-x64.exe`, status: "302" });
+  it("os aliases de download vão (302) para os artefatos imutáveis da versão aceita", () => {
+    expect(redirects.get("/download/mac")).toEqual({ destino: `${BUCKET}v1.0.0-rc.8/nod-1.0.0-rc.8-mac-arm64.dmg`, status: "302" });
+    expect(redirects.get("/download/mac-intel")).toEqual({ destino: `${BUCKET}v1.0.0-rc.8/nod-1.0.0-rc.8-mac-x64.dmg`, status: "302" });
+    expect(redirects.get("/download/windows")).toEqual({ destino: `${BUCKET}v1.0.0-rc.8/nod-windows-x64.exe`, status: "302" });
   });
 
   it("sem JS, o CTA principal já diz 'Baixar para macOS' e baixa o .dmg do Apple Silicon", () => {
@@ -70,7 +70,7 @@ describe("NOD-322: CTAs reais e indexação liberada", () => {
     expect(secao).toContain("NOD-333");
   });
 
-  it("o runbook da release cita os nomes estáveis exatamente como o _redirects e diz que a cópia é manual", () => {
+  it("o runbook cita os destinos versionados exatamente como o _redirects e diz que a promoção é manual", () => {
     const runbook = ler("docs/release-desktop.md");
     for (const alias of ["/download/mac", "/download/mac-intel", "/download/windows"]) {
       const destino = redirects.get(alias)!.destino;

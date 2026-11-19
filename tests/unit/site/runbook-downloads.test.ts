@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 /**
  * NOD-322: o passo a passo de docs/release-desktop.md roda de verdade, contra um gcloud falso (o bucket é uma pasta) e
  * com os SHA256-*.txt gerados pelo mesmo comando do .github/workflows/desktop-release.yml. Assim o runbook não pode
- * divergir dos nomes da pasta v<versão>/ nem do formato dos hashes, e uma conferência que falha para tudo antes de
- * trocar os nomes estáveis.
+ * divergir dos nomes da pasta v<versão>/ nem do formato dos hashes. Os aliases do site só mudam por PR, depois desta
+ * conferência; o runbook nunca tenta sobrescrever os objetos antigos da raiz do bucket.
  */
 const RAIZ = join(import.meta.dirname, "../../..");
 const runbook = readFileSync(join(RAIZ, "docs/release-desktop.md"), "utf8");
@@ -88,7 +88,7 @@ function rodarRunbook() {
   });
 }
 
-describe("NOD-322: o runbook dos downloads estáveis roda contra o formato do desktop-release.yml", () => {
+describe("NOD-322: o runbook dos downloads versionados roda contra o formato do desktop-release.yml", () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "runbook-"));
     gcs = join(dir, "gcs");
@@ -111,35 +111,26 @@ describe("NOD-322: o runbook dos downloads estáveis roda contra o formato do de
     expect(bloco).toContain("sha256sum -c");
   });
 
-  it("caminho feliz: troca os três nomes estáveis pelos da versão, sem cache, e guarda os antigos", () => {
+  it("caminho feliz: confere os três artefatos versionados sem tocar nos nomes antigos da raiz", () => {
     const r = rodarRunbook();
     expect(r.status, r.stderr).toBe(0);
-    expect(ler("nod-mac-arm64.dmg")).toBe(`dmg arm64 ${V}`);
-    expect(ler("nod-mac-x64.dmg")).toBe(`dmg x64 ${V}`);
-    expect(ler("nod-windows-x64.exe")).toBe(`exe ${V}`);
-    for (const f of ESTAVEIS) {
-      // Os objetos de hoje têm cache-control: no-store; um cp sem a flag volta ao padrão público de 1 h do GCS.
-      expect(ler(`${f}.meta`), f).toContain("--cache-control=no-store");
-      expect(readFileSync(bucket(`anterior/antes-de-v${V}/${f}`), "utf8")).toBe(`antigo ${f}`);
-    }
+    expect(r.stdout).toContain(`ok: v${V} pronta para promover em site/_redirects`);
+    for (const f of ESTAVEIS) expect(ler(f), f).toBe(`antigo ${f}`);
   });
 
   // Regression: ISSUE-002 — tirar a conferência do .exe do runbook não quebrava nenhum teste (só o DMG x64 era adulterado).
   // Found by /qa on 2026-11-14 (mutante no docs/release-desktop.md).
-  it.each(["nod-$V-mac-arm64.dmg", "nod-$V-mac-x64.dmg", "nod-windows-x64.exe"])("hash que não bate (%s) para tudo antes de tocar na raiz do bucket", (nome) => {
+  it.each(["nod-$V-mac-arm64.dmg", "nod-$V-mac-x64.dmg", "nod-windows-x64.exe"])("hash que não bate (%s) falha sem tocar na raiz do bucket", (nome) => {
     writeFileSync(bucket(`v${V}/${nome.replace("$V", V)}`), "adulterado");
     const r = rodarRunbook();
     expect(r.status).not.toBe(0);
     for (const f of ESTAVEIS) expect(ler(f), f).toBe(`antigo ${f}`);
   });
 
-  it("rodar de novo (ex.: depois de uma falha no meio) não apaga o backup da versão anterior", () => {
+  it("pode ser rodado de novo sem alterar os objetos antigos", () => {
     expect(rodarRunbook().status).toBe(0);
     const r = rodarRunbook();
     expect(r.status, r.stderr).toBe(0);
-    for (const f of ESTAVEIS) {
-      expect(readFileSync(bucket(`anterior/antes-de-v${V}/${f}`), "utf8"), f).toBe(`antigo ${f}`);
-    }
-    expect(existsSync(bucket("anterior/nod-mac-arm64.dmg"))).toBe(false);
+    for (const f of ESTAVEIS) expect(ler(f), f).toBe(`antigo ${f}`);
   });
 });
