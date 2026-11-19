@@ -43,3 +43,10 @@ it("aprovação semântica informa operação e texto que será preenchido", () 
   expect(resumoAcaoComputador({ ...alvo, operacao: "clicar" })).toContain('Clicar em button "Enviar"');
   expect(resumoAcaoComputador({ ...alvo, operacao: "preencher", texto: "Mensagem da fixture" })).toContain("Mensagem da fixture");
 });
+
+it("gravar_texto aceita 131072 caracteres mesmo com emoji no fim e recusa o 131073º", () => {
+  const noLimite = "a".repeat(131071) + "😀";
+  expect(validarAcaoComputador({ tipo: "gravar_texto", caminho: "a.txt", texto: noLimite, revisao: "novo" })).toMatchObject({ texto: noLimite });
+  expect(() => validarAcaoComputador({ tipo: "gravar_texto", caminho: "a.txt", texto: noLimite + "b", revisao: "novo" })).toThrow();
+  expect(validarAcaoComputador({ tipo: "ler_texto", caminho: "🧪".repeat(500) })).toMatchObject({ caminho: "🧪".repeat(500) });
+});
