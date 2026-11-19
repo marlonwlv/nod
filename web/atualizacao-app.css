@@ -63,15 +63,28 @@
 
 /* Esperando o último bot terminar: o cartão parado, com o Cancelar à direita. */
 .atz-esperando { cursor: default; }
-.sidebar .atz .bt.sm.atz-cancelar { display: inline-flex; flex: none; width: auto; margin: 0 8px 0 0; }
+.atz-cancelar { flex: none; margin-right: 8px; }
 
-/* ---------- A pergunta (bot trabalhando ou ligação aberta) ---------- */
-.atz-pergunta { display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1px solid var(--borda-sutil); border-radius: 14px;
-  background: var(--surface-elevated); box-shadow: var(--sombra-controle); color: var(--ink); }
-.atz-pergunta b { font-size: 14px; font-weight: 500; line-height: 20px; }
-.atz-pergunta p { margin: 0; color: var(--ink-2); font-size: 12px; line-height: 17px; }
-.atz-acoes { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.sidebar .atz-acoes .bt.sm { width: 100%; margin: 0; }
+/* ---------- A pergunta (bot trabalhando ou ligação aberta), Paper "E · Depois do clique", momento 1 ----------
+   Título forte, uma frase, e os botões empilhados: a ação principal cheia (tinta), "Reiniciar agora" em pílula cinza e
+   "Cancelar" só texto. Botões próprios (.atz-bt): o .bt dentro da barra lateral vira bloco com contorno (estilos.css). */
+.atz-pergunta { display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px solid var(--borda-sutil); border-radius: 16px;
+  background: var(--surface-elevated); box-shadow: var(--shadow-pop, var(--sombra-controle)); color: var(--ink); }
+.atz-pergunta b { font-size: 15px; font-weight: 600; line-height: 20px; }
+.atz-pergunta p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 19px; }
+.atz-acoes { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.atz-bt { display: inline-flex; align-items: center; justify-content: center; height: 34px; margin: 0; padding: 0 16px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; line-height: 18px; white-space: nowrap; cursor: pointer;
+  transition: background-color 120ms, transform 120ms; }
+.atz-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.atz-bt:active { transform: scale(.98); }
+.atz-bt:disabled { opacity: .5; cursor: default; transform: none; }
+.atz-bt-pri { background: var(--action); color: var(--on-action); }
+.atz-bt-pri:hover { background: color-mix(in srgb, var(--action) 88%, var(--surface)); }
+.atz-bt-sec { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.atz-bt-sec:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.atz-bt-link { height: 30px; color: var(--ink-2); font-weight: 400; }
+.atz-bt-link:hover { color: var(--ink); }
 
 /* ---------- Barra recolhida: um redondo com a mesma tinta ---------- */
 .atz-compacta { display: flex; justify-content: center; padding: 0 0 8px; }
@@ -94,7 +107,7 @@
 .atz-destaque-cheio .atz-marca { background: var(--on-action); color: var(--action); }
 .atz-destaque-cheio .atz-txt small { color: color-mix(in srgb, var(--on-action) 72%, transparent); }
 .cfg-sobre .atz-pergunta { margin: -8px 0 20px; }
-.cfg-sobre .atz-acoes { flex-direction: row; flex-wrap: wrap; }
+.cfg-sobre .atz-acoes { flex-direction: row; flex-wrap: wrap; align-items: center; }
 .atz-rodape { margin: 12px 0 0; padding: 0 14px; color: var(--ink-3); font-size: 12px; }
 
 /* Sem movimento: a tinta aparece cheia de uma vez (sem subir nem ondular) e o spinner fica parado. */

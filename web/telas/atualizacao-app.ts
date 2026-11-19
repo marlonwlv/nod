@@ -38,9 +38,9 @@ function miolo(icone: string, titulo: string, sub: string, extra = ""): string {
 export function perguntaReinicio(p: PerguntaReinicio, pedindo: boolean): string {
   const des = pedindo ? " disabled" : "";
   if (p.tipo === "emLigacao") {
-    return `<div class="atz-pergunta" role="alertdialog" aria-labelledby="atz-p-tit"><b id="atz-p-tit">${esc(TEXTOS_ATZ.emLigacao)}</b><div class="atz-acoes"><button type="button" class="bt sm" data-act="atualizar-app-fechar">OK</button></div></div>`;
+    return `<div class="atz-pergunta" role="alertdialog" aria-labelledby="atz-p-tit"><b id="atz-p-tit">${esc(TEXTOS_ATZ.emLigacao)}</b><div class="atz-acoes"><button type="button" class="atz-bt atz-bt-sec" data-act="atualizar-app-fechar">OK</button></div></div>`;
   }
-  return `<div class="atz-pergunta" role="alertdialog" aria-labelledby="atz-p-tit" aria-describedby="atz-p-txt"><b id="atz-p-tit">${esc(TEXTOS_ATZ.ocupado(p))}</b><p id="atz-p-txt">${esc(TEXTOS_ATZ.ocupadoSub)}</p><div class="atz-acoes"><button type="button" class="bt pri sm" data-act="atualizar-app-quando-livre"${des}>Reiniciar quando terminar</button><button type="button" class="bt sm" data-act="atualizar-app-forcar"${des}>Reiniciar agora</button><button type="button" class="bt link sm" data-act="atualizar-app-fechar">Cancelar</button></div></div>`;
+  return `<div class="atz-pergunta" role="alertdialog" aria-labelledby="atz-p-tit" aria-describedby="atz-p-txt"><b id="atz-p-tit">${esc(TEXTOS_ATZ.ocupado(p))}</b><p id="atz-p-txt">${esc(TEXTOS_ATZ.ocupadoSub)}</p><div class="atz-acoes"><button type="button" class="atz-bt atz-bt-pri" data-act="atualizar-app-quando-livre"${des}>Reiniciar quando terminar</button><button type="button" class="atz-bt atz-bt-sec" data-act="atualizar-app-forcar"${des}>Reiniciar agora</button><button type="button" class="atz-bt atz-bt-link" data-act="atualizar-app-fechar">Cancelar</button></div></div>`;
 }
 
 /**
@@ -67,7 +67,7 @@ export function cartaoAtualizacao(t: TelaAtualizacao | null, compacta: boolean, 
   }
   if (t.pergunta) return `<div class="atz">${perguntaReinicio(t.pergunta, t.pedindo)}</div>`;
   if (t.estado.esperandoLivre) {
-    return `<div class="atz"><div class="atz-cartao atz-esperando" role="status">${miolo(IC_ATUALIZAR, TEXTOS_ATZ.esperando, TEXTOS_ATZ.esperandoSub(v))}<button type="button" class="bt link sm atz-cancelar" data-act="atualizar-app-cancelar-espera">Cancelar</button></div></div>`;
+    return `<div class="atz"><div class="atz-cartao atz-esperando" role="status">${miolo(IC_ATUALIZAR, TEXTOS_ATZ.esperando, TEXTOS_ATZ.esperandoSub(v))}<button type="button" class="atz-bt atz-bt-link atz-cancelar" data-act="atualizar-app-cancelar-espera">Cancelar</button></div></div>`;
   }
   // A tinta encheu e o pedido saiu: o cartão fica cheio, com o spinner, até a resposta — "Reiniciando…" ou a pergunta.
   if (t.pedindo) return `<div class="atz"><div class="atz-cartao atz-cheio" role="status">${miolo(IC_GIRANDO, TEXTOS_ATZ.titulo, "Um instante…")}</div></div>`;
