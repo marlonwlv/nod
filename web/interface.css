@@ -2645,3 +2645,7 @@ textarea.re-corpo:focus-visible { border-color: var(--ink-3); }
 }
 .rx-dlg[data-starting-style], .rx-dlg[data-ending-style], .rx-dlg-fundo[data-starting-style], .rx-dlg-fundo[data-ending-style],
 .qd-handoff.rx-ho[data-starting-style], .qd-handoff.rx-ho[data-ending-style], .rx-ho-fundo[data-starting-style], .rx-ho-fundo[data-ending-style] { opacity: 0; }
+
+/* ADR-179 (item 4): a prévia de arquivo pelo Dialog do Base UI — o fundo do ::backdrop e o centrado do <dialog>. */
+.rx-prv-fundo { position: fixed; inset: 0; z-index: 60; background: var(--backdrop); backdrop-filter: blur(4px); }
+.previa-arquivo.rx-prv { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; box-sizing: border-box; }

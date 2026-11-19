@@ -114,7 +114,12 @@ execução?" do Testar agora e o aviso dos termos da troca de conta (corpo próp
 seleção como estado e as regras de `web/lib/paleta.ts`; o main passa a usá-la quando o módulo dos diálogos chega. Os dois fecham pelo Base UI (`Dialog.Close`, `actionsRef.close`) com um fade curto de saída
 (sem movimento, some na hora). Achado da jornada de Chrome: numa aba headless sem foco emulado, o relógio das animações
 não anda só com o teclado — a saída nunca terminava e a página parecia inerte; com `Emulation.setFocusEmulationEnabled`
-(como na régua) ela anda como numa janela à vista.
+(como na régua) ela anda como numa janela à vista. E **a prévia de arquivo** (NOD-327,
+`web/react/dialogos/previa-arquivo.tsx`): a mesma casca, o mesmo carregamento (a rota de anexos, os limites de tamanho e
+de 15 s) e os mesmos módulos de formato (`previa-csv`, `previa-pdf`), que desenham por conta própria no nó que o
+componente lhes entrega; o erro e a contagem são estado, fechar cancela o carregamento e o foco volta ao card (ou ao card
+novo do mesmo anexo na mesma casa, se a conversa redesenhou). Um controlador de cancelamento por execução do efeito: o
+StrictMode roda o efeito duas vezes, e o 2º não pode herdar o sinal já abortado.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

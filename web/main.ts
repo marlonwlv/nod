@@ -8528,7 +8528,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "escolher-missao": (el) => responderBoasVindas(el.dataset.texto ?? ""),
   // NOD-56: a captura da tela do bot ao fim do turno, ampliada sobre a conversa.
   // NOD-327: o card de CSV/PDF abre a prévia num modal claro sobre a conversa.
-  "previa-arquivo": (el) => { abrirPreviaArquivo(el); },
+  // ADR-179 (item 4): pelo Dialog do Base UI; sem o módulo, a sobreposição nativa.
+  "previa-arquivo": (el) => { if (moduloDosDialogos) moduloDosDialogos.abrirPreviaNoReact(document, el); else abrirPreviaArquivo(el); },
   // NOD-96 (v2): Abrir leva à tela cheia em Assistindo (no pedido de ajuda, já no controle). Sem v2, o diálogo de antes.
   // ADA-13: o card do canvas no chat abre a página Canvas do bot, já nesse canvas.
   "abrir-canvas": (el) => {

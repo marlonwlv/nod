@@ -535,6 +535,8 @@
   .msg-arquivo-baixar { opacity: 1; width: 44px; height: 44px; right: 4px; }
   .msg-arquivo-abrir { padding-right: 52px; }
   .previa-arquivo { width: 100vw; max-width: 100vw; height: 82vh; max-height: 82vh; margin: auto 0 0; border-radius: 18px 18px 0 0; border-bottom: 0; }
+  /* A prévia pelo Base UI: a mesma folha de baixo (o <dialog> nativo a punha embaixo pelo margin). */
+  .previa-arquivo.rx-prv { top: auto; bottom: 0; left: 0; translate: none; }
   .previa-bt { width: 44px; height: 44px; }
   .pv-csv-dica-bt { width: 44px; height: 44px; }
 }

@@ -22,6 +22,17 @@ const ENTRADA = `
 import { abrirHandoffNoReact } from "./web/react/dialogos/handoff.tsx";
 import { confirmarNoReact } from "./web/react/dialogos/confirmar.tsx";
 import { criarPaletaNoReact } from "./web/react/dialogos/paleta.tsx";
+import { abrirPreviaNoReact } from "./web/react/dialogos/previa-arquivo.tsx";
+// A página é file://: a rota de anexos responde daqui.
+window.fetch = async () => new Response("nome,valor\\nana,1\\nbia,2\\n", { status: 200, headers: { "content-length": "24" } });
+window.__previa = () => {
+  const b = document.createElement("button");
+  b.id = "card"; b.dataset.act = "previa-arquivo"; b.dataset.id = "x1"; b.dataset.url = "/api/anexos/x1"; b.dataset.nome = "dados.csv"; b.dataset.mime = "text/csv"; b.textContent = "dados.csv";
+  document.getElementById("card")?.remove();
+  document.body.append(b);
+  b.focus();
+  abrirPreviaNoReact(document, b);
+};
 const ITENS = [
   { chave: "bot:a1", grupo: "Bots", titulo: "Cecília", sub: "Dev" },
   { chave: "bot:a2", grupo: "Bots", titulo: "Milton" },
@@ -158,5 +169,19 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await tecla("Escape", "Escape", 27);
     await ate(`!window.__paleta.aberta()`);
     await ate(`document.activeElement?.id === "antes"`);
+  }, 60_000);
+
+  it("a prévia de arquivo: o foco no ×, o CSV desenhado com a contagem, centrada; Esc fecha e o foco volta ao card", async () => {
+    await esperar(300);
+    await avaliar(cdp, "window.__previa()");
+    await ate(`document.activeElement?.dataset?.previa === "fechar"`);
+    await ate(`/ana.*bia/.test(document.querySelector(".previa-csv-corpo .pv-csv-rolagem")?.textContent ?? "")`);
+    expect(await avaliar<string>(cdp, `document.querySelector(".previa-contagem").textContent`)).toBe("3 linhas");
+    const c = await avaliar<{ cx: number; cy: number }>(cdp, `(() => { const r = document.querySelector(".previa-arquivo.rx-prv").getBoundingClientRect(); return { cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2) }; })()`);
+    expect(Math.abs(c.cx - 640)).toBeLessThanOrEqual(2);
+    expect(Math.abs(c.cy - 400)).toBeLessThanOrEqual(2);
+    await tecla("Escape", "Escape", 27);
+    await ate(`!document.querySelector(".rx-prv-host")`);
+    await ate(`document.activeElement?.id === "card"`);
   }, 60_000);
 });

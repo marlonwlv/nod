@@ -7,3 +7,4 @@ export { confirmarNoReact, type Confirmacao } from "./confirmar.tsx";
 export { avisarTermosNoReact } from "./aviso-termos.tsx";
 export { abrirPareamentoNoReact } from "./parear-mac.tsx";
 export { criarPaletaNoReact } from "./paleta.tsx";
+export { abrirPreviaNoReact } from "./previa-arquivo.tsx";
