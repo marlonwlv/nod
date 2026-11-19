@@ -26,14 +26,25 @@ const LOGOS_OFICIAIS: ReadonlySet<string> = new Set(["basecamp", "bitbucket", "c
  * como os anexos em conversa.ts. Os símbolos desenhados à mão (✣, ⌘, 31…) saíram: sem logo, a inicial.
  */
 export function logoApp(ctx: Pick<Estado, "marketplace"> & Partial<Pick<Estado, "sessao">>, slug: string, nome: string): string {
-  const tenant = ctx.sessao?.tenantId;
-  const src = LOGOS_OFICIAIS.has(slug)
-    ? `/logos/${slug}.svg`
-    : tenant && ctx.marketplace.some((a) => a.slug === slug && a.logo)
-      ? `/api/t/${encodeURIComponent(tenant)}/marketplace/${encodeURIComponent(slug)}/logo`
-      : null;
+  const src = fonteDoLogo(ctx, slug);
   const img = src ? `<img src="${esc(src)}" alt="" loading="lazy" onerror="this.remove()" />` : "";
   return `<span class="app-logo app-${esc(slug)}" aria-hidden="true">${esc(nome.slice(0, 1).toUpperCase())}${img}</span>`;
+}
+
+/** A URL do logo do app (a da marca guardada aqui ou a que o servidor busca no provedor), ou null: fica a inicial. */
+export function fonteDoLogo(ctx: Pick<Estado, "marketplace"> & Partial<Pick<Estado, "sessao">>, slug: string): string | null {
+  const tenant = ctx.sessao?.tenantId;
+  if (LOGOS_OFICIAIS.has(slug)) return `/logos/${slug}.svg`;
+  return tenant && ctx.marketplace.some((a) => a.slug === slug && a.logo) ? `/api/t/${encodeURIComponent(tenant)}/marketplace/${encodeURIComponent(slug)}/logo` : null;
+}
+
+/**
+ * Emenda ADR-057 (2026-11-18): os apps que conectam pelo login. A grade antiga e o "+ Dar acesso" do painel do bot só
+ * sabem abrir o login; o app de chave de API (1.313 deles) conecta pelo formulário do modal (web/react/marketplace/), e
+ * sem este filtro viraria um "Conectar" sem onde colar a chave.
+ */
+export function appsDeLogin(apps: readonly AppComLogo[]): AppComLogo[] {
+  return apps.filter((a) => a.conexao !== "chave");
 }
 
 /**
@@ -187,7 +198,7 @@ function gaveta(estado: Estado, app: AppComLogo, passo: "detalhes" | "quem-usa")
 export function renderMarketplace(estado: Estado): string {
   const tela = estado.tela.tipo === "conectores" ? estado.tela : null;
   const filtro: Filtro = tela?.filtro ?? "todos";
-  const situacoes = estado.marketplace.map((app) => ({ app, s: situacaoDoApp(estado, app.slug) }));
+  const situacoes = appsDeLogin(estado.marketplace).map((app) => ({ app, s: situacaoDoApp(estado, app.slug) }));
   const conectados = situacoes.filter((x) => x.s === "conectado").length;
   const atencao = situacoes.filter((x) => x.s === "atencao");
   const visiveis = situacoes.filter((x) => filtro === "todos" || (filtro === "conectados" ? x.s === "conectado" : x.s === "atencao"));
@@ -203,7 +214,7 @@ export function renderMarketplace(estado: Estado): string {
   const retorno = volta ? `<div class="tela-volta"><button type="button" class="tela-voltar" data-act="voltar-conexao" aria-keyshortcuts="Escape" title="Voltar para ${esc(volta.rotulo)} (Esc)">${ICONE.voltar}${volta.icone}<span>${esc(volta.rotulo)}</span></button><kbd>esc</kbd></div>` : "";
   const semComposio = estado.composioConfigurado ? "" : `<p class="mkt-aviso">Para conectar a maioria dos apps, o Composio do time precisa estar configurado. ${botao("abrir-avancado", "Configurar", { classe: "link" })}</p>`;
   const aviso = estado.avisoConexao ? `<p class="connection-notice" role="status">${esc(estado.avisoConexao)}</p>` : "";
-  const aberta = tela?.gaveta ? estado.marketplace.find((a) => a.slug === tela.gaveta?.slug) : undefined;
+  const aberta = tela?.gaveta ? appsDeLogin(estado.marketplace).find((a) => a.slug === tela.gaveta?.slug) : undefined;
   return `<div class="mkt">
     ${retorno}
     <div class="mkt-topo"><div><h1>Marketplace</h1><p>Conecte um app uma vez e escolha quais bots podem usar.</p></div>

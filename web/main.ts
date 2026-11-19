@@ -215,7 +215,7 @@ import { mostrarAvisoAtualizado } from "./lib/aviso-atualizado.ts";
 import { cartaoAtualizacao, MS_ENCHER_ATUALIZAR, renderSobre } from "./telas/atualizacao-app.ts";
 import { acessosNaTela, chaveDoClique } from "./lib/acessos-otimistas.ts";
 import { gavetaDeAcessos, loteDeEscritaPedeConfirmacao, ROTULO } from "./telas/acessos-do-app.ts";
-import { conectorDoApp, meusBots, nivelReal } from "./telas/app-acesso.ts";
+import { conectorDoApp, meusBots, nivelReal, situacaoDoApp } from "./telas/app-acesso.ts";
 import type { LoteDeAcessosDto } from "./lib/api.ts";
 import type { Conector } from "../src/contracts/conector.ts";
 import { ACTS_COBERTOS, htmlMenuSegurado, tarefaDaFala, type ExtraDaBarra } from "./lib/menu-segurado-da-fala.ts";
@@ -249,6 +249,7 @@ import { nomeDoEmail } from "./telas/conversa-texto.ts";
 import { criarTelaOnboarding } from "./telas/onboarding-controle.ts";
 import type { AcoesDoCartaoIa } from "./react/onboarding/cartao-ia.tsx";
 import type { DadosDaAcao } from "./react/onboarding/tipos.ts";
+import type { InicialDoMarketplace } from "./react/marketplace/tipos.ts";
 import { movimentoReduzido } from "./lib/movimento.ts";
 import { alvoDoQueEspera, levarAoAlvo, passoDoAtalho, REALCE_MS, type AlvoDoAtalho } from "./lib/levar-ao-alvo.ts";
 import { criarBuscaCelular, limparEntradaDaBusca } from "./telas/busca-celular.ts";
@@ -447,6 +448,12 @@ document.addEventListener("toggle", (ev) => {
 let estado: Estado = estadoInicial;
 /** ADR-179 (fase 1 do React): a mesma `estado` vista pelas regiões React (useLoja). render() avisa; nenhuma região montada ainda. */
 const lojaDoEstado = criarLoja(() => estado);
+/** O Marketplace em modal (web/react/marketplace/; as funções moram junto de `abrirModalDoMarketplace`). Aqui no topo: render() lê. */
+let moduloMarketplace: typeof import("./react/marketplace/regiao.tsx") | null = null;
+let carregandoMarketplace = false;
+let modalDoMarketplace: { vez: number; inicial: InicialDoMarketplace } | null = null;
+let vezDoMarketplace = 0;
+let apiDoMarketplace: ReturnType<(typeof import("./react/marketplace/regiao.tsx"))["criarApiReal"]> | null = null;
 let api: Api | null = null;
 
 /** ADR-166: Configurações › Aprovações. O estado é da seção (web/lib/ajustes-aprovacao.ts); a lista de bots é a da dona. */
@@ -1436,6 +1443,64 @@ function desenharCamadaOnboarding(): void {
 }
 
 /**
+ * O Marketplace em modal (2026-11-18, ADR-179; Paper "Apps por chave de API · jornada"): a região `#marketplace` é do
+ * React (web/react/marketplace/), baixada só na primeira vez que abre. Todo caminho que levava à tela cheia de
+ * Conectores (a barra, a paleta, o "Ver todos no Marketplace", `navegar` para "conectores") abre o modal por cima da tela
+ * de agora; a tela avançada (chave do Composio, MCP próprio) continua sendo tela. No celular fica a tela de sempre: o
+ * modal é do computador.
+ */
+
+/** O primeiro passo do modal quando quem chama já sabe o app (o "Abrir" de um app, o card do chat que leva a ele). */
+function inicialDoApp(slug: string | undefined): InicialDoMarketplace {
+  const app = slug ? estado.marketplace.find((a) => a.slug === slug) : undefined;
+  if (!app) return {};
+  const c = conectorDoApp(estado, app.slug);
+  if (c && situacaoDoApp(estado, app.slug) !== "atencao") return { vista: { tipo: "acessos", slug: app.slug, conectorId: c.id, conectadoAgora: false } };
+  if (app.conexao === "chave") return { vista: { tipo: "chave", slug: app.slug } };
+  return { busca: app.nome };
+}
+
+function abrirModalDoMarketplace(inicial: InicialDoMarketplace = {}): void {
+  esquecerErroDoCanvas();
+  modalDoMarketplace = { vez: ++vezDoMarketplace, inicial };
+  // O modal diz quais bots usam cada app: relê os conectores e as concessões de todos os bots da pessoa.
+  dispatch({ tipo: "invalidar", quais: ["conectores", ...meusBots(estado).map((a) => `concessoes:${a.id}` as Invalidacao)] });
+  desenharModalDoMarketplace();
+}
+
+function fecharModalDoMarketplace(): void {
+  if (!modalDoMarketplace) return;
+  modalDoMarketplace = null;
+  gavetaDeAcessos.abrir(null);
+  desenharModalDoMarketplace();
+}
+
+function desenharModalDoMarketplace(): void {
+  if (!moduloMarketplace) {
+    if (!modalDoMarketplace || carregandoMarketplace) return;
+    carregandoMarketplace = true;
+    void import("./react/marketplace/regiao.tsx").then((m) => { moduloMarketplace = m; desenharModalDoMarketplace(); }, (e: unknown) => { carregandoMarketplace = false; modalDoMarketplace = null; mostrarErro(e); });
+    return;
+  }
+  apiDoMarketplace ??= moduloMarketplace.criarApiReal({
+    estado: () => estado,
+    api: () => api,
+    // Sem a chave do Composio, o "Conectar" de sempre leva à tela avançada: o modal sai da frente antes.
+    iniciarConexao: (slug) => { if (!estado.composioConfigurado && slug !== "github") fecharModalDoMarketplace(); iniciarConexao(slug); },
+    cancelarConexao: (slug) => conexoes.cancelar(slug),
+    garantirAcessos: (conectorId) => garantirAcessosDoConector(conectorId),
+    acessos: (conectorId) => gavetaDeAcessos.acessos(conectorId),
+    definirNivel: (agenteId, conectorId, nivel) => { void mudarNivelOtimista([{ agenteId, conectorId }], nivel, () => api!.definirNivel(agenteId, conectorId, nivel)); },
+    aplicarLote: (conectorId, nivel, bots, confirmado) => aplicarLoteDeAcessos(conectorId, nivel, bots, confirmado),
+    definirPadrao: (conectorId, nivel, confirmado) => definirPadraoDoApp(conectorId, nivel, confirmado),
+    conectou: () => dispatch({ tipo: "invalidar", quais: ["conectores", "sua-vez", "frota", ...meusBots(estado).map((a) => `concessoes:${a.id}` as Invalidacao)] }),
+    abrirAvancado: () => { fecharModalDoMarketplace(); abrirMarketplace(true); },
+  });
+  const m = modalDoMarketplace;
+  moduloMarketplace.desenharMarketplace(m ? { vez: m.vez, api: apiDoMarketplace, inicial: m.inicial, aoFechar: fecharModalDoMarketplace } : null);
+}
+
+/**
  * NOD-345 (ADR-124): a conta no nod como cartões na conversa. `contas` vem de /api/sessao/modo (ausente = servidor sem
  * contas: nada disto aparece); `contaAtual` é o GET /api/conta (null = não lido). Nenhum dos dois guarda senha nem código.
  */
@@ -2077,12 +2142,25 @@ function conectorDaGaveta(): Conector | null {
 function garantirAcessosDoApp(): void {
   // A caixa "Selecionar todos" com só parte marcada fica no estado misto (o HTML não tem atributo para isso).
   for (const i of document.querySelectorAll<HTMLInputElement>(".acessos-todos input[data-misto]")) i.indeterminate = true;
+  // Com o modal do Marketplace aberto, é ele quem diz qual app está à vista (abrirAcessos → garantirAcessosDoConector);
+  // aqui só relê o dele depois de um lote, do padrão ou do Desfazer (que esquecem o carregado).
+  if (modalDoMarketplace) {
+    const aberto = gavetaDeAcessos.aberta();
+    if (aberto) garantirAcessosDoConector(aberto);
+    return;
+  }
   const c = conectorDaGaveta();
-  gavetaDeAcessos.abrir(c?.id ?? null);
-  if (!c || !api || !gavetaDeAcessos.precisaCarregar(c.id)) return;
-  void api.acessosDoApp(c.id).then(
-    (r) => { gavetaDeAcessos.guardar(c.id, { padrao: r.padrao, seguePadrao: new Set(r.bots.filter((b) => b.segue_padrao).map((b) => b.agenteId)) }); render(); },
-    () => gavetaDeAcessos.guardar(c.id, { padrao: "nenhum", seguePadrao: new Set() }),
+  if (c) garantirAcessosDoConector(c.id);
+  else gavetaDeAcessos.abrir(null);
+}
+
+/** O padrão do app e quem segue o padrão (GET conectores/:id/acessos), lidos de novo a cada vez que o app abre. */
+function garantirAcessosDoConector(conectorId: string): void {
+  gavetaDeAcessos.abrir(conectorId);
+  if (!api || !gavetaDeAcessos.precisaCarregar(conectorId)) return;
+  void api.acessosDoApp(conectorId).then(
+    (r) => { gavetaDeAcessos.guardar(conectorId, { padrao: r.padrao, seguePadrao: new Set(r.bots.filter((b) => b.segue_padrao).map((b) => b.agenteId)) }); render(); },
+    () => { gavetaDeAcessos.guardar(conectorId, { padrao: "nenhum", seguePadrao: new Set() }); render(); },
   );
 }
 
@@ -2551,7 +2629,7 @@ function relevante(q: Invalidacao): boolean {
   if (q === "gestao") return secao === "agentes";
   if (q === "rotinas") return t.tipo === "rotinas" || t.tipo === "conversa" || secao === "rotinas";
   if (q === "agenda") return secao === "rotinas";
-  if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala";
+  if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala" || modalDoMarketplace !== null;
   if (q === "chaves") return secao === "maquinas";
   if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
@@ -2562,7 +2640,7 @@ function relevante(q: Invalidacao): boolean {
   // NOD-58: a lista também com Ajustes aberto (o "N para revisar" da linha Memória); o histórico, só com a aba dele.
   if (q.startsWith("memoria:")) return t.tipo === "conversa" && estado.gaveta?.agenteId === q.slice(8) && (estado.gaveta.nivel.tipo === "memoria" || estado.gaveta.nivel.tipo === "ajustes");
   if (q.startsWith("diario:")) return t.tipo === "conversa" && estado.gaveta?.agenteId === q.slice(7) && estado.gaveta.nivel.tipo === "memoria" && estado.gaveta.nivel.aba === "historico" && (estado.frota?.agentes.some((a) => a.id === q.slice(7) && a.ownerId === estado.sessao?.pessoaId) ?? false);
-  if (q.startsWith("concessoes:")) return t.tipo === "conversa" && t.agenteId === q.slice(11) ? true : t.tipo === "conectores";
+  if (q.startsWith("concessoes:")) return t.tipo === "conversa" && t.agenteId === q.slice(11) ? true : t.tipo === "conectores" || modalDoMarketplace !== null;
   // 2026-09-21: o painel de detalhes (tela conversa) também mostra o histórico — é onde a pessoa
   // confere que uma rotina silenciosa (desfecho sem_novidade, que não escreve no chat) rodou.
   if (q.startsWith("execucoes:")) return t.tipo === "rotinas" || t.tipo === "conversa";
@@ -4033,6 +4111,9 @@ function agendarViradaDoMascote(): void {
 
 function render(): void {
   lojaDoEstado.avisar();
+  // O modal do Marketplace também lê o que mora fora do reducer (o padrão do app, o nível otimista): a foto dele só
+  // muda de objeto quando algo que ele mostra mudou (web/react/marketplace/real.ts).
+  apiDoMarketplace?.avisar();
   if (ajusteDoLink && estado.sessao && estado.frota && !celular.ativo()) {
     const id = ajusteDoLink;
     ajusteDoLink = null;
@@ -4048,6 +4129,7 @@ function render(): void {
   // NOD-379: sem sessão a inicial não existe e a entrada (no palco) não pode ficar inerte.
   celular.definirSessao(!!estado.sessao);
   if (!estado.sessao) {
+    if (modalDoMarketplace) fecharModalDoMarketplace();
     document.querySelector(".app")?.classList.add("sem-sessao");
     definirTelaDoBot(null, null);
     regiao("detalhes", "");
@@ -4759,6 +4841,9 @@ function trilharQuadro(e: EventoTrilhaQuadro): void {
 function navegar(tela: Tela, o: { filaDeSuaVez?: boolean } = {}): void {
   // NOD-85: a tela antiga de Rotinas virou a agenda das Configurações; todo caminho que levava a ela abre a seção.
   if (tela.tipo === "rotinas") { abrirRotinas(); return; }
+  // 2026-11-18 (ADR-179): no computador, o Marketplace é o modal por cima da tela de agora; só Avançado continua tela.
+  if (tela.tipo === "conectores" && !tela.avancado && !celular.ativo()) { abrirModalDoMarketplace(inicialDoApp(tela.gaveta?.slug ?? tela.app)); return; }
+  if (modalDoMarketplace) fecharModalDoMarketplace();
   const antes = estado.tela;
   // NOD-422: vindo da inicial do celular, é uma visita nova (pode contar outra vez). Antes do entrarNaConversa, que já
   // redesenha e observa (revisão 4 do PR #630: depois dele, a mesma visita agendava duas contas).

@@ -2,8 +2,9 @@ import { APPS_MARKETPLACE } from "../../../src/contracts/marketplace.ts";
 import { FALHA_APP } from "../../../web/lib/conexao.ts";
 import { describe, expect, it } from "vitest";
 import type { Conector } from "../../../src/contracts/conector.ts";
-import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
+import { estadoInicial, reduzir, type Estado } from "../../../web/estado/reducer.ts";
 import { renderConectores } from "../../../web/telas/conectores.ts";
+import { appsDeLogin } from "../../../web/telas/marketplace.ts";
 
 const APPS = [
   { slug: "clickup", nome: "ClickUp", descricao: "Tarefas e prazos.", categoria: "Projetos", logo: null },
@@ -135,4 +136,21 @@ it.each(["desconectado", "conectando", "atencao"])("orienta consentimento Micros
   expect(html).toContain("administrador Microsoft Entra");
   expect(html).toContain("Aplicativos empresariais");
   expect(html).toContain('data-id="microsoft-teams"');
+});
+
+describe("apps de chave de API (emenda ADR-057, 2026-11-18)", () => {
+  const deChave = { slug: "fireflies", nome: "Fireflies", descricao: "Reuniões.", categoria: "Reuniões", logo: null, conexao: "chave" as const };
+
+  it("o estado guarda o catálogo inteiro, com os apps de chave (o modal conecta os dois jeitos)", () => {
+    const e = reduzir(estadoInicial, { tipo: "hidratar-conectores", conectores: [], marketplace: [...APPS, deChave] });
+    expect(e.marketplace.map((a) => a.slug)).toEqual(["clickup", "slack", "gmail", "fireflies"]);
+  });
+
+  it("a grade antiga e o '+ Dar acesso' só sabem abrir login: o app de chave não aparece neles", () => {
+    expect(appsDeLogin([...APPS, deChave]).map((a) => a.slug)).toEqual(["clickup", "slack", "gmail"]);
+    const html = renderConectores({ ...base, marketplace: [...APPS, deChave] });
+    expect(html).not.toContain('data-id="fireflies"');
+    expect(html).not.toContain("Fireflies");
+    expect(html).toContain('data-id="clickup"');
+  });
 });
