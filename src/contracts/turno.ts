@@ -52,12 +52,7 @@ export type Turno = {
   prazoEm: EpochMs;
   motivoInterrupcao: MotivoInterrupcao | null;
   motivoFalha: MotivoFalha | null;
-  /**
-   * O agente chamou `sem_novidade` neste turno (definido em 2026-09-21): consultou a fonte e nada
-   * mudou. null = não pediu silêncio. Quando presente, o assentamento NÃO escreve a fala na
-   * conversa e a rotina registra desfecho 'sem_novidade' sem marcador. Motivo TIPADO, nunca
-   * inferido do texto (Regra 9).
-   */
+  /** O agente chamou `sem_novidade` neste turno (definido em 2026-09-21): consultou a fonte e nada mudou. null = não pediu silêncio. Quando presente, o assentamento NÃO escreve a fala na conversa e a rotina registra desfecho 'sem_novidade' sem marcador. Motivo TIPADO, nunca inferido do texto (Regra 9). */
   semNovidadeMotivo: MotivoSemNovidade | null;
   /** Retomar = turno NOVO apontando para o interrompido (ADR-009/010: nunca requeue). */
   retomaTurnoId: string | null;

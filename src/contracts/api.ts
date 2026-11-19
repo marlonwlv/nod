@@ -61,10 +61,7 @@ export type ConversaDto = DonoNaConversa & TrocasNaConversa & AcoesDoModoNaConve
   turnosEmCurso: TurnoEmCursoDto[];
   /** Turnos que a pessoa cancelou antes de rodar: a mensagem que os disparou mostra "Cancelada · não rodou". */
   turnosCancelados: { id: string; mensagemId: string }[];
-  /**
-   * ADR-185 (definido em 2026-11-16): as falas da pessoa que um turno vivo absorveu (escritas na sessão dele). `lidoEm`
-   * null = o bot ainda não as leu (a fala mostra "lê ao fim do passo atual"); com hora, "Lida". Ausente = servidor antigo.
-   */
+  /** ADR-185 (2026-11-16): falas da pessoa que um turno vivo absorveu (escritas na sessão dele). `lidoEm` null = o bot ainda não as leu ("lê ao fim do passo atual"); com hora, "Lida". Ausente = servidor antigo. */
   turnosNaSessao?: { id: string; mensagemId: string; absorvidoPor: string; lidoEm: number | null }[];
   /** Propostas PENDENTES da conversa (E1.1): o cartão da web nasce daqui, nunca de um kind de Mensagem (definido em 2026-09-16, L9). */
   propostas: Proposta[];
@@ -98,10 +95,7 @@ export type RotinaDto = { rotina: Rotina; proximaExecucao: EpochMs; bloqueio: Bl
 export type MetodoHttp = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 export type EntradaRota = { metodo: MetodoHttp; caminho: string; lane: "L1" | "L4" | "L5" | "L6" | "L7" | "L8" | "L9" };
 
-/**
- * Tabela de rotas (ADR-005: prefixo /api/t/:tenantId/… salvo públicas e internas). Cada lane
- * escreve o handler fino da sua rota contra o roteador da L1; a posse é a coluna `lane`.
- */
+/** Tabela de rotas (ADR-005: prefixo /api/t/:tenantId/… salvo públicas e internas). Cada lane escreve o handler fino da sua rota contra o roteador da L1; a posse é a coluna `lane`. */
 export const ROTAS = [
   { metodo: "GET", caminho: "/api/saude", lane: "L1" }, { metodo: "GET", caminho: "/api/saude/lb", lane: "L1" }, // lb: Caddy, NOD-218
   /** Só com NOD_LOGIN=stub (desenvolvimento, loopback): entra como uma pessoa do cadastro (ADR-030). */

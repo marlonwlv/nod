@@ -181,17 +181,9 @@ export type Mensagem = {
   criadoEm: EpochMs;
   anexos?: AnexoDaConversa[]; // ADR-046 (só metadados); na fala do bot, a captura (NOD-200) e a mídia dele (ADR-126)
   midiaRecusas?: RecusasMidia; // NOD-323: o que o bot não conseguiu anexar (código e contagem), na fala final
-  /**
-   * definido em 2026-10-07 (ADR-083, épico #188): de onde veio o turno que gravou a mensagem, para a web agrupar sem
-   * adivinhar. `origemTurno`: a origem do turno (null = sem turno, como a fala da pessoa); `trabalhoId`: o trabalho do
-   * turno (null = turno da conversa); `fimDoTurno`: é a última fala de um turno já encerrado — as outras falas desse
-   * turno foram do meio (ADR-067). Ausentes = servidor anterior ao épico.
-   */
+  /** definido em 2026-10-07 (ADR-083, épico #188): de onde veio o turno que gravou a mensagem, para a web agrupar sem adivinhar. `origemTurno`: a origem do turno (null = sem turno, como a fala da pessoa); `trabalhoId`: o trabalho do turno (null = turno da conversa); `fimDoTurno`: é a última fala de um turno já encerrado — as outras falas desse turno foram do meio (ADR-067). Ausentes = servidor anterior ao épico. */
   origemTurno?: OrigemTurno | null;
-  /**
-   * definido em 2026-10-12 (ADR-099, I7 revista): o turno de uma retomada leva a raiz da cadeia dele (o turno que ela continua, até 10
-   * saltos). A execução de rotina e o pedido de colega não viram mais trabalho: sem a raiz, a resposta da pessoa, a volta marcada e o retorno das frentes saíam da linha agrupada "da rotina" / "Pedido do …".
-   */
+  /** definido em 2026-10-12 (ADR-099, I7 revista): o turno de uma retomada leva a raiz da cadeia dele (o turno que ela continua, até 10 saltos). A execução de rotina e o pedido de colega não viram mais trabalho: sem a raiz, a resposta da pessoa, a volta marcada e o retorno das frentes saíam da linha agrupada "da rotina" / "Pedido do …". */
   raiz?: { turnoId: string; origem: OrigemTurno };
   trabalhoId?: string | null; fimDoTurno?: boolean;
   /** Validação de 2026-11-16 (ADR-185): a fala parcial do turno que a PESSOA parou — quando ela apertou Parar. Ausente = não. */

@@ -8,24 +8,10 @@ import type { PlataformaMaquina } from "./ponte.ts";
 import type { PassoDoRun } from "./quadro-comentarios.ts";
 import type { CotaNosTrabalhos, CotaNoTrabalho, LeituraDaMaquinaViva, LeituraDeMaquinaDto, MaquinaDoTrabalho } from "./maquina.ts";
 
-/**
- * Trabalho (definido em 2026-10-07, ADR-083, épico #188): uma unidade de trabalho longo de um bot, com sessão do CLI e
- * pasta próprias, que roda em paralelo com a conversa e com outros trabalhos do mesmo bot. Na tela é a "task".
- * `trabalho`, não `tarefa`: esta já é o `tarefaId` entre bots, o `iniciar_tarefa` da ligação e o TaskCreate.
- * - `pessoa`: a conversa coordenadora abriu (`abrir_task`) a partir de um pedido da pessoa;
- * - `rotina`: uma execução de rotina (uma por execução, nunca uma por rotina);
- * - `colega`: um pedido de outro bot (`pedir_a_bot`), com os acessos de quem recebe (ADR-058);
- * - `rede`: um turno de conversa que passou de 2 min trabalhando e foi promovido sozinho;
- * - `quadro` (ADR-163): uma tarefa do quadro, um trabalho só por (bot, tarefa), reaberto a cada etapa (a sessão segue).
- */
+/** Trabalho (definido em 2026-10-07, ADR-083, épico #188): uma unidade de trabalho longo de um bot, com sessão do CLI e pasta próprias, que roda em paralelo com a conversa e com outros trabalhos do mesmo bot. Na tela é a "task". `trabalho`, não `tarefa`: esta já é o `tarefaId` entre bots, o `iniciar_tarefa` da ligação e o TaskCreate. - `pessoa`: a conversa coordenadora abriu (`abrir_task`) a partir de um pedido da pessoa; - `rotina`: uma execução de rotina (uma por execução, nunca uma por rotina); - `colega`: um pedido de outro bot (`pedir_a_bot`), com os acessos de quem recebe (ADR-058); - `rede`: um turno de conversa que passou de 2 min trabalhando e foi promovido sozinho; - `quadro` (ADR-163): uma tarefa do quadro, um trabalho só por (bot, tarefa), reaberto a cada etapa (a sessão segue). */
 export type OrigemTrabalho = "pessoa" | "rotina" | "colega" | "rede" | "quadro";
 
-/**
- * `na_fila`: criado, ainda sem turno despachado (ou esperando o trabalho de `depoisDeTrabalhoId`);
- * `rodando`: tem turno despachando ou pendente; `precisa_de_voce`: parou numa pergunta ou aprovação;
- * `fechado_ocioso`: o processo do CLI foi fechado para liberar memória e volta com a resposta da pessoa;
- * `terminado`: entregou; `parado`: a pessoa parou; `falhou`: interrompido sem retomada possível.
- */
+/** `na_fila`: criado, ainda sem turno despachado (ou esperando o trabalho de `depoisDeTrabalhoId`); `rodando`: tem turno despachando ou pendente; `precisa_de_voce`: parou numa pergunta ou aprovação; `fechado_ocioso`: o processo do CLI foi fechado para liberar memória e volta com a resposta da pessoa; `terminado`: entregou; `parado`: a pessoa parou; `falhou`: interrompido sem retomada possível. */
 export type EstadoTrabalho = "na_fila" | "rodando" | "precisa_de_voce" | "fechado_ocioso" | "terminado" | "parado" | "falhou";
 
 /** Estados em que o trabalho conta como aberto (faixa, chip da barra, "Trabalhando" e "Precisa de você"). */

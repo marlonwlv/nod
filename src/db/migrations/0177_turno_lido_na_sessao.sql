@@ -11,5 +11,5 @@ ALTER TABLE turnos ADD COLUMN lido_na_sessao_em timestamptz;
 -- Os absorvidos que já existem foram lidos (era a regra até aqui).
 UPDATE turnos SET lido_na_sessao_em = criado_em WHERE motivo_interrupcao = 'absorvido' AND absorvido_por IS NOT NULL;
 
--- Rollback:
+-- ROLLBACK:
 -- ALTER TABLE turnos DROP COLUMN lido_na_sessao_em;

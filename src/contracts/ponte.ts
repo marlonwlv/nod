@@ -140,19 +140,7 @@ export const MOTIVOS_RENOVACAO_NEGADA = ["sem_plano", "parado", "agente_excluido
 export type MotivoRenovacaoNegada = (typeof MOTIVOS_RENOVACAO_NEGADA)[number];
 export type RespostaRenovar = { ativo: boolean | "indefinido"; versaoMinimaApp: string; motivo?: MotivoRenovacaoNegada; mensagens?: string[]; mensagensIds?: string[]; mensagensSemMoldura?: string[]; ligacaoEncerrada?: boolean } & RespostaRenovarAnexos;
 
-/**
- * O que o app desktop viu do turno vivo desde a última renovação, NA ORDEM: texto do modelo e nomes de ferramenta (nunca o
- * resultado). Republicado como turno.delta / turno.atividade e gravado em turno_passos. NOD-353: `id` do tool_use; `{fim,
- * falhou}`: a chamada terminou. ADR-165: `resumo` é UMA linha do argumento (até 120), já redigida no executor
- * (src/domain/resumo-do-passo.ts); o servidor corta em 160 e redige de novo. Nunca o argumento inteiro nem a saída. `fase`: estado vivo (2026-11-12). */
-export type TrechoVivo = { texto: string } | { fase: FaseDoBloco } | { ferramenta: string; id?: string; resumo?: string } | { fim: string; falhou: boolean } | { tarefas: TarefaDoBot[] } | { vigia: VigiaVivo } | { subagentes: SubagenteVivo[]; ocioso?: boolean };
-
-/**
- * O vigia do turno (definido em 2026-10-05, NOD-73; src/domain/vigia-turno.ts): só AVISA, nunca corta. `mudoMs` > 0
- * é o silêncio desde o último evento do CLI (0 = houve novidade); `aberta` é o NOME da ferramenta sem resultado;
- * `emFundo` conta os comandos em segundo plano; `repeticao` é o maior limiar (5, 10, 20) já atingido no turno. Só
- * nome e números: os argumentos nunca saem do Mac. Um trecho novo substitui o anterior no buffer da ponte.
- */
+/** O que o app desktop viu do turno vivo desde a última renovação, NA ORDEM: texto do modelo e nomes de ferramenta (nunca o resultado). Republicado como turno.delta / turno.atividade e gravado em turno_passos. NOD-353: `id` do tool_use; `{fim, falhou}`: a chamada terminou. ADR-165: `resumo` é UMA linha do argumento (até 120), já redigida no executor (src/domain/resumo-do-passo.ts); o servidor corta em 160 e redige de novo. Nunca o argumento inteiro nem a saída. `fase`: estado vivo (2026-11-12). */ export type TrechoVivo = { texto: string } | { fase: FaseDoBloco } | { ferramenta: string; id?: string; resumo?: string } | { fim: string; falhou: boolean } | { tarefas: TarefaDoBot[] } | { vigia: VigiaVivo } | { subagentes: SubagenteVivo[]; ocioso?: boolean };  /** O vigia do turno (definido em 2026-10-05, NOD-73; src/domain/vigia-turno.ts): só AVISA, nunca corta. `mudoMs` > 0 é o silêncio desde o último evento do CLI (0 = houve novidade); `aberta` é o NOME da ferramenta sem resultado; `emFundo` conta os comandos em segundo plano; `repeticao` é o maior limiar (5, 10, 20) já atingido no turno. Só nome e números: os argumentos nunca saem do Mac. Um trecho novo substitui o anterior no buffer da ponte. */
 export type VigiaVivo = { mudoMs: number; aberta?: string; emFundo: number; repeticao?: { nome: string; vezes: number } };
 
 export type { MotivoPuladaLimpeza, PastaParaLimpar, RelatoLimpeza } from "./limpeza.ts";
