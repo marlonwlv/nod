@@ -1,4 +1,5 @@
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
+import { abrirDialogoDeHandoff } from "./telas/dialogo-handoff.ts";
 import { marcarEstadoDaPagina } from "./lib/estado-da-pagina.ts";
 import { cancelarNaFila, desfazerCancelamento } from "./lib/cancelar-na-fila.ts";
 import { armazemComReserva, armazemDaFila, criarJournalDeEnvio, JournalEncerrado, tipoDaFalha, type ArmazemDoJournal, type Desfecho, type ItemDoJournal, type Journal } from "./lib/journal-envio.ts";
@@ -1224,9 +1225,17 @@ window.matchMedia("(max-width: 1099px)").addEventListener("change", marcarPainel
 const canvasNaTela = criarCanvasNaTela(document, { api: () => api, conversa: () => conversaAtual()?.conversaId ?? null, irParaConversa: () => quadroNaTela.irPara(0),
   mascote: (id) => { const a = estado.frota?.agentes.find((x) => x.id === id); return a ? iconeAgente(a, "sm") : null; } });
 configurarAppCanvas({ ler: () => (api ? api.appCanvas() : null), aoMudar: () => render() });
+/** ADR-179 (item 4): os diálogos criados por código já em React (web/react/dialogos/); `?dialogos-react=0` volta aos nativos. */
+let moduloDosDialogos: typeof import("./react/dialogos/handoff.tsx") | null = null;
+if (reactNaRegiao("dialogos", window.location.href, guardadoDoNavegador())) {
+  void import("./react/dialogos/handoff.tsx").then((m) => { moduloDosDialogos = m; }, () => {
+    // Sem o módulo, os diálogos nativos de sempre.
+  });
+}
 const quadroNaTela = criarQuadroNaTela(document, {
   // ADR-180: a grade do quadro em React, ligada por padrão (`?quadro-react=0` volta à por string neste navegador).
   gradeReact: reactNoQuadro(location.href, (() => { try { return localStorage; } catch { return null; } })()),
+  dialogoDeHandoff: (doc, d, agora) => (moduloDosDialogos ? moduloDosDialogos.abrirHandoffNoReact(doc as Document, d, agora) : abrirDialogoDeHandoff(doc, d, agora)),
   // ADA-8: a pílula tem um dono só para o dedo (web/lib/gesto-da-pilula-na-tela.ts); a busca e o menu entram por aqui.
   busca: {
     ativa: () => celular.ativo() && chaveDaTelaDeBusca() !== null,

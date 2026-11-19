@@ -286,7 +286,9 @@ export interface AcoesDasPaginas {
 
 export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; menuDaPilula?: PilulaDePaginas["menuDaPilula"]; reduzido?: () => boolean; aoTrocar?: (m: ModoDaConversa) => void; aoMudarOrdem?: () => void; aoTarefasPedirem?: (pedem: boolean) => void; dados?: DadosDoQuadro; paginas?: AcoesDasPaginas;
   /** ADR-180: a grade do computador em React (o main decide pela chave, `web/lib/react-no-quadro.ts`); sem isto, por string. */
-  gradeReact?: boolean } = {}): QuadroNaTela {
+  gradeReact?: boolean;
+  /** ADR-179 (item 4): quem abre o diálogo de handoff (o main passa o do Base UI); sem isto, o `<dialog>` nativo. */
+  dialogoDeHandoff?: typeof abrirDialogoDeHandoff } = {}): QuadroNaTela {
   // Revisão 5 do ADA-5 (definido em 2026-11-04): a troca de vista descarta o ditado aberto (ADR-095) aqui, e não no
   // main, para que o teste do Chrome prove a regra; depois avisa quem ouve.
   const avisarTroca = (m: ModoDaConversa): void => {
@@ -3427,7 +3429,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (a?.previaMover && agenteId) {
       try { dados = await a.previaMover(agenteId, t.id, c.id); } catch { /* fica a prévia local */ }
     }
-    return abrirDialogoDeHandoff(doc, { ...dados, codigo: t.codigo, coluna: c.nome });
+    return (o.dialogoDeHandoff ?? abrirDialogoDeHandoff)(doc, { ...dados, codigo: t.codigo, coluna: c.nome });
   }
 
   function tirarRecusa(): void {

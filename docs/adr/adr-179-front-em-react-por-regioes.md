@@ -100,6 +100,13 @@ ordem: o seletor de IA e a folha do "+", o
 ditado, e por fim o próprio campo (o `<textarea>` sem controle do React, com as menções e os comandos `/`), com as
 jornadas de Chrome de digitação, foco e acento em composição.
 
+**Os diálogos criados por código** (item 4; 2026-11-19), com o Dialog do Base UI (ADR-180), cada um com a volta
+`?dialogos-react=0`. O 1º é **o diálogo de handoff** do Quadro (`web/react/dialogos/handoff.tsx`): o mesmo conteúdo e as
+mesmas classes do `<dialog>` nativo, a mesma resposta (a promessa: não mover, ou mover parando ou não o anterior), o foco
+em "Mover" ao abrir, preso no diálogo e de volta a quem estava ao fechar. A escolha vale na hora do fechar; o root sai
+quando a animação de saída termina (com uma rede de 400 ms: o fim da animação nem sempre é avisado). O `quadro-na-tela`
+recebe quem abre o diálogo (`dialogoDeHandoff`); sem isso, o nativo.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts

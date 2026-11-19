@@ -1107,3 +1107,8 @@ a.qd-chip:hover { background: var(--surface-raised); }
 .qd-pop-passa .qd-pop-bts .qd-bt { height: 28px; padding: 0 10px; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
 .qd-pop-passa .qd-pop-bts .qd-bt-pri { background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); }
 @media (forced-colors: active) { .qd-pop-passa .qd-pas-inst:focus-visible { outline: 2px solid CanvasText; } }
+
+/* ADR-179 (item 4): o diálogo de handoff pelo Dialog do Base UI — o mesmo cartão do <dialog> nativo, centrado, e o fundo
+   que o ::backdrop dava. */
+.rx-ho-fundo { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--ink) 18%, transparent); }
+.qd-handoff.rx-ho { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; box-sizing: border-box; }
