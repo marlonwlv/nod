@@ -17,6 +17,8 @@ export type TelaAtualizacao = {
   pedindo: boolean;
   /** O clique no cartão: a tinta está subindo desde este instante (ms); ao encher, o pedido sai. */
   enchendoDesde: number | null;
+  /** Quando a versão ficou pronta nesta janela (ms): a entrada do cartão anima a partir daí, uma vez só. */
+  prontaDesde: number | null;
 };
 
 /** O cartão aparece com a versão pronta (e enquanto pergunta, espera ou reinicia). */
@@ -42,7 +44,8 @@ export function criarAtualizacaoNaWeb(o: {
     const antes = tela;
     // Saiu de "pronta" (reiniciou, ou um erro raro): a pergunta não vale mais.
     const valendo = e.fase === "pronta" && !e.reiniciando;
-    tela = { estado: e, pergunta: valendo ? antes?.pergunta ?? null : null, pedindo: antes?.pedindo === true && !e.reiniciando, enchendoDesde: valendo ? antes?.enchendoDesde ?? null : null };
+    const prontaDesde = e.fase !== "pronta" ? null : antes?.estado.fase === "pronta" ? antes.prontaDesde : (o.agora ?? Date.now)();
+    tela = { estado: e, pergunta: valendo ? antes?.pergunta ?? null : null, pedindo: antes?.pedindo === true && !e.reiniciando, enchendoDesde: valendo ? antes?.enchendoDesde ?? null : null, prontaDesde };
     if (e.atualizadoDe) {
       o.avisarAtualizado(e.versaoAtual);
       tela = { ...tela, estado: { ...tela.estado, atualizadoDe: null } };

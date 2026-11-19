@@ -110,6 +110,33 @@
 .cfg-sobre .atz-acoes { flex-direction: row; flex-wrap: wrap; align-items: center; }
 .atz-rodape { margin: 12px 0 0; padding: 0 14px; color: var(--ink-3); font-size: 12px; }
 
+/* ---------- A entrada do cartão (uma vez, quando a versão fica pronta) ----------
+   O espaço abre de baixo (a lista sobe junto, sem pulo) e o cartão surge subindo com uma mola curta. --atz-entrada
+   (negativo) vem do HTML com o tempo desde que ficou pronta: a barra regravada no meio continua a animação, e depois
+   do fim a classe some. --ms-entrar é o MS_ENTRAR_ATUALIZAR de web/telas/atualizacao-app.ts. */
+.atz { --ms-entrar: 520ms; }
+.atz.atz-entra { overflow: hidden; animation: atz-abre var(--ms-entrar) cubic-bezier(.2, .8, .2, 1) var(--atz-entrada, 0ms) both; }
+.atz.atz-entra > * { animation: atz-surge calc(var(--ms-entrar) - 120ms) cubic-bezier(.2, .9, .25, 1.12) calc(var(--atz-entrada, 0ms) + 120ms) both; }
+@keyframes atz-abre { from { max-height: 0; padding-bottom: 0; } to { max-height: 80px; padding-bottom: 8px; } }
+@keyframes atz-surge { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+
+/* ---------- O aviso "nod atualizado" (Paper E, momento 3) ----------
+   Uma pílula sobre a conversa (centrada fora da barra lateral), acima do campo: o check verde, a frase e "Novidades". */
+.atz-aviso { position: fixed; z-index: 60; left: calc(50% + var(--largura-barra, 0px) / 2); bottom: 120px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 6px 0 12px; border: 1px solid var(--borda-sutil); border-radius: 999px;
+  background: var(--surface-elevated); box-shadow: var(--shadow-pop); color: var(--ink); font-size: 14px; line-height: 20px; white-space: nowrap;
+  animation: atz-aviso-entra 380ms cubic-bezier(.2, .9, .25, 1.12) both; }
+.atz-aviso-ic { display: grid; place-items: center; color: var(--success); }
+.atz-aviso-txt b { font-weight: 600; }
+.atz-aviso-bt { height: 32px; margin-left: 2px; padding: 0 14px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 120ms, transform 120ms; }
+.atz-aviso-bt:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.atz-aviso-bt:active { transform: scale(.97); }
+.atz-aviso-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.atz-aviso.atz-aviso-sai { animation: atz-aviso-sai 200ms cubic-bezier(.4, 0, 1, 1) both; }
+@keyframes atz-aviso-entra { from { opacity: 0; transform: translate(-50%, 14px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes atz-aviso-sai { to { opacity: 0; transform: translate(-50%, 8px) scale(.98); } }
+
 /* Sem movimento: a tinta aparece cheia de uma vez (sem subir nem ondular) e o spinner fica parado. */
 @media (prefers-reduced-motion: reduce) {
   .atz-cartao, .atz-redondo { transition: none; }
@@ -118,4 +145,5 @@
   .enchendo .atz-tinta { transform: translateY(0); }
   .enchendo .atz-claro { clip-path: inset(0 0 0 0); }
   .atz-redondo.enchendo .atz-ic-redondo { color: var(--on-action); }
+  .atz.atz-entra, .atz.atz-entra > *, .atz-aviso, .atz-aviso.atz-aviso-sai { animation: none; }
 }

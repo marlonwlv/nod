@@ -206,7 +206,8 @@ import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } fr
 import { mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
 import { criarAtualizacaoNaWeb } from "./lib/atualizacao-app.ts";
 import { criarPonteSimuladaNaWeb, versaoSimuladaNaWeb } from "./lib/atualizacao-simulada-web.ts";
-import { cartaoAtualizacao, MS_ENCHER_ATUALIZAR, renderSobre, TEXTOS_ATZ } from "./telas/atualizacao-app.ts";
+import { mostrarAvisoAtualizado } from "./lib/aviso-atualizado.ts";
+import { cartaoAtualizacao, MS_ENCHER_ATUALIZAR, renderSobre } from "./telas/atualizacao-app.ts";
 import { acessosNaTela, chaveDoClique } from "./lib/acessos-otimistas.ts";
 import { gavetaDeAcessos, loteDeEscritaPedeConfirmacao, ROTULO } from "./telas/acessos-do-app.ts";
 import { conectorDoApp, meusBots, nivelReal } from "./telas/app-acesso.ts";
@@ -5861,7 +5862,7 @@ const atualizacaoNaWeb = criarAtualizacaoNaWeb({
   msEncher: MS_ENCHER_ATUALIZAR,
   ponte: () => (modoQuickChat || modoAvatar ? undefined : window.nodDesktop?.atualizacaoApp ?? ponteSimuladaWeb),
   aoMudar: () => render(),
-  avisarAtualizado: (versao) => { mostrarAvisoDesfazer({ texto: TEXTOS_ATZ.atualizado(versao), abrir: { rotulo: "Ver", aoAbrir: () => abrirEspaco("sobre") } }); },
+  avisarAtualizado: (versao) => { mostrarAvisoAtualizado({ versao, aoNovidades: () => abrirEspaco("sobre") }); },
 });
 void atualizacaoNaWeb.carregar();
 if (modoQuickChat) document.documentElement.dataset.janela = "quick-chat";
