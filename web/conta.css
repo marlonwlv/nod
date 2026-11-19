@@ -1,6 +1,7 @@
 /* NOD-345 (ADR-124, protótipo do Gil): os cartões da conta na conversa e a tela de entrada com e-mail. Só tokens. */
 .cc-bloco { width: min(560px, 100%); margin: 8px auto 16px; display: flex; flex-direction: column; gap: 10px; }
 .cc-cartao { background: var(--surface); border: 1px solid var(--line); border-radius: var(--raio-20); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.tela.entrar .cc-cartao, .cc-bloco .cc-cartao { position: relative; z-index: auto; }
 .tela.entrar .cc-cartao { width: min(420px, 100%); margin-top: 16px; text-align: left; }
 .cc-selo { align-self: flex-start; font-size: var(--fs-rotulo); font-weight: 600; color: var(--ink-3); background: var(--surface-raised); border-radius: var(--raio-full); padding: 3px 10px; }
 .cc-titulo { margin: 0; font-size: var(--fs-titulo-3); font-weight: 600; color: var(--ink); }
@@ -118,7 +119,7 @@
 
 @media (max-width: 760px) {
   .entrar-primeiro { margin-block: 0; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
-  .entrar-primeiro .cc-sem-conta { position: fixed; z-index: 5; left: 12px; right: 12px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; margin: 0; padding: 8px; box-shadow: var(--shadow-pop); }
+  .tela.entrar-primeiro .cc-sem-conta { position: fixed; z-index: 5; left: 12px; right: 12px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; margin: 0; padding: 8px; box-shadow: var(--shadow-pop); }
   .entrar-primeiro .cc-sem-conta .cc-titulo, .entrar-primeiro .cc-sem-conta .cc-texto { display: none; }
   .entrar-primeiro .cc-sem-conta .cc-acoes, .entrar-primeiro .cc-sem-conta .bt { width: 100%; justify-content: center; }
   .conta-pagina { padding-bottom: 54px; }

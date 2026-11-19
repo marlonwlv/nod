@@ -77,3 +77,19 @@ it("desktop abre as URLs legais externamente e nega uma janela interna (ADR-053)
     expect(openExternal).toHaveBeenLastCalledWith(url);
   }
 });
+
+it("mantém os cartões de conta no fluxo mesmo com o CSS do computador carregado", () => {
+  // Regression: NOD-404 — cartões fixos se sobrepunham ao rodapé da primeira entrada.
+  // Found by /qa on 2026-11-19; evidência browser em qa-evidence/before.png.
+  const document = new Window().document;
+  for (const arquivo of ["web/computador-cartoes.css", "web/computador-conversa.css", "web/conta.css"]) {
+    const style = document.createElement("style");
+    style.textContent = readFileSync(arquivo, "utf8");
+    document.head.append(style);
+  }
+  document.body.innerHTML = htmlEntrarPrimeiro({ google: true, codigoPorEmail: true, equipe: null, formEmailSenha: "", ocupado: false, erro: null })
+    + `<section class="cc-bloco">${htmlEtapa({ tipo: "cadastro", erro: null }, { ocupado: false, google: true, agora: 0 })}</section>`;
+  for (const cartao of document.querySelectorAll(".entrar-primeiro .cc-cartao:not(.cc-sem-conta), .cc-bloco .cc-cartao")) {
+    expect(document.defaultView!.getComputedStyle(cartao).position).toBe("relative");
+  }
+});
