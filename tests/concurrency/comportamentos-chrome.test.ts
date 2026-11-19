@@ -199,17 +199,18 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     await avaliar(cdp, `(() => { const t = document.querySelector('textarea[data-campo-apres="primeira"]'); t.focus(); t.select(); })()`);
     await cdp.enviar("Input.insertText", { text: "Organize as ideias desta semana [[texto: Organizei as ideias]]" });
     await ate(`document.querySelector('textarea[data-campo-apres="primeira"]')?.value === "Organize as ideias desta semana [[texto: Organizei as ideias]]"`, "a primeira mensagem digitada");
+    // Cada valor que a barra do preparo chegou a mostrar, gravado pela própria página (MutationObserver): amostrar a cada
+    // 100 ms daqui perdia os do meio quando os quatro passos terminavam entre duas amostras (CI rápida, PR #192).
+    await avaliar(cdp, `(() => { const w = window; w.__preparoVisto = []; const anotar = (el) => { const v = Number(el.getAttribute("aria-valuenow")); if (!Number.isNaN(v)) w.__preparoVisto.push(v); }; new MutationObserver((ms) => { for (const m of ms) { if (m.type === "attributes" && m.target.matches?.(".cb-barra")) anotar(m.target); for (const n of m.addedNodes ?? []) { if (n.nodeType !== 1) continue; const b = n.matches(".cb-barra") ? n : n.querySelector(".cb-barra"); if (b) anotar(b); } } }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-valuenow"] }); return true; })()`);
     await clicar(".ap-enviar");
     // Preparando: a barra com % sobe até 100 e o personagem comemora; depois, a conversa do bot novo.
     await noPasso(10);
     await ate(`document.querySelector(".ap-camada .cb-barra[role=progressbar]")`, "a barra do preparo");
-    const visto: number[] = [];
     for (let t = 0; t < 300 && !(await existe('.ap-camada .cb-preparo[data-fim="pronto"]')); t++) {
-      const v = await avaliar<number | null>(cdp, `Number(document.querySelector(".ap-camada .cb-barra")?.getAttribute("aria-valuenow") ?? NaN)`);
-      if (typeof v === "number" && !Number.isNaN(v)) visto.push(v);
       if (await existe('.ap-camada .cb-preparo[data-fim="erro"]')) throw new Error(`o preparo deu erro: ${await texto(".ap-camada .cb-erro")}`);
       await espera(100);
     }
+    const visto = await avaliar<number[]>(cdp, "window.__preparoVisto ?? []");
     expect(await texto(".ap-camada .cb-porcento")).toBe("100%");
     expect(await mascote()).toBe("comemorando");
     expect(visto.some((v) => v > 0 && v < 100)).toBe(true);
