@@ -158,7 +158,8 @@ import type { DadosConta } from "./telas/config-conta.ts";
 import { avatarDoBot, avatarNaConversa, htmlMascote, mascoteComAviso, proximaViradaDoMascote } from "./lib/mascote.ts";
 import { lembrar } from "./lib/lembrar.ts";
 import { atualizarGaveta } from "./lib/gaveta-render.ts";
-import { blocosMudariam, esquecerRegiao, regiao, regiaoEmVoltaDe, regiaoMudaria, regiaoPorBlocos } from "./lib/regioes.ts";
+import { blocosMudariam, devolverRegiao, entregarRegiao, esquecerRegiao, focarDeNovo, regiao, regiaoEmVoltaDe, regiaoEntregue, regiaoMudaria, regiaoPorBlocos } from "./lib/regioes.ts";
+import { reactNaRegiao, type RegiaoReact } from "./lib/react-na-regiao.ts";
 import { mudancaSujaAGaveta, reporSeletor, salvarOuRepor } from "./lib/salvar-ou-repor.ts";
 import { PERMANENCIA_MS } from "./lib/estado-do-indicador.ts";
 import { criarAnunciador, criarRelogioDaFala, escreverEstados, escreverTempos, escreverVariantes, lerFalasNaTela, TICK_CURTO_MS, type FalaNaTela } from "./lib/fala-viva.ts";
@@ -454,6 +455,76 @@ let carregandoMarketplace = false;
 let modalDoMarketplace: { vez: number; inicial: InicialDoMarketplace } | null = null;
 let vezDoMarketplace = 0;
 let apiDoMarketplace: ReturnType<(typeof import("./react/marketplace/regiao.tsx"))["criarApiReal"]> | null = null;
+/**
+ * ADR-189 (fases 3, 4 e 6 da ADR-179): as regiões que o React desenha a partir do mesmo HTML das telas. Medido em
+ * 2026-11-19 (scripts/carga-tela): regravar a barra inteira a cada frame de outro bot recriava todas as linhas e mascotes;
+ * com o React só o que mudou toca o DOM, e o mascote fica no mesmo nó. A região é entregue pelo registro de
+ * `web/lib/regioes.ts` (`entregarRegiao`): quem escreve nela continua chamando `regiao()`. Enquanto o módulo baixa, ou com
+ * `?<nome>-react=0` na URL, a região segue por string.
+ */
+const REGIOES_NO_REACT: readonly (readonly [string, RegiaoReact])[] = [["sidebar", "barra"], ["cabecalho", "cabecalho"], ["detalhes", "detalhes"], ["espaco", "espaco"]];
+function guardadoDoNavegador(): Storage | null {
+  try { return window.localStorage; } catch { return null; }
+}
+const regioesLigadas = new Set(REGIOES_NO_REACT.filter(([, nome]) => reactNaRegiao(nome, window.location.href, guardadoDoNavegador())).map(([id]) => id));
+let moduloDoHtml: typeof import("./react/html/regiao-por-html.tsx") | null = null;
+
+/**
+ * Entrega a região ao React (no-op se já entregue, desligada ou com o módulo a caminho). O cabeçalho fica por string com a
+ * busca aberta: ela move a pílula do bot para dentro do campo (`encaixarNoCabecalho`), e o React não aceita nó dele
+ * levado para fora. A troca guarda a rolagem e o foco do desenho que sai: o React redesenha o mesmo HTML em nós novos.
+ */
+function entregarAoReact(id: string): void {
+  const el = document.getElementById(id);
+  if (!moduloDoHtml || !el || !regioesLigadas.has(id) || regiaoEntregue(id)) return;
+  if (id === "cabecalho" && buscaNaConversa.aberta()) return;
+  const todos = [...el.querySelectorAll("*")];
+  const rolagens = todos.flatMap((n, i) => (n.scrollTop > 0 || n.scrollLeft > 0 ? [{ i, topo: n.scrollTop, esquerda: n.scrollLeft }] : []));
+  const ativo = document.activeElement instanceof HTMLElement && el.contains(document.activeElement) ? document.activeElement : null;
+  entregarRegiao(id, moduloDoHtml.montarRegiaoPorHtml(id));
+  const novos = [...el.querySelectorAll("*")];
+  for (const r of rolagens) { const n = novos[r.i]; if (n) { n.scrollTop = r.topo; n.scrollLeft = r.esquerda; } }
+  if (ativo && !ativo.isConnected) focarDeNovo(ativo, el);
+}
+
+/**
+ * ADR-189 (fase 6 da ADR-179): as duas partes da conversa (o histórico e o ao vivo) desenhadas pelo React, bloco a bloco,
+ * no lugar do `regiaoPorBlocos`. Enquanto o módulo baixa (ou com `?conversa-react=0`), seguem pelo desenho por string.
+ */
+const conversaNoReact = reactNaRegiao("conversa", window.location.href, guardadoDoNavegador());
+const partesNoReact = new Map<string, import("./react/html/regiao-por-html.tsx").BlocosNoReact>();
+const conversaReact = (): typeof import("./react/html/regiao-por-html.tsx") | null => (conversaNoReact ? moduloDoHtml : null);
+function parteNoReact(id: string): import("./react/html/regiao-por-html.tsx").BlocosNoReact | null {
+  const el = document.getElementById(id);
+  const m = conversaReact();
+  if (!m || !el) return null;
+  const montada = partesNoReact.get(id);
+  if (montada?.em(el)) return montada;
+  // A casca da timeline foi regravada (outra tela, outra conversa): o root velho ficou num nó solto.
+  montada?.desmontar();
+  esquecerRegiao(id);
+  const nova = m.montarBlocosNoReact(el, id, { focarDeNovo: (focado, raiz) => focarDeNovo(focado, raiz) });
+  partesNoReact.set(id, nova);
+  return nova;
+}
+function blocosDaConversaMudariam(id: string, blocos: readonly BlocoDaTimeline[]): boolean {
+  if (!conversaReact()) return blocosMudariam(id, blocos);
+  const montada = partesNoReact.get(id);
+  return !montada?.em(document.getElementById(id)) || montada.mudariam(blocos);
+}
+function desenharBlocosDaConversa(id: string, blocos: readonly BlocoDaTimeline[]): HTMLElement[] {
+  const parte = parteNoReact(id);
+  return parte ? parte.desenhar(blocos) : regiaoPorBlocos(id, blocos);
+}
+if (conversaNoReact || regioesLigadas.size > 0) {
+  void import("./react/html/regiao-por-html.tsx").then((m) => {
+    moduloDoHtml = m;
+    for (const id of regioesLigadas) entregarAoReact(id);
+    if (estado.sessao) render();
+  }, () => {
+    // Sem o módulo (a rede caiu no meio do boot), as regiões continuam por string: nada a mostrar à pessoa.
+  });
+}
 let api: Api | null = null;
 
 /** ADR-166: Configurações › Aprovações. O estado é da seção (web/lib/ajustes-aprovacao.ts); a lista de bots é a da dona. */
@@ -3174,6 +3245,8 @@ function abrirBuscaNaConversa(): void {
   // NOD-429: a busca é na conversa; aberta no modo Quadro, a conversa volta à vista antes.
   quadroNaTela.trocar("conversa");
   document.getElementById("cabecalho")?.classList.remove("bnc-dica"); // a dica "⌘F busca" não fica dentro da busca aberta
+  // ADR-189: a busca leva a pílula do bot para dentro do campo; o cabeçalho volta ao desenho por string antes.
+  devolverRegiao("cabecalho");
   buscaNaConversa.abrir(document.getElementById("cabecalho"));
 }
 
@@ -3389,6 +3462,7 @@ function renderPrincipal(): void {
   if (buscaNaConversa.aberta() && chaveDaTelaDeBusca() !== telaDaBusca) buscaNaConversa.fechar(false);
   const pilulaAntes = medirPilulaDoTopo();
   const abasAntes = abasNoTopo();
+  if (!buscaNaConversa.aberta()) entregarAoReact("cabecalho");
   regiaoEmVoltaDe("cabecalho", botaoAbrirBots(t.tipo === "conversa") + cabecalho + botaoBuscarCelular(), buscaNaConversa.no());
   buscaNaConversa.encaixar(document.getElementById("cabecalho"));
   document.getElementById("cabecalho")?.classList.toggle("so-menu", cabecalho === "");
@@ -3408,8 +3482,8 @@ function renderPrincipal(): void {
   trilhaDaConversa.observar();
   regiao("erro", erro);
   const cascaMuda = regiaoMudaria("timeline", corpo);
-  const historicoMuda = cascaMuda || (partes !== null && blocosMudariam("timeline-historico", partes.historico));
-  const aoVivoMuda = cascaMuda || (partes !== null && blocosMudariam("timeline-ao-vivo", partes.aoVivo));
+  const historicoMuda = cascaMuda || (partes !== null && blocosDaConversaMudariam("timeline-historico", partes.historico));
+  const aoVivoMuda = cascaMuda || (partes !== null && blocosDaConversaMudariam("timeline-ao-vivo", partes.aoVivo));
   if (!segurarTimeline && (historicoMuda || aoVivoMuda)) regravarTimeline(corpo, partes, { cascaMuda, historicoMuda, aoVivoMuda });
   // Chat limpo (PR 7; QA do PR 398): o progresso das frentes muda só o bloco dele, dentro da fala, sem regravá-la. O bloco
   // trocado é medido de novo antes da pílula (PR 8): ela some com o bloco à vista, e a frente nova do lote muda o bloco.
@@ -3629,8 +3703,8 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     esquecerRegiao("timeline-ao-vivo");
   }
   if (partes) {
-    if (muda.historicoMuda) animarChegada(regiaoPorBlocos("timeline-historico", partes.historico));
-    if (muda.aoVivoMuda) regiaoPorBlocos("timeline-ao-vivo", partes.aoVivo);
+    if (muda.historicoMuda) animarChegada(desenharBlocosDaConversa("timeline-historico", partes.historico));
+    if (muda.aoVivoMuda) desenharBlocosDaConversa("timeline-ao-vivo", partes.aoVivo);
   }
   // O progresso das frentes entra nos lugares da fala antes de reabrir os <details> e de contar as linhas mostradas.
   if (muda.historicoMuda) {

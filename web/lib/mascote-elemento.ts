@@ -73,12 +73,12 @@ class MascoteElemento extends HTMLElement {
   private shown = "";
   private painter: PintorMascote | null = null;
   private runningAssentado = false;
-  private get state(): StateId {
+  private get estadoPedido(): StateId {
     const id = this.getAttribute("state") as StateId;
     return STATE_BY_ID.has(id) ? id : "idle";
   }
-  private get pose(): string {
-    return `${this.state}|${this.getAttribute("shape")}|${this.getAttribute("expression")}`;
+  private get posePedida(): string {
+    return `${this.estadoPedido}|${this.getAttribute("shape")}|${this.getAttribute("expression")}`;
   }
   connectedCallback(): void {
     conectados.add(this);
@@ -118,12 +118,12 @@ class MascoteElemento extends HTMLElement {
   }
   /** Passa forma, expressão e estado ao motor; diz se algo mudou de fato. */
   private apply(): boolean {
-    const pose = this.pose;
+    const pose = this.posePedida;
     if (!this.engine || pose === this.applied) return false;
     this.applied = pose;
     this.engine.setShape(radii(this.getAttribute("shape")), this.time);
     this.engine.setExpression(expressaoMascote(this.getAttribute("expression")), this.time);
-    this.engine.setState(this.state, this.time);
+    this.engine.setState(this.estadoPedido, this.time);
     this.runningAssentado = false;
     this.changed = this.time;
     return true;
@@ -131,7 +131,7 @@ class MascoteElemento extends HTMLElement {
   replay(): void {
     if (!this.engine) return;
     this.engine.reset("idle", this.time);
-    this.engine.setState(this.state, this.time);
+    this.engine.setState(this.estadoPedido, this.time);
     this.changed = this.time;
     this.wake();
   }
@@ -167,8 +167,8 @@ class MascoteElemento extends HTMLElement {
     if (this.last && stamp - this.last < QUADRO_MS - 2) return;
     this.time += this.last ? Math.min((stamp - this.last) / 1000, .05) : 0;
     this.last = stamp;
-    const depois = stateAfterElapsed(this.state, this.time - this.changed);
-    if (this.state === "running" && depois !== this.state && !this.runningAssentado) {
+    const depois = stateAfterElapsed(this.estadoPedido, this.time - this.changed);
+    if (this.estadoPedido === "running" && depois !== this.estadoPedido && !this.runningAssentado) {
       this.engine?.setState(depois, this.time);
       this.runningAssentado = true;
     }
@@ -177,13 +177,13 @@ class MascoteElemento extends HTMLElement {
   }
   private moving(): boolean {
     // ADR-174: offline é pose fixa, como o repouso — só a transição de entrada anima.
-    return !ESTATICOS.has(this.state) || this.time - this.changed < ASSENTA;
+    return !ESTATICOS.has(this.estadoPedido) || this.time - this.changed < ASSENTA;
   }
   private paint(): void {
     const fixed = reduzido();
-    const state = this.state;
+    const state = this.estadoPedido;
     if (fixed || !this.moving()) {
-      const chave = `${this.pose}|${fixed}`;
+      const chave = `${this.posePedida}|${fixed}`;
       if (this.shown === chave) return;
       let svg = parados.get(chave);
       if (!svg) {
@@ -204,7 +204,7 @@ class MascoteElemento extends HTMLElement {
   }
   private decorateSleeping(): void {
     const existing = this.querySelector(":scope > .mascote-zz");
-    if (this.state !== "sleeping") {
+    if (this.estadoPedido !== "sleeping") {
       existing?.remove();
       return;
     }

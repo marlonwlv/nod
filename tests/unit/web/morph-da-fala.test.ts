@@ -237,7 +237,9 @@ describe("decidirBloco e o uso em regiaoPorBlocos (revisão 2 do #508)", () => {
     const leitura = corpo.indexOf('const disclosureFocado = focado?.tagName === "SUMMARY" ? focado.closest<HTMLElement>("details[data-disclosure]")');
     expect(leitura).toBeGreaterThan(-1);
     expect(leitura).toBeLessThan(corpo.indexOf("aplicarMorph("));
-    expect(corpo).toContain("alvoDoFoco<HTMLElement>(disclosureFocado ? { disclosure: disclosureFocado } : focado.dataset, raiz, document)");
+    // ADR-189: a volta do foco mora em `focarDeNovo` (a conversa no React usa a mesma), com o disclosure lido aqui antes.
+    expect(corpo).toContain("focarDeNovo(focado, raiz, disclosureFocado)");
+    expect(regioes).toContain("alvoDoFoco<HTMLElement>(disclosure ? { disclosure } : focado.dataset, raiz, raiz.ownerDocument)");
     expect(corpo).not.toMatch(/isConnected[\s\S]*focado\.closest/);
   });
 });

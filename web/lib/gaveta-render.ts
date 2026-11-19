@@ -71,7 +71,8 @@ export function atualizarGaveta(estado: Estado, gavetaSuja: string | null): void
         if (campo.value === antigoSalvo) campo.value = novo.dataset.salvo;
         campo.dataset.salvo = novo.dataset.salvo;
       }
-      novo.replaceWith(campo);
+      // ADR-189: com a gaveta no React o campo costuma ser o mesmo nó; trocá-lo por ele mesmo o tiraria e poria de volta.
+      if (novo !== campo) novo.replaceWith(campo);
       campo.focus({ preventScroll: true });
       if (inicio !== null && fim !== null) campo.setSelectionRange?.(inicio, fim);
     });
