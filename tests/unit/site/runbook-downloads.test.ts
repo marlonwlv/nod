@@ -7,8 +7,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 /**
  * NOD-322: o passo a passo de docs/release-desktop.md roda de verdade, contra um gcloud falso (o bucket é uma pasta) e
  * com os SHA256-*.txt gerados pelo mesmo comando do .github/workflows/desktop-release.yml. Assim o runbook não pode
- * divergir dos nomes da pasta v<versão>/ nem do formato dos hashes, e uma conferência que falha para tudo antes de
- * trocar os nomes estáveis.
+ * divergir dos nomes da pasta v<versão>/ nem do formato dos hashes. Desde 2026-11-19 o bloco só confere (a versão entra
+ * pelo site/_redirects, porque a retenção do bucket não deixa sobrescrever a raiz): ele não escreve no bucket e falha
+ * com qualquer hash que não bate ou falta.
  */
 const RAIZ = join(import.meta.dirname, "../../..");
 const runbook = readFileSync(join(RAIZ, "docs/release-desktop.md"), "utf8");
@@ -17,6 +18,7 @@ const passoAPasso = runbook.split("## Passo a passo")[1] ?? "";
 const bloco = /```sh\n([\s\S]*?)```/.exec(passoAPasso)?.[1] ?? "";
 const V = /^\s*V=(\S+)$/m.exec(bloco)?.[1] ?? "";
 const comandoSha = /- name: SHA-256 do DMG e do ZIP\n\s+run: (.+)\n/.exec(workflow)?.[1] ?? "";
+/** Os nomes da raiz de antes da retenção (rc.6): o bloco não pode tocar neles. */
 const ESTAVEIS = ["nod-mac-arm64.dmg", "nod-mac-x64.dmg", "nod-windows-x64.exe"];
 
 // gcloud storage cp falso: gs://<bucket>/<caminho> vira $GCS/<bucket>/<caminho>; os metadados (--cache-control etc.)
@@ -30,7 +32,7 @@ for a in "$@"; do
   case "$a" in --no-clobber|-n) noclobber=1 ;; --*) flags+=("$a") ;; -*) echo "flag desconhecida $a" >&2; exit 2 ;; *) pos+=("$a") ;; esac
 done
 mapa() { case "$1" in gs://*) echo "$GCS/\${1#gs://}" ;; *) echo "$1" ;; esac; }
-dst="\${pos[-1]}"; unset 'pos[-1]'
+ultimo=$(( \${#pos[@]} - 1 )); dst="\${pos[$ultimo]}"; unset "pos[$ultimo]"
 for s in "\${pos[@]}"; do
   shopt -s nullglob; fontes=( $(mapa "$s") ); shopt -u nullglob
   [ "\${#fontes[@]}" -gt 0 ] || { echo "ERROR: No URLs matched: $s" >&2; exit 1; }
@@ -88,7 +90,7 @@ function rodarRunbook() {
   });
 }
 
-describe("NOD-322: o runbook dos downloads estáveis roda contra o formato do desktop-release.yml", () => {
+describe("NOD-322: a conferência do runbook dos downloads roda contra o formato do desktop-release.yml", () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "runbook-"));
     gcs = join(dir, "gcs");
@@ -97,49 +99,45 @@ describe("NOD-322: o runbook dos downloads estáveis roda contra o formato do de
     writeFileSync(join(bin, "gcloud"), GCLOUD);
     chmodSync(join(bin, "gcloud"), 0o755);
     mkdirSync(bucket(""), { recursive: true });
-    for (const f of ESTAVEIS) {
-      writeFileSync(bucket(f), `antigo ${f}`);
-      writeFileSync(bucket(`${f}.meta`), "--cache-control=no-store\n");
-    }
+    for (const f of ESTAVEIS) writeFileSync(bucket(f), `antigo ${f}`);
     publicarVersao();
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
+  const raizIntacta = () => {
+    for (const f of ESTAVEIS) expect(ler(f), f).toBe(`antigo ${f}`);
+    expect(existsSync(bucket("anterior"))).toBe(false);
+  };
+
   it("acha o bloco do runbook, a versão e o comando de hash do workflow", () => {
     expect(V).toMatch(/^\d+\.\d+\.\d+(-rc\.\d+)?$/);
     expect(comandoSha).toContain("shasum -a 256 release/");
-    expect(bloco).toContain("sha256sum -c");
+    expect(bloco).toContain("shasum -a 256 -c");
   });
 
-  it("caminho feliz: troca os três nomes estáveis pelos da versão, sem cache, e guarda os antigos", () => {
+  it("caminho feliz: confere os três arquivos da versão e não escreve nada no bucket", () => {
     const r = rodarRunbook();
     expect(r.status, r.stderr).toBe(0);
-    expect(ler("nod-mac-arm64.dmg")).toBe(`dmg arm64 ${V}`);
-    expect(ler("nod-mac-x64.dmg")).toBe(`dmg x64 ${V}`);
-    expect(ler("nod-windows-x64.exe")).toBe(`exe ${V}`);
-    for (const f of ESTAVEIS) {
-      // Os objetos de hoje têm cache-control: no-store; um cp sem a flag volta ao padrão público de 1 h do GCS.
-      expect(ler(`${f}.meta`), f).toContain("--cache-control=no-store");
-      expect(readFileSync(bucket(`anterior/antes-de-v${V}/${f}`), "utf8")).toBe(`antigo ${f}`);
-    }
+    expect(r.stdout).toContain(`ok: v${V} conferida`);
+    for (const nome of [`nod-${V}-mac-arm64.dmg`, `nod-${V}-mac-x64.dmg`, `nod-${V}-win-x64.exe`]) expect(r.stdout, nome).toContain(`${nome}: OK`);
+    raizIntacta();
   });
 
   // Regression: ISSUE-002 — tirar a conferência do .exe do runbook não quebrava nenhum teste (só o DMG x64 era adulterado).
   // Found by /qa on 2026-11-14 (mutante no docs/release-desktop.md).
-  it.each(["nod-$V-mac-arm64.dmg", "nod-$V-mac-x64.dmg", "nod-windows-x64.exe"])("hash que não bate (%s) para tudo antes de tocar na raiz do bucket", (nome) => {
+  it.each(["nod-$V-mac-arm64.dmg", "nod-$V-mac-x64.dmg", "nod-$V-win-x64.exe"])("hash que não bate (%s) faz o bloco falhar", (nome) => {
     writeFileSync(bucket(`v${V}/${nome.replace("$V", V)}`), "adulterado");
     const r = rodarRunbook();
     expect(r.status).not.toBe(0);
-    for (const f of ESTAVEIS) expect(ler(f), f).toBe(`antigo ${f}`);
+    expect(r.stdout).not.toContain("conferida");
+    raizIntacta();
   });
 
-  it("rodar de novo (ex.: depois de uma falha no meio) não apaga o backup da versão anterior", () => {
-    expect(rodarRunbook().status).toBe(0);
+  // 2026-11-19: com o sha256sum do macOS lendo da entrada padrão, o `-c` só imprimia o uso e o bloco seguia sem conferir.
+  it("um arquivo sem linha no SHA256-*.txt faz o bloco falhar (não passa por falta de conferência)", () => {
+    writeFileSync(bucket(`v${V}/SHA256-win-x64.txt`), "");
     const r = rodarRunbook();
-    expect(r.status, r.stderr).toBe(0);
-    for (const f of ESTAVEIS) {
-      expect(readFileSync(bucket(`anterior/antes-de-v${V}/${f}`), "utf8"), f).toBe(`antigo ${f}`);
-    }
-    expect(existsSync(bucket("anterior/nod-mac-arm64.dmg"))).toBe(false);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).not.toContain("conferida");
   });
 });
