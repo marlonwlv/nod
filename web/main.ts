@@ -543,6 +543,29 @@ function desenharBlocosDaConversa(id: string, blocos: readonly BlocoDaTimeline[]
   const parte = parteNoReact(id);
   return parte ? parte.desenhar(blocos) : regiaoPorBlocos(id, blocos);
 }
+/**
+ * ADR-179 (as telas no lugar da conversa): as telas já em componentes React (web/react/telas/) montam na vaga que o main
+ * põe na região `#timeline`. Enquanto o módulo baixa, ou com `?telas-react=0`, seguem pelo desenho por string.
+ */
+const telasNoReact = reactNaRegiao("telas", window.location.href, guardadoDoNavegador());
+let moduloDasTelas: typeof import("./react/telas/telas.tsx") | null = null;
+let telasReact: import("./react/telas/telas.tsx").TelasNoReact | null = null;
+if (telasNoReact) {
+  void import("./react/telas/telas.tsx").then((m) => {
+    moduloDasTelas = m;
+    telasReact = m.criarTelasNoReact(lojaDoEstado, {
+      naoLidos: {
+        abrirConversa: (conversaId, agenteId) => navegar({ tipo: "conversa", conversaId, agenteId }),
+        abrirSala: (salaId, conversaId) => navegar({ tipo: "sala", salaId, conversaId }),
+        marcarLida: (conversaId, nome) => marcarComDesfazer(conversaId, nome),
+        marcarTudo: () => marcarTudoComDesfazer(),
+      },
+    });
+    if (estado.sessao) render();
+  }, () => {
+    // Sem o módulo, as telas continuam por string.
+  });
+}
 if (conversaNoReact || regioesLigadas.size > 0) {
   void import("./react/html/regiao-por-html.tsx").then((m) => {
     moduloDoHtml = m;
@@ -3391,7 +3414,7 @@ function renderPrincipal(): void {
       corpo = renderSuaVez(estado);
       break;
     case "nao-lidos":
-      corpo = renderNaoLidos(estado);
+      corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("nao-lidos") : renderNaoLidos(estado);
       break;
     case "tarefas":
       corpo = '<div id="tdt" class="tdt-casco"></div>';
@@ -3517,6 +3540,8 @@ function renderPrincipal(): void {
   // Chat limpo (PR 7; QA do PR 398): o progresso das frentes muda só o bloco dele, dentro da fala, sem regravá-la. O bloco
   // trocado é medido de novo antes da pílula (PR 8): ela some com o bloco à vista, e a frente nova do lote muda o bloco.
   if (progressoNaTela.desenhar(conversaDaTela(estado), estado, memoriaNaFala()) > 0) rolagem.progressoTrocado();
+  // ADR-179: a tela em React monta na vaga que a região acabou de receber (ou desmonta, sem ela).
+  telasReact?.sincronizar(document.getElementById("timeline"));
   // Tela 18d: a página Tarefas de todos os bots também vive fora do reducer (relê sozinha no quadro.mudou).
   if (t.tipo === "tarefas") {
     tarefasDeTodos.abrir();
@@ -3726,6 +3751,8 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
   // ADR-051: o iframe do artefato sai antes de a timeline ser regravada e volta sem recarregar (moveBefore),
   // no hidratar() logo abaixo — depois de os <details> reabrirem; sem moveBefore, ele é recriado do cache.
   if (muda.historicoMuda) artefatos.estacionar();
+  // ADR-179: a tela em React desmonta antes de a vaga dela sair da região.
+  telasReact?.antesDeRegravar(corpo);
   regiao("timeline", corpo);
   if (muda.cascaMuda) {
     esquecerRegiao("timeline-historico");

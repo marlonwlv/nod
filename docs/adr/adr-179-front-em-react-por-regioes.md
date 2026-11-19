@@ -56,6 +56,19 @@ inteira a cada desenho, com um Menu do Base UI por card); ela continua atrás de
 passos seguintes da fase: a página do quadro inteira num root que fica, os cards em JSX a partir da tarefa com um só
 "Mover para…", as jornadas de Chrome arrastando por ponteiro e o teste de mão antes de ligar por padrão.
 
+**As telas no lugar da conversa** (2026-11-19). Sua vez, Não lidos, Tarefas de todos, Trabalhos, Rotinas, Conectores,
+Novo bot e o quadro compartilhado ocupam a região `#timeline` no lugar da conversa e eram regravadas por `innerHTML`. A
+régua ganhou um cenário por tela (`tela-sua-vez`, `tela-nao-lidos`, `tela-trabalhos`, `tela-tarefas`: a tela aberta pela
+barra com 8 bots escrevendo, no banco do `povoar.ts`) e mostrou todas já abaixo do portão na `main` (maior tarefa 0 ms,
+TBT 0, tecla p95 ≤ 22 ms): aqui a migração é pelo código, não pela performance, e o portão é não piorar. O mecanismo:
+com uma tela migrada aberta, o main escreve na região só a vaga dela (`vagaDaTela`, `web/react/telas/telas.tsx`) e a tela
+monta ali um root próprio, que lê a loja (`useLoja`, só os pedaços que usa) e recebe as ações por prop; trocar de tela
+desmonta o root antes de a região ser regravada. Chave `?telas-react=0` (`react-na-regiao.ts`), ligada por padrão; com
+ela desligada (ou com o módulo a caminho), o desenho por string de sempre. A primeira é **Não lidos**
+(`web/react/telas/nao-lidos.tsx`), com o mesmo DOM da tela por string (o teste compara os dois): o teclado e o deslize do
+celular seguem nas mesmas classes. Na régua, Não lidos com 8 bots: 0 / 0 / 6,3 ms (maior tarefa / TBT / tecla p95) em
+React e 0 / 0 / 6,9 por string no mesmo build; 106 nós criados contra 147.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts
