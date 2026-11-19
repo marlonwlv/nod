@@ -13,6 +13,7 @@ import { agenteVisivel, assertUuid, autoriaAgente, carimbo, evento, PRAZO_DECISA
 import { aplicarAtualizacaoRotina, aplicarExclusaoRotina, erroRotinaMudou, revisaoAtual } from "./aplicar-proposta-rotina.ts";
 import { confirmacaoPeloModo, semCard } from "./confirmar-pelo-modo.ts";
 import { acessosDeclarados } from "./criar-rotina.ts";
+import { pausarTodasAsRotinas, reativarLoteDePausa } from "./pausa-em-lote.ts";
 import { pausarRotina } from "./pausar-rotina.ts";
 import { ehColega } from "./ver-colegas.ts";
 import type { Deps } from "./tipos.ts";
@@ -73,6 +74,34 @@ export const pausarRotinaPeloAgente: CasoNod<Deps, "pausar_rotina"> = (deps, inp
 
 export const reativarRotinaPeloAgente: CasoNod<Deps, "reativar_rotina"> = (deps, input) =>
   alternar(deps, { agenteId: input.agenteId, rotinaId: input.rotina_id, plano: input.plano }, "ativa");
+
+/**
+ * Desfazer a pausa em lote (2026-11-19): pausar_todas_rotinas e reativar_lote_rotinas, o mesmo executor do ⌘K e de
+ * Ajustes › Rotinas (src/use-cases/pausa-em-lote.ts). Mexem nas rotinas de TODOS os bots da pessoa, então só com entrada
+ * confiável (turno aberto por mensagem dela), a mesma regra da rotina de colega em rotinaAlternavel: pergunta de outro
+ * bot, conteúdo de conector ou rotina acordada sozinha nunca pausam nem religam tudo. Aplicam direto, como pausar e
+ * reativar uma (ADR-043): a pausa em lote se desfaz em um passo.
+ */
+export const pausarTodasRotinasPeloAgente: CasoNod<Deps, "pausar_todas_rotinas"> = async (deps, input) => {
+  assertUuid(input.agenteId, "agenteId");
+  if (input.plano?.confiancaEntrada !== "confiavel") return { data: { erro: "nao_permitido" } };
+  const r = await pausarTodasAsRotinas(deps, { autoria: autoriaAgente(input.agenteId, deps.escopo.pessoaId) });
+  return { data: { lote_id: r.data.lote?.id ?? null, pausadas: r.data.rotinaIds.length, pausado_em: r.data.lote?.em ?? null }, events: r.events ?? [] };
+};
+
+export const reativarLoteRotinasPeloAgente: CasoNod<Deps, "reativar_lote_rotinas"> = async (deps, input) => {
+  try {
+    assertUuid(input.agenteId, "agenteId");
+    if (input.plano?.confiancaEntrada !== "confiavel") return { data: { erro: "nao_permitido" } };
+    const loteId = input.lote_id ?? (await deps.repos.rotinas.ultimoLoteDePausa())?.id ?? null;
+    if (loteId === null) return { data: { lote_id: null, pausado_em: null, reativadas: 0 } };
+    const r = await reativarLoteDePausa(deps, { loteId, autoria: autoriaAgente(input.agenteId, deps.escopo.pessoaId) });
+    return { data: { lote_id: loteId, pausado_em: r.data.lote?.em ?? null, reativadas: r.data.reativadas.length }, events: r.events ?? [] };
+  } catch (e) {
+    if (ehErroDeDominio(e)) return { data: { erro: e.codigo } };
+    throw e;
+  }
+};
 
 /**
  * definido em 2026-09-28 (ADR-050): a Teodora assume o que a Nina, a Ada e a Taga faziam e pergunta se

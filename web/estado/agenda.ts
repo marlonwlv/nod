@@ -20,6 +20,8 @@ export type AgendaUi = {
   /** A busca de bots (com 6 ou mais); null = fechada. */
   busca: string | null;
   pausadasAbertas: boolean;
+  /** Desfazer a pausa em lote: o lote com a lista "Ver quais" aberta em Ajustes › Rotinas; null = fechada. */
+  loteAberto: string | null;
   /** O dia em foco: a semana da régua e o dia que fica mesmo vazio com filtro. null = hoje. */
   foco: string | null;
   /** O bloco de 6 ou mais no mesmo minuto que está aberto (a linha aberta dentro dele segue em `aberto`). */
@@ -28,7 +30,7 @@ export type AgendaUi = {
 
 export type EstadoAgenda = { dto: AgendaDto | null; erro: boolean; janela: { de: string; ate: string } | null; ui: AgendaUi };
 
-export const AGENDA_UI_INICIAL: AgendaUi = { aberto: null, menu: null, bots: [], soProblema: false, alvo: null, rolarAgora: true, mes: null, busca: null, pausadasAbertas: false, foco: null, bloco: null };
+export const AGENDA_UI_INICIAL: AgendaUi = { aberto: null, menu: null, bots: [], soProblema: false, alvo: null, rolarAgora: true, mes: null, busca: null, pausadasAbertas: false, loteAberto: null, foco: null, bloco: null };
 export const AGENDA_INICIAL: EstadoAgenda = { dto: null, erro: false, janela: null, ui: AGENDA_UI_INICIAL };
 
 export type AcaoAgenda =

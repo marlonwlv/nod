@@ -11,6 +11,8 @@ export const USE_CASE_POR_FERRAMENTA = {
   ver_agenda: "verAgendaPeloAgente",
   pausar_rotina: "pausarRotinaPeloAgente",
   reativar_rotina: "reativarRotinaPeloAgente",
+  pausar_todas_rotinas: "pausarTodasRotinasPeloAgente",
+  reativar_lote_rotinas: "reativarLoteRotinasPeloAgente",
   atualizar_rotina: "atualizarRotinaPeloAgente",
   excluir_rotina: "excluirRotinaPeloAgente",
   executar_rotina: "executarRotinaPeloAgente",

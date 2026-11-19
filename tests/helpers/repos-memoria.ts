@@ -2660,9 +2660,33 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async atualizarEstado(id, estado, retomarEm = null) {
         const r = doTenant(b.rotinas).find((x) => x.id === id);
         if (!r) return null;
+        // Espelha o trigger nod_rotina_limpa_lote (0178): a pausada que volta a ativa perde o lote.
+        if (r.estado === "pausada" && estado === "ativa") r.pausaLote = null;
         r.estado = estado;
         r.retomarEm = estado === "pausada" ? retomarEm : null;
         return r;
+      },
+      async marcarLoteDePausa(ids, loteId, em) {
+        let n = 0;
+        for (const r of doTenant(b.rotinas)) if (ids.includes(r.id) && r.ownerId === escopo.pessoaId && r.estado === "pausada" && r.excluidoEm === null) { r.pausaLote = { id: loteId, em }; n++; }
+        return n;
+      },
+      async listarDoLoteDePausa(loteId) {
+        return doTenant(b.rotinas).filter((r) => r.ownerId === escopo.pessoaId && r.pausaLote?.id === loteId && r.excluidoEm === null);
+      },
+      async podemVoltar(ids) {
+        // Sem geração de bot na memória: volta a que é da dona e não foi excluída.
+        return doTenant(b.rotinas).filter((r) => ids.includes(r.id) && r.ownerId === escopo.pessoaId && r.excluidoEm === null).map((r) => r.id);
+      },
+      async ultimoLoteDePausa() {
+        const marcadas = doTenant(b.rotinas).filter((r) => r.ownerId === escopo.pessoaId && r.pausaLote && r.excluidoEm === null);
+        const ultima = marcadas.sort((a, c) => (c.pausaLote?.em ?? 0) - (a.pausaLote?.em ?? 0))[0];
+        return ultima?.pausaLote ?? null;
+      },
+      async limparLoteDePausa(loteId) {
+        let n = 0;
+        for (const r of doTenant(b.rotinas)) if (r.ownerId === escopo.pessoaId && r.pausaLote?.id === loteId) { r.pausaLote = null; n++; }
+        return n;
       },
       async pausadasParaRetomar(em) {
         return doTenant(b.rotinas).filter((r) => r.ownerId === escopo.pessoaId && r.estado === "pausada" && r.excluidoEm === null && r.retomarEm != null && r.retomarEm <= em);

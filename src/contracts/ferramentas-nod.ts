@@ -1,4 +1,5 @@
 import { FERRAMENTAS_ROTINA, PARA_BOT } from "./ferramentas-rotina.ts";
+import { FERRAMENTAS_ROTINA_LOTE } from "./ferramentas-rotina-lote.ts";
 import { FERRAMENTAS_PERFIL } from "./ferramentas-perfil.ts";
 import { FERRAMENTAS_ARTEFATO } from "./ferramentas-artefato.ts";
 import { FERRAMENTAS_LIGACAO } from "./ferramentas-ligacao.ts";
@@ -43,6 +44,7 @@ export type { ArgsEncaminhar, ArgsLembrar, ArgsPassar, ArgsPedirABot, ArgsPedirA
  */
 export const FERRAMENTAS_NOD = {
   ...FERRAMENTAS_ROTINA,
+  ...FERRAMENTAS_ROTINA_LOTE,
   ...FERRAMENTAS_PERFIL,
   ...FERRAMENTAS_ARTEFATO,
   ...FERRAMENTAS_LIGACAO,
@@ -155,7 +157,7 @@ export type NomeFerramentaNod = keyof typeof FERRAMENTAS_NOD;
  */
 export const NOMES_FERRAMENTAS_NOD = [
   "lembrar", "atualizar_perfil", "pedir_acesso", "criar_rotina",
-  "listar_rotinas", "ver_agenda", "pausar_rotina", "reativar_rotina", "atualizar_rotina", "excluir_rotina", "executar_rotina", "pedir_aprovacao",
+  "listar_rotinas", "ver_agenda", "pausar_rotina", "reativar_rotina", "pausar_todas_rotinas", "reativar_lote_rotinas", "atualizar_rotina", "excluir_rotina", "executar_rotina", "pedir_aprovacao",
   "pedir_a_pessoa", "passar", "encaminhar", "sem_novidade", "pedir_a_bot", "ver_colegas", "publicar_artefato", "ler_artefato",
   "iniciar_tarefa", "desligar",
   "anotar_entrevista", "concluir_entrevista", "propor_bot", "abrir_task", "mandar_para_task",

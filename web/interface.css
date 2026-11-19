@@ -1354,6 +1354,15 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .nl-desfazer { flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: var(--raio-8); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); font-weight: 600; cursor: pointer; }
 .nl-aviso .nl-desfazer:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .nl-desfazer:focus-visible { outline: 2px solid var(--focus-ring, var(--signal)); outline-offset: 1px; }
+/* Desfazer a pausa em lote (protótipo do Paper, 2026-11-19): o aviso de 15 s mostra o tempo — os segundos ao lado da frase e
+   a barra de 2 px que esvazia na base (web/lib/aviso-desfazer.ts, `contagem`) — e ganha o × que fecha sem desfazer. */
+.nl-aviso.nl-aviso-contagem { overflow: hidden; }
+.nl-aviso-seg { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.nl-aviso-tempo { position: absolute; left: 0; bottom: 0; width: 100%; height: 2px; background: color-mix(in srgb, var(--ink) 35%, transparent); transform-origin: left center; transition: transform .25s linear; }
+.nl-aviso-fechar { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-left: -4px; border: 0; border-radius: 999px; background: transparent; color: var(--ink-3); cursor: pointer; }
+.nl-aviso-fechar:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.nl-aviso-fechar:focus-visible { outline: 2px solid var(--focus-ring, var(--signal)); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .nl-aviso-tempo { transition: none; } }
 /* O "Abrir"/"Ver" do aviso: classe própria (era .nl-abrir, a mesma da linha de Não lidos, que é uma grade de largura
    total e espremia o texto do aviso até sumir). Pílula cinza, como no protótipo do aviso "nod atualizado" (ADR-188). */
 .nl-aviso .nl-aviso-abrir { padding: 0 12px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent); font-weight: 500; }

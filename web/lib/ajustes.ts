@@ -51,6 +51,8 @@ export const AJUSTES: readonly Ajuste[] = [
   { id: "computador", secao: "computador", grupo: null, titulo: "Computador", frase: "Veja as telas dos bots, onde o computador mora, atualize ou saia de todos os sites", palavras: ["computador do bot", "navegador", "tela", "login", "redefinir", "atualizar", "senhas"] },
   { id: "agentes", secao: "agentes", grupo: null, titulo: "Agentes", frase: "Veja todos os seus bots e mude vários de uma vez", palavras: ["bots", "lote"] },
   { id: "rotinas", secao: "rotinas", grupo: null, titulo: "Rotinas", frase: "Veja a agenda de tudo o que roda sozinho", palavras: ["agenda", "cron", "horário"] },
+  // Desfazer a pausa em lote (2026-11-19): a busca acha onde voltar o que o "Pausar todas" pausou.
+  { id: "rotinas-pausadas", secao: "rotinas", grupo: "Pausadas", titulo: "Rotinas pausadas", frase: "Reative as rotinas pausadas juntas ou uma a uma", palavras: ["pausadas", "pausa", "reativar", "desfazer", "voltar", "ativar"] },
   // ADR-166 (revisor): a seção Aprovações entrou junto com a busca da ADR-167 na integração.
   { id: "aprovacoes", secao: "aprovacoes", grupo: null, titulo: "Aprovações", frase: "Escolha o modo, as regras do revisor e o nível de cada app", palavras: ["revisor", "modo", "permitir", "regras", "teto", "só leitura"] },
   // ADR-188: Sobre o nod — a versão, o reiniciar e o reiniciar sozinho do app do Mac.

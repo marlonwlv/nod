@@ -20,6 +20,25 @@
   outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--raio-6); }
 .ag-mes-bt:focus-visible, .ag-folha :is(.ag-folha-item, .ag-mm-dia, .ag-mm-seta):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
+/* ---------- Pausadas juntas (desfazer a pausa em lote, protótipo do Paper de 2026-11-19) ----------
+   O bloco no topo da seção: a frase do lote, o "Reativar as N" (o único botão cheio da seção: é a volta do clique sem
+   querer) e o "Ver quais", que abre a lista com o Ativar de cada uma. */
+.ag-lote { margin: 16px 0 4px; padding: 14px 14px 10px 16px; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface); }
+.ag-lote + .ag-lote { margin-top: 8px; }
+.ag-lote-cab { display: flex; align-items: center; gap: 14px; }
+.ag-lote-ic { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.ag-lote-txt { flex: 1; min-width: 0; }
+.ag-lote-txt b { display: block; font-size: var(--fs-corpo); font-weight: 600; color: var(--ink); }
+.ag-lote-txt p { margin: 2px 0 0; font-size: var(--fs-corpo-2); line-height: 18px; color: var(--ink-2); }
+.ag-lote-reativar { flex: none; height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--ink); color: var(--surface); font: inherit; font-size: var(--fs-corpo-2); font-weight: 500; cursor: pointer; white-space: nowrap; }
+.ag-lote-reativar:hover { background: color-mix(in srgb, var(--ink) 86%, var(--surface)); }
+.ag-lote-reativar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ag-lote-ver { margin: 6px 0 0 50px; }
+.ag-lote-lista { margin: 4px 0 0; padding: 0; list-style: none; }
+.ag-cel .ag-lote { margin: 12px 20px 4px; }
+.ag-cel .ag-lote-cab { flex-wrap: wrap; }
+.ag-cel .ag-lote-reativar { height: 44px; width: 100%; }
+
 /* ---------- A régua ---------- */
 .ag-preso { position: sticky; top: 0; z-index: 3; margin: 0 -8px; padding: 8px 8px 0; background: var(--surface); }
 .ag-regua { position: relative; display: flex; align-items: center; gap: 8px; min-height: 44px; border-bottom: 1px solid var(--line); }

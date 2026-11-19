@@ -56,11 +56,12 @@ export function renderAgendaRotinas(estado: Estado, celular = false): string {
   const semRotina = !!a.dto && a.dto.rotinas.length === 0 && estado.rotinas.length === 0;
   const corpo = a.erro ? renderErro(celular) : !visao ? renderCarregando(celular) : semRotina ? renderVazio(celular) : renderDias(ctx, visao);
   if (celular) {
-    return `<section class="ag-agenda ag-cel" aria-label="Agenda das rotinas">${semRotina || a.erro ? "" : chipsDoCelular(ctx)}<div class="ag-corpo">${corpo}</div>${folhaDoCelular(ctx, visao)}</section>`;
+    return `<section class="ag-agenda ag-cel" aria-label="Agenda das rotinas">${semRotina || a.erro ? "" : chipsDoCelular(ctx)}${blocosDosLotes(ctx)}<div class="ag-corpo">${corpo}</div>${folhaDoCelular(ctx, visao)}</section>`;
   }
   return `<section class="espaco-secao cfg-secao ag-agenda" aria-labelledby="ag-titulo">
     <div class="ag-cab"><h2 id="ag-titulo">Rotinas</h2>${link("navegar", "+ Nova rotina", { tela: "nova-rotina" })}</div>
     <p class="intro">O que seus bots fazem sozinhos, num horário.</p>
+    ${blocosDosLotes(ctx)}
     ${semRotina ? "" : `<div class="ag-preso">${regua(ctx, visao)}${ctx.ui.mes ? miniMes(ctx, visao, false) : ""}</div>`}
     <div class="ag-corpo">${corpo}</div>
   </section>`;
@@ -164,13 +165,57 @@ function linhaDoAgora(agora: number): string {
   return `<li class="ag-agora" role="separator" aria-label="${esc(`Agora, ${hora(agora)}`)}"><span class="ag-agora-h" aria-hidden="true">${esc(hora(agora))}</span><b class="ag-agora-bola" aria-hidden="true"></b><i aria-hidden="true"></i></li>`;
 }
 
+/**
+ * Desfazer a pausa em lote (protótipo aprovado no Paper, 2026-11-19): no topo de Ajustes › Rotinas, um bloco por pausa
+ * em lote que ainda tem rotina pausada nele — "38 rotinas pausadas juntas", "Reativar as 38" e "Ver quais". Reativar volta
+ * só as do lote; as que a pessoa pausou uma a uma ficam no grupo de sempre, abaixo do agora. Some quando o lote acaba (as
+ * rotinas voltaram juntas ou uma a uma). O primeiro bloco leva o id do ajuste "rotinas-pausadas", que a busca acha.
+ */
+function blocosDosLotes(ctx: Ctx): string {
+  const minhas = ctx.estado.rotinas.filter((r) => r.rotina.ownerId === ctx.estado.sessao?.pessoaId && r.rotina.estado === "pausada" && r.rotina.pausaLote);
+  if (minhas.length === 0) return "";
+  const lotes = new Map<string, { em: number; rotinas: RotinaDto[] }>();
+  for (const r of minhas) {
+    const l = r.rotina.pausaLote!;
+    const g = lotes.get(l.id) ?? { em: l.em, rotinas: [] };
+    g.rotinas.push(r);
+    lotes.set(l.id, g);
+  }
+  const botDe = (r: RotinaDto) => ctx.estado.frota?.agentes.find((a) => a.id === r.rotina.agenteId) ?? null;
+  return [...lotes.entries()].sort((a, b) => b[1].em - a[1].em).map(([id, g], i) => {
+    const n = g.rotinas.length;
+    const bots = new Set(g.rotinas.map((r) => r.rotina.agenteId)).size;
+    const aberto = ctx.ui.loteAberto === id;
+    const titulo = `${n} ${n === 1 ? "rotina pausada" : "rotinas pausadas juntas"}`;
+    const frase = `${quandoDoLote(g.em, ctx.hoje)}${bots > 1 ? ` · de ${bots} bots` : ""}. Reativar volta só ${n === 1 ? "esta" : "estas"}; as que você pausou antes ficam como estão.`;
+    const lista = aberto
+      ? `<ul class="ag-lista ag-lote-lista" id="ag-lote-${esc(id)}">${g.rotinas.map((r) => `<li class="ag-item ag-nota"><div class="ag-linha ag-linha-muda"><span class="ag-hora ag-hora-ic" aria-hidden="true">${ICONE.relogioMini}</span>${mascote(botDe(r))}<span class="ag-nome">${esc(tituloDaRotina(r.rotina.instrucao))}</span>${link("ativar-rotina", "Ativar", { id: r.rotina.id }, `Ativar a rotina ${tituloDaRotina(r.rotina.instrucao)}`)}</div></li>`).join("")}</ul>`
+      : "";
+    return `<div class="ag-lote"${i === 0 ? ' id="ajuste-rotinas-pausadas"' : ""} role="group" aria-label="${esc(titulo)}">
+      <div class="ag-lote-cab"><span class="ag-lote-ic" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6 3.5v9M10 3.5v9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+        <div class="ag-lote-txt"><b>${esc(titulo)}</b><p>${esc(frase)}</p></div>
+        <button type="button" class="ag-lote-reativar" data-act="reativar-lote" data-id="${esc(id)}">${esc(n === 1 ? "Reativar" : `Reativar as ${n}`)}</button></div>
+      <button type="button" class="ag-link ag-lote-ver" data-act="agenda-lote" data-id="${esc(id)}" aria-expanded="${aberto}" aria-controls="ag-lote-${esc(id)}">${aberto ? "Esconder" : "Ver quais"}</button>
+      ${lista}
+    </div>`;
+  }).join("");
+}
+
+/** "Hoje às 09:36", "Ontem às 18:02", "seg 17 às 09:00". */
+export function quandoDoLote(em: number, hoje: string): string {
+  const dia = diaDe(em);
+  const rel = dia === hoje ? "Hoje" : dia === somarDias(hoje, -1) ? "Ontem" : diaCurto(dia);
+  return `${rel} às ${hora(em)}`;
+}
+
 /** Logo abaixo do agora: as paradas (falta acesso) e as pausadas, que não têm hora na agenda. */
 function abaixoDoAgora(ctx: Ctx): string {
   // Revisão 2 do PR 595: Ativar e Conectar só na rotina da própria pessoa; a de um colega não aparece aqui.
   const passa = (r: RotinaDto) => r.rotina.ownerId === ctx.estado.sessao?.pessoaId && (ctx.ui.bots.length === 0 || ctx.ui.bots.includes(r.rotina.agenteId));
   const botDe = (r: RotinaDto) => ctx.estado.frota?.agentes.find((a) => a.id === r.rotina.agenteId) ?? null;
   const paradas = ctx.estado.rotinas.filter((r) => r.bloqueio && r.rotina.estado === "ativa" && passa(r));
-  const pausadas = ctx.ui.soProblema ? [] : ctx.estado.rotinas.filter((r) => r.rotina.estado === "pausada" && passa(r));
+  // As de uma pausa em lote ficam no bloco delas, no topo (blocosDosLotes); aqui, só as pausadas uma a uma.
+  const pausadas = ctx.ui.soProblema ? [] : ctx.estado.rotinas.filter((r) => r.rotina.estado === "pausada" && !r.rotina.pausaLote && passa(r));
   // QA do PR #13 (NOD-412): no celular o desfecho solto da nota some (falta espaço ao lado do Ativar); a pausada com data
   // leva o "Pausada até …" embaixo do nome, como o "Prevista" das outras linhas — senão o celular não diz quando volta.
   const nota = (r: RotinaDto, desf: string, tom: string, acao: string, sobNome = false) => {

@@ -208,7 +208,7 @@ import { nomesDosMembros, renderCabecalhoSala, renderNovaSala } from "./telas/sa
 import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
 import { aparenciaDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
-import { mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
+import { DURACAO_AVISO_LOTE_MS, mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
 import { criarAtualizacaoNaWeb } from "./lib/atualizacao-app.ts";
 import { criarPonteSimuladaNaWeb, versaoSimuladaNaWeb } from "./lib/atualizacao-simulada-web.ts";
 import { mostrarAvisoAtualizado } from "./lib/aviso-atualizado.ts";
@@ -318,7 +318,7 @@ const paleta = criarPaleta({
     const botAberto = aberto ? porId.get(aberto) : undefined;
     return itensDaPaleta({
       mod: MOD_DA_PALETA,
-      atuais: { modo: MODO_NA_PALETA[botAberto?.modoAprovacao ?? "manual"] ?? "Manual", temaEscuro: document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches), quickChat: "⌥" },
+      atuais: { modo: MODO_NA_PALETA[botAberto?.modoAprovacao ?? "manual"] ?? "Manual", temaEscuro: document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches), quickChat: "⌥", rotinasAtivas: estado.rotinas.filter((r) => r.rotina.estado === "ativa" && r.rotina.ownerId === estado.sessao?.pessoaId).length },
       bots: bots.map((a) => ({ id: a.id, nome: a.nome, titulo: a.titulo, conversaId: a.conversaId, previa: previaDoBot(a), recencia: recencia.get(a.id) ?? 999 })),
       trabalhos: trabalhos.map((t) => ({ id: t.id, titulo: t.titulo, botNome: porId.get(t.agenteId)?.nome ?? "", quando: horaDaFala(new Date(t.criadoEm).toISOString()) })),
       salas: estado.salas.map(({ sala, membros }) => ({ id: sala.id, nome: sala.nome, conversaId: sala.conversaId, membros: membros.map((m) => porId.get(m.agenteId ?? "")?.nome).filter(Boolean).join(", ") })),
@@ -330,14 +330,37 @@ const paleta = criarPaleta({
 
 const MODO_NA_PALETA: Readonly<Record<string, string>> = { manual: "Manual", automatico: "Automático", total: "Total" };
 
-/** Paper 08: "Pausar todas as rotinas" — pausa cada rotina ativa da pessoa (a mesma ação da chave do painel). */
+/**
+ * Paper 08: "Pausar todas as rotinas". Desfazer a pausa em lote (protótipo do Paper, 2026-11-19): uma chamada só, que
+ * marca as rotinas com um lote, e o aviso de 15 s com o tempo à vista, Desfazer e ×. O Desfazer volta SÓ esse lote — as
+ * que a pessoa já tinha pausado antes ficam como estão —; passado o aviso, o lote segue em Ajustes › Rotinas.
+ */
 async function pausarTodasAsRotinas(): Promise<void> {
-  const ativas = estado.rotinas.filter((r) => r.rotina.estado === "ativa" && r.rotina.ownerId === estado.sessao?.pessoaId);
-  if (!api || !ativas.length) { anunciar("Nenhuma rotina ativa para pausar"); return; }
+  if (!api) return;
   const cliente = api;
-  await Promise.allSettled(ativas.map((r) => cliente.pausarRotina(r.rotina.id)));
-  anunciar(`${ativas.length} ${ativas.length === 1 ? "rotina pausada" : "rotinas pausadas"}`);
+  let r: Awaited<ReturnType<typeof cliente.pausarTodasRotinas>>;
+  try { r = await cliente.pausarTodasRotinas(); } catch { mostrarAvisoDesfazer({ texto: "Não deu para pausar as rotinas. Nada mudou." }); return; }
   dispatch({ tipo: "invalidar", quais: ["rotinas"] });
+  const lote = r.lote;
+  if (!lote || r.rotinaIds.length === 0) { mostrarAvisoDesfazer({ texto: "Nenhuma rotina ativa para pausar" }); return; }
+  const n = r.rotinaIds.length;
+  mostrarAvisoDesfazer({
+    texto: `${n} ${n === 1 ? "rotina pausada" : "rotinas pausadas"}`,
+    ms: DURACAO_AVISO_LOTE_MS,
+    contagem: true,
+    fechar: true,
+    aoDesfazer: () => reativarLoteDeRotinas(lote.id),
+  });
+}
+
+/** O Desfazer do aviso e o "Reativar as N" de Ajustes › Rotinas: a mesma rota, que volta só as rotinas do lote. */
+async function reativarLoteDeRotinas(loteId: string): Promise<void> {
+  if (!api) return;
+  const cliente = api;
+  let r: Awaited<ReturnType<typeof cliente.reativarLoteDeRotinas>>;
+  try { r = await cliente.reativarLoteDeRotinas(loteId); } catch { mostrarAvisoDesfazer({ texto: "Não deu para reativar as rotinas. Tente de novo em Ajustes › Rotinas." }); return; } finally { dispatch({ tipo: "invalidar", quais: ["rotinas"] }); }
+  const n = r.reativadas.length;
+  mostrarAvisoDesfazer({ texto: n === 0 ? "Nenhuma rotina para reativar" : `${n} ${n === 1 ? "rotina reativada" : "rotinas reativadas"}` });
 }
 
 function executarDaPaleta(item: ItemPaleta): void {
@@ -7956,6 +7979,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-act="agenda-busca-abrir"]')?.focus());
   },
   "agenda-pausadas": () => dispatch({ tipo: "agenda-ui", mudanca: { pausadasAbertas: !estado.agenda.ui.pausadasAbertas } }),
+  "agenda-lote": (el) => dispatch({ tipo: "agenda-ui", mudanca: { loteAberto: estado.agenda.ui.loteAberto === el.dataset.id ? null : el.dataset.id ?? null } }),
+  "reativar-lote": (el) => void reativarLoteDeRotinas(el.dataset.id ?? ""),
   "agenda-fechar": () => dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null, mes: null } }),
   // O link "Abrir na agenda" que o bot escreve (ver_agenda): abre Rotinas no dia, com o filtro de problema.
   "abrir-agenda": (el) => {
