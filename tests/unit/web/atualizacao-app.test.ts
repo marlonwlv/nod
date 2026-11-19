@@ -158,6 +158,11 @@ describe("ADR-188: a atualização do app na janela web", () => {
 
   it("Sobre o nod no navegador explica que a web já vem atualizada", () => {
     expect(renderSobre(null, false, 0)).toContain("No navegador");
+    // 2026-11-19: app de antes da rc.9 (tem nodDesktop, não tem a ponte da atualização): não diz "No navegador".
+    const antigo = renderSobre(null, false, 0, true);
+    expect(antigo).not.toContain("No navegador");
+    expect(antigo).toContain("anterior à 1.0.0-rc.9");
+    expect(antigo).toContain("Procurar atualizações…");
   });
 
   it("a seção entra nas Configurações, na busca dos ajustes e no CSS da página", () => {
