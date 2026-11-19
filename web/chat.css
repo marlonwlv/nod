@@ -387,7 +387,9 @@
 .cabecalho-pilula :is(.abas-tarefa, .pilula-e-abas, .botao-abas, .painel-alternar) { pointer-events: auto; }
 .cabecalho-pilula .abas-tarefa { background: var(--surface); }
 .pilula-e-abas { display: flex; align-items: center; }
-.abas-tarefa.abas-com-pilula { height: 52px; padding-left: 12px; padding-right: 12px; }
+/* Validação de 2026-11-19: 56 px, a mesma altura do cabeçalho da pílula — com 52, a área da conversa mudava 4 px na troca
+   de modo e as mensagens tremiam ao fechar a sanfona. */
+.abas-tarefa.abas-com-pilula { height: 56px; padding-left: 12px; padding-right: 12px; }
 .abas-tarefa .at-pilula { display: flex; flex: none; align-self: stretch; align-items: center; gap: 8px; padding: 0 4px; margin-right: 4px;
   border-bottom: 2px solid transparent; }
 .abas-tarefa .at-pilula.ativa { border-bottom-color: var(--chat-tinta); }
@@ -402,7 +404,7 @@
 #cabecalho .abas-tarefa .at-pilula .qd-pil > .pilula-bot { height: 30px; border: 0; box-shadow: none; background: transparent; color: var(--chat-tinta); }
 .abas-tarefa .at-pilula .pg-pontos { top: calc(100% + 3px); }
 .abas-tarefa .at-pilula :is(.presenca, .pilula-sub, .pilula-presenca) { display: none; }
-/* Validação de 2026-11-18 (alinhamento): na fileira de 52, as abas ocupam a altura toda, com o conteúdo no meio da linha
+/* Validação de 2026-11-18 (alinhamento): na fileira de 56, as abas ocupam a altura toda, com o conteúdo no meio da linha
    da pílula e o traço da ativa embaixo, como o da pílula. */
 .abas-com-pilula > :is(.at-aba, .at-outras, .at-conversa) { height: 100%; }
 .abas-tarefa .at-fechar-abas { display: flex; flex: none; align-self: center; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 8px;
