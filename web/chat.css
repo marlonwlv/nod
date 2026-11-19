@@ -408,6 +408,7 @@
 .abas-tarefa .at-fechar-abas { display: flex; flex: none; align-self: center; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 8px;
   background: var(--chat-chip-fundo); color: var(--chat-tinta); font-size: 12px; line-height: 16px; font-weight: var(--peso-medio); white-space: nowrap; }
 .abas-tarefa .at-fechar-abas:hover { background: var(--hover); }
+.abas-tarefa .at-fechar-abas { overflow: hidden; box-sizing: border-box; }
 .cabecalho-pilula .abas-tarefa .painel-alternar { position: static; flex: none; }
 .abas-tarefa .at-outras.precisa::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--chat-aba-precisa); }
 /* O botão de abas (modo pílula, e nas outras páginas do bot no modo abas). */
@@ -431,10 +432,11 @@
 .stage.qd-no-quadro .botao-abas .ba-num { display: block; }
 /* Paper 10b (1b e 1d): entrando, as abas saem de dentro da pílula; "Fechar abas", elas voltam para ela antes de a pílula
    voltar ao centro (140 ms, o DURACAO_RECOLHER_ABAS_MS do main). */
-/* Validação de 2026-11-18: mais devagar, para ver de onde as abas saem — a pílula anda em 460 ms (main.ts) e as abas
-   começam 120 ms depois, em 420 ms; ao fechar, recolhem em 260 ms (DURACAO_RECOLHER_ABAS_MS). */
-.abas-com-pilula.entrando > :not(.at-pilula) { animation: at-sai-da-pilula 420ms cubic-bezier(.3, 1.1, .5, 1) 120ms both; }
-.abas-com-pilula.recolhendo > :not(.at-pilula) { animation: at-volta-para-pilula 260ms ease-in both; }
+/* Validação de 2026-11-18 (a sanfona): a pílula vai para a esquerda e o botão de abas para a direita, onde vira o
+   "Fechar abas" (520 ms, SANFONA_MS no main); as abas abrem entre as duas 160 ms depois, em 420 ms. Ao fechar, as abas
+   se recolhem em 260 ms (DURACAO_RECOLHER_ABAS_MS) e só então a pílula e o botão voltam. */
+.abas-com-pilula.entrando > :not(.at-pilula, .at-fechar-abas) { animation: at-sai-da-pilula 420ms cubic-bezier(.32, .72, 0, 1) 160ms both; }
+.abas-com-pilula.recolhendo > :not(.at-pilula, .at-fechar-abas) { animation: at-volta-para-pilula 260ms ease-in both; }
 @keyframes at-sai-da-pilula { from { opacity: 0; transform: translateX(-24px); } }
 @keyframes at-volta-para-pilula { to { opacity: 0; transform: translateX(-24px); } }
 @media (prefers-reduced-motion: reduce) { .abas-com-pilula.entrando > *, .abas-com-pilula.recolhendo > * { animation: none; } }
@@ -662,17 +664,21 @@
 @media (prefers-reduced-motion: reduce) { .pf-prontas .pf-prontas-seta { transition: none; } }
 
 /* ---- O painel do bot entra e sai deslizando (validação de 2026-11-18; a entrada era seca) --------------------------------
-   Larga: a coluna do painel cresce de 0 a 360 px enquanto o conteúdo entra de 24 px à direita, 280 ms (DURACAO_PAINEL_MS);
+   Larga: a coluna do painel cresce de 0 a 360 px enquanto o conteúdo entra da direita, 420 ms (DURACAO_PAINEL_MS);
    a conversa encolhe junto, sem pulo. Estreita (o painel sobreposto): ele desliza da direita. */
 @media (min-width: 1100px) {
-  .app.com-detalhes.painel-entrando:not(.sem-sessao) > .detalhes { animation: painel-cresce 280ms cubic-bezier(.2, .8, .2, 1) both; }
-  .app.com-detalhes.painel-saindo:not(.sem-sessao) > .detalhes { animation: painel-encolhe 280ms cubic-bezier(.4, 0, .6, 1) both; }
+  .app.com-detalhes.painel-entrando:not(.sem-sessao) > .detalhes { animation: painel-cresce 420ms cubic-bezier(.32, .72, 0, 1) both; }
+  .app.com-detalhes.painel-saindo:not(.sem-sessao) > .detalhes { animation: painel-encolhe 360ms cubic-bezier(.32, .72, 0, 1) both; }
+  .app.com-detalhes.painel-entrando:not(.sem-sessao) > .detalhes > * { animation: painel-miolo 420ms ease-out both; }
   .app.com-detalhes:is(.painel-entrando, .painel-saindo) > .detalhes > * { min-width: 360px; }
 }
-@keyframes painel-cresce { from { width: 0; opacity: 0; } to { width: 360px; opacity: 1; } }
+/* Validação de 2026-11-18 ("um pouco mais suave"): 420 ms na curva que desacelera longa; o miolo entra de 16 px e aparece
+   depois que a coluna já abriu um terço. */
+@keyframes painel-cresce { from { width: 0; } to { width: 360px; } }
 @keyframes painel-encolhe { from { width: 360px; opacity: 1; } to { width: 0; opacity: 0; } }
+@keyframes painel-miolo { 0%, 30% { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 @media (max-width: 1099px) {
-  .app.com-detalhes.detalhes-abertos.painel-entrando .detalhes { animation: painel-desliza 280ms cubic-bezier(.2, .8, .2, 1) both; }
+  .app.com-detalhes.detalhes-abertos.painel-entrando .detalhes { animation: painel-desliza 420ms cubic-bezier(.32, .72, 0, 1) both; }
 }
 @keyframes painel-desliza { from { transform: translateX(32px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .app.com-detalhes .detalhes { animation: none !important; } }

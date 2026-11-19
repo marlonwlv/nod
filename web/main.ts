@@ -3298,7 +3298,6 @@ function renderPrincipal(): void {
   if (buscaNaConversa.aberta() && chaveDaTelaDeBusca() !== telaDaBusca) buscaNaConversa.fechar(false);
   const pilulaAntes = medirPilulaDoTopo();
   regiaoEmVoltaDe("cabecalho", botaoAbrirBots(t.tipo === "conversa") + cabecalho + botaoBuscarCelular(), buscaNaConversa.no());
-  animarPilulaDoTopo(pilulaAntes);
   buscaNaConversa.encaixar(document.getElementById("cabecalho"));
   document.getElementById("cabecalho")?.classList.toggle("so-menu", cabecalho === "");
   document.getElementById("cabecalho")?.classList.toggle("cabecalho-task", t.tipo === "trabalho" || t.tipo === "nova-tarefa");
@@ -3306,6 +3305,8 @@ function renderPrincipal(): void {
   focarRenomeio();
   // Plano "tela limpa" (2026-10-16, T1): na conversa própria o cabeçalho é a pílula flutuante sobre o chat.
   document.getElementById("cabecalho")?.classList.toggle("cabecalho-pilula", t.tipo === "conversa");
+  // A sanfona mede o lugar novo só depois de o cabeçalho trocar de forma (as classes acima mudam o layout dele).
+  animarPilulaDoTopo(pilulaAntes);
   marcarPainelNaPilula();
   topoEncolhe.reavaliar();
   quadroNaTela.sincronizar(t.tipo === "conversa" && comQuadro(t.agenteId)
@@ -5070,10 +5071,43 @@ function fecharAbas(agenteId: string): void {
  * sair, o caminho inverso. A pílula é medida antes de o cabeçalho ser regravado e animada do lugar velho para o novo
  * (FLIP), só quando o cabeçalho troca de forma (centro ↔ fileira) e é a mesma pílula do mesmo bot.
  */
-function medirPilulaDoTopo(): { rect: DOMRect; naFileira: boolean; bot: string | null } | null {
+function medirPilulaDoTopo(): { rect: DOMRect; naFileira: boolean; bot: string | null; sanfona: DOMRect | null } | null {
   const el = document.querySelector<HTMLElement>("#cabecalho .qd-pil, #cabecalho .pilula-bot");
   if (!el) return null;
-  return { rect: el.getBoundingClientRect(), naFileira: !!el.closest(".abas-com-pilula"), bot: botDoTopo() };
+  const sanfona = pecaDaSanfona();
+  return { rect: el.getBoundingClientRect(), naFileira: !!el.closest(".abas-com-pilula"), bot: botDoTopo(), sanfona: sanfona?.getBoundingClientRect() ?? null };
+}
+/**
+ * A sanfona (validação de 2026-11-18): o botão de abas ao lado da pílula e o "Fechar abas" no fim da fileira são a mesma
+ * peça. Entrando, o botão viaja para a direita e se abre no "Fechar abas" enquanto a pílula vai para a esquerda; saindo, o
+ * "Fechar abas" encolhe de volta no círculo ao lado da pílula.
+ */
+function pecaDaSanfona(): HTMLElement | null {
+  return document.querySelector<HTMLElement>("#cabecalho .pilula-e-abas .botao-abas, #cabecalho .abas-com-pilula .at-fechar-abas");
+}
+const SANFONA_MS = 520;
+const SANFONA_CURVA = "cubic-bezier(.32, .72, 0, 1)";
+function animarSanfona(de: DOMRect): void {
+  const el = pecaDaSanfona();
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0) return;
+  const abrindo = el.classList.contains("at-fechar-abas");
+  if (abrindo) {
+    // No fim da fileira a largura pode animar (o espaço antes dele absorve); o botão abre no "Fechar abas".
+    el.animate([
+      { transform: `translate(${de.left - r.left}px, ${de.top - r.top}px)`, width: `${de.width}px`, height: `${de.height}px`, borderRadius: `${de.height / 2}px` },
+      { transform: "none", width: `${r.width}px`, height: `${r.height}px`, borderRadius: "8px" },
+    ], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+  } else {
+    // Ao lado da pílula, mudar a largura empurraria a pílula (as duas centradas juntas): o "Fechar abas" encolhe em escala.
+    el.animate([
+      { transformOrigin: "0 0", transform: `translate(${de.left - r.left}px, ${de.top - r.top}px) scale(${de.width / r.width}, ${de.height / r.height})`, borderRadius: "8px" },
+      { transformOrigin: "0 0", transform: "none", borderRadius: `${r.height / 2}px` },
+    ], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+  }
+  // O miolo (o × e "Fechar abas", ou o ícone de abas) entra depois que a peça já andou um pouco.
+  for (const filho of el.children) (filho as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: SANFONA_MS, easing: "ease-out" });
 }
 function botDoTopo(): string | null {
   const t = estado.tela;
@@ -5088,12 +5122,13 @@ function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
   const dx = antes.rect.left - r.left;
   const dy = antes.rect.top - r.top;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 460, easing: "cubic-bezier(.3, 1.1, .5, 1)" });
+  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+  if (antes.sanfona) animarSanfona(antes.sanfona);
   if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando");
 }
 
 /** O painel do bot entrando ou saindo (validação de 2026-11-18): a classe dura a animação do CSS (painel-entra/sai). */
-const DURACAO_PAINEL_MS = 280;
+const DURACAO_PAINEL_MS = 420;
 function animarPainel(app: Element, como: "entrando" | "saindo"): void {
   if (reduzirMovimento()) return;
   app.classList.remove("painel-entrando", "painel-saindo");
