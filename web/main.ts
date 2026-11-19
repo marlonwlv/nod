@@ -5092,6 +5092,16 @@ function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
   if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando");
 }
 
+/** O painel do bot entrando ou saindo (validação de 2026-11-18): a classe dura a animação do CSS (painel-entra/sai). */
+const DURACAO_PAINEL_MS = 280;
+function animarPainel(app: Element, como: "entrando" | "saindo"): void {
+  if (reduzirMovimento()) return;
+  app.classList.remove("painel-entrando", "painel-saindo");
+  void (app as HTMLElement).offsetWidth;
+  app.classList.add(`painel-${como}`);
+  if (como === "entrando") window.setTimeout(() => app.classList.remove("painel-entrando"), DURACAO_PAINEL_MS + 40);
+}
+
 /** Paper 10b: as abas somem para dentro da pílula antes de ela voltar ao centro (a mesma duração do CSS). */
 const DURACAO_RECOLHER_ABAS_MS = 260;
 
@@ -8295,9 +8305,23 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       else if (t.tipo === "conversa") abrirPerfil(t.agenteId, "chat");
       return;
     }
-    if (window.matchMedia("(max-width: 1099px)").matches) { app.classList.toggle("detalhes-abertos"); marcarPainelNaPilula(); void reidratar(); return; }
+    if (window.matchMedia("(max-width: 1099px)").matches) {
+      const abrindo = !app.classList.contains("detalhes-abertos");
+      app.classList.toggle("detalhes-abertos");
+      if (abrindo) animarPainel(app, "entrando");
+      marcarPainelNaPilula();
+      void reidratar();
+      return;
+    }
     const oculto = !app.classList.contains("detalhes-ocultos");
-    app.classList.toggle("detalhes-ocultos", oculto);
+    // Validação de 2026-11-18: o painel entra e sai deslizando (a coluna cresce de 0 a 360 px), não de uma vez.
+    if (oculto && !reduzirMovimento() && app.classList.contains("com-detalhes")) {
+      animarPainel(app, "saindo");
+      window.setTimeout(() => { app.classList.add("detalhes-ocultos"); app.classList.remove("painel-saindo"); }, DURACAO_PAINEL_MS);
+    } else {
+      app.classList.toggle("detalhes-ocultos", oculto);
+      if (!oculto) animarPainel(app, "entrando");
+    }
     painelAberto = !oculto;
     painelAbertoNaHora = false;
     marcarPainelNaPilula();

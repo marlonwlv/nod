@@ -384,7 +384,7 @@
 .stage > .cabecalho-pilula.cabecalho-abas { height: auto; padding: 0; align-items: stretch; justify-content: flex-start; }
 /* O cabeçalho da conversa é uma coluna flutuante sem cliques (interface.css): a fileira, a linha pílula + abas e o botão
    recebem o clique de volta; a fileira tem o fundo da tela (por cima do véu). */
-.cabecalho-pilula :is(.abas-tarefa, .pilula-e-abas, .botao-abas) { pointer-events: auto; }
+.cabecalho-pilula :is(.abas-tarefa, .pilula-e-abas, .botao-abas, .painel-alternar) { pointer-events: auto; }
 .cabecalho-pilula .abas-tarefa { background: var(--surface); }
 .pilula-e-abas { display: flex; align-items: center; }
 .abas-tarefa.abas-com-pilula { height: 52px; padding-left: 12px; padding-right: 12px; }
@@ -660,3 +660,19 @@
 .pf-prontas .pf-prontas-seta { transition: transform var(--dur-rapido) ease; }
 .pf-prontas[open] .pf-prontas-seta { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .pf-prontas .pf-prontas-seta { transition: none; } }
+
+/* ---- O painel do bot entra e sai deslizando (validação de 2026-11-18; a entrada era seca) --------------------------------
+   Larga: a coluna do painel cresce de 0 a 360 px enquanto o conteúdo entra de 24 px à direita, 280 ms (DURACAO_PAINEL_MS);
+   a conversa encolhe junto, sem pulo. Estreita (o painel sobreposto): ele desliza da direita. */
+@media (min-width: 1100px) {
+  .app.com-detalhes.painel-entrando:not(.sem-sessao) > .detalhes { animation: painel-cresce 280ms cubic-bezier(.2, .8, .2, 1) both; }
+  .app.com-detalhes.painel-saindo:not(.sem-sessao) > .detalhes { animation: painel-encolhe 280ms cubic-bezier(.4, 0, .6, 1) both; }
+  .app.com-detalhes:is(.painel-entrando, .painel-saindo) > .detalhes > * { min-width: 360px; }
+}
+@keyframes painel-cresce { from { width: 0; opacity: 0; } to { width: 360px; opacity: 1; } }
+@keyframes painel-encolhe { from { width: 360px; opacity: 1; } to { width: 0; opacity: 0; } }
+@media (max-width: 1099px) {
+  .app.com-detalhes.detalhes-abertos.painel-entrando .detalhes { animation: painel-desliza 280ms cubic-bezier(.2, .8, .2, 1) both; }
+}
+@keyframes painel-desliza { from { transform: translateX(32px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .app.com-detalhes .detalhes { animation: none !important; } }
