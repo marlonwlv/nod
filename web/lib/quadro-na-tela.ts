@@ -899,11 +899,12 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // ADA-12 (revisão 4): o histórico de movimentos aberto continua aberto (recriado fechado, a tarefa encolhia e a reserva
     // ficava em branco).
     const movimentosAbertos = mesmaVista && conteudo.querySelector<HTMLDetailsElement>("details.qd-hist")?.open === true;
-    conteudo.innerHTML = html;
+    // ADR-180: com a grade em React, o desenho grava em volta dela (o mesmo nó fica no documento; só o que mudou é
+    // redesenhado). Fase 5 da ADR-179: tirá-la e pô-la de volta recalculava o estilo da grade inteira a cada frame.
+    if (gradeRx) gradeRx.escrever(conteudo, html);
+    else conteudo.innerHTML = html;
     htmlDesenhado = html;
     marcarEstadoDaPagina(doc);
-    // ADR-180: a grade em React volta para a vaga que o desenho deixou (o mesmo nó, só o que mudou é redesenhado).
-    gradeRx?.encaixar(conteudo);
     // ADA-302: a folha da tarefa no celular sobe (qd-sobe, 24 px) só quando abre. O innerHTML recria o article e, sem isto,
     // cada desenho da mesma vista (o passo novo do run aberto, o frame) subia de novo: o texto lido descia 24 px e voltava
     // em 220 ms, por cima da âncora (medido a 390: 3 px aos 80 ms do passo).
