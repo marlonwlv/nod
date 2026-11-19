@@ -203,7 +203,8 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
     // comparar com o desenho por string no mesmo build.
     const semReact = (process.env.CARGA_SEM_REACT ?? "").split(",").filter(Boolean);
     if (semReact.length) await cdp.enviar("Page.addScriptToEvaluateOnNewDocument", { source: `try { ${semReact.map((r) => `localStorage.setItem(${JSON.stringify(`nod.${r}.react`)}, "0");`).join(" ")} } catch {}` });
-    // CARGA_COM_REACT=quadro: liga a grade do quadro em React (ADR-180, desligada por padrão) no mesmo build.
+    // CARGA_COM_REACT=quadro: liga a grade do quadro em React num código em que ela ainda é desligada por padrão (a main
+    // antes da fase 5 da ADR-179); depois dela, CARGA_SEM_REACT=quadro volta à grade por string no mesmo build.
     const comReact = (process.env.CARGA_COM_REACT ?? "").split(",").filter(Boolean);
     if (comReact.length) await cdp.enviar("Page.addScriptToEvaluateOnNewDocument", { source: `try { ${comReact.map((r) => `localStorage.setItem(${JSON.stringify(`nod.${r}.react`)}, "1");`).join(" ")} } catch {}` });
     await cdp.enviar("Page.navigate", { url: urlWeb() });

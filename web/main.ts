@@ -161,6 +161,7 @@ import { lembrar } from "./lib/lembrar.ts";
 import { atualizarGaveta } from "./lib/gaveta-render.ts";
 import { blocosMudariam, devolverRegiao, entregarRegiao, esquecerRegiao, focarDeNovo, regiao, regiaoEmVoltaDe, regiaoEntregue, regiaoMudaria, regiaoPorBlocos } from "./lib/regioes.ts";
 import { reactNaRegiao, type RegiaoReact } from "./lib/react-na-regiao.ts";
+import { reactNoQuadro } from "./lib/react-no-quadro.ts";
 import { mudancaSujaAGaveta, reporSeletor, salvarOuRepor } from "./lib/salvar-ou-repor.ts";
 import { PERMANENCIA_MS } from "./lib/estado-do-indicador.ts";
 import { criarAnunciador, criarRelogioDaFala, escreverEstados, escreverTempos, escreverVariantes, lerFalasNaTela, TICK_CURTO_MS, type FalaNaTela } from "./lib/fala-viva.ts";
@@ -1135,6 +1136,8 @@ const canvasNaTela = criarCanvasNaTela(document, { api: () => api, conversa: () 
   mascote: (id) => { const a = estado.frota?.agentes.find((x) => x.id === id); return a ? iconeAgente(a, "sm") : null; } });
 configurarAppCanvas({ ler: () => (api ? api.appCanvas() : null), aoMudar: () => render() });
 const quadroNaTela = criarQuadroNaTela(document, {
+  // ADR-180: a grade do quadro em React, ligada por padrão (`?quadro-react=0` volta à por string neste navegador).
+  gradeReact: reactNoQuadro(location.href, (() => { try { return localStorage; } catch { return null; } })()),
   // ADA-8: a pílula tem um dono só para o dedo (web/lib/gesto-da-pilula-na-tela.ts); a busca e o menu entram por aqui.
   busca: {
     ativa: () => celular.ativo() && chaveDaTelaDeBusca() !== null,

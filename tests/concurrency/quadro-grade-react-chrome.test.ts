@@ -8,11 +8,11 @@ import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
 import { abrirChrome, avaliar, type Cdp } from "../../scripts/carga-tela/cdp.ts";
 
 /**
- * Fase 5 da ADR-179 / ADR-180 (decisão 2, item 6): a grade do quadro em React (`?quadro-react=1`) no Chrome de verdade,
+ * Fase 5 da ADR-179 / ADR-180 (decisão 2, item 6): a grade do quadro em React (`gradeReact`, a chave ligada) no Chrome de verdade,
  * arrastando por PONTEIRO (Input.dispatchMouseEvent, como a mão: o dnd-kit não ouve o arrasto nativo do HTML). É o par das
  * jornadas que arrastam pelo evento nativo — quadro-jornada (o campo Responder dentro do card arrastável), quadro-composer
  * (soltar arquivo no quadro) e quadro-rolagem (a releitura no meio do arrasto) —, que seguem valendo para a grade por
- * string (`?quadro-react=0`). Aqui, com o quadro-na-tela, o CSS e o JS do app e uma API falsa na página (sem servidor):
+ * string (`?quadro-react=0`; quem monta o quadro sem `gradeReact` tem a por string). Aqui, com o quadro-na-tela, o CSS e o JS do app e uma API falsa na página (sem servidor):
  *  - arrastar um card até outra coluna: o flutuante e a dica no meio, o `mudarTarefa` com a coluna ao soltar;
  *  - a releitura que chega no meio do arrasto: a grade é o mesmo nó (o desenho grava em volta dela) e o arrasto termina;
  *  - apertar no Responder e arrastar seleciona o texto e não pega o card;
@@ -60,7 +60,7 @@ window.__mudou = () => { versao++; tarefas = tarefas.map((t) => (t.id === "t5" ?
 window.__montar = () => {
   document.getElementById("timeline").innerHTML = "<p>conversa</p>";
   document.getElementById("composer").innerHTML = "<textarea></textarea>";
-  const t = criarQuadroNaTela(document, { reduzido: () => true, dados: { api: () => api, agente: () => ({ avatar: "<span>A</span>", nome: "Ada" }),
+  const t = criarQuadroNaTela(document, { reduzido: () => true, gradeReact: true, dados: { api: () => api, agente: () => ({ avatar: "<span>A</span>", nome: "Ada" }),
     hora: () => "10:00", recolherEm: 60_000, juntarEm: 10, agentes: () => [{ id: "a", nome: "Ada" }],
     composer: { celular: () => false, sugestoes: () => [], anexos: { aceita: () => "tudo", adicionar: (fs) => { for (const f of fs) window.__fila.push(f.name); },
       prontos: () => [], quantos: () => window.__fila.length, retirar: () => ({ confirmar: () => {}, devolver: () => {} }) } } } });
@@ -84,8 +84,7 @@ descrever("ADR-180: a grade do quadro em React no Chrome real, arrastando por po
     let html = readFileSync(new URL("web/index.html", RAIZ), "utf8");
     // As folhas do app, inclusive as de componente (web/react/quadro/grade-do-quadro.css), embutidas.
     html = html.replace(/<link rel="stylesheet" href="\/([\w/-]+\.css)" \/>/g, (_, f: string) => `<style>${readFileSync(new URL(`web/${f}`, RAIZ), "utf8")}</style>`);
-    // A chave da grade em React (ADR-180), antes do app: o quadro-na-tela a lê ao nascer.
-    html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<script>try { localStorage.setItem("nod.quadro.react", "1"); } catch {}</script><script>${js.outputFiles.find((f) => f.path.endsWith(".js"))!.text}</script>`);
+    html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<script>${js.outputFiles.find((f) => f.path.endsWith(".js"))!.text}</script>`);
     writeFileSync(join(dir, "p.html"), html);
     url = pathToFileURL(join(dir, "p.html")).href;
     process.env.CARGA_CHROME = chrome!;

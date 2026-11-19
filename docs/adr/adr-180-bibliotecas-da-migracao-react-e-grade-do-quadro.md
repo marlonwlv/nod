@@ -43,7 +43,7 @@ dependência nova de front precisa de outra ADR.
    manual (o `mudar_tarefa` não tem o campo; `ordem` só nasce na criação). Enquanto não houver o campo, os cards não
    abrem espaço no arrasto (estratégia parada) e soltar na própria coluna faz o que fazia. Com o campo, basta ligar
    `acoes.reordenar` (a estratégia vira `verticalListSortingStrategy`).
-6. **Atrás de uma chave, desligada por padrão.** `?quadro-react=1` liga (fica no `localStorage` do navegador) e
+6. **Atrás de uma chave, desligada por padrão** (ligada depois, ver a emenda abaixo). `?quadro-react=1` liga (fica no `localStorage` do navegador) e
    `?quadro-react=0` desliga (`web/lib/react-no-quadro.ts`). O módulo é carregado por `import()` só com a chave ligada:
    sem ela o JS inicial não muda. Ligar por padrão é outro PR, depois do teste de mão e dos três testes de Chrome que
    arrastam pelo evento nativo (`quadro-jornada`, `quadro-composer`, `quadro-rolagem`) passarem a arrastar por ponteiro.
@@ -80,6 +80,12 @@ nativo provam para a grade por string: o Responder dentro do card arrastável se
 espera soltar e não tira a grade do documento (par da `quadro-rolagem`); mais o arrasto entre colunas com o flutuante e a
 dica, e o "Mover para…" pelo teclado. As três jornadas de arrasto nativo ficam como estão: com a grade em React ligada,
 elas provam a volta por string (`?quadro-react=0`). Falta só o teste de mão para ligar por padrão.
+
+**Ligada por padrão** (PR da fase 5, depois do teste de mão do Marlon): `reactNoQuadro` passa a valer `true` sem nada
+guardado; `?quadro-react=0` desliga neste navegador (guarda "0") e `?quadro-react=1` liga de novo. Quem lê a chave é o
+`main.ts`, que passa `gradeReact` ao `criarQuadroNaTela`: quem monta o quadro sem a opção (as jornadas de Chrome e os
+testes de DOM) segue com a grade por string, que continua sendo o caminho de volta. Na régua, `CARGA_SEM_REACT=quadro`
+mede a por string no mesmo build.
 
 ## Gatilho de reversão
 

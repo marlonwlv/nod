@@ -40,7 +40,6 @@ import { criarCelularDoQuadro, seletorDoFocoDaFolha } from "./celular-do-quadro.
 import { confiar, iconeDe, quadroVazio, type Aviso, type Filtro, type Html } from "../telas/quadro.ts";
 import type { GradeNaTela } from "../react/quadro/grade-na-tela.tsx";
 import type { DestinoDoMover } from "../react/quadro/card-da-grade.tsx";
-import { reactNoQuadro } from "./react-no-quadro.ts";
 import { marcarEstadoDaPagina } from "./estado-da-pagina.ts";
 import { contarNaVista, ehFiltro, termoDaBusca } from "./vista-do-quadro.ts";
 import type { QuadrosDoBotDto } from "../../src/contracts/quadros-do-bot.ts";
@@ -285,7 +284,9 @@ export interface AcoesDasPaginas {
   canvas?: { montar(host: HTMLElement, agenteId: string, nome: string): void };
 }
 
-export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; menuDaPilula?: PilulaDePaginas["menuDaPilula"]; reduzido?: () => boolean; aoTrocar?: (m: ModoDaConversa) => void; aoMudarOrdem?: () => void; aoTarefasPedirem?: (pedem: boolean) => void; dados?: DadosDoQuadro; paginas?: AcoesDasPaginas } = {}): QuadroNaTela {
+export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; menuDaPilula?: PilulaDePaginas["menuDaPilula"]; reduzido?: () => boolean; aoTrocar?: (m: ModoDaConversa) => void; aoMudarOrdem?: () => void; aoTarefasPedirem?: (pedem: boolean) => void; dados?: DadosDoQuadro; paginas?: AcoesDasPaginas;
+  /** ADR-180: a grade do computador em React (o main decide pela chave, `web/lib/react-no-quadro.ts`); sem isto, por string. */
+  gradeReact?: boolean } = {}): QuadroNaTela {
   // Revisão 5 do ADA-5 (definido em 2026-11-04): a troca de vista descarta o ditado aberto (ADR-095) aqui, e não no
   // main, para que o teste do Chrome prove a regra; depois avisa quem ouve.
   const avisarTroca = (m: ModoDaConversa): void => {
@@ -3988,8 +3989,9 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     const nomeDe = nomeNaPrevia(cs, t);
     return cs.filter((c) => c.id !== t.status).map((c) => ({ id: c.id, nome: c.nome, icone: iconeDe({ status: c.id, icone: iconeDaColuna(c), pessoa: c.daPessoa }), nota: dicaDeMover(previaDaTarefa(t, c.id, cs), nomeDe, false) }));
   };
-  // ADR-180: a grade em React, com a chave ligada (?quadro-react=1). O módulo chega depois; até lá, a grade por string.
-  if (dd && reactNoQuadro(doc.defaultView?.location.href ?? "", doc.defaultView?.localStorage ?? null)) {
+  // ADR-180: a grade em React, quando o main pede (a chave, ligada por padrão; `?quadro-react=0` volta à por string). O
+  // módulo chega depois; até lá, a grade por string.
+  if (dd && o.gradeReact) {
     void import("../react/quadro/grade-na-tela.tsx").then((m) => {
       gradeRx = m.criarGradeNaTela(doc, { soltar: soltarCardEm, dica: (t, c) => dicaAoSoltar(t, c), destinos: destinosDoCard, arrastando: () => {} });
       desenharVista();
