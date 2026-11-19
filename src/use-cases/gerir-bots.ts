@@ -147,6 +147,9 @@ async function executarAcao(deps: Deps, a: AcaoLote & { alvoNome: string }, botI
       const payload: PayloadPropostaAcesso = { kind: "acesso", conector: conector.slug, capacidades, nivel: a.nivel ?? "leitura", naoPedido: [], para: `Pedido pelo Nod para o ${a.alvoNome}` };
       const aberto = await abrirPedidoDeAcesso(deps, { conversaId: conversa.id, agenteId: alvo, turnoId: null, payload, conector, autoria: autoriaDoAgente(deps.escopo, ctx.nodId) });
       const decidido = await decidirAcesso(deps, { decisaoId: aberto.proposta.id, recusar: false, executor: "catcher", ...(ctx.porRegra ? { porRegra: ctx.porRegra } : {}) });
+      // QA r108: o acesso que a pessoa pediu pelo chat é escolha dela, como o "Dar acesso" da tela (acessos.dar): o bot
+      // deixa de seguir o padrão do app, e uma troca de padrão depois não tira o que ela deu.
+      await deps.repos.acessos.marcar(alvo, conector.id, "pessoa");
       return { botId: alvo, nome: a.alvoNome, events: [...semCard(aberto.events), ...(decidido.events ?? [])] };
     }
     case "excluir_time": {
