@@ -2001,6 +2001,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "aviso-conexao":
       return { ...estado, avisoConexao: acao.texto };
     case "hidratar-conectores":
+      // Emenda ADR-057 (2026-11-18): o estado guarda o catálogo inteiro, com os apps de chave; o modal do Marketplace
+      // (web/react/marketplace/) conecta os dois jeitos. Quem só sabe abrir login filtra na hora de desenhar (`appsDeLogin`).
       return { ...estado, conectores: acao.conectores, marketplace: acao.marketplace ?? estado.marketplace, composioConfigurado: acao.composioConfigurado ?? estado.composioConfigurado, carregado: estado.carregado.conectores ? estado.carregado : { ...estado.carregado, conectores: true } };
     case "hidratar-concessoes":
       // Sem as dispensas na resposta, o que havia fica: sem saber o que a pessoa dispensou, o cartão de liberar não aparece.

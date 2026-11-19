@@ -44,7 +44,7 @@ import type { UsoDoPlanoDto } from "../../src/contracts/uso-do-plano.ts";
 import type { IdHarness } from "../../src/contracts/harness.ts";
 import type { EntradaDiario, Memoria, PaginaDiario, TipoMemoria } from "../../src/contracts/memoria.ts";
 import type { ReacaoNaFala } from "../../src/contracts/reacao.ts";
-import type { AppComLogo } from "../../src/contracts/marketplace.ts";
+import type { AppComLogo, CampoDeConexao } from "../../src/contracts/marketplace.ts";
 import type { ConfirmarEmailDto, ExportacaoDto, FormasDto, MinhaContaDto, PerfilDto, ReautenticarDto } from "../../src/contracts/minha-conta.ts";
 import type { ExecucaoRotina } from "../../src/contracts/rotina.ts";
 import type { MembroSala, Sala } from "../../src/contracts/sala.ts";
@@ -597,6 +597,10 @@ export function criarApi(escopo: Escopo) {
     guardarCredencial: (propostaId: string, valor: string) => post<{ estado: "guardada" }>(`propostas/${encodeURIComponent(propostaId)}/credencial`, { valor }),
     tokenGithub: (token: string) => post<{ conectado: boolean; conectorId: string }>("marketplace/github/token", { token }),
     verificarApp: (slug: string) => post<{ conectado: boolean; falhou?: boolean; causa?: "composio" | "app" | null }>(`marketplace/${encodeURIComponent(slug)}/verificar`),
+    // Emenda ADR-057 (2026-11-18): o app de chave de API — o que ele pede (a chave, o endereço da conta…) e a conexão numa
+    // chamada só. Os valores saem do campo da tela direto no corpo e não voltam: nada deles vai ao estado nem ao log.
+    camposDoApp: (slug: string) => get<{ campos: CampoDeConexao[] }>(`marketplace/${encodeURIComponent(slug)}/campos`),
+    conectarComChave: (slug: string, campos: Record<string, string>) => post<{ conectado: boolean; conectorId: string; falhou?: boolean; causa?: "composio" | "app" | null; conector: Conector }>(`marketplace/${encodeURIComponent(slug)}/conectar-com-chave`, { campos }),
     atualizarCredenciais: (id: string, env: Record<string, string>) => patch<{ conector: Conector }>(`conectores/${id}/credenciais`, { env }),
     registrarConector: (c: Record<string, unknown>) => post<{ ok: true; ids: { conector: string }; conector: Conector }>("conectores", c),
     sondarConector: (id: string) => post<{ ok: boolean; conector: Conector }>(`conectores/${id}/sondar`),
