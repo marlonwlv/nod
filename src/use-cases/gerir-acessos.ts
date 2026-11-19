@@ -150,7 +150,9 @@ export const gerirAcessos: CasoNod<Deps, "gerir_acessos"> = async (deps, input) 
       } else if (acao.tipo === "padrao_acesso") {
         const r = await EXECUTORES_ACESSOS["apps.padrao"](deps, { conectorId: acao.conector_id ?? "", nivel: acao.nivel_lote ?? "nenhum", aplicar: acao.aplicar !== false, ...regra });
         events.push(...(r.events ?? []));
-        linha = `Bots novos no ${r.data.app} começam com ${ROTULO_DO_NIVEL[r.data.padrao]}${r.data.aplicados.length ? `; ${listaFalada(r.data.aplicados.map((a) => a.nome))} também` : ""}`;
+        linha = r.data.soGuardado
+          ? `Padrão do ${r.data.app} guardado como ${ROTULO_DO_NIVEL[r.data.padrao]}, mas o app está desligado: nenhum bot mudou, e os bots novos só recebem esse nível depois que você ligar o app`
+          : `Bots novos no ${r.data.app} começam com ${ROTULO_DO_NIVEL[r.data.padrao]}${r.data.aplicados.length ? `; ${listaFalada(r.data.aplicados.map((a) => a.nome))} também` : ""}`;
       } else {
         const r = await EXECUTORES_ACESSOS["acessos.desfazer_lote"](deps, { loteId: acao.lote_id ?? "", ...regra });
         events.push(...(r.events ?? []));

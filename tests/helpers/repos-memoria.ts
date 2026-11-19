@@ -4117,6 +4117,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     // ADA-241 (0156): padrão por app e lotes são do Postgres (tests/integration/acessos-lote.test.ts); aqui, sem padrão.
     acessos: {
       padrao: async () => "nenhum",
+      padraoEmVigor: async () => "nenhum",
       padroes: async () => [],
       definirPadrao: soNoPostgres,
       marca: async () => null,
