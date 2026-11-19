@@ -88,6 +88,16 @@ fora do ar, os vencidos recolhidos e o "Limpar vencidos" por prop); os cartões 
 (`renderItem`) e entram pelo conversor, com a chave `data-decisao` e as ações deles na delegação, até os cartões virarem
 componentes — um passo que vale para a conversa e para Sua vez de uma vez.
 
+**O campo de mensagem** (fase 6, por pedaços; 2026-11-19). O campo é desenhado uma vez por conversa e o resto é
+imperativo (`atualizarComposer`, os anexos, o ditado, o menu da IA, a folha do "+"), dividido com a pílula do Quadro
+(`composer-ligado.ts`): não é regravado a cada frame, então a migração dele é pelo código, em pedaços, cada um com a
+volta `?composer-react=0`. O 1º pedaço é **a fila de anexos** (`web/react/composer/fila-de-anexos.tsx`), a do campo do chat
+e a da pílula: a cada passo do upload o desenho por string regravava a fila inteira (a miniatura nascia de novo); em
+React só a barra do item que andou muda, e o "remover" é prop. Os itens seguem no main (`anexosPendentes`). Os próximos
+pedaços, nesta ordem: o topo do campo (a pergunta e a nota, `aparenciaDoComposer`), o seletor de IA e a folha do "+", o
+ditado, e por fim o próprio campo (o `<textarea>` sem controle do React, com as menções e os comandos `/`), com as
+jornadas de Chrome de digitação, foco e acento em composição.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts

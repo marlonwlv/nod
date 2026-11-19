@@ -604,6 +604,19 @@ if (telasNoReact) {
     // Sem o módulo, as telas continuam por string.
   });
 }
+/**
+ * ADR-179 (fase 6, o campo de mensagem, por pedaços): as peças do campo já em componentes (web/react/composer/). Enquanto
+ * o módulo baixa, ou com `?composer-react=0`, seguem pelo desenho por string.
+ */
+let filasReact: import("./react/composer/fila-de-anexos.tsx").FilasNoReact | null = null;
+if (reactNaRegiao("composer", window.location.href, guardadoDoNavegador())) {
+  void import("./react/composer/fila-de-anexos.tsx").then((m) => {
+    filasReact = m.criarFilasNoReact((chave) => removerAnexo(chave));
+    redesenharAnexos();
+  }, () => {
+    // Sem o módulo, a fila continua por string.
+  });
+}
 if (conversaNoReact || regioesLigadas.size > 0) {
   void import("./react/html/regiao-por-html.tsx").then((m) => {
     moduloDoHtml = m;
@@ -6288,11 +6301,13 @@ function redesenharAnexos(): void {
   const itens = anexosPendentes.get(alvo.chave) ?? [];
   // ADA-5: a fila é uma só (a da conversa); aparece no campo do chat e na pílula do Quadro.
   const pilula = document.querySelector<HTMLElement>('#quadro [data-composer="fila"]');
-  if (pilula) { pilula.innerHTML = renderItensAnexo(itens); pilula.hidden = itens.length === 0; }
+  // ADR-179: em React só o item que mudou é tocado (a miniatura fica, o progresso anda); por string, a fila inteira.
+  const desenharFila = (el: HTMLElement): void => { if (filasReact) filasReact.desenhar(el, itens); else el.innerHTML = renderItensAnexo(itens); };
+  if (pilula) { desenharFila(pilula); pilula.hidden = itens.length === 0; }
   quadroNaTela.atualizarPilula();
   const fila = document.getElementById("composer-anexos");
   if (!fila) return;
-  fila.innerHTML = renderItensAnexo(itens);
+  desenharFila(fila);
   fila.hidden = itens.length === 0;
   const r = document.getElementById("composer-resumo");
   if (r) r.textContent = resumoAnexos(itens);

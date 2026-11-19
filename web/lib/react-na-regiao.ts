@@ -1,11 +1,12 @@
 /**
  * ADR-189: a chave de cada região que o React desenha pelo HTML das telas (a barra lateral, a conversa, o cabeçalho, o
- * painel do bot e Seu espaço) e das telas no lugar da conversa já em componentes (`telas`, ADR-179). LIGADA por padrão;
+ * painel do bot e Seu espaço), das telas no lugar da conversa já em componentes (`telas`, ADR-179) e das peças do campo
+ * de mensagem já em componentes (`composer`: a fila de anexos). LIGADA por padrão;
  * `?<nome>-react=0` na URL desliga neste navegador (fica guardado) e `?<nome>-react=1` liga de novo. É o caminho de volta
  * da ADR-179 ("a região volta ao desenho por string"), sem deploy: desligada, a região segue por `regiao()` como antes e o
  * módulo React nem é baixado.
  */
-export type RegiaoReact = "barra" | "conversa" | "cabecalho" | "detalhes" | "espaco" | "telas";
+export type RegiaoReact = "barra" | "conversa" | "cabecalho" | "detalhes" | "espaco" | "telas" | "composer";
 
 export const chaveGuardada = (nome: RegiaoReact): string => `nod.${nome}.react`;
 
