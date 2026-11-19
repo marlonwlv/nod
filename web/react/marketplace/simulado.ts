@@ -117,6 +117,10 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
   const atencao = new Set<string>();
   const logins = new Map<string, { url: string | null; timers: ReturnType<typeof setTimeout>[] }>();
   let envios = 0;
+  let contadorDeLotes = 0;
+  const lotesSimulados = new Map<string, { conectorId: string; antes: Record<string, { nivel: NivelVisto | undefined; seguia: boolean }> }>();
+  const slugDoConector = (conectorId: string): string | undefined => [...conexoes.entries()].find(([, c]) => c.conectorId === conectorId)?.[0];
+  const nomeDoConector = (conectorId: string): string => APPS_SIMULADOS.find((a) => a.slug === slugDoConector(conectorId))?.nome ?? "app";
   const todosNenhum = (): Record<string, NivelVisto> => Object.fromEntries(BOTS_SIMULADOS.map((b) => [b.id, "nenhum"]));
   const novaConexao = (slug: string, niveis: Record<string, NivelVisto> = todosNenhum()): Conexao => ({ conectorId: `sim-${slug}`, niveis, acessos: { padrao: "nenhum", seguePadrao: new Set(BOTS_SIMULADOS.filter((b) => niveis[b.id] === "nenhum").map((b) => b.id)) } });
 
@@ -205,13 +209,43 @@ export function criarApiSimulada(o: OpcoesDoSimulado = {}): ApiDoMarketplace & {
     async aplicarLote(conectorId, nivel, bots) {
       await esperar(Math.round(latencia / 3));
       const c = conexaoPorId(conectorId);
-      if (!c) return;
+      if (!c) return null;
+      const alvos: string[] = [];
+      const antes: Record<string, { nivel: NivelVisto | undefined; seguia: boolean }> = {};
       for (const id of bots === "todos" ? BOTS_SIMULADOS.map((b) => b.id) : bots) {
         // "Todos" com Ler não rebaixa quem tem Ler e alterar (a regra do servidor, alvosDoLote).
         if (bots === "todos" && nivel === "leitura" && c.niveis[id] === "escrita") continue;
+        antes[id] = { nivel: c.niveis[id], seguia: c.acessos.seguePadrao.has(id) };
         c.niveis[id] = nivel;
         c.acessos.seguePadrao.delete(id);
+        alvos.push(id);
       }
+      mudou();
+      const loteId = `lote_sim_${++contadorDeLotes}`;
+      lotesSimulados.set(loteId, { conectorId, antes });
+      const nomes = alvos.map((id) => BOTS_SIMULADOS.find((b) => b.id === id)?.nome ?? id);
+      const quem = nomes.length <= 2 ? nomes.join(" e ") : `${nomes.length} bots`;
+      const verbo = nivel === "escrita" ? "agora leem e alteram" : nivel === "leitura" ? "agora leem" : "ficaram sem acesso";
+      return { frase: `${quem} ${nomes.length === 1 ? verbo.replace("leem e alteram", "lê e altera").replace("leem", "lê").replace("ficaram", "ficou") : verbo} no ${nomeDoConector(conectorId)}.`, loteId, alvos };
+    },
+    async desfazerLote(_conectorId, recibo) {
+      await esperar(Math.round(latencia / 3));
+      const lote = recibo.loteId ? lotesSimulados.get(recibo.loteId) : undefined;
+      const c = lote ? conexaoPorId(lote.conectorId) : undefined;
+      if (!lote || !c) return null;
+      for (const [id, a] of Object.entries(lote.antes)) {
+        if (a.nivel === undefined) delete c.niveis[id]; else c.niveis[id] = a.nivel;
+        if (a.seguia) c.acessos.seguePadrao.add(id);
+      }
+      lotesSimulados.delete(recibo.loteId!);
+      mudou();
+      return null;
+    },
+    async desconectar(conectorId) {
+      await esperar(Math.round(latencia / 3));
+      const slug = slugDoConector(conectorId);
+      if (!slug) return;
+      desligados.add(slug);
       mudou();
     },
     async definirPadrao(conectorId, nivel) {

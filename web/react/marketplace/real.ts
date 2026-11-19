@@ -7,7 +7,7 @@ import type { AcessosDoApp } from "../../telas/acessos-do-app.ts";
 import { conectorDoApp, meusBots, nivelDoBot, situacaoDoApp, type SituacaoApp } from "../../telas/app-acesso.ts";
 import { fonteDoLogo } from "../../telas/marketplace.ts";
 import { notasGenericas, resultadoDoErro } from "./modelo.ts";
-import { ErroDoFormulario, type AcessosDoConector, type ApiDoMarketplace, type AppDaVitrine, type BotDaVitrine, type FotoDoMarketplace } from "./tipos.ts";
+import { ErroDoFormulario, type AcessosDoConector, type ApiDoMarketplace, type AppDaVitrine, type BotDaVitrine, type FotoDoMarketplace, type ReciboDoLote } from "./tipos.ts";
 
 /**
  * O adaptador real do Marketplace em modal: lê o estado do reducer com os MESMOS helpers da tela antiga
@@ -30,7 +30,9 @@ export type DepsDoMarketplaceReal = {
   garantirAcessos: (conectorId: string) => void;
   acessos: (conectorId: string) => AcessosDoApp | null;
   definirNivel: (agenteId: string, conectorId: string, nivel: NivelPedido) => void;
-  aplicarLote: (conectorId: string, nivel: NivelPedido, bots: "todos" | string[], confirmado: boolean) => Promise<void>;
+  aplicarLote: (conectorId: string, nivel: NivelPedido, bots: "todos" | string[], confirmado: boolean) => Promise<ReciboDoLote | null>;
+  desfazerLote: (conectorId: string, recibo: ReciboDoLote) => Promise<string | null>;
+  desconectar: (conectorId: string) => Promise<void>;
   definirPadrao: (conectorId: string, nivel: NivelPedido, confirmado: boolean) => Promise<void>;
   /** A chave conectou (ou entrou sem resposta): o main relê conectores, frota e concessões. */
   conectou: (conectorId: string) => void;
@@ -161,6 +163,8 @@ export function criarApiReal(deps: DepsDoMarketplaceReal): ApiDoMarketplace & { 
     abrirAcessos: (conectorId) => deps.garantirAcessos(conectorId),
     definirNivel: (agenteId, conectorId, nivel) => deps.definirNivel(agenteId, conectorId, nivel),
     aplicarLote: (conectorId, nivel, bots, confirmado) => deps.aplicarLote(conectorId, nivel, bots === "todos" ? "todos" : [...bots], confirmado),
+    desfazerLote: (conectorId, recibo) => deps.desfazerLote(conectorId, recibo),
+    desconectar: (conectorId) => deps.desconectar(conectorId),
     definirPadrao: (conectorId, nivel, confirmado) => deps.definirPadrao(conectorId, nivel, confirmado),
     notas: (app) => notasGenericas(app.nome),
     abrirAvancado: () => deps.abrirAvancado(),

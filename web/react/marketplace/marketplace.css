@@ -541,3 +541,9 @@
 
 /* Paper T4: enquanto a chave é testada, o passo a passo recua (já cumpriu o papel). */
 .rx-mk-onde.rx-mk-apagado { opacity: 0.5; transition: opacity var(--duracao-normal, 150ms) ease; }
+
+/* O recibo do lote, dentro do modal (o aviso solto da página fica por baixo do <dialog>). */
+.rx-mk-recibo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); font-size: 13px; line-height: 18px; color: var(--ink); }
+.rx-mk-recibo .rx-mk-bt { flex-shrink: 0; }
+/* "Desconectar o X": ação que tira poder, em texto de perigo (sem caixa vermelha: não apaga nada). */
+.rx-mk-bt.rx-mk-perigo { color: var(--danger); }

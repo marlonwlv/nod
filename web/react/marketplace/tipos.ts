@@ -111,14 +111,24 @@ export type ApiDoMarketplace = {
   /** Garante que o padrão e o "segue o padrão" do conector estão carregados (e relê ao abrir de novo). */
   abrirAcessos(conectorId: string): void;
   definirNivel(agenteId: string, conectorId: string, nivel: NivelPedido): void;
-  /** O lote do "Aplicar aos N" (POST /conectores/:id/acessos/lote). */
-  aplicarLote(conectorId: string, nivel: NivelPedido, bots: "todos" | readonly string[], confirmado: boolean): Promise<void>;
+  /**
+   * O lote do "Aplicar aos N" (POST /conectores/:id/acessos/lote). Devolve o recibo que a tela mostra dentro do modal
+   * (o aviso solto da página fica por baixo do <dialog>); null = nada aplicado.
+   */
+  aplicarLote(conectorId: string, nivel: NivelPedido, bots: "todos" | readonly string[], confirmado: boolean): Promise<ReciboDoLote | null>;
+  /** POST /acessos/lotes/:id/desfazer (até 24 h). Devolve a frase de quem mudou depois e ficou como está, ou null. */
+  desfazerLote(conectorId: string, recibo: ReciboDoLote): Promise<string | null>;
+  /** O "Desconectar" da tela antiga: desliga o app (as escolhas ficam guardadas para ligar de novo). */
+  desconectar(conectorId: string): Promise<void>;
   /** "Bots novos começam com" (POST /conectores/:id/padrao). */
   definirPadrao(conectorId: string, nivel: NivelPedido, confirmado: boolean): Promise<void>;
   notas(app: AppDaVitrine): NotasDosNiveis;
   /** A tela avançada de sempre (chave do Composio, MCP próprio): fecha o modal e navega. */
   abrirAvancado(): void;
 };
+
+/** O que um lote aplicado diz e o que o Desfazer precisa. `loteId` null = nada mudou (sem Desfazer). */
+export type ReciboDoLote = { frase: string; loteId: string | null; alvos: readonly string[] };
 
 export class ErroDoFormulario extends Error {
   readonly motivo: "nao_configurado" | "indisponivel";

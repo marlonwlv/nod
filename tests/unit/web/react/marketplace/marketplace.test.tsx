@@ -190,7 +190,7 @@ describe("quem pode usar, em lote (T6 e T6b)", () => {
     expect(regiao.textContent).toContain("Acompanhamento do time · segue o padrão");
     expect(regiao.textContent).toContain("Vale também para quem segue o padrão no Fireflies.");
     expect(within(screen.getByRole("group", { name: "Bots novos começam com" })).getByRole("button", { name: "Nenhum" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "Gerenciar o Fireflies" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Desconectar o Fireflies" })).toBeTruthy();
   });
 
   it("Ler e alterar para os 2 pede confirmação (T6b); Liberar aplica o lote confirmado e limpa a seleção", async () => {
@@ -205,6 +205,28 @@ describe("quem pode usar, em lote (T6 e T6b)", () => {
     expect(espia).toHaveBeenCalledWith("sim-fireflies", "escrita", ["clarice", "ada"], true);
     await waitFor(() => expect(screen.getByText("Selecionar todos")).toBeTruthy());
     expect(within(screen.getByRole("group", { name: "Acesso de Ada" })).getByRole("button", { name: "Ler e alterar" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("o recibo do lote fica dentro do modal, com Desfazer que volta os níveis de antes", async () => {
+    abrir(t6, { firefliesConectado: true });
+    fireEvent.click(within(screen.getByRole("group", { name: "Aplicar aos 2" })).getByRole("button", { name: "Ler e alterar" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Liberar" }));
+    const recibo = await screen.findByText("Clarice e Ada agora leem e alteram no Fireflies.");
+    expect(regiao.contains(recibo)).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    await screen.findByText("Desfeito. Voltou como estava.");
+    expect(within(screen.getByRole("group", { name: "Acesso de Clarice" })).getByRole("button", { name: "Ler" }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(screen.getByRole("group", { name: "Acesso de Ada" })).getByRole("button", { name: "Nenhum" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Desfazer" })).toBeNull();
+  });
+
+  it("'Desconectar o X' desliga o app (as escolhas ficam) e volta para Apps", async () => {
+    const api = abrir(t6, { firefliesConectado: true });
+    const espia = vi.spyOn(api, "desconectar");
+    fireEvent.click(screen.getByRole("button", { name: "Desconectar o Fireflies" }));
+    expect(espia).toHaveBeenCalledWith("sim-fireflies");
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Buscar apps" })).toBeTruthy());
+    expect(api.ler().apps.find((a) => a.slug === "fireflies")).toMatchObject({ desligado: true });
   });
 
   it("Esc na confirmação só cancela a confirmação (o modal fica); Ler vai direto, sem perguntar", () => {

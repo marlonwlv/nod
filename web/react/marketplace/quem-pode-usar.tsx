@@ -4,7 +4,7 @@ import { Mascote } from "../onboarding/pecas.tsx";
 import { alternar, alternarTodos, alvoDoLote, caixaDoLote, fraseDaConfirmacao, lotePedeConfirmacao, rotuloDoAplicar, textoDaSelecao } from "./modelo.ts";
 import { Logo, Segmentado } from "./pecas.tsx";
 import { Topo } from "./vitrine.tsx";
-import type { ApiDoMarketplace, AppDaVitrine, FotoDoMarketplace } from "./tipos.ts";
+import type { ApiDoMarketplace, AppDaVitrine, FotoDoMarketplace, ReciboDoLote } from "./tipos.ts";
 
 /**
  * "Quem pode usar o {App}?" (Paper T6) e a confirmação do lote (T6b). Um segmentado por bot (o mesmo clique de sempre,
@@ -41,6 +41,9 @@ export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVol
   const [sel, setSel] = useState<ReadonlySet<string>>(() => new Set(selecionadosIniciais ?? []));
   const [confirmacao, setConfirmacao] = useState<Confirmacao | null>(() => (confirmarEscrita ? { alvo: "lote", bots: alvoDoLote(new Set(selecionadosIniciais ?? []), ids) } : null));
   const [ocupado, setOcupado] = useState(false);
+  // O recibo do último lote fica DENTRO do modal: o aviso solto da página fica por baixo do <dialog>.
+  const [recibo, setRecibo] = useState<{ lote: ReciboDoLote; fase: "aplicado" | "desfazendo" | "desfeito"; frase: string } | null>(null);
+  const [desconectando, setDesconectando] = useState(false);
   const liberar = useRef<HTMLButtonElement | null>(null);
   const notas = api.notas(app);
   const acessos = conectorId ? foto.acessos[conectorId] : undefined;
@@ -55,10 +58,33 @@ export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVol
     if (!conectorId) return;
     setOcupado(true);
     try {
-      await api.aplicarLote(conectorId, nivel, bots, confirmado);
+      const r = await api.aplicarLote(conectorId, nivel, bots, confirmado);
+      setRecibo(r ? { lote: r, fase: "aplicado", frase: r.frase } : null);
       setSel(new Set());
     } finally {
       setOcupado(false);
+    }
+  }
+
+  async function desfazer(): Promise<void> {
+    if (!conectorId || !recibo?.lote.loteId) return;
+    setRecibo({ ...recibo, fase: "desfazendo" });
+    try {
+      const depois = await api.desfazerLote(conectorId, recibo.lote);
+      setRecibo({ ...recibo, fase: "desfeito", frase: depois ?? "Desfeito. Voltou como estava." });
+    } catch {
+      setRecibo({ ...recibo, fase: "aplicado", frase: `${recibo.lote.frase} Não deu para desfazer agora; tente de novo.` });
+    }
+  }
+
+  async function desconectar(): Promise<void> {
+    if (!conectorId) return;
+    setDesconectando(true);
+    try {
+      await api.desconectar(conectorId);
+      aoVoltar();
+    } finally {
+      setDesconectando(false);
     }
   }
 
@@ -148,6 +174,14 @@ export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVol
           })}
         </div>
       ) : null}
+      {recibo ? (
+        <div className="rx-mk-recibo" role="status">
+          <span>{recibo.frase}</span>
+          {recibo.fase !== "desfeito" && recibo.lote.loteId ? (
+            <button type="button" className="rx-mk-bt rx-mk-baixo" onClick={() => void desfazer()} disabled={recibo.fase === "desfazendo"} aria-busy={recibo.fase === "desfazendo" || undefined}>{recibo.fase === "desfazendo" ? "Desfazendo…" : "Desfazer"}</button>
+          ) : null}
+        </div>
+      ) : null}
       {conectorId ? (
         <div className="rx-mk-padrao">
           <div className="rx-mk-padrao-texto">
@@ -162,7 +196,7 @@ export function QuemPodeUsar({ app, conectorId, conectadoAgora, foto, api, aoVol
         <p><b>Ler e alterar</b> {notas.escrita}</p>
       </div>
       <div className="rx-mk-rodape">
-        <button type="button" className="rx-mk-bt" onClick={() => api.abrirAvancado()}>Gerenciar o {app.nome}</button>
+        {conectorId ? <button type="button" className="rx-mk-bt rx-mk-perigo" onClick={() => void desconectar()} disabled={desconectando} aria-busy={desconectando || undefined}>{desconectando ? "Desconectando…" : `Desconectar o ${app.nome}`}</button> : null}
         <button type="button" className="rx-mk-bt rx-mk-pri" onClick={aoVoltar}>Pronto</button>
       </div>
     </main>

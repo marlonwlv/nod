@@ -1491,7 +1491,10 @@ function desenharModalDoMarketplace(): void {
     garantirAcessos: (conectorId) => garantirAcessosDoConector(conectorId),
     acessos: (conectorId) => gavetaDeAcessos.acessos(conectorId),
     definirNivel: (agenteId, conectorId, nivel) => { void mudarNivelOtimista([{ agenteId, conectorId }], nivel, () => api!.definirNivel(agenteId, conectorId, nivel)); },
-    aplicarLote: (conectorId, nivel, bots, confirmado) => aplicarLoteDeAcessos(conectorId, nivel, bots, confirmado),
+    aplicarLote: (conectorId, nivel, bots, confirmado) => aplicarLoteDeAcessos(conectorId, nivel, bots, confirmado, true),
+    desfazerLote: (conectorId, recibo) => recibo.loteId ? desfazerLoteDeAcessos(conectorId, recibo.loteId, recibo.alvos, true) : Promise.resolve(null),
+    // O mesmo "Desconectar" da tela antiga (data-act desconectar-app): desliga, as escolhas ficam guardadas.
+    desconectar: async (conectorId) => { await api!.habilitarConector(conectorId, false); dispatch({ tipo: "invalidar", quais: ["conectores"] }); },
     definirPadrao: (conectorId, nivel, confirmado) => definirPadraoDoApp(conectorId, nivel, confirmado),
     conectou: () => dispatch({ tipo: "invalidar", quais: ["conectores", "sua-vez", "frota", ...meusBots(estado).map((a) => `concessoes:${a.id}` as Invalidacao)] }),
     abrirAvancado: () => { fecharModalDoMarketplace(); abrirMarketplace(true); },
@@ -2192,9 +2195,13 @@ async function mudarNivelOtimista(pares: { agenteId: string; conectorId: string 
 }
 
 /** O lote: otimista em todos os alvos; no fim, o aviso com a frase do servidor e Desfazer (24 h no servidor). */
-async function aplicarLoteDeAcessos(conectorId: string, nivel: "nenhum" | "leitura" | "escrita", bots: "todos" | string[], confirmado: boolean): Promise<void> {
+/**
+ * `noModal`: o recibo volta para o Marketplace mostrar dentro dele (o aviso solto da página fica por baixo do <dialog>
+ * modal). Sem ele, o aviso com Desfazer de sempre.
+ */
+async function aplicarLoteDeAcessos(conectorId: string, nivel: "nenhum" | "leitura" | "escrita", bots: "todos" | string[], confirmado: boolean, noModal = false): Promise<{ frase: string; loteId: string | null; alvos: string[] } | null> {
   const c = estado.conectores.find((x) => x.id === conectorId);
-  if (!c || !api) return;
+  if (!c || !api) return null;
   // "Todos" com Ler não rebaixa quem tem Ler e alterar ou personalizado (o servidor mantém, alvosDoLote); a tela também não.
   const alvos = (bots === "todos" ? meusBots(estado).map((a) => a.id) : bots).filter((id) => !(bots === "todos" && nivel === "leitura" && ["escrita", "personalizado"].includes(nivelReal(estado, id, c))));
   const pares = alvos.map((agenteId) => ({ agenteId, conectorId }));
@@ -2202,20 +2209,26 @@ async function aplicarLoteDeAcessos(conectorId: string, nivel: "nenhum" | "leitu
   let lote: LoteDeAcessosDto | null = null;
   await mudarNivelOtimista(pares, nivel, async () => { lote = await api!.acessosEmLote(conectorId, { nivel, bots, chave, confirmado }); });
   const feito = lote as LoteDeAcessosDto | null;
-  if (!feito) return;
+  if (!feito) return null;
   gavetaDeAcessos.limpar(conectorId);
   render();
   const loteId = feito.lote_id;
-  mostrarAvisoDesfazer({ texto: feito.frase, ...(loteId ? { aoDesfazer: () => desfazerLoteDeAcessos(conectorId, loteId, alvos) } : {}) });
+  if (!noModal) mostrarAvisoDesfazer({ texto: feito.frase, ...(loteId ? { aoDesfazer: async () => { await desfazerLoteDeAcessos(conectorId, loteId, alvos); } } : {}) });
+  return { frase: feito.frase, loteId, alvos };
 }
 
-async function desfazerLoteDeAcessos(conectorId: string, loteId: string, alvos: readonly string[]): Promise<void> {
+/** Devolve a frase de quem mudou depois do lote e ficou como está (null = voltou tudo); `noModal` não abre aviso solto. */
+async function desfazerLoteDeAcessos(conectorId: string, loteId: string, alvos: readonly string[], noModal = false): Promise<string | null> {
   try {
     const r = await api!.desfazerLoteDeAcessos(loteId);
     recarregarAcessos(conectorId, alvos);
-    if (r.mudaram_depois.length) mostrarAvisoDesfazer({ texto: `Desfeito. ${r.mudaram_depois.map((b) => b.nome).join(", ")} ${r.mudaram_depois.length === 1 ? "mudou" : "mudaram"} depois e ${r.mudaram_depois.length === 1 ? "ficou" : "ficaram"} como está.` });
+    const frase = r.mudaram_depois.length ? `Desfeito. ${r.mudaram_depois.map((b) => b.nome).join(", ")} ${r.mudaram_depois.length === 1 ? "mudou" : "mudaram"} depois e ${r.mudaram_depois.length === 1 ? "ficou" : "ficaram"} como está.` : null;
+    if (frase && !noModal) mostrarAvisoDesfazer({ texto: frase });
+    return frase;
   } catch (e) {
+    if (noModal) throw e;
     mostrarErro(e);
+    return null;
   }
 }
 
