@@ -108,7 +108,10 @@ quando a saída termina, fechado pelo próprio Base UI (`actionsRef.close`); se 
 recebe quem abre o diálogo (`dialogoDeHandoff`); sem isso, o nativo. O 2º é **a confirmação** (`bot-dialogo`,
 `web/react/dialogos/confirmar.tsx`: título, texto, "Cancelar" com o foco e a ação), começando pelo "Rodar mais uma
 execução?" do Testar agora e o aviso dos termos da troca de conta (corpo próprio, "Cancelar" como o principal). O 3º é o
-"Conectar este Mac?" (ADR-069), com a ação assíncrona no próprio diálogo (o botão desligado no pedido, o erro e a volta). Os dois fecham pelo Base UI (`Dialog.Close`, `actionsRef.close`) com um fade curto de saída
+"Conectar este Mac?" (ADR-069), com a ação assíncrona no próprio diálogo (o botão desligado no pedido, o erro e a volta). E
+**a paleta ⌘K** (ADR-167, `web/react/dialogos/paleta.tsx`): o mesmo DOM e o mesmo comportamento (combobox com
+`aria-activedescendant`, ↑ ↓, Enter, Esc, o fundo, o Tab de volta ao campo, o foco de volta ao fechar), com o termo e a
+seleção como estado e as regras de `web/lib/paleta.ts`; o main passa a usá-la quando o módulo dos diálogos chega. Os dois fecham pelo Base UI (`Dialog.Close`, `actionsRef.close`) com um fade curto de saída
 (sem movimento, some na hora). Achado da jornada de Chrome: numa aba headless sem foco emulado, o relógio das animações
 não anda só com o teclado — a saída nunca terminava e a página parecia inerte; com `Emulation.setFocusEmulationEnabled`
 (como na régua) ela anda como numa janela à vista.

@@ -270,7 +270,7 @@ import type { EstadoTrabalho, TipoLinha } from "../src/contracts/trabalho.ts";
 import { ajusteDoHash, ajustePorId, linkDoAjuste } from "./lib/ajustes.ts";
 import { aplicarBalaoCor, lerBalaoCor } from "./lib/balao.ts";
 import { criarVigiaDeSons, gravarSons, lerSons, notasDoSom, tocarNotas, type ContextoDeAudio, type TipoSom } from "./lib/sons.ts";
-import { criarPaleta } from "./lib/paleta-na-tela.ts";
+import { criarPaleta, type DepsPaleta } from "./lib/paleta-na-tela.ts";
 import { itensDaPaleta, type ItemPaleta } from "./lib/paleta.ts";
 import { aguardandoPorAgente, contadorDosTrabalhos, rotuloDosTrabalhos, textoAguardando } from "./lib/aguardando.ts";
 import { pedidosAbertos } from "./lib/avisos.ts";
@@ -308,7 +308,7 @@ const MOD_DA_PALETA = LUGAR_TECLADO === "app-mac" ? "⌘" : LUGAR_TECLADO === "n
  * ADR-167 (tela 08): a paleta ⌘K de tudo. Os itens saem do estado na hora de abrir: os bots na ordem da barra (o DOM, como
  * o ⌘1–9), os trabalhos do mais recente, os ajustes do catálogo e as ações. Ela vive fora do render() (web/lib/paleta-na-tela.ts).
  */
-const paleta = criarPaleta({
+const depsDaPaleta: DepsPaleta = {
   doc: document,
   itens: () => {
     const agentes = estado.frota?.agentes ?? [];
@@ -332,7 +332,15 @@ const paleta = criarPaleta({
   },
   avatar: (agenteId) => { const a = estado.frota?.agentes.find((x) => x.id === agenteId); return a ? iconeAgente(a, "") : ""; },
   executar: (item) => executarDaPaleta(item),
-});
+};
+/** ADR-179 (item 4): a paleta em React quando o módulo dos diálogos chegou (`?dialogos-react=0`: a por string). */
+const paletaPorString = criarPaleta(depsDaPaleta);
+let paletaReact: ReturnType<typeof criarPaleta> | null = null;
+const paleta = {
+  abrir: () => (paletaReact ?? paletaPorString).abrir(),
+  fechar: () => { paletaPorString.fechar(); paletaReact?.fechar(); },
+  aberta: () => paletaPorString.aberta() || !!paletaReact?.aberta(),
+};
 
 const MODO_NA_PALETA: Readonly<Record<string, string>> = { manual: "Manual", automatico: "Automático", total: "Total" };
 
@@ -1228,7 +1236,7 @@ configurarAppCanvas({ ler: () => (api ? api.appCanvas() : null), aoMudar: () => 
 /** ADR-179 (item 4): os diálogos criados por código já em React (web/react/dialogos/); `?dialogos-react=0` volta aos nativos. */
 let moduloDosDialogos: typeof import("./react/dialogos/dialogos.tsx") | null = null;
 if (reactNaRegiao("dialogos", window.location.href, guardadoDoNavegador())) {
-  void import("./react/dialogos/dialogos.tsx").then((m) => { moduloDosDialogos = m; }, () => {
+  void import("./react/dialogos/dialogos.tsx").then((m) => { moduloDosDialogos = m; paletaReact = m.criarPaletaNoReact(depsDaPaleta); }, () => {
     // Sem o módulo, os diálogos nativos de sempre.
   });
 }

@@ -21,6 +21,15 @@ const descrever = chrome ? describe : describe.skip;
 const ENTRADA = `
 import { abrirHandoffNoReact } from "./web/react/dialogos/handoff.tsx";
 import { confirmarNoReact } from "./web/react/dialogos/confirmar.tsx";
+import { criarPaletaNoReact } from "./web/react/dialogos/paleta.tsx";
+const ITENS = [
+  { chave: "bot:a1", grupo: "Bots", titulo: "Cecília", sub: "Dev" },
+  { chave: "bot:a2", grupo: "Bots", titulo: "Milton" },
+  { chave: "ajuste:tema", grupo: "Ajustes", titulo: "Tema", sub: "Geral › Aparência", icone: "tema" },
+  { chave: "acao:novo", grupo: "Ações", titulo: "Novo bot", icone: "mais" },
+];
+window.__escolhido = null;
+window.__paleta = criarPaletaNoReact({ doc: document, itens: () => ITENS, avatar: () => "", executar: (i) => { window.__escolhido = i.chave; } });
 window.__confirmar = () => {
   window.__resposta = undefined;
   confirmarNoReact(document, { idDoTitulo: "rodar-mais-uma-titulo", titulo: "Rodar mais uma execução?", texto: "Já há uma na fila.", cancelar: "Cancelar", confirmar: "Rodar mais uma", origem: document.getElementById("antes") })
@@ -122,5 +131,32 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await ate(`window.__resposta !== undefined`);
     expect(await avaliar<unknown>(cdp, "window.__resposta")).toEqual({ parar: true });
     await ate(`!document.querySelector(".rx-ho-host")`);
+  }, 60_000);
+
+  it("a paleta ⌘K: o foco no campo; digitar com acento (composição) filtra; ↓ e Enter abrem o item; Esc fecha e devolve o foco", async () => {
+    await esperar(300);
+    await avaliar(cdp, `document.getElementById("antes").focus(); window.__paleta.abrir()`);
+    await ate(`document.activeElement?.id === "paleta-termo"`);
+    // "cecí": o acento por composição (tecla morta), como no teclado brasileiro.
+    await cdp.enviar("Input.insertText", { text: "cec" });
+    await cdp.enviar("Input.imeSetComposition", { text: "´", selectionStart: 1, selectionEnd: 1 });
+    await cdp.enviar("Input.insertText", { text: "í" });
+    await ate(`document.getElementById("paleta-termo").value === "cecí"`);
+    await ate(`document.querySelectorAll(".paleta-item").length === 1`);
+    expect(await avaliar<string>(cdp, `document.querySelector(".paleta-item b").textContent`)).toBe("Cecília");
+    // Apaga e anda: com o termo vazio, ↓ marca o 2º e Enter o abre.
+    await avaliar(cdp, `(() => { const c = document.getElementById("paleta-termo"); c.select(); })()`);
+    await tecla("Backspace", "Backspace", 8);
+    await ate(`document.querySelectorAll(".paleta-item").length > 1`);
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.getElementById("paleta-termo").getAttribute("aria-activedescendant") === "paleta-i-1"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__escolhido !== null`);
+    expect(await avaliar<boolean>(cdp, "window.__paleta.aberta()")).toBe(false);
+    await avaliar(cdp, `window.__escolhido = null; document.getElementById("antes").focus(); window.__paleta.abrir()`);
+    await ate(`document.activeElement?.id === "paleta-termo"`);
+    await tecla("Escape", "Escape", 27);
+    await ate(`!window.__paleta.aberta()`);
+    await ate(`document.activeElement?.id === "antes"`);
   }, 60_000);
 });
