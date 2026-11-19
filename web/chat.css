@@ -682,3 +682,9 @@
 }
 @keyframes painel-desliza { from { transform: translateX(32px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .app.com-detalhes .detalhes { animation: none !important; } }
+
+/* Modo abas (validação de 2026-11-19): a pílula sobre o campo apaga em vez de sair, guardando o lugar — a conversa não
+   sobe nem desce quando a sanfona abre ou fecha. Volta em 200 ms quando as abas fecham. */
+.lugar-faixa-trabalhos.pf-no-topo > * { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 200ms ease, visibility 0s linear 200ms; }
+.lugar-faixa-trabalhos > .pilula-frentes { transition: opacity 200ms ease; }
+@media (prefers-reduced-motion: reduce) { .lugar-faixa-trabalhos.pf-no-topo > *, .lugar-faixa-trabalhos > .pilula-frentes { transition: none; } }

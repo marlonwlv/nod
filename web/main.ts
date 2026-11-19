@@ -6831,12 +6831,11 @@ function desenharPilula(): void {
     return;
   }
   anunciarFrentesTerminadas(t.conversaId, t.agenteId);
-  // Paper 10b: no modo abas as tarefas estão em cima; a pílula sobre o campo some (uma lista por vez).
-  if (fileiraNaConversa(t.agenteId)) {
-    pilula.desenhar(null);
-    pilulaAtual = null;
-    return;
-  }
+  // Paper 10b: no modo abas as tarefas estão em cima; a pílula sobre o campo some (uma lista por vez). Validação de
+  // 2026-11-19: ela continua desenhada, só apagada (o CSS de .pf-no-topo), para o lugar dela não sumir e a conversa não
+  // subir ou descer quando a sanfona abre ou fecha.
+  const noTopo = fileiraNaConversa(t.agenteId);
+  document.getElementById("faixa-trabalhos")?.classList.toggle("pf-no-topo", noTopo);
   const p = pilulaNaConversa(estado, t.agenteId, progressoDaFala, novaTarefaNaAba(t));
   if (p.tipo !== "pilula") {
     if (p.tipo === "nada" || p.tipo === "vazia") {
@@ -6859,7 +6858,7 @@ function desenharPilula(): void {
   pilula.desenhar({ tipo: "pilula", partes: p.partes, aberta, escondida: p.escondida });
   pilulaAtual = { pilula: p.pilula, telemetria: p.partes.telemetria };
   // ADR-099 (gatilho de 30%): a pílula que fala de frentes conta como "mostrada" quando aparece, no tipo `frentes`.
-  if (!p.escondida && p.partes.telemetria) telemetria.mostrada({ tipo: "frentes", agenteId: t.agenteId, chaveLinha: p.partes.telemetria });
+  if (!p.escondida && !noTopo && p.partes.telemetria) telemetria.mostrada({ tipo: "frentes", agenteId: t.agenteId, chaveLinha: p.partes.telemetria });
 }
 
 /**
