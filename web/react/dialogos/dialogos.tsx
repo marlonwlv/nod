@@ -4,3 +4,5 @@
  */
 export { abrirHandoffNoReact } from "./handoff.tsx";
 export { confirmarNoReact, type Confirmacao } from "./confirmar.tsx";
+export { avisarTermosNoReact } from "./aviso-termos.tsx";
+export { abrirPareamentoNoReact } from "./parear-mac.tsx";

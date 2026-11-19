@@ -2,6 +2,8 @@ import { act, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { htmlRodarMaisUma, TITULO_JA_NA_FILA } from "../../../../../web/lib/executar-rotina.ts";
 import { confirmarNoReact } from "../../../../../web/react/dialogos/confirmar.tsx";
+import { avisarTermosNoReact } from "../../../../../web/react/dialogos/aviso-termos.tsx";
+import { htmlDoAvisoDosTermos } from "../../../../../web/telas/aviso-termos.ts";
 
 /** ADR-179 (item 4): a confirmação (bot-dialogo) pelo Dialog do Base UI — o conteúdo do nativo, true só pela ação. */
 const PERGUNTA = "Já há uma execução de «Resumo dos PRs» na fila (agendada para 08:00). Rodar mais uma agora?";
@@ -44,5 +46,27 @@ describe("a confirmação pelo Base UI", () => {
     await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeTruthy());
     act(() => { fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" }); });
     await expect(r2).resolves.toBe(false);
+  });
+
+  it("o aviso dos termos: o mesmo conteúdo do nativo (texto, links, o caminho seguro como principal); Ligar mesmo assim responde true", async () => {
+    // Jornadas da IA (Paper G3): com a conta que entra na fila, ela vai no topo e o principal é "Deixar fora da fila".
+    for (const [ia, conta] of [["claude-cli", undefined], ["codex-cli", undefined], ["claude-cli", { nome: "Pessoal", ordem: 2 }]] as const) {
+      document.body.innerHTML = "";
+      const r = avisarTermosNoReact(document, ia, conta);
+      await waitFor(() => expect(document.querySelector(".termos-dialogo.rx-dlg")).toBeTruthy());
+      expect(normalizar(document.querySelector(".termos-dialogo.rx-dlg")!.innerHTML)).toBe(normalizar(htmlDoAvisoDosTermos(ia, conta)));
+      expect(document.querySelector(".termos-dialogo.rx-dlg")!.getAttribute("aria-labelledby")).toBe("aviso-termos-titulo");
+      await waitFor(() => expect(document.activeElement?.hasAttribute("data-nao")).toBe(true));
+      act(() => { fireEvent.click(document.querySelector("[data-sim]")!); });
+      await expect(r).resolves.toBe(true);
+    }
+  });
+
+  it("o aviso dos termos: o caminho seguro responde false", async () => {
+    document.body.innerHTML = "";
+    const r = avisarTermosNoReact(document, "claude-cli", { nome: "Pessoal", ordem: 2 });
+    await waitFor(() => expect(document.querySelector("[data-nao]")?.textContent).toBe("Deixar fora da fila"));
+    act(() => { fireEvent.click(document.querySelector("[data-nao]")!); });
+    await expect(r).resolves.toBe(false);
   });
 });

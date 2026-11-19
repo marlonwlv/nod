@@ -2638,7 +2638,7 @@ textarea.re-corpo:focus-visible { border-color: var(--ink-3); }
 /* ADR-179 (item 4): o diálogo de confirmação (bot-dialogo) pelo Dialog do Base UI — o mesmo cartão do <dialog> nativo,
    centrado, e o fundo que o ::backdrop dava. */
 .rx-dlg-fundo { position: fixed; inset: 0; z-index: 60; background: var(--backdrop); backdrop-filter: blur(3px); }
-.bot-dialogo.rx-dlg { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; box-sizing: border-box; }
+.bot-dialogo.rx-dlg, .termos-dialogo.rx-dlg { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; box-sizing: border-box; }
 /* A saída dos diálogos do Base UI (confirmação e handoff): um fade curto, como o do onboarding; sem movimento, some na hora. */
 @media (prefers-reduced-motion: no-preference) {
   .rx-dlg, .rx-dlg-fundo, .qd-handoff.rx-ho, .rx-ho-fundo { transition: opacity 0.12s ease; }

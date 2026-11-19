@@ -112,7 +112,7 @@ import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaA
 import { criarSondaDeRede } from "./lib/sonda-de-rede.ts";
 import { criarReleituraAdiada } from "./lib/releitura-adiada.ts";
 import { CHECK_CODIGO_MS, tabelaComo } from "./lib/texto-formatado.ts";
-import { CHAVE_GUARDADA, lerGuardado, lerPedido, PARAMETROS_DO_PEDIDO, type PedidoPareamento } from "./lib/parear-mac.ts";
+import { CHAVE_GUARDADA, lerGuardado, lerPedido, PARAMETROS_DO_PEDIDO, urlDeRetorno, type PedidoPareamento } from "./lib/parear-mac.ts";
 import { abrirPareamento } from "./telas/parear-mac.ts";
 import { abrirOiDeNovo, mostrarEsteComputador } from "./telas/oi-de-novo.ts";
 import { criarAvisador } from "./lib/avisador.ts";
@@ -5031,7 +5031,13 @@ const PAREAR_PROVISORIO = "Para conectar o app do Mac, entre primeiro na sua con
 function seguirPareamento(passo: PassoPareamento): void {
   const pedido = pedidoPendente();
   if (!pedido || !api || passo === "esperar" || document.getElementById("parear-titulo")) return;
-  if (passo === "abrir") abrirPareamento(api, pedido, esquecerPedido);
+  if (passo === "abrir") {
+    // ADR-179 (item 4): pelo Dialog do Base UI; sem o módulo, o diálogo nativo.
+    const a = api;
+    if (moduloDosDialogos) moduloDosDialogos.abrirPareamentoNoReact(document, { nome: pedido.nome, aoFechar: esquecerPedido,
+      conectar: async () => { const { codigo } = await a.parearMac(pedido.nome, pedido.desafio); esquecerPedido(); window.location.href = urlDeRetorno(pedido, codigo); } });
+    else abrirPareamento(api, pedido, esquecerPedido);
+  }
   else void telaConta.abrir("entrar", true, PAREAR_PROVISORIO);
 }
 
@@ -7416,7 +7422,8 @@ const contasDoMac = criarContasDoMac({
   ui: () => estado.iasMac,
   mudar: (mudanca: Partial<UiIas>) => dispatch({ tipo: "ias-mac", mudanca }),
   confirmar: (texto) => window.confirm(texto),
-  avisarTermos: abrirAvisoDosTermos,
+  // ADR-179 (item 4): pela confirmação do Base UI; sem o módulo, o diálogo nativo.
+  avisarTermos: (ia) => (moduloDosDialogos ? moduloDosDialogos.avisarTermosNoReact(document, ia) : abrirAvisoDosTermos(ia)),
 });
 void contasDoMac.iniciar();
 // ADR-102 (2026-10-13): a lista única de contas de IA, em todas as máquinas (web/lib/contas-da-pessoa.ts).
@@ -7441,7 +7448,8 @@ const contasDaPessoa = criarContasDaPessoa({
     const ponte = window.nodDesktop?.contas;
     return ponte ? ponte.adicionar(ia, apelido ?? "").catch(() => false) : false;
   },
-  avisarTermos: abrirAvisoDosTermos,
+  // ADR-179 (item 4): pela confirmação do Base UI; sem o módulo, o diálogo nativo.
+  avisarTermos: (ia, conta) => (moduloDosDialogos ? moduloDosDialogos.avisarTermosNoReact(document, ia, conta) : abrirAvisoDosTermos(ia, conta)),
   cifrar: (chave, codigo) => cifrarCodigo(chave, codigo),
   agendar: (fn, ms) => { window.setTimeout(fn, ms); },
   agora: Date.now,

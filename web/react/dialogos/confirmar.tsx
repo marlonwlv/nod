@@ -1,4 +1,4 @@
-import { StrictMode, useRef } from "react";
+import { StrictMode, useRef, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { Dialog } from "@base-ui/react/dialog";
 
@@ -9,7 +9,18 @@ import { Dialog } from "@base-ui/react/dialog";
  * Cancelar, Esc e o clique fora respondem false. O foco volta a quem estava com ele antes (o padrão do Base UI); `origem`
  * recebe o foco se ele se perdeu (o botão que pediu saiu do documento enquanto o diálogo estava aberto).
  */
-export interface Confirmacao { idDoTitulo: string; titulo: string; texto: string; cancelar: string; confirmar: string; origem?: HTMLElement | null }
+export interface Confirmacao {
+  idDoTitulo: string;
+  titulo: string;
+  /** Um parágrafo; ou `corpo`, o corpo pronto (parágrafos, links). */
+  texto?: string;
+  corpo?: ReactNode;
+  cancelar: string;
+  confirmar: string;
+  /** O botão principal (o `pri`, por último): a ação (o padrão) ou o Cancelar (o aviso que desaconselha). O foco abre em Cancelar. */
+  principal?: "confirmar" | "cancelar";
+  origem?: HTMLElement | null;
+}
 
 function DialogoDeConfirmar({ c, responder, sair }: { c: Confirmacao; responder: (sim: boolean) => void; sair: () => void }) {
   const acoes = useRef<Dialog.Root.Actions | null>(null);
@@ -22,10 +33,11 @@ function DialogoDeConfirmar({ c, responder, sair }: { c: Confirmacao; responder:
         <Dialog.Backdrop className="rx-dlg-fundo" />
         <Dialog.Popup className="bot-dialogo rx-dlg" initialFocus={cancelar}>
           <Dialog.Title id={c.idDoTitulo}>{c.titulo}</Dialog.Title>
-          <p>{c.texto}</p>
+          {c.corpo ?? <p>{c.texto}</p>}
           <div className="acoes">
-            <Dialog.Close ref={cancelar} className="bt" data-nao="" onClick={() => responderUmaVez(false)}>{c.cancelar}</Dialog.Close>{" "}
-            <Dialog.Close className="bt pri" data-sim="" onClick={() => responderUmaVez(true)}>{c.confirmar}</Dialog.Close>
+            {c.principal === "cancelar"
+              ? <><Dialog.Close className="bt" data-sim="" onClick={() => responderUmaVez(true)}>{c.confirmar}</Dialog.Close>{" "}<Dialog.Close ref={cancelar} className="bt pri" data-nao="" onClick={() => responderUmaVez(false)}>{c.cancelar}</Dialog.Close></>
+              : <><Dialog.Close ref={cancelar} className="bt" data-nao="" onClick={() => responderUmaVez(false)}>{c.cancelar}</Dialog.Close>{" "}<Dialog.Close className="bt pri" data-sim="" onClick={() => responderUmaVez(true)}>{c.confirmar}</Dialog.Close></>}
           </div>
         </Dialog.Popup>
       </Dialog.Portal>
