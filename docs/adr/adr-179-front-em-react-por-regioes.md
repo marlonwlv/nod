@@ -74,7 +74,11 @@ várias telas (a parada, a espera, onde roda) entram pelo conversor da ADR-189, 
 `execucao.ts` virar componente. A terceira é a **nova conversa** (Novo bot, `web/react/telas/novo-bot.tsx`): o campo
 "Para:" fica sem controle do React e o filtro das linhas e as setas seguem com o main sobre o DOM (`filtrarBots`), refeito
 depois de cada desenho (`aoDesenhar`). O 1º desenho de cada tela é síncrono (`flushSync`), para o foco que o main põe
-no fim do render achar os nós.
+no fim do render achar os nós. A quarta é **Tarefas de todos** (`web/react/telas/tarefas-de-todos.tsx`): o controlador
+(`web/lib/tarefas-de-todos-na-tela.ts`) segue lendo os quadros e relendo no `quadro.mudou` e passa a avisar quem assina
+(`dados`/`assinar`); a tela guarda a vista, a busca e os filtros. A vaga leva a classe do casco que o CSS lê
+(`tdt-casco`), mas não o `id="tdt"`: o controlador só desenha nele por string. Na régua, 0 / 0 / 6,2 ms em React e
+0 / 0 / 7,7 por string.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

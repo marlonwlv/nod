@@ -7,6 +7,7 @@ import { MARCA_REGIAO } from "../regioes.tsx";
 import { TelaNaoLidos, type AcoesDeNaoLidos } from "./nao-lidos.tsx";
 import { TelaRotinas, type AcoesDeRotinas } from "./rotinas.tsx";
 import { TelaNovoBot, type AcoesDoNovoBot } from "./novo-bot.tsx";
+import { TelaTarefasDeTodos, type AcoesDasTarefas } from "./tarefas-de-todos.tsx";
 
 /**
  * ADR-179 (as telas no lugar da conversa): a tela que ocupa a região `#timeline` no lugar da conversa, em React. O main
@@ -17,14 +18,17 @@ import { TelaNovoBot, type AcoesDoNovoBot } from "./novo-bot.tsx";
  * O 1º desenho de cada tela é síncrono (`flushSync`): o foco que o main põe no fim do render (o campo da nova conversa,
  * a linha de Não lidos) acha os nós já no documento.
  *
- * As telas migradas até aqui: Não lidos, Rotinas e a nova conversa (Novo bot). As outras seguem pelo desenho por string.
+ * As telas migradas até aqui: Não lidos, Rotinas, a nova conversa (Novo bot) e Tarefas de todos. As outras seguem pelo
+ * desenho por string.
  */
-export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot";
-export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot }
+export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot" | "tarefas";
+export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot; tarefas: AcoesDasTarefas }
 
 const CLASSE = "rx-tela";
+/** A classe do casco que o CSS da tela lê (`.timeline-wrap:has(> .tdt-casco)`), na própria vaga. */
+const CASCO: Partial<Record<TelaNoReact, string>> = { tarefas: "tdt-casco" };
 /** O HTML que o main põe na região no lugar do desenho por string da tela. */
-export const vagaDaTela = (tela: TelaNoReact): string => `<div class="${CLASSE}" data-rx-tela="${tela}"></div>`;
+export const vagaDaTela = (tela: TelaNoReact): string => `<div class="${CLASSE}${CASCO[tela] ? ` ${CASCO[tela]}` : ""}" data-rx-tela="${tela}"></div>`;
 
 export interface TelasNoReact {
   /** Depois de a região ser escrita: monta a tela na vaga (no-op se já montada nela) ou desmonta, sem vaga. */
@@ -53,7 +57,8 @@ export function criarTelasNoReact(loja: Loja<Estado>, acoes: AcoesDasTelas): Tel
       atual = { tela, vaga, raiz };
       const conteudo: ReactNode = tela === "nao-lidos" ? <TelaNaoLidos loja={loja} acoes={acoes.naoLidos} />
         : tela === "rotinas" ? <TelaRotinas loja={loja} acoes={acoes.rotinas} />
-          : <TelaNovoBot loja={loja} acoes={acoes.novoBot} />;
+          : tela === "novo-bot" ? <TelaNovoBot loja={loja} acoes={acoes.novoBot} />
+            : <TelaTarefasDeTodos acoes={acoes.tarefas} />;
       flushSync(() => raiz.render(<StrictMode>{conteudo}</StrictMode>));
     },
     antesDeRegravar(html) {

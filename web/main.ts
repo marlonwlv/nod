@@ -149,7 +149,7 @@ import { criarCanvasNaTela } from "./lib/canvas-na-tela.ts";
 import { configurarAppCanvas, esquecerErroDoCanvas, guardarAppCanvas } from "./telas/marketplace-canvas.ts";
 import { conversaDaTrilha, criarTrilhaDaConversa } from "./lib/trilha-conversa.ts";
 import { criarQuadroCompartilhadoNaTela } from "./lib/quadro-compartilhado-na-tela.ts";
-import { criarTarefasDeTodosNaTela } from "./lib/tarefas-de-todos-na-tela.ts";
+import { criarTarefasDeTodosNaTela, type DepsDasTarefas } from "./lib/tarefas-de-todos-na-tela.ts";
 import { caminhoDoQuadro, quadroDaUrl, releListaDosCompartilhados } from "./lib/quadro-compartilhado.ts";
 import { secaoDosCompartilhados } from "./telas/quadro-compartilhado.ts";
 import type { QuadroCompartilhadoDto } from "../src/contracts/quadro-pessoas.ts";
@@ -577,6 +577,7 @@ if (telasNoReact) {
         enviar: () => escolherNaNovaConversa(),
         aoDesenhar: () => filtrarBots((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value ?? "", ".contact-picker"),
       },
+      tarefas: { fonte: tarefasDeTodos, avatar: depsDasTarefas.avatar, abrirTarefa: depsDasTarefas.abrirTarefa, abrirPagina: depsDasTarefas.abrirPagina },
     });
     if (estado.sessao) render();
   }, () => {
@@ -1314,7 +1315,7 @@ const quadroCompartilhado = criarQuadroCompartilhadoNaTela(document, {
   aoPerderAcesso: (qid) => { compartilhados = compartilhados.filter((c) => c.id !== qid); render(); void lerCompartilhados(); },
 });
 /** Tela 18d do Paper: a página Tarefas de todos os bots (a linha "Tarefas" da barra abre `{ tipo: "tarefas" }`). */
-const tarefasDeTodos = criarTarefasDeTodosNaTela(document, {
+const depsDasTarefas: DepsDasTarefas = {
   api: () => {
     if (!api) throw new ErroApi(0, "sem_sessao", "Sem sessão");
     return api;
@@ -1332,7 +1333,8 @@ const tarefasDeTodos = criarTarefasDeTodosNaTela(document, {
     navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
     quadroNaTela.abrirPagina("tarefas");
   },
-});
+};
+const tarefasDeTodos = criarTarefasDeTodosNaTela(document, depsDasTarefas);
 
 /**
  * NOD-422 (revisão do PR #630): "conversa de membro aberta" conta a Conversa do bot à vista, nunca o Quadro dele (a aba, o
@@ -3460,7 +3462,8 @@ function renderPrincipal(): void {
       corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("nao-lidos") : renderNaoLidos(estado);
       break;
     case "tarefas":
-      corpo = '<div id="tdt" class="tdt-casco"></div>';
+      // ADR-179: em React, a vaga leva a classe do casco (o CSS a lê) e não o id: o controlador só desenha no #tdt por string.
+      corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("tarefas") : '<div id="tdt" class="tdt-casco"></div>';
       break;
     case "quadro-compartilhado":
       // NOD-455: o casco; o controlador desenha dentro dele (e não é regravado enquanto a tela é a mesma).

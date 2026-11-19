@@ -8,7 +8,8 @@ import { criarTelasNoReact, vagaDaTela } from "../../../../../web/react/telas/te
 describe("telas no React", () => {
   const acoes = { naoLidos: { abrirConversa: vi.fn(), abrirSala: vi.fn(), marcarLida: vi.fn(), marcarTudo: vi.fn() },
     rotinas: { pausar: vi.fn(), ativar: vi.fn(), testar: vi.fn(), alternarExecucoes: vi.fn(), abrirConversa: vi.fn(), verPergunta: vi.fn(), novaRotina: vi.fn() },
-    novoBot: { abrirConversa: vi.fn(), fechar: vi.fn(), criar: vi.fn(), novoChatEmGrupo: vi.fn(), enviar: vi.fn(), aoDesenhar: vi.fn() } };
+    novoBot: { abrirConversa: vi.fn(), fechar: vi.fn(), criar: vi.fn(), novoChatEmGrupo: vi.fn(), enviar: vi.fn(), aoDesenhar: vi.fn() },
+    tarefas: { fonte: { dados: () => ({ quadros: null, erro: null }), assinar: () => () => undefined, tentarDeNovo: vi.fn() }, avatar: () => "", abrirTarefa: vi.fn(), abrirPagina: vi.fn() } };
   const e: Estado = { ...estadoInicial, naoLidos: { conversas: [] } };
 
   it("monta na vaga, fica enquanto a vaga fica e desmonta antes de a região trocar de HTML", () => {
