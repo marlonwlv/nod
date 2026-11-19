@@ -24,6 +24,17 @@ import { confirmarNoReact } from "./web/react/dialogos/confirmar.tsx";
 import { criarPaletaNoReact } from "./web/react/dialogos/paleta.tsx";
 import { abrirPreviaNoReact } from "./web/react/dialogos/previa-arquivo.tsx";
 import { abrirLuzNoReact } from "./web/react/dialogos/luz.tsx";
+import { abrirArtefatoNoReact } from "./web/react/dialogos/artefato.tsx";
+// O artefato: um iframe sandbox de origem opaca (como o de verdade) que conta pela ponte o que se digitou nele.
+const DOC_DO_ARTEFATO = '<input id="c" style="font-size:20px"><script>document.getElementById("c").addEventListener("input", (e) => parent.postMessage({ digitado: e.target.value }, "*"));<\\/script>';
+window.__digitado = "";
+window.addEventListener("message", (e) => { if (e.data && typeof e.data.digitado === "string") window.__digitado = e.data.digitado; });
+window.__artefato = () => {
+  window.__soltou = false;
+  document.getElementById("antes").focus();
+  abrirArtefatoNoReact(document, { titulo: "Plano", versao: 2, origem: document.getElementById("antes"), baixar: () => undefined,
+    montar: (corpo) => { const f = document.createElement("iframe"); f.className = "artefato-quadro tela-cheia"; f.setAttribute("sandbox", "allow-scripts"); f.srcdoc = DOC_DO_ARTEFATO; f.style.cssText = "width:100%;height:100%;border:0"; corpo.append(f); return () => { window.__soltou = true; }; } });
+};
 window.__luz = () => {
   const itens = [{ id: "a", nome: "a.png", mime: "image/png", url: "/u/a", w: 1600, h: 900 }, { id: "b", nome: "b.png", mime: "image/png", url: "/u/b", w: 900, h: 1600 }];
   document.getElementById("midias")?.remove();
@@ -213,5 +224,28 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await tecla("Escape", "Escape", 27);
     await ate(`!document.querySelector(".rx-luz-host")`);
     await ate(`document.activeElement?.id === "midia-a"`);
+  }, 60_000);
+
+  it("a tela cheia do artefato: centrada; clicar e digitar dentro do iframe (o foco preso do diálogo não o tira de lá); o Esc é do artefato; o ✕ solta e o foco volta", async () => {
+    await esperar(300);
+    await avaliar(cdp, "window.__artefato()");
+    await ate(`document.querySelector(".artefato-dialogo.rx-art iframe")`);
+    const r = await avaliar<{ cx: number; cy: number; ix: number; iy: number }>(cdp, `(() => { const r = document.querySelector(".artefato-dialogo.rx-art").getBoundingClientRect(); const i = document.querySelector(".rx-art iframe").getBoundingClientRect(); return { cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2), ix: Math.round(i.left + 40), iy: Math.round(i.top + 16) }; })()`);
+    expect(Math.abs(r.cx - 640)).toBeLessThanOrEqual(2);
+    expect(Math.abs(r.cy - 400)).toBeLessThanOrEqual(2);
+    await esperar(400);
+    for (const type of ["mousePressed", "mouseReleased"] as const) await cdp.enviar("Input.dispatchMouseEvent", { type, x: r.ix, y: r.iy, button: "left", clickCount: 1 });
+    await esperar(300);
+    await cdp.enviar("Input.insertText", { text: "olá" });
+    await ate(`window.__digitado === "olá"`);
+    expect(await avaliar<boolean>(cdp, `document.activeElement?.tagName === "IFRAME"`)).toBe(true);
+    // O Esc dentro do iframe é do artefato (como no <dialog> nativo): não fecha. O ✕ fecha.
+    await tecla("Escape", "Escape", 27);
+    await esperar(300);
+    expect(await avaliar<boolean>(cdp, `!!document.querySelector(".rx-art-host")`)).toBe(true);
+    await avaliar(cdp, `document.querySelector(".rx-art [data-fechar]").click()`);
+    await ate(`!document.querySelector(".rx-art-host")`);
+    expect(await avaliar<boolean>(cdp, "window.__soltou")).toBe(true);
+    await ate(`document.activeElement?.id === "antes"`);
   }, 60_000);
 });

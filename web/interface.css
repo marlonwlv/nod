@@ -1263,6 +1263,9 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .artefato-dialogo[open] { display: flex; flex-direction: column; }
 .artefato-dialogo::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
 .artefato-dialogo-corpo { flex: 1; min-height: 0; }
+/* ADR-179: a do Base UI (um <div> no portal): o fundo e o centrado que o ::backdrop e o <dialog> davam. */
+.rx-art-fundo { position: fixed; inset: 0; z-index: 60; background: var(--backdrop); backdrop-filter: blur(2px); }
+.artefato-dialogo.rx-art { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; display: flex; flex-direction: column; }
 .artefato-quadro.tela-cheia { height: 100%; }
 @media (max-width: 760px) {
   .artefato { margin-left: 0; }

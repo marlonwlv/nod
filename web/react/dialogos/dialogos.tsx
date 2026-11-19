@@ -9,3 +9,4 @@ export { abrirPareamentoNoReact } from "./parear-mac.tsx";
 export { criarPaletaNoReact } from "./paleta.tsx";
 export { abrirPreviaNoReact } from "./previa-arquivo.tsx";
 export { abrirLuzNoReact } from "./luz.tsx";
+export { abrirArtefatoNoReact } from "./artefato.tsx";

@@ -1451,6 +1451,7 @@ const artefatos = criarArtefatosVivos({
   carregar: (id, versao) => (api ? api.versaoArtefato(id, versao) : Promise.reject(new ErroApi(401, "nao_permitido", "sem sessão"))),
   salvar: (id, dados) => (api ? api.salvarEstadoArtefato(id, dados) : Promise.reject(new ErroApi(401, "nao_permitido", "sem sessão"))),
   salvarAoSair: (id, dados) => api?.salvarEstadoArtefatoAoSair(id, dados),
+  telaCheiaPorFora: () => { const m = moduloDosDialogos; return m ? (d) => m.abrirArtefatoNoReact(document, d) : null; },
 });
 /**
  * Diagrama mermaid no balão do bot (NOD-328): o renderizador é um iframe sandbox de origem opaca que importa o módulo
