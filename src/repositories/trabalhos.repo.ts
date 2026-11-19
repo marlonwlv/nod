@@ -256,7 +256,7 @@ export function trabalhosRepo(conn: Conn, escopo: Escopo) {
             and exists (select 1 from mensagens h join turnos t on t.tenant_id = h.tenant_id and t.id = h.turno_id
               where h.tenant_id = w.tenant_id and t.trabalho_id = w.id and h.kind = 'handoff' and h.payload->>'tarefaId' is not null
                 and h.criado_em < ${colegaAntesDe === null ? null : data(colegaAntesDe)}::timestamptz
-                and ${pedidoAbertoSql(conn, "h")}))
+                and ${pedidoAbertoSql(conn, "h", escopo.tenantId)}))
         order by criado_em limit 1`;
       return l ? paraTrabalho(l) : null;
     },
@@ -466,7 +466,7 @@ export function trabalhosRepo(conn: Conn, escopo: Escopo) {
           -- acabado sem peer_ask (a pessoa o parou) não segura este: senão ele ficaria rodando para sempre.
           exists (select 1 from mensagens h join turnos t on t.tenant_id = h.tenant_id and t.id = h.turno_id
             where h.tenant_id = ${escopo.tenantId} and t.trabalho_id = ${id} and h.kind = 'handoff' and h.payload->>'tarefaId' is not null
-              and ${pedidoAbertoSql(conn, "h")}) as colega,
+              and ${pedidoAbertoSql(conn, "h", escopo.tenantId)}) as colega,
           u.estado as ultimo_estado, u.motivo_interrupcao as ultimo_motivo
         from (select 1) um
         left join lateral (
@@ -539,7 +539,7 @@ export function trabalhosRepo(conn: Conn, escopo: Escopo) {
           from mensagens h join turnos t on t.tenant_id = h.tenant_id and t.id = h.turno_id
           left join agentes g on g.tenant_id = h.tenant_id and g.id::text = h.payload->>'para'
           where h.tenant_id = w.tenant_id and t.trabalho_id = w.id and h.kind = 'handoff' and h.payload->>'tarefaId' is not null
-            and ${pedidoAbertoSql(conn, "h")}
+            and ${pedidoAbertoSql(conn, "h", escopo.tenantId)}
           order by h.criado_em, h.id limit 1
         ) c on true
         -- ADR-099 (I10): o motivo da volta marcada mais próxima — o do turno que a marcou (o mesmo despertar_em).

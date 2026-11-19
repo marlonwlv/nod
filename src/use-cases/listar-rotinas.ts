@@ -38,6 +38,12 @@ export const listarRotinas: CasoDeUso<Record<string, never>, { rotinas: RotinaDt
   const comWebhook = minhas.some(ehWebhook);
   const prefixos = new Map(comWebhook ? (await deps.repos.rotinaGatilhos.vivosDaPessoa()).map((g) => [g.rotinaId, g.prefixo]) : []);
   const pendentes = new Set(comWebhook ? await deps.repos.rotinaChamadas.comRecusaPendente() : []);
+  // 2026-11-19: a execução aberta e as últimas execuções saem em lote, não rotina a rotina — com ~100 rotinas a lista fazia
+  // centenas de consultas numa transação e passava dos 10 s do prazo da web (o "Reconectando…" em cada rotina que rodava).
+  const agora = deps.agora();
+  const comAberta = rotinas.filter((r) => minhas.includes(r) || contaPuladas(r)).map((r) => r.id);
+  const abertas = await deps.repos.rotinaJanelas.turnosAbertos(comAberta, agora);
+  const ultimas = await deps.repos.rotinaExecucoes.ultimasDasRotinas(minhas.map((r) => r.id), ADIADAS_LIDAS);
   const dtos: RotinaDto[] = [];
   for (const rotina of rotinas) {
     let bloqueio: RotinaDto["bloqueio"] = null;
@@ -47,18 +53,19 @@ export const listarRotinas: CasoDeUso<Record<string, never>, { rotinas: RotinaDt
     let ondeRoda: RotinaDto["ondeRoda"];
     let webhook: WebhookDaRotinaDto | undefined;
     if (minhas.includes(rotina)) {
-      espera = await esperaDaRotina(deps, rotina.id);
+      const dela = ultimas.get(rotina.id) ?? [];
+      espera = await esperaDaRotina(deps, rotina.id, dela);
       if (!concessoes.has(rotina.agenteId)) concessoes.set(rotina.agenteId, await deps.repos.concessoes.doAgente(rotina.agenteId));
       bloqueio = await bloqueioDaRotina(deps.repos, rotina, registrados, concessoes.get(rotina.agenteId) ?? []);
-      perguntaPendente = await perguntaQueParou(deps.repos, rotina);
-      esperaDaCota = await esperaDaCotaDaRotina(deps.repos, rotina, deps.agora());
+      perguntaPendente = await perguntaQueParou(deps.repos, rotina, dela[0]);
+      esperaDaCota = await esperaDaCotaDaRotina(deps.repos, abertas.get(rotina.id)?.turnoId ?? null, agora);
       if (comOndeRoda) {
         if (!alvos.has(rotina.agenteId)) alvos.set(rotina.agenteId, await alvoDoBot(deps, rotina.agenteId));
         ondeRoda = ondeRodaDaRotina(alvos.get(rotina.agenteId) ?? null, vivas);
       }
       if (ehWebhook(rotina)) webhook = await webhookDaRotina(deps, rotina, prefixos.get(rotina.id) ?? null, pendentes.has(rotina.id));
     }
-    const puladas = await puladasDe(deps, rotina);
+    const puladas = puladasDe(rotina, abertas.get(rotina.id) ?? null, agora);
     // NOD-412: a pausada com data diz quando volta ("seg 09:00"), na hora da rotina.
     const retomada = rotina.estado === "pausada" && rotina.retomarEm ? { em: rotina.retomarEm, texto: textoRetomada(rotina.retomarEm, rotina.fusoIana, deps.agora()) } : undefined;
     dtos.push({ rotina, proximaExecucao: rotina.proximaExecucao, bloqueio, resumo: resumoDe(rotina), espera, ...(retomada ? { retomada } : {}), ...(perguntaPendente ? { perguntaPendente } : {}), ...(esperaDaCota ? { esperaDaCota } : {}), ...(ondeRoda ? { ondeRoda } : {}), ...(webhook ? { webhook } : {}), ...(puladas !== null ? { janelasPuladas: puladas } : {}) });
@@ -86,8 +93,7 @@ async function webhookDaRotina(deps: Deps, rotina: Rotina, prefixo: string | nul
  * definido em 2026-10-16 (NOD-243): a lista diz por que a rotina não está rodando — só quando a ÚLTIMA execução foi
  * 'adiada'. Lê o topo do histórico (as adiadas seguidas) e, se é a frente que segura, o título dela.
  */
-async function esperaDaRotina(deps: Pick<Deps, "repos">, rotinaId: string): Promise<EsperaRotinaDto | null> {
-  const ultimas = await deps.repos.rotinaExecucoes.listar(rotinaId, ADIADAS_LIDAS);
+async function esperaDaRotina(deps: Pick<Deps, "repos">, rotinaId: string, ultimas: readonly ExecucaoRotina[]): Promise<EsperaRotinaDto | null> {
   const seguidas: ExecucaoRotina[] = [];
   for (const e of ultimas) {
     if (e.desfecho !== "adiada") break;
@@ -109,11 +115,14 @@ function ehMotivoAdiada(m: string | null): m is MotivoAdiada {
  * definido em 2026-10-15 (pacote A3): a rotina ativa com uma execução ainda aberta — o agendador pula as janelas seguintes
  * (ADR-045). Conta os horários do cron desde a janela dela até agora; a partir de 3, a lista avisa. Pausada não avisa.
  */
-async function puladasDe(deps: Parameters<typeof listarRotinas>[0], rotina: RotinaDto["rotina"]): Promise<number | null> {
-  if (rotina.estado !== "ativa" || rotina.excluidoEm !== null || ehWebhook(rotina)) return null;
-  const aberta = await deps.repos.rotinaJanelas.execucaoAberta(rotina.id, deps.agora());
-  if (!aberta) return null;
-  return avisoDeJanelasPuladas(janelasPuladas({ cron: rotina.cron, fusoIana: rotina.fusoIana, desde: aberta.instanteAgendado, agora: deps.agora() }));
+function puladasDe(rotina: Rotina, aberta: { instanteAgendado: number } | null, agora: number): number | null {
+  if (!contaPuladas(rotina) || !aberta) return null;
+  return avisoDeJanelasPuladas(janelasPuladas({ cron: rotina.cron, fusoIana: rotina.fusoIana, desde: aberta.instanteAgendado, agora }));
+}
+
+/** Só a rotina ativa de horário conta janelas puladas (a pausada e a de webhook não). */
+function contaPuladas(rotina: Rotina): boolean {
+  return rotina.estado === "ativa" && rotina.excluidoEm === null && !ehWebhook(rotina);
 }
 
 /**
@@ -121,8 +130,7 @@ async function puladasDe(deps: Parameters<typeof listarRotinas>[0], rotina: Roti
  * uma pergunta (ou aprovação) que ainda espera — a mais antiga que segura a janela, e desde quando. Só a última execução
  * conta: se a janela seguinte já rodou, não há parada a mostrar.
  */
-async function perguntaQueParou(repos: Repos, rotina: Rotina): Promise<RotinaDto["perguntaPendente"]> {
-  const [ultima] = await repos.rotinaExecucoes.listar(rotina.id, 1);
+async function perguntaQueParou(repos: Repos, rotina: Rotina, ultima: ExecucaoRotina | undefined): Promise<RotinaDto["perguntaPendente"]> {
   if (ultima?.desfecho !== "bloqueada" || ultima.motivo !== "aguardando_resposta") return undefined;
   const d = await decisaoQueSeguraARotina(repos, rotina);
   return d ? { decisaoId: d.id, desde: Date.parse(d.criadoEm), tipo: TIPOS_GATE_ROTINA.has(d.tipo) ? "aprovacao" : "pergunta" } : undefined;
@@ -132,8 +140,7 @@ async function perguntaQueParou(repos: Repos, rotina: Rotina): Promise<RotinaDto
  * definido em 2026-10-16 (NOD-274, C7; revisão do Gil): a execução aberta da rotina cuja volta espera a cota da IA
  * renovar — a lista mostra "esperando a cota do <IA> · volta às HH:MM" em vez de parecer travada.
  */
-async function esperaDaCotaDaRotina(repos: Repos, rotina: Rotina, agora: number): Promise<RotinaDto["esperaDaCota"]> {
-  const raiz = (await repos.rotinaJanelas.turnoAberto(rotina.id, agora))?.turnoId ?? null;
+async function esperaDaCotaDaRotina(repos: Repos, raiz: string | null, agora: number): Promise<RotinaDto["esperaDaCota"]> {
   const volta = raiz ? await repos.rotinaJanelas.esperaDaCotaDe(raiz, ENTRADA_DA_VOLTA_DA_COTA, agora) : null;
   return volta ? { ia: iaDaVoltaDaCota(volta.entrada, volta.harness), voltaEm: volta.voltaEm } : undefined;
 }

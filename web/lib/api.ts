@@ -78,7 +78,7 @@ export type AcessosDoAppDto = { padrao: "nenhum" | "leitura" | "escrita"; bots: 
 /** ADA-241: POST /conectores/:id/acessos/lote. `lote_id` nulo: nada mudou (não há o que desfazer). */
 export type LoteDeAcessosDto = { ok: true; lote_id: string | null; frase: string; aplicados: { agenteId: string; nome: string }[]; mantidos: { agenteId: string; nome: string }[]; ja_feito: boolean };
 
-export { ErroApi, FRASE_SEM_INTERNET, FRASE_SERVIDOR_INDISPONIVEL, rotaDe } from "./erro-api.ts";
+export { ErroApi, FRASE_SEM_INTERNET, FRASE_SERVIDOR_DEMOROU, FRASE_SERVIDOR_INDISPONIVEL, rotaDe } from "./erro-api.ts";
 
 /**
  * Cliente REST da web (ADR-020: a web DECIDE, nunca executa; ADR-018: só `import type` de src).
@@ -120,7 +120,7 @@ async function pedir<T>(metodo: string, url: string, corpo?: unknown, opcoesPedi
   } catch (e) {
     // Navegação/troca de tela cancelou: não é falha, ninguém precisa de aviso.
     if (ehAbort(e)) throw e;
-    const falha = falhaDeTransporte(rota);
+    const falha = falhaDeTransporte(rota, e);
     obs?.falhou(falha);
     throw falha;
   }
@@ -129,7 +129,7 @@ async function pedir<T>(metodo: string, url: string, corpo?: unknown, opcoesPedi
     texto = await r.text();
   } catch (e) {
     if (ehAbort(e)) throw e;
-    const falha = falhaDeTransporte(rota);
+    const falha = falhaDeTransporte(rota, e);
     obs?.falhou(falha);
     throw falha;
   }

@@ -59,7 +59,7 @@ import type { TrocaDeIa } from "../../src/contracts/troca-de-ia.ts";
 import type { RitmoRotina } from "../../src/contracts/rotina-ritmo.ts";
 import type { Parada } from "../../src/repositories/paradas.repo.ts";
 import type { Pessoa } from "../../src/repositories/pessoas.repo.ts";
-import type { JanelaReivindicada } from "../../src/repositories/rotina-janelas.repo.ts";
+import type { JanelaReivindicada, TurnoAbertoDaRotina } from "../../src/repositories/rotina-janelas.repo.ts";
 import type { GatilhoVivo } from "../../src/repositories/rotina-gatilhos.repo.ts";
 import type { ChamadaWebhook } from "../../src/contracts/rotina.ts";
 import type { Repos } from "../../src/repositories/tipos.ts";
@@ -2738,6 +2738,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           ? { turnoId: t.id, instanteAgendado: j.instanteAgendado, estado: t.estado, attempted: t.sinais.attempted, acordarEm: t.acordarEm ?? null, criadoEm: t.criadoEm, trabalhoId: t.trabalhoId ?? null }
           : null;
       },
+      async turnosAbertos(rotinaIds, ref) {
+        const saida = new Map<string, TurnoAbertoDaRotina>();
+        for (const id of new Set(rotinaIds)) {
+          const a = await this.turnoAberto(id, ref);
+          if (a) saida.set(id, a);
+        }
+        return saida;
+      },
       // definido em 2026-10-15 (pacote A3): a execução aberta com o instante da janela (a lista conta os horários pulados).
       async execucaoAberta(rotinaId, ref) {
         const a = await this.turnoAberto(rotinaId, ref);
@@ -2792,6 +2800,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
       async listar(rotinaId, limite = EXECUCOES_GUARDADAS) {
         return doTenant(b.execucoes).filter((e) => e.rotinaId === rotinaId).sort((x, y) => y.em - x.em || y.id.localeCompare(x.id)).slice(0, limite);
+      },
+      async ultimasDasRotinas(rotinaIds, limite) {
+        const saida = new Map<string, ExecucaoRotina[]>();
+        for (const id of new Set(rotinaIds)) {
+          const ultimas = await this.listar(id, limite);
+          if (ultimas.length > 0) saida.set(id, ultimas);
+        }
+        return saida;
       },
       async dasRotinas(rotinaIds) {
         const ids = new Set(rotinaIds);
