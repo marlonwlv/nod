@@ -47,6 +47,15 @@ manter o desenho por string cresce com cada tela; o de trocar tudo de uma vez é
 
 As fases 3 (barra lateral) e 6 (conversa) foram feitas em 2026-11-19 pela [ADR-189](adr-189-barra-e-conversa-no-react-e-has-sem-sujeito-universal.md), que também achou e corrigiu o que de fato travava a tela (CSS com `:has()` de sujeito universal).
 
+A fase 5 (quadro) começou em 2026-11-19 medindo: abrir o quadro e arrastar com 160 tarefas, servidor × tela
+(`scripts/carga-tela`, cenário `quadro`, que agora mede a abertura, arrasta por ponteiro — a grade dnd-kit não ouve o
+arrasto nativo — e mede soltar → card na coluna nova e o PATCH). O primeiro passo não é React: é a emenda da
+[ADR-189](adr-189-barra-e-conversa-no-react-e-has-sem-sujeito-universal.md) (a conversa por baixo do quadro saía do
+estilo a cada troca). A grade em React de hoje (ADR-180) mediu **mais lenta** que a por string (o root redesenha a grade
+inteira a cada desenho, com um Menu do Base UI por card); ela continua atrás de `?quadro-react=1` até ser refeita nos
+passos seguintes da fase: a página do quadro inteira num root que fica, os cards em JSX a partir da tarefa com um só
+"Mover para…", as jornadas de Chrome arrastando por ponteiro e o teste de mão antes de ligar por padrão.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts
