@@ -157,6 +157,11 @@ gc iam service-accounts add-iam-policy-binding "$SA_ENSAIO" --role=roles/iam.wor
   --member="principalSet://iam.googleapis.com/projects/$NUMERO/locations/global/workloadIdentityPools/github/attribute.repository/$GITHUB_REPO" >/dev/null
 echo "Conta do ensaio: $SA_ENSAIO (grave na variável GCP_ENSAIO_SA do repositório)"
 
+if [[ "${PROVISIONAR_DOWNLOADS:-0}" == 1 ]]; then
+  passo "Downloads publicados (NOD-334, conta dedicada ao bucket)"
+  source ./provisionar-downloads.sh
+fi
+
 passo "Atualização do app do Mac (NOD-132, ADR-149)"
 # Bucket privado dos ZIPs; a VM só lê e assina URL curta com um papel que tem só o signBlob (menor privilégio: com
 # signBlob sobre si mesma a SA ainda assina um JWT e troca por token, mas é a própria VM, sem escalada). Quem publica é

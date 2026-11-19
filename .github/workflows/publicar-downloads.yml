@@ -1,0 +1,66 @@
+# ADR-161: release só encaminha; credenciais existem exclusivamente na main/producao.
+name: publicar-downloads
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release publicada: vX.Y.Z[-rc.N]'
+        required: true
+        type: string
+      permitir_voltar:
+        description: 'Permitir rollback dos estáveis (não dispensa validações)'
+        type: boolean
+        default: false
+permissions: {}
+concurrency:
+  group: publicar-downloads
+  cancel-in-progress: false
+jobs:
+  encaminhar:
+    if: github.repository == 'marlonwlv/nod' && github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Encaminhar ou ignorar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+          HABILITADO: ${{ vars.NOD_PUBLICAR_DOWNLOADS }}
+        run: |
+          set -euo pipefail
+          if [[ "$TAG" == desktop-v* ]]; then echo 'ignorada: desktop-v'; exit 0; fi
+          if [[ "$HABILITADO" != 1 ]]; then echo 'desabilitado: configure o acesso antes de NOD_PUBLICAR_DOWNLOADS=1'; exit 0; fi
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.(0|[1-9][0-9]*))?$ ]] || { echo 'tag inválida'; exit 1; }
+          gh workflow run publicar-downloads.yml --ref main -f tag="$TAG" -f permitir_voltar=false
+  publicar:
+    if: github.repository == 'marlonwlv/nod' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && vars.NOD_PUBLICAR_DOWNLOADS == '1'
+    runs-on: ubuntu-latest
+    environment: producao
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.19.0'
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DOWNLOADS_SA }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Validar, publicar e conferir
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          PERMITIR_VOLTAR: ${{ inputs.permitir_voltar }}
+          BUCKET: ${{ vars.NOD_DOWNLOADS_BUCKET }}
+        run: node scripts/desktop/publicar-downloads.mjs
