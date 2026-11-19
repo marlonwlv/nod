@@ -204,7 +204,7 @@ describe("montarPromptSistema", () => {
     expect(rotina).not.toContain("Conexões cadastradas");
     expect(rotina).not.toContain("Apps do marketplace");
     expect(rotina).not.toContain("LER_TUDO");
-    expect(rotina).toMatch(/Apps que você pode pedir com pedir_acesso \(slug\): [a-z_, ]*gmail[a-z_, ]*interno/);
+    expect(rotina).toMatch(/Apps que você pode pedir com pedir_acesso \(slug\): [a-z_, -]*gmail[a-z_, -]*interno/);
     const conversa = montarPromptSistema({ agente, memorias: [], ferramentas: [f("pedir_acesso")], pessoaNome: "Marlon", modo: "conversa", conectores });
     expect(conversa).toContain("Conexões cadastradas");
     expect(conversa).toContain("Apps do marketplace");
@@ -387,10 +387,11 @@ describe("NOD-155: o prompt em parte estável e parte volátil (cache por prefix
     // 2026-11-18: integração da orientação semântica e do gateway com o aviso de acompanhar pelo Computador do preview.
     const digital = (s: string) => createHash("sha256").update([...s.split("\n")].sort().join("\n")).digest("hex");
     // 2026-11-18: atualização deliberada da política do computador (gateway único e confirmação explícita).
+    // 2026-11-18: catálogo Microsoft/reuniões da main (#171) somado ao da preview; só a linha de apps/slugs mudou.
     const esperado = {
-      conversa: "89c3e60c13be5081a02211ae107f17c0e4f17b3d6d983237690044b09dcabd66",
-      rotina: "97616c556786529b46a176fb26223bf09e0e267229e6ac1b3baa21c110a9e7b1",
-      delegacao: "79f26d523c61ac8948e2db46c9c9169d49f32abe672a2d415ddcf222647b9362",
+      conversa: "97a9525d94f2c214caa775391f471d4966ed1e3d9014b2462e0d3910721566cd",
+      rotina: "3338d849dfbfcf1367a6a6f8a1404b11514c1032c8fd446f60410a2285809ca5",
+      delegacao: "40ad326acdd4804a3ae65fd1b9b9c796fb5f4688791a381ff1680d8aa51b4b59",
     };
     const obtido = { conversa: "", rotina: "", delegacao: "" };
     for (const modo of ["conversa", "rotina", "delegacao"] as const) obtido[modo] = digital(montarPromptSistema({ ...base, ...turnoA, profundidade: 1, modo }));

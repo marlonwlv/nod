@@ -1,3 +1,4 @@
+import { APPS_MARKETPLACE } from "../../../src/contracts/marketplace.ts";
 import { FALHA_APP } from "../../../web/lib/conexao.ts";
 import { describe, expect, it } from "vitest";
 import type { Conector } from "../../../src/contracts/conector.ts";
@@ -121,4 +122,17 @@ describe("o ‹ de volta no topo do Marketplace (definido em 2026-10-04)", () =>
     const html = renderConectores({ ...base, tela: { tipo: "conectores", filtro: "conectados", gaveta: { slug: "slack", passo: "detalhes" }, voltar: { tipo: "conversa", conversaId: "c1", agenteId: "a1" } } });
     expect(html).toContain('title="Voltar para Milton (Esc)"');
   });
+});
+
+it.each(["desconectado", "conectando", "atencao"])("orienta consentimento Microsoft na gaveta: %s", (situacao) => {
+  const app = APPS_MARKETPLACE.find((a) => a.slug === "microsoft-teams")!;
+  const html = renderConectores({
+    ...base, marketplace: [{ ...app, logo: null }],
+    conectores: situacao === "atencao" ? [conector(app.slug, { ultimaFalha: { motivo: "conector_indisponivel", em: 200 } })] : [],
+    conectando: situacao === "conectando" ? { [app.slug]: { url: "https://login.example.test", falhou: null } } : {},
+    tela: { tipo: "conectores", gaveta: { slug: app.slug, passo: "detalhes" } },
+  });
+  expect(html).toContain("administrador Microsoft Entra");
+  expect(html).toContain("Aplicativos empresariais");
+  expect(html).toContain('data-id="microsoft-teams"');
 });
