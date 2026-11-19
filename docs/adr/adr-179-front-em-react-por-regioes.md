@@ -93,8 +93,10 @@ imperativo (`atualizarComposer`, os anexos, o ditado, o menu da IA, a folha do "
 (`composer-ligado.ts`): não é regravado a cada frame, então a migração dele é pelo código, em pedaços, cada um com a
 volta `?composer-react=0`. O 1º pedaço é **a fila de anexos** (`web/react/composer/fila-de-anexos.tsx`), a do campo do chat
 e a da pílula: a cada passo do upload o desenho por string regravava a fila inteira (a miniatura nascia de novo); em
-React só a barra do item que andou muda, e o "remover" é prop. Os itens seguem no main (`anexosPendentes`). Os próximos
-pedaços, nesta ordem: o topo do campo (a pergunta e a nota, `aparenciaDoComposer`), o seletor de IA e a folha do "+", o
+React só a barra do item que andou muda, e o "remover" é prop. Os itens seguem no main (`anexosPendentes`). O 2º é **o topo
+do campo** (`web/react/composer/topo-do-campo.tsx`): a caixa "Respondendo" de uma pergunta (Trocar, ×) e a de uma fala
+citada (×), a partir de `topoDoComposer` (o dado; `renderTopoComposer` é o mesmo por string). Os próximos pedaços, nesta
+ordem: o seletor de IA e a folha do "+", o
 ditado, e por fim o próprio campo (o `<textarea>` sem controle do React, com as menções e os comandos `/`), com as
 jornadas de Chrome de digitação, foco e acento em composição.
 
