@@ -81,7 +81,9 @@ no fim do render achar os nós. A quarta é **Tarefas de todos** (`web/react/tel
 0 / 0 / 7,7 por string. A quinta é a tela **Tarefas** (`trabalhos`, ADR-187 §8; `web/react/telas/tarefas.tsx`), Por bot
 e Por estado: as regras (o grupo de cada bot, o título, as contas, o tempo, o passo) são as funções puras de
 `web/telas/tela-tarefas.ts`, exportadas e usadas pelas duas; o componente só troca a marcação. As esperas de colega
-(Cobrar, Desistir) e a pílula da cota entram pelo conversor.
+(Cobrar, Desistir) e a pílula da cota entram pelo conversor. Também **Nova rotina** e o **novo chat em grupo** (Nova sala), os dois formulários:
+sem `data-form`, o envio é prop e chama o mesmo tratamento do main (`FORMS`) com o próprio formulário; os campos ficam
+sem controle do React.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

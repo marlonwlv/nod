@@ -591,6 +591,12 @@ if (telasNoReact) {
         abrirTrabalho: (id) => abrirTrabalho(id),
         abrirConversa: (conversaId, agenteId) => navegar({ tipo: "conversa", conversaId, agenteId }),
       },
+      novaRotina: {
+        criar: (form) => void FORMS["criar-rotina"]?.(form),
+        cancelar: () => navegar({ tipo: "rotinas" }),
+        criarBot: () => navegar({ tipo: "novo-bot" }),
+      },
+      novaSala: { criar: (form) => void FORMS["criar-sala"]?.(form) },
     });
     if (estado.sessao) render();
   }, () => {
@@ -3464,7 +3470,7 @@ function renderPrincipal(): void {
       corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("novo-bot") : renderNovoBot(estado);
       break;
     case "nova-rotina":
-      corpo = renderNovaRotina(estado, t.agenteId);
+      corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("nova-rotina") : renderNovaRotina(estado, t.agenteId);
       break;
     case "inicio":
       break;
@@ -3489,7 +3495,7 @@ function renderPrincipal(): void {
       corpo = renderConectores(estado);
       break;
     case "nova-sala":
-      corpo = renderNovaSala(estado);
+      corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("nova-sala") : renderNovaSala(estado);
       break;
     // ADR-083 (#195/#196): "Todos os trabalhos", a tela da task e a tela provisória de uma linha do chat.
     case "trabalhos":
