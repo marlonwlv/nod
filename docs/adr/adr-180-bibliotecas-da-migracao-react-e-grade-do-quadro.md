@@ -61,7 +61,8 @@ teve tarefa de 425 ms. O perfil apontou quatro custos, e a grade mudou em cada u
 2. **Toda coluna redesenhava a cada frame** (o desenho por string recria os objetos). A coluna agora é `memo` por valor
    (as partes, os extras e os cards comparados campo a campo).
 3. **Um `Menu.Root` do Base UI por card** (~70 ms por desenho com 160 cards). Agora o "Mover para…" é um menu só, da
-   grade, controlado e ancorado no botão do card que o abriu (`anchor` do Positioner, `finalFocus` de volta ao botão).
+   grade, com trigger destacado (`Menu.createHandle`): cada card tem só um `Menu.Trigger` leve, com a tarefa como
+   `payload`, e o trigger segue cuidando do foco e do teclado (Enter abre, setas, Esc devolve ao botão).
 4. **`useSortable` em cada card**: o dnd-kit media os 160 itens a cada arrasto e redesenhava todos a cada coluna sob o
    ponteiro. Como não há ordem manual (decisão 2, item 5), os cards agora são só `useDraggable`; o dnd-kit mede as
    colunas. Quando o campo de ordem existir, a coluna volta a ter o `SortableContext` (o item 5 continua valendo, com
