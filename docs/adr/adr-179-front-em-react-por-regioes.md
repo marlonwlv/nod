@@ -155,6 +155,16 @@ cima") e `SELETOR_DENTRO_DA_SOBREPOSICAO` ("o alvo está dentro de uma"), em `we
 pontos. A tela cheia da ligação (`role="dialog"`) fica de fora de propósito: o Esc dela segue encolhendo. A trava do toque
 duplo da folha "+" vale no popup do Base UI, e o zoom (+/−) da prévia de PDF passou a ler o popup também.
 
+**A região da ligação** (`#ligacao`, item 4; 2026-11-19), em JSX (`web/react/ligacao/ligacao.tsx`), com a volta
+`?ligacao-react=0`: o mesmo DOM do desenho por string (`partesDaLigacao`, a avaliação, a recusa e a rede de segurança sem
+IA), com as ações por prop. O controle (`web/telas/ligacao-controle.ts`) segue dono do estado e do motor; quando o módulo
+chega, ele passa a desenhar por fora (`desenharPorFora`: só avisa quem assina e põe o `hidden` da região), e a tela lê o
+instantâneo dele (`instantaneo`, o mesmo objeto até a próxima mudança). Cada mudança desenha síncrona (`flushSync` na
+assinatura): o foco que o controle põe logo depois (Encolher, Expandir) acha o botão no documento. O cronômetro e a
+contagem da janela andam por redesenho a cada segundo (0,6 ms por tique no Chrome, build de produção); o mascote é o mesmo
+nó (o conversor). As frases e os botões da rede de segurança viraram dado (`semIaNaTela`, `textoIaVoltou`), que a string
+e o JSX leem — o HTML por string saiu idêntico em 1.155 estados.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts

@@ -1485,6 +1485,38 @@ const telaLigacao = criarTelaLigacao({
   configurarSemVoz: () => telaOnboarding.acoes["onboarding-sem-voz"]?.({}),
 });
 /**
+ * ADR-179 (item 4): a região `#ligacao` em React (web/react/ligacao/), quando o módulo chega; até lá, e com
+ * `?ligacao-react=0`, o desenho por string do controlador. As ações são as mesmas dos `data-act` da região.
+ */
+if (reactNaRegiao("ligacao", window.location.href, guardadoDoNavegador())) {
+  void import("./react/ligacao/ligacao.tsx").then((m) => {
+    const raiz = document.getElementById("ligacao");
+    if (!raiz) return;
+    telaLigacao.desenharPorFora();
+    m.montarLigacaoNoReact(raiz, telaLigacao, {
+      encolher: () => telaLigacao.encolher(),
+      expandir: () => telaLigacao.expandir(),
+      alternarMudo: () => telaLigacao.alternarMudo(),
+      alternarTeclado: () => telaLigacao.alternarTeclado(),
+      abrirAjustes: (el) => telaLigacao.abrirAjustes(el),
+      desligar: () => void telaLigacao.desligar(),
+      decidir: (id, aprovar) => agir(() => telaLigacao.decidir(id, aprovar)),
+      retomarAudio: () => void telaLigacao.retomarAudio(),
+      enviarTexto: (texto) => telaLigacao.enviarTexto(texto),
+      continuarCom: (ia) => void telaLigacao.continuarCom(ia),
+      iaNoMac: (ia, acao) => void telaLigacao.iaNoMac(ia, acao),
+      semVoz: () => void telaLigacao.semVoz(),
+      avaliar: (nota) => void telaLigacao.avaliar(nota),
+      motivo: (motivo) => void telaLigacao.motivo(motivo),
+      fecharAvaliacao: () => telaLigacao.fecharAvaliacao(),
+      fecharRecusa: () => telaLigacao.fecharRecusa(),
+      ajustesDoMicrofone: () => abrirAjustesDoMicrofone(),
+    });
+  }, () => {
+    // Sem o módulo (rede), a ligação segue pelo desenho por string.
+  });
+}
+/**
  * Ouvir uma resposta (definido em 2026-10-17, NOD-106): o tocador mora fora do reducer (o áudio), mas a fase vai para
  * `estado.leitura` a cada mudança, para o re-render do SSE manter o "Parar". A região `#anuncio-leitura` diz ao leitor
  * de tela o que mudou; o foco volta ao botão da mesma resposta quando o clique estava nele.
