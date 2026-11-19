@@ -135,9 +135,11 @@ const definirEmLote: CasoDeUso<EntradaLote, SaidaLote> = async (d, input) => {
   // devolver a marca. Quem o "todos com Ler" não rebaixa fica fora: a pessoa não escolheu o nível dele.
   const escolhidos = mantidos.filter((id) => atuais.get(id) === input.nivel);
   const marcas = alvos.length + escolhidos.length > 0 ? await d.repos.acessos.marcas(conector.id) : new Map<string, MarcaDeAcesso>();
+  let soMarcados = 0;
   for (const id of escolhidos) {
     const marca = marcas.get(id);
     if (marca === "pessoa") continue;
+    soMarcados++;
     if (marca) marcasAntes[id] = marca;
     const ficou = (await conjuntoAtual(d, id, conector.id)).map((c) => c.capacidade).sort();
     antes[id] = ficou;
@@ -155,7 +157,9 @@ const definirEmLote: CasoDeUso<EntradaLote, SaidaLote> = async (d, input) => {
     await d.repos.acessos.marcar(id, conector.id, "pessoa");
   }
   let loteId: string | null = null;
-  if (alvos.length > 0) {
+  // QA r104: o lote em que ninguém muda de nível, mas alguém deixa de seguir o padrão, também é gravado; senão a marca
+  // muda sem Desfazer e o padrão seguinte deixa esse bot de fora sem a pessoa saber.
+  if (alvos.length > 0 || soMarcados > 0) {
     const lote = await d.repos.acessos.criarLote({ conectorId: conector.id, nivel: input.nivel, chave, antes, depois, marcasAntes, autorTipo: input.botId ? "bot" : "pessoa", autorId: input.botId ?? d.escopo.pessoaId });
     // A mesma chave gravada por outra transação no meio: o índice único segurou; esta volta inteira.
     if (!lote) throw new ErroDeDominio("estado_invalido", { cause: "lote repetido" });

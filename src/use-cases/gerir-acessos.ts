@@ -146,7 +146,7 @@ export const gerirAcessos: CasoNod<Deps, "gerir_acessos"> = async (deps, input) 
         const r = await EXECUTORES_ACESSOS["acessos.dar_em_lote"](deps, { conectorId: acao.conector_id ?? "", nivel: acao.nivel_lote ?? "nenhum", bots: acao.todos ? "todos" : (acao.bots_ids ?? []), chave: acao.chave ?? "", ...regra, botId: agente.id });
         events.push(...(r.events ?? []));
         loteId = r.data.loteId;
-        linha = r.data.aplicados.length === 0 ? `Nada mudou no ${r.data.app}: ${acao.todos ? "todos já estavam" : "já estavam"} com ${ROTULO_DO_NIVEL[r.data.nivel]}${r.data.mantidos.length && acao.todos && r.data.nivel === "leitura" ? " ou mais" : ""}` : `${fraseDoLote(r.data.aplicados.length, r.data.nivel, r.data.app)} (${listaFalada(r.data.aplicados.map((a) => a.nome))})`;
+        linha = r.data.aplicados.length === 0 ? `Nada mudou no ${r.data.app}: ${acao.todos ? "todos já estavam" : "já estavam"} com ${ROTULO_DO_NIVEL[r.data.nivel]}${r.data.mantidos.length && acao.todos && r.data.nivel === "leitura" ? " ou mais" : ""}${r.data.loteId ? ` e agora ficam nesse nível mesmo se o padrão do app mudar` : ""}` : `${fraseDoLote(r.data.aplicados.length, r.data.nivel, r.data.app)} (${listaFalada(r.data.aplicados.map((a) => a.nome))})`;
       } else if (acao.tipo === "padrao_acesso") {
         const r = await EXECUTORES_ACESSOS["apps.padrao"](deps, { conectorId: acao.conector_id ?? "", nivel: acao.nivel_lote ?? "nenhum", aplicar: acao.aplicar !== false, ...regra });
         events.push(...(r.events ?? []));

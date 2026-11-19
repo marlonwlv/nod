@@ -223,6 +223,47 @@ describeIntegracao("QA independente do PR #706: quem já estava no nível escolh
   });
 });
 
+describeIntegracao("QA r104: o lote em que ninguém muda de nível, mas alguém deixa de seguir o padrão, tem Desfazer", () => {
+  it("pelo chat: Ler para quem já segue o padrão Ler grava o lote, avisa e o Desfazer devolve o padrão", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      await executar(m.d, EXECUTORES_ACESSOS["apps.padrao"], { conectorId: m.app.id, nivel: "leitura" });
+      await m.d.repos.agentes.definirModoAprovacao(m.ator.agenteId, "automatico");
+      const ver = async () => (await verAcessosDoApp(m.d, m.app.id)).bots.find((b) => b.agenteId === m.ana.agenteId);
+      expect(await ver()).toMatchObject({ nivel: "leitura", seguePadrao: true });
+      const r = await chat(m, { acao: "lote", app: m.appNome, nivel: "leitura", bots: [m.ana.agenteId], resumo: "Ler para a Ana" });
+      if (!r.ok || r.esperando) throw new Error(JSON.stringify(r));
+      expect(r.lote_id).not.toBeNull();
+      expect(r.feito).toContain("ficam nesse nível mesmo se o padrão do app mudar");
+      expect(r.instrucao).toContain(`lote_id ${r.lote_id}`);
+      expect(await ver()).toMatchObject({ nivel: "leitura", seguePadrao: false });
+      // De novo: ela já é escolha da pessoa, nada a gravar.
+      const r2 = await chat(m, { acao: "lote", app: m.appNome, nivel: "leitura", bots: [m.ana.agenteId], resumo: "Ler para a Ana" });
+      if (!r2.ok) throw new Error(JSON.stringify(r2));
+      expect(r2.lote_id).toBeNull();
+      const d = await chat(m, { acao: "desfazer", lote_id: r.lote_id!, resumo: "desfazer" });
+      if (!d.ok) throw new Error(JSON.stringify(d));
+      expect(await ver()).toMatchObject({ nivel: "leitura", seguePadrao: true });
+      // Voltou a seguir: o padrão Nenhum agora a alcança.
+      await executar(m.d, EXECUTORES_ACESSOS["apps.padrao"], { conectorId: m.app.id, nivel: "nenhum" });
+      expect(await conjunto(m.d, m.ana.agenteId, m.app.id)).toEqual([]);
+    });
+  });
+
+  it("pela tela: o reenvio da mesma chave devolve o mesmo lote, sem aplicados", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      await executar(m.d, EXECUTORES_ACESSOS["apps.padrao"], { conectorId: m.app.id, nivel: "leitura" });
+      const k = `r104-${m.suf}`;
+      const a = await lote(m, "leitura", [m.ana.agenteId], { chave: k });
+      expect(a.data.loteId).not.toBeNull();
+      expect(a.data.aplicados).toEqual([]);
+      const b = await lote(m, "leitura", [m.ana.agenteId], { chave: k });
+      expect(b.data).toMatchObject({ loteId: a.data.loteId, aplicados: [], jaFeito: true });
+    });
+  });
+});
+
 describeIntegracao("QA do PR #706: o bot novo nasce com o padrão por todos os caminhos de criar bot (critério 2)", () => {
   it("criar_bots pelo chat: o bot criado por outro bot nasce com o padrão e segue o padrão", async () => {
     await withRollback(MARLON, async (trx) => {
