@@ -51,8 +51,9 @@
 .cc-chip .cc-globo { display: inline-block; width: 14px; height: 14px; margin-right: 3px; vertical-align: -2px; }
 .cc-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 4px; }
 
-/* ---- o cartão "Destino do link": 300 px, padding 6, raio 16, acima do chip a 6 px ---- */
-.cc-cartao { position: fixed; z-index: 1000; box-sizing: border-box; width: 300px; padding: 6px; border-radius: 16px; background: var(--cc-cartao); box-shadow: var(--cc-cartao-sombra); border: 1px solid var(--cc-cartao-borda); color: var(--cc-texto); }
+/* ---- o cartão "Destino do link": 300 px, padding 6, raio 16, acima do chip a 6 px. Classe própria: `.cc-cartao` é o
+ * cartão na conversa (computador-cartoes.css, conta.css), e o position: fixed daqui o tirava do fluxo por cima do chat. ---- */
+.cc-destino { position: fixed; z-index: 1000; box-sizing: border-box; width: 300px; padding: 6px; border-radius: 16px; background: var(--cc-cartao); box-shadow: var(--cc-cartao-sombra); border: 1px solid var(--cc-cartao-borda); color: var(--cc-texto); }
 .cc-cartao-cab { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0; padding: 4px 6px; border: 0; border-radius: 10px; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .cc-cartao-globo { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--cc-globo-fundo); }
 .cc-cartao-globo .cc-globo { width: 16px; height: 16px; }
