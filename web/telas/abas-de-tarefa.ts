@@ -11,9 +11,9 @@ import { agente } from "./trabalhos.ts";
  * A fileira de abas da tarefa em tela cheia (ADR-187 §6, lote B, passo 3, definido em 2026-11-18; Paper 4j opção 1, 4k e
  * 4p). Modo abas (Paper 10b e 10c A, validação de 2026-11-18): a fileira começa pela própria pílula do bot, que é a aba
  * da Conversa (marcada nela, apagada numa tarefa), a linha fina, até 3 abas das tarefas deste bot, "N outras ⌄", o "+"
- * da tarefa nova e, no fim, "Fechar abas", que recolhe tudo de volta para a pílula. Sem ⋯ e sem × por aba: as ações
- * moram na própria aba — a seta ⌄ aparece no hover e no foco, o clique direito e o toque longo abrem o mesmo menu (com
- * "Fechar aba"), e o duplo clique no nome renomeia ali mesmo. As regras de quais abas existem moram em
+ * da tarefa nova e, no fim, "Fechar abas", que recolhe tudo de volta para a pílula. Sem ⋯: cada aba tem o × sempre à
+ * vista (validação de 2026-11-19: a ação mais importante dela) e a seta ⌄ do menu, que entra ao lado do × no hover e no
+ * foco; o clique direito e o toque longo abrem o mesmo menu, e o duplo clique no nome renomeia ali mesmo. As regras de quais abas existem moram em
  * web/lib/abas-de-tarefa.ts; aqui só o HTML.
  */
 
@@ -102,7 +102,8 @@ function htmlDaAba(estado: Estado, aba: AbaDeTarefa, ativa: boolean, f: FileiraD
   const nome = esc(curto);
   return `<div class="at-aba${ativa ? " ativa" : ""}${f.menuAberto === aba.id ? " menu-aberto" : ""}" data-aba="${id}">`
     + `<button type="button" class="at-ir" data-act="aba-tarefa" data-id="${id}" data-segurar="menu-aba-tarefa"${ativa ? ' aria-current="page"' : ""} title="${esc(`${titulo} · ${ic.texto}`)}">${ic.html}<span class="at-titulo">${nome}</span><span class="at-sr">, ${esc(ic.texto)}</span></button>`
-    + `<button type="button" class="at-seta" data-act="menu-aba-tarefa" data-id="${id}" aria-haspopup="menu" aria-label="Ações da tarefa ${nome}">${SETA_MENU}</button>`
+    + `<span class="at-acoes"><button type="button" class="at-seta" data-act="menu-aba-tarefa" data-id="${id}" aria-haspopup="menu" aria-label="Ações da tarefa ${nome}">${SETA_MENU}</button>`
+    + `<button type="button" class="at-fechar" data-act="fechar-aba-tarefa" data-id="${id}" aria-label="Fechar a aba ${nome}" title="Fechar aba"><span aria-hidden="true">×</span></button></span>`
     + "</div>";
 }
 

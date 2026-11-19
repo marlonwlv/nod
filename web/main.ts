@@ -3297,6 +3297,7 @@ function renderPrincipal(): void {
   // cabeçalho é regravado em volta do miolo, que nunca sai do DOM (texto, foco, acento e cursor ficam).
   if (buscaNaConversa.aberta() && chaveDaTelaDeBusca() !== telaDaBusca) buscaNaConversa.fechar(false);
   const pilulaAntes = medirPilulaDoTopo();
+  const abasAntes = abasNoTopo();
   regiaoEmVoltaDe("cabecalho", botaoAbrirBots(t.tipo === "conversa") + cabecalho + botaoBuscarCelular(), buscaNaConversa.no());
   buscaNaConversa.encaixar(document.getElementById("cabecalho"));
   document.getElementById("cabecalho")?.classList.toggle("so-menu", cabecalho === "");
@@ -3307,6 +3308,7 @@ function renderPrincipal(): void {
   document.getElementById("cabecalho")?.classList.toggle("cabecalho-pilula", t.tipo === "conversa");
   // A sanfona mede o lugar novo só depois de o cabeçalho trocar de forma (as classes acima mudam o layout dele).
   animarPilulaDoTopo(pilulaAntes);
+  animarAbasNovas(abasAntes);
   marcarPainelNaPilula();
   topoEncolhe.reavaliar();
   quadroNaTela.sincronizar(t.tipo === "conversa" && comQuadro(t.agenteId)
@@ -5086,6 +5088,33 @@ function pecaDaSanfona(): HTMLElement | null {
   return document.querySelector<HTMLElement>("#cabecalho .pilula-e-abas .botao-abas, #cabecalho .abas-com-pilula .at-fechar-abas");
 }
 const SANFONA_MS = 520;
+/** Uma aba abrindo (o "+", "N outras") ou fechando (o ×): validação de 2026-11-19. */
+const ABA_MS = 240;
+/** As abas com o × já clicado, encolhendo (um segundo clique não fecha outra vez). */
+const abasFechando = new Set<string>();
+/** As abas da fileira agora (o id, ou "nova" para a tarefa nova), para saber qual acabou de nascer. */
+function abasNoTopo(): Set<string> | null {
+  if (!document.querySelector("#cabecalho .abas-tarefa")) return null;
+  return new Set([...document.querySelectorAll<HTMLElement>("#cabecalho .abas-tarefa .at-aba")].map((a) => a.dataset.aba ?? "nova"));
+}
+/**
+ * A aba que nasce (validação de 2026-11-19): abre do zero no lugar dela, como a aba nova de um navegador. Não quando a
+ * fileira inteira acabou de aparecer (a sanfona cuida) nem quando a "Nova tarefa" vira a tarefa criada (é a mesma aba).
+ */
+function animarAbasNovas(antes: Set<string> | null): void {
+  if (!antes || reduzirMovimento()) return;
+  const agora = [...document.querySelectorAll<HTMLElement>("#cabecalho .abas-tarefa .at-aba")];
+  if (antes.has("nova") && !agora.some((a) => !a.dataset.aba)) return;
+  for (const el of agora) {
+    if (antes.has(el.dataset.aba ?? "nova")) continue;
+    const est = getComputedStyle(el);
+    el.style.overflow = "hidden";
+    el.animate([
+      { width: "0px", paddingLeft: "0px", paddingRight: "0px", opacity: 0 },
+      { width: `${el.getBoundingClientRect().width}px`, paddingLeft: est.paddingLeft, paddingRight: est.paddingRight, opacity: 1 },
+    ], { duration: ABA_MS, easing: SANFONA_CURVA }).onfinish = () => { el.style.overflow = ""; };
+  }
+}
 const SANFONA_CURVA = "cubic-bezier(.32, .72, 0, 1)";
 function animarSanfona(de: DOMRect): void {
   const el = pecaDaSanfona();
@@ -5157,8 +5186,24 @@ function voltarParaAConversa(agenteId: string): void {
 }
 
 /** O × da aba (e "Fechar aba" no menu): a à vista dá lugar à da direita, à da esquerda ou, sem nenhuma, à Conversa. */
-function fecharAbaDeTarefa(id: string): void {
+function fecharAbaDeTarefa(id: string, animar = true): void {
   if (!id) return;
+  // Validação de 2026-11-19: a aba encolhe até sumir (as vizinhas deslizam para o lugar) e só então sai de verdade.
+  if (animar && abasFechando.has(id)) return;
+  const el = animar && !reduzirMovimento() ? document.querySelector<HTMLElement>(`#cabecalho .at-aba[data-aba="${CSS.escape(id)}"]`) : null;
+  if (el) {
+    abasFechando.add(id);
+    const est = getComputedStyle(el);
+    el.style.overflow = "hidden";
+    // Fecha uma vez só: no fim da animação ou, se o cabeçalho for redesenhado no meio e ela se perder, pelo tempo.
+    const fechar = (): void => { if (abasFechando.delete(id)) fecharAbaDeTarefa(id, false); };
+    el.animate([
+      { width: `${el.getBoundingClientRect().width}px`, paddingLeft: est.paddingLeft, paddingRight: est.paddingRight, opacity: 1 },
+      { width: "0px", paddingLeft: "0px", paddingRight: "0px", opacity: 0 },
+    ], { duration: ABA_MS, easing: SANFONA_CURVA }).onfinish = fechar;
+    window.setTimeout(fechar, ABA_MS + 80);
+    return;
+  }
   const t = estado.tela;
   const ativa = t.tipo === "trabalho" && t.id === id;
   const agenteId = abasDeTarefa.find((a) => a.id === id)?.agenteId ?? trabalhoPorId(estado, id)?.agenteId ?? "";

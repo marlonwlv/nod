@@ -324,9 +324,18 @@
 .abas-tarefa .at-conversa:hover, .abas-tarefa .at-outras:hover, .abas-tarefa .at-aba:not(.ativa) .at-ir:hover { color: var(--chat-tinta); }
 /* Validação de 2026-11-18: padding 0 — fechada, a seta tinha largura 0 mas o padding de botão do navegador (6 px de
    cada lado) deixava uma mancha cinza do fundo dela no lugar. */
-.abas-tarefa .at-seta { display: flex; flex: none; align-items: center; justify-content: center; width: 0; height: 20px; padding: 0; margin-left: -8px; overflow: hidden;
-  border-radius: 5px; background: var(--chat-spinner-trilho); color: var(--chat-tinta); transition: width var(--dur-rapido) ease, margin var(--dur-rapido) ease; }
-.abas-tarefa .at-aba:is(:hover, :focus-within) .at-seta { width: 20px; margin-left: 0; }
+/* Validação de 2026-11-19: o × da aba sempre à vista (a ação mais importante dela), com alvo de 24 px, e o chevron do
+   menu num lugar FIXO à esquerda dele: parado, transparente e sem clique; no hover só aparece (opacidade), sem empurrar o
+   × — antes ele entrava abrindo largura e o × fugia de baixo do mouse. */
+.abas-tarefa .at-acoes { display: flex; flex: none; align-items: center; gap: 0; margin-right: -8px; }
+.abas-tarefa .at-seta { display: flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--chat-tinta-2); opacity: 0; pointer-events: none; transition: opacity var(--dur-rapido) ease; }
+.abas-tarefa .at-aba:is(:hover, :focus-within) .at-seta { opacity: 1; pointer-events: auto; }
+.abas-tarefa .at-seta:hover, .abas-tarefa .at-aba.menu-aberto .at-seta { background: var(--chat-spinner-trilho); color: var(--chat-tinta); }
+.abas-tarefa .at-fechar { display: grid; flex: none; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent;
+  color: var(--chat-tinta-3); font-size: 16px; line-height: 1; cursor: pointer; }
+.abas-tarefa .at-aba.ativa .at-fechar { color: var(--chat-tinta-2); }
+.abas-tarefa .at-fechar:hover { background: var(--chat-spinner-trilho); color: var(--chat-tinta); }
 .abas-tarefa .at-outras { display: flex; flex: none; align-items: center; gap: 6px; height: 36px; padding: 0 12px; white-space: nowrap; }
 .abas-tarefa .at-mais { position: relative; display: flex; flex: none; align-self: center; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; }
 .abas-tarefa .at-mais:hover { background: var(--chat-chip-fundo); color: var(--chat-tinta); }
@@ -370,7 +379,7 @@
 .bot-menu .at-item .pf-anel-arco { stroke: var(--chat-tinta); }
 .bot-menu .at-item .at-parada { color: var(--chat-tinta-3); }
 /* No celular a seta fica à vista na aba ativa (não há hover) e a fileira rola de lado. */
-@media (hover: none) and (pointer: coarse) { .abas-tarefa .at-aba.ativa .at-seta { width: 20px; margin-left: 0; } }
+@media (hover: none) and (pointer: coarse) { .abas-tarefa .at-aba.ativa .at-seta { opacity: 1; pointer-events: auto; } }
 @media (max-width: 760px) {
   .abas-tarefa { overflow-x: auto; padding: 0 12px; scrollbar-width: none; }
   .abas-tarefa .at-titulo { max-width: 140px; }
@@ -443,7 +452,7 @@
 @keyframes at-volta-para-pilula { to { opacity: 0; transform: translateX(-24px); } }
 @media (prefers-reduced-motion: reduce) { .abas-com-pilula.entrando > *, .abas-com-pilula.recolhendo > * { animation: none; } }
 /* O chevron da aba fica à vista enquanto o menu dela está aberto (o foco vai para o menu e o :focus-within some). */
-.abas-tarefa .at-aba.menu-aberto .at-seta { width: 20px; margin-left: 0; }
+.abas-tarefa .at-aba.menu-aberto .at-seta { opacity: 1; pointer-events: auto; }
 /* O hover da pílula do bot como o do Grok Bot (validação de 2026-11-18): a pílula alarga e o "›" entra à direita. */
 @media (hover: hover) {
   #cabecalho .pilula-bot .pilula-seta { display: inline-block; max-width: 0; margin-left: -8px; overflow: hidden; opacity: 0; color: var(--chat-tinta-2);
@@ -690,3 +699,8 @@
 .lugar-faixa-trabalhos.pf-no-topo > * { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 200ms ease, visibility 0s linear 200ms; }
 .lugar-faixa-trabalhos > .pilula-frentes { transition: opacity 200ms ease; }
 @media (prefers-reduced-motion: reduce) { .lugar-faixa-trabalhos.pf-no-topo > *, .lugar-faixa-trabalhos > .pilula-frentes { transition: none; } }
+
+/* O "+" da fileira afunda no clique (validação de 2026-11-19), como o + do campo. */
+.abas-tarefa .at-mais { transition: transform 220ms cubic-bezier(.3, 1.6, .5, 1), background-color var(--dur-rapido) ease; }
+.abas-tarefa .at-mais:active { transform: scale(.86); }
+@media (prefers-reduced-motion: reduce) { .abas-tarefa .at-mais { transition: none; } .abas-tarefa .at-mais:active { transform: none; } }

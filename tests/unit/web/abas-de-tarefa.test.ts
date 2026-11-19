@@ -118,8 +118,9 @@ describe("a fileira (web/telas/abas-de-tarefa.ts, Paper 4p)", () => {
     expect(html).toContain('<div class="at-aba ativa" data-aba="t1">');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('data-act="menu-aba-tarefa" data-id="t2" aria-haspopup="menu"');
-    // Paper 10b: sem × por aba (fechar uma é pelo menu); sem a pílula, nem "Fechar abas".
-    expect(html).not.toContain("at-fechar");
+    // Validação de 2026-11-19: o × de cada aba sempre à vista, junto da seta do menu; sem a pílula, nem "Fechar abas".
+    expect(html).toContain('<button type="button" class="at-fechar" data-act="fechar-aba-tarefa" data-id="t3" aria-label="Fechar a aba Tarefa t3"');
+    expect(html).not.toContain("at-fechar-abas");
     expect(html).toContain("pf-anel");
     expect(html).toContain("pf-precisa");
     expect(html).toContain("at-feita");
