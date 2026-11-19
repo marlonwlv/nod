@@ -62,7 +62,7 @@ import { abrirFolhaCompartilhar, abrirMenu, abrirMenuCompartilhar, abrirFolhaDeA
 import { perfilAoAbrir, perfilAoAbrirNivel, saidaDoPerfil } from "./telas/perfil-celular.ts";
 import { criarMarcaDoPerfil, planoDaSaida } from "./lib/lista-apos-saida.ts";
 import { rascunhoMudou } from "./telas/memoria.ts";
-import { abrirLuz } from "./telas/luz.ts";
+import { abrirLuz, type OpcoesLuz } from "./telas/luz.ts";
 import { baixarUrl } from "./telas/luz-html.ts";
 import { desmarcarIrCarregando, htmlDaNotaDoMenu, htmlDoMenuDaBiblioteca, marcarIrCarregando, NOTA_FALA_DEMOROU, NOTA_FALA_FORA, TEXTO_IR_CARREGANDO } from "./telas/biblioteca.ts";
 import { abrirDetalhesAcima, criarMenuDoIr, criarMundoDaFala, irParaFalaDaBiblioteca, levarAFalaComAte, notarVeio, soltarAlvoNaoDesenhado, type AlvoDaFala } from "./lib/ir-para-a-fala.ts";
@@ -7499,18 +7499,20 @@ const midiaDom: OpcoesMidiaDom = {
 };
 instalarMidiaDom(midiaDom);
 const opcoesDaLuz = midiaDom.ponte ? { finder: (it: { url: string }) => { void mostrarNoFinder(it.url, midiaDom).then((ok) => { if (!ok) anunciar("O arquivo não está mais na pasta do bot"); }); } } : {};
+/** A tela cheia da mídia: a do Base UI quando o módulo dos diálogos chegou (ADR-179); senão, a nativa. */
+const abrirTelaCheiaDaMidia = (el: HTMLElement, o: OpcoesLuz): void => { if (moduloDosDialogos) moduloDosDialogos.abrirLuzNoReact(document, el, o); else abrirLuz(el, o); };
 /** Abre a mídia na tela cheia; pelo link `nod-anexo:` do texto, acha a mídia da mesma fala (ou o cartão do arquivo). */
 function abrirMidia(el: HTMLElement): void {
   // A mídia que não carregou: o próprio botão é o "Tentar de novo" (clique, Enter ou espaço).
-  if (el.closest(".msg-midias")) { if (el.closest(".falhou")) tentarDeNovo(el); else abrirLuz(el, opcoesDaLuz); return; }
+  if (el.closest(".msg-midias")) { if (el.closest(".falhou")) tentarDeNovo(el); else abrirTelaCheiaDaMidia(el, opcoesDaLuz); return; }
   const id = el.dataset.anexoId ?? "";
   const grupo = el.closest("[data-mensagem]")?.querySelector<HTMLElement>(".msg-midias");
   const alvo = grupo?.querySelector<HTMLElement>(`[data-anexo-id="${CSS.escape(id)}"]`);
-  if (alvo && acaoDoAlvo(alvo.dataset.act, false, false) === "luz") { abrirLuz(alvo, opcoesDaLuz); return; }
+  if (alvo && acaoDoAlvo(alvo.dataset.act, false, false) === "luz") { abrirTelaCheiaDaMidia(alvo, opcoesDaLuz); return; }
   // Na tela cheia, mas sem botão à vista (atrás do "+N"): abre nela a partir da primeira mídia da fala.
   const k = indiceNaLuz(grupo?.dataset.luz, id);
   const primeira = grupo?.querySelector<HTMLElement>('[data-act="midia-abrir"]');
-  if (k >= 0 && primeira) { abrirLuz(primeira, { ...opcoesDaLuz, indice: k }); return; }
+  if (k >= 0 && primeira) { abrirTelaCheiaDaMidia(primeira, { ...opcoesDaLuz, indice: k }); return; }
   if (!alvo) return anunciar("Esse arquivo não está nesta mensagem");
   const previa = alvo.querySelector<HTMLElement>('[data-act="previa-arquivo"]');
   const link = alvo.querySelector<HTMLAnchorElement>("a[href]");

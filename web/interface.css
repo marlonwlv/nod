@@ -2302,8 +2302,10 @@ span.pilula-memoria { padding-right: 12px; cursor: default; }
 
 /* A tela cheia: um <dialog> modal de borda a borda, a conversa escurecida atrás, a mídia ao centro, três botões redondos
    no canto e, com várias, as miniaturas no pé. Clicar fora da mídia fecha. */
-dialog.luz { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: rgba(9, 9, 11, .9); color: #fff; font-family: var(--font-sans); } /* cor-fixa: a tela cheia é sempre escura, nos dois temas */
+dialog.luz, .luz.rx-luz { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: rgba(9, 9, 11, .9); color: #fff; font-family: var(--font-sans); } /* cor-fixa: a tela cheia é sempre escura, nos dois temas */
 dialog.luz:not([open]) { display: none; }
+/* ADR-179: a do Base UI (um <div> no portal, sem ::backdrop) por cima do app, como o <dialog> no top layer. */
+.luz.rx-luz { z-index: 60; box-sizing: border-box; }
 dialog.luz::backdrop { background: transparent; }
 .luz.entra { animation: luz-entra .16s ease-out; }
 @keyframes luz-entra { from { opacity: 0; } }

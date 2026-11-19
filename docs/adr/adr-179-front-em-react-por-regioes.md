@@ -119,7 +119,12 @@ não anda só com o teclado — a saída nunca terminava e a página parecia ine
 de 15 s) e os mesmos módulos de formato (`previa-csv`, `previa-pdf`), que desenham por conta própria no nó que o
 componente lhes entrega; o erro e a contagem são estado, fechar cancela o carregamento e o foco volta ao card (ou ao card
 novo do mesmo anexo na mesma casa, se a conversa redesenhou). Um controlador de cancelamento por execução do efeito: o
-StrictMode roda o efeito duas vezes, e o 2º não pode herdar o sinal já abortado.
+StrictMode roda o efeito duas vezes, e o 2º não pode herdar o sinal já abortado. E **a tela cheia da mídia** (NOD-323,
+`web/react/dialogos/luz.tsx`): o DOM de `htmlDaLuz` (as classes e os `data-luz`), as setas que somem nas pontas passando
+o foco para a outra, ← →, o deslize, as miniaturas, o duplo clique no tamanho real, o clique fora da mídia que fecha, o
+vídeo com a barra mínima e as velocidades, e o Finder no Mac do arquivo; o item da vez, o tamanho real e o tempo do vídeo
+são estado. O popup é um `<div>` no portal (sem o top layer do `<dialog>`): `.luz.rx-luz` divide as regras de
+`dialog.luz` e fica por cima do app pelo `z-index`.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

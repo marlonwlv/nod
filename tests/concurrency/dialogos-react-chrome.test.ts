@@ -23,6 +23,18 @@ import { abrirHandoffNoReact } from "./web/react/dialogos/handoff.tsx";
 import { confirmarNoReact } from "./web/react/dialogos/confirmar.tsx";
 import { criarPaletaNoReact } from "./web/react/dialogos/paleta.tsx";
 import { abrirPreviaNoReact } from "./web/react/dialogos/previa-arquivo.tsx";
+import { abrirLuzNoReact } from "./web/react/dialogos/luz.tsx";
+window.__luz = () => {
+  const itens = [{ id: "a", nome: "a.png", mime: "image/png", url: "/u/a", w: 1600, h: 900 }, { id: "b", nome: "b.png", mime: "image/png", url: "/u/b", w: 900, h: 1600 }];
+  document.getElementById("midias")?.remove();
+  const m = document.createElement("div");
+  m.id = "midias"; m.dataset.mensagem = "m1";
+  m.innerHTML = '<div class="msg-midias"><button id="midia-a" data-act="midia-abrir" data-i="0" data-anexo-id="a">a</button></div>';
+  m.querySelector(".msg-midias").dataset.luz = JSON.stringify(itens);
+  document.body.append(m);
+  document.getElementById("midia-a").focus();
+  abrirLuzNoReact(document, document.getElementById("midia-a"));
+};
 // A página é file://: a rota de anexos responde daqui.
 window.fetch = async () => new Response("nome,valor\\nana,1\\nbia,2\\n", { status: 200, headers: { "content-length": "24" } });
 window.__previa = () => {
@@ -183,5 +195,23 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await tecla("Escape", "Escape", 27);
     await ate(`!document.querySelector(".rx-prv-host")`);
     await ate(`document.activeElement?.id === "card"`);
+  }, 60_000);
+
+  it("a tela cheia da mídia: cobre a tela por cima do app, o foco em Fechar, → anda, Esc fecha e o foco volta à mídia", async () => {
+    await esperar(300);
+    await avaliar(cdp, "window.__luz()");
+    await ate(`document.activeElement?.dataset?.luz === "fechar"`);
+    const r = await avaliar<{ w: number; h: number; topo: boolean }>(cdp, `(() => { const p = document.querySelector(".luz.rx-luz"); const r = p.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), topo: p.contains(document.elementFromPoint(640, 400)) }; })()`);
+    expect(r).toEqual({ w: 1280, h: 800, topo: true });
+    await tecla("ArrowRight", "ArrowRight", 39);
+    await ate(`document.querySelector(".luz-legenda")?.textContent === "b.png · 2 / 2"`);
+    // A imagem em pé cabe na altura do palco (o --ar e o container do palco valem no portal).
+    const img = await avaliar<{ w: number; h: number }>(cdp, `(() => { const r = document.querySelector(".luz-midia").getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; })()`);
+    expect(img.h).toBeGreaterThan(400);
+    expect(img.h).toBeLessThanOrEqual(800);
+    expect(Math.abs(img.w / img.h - 0.5625)).toBeLessThan(0.02);
+    await tecla("Escape", "Escape", 27);
+    await ate(`!document.querySelector(".rx-luz-host")`);
+    await ate(`document.activeElement?.id === "midia-a"`);
   }, 60_000);
 });

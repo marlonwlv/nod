@@ -23,6 +23,7 @@ function Previa({ a, origem, reencontrar, sair }: { a: { nome: string; url: stri
   // Um controlador por execução do efeito (o StrictMode o roda duas vezes; o 2º não pode herdar o sinal abortado).
   const ctrl = useRef<AbortController | null>(null);
   const fechar = useRef<HTMLButtonElement>(null);
+  const acoes = useRef<Dialog.Root.Actions | null>(null);
   useEffect(() => {
     const c = new AbortController();
     ctrl.current = c;
@@ -52,7 +53,7 @@ function Previa({ a, origem, reencontrar, sair }: { a: { nome: string; url: stri
     return () => { clearTimeout(relogio); c.abort(new DOMException("fechou", "AbortError")); };
   }, [a]);
   return (
-    <Dialog.Root defaultOpen onOpenChange={(o) => { if (!o) ctrl.current?.abort(new DOMException("fechou", "AbortError")); }} onOpenChangeComplete={(o) => { if (!o) sair(); }}>
+    <Dialog.Root defaultOpen actionsRef={acoes} onOpenChange={(o) => { if (!o) { ctrl.current?.abort(new DOMException("fechou", "AbortError")); setTimeout(() => { acoes.current?.unmount(); sair(); }, 1000); } }} onOpenChangeComplete={(o) => { if (!o) sair(); }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="rx-prv-fundo" />
         <Dialog.Popup className={`previa-arquivo previa-${a.formato} rx-prv`} aria-label={`Prévia de ${a.nome}`} initialFocus={fechar}
