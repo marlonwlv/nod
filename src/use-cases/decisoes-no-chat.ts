@@ -4,7 +4,8 @@ import type { CasoNod, SaidaCasoDeUso } from "../contracts/servicos.ts";
 import { diasNoPeriodo } from "../domain/decisoes.ts";
 import { ErroDeDominio, ehErroDeDominio } from "../domain/erro.ts";
 import { ehNod } from "../domain/nod.ts";
-import { autoriaAgente, evento, PRAZO_DECISAO_MS } from "./apoio-l7.ts";
+import { autoriaAgente, autoriaPessoa, evento, PRAZO_DECISAO_MS } from "./apoio-l7.ts";
+import { fecharDecisaoDaProposta } from "./confirmar-pelo-modo.ts";
 import { exportarDecisoesCsv, lerDecisoes } from "./decisoes-do-bot.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 
@@ -93,12 +94,15 @@ export const decisoesNoChat: CasoNod<Deps, "decisoes"> = async (deps, input) => 
 
 export const aplicarExportacaoDecisoes: CasoDeUso<{ propostaId: string; recusar: boolean }, { arquivos: string[] }> = async (deps, input) => {
   const proposta = await deps.repos.propostas.buscarParaAtualizar(input.propostaId);
-  if (!proposta || proposta.payload.kind !== "decisoes_exportacao" || proposta.estado !== "pendente") throw new ErroDeDominio("estado_invalido");
-  const decidida = await deps.repos.decisoes.decidir(proposta.id, { por: deps.escopo.pessoaId, agora: deps.agora() });
-  if (!decidida) throw new ErroDeDominio("estado_invalido");
+  if (!proposta || proposta.payload.kind !== "decisoes_exportacao") throw new ErroDeDominio("nao_encontrado", { cause: "exportação de decisões" });
+  if (proposta.estado !== "pendente") throw new ErroDeDominio("estado_invalido", { cause: `exportação já ${proposta.estado}` });
+  const { decisao: decidida, sincronizar } = await fecharDecisaoDaProposta(deps, proposta.id, deps.agora(), undefined);
+  if (!decidida) throw new ErroDeDominio("estado_invalido", { cause: "decisão já fechada" });
+  // QA-112: sem este evento a Sua vez das outras abas e o "aguardando você" do bot (estado vivo) não fechavam o card.
+  const fechou = (recusada: boolean): RuntimeEvent[] => [evento(deps, "decisao_decidida", autoriaPessoa(deps.escopo.pessoaId), { decisao_id: decidida.id, tipo: decidida.tipo, recusada }, { conversaId: proposta.conversaId, turnoId: decidida.turnoId }), ...sincronizar];
   if (input.recusar) {
     await deps.repos.propostas.decidir(proposta.id, "recusada");
-    return { data: { arquivos: [] } };
+    return { data: { arquivos: [] }, events: fechou(true) };
   }
   const p = proposta.payload;
   const arquivos = [] as { nome: string; corpo: string; cortado: boolean }[];
@@ -121,5 +125,5 @@ export const aplicarExportacaoDecisoes: CasoDeUso<{ propostaId: string; recusar:
     ids.push(a.id);
   }
   await deps.repos.propostas.decidir(proposta.id, "confirmada");
-  return { data: { arquivos: ids }, events: [evento(deps, "mensagem_criada", autoria, { mensagem_id: m.id, kind: "sistema" }, { conversaId: proposta.conversaId, turnoId: decidida.turnoId })] };
+  return { data: { arquivos: ids }, events: [...fechou(false), evento(deps, "mensagem_criada", autoria, { mensagem_id: m.id, kind: "sistema" }, { conversaId: proposta.conversaId, turnoId: decidida.turnoId })] };
 };
