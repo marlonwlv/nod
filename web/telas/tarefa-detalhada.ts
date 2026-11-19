@@ -231,7 +231,7 @@ export function campoDaTarefa(t: TrabalhoDto | undefined, bot: string, guardadas
     case "falhou":
       return { placeholder: "Diga o que fazer agora…", nota: "Não terminou · mandar uma mensagem continua a tarefa, na mesma sessão e pasta.", dica: "", parar: false, saida: true, precisa: false };
     case "terminado":
-      return { placeholder: "Pedir mais alguma coisa nesta tarefa…", nota: "Feita. Mandar uma mensagem reabre a tarefa, na mesma sessão e pasta. A aba fecha sozinha quando você sair dela.", dica: "", parar: false, saida: false, precisa: false };
+      return { placeholder: "Pedir mais alguma coisa nesta tarefa…", nota: "Feita. Mandar uma mensagem reabre a tarefa, na mesma sessão e pasta.", dica: "", parar: false, saida: false, precisa: false };
   }
 }
 

@@ -170,8 +170,8 @@ import { anunciosDeFim, aoEsconder, aoSumir, SEM_PROGRESSO, teclaNaPilula, type 
 import { criarPilulaNaTela } from "./lib/pilula-na-tela.ts";
 import { memoriaNaPilula, pilulaNaConversa, type NovaTarefaNaAba, type Pilula } from "./telas/pilula-do-bot.ts";
 import { botAceitaTarefa, PLACEHOLDER_NOVA_TAREFA, renderNovaTarefa } from "./telas/nova-tarefa.ts";
-import { abasDoBot, htmlDoMenuDaAba, htmlDoMenuDasOutras, outrasDaFileira, renderFileiraDeAbas } from "./telas/abas-de-tarefa.ts";
-import { abrirAba, CHAVE_DAS_ABAS, fecharAba, gravarAbas, lerAbas, podarAbas, tarefaAcabou, trocarDeTela, vizinhaAoFechar, type AbaDeTarefa } from "./lib/abas-de-tarefa.ts";
+import { abasDoBot, botaoDeAbas, feitasDaFileira, htmlDoMenuDaAba, htmlDoMenuDasOutras, outrasDaFileira, renderFileiraDeAbas } from "./telas/abas-de-tarefa.ts";
+import { abasAoMostrar, abrirAba, CHAVE_DAS_ABAS, CHAVE_DO_MODO_ABAS, fecharAba, gravarAbas, gravarModoAbas, lerAbas, lerModoAbas, podarAbas, vizinhaAoFechar, type AbaDeTarefa } from "./lib/abas-de-tarefa.ts";
 import { guardarCampo, restaurarCampo } from "./lib/campos-de-decisao.ts";
 import { renderNovoBot } from "./telas/novo-bot.ts";
 import { renderNovaRotina } from "./telas/nova-rotina.ts";
@@ -197,7 +197,7 @@ import { appsQueFaltam } from "./telas/rotina-precisa.ts";
 import { criarConexoes } from "./lib/conexao.ts";
 import type { Proposta } from "../src/contracts/conversa.ts";
 import { criarProgressoNaTela } from "./telas/progresso-na-fala.ts";
-import { blocosAoVivo, blocosDoHistorico, pensarFechado, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, tomarTrocaDoIndicador, type BlocoDaTimeline } from "./telas/conversa.ts";
+import { blocosAoVivo, blocosDoHistorico, botaoDoPainel, pensarFechado, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, tomarTrocaDoIndicador, type BlocoDaTimeline } from "./telas/conversa.ts";
 import { criarArtefatosVivos } from "./telas/artefatos-vivos.ts";
 import { criarDiagramasVivos } from "./telas/diagramas-vivos.ts";
 import { instalarDicaDeLink } from "./lib/dica-link.ts";
@@ -557,6 +557,23 @@ function guardarAbas(novas: AbaDeTarefa[]): void {
   abasDeTarefa = novas;
   if (!mudou) return;
   try { window.localStorage.setItem(CHAVE_DAS_ABAS, gravarAbas(novas)); } catch { /* sem storage, as abas valem só nesta página */ }
+}
+/**
+ * Modo pílula × modo abas (Paper 10b e 10c A, validação de 2026-11-18): os bots em modo abas. Abrir uma tarefa ou o botão
+ * de abas liga; só "Fechar abas" (ou tirar a última aba) desliga. Guardado como as abas, conveniência de quem vê.
+ */
+let modoAbas: Set<string> = (() => {
+  try { return lerModoAbas(window.localStorage.getItem(CHAVE_DO_MODO_ABAS)); } catch { return new Set<string>(); }
+})();
+function guardarModoAbas(agenteId: string, ligado: boolean): void {
+  if (!agenteId || modoAbas.has(agenteId) === ligado) return;
+  modoAbas = new Set(modoAbas);
+  if (ligado) modoAbas.add(agenteId); else modoAbas.delete(agenteId);
+  try { window.localStorage.setItem(CHAVE_DO_MODO_ABAS, gravarModoAbas(modoAbas)); } catch { /* sem storage, o modo vale só nesta página */ }
+}
+/** A Conversa deste bot mostra a fileira: modo abas ligado e alguma aba guardada (a lista, não a tela, que pode estar lendo). */
+function fileiraNaConversa(agenteId: string): boolean {
+  return modoAbas.has(agenteId) && abasDeTarefa.some((a) => a.agenteId === agenteId);
 }
 /** A aba com o nome em edição (duplo clique, F2 ou "Renomear"): o campo é redesenhado com o texto e o cursor de agora. */
 let renomeandoAba: { id: string; texto: string; inicio: number | null; fim: number | null } | null = null;
@@ -3228,7 +3245,7 @@ function renderPrincipal(): void {
     // ADR-187 §7 (Paper 3b): a tarefa nova, limpa; a primeira mensagem a cria (criarTarefaNova).
     case "nova-tarefa":
       // ADR-187 §6 (Paper 4p): a tarefa nova entra na fileira como a aba "Nova tarefa", ativa, até a primeira mensagem.
-      sincronizarAbas(null);
+      sincronizarAbas(null, t.agenteId);
       cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null)("")}</div>`;
       comAbas = true;
       corpo = renderNovaTarefa(estado, t.agenteId, levarContextoNaTarefa);
@@ -3237,10 +3254,14 @@ function renderPrincipal(): void {
       break;
     case "conversa":
       if (comQuadro(t.agenteId)) lerPaginas(t.agenteId);
-      {
-        const ps = paginasDaPilula(t.agenteId);
-        const dto = paginasDtoDe(t.agenteId);
-        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { comQuadro: comQuadro(t.agenteId), paginas: ps, ordem: ordemDoAgente(t.agenteId, ps), pedirApp: dto ? { cabeMais: dto.cabeMais, limite: dto.limite } : undefined });
+      // Paper 10b e 10c A: no modo abas a Conversa também tem a fileira, começando pela pílula; no modo pílula, a pílula de
+      // sempre com o botão de abas ao lado (quando há tarefas).
+      if (fileiraNaConversa(t.agenteId)) {
+        cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null, true)(botaoDoPainel(botGerido(t.agenteId)?.nome ?? "agente"))}</div>`;
+        comAbas = true;
+      } else {
+        guardarModoAbas(t.agenteId, false);
+        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId) ?? "" });
       }
       partes = partesDaTimeline();
       {
@@ -3273,7 +3294,9 @@ function renderPrincipal(): void {
   // NOD-42: a busca é da tela em que abriu (fecha ANTES do render: o "buscando" sai do cabeçalho junto). Aberta, o
   // cabeçalho é regravado em volta do miolo, que nunca sai do DOM (texto, foco, acento e cursor ficam).
   if (buscaNaConversa.aberta() && chaveDaTelaDeBusca() !== telaDaBusca) buscaNaConversa.fechar(false);
+  const pilulaAntes = medirPilulaDoTopo();
   regiaoEmVoltaDe("cabecalho", botaoAbrirBots(t.tipo === "conversa") + cabecalho + botaoBuscarCelular(), buscaNaConversa.no());
+  animarPilulaDoTopo(pilulaAntes);
   buscaNaConversa.encaixar(document.getElementById("cabecalho"));
   document.getElementById("cabecalho")?.classList.toggle("so-menu", cabecalho === "");
   document.getElementById("cabecalho")?.classList.toggle("cabecalho-task", t.tipo === "trabalho" || t.tipo === "nova-tarefa");
@@ -4931,11 +4954,8 @@ function telaDeOrigem(): Tela {
 
 /** O que muda fora do reducer quando a tela troca: por `navegar` ou, na NOD-370, quando o bot da conversa saiu da frota. */
 function aoTrocarDeTela(antes: Tela, tela: Tela): void {
-  // ADR-187 §6: sair de uma tarefa que terminou fecha a aba dela (a de entrada é aberta no render, que conhece o bot).
-  if (antes.tipo === "trabalho" && (tela.tipo !== "trabalho" || tela.id !== antes.id)) {
-    guardarAbas(trocarDeTela(abasDeTarefa, { saindo: antes.id, acabou: tarefaAcabou(trabalhoPorId(estado, antes.id)?.estado), entrando: null }));
-    if (renomeandoAba?.id === antes.id) renomeandoAba = null;
-  }
+  // ADR-187 §6 (Paper 10b, validação de 2026-11-18): nenhuma aba fecha sozinha ao sair; só o nome em edição é largado.
+  if (antes.tipo === "trabalho" && (tela.tipo !== "trabalho" || tela.id !== antes.id) && renomeandoAba?.id === antes.id) renomeandoAba = null;
   // NOD-380: a janela que cresce até a fala achada vale enquanto a pessoa está naquela conversa.
   if (alvoDaBusca && ((tela.tipo !== "conversa" && tela.tipo !== "sala") || tela.conversaId !== alvoDaBusca.conversaId)) alvoDaBusca = null;
   // A gaveta aberta só para um nível (ou a sobreposta, na janela estreita) fecha quando a conversa muda.
@@ -4976,22 +4996,110 @@ function fecharTask(): void {
 // ---- ADR-187 §6 (lote B, passo 3, 2026-11-18): a fileira de abas da tarefa (Paper 4j opção 1, 4o e 4p) ----------------
 
 /** A tarefa à vista vira aba (agora que o bot dela é conhecido) e saem as que a tela não conhece mais. */
-function sincronizarAbas(ativa: string | null): void {
+function sincronizarAbas(ativa: string | null, agenteId?: string): void {
   let lista = abasDeTarefa;
   const tr = ativa ? trabalhoPorId(estado, ativa) : undefined;
   if (tr) lista = abrirAba(lista, { id: tr.id, agenteId: tr.agenteId });
+  // Paper 10b: abrir uma tarefa (ou a tarefa nova) liga o modo abas do bot dela.
+  guardarModoAbas(tr?.agenteId ?? agenteId ?? "", true);
   if (estado.trabalhos) lista = podarAbas(lista, (id) => trabalhoPorId(estado, id) !== undefined, ativa);
   guardarAbas(lista);
   for (const [id, titulo] of titulosDasAbas) if (trabalhoPorId(estado, id)?.titulo === titulo) titulosDasAbas.delete(id);
 }
 
-/** A fileira do bot da tela; `fim` é o que renderTopoTrabalho põe à direita (o status e o Parar). */
-function fileiraDeAbas(agenteId: string, ativa: string | null): (fim: string) => string {
+/** As opções da cápsula das páginas do bot (NOD-445), as mesmas do cabeçalho da conversa. */
+function opcoesDaCapsula(agenteId: string): { comQuadro: boolean; paginas: ReturnType<typeof paginasDaPilula>; ordem: ReturnType<typeof ordemDoAgente>; pedirApp?: { cabeMais: boolean; limite: number } } {
+  const ps = paginasDaPilula(agenteId);
+  const dto = paginasDtoDe(agenteId);
+  return { comQuadro: comQuadro(agenteId), paginas: ps, ordem: ordemDoAgente(agenteId, ps), pedirApp: dto ? { cabeMais: dto.cabeMais, limite: dto.limite } : undefined };
+}
+
+/**
+ * A fileira do bot da tela; `fim` é o que renderTopoTrabalho põe à direita. Paper 10c A: ela começa pela pílula do bot,
+ * que é a aba da Conversa — na Conversa (`naConversa`) com a cápsula das páginas, o botão de abas (para as outras páginas)
+ * e o painel no fim; numa tarefa, a pílula simples, que volta para a conversa.
+ */
+function fileiraDeAbas(agenteId: string, ativa: string | null, naConversa = false): (fim: string) => string {
+  const pilula = naConversa
+    ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId) ?? "" }
+    : { html: renderCabecalhoConversa(estado, agenteId, { painel: false, irParaConversa: true }), conversaAtiva: false };
   return (fim) => renderFileiraDeAbas(estado, {
-    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas,
+    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula,
     renomeando: renomeandoAba && renomeandoAba.id === ativa ? renomeandoAba : null,
     novaTarefa: botAceitaTarefa(estado, agenteId) ? { texto: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria } : null,
   });
+}
+
+/**
+ * O botão de abas (Paper 9i A e 10b): liga o modo abas e traz as tarefas abertas do bot para a fileira, ficando na
+ * Conversa. Numa outra página do bot (Quadro, Canvas, um app) com o modo já ligado, volta para a página Conversa.
+ */
+function mostrarEmAbas(agenteId: string): void {
+  if (!agenteId) return;
+  if (modoAbas.has(agenteId) && document.querySelector(".stage.qd-no-quadro")) {
+    document.querySelector<HTMLElement>('#cabecalho .pg-ic[data-pg-id="conversa"]')?.click();
+    return;
+  }
+  const abertas = trabalhosConhecidos(estado).filter((t) => t.agenteId === agenteId && aberto(t)).sort((a, b) => a.criadoEm - b.criadoEm).map((t) => ({ id: t.id, agenteId }));
+  guardarAbas(abasAoMostrar(abasDeTarefa, abertas));
+  guardarModoAbas(agenteId, true);
+  render();
+}
+
+/**
+ * "Fechar abas" (Paper 10b, 1d): as abas se recolhem para dentro da pílula, ela volta para o centro e a tela fica na
+ * Conversa, no modo pílula. Nenhuma tarefa é encerrada nem parada; as abas ficam guardadas para a próxima vez.
+ */
+function fecharAbas(agenteId: string): void {
+  if (!agenteId) return;
+  const nav = document.querySelector<HTMLElement>("#cabecalho .abas-com-pilula");
+  const sair = (): void => {
+    guardarModoAbas(agenteId, false);
+    const t = estado.tela;
+    if (t.tipo === "trabalho" || t.tipo === "nova-tarefa") voltarParaAConversa(agenteId);
+    else render();
+  };
+  if (!nav || reduzirMovimento()) { sair(); return; }
+  nav.classList.add("recolhendo");
+  window.setTimeout(sair, DURACAO_RECOLHER_ABAS_MS);
+}
+/**
+ * Paper 10b (1b e 1d): ao entrar no modo abas, a pílula desliza do centro para o começo da fileira e as abas saem dela; ao
+ * sair, o caminho inverso. A pílula é medida antes de o cabeçalho ser regravado e animada do lugar velho para o novo
+ * (FLIP), só quando o cabeçalho troca de forma (centro ↔ fileira) e é a mesma pílula do mesmo bot.
+ */
+function medirPilulaDoTopo(): { rect: DOMRect; naFileira: boolean; bot: string | null } | null {
+  const el = document.querySelector<HTMLElement>("#cabecalho .qd-pil, #cabecalho .pilula-bot");
+  if (!el) return null;
+  return { rect: el.getBoundingClientRect(), naFileira: !!el.closest(".abas-com-pilula"), bot: botDoTopo() };
+}
+function botDoTopo(): string | null {
+  const t = estado.tela;
+  return t.tipo === "conversa" || t.tipo === "nova-tarefa" ? t.agenteId : t.tipo === "trabalho" ? trabalhoPorId(estado, t.id)?.agenteId ?? null : null;
+}
+function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
+  if (!antes || reduzirMovimento()) return;
+  const el = document.querySelector<HTMLElement>("#cabecalho .qd-pil, #cabecalho .pilula-bot");
+  const naFileira = !!el?.closest(".abas-com-pilula");
+  if (!el || naFileira === antes.naFileira || antes.bot !== botDoTopo()) return;
+  const r = el.getBoundingClientRect();
+  const dx = antes.rect.left - r.left;
+  const dy = antes.rect.top - r.top;
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 260, easing: "cubic-bezier(.3, 1.15, .5, 1)" });
+  if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando");
+}
+
+/** Paper 10b: as abas somem para dentro da pílula antes de ela voltar ao centro (a mesma duração do CSS). */
+const DURACAO_RECOLHER_ABAS_MS = 140;
+
+function reduzirMovimento(): boolean {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
+/** Sem nenhuma aba do bot, o modo abas desliga sozinho (Paper 10b: "se a última tarefa sair da fileira"). */
+function desligarModoSemAbas(agenteId: string): void {
+  if (!abasDeTarefa.some((a) => a.agenteId === agenteId)) guardarModoAbas(agenteId, false);
 }
 
 /** "‹ Conversa": a conversa do bot da fileira (a fileira some lá); sem ela na frota, o Fechar de sempre. */
@@ -5010,6 +5118,7 @@ function fecharAbaDeTarefa(id: string): void {
   const vizinha = ativa ? vizinhaAoFechar(abasDoBot(estado, abasDeTarefa, agenteId, id), id) : null;
   if (renomeandoAba?.id === id) renomeandoAba = null;
   guardarAbas(fecharAba(abasDeTarefa, id));
+  desligarModoSemAbas(agenteId);
   if (!ativa) { render(); return; }
   if (vizinha) abrirTrabalho(vizinha);
   else voltarParaAConversa(agenteId);
@@ -5052,11 +5161,23 @@ function abrirMenuDeBotsDasTarefas(ancora: HTMLElement): void {
 function abrirMenuDasOutras(agenteId: string, ancora: HTMLElement): void {
   const t = estado.tela;
   const outras = outrasDaFileira(estado, abasDeTarefa, agenteId, t.tipo === "trabalho" ? t.id : null);
+  const feitas = feitasDaFileira(estado, abasDeTarefa, agenteId);
   const r = ancora.getBoundingClientRect();
-  abrirMenuDaBarra(htmlDoMenuDasOutras(outras), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
+  abrirMenuDaBarra(htmlDoMenuDasOutras(outras, feitas.length), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
     if (b.hasAttribute("data-tela-tarefas")) navegar({ tipo: "trabalhos" });
+    else if (b.hasAttribute("data-tirar-feitas")) tirarAsFeitas(agenteId, feitas);
     else if (b.dataset.id) abrirTrabalho(b.dataset.id);
   });
+}
+
+/** Paper 10b (3c): "Tirar as feitas das abas" limpa a fileira de uma vez; as tarefas seguem na tela Tarefas e na conversa. */
+function tirarAsFeitas(agenteId: string, feitas: readonly string[]): void {
+  const fora = new Set(feitas);
+  guardarAbas(abasDeTarefa.filter((a) => !fora.has(a.id)));
+  desligarModoSemAbas(agenteId);
+  const t = estado.tela;
+  if (t.tipo === "trabalho" && fora.has(t.id)) voltarParaAConversa(agenteId);
+  else render();
 }
 
 /** O nome entra em edição na própria aba (que passa a ser a à vista), com o texto todo selecionado. */
@@ -6656,6 +6777,12 @@ function desenharPilula(): void {
     return;
   }
   anunciarFrentesTerminadas(t.conversaId, t.agenteId);
+  // Paper 10b: no modo abas as tarefas estão em cima; a pílula sobre o campo some (uma lista por vez).
+  if (fileiraNaConversa(t.agenteId)) {
+    pilula.desenhar(null);
+    pilulaAtual = null;
+    return;
+  }
   const p = pilulaNaConversa(estado, t.agenteId, progressoDaFala, novaTarefaNaAba(t));
   if (p.tipo !== "pilula") {
     if (p.tipo === "nada" || p.tipo === "vazia") {
@@ -8522,6 +8649,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "menu-aba-tarefa": (el) => abrirMenuDaAba(el.dataset.id ?? "", el.closest<HTMLElement>(".at-aba") ?? el),
   "fechar-aba-tarefa": (el) => fecharAbaDeTarefa(el.dataset.id ?? ""),
   "aba-conversa": (el) => voltarParaAConversa(el.dataset.agente ?? ""),
+  "mostrar-em-abas": (el) => mostrarEmAbas(el.dataset.agente ?? ""),
+  "fechar-abas": (el) => fecharAbas(el.dataset.agente ?? ""),
   "abas-outras": (el) => abrirMenuDasOutras(el.dataset.agente ?? "", el),
   "parar-trabalho": (el) => agir(async () => {
     const id = el.dataset.id ?? "";
@@ -10182,6 +10311,12 @@ window.addEventListener("keydown", (ev) => {
     const id = alvo?.closest?.<HTMLElement>(".abas-tarefa .at-ir[data-id]")?.dataset.id;
     if (id) { ev.preventDefault(); comecarRenomeio(id); }
     return;
+  }
+  // Paper 10b: Esc com o foco na fileira (fora do nome em edição) é o "Fechar abas".
+  if (ev.key === "Escape" && alvo?.id !== "at-nome") {
+    const nav = alvo?.closest?.<HTMLElement>("#cabecalho .abas-com-pilula");
+    const agenteId = nav?.querySelector<HTMLElement>('[data-act="fechar-abas"]')?.dataset.agente;
+    if (agenteId) { ev.preventDefault(); ev.stopImmediatePropagation(); fecharAbas(agenteId); return; }
   }
   if (alvo?.id !== "at-nome" || !renomeandoAba) return;
   if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); ev.stopImmediatePropagation(); terminarRenomeio(true, { focarAba: true }); }
