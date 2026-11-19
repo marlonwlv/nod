@@ -1,10 +1,12 @@
 import { decisaoEmAberto } from "../domain/revisor.ts";
-import type { AcessoPedido, ResultadoPedirAcesso } from "../contracts/acesso.ts";
+import type { AcessoPedido, RecusaPedirAcesso, ResultadoPedirAcesso } from "../contracts/acesso.ts";
 import type { Conector } from "../contracts/conector.ts";
 import type { PayloadPropostaAcesso, Proposta } from "../contracts/conversa.ts";
 import type { Decisao } from "../contracts/decisao.ts";
 import type { Autoria, RuntimeEvent } from "../contracts/evento.ts";
-import type { CasoNod, ContextoFerramenta } from "../contracts/servicos.ts";
+import type { CasoNod, ContextoFerramenta, SaidaCasoDeUso } from "../contracts/servicos.ts";
+import type { ArgsPedirAcesso } from "../contracts/ferramentas-nod.ts";
+import { APPS_MARKETPLACE } from "../contracts/marketplace.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { SLUG_GITHUB } from "../contracts/github.ts";
 import { capacidadesDoNivel } from "../domain/grupos-de-acesso.ts";
@@ -81,7 +83,7 @@ async function pedidoRepetido(deps: Deps, ctx: ContextoFerramenta, pedido: Acess
  * escrita declarada) e nunca passava pelo modo: era o único lugar em que o total ainda esperava um clique, e cada
  * janela seguinte saía bloqueada até ele.
  */
-export const pedirAcesso: CasoNod<Deps, "pedir_acesso"> = async (deps, input) => {
+export const pedirAcesso = async (deps: Deps, input: ContextoFerramenta & ArgsPedirAcesso): Promise<SaidaCasoDeUso<ResultadoPedirAcesso>> => {
   if (input.para_bot !== undefined) return pedirAcessoParaBot(deps, input);
   const ligacao = await rotinaDoTurno(deps.repos, input.turnoId);
   let conector = await deps.repos.conectores.buscarPorSlug(input.conector);
@@ -176,7 +178,7 @@ export const pedirAcesso: CasoNod<Deps, "pedir_acesso"> = async (deps, input) =>
  * pediu, e quem pediu foi a Nina, noutra conversa: retomar-apos-acesso recusaria). Sem modo automático: o bot acabou de
  * nascer manual, e o login do app é sempre da pessoa.
  */
-async function pedirAcessoParaBot(deps: Deps, input: ContextoFerramenta & Parameters<CasoNod<Deps, "pedir_acesso">>[1]): ReturnType<CasoNod<Deps, "pedir_acesso">> {
+async function pedirAcessoParaBot(deps: Deps, input: ContextoFerramenta & ArgsPedirAcesso): Promise<SaidaCasoDeUso<ResultadoPedirAcesso>> {
   const alvo = await alvoDoParaBot(deps, input.turnoId, input.para_bot ?? "");
   if (!alvo) throw new ErroDeDominio("entrada_invalida", { cause: "para_bot só vale para o bot novo do onboarding" });
   let conector = await deps.repos.conectores.buscarPorSlug(input.conector);
@@ -212,3 +214,34 @@ async function pedirAcessoParaBot(deps: Deps, input: ContextoFerramenta & Parame
   const aberto = await abrirPedidoDeAcesso(deps, { conversaId: alvo.conversaId, agenteId: alvo.agenteId, turnoId: null, payload, conector, autoria });
   return { data: aguardandoPessoa(aberto.proposta.id), events: aberto.events };
 }
+
+/** Corta um texto vindo do modelo para citar na instrução, sem partir emoji (por code point). */
+function citar(texto: string): string {
+  const cps = [...texto];
+  return cps.length > 60 ? `${cps.slice(0, 60).join("")}…` : texto;
+}
+
+/**
+ * 2026-11-19 (QA-99): o erro que o próprio bot consegue corrigir volta como resultado, não como 400 genérico. Mesmas
+ * regras de normalizarPedidoAcesso (slug fora do registro e do marketplace; nome fora do catálogo do app); o resto
+ * (nível sem ferramenta, rotina, para_bot) continua lá. GitHub e Mac nascem dentro de pedirAcesso: não passam aqui.
+ */
+export function recusaAcionavel(input: Pick<ArgsPedirAcesso, "conector" | "capacidades">, conector: Pick<Conector, "catalogo"> | null): RecusaPedirAcesso | null {
+  if (input.conector === SLUG_GITHUB || input.conector === SLUG_MAC) return null;
+  if (!conector) {
+    if (APPS_MARKETPLACE.some((app) => app.slug === input.conector)) return null;
+    return { estado: "recusado", erro: "conector_desconhecido", instrucao: `O conector "${citar(input.conector)}" não existe. Use um slug da lista de apps que você pode pedir. Nada foi pedido.` };
+  }
+  const nomes = new Set(conector.catalogo.map((c) => c.nome));
+  const desconhecidas = [...new Set(input.capacidades)].filter((c) => !nomes.has(c));
+  if (desconhecidas.length === 0) return null;
+  const lista = desconhecidas.slice(0, 5).map((c) => `"${citar(c)}"`).join(", ") + (desconhecidas.length > 5 ? ` e mais ${desconhecidas.length - 5}` : "");
+  return { estado: "recusado", erro: "capacidade_desconhecida", instrucao: `Fora do catálogo de ${citar(input.conector)}: ${lista}. Passe capacidades [] para pedir pelo nível (leitura ou escrita) ou os nomes exatos do catálogo. Nada foi pedido.` };
+}
+
+/** O pedir_acesso que o bot chama (compor.ts): a recusa acionável antes, o caso de uso de sempre depois. */
+export const pedirAcessoDoBot: CasoNod<Deps, "pedir_acesso"> = async (deps, input) => {
+  const recusa = recusaAcionavel(input, await deps.repos.conectores.buscarPorSlug(input.conector));
+  if (recusa) return { data: recusa, events: [] };
+  return pedirAcesso(deps, input);
+};
