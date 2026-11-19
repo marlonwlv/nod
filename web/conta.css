@@ -24,6 +24,10 @@
 .cc-acoes { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cc-acoes.cc-coluna { flex-direction: column; align-items: stretch; }
 .cc-rodape { margin: 0; display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
+.rodape-legal { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.rodape-legal a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; color: var(--ink-2); font-size: var(--fs-corpo-2); text-decoration: underline; text-underline-offset: 3px; }
+.rodape-legal a:hover { color: var(--ink); }
+.rodape-legal a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--raio-4); }
 .cc-link.bt { border: 0; background: none; color: var(--ink-2); font-size: var(--fs-corpo); }
 .cc-link.bt:hover { background: var(--surface-raised); color: var(--ink); }
 .entrar-primeiro .bt { min-height: 44px; }

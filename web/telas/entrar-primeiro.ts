@@ -1,3 +1,4 @@
+import { htmlRodapeLegal } from "./rodape-legal.ts";
 import { esc } from "../lib/render.ts";
 
 /**
@@ -53,5 +54,6 @@ export function htmlEntrarPrimeiro(v: { google: boolean; codigoPorEmail: boolean
       <p class="cc-texto">Use sem cadastro. Dá para criar a conta depois, sem perder nada.</p>
       <div class="cc-acoes">${bt("sem-conta", "Começar sem conta", "pri", o)}</div>
     </div>
+    ${htmlRodapeLegal()}
   </section>`;
 }

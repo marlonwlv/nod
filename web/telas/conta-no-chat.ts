@@ -1,3 +1,4 @@
+import { htmlRodapeLegal } from "./rodape-legal.ts";
 import type { CadastroDto, ContagemEspacoDto, EntrarDto, EsperaPareamentoDto, EstadoContaDto, EstadoPareamentoDto, ImportarDto, PareamentoAbertoDto, PedirPareamentoDto, SessaoContaDto, SessoesDto, TrocarSenhaDto, VerificarDto } from "../../src/contracts/conta.ts";
 import type { EtapaPeloChat } from "../../src/contracts/ferramentas-conta.ts";
 import type { PonteGoogleConta, ResultadoGoogleConta } from "../../src/contracts/desktop-conta-app.ts";
@@ -115,14 +116,14 @@ export function htmlEtapa(e: Etapa, v: { ocupado: boolean; google: boolean; agor
         "Guarde seu espaço numa conta",
         `<p class="cc-texto">${e.cota ? "Você usou as mensagens sem conta. Crie uma conta para continuar: nada do que você fez se perde, e sua mensagem ficou no campo." : `Hoje ele está só ${nesteAparelho()}. Com uma conta, você entra de qualquer lugar e não perde nada.`}</p>
         <div class="cc-acoes cc-coluna">${v.google ? bt("conta-google", "Continuar com Google", { classe: "pri", ocupado: o }) : ""}${bt("conta-ir", e.cota && !v.google ? "Criar conta" : "Usar e-mail", { classe: v.google ? "" : "pri", dados: { etapa: v.texto ? "email" : "cadastro" } })}${bt("conta-fechar", "Agora não", { classe: "cc-link" })}</div>
-        <p class="cc-rodape">${bt("conta-ir", "Já tenho conta com e-mail", { classe: "cc-link", dados: { etapa: "entrar" } })}${bt("conta-ir", "Tenho um código", { classe: "cc-link", dados: { etapa: "parear-entrar" } })}${equipe}</p>`,
+        <p class="cc-rodape">${bt("conta-ir", "Já tenho conta com e-mail", { classe: "cc-link", dados: { etapa: "entrar" } })}${bt("conta-ir", "Tenho um código", { classe: "cc-link", dados: { etapa: "parear-entrar" } })}${equipe}</p>${htmlRodapeLegal()}`,
         "Criar conta ou entrar",
       );
     case "cadastro":
       return cartao(
         "Criar conta com e-mail",
         `<form data-form="conta-cadastro" class="cc-form">${campoEmail()}${campoSenha("senha", "Senha", true)}<p class="cc-dica">Pelo menos 12 caracteres. Uma frase curta vale.</p>${erroDe(e.erro)}
-        <div class="cc-acoes">${bt("conta-ir", "Voltar", { classe: "cc-link", dados: { etapa: "inicio" } })}${enviar("Criar conta", o, "Criando…")}</div></form>`,
+        <div class="cc-acoes">${bt("conta-ir", "Voltar", { classe: "cc-link", dados: { etapa: "inicio" } })}${enviar("Criar conta", o, "Criando…")}</div></form>${htmlRodapeLegal()}`,
       );
     case "codigo": {
       const aviso = e.erro
