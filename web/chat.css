@@ -437,7 +437,9 @@
    botão de abas aparece com o número (lá não existe a pílula sobre o campo). */
 .abas-tarefa .at-pilula .botao-abas { display: none; }
 .stage.qd-no-quadro .abas-com-pilula { justify-content: center; border-bottom-color: transparent; }
-.stage.qd-no-quadro .abas-com-pilula > :not(.at-pilula) { display: none; }
+/* Fase 5 da ADR-179: os filhos pelo nome (não `:not(.at-pilula)`): com sujeito universal, trocar `qd-no-quadro` no `.stage`
+   invalidava o palco inteiro (a conversa por baixo, ~40 mil nós) a cada ida e volta do quadro. */
+.stage.qd-no-quadro .abas-com-pilula > :is(.at-traco, .at-aba, .at-outras, .at-mais, .at-espaco, .at-fechar-abas, .at-fim) { display: none; }
 .stage.qd-no-quadro .abas-com-pilula .at-pilula { border-bottom-color: transparent; }
 .stage.qd-no-quadro .abas-com-pilula .at-pilula .botao-abas { display: grid; margin-left: 0; }
 .stage.qd-no-quadro .botao-abas .ba-num { display: block; }

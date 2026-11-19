@@ -608,7 +608,7 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 /* Painel fechado (Paper 15c, pad 180): a coluna da conversa vai a 808 px; o campo e a pílula ficam em 680, centrados. */
 .app.detalhes-ocultos .stage > .timeline-wrap > .timeline { max-width: 808px; }
 /* A pílula aberta já está no fluxo: a conversa não precisa da folga da pílula fechada. */
-.stage.com-pilula-frentes:has(.pilula-frentes[data-estado="aberta"]) > .timeline-wrap { padding-bottom: 16px; }
+.stage.com-pilula-frentes.palco-frentes-abertas > .timeline-wrap { padding-bottom: 16px; }
 }
 
 /* =====================================================================================
@@ -726,9 +726,9 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 @media not ((hover: none) and (pointer: coarse)) {
 /* Paper 17b: a página do app no fundo da conversa (branco), com 64 px dos lados, e o campo da conversa por cima, embaixo,
    com 760 (o pedido vai para a conversa do bot). */
-.stage:has(> #quadro:not([hidden]) .pg-app) > #quadro { background: var(--surface); padding-bottom: 80px; box-sizing: border-box; }
-.stage:has(> #quadro:not([hidden]) .pg-app) > .composer-wrap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: transparent; }
-.stage:has(> #quadro:not([hidden]) .pg-app) > .composer-wrap .composer { max-width: 760px; }
+.stage.palco-app > #quadro { background: var(--surface); padding-bottom: 80px; box-sizing: border-box; }
+.stage.palco-app > .composer-wrap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; background: transparent; }
+.stage.palco-app > .composer-wrap .composer { max-width: 760px; }
 .qd-vista .pg-app { padding: 0 40px; box-sizing: border-box; }
 }
 @media not ((hover: none) and (pointer: coarse)) {
@@ -803,7 +803,7 @@ nod-mascote[data-estado="aguardando"]:not([data-aviso="pergunta"], [data-aviso="
 .pg-menu-ic { flex: none; color: var(--ink-2); }
 .pg-menu-traco { height: 1px; margin: 4px 6px; border: 0; background: var(--divisoria); }
 .pg-menu-it.pg-menu-perigo, .pg-menu-it.pg-menu-perigo .pg-menu-ic { color: var(--danger); }
-body:has(#pg-menu) .cabecalho-pilula .pg-tip { opacity: 0 !important; }
+html.pg-menu-aberto .cabecalho-pilula .pg-tip { opacity: 0 !important; }
 /* Paper 17/17b (rodada 3): o ponto da página que pede você fica laranja também quando é a atual (o traço largo). */
 .pg-pt.pg-pt-atual.pg-pt-pede { background: var(--aguardando); }
 .pg-pt.pg-pt-pede { background: var(--aguardando); }

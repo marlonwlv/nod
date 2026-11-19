@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { abrirChrome, avaliar, type Cdp } from "./cdp.ts";
-import { abrirQuadro, arrastarAte, COLUNA_B, prepararQuadro, tarefasPorColuna } from "./quadro.ts";
+import { abrirQuadro, arrastarAte, COLUNA_B, prepararQuadro, tarefasPorColuna, type Abertura } from "./quadro.ts";
 import { api, botsDeCarga, CONFIG, entrar, escrever, promptStreaming, respostaRica, urlWeb, type Bot, type Sessao } from "./comum.ts";
 
 export const CENARIOS = ["ocioso", "varios-bots", "turno-pesado", "tudo-junto", "frentes", "quadro"] as const;
@@ -55,7 +55,7 @@ const INSTRUMENTO = `(() => {
   setInterval(() => { const agora = performance.now(); c.lags.push(Math.max(0, agora - esperado)); esperado = agora + 20; }, 20);
 })();`;
 
-type Coleta = { quadro?: { regravacoes: number; leituras: number }; frames: Record<string, number>; framesTotal: number; longtasks: { inicio: number; dur: number }[]; rafGaps: number[]; lags: number[]; falaRegravada: number; blocoTrocado: number; t0: number };
+type Coleta = { quadro?: { regravacoes: number; leituras: number; leiturasMs: number[]; mudancasMs: number[]; solturasMs: number[]; perdidas: number }; frames: Record<string, number>; framesTotal: number; longtasks: { inicio: number; dur: number }[]; rafGaps: number[]; lags: number[]; falaRegravada: number; blocoTrocado: number; t0: number };
 
 /** O que a web instrumentada mediu (performance.measure "nod:regravar:<historico|ao-vivo>", "nod:progresso"). */
 const REGRAVACOES = `(() => { const r = {}; for (const e of performance.getEntriesByType('measure')) { if (!e.name.startsWith('nod:')) continue; const k = e.name.slice(4); const x = r[k] ??= { n: 0, totalMs: 0, maxMs: 0 }; x.n++; x.totalMs += e.duration; x.maxMs = Math.max(x.maxMs, e.duration); } return r; })()`;
@@ -99,6 +99,19 @@ function agregarPerfil(p: Perfil) {
   });
   const topo = (m: Map<string, number>, n: number) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([fn, ms]) => ({ fn, ms: Math.round(ms) }));
   return { totalMs: Math.round(total), proprio: topo(proprio, 30), inclusivo: topo(inclusivo, 40) };
+}
+
+/** O servidor × a tela do quadro: abrir (a 1ª e a mediana das outras), soltar um card e o PATCH dele, o GET do quadro. */
+function resumoDoQuadro(c: Coleta, aberturas: { primeira: Abertura; reaberturas: Abertura[] } | null) {
+  const q = c.quadro;
+  const tres = (xs: number[]) => ({ n: xs.length, p50: Math.round(pct(xs, 50)), p95: Math.round(pct(xs, 95)), max: Math.round(maximo(xs)) });
+  const re = aberturas?.reaberturas ?? [];
+  return {
+    soltura: { ...tres(q?.solturasMs ?? []), perdidas: q?.perdidas ?? 0 },
+    mover: tres(q?.mudancasMs ?? []),
+    leitura: tres(q?.leiturasMs ?? []),
+    ...(aberturas ? { abertura: { primeira: aberturas.primeira, deNovo: { pintar: tres(re.map((a) => a.atePintarMs)), maiorTarefa: tres(re.map((a) => a.maiorTarefaMs)), leitura: tres(re.flatMap((a) => (a.leituraMs === null ? [] : [a.leituraMs]))), servidor: tres(re.flatMap((a) => (a.servidorMs === null ? [] : [a.servidorMs]))) }, reaberturas: re } } : {}),
+  };
 }
 
 async function metricas(cdp: Cdp): Promise<Record<string, number>> {
@@ -190,6 +203,9 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
     // comparar com o desenho por string no mesmo build.
     const semReact = (process.env.CARGA_SEM_REACT ?? "").split(",").filter(Boolean);
     if (semReact.length) await cdp.enviar("Page.addScriptToEvaluateOnNewDocument", { source: `try { ${semReact.map((r) => `localStorage.setItem(${JSON.stringify(`nod.${r}.react`)}, "0");`).join(" ")} } catch {}` });
+    // CARGA_COM_REACT=quadro: liga a grade do quadro em React (ADR-180, desligada por padrão) no mesmo build.
+    const comReact = (process.env.CARGA_COM_REACT ?? "").split(",").filter(Boolean);
+    if (comReact.length) await cdp.enviar("Page.addScriptToEvaluateOnNewDocument", { source: `try { ${comReact.map((r) => `localStorage.setItem(${JSON.stringify(`nod.${r}.react`)}, "1");`).join(" ")} } catch {}` });
     await cdp.enviar("Page.navigate", { url: urlWeb() });
     const linha = `[data-act="abrir-conversa"][data-agente="${pesada.id}"]`;
     for (let i = 0; i < 150 && !(await avaliar<boolean>(cdp, `!!document.querySelector('${linha}')`)); i++) await new Promise((r) => setTimeout(r, 200));
@@ -211,8 +227,8 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
         for (let i = 0; i < 150 && (await avaliar<number>(cdp, ITENS_DA_TIMELINE)) < 100; i++) await new Promise((r) => setTimeout(r, 200));
         await new Promise((r) => setTimeout(r, 2000));
       }
-      if (cenario === "quadro") await abrirQuadro(cdp);
-      await avaliar(cdp, "(() => { const t = document.getElementById('composer-texto'); if (t) { t.value = ''; t.focus(); } window.__carga.reset(); if (window.__carga.quadro) window.__carga.quadro = { regravacoes: 0, leituras: 0 }; return true; })()");
+      const aberturas = cenario === "quadro" ? await abrirQuadro(cdp) : null;
+      await avaliar(cdp, "(() => { const t = document.getElementById('composer-texto'); if (t) { t.value = ''; t.focus(); } window.__carga.reset(); if (window.__carga.quadro) Object.assign(window.__carga.quadro, { regravacoes: 0, leituras: 0, leiturasMs: [], mudancasMs: [], solturasMs: [], perdidas: 0 }); return true; })()");
       const antesDoQuadro = cenario === "quadro" ? await tarefasPorColuna(s, pesada) : null;
       const antes = await metricas(cdp);
       await cdp.enviar("Profiler.setSamplingInterval", { interval: 500 });
@@ -284,12 +300,12 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
         chrome: { tarefaS: r1(delta("TaskDuration")), scriptS: r1(delta("ScriptDuration")), layoutS: r1(delta("LayoutDuration")), estiloS: r1(delta("RecalcStyleDuration")), layouts: delta("LayoutCount"), estilos: delta("RecalcStyleCount"), nos: depois.Nodes, heapMB: r1((depois.JSHeapUsedSize ?? 0) / 1e6) },
         perfil: agregarPerfil(profile),
         dom,
-        ...(antesDoQuadro ? { quadro: { arrastos, chegaram: ((await tarefasPorColuna(s, pesada))[COLUNA_B] ?? 0) - (antesDoQuadro[COLUNA_B] ?? 0), regravacoes: c.quadro?.regravacoes ?? 0, leituras: c.quadro?.leituras ?? 0 } } : {}),
+        ...(antesDoQuadro ? { quadro: { arrastos, chegaram: ((await tarefasPorColuna(s, pesada))[COLUNA_B] ?? 0) - (antesDoQuadro[COLUNA_B] ?? 0), regravacoes: c.quadro?.regravacoes ?? 0, leituras: c.quadro?.leituras ?? 0, ...resumoDoQuadro(c, aberturas) } } : {}),
         ...(cenario === "frentes" ? { frentes: { falaRegravada: c.falaRegravada, porMinuto: r1(c.falaRegravada / (janelaS / 60)), blocoTrocado: c.blocoTrocado, regravacoes: await avaliar<Record<string, { n: number; totalMs: number; maxMs: number }>>(cdp, REGRAVACOES) } } : {}),
       };
       writeFileSync(join(CONFIG.saida, `${rotulo}-${cenario}.json`), JSON.stringify(resumo, null, 2));
       escrever(`[${rotulo}] ${cenario}: turnos ${resumo.duracaoS} s, tela livre em ${telaLivreS} s, ${resumo.frames} frames, maior tarefa ${resumo.tarefasLongas.maxMs} ms, TBT ${resumo.tarefasLongas.tbtMs} ms, tecla p50/p95/max ${resumo.digitacao.p50}/${resumo.digitacao.p95}/${resumo.digitacao.max} ms`);
-      if (resumo.quadro) escrever(`  quadro: ${resumo.quadro.arrastos} arrastos, ${resumo.quadro.chegaram} chegaram ao servidor, ${resumo.quadro.regravacoes} regravações da grade, ${resumo.quadro.leituras} GET do quadro`);
+      if (resumo.quadro) escrever(`  quadro: ${resumo.quadro.arrastos} arrastos, ${resumo.quadro.chegaram} chegaram ao servidor, ${resumo.quadro.regravacoes} regravações da grade, ${resumo.quadro.leituras} GET do quadro; soltar → card na coluna (tela) p50/p95/max ${JSON.stringify(resumo.quadro.soltura)}, PATCH (servidor) ${JSON.stringify(resumo.quadro.mover)}, GET ${JSON.stringify(resumo.quadro.leitura)}`);
       if (resumo.frentes) escrever(`  frentes: fala regravada ${resumo.frentes.falaRegravada}× (${resumo.frentes.porMinuto}/min; cada uma perde a seleção de texto nela), só o bloco trocado ${resumo.frentes.blocoTrocado}×, regravações ${JSON.stringify(resumo.frentes.regravacoes)}`);
       escrever(`  mais caro (próprio): ${resumo.perfil.proprio.slice(0, 8).map((x) => `${x.ms}ms ${x.fn}`).join(" | ")}`);
       await new Promise((r) => setTimeout(r, 2000));

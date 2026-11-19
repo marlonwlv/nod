@@ -41,6 +41,7 @@ import { confiar, iconeDe, quadroVazio, type Aviso, type Filtro, type Html } fro
 import type { GradeNaTela } from "../react/quadro/grade-na-tela.tsx";
 import type { DestinoDoMover } from "../react/quadro/card-da-grade.tsx";
 import { reactNoQuadro } from "./react-no-quadro.ts";
+import { marcarEstadoDaPagina } from "./estado-da-pagina.ts";
 import { contarNaVista, ehFiltro, termoDaBusca } from "./vista-do-quadro.ts";
 import type { QuadrosDoBotDto } from "../../src/contracts/quadros-do-bot.ts";
 import { mostraSeletor, quadroQueAbre, seletorDeQuadro, type CriandoNoSeletor } from "../telas/seletor-de-quadro.ts";
@@ -900,6 +901,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     const movimentosAbertos = mesmaVista && conteudo.querySelector<HTMLDetailsElement>("details.qd-hist")?.open === true;
     conteudo.innerHTML = html;
     htmlDesenhado = html;
+    marcarEstadoDaPagina(doc);
     // ADR-180: a grade em React volta para a vaga que o desenho deixou (o mesmo nó, só o que mudou é redesenhado).
     gradeRx?.encaixar(conteudo);
     // ADA-302: a folha da tarefa no celular sobe (qd-sobe, 24 px) só quando abre. O innerHTML recria o article e, sem isto,
@@ -2682,10 +2684,16 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     return caixas.some((c) => !!c && fora(c.getBoundingClientRect()));
   }
 
+  /**
+   * Fase 5 da ADR-179: só a vista do quadro fica `inert` ao sair. A conversa não: `inert` é herdado e pô-lo ou tirá-lo
+   * recalculava o estilo dos ~40 mil nós dela a cada ida e volta; escondida, o `content-visibility` da `.qd-saiu` já a
+   * tira do foco, do clique e da árvore de acessibilidade.
+   */
+  const inerte = (e: HTMLElement, sim: boolean): void => { if (e.id === "quadro" && e.inert !== sim) e.inert = sim; };
   function mostrar(els: HTMLElement[]): void {
     for (const e of els) {
       e.classList.remove("qd-saiu");
-      e.inert = false;
+      inerte(e, false);
       if (e.id === "quadro") {
         e.hidden = false;
         // Revisão 5 do ADA-5: o rascunho volta com o #quadro escondido (scrollHeight 0); a altura só se mede à vista.
@@ -2693,13 +2701,14 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
         if (ta?.value) ajustarAltura(ta);
       }
     }
+    marcarEstadoDaPagina(doc);
   }
   function esconder(els: HTMLElement[]): void {
     for (const e of els) {
       if (e.id === "quadro") { e.hidden = true; continue; }
       e.classList.add("qd-saiu");
-      e.inert = true;
     }
+    marcarEstadoDaPagina(doc);
   }
 
   function marcar(): void {
@@ -2738,6 +2747,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (chegou && Date.now() > chegou.ate) chegou = null;
     for (const e of doc.querySelectorAll<HTMLElement>("#cabecalho .pg-ic, #cabecalho .pg-pt")) e.classList.toggle("pg-chegou", !!chegou && e.dataset["pgId"] === chegou.id);
     doc.querySelector(".stage")?.classList.toggle("qd-no-quadro", modo === "quadro");
+    marcarEstadoDaPagina(doc);
     const ativo = doc.activeElement;
     if (abaFocada && !abaFocada.el.isConnected && (!ativo || ativo === doc.body)) focarPagina(abaFocada.pagina);
   }
@@ -2850,8 +2860,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       anunciarPagina();
       avisarTroca(para);
       [saindo, entrando] = [entrando, saindo];
-      for (const e of saindo) e.inert = true;
-      for (const e of entrando) e.inert = false;
+      for (const e of saindo) inerte(e, true);
+      for (const e of entrando) inerte(e, false);
       for (const a of animacoes) a.reverse();
       focar();
       return;
@@ -2874,7 +2884,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     saindo = sai;
     entrando = entra;
     mostrar([...sai, ...entra]);
-    for (const e of sai) e.inert = true;
+    for (const e of sai) inerte(e, true);
     const mv = movimentoDaTroca(direcao, reduzido());
     const pode = typeof v.animate === "function";
     if (!pode) { assentar(); if (op.foco) focarPagina(pagina); return; }
@@ -4122,6 +4132,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
   function fecharMenu(foco = false): void {
     const m = doc.getElementById("pg-menu");
     if (m) m.remove();
+    doc.documentElement.classList.remove("pg-menu-aberto");
     const volta = menu?.volta;
     menu = null;
     if (foco && volta) doc.querySelector<HTMLElement>(`#cabecalho .pg-ic[data-pg-id="${volta}"]`)?.focus();
@@ -4134,6 +4145,8 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     doc.body.insertAdjacentHTML("beforeend", menuDaPagina({ p, pos: posDe(i), total: paginas.length }));
     const m = doc.getElementById("pg-menu");
     if (!m) return;
+    // Fase 5 da ADR-179: o estado vai no <html> (o CSS das dicas da pílula lia `body:has(#pg-menu)`).
+    doc.documentElement.classList.add("pg-menu-aberto");
     if (r) { m.style.top = `${Math.round(r.bottom + 6)}px`; m.style.left = `${Math.round(Math.max(8, r.left))}px`; }
     menu = { id: p.id, volta: p.id };
     m.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled])')?.focus();

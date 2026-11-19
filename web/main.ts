@@ -1,4 +1,5 @@
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
+import { marcarEstadoDaPagina } from "./lib/estado-da-pagina.ts";
 import { cancelarNaFila, desfazerCancelamento } from "./lib/cancelar-na-fila.ts";
 import { armazemComReserva, armazemDaFila, criarJournalDeEnvio, JournalEncerrado, tipoDaFalha, type ArmazemDoJournal, type Desfecho, type ItemDoJournal, type Journal } from "./lib/journal-envio.ts";
 import { armazemDoJournalIndexedDb } from "./lib/journal-envio-idb.ts";
@@ -4327,6 +4328,8 @@ function render(): void {
   // ADR-173: o Quick Chat e o botão de captura antes do foco, que vale sobre o DOM já completo (guarda da NOD-370).
   pintarQuickChat();
   codigo?.();
+  // Fase 5 da ADR-179: os estados que o CSS lia por `:has()` no `.stage` (web/lib/estado-da-pagina.ts).
+  marcarEstadoDaPagina(document);
   focoPendente.aplicar();
 }
 

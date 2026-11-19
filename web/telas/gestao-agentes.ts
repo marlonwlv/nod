@@ -154,6 +154,7 @@ export function fecharComMovimento(d: HTMLDialogElement): void {
   if (!d.open || d.classList.contains("fechando")) return;
   if (semMovimento()) { d.close(); return; }
   d.classList.add("fechando");
+  if (d.classList.contains("menu-conta")) document.documentElement.classList.remove("menu-conta-aberto");
   window.setTimeout(() => { if (d.open) d.close(); }, MENU_CONTA_MS);
 }
 
@@ -169,7 +170,9 @@ export function abrirMenuConta(ancora: HTMLElement, dados: DadosMenuConta, acoes
   d.classList.add("menu-conta");
   contaAberta = true;
   ancora.setAttribute("aria-expanded", "true");
-  d.addEventListener("close", () => { contaAberta = false; ancora.setAttribute("aria-expanded", "false"); });
+  // Fase 5 da ADR-179: o estado vai no <html> (o CSS do rodapé lia `body:has(dialog.menu-conta[open])`).
+  document.documentElement.classList.add("menu-conta-aberto");
+  d.addEventListener("close", () => { contaAberta = false; ancora.setAttribute("aria-expanded", "false"); document.documentElement.classList.remove("menu-conta-aberto"); });
   // NOD-379: no celular o avatar fica no topo da inicial e o menu vira folha de baixo (o CSS a prende embaixo).
   if (folha) d.classList.add("folha");
   const r = ancora.getBoundingClientRect();

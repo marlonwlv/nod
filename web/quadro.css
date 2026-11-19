@@ -74,7 +74,10 @@
 .stage.qd-no-quadro .cabecalho.cabecalho-pilula::before {
   background: linear-gradient(180deg, var(--qd-fundo) 0%, color-mix(in srgb, var(--qd-fundo) 94%, transparent) 34%, transparent 100%); }
 /* Fora da tela durante e depois da troca: não recebe clique nem foco (o main também põe `inert`). */
-.qd-saiu { visibility: hidden; pointer-events: none; }
+/* Fase 5 da ADR-179: a conversa escondida sob o quadro sai do cálculo de estilo e de layout (content-visibility), não só
+   da pintura. `visibility` e `inert` são herdados: pô-los e tirá-los recalculava os ~40 mil nós da conversa a cada ida e
+   volta. O conteúdo pulado também não recebe foco nem clique, e a rolagem fica (medido em 2026-11-19). */
+.qd-saiu { content-visibility: hidden; pointer-events: none; }
 /* Os avisos de erro (envio, conexão) ficam por cima da vista no modo Quadro: não somem enquanto a pessoa está nele. */
 .stage.qd-no-quadro #erro:not(:empty) { position: relative; z-index: 5; }
 .qd-so-estreito { display: none; }
