@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { AtualizacaoNaTela, PedidoReinicio, RespostaReinicio } from "../../../src/contracts/desktop-atualizacao.ts";
 import { criarAtualizacaoNaWeb, type PonteAtz, type TelaAtualizacao } from "../../../web/lib/atualizacao-app.ts";
 import { cartaoAtualizacao, MS_ENCHER_ATUALIZAR, MS_ENTRAR_ATUALIZAR, renderSobre, TEXTOS_ATZ } from "../../../web/telas/atualizacao-app.ts";
-import { htmlAvisoAtualizado } from "../../../web/lib/aviso-atualizado.ts";
+import { htmlAvisoAtualizado } from "../../../web/lib/aviso-atualizado-html.ts";
 import { SECOES_ESPACO } from "../../../web/telas/espaco.ts";
 import { AJUSTES, NOME_DA_SECAO } from "../../../web/lib/ajustes.ts";
 
 const pronta: AtualizacaoNaTela = { fase: "pronta", versaoAtual: "1.0.3", versaoNova: "1.0.4", motivo: null, procuradaEm: null, esperandoLivre: false, reiniciando: false, sozinho: true, atualizadoDe: null };
-const tela = (o: Partial<TelaAtualizacao> & { estado?: Partial<AtualizacaoNaTela> } = {}): TelaAtualizacao => ({ pergunta: null, pedindo: false, enchendoDesde: null, prontaDesde: null, ...o, estado: { ...pronta, ...o.estado } });
+const tela = (o: Omit<Partial<TelaAtualizacao>, "estado"> & { estado?: Partial<AtualizacaoNaTela> } = {}): TelaAtualizacao => ({ pergunta: null, pedindo: false, enchendoDesde: null, prontaDesde: null, ...o, estado: { ...pronta, ...o.estado } });
 
 function montar(resposta: RespostaReinicio, inicial: AtualizacaoNaTela = pronta) {
   const pedidos: PedidoReinicio[] = [];

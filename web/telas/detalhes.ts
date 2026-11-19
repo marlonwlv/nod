@@ -16,7 +16,7 @@ import { iasDaTela, ordemDaPessoa, rascunhoDe, renderInteligencia, renderLinhaIn
 import { UI_IAS_INICIAL } from "./cartao-ia.ts";
 import { descricao, MODOS } from "./aprovacoes.ts";
 import { blocoEsperando, conectorDoApp, nivelDoBot, ROTULO_NIVEL, situacaoDoApp, type NivelAtual } from "./app-acesso.ts";
-import { logoApp } from "./marketplace.ts";
+import { appsDeLogin, logoApp } from "./marketplace.ts";
 import { renderMemoriaNaGaveta } from "./memoria.ts";
 import { renderNovaRotinaNaGaveta } from "./nova-rotina.ts";
 import { blocoDasChamadas, blocoDoEndereco, ehRotinaWebhook, ICONE_RAIO, origemDaTela, quandoNaLista } from "./webhook.ts";
@@ -659,7 +659,7 @@ function darAcesso(estado: Estado, agenteId: string, nomeBot: string): string {
     const c = conectorDoApp(estado, app.slug);
     return c?.habilitado ? [`<div class="da-linha">${logoApp(estado, app.slug, app.nome)}<div class="da-nome"><b>${esc(app.nome)}</b>${segmentado(agenteId, nomeBot, c.id, nivelDoBot(estado, agenteId, c))}</div></div>`] : [];
   });
-  const faltam = estado.marketplace.filter((app) => situacaoDoApp(estado, app.slug) !== "conectado").slice(0, 6).map((app) => {
+  const faltam = appsDeLogin(estado.marketplace).filter((app) => situacaoDoApp(estado, app.slug) !== "conectado").slice(0, 6).map((app) => {
     const login = estado.conectando[app.slug];
     const acao = login && !login.falhou ? blocoEsperando(app.nome, login.url, true, login.semJanela === true) : botao("conectar-app", login?.falhou ? "Tentar de novo" : "Conectar", { classe: "sm", id: app.slug });
     return `<div class="da-linha">${logoApp(estado, app.slug, app.nome)}<div class="da-nome"><b>${esc(app.nome)}</b></div>${acao}</div>`;

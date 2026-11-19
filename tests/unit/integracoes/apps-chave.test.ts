@@ -3,6 +3,7 @@ import { criarClienteComposio } from "../../../src/adapters/integracoes/composio
 import { mesclarCatalogo } from "../../../src/domain/catalogo-marketplace.ts";
 import { reduzir, estadoInicial } from "../../../web/estado/reducer.ts";
 import type { AppComLogo } from "../../../src/contracts/marketplace.ts";
+import { appsDeLogin } from "../../../web/telas/marketplace.ts";
 
 /** Emenda ADR-057 (2026-11-18): o catálogo público passa a trazer os apps de chave de API, marcados. */
 
@@ -39,10 +40,11 @@ it("os campos vêm do esquema API_KEY: o invisível sai, o nome fora do formato 
   await expect(criarClienteComposio("fake", async () => Response.json({ auth_config_details: [{ mode: "OAUTH2" }] })).esquemaDaChave("x")).rejects.toMatchObject({ codigo: "nao_encontrado" });
 });
 
-it("a tela antiga não mostra app de chave: ela só sabe abrir login", () => {
+it("o estado guarda o catálogo inteiro (o modal conecta os dois jeitos); a grade antiga, que só abre login, esconde os de chave", () => {
   const app = (slug: string, conexao?: "chave"): AppComLogo => ({ slug, nome: slug, descricao: "", categoria: "", logo: null, ...(conexao ? { conexao } : {}) });
   const e = reduzir(estadoInicial, { tipo: "hidratar-conectores", conectores: [], marketplace: [app("slack"), app("fireflies", "chave")], composioConfigurado: true });
-  expect(e.marketplace.map((a) => a.slug)).toEqual(["slack"]);
+  expect(e.marketplace.map((a) => a.slug)).toEqual(["slack", "fireflies"]);
+  expect(appsDeLogin(e.marketplace).map((a) => a.slug)).toEqual(["slack"]);
 });
 
 it("confere a chave pelo endpoint de usuário atual: 401/403 ou erro de autenticação no corpo = recusada", async () => {
