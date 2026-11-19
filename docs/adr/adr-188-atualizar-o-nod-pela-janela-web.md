@@ -3,8 +3,8 @@
 Status: aceita (2026-11-18, validação da preview) · Emenda o item 6 da
 [ADR-149](adr-149-atualizacao-automatica-do-app-do-mac.md) ("sem faixa na web") e dá um interruptor ao reinício com o Mac
 ocioso da [ADR-173](adr-173-o-nod-no-mac-quick-chat-e-ferramentas-do-mac.md) · Relacionada: a regra de paridade da
-[ADR-135](adr-135-registro-unico-de-acoes-e-paridade.md) (aqui sem ação nova; ver "No chat"). Protótipo: arquivo "nod x Grok Bot" do
-Paper, página "Atualizar o nod · opções" (escolhidas: A3 + D + E; descartadas: B, C e o vidro do A2).
+[ADR-135](adr-135-registro-unico-de-acoes-e-paridade.md) (aqui sem ação nova; ver "No chat"). Protótipo: o arquivo do Paper da
+frente da preview, página "Atualizar o nod · opções" (escolhidas: A3 + D + E; descartadas: B, C e o vidro do A2).
 
 ## Contexto
 

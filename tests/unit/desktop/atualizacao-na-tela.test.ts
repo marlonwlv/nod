@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { atualizadoDe, decidirReinicio, estadoNaTela, lerPrefsAtualizacao, livreParaReiniciar, type SinaisReinicio } from "../../../desktop/atualizacao-na-tela.ts";
+import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio, lerPrefsAtualizacao, livreParaReiniciar, type SinaisReinicio } from "../../../desktop/atualizacao-na-tela.ts";
 import { criarUpdaterSimulado, lerSimuladoPara, versaoSimulada, ESPERA_SIMULADA_ACHAR_MS, ESPERA_SIMULADA_BAIXAR_MS } from "../../../desktop/atualizacao-simulada.ts";
-import { lerPedidoReinicio } from "../../../src/contracts/desktop-atualizacao.ts";
 
 const livre: SinaisReinicio = { pronta: true, emLigacao: false, turnos: 0, telas: 0 };
 const extras = { versaoAtual: "1.0.3", esperandoLivre: false, reiniciando: false, sozinho: true, atualizadoDe: null };

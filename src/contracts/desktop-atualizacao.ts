@@ -60,12 +60,3 @@ export type PonteAtualizacaoApp = {
     avisoVisto(): Promise<void>;
   };
 };
-
-const PEDIDOS: readonly PedidoReinicio["quando"][] = ["agora", "forcar", "quandoLivre", "cancelarEspera"];
-
-/** O pedido que veio da página, validado (o processo principal não confia no formato). */
-export function lerPedidoReinicio(v: unknown): PedidoReinicio | null {
-  if (typeof v !== "object" || v === null || !("quando" in v)) return null;
-  const q = (v as { quando: unknown }).quando;
-  return typeof q === "string" && (PEDIDOS as readonly string[]).includes(q) ? { quando: q as PedidoReinicio["quando"] } : null;
-}
