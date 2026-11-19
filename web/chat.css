@@ -324,12 +324,17 @@
 .abas-tarefa .at-conversa:hover, .abas-tarefa .at-outras:hover, .abas-tarefa .at-aba:not(.ativa) .at-ir:hover { color: var(--chat-tinta); }
 /* Validação de 2026-11-18: padding 0 — fechada, a seta tinha largura 0 mas o padding de botão do navegador (6 px de
    cada lado) deixava uma mancha cinza do fundo dela no lugar. */
-.abas-tarefa .at-seta { display: flex; flex: none; align-items: center; justify-content: center; width: 0; height: 20px; padding: 0; margin-left: -8px; overflow: hidden;
-  border-radius: 5px; background: var(--chat-spinner-trilho); color: var(--chat-tinta); transition: width var(--dur-rapido) ease, margin var(--dur-rapido) ease; }
-.abas-tarefa .at-aba:is(:hover, :focus-within) .at-seta { width: 20px; margin-left: 0; }
-.abas-tarefa .at-fechar { display: flex; flex: none; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border-radius: 4px;
-  color: var(--chat-tinta-4); font-size: 12px; line-height: 16px; }
-.abas-tarefa .ativa .at-fechar { color: var(--chat-tinta-3); }
+/* Validação de 2026-11-19: o × da aba sempre à vista (a ação mais importante dela), com alvo de 24 px, e o chevron do
+   menu num lugar FIXO à esquerda dele: parado, transparente e sem clique; no hover só aparece (opacidade), sem empurrar o
+   × — antes ele entrava abrindo largura e o × fugia de baixo do mouse. */
+.abas-tarefa .at-acoes { display: flex; flex: none; align-items: center; gap: 0; margin-right: -8px; }
+.abas-tarefa .at-seta { display: flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--chat-tinta-2); opacity: 0; pointer-events: none; transition: opacity var(--dur-rapido) ease; }
+.abas-tarefa .at-aba:is(:hover, :focus-within) .at-seta { opacity: 1; pointer-events: auto; }
+.abas-tarefa .at-seta:hover, .abas-tarefa .at-aba.menu-aberto .at-seta { background: var(--chat-spinner-trilho); color: var(--chat-tinta); }
+.abas-tarefa .at-fechar { display: grid; flex: none; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent;
+  color: var(--chat-tinta-3); font-size: 16px; line-height: 1; cursor: pointer; }
+.abas-tarefa .at-aba.ativa .at-fechar { color: var(--chat-tinta-2); }
 .abas-tarefa .at-fechar:hover { background: var(--chat-spinner-trilho); color: var(--chat-tinta); }
 .abas-tarefa .at-outras { display: flex; flex: none; align-items: center; gap: 6px; height: 36px; padding: 0 12px; white-space: nowrap; }
 .abas-tarefa .at-mais { position: relative; display: flex; flex: none; align-self: center; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; }
@@ -374,11 +379,87 @@
 .bot-menu .at-item .pf-anel-arco { stroke: var(--chat-tinta); }
 .bot-menu .at-item .at-parada { color: var(--chat-tinta-3); }
 /* No celular a seta fica à vista na aba ativa (não há hover) e a fileira rola de lado. */
-@media (hover: none) and (pointer: coarse) { .abas-tarefa .at-aba.ativa .at-seta { width: 20px; margin-left: 0; } }
+@media (hover: none) and (pointer: coarse) { .abas-tarefa .at-aba.ativa .at-seta { opacity: 1; pointer-events: auto; } }
 @media (max-width: 760px) {
   .abas-tarefa { overflow-x: auto; padding: 0 12px; scrollbar-width: none; }
   .abas-tarefa .at-titulo { max-width: 140px; }
 }
+
+/* ---- Modo pílula × modo abas (ADR-187 §6, Paper 10b e 10c A, validação de 2026-11-18) ------------------------------------
+   No modo abas a fileira tem 52 px e começa pela própria pílula do bot (a aba da Conversa): pílula de 32, marcada com o
+   contorno na cor da tinta e o traço de 2 px embaixo quando a Conversa está à vista, apagada numa tarefa. No fim, "Fechar
+   abas" (28 px, raio 8, fundo do chip, 12/16 em 500) e, na Conversa, o botão do painel. No modo pílula, o botão de abas de
+   36 px ao lado da pílula (o mesmo cromo dela), só o ícone; o ponto azul de 8 quando alguma precisa da pessoa. */
+.stage > .cabecalho-pilula.cabecalho-abas { height: auto; padding: 0; align-items: stretch; justify-content: flex-start; }
+/* O cabeçalho da conversa é uma coluna flutuante sem cliques (interface.css): a fileira, a linha pílula + abas e o botão
+   recebem o clique de volta; a fileira tem o fundo da tela (por cima do véu). */
+.cabecalho-pilula :is(.abas-tarefa, .pilula-e-abas, .botao-abas, .painel-alternar) { pointer-events: auto; }
+.cabecalho-pilula .abas-tarefa { background: var(--surface); }
+.pilula-e-abas { display: flex; align-items: center; }
+/* Validação de 2026-11-19: 56 px, a mesma altura do cabeçalho da pílula — com 52, a área da conversa mudava 4 px na troca
+   de modo e as mensagens tremiam ao fechar a sanfona. */
+.abas-tarefa.abas-com-pilula { height: 56px; padding-left: 12px; padding-right: 12px; }
+.abas-tarefa .at-pilula { display: flex; flex: none; align-self: stretch; align-items: center; gap: 8px; padding: 0 4px; margin-right: 4px;
+  border-bottom: 2px solid transparent; }
+.abas-tarefa .at-pilula.ativa { border-bottom-color: var(--chat-tinta); }
+.abas-tarefa .at-pilula .pilula-bot { display: inline-flex; align-items: center; gap: 7px; height: 32px; box-sizing: border-box; padding: 0 12px 0 4px;
+  border: 1px solid var(--divisoria); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle);
+  font-size: 13px; line-height: 18px; font-weight: var(--peso-medio); color: var(--chat-tinta-2); white-space: nowrap; cursor: pointer; }
+.abas-tarefa .at-pilula .pilula-bot .icon { width: 22px; height: 22px; min-width: 22px; margin: 0; }
+.abas-tarefa .at-pilula .pilula-txt { display: inline-flex; align-items: baseline; gap: 0; white-space: nowrap; }
+.abas-tarefa .at-pilula .pilula-bot:hover { color: var(--chat-tinta); border-color: var(--borda); }
+.abas-tarefa .at-pilula.ativa .pilula-bot { color: var(--chat-tinta); }
+.abas-tarefa .at-pilula .qd-pil { box-shadow: var(--sombra-controle); }
+#cabecalho .abas-tarefa .at-pilula .qd-pil > .pilula-bot { height: 30px; border: 0; box-shadow: none; background: transparent; color: var(--chat-tinta); }
+.abas-tarefa .at-pilula .pg-pontos { top: calc(100% + 3px); }
+.abas-tarefa .at-pilula :is(.presenca, .pilula-sub, .pilula-presenca) { display: none; }
+/* Validação de 2026-11-18 (alinhamento): na fileira de 56, as abas ocupam a altura toda, com o conteúdo no meio da linha
+   da pílula e o traço da ativa embaixo, como o da pílula. */
+.abas-com-pilula > :is(.at-aba, .at-outras, .at-conversa) { height: 100%; }
+.abas-tarefa .at-fechar-abas { display: flex; flex: none; align-self: center; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 8px;
+  background: var(--chat-chip-fundo); color: var(--chat-tinta); font-size: 12px; line-height: 16px; font-weight: var(--peso-medio); white-space: nowrap; }
+.abas-tarefa .at-fechar-abas:hover { background: var(--hover); }
+.abas-tarefa .at-fechar-abas { overflow: hidden; box-sizing: border-box; }
+.cabecalho-pilula .abas-tarefa .painel-alternar { position: static; flex: none; }
+.abas-tarefa .at-outras.precisa::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--chat-aba-precisa); }
+/* O botão de abas (modo pílula, e nas outras páginas do bot no modo abas). */
+.botao-abas { position: relative; display: grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; margin-left: 8px; box-sizing: border-box;
+  border: 1px solid var(--divisoria); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle);
+  color: var(--chat-tinta); cursor: pointer; }
+.botao-abas:hover { border-color: var(--borda); background: color-mix(in srgb, var(--chat-tinta) 4%, var(--surface-elevated)); }
+.botao-abas:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.botao-abas .ba-ponto { display: none; position: absolute; right: 1px; bottom: 1px; width: 8px; height: 8px; border-radius: 50%; background: var(--chat-aba-precisa);
+  box-shadow: 0 0 0 2px var(--surface); }
+.botao-abas.precisa .ba-ponto { display: block; }
+.botao-abas .ba-num { display: none; position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; box-sizing: border-box; padding: 0 4px; border-radius: 8px;
+  background: var(--chat-tinta); box-shadow: 0 0 0 2px var(--surface); color: var(--chat-superficie); font-size: 10px; line-height: 16px; font-weight: 700; text-align: center; }
+/* Paper 10b (2d): numa outra página do bot (Quadro, Canvas, um app) a fileira se esconde, a pílula volta ao centro e o
+   botão de abas aparece com o número (lá não existe a pílula sobre o campo). */
+.abas-tarefa .at-pilula .botao-abas { display: none; }
+.stage.qd-no-quadro .abas-com-pilula { justify-content: center; border-bottom-color: transparent; }
+.stage.qd-no-quadro .abas-com-pilula > :not(.at-pilula) { display: none; }
+.stage.qd-no-quadro .abas-com-pilula .at-pilula { border-bottom-color: transparent; }
+.stage.qd-no-quadro .abas-com-pilula .at-pilula .botao-abas { display: grid; margin-left: 0; }
+.stage.qd-no-quadro .botao-abas .ba-num { display: block; }
+/* Paper 10b (1b e 1d): entrando, as abas saem de dentro da pílula; "Fechar abas", elas voltam para ela antes de a pílula
+   voltar ao centro (140 ms, o DURACAO_RECOLHER_ABAS_MS do main). */
+/* Validação de 2026-11-18 (a sanfona): a pílula vai para a esquerda e o botão de abas para a direita, onde vira o
+   "Fechar abas" (520 ms, SANFONA_MS no main); as abas abrem entre as duas 160 ms depois, em 420 ms. Ao fechar, as abas
+   se recolhem em 260 ms (DURACAO_RECOLHER_ABAS_MS) e só então a pílula e o botão voltam. */
+.abas-com-pilula.entrando > :not(.at-pilula, .at-fechar-abas) { animation: at-sai-da-pilula 420ms cubic-bezier(.32, .72, 0, 1) 160ms both; }
+.abas-com-pilula.recolhendo > :not(.at-pilula, .at-fechar-abas) { animation: at-volta-para-pilula 260ms ease-in both; }
+@keyframes at-sai-da-pilula { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes at-volta-para-pilula { to { opacity: 0; transform: translateX(-24px); } }
+@media (prefers-reduced-motion: reduce) { .abas-com-pilula.entrando > *, .abas-com-pilula.recolhendo > * { animation: none; } }
+/* O chevron da aba fica à vista enquanto o menu dela está aberto (o foco vai para o menu e o :focus-within some). */
+.abas-tarefa .at-aba.menu-aberto .at-seta { opacity: 1; pointer-events: auto; }
+/* O hover da pílula do bot como o do Grok Bot (validação de 2026-11-18): a pílula alarga e o "›" entra à direita. */
+@media (hover: hover) {
+  #cabecalho .pilula-bot .pilula-seta { display: inline-block; max-width: 0; margin-left: -8px; overflow: hidden; opacity: 0; color: var(--chat-tinta-2);
+    transition: max-width 200ms ease, margin-left 200ms ease, opacity 160ms ease; }
+  #cabecalho .pilula-bot:is(:hover, :focus-visible) .pilula-seta { max-width: 12px; margin-left: -2px; opacity: 1; }
+}
+@media (hover: hover) and (prefers-reduced-motion: reduce) { #cabecalho .pilula-bot .pilula-seta { transition: none; } }
 
 /* ---- ADR-187 §6 (lote B, passo 4, 2026-11-18): dentro da tarefa (Paper 4k, 4l, 4m, 4n e 4s) ----------------------------
    Valores do Paper: a linha de abertura em 12/16 cinza, centrada; o cartão do pedido com fundo de 3 %, contorno de 0,5 px,
@@ -574,3 +655,52 @@
 @media (prefers-reduced-motion: reduce) { .composer .box > .mais-campo, .composer .box > .mais-campo:active { transform: none; transition: background-color 120ms ease, color 120ms ease; } }
 /* Com arquivo, o enviar fica aceso mesmo sem texto (o arquivo sozinho já é a mensagem). */
 .composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .send:not(:disabled) { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); }
+
+/* ---- A lista da pílula do campo agrupada por urgência (validação de 2026-11-18, Paper 9e/9f, jeito D) -----------------
+   Seções em 11/14 maiúsculas a 0,06em (a de quem precisa da pessoa em azul), as prontas recolhidas numa linha que abre ali
+   mesmo (details), e "Ver todas ›" no topo, no lugar do "fechar" (fechar é clicar fora, Esc ou a pílula). */
+.pf-painel .pf-secao { padding: 10px 12px 2px; font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-3); }
+.pf-painel .pf-secao.pf-secao-precisa { color: var(--chat-aba-precisa); }
+.pf-ver-todas { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 0; border-radius: var(--raio-8); background: transparent;
+  color: var(--chat-tinta-2); font: inherit; font-size: 12px; line-height: 16px; cursor: pointer; }
+.pf-ver-todas:hover { background: var(--hover); color: var(--chat-tinta); }
+.pf-ver-todas:focus-visible, .pf-prontas summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.pf-prontas { margin-top: 4px; border-top: 0.5px solid var(--chat-aba-contorno); }
+.pf-prontas summary { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; list-style: none; cursor: pointer; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); }
+.pf-prontas summary::-webkit-details-marker { display: none; }
+.pf-prontas summary:hover { color: var(--chat-tinta); }
+.pf-prontas .pf-prontas-ic { flex: none; color: var(--chat-tinta-2); }
+.pf-prontas .pf-prontas-seta { transition: transform var(--dur-rapido) ease; }
+.pf-prontas[open] .pf-prontas-seta { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .pf-prontas .pf-prontas-seta { transition: none; } }
+
+/* ---- O painel do bot entra e sai deslizando (validação de 2026-11-18; a entrada era seca) --------------------------------
+   Larga: a coluna do painel cresce de 0 a 360 px enquanto o conteúdo entra da direita, 420 ms (DURACAO_PAINEL_MS);
+   a conversa encolhe junto, sem pulo. Estreita (o painel sobreposto): ele desliza da direita. */
+@media (min-width: 1100px) {
+  .app.com-detalhes.painel-entrando:not(.sem-sessao) > .detalhes { animation: painel-cresce 420ms cubic-bezier(.32, .72, 0, 1) both; }
+  .app.com-detalhes.painel-saindo:not(.sem-sessao) > .detalhes { animation: painel-encolhe 360ms cubic-bezier(.32, .72, 0, 1) both; }
+  .app.com-detalhes.painel-entrando:not(.sem-sessao) > .detalhes > * { animation: painel-miolo 420ms ease-out both; }
+  .app.com-detalhes:is(.painel-entrando, .painel-saindo) > .detalhes > * { min-width: 360px; }
+}
+/* Validação de 2026-11-18 ("um pouco mais suave"): 420 ms na curva que desacelera longa; o miolo entra de 16 px e aparece
+   depois que a coluna já abriu um terço. */
+@keyframes painel-cresce { from { width: 0; } to { width: 360px; } }
+@keyframes painel-encolhe { from { width: 360px; opacity: 1; } to { width: 0; opacity: 0; } }
+@keyframes painel-miolo { 0%, 30% { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1099px) {
+  .app.com-detalhes.detalhes-abertos.painel-entrando .detalhes { animation: painel-desliza 420ms cubic-bezier(.32, .72, 0, 1) both; }
+}
+@keyframes painel-desliza { from { transform: translateX(32px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .app.com-detalhes .detalhes { animation: none !important; } }
+
+/* Modo abas (validação de 2026-11-19): a pílula sobre o campo apaga em vez de sair, guardando o lugar — a conversa não
+   sobe nem desce quando a sanfona abre ou fecha. Volta em 200 ms quando as abas fecham. */
+.lugar-faixa-trabalhos.pf-no-topo > * { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 200ms ease, visibility 0s linear 200ms; }
+.lugar-faixa-trabalhos > .pilula-frentes { transition: opacity 200ms ease; }
+@media (prefers-reduced-motion: reduce) { .lugar-faixa-trabalhos.pf-no-topo > *, .lugar-faixa-trabalhos > .pilula-frentes { transition: none; } }
+
+/* O "+" da fileira afunda no clique (validação de 2026-11-19), como o + do campo. */
+.abas-tarefa .at-mais { transition: transform 220ms cubic-bezier(.3, 1.6, .5, 1), background-color var(--dur-rapido) ease; }
+.abas-tarefa .at-mais:active { transform: scale(.86); }
+@media (prefers-reduced-motion: reduce) { .abas-tarefa .at-mais { transition: none; } .abas-tarefa .at-mais:active { transform: none; } }

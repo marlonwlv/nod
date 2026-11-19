@@ -93,9 +93,11 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
     const p = daPilula(pilulaNaConversa(estadoCom([...HEROS, ...outro], dono()), "orq", SEM_PROGRESSO));
     expect(p.pilula.texto).toBe("7 tarefas");
     expect(p.pilula.resto).toEqual(["4 prontas"]);
-    // Alargada, separa por lote.
-    expect(p.partes.corpo).toContain('<h3 class="pf-lote">5 tarefas · 3 de 5 prontas</h3>');
-    expect(p.partes.corpo).toContain('<h3 class="pf-lote">2 tarefas · 1 de 2 prontas</h3>');
+    // Alargada (validação de 2026-11-18, Paper 9f): os lotes juntos, por urgência — as que rodam numa seção, as prontas
+    // recolhidas numa linha só.
+    expect(p.partes.corpo).not.toContain("pf-lote");
+    expect(p.partes.corpo).toContain('<h3 class="pf-secao">Rodando · 3</h3>');
+    expect(p.partes.corpo).toMatch(/<details class="pf-prontas"><summary>.*<span>4 prontas<\/span>/);
   });
 
   it("sem frentes: a espera com o ponto vazado (\"Esperando a CI do #845 · 38 min\") ou a fila (\"1 pedido na fila\")", () => {
@@ -161,11 +163,10 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     expect(daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO)).partes.corpo).not.toContain("pf-nova-linha");
   });
 
-  it("o cabeçalho com o resumo e \"fechar\"; no pé, \"Ver na conversa ↑\" (com a fala na janela) e \"Parar\"", () => {
-    // Paper 15c: o ponto na cor do bot, o título forte e só "N de M prontas" em cinza; "⌄ fechar".
-    expect(p.partes.cab).toContain('<span class="pf-cab-titulo"><b>5 tarefas</b><span class="pf-cab-resto">3 prontas</span></span>');
-    expect(p.partes.cab).toContain(`class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">`);
-    expect(p.partes.cab).toMatch(/<\/svg>fechar<\/button>$/);
+  it("o topo \"Tarefas abertas\" e \"Ver todas ›\" (Paper 9f); no pé, \"Ver na conversa ↑\" (com a fala na janela) e \"Parar\"", () => {
+    expect(p.partes.cab).toContain('<span class="pf-cab-titulo"><b>Tarefas abertas</b></span>');
+    expect(p.partes.cab).toContain('class="pf-ver-todas" data-act="abrir-tarefas" data-agente="orq">Ver todas');
+    expect(p.partes.cab).not.toContain("pf-fechar");
     expect(p.partes.pe).toContain('data-act="pilula-ver-na-conversa">Ver na conversa');
     expect(p.partes.pe).toMatch(/<button type="button" class="pf-parar" data-act="pilula-parar"><svg[^]*?<\/svg>Parar<\/button>/);
     expect(p.pilula.abertas.map((t) => t.id)).toEqual(["w3", "w5"]);

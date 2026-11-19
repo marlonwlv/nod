@@ -268,7 +268,7 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     expect(await avaliar<boolean>(cdp, `document.querySelector('[data-act="mover-quadro"]').disabled`)).toBe(false);
     // O primeiro perde a corrida: a faixa diz o porquê do servidor (não "Não deu" genérico) e a tarefa segue aberta.
     await avaliar(cdp, `document.querySelector('[data-act="mover-quadro"]').click()`);
-    await ate(`/outra mudança levou a tarefa/.test(document.querySelector("#qc-faixa")?.textContent ?? "")`);
+    await ate(`/outra mudança levou o card/.test(document.querySelector("#qc-faixa")?.textContent ?? "")`);
     expect(await texto("#qc-faixa")).toContain("Não deu para mudar o card de quadro: outra mudança levou o card para outro quadro antes. Relendo.");
     expect(await avaliar<boolean>(cdp, `!!document.querySelector("#quadro .qd-tarefa")`)).toBe(true);
     await ate(`document.querySelector('#qd-t-mover option[value="q2"]')`);

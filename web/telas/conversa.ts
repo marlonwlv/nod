@@ -1973,7 +1973,12 @@ function comPedidosAncorados(blocos: BlocoDaTimeline[], c: ConversaEstado, estad
  * NOD-429: com `comQuadro` (a flag do teste ligada e o bot é da pessoa), a pílula e o par Conversa | Quadro viram uma
  * cápsula só (`.qd-pil`); a presença (`.pilula-sub`) continua irmã, logo depois.
  */
-export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { comQuadro?: boolean; paginas?: readonly Pagina[]; ordem?: readonly number[]; pedirApp?: PedirApp } = {}): string {
+/**
+ * Modo pílula × modo abas (ADR-187 §6, Paper 10b e 10c A, 2026-11-18): `depoisDaPilula` é o botão de abas ao lado da pílula
+ * (modo pílula); `irParaConversa` faz da pílula a aba da Conversa na fileira (numa tarefa, o clique volta para a conversa
+ * em vez de abrir o painel); `painel: false` deixa o botão do painel para quem monta a fileira.
+ */
+export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { comQuadro?: boolean; paginas?: readonly Pagina[]; ordem?: readonly number[]; pedirApp?: PedirApp; depoisDaPilula?: string; irParaConversa?: boolean; painel?: boolean } = {}): string {
   const a = agenteDe(estado, agenteId);
   const nome = a?.nome ?? "agente";
   const { html, ativa } = presencaDoBot(estado, agenteId);
@@ -1984,13 +1989,24 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-381 (definido em 2026-10-27): no celular a presença vai dentro da pílula, em 12px abaixo do nome; o computador
   // continua com o ponto e a linha de baixo (`.pilula-txt` é `display: contents` e `.pilula-presenca` fica escondida).
   const presencaNaPilula = disponivel ? "" : `<span class="pilula-presenca" aria-hidden="true">${html}</span>`;
-  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
+  const acao = o.irParaConversa
+    ? `data-act="aba-conversa" data-agente="${esc(agenteId)}" aria-label="${esc(`Voltar para a conversa com ${nome}`)}"`
+    : `data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}"`;
+  const pilula = `<button type="button" class="pilula-bot" ${acao} title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];
   // ADR-167 (Paper 02): o botão do painel à direita do topo (o mesmo alternar da pílula).
-  const painel = `<button type="button" class="painel-alternar" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${nome}`)}" title="Painel do bot">${ICONE_PAINEL}</button>`;
-  return o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>${sub}${painel}` : `${pilula}${sub}${painel}`;
+  const painel = o.painel === false ? "" : botaoDoPainel(nome);
+  const capsula = o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>` : pilula;
+  // O cabeçalho é uma coluna (a presença embaixo): a pílula e o botão de abas vão juntos numa linha.
+  const topo = o.depoisDaPilula ? `<div class="pilula-e-abas">${capsula}${o.depoisDaPilula}</div>` : capsula;
+  return `${topo}${sub}${painel}`;
+}
+
+/** O botão do painel do bot (ADR-167, Paper 02); no modo abas ele mora no fim da fileira. */
+export function botaoDoPainel(nome: string): string {
+  return `<button type="button" class="painel-alternar" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${nome}`)}" title="Painel do bot">${ICONE_PAINEL}</button>`;
 }
 
 const ICONE_PAINEL = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></svg>';

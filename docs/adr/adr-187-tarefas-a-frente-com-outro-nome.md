@@ -45,11 +45,20 @@ tem visualizador.
 5. **Na conversa:** a pílula presa ao campo nunca some (sem tarefas, "+ Nova tarefa ⌘N") e um cartão vivo por pedido
    (com várias tarefas, barra de progresso e uma linha por tarefa; acima de cinco, chips). A dica que explicava as tarefas
    uma vez por pessoa saiu na validação de 2026-11-18: poluía a conversa, e a aba se explica sozinha.
-6. **A tarefa abre em tela cheia, com abas** — só das tarefas que a pessoa abriu, só dentro de uma tarefa; a aba fecha
-   sozinha quando a tarefa termina e a pessoa sai dela; "+" na fileira abre uma tarefa nova; as ações da tarefa ficam na
-   própria aba (hover ou foco, clique direito, duplo clique renomeia). Dentro da tarefa, a conversa é detalhada (pedido,
-   passos, o que roda agora); o campo tem tudo do campo da conversa, e "Parar" fica nele, no lugar de enviar, com a regra
-   da ADR-185 (o recado não lido não se perde).
+6. **A tarefa abre em tela cheia, com abas** — só das tarefas que a pessoa abriu; "+" na fileira abre uma tarefa nova;
+   as ações da tarefa ficam na própria aba (hover ou foco, clique direito, duplo clique renomeia). Dentro da tarefa, a
+   conversa é detalhada (pedido, passos, o que roda agora); o campo tem tudo do campo da conversa, e "Parar" fica nele, no
+   lugar de enviar, com a regra da ADR-185 (o recado não lido não se perde).
+   **Modo pílula × modo abas** (validação de 2026-11-18, Paper 10b e 10c A): da Conversa não dava para voltar às abas, e
+   elas fechavam sozinhas. Agora há dois modos por bot, lembrados no navegador. No modo pílula, a Conversa é a de sempre
+   mais o botão de abas ao lado da pílula do bot (só o ícone; o ponto quando alguma tarefa precisa da pessoa; quantas e em
+   que estado diz a pílula do campo). Abrir uma tarefa ou o botão liga o modo abas: a fileira fica no topo também na
+   Conversa, numa linha só, e começa pela própria pílula do bot, que é a aba da Conversa (a pílula do campo some: uma lista
+   por vez). Só "Fechar abas", no fim da fileira (ou Esc nela), volta ao modo pílula, sem parar nenhuma tarefa. Nenhuma aba
+   fecha sozinha: a feita fica com o ✓ até a pessoa tirá-la (o menu da aba ou "Tirar as feitas das abas"); a que precisa da
+   pessoa nunca fica escondida em "N outras". Nas outras páginas do bot (Quadro, Canvas, apps) a fileira se esconde e o
+   botão de abas volta, com o número. Tarefa não é página: não conta no limite de 12 nem usa ⌥← / ⌥→. Abas e modo são
+   forma de ver, guardados só no navegador (como as abas antes); não ganham ação no registro nem caminho pelo chat.
 7. **Nova tarefa pela pessoa:** ⌘N (Alt+N fora do Mac; Ctrl+N no navegador do Mac) abre uma tarefa com o chat limpo;
    novo bot passa para ⌘⇧N. "Levar o contexto da conversa" é opcional.
 8. **Tela Tarefas:** abre em "Por bot"; "Por estado" é a outra visão.

@@ -1,15 +1,17 @@
 import type { EstadoTrabalho } from "../../src/contracts/trabalho.ts";
 
 /**
- * As abas das tarefas (ADR-187 §6, lote B, passo 3, definido em 2026-11-18; Paper 4j opção 1, 4o e 4p). A tarefa abre em
- * tela cheia com uma fileira de abas no topo, que só existe dentro de uma tarefa. Regras, todas aqui, sem DOM:
- * - só vira aba a tarefa que a pessoa ABRIU (entrou nela), nunca toda tarefa do bot; a ordem é a de abertura;
- * - a fileira mostra as abas do bot da tarefa à vista; no máximo 3 à vista (a ativa sempre entre elas), o resto em
- *   "N outras ⌄";
- * - a aba fecha sozinha quando a pessoa SAI de uma tarefa que terminou (`terminado` ou `falhou`); a parada continua (ela
- *   não acabou: escrever retoma). A que termina enquanto a pessoa está noutra aba fica, com o ✓, até ela passar por lá;
- * - quais abas estão abertas sobrevive ao recarregar do mesmo navegador (localStorage, conveniência de quem vê) e, sem
- *   storage, a fileira funciona do mesmo jeito, só sem lembrar.
+ * As abas das tarefas (ADR-187 §6, lote B, passo 3, definido em 2026-11-18; Paper 4j opção 1, 4o e 4p). Regras, todas
+ * aqui, sem DOM:
+ * - só vira aba a tarefa que a pessoa ABRIU (entrou nela) ou que ela pediu para ver em abas; a ordem é a de abertura;
+ * - a fileira mostra as abas do bot; no máximo 3 à vista (a ativa sempre entre elas, e a que precisa da pessoa nunca
+ *   fica escondida), o resto em "N outras ⌄";
+ * - nenhuma aba fecha sozinha (validação de 2026-11-18, Paper 10b): a que terminou fica com o ✓ até a pessoa tirá-la
+ *   (o menu da aba ou "Tirar as feitas das abas");
+ * - modo pílula × modo abas (Paper 10b e 10c A, 2026-11-18): o modo é lembrado por bot. Abrir uma tarefa ou o botão de
+ *   abas liga; só "Fechar abas" desliga (e tirar a última aba). No modo abas a fileira fica também na Conversa;
+ * - quais abas estão abertas e o modo sobrevivem ao recarregar do mesmo navegador (localStorage, conveniência de quem
+ *   vê) e, sem storage, a fileira funciona do mesmo jeito, só sem lembrar.
  */
 
 export type AbaDeTarefa = { id: string; agenteId: string };
@@ -20,7 +22,7 @@ export const MAX_ABAS_A_VISTA = 3;
 export const MAX_ABAS_GUARDADAS = 20;
 export const CHAVE_DAS_ABAS = "nod:abas-de-tarefa";
 
-/** Terminou de vez: a aba fecha quando a pessoa sai dela. Parada não (ADR-187, 4o, jornada 5: "fica parada, não acaba"). */
+/** Terminou de vez ("Tirar as feitas das abas" leva estas). Parada não (ADR-187, 4o, jornada 5: "fica parada, não acaba"). */
 export function tarefaAcabou(estado: EstadoTrabalho | null | undefined): boolean {
   return estado === "terminado" || estado === "falhou";
 }
@@ -36,26 +38,24 @@ export function fecharAba(abas: readonly AbaDeTarefa[], id: string): AbaDeTarefa
 }
 
 /**
- * A troca de tela: `saindo` é a tarefa que estava à vista (null = não era tarefa), `acabou` diz se ela já terminou;
- * `entrando` é a tarefa que vai à vista (null = outra tela, como a Conversa). Sair de uma tarefa que acabou fecha a aba.
- */
-export function trocarDeTela(
-  abas: readonly AbaDeTarefa[],
-  t: { saindo: string | null; acabou: boolean; entrando: AbaDeTarefa | null },
-): AbaDeTarefa[] {
-  let lista = [...abas];
-  if (t.saindo && t.saindo !== t.entrando?.id && t.acabou) lista = fecharAba(lista, t.saindo);
-  return t.entrando ? abrirAba(lista, t.entrando) : lista;
-}
-
-/**
  * As abas da fileira: as do bot, a ativa sempre à vista. Se a ativa passou da terceira, ela toma o lugar da terceira
- * (as duas primeiras ficam onde a pessoa as deixou); o resto vai para "outras".
+ * (as duas primeiras ficam onde a pessoa as deixou); o resto vai para "outras". `precisa` (Paper 10b, 3b): a aba de quem
+ * precisa da pessoa nunca fica escondida — ela toma o lugar da última à vista que não é a ativa nem precisa.
  */
-export function dividirAbas(abasDoBot: readonly AbaDeTarefa[], ativa: string | null, max = MAX_ABAS_A_VISTA): { aVista: AbaDeTarefa[]; outras: AbaDeTarefa[] } {
+export function dividirAbas(abasDoBot: readonly AbaDeTarefa[], ativa: string | null, max = MAX_ABAS_A_VISTA, precisa?: (id: string) => boolean): { aVista: AbaDeTarefa[]; outras: AbaDeTarefa[] } {
   const i = ativa ? abasDoBot.findIndex((a) => a.id === ativa) : -1;
-  if (i < max) return { aVista: abasDoBot.slice(0, max), outras: abasDoBot.slice(max) };
-  const aVista = [...abasDoBot.slice(0, max - 1), abasDoBot[i]!];
+  const aVista = i < max ? abasDoBot.slice(0, max) : [...abasDoBot.slice(0, max - 1), abasDoBot[i]!];
+  if (precisa) {
+    for (const a of abasDoBot) {
+      if (aVista.includes(a) || !precisa(a.id)) continue;
+      let j = aVista.length - 1;
+      while (j >= 0 && (aVista[j]!.id === ativa || precisa(aVista[j]!.id))) j--;
+      if (j < 0) break;
+      aVista.splice(j, 1);
+      aVista.push(a);
+    }
+    aVista.sort((x, y) => abasDoBot.indexOf(x) - abasDoBot.indexOf(y));
+  }
   return { aVista, outras: abasDoBot.filter((a) => !aVista.includes(a)) };
 }
 
@@ -92,4 +92,23 @@ export function gravarAbas(abas: readonly AbaDeTarefa[]): string {
 export function podarAbas(abas: readonly AbaDeTarefa[], conhecida: (id: string) => boolean, ativa: string | null): AbaDeTarefa[] {
   const lista = abas.filter((a) => a.id === ativa || conhecida(a.id));
   return lista.length === abas.length ? [...abas] : lista;
+}
+
+/** Paper 10b (2026-11-18): o botão de abas leva as tarefas abertas do bot que ainda não eram aba (as mais antigas primeiro). */
+export function abasAoMostrar(abas: readonly AbaDeTarefa[], abertasDoBot: readonly AbaDeTarefa[]): AbaDeTarefa[] {
+  return abertasDoBot.reduce<AbaDeTarefa[]>((lista, a) => abrirAba(lista, a), [...abas]);
+}
+
+/** Os bots em modo abas (Paper 10b, 2026-11-18): guardados no localStorage como a lista de abas. */
+export const CHAVE_DO_MODO_ABAS = "nod:modo-abas";
+
+export function lerModoAbas(texto: string | null | undefined): Set<string> {
+  if (!texto) return new Set();
+  let v: unknown;
+  try { v = JSON.parse(texto); } catch { return new Set(); }
+  return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x !== "") : []);
+}
+
+export function gravarModoAbas(bots: ReadonlySet<string>): string {
+  return JSON.stringify([...bots].sort());
 }
