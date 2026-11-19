@@ -205,6 +205,12 @@
   .cabecalho.cabecalho-pilula .voltar-bots { position: absolute; left: max(12px, env(safe-area-inset-left)); top: calc(env(safe-area-inset-top) + 4px);
     margin: 0; border: 1px solid var(--line); border-radius: 50%; color: var(--ink);
     background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-pop); }
+  /* QA-110: o "Recentes" é o atalho do leitor de tela para o segurar do ‹; com teclado (Tab) ele recebe foco e, recortado em
+     1×1 px pelo .sr-only, o anel some. Focado pelo teclado, aparece como pílula logo abaixo do ‹, sem empurrar o topo. */
+  .cabecalho.cabecalho-pilula .abrir-recentes-leitor:focus-visible { position: absolute !important; left: max(12px, env(safe-area-inset-left));
+    top: calc(env(safe-area-inset-top) + 52px); width: auto !important; height: 44px !important; min-width: 44px; padding: 0 16px !important;
+    margin: 0 !important; overflow: visible !important; clip: auto !important; white-space: nowrap !important; border: 1px solid var(--line) !important;
+    border-radius: 22px; color: var(--ink); font: inherit; font-size: 15px; background: var(--surface); box-shadow: var(--shadow-pop); }
   .cabecalho.cabecalho-pilula .pilula-bot { min-height: 44px; height: 44px; max-width: min(254px, 100%); gap: 8px; padding: 0 16px 0 8px; border-radius: 22px;
     background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-pop); }
   .cabecalho.cabecalho-pilula .pilula-bot:hover, .cabecalho.cabecalho-pilula .pilula-bot:focus-visible { padding-right: 16px; }
