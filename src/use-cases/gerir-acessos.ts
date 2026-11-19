@@ -63,6 +63,21 @@ function motivoNoChat(a: AcaoNoLote, modo: Parameters<typeof decidirPeloModo>[0]
   return d?.automatico ? { motivo: null, porRegra: { regra: d.regra, regraVersao: d.versao } } : { motivo: risco ?? "manual", porRegra: null };
 }
 
+const mesmaAcao = (a: AcaoNoLote, b: AcaoNoLote): boolean =>
+  a.tipo === b.tipo && (a.conector_id ?? null) === (b.conector_id ?? null) && (a.nivel_lote ?? null) === (b.nivel_lote ?? null) &&
+  (a.todos ?? false) === (b.todos ?? false) && (a.aplicar ?? null) === (b.aplicar ?? null) && (a.lote_id ?? null) === (b.lote_id ?? null) &&
+  [...(a.bots_ids ?? [])].sort().join(",") === [...(b.bots_ids ?? [])].sort().join(",");
+
+/** O card de acesso ainda clicável desta conversa com a mesma mudança (a proposta segue pendente se a decisão venceu). */
+async function cardIgualAberto(deps: Deps, conversaId: string, acao: AcaoNoLote): Promise<string | null> {
+  for (const p of await deps.repos.propostas.pendentesDaConversa(conversaId)) {
+    if (p.payload.kind !== "lote_bots" || p.payload.acoes.length !== 1 || !mesmaAcao(p.payload.acoes[0]!, acao)) continue;
+    const decisao = await deps.repos.decisoes.buscar(p.id);
+    if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return p.id;
+  }
+  return null;
+}
+
 export const gerirAcessos: CasoNod<Deps, "gerir_acessos"> = async (deps, input) => {
   const turno = await deps.repos.turnos.buscar(input.turnoId);
   const modoTurno = input.plano?.modoTurno ?? turno?.origem ?? null;
@@ -127,6 +142,10 @@ export const gerirAcessos: CasoNod<Deps, "gerir_acessos"> = async (deps, input) 
 
   if (motivo !== null) {
     acao.motivo = motivo;
+    // QA-106: o mesmo pedido com o card ainda aberto devolve o mesmo card (como o executar_rotina e o excluir_rotina);
+    // dois cards iguais davam dois recibos "✓" por uma mudança só.
+    const igual = await cardIgualAberto(deps, input.conversaId, acao);
+    if (igual) return { data: { ok: true, feito: null, lote_id: null, esperando: true, decisao_id: igual, instrucao: "Esse pedido já espera a pessoa no card desta conversa. Diga isso em uma frase e encerre o turno; o card aplica quando ela aprovar." } };
     const payload: PayloadPropostaLoteBots = { kind: "lote_bots", resumo, acoes: [acao], turnoId: input.turnoId };
     const proposta = await deps.repos.propostas.criar({ conversaId: input.conversaId, agenteId: agente.id, payload });
     if (!proposta) throw new ErroDeDominio("estado_invalido", { cause: "proposta não criada" });
