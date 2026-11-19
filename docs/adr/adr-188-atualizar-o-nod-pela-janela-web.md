@@ -37,7 +37,9 @@ no menu nod, clicar numa notificação que some, ou esperar o reinício com o Ma
    mostra uma vez "nod atualizado para a x.y.z", com Ver (abre Sobre o nod).
 6. **Simulação para testar** sem publicar: `NOD_SIMULAR_ATUALIZACAO=<versão>` no app rodando do código
    (`desktop/atualizacao-simulada.ts`). Acha a versão em 1,5 s, "baixa" em 4 s, e o reinício grava a versão prometida e
-   relança. O app empacotado nunca liga a simulação.
+   relança. O app empacotado nunca liga a simulação. No navegador, só em 127.0.0.1/localhost, `?simular-atualizacao=<versão>`
+   (e `&simular-ocupado=1` para a pergunta) faz o papel do app (`web/lib/atualizacao-simulada-web.ts`); o "reinício"
+   recarrega a página.
 
 Fora de escopo: as notas da versão ("O que muda na 1.0.4" do protótipo D), porque o feed manda `notes` vazio; o Windows
 (a ponte existe só no preload do Mac); a barra de progresso (o reinício leva segundos e quase tudo acontece com a janela

@@ -140,3 +140,26 @@ describe("ADR-188: a atualização do app na janela web", () => {
     expect(readFileSync("web/index.html", "utf8")).toContain('href="/atualizacao-app.css"');
   });
 });
+
+describe("ADR-188: a simulação no navegador (só na 5280)", () => {
+  it("só liga em loopback, com uma versão válida", async () => {
+    const { versaoSimuladaNaWeb } = await import("../../../web/lib/atualizacao-simulada-web.ts");
+    expect(versaoSimuladaNaWeb({ hostname: "127.0.0.1", search: "?simular-atualizacao=1.0.4" })).toBe("1.0.4");
+    expect(versaoSimuladaNaWeb({ hostname: "app.nodbot.ai", search: "?simular-atualizacao=1.0.4" })).toBeNull();
+    expect(versaoSimuladaNaWeb({ hostname: "localhost", search: "?simular-atualizacao=lixo" })).toBeNull();
+    expect(versaoSimuladaNaWeb({ hostname: "localhost", search: "" })).toBeNull();
+  });
+
+  it("acha a versão, pergunta uma vez com simular-ocupado e \"reinicia\" recarregando", async () => {
+    const { criarPonteSimuladaNaWeb } = await import("../../../web/lib/atualizacao-simulada-web.ts");
+    const timers: { f: () => void; ms: number }[] = [];
+    let recarregou = 0;
+    const p = criarPonteSimuladaNaWeb({ versao: "1.0.4", ocupado: true, recarregar: () => { recarregou++; }, agendar: (f, ms) => timers.push({ f, ms }), agora: () => 0 });
+    while (timers.length) timers.shift()!.f();
+    expect((await p.estado()).fase).toBe("pronta");
+    expect(await p.reiniciar({ quando: "agora" })).toEqual({ ok: false, motivo: "ocupado", turnos: 1, telas: 0 });
+    expect(await p.reiniciar({ quando: "forcar" })).toEqual({ ok: true, esperando: false });
+    while (timers.length) timers.shift()!.f();
+    expect(recarregou).toBe(1);
+  });
+});

@@ -205,6 +205,7 @@ import { aparenciaDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
 import { mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
 import { criarAtualizacaoNaWeb } from "./lib/atualizacao-app.ts";
+import { criarPonteSimuladaNaWeb, versaoSimuladaNaWeb } from "./lib/atualizacao-simulada-web.ts";
 import { cartaoAtualizacao, MS_ENCHER_ATUALIZAR, renderSobre, TEXTOS_ATZ } from "./telas/atualizacao-app.ts";
 import { acessosNaTela, chaveDoClique } from "./lib/acessos-otimistas.ts";
 import { gavetaDeAcessos, loteDeEscritaPedeConfirmacao, ROTULO } from "./telas/acessos-do-app.ts";
@@ -5851,9 +5852,14 @@ const modoAvatar = ehJanelaAvatar(window.location.search);
  * ADR-188: a atualização do app do Mac na janela principal (o cartão da barra e Configurações › Sobre o nod). O Quick
  * Chat e os avatares na mesa não mostram: o aviso "atualizado" sairia em cada janela.
  */
+// Na 5280 (só em 127.0.0.1/localhost), `?simular-atualizacao=1.0.4` faz o papel do app do Mac (web/lib/atualizacao-simulada-web.ts).
+const versaoSimuladaWeb = versaoSimuladaNaWeb(window.location);
+const ponteSimuladaWeb = versaoSimuladaWeb && !window.nodDesktop?.atualizacaoApp
+  ? criarPonteSimuladaNaWeb({ versao: versaoSimuladaWeb, ocupado: new URLSearchParams(window.location.search).has("simular-ocupado"), recarregar: () => window.location.reload() })
+  : undefined;
 const atualizacaoNaWeb = criarAtualizacaoNaWeb({
   msEncher: MS_ENCHER_ATUALIZAR,
-  ponte: () => (modoQuickChat || modoAvatar ? undefined : window.nodDesktop?.atualizacaoApp),
+  ponte: () => (modoQuickChat || modoAvatar ? undefined : window.nodDesktop?.atualizacaoApp ?? ponteSimuladaWeb),
   aoMudar: () => render(),
   avisarAtualizado: (versao) => { mostrarAvisoDesfazer({ texto: TEXTOS_ATZ.atualizado(versao), abrir: { rotulo: "Ver", aoAbrir: () => abrirEspaco("sobre") } }); },
 });
