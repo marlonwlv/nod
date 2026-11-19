@@ -41,9 +41,14 @@ no menu nod, clicar numa notificação que some, ou esperar o reinício com o Ma
    (e `&simular-ocupado=1` para a pergunta) faz o papel do app (`web/lib/atualizacao-simulada-web.ts`); o "reinício"
    recarrega a página.
 
-Fora de escopo: as notas da versão ("O que muda na 1.0.4" do protótipo D), porque o feed manda `notes` vazio; o Windows
-(a ponte existe só no preload do Mac); a barra de progresso (o reinício leva segundos e quase tudo acontece com a janela
-fechada, então uma barra mentiria).
+7. **Também no Windows**, com a mesma ponte (`windows/preload-web-windows.ts`) e as mesmas regras
+   (`desktop/atualizacao-na-tela.ts`). Lá o motor roda fora do app: reiniciar não interrompe bot nenhum, então não há
+   pergunta nem "quando terminar", e o Windows não tem o reinício com o computador parado (o interruptor some). A última
+   versão aberta fica em `userData/ultima-versao.txt`, para o aviso "nod atualizado".
+
+Fora de escopo: as notas da versão ("O que muda na 1.0.4" do protótipo D), porque o feed manda `notes` vazio (por
+enquanto "Novidades" abre Sobre o nod); a barra de progresso (o reinício leva segundos e quase tudo acontece com a
+janela fechada, então uma barra mentiria).
 
 ## No chat
 

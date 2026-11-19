@@ -77,6 +77,7 @@ try {
   // sem decisões guardadas: os cards pedem o clique
 }
 /** ADR-188: a atualização do app na janela web; o processo principal decide e valida cada pedido. */
+// O mesmo objeto do preload do Windows (windows/preload-web-windows.ts): o preload só leva contratos (scripts/desktop/build.mjs).
 const atualizacaoApp: NonNullable<PonteAtualizacaoApp["atualizacaoApp"]> = {
   estado: () => ipcRenderer.invoke(CANAIS_ATUALIZACAO.estado),
   aoMudar: (fn: (estado: AtualizacaoNaTela) => void) => {

@@ -29,8 +29,8 @@ export type AtualizacaoNaTela = {
   esperandoLivre: boolean;
   /** O reinício começou (a janela vai fechar). */
   reiniciando: boolean;
-  /** ADR-173: reiniciar sozinho com o Mac parado (15 min sem teclado e mouse e nada rodando). */
-  sozinho: boolean;
+  /** ADR-173: reiniciar sozinho com o Mac parado (15 min sem teclado e mouse e nada rodando); null = o sistema não tem (Windows). */
+  sozinho: boolean | null;
   /** O app acabou de voltar de uma atualização: a versão de antes (o aviso "nod atualizado para a x.y.z", uma vez). */
   atualizadoDe: string | null;
 };

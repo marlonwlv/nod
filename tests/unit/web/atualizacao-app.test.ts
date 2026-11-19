@@ -149,6 +149,13 @@ describe("ADR-188: a atualização do app na janela web", () => {
     expect(desligada).not.toContain("atualizar-app-sozinho");
   });
 
+  it("Sobre o nod no Windows: sem o interruptor de reiniciar sozinho, que o sistema não tem", () => {
+    const html = renderSobre(tela({ estado: { sozinho: null } }), true, Date.now());
+    expect(html).not.toContain("atualizar-app-sozinho");
+    expect(html).toContain("atualizar-app-procurar");
+    expect(html).toContain("neste computador");
+  });
+
   it("Sobre o nod no navegador explica que a web já vem atualizada", () => {
     expect(renderSobre(null, false, 0)).toContain("No navegador");
   });

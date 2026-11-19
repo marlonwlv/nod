@@ -10,7 +10,7 @@ export type ExtrasNaTela = {
   versaoAtual: string;
   esperandoLivre: boolean;
   reiniciando: boolean;
-  sozinho: boolean;
+  sozinho: boolean | null;
   atualizadoDe: string | null;
 };
 

@@ -22,6 +22,8 @@ import type { EstaMaquina } from "../../src/contracts/desktop-esta-maquina.ts";
 import { estaMaquinaDe } from "../../src/domain/esta-maquina.ts";
 import { abrirInstalacao, daJanelaWeb, entrarNaIa } from "./login-ia-windows.ts";
 import { ARGS_DO_INSTALADOR, criarAtualizadorWindows, gravadorConferindo } from "./atualizador.ts";
+import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio } from "../atualizacao-na-tela.ts";
+import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type RespostaReinicio } from "../../src/contracts/desktop-atualizacao.ts";
 import { daTelaDeSetup as daTelaDeSetupPura, deveTentarProvisorio, maisUmaLinha, passoAoAbrir, passoDaSessao, servidorDoApp, permissoesDaJanela, telaDaFalhaDePareamento, TEXTOS_WINDOWS, urlDaTelaDeSetup, type TelaDoSetup } from "./fluxo.ts";
 import { rodarInstalacao } from "./instalacao.ts";
 import { comandoDeReligar, comandoDeStatus, INTERVALO_DO_VIGIA_MS, TEXTO_DO_ESTADO, vigiar, type EstadoDoMotor } from "./motor-status.ts";
@@ -237,6 +239,39 @@ function atualizarBandeja() {
   ]));
 }
 
+// ---- ADR-188: a atualização na janela web (o cartão "Atualizar o nod" e Configurações › Sobre o nod) ----------------
+// O motor roda fora do app: reiniciar não interrompe bot nenhum, então não há pergunta nem "quando terminar"; e o
+// Windows não tem o reinício com o computador parado (`sozinho: null` esconde o interruptor).
+/** A versão de antes, quando o app voltou de uma atualização (o aviso "nod atualizado para…", uma vez). */
+let atualizadoDeVersao: string | null = null;
+function atualizacaoNaTela(): AtualizacaoNaTela | null {
+  const a = atualizacao;
+  if (!a) return null;
+  return estadoNaTela(a.estado(), { versaoAtual: app.getVersion(), esperandoLivre: false, reiniciando: a.reiniciando(), sozinho: null, atualizadoDe: atualizadoDeVersao });
+}
+function enviarAtualizacaoParaWeb(): void {
+  const e = atualizacaoNaTela();
+  if (e && janela && !janela.isDestroyed()) janela.webContents.send(CANAIS_ATUALIZACAO.mudou, e);
+}
+function reiniciarPelaTela(pedido: unknown): RespostaReinicio {
+  const p = lerPedidoReinicio(pedido);
+  if (!p) return { ok: false, motivo: "naoPronta" };
+  const d = decidirReinicio(p, { pronta: atualizacao?.estado().fase === "pronta", emLigacao: false, turnos: 0, telas: 0 });
+  if (d.fazer === "reiniciar") { registrar("atualizacao_app_pela_tela", { quando: p.quando }); void atualizacao?.reiniciar(true); }
+  return d.resposta;
+}
+/** A última versão que abriu fica em userData: maior agora = acabou de atualizar. */
+function lembrarVersao(): void {
+  const arquivo = join(app.getPath("userData"), "ultima-versao.txt");
+  void readFile(arquivo, "utf8").catch(() => null).then((ultima) => {
+    const antes = ultima?.trim() || null;
+    atualizadoDeVersao = atualizadoDe(antes, app.getVersion());
+    if (atualizadoDeVersao) enviarAtualizacaoParaWeb();
+    if (antes !== app.getVersion()) return mkdir(dirname(arquivo), { recursive: true }).then(() => writeFile(arquivo, app.getVersion()));
+    return undefined;
+  }).catch(() => undefined);
+}
+
 function montarAtualizacao(): AtualizacaoDoApp {
   return criarAtualizacaoDoApp({
     updater: criarAtualizadorWindows({
@@ -258,7 +293,7 @@ function montarAtualizacao(): AtualizacaoDoApp {
     agendar: (f, ms) => { const t = setTimeout(f, ms); return () => clearTimeout(t); },
     agora: Date.now,
     registrar,
-    aoMudar: (e) => { atualizarBandeja(); setup?.webContents.send("nodwin:atualizacao", linhaDaAtualizacao(e, process.arch, "win32")); },
+    aoMudar: (e) => { atualizarBandeja(); setup?.webContents.send("nodwin:atualizacao", linhaDaAtualizacao(e, process.arch, "win32")); enviarAtualizacaoParaWeb(); },
     // O motor roda fora do app: reiniciar o app não derruba turno nenhum.
     podeReiniciar: async () => true,
     antesDeInstalar: async () => undefined,
@@ -317,6 +352,13 @@ else {
       registrar: (evento, dados) => registrar(evento, dados),
     });
     ipcMain.handle(CANAIS_DESKTOP.desafioConta, (e) => { if (!daJanela(e)) throw new Error("entrada_invalida"); return troca.desafio; });
+    // ADR-188: a atualização na janela web, só da página do servidor conectado.
+    ipcMain.handle(CANAIS_ATUALIZACAO.estado, (e) => (daJanela(e) ? atualizacaoNaTela() : null));
+    ipcMain.handle(CANAIS_ATUALIZACAO.reiniciar, (e, pedido: unknown) => { if (!daJanela(e)) throw new Error("entrada_invalida"); return reiniciarPelaTela(pedido); });
+    ipcMain.handle(CANAIS_ATUALIZACAO.procurar, (e) => { if (!daJanela(e)) throw new Error("entrada_invalida"); atualizacao?.procurar(true); return atualizacaoNaTela(); });
+    // O Windows não reinicia sozinho: o interruptor nem aparece; o pedido só devolve o estado.
+    ipcMain.handle(CANAIS_ATUALIZACAO.definirSozinho, (e) => (daJanela(e) ? atualizacaoNaTela() : null));
+    ipcMain.handle(CANAIS_ATUALIZACAO.avisoVisto, (e) => { if (daJanela(e)) atualizadoDeVersao = null; });
     // A troca de espaço depois de entrar numa conta que já existe pela janela (o "escolher" do Google/e-mail), como no Mac.
     ipcMain.handle(CANAIS_DESKTOP.trocarConta, async (e, codigo: unknown) => { if (!daJanela(e)) throw new Error("entrada_invalida");
       if (!conexao) return false;
@@ -385,6 +427,7 @@ else {
     bandeja = new Tray(icone().resize({ width: 16, height: 16 }));
     bandeja.on("click", () => { if (janela && !janela.isDestroyed()) janela.show(); else void abrir(); });
     atualizacao = montarAtualizacao();
+    lembrarVersao();
     atualizarBandeja();
     setInterval(() => { if (conexao && !removido) void lerMotor(); }, INTERVALO_DO_VIGIA_MS).unref();
     registrar("app_aberto", { versao: app.getVersion() });

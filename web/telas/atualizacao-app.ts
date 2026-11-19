@@ -108,7 +108,7 @@ function destaque(t: TelaAtualizacao): string {
 
 /** Configurações › Sobre o nod. `t` null com ponte = carregando; sem ponte = a web no navegador. */
 export function renderSobre(t: TelaAtualizacao | null, temPonte: boolean, agora: number): string {
-  const topo = `<h2>Sobre o nod</h2><p class="intro">A versão deste Mac e como ele se atualiza. O nod baixa as versões novas sozinho; reiniciar é o único passo.</p>`;
+  const topo = `<h2>Sobre o nod</h2><p class="intro">A versão do nod neste computador e como ele se atualiza. O nod baixa as versões novas sozinho; reiniciar é o único passo.</p>`;
   if (!temPonte) {
     return `<section class="espaco-secao cfg-secao cfg-sobre"><h2>Sobre o nod</h2><p class="intro">No navegador, o nod já está sempre na versão mais nova: ela entra quando a página recarrega. O app do Mac e do Windows mostra aqui a versão dele e como ele se atualiza.</p></section>`;
   }
@@ -118,12 +118,12 @@ export function renderSobre(t: TelaAtualizacao | null, temPonte: boolean, agora:
   const ultima = e.procuradaEm ? `Última procura: ${horaDaProcura(e.procuradaEm, agora)}.` : "";
   const podeProcurar = e.fase === "ociosa" || e.fase === "erro";
   const grupo = desligada ? "" : grupoConfig("Atualizações", [
-    linhaConfig({
+    ...(e.sozinho === null ? [] : [linhaConfig({
       titulo: "Reiniciar sozinho quando você sair",
       ajuste: "reiniciar-sozinho",
       detalhe: "Com uma versão pronta, o nod reinicia depois de 15 minutos sem teclado e mouse, se nenhum bot estiver trabalhando e não houver ligação.",
       controle: { tipo: "switch", ligado: e.sozinho, acao: "atualizar-app-sozinho" },
-    }),
+    })]),
     linhaConfig({
       titulo: "Procurar atualizações",
       ajuste: "procurar-atualizacoes",
