@@ -48,6 +48,30 @@ dependência nova de front precisa de outra ADR.
    sem ela o JS inicial não muda. Ligar por padrão é outro PR, depois do teste de mão e dos três testes de Chrome que
    arrastam pelo evento nativo (`quadro-jornada`, `quadro-composer`, `quadro-rolagem`) passarem a arrastar por ponteiro.
 
+## Emenda (2026-11-19, fase 5 da ADR-179: a grade medida com 160 cards)
+
+A régua do quadro (`scripts/carga-tela`, cenário `quadro`, agora com arrasto por ponteiro) mostrou a grade em React
+**mais lenta** que a por string: soltar um card levava 123 ms no p50 (76 na por string) e o cenário com bots escrevendo
+teve tarefa de 425 ms. O perfil apontou quatro custos, e a grade mudou em cada um:
+
+1. **A grade saía do documento a cada desenho** (o `innerHTML` da `.qd-conteudo` e o `encaixar` de volta): o Chrome
+   recalculava estilo e layout dos ~1.700 elementos dela com nada mudado. Agora `escrever` grava o HTML do desenho em
+   volta da grade (a vaga vem no nível de cima do `quadroDaMeta`), e o nó fica. Sem a vaga (tarefa aberta, outra página),
+   o caminho de sempre.
+2. **Toda coluna redesenhava a cada frame** (o desenho por string recria os objetos). A coluna agora é `memo` por valor
+   (as partes, os extras e os cards comparados campo a campo).
+3. **Um `Menu.Root` do Base UI por card** (~70 ms por desenho com 160 cards). Agora o "Mover para…" é um menu só, da
+   grade, controlado e ancorado no botão do card que o abriu (`anchor` do Positioner, `finalFocus` de volta ao botão).
+4. **`useSortable` em cada card**: o dnd-kit media os 160 itens a cada arrasto e redesenhava todos a cada coluna sob o
+   ponteiro. Como não há ordem manual (decisão 2, item 5), os cards agora são só `useDraggable`; o dnd-kit mede as
+   colunas. Quando o campo de ordem existir, a coluna volta a ter o `SortableContext` (o item 5 continua valendo, com
+   este custo medido).
+
+Resultado no cenário `quadro` (160 cards, 8 bots escrevendo e a pessoa arrastando, maior tarefa / TBT / tecla p95, ms):
+grade por string 111 / 717 / 82; grade em React 77 / 43 / 46. Soltar → card na coluna nova (p50 / p95): 71 / 87 por
+string, 45 / 81 em React. A chave continua desligada por padrão: ligar ainda pede as três jornadas de Chrome arrastando
+por ponteiro e o teste de mão (decisão 2, item 6).
+
 ## Gatilho de reversão
 
 - A régua do `scripts/carga-tela` (cenário `quadro`) pior com a chave ligada e sem correção nesta fase: a chave fica
