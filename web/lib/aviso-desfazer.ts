@@ -34,8 +34,8 @@ export function mostrarAvisoDesfazer(o: { texto: string; aoDesfazer?: () => void
   const abrir = o.abrir;
   el.className = aoDesfazer || abrir ? "nl-aviso" : "nl-aviso nl-aviso-frase";
   el.setAttribute("role", "status");
-  el.innerHTML = `<span>${esc(o.texto)}</span>${abrir ? `<button type="button" class="nl-desfazer nl-abrir">${esc(abrir.rotulo)}</button>` : ""}${aoDesfazer ? '<button type="button" class="nl-desfazer nl-desfazer-acao">Desfazer</button>' : ""}`;
-  el.querySelector(".nl-abrir")?.addEventListener("click", () => {
+  el.innerHTML = `<span>${esc(o.texto)}</span>${abrir ? `<button type="button" class="nl-desfazer nl-aviso-abrir">${esc(abrir.rotulo)}</button>` : ""}${aoDesfazer ? '<button type="button" class="nl-desfazer nl-desfazer-acao">Desfazer</button>' : ""}`;
+  el.querySelector(".nl-aviso-abrir")?.addEventListener("click", () => {
     fecharAvisoDesfazer();
     abrir?.aoAbrir();
   });

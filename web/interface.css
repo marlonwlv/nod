@@ -1348,6 +1348,10 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .nl-desfazer { flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: var(--raio-8); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); font-weight: 600; cursor: pointer; }
 .nl-aviso .nl-desfazer:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .nl-desfazer:focus-visible { outline: 2px solid var(--focus-ring, var(--signal)); outline-offset: 1px; }
+/* O "Abrir"/"Ver" do aviso: classe própria (era .nl-abrir, a mesma da linha de Não lidos, que é uma grade de largura
+   total e espremia o texto do aviso até sumir). Pílula cinza, como no protótipo do aviso "nod atualizado" (ADR-188). */
+.nl-aviso .nl-aviso-abrir { padding: 0 12px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent); font-weight: 500; }
+.nl-aviso .nl-aviso-abrir:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 /* O card dos não lidos no chat (ferramenta nao_lidos): uma linha por conversa, o ✓ sempre à vista. */
 .msg-nao-lidos { margin-bottom: 6px; }
 .nlc { width: min(460px, 100%); margin: 0 0 18px; border: 1px solid var(--line); border-radius: var(--raio-14); overflow: hidden; }

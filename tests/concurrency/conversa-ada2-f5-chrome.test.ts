@@ -279,7 +279,7 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
 
     // Criar tarefa disto: o aviso com Abrir e Desfazer, e a tarefa no quadro com o começo da fala.
     await clicar('.bot-menu.menu-fala-seg [data-fala="criar-tarefa"]');
-    await ate(`[...document.querySelectorAll(".nl-desfazer.nl-abrir")].some((b) => b.offsetParent)`, "o aviso Tarefa criada com Abrir");
+    await ate(`[...document.querySelectorAll(".nl-desfazer.nl-aviso-abrir")].some((b) => b.offsetParent)`, "o aviso Tarefa criada com Abrir");
     await ate(`!document.querySelector(".bot-menu.menu-fala-seg")`, "o menu fechado");
     const criadas = await tarefasDoQuadro(bot.id);
     expect(criadas).toHaveLength(1);
