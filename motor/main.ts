@@ -54,7 +54,7 @@ import { anuncioDoComputador, sondaLocal } from "./computador.ts";
 import { arquivoDasAtualizacoes, arquivoDoEstadoDeIa, arquivoDoPedidoDeIa, ESPERA_DA_RESPOSTA_MS, ESPERA_DO_SERVICO_MS, gravarJson, IA_DO_TERMINAL, lerEstadoDoPedido, passoNpmLocal, vigiarPedidosDoTerminal } from "./atualizar-ias.ts";
 import { criarPreparoNoMotor } from "./preparo-do-login.ts";
 import { criarIasDoMotor, esperarNoTerminal, quemNaoPodeAtualizar } from "./ias-do-motor.ts";
-import { comandoDeParear, comandoDeReinstalar, comandoParaAbrir, conferirGitForWindows, MENSAGEM_SEM_GIT_FOR_WINDOWS, plataformaDoMotor, SAIDA_SEM_GIT_FOR_WINDOWS, servidorAceitaPlataforma } from "./windows.ts";
+import { atualizarPathNoWindows, comandoDeParear, comandoDeReinstalar, comandoParaAbrir, conferirGitForWindows, MENSAGEM_SEM_GIT_FOR_WINDOWS, plataformaDoMotor, SAIDA_SEM_GIT_FOR_WINDOWS, servidorAceitaPlataforma } from "./windows.ts";
 import { AJUDA, aposentarChaveAntiga, arquivoDaConexao, carregarConexao, comandoDeEntrar, guardarConexao, guardarMaquinaDoMotor, lerComando, pastaDoExecutor, pastaDoMotor, type ConexaoMotor } from "./conexao.ts";
 
 /**
@@ -485,6 +485,10 @@ async function rodar(): Promise<number> {
   const c = await carregarConexao(pasta);
   if (!c) { process.stderr.write(`Esta máquina ainda não está conectada. Rode: ${comandoDeParear("https://seu-nod")}\n`); return 2; }
   const versao = await versaoDoMotor();
+  // A Tarefa Agendada sobe o motor com o Path do último login: o Git, o Node e as IAs que a instalação acabou de pôr no
+  // Path do usuário vêm do registro, senão o motor sairia com 3 logo depois da primeira instalação.
+  const novasNoPath = atualizarPathNoWindows();
+  if (novasNoPath.length > 0) log("info", "motor_path_do_registro", { pastas_novas: novasNoPath.length });
   // ADA-11 (ADR-147): no Windows o motor só sobe com o Git for Windows e o hook rodando pelo Git Bash (falha fechada).
   const semGit = conferirGitForWindows({ nodePath: process.execPath, hookPath: caminhoAoLado("hook-nativas.mjs", "hook-nativas.ts") });
   if (semGit) {
