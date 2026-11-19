@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
 import { constants, readdirSync, readFileSync, statSync } from "node:fs";
-import { access } from "node:fs/promises";
+import { access, readFile, realpath } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
-import { delimiter, isAbsolute, join, win32 } from "node:path";
+import { delimiter, isAbsolute, join, sep, win32 } from "node:path";
 import type { OrigemDoBinario } from "../../contracts/estado-ia.ts";
 import { BinarioSemSuporte, comoRodar, variavel } from "./plataforma.ts";
 
@@ -318,6 +318,55 @@ export async function resolverBinarioDetalhado(bin: string | undefined, path: st
     if (isAbsolute(caminho)) return (await executavel(caminho)) ? { caminho, origem: "configurado" } : null;
     return null;
   }
+  const achado = await acharNoPath(path, nome, camadas);
+  return protecao ? conferirComOPacote(protecao, nome, achado) : achado;
+}
+
+/**
+ * Definido em 2026-11-19 (o `claude` da nod-motor-teste trocado por um script de um bot, que recusava `auth login`): o
+ * motor da VM instala as IAs com o próprio npm em `~/.local` (motor/atualizar-ias.ts), mas os bots rodam com o mesmo
+ * usuário e podem escrever no `~/.local/bin`, que vem primeiro no PATH. Com a proteção ligada, o binário achado no PATH
+ * só vale se for (seguindo os links) um arquivo do pacote que o nod instalou; senão o nod usa o binário do pacote e avisa.
+ * Só o motor de Linux liga (motor/main.ts): no Mac e no Windows o binário é da pessoa, e sem o pacote nada muda.
+ */
+export type ProtecaoDasIas = { prefixo: string; aoTrocar(t: { nome: string; achado: string | null; pacote: string }): void };
+let protecao: ProtecaoDasIas | null = null;
+export function protegerIasDoNod(p: ProtecaoDasIas | null): void {
+  protecao = p;
+}
+
+/** O pacote npm de cada binário (o mesmo de desktop/instalar-ia.ts, PACOTE_DA_IA). */
+const PACOTE_DO_BINARIO: Readonly<Record<string, string>> = { claude: "@anthropic-ai/claude-code", codex: "@openai/codex" };
+
+/** O executável que o `package.json` do pacote declara para `nome`, dentro de `<prefixo>/lib/node_modules` (npm no POSIX). */
+export async function binarioDoPacote(prefixo: string, nome: string): Promise<{ pasta: string; binario: string } | null> {
+  const pacote = PACOTE_DO_BINARIO[nome];
+  if (!pacote) return null;
+  const pasta = join(prefixo, "lib", "node_modules", ...pacote.split("/"));
+  try {
+    const pkg = JSON.parse(await readFile(join(pasta, "package.json"), "utf8")) as { bin?: unknown };
+    const rel = typeof pkg.bin === "string" ? pkg.bin : pkg.bin && typeof pkg.bin === "object" ? (pkg.bin as Record<string, unknown>)[nome] : undefined;
+    if (typeof rel !== "string" || rel === "") return null;
+    const binario = join(pasta, rel);
+    if (!binario.startsWith(`${pasta}${sep}`) || !(await executavel(binario))) return null;
+    return { pasta, binario };
+  } catch {
+    return null;
+  }
+}
+
+async function conferirComOPacote(p: ProtecaoDasIas, nome: string, achado: BinarioResolvido | null): Promise<BinarioResolvido | null> {
+  const doPacote = await binarioDoPacote(p.prefixo, nome);
+  if (!doPacote) return achado; // o nod não instalou essa IA aqui: como sempre foi
+  if (achado) {
+    const [real, pasta] = await Promise.all([realpath(achado.caminho).catch(() => null), realpath(doPacote.pasta).catch(() => doPacote.pasta)]);
+    if (real && real.startsWith(`${pasta}${sep}`)) return achado;
+  }
+  p.aoTrocar({ nome, achado: achado?.caminho ?? null, pacote: doPacote.binario });
+  return { caminho: doPacote.binario, origem: "nod" };
+}
+
+async function acharNoPath(path: string, nome: string, camadas: readonly CamadaDoPath[]): Promise<BinarioResolvido | null> {
   // ADR-147: no Windows o nome ganha as extensões (`.exe` antes do `.cmd`), e pasta relativa (a cwd) não conta.
   const windows = process.platform === "win32";
   const nomes = windows ? EXTENSOES_DO_WINDOWS.map((e) => nome + e) : [nome];

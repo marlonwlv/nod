@@ -175,6 +175,7 @@ const ERROS_LOGIN: Partial<Record<CausaFalhaLogin | Exclude<ResultadoColarCodigo
   codigo_ilegivel: "A máquina não conseguiu ler o código. Gere outro na página e cole de novo.",
   contas_demais: "Essa máquina já tem contas demais dessa IA. Saia de uma antes.",
   nao_confirmou: "O login terminou, mas a máquina não confirmou a conta. Tente de novo.",
+  recusou_antes_do_link: "A IA dessa máquina fechou com erro antes de abrir o login. Ela pode ter sido trocada ou estar com defeito: o motivo fica no log do motor dessa máquina.",
   nao_instalada: "A IA não está instalada nessa máquina. Rode a instalação do motor de novo.",
   codigo_invalido: "A página não aceitou o código. Gere outro e cole de novo.",
   login_por_codigo_bloqueado: "A conta não permite entrar por código. Entre pelo terminal da máquina.",
