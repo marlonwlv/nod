@@ -62,7 +62,7 @@ describe("mensagens e o navegador do Windows (ADA-32, ADR-151)", () => {
   it("o comando de reinstalar e o de parear seguem a plataforma", () => {
     expect(comandoDeReinstalar("https://app.nodbot.ai", "win32")).toBe("irm https://app.nodbot.ai/windows | iex");
     expect(comandoDeReinstalar("https://app.nodbot.ai", "linux")).toBe("curl -fsSL https://app.nodbot.ai/motor | sh");
-    expect(comandoDeParear("https://app.nodbot.ai", "win32")).toBe("nod parear https://app.nodbot.ai");
+    expect(comandoDeParear("https://app.nodbot.ai", "win32")).toBe("nod-motor parear https://app.nodbot.ai");
     expect(comandoDeParear("https://app.nodbot.ai", "linux")).toBe("nod-motor parear https://app.nodbot.ai");
   });
 

@@ -97,9 +97,11 @@ export const concederLote: CasoDeUso<EntradaConcederLote, SaidaConcederLote> = a
     });
     if (!mensagem) throw new Error("mensagem de consentimento não criada");
     mensagemId = mensagem.id;
-    for (const capacidade of novas) {
-      const concessao = await deps.repos.concessoes.conceder({ agenteId: agente.id, conectorId: conector.id, capacidade, mensagemId: mensagem.id });
-      if (!concessao) throw new ErroDeDominio("estado_invalido", { cause: "capacidade já concedida a este agente" });
+    // definido em 2026-11-16: um INSERT para o lote, não um por capacidade (concessoesRepo.concederVarias).
+    const criadas = await deps.repos.concessoes.concederVarias({ agenteId: agente.id, conectorId: conector.id, capacidades: novas, mensagemId: mensagem.id });
+    if (criadas.length !== novas.length) throw new ErroDeDominio("estado_invalido", { cause: "capacidade já concedida a este agente" });
+    for (const concessao of criadas) {
+      const capacidade = concessao.capacidade;
       events.push({
         tenantId: deps.escopo.tenantId,
         id: randomUUID(),

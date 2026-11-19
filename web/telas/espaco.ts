@@ -189,6 +189,7 @@ function conteudo(estado: Estado, secao: SecaoEspaco, avisos: EstadoAvisos, extr
         quadroLiberado: estado.quadroLiberado ?? false,
         ...(extras.balaoCor !== undefined ? { balaoCor: extras.balaoCor } : {}),
         ...(extras.sons ? { sons: extras.sons } : {}),
+        ...(estado.sessao ? { mcp: { tokens: estado.mcpTokens, emitido: estado.mcpTokenEmitido } } : {}),
       }, estado.configUi, celular);
     case "conexao":
       return renderProvedores(estado);

@@ -77,6 +77,11 @@ export type DepsOnboarding = {
   criarBot?: () => DepsCriarBot;
   /** O e-mail da sessão: o passo dos apps sugere Gmail e Agenda quando é do Google. */
   email?: () => string | null;
+  /**
+   * #78: na web, num espaço sem conta, a saída da etapa da IA para quem já usa o nod noutro computador. `disponivel` diz se
+   * a tela mostra o botão; `entrar` abre o cartão de conta (a camada já fechou). Ausente = sem saída, como antes.
+   */
+  entrarNaConta?: { disponivel: () => boolean; entrar: () => void };
 };
 
 export type TelaOnboarding = ReturnType<typeof criarTelaOnboarding>;
@@ -190,6 +195,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
       appConectando: deps.conectando(d.modelo.app.slug),
       ocupado,
       iasMac: deps.iasMac?.() ?? null,
+      entrarNaConta: deps.entrarNaConta?.disponivel() ?? false,
     };
   }
 
@@ -290,7 +296,7 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     const a = deps.api();
     if (!a) return;
     const o = await a.onboarding().catch(() => null);
-    if (!o) return;
+    if (!o || !deps.aberto()) return;
     hidratar(o);
     // Com teste, o "pronto" do servidor é só o login: quem decide o próximo passo é o teste (onboarding-teste.ts).
     if (teste.ativo()) { teste.aoEstadoDoServidor(o); return; }
@@ -632,13 +638,20 @@ export function criarTelaOnboarding(deps: DepsOnboarding) {
     ...acoesApres,
     "onboarding-pular-ola": () => passarOla(),
     "onboarding-depois": () => fazerDepois(),
-    "onboarding-ia-entrar": (d) => iaNoMac(iaDoClique(d), "entrar"),
-    "onboarding-ia-instalar": (d) => iaNoMac(iaDoClique(d), "instalar"),
-    "onboarding-ia-testar": (d) => testarIa(iaDoClique(d)),
-    "onboarding-ia-como-liberar": (d) => comoLiberar(iaDoClique(d)),
+    // #78: fecha a camada (sem concluir o onboarding deste espaço) e abre o cartão de conta na conversa do Nod.
+    "onboarding-entrar-na-conta": () => {
+      if (!deps.entrarNaConta?.disponivel()) return;
+      if (sonda !== null) { window.clearInterval(sonda); sonda = null; }
+      deps.abrir(false);
+      deps.entrarNaConta.entrar();
+    },
+    "onboarding-ia-entrar": (el) => iaNoMac(iaDoClique(el), "entrar"),
+    "onboarding-ia-instalar": (el) => iaNoMac(iaDoClique(el), "instalar"),
+    "onboarding-ia-testar": (el) => testarIa(iaDoClique(el)),
+    "onboarding-ia-como-liberar": (el) => comoLiberar(iaDoClique(el)),
+    "onboarding-ia-pagina": (el) => teste.abrirInstalacao(iaDoClique(el)),
+    "onboarding-ia-login": (el) => teste.abrirLogin(iaDoClique(el)),
     "onboarding-fechar-aviso": () => mostrarAviso(null),
-    "onboarding-ia-pagina": (d) => teste.abrirInstalacao(iaDoClique(d)),
-    "onboarding-ia-login": (d) => teste.abrirLogin(iaDoClique(d)),
     "onboarding-ia-cancelar": () => teste.cancelar(),
     "onboarding-ia-continuar": () => teste.seguir(),
     "onboarding-atender": () => atender(),

@@ -4,6 +4,7 @@ import { armazemComReserva, armazemDaFila, criarJournalDeEnvio, JournalEncerrado
 import { armazemDoJournalIndexedDb } from "./lib/journal-envio-idb.ts";
 import { atalhoDoTeclado as atalhoDoQuickChat, type AjustesMac } from "./telas/ajustes-mac.ts";
 import { arquivoDaCaptura, botDaUrl, ehJanelaAvatar, ehJanelaQuickChat, fraseDaCaptura, htmlAvatarDaMesa, htmlBotaoCapturar, htmlTopoQuickChat } from "./lib/quick-chat.ts";
+import { invalidacoesDoChatSemProgresso } from "./lib/reconciliar-chat.ts";
 import { botaoDaBarraSemIa, conversaAguardandoIa, dicaDoComposerSemIa, iasNoCard, idDoCardSemIa, turnosVivosDe } from "./telas/sem-ia-conversa.ts";
 import { IGUAIS_UM_A_UM } from "./telas/pedidos-iguais.ts";
 import { criarTelaAprovacoes } from "./lib/ajustes-aprovacao.ts";
@@ -27,6 +28,7 @@ import { CHAVE_AVISO_RECRIADO } from "./telas/espaco.ts";
 import { marcarTelaFechadaNaAjuda } from "./lib/computador.ts";
 import { anunciarEm, criarFocoPendente, guardarPosicao, planejarSaidaDaLista, reporPosicao, type ElDaLista, type RaizDaLista } from "./lib/posicao-da-lista.ts";
 import { criarUltimaLeitura } from "./lib/ultima-leitura.ts";
+import { decidirContraEstadoVelho } from "./lib/decidir-contra-estado-velho.ts";
 import { aoVerComputador, definirTelaDoBot } from "./telas/tela-do-bot.ts";
 import { abrirWorkspace } from "./telas/workspace.ts";
 import { listaDoQuePodem, rotuloPermitir, type EscolhaLiberar } from "./telas/card-liberar.ts";
@@ -94,7 +96,9 @@ import { mascararDormindo, RetryDoAcordar, type PassosDoRetry } from "./lib/retr
 import { contaApi, criarApi, minhaContaApi, ErroApi, observarRede, sessao as sessaoApi, type Api } from "./lib/api.ts";
 import { reagirACota } from "./lib/cota-provisorio.ts";
 import { resolverProvaNoNavegador } from "./lib/prova-trabalho.ts";
-import { abreProvisorio, CHAVE_EQUIPE, decidirPareamento, criarContaNoChat, equipeNoApp, fraseDoErro as fraseDoErroDeConta, linkDaEquipe, type PassoPareamento } from "./telas/conta-no-chat.ts";
+import { abreProvisorio, CHAVE_EQUIPE, decidirPareamento, criarContaNoChat, equipeNoApp, fraseDoErro as fraseDoErroDeConta, linkDaEquipe, saidaParaConta, type PassoPareamento } from "./telas/conta-no-chat.ts";
+import { etapaDaIntencao, htmlEntrarPrimeiro, intencaoDe, mostrarEntrarPrimeiro, type IntencaoEntrada } from "./telas/entrar-primeiro.ts";
+import { abrirCodigoGuardado, codigoDoLinkGuardado, guardarCodigoDoLink } from "./telas/parear-qr.ts";
 import { criarMinhaConta } from "./telas/minha-conta.ts";
 import { reduzirFoto } from "./lib/reduzir-foto.ts";
 import { criarLoja } from "./react/loja.ts";
@@ -126,6 +130,7 @@ import "./pwa.ts";
 import { avatar, botao, dataHora, esc, hora as horaDaFala, iconeAgente } from "./lib/render.ts";
 import { COPIADO_MS, mostrarCopia, ROTULO_COPIADO, type RelogioDoCopiar } from "./lib/copiar.ts";
 import { avisoDeEstado } from "./lib/aviso-estado.ts";
+import { abrirAjustesDoMicrofone, botaoAjustesDoMicrofone, CODIGO_DITADO_MICROFONE, podeAbrirAjustesDoMicrofone } from "./lib/microfone-do-sistema.ts";
 import { aplicarTema, lerTema, type EscolhaTema } from "./lib/tema.ts";
 import { adiar, alternarCompacta, aplicarBarra, chaveDaBarra, lerBarra, PAINEL_DETALHES, pedidoDoChat, pintarBarra, type Barra, type PedidoBarra } from "./lib/densidade.ts";
 import type { BarraDesktop } from "../src/contracts/desktop-barra.ts";
@@ -281,6 +286,7 @@ import { renderAbaQuadros, renderAbaSuaVez, renderFolhaRecentes, renderTabBar, r
 import { ligarTecladoVisivel } from "./lib/teclado-visivel.ts";
 import type { ItemDoMenuDaPilula } from "./lib/gesto-da-pilula.ts";
 import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deveMostrarDica, escFechaABusca, gravarMarca, lerMarca, type Marcas, type ViaDaBusca } from "./lib/descoberta-da-busca.ts";
+import { comVerificadorDoProvisorio, criarTravaDeSessao } from "./lib/trava-sessao.ts";
 // NOD-117: as teclas dos atalhos mudam com o lugar (app do Mac, navegador no Mac, Windows/Linux): web/lib/atalhos.ts.
 const LUGAR_TECLADO = lugarAtual();
 /** COP-12: ⌘/, "?", Suporte › Atalhos de teclado e a paleta abrem o diálogo de atalhos com as teclas deste lugar. */
@@ -582,7 +588,11 @@ let entrada: {
   conta?: { etapa: "entrar" | "recuperar"; erro: string | null; enviadoPara: string | null; ocupado: boolean };
   /** NOD-345: a página do link de recuperação (`#redefinir=<token>`); o token sai da URL na hora. */
   redefinir?: { token: string; erro: string | null; vencido: boolean; ocupado: boolean } | null;
+  /** #81: a tela "Já usa o nod?" da primeira visita na web, antes do espaço provisório. */
+  primeiro?: { ocupado: boolean; erro: string | null } | null;
 } = { modo: null, recusado: false };
+/** Login e criação do espaço mudam o mesmo cookie; nunca podem correr em paralelo nesta aba. */
+const travaDaSessao = criarTravaDeSessao();
 
 // definido em 2026-09-24 (revisão da interface): a tela principal é o chat; quem esconde o painel do
 // bot espera achá-lo escondido na próxima conversa e no próximo carregamento.
@@ -1320,7 +1330,7 @@ const ditado = criarControleDitado({
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
   },
-  avisar: (texto) => dispatch({ tipo: "erro", erro: { codigo: "ditado", mensagem: texto } }),
+  avisar: (texto, falha) => dispatch({ tipo: "erro", erro: { codigo: falha === "microfone-negado" ? CODIGO_DITADO_MICROFONE : "ditado", mensagem: texto } }),
   noApp: () => window.nodDesktop !== undefined,
 });
 function avisarDitado(f: Parameters<typeof textoDaFalha>[0]): void {
@@ -1343,6 +1353,11 @@ const telaOnboarding = criarTelaOnboarding({
   aberto: () => estado.onboardingAberto,
   hidratar: (o) => dispatch({ tipo: "hidratar-onboarding", onboarding: o }),
   abrir: (aberto) => dispatch({ tipo: "onboarding-aberto", aberto }),
+  // #78: na web, num espaço sem conta, a etapa da IA deixa entrar na conta (onde estão os bots e o motor do outro computador).
+  entrarNaConta: {
+    disponivel: () => saidaParaConta({ contas: contas !== null, noApp: window.nodDesktop !== undefined, estado: contaAtual }),
+    entrar: () => void telaConta.abrir("inicio", true),
+  },
   ligacao: { ativa: () => telaLigacao.ativa(), cheia: () => telaLigacao.cheia(), atenderOnboarding: (l) => telaLigacao.atenderOnboarding(l) },
   garantirAgente: async (agenteId) => {
     for (let i = 0; i < 6 && api; i++) {
@@ -1462,6 +1477,8 @@ const telaConta = criarContaNoChat({
   contaMudou: (e) => { contaAtual = e; render(); if (decidirPareamento({ modoLido: true, contas: true, estado: e }) === "abrir") seguirPareamento("abrir"); },
   abrirUrl: (url) => { if (window.nodDesktop) window.open(url, "_blank", "noopener"); else window.location.assign(url); },
   agora: () => Date.now(),
+  // #84: o link do QR do pareamento sai do endereço onde este nod está aberto (no app, o do servidor).
+  origem: () => window.location.origin,
   digitado: () => [...document.querySelectorAll<HTMLInputElement>(".cc-bloco form input")].some((i) => i.value !== ""),
   campo: (form, nome) => String(new FormData(form as HTMLFormElement).get(nome) ?? ""),
 });
@@ -1504,9 +1521,9 @@ async function decidirPelaLigacao(decisaoId: string, aprovar: boolean): Promise<
   if (!api) return;
   const item = estado.suaVez?.itens.find((i) => i.decisao.id === decisaoId);
   const tipo = item?.decisao.tipo;
-  if (tipo === "aprovacao" || tipo === "gate_rotina") await api.decidir(decisaoId, { itens: (item?.itensAprovacao ?? []).map((i) => ({ id: i.id, selecionado: aprovar && i.selecionado })) });
+  if (tipo === "aprovacao" || tipo === "gate_rotina") await decidirAprovacaoReconciliando(decisaoId, { itens: (item?.itensAprovacao ?? []).map((i) => ({ id: i.id, selecionado: aprovar && i.selecionado })) });
   else if (tipo === "retomar_turno") await (aprovar ? api.retomar(decisaoId) : api.dispensar(decisaoId));
-  else await api.decidir(decisaoId, aprovar ? {} : { recusar: true });
+  else await decidirAprovacaoReconciliando(decisaoId, aprovar ? {} : { recusar: true });
   dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(item?.decisao.conversaId ? [`conversa:${item.decisao.conversaId}` as Invalidacao] : [])] });
 }
 
@@ -2162,6 +2179,23 @@ async function agir(fn: () => Promise<void>): Promise<void> {
   }
 }
 
+/**
+ * ADA-247: o POST pode perder a corrida para outra aba, uma regra ou o varredor. Confirma pelo GET autoritativo antes de
+ * tratar o 409 como sucesso já realizado; a fila sai na hora e a conversa relê o cartão como linha de desfecho.
+ */
+async function decidirAprovacaoReconciliando(id: string, corpo: Parameters<Api["decidir"]>[1]): Promise<void> {
+  await decidirContraEstadoVelho(
+    () => api!.decidir(id, corpo),
+    async () => {
+      const suaVez = await api!.suaVez(naFrente());
+      dispatch({ tipo: "hidratar-sua-vez", suaVez });
+      return !suaVez.itens.some((item) => item.decisao.id === id);
+    },
+  );
+  const conversa = conversaAtual();
+  dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(conversa ? [`conversa:${conversa.conversaId}` as Invalidacao] : [])] });
+}
+
 // ---------------------------------------------------------------------------------------------
 // Reidratação: o reducer diz O QUE mudou; aqui busca-se por REST e despacha o hidratar.
 
@@ -2243,6 +2277,7 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     return detalhe ? { tipo: "hidratar-trabalho", detalhe, agora } : { tipo: "trabalho-sumiu", id };
   }
   if (q === "chaves") return { tipo: "hidratar-chaves", chaves: (await api.chaves()).chaves };
+  if (q === "mcp-tokens") return { tipo: "hidratar-mcp-tokens", tokens: await api.mcpTokens() };
   // ADR-090: servidor sem a rota (404, versão anterior) fica sem máquinas; nenhum erro sobe.
   if (q === "maquinas") {
     relerEstaMaquina();
@@ -2518,6 +2553,7 @@ function relevante(q: Invalidacao): boolean {
   if (q === "agenda") return secao === "rotinas";
   if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala";
   if (q === "chaves") return secao === "maquinas";
+  if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
   if (q === "nuvem") return secao === "maquinas";
   if (q === "contas") return secao === "maquinas" || secao === "conexao" || ((t.tipo === "conversa" || t.tipo === "trabalho" || conversaAbertaTemNotaDeContas(estado)) && (contasFalharamEm === null || Date.now() - contasFalharamEm > ESPERA_CONTAS_MS));
@@ -2939,9 +2975,10 @@ function htmlDoErro(e: ErroNaTela): string {
   }
   const nod = e.codigo === "erro_da_tela" ? (estado.frota?.agentes ?? []).find((a) => a.papel === "nod" && a.ownerId === estado.sessao?.pessoaId) : undefined;
   const relatar = nod ? botao("abrir-conversa", "Relatar", { classe: "sm erro-relatar", dados: { conversa: nod.conversaId, agente: nod.id } }) : "";
+  const ajustes = e.codigo === CODIGO_DITADO_MICROFONE && window.nodDesktop !== undefined && podeAbrirAjustesDoMicrofone() ? ` ${botaoAjustesDoMicrofone("sm")}` : "";
   // Validação de 2026-11-16: o aviso compacto (casca.css) — ícone, a frase, Relatar, Detalhes e o × de ícone — no lugar
   // da faixa vermelha de ponta a ponta; some sozinho em 8 s (sumirErroDaAcao).
-  return `<div class="erro" role="alert">${IC_ERRO}<span class="erro-txt">${esc(e.mensagem)}</span>${relatar}${detalhes}<button type="button" class="erro-fechar" data-act="fechar-erro" aria-label="Fechar o aviso">${IC_FECHAR_ERRO}</button></div>`;
+  return `<div class="erro" role="alert">${IC_ERRO}<span class="erro-txt">${esc(e.mensagem)}</span>${relatar}${ajustes}${detalhes}<button type="button" class="erro-fechar" data-act="fechar-erro" aria-label="Fechar o aviso">${IC_FECHAR_ERRO}</button></div>`;
 }
 
 const IC_ERRO = '<svg class="erro-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5"/><path d="M12 16h.01"/></svg>';
@@ -3424,11 +3461,32 @@ function animarChegada(blocos: HTMLElement[]): void {
   for (const bloco of blocos) for (const b of bloco.querySelectorAll<HTMLElement>(".message.bot:not(.fala-viva) .bubble, .fala-pendente:not([data-envio=\"gravada\"]) .message.you .bubble")) b.classList.add("chegou");
 }
 
+const disclosuresAbertosEmTransicao = new Set<string>();
+// NOD-360 (CI da main, 14/11): a gravada pode entrar no histórico, ainda fechada, um instante antes de a fala que sai deixar
+// a região viva (as duas ficam ~100 ms na tela). Aberto nesse instante, o resumo da que sai valia só para ela, e a gravada
+// ficava fechada depois da troca: abrir ou fechar na região viva vale também para o mesmo `data-disclosure` do histórico.
+document.addEventListener("toggle", (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLDetailsElement) || !el.dataset.disclosure || !el.closest("#timeline-ao-vivo")) return;
+  const gravado = document.querySelector<HTMLDetailsElement>(`#timeline-historico details[data-disclosure="${CSS.escape(el.dataset.disclosure)}"]`);
+  if (gravado && gravado.open !== el.open) gravado.open = el.open;
+}, true);
 function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: { cascaMuda: boolean; historicoMuda: boolean; aoVivoMuda: boolean }): void {
   const t = estado.tela;
   const timeline = document.getElementById("timeline");
   const escopo: ParentNode = muda.historicoMuda ? document : document.getElementById("timeline-ao-vivo") ?? document;
   const abertos = [...escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure][open]")].map((el) => el.dataset.disclosure);
+  // NOD-360: o fim pode chegar em dois renders — primeiro a fala sai da região viva, depois entra no histórico.
+  // Guarda o estado nesse intervalo; no render único, `abertos` acima continua sendo a fonte normal.
+  if (muda.aoVivoMuda) {
+    for (const el of document.querySelectorAll<HTMLDetailsElement>("#timeline-ao-vivo details[data-disclosure]")) {
+      const chave = el.dataset.disclosure;
+      if (!chave) continue;
+      if (el.open) disclosuresAbertosEmTransicao.add(chave);
+      else disclosuresAbertosEmTransicao.delete(chave);
+    }
+  }
+  if (muda.historicoMuda) for (const chave of disclosuresAbertosEmTransicao) abertos.push(chave);
   const buscas = muda.cascaMuda ? ["busca-destinatario", "busca-marketplace"].map((id) => ({ id, valor: (document.getElementById(id) as HTMLInputElement | null)?.value ?? "" })) : [];
   // A pasta marcada no card de pasta sobrevive a um frame que re-renderiza a conversa no meio da escolha.
   const pastasMarcadas = [...escopo.querySelectorAll<HTMLInputElement>("input[data-pasta-de]:checked")].map((el) => ({ de: el.dataset.pastaDe ?? "", valor: el.value, foco: document.activeElement === el }));
@@ -3496,6 +3554,13 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     filtrarApps((document.getElementById("busca-marketplace") as HTMLInputElement | null)?.value ?? "");
   }
   for (const el of escopo.querySelectorAll<HTMLDetailsElement>("details[data-disclosure]")) if (abertos.includes(el.dataset.disclosure)) el.open = true;
+  if (muda.historicoMuda) {
+    for (const chave of [...disclosuresAbertosEmTransicao]) {
+      if (document.querySelector(`#timeline-historico details[data-disclosure="${CSS.escape(chave)}"]`)) {
+        window.setTimeout(() => disclosuresAbertosEmTransicao.delete(chave), 1_000);
+      }
+    }
+  }
   if (muda.historicoMuda) artefatos.hidratar(timeline ?? document);
   if (muda.historicoMuda) diagramas.hidratar(timeline ?? document);
   if ((muda.historicoMuda || muda.cascaMuda) && t.tipo === "conversa") contarLinhasMostradas();
@@ -3858,17 +3923,19 @@ const contaDaEntrada = (m: Partial<NonNullable<typeof entrada.conta>>) => { entr
 function entrarPelaTela(form: HTMLFormElement): Promise<void> {
   const d = new FormData(form);
   return trabalharNaEntrada(async () => {
-    try {
-      const r = await contaApi.entrar(String(d.get("email") ?? "").trim(), String(d.get("senha") ?? ""));
-      if (r.resultado === "recusado") return contaDaEntrada({ erro: ERRO_ENTRAR });
-      if (r.resultado === "entrou" && r.trocaApp && window.nodDesktop?.trocarConta) {
-        if (await window.nodDesktop.trocarConta(r.trocaApp).catch(() => false)) return;
-        return contaDaEntrada({ erro: FALHA_TROCA_APP });
+    await travaDaSessao.executar(async () => {
+      try {
+        const r = await contaApi.entrar(String(d.get("email") ?? "").trim(), String(d.get("senha") ?? ""));
+        if (r.resultado === "recusado") return contaDaEntrada({ erro: ERRO_ENTRAR });
+        if (r.resultado === "entrou" && r.trocaApp && window.nodDesktop?.trocarConta) {
+          if (await window.nodDesktop.trocarConta(r.trocaApp).catch(() => false)) return;
+          return contaDaEntrada({ erro: FALHA_TROCA_APP });
+        }
+        window.location.reload();
+      } catch (e) {
+        contaDaEntrada({ erro: fraseDoErroDeConta(e) });
       }
-      window.location.reload();
-    } catch (e) {
-      contaDaEntrada({ erro: fraseDoErroDeConta(e) });
-    }
+    });
   });
 }
 function recuperarPelaTela(form: HTMLFormElement): Promise<void> {
@@ -3931,6 +3998,17 @@ function renderEntrada(): string {
     ? `<p class="erro" role="alert">Não foi possível entrar com essa conta. Se ela ainda não tem acesso ao nod, peça para ser cadastrada.</p>`
     : "";
   if (!m) return `<section class="tela entrar"><h1>nod</h1><p class="mudo">carregando…</p></section>`;
+  if (entrada.primeiro && m.contas) {
+    const p = entrada.primeiro;
+    return htmlEntrarPrimeiro({
+      google: m.contas.google,
+      codigoPorEmail: m.contas.onboardingTexto === true,
+      equipe: linkDaEquipe({ loginGoogle: m.modo === "google", contaGoogle: m.contas.google, noApp: false, url: sessaoApi.urlGoogle }),
+      formEmailSenha: htmlEntradaConta(),
+      ocupado: p.ocupado,
+      erro: p.erro,
+    });
+  }
   if (m.modo === "google") {
     // NOD-345: com contas, quem não é da equipe entra com o e-mail (o Google da equipe continua aqui).
     return `<section class="tela entrar"><h1>nod</h1><p>Entre com a sua conta Google.</p>${doMac}${recusa}<a class="bt pri" href="${esc(sessaoApi.urlGoogle)}">Entrar com Google</a>${m.contas ? htmlEntradaConta() : ""}</section>`;
@@ -4327,6 +4405,8 @@ async function boot(): Promise<void> {
   let ticks = 0;
   window.setInterval(() => {
     ticks += 1;
+    const reconciliar = invalidacoesDoChatSemProgresso(estado, Date.now(), document.visibilityState === "visible");
+    if (reconciliar.length) estado = reduzir(estado, { tipo: "invalidar", quais: reconciliar });
     // definido em 2026-09-24 ("aviso no Mac"): a decisora designada que não é dona não recebe frame
     // decisao.* (o outbox manda à dona); sem isto o pedido dela só aparecia — e só avisava — quando
     // outra coisa relesse "Sua vez".
@@ -4361,6 +4441,9 @@ async function boot(): Promise<void> {
     url.searchParams.delete("parear-maquina");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   }
+  // #84: o link do QR do pareamento (`/#parear=<6 números>`). O código sai da URL na hora (não fica no histórico) e espera
+  // a sessão na sessionStorage da aba: a da pessoa, ou o espaço provisório da primeira visita do celular.
+  if (guardarCodigoDoLink(window)) url.hash = "";
   // NOD-455: o link direto /quadros/:qid (no recarregar e no celular) abre o quadro compartilhado depois da sessão.
   const quadroNaUrl = quadroDaUrl(url.pathname);
   if (quadroNaUrl) { try { window.sessionStorage.setItem(CHAVE_QUADRO_LINK, quadroNaUrl); } catch { /* sem storage: o link não abre */ } }
@@ -4414,6 +4497,7 @@ async function boot(): Promise<void> {
     abrirVoltaDaNuvemGuardada();
     void abrirTarefaGuardada(); abrirQuadroGuardado();
     await lerContas(voltaDaConta);
+    await abrirParearGuardado();
     if (confirmando) { await confirmando; if (contas?.minhaConta) abrirEspaco("conta"); }
   } catch (e) {
     if (e instanceof ErroApi && e.status === 401) {
@@ -4427,11 +4511,19 @@ async function boot(): Promise<void> {
         // tela, sem executor. Sessão do app que caiu volta à tela de entrar.
         // NOD-406: a volta recusada do Google da equipe fica na tela de entrada, com o motivo, sem abrir um provisório.
         // A marca da equipe: quem já entrou pelo Google da equipe neste navegador volta à tela de entrar.
-        if (abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() }) && (await provisorioDaWeb())) {
+        const abre = abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() });
+        // #81: na primeira visita deste navegador, pergunta "Já usa o nod?" antes de abrir um espaço provisório novo.
+        // #84: quem chega pelo QR já escolheu entrar numa conta; segue direto para a confirmação do pareamento.
+        if (!codigoDoLinkGuardado(window) && mostrarEntrarPrimeiro({ abreProvisorio: abre, temVerificador: temVerificador() })) {
+          entrada = { ...entrada, primeiro: { ocupado: false, erro: null } };
+          return render();
+        }
+        if (abre && (await provisorioDaWeb())) {
           await iniciarSessao(await sessaoApi.atual());
           // O link da tarefa também vale na primeira visita, no espaço provisório (revisão do PR #623).
           void abrirTarefaGuardada(); abrirQuadroGuardado();
           await lerContas(voltaDaConta);
+          await abrirParearGuardado();
           return;
         }
         render();
@@ -4442,30 +4534,89 @@ async function boot(): Promise<void> {
   }
 }
 
+/**
+ * #84: o código do QR guardado no boot. Com a sessão aberta (a da pessoa ou o espaço provisório, que o pedido exige),
+ * tira o onboarding da frente e abre a confirmação "Conectar a esta conta"; o pedido só sai no clique (revisão do PR #85).
+ */
+async function abrirParearGuardado(): Promise<void> {
+  await abrirCodigoGuardado(window, {
+    // O onboarding do espaço provisório abriria por cima do cartão: lido agora, ele resolve (abre uma vez) e fecha aqui.
+    tirarDaFrente: async () => {
+      if (estado.onboarding === undefined && api) dispatch({ tipo: "hidratar-onboarding", onboarding: await api.onboarding().catch(() => null) });
+      dispatch({ tipo: "onboarding-aberto", aberto: false });
+    },
+    conta: telaConta,
+  });
+}
+
 /** NOD-345: o verificador desta instalação na web (aleatório, guardado; perder = um espaço novo, o antigo fica). */
 const CHAVE_VERIFICADOR = "nod-instalacao";
-async function provisorioDaWeb(): Promise<boolean> {
-  let v: string | null = null;
-  try { v = window.localStorage.getItem(CHAVE_VERIFICADOR); } catch { /* sem storage: um verificador por visita */ }
-  if (!v || !/^[A-Za-z0-9_-]{32,128}$/.test(v)) {
-    const b = crypto.getRandomValues(new Uint8Array(32));
-    v = btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    try { window.localStorage.setItem(CHAVE_VERIFICADOR, v); } catch { /* idem */ }
+function temVerificador(): boolean {
+  try { return /^[A-Za-z0-9_-]{32,128}$/.test(window.localStorage.getItem(CHAVE_VERIFICADOR) ?? ""); } catch { return false; }
+}
+
+/**
+ * #81: a escolha na tela "Já usa o nod?". Google, código por e-mail e pareamento pedem sessão (exigirSessao no servidor):
+ * abre o espaço provisório, tira o onboarding da frente e segue para o passo escolhido. "Começar sem conta" é o de antes.
+ */
+async function seguirEntrarPrimeiro(i: IntencaoEntrada): Promise<void> {
+  if (!entrada.primeiro || entrada.primeiro.ocupado) return;
+  entrada = { ...entrada, primeiro: { ocupado: true, erro: null } };
+  render();
+  if (!(await provisorioDaWeb())) {
+    const erro = entrada.conta?.erro === LIMITE_PROVISORIO ? LIMITE_PROVISORIO : "Não deu para falar com o nod agora. Tente de novo.";
+    entrada = { ...entrada, primeiro: { ocupado: false, erro } };
+    return render();
   }
+  entrada = { ...entrada, primeiro: null };
   try {
-    await contaApi.provisorioWeb(v);
-    return true;
-  } catch (e) {
-    if (e instanceof ErroApi && e.desafio && e.bits) {
-      const resposta = await resolverProvaNoNavegador(e.desafio, e.bits);
-      if (resposta !== null) {
-        try { await contaApi.provisorioWeb(v, { desafio: e.desafio, resposta }); return true; } catch { /* mostra o limite abaixo */ }
-      }
+    await iniciarSessao(await sessaoApi.atual());
+    void abrirTarefaGuardada(); abrirQuadroGuardado();
+    await lerContas(null);
+    if (i === "sem-conta") return;
+    // O onboarding do espaço provisório abriria por cima do cartão: lido agora, ele resolve (abre uma vez) e fecha aqui.
+    if (estado.onboarding === undefined && api) dispatch({ tipo: "hidratar-onboarding", onboarding: await api.onboarding().catch(() => null) });
+    dispatch({ tipo: "onboarding-aberto", aberto: false });
+    const etapa = etapaDaIntencao(i);
+    if (etapa) return void (await telaConta.abrir(etapa, true));
+    try {
+      window.location.assign((await contaApi.google(false)).url);
+    } catch {
+      await telaConta.abrir("inicio", true);
     }
-    // Muitos espaços novos da mesma rede (NAT de escritório, CGNAT): a tela de entrada diz por quê, em vez de só aparecer.
-    if (e instanceof ErroApi && e.status === 429) entrada = { ...entrada, conta: { etapa: "entrar", enviadoPara: null, ocupado: false, ...entrada.conta, erro: LIMITE_PROVISORIO } };
-    return false;
+  } catch (e) {
+    mostrarErroDoBoot(e);
   }
+}
+async function provisorioDaWeb(): Promise<boolean> {
+  return travaDaSessao.executar(async () => {
+    // O login pode ter vencido a corrida enquanto o boot esperava a trava. Nesse caso, mantém a sessão da conta.
+    try { await sessaoApi.atual(); return true; } catch (e) { if (!(e instanceof ErroApi && e.status === 401)) return false; }
+    return comVerificadorDoProvisorio({
+      ler: () => { try { return window.localStorage.getItem(CHAVE_VERIFICADOR); } catch { return null; } },
+      gravar: (v) => { try { window.localStorage.setItem(CHAVE_VERIFICADOR, v); } catch { /* sem storage: um verificador por visita */ } },
+      gerar: () => {
+        const b = crypto.getRandomValues(new Uint8Array(32));
+        return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      },
+      abrir: async (v) => {
+        try {
+          await contaApi.provisorioWeb(v);
+          return true;
+        } catch (e) {
+          if (e instanceof ErroApi && e.desafio && e.bits) {
+            const resposta = await resolverProvaNoNavegador(e.desafio, e.bits);
+            if (resposta !== null) {
+              try { await contaApi.provisorioWeb(v, { desafio: e.desafio, resposta }); return true; } catch { /* mostra o limite abaixo */ }
+            }
+          }
+          // Muitos espaços novos da mesma rede (NAT de escritório, CGNAT): a tela de entrada diz por quê, em vez de só aparecer.
+          if (e instanceof ErroApi && e.status === 429) entrada = { ...entrada, conta: { etapa: "entrar", enviadoPara: null, ocupado: false, ...entrada.conta, erro: LIMITE_PROVISORIO } };
+          return false;
+        }
+      },
+    });
+  });
 }
 
 /** NOD-346: o servidor não diz se a conta existiu (sem enumeração); a dica cobre quem excluiu e voltou depois do prazo. */
@@ -6628,7 +6779,7 @@ async function enviarRascunhos(el: HTMLElement, enviar: boolean): Promise<void> 
     const itens = enviar ? marcas : itensDaRecusa(marcas, estado.suaVez?.itens.find((i) => i.decisao.id === id)?.itensAprovacao ?? []);
     if (!itens || itens.length === 0) continue;
     marcarDecidida(el, id);
-    await api!.decidir(id, { itens });
+    await decidirAprovacaoReconciliando(id, { itens });
   }
   dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
 }
@@ -7292,6 +7443,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   }),
   ...(telaMinhaConta.acoes as Record<string, (el: HTMLElement) => Promise<void> | void>),
   "conta-abrir": (el) => { try { marcarFalou(window.localStorage); } catch { /* sem storage */ } return telaConta.acoes["conta-abrir"]?.(el); },
+  "entrada-primeiro": (el) => { const i = intencaoDe(el.dataset.intencao); if (i) void seguirEntrarPrimeiro(i); },
   "entrada-ir": (el) => { entrada = { ...entrada, conta: { etapa: el.dataset.etapa === "recuperar" ? "recuperar" : "entrar", erro: null, enviadoPara: null, ocupado: false }, redefinir: null }; render(); },
   // NOD-345: "Mostrar" a senha troca o tipo do campo ali mesmo (o valor nunca sai do DOM).
   "conta-mostrar": (el) => {
@@ -7320,6 +7472,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "ligacao-aprovar": (el) => agir(() => telaLigacao.decidir(el.dataset.id ?? "", true)),
   "ligacao-recusar": (el) => agir(() => telaLigacao.decidir(el.dataset.id ?? "", false)),
   "ligacao-retomar-audio": () => telaLigacao.retomarAudio(),
+  // O aviso de microfone negado (ligação e ditado, no app): abre Privacidade › Microfone do sistema.
+  "microfone-ajustes": () => abrirAjustesDoMicrofone(),
+  // O × do aviso de microfone que o ditado põe acima do campo (web/telas/ditado-controle.ts).
+  "ditado-aviso-fechar": (el) => el.closest(".ditado-aviso")?.remove(),
   "ligacao-sugestao": (el) => { telaLigacao.enviarTexto(el.dataset.texto ?? ""); },
   // Rede de segurança (2026-10-05): a IA do Mac caiu no meio da ligação.
   "ligacao-continuar-ia": (el) => telaLigacao.continuarCom(el.dataset.ia === "codex-cli" ? "codex-cli" : "claude-cli"),
@@ -7414,7 +7570,12 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     }
     setTimeout(() => { el.textContent = antes; }, 1500);
   },
-  entrar: (el) => agir(async () => { await iniciarSessao(await sessaoApi.entrar(el.dataset.pessoa ?? "")); void abrirTarefaGuardada(); abrirQuadroGuardado(); await lerContas(null); }),
+  entrar: (el) => agir(async () => {
+    await travaDaSessao.executar(async () => {
+      await iniciarSessao(await sessaoApi.entrar(el.dataset.pessoa ?? ""));
+      void abrirTarefaGuardada(); abrirQuadroGuardado(); await lerContas(null);
+    });
+  }),
   navegar: (el) => {
     const tela = el.dataset.tela;
     if (tela === "conectores") abrirMarketplace();
@@ -7729,7 +7890,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (grupos.length > 0 && capacidades.length === 0) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: "Marque pelo menos um grupo para permitir." } }); return; }
     // Chat limpo (PR 4): o consentimento leva o id desta decisão; o cartão "Acesso permitido" recebe o foco e o anúncio.
     marcarDecidida(el, id);
-    await api!.decidir(id, grupos.length > 0 ? { capacidades } : {});
+    await decidirAprovacaoReconciliando(id, grupos.length > 0 ? { capacidades } : {});
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", "conectores", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
   "dar-acesso": (el) => abrirNivel(el.dataset.id ?? "", { tipo: "dar-acesso" }),
@@ -7762,7 +7923,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       const proposta = propostaDoEstado(propostaId);
       if (!proposta || proposta.estado !== "pendente" || appsQueFaltam(proposta, estado).length > 0) return;
       await agir(async () => {
-        if (ato === "decidir-proposta") await api!.decidir(propostaId, {});
+        if (ato === "decidir-proposta") await decidirAprovacaoReconciliando(propostaId, {});
         else await api!.confirmarProposta(propostaId);
         dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
       });
@@ -8146,7 +8307,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const agenteId = el.dataset.agente ?? estado.atividadeVista?.agenteId ?? "";
     const dia = el.dataset.dia ?? "";
     if (estado.gaveta?.nivel.tipo !== "atividade" || estado.atividadeVista?.agenteId !== agenteId) abrirNivel(agenteId, { tipo: "atividade" });
-    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho: "negada", decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
+    const filtroPedido = el.dataset.filtro;
+    const desfecho = ehFiltroDecisoes(filtroPedido) ? filtroPedido : "negada";
+    if (estado.atividadeVista) dispatch({ tipo: "atividade-vista", mudanca: { aba: "decisoes", desfecho, decisao: null, exportar: null, ...(/^\d{4}-\d{2}-\d{2}$/.test(dia) ? { dia } : {}) } });
     focarQuandoAparecer('#detalhes [data-act="atividade-aba"][data-aba="decisoes"]', el);
   },
   "exportar-csv": () => {
@@ -8485,11 +8648,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "sondar-conector": (el) => agir(async () => void (await api!.sondarConector(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["conectores", "frota"] }))),
   "habilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", true), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
   "desabilitar-conector": (el) => agir(async () => void (await api!.habilitarConector(el.dataset.id ?? "", false), dispatch({ tipo: "invalidar", quais: ["conectores"] }))),
-  "decidir-aprovacao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? "") }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
+  "decidir-aprovacao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? "") }))),
   // ADR-042: aprova AGORA e grava a regra para as próximas vezes, no mesmo clique.
   // definido em 2026-09-28 (emenda da ADR-037): aprova este passo e libera o computador até o fim da tarefa.
-  "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
-  "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] }))),
+  "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }))),
+  "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }))),
   // ADR-166 (tela 06): permitir e, com "Salvar como regra" marcado, gravar a regra "Pode fazer sem perguntar" no bot do
   // cartão. A aprovação sai primeiro (é o que a pessoa pediu agora); a regra que falhar avisa, sem desfazer a aprovação.
   "decidir-aprovacao-com-regra": (el) => agir(async () => {
@@ -8497,7 +8660,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const marca = document.querySelector<HTMLInputElement>(`[data-cr-regra-marca="${CSS.escape(id)}"]`);
     const texto = document.querySelector<HTMLInputElement>(`[data-cr-regra-texto="${CSS.escape(id)}"]`)?.value.trim() ?? "";
     marcarDecidida(el, id);
-    await api!.decidir(id, { itens: marcacoesDe(id) });
+    await decidirAprovacaoReconciliando(id, { itens: marcacoesDe(id) });
     if (marca?.checked && texto && el.dataset.agente) {
       try {
         await api!.criarRegraRevisor({ agenteId: el.dataset.agente, lista: "permitir", texto, origem: "sugestao" });
@@ -8511,13 +8674,13 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "iguais-permitir": (el) => agir(async () => {
     const card = el.closest<HTMLElement>(".aprov-iguais");
     const ids = [...(card?.querySelectorAll<HTMLInputElement>("input[data-igual]") ?? [])].filter((c) => c.checked).map((c) => c.dataset.igual ?? "").filter(Boolean);
-    for (const id of ids) await api!.decidir(id, { itens: [] });
+    for (const id of ids) await decidirAprovacaoReconciliando(id, { itens: [] });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
   }),
   "iguais-negar": (el) => agir(async () => {
     for (const id of (el.dataset.iguais ?? "").split(",").filter(Boolean)) {
       const itens = itensDaRecusa([], estado.suaVez?.itens.find((i) => i.decisao.id === id)?.itensAprovacao ?? []);
-      if (itens) await api!.decidir(id, { itens });
+      if (itens) await decidirAprovacaoReconciliando(id, { itens });
     }
     dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
   }),
@@ -8545,8 +8708,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       return;
     }
     marcarDecidida(el, id);
-    await api!.decidir(id, { itens });
-    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+    await decidirAprovacaoReconciliando(id, { itens });
   }),
   // NOD-367: o filtro de Feedback mora em configUi (os envios abertos ficam em configUi.abertos e sobrevivem ao redesenho).
   "filtrar-relatos": (el) => {
@@ -8569,12 +8731,12 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const card = el.closest<HTMLElement>("[data-proposta]");
     const selecionados = [...(card?.querySelectorAll<HTMLInputElement>("input[data-lote-i]") ?? [])].filter((c) => c.checked).map((c) => Number(c.dataset.loteI));
     marcarDecidida(el, el.dataset.id);
-    await api!.decidir(el.dataset.id ?? "", { selecionados });
+    await decidirAprovacaoReconciliando(el.dataset.id ?? "", { selecionados });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", "gestao", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
   // Revisão 6 do #626: o card do app que não vale mais volta 409 com o `motivo`; a frase dele sai no aviso neutro (o card
   // fechou como recusado e o recibo foi gravado, então a conversa relê do mesmo jeito). Outros cards não mandam motivo.
-  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => api!.decidir(el.dataset.id ?? "", {}).then(() => undefined), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "decidir-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await tentarNoApp(() => decidirAprovacaoReconciliando(el.dataset.id ?? "", {}), (texto) => void mostrarAvisoDesfazer({ texto }), "card"), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", "frota", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // NOD-50: o cartão de credencial. Mostrar troca o tipo do campo sem redesenhar (o valor fica onde está); a fase guarda
   // só o "mostrando", para o próximo frame não esconder o que a pessoa pediu para ver.
   "mostrar-credencial": (el) => {
@@ -8591,10 +8753,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const id = el.dataset.id ?? "";
     for (const campo of document.querySelectorAll<HTMLInputElement>(`[data-form="guardar-credencial"][data-id="${CSS.escape(id)}"] input[name="valor"]`)) campo.value = "";
     marcarFase(id, null);
-    await api!.decidir(id, { recusar: true });
+    await decidirAprovacaoReconciliando(id, { recusar: true });
     dispatch({ tipo: "invalidar", quais: ["sua-vez", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   }),
-  "recusar-decisao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.decidir(el.dataset.id ?? "", { recusar: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
+  "recusar-decisao": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { recusar: true }), dispatch({ tipo: "invalidar", quais: ["sua-vez", "rotinas", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
   // definido em 2026-09-24 (emenda da ADR-045): a pergunta se responde pelo campo da conversa. Revisto em 2026-10-18
   // (plano "pergunta com botões"): estes são os gestos em volta do cartão e da caixa "Respondendo".
   "composer-outro": () => escolherNoComposer(true),
@@ -8655,6 +8817,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     return agir(async () => void (await api!.revogarChave(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["chaves", "maquinas", "frota"] }), focarGatilho(gatilho)));
   },
   "fechar-chave-emitida": () => dispatch({ tipo: "chave-emitida", emitida: null }),
+  "fechar-token-mcp": () => dispatch({ tipo: "mcp-token-emitido", emitido: null }),
+  "revogar-token-mcp": (el) => {
+    if (!window.confirm(`Revogar o token "${el.dataset.nome ?? ""}"? O app conectado com ele perde o acesso ao Nod na hora.`)) return;
+    return agir(async () => void (await api!.revogarTokenMcp(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["mcp-tokens"] })));
+  },
   // ADR-102: a lista única de contas (Provedores de IA) e as ações da máquina (Máquinas).
   "cl-menu": (el) => {
     const id = el.dataset.id ?? "";
@@ -9067,6 +9234,13 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     if (campo && telaLigacao.enviarTexto(campo.value)) campo.value = "";
     campo?.focus();
   },
+  "gerar-token-mcp": (form) =>
+    agir(async () => {
+      const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
+      const emitido = await api!.gerarTokenMcp(nome);
+      form.reset();
+      dispatch({ tipo: "mcp-token-emitido", emitido });
+    }),
   "emitir-chave": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";

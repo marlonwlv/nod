@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { ConversaNaoLida } from "../../../src/contracts/nao-lidos.ts";
 import type { Mensagem } from "../../../src/contracts/mensagem.ts";
@@ -52,6 +53,13 @@ describe("não lidos no estado da web", () => {
 });
 
 describe("a tela Não lidos", () => {
+  it("no celular, o ✓ da lista e do card tem alvo de toque de 44 px", () => {
+    const css = readFileSync(new URL("../../../web/mobile.css", import.meta.url), "utf8");
+    expect(css).toContain(".nl-check { width: var(--cel-alvo); height: var(--cel-alvo); top: 2px; right: 6px; }");
+    expect(css).toContain(".nlc-abrir { min-height: var(--cel-alvo); }");
+    expect(css).toContain(".nlc-check { width: var(--cel-alvo); height: var(--cel-alvo); top: 50%; right: 6px; }");
+  });
+
   it("vazia, diz Tudo em dia e não oferece marcar tudo", () => {
     const html = renderNaoLidos({ ...base, naoLidos: { conversas: [] } });
     expect(html).toContain("<b>Tudo em dia</b>");

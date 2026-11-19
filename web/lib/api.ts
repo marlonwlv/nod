@@ -18,6 +18,7 @@ import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
 import type { Agente, FormaAgente, CorAgente, ModoAprovacao } from "../../src/contracts/agente.ts";
 import type { AmbienteBancoDto, ChaveEmitidaDto, ChaveMaquinaDto, FrotaDto, ModoSessaoDto, RespostaMutacao, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
+import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
 import type { Concessao } from "../../src/contracts/concessao.ts";
 import { cabecalhosDoApp, cabecalhosDoGoogleApp } from "./desafio-app.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
@@ -651,6 +652,10 @@ export function criarApi(escopo: Escopo) {
     chaves: () => get<{ chaves: ChaveMaquinaDto[] }>("maquinas/chaves"),
     emitirChave: (nome: string) => post<ChaveEmitidaDto>("maquinas/chaves", { nome }),
     revogarChave: (id: string) => del<{ ok: true }>(`maquinas/chaves/${id}`),
+    // Servidor MCP do Nod (0173): os tokens que um cliente MCP de fora usa no /api/mcp.
+    mcpTokens: () => get<TokensMcpDto>("mcp/tokens"),
+    gerarTokenMcp: (nome: string) => post<TokenMcpEmitidoDto>("mcp/tokens", { nome }),
+    revogarTokenMcp: (id: string) => del<{ ok: true }>(`mcp/tokens/${encodeURIComponent(id)}`),
     // ADR-090: as máquinas, onde cada bot trabalha, o pareamento por código e o "rodar em outra desta vez".
     maquinas: () => get<MaquinasDto>("maquinas"),
     // ADR-169: as três opções de onde o agente roda; o servidor antigo dá 404 e a tela fica como antes.

@@ -169,6 +169,8 @@ export const confirmarProposta: CasoDeUso<{ propostaId: string; prazoMs?: number
     throw new ErroDeDominio("estado_invalido", { cause: "a importação do Linear se decide pela decisão do card" });
   } else if (proposta.payload.kind === "app") {
     throw new ErroDeDominio("estado_invalido", { cause: "o app se decide pela decisão do card" });
+  } else if (proposta.payload.kind === "decisoes_exportacao") {
+    throw new ErroDeDominio("estado_invalido", { cause: "a exportação se decide pela decisão do card" });
   } else {
     const p = proposta.payload;
     const agenteDaProposta = await deps.repos.agentes.buscar(proposta.agenteId);

@@ -115,6 +115,8 @@ export function criarExecutorPorPrimitivas(p: PrimitivasDeComputador, o: OpcoesP
 
   async function executar(ref: RefComputador, acao: AcaoComputador): Promise<ResultadoComputador> {
     switch (acao.tipo) {
+      case "elementos":
+        throw naoTem("navegação semântica", "use a observação visual e interaja com o quadro atual");
       case "observar":
         return { tela: await tela(ref) };
       case "navegar": {

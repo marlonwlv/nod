@@ -19,6 +19,7 @@ describe("rótulos das ferramentas do computador", () => {
   });
 
   it("observar, terminal e abas", () => {
+    expect(emUso("computador_elementos", { operacao: "preencher", texto: "privado" })).toBe("Interagindo com a página");
     expect(emUso("computador_observar", {})).toBe("Olhando a tela");
     expect(emUso("computador_observar", { forcar: true })).toBe("Olhando a tela");
     expect(emUso("computador_terminal", { comando: "ls -la" })).toBe("Rodando no terminal");

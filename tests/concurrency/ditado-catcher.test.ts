@@ -3,6 +3,7 @@ import WebSocket from "ws";
 import type { DisponibilidadeDitado, MsgDitadoServidor } from "../../src/contracts/ditado.ts";
 import { VERSAO_CONSENTIMENTO_VOZ } from "../../src/contracts/ligacao.ts";
 import { servidorCompleto, type ServidorCompleto } from "../helpers/servidor-completo.ts";
+import { describeIntegracao } from "../helpers/integracao.ts";
 import { limparPessoaE2E } from "./limpeza-e2e.ts";
 
 /**
@@ -10,6 +11,7 @@ import { limparPessoaE2E } from "./limpeza-e2e.ts";
  * faz o papel do campo de mensagem: abre o canal do ditado com cookie e Origin, fala em dois trechos, conclui e recebe
  * o texto inteiro. Sem o aviso da voz aceito, o canal recusa antes de qualquer áudio ir ao STT.
  */
+describeIntegracao("ditado ponta a ponta com o catcher", () => {
 let srv: ServidorCompleto;
 
 beforeAll(async () => {
@@ -92,4 +94,6 @@ it("o 🎤 aparece pedindo o aviso; sem ele o canal recusa; com ele, dois trecho
   expect(await cli.esperar("texto")).toEqual({ t: "texto", texto: "Oi, tudo bem? Manda o resumo de ontem." });
   await srv.esperar(async () => cli.fechou, { nome: "fechou depois do texto", timeoutMs: 5_000 });
   expect(cli.fechou).toBe(1000);
+});
+
 });

@@ -436,6 +436,7 @@ const MOTIVO_NAO_RODOU: Readonly<Record<MotivoNaoRodouRotina, string>> = {
   maquina_sem_contato: "o computador do bot ficou sem contato",
   reinicio_servidor: "o servidor reiniciou",
   reinicio_do_motor: "o nod foi reiniciado na máquina",
+  tempo_esgotado: "a execução demorou mais que o esperado",
   erro_do_provedor: "a IA ficou fora do ar",
   // NOD-386: a máquina seguiu em contato e quem falhou foi o servidor; a linha não culpa a máquina.
   servidor_nao_respondeu: "o servidor do nod não respondeu a tempo",

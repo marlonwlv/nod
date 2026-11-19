@@ -114,12 +114,12 @@ describeIntegracao("e2e com catcher: a jornada do quadro-agente, da meta ao merg
     // 1–3. No chat de um bot comum, a pessoa diz o que quer; a Ada cria o quadro com meta e prazo, quebra em tarefas e
     // puxa a que já existe no Linear (o servidor não fala com o Linear: o bot passa o item).
     const descA = [
-      gerir([{ tipo: "mudar_tarefa", tarefa: "Seção de planos", status: "voce", pergunta: "Planos em reais ou em dólares?" }]),
+      gerir([{ tipo: "mudar_tarefa", tarefa: "Seção de planos", pergunta: "Planos em reais ou em dólares?" }]),
       "[[texto: Travei numa decisão; perguntei no card.]]",
     ].join("\n");
     const descB = [
       gerir([{ tipo: "mudar_tarefa", tarefa: "NOD-900", pr_url: PR_B }]),
-      gerir([{ tipo: "mudar_tarefa", tarefa: "NOD-900", status: "feito" }]),
+      gerir([{ tipo: "terminei", tarefa: "NOD-900" }]),
       "[[texto: PR mergeado; NOD-900 feita.]]",
     ].join("\n");
     const t1 = await rodar(ada.conversaId, [
@@ -168,7 +168,7 @@ describeIntegracao("e2e com catcher: a jornada do quadro-agente, da meta ao merg
 
     // 6. A única ação da pessoa: responder ao bloqueio no card. O Beto volta a andar, abre o PR e fecha no merge.
     const planos = tarefa(q, "Seção de planos")!;
-    const resposta = ["Em reais.", gerir([{ tipo: "mudar_tarefa", tarefa: planos.id, pr_url: PR_A }]), gerir([{ tipo: "mudar_tarefa", tarefa: planos.id, status: "feito" }]), "[[texto: PR mergeado.]]"].join("\n");
+    const resposta = ["Em reais.", gerir([{ tipo: "mudar_tarefa", tarefa: planos.id, pr_url: PR_A }]), gerir([{ tipo: "terminei", tarefa: planos.id }]), "[[texto: PR mergeado.]]"].join("\n");
     await json("POST", `agentes/${ada.agenteId}/quadro/tarefas/${planos.id}/resposta`, { resposta });
 
     // 9. No fim, a meta cumprida com o resumo do que foi feito.

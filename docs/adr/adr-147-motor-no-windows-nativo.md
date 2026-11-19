@@ -37,6 +37,10 @@ O motor (`motor/main.ts`) e o executor dependem de POSIX em quase toda camada: `
 
 8. **O motor do Windows só conecta em servidor que conhece o `win32`** (a sessão lista as plataformas): num rollback, o
    servidor antigo o trataria como Mac.
+9. **A linha do Claude Code fica abaixo do teto do `CreateProcess`.** Prompt e settings longos vão em arquivos no
+   diretório temporário do turno. Se um catálogo grande ainda ultrapassar o teto, `--allowedTools` usa `mcp__nod`, a
+   forma documentada pelo CLI para permitir o servidor inteiro; esse servidor é o proxy escopado pelo token do turno e
+   só lista as ferramentas do plano, portanto a permissão efetiva continua sendo o catálogo exato.
 
 ## Desvios de outras ADRs (no win32)
 

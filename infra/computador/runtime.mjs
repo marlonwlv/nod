@@ -9,6 +9,8 @@ import net from 'node:net';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import { setTimeout as delay } from 'node:timers/promises';
+import { gravarSelecaoDoX } from './selecao-x.mjs';
+import { criarNavegador } from './navegador.mjs';
 import { lerTexto, gravarTexto } from './texto.mjs';
 import { prepararShellVisual } from './shell-visual.mjs';
 import { dimensoesShell, lancadorShellSeguro, renderizarHomeShell } from './shell-visual-runtime.mjs';
@@ -71,7 +73,9 @@ function tecla(k) {
   const nomes={Control:'ctrl',Meta:'super',Enter:'Return',ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Space:'space',Backspace:'BackSpace',PageUp:'Prior',PageDown:'Next'};
   return k.split('+').map(x=>nomes[x]??x).join('+');
 }
+const navegador = criarNavegador({ pagina: atual, revisao: () => revision, invalidar: mudar });
 async function acao(a) {
+  if (a.tipo === 'elementos') return navegador.executar(a);
   const observado=quadros.get(a.quadro);
   if('quadro' in a && (!observado || observado.revision!==revision || Date.now()-observado.em>120000)) throw new Error('tela_alterada');
   const p=await atual();
@@ -112,8 +116,8 @@ async function acao(a) {
     case 'arrastar':mudar();await run('xdotool',['mousemove','--sync',String(a.x),String(a.y),'mousedown','1','mousemove','--sync',String(a.destinoX),String(a.destinoY),'mouseup','1']);break;
     case 'digitar': {
       mudar();await writeFile('/tmp/entrada',a.texto,{mode:0o600});
-      await run('xclip',['-selection','clipboard','/tmp/entrada']);
-      await run('xdotool',['key','--clearmodifiers','ctrl+v']);await delay(150);await unlink('/tmp/entrada');await run('xclip',['-selection','clipboard','/dev/null']);break;
+      await gravarSelecaoDoX('xclip','clipboard','/tmp/entrada',process.env);
+      await run('xdotool',['key','--clearmodifiers','ctrl+v']);await delay(150);await unlink('/tmp/entrada');await gravarSelecaoDoX('xclip','clipboard','/dev/null',process.env);break;
     }
     case 'tecla':mudar();await run('xdotool',['key','--clearmodifiers',tecla(a.tecla)]);break;
     case 'rolar':mudar();await run('xdotool',['click','--repeat',String(Math.max(1,Math.ceil(Math.abs(a.delta)/100))),a.delta<0?'4':'5']);break;

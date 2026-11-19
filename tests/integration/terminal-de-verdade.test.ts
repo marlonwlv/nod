@@ -99,6 +99,9 @@ describeIntegracao("terminal de verdade: cada comando passa pelo nod (ADR-055)",
       if (!("aguardar" in r.data)) throw new Error("esperava card");
       const { data } = await marcarEDecidir(c.deps, { decisaoId: r.data.aguardar });
       expect((await liberarNaTarefa(c.deps, { decisao: data.decisao })).data.liberado).toBe(true);
+      // ADA-247: outra aba ainda pode estar desenhando este mesmo card como pendente. O clique velho recebe o conflito
+      // legível; a web relê a fila e o absorve somente depois de confirmar que a decisão já fechou.
+      await expect(marcarEDecidir(c.deps, { decisaoId: r.data.aguardar })).rejects.toMatchObject({ codigo: "estado_invalido", cause: "decisão decidida" });
       expect((await c.repos.mensagens.ultimaDaConversa(c.conversaId))?.texto).toContain("liberou o terminal do Mac até o fim desta tarefa");
       expect(await terminalLiberadoNaTarefa(c.deps, c.turno.id)).toBe(true);
       expect((await c.autorizar("git commit -am 'x'")).data).toEqual({ permitir: true, porque: "liberado_na_tarefa" });

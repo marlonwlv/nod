@@ -86,8 +86,25 @@ describe("decidir (E4.1/E4.3/E4.5): aprovação em lista com execução parcial"
     const c = await cenarioComDecisao();
     await decidir(c.deps, { decisaoId: c.decisaoId, itens: [] });
     expect(c.chamadas).toHaveLength(2);
-    await expect(decidir(c.deps, { decisaoId: c.decisaoId, itens: [] })).rejects.toMatchObject({ codigo: "estado_invalido" });
+    await expect(decidir(c.deps, { decisaoId: c.decisaoId, itens: [] })).rejects.toMatchObject({ codigo: "estado_invalido", cause: "decisão decidida" });
     expect(c.chamadas).toHaveLength(2);
+  });
+
+  it("todo estado_invalido anterior ao fechamento leva uma causa operacional legível", async () => {
+    const excluido = await cenarioComDecisao();
+    const agente = excluido.banco.agentes.find((a) => a.id === excluido.banco.decisoes[0]?.agenteId);
+    if (agente) agente.excluidoEm = 1;
+    await expect(decidir(excluido.deps, { decisaoId: excluido.decisaoId, itens: [] })).rejects.toMatchObject({
+      codigo: "estado_invalido",
+      cause: "agente da decisão excluído",
+    });
+
+    const bloqueado = await cenarioComDecisao();
+    bloqueado.deps.repos.agentes.execucaoBloqueada = async () => true;
+    await expect(decidir(bloqueado.deps, { decisaoId: bloqueado.decisaoId, itens: [] })).rejects.toMatchObject({
+      codigo: "estado_invalido",
+      cause: "execução do turno da decisão bloqueada",
+    });
   });
 
   it("conector que falha ou devolve isError → falhou_na_execucao, nunca 'enviado' (E4.5)", async () => {

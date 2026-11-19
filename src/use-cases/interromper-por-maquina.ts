@@ -50,7 +50,7 @@ export type SaidaQuedaDaMaquina = {
  * Por que o varredor assentou o turno: uma queda (MotivoDaQueda) ou, desde 2026-10-20 (NOD-293 A7), a máquina removida —
  * a pessoa revogou a chave com o turno rodando. A removida tem Retomar como a queda, mas nenhum aviso de "sem contato".
  */
-type MotivoDoVarredor = MotivoDaQueda | "maquina_removida";
+type MotivoDoVarredor = MotivoDaQueda | "maquina_removida" | "turno_travado";
 
 /**
  * Um turno JÁ interrompido pela queda, com o que se sabe dela. `servidorFalhou` (NOD-386): o lease venceu com a máquina
@@ -82,7 +82,7 @@ async function consequencias(deps: DepsQueda, c: Caido & { rotinaId: string | nu
   }
   if (c.rotinaId) {
     // NOD-386: a rotina que desistiu com a máquina em contato não culpa a máquina no histórico.
-    const r = await registrarDesfechoRotina(deps, { turnoId: turno.id, desfecho: "interrompida", motivo: c.servidorFalhou && motivo === "maquina_sem_contato" ? "servidor_nao_respondeu" : motivo });
+    const r = await registrarDesfechoRotina(deps, { turnoId: turno.id, desfecho: "interrompida", motivo: motivo === "turno_travado" ? "tempo_esgotado" : c.servidorFalhou && motivo === "maquina_sem_contato" ? "servidor_nao_respondeu" : motivo });
     events.push(...(r.events ?? []));
     return { decisaoId: null, rotinaId: c.rotinaId, rotina: true };
   }
@@ -125,7 +125,9 @@ async function aposQuedaNoFundo(deps: DepsQueda, c: Caido & { rotinaId: string |
   const { turno, motivo } = c;
   // NOD-293 A7: a máquina removida não volta a puxar — nada de esperar por ela no fundo; vale o Retomar de antes.
   if (motivo === "maquina_removida") return null;
-  if (turno.pararSolicitadoEm !== null || !(await fundoNaCadeia(deps, turno))) return null;
+  // O teto usa a mesma marca de parada para fazer o executor confirmar o corte, mas não foi a pessoa que desistiu:
+  // continua pela política do fundo. Nos demais motivos, Parar ainda vence e nunca cria retomada.
+  if ((turno.pararSolicitadoEm !== null && motivo !== "turno_travado") || !(await fundoNaCadeia(deps, turno))) return null;
   const trabalho = turno.trabalhoId ? await deps.repos.trabalhos.buscar(turno.trabalhoId) : null;
   if (turno.trabalhoId && (!trabalho || !trabalhoAberto(trabalho.estado))) return null;
   const agora = deps.agora();
@@ -235,7 +237,7 @@ async function aplicar(deps: DepsQueda, caidos: readonly Caido[], prazoMs: numbe
     // ADR-083: o trabalho do turno caído vira "precisa de você" (o card Retomar) ou "falhou" (rotina, sem retomada).
     events.push(...(await sincronizarDoTurno(deps, c.turno)));
     saida.interrompidos.push(c.turno.id);
-    if (c.motivo !== "maquina_removida") saida.porMotivo[c.motivo] += 1;
+    if (c.motivo !== "maquina_removida" && c.motivo !== "turno_travado") saida.porMotivo[c.motivo] += 1;
     if (r.decisaoId) saida.decisoes.push(r.decisaoId);
     if (r.rotinaId) saida.rotinas.push(r.rotinaId);
     // NOD-386: com a máquina em contato o servidor falhou — nenhum aviso de máquina sem contato.
@@ -297,17 +299,21 @@ export async function interromperPorMaquina(deps: DepsQueda, input: EntradaVarre
     // definido em 2026-10-15 (NOD-252): a pessoa pediu para parar (ou excluiu o bot) e o lease venceu porque a
     // renovação o congelou (renovarLease) — com a máquina fora, ninguém entregou. O Parar vence a queda: o turno
     // termina `parado_pela_pessoa`, sem Retomar, sem aviso de queda e sem contar em `porMotivo`.
-    const parado = vencido.pararSolicitadoEm !== null;
+    const cortadoPeloTeto = vencido.pararSolicitadoEm !== null && vencido.motivoInterrupcao === "turno_travado";
+    const parado = vencido.pararSolicitadoEm !== null && !cortadoPeloTeto;
     // NOD-293 A7: a chave da máquina foi revogada (ou venceu) com o turno rodando — a máquina não caiu, foi removida. O
     // turno sai `maquina_removida`, com Retomar (a retomada segue o alvo normal, que já ignora a chave morta) e sem
     // incidente: o aviso "sem contato" de uma máquina que a pessoa tirou não teria volta.
     const removida = !parado && vencido.machineId !== null && (await deps.repos.maquinaTokens.removida(vencido.machineId, agora));
-    const motivo: MotivoDoVarredor | "parado_pela_pessoa" = parado ? "parado_pela_pessoa" : removida ? "maquina_removida" : motivoDaQueda(vencido, agora, input.inicioDoProcesso ?? null);
+    const motivo: MotivoDoVarredor | "parado_pela_pessoa" = cortadoPeloTeto ? "turno_travado" : parado ? "parado_pela_pessoa" : removida ? "maquina_removida" : motivoDaQueda(vencido, agora, input.inicioDoProcesso ?? null);
     // NOD-241 (emenda da ADR-084): o último sinal vai para a linha — é a régua da retomada automática. `leaseVencidoEm`:
     // o turno que renovou o lease depois de `vencidos()` não é interrompido.
     const perdidoDesde = ultimoSinalDoTurno(vencido, agora);
     const turno = await deps.repos.turnos.interromper(vencido.id, motivo, { ultimoSinalEm: perdidoDesde, leaseVencidoEm: agora });
     if (!turno) continue;
+    // NOD-452: o UPDATE decide pela linha viva. Se Parar limpou a marca do teto depois da leitura de `vencidos`, sua
+    // prioridade precisa seguir também nas consequências (sem retomada), não só no motivo persistido.
+    const motivoConfirmado: MotivoDoVarredor | "parado_pela_pessoa" = turno.motivoInterrupcao === "parado_pela_pessoa" ? "parado_pela_pessoa" : motivo;
     // NOD-214: a sessão que a renovação gravou no turno vale como a da entrega que não veio (a próxima mensagem a
     // retoma), e a credencial sai — o turno assentado não é mais adotável. Sem credencial (turno de antes da 0073), nada.
     const cred = await deps.repos.turnoCredenciais.buscar(turno.id);
@@ -317,11 +323,11 @@ export async function interromperPorMaquina(deps: DepsQueda, input: EntradaVarre
       if (sessao) await propagarSessaoDoTurno(deps, { turno, sessaoCli: sessao.sessaoCli, executor: cred.executor, harness: cred.harness, maquinaBifurca: false });
       await deps.repos.turnoCredenciais.apagar(turno.id);
     }
-    if (motivo === "parado_pela_pessoa") parados.push({ turno, perdidoDesde });
+    if (motivoConfirmado === "parado_pela_pessoa") parados.push({ turno, perdidoDesde });
     else {
       // NOD-386: só no modo compartilhado (o varredor sabe o contato da máquina) dá para dizer que ela estava de pé.
       const maquinaPresente = input.maquinaPresente ? input.maquinaPresente(vencido.machineId) : true;
-      caidos.push({ turno, motivo, perdidoDesde, maquinaPresente, servidorFalhou: motivo === "maquina_sem_contato" && input.maquinaPresente !== undefined && maquinaPresente });
+      caidos.push({ turno, motivo: motivoConfirmado, perdidoDesde, maquinaPresente, servidorFalhou: motivoConfirmado === "maquina_sem_contato" && input.maquinaPresente !== undefined && maquinaPresente });
     }
   }
   const r = await aplicar(deps, caidos, input.prazoMs);
@@ -329,6 +335,28 @@ export async function interromperPorMaquina(deps: DepsQueda, input: EntradaVarre
   for (const p of parados) r.events.push(...(await aposParada(deps, p.turno, p.perdidoDesde)));
   r.data.interrompidos.push(...parados.map((p) => p.turno.id));
   return r;
+}
+
+/**
+ * NOD-452: pede o corte sem liberar a faixa. A entrega do executor (ou o vencimento do lease) confirma o fim e só
+ * então cria a retomada pelo fundo, impedindo que o trabalho seguinte sobreponha o processo antigo.
+ */
+export async function interromperBastidoresComTeto(deps: DepsQueda, turnos: readonly Turno[]): Promise<{ data: SaidaQuedaDaMaquina; events: RuntimeEvent[] }> {
+  const agora = deps.agora();
+  const solicitados: string[] = [];
+  for (const candidato of turnos) {
+    if (!candidato.bastidores || candidato.estado !== "despachando") continue;
+    const turno = await deps.repos.turnos.pedirInterrupcaoPorTeto(candidato.id, agora);
+    if (!turno) continue;
+    solicitados.push(turno.id);
+    log("aviso", "bastidor_teto_atingido", { origem: turno.origem, desfecho: "interrupcao_solicitada", duracao_ms: Math.max(0, agora - (turno.despachadoEm ?? agora)) });
+  }
+  return { data: { interrompidos: solicitados, decisoes: [], rotinas: [], porMotivo: { maquina_sem_contato: 0, reinicio_servidor: 0, reinicio_do_motor: 0 }, incidenteId: null }, events: [] };
+}
+
+/** A entrega confirmou que o processo cortado terminou; só agora a faixa pode liberar e o fundo ganhar a volta. */
+export function aposTetoDosBastidores(deps: DepsQueda, turno: Turno, perdidoDesde: number): Promise<{ data: SaidaQuedaDaMaquina; events: RuntimeEvent[] }> {
+  return aplicar(deps, [{ turno, motivo: "turno_travado", perdidoDesde, maquinaPresente: true, servidorFalhou: false }], undefined);
 }
 
 /** O turno parado pela pessoa que o varredor assentou (NOD-252): as parciais, o evento, a task e o registro da parada. */
