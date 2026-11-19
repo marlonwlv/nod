@@ -1,10 +1,12 @@
-import { StrictMode } from "react";
+import { StrictMode, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type { Estado } from "../../estado/reducer.ts";
 import type { Loja } from "../loja.ts";
 import { MARCA_REGIAO } from "../regioes.tsx";
 import { TelaNaoLidos, type AcoesDeNaoLidos } from "./nao-lidos.tsx";
 import { TelaRotinas, type AcoesDeRotinas } from "./rotinas.tsx";
+import { TelaNovoBot, type AcoesDoNovoBot } from "./novo-bot.tsx";
 
 /**
  * ADR-179 (as telas no lugar da conversa): a tela que ocupa a região `#timeline` no lugar da conversa, em React. O main
@@ -12,10 +14,13 @@ import { TelaRotinas, type AcoesDeRotinas } from "./rotinas.tsx";
  * fica (o mesmo HTML não regrava a região). Trocar de tela desmonta o root ANTES de a região ser regravada: um root
  * cujo nó saiu do documento sem `unmount` segue vivo, assinando a loja.
  *
- * As telas migradas até aqui: Não lidos e Rotinas. As outras seguem pelo desenho por string (o `corpo` de sempre).
+ * O 1º desenho de cada tela é síncrono (`flushSync`): o foco que o main põe no fim do render (o campo da nova conversa,
+ * a linha de Não lidos) acha os nós já no documento.
+ *
+ * As telas migradas até aqui: Não lidos, Rotinas e a nova conversa (Novo bot). As outras seguem pelo desenho por string.
  */
-export type TelaNoReact = "nao-lidos" | "rotinas";
-export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas }
+export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot";
+export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot }
 
 const CLASSE = "rx-tela";
 /** O HTML que o main põe na região no lugar do desenho por string da tela. */
@@ -46,7 +51,10 @@ export function criarTelasNoReact(loja: Loja<Estado>, acoes: AcoesDasTelas): Tel
       vaga.setAttribute(MARCA_REGIAO, `tela-${tela}`);
       const raiz = createRoot(vaga, { identifierPrefix: `tela-${tela}-` });
       atual = { tela, vaga, raiz };
-      raiz.render(<StrictMode>{tela === "nao-lidos" ? <TelaNaoLidos loja={loja} acoes={acoes.naoLidos} /> : <TelaRotinas loja={loja} acoes={acoes.rotinas} />}</StrictMode>);
+      const conteudo: ReactNode = tela === "nao-lidos" ? <TelaNaoLidos loja={loja} acoes={acoes.naoLidos} />
+        : tela === "rotinas" ? <TelaRotinas loja={loja} acoes={acoes.rotinas} />
+          : <TelaNovoBot loja={loja} acoes={acoes.novoBot} />;
+      flushSync(() => raiz.render(<StrictMode>{conteudo}</StrictMode>));
     },
     antesDeRegravar(html) {
       if (atual && !html.includes(vagaDaTela(atual.tela))) desmontar();

@@ -71,7 +71,10 @@ React e 0 / 0 / 6,9 por string no mesmo build; 106 nós criados contra 147. A se
 e os botões da rotina em componentes (pausar, ativar, testar, execuções, conversa, nova rotina, ver a pergunta), com as
 ações extraídas no main em funções que a tela por string também chama; os pedaços que `web/lib/execucao.ts` monta para
 várias telas (a parada, a espera, onde roda) entram pelo conversor da ADR-189, com a ação deles na delegação, até
-`execucao.ts` virar componente.
+`execucao.ts` virar componente. A terceira é a **nova conversa** (Novo bot, `web/react/telas/novo-bot.tsx`): o campo
+"Para:" fica sem controle do React e o filtro das linhas e as setas seguem com o main sobre o DOM (`filtrarBots`), refeito
+depois de cada desenho (`aoDesenhar`). O 1º desenho de cada tela é síncrono (`flushSync`), para o foco que o main põe
+no fim do render achar os nós.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

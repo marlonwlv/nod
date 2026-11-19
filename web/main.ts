@@ -569,6 +569,14 @@ if (telasNoReact) {
         verPergunta: (conversaId, agenteId, decisaoId) => verPerguntaNaConversa(conversaId, agenteId, decisaoId),
         novaRotina: () => navegar({ tipo: "nova-rotina" }),
       },
+      novoBot: {
+        abrirConversa: (conversaId, agenteId) => navegar({ tipo: "conversa", conversaId, agenteId }),
+        fechar: () => navegar({ tipo: "inicio" }),
+        criar: () => abrirDialogoCriarBot((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value.trim() ?? ""),
+        novoChatEmGrupo: () => navegar({ tipo: "nova-sala" }),
+        enviar: () => escolherNaNovaConversa(),
+        aoDesenhar: () => filtrarBots((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value ?? "", ".contact-picker"),
+      },
     });
     if (estado.sessao) render();
   }, () => {
@@ -3438,7 +3446,7 @@ function renderPrincipal(): void {
   let comAbas = false;
   switch (t.tipo) {
     case "novo-bot":
-      corpo = renderNovoBot(estado);
+      corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("novo-bot") : renderNovoBot(estado);
       break;
     case "nova-rotina":
       corpo = renderNovaRotina(estado, t.agenteId);
