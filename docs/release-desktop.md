@@ -80,3 +80,14 @@ Cada alias responde **302** para o objeto da tabela, e cada objeto responde **20
 Copie de volta o que o passo 3 guardou, com a mesma flag de cache:
 `gcloud storage cp --cache-control=no-store gs://nodbot-downloads/anterior/antes-de-v<versão>/<nome> gs://nodbot-downloads/<nome>`,
 e repita a conferência. O site não muda: os aliases continuam os mesmos.
+
+### Downloads públicos depois do aceite
+
+A release publicada `v*` é promovida pelo `publicar-downloads.yml`, com o gate
+`NOD_PUBLICAR_DOWNLOADS=1`. O site mantém `/download/mac` (arm64) e
+`/download/mac-intel` (x64); o versionado fica em
+`v<versão>/nod-<versão>-mac-<arquitetura>.dmg`, acompanhado de `SHA256SUMS.txt`.
+`desktop-v*` é ignorada. O job `downloads` do desktop-release continua independente:
+ele prepara versionados, não promove os estáveis antes do aceite.
+Habilitação, adoção dos objetos legados, falhas parciais e rollback explícito estão em
+[processo de release](processo-de-release.md#publicação-automática-dos-downloads-do-mac-nod-334).
