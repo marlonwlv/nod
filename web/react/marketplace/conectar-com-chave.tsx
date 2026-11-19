@@ -107,7 +107,7 @@ export function ConectarComChave({ app, api, aoVoltar, aoFechar, aoConectar, aoA
       {carga.tipo === "pronto" ? (
         <>
           <p className="rx-mk-frase"><Trechos trechos={fraseDoFormulario(app.nome, campos)} /></p>
-          <OndeAchar app={app} form={carga.form} />
+          <OndeAchar app={app} form={carga.form} apagado={testando} />
           <form ref={form} className={`rx-mk-campos${aviso ? " rx-mk-com-erro" : ""}`} onSubmit={(ev) => void enviar(ev)} noValidate aria-label={titulo} id="rx-mk-form-chave">
             {campos.map((c) => (
               <Fragment key={c.nome}>
@@ -139,12 +139,13 @@ export function ConectarComChave({ app, api, aoVoltar, aoFechar, aoConectar, aoA
   );
 }
 
-function OndeAchar({ app, form }: { app: AppDaVitrine; form: FormularioDaChave }) {
+/** `apagado`: enquanto a chave é testada o passo a passo já cumpriu o papel (Paper T4: opacidade 0.5). */
+function OndeAchar({ app, form, apagado = false }: { app: AppDaVitrine; form: FormularioDaChave; apagado?: boolean }) {
   const passos = form.passos ?? passosPadrao(app.nome);
   // Sem os passos do app, a frase do provedor (em inglês) diz onde a chave fica: melhor que nada, e é a fonte.
   const doProvedor = form.passos ? null : (form.campos.find((c) => c.segredo)?.descricao.trim() || null);
   return (
-    <section className="rx-mk-onde" aria-labelledby="rx-mk-onde-t">
+    <section className={`rx-mk-onde${apagado ? " rx-mk-apagado" : ""}`} aria-labelledby="rx-mk-onde-t">
       <div className="rx-mk-onde-topo">
         <span id="rx-mk-onde-t">Onde achar a chave</span>
         {app.site ? <a className="rx-mk-abrir-app" href={app.site} target="_blank" rel="noopener noreferrer">Abrir o {app.nome}<IconeExterno /></a> : null}
