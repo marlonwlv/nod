@@ -16,7 +16,7 @@ import { renderConta, renderContaPagina, type DadosConta } from "./config-conta.
 import { iniciaisDeQuem } from "./menu-conta.ts";
 import { renderAgentes } from "./config-agentes.ts";
 import { renderGeral } from "./config-geral.ts";
-import { renderAgendaRotinas, tituloDaAgendaCelular, valorDaAgenda } from "./agenda-rotinas.ts";
+import { renderAgendaRotinas, valorDaAgenda } from "./agenda-rotinas.ts";
 import { buscarAjustes, caminhoDoAjuste } from "../lib/ajustes.ts";
 import type { EscolhaSons } from "../lib/sons.ts";
 import { renderSobre } from "./atualizacao-app.ts";
@@ -154,7 +154,7 @@ function renderEspacoCelular(estado: Estado, avisos: EstadoAvisos, volta: Volta,
   const nome = achada ? nomeDaSecao(achada, estado) : "Configurações";
   const corpo = comSaibaMais({ celular: true, abertos: estado.configUi.abertos }, () => conteudo(estado, secao, avisos, extras, true));
   return `<div class="espaco cfg-espaco cfg-celular cfg-secao-tela" role="dialog" aria-modal="true" aria-labelledby="espaco-titulo">
-    <div class="cfg-topo"><button type="button" class="espaco-voltar cfg-redondo" data-act="cfg-lista" aria-label="Voltar para Configurações">${ICONE.voltar}</button><h1 id="espaco-titulo" class="cfg-topo-tit">${secao === "rotinas" ? tituloDaAgendaCelular(estado) : esc(nome)}</h1></div>
+    <div class="cfg-topo"><button type="button" class="espaco-voltar cfg-redondo" data-act="cfg-lista" aria-label="Voltar para Configurações">${ICONE.voltar}</button><h1 id="espaco-titulo" class="cfg-topo-tit">${esc(nome)}</h1></div>
     <main class="espaco-conteudo" data-secao-aberta="${secao}">${corpo}</main>
   </div>`;
 }
