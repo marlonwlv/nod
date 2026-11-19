@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState, type CSSProperties } from "react"
 import { DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
 import { Menu } from "@base-ui/react/menu";
 import type { Html, PartesDaColuna } from "../../telas/quadro.ts";
-import { CardDaGrade, CardFlutuante, mesmoCard, type DadosDoCard, type DestinoDoMover } from "./card-da-grade.tsx";
+import { CardDaGrade, CardFlutuante, mesmoCard, type DadosDoCard, type DestinoDoMover, type MenuDoMover as HandleDoMover } from "./card-da-grade.tsx";
 
 /**
  * ADR-180 (fase 2 do React): a grade do quadro no computador. As colunas e os cards vêm prontos do quadro-real.ts (as
@@ -46,7 +46,7 @@ export function GradeDoQuadro({ rotulo, classe, trilhas, itens, acoes }: PropsDa
   const sensores = useSensors(useSensor(SensorDoCard, { activationConstraint: { distance: 6 } }));
   const [ativo, setAtivo] = useState<{ card: DadosDoCard; de: string } | null>(null);
   const [alvo, setAlvo] = useState<{ coluna: string; dica: string | null } | null>(null);
-  const [mover, setMover] = useState<{ tarefa: string; botao: HTMLElement } | null>(null);
+  const [menu] = useState<HandleDoMover>(() => Menu.createHandle<string>());
   const cardDe = useMemo(() => {
     const m = new Map<string, { card: DadosDoCard; de: string }>();
     for (const i of itens) if (i.tipo === "coluna") for (const c of i.coluna.cards) m.set(c.id, { card: c, de: i.coluna.partes.id });
@@ -56,7 +56,6 @@ export function GradeDoQuadro({ rotulo, classe, trilhas, itens, acoes }: PropsDa
   const inicio = useCallback((e: DragStartEvent) => {
     const a = cardDe.get(String(e.active.id));
     if (!a) return;
-    setMover(null);
     setAtivo(a);
     acoes.arrastando(true);
   }, [acoes, cardDe]);
@@ -71,35 +70,31 @@ export function GradeDoQuadro({ rotulo, classe, trilhas, itens, acoes }: PropsDa
     fim();
     if (coluna) acoes.soltar(tarefa, coluna);
   }, [acoes, fim]);
-  const abrirMover = useCallback((tarefa: string, botao: HTMLElement) => setMover((m) => (m?.tarefa === tarefa ? null : { tarefa, botao })), []);
-  const fecharMover = useCallback(() => setMover(null), []);
-  const tarefaDoMenu = mover ? cardDe.get(mover.tarefa)?.card ?? null : null;
   return (
     <div className={`qd-quadro ${classe}`} role="region" aria-label={rotulo}>
       <DndContext sensors={sensores} collisionDetection={colisao} onDragStart={inicio} onDragOver={sobre} onDragEnd={soltou} onDragCancel={fim}>
         <div className="qd-grade" style={{ gridTemplateColumns: trilhas }}>
           {itens.map((i) => i.tipo === "extra"
             ? <Extra key={i.chave} html={i.html} />
-            : <ColunaRx key={i.coluna.partes.id} coluna={i.coluna} alvo={alvo?.coluna === i.coluna.partes.id && ativo?.de !== i.coluna.partes.id ? alvo : null}
-                moverDe={mover && cardDe.get(mover.tarefa)?.de === i.coluna.partes.id ? mover.tarefa : null} abrirMover={abrirMover} />)}
+            : <ColunaRx key={i.coluna.partes.id} coluna={i.coluna} alvo={alvo?.coluna === i.coluna.partes.id && ativo?.de !== i.coluna.partes.id ? alvo : null} menu={menu} />)}
         </div>
         <DragOverlay dropAnimation={null}>{ativo ? <CardFlutuante card={ativo.card} /> : null}</DragOverlay>
       </DndContext>
-      <MenuDoMover aberto={mover && tarefaDoMenu ? { ...mover, titulo: tarefaDoMenu.titulo } : null} fechar={fecharMover} destinos={acoes.destinos} aoMover={acoes.soltar} />
+      <MenuDoMover menu={menu} titulo={(t) => cardDe.get(t)?.card.titulo ?? ""} destinos={acoes.destinos} aoMover={acoes.soltar} />
     </div>
   );
 }
 
-/** O "Mover para…" da grade inteira (Base UI), ancorado no botão do card que o abriu; fecha e devolve o foco ao botão. */
-function MenuDoMover({ aberto, fechar, destinos, aoMover }: { aberto: { tarefa: string; botao: HTMLElement; titulo: string } | null; fechar: () => void; destinos: AcoesDaGrade["destinos"]; aoMover: AcoesDaGrade["soltar"] }) {
+/** O "Mover para…" da grade inteira (Base UI): aberto pelo trigger do card (handle), com a tarefa como payload. */
+function MenuDoMover({ menu, titulo, destinos, aoMover }: { menu: HandleDoMover; titulo: (tarefa: string) => string; destinos: AcoesDaGrade["destinos"]; aoMover: AcoesDaGrade["soltar"] }) {
   return (
-    <Menu.Root open={!!aberto} onOpenChange={(abrir) => { if (!abrir) fechar(); }}>
+    <Menu.Root handle={menu}>
+      {({ payload: tarefa }: { payload: string | undefined }) => (
       <Menu.Portal>
-        <Menu.Positioner className="rx-qd-menu-pos" anchor={aberto?.botao ?? null} sideOffset={4} align="start">
-          <Menu.Popup className="qd-menu qd-menu-mover rx-qd-menu" aria-label={aberto ? `Mover ${aberto.titulo} para` : undefined}
-            finalFocus={() => (aberto?.botao.isConnected ? aberto.botao : true)}>
-            {aberto && destinos(aberto.tarefa).map((d) => (
-              <Menu.Item key={d.id} className="qd-menu-it" onClick={() => aoMover(aberto.tarefa, d.id)}>
+        <Menu.Positioner className="rx-qd-menu-pos" sideOffset={4} align="start">
+          <Menu.Popup className="qd-menu qd-menu-mover rx-qd-menu" aria-label={tarefa ? `Mover ${titulo(tarefa)} para` : undefined}>
+            {tarefa && destinos(tarefa).map((d) => (
+              <Menu.Item key={d.id} className="qd-menu-it" onClick={() => aoMover(tarefa, d.id)}>
                 <span className="rx-qd-ic" dangerouslySetInnerHTML={{ __html: d.icone }} />
                 <span>{d.nome}</span>
                 {d.nota && <small className="qd-menu-porque">{d.nota}</small>}
@@ -108,6 +103,7 @@ function MenuDoMover({ aberto, fechar, destinos, aoMover }: { aberto: { tarefa: 
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
+      )}
     </Menu.Root>
   );
 }
@@ -116,7 +112,7 @@ const Extra = memo(function Extra({ html }: { html: Html }) {
   return <div className="rx-qd-extra" dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
-interface PropsDaColuna { coluna: ColunaDaGrade; alvo: { dica: string | null } | null; moverDe: string | null; abrirMover: (tarefa: string, botao: HTMLElement) => void }
+interface PropsDaColuna { coluna: ColunaDaGrade; alvo: { dica: string | null } | null; menu: HandleDoMover }
 
 const mesmasPartes = (a: PartesDaColuna, b: PartesDaColuna): boolean =>
   a === b || (a.id === b.id && a.classe === b.classe && a.rotulo === b.rotulo && a.grupo === b.grupo && a.direita === b.direita && a.tira === b.tira && a.cab === b.cab && a.dica === b.dica && a.fim === b.fim);
@@ -125,7 +121,7 @@ const mesmaLista = <T,>(a: readonly T[], b: readonly T[], igual: (x: T, y: T) =>
 export const mesmaColuna = (a: ColunaDaGrade, b: ColunaDaGrade): boolean =>
   a === b || (mesmasPartes(a.partes, b.partes) && mesmaLista(a.antes, b.antes, (x, y) => x === y) && mesmaLista(a.cards, b.cards, mesmoCard));
 
-const ColunaRx = memo(function ColunaRx({ coluna, alvo, moverDe, abrirMover }: PropsDaColuna) {
+const ColunaRx = memo(function ColunaRx({ coluna, alvo, menu }: PropsDaColuna) {
   const p = coluna.partes;
   const { setNodeRef } = useDroppable({ id: `coluna:${p.id}`, data: { coluna: p.id, tipo: "coluna" } });
   const estilo: CSSProperties | undefined = p.direita !== undefined ? { right: p.direita } : undefined;
@@ -138,9 +134,9 @@ const ColunaRx = memo(function ColunaRx({ coluna, alvo, moverDe, abrirMover }: P
       {p.dica && <div className="rx-qd-extra" dangerouslySetInnerHTML={{ __html: p.dica }} />}
       <ul className="qd-col-lista">
         {coluna.antes.map((h, i) => <Extra key={`antes-${i}`} html={h} />)}
-        {coluna.cards.map((c) => <CardDaGrade key={c.id} card={c} coluna={p.id} moverAberto={moverDe === c.id} abrirMover={abrirMover} />)}
+        {coluna.cards.map((c) => <CardDaGrade key={c.id} card={c} coluna={p.id} menu={menu} />)}
         {p.fim && <Extra html={p.fim} />}
       </ul>
     </section>
   );
-}, (a, b) => a.alvo === b.alvo && a.moverDe === b.moverDe && a.abrirMover === b.abrirMover && mesmaColuna(a.coluna, b.coluna));
+}, (a, b) => a.alvo === b.alvo && a.menu === b.menu && mesmaColuna(a.coluna, b.coluna));

@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { useDraggable } from "@dnd-kit/core";
+import { Menu } from "@base-ui/react/menu";
 import type { Html } from "../../telas/quadro.ts";
 
 /**
@@ -9,8 +10,9 @@ import type { Html } from "../../telas/quadro.ts";
  *
  * Fase 5 da ADR-179 (medido em 2026-11-19): o card é só arrastável (`useDraggable`), não ordenável — sem ordem manual não
  * há o que abrir espaço, e o `useSortable` media os 160 cards a cada arrasto e redesenhava todos a cada coluna sob o
- * ponteiro. O "Mover para…" é um botão: o menu (Base UI) é um só, na grade, ancorado no botão que abriu — um `Menu.Root`
- * por card custava ~70 ms por desenho com 160 cards.
+ * ponteiro. O "Mover para…" é um `Menu.Trigger` destacado (o `handle` do Base UI): o menu é um só, na grade, aberto pelo
+ * trigger do card com a tarefa como `payload` — um `Menu.Root` por card custava ~70 ms por desenho com 160 cards. O
+ * trigger cuida do foco e do teclado (Enter entra no menu, Esc devolve ao botão), como o menu por card fazia.
  *
  * `memo`: o card só redesenha quando o corpo, a classe, o menu aberto ou o arrastável mudam (comparados por valor) — um
  * frame que mexe em outra tarefa não toca neste. A key é o id da tarefa (quem chama).
@@ -27,16 +29,17 @@ export interface DadosDoCard {
   arrastavel: boolean;
 }
 
+/** O menu único da grade (Menu.createHandle): o trigger do card o abre com o id da tarefa. */
+export type MenuDoMover = Menu.Handle<string>;
+
 export interface PropsDoCard {
   card: DadosDoCard;
   coluna: string;
-  /** O "Mover para…" deste card está aberto (o botão diz aria-expanded). */
-  moverAberto: boolean;
-  /** Abre o menu da grade ancorado neste botão. Estável (useCallback na grade). */
-  abrirMover: (tarefa: string, botao: HTMLElement) => void;
+  /** O "Mover para…" da grade (estável: criado uma vez na grade). */
+  menu: MenuDoMover;
 }
 
-function CardDaGradeBase({ card, coluna, moverAberto, abrirMover }: PropsDoCard) {
+function CardDaGradeBase({ card, coluna, menu }: PropsDoCard) {
   const d = useDraggable({ id: card.id, data: { coluna, tipo: "card" }, disabled: !card.arrastavel });
   return (
     <li
@@ -48,8 +51,7 @@ function CardDaGradeBase({ card, coluna, moverAberto, abrirMover }: PropsDoCard)
     >
       <CorpoDoCard corpo={card.corpo} />
       {card.arrastavel && (
-        <button type="button" className="qd-card-mover rx-qd-mover" aria-haspopup="menu" aria-expanded={moverAberto} aria-label={`Mover ${card.titulo} para…`}
-          onClick={(e) => abrirMover(card.id, e.currentTarget)}>Mover para…</button>
+        <Menu.Trigger handle={menu} payload={card.id} className="qd-card-mover rx-qd-mover" aria-label={`Mover ${card.titulo} para…`}>Mover para…</Menu.Trigger>
       )}
       {card.menu && <CorpoDoCard corpo={card.menu} />}
     </li>
@@ -66,7 +68,7 @@ export const mesmoCard = (a: DadosDoCard, b: DadosDoCard): boolean =>
   a === b || (a.id === b.id && a.classe === b.classe && a.corpo === b.corpo && a.menu === b.menu && a.arrastavel === b.arrastavel && a.titulo === b.titulo);
 
 export const CardDaGrade = memo(CardDaGradeBase, (a, b) =>
-  a.coluna === b.coluna && a.moverAberto === b.moverAberto && a.abrirMover === b.abrirMover && mesmoCard(a.card, b.card));
+  a.coluna === b.coluna && a.menu === b.menu && mesmoCard(a.card, b.card));
 
 /** O card no DragOverlay: só o arrastado, sem dnd-kit nem menu (não é a lista desenhada de novo). */
 export const CardFlutuante = memo(function CardFlutuante({ card }: { card: DadosDoCard }) {
