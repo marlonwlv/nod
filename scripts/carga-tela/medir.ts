@@ -143,6 +143,28 @@ async function disparar(s: Sessao, cenario: Cenario, pesada: Bot, ativos: Bot[])
   return conversas;
 }
 
+/** Liga o trace por `segundos` e grava o JSON em `arquivo` (o Chrome devolve por stream, lido aos pedaços). */
+async function gravarTrace(cdp: Cdp, segundos: number, arquivo: string): Promise<void> {
+  const completo = new Promise<string>((ok) => {
+    const parar = cdp.ouvir("Tracing.tracingComplete", (p) => { parar(); ok(String(p.stream)); });
+  });
+  await cdp.enviar("Tracing.start", {
+    transferMode: "ReturnAsStream",
+    traceConfig: { includedCategories: ["devtools.timeline", "disabled-by-default-devtools.timeline", "disabled-by-default-devtools.timeline.invalidationTracking", "blink.user_timing"] },
+  });
+  await new Promise((r) => setTimeout(r, segundos * 1000));
+  await cdp.enviar("Tracing.end");
+  const stream = await completo;
+  const partes: string[] = [];
+  for (;;) {
+    const r = await cdp.enviar<{ data: string; eof: boolean; base64Encoded?: boolean }>("IO.read", { handle: stream, size: 4 * 1024 * 1024 });
+    partes.push(r.base64Encoded ? Buffer.from(r.data, "base64").toString("utf8") : r.data);
+    if (r.eof) break;
+  }
+  await cdp.enviar("IO.close", { handle: stream });
+  writeFileSync(arquivo, partes.join(""));
+}
+
 /** Abre a conversa pesada (Carga 01) num Chrome headless e mede cada cenário; grava `<saida>/<rotulo>-<cenario>.json`. */
 export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENARIOS): Promise<void> {
   mkdirSync(CONFIG.saida, { recursive: true });
@@ -159,9 +181,15 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
     await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
     // CARGA_CPU=4 freia a CPU da aba em 4× (máquina mais lenta que a de quem mede); 1 é a CPU da máquina.
     if (CPU > 1) await cdp.enviar("Emulation.setCPUThrottlingRate", { rate: CPU });
+    // CARGA_MOVIMENTO_REDUZIDO=1: a aba com prefers-reduced-motion (os mascotes param), para separar o custo das animações.
+    if (process.env.CARGA_MOVIMENTO_REDUZIDO === "1") await cdp.enviar("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
     const [nome = "", ...valor] = s.cookie.split("=");
     await cdp.enviar("Network.setCookie", { name: nome, value: valor.join("="), domain: "127.0.0.1", path: "/", httpOnly: true });
     await cdp.enviar("Page.addScriptToEvaluateOnNewDocument", { source: INSTRUMENTO });
+    // CARGA_SEM_REACT=barra,conversa: desliga as regiões desenhadas pelo React (ADR-189) antes do app ler a chave, para
+    // comparar com o desenho por string no mesmo build.
+    const semReact = (process.env.CARGA_SEM_REACT ?? "").split(",").filter(Boolean);
+    if (semReact.length) await cdp.enviar("Page.addScriptToEvaluateOnNewDocument", { source: `try { ${semReact.map((r) => `localStorage.setItem(${JSON.stringify(`nod.${r}.react`)}, "0");`).join(" ")} } catch {}` });
     await cdp.enviar("Page.navigate", { url: urlWeb() });
     const linha = `[data-act="abrir-conversa"][data-agente="${pesada.id}"]`;
     for (let i = 0; i < 150 && !(await avaliar<boolean>(cdp, `!!document.querySelector('${linha}')`)); i++) await new Promise((r) => setTimeout(r, 200));
@@ -202,6 +230,10 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
           await new Promise((r) => setTimeout(r, 250));
         }
       })();
+      // CARGA_TRACE_S=5: grava os primeiros N segundos do cenário num trace do Chrome com o rastreio de invalidação de estilo
+      // (<saida>/<rotulo>-<cenario>.trace.json; resumo com scripts/carga-tela/trace.ts). Pesa: só para achar o caro.
+      const traceS = Number(process.env.CARGA_TRACE_S ?? 0);
+      const trace = traceS > 0 ? gravarTrace(cdp, traceS, join(CONFIG.saida, `${rotulo}-${cenario}.trace.json`)) : Promise.resolve();
       let duracao = 8000;
       let arrastos = 0;
       if (cenario === "ocioso") await new Promise((r) => setTimeout(r, duracao));
@@ -214,6 +246,7 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
         await new Promise((r) => setTimeout(r, cenario === "quadro" ? 4000 : 1500));
       }
       digitando = false;
+      await trace;
       // A tela "volta" quando o thread principal atende uma avaliação: o atraso acumulado depois do servidor terminar.
       const voltou = await Promise.race([
         (async () => {

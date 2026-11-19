@@ -7,6 +7,8 @@ import { join } from "node:path";
 
 export type Cdp = {
   enviar<T = Record<string, unknown>>(metodo: string, params?: Record<string, unknown>): Promise<T>;
+  /** Eventos do protocolo (sem id), por método: o trace avisa por `Tracing.tracingComplete`. */
+  ouvir(metodo: string, fn: (params: Record<string, unknown>) => void): () => void;
   fechar(): void;
 };
 
@@ -79,9 +81,13 @@ export async function abrirChrome(_porta: number, perfil: string): Promise<{ cdp
   });
   let seq = 0;
   const pendentes = new Map<number, { ok: (v: unknown) => void; erro: (e: Error) => void }>();
+  const ouvintes = new Map<string, Set<(params: Record<string, unknown>) => void>>();
   ws.onmessage = (m) => {
-    const msg = JSON.parse(String(m.data)) as { id?: number; result?: unknown; error?: { message: string } };
-    if (msg.id === undefined) return;
+    const msg = JSON.parse(String(m.data)) as { id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: { message: string } };
+    if (msg.id === undefined) {
+      if (msg.method) for (const fn of ouvintes.get(msg.method) ?? []) fn(msg.params ?? {});
+      return;
+    }
     const p = pendentes.get(msg.id);
     pendentes.delete(msg.id);
     if (msg.error) p?.erro(new Error(msg.error.message));
@@ -92,6 +98,12 @@ export async function abrirChrome(_porta: number, perfil: string): Promise<{ cdp
       const id = ++seq;
       ws.send(JSON.stringify({ id, method: metodo, params }));
       return new Promise((ok, erro) => pendentes.set(id, { ok: ok as (v: unknown) => void, erro }));
+    },
+    ouvir(metodo, fn) {
+      const lista = ouvintes.get(metodo) ?? new Set();
+      lista.add(fn);
+      ouvintes.set(metodo, lista);
+      return () => lista.delete(fn);
     },
     fechar() {
       ws.close();
