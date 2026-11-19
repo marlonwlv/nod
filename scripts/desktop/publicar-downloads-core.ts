@@ -62,6 +62,7 @@ export async function publicar(tag: string, arquivos: Arquivo[], store: Armazem,
     if (o) {
       exigir(await store.hash(a.nome, o.generation) === a.sha256, "versionado_divergente: não sobrescrever");
       exigir(o.cacheControl === CACHE_VERSAO, "cache_versionado_invalido: corrigir metadados antes de repetir");
+      exigir(o.md5Hash === a.md5 && Number(o.size) === a.tamanho, "metadados_versionado_divergentes: MD5 e tamanho devem conferir antes de promover");
     }
   }
   const destinos = ARCHS.map((a) => `nod-mac-${a}.dmg`);

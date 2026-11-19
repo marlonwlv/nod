@@ -46,6 +46,15 @@ describe("publicação com armazenamento", () => {
     await expect(publicar("v2.0.0", arquivos, f.store)).rejects.toThrow("versionado_divergente");
     expect(f.store.criar).not.toHaveBeenCalled(); expect(f.store.copiar).not.toHaveBeenCalled();
   });
+  // Regression: NOD-334 — JSON externo pode omitir MD5 apesar do tipo obrigatório.
+  // Found by /qa on 2026-11-19; ausência igual não comprova integridade da cópia.
+  it.each([undefined, "md5-divergente"])("MD5 versionado %s bloqueia antes de escrever", async (md5Hash) => {
+    const f = fixture();
+    for (const a of arquivos) f.criar(a);
+    Object.assign(f.objetos.get(arquivos[1]!.nome)!, { md5Hash });
+    await expect(publicar("v2.0.0", arquivos, f.store)).rejects.toThrow("metadados_versionado_divergentes");
+    expect(f.store.criar).not.toHaveBeenCalled(); expect(f.store.copiar).not.toHaveBeenCalled();
+  });
   it("versão menor cria só versionados, rollback explícito promove", async () => {
     const f = fixture(); f.criar({ ...arquivos[0]!, nome: "nod-mac-arm64.dmg" }, CACHE_ESTAVEL, "3.0.0");
     expect(await publicar("v2.0.0", arquivos, f.store)).toBe(false); expect(f.store.copiar).not.toHaveBeenCalled();

@@ -43,7 +43,9 @@ outros bytes falha; igual é reaproveitado. O cache versionado deve ser
 `public, max-age=31536000`. O job antigo de downloads continua criando versionados:
 se ele ou um upload manual deixou cache diferente, o dono deve ajustar **somente o
 metadado**, após conferir o SHA-256, antes da promoção. O publicador não reescreve
-objetos imutáveis para corrigir metadados.
+objetos imutáveis para corrigir metadados. Objeto versionado sem MD5 (por exemplo, composto)
+ou com MD5/tamanho divergente também falha antes de escrever: a promoção exige esses
+metadados iguais aos bytes baixados e validados da release.
 
 O estável recebe `versao=X.Y.Z[-rc.N]`, `public, max-age=300` e os mesmos bytes/MD5 do
 versionado. Estável legado sem versão falha fechado: identifique a versão comparando
