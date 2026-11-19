@@ -8,7 +8,7 @@ import { SECOES_ESPACO } from "../../../web/telas/espaco.ts";
 import { AJUSTES, NOME_DA_SECAO } from "../../../web/lib/ajustes.ts";
 
 const pronta: AtualizacaoNaTela = { fase: "pronta", versaoAtual: "1.0.3", versaoNova: "1.0.4", motivo: null, procuradaEm: null, esperandoLivre: false, reiniciando: false, sozinho: true, atualizadoDe: null };
-const tela = (o: Partial<TelaAtualizacao> & { estado?: Partial<AtualizacaoNaTela> } = {}): TelaAtualizacao => ({ pergunta: null, pedindo: false, enchendoDesde: null, prontaDesde: null, ...o, estado: { ...pronta, ...o.estado } });
+const tela = (o: Omit<Partial<TelaAtualizacao>, "estado"> & { estado?: Partial<AtualizacaoNaTela> } = {}): TelaAtualizacao => ({ pergunta: null, pedindo: false, enchendoDesde: null, prontaDesde: null, ...o, estado: { ...pronta, ...o.estado } });
 
 function montar(resposta: RespostaReinicio, inicial: AtualizacaoNaTela = pronta) {
   const pedidos: PedidoReinicio[] = [];
