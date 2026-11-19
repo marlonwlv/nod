@@ -611,7 +611,7 @@ function renderAcoes(item: Item, aberta: boolean, estado: Pick<Estado, "conector
  */
 const DISPENSAVEIS_ABERTOS: Record<(typeof TIPOS_DISPENSAVEIS_ABERTOS)[number], true> = { pergunta: true, falta_de_dado: true, permissao: true, retomar_turno: true };
 
-function dispensavel(item: Item): boolean {
+export function dispensavel(item: Item): boolean {
   const d = item.decisao;
   return d.estado === "vencida" || ((d.estado === "pendente" || d.estado === "reaberta") && d.tipo in DISPENSAVEIS_ABERTOS);
 }
@@ -889,7 +889,7 @@ export function pedidoParaAguardando<T extends Pick<Item, "decisao" | "itensApro
   return item;
 }
 
-function renderItem(item: Item, estado: Estado, naConversa = false): string {
+export function renderItem(item: Item, estado: Estado, naConversa = false): string {
   const d = item.decisao;
   const aberta = item.estadoColuna !== "vencido";
   if (ehPergunta(d.tipo)) return renderItemPergunta(item, estado);
@@ -1074,7 +1074,7 @@ export function ancoradosComIguais(pedidos: readonly Item[], estado: Estado): { 
 }
 
 /** ADR-166: os pedidos iguais (mesmo bot, mesma ação no mesmo app) num cartão só; o resto como antes. */
-function renderComIguais(itens: readonly Item[], estado: Estado, naConversa: boolean): string {
+export function renderComIguais(itens: readonly Item[], estado: Estado, naConversa: boolean): string {
   return agruparIguais(itens).map((g) => {
     if (!Array.isArray(g)) return renderItem(g, estado, naConversa);
     const i = g[0]?.itensAprovacao[0];

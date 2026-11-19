@@ -227,7 +227,8 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
       const tela = TELAS[cenario];
       if (tela) {
         // A tela pela barra; a conta de regravações da região (cada troca de filhos do #timeline).
-        await avaliar(cdp, `document.querySelector('#sidebar [data-act="navegar"][data-tela="${tela}"]')?.click()`);
+        // Pela delegação do main (data-act="navegar"), como o botão da barra ou do painel: nem toda tela tem botão na barra.
+        await avaliar(cdp, `(() => { const b = document.createElement("button"); b.dataset.act = "navegar"; b.dataset.tela = "${tela}"; document.getElementById("sidebar").append(b); b.click(); b.remove(); })()`);
         for (let i = 0; i < 50 && !(await avaliar<boolean>(cdp, `document.querySelector('#timeline')?.dataset.tela === "${tela}" || !document.querySelector('#timeline-historico')`)); i++) await new Promise((r) => setTimeout(r, 200));
         await new Promise((r) => setTimeout(r, 2500));
         await avaliar(cdp, `(() => { const c = window.__carga; c.tela = { regravacoes: 0, nos: 0 }; const t = document.getElementById("timeline");

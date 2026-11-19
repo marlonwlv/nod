@@ -83,7 +83,10 @@ e Por estado: as regras (o grupo de cada bot, o título, as contas, o tempo, o p
 `web/telas/tela-tarefas.ts`, exportadas e usadas pelas duas; o componente só troca a marcação. As esperas de colega
 (Cobrar, Desistir) e a pílula da cota entram pelo conversor. Também **Nova rotina** e o **novo chat em grupo** (Nova sala), os dois formulários:
 sem `data-form`, o envio é prop e chama o mesmo tratamento do main (`FORMS`) com o próprio formulário; os campos ficam
-sem controle do React.
+sem controle do React. **Sua vez** (`web/react/telas/sua-vez.tsx`): a casca é componente (o título com a conta, o vazio, os
+fora do ar, os vencidos recolhidos e o "Limpar vencidos" por prop); os cartões de decisão são os mesmos da conversa
+(`renderItem`) e entram pelo conversor, com a chave `data-decisao` e as ações deles na delegação, até os cartões virarem
+componentes — um passo que vale para a conversa e para Sua vez de uma vez.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

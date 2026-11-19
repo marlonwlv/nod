@@ -12,7 +12,8 @@ describe("telas no React", () => {
     tarefas: { fonte: { dados: () => ({ quadros: null, erro: null }), assinar: () => () => undefined, tentarDeNovo: vi.fn() }, avatar: () => "", abrirTarefa: vi.fn(), abrirPagina: vi.fn() },
     trabalhos: { vista: vi.fn(), mostrar: vi.fn(), menuDeBots: vi.fn(), novaTarefa: vi.fn(), alternarBot: vi.fn(), abrirTrabalho: vi.fn(), abrirConversa: vi.fn() },
     novaRotina: { criar: vi.fn(), cancelar: vi.fn(), criarBot: vi.fn() },
-    novaSala: { criar: vi.fn() } };
+    novaSala: { criar: vi.fn() },
+    suaVez: { limparVencidos: vi.fn() } };
   const e: Estado = { ...estadoInicial, naoLidos: { conversas: [] } };
 
   it("monta na vaga, fica enquanto a vaga fica e desmonta antes de a região trocar de HTML", () => {

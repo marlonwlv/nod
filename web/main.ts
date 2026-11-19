@@ -597,6 +597,7 @@ if (telasNoReact) {
         criarBot: () => navegar({ tipo: "novo-bot" }),
       },
       novaSala: { criar: (form) => void FORMS["criar-sala"]?.(form) },
+      suaVez: { limparVencidos: (ids) => void limparVencidos(ids) },
     });
     if (estado.sessao) render();
   }, () => {
@@ -2277,6 +2278,14 @@ function decidirRitmo(el: HTMLElement): Promise<void> {
   });
 }
 
+/** Sua vez (e a conversa): dispensa os pedidos vencidos de uma vez ("Limpar vencidos"). */
+function limparVencidos(ids: readonly string[]): Promise<void> {
+  return agir(async () => {
+    for (const id of ids) await api!.dispensar(id);
+    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+  });
+}
+
 /**
  * As ações de uma rotina (a tela Rotinas por string, pelo `data-act`, e a em React, por prop): pausar (até uma data, ou
  * sem prazo), ativar, testar agora e abrir ou fechar as últimas execuções.
@@ -3475,7 +3484,7 @@ function renderPrincipal(): void {
     case "inicio":
       break;
     case "sua-vez":
-      corpo = renderSuaVez(estado);
+      corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("sua-vez") : renderSuaVez(estado);
       break;
     case "nao-lidos":
       corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("nao-lidos") : renderNaoLidos(estado);
@@ -9672,10 +9681,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (el.closest(".cartao-pergunta")) anunciarPergunta("Pergunta deixada pra lá");
   }),
   // Em série: são poucas, e uma recusa no meio não deixa metade gravada sem a tela saber.
-  "limpar-vencidos": (el) => agir(async () => {
-    for (const id of (el.dataset.ids ?? "").split(",").filter(Boolean)) await api!.dispensar(id);
-    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
-  }),
+  "limpar-vencidos": (el) => limparVencidos((el.dataset.ids ?? "").split(",").filter(Boolean)),
 };
 
 const emitirChavePelaTela = umaPorVez(async (form: HTMLFormElement) => {
