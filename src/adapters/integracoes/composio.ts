@@ -3,6 +3,7 @@ import { COMPOSIO_POR_CAPACIDADE_GITHUB } from "../../contracts/github.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import type { ArgsGithub } from "../../domain/github.ts";
 import type { AppGerenciado } from "../../domain/catalogo-marketplace.ts";
+import type { CampoDeConexao } from "../../contracts/marketplace.ts";
 import { classificarFalhaHttp, ehRedirecionamentoRecusado, esperaAntes, lerRetryAfterMs, podeRepetir, prazoDaTentativa, type FalhaHttp } from "../../domain/nova-tentativa.ts";
 import { log } from "../../obs/log.ts";
 import { CHAMADA_CONECTOR_MS, ORCAMENTO_CONECTOR_MS } from "../../shared/constantes.ts";
@@ -47,6 +48,11 @@ function urlDoProvedor(valor: string, hosts: string[]): URL {
 }
 
 const BASE = "https://backend.composio.dev/api/v3.1";
+
+/** O nome do campo volta como chave do `val` da conta (generic_api_key, subdomain, suffix.one…). */
+const NOME_DE_CAMPO = /^[a-z][a-z0-9_.]{0,63}$/;
+/** Ids do Composio (ac_…, ca_…) entram em caminho de URL: só o formato conhecido passa. */
+const ID_COMPOSIO = /^[A-Za-z0-9_-]{1,80}$/;
 
 const HOSTS_LOGO = ["logos.composio.dev", "assets.composio.dev", "cdn.composio.dev"];
 
@@ -202,7 +208,9 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
           const slug = slugDoToolkit(slugRemoto);
           if (porSlug.has(slug)) continue;
           const gerenciado = Array.isArray(o.composio_managed_auth_schemes) && o.composio_managed_auth_schemes.length > 0;
-          if (!gerenciado || o.no_auth === true || o.is_local_toolkit === true || o.type === "custom") continue;
+          // Emenda ADR-057 (2026-11-18): sem login gerenciado, o esquema API_KEY ainda conecta, com a chave da pessoa.
+          const porChave = !gerenciado && Array.isArray(o.auth_schemes) && o.auth_schemes.includes("API_KEY");
+          if (!(gerenciado || porChave) || o.no_auth === true || o.is_local_toolkit === true || o.type === "custom") continue;
           const meta = (o.meta && typeof o.meta === "object" ? o.meta : {}) as Record<string, unknown>;
           const categorias = (Array.isArray(meta.categories) ? meta.categories as unknown[] : [])
             .map((c) => typeof c === "string" ? c : c && typeof c === "object" ? (c as Record<string, unknown>).name : null)
@@ -213,6 +221,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
             logo: logoDoProvedor(meta.logo),
             descricao: typeof meta.description === "string" ? meta.description : "",
             categorias,
+            ...(porChave ? { conexao: "chave" as const } : {}),
           });
         }
         cursor = typeof r.next_cursor === "string" && r.next_cursor ? r.next_cursor : null;
@@ -220,9 +229,11 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       }
       return [...porSlug.values()];
     },
-    async criarSessao(userId: string, toolkit: string) {
+    /** `authConfigId`: a auth config do app de chave (sem ela a sessão cai no login gerenciado, que o app não tem). */
+    async criarSessao(userId: string, toolkit: string, authConfigId?: string) {
       const r = await pedir("/tool_router/session", {
         user_id: userId, toolkits: { enable: [toolkitComposio(toolkit)] }, preload: { tools: "all" },
+        ...(authConfigId ? { auth_configs: { [toolkitComposio(toolkit)]: authConfigId } } : {}),
         manage_connections: { enable: false }, workbench: { enable: false, enable_proxy_execution: false },
         search: { enable: false }, execute: { enable_multi_execute: false },
       });
@@ -251,6 +262,70 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       if (r.successful === false) throw new ErroDeDominio(typeof r.error === "string" && ERRO_DE_AUTENTICACAO.test(r.error) ? "integracao_autenticacao" : "conector_indisponivel");
       if (!r.data || typeof r.data !== "object" || Array.isArray(r.data)) throw new ErroDeDominio("conector_indisponivel");
       return r.data as Record<string, unknown>;
+    },
+    /**
+     * Emenda ADR-057 (2026-11-18): os campos que a pessoa preenche para conectar por chave, lidos do esquema API_KEY do
+     * toolkit (`connected_account_initiation`). Campo invisível ao usuário fica de fora; nome fora do formato também
+     * (é ele que volta como chave do `val`). Sem esquema API_KEY: nao_encontrado.
+     */
+    async camposDaChave(toolkit: string): Promise<CampoDeConexao[]> {
+      const r = await pedir(`/toolkits/${encodeURIComponent(toolkitComposio(toolkit))}`);
+      const detalhes = Array.isArray(r.auth_config_details) ? r.auth_config_details as unknown[] : [];
+      const esquema = detalhes.find((d): d is Record<string, unknown> => !!d && typeof d === "object" && (d as Record<string, unknown>).mode === "API_KEY");
+      if (!esquema) throw new ErroDeDominio("nao_encontrado");
+      const inicio = ((esquema.fields as Record<string, unknown> | undefined)?.connected_account_initiation ?? {}) as Record<string, unknown>;
+      const ler = (lista: unknown, obrigatorio: boolean): CampoDeConexao[] => (Array.isArray(lista) ? lista : []).flatMap((c) => {
+        if (!c || typeof c !== "object") return [];
+        const o = c as Record<string, unknown>;
+        if (typeof o.name !== "string" || !NOME_DE_CAMPO.test(o.name) || o.user_visible === false) return [];
+        const rotulo = typeof o.displayName === "string" && o.displayName.trim() ? o.displayName.trim() : o.name;
+        return [{ nome: o.name, rotulo, descricao: typeof o.description === "string" ? o.description.trim() : "", segredo: o.is_secret === true, obrigatorio: obrigatorio && o.required !== false }];
+      });
+      const campos = [...ler(inicio.required, true), ...ler(inicio.optional, false)];
+      if (!campos.some((c) => c.obrigatorio)) throw new ErroDeDominio("nao_encontrado");
+      return campos;
+    },
+    /**
+     * A auth config de chave do toolkit: reaproveita a habilitada do projeto (custom, API_KEY) ou cria uma, sem
+     * credenciais (a chave é de cada pessoa, na conta conectada). A sessão só acha contas de config com
+     * `is_enabled_for_tool_router`; a criada pela API nasce sem a marca, então o PATCH a liga.
+     */
+    async garantirConfigDeChave(toolkit: string): Promise<string> {
+      const remoto = toolkitComposio(toolkit);
+      const lista = await pedir(`/auth_configs?toolkit_slug=${encodeURIComponent(remoto)}&limit=200`);
+      const itens = (Array.isArray(lista.items) ? lista.items : []) as Record<string, unknown>[];
+      const existente = itens.find((i) => i && i.type === "custom" && i.auth_scheme === "API_KEY" && i.status !== "DISABLED" && (i.toolkit as { slug?: unknown } | undefined)?.slug === remoto && typeof i.id === "string" && ID_COMPOSIO.test(i.id));
+      let id = existente?.id as string | undefined;
+      let naSessao = existente?.is_enabled_for_tool_router === true;
+      if (!id) {
+        const criada = await pedir("/auth_configs", { toolkit: { slug: remoto }, auth_config: { type: "use_custom_auth", authScheme: "API_KEY", name: `nod · ${remoto}`, credentials: {} } });
+        const ac = criada.auth_config as { id?: unknown } | undefined;
+        if (typeof ac?.id !== "string" || !ID_COMPOSIO.test(ac.id)) throw new ErroDeDominio("conector_indisponivel");
+        id = ac.id;
+        naSessao = false;
+      }
+      if (!naSessao) {
+        const r = await requisitar("PATCH", `/auth_configs/${encodeURIComponent(id)}`, { type: "custom", is_enabled_for_tool_router: true }).catch(() => null);
+        if (!r?.ok) throw new ErroDeDominio("conector_indisponivel");
+      }
+      return id;
+    },
+    /**
+     * Cria a conta conectada com os valores que a pessoa colou. O Composio confere a chave com o app quando o app
+     * permite (ConnectedAccount_CredentialValidationRejected = recusada); sem essa conferência a conta nasce e a sonda
+     * é quem descobre. O texto do provedor nunca sai daqui: só o código vira erro de domínio.
+     */
+    async conectarComChave(authConfigId: string, userId: string, valores: Record<string, string>): Promise<string> {
+      const r = await requisitar("POST", "/connected_accounts", { auth_config: { id: authConfigId }, connection: { user_id: userId, state: { authScheme: "API_KEY", val: { status: "ACTIVE", ...valores } } } }).catch(() => null);
+      if (!r) throw new ErroDeDominio("conector_indisponivel");
+      const corpo: unknown = await r.json().catch(() => null);
+      if (!r.ok) {
+        const texto = JSON.stringify(corpo ?? "");
+        throw new ErroDeDominio(r.status === 401 || r.status === 403 || /CredentialValidationRejected|invalid[_ ](api[_ ])?key|unauthori[sz]ed/i.test(texto) ? "integracao_autenticacao" : "conector_indisponivel");
+      }
+      const id = corpo && typeof corpo === "object" ? (corpo as Record<string, unknown>).id : null;
+      if (typeof id !== "string" || !ID_COMPOSIO.test(id)) throw new ErroDeDominio("conector_indisponivel");
+      return id;
     },
     async conectado(contaId: string, userId: string, toolkit: string) {
       const r = await pedir(`/connected_accounts/${encodeURIComponent(contaId)}`);

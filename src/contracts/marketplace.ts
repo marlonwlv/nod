@@ -44,7 +44,7 @@ export const APPS_MARKETPLACE: readonly AppMarketplace[] = [
   { slug: "read-ai-mcp", nome: "Read AI", descricao: "Consulte relatórios, resumos e transcrições acessíveis à sua conta. Enviar um bot para gravar exige escrita.", categoria: "Comunicação", exigeProvedor: true, orientacaoConexao: "Requer autenticação Read AI disponível no provedor e Downloads habilitado no workspace. Conectar não inicia gravações.", naoIncluiNaLeitura: ["enviar bot para gravar", "compartilhar relatórios"] },
   { slug: "otter-ai-mcp", nome: "Otter.ai", descricao: "Busque reuniões e leia transcrições às quais sua conta tem acesso. Esta integração não inicia gravações.", categoria: "Conhecimento", exigeProvedor: true, orientacaoConexao: "Requer autenticação Otter disponível no provedor. O acesso depende das permissões da sua conta." },
   { slug: "fathom", nome: "Fathom", descricao: "Consulte reuniões, resumos e transcrições já disponíveis na sua conta. Conectar não inicia gravações.", categoria: "Comunicação", exigeProvedor: true, naoIncluiNaLeitura: ["criar ou excluir webhooks"] },
-  { slug: "fireflies", nome: "Fireflies", descricao: "Busque transcrições e consulte reuniões. Enviar áudio ou adicionar o bot a uma reunião exige escrita.", categoria: "Comunicação", exigeProvedor: true, orientacaoConexao: "Disponível quando configurado no provedor. O login solicita a chave da sua conta Fireflies em ambiente protegido.", naoIncluiNaLeitura: ["adicionar bot à reunião", "enviar áudio", "apagar transcrições"] },
+  { slug: "fireflies", nome: "Fireflies", descricao: "Busque transcrições e consulte reuniões. Enviar áudio ou adicionar o bot a uma reunião exige escrita.", categoria: "Comunicação", exigeProvedor: true, orientacaoConexao: "Conecta com a chave de API da sua conta Fireflies, colada num campo seguro. Nenhum bot vê a chave.", naoIncluiNaLeitura: ["adicionar bot à reunião", "enviar áudio", "apagar transcrições"] },
   { slug: "granola-mcp", nome: "Granola", descricao: "Busque notas e transcrições disponíveis no seu plano. Conectar não captura áudio nem inicia uma reunião.", categoria: "Conhecimento", exigeProvedor: true, orientacaoConexao: "Requer autenticação Granola disponível no provedor. O acesso a transcrições depende do seu plano e das permissões do workspace.", naoIncluiNaLeitura: ["criar notas", "alterar pastas", "editar notas"] },
 
   { slug: "slack", nome: "Slack", descricao: "Encontre conversas, acompanhe sua equipe e prepare mensagens.", categoria: "Comunicação", conteudoInterno: true },
@@ -74,4 +74,20 @@ export type AppComLogo = AppMarketplace & {
    * ele, sem curadoria e sem auth config no painel. A tela o mostra em "Mais apps", não no dia a dia.
    */
   doCatalogo?: true;
+  /**
+   * definido em 2026-11-18 (emenda ADR-057): conecta com a chave de API da pessoa, colada num campo seguro, e não
+   * com login. Os campos vêm de GET /marketplace/:slug/campos e a conexão de POST /marketplace/:slug/conectar-com-chave.
+   */
+  conexao?: "chave";
+};
+
+/** Um campo que o app pede para conectar por chave (a chave, o subdomínio da conta…), como o Composio descreve. */
+export type CampoDeConexao = {
+  nome: string;
+  rotulo: string;
+  /** Onde achar o valor, no texto do provedor (em inglês). */
+  descricao: string;
+  /** Segredo: a tela usa campo de senha e o valor nunca volta. */
+  segredo: boolean;
+  obrigatorio: boolean;
 };

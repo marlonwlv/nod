@@ -12,7 +12,15 @@ export type AppDoProvedor = { slug: string; nome: string; logo: string | null };
  * definido em 2026-09-29 (ADR-057): um toolkit do catálogo público com login gerenciado pelo Composio —
  * conecta sem auth config no painel. Traz o que o `GET /toolkits` dá a mais: descrição e categorias, em inglês.
  */
-export type AppGerenciado = AppDoProvedor & { descricao: string; categorias: readonly string[] };
+export type AppGerenciado = AppDoProvedor & {
+  descricao: string;
+  categorias: readonly string[];
+  /**
+   * definido em 2026-11-18 (emenda ADR-057, apps por chave): sem login gerenciado, mas com esquema API_KEY. O Composio
+   * conecta quando a pessoa cola a chave; o nod cria a auth config sozinho (nenhum campo de configuração é pedido).
+   */
+  conexao?: "chave";
+};
 
 const CURADORIA = new Map(APPS_MARKETPLACE.map((a) => [a.slug, a]));
 const ORDEM = new Map(APPS_MARKETPLACE.map((a, i) => [a.slug, i]));
@@ -67,7 +75,7 @@ function resumir(texto: string): string {
 }
 
 /** Curadoria por cima; o que ela não diz, o catálogo público diz em inglês; o que nenhum diz, o padrão. */
-function montar(p: AppDoProvedor, g: AppGerenciado | undefined): AppComLogo {
+function montar(p: AppDoProvedor, g: AppGerenciado | undefined, noPainel = false): AppComLogo {
   const c = CURADORIA.get(p.slug);
   const descricao = g?.descricao ? resumir(g.descricao) : "";
   return {
@@ -79,6 +87,8 @@ function montar(p: AppDoProvedor, g: AppGerenciado | undefined): AppComLogo {
     ...(c?.naoIncluiNaLeitura ? { naoIncluiNaLeitura: c.naoIncluiNaLeitura } : {}),
     ...(c?.orientacaoConexao ? { orientacaoConexao: c.orientacaoConexao } : {}),
     logo: p.logo ?? g?.logo ?? null,
+    // Com auth config no painel o login é o dele (OAuth ou o que o projeto configurou): a chave só vale fora dele.
+    ...(g?.conexao === "chave" && !noPainel ? { conexao: "chave" as const } : {}),
   };
 }
 
@@ -102,7 +112,7 @@ export function mesclarCatalogo(doProvedor: readonly AppDoProvedor[], gerenciado
   const doPainel = [...doProvedor, ...nativos];
   const noPainel = new Set(doPainel.map((p) => p.slug));
   const soNoCatalogo = [...doCatalogo.values()].filter((g) => !noPainel.has(g.slug) && SLUG_CONECTAVEL.test(g.slug));
-  const doTime = [...doPainel, ...soNoCatalogo.filter((g) => CURADORIA.has(g.slug))].map((p) => montar(p, doCatalogo.get(p.slug)));
+  const doTime = [...doPainel, ...soNoCatalogo.filter((g) => CURADORIA.has(g.slug))].map((p) => montar(p, doCatalogo.get(p.slug), noPainel.has(p.slug)));
   const mais = soNoCatalogo.filter((g) => !CURADORIA.has(g.slug)).map((g) => ({ ...montar(g, g), doCatalogo: true as const }));
   const porNome = (a: AppComLogo, b: AppComLogo) => a.nome.localeCompare(b.nome, "pt-BR");
   doTime.sort((a, b) => {

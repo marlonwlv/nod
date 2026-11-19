@@ -1868,7 +1868,9 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "aviso-conexao":
       return { ...estado, avisoConexao: acao.texto };
     case "hidratar-conectores":
-      return { ...estado, conectores: acao.conectores, marketplace: acao.marketplace ?? estado.marketplace, composioConfigurado: acao.composioConfigurado ?? estado.composioConfigurado, carregado: estado.carregado.conectores ? estado.carregado : { ...estado.carregado, conectores: true } };
+      // Emenda ADR-057 (2026-11-18): app de chave conecta pelo formulário de campos da tela nova (preview/grokbot). Esta
+      // grade só sabe abrir login: sem o filtro, mostraria 1.313 botões Conectar que não têm onde colar a chave.
+      return { ...estado, conectores: acao.conectores, marketplace: acao.marketplace?.filter((a) => a.conexao !== "chave") ?? estado.marketplace, composioConfigurado: acao.composioConfigurado ?? estado.composioConfigurado, carregado: estado.carregado.conectores ? estado.carregado : { ...estado.carregado, conectores: true } };
     case "hidratar-concessoes":
       // Sem as dispensas na resposta, o que havia fica: sem saber o que a pessoa dispensou, o cartão de liberar não aparece.
       return { ...estado, concessoes: { ...estado.concessoes, [acao.agenteId]: acao.concessoes }, liberacoesDispensadas: acao.liberacoesDispensadas ? { ...estado.liberacoesDispensadas, [acao.agenteId]: acao.liberacoesDispensadas } : estado.liberacoesDispensadas };

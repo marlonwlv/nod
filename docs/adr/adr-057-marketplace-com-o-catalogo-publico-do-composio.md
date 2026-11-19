@@ -174,3 +174,26 @@ Detalhes, fontes e limites: [Microsoft e reuniões](../integracoes-microsoft-reu
 Gatilho de revisão: o provedor publicar um slug com hífen (fica fora da grade e a regra
 precisa de outra forma de distinguir `a-b` de `a_b`), mudança de slug oficial ou falha real no login;
 nenhuma dessas situações autoriza cair em outro toolkit/conta.
+
+## Emenda — apps por chave de API (2026-11-18)
+
+O catálogo público passa a trazer também o toolkit **sem login gerenciado cujo esquema inclui API_KEY**
+(1.313 dos 1.818 toolkits em 18/11/2026). Ele chega marcado `conexao: "chave"`. Quem tem login gerenciado
+continua sendo login, mesmo aceitando chave; quem tem auth config no painel usa o login do projeto, e a marca
+não passa. DCR_OAUTH, OAuth sem app gerenciado e `no_auth` continuam fora.
+
+Conectar não abre login. `GET /marketplace/:slug/campos` devolve os campos do esquema API_KEY do toolkit
+(`connected_account_initiation`: a chave e, em 18% dos apps da amostra de 120, um segundo campo como o subdomínio),
+com o que é segredo (`is_secret`). `POST /marketplace/:slug/conectar-com-chave` faz numa chamada: reaproveita a
+auth config custom API_KEY habilitada do projeto ou cria uma sem credenciais (nada a configurar: a chave é de cada
+pessoa) e liga `is_enabled_for_tool_router`; cria a conta com os valores; abre a sessão com `auth_configs` desse
+toolkit, prende a conta e sonda como o `verificar`. Os valores passam pelo servidor e não ficam no banco nem no log;
+a chave recusada pelo app (`ConnectedAccount_CredentialValidationRejected`) é `integracao_autenticacao`.
+
+A ação é `apps.conectar_com_chave`, `pessoa_confirma`, com chat `nunca` (segredo, como `apps.credenciais`): pela
+conversa o caminho é um cartão de campo seguro, que nasce com a tela nova. A grade antiga só sabe abrir login,
+então esconde o app de chave no reducer até a tela nova (preview/grokbot) assumir.
+
+Gatilho de revisão: o Composio mudar o corpo de criação da auth config ou o `val` da conta (a documentação dele
+diverge entre `api_key` e o nome do campo do esquema; usamos o nome do esquema), ou a sessão não achar contas de
+config criada pela API mesmo com a marca ligada.

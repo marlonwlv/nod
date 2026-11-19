@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **200**, mais 3 só de leitura. No chat: **75 vivas**, 3 parciais, 90 faltando e 35 que nunca vão para o chat. Piso de vivas: 75.
+Ações de pessoa que mudam algo: **201**, mais 3 só de leitura. No chat: **75 vivas**, 3 parciais, 90 faltando e 36 que nunca vão para o chat. Piso de vivas: 75.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -70,6 +70,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `apps.desabilitar` | Desligar um app | muda | falta (NOD-394) | `POST ^\/conectores\/(?<id>[^/]+)\/desabilitar$` |
 | `apps.conectar` | Conectar um app do Marketplace | muda | falta (NOD-394) | `POST ^\/marketplace\/(?<slug>[a-z0-9-]+)\/conectar$` |
 | `apps.verificar` | Verificar a conexão de um app do Marketplace | leitura | falta (NOD-394) | `POST ^\/marketplace\/(?<slug>[a-z0-9-]+)\/verificar$` |
+| `apps.conectar_com_chave` | Conectar um app com a chave de API da pessoa | pessoa_confirma | nunca: leva um segredo (token, chave ou credencial): só pelo campo seguro da tela, nunca pela conversa | `POST ^\/marketplace\/(?<slug>[a-z0-9-]+)\/conectar-com-chave$` |
 | `apps.credenciais` | Guardar as credenciais de um app | pessoa_confirma | nunca: leva um segredo (token, chave ou credencial): só pelo campo seguro da tela, nunca pela conversa | `PATCH ^\/conectores\/(?<id>[^/]+)\/credenciais$` |
 | `apps.configurar_marketplace` | Guardar a chave do Marketplace | pessoa_confirma | nunca: leva um segredo (token, chave ou credencial): só pelo campo seguro da tela, nunca pela conversa | `POST ^\/marketplace\/configurar$` |
 | `apps.github_token` | Conectar o GitHub por token | pessoa_confirma | nunca: leva um segredo (token, chave ou credencial): só pelo campo seguro da tela, nunca pela conversa | `POST ^\/marketplace\/github\/token$` |
