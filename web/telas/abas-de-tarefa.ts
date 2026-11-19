@@ -37,6 +37,8 @@ export type FileiraDeAbas = {
    * aparece quando a página do bot à vista não é a Conversa.
    */
   pilula?: { html: string; conversaAtiva: boolean; botaoDeAbas?: string };
+  /** A aba com o menu aberto: o chevron dela fica à vista (validação de 2026-11-18). */
+  menuAberto?: string | null;
 };
 
 // Paper 4p: seta ‹ de 12 (traço 1,4), seta ⌄ de 10 (traço 1,3), "+" de 14 (traço 1,5) e o quadrado da parada (o do Parar).
@@ -98,7 +100,7 @@ function htmlDaAba(estado: Estado, aba: AbaDeTarefa, ativa: boolean, f: FileiraD
     return `<div class="at-aba ativa renomeando" data-aba="${id}"><span class="at-ir">${ic.html}<input id="at-nome" class="at-nome" data-id="${id}" value="${esc(renomeando.texto)}" maxlength="80" aria-label="Nome da tarefa" autocomplete="off" spellcheck="false"></span></div>`;
   }
   const nome = esc(curto);
-  return `<div class="at-aba${ativa ? " ativa" : ""}" data-aba="${id}">`
+  return `<div class="at-aba${ativa ? " ativa" : ""}${f.menuAberto === aba.id ? " menu-aberto" : ""}" data-aba="${id}">`
     + `<button type="button" class="at-ir" data-act="aba-tarefa" data-id="${id}" data-segurar="menu-aba-tarefa"${ativa ? ' aria-current="page"' : ""} title="${esc(`${titulo} · ${ic.texto}`)}">${ic.html}<span class="at-titulo">${nome}</span><span class="at-sr">, ${esc(ic.texto)}</span></button>`
     + `<button type="button" class="at-seta" data-act="menu-aba-tarefa" data-id="${id}" aria-haspopup="menu" aria-label="Ações da tarefa ${nome}">${SETA_MENU}</button>`
     + "</div>";

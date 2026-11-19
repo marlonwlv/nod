@@ -580,6 +580,8 @@ let renomeandoAba: { id: string; texto: string; inicio: number | null; fim: numb
 /** O nome novo, enquanto o servidor não devolve a tarefa com ele (a aba não pisca o nome velho). */
 const titulosDasAbas = new Map<string, string>();
 let ultimoCliqueNaAba: { id: string; em: number } | null = null;
+/** A aba com o menu aberto (o chevron dela fica à vista mesmo se a fileira for redesenhada). */
+let abaComMenu: string | null = null;
 function lembrarTaskAberta(tela: Tela): void {
   try {
     if (tela.tipo === "trabalho") window.sessionStorage.setItem(CHAVE_TASK_ABERTA, JSON.stringify({ id: tela.id, voltar: tela.voltar.tipo === "conversa" || tela.voltar.tipo === "trabalhos" ? tela.voltar : { tipo: "inicio" } }));
@@ -5024,7 +5026,7 @@ function fileiraDeAbas(agenteId: string, ativa: string | null, naConversa = fals
     ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId) ?? "" }
     : { html: renderCabecalhoConversa(estado, agenteId, { painel: false, irParaConversa: true }), conversaAtiva: false };
   return (fim) => renderFileiraDeAbas(estado, {
-    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula,
+    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula, menuAberto: abaComMenu,
     renomeando: renomeandoAba && renomeandoAba.id === ativa ? renomeandoAba : null,
     novaTarefa: botAceitaTarefa(estado, agenteId) ? { texto: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria } : null,
   });
@@ -5086,12 +5088,12 @@ function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
   const dx = antes.rect.left - r.left;
   const dy = antes.rect.top - r.top;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 260, easing: "cubic-bezier(.3, 1.15, .5, 1)" });
+  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 460, easing: "cubic-bezier(.3, 1.1, .5, 1)" });
   if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando");
 }
 
 /** Paper 10b: as abas somem para dentro da pílula antes de ela voltar ao centro (a mesma duração do CSS). */
-const DURACAO_RECOLHER_ABAS_MS = 140;
+const DURACAO_RECOLHER_ABAS_MS = 260;
 
 function reduzirMovimento(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -5129,7 +5131,10 @@ function abrirMenuDaAba(id: string, ancora: HTMLElement, ponto?: { x: number; y:
   if (!id) return;
   const r = ancora.getBoundingClientRect();
   const tr = trabalhoPorId(estado, id);
-  abrirMenuDaBarra(htmlDoMenuDaAba(tr, { fazerNaConversa: acoesDeFazer(tr, estado, tr?.conversaId) !== "" }), ancora, ponto ?? { x: r.left - 4, y: r.bottom }, (b) => {
+  // Validação de 2026-11-18: o chevron fica à vista enquanto o menu da aba está aberto.
+  abaComMenu = id;
+  ancora.closest<HTMLElement>(".at-aba")?.classList.add("menu-aberto");
+  const menu = abrirMenuDaBarra(htmlDoMenuDaAba(tr, { fazerNaConversa: acoesDeFazer(tr, estado, tr?.conversaId) !== "" }), ancora, ponto ?? { x: r.left - 4, y: r.bottom }, (b) => {
     const acao = b.dataset.abaAcao;
     if (acao === "renomear") comecarRenomeio(id);
     else if (acao === "fazer-aqui") void agir(async () => {
@@ -5144,6 +5149,10 @@ function abrirMenuDaAba(id: string, ancora: HTMLElement, ponto?: { x: number; y:
       dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
     });
   });
+  menu.addEventListener("close", () => {
+    abaComMenu = null;
+    document.querySelector(`#cabecalho .at-aba[data-aba="${CSS.escape(id)}"]`)?.classList.remove("menu-aberto");
+  }, { once: true });
 }
 
 /** "Todos os bots ▾" da tela Tarefas (ADR-187 §8, Paper 5a): escolher um bot filtra as duas vistas; "Todos os bots" volta. */

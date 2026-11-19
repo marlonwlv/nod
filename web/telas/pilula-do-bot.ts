@@ -267,24 +267,34 @@ function linhaDaMemoria(p: Pilula): string {
 const CHIP = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg>';
 
 /**
- * ADR-187 §5 (lote B, passo 6, 2026-11-18; Paper 4d e "Aba das tarefas"): a lista aberta da aba usa a linha do cartão vivo
- * (`linhaDaTarefa`, modo `lista`): o ícone do estado, o título e o estado curto à direita ("precisa de você" em azul, na
- * linha realçada; "pronta"); a linha inteira abre a tarefa. No fim, "+ Nova tarefa ⌘N" quando a pessoa pode abrir uma aqui.
+ * A lista aberta da pílula (validação de 2026-11-18, Paper 9e/9f, jeito D: a pilha agrupada por urgência). As tarefas de
+ * todos os lotes juntas, em seções: "Precisa de você" (com a pergunta), "Rodando · N" (com o passo), "Parada" e, no fim,
+ * as prontas recolhidas numa linha ("✓ 3 prontas", que abre ali mesmo) — com 10 tarefas a lista cabe sem rolar. A linha
+ * inteira abre a tarefa (`linhaDaTarefa`, modo `lista`). Depois, as esperas, a fila, o aviso da máquina e "+ Nova tarefa".
  */
 function corpoDaPilula(p: Pilula, novaTarefa: NovaTarefaNaAba | null): string {
   const fora = new Set(p.emEspera ?? []);
-  const lotes = p.grupos.map((g) => {
-    const itens = g.frentes.filter((f) => !fora.has(f.trabalhoId)).map((f) => linhaDaTarefa(f, "lista")).join("");
-    const cab = p.grupos.length > 1 ? `<h3 class="pf-lote">${esc(g.titulo)} · ${esc(estadoDoGrupo(g))}</h3>` : "";
-    return `${cab}<ul class="pf-lista">${itens}</ul>`;
-  }).join("");
+  const todas = p.grupos.flatMap((g) => g.frentes).filter((f) => !fora.has(f.trabalhoId));
+  const de = (...es: FrenteNaFala["estado"][]): FrenteNaFala[] => todas.filter((f) => es.includes(f.estado));
+  const secao = (titulo: string, fs: readonly FrenteNaFala[], classe = ""): string =>
+    fs.length ? `<h3 class="pf-secao${classe}">${esc(titulo)}</h3><ul class="pf-lista">${fs.map((f) => linhaDaTarefa(f, "lista")).join("")}</ul>` : "";
+  const precisam = de("precisa");
+  const rodando = de("rodando", "esperando", "sem_noticia");
+  const paradas = de("parada", "falhou");
+  const prontas = de("pronta");
+  const feitas = prontas.length
+    ? `<details class="pf-prontas"><summary>${IC_OK_PRONTAS}<span>${prontas.length === 1 ? "1 pronta" : `${prontas.length} prontas`}</span>${SETA_DIREITA}</summary><ul class="pf-lista">${prontas.map((f) => linhaDaTarefa(f, "lista")).join("")}</ul></details>`
+    : "";
+  const tarefas = `${secao("Precisa de você", precisam, " pf-secao-precisa")}${secao(rodando.length > 1 ? `Rodando · ${rodando.length}` : "Rodando", rodando)}${secao(paradas.length > 1 ? `Paradas · ${paradas.length}` : "Parada", paradas)}${feitas}`;
   const esperas = p.esperas.length ? `<h3 class="pf-secao">Esperando</h3><ul class="pf-lista">${p.esperas.map((v) => itemDaEspera(v, p.agenteId)).join("")}</ul>` : "";
   const fila = p.fila.length ? `<h3 class="pf-secao">Na fila</h3><ul class="pf-lista">${p.fila.map((x, i) => `<li class="pf-item"><span class="pf-ordem" aria-hidden="true">${i + 1}</span><span class="pf-item-corpo"><span class="pf-item-titulo">${esc(x.quem.charAt(0).toUpperCase() + x.quem.slice(1))}</span></span><span class="pf-item-fim">${esc(hora(x.desde))}</span></li>`).join("")}</ul>` : "";
   // A frase da memória só aqui dentro (decisão tomada 5); o ponto leva a Trabalhos, Este Mac ou Máquinas.
   const memoria = p.memoria ? `<button type="button" class="pf-memoria-linha ${p.memoria.nivel}" ${p.memoria.alvo}><span class="pf-memoria-ponto" aria-hidden="true"></span>${esc(p.memoria.texto)}</button>` : "";
   const nova = novaTarefa ? `<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="${esc(novaTarefa.aria)}">+ Nova tarefa <kbd class="pf-nova-atalho">${esc(novaTarefa.atalho)}</kbd></button>` : "";
-  return `${lotes}${esperas}${fila}${memoria}${linhaDaMemoria(p)}${nova}`;
+  return `${tarefas}${esperas}${fila}${memoria}${linhaDaMemoria(p)}${nova}`;
 }
+const IC_OK_PRONTAS = '<svg class="pf-prontas-ic" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="currentColor"/><path d="M3.5 6.2l1.6 1.6 3.4-3.4" fill="none" stroke="var(--chat-superficie)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SETA_DIREITA = '<svg class="pf-prontas-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.75 2.5 L6.25 5 L3.75 7.5"/></svg>';
 
 /**
  * As partes da pílula. `progresso` diz se a fala de algum grupo está na janela carregada: sem ela, "Ver na conversa" não
@@ -304,7 +314,11 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
   const doCab = p.grupos.length ? p.resto.slice(0, 1) : p.resto;
   // O ponto na cor do bot (Paper: "ponto na cor do bot = bot trabalhando"); a classe só aceita o formato c-<nome>.
   const cor = p.cor && /^c-[a-z]+$/.test(p.cor) ? ` ${p.cor}` : "";
-  const cab = `${ponto(p.sinal).replace('class="pf-ponto ', `class="pf-ponto pf-cab-ponto${cor} `)}<span class="pf-cab-titulo"><b>${esc(p.texto)}</b>${doCab.length ? `<span class="pf-cab-resto">${esc(doCab.join(" · "))}</span>` : ""}</span><button type="button" class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">${SETA_BAIXO}fechar</button>`;
+  // Paper 9f (validação de 2026-11-18): com tarefas, o topo da lista é "Tarefas abertas" e "Ver todas ›" (a tela Tarefas
+  // deste bot); fechar é clicar fora, Esc ou a própria pílula. Sem tarefas (espera, fila), o topo de antes.
+  const cab = p.grupos.length
+    ? `<span class="pf-cab-titulo"><b>Tarefas abertas</b></span><button type="button" class="pf-ver-todas" data-act="abrir-tarefas" data-agente="${esc(p.agenteId)}">Ver todas${SETA_DIREITA}</button>`
+    : `${ponto(p.sinal).replace('class="pf-ponto ', `class="pf-ponto pf-cab-ponto${cor} `)}<span class="pf-cab-titulo"><b>${esc(p.texto)}</b>${doCab.length ? `<span class="pf-cab-resto">${esc(doCab.join(" · "))}</span>` : ""}</span><button type="button" class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">${SETA_BAIXO}fechar</button>`;
   const naConversa = p.grupos.some((g) => g.ids.some((id) => progresso.naTimeline.has(id)));
   const pe = [
     naConversa ? `<button type="button" class="pf-ver" data-act="pilula-ver-na-conversa">Ver na conversa${SETA_SOBE}</button>` : "",
