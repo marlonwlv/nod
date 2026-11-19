@@ -102,9 +102,22 @@ fase 4 só entra se não piorar a régua (ADR-179):
 | 5 frentes | 58 / 11 / 10 | 54 / 11 / 24 |
 
 As duas ficam no ruído uma da outra: o cabeçalho, o painel e Seu espaço no React não pioram a régua (e não a melhoram:
-eles quase não redesenham com os bots trabalhando). A `main` medida de novo logo depois, no mesmo banco, deu 240–1.194 ms
-de tarefa e 93–944 ms de tecla no p95, mas a carga da máquina subiu de 3,9 para 18 no meio da rodada (outra sessão
-compilando): fica como segunda medida, e a linha de base é a da tabela de cima.
+eles quase não redesenham com os bots trabalhando).
+
+**Resultado consolidado** (2026-11-19, 12h, mesmo banco, uma variante logo depois da outra). A `main` foi medida com a
+máquina quieta (carga de 1 min 2,8 no começo e no fim); a branch final, logo depois, com a carga subindo até 7,6 (outros
+processos na máquina) — a comparação desfavorece a branch:
+
+| Cenário | `main` | branch final (as cinco regiões no React + CSS) |
+|---|---|---|
+| ocioso | 192 / 142 / 18 | 0 / 0 / 13 |
+| 8 bots fora da tela | 248 / 1.240 / 110 | 83 / 62 / 68 |
+| turno pesado | **405** / 2.210 / 192 | 139 / 190 / 17 |
+| os dois juntos | **493** / 3.398 / **248** | 74 / 31 / 59 |
+| 5 frentes | **615** / 6.124 / **439** | 69 / 31 / 19 |
+
+A `main` passa do portão da ADR-061 em três cenários (em negrito); a branch fica abaixo dele em todos, com 3 a 200 vezes
+menos tempo de bloqueio (TBT). A medida da `main` das 11h37 (carga subindo até 18) foi descartada.
 
 O CSS é o que tira a tela do vermelho: sem ele, a barra em React não mudava nada. O React soma por cima no que a pessoa
 sente — a tecla no p95 cai 2 a 3,5 vezes em relação ao CSS sozinho, porque a barra deixa de criar centenas de nós (e
