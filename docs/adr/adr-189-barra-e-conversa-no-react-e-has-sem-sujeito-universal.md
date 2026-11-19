@@ -89,6 +89,23 @@ Com as duas regiões no React, nenhum cenário passa de 76 ms de tarefa nem de 3
 200). Nas frentes, a tecla mais lenta levou 745 ms com os quadros nunca acima de 100 ms e o laço de eventos no máximo em
 114 ms: a espera foi fora do thread principal da página (o mesmo pico aparece na `main`, 767 ms, e só com o CSS, 902 ms).
 
+**As cinco regiões no React** (barra, conversa, cabeçalho, painel e Seu espaço), num banco preparado de novo e com a
+máquina quieta (carga de 1 min abaixo de 4 no início de cada variante), uma variante depois da outra no mesmo build — a
+fase 4 só entra se não piorar a régua (ADR-179):
+
+| Cenário | barra + conversa | as cinco regiões |
+|---|---|---|
+| ocioso | 0 / 0 / 14 | 0 / 0 / 11 |
+| 8 bots fora da tela | 0 / 0 / 15 | 0 / 0 / 7 |
+| turno pesado | 51 / 1 / 10 | 71 / 37 / 11 |
+| os dois juntos | 0 / 0 / 7 | 62 / 12 / 13 |
+| 5 frentes | 58 / 11 / 10 | 54 / 11 / 24 |
+
+As duas ficam no ruído uma da outra: o cabeçalho, o painel e Seu espaço no React não pioram a régua (e não a melhoram:
+eles quase não redesenham com os bots trabalhando). A `main` medida de novo logo depois, no mesmo banco, deu 240–1.194 ms
+de tarefa e 93–944 ms de tecla no p95, mas a carga da máquina subiu de 3,9 para 18 no meio da rodada (outra sessão
+compilando): fica como segunda medida, e a linha de base é a da tabela de cima.
+
 O CSS é o que tira a tela do vermelho: sem ele, a barra em React não mudava nada. O React soma por cima no que a pessoa
 sente — a tecla no p95 cai 2 a 3,5 vezes em relação ao CSS sozinho, porque a barra deixa de criar centenas de nós (e
 mascotes) por frame.
