@@ -26,6 +26,13 @@ import { abrirPreviaNoReact } from "./web/react/dialogos/previa-arquivo.tsx";
 import { abrirLuzNoReact } from "./web/react/dialogos/luz.tsx";
 import { abrirArtefatoNoReact } from "./web/react/dialogos/artefato.tsx";
 import { abrirMenuDoBotNoReact } from "./web/react/dialogos/menu-do-bot.tsx";
+import { abrirMenuDeHtmlNoReact } from "./web/react/dialogos/menu-de-html.tsx";
+window.__menuHtml = (html) => {
+  window.__escolha = null; window.__fechou = false;
+  const linha = document.getElementById("linha-bot") ?? document.getElementById("antes");
+  linha.focus();
+  abrirMenuDeHtmlNoReact(document, { html, ancora: linha, aoEscolher: (b) => { window.__escolha = b.dataset.abaAcao ?? b.dataset.acaoTime ?? "?"; }, aoFechar: () => { window.__fechou = true; } });
+};
 window.__menuBot = (ponto) => {
   window.__acao = null;
   let linha = document.getElementById("linha-bot");
@@ -298,5 +305,34 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     for (const type of ["mousePressed", "mouseReleased"] as const) await cdp.enviar("Input.dispatchMouseEvent", { type, x: 1200, y: 60, button: "left", clickCount: 1 });
     await ate(`!document.querySelector(".rx-menu-host")`);
     expect(await avaliar<unknown>(cdp, "window.__acao")).toBeNull();
+  }, 60_000);
+
+  it("os menus da barra a partir do HTML: o CSS da aba (280 px), o item desligado focável mas inerte, Enter escolhe depois de fechar", async () => {
+    await esperar(300);
+    const aba = '<div role="menu" class="menu-aba-corpo" aria-label="Ações da tarefa X"><p class="menu-nome">Esta tarefa</p><button type="button" role="menuitem" data-aba-acao="renomear">Renomear<span class="at-menu-dica">· duplo clique</span></button><button type="button" role="menuitem" data-aba-acao="fechar">Fechar aba</button></div>';
+    await avaliar(cdp, `window.__menuHtml(${JSON.stringify(aba)})`);
+    await ate(`document.activeElement?.dataset?.abaAcao === "renomear"`);
+    expect(await avaliar<number>(cdp, `Math.round(document.querySelector(".bot-menu.rx-menu").getBoundingClientRect().width)`)).toBe(280);
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.abaAcao === "fechar"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__escolha === "fechar"`);
+    expect(await avaliar<boolean>(cdp, "window.__fechou")).toBe(true);
+    await esperar(300);
+    const time = '<div role="menu" aria-label="Ações do time Dev"><p class="menu-nome">Dev</p><button type="button" role="menuitem" data-acao-time="subir" disabled>Mover para cima</button><button type="button" role="menuitem" data-acao-time="renomear">Renomear</button><button type="button" role="menuitem" data-acao-time="excluir" class="danger">Excluir</button></div>';
+    await avaliar(cdp, `window.__menuHtml(${JSON.stringify(time)})`);
+    await ate(`document.activeElement?.dataset?.acaoTime === "renomear"`);
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.acaoTime === "excluir"`);
+    // O desligado é focável (APG: o leitor de tela ouve que a opção existe), mas Enter nele não escolhe.
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.acaoTime === "subir"`);
+    expect(await avaliar<string>(cdp, `document.activeElement.getAttribute("aria-disabled")`)).toBe("true");
+    await tecla("Enter", "Enter", 13);
+    await esperar(200);
+    expect(await avaliar<unknown>(cdp, "window.__escolha")).toBeNull();
+    await tecla("Escape", "Escape", 27);
+    await ate(`!document.querySelector(".rx-menu-host")`);
+    expect(await avaliar<unknown>(cdp, "window.__escolha")).toBeNull();
   }, 60_000);
 });

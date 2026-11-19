@@ -5577,7 +5577,7 @@ function abrirMenuDaAba(id: string, ancora: HTMLElement, ponto?: { x: number; y:
   // Validação de 2026-11-18: o chevron fica à vista enquanto o menu da aba está aberto.
   abaComMenu = id;
   ancora.closest<HTMLElement>(".at-aba")?.classList.add("menu-aberto");
-  const menu = abrirMenuDaBarra(htmlDoMenuDaAba(tr, { fazerNaConversa: acoesDeFazer(tr, estado, tr?.conversaId) !== "" }), ancora, ponto ?? { x: r.left - 4, y: r.bottom }, (b) => {
+  abrirMenuDaBarra(htmlDoMenuDaAba(tr, { fazerNaConversa: acoesDeFazer(tr, estado, tr?.conversaId) !== "" }), ancora, ponto ?? { x: r.left - 4, y: r.bottom }, (b) => {
     const acao = b.dataset.abaAcao;
     if (acao === "renomear") comecarRenomeio(id);
     else if (acao === "fazer-aqui") void agir(async () => {
@@ -5591,11 +5591,10 @@ function abrirMenuDaAba(id: string, ancora: HTMLElement, ponto?: { x: number; y:
       await api!.pararTrabalho(id);
       dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
     });
-  });
-  menu.addEventListener("close", () => {
+  }, false, () => {
     abaComMenu = null;
     document.querySelector(`#cabecalho .at-aba[data-aba="${CSS.escape(id)}"]`)?.classList.remove("menu-aberto");
-  }, { once: true });
+  });
 }
 
 /** "Todos os bots ▾" da tela Tarefas (ADR-187 §8, Paper 5a): escolher um bot filtra as duas vistas; "Todos os bots" volta. */
@@ -11194,8 +11193,14 @@ async function excluirTimeDaBarra(t: TimeDaBarra<BotDaFrota>): Promise<void> {
 }
 
 /** O menu de um item: as setas andam pelos botões habilitados; abre no cursor (clique direito) ou ao lado da âncora. */
-function abrirMenuDaBarra(html: string, ancora: HTMLElement | null, ponto: { x: number; y: number } | undefined, aoEscolher: (b: HTMLButtonElement) => void, folha = false): HTMLDialogElement {
+/**
+ * Os menus da barra (aba de tarefa, bots, outras abas, nova tarefa, times): o do Base UI quando o módulo dos diálogos
+ * chegou (ADR-179), a partir do mesmo HTML; a folha do celular segue no `<dialog>`. `aoFechar`: o menu saiu.
+ */
+function abrirMenuDaBarra(html: string, ancora: HTMLElement | null, ponto: { x: number; y: number } | undefined, aoEscolher: (b: HTMLButtonElement) => void, folha = false, aoFechar?: () => void): void {
+  if (moduloDosDialogos && !folha) { moduloDosDialogos.abrirMenuDeHtmlNoReact(document, { html, ancora, ponto, aoEscolher, aoFechar }); return; }
   const d = dialogo(html, true);
+  if (aoFechar) d.addEventListener("close", aoFechar, { once: true });
   if (folha) d.classList.add("pfc-folha");
   else {
     const r = ancora?.getBoundingClientRect();
@@ -11217,7 +11222,6 @@ function abrirMenuDaBarra(html: string, ancora: HTMLElement | null, ponto: { x: 
     itens[proximo]?.focus();
   });
   d.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
-  return d;
 }
 
 /** O ⋯ do time (e o clique direito no cabeçalho): Renomear, Mover para cima/baixo, Excluir time. O Sem time só se move. */

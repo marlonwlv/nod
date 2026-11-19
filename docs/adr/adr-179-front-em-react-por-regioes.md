@@ -132,7 +132,12 @@ dentro dele é do artefato, como no `<dialog>` nativo. E **o menu do bot** na li
 mesmas linhas (`linhasDoMenu`, que o HTML nativo também lê), ao lado da linha ou no cursor, deslizando para caber (sem
 virar de lado); o foco abre no 1º item, e a ação roda depois de o menu sair e de o foco voltar à linha — o foco é
 devolvido pelo componente, não pelo Base UI, cuja volta chegaria depois e tiraria o foco do que a ação abriu (Renomear).
-No celular, a folha curta e o bot segurado (NOD-379/382) seguem no `<dialog>`.
+No celular, a folha curta e o bot segurado (NOD-379/382) seguem no `<dialog>`. O que ele faz de
+comum virou `MenuAncorado` (`web/react/dialogos/menu-ancorado.tsx`), que também serve **os menus da barra** (a aba de
+tarefa, os bots e as outras abas, a nova tarefa, os times; `abrirMenuDaBarra`): `web/react/dialogos/menu-de-html.tsx` lê o
+MESMO HTML do `<dialog>` nativo — o papel e o rótulo do `<div role="menu">` vão ao popup, o `<div>` fica com a classe que o
+CSS lê, cada botão vira item com os mesmos atributos e miolo, e a escolha recebe o botão. Uma diferença de propósito: o
+item desligado fica focável (e inerte), como a APG pede para menus; no nativo as setas o pulavam.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
