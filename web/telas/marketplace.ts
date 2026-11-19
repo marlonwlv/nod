@@ -177,7 +177,7 @@ function gaveta(estado: Estado, app: AppComLogo, passo: "detalhes" | "quem-usa")
   return `<div class="gaveta-fundo" data-act="fechar-gaveta"></div>
   <aside class="gaveta" role="dialog" aria-modal="true" aria-label="${esc(app.nome)}">
     <div class="gaveta-cab">${logoApp(estado, app.slug, app.nome)}<div><h2>${esc(app.nome)}</h2><small>${esc(app.categoria)}</small></div>${botao("fechar-gaveta", "×", { classe: "gaveta-fechar", aria: "Fechar" })}</div>
-    <div class="gaveta-corpo">${corpo}</div>
+    <div class="gaveta-corpo">${corpo}${s !== "conectado" && app.orientacaoConexao ? `<p class="gaveta-desc">${esc(app.orientacaoConexao)}</p>` : ""}</div>
     <div class="gaveta-rodape">${rodape}</div>
   </aside>`;
 }
