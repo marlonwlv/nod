@@ -1,0 +1,6 @@
+/**
+ * ADR-179 (item 4): os diálogos criados por código já em componentes (Dialog do Base UI), baixados pelo main depois do
+ * boot (`?dialogos-react=0` os deixa de fora): o de handoff do Quadro e o de confirmação (`bot-dialogo`).
+ */
+export { abrirHandoffNoReact } from "./handoff.tsx";
+export { confirmarNoReact, type Confirmacao } from "./confirmar.tsx";

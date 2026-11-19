@@ -104,8 +104,13 @@ jornadas de Chrome de digitação, foco e acento em composição.
 `?dialogos-react=0`. O 1º é **o diálogo de handoff** do Quadro (`web/react/dialogos/handoff.tsx`): o mesmo conteúdo e as
 mesmas classes do `<dialog>` nativo, a mesma resposta (a promessa: não mover, ou mover parando ou não o anterior), o foco
 em "Mover" ao abrir, preso no diálogo e de volta a quem estava ao fechar. A escolha vale na hora do fechar; o root sai
-quando a animação de saída termina (com uma rede de 400 ms: o fim da animação nem sempre é avisado). O `quadro-na-tela`
-recebe quem abre o diálogo (`dialogoDeHandoff`); sem isso, o nativo.
+quando a saída termina, fechado pelo próprio Base UI (`actionsRef.close`); se o fim não for avisado em 1 s, o Base UI desmonta (`unmount`) — arrancar o root no meio do fechamento deixava o foco preso para o diálogo seguinte. O `quadro-na-tela`
+recebe quem abre o diálogo (`dialogoDeHandoff`); sem isso, o nativo. O 2º é **a confirmação** (`bot-dialogo`,
+`web/react/dialogos/confirmar.tsx`: título, texto, "Cancelar" com o foco e a ação), começando pelo "Rodar mais uma
+execução?" do Testar agora. Os dois fecham pelo Base UI (`Dialog.Close`, `actionsRef.close`) com um fade curto de saída
+(sem movimento, some na hora). Achado da jornada de Chrome: numa aba headless sem foco emulado, o relógio das animações
+não anda só com o teclado — a saída nunca terminava e a página parecia inerte; com `Emulation.setFocusEmulationEnabled`
+(como na régua) ela anda como numa janela à vista.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

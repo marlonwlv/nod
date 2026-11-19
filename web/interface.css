@@ -2634,3 +2634,14 @@ textarea.re-corpo:focus-visible { border-color: var(--ink-3); }
 .bot-menu.ia-sel-menu .ia-sel-grupo { margin: 0; }
 .ia-sel-cab .ia-sel-frase { line-height: 16px; }
 .bot-menu.ia-sel-menu [role="menu"] > hr { margin: 4px -4px; }
+
+/* ADR-179 (item 4): o diálogo de confirmação (bot-dialogo) pelo Dialog do Base UI — o mesmo cartão do <dialog> nativo,
+   centrado, e o fundo que o ::backdrop dava. */
+.rx-dlg-fundo { position: fixed; inset: 0; z-index: 60; background: var(--backdrop); backdrop-filter: blur(3px); }
+.bot-dialogo.rx-dlg { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; box-sizing: border-box; }
+/* A saída dos diálogos do Base UI (confirmação e handoff): um fade curto, como o do onboarding; sem movimento, some na hora. */
+@media (prefers-reduced-motion: no-preference) {
+  .rx-dlg, .rx-dlg-fundo, .qd-handoff.rx-ho, .rx-ho-fundo { transition: opacity 0.12s ease; }
+}
+.rx-dlg[data-starting-style], .rx-dlg[data-ending-style], .rx-dlg-fundo[data-starting-style], .rx-dlg-fundo[data-ending-style],
+.qd-handoff.rx-ho[data-starting-style], .qd-handoff.rx-ho[data-ending-style], .rx-ho-fundo[data-starting-style], .rx-ho-fundo[data-ending-style] { opacity: 0; }

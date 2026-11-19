@@ -283,7 +283,7 @@ import { anuncioDosSubagentes, blocosAoVivoDaTask, blocosDoHistoricoDaTask, rend
 import { botsDaNovaTarefa, htmlDoMenuDaNovaTarefa, htmlDoMenuDeBots, renderTelaTarefas } from "./telas/tela-tarefas.ts";
 import { campoDaTarefa, htmlSaidaDaParada, perguntaAberta, TEXTO_CONTINUAR, type CampoDaTarefa } from "./telas/tarefa-detalhada.ts";
 import { sinalDoBot, sinalNaGrade } from "./telas/linha-do-dono.ts";
-import { executarRotinaComConfirmacao } from "./lib/executar-rotina.ts";
+import { executarRotinaComConfirmacao, TITULO_JA_NA_FILA } from "./lib/executar-rotina.ts";
 import { copiarPorSelecao, type DocParaCopiar } from "./lib/copiar-por-selecao.ts";
 import { criarBuscaNaConversa } from "./telas/busca-na-conversa.ts";
 import { ligarTopoEncolhe, ROLAVEIS_DO_TOPO } from "./lib/topo-encolhe.ts";
@@ -1226,9 +1226,9 @@ const canvasNaTela = criarCanvasNaTela(document, { api: () => api, conversa: () 
   mascote: (id) => { const a = estado.frota?.agentes.find((x) => x.id === id); return a ? iconeAgente(a, "sm") : null; } });
 configurarAppCanvas({ ler: () => (api ? api.appCanvas() : null), aoMudar: () => render() });
 /** ADR-179 (item 4): os diálogos criados por código já em React (web/react/dialogos/); `?dialogos-react=0` volta aos nativos. */
-let moduloDosDialogos: typeof import("./react/dialogos/handoff.tsx") | null = null;
+let moduloDosDialogos: typeof import("./react/dialogos/dialogos.tsx") | null = null;
 if (reactNaRegiao("dialogos", window.location.href, guardadoDoNavegador())) {
-  void import("./react/dialogos/handoff.tsx").then((m) => { moduloDosDialogos = m; }, () => {
+  void import("./react/dialogos/dialogos.tsx").then((m) => { moduloDosDialogos = m; }, () => {
     // Sem o módulo, os diálogos nativos de sempre.
   });
 }
@@ -2337,7 +2337,11 @@ function ativarRotina(id: string): Promise<void> {
 function executarRotina(id: string, agenteId: string, ancora: HTMLElement): Promise<void> {
   return agir(async () => {
     // NOD-272: com execução já aberta, pergunta antes no diálogo próprio (A1 do Gil no #335); cancelar não roda nada.
-    const r = await executarRotinaComConfirmacao((o) => api!.executarRotina(id, o), (p) => abrirRodarMaisUma(p, ancora));
+    // ADR-179 (item 4): a confirmação pelo Dialog do Base UI (o mesmo texto); sem o módulo, o diálogo nativo.
+    const perguntar = (p: string): Promise<boolean> => (moduloDosDialogos
+      ? moduloDosDialogos.confirmarNoReact(document, { idDoTitulo: "rodar-mais-uma-titulo", titulo: TITULO_JA_NA_FILA, texto: p, cancelar: "Cancelar", confirmar: "Rodar mais uma", origem: ancora })
+      : abrirRodarMaisUma(p, ancora));
+    const r = await executarRotinaComConfirmacao((o) => api!.executarRotina(id, o), perguntar);
     if (!r) return;
     dispatch({ tipo: "invalidar", quais: ["rotinas", `execucoes:${id}`, ...(r.ids.bloqueada ? (["sua-vez", `conversa:${r.ids.conversaId ?? ""}`] as const) : [])] });
     navegar({ tipo: "conversa", conversaId: r.ids.conversaId ?? "", agenteId });

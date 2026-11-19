@@ -13,18 +13,16 @@ import { haQuanto, linhaDoResponsavel, type DadosDoHandoff } from "../../telas/d
 type Escolha = { parar: boolean } | null;
 
 function DialogoDeHandoff({ d, agora, responder, sair }: { d: DadosDoHandoff; agora: number; responder: (e: Escolha) => void; sair: () => void }) {
-  const [aberto, setAberto] = useState(true);
+  const acoes = useRef<Dialog.Root.Actions | null>(null);
   const respondeu = useRef(false);
   const mover = useRef<HTMLButtonElement>(null);
   const [parar, setParar] = useState(false);
   const a = d.anterior && d.passa ? d.anterior : null;
-  // A escolha vale na hora (não espera a animação de saída); o root sai quando ela termina (`sair`).
-  const fechar = (e: Escolha): void => {
-    if (!respondeu.current) { respondeu.current = true; responder(e); }
-    setAberto(false);
-  };
+  const responderUmaVez = (e: Escolha): void => { if (!respondeu.current) { respondeu.current = true; responder(e); setTimeout(() => { acoes.current?.unmount(); sair(); }, 1000); } };
+  // A escolha vale na hora; quem fecha é o Base UI (`close`), para a saída terminar pelo caminho dele e o foco voltar.
+  const fechar = (e: Escolha): void => { responderUmaVez(e); acoes.current?.close(); };
   return (
-    <Dialog.Root open={aberto} onOpenChange={(o) => { if (!o) fechar(null); }} onOpenChangeComplete={(o) => { if (!o) sair(); }}>
+    <Dialog.Root defaultOpen actionsRef={acoes} onOpenChange={(o) => { if (!o) responderUmaVez(null); }} onOpenChangeComplete={(o) => { if (!o) sair(); }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="rx-ho-fundo" />
         <Dialog.Popup className="qd-handoff rx-ho" id="qd-handoff" initialFocus={mover}>
@@ -63,7 +61,6 @@ export function abrirHandoffNoReact(doc: Document, d: DadosDoHandoff, agora = Da
     queueMicrotask(() => { raiz.unmount(); host.remove(); });
   };
   return new Promise((resolver) => {
-    // Rede: se a animação de saída não avisar o fim (um estilo que não anima), o root sai mesmo assim.
-    raiz.render(<StrictMode><DialogoDeHandoff d={d} agora={agora} responder={(e) => { resolver(e); setTimeout(sair, 400); }} sair={sair} /></StrictMode>);
+    raiz.render(<StrictMode><DialogoDeHandoff d={d} agora={agora} responder={resolver} sair={sair} /></StrictMode>);
   });
 }
