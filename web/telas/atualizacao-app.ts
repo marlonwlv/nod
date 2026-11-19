@@ -1,23 +1,25 @@
 /**
  * ADR-188 (Paper "Atualizar o nod · opções", A3 e D): o cartão "Atualizar o nod" no pé da barra e a seção
- * Configurações › Sobre o nod. O cartão é o botão: segurar 800 ms enche de tinta de baixo para cima e reinicia (encher é
- * a confirmação, como o segurar do +); o clique curto só balança e lembra de segurar. Com bot trabalhando, o cartão
+ * Configurações › Sobre o nod. O cartão é o botão: um clique e a tinta sobe sozinha de baixo para cima em 800 ms (o
+ * líquido do +), o cartão vira o spinner e o app reinicia. Decisão do dono na validação de 2026-11-18: o segurar
+ * confundiria; o clique é o gesto de sempre e a animação continua contando o que acontece. Com bot trabalhando, o cartão
  * pergunta (esperar ou reiniciar já); em ligação, recusa.
  */
 import { esc } from "../lib/render.ts";
 import { grupoConfig, linhaConfig } from "../lib/linha-config.ts";
 import type { PerguntaReinicio, TelaAtualizacao } from "../lib/atualizacao-app.ts";
 
-/** definido em 2026-11-18 (Paper A3): mais que os 500 ms do +, porque reiniciar fecha o app. */
-export const MS_SEGURAR_ATUALIZAR = 800;
+/** definido em 2026-11-18 (Paper A3): o tempo da tinta subindo depois do clique, antes de pedir o reinício. */
+export const MS_ENCHER_ATUALIZAR = 800;
 
 const IC_ATUALIZAR = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v2.8h-2.8"/></svg>';
 const IC_GIRANDO = '<svg class="atz-girando" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5" opacity=".3"/><path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5"/></svg>';
 
 export const TEXTOS_ATZ = {
   titulo: "Atualizar o nod",
-  pronta: (v: string) => `${v} pronta · segure para reiniciar`,
-  rotulo: (v: string) => `Atualizar o nod para a versão ${v}. Segure para reiniciar.`,
+  pronta: (v: string) => `${v} pronta · clique para reiniciar`,
+  rotulo: (v: string) => `Atualizar o nod para a versão ${v}. Reinicia o app.`,
+  enchendo: "Preparando…",
   reiniciando: "Reiniciando…",
   volta: "O nod volta em alguns segundos",
   esperando: "Reinicia quando os bots terminarem",
@@ -32,7 +34,7 @@ function miolo(icone: string, titulo: string, sub: string, extra = ""): string {
   return `<span class="atz-miolo${extra}"><span class="atz-ic">${icone}</span><span class="atz-txt"><b>${esc(titulo)}</b><small>${esc(sub)}</small></span></span>`;
 }
 
-/** A pergunta depois do segurar: no cartão da barra e em Sobre o nod. */
+/** A pergunta depois do clique: no cartão da barra e em Sobre o nod. */
 export function perguntaReinicio(p: PerguntaReinicio, pedindo: boolean): string {
   const des = pedindo ? " disabled" : "";
   if (p.tipo === "emLigacao") {
@@ -41,16 +43,24 @@ export function perguntaReinicio(p: PerguntaReinicio, pedindo: boolean): string 
   return `<div class="atz-pergunta" role="alertdialog" aria-labelledby="atz-p-tit" aria-describedby="atz-p-txt"><b id="atz-p-tit">${esc(TEXTOS_ATZ.ocupado(p))}</b><p id="atz-p-txt">${esc(TEXTOS_ATZ.ocupadoSub)}</p><div class="atz-acoes"><button type="button" class="bt pri sm" data-act="atualizar-app-quando-livre"${des}>Reiniciar quando terminar</button><button type="button" class="bt sm" data-act="atualizar-app-forcar"${des}>Reiniciar agora</button><button type="button" class="bt link sm" data-act="atualizar-app-fechar">Cancelar</button></div></div>`;
 }
 
-/** O cartão do pé da barra ("" quando não há versão pronta). `compacta`: a barra só com avatares (um redondo). */
-export function cartaoAtualizacao(t: TelaAtualizacao | null, compacta: boolean): string {
+/**
+ * O cartão do pé da barra ("" quando não há versão pronta). `compacta`: a barra só com avatares (um redondo).
+ * Enchendo, a tinta é uma animação com atraso negativo (o tempo desde o clique): a barra regravada no meio (um frame do
+ * SSE) desenha um nó novo, e ele continua de onde a tinta estava em vez de recomeçar vazio.
+ */
+export function cartaoAtualizacao(t: TelaAtualizacao | null, compacta: boolean, agora = Date.now()): string {
   if (!t || t.estado.fase !== "pronta") return "";
   const v = t.estado.versaoNova ?? "nova";
+  const enchendo = t.enchendoDesde !== null && !t.pedindo && !t.pergunta && !t.estado.reiniciando;
+  const atraso = enchendo ? ` style="--atz-atraso:-${Math.max(0, Math.min(MS_ENCHER_ATUALIZAR, Math.round(agora - (t.enchendoDesde ?? agora))))}ms"` : "";
+  const liquido = '<span class="atz-liquido" aria-hidden="true"><span class="atz-tinta"><span class="atz-onda"></span></span></span>';
   if (compacta) {
-    // Na barra recolhida não cabe a pergunta: o redondo segura igual; perguntando ou esperando, abre Sobre o nod.
+    // Na barra recolhida não cabe a pergunta: o redondo enche igual; perguntando ou esperando, abre Sobre o nod.
     if (t.pergunta || t.estado.esperandoLivre || t.estado.reiniciando) {
       return `<div class="atz atz-compacta"><button type="button" class="atz-redondo" data-act="secao-espaco" data-secao="sobre" aria-label="${esc(t.estado.reiniciando ? TEXTOS_ATZ.reiniciando : t.estado.esperandoLivre ? TEXTOS_ATZ.esperando : "Atualizar o nod: ver a pergunta")}" data-etiqueta="Atualizar o nod">${t.estado.reiniciando ? IC_GIRANDO : IC_ATUALIZAR}<span class="atz-ponto" aria-hidden="true"></span></button></div>`;
     }
-    return `<div class="atz atz-compacta"><button type="button" class="atz-redondo" data-act="atualizar-app-dica" data-segurar="reiniciar-app" data-segurar-ms="${MS_SEGURAR_ATUALIZAR}" aria-label="${esc(TEXTOS_ATZ.rotulo(v))}" aria-keyshortcuts="Shift+Enter Shift+Space" data-etiqueta="Segure para atualizar o nod"><span class="atz-liquido" aria-hidden="true"><span class="atz-tinta"><span class="atz-onda"></span></span></span><span class="atz-ic-redondo">${IC_ATUALIZAR}</span><span class="atz-ponto" aria-hidden="true"></span></button></div>`;
+    if (t.pedindo) return `<div class="atz atz-compacta"><span class="atz-redondo atz-cheio" role="status" aria-label="${esc(TEXTOS_ATZ.reiniciando)}">${IC_GIRANDO}</span></div>`;
+    return `<div class="atz atz-compacta"><button type="button" class="atz-redondo${enchendo ? " enchendo" : ""}" data-act="atualizar-app"${atraso} aria-label="${esc(enchendo ? TEXTOS_ATZ.enchendo : TEXTOS_ATZ.rotulo(v))}" data-etiqueta="Atualizar o nod"${enchendo ? ' aria-disabled="true"' : ""}>${liquido}<span class="atz-ic-redondo">${IC_ATUALIZAR}</span><span class="atz-ponto" aria-hidden="true"></span></button></div>`;
   }
   if (t.estado.reiniciando) {
     return `<div class="atz"><div class="atz-cartao atz-cheio" role="status">${miolo(IC_GIRANDO, TEXTOS_ATZ.reiniciando, TEXTOS_ATZ.volta)}</div></div>`;
@@ -59,11 +69,11 @@ export function cartaoAtualizacao(t: TelaAtualizacao | null, compacta: boolean):
   if (t.estado.esperandoLivre) {
     return `<div class="atz"><div class="atz-cartao atz-esperando" role="status">${miolo(IC_ATUALIZAR, TEXTOS_ATZ.esperando, TEXTOS_ATZ.esperandoSub(v))}<button type="button" class="bt link sm atz-cancelar" data-act="atualizar-app-cancelar-espera">Cancelar</button></div></div>`;
   }
-  // O segurar encheu e o pedido saiu: o cartão fica cheio (sem escoar) até a resposta — "Reiniciando…" ou a pergunta.
+  // A tinta encheu e o pedido saiu: o cartão fica cheio, com o spinner, até a resposta — "Reiniciando…" ou a pergunta.
   if (t.pedindo) return `<div class="atz"><div class="atz-cartao atz-cheio" role="status">${miolo(IC_GIRANDO, TEXTOS_ATZ.titulo, "Um instante…")}</div></div>`;
   // O miolo escuro e o claro são o mesmo desenho: o claro fica por cima, recortado na altura da tinta (o texto vira branco
   // onde o líquido passa). Só o escuro é lido; o claro é aria-hidden.
-  return `<div class="atz"><button type="button" class="atz-cartao" data-act="atualizar-app-dica" data-segurar="reiniciar-app" data-segurar-ms="${MS_SEGURAR_ATUALIZAR}" aria-label="${esc(TEXTOS_ATZ.rotulo(v))}" aria-keyshortcuts="Shift+Enter Shift+Space">${miolo(IC_ATUALIZAR, TEXTOS_ATZ.titulo, TEXTOS_ATZ.pronta(v))}<span class="atz-liquido" aria-hidden="true"><span class="atz-tinta"><span class="atz-onda"></span></span></span><span class="atz-claro" aria-hidden="true">${miolo(IC_ATUALIZAR, TEXTOS_ATZ.titulo, "Continue segurando…")}</span></button></div>`;
+  return `<div class="atz"><button type="button" class="atz-cartao${enchendo ? " enchendo" : ""}" data-act="atualizar-app"${atraso} aria-label="${esc(enchendo ? TEXTOS_ATZ.enchendo : TEXTOS_ATZ.rotulo(v))}"${enchendo ? ' aria-disabled="true"' : ""}>${miolo(IC_ATUALIZAR, TEXTOS_ATZ.titulo, TEXTOS_ATZ.pronta(v))}${liquido}<span class="atz-claro" aria-hidden="true">${miolo(IC_ATUALIZAR, TEXTOS_ATZ.titulo, TEXTOS_ATZ.enchendo)}</span></button></div>`;
 }
 
 function horaDaProcura(ms: number, agora: number): string {

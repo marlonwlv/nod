@@ -7,7 +7,7 @@ import type { AtualizacaoNaTela, PedidoReinicio, PonteAtualizacaoApp } from "../
 
 export type PonteAtz = NonNullable<PonteAtualizacaoApp["atualizacaoApp"]>;
 
-/** A pergunta que o cartão faz depois do segurar (ou do "Reiniciar agora" de Sobre o nod). */
+/** A pergunta que o cartão faz depois do clique (ou do "Reiniciar agora" de Sobre o nod). */
 export type PerguntaReinicio = { tipo: "ocupado"; turnos: number; telas: number } | { tipo: "emLigacao" };
 
 export type TelaAtualizacao = {
@@ -15,6 +15,8 @@ export type TelaAtualizacao = {
   pergunta: PerguntaReinicio | null;
   /** O pedido de reinício saiu e a resposta ainda não voltou (os botões não repetem). */
   pedindo: boolean;
+  /** O clique no cartão: a tinta está subindo desde este instante (ms); ao encher, o pedido sai. */
+  enchendoDesde: number | null;
 };
 
 /** O cartão aparece com a versão pronta (e enquanto pergunta, espera ou reinicia). */
@@ -24,6 +26,10 @@ export function cartaoVisivel(t: TelaAtualizacao | null): boolean {
 
 export function criarAtualizacaoNaWeb(o: {
   ponte: () => PonteAtz | undefined;
+  /** O tempo da tinta subindo (web/telas/atualizacao-app.ts, MS_ENCHER_ATUALIZAR); 0 no teste. */
+  msEncher?: number;
+  agendar?: (f: () => void, ms: number) => void;
+  agora?: () => number;
   /** Redesenha (o estado mudou). */
   aoMudar: () => void;
   /** O aviso "nod atualizado para a x.y.z", uma vez depois do reinício. */
@@ -35,7 +41,8 @@ export function criarAtualizacaoNaWeb(o: {
     if (!e) return;
     const antes = tela;
     // Saiu de "pronta" (reiniciou, ou um erro raro): a pergunta não vale mais.
-    tela = { estado: e, pergunta: e.fase === "pronta" && !e.reiniciando ? antes?.pergunta ?? null : null, pedindo: antes?.pedindo === true && !e.reiniciando };
+    const valendo = e.fase === "pronta" && !e.reiniciando;
+    tela = { estado: e, pergunta: valendo ? antes?.pergunta ?? null : null, pedindo: antes?.pedindo === true && !e.reiniciando, enchendoDesde: valendo ? antes?.enchendoDesde ?? null : null };
     if (e.atualizadoDe) {
       o.avisarAtualizado(e.versaoAtual);
       tela = { ...tela, estado: { ...tela.estado, atualizadoDe: null } };
@@ -54,7 +61,7 @@ export function criarAtualizacaoNaWeb(o: {
   async function reiniciar(quando: PedidoReinicio["quando"]): Promise<void> {
     const p = o.ponte();
     if (!p || !tela || tela.pedindo) return;
-    tela = { ...tela, pedindo: true };
+    tela = { ...tela, pedindo: true, enchendoDesde: null };
     o.aoMudar();
     const r = await p.reiniciar({ quando }).catch(() => null);
     if (!tela) return;
@@ -72,6 +79,18 @@ export function criarAtualizacaoNaWeb(o: {
     o.aoMudar();
   }
 
+  /** O clique no cartão: a tinta sobe e, cheia, o pedido sai (um segundo clique no meio não faz nada). */
+  function encher(): void {
+    if (!o.ponte() || !tela || tela.estado.fase !== "pronta" || tela.pedindo || tela.enchendoDesde !== null || tela.pergunta || tela.estado.reiniciando) return;
+    tela = { ...tela, enchendoDesde: (o.agora ?? Date.now)() };
+    o.aoMudar();
+    (o.agendar ?? ((f, ms) => { setTimeout(f, ms); }))(() => {
+      if (!tela || tela.enchendoDesde === null) return;
+      tela = { ...tela, enchendoDesde: null };
+      void reiniciar("agora");
+    }, o.msEncher ?? 800);
+  }
+
   function fecharPergunta(): void {
     if (!tela?.pergunta) return;
     tela = { ...tela, pergunta: null };
@@ -86,6 +105,6 @@ export function criarAtualizacaoNaWeb(o: {
     receber(await o.ponte()?.definirSozinho(ligado).catch(() => null));
   }
 
-  return { carregar, receber, reiniciar, fecharPergunta, procurar, definirSozinho, tela: () => tela, temPonte: () => !!o.ponte() };
+  return { carregar, receber, encher, reiniciar, fecharPergunta, procurar, definirSozinho, tela: () => tela, temPonte: () => !!o.ponte() };
 }
 export type AtualizacaoNaWeb = ReturnType<typeof criarAtualizacaoNaWeb>;

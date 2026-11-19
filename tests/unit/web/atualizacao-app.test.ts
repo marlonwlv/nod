@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { AtualizacaoNaTela, PedidoReinicio, RespostaReinicio } from "../../../src/contracts/desktop-atualizacao.ts";
 import { criarAtualizacaoNaWeb, type PonteAtz, type TelaAtualizacao } from "../../../web/lib/atualizacao-app.ts";
-import { cartaoAtualizacao, MS_SEGURAR_ATUALIZAR, renderSobre, TEXTOS_ATZ } from "../../../web/telas/atualizacao-app.ts";
+import { cartaoAtualizacao, MS_ENCHER_ATUALIZAR, renderSobre, TEXTOS_ATZ } from "../../../web/telas/atualizacao-app.ts";
 import { SECOES_ESPACO } from "../../../web/telas/espaco.ts";
 import { AJUSTES, NOME_DA_SECAO } from "../../../web/lib/ajustes.ts";
 
 const pronta: AtualizacaoNaTela = { fase: "pronta", versaoAtual: "1.0.3", versaoNova: "1.0.4", motivo: null, procuradaEm: null, esperandoLivre: false, reiniciando: false, sozinho: true, atualizadoDe: null };
-const tela = (o: Partial<TelaAtualizacao> & { estado?: Partial<AtualizacaoNaTela> } = {}): TelaAtualizacao => ({ pergunta: null, pedindo: false, ...o, estado: { ...pronta, ...o.estado } });
+const tela = (o: Partial<TelaAtualizacao> & { estado?: Partial<AtualizacaoNaTela> } = {}): TelaAtualizacao => ({ pergunta: null, pedindo: false, enchendoDesde: null, ...o, estado: { ...pronta, ...o.estado } });
 
 function montar(resposta: RespostaReinicio, inicial: AtualizacaoNaTela = pronta) {
   const pedidos: PedidoReinicio[] = [];
@@ -22,12 +22,31 @@ function montar(resposta: RespostaReinicio, inicial: AtualizacaoNaTela = pronta)
     definirSozinho: async (ligado) => ({ ...inicial, sozinho: ligado }),
     avisoVisto: async () => { vistos++; },
   };
-  const w = criarAtualizacaoNaWeb({ ponte: () => ponte, aoMudar: () => undefined, avisarAtualizado: (v) => avisos.push(v) });
-  return { w, pedidos, avisos, vistos: () => vistos, empurrar: (e: AtualizacaoNaTela) => ouvinte?.(e) };
+  const agendados: { f: () => void; ms: number }[] = [];
+  const w = criarAtualizacaoNaWeb({ ponte: () => ponte, aoMudar: () => undefined, avisarAtualizado: (v) => avisos.push(v), msEncher: MS_ENCHER_ATUALIZAR, agendar: (f, ms) => agendados.push({ f, ms }), agora: () => 1_000 });
+  return { w, pedidos, avisos, agendados, vistos: () => vistos, empurrar: (e: AtualizacaoNaTela) => ouvinte?.(e) };
 }
 
 describe("ADR-188: a atualização do app na janela web", () => {
-  it("segurar com nada rodando: o cartão fica em Reiniciando…", async () => {
+  it("um clique: a tinta sobe, e só cheia o pedido sai (um segundo clique no meio não repete)", async () => {
+    const t = montar({ ok: true, esperando: false });
+    await t.w.carregar();
+    t.w.encher();
+    t.w.encher();
+    expect(t.agendados.map((a) => a.ms)).toEqual([800]);
+    expect(t.pedidos).toEqual([]);
+    expect(t.w.tela()?.enchendoDesde).toBe(1_000);
+    // Enchendo: a classe e o atraso negativo (a barra regravada continua de onde a tinta estava).
+    const html = cartaoAtualizacao(t.w.tela(), false, 1_300);
+    expect(html).toContain('class="atz-cartao enchendo"');
+    expect(html).toContain('style="--atz-atraso:-300ms"');
+    t.agendados[0]!.f();
+    await Promise.resolve(); await Promise.resolve();
+    expect(t.pedidos).toEqual([{ quando: "agora" }]);
+    expect(t.w.tela()?.enchendoDesde).toBeNull();
+  });
+
+  it("depois do pedido, Reiniciando… com o spinner", async () => {
     const t = montar({ ok: true, esperando: false });
     await t.w.carregar();
     await t.w.reiniciar("agora");
@@ -74,14 +93,14 @@ describe("ADR-188: a atualização do app na janela web", () => {
     expect(cartaoAtualizacao(w.tela(), false)).toBe("");
   });
 
-  it("o cartão só aparece com a versão pronta, e segura por 800 ms", () => {
+  it("o cartão só aparece com a versão pronta; é um botão de clique comum (sem segurar)", () => {
     expect(cartaoAtualizacao(tela({ estado: { fase: "baixando", versaoNova: null } }), false)).toBe("");
     const html = cartaoAtualizacao(tela(), false);
-    expect(MS_SEGURAR_ATUALIZAR).toBe(800);
-    expect(html).toContain('data-segurar="reiniciar-app"');
-    expect(html).toContain('data-segurar-ms="800"');
-    expect(html).toContain('data-act="atualizar-app-dica"');
-    expect(html).toContain("1.0.4 pronta · segure para reiniciar");
+    expect(html).toContain('data-act="atualizar-app"');
+    expect(html).not.toContain("data-segurar");
+    expect(html).toContain("1.0.4 pronta · clique para reiniciar");
+    // A tinta leva o mesmo tempo no CSS e no relógio que pede o reinício.
+    expect(readFileSync("web/atualizacao-app.css", "utf8")).toContain(`--ms-encher: ${MS_ENCHER_ATUALIZAR}ms`);
     // O miolo claro (por cima da tinta) não é lido duas vezes.
     expect(html).toMatch(/class="atz-claro" aria-hidden="true"/);
   });
@@ -92,8 +111,8 @@ describe("ADR-188: a atualização do app na janela web", () => {
     expect(html).toContain('data-act="atualizar-app-cancelar-espera"');
   });
 
-  it("na barra recolhida, um redondo que segura igual; com pergunta, abre Sobre o nod", () => {
-    expect(cartaoAtualizacao(tela(), true)).toContain('class="atz-redondo" data-act="atualizar-app-dica" data-segurar="reiniciar-app"');
+  it("na barra recolhida, um redondo que enche igual; com pergunta, abre Sobre o nod", () => {
+    expect(cartaoAtualizacao(tela(), true)).toContain('class="atz-redondo" data-act="atualizar-app"');
     expect(cartaoAtualizacao(tela({ pergunta: { tipo: "emLigacao" } }), true)).toContain('data-secao="sobre"');
   });
 

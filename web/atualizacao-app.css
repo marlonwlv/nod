@@ -1,12 +1,12 @@
 /* =====================================================================================
    ADR-188 (Paper "Atualizar o nod · opções", A3 e D): o cartão "Atualizar o nod" no pé da barra e Configurações ›
-   Sobre o nod. Segurar o cartão enche de tinta de baixo para cima, com a superfície ondulando, como o + da barra
+   Sobre o nod. Um clique no cartão enche de tinta de baixo para cima, com a superfície ondulando, como o + da barra
    (web/interface.css, "jeito A · Líquido"): a tinta é a cor de ação e o texto vira a cor sobre a ação onde ela passa.
-   Só transform e clip-path animam; soltar antes escoa em 180 ms. Os tempos vêm de --ms-segurar (web/main.ts, 800 ms
-   neste cartão) e --segurar-atraso (a barra regravada no meio do gesto continua de onde estava).
+   Cheio, vira o spinner até a janela fechar. Só transform e clip-path animam.
    ===================================================================================== */
 
-.atz { flex: none; padding: 0 8px 8px; }
+/* --ms-encher: o mesmo MS_ENCHER_ATUALIZAR de web/telas/atualizacao-app.ts (o pedido sai quando a tinta enche). */
+.atz { --ms-encher: 800ms; flex: none; padding: 0 8px 8px; }
 
 /* ---------- O cartão (o botão) ---------- */
 .atz-cartao {
@@ -26,7 +26,7 @@
 
 /* A tinta: parada, fica 8 px abaixo do cartão (a crista da onda não aparece como risco na base). */
 .atz-liquido { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-.atz-tinta { position: absolute; inset: 0; transform: translateY(calc(100% + 8px)); transition: transform 180ms cubic-bezier(.4, 0, 1, 1); }
+.atz-tinta { position: absolute; inset: 0; transform: translateY(calc(100% + 8px)); }
 /* A onda: a mesma máscara do + (200% de largura, período em 50%, correr −50% emenda sem salto). */
 .atz-onda {
   position: absolute; top: -5px; left: 0; width: 200%; height: calc(100% + 5px); background: var(--action);
@@ -36,20 +36,23 @@
 /* O mesmo miolo na cor sobre a ação, recortado na altura da tinta: o recorte anda igual a ela (mesmo tempo, mesma curva,
    e começa 8 px abaixo, como a tinta), então o texto vira claro exatamente onde o líquido passa. */
 .atz-claro { position: absolute; inset: 0; z-index: 2; display: flex; color: var(--on-action); pointer-events: none;
-  clip-path: inset(calc(100% + 8px) 0 0 0); transition: clip-path 180ms cubic-bezier(.4, 0, 1, 1); }
+  clip-path: inset(calc(100% + 8px) 0 0 0); }
 .atz-claro .atz-ic { background: color-mix(in srgb, var(--on-action) 14%, transparent); }
 .atz-claro .atz-txt small { color: color-mix(in srgb, var(--on-action) 72%, transparent); }
 
-/* Segurando: o cartão afunda um pouco e a tinta sobe. Começa devagar e acelera no fim, como líquido despejado. */
-.atz-cartao.segurando { transform: scale(.98); }
-.atz-cartao.segurando .atz-tinta { transform: translateY(0); transition: transform var(--ms-segurar, 800ms) cubic-bezier(.45, 0, .8, .6) var(--segurar-atraso, 0ms); will-change: transform; }
-.atz-cartao.segurando .atz-claro { clip-path: inset(0 0 0 0); transition: clip-path var(--ms-segurar, 800ms) cubic-bezier(.45, 0, .8, .6) var(--segurar-atraso, 0ms); }
-.atz-cartao.segurando .atz-onda, .atz-redondo.segurando .atz-onda { animation: sl-onda 640ms linear infinite; will-change: transform; }
-
-/* O clique curto não reinicia: o cartão balança de leve e a linha de baixo acende (lembra de segurar). */
-.atz-cartao.atz-dica, .atz-redondo.atz-dica { animation: atz-balanca 420ms cubic-bezier(.36, .07, .19, .97); }
-.atz-cartao.atz-dica .atz-miolo small { color: var(--ink); }
-@keyframes atz-balanca { 20% { transform: translateX(-3px); } 40% { transform: translateX(3px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(1px); } }
+/* Enchendo (depois do clique): o cartão afunda um pouco e a tinta sobe sozinha em 800 ms; começa devagar e acelera no fim,
+   como líquido despejado. É animação (não transição) para o nó novo de uma barra regravada continuar de onde estava:
+   --atz-atraso (negativo) vem do HTML, com o tempo desde o clique. */
+.atz-cartao.enchendo, .atz-redondo.enchendo { cursor: default; }
+.atz-cartao.enchendo { transform: scale(.98); }
+.atz-redondo.enchendo { transform: scale(.94); }
+.atz-cartao.enchendo .atz-tinta, .atz-redondo.enchendo .atz-tinta { animation: atz-sobe var(--ms-encher, 800ms) cubic-bezier(.45, 0, .8, .6) var(--atz-atraso, 0ms) both; will-change: transform; }
+.atz-cartao.enchendo .atz-claro { animation: atz-recorte var(--ms-encher, 800ms) cubic-bezier(.45, 0, .8, .6) var(--atz-atraso, 0ms) both; }
+.atz-cartao.enchendo .atz-onda, .atz-redondo.enchendo .atz-onda { animation: sl-onda 640ms linear infinite; will-change: transform; }
+.atz-redondo.enchendo .atz-ic-redondo { animation: atz-ic-claro var(--ms-encher, 800ms) linear var(--atz-atraso, 0ms) both; }
+@keyframes atz-sobe { from { transform: translateY(calc(100% + 8px)); } to { transform: translateY(0); } }
+@keyframes atz-recorte { from { clip-path: inset(calc(100% + 8px) 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes atz-ic-claro { 0%, 55% { color: var(--ink); } 56%, 100% { color: var(--on-action); } }
 
 /* Cheio: o pedido saiu (um instante) e depois "Reiniciando…" até a janela fechar. */
 .atz-cheio { border-color: var(--action); background: var(--action); color: var(--on-action); cursor: default; }
@@ -75,11 +78,9 @@
 .atz-redondo { position: relative; isolation: isolate; display: grid; place-items: center; width: 36px; height: 36px; padding: 0;
   border: 1px solid var(--borda-sutil); border-radius: 50%; background: var(--surface-elevated); color: var(--ink); overflow: hidden; cursor: pointer;
   transition: transform 160ms cubic-bezier(.2, .8, .2, 1); -webkit-user-select: none; user-select: none; }
+.atz-redondo.atz-cheio { border-color: var(--action); background: var(--action); color: var(--on-action); }
 .atz-redondo .atz-liquido { border-radius: 50%; overflow: hidden; }
-.atz-redondo.segurando { transform: scale(.94); }
-.atz-redondo.segurando .atz-tinta { transform: translateY(0); transition: transform var(--ms-segurar, 800ms) cubic-bezier(.45, 0, .8, .6) var(--segurar-atraso, 0ms); }
-.atz-ic-redondo { position: relative; z-index: 2; display: grid; place-items: center; transition: color 120ms; }
-.atz-redondo.segurando .atz-ic-redondo { color: var(--on-action); transition: color 0s linear calc(var(--ms-segurar, 800ms) * .55 + var(--segurar-atraso, 0ms)); }
+.atz-ic-redondo { position: relative; z-index: 2; display: grid; place-items: center; }
 .atz-ponto { position: absolute; top: 4px; right: 4px; z-index: 3; width: 8px; height: 8px; border: 1.5px solid var(--surface-elevated); border-radius: 50%; background: var(--signal); }
 
 /* ---------- Configurações › Sobre o nod ---------- */
@@ -96,9 +97,12 @@
 .cfg-sobre .atz-acoes { flex-direction: row; flex-wrap: wrap; }
 .atz-rodape { margin: 12px 0 0; padding: 0 14px; color: var(--ink-3); font-size: 12px; }
 
+/* Sem movimento: a tinta aparece cheia de uma vez (sem subir nem ondular) e o spinner fica parado. */
 @media (prefers-reduced-motion: reduce) {
-  .atz-cartao, .atz-redondo, .atz-tinta, .atz-claro,
-  .atz-cartao.segurando .atz-tinta, .atz-cartao.segurando .atz-claro, .atz-redondo.segurando .atz-tinta { transition: none; }
-  .atz-cartao.segurando, .atz-redondo.segurando { transform: none; }
-  .atz-cartao.segurando .atz-onda, .atz-redondo.segurando .atz-onda, .atz-dica, .atz-girando { animation: none; }
+  .atz-cartao, .atz-redondo { transition: none; }
+  .atz-cartao.enchendo, .atz-redondo.enchendo { transform: none; }
+  .enchendo .atz-tinta, .enchendo .atz-claro, .enchendo .atz-onda, .enchendo .atz-ic-redondo, .atz-girando { animation: none; }
+  .enchendo .atz-tinta { transform: translateY(0); }
+  .enchendo .atz-claro { clip-path: inset(0 0 0 0); }
+  .atz-redondo.enchendo .atz-ic-redondo { color: var(--on-action); }
 }

@@ -1,4 +1,4 @@
-# ADR-188 — Atualizar o nod pela janela web: o cartão que enche ao segurar e Sobre o nod
+# ADR-188 — Atualizar o nod pela janela web: o cartão que enche ao clicar e Sobre o nod
 
 Status: aceita (2026-11-18, validação da preview) · Emenda o item 6 da
 [ADR-149](adr-149-atualizacao-automatica-do-app-do-mac.md) ("sem faixa na web") e dá um interruptor ao reinício com o Mac
@@ -19,10 +19,11 @@ no menu nod, clicar numa notificação que some, ou esperar o reinício com o Ma
    "aviso visto"). Quem procura, baixa e reinicia continua sendo o processo principal (`desktop/atualizacao.ts`), que
    valida cada pedido de novo (`desktop/atualizacao-na-tela.ts`). No navegador, no Quick Chat e nos avatares na mesa,
    nada aparece.
-2. **O cartão "Atualizar o nod" no pé da barra**, só com a versão pronta. O cartão é o botão: **segurar 800 ms** enche de
-   tinta de baixo para cima, com a superfície ondulando (o mesmo gesto do + da barra, mais longo porque reiniciar fecha o
-   app). Encher é a confirmação; o clique curto só balança e lembra de segurar. Soltar antes escoa. Shift+Enter ou
-   Shift+Espaço faz o mesmo pelo teclado.
+2. **O cartão "Atualizar o nod" no pé da barra**, só com a versão pronta. O cartão é o botão: **um clique** e a tinta sobe
+   sozinha de baixo para cima em 800 ms, com a superfície ondulando (o líquido do + da barra); cheia, o cartão vira o
+   spinner e o pedido de reinício sai. Enter e Espaço fazem o mesmo (é um botão comum). O protótipo (A3) pedia segurar
+   para encher; na validação de 2026-11-18 o dono gostou da animação, mas achou que segurar confundiria quem só clica:
+   o gesto é o de sempre e a animação continua contando o que vai acontecer.
 3. **Reiniciar nunca derruba trabalho sem perguntar** (o item 7 da ADR-149 continua): com bot trabalhando no Mac ou tela
    aberta no computador do bot, o cartão vira a pergunta **Reiniciar quando terminar** (o app espera o último turno e
    reinicia sozinho), **Reiniciar agora** ou **Cancelar**; em ligação, recusa. A pergunta mora na própria tela, e não
@@ -51,13 +52,15 @@ de tela.
 
 - **Ponto no avatar + item no menu da conta (B)**: continua a um menu de distância; é o problema de hoje com outro menu.
 - **Aviso flutuante acima do campo (C)**: chama atenção, mas disputa espaço com a conversa e some quando a pessoa fecha.
-- **Botão "Reiniciar" comum no cartão + caixa de confirmação**: dois cliques e um "tem certeza?"; o segurar faz os dois
-  num gesto e já existe no +.
-- **Vidro líquido no hover (A2)**: bonito, mas não ensina nada; o líquido que enche no segurar diz o que vai acontecer.
+- **Segurar para encher (A3 do protótipo)**: encher seria a confirmação, mas quem clica normalmente não descobre o gesto
+  (decisão do dono na validação). A pergunta continua aparecendo quando há bot trabalhando, que é quando ela importa.
+- **Botão "Reiniciar" comum no cartão + caixa de confirmação sempre**: um "tem certeza?" a cada atualização, mesmo sem
+  nada rodando.
+- **Vidro líquido no hover (A2)**: bonito, mas não ensina nada; o líquido que enche depois do clique diz o que vai acontecer.
 
 ## Gatilhos de reversão
 
-- Alguém reiniciar sem querer pelo cartão (o segurar disparar num clique comprido de outra intenção): sobe para 1,2 s ou
-  volta para botão com a pergunta sempre.
+- Alguém reiniciar sem querer pelo cartão (um clique de passagem fechar o app sem bot trabalhando): volta a pedir
+  confirmação sempre, ou ao segurar.
 - O cartão aparecer fora do app do Mac, ou uma janela de outra origem conseguir pedir o reinício (a ponte vazou).
 - O aviso "nod atualizado" aparecer sem atualização (a comparação de versão errou) mais de uma vez.
