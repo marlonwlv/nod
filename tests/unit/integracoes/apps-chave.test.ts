@@ -34,13 +34,28 @@ it("os campos vêm do esquema API_KEY: o invisível sai, o nome fora do formato 
     { name: "oculto", displayName: "Oculto", required: true, user_visible: false },
     { name: "Nome Ruim", displayName: "x", required: true },
   ]));
-  expect(await c.camposDaChave("fireflies")).toEqual([{ nome: "generic_api_key", rotulo: "API Key", descricao: "Settings → API", segredo: true, obrigatorio: true }]);
-  await expect(criarClienteComposio("fake", detalhe([])).camposDaChave("x")).rejects.toMatchObject({ codigo: "nao_encontrado" });
-  await expect(criarClienteComposio("fake", async () => Response.json({ auth_config_details: [{ mode: "OAUTH2" }] })).camposDaChave("x")).rejects.toMatchObject({ codigo: "nao_encontrado" });
+  expect((await c.esquemaDaChave("fireflies")).campos).toEqual([{ nome: "generic_api_key", rotulo: "API Key", descricao: "Settings → API", segredo: true, obrigatorio: true }]);
+  await expect(criarClienteComposio("fake", detalhe([])).esquemaDaChave("x")).rejects.toMatchObject({ codigo: "nao_encontrado" });
+  await expect(criarClienteComposio("fake", async () => Response.json({ auth_config_details: [{ mode: "OAUTH2" }] })).esquemaDaChave("x")).rejects.toMatchObject({ codigo: "nao_encontrado" });
 });
 
 it("a tela antiga não mostra app de chave: ela só sabe abrir login", () => {
   const app = (slug: string, conexao?: "chave"): AppComLogo => ({ slug, nome: slug, descricao: "", categoria: "", logo: null, ...(conexao ? { conexao } : {}) });
   const e = reduzir(estadoInicial, { tipo: "hidratar-conectores", conectores: [], marketplace: [app("slack"), app("fireflies", "chave")], composioConfigurado: true });
   expect(e.marketplace.map((a) => a.slug)).toEqual(["slack"]);
+});
+
+it("confere a chave pelo endpoint de usuário atual: 401/403 ou erro de autenticação no corpo = recusada", async () => {
+  const pedidos: unknown[] = [];
+  const proxy = (resposta: unknown): typeof fetch => async (_u, init) => { pedidos.push(JSON.parse(String(init?.body))); return Response.json(resposta); };
+  const conf = { endpoint: "https://{{subdomain}}.freshdesk.com/api/v2/agents/me", metodo: "GET" as const };
+  const valores = { subdomain: "acme", generic_api_key: "k" };
+  expect(await criarClienteComposio("x", proxy({ status: 200, data: { id: 1 } })).conferirChave("ca_1", conf, valores)).toBe("valida");
+  expect(pedidos[0]).toEqual({ endpoint: "https://acme.freshdesk.com/api/v2/agents/me", method: "GET", connected_account_id: "ca_1", parameters: [{ type: "header", name: "apollo-require-preflight", value: "true" }] });
+  expect(await criarClienteComposio("x", proxy({ status: 401, data: {} })).conferirChave("ca_1", conf, valores)).toBe("recusada");
+  // O Fireflies responde 500 com auth_failed para chave errada (teste real de 18/11/2026).
+  expect(await criarClienteComposio("x", proxy({ status: 500, data: { errors: [{ code: "auth_failed" }] } })).conferirChave("ca_1", conf, valores)).toBe("recusada");
+  expect(await criarClienteComposio("x", proxy({ status: 503, data: { errors: [{ code: "unavailable" }] } })).conferirChave("ca_1", conf, valores)).toBe("inconclusiva");
+  expect(await criarClienteComposio("x", proxy({ status: 200 })).conferirChave("ca_1", null, valores)).toBe("inconclusiva");
+  expect(await criarClienteComposio("x", proxy({ status: 200 })).conferirChave("ca_1", conf, { generic_api_key: "k" })).toBe("inconclusiva");
 });

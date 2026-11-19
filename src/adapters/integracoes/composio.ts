@@ -4,6 +4,10 @@ import { ErroDeDominio } from "../../domain/erro.ts";
 import type { ArgsGithub } from "../../domain/github.ts";
 import type { AppGerenciado } from "../../domain/catalogo-marketplace.ts";
 import type { CampoDeConexao } from "../../contracts/marketplace.ts";
+
+export type ConferenciaDeChave = { endpoint: string; metodo: "GET" | "POST" };
+/** O que um app de chave pede, e como conferir a chave depois de conectar. */
+export type EsquemaDeChave = { campos: CampoDeConexao[]; conferencia: ConferenciaDeChave | null };
 import { classificarFalhaHttp, ehRedirecionamentoRecusado, esperaAntes, lerRetryAfterMs, podeRepetir, prazoDaTentativa, type FalhaHttp } from "../../domain/nova-tentativa.ts";
 import { log } from "../../obs/log.ts";
 import { CHAMADA_CONECTOR_MS, ORCAMENTO_CONECTOR_MS } from "../../shared/constantes.ts";
@@ -91,7 +95,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
    * (que pode ser !ok: quem chama classifica); só erro de rede sem resposta lança. O prazo de cada tentativa é
    * cortado ao que sobra dos 30 s e cobre também a leitura do corpo (o timer não é limpo no retorno).
    */
-  async function requisitar(metodo: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<Response> {
+  async function requisitar(metodo: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<Response> {
     const inicio = agora();
     const restante = () => Math.min(ORCAMENTO_CONECTOR_MS - (agora() - inicio), prazoFinal - agora());
     const rotulo = `${metodo} /${path.split("?")[0]?.split("/")[1] ?? ""}`;
@@ -268,7 +272,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
      * toolkit (`connected_account_initiation`). Campo invisível ao usuário fica de fora; nome fora do formato também
      * (é ele que volta como chave do `val`). Sem esquema API_KEY: nao_encontrado.
      */
-    async camposDaChave(toolkit: string): Promise<CampoDeConexao[]> {
+    async esquemaDaChave(toolkit: string): Promise<EsquemaDeChave> {
       const r = await pedir(`/toolkits/${encodeURIComponent(toolkitComposio(toolkit))}`);
       const detalhes = Array.isArray(r.auth_config_details) ? r.auth_config_details as unknown[] : [];
       const esquema = detalhes.find((d): d is Record<string, unknown> => !!d && typeof d === "object" && (d as Record<string, unknown>).mode === "API_KEY");
@@ -283,7 +287,38 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       });
       const campos = [...ler(inicio.required, true), ...ler(inicio.optional, false)];
       if (!campos.some((c) => c.obrigatorio)) throw new ErroDeDominio("nao_encontrado");
-      return campos;
+      // O endpoint de "quem sou eu" do app confere a chave depois de conectar (o Composio só confere em alguns apps).
+      const endpoint = typeof r.get_current_user_endpoint === "string" && r.get_current_user_endpoint.startsWith("https://") ? r.get_current_user_endpoint : null;
+      const metodo = r.get_current_user_endpoint_method === "POST" ? "POST" : "GET";
+      return { campos, conferencia: endpoint ? { endpoint, metodo } : null };
+    },
+    /**
+     * Confere a chave recém-conectada chamando o endpoint de usuário atual do app pelo proxy do Composio (a chave fica
+     * lá; o nod só lê o status). Recusa = 401/403 do app ou erro que fala de autenticação no corpo (o Fireflies responde
+     * 500 com auth_failed). Sucesso 2xx sem erro = valida. O resto (placeholder sem valor, rede, 5xx sem esse sinal,
+     * app sem endpoint) é inconclusiva: não bloqueia, a sonda e o primeiro uso dizem o resto.
+     */
+    async conferirChave(contaId: string, conferencia: ConferenciaDeChave | null, valores: Record<string, string>): Promise<"valida" | "recusada" | "inconclusiva"> {
+      if (!conferencia) return "inconclusiva";
+      const endpoint = conferencia.endpoint.replace(/\{\{\s*([a-z][a-z0-9_.]*)\s*\}\}/gi, (inteiro, nome: string) => valores[nome] !== undefined ? encodeURIComponent(valores[nome]) : inteiro);
+      if (endpoint.includes("{{")) return "inconclusiva";
+      try { if (new URL(endpoint).protocol !== "https:") return "inconclusiva"; } catch { return "inconclusiva"; }
+      // apollo-require-preflight: APIs GraphQL (Fireflies) barram GET sem ele como CSRF; nas outras é um cabeçalho a mais.
+      const r = await requisitar("POST", "/tools/execute/proxy", { endpoint, method: conferencia.metodo, connected_account_id: contaId, parameters: [{ type: "header", name: "apollo-require-preflight", value: "true" }] }).catch(() => null);
+      if (!r?.ok) return "inconclusiva";
+      const corpo: unknown = await r.json().catch(() => null);
+      if (!corpo || typeof corpo !== "object") return "inconclusiva";
+      const status = (corpo as Record<string, unknown>).status;
+      const dados = JSON.stringify((corpo as Record<string, unknown>).data ?? "");
+      if (status === 401 || status === 403) return "recusada";
+      if (/auth_failed|unauthenticated|unauthori[sz]ed|invalid[_ ]?(api[_ ]?)?(key|token|credentials?)|authentication (failed|error)|recheck your api key/i.test(dados)) return "recusada";
+      if (typeof status === "number" && status >= 200 && status < 300) return "valida";
+      return "inconclusiva";
+    },
+    /** Apaga a conta conectada que nasceu com a chave recusada (não sobra conta morta no projeto). Falha aqui só loga. */
+    async removerConta(contaId: string): Promise<boolean> {
+      const r = await requisitar("DELETE", `/connected_accounts/${encodeURIComponent(contaId)}`).catch(() => null);
+      return !!r?.ok;
     },
     /**
      * A auth config de chave do toolkit: reaproveita a habilitada do projeto (custom, API_KEY) ou cria uma, sem

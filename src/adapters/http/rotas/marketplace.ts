@@ -6,7 +6,7 @@ import { garantirGithubSemConfiguracao, guardarComposioGithub, guardarTokenGithu
 import { registrarConector } from "../../../use-cases/registrar-conector.ts";
 import { sondarConector, type SaidaSondarConector } from "../../../use-cases/sondar-conector.ts";
 import { aoConectarApp } from "../../../use-cases/ao-conectar-app.ts";
-import { criarClienteComposio } from "../../integracoes/composio.ts";
+import { criarClienteComposio, type EsquemaDeChave } from "../../integracoes/composio.ts";
 import { criarCatalogoComposio } from "../../integracoes/catalogo-composio.ts";
 import { chavePrivadaValida, criarTokenDeInstalacao } from "../../integracoes/github-app.ts";
 import { log } from "../../../obs/log.ts";
@@ -68,13 +68,13 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
     return APPS_MARKETPLACE.find((a) => a.slug === slug) ?? { slug, nome: slug, descricao: "", categoria: "" };
   };
   /** Os campos mudam quando o Composio muda o esquema do app, não a cada abertura: uma hora por toolkit. */
-  const camposPorSlug = new Map<string, { em: number; campos: CampoDeConexao[] }>();
-  const camposDe = async (slug: string, cifrada: string): Promise<CampoDeConexao[]> => {
-    const posto = camposPorSlug.get(slug);
-    if (posto && agora() - posto.em < JANELA_CAMPOS_MS) return posto.campos;
-    const campos = await cliente(op.decifrar(cifrada)).camposDaChave(slug);
-    camposPorSlug.set(slug, { em: agora(), campos });
-    return campos;
+  const esquemaPorSlug = new Map<string, { em: number; esquema: EsquemaDeChave }>();
+  const esquemaDe = async (slug: string, cifrada: string): Promise<EsquemaDeChave> => {
+    const posto = esquemaPorSlug.get(slug);
+    if (posto && agora() - posto.em < JANELA_CAMPOS_MS) return posto.esquema;
+    const esquema = await cliente(op.decifrar(cifrada)).esquemaDaChave(slug);
+    esquemaPorSlug.set(slug, { em: agora(), esquema });
+    return esquema;
   };
   /** Só os campos que o app pede, texto de uma linha; o obrigatório vazio é entrada_invalida, não recusa do app. */
   const validarValores = (campos: readonly CampoDeConexao[], bruto: unknown): Record<string, string> => {
@@ -237,7 +237,7 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       const app = acharApp(ctx.params.slug ?? "");
       const cifrada = await op.dentro(ctx.escopo, (d) => d.repos.composio.chave());
       if (!cifrada) throw new ErroDeDominio("integracao_nao_configurada");
-      ctx.json(200, { campos: await camposDe(app.slug, cifrada) });
+      ctx.json(200, { campos: (await esquemaDe(app.slug, cifrada)).campos });
     } },
     /**
      * Emenda ADR-057 (2026-11-18): conectar com a chave que a pessoa colou, numa chamada só, sem login. A auth
@@ -251,7 +251,8 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       const body = await ctx.corpo() as { campos?: unknown } | null;
       const cifrada = await op.dentro(ctx.escopo, (d) => d.repos.composio.chave());
       if (!cifrada) throw new ErroDeDominio("integracao_nao_configurada");
-      const valores = validarValores(await camposDe(app.slug, cifrada), body?.campos);
+      const esquema = await esquemaDe(app.slug, cifrada);
+      const valores = validarValores(esquema.campos, body?.campos);
       const inicio = agora();
       const chave = op.decifrar(cifrada);
       const c = criarClienteComposio(chave, op.fetchImpl, { agora, prazoFinal: inicio + CONECTAR_COM_CHAVE_TETO_MS });
@@ -259,6 +260,15 @@ export function rotasMarketplace(op: OpcoesRotasMarketplace): Rota[] {
       const authConfigId = await c.garantirConfigDeChave(app.slug);
       const contaId = await c.conectarComChave(authConfigId, userId, valores);
       if (!(await c.conectado(contaId, userId, app.slug))) throw new ErroDeDominio("integracao_autenticacao");
+      // Teste real de 18/11/2026: o Composio aceitou chave inválida do Fireflies (conta ACTIVE, sessão com 26
+      // ferramentas). Sem conferir aqui, a tela diria "Conectado" e a falha só viria no primeiro uso do bot.
+      const conferida = await c.conferirChave(contaId, esquema.conferencia, valores);
+      log(conferida === "recusada" ? "aviso" : "info", "marketplace_conferir_chave", { toolkit: app.slug, resultado: conferida });
+      if (conferida === "recusada") {
+        const removida = await c.removerConta(contaId);
+        if (!removida) log("aviso", "marketplace_conta_recusada_ficou", { toolkit: app.slug });
+        throw new ErroDeDominio("integracao_autenticacao");
+      }
       const nome = APPS_MARKETPLACE.some((a) => a.slug === app.slug) ? app.nome : (await catalogo(ctx.escopo.tenantId, cifrada)).find((a) => a.slug === app.slug)?.nome ?? app.nome;
       const sessao = await c.criarSessao(userId, app.slug, authConfigId);
       const conectorId = await guardarConector(ctx.escopo, { slug: app.slug, nome, chave, sessao, contaId });

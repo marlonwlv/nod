@@ -16,6 +16,8 @@ const CHAVE_DO_APP = "ff-chave-secreta-123";
 
 const TOOLKIT_FRESHDESK = {
   slug: "freshdesk",
+  get_current_user_endpoint: "https://{{subdomain}}.freshdesk.com/api/v2/agents/me",
+  get_current_user_endpoint_method: "GET",
   auth_config_details: [{
     mode: "API_KEY",
     fields: {
@@ -31,7 +33,7 @@ const TOOLKIT_FRESHDESK = {
   }],
 };
 
-type Cenario = { configExistente?: { id: string; naSessao: boolean }; recusar?: boolean };
+type Cenario = { configExistente?: { id: string; naSessao: boolean }; recusar?: boolean; appRecusa?: boolean };
 
 function montar(c: Cenario = {}) {
   const chave = chaveDe("teste-apps-chave");
@@ -58,6 +60,8 @@ function montar(c: Cenario = {}) {
       if (c.recusar) return Response.json({ error: { code: "ConnectedAccount_CredentialValidationRejected", message: "Invalid API key ff-chave-secreta-123" } }, { status: 400 });
       return Response.json({ id: "ca_chave" }, { status: 201 });
     }
+    if (u.endsWith("/tools/execute/proxy")) return Response.json(c.appRecusa ? { status: 401, data: { message: "Unauthorized" } } : { status: 200, data: { id: 7 } });
+    if (u.endsWith("/connected_accounts/ca_chave") && metodo === "DELETE") return Response.json({});
     if (u.endsWith("/connected_accounts/ca_chave")) return Response.json({ status: "ACTIVE", user_id: userId, toolkit: { slug: "freshdesk" } });
     if (u.endsWith("/tool_router/session")) return Response.json({ session_id: "trs_chave", mcp: { url: URL_SESSAO_COMPOSIO } });
     if (u.endsWith("/tool_router/session/trs_chave") && metodo === "PATCH") return Response.json({ tool_router_tools: ["FRESHDESK_LIST_TICKETS"] });
@@ -156,4 +160,15 @@ it("sem chave do Composio no tenant, campos e conectar pedem a configuração", 
   } finally {
     await srv.close();
   }
+});
+
+it("chave aceita pelo Composio mas recusada pelo app: apaga a conta no Composio e responde recusada", async () => {
+  await comServidor({ appRecusa: true }, async ({ srv, sessao, pedidos, memoria }) => {
+    const r = await srv.chamar(sessao, "POST", "marketplace/freshdesk/conectar-com-chave", { campos: { subdomain: "acme", generic_api_key: CHAVE_DO_APP } });
+    expect(r.status).toBe(403);
+    expect((pedidos.find((p) => p.url === "/tools/execute/proxy")?.body as { endpoint: string }).endpoint).toBe("https://acme.freshdesk.com/api/v2/agents/me");
+    expect(pedidos.some((p) => p.metodo === "DELETE" && p.url === "/connected_accounts/ca_chave")).toBe(true);
+    expect(pedidos.some((p) => p.url === "/tool_router/session")).toBe(false);
+    expect(memoria.banco.conectores).toHaveLength(0);
+  });
 });
