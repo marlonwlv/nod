@@ -73,6 +73,7 @@ export function rolaAoTopoAoNavegar(tela: Tela["tipo"]): boolean {
     case "linha":
     case "quadro-compartilhado":
     case "tarefas":
+    case "nova-tarefa": // ADR-187 §7: a tarefa nova abre vazia, sem o que colar no fim.
       return true;
     default: {
       // Uma tela nova não compila até alguém decidir se ela abre no topo ou colada no fim.

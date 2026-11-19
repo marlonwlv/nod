@@ -132,14 +132,6 @@
   .bot-menu.menu-conta.folha::before { content: ""; display: block; width: 36px; height: 4px; margin: 0 auto 10px; border-radius: 2px; background: var(--line-strong); }
   .bot-menu.menu-conta.folha::backdrop { background: var(--backdrop); }
   .bot-menu.menu-conta.folha button { min-height: 52px; font-size: 16px; }
-  /* O menu "Novo" do + também vira folha de baixo: título "Novo" e dois itens de 44 px (Novo bot, Novo chat em grupo). */
-  .bot-menu.menu-mais.folha { left: 0 !important; right: 0; top: auto !important; bottom: 0; width: 100%; max-width: none;
-    box-sizing: border-box; padding: 8px 8px calc(12px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; border-bottom: 0;
-    animation: inicio-folha .24s cubic-bezier(.2, .8, .2, 1); }
-  .bot-menu.menu-mais.folha::before { content: ""; display: block; width: 36px; height: 4px; margin: 0 auto 10px; border-radius: 2px; background: var(--line-strong); }
-  .bot-menu.menu-mais.folha::backdrop { background: var(--backdrop); }
-  .bot-menu.menu-mais.folha .menu-nome { margin: 4px 16px 8px; }
-  .bot-menu.menu-mais.folha button[role="menuitem"] { min-height: 48px; gap: 16px; padding: 0 16px; font-size: 16px; }
 
   /* Carregando, erro e vazio (protótipo v3). */
   .inicio-aviso { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin: 0; padding: 4px 20px; font-size: 14px; color: var(--ink-2); }
@@ -406,7 +398,7 @@
   /* ---- Telas e formulários: uma coluna ---- */
   .tela { min-width: 0; }
   .tela-conectores { padding: 4px 0 24px !important; }
-  .tela-nao-lidos, .tela-trabalhos { padding: 4px 0 24px; }
+  .tela-nao-lidos { padding: 4px 0 24px; }
   /* NOD-449: no celular a prévia tem 2 linhas, a linha vai de ponta a ponta e o aviso fica acima da barra de baixo. */
   .tela-nao-lidos .nl-topo { padding: 4px 16px 10px; }
   .tela-nao-lidos .nl-lista { margin: 0; }
@@ -474,7 +466,7 @@
   .pf-cab { min-height: 44px; }
   .pf-fechar { min-height: 44px; padding: 0 14px; }
   /* NOD-381: as linhas e os botões do painel de frentes com alvo de 44 px (eram 40). */
-  .pf-lista .progresso-item, .pf-item { min-height: 44px; }
+  .pf-lista .tv-linha, .pf-item { min-height: 44px; }
   .pf-ver, .pf-parar { min-height: 44px; min-width: 44px; }
   /* QA: o chip fechado tinha 42 px de altura dentro da moldura de 44. */
   .pf-botao { min-height: 44px; }
@@ -491,15 +483,11 @@
   .dec-filtros .atv-filtro { flex: none; }
   .dec-item.aberto .dec-detalhe { margin: 0 4px 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); }
   .dec-dia { touch-action: pan-y; }
-  .tb-frente-passo { display: none; }
-  .tb-frentes { margin-left: 22px; }
-  .tb-frente { min-height: 40px; }
 }
 
 /* O progresso na fala e a linha do turno vivo no celular (chat limpo, PR 7): alvos de toque de 40 px, sem mudar o desenho. */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
-  .progresso-resumo { min-height: 40px; }
-  .progresso-titulo { min-height: 32px; }
+  .progresso .tv-linha, .progresso :is(.tv-chip, .tv-mais) { min-height: 40px; }
   .pensar > summary { min-height: 44px; }
   .message.ao-vivo { padding-left: 35px; }
   .message.ao-vivo.fala-viva, .message.fala-viva { padding-left: 0; }

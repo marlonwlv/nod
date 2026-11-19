@@ -83,6 +83,9 @@ import { montarQuickChat, type QuickChatApp } from "./quick-chat-app.ts";
 import { ATALHO_PADRAO_QUICK_CHAT, lerAtalho } from "./quick-chat.ts";
 import { capturarNoMac } from "./captura-mac.ts";
 import { deveAtualizarOcioso, INTERVALO_OCIOSO_MS } from "./atualizar-ocioso.ts";
+import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio, lerPrefsAtualizacao, livreParaReiniciar, type SinaisReinicio } from "./atualizacao-na-tela.ts";
+import { criarUpdaterSimulado, depsDaSimulacao, lerSimuladoPara, versaoSimulada } from "./atualizacao-simulada.ts";
+import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type RespostaReinicio } from "../src/contracts/desktop-atualizacao.ts";
 import { dentroDeUmaTela, ehIdDeBot, lerAvatares, MAX_AVATARES, posicaoNova, TAMANHO_AVATAR, urlDoAvatar, type AvatarNaMesa } from "./avatar-mesa.ts";
 import { CANAIS_MAC } from "../src/contracts/desktop-mac.ts";
 import { caminhoFamiliasMac, carregarFamiliasMac, ehFamiliaMac } from "../src/adapters/conectores-locais/mac/familias.ts";
@@ -234,7 +237,7 @@ function caminhoConfig() { return join(app.getPath("userData"), "conexao.enc"); 
 // A preferência mora em userData/preferencias.json: o localStorage da janela web é apagado a cada
 // conexão (clearStorageData abaixo). O aviso sai daqui, do processo principal — a página continua sem
 // permissão nenhuma (proteger) —, e só com a janela fora de foco.
-let preferencias: Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraGuardadaDesktop | null; decisoesBarra: DecisoesBarraDesktop; atalhoQuickChat?: string | null; avataresNaMesa?: AvatarNaMesa[] } = { avisos: true, tema: "sistema", som: true, barra: null, decisoesBarra: {} };
+let preferencias: Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraGuardadaDesktop | null; decisoesBarra: DecisoesBarraDesktop; atalhoQuickChat?: string | null; avataresNaMesa?: AvatarNaMesa[]; reiniciarSozinho?: boolean; ultimaVersao?: string | null; simuladoPara?: string | null } = { avisos: true, tema: "sistema", som: true, barra: null, decisoesBarra: {} };
 /** ADR-173: o Quick Chat da conexão atual (recriado a cada conectar, destruído ao fechar a janela principal). */
 let quickChat: QuickChatApp | null = null;
 /** ADR-173: os avatares soltos na mesa, por bot (desktop/avatar-mesa.ts). Vivem com a conexão, como o Quick Chat. */
@@ -279,7 +282,10 @@ async function carregarPreferencias() {
   const atalho = lerAtalhoGuardado(conteudo);
   let avatares: AvatarNaMesa[] = [];
   try { const obj: unknown = conteudo === null ? null : JSON.parse(conteudo); if (typeof obj === "object" && obj !== null && "avataresNaMesa" in obj) avatares = lerAvatares(obj.avataresNaMesa); } catch { /* sem avatares */ }
-  preferencias = { ...lerPreferencias(conteudo), decisoesBarra: lerDecisoesBarra(conteudo), ...(atalho !== undefined ? { atalhoQuickChat: atalho } : {}), avataresNaMesa: avatares };
+  // ADR-188: o interruptor "Reiniciar sozinho", a última versão que abriu (o aviso "nod atualizado para…") e a promessa do
+  // reinício simulado (desktop/atualizacao-simulada.ts).
+  const pa = lerPrefsAtualizacao(conteudo);
+  preferencias = { ...lerPreferencias(conteudo), decisoesBarra: lerDecisoesBarra(conteudo), ...(atalho !== undefined ? { atalhoQuickChat: atalho } : {}), avataresNaMesa: avatares, reiniciarSozinho: pa.reiniciarSozinho, ultimaVersao: pa.ultimaVersao, simuladoPara: lerSimuladoPara(conteudo) };
 }
 // NOD-119: as escritas entram numa fila (o arrasto da borda grava a cada passo): sem corrida no rename do .tmp, e cada
 // uma grava as preferências do momento em que roda, então a última vence.
@@ -353,13 +359,70 @@ function montarMenu() {
 }
 // ---- Atualização do app do Mac (NOD-132, ADR-149) --------------------------------------------------------------------
 // O autoUpdater nativo (Squirrel.Mac) lê o feed do servidor com a chave da máquina; o estado aparece no menu nod, numa
-// notificação quando a versão nova fica pronta e na tela de conexão. A web não sabe de nada (decisão de produto).
+// notificação quando a versão nova fica pronta e na tela de conexão. ADR-188: a janela web também mostra (o cartão
+// "Atualizar o nod" e Configurações › Sobre o nod) e pede o reinício pela ponte (CANAIS_ATUALIZACAO).
 let atualizacaoApp: AtualizacaoDoApp | null = null;
+/** ADR-188: a pessoa pediu "Reiniciar quando terminar"; o vigia reinicia quando nada mais roda. */
+let esperandoLivre = false;
+let vigiaLivre: ReturnType<typeof setInterval> | null = null;
+/** ADR-188: a versão de antes quando o app acabou de voltar de uma atualização (o aviso da web, uma vez). */
+let atualizadoDeVersao: string | null = null;
+/** ADR-188: `NOD_SIMULAR_ATUALIZACAO` no app do código; null no empacotado. */
+const SIMULAR_ATUALIZACAO = versaoSimulada(process.env.NOD_SIMULAR_ATUALIZACAO, app.isPackaged);
+/** Depois de um reinício simulado, a versão "nova" passa a ser a que está em uso (só na tela). */
+let versaoSimuladaEmUso: string | null = null;
+function versaoEmUso(): string { return versaoSimuladaEmUso ?? app.getVersion(); }
+function atualizacaoNaTela(): AtualizacaoNaTela | null {
+  const a = atualizacaoApp;
+  if (!a) return null;
+  return estadoNaTela(a.estado(), { versaoAtual: versaoEmUso(), esperandoLivre, reiniciando: a.reiniciando(), sozinho: preferencias.reiniciarSozinho !== false, atualizadoDe: atualizadoDeVersao });
+}
+/** Manda o estado a toda janela da web do servidor conectado (a principal, o Quick Chat e os avatares na mesa). */
+function enviarAtualizacaoParaWeb(): void {
+  const e = atualizacaoNaTela();
+  const origem = origemDe(configuracao?.url);
+  if (!e || !origem) return;
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed() && origemDe(w.webContents.getURL()) === origem) w.webContents.send(CANAIS_ATUALIZACAO.mudou, e);
+  }
+}
+function sinaisReinicio(): SinaisReinicio {
+  return { pronta: atualizacaoApp?.estado().fase === "pronta", emLigacao, turnos: planosNoMac.size, telas: vmLocal?.preparador.telasAbertas() ?? 0 };
+}
+function armarEsperaLivre(ligar: boolean): void {
+  esperandoLivre = ligar;
+  if (vigiaLivre) { clearInterval(vigiaLivre); vigiaLivre = null; }
+  if (ligar) { vigiaLivre = setInterval(verificarEsperaLivre, 3_000); vigiaLivre.unref(); }
+  enviarAtualizacaoParaWeb();
+}
+/** O "quando terminar" armado: o último turno acabou (ou a tela fechou, ou a ligação caiu) e nada mais roda. */
+function verificarEsperaLivre(): void {
+  if (!esperandoLivre || !livreParaReiniciar(sinaisReinicio())) return;
+  armarEsperaLivre(false);
+  log("info", "atualizacao_app_livre", {});
+  void atualizacaoApp?.reiniciar(true);
+}
+function reiniciarPelaTela(pedido: unknown): RespostaReinicio {
+  const p = lerPedidoReinicio(pedido);
+  if (!p) return { ok: false, motivo: "naoPronta" };
+  const d = decidirReinicio(p, sinaisReinicio());
+  if (d.fazer === "cancelar") armarEsperaLivre(false);
+  else if (d.fazer === "esperar") armarEsperaLivre(true);
+  else if (d.fazer === "reiniciar") {
+    armarEsperaLivre(false);
+    log("info", "atualizacao_app_pela_tela", { quando: p.quando });
+    // Sem await: a janela fecha no meio, e a resposta já está decidida.
+    void atualizacaoApp?.reiniciar(true).then(() => enviarAtualizacaoParaWeb());
+  }
+  return d.resposta;
+}
 /** O servidor e a chave da conexão atual ou da última tentativa: o app recusado com 426 ainda precisa do feed. */
 let conexaoDaAtualizacao: { url: string; chave: string } | null = null;
 let avisoDaAtualizacao: Notification | null = null;
 function aoMudarAtualizacao(e: EstadoAtualizacaoApp) {
   montarMenu();
+  if (e.fase !== "pronta" && esperandoLivre) armarEsperaLivre(false);
+  enviarAtualizacaoParaWeb();
   const w = janela;
   if (w && !w.isDestroyed() && w !== janelaWeb()) w.webContents.send("nod:atualizacao", linhaDaAtualizacao(e, process.arch));
   if (e.fase === "pronta" && !avisoDaAtualizacao && preferencias.avisos && Notification.isSupported()) {
@@ -774,7 +837,7 @@ async function conectar(c: Config) {
     const tarefasVivas = criarAcompanhanteDeTarefas((turnoId, tarefas) => cliente?.tarefas(turnoId, tarefas));
     // NOD-350: a ponte já junta os trechos até a renovação (1 s), então aqui toda mudança vai para ela.
     const subagentesVivos = criarAcompanhanteDeSubagentes((turnoId, lista, ocioso) => cliente?.subagentes(turnoId, lista, ocioso), { intervaloMs: 0 });
-    laco = iniciarPoolDeLacos((ponte) => iniciarLaco({ ponte, registry: reg, pessoaId: dados.escopo.pessoaId, machineId: dados.machineId, relogio: () => Date.now(), renovacaoMs: 1_000, esperaVaziaMs: 1000, memoria: memoriaDoMac, registroDaConta, urlNod: lig.urlNod, aoDelta: (p, t) => cliente?.delta(p.turnoId, t), aoEvento: (p, ev) => { if (cliente) repassarAcaoDoEvento(cliente, p.turnoId, ev); tarefasVivas.evento(p.turnoId, ev); subagentesVivos.evento(p.turnoId, ev); }, aoIniciarTurno: (p) => { planosNoMac.set(p.turnoId, p); }, aoTerminarTurno: (p) => { tarefasVivas.esquecer(p.turnoId); subagentesVivos.parar(p.turnoId); subagentesVivos.esquecer(p.turnoId); planosNoMac.delete(p.turnoId); void atualizador.verificar().catch(() => undefined); },
+    laco = iniciarPoolDeLacos((ponte) => iniciarLaco({ ponte, registry: reg, pessoaId: dados.escopo.pessoaId, machineId: dados.machineId, relogio: () => Date.now(), renovacaoMs: 1_000, esperaVaziaMs: 1000, memoria: memoriaDoMac, registroDaConta, urlNod: lig.urlNod, aoDelta: (p, t) => cliente?.delta(p.turnoId, t), aoEvento: (p, ev) => { if (cliente) repassarAcaoDoEvento(cliente, p.turnoId, ev); tarefasVivas.evento(p.turnoId, ev); subagentesVivos.evento(p.turnoId, ev); }, aoIniciarTurno: (p) => { planosNoMac.set(p.turnoId, p); }, aoTerminarTurno: (p) => { tarefasVivas.esquecer(p.turnoId); subagentesVivos.parar(p.turnoId); subagentesVivos.esquecer(p.turnoId); planosNoMac.delete(p.turnoId); verificarEsperaLivre(); void atualizador.verificar().catch(() => undefined); },
       // NOD-73: o vigia do turno só avisa — o aviso vai como trecho vivo, só nome e números (os argumentos ficam no Mac).
       aoVigia: (p, aviso) => cliente?.vigia(p.turnoId, aviso),
       // definido em 2026-10-05: o turno disse que a conta desta IA não serve — o veredito fica guardado e o Mac reanuncia.
@@ -1515,6 +1578,25 @@ else {
     await carregarPreferencias();
     await carregarEstadoJanela();
     aplicarTemaNativo();
+    // ADR-188: o aviso "nod atualizado para…" — a última versão que abriu era menor (ou o reinício simulado prometeu uma).
+    if (SIMULAR_ATUALIZACAO && preferencias.simuladoPara) {
+      versaoSimuladaEmUso = preferencias.simuladoPara;
+      atualizadoDeVersao = app.getVersion();
+      preferencias = { ...preferencias, simuladoPara: null };
+      void gravarPreferencias();
+    } else {
+      atualizadoDeVersao = atualizadoDe(preferencias.ultimaVersao ?? null, app.getVersion());
+      if (preferencias.ultimaVersao !== app.getVersion()) { preferencias = { ...preferencias, ultimaVersao: app.getVersion() }; void gravarPreferencias(); }
+    }
+    const updaterSimulado = SIMULAR_ATUALIZACAO ? criarUpdaterSimulado({
+      versao: SIMULAR_ATUALIZACAO, emUso: versaoEmUso,
+      agendar: (f, ms) => { setTimeout(f, ms).unref(); },
+      aoInstalar: (versao) => {
+        preferencias = { ...preferencias, simuladoPara: versao };
+        void gravarPreferencias().finally(() => { app.relaunch(); app.exit(0); });
+      },
+    }) : null;
+    if (SIMULAR_ATUALIZACAO) log("aviso", "atualizacao_app_simulada", { versao: SIMULAR_ATUALIZACAO });
     atualizacaoApp = criarAtualizacaoDoApp({
       updater: autoUpdater, empacotado: app.isPackaged, plataforma: process.platform, arquitetura: process.arch,
       naPastaAplicativos: () => { try { return app.isInApplicationsFolder(); } catch { return false; } },
@@ -1532,19 +1614,35 @@ else {
         const o: Electron.MessageBoxOptions = { type: "info", message: texto, buttons: ["OK"] };
         void (w ? dialog.showMessageBox(w, o) : dialog.showMessageBox(o));
       },
+      // ADR-188: a simulação (só no app do código) troca o updater e o que ele precisa para procurar; nada mais.
+      ...(updaterSimulado ? depsDaSimulacao(updaterSimulado, versaoEmUso()) : {}),
     });
     montarMenu();
     // ADR-173: a versão pronta entra sozinha com o Mac ocioso e nada rodando (desktop/atualizar-ocioso.ts).
     let ultimaTentativaOciosa: number | null = null;
     setInterval(() => {
       const a = atualizacaoApp;
-      if (!a) return;
+      // ADR-188: o interruptor "Reiniciar sozinho" de Sobre o nod desliga esta entrada sozinha (o resto segue igual).
+      if (!a || preferencias.reiniciarSozinho === false) return;
       const sinais = { pronta: a.estado().fase === "pronta", ociosoSegundos: powerMonitor.getSystemIdleTime(), turnos: planosNoMac.size, telas: vmLocal?.preparador.telasAbertas() ?? 0, emLigacao, janelaEmFoco: BrowserWindow.getFocusedWindow() !== null, ultimaTentativaEm: ultimaTentativaOciosa, agora: Date.now() };
       if (!deveAtualizarOcioso(sinais)) return;
       ultimaTentativaOciosa = sinais.agora;
       log("info", "atualizacao_app_ociosa", { ocioso_s: sinais.ociosoSegundos });
       void a.reiniciar();
     }, INTERVALO_OCIOSO_MS).unref();
+    // ADR-188: a atualização na janela web (o cartão da barra e Sobre o nod). A tela pede; daqui sai a decisão.
+    ipcMain.handle(CANAIS_ATUALIZACAO.estado, (e) => { validarRemetenteWeb(e); return atualizacaoNaTela(); });
+    ipcMain.handle(CANAIS_ATUALIZACAO.reiniciar, (e, pedido: unknown) => { validarRemetenteWeb(e); return reiniciarPelaTela(pedido); });
+    ipcMain.handle(CANAIS_ATUALIZACAO.procurar, (e) => { validarRemetenteWeb(e); atualizacaoApp?.procurar(true); return atualizacaoNaTela(); });
+    ipcMain.handle(CANAIS_ATUALIZACAO.definirSozinho, async (e, ligado: unknown) => {
+      validarRemetenteWeb(e);
+      if (typeof ligado !== "boolean") return atualizacaoNaTela();
+      preferencias = { ...preferencias, reiniciarSozinho: ligado };
+      await gravarPreferencias();
+      enviarAtualizacaoParaWeb();
+      return atualizacaoNaTela();
+    });
+    ipcMain.handle(CANAIS_ATUALIZACAO.avisoVisto, (e) => { validarRemetenteWeb(e); atualizadoDeVersao = null; });
     ipcMain.handle(CANAIS_DESKTOP.avisar, (e, dados: unknown) => {
       validarRemetenteWeb(e);
       const aviso = lerAviso(dados);

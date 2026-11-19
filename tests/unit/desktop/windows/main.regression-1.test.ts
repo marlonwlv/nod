@@ -36,8 +36,11 @@ describe("QA #678: o IPC só atende a tela de conexão", () => {
     // ADA-245: os canais do "Remover o nod deste computador" passam pela mesma guarda da janela, antes de tudo.
     const doRemover = main.match(/ipcMain\.handle\(CANAIS_REMOVER\.\w+, (?:async )?\(e(?:, opcoes: unknown)?\)(?:: (?:Promise<[^>]+>|boolean))? => \{\s*if \(!daJanela\(e\)\) throw new Error\("origem_invalida"\);/g) ?? [];
     expect(doRemover).toHaveLength(2); // removerDaqui e fecharAposRemover (o estaMaquina é o da ADA-243)
+    // ADR-188: a atualização na janela web (o cartão e Sobre o nod) passa pela mesma guarda da janela.
+    const daAtualizacao = main.match(/ipcMain\.handle\(CANAIS_ATUALIZACAO\.\w+, \(e(?:, pedido: unknown)?\) => (?:\{ if \(!?daJanela\(e\)\)|\(daJanela\(e\) \?)/g) ?? [];
+    expect(daAtualizacao).toHaveLength(5);
     expect(handles).toBeGreaterThanOrEqual(10);
-    expect(guardados.length + daJanela.length + contaDaJanela.length + doRemover.length).toBe(handles);
+    expect(guardados.length + daJanela.length + contaDaJanela.length + doRemover.length + daAtualizacao.length).toBe(handles);
     expect(daJanela).toHaveLength(2);
     expect(main).toMatch(/const daJanela = \(e: IpcMainInvokeEvent\) => daJanelaWeb\(e, janela, conexao \? new URL\(conexao\.url\)\.origin : null\);/);
     expect(main).toMatch(/const iaDaJanela = \(e: IpcMainInvokeEvent, ia: unknown\) => \(daJanelaWeb\(e, janela, conexao \? new URL\(conexao\.url\)\.origin : null\) \? lerIaDesktop\(ia\) : null\);/);

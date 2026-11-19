@@ -276,10 +276,10 @@ describe("web/telas/quadro-minimo e o quadro com a barra nova", () => {
     // As Opções foram para o menu do quadro ("Opções de exibição…"); a barra tem o filtro por pessoa e a visão.
     expect(h).not.toContain('data-act="ativos-abrir"');
     expect(h).toContain('class="qm-pes" role="group" aria-label="Filtrar por pessoa"');
-    expect(h).toMatch(/data-filtro="todos" aria-pressed="true"><span>Todas as tarefas<\/span><span class="qm-pes-n">3<\/span>/);
+    expect(h).toMatch(/data-filtro="todos" aria-pressed="true"><span>Todos os cards<\/span><span class="qm-pes-n">3<\/span>/);
     expect(h).toContain('data-filtro="comigo"');
     expect(h).toContain('data-act="op-vista" data-valor="quadro" aria-pressed="true"');
-    expect(h).toMatch(/data-act="nt-abrir"[^>]*>.*<span>Nova tarefa<\/span>/);
+    expect(h).toMatch(/data-act="nt-abrir"[^>]*>.*<span>Novo card<\/span>/);
     expect(h).toContain("Prioridade: Urgente, Baixa");
     expect(h).not.toContain('data-coluna="backlog" data-grupo');
     expect(h.indexOf("Alfa")).toBeLessThan(h.indexOf("Zeta"));

@@ -233,7 +233,7 @@ function abaDetalhes(estado: Estado, a: Bot, dona: boolean): string {
   // ADR-167 (Paper 02): Frentes (o que o bot faz agora), Computador (a miniatura) e Ajustes › Aprovações / Quadro. O título
   // "Ajustes" abre o nível Ajustes de sempre (Ligar, trabalhos, memória, missão e acessos).
   const modo = MODOS[a.modoAprovacao ?? "manual"];
-  const ajustesCab = `<div class="gv-secao-cab"><button type="button" class="gv-cab-link" ${irPara(a, "ajustes")} data-origem="ajustes" aria-label="${esc(dona ? "Ajustes: ligar, trabalhos, memória, missão e acessos" : "Ajustes: trabalhos, memória e acessos")}"><h3>Ajustes</h3>${ICONE_CHEVRON}</button></div>`;
+  const ajustesCab = `<div class="gv-secao-cab"><button type="button" class="gv-cab-link" ${irPara(a, "ajustes")} data-origem="ajustes" aria-label="${esc(dona ? "Ajustes: ligar, tarefas, memória, missão e acessos" : "Ajustes: tarefas, memória e acessos")}"><h3>Ajustes</h3>${ICONE_CHEVRON}</button></div>`;
   const aprov = dona
     ? linha(`${ICONE_ESCUDO}<span class="gv-linha-txt">Aprovações<small>${esc(subtituloDasAprovacoes(a))}</small></span>`, `data-act="modo-aprovacao" data-id="${esc(a.id)}" title="${esc(`${modo.titulo}: ${descricao(a.modoAprovacao ?? "manual", estado.frota?.revisor === true)}`)}"`, ICONE_CHEVRON)
     : "";
@@ -319,8 +319,8 @@ export function proximaCurta(quando: number | null | undefined, agora: number): 
 function resumoDoQuadro(estado: Estado, agenteId: string): string {
   void estado;
   const r = resumosDosQuadros.get(agenteId);
-  if (!r) return "Tarefas";
-  const partes = [r.andando ? `${r.andando} em andamento` : "", r.bloqueadas ? `${r.bloqueadas} ${r.bloqueadas === 1 ? "bloqueada" : "bloqueadas"}` : ""].filter(Boolean);
+  if (!r) return "Cards";
+  const partes = [r.andando ? `${r.andando} em andamento` : "", r.bloqueadas ? `${r.bloqueadas} ${r.bloqueadas === 1 ? "bloqueado" : "bloqueados"}` : ""].filter(Boolean);
   return partes.join(" · ") || "Nada em andamento";
 }
 
@@ -335,7 +335,7 @@ function blocoFrentes(estado: Estado, a: Bot): string {
     const barra = t.estado === "rodando" || t.estado === "na_fila" ? '<span class="gv-barra" aria-hidden="true"><i></i></span>' : "";
     return linha(`<span class="gv-linha-txt"><b>${esc(t.titulo)}</b><small${t.estado === "precisa_de_voce" ? ' class="gv-pede"' : ""}>${esc(quando)}</small></span>${barra}`, `data-act="abrir-trabalho" data-id="${esc(t.id)}"`);
   };
-  return `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>Frentes</h3></div><div class="gv-cartao">${abertos.map(linhaFrente).join("")}</div></section>`;
+  return `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>Tarefas</h3></div><div class="gv-cartao">${abertos.map(linhaFrente).join("")}</div></section>`;
 }
 
 /**
@@ -420,7 +420,7 @@ export function nivelAjustes(estado: Estado, a: Bot, dona: boolean, celular = fa
   const atalhos = `<section class="gv-secao gvn-atalhos"><h3>Atalhos</h3><div class="gv-cartao">
       ${ligar}
       ${linha(`${ICONE.livro}<span class="gv-linha-txt">Memória</span>${dona && (estado.memoriasARevisar[a.id] ?? 0) > 0 ? `<span class="gv-meta mem-conta-meta">${estado.memoriasARevisar[a.id]} para revisar</span>` : ""}`, origem("memoria"), ICONE.seta)}
-      ${linha(`${ICONE.relogio}<span class="gv-linha-txt">Trabalhos</span>${trabalhosAbertos ? `<span class="gv-meta">${trabalhosAbertos} ${trabalhosAbertos === 1 ? "aberto" : "abertos"}</span>` : ""}`, origem("trabalhos"), ICONE.seta)}
+      ${linha(`${ICONE.relogio}<span class="gv-linha-txt">Tarefas</span>${trabalhosAbertos ? `<span class="gv-meta">${trabalhosAbertos} ${trabalhosAbertos === 1 ? "aberta" : "abertas"}</span>` : ""}`, origem("trabalhos"), ICONE.seta)}
       ${dona ? linha(`${ICONE.pulso}<span class="gv-linha-txt">Atividade</span>${linhaAtividadeHoje(estado, a.id)}`, origem("atividade"), ICONE.seta) : ""}
     </div></section>`;
   const perfil = dona
@@ -513,7 +513,7 @@ export function renderNivel(estado: Estado, a: Bot, dona: boolean, nivel: NivelG
     case "nova-rotina":
       return { titulo: "Nova rotina", corpo: renderNovaRotinaNaGaveta(a), rodape: rodapeDeFormulario("Criar rotina"), form: 'data-form="criar-rotina"' };
     case "trabalhos":
-      return { titulo: `Trabalhos de ${a.nome}`, corpo: renderGavetaTrabalhos(estado, a.id) };
+      return { titulo: `Tarefas de ${a.nome}`, corpo: renderGavetaTrabalhos(estado, a.id) };
     case "atividade":
       return { titulo: "Atividade", corpo: renderAtividade(estado, a) };
     case "ajustes":

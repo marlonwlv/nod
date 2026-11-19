@@ -53,7 +53,7 @@ describe("contrato e flag", () => {
 
   // Especificação D, item 7: o computador do bot ganhou a seção Computador, logo depois de Máquinas.
   it("Configurações › Computador vem depois de Máquinas; o pedido antigo cai nela", () => {
-    expect(SECOES_ESPACO.map((s) => s.id)).toEqual(["conta", "geral", "conexao", "maquinas", "computador", "agentes", "rotinas", "aprovacoes", "cofre", "feedback"]);
+    expect(SECOES_ESPACO.map((s) => s.id)).toEqual(["conta", "geral", "conexao", "maquinas", "computador", "agentes", "rotinas", "aprovacoes", "cofre", "sobre", "feedback"]);
     expect(secaoDoPedido("computador-do-bot")).toBe("computador");
     expect(secaoDoPedido("computadores")).toBe("maquinas");
   });

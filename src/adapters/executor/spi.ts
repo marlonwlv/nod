@@ -46,7 +46,7 @@ export type SinksTurno = {
    * Sessão viva (definido em 2026-10-01, ADR-067): a fala de uma volta do modelo que NÃO encerra o turno — há comando
    * em segundo plano ou mensagem nova. O laço a manda ao servidor, que a grava na conversa na hora.
    */
-  falaIntermediaria?(texto: string): void;
+  falaIntermediaria?(texto: string, o?: { interrompida?: boolean }): void;
   /**
    * Sessão viva: o modelo respondeu e nada roda em segundo plano. O laço pergunta ao servidor se chegou mensagem nova
    * da pessoa e a entrega por `receberMensagem` antes de responder. `true` = chegou, a sessão segue; `false` = pode
@@ -61,6 +61,11 @@ export type SinksTurno = {
   mensagemEntrou?(id: string): void;
   /** X2: a mensagem `id` não vai entrar (a volta que a levaria foi recusada, ou a sessão acabou com ela na fila). */
   mensagemDevolvida?(id: string): void;
+  /**
+   * ADR-185 (definido em 2026-11-16): o modelo LEU a mensagem `id` que entrou na sessão — o CLI chegou à fronteira
+   * seguinte à escrita (o fim de uma ferramenta ou da resposta). Entrar não é ler: até aqui o Parar a devolve à fila.
+   */
+  mensagemLida?(id: string): void;
 };
 
 export interface Adapter {
@@ -78,6 +83,15 @@ export interface Adapter {
   aceitaAnexosNoMeio?(): boolean;
   /** true enquanto o adapter aceita mensagem nova (sessão viva com a entrada aberta). */
   aceitaMensagens?(): boolean;
+  /**
+   * ADR-186 (definido em 2026-11-16): para a VOLTA em curso sem matar a sessão (`interrompeVolta` nas capacidades). Quem
+   * decide é o laço (decidirMensagemNoMeio); o adapter só executa. `true` = o pedido saiu; a volta termina pelo caminho de
+   * sempre (o `result` dela), e o texto dela vira fala própria com `{ interrompida: true }`, antes da resposta à mensagem.
+   * A mensagem que motivou vem logo depois por `receberMensagem` e abre a volta seguinte.
+   */
+  interromperVolta?(): boolean;
+  /** ADR-185: o adapter avisa `mensagemLida` (o laço manda `informaLeitura` ao servidor). Sem isto, entrar = ler. */
+  informaLeitura?(): boolean;
   /**
    * definido em 2026-10-07 (ADR-083, #194): o grupo de processos do turno (o pid do líder, que nasce com
    * `detached: true`), para o amostrador somar a memória dele. null = ainda não subiu ou já saiu. Só os drivers com

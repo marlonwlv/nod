@@ -423,17 +423,19 @@ describe("laço puxar → rodar → renovar → entregar (ADR-021, ADR-009)", ()
 type SinksControlados = Parameters<Adapter["rodarTurno"]>[0];
 /** O driver de teste declara o que faz (ADR-083 §5): por padrão, a sessão viva do Claude sem processo próprio. */
 const SESSAO_VIVA: CapacidadesHarness = { ...SEM_CAPACIDADES, mensagemNoMeio: true };
-function driverControlado(o: { capacidades?: CapacidadesHarness; aceita?: () => boolean; grupo?: number; confirma?: boolean } = {}): {
+function driverControlado(o: { capacidades?: CapacidadesHarness; aceita?: () => boolean; grupo?: number; confirma?: boolean; leitura?: boolean; interrompe?: boolean } = {}): {
   driver: Driver;
   sinks: () => SinksControlados | null;
   terminar: (texto?: string) => void;
   interrupcoes: () => number;
   recebidas: string[];
   ids: string[];
+  voltasInterrompidas: () => number;
 } {
   let sinks: SinksControlados | null = null;
   let resolver: ((r: ResultadoTurno) => void) | null = null;
   let interrupcoes = 0;
+  let voltasInterrompidas = 0;
   const recebidas: string[] = [];
   const ids: string[] = [];
   const fim = (desfecho: "sucesso" | "interrompido", texto = ""): ResultadoTurno => ({ desfecho, texto, sessaoCli: null, sinais: { ...SINAIS_ZERADOS, attempted: true, producedOutput: true }, custoUsd: null, tokens: { entrada: 0, saida: 0, cacheLeitura: 0, cacheCriacao: 0 }, ferramentasChamadas: [], negacoesPermissao: [] });
@@ -456,6 +458,8 @@ function driverControlado(o: { capacidades?: CapacidadesHarness; aceita?: () => 
       return true;
     },
     ...(o.grupo !== undefined ? { grupoDeProcessos: () => o.grupo ?? null } : {}),
+    ...(o.leitura ? { informaLeitura: () => true } : {}),
+    ...(o.interrompe ? { interromperVolta: () => { voltasInterrompidas += 1; return true; } } : {}),
   };
   const instance: Instance = { async sondar() { return { estado: "pronto", versao: "falso", em: 0 }; }, adapter: () => adapter, async dispose() {} };
   return {
@@ -465,12 +469,13 @@ function driverControlado(o: { capacidades?: CapacidadesHarness; aceita?: () => 
     interrupcoes: () => interrupcoes,
     recebidas,
     ids,
+    voltasInterrompidas: () => voltasInterrompidas,
   };
 }
 
 /** Ponte que grava as renovações e responde com as mensagens da fila quando a sessão as aceita (com ids, #189). */
-function ponteDaSessao(o: { fila?: string[]; ativo?: (p: PedidoRenovar) => boolean | "indefinido"; semIds?: boolean; semMoldura?: string[]; falhar?: (p: PedidoRenovar) => boolean } = {}): PonteFalsa {
-  const base = ponteFalsa([planoDeTeste("t1", "tarefa longa"), null]);
+function ponteDaSessao(o: { fila?: string[]; ativo?: (p: PedidoRenovar) => boolean | "indefinido"; semIds?: boolean; semMoldura?: string[]; falhar?: (p: PedidoRenovar) => boolean; plano?: Partial<PlanoTurno> } = {}): PonteFalsa {
+  const base = ponteFalsa([{ ...planoDeTeste("t1", "tarefa longa"), ...(o.plano ?? {}) }, null]);
   const fila = (o.fila ?? []).map((texto, i) => ({ id: `m${i + 1}`, texto }));
   base.renovar = async (p) => {
     base.renovacoes.push({ ...p, sinais: { ...p.sinais }, ...(p.falas ? { falas: [...p.falas] } : {}), ...(p.mensagensEntregues ? { mensagensEntregues: [...p.mensagensEntregues] } : {}), ...(p.mensagensDevolvidas ? { mensagensDevolvidas: [...p.mensagensDevolvidas] } : {}) });
@@ -482,13 +487,14 @@ function ponteDaSessao(o: { fila?: string[]; ativo?: (p: PedidoRenovar) => boole
 }
 
 describe("sessão viva no laço (ADR-067)", () => {
-  async function cenario(d: ReturnType<typeof driverControlado>, ponte: PonteFalsa, extra: { relogio?: () => number; aoFalaGravada?: () => void; checagemMensagensMs?: number; aoVigia?: (p: PlanoTurno, aviso: VigiaVivo) => void; vigiaMs?: number; memoria?: Parameters<typeof iniciarLaco>[0]["memoria"]; renovacaoMs?: number } = {}) {
+  async function cenario(d: ReturnType<typeof driverControlado>, ponte: PonteFalsa, extra: { relogio?: () => number; aoFalaGravada?: () => void; checagemMensagensMs?: number; aoVigia?: (p: PlanoTurno, aviso: VigiaVivo) => void; vigiaMs?: number; memoria?: Parameters<typeof iniciarLaco>[0]["memoria"]; renovacaoMs?: number; interromperEscrita?: boolean } = {}) {
     const registry = await registryCom(d.driver);
     const laco = iniciarLaco({
       ponte, registry, pessoaId: "p", machineId: "m1",
       relogio: extra.relogio ?? Date.now,
       renovacaoMs: extra.renovacaoMs ?? 10 ** 6,
       checagemMensagensMs: extra.checagemMensagensMs ?? 10 ** 6,
+      ...(extra.interromperEscrita !== undefined ? { interromperEscrita: extra.interromperEscrita } : {}),
       ...(extra.aoFalaGravada ? { aoFalaGravada: extra.aoFalaGravada } : {}),
       ...(extra.aoVigia ? { aoVigia: extra.aoVigia } : {}),
       ...(extra.vigiaMs ? { vigiaMs: extra.vigiaMs } : {}),
@@ -773,6 +779,86 @@ describe("sessão viva no laço (ADR-067)", () => {
     d.terminar("pronto");
     await esperarAte(() => ponte.entregas.length === 1);
     expect(ponte.entregas[0]!.mensagensEntregues).toBeUndefined();
+    await laco.parar();
+  });
+
+  it("ADR-186: com o bot só escrevendo na conversa e um harness que para a volta, o laço interrompe ANTES de entregar; sem a parcial no histórico, o trecho vai na moldura", async () => {
+    const d = driverControlado({ capacidades: { ...SESSAO_VIVA, interrompeVolta: true, parcialNoHistorico: false }, interrompe: true });
+    // Bot novo conversa em modo "criacao": também é conversa com a pessoa (conversaComAPessoa; o teste real pegou isso).
+    const ponte = ponteDaSessao({ fila: ["só 3 frases"], plano: { modoTurno: "criacao" } });
+    const laco = await cenario(d, ponte);
+    d.sinks()!.evento({ tipo: "delta", texto: "1. Origens do chá" });
+    expect(await d.sinks()!.ocioso!()).toBe(true);
+    expect(d.voltasInterrompidas()).toBe(1);
+    expect(d.recebidas[0]).toContain("Sua resposta foi pausada porque a pessoa mandou uma mensagem nova");
+    expect(d.recebidas[0]).toContain("«1. Origens do chá»");
+    expect(d.recebidas[0]).toContain("A mensagem dela: «só 3 frases»");
+    d.terminar("ok");
+    await esperarAte(() => ponte.entregas.length === 1);
+    await laco.parar();
+  });
+
+  it("ADR-186: a chave desligada (NOD_INTERROMPER_ESCRITA=0) volta ao comportamento de antes: só entrega", async () => {
+    const d = driverControlado({ capacidades: { ...SESSAO_VIVA, interrompeVolta: true, parcialNoHistorico: true }, interrompe: true });
+    const ponte = ponteDaSessao({ fila: ["só 3 frases"], plano: { modoTurno: "conversa" } });
+    const laco = await cenario(d, ponte, { interromperEscrita: false });
+    d.sinks()!.evento({ tipo: "delta", texto: "1. Origens" });
+    expect(await d.sinks()!.ocioso!()).toBe(true);
+    expect(d.voltasInterrompidas()).toBe(0);
+    expect(d.recebidas[0]).toContain("A pessoa escreveu enquanto você trabalhava");
+    d.terminar("ok");
+    await esperarAte(() => ponte.entregas.length === 1);
+    await laco.parar();
+  });
+
+  it("ADR-186: com uma ação aberta, ou fora da conversa (frente, rotina), ou harness sem a capacidade, só entrega (moldura de sempre)", async () => {
+    for (const caso of [
+      { cap: { interrompeVolta: true, parcialNoHistorico: true }, plano: { modoTurno: "conversa" as const }, acao: true },
+      { cap: { interrompeVolta: true, parcialNoHistorico: true }, plano: { modoTurno: "conversa" as const, daPessoa: false }, acao: false },
+      { cap: { interrompeVolta: false, parcialNoHistorico: false }, plano: { modoTurno: "conversa" as const }, acao: false },
+    ]) {
+      const d = driverControlado({ capacidades: { ...SESSAO_VIVA, ...caso.cap }, interrompe: true });
+      const ponte = ponteDaSessao({ fila: ["só 3 frases"], plano: caso.plano });
+      const laco = await cenario(d, ponte);
+      d.sinks()!.evento({ tipo: "delta", texto: "1. Origens" });
+      if (caso.acao) d.sinks()!.evento({ tipo: "tool_use", id: "t1", nome: "Bash", input: {} });
+      expect(await d.sinks()!.ocioso!()).toBe(true);
+      expect(d.voltasInterrompidas()).toBe(0);
+      expect(d.recebidas[0]).toContain("A pessoa escreveu enquanto você trabalhava");
+      d.terminar("ok");
+      await esperarAte(() => ponte.entregas.length === 1);
+      await laco.parar();
+    }
+  });
+
+  it("ADR-185: o adapter que informa leitura diz isso ao servidor; a lida vai uma vez na renovação seguinte", async () => {
+    const d = driverControlado({ leitura: true });
+    const ponte = ponteDaSessao({ fila: ["resume em 3"] });
+    const laco = await cenario(d, ponte);
+    expect(await d.sinks()!.ocioso!()).toBe(true);
+    await esperarAte(() => ponte.renovacoes.some((r) => r.mensagensEntregues?.includes("m1")));
+    expect(ponte.renovacoes.find((r) => r.mensagensEntregues?.includes("m1"))?.informaLeitura).toBe(true);
+    expect(ponte.renovacoes.some((r) => r.mensagensLidas?.length)).toBe(false);
+    d.sinks()!.mensagemLida!("m1");
+    await esperarAte(() => ponte.renovacoes.some((r) => r.mensagensLidas?.includes("m1")));
+    const antes = ponte.renovacoes.length;
+    d.sinks()!.falaIntermediaria!("depois");
+    await esperarAte(() => ponte.renovacoes.length > antes);
+    expect(ponte.renovacoes.slice(antes).some((r) => r.mensagensLidas?.includes("m1"))).toBe(false);
+    d.terminar("ok");
+    await esperarAte(() => ponte.entregas.length === 1);
+    await laco.parar();
+  });
+
+  it("ADR-185: o adapter sem leitura (Codex, app antigo) não manda informaLeitura: entrar continua sendo ler", async () => {
+    const d = driverControlado();
+    const ponte = ponteDaSessao({ fila: ["resume em 3"] });
+    const laco = await cenario(d, ponte);
+    expect(await d.sinks()!.ocioso!()).toBe(true);
+    await esperarAte(() => ponte.renovacoes.some((r) => r.mensagensEntregues?.includes("m1")));
+    expect(ponte.renovacoes.some((r) => r.informaLeitura)).toBe(false);
+    d.terminar("ok");
+    await esperarAte(() => ponte.entregas.length === 1);
     await laco.parar();
   });
 

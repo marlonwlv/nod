@@ -8,39 +8,39 @@
     "volatil": 1178
   },
   "conversa-automatico": {
-    "estavel": 18641,
+    "estavel": 18742,
     "volatil": 606
   },
   "conversa-automatico-revisor": {
-    "estavel": 19210,
+    "estavel": 19311,
     "volatil": 606
   },
   "conversa-calibracao": {
-    "estavel": 17973,
+    "estavel": 18074,
     "volatil": 606
   },
   "conversa-janela-pequena": {
-    "estavel": 17801,
+    "estavel": 17902,
     "volatil": 606
   },
   "conversa-manual": {
-    "estavel": 17591,
+    "estavel": 17692,
     "volatil": 606
   },
   "conversa-reconfiguracao": {
-    "estavel": 18130,
+    "estavel": 18231,
     "volatil": 606
   },
   "conversa-sobre-mim": {
-    "estavel": 17733,
+    "estavel": 17834,
     "volatil": 606
   },
   "conversa-total": {
-    "estavel": 18566,
+    "estavel": 18667,
     "volatil": 606
   },
   "conversa-whatsapp": {
-    "estavel": 17781,
+    "estavel": 17882,
     "volatil": 606
   },
   "criacao-de-bot": {
@@ -60,7 +60,7 @@
     "volatil": 934
   },
   "segundo-turno": {
-    "estavel": 18566,
+    "estavel": 18667,
     "volatil": 455
   },
   "sem-terminal-computador-fora": {

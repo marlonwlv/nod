@@ -1,3 +1,4 @@
+import { extrairMarcaDeRetomada } from "../domain/mensagem-no-meio.ts";
 import type { Autoria, Executor, RuntimeEvent } from "../contracts/evento.ts";
 import { HARNESSES, type IdHarness } from "../contracts/harness.ts";
 import { MOTIVO_DA_CAUSA, type CausaSemIa, type Inventario } from "../contracts/inventario.ts";
@@ -237,7 +238,11 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // `duracaoMs` (plano "o pensamento no chat", 2026-10-26): do despacho (ou da criação, no turno de antes da 0083) até agora.
   const duracaoMs = Math.max(0, agora - (turno.despachadoEm ?? turno.criadoEm));
   const acoes: Extract<PayloadMensagem, { kind: "acoes_do_turno" }> | null = listaDeAcoes.length > 0 ? { kind: "acoes_do_turno", acoes: listaDeAcoes, duracaoMs } : null;
-  const falaTexto = entrega.fala.tipo === "texto" && comandoDoTurno !== "compactar" && !resultado.causaSemIa ? traduzirSaidaDoComando(turno.entradaTexto, entrega.fala.texto, entrega.harness) : "";
+  const falaBruta = entrega.fala.tipo === "texto" && comandoDoTurno !== "compactar" && !resultado.causaSemIa ? traduzirSaidaDoComando(turno.entradaTexto, entrega.fala.texto, entrega.harness) : "";
+  // ADR-186: a resposta que RETOMA o que o bot fazia (pergunta à parte) pode chegar na entrega final: a marca sai do texto
+  // e a fala pausada deste turno vira "retomada".
+  const { texto: falaTexto, retomou } = extrairMarcaDeRetomada(falaBruta);
+  if (retomou) await deps.repos.mensagens.marcarRetomada(turno.id);
   let mensagem: Mensagem | null = null;
   if (entrega.fala.tipo === "passe") {
     const agente = await deps.repos.agentes.buscar(turno.agenteId);
@@ -1285,7 +1290,7 @@ async function aposErroTransitorioNoFundo(
   });
   const ia = p.ia ? nomeDaIa(p.ia) : "IA";
   const chave = turno.trabalhoId ? "frente" : daRotina ? "rotina" : "pedido";
-  const pedido = chave === "frente" ? "Esta task" : chave === "rotina" ? "Esta execução da rotina" : "Este pedido";
+  const pedido = chave === "frente" ? "Esta tarefa" : chave === "rotina" ? "Esta execução da rotina" : "Este pedido";
   if (decisao.tipo === "desistir") {
     log("aviso", "fundo_desistiu", { turno_id: turno.id, causa: "erro_transitorio", motivo: decisao.motivo, tentativas, fundo: chave });
     // Quem pediu ao colega lê UMA vez que parou de tentar; a conversa do bot fica com o aviso de sempre (quem chamou).

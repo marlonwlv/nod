@@ -33,6 +33,7 @@ export const NOME_DA_SECAO: Record<SecaoEspaco, string> = {
   aprovacoes: "Aprovações",
   cofre: "Cofre",
   feedback: "Feedback",
+  sobre: "Sobre o nod",
 };
 
 export const AJUSTES: readonly Ajuste[] = [
@@ -52,6 +53,10 @@ export const AJUSTES: readonly Ajuste[] = [
   { id: "rotinas", secao: "rotinas", grupo: null, titulo: "Rotinas", frase: "Veja a agenda de tudo o que roda sozinho", palavras: ["agenda", "cron", "horário"] },
   // ADR-166 (revisor): a seção Aprovações entrou junto com a busca da ADR-167 na integração.
   { id: "aprovacoes", secao: "aprovacoes", grupo: null, titulo: "Aprovações", frase: "Escolha o modo, as regras do revisor e o nível de cada app", palavras: ["revisor", "modo", "permitir", "regras", "teto", "só leitura"] },
+  // ADR-188: Sobre o nod — a versão, o reiniciar e o reiniciar sozinho do app do Mac.
+  { id: "sobre", secao: "sobre", grupo: null, titulo: "Sobre o nod", frase: "Veja a versão do nod e reinicie para atualizar", palavras: ["versão", "atualizar", "atualização", "update", "reiniciar"] },
+  { id: "reiniciar-sozinho", secao: "sobre", grupo: "Atualizações", titulo: "Reiniciar sozinho quando você sair", frase: "Deixe o nod reiniciar sozinho para atualizar quando você não estiver usando", palavras: ["atualização", "automático", "reiniciar"] },
+  { id: "procurar-atualizacoes", secao: "sobre", grupo: "Atualizações", titulo: "Procurar atualizações", frase: "Procure agora uma versão nova do nod", palavras: ["versão", "update", "atualizar"] },
   { id: "cofre", secao: "cofre", grupo: null, titulo: "Cofre", frase: "Veja as chaves que você guardou pelos cartões dos bots", palavras: ["chave", "token", "senha", "credencial", "segredo", "api"] },
   // Frente de comportamento (12/11/2026; "cada linha com título + descrição, busca e link próprio"): as linhas de
   // Aprovações ganham o link delas, como as de Geral (antes, só a seção inteira).

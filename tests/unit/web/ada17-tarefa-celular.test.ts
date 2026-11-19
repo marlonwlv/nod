@@ -88,7 +88,7 @@ describe("ADA-17: a tarefa aberta no celular", () => {
       coms: { lista: [com("c1", "Oi", 3_000)], carga: "pronta" as never, atividade: [], criadaPor: "Ana", pendente: null },
       trabalho: trab([exec("e1")]),
     }));
-    const pos = ["Ana criou a tarefa", "Linear ligado", "Vera</strong> está trabalhando", "qd-com-txt\">Oi"].map((s) => h.indexOf(s));
+    const pos = ["Ana criou o card", "Linear ligado", "Vera</strong> está trabalhando", "qd-com-txt\">Oi"].map((s) => h.indexOf(s));
     expect(pos.every((p) => p >= 0)).toBe(true);
     expect([...pos].sort((a, b) => a - b)).toEqual(pos);
     expect(h.match(/<ol class="qd-linha-tempo">/g)).toHaveLength(1);
@@ -357,7 +357,7 @@ describe("ADA-17: o CSS do celular (lido como texto; celular.test.ts garante que
 describe("2026-11-11: a tarefa no celular com o aviso do Backlog e a Prioridade do computador (PR #725)", () => {
   it("no Backlog com responsável, o aviso de parada do computador (avisoDeParada) aparece sob o título", () => {
     const h = String(tarefaAbertaCelular(v({ t: t({ status: "backlog" }) })));
-    expect(h).toContain('<p class="ta-parada">Parada no Backlog: o responsável só começa quando ela for para A fazer</p>');
+    expect(h).toContain('<p class="ta-parada">Parado no Backlog: o responsável só começa quando ele for para A fazer</p>');
     expect(String(tarefaAbertaCelular(v({ t: t({ status: "backlog", agenteId: null }) })))).not.toContain("ta-parada");
   });
 

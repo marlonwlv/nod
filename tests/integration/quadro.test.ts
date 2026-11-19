@@ -96,7 +96,7 @@ describeIntegracao("quadro-agente (NOD-442)", () => {
       expect(pr.data).toMatchObject({ ok: true, comecaram: [], quadro: { tarefas: [{ status: "revisao" }], cumpridoEm: null } });
       const feito = await m.lote({ autor: beto, quadro: m.anaNome, ops: [{ tipo: "mudar_tarefa", tarefa: "T1", status: "feito" }] });
       if (!feito.data.ok) throw new Error(feito.data.detalhe);
-      expect(feito.data.quadro).toMatchObject({ cumpridoEm: AGORA, feitas: 1, total: 1, resumo: `1 de 1 tarefas feitas, no prazo (sex, 06/11). Feito por ${m.betoNome}. PRs: #700.` });
+      expect(feito.data.quadro).toMatchObject({ cumpridoEm: AGORA, feitas: 1, total: 1, resumo: `1 de 1 cards feitos, no prazo (sex, 06/11). Feito por ${m.betoNome}. PRs: #700.` });
       // Sair de feito reabre a meta.
       const volta = await m.lote({ autor: { tipo: "pessoa" }, anfitriaoId: m.ana.agenteId, ops: [{ tipo: "mudar_tarefa", tarefa: "T1", status: "revisao" }] });
       expect(volta.data).toMatchObject({ ok: true, quadro: { cumpridoEm: null, resumo: null } });
@@ -302,7 +302,7 @@ describeIntegracao("quadro-agente (NOD-442)", () => {
       await varrerAvisosDosQuadros(m.deps);
       const lista = await avisos();
       expect(lista).toHaveLength(1);
-      expect(lista[0]!.texto).toContain(`"T1" em Em revisão, com ${m.betoNome} (prazo de 1 h) continua parada depois da cobrança.`);
+      expect(lista[0]!.texto).toContain(`"T1" em Em revisão, com ${m.betoNome} (prazo de 1 h) continua parado depois da cobrança.`);
     });
   });
 
@@ -409,7 +409,7 @@ describeIntegracao("quadro-agente (NOD-442)", () => {
         m.relogio.agora = Date.now() + 80 * 60_000 + JANELA_AGRUPAR_MS;
         await varrerAvisosDosQuadros(m.deps);
         expect(logs.filter((l) => l.includes("cobranca_quadro_falhou"))).toHaveLength(1);
-        expect((await avisos()).at(-1)?.texto).toContain("continua parada depois da cobrança");
+        expect((await avisos()).at(-1)?.texto).toContain("continua parado depois da cobrança");
       });
     } finally {
       definirDestinoDoLog(null);
@@ -500,7 +500,7 @@ describeIntegracao("quadro-agente (NOD-442)", () => {
       m.relogio.agora = base + 122 * 60_000;
       await varrerAvisosDosQuadros(m.deps);
       const avisos = (await m.repos.mensagens.listarDaConversa(m.beto.conversaId)).filter((x) => x.payload?.kind === "aviso_pessoa");
-      expect(avisos.map((x) => x.texto)).toEqual([expect.stringContaining("continua parada depois da cobrança")]);
+      expect(avisos.map((x) => x.texto)).toEqual([expect.stringContaining("continua parado depois da cobrança")]);
       expect(await trx`select dados from events where kind = 'quadro_avisou'`).toMatchObject([{ dados: { quadro_id: quadroId, tipo: "escalada", tarefas: 1, mensagem_id: avisos[0]!.id } }]);
     });
   });

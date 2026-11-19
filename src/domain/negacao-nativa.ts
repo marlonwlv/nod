@@ -25,7 +25,7 @@ export function causaDaNegacaoNativa(motivo: string): CausaNativa {
 
 /** O que a pessoa lê na pílula da conversa, depois de "ferramenta <nome> negada: ". */
 export const CAUSA_NATIVA_HUMANA: Record<CausaNativa, string> = {
-  git_fora_da_pasta: "git fora da pasta da task; o bot recebeu o caminho certo",
+  git_fora_da_pasta: "git fora da pasta da tarefa; o bot recebeu o caminho certo",
   espera_com_sleep: "espera com sleep; o bot foi orientado a marcar a volta em vez de esperar",
   esperando_aprovacao: "esperando sua aprovação na conversa",
   recusado_pela_pessoa: "você não aprovou o comando",

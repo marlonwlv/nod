@@ -236,7 +236,26 @@
 .md-tabela-mais[open] .md-mais, .md-tabela-mais:not([open]) .md-menos { display: none; }
 
 /* definido em 2026-09-17: acolhimento e conexões acompanham a conversa. */
-.create-actions{display:flex;gap:2px;align-items:center}.create-actions .create-trigger{position:relative;display:grid;place-items:center;line-height:1}.segurar-anel{position:absolute;inset:-1px;box-sizing:border-box;border-radius:var(--raio-10);pointer-events:none;opacity:0;background:conic-gradient(var(--ink) var(--segurar-progresso,0turn),transparent 0);padding:2px;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}.create-trigger.segurando .segurar-anel{opacity:1;animation:segurar-progresso var(--ms-segurar,500ms) linear forwards}.create-trigger.segurando{color:var(--ink-2)}@keyframes segurar-progresso{from{--segurar-progresso:0turn}to{--segurar-progresso:1turn}}@property --segurar-progresso{syntax:'<angle>';inherits:true;initial-value:0turn}@media (prefers-reduced-motion:reduce){.create-trigger.segurando .segurar-anel{animation:none;opacity:1;--segurar-progresso:1turn}}@supports not (background:conic-gradient(red var(--x,0turn),transparent 0)){.create-trigger.segurando .segurar-anel{animation:none;opacity:1;--segurar-progresso:1turn}} /* cor-fixa: o #000 da máscara só define o alfa do anel */
+.create-actions{display:flex;gap:2px;align-items:center}.create-actions .create-trigger{position:relative;display:grid;place-items:center;line-height:1}
+/* Validação de 2026-11-18 (Paper 8, jeito A · Líquido): segurar o + enche o círculo de tinta de baixo para cima, com a
+   superfície ondulando, e o + fica da cor do fundo quando a tinta passa dele. Só transform anima (a tinta sobe, a onda
+   corre), então o navegador compõe as camadas sem repintar a cada quadro; antes um @property girava um conic-gradient
+   (pintura a cada quadro) num quadrado de raio 10 em volta de um botão redondo. Soltar antes escoa em 180 ms. Parada,
+   a tinta fica 8 px abaixo do círculo: com 110% a crista da onda (5 px acima da tinta) aparecia como um risco na base. */
+.create-trigger .segurar-liquido{position:absolute;inset:0;border-radius:50%;overflow:hidden;pointer-events:none}
+.create-trigger .sl-tinta{position:absolute;inset:0;transform:translateY(calc(100% + 8px));transition:transform 180ms cubic-bezier(.4,0,1,1)}
+/* A onda: 200% de largura com o período da onda em 50%, então correr −50% emenda sem salto. A máscara é estática (só
+   desenha a borda de cima); a cor vem do --ink, que inverte no escuro. */
+.create-trigger .sl-onda{position:absolute;left:0;top:-5px;width:200%;height:calc(100% + 5px);background:var(--ink);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3C6 0 12 0 18 3S30 6 36 3V6H0Z'/%3E%3C/svg%3E") repeat-x 0 0/50% 6px,linear-gradient(#000 0 0) no-repeat 0 5px/100% calc(100% - 5px); /* cor-fixa: alfa da máscara */
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3C6 0 12 0 18 3S30 6 36 3V6H0Z'/%3E%3C/svg%3E") repeat-x 0 0/50% 6px,linear-gradient(#000 0 0) no-repeat 0 5px/100% calc(100% - 5px)} /* cor-fixa: o #000 da máscara só define o alfa */
+.create-trigger .segurar-liquido~svg{position:relative;transition:color 120ms}
+.create-trigger.segurando .sl-tinta{transform:translateY(0);transition:transform var(--ms-segurar,500ms) linear;will-change:transform}
+.create-trigger.segurando .sl-onda{animation:sl-onda 640ms linear infinite;will-change:transform}
+/* A tinta sobe em ritmo constante (o tempo que falta é honesto) e cruza o + na metade: a cor troca de uma vez ali. */
+.create-trigger.segurando .segurar-liquido~svg{color:var(--surface-elevated);transition:color 0s linear calc(var(--ms-segurar,500ms) * .5)}
+@keyframes sl-onda{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.create-trigger .sl-tinta,.create-trigger.segurando .sl-tinta{transition:none}.create-trigger.segurando .sl-onda{animation:none}}
 .novo-contato{max-width:820px;margin:30px auto}.novo-contato .search{padding:18px;font-size:var(--fs-titulo-2)}.contact-picker{margin-top:16px;padding:10px;border:1px solid var(--line);border-radius:var(--raio-22);background:var(--surface);}
 .picker-row{display:flex!important;width:100%;align-items:center;gap:18px;border:0!important;background:transparent!important;padding:15px 18px!important;text-align:left;font-size:var(--fs-titulo-3)!important;border-radius:var(--raio-14)!important}.picker-row:hover{background:var(--surface-raised)!important}.picker-row small{display:block;font-size:var(--fs-corpo-2);color:var(--ink-3);margin-top:5px}.picker-icon{width:44px;height:44px;background:var(--surface-raised);border-radius:50%;display:grid;place-items:center;font-size:25px}
 /* Spec do botão + (tela 5): o cartão "Para que você quer minha ajuda?" (web/telas/boas-vindas.ts), embaixo da saudação e
@@ -637,37 +656,19 @@
 .atividade-ok { width: 14px; flex: none; color: var(--success); font-weight: 700; }
 .atividade-etapas li.atividade-anteriores { padding-left: 24px; color: var(--ink-3); font-size: var(--fs-rotulo); border-top: 0; }
 
-/* O progresso na fala que abriu as frentes (definido em 2026-10-18, chat limpo, PR 7; protótipo "4", com a fala à vista):
-   um cartão claro dentro do balão do bot, com a barra (um segmento por frente) e "3 de 5 prontas · … · ver as 5", que abre
-   a lista no lugar. Na frente da rede, embaixo do balão da pessoa. */
+/* O progresso na fala que abriu as frentes (definido em 2026-10-18, chat limpo, PR 7): o lugar dele embaixo da fala. O cartão
+   vivo em si (ADR-187 §5, lote B passo 6, 2026-11-18) mora em chat.css; as peças `.progresso-item` abaixo são da lista de
+   subagentes da tarefa (trabalhos.ts, P350). */
 /* A largura mínima vai na coluna da fala (QA do PR 398): no balão, `min(100%, …)` era 100% de uma coluna do tamanho do texto e
    não valia nada — "Abri 2 frentes." apertava o cartão em ~200 px. O 86% é o mesmo teto do `max-width` da coluna. */
 .bubble-wrap:has(> .bubble > .progresso-lugar), .bubble-wrap:has(> .progresso-lugar) { min-width: min(86%, 440px); }
 /* O lugar que a fala guarda para o bloco (QA do PR 398): o bloco é trocado nele sem regravar a fala; não muda o desenho. */
 .progresso-lugar { display: contents; }
-.progresso { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--raio-12); color: var(--ink); font-size: var(--fs-corpo-2); line-height: 1.45; }
-.message.you .progresso { width: min(100%, 420px); margin: 6px 0 0 auto; box-sizing: border-box; }
-.progresso-barra { display: flex; gap: 3px; }
-.progresso-seg { flex: 1; height: 4px; border-radius: var(--raio-2); background: var(--line); }
-.progresso-seg.pronta { background: var(--success); }
-.progresso-seg.rodando { background: color-mix(in srgb, var(--success) 40%, var(--surface)); }
-.progresso-seg.precisa { background: var(--signal); }
-.progresso-seg.parada { background: color-mix(in srgb, var(--line-strong) 45%, var(--surface)); }
-.progresso-seg.falhou { background: var(--danger); }
-.progresso-resumo { display: flex; align-items: center; gap: 8px; min-height: 24px; cursor: pointer; list-style: none; border-radius: var(--raio-6); }
-.progresso-resumo::-webkit-details-marker { display: none; }
-.progresso-resumo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.progresso-txt { flex: 1; min-width: 0; }
-.progresso-resto { color: var(--ink-3); }
-.progresso-ver, .progresso-ocultar { flex: none; white-space: nowrap; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
-.progresso-ocultar, .progresso-det[open] > summary .progresso-ver { display: none; }
-.progresso-det[open] > summary .progresso-ocultar { display: inline; }
-.progresso-lista { display: flex; flex-direction: column; margin: 8px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); list-style: none; }
+/* ADR-187 (protótipo 1d, 2026-11-17): a tarefa que a rede abriu — a linha discreta do lado do bot e o cartão logo embaixo. */
+.rede-virou-linha { display: flex; align-items: center; gap: 4px; margin: 0 0 0 2px; color: var(--ink-3); font-size: var(--fs-legenda); line-height: 1.4; }
+.rede-virou-linha .linha-ic svg { width: 12px; height: 12px; }
 .progresso-item { display: flex; align-items: center; gap: 9px; padding: 5px 0; }
 .progresso-corpo { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.progresso-em-linha { flex-direction: row; align-items: baseline; gap: 6px; }
-.progresso-em-linha .progresso-passo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.progresso-em-linha .progresso-passo::before { content: "· "; }
 .progresso-titulo { align-self: flex-start; max-width: 100%; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .progresso-titulo:hover { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .progresso-titulo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--raio-4); }
@@ -1353,6 +1354,10 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .nl-desfazer { flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: var(--raio-8); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); font-weight: 600; cursor: pointer; }
 .nl-aviso .nl-desfazer:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .nl-desfazer:focus-visible { outline: 2px solid var(--focus-ring, var(--signal)); outline-offset: 1px; }
+/* O "Abrir"/"Ver" do aviso: classe própria (era .nl-abrir, a mesma da linha de Não lidos, que é uma grade de largura
+   total e espremia o texto do aviso até sumir). Pílula cinza, como no protótipo do aviso "nod atualizado" (ADR-188). */
+.nl-aviso .nl-aviso-abrir { padding: 0 12px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent); font-weight: 500; }
+.nl-aviso .nl-aviso-abrir:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 /* O card dos não lidos no chat (ferramenta nao_lidos): uma linha por conversa, o ✓ sempre à vista. */
 .msg-nao-lidos { margin-bottom: 6px; }
 .nlc { width: min(460px, 100%); margin: 0 0 18px; border: 1px solid var(--line); border-radius: var(--raio-14); overflow: hidden; }
@@ -1783,7 +1788,7 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 .ponto-trabalho.na-fila { background: transparent; border: 1.5px solid var(--line-strong); }
 .ponto-trabalho.fora-do-mac { background: transparent; border: 1.5px solid var(--warning); }
 .ponto-trabalho.feito { display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 0; background: none; color: var(--success); font-size: var(--fs-rotulo); line-height: 1; }
-:is(.ft-linha, .tt-linha, .tr-linha, .pilula-trab) > .ponto-trabalho:not(.feito) { margin: 0 3px; }
+:is(.ft-linha, .tr-linha, .pilula-trab) > .ponto-trabalho:not(.feito) { margin: 0 3px; }
 .ponto-trabalho.feito.parado { color: var(--ink-3); font-size: 9px; }
 .ponto-trabalho.feito.falhou { color: var(--danger); font-weight: 700; }
 /* K8, variante 3: o ponto pisca de leve (opacidade, 1,6 s) enquanto há task rodando; sem animação para quem pediu menos movimento. */
@@ -1884,8 +1889,6 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 .pf-fechar:focus-visible, .pf-ver:focus-visible, .pf-parar:focus-visible, .pf-memoria-linha:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .pf-miolo { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .pf-lista { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
-.pf-lista .progresso-item { padding: 6px 0; }
-.pf-lista .progresso-item.pf-depois { border-top: 1px solid var(--line); }
 .pf-lote, .pf-secao { margin: 10px 0 2px; font-size: var(--fs-rotulo); font-weight: 400; color: var(--ink-3); }
 .pf-miolo > :first-child { margin-top: 0; }
 .pf-item { display: flex; align-items: center; gap: 9px; padding: 6px 0; }
@@ -1911,7 +1914,6 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
 .p377-item { align-items: flex-start; }
 .p377-item .pf-ponto { margin-top: 6px; }
 .p377-acoes-tb { padding-left: 26px; }
-.p377-frente .tb-frente-fim { white-space: nowrap; }
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .p377-acoes { gap: 0 24px; margin-top: 0; }
   .p377-acao { min-height: 44px; min-width: 44px; }
@@ -1946,42 +1948,15 @@ details.recibo[open] .recibo-ver { visibility: hidden; }
   .pf-ponto.vivo, .pf-painel.entrando :is(.pf-cab, .pf-lista > li, .pf-lote, .pf-secao, .pf-memoria-linha, .pf-pe) { animation: none; }
 }
 /* O "Ver na conversa ↑" realça a fala com o progresso, como o anel do protótipo. */
-.bubble.com-progresso.realce, .progresso.realce { box-shadow: 0 0 0 3px var(--ink); transition: box-shadow var(--dur-lento) ease; }
-@media (prefers-reduced-motion: reduce) { .bubble.com-progresso.realce, .progresso.realce { transition: none; } }
+.progresso.realce { box-shadow: 0 0 0 3px var(--ink); transition: box-shadow var(--dur-lento) ease; }
+@media (prefers-reduced-motion: reduce) { .progresso.realce { transition: none; } }
 /* O ponto da memória no bloco de progresso (PR 8), ao lado do número: a frase só no title e no nome acessível. */
 .progresso-memoria { display: inline-block; width: 7px; height: 7px; margin: 0 2px 1px 7px; border-radius: 50%; background: var(--warning); vertical-align: middle; }
 .progresso-memoria.vermelha { background: var(--danger); }
-/* A ordem da fila em Trabalhos por bot. */
-.ld-ordem { flex: none; width: 14px; font-size: var(--fs-rotulo); color: var(--ink-3); text-align: center; font-variant-numeric: tabular-nums; }
 
 /* O sinal do bot na barra lateral (ADR-099, parte 5): um ponto — vivo, vazado ou azul — e o número de frentes se mais de uma. */
 .chip-trab.sinal-dono { justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; }
 .sinal-n { font-size: var(--fs-legenda); font-variant-numeric: tabular-nums; }
-
-/* Trabalhos com uma linha por bot (quadro 05): as frentes abrem embaixo do bot, recuadas, com um fio à esquerda. */
-.tb-linha > svg { flex: none; color: var(--ink-3); }
-.tb-frentes { display: flex; flex-direction: column; margin: 0 10px 8px 46px; padding-left: 12px; border-left: 1px solid var(--line); }
-.tb-frente { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 30px; padding: 0 8px; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink);
-  font: inherit; font-size: var(--fs-corpo-2); text-align: left; cursor: pointer; }
-.tb-frente:hover, .tb-frente:focus-visible { background: var(--surface-raised); }
-.tb-frente.estatica { cursor: default; }
-.tb-frente.estatica:hover { background: none; }
-.tb-frente > .ponto-trabalho:not(.feito) { margin: 0 3px; }
-.tb-frente-titulo { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tb-frente-passo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-.tb-frente-fim { flex: none; margin-left: auto; font-size: var(--fs-rotulo); color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.tb-abrir-conversa { align-self: flex-start; margin: 4px 0 0; padding: 4px 8px; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-3); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; }
-.tb-abrir-conversa:hover, .tb-abrir-conversa:focus-visible { background: var(--surface-raised); color: var(--ink-2); }
-.tb-sub { margin: 4px 8px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-.tb-livres { margin: 0; padding: 0 14px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
-/* Estreito (celular, painel apertado): a frase do bot desce para a segunda linha, inteira, embaixo do nome. */
-@media (max-width: 760px) {
-  .tt-linha.tb-linha { flex-wrap: wrap; row-gap: 2px; height: auto; min-height: 44px; padding: 10px 14px; }
-  .tt-linha.tb-linha .tt-bot { flex: 1 1 auto; width: auto; }
-  .tt-linha.tb-linha .tt-meio { order: 5; flex-basis: 100%; padding-left: 26px; }
-  .tt-linha.tb-linha .tt-meio .tt-titulo { font-weight: 400; color: var(--ink-2); }
-  .tt-linha.tb-linha .tt-meio .tt-passo { display: none; }
-}
 
 /* As linhas das frentes na conversa (ADR-099, parte 5, quadros 02 e 06): "●●● Começou 3 frentes: A, B e C · 15:02",
    "✓ 3 frentes terminaram · 17:55" e "↩ Respondi ao pedido de X". */
@@ -2060,38 +2035,9 @@ span.pilula-memoria { padding-right: 12px; cursor: default; }
 .parar-lista { margin: 0 0 12px; padding-left: 18px; color: var(--ink-2); font-size: var(--fs-corpo); line-height: 1.6; }
 .parar-lista li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* "Todos os trabalhos" (K9/M3). */
-.tela-trabalhos { display: flex; flex-direction: column; gap: 18px; max-width: 900px; margin: 0 auto; padding: 26px 24px; }
-.tt-cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
-.tt-cab h1 { margin: 0; font-size: var(--fs-titulo-2); font-weight: 600; }
-.tt-cab p { margin: 4px 0 0; font-size: var(--fs-corpo-2); color: var(--ink-2); }
-.tela-trabalhos > .linha-centro-wrap { margin: 0 auto; }
-.tt-filtros { display: flex; gap: 6px; }
-.tt-filtro { padding: 5px 11px; border: 1px solid var(--line); border-radius: var(--raio-14); background: var(--surface); color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; }
-.tt-filtro.ativo { border-color: var(--action); background: var(--action); color: var(--on-action); }
-.tt-grupo h2 { margin: 0 0 4px; padding: 0 14px; font-size: var(--fs-corpo-2); font-weight: 400; color: var(--ink-3); }
-.tt-lista { display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--line); border-radius: var(--raio-14); }
-/* revisto em 2026-10-09: toda linha com 44 px e as mesmas colunas (ponto de 14 px, bot, meio, fim) em todos os grupos. */
-.tt-linha { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; padding: 0 14px; border: 0; border-radius: var(--raio-10); background: none; color: var(--ink);
-  font: inherit; text-align: left; cursor: pointer; }
-.tt-linha:hover, .tt-linha:focus-visible { background: var(--surface-raised); }
-.tt-bot { display: inline-flex; flex: none; align-items: center; gap: 6px; width: 120px; font-size: var(--fs-corpo-2); overflow: hidden; }
-.tt-bot .icon.sm { width: 20px; height: 20px; min-width: 20px; border-radius: var(--raio-8); }
-.tt-bot b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tt-meio { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
-.tt-meio .etiqueta-origem { flex: none; margin-left: 0; }
-.tt-linha:hover .etiqueta-origem, .tt-linha:focus-visible .etiqueta-origem { background: var(--surface); }
-.tt-titulo { flex: 0 1 auto; min-width: 0; font-size: var(--fs-corpo); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tt-passo { flex: 0 0 auto; min-width: 0; max-width: 40%; font-size: var(--fs-corpo-2); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tt-fim { flex: none; font-size: var(--fs-rotulo); color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.tt-vazio { margin: 20px 0; text-align: center; color: var(--ink-3); }
 .tr-grupo .gv-linha-txt b { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; white-space: normal; }
 .tr-grupo .etiqueta-origem { margin-left: 0; }
-/* No celular (revisto em 2026-10-09): a coluna do bot continua fixa (mais estreita) para os títulos alinharem, e a etiqueta
-   sai junto do passo — ela espremia o título até sumir ("pedido do Chico" comia a linha do Dev 1). */
 @media (max-width: 760px) {
-  .tt-bot { width: 88px; }
-  .tt-passo, .tt-meio .etiqueta-origem { display: none; }
   .lugar-faixa-trabalhos { padding: 0 12px; }
 }
 

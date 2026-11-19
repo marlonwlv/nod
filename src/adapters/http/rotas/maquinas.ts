@@ -280,8 +280,8 @@ export function rotasMaquinas(deps: { dentro: DentroDeTx; vmDoNod?: { planos: Pl
         const motivo = typeof r === "string" ? r : r.movidos > 0 ? null : r.jaNela > 0 ? "ja_refeito" : "nada_na_fila";
         log("info", "turno_rodar_desta_vez", { pessoa_id: ctx.escopo.pessoaId, trabalho_id: trabalhoId, maquina_id: maquinaId, turnos: typeof r === "string" ? 0 : r.movidos, motivo });
         if (r === "maquina_sem_contato") { ctx.json(409, { codigo: r, mensagem: "Essa máquina também está sem contato agora. Escolha outra ou espere ela voltar." }); return; }
-        if (r === "conta_fora_da_maquina") { ctx.json(409, { codigo: r, mensagem: "Essa máquina não tem uma conta pronta da IA desta task. Escolha outra ou espere a máquina do bot voltar." }); return; }
-        if (motivo === "nada_na_fila") { ctx.json(409, { codigo: motivo, mensagem: "Esta task não tem nada esperando na fila agora." }); return; }
+        if (r === "conta_fora_da_maquina") { ctx.json(409, { codigo: r, mensagem: "Essa máquina não tem uma conta pronta da IA desta tarefa. Escolha outra ou espere a máquina do bot voltar." }); return; }
+        if (motivo === "nada_na_fila") { ctx.json(409, { codigo: motivo, mensagem: "Esta tarefa não tem nada esperando na fila agora." }); return; }
         ctx.json(200, { turnos: r.movidos, motivo });
       },
     },

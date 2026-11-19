@@ -54,12 +54,12 @@ export function campoDePrazo(t: Pick<TarefaDto, "id" | "prazoEm">, o: { agora: n
     // ícone do calendário do Chrome cobre o campo inteiro pelo CSS). O Limpar aparece no hover e no foco.
     const p = t.prazoEm ? prazoDaLateral(t.prazoEm, o.agora, o.fuso) : null;
     return `<div class="qd-prazo-t ta-prazo"><span class="ta-prazo-vista" aria-hidden="true">${p ? `<span class="ta-prazo-data">${esc(p.data)}</span><span class="qd-prazo-tom" data-tom="${p.tom}">${esc(p.falta)}</span>` : `<span class="ta-prazo-sem">Sem prazo</span>`}</span>` +
-      `<label class="qd-sr" for="${id}">Prazo da tarefa${p ? `: ${esc(p.data)}, ${esc(p.falta)}` : ""}</label>` +
+      `<label class="qd-sr" for="${id}">Prazo do card${p ? `: ${esc(p.data)}, ${esc(p.falta)}` : ""}</label>` +
       `<input type="date" id="${id}" class="qd-data ta-prazo-in" data-campo="prazo-tarefa" data-id="${esc(t.id)}" value="${esc(t.prazoEm ?? "")}">` +
       (p ? `<button type="button" class="qd-link qd-prazo-limpar" data-act="prazo-tarefa-limpar" data-id="${esc(t.id)}">Limpar</button>` : "") + `</div>`;
   }
   const r = t.prazoEm ? rotuloDoPrazo(t.prazoEm, o.agora, o.fuso) : null;
-  return `<div class="qd-prazo-t"><label class="qd-sr" for="${id}">Prazo da tarefa</label>` +
+  return `<div class="qd-prazo-t"><label class="qd-sr" for="${id}">Prazo do card</label>` +
     `<input type="date" id="${id}" class="qd-data" data-campo="prazo-tarefa" data-id="${esc(t.id)}" value="${esc(t.prazoEm ?? "")}">` +
     (r ? `<span class="qd-prazo-tom" data-tom="${r.tom}">${esc(r.texto)}</span><button type="button" class="qd-link qd-prazo-limpar" data-act="prazo-tarefa-limpar" data-id="${esc(t.id)}">Limpar</button>` : "") +
     `</div>`;

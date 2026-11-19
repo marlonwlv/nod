@@ -3,12 +3,12 @@ import { expect, it } from "vitest";
 import type { IdHarness } from "../../src/contracts/harness.ts";
 import type { ResultadoTurno } from "../../src/contracts/turno.ts";
 import { comCitacao, trechoDaCitacao } from "../../src/domain/citacao.ts";
-import { REDE_MS } from "../../src/domain/trabalho.ts";
+import { REDE_MS, REDE_NAO_LIDA_MS } from "../../src/domain/trabalho.ts";
 import { criarTokenTurno } from "../../src/services/token-turno.ts";
 import { assentarTurno } from "../../src/use-cases/assentar-turno.ts";
 import { promoverNaRede } from "../../src/use-cases/coordenar-trabalhos.ts";
 import { emitirPlanoTurno } from "../../src/use-cases/emitir-plano-turno.ts";
-import { agenteComConversa, autoriaPessoa } from "../helpers/fabricas.ts";
+import { agenteComConversa, autoriaAgente, autoriaPessoa } from "../helpers/fabricas.ts";
 import { PESSOA_MARLON, TENANT_PADRAO } from "../helpers/ids.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { depsSobre, servicosDeTeste } from "../helpers/l5.ts";
@@ -83,7 +83,7 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
       expect((await m.repos.turnos.buscar(vivo.id))?.trabalhoId).toBe(frente.id);
       // A linha na conversa do dono: "Virou a frente".
       const linha = (await m.repos.mensagens.listarDaConversa(m.conversaId, 50)).find((x) => x.payload?.kind === "trabalho_aberto");
-      expect(linha?.texto).toBe(`Virou a frente ${frente.titulo}`);
+      expect(linha?.texto).toBe(`Virou a tarefa ${frente.titulo}`);
       expect(r.events?.some((e) => e.kind === "mensagem_criada")).toBe(true);
 
       // A próxima fala da pessoa: turno do dono, sem sessão, sem bifurcar e com o histórico recente no prompt.
@@ -168,7 +168,7 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
     });
   });
 
-  it("mensagem só com link, só com emoji ou vazia: a frente da rede vira 'Frente da conversa' (plano chat limpo, PR 5)", async () => {
+  it("mensagem só com link, só com emoji ou vazia: a frente da rede vira 'Tarefa da conversa' (plano chat limpo, PR 5)", async () => {
     await withRollback(MARLON, async (trx) => {
       // Um bot por mensagem: a conversa tem um turno do dono despachando por vez.
       for (const texto of ["https://github.com/gamefik/nod/pull/391", "🎉🎉", ""]) {
@@ -176,7 +176,7 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
         const vivo = await m.turno({ texto });
         await m.despachar(vivo.id);
         const frente = (await m.promover(vivo.id, { sessaoCli: null, maquinaBifurca: false })).data.trabalho!;
-        expect(frente).toMatchObject({ forma: "frente", origem: "rede", titulo: "Frente da conversa" });
+        expect(frente).toMatchObject({ forma: "frente", origem: "rede", titulo: "Tarefa da conversa" });
       }
     });
   });
@@ -189,6 +189,92 @@ describeIntegracao("a rede de 2 min promove a frente, com ou sem bifurcar (ADR-0
       const r = await promoverNaRede(m.deps, { turnoId: vivo.id, despachadoEm: Date.now() - REDE_MS, fezFerramenta: true, harness: null, sessaoCli: null, maquinaBifurca: false, modo: "conversa" });
       expect(r.data.trabalho).toBeNull();
       expect((await m.repos.turnos.buscar(vivo.id))?.trabalhoId).toBeNull();
+    });
+  });
+
+  // ADR-187 §3 (rodada de validação de 2026-11-17, roteiro das duas pesquisas): o turno promovido levava para a frente as
+  // falas que o bot já tinha dito nele, inclusive a resposta à pergunta à parte ("Dois mais dois é 4"), e elas sumiam do chat.
+  it("as falas do bot ditas antes da promoção ficam na conversa; só as de depois são da frente", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx, "codex-cli");
+      await m.falaDaPessoa("faça duas pesquisas em paralelo");
+      const vivo = await m.turno({ texto: "faça duas pesquisas em paralelo" });
+      await m.despachar(vivo.id);
+      const fala = (texto: string) => m.repos.mensagens.criar({ conversaId: m.conversaId, turnoId: vivo.id, autoria: autoriaAgente(m.agenteId, PESSOA_MARLON), kind: "texto", texto, confianca: "confiavel" });
+      const antes = (await fala("Dois mais dois é 4."))!;
+
+      const frente = (await m.promover(vivo.id, { sessaoCli: null, maquinaBifurca: false })).data.trabalho!;
+      const depois = (await fala("O texto do queijo ficou pronto."))!;
+
+      const chat = await m.repos.mensagens.listarComTurno(m.conversaId, 50);
+      expect(chat.find((x) => x.id === antes.id)?.trabalhoId).toBeNull();
+      expect(chat.find((x) => x.id === depois.id)?.trabalhoId).toBe(frente.id);
+      // A tela da frente continua com o turno inteiro (o que veio antes é o começo do trabalho).
+      expect((await m.repos.mensagens.doTrabalho(frente.id)).map((x) => x.id)).toEqual(expect.arrayContaining([antes.id, depois.id]));
+    });
+  });
+
+  // ADR-187 §3 (rodada de 2026-11-17 com bot novo): o bot esperava os subagentes e só leu "quanto é dois mais dois?" depois
+  // da promoção — a resposta nascia na frente e a conversa ficava sem ela. A fala absorvida e não lida volta à conversa.
+  it("a fala da pessoa absorvida e ainda não lida volta à fila da conversa; a já lida fica com a frente", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx, "claude-cli");
+      const vivo = await m.turno({ texto: "faça duas pesquisas em paralelo" });
+      await m.despachar(vivo.id);
+      const pergunta = async (texto: string) => {
+        const msg = (await m.falaDaPessoa(texto))!;
+        return (await m.repos.turnos.enfileirar({ executor: "catcher", conversaId: m.conversaId, agenteId: m.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: texto, entradaConfianca: "confiavel", modelo: "auto", harness: "claude-cli", mensagemOrigemId: msg.id }))!;
+      };
+      const naoLida = await pergunta("quanto é dois mais dois?");
+      const lida = await pergunta("como está indo?");
+      const vivoT = (await m.repos.turnos.buscar(vivo.id))!;
+      expect((await m.repos.turnos.absorverNaSessao(vivoT, [naoLida.id, lida.id], { informaLeitura: true })).length).toBe(2);
+      await m.repos.turnos.marcarLidosNaSessao(vivo.id, [lida.id]);
+
+      const r = await m.promover(vivo.id, { sessaoCli: null, maquinaBifurca: false });
+      expect(r.data.trabalho).toBeTruthy();
+      expect(await m.repos.turnos.buscar(naoLida.id)).toMatchObject({ estado: "pendente", absorvidoPor: null, trabalhoId: null });
+      expect(await m.repos.turnos.buscar(lida.id)).toMatchObject({ estado: "interrompido", absorvidoPor: vivo.id });
+      expect(r.events?.some((e) => e.kind === "turno_criado" && e.turnoId === naoLida.id)).toBe(true);
+      // ADR-187 §3: só a não lida vai para o aviso que a sessão da tarefa recebe (a ponte o manda cru, sem moldura).
+      expect(r.data.devolvidas).toEqual(["quanto é dois mais dois?"]);
+    });
+  });
+
+  it("ADR-187: a fala absorvida e não lida há REDE_NAO_LIDA_MS promove antes dos 2 min; recente ou já lida, não", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx, "claude-cli");
+      const vivo = await m.turno({ texto: "faça duas pesquisas em paralelo" });
+      await m.despachar(vivo.id);
+      const msg = (await m.falaDaPessoa("quanto é dois mais dois?"))!;
+      const pergunta = (await m.repos.turnos.enfileirar({ executor: "catcher", conversaId: m.conversaId, agenteId: m.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: msg.texto, entradaConfianca: "confiavel", modelo: "auto", harness: "claude-cli", mensagemOrigemId: msg.id }))!;
+      await m.repos.turnos.absorverNaSessao((await m.repos.turnos.buscar(vivo.id))!, [pergunta.id], { informaLeitura: true });
+      // O turno roda há 30 s: longe dos 2 min.
+      const cedo = () => promoverNaRede(m.deps, { turnoId: vivo.id, despachadoEm: Date.now() - 30_000, fezFerramenta: true, harness: "claude-cli", sessaoCli: null, sessaoExecutor: "local", maquinaBifurca: false, modo: "conversa" });
+
+      expect((await cedo()).data.trabalho).toBeNull();
+      await trx`update turnos set criado_em = now() - make_interval(secs => ${(REDE_NAO_LIDA_MS + 5_000) / 1000}) where id = ${pergunta.id}`;
+      expect(await m.repos.turnos.naoLidaMaisAntiga(vivo.id)).toBeLessThanOrEqual(Date.now() - REDE_NAO_LIDA_MS);
+
+      const r = await cedo();
+      expect(r.data.trabalho).toMatchObject({ origem: "rede", forma: "frente" });
+      expect(await m.repos.turnos.buscar(pergunta.id)).toMatchObject({ estado: "pendente", absorvidoPor: null });
+    });
+  });
+
+  it("ADR-187: a fala que o bot já leu não adianta a rede", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx, "claude-cli");
+      const vivo = await m.turno({ texto: "faça duas pesquisas em paralelo" });
+      await m.despachar(vivo.id);
+      const msg = (await m.falaDaPessoa("como está indo?"))!;
+      const pergunta = (await m.repos.turnos.enfileirar({ executor: "catcher", conversaId: m.conversaId, agenteId: m.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: msg.texto, entradaConfianca: "confiavel", modelo: "auto", harness: "claude-cli", mensagemOrigemId: msg.id }))!;
+      await m.repos.turnos.absorverNaSessao((await m.repos.turnos.buscar(vivo.id))!, [pergunta.id], { informaLeitura: true });
+      await trx`update turnos set criado_em = now() - interval '60 seconds' where id = ${pergunta.id}`;
+      await m.repos.turnos.marcarLidosNaSessao(vivo.id, [pergunta.id]);
+      expect(await m.repos.turnos.naoLidaMaisAntiga(vivo.id)).toBeNull();
+      const r = await promoverNaRede(m.deps, { turnoId: vivo.id, despachadoEm: Date.now() - 30_000, fezFerramenta: true, harness: "claude-cli", sessaoCli: null, sessaoExecutor: "local", maquinaBifurca: false, modo: "conversa" });
+      expect(r.data.trabalho).toBeNull();
     });
   });
 });

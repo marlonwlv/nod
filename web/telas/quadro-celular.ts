@@ -29,7 +29,7 @@ export type GrupoDoCelular = {
 export function linhaDoCelular(c: Card): Html {
   const av = avataresDoCard(c);
   const est = c.aviso ? aviso(c.aviso)
-    : c.motivo ? `<span class="qd-cl-est qd-e-bloqueado" title="${esc(`bloqueada: ${c.motivo}`)}">${ICONE.pausa}<span>${esc(c.motivo)}</span></span>`
+    : c.motivo ? `<span class="qd-cl-est qd-e-bloqueado" title="${esc(`bloqueado: ${c.motivo}`)}">${ICONE.pausa}<span>${esc(c.motivo)}</span></span>`
       : c.estado === "rodando" ? seloTrabalhando(c.rodandoHa) : "";
   const avatar = av.html ? `<span class="qd-cl-av qd-avs">${av.html}</span>` : `<span class="qd-cl-av qd-cl-av-vazio" aria-hidden="true"></span>`;
   // 2026-11-11: a prioridade do card do computador (prioridadeDoCard: o botão das barrinhas no card editável, o mesmo
@@ -54,7 +54,7 @@ export function listaDoCelular(o: { grupos: readonly GrupoDoCelular[]; rotulo: s
   const g = o.grupos.map((gr) => {
     const n = gr.n ?? gr.linhas.length;
     const mais = gr.recolhido || !o.novaTarefa ? ""
-      : `<button type="button" class="qd-cg-mais" data-act="col-nova-tarefa" data-status="${esc(gr.status)}" aria-label="${esc(`Nova tarefa em ${gr.nome}`)}">${ICONE.novo}</button>`;
+      : `<button type="button" class="qd-cg-mais" data-act="col-nova-tarefa" data-status="${esc(gr.status)}" aria-label="${esc(`Novo card em ${gr.nome}`)}">${ICONE.novo}</button>`;
     const cab = `<h3 class="qd-cg-cab"><button type="button" class="qd-cg-bt" data-act="abrir-coluna" data-status="${esc(gr.status)}" aria-expanded="${!gr.recolhido}">` +
       `${iconeDe(gr)}<span class="qd-cg-nome">${esc(gr.nome)}</span><span class="qd-cg-n">${n}</span>${gr.recolhido ? ICONE.chev : ""}</button>${mais}</h3>`;
     const corpo = gr.linhas.length ? gr.linhas.join("") : gr.vazio === "" ? "" : `<li class="qd-cl-vazio">${esc(gr.vazio ?? VAZIO_DO_GRUPO)}</li>`;
@@ -86,7 +86,7 @@ export function colunasDoCelular(o: { grupos: readonly GrupoDoCelular[]; rotulo:
   const cols = o.grupos.map((gr, i) => {
     const qtd = gr.n ?? gr.linhas.length;
     const mais = !o.novaTarefa ? ""
-      : `<button type="button" class="qd-cg-mais" data-act="col-nova-tarefa" data-status="${esc(gr.status)}" aria-label="${esc(`Nova tarefa em ${gr.nome}`)}">${ICONE.novo}</button>`;
+      : `<button type="button" class="qd-cg-mais" data-act="col-nova-tarefa" data-status="${esc(gr.status)}" aria-label="${esc(`Novo card em ${gr.nome}`)}">${ICONE.novo}</button>`;
     const corpo = gr.linhas.length ? gr.linhas.join("") : gr.vazio === "" ? "" : `<li class="qd-cl-vazio">${esc(gr.vazio ?? VAZIO_DO_GRUPO)}</li>`;
     return `<section class="qd-cc" data-status="${esc(gr.status)}" aria-roledescription="coluna" aria-label="${esc(`${gr.nome}, ${i + 1} de ${n}`)}">` +
       `<h3 class="qd-cg-cab"><span class="qd-cg-bt">${iconeDe(gr)}<span class="qd-cg-nome">${esc(gr.nome)}</span><span class="qd-cg-n">${qtd}</span></span>${mais}</h3>` +
@@ -105,7 +105,7 @@ export type FolhaDoCelular = { tipo: "visao" } | { tipo: "tarefa"; tarefa: strin
 /** O que o quadro do celular precisa além do quadro: a visão escolhida no título e a folha aberta. */
 export type CelularDoQuadro = { visao: VisaoDoQuadro; folha?: FolhaDoCelular | null };
 
-export const NOME_DA_VISAO: Readonly<Record<VisaoDoQuadro, string>> = { lista: "Lista", colunas: "Colunas", minhas: "Minhas tarefas" };
+export const NOME_DA_VISAO: Readonly<Record<VisaoDoQuadro, string>> = { lista: "Lista", colunas: "Colunas", minhas: "Meus cards" };
 /** O vazio de Minhas tarefas. */
 export const VAZIO_DAS_MINHAS = "Nada com você agora.";
 

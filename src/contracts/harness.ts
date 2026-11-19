@@ -69,10 +69,18 @@ export type CapacidadesHarness = {
   pastaDeTrabalho: boolean;
   /** NOD-323 (revisão 3 do #507): o proxy desta versão atende `anexar_midia`; o app anterior não anuncia e não a recebe. */
   anexarMidia: boolean;
+  /**
+   * ADR-186 (medido em 2026-11-16, scripts/sonda-mensagem-no-meio.ts): o harness para a VOLTA em curso sem matar a sessão,
+   * e a mensagem da pessoa abre a seguinte (Claude Code: `control_request` interrupt; Codex: `turn/interrupt`; ACP:
+   * `session/cancel`, obrigatório no protocolo). Sem isto, a mensagem espera a fronteira (ADR-185).
+   */
+  interrompeVolta: boolean;
+  /** ADR-186: o texto da volta interrompida fica no histórico da sessão (o modelo sabe o que já escreveu). Sem, a moldura leva o trecho. */
+  parcialNoHistorico: boolean;
 };
 
 /** Harness desconhecido ou em preparação: nenhuma capacidade, todo caminho cai no "sem a capacidade". */
-export const SEM_CAPACIDADES: CapacidadesHarness = { mensagemNoMeio: false, retomaSessao: false, bifurcaSessao: false, processoProprio: false, terminal: false, anexos: [], comandosDoCli: false, pastaDeTrabalho: false, anexarMidia: false };
+export const SEM_CAPACIDADES: CapacidadesHarness = { mensagemNoMeio: false, retomaSessao: false, bifurcaSessao: false, processoProprio: false, terminal: false, anexos: [], comandosDoCli: false, pastaDeTrabalho: false, anexarMidia: false, interrompeVolta: false, parcialNoHistorico: false };
 
 /**
  * definido em 2026-10-07 (ADR-083): o Codex do chat roda no app-server quando a sonda o acha (`turn/steer`), mas
@@ -82,8 +90,10 @@ export const SEM_CAPACIDADES: CapacidadesHarness = { mensagemNoMeio: false, reto
  * a máquina não consegue ligar o hook, o driver roda isolado e avisa o modelo, como o Claude sem o hook.
  */
 export const CAPACIDADES_HARNESS: Record<IdHarness, CapacidadesHarness> = {
-  "claude-cli": { mensagemNoMeio: true, retomaSessao: true, bifurcaSessao: true, processoProprio: true, terminal: true, anexos: ["imagem", "pdf", "texto"], comandosDoCli: true, pastaDeTrabalho: true, anexarMidia: true },
-  "codex-cli": { mensagemNoMeio: true, retomaSessao: true, bifurcaSessao: true, processoProprio: true, terminal: true, anexos: ["imagem", "texto"], comandosDoCli: false, pastaDeTrabalho: true, anexarMidia: true },
+  // ADR-186 (2026-11-16): CLI 2.1.326 — interrupt em <100 ms, a sessão segue, a parcial fica no histórico.
+  "claude-cli": { mensagemNoMeio: true, retomaSessao: true, bifurcaSessao: true, processoProprio: true, terminal: true, anexos: ["imagem", "pdf", "texto"], comandosDoCli: true, pastaDeTrabalho: true, anexarMidia: true, interrompeVolta: true, parcialNoHistorico: true },
+  // ADR-186 (2026-11-16): codex-cli 0.162.1 — turn/interrupt em 5 ms, a thread segue, mas a parcial NÃO fica no histórico.
+  "codex-cli": { mensagemNoMeio: true, retomaSessao: true, bifurcaSessao: true, processoProprio: true, terminal: true, anexos: ["imagem", "texto"], comandosDoCli: false, pastaDeTrabalho: true, anexarMidia: true, interrompeVolta: true, parcialNoHistorico: false },
   "cursor-cli": SEM_CAPACIDADES,
   hermes: SEM_CAPACIDADES,
 };

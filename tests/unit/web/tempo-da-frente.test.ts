@@ -11,7 +11,7 @@ const frente = (extra: Partial<TrabalhoDto> = {}): TrabalhoDto => ({ id: "w3", a
 describe("cartaoDoTempoDaFrente (Paper 15b)", () => {
   it("aberta há 18 min: dois segmentos na proporção 14 × 4, a cor do bot e a legenda embaixo", () => {
     const html = cartaoDoTempoDaFrente(frente(), AGORA, "c-orange");
-    expect(html).toContain('<div class="tk-pop tk-pop-frente c-orange" role="group" aria-label="Tempo da frente">');
+    expect(html).toContain('<div class="tk-pop tk-pop-frente c-orange" role="group" aria-label="Tempo da tarefa">');
     expect(html).toContain('<div class="tk-pop-total">Aberta há 18 min</div>');
     expect(html).toContain('<span class="tk-pop-seg trabalhou" style="flex-grow:840"></span><span class="tk-pop-seg esperou" style="flex-grow:240"></span>');
     expect(html).toContain('<div class="tk-pop-pe"><span>Trabalhando 14 min</span><span class="tk-pop-esperou">Esperando 4 min</span></div>');

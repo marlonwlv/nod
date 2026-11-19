@@ -23,6 +23,8 @@ export const FIM_DA_TRANSICAO_MS = 460;
 export type DesenhoDaPilula =
   | null
   | { tipo: "legado"; html: string }
+  /** ADR-187 §5 (2026-11-18): a aba "+ Nova tarefa" sem tarefas (e a dica): HTML pronto, como o legado, mas abre o espaço. */
+  | { tipo: "vazia"; html: string }
   | { tipo: "pilula"; partes: PartesDaPilula; aberta: boolean; escondida: boolean };
 
 export type PilulaNaTela = {
@@ -122,11 +124,11 @@ export function criarPilulaNaTela(lugar: HTMLElement, palco: HTMLElement, c: { r
 
   return {
     desenhar(d) {
-      if (!d || d.tipo === "legado") {
+      if (!d || d.tipo === "legado" || d.tipo === "vazia") {
         c.cancelar(saida);
         c.cancelar(fechamento);
         atual = null;
-        marcarPalco(false);
+        marcarPalco(d?.tipo === "vazia");
         const html = d?.html ?? "";
         if (legado !== html) { legado = html; lugar.innerHTML = html; }
         return;

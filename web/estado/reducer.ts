@@ -87,13 +87,23 @@ export type Tela =
   | { tipo: "nova-sala" }
   /** Tela 18d do Paper: as tarefas dos quadros de todos os bots da pessoa (web/lib/tarefas-de-todos-na-tela.ts). */
   | { tipo: "tarefas" }
-  /** ADR-083 (#196): "Todos os trabalhos" — os de todos os bots da pessoa, com os filtros De você / Rotinas / Entre bots. */
-  | { tipo: "trabalhos"; filtro?: FiltroTrabalhos }
+  /**
+   * ADR-083 (#196) e ADR-187 §8 (lote B, passo 5, 2026-11-18; Paper 5a e 5b): a tela Tarefas. Sem `filtro`, "Por bot" (a
+   * vista com que ela abre); com ele, "Por estado" (De você / Rotinas / Entre bots ficaram só no estado, sem chip).
+   * `mostrar`: os chips Abertas (ausente) / Feitas / Todas; `bot`: o "Todos os bots ▾" com um bot escolhido.
+   */
+  | { tipo: "trabalhos"; filtro?: FiltroTrabalhos; mostrar?: MostrarTarefas; bot?: string }
   /**
    * ADR-083 (#195): a tela da task. `voltar` é a tela de onde a pessoa veio (o Fechar e o Esc voltam para ela); abrir
    * outra task de dentro de uma task mantém o `voltar` de fora.
    */
   | { tipo: "trabalho"; id: string; voltar: Tela }
+  /**
+   * ADR-187 §7 (lote B, passo 2, 2026-11-18): a tarefa nova da pessoa, ainda sem nada no servidor (Paper 3b, "O chat limpo
+   * da tarefa nova"). A primeira mensagem cria a tarefa e a tela vira a `trabalho` dela; sair antes não deixa nada.
+   * `levarConversa` é o "Levar o contexto da conversa" (Paper 3e).
+   */
+  | { tipo: "nova-tarefa"; agenteId: string; voltar: Tela; levarConversa?: true }
   /**
    * definido em 2026-10-07 (#191): a tela provisória de uma linha do chat sem trabalho por trás (execuções antigas de
    * rotina, pedido a colega de antes do ADR-083): as mensagens que a linha recolheu, na ordem, com Fechar.
@@ -103,6 +113,9 @@ export type Tela =
 
 /** Os filtros de "Todos os trabalhos": De você (pessoa e rede), Rotinas e Entre bots (colega). */
 export type FiltroTrabalhos = "todos" | "voce" | "rotinas" | "bots";
+
+/** ADR-187 §8 (Paper 5a): as tarefas abertas (o padrão), as que terminaram hoje ou as duas. */
+export type MostrarTarefas = "abertas" | "feitas" | "todas";
 
 /**
  * "Seu espaço" (definido em 2026-09-30, canvas "Menu, sidebar e gaveta"): o que é da CONTA abre pelo menu do avatar numa
@@ -166,7 +179,8 @@ export type ConectarMaquina = {
 };
 
 /** NOD-367 (protótipo v2): as seções das Configurações, nesta ordem na lateral. NOD-85: Rotinas entre Agentes e Feedback. */
-export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "computador" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "feedback";
+/** ADR-188: "sobre" (Sobre o nod): a versão do app e a atualização, antes de Feedback. */
+export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "computador" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "sobre" | "feedback";
 /**
  * O que um ponto de entrada pode pedir: as 6 seções, as de antes da NOD-367 (avisos, preferências, este Mac,
  * computadores, computador do bot, relatos), que caem na seção que as absorveu, e "ajuda" (Geral, no bloco Ajuda).
@@ -592,6 +606,11 @@ export type Estado = {
   experimentos: Experimentos;
   /** NOD-415 (ADR-141): a flag NOD_QUADROS libera os quadros para esta pessoa (ausente = não liberado). */
   quadroLiberado?: boolean;
+  /**
+   * Os avisos da tela que a pessoa já fechou (`preferencias.avisosFechados`, 0059), lidos de `GET preferencias`; null =
+   * ainda não chegaram (nenhuma dica de uma vez aparece antes, para não piscar). ADR-187 §5: a dica das tarefas.
+   */
+  avisosFechados?: readonly string[] | null;
   /** O cartão do tempo aberto no topo da task (protótipo "Nod — tempo da task"): o id da task, ou null. */
   tempoTaskAberto: string | null;
 };
@@ -683,6 +702,8 @@ export type Acao =
   | { tipo: "onboarding-texto"; ligado: boolean }
   | { tipo: "hidratar-relatos"; relatos: Relato[] | null; erro?: boolean }
   | { tipo: "modo-dev"; ligado: boolean }
+  /** ADR-187 §5 (2026-11-18): os avisos fechados da pessoa (a leitura de `GET preferencias` ou um aviso que ela fechou agora). */
+  | { tipo: "avisos-fechados"; chaves: readonly string[] }
   | { tipo: "hidratar-raio-x"; conversaId: string; raioX: RaioXConversa }
   | { tipo: "chave-emitida"; emitida: ChaveEmitidaDto | null }
   | { tipo: "mcp-token-emitido"; emitido: TokenMcpEmitidoDto | null }
@@ -1359,6 +1380,8 @@ const trabalhosDoTurno = (f: FrameSse): Invalidacao[] => (turnoDeLigacao(f.dados
 
 /** NOD-353: o id da chamada no frame (o mesmo formato que a ponte aceita); fora dele, a ação fica sem id. */
 const idDaAcao = (v: unknown): string | null => (typeof v === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(v) ? v : null);
+/** ADR-187 §6 (2026-11-18): o resumo de uma linha da ferramenta (RESUMO_DO_PASSO_MAX = 160, já redigido no servidor). */
+const resumoDoFrame = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, 160) : null);
 
 /** NOD-348: o `emUso` do frame, conferido; o servidor antigo não o manda e a fala diz "Usando uma ferramenta". */
 function emUsoDoFrame(v: unknown): FerramentaEmUso {
@@ -1403,7 +1426,12 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     const estado = f.dados.kind === "turno_despachado" || anterior?.estado === "rodando" ? "rodando" : "na_fila";
     const trabalhoId = texto(f.dados.trabalhoId) ?? texto(f.dados.trabalho_id) ?? anterior?.trabalhoId ?? null;
     const vivo: TurnoVivo = { turnoId, conversaId, estado, executor: texto(f.dados.executor) ?? anterior?.executor ?? null, machineId: texto(f.dados.machine_id) ?? anterior?.machineId ?? null, desde: estado === "rodando" && anterior?.estado !== "rodando" ? agora : (anterior?.desde ?? agora), trabalhoId, vistoEm: agora, chegouEm: anterior?.chegouEm ?? agora, origem: texto(f.dados.origem) ?? anterior?.origem ?? null, agenteId: texto(f.dados.agente_id) ?? texto(f.dados.agenteId) ?? anterior?.agenteId ?? null, motivoRecomeco: motivoDoFrame(f.dados.motivo_recomeco) ?? anterior?.motivoRecomeco ?? null, ...(!trabalhoId && (bastidoresDoFrame(f.dados) || anterior?.bastidores) ? { bastidores: true } : {}), ...(typeof f.dados.despachadoEm === "number" ? { despachadoEm: f.dados.despachadoEm } : anterior?.despachadoEm !== undefined ? { despachadoEm: anterior.despachadoEm } : {}), ...(typeof f.dados.criadoEm === "number" ? { criadoEm: f.dados.criadoEm } : anterior?.criadoEm !== undefined ? { criadoEm: anterior.criadoEm } : {}) };
-    return invalidar({ ...e, turnosVivos: { ...e.turnosVivos, [turnoId]: vivo } }, conv(f), "trabalhos");
+    // ADR-185: o "Parado por você" é da parada anterior. A fala que o Parar devolveu à fila roda logo em seguida, e a faixa
+    // (no fim da conversa) ficaria embaixo da resposta nova: um turno do chat que começa a rodar na conversa aberta a tira.
+    // O texto interrompido continua marcado como "parcial".
+    const aberta = e.tela.tipo === "conversa" && e.tela.conversaId === conversaId;
+    const tiraFaixa = e.faixaParada !== null && estado === "rodando" && !trabalhoId && aberta;
+    return invalidar({ ...e, turnosVivos: { ...e.turnosVivos, [turnoId]: vivo }, ...(tiraFaixa ? { faixaParada: null } : {}) }, conv(f), "trabalhos");
   },
   "turno.delta": (e, f, agora) => {
     if (turnoDeLigacao(f.dados)) return e;
@@ -1425,7 +1453,7 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     if (e.turnosEncerrados.includes(turnoId) || (!e.turnosVivos[turnoId] && turnoId in e.turnosDesmentidos)) return e;
     const turnosVivos = confirmarProgresso(e, f, turnoId, conversaId, agora);
     if (deBastidores(e, f.dados, turnoId)) return turnosVivos === e.turnosVivos ? e : { ...e, turnosVivos };
-    return { ...e, turnosVivos, atividades: comAtividade(e, conversaId, turnoId, (a) => comFerramenta(a, rotulo, emUsoDoFrame(f.dados.emUso), idDaAcao(f.dados.id)), agora) };
+    return { ...e, turnosVivos, atividades: comAtividade(e, conversaId, turnoId, (a) => comFerramenta(a, rotulo, emUsoDoFrame(f.dados.emUso), idDaAcao(f.dados.id), resumoDoFrame(f.dados.resumo)), agora) };
   },
   // NOD-353: a chamada terminou (feita ou Falhou, de tool_result.isError); fim de turno ou id desconhecido não muda nada.
   "turno.acao_fim": (e, f, agora) => {
@@ -1609,6 +1637,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // cru do fornecedor — não pode ficar na tela da próxima sessão (ADR-002).
       return { ...estado, sessao: acao.escopo, chaves: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.chaves : null, maquinas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.maquinas : null, computadorPessoa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.computadorPessoa : null, instalarSsh: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.instalarSsh : null, contasIa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.contasIa : null, detalhesContas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.detalhesContas : null, relatos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.relatos : null, mcpTokens: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.mcpTokens : null, chaveEmitida: null, mcpTokenEmitido: null,
         modoDev: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.modoDev : { ligado: false, raioX: {} },
+        avisosFechados: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.avisosFechados ?? null : null,
         naoLidos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.naoLidos : null, novasDesde: {},
         citacoes: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.citacoes : {},
         carregado: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.carregado : estadoInicial.carregado,
@@ -2088,6 +2117,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     // Desligado, os resumos saem da memória: religar busca de novo, com o que mudou nesse meio-tempo.
     case "modo-dev":
       return { ...estado, modoDev: { ligado: acao.ligado, raioX: acao.ligado ? estado.modoDev.raioX : {} } };
+    case "avisos-fechados":
+      return { ...estado, avisosFechados: [...new Set([...(estado.avisosFechados ?? []), ...acao.chaves])] };
     case "hidratar-raio-x":
       return estado.modoDev.ligado ? { ...estado, modoDev: { ...estado.modoDev, raioX: { ...estado.modoDev.raioX, [acao.conversaId]: acao.raioX } } } : estado;
     case "chave-emitida":

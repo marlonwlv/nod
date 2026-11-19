@@ -149,7 +149,7 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     if (!onboardingConcluido) { await srv.json("POST", "onboarding/concluir", {}); onboardingConcluido = true; }
     await navegar(hash);
     await ate(`document.querySelector('[data-act="abrir-conversa"]')`, "a lista de bots");
-    await ate(`document.querySelector('[data-act="menu-do-mais"]')`, "o app hidratado", 60_000);
+    await ate(`document.querySelector('#sidebar .create-trigger')`, "o app hidratado", 60_000);
   }
 
   async function abrirConversa(bot: { id: string }): Promise<void> {
@@ -472,11 +472,12 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     await tecla(",", { code: "Comma", vk: 188, mod: 1 });
     await ate(`document.getElementById("busca-ajustes")`, "as Configurações");
     await tecla("Escape", { vk: 27 });
-    // ⌘⇧N: nova sala.
+    // ⌘⇧N: novo bot (ADR-187 §7; o chat em grupo ficou só na busca).
     await abrirApp();
     await avaliar(cdp, `document.activeElement?.blur()`);
     await tecla("N", { code: "KeyN", vk: 78, mod: 1 | 8 });
-    await ate(`document.querySelector(".tela-nova-sala")`, "a tela de nova sala");
+    await ate(`document.querySelector("dialog.criar-bot[open] .cnb-nome")`, "o modal Criar novo bot");
+    await tecla("Escape", { vk: 27 });
   });
 
   // ———————————————————————————————————————————————— 7 ————————————————————————————————————————————————
@@ -508,9 +509,8 @@ descrever("nod: comportamentos (app inteiro, Chrome real)", () => {
     // Um teste anterior pode ter deixado a barra recolhida: nesse estado o botão continua hidratado no DOM, mas não
     // está visível. Dispara a ação pública do + pelo nó atual, sem depender do desenho da barra nem do modificador que
     // o Chrome anuncia para a plataforma.
-    await avaliar(cdp, `document.querySelector('[data-act="menu-do-mais"]')?.click()`);
-    await ate(`document.querySelector('[data-mais="novo-bot"]')`, "a ação de criar bot");
-    await avaliar(cdp, `document.querySelector('[data-mais="novo-bot"]')?.click()`);
+    // Validação de 2026-11-18: o + vai direto ao "Criar novo bot", sem o menu "Novo".
+    await avaliar(cdp, `document.querySelector('#sidebar .create-trigger')?.click()`);
     await ate(`document.querySelector("dialog.criar-bot[open] .cnb-nome")`, "o modal Criar novo bot");
     expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cnb-formas [role=radio][data-forma]').length`)).toBe(8);
     expect(await avaliar<number>(cdp, `document.querySelectorAll('dialog.criar-bot .cnb-cores [role=radio][data-cor]').length`)).toBe(12);

@@ -1134,6 +1134,11 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         }
         return saida;
       },
+      async marcarRetomada(turnoId) {
+        const pausadas = doTenant(b.mensagens).filter((x) => x.turnoId === turnoId && x.payload?.kind === "fala_interrompida" && !x.payload.retomou);
+        for (const m of pausadas) m.payload = { kind: "fala_interrompida", por: "mensagem_nova", retomou: true };
+        return pausadas.length;
+      },
       async marcarParcial(id, parcial) {
         const m = doTenant(b.mensagens).find((x) => x.id === id);
         if (!m) return false;
@@ -1593,6 +1598,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const t = doTenant(b.trabalhos).find((x) => x.id === id && x.ownerId === escopo.pessoaId);
         if (!t) return null;
         t.depoisDeTrabalhoId = depoisDeId;
+        return semDonoTrabalho(t);
+      },
+      async renomear(id, titulo) {
+        const t = doTenant(b.trabalhos).find((x) => x.id === id && x.ownerId === escopo.pessoaId);
+        if (!t) return null;
+        t.titulo = titulo;
         return semDonoTrabalho(t);
       },
       async redeComSessao(conversaId, sessaoCli) {
@@ -2065,7 +2076,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const filhas = doTenant(b.turnos).filter((r) => r.retomaTurnoId === id);
         // NOD-309 (PR 3): a retomada da queda ainda na fila, única, é absorvida pelo sucesso tardio.
         if (filhas.length === 1 && filhas[0]!.estado === "pendente" && filhas[0]!.entradaTexto.startsWith(ENTRADA_DA_RETOMADA_DA_QUEDA)) {
-          Object.assign(filhas[0]!, { estado: "interrompido", motivoInterrupcao: "absorvido", absorvidoPor: id, leaseAte: null });
+          Object.assign(filhas[0]!, { estado: "interrompido", motivoInterrupcao: "absorvido", absorvidoPor: id, leaseAte: null, lidoNaSessaoEm: Date.now() });
         } else if (filhas.length > 0) return null;
         t.estado = "concluido";
         t.motivoInterrupcao = null;
@@ -2112,6 +2123,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         t.motivoInterrupcao = "absorvido";
         t.absorvidoPor = porTurnoId;
         t.leaseAte = null;
+        t.lidoNaSessaoEm = Date.now();
         return t;
       },
       async absorverPendentes(turno, entrada, ids) {
@@ -2124,6 +2136,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           t.motivoInterrupcao = "absorvido";
           t.absorvidoPor = turno.id;
           t.leaseAte = null;
+          t.lidoNaSessaoEm = Date.now();
         }
         if (absorvidos.length === 0) return { turno, absorvidos };
         const alvo = doTenant(b.turnos).find((t) => t.id === turno.id) ?? turno;
@@ -2134,7 +2147,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         if (!alvo.motivoRecomeco && motivo) alvo.motivoRecomeco = motivo;
         return { turno: alvo, absorvidos };
       },
-      async absorverNaSessao(turno, ids) {
+      async absorverNaSessao(turno, ids, o = {}) {
         // NOD-286: como o SQL — fora de trabalho, e só até a primeira fala pendente com anexo do mesmo escopo.
         const escopoDaFala = doTenant(b.turnos).filter((t) => t.id !== turno.id && t.ownerId === escopo.pessoaId && t.conversaId === turno.conversaId && t.agenteId === turno.agenteId && t.estado === "pendente" && t.origem === "conversa" && t.mensagemOrigemId && !t.trabalhoId);
         // C1: com `ids`, o print confirmado entra; o print pendente que não foi confirmado barra os posteriores.
@@ -2145,10 +2158,11 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           t.motivoInterrupcao = "absorvido";
           t.absorvidoPor = turno.id;
           t.leaseAte = null;
+          t.lidoNaSessaoEm = o.informaLeitura === true ? null : Date.now();
         }
         return absorvidos;
       },
-      async absorverDoTrabalho(turno, ids) {
+      async absorverDoTrabalho(turno, ids, o = {}) {
         if (!turno.trabalhoId || (ids && ids.length === 0)) return [];
         const daFaixa = doTenant(b.turnos).filter((t) => t.id !== turno.id && t.ownerId === escopo.pessoaId && t.trabalhoId === turno.trabalhoId && t.estado === "pendente" && t.mensagemOrigemId);
         const absorvidos = ateOPrimeiroAnexo(daFaixa).filter((t) => !ids || ids.includes(t.id));
@@ -2157,8 +2171,32 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           t.motivoInterrupcao = "absorvido";
           t.absorvidoPor = turno.id;
           t.leaseAte = null;
+          t.lidoNaSessaoEm = o.informaLeitura === true ? null : Date.now();
         }
         return absorvidos;
+      },
+      async marcarLidosNaSessao(turnoId, ids) {
+        const lidos = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.absorvidoPor === turnoId && t.motivoInterrupcao === "absorvido" && !t.lidoNaSessaoEm && ids.includes(t.id));
+        for (const t of lidos) t.lidoNaSessaoEm = Date.now();
+        return lidos.sort((x, y) => x.criadoEm - y.criadoEm);
+      },
+      async devolverNaoLidos(turnoId) {
+        const voltam = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.absorvidoPor === turnoId && t.estado === "interrompido" && t.motivoInterrupcao === "absorvido" && !t.lidoNaSessaoEm && t.mensagemOrigemId);
+        for (const t of voltam) Object.assign(t, { estado: "pendente", motivoInterrupcao: null, absorvidoPor: null, leaseAte: null });
+        return voltam.sort((x, y) => x.criadoEm - y.criadoEm);
+      },
+      async devolverRecadosParados(trabalhoId) {
+        const voltam = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.trabalhoId === trabalhoId && t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && t.mensagemOrigemId && !t.despachadoEm && !t.pararSolicitadoEm);
+        for (const t of voltam) Object.assign(t, { estado: "pendente", motivoInterrupcao: null, leaseAte: null });
+        return voltam.sort((x, y) => x.criadoEm - y.criadoEm);
+      },
+      async naoLidaMaisAntiga(turnoId) {
+        const ts = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.absorvidoPor === turnoId && t.estado === "interrompido" && t.motivoInterrupcao === "absorvido" && !t.lidoNaSessaoEm && t.mensagemOrigemId);
+        return ts.length ? Math.min(...ts.map((t) => t.criadoEm)) : null;
+      },
+      async absorvidosPorVivos(conversaId) {
+        const vivos = new Set(doTenant(b.turnos).filter((t) => t.estado === "pendente" || t.estado === "despachando").map((t) => t.id));
+        return doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.conversaId === conversaId && t.motivoInterrupcao === "absorvido" && t.mensagemOrigemId && t.absorvidoPor && vivos.has(t.absorvidoPor)).sort((x, y) => x.criadoEm - y.criadoEm);
       },
       // ADR-090: o fake não guarda nem aplica a máquina do turno (o reivindicar dele ignora onde o bot trabalha); a regra é
       // coberta só por tests/integration/maquina-do-bot.test.ts, contra o Postgres.
@@ -2279,8 +2317,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async doTrabalho(trabalhoId) {
         return doTenant(b.turnos).filter((t) => t.trabalhoId === trabalhoId).sort((x, y) => x.criadoEm - y.criadoEm);
       },
-      async vincularTrabalho(id, trabalhoId) {
-        const t = doTenant(b.turnos).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.trabalhoId && x.estado === "despachando");
+      async vincularTrabalho(id, trabalhoId, estado = "despachando") {
+        const t = doTenant(b.turnos).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.trabalhoId && x.estado === estado);
         if (!t) return null;
         t.trabalhoId = trabalhoId;
         return t;
@@ -4349,6 +4387,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       gravar: async () => [],
       marcarFalha: async () => false,
       daCadeia: async () => ({ passos: [], fim: true }),
+      doTrabalho: async () => [],
       resumo: async (raizes: readonly string[]) => new Map(raizes.map((r) => [r, { n: 0, ultimo: null }])),
       podar: async () => 0,
     },

@@ -4,11 +4,13 @@ import type { Estado } from "../estado/reducer.ts";
 import { donoDoBot, esperaNaTela, linhaDoDono, quemPediu, textoDaFila, textoDasEsperas, type EsperaNaTela } from "../lib/dono.ts";
 import { acaoLocal, comAcaoLocal, htmlDasAcoes } from "../lib/esperas-de-colega.ts";
 import { pilulaEscondida, type ProgressoNaTela } from "../lib/pilula.ts";
-import { esc, hora, iconeAgente } from "../lib/render.ts";
-import { aberto, esperandoMaquina, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { esc, hora } from "../lib/render.ts";
+import { aberto, emEspera, esperandoMaquina, maquinasDe, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { avisoDaMaquina } from "../lib/aviso-da-maquina.ts";
 import { memoriaDoMac } from "./linha-do-dono.ts";
 import { conversaLimpa } from "./linhas-do-chat.ts";
-import { frentesNaFala, itemDaFrente, type FrenteNaFala, type MemoriaNoProgresso } from "./progresso-na-fala.ts";
+import { ANEL_RODANDO, PONTO_PRECISA } from "./icones-da-tarefa.ts";
+import { frentesNaFala, linhaDaTarefa, type FrenteNaFala, type MemoriaNoProgresso } from "./progresso-na-fala.ts";
 import { agente, renderFaixaTrabalhos } from "./trabalhos.ts";
 
 /**
@@ -43,7 +45,8 @@ export type Pilula = {
   grupos: GrupoDaPilula[];
   esperas: EsperaNaTela[];
   fila: { quem: string; desde: number }[];
-  memoria: (MemoriaNoProgresso & { alvo: string }) | null;
+  /** ADR-187 (4t): o aviso da máquina das tarefas; `curto` é o texto do selo ao lado da aba. */
+  memoria: (MemoriaNoProgresso & { alvo: string; curto?: string }) | null;
   /** NOD-377: o resto fechado diz "sem resposta há 26h" (em cinza). */
   vencida?: boolean;
   /** As frentes abertas que o "Parar" da pílula para. */
@@ -61,18 +64,17 @@ function tituloDoGrupo(ts: readonly Pick<TrabalhoDto, "titulo" | "tituloDoLote">
   const doServidor = ts.map((t) => t.tituloDoLote?.trim()).find(Boolean);
   // O modelo dá o assunto ("frentes de hero", 2 a 5 palavras, PR 5); a pílula põe a conta na frente, como no protótipo
   // D4BE2 ("5 frentes de hero"). Título que já começa com um número fica como veio.
-  if (doServidor) return /^\d/.test(doServidor) ? doServidor : /^frentes\b/i.test(doServidor) ? `${ts.length} ${doServidor}` : `${ts.length} frentes · ${doServidor}`;
+  if (doServidor) return /^\d/.test(doServidor) ? doServidor : /^(frentes|tarefas)\b/i.test(doServidor) ? `${ts.length} ${doServidor.replace(/^frentes\b/i, "tarefas")}` : `${ts.length} tarefas · ${doServidor}`;
   const [unica] = ts;
-  return ts.length === 1 && unica ? tituloCurto(unica.titulo) : `${ts.length} frentes`;
+  return ts.length === 1 && unica ? tituloCurto(unica.titulo) : `${ts.length} tarefas`;
 }
 
-const VIVAS: readonly FrenteNaFala["estado"][] = ["rodando", "precisa", "esperando"];
 /**
- * Na pílula (Paper 15c): as que rodam, as que precisam de você e as que esperam (cada grupo na ordem em que abriram), depois
- * as prontas da mais nova para a mais velha, e por fim as que pararam.
+ * Na lista aberta da aba (Paper 4d, 2026-11-18; antes Paper 15c): as que precisam de você em cima, depois as que rodam e as
+ * que esperam (cada grupo na ordem em que abriram), as prontas da mais nova para a mais velha, e por fim as que pararam.
  */
 function ordemNaPilula(frentes: readonly FrenteNaFala[], ordemAbertura: readonly string[]): FrenteNaFala[] {
-  const peso = (f: FrenteNaFala): number => (f.estado === "rodando" ? 0 : f.estado === "precisa" ? 1 : f.estado === "esperando" ? 2 : f.estado === "pronta" ? 3 : 4);
+  const peso = (f: FrenteNaFala): number => (f.estado === "precisa" ? 0 : f.estado === "rodando" ? 1 : f.estado === "esperando" ? 2 : f.estado === "pronta" ? 3 : 4);
   return [...frentes].sort((a, b) => peso(a) - peso(b) || (peso(a) <= 2 ? ordemAbertura.indexOf(a.trabalhoId) - ordemAbertura.indexOf(b.trabalhoId) : (b.terminouEm ?? 0) - (a.terminouEm ?? 0)));
 }
 
@@ -156,9 +158,11 @@ export function pilulaDoBot(estado: Estado, agenteId: string): Pilula | null {
   if (grupos.length > 0) {
     const [g] = grupos;
     const um = grupos.length === 1 && g;
-    const texto = um ? g.titulo : `${grupos.length} lotes`;
     const prontas = grupos.reduce((s, x) => s + x.prontas, 0);
     const total = grupos.reduce((s, x) => s + x.total, 0);
+    // ADR-187 §5 (protótipo P1, lote B passo 1): a aba conta as tarefas ("12 tarefas · 1 precisa de você · 3 prontas"); com
+    // uma só, o nome curto dela e o que ela faz. Antes o texto era o título do lote ("5 frentes de hero") ou "2 lotes".
+    const texto = total === 1 ? "1 tarefa" : `${total} tarefas`;
     // A frente parada à espera da pessoa (a pergunta dela mora na tela da frente, sem cartão nesta conversa) entra em
     // contagem, como no bloco da fala ("1 precisa de você"): a linha do dono a dizia com "Esperando você", e com a fala à
     // vista a pílula some (revisão do PR 400). A frente sozinha já diz o estado dela.
@@ -169,7 +173,8 @@ export function pilulaDoBot(estado: Estado, agenteId: string): Pilula | null {
     const jaDita = sozinha?.estado === "esperando" && esperaNoDono(dono, sozinha.trabalhoId, todos) ? 1 : 0;
     const outras = e.esperando - jaDita;
     const esperasNoResto = outras <= 0 ? "" : jaDita ? `${outras} esperando` : textoDasEsperas(e);
-    const resto = [um ? estadoDoGrupo(g) : `${prontas} de ${total} prontas`, precisam ? (precisam === 1 ? "1 precisa de você" : `${precisam} precisam de você`) : "", esperasNoResto, e.fila > 0 ? textoDaFila(e, dono.fila.length) : ""].filter(Boolean);
+    const contagem = total === 1 && um ? [tituloCurto(g.titulo), estadoDoGrupo(g)] : [precisam ? (precisam === 1 ? "1 precisa de você" : `${precisam} precisam de você`) : "", prontas ? (prontas === 1 ? "1 pronta" : `${prontas} prontas`) : "", prontas === 0 && !precisam ? "rodando" : ""];
+    const resto = [...contagem, esperasNoResto, e.fila > 0 ? textoDaFila(e, dono.fila.length) : ""].filter(Boolean);
     const vivo = grupos.some((x) => x.frentes.some((f) => f.estado === "rodando"));
     const doLote = new Set(grupos.flatMap((x) => x.ids));
     const esperasForaDoLote = dono.esperas.filter((x) => !x.trabalhoId || !doLote.has(x.trabalhoId)).length;
@@ -191,9 +196,19 @@ export function pilulaDoBot(estado: Estado, agenteId: string): Pilula | null {
  * A memória do Mac como a pílula a mostra: só na conversa limpa e com trabalho aberto do bot (como o ponto do PR 2). A
  * memória em si só vem com trabalho do bot rodando no Mac (NOD-372, em memoriaDoMac); o disco cheio, com qualquer aberto.
  */
-export function memoriaNaPilula(estado: Estado, agenteId: string, conversaId: string | null | undefined): (MemoriaNoProgresso & { alvo: string }) | null {
+export function memoriaNaPilula(estado: Estado, agenteId: string, conversaId: string | null | undefined): (MemoriaNoProgresso & { alvo: string; curto?: string }) | null {
   const c = conversaId ? estado.conversas[conversaId] : undefined;
   if (!c?.mensagens || !conversaLimpa(c.mensagens)) return null;
+  // ADR-187 (4t, escolhido em 2026-11-18): com as máquinas no DTO, o aviso é da máquina onde as tarefas deste bot rodam
+  // (memória, processador ou disco), pelo nome dela, e o clique abre Máquinas nela. Servidor anterior: o aviso do Mac.
+  const maquinas = maquinasDe(estado.trabalhos);
+  if (maquinas) {
+    // Como na NOD-372: conta a tarefa rodando de verdade (fora de espera de colega, comando ou volta) — e a que a própria
+    // máquina segura (`esperaDoMac`: disco, memória, processador), que é justamente o que o aviso explica.
+    const pesam = trabalhosConhecidos(estado, conversaId).filter((t) => t.agenteId === agenteId && ((t.estado === "rodando" && !emEspera(t)) || (aberto(t) && !!t.esperaDoMac)));
+    const a = avisoDaMaquina(maquinas, pesam.map((t) => t.maquina));
+    return a ? { texto: a.frase, curto: a.curto, nivel: a.nivel, alvo: `data-act="secao-espaco" data-secao="maquinas" data-maquina="${esc(a.maquinaId)}"` } : null;
+  }
   const m = memoriaDoMac(estado, agenteId, conversaId);
   return m && m.abertos > 0 ? { texto: m.texto, nivel: m.nivel, alvo: m.alvo } : null;
 }
@@ -203,7 +218,10 @@ export function memoriaNaPilula(estado: Estado, agenteId: string, conversaId: st
 /** O id do painel: um só na tela (a pílula é da conversa à vista). */
 export const ID_PAINEL = "pf-painel";
 
-const SETA_CIMA = '<svg class="pf-seta" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>';
+// ADR-187 §5 (protótipo P1, Paper "Aba das tarefas"): a seta de 10 px com o traço do protótipo; o anel de quem roda e o
+// ponto de quem precisa da pessoa moram em icones-da-tarefa.ts desde 2026-11-18.
+const SETA_CIMA = '<svg class="pf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.25 L5 3.75 L7.5 6.25"/></svg>';
+const TRIANGULO = '<svg class="pf-selo-ic" width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1.6 L12.9 12 H1.1 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><path d="M7 5.4 V8.2 M7 10.1 V10.2" stroke="var(--chat-superficie)" stroke-width="1.4" stroke-linecap="round"/></svg>';
 const SETA_BAIXO = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 const SETA_SOBE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
 
@@ -214,6 +232,8 @@ export type PartesDaPilula = {
   /** Muda quando é outro bot: o esqueleto é refeito, sem animação. */
   chave: string;
   botao: string;
+  /** ADR-187 §5 (Paper 4q, opção B): a segunda aba "+" à direita da que conta (nova tarefa); vazio = sem ela. Fixa no esqueleto. */
+  mais?: string;
   memoria: string;
   rotulo: string;
   cab: string;
@@ -237,34 +257,24 @@ function itemDaEspera(v: EsperaNaTela, agenteId: string): string {
   return `<li class="pf-item${acoes ? " p377-item" : ""}">${ponto("espera")}<span class="pf-item-corpo">${titulo}${linhas}${acoes}</span>${fim}</li>`;
 }
 
-/** Paper 15c: "Responder" na frente que precisa de você, antes do tempo (abre a frente, onde a pergunta mora). */
-function comResponder(li: string, f: FrenteNaFala): string {
-  if (f.estado !== "precisa") return li;
-  const bt = `<button type="button" class="pf-responder" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}">Responder</button>`;
-  const i = li.lastIndexOf('<span class="progresso-fim">');
-  return i < 0 ? li.replace("</li>", `${bt}</li>`) : `${li.slice(0, i)}${bt}${li.slice(i)}`;
-}
-
 /** Paper 15c: "As frentes do Dante usam 1,2 GB do seu Mac", quando a memória não está apertada (apertada, vale o aviso). */
 function linhaDaMemoria(p: Pilula): string {
   const mb = p.abertas.reduce((s, t) => s + (t.memoriaMb ?? 0), 0);
   if (p.memoria || mb <= 0) return "";
   const qto = mb >= 1024 ? `${(mb / 1024).toFixed(1).replace(".", ",")} GB` : `${Math.round(mb)} MB`;
-  return `<p class="pf-memoria-info">${CHIP}As frentes do ${esc(p.nome)} usam ${qto} do seu Mac</p>`;
+  return `<p class="pf-memoria-info">${CHIP}As tarefas do ${esc(p.nome)} usam ${qto} do seu Mac</p>`;
 }
 const CHIP = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg>';
 
-/** Paper 15c (casca, rodada 4): a frente que roda leva o mascote do bot girando no lugar do ponto (`mascote`). */
-function corpoDaPilula(p: Pilula, mascote = ""): string {
+/**
+ * ADR-187 §5 (lote B, passo 6, 2026-11-18; Paper 4d e "Aba das tarefas"): a lista aberta da aba usa a linha do cartão vivo
+ * (`linhaDaTarefa`, modo `lista`): o ícone do estado, o título e o estado curto à direita ("precisa de você" em azul, na
+ * linha realçada; "pronta"); a linha inteira abre a tarefa. No fim, "+ Nova tarefa ⌘N" quando a pessoa pode abrir uma aqui.
+ */
+function corpoDaPilula(p: Pilula, novaTarefa: NovaTarefaNaAba | null): string {
   const fora = new Set(p.emEspera ?? []);
   const lotes = p.grupos.map((g) => {
-    // O separador entre as que andam e as que terminaram (o traço do protótipo acima da primeira pronta).
-    const frentes = g.frentes.filter((f) => !fora.has(f.trabalhoId));
-    const primeiraFeita = frentes.findIndex((f) => !VIVAS.includes(f.estado));
-    const itens = frentes.map((f, i) => {
-      const li = comResponder(itemDaFrente(f, mascote), f);
-      return i === primeiraFeita && i > 0 ? li.replace('<li class="progresso-item', '<li class="progresso-item pf-depois') : li;
-    }).join("");
+    const itens = g.frentes.filter((f) => !fora.has(f.trabalhoId)).map((f) => linhaDaTarefa(f, "lista")).join("");
     const cab = p.grupos.length > 1 ? `<h3 class="pf-lote">${esc(g.titulo)} · ${esc(estadoDoGrupo(g))}</h3>` : "";
     return `${cab}<ul class="pf-lista">${itens}</ul>`;
   }).join("");
@@ -272,17 +282,24 @@ function corpoDaPilula(p: Pilula, mascote = ""): string {
   const fila = p.fila.length ? `<h3 class="pf-secao">Na fila</h3><ul class="pf-lista">${p.fila.map((x, i) => `<li class="pf-item"><span class="pf-ordem" aria-hidden="true">${i + 1}</span><span class="pf-item-corpo"><span class="pf-item-titulo">${esc(x.quem.charAt(0).toUpperCase() + x.quem.slice(1))}</span></span><span class="pf-item-fim">${esc(hora(x.desde))}</span></li>`).join("")}</ul>` : "";
   // A frase da memória só aqui dentro (decisão tomada 5); o ponto leva a Trabalhos, Este Mac ou Máquinas.
   const memoria = p.memoria ? `<button type="button" class="pf-memoria-linha ${p.memoria.nivel}" ${p.memoria.alvo}><span class="pf-memoria-ponto" aria-hidden="true"></span>${esc(p.memoria.texto)}</button>` : "";
-  return `${lotes}${esperas}${fila}${memoria}${linhaDaMemoria(p)}`;
+  const nova = novaTarefa ? `<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="${esc(novaTarefa.aria)}">+ Nova tarefa <kbd class="pf-nova-atalho">${esc(novaTarefa.atalho)}</kbd></button>` : "";
+  return `${lotes}${esperas}${fila}${memoria}${linhaDaMemoria(p)}${nova}`;
 }
 
 /**
  * As partes da pílula. `progresso` diz se a fala de algum grupo está na janela carregada: sem ela, "Ver na conversa" não
  * tem para onde levar e não aparece.
  */
-export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">, mascote = ""): PartesDaPilula {
-  const resto = p.resto.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">${esc(p.resto.join(" · "))}</span>` : "";
-  const botao = `${ponto(p.sinal)}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
-  const memoria = p.memoria ? `<button type="button" class="pf-memoria ${p.memoria.nivel}" ${p.memoria.alvo} title="${esc(p.memoria.texto)}" aria-label="${esc(p.memoria.texto)}"><span class="pf-memoria-ponto" aria-hidden="true"></span></button>` : "";
+export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">, novaTarefa: NovaTarefaNaAba | null = null): PartesDaPilula {
+  // P1: o resto começa com o separador ("12 tarefas · 1 precisa de você · 3 prontas"); com tarefas, o ícone diz o estado —
+  // o ponto azul quando alguma precisa da pessoa, o anel quando alguma roda; sem tarefas (espera, fila), o ponto de antes.
+  const resto = p.resto.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${esc(p.resto.join(" · "))}</span>` : "";
+  const precisa = p.grupos.some((g) => g.frentes.some((f) => f.estado === "precisa"));
+  const icone = p.grupos.length && precisa ? PONTO_PRECISA : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);
+  const botao = `${icone}<span class="pf-texto">${esc(p.texto)}</span>${resto}${SETA_CIMA}`;
+  // ADR-187 (4t, opção A): o selo ao lado da aba diz o problema e a máquina; o ponto sem texto saiu. Sem `curto` (servidor
+  // anterior), o texto do aviso do Mac.
+  const memoria = p.memoria ? `<button type="button" class="pf-selo ${p.memoria.nivel}" ${p.memoria.alvo} title="${esc(p.memoria.texto)}" aria-label="${esc(p.memoria.texto)}">${TRIANGULO}<span>${esc(p.memoria.curto ?? p.memoria.texto)}</span></button>` : "";
   // Paper 15c: o ponto, o título forte e só "N de M prontas" em cinza (o resto está na lista logo abaixo); sem lote, tudo.
   const doCab = p.grupos.length ? p.resto.slice(0, 1) : p.resto;
   // O ponto na cor do bot (Paper: "ponto na cor do bot = bot trabalhando"); a classe só aceita o formato c-<nome>.
@@ -293,8 +310,9 @@ export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTi
     naConversa ? `<button type="button" class="pf-ver" data-act="pilula-ver-na-conversa">Ver na conversa${SETA_SOBE}</button>` : "",
     p.abertas.length ? `<button type="button" class="pf-parar" data-act="pilula-parar">${PARAR}Parar</button>` : "",
   ].join("");
-  const rotulo = p.grupos.length ? `Frentes de ${p.nome}` : `O que ${p.nome} está esperando`;
-  return { chave: p.agenteId, botao, memoria, rotulo, cab, corpo: corpoDaPilula(p, mascote), pe, telemetria: chaveDaTelemetria(p.grupos) };
+  const rotulo = p.grupos.length ? `Tarefas de ${p.nome}` : `O que ${p.nome} está esperando`;
+  const mais = novaTarefa ? htmlDoMais(novaTarefa) : "";
+  return { chave: mais ? `${p.agenteId}:mais` : p.agenteId, botao, ...(mais ? { mais } : {}), memoria, rotulo, cab, corpo: corpoDaPilula(p, novaTarefa), pe, telemetria: chaveDaTelemetria(p.grupos) };
 }
 
 /**
@@ -321,7 +339,7 @@ function chaveDaTelemetria(grupos: readonly Pick<GrupoDaPilula, "chave">[]): str
  */
 export function htmlDaPilula(partes: PartesDaPilula, c: { aberta: boolean; escondida: boolean }): string {
   return `<div class="pilula-frentes" data-estado="${c.aberta ? "aberta" : "fechada"}"${c.escondida ? " hidden" : ""}>`
-    + `<div class="pf-fechada"><button type="button" class="pf-botao" data-act="pilula" aria-expanded="${c.aberta}" aria-controls="${ID_PAINEL}">${partes.botao}</button><span class="pf-memoria-lugar">${partes.memoria}</span></div>`
+    + `<div class="pf-fechada"><button type="button" class="pf-botao" data-act="pilula" aria-expanded="${c.aberta}" aria-controls="${ID_PAINEL}">${partes.botao}</button>${partes.mais ?? ""}<span class="pf-memoria-lugar">${partes.memoria}</span></div>`
     + `<div class="pf-moldura"><section class="pf-painel" id="${ID_PAINEL}" role="region" aria-label="${esc(partes.rotulo)}"${c.aberta ? "" : " hidden"}><div class="pf-cab">${partes.cab}</div><div class="pf-miolo">${partes.corpo}</div><div class="pf-pe">${partes.pe}</div></section></div>`
     + `<button type="button" class="pf-fundo" data-act="pilula" data-recolher="1" tabindex="-1" aria-hidden="true"></button>`
     + `</div>`;
@@ -339,23 +357,47 @@ export function soNaFila(estado: Estado, agenteId: string, pilula: Pick<Pilula, 
 export type PilulaNaConversa =
   | { tipo: "nada" }
   | { tipo: "legado"; html: string }
+  /** ADR-187 §5 (Paper 4q, opção B): sem tarefas, a aba nunca some: "+ Nova tarefa ⌘N" (e a dica, uma vez por pessoa). */
+  | { tipo: "vazia"; html: string }
   | { tipo: "pilula"; pilula: Pilula; partes: PartesDaPilula; escondida: boolean };
 
 /**
- * A pílula da conversa com o progresso medido na tela. Sem o dono no servidor (anterior ao I10), a faixa de tasks de antes.
+ * ADR-187 §5 e §7 (lote B, passo 2, 2026-11-18): a pessoa pode abrir uma tarefa deste bot daqui. Quem chama decide (a
+ * conversa do próprio bot, com IA e fora dos segundos em que o bot novo reflete); `atalho` é o texto da tecla no lugar
+ * ("⌘N", "⌃N", "Alt+N") e `aria` o aria-keyshortcuts. A dica das tarefas (Paper 4q, C) saiu na validação de 2026-11-18:
+ * poluía a conversa, e a aba se explica sozinha.
  */
-export function pilulaNaConversa(estado: Estado, agenteId: string, progresso: ProgressoNaTela): PilulaNaConversa {
+export type NovaTarefaNaAba = { atalho: string; aria: string };
+
+const MAIS_DA_ABA = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M6 2v8M2 6h8"/></svg>';
+
+/** A segunda aba "+" ao lado da que conta (Paper 4q, opção B). */
+function htmlDoMais(n: NovaTarefaNaAba): string {
+  return `<button type="button" class="pf-mais" data-act="nova-tarefa" aria-label="Nova tarefa" title="Nova tarefa (${esc(n.atalho)})" aria-keyshortcuts="${esc(n.aria)}">${MAIS_DA_ABA}</button>`;
+}
+
+/** Sem tarefas (Paper 4q, opção B): a aba discreta "+ Nova tarefa ⌘N". */
+export function htmlDaAbaVazia(n: NovaTarefaNaAba): string {
+  return `<div class="pilula-frentes pf-vazia" data-estado="fechada"><div class="pf-fechada"><button type="button" class="pf-botao pf-nova" data-act="nova-tarefa" aria-keyshortcuts="${esc(n.aria)}"><span class="pf-nova-texto">+ Nova tarefa</span><kbd class="pf-nova-atalho" aria-hidden="true">${esc(n.atalho)}</kbd></button></div></div>`;
+}
+
+/**
+ * A pílula da conversa com o progresso medido na tela. Sem o dono no servidor (anterior ao I10), a faixa de tasks de antes.
+ * `novaTarefa` (ADR-187 §5): a aba "+ Nova tarefa" quando não há o que contar, e o "+" ao lado da aba que conta.
+ */
+export function pilulaNaConversa(estado: Estado, agenteId: string, progresso: ProgressoNaTela, novaTarefa: NovaTarefaNaAba | null = null): PilulaNaConversa {
   const bot = agente(estado, agenteId);
   if (!donoDoBot(estado, agenteId, bot?.conversaId)) {
     if (soNaFila(estado, agenteId, { esperas: [] })) return { tipo: "nada" };
     const html = renderFaixaTrabalhos(estado, agenteId);
     return html ? { tipo: "legado", html } : { tipo: "nada" };
   }
+  const vazia: PilulaNaConversa = novaTarefa ? { tipo: "vazia", html: htmlDaAbaVazia(novaTarefa) } : { tipo: "nada" };
   const pilula = pilulaDoBot(estado, agenteId);
-  if (!pilula) return { tipo: "nada" };
+  if (!pilula) return vazia;
   // Paper 05 (rodada 3 da casca, "igual ao Paper"): a frente só na fila, que ainda não começou, não ganha pílula acima do
   // campo — o painel do bot já diz "Na fila · começa já". A pílula volta quando ela começa (ou com espera de verdade).
-  if (soNaFila(estado, agenteId, pilula)) return { tipo: "nada" };
+  if (soNaFila(estado, agenteId, pilula)) return vazia;
   // Paper 15: a espera de uma frente do lote já está no bloco da fala; com ele à vista, só a espera de fora segura a pílula.
   const conteudo = { grupos: pilula.grupos, esperas: pilula.esperasForaDoLote ?? pilula.esperas.length, fila: pilula.fila.length };
   // A conversa aberta pela primeira vez nesta carga ainda não tem o histórico: a timeline está vazia, não há fala para medir,
@@ -364,5 +406,5 @@ export function pilulaNaConversa(estado: Estado, agenteId: string, progresso: Pr
   const cid = bot?.conversaId;
   const semHistorico = !!cid && estado.conversas[cid] === undefined;
   const escondida = pilulaEscondida(conteudo, progresso) || (semHistorico && pilulaEscondida(conteudo, { naTimeline: new Set(), aVista: new Set(pilula.grupos.flatMap((g) => g.ids)) }));
-  return { tipo: "pilula", pilula, partes: partesDaPilula(pilula, progresso, bot ? iconeAgente(bot, "sm", "trabalhando") : ""), escondida };
+  return { tipo: "pilula", pilula, partes: partesDaPilula(pilula, progresso, novaTarefa), escondida };
 }

@@ -148,7 +148,7 @@ describe("NOD-381: alvos de 44 px e estados", () => {
     // A miniatura cortava o alvo do ✕ (overflow: hidden); no celular o corte fica só na foto.
     expect(m).toContain(".anexo-thumb { overflow: visible; }");
     expect(m).toContain(".pf-cab { min-height: 44px; }");
-    expect(m).toContain(".pf-lista .progresso-item, .pf-item { min-height: 44px; }");
+    expect(m).toContain(".pf-lista .tv-linha, .pf-item { min-height: 44px; }");
     expect(m).toContain(".pf-ver, .pf-parar { min-height: 44px; min-width: 44px; }");
     expect(m).toMatch(/\.artefato-acoes \.bt\.link, \.artefato-dialogo \.artefato-acoes \.bt\.sm \{ min-width: 44px; min-height: 44px; \}/);
   });

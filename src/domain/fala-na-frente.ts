@@ -5,7 +5,10 @@ import { ehVoltaDoFundo } from "./cota-da-ia.ts";
 import { INICIO_FALA_NA_FRENTE } from "./mensagem-no-meio.ts";
 
 export type FalaNaFila = NonNullable<TrabalhoDetalheDto["falasNaFila"]>[number];
-type TurnoDaFala = Pick<Turno, "id" | "estado" | "motivoInterrupcao" | "absorvidoPor" | "mensagemOrigemId" | "entradaTexto" | "retomaTurnoId" | "criadoEm">;
+type TurnoDaFala = Pick<Turno, "id" | "estado" | "motivoInterrupcao" | "absorvidoPor" | "mensagemOrigemId" | "entradaTexto" | "retomaTurnoId" | "criadoEm"> & Partial<Pick<Turno, "despachadoEm" | "lidoNaSessaoEm" | "pararSolicitadoEm">>;
+
+/** O turno parado pela pessoa (o Parar da tarefa, ADR-185): o que ele deixou sem ler fica guardado. */
+const paradoPelaPessoa = (t: TurnoDaFala | undefined): boolean => t?.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa";
 
 /**
  * NOD-376 (revisão 3 do PR #539, definido em 2026-10-27): a marca (`turnos.decidido_por`, como RETORNO_DO_LOTE) do turno da fala da pessoa numa
@@ -63,6 +66,12 @@ export function situacaoDasFalasNaFrente(turnos: readonly TurnoDaFala[], mensage
     if (m.autoria.autor_tipo !== "pessoa") continue;
     const t = vivoDaCadeia(daFala.get(m.id), m.criadoEm);
     if (!t) continue;
+    // ADR-187 §6 + ADR-185 (definido em 2026-11-18): o recado que esperava na fila quando a pessoa parou a tarefa, sem
+    // nunca ter rodado, fica guardado: volta à fila quando ela continua (devolverRecadosParados).
+    if (paradoPelaPessoa(t) && !t.despachadoEm && !t.pararSolicitadoEm) {
+      falas.push({ mensagemId: m.id, situacao: "guardada" });
+      continue;
+    }
     if (t.estado === "pendente") {
       falas.push({ mensagemId: m.id, situacao: "na_fila" });
       continue;
@@ -75,6 +84,8 @@ export function situacaoDasFalasNaFrente(turnos: readonly TurnoDaFala[], mensage
     // Absorvida pelo turno vivo: entrou na sessão, e o bot a lê na próxima fronteira (o fim do passo atual).
     const leitor = vivoDaCadeia(t.estado === "interrompido" && t.motivoInterrupcao === "absorvido" && t.absorvidoPor ? porId.get(t.absorvidoPor) : undefined, m.criadoEm);
     if (leitor?.estado === "pendente") falas.push({ mensagemId: m.id, situacao: "na_fila" }); // o leitor cortado espera a volta dele
+    // Absorvida e não lida por um turno que a pessoa parou: entrou na sessão, mas o bot nunca chegou à fronteira seguinte.
+    else if (paradoPelaPessoa(leitor) && !t.lidoNaSessaoEm && !respondeu(leitor!.id, m.criadoEm)) falas.push({ mensagemId: m.id, situacao: "guardada" });
     else if (leitor?.estado === "despachando" && !respondeu(leitor.id, m.criadoEm)) falas.push({ mensagemId: m.id, situacao: "entregue" });
   }
   return falas;

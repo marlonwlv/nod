@@ -165,6 +165,15 @@ describe("NOD-132: atualização do app do Mac", () => {
     expect(await t.a.reiniciar()).toBe(true);
     expect(t.chamadas.instalar).toBe(1);
   });
+  it("ADR-188: confirmado pela janela web, não abre a caixa nativa", async () => {
+    let perguntou = 0;
+    const t = montar({ podeReiniciar: async () => { perguntou++; return false; } });
+    t.a.procurar(false);
+    t.emitir("update-downloaded", {}, "", "1.1.0");
+    expect(await t.a.reiniciar(true)).toBe(true);
+    expect(perguntou).toBe(0);
+    expect([t.chamadas.antes, t.chamadas.instalar]).toEqual([1, 1]);
+  });
   it("quitAndInstall que lança depois de parar a ponte sai do app", async () => {
     const t = montar({ instalarLanca: true });
     t.a.procurar(false);

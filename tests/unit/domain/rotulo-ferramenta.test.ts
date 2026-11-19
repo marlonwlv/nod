@@ -96,10 +96,10 @@ describe("ferramentaEmUso", () => {
     expect(ferramentaEmUso("mcp__outro__fazer").texto).toBe("Usando Outro");
   });
   it("frentes têm estado próprio; o resto do nod diz o que faz (NOD-352)", () => {
-    expect(ferramentaEmUso("mcp__nod__abrir_frentes")).toEqual({ texto: "Abrindo frentes", frentes: true });
+    expect(ferramentaEmUso("mcp__nod__abrir_frentes")).toEqual({ texto: "Abrindo tarefas", frentes: true });
     expect(ferramentaEmUso("mcp__nod__mandar_para_frente").frentes).toBe(true);
-    expect(ferramentaEmUso("mcp__nod__mandar_para_frente")).toEqual({ texto: "Abrindo frentes", frentes: true });
-    expect(rotuloFerramenta("mcp__nod__mandar_para_frente")).toBe("Repassou a uma frente");
+    expect(ferramentaEmUso("mcp__nod__mandar_para_frente")).toEqual({ texto: "Abrindo tarefas", frentes: true });
+    expect(rotuloFerramenta("mcp__nod__mandar_para_frente")).toBe("Repassou a uma tarefa");
     expect(ferramentaEmUso("mcp__nod__criar_bots")).toEqual({ texto: "Criando bots", frentes: false });
     expect(ferramentaEmUso("mcp__nod__lembrar").texto).toBe("Anotando na memória");
     // Uma ferramenta do nod que ainda não tem rótulo: genérica, nunca o id.

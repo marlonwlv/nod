@@ -46,7 +46,7 @@ describeIntegracao("a conversa coordena (#193, ADR-083 §7)", () => {
       expect(daTask).toMatchObject({ origem: "conversa", estado: "pendente", trabalhoId: t!.id });
       expect(daTask?.entradaTexto).toContain("Monte o dashboard de churn com os dados de setembro.");
       const linha = (await m.repos.mensagens.listarDaConversa(m.conversaId)).find((x) => x.payload?.kind === "frentes_abertas");
-      expect(linha).toMatchObject({ kind: "sistema", texto: "Começou a frente Dashboard de churn", payload: { loteId: t!.loteId, origem: "pessoa", frentes: [{ trabalhoId: t!.id, titulo: "Dashboard de churn" }] } });
+      expect(linha).toMatchObject({ kind: "sistema", texto: "Começou a tarefa Dashboard de churn", payload: { loteId: t!.loteId, origem: "pessoa", frentes: [{ trabalhoId: t!.id, titulo: "Dashboard de churn" }] } });
       expect((r.events ?? []).map((e) => e.kind)).toEqual(["trabalho_mudou", "turno_criado", "mensagem_criada"]);
 
       // O próximo turno da conversa vê a task e tem as duas ferramentas; o turno da task não tem nenhuma das duas.
