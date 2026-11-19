@@ -8823,7 +8823,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "parar-conversa": () => agir(async () => {
     const alvo = conversaAtual();
     if (!alvo) return;
-    dispatch({ tipo: "faixa", faixa: await api!.pararConversa(alvo.conversaId) });
+    dispatch({ tipo: "faixa", faixa: await api!.pararConversa(alvo.conversaId), conversaId: alvo.conversaId });
     dispatch({ tipo: "invalidar", quais: [`conversa:${alvo.conversaId}`, "frota", "trabalhos"] });
   }),
   // A tela da task (#195): Parar task para só ela; Fechar (ou Esc) volta para onde a pessoa estava.
@@ -8943,8 +8943,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),
   "parar-sala": (el) =>
     agir(async () => {
-      dispatch({ tipo: "faixa", faixa: await api!.pararSala(el.dataset.id ?? "") });
+      const faixa = await api!.pararSala(el.dataset.id ?? "");
       const alvo = conversaAtual();
+      dispatch({ tipo: "faixa", faixa, conversaId: alvo?.conversaId ?? null });
       if (alvo) dispatch({ tipo: "invalidar", quais: [`conversa:${alvo.conversaId}`] });
     }),
   "confirmar-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.confirmarProposta(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["frota", "rotinas", "sua-vez", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),

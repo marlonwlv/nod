@@ -1705,7 +1705,7 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
     { chave: "computador", html: linhaDoComputador(c, estado) },
-    { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada, c.mensagens)) },
+    { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
   return blocos.filter((b) => b.html !== "");
 }

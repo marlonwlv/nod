@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ConversaDto } from "../../../src/contracts/api.ts";
 import type { Mensagem } from "../../../src/contracts/mensagem.ts";
 import { estadoInicial, reduzir } from "../../../web/estado/reducer.ts";
-import { renderMensagem, situacaoNaFila } from "../../../web/telas/conversa.ts";
+import { renderMensagem, renderTimeline, situacaoNaFila } from "../../../web/telas/conversa.ts";
 import { renderFaixaParada } from "../../../web/telas/faixa-parada.ts";
 
 const css = (f: string) => readFileSync(new URL(`../../../web/${f}`, import.meta.url), "utf8");
@@ -66,6 +66,19 @@ describe("ADR-185: a faixa do Parar sai quando a fala devolvida começa a rodar"
     expect(reduzir(base, frame({})).faixaParada).toBeNull();
     expect(reduzir(base, frame({ trabalhoId: "f1" })).faixaParada).not.toBeNull();
     expect(reduzir(base, frame({ kind: "turno_criado" })).faixaParada).not.toBeNull();
+  });
+
+  it("o Parar de um bot não aparece na conversa de outro (validação de 2026-11-19)", () => {
+    const conversa: ConversaDto = {
+      conversa: { tenantId: "t", id: "c1", ownerId: "p", visibility: "privado", tipo: "propria", agenteId: "a", salaId: null, sessaoCli: null, criadoEm: 1 },
+      mensagens: [], turnosPendentes: [], turnosEmCurso: [], turnosCancelados: [], propostas: [], fios: [],
+    };
+    const aberta = { ...reduzir(estadoInicial, { tipo: "hidratar-conversa", conversa, agora: 10 }), tela: { tipo: "conversa", conversaId: "c1", agenteId: "a" } } as never;
+    const parada = (conversaId: string) => reduzir(aberta, { tipo: "frame", frame: { tipo: "parada.faixa", dados: { conversaId, interrompidas: 1 } }, agora: 10 } as never);
+    const timeline = (e: ReturnType<typeof reduzir>) => renderTimeline(e.conversas.c1 ?? null, e);
+    expect(timeline(parada("c1"))).toContain("Parado por você");
+    expect(timeline(parada("c2"))).not.toContain("Parado por você");
+    expect(timeline(reduzir(aberta, { tipo: "faixa", faixa: { interrompidas: 1, naoInterrompidas: [], jaEntregues: [], nadaRodando: false }, conversaId: "c2" }))).not.toContain("Parado por você");
   });
 });
 

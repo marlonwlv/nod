@@ -311,6 +311,8 @@ export type FalaPendente = {
   motivo?: string;
 };
 
+export type FaixaNaConversa = FaixaParada & { conversaId: string | null };
+
 export type ConversaEstado = ConversaDto & {
   carregadaEm: number;
   /** As falas da pessoa ainda não confirmadas pela releitura (Parte 1). */
@@ -547,7 +549,8 @@ export type Estado = {
   /** O token MCP cru recém-gerado: como a chave de máquina, só na memória da aba e mostrado uma vez. */
   mcpTokenEmitido: TokenMcpEmitidoDto | null;
   negacoes: NegacaoVista[];
-  faixaParada: FaixaParada | null;
+  /** A faixa do Parar é da conversa onde ele aconteceu (null = Parar sem conversa): as outras não a mostram. */
+  faixaParada: FaixaNaConversa | null;
   /** Escolha do campo por conversa (EscolhaComposer); ausente = o padrão. */
   composer: Record<string, EscolhaComposer>;
   /** A citação do campo por conversa (CitacaoNoCampo); ausente = a mensagem não responde a nenhuma fala. */
@@ -707,7 +710,7 @@ export type Acao =
   | { tipo: "hidratar-raio-x"; conversaId: string; raioX: RaioXConversa }
   | { tipo: "chave-emitida"; emitida: ChaveEmitidaDto | null }
   | { tipo: "mcp-token-emitido"; emitido: TokenMcpEmitidoDto | null }
-  | { tipo: "faixa"; faixa: FaixaParada | null }
+  | { tipo: "faixa"; faixa: FaixaParada | null; conversaId?: string | null }
   | { tipo: "composer"; conversaId: string; escolha: EscolhaComposer | null }
   | { tipo: "citar"; conversaId: string; citacao: CitacaoNoCampo | null }
   | { tipo: "fala-pendente"; conversaId: string; pendente: FalaPendente }
@@ -1582,7 +1585,7 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
       jaEntregues: [],
       nadaRodando: f.dados.nada_rodando === true,
     };
-    return invalidar({ ...e, faixaParada: faixa }, conv(f));
+    return invalidar({ ...e, faixaParada: { ...faixa, conversaId: texto(f.dados.conversaId) ?? null } }, conv(f));
   },
   // O relato é registro, não estado vivo da conversa: nada na timeline muda, então nada se invalida.
   // A seção Feedback relê ao entrar (definido em 2026-09-21; NOD-367 zera a lista no "espaco").
@@ -2128,7 +2131,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "mcp-token-emitido":
       return acao.emitido ? invalidar({ ...estado, mcpTokenEmitido: acao.emitido }, "mcp-tokens") : { ...estado, mcpTokenEmitido: null };
     case "faixa":
-      return { ...estado, faixaParada: acao.faixa };
+      return { ...estado, faixaParada: acao.faixa ? { ...acao.faixa, conversaId: acao.conversaId ?? null } : null };
     case "composer": {
       const composer = { ...estado.composer };
       if (acao.escolha) composer[acao.conversaId] = acao.escolha;
@@ -2277,7 +2280,8 @@ function aoTrocarDeTela(estado: Estado, tela: Tela): Pick<Estado, "tela" | "ativ
     gaveta: tela.tipo === "conversa" && estado.gaveta?.agenteId === tela.agenteId ? estado.gaveta : null,
     // NOD-382: o perfil do celular é da conversa do bot; outra tela o fecha.
     perfilCelular: tela.tipo === "conversa" && estado.perfilCelular?.agenteId === tela.agenteId ? estado.perfilCelular : null,
-    faixaParada: tela.tipo === estado.tela.tipo ? estado.faixaParada : null,
+    // A faixa do Parar é da conversa parada: ir para outro bot (mesmo tipo de tela) a deixa para trás.
+    faixaParada: tela.tipo === estado.tela.tipo && estado.faixaParada?.conversaId === conversaIdNaTela({ ...estado, tela }) ? estado.faixaParada : null,
     // A linha "Novas" vale enquanto a pessoa está na conversa; saiu, ela some.
     novasDesde: {},
     faixaTrabalhosAberta: faixaAbertaAoNavegar(estado.faixaTrabalhosAberta, estado.tela, tela),
