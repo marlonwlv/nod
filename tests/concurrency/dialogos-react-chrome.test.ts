@@ -25,6 +25,20 @@ import { criarPaletaNoReact } from "./web/react/dialogos/paleta.tsx";
 import { abrirPreviaNoReact } from "./web/react/dialogos/previa-arquivo.tsx";
 import { abrirLuzNoReact } from "./web/react/dialogos/luz.tsx";
 import { abrirArtefatoNoReact } from "./web/react/dialogos/artefato.tsx";
+import { abrirMenuDoBotNoReact } from "./web/react/dialogos/menu-do-bot.tsx";
+window.__menuBot = (ponto) => {
+  window.__acao = null;
+  let linha = document.getElementById("linha-bot");
+  if (!linha) {
+    linha = document.createElement("button");
+    linha.id = "linha-bot"; linha.textContent = "Cecília"; linha.style.cssText = "position:fixed;left:20px;top:100px;width:200px;height:40px";
+    const nome = document.createElement("input"); nome.id = "nome-na-gaveta"; nome.style.cssText = "position:fixed;left:20px;top:300px";
+    document.body.append(linha, nome);
+  }
+  linha.focus();
+  abrirMenuDoBotNoReact(document, { a: { id: "b1", nome: "Cecília", papel: "bot", fixado: false, naoLido: false, secao: "Dev", oculto: false }, dona: true, ancora: linha, ponto,
+    executar: (acao) => { window.__acao = acao; window.__focoNaAcao = document.activeElement?.id; if (acao === "renomear") document.getElementById("nome-na-gaveta").focus(); } });
+};
 // O artefato: um iframe sandbox de origem opaca (como o de verdade) que conta pela ponte o que se digitou nele.
 const DOC_DO_ARTEFATO = '<input id="c" style="font-size:20px"><script>document.getElementById("c").addEventListener("input", (e) => parent.postMessage({ digitado: e.target.value }, "*"));<\\/script>';
 window.__digitado = "";
@@ -247,5 +261,42 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await ate(`!document.querySelector(".rx-art-host")`);
     expect(await avaliar<boolean>(cdp, "window.__soltou")).toBe(true);
     await ate(`document.activeElement?.id === "antes"`);
+  }, 60_000);
+
+  it("o menu do bot: ao lado da linha, o foco no 1º item; ↓ e Enter fecham e só então a ação roda, com o foco na linha", async () => {
+    await esperar(300);
+    await avaliar(cdp, "window.__menuBot()");
+    await ate(`document.activeElement?.dataset?.gestao === "fixar"`);
+    const r = await avaliar<{ left: number; top: number }>(cdp, `(() => { const r = document.querySelector(".bot-menu.rx-menu").getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top) }; })()`);
+    expect(r).toEqual({ left: 220, top: 100 });
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.gestao === "mover"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__acao === "mover"`);
+    expect(await avaliar<string>(cdp, "window.__focoNaAcao")).toBe("linha-bot");
+    await ate(`!document.querySelector(".rx-menu-host")`);
+    await ate(`document.activeElement?.id === "linha-bot"`);
+  }, 60_000);
+
+  it("o menu do bot no cursor (clique direito); Renomear leva o foco à gaveta e o menu não o toma de volta; o clique fora fecha sem ação", async () => {
+    await esperar(300);
+    await avaliar(cdp, "window.__menuBot({ x: 500, y: 200 })");
+    await ate(`document.activeElement?.dataset?.gestao === "fixar"`);
+    const r = await avaliar<{ left: number; top: number }>(cdp, `(() => { const r = document.querySelector(".bot-menu.rx-menu").getBoundingClientRect(); return { left: Math.round(r.left), top: Math.round(r.top) }; })()`);
+    expect(r).toEqual({ left: 504, top: 204 });
+    const b = await avaliar<{ x: number; y: number }>(cdp, `(() => { const r = document.querySelector('[data-gestao="renomear"]').getBoundingClientRect(); return { x: Math.round(r.left + 20), y: Math.round(r.top + r.height / 2) }; })()`);
+    for (const type of ["mouseMoved", "mousePressed", "mouseReleased"] as const) await cdp.enviar("Input.dispatchMouseEvent", { type, x: b.x, y: b.y, button: "left", clickCount: 1 });
+    await ate(`window.__acao === "renomear"`);
+    await ate(`!document.querySelector(".rx-menu-host")`);
+    await esperar(400);
+    expect(await avaliar<string>(cdp, "document.activeElement?.id")).toBe("nome-na-gaveta");
+    // Perto da borda de baixo, o menu sobe para caber (desliza, não vira de lado).
+    await avaliar(cdp, "window.__menuBot({ x: 500, y: 780 })");
+    await ate(`document.activeElement?.dataset?.gestao === "fixar"`);
+    const baixo = await avaliar<number>(cdp, `Math.round(document.querySelector(".bot-menu.rx-menu").getBoundingClientRect().bottom)`);
+    expect(baixo).toBeLessThanOrEqual(788);
+    for (const type of ["mousePressed", "mouseReleased"] as const) await cdp.enviar("Input.dispatchMouseEvent", { type, x: 1200, y: 60, button: "left", clickCount: 1 });
+    await ate(`!document.querySelector(".rx-menu-host")`);
+    expect(await avaliar<unknown>(cdp, "window.__acao")).toBeNull();
   }, 60_000);
 });

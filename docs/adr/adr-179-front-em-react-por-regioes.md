@@ -128,7 +128,11 @@ são estado. O popup é um `<div>` no portal (sem o top layer do `<dialog>`): `.
 mesmo cabeçalho e o mesmo iframe vivo, que `artefatos-vivos` segue montando (a ponte, o estado, as gravações) no corpo que
 o componente lhe dá (`telaCheiaPorFora`), pela ref com limpeza do React 19 — o portal põe o conteúdo depois do 1º
 efeito. A jornada de Chrome prova que o foco preso do Base UI deixa clicar e digitar dentro do iframe sandbox; o Esc
-dentro dele é do artefato, como no `<dialog>` nativo.
+dentro dele é do artefato, como no `<dialog>` nativo. E **o menu do bot** na lista (`web/react/dialogos/menu-do-bot.tsx`), pelo Menu do Base UI: as
+mesmas linhas (`linhasDoMenu`, que o HTML nativo também lê), ao lado da linha ou no cursor, deslizando para caber (sem
+virar de lado); o foco abre no 1º item, e a ação roda depois de o menu sair e de o foco voltar à linha — o foco é
+devolvido pelo componente, não pelo Base UI, cuja volta chegaria depois e tiraria o foco do que a ação abriu (Renomear).
+No celular, a folha curta e o bot segurado (NOD-379/382) seguem no `<dialog>`.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

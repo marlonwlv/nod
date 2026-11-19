@@ -5871,7 +5871,18 @@ function abrirPainelDoBot(): void {
 function menuDoBot(el: HTMLElement): void {
   const a = botGerido(el.dataset.id);
   // ADR-125: o ⋯ saiu do topo da gaveta; o menu mora na linha da lista (clique direito, Shift+F10, toque longo e o ⋯ no toque).
-  if (a) abrirMenu(a, a.ownerId === estado.sessao?.pessoaId, el, (acao) => acaoDoBot(a, acao));
+  if (a) abrirMenuDoBot(a, el);
+}
+
+/**
+ * O menu do bot ao lado da linha (ou no cursor): o do Base UI quando o módulo dos diálogos chegou (ADR-179), fora do
+ * celular — lá ele é a folha curta e o bot segurado (NOD-379/382), que seguem no `<dialog>`.
+ */
+function abrirMenuDoBot(a: BotGerido, ancora: HTMLElement, ponto?: { x: number; y: number }): void {
+  const dona = a.ownerId === estado.sessao?.pessoaId;
+  const executar = (acao: AcaoGestao): void => acaoDoBot(a, acao);
+  if (moduloDosDialogos && !celular.ativo()) moduloDosDialogos.abrirMenuDoBotNoReact(document, { a, dona, ancora, ponto, executar });
+  else abrirMenu(a, dona, ancora, executar, ponto);
 }
 
 function conversaAtual(): { conversaId: string; salaId: string | null } | null {
@@ -10840,7 +10851,7 @@ document.addEventListener("contextmenu", (ev) => {
   // (espera menor que 450 ms), ele abre o menu do bot segurado direto, sem piscar o menu comum.
   if (Date.now() - ultimoToqueLongo < MS_CONTEXTMENU_DO_GESTO) return;
   if (celular.ativo() && row.closest("#sidebar")) { toqueLongo.esquecer(); abrirMenuSegurado(row); return; }
-  if (a) abrirMenu(a, a.ownerId === estado.sessao?.pessoaId, row, (acao) => acaoDoBot(a, acao), ponto);
+  if (a) abrirMenuDoBot(a, row, ponto);
 });
 
 // NOD-379 (protótipo nod-379 v3): no celular o ⋯ sai e o menu do bot abre no toque longo. O bot segurado sobe por cima do
