@@ -105,6 +105,13 @@ function renderProvedoresContas(estado: Estado): string {
     noApp: ui.noApp && estado.detalhesContas !== null,
     botsNaMaquina: (id) => botsDaPessoa(estado).filter((b) => maquinaDoBot(estado, b)?.id === id).map((b) => b.nome),
     cartaoDoMac: (ia) => renderCartaoIa(vistaDaIa(ia, contexto), ui),
+    // Paper A2: os passos do app do Mac viram a trilha da Nova conta (o passo instalar ausente = já instalada).
+    passosDoMac: (ia) => {
+      const passos = vistaDaIa(ia, contexto).passos;
+      if (!passos?.length) return null;
+      const marca = (id: "instalar" | "entrar" | "testar") => passos.find((p) => p.id === id)?.marca ?? (id === "instalar" ? "feito" : "depois");
+      return [marca("instalar"), marca("entrar"), marca("testar")];
+    },
     simulacao: estado.executor?.atual === "catcher",
     // Paper A1: os harnesses ainda não integrados aparecem como "chegam em breve" na Nova conta.
     emBreve: (estado.executor?.harnesses?.opcoes ?? []).filter((h) => !h.integrado).map((h) => h.nome),

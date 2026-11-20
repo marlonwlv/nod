@@ -80,6 +80,8 @@ export type ContextoContas = {
   cartaoDoMac: (ia: IaComConta) => string;
   /** NOD-12: modo simulação (executor catcher): a lista não mostra o uso do plano (nenhum trabalho real o mede). */
   simulacao?: boolean;
+  /** Paper A2: os três passos do app do Mac (instalar, entrar, testar) como marcas da trilha; null = sem o app. */
+  passosDoMac?: (ia: IaComConta) => [MarcaDoPasso, MarcaDoPasso, MarcaDoPasso] | null;
   /** Paper A1: os nomes dos harnesses ainda não integrados (vêm da API, `executor.harnesses`). */
   emBreve?: readonly string[];
 };
@@ -419,7 +421,7 @@ export function renderContaAberta(c: ContaIa, x: ContextoContas, usada: string |
   const logins = x.ui.logins.filter((l) => contaDoLogin(l) === c.id && !maquinas.some((m) => m.id === maquinaDoLogin(l))).map((l) => blocoDoLogin(l, x, c)).join("");
   // Paper A, desvio 7: a organização desligou o acesso — diz quem, para qual e-mail, e as duas saídas ali mesmo.
   const semAcesso = c.maquinas.some((v) => v.estado === "sem_acesso")
-    ? `<div class="cl-conta-limite cl-conta-sem-acesso" role="status"><span class="contas-estado e-erro">Sem acesso</span><span class="mudo">${esc(`${d.organizacao ?? "A organização"} desligou o ${PROVEDOR[c.ia].nome} por assinatura${d.email ? ` para ${d.email}` : ""}. Os bots já pulam esta conta.`)}</span><button type="button" class="bt pri sm" data-act="cl-nova-da-conta" data-id="${esc(c.id)}">Entrar com outra conta</button>${c.entraNaTrocaAutomatica ? `<button type="button" class="bt sm" data-act="cl-fila" data-id="${esc(c.id)}">Tirar da fila</button>` : ""}</div>`
+    ? `<div class="cl-conta-limite cl-conta-sem-acesso" role="status"><span class="contas-estado e-erro">Sem acesso</span><span class="mudo">${esc(`${d.organizacao ?? "A organização"} desligou o ${PROVEDOR[c.ia].nome} por assinatura${d.email ? ` para ${d.email}` : ""}. Os bots já pulam esta conta.`)}</span><span class="cl-conta-acoes-linha"><button type="button" class="bt pri sm" data-act="cl-nova-da-conta" data-id="${esc(c.id)}">Entrar com outra conta</button>${c.entraNaTrocaAutomatica ? `<button type="button" class="bt sm" data-act="cl-fila" data-id="${esc(c.id)}">Tirar da fila</button>` : ""}</span></div>`
     : "";
   const limite = classe === "e-limite"
     ? `<div class="cl-conta-limite"><span class="contas-estado e-limite">${esc(estado)}</span><span class="mudo">Se a conta voltou antes, tente de novo.</span><button type="button" class="bt sm" data-act="cl-tentar-de-novo" data-id="${esc(c.id)}">Tentar de novo</button></div>`
@@ -470,7 +472,7 @@ export function emBreve(nomes: readonly string[]): string {
   return `${nomes.length > 1 ? `${nomes.slice(0, -1).join(", ")} e ${nomes.at(-1)}` : nomes[0]} ${nomes.length > 1 ? "chegam" : "chega"} em breve`;
 }
 
-type MarcaDoPasso = "feito" | "ativo" | "girando" | "erro" | "depois";
+export type MarcaDoPasso = "feito" | "ativo" | "girando" | "erro" | "depois";
 /** Paper A1b/A2: "Instalar · Conta · Teste" de uma máquina, pelo que o login dela diz. */
 export function trilhaDoLogin(g: LoginNaMaquina): [MarcaDoPasso, MarcaDoPasso, MarcaDoPasso] {
   if (g.fase === "pronto") return ["feito", "feito", "feito"];
@@ -480,8 +482,8 @@ export function trilhaDoLogin(g: LoginNaMaquina): [MarcaDoPasso, MarcaDoPasso, M
   if (g.fase === "aguardando_pessoa" && g.url) return ["feito", "ativo", "depois"];
   return ["feito", "girando", "depois"];
 }
-function trilha(marcas: readonly MarcaDoPasso[], g: LoginNaMaquina): string {
-  const nomes = [g.preparo || marcas[0] !== "feito" ? "Instalar" : "Instalado", "Conta", "Teste"];
+function trilha(marcas: readonly MarcaDoPasso[], instalouAgora: boolean): string {
+  const nomes = [instalouAgora || marcas[0] !== "feito" ? "Instalar" : "Instalado", "Conta", "Teste"];
   const icone: Record<MarcaDoPasso, string> = { feito: "✓", ativo: "○", girando: '<span class="ob-gira" aria-hidden="true"></span>', erro: "!", depois: "○" };
   const falado: Record<MarcaDoPasso, string> = { feito: "feito", ativo: "agora", girando: "em andamento", erro: "falhou", depois: "depois" };
   return `<ol class="cl-trilha" aria-label="Passos nesta máquina">${marcas.map((m, k) => `<li class="t-${m}"><span aria-hidden="true">${icone[m]}</span>${nomes[k]}<span class="qd-sr"> (${falado[m]})</span></li>`).join("")}</ol>`;
@@ -524,14 +526,24 @@ function formNova(x: ContextoContas): string {
       const cabeca = (sub: string, direita: string) => `<div class="cl-maq cl-maq-entrando">${ic(m)}<span><b>${esc(rotulo(m))}</b><small>${esc(sub)}</small></span>${direita}</div>`;
       if (!l) return cabeca(m.conectada ? "Começando…" : "Ligando a máquina…", '<span class="cl-np-est"><span class="ob-gira" aria-hidden="true"></span>Aguarde</span>');
       // O Mac mostra o cartão da IA do app (instalar, entrar, testar), com os passos dele.
-      if (l.onde === "mac") return `<div class="cl-maq-bloco cl-maq-mac">${cabeca(versao(m) ? `${cli} ${versao(m)} pelo app do nod` : `${cli} pelo app do nod`, estadoDoLoginNaNova(l))}<div class="cl-np-login">${x.cartaoDoMac(l.ia)}</div></div>`;
+      // Paper A2: o Mac com a mesma trilha da VM (lida dos passos do app) e, do cartão do app, só o passo da vez.
+      if (l.onde === "mac") {
+        const marcas = x.passosDoMac?.(l.ia) ?? null;
+        const chip = !marcas ? estadoDoLoginNaNova(l)
+          : marcas[1] === "ativo" ? '<span class="cl-np-chip"><i aria-hidden="true"></i>Esperando você no navegador</span>'
+            : marcas[0] === "girando" ? '<span class="cl-np-est"><span class="ob-gira" aria-hidden="true"></span>Instalando…</span>'
+              : marcas[2] === "girando" || marcas[2] === "ativo" ? '<span class="cl-np-est"><span class="ob-gira" aria-hidden="true"></span>Testando a conta…</span>'
+                : marcas.every((k) => k === "feito") ? '<span class="cl-np-est ok">✓ Pronta</span>'
+                  : marcas.includes("erro") ? '<span class="cl-np-est erro">Não entrou</span>' : estadoDoLoginNaNova(l);
+        return `<div class="cl-maq-bloco cl-maq-mac">${cabeca(versao(m) ? `${cli} ${versao(m)} pelo app do nod` : `${cli} pelo app do nod`, chip)}${marcas ? trilha(marcas, false) : ""}<div class="cl-np-login">${x.cartaoDoMac(l.ia)}</div></div>`;
+      }
       const g = l.login;
       const v = versaoNova(g, m);
       const sub = g.fase === "preparando"
         ? (g.preparo?.linha || `${g.preparo?.acao === "atualizar" ? "Atualizando" : "Instalando"} o ${cli} · leva até 2 minutos`)
         : g.fase === "pronto" ? `${v ? `${cli} ${v} · ` : ""}a conta entrou e foi conferida` : v ? `${cli} ${v}${g.preparo ? " instalado agora" : ""}` : cli;
       const passos = !["pronto", "pedido", "abrindo", "preparando"].includes(g.fase) && (g.url || g.fase === "falhou" || g.fase === "cancelado") ? `<div class="cl-np-login">${blocoDoLogin(l, x, null)}</div>` : "";
-      return `<div class="cl-maq-bloco">${cabeca(sub, estadoDoLoginNaNova(l))}${g.fase === "pronto" ? "" : trilha(trilhaDoLogin(g), g)}${passos}</div>`;
+      return `<div class="cl-maq-bloco">${cabeca(sub, estadoDoLoginNaNova(l))}${g.fase === "pronto" ? "" : trilha(trilhaDoLogin(g), !!g.preparo)}${passos}</div>`;
     }).join("");
   }
   const marcadas = n.maquinas.filter((id) => x.maquinas.some((m) => m.id === id && recebe(m))).length;
@@ -653,11 +665,12 @@ function confirmacao(x: ContextoContas): string {
     const nm = m ? nomeCurto(m, x.maquinas) : "máquina";
     // "do Mac", "da vm-bots": o artigo segue a máquina (o Sair agora mora na conta aberta, Paper G2).
     const o = m?.plataforma === "darwin" ? "o" : "a";
-    const outrasMaqs = c.maquinas.filter((v) => v.maquinaId !== q.maquinaId && v.estado === "pronta").map((v) => { const o = x.maquinas.find((y) => y.id === v.maquinaId); return o ? nomeCurto(o, x.maquinas) : v.nome; });
+    // "No Mac", "Na vm-bots": o artigo segue cada máquina (a frase dizia "Na Mac").
+    const outrasMaqs = c.maquinas.filter((v) => v.maquinaId !== q.maquinaId && v.estado === "pronta").map((v) => { const o = x.maquinas.find((y) => y.id === v.maquinaId); return `${o?.plataforma === "darwin" ? "no" : "na"} ${o ? nomeCurto(o, x.maquinas) : v.nome}`; });
     const outrasContas = x.contas.contas.filter((o) => o.id !== c.id && prontaEm(o, q.maquinaId)).map(nomeDaContaNaTela);
     const bots = x.botsNaMaquina(q.maquinaId);
     titulo = `Sair da ${nome} n${o} ${nm}?`;
-    corpo = `${avisoDasFrentes(x, q.frentes, "sair")}<p>${o.toUpperCase()} ${esc(nm)} esquece o login desta conta.${outrasMaqs.length ? ` Na ${esc(outrasMaqs.join(", "))} ela continua.` : ""}</p>
+    corpo = `${avisoDasFrentes(x, q.frentes, "sair")}<p>${o.toUpperCase()} ${esc(nm)} esquece o login desta conta.${outrasMaqs.length ? ` Ela continua ${esc(outrasMaqs.join(" e "))}.` : ""}</p>
       ${bots.length ? `<div class="cl-caixa">${outrasContas.length
         ? `Os bots da ${esc(nm)} (${esc(bots.join(", "))}) seguem com as outras contas logadas lá: ${outrasContas.map((o) => `<b>${esc(o)}</b>`).join(" e ")}.`
         : `A ${esc(nm)} fica sem conta de IA: os bots dela (${esc(bots.join(", "))}) esperam até você entrar numa conta lá.`}</div>` : ""}`;
@@ -692,9 +705,19 @@ function loginsSemConta(x: ContextoContas): string {
     const k = `${ia}:${apelido ?? ""}`;
     porConta.set(k, [...(porConta.get(k) ?? []), l]);
   }
+  // Paper G1b: o login da conta nova também não abre dentro da linha. A linha diz onde está entrando e, clicada, reabre a
+  // Nova conta no ponto em que o login está (o "já estava na lista" continua aqui, com o Fechar).
   return [...porConta.entries()].map(([k, ls]) => {
     const [ia, apelido] = k.split(":") as [IaComConta, string];
-    return `<li class="cl-linha entrando"><span class="cl-alca" aria-hidden="true"></span><span class="cl-pos" aria-hidden="true">+</span>${logoDaIa(ia, "cl-logo")}<div class="cl-corpo"><div class="cl-nome"><b>${esc(PROVEDOR[ia].nome)}${apelido ? ` · ${esc(apelido)}` : ""}</b></div><div class="cl-ident"><span>conta nova · pelo ${esc(PROVEDOR[ia].cli)}</span></div>${ls.map((l) => blocoDoLogin(l, x, null)).join("")}</div><div class="cl-dir">${estadoDosLogins(ls)}</div><div class="cl-mais"></div></li>`;
+    const nome = `${PROVEDOR[ia].nome}${apelido ? ` · ${apelido}` : ""}`;
+    const maqs = ls.map((l) => x.maquinas.find((m) => m.id === maquinaDoLogin(l))).filter((m): m is MaquinaDto => !!m);
+    const onde = maqs.length === 1 ? nomeCurto(maqs[0]!, x.maquinas) : undefined;
+    const andando = ls.some((l) => l.onde === "mac" || !FASES_FINAIS.has(l.login.fase));
+    const estado = andando ? estadoDoLoginNaConta(ls.find((l) => l.onde === "mac" || !FASES_FINAIS.has(l.login.fase))!, onde ?? `${maqs.length} máquinas`).replace(/na (\d+ máquinas)/, "em $1") : estadoDosLogins(ls);
+    const ja = ls.map((l) => (l.onde === "vm" && l.login.fase === "pronto" && !l.login.contaId && l.login.contaFinalId ? x.contas.contas.find((c) => c.id === l.login.contaFinalId) : undefined)).find(Boolean);
+    const fechar = ja ? ls.filter((l) => l.onde === "vm" && l.login.contaFinalId === ja.id).map((l) => `<button type="button" class="ob-link" data-act="cl-login-fechar" data-login="${esc(idDoLogin(l))}">Fechar</button>`).join("") : "";
+    const ident = ja ? `<span>Essa conta já estava na lista: <b>${esc(nomeDaContaNaTela(ja))}</b>.</span>` : `<span>conta nova · pelo ${esc(PROVEDOR[ia].cli)}</span>`;
+    return `<li class="cl-linha cl-linha-g1 entrando"><span class="cl-alca" aria-hidden="true"></span><span class="cl-pos" aria-hidden="true">+</span>${logoDaIa(ia, "cl-logo")}<div class="cl-corpo"><div class="cl-nome"><button type="button" class="cl-nome-bt" data-act="cl-nova-retomar" data-ia="${ia}" data-apelido="${esc(apelido)}"><b>${esc(nome)}</b></button></div><div class="cl-ident">${ident}</div></div><div class="cl-uso-col"></div><div class="cl-dir">${estado}${fechar}</div><div class="cl-mais"><button type="button" class="cl-abrir-bt" data-act="cl-nova-retomar" data-ia="${ia}" data-apelido="${esc(apelido)}" aria-label="Abrir a conta nova ${esc(nome)}">${ICONE.seta}</button></div></li>`;
   }).join("");
 }
 

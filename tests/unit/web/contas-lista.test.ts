@@ -276,7 +276,8 @@ describe("lista única de contas (ADR-102)", () => {
   });
 
   describe("NOD-8: o passo 1 do login (a máquina instala ou atualiza a IA antes)", () => {
-    const naTela = (o: Partial<LoginNaMaquina>) => renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: null, apelido: "Pessoal", url: null, pedeCodigo: false, ...o }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    // Paper G2c: o bloco do login mora embaixo da máquina, na conta aberta (a GPT · Pessoal entrando de novo na vm-bots).
+    const naTela = (o: Partial<LoginNaMaquina>) => renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: GPT.id, apelido: "Pessoal", url: null, pedeCodigo: false, ...o }), codigo: "", enviando: false, erroEnvio: null }] } }));
 
     it("preparando: passo 1 instalando (com a linha do npm), passo 2 'começa sozinho' e o Cancelar", () => {
       const html = naTela({ fase: "preparando", preparo: { acao: "instalar", linha: "added 1 package in 9s" } });
@@ -298,7 +299,7 @@ describe("lista única de contas (ADR-102)", () => {
 
     it("concluído com o preparo: '✓ ChatGPT pronto na vm-bots · Codex X'; sem preparo, o '✓ Entrou' de sempre", () => {
       expect(naTela({ fase: "pronto", preparo: { acao: "instalar", depois: "0.160.0" } })).toContain("✓ ChatGPT pronto na vm-bots · Codex 0.160.0");
-      const daMaquina = renderListaDeContas(ctx({ maquinas: [maquina(VM, "vm-bots", { iasDetalhe: { "codex-cli": { versao: "0.161.0" } } })], ui: { logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: null, fase: "pronto", preparo: { acao: "instalar" } }), codigo: "", enviando: false, erroEnvio: null }] } }));
+      const daMaquina = renderListaDeContas(ctx({ maquinas: [maquina(VM, "vm-bots", { iasDetalhe: { "codex-cli": { versao: "0.161.0" } } })], ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: GPT.id, fase: "pronto", preparo: { acao: "instalar" } }), codigo: "", enviando: false, erroEnvio: null }] } }));
       expect(daMaquina).toContain("✓ ChatGPT pronto na vm-bots · Codex 0.161.0");
       expect(naTela({ fase: "pronto", preparo: null })).toContain("✓ Entrou");
     });
@@ -316,7 +317,7 @@ describe("lista única de contas (ADR-102)", () => {
       // Protótipo v2.2: o terminal num link discreto; o comando só depois do clique.
       expect(semEspaco).toMatch(/data-act="cl-terminal" data-login="[^"]+">Prefere o terminal\?</);
       expect(semEspaco).not.toContain("<code>nod-motor atualizar-ia codex</code>");
-      const aberto = renderListaDeContas(ctx({ ui: { terminal: login().id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: null, apelido: "Pessoal", url: null, pedeCodigo: false, ...falha }), codigo: "", enviando: false, erroEnvio: null }] } }));
+      const aberto = renderListaDeContas(ctx({ ui: { aberta: GPT.id, terminal: login().id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", contaId: GPT.id, apelido: "Pessoal", url: null, pedeCodigo: false, ...falha }), codigo: "", enviando: false, erroEnvio: null }] } }));
       expect(aberto).toContain("<code>nod-motor atualizar-ia codex</code>");
       expect(aberto).toMatch(/data-act="copiar-texto" data-texto="nod-motor atualizar-ia codex" aria-live="polite">Copiar</);
       expect(naTela({ fase: "falhou", erro: "preparo_falhou", preparo: { acao: "instalar", atualizacao: { fase: "falhou", alvo: "0.159.0", motivo: "sem_internet", em: 1 } } })).toContain("sem conexão com a internet");
@@ -498,6 +499,13 @@ describe("controlador da lista (ADR-102)", () => {
     expect(m.chamadas).toContain("codigo");
     const depois = m.estado.contasUi.logins[0]!;
     expect(depois.onde === "vm" && depois.login.codigoEnviado).toBe(true);
+  });
+
+  it("Paper G1b: retomar a conta nova reabre a Nova conta já entrando, com as máquinas dos logins dela", async () => {
+    const m = montar();
+    await m.c.novaNaMaquina("claude-cli", VM);
+    m.c.retomarNova("claude-cli", "");
+    expect(m.estado.contasUi.nova).toEqual({ ia: "claude-cli", apelido: "", maquinas: [VM], entrando: true });
   });
 
   it("Paper A2/C2: a página oficial abre sozinha uma vez, quando a VM manda o link", async () => {
@@ -793,5 +801,14 @@ describe("login aberto pela lista (Paper G1b e G2c)", () => {
     const { readFileSync } = await import("node:fs");
     const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
     expect(main).toMatch(/"cl-entrar": \(el\) => \{\s*if \(el\.closest\("\.cl-linha-g1"\)\) contasDaPessoa\.abrirConta/);
+  });
+});
+
+describe("login de conta nova com a Nova conta fechada (Paper G1b)", () => {
+  it("a linha só diz onde está entrando e reabre a Nova conta no ponto do login", () => {
+    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ contaId: null, apelido: "Freela" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    expect(html).not.toContain('data-form="cl-codigo"');
+    expect(html).toContain('<span class="contas-estado e-aviso">Entrando na vm-bots</span>');
+    expect(html).toContain('data-act="cl-nova-retomar" data-ia="claude-cli" data-apelido="Freela"');
   });
 });

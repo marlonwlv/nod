@@ -287,6 +287,11 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
       const maquinas = d.maquinas().filter((m) => m.conectada && (m.plataforma !== "darwin" || m.id === daqui)).map((m) => m.id);
       d.mudar({ nova: { ia: "claude-cli", apelido: "", maquinas }, menu: null });
     },
+    /** Paper G1b: a linha do login de conta nova reabre a Nova conta no ponto em que o login está. */
+    retomarNova(ia: IaComConta, apelido: string): void {
+      const doLogin = (l: LoginNaTela) => contaDoLogin(l) === null && (l.onde === "vm" ? l.login.ia : l.ia) === ia && ((l.onde === "vm" ? l.login.apelido : l.apelido) ?? "") === apelido;
+      d.mudar({ nova: { ia, apelido, maquinas: logins().filter(doLogin).map(maquinaDoLogin), entrando: true }, aberta: null, menu: null });
+    },
     /** Paper A, desvio 7: "Entrar com outra conta" abre a Nova conta com a mesma IA e as mesmas máquinas da conta sem acesso. */
     abrirNovaDaConta(id: string): void {
       const c = d.contas()?.contas.find((x) => x.id === id);

@@ -276,3 +276,121 @@
    baixo do .espaco-conteudo, para nada passar por baixo do rodapé. */
 .cl-nova.cl-nova-pag { flex: none; }
 .cl-nova-pag .cl-nova-acoes { margin-top: 6px; position: sticky; bottom: -30px; z-index: 2; padding: 14px 0 30px; margin-bottom: -30px; background: var(--surface); border-top: 1px solid var(--divisoria); }
+
+/* =====================================================================================================================
+   Revisão rigorosa contra o design system novo (Paper "Design system" e "Jornadas da IA", 2026-11-20). Tudo que as telas
+   da IA herdavam do visual antigo — o .bt retangular com contorno, o link sublinhado, o selo com contorno, a pílula de
+   estado com borda, o segmentado de 12 px, o diálogo de sair/remover — passa a seguir as medidas do Paper, só aqui
+   (escopo .prov-contas: a lista, a conta aberta, a Nova conta e os diálogos delas).
+   ===================================================================================================================== */
+
+/* Botões: 28 px em pílula (texto 13/500). Primário escuro com a sombra de controle; secundário com contorno de 12%;
+   o pequeno (sm) tem 26 px e texto 12. O de perigo é o vermelho cheio (diálogos). */
+.prov-contas .bt { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 12px; border: 1px solid var(--borda); border-radius: 999px; background: transparent; color: var(--ink); font: 500 13px/16px var(--font-sans); box-shadow: none; white-space: nowrap; cursor: pointer; }
+.prov-contas .bt:hover { background: var(--hover); border-color: var(--borda); }
+.prov-contas .bt.sm { height: 26px; padding: 0 10px; font-size: 12px; font-weight: 500; }
+.prov-contas .bt.pri { border-color: transparent; background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); opacity: 1; }
+.prov-contas .bt.pri:hover { background: var(--base-hover); }
+.prov-contas .bt.perigo { border-color: transparent; background: var(--danger); color: var(--on-action); box-shadow: var(--sombra-controle); }
+.prov-contas .bt.perigo:hover { background: color-mix(in srgb, var(--danger) 88%, var(--action)); }
+.prov-contas .bt:is([disabled], :disabled) { opacity: 1; cursor: default; border-color: transparent; background: var(--ativo); color: var(--ink-4); box-shadow: none; }
+.prov-contas .bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* "Adicionar conta": o botão de 28 com raio 8 e o + (Paper G1). */
+.prov-contas .bt.cl-adicionar { border-radius: 8px; padding: 0 10px; }
+.prov-contas .bt.cl-adicionar svg { width: 13px; height: 13px; }
+
+/* Links: sem sublinhado, tinta e peso 500 (o "Ver", o "Abrir de novo", o "Entrar"); o sublinhado só no hover. */
+.prov-contas .ob-link { color: var(--ink); font-weight: var(--peso-medio); text-decoration: none; }
+.prov-contas .ob-link:hover { text-decoration: underline; text-underline-offset: 2px; color: var(--ink); }
+.prov-contas :is(.cl-terminal-link, .ia-ajuda-link) { font-size: 12px; color: var(--ink-3); text-decoration: none; }
+.prov-contas :is(.cl-terminal-link, .ia-ajuda-link):hover { color: var(--ink); text-decoration: underline; }
+
+/* Pílulas de estado: 22 px, raio cheio, 12/500, sem borda; o ponto só onde o estado pede atenção ou está ativo. */
+.prov-contas .contas-estado { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; box-sizing: border-box; border: 0; border-radius: 999px; font-size: 12px; font-weight: var(--peso-medio); line-height: 16px; white-space: nowrap; }
+.prov-contas .contas-estado::before { margin-right: 0; }
+.prov-contas .contas-estado:is(.e-disp, .e-fora) { background: var(--hover); color: var(--ink-2); }
+.prov-contas .contas-estado.e-uso { background: var(--success-soft); color: var(--success); }
+.prov-contas .contas-estado:is(.e-aviso, .e-limite) { background: var(--warning-soft); color: var(--warning); }
+.prov-contas .contas-estado.e-erro { background: var(--danger-soft); color: var(--danger); }
+
+/* Plano e selos: a pílula cinza de 11/500 (Max, Team); a corporativa igual, e o "Nova" em azul. */
+.prov-contas .cl-plano, .prov-contas .selo { display: inline-flex; align-items: center; padding: 1px 7px; border: 0; border-radius: 999px; background: var(--hover); color: var(--ink-2); font-size: 11px; font-weight: var(--peso-medio); line-height: 16px; }
+.prov-contas .selo.selo-nova { background: var(--signal-soft); color: var(--signal); }
+.prov-contas .cl-conta-id :is(.cl-plano, .selo) { font-size: 12px; padding: 2px 8px; }
+
+/* Segmentado (Todas · Precisam de você): trilho de 4% com raio 8, a opção ativa branca de 26 px com sombra leve. */
+.prov-contas .segmentado { display: inline-flex; gap: 0; padding: 2px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--action) 4%, transparent); }
+.prov-contas .segmentado .seg { height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); font: 400 13px/16px var(--font-sans); box-shadow: none; }
+.prov-contas .segmentado .seg.ativo { background: var(--surface-elevated); color: var(--ink); font-weight: var(--peso-medio); box-shadow: 0 1px 2px color-mix(in srgb, var(--action) 8%, transparent); }
+
+/* O liga/desliga: 32 × 20 com o botão de 16 (Paper G1/G2). */
+.prov-contas .chave { width: 32px; height: 20px; border-radius: 999px; }
+.prov-contas .chave span { top: 2px; left: 2px; width: 16px; height: 16px; }
+.prov-contas .chave[aria-checked="true"] span { left: 14px; }
+
+/* A conta aberta (G2): o logo de 44 no quadrado da marca, o nome 20/600 e a linha de baixo 13 em cinza. */
+.cl-conta-pag .cl-logo[data-logo-ia] { border: 0; color: var(--marca-simbolo); }
+.cl-conta-pag .cl-logo.grande[data-logo-ia] { width: 44px; height: 44px; border-radius: 12px; }
+.cl-conta-pag .cl-logo.grande[data-logo-ia] svg { width: 26px; height: 26px; }
+.cl-conta-pag .cl-logo[data-logo-ia="claude"] { background: var(--marca-claude); }
+.cl-conta-pag .cl-logo[data-logo-ia="chatgpt"] { background: var(--marca-chatgpt); }
+.cl-conta-pag .cl-logo[data-logo-ia] svg :is(path, circle) { fill: currentColor; }
+.cl-conta-pag .cl-conta-id .cl-nome b { font-size: 20px; line-height: 26px; font-weight: 600; }
+.cl-conta-pag .cl-conta-id small { font-size: 13px; line-height: 18px; color: var(--ink-3); }
+.cl-conta-pag .cl-conta-fila > span { font-size: 13px; color: var(--ink-2); }
+.cl-conta-pag .cl-maq-sair { font-size: 12px; font-weight: 400; color: var(--ink-3); }
+
+/* Renomear: o campo no mesmo desenho da Nova conta. */
+.prov-contas .cl-renomear { display: flex; gap: 8px; align-items: center; }
+.prov-contas .cl-renomear input { flex: 1; min-width: 0; height: 34px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: 10px; background: var(--surface); font: 400 14px/20px var(--font-sans); color: var(--ink); }
+.prov-contas .cl-renomear input:focus { outline: none; border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+@media (forced-colors: active) { .prov-contas .cl-renomear input:focus { outline: 2px solid CanvasText; } }
+
+/* O diálogo de sair/remover no desenho do G3: raio 14, título 17/600, texto 13, pílulas à direita. */
+.prov-contas .cl-dialogo { width: min(440px, calc(100vw - 32px)); padding: 22px 22px 18px; border: 0; border-radius: var(--raio-14, 14px); background: var(--surface-elevated); box-shadow: var(--sombra-modal); }
+.prov-contas .cl-dialogo h3 { margin: 0 0 8px; font-size: 17px; line-height: 23px; font-weight: 600; letter-spacing: -.01em; }
+.prov-contas .cl-dialogo p { font-size: 13px; line-height: 19px; color: var(--ink-2); }
+.prov-contas .cl-dialogo .cl-caixa { padding: 10px 12px; border: 0; border-radius: 10px; background: var(--hover); font-size: 13px; line-height: 19px; }
+.prov-contas .cl-dialogo-acoes { gap: 8px; margin-top: 20px; }
+.prov-contas .cl-dialogo-acoes .bt { height: 32px; padding: 0 14px; }
+.prov-contas .cl-dialogo-acoes .bt:not(.perigo):not(.pri) { border-color: transparent; color: var(--ink-2); }
+.prov-contas .cl-dialogo-acoes .bt:not(.perigo):not(.pri):hover { background: var(--hover); color: var(--ink); }
+
+/* O cartão do app do Mac dentro da Nova conta e da conta aberta: pílulas de 28 no lugar da pílula de 36 com contorno. */
+.prov-contas .ob-pilula.contorno { height: 28px; padding: 0 12px; border: 1px solid var(--borda); background: transparent; font: 500 13px/16px var(--font-sans); }
+.prov-contas .ob-pilula:not(.contorno) { height: 28px; padding: 0 12px; font: 500 13px/16px var(--font-sans); box-shadow: var(--sombra-controle); }
+.prov-contas .ia-codigo code { padding: 6px 14px; border: 1px solid var(--borda); border-radius: 10px; background: var(--surface); }
+.prov-contas .ia-codigo :is(.ob-link, .bt) { height: 28px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 999px; background: var(--hover); color: var(--ink); text-decoration: none; font-size: 13px; }
+
+/* O login de conta nova que ficou aberto com a Nova conta fechada ocupa a linha inteira, não a coluna do nome. */
+.prov-contas .cl-lista .cl-linha.entrando:not(.cl-linha-g1) .cl-login { grid-column: 1 / -1; }
+
+/* Paper A2 (Mac): a trilha já diz em que passo está; do cartão do app fica só o conteúdo do passo da vez — sem o número
+   em círculo, sem o título, sem os passos feitos e os que vêm depois. */
+.cl-maq-mac .cl-np-login .ia-fluxo { margin: 0; padding: 12px; gap: 0; border-radius: 10px; background: var(--hover); }
+.cl-maq-mac .cl-np-login .ia-passo:not([aria-current="step"]):not(:has(.ia-passo-marca.falha)) { display: none; }
+.cl-maq-mac .cl-np-login .ia-passo { display: block; padding: 0; }
+.cl-maq-mac .cl-np-login .ia-passo-marca { display: none; }
+.cl-maq-mac .cl-np-login .ia-passo-txt > b:first-child { display: none; }
+.cl-maq-mac .cl-np-login .ia-passo-txt { display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 18px; color: var(--ink-2); }
+.cl-maq-mac .cl-np-login .ia-acoes { gap: 6px; font-size: 12px; color: var(--ink-3); }
+.cl-maq-mac .cl-np-login .ia-colar { display: flex; gap: 8px; }
+.cl-maq-mac .cl-np-login .ia-colar input { flex: 1; min-width: 0; height: 34px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: 10px; background: var(--surface); font: 400 14px/20px var(--font-sans); }
+
+/* "Remover conta" em vermelho (o .ob-link da revisão o pintava de tinta). */
+.prov-contas .cl-remover-link { color: var(--danger); }
+
+/* Limite e sem acesso na conta aberta: um cartão com a pílula, o porquê e as ações embaixo (Paper A, desvios 7 e 10). */
+.prov-contas .cl-conta-limite { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px 12px; padding: 12px 14px; border: 1px solid var(--borda); border-radius: 12px; }
+.prov-contas .cl-conta-limite > .mudo { font-size: 13px; line-height: 18px; color: var(--ink-2); }
+.prov-contas .cl-conta-limite > .bt { grid-column: 1 / -1; justify-self: start; }
+.prov-contas .cl-conta-limite > .bt + .bt { grid-column: auto; }
+.prov-contas .cl-conta-sem-acesso { grid-template-columns: auto minmax(0, 1fr); }
+.prov-contas .cl-conta-acoes-linha { display: flex; gap: 8px; grid-column: 1 / -1; }
+
+/* O "Copiar" do código: do tamanho do texto. */
+.prov-contas .ia-codigo :is(.ob-link, .bt) { width: auto; min-width: 0; }
+
+/* Paper A2: o "Enviar" do código (VM) e o "Confirmar" (Mac) são pílulas cinza suaves, sem contorno. */
+.prov-contas :is(.cl-codigo .bt, .ia-colar .ob-pilula) { height: 34px; padding: 0 14px; border-color: transparent; background: var(--hover); color: var(--ink); box-shadow: none; }
+.prov-contas :is(.cl-codigo .bt, .ia-colar .ob-pilula):hover { background: var(--ativo); }

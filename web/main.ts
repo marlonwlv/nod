@@ -9283,6 +9283,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "cl-abrir": (el) => contasDaPessoa.abrirConta(el.dataset.id ?? null),
   "cl-fechar-conta": () => contasDaPessoa.abrirConta(null),
   "cl-nova-da-conta": (el) => contasDaPessoa.abrirNovaDaConta(el.dataset.id ?? ""),
+  "cl-nova-retomar": (el) => { if (el.dataset.ia === "claude-cli" || el.dataset.ia === "codex-cli") contasDaPessoa.retomarNova(el.dataset.ia, el.dataset.apelido ?? ""); },
   "cl-pendentes": (el) => contasDaPessoa.pendentes(el.dataset.valor === "1"),
   "cl-gerenciar": (el) => { dispatch({ tipo: "contas-ui", mudanca: { maquinaMenu: null } }); abrirEspaco("conexao"); contasDaPessoa.filtro(el.dataset.maquina || null); },
   "cl-login-cancelar": (el) => contasDaPessoa.cancelarLogin(el.dataset.login ?? ""),
