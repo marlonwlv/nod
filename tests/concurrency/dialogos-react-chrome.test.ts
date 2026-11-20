@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
 import { abrirChrome, avaliar, type Cdp } from "../../scripts/carga-tela/cdp.ts";
 
@@ -83,7 +83,7 @@ window.__luz = () => {
   const itens = [{ id: "a", nome: "a.png", mime: "image/png", url: "/u/a", w: 1600, h: 900 }, { id: "b", nome: "b.png", mime: "image/png", url: "/u/b", w: 900, h: 1600 }];
   document.getElementById("midias")?.remove();
   const m = document.createElement("div");
-  m.id = "midias"; m.dataset.mensagem = "m1";
+  m.id = "midias"; m.dataset.mensagem = "m1"; m.style.cssText = "position:fixed;left:600px;top:450px";
   m.innerHTML = '<div class="msg-midias"><button id="midia-a" data-act="midia-abrir" data-i="0" data-anexo-id="a">a</button></div>';
   m.querySelector(".msg-midias").dataset.luz = JSON.stringify(itens);
   document.body.append(m);
@@ -94,7 +94,7 @@ window.__luz = () => {
 window.fetch = async () => new Response("nome,valor\\nana,1\\nbia,2\\n", { status: 200, headers: { "content-length": "24" } });
 window.__previa = () => {
   const b = document.createElement("button");
-  b.id = "card"; b.dataset.act = "previa-arquivo"; b.dataset.id = "x1"; b.dataset.url = "/api/anexos/x1"; b.dataset.nome = "dados.csv"; b.dataset.mime = "text/csv"; b.textContent = "dados.csv";
+  b.id = "card"; b.dataset.act = "previa-arquivo"; b.dataset.id = "x1"; b.dataset.url = "/api/anexos/x1"; b.dataset.nome = "dados.csv"; b.dataset.mime = "text/csv"; b.textContent = "dados.csv"; b.style.cssText = "position:fixed;left:600px;top:400px";
   document.getElementById("card")?.remove();
   document.body.append(b);
   b.focus();
@@ -145,9 +145,12 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
     await cdp.enviar("Page.navigate", { url });
     for (let i = 0; i < 100 && !(await avaliar<boolean>(cdp, "!!window.__abrir")); i++) await esperar(50);
-    // A página não rola: no Mac a barra é sobreposta e nada muda, mas no Linux ela come 15 px da largura (o CI).
-    expect(await avaliar<number>(cdp, "document.documentElement.scrollHeight - innerHeight")).toBeLessThanOrEqual(0);
   }, 120_000);
+  // A página nunca rola, nem com o que cada teste põe nela (tudo fixo): no Mac a barra é sobreposta e nada muda, mas no
+  // Chrome do Linux (o CI) ela come 15 px da largura e tudo o que é "centrado" erra por 7 px.
+  const naoRola = async (): Promise<void> => { expect(await avaliar<number>(cdp, "document.documentElement.scrollHeight - innerHeight")).toBeLessThanOrEqual(0); };
+  beforeEach(naoRola);
+  afterEach(naoRola);
   afterAll(() => { cdp?.fechar(); if (dir) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
 
   const ate = async (expr: string): Promise<void> => {
