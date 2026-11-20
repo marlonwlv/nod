@@ -48,6 +48,7 @@ const PADROES: readonly (readonly [Exclude<ClasseErroFornecedor, "desconhecido">
   ["login_expirado", [
     /invalid api key/i,
     /oauth token (?:has )?expired/i,
+    /oauth session (?:has )?expired/i,
     /not logged in/i,
     /please run \/login/i,
     /authentication_error/i,
