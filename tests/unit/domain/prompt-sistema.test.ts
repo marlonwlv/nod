@@ -121,7 +121,7 @@ describe("montarPromptSistema", () => {
     expect(so).toContain('"nome":"Nina"');
     expect(so).toContain("chame ver_colegas");
     expect(so).toContain("Nunca peça à pessoa para copiar o que um colega faz");
-    expect(so).toContain("só pausa ou reativa quando a pessoa pedir");
+    expect(so).toContain("só pausa, reativa, muda ou exclui quando a pessoa pedir");
     // Sem perguntar/delegar, a linha do trabalho assíncrono não entra: ver_colegas responde na hora.
     expect(so).not.toContain("a resposta chegará em um novo turno");
   });
@@ -388,10 +388,11 @@ describe("NOD-155: o prompt em parte estável e parte volátil (cache por prefix
     const digital = (s: string) => createHash("sha256").update([...s.split("\n")].sort().join("\n")).digest("hex");
     // 2026-11-18: atualização deliberada da política do computador (gateway único e confirmação explícita).
     // 2026-11-18: catálogo Microsoft/reuniões da main (#171) somado ao da preview; só a linha de apps/slugs mudou.
+    // 2026-11-18 (issue #166): a linha da rotina de colega inclui mudar e excluir; a do automático cita excluir a rotina de um colega.
     const esperado = {
-      conversa: "97a9525d94f2c214caa775391f471d4966ed1e3d9014b2462e0d3910721566cd",
-      rotina: "3338d849dfbfcf1367a6a6f8a1404b11514c1032c8fd446f60410a2285809ca5",
-      delegacao: "40ad326acdd4804a3ae65fd1b9b9c796fb5f4688791a381ff1680d8aa51b4b59",
+      conversa: "05df12a9824c92fd0c776c5090166fd9e036e900d5835e3173cd60633df28aba",
+      rotina: "86f9ca6b25524d3a140681e80726e39450d00e5abfb5f7aaf94c126327955d57",
+      delegacao: "ebdfbb87d352c1289317a4f1f2373ca311872069efc58f93a2b99470a4e5f2d1",
     };
     const obtido = { conversa: "", rotina: "", delegacao: "" };
     for (const modo of ["conversa", "rotina", "delegacao"] as const) obtido[modo] = digital(montarPromptSistema({ ...base, ...turnoA, profundidade: 1, modo }));

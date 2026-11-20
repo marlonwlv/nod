@@ -55,8 +55,11 @@ export async function fecharDecisaoDaProposta(deps: Deps, id: string, agora: num
  * repositório público não cria nem muda rotina sem a pessoa ver o card. Revisão 6: a retomada (resposta de colega, volta
  * da cota) herda o contexto do payload, então a regra segue a cadeia de `retomaTurnoId` até o turno da rotina webhook.
  * Suposição registrada no PR, a validar com a Ada.
+ *
+ * Issue #166 (2026-11-18): `semAlivioDaConversa` tira o alívio de `conversaComAPessoa` — a ação é arriscada mesmo com a
+ * pessoa pedindo na conversa (excluir a rotina de outro bot, como o excluir do gerir_bots, ADR-082 §3).
  */
-export async function confirmacaoPeloModo(deps: Deps, ctx: { agenteId: string; turnoId: string; plano?: PlanoTurno | null }, o: { arriscada: boolean; gravaInstrucao?: boolean }): Promise<PorRegra | null> {
+export async function confirmacaoPeloModo(deps: Deps, ctx: { agenteId: string; turnoId: string; plano?: PlanoTurno | null }, o: { arriscada: boolean; gravaInstrucao?: boolean; semAlivioDaConversa?: boolean }): Promise<PorRegra | null> {
   if (!ctx.plano) return null;
   const agente = await deps.repos.agentes.buscar(ctx.agenteId);
   // NOD-443 (ADR-143, revisão 3): no turno a pedido de outra pessoa vale o manual.
@@ -66,6 +69,6 @@ export async function confirmacaoPeloModo(deps: Deps, ctx: { agenteId: string; t
   const revisor = deps.services.revisor?.config.ligado === true;
   const plantada = revisor && o.gravaInstrucao === true && (ctx.plano.confiancaEntrada !== "confiavel" || (await deps.repos.turnos.contaminado(ctx.turnoId)));
   // revisto em 2026-10-01 (ADR-066): conteúdo de fora e a trava herdada não param mais o modo.
-  const d: DecisaoSemRevisor | null = semRevisor(decidirPeloModo(modo, { arriscada: plantada || (o.arriscada && !conversaComAPessoa(ctx.plano.modoTurno)), credencial: false }, revisor));
+  const d: DecisaoSemRevisor | null = semRevisor(decidirPeloModo(modo, { arriscada: plantada || (o.arriscada && (o.semAlivioDaConversa === true || !conversaComAPessoa(ctx.plano.modoTurno))), credencial: false }, revisor));
   return d?.automatico ? { regra: d.regra, regraVersao: d.versao } : null;
 }

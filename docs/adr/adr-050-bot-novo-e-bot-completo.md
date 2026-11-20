@@ -61,7 +61,7 @@ O desenho que valeu está na página "Bot novo" do canvas "Nod — tela do agent
    `reativar_rotina` aceitam a rotina de um colega (o filtro `ehColega`) só com entrada confiável. Pergunta
    de outro bot, conteúdo de conector ou rotina acordada sozinha nunca mexem na rotina de outro agente. A
    conversa do colega recebe a linha "{bot} pausou esta rotina a seu pedido". Atualizar e excluir a rotina
-   de um colega continuam fora do alcance.
+   de um colega continuam fora do alcance (revisto pela emenda de 2026-11-18, abaixo).
 
 ## Alternativas descartadas
 
@@ -107,3 +107,24 @@ O desenho que valeu está na página "Bot novo" do canvas "Nod — tela do agent
   meio dele; o bot pode propor de novo, mas nada muda sem confirmar.
 - **Gatilho de reversão.** Se, em 30 dias, aparecer na trilha um `atualizar_perfil` fora da criação sem um
   `/configurar` da pessoa nas 2 h anteriores, a janela por coluna não basta e passa a exigir o comando no mesmo turno.
+
+## Emenda (2026-11-18, issue #166): atualizar e excluir a rotina de um colega, a pedido da pessoa
+
+- **O que muda na decisão 5.** Atualizar e excluir a rotina de um colega saem de "fora do alcance" e passam pelo
+  mesmo filtro de pausar e reativar (`rotinaAlcancavel`): a rotina do próprio bot, sempre; a de outro bot só com a
+  pessoa no turno (entrada confiável) e com o dono colega de quem pede (perfil confirmado, da pessoa, não excluído).
+  O Nod alcança a rotina de qualquer bot da pessoa pelo mesmo filtro. Fora disso continua `nao_encontrado`, sem
+  vazar se o id existe. `executar_rotina` segue só para a rotina do próprio bot.
+- **Motivo.** A pessoa pediu ao bot que coordena o time para trocar o horário das rotinas dos outros bots; o id
+  certo, vindo de `ver_colegas`, dava "não encontrado" e a troca teve de ser feita uma a uma, na tela de cada bot.
+- **O modo de quem pede decide**, como na própria rotina: no manual vira card na conversa de quem pede; confirmar
+  aplica na rotina do dono e registra a mudança na conversa dele. No automático, trocar horário, instrução ou fuso
+  vale na hora.
+- **Excluir a rotina de outro bot é card também no automático** (`semAlivioDaConversa`): pedir na conversa não tira
+  o risco de apagar o trabalho de outro bot, como o excluir do `gerir_bots` (ADR-082 §3). Só o "sem aprovações"
+  apaga sozinho.
+- **Os apps da rotina de outro bot ficam com a pessoa.** Atualizar com `acessos` diferentes na rotina de outro bot
+  é `nao_permitido`: aplicar a atualização concederia acesso ao dono pelo modo de quem pede.
+- **Gatilho de reversão.** Se, em 30 dias, aparecer na trilha uma rotina de outro bot atualizada ou excluída sem um
+  pedido da pessoa no turno, ou um relato de rotina mudada que a pessoa não pediu, volta a regra de antes (só a
+  própria rotina) até o filtro ser revisto.

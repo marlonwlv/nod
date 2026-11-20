@@ -48,13 +48,13 @@ export const listarRotinasDoAgente: CasoNod<Deps, "listar_rotinas"> = async (dep
 /**
  * Tronco de pausar_rotina/reativar_rotina. Erro de domínio volta TIPADO em {erro} para o modelo
  * corrigir a chamada (mesmo contrato de criar_rotina), em vez de virar negação do proxy.
- * A rotina tem que ser DESTE agente, ou de um colega quando a pessoa pediu (rotinaAlternavel): o id vem
+ * A rotina tem que ser DESTE agente, ou de um colega quando a pessoa pediu (rotinaAlcancavel): o id vem
  * do modelo, e sem esse filtro um agente mexeria na rotina de qualquer outro dentro do mesmo tenant
  * (rotinas.buscar é tenant-wide, por RLS de leitura).
  */
 async function alternar(deps: Deps, input: { agenteId: string; rotinaId: string; plano?: PlanoTurno; ate?: string }, estado: EstadoRotina) {
   try {
-    const { rotina: atual, quem } = await rotinaAlternavel(deps, input);
+    const { rotina: atual, quem } = await rotinaAlcancavel(deps, input);
     // NOD-412: `ate` é hora local no fuso DA ROTINA (a pessoa fala do horário dela); vira instante aqui, e o executor valida.
     const retomarEm = estado === "pausada" && input.ate !== undefined ? instanteLocal(input.ate, atual.fusoIana) : null;
     const jaEstava = atual.estado === estado && (estado === "ativa" || retomarEm === null || retomarEm === (atual.retomarEm ?? null));
@@ -105,13 +105,16 @@ export const reativarLoteRotinasPeloAgente: CasoNod<Deps, "reativar_lote_rotinas
 
 /**
  * definido em 2026-09-28 (ADR-050): a Teodora assume o que a Nina, a Ada e a Taga faziam e pergunta se
- * pausa as rotinas delas, para nada chegar em dobro. Pausar e reativar são reversíveis em um clique e a
- * pessoa está no turno; por isso a rotina de um COLEGA (mesmo dono, confirmado, visível — o filtro de
- * ver_colegas) também vale, mas só com entrada confiável: turno aberto por mensagem da pessoa. Pergunta de
- * outro bot, conteúdo de conector ou rotina acordada sozinha nunca mexem na rotina de outro agente.
- * `quem` = nome de quem pausou quando a rotina é de colega; null quando é a própria.
+ * pausa as rotinas delas, para nada chegar em dobro. Por isso a rotina de um COLEGA (mesmo dono, confirmado,
+ * visível — o filtro de ver_colegas) também vale, mas só com entrada confiável: turno aberto por mensagem da
+ * pessoa. Pergunta de outro bot, conteúdo de conector ou rotina acordada sozinha nunca mexem na rotina de outro
+ * agente.
+ * revisto em 2026-11-18 (emenda da ADR-050, issue #166): o mesmo filtro vale para atualizar e excluir. Trocar o
+ * horário de 13 rotinas de vários bots exigia abrir a conversa de cada um; o Nod, que não é colega de ninguém mas
+ * enxerga os bots da pessoa como colegas (ehColega olha só o dono da rotina), também recebia nao_encontrado.
+ * `quem` = nome de quem mexeu quando a rotina é de outro bot; null quando é a própria.
  */
-async function rotinaAlternavel(deps: Deps, input: { agenteId: string; rotinaId: string; plano?: PlanoTurno }): Promise<{ rotina: Rotina; quem: string | null }> {
+async function rotinaAlcancavel(deps: Deps, input: { agenteId: string; rotinaId: string; plano?: PlanoTurno | undefined }): Promise<{ rotina: Rotina; quem: string | null }> {
   assertUuid(input.agenteId, "agenteId");
   assertUuid(input.rotinaId, "rotina_id");
   const r = await deps.repos.rotinas.buscar(input.rotinaId);
@@ -124,7 +127,7 @@ async function rotinaAlternavel(deps: Deps, input: { agenteId: string; rotinaId:
   return { rotina: r, quem: eu.nome };
 }
 
-/** A rotina tem que existir, ser DESTE agente e não estar excluída. Mesmo filtro de `alternar`. */
+/** A rotina tem que existir, ser DESTE agente e não estar excluída. Só executar_rotina usa (a de colega é da NOD-393). */
 async function rotinaDoAgente(deps: Deps, agenteId: string, rotinaId: string): Promise<Rotina> {
   assertUuid(agenteId, "agenteId");
   assertUuid(rotinaId, "rotina_id");
@@ -171,9 +174,11 @@ function obsoleta(daProposta: readonly RuntimeEvent[], daAplicacao: readonly Run
  */
 export const atualizarRotinaPeloAgente: CasoNod<Deps, "atualizar_rotina"> = async (deps, input) => {
   try {
-    const atual = await rotinaDoAgente(deps, input.agenteId, input.rotina_id);
+    const { rotina: atual, quem } = await rotinaAlcancavel(deps, { agenteId: input.agenteId, rotinaId: input.rotina_id, plano: input.plano });
     const acessos = await acessosDeclarados(deps, input.acessos);
     const mudaAcessos = acessos !== undefined && !mesmosAcessos(acessos, atual.acessos);
+    // Issue #166: aplicar a mudança concede os apps ao DONO da rotina; um bot não dá acesso a outro, nem pelo modo dele.
+    if (quem !== null && mudaAcessos) throw new ErroDeDominio("nao_permitido", { cause: "acessos da rotina de outro bot são da pessoa" });
     const { normalizada } = validarAtualizacaoRotina({
       mudaAcessos,
       atual,
@@ -226,12 +231,14 @@ export const atualizarRotinaPeloAgente: CasoNod<Deps, "atualizar_rotina"> = asyn
 /** `excluir_rotina`: também só PROPÕE. A exclusão em si é recuperável (ADR-034). */
 export const excluirRotinaPeloAgente: CasoNod<Deps, "excluir_rotina"> = async (deps, input) => {
   try {
-    const atual = await rotinaDoAgente(deps, input.agenteId, input.rotina_id);
+    const { rotina: atual, quem } = await rotinaAlcancavel(deps, { agenteId: input.agenteId, rotinaId: input.rotina_id, plano: input.plano });
     const resumo = quandoDaRotina(atual);
     const payload: PayloadPropostaRotinaExclusao = { kind: "rotina_exclusao", rotinaId: atual.id, resumo, instrucao: atual.instrucao, revisao: revisaoAtual(atual) };
     const { proposta, events } = await propor(deps, input, payload, `Exclusão de rotina proposta: ${resumo} — ${atual.instrucao}`);
     // ADR-059: excluir é o "apagar" da rotina — o automático só confirma quando a pessoa pediu na conversa.
-    const porRegra = await confirmacaoPeloModo(deps, input, { arriscada: true });
+    // Issue #166: a rotina de OUTRO bot é card também no automático, como o excluir do gerir_bots (ADR-082 §3); só o
+    // "sem aprovações" apaga sozinho.
+    const porRegra = await confirmacaoPeloModo(deps, input, { arriscada: true, ...(quem !== null ? { semAlivioDaConversa: true } : {}) });
     if (porRegra) {
       const aplicada = await aplicarExclusaoRotina(deps, { propostaId: proposta.id, porRegra });
       if (aplicada.data.obsoleta) return obsoleta(events, aplicada.events);

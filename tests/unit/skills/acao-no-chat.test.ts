@@ -172,7 +172,7 @@ describe("skill /acao-no-chat (NOD-392)", () => {
     const hojeLote = 'no lote, leitura deixou de seguir o modo: atualize o "hoje" da skill';
     expect(decidirLote(semRisco, "manual", [null]), hojeLote).toEqual(["manual"]);
     expect(decidirLote(semRisco, "automatico", [null]), hojeLote).toEqual([null]);
-    expect(ler("src/use-cases/confirmar-pelo-modo.ts")).toMatch(/o\.arriscada && !conversaComAPessoa\(/);
+    expect(ler("src/use-cases/confirmar-pelo-modo.ts")).toMatch(/o\.arriscada && \(o\.semAlivioDaConversa === true \|\| !conversaComAPessoa\(/);
     expect(modelo).toContain("lote (só se entra no `gerir_bots`): lote.tipo = via.tipoNoLote, `riscoDe`/`deFora` se o risco muda com o argumento ou depois de conteúdo de fora, o tipo em `TIPOS_ACAO_LOTE` e o `case` em `src/use-cases/gerir-bots.ts`");
     expect(ler("src/use-cases/chamar-ferramenta.ts")).toMatch(/\bgerir_bots: \(/);
     expect(ler("src/use-cases/gerir-bots.ts")).toMatch(/case "[a-z_]+":[\s\S]*?EXECUTORES_BOTS\[/);

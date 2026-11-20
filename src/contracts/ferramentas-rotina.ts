@@ -105,7 +105,7 @@ export const FERRAMENTAS_ROTINA = {
   },
   atualizar_rotina: {
     type: "object",
-    description: "Propõe mudar uma rotina existente. Envie SÓ os campos que mudam; os outros ficam como estão. A pessoa confirma; nada muda antes disso.",
+    description: "Propõe mudar uma rotina existente. Envie SÓ os campos que mudam; os outros ficam como estão. A pessoa confirma; nada muda antes disso. Use o id exato do inventário; a rotina de um colega (id de ver_colegas) só quando a pessoa pedir, e sem mexer nos acessos dela.",
     properties: {
       rotina_id: ROTINA_ID,
       cron: { type: "string", description: "Novo cron de 5 campos, ex.: '0 8 * * 1-5'.", minLength: 1 },
@@ -122,7 +122,7 @@ export const FERRAMENTAS_ROTINA = {
   },
   excluir_rotina: {
     type: "object",
-    description: "Propõe excluir uma rotina existente. A pessoa confirma; nada é excluído antes disso. Para só interromper por um tempo, prefira pausar_rotina.",
+    description: "Propõe excluir uma rotina existente. A pessoa confirma; nada é excluído antes disso. A rotina de um colega (id de ver_colegas) só quando a pessoa pedir. Para só interromper por um tempo, prefira pausar_rotina.",
     properties: { rotina_id: ROTINA_ID },
     required: ["rotina_id"],
     additionalProperties: false,

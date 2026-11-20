@@ -32,7 +32,7 @@ de pessoa que não é GET (sem `interno`, `maquina` ou `publica`, ADR-135 §5), 
   antes do modo (`decidirPeloModo` em `src/domain/modo-aprovacao.ts` aprova tudo em "Ignorar todas as aprovações");
   `arriscada` vai direto em `semRevisor(decidirPeloModo(modo, { arriscada: true, credencial: false }))` (modo atual
   do bot; sem plano, manual), nunca por `confirmacaoPeloModo` (`src/use-cases/confirmar-pelo-modo.ts`), que alivia
-  o arriscado na conversa com a pessoa (`conversaComAPessoa`); `muda` vai por `confirmacaoPeloModo` com
+  o arriscado na conversa com a pessoa (`conversaComAPessoa`), salvo com `semAlivioDaConversa`; `muda` vai por `confirmacaoPeloModo` com
   `arriscada: false`. A cerca 3 fora do lote só vale com o revisor ligado (`gravaInstrucao`); se o spec a pede sempre,
   a ação é `arriscada`. Divergência de risco não vira `parcial`: se a ferramenta que já existe diverge do mapa, a Ada
   decide no spec (corrigir a ferramenta ou o risco no registro), no mesmo PR.
