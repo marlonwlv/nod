@@ -9,37 +9,42 @@ import { useLayoutEffect, useRef, type RefObject } from "react";
  *
  * `item`: o seletor de um item da lista (ex.: `[data-decisao]`); o destino é o primeiro botão/link dele, ou o próprio item.
  * `titulo`: o seletor do título; ganha `tabindex="-1"` só quando recebe o foco (o DOM sem foco segue o da tela por string).
+ * `grupo` (QA-159): quando os itens vivem dentro de blocos que ficam (ex.: as concessões de cada conector), o seguinte e o
+ * anterior são procurados só no bloco do item que saiu; se o bloco ficou sem itens, o foco vai a `noGrupo` dentro dele
+ * (ex.: o Conceder do mesmo conector) e só então ao título.
  */
 const FOCAVEL = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 /** Os itens que dá para focar: fora de um `<details>` fechado (os vencidos recolhidos não recebem o foco). */
 const visiveis = (r: HTMLElement, item: string): HTMLElement[] => [...r.querySelectorAll<HTMLElement>(item)].filter((el) => !el.parentElement?.closest("details:not([open])"));
 
-export function useFocoQueNaoCai(raiz: RefObject<HTMLElement | null>, opcoes: { item: string; titulo: string }): void {
-  const ultimo = useRef<{ el: HTMLElement; indice: number } | null>(null);
-  const { item, titulo } = opcoes;
+export function useFocoQueNaoCai(raiz: RefObject<HTMLElement | null>, opcoes: { item: string; titulo: string; grupo?: string; noGrupo?: string }): void {
+  const ultimo = useRef<{ el: HTMLElement; indice: number; grupo: HTMLElement | null } | null>(null);
+  const { item, titulo, grupo, noGrupo } = opcoes;
   useLayoutEffect(() => {
     const r = raiz.current;
     if (!r) return;
     const lembrar = (ev: FocusEvent) => {
       const el = ev.target instanceof HTMLElement ? ev.target : null;
       if (!el) return;
-      const itens = visiveis(r, item);
+      const bloco = grupo ? el.closest<HTMLElement>(grupo) : null;
+      const itens = visiveis(bloco ?? r, item);
       const dono = el.closest<HTMLElement>(item);
-      ultimo.current = { el, indice: dono ? itens.indexOf(dono) : -1 };
+      ultimo.current = { el, indice: dono ? itens.indexOf(dono) : -1, grupo: bloco };
     };
     r.addEventListener("focusin", lembrar);
     return () => r.removeEventListener("focusin", lembrar);
-  }, [raiz, item]);
+  }, [raiz, item, grupo]);
   useLayoutEffect(() => {
     const r = raiz.current;
     const antes = ultimo.current;
     if (!r || !antes || antes.el.isConnected) return;
     const ativo = r.ownerDocument.activeElement;
     if (ativo && ativo !== r.ownerDocument.body && ativo.isConnected) return;
-    const itens = visiveis(r, item);
+    const bloco = antes.grupo?.isConnected && r.contains(antes.grupo) ? antes.grupo : null;
+    const itens = visiveis(bloco ?? r, item);
     const no = antes.indice >= 0 ? (itens[Math.min(antes.indice, itens.length - 1)] ?? null) : null;
-    const destino = no ? (no.querySelector<HTMLElement>(FOCAVEL) ?? no) : null;
+    const destino = no ? (no.querySelector<HTMLElement>(FOCAVEL) ?? no) : bloco && noGrupo ? bloco.querySelector<HTMLElement>(noGrupo) : null;
     if (destino) {
       if (!destino.matches(FOCAVEL) && !destino.hasAttribute("tabindex")) destino.setAttribute("tabindex", "-1");
       destino.focus({ preventScroll: false });
