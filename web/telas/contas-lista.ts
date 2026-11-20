@@ -337,7 +337,10 @@ function metaDaConta(c: ContaIa, d: { organizacao: string | null }): string {
   return [d.organizacao, maqs].filter(Boolean).join(" · ");
 }
 
-/** Paper G1: "Login venceu" com o "Entrar" ali na linha, na primeira máquina onde dá para entrar de novo. */
+/**
+ * Paper G1: "Login venceu" com o "Entrar" ali na linha, na primeira máquina onde dá para entrar de novo. Só nele: o "Falta
+ * entrar em N" não leva o link (no Paper também não) — a conta ainda funciona, e entrar nas outras máquinas é na conta aberta.
+ */
 function entrarDeNovo(c: ContaIa, x: ContextoContas): string {
   const m = c.maquinas.filter((v) => v.estado === "sem_login").map((v) => x.maquinas.find((y) => y.id === v.maquinaId)).find((y) => y?.conectada && (y.plataforma !== "darwin" || ehEsteMac(y, x)));
   return m ? `<button type="button" class="ob-link cl-entrar-link" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">Entrar</button>` : "";
@@ -355,7 +358,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
   // No filtro, a conta que não está na máquina vira um botão grande (G2-M2).
   const direita = fora && x.maquinas.find((m) => m.id === filtro)?.conectada && !loginDaConta
     ? `<button type="button" class="bt sm" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(filtro!)}">Entrar na ${esc(nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas))}</button>`
-    : `${loginDaConta ? estadoDoLoginNaConta(loginDaConta, ondeEntra ? nomeCurto(ondeEntra, x.maquinas) : undefined) : `<span class="contas-estado ${classe}">${esc(estado)}</span>${entrarDeNovo(c, x)}`}${chaveDaFila(c)}`;
+    : `${loginDaConta ? estadoDoLoginNaConta(loginDaConta, ondeEntra ? nomeCurto(ondeEntra, x.maquinas) : undefined) : `<span class="contas-estado ${classe}">${esc(estado)}</span>${estado === "Login venceu" ? entrarDeNovo(c, x) : ""}`}${chaveDaFila(c)}`;
   return `<li class="cl-linha cl-linha-g1${fora ? " fora" : ""}${loginDaConta ? " entrando" : ""}" data-ordem-item="${esc(c.id)}">
       <button type="button" class="cl-alca" data-alca-ordem aria-label="Mover ${esc(nome)} (setas para cima e para baixo)">${ICONE.alca}</button>
       <span class="cl-pos" aria-hidden="true">${pos}</span>

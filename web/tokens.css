@@ -161,8 +161,10 @@
   --borda-sutil: #1c1c1c14;
   --divisoria: #1c1c1c0f;
   --surface-elevated: #ffffff;
-  /* ADR-167 (Paper): o fundo do painel do bot, um tom acima da conversa. */
-  --surface-chrome: #ffffff;
+  /* ADR-167 (Paper): o fundo do painel do bot. Desde 2026-11-20 (referência: Grok) é o mesmo #fcfcfc da conversa, para os
+     cartões do painel (--surface-elevated, branco) se destacarem um tom acima do fundo; no escuro o painel já era mais
+     escuro que os cartões. */
+  --surface-chrome: #fcfcfc;
   /* ADR-167 (Paper 07/08): o véu do modal (Configurações, criar bot) e o da paleta ⌘K, mais leve. */
   --veu-modal: #00000080;
   --veu-paleta: rgba(0, 0, 0, .22);

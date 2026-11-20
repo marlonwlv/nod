@@ -105,14 +105,14 @@
 .cl-conta-limite { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: var(--fs-corpo-2); }
 .cl-conta-sec { display: flex; flex-direction: column; gap: 8px; }
 .cl-conta-sec > h3 { margin: 0; font-size: var(--fs-corpo-2); font-weight: 600; color: var(--ink); }
-.cl-conta-sec .cl-uso.cl-uso-linha { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 0; padding: 4px 14px; border: 1px solid var(--borda); border-radius: var(--raio-12, 12px); }
+.cl-conta-sec .cl-uso.cl-uso-linha { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 0; padding: 4px 14px; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12, 12px); background: var(--surface-elevated); }
 .cl-conta-sec .cl-uso-linha .cu-jan { padding: 8px 0; gap: 14px; }
 .cl-conta-sec .cl-uso-linha .cu-jan + .cu-jan { border-top: 1px solid var(--borda-sutil); }
 .cl-conta-sec .cl-uso-linha .cu-cab > span { width: 120px; text-transform: none; font-size: var(--fs-corpo-2); color: var(--ink); }
 .cl-conta-sec .cl-uso-linha .cu-barra { flex: 1; width: auto; }
 .cl-conta-sec .cl-uso-linha .cu-sub { display: block; order: 3; width: 150px; margin: 0; text-align: right; font-size: 12px; color: var(--ink-3); }
 .cl-conta-nota { margin: 0; font-size: 12px; color: var(--ink-3); }
-.cl-maq-lista { list-style: none; margin: 0; padding: 0; border: 1px solid var(--borda); border-radius: var(--raio-12, 12px); }
+.cl-maq-lista { list-style: none; margin: 0; padding: 0; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12, 12px); background: var(--surface-elevated); }
 .cl-maq-linha { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
 .cl-maq-linha + .cl-maq-linha { border-top: 1px solid var(--borda-sutil); }
 .cl-maq-linha > svg { flex: none; width: 15px; height: 15px; color: var(--ink-2); }
@@ -128,7 +128,7 @@
 /* Jornadas da IA (Paper A1/A1b/A2/A3, C2, 2026-11-19): na Nova conta, os fornecedores numa lista que cresce para baixo
    (rádio à esquerda, "em breve" numa linha só); depois do Conectar, o escolhido recolhe; cada máquina com a trilha
    Instalar · Conta · Teste e o login embaixo; no fim, o lugar da conta na fila. */
-.cl-nova-pag .cl-provs { flex-direction: column; gap: 0; border: 1px solid var(--borda); border-radius: 12px; overflow: hidden; }
+.cl-nova-pag .cl-provs { flex-direction: column; gap: 0; border: 1px solid var(--borda-sutil); border-radius: 12px; background: var(--surface-elevated); overflow: hidden; }
 .cl-nova-pag .cl-prov { border: 0; border-radius: 0; padding: 10px 14px; }
 .cl-nova-pag .cl-prov + .cl-prov, .cl-nova-pag .cl-prov-breve { border-top: 1px solid var(--borda-sutil); }
 .cl-nova-pag .cl-prov.ativo { border: 0; padding: 10px 14px; background: var(--hover); }
@@ -172,7 +172,13 @@
 /* Revisão contra o Paper (2026-11-20). G1: a coluna do estado com largura fixa (cada linha é uma grade própria, e o
    "auto" desalinhava o uso entre as linhas); o ponto antes do estado; a alça só no hover; o pé com "Em breve" e o
    "Como o nod troca de conta". */
-.cl-lista .cl-linha.cl-linha-g1 { grid-template-columns: 16px 12px 28px minmax(0, 1fr) 128px 228px 16px; }
+/* Modal de 900 px (2026-11-20): uso 112 e a direita 196 (o chip mais longo, "No limite até sex 05:00", mais o toggle);
+   o nome fica com o resto e corta com reticências em vez de passar por cima do uso. */
+.cl-lista .cl-linha.cl-linha-g1 { grid-template-columns: 16px 12px 28px minmax(0, 1fr) 112px 196px 16px; }
+.cl-linha-g1 .cl-nome-bt { display: block; min-width: 0; overflow: hidden; }
+.cl-linha-g1 .cl-nome-bt b { display: block; overflow: hidden; text-overflow: ellipsis; }
+.cl-linha-g1 .cl-nome > :not(.cl-nome-bt) { flex: none; }
+.cl-linha-g1 .cl-ident { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-linha-g1 .cl-nome { flex-wrap: nowrap; min-width: 0; }
 .cl-linha-g1 .cl-dir { justify-content: flex-end; flex-wrap: nowrap; max-width: none; }
 .cl-linha-g1 .cl-alca { opacity: 0; transition: opacity .12s; }

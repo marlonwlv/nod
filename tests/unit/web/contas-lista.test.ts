@@ -110,6 +110,13 @@ describe("lista única de contas (ADR-102)", () => {
     expect(estadoDaConta(sem("sem_acesso"), x, null)).toEqual(["e-erro", "Sem acesso"]);
     const metade = { ...PESSOAL, maquinas: [PESSOAL.maquinas[0]!, { ...PESSOAL.maquinas[1]!, estado: "sem_login" as const }] };
     expect(estadoDaConta(metade, x, null)).toEqual(["e-aviso", "Falta entrar em 1"]);
+    // Na linha, o "Entrar" acompanha só o "Login venceu" (Paper G1); o "Falta entrar" leva à conta aberta.
+    const naVm = (estado: "pronta" | "sem_login") => ({ maquinaId: VM, estado, logadaEm: AGORA });
+    const linhaDe = (gpt: typeof GPT) => renderListaDeContas(ctx({ contas: { ...CONTAS, contas: [gpt] } }));
+    expect(linhaDe({ ...GPT, maquinas: [{ ...GPT.maquinas[0]!, ...naVm("sem_login") }] })).toContain(`data-act="cl-entrar" data-id="${GPT.id}" data-maquina="${VM}">Entrar<`);
+    const faltaUma = linhaDe({ ...GPT, maquinas: [{ ...GPT.maquinas[0]!, maquinaId: MAC, estado: "pronta" }, { ...GPT.maquinas[0]!, ...naVm("sem_login") }] });
+    expect(faltaUma).toContain("Falta entrar em 1");
+    expect(faltaUma).not.toContain('data-act="cl-entrar"');
     expect(estadoDaConta(PESSOAL, x, PESSOAL.id)[0]).toBe("e-uso");
     expect(estadoDaConta(PESSOAL, x, GPT.id)).toEqual(["e-disp", "Disponível"]);
     expect(estadoDaConta({ ...LUMEN, noLimiteAte: null }, x, null)).toEqual(["e-fora", "Fora da fila"]);

@@ -93,7 +93,9 @@
 .espaco-conteudo .tela { margin: 0; padding: 0; }
 .espaco-conteudo .espaco-secao > h2, .espaco-conteudo .tela-cab h1, .espaco-conteudo .tela > h1 { margin: 0 0 6px; font-size: var(--fs-titulo-1); font-weight: 600; letter-spacing: -.4px; }
 .espaco-conteudo .intro { margin: 0 0 18px; font-size: var(--fs-corpo); }
-.espaco-cartao { border: 1px solid var(--line); border-radius: var(--raio-14); overflow: hidden; }
+/* Cartão sobre o fundo (2026-11-20, referência: Grok): um tom mais claro que a superfície (--surface-elevated sobre
+   --surface, nos dois temas) e borda sutil — o contraste vem da cor, não de uma linha forte. Vale para todo cartão do DS. */
+.espaco-cartao { border: 1px solid var(--borda-sutil); border-radius: var(--raio-14); background: var(--surface-elevated); overflow: hidden; }
 .espaco-ia { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
 .espaco-ia > div { flex: 1; min-width: 0; }
 .espaco-ia b { display: block; font-size: var(--fs-corpo); font-weight: 500; }
