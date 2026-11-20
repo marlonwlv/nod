@@ -1,0 +1,86 @@
+/**
+ * O navegador do bot (ADR-190): o que a web e o servidor trocam sobre ele. Só tipos e `as const`.
+ */
+
+/** Onde o Chrome do bot roda. "mac" = o computador da pessoa (app do nod); "nod" = o servidor; "maquina" = uma máquina
+ * sempre ligada da pessoa (Linux, motor), pelo nome que ela deu. */
+export type LugarNavegador =
+  | { tipo: "mac"; nome: string }
+  | { tipo: "nod" }
+  | { tipo: "maquina"; maquinaId: string; nome: string };
+
+/** O estado da vista (D3): cada um tem uma saída na tela. */
+export const ESTADOS_NAVEGADOR = ["desligado", "ligando", "conectando", "ao_vivo", "rede_fraca", "terminou", "pausa", "erro"] as const;
+export type EstadoNavegador = (typeof ESTADOS_NAVEGADOR)[number];
+
+/** Quem mexe (D4): o bot, a pessoa, ou o bot esperando a pessoa (login, captcha, aprovação). */
+export const CONTROLES_NAVEGADOR = ["bot", "soltando", "pessoa", "precisa_de_voce"] as const;
+export type ControleNavegador = (typeof CONTROLES_NAVEGADOR)[number];
+
+export type AbaNavegador = {
+  id: string;
+  titulo: string;
+  url: string;
+  ativa: boolean;
+  carregando: boolean;
+  /** Página sem https ("Não seguro"). */
+  inseguro: boolean;
+};
+
+/** Os avisos do site (D2, D): uma faixa fina entre o cabeçalho e a vista, um por vez. */
+export const TIPOS_AVISO_NAVEGADOR = ["download", "pergunta", "permissao", "precisa_de_voce", "janela_nova"] as const;
+export type TipoAvisoNavegador = (typeof TIPOS_AVISO_NAVEGADOR)[number];
+export type AvisoNavegador = { tipo: TipoAvisoNavegador; texto: string; acao: string | null; em: number };
+
+/** O passo que o bot está dando (D2, C): desenha o anel, o cursor com o nome e a ondinha. Coordenadas da página. */
+export type PassoNavegador = {
+  tipo: "mirar" | "clicar" | "digitar" | "rolar" | "esperar" | "ler";
+  frase: string;
+  caixa: { x: number; y: number; w: number; h: number } | null;
+  em: number;
+};
+
+/** Pedido aberto para a pessoa: login (L), ajuda (captcha, SMS) ou aprovação no ponto sem volta (A1). */
+export type PedidoDaVistaNavegador =
+  | { tipo: "login"; decisaoId: string; site: string; motivo: string }
+  | { tipo: "ajuda"; decisaoId: string; motivo: string }
+  | { tipo: "aprovacao"; decisaoId: string; pergunta: string; botao: string; touchId: boolean };
+
+/** A gravação de "Ensinar uma tarefa" (T). */
+export type GravacaoNavegador = { desde: number; passos: readonly string[] };
+
+export type VistaNavegador = {
+  agenteId: string;
+  estado: EstadoNavegador;
+  controle: ControleNavegador;
+  lugar: LugarNavegador;
+  abas: readonly AbaNavegador[];
+  aviso: AvisoNavegador | null;
+  passo: PassoNavegador | null;
+  pedido: PedidoDaVistaNavegador | null;
+  gravacao: GravacaoNavegador | null;
+  /** Segredo na página (L3): a vista some e a leitura do bot trava até a página mudar. */
+  segredoNaPagina: boolean;
+  /** Quando o bot terminou (D3, 5) ou parou de mexer (pausa em 10 min). */
+  atividadeEm: number;
+  erro: { causa: string; em: number } | null;
+  /** Tamanho da tela do Chrome (a vista mantém a proporção). */
+  viewport: { w: number; h: number };
+};
+
+/** Quadros do canal ao vivo, servidor → web (JSON por WebSocket). */
+export type QuadroAoVivoNavegador =
+  | { t: "quadro"; seq: number; jpeg: string; w: number; h: number }
+  | { t: "vista"; vista: VistaNavegador }
+  | { t: "fim"; motivo: string };
+
+/** Entrada da pessoa no controle, web → servidor (coordenadas já na escala do viewport). */
+export type EntradaNavegador =
+  | { t: "mouse"; evento: "mousePressed" | "mouseReleased" | "mouseMoved" | "mouseWheel"; x: number; y: number; botao?: "left" | "right" | "middle"; cliques?: number; dx?: number; dy?: number; modificadores?: number }
+  | { t: "tecla"; evento: "keyDown" | "keyUp" | "char"; tecla?: string; codigo?: string; texto?: string; modificadores?: number };
+
+/** Escolha da pessoa sobre onde o bot continua com o Mac desligado (N). */
+export type EscolhaLugarNavegador = { continuaSemMac: boolean; maquinaId: string | null; soNaMaquina: boolean };
+
+/** Habilidade aprendida com "Ensinar uma tarefa". */
+export type TarefaEnsinada = { id: string; nome: string; passos: readonly string[]; criadaEm: number };
