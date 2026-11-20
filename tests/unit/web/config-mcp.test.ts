@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { configDoCliente, renderMcp } from "../../../web/telas/config-mcp.ts";
 
@@ -24,5 +25,10 @@ describe("Configurações › Geral › Conectar por MCP", () => {
 
   it("sem token nenhum, o formulário de gerar já vem aberto", () => {
     expect(renderMcp({ tokens: { endpoint: "x", tokens: [] }, emitido: null }, ui)).toContain('data-form="gerar-token-mcp"');
+  });
+
+  it("no celular, o nome e Gerar token têm alvo de toque de 44 px", () => {
+    const css = readFileSync(new URL("../../../web/configuracoes.css", import.meta.url), "utf8");
+    expect(css).toContain(".cfg-chave-form input, .cfg-chave-form .bt { min-height: 44px; }");
   });
 });

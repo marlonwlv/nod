@@ -169,6 +169,9 @@ describe("ações do nod sobre primitivas (provedor de fora)", () => {
     await ex.executar(ref, { tipo: "gravar_texto", caminho: "notas/a.txt", texto: "segunda", revisao: lido.texto!.revisao });
     await expect(ex.executar(ref, { tipo: "gravar_texto", caminho: "notas/a.txt", texto: "terceira", revisao: lido.texto!.revisao })).rejects.toMatchObject({ detalhe: expect.stringMatching(/arquivo_alterado/) });
     expect(readFileSync(join(raiz, "notas/a.txt"), "utf8")).toBe("segunda");
+    const noLimite = "a".repeat(131071) + "😀";
+    await ex.executar(ref, { tipo: "gravar_texto", caminho: "notas/limite.txt", texto: noLimite, revisao: "novo" });
+    expect(readFileSync(join(raiz, "notas/limite.txt"), "utf8")).toBe(noLimite);
 
     // Binário maior que um pedaço: vários comandos, cada um abaixo do MAX_ARG_STRLEN, e o arquivo sai igual.
     const grande = Buffer.alloc(150_000, 7);
@@ -534,6 +537,35 @@ describe("seletor de provedor (o DriverComputador de sempre)", () => {
     expect((await driver.executar(outro, { tipo: "observar" }, ESCOPO)).saida).toBe("docker");
     expect(await driver.provedorDe(ID, ESCOPO)).toBe("orgo");
     expect([...await driver.ligados()].sort()).toEqual(["docker-ligado", "orgo-ligado"]);
+  });
+
+  it("o display de um provedor externo entra na foto de ligados até ser parado (ociosidade)", async () => {
+    const eventos: string[] = [];
+    const orgo = { ...provedorFalso("orgo", eventos), ligados: async () => new Set<string>() };
+    const { config } = configDeProvedores({ NOD_COMPUTADOR_PROVEDOR: "orgo" });
+    const driver = criarDriverPorProvedor({ config, provedores: { orgo } });
+    expect([...await driver.ligados()]).toEqual([]);
+    await driver.iniciar(ID, ESCOPO);
+    expect([...await driver.ligados()]).toEqual([ID]);
+    await driver.parar(ID, ESCOPO);
+    expect([...await driver.ligados()]).toEqual([]);
+  });
+
+  it("ligar duas vezes juntas, com a troca Docker → Orgo no meio, termina só no Orgo", async () => {
+    const eventos: string[] = [];
+    let qual: "docker" | "orgo" = "docker";
+    let soltar: () => void = () => undefined;
+    const docker = { ...provedorFalso("docker", eventos), iniciar: async (r: Parameters<ProvedorDeComputador["iniciar"]>[0]) => { await new Promise<void>((ok) => { soltar = ok; }); eventos.push(`docker:iniciar:${r.id}`); } };
+    const { config } = configDeProvedores({ NOD_COMPUTADORES: "docker" });
+    const driver = criarDriverPorProvedor({ config: { ...config, get global() { return qual; } } as typeof config, provedores: { docker, orgo: provedorFalso("orgo", eventos) } });
+    const primeiro = driver.iniciar(ID, ESCOPO);
+    await new Promise((ok) => setTimeout(ok, 0));
+    qual = "orgo";
+    const segundo = driver.iniciar(ID, ESCOPO);
+    await new Promise((ok) => setTimeout(ok, 0));
+    soltar();
+    await Promise.all([primeiro, segundo]);
+    expect(eventos).toEqual([`docker:iniciar:${ID}`, `docker:parar:${ID}`, `orgo:iniciar:${ID}`]);
   });
 
   it("dois bots simultâneos mantêm displays, perfis e quadros isolados", async () => {

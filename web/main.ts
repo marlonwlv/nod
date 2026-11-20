@@ -203,6 +203,7 @@ import { blocosAoVivo, blocosDoHistorico, botaoDoPainel, pensarFechado, botoesDo
 import { criarArtefatosVivos } from "./telas/artefatos-vivos.ts";
 import { criarDiagramasVivos } from "./telas/diagramas-vivos.ts";
 import { instalarDicaDeLink } from "./lib/dica-link.ts";
+import { umaPorVez } from "./lib/uma-por-vez.ts";
 import { inventarioEmUso, motorDesatualizado, situacaoMotorFora } from "./telas/frota.ts";
 import { ehIa, fraseDoMotivoDaNota, inventarioDaIa, pedeInstalar } from "./telas/ia-fora.ts";
 import { renderRotinas } from "./telas/rotinas.ts";
@@ -9023,8 +9024,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),
   "parar-sala": (el) =>
     agir(async () => {
-      const faixa = await api!.pararSala(el.dataset.id ?? "");
+      // A conversa é a da tela no clique: quem troca de bot enquanto o Parar volta não leva a faixa da sala junto.
       const alvo = conversaAtual();
+      const faixa = await api!.pararSala(el.dataset.id ?? "");
       dispatch({ tipo: "faixa", faixa, conversaId: alvo?.conversaId ?? null });
       if (alvo) dispatch({ tipo: "invalidar", quais: [`conversa:${alvo.conversaId}`] });
     }),
@@ -9590,6 +9592,15 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   }),
 };
 
+const emitirChavePelaTela = umaPorVez(async (form: HTMLFormElement) => {
+  await agir(async () => {
+    const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
+    const emitida = await api!.emitirChave(nome);
+    form.reset();
+    dispatch({ tipo: "chave-emitida", emitida });
+  });
+});
+
 const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
   // NOD-94: o formulário do SSH e a senha do sudo (os valores já estão no controlador, pelo `input`).
   "instalar-ssh": () => agir(async () => { await instalarSsh.enviar(); focarNovo(); }),
@@ -9667,13 +9678,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
       form.reset();
       dispatch({ tipo: "mcp-token-emitido", emitido });
     }),
-  "emitir-chave": (form) =>
-    agir(async () => {
-      const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
-      const emitida = await api!.emitirChave(nome);
-      form.reset();
-      dispatch({ tipo: "chave-emitida", emitida });
-    }),
+  "emitir-chave": async (form) => { await emitirChavePelaTela(form); },
   "criar-agente": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() || undefined;

@@ -111,6 +111,13 @@ describe("o cartão compacto do revisor (tela A3)", () => {
     expect(m.texto.endsWith("…")).toBe(true);
   });
 
+  it("não corta um emoji ao meio no limite do motivo", () => {
+    const m = motivoDoCartao([{ motivoManual: "revisor_pediu", justificativa: `${"a".repeat(158)}😀zz` }]);
+    expect(Array.from(m.texto)).toHaveLength(MOTIVO_NA_TELA_MAX);
+    expect(m.texto).toBe(`${"a".repeat(158)}😀…`);
+    expect(m.texto).not.toContain("�");
+  });
+
   it("'Sempre permitir' só com sempreServe (apagar de app em turno limpo): ausente no terminal, no envio, no contaminado e no falhou", () => {
     const app = (extra: Partial<ItemAprov> = {}) => itemAprov({ destino: { conector: "clickup", ferramenta: "delete_task", argumentos: { task_id: "42" } }, textoOriginal: "Apagar a task 42", textoFinal: "Apagar a task 42", justificativa: "2 delas foram editadas esta semana", ...extra });
     const serve = naConversa(estadoCom([cartao([app({ sempreServe: true })], { decisao: { ...cartao([]).decisao, frase: "Ze quer apagar 14 planilhas" } })]));

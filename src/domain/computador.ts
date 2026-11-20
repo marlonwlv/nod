@@ -162,11 +162,19 @@ export function resumirDetalhe(texto: string | null | undefined): string | null 
   return redigirECortar(redigida, 200);
 }
 
+/** Os tetos anunciados ao bot são em caracteres; `length` conta unidades UTF-16 e recusaria um emoji no limite. */
+export function passaDeCaracteres(s: string, max: number): boolean {
+  if (s.length <= max) return false;
+  let n = 0;
+  for (const _ of s) if (++n > max) return true;
+  return false;
+}
+
 export function validarAcaoComputador(valor: unknown): AcaoComputador {
   if (!valor || typeof valor !== "object" || Array.isArray(valor)) throw new ErroDeDominio("entrada_invalida");
   const a = valor as Record<string, unknown>;
   const texto = (k: string, max = 8000) => {
-    if (typeof a[k] !== "string" || (a[k] as string).length > max) throw new ErroDeDominio("entrada_invalida");
+    if (typeof a[k] !== "string" || passaDeCaracteres(a[k] as string, max)) throw new ErroDeDominio("entrada_invalida");
     return a[k] as string;
   };
   const numero = (k: string, min: number, max: number) => {
@@ -236,6 +244,8 @@ export function validarAcaoComputador(valor: unknown): AcaoComputador {
     case "gravar_arquivo": {
       const base64 = texto("base64", 699052);
       if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) throw new ErroDeDominio("entrada_invalida");
+      const bytes = base64.length / 4 * 3 - (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+      if (bytes > 524_288) throw new ErroDeDominio("entrada_invalida");
       return { tipo: a.tipo, caminho: caminho(), base64 };
     }
     case "anexar": return { tipo: a.tipo, quadro: quadro(), caminho: caminho() };

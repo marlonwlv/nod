@@ -93,7 +93,7 @@ import { motivoEmPortugues } from "../../domain/redacao.ts";
 import { lembrar } from "../../use-cases/lembrar.ts";
 import { passar } from "../../use-cases/passar.ts";
 import { semNovidade } from "../../use-cases/sem-novidade.ts";
-import { pedirAcesso } from "../../use-cases/pedir-acesso.ts";
+import { pedirAcessoDoBot } from "../../use-cases/pedir-acesso.ts";
 import { pedirCredencial } from "../../use-cases/pedir-credencial.ts";
 import { avisarPessoa } from "../../use-cases/avisar-pessoa.ts";
 import { mostrarCartoes } from "../../use-cases/mostrar-cartoes.ts";
@@ -466,7 +466,7 @@ export function comporApp(o: OpcoesCompor): App {
     return tenants.get(pessoaId) ?? null;
   }
 
-  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, pausarTodasRotinasPeloAgente, reativarLoteRotinasPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, decisoesNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
+  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso: pedirAcessoDoBot, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, pausarTodasRotinasPeloAgente, reativarLoteRotinasPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, decisoesNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
 
   // NOD-351: a situação da conta para abrir_conta, lida na transação do turno (sem outra conexão do pool). Liga tarde: as
   // contas nascem depois, sobre `dentro`; false = desligadas, e abrir_conta volta `indisponivel`.

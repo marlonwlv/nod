@@ -146,9 +146,14 @@ async function principal(): Promise<number> {
     await avaliar(cdp, `document.querySelector("#espaco [data-act=fechar-espaco]")?.click()`);
     await espera(500);
 
-    // O + fica no topo da gaveta (a lista de bots), que no celular abre pelo ☰.
-    await avaliar(cdp, clicar("[data-act=abrir-bots]"));
-    await espera(500);
+    // Fechar Configurações devolve exatamente à tela anterior. Se ela já era a lista, clicar no voltar de uma conversa
+    // escondida pode disparar uma navegação tardia e tirar o + do DOM entre a busca e o toque longo.
+    const maisNaTela = await avaliar<boolean>(cdp, `!!document.querySelector("[data-segurar=segurar-mais]")`);
+    if (!maisNaTela) {
+      await avaliar(cdp, clicar("[data-act=abrir-bots]"));
+      await ate(cdp, `document.querySelector("[data-segurar=segurar-mais]")`, "o + da lista de bots");
+      await espera(500);
+    }
     await segurarMais(cdp);
     await ate(cdp, `document.querySelector("dialog#folha-criar-bot[open]")`, "a folha de criar bot");
     await espera(400);

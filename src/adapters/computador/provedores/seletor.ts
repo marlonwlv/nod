@@ -48,7 +48,20 @@ export function criarDriverPorProvedor(o: OpcoesSeletor): DriverPorProvedor {
     if (!p.executar && !p.primitivas) throw new Error(`provedor ${id} sem plano de dados (executar ou primitivas)`);
   }
   /** Quem ligou cada computador neste processo (para desligar no antigo quando a escolha muda). */
-  const ligadoEm = new Map<string, IdProvedorComputador>();
+  /** O que este processo ligou: o provedor e, fora das telas (que já contam em `telasLigadas`), o id nosso para o varredor. */
+  const ligadoEm = new Map<string, { id: string | null; provedor: IdProvedorComputador }>();
+  /** Liga/desliga em série por computador: uma resposta antiga nunca sobrescreve a escolha mais recente. */
+  const operacoes = new Map<string, Promise<void>>();
+  async function emSerie(chave: string, executar: () => Promise<void>): Promise<void> {
+    const anterior = operacoes.get(chave) ?? Promise.resolve();
+    const atual = anterior.catch(() => undefined).then(executar);
+    operacoes.set(chave, atual);
+    try {
+      await atual;
+    } finally {
+      if (operacoes.get(chave) === atual) operacoes.delete(chave);
+    }
+  }
   const telasLigadas = new Set<string>();
   const chaveDe = (id: string, escopo?: Escopo) => escopo ? `${escopo.tenantId}:${escopo.pessoaId}:${id}` : `sem-escopo:${id}`;
 
@@ -97,29 +110,36 @@ export function criarDriverPorProvedor(o: OpcoesSeletor): DriverPorProvedor {
       return { disponivel: true, ativo: s?.estado === "ligado", motivo: a.motivo, reinicios: s?.reinicios ?? null, ...(a.limite ? { limite: a.limite } : {}) };
     },
     async iniciar(id, escopo) {
-      const { p, ref, qual } = await provedorDe(id, escopo);
-      const chave = chaveDe(ref.id, escopo);
-      const antes = ligadoEm.get(chave);
-      if (antes && antes !== p.id) {
-        log("info", "computador_provedor_trocado", { computador_id: ref.id, de: antes, para: p.id });
-        await o.provedores[antes]?.parar({ id: ref.id, ...(escopo ? { escopo } : {}) }).catch(() => undefined);
-      }
-      await p.iniciar(ref);
-      ligadoEm.set(chave, qual);
-      if (ref.telaId) telasLigadas.add(chaveDe(ref.telaId, escopo));
+      // QA (rodada 28): dois "ligar" juntos liam o mapa vazio, ligavam Docker e Orgo para o mesmo bot e a resposta
+      // antiga ficava como estado final. Em série, o segundo vê o primeiro e desliga o provedor anterior antes.
+      await emSerie(chaveDe(id, escopo), async () => {
+        const { p, ref, qual } = await provedorDe(id, escopo);
+        const chave = chaveDe(ref.id, escopo);
+        const antes = ligadoEm.get(chave);
+        if (antes && antes.provedor !== p.id) {
+          log("info", "computador_provedor_trocado", { computador_id: ref.id, de: antes.provedor, para: p.id });
+          await o.provedores[antes.provedor]?.parar({ id: ref.id, ...(escopo ? { escopo } : {}) }).catch(() => undefined);
+          ligadoEm.delete(chave);
+        }
+        await p.iniciar(ref);
+        ligadoEm.set(chave, { id: ref.telaId ? null : ref.id, provedor: qual });
+        if (ref.telaId) telasLigadas.add(chaveDe(ref.telaId, escopo));
+      });
     },
     async parar(id, escopo) {
-      const { p, ref } = await provedorDe(id, escopo);
-      await p.parar(ref);
-      if (ref.telaId) {
-        telasLigadas.delete(chaveDe(ref.telaId, escopo));
-        return;
-      }
-      const chave = chaveDe(ref.id, escopo);
-      const antes = ligadoEm.get(chave);
-      if (antes && antes !== p.id) await o.provedores[antes]?.parar(ref).catch(() => undefined);
-      ligadoEm.delete(chave);
-      executores.get(p.id)?.esquecer(ref);
+      await emSerie(chaveDe(id, escopo), async () => {
+        const { p, ref } = await provedorDe(id, escopo);
+        await p.parar(ref);
+        if (ref.telaId) {
+          telasLigadas.delete(chaveDe(ref.telaId, escopo));
+          return;
+        }
+        const chave = chaveDe(ref.id, escopo);
+        const antes = ligadoEm.get(chave);
+        if (antes && antes.provedor !== p.id) await o.provedores[antes.provedor]?.parar(ref).catch(() => undefined);
+        ligadoEm.delete(chave);
+        executores.get(p.id)?.esquecer(ref);
+      });
     },
     async executar(id, acao, escopo, autor) {
       const { p, ref } = await provedorDe(id, escopo);
@@ -142,6 +162,10 @@ export function criarDriverPorProvedor(o: OpcoesSeletor): DriverPorProvedor {
       const todos = new Set<string>();
       for (const p of Object.values(o.provedores)) for (const id of await p.ligados().catch(() => new Set<string>())) todos.add(id);
       for (const id of telasLigadas) todos.add(id.slice(id.lastIndexOf(":") + 1));
+      // QA (rodada 28): um provedor externo (Orgo) não lista as máquinas sem o escopo e a chave da pessoa, e o varredor
+      // de ociosidade usa esta foto global antes de percorrer os escopos: sem isto o display do Orgo ficava ligado (e
+      // cobrando) para sempre. Entra também o que este processo ligou; `parar` é idempotente e tira a marca.
+      for (const ligado of ligadoEm.values()) if (ligado.id) todos.add(ligado.id);
       return todos;
     },
   };

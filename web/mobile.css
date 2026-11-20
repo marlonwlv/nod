@@ -29,11 +29,17 @@
   .gvn-acao-texto, .gv-aba { min-height: 44px; }
   .gvn-nome { min-height: 44px; }
   .gvn-sub { min-height: 44px; }
+  /* QA 2026-11-17: rebaixar ou revogar um acesso é uma ação sensível; os dois controles precisam do alvo inteiro. */
+  .detalhes .bt.link.sm, .detalhes .gv-bt { min-height: 44px; }
   /* Revisão da NOD-349: a chave da rotina (30×18) ganha área de toque de 44 px sem mudar o desenho; + Nova também. */
   .detalhe-rotina .chave::after { content: ""; position: absolute; inset: -13px -7px; }
   .gv-secao-cab .gv-link { min-height: 44px; }
   .composer-chip { min-height: 44px; }
-
+  /* QA de 2026-11-17: a fila "Sua vez" ainda usava botões de 40 px e resumos de 24 px no celular. */
+  .tela-sua-vez button, .tela-sua-vez summary {
+    box-sizing: border-box; min-width: 44px; min-height: 44px;
+  }
+  .tela-sua-vez summary { display: flex; align-items: center; }
   html, body { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
   /* O cinza do toque do iOS por cima de cada botão: o :active de cada controle já responde. */
   body { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
@@ -192,6 +198,9 @@
   .presenca { display: none; }
   .cab-acoes { flex: none; flex-wrap: nowrap; gap: 4px; margin-left: 0; }
   .cab-acoes .bt { min-width: 44px; min-height: 44px; padding: 8px 10px; }
+  .tela-nova-sala .opcao { min-height: 44px; padding: 6px 0; box-sizing: border-box; }
+  .tela-nova-sala [data-act="criar-sala"] { min-height: 44px; }
+  .bot-dialogo .acoes .bt { min-width: 44px; min-height: 44px; }
   /* NOD-381 (protótipo nod-381, aprovado em 2026-10-27): o topo da conversa flutua sobre o chat — o ‹ num círculo de vidro
      à esquerda e a pílula do bot centrada (44 px, avatar 28, nome 15/600 e a presença em 12 px embaixo, sem ponto nem ›).
      Embaixo deles o texto esmaece (--surface sólido até o meio dos botões → transparente em sa+76). Só os botões recebem
@@ -205,6 +214,12 @@
   .cabecalho.cabecalho-pilula .voltar-bots { position: absolute; left: max(12px, env(safe-area-inset-left)); top: calc(env(safe-area-inset-top) + 4px);
     margin: 0; border: 1px solid var(--line); border-radius: 50%; color: var(--ink);
     background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-pop); }
+  /* QA-110: o "Recentes" é o atalho do leitor de tela para o segurar do ‹; com teclado (Tab) ele recebe foco e, recortado em
+     1×1 px pelo .sr-only, o anel some. Focado pelo teclado, aparece como pílula logo abaixo do ‹, sem empurrar o topo. */
+  .cabecalho.cabecalho-pilula .abrir-recentes-leitor:focus-visible { position: absolute !important; left: max(12px, env(safe-area-inset-left));
+    top: calc(env(safe-area-inset-top) + 52px); width: auto !important; height: 44px !important; min-width: 44px; padding: 0 16px !important;
+    margin: 0 !important; overflow: visible !important; clip: auto !important; white-space: nowrap !important; border: 1px solid var(--line) !important;
+    border-radius: 22px; color: var(--ink); font: inherit; font-size: 15px; background: var(--surface); box-shadow: var(--shadow-pop); }
   .cabecalho.cabecalho-pilula .pilula-bot { min-height: 44px; height: 44px; max-width: min(254px, 100%); gap: 8px; padding: 0 16px 0 8px; border-radius: 22px;
     background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-pop); }
   .cabecalho.cabecalho-pilula .pilula-bot:hover, .cabecalho.cabecalho-pilula .pilula-bot:focus-visible { padding-right: 16px; }
@@ -237,6 +252,8 @@
   .bubble { font-size: 15px; }
   .msg-handoff, .msg-peer, .msg-rotina, .msg-consentimento, .connection-card, .card-pasta, .bv-cartao,
   .liberar-card { margin-left: 0; max-width: 100%; }
+  .workspace-dialogo button { min-width: 44px; min-height: 44px; }
+  .workspace-dialogo input { min-height: 44px; }
   .bubble pre, .msg-peer pre { max-width: 100%; }
   /* As ações da fala (reagir, responder, reportar e ⋯; ADR-113) só aparecem depois de um toque nela (web/lib/gaveta-bots.ts),
      dentro da coluna, nunca ao lado, com alvos de 44 px: no toque, o ⋯ fica sempre à vista junto das outras. */
@@ -394,6 +411,8 @@
   .espaco-nav { width: 100%; max-height: 42%; overflow-y: auto; padding: 10px 10px 6px; border-right: 0; border-bottom: 1px solid var(--line); }
   .espaco-nav h1 { padding: 12px 12px 6px; font-size: 20px; }
   .espaco-conteudo { padding: 20px 16px 32px; }
+  /* QA 2026-11-16: sondar e trocar o harness são ações isoladas; o padding compacto do desktop deixava 35 px de altura. */
+  .espaco-conteudo .inventario .bt.sm { min-width: 44px; min-height: 44px; }
 
   /* ---- Telas e formulários: uma coluna ---- */
   .tela { min-width: 0; }
@@ -420,6 +439,8 @@
   .form-dupla { grid-template-columns: minmax(0, 1fr); }
   .apps-grid, .cartoes { grid-template-columns: minmax(0, 1fr); }
   .mac-agora { grid-template-columns: minmax(0, 1fr); }
+  /* QA de 2026-11-17: as ações da rotina e as decisões do diálogo de outra execução mediam 32–40 px. */
+  .tela-rotinas .acoes .bt, .bot-dialogo .acoes .bt { min-height: 44px; }
   dialog { max-width: calc(100vw - 20px); max-height: calc(var(--altura-visivel, 100dvh) - 24px); overflow: auto; }
   .bot-menu, .bot-menu.menu-conta { max-width: calc(100vw - 24px); }
   .raio-x { width: 100vw; }
@@ -476,6 +497,18 @@
   .atv-filtro { min-height: 44px; padding: 8px 14px; }
   .atv-botao { min-height: 44px; }
   .atv-dia { min-height: 44px; }
+  /* QA de 2026-11-17: entrar numa conta é uma jornada sensível e os links, código e recuperação herdavam a densidade
+     do desktop (16–42 px). O formulário empilha no espaço estreito da linha para o campo não encolher a 26 px. */
+  .cl-login-cab .ob-link,
+  .cl-passos .cl-link,
+  .cl-passos .ia-codigo .ob-link,
+  .cl-terminal .ob-link,
+  .cl-login-acoes :is(.ob-link, .bt),
+  .cl-terminal-link,
+  .cl-codigo .bt { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+  .cl-codigo { flex-direction: column; }
+  .cl-codigo input { width: 100%; min-width: 44px; min-height: 44px; box-sizing: border-box; }
+  .cl-codigo .bt { width: 100%; }
   /* NOD-70: abas, Carregar mais, Exportar e Baixar com 44 px; os filtros das Decisões rolam de lado numa linha; a decisão
      aberta vira um cartão (folha) por cima da linha seguinte. */
   .atv-aba, .dec-baixar, .dec-mais .atv-link, .dec-exportar, .dec-detalhe .atv-link, .atv-revisor .atv-link[data-act="decisoes-negadas"] { min-height: 44px; }
@@ -717,6 +750,9 @@
   .cfg-celular .lc-switch::before { inset: -12px -5px; }
   .cfg-celular .lc-seletor { min-height: 44px; max-width: 46vw; }
   .cfg-celular .lc-link { min-height: 52px; }
+  /* QA 2026-11-16: Agentes tem o menu em cada linha e Restaurar nos excluídos; os dois precisam do alvo inteiro de toque. */
+  .cfg-celular .cfg-bot .cl-mais-bt { width: 44px; height: 44px; }
+  .cfg-celular .cfg-bot [data-act="restaurar-agente"] { min-height: 44px; }
 
   /* Feedback: o Enviar fica embaixo, à vista, logo acima do teclado (a coluna segue --altura-visivel). */
   .cfg-celular .cfg-fb { display: flex; flex-direction: column; min-height: 100%; }
@@ -852,4 +888,14 @@
   .ctc-tit-curto { display: inline; }
   .ctc-pedido:not(:empty) { display: block; max-width: 100%; margin: 0; font-size: 14px; line-height: 20px; text-align: center; color: #ffffffa8; } /* cor-fixa: sobre o fundo fixo da tela cheia */
   .ctc-sair { width: 44px; height: 44px; margin-right: -10px; }
+}
+
+/* QA 2026-11-20: o × que nega e fecha o cartão de aprovação tinha 24 px no toque; ganha 44 px sem mexer no topo do cartão. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .bt.aprov-fechar { width: 44px; height: 44px; min-height: 44px; margin: -10px -10px -10px auto; }
+}
+
+/* QA 2026-11-17: a chave crua aparece uma vez; copiar e confirmar precisam do alvo móvel inteiro. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .cfg-chave.chave-emitida .bt { min-width: 44px; min-height: 44px; }
 }

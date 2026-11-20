@@ -325,11 +325,12 @@ function folhaDoCelular(ctx: Ctx, lista: ListaRotinas): string {
   const l = linhaPorId(lista, ctx.ui.aberto);
   if (!l) return "";
   const r = l.dto;
+  const escolher = pausarAte(ctx, l);
   const parada = l.minha && r.bloqueio ? `<div class="ag-folha-parada">${botaoDaParada(r.bloqueio, "ag-bt ag-bt-pri")}</div>` : "";
   return `${veu}<div class="ag-folha" role="dialog" aria-modal="true" tabindex="-1" aria-label="${esc(titulo(r))}">
     <div class="ag-fcab">${mascote(l.bot)}<div><h3>${esc(titulo(r))}</h3><p class="ag-fquando">${esc(`${nomeDoBot(l)} · ${minuscula(r.resumo)}`)}</p></div></div>
     <div class="ag-folha-corpo"><p class="ag-frase">${esc(r.rotina.instrucao)}</p>${dados(ctx, r)}${ultimasVezes(ctx, l)}</div>
-    ${parada}${acoesDaRotina(ctx, l).map(item).join("")}
+    ${parada}${acoesDaRotina(ctx, l).map(item).join("")}${escolher ? `<div class="ag-folha-pausar">${escolher}</div>` : ""}
   </div>`;
 }
 

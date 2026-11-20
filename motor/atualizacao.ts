@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as esperar } from "node:timers/promises";
-import { ARQUIVOS_DO_MOTOR, ATUALIZACAO_PARADA, motorDiferente, proximoPasso, type Drenagem, type EstadoDaAtualizacao } from "../src/domain/atualizacao-do-motor.ts";
+import { ARQUIVOS_DO_COMPUTADOR, ARQUIVOS_DO_MOTOR, ATUALIZACAO_PARADA, DESTINOS_DO_COMPUTADOR, ESPERA_DEPOIS_DE_FALHAR_MS, manifestoComparavel, motorDiferente, proximoPasso, type Drenagem, type EstadoDaAtualizacao } from "../src/domain/atualizacao-do-motor.ts";
 import { log } from "../src/obs/log.ts";
 
 /**
@@ -33,11 +33,28 @@ export const ESPERA_DO_PUXAR_EM_VOO_MS = 30_000;
 export const TETO_SEM_PUXAR_MS = 2 * 60_000;
 export const MARCA_DA_ATUALIZACAO = "/etc/nod-motor/atualizar-sozinho";
 export const arquivoDoPedido = (pastaDoMotor: string) => join(pastaDoMotor, "atualizar");
+/** O script do root que troca os arquivos (a instalação o grava; só a reinstalação o muda). */
+export const ATUALIZADOR_DO_ROOT = "/usr/local/sbin/nod-motor-atualizar";
+/**
+ * O manifesto do último pedido ao root (assinatura + quando). O root apaga o pedido, este fica: o motor que volta do
+ * reinício ainda diferente do MESMO manifesto sabe que a troca não pegou e espera em vez de pedir de novo (2026-11-20).
+ */
+export const arquivoDoUltimoPedido = (pastaDoMotor: string) => join(pastaDoMotor, "atualizacao-pedida.json");
+const assinatura = (m: Readonly<Record<string, string>>) => createHash("sha256").update(JSON.stringify(Object.entries(m).sort())).digest("hex");
 
 export async function shaDosArquivos(dir: string): Promise<Record<string, string | null>> {
   const r: Record<string, string | null> = {};
   for (const nome of ARQUIVOS_DO_MOTOR) r[nome] = await readFile(join(dir, nome)).then((b) => createHash("sha256").update(b).digest("hex"), () => null);
   return r;
+}
+
+async function shaDoManifesto(dir: string, manifesto: Readonly<Record<string, string>>, dirComputador: string): Promise<Record<string, string | null>> {
+  const locais = await shaDosArquivos(dir);
+  for (const nome of ARQUIVOS_DO_COMPUTADOR) {
+    if (!(nome in manifesto)) continue;
+    locais[nome] = await readFile(join(dirComputador, DESTINOS_DO_COMPUTADOR[nome])).then((b) => createHash("sha256").update(b).digest("hex"), () => null);
+  }
+  return locais;
 }
 
 /** O servidor de onde o root baixa (gravado na instalação). */
@@ -65,6 +82,10 @@ export function iniciarAtualizacao(o: {
   url: string;
   /** A pasta dos arquivos do motor em execução (/opt/nod-motor/app). */
   dir: string;
+  /** A pasta dos processos do computador, atualizados junto quando aparecem no manifesto. */
+  dirComputador?: string;
+  /** O script do root (ATUALIZADOR_DO_ROOT): só os arquivos do computador que ele troca entram na comparação. */
+  atualizador?: string;
   pastaDoMotor: string;
   turnosRodando: () => number;
   /** ADR-131: dos turnos rodando, os que a pessoa espera agora (pool-lacos `turnosDaPessoa`). */
@@ -81,6 +102,8 @@ export function iniciarAtualizacao(o: {
   const buscar = o.buscar ?? fetch;
   let estado: EstadoDaAtualizacao = ATUALIZACAO_PARADA;
   let locais: Record<string, string | null> | null = null;
+  let textoDoAtualizador: string | null = null;
+  let conferiuUltimoPedido = false;
   let emCurso: Promise<void> | null = null;
   let ultimoMotivo = "";
   let rapido: ReturnType<typeof setInterval> | null = null;
@@ -100,13 +123,26 @@ export function iniciarAtualizacao(o: {
 
   async function executar(): Promise<void> {
     try {
-      locais ??= await shaDosArquivos(o.dir);
       const r = await buscar(`${o.url}/api/motor/manifesto`, { redirect: "error", signal: AbortSignal.timeout(15_000) }).catch(() => null);
       // Servidor fora ou antigo (sem a rota): fica como está, sem drenar.
       if (!r?.ok) return;
       const manifesto = (await r.json()) as { versao?: string; arquivos?: Record<string, string> };
       if (!manifesto.arquivos) return;
-      const diferente = motorDiferente(locais, manifesto.arquivos);
+      textoDoAtualizador ??= await readFile(o.atualizador ?? ATUALIZADOR_DO_ROOT, "utf8").catch(() => "");
+      const comparado = manifestoComparavel(manifesto.arquivos, textoDoAtualizador);
+      locais ??= await shaDoManifesto(o.dir, comparado, o.dirComputador ?? "/opt/nod-motor/computador");
+      const diferente = motorDiferente(locais, comparado);
+      if (!conferiuUltimoPedido) {
+        conferiuUltimoPedido = true;
+        const ultimo = await readFile(arquivoDoUltimoPedido(o.pastaDoMotor), "utf8").then((t) => JSON.parse(t) as { assinatura?: string; em?: number }, () => null);
+        if (diferente && ultimo?.assinatura === assinatura(comparado) && typeof ultimo.em === "number" && relogio() - ultimo.em < ESPERA_DEPOIS_DE_FALHAR_MS) {
+          // Voltou do reinício pedido e segue diferente do mesmo manifesto: a troca não pegou. Pedir de novo agora
+          // reiniciaria em laço; espera como numa falha do atualizador.
+          estado = { ...estado, falhouEm: ultimo.em };
+          const locaisAgora = locais;
+          log("aviso", "motor_atualizacao_sem_efeito", { versao_servidor: manifesto.versao ?? null, arquivos: Object.keys(comparado).filter((n) => locaisAgora[n] !== comparado[n]).join(" ") });
+        }
+      }
       const p = proximoPasso(estado, { agora: relogio(), diferente, turnosRodando: o.turnosRodando(), turnosDaPessoa: o.turnosDaPessoa() });
       if (p.estado.drenando !== estado.drenando) o.drenar(p.estado.drenando ? "fundo" : false);
       estado = p.estado;
@@ -122,6 +158,7 @@ export function iniciarAtualizacao(o: {
       o.drenar("tudo");
       await esperar(o.esperaDoPuxarMs ?? ESPERA_DO_PUXAR_EM_VOO_MS);
       if (o.turnosDaPessoa() > 0) { estado = { ...estado, pedidoEm: null }; o.drenar(nivel()); ajustarRitmo(); return; }
+      await writeFile(arquivoDoUltimoPedido(o.pastaDoMotor), `${JSON.stringify({ assinatura: assinatura(comparado), em: relogio() })}\n`, { mode: 0o600 });
       await writeFile(arquivoDoPedido(o.pastaDoMotor), `${JSON.stringify({ versao: manifesto.versao ?? null, em: relogio() })}\n`, { mode: 0o600 });
       // O root não reiniciou a tempo (atualizador lento ou fora): a fala da pessoa volta a sair enquanto o pedido espera.
       setTimeout(() => { if (estado.pedidoEm !== null) o.drenar(nivel()); }, o.tetoSemPuxarMs ?? TETO_SEM_PUXAR_MS).unref();

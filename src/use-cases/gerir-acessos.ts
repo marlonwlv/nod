@@ -63,6 +63,21 @@ function motivoNoChat(a: AcaoNoLote, modo: Parameters<typeof decidirPeloModo>[0]
   return d?.automatico ? { motivo: null, porRegra: { regra: d.regra, regraVersao: d.versao } } : { motivo: risco ?? "manual", porRegra: null };
 }
 
+const mesmaAcao = (a: AcaoNoLote, b: AcaoNoLote): boolean =>
+  a.tipo === b.tipo && (a.conector_id ?? null) === (b.conector_id ?? null) && (a.nivel_lote ?? null) === (b.nivel_lote ?? null) &&
+  (a.todos ?? false) === (b.todos ?? false) && (a.aplicar ?? null) === (b.aplicar ?? null) && (a.lote_id ?? null) === (b.lote_id ?? null) &&
+  [...(a.bots_ids ?? [])].sort().join(",") === [...(b.bots_ids ?? [])].sort().join(",");
+
+/** O card de acesso ainda clicável desta conversa com a mesma mudança (a proposta segue pendente se a decisão venceu). */
+async function cardIgualAberto(deps: Deps, conversaId: string, acao: AcaoNoLote): Promise<string | null> {
+  for (const p of await deps.repos.propostas.pendentesDaConversa(conversaId)) {
+    if (p.payload.kind !== "lote_bots" || p.payload.acoes.length !== 1 || !mesmaAcao(p.payload.acoes[0]!, acao)) continue;
+    const decisao = await deps.repos.decisoes.buscar(p.id);
+    if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return p.id;
+  }
+  return null;
+}
+
 export const gerirAcessos: CasoNod<Deps, "gerir_acessos"> = async (deps, input) => {
   const turno = await deps.repos.turnos.buscar(input.turnoId);
   const modoTurno = input.plano?.modoTurno ?? turno?.origem ?? null;
@@ -127,6 +142,10 @@ export const gerirAcessos: CasoNod<Deps, "gerir_acessos"> = async (deps, input) 
 
   if (motivo !== null) {
     acao.motivo = motivo;
+    // QA-106: o mesmo pedido com o card ainda aberto devolve o mesmo card (como o executar_rotina e o excluir_rotina);
+    // dois cards iguais davam dois recibos "✓" por uma mudança só.
+    const igual = await cardIgualAberto(deps, input.conversaId, acao);
+    if (igual) return { data: { ok: true, feito: null, lote_id: null, esperando: true, decisao_id: igual, instrucao: "Esse pedido já espera a pessoa no card desta conversa. Diga isso em uma frase e encerre o turno; o card aplica quando ela aprovar." } };
     const payload: PayloadPropostaLoteBots = { kind: "lote_bots", resumo, acoes: [acao], turnoId: input.turnoId };
     const proposta = await deps.repos.propostas.criar({ conversaId: input.conversaId, agenteId: agente.id, payload });
     if (!proposta) throw new ErroDeDominio("estado_invalido", { cause: "proposta não criada" });
@@ -146,11 +165,13 @@ export const gerirAcessos: CasoNod<Deps, "gerir_acessos"> = async (deps, input) 
         const r = await EXECUTORES_ACESSOS["acessos.dar_em_lote"](deps, { conectorId: acao.conector_id ?? "", nivel: acao.nivel_lote ?? "nenhum", bots: acao.todos ? "todos" : (acao.bots_ids ?? []), chave: acao.chave ?? "", ...regra, botId: agente.id });
         events.push(...(r.events ?? []));
         loteId = r.data.loteId;
-        linha = r.data.aplicados.length === 0 ? `Nada mudou no ${r.data.app}: ${acao.todos ? "todos já estavam" : "já estavam"} com ${ROTULO_DO_NIVEL[r.data.nivel]}${r.data.mantidos.length && acao.todos && r.data.nivel === "leitura" ? " ou mais" : ""}` : `${fraseDoLote(r.data.aplicados.length, r.data.nivel, r.data.app)} (${listaFalada(r.data.aplicados.map((a) => a.nome))})`;
+        linha = r.data.aplicados.length === 0 ? `Nada mudou no ${r.data.app}: ${acao.todos ? "todos já estavam" : "já estavam"} com ${ROTULO_DO_NIVEL[r.data.nivel]}${r.data.mantidos.length && acao.todos && r.data.nivel === "leitura" ? " ou mais" : ""}${r.data.loteId ? ` e agora ficam nesse nível mesmo se o padrão do app mudar` : ""}` : `${fraseDoLote(r.data.aplicados.length, r.data.nivel, r.data.app)} (${listaFalada(r.data.aplicados.map((a) => a.nome))})`;
       } else if (acao.tipo === "padrao_acesso") {
         const r = await EXECUTORES_ACESSOS["apps.padrao"](deps, { conectorId: acao.conector_id ?? "", nivel: acao.nivel_lote ?? "nenhum", aplicar: acao.aplicar !== false, ...regra });
         events.push(...(r.events ?? []));
-        linha = `Bots novos no ${r.data.app} começam com ${ROTULO_DO_NIVEL[r.data.padrao]}${r.data.aplicados.length ? `; ${listaFalada(r.data.aplicados.map((a) => a.nome))} também` : ""}`;
+        linha = r.data.soGuardado
+          ? `Padrão do ${r.data.app} guardado como ${ROTULO_DO_NIVEL[r.data.padrao]}, mas o app está desligado: nenhum bot mudou, e os bots novos só recebem esse nível depois que você ligar o app`
+          : `Bots novos no ${r.data.app} começam com ${ROTULO_DO_NIVEL[r.data.padrao]}${r.data.aplicados.length ? `; ${listaFalada(r.data.aplicados.map((a) => a.nome))} também` : ""}`;
       } else {
         const r = await EXECUTORES_ACESSOS["acessos.desfazer_lote"](deps, { loteId: acao.lote_id ?? "", ...regra });
         events.push(...(r.events ?? []));

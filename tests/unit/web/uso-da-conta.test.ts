@@ -78,6 +78,13 @@ describe("o bloco de uso da conta (Provedores de IA)", () => {
     expect(html).not.toMatch(/danger|erro|vermelh/);
   });
 
+  it("no limite ainda explica se os trabalhos seguem na próxima conta ou se as rotinas esperam", () => {
+    const pessoal = conta("a", "Pessoal", { cota: cota(1) });
+    const reserva = conta("b", "Reserva", { posicao: 1 });
+    expect(uso(pessoal, [reserva])).toContain("Ao chegar no limite, os trabalhos seguem em Claude · Reserva.");
+    expect(uso(pessoal)).toContain("Sem outra conta do Claude na fila: no limite, as rotinas esperam até renovar.");
+  });
+
   it("renovado: a barra fica vazia (sem o número velho) e diz quando renovou; o resto vai no title e no texto falado", () => {
     const html = uso(conta("a", "Pessoal", { cota: cota(null, 0.3, { renovou: { cincoHoras: RENOVA - 4 * HORA, semana: null } }) }));
     const quando = `às ${hora(RENOVA - 4 * HORA)}`;

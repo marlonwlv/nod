@@ -222,7 +222,14 @@ describeIntegracao("me chame às (ADR-086)", () => {
   it("fora de 5–1440 minutos ou sem motivo: recusado; turno de outro bot: não permitido", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);
-      for (const em_minutos of [0, 4, 1441, -5]) await esperarErro(() => meChameAs(m.deps, { ...m.ctx, em_minutos, motivo: "x" }), "entrada_invalida");
+      // QA-70: a faixa errada volta acionável (campo e faixa), sem marcar volta.
+      for (const em_minutos of [0, 4, 1441, -5, undefined]) {
+        const r = await meChameAs(m.deps, { ...m.ctx, em_minutos, motivo: "x" });
+        expect(r.data).toMatchObject({ ok: false, erro: "fora_da_faixa" });
+        expect(r.data.ok ? "" : r.data.instrucao).toMatch(/em_minutos.*5 a 1440/);
+      }
+      await m.assentar();
+      expect(await m.voltas()).toEqual([]);
       await esperarErro(() => meChameAs(m.deps, { ...m.ctx, em_minutos: 5, motivo: "   " }), "texto_vazio");
       await esperarErro(() => meChameAs(m.deps, { ...m.ctx, agenteId: randomUUID(), em_minutos: 5, motivo: "x" }), "nao_permitido");
     });

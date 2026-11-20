@@ -48,6 +48,9 @@ const VERBO: Record<AcaoLote["tipo"], string> = {
   editar: "Editar",
   mover: "Mover",
   excluir: "Excluir",
+  restaurar: "Restaurar",
+  fixar: "Fixar",
+  ocultar: "Ocultar",
   criar_rotina: "Criar rotina",
   dar_acesso: "Dar acesso",
   mudar_modo: "Mudar modo",
@@ -69,7 +72,7 @@ function linhaDeAcessos(a: Pick<AcaoNoLote, "tipo" | "app" | "nivel_lote" | "bot
 }
 
 /** Uma linha legível da ação (a mensagem de sistema do desfecho). */
-export function linhaDaAcao(a: Pick<AcaoNoLote, "tipo" | "alvoNome" | "secao" | "app" | "nivel" | "modo" | "versao" | "membros" | "nivel_lote" | "bots_nomes" | "todos" | "assume_nome">): string {
+export function linhaDaAcao(a: Pick<AcaoNoLote, "tipo" | "alvoNome" | "secao" | "app" | "nivel" | "modo" | "versao" | "fixado" | "oculto" | "membros" | "nivel_lote" | "bots_nomes" | "todos" | "assume_nome">): string {
   if (a.tipo === "acessos_em_lote" || a.tipo === "padrao_acesso" || a.tipo === "desfazer_acessos") return linhaDeAcessos(a);
   if (a.tipo === "excluir_time") return `Excluir o time ${a.alvoNome} (${a.membros?.length ? `${listaFalada(a.membros)} ${a.membros.length === 1 ? "foi" : "foram"} para Sem time` : "sem bots"})`;
   if (a.tipo === "remover_computador") {
@@ -79,6 +82,8 @@ export function linhaDaAcao(a: Pick<AcaoNoLote, "tipo" | "alvoNome" | "secao" | 
     return `Remover o nod de ${a.alvoNome} (${n ? `${listaFalada(a.membros!)} ${destino}` : "sem bots"})`;
   }
   if (a.tipo === "restaurar_versao") return `Restaurar a versão ${a.versao ?? "?"} do perfil de ${a.alvoNome}`;
+  if (a.tipo === "fixar") return `${a.fixado ? "Fixar" : "Desafixar"} ${a.alvoNome}`;
+  if (a.tipo === "ocultar") return `${a.oculto ? "Ocultar" : "Mostrar"} ${a.alvoNome}`;
   const extra = a.tipo === "mover" ? ` para ${a.secao ? `"${a.secao}"` : "Sem time"}` : a.tipo === "dar_acesso" ? ` ao ${a.app} (${a.nivel === "escrita" ? "ler e alterar" : "ler"})` : a.tipo === "mudar_modo" ? ` para ${a.modo}` : "";
   return `${VERBO[a.tipo]} ${a.alvoNome}${extra}`;
 }
@@ -128,10 +133,11 @@ async function executarAcao(deps: Deps, a: AcaoLote & { alvoNome: string }, botI
       // (`pelaPessoa`, que só decidirLoteDeBots liga) a dá; o modo do Nod nunca. `decidirLote` já manda essa ação ao card;
       // isto é a segunda cerca. Revisão do PR #401: não usa `porRegra === null`, que também é o Nod no manual.
       const r = await EXECUTORES_BOTS["bots.mudar_modo"](deps, { agenteId: exigirAlvo(), modo: a.modo, confirmado: ctx.pelaPessoa });
-      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
+      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [], ...(r.data.aviso ? { aviso: r.data.aviso } : {}) };
     }
     case "restaurar_versao": {
       // NOD-20: o mesmo executor da rota POST /agentes/:id/perfil/versoes/:versao/restaurar.
+      await recusarNomeDeOutroBot(deps, exigirAlvo(), a.versao ?? 0);
       const r = await EXECUTORES_BOTS["bots.restaurar_versao"](deps, { agenteId: exigirAlvo(), versao: a.versao ?? 0, peloNod: true });
       return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
     }
@@ -147,7 +153,22 @@ async function executarAcao(deps: Deps, a: AcaoLote & { alvoNome: string }, botI
       const payload: PayloadPropostaAcesso = { kind: "acesso", conector: conector.slug, capacidades, nivel: a.nivel ?? "leitura", naoPedido: [], para: `Pedido pelo Nod para o ${a.alvoNome}` };
       const aberto = await abrirPedidoDeAcesso(deps, { conversaId: conversa.id, agenteId: alvo, turnoId: null, payload, conector, autoria: autoriaDoAgente(deps.escopo, ctx.nodId) });
       const decidido = await decidirAcesso(deps, { decisaoId: aberto.proposta.id, recusar: false, executor: "catcher", ...(ctx.porRegra ? { porRegra: ctx.porRegra } : {}) });
+      // QA r108: o acesso que a pessoa pediu pelo chat é escolha dela, como o "Dar acesso" da tela (acessos.dar): o bot
+      // deixa de seguir o padrão do app, e uma troca de padrão depois não tira o que ela deu.
+      await deps.repos.acessos.marcar(alvo, conector.id, "pessoa");
       return { botId: alvo, nome: a.alvoNome, events: [...semCard(aberto.events), ...(decidido.events ?? [])] };
+    }
+    case "restaurar": {
+      const r = await EXECUTORES_BOTS["bots.restaurar"](deps, { agenteId: exigirAlvo() });
+      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
+    }
+    case "fixar": {
+      const r = await EXECUTORES_BOTS["bots.fixar"](deps, { agenteId: exigirAlvo(), fixado: a.fixado });
+      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
+    }
+    case "ocultar": {
+      const r = await EXECUTORES_BOTS["bots.ocultar"](deps, { agenteId: exigirAlvo(), oculto: a.oculto });
+      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
     }
     case "excluir_time": {
       // NOD-437: o card de "Excluir o time Produção?" aprovado roda o mesmo executor da tela (DELETE /times/:id).
@@ -225,7 +246,10 @@ async function executarEmOrdem(
       a.estado = "falhou";
       // NOD-20 (revisão 3 M2): no restaurar_versao a causa diz ao Nod o que fazer (igual_a_atual, versao_redigida =
       // um segredo sumiria e só a pessoa aceita isso, pelo Histórico). Só as causas da lista branca; o resto é o código.
-      a.erro = a.tipo === "restaurar_versao" && typeof e.cause === "string" && CAUSAS_DO_RESTAURAR.has(e.cause) ? e.cause : e.codigo;
+      // QA-106: no acesso, a causa que diz à pessoa o que fazer ("conecte o app antes de dar acesso") vai ao recibo no
+      // lugar do código cru (estado_invalido).
+      const causa = typeof e.cause === "string" ? e.cause : null;
+      a.erro = causa && ((a.tipo === "restaurar_versao" && CAUSAS_DO_RESTAURAR.has(causa)) || (VEM_DE_OUTRO_BOT.has(a.tipo) && CAUSAS_DO_ACESSO.has(causa))) ? causa : e.codigo;
     }
   }
   return events;
@@ -239,7 +263,23 @@ async function linhaDoPedidoViaBot(deps: Deps, agenteId: string): Promise<string
 /** O que só outro bot põe no card (gerir_times, gerir_acessos): o recibo diz quem pediu e por qual bot. */
 const VEM_DE_OUTRO_BOT: ReadonlySet<AcaoNoLote["tipo"]> = new Set(["excluir_time", "acessos_em_lote", "padrao_acesso", "desfazer_acessos", "remover_computador"]);
 
-const CAUSAS_DO_RESTAURAR: ReadonlySet<string> = new Set(["igual_a_atual", "versao_redigida", "perfil_mudou"]);
+const CAUSAS_DO_RESTAURAR: ReadonlySet<string> = new Set(["igual_a_atual", "versao_redigida", "perfil_mudou", "nome_repetido"]);
+/** QA-106: as causas dos executores de acesso que já são a frase de recuperação para a pessoa. */
+const CAUSAS_DO_ACESSO: ReadonlySet<string> = new Set(["conecte o app antes de dar acesso", "o app não tem ferramenta para esse nível", "o Desfazer vale por 24 horas", "lote já desfeito"]);
+
+/**
+ * QA-119: a versão antiga traz de volta um nome que outro bot vivo pegou depois (Vera vira Lia, nasce outra Vera,
+ * restaurar a versão 1 da Lia). Sem esta cerca ficavam dois bots com o mesmo nome e o chat (resolverBot, pedir_a_bot)
+ * passava a cair em "há mais de um bot chamado". Quem chama já segura a trava dos nomes (gerirBots), então outro pedido
+ * não pega o nome entre a conferência e a gravação. A versão ausente segue para o executor, que dá o nao_encontrado.
+ */
+async function recusarNomeDeOutroBot(deps: Deps, agenteId: string, versao: number): Promise<void> {
+  const alvo = await deps.repos.versoesPerfil.buscar(agenteId, versao);
+  const nome = alvo?.perfil.nome?.trim().toLowerCase();
+  if (!nome) return;
+  const outros = (await deps.repos.agentes.listar({ incluirOcultos: true })).filter((b) => b.id !== agenteId && b.excluidoEm == null);
+  if (outros.some((b) => b.nome.trim().toLowerCase() === nome)) throw new ErroDeDominio("estado_invalido", { cause: "nome_repetido" });
+}
 
 /** A regra do modo que aprovou a ação (para a autoria); null = a pessoa. */
 function porRegraDoModo(modo: Parameters<typeof decidirPeloModo>[0], risco: MotivoCardDoLote | null): PorRegra | null {
@@ -252,8 +292,13 @@ export async function gerirBots(deps: Deps, input: ContextoFerramenta & { resumo
   const ctx = await turnoDoNodComAPessoa(deps, input);
   if (!ctx) return { data: { ok: false, erro: "fora_da_conversa", problemas: [], instrucao: "Só o Nod, na conversa com a pessoa, muda os bots dela." } };
   const pessoaId = deps.escopo.pessoaId;
-  const bots = (await deps.repos.agentes.listar({ incluirOcultos: true, incluirExcluidos: true })).filter((b) => b.ownerId === pessoaId);
-  const validado = validarLote(input.acoes, bots, await appsDaPessoa(deps), pessoaId, input.resumo);
+  // QA-118: com criar ou renomear no lote, a trava dos nomes (a do criar_bots) vem antes de ler: dois pedidos juntos não
+  // saem com o mesmo nome. QA-119: o restaurar_versao confere o nome da versão contra os outros bots, sob a mesma trava.
+  if (Array.isArray(input.acoes) && input.acoes.some((a) => a?.tipo === "criar" || a?.tipo === "restaurar_versao" || (a?.tipo === "editar" && a.nome !== undefined))) await deps.repos.agentes.travarNomesDeBots();
+  const todos = await deps.repos.agentes.listar({ incluirOcultos: true, incluirExcluidos: true });
+  const bots = todos.filter((b) => b.ownerId === pessoaId);
+  const nomesDeFora = todos.filter((b) => b.ownerId !== pessoaId && b.excluidoEm == null).map((b) => b.nome);
+  const validado = validarLote(input.acoes, bots, await appsDaPessoa(deps), pessoaId, input.resumo, nomesDeFora);
   if (!validado.ok) return { data: { ok: false, erro: "entrada_invalida", problemas: validado.problemas, instrucao: "Nada foi feito. Corrija os problemas e chame gerir_bots de novo com o lote inteiro." } };
 
   // Cerca 3: dar acesso (e duplicar um bot com acessos) depois de ler conteúdo de fora vira card também no automático.
@@ -317,6 +362,8 @@ export const decidirLoteDeBots: CasoDeUso<{ decisaoId: string; recusar: boolean;
     for (const a of acoes) if (a.estado === "esperando") a.estado = "recusada";
   } else {
     for (const a of acoes) if (a.estado === "esperando" && !marcadas.has(a.i)) a.estado = "recusada";
+    // QA-119: o card aprovado mais tarde também confere o nome da versão; a trava dos nomes vem antes dos times.
+    if (acoes.some((a) => a.estado === "esperando" && a.tipo === "restaurar_versao")) await deps.repos.agentes.travarNomesDeBots();
     events.push(...(await executarEmOrdem(deps, acoes, (a) => a.estado === "esperando", { nodId: proposta.agenteId, porRegraDe: () => null, pelaPessoa: true })));
   }
   await deps.repos.propostas.atualizarPayload(proposta.id, { ...proposta.payload, acoes });

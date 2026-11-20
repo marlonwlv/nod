@@ -112,6 +112,16 @@ async function portaoDoFechar(): Promise<{ arquivo: string; abrir: () => Promise
 }
 
 describe("computador da pessoa: várias telas no supervisor real (NOD-96 PR 7)", () => {
+  it("terminal e ferramentas de arquivo compartilham o workspace isolado de cada bot", async () => {
+    const m = await montar();
+    await m.iniciar();
+    const executar = (agenteId: string, valor: string) => m.tratar({ tipo: "acao", agenteId, acao: { tipo: "terminal", comando: `printf %s ${valor} > prova.txt` } });
+    expect((await executar("ana", "ana")).desfecho).toBe("ok");
+    expect((await executar("beto", "beto")).desfecho).toBe("ok");
+    expect(await readFile(join(m.dir, "raiz", ID, "workspace", "ana", "prova.txt"), "utf8")).toBe("ana");
+    expect(await readFile(join(m.dir, "raiz", ID, "workspace", "beto", "prova.txt"), "utf8")).toBe("beto");
+  });
+
   it("login em comum: o que um bot entra vale nas telas abertas e no bot criado depois; sair também", async () => {
     const m = await montar();
     await m.iniciar();

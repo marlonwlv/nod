@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **212**, mais 3 só de leitura. No chat: **77 vivas**, 4 parciais, 92 faltando e 42 que nunca vão para o chat. Piso de vivas: 77.
+Ações de pessoa que mudam algo: **212**, mais 3 só de leitura. No chat: **80 vivas**, 4 parciais, 89 faltando e 42 que nunca vão para o chat. Piso de vivas: 80.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -17,9 +17,9 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `bots.excluir` | Excluir um bot (e desligar o computador dele) | arriscada | vivo (`gerir_bots excluir`) | `DELETE ^\/agentes\/(?<id>[^/]+)$` |
 | `bots.mudar_modo` | Mudar o modo de aprovação de um bot | arriscada | vivo (`gerir_bots mudar_modo`) | `POST ^\/agentes\/(?<id>[^/]+)\/modo-aprovacao$` |
 | `bots.restaurar_versao` | Restaurar uma versão do perfil de um bot | muda | vivo (`gerir_bots restaurar_versao`) | `POST ^\/agentes\/(?<id>[^/]+)\/perfil\/versoes\/(?<versao>[0-9]+)\/restaurar$` |
-| `bots.restaurar` | Restaurar um bot excluído | muda | falta (NOD-393) | `POST ^\/agentes\/(?<id>[^/]+)\/restaurar$` |
-| `bots.fixar` | Fixar um bot no topo | muda | falta (NOD-393) | `POST ^\/agentes\/(?<id>[^/]+)\/fixar$` |
-| `bots.ocultar` | Ocultar um bot da barra | muda | falta (NOD-393) | `POST ^\/agentes\/(?<id>[^/]+)\/ocultar$` |
+| `bots.restaurar` | Restaurar um bot excluído | muda | vivo (`gerir_bots restaurar`) | `POST ^\/agentes\/(?<id>[^/]+)\/restaurar$` |
+| `bots.fixar` | Fixar um bot no topo | muda | vivo (`gerir_bots fixar`) | `POST ^\/agentes\/(?<id>[^/]+)\/fixar$` |
+| `bots.ocultar` | Ocultar um bot da barra | muda | vivo (`gerir_bots ocultar`) | `POST ^\/agentes\/(?<id>[^/]+)\/ocultar$` |
 | `bots.definir_inteligencia` | Escolher a IA, o modelo e o raciocínio de um bot | muda | falta (NOD-393) | `PUT ^\/agentes\/(?<id>[^/]+)\/inteligencia$` |
 | `bots.decidir_troca_de_ia` | Decidir o aviso de troca de IA de um bot | muda | falta (NOD-400) | `POST ^\/agentes\/(?<id>[^/]+)\/troca-de-ia$` |
 | `bots.mudar_voz` | Escolher a voz de um bot | muda | falta (NOD-397) | `PATCH ^\/agentes\/(?<id>[^/]+)\/voz$` |
@@ -378,7 +378,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 ## O que cada onda leva
 
-- **NOD-393** (Onda 1: bots e rotinas): `bots.restaurar`, `bots.fixar`, `bots.ocultar`, `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
+- **NOD-393** (Onda 1: bots e rotinas): `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
 - **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
 - **NOD-395** (Onda 3: conta e segurança): `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
 - **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`
