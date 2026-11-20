@@ -2,6 +2,7 @@ import { StrictMode, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import type { Estado } from "../../estado/reducer.ts";
+import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import type { Loja } from "../loja.ts";
 import { MARCA_REGIAO } from "../regioes.tsx";
 import { TelaNaoLidos, type AcoesDeNaoLidos } from "./nao-lidos.tsx";
@@ -74,4 +75,24 @@ export function criarTelasNoReact(loja: Loja<Estado>, acoes: AcoesDasTelas): Tel
     },
     montada: () => atual?.tela ?? null,
   };
+}
+
+/**
+ * ADR-179 (item 2): o quadro compartilhado (NOD-455, o `#qcp`) desenhado pelo React a partir do MESMO HTML do controle
+ * (web/lib/quadro-compartilhado-na-tela.ts), como as regiões da ADR-189: o controle segue dono das ações (a delegação
+ * no `#qcp`), da rolagem e do foco; o React reconcilia em vez de regravar, e o que a pessoa digita fica no campo. Um root
+ * por nó: o casco que o main recria ganha outro, e o do nó que saiu é desmontado.
+ */
+let doQcp: { el: HTMLElement; raiz: Root; conversor: ConversorDeHtml } | null = null;
+export function desenharHtmlNoNo(el: HTMLElement, html: string): void {
+  if (doQcp && doQcp.el !== el) { doQcp.raiz.unmount(); doQcp = null; }
+  if (!doQcp) {
+    el.replaceChildren();
+    el.setAttribute(MARCA_REGIAO, "qcp");
+    doQcp = { el, raiz: createRoot(el, { identifierPrefix: "qcp-" }), conversor: criarConversor() };
+  }
+  const { raiz, conversor } = doQcp;
+  const nos = conversor.converter(html);
+  conversor.fecharQuadro();
+  flushSync(() => raiz.render(<StrictMode>{nos}</StrictMode>));
 }

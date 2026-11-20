@@ -1371,6 +1371,8 @@ async function lerCompartilhados(): Promise<void> {
   } catch { /* a barra fica com a lista que tinha; o próximo quadro.mudou relê */ }
 }
 const quadroCompartilhado = criarQuadroCompartilhadoNaTela(document, {
+  // ADR-179 (item 2): o React desenha o mesmo HTML no #qcp quando o módulo das telas chegou (com `?telas-react=0`, o innerHTML).
+  desenharHtml: (el, html) => { if (moduloDasTelas) moduloDasTelas.desenharHtmlNoNo(el, html); else el.innerHTML = html; },
   api: () => {
     if (!api) throw new ErroApi(0, "sem_sessao", "Sem sessão");
     return api;

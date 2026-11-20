@@ -177,6 +177,14 @@ quem o abre (`menuDaPagina`, como o `dialogoDeHandoff`), e o main passa o menu d
 `menuDaPagina` — o popup é o próprio `.pg-menu` (`classeBase`, `semCasca`), e a escolha leva o id da página aberta, porque
 o menu já saiu quando ela chega.
 
+**O quadro compartilhado** (`#qcp`, NOD-455; item 2, 2026-11-19): o React desenha no casco o MESMO HTML do controle
+(`desenharHtmlNoNo`, em `web/react/telas/telas.tsx`), como as regiões da ADR-189 — o controle
+(`web/lib/quadro-compartilhado-na-tela.ts`) segue dono das ações (a delegação no `#qcp`), da rolagem ao vivo (ADA-7/ADA-12)
+e do foco, e recebe quem desenha (`desenharHtml`). O React reconcilia em vez de regravar: o que a pessoa digita e o foco
+ficam no mesmo nó. A jornada de rolagem (`quadro-rolagem-chrome`) roda pelo React por padrão (com `NOD_QCP_REACT=0`, pelo
+innerHTML), os 76 casos nos dois caminhos; "regravou" passou a ser qualquer mudança na subárvore, porque o React não troca
+os filhos do casco. O JSX desta tela entra com o das regiões do #192 (item 5).
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts
