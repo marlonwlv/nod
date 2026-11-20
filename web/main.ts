@@ -1244,6 +1244,12 @@ const quadroNaTela = criarQuadroNaTela(document, {
   // ADR-180: a grade do quadro em React, ligada por padrão (`?quadro-react=0` volta à por string neste navegador).
   gradeReact: reactNoQuadro(location.href, (() => { try { return localStorage; } catch { return null; } })()),
   dialogoDeHandoff: (doc, d, agora) => (moduloDosDialogos ? moduloDosDialogos.abrirHandoffNoReact(doc as Document, d, agora) : abrirDialogoDeHandoff(doc, d, agora)),
+  menuDaPagina: (m) => {
+    if (!moduloDosDialogos) return null;
+    const controle: { current: { trocar: (html: string, focar: string) => void; fechar: () => void } | null } = { current: null };
+    moduloDosDialogos.abrirMenuDeHtmlNoReact(document, { ...m, aoEscolher: (b) => m.aoEscolher(b), lado: "bottom", alinhar: "start", distancia: 6, classeBase: "pg-menu", semCasca: true, controle });
+    return { fechar: () => controle.current?.fechar() };
+  },
   // ADA-8: a pílula tem um dono só para o dedo (web/lib/gesto-da-pilula-na-tela.ts); a busca e o menu entram por aqui.
   busca: {
     ativa: () => celular.ativo() && chaveDaTelaDeBusca() !== null,

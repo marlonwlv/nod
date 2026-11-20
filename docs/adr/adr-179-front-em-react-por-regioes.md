@@ -172,6 +172,10 @@ módulo só baixa nessas janelas; a assinatura do main segue decidindo quando re
 E **o menu da Biblioteca** (NOD-363, `web/react/dialogos/menu-da-biblioteca.tsx`): o mesmo conteúdo de
 `htmlDoMenuDaBiblioteca` e a mesma espera do "Ir para a mensagem" (`criarMenuDoIr`, `irParaFalaDaBiblioteca`); o item
 carregando e a nota da falha são estado, e o Ir carregando fica desligado e focável, como o `aria-disabled` de antes.
+E **o menu da página do Quadro** (NOD-445; o ícone da doca: segurar, botão direito, Shift+F10): o `quadro-na-tela` recebe
+quem o abre (`menuDaPagina`, como o `dialogoDeHandoff`), e o main passa o menu do Base UI com o mesmo HTML de
+`menuDaPagina` — o popup é o próprio `.pg-menu` (`classeBase`, `semCasca`), e a escolha leva o id da página aberta, porque
+o menu já saiu quando ela chega.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

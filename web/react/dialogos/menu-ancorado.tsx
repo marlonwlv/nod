@@ -25,6 +25,8 @@ export interface Ancora {
   distancia?: number | undefined;
   /** Uma classe a mais no popup (`menu-pilula`, `menu-fala`…), como o nativo põe no `<dialog>`. */
   classe?: string | undefined;
+  /** A classe base do popup no lugar de `bot-menu` (o menu da página do Quadro é `pg-menu`). */
+  classeBase?: string | undefined;
   /** ← → andam como ↓ ↑ entre os itens (o menu da fala, com a linha de emojis). */
   setasDosLados?: boolean | undefined;
   /** O menu vai fechar (`escape-key`, `outside-press`, `item-press`…): false o mantém aberto (o Esc que só fecha a confirmação). */
@@ -59,7 +61,7 @@ export function MenuAncorado({ a, rotulo, escolhida, sair, children }: {
       <Menu.Portal>
         <Menu.Positioner className="rx-menu-pos" anchor={ancora} side={ponto ? "bottom" : a.lado ?? "right"} align={ponto ? "start" : a.alinhar ?? "start"} sideOffset={ponto ? 0 : a.distancia ?? 0} collisionPadding={12}
           collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}>
-          <Menu.Popup className={`bot-menu rx-menu${classe ? ` ${classe}` : ""}`} aria-label={rotulo} finalFocus={false}
+          <Menu.Popup className={`${a.classeBase ?? "bot-menu"} rx-menu${classe ? ` ${classe}` : ""}`} aria-label={rotulo} finalFocus={false}
             onKeyDown={a.setasDosLados ? (ev) => {
               if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
               const itens = [...ev.currentTarget.querySelectorAll<HTMLElement>('[role^="menuitem"]')];

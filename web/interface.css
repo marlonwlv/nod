@@ -302,6 +302,8 @@
 /* ADR-179: o menu do Base UI (no portal, posto pelo Positioner): por cima do app; o popup não é mais o que se posiciona. */
 .rx-menu-pos { z-index: 60; }
 .bot-menu.rx-menu { position: static; }
+/* O popup de estilo próprio (o `.pg-menu`, `position: fixed`) também é posto pelo Positioner. */
+.rx-menu-pos > .rx-menu { position: static; }
 /* O item desligado do Base UI (aria-disabled, focável): sem o cursor de espera do "Carregando…" da Biblioteca. */
 .bot-menu.rx-menu [data-disabled] { cursor: default; }
 /* foco-ok: o popup só segura o foco no instante em que abre, antes de o 1º item recebê-lo (os itens desenham o foco). */

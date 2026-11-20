@@ -23,6 +23,8 @@ export interface MenuDeHtml extends Ancora {
    * o resto (trocar o conteúdo) vai pelo `controle`. Com ele, nenhum item fecha sozinho e `aoEscolher` não é chamado.
    */
   aoClicar?: ((b: HTMLButtonElement, cliques: number) => { fechar: true; depois?: () => void } | null) | undefined;
+  /** Os itens direto no popup, sem o `<div role="menu">` (que já é o popup): o menu com estilo próprio (`pg-menu`). */
+  semCasca?: boolean | undefined;
   /** Preenchido ao montar: trocar o HTML (e o que recebe o foco depois) e fechar por código. */
   controle?: { current: { trocar: (html: string, focar: string) => void; fechar: () => void } | null } | undefined;
 }
@@ -62,7 +64,7 @@ function MenuDeHtmlRx({ m, sair }: { m: MenuDeHtml; sair: () => void }) {
       const expande = !!m.expandir && n.matches(m.expandir.seletor);
       return (
         <Menu.Item key={chave} nativeButton disabled={desligado} closeOnClick={!expande && !m.aoClicar} render={<button type="button" />}
-          {...propsDe(n, ["type", "disabled", "aria-disabled", n.getAttribute("role") === "menuitem" ? "role" : ""])}
+          {...propsDe(n, ["type", "disabled", "aria-disabled", "tabindex", n.getAttribute("role") === "menuitem" ? "role" : ""])}
           dangerouslySetInnerHTML={{ __html: n.innerHTML }}
           onClick={(ev) => {
             if (expande && m.expandir) { focarDepois.current = m.expandir.focar; setHtml(m.expandir.html()); return; }
@@ -80,7 +82,8 @@ function MenuDeHtmlRx({ m, sair }: { m: MenuDeHtml; sair: () => void }) {
     return createElement(n.tagName.toLowerCase(), { key: chave, ...propsDe(n) }, [...n.childNodes].map(no));
   };
   const ehMenu = raiz?.getAttribute("role") === "menu";
-  const corpo = raiz && ehMenu
+  const corpo = raiz && ehMenu && m.semCasca ? [...raiz.childNodes].map(no)
+    : raiz && ehMenu
     ? createElement("div", { ...propsDe(raiz, ["role", "aria-label"]), ref: corpoRef }, [...raiz.childNodes].map(no))
     : [...t.content.childNodes].map(no);
   return (

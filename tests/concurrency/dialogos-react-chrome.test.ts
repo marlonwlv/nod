@@ -31,6 +31,15 @@ import { abrirMenuModoNoReact } from "./web/react/dialogos/menu-modo.tsx";
 import { abrirMenuIaNoReact } from "./web/react/dialogos/menu-ia.tsx";
 import { travarToqueDuploEm } from "./web/telas/folha-mais.ts";
 import { abrirMenuDaBibliotecaNoReact } from "./web/react/dialogos/menu-da-biblioteca.tsx";
+import { menuDaPagina } from "./web/telas/paginas.ts";
+window.__menuPagina = () => {
+  window.__acaoPg = null;
+  let b = document.getElementById("pg-ic");
+  if (!b) { b = Object.assign(document.createElement("button"), { id: "pg-ic", textContent: "▣" }); b.style.cssText = "position:fixed;left:400px;top:60px;width:32px;height:32px"; document.body.append(b); }
+  b.focus();
+  const html = String(menuDaPagina({ p: { id: "app1", nome: "Painel", app: { id: "x" } }, pos: 0, total: 3 }));
+  abrirMenuDeHtmlNoReact(document, { html, ancora: b, lado: "bottom", alinhar: "start", distancia: 6, classeBase: "pg-menu", semCasca: true, aoEscolher: (bt) => { window.__acaoPg = bt.dataset.act; } });
+};
 window.__biblioteca = () => {
   window.__ui = null; window.__foi = null; window.__baixou = false; window.__soltou = false;
   let b = document.getElementById("bib-mais");
@@ -541,5 +550,25 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     expect(await avaliar<boolean>(cdp, "window.__soltou")).toBe(true);
     expect(await avaliar<string | null>(cdp, `document.getElementById("bib-mais").getAttribute("aria-expanded")`)).toBe("false");
     expect(await avaliar<boolean>(cdp, "window.__ui.aberto()")).toBe(false);
+  }, 60_000);
+
+  it("o menu da página do Quadro: o popup é o .pg-menu (sem a casca do bot-menu), embaixo do ícone; o desligado inerte; a escolha leva o data-act", async () => {
+    await esperar(300);
+    await avaliar(cdp, "window.__menuPagina()");
+    await ate(`document.activeElement?.dataset?.act === "pagina-depois"`);
+    const r = await avaliar<{ topo: number; esquerda: number; casca: boolean; filhos: string[]; posicao: string }>(cdp, `(() => { const m = document.querySelector(".pg-menu.rx-menu"); const r = m.getBoundingClientRect();
+      return { topo: Math.round(r.top), esquerda: Math.round(r.left), casca: !!document.querySelector(".rx-menu .bot-menu, .bot-menu.rx-menu, .rx-menu #pg-menu"), filhos: [...m.children].map((c) => c.className), posicao: getComputedStyle(m).position }; })()`);
+    expect(r).toEqual({ topo: 98, esquerda: 400, casca: false, filhos: ["pg-menu-it", "pg-menu-it", "pg-menu-it", "pg-menu-traco", "pg-menu-it pg-menu-perigo"], posicao: "static" });
+    await tecla("ArrowUp", "ArrowUp", 38);
+    await ate(`document.activeElement?.dataset?.act === "pagina-antes"`);
+    await tecla("Enter", "Enter", 13);
+    await esperar(200);
+    expect(await avaliar<unknown>(cdp, "window.__acaoPg")).toBeNull();
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.act === "app-editar"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__acaoPg === "app-editar"`);
+    await ate(`document.activeElement?.id === "pg-ic"`);
   }, 60_000);
 });
