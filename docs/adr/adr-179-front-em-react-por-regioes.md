@@ -185,11 +185,36 @@ ficam no mesmo nó. A jornada de rolagem (`quadro-rolagem-chrome`) roda pelo Rea
 innerHTML), os 76 casos nos dois caminhos; "regravou" passou a ser qualquer mudança na subárvore, porque o React não troca
 os filhos do casco. O JSX desta tela entra com o das regiões do #192 (item 5).
 
+**A tela avançada dos Conectores** (item 2; 2026-11-19), em JSX no computador (`web/react/telas/conectores-avancado.tsx`,
+a volta com `?telas-react=0`): o mesmo DOM de `renderConectores` com `avancado`, os formulários e os botões pelos mesmos
+handlers do main (`FORMS`/`ACOES`, com o formulário e o `dataset`). A vitrine do computador já era o Marketplace em modal.
+
+**Ficam para o 2º objetivo, por decisão de 2026-11-19 (com os itens 3 e 5):** a vitrine dos Conectores no celular e as
+outras peças próprias do celular (a folha "+" do campo, o bot e a fala segurados, o Compartilhar do perfil), testadas de
+uma vez no telefone; e **o menu da conta**, que segue no `<dialog>` como exceção: tem teclado próprio (← → nos submenus,
+Esc em dois níveis) e a animação de entrada e saída, os submenus do Base UI vão para um portal e pediriam o CSS do
+submenu refeito, e ele mora no rodapé do `#sidebar`, que o item 5 reescreve.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts
 medir <rotulo>` no build de produção (ADR-061). A fase não entra se, no cenário de 8 bots, aparecer tarefa longa acima
 de 250 ms, a tecla no campo passar de 200 ms no p95, ou os quadros (rAF) ficarem piores que a linha de base da fase 0.
+
+**A régua dos itens 1, 2 e 4 (2026-11-20) foi aceita com carga acima de 3.** A regra era a carga de 1 min abaixo de 3
+do começo ao fim; nesta máquina, compartilhada com outras sessões, ela ficou entre 4 e 50 a madrugada toda, e nenhuma
+rodada (nem a de um cenário só, uns 6 min) coube nela. Por decisão do dono, valeram quatro séries `main` × a pilha
+inteira (#206–#230) na mesma base: três rodadas completas (carga média 4,5 / 4,3 / 3,6; máximas 12,0 / 10,1 / 6,5) e
+uma de "tudo junto" alternando as variantes três vezes (a régua completa mede a `main` inteira antes da pilha, e quem
+roda depois pega outra máquina). Na rodada mais limpa (maior tarefa / TBT / tecla p95, ms): vários bots 54 / 5 / 27,7
+→ 0 / 0 / 11,7; turno pesado 55 / 8 / 9,1 → 55 / 10 / 17,6; tudo junto 63 / 18 / 27,8 → 69 / 19 / 12,4; frentes
+67 / 67 / 26,8 → 53 / 4 / 15,2; quadro 85 / 43 / 43,5 → 0 / 0 / 20,1; as quatro telas até 61 / 11 → 0 / 0. Abrir o
+Quadro: 545 → 385 ms até pintar (maior tarefa 243 → 112), de novo ~256 → ~107 ms; soltar o card na coluna p95 66 → 31
+ms. O único ponto acima foi a maior tarefa de "tudo junto" nas três rodadas completas (+6 a +28 ms, TBT empatado); na
+série alternada a pilha ganhou as três (65 / 106 / 66 → 55 / 0 / 0 ms; TBT 35 / 71 / 39 → 5 / 0 / 0), então era a
+ordem, não o código. O custo total de script sobe um pouco (frentes e quadro, ~0,5 s a mais por cenário) em pedaços
+menores: bloqueia menos, não roda menos. Se uma régua com a máquina livre mostrar piora, vale o gatilho de reversão
+abaixo (a chave da região em `react-na-regiao.ts`).
 
 ## Peso no celular
 
