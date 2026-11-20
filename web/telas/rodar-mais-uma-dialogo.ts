@@ -1,8 +1,10 @@
 import { htmlRodarMaisUma } from "../lib/executar-rotina.ts";
+import { devolverFocoQuandoPuder } from "./foco-de-volta.ts";
 
 /**
  * definido em 2026-10-16 (revisão do Gil no #335, A1): abre a pergunta do "Testar agora" (`htmlRodarMaisUma`).
- * true = "Rodar mais uma"; Esc, Cancelar e clique fora = false. Ao fechar, o foco volta para quem abriu.
+ * true = "Rodar mais uma"; Esc, Cancelar e clique fora = false. Ao fechar, o foco volta para quem abriu, assim que
+ * ele reabilitar (QA-162: o `ocupado` o desliga enquanto pergunta).
  */
 export function abrirRodarMaisUma(pergunta: string, origem?: HTMLElement | null): Promise<boolean> {
   return new Promise((resolver) => {
@@ -14,8 +16,8 @@ export function abrirRodarMaisUma(pergunta: string, origem?: HTMLElement | null)
     let sim = false;
     dialog.addEventListener("close", () => {
       dialog.remove();
-      if (origem?.isConnected) origem.focus({ preventScroll: true });
       resolver(sim);
+      if (origem) devolverFocoQuandoPuder(origem);
     }, { once: true });
     dialog.querySelector("[data-sim]")!.addEventListener("click", () => { sim = true; dialog.close(); });
     dialog.querySelector("[data-nao]")!.addEventListener("click", () => dialog.close());

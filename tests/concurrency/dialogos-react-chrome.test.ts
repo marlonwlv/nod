@@ -132,6 +132,20 @@ window.__confirmar = () => {
   confirmarNoReact(document, { idDoTitulo: "rodar-mais-uma-titulo", titulo: "Rodar mais uma execução?", texto: "Já há uma na fila.", cancelar: "Cancelar", confirmar: "Rodar mais uma", origem: document.getElementById("antes") })
     .then((r) => { window.__resposta = r; });
 };
+// QA-162: o Testar agora como no app — o agir() liga o \`ocupado\` (o botão fica disabled) antes de perguntar e só o
+// desliga depois da resposta; o foco tem de voltar ao botão quando ele reabilitar, não ficar no <body>.
+window.__testarAgora = () => {
+  window.__resposta = undefined;
+  let b = document.getElementById("testar");
+  if (!b) { b = Object.assign(document.createElement("button"), { id: "testar", textContent: "Testar agora", type: "button" }); b.style.cssText = "position:fixed;left:8px;top:340px"; document.body.append(b); }
+  b.disabled = false;
+  b.focus();
+  b.disabled = true;
+  setTimeout(() => {
+    confirmarNoReact(document, { idDoTitulo: "rodar-mais-uma-titulo", titulo: "Rodar mais uma execução?", texto: "Já há uma na fila.", cancelar: "Cancelar", confirmar: "Rodar mais uma", origem: b })
+      .then((r) => { window.__resposta = r; setTimeout(() => { b.disabled = false; }, 30); });
+  }, 50);
+};
 const AGORA = Date.now();
 window.__abrir = (anterior = true) => {
   window.__resposta = undefined;
@@ -223,6 +237,18 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await ate(`window.__resposta !== undefined`);
     expect(await avaliar<unknown>(cdp, "window.__resposta")).toBe(true);
     await ate(`!document.querySelector(".rx-dlg-host")`);
+  }, 60_000);
+
+  it("QA-162: o Testar agora fica desligado enquanto pergunta; ao cancelar (Esc ou Cancelar) o foco volta ao botão, não ao body", async () => {
+    for (const fechar of ["esc", "cancelar"] as const) {
+      await avaliar(cdp, "window.__testarAgora()");
+      await ate(`document.activeElement?.hasAttribute("data-nao")`);
+      if (fechar === "esc") await tecla("Escape", "Escape", 27); else await tecla("Enter", "Enter", 13);
+      await ate(`window.__resposta === false`);
+      await ate(`!document.querySelector(".rx-dlg-host") && !document.getElementById("testar").disabled`);
+      await esperar(150);
+      expect(await avaliar<string>(cdp, "document.activeElement?.id || document.activeElement?.tagName")).toBe("testar");
+    }
   }, 60_000);
 
   it("marcar Parar e Mover (Enter) responde mover parando o anterior", async () => {
