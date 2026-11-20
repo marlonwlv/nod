@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chaveAntiDowngrade, lerPacote } from "./info-plist-release.mjs";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -109,6 +110,24 @@ export function compararEsquemaUrl({ codigo, saida }, esperado = "nod") {
   return resultado("CFBundleURLTypes (esquema)", codigo === 0 && veio === esperado, esperado, veio);
 }
 
+/**
+ * NOD-467 (ADR-149): `plutil -extract ElectronSquirrelPreventDowngrades raw` do Info.plist. Presente (`true`) se e só se a
+ * regra de info-plist-release.mjs pede: faltando, o app aceita downgrade; sobrando (rc ou Electron 43), recusa TODA
+ * atualização. O `plutil` sai com 1 quando a chave não existe.
+ */
+export function compararAntiDowngrade({ codigo, saida }, esperado) {
+  const valor = String(saida ?? "").trim();
+  const ligada = codigo === 0 && valor === "true";
+  const ausente = codigo === 1 && /No value at that key path or invalid key path:\s*ElectronSquirrelPreventDowngrades\b/.test(valor);
+  const veio = codigo === 0
+    ? `ElectronSquirrelPreventDowngrades=${valor || "(vazio)"}`
+    : ausente
+      ? "ausente no Info.plist"
+      : `não foi possível conferir o Info.plist (saída ${codigo}: ${resumo(saida)})`;
+  const esp = esperado ? "ElectronSquirrelPreventDowngrades=true" : "ausente no Info.plist (versão rc ou Electron < 44)";
+  return resultado("ElectronSquirrelPreventDowngrades", esperado ? ligada : ausente, esp, veio);
+}
+
 /** `lipo -archs`: exatamente a arquitetura do job, nem a outra nem as duas. */
 export function interpretarLipo(saida, arch) {
   const esperado = ARCH_DO_LIPO[arch] ?? `arquitetura conhecida (arm64 ou x64), veio ARCH=${arch}`;
@@ -150,7 +169,7 @@ export function interpretarNotarytool(saida) {
 /**
  * Junta as conferências do pacote a partir das saídas já capturadas.
  * @param saidas as saídas dos comandos (ver `main`).
- * @param esperado { teamId, arch, entitlements, microfone }.
+ * @param esperado { teamId, arch, entitlements, microfone, antiDowngrade }.
  */
 export function conferirPacote(saidas, esperado) {
   const helpers = saidas.helpers ?? [];
@@ -163,6 +182,7 @@ export function conferirPacote(saidas, esperado) {
     ...helpers.map((h) => compararEntitlements(h.nome, h.entitlements, esperado.entitlements)),
     compararMicrofone(saidas.microfone, esperado.microfone),
     compararEsquemaUrl(saidas.esquemaUrl),
+    compararAntiDowngrade(saidas.antiDowngrade, esperado.antiDowngrade),
     interpretarLipo(saidas.lipo, esperado.arch),
     interpretarStapler("nod.app", saidas.staplerApp),
     interpretarStapler("DMG", saidas.staplerDmg),
@@ -215,6 +235,7 @@ function verificarPacote(app, dmg) {
     helpers,
     microfone: rodar("plutil", ["-extract", "NSMicrophoneUsageDescription", "raw", "-o", "-", join(app, "Contents", "Info.plist")]),
     esquemaUrl: rodar("plutil", ["-extract", "CFBundleURLTypes.0.CFBundleURLSchemes.0", "raw", "-o", "-", join(app, "Contents", "Info.plist")]),
+    antiDowngrade: rodar("plutil", ["-extract", "ElectronSquirrelPreventDowngrades", "raw", "-o", "-", join(app, "Contents", "Info.plist")]),
     lipo: rodar("lipo", ["-archs", join(app, "Contents", "MacOS", "nod")]).saida,
     staplerApp: rodarStapler(app),
     staplerDmg: rodarStapler(dmg),
@@ -226,6 +247,7 @@ function verificarPacote(app, dmg) {
     arch: process.env.ARCH ?? "",
     entitlements: lerEntitlements(readFileSync(join(RAIZ, "desktop", "entitlements.mac.plist"), "utf8")),
     microfone: lerTextoMicrofone(readFileSync(join(RAIZ, "electron-builder.yml"), "utf8")),
+    antiDowngrade: chaveAntiDowngrade(lerPacote(readFileSync(join(RAIZ, "package.json"), "utf8"))),
   };
   const resultados = conferirPacote(saidas, esperado);
   const falhas = formatarFalhas(resultados);

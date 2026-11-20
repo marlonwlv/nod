@@ -4,7 +4,7 @@ import { lstat, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { areaDoChrome, APAGAR_COOKIES_MS, PREPARO_DO_CHROME_MS, PRAZO_DO_CDP_MS, PRAZO_DOS_COOKIES_MS, caminhoDaCaptura, negarPermissoes, PERMISSOES_NEGADAS_COM_DOCK, semCapturaDeTela, quadroVale, criarGuardaDaSelecao, gravarSelecaoDoX, BOTOES_DO_BOT_COM_DOCK, pontoNaJanela, pontosDoToque, prazoParaFecharOChrome, RESTO_DA_ACAO_MS, ORCAMENTO_DO_RELANCAMENTO_MS, PRAZO_DE_GRACA_MS, PROGRAMAS_SO_DO_DOCK, programasParaEsconder, ABAS_TENTADAS_NO_CDP, apagarCookiesNoChrome, atenderNoPrazo, esperarQueSaia, PRAZO_FECHAR_ENVENENADA_MS, PRAZO_LIMPAR_COOKIES_NA_TELA_MS, argsDoBwrapDaTela, argsParaRolarNoChrome, capturaTrazOChrome, fecharOuMatar, ORCAMENTO_DO_FECHAR, paiDoProcesso, PRAZO_DA_ACAO_NA_TELA_MS, PRAZO_FECHAR_CHROME_MS, PRAZO_LIMPAR_STORAGE_NA_TELA_MS, responderNoPrazo, argsDoBwrapDoDock, binarioDisponivel, caminhosDoDock, cicloDoChrome, CLASSE_DO_CHROME, CLASSES_DO_CHROME_NO_OPENBOX, comFocoNoChrome, COOKIES_DEPOIS_DA_NAVEGACAO_MS, cookiesDoRelancamento, criarAgendador, criarCookiesDaTela, DOCK_ALTURA, TETO_DO_TMP_DO_DOCK, dockPossivel, focarJanelaDoChrome, janelaParaFocar, lancadorDesktop, OPENBOX_XML, precisaObservarDeNovo, prepararPastaDoDock, regraDoDockVale, tint2rc, tocaNoDock, vigiarFifo } from "../../../infra/computador/tela.mjs";
+import { areaDoChrome, APAGAR_COOKIES_MS, PREPARO_DO_CHROME_MS, PRAZO_DO_CDP_MS, PRAZO_DOS_COOKIES_MS, caminhoDaCaptura, negarPermissoes, PERMISSOES_NEGADAS_COM_DOCK, semCapturaDeTela, quadroVale, criarGuardaDaSelecao, gravarSelecaoDoX, BOTOES_DO_BOT_COM_DOCK, pontoNaJanela, pontosDoToque, prazoParaFecharOChrome, RESTO_DA_ACAO_MS, ORCAMENTO_DO_RELANCAMENTO_MS, PRAZO_DE_GRACA_MS, PROGRAMAS_SO_DO_DOCK, programasParaEsconder, ABAS_TENTADAS_NO_CDP, apagarCookiesNoChrome, atenderNoPrazo, esperarQueSaia, PRAZO_FECHAR_ENVENENADA_MS, PRAZO_LIMPAR_COOKIES_NA_TELA_MS, argsDoBwrapDaTela, argsParaRolarNoChrome, capturaTrazOChrome, fecharOuMatar, ORCAMENTO_DO_FECHAR, paiDoProcesso, PRAZO_DA_ACAO_NA_TELA_MS, PRAZO_FECHAR_CHROME_MS, PRAZO_LIMPAR_STORAGE_NA_TELA_MS, responderNoPrazo, argsDoBwrapDoDock, binarioDisponivel, caminhosDoDock, cicloDoChrome, CLASSE_DO_CHROME, CLASSES_DO_CHROME_NO_OPENBOX, comFocoNoChrome, COOKIES_DEPOIS_DA_NAVEGACAO_MS, COOKIES_DEPOIS_DO_SET_COOKIE_MS, cookiesDoRelancamento, criarAgendador, criarCookiesDaTela, acompanharSetCookie, DOCK_ALTURA, TETO_DO_TMP_DO_DOCK, dockPossivel, focarJanelaDoChrome, janelaParaFocar, lancadorDesktop, OPENBOX_XML, precisaObservarDeNovo, prepararPastaDoDock, regraDoDockVale, tint2rc, tocaNoDock, vigiarFifo } from "../../../infra/computador/tela.mjs";
 import { vizinhosDoTmp } from "../../../infra/computador/isolamento.mjs";
 import { chaveDoCookie } from "../../../infra/computador/loja-cookies.mjs";
 import { mandarAoFilho, PRAZO_ACAO_MS, PRAZO_FECHAR_TELA_MS, PRAZO_LIMPAR_STORAGE_MS } from "../../../infra/computador/supervisor.mjs";
@@ -18,7 +18,9 @@ const BWRAP_RODA = (() => {
   try { execFileSync("/usr/bin/bwrap", ["--ro-bind", "/", "/", "--dev", "/dev", "--", "/bin/true"], { stdio: "ignore" }); return true; } catch { return false; }
 })();
 
-/** NOD-410 (30/10): o dock do desktop — tint2 embaixo com Chrome, Arquivos e Terminal, e as janelas abertas. */
+const argumentoDoShell = (valor: string): string => `'${valor.replaceAll("'", `'\\''`)}'`;
+
+/** NOD-410 (30/10): o dock do desktop, como o do Grok — tint2 embaixo com Chrome, Arquivos e Terminal, e as janelas abertas. */
 describe("o dock do desktop", () => {
   it("o tint2rc é um painel embaixo, com os lançadores e a barra de janelas, sem relógio nem bandeja", () => {
     const rc = tint2rc(["/t/chrome.desktop", "/t/arquivos.desktop", "/t/terminal.desktop"]);
@@ -121,13 +123,13 @@ describe("o dock do desktop", () => {
     try {
       const args = argsDoBwrapDaTela({ run, tmp }, true);
       const sh = (cmd: string) => { try { execFileSync("bwrap", [...args, "--", "/bin/sh", "-c", cmd], { stdio: "pipe" }); return 0; } catch (e) { return (e as { status: number }).status; } };
-      expect(sh(`echo ok > ${tmp}/ok`)).toBe(0);
-      expect(sh(`test -e ${path.join(r.pasta, "dock-terminal.sh")}`)).not.toBe(0);
-      expect(sh(`echo mal > ${path.join(r.pasta, "dock-terminal.sh")}`)).not.toBe(0);
+      expect(sh(`echo ok > ${argumentoDoShell(path.join(tmp, "ok"))}`)).toBe(0);
+      expect(sh(`test -e ${argumentoDoShell(path.join(r.pasta, "dock-terminal.sh"))}`)).not.toBe(0);
+      expect(sh(`echo mal > ${argumentoDoShell(path.join(r.pasta, "dock-terminal.sh"))}`)).not.toBe(0);
       expect(await readFile(path.join(r.pasta, "dock-terminal.sh"), "utf8")).not.toContain("mal");
       // Revisão 21: a captura crua também fica de fora.
       await writeFile(caminhoDaCaptura(tmp), "captura");
-      expect(sh(`test -e ${caminhoDaCaptura(tmp)}`)).not.toBe(0);
+      expect(sh(`test -e ${argumentoDoShell(caminhoDaCaptura(tmp))}`)).not.toBe(0);
     } finally {
       await rm(run, { recursive: true, force: true });
     }
@@ -660,6 +662,23 @@ describe("a pasta do dock (PR #600, QA)", () => {
     for (const linha of ["quick_exec=0", "thumbnail_local=0", "show_thumbnail=0", "use_trash=0"]) expect(libfm).toContain(linha);
   });
 
+  it("usa o tema e os três apps reais do Paper sem confiar em comandos do bundle", async () => {
+    const tmp = await mkdtemp(path.join(tmpdir(), "nod-dock-paper-"));
+    const raiz = path.resolve("infra/computador/shell-visual/paper-v2");
+    const manifesto = JSON.parse(await readFile(path.join(raiz, "manifesto.json"), "utf8"));
+    const r = await prepararPastaDoDock(config(tmp), "cookie-x", { raiz, manifesto });
+    expect(r.lancadores.map((f) => path.basename(f))).toEqual(["browser.desktop", "terminal.desktop", "files.desktop"]);
+    for (const [arquivo, nome] of [[r.lancadores[0]!, "Browser"], [r.lancadores[1]!, "Terminal"], [r.lancadores[2]!, "Files"]] as const) {
+      const desktop = await readFile(arquivo, "utf8");
+      expect(desktop).toContain(`Name=${nome}`);
+      expect(desktop).toContain("Exec=/bin/sh ");
+    }
+    const rc = await readFile(r.rc, "utf8");
+    for (const arquivo of r.lancadores) expect(rc).toContain(`launcher_item_app = ${arquivo}`);
+    expect(r.wallpaper).not.toBeNull();
+    await expect(readFile(r.wallpaper!, "utf8")).resolves.toContain("<svg");
+  });
+
   it.skipIf(!BWRAP_RODA)("no bwrap real do dock a pasta não aceita arquivo novo, e o lançador do Chrome chega à tela pelo FIFO (revisão 10)", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "nod-dock-"));
     const ws = await mkdtemp(path.join(tmpdir(), "nod-ws-"));
@@ -747,6 +766,24 @@ describe("os cookies sobem logo depois da navegação (revisão 8 do PR #600)", 
     ag.parar();
     expect(marcados[1]?.vivo).toBe(false);
     expect(COOKIES_DEPOIS_DA_NAVEGACAO_MS).toBeLessThanOrEqual(1000);
+  });
+});
+
+describe("NOD-434: o login manual assenta antes de uma queda abrupta", () => {
+  it("só Set-Cookie agenda a coleta, sem esperar navegação nem a rodada de 10 s", async () => {
+    let aoResponder: ((r: { headerValue: (nome: string) => Promise<string | null> }) => void) | undefined;
+    let coletas = 0;
+    const pagina = { on: (evento: string, f: typeof aoResponder) => { if (evento === "response") aoResponder = f; } };
+    acompanharSetCookie(pagina, () => { coletas += 1; });
+
+    aoResponder?.({ headerValue: async (nome) => nome === "set-cookie" ? "sid=novo; HttpOnly" : null });
+    aoResponder?.({ headerValue: async () => null });
+    aoResponder?.({ headerValue: async () => { throw new Error("CDP caiu"); } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(coletas).toBe(1);
+    expect(COOKIES_DEPOIS_DO_SET_COOKIE_MS).toBeLessThan(COOKIES_DEPOIS_DA_NAVEGACAO_MS);
   });
 });
 
@@ -1135,7 +1172,7 @@ describe("o Chrome que não fecha e o pedido que passa do prazo (revisão 13 do 
       await writeFile(path.join(dirs.perfil, "Cookies"), "segredo");
       await writeFile(path.join(dirs.logins, "loja"), "segredo");
       const args = argsDoBwrapDoDock({ raiz: pc, run: path.join(raiz, "run"), workspace: dirs.workspace }, dirs.dock);
-      const sh = `for f in ${dirs.perfil}/Cookies ${dirs.logins}/loja ${dirs.outro}; do [ -e "$f" ] && echo "viu $f"; done; echo ok > ${dirs.workspace}/a && echo escreveu; touch ${dirs.dock}/x 2>/dev/null && echo dock-gravavel; true`;
+      const sh = `for f in ${argumentoDoShell(path.join(dirs.perfil, "Cookies"))} ${argumentoDoShell(path.join(dirs.logins, "loja"))} ${argumentoDoShell(dirs.outro)}; do [ -e "$f" ] && echo "viu $f"; done; echo ok > ${argumentoDoShell(path.join(dirs.workspace, "a"))} && echo escreveu; touch ${argumentoDoShell(path.join(dirs.dock, "x"))} 2>/dev/null && echo dock-gravavel; true`;
       const saida = execFileSync("/usr/bin/bwrap", [...args, "--", "/bin/sh", "-c", sh]).toString();
       expect(saida.trim().split("\n")).toEqual(["escreveu"]);
     } finally {

@@ -11,7 +11,7 @@ import { abrirTurno } from "./quadro.ts";
 import { emSavepoint } from "./savepoint.ts";
 import { tarefaCasaLigada } from "../shared/tarefa-casa.ts";
 import type { Deps } from "./tipos.ts";
-import { situacaoDasTarefas } from "./situacao-trabalho.ts";
+import { situacaoDasTarefas, type SituacaoDoTrabalho } from "./situacao-trabalho.ts";
 import { registrarAvisoDoQuadro, type TipoAvisoDoQuadro } from "./trilha-quadro.ts";
 
 /**
@@ -102,7 +102,11 @@ async function vencidos(deps: Deps, q: Quadro, agora: number) {
   const semDecisao = (t: (typeof tarefas)[number]) => t.status !== "voce" || !comDecisao.has(t.id);
   // ADA-232: a tarefa com volta marcada (hora, CI, comando de fundo) não está parada: o zelador não a cobra. O trabalho
   // vivo sem volta segue a regra antiga (o turno da tarefa na fila não abre outro; o turno limpo é cobrado).
-  const situacoes = await situacaoDasTarefas(deps, tarefas.map((t) => t.id));
+  // 2026-11-20 (CPU do Cloud SQL em 90–99%): a situação só serve para tirar dos atrasos a tarefa ocupada, então só se lê a
+  // das tarefas que venceram o prazo. Ler a de todas a cada 30 s (desfechos e voltas de todas as cadeias, por quadro e
+  // por pessoa) era a maior carga periódica do banco. Quase sempre nenhuma venceu e o banco nem é consultado.
+  const vencidas = atrasosDePrazo(tarefas, colunas, agora).map((a) => a.tarefa.id);
+  const situacoes = vencidas.length === 0 ? new Map<string, SituacaoDoTrabalho>() : await situacaoDasTarefas(deps, vencidas);
   const ocupadas = new Set([...situacoes].filter(([, s]) => s.volta !== null).map(([id]) => id));
   return { colunas, tarefas, decisoes: decisoesParaAvisar(tarefas, colunas, agora).filter(daDona).filter(semDecisao), atrasos: atrasosDePrazo(tarefas, colunas, agora, ocupadas) };
 }

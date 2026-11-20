@@ -10,6 +10,14 @@ dialog.ctc::backdrop { background: transparent; }
 /* A barra de 44 px: o espaço dos semáforos à esquerda (88 no app do Mac, 20 na web) e o "Sair da tela cheia" a 10 px da borda. */
 .ctc-topo { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 44px; padding: 0 10px 0 20px; box-sizing: border-box; }
 .ctc.no-mac .ctc-topo { padding-left: 88px; -webkit-app-region: drag; }
+/* Item 5 (definido em 2026-11-16): o título discreto à esquerda, "Tela de {Bot}" ou "{Bot} precisa de você · <pedido>" em uma linha. */
+.ctc-titulo { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 760px; margin: 0 auto 0 0; font: inherit; font-size: 13px; line-height: 18px; font-weight: 400; color: #ffffffa8; white-space: nowrap; } /* cor-fixa: texto sobre o fundo fixo da tela cheia */
+.ctc-tit-nome, .ctc-tit-pedido { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ctc-tit-quem { flex: none; color: #ffffffe0; } /* cor-fixa: quem pede, mais claro que o pedido */
+.ctc-tit-curto { display: none; }
+/* O --warning do tema claro some no fundo escuro fixo da tela cheia: o ponto usa o âmbar do escuro, igual nos dois temas. */
+.ctc-tit-ponto { flex: none; width: 6px; height: 6px; border-radius: 50%; background: #ebbd6a; } /* cor-fixa: o --warning do escuro */
+.ctc-pedido { display: none; }
 .ctc-fora { margin-right: auto; color: #ffffffa8; font-size: 12px; line-height: 18px; } /* cor-fixa: texto sobre o fundo fixo da tela cheia */
 .ctc-fora[hidden] { display: none; }
 .ctc-sair, .ctc-dev { -webkit-app-region: no-drag; }

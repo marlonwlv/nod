@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nod · Marketplace simulado</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Só no dev (o build não inclui esta página): o Marketplace em modal com o adaptador simulado, para conferir cada
+         estado contra o Paper ("Apps por chave de API · jornada") sem chave nem login de verdade. ?estado=d1|t1|t2|t3|t4|t5|t6|t6b -->
+    <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {} try { var q = new URLSearchParams(location.search).get("tema"); if (q === "claro" || q === "escuro") document.documentElement.dataset.theme = q === "claro" ? "light" : "dark"; } catch (e) {}</script>
+    <link rel="stylesheet" href="/tokens.css" />
+    <link rel="stylesheet" href="/estilos.css" />
+    <link rel="stylesheet" href="/interface.css" />
+    <link rel="stylesheet" href="/personagem.css" />
+    <link rel="stylesheet" href="/card-proposta.css" />
+    <link rel="stylesheet" href="/ds.css" />
+    <style>
+      /* O fundo neutro no lugar do app e o controle flutuante (no canto, fora da janela do modal). */
+      body.mk-sim { margin: 0; min-height: 100vh; background: var(--surface-side); }
+      .mk-sim-controle { position: fixed; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100vw - 24px); padding: 6px; border: 1px solid var(--borda); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-menu); font: 12px/16px var(--font-sans); color: var(--ink); }
+      .mk-sim-controle a { padding: 4px 8px; border-radius: var(--raio-8); color: var(--ink-2); text-decoration: none; }
+      .mk-sim-controle a[aria-current="page"] { background: var(--action); color: var(--on-action); }
+      .mk-sim-controle a:hover { background: var(--hover); }
+      .mk-sim-reabrir { margin: 24px; }
+      .mk-sim-aviso { position: fixed; right: 12px; bottom: 12px; padding: 8px 12px; border-radius: var(--raio-12); background: var(--action); color: var(--on-action); font: 12px/16px var(--font-sans); }
+    </style>
+  </head>
+  <body class="mk-sim">
+    <div id="marketplace"></div>
+    <script type="module" src="/marketplace-simulador.tsx"></script>
+  </body>
+</html>

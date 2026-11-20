@@ -72,7 +72,7 @@ const nomeDaColuna = (colunas: readonly ColunaQuadro[], id: IdColuna) => colunas
 
 /** Como a tarefa aparece no aviso: o título entre aspas; a de fora, só pelo identificador do Linear (ADR-047). */
 function rotulo(t: Pick<TarefaComMarcas, "titulo" | "deFora" | "linearId">): string {
-  if (t.deFora) return t.linearId ?? "uma tarefa";
+  if (t.deFora) return t.linearId ?? "um card";
   return `"${t.titulo}"`;
 }
 
@@ -89,11 +89,11 @@ function linha(t: TarefaComMarcas, colunas: readonly ColunaQuadro[], nomes: Read
   return `${rotulo(t)}${onde}${quem ? `, ${quem}` : ""}: ${pergunta}`;
 }
 
-const COMO_RESPONDER = "Responda na tarefa (um comentário) ou aqui mesmo: o responsável segue.";
+const COMO_RESPONDER = "Responda no card (um comentário) ou aqui mesmo: o responsável segue.";
 /** A coluna "só a pessoa tira daqui" não tem pergunta: responder não a tira de lá, a pessoa move (revisão 4 do PR #624). */
-const SO_VOCE_UMA = "Só você tira esta tarefa daqui: mova-a quando decidir.";
-const SO_VOCE_VARIAS = "Só você tira estas tarefas daqui: mova cada uma quando decidir.";
-const SO_VOCE_MISTO = "As que estão numa coluna só sua não têm resposta: mova-as quando decidir.";
+const SO_VOCE_UMA = "Só você tira este card daqui: mova-o quando decidir.";
+const SO_VOCE_VARIAS = "Só você tira estes cards daqui: mova cada um quando decidir.";
+const SO_VOCE_MISTO = "Os que estão numa coluna só sua não têm resposta: mova-os quando decidir.";
 
 /** O fecho da mensagem: como responder, como mover, ou os dois quando a lista mistura. */
 function fecho(tarefas: readonly TarefaComMarcas[], colunas: readonly ColunaQuadro[]): string {
@@ -137,6 +137,6 @@ export function textoDosAtrasos(atrasos: readonly Atraso<TarefaComMarcas>[], col
     const quem = a.tarefa.agenteId ? nomes.get(a.tarefa.agenteId) : undefined;
     return `${rotulo(a.tarefa)} em ${nomeDaColuna(colunas, a.tarefa.status)}${quem ? `, com ${quem}` : ""} (prazo de ${prazoLegivelMin(a.prazoMin)})`;
   };
-  if (atrasos.length === 1) return `${item(atrasos[0]!)} continua parada depois da cobrança. Vale dar uma olhada ${noQuadro(quadroDe)}.`;
-  return `${atrasos.length} tarefas ${quadroDe ? `do quadro de ${quadroDe} ` : ""}continuam paradas depois da cobrança:\n${lista(atrasos, item)}`;
+  if (atrasos.length === 1) return `${item(atrasos[0]!)} continua parado depois da cobrança. Vale dar uma olhada ${noQuadro(quadroDe)}.`;
+  return `${atrasos.length} cards ${quadroDe ? `do quadro de ${quadroDe} ` : ""}continuam parados depois da cobrança:\n${lista(atrasos, item)}`;
 }

@@ -85,7 +85,7 @@ describe("B · o ⋯ do topo", () => {
 
 describe("E · 'Parada no Backlog'", () => {
   it("com responsável numa coluna que não aciona: a linha discreta diz para onde ela precisa ir", () => {
-    expect(avisoDeParada(t({ status: "backlog" }), cols)).toBe('<p class="ta-parada">Parada no Backlog: o responsável só começa quando ela for para A fazer</p>');
+    expect(avisoDeParada(t({ status: "backlog" }), cols)).toBe('<p class="ta-parada">Parado no Backlog: o responsável só começa quando ele for para A fazer</p>');
     expect(tarefaAberta({ t: t({ status: "backlog" }), q: q(), agente })).toContain("ta-parada");
   });
   it("sem responsável, em A fazer, no andamento ou numa coluna com passagem: nada", () => {

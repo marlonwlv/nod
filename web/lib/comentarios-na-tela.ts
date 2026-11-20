@@ -178,7 +178,7 @@ export function criarComentariosNaTela(o: {
      * 2026-11-10: a tarefa aberta como a issue do Multica: a linha do tempo, o chip do topo, o Registro, as Entregas e o
      * diálogo dos runs. undefined = a API não tem os comentários (a tela fica como era).
      */
-    partes(t: TarefaDto, o2: { colunas: Parameters<typeof linhaDoTempo>[0]["colunas"]; agente: AgenteDoQuadro; nomes: readonly string[]; passos: (turno: string, n?: number) => PassoAoVivo | null; trabalho?: string; agora?: number; maquina?: string | null; /** 2026-11-10: os pedidos de quem participa e o catálogo de labels (a linha do tempo os mostra). */ quadro?: Pick<QuadroDto, "comentarios" | "labels">; /** Rodada 4: as iniciais de quem lê. */ voceIniciais?: string | null }) {
+    partes(t: TarefaDto, o2: { colunas: Parameters<typeof linhaDoTempo>[0]["colunas"]; agente: AgenteDoQuadro; nomes: readonly string[]; passos: (turno: string, n?: number) => PassoAoVivo | null; trabalho?: string; agora?: number; maquina?: string | null; runsNaLinha?: boolean; /** 2026-11-10: os pedidos de quem participa e o catálogo de labels (a linha do tempo os mostra). */ quadro?: Pick<QuadroDto, "comentarios" | "labels">; /** Rodada 4: as iniciais de quem lê. */ voceIniciais?: string | null }) {
       if (!o.api()?.comentariosDaTarefa) return undefined;
       const e = estado?.tarefaId === t.id ? estado : null;
       agenteDosChips = o2.agente;
@@ -192,7 +192,7 @@ export function criarComentariosNaTela(o: {
       const recolhidas = new Set([...["prs", "reg", "ent", "hist"]].filter((k) => RECOLHIDAS_DE_INICIO.has(k) !== ui.alternadas.has(k)));
       return {
         linha: linhaDoTempo({
-          t, colunas: o2.colunas, comentarios: e?.lista ?? [], runs, agente: o2.agente, agora, nomes: o2.nomes, respondendo: ui.respondendo, editando: ui.editando,
+          t, colunas: o2.colunas, comentarios: e?.lista ?? [], runs, ...(o2.runsNaLinha ? { runsNaLinha: true } : {}), agente: o2.agente, agora, nomes: o2.nomes, respondendo: ui.respondendo, editando: ui.editando,
           // Tela 18b do Paper: no computador a pergunta tem o cartão em cima; o reply da linha do tempo não abre sozinho.
           abertos: ui.abertos, passos: o2.passos, todosPassos: ui.todosPassos, parando: ui.parando, chips, pendente: e?.pendente ?? null, fechouPergunta: true, criadaPor: e?.criadaPor ?? null, criadaEm: primeiro?.criadoEm ?? null, criadaResumo: primeiro?.resumo ?? null, voceIniciais: o2.voceIniciais ?? null, carga: e?.carga ?? "carregando",
           atividade: e?.atividade ?? [], labels: o2.quadro?.labels ?? [], pedidos: (o2.quadro?.comentarios ?? []).filter((c) => c.tarefaId === t.id), atividadesAbertas: ui.atividadesAbertas,

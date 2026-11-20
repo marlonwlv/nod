@@ -1,3 +1,4 @@
+import { extrairMarcaDeRetomada } from "../domain/mensagem-no-meio.ts";
 import type { Autoria, Executor, RuntimeEvent } from "../contracts/evento.ts";
 import { HARNESSES, type IdHarness } from "../contracts/harness.ts";
 import { MOTIVO_DA_CAUSA, type CausaSemIa, type Inventario } from "../contracts/inventario.ts";
@@ -25,6 +26,7 @@ import { fraseDaDecisao } from "../domain/contas-da-ia.ts";
 import { decidirLimiteDaConta, ehIaComConta, fraseDoLimiteDaConta, voltaDaIa, type ContaDaPessoa, type DecisaoDoLimiteDaConta } from "../domain/contas-da-pessoa.ts";
 import type { IaComConta } from "../contracts/contas-ia.ts";
 import { harnessFixado } from "../domain/harness.ts";
+import { iaDoModelo } from "../domain/ia-do-modelo.ts";
 import { temSessaoNaIa } from "../domain/troca-de-ia.ts";
 import { contasDaIaDoTurno, criarNotaDeContas, escolherContaDoTurno, lerContasDaMaquina, type ContasDaMaquina } from "./contas-do-turno.ts";
 import { avisarTrocaDeIa, contaForaDaFila, contaQueParou, lerIas, maquinaDasTasks, outraIaParaAsTasks, quandoAIaVolta } from "./trocas-de-ia.ts";
@@ -37,7 +39,7 @@ import { rotinaDoTurno } from "./apoio-l7.ts";
 import { registrarDesfechoRotina } from "./disparar-rotina.ts";
 import { avisarEsperaAoRemetente } from "./entregar-resposta-peer.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
-import { aposQuedaDaMaquina } from "./interromper-por-maquina.ts";
+import { aposQuedaDaMaquina, aposTetoDosBastidores } from "./interromper-por-maquina.ts";
 import { postarNaSala } from "./postar-na-sala.ts";
 import { enfileirarVoltaDoFundo, entradaDaVoltaDoFundo, falasSemResposta, fundoNaCadeia, raizDaCadeia } from "./volta-do-fundo.ts";
 import { continuarAprovacoesDoTurno } from "./decidir.ts";
@@ -144,7 +146,10 @@ type Desfecho = { estado: "concluido" | "interrompido"; motivoInterrupcao: Motiv
  * — maquina_sem_contato, o mesmo desfecho do varredor. Sucesso depois do lease vencido é trabalho
  * TERMINADO e assenta como concluído.
  */
-export function desfechoDaEntrega(turno: Pick<Turno, "pararSolicitadoEm" | "leaseAte">, resultado: Entrega["resultado"], agora: number, o: { adotada?: boolean } = {}): Desfecho {
+export function desfechoDaEntrega(turno: Pick<Turno, "pararSolicitadoEm" | "leaseAte"> & { motivoInterrupcao?: MotivoInterrupcao | null }, resultado: Entrega["resultado"], agora: number, o: { adotada?: boolean } = {}): Desfecho {
+  // NOD-452: o pedido do teto ganhou a linha antes do processo terminar. Mesmo uma conclusão que correu junto perde
+  // para o corte já confirmado no banco; do contrário a próxima faixa poderia começar enquanto o processo velho segue.
+  if (turno.motivoInterrupcao === "turno_travado") return { estado: "interrompido", motivoInterrupcao: "turno_travado", motivoFalha: null };
   if (resultado.desfecho === "sucesso") return { estado: "concluido", motivoInterrupcao: null, motivoFalha: null };
   // definido em 2026-10-05: a conta da IA não serviu — o mesmo desfecho de quando o inventário já barra o despacho
   // (despachar-turno.ts, recusarPorExecutor): nenhum trabalho começou.
@@ -201,6 +206,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // servidor reiniciou no meio do turno adotado — a mesma regra de queda, com o motivo dela (sem aviso de queda do Mac).
   const motivoDaQuedaNaEntrega: MotivoDaQueda | null = !tardia && ehMotivoDaQueda(desfecho.motivoInterrupcao) ? desfecho.motivoInterrupcao : null;
   const quedaDaMaquina = motivoDaQuedaNaEntrega !== null;
+  const tetoDosBastidores = !tardia && desfecho.motivoInterrupcao === "turno_travado";
   // Lido AGORA: assentar zera lease_ate, e o último sinal de vida (lease − LEASE_MS) é o começo do aviso.
   const perdidoDesde = ultimoSinalDoTurno(turno, agora);
   const caiuAntes = tardia && ehMotivoDaQueda(turno.motivoInterrupcao) && resultado.desfecho !== "sucesso";
@@ -218,7 +224,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // NOD-402 (ADR-130): o turno dos bastidores da conversa que a pessoa parou (o Parar do chat também para a rotina e o
   // colega, NOD-252) não deixa no chat a fala cortada ("Vou verificar…") de um trabalho que ela nem via: a execução fica
   // no histórico da rotina, como a do pendente parado.
-  const bastidorParado = interrompido && turno.bastidores === true && !turno.trabalhoId && (desfecho.motivoInterrupcao === "parado_pela_pessoa" || turno.motivoInterrupcao === "parado_pela_pessoa");
+  const bastidorParado = interrompido && turno.bastidores === true && !turno.trabalhoId && (desfecho.motivoInterrupcao === "parado_pela_pessoa" || desfecho.motivoInterrupcao === "turno_travado" || turno.motivoInterrupcao === "parado_pela_pessoa");
   const autoria = autoriaAgente({ agenteId: turno.agenteId, contaDeExecucao: turno.ownerId, executor, machineId: entrega.machineId });
   const events: RuntimeEvent[] = [...(confirmadas?.events ?? [])];
 
@@ -232,7 +238,11 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // `duracaoMs` (plano "o pensamento no chat", 2026-10-26): do despacho (ou da criação, no turno de antes da 0083) até agora.
   const duracaoMs = Math.max(0, agora - (turno.despachadoEm ?? turno.criadoEm));
   const acoes: Extract<PayloadMensagem, { kind: "acoes_do_turno" }> | null = listaDeAcoes.length > 0 ? { kind: "acoes_do_turno", acoes: listaDeAcoes, duracaoMs } : null;
-  const falaTexto = entrega.fala.tipo === "texto" && comandoDoTurno !== "compactar" && !resultado.causaSemIa ? traduzirSaidaDoComando(turno.entradaTexto, entrega.fala.texto, entrega.harness) : "";
+  const falaBruta = entrega.fala.tipo === "texto" && comandoDoTurno !== "compactar" && !resultado.causaSemIa ? traduzirSaidaDoComando(turno.entradaTexto, entrega.fala.texto, entrega.harness) : "";
+  // ADR-186: a resposta que RETOMA o que o bot fazia (pergunta à parte) pode chegar na entrega final: a marca sai do texto
+  // e a fala pausada deste turno vira "retomada".
+  const { texto: falaTexto, retomou } = extrairMarcaDeRetomada(falaBruta);
+  if (retomou) await deps.repos.mensagens.marcarRetomada(turno.id);
   let mensagem: Mensagem | null = null;
   if (entrega.fala.tipo === "passe") {
     const agente = await deps.repos.agentes.buscar(turno.agenteId);
@@ -464,6 +474,10 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     // que dariam à rotina uma mensagem no chat e à conversa duas linhas para a mesma queda.
     const q = await aposQuedaDaMaquina(deps, assentado, { perdidoDesde, motivo: motivoDaQuedaNaEntrega });
     events.push(...q.events);
+  } else if (tetoDosBastidores) {
+    // O processo já terminou e a transação ainda segura a linha: a retomada nasce antes de a faixa ser liberada.
+    const q = await aposTetoDosBastidores(deps, assentado, agora);
+    events.push(...q.events);
   } else if (resultado.causaSemIa && contaDoTurnoId && entrega.harness && (trocou = await aposContaDaListaSemAcesso(deps, { turno, assentado, executor, contaId: contaDoTurnoId, machineId: entrega.machineId, ia: entrega.harness, causa: resultado.causaSemIa, autoria, agora, custoUsd }))) {
     events.push(...trocou);
   } else if (resultado.causaSemIa) {
@@ -569,7 +583,7 @@ async function aposLimite(
 ): Promise<RuntimeEvent[] | null> {
   const { turno, autoria, agora } = p;
   // ADR-108 (R4): o turno de uma task não é refeito noutra IA aqui — quem decide é aposLimiteDaIaNoFundo (a sessão).
-  if (turno.origem !== "conversa" || turno.harness !== "auto" || turno.modelo !== "auto" || turno.trabalhoId) return null;
+  if (turno.origem !== "conversa" || harnessFixado(turno.harness, turno.modelo) !== null || turno.trabalhoId) return null;
   const [agente, preferencias] = await Promise.all([deps.repos.agentes.buscar(turno.agenteId), deps.repos.preferencias.buscar()]);
   if (!agente) return null;
   const interrompido = evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: p.motivoInterrupcao, motivo_falha: p.motivoFalha, ia_no_limite: p.ia, renova_em: p.renovaEm, custo_usd: p.custoUsd } });
@@ -614,7 +628,7 @@ async function aposLimite(
     entradaAnexos: turno.entradaAnexos,
     entradaConfianca: turno.entradaConfianca,
     // NOD-268: fixo na IA escolhida (modelo `auto` = a escolha do bot para ela, senão o recomendado).
-    modelo: turno.modelo,
+    modelo: iaDoModelo(turno.modelo) === para ? turno.modelo : "auto",
     harness: para,
     reenvios: turno.reenvios + 1,
     executor: p.executor,
@@ -1276,7 +1290,7 @@ async function aposErroTransitorioNoFundo(
   });
   const ia = p.ia ? nomeDaIa(p.ia) : "IA";
   const chave = turno.trabalhoId ? "frente" : daRotina ? "rotina" : "pedido";
-  const pedido = chave === "frente" ? "Esta task" : chave === "rotina" ? "Esta execução da rotina" : "Este pedido";
+  const pedido = chave === "frente" ? "Esta tarefa" : chave === "rotina" ? "Esta execução da rotina" : "Este pedido";
   if (decisao.tipo === "desistir") {
     log("aviso", "fundo_desistiu", { turno_id: turno.id, causa: "erro_transitorio", motivo: decisao.motivo, tentativas, fundo: chave });
     // Quem pediu ao colega lê UMA vez que parou de tentar; a conversa do bot fica com o aviso de sempre (quem chamou).
@@ -1350,7 +1364,7 @@ async function aposContaSemAcesso(
     evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { motivo: "executor_indisponivel", motivo_falha: "nao_autenticado", causa, custo_usd: p.custoUsd } }),
   ];
   // NOD-268: no teto de reenvios, a negação com a causa (a conta sem acesso não volta sozinha com a hora).
-  const repete = turno.origem === "conversa" && turno.harness === "auto" && turno.modelo === "auto" && p.harness !== null && p.outraIa !== null && p.outraIa !== p.harness && podeReenviar(turno);
+  const repete = turno.origem === "conversa" && harnessFixado(turno.harness, turno.modelo) === null && p.harness !== null && p.outraIa !== null && p.outraIa !== p.harness && podeReenviar(turno);
   if (repete && p.harness && p.outraIa) {
     const linha = await deps.repos.mensagens.criar({
       conversaId: turno.conversaId,

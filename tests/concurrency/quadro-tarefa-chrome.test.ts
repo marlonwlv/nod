@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
@@ -138,7 +138,7 @@ window.__montarSemFlag = () => {
 `;
 
 async function pagina(dir: string): Promise<string> {
-  const js = await build({ stdin: { contents: ENTRADA, resolveDir: RAIZ.pathname, loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
+  const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
   let html = readFileSync(new URL("web/index.html", RAIZ), "utf8");
   html = html.replace(/<link rel="stylesheet" href="\/([\w-]+\.css)" \/>/g, (_, f: string) => `<style>${readFileSync(new URL(`web/${f}`, RAIZ), "utf8")}</style>`);
   html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<script>${js.outputFiles[0]!.text}</script>`);
@@ -268,8 +268,8 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     expect(await avaliar<boolean>(cdp, `document.querySelector('[data-act="mover-quadro"]').disabled`)).toBe(false);
     // O primeiro perde a corrida: a faixa diz o porquê do servidor (não "Não deu" genérico) e a tarefa segue aberta.
     await avaliar(cdp, `document.querySelector('[data-act="mover-quadro"]').click()`);
-    await ate(`/outra mudança levou a tarefa/.test(document.querySelector("#qc-faixa")?.textContent ?? "")`);
-    expect(await texto("#qc-faixa")).toContain("Não deu para mudar a tarefa de quadro: outra mudança levou a tarefa para outro quadro antes. Relendo.");
+    await ate(`/outra mudança levou o card/.test(document.querySelector("#qc-faixa")?.textContent ?? "")`);
+    expect(await texto("#qc-faixa")).toContain("Não deu para mudar o card de quadro: outra mudança levou o card para outro quadro antes. Relendo.");
     expect(await avaliar<boolean>(cdp, `!!document.querySelector("#quadro .qd-tarefa")`)).toBe(true);
     await ate(`document.querySelector('#qd-t-mover option[value="q2"]')`);
     await escolher("#qd-t-mover", "q2");
@@ -403,7 +403,7 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     await ate(`document.querySelector('#quadro .qm-pes [aria-pressed="true"]')?.textContent.includes("Ada") && !document.querySelector("#qm-pop-op")`);
     expect(await texto("#quadro")).toContain("Responsável: Ada");
     await avaliar(cdp, `document.querySelector('#quadro [data-act="filtro-do-quadro"][data-filtro="todos"]').click()`);
-    await ate(`document.querySelector('#quadro .qm-pes [aria-pressed="true"]')?.textContent.includes("Todas as tarefas")`);
+    await ate(`document.querySelector('#quadro .qm-pes [aria-pressed="true"]')?.textContent.includes("Todos os cards")`);
 
     // Setas, Home e End andam entre os itens do menu do quadro.
     await avaliar(cdp, `document.querySelector('#quadro [data-act="qmenu-abrir"]').click()`);
@@ -437,14 +437,14 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     expect(await avaliar<unknown[]>(cdp, "window.__urls")).toEqual(["ADA-1"]);
   }, 30_000);
 
-  it("revisão 7 do PR #623: o link de uma tarefa que não está no quadro abre o quadro e anuncia \"Tarefa não encontrada neste quadro.\"", async () => {
+  it("revisão 7 do PR #623: o link de uma tarefa que não está no quadro abre o quadro e anuncia \"Card não encontrado neste quadro.\"", async () => {
     await cdp.enviar("Page.navigate", { url });
     await ate("window.__montarSemFlag");
     await avaliar(cdp, `window.__api.criarTarefa("a", { titulo: "Fica" })`);
     await avaliar(cdp, "window.__montarSemFlag()");
     await avaliar(cdp, `window.__q.abrirTarefa("a", "nao-existe")`);
     await avaliar(cdp, `window.__q.sincronizar({ chave: "c1", nome: "Ada", agenteId: "a" })`);
-    await ate(`/Tarefa não encontrada neste quadro\\./.test(document.querySelector("#quadro > .qc-wrap > .qd-anuncio[role=status]")?.textContent ?? "")`);
+    await ate(`/Card não encontrado neste quadro\\./.test(document.querySelector("#quadro > .qc-wrap > .qd-anuncio[role=status]")?.textContent ?? "")`);
     expect(await avaliar<string>(cdp, "window.__q.modo()")).toBe("quadro");
     expect(await avaliar<boolean>(cdp, `!document.querySelector("#quadro .qd-tarefa")`)).toBe(true);
     expect(await avaliar<unknown[]>(cdp, "window.__urls")).toEqual([]);
@@ -503,7 +503,7 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     await ate(`!document.querySelector('[data-act="mover-quadro"]').disabled`);
     await avaliar(cdp, `document.querySelector('[data-act="mover-quadro"]').click()`);
     const anuncio = `document.querySelector("#quadro > .qc-wrap > .qd-anuncio[role=status]")?.textContent ?? ""`;
-    await ate(`/foi para o quadro de Caio como CA-1.*Tarefa não encontrada neste quadro\\./.test(${anuncio})`);
+    await ate(`/foi para o quadro de Caio como CA-1.*Card não encontrado neste quadro\\./.test(${anuncio})`);
     await ate(`/foi para o quadro de Caio como CA-1/.test(document.querySelector("#qc-faixa")?.textContent ?? "")`);
     expect(await avaliar<unknown[]>(cdp, "window.__idas")).toEqual([["c", "t1"]]);
     expect(await avaliar<string>(cdp, "window.__q.modo()")).toBe("quadro");

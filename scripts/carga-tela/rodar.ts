@@ -95,7 +95,9 @@ async function preparar(): Promise<void> {
 
 async function medirVariante(rotulo: string, cenarios: readonly Cenario[]): Promise<void> {
   const webDir = join(CONFIG.saida, `web-${rotulo}`);
-  const build = spawnSync("npx", ["vite", "build", "--outDir", webDir, "--emptyOutDir"], { cwd: repo, stdio: ["ignore", "ignore", "inherit"] });
+  // CARGA_SEM_MINIFICAR=1: o perfil sai com os nomes das funções do código (mais lento que o build de produção, só para achar o caro).
+  const minificar = process.env.CARGA_SEM_MINIFICAR === "1" ? ["--minify", "false"] : [];
+  const build = spawnSync("npx", ["vite", "build", "--outDir", webDir, "--emptyOutDir", ...minificar], { cwd: repo, stdio: ["ignore", "ignore", "inherit"] });
   if (build.status !== 0) throw new Error(`o build da web de ${repo} falhou`);
   docker("dropdb", "-U", "postgres", "--if-exists", "--force", "nod");
   docker("createdb", "-U", "postgres", "-T", "nod_base", "-O", "nod_dono", "nod");

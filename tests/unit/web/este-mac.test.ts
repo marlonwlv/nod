@@ -7,7 +7,10 @@ import { SECOES_ESPACO } from "../../../web/telas/espaco.ts";
 import { discoLegivel, renderEsteMac, USOS } from "../../../web/telas/este-mac.ts";
 import { htmlMenuConta } from "../../../web/telas/menu-conta.ts";
 import { itensDoUso } from "../../../web/telas/maquinas.ts";
-import { renderTodosOsTrabalhos } from "../../../web/telas/trabalhos.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
+
+// ADR-187 §8 (2026-11-18): "Todas as tarefas" virou a vista Por estado da tela Tarefas, com o chip Todas.
+const renderTodosOsTrabalhos = (e: Estado, filtro: "todos" | "voce" | "rotinas" | "bots" = "todos"): string => renderTelaTarefas(e, { tipo: "trabalhos", filtro, mostrar: "todas" });
 
 /** ADR-085 (definido em 2026-10-08): Seu espaço › Este Mac, a pílula do Mac ocupado e "esperando o Mac aliviar". */
 
@@ -53,10 +56,11 @@ describe("quem espera o Mac aliviar", () => {
     expect(p).toContain("2 trabalhos esperam o Mac aliviar");
     expect(p).toContain('data-act="secao-espaco" data-secao="este-mac"');
     expect(pilulaMac(true, 0, false)).toContain("trabalho novo espera o Mac aliviar");
+    // ADR-187 §8 (2026-11-18): a tela Tarefas não repete o aviso da máquina (mora no selo da aba das tarefas); a linha
+    // da tarefa segue dizendo o que espera.
     const todos = renderTodosOsTrabalhos(estadoCom([rodando, rotinaNova], { segurando: true }));
-    expect(todos).toContain("Seu Mac está ocupado");
+    expect(todos).not.toContain("Seu Mac está ocupado");
     expect(todos).toContain("esperando o Mac aliviar");
-    expect(renderTodosOsTrabalhos(estadoCom([rodando, rotinaNova], { segurando: true, pressao: "amarela" }, { pressao: "amarela" }), "todos")).not.toContain("Seu Mac está ocupado");
   });
 });
 
@@ -171,28 +175,25 @@ describe("espera por memória e disco", () => {
     expect(situacaoDe({ ...pessoaPorDisco, depoisDeTrabalhoId: antes.id }, [antes], true)).toBe("começa depois da Migrar");
   });
 
-  it("a pílula do disco: 'Pouco espaço no disco', com o Ver para Este Mac; em Todos os trabalhos ela vem antes da de memória", () => {
+  it("a pílula do disco: 'Pouco espaço no disco', com o Ver para Este Mac; na tela Tarefas, só a linha de quem espera", () => {
     const p = pilulaMac(true, 1, true, "disco");
     expect(p).toContain("<b>Pouco espaço no disco</b>");
     expect(p).toContain("1 trabalho espera espaço no disco");
     expect(p).toContain('data-secao="este-mac"');
     expect(pilulaMac(true, 0, false, "disco")).toContain("trabalho novo espera espaço no disco");
     const todos = renderTodosOsTrabalhos(estadoCom([rodando, pessoaPorDisco], { segurando: true, motivoEspera: "disco", seguraTudoNovo: true, pressao: "amarela", disco: critico }, { pressao: "amarela" }));
-    expect(todos).toContain("Pouco espaço no disco");
-    expect(todos).not.toContain("Pouca memória no seu Mac");
+    // ADR-187 §8 (2026-11-18): o aviso do disco e o da memória moram no selo da aba das tarefas, não na tela Tarefas.
+    expect(todos).not.toContain("pilula-memoria");
     expect(todos).toContain("esperando espaço no disco");
-    expect(todos.match(/pilula-memoria/g)).toHaveLength(1);
-    // Memória crítica sem disco: a pílula de memória, que já existia, fica sozinha.
     const critica = renderTodosOsTrabalhos(estadoCom([rodando, rotinaPorMemoria], { segurando: true, motivoEspera: "memoria", seguraTudoNovo: false, pressao: "vermelha" }, { pressao: "vermelha" }));
-    expect(critica).toContain("Seu Mac está quase sem memória");
-    expect(critica).not.toContain("Seu Mac está ocupado");
+    expect(critica).not.toContain("pilula-memoria");
     expect(critica).toContain("esperando o Mac liberar memória");
   });
 
   it("Este Mac: o disco com o livre à vista e o porquê atrás do clique, com os limites do servidor; crítico, vermelho e quem espera", () => {
     const html = renderEsteMac(estadoCom([rodando, pessoaPorDisco], { segurando: true, motivoEspera: "disco", seguraTudoNovo: true, disco: critico }));
     expect(html).toContain('<details class="mac-det" data-disclosure="mac-Disco"><summary class="mac-medidor"><b>Disco</b><span class="mac-barra nivel-vermelha" aria-hidden="true"><i style="width: 100%"></i></span><span>2 GB livres</span></summary>');
-    expect(html).toContain("2 GB livres de 466 GB. Com menos de 10 GB livres, rotinas e pedidos entre bots esperam; com menos de 3 GB, nenhuma task nova começa, em qualquer opção. As que já rodam continuam. É o espaço livre que o macOS informa aos apps; pode ser um pouco menor que o do Finder. As pastas dos bots ficam em ~/nod.");
+    expect(html).toContain("2 GB livres de 466 GB. Com menos de 10 GB livres, rotinas e pedidos entre bots esperam; com menos de 3 GB, nenhuma tarefa nova começa, em qualquer opção. As que já rodam continuam. É o espaço livre que o macOS informa aos apps; pode ser um pouco menor que o do Finder. As pastas dos bots ficam em ~/nod.");
     expect(html).toContain("1 esperando espaço no disco");
     expect(html).toContain("Esperando espaço no disco · 1");
     expect(html).toContain("Pouco espaço no disco");

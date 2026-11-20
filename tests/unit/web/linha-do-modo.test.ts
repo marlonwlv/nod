@@ -91,11 +91,11 @@ describe("o filtro 'Sem aprovação' da Atividade (Y3)", () => {
   const itens: ItemDeAtividade[] = [
     { id: "modo:1", em: T0 + 43 * MIN, categoria: "sem_aprovacao", titulo: "Leu as credenciais da AWS", detalhe: "cat ~/.aws/config", codigo: true },
     { id: "modo:2", em: T0 + 42 * MIN, categoria: "sem_aprovacao", titulo: "Comando arriscado", detalhe: "git push --force origin staging", codigo: true },
-    { id: "trabalho:x:comecou", em: T0, categoria: "frentes", titulo: "Abriu a task Hero", detalhe: "pedido seu", alvo: { trabalhoId: "x" } },
+    { id: "trabalho:x:comecou", em: T0, categoria: "frentes", titulo: "Abriu a tarefa Hero", detalhe: "pedido seu", alvo: { trabalhoId: "x" } },
   ];
 
   it("vem logo depois de 'Tudo', e só ele mostra o que rodou sem aprovação", () => {
-    expect(FILTROS_DA_ATIVIDADE.map((f) => f.rotulo)).toEqual(["Tudo", "Sem aprovação", "Frentes", "Bloqueios", "Máquina e IA"]);
+    expect(FILTROS_DA_ATIVIDADE.map((f) => f.rotulo)).toEqual(["Tudo", "Sem aprovação", "Tarefas", "Bloqueios", "Máquina e IA"]);
     expect(itensDoFiltro(itens, "sem_aprovacao").map((i) => i.id)).toEqual(["modo:1", "modo:2"]);
     expect(ehFiltroAtividade("sem_aprovacao")).toBe(true);
     expect(ehFiltroAtividade("qualquer")).toBe(false);
@@ -111,7 +111,7 @@ describe("o filtro 'Sem aprovação' da Atividade (Y3)", () => {
     expect(html).toContain('data-filtro="sem_aprovacao" aria-pressed="true">Sem aprovação</button>');
     // QA do PR 6: uma linha só, cortada com "…" no CSS (Y3); o texto inteiro fica no title.
     expect(html).toContain('<span class="atv-detalhe atv-codigo" title="cat ~/.aws/config">cat ~/.aws/config</span>');
-    expect(html).not.toContain("Abriu a task Hero");
+    expect(html).not.toContain("Abriu a tarefa Hero");
     const vazio: Estado = { ...comItens, atividadeDoBot: { [`ze:${dia}`]: { dia, itens: [itens[2]!], total: 1, truncados: 0, diaAnterior: null } } };
     expect(renderAtividade(vazio, bot)).toContain("Nada rodou sem aprovação neste dia.");
   });

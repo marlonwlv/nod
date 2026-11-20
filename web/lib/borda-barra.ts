@@ -55,6 +55,8 @@ export function ligarBorda(borda: HTMLElement, c: Controle, relogio: Pick<typeof
     inicio = { deslocamento: ev.clientX - pxDaBarra(b, m.janela, m.painel), barra: b, id: ev.pointerId };
     borda.setPointerCapture?.(ev.pointerId);
     borda.classList.add("arrastando");
+    // ADR-189: o estado da página inteira vai no <html> (densidade.css), não num `html:has(.borda-barra.arrastando)`.
+    borda.ownerDocument.documentElement.classList.add("borda-arrastando");
   });
   borda.addEventListener("pointermove", (ev) => {
     if (!inicio || ev.pointerId !== inicio.id) return;
@@ -65,8 +67,9 @@ export function ligarBorda(borda: HTMLElement, c: Controle, relogio: Pick<typeof
     // Recolher ou reabrir no meio do arrasto anima (a barra vai até 88 com o botão ainda apertado); o resto é seco.
     if (alvo.compacta !== atual.compacta) {
       borda.classList.add("encaixando");
+      borda.ownerDocument.documentElement.classList.add("borda-encaixando");
       if (encaixe !== undefined) relogio.clearTimeout(encaixe);
-      encaixe = relogio.setTimeout(() => { encaixe = undefined; borda.classList.remove("encaixando"); }, MS_ENCAIXE);
+      encaixe = relogio.setTimeout(() => { encaixe = undefined; borda.classList.remove("encaixando"); borda.ownerDocument.documentElement.classList.remove("borda-encaixando"); }, MS_ENCAIXE);
     }
     c.pintar(alvo);
     atualizarBorda(borda, alvo, m);
@@ -77,6 +80,7 @@ export function ligarBorda(borda: HTMLElement, c: Controle, relogio: Pick<typeof
     inicio = null;
     borda.releasePointerCapture?.(ev.pointerId);
     borda.classList.remove("arrastando");
+    borda.ownerDocument.documentElement.classList.remove("borda-arrastando");
     if (mudou) c.gravar(c.obter());
   };
   borda.addEventListener("pointerup", soltar);

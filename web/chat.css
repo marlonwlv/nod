@@ -27,9 +27,21 @@
 .composer .box:has(textarea:placeholder-shown) > .send, .composer .box > .send:disabled { background: var(--chat-preenchido); color: var(--chat-icone); }
 .composer .box > .parar-envio { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); border: 0; }
 .composer .box > .parar-envio svg { width: 14px; height: 14px; }
+/* Acessos do campo (3b): o Parar ao lado do Enviar (rascunho com o bot trabalhando) é secundário — sem fundo, preenchido
+   só no hover e no foco; o Enviar continua o único botão cheio. Gravando, o celular tem o Parar âmbar (mobile.css). */
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])) { background: transparent; color: var(--chat-tinta-2); }
+.composer .box:not(.gravando) > .parar-envio:has(+ .send:not([hidden])):is(:hover, :focus-visible) { background: var(--chat-preenchido); color: var(--chat-tinta); }
 
-/* A exceção do nod: a mensagem que só vai ser lida quando a máquina ligar. Linha como o separador, à direita, sem botão. */
-.timeline .fila-linha { margin-top: 4px; font-size: 12px; line-height: 16px; font-weight: 425; color: var(--chat-tinta-3); text-align: right; }
+/* Acessos · fila (2026-11-16): a linha pequena embaixo da fala na fila, à direita: "Na fila · Cancelar", "Cancelando…",
+   "Cancelada · não rodou · Desfazer"… O botão é texto (tinta-2, peso 500, sem vermelho), no tamanho da linha; o padding
+   à direita deixa o anel de foco inteiro na borda da coluna. O balão na fila NÃO apaga (o branco sobre a cor do bot já
+   está perto de 4,5:1, NOD-431): o "em voo" é só o `aria-busy` e esta linha. */
+.timeline .fila-linha { margin-top: 4px; padding-right: 3px; font-size: 12px; line-height: 16px; font-weight: 425; color: var(--chat-tinta-3); text-align: right; }
+.timeline .fila-linha .bt.link { display: inline; min-height: 0; padding: 0; border: 0; background: none; font: inherit; font-weight: 500; color: var(--chat-tinta-2); vertical-align: baseline; }
+.timeline .fila-linha .bt.link:hover { color: var(--chat-tinta); text-decoration: underline; }
+.timeline .fila-linha .bt.link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; border-radius: 3px; }
+/* A cancelada veste o balão "não enviada": superfície, contorno tracejado line-strong e tinta-2 (não parece fala que vai rodar). */
+.timeline .message.you.fila-cancelada .bubble { --balao-fundo: var(--surface); --balao-tinta: var(--ink); --balao-codigo: var(--surface-raised); background: var(--surface); border: 1px dashed var(--line-strong); color: var(--ink-2); text-decoration: none; box-shadow: none; }
 
 /* As ações no hover: 24 × 24, sem fundo, ícone de 16, sem animação; à direita do balão do bot, à esquerda do da pessoa. */
 .timeline .message .bubble-wrap { position: relative; }
@@ -42,6 +54,14 @@
 .timeline .message .msg-actions [data-act="relatar-mensagem"] { display: none; }
 .timeline .message.you .msg-actions [data-act="reagir-fala"] { display: none; }
 .timeline .message .msg-actions:has(button[aria-expanded="true"]) { transform: translateY(-50%); }
+/* Validação de 2026-11-16: no recibo de um pedido (a linha sem balão: "Permitido uma vez · …") as ações aparecem logo
+   depois do texto, 4 px depois do fim, como na fala do bot — antes ficavam na outra ponta da coluna, longe do que agem.
+   A linha passa a ter a largura do recibo; os botões são os mesmos da fala (24, sem borda). */
+.timeline .msg-linha.msg-encolhido { width: fit-content; max-width: 100%; }
+.timeline .msg-linha.msg-encolhido .msg-actions { left: calc(100% + 4px); right: auto; gap: 0; }
+.timeline .msg-linha .msg-actions button.bt { width: 24px; height: 24px; padding: 0; border: 0; background: none; color: var(--chat-icone); }
+.timeline .msg-linha .msg-actions button.bt:hover { background: none; border: 0; color: var(--chat-tinta); }
+.timeline .msg-linha .msg-actions button.bt svg { width: 16px; height: 16px; }
 
 /* ---- 2. O indicador: a linha depois do último balão (48 = 36 + 6/6), personagem 28 e o rótulo 14/22 ------------- */
 .timeline .message.fala-viva.indicador { display: flex; align-items: center; gap: 8.5px; min-height: 36px; padding: 6px 0 6px 8px; margin: 16px 0 0; transform-origin: left center; animation: indicador-entra 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -86,12 +106,14 @@
 /* ---- 3. Os balões ---------------------------------------------------------------------------------------------- */
 /* Bot: à esquerda, até 560, encolhe ao conteúdo, padding 7/12, raio 18, sem borda e sem rabicho, o brilho interno. */
 .timeline .message.bot .bubble-wrap { max-width: 560px; }
+/* Validação de 2026-11-17: o cartão "Para que você quer minha ajuda?" alinha com os balões do bot. A margem de 52 px
+   (interface.css) era a coluna do mascote, que o chat não tem mais. */
+.timeline .bv-cartao { margin-left: 0; width: min(560px, 100%); }
 .timeline .message.bot .bubble, .timeline .message.bot .bubble:not(.com-progresso) {
   width: fit-content; max-width: 560px; box-sizing: border-box; padding: 7px 12px; border: 0; border-radius: 18px;
   background: var(--chat-preenchido); color: var(--chat-tinta); box-shadow: var(--chat-brilho-balao);
 }
 /* Os blocos internos ficam a 10 px pela margem entre irmãos (web/chat-formato.css), não por flex: o texto em linha não empilha. */
-.timeline .message.bot .bubble.com-progresso { width: auto; }
 /* Pessoa: à direita, até min(80%, 560, 100% − 82), padding 7/12, raio 18, o mesmo brilho; 8 px entre parágrafos. */
 .timeline .message.you .bubble { max-width: min(80%, 560px, calc(100% - 82px)); box-sizing: border-box; padding: 7px 12px; border-radius: 18px; box-shadow: var(--chat-brilho-balao); }
 .timeline .message.you .bubble-wrap { max-width: min(80%, 560px, calc(100% - 82px)); display: flex; flex-direction: column; align-items: flex-end; margin-left: auto; }
@@ -115,3 +137,571 @@
    gravada fica no mesmo nó (`morfarDom`) e a animação não recomeça nem é cortada quando o `data-envio` muda. */
 /* foco-ok: o balão não recebe foco; tira só o tracejado antigo do "enviando". */
 .fala-pendente[data-envio="enviando"] .message.you .bubble { outline: 0; opacity: 1; }
+
+/* ADR-185 (validação de 2026-11-16): o texto que a pessoa parou no meio. A linha fixa embaixo do balão, no estilo do recibo
+   de um pedido (cinza, corpo 2, ícone de parar), no lugar do selo "parcial"; e o texto recolhido nas primeiras linhas,
+   esmaecendo, até ela pedir "Mostrar o texto todo". Só o interrompido: a resposta completa segue inteira. */
+.timeline .message.texto-recolhido .bubble { max-height: calc(var(--lh-conversa) * 5 + 14px); overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); } /* cor-fixa: máscara, só o alfa conta */
+.timeline .message.texto-recolhido .bubble + .bubble { display: none; }
+.timeline .linha-parada { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; padding: 0 2px;
+  font-size: 13px; line-height: 18px; color: var(--chat-tinta-3); }
+.timeline .linha-parada .lp-ic { flex: none; }
+.timeline .linha-parada .lp-mais { padding: 0; border: 0; background: none; font: inherit; color: var(--chat-tinta-2); cursor: pointer; }
+.timeline .linha-parada .lp-mais:hover { color: var(--chat-tinta); text-decoration: underline; text-underline-offset: 2px; }
+.timeline .linha-parada .lp-mais:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; border-radius: 3px; }
+
+
+/* ---- ADR-187 §5 (lote B, passo 1, 2026-11-17): a pílula vira a aba presa ao campo (protótipo P1) ----------------------
+   A faixa da pílula tem a largura do campo; a aba encosta à esquerda (20 px), em cima da borda do campo, e parece sair
+   dele. Antes era uma pílula solta, no centro, com sombra. */
+.stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 max(70px, calc((100% - 960px) / 2)); }
+@media (max-width: 760px) { .stage > .lugar-faixa-trabalhos:has(> .pilula-frentes) { padding: 0 24px; } }
+/* O teto de 760 dos filhos da faixa (interface.css) centrava a pílula num campo de 960: a aba caía 100 px para dentro. */
+.lugar-faixa-trabalhos > .pilula-frentes { max-width: 960px; }
+/* Os valores são os do Paper ("Aba das tarefas", P1): fundo cinza, anel de 1 px, cantos de cima em 12, padding 6/12/8,
+   vão de 8, texto 13/18 (o número em 500, o resto em cinza), seta de 10, anel de 12 de quem roda, ponto azul de 8 de quem
+   precisa da pessoa. */
+.pilula-frentes .pf-fechada { left: 20px; bottom: 0; height: auto; transform: none; gap: 6px; align-items: flex-end; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.pilula-frentes .pf-botao { gap: 8px; height: auto; padding: 6px 12px 8px; border-radius: 12px 12px 0 0; background: var(--chat-aba-fundo);
+  box-shadow: 0 0 0 1px var(--chat-aba-contorno); color: var(--chat-tinta); font-size: 13px; line-height: 18px; }
+.pilula-frentes .pf-texto { font-weight: 500; }
+.pilula-frentes .pf-resto, .pilula-frentes .pf-seta { color: var(--chat-tinta-2); }
+.pilula-frentes .pf-aba-ic { flex: none; }
+.pilula-frentes .pf-precisa { color: var(--chat-aba-precisa); }
+.pilula-frentes .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
+.pilula-frentes .pf-anel-arco { stroke: var(--chat-tinta); }
+.pilula-frentes .pf-anel { animation: pf-anel-gira 1s linear infinite; }
+@keyframes pf-anel-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pilula-frentes .pf-anel { animation: none; } }
+/* ADR-187 (protótipo 4t, opção A, 2026-11-18): o selo ao lado da aba quando a máquina das tarefas deste bot está apertada
+   (memória, processador ou disco). Outra aba presa ao campo, âmbar (vermelha no crítico), com o triângulo e o texto. */
+.pilula-frentes .pf-memoria-lugar { display: flex; }
+.pilula-frentes .pf-selo { display: flex; align-items: center; gap: 6px; height: auto; padding: 6px 12px 8px; border: 0; border-radius: 12px 12px 0 0;
+  background: var(--chat-aviso-fundo); box-shadow: 0 0 0 1px var(--chat-aviso-contorno); color: var(--chat-aviso-tinta); font: inherit; font-size: 13px;
+  line-height: 18px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.pilula-frentes .pf-selo .pf-selo-ic { flex: none; color: var(--chat-aviso-icone); }
+.pilula-frentes .pf-selo.vermelha { background: var(--chat-critico-fundo); box-shadow: 0 0 0 1px var(--chat-critico-contorno); color: var(--chat-critico-tinta); }
+.pilula-frentes .pf-selo.vermelha .pf-selo-ic { color: var(--chat-critico-tinta); }
+.pilula-frentes .pf-selo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* A linha da máquina que o selo abriu em Máquinas. */
+.cfg-maq.maq-realce { border-radius: var(--raio-10); box-shadow: 0 0 0 2px var(--chat-aviso-icone); transition: box-shadow var(--dur-lento) ease; }
+
+/* ---- ADR-187 §5 e §7 (lote B, passo 2, 2026-11-18): a nova tarefa da pessoa ---------------------------------------------
+   Paper 4q (opção B): sem tarefas, a aba nunca some — "+ Nova tarefa ⌘N", discreta (texto 13 em cinza, tecla 12 mais
+   clara, padding 5/12/7, a mesma forma da aba que conta); com tarefas, um "+" pequeno à direita dela (padding 5/10/7, 4 px
+   de vão). Opção C: a dica, um cartão acima da aba (raio 12, anel de 0,5 px, padding 12/14, título 13/18 em 600, texto
+   12/17, ações 12/16 com 12 de vão), uma vez por pessoa. */
+.pilula-frentes .pf-mais { display: flex; align-items: center; justify-content: center; margin-left: -2px; padding: 5px 10px 7px; border: 0; border-radius: 12px 12px 0 0;
+  background: var(--chat-aba-fundo); box-shadow: 0 0 0 1px var(--chat-aba-contorno); color: var(--chat-tinta-2); font: inherit; line-height: 18px; cursor: pointer; }
+.pilula-frentes .pf-mais svg { display: block; width: 12px; height: 18px; }
+.pilula-frentes .pf-mais:hover { color: var(--chat-tinta); }
+.pilula-frentes .pf-mais:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pilula-frentes.pf-vazia .pf-botao.pf-nova { gap: 6px; padding: 5px 12px 7px; color: var(--chat-tinta-2); font-weight: var(--peso-regular); }
+.pilula-frentes.pf-vazia .pf-nova:hover { color: var(--chat-tinta); }
+.pilula-frentes.pf-vazia .pf-nova-atalho { padding: 0; border: 0; background: none; color: var(--chat-tinta-4); font: inherit; font-size: 12px; line-height: 16px; }
+
+/* ---- ADR-187 §5 (lote B, passo 6, 2026-11-18): o cartão vivo na conversa e a lista aberta da aba ---------------------------
+   Valores do Paper (1c "Duas tarefas em paralelo", 1d "Rede de 2 min", P1 "Pílula P1 + cartão vivo", 4d e "Aba das tarefas"):
+   o cartão branco com anel de 0,5 px e sombra 2/6, raio 16, padding 14/16, vão 10 (12 com chips), até 560 de largura; o topo
+   14/20 em 600 com o tempo 12/16 cinza à direita; a barra de 6 (raio 3, vão 3): pronta na tinta, precisa em azul, rodando a
+   25 %, na fila a 8 %; as linhas de 32 com vão 10 e traço de 0,5 entre elas, o ícone de 14, o título 13/18 em 500 numa coluna
+   de 150, o estado 13/18 cinza, "Ver" 13/18 em 500 (na que precisa de você, a pergunta e "Responder" em azul). Uma tarefa
+   só: padding 10/16, o ícone de 16, o título 14/20 em 500 sobre o passo 12/16, "Ver" cinza. Acima de cinco: a linha realçada
+   (azul a 6 %, raio 10, padding 10/12, "Responder" em 600) e os chips (fundo 4 %, raio 999, padding 3/9/3/7, vão 5, 12/16, o
+   ícone de 12) com "Ver detalhes ›" em 500. A lista aberta da aba (4d): linhas de 36 com padding 0/10 e raio 8, o estado
+   12/16 à direita, a que precisa de você realçada, e "+ Nova tarefa ⌘N" 13/18 numa linha de 32 com o traço em cima. */
+.progresso { display: flex; flex-direction: column; gap: 10px; width: min(100%, 560px); box-sizing: border-box; margin-top: 6px; padding: 14px 16px; border: 0;
+  border-radius: 16px; background: var(--chat-superficie); box-shadow: var(--chat-cartao-sombra); color: var(--chat-tinta); font-size: 13px; line-height: 18px; }
+.progresso:has(> .tv-chips) { gap: 12px; }
+/* O cartão tem a largura do balão mais largo (560), não a do texto da fala acima dele. */
+.timeline .message.bot .bubble-wrap:has(> .progresso-lugar) { width: min(100%, 560px); }
+.progresso ul { margin: 0; padding: 0; list-style: none; }
+.progresso .tv-topo { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.progresso .tv-resumo { min-width: 0; overflow: hidden; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.progresso .tv-tempo { flex: none; margin-left: auto; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.progresso .tv-barra { display: flex; flex: none; gap: 3px; height: 6px; }
+.progresso .tv-seg { flex: 1 1 0; border-radius: 3px; background: var(--chat-barra-vazia); }
+.progresso .tv-seg[data-estado="pronta"] { background: var(--chat-tinta); }
+.progresso .tv-seg[data-estado="precisa"] { background: var(--chat-aba-precisa); }
+.progresso .tv-seg[data-estado="rodando"] { background: var(--chat-barra-andando); }
+.progresso .tv-seg[data-estado="parada"] { background: var(--chat-tinta-4); }
+.progresso .tv-seg[data-estado="falhou"] { background: var(--danger); }
+.progresso .tv-linhas { display: flex; flex-direction: column; }
+.progresso .tv-linhas > .tv-item + .tv-item > .tv-linha { border-top: 0.5px solid var(--chat-spinner-trilho); }
+/* A linha da tarefa, no cartão e na lista da aba: um botão só (a linha inteira abre a tarefa, Paper 4d). */
+.tv-linha { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; box-sizing: border-box; margin: 0; padding: 0; border: 0; border-radius: 0;
+  background: none; color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px; text-align: left; cursor: pointer; }
+.tv-linha:focus-visible, .tv-chip:focus-visible, .tv-mais:focus-visible, .pf-nova-linha:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 6px; }
+.tv-ic { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--chat-tinta); }
+.tv-ic svg { display: block; }
+.tv-ic .pf-anel { width: 14px; height: 14px; animation: pf-anel-gira 1s linear infinite; }
+.tv-ic .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
+.tv-ic .pf-anel-arco { stroke: var(--chat-tinta); }
+[data-estado="precisa"] > .tv-ic { color: var(--chat-aba-precisa); }
+:is([data-estado="esperando"], [data-estado="sem_noticia"]) > .tv-ic { color: var(--chat-tinta-4); }
+[data-estado="parada"] > .tv-ic { color: var(--chat-tinta-3); }
+[data-estado="falhou"] > .tv-ic { color: var(--danger); }
+@media (prefers-reduced-motion: reduce) { .tv-ic .pf-anel { animation: none; } }
+.tv-texto { display: flex; flex: 1 1 0; align-items: baseline; gap: 10px; min-width: 0; }
+.tv-titulo { flex: none; width: 150px; overflow: hidden; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.tv-estado { flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+.tv-ver { flex: none; font-weight: 500; }
+.tv-linha[data-estado="precisa"] :is(.tv-estado, .tv-ver) { color: var(--chat-aba-precisa); }
+.tv-linha:hover .tv-titulo { text-decoration: underline; text-decoration-color: var(--chat-aba-contorno); text-underline-offset: 3px; }
+/* Uma tarefa só (Paper 1d): o cartão é a linha. */
+.progresso.progresso-uma { flex-direction: row; align-items: center; padding: 10px 16px; }
+.progresso-uma .tv-linhas { flex: 1 1 0; min-width: 0; }
+.progresso-uma .tv-ic, .progresso-uma .tv-ic svg { width: 16px; height: 16px; }
+.progresso-uma .tv-texto { flex-direction: column; align-items: stretch; gap: 1px; }
+.progresso-uma .tv-titulo { width: auto; font-size: 14px; line-height: 20px; }
+.progresso-uma .tv-estado { flex: none; font-size: 12px; line-height: 16px; }
+.progresso-uma .tv-estado::first-letter { text-transform: uppercase; }
+.progresso-uma .tv-linha:not([data-estado="precisa"]) .tv-ver { color: var(--chat-tinta-2); font-weight: 400; }
+/* Acima de cinco (Paper P1): a pergunta realçada e os chips. */
+.progresso .tv-pedem { display: flex; flex-direction: column; gap: 6px; }
+.tv-linha.tv-pede { padding: 10px 12px; border-radius: 10px; background: var(--chat-precisa-fundo); }
+.tv-pede .tv-titulo { flex: 1 1 0; width: auto; }
+.tv-pede .tv-ver { font-weight: 600; }
+.progresso .tv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tv-chip { display: inline-flex; align-items: center; gap: 5px; margin: 0; padding: 3px 9px 3px 7px; border: 0; border-radius: 999px; background: var(--chat-chip-fundo);
+  color: var(--chat-tinta-2); font: inherit; font-size: 12px; line-height: 16px; white-space: nowrap; cursor: pointer; }
+.tv-chip[data-estado="pronta"] { color: var(--chat-tinta); }
+.tv-chip:hover { background: var(--chat-preenchido); }
+.tv-chip .tv-ic, .tv-chip .tv-ic svg { width: 12px; height: 12px; }
+.tv-mais { display: inline-flex; align-items: center; gap: 3px; margin: 0; padding: 3px 4px; border: 0; background: none; color: var(--chat-tinta); font: inherit; font-size: 12px;
+  line-height: 16px; font-weight: 500; cursor: pointer; }
+.tv-mais:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* A lista aberta da aba (Paper 4d e "Aba das tarefas"). */
+.pf-lista .tv-linha { min-height: 36px; padding: 0 10px; border-radius: 8px; }
+.pf-lista .tv-linha:hover { background: var(--chat-chip-fundo); }
+.pf-lista .tv-linha[data-estado="precisa"] { background: var(--chat-precisa-fundo); }
+.pf-lista .tv-titulo { flex: 1 1 0; width: auto; }
+.pf-lista .tv-estado { flex: 0 1 auto; max-width: 55%; font-size: 12px; line-height: 16px; text-align: right; }
+.pf-nova-linha { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 32px; box-sizing: border-box; margin: 4px 0 0; padding: 0 10px; border: 0;
+  border-top: 0.5px solid var(--chat-spinner-trilho); border-radius: 0; background: none; color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px;
+  text-align: left; cursor: pointer; }
+.pf-nova-linha:hover { background: var(--chat-chip-fundo); }
+.pf-nova-linha .pf-nova-atalho { padding: 0; border: 0; background: none; color: inherit; font: inherit; }
+
+/* Paper 3b ("O chat limpo da tarefa nova"): a pergunta no meio (22/28 em 500), o texto 14/20 em cinza e o chip "Levar o
+   contexto da conversa" (13/18, fundo de 4 %, raio cheio, padding 6/12); ligado (Paper 3e), o fundo da aba, o anel e o ✓. */
+.stage > .timeline-wrap > .timeline.nt-timeline { margin: auto; max-width: 780px; }
+.nt-vazia { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0 16px; text-align: center; }
+.nt-vazia h2 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 500; letter-spacing: -0.01em; color: var(--chat-tinta); }
+.nt-vazia .nt-texto { margin: 0; font-size: 14px; line-height: 20px; color: var(--chat-tinta-2); }
+.nt-vazia .nt-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding-top: 10px; }
+.nt-vazia .nt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: var(--raio-full); background: var(--chat-chip-fundo);
+  color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px; cursor: pointer; }
+.nt-vazia .nt-chip:hover { background: var(--hover); }
+.nt-vazia .nt-chip[aria-pressed="true"] { background: var(--chat-aba-fundo); box-shadow: 0 0 0 1px var(--chat-aba-contorno); }
+.nt-vazia .nt-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.nt-topo .nt-titulo { font-weight: var(--peso-regular); }
+.nt-topo .nt-titulo b { font-weight: 600; }
+
+/* ---- ADR-187 §6 (lote B, passo 3, 2026-11-18): a fileira de abas da tarefa em tela cheia (Paper 4j opção 1, 4k e 4p) -----
+   Só dentro de uma tarefa. Valores do Paper 4p: fileira de 40 com padding lateral 24, vão 2 e o traço de baixo de 0,5 px;
+   abas de 36 coladas embaixo, padding 0/12, cantos de cima em 8, texto 13/18; a ativa com fundo de 3 %, título em 600 e
+   o traço de 2 px na tinta; a seta ⌄ do menu num quadrado de 20 (raio 5, fundo de 8 %) só no hover e no foco; × 12/16
+   (59 % nas outras, 56 % na ativa); "‹ Conversa" e "N outras ⌄" em 13 cinza; o "+" num quadrado de 28 com a dica escura
+   "Nova tarefa com <bot> ⌘N" (12/16, padding 6/10, raio 8). */
+.cabecalho.cabecalho-task.cabecalho-abas { display: flex; align-items: flex-start; justify-content: flex-start; padding: 0; }
+.tk-topo.tk-topo-abas { position: relative; display: block; flex: 1 1 auto; min-width: 0; width: auto; max-width: none; margin: 0; text-align: left; }
+.tk-topo-abas .tk-topo-extras { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 24px 0; text-align: center; }
+.tk-topo-abas .tk-pop { position: absolute; top: 44px; right: 24px; z-index: 3; margin: 0; }
+.abas-tarefa { display: flex; align-items: flex-end; gap: 2px; height: 40px; box-sizing: border-box; padding: 0 24px; border-bottom: 0.5px solid var(--chat-aba-contorno);
+  font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); }
+.abas-tarefa button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.abas-tarefa button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 6px; }
+.abas-tarefa .at-conversa { display: flex; flex: none; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 8px 8px 0 0; }
+.abas-tarefa .at-traco { flex: none; align-self: center; width: 1px; height: 18px; background: var(--chat-aba-contorno); }
+.abas-tarefa .at-aba { display: flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 8px; height: 36px; box-sizing: border-box; padding: 0 12px;
+  border-bottom: 2px solid transparent; border-radius: 8px 8px 0 0; }
+.abas-tarefa .at-aba.ativa { background: var(--chat-chip-fundo); border-bottom-color: var(--chat-tinta); color: var(--chat-tinta); }
+.abas-tarefa .at-ir { display: flex; min-width: 0; align-items: center; gap: 8px; height: 100%; padding: 0; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.abas-tarefa .at-titulo { overflow: hidden; max-width: 220px; white-space: nowrap; text-overflow: ellipsis; }
+.abas-tarefa .ativa .at-titulo { font-weight: 600; }
+.abas-tarefa .at-conversa:hover, .abas-tarefa .at-outras:hover, .abas-tarefa .at-aba:not(.ativa) .at-ir:hover { color: var(--chat-tinta); }
+/* Validação de 2026-11-18: padding 0 — fechada, a seta tinha largura 0 mas o padding de botão do navegador (6 px de
+   cada lado) deixava uma mancha cinza do fundo dela no lugar. */
+/* Validação de 2026-11-19: o × da aba sempre à vista (a ação mais importante dela), com alvo de 24 px, e o chevron do
+   menu num lugar FIXO à esquerda dele: parado, transparente e sem clique; no hover só aparece (opacidade), sem empurrar o
+   × — antes ele entrava abrindo largura e o × fugia de baixo do mouse. */
+.abas-tarefa .at-acoes { display: flex; flex: none; align-items: center; gap: 0; margin-right: -8px; }
+.abas-tarefa .at-seta { display: flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--chat-tinta-2); opacity: 0; pointer-events: none; transition: opacity var(--dur-rapido) ease; }
+.abas-tarefa .at-aba:is(:hover, :focus-within) .at-seta { opacity: 1; pointer-events: auto; }
+.abas-tarefa .at-seta:hover, .abas-tarefa .at-aba.menu-aberto .at-seta { background: var(--chat-spinner-trilho); color: var(--chat-tinta); }
+.abas-tarefa .at-fechar { display: grid; flex: none; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent;
+  color: var(--chat-tinta-3); font-size: 16px; line-height: 1; cursor: pointer; }
+.abas-tarefa .at-aba.ativa .at-fechar { color: var(--chat-tinta-2); }
+.abas-tarefa .at-fechar:hover { background: var(--chat-spinner-trilho); color: var(--chat-tinta); }
+.abas-tarefa .at-outras { display: flex; flex: none; align-items: center; gap: 6px; height: 36px; padding: 0 12px; white-space: nowrap; }
+.abas-tarefa .at-mais { position: relative; display: flex; flex: none; align-self: center; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; }
+.abas-tarefa .at-mais:hover { background: var(--chat-chip-fundo); color: var(--chat-tinta); }
+.abas-tarefa .at-dica { position: absolute; z-index: 5; top: calc(100% + 6px); left: 50%; display: flex; gap: 8px; padding: 6px 10px; border-radius: 8px;
+  background: var(--chat-tinta); color: var(--chat-superficie); font-size: 12px; line-height: 16px; white-space: nowrap; pointer-events: none;
+  opacity: 0; transform: translateX(-50%); transition: opacity var(--dur-rapido) ease; }
+.abas-tarefa .at-dica kbd { font: inherit; color: color-mix(in srgb, var(--chat-superficie) 60%, transparent); }
+.abas-tarefa .at-mais:is(:hover, :focus-visible) .at-dica { opacity: 1; transition-delay: 300ms; }
+.abas-tarefa .at-espaco { flex: 1 1 0; min-width: 8px; }
+.abas-tarefa .at-fim { display: flex; flex: none; align-self: center; align-items: center; gap: 8px; }
+.abas-tarefa .at-fim .tk-parar-frente { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--borda); border-radius: var(--raio-8);
+  background: var(--surface-elevated); color: var(--ink); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }
+.abas-tarefa .at-fim .tk-parar-frente:hover { background: var(--hover); }
+.abas-tarefa .at-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Os ícones do estado são os da aba presa ao campo (P1) e o ✓ do cartão de progresso. */
+.abas-tarefa .pf-aba-ic { flex: none; }
+.abas-tarefa .pf-precisa { color: var(--chat-aba-precisa); }
+.abas-tarefa .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
+.abas-tarefa .pf-anel-arco { stroke: var(--chat-tinta); }
+.abas-tarefa .pf-anel:not(.at-quieto) { animation: pf-anel-gira 1s linear infinite; }
+.abas-tarefa .at-feita { display: inline-flex; width: 12px; justify-content: center; color: var(--chat-tinta-2); }
+.abas-tarefa .at-feita svg { width: 12px; height: 12px; }
+.abas-tarefa .at-parada { color: var(--chat-tinta-3); }
+.abas-tarefa .at-falhou { color: var(--danger); }
+@media (prefers-reduced-motion: reduce) { .abas-tarefa .pf-anel { animation: none; } .abas-tarefa .at-seta { transition: none; } }
+/* Paper 4p ("Renomeando"): o nome vira campo ali mesmo (24 de altura, raio 5, anel azul de 1,5 px, 13/18 em 600). */
+.abas-tarefa .at-nome { width: 220px; height: 24px; box-sizing: border-box; padding: 0 6px; border: 0; border-radius: 5px; outline: 1.5px solid var(--chat-aba-precisa); outline-offset: 0; background: var(--chat-superficie);
+  color: var(--chat-tinta); font: inherit; font-weight: 600; field-sizing: content; min-width: 120px; max-width: 280px; }
+/* O menu da aba e o de "N outras" (Paper 4p): 280 de largura, raio 12, padding 6, itens 14/20 com padding 7/10, o rótulo
+   "Esta tarefa" em 11 maiúsculo e o Parar em vermelho depois do traço. */
+.bot-menu:has(> .menu-aba-corpo) { width: 280px; padding: 6px; border-radius: 12px; }
+.bot-menu > .menu-aba-corpo .menu-nome { margin: 0; padding: 6px 10px 4px; font-size: 11px; line-height: 14px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-3); }
+.bot-menu > .menu-aba-corpo button { gap: 8px; padding: 7px 10px; border-radius: 8px; font-size: 14px; line-height: 20px; }
+.bot-menu > .menu-aba-corpo button > span { width: auto; font-size: inherit; }
+.bot-menu > .menu-aba-corpo hr { margin: 4px 0; border-top-width: 0.5px; }
+.bot-menu .at-menu-dica { margin-left: 4px; color: var(--chat-tinta-3); }
+.bot-menu .at-item-titulo { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bot-menu .at-item .pf-precisa { color: var(--chat-aba-precisa); }
+.bot-menu .at-item .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
+.bot-menu .at-item .pf-anel-arco { stroke: var(--chat-tinta); }
+.bot-menu .at-item .at-parada { color: var(--chat-tinta-3); }
+/* No celular a seta fica à vista na aba ativa (não há hover) e a fileira rola de lado. */
+@media (hover: none) and (pointer: coarse) { .abas-tarefa .at-aba.ativa .at-seta { opacity: 1; pointer-events: auto; } }
+@media (max-width: 760px) {
+  .abas-tarefa { overflow-x: auto; padding: 0 12px; scrollbar-width: none; }
+  .abas-tarefa .at-titulo { max-width: 140px; }
+}
+
+/* ---- Modo pílula × modo abas (ADR-187 §6, Paper 10b e 10c A, validação de 2026-11-18) ------------------------------------
+   No modo abas a fileira tem 52 px e começa pela própria pílula do bot (a aba da Conversa): pílula de 32, marcada com o
+   contorno na cor da tinta e o traço de 2 px embaixo quando a Conversa está à vista, apagada numa tarefa. No fim, "Fechar
+   abas" (28 px, raio 8, fundo do chip, 12/16 em 500) e, na Conversa, o botão do painel. No modo pílula, o botão de abas de
+   36 px ao lado da pílula (o mesmo cromo dela), só o ícone; o ponto azul de 8 quando alguma precisa da pessoa. */
+.stage > .cabecalho-pilula.cabecalho-abas { height: auto; padding: 0; align-items: stretch; justify-content: flex-start; }
+/* O cabeçalho da conversa é uma coluna flutuante sem cliques (interface.css): a fileira, a linha pílula + abas e o botão
+   recebem o clique de volta; a fileira tem o fundo da tela (por cima do véu). */
+.cabecalho-pilula :is(.abas-tarefa, .pilula-e-abas, .botao-abas, .painel-alternar) { pointer-events: auto; }
+.cabecalho-pilula .abas-tarefa { background: var(--surface); }
+.pilula-e-abas { display: flex; align-items: center; }
+/* Validação de 2026-11-19: 56 px, a mesma altura do cabeçalho da pílula — com 52, a área da conversa mudava 4 px na troca
+   de modo e as mensagens tremiam ao fechar a sanfona. */
+.abas-tarefa.abas-com-pilula { height: 56px; padding-left: 12px; padding-right: 12px; }
+.abas-tarefa .at-pilula { display: flex; flex: none; align-self: stretch; align-items: center; gap: 8px; padding: 0 4px; margin-right: 4px;
+  border-bottom: 2px solid transparent; }
+.abas-tarefa .at-pilula.ativa { border-bottom-color: var(--chat-tinta); }
+.abas-tarefa .at-pilula .pilula-bot { display: inline-flex; align-items: center; gap: 7px; height: 32px; box-sizing: border-box; padding: 0 12px 0 4px;
+  border: 1px solid var(--divisoria); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle);
+  font-size: 13px; line-height: 18px; font-weight: var(--peso-medio); color: var(--chat-tinta-2); white-space: nowrap; cursor: pointer; }
+.abas-tarefa .at-pilula .pilula-bot .icon { width: 22px; height: 22px; min-width: 22px; margin: 0; }
+.abas-tarefa .at-pilula .pilula-txt { display: inline-flex; align-items: baseline; gap: 0; white-space: nowrap; }
+.abas-tarefa .at-pilula .pilula-bot:hover { color: var(--chat-tinta); border-color: var(--borda); }
+.abas-tarefa .at-pilula.ativa .pilula-bot { color: var(--chat-tinta); }
+.abas-tarefa .at-pilula .qd-pil { box-shadow: var(--sombra-controle); }
+#cabecalho .abas-tarefa .at-pilula .qd-pil > .pilula-bot { height: 30px; border: 0; box-shadow: none; background: transparent; color: var(--chat-tinta); }
+.abas-tarefa .at-pilula .pg-pontos { top: calc(100% + 3px); }
+.abas-tarefa .at-pilula :is(.presenca, .pilula-sub, .pilula-presenca) { display: none; }
+/* Validação de 2026-11-18 (alinhamento): na fileira de 56, as abas ocupam a altura toda, com o conteúdo no meio da linha
+   da pílula e o traço da ativa embaixo, como o da pílula. */
+.abas-com-pilula > :is(.at-aba, .at-outras, .at-conversa) { height: 100%; }
+.abas-tarefa .at-fechar-abas { display: flex; flex: none; align-self: center; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 8px;
+  background: var(--chat-chip-fundo); color: var(--chat-tinta); font-size: 12px; line-height: 16px; font-weight: var(--peso-medio); white-space: nowrap; }
+.abas-tarefa .at-fechar-abas:hover { background: var(--hover); }
+.abas-tarefa .at-fechar-abas { overflow: hidden; box-sizing: border-box; }
+.cabecalho-pilula .abas-tarefa .painel-alternar { position: static; flex: none; }
+.abas-tarefa .at-outras.precisa::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--chat-aba-precisa); }
+/* O botão de abas (modo pílula, e nas outras páginas do bot no modo abas). */
+.botao-abas { position: relative; display: grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; margin-left: 8px; box-sizing: border-box;
+  border: 1px solid var(--divisoria); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle);
+  color: var(--chat-tinta); cursor: pointer; }
+.botao-abas:hover { border-color: var(--borda); background: color-mix(in srgb, var(--chat-tinta) 4%, var(--surface-elevated)); }
+.botao-abas:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.botao-abas .ba-ponto { display: none; position: absolute; right: 1px; bottom: 1px; width: 8px; height: 8px; border-radius: 50%; background: var(--chat-aba-precisa);
+  box-shadow: 0 0 0 2px var(--surface); }
+.botao-abas.precisa .ba-ponto { display: block; }
+.botao-abas .ba-num { display: none; position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; box-sizing: border-box; padding: 0 4px; border-radius: 8px;
+  background: var(--chat-tinta); box-shadow: 0 0 0 2px var(--surface); color: var(--chat-superficie); font-size: 10px; line-height: 16px; font-weight: 700; text-align: center; }
+/* Paper 10b (2d): numa outra página do bot (Quadro, Canvas, um app) a fileira se esconde, a pílula volta ao centro e o
+   botão de abas aparece com o número (lá não existe a pílula sobre o campo). */
+.abas-tarefa .at-pilula .botao-abas { display: none; }
+.stage.qd-no-quadro .abas-com-pilula { justify-content: center; border-bottom-color: transparent; }
+.stage.qd-no-quadro .abas-com-pilula > :not(.at-pilula) { display: none; }
+.stage.qd-no-quadro .abas-com-pilula .at-pilula { border-bottom-color: transparent; }
+.stage.qd-no-quadro .abas-com-pilula .at-pilula .botao-abas { display: grid; margin-left: 0; }
+.stage.qd-no-quadro .botao-abas .ba-num { display: block; }
+/* Paper 10b (1b e 1d): entrando, as abas saem de dentro da pílula; "Fechar abas", elas voltam para ela antes de a pílula
+   voltar ao centro (140 ms, o DURACAO_RECOLHER_ABAS_MS do main). */
+/* Validação de 2026-11-18 (a sanfona): a pílula vai para a esquerda e o botão de abas para a direita, onde vira o
+   "Fechar abas" (520 ms, SANFONA_MS no main); as abas abrem entre as duas 160 ms depois, em 420 ms. Ao fechar, as abas
+   se recolhem em 260 ms (DURACAO_RECOLHER_ABAS_MS) e só então a pílula e o botão voltam. */
+.abas-com-pilula.entrando > :not(.at-pilula, .at-fechar-abas) { animation: at-sai-da-pilula 420ms cubic-bezier(.32, .72, 0, 1) 160ms both; }
+.abas-com-pilula.recolhendo > :not(.at-pilula, .at-fechar-abas) { animation: at-volta-para-pilula 260ms ease-in both; }
+@keyframes at-sai-da-pilula { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes at-volta-para-pilula { to { opacity: 0; transform: translateX(-24px); } }
+@media (prefers-reduced-motion: reduce) { .abas-com-pilula.entrando > *, .abas-com-pilula.recolhendo > * { animation: none; } }
+/* O chevron da aba fica à vista enquanto o menu dela está aberto (o foco vai para o menu e o :focus-within some). */
+.abas-tarefa .at-aba.menu-aberto .at-seta { opacity: 1; pointer-events: auto; }
+/* O hover da pílula do bot como o do Grok Bot (validação de 2026-11-18): a pílula alarga e o "›" entra à direita. */
+@media (hover: hover) {
+  #cabecalho .pilula-bot .pilula-seta { display: inline-block; max-width: 0; margin-left: -8px; overflow: hidden; opacity: 0; color: var(--chat-tinta-2);
+    transition: max-width 200ms ease, margin-left 200ms ease, opacity 160ms ease; }
+  #cabecalho .pilula-bot:is(:hover, :focus-visible) .pilula-seta { max-width: 12px; margin-left: -2px; opacity: 1; }
+}
+@media (hover: hover) and (prefers-reduced-motion: reduce) { #cabecalho .pilula-bot .pilula-seta { transition: none; } }
+
+/* ---- ADR-187 §6 (lote B, passo 4, 2026-11-18): dentro da tarefa (Paper 4k, 4l, 4m, 4n e 4s) ----------------------------
+   Valores do Paper: a linha de abertura em 12/16 cinza, centrada; o cartão do pedido com fundo de 3 %, contorno de 0,5 px,
+   raio 12 e padding 12/14 (rótulo 11/14 maiúsculo a 0,06em; texto 14/21); os passos em linhas de 28 com vão 10, o ✓ de 14,
+   o que fez em 14/20 a 85 % e o argumento em 13/18 cinza; o "agora" com o anel girando, o texto em 500 e o detalhe em mono
+   12/18 recuado 24; o cartão "precisa de você" em azul a 5 % (contorno 1 px a 25 %, raio 14, rótulo 12/16 em 600
+   maiúsculo, texto 15/22, opções em pílula 13/18 com padding 7/14, a primeira cheia); a linha do fim 12/16 cinza com o
+   quadrado de 8 (raio 2) ou o ✓; as saídas da parada em pílula branca (contorno 1 px a 15 %, padding 6/12, 13/18); o
+   Parar do campo em pílula escura de 32 (raio 16, padding 0 12 0 10, vão 8, quadrado de 10 com raio 2, 13/18 em 500); a
+   linha embaixo do campo em 12/16 cinza, com "Esc para parar" à direita; o campo esperando a pessoa com o anel azul de 1,5. */
+.tk-timeline .tk-meta { margin: 0 0 14px; padding: 0; text-align: center; font-size: 12px; line-height: 16px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-pedido { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--chat-pedido-fundo); box-shadow: inset 0 0 0 0.5px var(--chat-pedido-contorno); }
+.tk-timeline .tk-pedido-rot, .tk-timeline .tk-entrega-rot { font-size: 11px; line-height: 14px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-2); }
+.tk-timeline .tk-pedido-txt { font-size: 14px; line-height: 21px; color: var(--chat-tinta); }
+.tk-timeline :is(.tk-pedido-txt, .tk-entrega-txt, .tk-precisa-txt) > :first-child { margin-top: 0; }
+.tk-timeline :is(.tk-pedido-txt, .tk-entrega-txt, .tk-precisa-txt) > :last-child { margin-bottom: 0; }
+.tk-timeline .tk-narracao { display: flex; margin: 0 0 14px; }
+.tk-timeline .tk-narracao-balao { max-width: 620px; box-sizing: border-box; padding: 7px 12px; border-radius: 18px; background: var(--chat-preenchido); font-size: 15px; line-height: 22px; color: var(--chat-tinta); }
+.tk-timeline .tk-narracao-balao > :first-child { margin-top: 0; }
+.tk-timeline .tk-narracao-balao > :last-child { margin-bottom: 0; }
+.tk-timeline .tk-passos { display: flex; flex-direction: column; gap: 2px; margin: 0 0 14px; padding-left: 4px; }
+.tk-timeline .tk-passo { display: flex; align-items: center; gap: 10px; min-height: 28px; min-width: 0; }
+.tk-timeline .tk-passo-ic { display: inline-flex; flex: none; width: 14px; height: 14px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-passo.falhou .tk-passo-ic { color: var(--chat-critico-tinta); }
+.tk-timeline .tk-passo-rot { flex: none; font-size: 14px; line-height: 20px; color: var(--chat-tinta-passo); }
+.tk-timeline .tk-passo-res { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; line-height: 18px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-passos-antes > summary { display: flex; align-items: center; min-height: 28px; padding-left: 24px; font-size: 13px; line-height: 18px; color: var(--chat-tinta-3); cursor: pointer; list-style: none; }
+.tk-timeline .tk-passos-antes > summary::-webkit-details-marker { display: none; }
+.tk-timeline .tk-passos-antes > summary:hover { color: var(--chat-tinta); }
+.tk-timeline .tk-passos-antes > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 6px; }
+.tk-timeline .tk-agora { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding-left: 4px; }
+.tk-timeline .tk-agora-linha { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.tk-timeline .tk-agora .tk-passo-ic { color: var(--chat-tinta); }
+.tk-timeline .tk-agora-txt { font-size: 14px; line-height: 20px; font-weight: 500; color: var(--chat-tinta); }
+.tk-timeline .tk-agora-detalhe { margin-left: 24px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 12px; line-height: 18px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-gira { animation: tk-gira 1s linear infinite; }
+@keyframes tk-gira { to { transform: rotate(360deg); } }
+.tk-timeline .tk-precisa { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--chat-precisa-fundo); box-shadow: inset 0 0 0 1px var(--chat-precisa-contorno); }
+.tk-timeline .tk-precisa-rot { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--chat-aba-precisa); }
+.tk-timeline .tk-precisa-ic { display: inline-flex; width: 14px; height: 14px; }
+.tk-timeline .tk-precisa-txt { font-size: 15px; line-height: 22px; color: var(--chat-tinta); }
+.tk-timeline .tk-opcoes { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.tk-timeline .tk-opcao { padding: 7px 14px; border: 0; border-radius: 999px; background: var(--chat-superficie); box-shadow: 0 0 0 1px var(--chat-saida-contorno); color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px; cursor: pointer; }
+.tk-timeline .tk-opcao.primeira { background: var(--chat-parar-fundo); box-shadow: none; color: var(--chat-parar-quadrado); font-weight: 500; }
+.tk-timeline .tk-opcao:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.tk-timeline .tk-fim { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 14px; padding: 4px 0; font-size: 12px; line-height: 16px; color: var(--chat-tinta-3); }
+.tk-timeline .tk-fim-quadrado { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--chat-tinta-3); }
+.tk-timeline .tk-fim-ok { display: inline-flex; width: 14px; height: 14px; color: var(--chat-tinta); }
+.tk-timeline .tk-fim.falhou .tk-fim-ok { color: var(--chat-critico-tinta); }
+.tk-timeline .tk-entrega { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--chat-superficie); box-shadow: inset 0 0 0 1px var(--chat-pedido-contorno); }
+.tk-timeline .tk-entrega-txt { font-size: 15px; line-height: 22px; color: var(--chat-tinta); }
+.tk-timeline :is(.tk-entrega-falta, .tk-entrega-ref) { margin: 0; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); }
+.composer .tk-saida { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; padding-left: 4px; }
+.composer .tk-saida-bt { padding: 6px 12px; border: 0; border-radius: 999px; background: var(--chat-superficie); box-shadow: 0 0 0 1px var(--chat-saida-contorno); color: var(--chat-tinta); font: inherit; font-size: 13px; line-height: 18px; cursor: pointer; }
+.composer .tk-saida-bt:hover { background: var(--chat-preenchido); }
+.composer .tk-saida-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.composer .box > .parar-envio.parar-tarefa { display: inline-flex; align-items: center; gap: 8px; width: auto; height: 32px; padding: 0 12px 0 10px; border-radius: 16px; font: inherit; font-size: 13px; line-height: 18px; font-weight: 500; }
+.composer .box > .parar-envio.parar-tarefa[hidden] { display: none; }
+.composer .box > .parar-envio.parar-tarefa svg { width: 10px; height: 10px; }
+.composer .box.tk-precisa-campo { border-color: transparent; box-shadow: 0 0 0 1.5px var(--chat-aba-precisa), var(--chat-sombra-campo); }
+.composer .nota.tk-nota-linha { display: flex; justify-content: space-between; gap: 12px; padding: 6px 14px 0; text-align: left; font-size: 12px; line-height: 16px; color: var(--chat-tinta-3); }
+.composer .nota.tk-nota-linha:empty { display: none; }
+.composer .nota.tk-nota-linha .tk-nota-dica { flex: none; }
+@media (max-width: 760px) { .composer .nota.tk-nota-linha .tk-nota-dica { display: none; } }
+/* No celular o enviar e o parar viram o círculo de 44 (celular-base.css); o Parar da tarefa segue em pílula, com 44 de alto. */
+@media (hover: none) and (pointer: coarse) { .composer .box:not(.gravando) > .parar-envio.parar-tarefa { width: auto; padding: 0 14px 0 12px; border-radius: var(--raio-full); } }
+@media (prefers-reduced-motion: reduce) { .tk-timeline .tk-gira { animation: none; } }
+
+/* ADR-187 §8 (lote B, passo 5, 2026-11-18; Paper 5a "Por bot", 5b "Por estado"): a tela Tarefas. Medidas do Paper: topo
+   28/56/12 com 16 entre as linhas, título 26/32 em 600, segmentado 13/18 (2 de moldura, 4/12 por opção), "+ Nova tarefa"
+   em pílula escura (8/14), chips 13/18 (5/12) e o traço de 1×18; os rótulos em 11/14 maiúsculo; Por bot em cartões de
+   raio 14 com o contorno de 0,5 px, linhas de 48 (16 dos lados, 12 entre as partes: nome 90, tempo 60); Por estado em
+   linhas de 52 (bot 120, origem 120, tempo 60) e a que precisa de você no azul a 5 %. */
+/* A tela ocupa a área inteira: a folga do .timeline-wrap (12/70) não vale aqui (o topo do Paper é 28/56). */
+.timeline-wrap:has(> .tela-tarefas) { padding: 0; }
+.tela-tarefas { display: flex; flex-direction: column; width: 100%; max-width: 1100px; margin: 0 auto; padding: 28px 56px 24px; box-sizing: border-box;
+  color: var(--chat-tinta); font-size: 12px; line-height: 16px; }
+.tela-tarefas button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.tela-tarefas button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 8px; }
+.tela-tarefas .tf-cab { display: flex; align-items: center; gap: 16px; }
+.tela-tarefas .tf-cab h1 { flex: none; margin: 0; font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: -0.01em; }
+.tela-tarefas .tf-espaco { flex: 1 1 0; }
+.tela-tarefas .tf-vista { display: flex; padding: 2px; border-radius: 8px; background: var(--chat-preenchido); }
+.tela-tarefas .tf-vista-op { padding: 4px 12px; border-radius: 6px; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); white-space: nowrap; }
+.tela-tarefas .tf-vista-op[aria-pressed="true"] { background: var(--chat-superficie); box-shadow: 0 0 0 0.5px var(--chat-aba-contorno); color: var(--chat-tinta); font-weight: 500; }
+.tela-tarefas .tf-vista-op:not([aria-pressed="true"]):hover { color: var(--chat-tinta); }
+.tela-tarefas .tf-nova { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--chat-tinta); color: var(--chat-superficie); font-size: 13px; line-height: 18px; font-weight: 500; white-space: nowrap; }
+.tela-tarefas .tf-nova:hover { background: color-mix(in srgb, var(--chat-tinta) 85%, transparent); }
+.tela-tarefas .tf-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0 12px; }
+.tela-tarefas .tf-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 999px; background: var(--chat-chip-fundo); font-size: 13px; line-height: 18px; color: var(--chat-tinta); white-space: nowrap; }
+.tela-tarefas .tf-chip:hover { background: var(--chat-preenchido); }
+.tela-tarefas .tf-chip[aria-pressed="true"] { background: var(--chat-tinta); color: var(--chat-superficie); }
+.tela-tarefas .tf-traco { flex: none; width: 1px; height: 18px; margin: 0 4px; background: var(--chat-aba-contorno); }
+.tela-tarefas > .linha-centro-wrap { margin: 0 0 8px; }
+.tela-tarefas .tf-lista { display: flex; flex-direction: column; padding-top: 8px; }
+.tela-tarefas .tf-rotulo { margin: 0; padding: 22px 12px 10px; font-size: 11px; line-height: 14px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-2); }
+.tela-tarefas .tf-grupo:first-child .tf-rotulo { padding-top: 8px; }
+.tela-tarefas .tf-ic { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; }
+.tela-tarefas .pf-precisa { color: var(--chat-aba-precisa); }
+.tela-tarefas .pf-anel-trilho { stroke: var(--chat-aba-contorno); }
+.tela-tarefas .pf-anel-arco { stroke: var(--chat-tinta); }
+.tela-tarefas .pf-anel:not(.at-quieto) { animation: pf-anel-gira 1s linear infinite; }
+.tela-tarefas .tf-espera { color: var(--chat-tinta-4); }
+.tela-tarefas .at-feita { display: inline-flex; color: var(--chat-tinta-2); }
+.tela-tarefas .at-feita svg { width: 12px; height: 12px; }
+.tela-tarefas .at-parada { color: var(--chat-tinta-3); }
+.tela-tarefas .at-falhou { color: var(--danger); }
+/* min-width, não width (2026-11-18): "há menos de 1 min" não cabia em 60 px e vazava da borda do cartão e da linha. */
+.tela-tarefas .tf-tempo { flex: none; min-width: 60px; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Por bot: o cartão do grupo e a linha de cada bot. */
+.tela-tarefas .tf-cartao { display: flex; flex-direction: column; padding: 4px 0; border-radius: 14px; background: var(--chat-superficie); box-shadow: 0 0 0 0.5px var(--chat-aba-contorno); }
+.tela-tarefas .tf-bot + .tf-bot { border-top: 0.5px solid var(--chat-spinner-trilho); }
+.tela-tarefas .tf-linha-bot { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; padding: 0 16px; box-sizing: border-box; }
+.tela-tarefas .tf-linha-bot:hover .tf-titulo { text-decoration: underline; text-decoration-color: var(--chat-aba-contorno); text-underline-offset: 3px; }
+.tela-tarefas .tf-linha-bot .tf-ic svg { width: 10px; height: 10px; }
+.tela-tarefas .tf-av { display: inline-flex; flex: none; width: 18px; height: 18px; }
+.tela-tarefas .tf-av .icon { width: 100%; height: 100%; margin: 0; }
+.tela-tarefas .tf-nome { flex: none; width: 90px; overflow: hidden; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-titulo { flex: 1 1 0; min-width: 0; overflow: hidden; font-size: 14px; line-height: 20px; white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-contas { flex: none; max-width: 40%; overflow: hidden; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-seta { flex: none; color: var(--chat-tinta-2); }
+/* O bot aberto: as tarefas dele num trilho com o traço à esquerda (60 de recuo, 16 depois do traço), linhas de 34. */
+.tela-tarefas .tf-tarefas-do-bot { padding: 0 16px 6px 60px; }
+.tela-tarefas .tf-trilho { display: flex; flex-direction: column; padding-left: 16px; border-left: 1px solid var(--chat-spinner-trilho); }
+.tela-tarefas .tf-tarefa-bot { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 34px; padding: 0 8px; margin-left: -8px; box-sizing: content-box; border-radius: 8px; }
+.tela-tarefas button.tf-tarefa-bot:hover { background: var(--chat-chip-fundo); }
+.tela-tarefas .tf-tarefa-bot.estatica { cursor: default; }
+.tela-tarefas .tf-tarefa-bot .tf-t-titulo { flex: none; width: 240px; overflow: hidden; font-size: 13px; line-height: 18px; white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-tarefa-bot[data-estado="precisa_de_voce"] .tf-t-titulo, .tela-tarefas .tf-tarefa-bot[data-estado="fechado_ocioso"] .tf-t-titulo { font-weight: 500; }
+.tela-tarefas .tf-tarefa-bot .tf-t-passo { flex: 1 1 0; min-width: 0; overflow: hidden; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-tarefa-bot:is([data-estado="precisa_de_voce"], [data-estado="fechado_ocioso"]) .tf-t-passo { color: var(--chat-aba-precisa); }
+.tela-tarefas .tf-ordem { font-size: 11px; color: var(--chat-tinta-3); }
+.tela-tarefas .tf-rodape { display: flex; align-items: center; gap: 16px; min-height: 34px; font-size: 13px; line-height: 18px; }
+.tela-tarefas .tf-mais { color: var(--chat-tinta-2); }
+.tela-tarefas .tf-mais:hover { color: var(--chat-tinta); }
+.tela-tarefas .tf-abrir-conversa { font-weight: 500; }
+.tela-tarefas .tf-sub { margin: 8px 0; font-size: 13px; color: var(--chat-tinta-3); }
+.tela-tarefas .tf-livres { margin: 0; padding: 18px 12px 0; font-size: 13px; line-height: 20px; color: var(--chat-tinta-2); }
+.tela-tarefas .tf-vazio { margin: 8px 12px; font-size: 13px; line-height: 20px; color: var(--chat-tinta-2); }
+/* Por estado: uma linha por tarefa, sem cartão. */
+.tela-tarefas[data-vista="por-estado"] .tf-rotulo { padding: 18px 0 6px; letter-spacing: 0.04em; color: var(--chat-tinta-3); }
+.tela-tarefas[data-vista="por-estado"] .tf-grupo:first-child .tf-rotulo { padding-top: 12px; }
+.tela-tarefas .tf-tarefas { display: flex; flex-direction: column; }
+.tela-tarefas .tf-tarefa { display: flex; align-items: center; gap: 12px; width: 100%; height: 52px; padding: 0 12px; box-sizing: border-box; border-bottom: 0.5px solid var(--chat-spinner-trilho); }
+.tela-tarefas .tf-tarefa .tf-ic { width: 16px; }
+.tela-tarefas .tf-tarefa .tf-ic svg { width: 14px; height: 14px; }
+.tela-tarefas .tf-tarefa .tf-ic .pf-precisa { width: 10px; height: 10px; }
+.tela-tarefas .tf-tarefa:hover { background: var(--chat-chip-fundo); }
+.tela-tarefas .tf-tarefa[data-grupo="precisa"] { margin-bottom: 4px; border-bottom: 0; border-radius: 10px; background: var(--chat-precisa-fundo); }
+.tela-tarefas .tf-meio { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; }
+.tela-tarefas .tf-tarefa .tf-t-titulo { overflow: hidden; font-size: 14px; line-height: 20px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-tarefa .tf-t-passo { overflow: hidden; font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+.tela-tarefas .tf-tarefa[data-grupo="precisa"] .tf-t-passo { color: var(--chat-aba-precisa); }
+.tela-tarefas .tf-quem { display: flex; flex: none; align-items: center; gap: 6px; width: 120px; overflow: hidden; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); white-space: nowrap; }
+.tela-tarefas .tf-quem > .icon { flex: none; width: 14px; height: 14px; margin: 0; }
+.tela-tarefas .tf-quem > span { overflow: hidden; text-overflow: ellipsis; }
+.tela-tarefas .tf-origem { flex: none; width: 120px; }
+.tela-tarefas .tf-origem-chip { display: inline-flex; max-width: 100%; padding: 2px 8px; box-sizing: border-box; overflow: hidden; border-radius: 999px; background: var(--chat-chip-fundo);
+  font-size: 12px; line-height: 16px; color: var(--chat-tinta-2); white-space: nowrap; text-overflow: ellipsis; }
+/* Os menus de "Todos os bots ▾" e de "+ Nova tarefa" usam a moldura do menu da aba (280, raio 12). */
+.bot-menu .tf-menu-item { display: flex; align-items: center; width: 100%; }
+.bot-menu .tf-menu-item nod-mascote { flex: none; width: 18px; height: 18px; margin: 0; }
+.bot-menu .tf-menu-ok { display: inline-flex; margin-left: auto; color: var(--chat-tinta-2); }
+@media (prefers-reduced-motion: reduce) { .tela-tarefas .pf-anel { animation: none; } }
+@media (max-width: 760px) {
+  .tela-tarefas { padding: 20px 16px 24px; }
+  .tela-tarefas .tf-cab { gap: 12px; }
+  .tela-tarefas .tf-contas, .tela-tarefas .tf-origem { display: none; }
+  .tela-tarefas .tf-nome { width: auto; max-width: 30%; }
+  .tela-tarefas .tf-quem { width: auto; max-width: 30%; }
+  .tela-tarefas .tf-tarefas-do-bot { padding-left: 24px; }
+  .tela-tarefas .tf-tarefa-bot .tf-t-titulo { width: auto; flex: 1 1 0; min-width: 0; }
+  .tela-tarefas .tf-tarefa-bot .tf-t-passo { display: none; }
+  .tela-tarefas .tf-rodape { flex-wrap: wrap; row-gap: 0; }
+}
+/* No celular estreito, o "+ Nova tarefa" desce para a linha de baixo em vez de cortar o segmentado. */
+@media (max-width: 420px) { .tela-tarefas .tf-cab { flex-wrap: wrap; } }
+/* Validação de 2026-11-18: com arquivo no campo, três andares como no app de referência — os cartões em cima, o texto
+   no meio e, embaixo, o + à esquerda e IA · 🎤 · enviar à direita. Só a ordem visual muda (o Tab segue o HTML: + → texto
+   → IA → 🎤 → enviar). A contagem "1 de 5 · 8 B" sai daqui: o cartão já mostra nome e tamanho. */
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) { flex-wrap: wrap; padding: 10px 8px 8px; row-gap: 6px; }
+/* ADR-189: a fila, o campo e o + vão para antes (ordens negativas) e o resto fica no 0 de sempre, na mesma ordem relativa;
+   um `> :not(...)` com `:has()` fazia o Chrome invalidar a página inteira a cada nó que entrava no DOM. */
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .anexos-fila { order: -3; flex: 1 0 100%; padding: 0 2px; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > #composer-texto { order: -2; flex: 1 0 100%; box-sizing: border-box; padding: 4px 6px; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .mais-campo { order: -1; margin-right: auto; }
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .anexos-resumo { display: none; }
+/* O + do campo responde: no hover escurece o fundo e a cor; no clique afunda (92%) e volta com um leve repique. Só
+   transform e cor animam; sem movimento reduzido, o afundar some e fica a troca de cor. */
+.composer .box > .mais-campo { transition: background-color 120ms ease, color 120ms ease, transform 220ms cubic-bezier(.3, 1.6, .5, 1); }
+.composer .box > .mais-campo:hover { background: color-mix(in srgb, var(--chat-tinta) 12%, var(--chat-preenchido)); color: var(--chat-tinta); }
+.composer .box > .mais-campo:active { transform: scale(.88); transition-duration: 60ms; }
+.composer .box > .mais-campo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .composer .box > .mais-campo, .composer .box > .mais-campo:active { transform: none; transition: background-color 120ms ease, color 120ms ease; } }
+/* Com arquivo, o enviar fica aceso mesmo sem texto (o arquivo sozinho já é a mensagem). */
+.composer .box.com-anexos:has(> .anexos-fila:not([hidden])) > .send:not(:disabled) { background: var(--chat-parar-fundo); color: var(--chat-parar-quadrado); }
+
+/* ---- A lista da pílula do campo agrupada por urgência (validação de 2026-11-18, Paper 9e/9f, jeito D) -----------------
+   Seções em 11/14 maiúsculas a 0,06em (a de quem precisa da pessoa em azul), as prontas recolhidas numa linha que abre ali
+   mesmo (details), e "Ver todas ›" no topo, no lugar do "fechar" (fechar é clicar fora, Esc ou a pílula). */
+.pf-painel .pf-secao { padding: 10px 12px 2px; font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--chat-tinta-3); }
+.pf-painel .pf-secao.pf-secao-precisa { color: var(--chat-aba-precisa); }
+.pf-ver-todas { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 0; border-radius: var(--raio-8); background: transparent;
+  color: var(--chat-tinta-2); font: inherit; font-size: 12px; line-height: 16px; cursor: pointer; }
+.pf-ver-todas:hover { background: var(--hover); color: var(--chat-tinta); }
+.pf-ver-todas:focus-visible, .pf-prontas summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.pf-prontas { margin-top: 4px; border-top: 0.5px solid var(--chat-aba-contorno); }
+.pf-prontas summary { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; list-style: none; cursor: pointer; font-size: 13px; line-height: 18px; color: var(--chat-tinta-2); }
+.pf-prontas summary::-webkit-details-marker { display: none; }
+.pf-prontas summary:hover { color: var(--chat-tinta); }
+.pf-prontas .pf-prontas-ic { flex: none; color: var(--chat-tinta-2); }
+.pf-prontas .pf-prontas-seta { transition: transform var(--dur-rapido) ease; }
+.pf-prontas[open] .pf-prontas-seta { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .pf-prontas .pf-prontas-seta { transition: none; } }
+
+/* ---- O painel do bot entra e sai deslizando (validação de 2026-11-18; a entrada era seca) --------------------------------
+   Larga: a coluna do painel cresce de 0 a 360 px enquanto o conteúdo entra da direita, 420 ms (DURACAO_PAINEL_MS);
+   a conversa encolhe junto, sem pulo. Estreita (o painel sobreposto): ele desliza da direita. */
+@media (min-width: 1100px) {
+  .app.com-detalhes.painel-entrando:not(.sem-sessao) > .detalhes { animation: painel-cresce 420ms cubic-bezier(.32, .72, 0, 1) both; }
+  .app.com-detalhes.painel-saindo:not(.sem-sessao) > .detalhes { animation: painel-encolhe 360ms cubic-bezier(.32, .72, 0, 1) both; }
+  .app.com-detalhes.painel-entrando:not(.sem-sessao) > .detalhes > * { animation: painel-miolo 420ms ease-out both; }
+  .app.com-detalhes:is(.painel-entrando, .painel-saindo) > .detalhes > * { min-width: 360px; }
+}
+/* Validação de 2026-11-18 ("um pouco mais suave"): 420 ms na curva que desacelera longa; o miolo entra de 16 px e aparece
+   depois que a coluna já abriu um terço. */
+@keyframes painel-cresce { from { width: 0; } to { width: 360px; } }
+@keyframes painel-encolhe { from { width: 360px; opacity: 1; } to { width: 0; opacity: 0; } }
+@keyframes painel-miolo { 0%, 30% { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1099px) {
+  .app.com-detalhes.detalhes-abertos.painel-entrando .detalhes { animation: painel-desliza 420ms cubic-bezier(.32, .72, 0, 1) both; }
+}
+@keyframes painel-desliza { from { transform: translateX(32px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .app.com-detalhes .detalhes { animation: none !important; } }
+
+/* Modo abas (validação de 2026-11-19): a pílula sobre o campo apaga em vez de sair, guardando o lugar — a conversa não
+   sobe nem desce quando a sanfona abre ou fecha. Volta em 200 ms quando as abas fecham. */
+.lugar-faixa-trabalhos.pf-no-topo > * { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 200ms ease, visibility 0s linear 200ms; }
+.lugar-faixa-trabalhos > .pilula-frentes { transition: opacity 200ms ease; }
+@media (prefers-reduced-motion: reduce) { .lugar-faixa-trabalhos.pf-no-topo > *, .lugar-faixa-trabalhos > .pilula-frentes { transition: none; } }
+
+/* O "+" da fileira afunda no clique (validação de 2026-11-19), como o + do campo. */
+.abas-tarefa .at-mais { transition: transform 220ms cubic-bezier(.3, 1.6, .5, 1), background-color var(--dur-rapido) ease; }
+.abas-tarefa .at-mais:active { transform: scale(.86); }
+@media (prefers-reduced-motion: reduce) { .abas-tarefa .at-mais { transition: none; } .abas-tarefa .at-mais:active { transform: none; } }

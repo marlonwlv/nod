@@ -127,9 +127,10 @@ describe("card D, F3: sessão de quem assiste", () => {
   const APERTO = new Uint8Array([...new TextEncoder().encode("RFB 003.008\n"), 1, 1]);
   const PEDIDO_QUADRO = new Uint8Array([3, 1, 0, 0, 0, 0, 5, 0, 3, 32]);
   const PONTEIRO = new Uint8Array([5, 1, 0, 10, 0, 20]);
+  const CLIPBOARD = new Uint8Array([6, 0, 0, 0, 0, 0, 0, 3, 115, 101, 103]);
   const juntar = (...partes: Uint8Array[]) => { const t = new Uint8Array(partes.reduce((s, p) => s + p.length, 0)); let i = 0; for (const p of partes) { t.set(p, i); i += p.length; } return t; };
 
-  it("sem o controle, o ponteiro não passa e o pedido de quadro sim; liberar passa, fecharDaTela tira sem fechar", async () => {
+  it("sem o controle, ponteiro e clipboard não passam e o pedido de quadro sim; liberar passa, fecharDaTela tira sem fechar", async () => {
     const s = criarSessoesVivo();
     const web = lado();
     let mexer = false;
@@ -137,7 +138,7 @@ describe("card D, F3: sessão de quem assiste", () => {
     const motor = lado();
     expect(s.anexarMotor(sessao, token, motor.l)).toBe(true);
     await new Promise((r) => setTimeout(r, 0));
-    web.chegou(juntar(APERTO, PEDIDO_QUADRO, PONTEIRO));
+    web.chegou(juntar(APERTO, PEDIDO_QUADRO, PONTEIRO, CLIPBOARD));
     expect(motor.recebidos.at(-1)).toEqual(juntar(APERTO, PEDIDO_QUADRO));
     s.liberarDaTela(ESCOPO, "a1");
     web.chegou(PONTEIRO);

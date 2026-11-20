@@ -45,6 +45,8 @@ manter o desenho por string cresce com cada tela; o de trocar tudo de uma vez é
 | 5 | Quadro (`#quadro`): arrastar (dnd-kit entra aqui, se a fase pedir) | régua sem piora |
 | 6 | Conversa (`#timeline`, `#composer`): a região mais quente (streaming, frentes); depois dela sai o desenho por string | régua sem piora |
 
+As fases 3 (barra lateral) e 6 (conversa) foram feitas em 2026-11-19 pela [ADR-189](adr-189-barra-e-conversa-no-react-e-has-sem-sujeito-universal.md), que também achou e corrigiu o que de fato travava a tela (CSS com `:has()` de sujeito universal).
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts

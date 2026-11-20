@@ -18,6 +18,7 @@ import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
 import type { Agente, FormaAgente, CorAgente, ModoAprovacao } from "../../src/contracts/agente.ts";
 import type { AmbienteBancoDto, ChaveEmitidaDto, ChaveMaquinaDto, FrotaDto, ModoSessaoDto, RespostaMutacao, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
+import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
 import type { Concessao } from "../../src/contracts/concessao.ts";
 import { cabecalhosDoApp, cabecalhosDoGoogleApp } from "./desafio-app.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
@@ -43,7 +44,7 @@ import type { UsoDoPlanoDto } from "../../src/contracts/uso-do-plano.ts";
 import type { IdHarness } from "../../src/contracts/harness.ts";
 import type { EntradaDiario, Memoria, PaginaDiario, TipoMemoria } from "../../src/contracts/memoria.ts";
 import type { ReacaoNaFala } from "../../src/contracts/reacao.ts";
-import type { AppComLogo } from "../../src/contracts/marketplace.ts";
+import type { AppComLogo, CampoDeConexao } from "../../src/contracts/marketplace.ts";
 import type { ConfirmarEmailDto, ExportacaoDto, FormasDto, MinhaContaDto, PerfilDto, ReautenticarDto } from "../../src/contracts/minha-conta.ts";
 import type { ExecucaoRotina } from "../../src/contracts/rotina.ts";
 import type { MembroSala, Sala } from "../../src/contracts/sala.ts";
@@ -59,7 +60,7 @@ import type { EstadoExecucao, ExecucoesDaTarefa } from "../../src/contracts/quad
 import type { AppDto, PaginasDto } from "../../src/contracts/apps.ts";
 import type { AppCanvasDto, CanvasItemDto, ComentarioCanvasDto, NivelCanvasDto, NovoComentarioDto, VersaoCanvasDto, VistaCanvasDto } from "../../src/contracts/canvas.ts";
 import type { AtividadeTarefa } from "../../src/contracts/quadro-pela-conversa.ts";
-import type { EventoLinha, TaxaDeAbertura, TrabalhoDetalheDto, TrabalhosDto } from "../../src/contracts/trabalho.ts";
+import type { EventoLinha, TaxaDeAbertura, TrabalhoDetalheDto, TrabalhoDto, TrabalhosDto } from "../../src/contracts/trabalho.ts";
 import type { DisponibilidadeLigacao, FalaLigacao, Ligacao, LigacaoCriada } from "../../src/contracts/ligacao.ts";
 import type { IaDaLigacao } from "../../src/contracts/voz.ts";
 import type { AcaoComandoVoz } from "../../src/contracts/voz.ts";
@@ -77,7 +78,7 @@ export type AcessosDoAppDto = { padrao: "nenhum" | "leitura" | "escrita"; bots: 
 /** ADA-241: POST /conectores/:id/acessos/lote. `lote_id` nulo: nada mudou (não há o que desfazer). */
 export type LoteDeAcessosDto = { ok: true; lote_id: string | null; frase: string; aplicados: { agenteId: string; nome: string }[]; mantidos: { agenteId: string; nome: string }[]; ja_feito: boolean };
 
-export { ErroApi, FRASE_SEM_INTERNET, FRASE_SERVIDOR_INDISPONIVEL, rotaDe } from "./erro-api.ts";
+export { ErroApi, FRASE_SEM_INTERNET, FRASE_SERVIDOR_DEMOROU, FRASE_SERVIDOR_INDISPONIVEL, rotaDe } from "./erro-api.ts";
 
 /**
  * Cliente REST da web (ADR-020: a web DECIDE, nunca executa; ADR-018: só `import type` de src).
@@ -119,7 +120,7 @@ async function pedir<T>(metodo: string, url: string, corpo?: unknown, opcoesPedi
   } catch (e) {
     // Navegação/troca de tela cancelou: não é falha, ninguém precisa de aviso.
     if (ehAbort(e)) throw e;
-    const falha = falhaDeTransporte(rota);
+    const falha = falhaDeTransporte(rota, e);
     obs?.falhou(falha);
     throw falha;
   }
@@ -128,7 +129,7 @@ async function pedir<T>(metodo: string, url: string, corpo?: unknown, opcoesPedi
     texto = await r.text();
   } catch (e) {
     if (ehAbort(e)) throw e;
-    const falha = falhaDeTransporte(rota);
+    const falha = falhaDeTransporte(rota, e);
     obs?.falhou(falha);
     throw falha;
   }
@@ -149,9 +150,18 @@ async function pedir<T>(metodo: string, url: string, corpo?: unknown, opcoesPedi
 }
 
 /** GET e mutação com chave de idempotência atravessam alguns segundos de servidor fora (web/lib/tentar-de-novo.ts). */
+/**
+ * Leva 2 (ADR-181): toda leitura tem prazo. Um GET pendurado (o Caddy segurando até 5 s na troca azul/verde, um proxy que
+ * não responde) ficava em voo para sempre e, com as leituras por chave, segurava a releitura daquela chave. Vencido, vira
+ * a falha de rede de sempre (`TimeoutError` não é `AbortError`: cai em falhaDeTransporte, é repetido e, no fim, guardado
+ * em pendentesDeRede). O prazo é por tentativa.
+ */
+export const PRAZO_GET_MS = 10_000;
+
 function pedirDeNovoSeCair<T>(metodo: string, url: string, corpo?: unknown, chave?: string): Promise<T> {
-  if (!podeRepetir(metodo, chave)) return pedir<T>(metodo, url, corpo);
-  return tentarDeNovo(() => pedir<T>(metodo, url, corpo));
+  const comPrazo = () => pedir<T>(metodo, url, corpo, metodo === "GET" && typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(PRAZO_GET_MS) } : {});
+  if (!podeRepetir(metodo, chave)) return comPrazo();
+  return tentarDeNovo(comPrazo);
 }
 
 function subir(url: string, arquivo: File, mime: string, aoProgresso?: (fracao: number) => void): Promise<AnexoMeta> {
@@ -477,8 +487,17 @@ export function criarApi(escopo: Escopo) {
     // ADR-083 §8 (definido em 2026-10-07): os trabalhos (tasks) dos bots, a tela da task e o que se faz nela.
     trabalhos: (agenteId?: string) => get<TrabalhosDto>(agenteId ? `trabalhos?agenteId=${encodeURIComponent(agenteId)}` : "trabalhos"),
     trabalho: (id: string) => get<TrabalhoDetalheDto>(`trabalhos/${encodeURIComponent(id)}`),
-    escreverNoTrabalho: (id: string, texto: string) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/mensagens`, { texto }),
-    pararTrabalho: (id: string) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/parar`),
+    // ADR-187 §6 (2026-11-18): com os anexos do clipe do campo da tarefa (ids soltos da conversa do trabalho).
+    escreverNoTrabalho: (id: string, texto: string, anexos: readonly string[] = []) => post<RespostaMutacao>(`trabalhos/${encodeURIComponent(id)}/mensagens`, anexos.length ? { texto, anexos } : { texto }),
+    // ADR-187 §7 (2026-11-18): a tarefa nova da pessoa nasce da primeira mensagem dela (⌘N, o "+" da aba).
+    abrirTarefa: (agenteId: string, texto: string, levarConversa: boolean, anexos: readonly string[] = []) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`agentes/${encodeURIComponent(agenteId)}/trabalhos`, { texto, levarConversa, ...(anexos.length ? { anexos } : {}) }),
+    // 0059: o aviso fechado fica com a pessoa (ADR-187 §5, a dica das tarefas, uma vez por pessoa).
+    fecharAviso: (chave: string) => post<Preferencias>("preferencias/avisos-fechados", { chave }),
+    pararTrabalho: (id: string) => post<RespostaMutacao & { recadosGuardados?: number }>(`trabalhos/${encodeURIComponent(id)}/parar`),
+    // ADR-187 §6 (2026-11-18, Paper 4l): "Encerrar a tarefa" parada.
+    encerrarTrabalho: (id: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/encerrar`),
+    // ADR-187 §6 (2026-11-18): o nome novo da tarefa, dado na aba.
+    renomearTrabalho: (id: string, titulo: string) => post<RespostaMutacao & { trabalho: TrabalhoDto }>(`trabalhos/${encodeURIComponent(id)}/titulo`, { titulo }),
     // NOD-377: o Cobrar e o Desistir da espera de colega vencida.
     cobrarEspera: (agenteId: string, tarefaId: string) => post<{ ok: true; cobradoEm: number; cobrancas: number }>(`agentes/${encodeURIComponent(agenteId)}/esperas-de-colega/${encodeURIComponent(tarefaId)}/cobrar`),
     desistirDaEspera: (agenteId: string, tarefaId: string) => post<{ ok: true }>(`agentes/${encodeURIComponent(agenteId)}/esperas-de-colega/${encodeURIComponent(tarefaId)}/desistir`),
@@ -565,6 +584,9 @@ export function criarApi(escopo: Escopo) {
     gerarEnderecoWebhook: (id: string) => post<RespostaMutacao>(`rotinas/${id}/endereco`),
     testarWebhook: (id: string) => post<RespostaMutacao>(`rotinas/${id}/testar-webhook`),
     ativarRotina: (id: string) => post<RespostaMutacao>(`rotinas/${id}/ativar`),
+    /** Desfazer a pausa em lote (2026-11-19): o lote volta para o Desfazer do aviso; null quando não havia ativa. */
+    pausarTodasRotinas: () => post<{ ok: true; lote: { id: string; em: number } | null; rotinaIds: string[] }>("rotinas/pausar-todas"),
+    reativarLoteDeRotinas: (loteId: string) => post<{ ok: true; reativadas: string[] }>(`rotinas/lotes/${encodeURIComponent(loteId)}/reativar`),
     salas: () => get<{ salas: SalaDto[] }>("salas"),
     criarSala: (nome: string, agenteIds: string[]) => post<RespostaMutacao>("salas", { nome, agenteIds }),
     postarNaSala: (salaId: string, texto: string) => post<RespostaMutacao>(`salas/${salaId}/mensagens`, { texto }),
@@ -578,6 +600,10 @@ export function criarApi(escopo: Escopo) {
     guardarCredencial: (propostaId: string, valor: string) => post<{ estado: "guardada" }>(`propostas/${encodeURIComponent(propostaId)}/credencial`, { valor }),
     tokenGithub: (token: string) => post<{ conectado: boolean; conectorId: string }>("marketplace/github/token", { token }),
     verificarApp: (slug: string) => post<{ conectado: boolean; falhou?: boolean; causa?: "composio" | "app" | null }>(`marketplace/${encodeURIComponent(slug)}/verificar`),
+    // Emenda ADR-057 (2026-11-18): o app de chave de API — o que ele pede (a chave, o endereço da conta…) e a conexão numa
+    // chamada só. Os valores saem do campo da tela direto no corpo e não voltam: nada deles vai ao estado nem ao log.
+    camposDoApp: (slug: string) => get<{ campos: CampoDeConexao[] }>(`marketplace/${encodeURIComponent(slug)}/campos`),
+    conectarComChave: (slug: string, campos: Record<string, string>) => post<{ conectado: boolean; conectorId: string; falhou?: boolean; causa?: "composio" | "app" | null; conector: Conector }>(`marketplace/${encodeURIComponent(slug)}/conectar-com-chave`, { campos }),
     atualizarCredenciais: (id: string, env: Record<string, string>) => patch<{ conector: Conector }>(`conectores/${id}/credenciais`, { env }),
     registrarConector: (c: Record<string, unknown>) => post<{ ok: true; ids: { conector: string }; conector: Conector }>("conectores", c),
     sondarConector: (id: string) => post<{ ok: boolean; conector: Conector }>(`conectores/${id}/sondar`),
@@ -633,6 +659,10 @@ export function criarApi(escopo: Escopo) {
     chaves: () => get<{ chaves: ChaveMaquinaDto[] }>("maquinas/chaves"),
     emitirChave: (nome: string) => post<ChaveEmitidaDto>("maquinas/chaves", { nome }),
     revogarChave: (id: string) => del<{ ok: true }>(`maquinas/chaves/${id}`),
+    // Servidor MCP do Nod (0173): os tokens que um cliente MCP de fora usa no /api/mcp.
+    mcpTokens: () => get<TokensMcpDto>("mcp/tokens"),
+    gerarTokenMcp: (nome: string) => post<TokenMcpEmitidoDto>("mcp/tokens", { nome }),
+    revogarTokenMcp: (id: string) => del<{ ok: true }>(`mcp/tokens/${encodeURIComponent(id)}`),
     // ADR-090: as máquinas, onde cada bot trabalha, o pareamento por código e o "rodar em outra desta vez".
     maquinas: () => get<MaquinasDto>("maquinas"),
     // ADR-169: as três opções de onde o agente roda; o servidor antigo dá 404 e a tela fica como antes.

@@ -148,7 +148,7 @@ describe("NOD-381: alvos de 44 px e estados", () => {
     // A miniatura cortava o alvo do ✕ (overflow: hidden); no celular o corte fica só na foto.
     expect(m).toContain(".anexo-thumb { overflow: visible; }");
     expect(m).toContain(".pf-cab { min-height: 44px; }");
-    expect(m).toContain(".pf-lista .progresso-item, .pf-item { min-height: 44px; }");
+    expect(m).toContain(".pf-lista .tv-linha, .pf-item { min-height: 44px; }");
     expect(m).toContain(".pf-ver, .pf-parar { min-height: 44px; min-width: 44px; }");
     expect(m).toMatch(/\.artefato-acoes \.bt\.link, \.artefato-dialogo \.artefato-acoes \.bt\.sm \{ min-width: 44px; min-height: 44px; \}/);
   });
@@ -264,7 +264,7 @@ describe("NOD-381 (revisão 2)", () => {
 
   it("modo total: o + avisa em --warning (o chip do modo saiu do campo) e o rótulo diz o modo", () => {
     expect(m).toContain(".composer .mais-campo[data-atencao] { position: relative; color: var(--warning); }");
-    expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: true, modo: "total", ia: "Auto" }))).toBe("Anexar, modo e IA · Ignorar todas as aprovações");
+    expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: true, modo: "total", ia: "Auto" }))).toBe("Anexar, modo e IA · Ignorar todas as aprovações ligado");
     expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: true, modo: "manual", ia: "Auto" }))).toBe("Anexar, modo e IA");
     expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: false, modo: "total", ia: null }))).toBe("Anexar");
     expect(main).toMatch(/toggleAttribute\("data-atencao", atencao\)/);
@@ -357,7 +357,7 @@ describe("NOD-381 (revisão 5): o aviso do modo total vale para o colega também
 
   it("o + avisa pelo modo do bot, não por quem é a dona; sem o +, o chip do total volta ao campo", () => {
     expect(main).toContain('const atencao = t.tipo === "conversa" && botGerido(t.agenteId)?.modoAprovacao === "total";');
-    expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: false, modo: "total", ia: null }), true)).toBe("Anexar · Ignorar todas as aprovações");
+    expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: false, modo: "total", ia: null }), true)).toBe("Anexar · Ignorar todas as aprovações ligado");
     expect(m).toContain('.composer .box.com-mais:has(> .mais-campo[hidden]) > .modo-chip[data-modo="total"] { display: inline-grid; width: 44px; height: 44px; }');
   });
 

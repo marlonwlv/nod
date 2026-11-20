@@ -23,7 +23,50 @@ const SEM_MORPH = typeof localStorage !== "undefined" && flag("nod.semMorph");
 
 const ultimoHtml = new Map<string, string>();
 
+/**
+ * ADR-189: quem desenha uma região no lugar do innerHTML (o React, `web/react/html/regiao-por-html.tsx`). Entregue, a
+ * região passa a ir por ele em `regiao`/`regiaoMudaria`/`esquecerRegiao`, sem que quem chama mude nada.
+ */
+export interface DesenhoDeRegiao {
+  mudaria: (html: string) => boolean;
+  desenhar: (html: string) => void;
+  esquecer: () => void;
+  desmontar: () => void;
+  /** O último HTML desenhado (para devolver a região ao innerHTML sem a tela piscar). */
+  ultimo: () => string;
+}
+const entregues = new Map<string, DesenhoDeRegiao>();
+
+/** Entrega a região a outro desenho e já desenha nele o último HTML que ela tinha. */
+export function entregarRegiao(id: string, desenho: DesenhoDeRegiao): void {
+  devolverRegiao(id);
+  entregues.set(id, desenho);
+  desenho.desenhar(ultimoHtml.get(id) ?? "");
+}
+
+/** Devolve a região ao innerHTML com o mesmo HTML (no-op se ela não está entregue). */
+export function devolverRegiao(id: string): void {
+  const d = entregues.get(id);
+  if (!d) return;
+  entregues.delete(id);
+  const html = d.ultimo();
+  d.desmontar();
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+  ultimoHtml.set(id, html);
+}
+
+export function regiaoEntregue(id: string): boolean {
+  return entregues.has(id);
+}
+
 export function regiao(id: string, html: string): void {
+  const entregue = entregues.get(id);
+  if (entregue) {
+    ultimoHtml.set(id, html);
+    entregue.desenhar(html);
+    return;
+  }
   const el = document.getElementById(id);
   if (!el) return;
   if (ultimoHtml.get(id) === html) return;
@@ -38,6 +81,8 @@ export function regiao(id: string, html: string): void {
  */
 export function regiaoEmVoltaDe(id: string, html: string, manter: Element | null): void {
   const el = document.getElementById(id);
+  // Um nó de fora morando na região (a busca no cabeçalho): ela volta ao innerHTML enquanto ele estiver lá.
+  if (manter && el && manter.parentNode === el) devolverRegiao(id);
   if (!manter || !el || manter.parentNode !== el) { regiao(id, html); return; }
   if (ultimoHtml.get(id) === html) return;
   ultimoHtml.set(id, html);
@@ -51,11 +96,13 @@ export function regiaoEmVoltaDe(id: string, html: string, manter: Element | null
  * dela (o iframe do artefato) só o tira antes quando o innerHTML vai mesmo ser trocado.
  */
 export function regiaoMudaria(id: string, html: string): boolean {
-  return ultimoHtml.get(id) !== html;
+  const entregue = entregues.get(id);
+  return entregue ? entregue.mudaria(html) : ultimoHtml.get(id) !== html;
 }
 
 /** Zera o cache de uma região (quando o nó foi trocado por fora). */
 export function esquecerRegiao(id: string): void {
+  entregues.get(id)?.esquecer();
   ultimoHtml.delete(id);
   blocosAplicados.delete(id);
 }
@@ -132,13 +179,19 @@ export function regiaoPorBlocos(id: string, blocos: readonly Bloco[]): HTMLEleme
   const chegaram = primeiroQueFicou < 0 ? [] : novos.slice(primeiroQueFicou + 1).filter((b) => !porChave.has(b.chave)).map((b) => b.el as HTMLElement);
   // O botão focado morava num bloco refeito (o chip ou a barra da fala que acabou de reagir): o foco volta ao mesmo
   // botão no bloco novo, em vez de cair no <body> e perder o lugar na conversa (revisão do PR 392, em 2026-10-18).
-  if (focado && !focado.isConnected) {
-    const nome = focado instanceof HTMLInputElement || focado instanceof HTMLTextAreaElement ? focado.name : "";
-    const campo = nome ? [...raiz.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[name], textarea[name]")].find((c) => c.name === nome) : undefined;
-    if (campo) { campo.focus({ preventScroll: true }); return chegaram; }
-    alvoDoFoco<HTMLElement>(disclosureFocado ? { disclosure: disclosureFocado } : focado.dataset, raiz, document)?.focus({ preventScroll: true });
-  }
+  if (focado && !focado.isConnected) focarDeNovo(focado, raiz, disclosureFocado);
   return chegaram;
+}
+
+/**
+ * O foco morava num nó que o desenho trocou: volta ao campo de mesmo `name` ou ao mesmo botão (`alvoDoFoco`) no nó novo,
+ * em vez de cair no <body>. Também usado pela conversa desenhada pelo React (ADR-189), que guarda o nó quase sempre.
+ */
+export function focarDeNovo(focado: HTMLElement, raiz: HTMLElement, disclosure = focado.tagName === "SUMMARY" ? focado.closest<HTMLElement>("details[data-disclosure]")?.dataset.disclosure : undefined): void {
+  const nome = focado instanceof HTMLInputElement || focado instanceof HTMLTextAreaElement ? focado.name : "";
+  const campo = nome ? [...raiz.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input[name], textarea[name]")].find((c) => c.name === nome) : undefined;
+  if (campo) { campo.focus({ preventScroll: true }); return; }
+  alvoDoFoco<HTMLElement>(disclosure ? { disclosure } : focado.dataset, raiz, raiz.ownerDocument)?.focus({ preventScroll: true });
 }
 
 function criarDoHtml(html: string): NoDoMorph | null {

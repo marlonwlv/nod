@@ -74,7 +74,7 @@ describeIntegracao("frentes: abrir em lote e devolver o resumo (ADR-099, I2)", (
 
       const linhas = (await m.repos.mensagens.listarDaConversa(m.conversaId)).filter((x) => x.kind === "sistema");
       expect(linhas).toHaveLength(1);
-      expect(linhas[0]).toMatchObject({ turnoId: dono!.id, texto: "Começou 3 frentes: Login no Safari, CI vermelha e Notas da versão", payload: { kind: "frentes_abertas", loteId: r.data.lote_id, origem: "pessoa", frentes: r.data.frentes.map((f) => ({ trabalhoId: f.trabalho_id, titulo: f.titulo })) } });
+      expect(linhas[0]).toMatchObject({ turnoId: dono!.id, texto: "Começou 3 tarefas: Login no Safari, CI vermelha e Notas da versão", payload: { kind: "frentes_abertas", loteId: r.data.lote_id, origem: "pessoa", frentes: r.data.frentes.map((f) => ({ trabalhoId: f.trabalho_id, titulo: f.titulo })) } });
       expect((r.events ?? []).filter((e) => e.kind === "mensagem_criada")).toHaveLength(1);
 
       // Frente não abre frente (2ª camada, além do catálogo); o sinônimo também recusa.
@@ -103,8 +103,8 @@ describeIntegracao("frentes: abrir em lote e devolver o resumo (ADR-099, I2)", (
         const sem = await abrirFrentes(m.deps, { ...m.ctx((await m.turno())!.id), frentes: TRES.slice(0, 2), ...(titulo_do_lote === undefined ? {} : { titulo_do_lote }) });
         if (!sem.data.ok) throw new Error(sem.data.instrucao);
         expect((await m.repos.frentes.buscarLote(sem.data.lote_id))?.titulo).toBeNull();
-        expect(await payloadDo(sem.data.lote_id)).toMatchObject({ tituloDoLote: "2 frentes" });
-        expect((await dto(sem.data.frentes[0]!.trabalho_id)).tituloDoLote).toBe("2 frentes");
+        expect(await payloadDo(sem.data.lote_id)).toMatchObject({ tituloDoLote: "2 tarefas" });
+        expect((await dto(sem.data.frentes[0]!.trabalho_id)).tituloDoLote).toBe("2 tarefas");
       }
 
       // Uma frente só, sem título: o do lote é o da frente. O sinônimo abrir_task também.
@@ -257,7 +257,7 @@ describeIntegracao("frentes: abrir em lote e devolver o resumo (ADR-099, I2)", (
       expect(recado.data).toMatchObject({ ok: true, entrou: "na_fila" });
       expect((await m.repos.turnos.doTrabalho(id)).filter((t) => t.estado === "pendente").map((t) => t.entradaTexto)).toContain("[nod] Recado da conversa com a pessoa, repassado por você: Teste também no iPhone");
       const copia = (await m.repos.mensagens.listarDaConversa(m.conversaId)).find((x) => x.payload?.kind === "recado_a_frente");
-      expect(copia).toMatchObject({ kind: "sistema", turnoId: dono!.id, texto: "Recado para a frente Login no Safari: Teste também no iPhone", confianca: "nao_confiavel", payload: { trabalhoId: id, titulo: "Login no Safari" } });
+      expect(copia).toMatchObject({ kind: "sistema", turnoId: dono!.id, texto: "Recado para a tarefa Login no Safari: Teste também no iPhone", confianca: "nao_confiavel", payload: { trabalhoId: id, titulo: "Login no Safari" } });
       const daFrente = (await m.repos.turnos.doTrabalho(id))[0]!;
       expect((await mandarParaFrente(m.deps, { ...m.ctx(daFrente.id), trabalho_id: id, texto: "x" })).data).toMatchObject({ ok: false, erro: "nao_repassa" });
     });

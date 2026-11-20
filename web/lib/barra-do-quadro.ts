@@ -111,7 +111,7 @@ export function criarBarraDoQuadro(d: DepsDaBarra) {
   async function enviarModal(): Promise<void> {
     if (!modal || modal.enviando) return;
     const titulo = modal.titulo.trim();
-    if (!titulo) { modal = { ...modal, erro: "Dê um título à tarefa." }; d.desenhar(); d.focar("#qm-nt-tit"); return; }
+    if (!titulo) { modal = { ...modal, erro: "Dê um título ao card." }; d.desenhar(); d.focar("#qm-nt-tit"); return; }
     const m = modal;
     modal = { ...m, enviando: true, erro: null };
     d.desenhar();
@@ -122,7 +122,7 @@ export function criarBarraDoQuadro(d: DepsDaBarra) {
       modal = { ...m, titulo: "", descricao: "", enviando: false, erro: null };
       d.desenhar();
       d.focar("#qm-nt-tit");
-      d.anunciar(`Tarefa criada: ${titulo}. Pode escrever a próxima.`);
+      d.anunciar(`Card criado: ${titulo}. Pode escrever o próximo.`);
     } else {
       modal = null;
       d.desenhar();

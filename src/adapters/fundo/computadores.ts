@@ -171,6 +171,11 @@ async function turnoPermitido(d: Deps, turnoId: string, agenteId: string, aprova
 
 /** A ferramenta de texto tem instrução própria quando a ação falha (caminho, UTF-8, revisão). */
 const FERRAMENTAS_DE_TEXTO = new Set(["computador_ler_texto", "computador_gravar_texto"]);
+const INSTRUCAO_DA_FALHA_POR_FERRAMENTA: Readonly<Record<string, string>> = {
+  computador_audio: "A captura de áudio falhou. Nada foi ouvido; não repita neste turno nem afirme que ouviu.",
+  computador_abas: "Não consegui listar ou selecionar a aba. Confira a lista atual de abas antes de escolher outro índice; não afirme que trocou.",
+  computador_arquivos: "Não consegui listar essa pasta. Confira o caminho dentro de /workspace; não afirme que encontrou arquivos.",
+};
 
 /**
  * definido em 2026-09-24 (emenda da ADR-037): o que a ferramenta devolve ao agente — código fechado e
@@ -182,6 +187,7 @@ function erroDaFerramenta(nome: string, e: unknown): { erro: string; instrucao: 
   if (!ehFalhaComputador(e)) log("erro", "computador_erro_inesperado", { ferramenta: nome, erro: e instanceof Error ? e.name : "desconhecido" });
   const motivo = ehFalhaComputador(e) ? e.motivo : "acao_falhou";
   if (motivo === "acao_falhou" && FERRAMENTAS_DE_TEXTO.has(nome)) return { erro: motivo, instrucao: "A operação de texto falhou. Confira caminho, tamanho, UTF-8 e revisão; releia o arquivo antes de editar. Não afirme que gravou." };
+  if (motivo === "acao_falhou" && INSTRUCAO_DA_FALHA_POR_FERRAMENTA[nome]) return { erro: motivo, instrucao: INSTRUCAO_DA_FALHA_POR_FERRAMENTA[nome] };
   return { erro: motivo, instrucao: instrucaoDaFalha(motivo, ehFalhaComputador(e) ? e.limite : null, ehFalhaComputador(e) ? e.maquina : null) };
 }
 
@@ -994,11 +1000,14 @@ export function criarComputadores(o: Opcoes) {
      * reserva das ações: o que corre depois é um fluxo, não uma ação, e o bot já está parado pelo controle.
      */
     async vivo(escopo: Escopo, agenteId: string, sessao: SessaoVivo, modo: { assistir?: boolean } = {}): Promise<void> {
-      if (!porPessoa || !o.driver.vivo) throw new ErroDeDominio("nao_encontrado");
+      if (!o.driver.vivo) throw new ErroDeDominio("nao_encontrado");
       const c = await o.dentro(escopo, async (d) => {
         const c = await obter(d, agenteId);
         // Card D, F3: quem assiste vê com o bot no controle; teclado e mouse ficam no filtro da sessão (vivo.ts).
         if (modo.assistir) {
+          // No modo por provedor, `obter` também devolve a linha desabilitada. Recuse antes de abrir a origem VNC:
+          // a reconferência posterior fecha a sessão, mas não pode ser a primeira barreira de autorização.
+          if (!c.habilitado) throw new ErroDeDominio("nao_permitido");
           if (c.indisponivelDesde !== null) throw new ErroDeDominio("estado_invalido", { cause: "computador fora do ar" });
           if (c.telaId && operacaoViva(await d.repos.computadores.daPessoa(), d.agora())) throw new ErroDeDominio("estado_invalido", { cause: "atualizando" });
           return c;
@@ -1014,7 +1023,12 @@ export function criarComputadores(o: Opcoes) {
     },
     /** Revisão do PR #599: a sessão ao vivo reconfere isto; só a pessoa no controle, com a tela habilitada, segue. */
     async vivoAindaPode(escopo: Escopo, agenteId: string): Promise<boolean> {
-      if (!porPessoa) return false;
+      if (!porPessoa) return o.dentro(escopo, async (d) => {
+        const agente = await d.repos.agentes.buscar(agenteId);
+        if (!agente || agente.ownerId !== escopo.pessoaId) return false;
+        const c = await d.repos.computadores.buscarDoAgente(agenteId);
+        return Boolean(c?.habilitado && c.controle === "pessoa" && c.indisponivelDesde === null);
+      });
       // 2ª revisão: só lê (como o `consultar`) — o `obter` vincula, cria e trava a tela a cada 10 s por sessão.
       return o.dentro(escopo, async (d) => {
         const agente = await d.repos.agentes.buscar(agenteId);
@@ -1032,7 +1046,13 @@ export function criarComputadores(o: Opcoes) {
      * `mexer`: a pessoa está no controle (as mesmas regras do `vivoAindaPode`).
      */
     async vivoPodeAssistir(escopo: Escopo, agenteId: string): Promise<{ ver: boolean; mexer: boolean }> {
-      if (!porPessoa) return { ver: false, mexer: false };
+      if (!porPessoa) return o.dentro(escopo, async (d) => {
+        const agente = await d.repos.agentes.buscar(agenteId);
+        if (!agente || agente.ownerId !== escopo.pessoaId) return { ver: false, mexer: false };
+        const c = await d.repos.computadores.buscarDoAgente(agenteId);
+        if (!c?.habilitado || c.indisponivelDesde !== null) return { ver: false, mexer: false };
+        return { ver: true, mexer: c.controle === "pessoa" };
+      });
       return o.dentro(escopo, async (d) => {
         const agente = await d.repos.agentes.buscar(agenteId);
         if (!agente || agente.ownerId !== escopo.pessoaId) return { ver: false, mexer: false };

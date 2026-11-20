@@ -104,6 +104,17 @@ describe("apps do bot: pede você e estados", () => {
     expect(normalizarRetrato({ itens: [{ titulo: " a ", pede: "sim", extra: 1 }, { titulo: "" }, 3], texto: " t " })).toEqual({ itens: [{ titulo: "a" }], texto: "t" });
     expect(normalizarRetrato({ itens: Array.from({ length: 500 }, (_, i) => ({ titulo: `i${i}` })) })?.itens).toHaveLength(200);
   });
+
+  it("corta campos Unicode por caractere inteiro, sem deixar metade de um emoji", () => {
+    const titulo = `${"a".repeat(199)}😀fim`;
+    const detalhe = `${"b".repeat(299)}😀fim`;
+    const texto = `${"c".repeat(19_999)}😀fim`;
+    const retrato = normalizarRetrato({ itens: [{ titulo, detalhe }], texto });
+    expect(retrato?.itens[0]?.titulo).toBe(`${"a".repeat(199)}😀`);
+    expect(retrato?.itens[0]?.detalhe).toBe(`${"b".repeat(299)}😀`);
+    expect(retrato?.texto).toBe(`${"c".repeat(19_999)}😀`);
+    expect(JSON.stringify(retrato)).not.toContain("�");
+  });
 });
 
 describe("apps do bot (revisão 1 do #626): a ordem a gravar guarda o lugar dos removidos", () => {

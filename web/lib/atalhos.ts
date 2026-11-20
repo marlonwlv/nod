@@ -70,6 +70,8 @@ export type ContextoTecla = {
 };
 
 export type AcaoAtalho =
+  /** ADR-187 §7 (2026-11-18): ⌘N abre uma tarefa nova do bot aberto (o novo bot foi para ⌘⇧N). */
+  | { tipo: "nova-tarefa" }
   | { tipo: "novo-bot" }
   | { tipo: "ir-ao-bot"; n: number }
   | { tipo: "vizinho"; passo: 1 | -1 }
@@ -88,8 +90,6 @@ export type AcaoAtalho =
   | { tipo: "focar-campo" }
   /** ⌘L leva o texto selecionado na conversa para o campo, como citação. */
   | { tipo: "selecao-no-campo" }
-  /** ⌘⇧N nova sala (conversa em grupo). */
-  | { tipo: "nova-sala" }
   /** ⌘K a paleta de tudo: bots, conversas, ajustes e ações. */
   | { tipo: "paleta" };
 
@@ -152,7 +152,7 @@ function acaoDaTecla(t: Tecla, c: ContextoTecla): AcaoAtalho | null {
   // lá esses três ficam com o campo. No app do Mac (⌘) e fora do Mac (Alt) valem em qualquer lugar.
   const doCampo = c.emCampo && c.lugar === "navegador-mac";
   if (!t.shiftKey) {
-    if (t.code === "KeyN") return { tipo: "novo-bot" };
+    if (t.code === "KeyN") return { tipo: "nova-tarefa" };
     if (t.code === "KeyB") return doCampo ? null : { tipo: "barra" };
     if (t.code === "Comma") return { tipo: "ajustes" };
     if (t.code === "KeyI") return doCampo ? null : { tipo: "focar-campo" };
@@ -162,7 +162,8 @@ function acaoDaTecla(t: Tecla, c: ContextoTecla): AcaoAtalho | null {
     const col = colchete(t);
     return col && (c.paginas ?? 0) > 1 ? { tipo: "pagina", passo: col } : null;
   }
-  if (t.code === "KeyN") return { tipo: "nova-sala" };
+  // ADR-187 §7 (2026-11-18): o novo bot saiu do ⌘N para o ⌘⇧N; o chat em grupo ficou sem tecla (o + e a paleta o abrem).
+  if (t.code === "KeyN") return { tipo: "novo-bot" };
   const col = colchete(t);
   return col ? { tipo: "vizinho", passo: col } : null;
 }
@@ -279,7 +280,8 @@ export function linhasDaFolha(lugar: LugarTeclado): LinhaDaFolha[] {
   const k = (mod: Mod) => NOME[mod][lugar];
   const fala = (mod: Mod) => FALADO[mod][lugar];
   return [
-    { titulo: "Nova conversa (novo bot)", combinacoes: [[k(m), "N"]], falado: `${fala(m)} N` },
+    { titulo: "Nova tarefa do bot aberto", combinacoes: [[k(m), "N"]], falado: `${fala(m)} N` },
+    { titulo: "Nova conversa (novo bot)", combinacoes: [[k(m), shift, "N"]], falado: `${fala(m)} Shift N` },
     { titulo: "Ir ao bot 1 a 9 da barra", combinacoes: [[k(m), "1–9"]], falado: `${fala(m)} 1 a 9` },
     { titulo: "Bot anterior e próximo", combinacoes: [[k(m), shift, "["], [k(m), shift, "]"]], falado: `${fala(m)} Shift colchete esquerdo e ${fala(m)} Shift colchete direito` },
     { titulo: "Página anterior e próxima do bot", combinacoes: [[k(m), "["], [k(m), "]"], [k("alt"), "←"], [k("alt"), "→"]], falado: `${fala(m)} colchete esquerdo e ${fala(m)} colchete direito, ou ${fala("alt")} seta para os lados` },
@@ -288,7 +290,6 @@ export function linhasDaFolha(lugar: LugarTeclado): LinhaDaFolha[] {
     { titulo: "Buscar bots, conversas, ajustes e ações", combinacoes: [[k(busca), "K"]], falado: `${fala(busca)} K` },
     { titulo: "Modo dev", combinacoes: [[k(busca), shift, "D"]], falado: `${fala(busca)} Shift D` },
     { titulo: "Fechar e voltar", combinacoes: [["esc"]], falado: "Esc" },
-    { titulo: "Nova sala", combinacoes: [[k(m), shift, "N"]], falado: `${fala(m)} Shift N` },
     { titulo: "Barra lateral só com avatares", combinacoes: [[k(m), "B"]], falado: `${fala(m)} B` },
     { titulo: "Configurações", combinacoes: [[k(m), ","]], falado: `${fala(m)} vírgula` },
     { titulo: "Ir ao campo de mensagem", combinacoes: [[k(m), "I"]], falado: `${fala(m)} I` },
@@ -302,8 +303,17 @@ export function teclasDoBot(lugar: LugarTeclado, n: number): string[] | null {
   return [NOME[MOD_DE[lugar]][lugar], String(n)];
 }
 
-/** O rótulo e o aria-keyshortcuts do + (Novo bot) no lugar. */
-export function atalhoDoNovoBot(lugar: LugarTeclado): { texto: string; aria: string } {
+/**
+ * O rótulo e o aria-keyshortcuts da "Nova tarefa" (mod+N) no lugar: "⌘N" no app do Mac, "⌃N" no navegador do Mac (o ⌘N é
+ * do navegador), "Alt+N" fora do Mac. ADR-187 §7 (2026-11-18): é o que a aba "+ Nova tarefa" e a dica escrevem.
+ */
+export function atalhoDaNovaTarefa(lugar: LugarTeclado): { texto: string; aria: string } {
   const m = MOD_DE[lugar];
   return { texto: lugar === "outro" ? `${NOME[m][lugar]}+N` : `${NOME[m][lugar]}N`, aria: `${ARIA[m]}+N` };
+}
+
+/** O rótulo e o aria-keyshortcuts do Novo bot (mod+⇧+N desde a ADR-187 §7): "⇧⌘N" no app do Mac, "Alt+Shift+N" fora dele. */
+export function atalhoDoNovoBot(lugar: LugarTeclado): { texto: string; aria: string } {
+  const m = MOD_DE[lugar];
+  return { texto: lugar === "outro" ? `${NOME[m][lugar]}+Shift+N` : `⇧${NOME[m][lugar]}N`, aria: `${ARIA[m]}+Shift+N` };
 }

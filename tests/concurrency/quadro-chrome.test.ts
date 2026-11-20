@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
@@ -129,7 +129,7 @@ window.__regravar = () => {
 
 /** O index.html de verdade, com todos os CSS do app embutidos na ordem dele e o JS do teste no lugar do main.ts. */
 async function pagina(dir: string): Promise<string> {
-  const js = await build({ stdin: { contents: ENTRADA, resolveDir: RAIZ.pathname, loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
+  const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
   let html = readFileSync(new URL("web/index.html", RAIZ), "utf8");
   html = html.replace(/<link rel="stylesheet" href="\/([\w-]+\.css)" \/>/g, (_, f: string) => `<style>${readFileSync(new URL(`web/${f}`, RAIZ), "utf8")}</style>`);
   html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<script>${js.outputFiles[0]!.text}</script>`);
@@ -251,7 +251,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(pil.dir).toBeLessThanOrEqual(390);
     // Só ícones no celular (a CONSULTA_CELULAR casou), e o nome segue para o leitor de tela.
     expect(pil.abas).toEqual([44, 44, 44, 44]);
-    expect(pil.nomes).toEqual(["Conversa", "Tarefas", "Painel", "Doc"]);
+    expect(pil.nomes).toEqual(["Conversa", "Quadro", "Painel", "Doc"]);
   }, 30_000);
 
   for (const [largura, deitado] of [[390, false], [844, true]] as const) {
@@ -288,7 +288,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(await estadoFinal()).toEqual({ atual: "quadro", quadroOculto: false, timelineVis: "hidden", timelineInert: true, selecionada: "quadro" });
     // ADR-162 (PR #723): "Precisa de você" deixou de ser coluna (virou a marca `voce`); o quadro padrão tem 7 colunas.
     expect(await avaliar<number>(cdp, `document.querySelectorAll("#quadro .qd-so-largo .qd-col").length`)).toBe(7);
-    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("página 2 de 4, Tarefas");
+    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("página 2 de 4, Quadro");
 
     const volta = await trocar("conversa");
     expect(volta.quadro).toEqual(["translateX(0)", "translateX(48px)"]);
@@ -470,7 +470,7 @@ descrever("NOD-429 no Chrome real", () => {
     const { c, toque } = await dedo();
     await toque("touchStart", c.x, c.y);
     await ate(`window.__menus.length > 0`);
-    expect(await avaliar<string[][]>(cdp, `window.__menus`)).toEqual([["buscar", "Conversa*", "Tarefas", "Painel", "Doc"]]);
+    expect(await avaliar<string[][]>(cdp, `window.__menus`)).toEqual([["buscar", "Conversa*", "Quadro", "Painel", "Doc"]]);
     expect(await avaliar<boolean>(cdp, `document.querySelector("#cabecalho .qd-pil").classList.contains("pg-aberta")`)).toBe(false);
     await toque("touchEnd", c.x, c.y);
     await acabar();
@@ -763,7 +763,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(await avaliar<string>(cdp, `document.querySelector("#cabecalho .pg-ic.pg-casa").dataset.pagina`)).toBe("1");
     // O clique do fim do arrasto não trocou de página; o anúncio diz a posição nova.
     expect(await estadoFinal()).toMatchObject({ atual: "conversa" });
-    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("Tarefas, página 1 de 4");
+    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("Quadro, página 1 de 4");
     // Abrir o agente de novo (outra montagem, como ao clicar nele na lista) cai direto em Tarefas, sem animação.
     await montar();
     expect(await estadoFinal()).toMatchObject({ atual: "quadro", quadroOculto: false, timelineInert: true });
@@ -809,7 +809,7 @@ descrever("NOD-429 no Chrome real", () => {
     await tecla("ArrowRight", true);
     expect(await aberta()).toBe(true);
     expect(await avaliar<string[]>(cdp, `window.__salvos`)).toEqual(['a:["conversa","tarefas","app:id-painel","app:id-doc"]']);
-    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("Tarefas, página 2 de 4");
+    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("Quadro, página 2 de 4");
     // No ícone focado, ⌥⇧← a traz de volta e o foco segue o ícone.
     await avaliar(cdp, `document.querySelector('#cabecalho .pg-ic[data-pagina="1"]').focus()`);
     await tecla("ArrowLeft", true);
@@ -891,6 +891,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(await avaliar<string>(cdp, `document.querySelector(".pg-dica")?.textContent ?? ""`)).toBe("passe o mouse ou deslize de lado na pílula · Alt ← → troca");
     await avaliar(cdp, `window.__quadro.irPara(1)`);
     // Abrir a doca (aqui pelo foco) guarda a marca.
+    await cdp.enviar("Page.bringToFront");
     await avaliar(cdp, `document.querySelector('${aba("quadro")}').focus()`);
     expect(await avaliar<string | null>(cdp, `localStorage.getItem("nod.paginas.dica")`)).toBe("1");
   }, 30_000);

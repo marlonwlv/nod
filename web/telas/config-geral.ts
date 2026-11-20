@@ -12,6 +12,7 @@ import type { EscolhaSons } from "../lib/sons.ts";
 
 /** ADR-167: a frase do catálogo (web/lib/ajustes.ts), para a linha e a busca dizerem o mesmo. */
 const frase = (id: string): string => ajustePorId(id)?.frase ?? "";
+import { renderMcp, type DadosMcp } from "./config-mcp.ts";
 
 /**
  * NOD-367 (protótipo v2 do Gil, aprovado em 2026-10-26): Configurações › Geral junta o que eram Preferências e Avisos, em
@@ -104,6 +105,8 @@ export type DadosGeral = {
   balaoCor?: boolean;
   /** ADR-167: os sons opcionais deste computador (ausente = desligados). */
   sons?: EscolhaSons;
+  /** Servidor MCP do Nod (0173): os tokens e o recém-gerado; ausente = o grupo não aparece. */
+  mcp?: DadosMcp;
 };
 
 /** NOD-383: no celular não há teclado de atalhos: a Ajuda fica só com o onboarding, e o Tema fala do aparelho. */
@@ -156,6 +159,7 @@ export function renderGeral(d: DadosGeral, ui: ConfigUi, celular = ehCelular(), 
       ${tema}
       ${renderAvisos(d.avisos)}
       ${blocoSons}
+      ${d.mcp ? renderMcp(d.mcp, ui) : ""}
       ${ajuda}
       ${blocoAvancado}
     </section>`;

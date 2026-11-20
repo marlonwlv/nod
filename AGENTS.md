@@ -145,6 +145,13 @@ feature que estavam corretos (docs/praticas-herdadas.md §8). Se algo falhar sem
   O compilador guarda a pureza (`tsconfig.domain.json`); o eslint guarda a direção entre camadas.
 - **`src/services` é SEM BANCO.** Laço de fundo que abre transação mora em `src/adapters/fundo/` e
   passa por `paraCadaPessoa`.
+- **`:has()` nunca termina num sujeito largo** (ADR-189). Com um `:has()` antes do sujeito, o sujeito nomeia o que
+  estiliza por classe, id ou atributo — não `*`, `:not(…)` sozinho, só uma tag ou `::placeholder`. Medido em 2026-11-19:
+  uma regra assim fazia cada nó novo (o mascote repintando, o bloco da fala) recalcular o estilo da página inteira
+  (~40 mil elementos, ~180 ms), e era o que travava a tecla no campo com bots trabalhando. Estado da página inteira vira
+  classe no `<html>` posta pelo JS. `tests/unit/web/css-has-sem-sujeito-universal.test.ts` varre o CSS e acusa. Para
+  achar o caro de novo: `CARGA_TRACE_S=4 node scripts/carga-tela/rodar.ts medir <rotulo> turno-pesado` e
+  `node scripts/carga-tela/trace.ts <saida>/<rotulo>-turno-pesado.trace.json`.
 - **Sem `console.*`** fora de `src/obs/log.ts`. Sem `DELETE FROM`/`TRUNCATE` em teste fora de
   `tests/concurrency/`. Sem `as unknown as`.
 - **Erro nunca vaza `message`.** `ErroDeDominio(codigo)`; a mensagem sai de uma tabela fixa em

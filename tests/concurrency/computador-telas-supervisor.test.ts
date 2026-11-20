@@ -43,7 +43,7 @@ async function montar(o: { ambienteTela?: Record<string, string>; antesDeRecolhe
     xvfb: "Xvfb", openbox: "openbox", chromium: "chromium", bwrap: null, xdotool: "xdotool", xclip: "xclip", scrot: "scrot",
   };
   const terminal = join(dir, "term.sock");
-  const st = criarServidorTerminal({ raiz: join(dir, "raiz") });
+  const st = criarServidorTerminal({ raiz: join(dir, "raiz"), bwrap: null });
   await escutar(st, terminal);
   limpar.push(() => new Promise((r) => st.close(r)));
   // A régua lê a memória daqui: vermelha com `limite` telas de pé (fechar uma devolve a memória, como na máquina de
@@ -215,6 +215,35 @@ describe("computador da pessoa: várias telas no supervisor real (NOD-96 PR 7)",
     expect(m.telas().ana).toBe("fechada");
     expect(await m.cookiesEm("ana", MAIL)).toEqual({ sid: "15min" });
     expect(m.telas().ana).toBe("aberta");
+  });
+
+  it("NOD-434: morte abrupta reabre logada, e o logout assentado não ressuscita", async () => {
+    const diario = join(await mkdtemp(join(tmpdir(), "nod-diario-")), "telas.jsonl");
+    limpar.push(() => rm(join(diario, ".."), { recursive: true, force: true }));
+    const m = await montar({ ambienteTela: { NOD_TELA_FALSA_DIARIO: diario } });
+    await m.iniciar();
+    await m.navegar("ana", `${MAIL}?entrar=sid:abrupto`);
+    await m.assentar();
+    expect(Object.fromEntries((await m.loja()).map((c) => [c.name, c.value]))).toEqual({ sid: "abrupto" });
+
+    const pids = async () => (await readFile(diario, "utf8")).trim().split("\n")
+      .map((linha) => JSON.parse(linha) as { pid: number; agente: string; ev: string })
+      .filter((e) => e.agente === "ana" && e.ev === "abrir").map((e) => e.pid);
+    const matarTela = async () => {
+      const pid = (await pids()).at(-1)!;
+      expect(pid).not.toBe(process.pid);
+      process.kill(pid, "SIGKILL");
+      await vi.waitFor(() => expect(m.telas().ana).toBe("fechada"));
+    };
+
+    await matarTela();
+    expect(await m.cookiesEm("ana", MAIL)).toEqual({ sid: "abrupto" });
+
+    await m.navegar("ana", `${MAIL}?sair=sid`);
+    await m.assentar();
+    expect(await m.loja()).toEqual([]);
+    await matarTela();
+    expect(await m.cookiesEm("ana", MAIL)).toEqual({});
   });
 
   it("NOD-433: a ação que chega com a tela do bot ainda fechando espera o fechar e abre uma tela nova, que não é marcada fechada", async () => {

@@ -1,3 +1,4 @@
+import { invalidacoesDoChatSemProgresso, INTERVALO_RECONCILIACAO_MS } from "../../../web/lib/reconciliar-chat.ts";
 import { describe, expect, it } from "vitest";
 import type { ConversaDto } from "../../../src/contracts/api.ts";
 import type { DonoDto } from "../../../src/contracts/dono.ts";
@@ -81,16 +82,16 @@ describe("cabeçalho e ao vivo leem a mesma regra do mascote (NOD-216)", () => {
     const cab = renderCabecalhoConversa(comConversa({ t1: vivo("t1") }), "a");
     expect(cab).toContain("Na fila");
     expect(cab).not.toContain("Trabalhando");
-    expect(cab).toContain('data-estado="disponivel"');
-    expect(cab).toContain(" paused");
+    expect(cab).toContain('data-estado="na_fila"');
+    expect(cab).toContain('state="idle"');
     expect(cab).not.toContain('presenca ativa');
   });
 
-  it("rodando sem ferramenta: presença Refletindo, mas o cabeçalho fica Parado", () => {
+  it("rodando sem ferramenta: presença e cabeçalho ficam Refletindo", () => {
     const cab = renderCabecalhoConversa(comConversa({ t1: vivo("t1", { estado: "rodando" }) }), "a");
     expect(cab).toContain("Refletindo");
-    expect(cab).toContain('data-estado="disponivel"');
-    expect(cab).toContain(" paused");
+    expect(cab).toContain('data-estado="pensando"');
+    expect(cab).toContain('state="thinking"');
   });
 
   it("o turno de uma task não diz 'Trabalhando' no cabeçalho da conversa", () => {
@@ -298,4 +299,75 @@ describe("o dono reconcilia só pela conversa PRÓPRIA do bot (NOD-219)", () => 
     const propria = reduzir(base(), { tipo: "hidratar-trabalhos", trabalhos: trabalhos([dono("b", { conversaTrabalhando: true, conversaPropriaTrabalhando: true })]), agora: AGORA });
     expect(propria.invalidacoes).toContain(`vivos:${OUTRA}`);
   });
+});
+
+
+describe("recuperação do progresso do chat", () => {
+  it("snapshot promove fila após despacho perdido e não rebaixa com snapshot atrasado", () => {
+    let e = base({ t1: vivo("t1") });
+    e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(C, [{ id: "t1", estado: "despachando", desde: AGORA - H, despachadoEm: AGORA - 100, mensagemId: null }]), agora: AGORA });
+    expect(e.turnosVivos.t1).toMatchObject({ estado: "rodando", desde: AGORA - 100 });
+    e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(C, [{ id: "t1", estado: "pendente", desde: AGORA - H, mensagemId: null }]), agora: AGORA - 1 });
+    expect(e.turnosVivos.t1?.estado).toBe("rodando");
+  });
+
+  it("ferramenta de computador sem início recebido fica visível; replay após fim não revive", () => {
+    let e = reduzir(base(), { tipo: "hidratar-conversa", conversa: conversa(), agora: AGORA - 1 });
+    const atividade = { streamId: "s", seq: 2, pessoaId: "p", tipo: "turno.atividade" as const, dados: { conversaId: C, turnoId: "t1", rotulo: "Usou o computador", emUso: { texto: "Usando o computador" }, id: "acao1" } };
+    e = aplicarFrame(e, atividade, AGORA);
+    expect(e.turnosVivos.t1?.estado).toBe("rodando");
+    expect(blocosAoVivo(e.conversas[C]!, e).map((b) => b.html).join("")).toContain("Usando o computador");
+    // Fim e mensagem perdidos: snapshot autoritativo termina o turno local, sem reenvio.
+    e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(), agora: AGORA + 1 });
+    expect(e.turnosVivos.t1).toBeUndefined();
+    e = aplicarFrame(e, atividade, AGORA + 2);
+    expect(e.turnosVivos.t1).toBeUndefined();
+  });
+});
+
+
+it("reconciliação REST é limitada à conversa visível, sem progresso, e cessa ao concluir", () => {
+  let e = reduzir(base({ t1: vivo("t1", { vistoEm: AGORA }) }), { tipo: "navegar", tela: { tipo: "conversa", conversaId: C, agenteId: "a" } });
+  expect(invalidacoesDoChatSemProgresso(e, AGORA + INTERVALO_RECONCILIACAO_MS - 1, true)).toEqual([]);
+  expect(invalidacoesDoChatSemProgresso(e, AGORA + INTERVALO_RECONCILIACAO_MS, false)).toEqual([]);
+  expect(invalidacoesDoChatSemProgresso(e, AGORA + INTERVALO_RECONCILIACAO_MS, true)).toEqual([`conversa:${C}`]);
+  e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(C, [{ id: "t1", estado: "despachando", desde: AGORA, mensagemId: null }]), agora: AGORA + INTERVALO_RECONCILIACAO_MS });
+  expect(invalidacoesDoChatSemProgresso(e, AGORA + INTERVALO_RECONCILIACAO_MS + 1, true)).toEqual([]);
+  e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(), agora: AGORA + INTERVALO_RECONCILIACAO_MS + 2 });
+  expect(invalidacoesDoChatSemProgresso(e, AGORA + 100_000, true)).toEqual([]);
+});
+
+
+it("atividade recente adia REST e impede que GET anterior apague o turno", () => {
+  let e = reduzir(base({ t1: vivo("t1", { estado: "rodando", vistoEm: AGORA - H }) }), { tipo: "navegar", tela: { tipo: "conversa", conversaId: C, agenteId: "a" } });
+  e = aplicarFrame(e, { streamId: "s", seq: 1, pessoaId: "p", tipo: "turno.atividade", dados: { conversaId: C, turnoId: "t1", rotulo: "Usou o computador" } }, AGORA);
+  expect(invalidacoesDoChatSemProgresso(e, AGORA + 1, true)).toEqual([]);
+  e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversa(), agora: AGORA - 1 });
+  expect(e.turnosVivos.t1?.estado).toBe("rodando");
+  e = aplicarFrame(e, { streamId: "s", seq: 2, pessoaId: "p", tipo: "turno.iniciado", dados: { conversaId: C, turnoId: "t1", kind: "turno_criado" } }, AGORA + 1);
+  expect(e.turnosVivos.t1?.estado).toBe("rodando");
+  expect(Object.keys(e.turnosVivos)).toEqual(["t1"]);
+});
+
+
+it("progresso sem início conserva dono e trabalho sem aparecer como turno da conversa", () => {
+  const e = aplicarFrame(reduzir(base(), { tipo: "hidratar-conversa", conversa: conversa(), agora: AGORA - 1 }), {
+    streamId: "s", seq: 1, pessoaId: "p", tipo: "turno.atividade",
+    dados: { conversaId: C, turnoId: "task", trabalhoId: "w1", agenteId: "a", rotulo: "Usou o computador" },
+  }, AGORA);
+  expect(e.turnosVivos.task).toMatchObject({ estado: "rodando", trabalhoId: "w1", agenteId: "a" });
+  expect(turnosVivosDaConversa(e, C)).toEqual([]);
+});
+
+it("GET trabalhos anterior ao progresso não apaga o turno nem bloqueia os próximos frames", () => {
+  let e = reduzir(base({ t1: vivo("t1", { estado: "rodando", vistoEm: AGORA - H }) }), { tipo: "hidratar-conversa", conversa: conversa(C, [{ id: "t1", estado: "despachando", desde: AGORA - H, mensagemId: null }]), agora: AGORA - 10 });
+  const frame = { streamId: "s", seq: 1, pessoaId: "p", tipo: "turno.atividade" as const, dados: { conversaId: C, turnoId: "t1", rotulo: "Usou o computador" } };
+  e = aplicarFrame(e, frame, AGORA);
+  e = reduzir(e, { tipo: "hidratar-trabalhos", trabalhos: trabalhos([dono("a")]), agora: AGORA - 1 });
+  expect(e.turnosVivos.t1?.estado).toBe("rodando");
+  expect(e.turnosDesmentidos.t1).toBeUndefined();
+  e = aplicarFrame(e, { ...frame, seq: 2 }, AGORA + 1);
+  expect(e.atividades[C]?.t1?.recebidoEm).toBe(AGORA + 1);
+  e = reduzir(e, { tipo: "hidratar-trabalhos", trabalhos: trabalhos([dono("a")]), agora: AGORA + 2 });
+  expect(e.turnosVivos.t1).toBeUndefined();
 });

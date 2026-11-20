@@ -513,15 +513,36 @@ export function htmlBarraDeControle(nome: string, estado: EstadoBarra): string {
 }
 
 /**
- * O visualizador em tela cheia (card D, item 3): a barra de 44 px com "Sair da tela cheia", o palco, o quadro 16:10 (a
- * captura, o último quadro do VNC que caiu e o VNC ao vivo), a espera com o personagem e o aviso ao leitor de tela.
- * `personagem` é o HTML do personagem do bot (htmlMascote) que gira na espera.
+ * Acessos · computador, item 5 (definido em 2026-11-16): o título discreto do topo da tela cheia. "Tela de Nina" no
+ * repouso; com o pedido de ajuda aberto (o bot espera a pessoa), "Nina precisa de você · <pedido>". Só o
+ * `aguardando_pessoa` mostra o pedido: no controle a pessoa já está resolvendo, e depois do Já resolvi ele fechou.
+ */
+export function tituloDaTelaCheia(nome: string, controle: ControleComputador | undefined, pedido: string | null | undefined): string {
+  const p = pedido?.trim();
+  return controle === "aguardando_pessoa" && p ? `${nome} precisa de você · ${p}` : `Tela de ${nome}`;
+}
+
+/**
+ * O HTML do título: o ponto âmbar, quem pede (mais claro) e o pedido em uma linha (cortado com reticências; o texto
+ * inteiro vai no `title` do h1). No celular o topo diz só "Nina · precisa de você" e o pedido desce para baixo da
+ * pílula (`.ctc-pedido`); os dois jeitos estão aqui e o CSS mostra um.
+ */
+export function htmlTituloDaTelaCheia(nome: string, controle: ControleComputador | undefined, pedido: string | null | undefined): string {
+  const p = pedido?.trim();
+  if (controle !== "aguardando_pessoa" || !p) return `<span class="ctc-tit-nome">${esc(`Tela de ${nome}`)}</span>`;
+  return `<i class="ctc-tit-ponto" aria-hidden="true"></i><span class="ctc-tit-quem"><span class="ctc-tit-longo">${esc(`${nome} precisa de você`)}</span><span class="ctc-tit-curto">${esc(`${nome} · precisa de você`)}</span></span><span class="ctc-tit-pedido">${esc(` · ${p}`)}</span>`;
+}
+
+/**
+ * O visualizador em tela cheia (card D, item 3): a barra de 44 px com o título e "Sair da tela cheia", o palco, o quadro
+ * 16:10 (a captura, o último quadro do VNC que caiu e o VNC ao vivo), a espera com o personagem e o aviso ao leitor de
+ * tela. `personagem` é o HTML do personagem do bot (htmlMascote) que gira na espera.
  */
 export function htmlTelaCheia(nome: string, personagem: string): string {
-  return `<header class="ctc-topo"><span class="ctc-fora" role="status" hidden>Fora do ar</span><button type="button" class="ctc-sair" data-c="fechar" aria-label="Sair da tela cheia">${ICONE_TELA_CHEIA.recolher}</button></header>`
+  return `<header class="ctc-topo"><h1 class="ctc-titulo" id="ctc-titulo" title="${esc(`Tela de ${nome}`)}">${htmlTituloDaTelaCheia(nome, undefined, null)}</h1><span class="ctc-fora" role="status" hidden>Fora do ar</span><button type="button" class="ctc-sair" data-c="fechar" aria-label="Sair da tela cheia">${ICONE_TELA_CHEIA.recolher}</button></header>`
     + `<div class="ctc-corpo"><div class="ctc-palco"><div class="ctc-coluna">`
     + `<div class="ctc-quadro" tabindex="-1" aria-label="Tela de ${esc(nome)}"><img class="ctc-captura" alt="" tabindex="-1" draggable="false" hidden /><div class="ctc-ultimo" hidden></div><div class="ctc-vivo"></div></div>`
-    + `<div class="ctc-barra-lugar"></div></div>`
+    + `<div class="ctc-barra-lugar"></div><p class="ctc-pedido"></p></div>`
     + `<div class="ctc-espera" role="status"><span class="ctc-masc" aria-hidden="true">${personagem}</span><span class="ctc-espera-txt">Iniciando desktop</span></div>`
     + `</div></div><p class="ctc-aviso sr-only" aria-live="polite"></p>`;
 }
@@ -599,9 +620,9 @@ export function htmlPainelComputadorDoBot(dto: ComputadorPessoaDto, bots: readon
   const cheia = memoriaCheia(dto);
   const memoria = dto.estado === "dormindo" || pct === null
     ? ""
-    : `<div class="pc-memoria"><div class="pc-mem-cab"><span>Memória</span><span>${abertas.length} ${abertas.length === 1 ? "tela" : "telas"} · ${pct}%${cheia ? " · cheia" : ""}</span></div><div class="pc-barra${cheia ? " cheia" : ""}" role="meter" aria-label="Memória em uso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
+    : `<div class="pc-memoria"><div class="pc-mem-cab"><span>Memória</span><span class="pc-mem-valor">${abertas.length} ${abertas.length === 1 ? "tela" : "telas"} · ${pct}%${cheia ? " · cheia" : ""}</span></div><div class="pc-barra${cheia ? " cheia" : ""}" role="meter" aria-label="Memória em uso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
   const progresso = dto.operacao
-    ? `<div class="pc-prog-inline"><div class="pc-mem-cab"><span>${esc(NOME_OPERACAO[dto.operacao.tipo].gerundio)} o computador</span><span>${pctDaOperacao(dto)}%</span></div><div class="pc-barra grande" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctDaOperacao(dto)}"><i style="width:${pctDaOperacao(dto)}%"></i></div>${htmlEtapas(dto.operacao.tipo, dto.operacao.etapa, pctDaOperacao(dto))}</div>`
+    ? `<div class="pc-prog-inline"><div class="pc-mem-cab"><span>${esc(NOME_OPERACAO[dto.operacao.tipo].gerundio)} o computador</span><span class="pc-mem-valor">${pctDaOperacao(dto)}%</span></div><div class="pc-barra grande" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctDaOperacao(dto)}"><i style="width:${pctDaOperacao(dto)}%"></i></div>${htmlEtapas(dto.operacao.tipo, dto.operacao.etapa, pctDaOperacao(dto))}</div>`
     : "";
   // NOD-93: o download da VM local (o primeiro uso no Mac), com a barra e os MB; pausado diz que continua sozinho.
   const prep = preparoAtivo(dto);

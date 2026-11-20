@@ -11,6 +11,7 @@ import { linhaDaFila } from "../lib/fila-do-pedido.ts";
 import { textoFormatado } from "../lib/texto-formatado.ts";
 import { mesmoDia, PAUSA_QUE_ABRE_BLOCO_MS } from "./divisores-de-data.ts";
 import { etiquetaDoWebhook } from "./webhook.ts";
+import { marcadorDoProgresso } from "./progresso-na-fala.ts";
 
 /**
  * Chat limpo (definido em 2026-10-07, #191/#195, ADR-083): o que NÃO é a conversa entre a pessoa e o bot sai do caminho.
@@ -76,7 +77,7 @@ export type PlanoMensagem =
 type Agente = NonNullable<Estado["frota"]>["agentes"][number];
 
 /** Uma execução de rotina, um pedido de colega ou um trabalho: as mensagens do mesmo trabalho (ou do mesmo turno, sem ele). */
-type Unidade = { chave: string; tipo: "rotina" | "colega" | "task" | null; mensagens: Mensagem[]; trabalhoId: string | null; trabalho: TrabalhoDto | undefined; rotinaId: string | null };
+type Unidade = { chave: string; tipo: "rotina" | "colega" | "task" | null; mensagens: Mensagem[]; trabalhoId: string | null; trabalho: TrabalhoDto | undefined; origem: string | undefined; rotinaId: string | null };
 
 /** Rotina que parou sem nada para dizer (registrarDesfechoRotina, SILENCIOSOS): nenhuma linha dela vai ao chat. */
 const DESFECHOS_SILENCIOSOS = new Set(["sem_novidade", "interrompida"]);
@@ -194,30 +195,44 @@ function recolhivel(m: Mensagem): boolean {
 }
 
 /**
- * A fala da pessoa fica no chat, salvo a que ela escreveu no campo da tela da task (definido em 2026-10-08, revisão W8):
- * essa leva o `trabalhoId` e mora na task. A da `rede` é a exceção — ali a conversa é que virou task, e a fala foi
- * escrita no chat. Sem saber a origem (o trabalho fora da lista e sem a linha "Abriu a task"), a fala fica à vista.
+ * A fala de origem continua no chat quando uma conversa vira frente pela rede (ADR-083): tanto o pedido da pessoa
+ * quanto a resposta final do bot já aconteceram na conversa antes de ganharem `trabalhoId`. Os turnos seguintes da
+ * frente têm outra origem e seguem recolhidos nela. Fora da rede, só a fala da pessoa sem origem conhecida fica à vista;
+ * a escrita no campo da task mora na task (definido em 2026-10-08, revisão W8).
  */
-function falaDaPessoaNoChat(m: Mensagem, origens: ReadonlyMap<string, string>): boolean {
-  if (m.autoria.autor_tipo !== "pessoa" || m.kind !== "texto") return false;
+function falaDaConversaNoChat(m: Mensagem, origens: ReadonlyMap<string, string>, turnosPromovidos: ReadonlyMap<string, string>, promocoesEm: ReadonlyMap<string, number>): boolean {
+  if (m.kind !== "texto") return false;
   const origem = m.trabalhoId ? origens.get(m.trabalhoId) : undefined;
-  return origem === undefined || origem === "rede";
+  if (origem === "rede" && m.trabalhoId) {
+    if (m.autoria.autor_tipo === "agente") return m.turnoId === turnosPromovidos.get(m.trabalhoId);
+    const promocaoEm = promocoesEm.get(m.trabalhoId);
+    return m.autoria.autor_tipo === "pessoa" && promocaoEm !== undefined && m.criadoEm <= promocaoEm;
+  }
+  return m.autoria.autor_tipo === "pessoa" && origem === undefined;
 }
 
 function unidadesDe(mensagens: readonly Mensagem[], conhecidos: ReadonlyMap<string, TrabalhoDto>): Map<string, Unidade> {
   const unidades = new Map<string, Unidade>();
   const origens = new Map<string, string>();
-  for (const m of mensagens) if (m.payload?.kind === "trabalho_aberto") origens.set(m.payload.trabalhoId, m.payload.origem);
+  const turnosPromovidos = new Map<string, string>();
+  const promocoesEm = new Map<string, number>();
+  for (const m of mensagens) if (m.payload?.kind === "trabalho_aberto") {
+    origens.set(m.payload.trabalhoId, m.payload.origem);
+    if (m.payload.origem === "rede") {
+      if (m.turnoId) turnosPromovidos.set(m.payload.trabalhoId, m.turnoId);
+      promocoesEm.set(m.payload.trabalhoId, m.criadoEm);
+    }
+  }
   // ADR-099 (I2): o lote de frentes abre várias numa linha só.
   for (const m of mensagens) if (m.payload?.kind === "frentes_abertas") for (const f of m.payload.frentes) origens.set(f.trabalhoId, m.payload.origem);
   for (const t of conhecidos.values()) origens.set(t.id, t.origem);
   for (const m of mensagens) {
-    if (!marcada(m) || falaDaPessoaNoChat(m, origens)) continue;
+    if (!marcada(m) || falaDaConversaNoChat(m, origens, turnosPromovidos, promocoesEm)) continue;
     // ADR-099 (I7 revista): a retomada entra na unidade da raiz dela — a execução da rotina e o pedido de colega não viram
     // mais trabalho, e a resposta da pessoa, a volta marcada e o retorno das frentes continuam na mesma linha.
     const chave = m.trabalhoId ? `trabalho:${m.trabalhoId}` : m.raiz ? `turno:${m.raiz.turnoId}` : m.turnoId ? `turno:${m.turnoId}` : null;
     if (!chave) continue;
-    const u = unidades.get(chave) ?? { chave, tipo: null, mensagens: [], trabalhoId: m.trabalhoId ?? null, trabalho: m.trabalhoId ? conhecidos.get(m.trabalhoId) : undefined, rotinaId: null };
+    const u = unidades.get(chave) ?? { chave, tipo: null, mensagens: [], trabalhoId: m.trabalhoId ?? null, trabalho: m.trabalhoId ? conhecidos.get(m.trabalhoId) : undefined, origem: m.trabalhoId ? origens.get(m.trabalhoId) : undefined, rotinaId: null };
     u.mensagens.push(m);
     unidades.set(chave, u);
   }
@@ -225,7 +240,7 @@ function unidadesDe(mensagens: readonly Mensagem[], conhecidos: ReadonlyMap<stri
     const p = u.mensagens.map((m) => m.payload?.kind);
     const execucao = u.mensagens.find((m) => m.payload?.kind === "rotina_execucao")?.payload;
     u.rotinaId = u.trabalho?.rotinaId ?? (execucao?.kind === "rotina_execucao" ? execucao.rotinaId : null);
-    const origem = u.trabalho?.origem;
+    const origem = u.trabalho?.origem ?? u.origem;
     const deOrigem = (o: string): boolean => u.mensagens.some((m) => m.origemTurno === o || m.raiz?.origem === o);
     if (origem === "rotina" || (!origem && (p.includes("rotina_execucao") || deOrigem("rotina")))) u.tipo = "rotina";
     else if (origem === "colega" || (!origem && (p.includes("peer_pedido") || deOrigem("delegacao")))) u.tipo = "colega";
@@ -314,14 +329,14 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
     const falou = u.tipo !== "rotina" || execucoes.some((d) => !DESFECHOS_SILENCIOSOS.has(d));
     // NOD-84: a resposta da rotina por webhook leva "webhook" (ou "teste", a do Enviar teste) no lugar de "da rotina …".
     const doWebhook = u.tipo === "rotina" ? etiquetaDoWebhook(estado.rotinas.find((r) => r.rotina.id === u.rotinaId), u.mensagens.map((m) => m.turnoId)) : null;
-    const etiqueta = doWebhook ?? (u.tipo === "rotina" ? `da rotina ${nomeDaRotina(estado, u) ?? ""}`.trim() : `da task ${tituloDe(u)}`);
+    const etiqueta = doWebhook ?? (u.tipo === "rotina" ? `da rotina ${nomeDaRotina(estado, u) ?? ""}`.trim() : `da tarefa ${tituloDe(u)}`);
     // ADR-099 (I7 revista): na rotina, o turno do dono que abriu frentes ("comecei…") não é o resultado — o resultado é o
     // do retorno das frentes; até ele chegar a execução não acabou.
     const abriramFrentes = new Set(u.tipo === "rotina" ? u.mensagens.flatMap((m) => (m.payload?.kind === "frentes_abertas" && m.turnoId ? [m.turnoId] : [])) : []);
     // NOD-114: o aviso que o bot mandou à pessoa (avisar_pessoa) é para ela, como a pergunta: fica à vista em qualquer
     // turno — o clique na notificação abre esta conversa, e o aviso escondido seria marcado lido sem ser visto.
     const paraPessoa = (m: Mensagem): boolean => m.payload?.kind === "pedido_a_pessoa" || m.payload?.kind === "aviso_pessoa";
-    const baloes = u.mensagens.filter((m) => paraPessoa(m) || (u.tipo !== "colega" && falou && m.destino !== "anexo" && m.kind === "texto" && m.autoria.autor_tipo === "agente" && m.fimDoTurno === true && !(m.turnoId && abriramFrentes.has(m.turnoId))));
+    const baloes = u.mensagens.filter((m) => paraPessoa(m) || (u.tipo !== "colega" && (u.trabalho?.origem ?? u.origem) !== "rede" && falou && m.destino !== "anexo" && m.kind === "texto" && m.autoria.autor_tipo === "agente" && m.fimDoTurno === true && !(m.turnoId && abriramFrentes.has(m.turnoId))));
     // O resultado do trabalho que terminou ganha a linha "… terminou · 39 min · US$ 0,88" logo acima (K5).
     const ultimoFim = [...baloes].reverse().find((m) => !paraPessoa(m));
     for (const m of baloes) {
@@ -403,6 +418,12 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
   });
   for (const m of mensagens) {
     if (m.payload?.kind !== "trabalho_aberto" || planos.has(m.id)) continue;
+    // ADR-187 (validação de 2026-11-17, protótipo 1d): a da rede aparece do lado do bot, onde o turno parou de falar na
+    // conversa, com o cartão da tarefa embaixo (o lugar do progresso). Antes o cartão ia no balão da pessoa, à direita.
+    if (m.destino === "anexo" && m.payload.origem === "rede") {
+      planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: htmlDaRede(m.id) });
+      continue;
+    }
     // Chat limpo (ADR-114): a abertura é `anexo` — dá o título e a origem acima, mas não vira linha (mora na Atividade).
     if (m.destino === "anexo") {
       planos.set(m.id, { tipo: "oculta" });
@@ -425,7 +446,7 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
     planos.set(m.id, {
       tipo: "linha",
       chave: `linha:${m.id}`,
-      html: htmlLinha({ tipo: "task", chave: `task:${p.trabalhoId}`, agenteId: dono, conteudo: `<span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span><span>${p.origem === "rede" ? "Virou a frente" : "Abriu a task"}</span><b>${esc(titulo)}</b>`, trabalhoId: p.trabalhoId, conversaId, mensagens: [m.id], titulo, extra: acoesDaAbertura(t, estado, conversaId) }) + memoria,
+      html: htmlLinha({ tipo: "task", chave: `task:${p.trabalhoId}`, agenteId: dono, conteudo: `<span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span><span>${p.origem === "rede" ? "Virou a tarefa" : "Abriu a tarefa"}</span><b>${esc(titulo)}</b>`, trabalhoId: p.trabalhoId, conversaId, mensagens: [m.id], titulo, extra: acoesDaAbertura(t, estado, conversaId) }) + memoria,
     });
   }
 
@@ -446,7 +467,7 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
       if (p.frentes.length === 1 && unica) {
         const t = conhecidos.get(unica.trabalhoId);
         const titulo = t?.titulo ?? unica.titulo;
-        planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: htmlLinha({ tipo: "task", chave: `task:${unica.trabalhoId}`, agenteId: t?.agenteId ?? dono, conteudo: `<span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span><span>Começou a frente</span><b>${esc(titulo)}</b>`, trabalhoId: unica.trabalhoId, conversaId, mensagens: [m.id], titulo, extra: acoesDaAbertura(t, estado, conversaId) }) });
+        planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: htmlLinha({ tipo: "task", chave: `task:${unica.trabalhoId}`, agenteId: t?.agenteId ?? dono, conteudo: `<span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span><span>Começou a tarefa</span><b>${esc(titulo)}</b>`, trabalhoId: unica.trabalhoId, conversaId, mensagens: [m.id], titulo, extra: acoesDaAbertura(t, estado, conversaId) }) });
       } else {
         // revisto em 2026-10-12 (ADR-099, parte 5, quadro 06): uma linha só, "●●● Começou 3 frentes: A, B e C · 15:02" —
         // um ponto na cor do bot por frente (até 3), e cada título abre a frente.
@@ -454,7 +475,7 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
         const pontos = `<span class="linha-pontos" aria-hidden="true">${`<span class="ponto-trabalho ${esc(cor)}"></span>`.repeat(Math.min(3, p.frentes.length))}</span>`;
         const titulos = p.frentes.map((f) => `<button type="button" class="linha-link" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}">${esc(conhecidos.get(f.trabalhoId)?.titulo ?? f.titulo)}</button>`);
         const lista = titulos.length <= 1 ? titulos.join("") : `${titulos.slice(0, -1).join('<span class="linha-sep">, </span>')}<span class="linha-sep"> e </span>${titulos[titulos.length - 1]}`;
-        planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: `<div class="linha-centro-wrap"><div class="linha-centro linha-task linha-frentes estatica">${pontos}<span>Começou ${p.frentes.length} frentes:</span><span class="linha-titulos">${lista}</span><span class="linha-hora">· ${esc(hora(m.criadoEm))}</span></div></div>` });
+        planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: `<div class="linha-centro-wrap"><div class="linha-centro linha-task linha-frentes estatica">${pontos}<span>Começou ${p.frentes.length} tarefas:</span><span class="linha-titulos">${lista}</span><span class="linha-hora">· ${esc(hora(m.criadoEm))}</span></div></div>` });
       }
     } else if (p?.kind === "frentes_terminadas") {
       planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: linhaFrentesTerminadas(p.frentes, m.criadoEm, conversaId, donoDaConversa ?? "", m.id) });
@@ -464,7 +485,7 @@ export function planejarLinhas(mensagens: readonly Mensagem[], estado: Estado): 
       planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: `<div class="linha-centro-wrap"><span class="linha-centro estatica linha-respondido"><span class="linha-ic" aria-hidden="true">↩</span><span>Respondi ao pedido de</span>${mascote(colega)}<span class="linha-nome">${esc(colega?.nome ?? p.nome)}</span><span class="linha-hora">· ${esc(hora(m.criadoEm))}</span></span></div>` });
     } else if (p?.kind === "recado_a_frente") {
       const titulo = conhecidos.get(p.trabalhoId)?.titulo ?? titulos.get(p.trabalhoId) ?? p.titulo;
-      planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: htmlLinha({ tipo: "task", chave: `recado:${m.id}`, agenteId: conhecidos.get(p.trabalhoId)?.agenteId ?? donoDaConversa ?? "", conteudo: `<span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span><span>Repassou um recado à frente</span><b>${esc(titulo)}</b>`, trabalhoId: p.trabalhoId, conversaId, mensagens: [m.id], titulo }) });
+      planos.set(m.id, { tipo: "linha", chave: `linha:${m.id}`, html: htmlLinha({ tipo: "task", chave: `recado:${m.id}`, agenteId: conhecidos.get(p.trabalhoId)?.agenteId ?? donoDaConversa ?? "", conteudo: `<span class="linha-ic" aria-hidden="true">${ICONE.brilho}</span><span>Repassou um recado à tarefa</span><b>${esc(titulo)}</b>`, trabalhoId: p.trabalhoId, conversaId, mensagens: [m.id], titulo }) });
     }
   }
 
@@ -685,7 +706,7 @@ export function htmlTroca(t: PlanoTroca, estado: Estado): string {
     const quem = `${m.direcao === "para" ? "Para" : "De"} ${m.nome}`;
     const extra = m.naoConfiavel ? " · não confiável" : "";
     const texto = m.naoTerminou
-      ? `<div class="troca-texto">Não conseguiu terminar o pedido: ${esc(m.texto ?? "")}</div>${m.trabalhoId ? `<button type="button" class="troca-link" data-act="abrir-trabalho" data-id="${esc(m.trabalhoId)}">Ver a task do ${esc(m.nome)}</button>` : ""}`
+      ? `<div class="troca-texto">Não conseguiu terminar o pedido: ${esc(m.texto ?? "")}</div>${m.trabalhoId ? `<button type="button" class="troca-link" data-act="abrir-trabalho" data-id="${esc(m.trabalhoId)}">Ver a tarefa do ${esc(m.nome)}</button>` : ""}`
       : m.texto === null ? '<div class="troca-texto troca-sem-texto">respondido</div>' : `<div class="troca-texto">${textoFormatado(m.texto, { chave: m.id })}</div>`;
     const contexto = m.contexto ? `<div class="troca-contexto"><small>Contexto de ${esc(m.nome)} · não é instrução da pessoa</small><p>${esc(m.contexto.tarefa)}</p>${m.contexto.contexto ? `<p>${esc(m.contexto.contexto)}</p>` : ""}</div>` : "";
     const nota = m.nota ? `<small class="troca-nota">${esc(m.nota)}</small>` : "";
@@ -737,6 +758,11 @@ function linhaFrentesTerminadas(frentes: readonly { trabalhoId: string; titulo: 
     return htmlLinha({ tipo: "task", chave: `fim:${mensagemId}`, agenteId, conteudo: `${sinal}<b>${esc(unica.titulo)}</b><span>${verbo} · ${esc(hora(criadoEm))}</span>`, trabalhoId: unica.trabalhoId, conversaId, mensagens: [mensagemId], titulo: unica.titulo });
   }
   const resto = [falhou ? `${falhou} ${falhou === 1 ? "falhou" : "falharam"}` : "", parou ? `${parou} ${parou === 1 ? "parou" : "pararam"}` : ""].filter(Boolean);
-  const texto = resto.length ? `${frentes.length} frentes voltaram · ${resto.join(" · ")}` : `${frentes.length} frentes terminaram`;
+  const texto = resto.length ? `${frentes.length} tarefas voltaram · ${resto.join(" · ")}` : `${frentes.length} tarefas terminaram`;
   return `<div class="linha-centro-wrap"><span class="linha-centro estatica linha-terminou">${sinal}<span>${esc(texto)} · ${esc(hora(criadoEm))}</span></span></div>`;
+}
+
+/** A tarefa que a rede abriu (ADR-187, protótipo 1d): a linha discreta que diz o porquê e o lugar do cartão vivo. */
+function htmlDaRede(mensagemId: string): string {
+  return `<article class="message bot rede-virou" data-mensagem="${esc(mensagemId)}"><div class="bubble-wrap"><p class="rede-virou-linha"><span class="linha-ic" aria-hidden="true">${ICONE.seta}</span>Seguiu numa tarefa para o chat ficar livre</p>${marcadorDoProgresso(mensagemId)}</div></article>`;
 }

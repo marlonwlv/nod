@@ -61,7 +61,7 @@ describe("ADR-167: Aguardando você (telas 16/16b)", () => {
     expect(contadorDosTrabalhos({ abertos: 4, aguardando: 2 })).toEqual({ texto: "2 aguardando", tom: "aguardando" });
     expect(contadorDosTrabalhos({ abertos: 4, aguardando: 0 })).toEqual({ texto: "4", tom: "neutro" });
     expect(contadorDosTrabalhos({ abertos: 0, aguardando: 0 })).toBeNull();
-    expect(rotuloDosTrabalhos({ abertos: 1, aguardando: 2 })).toBe("Trabalhos, 1 aberto, 2 aguardando você");
+    expect(rotuloDosTrabalhos({ abertos: 1, aguardando: 2 })).toBe("Tarefas, 1 aberta, 2 aguardando você");
   });
   it("a barra: sem sino nem ícone de Trabalhos no topo do computador; a linha leva ao cartão pendente", () => {
     const main = ler("main.ts");
@@ -122,7 +122,9 @@ describe("ADR-167: paleta ⌘K (tela 08)", () => {
     expect(itens[0]).toMatchObject({ grupo: "Bots", titulo: "Ada · PM", sub: "Feito. NOD-512", teclas: ["⌘", "1"] });
     expect(itens.find((i) => i.chave === "trab:t1")).toMatchObject({ grupo: "Conversas", sub: "Gil · ontem" });
     expect(itens.find((i) => i.chave === "ajuste:tema")).toMatchObject({ grupo: "Ajustes", sub: "Configurações › Geral › Aparência" });
-    expect(itens.find((i) => i.chave === "acao:novo-bot")).toMatchObject({ grupo: "Ações", teclas: ["⌘", "N"] });
+    // ADR-187 §7 (2026-11-18): ⌘N é a nova tarefa; o novo bot foi para ⌘⇧N.
+    expect(itens.find((i) => i.chave === "acao:nova-tarefa")).toMatchObject({ grupo: "Ações", teclas: ["⌘", "N"] });
+    expect(itens.find((i) => i.chave === "acao:novo-bot")).toMatchObject({ grupo: "Ações", teclas: ["⌘", "⇧", "N"] });
     expect(itens.filter((i) => i.grupo === "Ações")).toHaveLength(ACOES_DA_PALETA.length);
   });
   it("frente de comportamento: as salas (conversas em grupo) entram em Conversas e abrem a sala", () => {

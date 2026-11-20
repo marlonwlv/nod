@@ -1,10 +1,12 @@
 import type { Agente, CorAgente, FormaAgente } from "../../src/contracts/agente.ts";
 import type { MotivoRecomeco } from "../../src/contracts/turno.ts";
 import { ehMotivoRecomeco } from "../lib/recomeco.ts";
+import { aposReleitura, reduzirCancelamento, type AcaoDoCancelamento, type Cancelamento } from "../lib/cancelar-na-fila.ts";
 import type { AnexoDaConversa } from "../../src/contracts/anexo.ts";
 import type { AtividadeDto } from "../../src/contracts/atividade.ts";
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { ChaveEmitidaDto, ChaveMaquinaDto, ConversaDto, FrotaDto, RotinaDto, SuaVezDto } from "../../src/contracts/api.ts";
+import type { TokenMcpEmitidoDto, TokensMcpDto } from "../../src/contracts/mcp.ts";
 import type { MaquinasDto } from "../../src/contracts/maquina.ts";
 import type { InstalacaoSshDto, MetodoSsh } from "../../src/contracts/instalacoes-ssh.ts";
 import type { ResumoDaChave } from "../lib/chave-ssh.ts";
@@ -85,13 +87,23 @@ export type Tela =
   | { tipo: "nova-sala" }
   /** Tela 18d do Paper: as tarefas dos quadros de todos os bots da pessoa (web/lib/tarefas-de-todos-na-tela.ts). */
   | { tipo: "tarefas" }
-  /** ADR-083 (#196): "Todos os trabalhos" — os de todos os bots da pessoa, com os filtros De você / Rotinas / Entre bots. */
-  | { tipo: "trabalhos"; filtro?: FiltroTrabalhos }
+  /**
+   * ADR-083 (#196) e ADR-187 §8 (lote B, passo 5, 2026-11-18; Paper 5a e 5b): a tela Tarefas. Sem `filtro`, "Por bot" (a
+   * vista com que ela abre); com ele, "Por estado" (De você / Rotinas / Entre bots ficaram só no estado, sem chip).
+   * `mostrar`: os chips Abertas (ausente) / Feitas / Todas; `bot`: o "Todos os bots ▾" com um bot escolhido.
+   */
+  | { tipo: "trabalhos"; filtro?: FiltroTrabalhos; mostrar?: MostrarTarefas; bot?: string }
   /**
    * ADR-083 (#195): a tela da task. `voltar` é a tela de onde a pessoa veio (o Fechar e o Esc voltam para ela); abrir
    * outra task de dentro de uma task mantém o `voltar` de fora.
    */
   | { tipo: "trabalho"; id: string; voltar: Tela }
+  /**
+   * ADR-187 §7 (lote B, passo 2, 2026-11-18): a tarefa nova da pessoa, ainda sem nada no servidor (Paper 3b, "O chat limpo
+   * da tarefa nova"). A primeira mensagem cria a tarefa e a tela vira a `trabalho` dela; sair antes não deixa nada.
+   * `levarConversa` é o "Levar o contexto da conversa" (Paper 3e).
+   */
+  | { tipo: "nova-tarefa"; agenteId: string; voltar: Tela; levarConversa?: true }
   /**
    * definido em 2026-10-07 (#191): a tela provisória de uma linha do chat sem trabalho por trás (execuções antigas de
    * rotina, pedido a colega de antes do ADR-083): as mensagens que a linha recolheu, na ordem, com Fechar.
@@ -101,6 +113,9 @@ export type Tela =
 
 /** Os filtros de "Todos os trabalhos": De você (pessoa e rede), Rotinas e Entre bots (colega). */
 export type FiltroTrabalhos = "todos" | "voce" | "rotinas" | "bots";
+
+/** ADR-187 §8 (Paper 5a): as tarefas abertas (o padrão), as que terminaram hoje ou as duas. */
+export type MostrarTarefas = "abertas" | "feitas" | "todas";
 
 /**
  * "Seu espaço" (definido em 2026-09-30, canvas "Menu, sidebar e gaveta"): o que é da CONTA abre pelo menu do avatar numa
@@ -164,7 +179,8 @@ export type ConectarMaquina = {
 };
 
 /** NOD-367 (protótipo v2): as seções das Configurações, nesta ordem na lateral. NOD-85: Rotinas entre Agentes e Feedback. */
-export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "computador" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "feedback";
+/** ADR-188: "sobre" (Sobre o nod): a versão do app e a atualização, antes de Feedback. */
+export type SecaoEspaco = "conta" | "geral" | "conexao" | "maquinas" | "computador" | "agentes" | "aprovacoes" | "cofre" | "rotinas" | "sobre" | "feedback";
 /**
  * O que um ponto de entrada pode pedir: as 6 seções, as de antes da NOD-367 (avisos, preferências, este Mac,
  * computadores, computador do bot, relatos), que caem na seção que as absorveu, e "ajuda" (Geral, no bloco Ajuda).
@@ -295,6 +311,8 @@ export type FalaPendente = {
   motivo?: string;
 };
 
+export type FaixaNaConversa = FaixaParada & { conversaId: string | null };
+
 export type ConversaEstado = ConversaDto & {
   carregadaEm: number;
   /** As falas da pessoa ainda não confirmadas pela releitura (Parte 1). */
@@ -322,7 +340,7 @@ export type EscolhaComposer = { outroAssunto: boolean; alvoId: string | null };
  */
 export type CitacaoNoCampo = { mensagemId: string; trecho: string };
 
-export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}`;
+export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "mcp-tokens" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}`;
 
 export type Estado = {
   sessao: Escopo | null;
@@ -387,8 +405,8 @@ export type Estado = {
    * depois não os traz de volta — sem isto, o GET conversa que saiu antes do GET trabalhos devolvia o fantasma.
    */
   turnosDesmentidos: Readonly<Record<string, number>>;
-  /** Cancelar da fila tem 5 s de Desfazer antes de ir ao servidor (turnoId → instante do clique). */
-  cancelando: Record<string, number>;
+  /** Cancelar só a mensagem na fila (web/lib/cancelar-na-fila.ts): turnoId → a fase do cancelamento dela. */
+  cancelando: Readonly<Record<string, Cancelamento>>;
   salas: { sala: Sala; membros: MembroSala[] }[];
   suaVez: SuaVezDto | null;
   /** Não lidos (0039): o que chegou depois do "lido até" de cada conversa; null = ainda não carregou. */
@@ -479,6 +497,8 @@ export type Estado = {
   statusMemoria: string;
   /** Minhas chaves de máquina (ADR-031); null = ainda não carregou. */
   chaves: ChaveMaquinaDto[] | null;
+  /** Servidor MCP do Nod (0173): os tokens e o endpoint, na seção Geral; null = ainda não carregou. */
+  mcpTokens: TokensMcpDto | null;
   /** ADR-090: as máquinas da pessoa (chaves vivas + o que as conectadas anunciaram) e o padrão de onde os bots trabalham. */
   maquinas: MaquinasDto | null;
   /**
@@ -526,8 +546,11 @@ export type Estado = {
    * aba — nunca em storage — e o servidor não tem como mostrá-la de novo.
    */
   chaveEmitida: ChaveEmitidaDto | null;
+  /** O token MCP cru recém-gerado: como a chave de máquina, só na memória da aba e mostrado uma vez. */
+  mcpTokenEmitido: TokenMcpEmitidoDto | null;
   negacoes: NegacaoVista[];
-  faixaParada: FaixaParada | null;
+  /** A faixa do Parar é da conversa onde ele aconteceu (null = Parar sem conversa): as outras não a mostram. */
+  faixaParada: FaixaNaConversa | null;
   /** Escolha do campo por conversa (EscolhaComposer); ausente = o padrão. */
   composer: Record<string, EscolhaComposer>;
   /** A citação do campo por conversa (CitacaoNoCampo); ausente = a mensagem não responde a nenhuma fala. */
@@ -586,6 +609,11 @@ export type Estado = {
   experimentos: Experimentos;
   /** NOD-415 (ADR-141): a flag NOD_QUADROS libera os quadros para esta pessoa (ausente = não liberado). */
   quadroLiberado?: boolean;
+  /**
+   * Os avisos da tela que a pessoa já fechou (`preferencias.avisosFechados`, 0059), lidos de `GET preferencias`; null =
+   * ainda não chegaram (nenhuma dica de uma vez aparece antes, para não piscar). ADR-187 §5: a dica das tarefas.
+   */
+  avisosFechados?: readonly string[] | null;
   /** O cartão do tempo aberto no topo da task (protótipo "Nod — tempo da task"): o id da task, ou null. */
   tempoTaskAberto: string | null;
 };
@@ -621,8 +649,7 @@ export type Acao =
   /** Abre ou fecha uma linha recolhida das Configurações. */
   | { tipo: "config-recolhe"; id: string }
   | { tipo: "tick"; agora: number }
-  | { tipo: "cancelando-turno"; turnoId: string; agora: number }
-  | { tipo: "desfazer-cancelamento"; turnoId: string }
+  | AcaoDoCancelamento
   | { tipo: "conexao"; estado: EstadoConexao; tentativa: number; proximaEmMs: number | null }
   | { tipo: "frame"; frame: FrameSse; agora: number }
   | { tipo: "hidratar-gestao"; gestao: FrotaDto }
@@ -663,6 +690,7 @@ export type Acao =
   | { tipo: "status-memoria"; texto: string }
   | { tipo: "hidratar-salas"; salas: { sala: Sala; membros: MembroSala[] }[] }
   | { tipo: "hidratar-chaves"; chaves: ChaveMaquinaDto[] }
+  | { tipo: "hidratar-mcp-tokens"; tokens: TokensMcpDto }
   | { tipo: "hidratar-maquinas"; maquinas: MaquinasDto }
   | { tipo: "esta-maquina"; maquina: EstaMaquina | null }
   | { tipo: "hidratar-computador-pessoa"; dto: ComputadorPessoaDto | null; agora: number }
@@ -677,9 +705,12 @@ export type Acao =
   | { tipo: "onboarding-texto"; ligado: boolean }
   | { tipo: "hidratar-relatos"; relatos: Relato[] | null; erro?: boolean }
   | { tipo: "modo-dev"; ligado: boolean }
+  /** ADR-187 §5 (2026-11-18): os avisos fechados da pessoa (a leitura de `GET preferencias` ou um aviso que ela fechou agora). */
+  | { tipo: "avisos-fechados"; chaves: readonly string[] }
   | { tipo: "hidratar-raio-x"; conversaId: string; raioX: RaioXConversa }
   | { tipo: "chave-emitida"; emitida: ChaveEmitidaDto | null }
-  | { tipo: "faixa"; faixa: FaixaParada | null }
+  | { tipo: "mcp-token-emitido"; emitido: TokenMcpEmitidoDto | null }
+  | { tipo: "faixa"; faixa: FaixaParada | null; conversaId?: string | null }
   | { tipo: "composer"; conversaId: string; escolha: EscolhaComposer | null }
   | { tipo: "citar"; conversaId: string; citacao: CitacaoNoCampo | null }
   | { tipo: "fala-pendente"; conversaId: string; pendente: FalaPendente }
@@ -775,6 +806,7 @@ export const estadoInicial: Estado = {
   avisoDiario: null,
   statusMemoria: "",
   chaves: null,
+  mcpTokens: null,
   maquinas: null,
   estaMaquina: null,
   computadorPessoa: null,
@@ -792,6 +824,7 @@ export const estadoInicial: Estado = {
   agenda: AGENDA_INICIAL,
   modoDev: { ligado: false, raioX: {} },
   chaveEmitida: null,
+  mcpTokenEmitido: null,
   negacoes: [],
   faixaParada: null,
   composer: {},
@@ -1112,7 +1145,7 @@ function reconciliarPelosDonos(estado: Estado, trabalhos: TrabalhosDto, leituraE
     const naFila = new Set(dono.fila.map((p) => p.turnoId));
     const trabalhando = propriaTrabalhando(dono.estado);
     for (const v of Object.values(estado.turnosVivos)) {
-      if (v.conversaId !== conversaId || v.trabalhoId || !confirmadoAntes(v, leituraEm)) continue;
+      if (v.conversaId !== conversaId || v.trabalhoId || !confirmadoAntes(v, leituraEm) || (estado.atividades[conversaId]?.[v.turnoId]?.recebidoEm ?? 0) >= leituraEm) continue;
       // Revisão: o "na fila" fora da fila com o bot trabalhando pode ser o mesmo turno, já despachado (o frame
       // turno_despachado perdido ou ainda a caminho) — fica; e só a origem que a fila lista pode ser desmentida por ela.
       const desmentido = v.estado === "rodando"
@@ -1249,7 +1282,7 @@ function comAtividade(estado: Estado, conversaId: string, turnoId: string, mudar
   // Parte 2 do plano "o pensamento no chat": o cabeçalho do pensamento (com a permanência) acompanha cada mudança.
   const antiga = daConversa[turnoId];
   const nova = mudar(antiga);
-  return { ...estado.atividades, [conversaId]: { ...daConversa, [turnoId]: agora === undefined ? nova : comCabecalho(comFrentesEm(antiga, nova, agora), agora) } };
+  return { ...estado.atividades, [conversaId]: { ...daConversa, [turnoId]: agora === undefined ? nova : { ...comCabecalho(comFrentesEm(antiga, nova, agora), agora), recebidoEm: agora } } };
 }
 
 /**
@@ -1350,6 +1383,8 @@ const trabalhosDoTurno = (f: FrameSse): Invalidacao[] => (turnoDeLigacao(f.dados
 
 /** NOD-353: o id da chamada no frame (o mesmo formato que a ponte aceita); fora dele, a ação fica sem id. */
 const idDaAcao = (v: unknown): string | null => (typeof v === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(v) ? v : null);
+/** ADR-187 §6 (2026-11-18): o resumo de uma linha da ferramenta (RESUMO_DO_PASSO_MAX = 160, já redigido no servidor). */
+const resumoDoFrame = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, 160) : null);
 
 /** NOD-348: o `emUso` do frame, conferido; o servidor antigo não o manda e a fala diz "Usando uma ferramenta". */
 function emUsoDoFrame(v: unknown): FerramentaEmUso {
@@ -1361,6 +1396,19 @@ function emUsoDoFrame(v: unknown): FerramentaEmUso {
 /** NOD-312: o motivo do recomeço do frame, conferido contra a lista do contrato (valor desconhecido = nenhum). */
 function motivoDoFrame(v: unknown): MotivoRecomeco | null {
   return ehMotivoRecomeco(v) ? v : null;
+}
+
+/** Definido em 2026-11-18: progresso comprova despacho mesmo se os frames de início se perderam. */
+function confirmarProgresso(e: Estado, f: FrameSse, turnoId: string, conversaId: string, agora: number): Estado["turnosVivos"] {
+  const anterior = e.turnosVivos[turnoId];
+  if (anterior?.estado === "rodando" || (!anterior && !guardaAoVivo(e, conversaId))) return e.turnosVivos;
+  const vivo: TurnoVivo = { ...anterior, turnoId, conversaId, estado: "rodando", executor: anterior?.executor ?? null,
+    machineId: anterior?.machineId ?? null, desde: agora,
+    trabalhoId: texto(f.dados.trabalhoId) ?? texto(f.dados.trabalho_id) ?? anterior?.trabalhoId ?? null,
+    agenteId: texto(f.dados.agenteId) ?? texto(f.dados.agente_id) ?? anterior?.agenteId ?? null,
+    origem: texto(f.dados.origem) ?? anterior?.origem ?? null,
+    vistoEm: agora, ...(bastidoresDoFrame(f.dados) ? { bastidores: true } : {}) };
+  return { ...e.turnosVivos, [turnoId]: vivo };
 }
 
 const POR_FRAME: Record<TipoFrame, Handler> = {
@@ -1376,11 +1424,17 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     // Parar — a tela da ligação mostra o que ele faz. O servidor marca o frame com `modo: "ligacao"` (e `origem`).
     if (turnoDeLigacao(f.dados)) return invalidar(e, conv(f));
     // dados.kind distingue "na fila" (turno_criado) de "rodando" (turno_despachado) — pendência L8 §5.
-    const estado = f.dados.kind === "turno_despachado" ? "rodando" : "na_fila";
+    if (e.turnosEncerrados.includes(turnoId) || (!e.turnosVivos[turnoId] && turnoId in e.turnosDesmentidos)) return e;
     const anterior = e.turnosVivos[turnoId];
+    const estado = f.dados.kind === "turno_despachado" || anterior?.estado === "rodando" ? "rodando" : "na_fila";
     const trabalhoId = texto(f.dados.trabalhoId) ?? texto(f.dados.trabalho_id) ?? anterior?.trabalhoId ?? null;
     const vivo: TurnoVivo = { turnoId, conversaId, estado, executor: texto(f.dados.executor) ?? anterior?.executor ?? null, machineId: texto(f.dados.machine_id) ?? anterior?.machineId ?? null, desde: estado === "rodando" && anterior?.estado !== "rodando" ? agora : (anterior?.desde ?? agora), trabalhoId, vistoEm: agora, chegouEm: anterior?.chegouEm ?? agora, origem: texto(f.dados.origem) ?? anterior?.origem ?? null, agenteId: texto(f.dados.agente_id) ?? texto(f.dados.agenteId) ?? anterior?.agenteId ?? null, motivoRecomeco: motivoDoFrame(f.dados.motivo_recomeco) ?? anterior?.motivoRecomeco ?? null, ...(!trabalhoId && (bastidoresDoFrame(f.dados) || anterior?.bastidores) ? { bastidores: true } : {}), ...(typeof f.dados.despachadoEm === "number" ? { despachadoEm: f.dados.despachadoEm } : anterior?.despachadoEm !== undefined ? { despachadoEm: anterior.despachadoEm } : {}), ...(typeof f.dados.criadoEm === "number" ? { criadoEm: f.dados.criadoEm } : anterior?.criadoEm !== undefined ? { criadoEm: anterior.criadoEm } : {}) };
-    return invalidar({ ...e, turnosVivos: { ...e.turnosVivos, [turnoId]: vivo } }, conv(f), "trabalhos");
+    // ADR-185: o "Parado por você" é da parada anterior. A fala que o Parar devolveu à fila roda logo em seguida, e a faixa
+    // (no fim da conversa) ficaria embaixo da resposta nova: um turno do chat que começa a rodar na conversa aberta a tira.
+    // O texto interrompido continua marcado como "parcial".
+    const aberta = e.tela.tipo === "conversa" && e.tela.conversaId === conversaId;
+    const tiraFaixa = e.faixaParada !== null && estado === "rodando" && !trabalhoId && aberta;
+    return invalidar({ ...e, turnosVivos: { ...e.turnosVivos, [turnoId]: vivo }, ...(tiraFaixa ? { faixaParada: null } : {}) }, conv(f), "trabalhos");
   },
   "turno.delta": (e, f, agora) => {
     if (turnoDeLigacao(f.dados)) return e;
@@ -1388,8 +1442,8 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     const conversaId = texto(f.dados.conversaId);
     const trecho = typeof f.dados.texto === "string" ? f.dados.texto : "";
     if (!turnoId || !conversaId) return e;
-    const vivo = e.turnosVivos[turnoId];
-    const turnosVivos = vivo && vivo.estado !== "rodando" ? { ...e.turnosVivos, [turnoId]: { ...vivo, estado: "rodando" as const, desde: agora } } : e.turnosVivos;
+    if (e.turnosEncerrados.includes(turnoId) || (!e.turnosVivos[turnoId] && turnoId in e.turnosDesmentidos)) return e;
+    const turnosVivos = confirmarProgresso(e, f, turnoId, conversaId, agora);
     if (!guardaAoVivo(e, conversaId) || deBastidores(e, f.dados, turnoId)) return turnosVivos === e.turnosVivos ? e : { ...e, turnosVivos };
     return { ...e, turnosVivos, atividades: comAtividade(e, conversaId, turnoId, (a) => comTexto(a, trecho), agora) };
   },
@@ -1399,10 +1453,10 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
     const conversaId = texto(f.dados.conversaId);
     if (!turnoId || !conversaId || !guardaAoVivo(e, conversaId)) return e;
     const rotulo = texto(f.dados.rotulo) ?? "Usou uma ferramenta";
-    const vivo = e.turnosVivos[turnoId];
-    const turnosVivos = vivo && vivo.estado !== "rodando" ? { ...e.turnosVivos, [turnoId]: { ...vivo, estado: "rodando" as const, desde: agora } } : e.turnosVivos;
+    if (e.turnosEncerrados.includes(turnoId) || (!e.turnosVivos[turnoId] && turnoId in e.turnosDesmentidos)) return e;
+    const turnosVivos = confirmarProgresso(e, f, turnoId, conversaId, agora);
     if (deBastidores(e, f.dados, turnoId)) return turnosVivos === e.turnosVivos ? e : { ...e, turnosVivos };
-    return { ...e, turnosVivos, atividades: comAtividade(e, conversaId, turnoId, (a) => comFerramenta(a, rotulo, emUsoDoFrame(f.dados.emUso), idDaAcao(f.dados.id)), agora) };
+    return { ...e, turnosVivos, atividades: comAtividade(e, conversaId, turnoId, (a) => comFerramenta(a, rotulo, emUsoDoFrame(f.dados.emUso), idDaAcao(f.dados.id), resumoDoFrame(f.dados.resumo)), agora) };
   },
   // NOD-353: a chamada terminou (feita ou Falhou, de tool_result.isError); fim de turno ou id desconhecido não muda nada.
   "turno.acao_fim": (e, f, agora) => {
@@ -1531,7 +1585,7 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
       jaEntregues: [],
       nadaRodando: f.dados.nada_rodando === true,
     };
-    return invalidar({ ...e, faixaParada: faixa }, conv(f));
+    return invalidar({ ...e, faixaParada: { ...faixa, conversaId: texto(f.dados.conversaId) ?? null } }, conv(f));
   },
   // O relato é registro, não estado vivo da conversa: nada na timeline muda, então nada se invalida.
   // A seção Feedback relê ao entrar (definido em 2026-09-21; NOD-367 zera a lista no "espaco").
@@ -1584,8 +1638,9 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "sessao":
       // Trocou a pessoa: chaves E relatos somem. Relato carrega correlationId, machineId e o erro
       // cru do fornecedor — não pode ficar na tela da próxima sessão (ADR-002).
-      return { ...estado, sessao: acao.escopo, chaves: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.chaves : null, maquinas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.maquinas : null, computadorPessoa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.computadorPessoa : null, instalarSsh: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.instalarSsh : null, contasIa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.contasIa : null, detalhesContas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.detalhesContas : null, relatos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.relatos : null, chaveEmitida: null,
+      return { ...estado, sessao: acao.escopo, chaves: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.chaves : null, maquinas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.maquinas : null, computadorPessoa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.computadorPessoa : null, instalarSsh: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.instalarSsh : null, contasIa: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.contasIa : null, detalhesContas: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.detalhesContas : null, relatos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.relatos : null, mcpTokens: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.mcpTokens : null, chaveEmitida: null, mcpTokenEmitido: null,
         modoDev: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.modoDev : { ligado: false, raioX: {} },
+        avisosFechados: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.avisosFechados ?? null : null,
         naoLidos: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.naoLidos : null, novasDesde: {},
         citacoes: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.citacoes : {},
         carregado: acao.escopo?.pessoaId === estado.sessao?.pessoaId ? estado.carregado : estadoInicial.carregado,
@@ -1621,7 +1676,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return {
         // NOD-383: a lista do celular não é seção nenhuma (guarda só de onde a pessoa saiu, para o foco): voltar para ela
         // descarta a chave e as linhas abertas como trocar de seção.
-        ...estado, espaco: acao.secao ? { secao: acao.secao, ...(acao.lista ? { lista: true } : {}) } : null, chaveEmitida: acao.secao === "maquinas" && !acao.lista ? estado.chaveEmitida : null, erro: null,
+        ...estado, espaco: acao.secao ? { secao: acao.secao, ...(acao.lista ? { lista: true } : {}) } : null, chaveEmitida: acao.secao === "maquinas" && !acao.lista ? estado.chaveEmitida : null, mcpTokenEmitido: acao.secao === "geral" && !acao.lista ? estado.mcpTokenEmitido : null, erro: null,
         configUi: !acao.secao ? { ...CONFIG_UI_INICIAL, lote: loteAoSair(estado.configUi.lote) } : acao.secao === estado.espaco?.secao && !acao.lista && !estado.espaco.lista ? estado.configUi : { ...CONFIG_UI_INICIAL, busca: estado.configUi.busca, lote: loteAoSair(estado.configUi.lote) },
         // NOD-367 (revisão 2): o relato.criado não invalida nada (ADR-041), então entrar em Feedback relê "Seus envios" e
         // esquece o erro de antes; o envio feito na conversa com o Nod aparece ao voltar.
@@ -1657,12 +1712,12 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "fala-pendente-sai":
       return comPendentes(estado, acao.conversaId, (ps) => ps.filter((p) => p.idEnvio !== acao.idEnvio));
     case "cancelando-turno":
-      return { ...estado, cancelando: { ...estado.cancelando, [acao.turnoId]: acao.agora } };
+    case "turno-cancelado":
+    case "cancelamento-recusado":
+    case "desfazer-expirou":
     case "desfazer-cancelamento": {
-      if (!(acao.turnoId in estado.cancelando)) return estado;
-      const cancelando = { ...estado.cancelando };
-      delete cancelando[acao.turnoId];
-      return { ...estado, cancelando };
+      const cancelando = reduzirCancelamento(estado.cancelando, acao);
+      return cancelando === estado.cancelando ? estado : { ...estado, cancelando };
     }
     case "tick": {
       // definido em 2026-09-24 (ADR-045): nenhum evento diz que o Mac voltou (o fechamento do aviso é do
@@ -1761,7 +1816,7 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // de task (`trabalhoId`) é da tela da task (hidratar-trabalho).
       // Revisão: a resposta sem `turnosEmCurso` (servidor antigo, resposta parcial) não diz que nada roda — não tira nada.
       const naLeitura = new Set(emCurso.map((t) => t.id));
-      const sumiram = leuTurnos ? Object.values(estado.turnosVivos).filter((v) => v.conversaId === conversaId && !v.trabalhoId && !naLeitura.has(v.turnoId) && confirmadoAntes(v, acao.agora)).map((v) => v.turnoId) : [];
+      const sumiram = leuTurnos ? Object.values(estado.turnosVivos).filter((v) => v.conversaId === conversaId && !v.trabalhoId && !naLeitura.has(v.turnoId) && confirmadoAntes(v, acao.agora) && (estado.atividades[conversaId]?.[v.turnoId]?.recebidoEm ?? 0) < acao.agora).map((v) => v.turnoId) : [];
       const semSumidos = semDesmentidos(estado, sumiram, acao.agora);
       const turnosVivos = novos.length === 0 ? semSumidos.turnosVivos : { ...semSumidos.turnosVivos };
       // `chegouEm`: o relógio da web, nunca adiante do `desde` do banco (o relógio da web atrasado faria a fila "pensar").
@@ -1777,7 +1832,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
         // Definido em 2026-10-28: e ganha a hora do despacho do servidor (o `turno_despachado` perdido não a deixa faltar até o fim).
         const hora = ja && ja.despachadoEm === undefined && t.estado === "despachando" && t.despachadoEm != null;
         const nasceu = ja && ja.criadoEm === undefined;
-        if (marca || hora || nasceu) { if (promovidos === semSumidos.turnosVivos) promovidos = { ...promovidos }; promovidos[t.id] = { ...ja, ...(marca ? { bastidores: true } : {}), ...(hora ? { despachadoEm: t.despachadoEm as number } : {}), ...(nasceu ? { criadoEm: t.desde } : {}) }; }
+        const despachou = ja && ja.estado === "na_fila" && t.estado === "despachando";
+        if (marca || hora || nasceu || despachou) { if (promovidos === semSumidos.turnosVivos) promovidos = { ...promovidos }; promovidos[t.id] = { ...ja, ...(despachou ? { estado: "rodando" as const, desde: desdeDe(t), vistoEm: acao.agora } : {}), ...(marca ? { bastidores: true } : {}), ...(hora ? { despachadoEm: t.despachadoEm as number } : {}), ...(nasceu ? { criadoEm: t.desde } : {}) }; }
       }
       // O texto em streaming de um turno que já acabou sai; o dos que continuam vivos fica.
       // NOD-402: o turno dos bastidores não guarda atividade (o promovido aqui perde a que tinha).
@@ -1799,8 +1855,13 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // C2 (2026-11-12): o retrato sai quando a gravada está na conversa — a da tela primeiro, depois a da resposta —, nunca
       // só por ser de antes desta releitura (a releitura que saiu antes da gravada o tirava e a fala sumia até a próxima).
       const tela = estado.conversas[conversaId];
-      const fica = (s: FalaSaindo): boolean => !(tela && gravadaDoRetrato(tela, s)) && !gravadaDoRetrato(acao.conversa, s) && retratoFica({ ...semSumidos, turnosVivos: promovidos }, conversaId, s, acao.agora);
-      return { ...semFalasSaindo(semSumidos, (s, c) => c !== conversaId || fica(s)), turnosVivos: promovidos, atividades, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: acao.agora, ...extras } } };
+      const fica = (s: FalaSaindo): boolean => {
+        const indicadorVazioEncerrado = !promovidos[s.turno.turnoId] && !textoDaFala(s.atividade).trim() && s.atividade.acoes.length === 0 && acao.agora > s.em;
+        return !indicadorVazioEncerrado && !(tela && gravadaDoRetrato(tela, s)) && !gravadaDoRetrato(acao.conversa, s) && retratoFica({ ...semSumidos, turnosVivos: promovidos }, conversaId, s, acao.agora);
+      };
+      // O "Já entrou no turno · não deu para cancelar" sai na releitura (depois do mínimo na tela).
+      const cancelando = aposReleitura(estado.cancelando, conversaId, acao.agora);
+      return { ...semFalasSaindo(semSumidos, (s, c) => c !== conversaId || fica(s)), cancelando, turnosVivos: promovidos, atividades, conversas: { ...estado.conversas, [conversaId]: { ...acao.conversa, carregadaEm: acao.agora, ...extras } } };
     }
     case "hidratar-sua-vez": {
       // A escolha do campo só vale enquanto a conversa tem pergunta aberta: respondida ou deixada pra lá
@@ -1943,6 +2004,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     case "aviso-conexao":
       return { ...estado, avisoConexao: acao.texto };
     case "hidratar-conectores":
+      // Emenda ADR-057 (2026-11-18): o estado guarda o catálogo inteiro, com os apps de chave; o modal do Marketplace
+      // (web/react/marketplace/) conecta os dois jeitos. Quem só sabe abrir login filtra na hora de desenhar (`appsDeLogin`).
       return { ...estado, conectores: acao.conectores, marketplace: acao.marketplace ?? estado.marketplace, composioConfigurado: acao.composioConfigurado ?? estado.composioConfigurado, carregado: estado.carregado.conectores ? estado.carregado : { ...estado.carregado, conectores: true } };
     case "hidratar-concessoes":
       // Sem as dispensas na resposta, o que havia fica: sem saber o que a pessoa dispensou, o cartão de liberar não aparece.
@@ -2019,6 +2082,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       return { ...estado, novasDesde: { ...estado.novasDesde, [acao.conversaId]: { mensagemId: acao.mensagemId, em: acao.em, total: acao.total } } };
     case "hidratar-chaves":
       return { ...estado, chaves: acao.chaves };
+    case "hidratar-mcp-tokens":
+      return { ...estado, mcpTokens: acao.tokens };
     case "hidratar-maquinas":
       return { ...estado, maquinas: acao.maquinas };
     case "esta-maquina":
@@ -2057,12 +2122,16 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
     // Desligado, os resumos saem da memória: religar busca de novo, com o que mudou nesse meio-tempo.
     case "modo-dev":
       return { ...estado, modoDev: { ligado: acao.ligado, raioX: acao.ligado ? estado.modoDev.raioX : {} } };
+    case "avisos-fechados":
+      return { ...estado, avisosFechados: [...new Set([...(estado.avisosFechados ?? []), ...acao.chaves])] };
     case "hidratar-raio-x":
       return estado.modoDev.ligado ? { ...estado, modoDev: { ...estado.modoDev, raioX: { ...estado.modoDev.raioX, [acao.conversaId]: acao.raioX } } } : estado;
     case "chave-emitida":
       return acao.emitida ? invalidar({ ...estado, chaveEmitida: acao.emitida }, "chaves") : { ...estado, chaveEmitida: null };
+    case "mcp-token-emitido":
+      return acao.emitido ? invalidar({ ...estado, mcpTokenEmitido: acao.emitido }, "mcp-tokens") : { ...estado, mcpTokenEmitido: null };
     case "faixa":
-      return { ...estado, faixaParada: acao.faixa };
+      return { ...estado, faixaParada: acao.faixa ? { ...acao.faixa, conversaId: acao.conversaId ?? null } : null };
     case "composer": {
       const composer = { ...estado.composer };
       if (acao.escolha) composer[acao.conversaId] = acao.escolha;
@@ -2211,7 +2280,8 @@ function aoTrocarDeTela(estado: Estado, tela: Tela): Pick<Estado, "tela" | "ativ
     gaveta: tela.tipo === "conversa" && estado.gaveta?.agenteId === tela.agenteId ? estado.gaveta : null,
     // NOD-382: o perfil do celular é da conversa do bot; outra tela o fecha.
     perfilCelular: tela.tipo === "conversa" && estado.perfilCelular?.agenteId === tela.agenteId ? estado.perfilCelular : null,
-    faixaParada: tela.tipo === estado.tela.tipo ? estado.faixaParada : null,
+    // A faixa do Parar é da conversa parada: ir para outro bot (mesmo tipo de tela) a deixa para trás.
+    faixaParada: tela.tipo === estado.tela.tipo && estado.faixaParada?.conversaId === conversaIdNaTela({ ...estado, tela }) ? estado.faixaParada : null,
     // A linha "Novas" vale enquanto a pessoa está na conversa; saiu, ela some.
     novasDesde: {},
     faixaTrabalhosAberta: faixaAbertaAoNavegar(estado.faixaTrabalhosAberta, estado.tela, tela),
@@ -2359,6 +2429,7 @@ export function invalidacoesDaTela(estado: Estado): Invalidacao[] {
   if (t.tipo === "trabalho" && !estado.trabalhoDetalhe[t.id]) faltas.push(`trabalho:${t.id}`);
   if (t.tipo === "linha" && !estado.conversas[t.conversaId]) faltas.push(`conversa:${t.conversaId}`);
   if (secao === "maquinas" && !estado.chaves) faltas.push("chaves");
+  if (estado.sessao && secao === "geral" && !estado.mcpTokens) faltas.push("mcp-tokens");
   // ADR-090: a seção Máquinas e a conversa (a mensagem na fila diz quando a máquina do bot está fora do ar).
   // QA do NOD-314: a tela da task também lê a frota ("Rodar em <outra> desta vez" e a linha do turno preso).
   if (estado.sessao && !estado.maquinas && (secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho")) faltas.push("maquinas");

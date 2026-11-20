@@ -5,6 +5,8 @@ import type { Escopo } from "../../shared/types.ts";
 import { log } from "../../obs/log.ts";
 import { criarEstatico } from "./estatico.ts";
 import { criarRoteador, type DepsRoteador, type Rota } from "./roteador.ts";
+import { criarChamadorInterno } from "./mcp/chamador-interno.ts";
+import { criarServidorMcp, type DepsServidorMcp } from "./mcp/servidor-mcp.ts";
 import { responderMetricas } from "./rotas/metricas.ts";
 import { criarRotaSaude, criarRotaSaudeLb, type EstadoSaude, type VerificacaoSaude } from "./rotas/saude.ts";
 import { criarSessao, exigirConfiguracaoSegura, segredoEfetivo, type ContasNaSessao, type OpcoesSessao } from "./sessao.ts";
@@ -19,8 +21,13 @@ import { criarSessao, exigirConfiguracaoSegura, segredoEfetivo, type ContasNaSes
  * `/metrics` por convenção e o roteador só casa públicas sob `/api`; a resposta é montada aqui,
  * antes do roteador, e a Rota da L8 continua servindo `/api/metrics`. A tabela ROTAS fica com "/metrics".
  */
-/** ADA-226: o nod-windows-x64.exe mais novo (gs://nodbot-downloads, como os .dmg do site). */
-export const URL_DO_EXE_WINDOWS = "https://storage.googleapis.com/nodbot-downloads/nod-windows-x64.exe";
+/**
+ * ADA-226: o .exe do Windows aceito (gs://nodbot-downloads, como os .dmg do site). Desde 2026-11-19 aponta para a pasta
+ * da versão, igual ao /download/windows do site/_redirects: a retenção de 365 dias do bucket (desde 2026-11-13) não
+ * deixa sobrescrever o nome estável da raiz, que ficou na rc.6 até 2027-11-08. Troca junto com o _redirects
+ * (docs/release-desktop.md); o teste do site amarra os dois.
+ */
+export const URL_DO_EXE_WINDOWS = "https://storage.googleapis.com/nodbot-downloads/v1.0.0-rc.9/nod-1.0.0-rc.9-win-x64.exe";
 
 export interface OpcoesServidor {
   rotas?: Rota[];
@@ -28,6 +35,8 @@ export interface OpcoesServidor {
   staticDir?: string;
   autorizarMaquina?: DepsRoteador["autorizarMaquina"];
   autorizarTokenTurno?: DepsRoteador["autorizarTokenTurno"];
+  /** Servidor MCP do Nod (0173): sem isto, POST /api/mcp não existe (404). */
+  mcp?: Pick<DepsServidorMcp, "autorizar" | "versaoNod" | "dormir" | "registrarAcao">;
   /** Modo de login (ADR-030). Default `stub`, que só escuta em loopback; o boot SEMPRE passa o do NOD_LOGIN. */
   sessao?: OpcoesSessao;
   /** NOD-345 (ADR-124): com NOD_CONTAS, a sessão revogável, as rotas de conta e o que o modo anuncia. */
@@ -60,6 +69,7 @@ export function criarServidor(opcoes: OpcoesServidor = {}) {
     resolverEscopo: sessao.resolverEscopo,
     autorizarTokenTurno: opcoes.autorizarTokenTurno,
     autorizarMaquina: opcoes.autorizarMaquina,
+    ...(opcoes.mcp ? { mcp: criarServidorMcp({ ...opcoes.mcp, chamar: criarChamadorInterno(rotas) }) } : {}),
     fallback: criarEstatico(opcoes.staticDir ?? process.env.NOD_STATIC_DIR),
   });
   const server = createServer((req, res) => {
@@ -79,7 +89,7 @@ export function criarServidor(opcoes: OpcoesServidor = {}) {
       return;
     }
     // ADR-151 (ADA-32): `irm https://<nod>/windows | iex` — o endereço curto do PowerShell (o irm segue o 302). Só o convite passa.
-    if (req.method === "GET" && (caminhoMotor === "/windows" || caminhoMotor === "/windows/")) {
+    if ((req.method === "GET" || req.method === "HEAD") && (caminhoMotor === "/windows" || caminhoMotor === "/windows/")) {
       const convite = new URL(req.url ?? "/", "http://x").searchParams.get("convite");
       const query = conviteValido(convite) ? `?${new URLSearchParams({ convite }).toString()}` : "";
       res.writeHead(302, { location: `/api/motor/instalar-windows${query}`, "cache-control": "no-store" });

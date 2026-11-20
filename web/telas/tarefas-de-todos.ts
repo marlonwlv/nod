@@ -44,7 +44,7 @@ function linha(l: LinhaDaTarefa, avatar: OpcoesDaTela["avatar"]): string {
 }
 
 function grupo(g: GrupoDasTarefas, avatar: OpcoesDaTela["avatar"]): string {
-  const dono = g.agenteId ? `<span class="tdt-av" aria-hidden="true">${avatar(g.agenteId)}</span><span class="tdt-pagina">página Tarefas de ${esc(g.agenteNome)}</span>` : "";
+  const dono = g.agenteId ? `<span class="tdt-av" aria-hidden="true">${avatar(g.agenteId)}</span><span class="tdt-pagina">página Quadro de ${esc(g.agenteNome)}</span>` : "";
   const prog = g.progresso !== null
     ? `<span class="tdt-prog" role="img" aria-label="${g.progresso}% feito"><i style="width:${g.progresso}%"></i></span><span class="tdt-pct" aria-hidden="true">${g.progresso}%</span>` : "";
   const nome = g.projeto !== null ? `<span class="tdt-proj">${esc(g.projeto)}</span><span class="tdt-sep" aria-hidden="true">/</span><span class="tdt-nome">${esc(g.nome)}</span>` : `<span class="tdt-nome">${esc(g.nome)}</span>`;
@@ -59,17 +59,17 @@ export function renderTarefasDeTodos(o: OpcoesDaTela): string {
   const c = o.carga;
   const resumo = c.tipo === "pronto" ? ` · ${esc(c.resumo)}` : "";
   const seg = `<div class="tdt-seg" role="group" aria-label="Agrupar">${VISTAS.map(([v, r]) => `<button type="button" class="tdt-seg-bt" data-act="tdt-vista" data-vista="${v}" aria-pressed="${o.vista === v}">${r}</button>`).join("")}</div>`;
-  const cab = `<header class="tdt-topo"><div class="tdt-titulos"><h1 class="tdt-h">Tarefas</h1><p class="tdt-sub">Os quadros de todos os seus bots num lugar só${resumo}</p></div>${seg}<button type="button" class="tdt-nova" data-act="tdt-nova">${IC.mais}<span>Nova tarefa</span></button></header>`;
+  const cab = `<header class="tdt-topo"><div class="tdt-titulos"><h1 class="tdt-h">Cards</h1><p class="tdt-sub">Os quadros de todos os seus bots num lugar só${resumo}</p></div>${seg}<button type="button" class="tdt-nova" data-act="tdt-nova">${IC.mais}<span>Novo card</span></button></header>`;
   const perg = c.tipo === "pronto" && c.perguntaram > 0
     ? `<button type="button" class="tdt-perg" data-act="tdt-vista" data-vista="minhas">${IC.sino}<span>${c.perguntaram} te ${c.perguntaram === 1 ? "perguntou" : "perguntaram"}</span></button>` : "";
-  const filtros = `<div class="tdt-filtros"><label class="tdt-busca">${IC.busca}<input type="search" class="tdt-busca-campo" data-tdt="busca" placeholder="Buscar tarefa por título ou código" value="${esc(o.filtros.busca)}" aria-label="Buscar tarefa por título ou código"></label>` +
+  const filtros = `<div class="tdt-filtros"><label class="tdt-busca">${IC.busca}<input type="search" class="tdt-busca-campo" data-tdt="busca" placeholder="Buscar card por título ou código" value="${esc(o.filtros.busca)}" aria-label="Buscar card por título ou código"></label>` +
     `<button type="button" class="tdt-filtro" data-act="tdt-aberto" aria-pressed="${o.filtros.emAberto}">${IC.filtro}<span>Status: ${o.filtros.emAberto ? "em aberto" : "todas"}</span></button>` +
     `<button type="button" class="tdt-filtro" data-act="tdt-prioridade" aria-pressed="${o.filtros.porPrioridade}"><span>Prioridade</span></button><span class="tdt-esp"></span>${perg}</div>`;
   let corpo: string;
   if (c.tipo === "carregando") corpo = `<div class="tdt-carregando" aria-busy="true"><div class="tdt-esq"></div><div class="tdt-esq"></div></div>`;
   else if (c.tipo === "erro") corpo = `<p class="tdt-erro" role="alert">${esc(c.mensagem)} <button type="button" class="tdt-link" data-act="tdt-reler">Tentar de novo</button></p>`;
-  else if (c.total === 0) corpo = `<p class="tdt-vazio">Nenhum bot tem quadro ainda. Peça a um bot para criar o dele, ou abra a página Tarefas de um bot.</p>`;
-  else if (!c.grupos.some((g) => g.linhas.length)) corpo = `<p class="tdt-vazio">Nenhuma tarefa ${o.vista === "minhas" ? "com você" : "com esse filtro"}.</p>`;
+  else if (c.total === 0) corpo = `<p class="tdt-vazio">Nenhum bot tem quadro ainda. Peça a um bot para criar o dele, ou abra a página Quadro de um bot.</p>`;
+  else if (!c.grupos.some((g) => g.linhas.length)) corpo = `<p class="tdt-vazio">Nenhum card ${o.vista === "minhas" ? "com você" : "com esse filtro"}.</p>`;
   else corpo = c.grupos.map((g) => grupo(g, o.avatar)).join("");
   return `<div class="tdt"><div class="tdt-coluna">${cab}${filtros}<div class="tdt-grupos">${corpo}</div></div></div>`;
 }

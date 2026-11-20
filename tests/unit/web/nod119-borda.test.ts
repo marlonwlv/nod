@@ -14,6 +14,8 @@ describe("ADR-179: o puxador da barra (DOM)", () => {
     getAttribute(n: string) { return this.attrs.get(n) ?? null; }
     setPointerCapture() {}
     releasePointerCapture() {}
+    // ADR-189: o estado do arrasto também vai no <html> (densidade.css), sem `html:has(...)`.
+    ownerDocument = { documentElement: { classes: new Set<string>(), classList: { add: (c: string) => void this.ownerDocument.documentElement.classes.add(c), remove: (c: string) => void this.ownerDocument.documentElement.classes.delete(c) } } };
   }
   const evento = (tipo: string, extra: Record<string, unknown>) => Object.assign(new Event(tipo, { cancelable: true }), extra);
   const relogio = { setTimeout: (() => 0) as unknown as typeof setTimeout, clearTimeout: (() => undefined) as typeof clearTimeout };
@@ -56,6 +58,7 @@ describe("ADR-179: o puxador da barra (DOM)", () => {
     const m = montar(B(340));
     m.borda.dispatchEvent(evento("pointerdown", { button: 0, clientX: 343, pointerId: 1 }));
     expect(m.borda.classes.has("arrastando")).toBe(true);
+    expect(m.borda.ownerDocument.documentElement.classes.has("borda-arrastando")).toBe(true);
     m.borda.dispatchEvent(evento("pointermove", { clientX: 303, pointerId: 1 }));
     expect(m.atual()).toEqual(B(300));
     m.borda.dispatchEvent(evento("pointermove", { clientX: 900, pointerId: 1 }));
@@ -66,8 +69,10 @@ describe("ADR-179: o puxador da barra (DOM)", () => {
     m.borda.dispatchEvent(evento("pointermove", { clientX: 150, pointerId: 1 }));
     expect(m.atual()).toEqual(B(340, true));
     expect(m.borda.classes.has("encaixando")).toBe(true);
+    expect(m.borda.ownerDocument.documentElement.classes.has("borda-encaixando")).toBe(true);
     expect(m.gravadas).toEqual([]);
     m.borda.dispatchEvent(evento("pointerup", { pointerId: 1 }));
+    expect(m.borda.ownerDocument.documentElement.classes.has("borda-arrastando")).toBe(false);
     expect(m.borda.classes.has("arrastando")).toBe(false);
     expect(m.gravadas).toEqual([B(340, true)]);
     m.borda.dispatchEvent(evento("pointermove", { clientX: 300, pointerId: 1 }));

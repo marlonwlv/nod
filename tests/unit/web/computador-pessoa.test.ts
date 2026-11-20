@@ -15,6 +15,9 @@ import {
   htmlPainelComputadorDoBot,
   estadoDaBarra,
   htmlBarraDeControle,
+  htmlTelaCheia,
+  htmlTituloDaTelaCheia,
+  tituloDaTelaCheia,
   lembrarComputador,
   lerComputadorPessoa,
   resumoDasTelas,
@@ -50,7 +53,7 @@ describe("contrato e flag", () => {
 
   // Especificação D, item 7: o computador do bot ganhou a seção Computador, logo depois de Máquinas.
   it("Configurações › Computador vem depois de Máquinas; o pedido antigo cai nela", () => {
-    expect(SECOES_ESPACO.map((s) => s.id)).toEqual(["conta", "geral", "conexao", "maquinas", "computador", "agentes", "rotinas", "aprovacoes", "cofre", "feedback"]);
+    expect(SECOES_ESPACO.map((s) => s.id)).toEqual(["conta", "geral", "conexao", "maquinas", "computador", "agentes", "rotinas", "aprovacoes", "cofre", "sobre", "feedback"]);
     expect(secaoDoPedido("computador-do-bot")).toBe("computador");
     expect(secaoDoPedido("computadores")).toBe("maquinas");
   });
@@ -367,5 +370,31 @@ describe("janela de primeiro uso da VM local (NOD-93, protótipo v2; revisão do
     const reduzido = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
     expect(css).toMatch(/\.cb-cena\[data-etapa="baixando"\] \.cb-peca \{ animation: cb-cai/);
     expect(reduzido).toContain(".cb-cena *, .cb-cena-masc > nod-mascote { animation: none !important; }");
+  });
+});
+
+describe("Acessos · computador, item 5: o título do topo da tela cheia", () => {
+  it("tituloDaTelaCheia: Tela de Nina no repouso; com o pedido aberto, quem pede e o pedido", () => {
+    expect(tituloDaTelaCheia("Nina", "bot", null)).toBe("Tela de Nina");
+    expect(tituloDaTelaCheia("Nina", "aguardando_pessoa", "Entre no banco")).toBe("Nina precisa de você · Entre no banco");
+    // No controle a pessoa já está resolvendo; sem pedido, não há o que dizer.
+    expect(tituloDaTelaCheia("Nina", "pessoa", "Entre no banco")).toBe("Tela de Nina");
+    expect(tituloDaTelaCheia("Nina", "aguardando_pessoa", "  ")).toBe("Tela de Nina");
+  });
+
+  it("o HTML escapa o pedido e o nome, e traz os dois jeitos (computador e celular)", () => {
+    const html = htmlTituloDaTelaCheia("Nina", "aguardando_pessoa", "Entre no <b>banco</b>");
+    expect(html).not.toContain("<b>banco");
+    expect(html).toContain("Entre no &lt;b&gt;banco&lt;/b&gt;");
+    expect(html).toContain('class="ctc-tit-ponto"');
+    expect(html).toContain("Nina precisa de você");
+    expect(html).toContain("Nina · precisa de você");
+    expect(htmlTituloDaTelaCheia("<i>", "bot", null)).toBe('<span class="ctc-tit-nome">Tela de &lt;i&gt;</span>');
+  });
+
+  it("a tela cheia tem o h1 com id no topo e o lugar do pedido abaixo da pílula", () => {
+    const html = htmlTelaCheia("Nina", "");
+    expect(html).toMatch(/<header class="ctc-topo"><h1 class="ctc-titulo" id="ctc-titulo"[^>]*><span class="ctc-tit-nome">Tela de Nina<\/span><\/h1>/);
+    expect(html).toContain('<div class="ctc-barra-lugar"></div><p class="ctc-pedido"></p>');
   });
 });

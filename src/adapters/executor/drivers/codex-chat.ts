@@ -26,7 +26,7 @@ import { criarFalaPorBloco } from "../../../domain/fala-por-bloco.ts";
 import { criarFalaDoMeio } from "../../../domain/mensagem-no-meio.ts";
 import { ehPastaDeTask, NATIVA_MCP_DA_PESSOA } from "../../../domain/nativas.ts";
 import { redigirECortar } from "../../../domain/segredos.ts";
-import { causaDoCodexChat, classificarSessao, reduzirSinais, SINAIS_ZERADOS, textoDaRodada } from "../../../domain/stream-json.ts";
+import { causaDoCodexChat, classificarSessao, reduzirSinais, SINAIS_ZERADOS, textoDaRodada, textoDaVoltaInterrompida } from "../../../domain/stream-json.ts";
 import { log } from "../../../obs/log.ts";
 import { pastaValidaNoWindows } from "../../../domain/caminhos.ts";
 import { ESPERA_APROVACAO_NO_TURNO_MS, VARIAVEL_CONFIG_HOOK } from "../../../shared/constantes.ts";
@@ -88,7 +88,7 @@ const ESFORCO_CODEX: Record<EsforcoAgente, EsforcoCodex> = { low: "low", medium:
 const FRONTEIRAS_CODEX: readonly EventoStream["tipo"][] = ["texto_bloco", "tool_result", "result"];
 
 /** O que o adapter repassa ao laço enquanto a thread está viva. */
-export type SessaoChatCodex = { aceitaMensagens(): boolean; receberMensagem(texto: string, id?: string): boolean };
+export type SessaoChatCodex = { aceitaMensagens(): boolean; receberMensagem(texto: string, id?: string): boolean; /** ADR-186. */ interromperVolta(): boolean };
 
 /** Uma mensagem da pessoa a caminho da sessão, com os ids que o laço confirma quando ela entrar (X2). */
 type ItemDaFila = { texto: string; ids: string[] };
@@ -215,6 +215,9 @@ async function rodarUmaVez(c: ContextoChatCodex, comTerminal: boolean): Promise<
     devolverRestantes = () => devolver([...aCaminho]);
     let steersEmVoo = 0;
     let decidindo = false;
+    // ADR-186: o laço pediu para parar o turno (a pessoa mandou mensagem com o bot só escrevendo). A mensagem não vai por
+    // steer no turno que está parando (o Codex não a guardaria): espera na fila e abre o turno seguinte.
+    let interrompendo = false;
     const rodadas: EventoStream[][] = [];
     let inicioDaRodada = 0;
     let rodadasFaladas = 0;
@@ -320,6 +323,17 @@ async function rodarUmaVez(c: ContextoChatCodex, comTerminal: boolean): Promise<
         ultimoErro = ev.erro ?? ultimoErro;
         turnoRecusado = false;
         fecharRodada(ev.status === "completed", ev.status === "completed" ? "success" : ev.status === "interrupted" ? "error_interrupted" : "error_during_execution", ev.erro);
+        // ADR-186: a volta interrompida pela mensagem sai já, marcada (e as anteriores ainda não faladas antes dela).
+        if (interrompendo) {
+          interrompendo = false;
+          if (falaNaHora) {
+            for (; rodadasFaladas < rodadas.length; rodadasFaladas++) {
+              const ultima = rodadasFaladas === rodadas.length - 1;
+              const texto = ultima ? textoDaVoltaInterrompida(rodadas[rodadasFaladas]!, meio) : textoDaRodada(rodadas[rodadasFaladas]!, meio);
+              if (texto.trim() !== "") sinks.falaIntermediaria!(texto, ultima ? { interrompida: true } : undefined);
+            }
+          }
+        }
         void decidir();
       },
       aoNegado(metodo) {
@@ -373,7 +387,7 @@ async function rodarUmaVez(c: ContextoChatCodex, comTerminal: boolean): Promise<
 
     /** Texto na sessão: steer no turno ativo, senão espera o turno abrir (ou o próximo). */
     const mandar = (item: ItemDaFila) => {
-      if (cliente.turno().estado !== "ativo") return void fila.push(item);
+      if (cliente.turno().estado !== "ativo" || interrompendo) return void fila.push(item);
       steersEmVoo += 1;
       cliente.steer(item.texto, (aceito) => {
         steersEmVoo -= 1;
@@ -444,6 +458,15 @@ async function rodarUmaVez(c: ContextoChatCodex, comTerminal: boolean): Promise<
         // X2: aceita para entrar; o laço só confirma quando o steer for aceito ou a volta abrir com ela.
         if (id !== undefined) aCaminho.add(id);
         mandar({ texto, ids: id !== undefined ? [id] : [] });
+        return true;
+      },
+      // ADR-186 (medido em 2026-11-16, codex-cli 0.162.1): `turn/interrupt` conclui o turno como `interrupted` em ~5 ms e a
+      // thread segue; a mensagem que vier em seguida abre o próximo turno (o Codex não guarda a parcial: o laço põe o
+      // trecho na moldura).
+      interromperVolta() {
+        if (!aberta || cliente.fechando() || cliente.turno().estado !== "ativo" || interrompendo) return false;
+        interrompendo = true;
+        cliente.interromperTurno();
         return true;
       },
     });

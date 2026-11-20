@@ -76,7 +76,7 @@ describe("Tarefas de todos os bots (tela 18d do Paper)", () => {
     expect(html).toContain("Status: em aberto");
     expect(html).toContain("1 te perguntou");
     expect(html).toContain('data-act="tdt-abrir" data-tarefa="t-NOD-1" data-quadro="q1" data-dono="ada"');
-    expect(html).toContain("página Tarefas de ada");
+    expect(html).toContain("página Quadro de ada");
   });
 
   it("sem quadro nenhum, diz como começar", () => {

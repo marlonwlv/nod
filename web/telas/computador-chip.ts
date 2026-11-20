@@ -21,7 +21,7 @@ export function abrirCartaoDestino(chip: HTMLElement, bot: { id: string; nome: s
   fecharCartaoDestino(false);
   if (mesmo) return;
   const cartao = document.createElement("div");
-  cartao.className = "cc-cartao";
+  cartao.className = "cc-destino";
   cartao.setAttribute("role", "dialog");
   cartao.setAttribute("aria-label", "Destino do link");
   cartao.innerHTML = htmlCartaoDestino(bot);

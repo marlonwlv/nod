@@ -108,6 +108,7 @@ describe("rolar ao topo ao navegar", () => {
     conversa: false,
     sala: false,
     trabalho: false,
+    "nova-tarefa": true,
     inicio: true,
     rotinas: true,
     "nova-rotina": true,

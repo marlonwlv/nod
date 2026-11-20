@@ -9,7 +9,7 @@ import { botao, esc } from "../lib/render.ts";
  * `aberto` = a proposta pendente com a decisão de mesmo id aberta (quem chama confere).
  */
 export function renderCardQuadroExclusao(p: Pick<Proposta, "id" | "estado">, c: PayloadPropostaQuadroExclusao, aberto: boolean): string {
-  const sai = [`${c.tarefas} ${c.tarefas === 1 ? "tarefa" : "tarefas"}`, `${c.colunas} ${c.colunas === 1 ? "coluna" : "colunas"}`, ...(c.temMeta ? ["a meta"] : []), "o histórico"];
+  const sai = [`${c.tarefas} ${c.tarefas === 1 ? "card" : "cards"}`, `${c.colunas} ${c.colunas === 1 ? "coluna" : "colunas"}`, ...(c.temMeta ? ["a meta"] : []), "o histórico"];
   const lista = `${sai.slice(0, -1).join(", ")} e ${sai.at(-1)}`;
   const linhas = [esc(`Sai: ${lista}`), esc(`Fica: a conversa e a memória do ${c.anfitriaoNome}`)];
   if (aberto) linhas.push("Não dá para desfazer.");

@@ -14,7 +14,7 @@ export type SituacaoDoTrabalho = "trabalhando" | "fila" | "esperando" | "comecan
 export type MotivoDaFila = NonNullable<TarefaDto["motivoFila"]>;
 
 export const MOTIVO_DA_FILA: Readonly<Record<MotivoDaFila, string>> = {
-  mesma_tarefa: "termina a etapa anterior desta tarefa",
+  mesma_tarefa: "termina a etapa anterior deste card",
   memoria: "a máquina está sem memória livre",
   processador: "o processador da máquina está ocupado",
   disco: "o disco da máquina está cheio",
@@ -48,12 +48,13 @@ const haQuanto = (desde: number, agora: number): string => {
  * O rótulo curto, igual nas duas superfícies: "trabalhando", "na fila · <motivo>" (com "há N min" depois de um minuto; T4,
  * 2026-11-10: também sem motivo, para o relógio mostrar que a fila anda), "esperando", "começando".
  */
-export function rotuloDaSituacao(s: SituacaoDoTrabalho, o: { motivoFila?: MotivoDaFila | null; naFilaDesde?: number | null; agora?: number } = {}): string {
+export function rotuloDaSituacao(s: SituacaoDoTrabalho, o: { motivoFila?: MotivoDaFila | null; naFilaDesde?: number | null; agora?: number; posicaoFila?: { n: number; m: number } | null } = {}): string {
   if (s === "trabalhando") return "trabalhando";
   if (s === "esperando") return "esperando";
   if (s === "comecando") return "começando";
   const ha = o.naFilaDesde && o.agora && o.agora - o.naFilaDesde >= 60_000 ? ` ${haQuanto(o.naFilaDesde, o.agora)}` : "";
-  return `na fila${ha}${o.motivoFila ? ` · ${MOTIVO_DA_FILA[o.motivoFila]}` : ""}`;
+  const posicao = o.posicaoFila ? ` (${o.posicaoFila.n} de ${o.posicaoFila.m})` : "";
+  return `na fila${posicao}${ha}${o.motivoFila ? ` · ${MOTIVO_DA_FILA[o.motivoFila]}` : ""}`;
 }
 
 /* ---------- 2026-11-10 (Passo 1): a espera, a falha e o gatilho do run, nas mesmas palavras em todo lugar ---------- */

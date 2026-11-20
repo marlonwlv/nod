@@ -94,7 +94,7 @@ const FORA_DO_CATALOGO: readonly Molde[] = [
   { nome: "perfil-mudou", molde: "Esta mudança de perfil não foi aplicada: o perfil mudou depois da proposta. Peça de novo ao bot.", assunto: "proposta.obsoleta" },
   { nome: "pedido-de-acesso-aberto", molde: "Pedido aberto; nada foi concedido ainda.", assunto: "proposta.decidida" },
   // trabalhos.ts e domain/comandos.ts.
-  { nome: "task-fechada", molde: "Fechei a task \"{titulo}\", parada esperando você, para liberar memória. Ela volta do mesmo ponto quando você responder.", assunto: "memoria.task_fechada" },
+  { nome: "task-fechada", molde: "Fechei a tarefa \"{titulo}\", parada esperando você, para liberar memória. Ela volta do mesmo ponto quando você responder.", assunto: "memoria.task_fechada" },
   { nome: "compactacao", molde: "Conversa compactada{resto}. {nome} continua daqui, com o resumo.", assunto: "compactacao" },
   { nome: "nova-sessao", molde: "Nova sessão · {nome} começa sem o que vocês conversaram até aqui. As mensagens continuam aqui para você.", assunto: "sessao.nova" },
   // Acesso e aprovação (revogar.ts, liberar-na-tarefa.ts, decidir.ts, gerir-bots.ts, mudar-modo-aprovacao.ts).
@@ -106,7 +106,7 @@ const FORA_DO_CATALOGO: readonly Molde[] = [
   { nome: "lote-feitas", molde: "{feitas} de {total} mudanças feitas.{resto}", assunto: "aprovacao.recibo" },
   { nome: "modo-aprovacao", molde: "{pessoa} mudou as aprovações de {bot} para {modo}: {efeito}", assunto: "aprovacao.modo" },
   // inteligencia.ts.
-  { nome: "sem-ia-para-levar", molde: "Nenhuma IA está pronta agora na máquina do {bot}: as tasks em andamento ficaram onde estavam. Daqui em diante ele usa o Automático.", assunto: "inteligencia" },
+  { nome: "sem-ia-para-levar", molde: "Nenhuma IA está pronta agora na máquina do {bot}: as tarefas em andamento ficaram onde estavam. Daqui em diante ele usa o Automático.", assunto: "inteligencia" },
   // ligacoes.ts (TEXTOS_FIM): o fim da ligação é parte da entrega "ligação".
   { nome: "ligacao-caiu", molde: "A ligação caiu{resto}", assunto: "ligacao" },
   { nome: "ligacao-encerrada", molde: "A ligação foi encerrada{resto}", assunto: "ligacao" },
@@ -137,6 +137,14 @@ export const MOLDES_ANTIGOS: readonly Molde[] = [
   // antes do backfill (revisão do PR 2, 18/10). Os outros que passaram para o chat na QA (conta.recusada,
   // ia.fala_espera, proposta.obsoleta) não mudaram de texto desde que nasceram (conferido no histórico, 18/10).
   { nome: "decisao-vencida-24-09", molde: "Esta decisão venceu em {quando} sem resposta ({desfecho}). Você pode reabrir.", assunto: "decisao.vencida" },
+  // ADR-187 (2026-11-17): na tela, frente e task viraram "tarefa"; as linhas gravadas antes guardam a palavra de antes.
+  { nome: "retorno-do-lote-caiu-17-11", molde: "O retorno do lote caiu duas vezes e não foi refeito de novo. Os resumos ficaram em cada frente: {frentes}.", assunto: "lote.retorno_caiu" },
+  { nome: "frente-retomada-automatica-17-11", molde: "A frente {titulo} caiu ({motivo}) e foi retomada sozinha quando as máquinas voltaram: tentativa {tentativa} de {maximo}.", assunto: "turno.retomado" },
+  { nome: "cota-no-limite-espera-17-11", molde: "A cota do {ia} chegou ao limite. Esta task espera e volta sozinha {quando}, de onde parou.", assunto: "cota.espera" },
+  { nome: "cota-no-limite-segue-17-11", molde: "A cota do {ia} chegou ao limite. Esta task segue no {para}, de onde parou.", assunto: "cota.espera" },
+  { nome: "conta-no-limite-espera-17-11", molde: "A conta {de} do {ia} chegou ao limite. Esta task espera e volta sozinha {quando}, de onde parou.", assunto: "cota.espera" },
+  { nome: "task-fechada-17-11", molde: "Fechei a task \"{titulo}\", parada esperando você, para liberar memória. Ela volta do mesmo ponto quando você responder.", assunto: "memoria.task_fechada" },
+  { nome: "sem-ia-para-levar-17-11", molde: "Nenhuma IA está pronta agora na máquina do {bot}: as tasks em andamento ficaram onde estavam. Daqui em diante ele usa o Automático.", assunto: "inteligencia" },
 ];
 
 const escapar = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

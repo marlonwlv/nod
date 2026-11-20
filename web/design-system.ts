@@ -67,6 +67,7 @@ const componentes = `<section class="dsv-col"><h2>Componentes</h2><p class="dsv-
   <h3>Campos e controles</h3>
   <div class="dsv-campo">Dê um nome ao seu bot</div><div class="dsv-campo foco"><b>Ada</b></div><div class="dsv-campo dsv-campo-erro"><b>ada@</b></div><p class="dsv-erro">Use só letras, números e espaço.</p>
   <div class="dsv-bts"><span class="dsv-chave on"><i></i></span><span class="dsv-chave"><i></i></span><span class="dsv-select">Automático ${IC.seta}</span><span class="dsv-seg"><span>Manual</span><span class="on">Automático</span><span>Total</span></span></div>
+  <p class="dsv-nota">Controle do campo revelado no hover e no foco: fica montado no seu lugar (visibility hidden, fora do Tab) e aparece sem mexer no texto; um aviso de risco nunca se esconde</p>
   <h3>Chips e atalhos</h3>
   <div class="dsv-bts"><span class="dsv-chip ok"><i></i>Ativo</span><span class="dsv-chip">Pausada</span><span class="dsv-chip aviso"><i></i>Sua vez</span><span class="dsv-chip novo">Novo</span><span class="dsv-chip perigo">× Falhou</span></div>
   <div class="dsv-bts dsv-kbds"><kbd class="ds-kbd">⌘</kbd><kbd class="ds-kbd">K</kbd><small>·</small><kbd class="ds-kbd">⌘</kbd><kbd class="ds-kbd">B</kbd><small>·</small><kbd class="ds-kbd">Esc</kbd></div>

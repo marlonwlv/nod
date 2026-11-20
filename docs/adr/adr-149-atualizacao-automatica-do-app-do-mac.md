@@ -31,8 +31,9 @@ reiniciar.
    app.
 4. **Ligar e desligar é config.** `NOD_APP_VERSAO_PUBLICADA` vazia = desligada; preenchida, anuncia aquela versão e
    exige `NOD_APP_ATUALIZACAO_SHA256=arm64=<hex>,x64=<hex>`: o feed manda o `sha256` do ZIP. O Squirrel.Mac do
-   Electron 43 (commit 0e5d146b) ainda não o confere (a conferência entrou em c4a95b0c); até o Electron trazê-la, a
-   defesa é só a assinatura de código, e o hash prende o anúncio ao ZIP que o script conferiu. Formato, bucket ou hash inválidos derrubam o boot
+   Electron 43 (commit 0e5d146b) ainda não o confere (a conferência entrou em c4a95b0c); até o app subir para o Electron
+   44 ou mais novo, a defesa é só a assinatura de código, e o hash prende o anúncio ao ZIP que o script conferiu.
+   Formato, bucket ou hash inválidos derrubam o boot
    (a cor nova nunca fica saudável). Publicar é `scripts/desktop/publicar-atualizacao.sh v<versão>` (confere o SHA-256
    da release, nunca sobrescreve e só imprime o hash depois do upload) e depois as duas linhas no
    `infra/gcp/config.env` + deploy.
@@ -40,7 +41,8 @@ reiniciar.
    `codesign --deep --strict`, `stapler validate` e `spctl` antes do upload, e entra no `SHA256-<arch>.txt`.
 6. **Procura e aviso só no nativo.** 30 s depois de conectar e a cada 4 h, pelo menu (**Procurar atualizações…**) e na
    hora quando o servidor responde `atualize_app`. Pronta, o menu ganha **Reiniciar para atualizar (x.y.z)**, sai uma
-   notificação e a tela de conexão mostra a linha. Sem faixa na web.
+   notificação e a tela de conexão mostra a linha. Sem faixa na web. *Emendado pela [ADR-188](adr-188-atualizar-o-nod-pela-janela-web.md): a
+   janela web mostra o cartão "Atualizar o nod" e Configurações › Sobre o nod.*
 7. **Reiniciar nunca derruba trabalho sem perguntar.** Procura pelo menu responde numa caixa (em dia ou erro). Enquanto o
    Squirrel não responde, nenhuma procura nova reconfigura o feed (evita dois downloads). Em ligação, recusa; com turno no Mac ou tela aberta no
    computador do bot, confirma ("Reiniciar agora interrompe o trabalho"). Prazo da tela: 5 min na procura e 25 min no download (acima dos 20 min
@@ -71,10 +73,16 @@ Cmd+Q, logout ou queda), e os que não baixaram seguem como estão.
 
 ## Riscos aceitos e o que falta antes de ligar a flag
 
-- O Electron 43 não confere o `sha256` nem barra downgrade (`ElectronSquirrelPreventDowngrades` fora do Info.plist; o
-  patch exige x.y.z sem rc). Quem escreve no bucket ou controla o servidor pode entregar qualquer build assinado pelo
-  Team. Mitigação: escrita no bucket só pela conta de publicação; o app só procura no servidor oficial do build (mesma
-  origem https de `__NOD_SERVIDOR_PADRAO__`; "Outro servidor" não atualiza); issue de seguimento para o bloqueio de
-  downgrade.
+- O patch de `ElectronSquirrelPreventDowngrades` do Electron 43 tem a validação de versão invertida: ligado, ele recusa
+  até `x.y.z`. O release só põe a chave no Info.plist quando a versão do app é final (`x.y.z`) **e** o Electron é 44 ou
+  mais novo; o verificador do pacote exige a mesma regra. O Squirrel.Mac do Electron 44 também contém a conferência do
+  `sha256` (c4a95b0c). A subida ficou pendente porque o Electron 44 exige macOS 13, enquanto o app ainda abre no macOS
+  12; até essa decisão, a proteção fica desligada e a defesa é a assinatura de código.
+- O bucket de atualizações tem retenção de 365 dias, sem lock: nenhum ZIP pode ser apagado nem sobrescrito nesse
+  período, inclusive se uma versão for ruim. A correção é publicar uma versão maior. O lock irreversível depende de uma
+  decisão humana separada.
+- Quem escreve no bucket ou controla o servidor ainda pode entregar qualquer build antigo assinado pelo Team enquanto
+  o app estiver no Electron 43. Mitigação: escrita no bucket só pela conta de publicação; o app só procura no servidor
+  oficial do build (mesma origem https de `__NOD_SERVIDOR_PADRAO__`; "Outro servidor" não atualiza).
 - O lock de instância única solto em `before-quit-for-update` abre uma janela curta para uma segunda instância (NOD-137).
 - UAT num Mac real (baixar, reiniciar, relançar, Keychain) antes de preencher `NOD_APP_VERSAO_PUBLICADA`.

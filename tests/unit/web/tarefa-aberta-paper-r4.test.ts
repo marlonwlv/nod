@@ -37,7 +37,7 @@ describe("tela 18b do Paper (rodada 4)", () => {
     const h = campoDePrazo({ id: "t1", prazoEm: "2026-11-14" }, { agora: hoje, fuso: "America/Sao_Paulo", onde: "lado" });
     expect(h).toContain('<span class="ta-prazo-data">14 nov</span><span class="qd-prazo-tom" data-tom="normal">em 2 dias</span>');
     expect(h).toContain('type="date" id="qd-t-prazo-em-lado" class="qd-data ta-prazo-in" data-campo="prazo-tarefa" data-id="t1" value="2026-11-14"');
-    expect(h).toContain("Prazo da tarefa: 14 nov, em 2 dias");
+    expect(h).toContain("Prazo do card: 14 nov, em 2 dias");
     // No celular segue o campo de data com o rótulo de antes.
     expect(campoDePrazo({ id: "t1", prazoEm: "2026-11-14" }, { agora: hoje, fuso: "America/Sao_Paulo", onde: "cel" })).not.toContain("ta-prazo-vista");
   });
@@ -52,7 +52,7 @@ describe("tela 18b do Paper (rodada 4)", () => {
     const tt = { ...t, movimentos: [{ id: "m1", tarefaId: "t1", tipo: "mover", de: "afazer", para: "fazendo", agenteAntes: "dante", agenteDepois: "dante", autor: { tipo: "pessoa" }, motivo: null, loteId: "l", acionou: true, desfeitoEm: null, criadoEm: local(10, 2), autorNome: null, agenteAntesNome: "Dante", agenteDepoisNome: "Dante" }] } as unknown as TarefaDto;
     const h = linhaDoTempo(dados({ t: tt, comentarios: [com("c1", { texto: "@Gil olha", acionados: ["gil"] })], criadaPor: "Você, pela Ada", criadaEm: local(9, 14, 1), criadaResumo: "criou a tarefa a partir das notas da call", voceIniciais: "MW" }));
     expect(h).toContain('Atividade <span class="ta-sec-n">3</span>');
-    expect(h).toContain('<p class="ta-ev-txt">Ada criou a tarefa a partir das notas da call.</p>');
+    expect(h).toContain('<p class="ta-ev-txt">Ada criou o card a partir das notas da call.</p>');
     expect(h).toContain('<p class="ta-ev-txt">Moveu de A fazer para Fazendo.</p><p class="ta-ev-sub">acionou Dante</p>');
     expect(h).toContain(">ontem 9:14</time>");
     expect(h).toContain('<span class="qd-anel" role="img" aria-label="Você">MW</span>');

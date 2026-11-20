@@ -37,17 +37,19 @@ export type ItemPaleta = {
 };
 
 export type IdAcaoPaleta =
-  | "novo-bot" | "nova-sala" | "barra" | "ajustes" | "trabalhos" | "tarefas" | "sua-vez" | "nao-lidos" | "marketplace" | "atalhos"
+  | "novo-bot" | "nova-tarefa" | "nova-sala" | "barra" | "ajustes" | "trabalhos" | "tarefas" | "sua-vez" | "nao-lidos" | "marketplace" | "atalhos"
   | "modo-dev" | "tema-claro" | "tema-escuro" | "tema-sistema" | "pausar-rotinas" | "quick-chat" | "design-system";
 
 /** As ações da paleta. `teclas` é preenchido por quem monta (o modificador muda com o lugar, web/lib/atalhos.ts). */
 export const ACOES_DA_PALETA: readonly { id: IdAcaoPaleta; titulo: string; icone: ItemPaleta["icone"]; tecla?: readonly string[]; palavras?: readonly string[] }[] = [
-  { id: "novo-bot", titulo: "Novo bot", icone: "mais", tecla: ["N"], palavras: ["criar", "criar bot", "nova conversa"] },
-  { id: "pausar-rotinas", titulo: "Pausar todas as rotinas", icone: "relogio", palavras: ["parar", "rotinas", "agenda"] },
+  // ADR-187 §7 (2026-11-18): ⌘N é a nova tarefa do bot aberto; o novo bot foi para ⌘⇧N e o chat em grupo ficou sem tecla.
+  { id: "nova-tarefa", titulo: "Nova tarefa", icone: "mais", tecla: ["N"], palavras: ["tarefa", "abrir tarefa", "trabalho"] },
+  { id: "novo-bot", titulo: "Novo bot", icone: "mais", tecla: ["⇧", "N"], palavras: ["criar", "criar bot", "nova conversa"] },
+  { id: "pausar-rotinas", titulo: "Pausar todas as rotinas", icone: "relogio", palavras: ["parar", "rotinas", "agenda", "pausa"] },
   { id: "quick-chat", titulo: "Abrir o Quick Chat", icone: "raio", palavras: ["janela", "rápido", "quick"] },
-  { id: "nova-sala", titulo: "Novo chat em grupo", icone: "sala", tecla: ["⇧", "N"], palavras: ["grupo", "conversa em grupo", "nova sala", "chat em grupo"] },
-  { id: "trabalhos", titulo: "Ver os trabalhos em andamento", icone: "trabalhos", palavras: ["frentes", "aguardando"] },
-  { id: "tarefas", titulo: "Ver as tarefas de todos os bots", icone: "trabalhos", palavras: ["tarefas", "quadros", "kanban"] },
+  { id: "nova-sala", titulo: "Novo chat em grupo", icone: "sala", palavras: ["grupo", "conversa em grupo", "nova sala", "chat em grupo"] },
+  { id: "trabalhos", titulo: "Ver as tarefas em andamento", icone: "trabalhos", palavras: ["trabalhos", "frentes", "aguardando"] },
+  { id: "tarefas", titulo: "Ver os cards de todos os bots", icone: "trabalhos", palavras: ["cards", "quadros", "kanban"] },
   { id: "sua-vez", titulo: "Ver o que espera você", icone: "trabalhos", palavras: ["aprovações", "pedidos", "sua vez", "aguardando"] },
   { id: "nao-lidos", titulo: "Ver não lidos", icone: "conversa", palavras: ["novas", "mensagens"] },
   { id: "barra", titulo: "Mostrar só os avatares na barra", icone: "barra", tecla: ["B"], palavras: ["compacta", "recolher", "sidebar"] },
@@ -70,7 +72,7 @@ export type SalaDaPaleta = { id: string; nome: string; conversaId: string; membr
  * Todos os itens, na ordem de cada grupo: bots na ordem da barra (o 1º leva ⌘1…⌘9), trabalhos do mais recente, ajustes
  * do catálogo e as ações. `mod` é o modificador do lugar ("⌘", "⌃" ou "Alt").
  */
-export function itensDaPaleta(o: { bots: readonly BotDaPaleta[]; trabalhos: readonly TrabalhoDaPaleta[]; mod: string; ajustes?: readonly Ajuste[]; /** Paper 08: o modo de aprovação e o tema de agora, para os dois atalhos de ajuste da paleta vazia. */ atuais?: { modo: string; temaEscuro: boolean; quickChat?: string }; salas?: readonly SalaDaPaleta[] }): ItemPaleta[] {
+export function itensDaPaleta(o: { bots: readonly BotDaPaleta[]; trabalhos: readonly TrabalhoDaPaleta[]; mod: string; ajustes?: readonly Ajuste[]; /** Paper 08: o modo de aprovação e o tema de agora, para os dois atalhos de ajuste da paleta vazia. */ atuais?: { modo: string; temaEscuro: boolean; quickChat?: string; /** Desfazer a pausa em lote: quantas rotinas ativas o "Pausar todas" pausaria. */ rotinasAtivas?: number }; salas?: readonly SalaDaPaleta[] }): ItemPaleta[] {
   const bots: ItemPaleta[] = o.bots.map((b, i) => ({
     chave: `bot:${b.id}`,
     grupo: "Bots",
@@ -118,6 +120,7 @@ export function itensDaPaleta(o: { bots: readonly BotDaPaleta[]; trabalhos: read
     chave: `acao:${a.id}`,
     grupo: "Ações",
     titulo: a.titulo,
+    ...(a.id === "pausar-rotinas" && o.atuais?.rotinasAtivas !== undefined ? { sub: subDoPausarTodas(o.atuais.rotinasAtivas) } : {}),
     ...(a.icone ? { icone: a.icone } : {}),
     ...(a.id === "quick-chat" && o.atuais?.quickChat ? { teclas: [o.atuais.quickChat, "Espaço"] } : a.tecla ? { teclas: [o.mod, ...a.tecla] } : {}),
     ...(VAZIAS[a.id] !== undefined ? { vazia: VAZIAS[a.id] } : {}),
@@ -125,6 +128,12 @@ export function itensDaPaleta(o: { bots: readonly BotDaPaleta[]; trabalhos: read
     ...(a.palavras ? { palavras: a.palavras } : {}),
   }));
   return [...bots, ...salas, ...trabalhos, ...atalhosDeAjuste, ...ajustes, ...acoes];
+}
+
+/** Protótipo "Desfazer pausa em lote" (Paper, 2026-11-19): o ⌘K diz quantas vai pausar e que dá para voltar. */
+export function subDoPausarTodas(ativas: number): string {
+  if (ativas === 0) return "Nenhuma rotina ativa agora";
+  return `Pausa ${ativas === 1 ? "a única ativa" : `as ${ativas} ativas`} · dá para desfazer`;
 }
 
 /** definido em 2026-11-12: o que cabe na paleta de 640×600 sem rolar muito; buscando, o grupo mostra até 6. */

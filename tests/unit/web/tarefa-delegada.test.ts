@@ -52,10 +52,10 @@ describe("pedido de colega na conversa (ADR-047/058)", () => {
     expect(renderMensagem(m, estado)).toContain("Resposta de Dev 1");
     const aviso: Mensagem = { ...m, texto: "Dev 1 não concluiu: você pediu para parar", payload: { kind: "peer_ask", agenteId: "dev1", nome: "Dev 1", naoSupervisionado: true, tarefaId: "tarefa", delegada: true, falhou: true, trabalhoId: "w-dev1" } };
     const html = renderMensagem(aviso, estado);
-    // Protótipo "Nod — tempo da task" (aprovado em 2026-10-08): uma linha; motivo e atalho para a task dele em "detalhes".
+    // Protótipo "Nod — tempo da tarefa" (aprovado em 2026-10-08): uma linha; motivo e atalho para a task dele em "detalhes".
     expect(html).toContain('<summary><span>Dev 1 não conseguiu terminar o pedido</span><span class="pf-detalhes">detalhes</span></summary>');
     expect(html).toContain("<span>você pediu para parar</span>");
-    expect(html).toContain('data-act="abrir-trabalho" data-id="w-dev1">Ver a task do Dev 1</button>');
+    expect(html).toContain('data-act="abrir-trabalho" data-id="w-dev1">Ver a tarefa do Dev 1</button>');
     expect(html).not.toContain("msg-peer\"");
   });
 });

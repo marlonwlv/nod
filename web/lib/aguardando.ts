@@ -67,8 +67,8 @@ export function contadorDosTrabalhos(o: { abertos: number; aguardando: number })
 
 /** O nome acessível da linha "Trabalhos": "Trabalhos, 3 abertos, 2 aguardando você". */
 export function rotuloDosTrabalhos(o: { abertos: number; aguardando: number }): string {
-  const partes = ["Trabalhos"];
-  if (o.abertos > 0) partes.push(`${o.abertos} ${o.abertos === 1 ? "aberto" : "abertos"}`);
+  const partes = ["Tarefas"];
+  if (o.abertos > 0) partes.push(`${o.abertos} ${o.abertos === 1 ? "aberta" : "abertas"}`);
   if (o.aguardando > 0) partes.push(`${o.aguardando} aguardando você`);
   return partes.join(", ");
 }

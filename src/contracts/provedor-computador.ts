@@ -45,7 +45,14 @@ export type CapacidadesProvedor = {
  * O computador como o provedor o vê. `id` é sempre o `computadores.id` do nod; o provedor guarda o próprio id (o UUID do
  * Orgo, o nome do container) por conta dele, derivado do nosso (nome `nod-<id>`), para não precisar de coluna nova.
  */
-export type RefComputador = { id: string; escopo?: { tenantId: string; pessoaId: string } };
+export type RefComputador = {
+  /** Id da alocação compartilhada da pessoa. Nunca é o id do bot. */
+  id: string;
+  escopo?: { tenantId: string; pessoaId: string };
+  /** Tela persistida no Nod e bot que a ocupa. Ausentes nas operações da máquina inteira. */
+  telaId?: string;
+  agenteId?: string;
+};
 
 export type EstadoNoProvedor = "inexistente" | "criando" | "ligado" | "suspenso" | "parado" | "erro";
 
@@ -61,6 +68,14 @@ export type SaudeComputador = {
 
 /** O acesso à tela ao vivo que o provedor dá (ADR-138 para o motor; VNC por WebSocket para os de fora). Segredo de sessão. */
 export type AcessoTelaAoVivo = { tipo: "vnc_websocket"; url: string; token: string; validoAte: number | null };
+
+/** Origem binária já autenticada de uma tela ao vivo. O relay é o único consumidor e fecha os dois lados juntos. */
+export type FluxoTelaAoVivo = {
+  enviar(bytes: Uint8Array): void;
+  aoDados(fn: (bytes: Uint8Array) => void): void;
+  aoFechar(fn: () => void): void;
+  fechar(codigo: number, motivo?: string): void;
+};
 
 export type BotaoMouse = "esquerdo" | "direito" | "meio";
 
@@ -109,9 +124,11 @@ export interface ProvedorDeComputador {
   /** Plano de dados mínimo (provedores de fora); `executarPorPrimitivas` faz o resto. */
   primitivas?: PrimitivasDeComputador;
   /** Com `primitivas`: a pasta de trabalho do bot na máquina (o /workspace do runtime do nod). */
-  raizDeTrabalho?: string;
+  raizDeTrabalho?: string | ((ref: RefComputador) => string);
   /** O acesso à tela ao vivo, quando `telaAoVivo` é `vnc_websocket`. */
   acessoTela?(ref: RefComputador): Promise<AcessoTelaAoVivo>;
+  /** Origem local pronta para o relay (Docker: `docker exec` → socket Unix do x11vnc). */
+  abrirTelaAoVivo?(ref: RefComputador): Promise<FluxoTelaAoVivo>;
 }
 
 /**

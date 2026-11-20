@@ -160,3 +160,16 @@ describe("teste de verdade: 'Seus bots já têm uma IA'", () => {
     expect(r.cliques().map((c) => c.acao)).toEqual(["onboarding-ia-continuar"]);
   });
 });
+
+// Integração: a saída para a conta da web permanece disponível na região React do preview.
+it("permite entrar na conta enquanto procura a IA e depois da busca", () => {
+  for (const procurando of [true, false]) {
+    const r = executor(tela({ entrarNaConta: true, procurando }));
+    expect(r.html).toContain("Já usa o nod em outro computador?");
+    expect(r.cliques()).toContainEqual({ acao: "onboarding-entrar-na-conta", dados: {}, rotulo: "Entrar na sua conta" });
+    r.unmount();
+    const sem = executor(tela({ entrarNaConta: false, procurando }));
+    expect(sem.html).not.toContain("Entrar na sua conta");
+    sem.unmount();
+  }
+});

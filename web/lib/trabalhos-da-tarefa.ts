@@ -226,7 +226,7 @@ export function criarTrabalhosDaTarefa(o: {
       }
       // O 409 não abriu nada: o trabalho roda (o duplo clique, outra aba) ou a tarefa está fora do andamento (Feito,
       // Cancelado, Backlog: revisão 2 do PR #625).
-      if (de === alvo) aviso = e instanceof ErroApi && e.codigo === "estado_invalido" ? (turnoEscutado(dados) ? "Já está rodando: cancele antes." : "A tarefa não está em andamento: mova-a antes.") : "Não consegui. Tente de novo.";
+      if (de === alvo) aviso = e instanceof ErroApi && e.codigo === "estado_invalido" ? (turnoEscutado(dados) ? "Já está rodando: cancele antes." : "O card não está em andamento: mova-o antes.") : "Não consegui. Tente de novo.";
       if (de === alvo && aviso) falar(aviso);
       // O servidor recusou (409, regra): tentar o mesmo de novo falha igual. Só a rede ganha o "Tentar de novo".
       // Revisão 9: a queda de rede é ErroApi com status 0, que não é recusa.

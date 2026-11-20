@@ -196,7 +196,7 @@ function extrasDoCard(c: Card): string {
   const cor = (x?: string | null): string => (x && /^#[0-9a-f]{3,8}$/i.test(x) ? ` style="--qm-cor:${x}"` : "");
   const paleta = (x?: string | null): string => (x && /^[a-z]+$/.test(x) ? ` class="qd-label-ponto" data-cor="${esc(x)}"` : "");
   const labels = (c.labels ?? []).map((l) => `<span class="qd-tag qm-label"${cor(l.cor)}><i${paleta(l.cor)} aria-hidden="true"></i>${esc(l.nome)}</span>`).join("");
-  const prazo = c.prazo ? `<span class="qd-tag qm-prazo${c.prazo.vencida ? " qm-vencida" : ""}" title="${esc(c.prazo.vencida ? `Vencida: ${c.prazo.texto}` : `Prazo: ${c.prazo.texto}`)}">${esc(c.prazo.texto)}${c.prazo.vencida ? '<span class="qd-sr">, vencida</span>' : ""}</span>` : "";
+  const prazo = c.prazo ? `<span class="qd-tag qm-prazo${c.prazo.vencida ? " qm-vencida" : ""}" title="${esc(c.prazo.vencida ? `Vencido: ${c.prazo.texto}` : `Prazo: ${c.prazo.texto}`)}">${esc(c.prazo.texto)}${c.prazo.vencida ? '<span class="qd-sr">, vencido</span>' : ""}</span>` : "";
   return labels + prazo;
 }
 
@@ -240,7 +240,7 @@ export function avataresDoCard(c: Card): { html: Html; rodam: QuemRoda[] } {
 
 function estadoDoCard(c: Card): Html {
   if (c.motivo) {
-    return h(`<span class="qd-estado qd-e-bloqueado" title="${esc(`bloqueada: ${c.motivo}`)}">${ICONE.pausa}<span>${esc(c.motivo)}</span></span>`);
+    return h(`<span class="qd-estado qd-e-bloqueado" title="${esc(`bloqueado: ${c.motivo}`)}">${ICONE.pausa}<span>${esc(c.motivo)}</span></span>`);
   }
   if (c.espera) return chipDeEspera(c.espera);
   if (c.esperando) {
@@ -276,7 +276,7 @@ export function rotuloDoCard(c: Card): string {
   const { rodam } = avataresDoCard(c);
   return [
     c.codigo ?? c.id, c.titulo, c.responsavel?.nome,
-    c.motivo ? `bloqueada: ${c.motivo}` : "",
+    c.motivo ? `bloqueado: ${c.motivo}` : "",
     c.espera ? `${c.espera.texto}${c.perguntou ? `: ${c.perguntou}` : ""}` : c.perguntou !== undefined ? `te perguntou${c.perguntou ? `: ${c.perguntou}` : ""}` : "",
     !c.motivo && !c.espera && c.esperando ? fraseEsperando(c.esperando.motivo) : "",
     ...rodam.map((q) => rotuloDoAvatar(q.nome, "rodando", q.acao, q.tempo)),
@@ -427,7 +427,7 @@ export function partesDaColuna(c: Coluna): PartesDaColuna {
     : `<li class="qd-col-mais">${esc(`e mais ${c.mais}`)}</li>`;
   // NOD-460: o vazio "" (filtro ou busca sem nada) não diz nada na coluna: a linha do vazio fica sobre a grade.
   const vazio = !cards.length && !c.mais && c.vazio !== "" ? `<li class="qd-col-vazio">${esc(c.vazio ?? "Nada aqui")}</li>` : "";
-  const add = c.novaTarefa ? `<button type="button" class="qd-col-add" data-act="col-nova-tarefa" data-status="${id}" aria-label="${esc(`Nova tarefa em ${c.nome}`)}" title="${esc(`Nova tarefa em ${c.nome}`)}" aria-expanded="${c.novaTarefa.aberta}">${ICONE.novo}</button>` : "";
+  const add = c.novaTarefa ? `<button type="button" class="qd-col-add" data-act="col-nova-tarefa" data-status="${id}" aria-label="${esc(`Novo card em ${c.nome}`)}" title="${esc(`Novo card em ${c.nome}`)}" aria-expanded="${c.novaTarefa.aberta}">${ICONE.novo}</button>` : "";
   const ed = c.editavel;
   const dica = ed ? (ed.fixa ? `Recolher ${c.nome} · clique duplo renomeia` : `Recolher ${c.nome} · clique duplo renomeia · arraste para mover`) : `Recolher ${c.nome}`;
   const atalhos = ed ? ` aria-keyshortcuts="${ed.fixa ? "F2" : "F2 Alt+ArrowLeft Alt+ArrowRight"}"${ed.fixa ? "" : " data-arrasta"}` : "";
@@ -484,7 +484,7 @@ export function menuDoExibir(e: ExibirDaBarra, id = "qd-menu-exibir"): Html {
 export function barra(o: { filtro: Filtro; trabalhando?: QuemRoda[]; curto?: boolean; extra?: Html; ajustes?: boolean; comigo?: number; chips?: ChipDaBarra[]; maisChips?: ChipDaBarra[]; maisAberto?: boolean; busca?: string; exibir?: ExibirDaBarra }): Html {
   const pressed = (k: Filtro): string => `aria-pressed="${o.filtro === k}"`;
   const n = (k: number): string => `<span class="qd-chip-n">${k}</span>`;
-  const todas = `<button type="button" class="qd-filtro-bt qd-chip" data-act="filtro-do-quadro" data-filtro="todos" ${pressed("todos")}><span>Todas</span></button>`;
+  const todas = `<button type="button" class="qd-filtro-bt qd-chip" data-act="filtro-do-quadro" data-filtro="todos" ${pressed("todos")}><span>Todos</span></button>`;
   // "Comigo (n)" fica sempre à vista, mesmo com 0 (revisão 2 do PR #645: o critério e o protótipo; o 0 já responde "o que é meu?").
   const comigo = o.comigo !== undefined
     ? `<button type="button" class="qd-filtro-bt qd-chip" data-act="filtro-do-quadro" data-filtro="comigo" ${pressed("comigo")} aria-label="${esc(`Comigo, ${o.comigo}`)}"><span>Comigo</span>${n(o.comigo)}</button>` : "";
@@ -497,7 +497,7 @@ export function barra(o: { filtro: Filtro; trabalhando?: QuemRoda[]; curto?: boo
     ? `<span class="qd-chip-mais-l"><button type="button" class="qd-filtro-bt qd-chip qd-chip-mais" data-act="filtro-mais-agentes" aria-haspopup="menu" aria-expanded="${!!o.maisAberto}"${o.maisAberto ? ' aria-controls="qd-menu-agentes"' : ""} aria-label="${esc(`Mais ${resto.length} ${resto.length === 1 ? "agente" : "agentes"}`)}">+${resto.length}</button>` +
       (o.maisAberto ? `<div class="qd-menu qd-menu-ag" id="qd-menu-agentes" role="menu" aria-label="Mais agentes">${resto.map((c) => `<button type="button" role="menuitemradio" class="qd-menu-it" data-act="filtro-do-quadro" data-filtro="${esc(`agente:${c.agenteId}`)}" aria-checked="false"><span class="qd-chip-av" aria-hidden="true">${emudecer(c.avatar)}</span><span class="qd-chip-nome">${esc(c.nome)}</span>${n(c.n)}</button>`).join("")}</div>` : "") + `</span>`
     : "";
-  const filtros = `<div class="qd-filtros" role="group" aria-label="Filtrar tarefas">${todas}${comigo}${(o.chips ?? []).map(chip).join("")}${mais}</div>`;
+  const filtros = `<div class="qd-filtros" role="group" aria-label="Filtrar cards">${todas}${comigo}${(o.chips ?? []).map(chip).join("")}${mais}</div>`;
   const quem = o.trabalhando ?? [];
   const avs = quem.map((q) => avatar({ ...q, estado: "rodando" })).join("");
   const k = quem.length;
@@ -508,7 +508,7 @@ export function barra(o: { filtro: Filtro; trabalhando?: QuemRoda[]; curto?: boo
     : o.chips ? `<button type="button" class="qd-trabalhando qd-trab" data-act="filtro-do-quadro" data-filtro="trabalhando" ${pressed("trabalhando")}>${pilha}${k ? `${k} trabalhando` : "Trabalhando"}</button>`
       : `<span class="qd-trabalhando">${pilha}${frase}</span>`;
   const busca = o.busca === undefined ? ""
-    : `<span class="qd-busca-l"><label class="qd-busca">${ICONE_BUSCA}<span class="qd-sr">Buscar tarefa por título ou código</span>` +
+    : `<span class="qd-busca-l"><label class="qd-busca">${ICONE_BUSCA}<span class="qd-sr">Buscar card por título ou código</span>` +
       `<input type="search" id="qd-busca" class="qd-busca-in" data-campo="busca" placeholder="Buscar" value="${esc(o.busca)}" maxlength="200" autocomplete="off" spellcheck="false" aria-keyshortcuts="/">` +
       `${o.busca ? "" : `<kbd class="qd-kbd" title="Atalho: /" aria-hidden="true">/</kbd>`}</label>` +
       `${o.busca ? `<button type="button" class="qd-busca-limpar" data-act="busca-limpar" aria-label="Limpar busca">×</button>` : ""}</span>`;
@@ -530,7 +530,7 @@ export function seloEmTeste(texto = "Em teste · só você vê", titulo = "Recur
 
 export function linha(c: Card): Html {
   const av = avataresDoCard(c);
-  const est = c.motivo ? `<span class="qd-l-est qd-e-bloqueado" title="${esc(`bloqueada: ${c.motivo}`)}">${ICONE.pausa}</span>` : "";
+  const est = c.motivo ? `<span class="qd-l-est qd-e-bloqueado" title="${esc(`bloqueado: ${c.motivo}`)}">${ICONE.pausa}</span>` : "";
   const sel = !c.aviso && !c.motivo && c.estado === "rodando" ? seloTrabalhando(c.rodandoHa) : "";
   const fim = c.aviso ? aviso(c.aviso) : `${est}${sel}<span class="qd-id">${c.codigoHtml ?? esc(c.codigo ?? c.id)}</span>`;
   return h(`<li class="${cl("qd-l", c.menu && "qd-com-menu", c.aviso && "qd-com-aviso", c.classe && esc(c.classe))}" data-tarefa="${esc(c.id)}">` +
@@ -542,7 +542,7 @@ export function lista(o: { grupos: { status: string; nome: string; icone?: Statu
   const g = o.grupos.map((gr) => {
     const n = gr.n ?? gr.linhas.length;
     const cab = `<h3 class="qd-lg-cab"><button type="button" class="qd-lg-bt" data-act="abrir-coluna" data-status="${esc(gr.status)}" aria-expanded="${!gr.recolhido}">${gr.avatar ? `<span class="qm-av qm-col-av" aria-hidden="true">${emudecer(gr.avatar)}</span>` : iconeDe(gr)}<span>${esc(gr.nome)}</span><span class="qd-n">${n}</span>${gr.recolhido ? ICONE.chev : ""}</button>` +
-      `${gr.recolhido || !o.novaTarefa ? "" : `<button type="button" class="qd-lg-mais" data-act="col-nova-tarefa" data-status="${esc(gr.status)}" aria-label="${esc(`Nova tarefa em ${gr.nome}`)}">${ICONE.novo}</button>`}</h3>`;
+      `${gr.recolhido || !o.novaTarefa ? "" : `<button type="button" class="qd-lg-mais" data-act="col-nova-tarefa" data-status="${esc(gr.status)}" aria-label="${esc(`Novo card em ${gr.nome}`)}">${ICONE.novo}</button>`}</h3>`;
     // Aberto e vazio diz que está vazio (como a coluna da grade), em vez de abrir nada; o vazio "" (NOD-460) não diz.
     const corpo = gr.linhas.length ? gr.linhas.join("") : gr.vazio === "" ? "" : `<li class="qd-col-vazio">${esc(gr.vazio ?? "Nada aqui")}</li>`;
     return `<section class="${cl("qd-lg", gr.recolhido && "qd-lg-recolhido")}" aria-label="${esc(gr.nome)}">${cab}${gr.recolhido ? "" : `<ul class="qd-lg-lista">${corpo}</ul>`}</section>`;

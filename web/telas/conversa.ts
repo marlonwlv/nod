@@ -1,3 +1,4 @@
+import { textoAberto } from "../lib/textos-abertos.ts";
 import { avisoNaFila } from "../lib/executar-rotina.ts";
 import { renderCardColunas } from "./card-colunas.ts";
 import { renderCardImportacao } from "./card-importacao.ts";
@@ -15,11 +16,13 @@ import type { Inventario } from "../../src/contracts/inventario.ts";
 import type { TarefaDoBot } from "../../src/contracts/turno.ts";
 import type { EstadoVivoBot } from "../../src/contracts/estado-vivo.ts";
 import type { ConversaEstado, Estado, FalaPendente, FalaSaindo, TurnoVivo } from "../estado/reducer.ts";
+import type { Cancelamento } from "../lib/cancelar-na-fila.ts";
 import { assinatura } from "../lib/assinatura.ts";
 import { ICONE } from "../lib/icones.ts";
 import { botao, dataHora, esc, hora, iconeAgente, paragrafos } from "../lib/render.ts";
 import type { EstadoMascote } from "../lib/mascote.ts";
 import { iaDoBotAgora, maquinaDoBot, presencaPorMaquina } from "./maquinas.ts";
+import { semIaNaMaquina, type SemIaNaMaquina } from "./contas-na-maquina.ts";
 import { outraMaquinaDestaVez } from "../lib/rodar-desta-vez.ts";
 import { acordandoNaFila } from "../lib/maquina-nuvem.ts";
 import { COMET_MS, contagemDasAcoes, estadoDaFala, falaNoBalao, GRUPOS_A_VISTA, itensDoPensamento, textoEscrevendo, type AtividadeTurno, type ItemDoPensamento, type LinhaDoResumo, type VigiaDaAtividade } from "../lib/atividade.ts";
@@ -71,7 +74,7 @@ import { escolhaEfetiva, iasDaTela, inteligenciaDoBot } from "./inteligencia.ts"
 import { htmlBotaoDitado, htmlPilulaDitado } from "./ditado.ts";
 import { renderLinhaLigacao } from "./ligacao.ts";
 import { conversaLimpa, emOrdemDoChat, htmlTroca, juntarTrocas, lugarDosBastidores, NENHUM_TURNO_VIVO, planejarLinhas, type PlanoMensagem, type TurnosDaPessoaVivos } from "./linhas-do-chat.ts";
-import { aberto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { trabalhosConhecidos } from "../lib/trabalhos.ts";
 import { TEXTO_FALHA_LEITURA } from "../lib/ouvir.ts";
 import { acoesDaFala, chipsDeReacao, citacaoAcimaDoBalao } from "./acoes-da-fala.ts";
 import { desfazerDaFala } from "./desfazer.ts";
@@ -271,6 +274,11 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   // NOD-449: o card dos não lidos e o recibo de "marcada como lida", da ferramenta nao_lidos de qualquer bot.
   if (m.kind === "sistema" && p?.kind === "nao_lidos_lista") return cartaoNaoLidos(p, estado);
   if (m.kind === "sistema" && p?.kind === "recibo_leitura") return reciboLeitura(m, p);
+  if (m.kind === "sistema" && p?.kind === "decisoes_resumo") {
+    const linhas = p.linhas.map((l) => `<li><span>${esc(new Date(l.em).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span> ${esc(l.frase)}</li>`).join("");
+    const filtro = p.desfecho ?? "tudo";
+    return `<div class="cp"><div class="cp-titulo">${esc(`${p.total} ${p.total === 1 ? "decisão" : "decisões"} de ${p.agenteNome}`)}</div><ol class="atv-lista dec-lista">${linhas}</ol><button type="button" class="atv-link" data-act="decisoes-negadas" data-agente="${esc(p.agenteId)}" data-dia="${esc(p.ate)}" data-filtro="${esc(filtro)}">Ver nas Decisões</button></div>`;
+  }
   // ADA-228 (J7-5): a lista compacta dos canvas, do listar {mostrar: true}; cada nome abre o canvas.
   if (m.kind === "sistema" && p?.kind === "canvas_lista") {
     return `<div class="cv-lst-chat">${htmlDaListaCompacta(p.itens.map((c) => ({ id: c.canvasId, issue: c.issue, titulo: c.titulo, versao: c.versao, estado: c.estado, etapa: c.etapa, aprovadoEm: c.aprovadoEm ?? null })))}</div>`;
@@ -315,7 +323,7 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   // o motivo e o atalho para a task dele ficam atrás de "detalhes".
   if (p?.kind === "peer_ask" && p.falhou) {
     const motivo = m.texto.replace(/^[\s\S]*?não concluiu:\s*/, "");
-    const link = p.trabalhoId ? `<button type="button" class="pf-link" data-act="abrir-trabalho" data-id="${esc(p.trabalhoId)}">Ver a task do ${esc(p.nome)}</button>` : "";
+    const link = p.trabalhoId ? `<button type="button" class="pf-link" data-act="abrir-trabalho" data-id="${esc(p.trabalhoId)}">Ver a tarefa do ${esc(p.nome)}</button>` : "";
     return `<div class="msg-peer-falhou"><details data-disclosure="peer-falhou-${esc(m.id)}"><summary><span>${esc(p.nome)} não conseguiu terminar o pedido</span><span class="pf-detalhes">detalhes</span></summary><div class="pf-corpo"><span>${esc(motivo)}</span>${link}</div></details></div>`;
   }
   if (p?.kind === "peer_ask") return `<div class="msg-peer"><div class="handoff-titulo">↙ <b>${p.falhou ? "Não concluído por" : "Resposta de"} ${esc(p.nome)}</b></div><div>${textoFormatado(m.texto, { chave: m.id })}</div><small class="mudo">Contribuição de outro bot · confira as fontes</small></div>`;
@@ -333,7 +341,7 @@ export function linhaDaTarefa(m: Pick<Mensagem, "texto" | "criadoEm">, p: Extrac
   const i = texto.indexOf(p.codigo);
   const antes = i >= 0 ? texto.slice(0, i) : "";
   const depois = i >= 0 ? texto.slice(i + p.codigo.length) : ` ${texto}`;
-  const codigo = `<button type="button" class="linha-link md-tarefa-link" data-act="abrir-tarefa-quadro" data-agente="${esc(p.agenteId)}" data-tarefa="${esc(p.tarefaId)}" aria-label="Abrir tarefa ${esc(p.codigo)} no quadro">${esc(p.codigo)}</button>`;
+  const codigo = `<button type="button" class="linha-link md-tarefa-link" data-act="abrir-tarefa-quadro" data-agente="${esc(p.agenteId)}" data-tarefa="${esc(p.tarefaId)}" aria-label="Abrir o card ${esc(p.codigo)} no quadro">${esc(p.codigo)}</button>`;
   return `<div class="linha-centro-wrap"><span class="linha-centro estatica linha-tarefa linha-tarefa-${p.motivo}" data-tarefa="${esc(p.tarefaId)}">${esc(antes)}${codigo}${esc(depois)}<span class="linha-hora">· ${esc(hora(m.criadoEm))}</span></span></div>`;
 }
 
@@ -479,13 +487,31 @@ function avisoSemExecutor(m: Mensagem, estado: Estado): string {
     const a = iaDoAlvo ? inventarioDaIa(estado, iaDoAlvo)?.atualizacao : undefined;
     return linhaIaVoltou(iaDoAlvo, a?.fase === "sucesso" && a.em > m.criadoEm ? a : null);
   }
+  // definido em 2026-11-17: a recusa é da MÁQUINA (a que recusou no despacho; nas antigas e no envio, a do bot), e a cota
+  // da tela é da conta. Com a máquina conhecida, o aviso a nomeia, diz o estado de cada conta nela e abre as contas DELA.
+  const sem = semIaDaMaquinaDoAviso(estado, negacao, bot ?? null, fixado);
+  const onde = sem ? ` na ${sem.nome}` : "";
+  const estadoDasContas = !sem ? "" : sem.conectada ? (sem.frase ? ` ${sem.frase}` : "") : ` A ${sem.nome} está sem contato com o Nod.`;
   return avisoDeEstado({
     tom: "erro",
     titulo: "Nenhum trabalho começou.",
-    texto: `${nome ?? "O bot"} não pôde começar: nenhuma IA está pronta agora. Sua mensagem fica guardada: quando a IA voltar, ${nome ?? "o bot"} responde sozinho.`,
+    texto: `${nome ?? "O bot"} não pôde começar: nenhuma IA está pronta agora${onde}.${estadoDasContas} Sua mensagem fica guardada: quando a IA voltar, ${nome ?? "o bot"} responde sozinho.`,
     extra: detalhes,
-    acao: botao("secao-espaco", "Conectar IA", { classe: "pri sm", dados: { secao: "conexao" } }),
+    acao: !sem ? botao("secao-espaco", "Conectar IA", { classe: "pri sm", dados: { secao: "conexao" } })
+      : sem.conectada ? botao("cl-gerenciar", `Ver contas na ${esc(sem.nome)}`, { classe: "pri sm", dados: { maquina: sem.maquina.id } })
+      : botao("secao-espaco", "Ver máquinas", { classe: "pri sm", dados: { secao: "maquinas" } }),
   });
+}
+
+/** A máquina do aviso sem IA: a que recusou (`maquina` da negação); sem ela, a do bot. null = não se sabe qual, ou sem contas. */
+function semIaDaMaquinaDoAviso(estado: Estado, negacao: { maquina?: string } | null, bot: FrotaDto["agentes"][number] | null, fixado: IdIa | null): SemIaNaMaquina | null {
+  const lista = estado.maquinas?.maquinas ?? [];
+  const contas = estado.contasIa;
+  if (!contas?.disponivel) return null;
+  const maquina = (negacao?.maquina ? lista.find((m) => m.id === negacao.maquina) : undefined) ?? (bot ? maquinaDoBot(estado, bot) : null);
+  if (!maquina) return null;
+  const ia = fixado === "claude-cli" || fixado === "codex-cli" ? fixado : null;
+  return semIaNaMaquina({ maquina, maquinas: lista, contas: contas.contas, agora: estado.agora, ia });
 }
 
 /**
@@ -530,20 +556,54 @@ export function midiasDoBot(m: Mensagem, estado: Estado): string {
 const temMidiaDoBot = (m: Mensagem): boolean => m.autoria.autor_tipo !== "pessoa" && (m.anexos ?? []).some((a) => a.origem === "bot" || ehCaptura(m, a));
 
 /**
- * COP-14 (item 1, definido em 2026-11-12): a mensagem mandada com o bot trabalhando entra como qualquer balão — sem chip
- * "Na fila", sem relógio, sem Cancelar/Desfazer e sem "Cancelada · não rodou"; quem quer interromper usa o Parar do campo.
- * No servidor nada muda: a sessão viva absorve a mensagem no turno em curso, e o resto é lido junto no próximo turno.
- * Fica só a exceção do nod: a mensagem não vai ser lida logo porque a máquina do bot está desligada, acordando ou sem IA.
- * Aí uma linha discreta embaixo do balão diz isso, sem botão.
+ * COP-14 (item 1, definido em 2026-11-12) e Acessos · fila (revisto em 2026-11-16): a mensagem mandada com o bot
+ * trabalhando entra como qualquer balão — sem chip, sem relógio e sem apagar a cor (o "em voo" é só `data-na-fila` e
+ * `aria-busy` na linha). Embaixo dela, alinhada à direita, uma linha pequena enquanto há o que fazer: "Na fila · Cancelar"
+ * (ou a exceção do nod — máquina desligada, acordando ou sem IA — com o mesmo Cancelar). O Cancelar vai ao servidor na
+ * hora (web/lib/cancelar-na-fila.ts) e a linha segue a fase: "Cancelando…", "Cancelada · não rodou · Desfazer" por 5 s,
+ * "Já entrou no turno · não deu para cancelar" (409) ou "Não consegui cancelar · Tentar de novo". Sala e tela da task
+ * continuam sem Cancelar (NOD-376: o recado da task não tem desfazer). Nada de "lê quando terminar o turno atual".
  */
-type SituacaoFila = { tipo: "na_fila"; texto: string };
+type SituacaoFila = {
+  tipo: "na_fila" | "cancelando" | "cancelada" | "tarde" | "erro" | "oculta" | "na_sessao" | "lida";
+  texto: string;
+  /** O botão de texto da linha (Cancelar, Desfazer ou Tentar de novo). */
+  botao?: { act: "cancelar-turno" | "desfazer-cancelamento"; rotulo: string; aria: string };
+};
+
+const CANCELAR = { act: "cancelar-turno", rotulo: "Cancelar", aria: "Cancelar só esta mensagem" } as const;
+
+function daFase(c: Cancelamento): SituacaoFila {
+  switch (c.fase) {
+    case "cancelando": return { tipo: "cancelando", texto: "Cancelando…" };
+    case "cancelada": return { tipo: "cancelada", texto: c.aviso ? `Cancelada · ${c.aviso}` : "Cancelada · não rodou", ...(c.desfazivel ? { botao: { act: "desfazer-cancelamento", rotulo: "Desfazer", aria: "Desfazer o cancelamento desta mensagem" } } : {}) };
+    case "voltou": return { tipo: "cancelada", texto: "Cancelada · voltou para o campo" };
+    case "desfeita": return { tipo: "oculta", texto: "" };
+    case "tarde": return { tipo: "tarde", texto: "Já entrou no turno · não deu para cancelar" };
+    case "erro": return { tipo: "erro", texto: "Não consegui cancelar", botao: { act: "cancelar-turno", rotulo: "Tentar de novo", aria: "Tentar cancelar esta mensagem de novo" } };
+  }
+}
 
 export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { turnoId: string }) | null {
   if (m.autoria.autor_tipo !== "pessoa") return null;
   const c = estado.conversas[m.conversaId];
-  if (!c) return null;
+  if (!c?.conversa || c.conversa.salaId) return null;
+  // A fase local (o clique desta aba) manda sobre a leitura: o turno já cancelado ou absorvido ainda mostra o desfecho.
+  const local = Object.entries(estado.cancelando).find(([, x]) => x.mensagemId === m.id && x.conversaId === m.conversaId);
+  if (local) return { ...daFase(local[1]), turnoId: local[0] };
+  const cancelado = c.turnosCancelados.find((t) => t.mensagemId === m.id);
+  if (cancelado) return { tipo: "cancelada", texto: "Cancelada · não rodou", turnoId: cancelado.id };
+  // ADR-185 (definido em 2026-11-16): a fala que o turno vivo absorveu. Escrita na sessão não é lida: o bot só a lê no fim
+  // do passo em que está (de uma ferramenta ou da resposta). O selo diz isso, e vira "Lida" quando ele chega lá; some
+  // quando o turno acaba. Sem Cancelar: ela já está na sessão. Se a pessoa parar antes, ela volta para a fila.
+  const naSessao = c.turnosNaSessao?.find((t) => t.mensagemId === m.id);
+  if (naSessao) {
+    if (naSessao.lidoEm !== null) return { tipo: "lida", texto: "Lida", turnoId: naSessao.id };
+    const bot = c.conversa.agenteId ? agenteDe(estado, c.conversa.agenteId)?.nome : undefined;
+    return { tipo: "na_sessao", texto: `Entregue · ${bot ?? "O bot"} lê quando terminar o que está fazendo`, turnoId: naSessao.id };
+  }
   const emCurso = c.turnosEmCurso.find((t) => t.mensagemId === m.id);
-  if (!emCurso) return null;
+  if (!emCurso || emCurso.estado !== "pendente" || emCurso.trabalhoId) return null;
   // O estado VIVO manda: o frame turno.iniciado 'despachado' tira a linha antes do REST reler a conversa.
   if (estado.turnosVivos[emCurso.id]?.estado !== "na_fila") return null;
   const agente = c.conversa.agenteId ? agenteDe(estado, c.conversa.agenteId) : undefined;
@@ -551,27 +611,52 @@ export function situacaoNaFila(m: Mensagem, estado: Estado): (SituacaoFila & { t
   const destaVez = emCurso.maquinaDestaVez ? (estado.maquinas?.maquinas ?? []).find((x) => x.id === emCurso.maquinaDestaVez) ?? null : null;
   const doBot = destaVez ?? (agente ? maquinaDoBot(estado, agente) : null);
   const doTrabalho = (estado.trabalhos?.trabalhos ?? []).find((t) => t.conversaId === c.conversa.id && t.maquina?.acordando)?.maquina ?? null;
-  if (acordandoNaFila(doBot, doTrabalho)) return { tipo: "na_fila", turnoId: emCurso.id, texto: "Ligando a máquina…" };
-  if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) return { tipo: "na_fila", turnoId: emCurso.id, texto: `${nome} está sem IA configurada` };
-  if (doBot && !doBot.conectada) return { tipo: "na_fila", turnoId: emCurso.id, texto: `${nome} lê quando a máquina ligar` };
-  return null;
+  const naFila = (texto: string): SituacaoFila & { turnoId: string } => ({ tipo: "na_fila", texto, botao: CANCELAR, turnoId: emCurso.id });
+  if (acordandoNaFila(doBot, doTrabalho)) return naFila("Ligando a máquina…");
+  if (doBot && doBot.conectada && !Object.values(doBot.ias).includes("pronto")) return naFila(`${nome} está sem IA configurada`);
+  if (doBot && !doBot.conectada) return naFila(`${nome} lê quando a máquina ligar`);
+  return naFila("Na fila");
 }
 
-function renderSituacaoFila(s: SituacaoFila): string {
-  return `<div class="fila-linha" role="status">${esc(s.texto)}</div>`;
+const QUADRADO_PARADO = '<svg class="lp-ic" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>';
+
+const ICONE_PAUSA = '<svg class="lp-ic" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="currentColor"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="currentColor"/></svg>';
+
+/** ADR-185: a linha fixa embaixo do texto que a pessoa parou, com o "Mostrar o texto todo" / "Mostrar menos". */
+function linhaDaParada(mensagemId: string, rotulo: string, em: number, recolhido: boolean, recolhivel = true): string {
+  if (!recolhivel) return `<div class="linha-parada linha-pausada">${ICONE_PAUSA}<span>${esc(rotulo)} · ${esc(hora(em))}</span></div>`;
+  const bt = `<button type="button" class="lp-mais" data-act="alternar-texto" data-id="${esc(mensagemId)}" aria-expanded="${recolhido ? "false" : "true"}">${recolhido ? "Mostrar o texto todo" : "Mostrar menos"}</button>`;
+  return `<div class="linha-parada">${QUADRADO_PARADO}<span>${esc(rotulo)} · ${esc(hora(em))}</span><span class="lp-sep" aria-hidden="true">·</span>${bt}</div>`;
+}
+
+/**
+ * ADR-185: o caso comum do Parar ("Parado por você", nada fora do esperado) já está na linha do texto parado; a faixa do
+ * fim da conversa só sai quando não há esse texto (o bot parou antes de escrever) ou quando conta algo inesperado.
+ */
+function faixaQueFalta(f: Estado["faixaParada"], mensagens: readonly Mensagem[]): Estado["faixaParada"] {
+  if (!f || f.nadaRodando || f.naoInterrompidas.length || f.jaEntregues.length) return f;
+  const ultimaDoBot = [...mensagens].reverse().find((m) => m.autoria.autor_tipo === "agente" && m.kind === "texto");
+  return ultimaDoBot?.paradaPelaPessoaEm ? null : f;
+}
+
+function renderSituacaoFila(s: SituacaoFila & { turnoId: string }): string {
+  const bt = s.botao ? `<span class="fila-sep" aria-hidden="true"> · </span>${botao(s.botao.act, s.botao.rotulo, { classe: "link", id: s.turnoId, aria: s.botao.aria })}` : "";
+  return `<div class="fila-linha" role="status" data-fila="${s.tipo}"><span>${esc(s.texto)}</span>${bt}</div>`;
 }
 
 /**
  * NOD-376: o chip da fala que a pessoa escreveu na tela da frente — o mesmo `.fila-chip` discreto da conversa, sem o
  * Cancelar (o turno do recado não tem Desfazer). A situação vem do detalhe da task (`falasNaFila`).
  */
-export function chipDaFalaNaFrente(situacao: "na_fila" | "entregue" | "lendo", bot: string, frente: { rodando: boolean; precisaDeVoce?: boolean }): string {
+export function chipDaFalaNaFrente(situacao: "na_fila" | "entregue" | "lendo" | "guardada", bot: string, frente: { rodando: boolean; precisaDeVoce?: boolean }): string {
   const texto =
-    situacao === "lendo" ? `Entregue · ${bot} está lendo agora`
+    // ADR-187 §6 + ADR-185 (2026-11-18, Paper 4s): a tarefa parou antes de ler; a fala volta à fila quando ela continua.
+    situacao === "guardada" ? `Guardada · ${bot} lê quando a tarefa continuar`
+    : situacao === "lendo" ? `Entregue · ${bot} está lendo agora`
     : situacao === "entregue" ? `Entregue · ${bot} lê ao fim do passo atual`
     : frente.precisaDeVoce ? `Na fila · ${bot} lê depois que você responder o que ele perguntou`
     : frente.rodando ? `Na fila · ${bot} lê no próximo passo`
-    : `Na fila · ${bot} volta à frente para responder`;
+    : `Na fila · ${bot} volta à tarefa para responder`;
   return `<div class="fila-chip" role="status"><span class="fila-relogio" aria-hidden="true"></span>${esc(texto)}</div>`;
 }
 
@@ -611,8 +696,7 @@ export const ETIQUETA_CURTA = 16;
  * `etiqueta` (definido em 2026-10-07, #191/#195): a fala que chega de uma rotina ou de uma task leva "da rotina …" /
  * "da task …" ao lado do nome — é balão porque é para a pessoa, mas não é resposta à última mensagem dela.
  * `progresso` (chat limpo, PR 7): o marcador do bloco de progresso das frentes que esta fala abriu (./progresso-na-fala.ts).
- * Na fala do bot ele fica dentro do balão, depois do texto (protótipo "4"); no balão da pessoa (a frente da rede), embaixo
- * dele. Nos dois, antes das reações: o progresso é conteúdo da fala; a reação é sobre ela (decisão 20 do plano).
+ * Fica embaixo do balão (da fala do bot ou, na frente da rede, do balão da pessoa; ADR-187), antes das reações: o progresso é conteúdo da fala; a reação é sobre ela (decisão 20 do plano).
  * `diagramas` (NOD-328): só a timeline de conversa e sala liga; Trabalhos reaproveita esta função e fica com o card.
  * `linhaDoModo` (PR 6 dos modos de aprovação, telas Y1 e Y2): a linha discreta do que o "Ignorar todas" rodou sem a
  * pessoa neste turno (./linha-do-modo.ts), logo embaixo do balão do bot e antes das reações.
@@ -661,7 +745,7 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // modo dev e no Raio-X (`ondeRodou`, ./modo-dev.ts); "não confiável" e "parcial" ficam, porque dizem algo do texto.
   const tags = ehPessoa || m.payload?.kind === "peer_pedido" || m.payload?.kind === "boas_vindas"
     ? ""
-    : [m.confianca === "nao_confiavel" ? '<span class="tag tag-ambar" title="conteúdo de conector ou de outro bot">não confiável</span>' : "", m.parcial ? '<span class="tag tag-cinza">parcial</span>' : ""].filter(Boolean).join("");
+    : [m.confianca === "nao_confiavel" ? '<span class="tag tag-ambar" title="conteúdo de conector ou de outro bot">não confiável</span>' : "", m.parcial && !m.paradaPelaPessoaEm && m.payload?.kind !== "fala_interrompida" ? '<span class="tag tag-cinza">parcial</span>' : ""].filter(Boolean).join("");
   const metaTags = tags ? `<div class="meta-tags">${tags}</div>` : "";
   // definido em 2026-09-24 (emenda da ADR-045): a pergunta de pedir_a_pessoa é esta fala; a mensagem que a respondeu
   // leva o rótulo, e a retomada vira uma linha logo depois. revisto em 2026-10-18 (plano "pergunta com botões", Parte 2):
@@ -670,7 +754,9 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const pergunta = !ehPessoa && m.payload?.kind === "pedido_a_pessoa" ? m.payload : null;
   const resposta = ehPessoa && m.payload?.kind === "resposta_a_pedido" ? m.payload : null;
   if (resposta && respostaPorOpcao(m, estado)) return "";
-  const fila = situacaoNaFila(m, estado);
+  // Sala e tela da task (que passa o `chipDaFala`) não têm Cancelar.
+  const fila = sala || opcoes.chipDaFala !== undefined ? null : situacaoNaFila(m, estado);
+  if (fila?.tipo === "oculta") return "";
   // "respondendo", não "resposta": `.resposta` já é o campo do card de Retomar (estilos.css).
   // definido em 2026-10-16: computador_pedir_ajuda não pede senha no balão — vira o cartão "Abrir computador" no lugar
   // do cartão da pergunta.
@@ -678,42 +764,54 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const telaAberta = motivoTela !== null && pergunta ? estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], pergunta.decisaoId).tipo === "aberta" : false;
   const ouvivel = podeOuvir(m, estado, sala);
   const lendo = estado.leitura?.mensagemId === m.id && ouvivel;
-  const classes = `message ${ehPessoa ? "you" : "bot"}${ehPessoa ? classeDoBalao(estado, m.conversaId) : ""}${ouvivel ? " ouvivel" : ""}${lendo ? " lendo" : ""}${pergunta ? " pergunta" : ""}${motivoTela !== null ? " com-tela" : ""}${resposta ? " respondendo" : ""}${fila ? ` fila-${fila.tipo}` : ""}`;
-  // O progresso vai dentro do balão do bot; no da pessoa (a rede) e no cartão da pergunta (o turno que abriu frentes e
-  // terminou perguntando), embaixo dele — o cartão não tem onde recebê-lo, e sem isso o bloco sumia (revisão do PR 398).
-  const progressoDentro = !ehPessoa && !pergunta ? (opcoes.progresso ?? "") : "";
-  const progressoFora = ehPessoa || pergunta ? (opcoes.progresso ?? "") : "";
+  // ADR-185 (validação de 2026-11-16): o texto que a pessoa parou no meio — a linha "Parado por você · hora" no lugar do
+  // "parcial", e recolhido até ela abrir (web/lib/textos-abertos.ts). Só o interrompido; a resposta completa segue inteira.
+  // ADR-186: a fala que a mensagem nova da pessoa interrompeu tem a mesma linha e o mesmo recolhido, com o porquê dela.
+  // Revisão de 2026-11-16: quando o bot RETOMOU depois de responder (pergunta à parte, acréscimo), o texto não foi
+  // abandonado — só pausado: fica inteiro, com "Pausado para te responder", e a continuação vem logo depois.
+  const corte: { rotulo: string; em: number; recolhivel: boolean } | null = ehPessoa ? null
+    : m.payload?.kind === "fala_interrompida" ? (m.payload.retomou ? { rotulo: "Pausado para te responder", em: m.criadoEm, recolhivel: false } : { rotulo: "Interrompido pela sua mensagem", em: m.criadoEm, recolhivel: true })
+    : m.paradaPelaPessoaEm ? { rotulo: "Parado por você", em: m.paradaPelaPessoaEm, recolhivel: true }
+    : null;
+  const recolhido = corte !== null && corte.recolhivel && !textoAberto(m.id);
+  const linhaParada = corte !== null ? linhaDaParada(m.id, corte.rotulo, corte.em, recolhido, corte.recolhivel) : "";
+  const classes = `message ${ehPessoa ? "you" : "bot"}${recolhido ? " texto-recolhido" : ""}${ehPessoa ? classeDoBalao(estado, m.conversaId) : ""}${ouvivel ? " ouvivel" : ""}${lendo ? " lendo" : ""}${pergunta ? " pergunta" : ""}${motivoTela !== null ? " com-tela" : ""}${resposta ? " respondendo" : ""}${fila?.tipo === "cancelada" ? " fila-cancelada" : ""}`;
+  // O progresso vai embaixo do balão, nunca dentro (ADR-187, validação de 2026-11-17: dentro, a fala perdia o balão e
+  // destoava das outras; o protótipo P1 desenha o cartão vivo solto). Vale para a fala do bot, o balão da pessoa (a rede)
+  // e o cartão da pergunta (o turno que abriu frentes e terminou perguntando, revisão do PR 398).
+  const progressoFora = opcoes.progresso ?? "";
   // Paper 15 (rodada 2): a pergunta aberta de uma frente ("da task …") vira o bloco "da frente": o mascote pequeno, "da
   // frente" e o título, a pergunta com o fio laranja à esquerda e as opções como botões. Respondida, vencida ou sem opções,
   // segue o cartão da pergunta.
-  const daFrente = pergunta && motivoTela === null && m.trabalhoId && opcoes.etiqueta?.startsWith("da task ") && (pergunta.opcoes?.length ?? 0) > 0 && estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], pergunta.decisaoId).tipo === "aberta"
-    ? perguntaDaFrente(m, opcoes.etiqueta.slice("da task ".length), pergunta.decisaoId, pergunta.opcoes ?? [], agente)
+  const daFrente = pergunta && motivoTela === null && m.trabalhoId && opcoes.etiqueta?.startsWith("da tarefa ") && (pergunta.opcoes?.length ?? 0) > 0 && estadoDaPergunta(estado, estado.conversas[m.conversaId]?.mensagens ?? [], pergunta.decisaoId).tipo === "aberta"
+    ? perguntaDaFrente(m, opcoes.etiqueta.slice("da tarefa ".length), pergunta.decisaoId, pergunta.opcoes ?? [], agente)
     : null;
   if (daFrente) return `<article class="message bot da-frente" data-mensagem="${esc(m.id)}" data-pergunta="${esc(pergunta?.decisaoId ?? "")}"><div class="bubble-wrap">${daFrente}</div></article>`;
   // Item 6: no computador da pessoa o pedido de ajuda é o cartão "Entre no {site}"; resolvido, vira linha de sistema.
   const ajuda = motivoTela !== null && estado.computadorPessoa ? cartaoDoPedidoDeAjuda(m, estado) : null;
   if (ajuda?.linha) return ajuda.html;
-  const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m) && !progressoDentro) && m.texto.trim() === "" ? "" : ehPessoa
+  const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m)) && m.texto.trim() === "" ? "" : ehPessoa
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
-      : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, `${metaTags}${progressoDentro}`, progressoDentro !== "");
-  return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}>
-    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
+      : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, metaTags);
+  const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
+  return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${emVoo}>
+    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
 }
 
 /** Paper 15: o bloco "da frente" (from_frente do gerador): rótulo, a pergunta com o fio laranja e as opções em botões de 28 px. */
 function perguntaDaFrente(m: Mensagem, titulo: string, decisaoId: string, opcoesDaPergunta: readonly string[], agente: AgenteDaFala | undefined): string {
-  const rotulo = `<div class="df-rotulo">${agente ? iconeAgente(agente, "sm", "disponivel") : ""}<span class="df-de">da frente</span><span class="df-titulo" title="${esc(titulo)}">${esc(titulo)}</span><time>${hora(m.criadoEm)}</time></div>`;
+  const rotulo = `<div class="df-rotulo">${agente ? iconeAgente(agente, "sm", "disponivel") : ""}<span class="df-de">da tarefa</span><span class="df-titulo" title="${esc(titulo)}">${esc(titulo)}</span><time>${hora(m.criadoEm)}</time></div>`;
   const botoes = opcoesDaPergunta.map((o) => `<button type="button" class="botao secundario df-opcao" data-act="responder-opcao" data-id="${esc(decisaoId)}" data-texto="${esc(o)}">${esc(o)}</button>`).join("");
-  return `<div class="df" role="group" aria-label="${esc(`Pergunta da frente ${titulo}`)}">${rotulo}<div class="df-texto">${paragrafos(m.texto)}</div><div class="df-opcoes">${botoes}</div></div>`;
+  return `<div class="df" role="group" aria-label="${esc(`Pergunta da tarefa ${titulo}`)}">${rotulo}<div class="df-texto">${paragrafos(m.texto)}</div><div class="df-opcoes">${botoes}</div></div>`;
 }
 
 /**
  * COP-14 (item 4, definido em 2026-11-12): uma resposta do bot é um balão só — saiu a divisão por parágrafo (NOD-358).
  * O bot só manda dois balões quando manda duas mensagens de verdade, e aí elas se agrupam (./grupos-do-chat.ts).
  */
-function baloesDoBot(texto: string, chave: string, diagramas: boolean, depois: string, comProgresso: boolean): string {
-  return `<div class="bubble${comProgresso ? " com-progresso" : ""}">${textoFormatado(texto, { chave, diagramas })}${depois}</div>`;
+function baloesDoBot(texto: string, chave: string, diagramas: boolean, depois: string): string {
+  return `<div class="bubble">${textoFormatado(texto, { chave, diagramas })}${depois}</div>`;
 }
 
 function renderProposta(p: Proposta, estado: Estado, propostas: readonly Proposta[]): string {
@@ -834,6 +932,9 @@ function cardDaProposta(p: Proposta, estado: Estado, a: FrotaDto["agentes"][numb
       detalhes: faz(c.instrucao),
     });
   }
+  if (c.kind === "decisoes_exportacao") {
+    return cardProposta({ ...base, titulo: `Exportar decisões de ${c.agenteNome}`, linhas: [rotulada("Período", `${c.de} a ${c.ate}`), rotulada("Arquivos", c.periodos.length === 1 ? "1 CSV" : `${c.periodos.length} CSVs mensais`)] });
+  }
   if (c.kind === "acesso") {
     const decisao = decisaoAbertaDoCard(p, estado);
     // definido em 2026-09-24 (ADR-044): com a decisão de mesmo id aberta, o card é a frase do domínio e um botão; os nomes
@@ -908,6 +1009,7 @@ function acoesProposta(p: Proposta, estado: Estado): string {
   if (p.payload.kind === "rotina_atualizacao") return `${sim("decidir-proposta", "Salvar")}${nao("recusar-decisao")}`;
   if (p.payload.kind === "rotina_exclusao") return `${sim("decidir-proposta", "Excluir", true)}${nao("recusar-decisao")}`;
   if (p.payload.kind === "rotina_execucao") return `${sim("decidir-proposta", "Rodar agora")}${nao("recusar-decisao")}`;
+  if (p.payload.kind === "decisoes_exportacao") return `${sim("decidir-proposta", "Gerar CSV")}${nao("recusar-decisao")}`;
   if (p.payload.kind === "acesso" && decisaoAbertaDoCard(p, estado)) {
     const r = rotulosAcesso(p);
     return `${sim("decidir-proposta", r.permitir)}${nao("recusar-decisao", r.recusar === "Não permitir" ? "Agora não" : r.recusar)}`;
@@ -933,7 +1035,7 @@ function acoesDaRotinaComAcesso(p: Proposta, estado: Estado): { botoes: string; 
  *  Pedido de acesso idem desde 2026-09-24 (ADR-044): também nasce com a decisão de mesmo id. E o pedido de
  *  credencial (NOD-50): vencido, o campo da chave sai e fica o Reabrir. */
 function comDecisaoVencida(p: Proposta, estado: Estado): boolean {
-  if (p.payload.kind !== "rotina_atualizacao" && p.payload.kind !== "rotina_exclusao" && p.payload.kind !== "rotina_execucao" && p.payload.kind !== "acesso" && p.payload.kind !== "credencial") return false;
+  if (p.payload.kind !== "rotina_atualizacao" && p.payload.kind !== "rotina_exclusao" && p.payload.kind !== "rotina_execucao" && p.payload.kind !== "decisoes_exportacao" && p.payload.kind !== "acesso" && p.payload.kind !== "credencial") return false;
   return estado.suaVez?.itens.some((i) => i.decisao.id === p.id && i.estadoColuna === "vencido") ?? false;
 }
 
@@ -1362,7 +1464,8 @@ function blocoDaFalaSaindo(s: FalaSaindo, c: ConversaEstado, estado: Estado, cha
     const fala = renderFalaViva(s.turno, s.atividade, agente, estado, "", { em: s.em, chave, parado: true });
     return [{ chave, html: fala.html, morfar: fala.morfar }];
   }
-  const k = chave.startsWith("saindo:") ? chave : `saindo:${chave.slice("vivo:".length)}`;
+  // C1: o retrato conserva a chave da fala viva; o morph troca indicador por balão sem recriar o nó.
+  const k = chave;
   const leitor = `<span class="sr-only">Mensagem de ${esc(agente?.nome ?? "o bot")}</span>`;
   return [{ chave: k, html: `<article class="message bot fala-chegou" data-turno="${esc(s.turno.turnoId)}"><div class="bubble-wrap">${leitor}<div class="bubble balao-chega">${textoFormatado(texto, { chave: k })}</div></div></article>` }];
 }
@@ -1483,6 +1586,9 @@ function linhaDepoisDaFala(linhas: readonly LinhaDaConversa[], mensagens: readon
     const k = m.payload?.kind;
     const tipo = planos.get(m.id)?.tipo;
     if (!m.turnoId || (tipo !== "linha" && tipo !== "troca") || (k !== "trabalho_aberto" && k !== "frentes_abertas" && k !== "recado_a_frente" && k !== "handoff")) return;
+    // ADR-187: a da rede nasce DEPOIS das falas do turno na conversa; as de depois são da tarefa (a resposta final dela
+    // desceria a linha e o cartão para baixo da entrega).
+    if (m.payload?.kind === "trabalho_aberto" && m.payload.origem === "rede") return;
     let alvo = -1;
     for (let j = i + 1; j < mensagens.length; j++) {
       const x = mensagens[j];
@@ -1599,7 +1705,7 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
     { chave: "computador", html: linhaDoComputador(c, estado) },
-    { chave: "faixa", html: renderFaixaParada(estado.faixaParada) },
+    { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
   return blocos.filter((b) => b.html !== "");
 }
@@ -1867,7 +1973,12 @@ function comPedidosAncorados(blocos: BlocoDaTimeline[], c: ConversaEstado, estad
  * NOD-429: com `comQuadro` (a flag do teste ligada e o bot é da pessoa), a pílula e o par Conversa | Quadro viram uma
  * cápsula só (`.qd-pil`); a presença (`.pilula-sub`) continua irmã, logo depois.
  */
-export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { comQuadro?: boolean; paginas?: readonly Pagina[]; ordem?: readonly number[]; pedirApp?: PedirApp } = {}): string {
+/**
+ * Modo pílula × modo abas (ADR-187 §6, Paper 10b e 10c A, 2026-11-18): `depoisDaPilula` é o botão de abas ao lado da pílula
+ * (modo pílula); `irParaConversa` faz da pílula a aba da Conversa na fileira (numa tarefa, o clique volta para a conversa
+ * em vez de abrir o painel); `painel: false` deixa o botão do painel para quem monta a fileira.
+ */
+export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { comQuadro?: boolean; paginas?: readonly Pagina[]; ordem?: readonly number[]; pedirApp?: PedirApp; depoisDaPilula?: string; irParaConversa?: boolean; painel?: boolean } = {}): string {
   const a = agenteDe(estado, agenteId);
   const nome = a?.nome ?? "agente";
   const { html, ativa } = presencaDoBot(estado, agenteId);
@@ -1878,27 +1989,30 @@ export function renderCabecalhoConversa(estado: Estado, agenteId: string, o: { c
   // NOD-381 (definido em 2026-10-27): no celular a presença vai dentro da pílula, em 12px abaixo do nome; o computador
   // continua com o ponto e a linha de baixo (`.pilula-txt` é `display: contents` e `.pilula-presenca` fica escondida).
   const presencaNaPilula = disponivel ? "" : `<span class="pilula-presenca" aria-hidden="true">${html}</span>`;
-  const pilula = `<button type="button" class="pilula-bot" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}" title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}${frentesNaPilula(estado, agenteId)}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
+  const acao = o.irParaConversa
+    ? `data-act="aba-conversa" data-agente="${esc(agenteId)}" aria-label="${esc(`Voltar para a conversa com ${nome}`)}"`
+    : `data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${rotulo}`)}"`;
+  const pilula = `<button type="button" class="pilula-bot" ${acao} title="${esc(rotulo)}">${a ? iconeAgente(a, "sm", avatarDoBot(estado, a)) : ""}<span class="pilula-txt"><span class="pilula-nome">${esc(nome)}</span>${presencaNaPilula}${a?.titulo ? `<span class="pilula-titulo">${esc(a.titulo)}</span>` : ""}</span><span class="presenca${ativa ? " ativa" : ""}" aria-hidden="true"></span><span class="pilula-seta" aria-hidden="true">›</span></button>`;
   // NOD-445: a cápsula leva a doca dos ícones (e o "+ pedir um app") e, com mais de uma página, os pontinhos (a página
   // atual é marcada depois). Sem as páginas do servidor ainda, a pílula de hoje.
   const paginas = o.paginas ?? [];
   // ADR-167 (Paper 02): o botão do painel à direita do topo (o mesmo alternar da pílula).
-  const painel = `<button type="button" class="painel-alternar" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${nome}`)}" title="Painel do bot">${ICONE_PAINEL}</button>`;
-  return o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>${sub}${painel}` : `${pilula}${sub}${painel}`;
+  const painel = o.painel === false ? "" : botaoDoPainel(nome);
+  const capsula = o.comQuadro && (paginas.length > 1 || o.pedirApp) ? `<div class="qd-pil pg-pil">${pilula}${docaDePaginas({ nome, paginas, ordem: o.ordem, pedirApp: o.pedirApp })}</div>` : pilula;
+  // O cabeçalho é uma coluna (a presença embaixo): a pílula e o botão de abas vão juntos numa linha.
+  const topo = o.depoisDaPilula ? `<div class="pilula-e-abas">${capsula}${o.depoisDaPilula}</div>` : capsula;
+  return `${topo}${sub}${painel}`;
+}
+
+/** O botão do painel do bot (ADR-167, Paper 02); no modo abas ele mora no fim da fileira. */
+export function botaoDoPainel(nome: string): string {
+  return `<button type="button" class="painel-alternar" data-act="alternar-detalhes" aria-controls="detalhes" aria-label="${esc(`Painel de ${nome}`)}" title="Painel do bot">${ICONE_PAINEL}</button>`;
 }
 
 const ICONE_PAINEL = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M10 3v10"/></svg>';
 
-/**
- * ADR-167 (Paper 15/15c): com frentes abertas, a pílula diz "· 4 frentes" depois do título, com o ponto laranja quando
- * alguma precisa da pessoa. Uma frente só (ou nenhuma) não aparece: a conversa já mostra o trabalho.
- */
-function frentesNaPilula(estado: Estado, agenteId: string): string {
-  const frentes = (estado.trabalhos?.trabalhos ?? []).filter((t) => t.agenteId === agenteId && t.forma === "frente" && aberto(t));
-  if (frentes.length < 2) return "";
-  const pede = frentes.some((t) => t.estado === "precisa_de_voce");
-  return `<span class="pilula-frentes">${pede ? '<i class="ponto-aguardando" aria-hidden="true"></i>' : ""}${frentes.length} frentes</span>`;
-}
+// ADR-187 §5 (lote B, passo 1, 2026-11-17): a contagem de tarefas saiu do topo ("· 2 tarefas" ao lado do nome, ADR-167):
+// ela mora na aba presa ao campo (protótipo P1), e o topo fica só com o bot.
 
 /**
  * A presença do bot na conversa, em HTML curto (os separadores e a contagem em negrito) e se o ponto fica verde.
@@ -1968,10 +2082,12 @@ export function pararNoCampoDaTela(estado: Estado): boolean {
  * manda), os dois. Sem trabalho, só o Enviar.
  */
 export function botoesDoCampo(p: { trabalhando: boolean; temConteudo: boolean; ditando: boolean }): { enviar: boolean; parar: boolean } {
-  // COP-14 (item 1): um botão só à direita — com texto (ou o ditado), sempre Enviar, mesmo com o bot trabalhando; com o
-  // campo vazio e o bot trabalhando, Parar; vazio e parado, o Enviar desabilitado.
-  const parar = p.trabalhando && !p.temConteudo && !p.ditando;
-  return { enviar: !parar, parar };
+  // COP-14 (item 1), revisto em 2026-11-16 (acessos do campo, 3b: parar sem apagar o rascunho): com o campo vazio e o bot
+  // trabalhando, só o Parar (cheio, na ponta); com texto, anexo ou o ditado e o bot trabalhando, os dois — o Enviar segue
+  // na ponta e é a ação do Enter, o Parar fica logo antes dele como secundário (sem fundo; web/casca.css e web/chat.css),
+  // como na pílula do quadro (web/lib/quadro-na-tela.ts). Antes o Parar sumia com rascunho e, para parar, era preciso
+  // apagar o texto. Parado, só o Enviar (desabilitado com o campo vazio).
+  return { enviar: !p.trabalhando || p.temConteudo || p.ditando, parar: p.trabalhando };
 }
 
 /** O título do Parar do campo (revisto em 2026-10-22, NOD-311): ele para só a conversa, nunca as tasks. */
@@ -1983,6 +2099,9 @@ export function tituloDoParar(_estado: Estado, _agenteId: string): string {
 export const rotuloDoParar = (nome: string | undefined): string => (nome ? `Parar ${nome}` : "Parar");
 
 const QUADRADO = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1" y="1" width="12" height="12" rx="2.5" fill="currentColor"/></svg>';
+
+/** Paper 4k: o quadrado de 10 com raio 2 do Parar da tarefa. */
+const QUADRADO_TAREFA = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" rx="2" fill="currentColor"/></svg>';
 
 const MAIS = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
@@ -2010,7 +2129,7 @@ export function htmlSugestaoRotina(): string {
  * entre o texto e o microfone, e o Parar (secundário, redondo, escondido) logo antes do Enviar — o Enviar continua na
  * ponta, onde a pessoa o procura; o main mostra cada um pelo `botoesDoCampo`. `bot` dá o nome do Parar ("Parar resposta do Eng 1").
  */
-export function htmlComposer(placeholder: string, sugestoes: readonly string[] = [], opcoes: { anexos?: Aceita; comandos?: boolean; aprovacao?: boolean; bot?: string; /** ADR-167: o seletor de modelo sem o resto da conversa própria (o campo da task). */ seletor?: boolean } = {}): string {
+export function htmlComposer(placeholder: string, sugestoes: readonly string[] = [], opcoes: { anexos?: Aceita; comandos?: boolean; aprovacao?: boolean; bot?: string; /** ADR-167: o seletor de modelo sem o resto da conversa própria (o campo da task). */ seletor?: boolean; /** ADR-187 §6 (2026-11-18): o campo da tarefa com este id — o Parar dela, com rótulo, no lugar do enviar. */ tarefa?: string } = {}): string {
   const lista = sugestoes.length ? `<div class="autocomplete" id="autocomplete" hidden></div>` : "";
   const aceita = opcoes.anexos;
   const accept = aceita === "sem_pdf" ? "image/*,.txt,.md,.csv,.json" : "image/*,application/pdf,.pdf,.txt,.md,.csv,.json";
@@ -2022,14 +2141,20 @@ export function htmlComposer(placeholder: string, sugestoes: readonly string[] =
   // O "/" (definido em 2026-09-28): a lista abre acima do campo; a dica diz o que o comando escrito faz.
   const barra = opcoes.comandos ? '<div class="barra-lista" id="barra-lista" role="listbox" aria-label="Comandos" hidden></div><div class="barra-dica" id="barra-dica" hidden></div>' : "";
   // ADR-059: o botão do modo de aprovação (só na conversa própria); main.ts troca o miolo. A faixa acima do campo saiu
-  // em 2026-10-18 (Fase 4, PR 2).
+  // em 2026-10-18 (Fase 4, PR 2). Acessos do campo (3c): o modo mora logo depois do seletor de IA, num grupo "IA · modo"
+  // entre o texto e o 🎤 — a ordem do Tab segue a visual (texto → IA → modo → 🎤 → enviar) e nada entra à esquerda do
+  // texto; no computador o grupo aparece no hover e no foco do campo (web/casca.css).
   const chip = opcoes.aprovacao ? HTML_CHIP_MODO : "";
   const seletor = opcoes.aprovacao || opcoes.seletor ? HTML_SELETOR_IA : "";
-  const parar = opcoes.aprovacao ? `<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="${esc(rotuloDoParar(opcoes.bot))}" title="Parar o que está rodando nesta conversa" hidden>${QUADRADO}</button>` : "";
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k e 4s): o campo da tarefa tem o Parar dela, no mesmo lugar e com a
+  // mesma regra do da conversa (botoesDoCampo), em pílula com o rótulo; ele para só a tarefa, nunca a conversa.
+  const parar = opcoes.tarefa
+    ? `<button type="button" class="parar-envio parar-tarefa" data-act="parar-trabalho" data-id="${esc(opcoes.tarefa)}" aria-label="Parar a tarefa" title="Parar só esta tarefa (Esc)" hidden>${QUADRADO_TAREFA}<span>Parar</span></button>`
+    : opcoes.aprovacao ? `<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="${esc(rotuloDoParar(opcoes.bot))}" title="Parar o que está rodando nesta conversa" hidden>${QUADRADO}</button>` : "";
   // NOD-381 (definido em 2026-10-27): no celular o clipe, o modo e a IA saem de dentro do campo e moram na folha do +
   // (web/telas/folha-mais.ts); o + só nasce quando há o que abrir e o computador nunca o vê (web/mobile.css).
   const mais = aceita || opcoes.aprovacao ? `<button type="button" class="mais-campo" data-act="abrir-mais" aria-label="Anexar, modo e IA" aria-haspopup="menu" aria-expanded="false">${MAIS}</button>` : "";
-  return `<div class="composer"><div class="composer-pergunta" id="composer-pergunta"></div>${htmlSugestaoRotina()}${barra}<div class="box${aceita ? " com-anexos" : ""}${chip ? " com-modo" : ""}${mais ? " com-mais" : ""}">${lista}${mais}${anexar}${chip}<textarea id="composer-texto" rows="1" placeholder="${esc(placeholder)}" data-sugestoes="${esc(JSON.stringify(sugestoes))}"></textarea>${resumo}${seletor}${htmlPilulaDitado()}${htmlBotaoDitado()}${parar}<button class="send" data-act="enviar" aria-label="Enviar">${SETA_ENVIAR}</button></div>
+  return `<div class="composer"><div class="composer-pergunta" id="composer-pergunta"></div>${htmlSugestaoRotina()}${barra}<div class="box${aceita ? " com-anexos" : ""}${chip ? " com-modo" : ""}${mais ? " com-mais" : ""}">${lista}${mais}${anexar}<textarea id="composer-texto" rows="1" placeholder="${esc(placeholder)}" data-sugestoes="${esc(JSON.stringify(sugestoes))}"></textarea>${resumo}${seletor}${chip}${htmlPilulaDitado()}${htmlBotaoDitado()}${parar}<button class="send" data-act="enviar" aria-label="Enviar">${SETA_ENVIAR}</button></div>
   <p class="nota" id="composer-nota" data-padrao=""></p></div>`;
 }
 

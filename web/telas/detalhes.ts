@@ -4,7 +4,7 @@ import type { RotinaDto } from "../../src/contracts/api.ts";
 import type { AbaGaveta, Estado, EstadoComputadorBot, NivelGaveta } from "../estado/reducer.ts";
 import { botao, dataHora, esc, hora, iconeAgente } from "../lib/render.ts";
 import { ICONE } from "../lib/icones.ts";
-import { ENTRADA_PARADA, TENTAR_V2, entradaDoComputador, estadoDoCartaoDoBot, htmlCartaoComputador, telaCheiaAberta, type EntradaDoCartao } from "../lib/computador-estados.ts";
+import { ENTRADA_PARADA, TENTAR_V2, entradaDoComputador, estadoDoCartaoDoBot, explicarComputador, htmlCartaoComputador, situacaoDaPessoa, telaCheiaAberta, type EntradaDoCartao } from "../lib/computador-estados.ts";
 import { ATALHO_SEMPRE_LIGADA, botaoDaParada, desdeDaParada, linhaOndeRoda, pedeAtalhoNaExecucao, rotuloExecucao } from "../lib/execucao.ts";
 import { avatarDoBot, mascoteAnimado, CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
 import { botaoLigar, htmlLinhaLigar, VELOCIDADES, VOZES } from "./ligacao.ts";
@@ -16,7 +16,7 @@ import { iasDaTela, ordemDaPessoa, rascunhoDe, renderInteligencia, renderLinhaIn
 import { UI_IAS_INICIAL } from "./cartao-ia.ts";
 import { descricao, MODOS } from "./aprovacoes.ts";
 import { blocoEsperando, conectorDoApp, nivelDoBot, ROTULO_NIVEL, situacaoDoApp, type NivelAtual } from "./app-acesso.ts";
-import { logoApp } from "./marketplace.ts";
+import { appsDeLogin, logoApp } from "./marketplace.ts";
 import { renderMemoriaNaGaveta } from "./memoria.ts";
 import { renderNovaRotinaNaGaveta } from "./nova-rotina.ts";
 import { blocoDasChamadas, blocoDoEndereco, ehRotinaWebhook, ICONE_RAIO, origemDaTela, quandoNaLista } from "./webhook.ts";
@@ -233,7 +233,7 @@ function abaDetalhes(estado: Estado, a: Bot, dona: boolean): string {
   // ADR-167 (Paper 02): Frentes (o que o bot faz agora), Computador (a miniatura) e Ajustes › Aprovações / Quadro. O título
   // "Ajustes" abre o nível Ajustes de sempre (Ligar, trabalhos, memória, missão e acessos).
   const modo = MODOS[a.modoAprovacao ?? "manual"];
-  const ajustesCab = `<div class="gv-secao-cab"><button type="button" class="gv-cab-link" ${irPara(a, "ajustes")} data-origem="ajustes" aria-label="${esc(dona ? "Ajustes: ligar, trabalhos, memória, missão e acessos" : "Ajustes: trabalhos, memória e acessos")}"><h3>Ajustes</h3>${ICONE_CHEVRON}</button></div>`;
+  const ajustesCab = `<div class="gv-secao-cab"><button type="button" class="gv-cab-link" ${irPara(a, "ajustes")} data-origem="ajustes" aria-label="${esc(dona ? "Ajustes: ligar, tarefas, memória, missão e acessos" : "Ajustes: tarefas, memória e acessos")}"><h3>Ajustes</h3>${ICONE_CHEVRON}</button></div>`;
   const aprov = dona
     ? linha(`${ICONE_ESCUDO}<span class="gv-linha-txt">Aprovações<small>${esc(subtituloDasAprovacoes(a))}</small></span>`, `data-act="modo-aprovacao" data-id="${esc(a.id)}" title="${esc(`${modo.titulo}: ${descricao(a.modoAprovacao ?? "manual", estado.frota?.revisor === true)}`)}"`, ICONE_CHEVRON)
     : "";
@@ -319,8 +319,8 @@ export function proximaCurta(quando: number | null | undefined, agora: number): 
 function resumoDoQuadro(estado: Estado, agenteId: string): string {
   void estado;
   const r = resumosDosQuadros.get(agenteId);
-  if (!r) return "Tarefas";
-  const partes = [r.andando ? `${r.andando} em andamento` : "", r.bloqueadas ? `${r.bloqueadas} ${r.bloqueadas === 1 ? "bloqueada" : "bloqueadas"}` : ""].filter(Boolean);
+  if (!r) return "Cards";
+  const partes = [r.andando ? `${r.andando} em andamento` : "", r.bloqueadas ? `${r.bloqueadas} ${r.bloqueadas === 1 ? "bloqueado" : "bloqueados"}` : ""].filter(Boolean);
   return partes.join(" · ") || "Nada em andamento";
 }
 
@@ -335,7 +335,7 @@ function blocoFrentes(estado: Estado, a: Bot): string {
     const barra = t.estado === "rodando" || t.estado === "na_fila" ? '<span class="gv-barra" aria-hidden="true"><i></i></span>' : "";
     return linha(`<span class="gv-linha-txt"><b>${esc(t.titulo)}</b><small${t.estado === "precisa_de_voce" ? ' class="gv-pede"' : ""}>${esc(quando)}</small></span>${barra}`, `data-act="abrir-trabalho" data-id="${esc(t.id)}"`);
   };
-  return `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>Frentes</h3></div><div class="gv-cartao">${abertos.map(linhaFrente).join("")}</div></section>`;
+  return `<section class="gv-secao gv-frentes"><div class="gv-secao-cab"><h3>Tarefas</h3></div><div class="gv-cartao">${abertos.map(linhaFrente).join("")}</div></section>`;
 }
 
 /**
@@ -350,7 +350,11 @@ export function blocoComputador(estado: Estado, a: Bot, opcoes: { titulo?: boole
   // Sem o computador da pessoa (v1), o pulso de web/telas/tela-do-bot.ts lê o estado com o `data-comp-bot` à vista (sem imagem).
   const pulso = estado.computadorPessoa ? "" : `<span hidden data-comp-bot="${esc(a.id)}"></span>`;
   const titulo = opcoes.titulo === false ? "" : '<h3 class="cpm-titulo">Computador</h3>';
-  return `<section class="gv-secao gv-computador cpm" id="gv-computador-${esc(a.id)}">${titulo}${htmlCartaoComputador(situacao, a, e, tentar)}${pulso}</section>`;
+  // Item 8 (Acessos · computador): a 2ª linha só quando há o que explicar — o motivo do fora do ar (no v1, o da frota), o
+  // download e o macOS antigo (só no app do Mac).
+  const situacaoDoPc = estado.computadorPessoa ? situacaoDaPessoa(estado.computadorPessoa) : { fora: a.computadorForaDoAr ?? null };
+  const ex = explicarComputador(situacaoDoPc, a.nome);
+  return `<section class="gv-secao gv-computador cpm" id="gv-computador-${esc(a.id)}">${titulo}${htmlCartaoComputador(situacao, a, e, tentar, ex)}${pulso}</section>`;
 }
 
 /** O que o cartão lê: o computador da pessoa (v2) ou, sem ele, o pulso deste bot (v1); o turno; a tela cheia aberta. */
@@ -416,7 +420,7 @@ export function nivelAjustes(estado: Estado, a: Bot, dona: boolean, celular = fa
   const atalhos = `<section class="gv-secao gvn-atalhos"><h3>Atalhos</h3><div class="gv-cartao">
       ${ligar}
       ${linha(`${ICONE.livro}<span class="gv-linha-txt">Memória</span>${dona && (estado.memoriasARevisar[a.id] ?? 0) > 0 ? `<span class="gv-meta mem-conta-meta">${estado.memoriasARevisar[a.id]} para revisar</span>` : ""}`, origem("memoria"), ICONE.seta)}
-      ${linha(`${ICONE.relogio}<span class="gv-linha-txt">Trabalhos</span>${trabalhosAbertos ? `<span class="gv-meta">${trabalhosAbertos} ${trabalhosAbertos === 1 ? "aberto" : "abertos"}</span>` : ""}`, origem("trabalhos"), ICONE.seta)}
+      ${linha(`${ICONE.relogio}<span class="gv-linha-txt">Tarefas</span>${trabalhosAbertos ? `<span class="gv-meta">${trabalhosAbertos} ${trabalhosAbertos === 1 ? "aberta" : "abertas"}</span>` : ""}`, origem("trabalhos"), ICONE.seta)}
       ${dona ? linha(`${ICONE.pulso}<span class="gv-linha-txt">Atividade</span>${linhaAtividadeHoje(estado, a.id)}`, origem("atividade"), ICONE.seta) : ""}
     </div></section>`;
   const perfil = dona
@@ -509,7 +513,7 @@ export function renderNivel(estado: Estado, a: Bot, dona: boolean, nivel: NivelG
     case "nova-rotina":
       return { titulo: "Nova rotina", corpo: renderNovaRotinaNaGaveta(a), rodape: rodapeDeFormulario("Criar rotina"), form: 'data-form="criar-rotina"' };
     case "trabalhos":
-      return { titulo: `Trabalhos de ${a.nome}`, corpo: renderGavetaTrabalhos(estado, a.id) };
+      return { titulo: `Tarefas de ${a.nome}`, corpo: renderGavetaTrabalhos(estado, a.id) };
     case "atividade":
       return { titulo: "Atividade", corpo: renderAtividade(estado, a) };
     case "ajustes":
@@ -655,7 +659,7 @@ function darAcesso(estado: Estado, agenteId: string, nomeBot: string): string {
     const c = conectorDoApp(estado, app.slug);
     return c?.habilitado ? [`<div class="da-linha">${logoApp(estado, app.slug, app.nome)}<div class="da-nome"><b>${esc(app.nome)}</b>${segmentado(agenteId, nomeBot, c.id, nivelDoBot(estado, agenteId, c))}</div></div>`] : [];
   });
-  const faltam = estado.marketplace.filter((app) => situacaoDoApp(estado, app.slug) !== "conectado").slice(0, 6).map((app) => {
+  const faltam = appsDeLogin(estado.marketplace).filter((app) => situacaoDoApp(estado, app.slug) !== "conectado").slice(0, 6).map((app) => {
     const login = estado.conectando[app.slug];
     const acao = login && !login.falhou ? blocoEsperando(app.nome, login.url, true, login.semJanela === true) : botao("conectar-app", login?.falhou ? "Tentar de novo" : "Conectar", { classe: "sm", id: app.slug });
     return `<div class="da-linha">${logoApp(estado, app.slug, app.nome)}<div class="da-nome"><b>${esc(app.nome)}</b></div>${acao}</div>`;

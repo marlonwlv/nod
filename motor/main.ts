@@ -8,7 +8,7 @@ import { setTimeout as esperar } from "node:timers/promises";
 import { criarAcompanhanteDeTarefas } from "../src/adapters/executor/acompanhar-tarefas.ts";
 import { criarAcompanhanteDeSubagentes } from "../src/adapters/executor/acompanhar-subagentes.ts";
 import { criarAmostradorMemoria } from "../src/adapters/executor/amostrador-memoria.ts";
-import { resolverBinario } from "../src/adapters/executor/caminho.ts";
+import { protegerIasDoNod, resolverBinario } from "../src/adapters/executor/caminho.ts";
 import { BinarioSemSuporte, comoRodar, type Alvo } from "../src/adapters/executor/plataforma.ts";
 import { criarClaudeCliDriver } from "../src/adapters/executor/drivers/claude-cli.ts";
 import { criarCodexCliDriver } from "../src/adapters/executor/drivers/codex-cli.ts";
@@ -54,7 +54,7 @@ import { anuncioDoComputador, sondaLocal } from "./computador.ts";
 import { arquivoDasAtualizacoes, arquivoDoEstadoDeIa, arquivoDoPedidoDeIa, ESPERA_DA_RESPOSTA_MS, ESPERA_DO_SERVICO_MS, gravarJson, IA_DO_TERMINAL, lerEstadoDoPedido, passoNpmLocal, vigiarPedidosDoTerminal } from "./atualizar-ias.ts";
 import { criarPreparoNoMotor } from "./preparo-do-login.ts";
 import { criarIasDoMotor, esperarNoTerminal, quemNaoPodeAtualizar } from "./ias-do-motor.ts";
-import { comandoDeParear, comandoDeReinstalar, comandoParaAbrir, conferirGitForWindows, MENSAGEM_SEM_GIT_FOR_WINDOWS, plataformaDoMotor, SAIDA_SEM_GIT_FOR_WINDOWS, servidorAceitaPlataforma } from "./windows.ts";
+import { atualizarPathNoWindows, comandoDeParear, comandoDeReinstalar, comandoParaAbrir, conferirGitForWindows, MENSAGEM_SEM_GIT_FOR_WINDOWS, plataformaDoMotor, SAIDA_SEM_GIT_FOR_WINDOWS, servidorAceitaPlataforma } from "./windows.ts";
 import { AJUDA, aposentarChaveAntiga, arquivoDaConexao, carregarConexao, comandoDeEntrar, guardarConexao, guardarMaquinaDoMotor, lerComando, pastaDoExecutor, pastaDoMotor, type ConexaoMotor } from "./conexao.ts";
 
 /**
@@ -485,6 +485,10 @@ async function rodar(): Promise<number> {
   const c = await carregarConexao(pasta);
   if (!c) { process.stderr.write(`Esta máquina ainda não está conectada. Rode: ${comandoDeParear("https://seu-nod")}\n`); return 2; }
   const versao = await versaoDoMotor();
+  // A Tarefa Agendada sobe o motor com o Path do último login: o Git, o Node e as IAs que a instalação acabou de pôr no
+  // Path do usuário vêm do registro, senão o motor sairia com 3 logo depois da primeira instalação.
+  const novasNoPath = atualizarPathNoWindows();
+  if (novasNoPath.length > 0) log("info", "motor_path_do_registro", { pastas_novas: novasNoPath.length });
   // ADA-11 (ADR-147): no Windows o motor só sobe com o Git for Windows e o hook rodando pelo Git Bash (falha fechada).
   const semGit = conferirGitForWindows({ nodePath: process.execPath, hookPath: caminhoAoLado("hook-nativas.mjs", "hook-nativas.ts") });
   if (semGit) {
@@ -691,6 +695,26 @@ async function desinstalarDaqui(c: { manterConexao: boolean; manterIas: boolean;
   return r.itens.some((i) => i.estado === "falhou") ? 1 : 0;
 }
 
+/**
+ * Definido em 2026-11-19: no Linux, o `claude`/`codex` do PATH só vale se for o do pacote que o nod instalou em
+ * ~/.local (src/adapters/executor/caminho.ts). Um bot que troque o `~/.local/bin/claude` não muda o que o motor roda.
+ * No Windows o motor não instala as IAs (`atualizaIas: false`): lá o binário é o da pessoa, como sempre.
+ */
+function protegerAsIas(): void {
+  if (NO_WINDOWS) return;
+  const avisados = new Set<string>();
+  protegerIasDoNod({
+    prefixo: join(process.env.HOME ?? homedir(), ".local"),
+    aoTrocar: ({ nome, achado, pacote }) => {
+      const chave = `${nome}\0${achado ?? ""}`;
+      if (avisados.has(chave)) return;
+      avisados.add(chave);
+      log("aviso", "ia_binario_trocado", { ia: nome, achado, pacote });
+    },
+  });
+}
+
+protegerAsIas();
 const comando = lerComando(process.argv.slice(2));
 const saida =
   comando.tipo === "rodar" ? rodar()

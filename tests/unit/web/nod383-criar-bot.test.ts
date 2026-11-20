@@ -153,7 +153,7 @@ describe("NOD-383: criarRapido só cria quando a pessoa confirma", () => {
     expect(main).toContain('"segurar-mais": () => void criarRapido(celular.ativo(), () => confirmarCriarBot(LOGO_NOD), criarBotAgora),');
     // ADR-174: o toque explícito abre "Criar novo bot" (nome, forma, cor e preparo); não pergunta "Criar um bot agora?".
     expect(main).toContain('"criar-rapido": () => abrirDialogoCriarBot(');
-    // Spec do botão + : o clique (e ⌘N) abre o diálogo; o segurar continua no data-segurar.
+    // O clique no + abre o diálogo direto (validação de 2026-11-18, sem o menu Novo); o segurar continua no data-segurar.
     expect(main).toContain('data-act="novo-bot-dialogo" data-segurar="segurar-mais"');
     expect(main).toContain('"novo-bot-dialogo": () => abrirDialogoCriarBot(),');
   });

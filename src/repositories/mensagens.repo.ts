@@ -143,7 +143,7 @@ export function assuntoDaNova(m: { kind: KindMensagem; payload?: PayloadMensagem
 }
 
 /** A linha lida com o turno (ADR-083, S2): a origem do turno, o trabalho e se é a última fala de um turno encerrado. */
-type LinhaComTurno = LinhaMensagem & { midia_recusas?: RecusasMidia | null; turno_origem: OrigemTurno | null; turno_bastidores?: boolean | null; turno_criado_em?: Date | null; trabalho_id: string | null; fim_do_turno: boolean | null; raiz_id: string | null; raiz_origem: OrigemTurno | null; motivo_recomeco?: MotivoRecomeco | null; primeira?: boolean | null; frente_de_lote: boolean | null } & LinhaDoCheckpoint & LinhaDaTarefa;
+type LinhaComTurno = LinhaMensagem & { midia_recusas?: RecusasMidia | null; turno_origem: OrigemTurno | null; turno_bastidores?: boolean | null; turno_criado_em?: Date | null; turno_parado_em?: Date | null; trabalho_id: string | null; fim_do_turno: boolean | null; raiz_id: string | null; raiz_origem: OrigemTurno | null; motivo_recomeco?: MotivoRecomeco | null; primeira?: boolean | null; frente_de_lote: boolean | null } & LinhaDoCheckpoint & LinhaDaTarefa;
 /** ADA-28 (ADR-159): a tarefa do turno que gravou a linha (left join; só com NOD_TAREFA_CASA=1). */
 type LinhaDaTarefa = { tq_id?: string | null; tq_quadro_id?: string | null; tq_numero?: number | null; tq_linear_id?: string | null; tq_prefixo?: string | null };
 /** NOD-54 (0120): o checkpoint da fala (left join; nulo sem checkpoint ou vencido). */
@@ -188,7 +188,7 @@ function paraMensagemComTurno(l: LinhaComTurno): Mensagem {
   const checkpoint = l.ck_estado && l.ck_arquivos && l.ck_total != null
     ? { checkpoint: checkpointDaFala({ estado: l.ck_estado, arquivos: l.ck_arquivos, total: l.ck_total, feitos: l.ck_feitos ?? 0, desfeitoEm: l.ck_desfeito_em ? ms(l.ck_desfeito_em) : null, resultado: l.ck_resultado ?? null, falha: l.ck_falha ?? null }) }
     : {};
-  return { ...paraMensagem(l), origemTurno: l.turno_origem, trabalhoId: l.trabalho_id, fimDoTurno: l.fim_do_turno === true, ...(l.turno_bastidores === true && !l.trabalho_id ? { bastidores: true } : {}), ...(l.turno_criado_em ? { turnoDesde: new Date(l.turno_criado_em).getTime() } : {}), ...recusas, ...(l.motivo_recomeco ? { motivoRecomeco: l.motivo_recomeco } : {}), ...(l.raiz_id && l.raiz_origem ? { raiz: { turnoId: l.raiz_id, origem: l.raiz_origem } } : {}), ...checkpoint, ...tarefaDaLinha(l) };
+  return { ...paraMensagem(l), origemTurno: l.turno_origem, trabalhoId: l.trabalho_id, fimDoTurno: l.fim_do_turno === true, ...(l.turno_bastidores === true && !l.trabalho_id ? { bastidores: true } : {}), ...(l.turno_criado_em ? { turnoDesde: new Date(l.turno_criado_em).getTime() } : {}), ...recusas, ...(l.motivo_recomeco ? { motivoRecomeco: l.motivo_recomeco } : {}), ...(l.parcial && l.turno_parado_em ? { paradaPelaPessoaEm: new Date(l.turno_parado_em).getTime() } : {}), ...(l.raiz_id && l.raiz_origem ? { raiz: { turnoId: l.raiz_id, origem: l.raiz_origem } } : {}), ...checkpoint, ...tarefaDaLinha(l) };
 }
 
 /** ADA-28 (ADR-159): a marca `tarefa` da mensagem gravada num turno de tarefa (ou de frente dela). */
@@ -232,8 +232,8 @@ function lateralDaTarefa(conn: Conn, tenantId: string) {
 
 function selectComTurno(conn: Conn, tenantId: string, recorte: ReturnType<Conn>) {
   return conn<LinhaComTurno[]>`
-    select m.*, t.origem as turno_origem, t.bastidores as turno_bastidores, case when t.despachado_em - greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) >= make_interval(secs => ${FILA_SEGURA_MS / 1000}) then t.despachado_em else greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) end as turno_criado_em, t.midia_recusas, t.motivo_recomeco, coalesce(t.trabalho_id, o.trabalho_id) as trabalho_id, rz.raiz_id, rz.raiz_origem,
-      coalesce(w.forma = 'frente' and w.lote_id is not null, false) as frente_de_lote,
+    select m.*, t.origem as turno_origem, t.bastidores as turno_bastidores, case when t.despachado_em - greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) >= make_interval(secs => ${FILA_SEGURA_MS / 1000}) then t.despachado_em else greatest(t.criado_em, coalesce(t.acordar_em, t.criado_em)) end as turno_criado_em, t.midia_recusas, t.motivo_recomeco, t.parar_solicitado_em as turno_parado_em, coalesce(case when w.origem = 'rede' and m.criado_em < w.criado_em then null else t.trabalho_id end, o.trabalho_id) as trabalho_id, rz.raiz_id, rz.raiz_origem,
+      coalesce(w.forma = 'frente' and w.lote_id is not null and not (w.origem = 'rede' and m.criado_em < w.criado_em), false) as frente_de_lote,
       -- O desfazendo preso (a máquina sumiu) aparece como falhou: a tela oferece "Tentar de novo" e não prende o bot (NOD-54).
       case when ck.estado = 'desfazendo' and ck.pedido_em < now() - make_interval(secs => ${PRAZO_DESFAZENDO_MS / 1000}) then 'falhou' else ck.estado end as ck_estado,
       ck.arquivos as ck_arquivos, ck.total as ck_total, ck.feitos as ck_feitos, ck.desfeito_em as ck_desfeito_em, ck.resultado as ck_resultado,
@@ -319,7 +319,18 @@ const autorDaLinha = (conn: Conn) => conn`case when m.autor_tipo = 'agente'
  * de engenharia, item 8): tem assunto nulo, mas a web a esconde (mora na tela da task); conta como `anexo`, senão um dia de
  * cinco frentes enchia a janela delas. Só a fala do bot: a da pessoa fica no chat (a da rede foi escrita no chat).
  */
-const falaDeTrabalho = (conn: Conn) => conn`(m.assunto is null and m.kind = 'texto' and m.autor_tipo = 'agente' and t.trabalho_id is not null)`;
+const falaDeTrabalho = (conn: Conn) =>
+  conn`(m.assunto is null and m.kind = 'texto' and m.autor_tipo = 'agente' and t.trabalho_id is not null and not ${antesDaRede(conn)})`;
+
+/**
+ * ADR-187 §3 (definido em 2026-11-17, rodada de validação das duas pesquisas): a fala que o bot disse no turno ANTES de a
+ * rede de 2 min o promover continua da conversa — a resposta à pergunta à parte não some. Só o que veio depois é da frente.
+ * `trabalhos.criado_em` e `mensagens.criado_em` são `clock_timestamp()`, então a comparação vale também dentro de uma
+ * transação de teste.
+ */
+function antesDaRede(conn: Conn) {
+  return conn`exists (select 1 from trabalhos wr where wr.tenant_id = t.tenant_id and wr.id = t.trabalho_id and wr.origem = 'rede' and m.criado_em < wr.criado_em)`;
+}
 
 /**
  * O recorte da janela da conversa própria (listarComTurno com `comDestino`): `chat` são os `limite` itens de chat mais
@@ -691,7 +702,7 @@ export function mensagensRepo(conn: Conn, escopo: Escopo) {
           order by m.criado_em desc, m.id desc limit ${TETO_ANEXOS_DA_JANELA}
         )
         select ${conn.unsafe(COLUNAS_MENSAGEM.split(", ").map((c) => `m0.${c}`).join(", "))}, ${colunaPrimeira(conn, "m0")},
-          coalesce(w0.forma = 'frente' and w0.lote_id is not null, false) as frente_de_lote
+          coalesce(w0.forma = 'frente' and w0.lote_id is not null and not (w0.origem = 'rede' and m0.criado_em < w0.criado_em), false) as frente_de_lote
         from (select id from chat union all select id from fora) j
         join mensagens m0 on m0.tenant_id = ${escopo.tenantId} and m0.id = j.id
         left join turnos t0 on t0.tenant_id = m0.tenant_id and t0.id = m0.turno_id
@@ -787,6 +798,18 @@ export function mensagensRepo(conn: Conn, escopo: Escopo) {
           order by criado_em desc, id desc limit 1
         ) u`;
       return new Map(linhas.map((l) => [l.conversa_id, paraMensagem(l)]));
+    },
+
+    /**
+     * ADR-186 (revisão de 2026-11-16): o bot retomou o que estava fazendo depois de responder à mensagem que o pausou
+     * (pergunta à parte, acréscimo). As falas pausadas deste turno ainda não retomadas passam a `retomou: true`.
+     */
+    async marcarRetomada(turnoId: string): Promise<number> {
+      const r = await conn`
+        update mensagens set payload = payload || ${conn.json({ retomou: true })}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and turno_id = ${turnoId}
+          and payload->>'kind' = 'fala_interrompida' and coalesce(payload->>'retomou', '') <> 'true'`;
+      return r.count;
     },
 
     async marcarParcial(id: string, parcial: boolean): Promise<boolean> {

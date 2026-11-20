@@ -7,7 +7,7 @@ import type { AnexoMeta, TipoAnexo } from "../contracts/anexo.ts";
 import { tipoDoAnexo } from "../domain/anexo.ts";
 import type { CapacidadesHarness, IdHarness } from "../contracts/harness.ts";
 import type { PlataformaMaquina } from "../contracts/ponte.ts";
-import { capacidadesDe, causaHarnessIndisponivel, modeloMaisPotente, resolverHarness } from "../domain/harness.ts";
+import { capacidadesDe, causaHarnessIndisponivel, harnessFixado, modeloMaisPotente, resolverHarness } from "../domain/harness.ts";
 import { esperaDoTrabalho, pastaRelativa, podeAbrirTask } from "../domain/trabalho.ts";
 import { formaEfetiva } from "../domain/frente.ts";
 import { trabalhosParaDto } from "./trabalhos.ts";
@@ -190,7 +190,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   const inteligencia = inteligenciaDoAgente(agente);
   // definido em 2026-10-12 (ADR-099 §7): no trabalho de fundo, o Automático também pula a IA que a cota segura (reserva ou
   // limite) — o 1% que sobra dela fica para a conversa com a pessoa. Todas seguradas: a primeira pronta (iaDoAutomatico).
-  const fundo = !input.recompor && executor !== "catcher" && input.harnesses && turno.harness === "auto" && turno.modelo === "auto" && tipoParaCota(turno, null) !== "conversa";
+  const fundo = !input.recompor && executor !== "catcher" && input.harnesses && harnessFixado(turno.harness, turno.modelo) === null && tipoParaCota(turno, null) !== "conversa";
   // ADR-108 (revisão do PR 2, C1): a IA da sessão da task não entra aqui — trocar de IA por cota é decisão da pessoa (o
   // aviso de troca). Se a cota a segura de verdade (o limite medido segura o fundo que já começou), a guarda do despacho
   // (despachar-turno.ts, segurarTaskNaIaDaSessao) já devolveu o turno à espera; na reserva, a task que já começou segue nela.
@@ -476,8 +476,9 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   const reconfiguracao = elegivel && depoisDoInicio && (pedeConfigurar || emReconfiguracao(agente, agora));
   // NOD-480 (emenda da ADR-040): a janela que o Claude Code informou da última vez para este bot e este modelo. Falha ao
   // ler não derruba a emissão: o orçamento cai na tabela por nome. Só o Claude Code tem o autocompact.
+  const modeloEfetivo = modeloEscolhido ?? turno.modelo;
   const janelaObservada = (escolha?.harness ?? "claude-cli") === "claude-cli" && modo !== "ligacao"
-    ? await emSavepoint(deps, () => deps.repos.raioX.ultimaJanela(turno.conversaId, agente.id, turno.modelo)).catch(() => null) : null;
+    ? await emSavepoint(deps, () => deps.repos.raioX.ultimaJanela(turno.conversaId, agente.id, modeloEfetivo)).catch(() => null) : null;
   const parcial = montarPlano({
     ...(janelaObservada ? { janelaObservada } : {}),
     ...(reconfiguracao ? { reconfiguracao: true } : {}),

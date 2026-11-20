@@ -6,7 +6,7 @@ import type { CapacidadesHarness, CatalogoHarness, IdHarness } from "../../../sr
  * anexo, /uso → /cost, caminho da pasta e o modelo do automático sem nenhuma linha fora do contrato mencionar o id.
  */
 const FICTICIO = "ficticio-cli" as IdHarness;
-const CAPACIDADES_FICTICIO: CapacidadesHarness = { mensagemNoMeio: false, retomaSessao: false, bifurcaSessao: false, processoProprio: true, terminal: false, anexos: ["imagem", "pdf"], comandosDoCli: true, pastaDeTrabalho: true, anexarMidia: false };
+const CAPACIDADES_FICTICIO: CapacidadesHarness = { mensagemNoMeio: false, retomaSessao: false, bifurcaSessao: false, processoProprio: true, terminal: false, anexos: ["imagem", "pdf"], comandosDoCli: true, pastaDeTrabalho: true, anexarMidia: false, interrompeVolta: false, parcialNoHistorico: false };
 
 vi.mock("../../../src/contracts/harness.ts", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../../src/contracts/harness.ts")>();

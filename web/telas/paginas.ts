@@ -132,7 +132,7 @@ function haQuanto(ms: number): string {
 
 /** Paper 17b: "Lista · a Ada atualiza pelo Gmail · há 12 min" (a fonte de conector pelo nome do app, com a inicial maiúscula). */
 function subtituloDoApp(a: AppDto, bot: string, agora: number): string {
-  const fonte = a.fonte === "conector" && a.fonteRef ? ` pelo ${a.fonteRef.charAt(0).toUpperCase()}${a.fonteRef.slice(1)}` : a.fonte === "tarefas" ? " pelas tarefas" : a.fonte === "arquivo" ? " por um arquivo" : "";
+  const fonte = a.fonte === "conector" && a.fonteRef ? ` pelo ${a.fonteRef.charAt(0).toUpperCase()}${a.fonteRef.slice(1)}` : a.fonte === "tarefas" ? " pelo quadro" : a.fonte === "arquivo" ? " por um arquivo" : "";
   return [NOME_DA_FORMA[a.forma], `${bot.includes(" ") ? bot : `a ${bot}`} atualiza${fonte}`, a.atualizadoEm ? haQuanto(agora - a.atualizadoEm) : ""].filter(Boolean).join(" · ");
 }
 
@@ -185,5 +185,5 @@ export function menuDaPagina(o: { p: Pagina; pos: number; total: number }): Html
 export function formaDasTarefas(forma: "lista" | "quadro"): Html {
   const bt = (f: "lista" | "quadro", rot: string): string =>
     `<button type="button" class="pg-forma-bt" data-act="forma-das-tarefas" data-forma="${f}" aria-pressed="${forma === f}">${rot}</button>`;
-  return confiar(`<span class="pg-forma qd-so-largo" role="group" aria-label="Ver tarefas como">${bt("lista", "Lista")}${bt("quadro", "Quadro")}</span>`);
+  return confiar(`<span class="pg-forma qd-so-largo" role="group" aria-label="Ver cards como">${bt("lista", "Lista")}${bt("quadro", "Quadro")}</span>`);
 }

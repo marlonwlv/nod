@@ -36,6 +36,7 @@ import { gerirCanvas } from "../../src/use-cases/gerir-canvas.ts";
 import { removerComputadorPeloChat } from "../../src/use-cases/remover-computador.ts";
 import { gerirAcessos } from "../../src/use-cases/gerir-acessos.ts";
 import { naoLidosNoChat } from "../../src/use-cases/nao-lidos-no-chat.ts";
+import { decisoesNoChat } from "../../src/use-cases/decisoes-no-chat.ts";
 import { buscarConversas, lerConversa } from "../../src/use-cases/buscar-conversas.ts";
 
 /**
@@ -145,6 +146,8 @@ export function useCasesDeTeste(): UseCasesNod {
     verAgendaPeloAgente: naoImplementado("verAgendaPeloAgente (L7)"),
     pausarRotinaPeloAgente: naoImplementado("pausarRotinaPeloAgente (L7)"),
     reativarRotinaPeloAgente: naoImplementado("reativarRotinaPeloAgente (L7)"),
+    pausarTodasRotinasPeloAgente: naoImplementado("pausarTodasRotinasPeloAgente (L7)"),
+    reativarLoteRotinasPeloAgente: naoImplementado("reativarLoteRotinasPeloAgente (L7)"),
     atualizarRotinaPeloAgente: naoImplementado("atualizarRotinaPeloAgente (L7)"),
     excluirRotinaPeloAgente: naoImplementado("excluirRotinaPeloAgente (L7)"),
     executarRotinaPeloAgente: naoImplementado("executarRotinaPeloAgente (L7)"),
@@ -179,6 +182,7 @@ export function useCasesDeTeste(): UseCasesNod {
     gerirQuadroEmFases,
     gerirApps,
     naoLidosNoChat,
+    decisoesNoChat,
     gerirTimes,
     gerirMaquinas,
     gerirCanvas,

@@ -22,14 +22,17 @@ export const FRAMES_QUE_ACORDAM: ReadonlySet<TipoFrame> = new Set<TipoFrame>(["m
 
 export function criarAvisoDeMensagem(): AvisoDeMensagem {
   const porPessoa = new Map<string, Set<(v: boolean) => void>>();
+  // Um aviso entre o `puxar` vazio e a inscrição não pode se perder. Um bit basta: ao acordar, o laço relê a fila inteira.
+  const pendentes = new Set<string>();
   return {
     avisar(pessoaId) {
       const fila = porPessoa.get(pessoaId);
-      if (!fila) return;
+      if (!fila?.size) { pendentes.add(pessoaId); return; }
       porPessoa.delete(pessoaId);
       for (const acordar of fila) acordar(true);
     },
     aguardar(pessoaId, ms) {
+      if (pendentes.delete(pessoaId)) return Promise.resolve(true);
       return new Promise<boolean>((ok) => {
         let fila = porPessoa.get(pessoaId);
         if (!fila) {

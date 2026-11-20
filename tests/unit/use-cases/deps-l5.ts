@@ -31,6 +31,7 @@ import { removerComputadorPeloChat } from "../../../src/use-cases/remover-comput
 import { gerirAcessos } from "../../../src/use-cases/gerir-acessos.ts";
 import { gerirMaquinas } from "../../../src/use-cases/gerir-maquinas.ts";
 import { naoLidosNoChat } from "../../../src/use-cases/nao-lidos-no-chat.ts";
+import { decisoesNoChat } from "../../../src/use-cases/decisoes-no-chat.ts";
 import { buscarConversas, lerConversa } from "../../../src/use-cases/buscar-conversas.ts";
 
 export const MARLON: Escopo = { tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON };
@@ -91,6 +92,8 @@ export function depsFalsos(opcoes: OpcoesDepsFalsos = {}): { deps: Deps; banco: 
     verAgendaPeloAgente: async () => ({ data: { erro: "nao_encontrado" as const } }),
     pausarRotinaPeloAgente: async () => ({ data: { rotina_id: "rotina-falsa", estado: "pausada" as const, ja_estava: false, proxima_execucao: null, retomar_em: null } }),
     reativarRotinaPeloAgente: async () => ({ data: { rotina_id: "rotina-falsa", estado: "ativa" as const, ja_estava: false, proxima_execucao: agora() + 1000, retomar_em: null } }),
+    pausarTodasRotinasPeloAgente: async () => ({ data: { lote_id: null, pausadas: 0, pausado_em: null } }),
+    reativarLoteRotinasPeloAgente: async () => ({ data: { lote_id: null, pausado_em: null, reativadas: 0 } }),
     atualizarRotinaPeloAgente: async () => ({ data: { proposta_id: "proposta-atualizacao-falsa", resumo: "rotina falsa" } }),
     excluirRotinaPeloAgente: async () => ({ data: { proposta_id: "proposta-exclusao-falsa", resumo: "rotina falsa" } }),
     executarRotinaPeloAgente: async () => ({ data: { proposta_id: "proposta-execucao-falsa", resumo: "rotina falsa" } }),
@@ -124,6 +127,7 @@ export function depsFalsos(opcoes: OpcoesDepsFalsos = {}): { deps: Deps; banco: 
     gerirQuadro,
     gerirApps,
     naoLidosNoChat,
+    decisoesNoChat,
     gerirTimes,
     gerirCanvas,
     removerComputador: removerComputadorPeloChat,

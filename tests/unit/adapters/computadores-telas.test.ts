@@ -1,4 +1,4 @@
-import type { LugarDoComputador } from "../../../src/contracts/computador.ts";
+import type { Computador, LugarDoComputador } from "../../../src/contracts/computador.ts";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { AcaoComputador, DriverComputador, ResultadoComputador } from "../../../src/contracts/computador.ts";
 import type { ComputadorDaPessoa, EstadoTelaComputador, TelaComputadorBot } from "../../../src/contracts/computador-motor.ts";
@@ -161,7 +161,7 @@ const computadores = criarComputadores({
 const plano = (agenteId: string) => ({
   tenantId: MARLON.tenantId, turnoId: `turno-${agenteId.slice(-1)}`, agenteId, conversaId: "conversa-1", expiraEm: Number.MAX_SAFE_INTEGER, confiancaEntrada: "confiavel",
   autoria: { conta_de_execucao: MARLON.pessoaId },
-  catalogo: { ferramentas: [{ nome: "computador_observar", origem: "computador" }, { nome: "computador_navegar", origem: "computador" }] },
+  catalogo: { ferramentas: ["computador_observar", "computador_navegar", "computador_audio", "computador_abas", "computador_arquivos"].map((nome) => ({ nome, origem: "computador" })) },
 }) as never;
 const observar = (agenteId: string) => computadores.chamar(MARLON, plano(agenteId), "computador_observar", {});
 
@@ -210,6 +210,24 @@ it("a ação do bot vai à tela dele; o registro leva o bot e a tela; a tela fic
   expect(registros).toEqual([expect.objectContaining({ computadorId: "pessoa-1", telaId: "tela-a", agenteId: A, autor: "bot", estado: "concluida" })]);
   expect(telas.get("tela-a")).toMatchObject({ estado: "aberta", operacaoId: null, ultimaAtividadeEm: T0 });
   expect(telas.get("tela-b")!.estado).toBe("fechada");
+});
+
+it.each([
+  ["computador_audio", { segundos: 1 }, /captura de áudio falhou.*não repita neste turno/i],
+  ["computador_abas", {}, /lista atual de abas.*outro índice/i],
+  ["computador_arquivos", {}, /caminho dentro de \/workspace/i],
+] as const)("falha de %s orienta a recuperação da própria ferramenta, não observar a tela", async (nome, argumentos, instrucao) => {
+  const executar = driver.executar;
+  driver.executar = async () => { throw new (await import("../../../src/domain/computador.ts")).FalhaComputador("acao_falhou"); };
+  try {
+    const r = await computadores.chamar(MARLON, plano(A), nome, argumentos);
+    const corpo = JSON.parse((r as { conteudo: string }).conteudo);
+    expect(r).toMatchObject({ ok: true, isError: true });
+    expect(corpo).toMatchObject({ erro: "acao_falhou", instrucao: expect.stringMatching(instrucao) });
+    expect(corpo.instrucao).not.toMatch(/observe a tela/i);
+  } finally {
+    driver.executar = executar;
+  }
 });
 
 it("sem memória para a tela, o bot espera na fila (sem 'Nada foi executado') e a ação sai quando a vez chega", async () => {
@@ -1042,6 +1060,33 @@ it("card D, F3/F4: assistir ao vivo com o bot no controle; assumir libera o tecl
   await expect(comVivo.vivo(MARLON, A, sessao, { assistir: true })).rejects.toMatchObject({ codigo: "estado_invalido" });
   expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: false, mexer: false });
   pessoa = { ...pessoa, indisponivelDesde: null };
+});
+
+it("provedor: computador desabilitado não abre uma janela de relay nem para assistir", async () => {
+  const pedidos: string[] = [];
+  const desligado: Computador = {
+    id: "00000000-0000-4000-8000-0000000000c1", agenteId: A, habilitado: false, controle: "bot", politica: "autonomo",
+    ajuda: null, ajudaDecisaoId: null, ocupadoAte: null, operacaoId: null, criadoEm: T0, falhasSeguidas: 0,
+    falhaMotivo: null, indisponivelDesde: null,
+  };
+  const depsProvedor = () => {
+    const d = deps();
+    return { ...d, repos: { ...d.repos, computadores: {
+      ...d.repos.computadores,
+      obter: async () => desligado,
+      travar: async () => desligado,
+      buscarDoAgente: async () => desligado,
+    } } };
+  };
+  const comVivo = criarComputadores({
+    executor: () => "catcher", porPessoa: false, driver: { ...driver, vivo: async (id) => { pedidos.push(id); } },
+    cifrar: (s) => s, decifrar: (s) => s, mudou: () => {}, agora: () => agora,
+    dentro: async <T>(_e: unknown, fn: (d: never) => Promise<T>) => fn(depsProvedor() as never),
+  });
+
+  await expect(comVivo.vivo(MARLON, A, { sessao: "s", token: "t" }, { assistir: true })).rejects.toMatchObject({ codigo: "nao_permitido" });
+  expect(pedidos).toEqual([]);
+  expect(await comVivo.vivoPodeAssistir(MARLON, A)).toEqual({ ver: false, mexer: false });
 });
 
 it("revisão do PR #599 (NOD-410): bot sem tela no computador ligado da pessoa — o painel vem com o ativo dela, para o Abrir o computador assumir", async () => {

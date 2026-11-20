@@ -32,7 +32,7 @@ export const FERRAMENTAS_PERFIL = {
   },
   ver_colegas: {
     type: "object",
-    description: "Mostra o que os outros bots da pessoa fazem hoje: perfil, rotinas (id, horário, estado, instrução) e apps que cada um usa. É leitura do próprio nod: nada muda e nenhum colega é consultado.",
+    description: "Mostra o que os outros bots da pessoa fazem hoje: perfil, time da barra lateral (secao; null = Sem time), rotinas (id, horário, estado, instrução) e apps que cada um usa. É leitura do próprio nod: nada muda e nenhum colega é consultado.",
     properties: {
       agente: { type: "string", description: "Id do diretório de colegas ou nome único do bot. Ausente: todos os colegas.", minLength: 1 },
     },
@@ -53,5 +53,6 @@ export type ArgsVerColegas = { agente?: string };
 export type AppDoColega = { slug: string; nome: string; nivel: "leitura" | "escrita" };
 /** definido em 2026-10-30 (NOD-20, revisão 3 M2): as últimas versões do perfil, para o Nod escolher o número do restaurar_versao. */
 export type VersaoListada = { versao: number; origem: string; autor: string; campos: string[]; atual: boolean };
-export type ColegaListado = { id: string; nome: string; titulo: string; descricao: string; rotinas: RotinaListada[]; apps: AppDoColega[]; versoes?: VersaoListada[] };
+/** definido em 2026-11-16: `secao` é o time da barra lateral (o mesmo de gerir_bots criar/mover); null = Sem time. */
+export type ColegaListado = { id: string; nome: string; titulo: string; secao: string | null; descricao: string; rotinas: RotinaListada[]; apps: AppDoColega[]; versoes?: VersaoListada[] };
 export type ResultadoVerColegas = { colegas: ColegaListado[] } | { erro: CodigoErro };

@@ -55,7 +55,7 @@ describe("menu do avatar (critério 1)", () => {
 
 describe("as 6 seções (critério 2)", () => {
   it("Conta, Geral, Provedores de IA, Máquinas, Agentes, Rotinas e Feedback, nesta ordem (NOD-85)", () => {
-    expect(SECOES_ESPACO.map((s) => s.nome)).toEqual(["Conta", "Geral", "Provedores de IA", "Máquinas", "Computador", "Agentes", "Rotinas", "Aprovações", "Cofre", "Feedback"]);
+    expect(SECOES_ESPACO.map((s) => s.nome)).toEqual(["Conta", "Geral", "Provedores de IA", "Máquinas", "Computador", "Agentes", "Rotinas", "Aprovações", "Cofre", "Sobre o nod", "Feedback"]);
   });
 
   it("os pedidos de antes caem na seção que os absorveu", () => {
@@ -81,7 +81,7 @@ describe("as 6 seções (critério 2)", () => {
       expect(html).toContain('<h1 id="espaco-titulo" class="sr-only">Configurações</h1>');
       expect(html).toContain('aria-label="Seções das Configurações"');
       // ADR-167 (Paper 07): a ordem do Paper (Geral, Conta, Máquinas, Aprovações, [Apps], IA) e depois as que o Paper não desenhou.
-      expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["geral", "conta", "maquinas", "computador", "aprovacoes", "cofre", "conexao", "agentes", "rotinas", "feedback"]);
+      expect([...html.matchAll(/data-act="secao-espaco" data-secao="([^"]+)"/g)].map((m) => m[1])).toEqual(["geral", "conta", "maquinas", "computador", "aprovacoes", "cofre", "conexao", "agentes", "rotinas", "sobre", "feedback"]);
       expect(html).not.toContain("espaco-banco");
     }
   });
@@ -161,7 +161,8 @@ describe("Geral (critérios 4 e 5)", () => {
 
   it("NOD-117: o bloco Ajuda é a folha, com os 14 atalhos nas teclas do lugar e texto para leitor de tela", () => {
     const ajudaDe = (html: string) => html.slice(html.indexOf('id="ajuda"'), html.indexOf("Avançado"));
-    const titulos = ["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Nova sala", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"];
+    // ADR-187 §7 (2026-11-18): ⌘N é a nova tarefa do bot aberto, o novo bot foi para ⌘⇧N e o chat em grupo ficou sem tecla.
+    const titulos = ["Nova tarefa do bot aberto", "Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"];
     const casos: [Parameters<typeof renderGeral>[3], string, string][] = [
       ["app-mac", "<kbd>⌘</kbd><kbd>N</kbd>", "Command N"],
       ["navegador-mac", "<kbd>⌃</kbd><kbd>N</kbd>", "Control N"],

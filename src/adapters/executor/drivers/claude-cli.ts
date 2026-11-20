@@ -19,7 +19,7 @@ import { pastaValidaNoWindows } from "../../../domain/caminhos.ts";
 import { baixarAnexos, mensagemClaude, type AnexoBaixado } from "../anexos-turno.ts";
 import type { AnexoMeta } from "../../../contracts/anexo.ts";
 import { rodarLigacaoClaude } from "./claude-ligacao.ts";
-import { classificarSessao, fimDoStderr, eventosDaLinhaStreamJson, reduzirSinais, SINAIS_ZERADOS, textoDaRodada } from "../../../domain/stream-json.ts";
+import { classificarSessao, fimDoStderr, eventosDaLinhaStreamJson, reduzirSinais, SINAIS_ZERADOS, textoDaRodada, textoDaVoltaInterrompida } from "../../../domain/stream-json.ts";
 import { capacidadesDe, versaoMinimaDoModelo } from "../../../domain/harness.ts";
 import { criarFalaPorBloco } from "../../../domain/fala-por-bloco.ts";
 import { criarFalaDoMeio } from "../../../domain/mensagem-no-meio.ts";
@@ -220,6 +220,68 @@ export function usaSystemPrompt(flagsNoHelp: readonly string[] | null | undefine
 /** NOD-185: o mesmo gate para desligar o snapshot do prompt de sistema (o `--resume` passa a levar a parte volátil do turno). */
 export function usaSnapshotOff(flagsNoHelp: readonly string[] | null | undefined, versao: string): boolean {
   return (flagsNoHelp ?? []).includes("--system-prompt-snapshot") && compararVersoes(versao, FLAG_FLOORS["--system-prompt-snapshot"].piso) >= 0;
+}
+
+/**
+ * definido em 2026-11-13: o teto da linha de comando no Windows. O CreateProcess aceita até 32.767 caracteres, contando
+ * o programa, os espaços e as aspas; acima disso o `spawn` do Node lança `ENAMETOOLONG` na hora (medido no Node 24.19.0:
+ * 32.700 caracteres de args abre o processo, 33.000 não). A folga cobre o caminho do programa e o do script que o `.cmd`
+ * do npm vira (ADR-147). Um bot com quatro conectores passava do teto: o prompt de sistema (~17 mil caracteres) e o
+ * `--allowedTools`, que cresce com cada ferramenta de conector, iam inteiros no argv, e todo turno falhava sem o CLI abrir.
+ */
+export const TETO_DA_LINHA_NO_WINDOWS = 32_767 - 2_048;
+
+/**
+ * Quantos caracteres os args ocupam na linha de comando do Windows, por cima: cada um com o espaço, as aspas que o Node
+ * põe quando há espaço ou aspas, e uma barra de escape por aspa ou barra invertida.
+ */
+export function tamanhoNaLinhaDeComando(args: readonly string[]): number {
+  return args.reduce((soma, a) => soma + a.length + 3 + (a.match(/["\\]/g)?.length ?? 0), 0);
+}
+
+/** As flags cujo valor longo pode ir num arquivo, e a flag que lê o arquivo (o `--settings` aceita caminho ou JSON). */
+const FLAG_EM_ARQUIVO = {
+  "--system-prompt": { flag: "--system-prompt-file", arquivo: "prompt-sistema.txt" },
+  "--append-system-prompt": { flag: "--append-system-prompt-file", arquivo: "prompt-sistema.txt" },
+  "--settings": { flag: "--settings", arquivo: "settings.json" },
+} as const satisfies Record<string, { flag: string; arquivo: string }>;
+
+/**
+ * definido em 2026-11-13: os args do turno com o prompt de sistema e o `--settings` em arquivos de `dir` (o tmpdir do
+ * turno, apagado no fim), para a linha de comando caber no teto do Windows. O conteúdo é o mesmo, byte a byte; muda só
+ * por onde o CLI o lê. Se o catálogo sozinho ainda passar do teto, `--allowedTools` aprova o servidor `mcp__nod`
+ * inteiro: a documentação do CLI define que o nome do servidor sem a ferramenta permite todas as ferramentas dele, e
+ * esse servidor é o proxy escopado pelo token do turno, cujo `tools/list` já contém exatamente o catálogo do plano.
+ * Sondado no CLI 2.1.323: `--system-prompt-file`, `--append-system-prompt-file` e `--settings
+ * <arquivo>` respondem como as formas em linha; o `--help` cita as duas primeiras como `--system-prompt[-file]`, por
+ * isso elas não aparecem na lista de flags lida do help. Sem piso próprio na tabela: só entram quando a forma em linha
+ * falharia de certeza (rodarTurno), então uma versão que não as conhecesse não perde turno que hoje funciona.
+ */
+export function argsComArquivos(args: readonly string[], dir: string): { args: string[]; arquivos: { caminho: string; conteudo: string }[] } {
+  const saida: string[] = [];
+  const arquivos: { caminho: string; conteudo: string }[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    const regra = Object.hasOwn(FLAG_EM_ARQUIVO, a) ? FLAG_EM_ARQUIVO[a as keyof typeof FLAG_EM_ARQUIVO] : null;
+    const conteudo = args[i + 1];
+    if (!regra || conteudo === undefined) {
+      saida.push(a);
+      continue;
+    }
+    const caminho = join(dir, regra.arquivo);
+    saida.push(regra.flag, caminho);
+    arquivos.push({ caminho, conteudo });
+    i++;
+  }
+  if (tamanhoNaLinhaDeComando(saida) > TETO_DA_LINHA_NO_WINDOWS) {
+    const i = saida.indexOf("--allowedTools");
+    const permitidas = i === -1 ? undefined : saida[i + 1];
+    if (permitidas !== undefined) {
+      const compactas = [...new Set(permitidas.split(",").map((nome) => nome.startsWith("mcp__nod__") ? "mcp__nod" : nome))];
+      saida[i + 1] = compactas.join(",");
+    }
+  }
+  return { args: saida, arquivos };
 }
 
 /** ADR-052: o turno com o kit do terminal — `settings` (o hook do nod) e as pastas além do cwd (ADR-055: a pasta da pessoa). */
@@ -536,6 +598,13 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
           // X1 (revisto em 2026-10-08): o modelo está parado entre voltas (o último evento foi um `result`). Uma mensagem
           // escrita agora abre a próxima volta, sem narração de antes no caminho: a próxima fala já é a resposta.
           let entreVoltas = false;
+          // ADR-185 (definido em 2026-11-16): as mensagens que entraram no stdin no MEIO de uma volta e o CLI ainda não leu.
+          // Ele as lê na fronteira seguinte (X1: o tool_result ou o result); só então o laço as dá por lidas ao servidor —
+          // até lá o Parar as devolve à fila. Entre voltas a escrita abre a volta seguinte: lida na hora.
+          const naoLidas: string[] = [];
+          // ADR-186: o laço pediu para parar a volta (a pessoa mandou mensagem com o bot só escrevendo). O `result` que
+          // vier fecha a volta interrompida: o texto dela vira fala própria, marcada, antes da resposta à mensagem.
+          let interrompendo = false;
           let sinksDoTurno: SinksTurno | null = null;
 
           return {
@@ -550,10 +619,15 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 }
                 processo.escrever(mensagemClaude(texto, baixados));
                 // X1: no meio da volta, o CLI só lê a mensagem na fronteira seguinte (tool_result ou result).
+                const abreAVolta = entreVoltas;
                 if (entreVoltas) meio.armar();
                 else meio.absorveu();
                 // X2: o stdin aceitou a escrita: a mensagem entrou na sessão.
                 if (id !== undefined) sinksDoTurno?.mensagemEntrou?.(id);
+                if (id !== undefined) {
+                  if (abreAVolta) sinksDoTurno?.mensagemLida?.(id);
+                  else naoLidas.push(id);
+                }
               };
               // C1 (2026-11-12): a fala com imagem baixa os bytes antes de escrever; as falas seguem na ordem em que chegaram.
               if (!anexos?.length && escritasNaFila === 0) {
@@ -568,6 +642,15 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
               return true;
             },
             aceitaAnexosNoMeio: () => entradaAberta && Boolean(lig.urlNod),
+            informaLeitura: () => true,
+            // ADR-186 (medido em 2026-11-16, CLI 2.1.326): o `control_request` interrupt pelo stdin para a volta em <100 ms;
+            // a sessão continua e lê a mensagem que vier em seguida. Entre voltas não há o que parar.
+            interromperVolta(): boolean {
+              if (!entradaAberta || !processo || entreVoltas || interrompendo) return false;
+              processo.escrever(`${JSON.stringify({ type: "control_request", request_id: `nod-interrupt-${randomUUID()}`, request: { subtype: "interrupt" } })}\n`);
+              interrompendo = true;
+              return true;
+            },
             grupoDeProcessos: () => processo?.pid ?? null,
 
             async rodarTurno(sinks): Promise<ResultadoTurno> {
@@ -701,7 +784,16 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 const entradaStdin = streamJson
                   ? mensagemClaude(texto, anexos)
                   : [texto, ...anexos.map((a) => `[anexo "${a.meta.nome}" não pôde ser lido: esta versão do Claude Code não aceita arquivos. Diga isso à pessoa.]`)].join("\n\n");
-                const { args } = montarArgs({ plano: { ...planoDoTurno, ...(pastas || terminal ? {} : { workspacePastas: null }) }, mcpJson, compactar, streamJson, terminal, esforco, systemPrompt, snapshotOff, bifurcar, windows });
+                const montados = montarArgs({ plano: { ...planoDoTurno, ...(pastas || terminal ? {} : { workspacePastas: null }) }, mcpJson, compactar, streamJson, terminal, esforco, systemPrompt, snapshotOff, bifurcar, windows });
+                // 2026-11-13: no Windows, a linha que passaria do teto leva o prompt e o --settings em arquivos do tmpdir.
+                const tamanhoDaLinha = windows ? tamanhoNaLinhaDeComando(montados.args) : 0;
+                let args = montados.args;
+                if (tamanhoDaLinha > TETO_DA_LINHA_NO_WINDOWS) {
+                  const emArquivos = argsComArquivos(montados.args, tmpdir);
+                  await Promise.all(emArquivos.arquivos.map((a) => writeFile(a.caminho, a.conteudo, "utf8")));
+                  args = emArquivos.args;
+                  log("info", "claude_cli_args_em_arquivo", { turno_id: plano.turnoId, caracteres: tamanhoDaLinha, depois: tamanhoNaLinhaDeComando(args) });
+                }
                 const env = montarEnvDoFilho(cfg.env, home, plano.politicaExecucao.prazoMs, { claudeMdDasPastas: Boolean(terminal), orcamento: plano.orcamento });
 
                 const pendentes: Promise<void>[] = [];
@@ -778,6 +870,8 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                     else if (ev.tipo === "result") anotarSinal(vigia, { tipo: "fim_da_volta" }, Date.now());
                     else if (ev.tipo === "delta" || ev.tipo === "texto_bloco" || ev.tipo === "init") anotarSinal(vigia, { tipo: "token" }, Date.now());
                     rearmar(vigia);
+                    // ADR-185: a fronteira em que o CLI lê o que esperava no stdin.
+                    if ((ev.tipo === "tool_result" || ev.tipo === "result") && naoLidas.length > 0) for (const id of naoLidas.splice(0)) sinks.mensagemLida?.(id);
                     if (ev.tipo === "result") entreVoltas = true;
                     else if (ev.tipo === "delta" || ev.tipo === "texto_bloco" || ev.tipo === "tool_use" || ev.tipo === "init") entreVoltas = false;
                     if (ev.tipo === "tarefa_fundo") {
@@ -788,6 +882,18 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                     if (ev.tipo === "result") {
                       rodadas.push(eventos.slice(inicioDaRodada));
                       inicioDaRodada = eventos.length;
+                      // ADR-186: a volta que a mensagem interrompeu sai já, marcada, e as anteriores ainda não faladas antes dela
+                      // (a ordem da conversa fica: o que ele escreveu, a mensagem, a resposta).
+                      if (interrompendo) {
+                        interrompendo = false;
+                        if (falaNaHora) {
+                          for (; rodadasFaladas < rodadas.length; rodadasFaladas++) {
+                            const ultima = rodadasFaladas === rodadas.length - 1;
+                            const texto = ultima ? textoDaVoltaInterrompida(rodadas[rodadasFaladas]!, meio) : textoDaRodada(rodadas[rodadasFaladas]!, meio);
+                            if (texto.trim() !== "") sinks.falaIntermediaria!(texto, ultima ? { interrompida: true } : undefined);
+                          }
+                        }
+                      }
                       if (viva) decidindo = decidindo.then(aposRodada).catch(() => fechar());
                     }
                     const depois = reduzirSinais(sinais, ev);

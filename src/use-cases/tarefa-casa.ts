@@ -39,6 +39,7 @@ async function tarefaEQuadro(deps: Deps, tarefaId: string): Promise<{ t: TarefaQ
 
 /** A linha `tarefa.*` na conversa do bot (sem turno: nunca é escondida com o turno de tarefa). */
 export async function gravarLinhaDaTarefa(deps: Deps, p: { motivo: "precisa" | "resultado"; t: TarefaQuadro; q: Quadro; conversaId: string; agenteId: string; texto: string }): Promise<RuntimeEvent[]> {
+  if (!tarefaCasaLigada()) return [];
   const codigo = codigoDaTarefa(p.q.prefixo, p.t);
   const autoria = autoriaDoAgente(deps.escopo, p.agenteId);
   const m = await deps.repos.mensagens.criar({

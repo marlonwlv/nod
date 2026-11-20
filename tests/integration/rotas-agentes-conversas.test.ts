@@ -143,7 +143,10 @@ describeIntegracao("rotas agentes/conversas/propostas/turnos/frota (L6) com serv
       const parada = await servidor.chamar(marlon, "POST", `conversas/${conversa.id}/parar`);
       expect(parada.status).toBe(200);
       const faixa = (await parada.json()) as FaixaParada;
-      expect(faixa).toMatchObject({ interrompidas: 1, nadaRodando: false });
+      // ADR-185 (2026-11-16): com o turno do chat rodando, a fala que espera atrás dele ("e aí?") fica na fila; só o Parar
+      // global a para.
+      expect(faixa).toMatchObject({ interrompidas: 0, nadaRodando: false });
+      expect(((await (await servidor.chamar(marlon, "GET", `turnos/${segundo.turno}`)).json()) as { turno: { estado: string } }).turno.estado).toBe("pendente");
       expect(faixa.naoInterrompidas).toEqual([{ turnoId: ids.turno, motivo: "sem_processo_neste_servidor_aguarda_renovacao_do_lease" }]);
       const global = (await (await servidor.chamar(marlon, "POST", "parar")).json()) as FaixaParada;
       expect(global.nadaRodando).toBe(false);

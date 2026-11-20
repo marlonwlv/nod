@@ -6,7 +6,7 @@ import type { Escopo, Tx } from "../../src/shared/types.ts";
 import { ativarRotina, servicoRotinas } from "../../src/use-cases/ativar-rotina.ts";
 import { criarRotina } from "../../src/use-cases/criar-rotina.ts";
 import { verAgendaPeloAgente } from "../../src/use-cases/ver-agenda.ts";
-import { atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, listarRotinasDoAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente } from "../../src/use-cases/rotinas-do-agente.ts";
+import { atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, listarRotinasDoAgente, pausarRotinaPeloAgente, pausarTodasRotinasPeloAgente, reativarLoteRotinasPeloAgente, reativarRotinaPeloAgente } from "../../src/use-cases/rotinas-do-agente.ts";
 import { encaminhar } from "../../src/use-cases/encaminhar.ts";
 import { semNovidade } from "../../src/use-cases/sem-novidade.ts";
 import { passar } from "../../src/use-cases/passar.ts";
@@ -27,6 +27,7 @@ import { gerirCanvas } from "../../src/use-cases/gerir-canvas.ts";
 import { removerComputadorPeloChat } from "../../src/use-cases/remover-computador.ts";
 import { gerirAcessos } from "../../src/use-cases/gerir-acessos.ts";
 import { naoLidosNoChat } from "../../src/use-cases/nao-lidos-no-chat.ts";
+import { decisoesNoChat } from "../../src/use-cases/decisoes-no-chat.ts";
 import { buscarConversas, lerConversa } from "../../src/use-cases/buscar-conversas.ts";
 
 /**
@@ -88,6 +89,8 @@ export function useCasesFalsos(): UseCasesNod {
     verAgendaPeloAgente,
     pausarRotinaPeloAgente,
     reativarRotinaPeloAgente,
+    pausarTodasRotinasPeloAgente,
+    reativarLoteRotinasPeloAgente,
     atualizarRotinaPeloAgente,
     excluirRotinaPeloAgente,
     executarRotinaPeloAgente,
@@ -121,6 +124,7 @@ export function useCasesFalsos(): UseCasesNod {
     gerirQuadro,
     gerirApps,
     naoLidosNoChat,
+    decisoesNoChat,
     gerirTimes,
     gerirMaquinas,
     gerirCanvas,

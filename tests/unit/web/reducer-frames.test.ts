@@ -241,8 +241,18 @@ describe("aplicarFrame por TipoFrame", () => {
 
   it("parada.faixa vira FaixaParada renderizável (nadaRodando escrito, nunca em branco)", () => {
     const e = aplicarFrame(estadoInicial, frame("parada.faixa", { conversaId: CONVERSA, interrompidas: 1, nao_interrompidas: 0, ja_entregues: 0, nada_rodando: false }), AGORA);
-    expect(e.faixaParada).toEqual({ interrompidas: 1, naoInterrompidas: [], jaEntregues: [], nadaRodando: false });
+    expect(e.faixaParada).toEqual({ interrompidas: 1, naoInterrompidas: [], jaEntregues: [], nadaRodando: false, conversaId: CONVERSA });
     expect(aplicarFrame(estadoInicial, frame("parada.faixa", { nada_rodando: true }), AGORA).faixaParada?.nadaRodando).toBe(true);
+  });
+
+  it("a faixa do Parar é da conversa parada: ir para outro bot a deixa para trás; voltar para a mesma conversa a mantém", () => {
+    const OUTRA = "44444444-4444-4444-8444-444444444444";
+    const faixa = { interrompidas: 1, naoInterrompidas: [], jaEntregues: [], nadaRodando: false };
+    let e = reduzir(estadoInicial, { tipo: "navegar", tela: { tipo: "conversa", conversaId: CONVERSA, agenteId: "a" } });
+    e = reduzir(e, { tipo: "faixa", faixa, conversaId: CONVERSA });
+    expect(e.faixaParada?.conversaId).toBe(CONVERSA);
+    expect(reduzir(e, { tipo: "navegar", tela: { tipo: "conversa", conversaId: CONVERSA, agenteId: "a" } }).faixaParada).not.toBeNull();
+    expect(reduzir(e, { tipo: "navegar", tela: { tipo: "conversa", conversaId: OUTRA, agenteId: "b" } }).faixaParada).toBeNull();
   });
 
   it("resumed:false reidrata TUDO (replay parcial nunca é aplicado, ADR-016); resumed:true não faz nada", () => {
@@ -257,7 +267,7 @@ describe("reduzir: hidratar e navegar", () => {
     let e = aplicarFrame(comConversa(), frame("turno.iniciado", { conversaId: CONVERSA, turnoId: TURNO, kind: "turno_despachado" }), AGORA);
     e = aplicarFrame(e, frame("turno.delta", { conversaId: CONVERSA, turnoId: TURNO, texto: "x" }), AGORA);
     e = aplicarFrame(e, frame("turno.delta", { conversaId: CONVERSA, turnoId: "outro", texto: "morto" }), AGORA);
-    e = reduzir(e, { tipo: "hidratar-conversa", conversa: conversaVazia(), agora: AGORA });
+    e = reduzir(e, { tipo: "hidratar-conversa", conversa: { ...conversaVazia(), turnosEmCurso: [{ id: TURNO, estado: "despachando", desde: AGORA, mensagemId: null }] }, agora: AGORA + 1 });
     expect(Object.keys(e.atividades[CONVERSA] ?? {})).toEqual([TURNO]);
   });
 

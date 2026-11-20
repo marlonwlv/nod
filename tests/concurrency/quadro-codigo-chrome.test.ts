@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
@@ -57,7 +57,7 @@ window.__montar = () => {
 `;
 
 async function pagina(dir: string): Promise<string> {
-  const js = await build({ stdin: { contents: ENTRADA, resolveDir: RAIZ.pathname, loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
+  const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
   let html = readFileSync(new URL("web/index.html", RAIZ), "utf8");
   html = html.replace(/<link rel="stylesheet" href="\/([\w-]+\.css)" \/>/g, (_, f: string) => `<style>${readFileSync(new URL(`web/${f}`, RAIZ), "utf8")}</style>`);
   html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<script>${js.outputFiles[0]!.text}</script>`);
@@ -106,7 +106,7 @@ descrever("NOD-430 · o código da tarefa no Chrome real", () => {
   it("o código vira botão com o rótulo do que abre", async () => {
     await abrir();
     const b = await avaliar<{ texto: string; rotulo: string | null; agente: string; tarefa: string }>(cdp, `(() => { const b = document.querySelector('#timeline [data-act="abrir-tarefa-quadro"]'); return { texto: b.textContent, rotulo: b.getAttribute("aria-label"), agente: b.dataset.agente, tarefa: b.dataset.tarefa }; })()`);
-    expect(b).toEqual({ texto: "1a2b", rotulo: "Abrir tarefa 1a2b no quadro", agente: ENG, tarefa: TAREFA });
+    expect(b).toEqual({ texto: "1a2b", rotulo: "Abrir o card 1a2b no quadro", agente: ENG, tarefa: TAREFA });
   });
 
   it("com a conversa do dono na tela: o clique abre a tarefa no quadro dele", async () => {

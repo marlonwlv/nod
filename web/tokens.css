@@ -235,6 +235,29 @@
   --chat-sx-numero: #206595;
   --chat-favicon-anel: #1c1c1c0f;
   --chat-spinner-trilho: #1c1c1c14;
+  /* ADR-187 §5 (protótipo P1, 2026-11-17): a aba das tarefas presa ao campo e o ponto de "precisa de você" nela. */
+  --chat-aba-fundo: #f4f4f2;
+  --chat-aba-contorno: #1c1c1c1f;
+  --chat-aba-precisa: #2563eb;
+  /* ADR-187 §5 e §7 (lote B, passo 2, 2026-11-18; Paper 4q e 3b): a tecla da aba "+ Nova tarefa" e o fundo dos chips. */
+  --chat-tinta-4: #1c1c1c59;
+  /* ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k, 4l e 4n): dentro da tarefa — o cartão do pedido (3 % e o contorno
+     de 0,5 px a 8 %), a tinta do passo (85 %), o contorno das saídas da parada (15 %) e o cartão "precisa de você" (azul a
+     5 % com o contorno a 25 %). */
+  --chat-pedido-fundo: #1c1c1c08;
+  --chat-pedido-contorno: #1c1c1c14;
+  --chat-tinta-passo: #1c1c1cd9;
+  --chat-saida-contorno: #1c1c1c26;
+  --chat-precisa-fundo: #2563eb0d;
+  --chat-precisa-contorno: #2563eb40;
+  --chat-chip-fundo: #1c1c1c0a;
+  --chat-aviso-fundo: #fbf0df;
+  --chat-aviso-contorno: #da830e59;
+  --chat-aviso-tinta: #8a5200;
+  --chat-aviso-icone: #da830e;
+  --chat-critico-fundo: #fdeceb;
+  --chat-critico-contorno: #d92d2059;
+  --chat-critico-tinta: #b42318;
   --chat-pessoa-tinta: #ffffff;
   --chat-pessoa-azul: #126fd4;
   --chat-pessoa-violeta: #7442d1;
@@ -248,6 +271,11 @@
   --chat-pessoa-tinta-neutra: #1c1c1c;
   --chat-brilho-balao: inset 0 .5px 0 #ffffff29, inset 0 -.5px 0 #ffffff29, inset 0 0 0 .5px #1c1c1c0f;
   --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
+  /* ADR-187 §5 (lote B passo 6, 2026-11-18; Paper 1c e P1): o cartão vivo — a sombra dele, o segmento da tarefa que anda e o
+     da que ainda não começou. */
+  --chat-cartao-sombra: 0 0 0 .5px #1c1c1c1f, 0 2px 6px #1c1c1c0a;
+  --chat-barra-andando: #1c1c1c40;
+  --chat-barra-vazia: #1c1c1c14;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -370,6 +398,24 @@
     --chat-sx-numero: #f8c762;
     --chat-favicon-anel: #f5f5f50f;
     --chat-spinner-trilho: #f5f5f50f;
+    --chat-aba-fundo: #262626;
+    --chat-aba-contorno: #f5f5f51f;
+    --chat-aba-precisa: #60a5fa;
+    --chat-tinta-4: #f5f5f559;
+    --chat-pedido-fundo: #f5f5f508;
+    --chat-pedido-contorno: #f5f5f514;
+    --chat-tinta-passo: #f5f5f5d9;
+    --chat-saida-contorno: #f5f5f526;
+    --chat-precisa-fundo: #60a5fa14;
+    --chat-precisa-contorno: #60a5fa4d;
+    --chat-chip-fundo: #f5f5f50f;
+    --chat-aviso-fundo: #3a2a12;
+    --chat-aviso-contorno: #e2860066;
+    --chat-aviso-tinta: #f5c47a;
+    --chat-aviso-icone: #e28600;
+    --chat-critico-fundo: #3d1715;
+    --chat-critico-contorno: #f0443866;
+    --chat-critico-tinta: #f8a39c;
     --chat-pessoa-tinta: #f5f5f5;
     --chat-pessoa-azul: #116dd2;
     --chat-pessoa-violeta: #7845d7;
@@ -383,6 +429,9 @@
     --chat-pessoa-tinta-neutra: #f5f5f52e;
     --chat-brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
     --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
+    --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
+    --chat-barra-andando: #f5f5f540;
+    --chat-barra-vazia: #f5f5f514;
   }
 }
 
@@ -506,6 +555,24 @@
   --chat-sx-numero: #f8c762;
   --chat-favicon-anel: #f5f5f50f;
   --chat-spinner-trilho: #f5f5f50f;
+  --chat-aba-fundo: #262626;
+  --chat-aba-contorno: #f5f5f51f;
+  --chat-aba-precisa: #60a5fa;
+  --chat-tinta-4: #f5f5f559;
+  --chat-pedido-fundo: #f5f5f508;
+  --chat-pedido-contorno: #f5f5f514;
+  --chat-tinta-passo: #f5f5f5d9;
+  --chat-saida-contorno: #f5f5f526;
+  --chat-precisa-fundo: #60a5fa14;
+  --chat-precisa-contorno: #60a5fa4d;
+  --chat-chip-fundo: #f5f5f50f;
+  --chat-aviso-fundo: #3a2a12;
+  --chat-aviso-contorno: #e2860066;
+  --chat-aviso-tinta: #f5c47a;
+  --chat-aviso-icone: #e28600;
+  --chat-critico-fundo: #3d1715;
+  --chat-critico-contorno: #f0443866;
+  --chat-critico-tinta: #f8a39c;
   --chat-pessoa-tinta: #f5f5f5;
   --chat-pessoa-azul: #116dd2;
   --chat-pessoa-violeta: #7845d7;
@@ -519,6 +586,9 @@
   --chat-pessoa-tinta-neutra: #f5f5f52e;
   --chat-brilho-balao: inset 0 .5px 0 #ffffff08, inset 0 -.5px 0 #ffffff08, inset 0 0 0 .5px #f5f5f50a;
   --chat-sombra-campo: 0 2px 8px -1px #0000000d, 0 1px 2px 0 #00000008;
+  --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
+  --chat-barra-andando: #f5f5f540;
+  --chat-barra-vazia: #f5f5f514;
 }
 
 /* =====================================================================================

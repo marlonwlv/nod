@@ -1,7 +1,7 @@
 import { TETO_ITENS_ATIVIDADE, type AtividadeDto, type ContagemDaAtividade, type ItemDeAtividade } from "../contracts/atividade.ts";
 import { ASSUNTOS_DA_ATIVIDADE } from "../domain/destino-no-chat.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { diaAnterior, diaNoFuso, diaValido, itemDaAcaoDoModo, itemDaMensagem, itemDaNegacaoDeConector, itemDaRecuperacaoDeConector, itemDaRecusaDoQuadro, itensDoTrabalho, ordenarAtividade } from "../domain/item-de-atividade.ts";
+import { diaAnterior, diaNoFuso, diaValido, itemDaAcaoDoModo, itemDaAcaoMcp, itemDaMensagem, itemDaNegacaoDeConector, itemDaRecuperacaoDeConector, itemDaRecusaDoQuadro, itensDoTrabalho, ordenarAtividade } from "../domain/item-de-atividade.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
 
 export type EntradaAtividade = { agenteId: string; dia: string; fuso: string };
@@ -13,35 +13,44 @@ export type EntradaAtividade = { agenteId: string; dia: string; fuso: string };
  */
 async function recorte(deps: Deps, input: EntradaAtividade) {
   if (!diaValido(input.dia)) throw new ErroDeDominio("entrada_invalida", { cause: "dia" });
+  // O fuso que o Intl não conhece é recusado antes de qualquer consulta (a consulta recusada abortaria a transação).
+  try { diaNoFuso(0, input.fuso); } catch { throw new ErroDeDominio("fuso_invalido"); }
   let nascimento: string;
-  const agente = await deps.repos.agentes.buscar(input.agenteId);
+  // Leva 2 (ADR-183): a faixa do dia só depende do dia e do fuso: sai junto com o agente, DEPOIS dele na fila da conexão
+  // (o postgres.js executa na ordem de chamada: o agente responde antes de um fuso que só o tzdata do Postgres recusa
+  // abortar a transação). A faixa é aguardada antes da conversa; a promessa já ouvida não vira rejeição solta.
+  const agentePromessa = deps.repos.agentes.buscar(input.agenteId);
+  const faixaPromessa = deps.repos.atividade.faixaDoDia(input.dia, input.fuso).then((v) => ({ ok: true as const, v }), (e: unknown) => {
+    // Revisão pré-merge de 2026-10-18: um nome que o Intl do Node ainda aceita e o tzdata do Postgres já não tem
+    // ("US/Pacific-New") voltava 500. O Postgres responde 22023 (invalid_parameter_value); é o mesmo 400 do fuso.
+    if (typeof e === "object" && e !== null && "code" in e && e.code === "22023") return { ok: false as const, e: new ErroDeDominio("fuso_invalido") };
+    return { ok: false as const, e };
+  });
+  const [agente, faixaLida] = await Promise.all([agentePromessa, faixaPromessa]);
   if (!agente || agente.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado");
   try {
     nascimento = diaNoFuso(agente.criadoEm, input.fuso);
   } catch {
     throw new ErroDeDominio("fuso_invalido");
   }
+  if (!faixaLida.ok) throw faixaLida.e;
+  const faixa = faixaLida.v;
   const conversa = await deps.repos.conversas.buscarPropriaDoAgente(agente.id);
   if (!conversa) throw new ErroDeDominio("nao_encontrado");
-  const faixa = await deps.repos.atividade.faixaDoDia(input.dia, input.fuso).catch((e: unknown) => {
-    // Revisão pré-merge de 2026-10-18: um nome que o Intl do Node ainda aceita e o tzdata do Postgres já não tem
-    // ("US/Pacific-New") voltava 500. O Postgres responde 22023 (invalid_parameter_value); é o mesmo 400 do fuso.
-    if (typeof e === "object" && e !== null && "code" in e && e.code === "22023") throw new ErroDeDominio("fuso_invalido");
-    throw e;
-  });
   return { agente, conversa, faixa, nascimento };
 }
 
 async function contar(deps: Deps, r: Awaited<ReturnType<typeof recorte>>): Promise<number> {
-  const [mensagens, negacoes, recuperacoes, trabalhos, semAprovacao, recusas] = await Promise.all([
+  const [mensagens, negacoes, recuperacoes, trabalhos, semAprovacao, recusas, peloMcp] = await Promise.all([
     deps.repos.atividade.contarMensagens(r.conversa.id, r.faixa, ASSUNTOS_DA_ATIVIDADE),
     deps.repos.atividade.contarNegacoesDeConector(r.agente.id, r.faixa),
     deps.repos.atividade.contarRecuperacoesDeConector(r.agente.id, r.faixa),
     deps.repos.atividade.contarTrabalhos(r.conversa.id, r.faixa),
     deps.repos.acoesPeloModo.contarSemAprovacaoDoDia(r.agente.id, r.faixa),
     deps.repos.atividade.contarRecusasDoQuadro(r.agente.id, r.faixa),
+    deps.repos.mcpTokens.contarAcoesDoDia(r.agente.id, r.faixa),
   ]);
-  return mensagens + negacoes + recuperacoes + trabalhos + semAprovacao + recusas;
+  return mensagens + negacoes + recuperacoes + trabalhos + semAprovacao + recusas + peloMcp;
 }
 
 /**
@@ -50,7 +59,7 @@ async function contar(deps: Deps, r: Awaited<ReturnType<typeof recorte>>): Promi
  */
 export const lerAtividade: CasoDeUso<EntradaAtividade, AtividadeDto> = async (deps, input) => {
   const r = await recorte(deps, input);
-  const [total, linhas, negacoes, recuperacoes, trabalhos, semAprovacao, recusas] = await Promise.all([
+  const [total, linhas, negacoes, recuperacoes, trabalhos, semAprovacao, recusas, peloMcp] = await Promise.all([
     contar(deps, r),
     deps.repos.atividade.mensagens(r.conversa.id, r.faixa, ASSUNTOS_DA_ATIVIDADE, TETO_ITENS_ATIVIDADE),
     deps.repos.atividade.negacoesDeConector(r.agente.id, r.faixa),
@@ -61,6 +70,8 @@ export const lerAtividade: CasoDeUso<EntradaAtividade, AtividadeDto> = async (de
     deps.repos.acoesPeloModo.semAprovacaoDoDia(r.agente.id, r.faixa, TETO_ITENS_ATIVIDADE),
     // ADA-26: as recusas do gerir_quadro (uma linha por dia).
     deps.repos.atividade.recusasDoQuadro(r.agente.id, r.faixa),
+    // Critério 4 da NOD-152 (0174): o que um cliente MCP mudou em nome da pessoa ("Pelo MCP · Grok Bot").
+    deps.repos.mcpTokens.acoesDoDia(r.agente.id, r.faixa, TETO_ITENS_ATIVIDADE),
   ]);
   const faixa = { ini: r.faixa.ini.getTime(), fim: r.faixa.fim.getTime() };
   const itens: ItemDeAtividade[] = [
@@ -69,6 +80,7 @@ export const lerAtividade: CasoDeUso<EntradaAtividade, AtividadeDto> = async (de
     ...recuperacoes.map((n) => itemDaRecuperacaoDeConector({ ...n, em: n.em.getTime() })),
     ...trabalhos.flatMap((t) => itensDoTrabalho({ id: t.id, titulo: t.titulo, forma: t.forma, origem: t.origem, estado: t.estado, criadoEm: t.criado_em.getTime(), terminadoEm: t.terminado_em?.getTime() ?? null }, faixa)),
     ...recusas.map((x) => itemDaRecusaDoQuadro({ vezes: x.vezes, em: x.em.getTime() })),
+    ...peloMcp.map((x) => itemDaAcaoMcp({ id: x.id, em: x.criado_em.getTime(), resumo: x.resumo, cliente: x.cliente })),
     ...semAprovacao.map((a) => itemDaAcaoDoModo({ id: a.id, modo: a.modo, tipo: a.tipo, gatilho: a.gatilho, resumo: a.resumo, risco: a.risco, veredito: a.veredito, motivo: a.motivo, contestadaEm: a.contestada_em?.getTime() ?? null, em: a.criado_em.getTime() })),
   ];
   const pagina = ordenarAtividade(itens).slice(0, TETO_ITENS_ATIVIDADE);

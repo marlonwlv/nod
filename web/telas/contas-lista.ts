@@ -175,6 +175,7 @@ const ERROS_LOGIN: Partial<Record<CausaFalhaLogin | Exclude<ResultadoColarCodigo
   codigo_ilegivel: "A máquina não conseguiu ler o código. Gere outro na página e cole de novo.",
   contas_demais: "Essa máquina já tem contas demais dessa IA. Saia de uma antes.",
   nao_confirmou: "O login terminou, mas a máquina não confirmou a conta. Tente de novo.",
+  recusou_antes_do_link: "A IA dessa máquina fechou com erro antes de abrir o login. Ela pode ter sido trocada ou estar com defeito: o motivo fica no log do motor dessa máquina.",
   nao_instalada: "A IA não está instalada nessa máquina. Rode a instalação do motor de novo.",
   codigo_invalido: "A página não aceitou o código. Gere outro e cole de novo.",
   login_por_codigo_bloqueado: "A conta não permite entrar por código. Entre pelo terminal da máquina.",
@@ -324,6 +325,19 @@ function detalhes(c: ContaIa, x: ContextoContas, d:{ email: string | null; organ
     </div>`;
 }
 
+/**
+ * definido em 2026-11-17: "Em uso" sem filtro fazia a pessoa achar que a conta servia a todos os bots, e o bot da VM onde
+ * o login dela venceu parava com "nenhuma IA está pronta". Pronta em todas as máquinas conectadas: "Em uso". Senão diz
+ * onde ("Em uso na nod-motor-teste", "Em uso no Mac e mais 1").
+ */
+export function emUsoOnde(c: ContaIa, x: Pick<ContextoContas, "maquinas">): string {
+  const conectadas = x.maquinas.filter((m) => m.conectada && m.papel !== "computador");
+  const onde = conectadas.filter((m) => prontaEm(c, m.id));
+  if (onde.length === 0 || onde.length === conectadas.length) return "Em uso";
+  const [primeira, ...resto] = onde.map((m) => nomeCurto(m, x.maquinas));
+  return `Em uso na ${primeira}${resto.length ? ` e mais ${resto.length}` : ""}`;
+}
+
 function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null): string {
   const filtro = x.ui.filtro;
   const fora = filtro !== null && !prontaEm(c, filtro);
@@ -331,7 +345,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
   const nome = nomeDaContaNaTela(c);
   const [classe, estado] = noLimite(c, x.agora)
     ? ["e-limite", `No limite até ${quandoNaTela(c.noLimiteAte!, x.agora)}`]
-    : c.id === usada ? ["e-uso", filtro ? `Em uso na ${nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas)}` : "Em uso"]
+    : c.id === usada ? ["e-uso", filtro ? `Em uso na ${nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas)}` : emUsoOnde(c, x)]
     : c.entraNaTrocaAutomatica ? ["e-disp", "Disponível"] : ["e-fora", "Fora da fila"];
   const ident = [d?.email, d?.organizacao ?? null, `pelo ${PROVEDOR[c.ia].cli}`].filter(Boolean).join(" · ");
   const renomear = x.ui.renomear === c.id
@@ -375,9 +389,9 @@ function chaveDaFila(c: ContaIa): string {
 
 /** ADR-108 (R8, canvas Main): não há regra para configurar — só como o Nod age quando uma conta acaba. */
 export const REGRAS_DA_FILA: readonly { titulo: string; texto: string }[] = [
-  { titulo: "Mesma IA", texto: "passa sozinho para a próxima conta ligada na fila. No Claude, nada se perde. No ChatGPT, a task com sessão recomeçaria do resumo noutra conta: o Nod recomenda esperar ou seguir, e você decide." },
+  { titulo: "Mesma IA", texto: "passa sozinho para a próxima conta ligada na fila. No Claude, nada se perde. No ChatGPT, a tarefa com sessão recomeçaria do resumo noutra conta: o Nod recomenda esperar ou seguir, e você decide." },
   { titulo: "Outra IA", texto: "só nos bots em Automático. A conversa segue na hora." },
-  { titulo: "Tasks em andamento", texto: "trocar de IA faz a task recomeçar do resumo. Por isso o Nod recomenda esperar ou trocar, pela hora em que a conta volta, e você decide." },
+  { titulo: "Tarefas em andamento", texto: "trocar de IA faz a tarefa recomeçar do resumo. Por isso o Nod recomenda esperar ou trocar, pela hora em que a conta volta, e você decide." },
 ];
 
 /** O formulário "Adicionar conta" (G1-P2): provedor, apelido e em quais máquinas entrar. */
@@ -480,9 +494,9 @@ const emLista = (itens: readonly string[]): string => (itens.length < 2 ? itens.
  * falhou), o aviso diz o risco e não bloqueia: a pessoa decide. Os quatro estados ficam em role="status".
  */
 function avisoDasFrentes(x: ContextoContas, frentes: readonly FrenteAtivaDaConta[] | null | undefined, acao: "sair" | "remover"): string {
-  if (frentes === undefined) return `<p class="cl-caixa" role="status">Conferindo as frentes que usam esta conta…</p>`;
-  if (frentes === null) return `<p class="cl-caixa cl-caixa-aviso" role="status">Não deu para conferir se alguma frente usa esta conta. Se houver alguma, ela para ao ${acao}.</p>`;
-  if (!frentes.length) return `<p class="cl-caixa" role="status">Nenhuma frente usa esta conta agora.</p>`;
+  if (frentes === undefined) return `<p class="cl-caixa" role="status">Conferindo as tarefas que usam esta conta…</p>`;
+  if (frentes === null) return `<p class="cl-caixa cl-caixa-aviso" role="status">Não deu para conferir se alguma tarefa usa esta conta. Se houver alguma, ela para ao ${acao}.</p>`;
+  if (!frentes.length) return `<p class="cl-caixa" role="status">Nenhuma tarefa usa esta conta agora.</p>`;
   const itens = frentes.map((f) => {
     const rotulo = `<b>${esc(f.titulo ?? `a conversa com ${f.agente}`)}</b>`;
     if (acao === "sair") return rotulo;
@@ -581,7 +595,7 @@ export function renderListaDeContas(x: ContextoContas): string {
   const nota = x.ui.nota ? `<p class="cl-nota" role="status">${esc(x.ui.nota)}</p>` : "";
   return `${abas}
     ${vazio}
-    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem"><span>${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span>arraste para mudar</span>${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${seletorDeMaquina(x)}${formNova(x)}</span>`}</div>
+    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem"><span class="prov-ordem-titulo">${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span class="prov-ordem-dica">arraste para mudar</span>${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${seletorDeMaquina(x)}${formNova(x)}</span>`}</div>
     <ol class="espaco-cartao cl-lista" data-ordem-lista="contas" aria-label="Suas contas de IA, em ordem de uso">${linhas}${loginsSemConta(x)}</ol>` : ""}
     ${nota}
     ${filtro || (!x.ui.nova && (n > 0 || x.ui.logins.length > 0)) ? "" : formNova(x)}

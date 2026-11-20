@@ -321,6 +321,8 @@ describe("desktop: fronteiras HTTP", () => {
   it("ADR-067: falas da sessão viva — seq inteiro ≥ 1 e texto dentro do teto; fora do formato a renovação é recusada (o executor reenvia)", () => {
     expect(falas(undefined)).toEqual([]);
     expect(falas([{ seq: 1, texto: "Disparei os testes." }, { seq: 2, texto: "Verdes." }])).toEqual([{ seq: 1, texto: "Disparei os testes." }, { seq: 2, texto: "Verdes." }]);
+    // ADR-186: a marca da volta interrompida atravessa só como `true`; qualquer outro valor some (fala comum).
+    expect(falas([{ seq: 1, texto: "1. Origens", interrompida: true }, { seq: 2, texto: "x", interrompida: "sim" }])).toEqual([{ seq: 1, texto: "1. Origens", interrompida: true }, { seq: 2, texto: "x" }]);
     for (const ruim of [[{ seq: 0, texto: "x" }], [{ seq: 1.5, texto: "x" }], [{ seq: 1 }], [{ seq: 1, texto: "x".repeat(TEXTO_ENTREGA_MAX_CHARS + 1) }], "x", Array.from({ length: 51 }, (_, i) => ({ seq: i + 1, texto: "t" }))]) {
       expect(() => falas(ruim), JSON.stringify(ruim).slice(0, 60)).toThrow();
     }
@@ -465,7 +467,7 @@ describe("NOD-167: Codex sem app-server no anúncio do Mac", () => {
   it("S15: as capacidades anunciadas chegam à ponte; ausentes ou lixo, o anúncio sai sem elas", async () => {
     const { maquinas, conectar } = montar();
     await conectar({ ...base, harnesses: { "claude-cli": pronto }, capacidades: { "claude-cli": { bifurcaSessao: true, retomaSessao: "sim", inventada: true }, hermes: { bifurcaSessao: true }, __proto__: { x: 1 } } });
-    expect(maquinas.get("m1")?.capacidades).toEqual({ "claude-cli": { mensagemNoMeio: false, retomaSessao: false, bifurcaSessao: true, processoProprio: false, terminal: false, anexos: [], comandosDoCli: false, pastaDeTrabalho: false, anexarMidia: false } });
+    expect(maquinas.get("m1")?.capacidades).toEqual({ "claude-cli": { mensagemNoMeio: false, retomaSessao: false, bifurcaSessao: true, processoProprio: false, terminal: false, anexos: [], comandosDoCli: false, pastaDeTrabalho: false, anexarMidia: false, interrompeVolta: false, parcialNoHistorico: false } });
     await conectar({ ...base, harnesses: { "claude-cli": pronto } });
     expect(maquinas.get("m1")?.capacidades).toBeUndefined();
     await conectar({ ...base, harnesses: { "claude-cli": pronto }, capacidades: ["claude-cli"] });
@@ -559,7 +561,7 @@ describe("NOD-199: anúncio só de inventário no servidor", () => {
     const m = maquinas.get("m1")!;
     expect(Object.keys(m.harnesses ?? {}).sort()).toEqual(["claude-cli", "codex-cli"]);
     expect(m.semLacoDeVoz).toEqual(["claude-cli"]);
-    expect(m.capacidades).toEqual({ "claude-cli": { mensagemNoMeio: false, retomaSessao: false, bifurcaSessao: true, processoProprio: false, terminal: false, anexos: [], comandosDoCli: false, pastaDeTrabalho: false, anexarMidia: false } });
+    expect(m.capacidades).toEqual({ "claude-cli": { mensagemNoMeio: false, retomaSessao: false, bifurcaSessao: true, processoProprio: false, terminal: false, anexos: [], comandosDoCli: false, pastaDeTrabalho: false, anexarMidia: false, interrompeVolta: false, parcialNoHistorico: false } });
     expect(m).not.toHaveProperty("extra");
     expect(m).not.toHaveProperty("planos");
   });

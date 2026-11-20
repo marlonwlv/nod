@@ -83,7 +83,7 @@ import { atualizarPerfil } from "../../use-cases/atualizar-perfil.ts";
 import { motorDe } from "../../use-cases/autoria-evento.ts";
 import { criarRotina } from "../../use-cases/criar-rotina.ts";
 import { verAgendaPeloAgente } from "../../use-cases/ver-agenda.ts";
-import { atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, listarRotinasDoAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente } from "../../use-cases/rotinas-do-agente.ts";
+import { atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, listarRotinasDoAgente, pausarRotinaPeloAgente, pausarTodasRotinasPeloAgente, reativarLoteRotinasPeloAgente, reativarRotinaPeloAgente } from "../../use-cases/rotinas-do-agente.ts";
 import { registrarDesfechoDaEntrega, repetidoSemResume } from "../../use-cases/disparar-rotina.ts";
 import { emitirPlanoTurno } from "../../use-cases/emitir-plano-turno.ts";
 import { encaminhar } from "../../use-cases/encaminhar.ts";
@@ -108,6 +108,7 @@ import { gerirMaquinas } from "../../use-cases/gerir-maquinas.ts";
 import { gerirCanvas } from "../../use-cases/gerir-canvas.ts";
 import { criarImportador, origensDoAmbiente } from "../canvas/importador.ts";
 import { naoLidosNoChat } from "../../use-cases/nao-lidos-no-chat.ts";
+import { decisoesNoChat } from "../../use-cases/decisoes-no-chat.ts";
 import { buscarConversas, lerConversa } from "../../use-cases/buscar-conversas.ts";
 import { abrirConta } from "../../use-cases/abrir-conta.ts";
 import { pedirAPessoa } from "../../use-cases/pedir-a-pessoa.ts";
@@ -137,6 +138,9 @@ import type { IdDriver, Registry } from "../executor/spi.ts";
 import type { IniciarLaco } from "../fundo/orquestrador-turnos.ts";
 import { criarPonteInterna, VERSAO_MINIMA_APP, type PonteInternaNod } from "../fundo/ponte-interna.ts";
 import { autorizarChaveMaquina } from "./autorizar-chave-maquina.ts";
+import { autorizarTokenMcp } from "./autorizar-token-mcp.ts";
+import { rotasMcpTokens } from "./rotas/mcp-tokens.ts";
+import type { DepsServidorMcp } from "./mcp/servidor-mcp.ts";
 import { segredoEfetivo } from "./sessao.ts";
 import { comporContas, type ContasMontadas } from "./compor-contas.ts";
 import { situacaoDaConta } from "../../repositories/contas.repo.ts";
@@ -320,6 +324,8 @@ export type App = {
   /** Modo compartilhado: último contato de uma máquina pela ponte HTTP (o varredor de lease fecha o aviso de queda quando ela volta, ADR-045). */
   ultimoContatoDaMaquina(machineId: string): number | null;
   autorizarMaquina(token: string): ReturnType<typeof autorizarChaveMaquina>;
+  /** Servidor MCP do Nod (0173): valida o token do cliente MCP e diz a versão que o initialize anuncia. */
+  mcp: { autorizar(token: string, cliente: string | null): ReturnType<typeof autorizarTokenMcp>; versaoNod: string; registrarAcao: NonNullable<DepsServidorMcp["registrarAcao"]> };
   /** Liga o registry sondado (boot), os snapshots das sondas por driver e quem liga um driver DEPOIS do boot (interruptor). */
   ligarRegistry(registry: Registry, inventarios?: Partial<Record<IdDriver, Inventario>>, ativar?: AtivarDriver): void;
   /** NOD-323 (J6): a URL deste servidor, que só existe depois do listen — o laço local sobe por ela a mídia da fala. */
@@ -460,7 +466,7 @@ export function comporApp(o: OpcoesCompor): App {
     return tenants.get(pessoaId) ?? null;
   }
 
-  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
+  const useCases: UseCasesNod = { lembrar, atualizarPerfil, pedirAcesso, criarRotina, listarRotinasDoAgente, verAgendaPeloAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente, pausarTodasRotinasPeloAgente, reativarLoteRotinasPeloAgente, atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, pedirAprovacao, pedirAPessoa, passar, encaminhar, semNovidade, pedirABot, verColegas, publicarArtefato, lerArtefato, iniciarTarefa, desligar, anotarEntrevista, concluirEntrevista, proporBot, abrirTask, mandarParaTask, meChameAs, esperarComando, abrirFrentes, mandarParaFrente, devolverResumo, gerirBots, verAppsConectados, registrarRelatoDoNod, criarBots, responderPedido, pedirCredencial, avisarPessoa, mostrarCartoes, abrirConta, buscarConversas, lerConversa, ajustarBarraLateral, gerirQuadro, gerirQuadroEmFases, gerirApps, naoLidosNoChat, decisoesNoChat, gerirTimes, gerirCanvas, gerirAcessos, gerirMaquinas, removerComputador: removerComputadorPeloChat };
 
   // NOD-351: a situação da conta para abrir_conta, lida na transação do turno (sem outra conexão do pool). Liga tarde: as
   // contas nascem depois, sobre `dentro`; false = desligadas, e abrir_conta volta `indisponivel`.
@@ -747,8 +753,15 @@ export function comporApp(o: OpcoesCompor): App {
     chavesDasMaquinas.set(maquinaId, chave);
     barramento.publicar(escopo.pessoaId, "computador.estado", dados);
   } }) : null;
-  // NOD-95 (ADR-138): as sessões da tela ao vivo, só com o computador no motor.
-  const sessoesVivo = computadorNoMotor ? criarSessoesVivo() : null;
+  // Computador ao vivo: o mesmo relay público atende o motor local, o Docker e provedores externos com VNC WebSocket;
+  // não se monta uma rota inútil quando nenhum deles existe.
+  const configProvedoresLida = !o.computador && !computadorNoMotor ? configDeProvedores(env) : null;
+  // A escolha por env não basta para ligar uma integração de terceiro: a flag explícita continua desligada por padrão;
+  // a chave ainda é exigida por pessoa, diretamente do cofre, antes de qualquer chamada ao Orgo.
+  const orgoHabilitado = env.NOD_COMPUTADOR_ORGO === "1";
+  const provedoresEmUsoAgora = configProvedoresLida ? provedoresEmUso(configProvedoresLida.config) : [];
+  const temVivoExterno = (orgoHabilitado && provedoresEmUsoAgora.includes("orgo")) || provedoresEmUsoAgora.includes("docker");
+  const sessoesVivo = computadorNoMotor || temVivoExterno ? criarSessoesVivo() : null;
   const driverMotor = canalComputador ? criarDriverMotor({
     env,
     canal: canalComputador,
@@ -804,22 +817,32 @@ export function comporApp(o: OpcoesCompor): App {
    */
   const provedoresComputador = (() => {
     if (o.computador || driverMotor) return null;
-    const { config, avisos } = configDeProvedores(env);
+    const { config, avisos } = configProvedoresLida ?? configDeProvedores(env);
     for (const aviso of avisos) log("aviso", "computador_provedor_config", { aviso });
     const emUso = provedoresEmUso(config);
     if (!emUso.length) return null;
     const provedores: Partial<Record<IdProvedorComputador, ProvedorDeComputador>> = {};
     if (emUso.includes("docker")) provedores.docker = criarProvedorDocker(env);
-    if (emUso.includes("orgo")) provedores.orgo = criarProvedorOrgo({ env, chaveDe: (escopo) => dentro(escopo, async (d) => {
-      const c = await d.repos.conectores.buscarPorSlug("orgo");
-      if (!c?.envCifrado) return null;
-      const lido = JSON.parse(decifrar(c.envCifrado, chave)) as Record<string, unknown>;
-      return typeof lido.ORGO_API_KEY === "string" && lido.ORGO_API_KEY ? lido.ORGO_API_KEY : null;
-    }) });
-    return { config, driver: criarDriverPorProvedor({ config, provedores, agenteDe: (id, escopo) => dentro(escopo, (d) => d.repos.computadores.agenteDoComputador(id)) }) };
+    if (orgoHabilitado && emUso.includes("orgo")) provedores.orgo = criarProvedorOrgo({ env,
+      chaveDe: (escopo) => dentro(escopo, async (d) => {
+        const c = await d.repos.conectores.buscarPorSlug("orgo");
+        if (!c?.envCifrado) return null;
+        const lido = JSON.parse(decifrar(c.envCifrado, chave)) as Record<string, unknown>;
+        return typeof lido.ORGO_API_KEY === "string" && lido.ORGO_API_KEY ? lido.ORGO_API_KEY : null;
+      }),
+      displayRefDe: (telaId, escopo) => dentro(escopo, (d) => d.repos.computadorTelas.provedorRef(telaId)),
+      fixarDisplayRef: (telaId, ref, escopo) => dentro(escopo, (d) => d.repos.computadorTelas.fixarProvedorRef(telaId, ref)),
+      displaysRefDoComputador: (computadorId, escopo) => dentro(escopo, (d) => d.repos.computadorTelas.provedoresRef(computadorId)),
+    });
+    return { config, driver: criarDriverPorProvedor({ config, provedores, localizar: (id, escopo) => dentro(escopo, async (d) => {
+      const [p, t] = await Promise.all([d.repos.computadores.daPessoa(), d.repos.computadorTelas.porId(id)]);
+      if (!p || (t ? t.computadorId !== p.id : id !== p.id)) return null;
+      return { computadorId: p.id, telaId: t?.id ?? null, agenteId: t?.agenteId ?? null };
+    }),
+      ...(sessoesVivo ? { anexarVivo: (sessao, token, origem) => sessoesVivo.anexarMotor(sessao, token, origem) } : {}) }) };
   })();
   const computadores = criarComputadores({ dentro, driver: o.computador ?? driverMotor ?? provedoresComputador?.driver ?? criarDriverDocker(env), executor: () => executorAtual,
-    porPessoa: computadorNoMotor,
+    porPessoa: computadorNoMotor || provedoresComputador !== null,
     ...(sessoesVivo ? { vivo: sessoesVivo } : {}),
     lugarPadraoNaCriacao: computadorNoMotor ? (escopo) => lugarPadrao(ponteHttp.maquinasComComputador(escopo)) : undefined,
     cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave),
@@ -921,6 +944,14 @@ export function comporApp(o: OpcoesCompor): App {
   // ADR-108 (revisão do PR 2, C5): as IAs prontas nas máquinas da ponte HTTP (as VMs, no modo local) contam por máquina.
   const ponte = criarPonteInterna(db, { ...depsPonte, prontosPorMaquina: (pessoaId) => ponteHttp.prontosPorMaquinaDaPessoa(pessoaId) });
   const autorizarMaquina = (token: string) => autorizarChaveMaquina(db, token, relogio());
+  const mcp: App["mcp"] = {
+    autorizar: (token, cliente) => autorizarTokenMcp(db, token, relogio(), cliente),
+    versaoNod: versaoDoServidor(),
+    // Critério 4 da NOD-152 (0174): o que o cliente MCP mudou aparece na Atividade do bot, marcado "Pelo MCP".
+    registrarAcao: async (identidade, a) => {
+      await dentro({ tenantId: identidade.tenantId, pessoaId: identidade.pessoaId }, (d) => d.repos.mcpTokens.registrarAcao({ tokenId: identidade.tokenId, agenteId: a.agenteId, ferramenta: a.ferramenta, resumo: a.resumo }));
+    },
+  };
   // ADR-102 (2026-10-13): os logins de contas pela tela e o pareamento por código/convite (em memória, src/services).
   const logins = criarLoginsNaMaquina(relogio);
   /**
@@ -1616,6 +1647,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasMotor({ pasta: env.NOD_MOTOR_DIR ?? resolve("dist/motor"), versao: versaoDoServidor(), ...(env.NOD_COMPUTADORES === "motor" ? { computador: true } : {}), ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
     ...rotasContasIa({ dentro, logins, dispositivo, compartilhado, onboardingTexto, avisar: avisarContas, maquinaViva: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id), plataformaDaMaquina: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).find((m) => m.machineId === id)?.plataforma ?? null, maquinaAtualizaIas: (escopo, id) => ponteHttp.maquinasDaPessoa(escopo).some((m) => m.machineId === id && m.atualizaIas), aoRenomear: (escopo, id, nome) => ponteHttp.renomear(escopo, id, nome) }),
     ...(compartilhado ? rotasInstalacoesSsh({ dentro, instalacoes, dispositivo, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }) : []),
+    ...rotasMcpTokens({ dentro, ...(env.NOD_URL_PUBLICA ? { urlPublica: env.NOD_URL_PUBLICA } : {}) }),
     ...rotasMaquinas({ dentro, pareamento: criarPareamentoMaquina(relogio), dispositivo, maquinasVivas: (escopo) => ponteHttp.maquinasDaPessoa(escopo), pareadaPorConvite, ...(compartilhado ? {} : { servidorNoMac: { api: `http://127.0.0.1:${numero(env.NOD_API_PORT, 8888)}` } }) , nuvem: nuvemLigada,
       // ADR-169: a VM do Nod (opção 3) só aparece disponível com NOD_VM_DO_NOD=1; o driver padrão é o seco (nada na nuvem).
       ...(env.NOD_VM_DO_NOD === "1" ? { vmDoNod: { planos: planosDoEnv(env.NOD_VM_DO_NOD_PLANOS), driver: env.NOD_VM_DO_NOD_DRIVER === "gcp" ? "gcp" as const : "seco" as const } } : {}) }),
@@ -1782,6 +1814,7 @@ export function comporApp(o: OpcoesCompor): App {
     compartilhado,
     ultimoContatoDaMaquina: (machineId) => ponteHttp.ultimoContato(machineId),
     autorizarMaquina,
+    mcp,
     ligarRegistry(registry, inventarios, ativar) {
       registryLigado = registry;
       if (automatico) driverPreferido = registry["claude-cli"].estado === "pronto" ? "claude-cli" : registry["codex-cli"]?.estado === "pronto" ? "codex-cli" : "claude-cli";

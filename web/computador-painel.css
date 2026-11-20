@@ -46,6 +46,11 @@
 .cpm-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .cpm-txt b { overflow: hidden; font-size: 13px; line-height: 18px; font-weight: var(--peso-regular); color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
 .cpm-status { overflow: hidden; font-size: 12px; line-height: 16px; color: var(--cpm-texto-3); text-overflow: ellipsis; white-space: nowrap; }
+/* Acessos · computador, item 8 (definido em 2026-11-16): a 2ª linha só quando há o que explicar; a linha cresce com ela. */
+.cpm-linha.com-detalhe { height: auto; min-height: 52px; padding-block: 8px; }
+.cpm-detalhe { font-size: 12px; line-height: 16px; color: var(--cpm-texto-3); }
+.cpm-barra { display: block; width: 240px; max-width: 100%; height: 2px; margin-top: 4px; border-radius: var(--raio-full); background: var(--cpm-mini); overflow: hidden; }
+.cpm-barra i { display: block; height: 100%; border-radius: inherit; background: var(--ink); }
 /* "Tentar de novo" é um link no status, por cima do botão da linha. */
 .cpm-tentar { position: relative; z-index: 2; margin: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .cpm-tentar:hover { color: var(--ink); }
@@ -90,6 +95,8 @@
 .cpc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .cpc-txt b { font-size: 13px; line-height: 18px; font-weight: var(--peso-regular); color: var(--ink); }
 .cpc-txt > span { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--cpm-texto-2); }
+/* Item 8 (Acessos · computador): o motivo ou o download embaixo do status, em 12 px terciário. */
+.cpc-txt > .cpc-detalhe { display: block; font-size: 12px; line-height: 16px; color: var(--cpm-texto-3); }
 .cpc-lado { flex: none; display: flex; gap: 6px; }
 .cpc-ic { flex: none; display: grid; place-items: center; width: 20px; color: var(--ink-2); }
 .cpc-ic svg { width: 18px; height: 18px; }

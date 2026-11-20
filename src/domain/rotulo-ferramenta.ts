@@ -23,6 +23,8 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   ver_agenda: ["Consultou a agenda", "Consultando a agenda"],
   pausar_rotina: ["Pausou uma rotina", "Pausando uma rotina"],
   reativar_rotina: ["Reativou uma rotina", "Reativando uma rotina"],
+  pausar_todas_rotinas: ["Pausou todas as rotinas", "Pausando todas as rotinas"],
+  reativar_lote_rotinas: ["Reativou as rotinas pausadas juntas", "Reativando as rotinas pausadas juntas"],
   atualizar_rotina: ["Propôs mudança numa rotina", "Propondo mudança numa rotina"],
   excluir_rotina: ["Propôs excluir uma rotina", "Propondo excluir uma rotina"],
   executar_rotina: ["Propôs rodar uma rotina agora", "Propondo rodar uma rotina agora"],
@@ -38,13 +40,13 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   buscar_conversas: ["Buscou nas conversas passadas", "Buscando nas conversas passadas"],
   ler_conversa: ["Leu uma conversa passada", "Lendo uma conversa passada"],
   // ADR-083 (#193): a conversa coordena as tasks.
-  abrir_task: ["Abriu uma task", "Abrindo uma task"],
-  mandar_para_task: ["Repassou a uma task", "Repassando a uma task"],
+  abrir_task: ["Abriu uma tarefa", "Abrindo uma tarefa"],
+  mandar_para_task: ["Repassou a uma tarefa", "Repassando a uma tarefa"],
   me_chame_as: ["Saiu do Mac até a hora de voltar", "Marcando a hora de voltar"],
   // ADR-099 (I2): o dono abre frentes em lote e cada frente devolve um resumo.
-  abrir_frentes: ["Começou frentes", "Abrindo frentes"],
+  abrir_frentes: ["Começou tarefas", "Abrindo tarefas"],
   // O cabeçalho de frentes é um só, "Abrindo frentes" (NOD-348, ADR-114), para abrir e para repassar.
-  mandar_para_frente: ["Repassou a uma frente", "Abrindo frentes"],
+  mandar_para_frente: ["Repassou a uma tarefa", "Abrindo tarefas"],
   devolver_resumo: ["Devolveu o resumo", "Devolvendo o resumo"],
   // ADR-099 (parte 2): o Nod roda o comando e acorda o bot quando ele termina.
   esperar_comando: ["Deixou um comando esperando por ele", "Deixando um comando esperando por ele"],
@@ -56,6 +58,7 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   mostrar_cartoes: ["Mostrou cartões", "Mostrando cartões"],
   gerir_quadro: ["Mexeu no quadro", "Mexendo no quadro"],
   gerir_apps: ["Mexeu nas páginas", "Mexendo nas páginas"],
+  decisoes: ["Consultou as decisões", "Consultando as decisões"],
   gerir_canvas: ["Mexeu no Canvas", "Mexendo no Canvas"],
   gerir_times: ["Organizou os times", "Organizando os times"],
   remover_computador: ["Pediu para remover um computador", "Pedindo para remover um computador"],

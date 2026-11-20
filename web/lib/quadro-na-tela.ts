@@ -708,7 +708,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       const resp = dd.agentes?.();
       // 2026-11-10 (a issue do Multica): a linha do tempo, o chip do topo e a lateral (Registro, Entregas, Runs no tempo).
       const voceNome = dd.voce?.() ?? null;
-      const partes = coms.partes(t, { colunas: comColunas(q).colunas, agente: dd.agente, nomes: (resp ?? []).map((a) => a.nome), passos: (turno, n) => trabs.passosDe(turno, n), quadro: q, ...(trabalhos !== undefined ? { trabalho: trabalhos } : {}), voceIniciais: voceNome ? iniciais(voceNome) || null : null });
+      const partes = coms.partes(t, { colunas: comColunas(q).colunas, agente: dd.agente, nomes: (resp ?? []).map((a) => a.nome), passos: (turno, n) => trabs.passosDe(turno, n), quadro: q, runsNaLinha: ehCelular(), ...(trabalhos !== undefined ? { trabalho: trabalhos } : {}), voceIniciais: voceNome ? iniciais(voceNome) || null : null });
       if (ehCelular()) {
         // ADA-17 (ADR-148): a mesma tarefa, os mesmos dados e handlers; só a árvore muda no celular.
         const trabalho = trabs.vista(t.id, { bloqueada: t.status === "bloqueado" || (t.esperaPessoa === true && t.voltarPara !== null), agenteId: t.agenteId, conversaAtual: chave });
@@ -938,7 +938,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (form && form.getAttribute("aria-label") !== rot) form.setAttribute("aria-label", rot);
     const txt = v.querySelector<HTMLTextAreaElement>("#qc-txt");
     const t = tarefaNoQuadro(q, aberta);
-    if (txt) txt.placeholder = t ? `Recado sobre ${t.linearId ?? t.titulo}` : "Nova tarefa ou mensagem";
+    if (txt) txt.placeholder = t ? `Recado sobre ${t.linearId ?? t.titulo}` : "Novo card ou mensagem";
     // Revisão 6 do #646: o pedido que falhou com a pessoa noutra conversa volta ao campo quando ela retorna.
     const perdido = chave !== null ? perdidosDaPilula.get(chave) : undefined;
     if (txt && perdido !== undefined && chave !== null) { perdidosDaPilula.delete(chave); if (!txt.value.trim()) { txt.value = perdido; atualizarBotaoDaPilula(); } }
@@ -1352,7 +1352,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     // Revisão 8 do PR #623: se foi um mover que trouxe a pessoa até aqui (e a tarefa já saiu de novo, numa corrida), o
     // aviso do mover também é dito e fica na faixa: ela sabe que o mover deu certo e por que a tarefa não abriu.
     if (avisoSemTarefa) mudarFaixa({ tipo: "resposta", texto: avisoSemTarefa, loteId: null, mensagemId: "" });
-    if (linkSemTarefa) anunciar(avisoSemTarefa ? `${avisoSemTarefa}. Tarefa não encontrada neste quadro.` : "Tarefa não encontrada neste quadro.");
+    if (linkSemTarefa) anunciar(avisoSemTarefa ? `${avisoSemTarefa}. Card não encontrado neste quadro.` : "Card não encontrado neste quadro.");
   }
 
   /** NOD-422: abre ou fecha o painel "Trazer do Linear…"; o foco vai para o campo do time (ou volta ao botão). */
@@ -1466,7 +1466,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       if (c !== chave) return false;
       const semRede = e instanceof ErroApi && (e.codigo === "servidor_indisponivel" || e.codigo === "sem_internet");
       aoFalhar?.(semRede);
-      mudarFaixa({ tipo: "erro", texto: semRede ? "Sem conexão com o servidor agora. Tente de novo em instantes." : "Não deu para mudar a tarefa: o quadro mudou. Relendo." });
+      mudarFaixa({ tipo: "erro", texto: semRede ? "Sem conexão com o servidor agora. Tente de novo em instantes." : "Não deu para mudar o card: o quadro mudou. Relendo." });
       if (!semRede) void lerQuadro();
       else desenharVista();
       return false;
@@ -2161,7 +2161,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     const a = dd?.api();
     if (!a || !agenteId || !q) return;
     const confirmar = dd?.confirmar ?? ((t: string) => doc.defaultView?.confirm(t) ?? false);
-    if (!confirmar(`Remover o quadro de ${nome}? As tarefas e o histórico do quadro somem e não dá para desfazer. A conversa e a memória de ${nome} ficam.`)) return;
+    if (!confirmar(`Remover o quadro de ${nome}? Os cards e o histórico do quadro somem e não dá para desfazer. A conversa e a memória de ${nome} ficam.`)) return;
     const c = chave;
     const de = agenteId;
     try {
@@ -2213,7 +2213,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
         }
       }
       // Revisão 3: sem o campo à vista (ou com outro texto nele), a resposta não voltou: o recibo diz, para ela não sumir calada.
-      const texto = devolvida ? "Desfeito. A resposta voltou ao campo." : volta ? "Desfeito. A resposta não voltou ao campo: abra a tarefa para responder de novo." : "Desfeito.";
+      const texto = devolvida ? "Desfeito. A resposta voltou ao campo." : volta ? "Desfeito. A resposta não voltou ao campo: abra o card para responder de novo." : "Desfeito.";
       mudarFaixa({ tipo: "resposta", texto, loteId: null, mensagemId: "" });
     } catch {
       if (c !== chave) return;
@@ -2492,7 +2492,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       const para = colunaDe(destino);
       if (!c || !para) return;
       const n = tarefasNa(id);
-      void mexer((a, de) => a.removerColuna?.(de, id, destino), `${c.nome} removida · ${n === 1 ? "1 tarefa" : `${n} tarefas`} em ${para.nome}`, undefined, depois);
+      void mexer((a, de) => a.removerColuna?.(de, id, destino), `${c.nome} removida · ${n === 1 ? "1 card" : `${n} cards`} em ${para.nome}`, undefined, depois);
     }
   }
 
@@ -3091,7 +3091,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
           const c = colunaDe(col);
           const t = q?.tarefas.find((x) => x.id === id);
           if (!c || !t || t.status === c.id || colunaDe(t.status)?.grupo !== "nao_iniciado") {
-            mudarFaixa({ tipo: "erro", texto: t ? `${t.codigo ?? "A tarefa"} já saiu de onde estava; nada foi movido.` : "Essa tarefa não está mais no quadro." });
+            mudarFaixa({ tipo: "erro", texto: t ? `${t.codigo ?? "O card"} já saiu de onde estava; nada foi movido.` : "Esse card não está mais no quadro." });
             return;
           }
           pessoaSolta(id, c);
@@ -3226,7 +3226,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (vazia) { anunciar(vazia); return; }
     const filtro = filtroRapido();
     const n = contarNaVista(q.tarefas, filtro, termoDaBusca(busca), comColunas(q).colunas);
-    anunciar(filtro === "todos" && !busca.trim() ? `Todas as ${n === 1 ? "tarefa" : "tarefas"} à vista: ${n}.` : n === 0 ? "Nenhuma tarefa com esse filtro." : `${n} ${n === 1 ? "tarefa" : "tarefas"} à vista.`);
+    anunciar(filtro === "todos" && !busca.trim() ? `Todos os ${n === 1 ? "card" : "cards"} à vista: ${n}.` : n === 0 ? "Nenhum card com esse filtro." : `${n} ${n === 1 ? "card" : "cards"} à vista.`);
   }
 
   function escolherFiltro(f: string | undefined): void {
@@ -3472,7 +3472,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
       const c = colunaDe(id);
       if (!c) return;
       const so = c.trava?.soPessoa !== true;
-      void mexer((a, de) => a.travarColuna?.(de, id, { so_pessoa: so }), so ? `De ${c.nome} só você tira a tarefa` : `${c.nome}: o agente também tira a tarefa`);
+      void mexer((a, de) => a.travarColuna?.(de, id, { so_pessoa: so }), so ? `De ${c.nome} só você tira o card` : `${c.nome}: o agente também tira o card`);
       return;
     }
     if (act === "col-prazo") { editar({ tipo: "prazo", coluna: id, ...(folha ? { naFolha: true } : {}) }); return; }

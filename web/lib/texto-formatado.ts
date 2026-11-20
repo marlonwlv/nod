@@ -325,7 +325,7 @@ function token(t: string, opcoes: OpcoesTexto, dentroDeEnfase: boolean): string 
     // NOD-430: o código da tarefa abre a tarefa no quadro do bot dono dela (no celular, em folha).
     const tarefa = LINK_TAREFA_WEB.exec(t.slice(meio + 2, -1));
     // O aria-label diz o que o botão abre (revisão 3 do PR #627); o texto é o código que o bot escreveu.
-    if (tarefa) return `<button type="button" class="md-midia-link md-tarefa-link" data-act="abrir-tarefa-quadro" data-agente="${esc(tarefa[1]!.toLowerCase())}" data-tarefa="${esc(tarefa[2]!.toLowerCase())}" aria-label="Abrir tarefa ${esc(t.slice(1, meio))} no quadro">${esc(t.slice(1, meio))}</button>`;
+    if (tarefa) return `<button type="button" class="md-midia-link md-tarefa-link" data-act="abrir-tarefa-quadro" data-agente="${esc(tarefa[1]!.toLowerCase())}" data-tarefa="${esc(tarefa[2]!.toLowerCase())}" aria-label="Abrir o card ${esc(t.slice(1, meio))} no quadro">${esc(t.slice(1, meio))}</button>`;
     // NOD-455: o quadro de outra pessoa em que ela participa abre a tela /quadros/:id (a tela confere o acesso).
     const quadro = LINK_QUADRO_WEB.exec(t.slice(meio + 2, -1));
     if (quadro) return `<button type="button" class="md-midia-link md-quadro-link" data-act="abrir-quadro-compartilhado" data-quadro="${esc(quadro[1]!.toLowerCase())}">${esc(t.slice(1, meio))}</button>`;

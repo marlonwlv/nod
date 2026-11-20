@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
@@ -83,7 +83,7 @@ window.__montar = () => {
 `;
 
 async function pagina(dir: string): Promise<string> {
-  const js = await build({ stdin: { contents: ENTRADA, resolveDir: RAIZ.pathname, loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
+  const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent" });
   let html = readFileSync(new URL("web/index.html", RAIZ), "utf8");
   html = html.replace(/<link rel="stylesheet" href="\/([\w-]+\.css)" \/>/g, (_, f: string) => `<style>${readFileSync(new URL(`web/${f}`, RAIZ), "utf8")}</style>`);
   html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<script>${js.outputFiles[0]!.text}</script>`);
@@ -145,13 +145,13 @@ descrever("NOD-422 no Chrome real: Trazer do Linear pela tela", () => {
     await ate(`document.querySelector('#quadro [data-act="importar-sem-backlog"]')`);
     await clicar('#quadro [data-act="importar-sem-backlog"]');
     await ate(`document.querySelector('#quadro [data-act="importar-confirmar"]')`);
-    expect(await texto("#quadro .ci-painel")).toContain("Trazer 2 tarefas do Linear (NOD) para o quadro de Ada");
+    expect(await texto("#quadro .ci-painel")).toContain("Trazer 2 cards do Linear (NOD) para o quadro de Ada");
     expect(await texto("#quadro .ci-painel")).toContain("Só o que não está em Backlog.");
     expect((await chamadas()).filter((c) => c[0] === "importar")).toHaveLength(0);
 
     // Trazer: o importar sai com o filtro; a linha anda sozinha e termina no resultado; o painel fecha.
     await clicar('#quadro [data-act="importar-confirmar"]');
-    await ate(`/Trouxe 2 tarefas/.test(document.querySelector("#quadro .qm-cab-imp")?.textContent ?? "")`);
+    await ate(`/Trouxe 2 cards/.test(document.querySelector("#quadro .qm-cab-imp")?.textContent ?? "")`);
     expect((await chamadas()).filter((c) => c[0] === "importar")).toEqual([["importar", "NOD", "sem_backlog"]]);
     expect(await avaliar<boolean>(cdp, `!document.querySelector("#quadro .ci-painel")`)).toBe(true);
     expect(await texto("#qc-faixa")).toContain("Trazendo do Linear (NOD)");
