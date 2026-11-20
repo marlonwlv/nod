@@ -137,3 +137,41 @@ export function esperaDoNavegador(r: Extract<ResolucaoLugar, { tipo: "espera" }>
     instrucao: `Seu navegador roda no ${aparelho} da pessoa, e ele está desligado (ou com o app do nod fechado) agora. Nada foi executado. Siga com o que dá sem o navegador; se não der, diga à pessoa numa frase que você faz isso quando o ${aparelho} ligar (ou que ela pode deixar você continuar com o ${aparelho} desligado) e encerre o turno.`,
   };
 }
+
+/**
+ * A hora em que o Mac costuma estar desligado (M2/J1: a pergunta vem "na primeira rotina fora do horário").
+ *
+ * definido em 2026-11-20: o nod ainda não guarda o histórico de quando o Mac da pessoa fica ligado; sem ele, vale a
+ * heurística "fora de 8h–20h" (das 20h às 7h59 o Mac costuma estar fechado). Quando houver histórico (as presenças do app),
+ * esta função passa a recebê-lo.
+ */
+export const USO_DO_MAC = { de: 8, ate: 20 } as const;
+export function macCostumaEstarDesligado(hora: number): boolean {
+  return hora < USO_DO_MAC.de || hora >= USO_DO_MAC.ate;
+}
+
+/** A hora e o minuto de um instante num fuso IANA (a da rotina; padrão, o de São Paulo). */
+export function horaNoFuso(instante: number, fusoIana = "America/Sao_Paulo"): { h: number; m: number } {
+  let partes: Intl.DateTimeFormatPart[];
+  try { partes = new Intl.DateTimeFormat("en-US", { timeZone: fusoIana, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(instante)); }
+  catch { partes = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(instante)); }
+  const n = (t: string) => Number(partes.find((p) => p.type === t)?.value ?? 0);
+  return { h: n("hour") % 24, m: n("minute") };
+}
+
+/** "Às 3h", "À 1h", "Às 22h30" (o começo do cartão M2/J1). */
+export function textoDaHora(t: { h: number; m: number }): string {
+  const hora = t.m ? `${t.h}h${String(t.m).padStart(2, "0")}` : `${t.h}h`;
+  return `${t.h <= 1 ? "À" : "Às"} ${hora}`;
+}
+
+/** O cartão M2/J1 em palavras (o nome do bot e do aparelho no lugar de "a Ada" e "seu Mac"). */
+export function cartaoDaPergunta(hora: string, nomeDoAparelho: string, bot: string): { titulo: string; texto: string; sim: string; nao: string } {
+  const aparelho = nomeDoAparelho.replace(/^seu /, "");
+  return {
+    titulo: `${hora} ${nomeDoAparelho} costuma estar desligado`,
+    texto: `Para essa rotina rodar, ${bot} precisa continuar com ele desligado.`,
+    sim: `Continuar com o ${aparelho} desligado`,
+    nao: `Só com o ${aparelho} ligado`,
+  };
+}

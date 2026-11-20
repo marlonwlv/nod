@@ -54,6 +54,11 @@ export const MS_IMAGEM_REDE_FRACA = 2_000;
 export const MS_ONDINHA = 300;
 /** D2, B: a linha de carregamento completa e some em 200 ms. */
 export const MS_CARREGOU = 200;
+/**
+ * Emenda de 2026-11-20 da ADR-190 (item 4): o tamanho da área da vista vai ao servidor 600 ms depois do fim de um
+ * redimensionamento (arrastar a alça manda um só, no fim), e ele ajusta o Chrome do bot.
+ */
+export const MS_TAMANHO_PARADO = 600;
 
 export type VistaMontada = {
   el: HTMLElement;
@@ -143,6 +148,8 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   let carregandoAntes = false;
   let timerCarregou = 0;
   let geracao = 0;
+  let timerTamanho = 0;
+  let tamanhoMandado = "";
 
   const vista = (): VistaNavegador | null => r?.vista ?? null;
   const controla = (): boolean => vista()?.controle === "pessoa";
@@ -299,7 +306,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       s = (o.abrirSocket ?? ((url: string) => new WebSocket(url) as unknown as SocketDaVista))(o.api.urlVivoNavegador(o.agenteId));
     } catch { agendarCanal(); return; }
     sock = s;
-    s.onopen = () => { if (minha !== geracao) return; tentativas = 0; };
+    s.onopen = () => { if (minha !== geracao) return; tentativas = 0; tamanhoMandado = ""; mandarTamanho(); };
     s.onmessage = (ev) => {
       if (minha !== geracao || typeof ev.data !== "string") return;
       let m: QuadroAoVivoNavegador;
@@ -356,6 +363,21 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   }
   function pararImagem(): void {
     if (timerImagem) { window.clearInterval(timerImagem); timerImagem = 0; }
+  }
+
+  /** A área da vista em CSS px, se mudou desde a última vez (o servidor decide se o Chrome muda). */
+  function mandarTamanho(): void {
+    if (!sock || sock.readyState !== 1) return;
+    const t = tamanhoDoPalco();
+    if (t.w < 120 || t.h < 120) return;
+    const chave = `${Math.round(t.w)}x${Math.round(t.h)}`;
+    if (chave === tamanhoMandado) return;
+    tamanhoMandado = chave;
+    try { sock.send(JSON.stringify({ t: "tamanho", w: Math.round(t.w), h: Math.round(t.h) } satisfies EntradaNavegador)); } catch { /* o canal caiu; a reconexão manda de novo */ }
+  }
+  function agendarTamanho(): void {
+    if (timerTamanho) window.clearTimeout(timerTamanho);
+    timerTamanho = window.setTimeout(() => { timerTamanho = 0; mandarTamanho(); }, MS_TAMANHO_PARADO);
   }
 
   function enviar(e: EntradaNavegador): void {
@@ -551,7 +573,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   });
 
   // O palco muda de tamanho (alça, janela, hospedeiro): o cursor e o realce acompanham.
-  const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => { if (!destruida) { cursorEm = null; pintarCamada(); } }) : null;
+  const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => { if (!destruida) { cursorEm = null; pintarCamada(); agendarTamanho(); } }) : null;
   ro?.observe(palco);
 
   pintar();
@@ -565,7 +587,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       if (r?.vista.controle !== "pessoa") editando = null;
       pintar();
     },
-    hospedar(h) { host = h; pintar(); },
+    hospedar(h) { host = h; pintar(); agendarTamanho(); },
     ligar(v) {
       if (visivel === v) return;
       visivel = v;
@@ -583,7 +605,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       visivel = false;
       desligarCanal();
       ro?.disconnect();
-      for (const t of [timerAssumindo, timerDica, timerCarregou]) if (t) window.clearTimeout(t);
+      for (const t of [timerAssumindo, timerDica, timerCarregou, timerTamanho]) if (t) window.clearTimeout(t);
       el.remove();
     },
   };

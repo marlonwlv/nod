@@ -21,7 +21,7 @@ export const OPERACOES_MOTOR_NAVEGADOR = [
   "abrir", "ler", "clicar", "preencher", "digitar", "tecla", "rolar", "esperar", "print", "texto", "obter", "estilos",
   "selecionar", "marcar", "passarMouse", "arrastar", "mouse", "historico", "abas", "abaNova", "abaTrocar", "abaFechar",
   "quadro", "dialogo", "baixar", "enviarArquivo", "pdf", "procurar", "avaliar", "focado", "descreverElemento", "url", "fechar",
-  "camposDeLogin", "inserirTexto", "definirCookies",
+  "camposDeLogin", "inserirTexto", "definirCookies", "tamanho",
 ] as const;
 export type OperacaoMotorNavegador = (typeof OPERACOES_MOTOR_NAVEGADOR)[number];
 

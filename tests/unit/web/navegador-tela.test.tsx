@@ -294,6 +294,32 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(navegador.abaAtiva("a1")).toBe(true);
   });
 
+  it("arrastar a aba de lugar (D7): antes da primeira tarefa vai ao começo; solta na borda direita vira painel", () => {
+    navegador.abrirAba("a1");
+    const fileira = document.createElement("nav");
+    fileira.className = "abas-tarefa";
+    fileira.innerHTML = `<div class="at-aba"><button class="at-ir">Tarefa</button></div>${navegador.abaNaFileira("a1")!.html}`;
+    document.body.append(fileira);
+    fileira.querySelector<HTMLElement>(".at-aba:not(.nv-aba-lugar)")!.getBoundingClientRect = () => ({ left: 200, top: 0, width: 100, height: 30, right: 300, bottom: 30, x: 200, y: 0, toJSON: () => ({}) });
+    const ir = fileira.querySelector<HTMLElement>(".nv-aba-lugar .at-ir")!;
+    const ev = (tipo: string, x: number) => { const e = new MouseEvent(tipo, { bubbles: true, cancelable: true, clientX: x, clientY: 10, button: 0 }); Object.defineProperty(e, "pointerId", { value: 1 }); return e; };
+    expect(navegador.abaNaFileira("a1")!.frente).toBe(false);
+    ir.dispatchEvent(ev("pointerdown", 400));
+    document.dispatchEvent(ev("pointermove", 300));
+    expect(fileira.querySelector(".nv-aba-lugar")!.classList.contains("nv-aba-arrastando")).toBe(true);
+    document.dispatchEvent(ev("pointermove", 210));
+    document.dispatchEvent(ev("pointerup", 210));
+    expect(navegador.abaNaFileira("a1")!.frente).toBe(true);
+    // O clique que fecha o arrasto não abre a aba.
+    ir.dispatchEvent(ev("pointerdown", 210));
+    document.dispatchEvent(ev("pointermove", 1400));
+    expect(document.documentElement.classList.contains("nv-solta-painel")).toBe(true);
+    document.dispatchEvent(ev("pointerup", 1420));
+    expect(document.documentElement.classList.contains("nv-solta-painel")).toBe(false);
+    expect(navegador.abaAberta("a1")).toBe(false);
+    expect(navegador.painelAberto("a1")).toBe(true);
+  });
+
   it("o clique direito na aba abre o menu dela (D7); Encerrar pergunta só com o bot no meio de algo", async () => {
     navegador.abrirAba("a1");
     const aba = document.createElement("div");

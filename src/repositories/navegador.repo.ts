@@ -16,16 +16,26 @@ export type PreferenciasNavegador = {
   noNod: boolean;
   soNaMaquina: boolean;
   liberacoes: LiberacoesNavegador;
+  /** 0182: quando o cartão-pergunta foi à conversa (vem uma vez por bot); null = nunca. */
+  perguntadoEm: EpochMs | null;
+  /** 0182: quando a pessoa respondeu "Continuar com o Mac desligado" (M2/J1); null = nunca respondeu. */
+  respondidoEm: EpochMs | null;
+  /** 0182: o turno que espera o Mac ligar ("Quando o Mac ligar", K1); null = nenhum. */
+  retomarTurnoId: string | null;
   atualizadoEm: EpochMs;
 };
 
-type LinhaPreferencias = { agente_id: string; continua_sem_mac: boolean; maquina_id: string | null; no_nod: boolean; so_na_maquina: boolean; liberacoes: unknown; atualizado_em: Date };
-const preferencias = (l: LinhaPreferencias): PreferenciasNavegador => ({ agenteId: l.agente_id, continuaSemMac: l.continua_sem_mac, maquinaId: l.maquina_id, noNod: l.no_nod, soNaMaquina: l.so_na_maquina, liberacoes: lerLiberacoes(l.liberacoes), atualizadoEm: ms(l.atualizado_em) });
+type LinhaPreferencias = { agente_id: string; continua_sem_mac: boolean; maquina_id: string | null; no_nod: boolean; so_na_maquina: boolean; liberacoes: unknown; lugar_perguntado_em: Date | null; lugar_respondido_em: Date | null; retomar_turno_id: string | null; atualizado_em: Date };
+const preferencias = (l: LinhaPreferencias): PreferenciasNavegador => ({
+  agenteId: l.agente_id, continuaSemMac: l.continua_sem_mac, maquinaId: l.maquina_id, noNod: l.no_nod, soNaMaquina: l.so_na_maquina, liberacoes: lerLiberacoes(l.liberacoes),
+  perguntadoEm: l.lugar_perguntado_em ? ms(l.lugar_perguntado_em) : null, respondidoEm: l.lugar_respondido_em ? ms(l.lugar_respondido_em) : null, retomarTurnoId: l.retomar_turno_id, atualizadoEm: ms(l.atualizado_em),
+});
+const COLUNAS = "agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, lugar_perguntado_em, lugar_respondido_em, retomar_turno_id, atualizado_em";
 
 export function navegadorPreferenciasRepo(conn: Conn, escopo: Escopo) {
   async function buscar(agenteId: string): Promise<PreferenciasNavegador | null> {
     const [l] = await conn<LinhaPreferencias[]>`
-      select agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, atualizado_em from navegador_preferencias
+      select ${conn.unsafe(COLUNAS)} from navegador_preferencias
       where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and agente_id = ${agenteId}`;
     return l ? preferencias(l) : null;
   }
@@ -35,7 +45,7 @@ export function navegadorPreferenciasRepo(conn: Conn, escopo: Escopo) {
     /** As preferências de todos os bots da pessoa (os avisos de quando uma máquina entra ou sai da conta, quadro N). */
     async daPessoa(): Promise<PreferenciasNavegador[]> {
       const linhas = await conn<LinhaPreferencias[]>`
-        select agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, atualizado_em from navegador_preferencias
+        select ${conn.unsafe(COLUNAS)} from navegador_preferencias
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} order by agente_id`;
       return linhas.map(preferencias);
     },
@@ -49,9 +59,9 @@ export function navegadorPreferenciasRepo(conn: Conn, escopo: Escopo) {
     async gravar(agenteId: string, p: Partial<Omit<PreferenciasNavegador, "agenteId" | "atualizadoEm">>, agora: EpochMs): Promise<PreferenciasNavegador | null> {
       const lib = p.liberacoes ? jsonb(conn, lerLiberacoes(p.liberacoes)) : null;
       const [l] = await conn<LinhaPreferencias[]>`
-        insert into navegador_preferencias (tenant_id, owner_id, agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, atualizado_em)
+        insert into navegador_preferencias (tenant_id, owner_id, agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, lugar_perguntado_em, lugar_respondido_em, retomar_turno_id, atualizado_em)
         select ${escopo.tenantId}, ${escopo.pessoaId}, a.id, ${p.continuaSemMac ?? false}, ${p.maquinaId ?? null}, ${p.noNod ?? false}, ${p.soNaMaquina ?? false},
-          coalesce(${lib}::jsonb, '{"pagar":[],"enviar":[]}'::jsonb), ${data(agora)}
+          coalesce(${lib}::jsonb, '{"pagar":[],"enviar":[]}'::jsonb), ${p.perguntadoEm ? data(p.perguntadoEm) : null}, ${p.respondidoEm ? data(p.respondidoEm) : null}, ${p.retomarTurnoId ?? null}, ${data(agora)}
         from agentes a where a.tenant_id = ${escopo.tenantId} and a.id = ${agenteId} and a.owner_id = ${escopo.pessoaId}
         on conflict (tenant_id, agente_id) do update set
           continua_sem_mac = case when ${p.continuaSemMac !== undefined} then excluded.continua_sem_mac else navegador_preferencias.continua_sem_mac end,
@@ -59,8 +69,11 @@ export function navegadorPreferenciasRepo(conn: Conn, escopo: Escopo) {
           no_nod = case when ${p.noNod !== undefined} then excluded.no_nod else navegador_preferencias.no_nod end,
           so_na_maquina = case when ${p.soNaMaquina !== undefined} then excluded.so_na_maquina else navegador_preferencias.so_na_maquina end,
           liberacoes = case when ${p.liberacoes !== undefined} then excluded.liberacoes else navegador_preferencias.liberacoes end,
+          lugar_perguntado_em = case when ${p.perguntadoEm !== undefined} then excluded.lugar_perguntado_em else navegador_preferencias.lugar_perguntado_em end,
+          lugar_respondido_em = case when ${p.respondidoEm !== undefined} then excluded.lugar_respondido_em else navegador_preferencias.lugar_respondido_em end,
+          retomar_turno_id = case when ${p.retomarTurnoId !== undefined} then excluded.retomar_turno_id else navegador_preferencias.retomar_turno_id end,
           atualizado_em = excluded.atualizado_em
-        returning agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, atualizado_em`;
+        returning ${conn.unsafe(COLUNAS)}`;
       return l ? preferencias(l) : null;
     },
   };

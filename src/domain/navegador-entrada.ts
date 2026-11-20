@@ -21,9 +21,17 @@ const EVENTOS_MOUSE = ["mousePressed", "mouseReleased", "mouseMoved", "mouseWhee
 const EVENTOS_TECLA = ["keyDown", "keyUp", "char"] as const;
 const BOTOES = ["left", "right", "middle"] as const;
 
+/** definido em 2026-11-20: a área da vista vai de 120 px (o mínimo do palco) a 8192 px (uma tela 8K) em cada lado. */
+export const AREA_MIN = 120;
+export const AREA_MAX = 8192;
+
 /** A entrada conferida contra o viewport de agora; null = fora do formato (ignorada). */
 export function lerEntradaNavegador(cru: unknown, viewport: { w: number; h: number }): EntradaNavegador | null {
   if (!ehObj(cru)) return null;
+  if (cru.t === "tamanho") {
+    if (!numero(cru.w, AREA_MIN, AREA_MAX) || !numero(cru.h, AREA_MIN, AREA_MAX) || Object.keys(cru).length !== 3) return null;
+    return { t: "tamanho", w: Math.round(cru.w), h: Math.round(cru.h) };
+  }
   const mods = cru.modificadores ?? 0;
   if (!inteiro(mods, 0, 15)) return null;
   if (cru.t === "mouse") {
@@ -83,6 +91,8 @@ function ehAtalho(tecla: string, mods: number): boolean {
  * comum de um caractere segue pelo stream. A tecla solta de um `press` não vai (o press já soltou).
  */
 export function comandosDaEntrada(e: EntradaNavegador): ComandoDaEntrada[] {
+  // O tamanho não vai ao Chrome como entrada: o portão muda o viewport (`navegadores.tamanho`).
+  if (e.t === "tamanho") return [];
   if (e.t === "mouse") {
     const apertoOuSolta = e.evento === "mousePressed" || e.evento === "mouseReleased";
     return [{ via: "stream", mensagem: {

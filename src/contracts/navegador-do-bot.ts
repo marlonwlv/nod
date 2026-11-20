@@ -146,10 +146,12 @@ export type MotivoFimNavegador = (typeof MOTIVOS_FIM_NAVEGADOR)[number];
 /** Códigos de fechamento do canal ao vivo (os 4xxx são da aplicação; os mesmos da tela do computador, ADR-138). */
 export const FECHAMENTOS_NAVEGADOR_VIVO = { recusado: 4403, trocou: 4409, sessao: 4401 } as const;
 
-/** Entrada da pessoa no controle, web → servidor (coordenadas já na escala do viewport). */
+/** Entrada da pessoa no controle, web → servidor (coordenadas já na escala do viewport); `tamanho` vale assistindo. */
 export type EntradaNavegador =
   | { t: "mouse"; evento: "mousePressed" | "mouseReleased" | "mouseMoved" | "mouseWheel"; x: number; y: number; botao?: "left" | "right" | "middle"; cliques?: number; dx?: number; dy?: number; modificadores?: number }
-  | { t: "tecla"; evento: "keyDown" | "keyUp" | "char"; tecla?: string; codigo?: string; texto?: string; modificadores?: number };
+  | { t: "tecla"; evento: "keyDown" | "keyUp" | "char"; tecla?: string; codigo?: string; texto?: string; modificadores?: number }
+  /** O tamanho da área da vista em CSS px (emenda de 2026-11-20 da ADR-190, item 4): o Chrome do bot acompanha quem assiste. */
+  | { t: "tamanho"; w: number; h: number };
 
 /** GET /agentes/:id/navegador: a vista e se o navegador roda neste servidor (sem motor, a tela diz "indisponível"). */
 export type RespostaNavegador = { vista: VistaNavegador; disponivel: boolean };
@@ -166,7 +168,7 @@ export const OPERACOES_ENSINAR = ["comecar", "descartar", "salvar", "desfazer_de
 export type OperacaoEnsinar = (typeof OPERACOES_ENSINAR)[number];
 
 /** Onde o navegador mora (quadros M e N): moram em ./navegador-lugar-do-bot.ts (o limite de 200 linhas por contrato). */
-export type { EscolhaLugarNavegador, MudancaLugarNavegador, PayloadNavegadorLugar, RespostaLugarNavegador } from "./navegador-lugar-do-bot.ts";
+export type { EscolhaLugarNavegador, MudancaLugarNavegador, PayloadNavegadorLugar, PayloadNavegadorPergunta, RespostaLugarNavegador, RespostaMacDesligado } from "./navegador-lugar-do-bot.ts";
 
 /** Habilidade aprendida com "Ensinar uma tarefa". */
 export type TarefaEnsinada = { id: string; nome: string; passos: readonly string[]; criadaEm: number };

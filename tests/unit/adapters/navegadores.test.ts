@@ -219,6 +219,35 @@ describe("ler → agir por referência", () => {
     expect(corpo(await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e5" }))).toMatchObject({ erro: "alvo_invalido" });
   });
 
+  it("a área de quem assiste muda o tamanho do Chrome (mais de 8%) e a referência velha ouve 'mudou de tamanho'", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    n.tamanho(MARLON, A, { w: 560, h: 700 });
+    await n.esperarTamanho(A);
+    expect(chamadas.filter((c) => c.op === "tamanho")).toEqual([{ op: "tamanho", args: [896, 1120] }]);
+    expect(n.vista(MARLON, A)?.viewport).toEqual({ w: 896, h: 1120 });
+    const r = await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e5" });
+    expect(corpo(r)).toMatchObject({ erro: "alvo_invalido", detalhe: expect.stringContaining("mudou de tamanho") });
+    // Menos de 8%: o Chrome fica como está.
+    n.tamanho(MARLON, A, { w: 570, h: 710 });
+    await n.esperarTamanho(A);
+    expect(chamadas.filter((c) => c.op === "tamanho")).toHaveLength(1);
+    // Lido de novo, a referência vale.
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e5" }))).toMatchObject({ ok: true });
+  });
+
+  it("sem Chrome vivo, o tamanho pedido espera e vale quando ele liga", async () => {
+    const n = criar();
+    n.tamanho(MARLON, A, { w: 560, h: 700 });
+    expect(chamadas).toEqual([]);
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    await n.esperarTamanho(A);
+    expect(chamadas.filter((c) => c.op === "tamanho")).toEqual([{ op: "tamanho", args: [896, 1120] }]);
+    // Bot de outra pessoa: ignorado.
+    expect(() => n.tamanho({ ...MARLON, pessoaId: "00000000-0000-4000-8000-0000000000ff" }, A, { w: 560, h: 700 })).not.toThrow();
+  });
+
   it("preencher um campo de senha é recusado (senha só por navegador_entrar)", async () => {
     const n = criar();
     await n.chamar(MARLON, plano(A), "navegador_ler", {});
@@ -544,7 +573,7 @@ describe("ensinar uma tarefa (T)", () => {
     const { tarefa, vista } = await n.ensinar(MARLON, A, "salvar", "  Baixar a fatura ");
     expect(tarefa).toMatchObject({ nome: "Baixar a fatura", passos });
     expect(vista.gravacao).toBeNull();
-    expect(mensagens).toEqual([{ agenteId: A, texto: "Ensinei: Baixar a fatura.", arquivo: { nome: "passos-gravados.txt", conteudo: expect.stringContaining('4. Clicou em "Faturas"') } }]);
+    expect(mensagens).toEqual([{ agenteId: A, texto: "Ensinei: Baixar a fatura.", arquivo: { nome: "passos-gravados (5 passos).txt", conteudo: expect.stringContaining('4. Clicou em "Faturas"') } }]);
     expect(mensagens[0]!.arquivo.conteudo).not.toMatch(/1234|hunter22/);
   });
 
@@ -587,15 +616,33 @@ describe("o lugar decidido a cada chamada (ADR-190, decisão 5)", () => {
       };
     },
   });
+  let cartoes: string[];
+  let instrucaoDoCartao: string | null;
   const comLugar = () => criar({
     motor: (l) => (l.tipo === "nod" ? motor : l.tipo === "mac" ? motorMac : null),
     lugarDe: async () => decidido,
     avisarForaDoAr: async (_d, agenteId, maquina) => { avisos.push({ agenteId, maquina }); },
+    cartaoDaEspera: async (_d, p) => { cartoes.push(p.turnoId); return instrucaoDoCartao; },
   });
   beforeEach(() => {
     decidido = { tipo: "roda", lugar: { tipo: "nod" }, desvio: null };
     avisos = [];
     doMac = [];
+    cartoes = [];
+    instrucaoDoCartao = null;
+  });
+
+  it("Mac desligado num pedido: o cartão vai à conversa uma vez por turno e a instrução dele toma o lugar da padrão", async () => {
+    decidido = { tipo: "espera", motivo: "aparelho_desligado", causa: "Seu Mac está desligado", instrucao: "padrão" };
+    instrucaoDoCartao = "A conversa já mostra o cartão; encerre o turno.";
+    const n = comLugar();
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://exemplo.com" }))).toEqual({ erro: "espera", instrucao: "A conversa já mostra o cartão; encerre o turno." });
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toEqual({ erro: "espera", instrucao: "padrão" });
+    expect(cartoes).toEqual(["turno-a"]);
+    // Máquina travada fora do ar não é o Mac: sem cartão.
+    decidido = { tipo: "espera", motivo: "maquina_fora_do_ar", causa: "A vm-sp está fora do ar", instrucao: "vm" };
+    expect(corpo(await n.chamar(MARLON, plano(B), "navegador_ler", {}))).toEqual({ erro: "espera", instrucao: "vm" });
+    expect(cartoes).toEqual(["turno-a"]);
   });
 
   it("Mac desligado: o bot lê a instrução, a vista diz a causa e nenhum Chrome sobe", async () => {

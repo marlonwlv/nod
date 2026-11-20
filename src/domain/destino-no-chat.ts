@@ -228,6 +228,7 @@ export function assuntoDe(kind: KindMensagem, payload: PayloadMensagem | null, a
       case "computador_senha_preenchida":
         return "computador.senha_preenchida";
       case "navegador_lugar":
+      case "navegador_pergunta":
         return "navegador.lugar";
       case "turno_preso":
         return "turno.orfao";

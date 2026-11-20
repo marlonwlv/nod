@@ -34,6 +34,7 @@ import { criarMacDaPessoa } from "../navegador/mac-da-pessoa.ts";
 import type { MotorNavegador } from "../navegador/motor-agent-browser.ts";
 import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
 import { aoConectarMaquina, decidirLugarDoNavegador } from "../../use-cases/navegador-lugar.ts";
+import { retomarAoLigarOMac } from "../../use-cases/navegador-mac-desligado.ts";
 import { criarMotorAgentBrowser } from "../navegador/motor-agent-browser.ts";
 import { rotasComputadores } from "./rotas/computadores.ts";
 import { rotasCofreLogins, rotasNavegador, rotasTarefasEnsinadas } from "./rotas/navegador.ts";
@@ -879,7 +880,13 @@ export function comporApp(o: OpcoesCompor): App {
   // falam pela ponte), o navegador do bot também roda no Mac da pessoa (app) e nas máquinas sempre ligadas dela (motor):
   // a fila `navegador/*` da ponte, o motor remoto e a vista que a máquina abre. O lugar de cada bot sai das preferências
   // dele (0180/0181), das máquinas da pessoa e de quem está com o navegador ligado agora (navegador-lugar.ts).
-  const canalNavegador = compartilhado && env.NOD_NAVEGADOR_NA_MAQUINA === "1" ? criarCanalNavegador({ agora: relogio }) : null;
+  // ADR-190 (K1): o app do Mac voltou a puxar o navegador: os pedidos de "Quando o Mac ligar" continuam.
+  const aoLigarOMac = (escopo: Escopo, _maquinaId: string, plataforma: PlataformaMaquina) => {
+    if (plataforma === "linux") return;
+    void dentro(escopo, async (d) => { const ev = await retomarAoLigarOMac(d); if (ev.length) await d.repos.events.gravarComOutbox(ev); })
+      .catch((e: unknown) => log("aviso", "navegador_retomar_ao_ligar_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }));
+  };
+  const canalNavegador = compartilhado && env.NOD_NAVEGADOR_NA_MAQUINA === "1" ? criarCanalNavegador({ agora: relogio, aoLigar: aoLigarOMac }) : null;
   /** A máquina de um lugar remoto: a do nome ("maquina"), ou o Mac/PC da pessoa com o navegador ligado agora ("mac"). */
   const maquinaDoLugar = (lugar: LugarNavegador, escopo: Escopo): string | null => {
     if (!canalNavegador || lugar.tipo === "nod") return null;

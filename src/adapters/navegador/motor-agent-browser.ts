@@ -112,6 +112,8 @@ export interface MotorNavegador {
   definirCookies(s: SessaoNavegador, cookies: readonly CookieNavegador[]): Promise<void>;
   /** A porta do WebSocket de quadros da sessão (liga o streaming se estiver desligado); null sem sessão viva. */
   portaDoStream(s: SessaoNavegador): Promise<number | null>;
+  /** O tamanho da página em CSS px (`set viewport`): acompanha a área de quem assiste (emenda de 2026-11-20 da ADR-190). */
+  tamanho(s: SessaoNavegador, w: number, h: number): Promise<void>;
   fechar(s: SessaoNavegador): Promise<void>;
 }
 
@@ -476,6 +478,7 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       if (!(await relay(porta, { action: "cookies_set", cookies: cookies.map((c) => ({ ...c })) }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o navegador não aceitou os cookies");
     },
     portaDoStream,
+    async tamanho(s, w, h) { await rodar(s, ["set", "viewport", String(Math.round(w)), String(Math.round(h))]); },
     async fechar(s) { await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; }); },
   };
 }

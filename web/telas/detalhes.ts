@@ -1,5 +1,6 @@
 import { pedirHabilidades, telaDasHabilidades } from "../lib/habilidades.ts";
 import { htmlHabilidades } from "../lib/navegador-cartoes.ts";
+import { htmlLinhaDoLugarNoPainel } from "../lib/navegador-lugar-tela.ts";
 import { avisoErro } from "../lib/card-proposta.ts";
 import { secaoOnboardingDetalhes } from "./onboarding.ts";
 import type { RotinaDto } from "../../src/contracts/api.ts";
@@ -240,7 +241,9 @@ function abaDetalhes(estado: Estado, a: Bot, dona: boolean): string {
     ? linha(`${ICONE_ESCUDO}<span class="gv-linha-txt">Aprovações<small>${esc(subtituloDasAprovacoes(a))}</small></span>`, `data-act="modo-aprovacao" data-id="${esc(a.id)}" title="${esc(`${modo.titulo}: ${descricao(a.modoAprovacao ?? "manual", estado.frota?.revisor === true)}`)}"`, ICONE_CHEVRON)
     : "";
   const quadro = estado.experimentos.quadro ? linha(`${ICONE_QUADRO_P}<span class="gv-linha-txt">Quadro<small>${esc(resumoDoQuadro(estado, a.id))}</small></span>`, `data-act="abrir-tarefas" data-agente="${esc(a.id)}"`, ICONE_CHEVRON) : "";
-  const ajustes = `<section class="gv-secao gv-ajustes">${ajustesCab}${aprov || quadro ? `<div class="gv-cartao">${aprov}${quadro}</div>` : ""}</section>`;
+  // ADR-190 (M1/J2/N2): "Com o Mac desligado" (ou "Onde a Ada trabalha", sem o app), só para a dona e com o navegador.
+  const lugar = dona ? htmlLinhaDoLugarNoPainel(estado.lugaresNavegador[a.id], { agenteId: a.id, nome: a.nome, aberto: estado.lugarNavegadorAberto === `painel:${a.id}` }) : "";
+  const ajustes = `<section class="gv-secao gv-ajustes">${ajustesCab}${aprov || lugar || quadro ? `<div class="gv-cartao${estado.lugarNavegadorAberto === `painel:${a.id}` ? " nvl-com-lista" : ""}">${aprov}${lugar}${quadro}</div>` : ""}</section>`;
   // ADR-077: durante a configuração guiada, o painel da guia mostra o que a pessoa contou e o que já foi montado.
   const o = estado.onboarding;
   const onboarding = estado.onboardingAberto && o && o.guia?.id === a.id && (o.etapa === "entrevista" || o.etapa === "configurando" || o.etapa === "concluido") ? secaoOnboardingDetalhes(o) : "";

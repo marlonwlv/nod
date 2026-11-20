@@ -129,6 +129,13 @@ export async function executarOperacao(m: MotorNavegador, s: SessaoNavegador, op
       return m.inserirTexto(s, a[0] === null ? null : texto(op, a[0], false), t);
     }
     case "definirCookies": return m.definirCookies(s, lerCookies(op, a[0]));
+    case "tamanho": {
+      // definido em 2026-11-20: o portão manda de 800 a 1440 de largura e até 2400 de altura; a máquina aceita 320–4096.
+      const w = numero(op, a[0]);
+      const h = numero(op, a[1]);
+      if (!Number.isInteger(w) || !Number.isInteger(h) || w < 320 || h < 200 || w > 4096 || h > 4096) throw invalido(op);
+      return m.tamanho(s, w, h);
+    }
   }
 }
 
@@ -147,7 +154,7 @@ const LEITORES: { [K in OperacaoMotorNavegador]: (v: unknown) => unknown } = {
   },
   clicar: vazio, preencher: vazio, digitar: vazio, tecla: vazio, rolar: vazio, esperar: vazio, selecionar: vazio, marcar: vazio, passarMouse: vazio,
   arrastar: vazio, mouse: vazio, historico: vazio, abaNova: vazio, abaTrocar: vazio, abaFechar: vazio, quadro: vazio, dialogo: vazio, enviarArquivo: vazio,
-  procurar: vazio, fechar: vazio, inserirTexto: vazio, definirCookies: vazio,
+  procurar: vazio, fechar: vazio, inserirTexto: vazio, definirCookies: vazio, tamanho: vazio,
   camposDeLogin: (v) => ({ usuario: obj(v).usuario === true, senha: obj(v).senha === true, codigo: obj(v).codigo === true }),
   print: (v) => {
     const jpeg = str(obj(v).jpeg);

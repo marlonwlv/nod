@@ -71,6 +71,15 @@ export function rotuloDaGravacao(g: Gravacao, agora: number): string {
  * O arquivo que vai anexado à mensagem da pessoa (T3): os passos numerados e uma nota para o bot. O pedido é o texto
  * da mensagem, não o arquivo (o bot não obedece arquivo).
  */
+/**
+ * O nome do anexo dos passos (T3): "passos-gravados (6 passos).txt". definido em 2026-11-20: o número vai no nome porque o
+ * anexo não tem outro campo que a tela leia, e o chip embaixo do balão diz "passos-gravados.txt · 6 passos".
+ */
+export function nomeDoArquivoDosPassos(g: Gravacao): string {
+  const n = g.eventos.length;
+  return `passos-gravados (${n} ${n === 1 ? "passo" : "passos"}).txt`;
+}
+
 export function arquivoDosPassos(nome: string, g: Gravacao): string {
   const linhas = passosDaGravacao(g).map((p, i) => `${i + 1}. ${p}`);
   return [`Tarefa ensinada: ${nome}`, "", ...linhas, "", "Gravado no navegador do bot, com a pessoa no controle. O que ela digitou e as senhas não foram gravados."].join("\n");

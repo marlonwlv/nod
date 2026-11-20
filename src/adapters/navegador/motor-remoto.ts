@@ -74,6 +74,7 @@ export function criarMotorRemoto(o: { canal: CanalNavegador; escopo: Escopo; maq
     inserirTexto: (s, alvo, t) => vazio("inserirTexto", s, [alvo, t]),
     definirCookies: (s, cookies) => vazio("definirCookies", s, [cookies.map((c) => ({ ...c }))]),
     portaDoStream: async () => null,
+    tamanho: (s, w, h) => vazio("tamanho", s, [w, h]),
     fechar: (s) => vazio("fechar", s, []),
   };
 }

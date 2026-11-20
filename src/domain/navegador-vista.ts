@@ -79,3 +79,30 @@ export function camposQueMudaram(antes: VistaNavegador | null, depois: VistaNave
 export function temChromeVivo(estado: EstadoNavegador): boolean {
   return estado === "ao_vivo" || estado === "rede_fraca" || estado === "terminou";
 }
+
+/**
+ * O tamanho do Chrome do bot acompanha quem assiste (emenda de 2026-11-20 da ADR-190, item 4). A web manda o tamanho da
+ * área da vista em CSS px; o Chrome fica um pouco maior que a área (a página cabe como num notebook, e a vista reduz).
+ *
+ * definido em 2026-11-20: largura = clamp(round(w × 1,6), 800, 1440); altura = largura × h / w, arredondada, até 2400. O
+ * 1,6 põe um painel de 560 px em ~900 px de página (o "notebook pequeno" em que os sites não viram celular); 800 é o piso
+ * em que os sites ainda mostram o layout de computador; 1440 e 2400 seguram o tamanho do quadro JPEG.
+ */
+export const VIEWPORT_ESCALA = 1.6;
+export const VIEWPORT_LARGURA_MIN = 800;
+export const VIEWPORT_LARGURA_MAX = 1440;
+export const VIEWPORT_ALTURA_MAX = 2400;
+/** definido em 2026-11-20: o Chrome só muda de tamanho quando a diferença passa de 8% em algum lado (arrastar a alça não sacode a página). */
+export const VIEWPORT_DIFERENCA_MIN = 0.08;
+
+export function viewportDeQuemAssiste(area: { w: number; h: number }): { w: number; h: number } {
+  const w = Math.min(VIEWPORT_LARGURA_MAX, Math.max(VIEWPORT_LARGURA_MIN, Math.round(area.w * VIEWPORT_ESCALA)));
+  const h = Math.max(1, Math.min(VIEWPORT_ALTURA_MAX, Math.round((w * area.h) / area.w)));
+  return { w, h };
+}
+
+/** O tamanho novo muda mais de 8% em algum lado (vale a pena mudar o Chrome). */
+export function viewportMudouMuito(atual: { w: number; h: number }, novo: { w: number; h: number }): boolean {
+  const d = (a: number, b: number) => Math.abs(a - b) / Math.max(1, a);
+  return d(atual.w, novo.w) > VIEWPORT_DIFERENCA_MIN || d(atual.h, novo.h) > VIEWPORT_DIFERENCA_MIN;
+}

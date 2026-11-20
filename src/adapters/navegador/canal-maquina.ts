@@ -32,7 +32,12 @@ export type MaquinaComNavegador = { maquinaId: string; plataforma: PlataformaMaq
 
 export type CanalNavegador = ReturnType<typeof criarCanalNavegador>;
 
-export function criarCanalNavegador(o: { agora: () => number; folgaMs?: number }) {
+export function criarCanalNavegador(o: {
+  agora: () => number;
+  folgaMs?: number;
+  /** A máquina passou a puxar o navegador agora (não estava ligada): o "Quando o Mac ligar" (K1) continua os pedidos. */
+  aoLigar?: (escopo: Escopo, maquinaId: string, plataforma: PlataformaMaquina) => void;
+}) {
   const pendentes = new Map<string, Pendente>();
   const presencas = new Map<string, Presenca>();
   const folga = o.folgaMs ?? FOLGA_RESULTADO_MS;
@@ -55,7 +60,9 @@ export function criarCanalNavegador(o: { agora: () => number; folgaMs?: number }
   return {
     /** A máquina puxou agora (o long-poll do navegador): conta como ligada por PRESENCA_MS. */
     presenca(escopo: Escopo, maquinaId: string, m: { plataforma: PlataformaMaquina; nome: string }): void {
+      const nova = !ligada(escopo, maquinaId);
       presencas.set(maquinaId, { escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, plataforma: m.plataforma, nome: m.nome, em: o.agora() });
+      if (nova) { try { o.aoLigar?.(escopo, maquinaId, m.plataforma); } catch (e) { log("aviso", "navegador_ao_ligar_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }); } }
     },
     ligada,
     /** As máquinas da pessoa com o navegador ligado agora, a de contato mais recente primeiro. */

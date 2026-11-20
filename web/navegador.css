@@ -216,6 +216,12 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 .nv-linha-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .nv-linha-txt b { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-regular); color: var(--ink); }
 .nv-linha-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.nv-linha-ok { flex: none; width: 14px; color: var(--nv-vivo); font-size: var(--fs-corpo-2); line-height: 18px; }
+/* D8: a troca de passo — o antigo sobe e some, o novo entra de baixo, 160 ms (o teto de uma por segundo é do JS). */
+.nv-linha-txt small.nv-trocando { position: relative; display: block; height: var(--lh-rotulo); overflow: hidden; }
+.nv-passo { position: absolute; inset: 0 auto auto 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nv-passo.sai { animation: nv-passo-sai 160ms var(--curva-padrao) both; }
+.nv-passo.entra { animation: nv-passo-entra 160ms var(--curva-padrao) both; }
 .nv-linha-ver { flex: none; height: 28px; padding: 0 10px; margin: 0; border: 0; border-radius: var(--raio-8); background: none; font: inherit; font-size: var(--fs-corpo-2); color: var(--ink-2); cursor: pointer; }
 .nv-linha-ver:hover { background: var(--hover); color: var(--ink); }
 .nv-linha-ver:focus-visible { outline: 2px solid var(--focus-ring); }
@@ -285,6 +291,9 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .nv-folha-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .nv-folha .nv-moldura { flex: none; }
 .nv-folha .nv-palco { flex: none; aspect-ratio: 16 / 10; min-height: 0; }
+/* Cheia (puxada para cima ou girada em paisagem): a vista enche a folha e o Chrome do bot acompanha a área (emenda de
+   2026-11-20 da ADR-190, item 4), sem faixa embaixo. */
+.nv-folha[data-pos="cheia"] .nv-moldura, .nv-folha[data-pos="cheia"] .nv-palco { flex: 1 1 auto; aspect-ratio: auto; min-height: 120px; }
 .nv-folha .nv-faixa { height: auto; padding: 10px 0; }
 .nv-folha .nv-pilula .ctc-bt, .nv-folha .nv-estado-bt, .nv-folha .nv-teclado-bt { min-height: 44px; }
 .nv-folha .nv-pilula { height: 52px; }
@@ -407,7 +416,72 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .cofre-form-bts { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 .cofre-apagar { color: var(--danger); }
 
+/* =====================================================================================
+   Onde o navegador mora (ADR-190; Paper M, N, J, K): a linha do painel, a lista, os cartões e os avisos
+   ===================================================================================== */
+.detalhes .gv-cartao.nvl-com-lista { overflow: visible; }
+/* D7: a aba de lugar arrastada segue o dedo por cima das outras; perto da borda direita, a faixa azul diz "vira painel". */
+.nv-aba-lugar.nv-aba-arrastando { position: relative; z-index: 5; opacity: .9; box-shadow: var(--sombra-pilula); cursor: grabbing; }
+html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 0; bottom: 0; z-index: 60; width: 6px; background: var(--nv-precisa); pointer-events: none; }
+/* T3: o chip dos passos gravados embaixo do balão da pessoa (Paper Y27-0). */
+.msg-passos { align-self: flex-end; display: inline-flex; align-items: baseline; gap: 4px; margin-top: 6px; padding: 7px 12px; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); color: var(--ink); font-size: var(--fs-rotulo); line-height: 16px; text-decoration: none; }
+.msg-passos small { color: var(--ink-3); font-size: var(--fs-legenda); }
+.msg-passos:hover { background: var(--hover); }
+.msg-passos:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.nvl-linha { position: relative; display: flex; align-items: center; gap: 4px; }
+.nvl-linha > .nvl-abrir { flex: 1; min-width: 0; text-align: left; }
+.nvl-linha.sem-app > .nvl-abrir { flex: 1; }
+.nvl-chave { position: relative; flex: none; width: 42px; height: 24px; margin-right: 10px; padding: 0; border: 0; border-radius: var(--raio-full); background: var(--ativo); cursor: pointer; transition: background 160ms var(--curva-padrao); }
+.nvl-chave span { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-elevated); box-shadow: var(--shadow-knob); transition: transform 160ms var(--curva-padrao); }
+.nvl-chave[aria-checked="true"] { background: var(--nv-vivo); }
+.nvl-chave[aria-checked="true"] span { transform: translateX(18px); }
+.nvl-chave:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+.nvl-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 8px; display: flex; flex-direction: column; width: 300px; max-width: calc(100vw - 32px); margin: 0; padding: 6px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-popover); overflow-wrap: anywhere; animation: nv-sobe 150ms var(--curva-padrao) both; }
+.nvl-pop-titulo { margin: 0; padding: 8px 10px 6px; color: var(--ink-3); font-size: var(--fs-rotulo); line-height: 16px; }
+.nvl-item { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0; padding: 8px 10px; box-sizing: border-box; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); line-height: 18px; text-align: left; cursor: pointer; }
+.nvl-item[aria-checked="true"] { background: var(--surface-raised); }
+.nvl-item:hover { background: var(--hover); }
+.nvl-check { flex: none; width: 14px; line-height: 16px; }
+.nvl-rotulo { flex: 1 1 0; min-width: 0; }
+.nvl-ligada { display: inline-flex; align-items: center; gap: 5px; flex: none; color: var(--ink-3); font-size: var(--fs-rotulo); line-height: 16px; }
+.nvl-ligada i { width: 6px; height: 6px; border-radius: 50%; background: var(--nv-vivo); }
+.nvl-ligada.fora { color: var(--ink-4); }
+.nvl-div { height: 1px; margin: 6px 4px; border: 0; background: var(--line); }
+.nvl-mais { display: flex; flex-direction: column; gap: 2px; width: 100%; margin: 0; padding: 8px 10px; box-sizing: border-box; border: 0; border-radius: var(--raio-8); background: none; font: inherit; text-align: left; cursor: pointer; }
+.nvl-mais b { color: var(--nv-precisa); font-size: var(--fs-corpo-2); line-height: 18px; font-weight: var(--peso-regular); }
+.nvl-mais small { color: var(--ink-3); font-size: var(--fs-rotulo); line-height: 16px; }
+.nvl-mais:hover { background: var(--hover); }
+.nvl-item:focus-visible, .nvl-mais:focus-visible, .nvl-bt:focus-visible, .nvl-desfazer:focus-visible, .nvl-trava:focus-visible, .nvl-trocar:focus-visible, .nvl-frase-txt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* M2/J1/N1 e M3/K1: o cartão-pergunta (borda azul a 33 %, raio 14, padding 14, gap 10). */
+.nvl-cartao { position: relative; display: flex; flex-direction: column; gap: 10px; max-width: 520px; margin: 0; padding: 14px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--nv-precisa) 33%, transparent); border-radius: var(--raio-14); background: var(--surface-elevated); overflow-wrap: anywhere; }
+.nvl-titulo { margin: 0; color: var(--ink); font-size: var(--fs-corpo); line-height: 19px; font-weight: 600; }
+.nvl-texto { margin: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 19px; }
+.nvl-bts { display: flex; gap: 8px; }
+.nvl-bt { flex: 1 1 0; min-width: 0; margin: 0; padding: 8px; border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); border-radius: var(--raio-10); background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); line-height: 19px; text-align: center; cursor: pointer; }
+.nvl-bt:hover { background: var(--hover); }
+.nvl-bt.preto { border-color: var(--action); background: var(--action); color: var(--on-action); }
+.nvl-bt.preto:hover { background: color-mix(in srgb, var(--action) 88%, var(--surface)); }
+.nvl-frase { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.nvl-frase-txt { margin: 0; padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-rotulo); line-height: 17px; text-align: left; cursor: pointer; }
+.nvl-frase-txt b { color: var(--ink); font-weight: 600; }
+.nvl-trocar { flex: none; margin: 0; padding: 0; border: 0; background: none; color: var(--nv-precisa); font: inherit; font-size: var(--fs-rotulo); line-height: 17px; cursor: pointer; }
+.nvl-cartao .nvl-pop { top: auto; bottom: 8px; left: auto; right: 8px; transform: translateY(100%); }
+
+/* J2/K2 e N "Quando algo muda": a linha num cartão claro (raio 12), o texto e a ação à direita. */
+.nvl-resposta, .nvl-aviso { display: flex; align-items: center; gap: 10px; max-width: 520px; margin: 0; padding: 10px 12px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); color: var(--ink); font-size: var(--fs-corpo-2); line-height: 18px; overflow-wrap: anywhere; }
+.nvl-ok { flex: none; width: 14px; color: var(--nv-vivo); }
+.nvl-resposta-txt, .nvl-aviso-txt { flex: 1 1 0; min-width: 0; }
+.nvl-desfazer { flex: none; margin: 0; padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); line-height: 18px; cursor: pointer; }
+.nvl-desfazer:hover, .nvl-trava:hover { color: var(--ink); }
+.nvl-desfazer:disabled, .nvl-trava:disabled { color: var(--ink-4); cursor: default; }
+.nvl-aviso.empilhado { flex-direction: column; align-items: flex-start; gap: 6px; }
+.nvl-trava { margin: 0; padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); line-height: 18px; text-align: left; cursor: pointer; }
+
 @keyframes nv-gira { to { transform: rotate(360deg); } }
+@keyframes nv-passo-sai { to { opacity: 0; transform: translateY(-100%); } }
+@keyframes nv-passo-entra { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: none; } }
 @keyframes nv-respira { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @keyframes nv-cresce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
 @keyframes nv-sobe { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -423,7 +497,10 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
   .nv-lugar-fundo, .nv-moldura, .nv-pilula, .nv-quadro, .nv-folha { transition: none; }
   .nv-canto-ponto, .nv-lugar-ponto, .nv-aba-lugar-ponto, .nv-favicon-giro, .nv-giro, .nvc-giro, .nv-grav-ponto, .nv-carregando[data-fase="andando"] i { animation: none; }
   .nv-carregando[data-fase="andando"] i { width: 60%; }
-  .nv-anel, .nv-linha, .nv-aviso-site, .nv-menu, .nv-dica-assumir { animation-duration: 1ms; }
+  .nv-anel, .nv-linha, .nv-aviso-site, .nv-menu, .nv-dica-assumir, .nvl-pop { animation-duration: 1ms; }
+  .nvl-chave, .nvl-chave span { transition: none; }
+  .nv-passo.sai, .nv-passo.entra { animation: none; }
+  .nv-passo.sai { display: none; }
   .nv-aviso { animation: nv-aviso-fade 120ms linear both; }
   .nv-aviso.saindo { animation: nv-aviso-fade 100ms linear reverse both; }
   @keyframes nv-aviso-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -432,7 +509,11 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
   .nv-alca:focus-visible, .nv-endereco-input:focus, .nv-palco:focus-visible, .nv-menu-corpo > button:focus-visible, .nv-menu-bts > button:focus-visible, .nv-recado-input:focus { outline: 2px solid Highlight; }
   .nv-moldura, .nv-canto, .nv-linha, .nv-menu { outline: 1px solid CanvasText; }
   .nv-moldura[data-controle="pessoa"], .nv-moldura[data-controle="precisa"], .nv-tc.nv-gravando .nv-moldura { outline: 2px solid Highlight; }
-  .nvc, .nvc-guardar, .nv-selo-login, .nv-grav-passos, .cofre-form { outline: 1px solid CanvasText; }
+  .nvc, .nvc-guardar, .nv-selo-login, .nv-grav-passos, .cofre-form, .nvl-cartao, .nvl-pop, .nvl-resposta, .nvl-aviso { outline: 1px solid CanvasText; }
+  .nvl-chave { forced-color-adjust: none; border: 1px solid CanvasText; background: Canvas; }
+  .nvl-chave span { background: CanvasText; }
+  .nvl-chave[aria-checked="true"] { background: Highlight; }
+  .nvl-item[aria-checked="true"] { outline: 1px solid Highlight; }
   .nvc-op:focus-visible, .nvc-link:focus-visible, .nvc-codigo-campo:focus-visible, .nvc-guardar button:focus-visible, .nvc-destino:focus-visible, .nv-grav-bt:focus-visible, .nv-grav-nome-campo:focus-visible, .cofre-olho:focus-visible { outline: 2px solid Highlight; }
   .nv-lugar-ponto, .nv-canto-ponto, .nv-aba-lugar-ponto, .nv-linha-ponto { forced-color-adjust: none; background: CanvasText; }
 }

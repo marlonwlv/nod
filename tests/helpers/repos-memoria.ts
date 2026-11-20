@@ -4473,7 +4473,7 @@ function navegadorEmMemoria(b: object, escopo: Escopo): Pick<Repos, "navegadorPr
       daPessoa: async () => [...st.prefs.entries()].filter(([k]) => k.startsWith(`${escopo.tenantId}:${escopo.pessoaId}:`)).map(([, v]) => v).sort((a, b) => a.agenteId.localeCompare(b.agenteId)),
       liberacoes: async (agenteId) => st.prefs.get(chave(agenteId))?.liberacoes ?? SEM_LIBERACOES,
       gravar: async (agenteId, p, agora) => {
-        const antes = st.prefs.get(chave(agenteId)) ?? { agenteId, continuaSemMac: false, maquinaId: null, noNod: false, soNaMaquina: false, liberacoes: SEM_LIBERACOES, atualizadoEm: agora };
+        const antes = st.prefs.get(chave(agenteId)) ?? { agenteId, continuaSemMac: false, maquinaId: null, noNod: false, soNaMaquina: false, liberacoes: SEM_LIBERACOES, perguntadoEm: null, respondidoEm: null, retomarTurnoId: null, atualizadoEm: agora };
         const depois: PreferenciasNavegador = { ...antes, ...p, ...(p.liberacoes ? { liberacoes: lerLiberacoes(p.liberacoes) } : {}), agenteId, atualizadoEm: agora };
         st.prefs.set(chave(agenteId), depois);
         return depois;

@@ -66,6 +66,9 @@ export const MS_AVISO = 5_000;
 export const MS_DICA_ABA = 600;
 /** T2: o relógio da barra de gravação anda de segundo em segundo. */
 export const MS_RELOGIO_GRAVACAO = 1_000;
+/** D7: arrastar a aba de lugar começa depois de 6 px; soltar a até 80 px da borda direita a põe ao lado da conversa. */
+export const ARRASTO_MIN_PX = 6;
+export const BORDA_PAINEL_PX = 80;
 
 function guardado(chave: string): string | null {
   try { return window.localStorage.getItem(chave); } catch { return null; }
@@ -104,6 +107,8 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
   const fechadas: string[] = [];
   let largura = 0;
   let posFolha: PosicaoDaFolha = "meia";
+  /** D7: onde a pessoa pôs a aba de lugar de cada bot arrastando ("inicio" = antes das tarefas). */
+  const posicaoDaAba = new Map<string, "inicio" | "fim">();
   /** Os ouvintes da janela e do documento saem juntos em `destruir` (os testes montam várias). */
   const ac = new AbortController();
   const sinal = { signal: ac.signal };
@@ -406,6 +411,57 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (id) abrirAba(id);
   }
 
+  // ---- arrastar a aba de lugar (D7: arrastar reordena; arrastar para a borda direita vira painel) -------------------------
+  {
+    let arrasto: { agenteId: string; aba: HTMLElement; x0: number; y0: number; id: number; movendo: boolean } | null = null;
+    let engolirClique = false;
+    const pertoDaBorda = (x: number) => x >= window.innerWidth - BORDA_PAINEL_PX;
+    document.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      const ir = (e.target as HTMLElement | null)?.closest?.<HTMLElement>(".nv-aba-lugar .at-ir");
+      const aba = ir?.closest<HTMLElement>(".nv-aba-lugar");
+      const agenteId = aba?.dataset.agente;
+      if (!aba || !agenteId) return;
+      arrasto = { agenteId, aba, x0: e.clientX, y0: e.clientY, id: e.pointerId, movendo: false };
+    }, sinal);
+    document.addEventListener("pointermove", (e) => {
+      if (!arrasto || e.pointerId !== arrasto.id) return;
+      const dx = e.clientX - arrasto.x0;
+      if (!arrasto.movendo && Math.hypot(dx, e.clientY - arrasto.y0) < ARRASTO_MIN_PX) return;
+      arrasto.movendo = true;
+      arrasto.aba.classList.add("nv-aba-arrastando");
+      arrasto.aba.style.transform = `translateX(${dx}px)`;
+      document.documentElement.classList.toggle("nv-solta-painel", pertoDaBorda(e.clientX));
+    }, sinal);
+    const soltar = (e: PointerEvent) => {
+      const a = arrasto;
+      arrasto = null;
+      document.documentElement.classList.remove("nv-solta-painel");
+      if (!a || !a.movendo) return;
+      a.aba.classList.remove("nv-aba-arrastando");
+      a.aba.style.transform = "";
+      engolirClique = true;
+      window.setTimeout(() => { engolirClique = false; }, 0);
+      if (e.type === "pointercancel") return;
+      if (pertoDaBorda(e.clientX)) {
+        abasDeLugar = new Set(abasDeLugar);
+        abasDeLugar.delete(a.agenteId);
+        gravarAbas();
+        desativarAba(a.agenteId);
+        abrirPainel(a.agenteId);
+        return;
+      }
+      // Reordena: antes do meio da primeira tarefa da fileira = no começo; depois = no fim.
+      const primeira = a.aba.closest(".abas-tarefa")?.querySelector<HTMLElement>(".at-aba:not(.nv-aba-lugar):not(.at-nova)");
+      const b = primeira?.getBoundingClientRect();
+      posicaoDaAba.set(a.agenteId, b && e.clientX < b.left + b.width / 2 ? "inicio" : "fim");
+      o.render();
+    };
+    document.addEventListener("pointerup", soltar, sinal);
+    document.addEventListener("pointercancel", soltar, sinal);
+    document.addEventListener("click", (e) => { if (engolirClique) { e.stopPropagation(); e.preventDefault(); engolirClique = false; } }, { capture: true, signal: ac.signal });
+  }
+
   // ---- a folha do celular (D6, C) -----------------------------------------------------------------------------------------
   function abrirFolha(agenteId: string, lugar: LugarDaVista): void {
     montar();
@@ -416,7 +472,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     encaixarVista();
     folha.style.setProperty("--nv-folha-alto", "0px");
     void folha.offsetWidth;
-    moverFolha("meia");
+    moverFolha(window.matchMedia?.("(orientation: landscape)").matches ? "cheia" : "meia");
   }
 
   function moverFolha(p: PosicaoDaFolha): void {
@@ -829,7 +885,18 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     guardar(chaveDaLargura(), gravarLargura(l, area()));
   }
 
+  // D6, C: girar o celular para paisagem leva a folha à tela cheia (a vista ganha a largura toda); de volta em pé, ela fica
+  // onde estava. A altura da folha acompanha a da janela em qualquer giro.
+  const paisagem = window.matchMedia?.("(orientation: landscape)");
+  let antesDaPaisagem: PosicaoDaFolha | null = null;
+  paisagem?.addEventListener?.("change", (e) => {
+    if (aberto?.modo !== "folha") return;
+    if (e.matches) { antesDaPaisagem = posFolha; moverFolha("cheia"); }
+    else { moverFolha(antesDaPaisagem ?? posFolha); antesDaPaisagem = null; }
+  }, sinal);
+
   window.addEventListener("resize", () => {
+    if (aberto?.modo === "folha" && !folha.classList.contains("arrastando")) folha.style.setProperty("--nv-folha-alto", `${alturaDaFolha(posFolha, window.innerHeight)}px`);
     if (!aberto || aberto.modo !== "painel") return;
     aplicarLargura(modo() === "cobre" ? Math.min(area(), Math.max(PAINEL_MIN, Math.round(area() * 0.72))) : larguraLembrada());
     classesDaApp();
@@ -958,7 +1025,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     abaNaFileira(agenteId: string): { html: string; frente: boolean; ativa: boolean } | null {
       if (!abasDeLugar.has(agenteId)) return null;
       const v = vistaAtual(agenteId);
-      return { html: htmlAbaDeLugar(agenteId, nomeDe(agenteId), v, abaAtiva === agenteId), frente: estadoDaAbaDeLugar(v) === "precisa", ativa: abaAtiva === agenteId };
+      return { html: htmlAbaDeLugar(agenteId, nomeDe(agenteId), v, abaAtiva === agenteId), frente: estadoDaAbaDeLugar(v) === "precisa" || posicaoDaAba.get(agenteId) === "inicio", ativa: abaAtiva === agenteId };
     },
     abaAberta: (agenteId: string): boolean => abasDeLugar.has(agenteId),
     abaAtiva: (agenteId: string): boolean => abaAtiva === agenteId,

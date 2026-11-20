@@ -58,12 +58,14 @@ async function montar(o: { intervaloQuadroMs?: number; semVivo?: boolean } = {})
   let vista = vistaBase();
   const doStream: unknown[] = [];
   const antes: EntradaNavegador[] = [];
+  const tamanhos: { w: number; h: number }[] = [];
   const portao: PortaoDoVivo = {
     conferirDona: async (_e, agenteId) => { if (agenteId !== BOT) throw new Error("nao_encontrado"); },
     vistaDe: () => vista,
     portaDoStream: async () => ab.porta,
     doStream: (_e, _a, m) => { doStream.push(m); },
     antesDaEntrada: async (_e, _a, e) => { antes.push(e); },
+    tamanho: (_e, _a, area) => { tamanhos.push(area); },
   };
   const vivo = criarVivoNavegador({ portao, intervaloQuadroMs: o.intervaloQuadroMs ?? 0, reabrirMs: 50 });
   const srv: Server = createServer();
@@ -75,7 +77,7 @@ async function montar(o: { intervaloQuadroMs?: number; semVivo?: boolean } = {})
   servidores.push({ close: (cb) => { vivo.fechar(); void canais.fechar().then(() => { srv.closeAllConnections(); srv.close(() => cb()); }); } });
   const host = `127.0.0.1:${(srv.address() as { port: number }).port}`;
   const mudar = (p: Partial<VistaNavegador>) => { vista = { ...vista, ...p }; vivo.vistaMudou(ESCOPO, vista); };
-  return { ab, vivo, host, doStream, antes, mudar };
+  return { ab, vivo, host, doStream, antes, mudar, tamanhos };
 }
 
 type Web = { ws: WebSocket; msgs: Record<string, unknown>[]; fechou: Promise<{ codigo: number; motivo: string }> };
@@ -159,7 +161,24 @@ describe("navegador ao vivo pelo WebSocket", () => {
     expect(ab.recebidas).toEqual([{ type: "input_mouse", eventType: "mousePressed", x: 40, y: 30, button: "left", clickCount: 1, deltaX: 0, deltaY: 0, modifiers: 0 }]);
     expect(ab.relay).toEqual([{ action: "keyboard", subaction: "insertText", text: "olá" }, { action: "press", key: "Backspace" }]);
     // O portão viu cada entrada repassada (para a gravação), antes do repasse.
-    expect(antes.map((e) => e.t + ":" + e.evento)).toEqual(["mouse:mousePressed", "tecla:char", "tecla:keyDown", "tecla:keyUp"]);
+    expect(antes.map((e) => e.t + ":" + ("evento" in e ? e.evento : ""))).toEqual(["mouse:mousePressed", "tecla:char", "tecla:keyDown", "tecla:keyUp"]);
+    web.ws.close();
+  });
+
+  it("tamanho (emenda de 2026-11-20): vai ao portão assistindo, sem resposta de recusa nem repasse ao Chrome; fora da forma, ignorado", async () => {
+    const { ab, host, tamanhos, antes } = await montar();
+    const web = await abrirWeb(host);
+    await ate(() => ab.abertas() === 1 && web.msgs.length === 1);
+    web.ws.send(JSON.stringify({ t: "tamanho", w: 560.4, h: 700 }));
+    web.ws.send(JSON.stringify({ t: "tamanho", w: 50, h: 700 }));
+    web.ws.send(JSON.stringify({ t: "tamanho", w: 560, h: 700, x: 1 }));
+    web.ws.send(JSON.stringify({ t: "tamanho", w: "560", h: 700 }));
+    await ate(() => tamanhos.length === 1);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(tamanhos).toEqual([{ w: 560, h: 700 }]);
+    expect(web.msgs).toHaveLength(1);
+    expect(ab.recebidas).toEqual([]);
+    expect(antes).toEqual([]);
     web.ws.close();
   });
 

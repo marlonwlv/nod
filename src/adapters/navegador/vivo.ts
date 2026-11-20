@@ -22,7 +22,8 @@ export { lerAbasDoStream, lerQuadroDoStream, relayPadrao, type StreamDoNavegador
  * script e `result` com o valor).
  *
  * A entrada da pessoa (`EntradaNavegador`) só passa conferida (`lerEntradaNavegador`) e com ela no controle; fora disso a
- * resposta é a vista (a web mostra "Assumir para mexer"). Enquanto a página tem um segredo que o nod pôs (L3), nenhum
+ * resposta é a vista (a web mostra "Assumir para mexer"). O `tamanho` (a área da vista de quem assiste) vale sempre e vai
+ * ao portão, que muda o tamanho do Chrome (emenda de 2026-11-20 da ADR-190, item 4). Enquanto a página tem um segredo que o nod pôs (L3), nenhum
  * quadro sai.
  */
 
@@ -43,6 +44,8 @@ export type PortaoDoVivo = {
   portaDoStream(escopo: Escopo, agenteId: string): Promise<number | null>;
   doStream(escopo: Escopo, agenteId: string, m: { abas?: readonly AbaMotor[]; viewport?: { w: number; h: number } }): void;
   antesDaEntrada(escopo: Escopo, agenteId: string, e: EntradaNavegador): Promise<void>;
+  /** A área da vista de quem assiste mudou (`{t:"tamanho"}`): o Chrome acompanha (emenda de 2026-11-20 da ADR-190). */
+  tamanho?(escopo: Escopo, agenteId: string, area: { w: number; h: number }): void;
 };
 
 export type OpcoesVivoNavegador = {
@@ -213,6 +216,8 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
     const vista = o.portao.vistaDe(bot.escopo, bot.agenteId);
     const ent = lerEntradaNavegador(lerJson(texto), vista.viewport);
     if (!ent) return;
+    // O tamanho vale assistindo ou no controle: não mexe na página, só no tamanho do Chrome.
+    if (ent.t === "tamanho") { o.portao.tamanho?.(bot.escopo, bot.agenteId, { w: ent.w, h: ent.h }); return; }
     if (vista.controle !== "pessoa") {
       if (agora() - e.ultimaRecusaEm >= RECUSA_A_CADA_MS) { e.ultimaRecusaEm = agora(); enviar(e, { t: "vista", vista }); }
       return;

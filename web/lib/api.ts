@@ -13,7 +13,7 @@ import type { AnexoMeta } from "../../src/contracts/anexo.ts";
 import type { CheckpointDaFala } from "../../src/contracts/checkpoint.ts";
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
 import type { AcaoComputador, ComputadorDto, ResultadoComputador } from "../../src/contracts/computador.ts";
-import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaNavegador, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
+import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaMacDesligado, RespostaNavegador, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } from "./computador-pessoa.ts";
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
@@ -296,6 +296,8 @@ export function criarApi(escopo: Escopo) {
     lugarDoNavegador: (agenteId: string) => get<RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`),
     /** ADR-190 (N): muda o lugar (o interruptor, a máquina, "nod", "Só na …"); a mesma rota do Desfazer da conversa. */
     mudarLugarDoNavegador: (agenteId: string, mudar: MudancaLugarNavegador) => post<{ ok: true } & RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`, mudar),
+    /** ADR-190 (K1): "Fazer agora" ou "Quando o Mac ligar" no cartão "Seu Mac está desligado". */
+    responderMacDesligado: (agenteId: string, turnoId: string, resposta: RespostaMacDesligado) => post<{ ok: true; turnoId: string | null } & RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/mac-desligado`, { turnoId, resposta }),
     /**
      * ADR-190 (L1, L2): a escolha do cartão de login. Com o 1Password, o Bitwarden ou o Chrome, `aviso` = "Confirme no seu
      * Mac" e o preenchimento segue no servidor (a vista muda pelo `navegador.mudou`). Nenhum segredo vai neste corpo.

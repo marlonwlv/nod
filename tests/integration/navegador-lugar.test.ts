@@ -48,7 +48,7 @@ async function turnoDaConversa(trx: Tx, bot: { agenteId: string; conversaId: str
 
 describeIntegracao("navegador.lugar: tela × chat (ADR-190, N; ADR-135)", () => {
   let srv: ServidorDeTeste;
-  beforeAll(async () => { srv = await servidorDeTeste(rotasNavegador({} as never, { dentro, ligadas: () => ligadas })); });
+  beforeAll(async () => { srv = await servidorDeTeste(rotasNavegador({ disponivel: () => true } as never, { dentro, ligadas: () => ligadas })); });
   afterAll(() => srv.close());
 
   it("o registro aponta para este contrato, com o executor único e a ajustar_navegador", () => {

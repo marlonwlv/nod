@@ -1,12 +1,12 @@
 import type { Navegadores } from "../../fundo/navegadores.ts";
 import type { Rota } from "../roteador.ts";
-import { FONTES_COFRE, OPERACOES_ENSINAR, OPERACOES_NAVEGADOR, type EscolhaLoginNavegador, type FonteCofre, type LoginDoCofreNaTela, type MudancaLugarNavegador, type OperacaoEnsinar, type OperacaoNavegador, type RespostaEnsinar, type RespostaLoginNavegador, type RespostaLugarNavegador, type RespostaNavegador, type TarefaEnsinada } from "../../../contracts/navegador-do-bot.ts";
+import { FONTES_COFRE, OPERACOES_ENSINAR, OPERACOES_NAVEGADOR, type EscolhaLoginNavegador, type FonteCofre, type LoginDoCofreNaTela, type MudancaLugarNavegador, type OperacaoEnsinar, type OperacaoNavegador, type RespostaEnsinar, type RespostaLoginNavegador, type RespostaLugarNavegador, type RespostaMacDesligado, type RespostaNavegador, type TarefaEnsinada } from "../../../contracts/navegador-do-bot.ts";
 import { codigoValido, hostDoSite, mascararUsuario } from "../../../domain/navegador-cofre.ts";
 import type { LoginDoCofre } from "../../../repositories/cofre-logins.repo.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import type { Escopo } from "../../../shared/types.ts";
 import { painelDoLugar, type MaquinaLigada } from "../../../use-cases/navegador-lugar.ts";
-import { lugarDoNavegador } from "../../../use-cases/acoes/navegador.ts";
+import { lugarDoNavegador, macDesligadoDoNavegador } from "../../../use-cases/acoes/navegador.ts";
 import { executar } from "./dentro-de-tx.ts";
 import type { Deps } from "../../../use-cases/tipos.ts";
 
@@ -141,6 +141,7 @@ export function rotasTarefasEnsinadas(d: { dentro<T>(escopo: Escopo, fn: (d: Dep
 
 /** As rotas da dona do bot (ADR-190). O canal ao vivo é um WebSocket à parte (src/adapters/voz/ws.ts). */
 export function rotasNavegador(navegadores: Navegadores, lugar?: DepsLugarNavegador): Rota[] {
+  const comDisponivel = (r: RespostaLugarNavegador): RespostaLugarNavegador => ({ ...r, disponivel: navegadores.disponivel() });
   const comCausa = async (ctx: { json(status: number, corpo: unknown): void }, fn: () => Promise<unknown>) => {
     try { ctx.json(200, await fn()); } catch (e) { if (!responderCausa(ctx, e)) throw e; }
   };
@@ -148,7 +149,7 @@ export function rotasNavegador(navegadores: Navegadores, lugar?: DepsLugarNavega
     /** ADR-190 (M, N): onde o navegador do bot mora — a pergunta, as máquinas sempre ligadas e os textos prontos. */
     { metodo: "GET", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/lugar$/, async handler(ctx) {
       const r: RespostaLugarNavegador = await lugar.dentro(ctx.escopo, (d) => painelDoLugar(d, ctx.params.id!, lugar.ligadas(ctx.escopo)));
-      ctx.json(200, r);
+      ctx.json(200, comDisponivel(r));
     } },
     { metodo: "POST", acao: "navegador.lugar", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/lugar$/, async handler(ctx) {
       const m = lerMudancaLugar(corpoObj(await ctx.corpo()));
@@ -156,7 +157,18 @@ export function rotasNavegador(navegadores: Navegadores, lugar?: DepsLugarNavega
         await executar(d, lugarDoNavegador, { agenteId: ctx.params.id!, mudanca: m });
         return painelDoLugar(d, ctx.params.id!, lugar.ligadas(ctx.escopo));
       });
-      ctx.json(200, { ok: true, ...r });
+      ctx.json(200, { ok: true, ...comDisponivel(r) });
+    } },
+    /** ADR-190 (K1): o cartão "Seu Mac está desligado" — "Fazer agora" ou "Quando o Mac ligar". */
+    { metodo: "POST", acao: "navegador.mac_desligado", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/mac-desligado$/, async handler(ctx) {
+      const c = corpoObj(await ctx.corpo());
+      if (Object.keys(c).some((k) => k !== "turnoId" && k !== "resposta") || typeof c.turnoId !== "string" || !UUID.test(c.turnoId) || (c.resposta !== "agora" && c.resposta !== "ao_ligar")) throw new ErroDeDominio("entrada_invalida");
+      const entrada = { agenteId: ctx.params.id!, turnoId: c.turnoId, resposta: c.resposta as RespostaMacDesligado };
+      const r = await lugar.dentro(ctx.escopo, async (d) => {
+        const feito = await executar(d, macDesligadoDoNavegador, entrada);
+        return { ...feito, ...(await painelDoLugar(d, ctx.params.id!, lugar.ligadas(ctx.escopo))) };
+      });
+      ctx.json(200, { ok: true, ...r, disponivel: navegadores.disponivel() });
     } },
   ] : [];
   return [

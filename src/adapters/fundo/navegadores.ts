@@ -10,10 +10,10 @@ import { motorLe, tipoDoAnexo } from "../../domain/anexo.ts";
 import { classificarAcao, decidirNoNavegador, juntarLiberacoes, perguntaDaAcao, SEM_LIBERACOES, siteLegivel, type AlvoResolvido, type LiberacoesNavegador } from "../../domain/navegador-aprovacao.ts";
 import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, dominioRegistravel, hostDoSite, itemCasaComHost, MOTIVO_SEM_MAC, OPCOES_MAX, ordenarOpcoes, rotuloDoItem, textoDoCombinar, textoDoLembrar, type Digitado } from "../../domain/navegador-cofre.ts";
 import { entradaDigita } from "../../domain/navegador-entrada.ts";
-import { arquivoDosPassos, campoDoElemento, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
+import { arquivoDosPassos, campoDoElemento, nomeDoArquivoDosPassos, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
 import { campoEhSecreto, redigirArvore, segredoAindaNaPagina } from "../../domain/navegador-sensivel.ts";
-import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, type OperacaoControle } from "../../domain/navegador-vista.ts";
+import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, viewportDeQuemAssiste, viewportMudouMuito, type OperacaoControle } from "../../domain/navegador-vista.ts";
 import { log } from "../../obs/log.ts";
 import type { Escopo } from "../../shared/types.ts";
 import { errosDoSchema, type ResultadoChamada } from "../../use-cases/chamar-ferramenta.ts";
@@ -23,6 +23,7 @@ import { pedirAprovacaoComputador } from "../../use-cases/pedir-aprovacao.ts";
 import { fecharComResposta, retomarComResposta } from "../../use-cases/responder-decisao.ts";
 import { pedirAjudaDoComputador, pedirAPessoa } from "../../use-cases/pedir-a-pessoa.ts";
 import { avisarForaDoAr, type LugarDecidido } from "../../use-cases/navegador-lugar.ts";
+import { cartaoDaEspera } from "../../use-cases/navegador-mac-desligado.ts";
 import { registrarNegacao } from "../../use-cases/registrar-negacao.ts";
 import type { Deps } from "../../use-cases/tipos.ts";
 import { ehFalhaNavegador, FalhaNavegador, type AbaMotor, type MotorNavegador, type RefLida, type SessaoNavegador } from "../navegador/motor-agent-browser.ts";
@@ -52,6 +53,11 @@ export type OpcoesNavegadores = {
    * do bot e a cada "ligar" da pessoa, dentro da transação dela. Ausente = sempre o nod.
    */
   lugarDe?(d: Deps, escopo: Escopo, agenteId: string): Promise<LugarDecidido>;
+  /**
+   * O navegador espera o Mac: o cartão da conversa (K1 no pedido pela conversa, a pergunta M2/J1 na rotina) e a instrução
+   * que o bot lê no lugar da padrão (padrão: `cartaoDaEspera`). Uma vez por turno.
+   */
+  cartaoDaEspera?(d: Deps, plano: PlanoTurno): Promise<string | null>;
   /** A linha "A vm-sp estava fora do ar às HH:MM. Fiz no nod." (padrão: `avisarForaDoAr`). */
   avisarForaDoAr?(d: Deps, agenteId: string, maquina: { id: string; nome: string }): Promise<void>;
   /** Por que o motor do lugar está fora (a frase que o bot lê). */
@@ -115,6 +121,13 @@ type Estado = {
   captura: Captura | null;
   /** A3: o último texto que o BOT preencheu e em que página (a citação do cartão de envio). Nunca o que a pessoa digita. */
   ultimoTexto: { url: string; texto: string } | null;
+  /**
+   * O tamanho do Chrome que acompanha quem assiste (emenda de 2026-11-20, item 4): `pedido` é o último que a web pediu
+   * (fica com ninguém assistindo), `aplicado` o que o Chrome de agora já tem (null = o padrão de quando ligou).
+   */
+  tamanho: { pedido: { w: number; h: number } | null; aplicado: { w: number; h: number } | null; mudando: boolean };
+  /** As referências caíram porque o Chrome mudou de tamanho: a ref velha recebe "a página mudou de tamanho". */
+  refsPorTamanho: boolean;
 };
 
 /** L5: o usuário e a senha que a pessoa digitou (cada um cifrado), o campo em que ela está e a URL de quando começou. */
@@ -311,6 +324,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   const fontesVistas = new Map<string, Set<FonteCofre>>();
   const chavePessoa = (escopo: Escopo) => `${escopo.tenantId}:${escopo.pessoaId}`;
   const estados = new Map<string, Estado>();
+  /** Os turnos que já ganharam o cartão do Mac desligado (um por turno; o mais antigo sai depois de 500). */
+  const cartoesDaEspera = new Set<string>();
   const resultados = new Map<string, { pessoaId: string; cifrado: string }>();
 
   const motorDe = (est: Estado): MotorNavegador | null => o.motor(est.vista.lugar, est.escopo);
@@ -325,6 +340,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
       abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, loginEmCurso: null, captura: null, ultimoTexto: null,
+      tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
@@ -335,8 +351,37 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     // O aviso de Desfazer some sozinho na próxima mudança depois do prazo.
     const descarte = est.descartada && est.descartada.ate < agora() ? { descarte: null } : {};
     if ("descarte" in descarte) est.descartada = null;
+    const antes = est.vista.estado;
     est.vista = { ...est.vista, ...descarte, ...parcial };
+    // O Chrome novo nasce no tamanho padrão; quando fica ao vivo, ganha o tamanho de quem assiste (se alguém pediu).
+    if (est.vista.estado === "ligando" && antes !== "ligando") est.tamanho.aplicado = null;
+    if (est.vista.estado === "ao_vivo" && antes !== "ao_vivo" && est.tamanho.pedido) void aplicarTamanho(est);
     try { o.aoMudar?.(est.escopo, est.vista); } catch (e) { log("aviso", "navegador_aviso_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }); }
+  }
+
+  /**
+   * Põe o Chrome no tamanho pedido por quem assiste, um pedido por vez (o que chegar no meio espera e vale o último). Só
+   * muda com mais de 8% de diferença. As referências da leitura caem: a página reflui e `@e3` pode ser outro elemento.
+   */
+  async function aplicarTamanho(est: Estado): Promise<void> {
+    const t = est.tamanho;
+    const alvo = t.pedido;
+    if (t.mudando || !alvo || !est.vivo || !temChromeVivo(est.vista.estado)) return;
+    if (!viewportMudouMuito(t.aplicado ?? est.vista.viewport, alvo)) return;
+    const motor = motorDe(est);
+    if (!motor) return;
+    t.mudando = true;
+    try {
+      await motor.tamanho(sessao(est.vista.agenteId), alvo.w, alvo.h);
+      t.aplicado = alvo;
+      if (est.refs) { est.refs = null; est.refsPorTamanho = true; }
+      mudar(est, { viewport: alvo });
+    } catch (e) {
+      log("aviso", "navegador_tamanho_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" });
+    } finally {
+      t.mudando = false;
+    }
+    if (t.pedido !== alvo) void aplicarTamanho(est);
   }
 
   /** Fecha os Chromes parados há 10 min (D0): a vista fica "em pausa" e o perfil guarda os logins. */
@@ -348,7 +393,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const abas = await motor?.abas(sessao(est.vista.agenteId)).catch(() => null);
       est.abasGuardadas = (abas ?? est.vista.abas).map((a) => a.url).filter(enderecoPermitido).slice(0, ABAS_GUARDADAS_MAX);
       est.vivo = false;
-      est.refs = null;
+      est.refs = null; est.refsPorTamanho = false;
       pausados++;
       await motor?.fechar(sessao(est.vista.agenteId)).catch((e: unknown) => log("aviso", "navegador_pausar_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
       mudar(est, { estado: "pausa", passo: null });
@@ -374,6 +419,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   /** A referência tem de estar na última leitura; o resto (seletor CSS) segue. */
   function conferirRef(est: Estado, alvo: unknown): void {
     if (typeof alvo !== "string" || !ehRef(alvo)) return;
+    if (!est.refs && est.refsPorTamanho) throw new FalhaNavegador("alvo_invalido", `A página mudou de tamanho (a pessoa abriu a vista numa área de outro tamanho) e a referência @${ref(alvo)} é da leitura de antes. Leia de novo (navegador_ler) e use uma referência da leitura nova.`);
     if (!est.refs || !Object.hasOwn(est.refs, ref(alvo))) throw new FalhaNavegador("alvo_invalido", `A referência @${ref(alvo)} não está na última leitura desta página. Leia de novo (navegador_ler) e use uma referência da leitura nova.`);
   }
 
@@ -425,7 +471,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const ativa = abas.find((a) => a.ativa);
     if (ativa && ativa.url !== est.url) {
       est.url = ativa.url;
-      est.refs = null;
+      est.refs = null; est.refsPorTamanho = false;
       est.campo = null;
       if (est.urlDoSegredo && !segredoAindaNaPagina(est.urlDoSegredo, ativa.url)) { est.urlDoSegredo = null; mudar(est, { segredoNaPagina: false }); }
       if (/^https?:/i.test(ativa.url)) registrar(est, { tipo: "abriu", url: ativa.url });
@@ -635,7 +681,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const abas = est.vista.abas.map((a) => a.url).filter(enderecoPermitido);
     if (abas.length) est.abasGuardadas = abas.slice(0, ABAS_GUARDADAS_MAX);
     est.vivo = false;
-    est.refs = null;
+    est.refs = null; est.refsPorTamanho = false;
     await motor?.fechar(s).catch((e: unknown) => log("aviso", "navegador_trocar_lugar_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
   }
 
@@ -656,7 +702,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       throw new ErroDeDominio("estado_invalido", { cause: "nao_ligou" });
     }
     est.abasGuardadas = [];
-    est.refs = null;
+    est.refs = null; est.refsPorTamanho = false;
     await atualizarAbasDe(est, motor);
     mudar(est, { estado: "ao_vivo", erro: null, passo: null, atividadeEm: agora() });
   }
@@ -692,6 +738,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       case "navegador_ler": {
         const l = await m.ler(s, { soInterativos: args.so_interativos !== false, ...(typeof args.dentro === "string" && args.dentro ? { dentro: args.dentro } : {}) });
         c.est.refs = l.refs;
+        c.est.refsPorTamanho = false;
         if (l.url) c.est.url = l.url;
         return { conteudo: { url: l.url || c.est.url, referencias: Object.keys(l.refs).length, arvore: redigirArvore(l.arvore) } };
       }
@@ -762,12 +809,12 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         throw new FalhaNavegador("acao_falhou", `ferramenta ${ferramenta} não roda aqui`);
     }
     if (NAVEGAM.has(ferramenta)) {
-      c.est.refs = null;
+      c.est.refs = null; c.est.refsPorTamanho = false;
       await atualizarAbas(c);
     } else {
       // Clicar ou apertar uma tecla pode navegar: a URL de agora diz se as referências ainda valem.
       const url = await m.url(s).catch(() => c.est.url);
-      if (url !== c.est.url) { c.est.refs = null; c.est.url = url; }
+      if (url !== c.est.url) { c.est.refs = null; c.est.refsPorTamanho = false; c.est.url = url; }
     }
     return { conteudo: { ok: true, url: c.est.url, ...(c.est.refs ? {} : { instrucao: "A página mudou: leia de novo (navegador_ler) antes do próximo passo." }) } };
   }
@@ -964,7 +1011,15 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (ferramenta === "navegador_tarefa_ensinada") return { ok: true, conteudo: JSON.stringify(tarefasParaOBot(await d.repos.navegadorTarefas.doAgente(plano.agenteId), argsDaFerramenta.nome)), confianca: "nao_confiavel" };
         const est = estadoDe(escopo, plano.agenteId);
         const lugar = await decidirLugar(d, est);
-        if (lugar.tipo === "espera") return { ok: true, isError: true, conteudo: JSON.stringify({ erro: "espera", instrucao: lugar.instrucao }), confianca: "confiavel" };
+        if (lugar.tipo === "espera") {
+          let instrucao = lugar.instrucao;
+          if (lugar.motivo === "aparelho_desligado" && !cartoesDaEspera.has(plano.turnoId)) {
+            cartoesDaEspera.add(plano.turnoId);
+            if (cartoesDaEspera.size > 500) { const velho = cartoesDaEspera.values().next().value; if (velho) cartoesDaEspera.delete(velho); }
+            instrucao = (await (o.cartaoDaEspera ?? cartaoDaEspera)(d, plano)) ?? instrucao;
+          }
+          return { ok: true, isError: true, conteudo: JSON.stringify({ erro: "espera", instrucao }), confianca: "confiavel" };
+        }
         const motor = motorDe(est);
         if (!motor) return { ok: true, isError: true, conteudo: JSON.stringify({ erro: "indisponivel", instrucao: `${o.motivoIndisponivel ?? "O navegador do bot não está ligado neste servidor."} Nada foi executado; siga com o que dá sem ele e diga em uma frase o que ficou de fora.` }), confianca: "confiavel" };
         const agente = await d.repos.agentes.buscar(plano.agenteId);
@@ -1106,7 +1161,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const est = estados.get(agenteId);
       if (!est || est.escopo.pessoaId !== escopo.pessoaId) return;
       est.vivo = false;
-      est.refs = null;
+      est.refs = null; est.refsPorTamanho = false;
       await motorDe(est)?.fechar(sessao(agenteId));
       mudar(est, { estado: "desligado", passo: null, abas: [] });
     },
@@ -1151,7 +1206,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       if (op === "encerrar") {
         descartarGravacao(est);
         est.vivo = false;
-        est.refs = null;
+        est.refs = null; est.refsPorTamanho = false;
         est.abasGuardadas = [];
         await motorDe(est)?.fechar(sessao(agenteId));
         mudar(est, { estado: "desligado", passo: null, abas: [], controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
@@ -1160,7 +1215,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       // recarregar ou voltar (a barra do navegador no controle, D2 B)
       const motor = exigirPessoa(est);
       await motor.historico(sessao(agenteId), op === "voltar" ? "voltar" : "recarregar").catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "acao_falhou" }) : e; });
-      est.refs = null;
+      est.refs = null; est.refsPorTamanho = false;
       return est.vista;
     },
     /** POST /agentes/:id/navegador/endereco: a pessoa no controle digita na barra (a mesma validação do portão). */
@@ -1188,7 +1243,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     },
     /**
      * POST /agentes/:id/navegador/ensinar (T). Começar só com a pessoa no controle; salvar grava a tarefa e manda, em nome
-     * dela, "Ensinei: <nome>." com `passos-gravados.txt` na conversa do bot (o turno normal do bot vem dessa mensagem).
+     * dela, "Ensinei: <nome>." com `passos-gravados (N passos).txt` na conversa do bot (o turno normal do bot vem dessa mensagem).
      */
     async ensinar(escopo: Escopo, agenteId: string, op: OperacaoEnsinar, nome?: string): Promise<{ vista: VistaNavegador; tarefa?: TarefaEnsinada }> {
       await conferirDona(escopo, agenteId);
@@ -1225,7 +1280,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         const t = await d.repos.navegadorTarefas.criar({ agenteId, nome: nomeFinal, passos: passosDaGravacao(g) });
         if (!t) throw new ErroDeDominio("nao_encontrado");
         const mandar = o.mandarMensagem ?? ((dd: Deps, m: MensagemDaPessoa) => mandarMensagemPadrao(dd, { ...m, ...(o.executor ? { executor: o.executor() } : {}) }));
-        await mandar(d, { agenteId, texto: `Ensinei: ${nomeFinal}.`, arquivo: { nome: "passos-gravados.txt", conteudo: arquivoDosPassos(nomeFinal, g) } });
+        await mandar(d, { agenteId, texto: `Ensinei: ${nomeFinal}.`, arquivo: { nome: nomeDoArquivoDosPassos(g), conteudo: arquivoDosPassos(nomeFinal, g) } });
         return t;
       });
       est.gravacao = null;
@@ -1289,7 +1344,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
               }
             }
             if (!n) { erroNoLogin(est, decisaoId, "sem_cookies"); return; }
-            est.refs = null;
+            est.refs = null; est.refsPorTamanho = false;
             await fecharPedido(est, decisaoId, DO_CHROME(siteLegivel(host), n));
             return;
           }
@@ -1357,6 +1412,19 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       limparCaptura(est);
       return est.vista;
     },
+    /**
+     * A área da vista de quem assiste (o `{t:"tamanho"}` do canal ao vivo, emenda de 2026-11-20 da ADR-190): o Chrome do
+     * bot passa a `viewportDeQuemAssiste`. Sem Chrome vivo, fica guardado para quando ele ligar; sem ninguém assistindo, o
+     * último fica.
+     */
+    tamanho(escopo: Escopo, agenteId: string, area: { w: number; h: number }): void {
+      let est: Estado;
+      try { est = estadoDe(escopo, agenteId); } catch { return; }
+      est.tamanho.pedido = viewportDeQuemAssiste(area);
+      void aplicarTamanho(est);
+    },
+    /** Só testes: espera a troca de tamanho em curso. */
+    esperarTamanho: async (agenteId: string): Promise<void> => { for (let i = 0; i < 50 && estados.get(agenteId)?.tamanho.mudando; i++) await new Promise((r) => setTimeout(r, 2)); },
     /** O stream ao vivo do Chrome mandou abas ou o tamanho da tela (só para quem já tem estado: a dona assistindo). */
     doStream(escopo: Escopo, agenteId: string, m: { abas?: readonly AbaMotor[]; viewport?: { w: number; h: number } }): void {
       const est = estados.get(agenteId);
@@ -1388,6 +1456,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (clique) registrar(est, clique);
         return;
       }
+      if (e.t !== "tecla") return;
       if (e.evento === "keyDown" && e.tecla === "Enter") { if (est.gravacao) registrar(est, { tipo: "tecla", tecla: "Enter" }); return; }
       if (e.evento === "keyDown" && e.tecla === "Tab") { est.campo = null; if (capturando) capturando.campo = null; return; }
       // L5: a tecla no campo de usuário ou de senha do login dela (o campo focado, se o clique não disse qual).

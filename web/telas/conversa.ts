@@ -37,6 +37,7 @@ import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../li
 import { htmlLinhaTelaFechada, htmlPedidoDeTela } from "../lib/computador-pessoa.ts";
 import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDoComputador } from "../lib/computador-conversa.ts";
 import { htmlLinhaDoLugarDoNavegador } from "../lib/navegador-conversa.ts";
+import { htmlCartaoDaPergunta } from "../lib/navegador-lugar-tela.ts";
 import { htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../lib/navegador-vista.ts";
 import { htmlLinhaGuardar, linhaDaRespostaDoNavegador } from "../lib/navegador-cartoes.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
@@ -264,6 +265,12 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
   }
   // ADR-190 (N): o navegador do bot mudou de lugar sozinho; a linha cinza diz onde e traz o botão (Desfazer, "Só na …").
   if (p?.kind === "navegador_lugar") return htmlLinhaDoLugarDoNavegador(p, m.texto, agenteDe(estado, p.agenteId)?.ownerId === estado.sessao?.pessoaId);
+  // ADR-190 (M2/J1, J2, M3/K1, K2): os cartões do Mac desligado; o estado de agora vem do lugar lido (GET …/navegador/lugar).
+  if (p?.kind === "navegador_pergunta") {
+    const bot = agenteDe(estado, p.agenteId);
+    const dono = bot?.ownerId === estado.sessao?.pessoaId;
+    return htmlCartaoDaPergunta(p, dono ? estado.lugaresNavegador[p.agenteId] : null, { nome: bot?.nome ?? "O bot", mensagemId: m.id, texto: m.texto, aberto: estado.lugarNavegadorAberto === `cartao:${m.id}` });
+  }
   // NOD-97 PR 5: o Chrome preencheu a senha salva; a linha cinza leva o selo "‹bot› não vê a senha".
   if (p?.kind === "computador_senha_preenchida") return htmlLinhaSenhaSalva(agenteDe(estado, p.agenteId)?.nome ?? "O bot");
   // definido em 2026-09-28 (ADR-051): o card do artefato; o iframe entra depois do render (telas/artefatos-vivos.ts).
@@ -536,9 +543,25 @@ function urlDoAnexo(tenant: string, m: Mensagem, id: string): string {
 const ehCaptura = (m: Mensagem, a: { mime: string; origem?: string }): boolean => m.autoria.autor_tipo !== "pessoa" && a.origem !== "bot" && a.mime.startsWith("image/");
 
 /** ADR-046: arquivos que a pessoa mandou, acima do balão. A captura (NOD-56) e a mídia do bot (NOD-323) não entram aqui. */
+/** T3: o anexo dos passos de "Ensinar uma tarefa" ("passos-gravados (6 passos).txt"); null = outro arquivo. */
+export function passosDoAnexo(nome: string): number | null {
+  const r = /^passos-gravados \((\d{1,3}) passos?\)\.txt$/u.exec(nome);
+  return r ? Number(r[1]) : null;
+}
+
+/** T3 (Paper Y27-0): o chip embaixo do balão, "passos-gravados.txt · 6 passos", que abre o arquivo. */
+function chipsDosPassos(m: Mensagem, estado: Estado): string {
+  const tenant = estado.sessao?.tenantId;
+  if (!tenant || m.autoria.autor_tipo !== "pessoa") return "";
+  return (m.anexos ?? []).map((a) => {
+    const n = passosDoAnexo(a.nome);
+    return n === null ? "" : `<a class="msg-passos" href="${esc(urlDoAnexo(tenant, m, a.id))}" target="_blank" rel="noopener"><span>passos-gravados.txt</span><small>· ${n} ${n === 1 ? "passo" : "passos"}</small></a>`;
+  }).join("");
+}
+
 function anexosDe(m: Mensagem, estado: Estado): string {
   const tenant = estado.sessao?.tenantId;
-  const anexos = (m.anexos ?? []).filter((a) => !ehCaptura(m, a) && a.origem !== "bot");
+  const anexos = (m.anexos ?? []).filter((a) => !ehCaptura(m, a) && a.origem !== "bot" && !(m.autoria.autor_tipo === "pessoa" && passosDoAnexo(a.nome) !== null));
   if (!anexos.length || !tenant) return "";
   return renderAnexosDaMensagem(anexos, (id) => urlDoAnexo(tenant, m, id));
 }
@@ -806,7 +829,7 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, metaTags);
   const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
   return `<article class="${classes}" data-mensagem="${esc(m.id)}"${pergunta ? ` data-pergunta="${esc(pergunta.decisaoId)}"` : ""}${emVoo}>
-    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
+    ${!ehPessoa && agente ? iconeAgente(agente, "md") : ""}<div class="bubble-wrap">${opcoes.semAcoes ? "" : acoesDaMensagem(m, estado, sala)}${sender}${ehPessoa ? "" : `<span class="sr-only">Mensagem de ${esc(autor)}</span>`}${resposta ? rotuloDaResposta(m) : ""}${ehPessoa ? citacaoAcimaDoBalao(m) : ""}${anexosDe(m, estado)}${balao}${ehPessoa ? chipsDosPassos(m, estado) : ""}${linhaParada}${ehPessoa ? "" : midiasDoBot(m, estado)}${progressoFora}${ehPessoa ? "" : (opcoes.linhaDoModo ?? "")}${ehPessoa ? "" : avisoDeLeitura(m, estado)}${contextoDelegado}${chipsDeReacao(m, estado)}${fila ? renderSituacaoFila(fila) : (opcoes.chipDaFala ?? "")}${faixaDaMensagem(m, estado)}</div>
   </article>${ehPessoa ? "" : desfazerDaFala(m, estado, agente?.nome ?? "o bot")}${resposta ? linhaDaRetomada(m, estado) : ""}`;
 }
 

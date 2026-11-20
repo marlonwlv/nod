@@ -64,6 +64,15 @@ As telas estão no Paper, arquivo "nod · Chat e conversa":
    WebSocket, e recebe `input_mouse` e `input_keyboard`. O servidor repassa à web em
    `/api/t/:tenant/agentes/:id/navegador/vivo`, só para a dona. A entrada da pessoa só passa com ela no controle.
    Nada do nod cobre a imagem (D1d): a pílula mora numa faixa de 52 px embaixo, como na tela cheia do computador.
+   - Emenda (2026-11-20): o tamanho do Chrome do bot acompanha quem assiste. Com o Chrome fixo em 1280×720, o painel, a
+     folha do celular e a gravação mostravam a imagem com uma faixa cinza enorme embaixo. A web manda pelo canal ao vivo
+     `{t:"tamanho", w, h}` (a área da vista em CSS px) 600 ms depois do fim de um redimensionamento (`EntradaNavegador`;
+     conferido em `lerEntradaNavegador`, 120–8192). O servidor põe o viewport (`set viewport` do agent-browser; na
+     máquina, a operação `tamanho` da fila) em largura = clamp(round(w × 1,6), 800, 1440) e altura = largura × h / w,
+     arredondada, até 2400 (`viewportDeQuemAssiste`). Só muda com mais de 8% de diferença em algum lado
+     (`viewportMudouMuito`). Sem ninguém assistindo, fica o último; o Chrome que liga de novo nasce no padrão e ganha o
+     tamanho pedido quando fica ao vivo. Mudar o tamanho derruba a última leitura do bot: a referência velha ouve "a
+     página mudou de tamanho; leia de novo". A vista enche a área, e o clique segue mapeado pelo tamanho real do quadro.
 5. **Onde mora** (`src/domain/navegador-lugar.ts`, M e N). A pessoa responde só "Continuar com o seu Mac desligado".
    - Desligado (padrão): o navegador roda no Mac, pelo app.
    - Ligado: roda "no nod" (o servidor), ou numa máquina sempre ligada da pessoa, pelo nome que ela deu ("na vm-sp").
@@ -91,6 +100,18 @@ As telas estão no Paper, arquivo "nod · Chat e conversa":
    - O Chrome no Linux: `NOD_NAVEGADOR_CHROME`, senão o Chromium do computador em /opt/nod-motor/chromium, senão um do
      PATH. O agent-browser vem da instalação do motor, em /opt/nod-motor/navegador.
    - A chave que cifra os perfis na máquina é dela (`<dados>/navegadores/segredo`, 0600) e nunca vai ao servidor.
+   - Como ficou na tela (2026-11-20, Paper M, J, K e N; `web/lib/navegador-lugar-tela.ts`):
+     - A pergunta vem uma vez por bot, como cartão na conversa dele (`navegador_pergunta`). Ela aparece quando a pessoa
+       cria uma rotina de um bot com navegador para uma hora em que o Mac costuma estar desligado, ou quando uma rotina
+       vai usar o navegador com o Mac desligado. Sem histórico de uso do Mac, a hora conta como fora de 8h–20h
+       (`macCostumaEstarDesligado`). A 0182 marca quando a pergunta foi feita e quando foi respondida.
+     - Respondida, o cartão vira "Você escolheu: … · Desfazer".
+     - O pedido feito pela conversa com o Mac desligado ganha o cartão "Seu Mac está desligado" (ação
+       `navegador.mac_desligado`). "Fazer agora" liga o continuar e retoma o turno; "Quando o Mac ligar" guarda o turno
+       (`retomar_turno_id`), que continua quando o app do Mac volta a puxar o navegador (`aoLigar` do canal).
+     - O painel do bot tem a linha "Com o Mac desligado" com o interruptor. Sem o app, a linha vira "Onde a Ada
+       trabalha", sem interruptor. Tocar na frase abre a lista de N.
+     - A linha de atividade termina com o lugar ("· no nod").
 6. **Logins sem o bot ver** (L).
    - `navegador_entrar` pede o login na conversa (azul) e oferece primeiro o item do cofre que casa com o site: cofre do
      nod (cifrado no servidor), 1Password (`op`, no app do Mac, ADR-177) ou Bitwarden (`bw`, no app do Mac).

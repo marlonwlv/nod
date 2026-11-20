@@ -87,7 +87,7 @@ export async function decidirLugarDoNavegador(d: D, agenteId: string, p: { ligad
 export async function painelDoLugar(d: D, agenteId: string, ligadas: readonly MaquinaLigada[]): Promise<RespostaLugarNavegador> {
   const agente = await d.repos.agentes.buscar(agenteId);
   if (!agente || agente.ownerId !== d.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado");
-  const { entrada: e } = await entradaDoLugar(d, agenteId, ligadas);
+  const { entrada: e, preferencias } = await entradaDoLugar(d, agenteId, ligadas);
   const r: ResolucaoLugar = resolverLugar(e);
   return {
     continuaSemMac: e.continuaSemMac,
@@ -100,6 +100,8 @@ export async function painelDoLugar(d: D, agenteId: string, ligadas: readonly Ma
     agora: r.tipo === "roda" ? fraseDoLugar(r.lugar) : null,
     subtitulo: subtituloDoInterruptor(e, agente.nome),
     frasePergunta: fraseDaPergunta(e, agente.nome),
+    respondeu: preferencias?.respondidoEm != null,
+    retomarTurnoId: preferencias?.retomarTurnoId ?? null,
   };
 }
 
@@ -122,7 +124,9 @@ export async function mudarLugarDoNavegador(d: D, agenteId: string, m: MudancaLu
     }
     if (m.maquinaId !== null && m.continuaSemMac === undefined) p.continuaSemMac = true;
   }
-  if (m.continuaSemMac !== undefined) p.continuaSemMac = m.continuaSemMac;
+  // A resposta ao cartão M2/J1 (ou ao interruptor do painel, ou à ajustar_navegador): a pergunta não volta.
+  if (m.continuaSemMac !== undefined) Object.assign(p, { continuaSemMac: m.continuaSemMac, respondidoEm: d.agora() });
+  else if (p.continuaSemMac !== undefined) p.respondidoEm = d.agora();
   if (m.soNaMaquina !== undefined) p.soNaMaquina = m.soNaMaquina;
   const r = await d.repos.navegadorPreferencias.gravar(agenteId, p, d.agora());
   if (!r) throw new ErroDeDominio("nao_encontrado");

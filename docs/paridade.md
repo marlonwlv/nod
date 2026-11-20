@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **223**, mais 3 só de leitura. No chat: **81 vivas**, 6 parciais, 92 faltando e 47 que nunca vão para o chat. Piso de vivas: 81.
+Ações de pessoa que mudam algo: **224**, mais 3 só de leitura. No chat: **81 vivas**, 7 parciais, 92 faltando e 47 que nunca vão para o chat. Piso de vivas: 81.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -144,6 +144,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `navegador.ir_para` | Abrir um endereço no navegador do bot com as próprias mãos | muda | parcial (`navegador_abrir`): o bot abre pela navegador_abrir com o controle dele; a barra da tela exige a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/endereco$` |
 | `navegador.trocar_aba` | Trocar de aba no navegador do bot com as próprias mãos | muda | parcial (`navegador_abas`): o bot troca pela navegador_abas (número da aba) com o controle dele; a tela troca pelo id da aba com a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/aba$` |
 | `navegador.lugar` | Escolher onde o navegador do bot roda com o Mac desligado (continuar, numa máquina, no nod, só na máquina) | muda | vivo (`ajustar_navegador`) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/lugar$` |
+| `navegador.mac_desligado` | Responder ao cartão "Seu Mac está desligado": fazer agora (continuar sem o Mac) ou quando o Mac ligar | muda | parcial (`ajustar_navegador`): pelo chat a pessoa liga o continuar sem o Mac e repete o pedido; a retomada sozinha quando o Mac liga só existe pelo cartão | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/mac-desligado$` |
 | `navegador.login` | Escolher como o bot entra num site: um login do cofre (nod, 1Password, Bitwarden), entrar eu mesmo ou trazer do meu Chrome | muda | nunca: o login vai do cofre direto ao campo da página; a escolha é um clique no cartão e a senha nunca passa pelo chat nem pelo bot (ADR-177, ADR-190 decisão 6) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/login$` |
 | `navegador.codigo` | Mandar o código de uso único (SMS, e-mail, app) direto para a página do navegador do bot | muda | nunca: o código vai do campo privado do cartão para a página; digitado no chat, passaria pela conversa e pelo bot | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/codigo$` |
 | `navegador.guardar_login` | Guardar no cofre (nod, 1Password, Bitwarden) o login que a pessoa digitou no navegador do bot, ou descartar | muda | nunca: guardar grava a senha que a pessoa digitou na página; ela fica só na memória do servidor e nunca passa pelo chat | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/guardar-login$` |

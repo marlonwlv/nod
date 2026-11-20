@@ -213,6 +213,7 @@ import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncid
 import { aparenciaDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
 import { DURACAO_AVISO_LOTE_MS, mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
+import { criarTrocaDePasso } from "./lib/navegador-troca-de-passo.ts";
 import { criarAtualizacaoNaWeb } from "./lib/atualizacao-app.ts";
 import { criarPonteSimuladaNaWeb, versaoSimuladaNaWeb } from "./lib/atualizacao-simulada-web.ts";
 import { mostrarAvisoAtualizado } from "./lib/aviso-atualizado.ts";
@@ -2660,6 +2661,12 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     const navegador = await api.navegador(agenteId).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return null; throw e; });
     return { tipo: "hidratar-navegador", agenteId, navegador };
   }
+  // ADR-190 (M, N): onde o navegador do bot mora (404: servidor de antes ou bot de outra pessoa — sem a linha).
+  if (q.startsWith("lugar-navegador:")) {
+    const agenteId = q.slice(16);
+    const lugar = await api.lugarDoNavegador(agenteId).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return null; throw e; });
+    return { tipo: "hidratar-lugar-navegador", agenteId, lugar };
+  }
   if (q.startsWith("execucoes:")) return { tipo: "hidratar-execucoes", rotinaId: q.slice(10), execucoes: (await api.execucoes(q.slice(10))).execucoes };
   // ADR-114 (chat limpo, PR 2): a página do dia da Atividade (404: servidor de antes ou bot de outra pessoa — fica
   // indisponível, sem faixa de erro) e o "N hoje", que é informativo: qualquer falha deixa a linha sem número.
@@ -2866,6 +2873,7 @@ function relevante(q: Invalidacao): boolean {
   if (q.startsWith("concessoes:")) return t.tipo === "conversa" && t.agenteId === q.slice(11) ? true : t.tipo === "conectores" || modalDoMarketplace !== null;
   // ADR-190: só relê o navegador do bot cuja vista a tela já leu (a tela do navegador, na próxima etapa, faz a 1ª leitura).
   if (q.startsWith("navegador:")) return Object.hasOwn(estado.navegadores, q.slice(10));
+  if (q.startsWith("lugar-navegador:")) return t.tipo === "conversa" && t.agenteId === q.slice(16);
   // 2026-09-21: o painel de detalhes (tela conversa) também mostra o histórico — é onde a pessoa
   // confere que uma rotina silenciosa (desfecho sem_novidade, que não escreve no chat) rodou.
   if (q.startsWith("execucoes:")) return t.tipo === "rotinas" || t.tipo === "conversa";
@@ -3633,6 +3641,8 @@ function renderPrincipal(): void {
   // NOD-348: o tempo da fala viva é escrito logo depois do render (a parte trocada nasce vazia) e o anunciador vê o estado novo.
   relogioDaFala.tocar();
   anunciadorDoTurno.observar(falasNaTela());
+  // D8: a troca de passo na linha de atividade do navegador (sobe/entra em 160 ms, no máximo uma por segundo).
+  trocaDePasso.aplicar();
   agendarTrocaDoIndicador(tomarTrocaDoIndicador());
   // ADR-083 (#195): a faixa de Trabalhos fica colada em cima do campo, só na conversa e só com trabalho aberto do bot.
   // ADR-099 (parte 5): virou a linha do dono; chat limpo (PR 8): virou a pílula que se alarga, que some com a fala à vista.
@@ -3895,6 +3905,8 @@ function placeholderPadrao(): string {
   // Spec do botão + (tela 5): com o cartão de boas-vindas aberto, o campo também responde a ele.
   const bot = botGerido(t.agenteId);
   if (bot && faseDasBoasVindasDe(bot) === "pergunta") return PLACEHOLDER_DA_PERGUNTA;
+  // ADR-190 (Paper 1+5, D7): com a aba de lugar à vista, o campo manda um recado ao bot que trabalha no navegador.
+  if (navegadorNaTela.abaAtiva(t.agenteId)) return `Mande um recado para ${nome}…`;
   // ADR-167 (Paper 02): "Mensagem para Ada", sem reticências.
   return `Mensagem para ${nome}`;
 }
@@ -4376,6 +4388,8 @@ function agendarViradaDoMascote(): void {
   if (viradaDoMascote) window.clearTimeout(viradaDoMascote.timer);
   viradaDoMascote = em === null ? null : { em, timer: window.setTimeout(() => { viradaDoMascote = null; dispatch({ tipo: "tick", agora: Date.now() }); }, Math.max(0, em - Date.now()) + 50) };
 }
+
+const trocaDePasso = criarTrocaDePasso({ agora: () => Date.now(), agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => window.clearTimeout(id), reduzido: () => movimentoReduzido(), raiz: () => document });
 
 function render(): void {
   lojaDoEstado.avisar();
@@ -7013,6 +7027,9 @@ function verPergunta(decisaoId: string): void {
 /** Rola até o balão/card, põe o foco nele e (se `realcar`) realça (web/lib/levar-ao-alvo.ts) — a lista redesenhada não o perde. */
 function levarAo(alvo: AlvoDoAtalho, realcar = true): void {
   rolagem.soltar();
+  // ADR-190 (L1): o pedido do navegador é um cartão de borda azul dentro da mensagem; o realce vai nele, não na largura
+  // inteira da mensagem (a moldura laranja de ponta a ponta que a prancheta não tem).
+  if (alvo instanceof HTMLElement) alvo = alvo.querySelector<HTMLElement>(":scope > .bubble-wrap > .nvc, :scope > .bubble-wrap > .nvl-cartao") ?? alvo;
   levarAoAlvo(alvo, { reduzido: movimentoReduzido(), agendar: (fn, ms) => window.setTimeout(fn, ms), realcar });
 }
 
@@ -8559,10 +8576,40 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "navegador-lugar": (el) => agir(async () => {
     let mudar: MudancaLugarNavegador = {};
     try { mudar = JSON.parse(el.dataset.mudar ?? "{}") as MudancaLugarNavegador; } catch { return; }
-    await api!.mudarLugarDoNavegador(el.dataset.id ?? "", mudar);
+    const r = await api!.mudarLugarDoNavegador(el.dataset.id ?? "", mudar);
     el.setAttribute("disabled", "");
     el.textContent = "Feito";
+    dispatch({ tipo: "hidratar-lugar-navegador", agenteId: el.dataset.id ?? "", lugar: r });
   }),
+  // ADR-190 (N3): a lista "Com o Mac desligado, a Ada continua" (a linha do painel, a frase do cartão, "Trocar").
+  "nv-lugar-abrir": (el) => {
+    const chave = el.dataset.chave ?? null;
+    dispatch({ tipo: "lugar-navegador-aberto", chave: estado.lugarNavegadorAberto === chave ? null : chave });
+    if (estado.lugarNavegadorAberto) requestAnimationFrame(() => document.querySelector<HTMLElement>(`.nvl-pop[data-chave="${CSS.escape(estado.lugarNavegadorAberto ?? "")}"] .nvl-item[aria-checked="true"]`)?.focus());
+  },
+  // ADR-190 (M1, J2, N3): o interruptor, um item da lista, os botões do cartão-pergunta e o Desfazer da resposta.
+  "nv-lugar-mudar": (el) => agir(async () => {
+    let mudar: MudancaLugarNavegador = {};
+    try { mudar = JSON.parse(el.dataset.mudar ?? "{}") as MudancaLugarNavegador; } catch { return; }
+    const agenteId = el.dataset.id ?? "";
+    const antes = estado.lugaresNavegador[agenteId] ?? null;
+    const r = await api!.mudarLugarDoNavegador(agenteId, mudar);
+    dispatch({ tipo: "lugar-navegador-aberto", chave: null });
+    dispatch({ tipo: "hidratar-lugar-navegador", agenteId, lugar: r });
+    // O interruptor do painel (M1): aviso com Desfazer, que volta ao que era.
+    if (el.classList.contains("nvl-chave") && antes) {
+      const desfazer: MudancaLugarNavegador = { continuaSemMac: antes.continuaSemMac };
+      mostrarAvisoDesfazer({ texto: r.subtitulo, aoDesfazer: () => agir(async () => dispatch({ tipo: "hidratar-lugar-navegador", agenteId, lugar: await api!.mudarLugarDoNavegador(agenteId, desfazer) })) });
+    }
+  }),
+  // ADR-190 (K1): "Fazer agora" ou "Quando o Mac ligar".
+  "nv-mac-desligado": (el) => agir(async () => {
+    const agenteId = el.dataset.id ?? "";
+    const resposta = el.dataset.resposta === "ao_ligar" ? "ao_ligar" : "agora";
+    const r = await api!.responderMacDesligado(agenteId, el.dataset.turno ?? "", resposta);
+    dispatch({ tipo: "hidratar-lugar-navegador", agenteId, lugar: r });
+  }),
+  "nv-ver-maquinas": () => { dispatch({ tipo: "lugar-navegador-aberto", chave: null }); abrirEspaco("maquinas"); },
   // ADR-125: Acordar, na aba Computador, é o mesmo ligar; o pulso seguinte lê o estado novo.
   "computador-acordar": (el) => ligarComputador(el.dataset.id ?? "", "acordar"),
   // ADR-125 (NOD-349): o topo da gaveta, as abas e o popover do avatar.
@@ -9476,7 +9523,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "cl-conectar-vm": (el) => { contasDaPessoa.fecharNova(); abrirEspaco("maquinas"); return ACOES["conectar-maquina"]!(el); },
   // NOD-89 (corte 1): o atalho "Conectar uma máquina sempre ligada" da linha "Roda em" e da execução que não rodou abre
   // Máquinas › Conectar, no padrão do `cl-conectar-vm`. O fluxo da nuvem (NOD-92) entra no PR B.
-  "conectar-sempre-ligada": (el) => { abrirEspaco("maquinas"); return ACOES["conectar-maquina"]!(el); },
+  "conectar-sempre-ligada": (el) => { if (estado.lugarNavegadorAberto) dispatch({ tipo: "lugar-navegador-aberto", chave: null }); abrirEspaco("maquinas"); return ACOES["conectar-maquina"]!(el); },
   "cl-nova-fechar": () => contasDaPessoa.fecharNova(),
   "cl-nova-na-maquina": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void contasDaPessoa.novaNaMaquina(ia, el.dataset.maquina ?? ""); },
   // ADR-108 (R8): o liga/desliga "na fila" de cada conta (a 2ª da mesma IA e a corporativa pedem os termos antes).
@@ -12668,3 +12715,18 @@ function realcarMaquina(id: string, tentativa = 0): void {
   linha.classList.add("maq-realce");
   setTimeout(() => linha.classList.remove("maq-realce"), 2400);
 }
+
+// ADR-190 (N3): a lista do lugar fecha com um toque fora dela (ou no que a abriu, que alterna) e com Esc, que devolve o foco.
+document.addEventListener("pointerdown", (ev) => {
+  if (!estado.lugarNavegadorAberto) return;
+  const alvo = ev.target as HTMLElement | null;
+  if (alvo?.closest?.(".nvl-pop, [data-act='nv-lugar-abrir']")) return;
+  dispatch({ tipo: "lugar-navegador-aberto", chave: null });
+}, true);
+document.addEventListener("keydown", (ev) => {
+  const chave = estado.lugarNavegadorAberto;
+  if (!chave || ev.key !== "Escape") return;
+  ev.preventDefault();
+  dispatch({ tipo: "lugar-navegador-aberto", chave: null });
+  document.querySelector<HTMLElement>(`[data-act="nv-lugar-abrir"][data-chave="${CSS.escape(chave)}"]`)?.focus();
+});

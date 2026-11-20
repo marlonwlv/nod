@@ -470,6 +470,11 @@ export function fraseMinuscula(frase: string): string {
   return frase ? frase.charAt(0).toLocaleLowerCase("pt-BR") + frase.slice(1) : frase;
 }
 
+/** "Baixou 14 notas": a frase do passo com a primeira letra maiúscula, para abrir a linha. */
+export function fraseMaiuscula(frase: string): string {
+  return frase ? frase.charAt(0).toLocaleUpperCase("pt-BR") + frase.slice(1) : frase;
+}
+
 /** O título da aba ativa do Chrome do bot ("Google Voos"), ou o domínio. */
 export function tituloDaAbaAtiva(v: Pick<VistaNavegador, "abas">): string {
   const a = v.abas.find((x) => x.ativa) ?? v.abas[0];
@@ -495,18 +500,36 @@ export function linhaDoNavegadorVisivel(v: Pick<VistaNavegador, "estado" | "cont
   if (!v) return false;
   if (v.pedido || v.controle === "precisa_de_voce" || v.controle === "pessoa") return true;
   if (v.estado === "ligando" || v.estado === "conectando") return true;
-  if (v.estado !== "ao_vivo" && v.estado !== "rede_fraca") return false;
+  // N4/J3: terminou há pouco, a linha fica com o ✓, a hora e o lugar ("Baixou 14 notas fiscais · 3h02 · no nod").
+  if (v.estado !== "ao_vivo" && v.estado !== "rede_fraca" && v.estado !== "terminou") return false;
   const ultimo = Math.max(v.atividadeEm, v.passo?.em ?? 0);
   return agora - ultimo < MS_NO_MEIO + MS_LINHA_DEPOIS;
 }
 
-export function htmlLinhaDoNavegador(nome: string, agenteId: string, v: Pick<VistaNavegador, "estado" | "controle" | "pedido" | "passo" | "abas">, o: { modoAbas: boolean }): string {
+/** "3h02": a hora do fim da linha (N4). */
+export function horaDaLinha(instante: number): string {
+  const d = new Date(instante);
+  return `${d.getHours()}h${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * A linha de atividade do navegador na conversa (1, 5 e N4): "Navegador da Ada", embaixo o site, o passo e o lugar baixinho
+ * no fim ("Google Voos · lendo os voos · no nod"); terminado, o ✓ com o último passo, a hora e o lugar. "Ver" abre o painel;
+ * no modo abas, "Abrir" (abre a aba de lugar).
+ */
+export function htmlLinhaDoNavegador(nome: string, agenteId: string, v: Pick<VistaNavegador, "estado" | "controle" | "pedido" | "passo" | "abas" | "atividadeEm"> & { lugar?: LugarNavegador }, o: { modoAbas: boolean }): string {
   const ponto = pontoDoLugar(v);
   const site = tituloDaAbaAtiva(v);
-  const frase = v.controle === "pessoa" ? "você está no controle" : v.pedido || v.controle === "precisa_de_voce" ? "precisa de você" : v.passo?.frase ? fraseMinuscula(v.passo.frase) : v.estado === "ligando" ? "ligando" : "";
-  const sub = [site, frase].filter(Boolean).join(" · ");
+  const lugar = v.lugar ? textoDoLugar(v.lugar) : "";
   const rotulo = o.modoAbas ? "Abrir" : "Ver";
-  return `<div class="nv-linha" data-ponto="${ponto ?? ""}"><i class="nv-linha-ponto" aria-hidden="true"></i><span class="nv-linha-txt"><b>Navegador de ${esc(nome)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span><button type="button" class="nv-linha-ver" data-act="navegador-ver" data-agente="${esc(agenteId)}" aria-label="${rotulo} o navegador de ${esc(nome)}">${rotulo}</button></div>`;
+  const ver = `<button type="button" class="nv-linha-ver" data-act="navegador-ver" data-agente="${esc(agenteId)}" aria-label="${rotulo} o navegador de ${esc(nome)}">${rotulo}</button>`;
+  if (v.estado === "terminou" && !v.pedido && v.controle === "bot") {
+    const feito = [v.passo?.frase ? fraseMaiuscula(v.passo.frase) : `Terminou${site ? ` em ${site}` : ""}`, horaDaLinha(Math.max(v.atividadeEm, v.passo?.em ?? 0)), lugar].filter(Boolean).join(" · ");
+    return `<div class="nv-linha terminou" data-agente="${esc(agenteId)}" data-ponto=""><span class="nv-linha-ok" aria-hidden="true">✓</span><span class="nv-linha-txt"><b>Navegador de ${esc(nome)}</b><small>${esc(feito)}</small></span>${ver}</div>`;
+  }
+  const frase = v.controle === "pessoa" ? "você está no controle" : v.pedido || v.controle === "precisa_de_voce" ? "precisa de você" : v.passo?.frase ? fraseMinuscula(v.passo.frase) : v.estado === "ligando" ? "ligando" : "";
+  const sub = [site, frase, lugar].filter(Boolean).join(" · ");
+  return `<div class="nv-linha" data-agente="${esc(agenteId)}" data-ponto="${ponto ?? ""}"><i class="nv-linha-ponto" aria-hidden="true"></i><span class="nv-linha-txt"><b>Navegador de ${esc(nome)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${ver}</div>`;
 }
 
 /** O botão da tela no canto do cabeçalho (1c, item 1): só com o lugar; com atividade diz o nome e leva o ponto. */

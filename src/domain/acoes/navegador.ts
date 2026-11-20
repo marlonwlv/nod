@@ -42,6 +42,17 @@ export const ACOES_NAVEGADOR = [
     chat: { estado: "vivo", via: { ferramenta: "ajustar_navegador" }, contrato: "tests/integration/navegador-lugar.test.ts" },
   },
   {
+    id: "navegador.mac_desligado",
+    titulo: "Responder ao cartão \"Seu Mac está desligado\": fazer agora (continuar sem o Mac) ou quando o Mac ligar",
+    schema: { type: "object", properties: { turnoId: { type: "string", description: "O turno do pedido que espera o Mac (o turnoId do cartão).", maxLength: 36 }, resposta: { type: "string", enum: ["agora", "ao_ligar"] } }, required: ["turnoId", "resposta"], additionalProperties: false },
+    risco: "muda",
+    cartaoNoChat: true,
+    casoDeUso: "navegador.mac_desligado",
+    // definido em 2026-11-20: "Fazer agora" tem o caminho pela ajustar_navegador (continuar_sem_mac) e a pessoa pede de novo;
+    // "Quando o Mac ligar" é o que o bot já faz sozinho sem resposta (espera o Mac), mas sem a retomada automática.
+    chat: { estado: "parcial", via: { ferramenta: "ajustar_navegador" }, falta: "pelo chat a pessoa liga o continuar sem o Mac e repete o pedido; a retomada sozinha quando o Mac liga só existe pelo cartão" },
+  },
+  {
     id: "navegador.login",
     titulo: "Escolher como o bot entra num site: um login do cofre (nod, 1Password, Bitwarden), entrar eu mesmo ou trazer do meu Chrome",
     risco: "muda",
