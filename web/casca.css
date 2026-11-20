@@ -441,9 +441,11 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 
 /* ---- Configurações como modal sobre o app (Paper 07): 960 px, 18 px de margem em cima e embaixo, raio 20, a coluna de
    seções com a busca no topo (208 px) e o ✕ no canto; o app continua à vista atrás do véu ---- */
-#espaco:has(> .cfg-modal) { background: var(--veu-modal); display: grid; place-items: start center; padding: 18px 0; box-sizing: border-box; }
+/* Jornadas da IA (Paper "Configurações · teto de altura", 2026-11-20): a janela tem teto — min(820 px, tela − 80 px) — e
+   fica centrada; antes ia até 1004 px num 1080p, com proporção quase quadrada. A mesma altura em todas as seções. */
+#espaco:has(> .cfg-modal) { background: var(--veu-modal); display: grid; place-items: center; padding: 18px 0; box-sizing: border-box; }
 .espaco.cfg-modal {
-  position: relative; width: min(960px, calc(100vw - 48px)); height: calc(100vh - 36px); box-sizing: border-box; overflow: hidden;
+  position: relative; width: min(960px, calc(100vw - 48px)); height: min(820px, calc(100vh - 80px)); box-sizing: border-box; overflow: hidden;
   border-radius: var(--raio-20); background: var(--surface); border: 1px solid var(--divisoria); box-shadow: var(--sombra-modal);
 }
 .cfg-modal .espaco-nav { width: 208px; flex: none; box-sizing: border-box; padding: 16px 10px; gap: 0; background: var(--surface); border-right: 1px solid var(--divisoria); }
