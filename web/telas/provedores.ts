@@ -112,13 +112,14 @@ function renderProvedoresContas(estado: Estado): string {
   const executor = estado.executor && estado.executor.trocavel !== false ? `<div class="espaco-cartao prov-avancado">${renderExecutor(estado)}</div>` : "";
   const intro = filtro
     ? `Mostrando as contas d${filtro.plataforma === "darwin" ? "o" : "a"} ${esc(nomeCurto(filtro, maquinas))}. A ordem é a mesma em todas as máquinas: os bots dela pulam as que não estão logadas lá.`
-    : "Suas contas de IA numa fila só. Quando uma acaba, o Nod passa para a próxima ligada, na máquina onde o bot trabalha. Arraste para mudar a ordem; desligue a que não deve entrar sozinha.";
+    // Jornadas da IA (Paper G1): uma linha só; o resto mora no "Como o nod troca de conta", no pé.
+    : "Os bots usam a primeira conta disponível da fila. Arraste para mudar a ordem.";
   // Tela 19b do Paper: a Nova conta é uma sub-página ("‹ Provedores de IA / Nova conta"), sem o título nem a lista.
   if (estado.contasUi.nova && !filtro && lista.includes('data-form="cl-nova"')) return `<section class="espaco-secao cfg-secao provedores prov-contas prov-nova">${lista}</section>`;
   // Jornadas da IA (Paper G2): a conta aberta também é uma sub-página, sem o título nem a lista.
   if (estado.contasUi.aberta && !filtro && lista.includes('data-pagina="cl-conta"')) return `<section class="espaco-secao cfg-secao provedores prov-contas prov-conta">${lista}</section>`;
   return `<section class="espaco-secao cfg-secao provedores prov-contas">
-      <h2 class="prov-titulo">${pilhaDeAvatares()}Provedores de IA</h2>
+      <h2 class="prov-titulo">Provedores de IA</h2>
       <p class="intro">${intro}</p>
       ${lista}
       ${executor}

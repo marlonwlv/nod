@@ -4,6 +4,7 @@ import type { CausaFalhaLogin, ResultadoColarCodigo } from "../../src/contracts/
 import type { MaquinaDto } from "../../src/contracts/maquina.ts";
 import { ICONE } from "../lib/icones.ts";
 import { esc } from "../lib/render.ts";
+import { haQuanto } from "../lib/relogio.ts";
 import { rotuloDoMac } from "../lib/aparelho.ts";
 import { VIVO } from "../lib/copiar.ts";
 import { comandoDoTerminal, fraseDaAtualizacao } from "../lib/atualizacao-ia.ts";
@@ -216,7 +217,11 @@ function blocoDoLogin(l: LoginNaTela, x: ContextoContas, conta: ContaIa | null):
     // O botão só com a máquina conectada e que atende o pedido remoto: senão o pedido ficaria guardado para ninguém.
     const podeAtualizar = antiga && m?.conectada === true && m.atualizaIas === true;
     const atualizar = podeAtualizar ? `<button type="button" class="bt pri sm" data-act="cl-atualizar-ia" data-login="${id}"${l.enviando ? " disabled" : ""}>Atualizar</button>` : "";
-    const tentar = `${atualizar}<button type="button" class="bt sm" data-act="cl-login-de-novo" data-login="${id}">Tentar de novo</button><button type="button" class="ob-link" data-act="cl-login-fechar" data-login="${id}">Fechar</button>`;
+    // Paper A, desvio 6: depois de o código renovar sozinho e vencer de novo, o nod para e devolve as duas saídas.
+    const venceu = g.fase === "falhou" && g.erro === "tempo_esgotado";
+    const tentar = venceu
+      ? `<button type="button" class="bt pri sm" data-act="cl-login-de-novo" data-login="${id}">Recomeçar o login</button><button type="button" class="bt sm" data-act="cl-login-fechar" data-login="${id}">Pular esta máquina</button>`
+      : `${atualizar}<button type="button" class="bt sm" data-act="cl-login-de-novo" data-login="${id}">Tentar de novo</button><button type="button" class="ob-link" data-act="cl-login-fechar" data-login="${id}">Fechar</button>`;
     const nota = antiga && l.erroEnvio ? `<p class="mudo">${esc(l.erroEnvio)}</p>` : "";
     // NOD-8 passo 11: o preparo que falhou diz o motivo (sem internet, sem espaço…) e, só agora, o terminal — recolhido
     // atrás de "Prefere o terminal?", como no resto do login (protótipo v2.2: "o terminal escondido").
@@ -226,7 +231,7 @@ function blocoDoLogin(l: LoginNaTela, x: ContextoContas, conta: ContaIa | null):
       : x.ui.terminal === g.id
         ? `<p class="cl-terminal">No terminal da ${esc(nome)}: <code>${esc(cmd)}</code> <button type="button" class="ob-link" data-act="copiar-texto" data-texto="${esc(cmd)}" ${VIVO}>Copiar</button></p>`
         : `<button type="button" class="cl-terminal-link" data-act="cl-terminal" data-login="${id}">Prefere o terminal?</button>`;
-    return `<div class="cl-login erro" data-login="${id}" role="alert">${cab("")}<p class="cl-erro">${esc(g.fase === "cancelado" ? "Login cancelado." : antiga ? erroDeCliAntigo(g.ia, podeAtualizar) : preparo ?? erroDoLogin(g.erro))}</p>${nota}${terminal}<div class="cl-login-acoes">${tentar}</div></div>`;
+    return `<div class="cl-login erro" data-login="${id}" role="alert">${cab("")}<p class="cl-erro">${esc(g.fase === "cancelado" ? "Login cancelado." : venceu ? "Os códigos venceram sem login, e o nod parou de gerar novos para não deixar um login aberto sem ninguém olhando." : antiga ? erroDeCliAntigo(g.ia, podeAtualizar) : preparo ?? erroDoLogin(g.erro))}</p>${nota}${terminal}<div class="cl-login-acoes">${tentar}</div></div>`;
   }
   if (g.fase === "preparando") return blocoDoPreparo(g, nome, id, cab(cancelar));
   if (g.fase === "pedido" || g.fase === "abrindo" || !g.url) {
@@ -246,7 +251,7 @@ function blocoDoLogin(l: LoginNaTela, x: ContextoContas, conta: ContaIa | null):
     corpo = `<p class="cl-passo-txt">Abrimos a página da ${esc(empresa)} no seu navegador. Entre${com} e cole aqui o código que ela mostrar.</p>
       ${conferindo
         ? `<p class="cl-passo-txt"><span class="ob-gira" aria-hidden="true"></span>Conferindo a conta na ${esc(nome)}…</p>`
-        : `<form class="cl-codigo" data-form="cl-codigo" data-login="${id}"><input name="codigo" autocomplete="off" spellcheck="false" maxlength="2048" placeholder="Código de autorização" value="${esc(l.codigo)}" data-cl-codigo="${id}" data-manter-foco="cl-codigo-${id}" aria-label="Código da página da ${esc(empresa)}"><button type="submit" class="bt pri"${l.enviando ? " disabled" : ""}>Enviar</button></form>${l.erroEnvio ? `<p class="cl-erro">${esc(l.erroEnvio)}</p>` : ""}`}
+        : `<form class="cl-codigo" data-form="cl-codigo" data-login="${id}"><input name="codigo" autocomplete="off" spellcheck="false" maxlength="2048" placeholder="Código de autorização" value="${esc(l.codigo)}" data-cl-codigo="${id}" data-manter-foco="cl-codigo-${id}" aria-label="Código da página da ${esc(empresa)}"><button type="submit" class="bt"${l.enviando ? " disabled" : ""}>Enviar</button></form>${l.erroEnvio ? `<p class="cl-erro">${esc(l.erroEnvio)}</p>` : ""}`}
       <p class="cl-reabrir mudo">${reabrir} · o código renova sozinho se vencer</p>
       <p class="cl-cadeado">${ICONE.cadeado}O código vai cifrado direto para a ${esc(nome)}. O servidor do nod só repassa e não consegue ler.</p>`;
   } else {
@@ -326,8 +331,14 @@ export function estadoDaConta(c: ContaIa, x: Pick<ContextoContas, "agora" | "maq
 function metaDaConta(c: ContaIa, d: { organizacao: string | null }): string {
   const total = c.maquinas.length;
   const prontas = c.maquinas.filter((v) => v.estado === "pronta").length;
-  const maqs = total === 0 ? "nenhuma máquina ainda" : prontas === total ? `${total} ${total === 1 ? "máquina" : "máquinas"}` : `${prontas} de ${total} máquinas`;
+  const maqs = total === 0 ? "nenhuma máquina ainda" : total === 1 ? c.maquinas[0]!.nome : prontas === total ? `${total} máquinas` : `${prontas} de ${total} máquinas`;
   return [d.organizacao, maqs].filter(Boolean).join(" · ");
+}
+
+/** Paper G1: "Login venceu" com o "Entrar" ali na linha, na primeira máquina onde dá para entrar de novo. */
+function entrarDeNovo(c: ContaIa, x: ContextoContas): string {
+  const m = c.maquinas.filter((v) => v.estado === "sem_login").map((v) => x.maquinas.find((y) => y.id === v.maquinaId)).find((y) => y?.conectada && (y.plataforma !== "darwin" || ehEsteMac(y, x)));
+  return m ? `<button type="button" class="ob-link cl-entrar-link" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">Entrar</button>` : "";
 }
 
 function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null): string {
@@ -340,13 +351,13 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
   // No filtro, a conta que não está na máquina vira um botão grande (G2-M2).
   const direita = fora && x.maquinas.find((m) => m.id === filtro)?.conectada && !logins
     ? `<button type="button" class="bt sm" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(filtro!)}">Entrar na ${esc(nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas))}</button>`
-    : `<span class="contas-estado ${classe}">${esc(estado)}</span>${chaveDaFila(c)}`;
+    : `<span class="contas-estado ${classe}">${esc(estado)}</span>${entrarDeNovo(c, x)}${chaveDaFila(c)}`;
   return `<li class="cl-linha cl-linha-g1${fora ? " fora" : ""}${logins ? " entrando" : ""}" data-ordem-item="${esc(c.id)}">
       <button type="button" class="cl-alca" data-alca-ordem aria-label="Mover ${esc(nome)} (setas para cima e para baixo)">${ICONE.alca}</button>
       <span class="cl-pos" aria-hidden="true">${pos}</span>
       ${logoDaIa(c.ia, "cl-logo")}
       <div class="cl-corpo">
-        <div class="cl-nome"><button type="button" class="cl-nome-bt" data-act="cl-abrir" data-id="${esc(c.id)}"><b>${esc(nome)}</b></button>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}${x.ui.recente === c.id ? '<span class="selo selo-nova">Nova</span>' : ""}</div>
+        <div class="cl-nome"><button type="button" class="cl-nome-bt" data-act="cl-abrir" data-id="${esc(c.id)}"${c.corporativa ? ' title="Conta corporativa"' : ""}><b>${esc(nome)}</b></button>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${x.ui.recente === c.id ? '<span class="selo selo-nova">Nova</span>' : ""}</div>
         <div class="cl-ident"><span>${esc(metaDaConta(c, d))}</span></div>
         ${logins}
       </div>
@@ -370,13 +381,13 @@ function linhaDaMaquina(c: ContaIa, m: MaquinaDto, x: ContextoContas): string {
   const sair = v && v.estado !== "sem_acesso" ? `<button type="button" class="ob-link cl-maq-sair" data-act="cl-sair" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">Sair</button>` : "";
   let estado = "";
   let acao = "";
-  if (v?.estado === "pronta") estado = `<span class="contas-estado ${m.conectada ? "e-uso" : "e-fora"}">${m.conectada ? "Pronta" : "Fora do ar"}</span>`;
+  if (v?.estado === "pronta") estado = `<span class="contas-estado ${m.conectada ? "e-uso" : "e-fora"}">${m.conectada ? "✓ Pronta" : "Fora do ar"}</span>`;
   else if (entrando) estado = '<span class="contas-estado e-disp">Entrando…</span>';
   else if (v?.estado === "sem_acesso") estado = '<span class="contas-estado e-erro">Sem acesso</span>';
   else if (!m.conectada) estado = '<span class="contas-estado e-fora">Fora do ar</span>';
   else if (!podeEntrar) estado = `<span class="cl-maq-dica">Entre pelo app do nod no ${esc(nome)}</span>`;
   else acao = `<button type="button" class="bt pri sm" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">${v?.estado === "sem_login" ? "Entrar de novo" : "Entrar"}</button>`;
-  const sub = v?.estado === "sem_login" ? "O login saiu desta máquina" : v?.estado === "sem_acesso" ? "A organização desligou o acesso desta conta" : v?.estado === "pronta" ? (m.conectada ? "Logada" : `${m.nome} fora do ar`) : "Ainda não entrou nesta máquina";
+  const sub = v?.estado === "sem_login" ? "O login saiu desta máquina" : v?.estado === "sem_acesso" ? "A organização desligou o acesso desta conta" : v?.estado === "pronta" ? (m.conectada ? (m.iasDetalhe?.[c.ia]?.versao ? `${PROVEDOR[c.ia].cli} ${m.iasDetalhe[c.ia]!.versao}` : "Logada") : `${m.nome} fora do ar`) : "Ainda não entrou nesta máquina";
   return `<li class="cl-maq-linha">${ic}<div class="cl-maq-txt"><b>${esc(m.nome)}</b><small>${esc(sub)}</small></div>${alvoPendente(c, m)}${estado}${acao}${sair}</li>`;
 }
 
@@ -388,21 +399,28 @@ export function renderContaAberta(c: ContaIa, x: ContextoContas, usada: string |
   const ident = [d.email, d.organizacao, `${posicao}ª da fila`, `pelo ${PROVEDOR[c.ia].cli}`].filter(Boolean).join(" · ");
   const maquinas = x.maquinas.filter((m) => m.conectada || c.maquinas.some((v) => v.maquinaId === m.id));
   const logins = x.ui.logins.filter((l) => contaDoLogin(l) === c.id).map((l) => blocoDoLogin(l, x, c)).join("");
+  // Paper A, desvio 7: a organização desligou o acesso — diz quem, para qual e-mail, e as duas saídas ali mesmo.
+  const semAcesso = c.maquinas.some((v) => v.estado === "sem_acesso")
+    ? `<div class="cl-conta-limite cl-conta-sem-acesso" role="status"><span class="contas-estado e-erro">Sem acesso</span><span class="mudo">${esc(`${d.organizacao ?? "A organização"} desligou o ${PROVEDOR[c.ia].nome} por assinatura${d.email ? ` para ${d.email}` : ""}. Os bots já pulam esta conta.`)}</span><button type="button" class="bt pri sm" data-act="cl-nova-da-conta" data-id="${esc(c.id)}">Entrar com outra conta</button>${c.entraNaTrocaAutomatica ? `<button type="button" class="bt sm" data-act="cl-fila" data-id="${esc(c.id)}">Tirar da fila</button>` : ""}</div>`
+    : "";
   const limite = classe === "e-limite"
     ? `<div class="cl-conta-limite"><span class="contas-estado e-limite">${esc(estado)}</span><span class="mudo">Se a conta voltou antes, tente de novo.</span><button type="button" class="bt sm" data-act="cl-tentar-de-novo" data-id="${esc(c.id)}">Tentar de novo</button></div>`
     : "";
+  // Paper G2: "medido há 8 h no nod-motor-teste" ao lado do título.
+  const ondeMediu = c.cota?.maquinaId ? x.maquinas.find((m) => m.id === c.cota!.maquinaId) : undefined;
+  const medido = c.cota && !x.simulacao ? `medido ${haQuanto(x.agora - c.cota.medidoEm)}${ondeMediu ? ` no ${nomeCurto(ondeMediu, x.maquinas)}` : ""}` : "";
   const uso = x.simulacao ? "" : usoDaConta(c, { agora: x.agora, contas: x.contas.contas, nomeDaMaquina: (id) => { const m = x.maquinas.find((y) => y.id === id); return m ? nomeCurto(m, x.maquinas) : null; } });
   const renomear = x.ui.renomear === c.id
     ? `<form class="cl-renomear" data-form="cl-renomear" data-id="${esc(c.id)}"><input name="apelido" maxlength="40" value="${esc(c.apelido)}" aria-label="Apelido de ${esc(nome)}" data-cl-autofoco data-manter-foco="cl-renomear"><button type="submit" class="bt pri sm">Salvar</button><button type="button" class="bt sm" data-act="cl-renomear-fechar">Cancelar</button></form>`
     : "";
   return `<div class="cl-conta-pag" data-pagina="cl-conta" data-id="${esc(c.id)}">
       <div class="cl-np-cab"><button type="button" class="cl-np-voltar" data-act="cl-fechar-conta" aria-label="Voltar para Provedores de IA">${ICONE_VOLTAR}</button><span class="cl-np-mig">Provedores de IA</span><span class="cl-np-sep" aria-hidden="true">/</span><h2 class="cl-nova-tit">${esc(nome)}</h2></div>
-      <div class="cl-conta-id">${logoDaIa(c.ia, "cl-logo grande")}<div class="cl-conta-id-txt"><div class="cl-nome"><b>${esc(nome)}</b>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div><small>${esc(ident)}</small></div><span class="contas-estado ${classe}">${esc(estado)}</span><label class="cl-conta-fila"><span>Na fila</span>${chaveDaFila(c)}</label></div>
+      <div class="cl-conta-id">${logoDaIa(c.ia, "cl-logo grande")}<div class="cl-conta-id-txt"><div class="cl-nome"><b>${esc(nome)}</b>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div><small>${esc(ident)}</small></div><label class="cl-conta-fila"><span>Bots podem usar</span>${chaveDaFila(c)}</label></div>
       ${renomear}
-      ${limite}
-      <section class="cl-conta-sec" aria-label="Uso"><h3>Uso</h3>${uso || '<p class="mudo">O uso aparece depois do primeiro trabalho com esta conta.</p>'}${c.cota !== undefined && !x.simulacao ? `<p class="cl-conta-nota">${esc(DE_ONDE_VEM_O_USO[c.ia])}</p>` : ""}</section>
+      ${limite}${semAcesso}
+      <section class="cl-conta-sec" aria-label="Uso"><h3${c.cota !== undefined && !x.simulacao ? ` title="${esc(DE_ONDE_VEM_O_USO[c.ia])}"` : ""}>Uso${medido ? `<small>${esc(medido)}</small>` : ""}</h3>${uso || '<p class="mudo">O uso aparece depois do primeiro trabalho com esta conta.</p>'}</section>
       <section class="cl-conta-sec" aria-label="Máquinas"><h3>Máquinas</h3><ul class="cl-maq-lista">${maquinas.map((m) => linhaDaMaquina(c, m, x)).join("") || '<li class="cl-maq-linha mudo">Nenhuma máquina conectada.</li>'}</ul>${logins}</section>
-      <div class="cl-conta-acoes"><button type="button" class="bt sm" data-act="cl-renomear" data-id="${esc(c.id)}">Renomear</button><span class="cl-conta-acoes-sep"></span><button type="button" class="bt sm perigo-txt" data-act="cl-remover" data-id="${esc(c.id)}">Remover conta</button></div>
+      <div class="cl-conta-acoes"><button type="button" class="bt sm" data-act="cl-renomear" data-id="${esc(c.id)}">Renomear</button><span class="cl-conta-acoes-sep"></span><button type="button" class="ob-link cl-remover-link" data-act="cl-remover" data-id="${esc(c.id)}">Remover conta</button></div>
     </div>`;
 }
 
@@ -477,7 +495,8 @@ function formNova(x: ContextoContas): string {
       const pode = !mac || ehEsteMac(m, x);
       const v = versao(m);
       const sub = !m.conectada ? "Desligada" : m.ias[n.ia] === "ausente" ? `Sem ${cli} ainda` : v ? `${cli} ${v}` : mac && pode ? "Este Mac" : "";
-      const dica = !m.conectada ? "Liga ao conectar" : mac ? (pode ? "Abre o navegador deste Mac" : "Abra o app do nod nesse Mac") : preparoNaNova(m, n.ia) ?? "O login aparece aqui na tela";
+      const prepara = preparoNaNova(m, n.ia);
+      const dica = !m.conectada ? "Liga ao conectar" : mac ? (pode ? "Abre o navegador deste Mac" : "Abra o app do nod nesse Mac") : prepara ? `O nod ${prepara.includes("atualiza") ? "atualiza" : "instala"} ao conectar · ~1 min` : "O login aparece aqui na tela";
       const marcada = n.maquinas.includes(m.id) && pode;
       return `<label class="cl-maq${pode ? "" : " mudo"}"><input type="checkbox" value="${esc(m.id)}" data-cl-nova-maq${marcada ? " checked" : ""}${!pode ? " disabled" : ""}>${ic(m)}<span><b>${esc(rotulo(m))}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span><span class="cl-maq-dica">${esc(dica.charAt(0).toUpperCase() + dica.slice(1))}</span></label>`;
     }).join("");
@@ -487,14 +506,14 @@ function formNova(x: ContextoContas): string {
       const cabeca = (sub: string, direita: string) => `<div class="cl-maq cl-maq-entrando">${ic(m)}<span><b>${esc(rotulo(m))}</b><small>${esc(sub)}</small></span>${direita}</div>`;
       if (!l) return cabeca(m.conectada ? "Começando…" : "Ligando a máquina…", '<span class="cl-np-est"><span class="ob-gira" aria-hidden="true"></span>Aguarde</span>');
       // O Mac mostra o cartão da IA do app (instalar, entrar, testar), com os passos dele.
-      if (l.onde === "mac") return `${cabeca(`${cli} pelo app do nod`, estadoDoLoginNaNova(l))}<div class="cl-np-login">${x.cartaoDoMac(l.ia)}</div>`;
+      if (l.onde === "mac") return `<div class="cl-maq-bloco cl-maq-mac">${cabeca(versao(m) ? `${cli} ${versao(m)} pelo app do nod` : `${cli} pelo app do nod`, estadoDoLoginNaNova(l))}<div class="cl-np-login">${x.cartaoDoMac(l.ia)}</div></div>`;
       const g = l.login;
       const v = versaoNova(g, m);
       const sub = g.fase === "preparando"
         ? (g.preparo?.linha || `${g.preparo?.acao === "atualizar" ? "Atualizando" : "Instalando"} o ${cli} · leva até 2 minutos`)
         : g.fase === "pronto" ? `${v ? `${cli} ${v} · ` : ""}a conta entrou e foi conferida` : v ? `${cli} ${v}${g.preparo ? " instalado agora" : ""}` : cli;
       const passos = !["pronto", "pedido", "abrindo", "preparando"].includes(g.fase) && (g.url || g.fase === "falhou" || g.fase === "cancelado") ? `<div class="cl-np-login">${blocoDoLogin(l, x, null)}</div>` : "";
-      return `<div class="cl-maq-bloco">${cabeca(sub, estadoDoLoginNaNova(l))}${trilha(trilhaDoLogin(g), g)}${passos}</div>`;
+      return `<div class="cl-maq-bloco">${cabeca(sub, estadoDoLoginNaNova(l))}${g.fase === "pronto" ? "" : trilha(trilhaDoLogin(g), g)}${passos}</div>`;
     }).join("");
   }
   const marcadas = n.maquinas.filter((id) => x.maquinas.some((m) => m.id === id && recebe(m))).length;
@@ -516,8 +535,11 @@ function formNova(x: ContextoContas): string {
     ? `<button type="submit" class="cl-np-entrar"${marcadas === 0 ? " disabled" : ""}>${marcadas > 1 ? `Conectar nas ${marcadas} máquinas` : "Conectar"}</button>`
     : andando
       ? `<button type="submit" class="cl-np-entrar" disabled>${instalando ? "Instalando…" : "Conectando…"}</button>`
-      : `<button type="button" class="cl-np-entrar" data-act="cl-nova-fechar"${final ? ` data-recente="${esc(final.id)}"` : ""}>Concluir</button>`;
-  return `<form class="cl-nova cl-nova-pag" data-form="cl-nova" aria-labelledby="cl-nova-tit">
+      : `<button type="button" class="cl-np-entrar" data-act="cl-nova-fechar"${final ? ` data-recente="${esc(final.id)}"` : ""}>${final || daNova.some((l) => l?.onde === "vm" && l.login.fase === "pronto") ? "Concluir" : "Fechar"}</button>`;
+  // Depois do Conectar a página vira <div>: o login de cada máquina tem o <form> dele (o código), e form dentro de form
+  // some no parser — o "Enviar" do código mandaria a Nova conta.
+  const tag = entrando ? "div" : "form";
+  return `<${tag} class="cl-nova cl-nova-pag" data-form="cl-nova" aria-labelledby="cl-nova-tit">
       <div class="cl-np-cab"><button type="button" class="cl-np-voltar" data-act="cl-nova-fechar" aria-label="Voltar para Provedores de IA">${ICONE_VOLTAR}</button><span class="cl-np-mig">Provedores de IA</span><span class="cl-np-sep" aria-hidden="true">/</span><h2 class="cl-nova-tit" id="cl-nova-tit">Nova conta</h2></div>
       <span class="cl-campo-tit" id="cl-np-forn">Fornecedor</span>
       ${provedor}
@@ -527,7 +549,7 @@ function formNova(x: ContextoContas): string {
       <div class="cl-maqs-form${entrando ? " entrando" : ""}" role="group" aria-labelledby="cl-np-maqs">${maqs}${entrando && !final ? '<p class="cl-np-paralelo mudo">As máquinas andam em paralelo. A instalação usa uma cópia do nod e não mexe no que você já usa no Terminal.</p>' : ""}</div>
       ${passosAntes}${fila}
       <div class="cl-nova-acoes"><p class="cl-np-nota">${ICONE_CADEADO}<span>O nod não vê sua senha: o login é no site da ${esc(empresa)}, e a sessão fica em cada máquina.</span></p><button type="button" class="cl-np-cancelar" data-act="cl-nova-fechar">Cancelar</button>${entrar}</div>
-    </form>`;
+    </${tag}>`;
 }
 
 const FASES_FINAIS: ReadonlySet<string> = new Set(["pronto", "falhou", "cancelado"]);
@@ -535,7 +557,8 @@ const FASES_FINAIS: ReadonlySet<string> = new Set(["pronto", "falhou", "cancelad
 /** O estado do login à direita da máquina, na Nova conta (tela 19b do Paper). */
 function estadoDoLoginNaNova(l: LoginNaTela): string {
   const gira = '<span class="ob-gira" aria-hidden="true"></span>';
-  if (l.onde === "mac") return `<span class="cl-np-est">${gira}Termine no navegador…</span>`;
+  // O cartão do app (embaixo) diz o passo exato; aqui só que está andando.
+  if (l.onde === "mac") return `<span class="cl-np-est">${gira}Em andamento</span>`;
   const g = l.login;
   if (g.fase === "pronto") return `<span class="cl-np-est ok">✓ Pronta</span>`;
   if (g.fase === "falhou" || g.fase === "cancelado") return `<span class="cl-np-est erro">Não entrou</span>`;
@@ -657,16 +680,6 @@ function loginsSemConta(x: ContextoContas): string {
   }).join("");
 }
 
-/**
- * Rodada 3 (tela 19 do Paper): "Todas as máquinas ⌄" ao lado de "Adicionar conta", com duas máquinas ou mais. Escolher
- * uma é o mesmo filtro que Máquinas abre ("Em uso na VM", "Entrar na VM"); "Todas" volta à fila inteira.
- */
-function seletorDeMaquina(x: ContextoContas): string {
-  if (x.maquinas.length < 2) return "";
-  const ops = [{ id: "", nome: "Todas as máquinas" }, ...x.maquinas.map((m) => ({ id: m.id, nome: m.plataforma === "darwin" && ehEsteMac(m, x) ? "Este Mac" : m.nome }))];
-  return `<label class="qd-sr" for="cl-maq-sel">Máquina</label><select id="cl-maq-sel" class="cl-maq-sel" data-cl-filtro>${ops.map((o) => `<option value="${esc(o.id)}"${(x.ui.filtro ?? "") === o.id ? " selected" : ""}>${esc(o.nome)}</option>`).join("")}</select>`;
-}
-
 /** "Um login venceu e uma máquina ainda não entrou." — o que há com as contas que precisam da pessoa. */
 function motivoDosPendentes(cs: readonly ContaIa[]): string {
   const vinc = cs.flatMap((c) => c.maquinas);
@@ -698,20 +711,21 @@ export function renderListaDeContas(x: ContextoContas): string {
   const vazio = n === 0 && x.ui.logins.length === 0
     ? `<div class="espaco-cartao cl-vazio"><p>Nenhuma conta de IA ainda.${x.maquinas.length === 0 ? " Conecte o app do Mac ou uma VM em Máquinas e entre numa conta nela." : " Adicione uma conta e escolha em quais máquinas entrar."}</p></div>`
     : "";
+  // Jornadas da IA (Paper G1): as regras da troca recolhidas num "Como o nod troca de conta" no pé, ao lado do que chega
+  // em breve; abertas, a tabela de duas colunas de sempre (não há nada para configurar) e a nota da privacidade.
+  const breve = x.emBreve?.length ? `<span class="cl-pe-breve">Em breve: ${esc(emBreve(x.emBreve).replace(/ chegam? em breve$/, ""))}.</span>` : "<span></span>";
   const regras = n > 0
-    // Tela 19 do Paper: o título e uma tabela de duas colunas (o caso e o que o Nod faz); não há nada para configurar.
-    ? `<div class="espaco-cartao cl-regras"><b>Quando uma conta acabar</b><dl class="cl-regras-tab" aria-label="É assim que o Nod age; não há nada para configurar aqui">${REGRAS_DA_FILA.map((r) => `<dt>${esc(r.titulo)}</dt><dd>${esc(r.texto)}</dd>`).join("")}</dl></div>`
+    ? `<details class="cl-regras-det"><summary>${breve}<span class="cl-regras-link">Como o nod troca de conta</span></summary><div class="espaco-cartao cl-regras"><b>Quando uma conta acabar</b><dl class="cl-regras-tab" aria-label="É assim que o Nod age; não há nada para configurar aqui">${REGRAS_DA_FILA.map((r) => `<dt>${esc(r.titulo)}</dt><dd>${esc(r.texto)}</dd>`).join("")}</dl><p class="contas-privado">E-mail e organização ficam só nas suas máquinas: o servidor do nod recebe o apelido, o plano e uma impressão da conta, nunca o e-mail.</p></div></details>`
     : "";
   const nota = x.ui.nota ? `<p class="cl-nota" role="status">${esc(x.ui.nota)}</p>` : "";
   return `${abas}
     ${aviso}
     ${vazio}
-    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem">${segmento}<span class="prov-ordem-titulo">${n} ${n === 1 ? "conta" : "contas"} · em ordem de uso</span><span class="prov-ordem-dica">arraste para mudar</span>${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${seletorDeMaquina(x)}${formNova(x)}</span>`}</div>
+    ${n > 0 || x.ui.logins.length > 0 ? `<div class="prov-ordem">${segmento || `<span class="prov-ordem-titulo">${n} ${n === 1 ? "conta" : "contas"}</span>`}${filtro || x.ui.nova ? "" : `<span class="prov-ordem-acoes">${formNova(x)}</span>`}</div>
     <ol class="espaco-cartao cl-lista" data-ordem-lista="contas" aria-label="Suas contas de IA, em ordem de uso">${linhas}${loginsSemConta(x)}</ol>` : ""}
     ${nota}
     ${filtro || (!x.ui.nova && (n > 0 || x.ui.logins.length > 0)) ? "" : formNova(x)}
     ${regras}
-    <p class="contas-privado">E-mail e organização ficam só nas suas máquinas: o servidor do nod recebe o apelido, o plano e uma impressão da conta, nunca o e-mail.</p>
     ${confirmacao(x)}`;
 }
 

@@ -286,6 +286,14 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
       const maquinas = d.maquinas().filter((m) => m.conectada && (m.plataforma !== "darwin" || m.id === daqui)).map((m) => m.id);
       d.mudar({ nova: { ia: "claude-cli", apelido: "", maquinas }, menu: null });
     },
+    /** Paper A, desvio 7: "Entrar com outra conta" abre a Nova conta com a mesma IA e as mesmas máquinas da conta sem acesso. */
+    abrirNovaDaConta(id: string): void {
+      const c = d.contas()?.contas.find((x) => x.id === id);
+      if (!c) return;
+      const daqui = d.detalhes()?.maquinaId ?? null;
+      const podem = new Set(d.maquinas().filter((m) => m.conectada && (m.plataforma !== "darwin" || m.id === daqui)).map((m) => m.id));
+      d.mudar({ nova: { ia: c.ia, apelido: "", maquinas: c.maquinas.map((v) => v.maquinaId).filter((m) => podem.has(m)) }, aberta: null, menu: null });
+    },
     mudarNova(m: Partial<NonNullable<UiContas["nova"]>>): void {
       const n = d.ui().nova;
       if (n) d.mudar({ nova: { ...n, ...m } });

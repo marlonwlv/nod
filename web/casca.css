@@ -461,7 +461,12 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .cfg-modal .ia-marca { flex: none; display: inline-flex; align-items: center; }
 .cfg-modal .ia-marca-provs { gap: 3px; }
 .cfg-modal .ia-marca-prov { width: 16px; height: 16px; border-radius: 5px; overflow: hidden; display: grid; place-items: center; }
-.cfg-modal .ia-marca-prov > svg { width: 16px; height: 16px; }
+.cfg-modal .ia-marca-prov > svg { width: 10px; height: 10px; }
+/* Paper M: o logo num quadradinho da cor da marca (Claude laranja, ChatGPT preto), o símbolo branco. */
+.cfg-modal .ia-marca-prov { color: var(--marca-simbolo); }
+.cfg-modal .ia-marca-prov[data-logo-ia="claude"] { background: var(--marca-claude); }
+.cfg-modal .ia-marca-prov[data-logo-ia="chatgpt"] { background: var(--marca-chatgpt); }
+.cfg-modal .ia-marca-prov svg :is(path, circle) { fill: currentColor; }
 .cfg-modal .ia-marca-n { min-width: 20px; height: 20px; padding: 0 7px; gap: 5px; border-radius: var(--raio-full); background: var(--warning-soft); color: var(--warning); font-size: 12px; font-weight: 600; }
 .cfg-modal .ia-marca-n::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .cfg-modal .espaco-item-ia-sem { position: relative; overflow: hidden; background: color-mix(in srgb, var(--acento) 9%, transparent); color: var(--acento); font-weight: 600; padding-right: 6px; }

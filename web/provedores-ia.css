@@ -21,12 +21,6 @@
 .cl-pil.ok.fora { background: var(--hover); color: var(--ink-3); }
 .cl-pil.tracejada { height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; }
 
-/* "Todas as máquinas ⌄" ao lado de "Adicionar conta". */
-.cl-maq-sel { height: 28px; padding: 0 28px 0 10px; border: 1px solid var(--borda); border-radius: var(--raio-8); background-color: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); box-shadow: var(--sombra-controle); -webkit-appearance: none; appearance: none; cursor: pointer;
-  background-image: var(--chevron-select);
-  background-repeat: no-repeat; background-position: right 10px center; background-size: 12px 12px; }
-.cl-maq-sel:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-
 /* A linha da conta como o Paper: tudo alinhado em cima (a alça, a posição, o logo e a direita na altura do nome), o logo
    num quadrado colorido de 28 (Claude laranja, ChatGPT preto, o símbolo branco), a identidade sem o ícone de pessoa e o
    "Tentar de novo" embaixo do estado. */
@@ -174,3 +168,44 @@
 .cl-np-fila b { font-size: 13px; font-weight: var(--peso-medio); color: var(--ink); }
 .cl-np-fila p { margin: 4px 0 0; font-size: 12px; line-height: 18px; color: var(--ink-2); }
 .selo.selo-nova { background: var(--success-soft, color-mix(in srgb, var(--success) 12%, transparent)); color: var(--success); }
+
+/* Revisão contra o Paper (2026-11-20). G1: a coluna do estado com largura fixa (cada linha é uma grade própria, e o
+   "auto" desalinhava o uso entre as linhas); o ponto antes do estado; a alça só no hover; o pé com "Em breve" e o
+   "Como o nod troca de conta". */
+.cl-lista .cl-linha.cl-linha-g1 { grid-template-columns: 16px 12px 28px minmax(0, 1fr) 128px 228px 16px; }
+.cl-linha-g1 .cl-nome { flex-wrap: nowrap; min-width: 0; }
+.cl-linha-g1 .cl-dir { justify-content: flex-end; flex-wrap: nowrap; max-width: none; }
+.cl-linha-g1 .cl-alca { opacity: 0; transition: opacity .12s; }
+.cl-linha-g1:is(:hover, :focus-within) .cl-alca { opacity: 1; }
+.contas-estado:is(.e-uso, .e-aviso, .e-limite, .e-erro)::before { content: ""; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.contas-estado:is(.e-uso, .e-aviso, .e-limite, .e-erro) { display: inline-flex; align-items: center; }
+.cl-maq-linha .contas-estado.e-uso::before { display: none; }
+.cl-entrar-link { font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); color: var(--ink); text-decoration: none; }
+.cl-regras-det { margin-top: 4px; }
+.cl-regras-det > summary { display: flex; justify-content: space-between; gap: 12px; list-style: none; cursor: pointer; font-size: 12px; color: var(--ink-3); }
+.cl-regras-det > summary::-webkit-details-marker { display: none; }
+.cl-regras-link { color: var(--ink-2); }
+.cl-regras-det > summary:hover .cl-regras-link { color: var(--ink); text-decoration: underline; }
+.cl-regras-det[open] > .cl-regras { margin-top: 10px; }
+.cl-regras .contas-privado { margin: 10px 0 0; }
+.selo.selo-nova { background: color-mix(in srgb, var(--signal, var(--action)) 12%, transparent); color: var(--signal, var(--action)); }
+/* G2: "medido há …" ao lado do Uso; o Remover em vermelho, sem caixa; Renomear em pílula. */
+.cl-conta-sec h3 small { margin-left: 8px; font-size: 12px; font-weight: var(--peso-regular); color: var(--ink-3); }
+.cl-conta-acoes .bt { border-radius: 999px; }
+.cl-remover-link { margin-left: auto; color: var(--danger); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); text-decoration: none; }
+.cl-remover-link:hover { text-decoration: underline; }
+/* A1/A1b/A2: os estados à direita da máquina numa linha (o `.cl-maq span` de navegacao.css os empilhava). */
+.cl-nova-pag .cl-maq > :is(.cl-np-est, .cl-np-chip) { flex-direction: row; margin-left: auto; }
+.cl-nova-pag .cl-np-est.ok { height: 22px; padding: 0 8px; border-radius: 6px; background: color-mix(in srgb, var(--success) 12%, transparent); font-size: 12px; font-weight: var(--peso-medio); }
+.cl-login-corpo .cl-codigo { display: flex; gap: 8px; }
+.cl-login-corpo .cl-codigo input { height: 34px; padding: 0 12px; font: 400 14px/20px var(--font-sans); background: var(--surface); }
+.cl-login-corpo .cl-codigo .bt { height: 34px; border-radius: 999px; }
+.cl-login-corpo .cl-cadeado { padding: 0; border: 0; font-size: 12px; }
+.cl-login-corpo .ia-codigo { margin: 0; gap: 8px; }
+.cl-login-corpo .ia-codigo code { padding: 6px 14px; border: 1px solid var(--borda); border-radius: 10px; background: var(--surface); font-size: 18px; }
+.cl-login-corpo .ia-codigo .bt { height: 30px; padding: 0 14px; border-radius: 999px; }
+.cl-nova-pag .cl-maq-bloco .cl-np-login .cl-terminal-link { font-size: 12px; }
+/* O cartão do app do Mac dentro da Nova conta: sem o cabeçalho (a linha da máquina já diz) e sem o recuo do cartão. */
+.cl-maq-mac .cl-np-login > .ia-linha { display: none; }
+.cl-maq-mac .cl-np-login .ia-fluxo { margin: 0; padding: 12px; border-radius: 10px; background: var(--hover); }
+.cl-nova-pag .cl-np-est.erro { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--danger) 10%, transparent); font-size: 12px; font-weight: var(--peso-medio); }
