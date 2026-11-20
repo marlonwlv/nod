@@ -132,6 +132,7 @@ async function executarAcao(deps: Deps, a: AcaoLote & { alvoNome: string }, botI
     }
     case "restaurar_versao": {
       // NOD-20: o mesmo executor da rota POST /agentes/:id/perfil/versoes/:versao/restaurar.
+      await recusarNomeDeOutroBot(deps, exigirAlvo(), a.versao ?? 0);
       const r = await EXECUTORES_BOTS["bots.restaurar_versao"](deps, { agenteId: exigirAlvo(), versao: a.versao ?? 0, peloNod: true });
       return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
     }
@@ -239,7 +240,21 @@ async function linhaDoPedidoViaBot(deps: Deps, agenteId: string): Promise<string
 /** O que só outro bot põe no card (gerir_times, gerir_acessos): o recibo diz quem pediu e por qual bot. */
 const VEM_DE_OUTRO_BOT: ReadonlySet<AcaoNoLote["tipo"]> = new Set(["excluir_time", "acessos_em_lote", "padrao_acesso", "desfazer_acessos", "remover_computador"]);
 
-const CAUSAS_DO_RESTAURAR: ReadonlySet<string> = new Set(["igual_a_atual", "versao_redigida", "perfil_mudou"]);
+const CAUSAS_DO_RESTAURAR: ReadonlySet<string> = new Set(["igual_a_atual", "versao_redigida", "perfil_mudou", "nome_repetido"]);
+
+/**
+ * QA-119: a versão antiga traz de volta um nome que outro bot vivo pegou depois (Vera vira Lia, nasce outra Vera,
+ * restaurar a versão 1 da Lia). Sem esta cerca ficavam dois bots com o mesmo nome e o chat (resolverBot, pedir_a_bot)
+ * passava a cair em "há mais de um bot chamado". Quem chama já segura a trava dos nomes (gerirBots), então outro pedido
+ * não pega o nome entre a conferência e a gravação. A versão ausente segue para o executor, que dá o nao_encontrado.
+ */
+async function recusarNomeDeOutroBot(deps: Deps, agenteId: string, versao: number): Promise<void> {
+  const alvo = await deps.repos.versoesPerfil.buscar(agenteId, versao);
+  const nome = alvo?.perfil.nome?.trim().toLowerCase();
+  if (!nome) return;
+  const outros = (await deps.repos.agentes.listar({ incluirOcultos: true })).filter((b) => b.id !== agenteId && b.excluidoEm == null);
+  if (outros.some((b) => b.nome.trim().toLowerCase() === nome)) throw new ErroDeDominio("estado_invalido", { cause: "nome_repetido" });
+}
 
 /** A regra do modo que aprovou a ação (para a autoria); null = a pessoa. */
 function porRegraDoModo(modo: Parameters<typeof decidirPeloModo>[0], risco: MotivoCardDoLote | null): PorRegra | null {
@@ -252,6 +267,9 @@ export async function gerirBots(deps: Deps, input: ContextoFerramenta & { resumo
   const ctx = await turnoDoNodComAPessoa(deps, input);
   if (!ctx) return { data: { ok: false, erro: "fora_da_conversa", problemas: [], instrucao: "Só o Nod, na conversa com a pessoa, muda os bots dela." } };
   const pessoaId = deps.escopo.pessoaId;
+  // QA-119: o restaurar_versao confere o nome da versão contra os outros bots; a trava dos nomes (a do criar_bots) vem
+  // antes de ler, para outro pedido não pegar o mesmo nome no meio.
+  if (Array.isArray(input.acoes) && input.acoes.some((a) => a?.tipo === "restaurar_versao")) await deps.repos.agentes.travarNomesDeBots();
   const bots = (await deps.repos.agentes.listar({ incluirOcultos: true, incluirExcluidos: true })).filter((b) => b.ownerId === pessoaId);
   const validado = validarLote(input.acoes, bots, await appsDaPessoa(deps), pessoaId, input.resumo);
   if (!validado.ok) return { data: { ok: false, erro: "entrada_invalida", problemas: validado.problemas, instrucao: "Nada foi feito. Corrija os problemas e chame gerir_bots de novo com o lote inteiro." } };
@@ -317,6 +335,8 @@ export const decidirLoteDeBots: CasoDeUso<{ decisaoId: string; recusar: boolean;
     for (const a of acoes) if (a.estado === "esperando") a.estado = "recusada";
   } else {
     for (const a of acoes) if (a.estado === "esperando" && !marcadas.has(a.i)) a.estado = "recusada";
+    // QA-119: o card aprovado mais tarde também confere o nome da versão; a trava dos nomes vem antes dos times.
+    if (acoes.some((a) => a.estado === "esperando" && a.tipo === "restaurar_versao")) await deps.repos.agentes.travarNomesDeBots();
     events.push(...(await executarEmOrdem(deps, acoes, (a) => a.estado === "esperando", { nodId: proposta.agenteId, porRegraDe: () => null, pelaPessoa: true })));
   }
   await deps.repos.propostas.atualizarPayload(proposta.id, { ...proposta.payload, acoes });
