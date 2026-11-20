@@ -622,7 +622,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
           if (!ehDoCatalogo(alvo) || errosDoSchema(FERRAMENTAS_NAVEGADOR[alvo], argsDaFerramenta).length) return negar("args_invalidos");
           ferramenta = alvo;
         }
-        if (ferramenta === "navegador_tarefa_ensinada") return { ok: true, conteudo: JSON.stringify(tarefasParaOBot(await d.repos.navegadorTarefas.doAgente(plano.agenteId), argsDaFerramenta.nome)), confianca: "confiavel" };
+        // Os passos levam nomes de botão e de página tirados do site: voltam não confiáveis, como a leitura (ADR-026).
+        if (ferramenta === "navegador_tarefa_ensinada") return { ok: true, conteudo: JSON.stringify(tarefasParaOBot(await d.repos.navegadorTarefas.doAgente(plano.agenteId), argsDaFerramenta.nome)), confianca: "nao_confiavel" };
         const est = estadoDe(escopo, plano.agenteId);
         const motor = o.motor(est.vista.lugar);
         if (!motor) return { ok: true, isError: true, conteudo: JSON.stringify({ erro: "indisponivel", instrucao: `${o.motivoIndisponivel ?? "O navegador do bot não está ligado neste servidor."} Nada foi executado; siga com o que dá sem ele e diga em uma frase o que ficou de fora.` }), confianca: "confiavel" };

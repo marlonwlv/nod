@@ -136,6 +136,21 @@ describe("parse das saídas (medidas em 2026-11-20)", () => {
     expect(await m.obter(s, "caixa", "@e1")).toEqual({ x: 599, y: 522.28, w: 82, h: 18 });
   });
 
+  it("descreverElemento (T): o ponto entra como número no JS fixo; o resultado vira ElementoNaPagina; sem elemento, null", async () => {
+    const m = motor();
+    respostas.push(() => ({ codigo: 0, saida: ok({ result: { papel: "textbox", nome: "", rotulo: "Agência", tipo: "text", autocomplete: null, editavel: true } }) }));
+    expect(await m.descreverElemento(s, { x: 40.5, y: 30 })).toEqual({ papel: "textbox", nome: "", rotulo: "Agência", tipo: "text", autocomplete: null, editavel: true });
+    const js = Buffer.from(String(recebidos[0]!.args[2]), "base64").toString("utf8");
+    expect(js).toContain("document.elementFromPoint(40.5, 30)");
+    // O valor só é lido num input de botão (submit, button): nunca o de um campo de digitar.
+    expect(js.match(/\.value\b/g)).toEqual([".value"]);
+    expect(js).toContain("botaoInput ? e.value : e.innerText");
+    expect(() => new Function(`return ${js}`)).not.toThrow();
+    respostas.push(() => ({ codigo: 0, saida: ok({ result: null }) }));
+    expect(await m.descreverElemento(s, null)).toBeNull();
+    expect(Buffer.from(String(recebidos[1]!.args[2]), "base64").toString("utf8")).toContain("document.activeElement");
+  });
+
   it("sem binário, o motor responde indisponível sem rodar nada", async () => {
     const sem = criarMotorAgentBrowser({ dados, segredo: SEGREDO, binario: "", executor });
     await expect(sem.ler(s)).rejects.toMatchObject({ motivo: "indisponivel" });

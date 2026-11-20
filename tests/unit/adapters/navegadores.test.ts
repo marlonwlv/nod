@@ -445,7 +445,9 @@ describe("liberações e tarefas guardadas (0180)", () => {
     expect(corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_tarefa_ensinada", argumentos: {} }))).toMatchObject({ tarefas: [] });
     tarefas = [{ id: "t1", nome: "Baixar a fatura", passos: ["Abriu itau.com.br", 'Clicou em "Faturas"'], criadaEm: T0 }];
     expect(corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_tarefa_ensinada", argumentos: {} }))).toMatchObject({ tarefas: [{ nome: "Baixar a fatura", passos: 2 }] });
-    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_tarefa_ensinada", argumentos: { nome: "fatura" } }))).toMatchObject({ nome: "Baixar a fatura", passos: ["Abriu itau.com.br", 'Clicou em "Faturas"'] });
+    const r = await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_tarefa_ensinada", argumentos: { nome: "fatura" } });
+    expect(corpo(r)).toMatchObject({ nome: "Baixar a fatura", passos: ["Abriu itau.com.br", 'Clicou em "Faturas"'] });
+    expect(r).toMatchObject({ confianca: "nao_confiavel" });
     expect(tarefasParaOBot(tarefas, "outra")).toMatchObject({ erro: "tarefa_inexistente" });
     expect(chamadas).toEqual([]);
   });
