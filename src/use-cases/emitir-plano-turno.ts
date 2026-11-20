@@ -486,6 +486,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
     workspaceVinculado: workspaceId !== null,
     computador: Boolean(deps.services.computadores),
     computadorFora,
+    navegador: deps.services.navegadores?.disponivel() === true,
     turno: { ...turno, sobProcuracaoDe, ...(modeloEscolhido ? { modelo: modeloEscolhido } : {}) },
     agente,
     ...(raciocinio ? { raciocinio } : {}),

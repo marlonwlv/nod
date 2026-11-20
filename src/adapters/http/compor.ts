@@ -24,6 +24,8 @@ import { criarDriverMotor } from "../computador/motor.ts";
 import { lugarPadrao } from "../../domain/computador-canal.ts";
 import type { EstadoComputadorRelatado } from "../../contracts/computador-motor.ts";
 import { type Computadores, criarComputadores, reconciliarTelas } from "../fundo/computadores.ts";
+import { criarNavegadores } from "../fundo/navegadores.ts";
+import { criarMotorAgentBrowser } from "../navegador/motor-agent-browser.ts";
 import { rotasComputadores } from "./rotas/computadores.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -851,8 +853,22 @@ export function comporApp(o: OpcoesCompor): App {
     // D (2026-11-12): o cursor da ação do bot, efêmero (não grava), para a tela daquele bot.
     cursor: (escopo, frame) => { barramento.publicar(escopo.pessoaId, "computador.cursor", frame); } });
   if (o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor || provedoresComputador) services.computadores = computadores;
+  // ADR-190 (2026-11-20): o navegador do bot. O portão existe sempre; o motor no servidor só com NOD_NAVEGADOR_NO_SERVIDOR=1
+  // (o e2-medium de produção não tem memória para Chromes). Sem motor, o plano sai sem navegador_* e a chamada que chegar
+  // responde indisponível com o motivo. O perfil de cada bot mora em NOD_HOME/navegadores, cifrado pela chave do servidor.
+  const motorNoServidor = env.NOD_NAVEGADOR_NO_SERVIDOR === "1"
+    ? criarMotorAgentBrowser({ dados: join(expandirTil(env.NOD_HOME ?? "~/.nod", homedir()), "navegadores"), segredo: chave, chrome: env.NOD_NAVEGADOR_CHROME ?? null })
+    : null;
+  const navegadores = criarNavegadores({ dentro, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave), max: numero(env.NOD_NAVEGADORES_MAX, 4),
+    motor: (lugar) => (lugar.tipo === "nod" ? motorNoServidor : null),
+    motivoIndisponivel: "O navegador do bot não roda neste servidor agora e ainda não há outro lugar ligado para ele." });
+  services.navegadores = navegadores;
   rodarAposCommit = async (escopo, efeito) => {
-    if (efeito.tipo === "desligar_computador") return computadores.desligarExcluido(escopo, efeito.agenteId);
+    if (efeito.tipo === "desligar_computador") {
+      // ADR-190: o bot excluído também perde o Chrome (o perfil fica no disco, cifrado).
+      await navegadores.desligar(escopo, efeito.agenteId).catch((e: unknown) => log("aviso", "navegador_desligar_falhou", { agente_id: efeito.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
+      return computadores.desligarExcluido(escopo, efeito.agenteId);
+    }
     if (efeito.tipo === "remover_computador") return removerDepoisDoCommit(escopo, efeito);
     // NOD-422: a busca do Linear roda em segundo plano (minutos, com progresso); quem confirmou não espera por ela.
     const rodar: RodarNaTx = (fn) => dentro(escopo, async (d) => executar(d, (dd) => fn(dd), undefined));
@@ -1655,7 +1671,7 @@ export function comporApp(o: OpcoesCompor): App {
     // definido em 2026-09-16: NOD_LONGPOLL_MS encurta a fatia do long-poll de aprovação (testes/e2e); default LONGPOLL_APROVACAO_MS.
     ...rotasComputadores(computadores),
     ...rotasWorkspaces(workspaces, dentro),
-    ...rotasInternas({ dentro, computadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
+    ...rotasInternas({ dentro, computadores, navegadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
     ...criarRotasRotinas(depsL7),
     // NOD-84 (ADR-139): a rota pública do webhook só no compartilhado — o nod local, no Mac, não é alcançável de fora.
     ...(compartilhado ? criarRotasWebhook({ ...depsL7, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave) }) : []),

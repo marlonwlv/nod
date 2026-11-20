@@ -36,6 +36,7 @@ import { FERRAMENTA_RESPONDER_PEDIDO, temPedidosNoTurno, type PedidoPendenteNoPr
 import { janelaDoModelo, orcamentoDoTurno, precisaEnxugar, type OrcamentoContexto } from "./orcamento-contexto.ts";
 import { partesDoPromptSistema, trechoComClone, trechoDoClone, type BastidorNoPrompt, type EntradaPromptSistema, type RotinaNoPrompt, type TrabalhoNoPrompt } from "./prompt-sistema.ts";
 import { FERRAMENTAS_COMPUTADOR } from "../contracts/ferramentas-computador.ts";
+import { FERRAMENTAS_NAVEGADOR_DIRETAS, NAVEGADOR_SO_LEITURA } from "../contracts/ferramentas-navegador.ts";
 import { FERRAMENTA_ANEXAR_MIDIA, FERRAMENTA_LER_MAIS } from "../contracts/ferramentas-proxy.ts";
 import type { ComputadorFora } from "./prompt-sistema.ts";
 import { FERRAMENTAS_WORKSPACE } from "../contracts/ferramentas-workspace.ts";
@@ -251,6 +252,11 @@ export type EntradaPlano = {
    * prompt ganha uma linha (antes o plano as oferecia até com o computador desligado).
    */
   computadorFora?: ComputadorFora | null;
+  /**
+   * definido em 2026-11-20 (ADR-190): o navegador do bot roda em algum lugar agora (nesta etapa, o servidor com
+   * NOD_NAVEGADOR_NO_SERVIDOR=1). Só as 12 ferramentas diretas entram; o catálogo fica atrás de navegador_buscar/usar.
+   */
+  navegador?: boolean;
   turno: Turno;
   agente: Agente;
   memorias: readonly Memoria[];
@@ -425,6 +431,10 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // ninguém olhando, já tinha. Só o peer legado fica sem.
   const temComputador = entrada.computador === true && modo !== "peer" && !deOutraPessoa;
   const computador: FerramentaPlano[] = temComputador && !entrada.computadorFora ? Object.entries(FERRAMENTAS_COMPUTADOR).map(([nome, schema]) => ({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "computador", conectorId: null, readOnlyHint: ["computador_observar", "computador_arquivos", "computador_ler_arquivo", "computador_ler_texto"].includes(nome), tocaDadoPessoal: true, schema })) : [];
+  // ADR-190: o navegador acompanha o computador (mesmo critério de modo e de pedido de outra pessoa).
+  const navegador: FerramentaPlano[] = entrada.navegador === true && modo !== "peer" && !deOutraPessoa
+    ? Object.entries(FERRAMENTAS_NAVEGADOR_DIRETAS).map(([nome, schema]) => ({ nome, nomeMcp: `mcp__nod__${nome}`, origem: "navegador", conectorId: null, readOnlyHint: (NAVEGADOR_SO_LEITURA as readonly string[]).includes(nome), tocaDadoPessoal: true, schema }))
+    : [];
   /**
    * definido em 2026-09-18: sem projeto autorizado o agente só enxerga consultar e propor. Ver um
    * martelo que ainda não pode usar era o que o levava a tentar, falhar e virar tutorial de menu.
@@ -441,7 +451,7 @@ export function montarPlano(entrada: EntradaPlano): Omit<PlanoTurno, "tokenDeTur
   // punha label no Gmail na rotina (0 de 269 turnos, contra 67 de 67 na conversa) e o Chico não movia task no ClickUp
   // na rotina de 10 min: a fonte citava um app "de fora" e as ferramentas de escrita sumiam caladas. Conteúdo de fora
   // agora só pesa no modo manual, na hora de decidir cada ação (aprovacao-permanente.ts).
-  let ferramentas = montarFerramentas({ catalogo: [...nod, ...deConectores, ...computador, ...workspace], allowlistAgente: null, alcanceCanal: null, profundidade: entrada.profundidade });
+  let ferramentas = montarFerramentas({ catalogo: [...nod, ...deConectores, ...computador, ...navegador, ...workspace], allowlistAgente: null, alcanceCanal: null, profundidade: entrada.profundidade });
   const decididoPor: `regra:${string}` = REGRA_MONTAGEM;
   // definido em 2026-09-28: quem pode receber resposta grande (conector, computador, pasta) recebe também
   // `ler_mais`, atendida pelo proxy. Leitura pura, em todo turno. NOD-61 (revisão do /codex no PR #594, P2): ler_conversa

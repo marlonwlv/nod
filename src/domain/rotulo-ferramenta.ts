@@ -7,7 +7,8 @@ import type { DadosDaAtividade } from "../contracts/frame.ts";
 import { RESUMO_DO_PASSO_MAX } from "../contracts/quadro-comentarios.ts";
 import type { EventoStream } from "../contracts/turno.ts";
 import type { FaseDoBloco } from "../contracts/evento-stream.ts";
-import { rotuloDoComputador } from "./computador.ts";
+import { dominioDaUrl, rotuloDoComputador } from "./computador.ts";
+import { fraseDoPasso } from "./navegador-vista.ts";
 import { classeDaFerramenta, nomeCurtoDaFerramenta, redigirResumo, resumoDaFerramenta } from "./resumo-do-passo.ts";
 /**
  * NOD-352 (definido em 2026-10-28): cada ferramenta do nod no passado (etapas, resumo gravado, último passo do subagente)
@@ -166,6 +167,8 @@ export function rotuloFerramenta(nomeCli: string): string {
   const nod = doNod(nomeCli);
   if (nod) return nod[0];
   if (nome.startsWith("computador_")) return "Usou o computador";
+  // ADR-190: as do navegador do bot (`mcp__nod__navegador_*`), não o servidor MCP de fora chamado "navegador" (abaixo).
+  if (nome.startsWith("navegador_")) return "Usou o navegador";
   if (nome.startsWith("workspace_")) return "Usou a pasta de trabalho";
   const conector = /^(.+?)__(.+)$/.exec(nome);
   if (conector) {
@@ -218,6 +221,7 @@ export function nomeDaFerramenta(nomeCli: string): string {
   if (!m) return de(NATIVAS_NOME, nomeCli) ?? "uma ferramenta";
   const nome = m[2]!;
   if (nome.startsWith("computador_")) return "Computador";
+  if (nome.startsWith("navegador_")) return "Navegador";
   if (nome.startsWith("workspace_")) return "Pasta de trabalho";
   const conector = /^(.+?)__(.+)$/.exec(nome);
   if (conector) return SERVIDOR_DE_IA.test(conector[1]!) ? "uma ferramenta" : titulo(conector[1]!);
@@ -248,10 +252,20 @@ export function rotuloAgora(nomeCli: string, resumo?: string | null): string {
   const nod = doNod(nomeCli);
   if (nod) return nod[1];
   if (nome.startsWith("computador_")) return rotuloDoComputador(nome, resumo);
+  if (nome.startsWith("navegador_")) return rotuloDoNavegador(nome, resumo);
   if (nome.startsWith("workspace_")) return "Usando a pasta de trabalho";
   if (m[1] === "navegador") return "Usando o navegador";
   if (/__/.test(nome) || m[1] !== "nod") return `Usando ${nomeDaFerramenta(nomeCli)}`;
   return "Usando uma ferramenta";
+}
+
+/**
+ * ADR-190: o que o bot faz no navegador dele, a mesma frase da vista (`fraseDoPasso`). Do argumento só o domínio da
+ * URL de `navegador_abrir` (o `resumo` já redigido); nunca o texto preenchido nem o alvo.
+ */
+function rotuloDoNavegador(nome: string, resumo?: string | null): string {
+  const host = nome === "navegador_abrir" && resumo ? dominioDaUrl(resumo) : null;
+  return fraseDoPasso(nome, null, host);
 }
 
 export function ferramentaEmUso(nomeCli: string, resumo?: string | null): FerramentaEmUso {
