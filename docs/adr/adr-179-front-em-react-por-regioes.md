@@ -143,7 +143,9 @@ emojis seguem `menuitemcheckbox`, o "+" troca a linha sem fechar e põe o foco n
 "Desfazer" com `aria-disabled` não escolhe). O bot segurado e a fala segurada do celular seguem no `<dialog>`. E o **Compartilhar** da gaveta (`htmlMenuCompartilhar`). As folhas do celular (a do "+" do campo, a do Compartilhar do perfil) ficam no `<dialog>`: a do "+" precisa fechar antes de o seletor de arquivo abrir, o que o modal nativo já dá. E **o menu do modo de aprovação** (ADR-059, `web/react/dialogos/menu-modo.tsx`): o mesmo
 HTML e a mesma regra pura (`reagirMenuModo`), acima do botão com o foco no modo atual; a confirmação do total entra
 logo depois do item, com o foco em "Agora não", e o Esc com ela aberta fecha só ela (o fechamento do Base UI é cancelado
-pelo `reason` `escape-key`).
+pelo `reason` `escape-key`). E **o seletor de IA do campo** (`web/react/dialogos/menu-ia.tsx`): o botão fica onde está
+(filho do `.box`), só o menu muda — acima dele, alinhado à direita, com o foco na escolha atual; o main o fecha por código
+quando o campo troca de conversa.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

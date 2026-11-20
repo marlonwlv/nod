@@ -28,6 +28,14 @@ import { abrirArtefatoNoReact } from "./web/react/dialogos/artefato.tsx";
 import { abrirMenuDoBotNoReact } from "./web/react/dialogos/menu-do-bot.tsx";
 import { abrirMenuDeHtmlNoReact } from "./web/react/dialogos/menu-de-html.tsx";
 import { abrirMenuModoNoReact } from "./web/react/dialogos/menu-modo.tsx";
+import { abrirMenuIaNoReact } from "./web/react/dialogos/menu-ia.tsx";
+window.__menuIa = (html) => {
+  window.__ia = null; window.__mudou = [];
+  let b = document.getElementById("composer-ia");
+  if (!b) { b = Object.assign(document.createElement("button"), { id: "composer-ia", textContent: "Claude" }); b.style.cssText = "position:fixed;left:900px;top:720px;width:80px;height:32px"; document.body.append(b); }
+  b.focus();
+  window.__menuIaAberto = abrirMenuIaNoReact(document, b, html, (e) => { window.__ia = JSON.stringify(e); }, () => { window.__mudou.push(b.getAttribute("aria-expanded")); });
+};
 window.__menuModo = () => {
   window.__modo = null;
   let b = document.getElementById("chip-modo");
@@ -431,5 +439,37 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     expect(await avaliar<string>(cdp, "window.__focoNoModo")).toBe("chip-modo");
     await ate(`!document.querySelector(".rx-menu-host")`);
     expect(await avaliar<string | null>(cdp, `document.getElementById("chip-modo").getAttribute("aria-expanded")`)).toBe("false");
+  }, 60_000);
+
+  it("o seletor de IA: acima do botão e alinhado à direita, o foco na escolha atual, o desligado inerte, a escolha pelo dataset; o aria-expanded redesenha a seta", async () => {
+    await esperar(300);
+    const html = '<div role="menu" aria-label="IA e modelo"><button type="button" role="menuitemradio" data-escolha="auto" aria-checked="false">Automático</button><p class="ia-sel-grupo">Claude</p><button type="button" role="menuitemradio" data-escolha="modelo" data-ia="claude-cli" data-modelo="opus" aria-checked="true">Opus</button><button type="button" role="menuitemradio" data-escolha="modelo" data-ia="codex-cli" data-modelo="gpt" aria-checked="false" disabled>GPT</button><button type="button" role="menuitem" data-escolha="provedores">Provedores de IA</button></div>';
+    await avaliar(cdp, `window.__menuIa(${JSON.stringify(html)})`);
+    await ate(`document.activeElement?.dataset?.modelo === "opus"`);
+    const r = await avaliar<{ fundo: number; direita: number }>(cdp, `(() => { const m = document.querySelector(".bot-menu.rx-menu.ia-sel-menu").getBoundingClientRect(); return { fundo: Math.round(m.bottom), direita: Math.round(m.right) }; })()`);
+    expect(r).toEqual({ fundo: 712, direita: 980 });
+    expect(await avaliar<string[]>(cdp, "window.__mudou")).toEqual(["true"]);
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.modelo === "gpt"`);
+    await tecla("Enter", "Enter", 13);
+    await esperar(200);
+    expect(await avaliar<unknown>(cdp, "window.__ia")).toBeNull();
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.escolha === "provedores"`);
+    await tecla("ArrowUp", "ArrowUp", 38);
+    await tecla("ArrowUp", "ArrowUp", 38);
+    await ate(`document.activeElement?.dataset?.modelo === "opus"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__ia !== null`);
+    expect(JSON.parse(await avaliar<string>(cdp, "window.__ia"))).toEqual({ tipo: "modelo", ia: "claude-cli", modelo: "opus" });
+    expect(await avaliar<string[]>(cdp, "window.__mudou")).toEqual(["true", "false"]);
+    await ate(`document.activeElement?.id === "composer-ia"`);
+    // Fechar por código (o campo trocou de conversa com o menu aberto): sai sem escolha.
+    await esperar(300);
+    await avaliar(cdp, `window.__menuIa(${JSON.stringify(html)})`);
+    await ate(`document.querySelector(".ia-sel-menu.rx-menu")`);
+    await avaliar(cdp, "window.__menuIaAberto.fechar()");
+    await ate(`!document.querySelector(".rx-menu-host")`);
+    expect(await avaliar<unknown>(cdp, "window.__ia")).toBeNull();
   }, 60_000);
 });

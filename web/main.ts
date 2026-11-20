@@ -4092,11 +4092,11 @@ function agenteDoSeletor(): string | null {
 }
 
 /** O menu do seletor de IA aberto (um por vez) e se um clique dele ainda está gravando. */
-let menuIa: HTMLDialogElement | null = null;
+let menuIa: { fechar: () => void } | null = null;
 let gravandoIa = false;
 
 function fecharMenuIa(): void {
-  if (menuIa?.open) menuIa.close();
+  menuIa?.fechar();
   menuIa = null;
 }
 
@@ -4110,7 +4110,11 @@ function abrirSeletorIa(el: HTMLElement): void {
   const d = agenteDoSeletor() ? dadosDoSeletor(estado, agenteDoSeletor()!) : null;
   if (!a || !d || !d.dona || gravandoIa || estado.ocupado) return;
   const chave = composerDe;
-  menuIa = abrirMenuIa(el, renderMenuIa(d), (escolha) => {
+  // ADR-179: o do Base UI quando o módulo dos diálogos chegou (o mesmo HTML); senão, o <dialog>.
+  const abrir = moduloDosDialogos
+    ? moduloDosDialogos.abrirMenuIaNoReact.bind(null, document)
+    : (...args: Parameters<typeof abrirMenuIa>) => { const dlg = abrirMenuIa(...args); return { fechar: () => { if (dlg.open) dlg.close(); } }; };
+  menuIa = abrir(el, renderMenuIa(d), (escolha) => {
     menuIa = null;
     if (escolha.tipo === "provedores") { abrirEspaco("conexao"); return; }
     if (composerDe !== chave || gravandoIa) return;
