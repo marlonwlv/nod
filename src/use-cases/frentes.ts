@@ -201,7 +201,7 @@ export const mandarParaTask: CasoNod<Deps, "mandar_para_task"> = (deps, input) =
 async function copiaDoRecado(deps: Deps, p: { turno: Turno; trabalho: Trabalho; texto: string }): Promise<RuntimeEvent[]> {
   const conversaId = await conversaDoBot(deps, p.turno);
   const autoria = autoriaAgente({ agenteId: p.turno.agenteId, contaDeExecucao: deps.escopo.pessoaId, executor: "catcher" });
-  const m = await deps.repos.mensagens.criar({ conversaId, turnoId: p.turno.id, autoria, kind: "sistema", texto: `Recado para a frente ${p.trabalho.titulo}: ${p.texto}`, payload: { kind: "recado_a_frente", trabalhoId: p.trabalho.id, titulo: p.trabalho.titulo }, confianca: "nao_confiavel" });
+  const m = await deps.repos.mensagens.criar({ conversaId, turnoId: p.turno.id, autoria, kind: "sistema", texto: `Recado para a tarefa ${p.trabalho.titulo}: ${p.texto}`, payload: { kind: "recado_a_frente", trabalhoId: p.trabalho.id, titulo: p.trabalho.titulo }, confianca: "nao_confiavel" });
   return m ? [evento(deps.escopo, { kind: "mensagem_criada", autoria, agora: deps.agora(), conversaId, turnoId: p.turno.id, dados: { mensagem_id: m.id, kind: "sistema", trabalho_id: p.trabalho.id } })] : [];
 }
 

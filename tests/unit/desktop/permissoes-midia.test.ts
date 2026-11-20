@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estadoDoMicrofone, lerEmLigacao, permitirChecagemDeMidia, permitirPedidoDeMidia } from "../../../desktop/permissoes-midia.ts";
+import { AJUSTES_DO_MICROFONE, estadoDoMicrofone, estadoDoMicrofoneWindows, lerEmLigacao, permitirChecagemDeMidia, permitirPedidoDeMidia } from "../../../desktop/permissoes-midia.ts";
 
 /**
  * O microfone da janela web (definido em 2026-10-04, ADR-071): a página remota ganha só `media` de áudio, na origem do
@@ -62,5 +62,21 @@ describe("acesso do macOS e argumentos da ponte", () => {
     expect(lerEmLigacao("true")).toBeNull();
     expect(lerEmLigacao(1)).toBeNull();
     expect(lerEmLigacao(undefined)).toBeNull();
+  });
+});
+
+describe("17/11/2026: o microfone no Windows", () => {
+  it("denied (o app) e restricted (o computador todo) viram negado: os dois a pessoa liga nas Configurações", () => {
+    expect(estadoDoMicrofoneWindows("granted")).toBe("concedido");
+    expect(estadoDoMicrofoneWindows("denied")).toBe("negado");
+    expect(estadoDoMicrofoneWindows("restricted")).toBe("negado");
+  });
+  it("sem pergunta no Windows: not-determined e unknown deixam o getUserMedia tentar", () => {
+    expect(estadoDoMicrofoneWindows("not-determined")).toBe("concedido");
+    expect(estadoDoMicrofoneWindows("unknown")).toBe("concedido");
+  });
+  it("o atalho abre Privacidade › Microfone de cada sistema", () => {
+    expect(AJUSTES_DO_MICROFONE.win32).toBe("ms-settings:privacy-microphone");
+    expect(AJUSTES_DO_MICROFONE.darwin).toBe("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone");
   });
 });

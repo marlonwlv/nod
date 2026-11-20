@@ -20,7 +20,7 @@ export type EntradaParar = { conversaId: string | null };
  * conversa) e devolve a faixa.
  *
  * Sem conversa (Parar global): a parada fica ABERTA e bloqueia o despacho até a pessoa falar de novo (definido em
- * 2026-09-16: "Stop now" do Grok Bot; nova mensagem chama encerrarAbertas), e para as tasks de todos os bots.
+ * 2026-09-16: "Parar agora"; nova mensagem chama encerrarAbertas), e para as tasks de todos os bots.
  * revisto em 2026-10-22 (NOD-311, emenda da ADR-083): com conversa, o Parar é só do turno do chat (`trabalhoId` nulo) e do
  * que ele abriu (esperas e pedidos a colegas). As frentes seguem, cada uma se para por dentro. A parada é gravada
  * (auditoria) e ENCERRADA no fim da mesma transação: nada fica segurado depois (rotinas, pedidos, retorno de frentes).
@@ -50,7 +50,14 @@ export const parar: CasoDeUso<EntradaParar, FaixaParada> = async (deps, input) =
 
   // definido em 2026-10-04 (ADR-072): o Parar é do trabalho do bot; a ligação se encerra pelo Desligar.
   // NOD-311: na conversa, só os do chat (sem trabalho); os das frentes seguem.
-  const daConversa = (await deps.repos.turnos.pendentesDaPessoa(conversaId ?? undefined)).filter((t) => t.origem !== "ligacao" && (conversaId === null || !t.trabalhoId));
+  // ADR-185 (definido em 2026-11-16): na conversa, o Parar para o TRABALHO do bot, não o que a pessoa disse. Com um turno do
+  // chat rodando, a fala dela que espera atrás dele (turno 'conversa' com mensagem de origem) fica e roda depois;
+  // descartar é o "Cancelar" da fila. Sem nada rodando, a fala na fila É o que a pessoa vê trabalhando (a máquina ligando,
+  // a fila esperando IA) e o Parar a para, como antes. O Parar global (sem conversa) segue parando tudo.
+  const despachandoDaPessoa = await deps.repos.turnos.despachandoDaPessoa();
+  const chatRodando = conversaId !== null && despachandoDaPessoa.some((t) => t.conversaId === conversaId && !t.trabalhoId && t.origem !== "ligacao");
+  const falaDaPessoa = (t: Turno) => chatRodando && t.origem === "conversa" && Boolean(t.mensagemOrigemId) && !t.trabalhoId;
+  const daConversa = (await deps.repos.turnos.pendentesDaPessoa(conversaId ?? undefined)).filter((t) => t.origem !== "ligacao" && (conversaId === null || !t.trabalhoId) && !falaDaPessoa(t));
   const pendentes = [...daConversa, ...delegacoes.filter((t) => t.estado === "pendente" && !daConversa.some((p) => p.id === t.id))];
   const pendentesInterrompidos: string[] = [];
   for (const t of pendentes) {
@@ -64,8 +71,17 @@ export const parar: CasoDeUso<EntradaParar, FaixaParada> = async (deps, input) =
     events.push(...(await registrarInterrupcaoPorParada(deps, { turnoId: t.id })));
   }
 
-  const despachando = (await deps.repos.turnos.despachandoDaPessoa()).filter((t) => t.origem !== "ligacao" && (conversaId === null || (t.conversaId === conversaId && !t.trabalhoId) || dasDelegacoes.has(t.id)));
+  const despachando = despachandoDaPessoa.filter((t) => t.origem !== "ligacao" && (conversaId === null || (t.conversaId === conversaId && !t.trabalhoId) || dasDelegacoes.has(t.id)));
   await deps.repos.turnos.pedirInterrupcao(despachando.map((t) => t.id), agora);
+  // ADR-185: a fala que o turno parado absorveu e o bot não chegou a ler (escrita na sessão, sem a fronteira seguinte)
+  // volta à fila na ordem em que chegou: o Parar não a perde. A lida fica: o bot já a considerou.
+  if (conversaId !== null) {
+    for (const t of despachando.filter((x) => x.conversaId === conversaId && !x.trabalhoId)) {
+      for (const volta of await deps.repos.turnos.devolverNaoLidos(t.id)) {
+        events.push(evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: volta.conversaId, turnoId: volta.id, dados: { origem: volta.origem, agente_id: volta.agenteId, devolvido_pelo_parar: true } }));
+      }
+    }
+  }
   const tentativas: TentativaInterrupcao[] = [];
   for (const t of despachando) {
     try {

@@ -6,7 +6,7 @@ import type { Escopo, Tx } from "../../src/shared/types.ts";
 import { ativarRotina, servicoRotinas } from "../../src/use-cases/ativar-rotina.ts";
 import { criarRotina } from "../../src/use-cases/criar-rotina.ts";
 import { verAgendaPeloAgente } from "../../src/use-cases/ver-agenda.ts";
-import { atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, listarRotinasDoAgente, pausarRotinaPeloAgente, reativarRotinaPeloAgente } from "../../src/use-cases/rotinas-do-agente.ts";
+import { atualizarRotinaPeloAgente, excluirRotinaPeloAgente, executarRotinaPeloAgente, listarRotinasDoAgente, pausarRotinaPeloAgente, pausarTodasRotinasPeloAgente, reativarLoteRotinasPeloAgente, reativarRotinaPeloAgente } from "../../src/use-cases/rotinas-do-agente.ts";
 import { encaminhar } from "../../src/use-cases/encaminhar.ts";
 import { semNovidade } from "../../src/use-cases/sem-novidade.ts";
 import { passar } from "../../src/use-cases/passar.ts";
@@ -17,6 +17,7 @@ import type { Deps, Services, UseCasesNod } from "../../src/use-cases/tipos.ts";
 import { PESSOA_MARLON, TENANT_PADRAO } from "./ids.ts";
 import { criarBancoMemoria, type BancoMemoria } from "./repos-memoria.ts";
 import { avisarPessoa } from "../../src/use-cases/avisar-pessoa.ts";
+import { mostrarCartoes } from "../../src/use-cases/mostrar-cartoes.ts";
 import { ajustarBarraLateral } from "../../src/use-cases/ajustar-barra-lateral.ts";
 import { gerirQuadro } from "../../src/use-cases/gerir-quadro.ts";
 import { gerirApps } from "../../src/use-cases/gerir-apps.ts";
@@ -88,6 +89,8 @@ export function useCasesFalsos(): UseCasesNod {
     verAgendaPeloAgente,
     pausarRotinaPeloAgente,
     reativarRotinaPeloAgente,
+    pausarTodasRotinasPeloAgente,
+    reativarLoteRotinasPeloAgente,
     atualizarRotinaPeloAgente,
     excluirRotinaPeloAgente,
     executarRotinaPeloAgente,
@@ -116,6 +119,7 @@ export function useCasesFalsos(): UseCasesNod {
     responderPedido: naoImplementado("useCases.responderPedido"),
     pedirCredencial: naoImplementado("useCases.pedirCredencial"),
     avisarPessoa,
+    mostrarCartoes,
     ajustarBarraLateral,
     gerirQuadro,
     gerirApps,

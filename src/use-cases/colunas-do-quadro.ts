@@ -99,7 +99,7 @@ export const decidirColunasDoQuadro: CasoDeUso<{ decisaoId: string; recusar: boo
     aplicado = true;
     loteId = r.data.lote?.id ?? null;
     const n = (await deps.repos.quadros.tarefas(payload.quadroId)).filter((t) => antesDe.has(t.id) && antesDe.get(t.id) !== t.status).length;
-    texto = `Colunas trocadas no quadro de ${payload.anfitriaoNome}${n ? ` · ${n} ${n === 1 ? "tarefa mudou" : "tarefas mudaram"} de coluna` : ""}. Desfazer está no quadro.`;
+    texto = `Colunas trocadas no quadro de ${payload.anfitriaoNome}${n ? ` · ${n} ${n === 1 ? "card mudou" : "cards mudaram"} de coluna` : ""}. Desfazer está no quadro.`;
   }
   const decidida = await deps.repos.decisoes.decidir(input.decisaoId, { por: deps.escopo.pessoaId, agora });
   if (!decidida) throw new ErroDeDominio("estado_invalido", { cause: "decisão já fechada" });

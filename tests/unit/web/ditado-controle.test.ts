@@ -391,3 +391,74 @@ describe("fiação do ditado em main.ts (NOD-324)", () => {
     expect(sessao).toMatch(/aoReidratar: \(\) => \{[\s\S]{0,300}ditado\.reler\(\);[\s\S]{0,20}\}/);
   });
 });
+
+describe("17/11/2026: a falha do microfone fica junto do 🎤, acima do campo", () => {
+  const UA_WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Electron/33 Safari/537.36";
+  function comCaixa() {
+    const inseridos: string[] = [];
+    const removidos: number[] = [];
+    const box = {
+      matches: (sel: string) => sel === ".composer .box",
+      closest: (sel: string) => (sel === ".composer" ? {} : null),
+      insertAdjacentHTML: (onde: string, html: string) => { expect(onde).toBe("beforebegin"); inseridos.push(html); },
+      classList: { toggle: () => undefined },
+      querySelector: () => null,
+    };
+    const composer = { matches: () => false, querySelector: (sel: string) => (sel.includes(".box") ? box : null), querySelectorAll: () => [] };
+    vi.stubGlobal("document", {
+      querySelector: () => null,
+      getElementById: (id: string) => (id === "composer" ? composer : null),
+      querySelectorAll: (sel: string) => (sel.includes('data-act="ditar"') ? [mic] : sel === ".ditado-aviso" ? inseridos.map((_, i) => ({ remove: () => removidos.push(i) })) : []),
+    });
+    return { inseridos, removidos };
+  }
+
+  it("microfone negado no app do Windows: o aviso entra acima da caixa, com Abrir Configurações e ×, sem banner", async () => {
+    vi.stubGlobal("navigator", { userAgent: UA_WINDOWS });
+    vi.stubGlobal("nodDesktop", { ajustesMicrofone: async () => true });
+    const { inseridos } = comCaixa();
+    const t = montar(JA_CONSENTIU);
+    await t.iniciar();
+    t.c.comecar();
+    gravacoes[0]!.aoEvento({ t: "erro", codigo: "microfone-negado" });
+    expect(t.deps.avisar).not.toHaveBeenCalled();
+    expect(inseridos).toHaveLength(1);
+    expect(inseridos[0]).toContain("Configurações › Privacidade e segurança › Microfone");
+    expect(inseridos[0]).toContain('data-act="microfone-ajustes"');
+    expect(inseridos[0]).toContain('data-act="ditado-aviso-fechar"');
+    expect(inseridos[0]).toContain('role="alert"');
+  });
+
+  it("um novo toque no 🎤 tira o aviso da tentativa anterior", async () => {
+    const { removidos } = comCaixa();
+    const t = montar(JA_CONSENTIU);
+    await t.iniciar();
+    t.c.comecar();
+    gravacoes[0]!.aoEvento({ t: "erro", codigo: "microfone-indisponivel" });
+    t.c.comecar();
+    expect(removidos).toEqual([0]);
+  });
+
+  it("sem a ponte que abre os ajustes, o aviso vem sem o botão", async () => {
+    const { inseridos } = comCaixa();
+    const t = montar(JA_CONSENTIU);
+    await t.iniciar();
+    t.c.comecar();
+    gravacoes[0]!.aoEvento({ t: "erro", codigo: "microfone-negado" });
+    expect(inseridos[0]).not.toContain("microfone-ajustes");
+    expect(inseridos[0]).toContain("ditado-aviso-fechar");
+  });
+
+  it("sem a caixa do chat (pílula do Quadro) e nas outras falhas: o banner de sempre", async () => {
+    const t = montar(JA_CONSENTIU);
+    await t.iniciar();
+    t.c.comecar();
+    gravacoes[0]!.aoEvento({ t: "erro", codigo: "microfone-negado" });
+    expect(t.deps.avisar).toHaveBeenCalledWith(textoDaFalha("microfone-negado", true), "microfone-negado");
+    const { inseridos } = comCaixa();
+    t.c.comecar();
+    gravacoes[1]!.aoEvento({ t: "erro", codigo: "voz_fora" });
+    expect(inseridos).toHaveLength(0);
+    expect(t.deps.avisar).toHaveBeenLastCalledWith(textoDaFalha("voz_fora", true), "voz_fora");
+  });
+});

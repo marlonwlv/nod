@@ -132,12 +132,16 @@ describe("NOD-114: alvo da task e um grupo por bot", () => {
   });
 });
 
-describe("NOD-119: a barra lateral guardada no app do Mac", () => {
-  it("só os valores do contrato; o resto vira o padrão (null)", () => {
+describe("NOD-119/ADR-179: a barra lateral guardada no app do Mac", () => {
+  it("o valor novo validado (inteiro entre 240 e 400, compacta booleana); do arquivo, também o antigo; o resto vira null", () => {
+    expect(lerBarraDesktop({ larguraExpandida: 300, compacta: true, x: 1 })).toEqual({ larguraExpandida: 300, compacta: true });
     for (const v of ["compacta", "compacta:recolhida", "compacta:larga", "confortavel:recolhida"]) expect(lerBarraDesktop(v)).toBe(v);
-    for (const v of ["", "confortavel", "__proto__", "constructor", 1, null, undefined, {}]) expect(lerBarraDesktop(v)).toBeNull();
+    for (const v of ["", "confortavel", "__proto__", "constructor", 1, null, undefined, {}, [], { larguraExpandida: 239, compacta: false }, { larguraExpandida: 401, compacta: false }, { larguraExpandida: 300.5, compacta: false }, { larguraExpandida: 300, compacta: "sim" }]) {
+      expect(lerBarraDesktop(v)).toBeNull();
+    }
   });
   it("lerPreferencias traz a barra, e sem ela fica no padrão", () => {
+    expect(lerPreferencias(JSON.stringify({ barra: { larguraExpandida: 288, compacta: false } })).barra).toEqual({ larguraExpandida: 288, compacta: false });
     expect(lerPreferencias(JSON.stringify({ barra: "compacta:larga" })).barra).toBe("compacta:larga");
     expect(lerPreferencias(JSON.stringify({ barra: "toString" })).barra).toBeNull();
     expect(lerPreferencias(JSON.stringify({ avisos: false })).barra).toBeNull();
@@ -200,7 +204,9 @@ describe("NOD-119 (revisão 6): os canais da barra no processo principal", () =>
     expect(respostaSincrona(() => undefined, () => { throw new Error("x"); }, {})).toEqual({});
   });
   it("definirBarra: valor conhecido ou null; o resto é recusado", () => {
-    expect(barraDoPedido("compacta:recolhida")).toBe("compacta:recolhida");
+    expect(barraDoPedido({ larguraExpandida: 340, compacta: true })).toEqual({ larguraExpandida: 340, compacta: true });
+    // A página só grava o valor novo; o antigo é só do arquivo.
+    expect(() => barraDoPedido("compacta:recolhida")).toThrow("entrada_invalida");
     expect(barraDoPedido(null)).toBeNull();
     expect(() => barraDoPedido("gigante")).toThrow("entrada_invalida");
     expect(() => barraDoPedido(undefined)).toThrow("entrada_invalida");

@@ -12,6 +12,7 @@ const REGRAS: readonly [RegExp, CausaNativa][] = [
   [/não deu para conferir|fora da sua pasta|fora da pasta desta task|criaria a worktree/, "git_fora_da_pasta"],
   [/segura este processo/, "espera_com_sleep"],
   [/continua na conversa/, "esperando_aprovacao"],
+  [/mandou outra mensagem antes de responder/, "substituido_por_mensagem"],
   [/a pessoa não aprovou/, "recusado_pela_pessoa"],
   [/credencial/, "credencial"],
   [/fora do plano deste turno|fora do kit do nod/, "fora_do_plano"],
@@ -24,10 +25,11 @@ export function causaDaNegacaoNativa(motivo: string): CausaNativa {
 
 /** O que a pessoa lê na pílula da conversa, depois de "ferramenta <nome> negada: ". */
 export const CAUSA_NATIVA_HUMANA: Record<CausaNativa, string> = {
-  git_fora_da_pasta: "git fora da pasta da task; o bot recebeu o caminho certo",
+  git_fora_da_pasta: "git fora da pasta da tarefa; o bot recebeu o caminho certo",
   espera_com_sleep: "espera com sleep; o bot foi orientado a marcar a volta em vez de esperar",
   esperando_aprovacao: "esperando sua aprovação na conversa",
   recusado_pela_pessoa: "você não aprovou o comando",
+  substituido_por_mensagem: "você mandou outra mensagem antes de responder ao pedido",
   credencial: "o comando tocava um arquivo de credencial, que o nod não abre",
   fora_do_plano: "fora das ferramentas deste turno",
   sem_conferencia: "o nod não conseguiu conferir o comando (servidor fora de alcance)",

@@ -1,4 +1,5 @@
 wrangler.jsonc
+worker.ts
 README.md
 # estado local do wrangler dev (sqlite do miniflare): nunca vai ao ar
 .wrangler

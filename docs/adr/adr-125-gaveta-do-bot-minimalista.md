@@ -7,7 +7,7 @@ Status: aceito · Data: 2026-10-23 · NOD-349 · Emenda ADR-060 (itens 3 e 5) e 
 
 A gaveta de 380 px juntava tudo numa rolagem só: a miniatura da tela, o nome, Editar perfil, Atalhos, Rotinas, Acessos,
 Colabora com, o Modo dev e o Ambiente. O ⋯ do topo repetia o menu da lista, com Excluir ao lado do nome. O Marlon
-comparou com o Grok e pediu a gaveta enxuta: no topo só compartilhar e fechar, a identidade editável ali mesmo e o resto
+comparou com outros assistentes e pediu a gaveta enxuta: no topo só compartilhar e fechar, a identidade editável ali mesmo e o resto
 em abas e num nível de ajustes.
 
 ## Decisão

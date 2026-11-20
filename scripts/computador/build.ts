@@ -77,7 +77,7 @@ export function planoDoBuild(o: OpcoesBuild): PassoBuild[] {
   // mesma plataforma sai inteiro do cache.
   const passos: PassoBuild[] = [];
   for (const plataforma of ordem) {
-    const base = ["buildx", "build", "--platform", plataforma, "--label", `${ROTULO_VERSAO}=${o.versao}`, "-t", tag];
+    const base = ["buildx", "build", "--platform", plataforma, "--label", `${ROTULO_VERSAO}=${o.versao}`, "-t", tag, "-f", join(o.contexto, "infra/computador/Dockerfile")];
     const com = (...saida: string[]) => passos.push({ plataforma, args: [...base, ...saida, o.contexto] });
     if (o.saida) com("--output", `type=docker,dest=${join(o.saida, `nod-computador-${arquitetura(plataforma)}.tar`)}`);
     if (plataforma === o.nativa) com("--load");
@@ -104,7 +104,7 @@ export function escolhaExplicita(plataformasPedidas: string | undefined, saida: 
 
 /** Sem o plugin buildx: o `docker build` de antes do NOD-93, só a nativa, agora com o rótulo da versão. */
 export function planoSemBuildx(o: Pick<OpcoesBuild, "nativa" | "versao" | "contexto" | "tag">): PassoBuild {
-  return { plataforma: o.nativa, args: ["build", "--label", `${ROTULO_VERSAO}=${o.versao}`, "-t", o.tag ?? TAG_PADRAO, o.contexto] };
+  return { plataforma: o.nativa, args: ["build", "--label", `${ROTULO_VERSAO}=${o.versao}`, "-t", o.tag ?? TAG_PADRAO, "-f", join(o.contexto, "infra/computador/Dockerfile"), o.contexto] };
 }
 
 /** O que fazer quando um passo falha: a nativa sempre para; a estrangeira só para com escolha explícita. */
@@ -131,7 +131,7 @@ function main(): number {
   const pedidas = argumento(args, "--plataformas") ?? process.env.NOD_COMPUTADOR_PLATAFORMAS;
   const explicita = escolhaExplicita(pedidas, saida);
   const plataformas = lerPlataformas(pedidas);
-  const contexto = join(raiz, "infra/computador");
+  const contexto = raiz;
   if (spawnSync("docker", ["buildx", "version"], { stdio: "ignore" }).status !== 0) {
     if (explicita) {
       process.stderr.write("\no docker buildx não está instalado; ele é obrigatório com --plataformas, NOD_COMPUTADOR_PLATAFORMAS ou --saida\n");

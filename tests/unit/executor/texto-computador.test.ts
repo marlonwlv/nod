@@ -67,3 +67,13 @@ it("recusa paginação sem revisão e gravação acima do limite", async () => {
   await expect(lerTexto(f, -1)).rejects.toThrow("inicio_invalido");
   await expect(gravarTexto(f, "a".repeat(131073), "novo")).rejects.toThrow("entrada_invalida");
 });
+
+it("o teto de gravação conta caracteres, não unidades UTF-16 (emoji no limite cabe)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "nod-texto-teto-"));
+  try {
+    const noLimite = "a".repeat(131071) + "😀";
+    await gravarTexto(join(dir, "a.txt"), noLimite, "novo");
+    expect(await readFile(join(dir, "a.txt"), "utf8")).toBe(noLimite);
+    await expect(gravarTexto(join(dir, "b.txt"), "a".repeat(131072) + "😀", "novo")).rejects.toThrow("entrada_invalida");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

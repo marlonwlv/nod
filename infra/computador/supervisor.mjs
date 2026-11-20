@@ -29,8 +29,17 @@ import { gravarOrigem, lerEstado, lerTudo, limparStorage, pastaDoStorage } from 
 import { arquivoDasSenhas, esquecerSenhas, lerSenhas, recolherSenhas } from './login-senhas.mjs';
 import { RESOLV_DO_STUB, vizinhosDoTmp } from './isolamento.mjs';
 import { desempacotar, desmarcarSaida, empacotar, gravarLoja as gravarLojaImportada, marcarSaida, PARTE_BYTES, partir, recuperar, saiuEm, TETO_LOJA_BYTES, VALIDADE_IMPORTACAO_MS, venceu } from './troca-logins.mjs';
+import { prepararShellVisual } from './shell-visual.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
+
+export function prepararShellDoSupervisor(env = process.env) {
+  return prepararShellVisual({
+    env,
+    origem: env.NOD_SHELL_VISUAL_PACOTE,
+    estado: env.NOD_SHELL_VISUAL_ESTADO,
+  });
+}
 export const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 export const TIPOS = ['iniciar', 'abrir_tela', 'acao', 'fechar_tela', 'parar', 'atualizar', 'redefinir', 'sair_de_todos', 'esquecer_senhas', 'apagar_perfil', 'exportar_logins', 'importar_logins', 'cancelar_exportacao', 'marcar_saida', 'vivo'];
 /**
@@ -135,7 +144,7 @@ export function binariosDoAmbiente(env = process.env) {
     bwrap: env.NOD_PC_BWRAP === 'nao' ? null : (env.NOD_PC_BWRAP ?? 'bwrap'), xdotool: env.NOD_PC_XDOTOOL ?? 'xdotool', xclip: env.NOD_PC_XCLIP ?? 'xclip',
     scrot: env.NOD_PC_SCROT ?? 'scrot', x11vnc: env.NOD_PC_X11VNC ?? 'x11vnc', dbus: env.NOD_PC_DBUS ?? 'dbus-daemon',
     // NOD-410: o dock do desktop. Ausentes na máquina, a tela sobe sem dock (só o Chrome), como antes.
-    tint2: env.NOD_PC_TINT2 ?? 'tint2', xsetroot: env.NOD_PC_XSETROOT ?? 'xsetroot', terminalGrafico: env.NOD_PC_TERMINAL_GRAFICO ?? 'xfce4-terminal', arquivos: env.NOD_PC_ARQUIVOS ?? 'pcmanfm', keyring: env.NOD_PC_KEYRING ?? 'gnome-keyring-daemon', secretTool: env.NOD_PC_SECRET_TOOL ?? 'secret-tool',
+    tint2: env.NOD_PC_TINT2 ?? 'tint2', feh: env.NOD_PC_FEH ?? 'feh', xsetroot: env.NOD_PC_XSETROOT ?? 'xsetroot', terminalGrafico: env.NOD_PC_TERMINAL_GRAFICO ?? 'xfce4-terminal', arquivos: env.NOD_PC_ARQUIVOS ?? 'pcmanfm', keyring: env.NOD_PC_KEYRING ?? 'gnome-keyring-daemon', secretTool: env.NOD_PC_SECRET_TOOL ?? 'secret-tool',
   };
 }
 
@@ -192,6 +201,7 @@ function esperarDoFilho(filho, cond, prazoMs) {
  */
 export function criarSupervisor(op) {
   const raiz = op.raiz ?? '/var/lib/nod-computador';
+  const workspaceRaiz = op.workspaceRaiz ?? raiz;
   const run = op.run ?? '/run/nod-computador';
   const x11 = op.x11 ?? '/tmp/.X11-unix';
   const resolv = op.resolv !== undefined ? op.resolv : (existsSync(RESOLV_DO_STUB) ? RESOLV_DO_STUB : null);
@@ -210,7 +220,7 @@ export function criarSupervisor(op) {
     return {
       raiz: d, estado: path.join(d, 'estado'), perfis: path.join(d, 'perfis'), perfilBase: path.join(d, 'perfil-base'),
       logins: path.join(d, 'logins'), loja: path.join(d, 'logins', 'principal', 'cookies.enc'), storage: pastaDoStorage(path.join(d, 'logins')), senhas: arquivoDasSenhas(path.join(d, 'logins')), keyring: path.join(d, 'keyring'),
-      workspace: path.join(d, 'workspace'), run: path.join(run, id), bus: path.join(run, id, 'bus'),
+      workspace: path.join(workspaceRaiz, id), run: path.join(run, id), bus: path.join(run, id, 'bus'),
     };
   };
 
@@ -468,7 +478,7 @@ export function criarSupervisor(op) {
         tipo: 'abrir',
         config: {
           agenteId, display, raiz, run, ocultar: [path.dirname(terminal)], resolv, resolvEm, perfil: path.join(c.d.perfis, agenteId), perfilBase: c.d.perfilBase, workspace: path.join(c.d.workspace, agenteId),
-          logins: c.d.logins, tmp: path.join(c.d.run, 'telas', agenteId), scripts: path.join(c.d.raiz, 'bwrap', agenteId), x11, bus: c.d.bus, busEndereco: c.busEndereco, bin, sandbox: op.sandbox !== false,
+          logins: c.d.logins, tmp: path.join(c.d.run, 'telas', agenteId), scripts: path.join(c.d.raiz, 'bwrap', agenteId), x11, bus: c.d.bus, busEndereco: c.busEndereco, bin, sandbox: op.sandbox !== false, chromiumSandbox: op.chromiumSandbox !== false,
           xvfbArgs: op.xvfbArgs, cookies: cookiesVivos(loja, agora()), storage: storage.itens, geracao: storage.geracao, senhas,
         },
       });
@@ -517,16 +527,20 @@ export function criarSupervisor(op) {
   }
 
   function pedirATela(t, mensagem, prazoMs = PRAZO_ACAO_MS) {
+    // O filho pode ter soltado o IPC um instante antes de o evento `exit` trocar o estado para fechada. Nesse intervalo,
+    // abrirTela ainda enxerga a tela como aberta. Marcar que nada foi entregue permite relançar e repetir com segurança;
+    // uma ação enviada que caiu sem resposta continua sem retry, porque pode ter produzido efeito.
+    if (!t.proc?.connected) return Promise.resolve({ erro: 'sem_resposta', naoEnviada: true });
     const id = randomUUID();
     return new Promise((resolve) => {
       const timer = setTimeout(() => { t.pendentes.delete(id); try { t.proc.kill('SIGKILL'); } catch { /* segue */ } resolve({ erro: 'sem_resposta' }); }, prazoMs);
       const responder = (m) => { clearTimeout(timer); t.pendentes.delete(id); resolve(m); };
       t.pendentes.set(id, responder);
-      if (!mandarAoFilho(t.proc, { ...mensagem, id }, () => responder({ erro: 'sem_resposta' }))) responder({ erro: 'sem_resposta' });
+      if (!mandarAoFilho(t.proc, { ...mensagem, id }, () => responder({ erro: 'sem_resposta', naoEnviada: true }))) responder({ erro: 'sem_resposta', naoEnviada: true });
     });
   }
 
-  function pedirAoTerminal(computadorId, comando) {
+  function pedirAoTerminal(computadorId, agenteId, comando) {
     return new Promise((resolve) => {
       const s = net.connect(terminal);
       let corpo = '';
@@ -534,22 +548,26 @@ export function criarSupervisor(op) {
       s.on('data', (b) => { corpo += b; });
       s.on('error', () => resolve({ erro: 'sem_resposta' }));
       s.on('close', () => { try { resolve(JSON.parse(corpo)); } catch { resolve({ erro: 'sem_resposta' }); } });
-      s.end(JSON.stringify({ computadorId, comando }));
+      s.end(JSON.stringify({ computadorId, agenteId, comando }));
     });
   }
 
   async function acao(c, cmd) {
+    if (cmd.acao.tipo === 'terminal' && op.terminalExterno) {
+      await mkdir(path.join(c.d.workspace, cmd.agenteId), { recursive: true, mode: 0o700 });
+      return resultado(cmd.id, 'ok', { resultado: { terminalExterno: true } });
+    }
     const aberta = await abrirTela(c, cmd.agenteId, cmd.uso);
     if (aberta.esperando) return resultado(cmd.id, 'esperando_tela', { quem: aberta.esperando });
     if (!aberta.ok) return falhou(cmd.id, aberta.motivo);
-    const t = c.telas.get(cmd.agenteId);
+    let t = c.telas.get(cmd.agenteId);
     if (t.ocupada) return falhou(cmd.id, 'ocupado');
     t.ocupada = true;
     try {
       let extra = {};
       let pedido = cmd.acao;
       if (cmd.acao.tipo === 'terminal') {
-        const r = await pedirAoTerminal(c.id, cmd.acao.comando);
+        const r = await pedirAoTerminal(c.id, cmd.agenteId, cmd.acao.comando);
         if (r.erro) {
           log(`terminal de ${cmd.agenteId}: ${r.erro}`);
           return falhou(cmd.id, r.erro === 'nao_iniciou' ? 'nao_iniciou' : 'acao_falhou');
@@ -558,7 +576,24 @@ export function criarSupervisor(op) {
         pedido = { tipo: 'observar' };
       }
       // Revisão 10 do PR #600: a tela sabe se a ação é da pessoa (a trava do dock é só contra o bot).
-      const m = await pedirATela(t, { tipo: 'acao', acao: pedido, ...(cmd.pessoa === true ? { pessoa: true } : {}) });
+      const mensagem = { tipo: 'acao', acao: pedido, ...(cmd.pessoa === true ? { pessoa: true } : {}) };
+      let m = await pedirATela(t, mensagem);
+      if (m.erro === 'sem_resposta' && m.naoEnviada === true) {
+        // O IPC caiu antes do envio, mas o `exit` ainda não atualizou a foto da tela. Substitui a entrada velha para
+        // abrirTela esperar um filho novo ficar pronto e repete uma única vez. Não repete resposta perdida/timeout.
+        t.ocupada = false;
+        if (c.telas.get(cmd.agenteId) === t) {
+          c.telas.set(cmd.agenteId, { estado: 'fechada', ultimaAcaoEm: t.ultimaAcaoEm });
+          relatarEstado(c);
+        }
+        const reaberta = await abrirTela(c, cmd.agenteId, cmd.uso);
+        if (reaberta.esperando) return resultado(cmd.id, 'esperando_tela', { quem: reaberta.esperando });
+        if (!reaberta.ok) return falhou(cmd.id, reaberta.motivo);
+        t = c.telas.get(cmd.agenteId);
+        if (t.ocupada) return falhou(cmd.id, 'ocupado');
+        t.ocupada = true;
+        m = await pedirATela(t, mensagem);
+      }
       if (m.erro) {
         log(`ação ${cmd.acao.tipo} de ${cmd.agenteId}: ${m.erro} ${m.detalhe ?? ''}`);
         return falhou(cmd.id, ['tela_alterada', 'sem_resposta', 'ocupado'].includes(m.erro) ? m.erro : 'acao_falhou');
@@ -976,6 +1011,10 @@ export function criarSupervisor(op) {
   return {
     tratar,
     carregar,
+    async prepararEstado(computadorId) {
+      if (!ID_VALIDO.test(String(computadorId ?? ''))) return null;
+      return estadoDe(await obter(computadorId));
+    },
     varrer,
     estados: () => [...computadores.values()].map(estadoDe),
     ouvir(f) { ouvintes.add(f); return () => ouvintes.delete(f); },
@@ -1055,7 +1094,11 @@ export function servirControle(supervisor) {
         let m;
         try { m = JSON.parse(linha); } catch { escrever({ tipo: 'resultado', id: '', desfecho: 'falhou', motivo: 'acao_falhou' }); continue; }
         // MensagemAoSupervisor (NOD-96 PR 3) é o envelope do motor; o comando cru segue aceito.
-        if (m?.tipo === 'pedir_estado') { for (const e of supervisor.estados()) escrever({ tipo: 'estado', ...e }); continue; }
+        if (m?.tipo === 'pedir_estado') {
+          if (m.computadorId === undefined) for (const e of supervisor.estados()) escrever({ tipo: 'estado', ...e });
+          else void supervisor.prepararEstado(m.computadorId).then((e) => { if (e) escrever({ tipo: 'estado', ...e }); });
+          continue;
+        }
         if (m?.tipo === 'vivo') { void abrirVivo(m.comando); return; }
         const cmd = m?.tipo === 'comando' && m.comando && typeof m.comando === 'object' ? m.comando : m;
         // O `vivo` só vale como mensagem própria (acima): pelo envelope comum ele não tem como ligar o fluxo.
@@ -1080,9 +1123,11 @@ export async function escutarControle(servidor, caminho) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.umask(0o077);
+  // Uma única aplicação por serviço evita corrida entre telas. Os filhos só leem e validam a versão já assentada.
+  await prepararShellDoSupervisor();
   // Depois do Atualizar o processo sai e o systemd (Restart=always) o sobe de novo com os arquivos do disco.
   const aoAtualizar = () => void supervisor.encerrar().finally(() => process.exit(0));
-  const supervisor = criarSupervisor({ raiz: process.env.NOD_PC_RAIZ, run: process.env.NOD_PC_RUN, terminal: process.env.NOD_PC_TERMINAL, aoAtualizar });
+  const supervisor = criarSupervisor({ raiz: process.env.NOD_PC_RAIZ, workspaceRaiz: process.env.NOD_PC_WORKSPACE_RAIZ, run: process.env.NOD_PC_RUN, terminal: process.env.NOD_PC_TERMINAL, sandbox: process.env.NOD_PC_BWRAP !== 'nao', chromiumSandbox: process.env.NOD_PC_CHROMIUM_SANDBOX !== 'nao', terminalExterno: process.env.NOD_PC_TERMINAL_EXTERNO === 'sim', aoAtualizar });
   await supervisor.carregar();
   const servidor = servirControle(supervisor);
   await escutarControle(servidor, process.env.NOD_PC_SOCKET ?? '/run/nod-computador/ctl.sock');

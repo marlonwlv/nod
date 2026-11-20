@@ -1,0 +1,87 @@
+/* Tela 18d do Paper ("Tarefas de todos os bots"): a página que a linha "Tarefas" da barra abre. Medidas do gerador do
+   Paper (screens_nod.py, s18d): coluna de 920, topo 28/12, busca de 320×32, cartões de raio 12 com cabeçalho de 44 e
+   linhas de 42. Cores só por token (o azul, o vermelho e o verde do Paper são os do nod: --signal, --danger, --success). */
+
+/* O casco ocupa a área inteira: a folga de cima do #timeline (24 px, a da conversa) não vale aqui (o topo do Paper é 28). */
+.timeline-wrap:has(> .tdt-casco) { padding: 0; }
+.tdt-casco { height: 100%; }
+.tdt { height: 100%; overflow-y: auto; background: var(--surface); display: flex; justify-content: center; padding: 0 24px 40px; }
+.tdt-coluna { width: 920px; max-width: 100%; display: flex; flex-direction: column; }
+
+.tdt-topo { display: flex; align-items: flex-end; gap: 16px; padding: 28px 0 12px; }
+.tdt-titulos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tdt-h { margin: 0; font: 500 22px/28px var(--font-sans); letter-spacing: -0.012em; color: var(--ink); }
+.tdt-sub { margin: 0; font: 400 13px/18px var(--font-sans); color: var(--ink-2); }
+
+.tdt-seg { display: inline-flex; align-self: flex-start; gap: 2px; padding: 2px; border-radius: 9px; background: var(--hover); }
+.tdt-seg-bt { height: 24px; padding: 0 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; font: 400 13px/18px var(--font-sans); color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.tdt-seg-bt:hover { color: var(--ink); }
+.tdt-seg-bt[aria-pressed="true"] { background: var(--surface-elevated); box-shadow: var(--sombra-controle); color: var(--ink); font-weight: 500; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tdt-seg-bt[aria-pressed="true"] { border-color: var(--borda); } }
+:root[data-theme="dark"] .tdt-seg-bt[aria-pressed="true"] { border-color: var(--borda); }
+
+.tdt-nova { height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 0; border-radius: 8px; background: var(--action); color: var(--on-action); box-shadow: var(--sombra-controle); font: 500 13px/18px var(--font-sans); cursor: pointer; }
+.tdt-nova:hover { background: var(--base-hover); }
+
+.tdt-filtros { display: flex; gap: 8px; padding-bottom: 6px; }
+.tdt-busca { width: 320px; height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 8px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: 10px; background: var(--surface); color: var(--ink-4); }
+.tdt-busca:focus-within { border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+/* foco-no-conteiner: .tdt-busca */
+.tdt-busca-campo { flex: 1; min-width: 0; border: 0; padding: 0; background: transparent; font: 400 14px/20px var(--font-sans); color: var(--ink); outline: none; }
+.tdt-busca-campo::placeholder { color: var(--ink-4); }
+.tdt-busca-campo::-webkit-search-cancel-button { display: none; }
+@media (forced-colors: active) { .tdt-busca:focus-within { outline: 2px solid CanvasText; } }
+.tdt-filtro { height: 32px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 1px solid var(--borda); border-radius: 999px; background: var(--surface-elevated); box-shadow: var(--sombra-controle); font: 500 14px/20px var(--font-sans); color: var(--ink); cursor: pointer; }
+.tdt-filtro:hover { background: var(--surface-raised); }
+.tdt-filtro[data-act="tdt-prioridade"][aria-pressed="true"] { border-color: var(--borda-forte); background: var(--hover); }
+.tdt-filtro svg { color: var(--ink); }
+.tdt-esp { flex: 1; }
+.tdt-perg { align-self: flex-start; height: 22px; padding: 0 8px; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; border: 0; border-radius: 999px; background: var(--aguardando-soft); color: var(--aguardando); font: 500 12px/16px var(--font-sans); cursor: pointer; }
+
+.tdt-grupos { display: flex; flex-direction: column; }
+.tdt-grupo { margin-top: 10px; border: 1px solid var(--borda-sutil); border-radius: 12px; background: var(--surface-elevated); box-shadow: var(--sombra-inline); overflow: hidden; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tdt-grupo { box-shadow: none; } }
+:root[data-theme="dark"] .tdt-grupo { box-shadow: none; }
+.tdt-cab { width: 100%; height: 44px; padding: 0 14px; display: flex; align-items: center; gap: 10px; box-sizing: border-box; border: 0; background: transparent; text-align: left; font: 400 13px/18px var(--font-sans); color: var(--ink-2); }
+button.tdt-cab { cursor: pointer; }
+button.tdt-cab:hover { background: var(--hover); }
+.tdt-cab > svg { flex-shrink: 0; }
+.tdt-cab > svg:last-child { color: var(--ink-4); }
+.tdt-proj { color: var(--ink-3); white-space: nowrap; }
+.tdt-sep { color: var(--ink-4); }
+.tdt-nome { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.tdt-pagina { font-size: 12px; line-height: 16px; color: var(--ink-3); white-space: nowrap; }
+.tdt-prog { width: 90px; height: 4px; flex-shrink: 0; border-radius: 999px; background: var(--hover); overflow: hidden; }
+.tdt-prog > i { display: block; height: 100%; background: var(--success); }
+.tdt-pct { font-size: 12px; line-height: 16px; color: var(--ink-3); }
+
+.tdt-av { width: 18px; height: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.tdt-av > * { width: 18px !important; height: 18px !important; min-width: 0 !important; }
+.tdt-av svg { width: 18px; height: 18px; }
+.tdt-voce { width: 18px; height: 18px; flex-shrink: 0; box-sizing: border-box; border-radius: 999px; border: 1px solid var(--borda-sutil); background: var(--hover); display: inline-flex; align-items: center; justify-content: center; font: 500 8px/1 var(--font-sans); color: var(--ink-2); }
+
+.tdt-linhas { list-style: none; margin: 0; padding: 0; }
+.tdt-linha { border-top: 1px solid var(--divisoria); } /* 1 + 41 = a linha de 42 do Paper (a borda conta dentro) */
+.tdt-linha-bt { width: 100%; height: 41px; padding: 0 14px; display: flex; align-items: center; gap: 12px; box-sizing: border-box; border: 0; background: transparent; text-align: left; font: 400 13px/18px var(--font-sans); color: var(--ink); cursor: pointer; }
+.tdt-linha-bt:hover { background: var(--hover); }
+.tdt-linha-bt .qm-pri { flex-shrink: 0; color: var(--ink-2); }
+.tdt-linha-bt .qm-pri-urgente { color: var(--danger); }
+.tdt-cod { width: 62px; flex-shrink: 0; font: 500 12px/16px var(--font-mono); color: var(--ink-3); white-space: nowrap; }
+.tdt-tit { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tdt-col { width: 116px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; color: var(--ink-2); white-space: nowrap; }
+.tdt-ponto { width: 7px; height: 7px; flex-shrink: 0; border-radius: 999px; background: var(--ink-2); }
+.tdt-ponto-revisao { background: var(--signal); }
+.tdt-ponto-bloqueado { background: var(--danger); }
+.tdt-ponto-parado { background: var(--borda-forte); }
+.tdt-quem { width: 96px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; color: var(--ink-2); min-width: 0; }
+.tdt-quem-nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tdt-dir { width: 128px; flex-shrink: 0; text-align: right; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.tdt-dir-aguardando { color: var(--aguardando); }
+
+.tdt-vazio, .tdt-erro, .tdt-vazio-grupo { margin: 24px 0 0; font: 400 13px/18px var(--font-sans); color: var(--ink-3); }
+.tdt-vazio-grupo { margin: 0; padding: 12px 14px; border-top: 1px solid var(--divisoria); }
+.tdt-link { border: 0; padding: 0; background: none; font: inherit; color: var(--ink); text-decoration: underline; cursor: pointer; }
+.tdt-carregando { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.tdt-esq { height: 140px; border-radius: 12px; background: var(--hover); }
+
+.tdt button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }

@@ -22,11 +22,11 @@ describe("paginas (NOD-445)", () => {
   });
 
   it("Tarefas só aparece com quadro (liga sozinho); os apps vêm na ordem de criação, com o id da ordem", () => {
-    expect(paginasDoDto(cenario(1)).map((p) => p.nome)).toEqual(["Conversa", "Tarefas"]);
+    expect(paginasDoDto(cenario(1)).map((p) => p.nome)).toEqual(["Conversa", "Quadro"]);
     const sem = paginasDoDto(paginasDe([appDe("Vagas")], { temTarefas: false }));
     expect(sem.map((p) => p.id)).toEqual(["conversa", "app:id-vagas"]);
     const fora = paginasDe([appDe("B", { criadoEm: 9 }), appDe("A", { criadoEm: 2 })]);
-    expect(paginasDoDto(fora).map((p) => p.nome)).toEqual(["Conversa", "Tarefas", "A", "B"]);
+    expect(paginasDoDto(fora).map((p) => p.nome)).toEqual(["Conversa", "Quadro", "A", "B"]);
   });
 
   it("0 app é a pílula de hoje: só a conversa e nenhum pontinho", () => {
@@ -136,7 +136,7 @@ describe("docaDePaginas (HTML)", () => {
   it("no limite de 12, o + pedir um app explica em uma linha e sugere remover um", async () => {
     const { docaDePaginas } = await import("../../../web/telas/paginas.ts");
     const html = docaDePaginas({ nome: "Ada", paginas: paginasDoDto(cenario(3)), pedirApp: { cabeMais: false, limite: 12 } });
-    expect(html).toContain('aria-disabled="true" aria-label="Chegou ao limite de 12 páginas (Tarefas conta). Remova um app para pedir outro."');
+    expect(html).toContain('aria-disabled="true" aria-label="Chegou ao limite de 12 páginas (Quadro conta). Remova um app para pedir outro."');
   });
 
   it("erro de fonte: o ícone apagado e lido como sem acesso", async () => {

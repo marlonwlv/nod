@@ -53,18 +53,21 @@ describeIntegracao("fundo espera por toda queda: dados (NOD-309, 0098)", () => {
       const novo = { executor: "catcher", conversaId: ada.conversaId, agenteId: ada.agenteId, prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "rode a rotina", entradaConfianca: "confiavel", modelo: "sonnet", harness: "claude-cli" } as const;
       const raiz = (await repos.turnos.enfileirar({ ...novo, origem: "rotina" }))!;
       const desde = Date.now() - 2 * 60 * 60_000;
-      const cair = async (id: string, sinal: number | null, criado: number) =>
-        trx`update turnos set estado = 'interrompido', motivo_interrupcao = 'maquina_sem_contato', ultimo_sinal_em = ${sinal === null ? null : new Date(sinal)}, criado_em = ${new Date(criado)} where id = ${id}`;
+      const cair = async (id: string, sinal: number | null, criado: number, motivo = "maquina_sem_contato") =>
+        trx`update turnos set estado = 'interrompido', motivo_interrupcao = ${motivo}, ultimo_sinal_em = ${sinal === null ? null : new Date(sinal)}, criado_em = ${new Date(criado)} where id = ${id}`;
       await cair(raiz.id, desde - 1, Date.now());
       const a = (await repos.turnos.enfileirar({ ...novo, origem: "retomada", retomaTurnoId: raiz.id }))!;
       await cair(a.id, desde, desde - 60_000);
       const b = (await repos.turnos.enfileirar({ ...novo, origem: "retomada", retomaTurnoId: a.id }))!;
       await cair(b.id, null, desde + 1);
-      const atual = (await repos.turnos.enfileirar({ ...novo, origem: "retomada", retomaTurnoId: b.id }))!;
-      // raiz: sinal 1 ms antes (fora, mesmo criado agora); a: sinal na borda (dentro, mesmo criado antes); b: sem sinal, pela criação.
-      expect(await repos.turnos.quedasDaCadeia(raiz.id, atual.id, desde)).toBe(2);
-      expect(await repos.turnos.quedasDaCadeia(raiz.id, b.id, desde)).toBe(1);
-      expect(await repos.turnos.quedasDaCadeia(raiz.id, atual.id, 0)).toBe(3);
+      const c = (await repos.turnos.enfileirar({ ...novo, origem: "retomada", retomaTurnoId: b.id }))!;
+      await cair(c.id, desde + 2, desde + 2, "turno_travado");
+      const atual = (await repos.turnos.enfileirar({ ...novo, origem: "retomada", retomaTurnoId: c.id }))!;
+      // raiz: sinal 1 ms antes (fora); a: sinal na borda; b: sem sinal, pela criação; c: corte pelo teto (também conta).
+      expect(await repos.turnos.quedasDaCadeia(raiz.id, atual.id, desde)).toBe(3);
+      // `exceto` tira só o turno informado; os descendentes dele continuam na cadeia.
+      expect(await repos.turnos.quedasDaCadeia(raiz.id, b.id, desde)).toBe(2);
+      expect(await repos.turnos.quedasDaCadeia(raiz.id, atual.id, 0)).toBe(4);
     });
   });
 });

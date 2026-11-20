@@ -9,6 +9,20 @@ import { withRollback } from "../helpers/with-rollback.ts";
 const MARLON = { tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON };
 
 describeIntegracao("computador da pessoa no motor (0106)", () => {
+  it("conflito ao alugar display volta falso sem abortar a transação", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const a = await agenteComConversa(trx, MARLON);
+      const b = await agenteComConversa(trx, MARLON);
+      const c = await a.repos.computadores.obterDaPessoa();
+      const ta = (await a.repos.computadorTelas.obter(c.id, a.agenteId))!;
+      const tb = (await a.repos.computadorTelas.obter(c.id, b.agenteId))!;
+      expect(await a.repos.computadorTelas.fixarProvedorRef(ta.id, "screen-1")).toBe(true);
+      expect(await a.repos.computadorTelas.fixarProvedorRef(tb.id, "screen-1")).toBe(false);
+      expect(await a.repos.computadorTelas.provedorRef(ta.id)).toBe("screen-1");
+      expect(await a.repos.computadorTelas.provedorRef(tb.id)).toBeNull();
+    });
+  });
+
   it("um computador por pessoa; vários bots no mesmo; o legado por bot segue um por bot e é arquivado", async () => {
     await withRollback(MARLON, async (trx) => {
       const a = await agenteComConversa(trx, MARLON);

@@ -38,6 +38,30 @@ async function turno(d: D, agenteId: string, conversaId: string, o: { origem?: O
 }
 
 describe("gravarFalasDaSessao (ADR-067)", () => {
+  it("ADR-186 (revisão): a resposta que retoma vem com a marca; ela sai do texto e a fala pausada do turno vira retomada", async () => {
+    const { d, agenteId, conversaId } = await cenario();
+    const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
+    await gravarFalasDaSessao(d.deps, { turnoId: vivo.id, machineId: "m1", executor: "local", textos: ["1. Primeiro Reinado"], interrompidas: [0] });
+    await gravarFalasDaSessao(d.deps, { turnoId: vivo.id, machineId: "m1", executor: "local", textos: ["[[continua]] Dois mais dois é 4.\n\n2. Segundo Reinado"] });
+    const doBot = d.banco.mensagens.filter((m) => m.turnoId === vivo.id);
+    expect(doBot.map((m) => [m.texto, m.payload])).toEqual([
+      ["1. Primeiro Reinado", { kind: "fala_interrompida", por: "mensagem_nova", retomou: true }],
+      ["Dois mais dois é 4.\n\n2. Segundo Reinado", null],
+    ]);
+  });
+
+  it("ADR-186: a volta interrompida pela mensagem da pessoa vira fala parcial com a marca; as outras seguem comuns", async () => {
+    const { d, agenteId, conversaId } = await cenario();
+    const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
+    const r = await gravarFalasDaSessao(d.deps, { turnoId: vivo.id, machineId: "m1", executor: "local", textos: ["Antes.", "1. Origens do chá"], interrompidas: [1] });
+    expect(r.data.gravadas).toBe(2);
+    const doBot = d.banco.mensagens.filter((m) => m.turnoId === vivo.id);
+    expect(doBot.map((m) => [m.texto, m.parcial, m.payload])).toEqual([
+      ["Antes.", false, null],
+      ["1. Origens do chá", true, { kind: "fala_interrompida", por: "mensagem_nova" }],
+    ]);
+  });
+
   it("turno vivo: cada fala vira mensagem do bot na conversa, com mensagem_criada; texto vazio não entra", async () => {
     const { d, agenteId, conversaId } = await cenario();
     const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
@@ -242,5 +266,32 @@ describe("mensagem no meio só em turno de conversa (ADR-083 §6, #189)", () => 
     expect(c.events?.map((e) => [e.kind, e.turnoId, e.dados])).toEqual([["turno_interrompido", a.id, { motivo: "absorvido", absorvido_por: vivo.id }]]);
     // Confirmar de novo não faz nada (já não está pendente).
     expect((await confirmarNaSessao(d.deps, { turnoId: vivo.id, executor: "local", ids: [a.id] })).data.confirmadas).toBe(0);
+  });
+});
+
+describe("C1: fala com imagem no meio do turno (2026-11-12)", () => {
+  it("com aceitaAnexos (e confirma): [A, print B, C] são oferecidos na ordem, com os metadados do print; a confirmação absorve os três", async () => {
+    const { d, agenteId, conversaId } = await cenario();
+    const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
+    const anexo = await d.deps.repos.anexos.criar({ conversaId, nome: "erro.png", mime: "image/png", conteudo: new Uint8Array([1, 2, 3]) });
+    const a = await turno(d, agenteId, conversaId, { texto: "A" });
+    const b = await turno(d, agenteId, conversaId, { texto: "olha esse erro", anexos: [anexo!.id] });
+    const c = await turno(d, agenteId, conversaId, { texto: "ignora, já resolvi" });
+    const r = await absorverNaSessao(d.deps, { turnoId: vivo.id, executor: "local", confirma: true, aceitaAnexos: true });
+    expect(r.data.ids).toEqual([a.id, b.id, c.id]);
+    expect(r.data.anexos).toEqual({ [b.id]: [expect.objectContaining({ id: anexo!.id, nome: "erro.png", mime: "image/png" })] });
+    expect([a.estado, b.estado, c.estado]).toEqual(["pendente", "pendente", "pendente"]);
+    const confirmado = await confirmarNaSessao(d.deps, { turnoId: vivo.id, executor: "local", ids: [a.id, b.id, c.id] });
+    expect(confirmado.data.confirmadas).toBe(3);
+    expect([a.estado, b.estado, c.estado]).toEqual(["interrompido", "interrompido", "interrompido"]);
+  });
+
+  it("sem aceitaAnexos (app antigo): o corte de sempre, nada de metadados", async () => {
+    const { d, agenteId, conversaId } = await cenario();
+    const vivo = await turno(d, agenteId, conversaId, { estado: "despachando" });
+    const a = await turno(d, agenteId, conversaId, { texto: "A" });
+    await turno(d, agenteId, conversaId, { texto: "print", anexos: [randomUUID()] });
+    const r = await absorverNaSessao(d.deps, { turnoId: vivo.id, executor: "local", confirma: true });
+    expect(r.data).toEqual({ textos: ["A"], ids: [a.id] });
   });
 });

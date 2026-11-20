@@ -3,9 +3,12 @@
 // Ver docs/adr/adr-118-site-marketing-cloudflare-workers.md e site/README.md.
 {
   "name": "nodbot-site",
+  "main": "worker.ts",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": true,
     "not_found_handling": "404-page"
   }
 }

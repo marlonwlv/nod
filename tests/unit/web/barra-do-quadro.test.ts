@@ -60,7 +60,8 @@ describe("web/lib/barra-do-quadro", () => {
     expect(b.ui().aberto).toBe("opcoes");
     b.aoClicar(el(FalsoEl), "op-abrir");
     expect(b.ui().aberto).toBeNull();
-    expect(focos.at(-1)).toBe('[data-act="op-abrir"]');
+    // Tela 18 do Paper: as Opções abrem pelo menu do quadro; o foco volta ao item (se à vista) ou ao nome do quadro.
+    expect(focos.at(-1)).toBe('[data-act="op-abrir"], .qm-cab-bt');
   });
 
   it("os filtros: abre o campo, liga e desliga valores, tira um campo, limpa; ficam por quadro no Exibir", () => {

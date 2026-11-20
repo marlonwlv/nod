@@ -66,8 +66,8 @@ export function renderConta(d: DadosConta, celular = ehCelular()): string {
   entra.push(linhaConfig({ titulo: "Sessões", detalhe: "Onde sua conta está aberta agora", controle: { tipo: "link", acao: "cfg-conta", dados: { conta: "sessoes" } } }));
   if (!d.legado) {
     entra.push(linhaConfig({
-      titulo: "Conectar outro computador",
-      detalhe: "Abre sua conta em outro computador com um código. Para um bot trabalhar lá, use Máquinas.",
+      titulo: "Conectar celular ou outro computador",
+      detalhe: "Abre sua conta no celular (QR code) ou em outro computador (código). Para um bot trabalhar lá, use Máquinas.",
       controle: { tipo: "link", acao: "cfg-conta", dados: { conta: "parear-gerar" } },
     }));
   }

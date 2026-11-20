@@ -3,12 +3,16 @@ import type { TrabalhoDto } from "../../../src/contracts/trabalho.ts";
 import { estadoInicial, reduzir, type Estado } from "../../../web/estado/reducer.ts";
 import { agrupar, dicaSemContato, emEspera, esperandoMaquina, pontoTrabalho, resumoDaPilula, situacaoDe } from "../../../web/lib/trabalhos.ts";
 import { custoDoTurno, renderFaixaDev, totalUsd } from "../../../web/telas/modo-dev.ts";
-import { chipTrabalhosDoBot, linhaDaEsperaDaMaquina, renderTodosOsTrabalhos, renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+import { chipTrabalhosDoBot, linhaDaEsperaDaMaquina, renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
 import { linhaDoTurnoPreso } from "../../../web/telas/conversa.ts";
 import type { MaquinaDto } from "../../../src/contracts/maquina.ts";
 import type { Mensagem } from "../../../src/contracts/mensagem.ts";
 import { destinoDe } from "../../../src/domain/destino-no-chat.ts";
 import type { ContasIaDto } from "../../../src/contracts/contas-ia.ts";
+
+// ADR-187 §8 (2026-11-18): "Todas as tarefas" virou a vista Por estado da tela Tarefas, com o chip Todas.
+const renderTodosOsTrabalhos = (e: Estado, filtro: "todos" | "voce" | "rotinas" | "bots" = "todos"): string => renderTelaTarefas(e, { tipo: "trabalhos", filtro, mostrar: "todas" });
 
 /**
  * NOD-260 (G8) e NOD-276 (G12), definidos em 2026-10-15: o trabalho cuja máquina não fala com o servidor espera essa

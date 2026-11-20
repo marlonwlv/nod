@@ -1,5 +1,6 @@
 import type { DefinicaoAcao } from "../../contracts/acoes.ts";
 import { FERRAMENTAS_DO_NOD } from "../../contracts/ferramentas-do-nod.ts";
+import { FERRAMENTAS_TRABALHO } from "../../contracts/ferramentas-trabalho.ts";
 import { PROPRIEDADES_NAO_LIDOS } from "../../contracts/ferramentas-nao-lidos.ts";
 import { PROPRIEDADES_QUADRO } from "../../contracts/ferramentas-quadro.ts";
 import type { JsonSchema } from "../../contracts/json-schema.ts";
@@ -58,7 +59,23 @@ export const ACOES_CONVERSA = [
   { id: "salas.adicionar_membro", titulo: "Pôr um bot numa sala", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "salas.enviar", titulo: "Mandar uma mensagem numa sala", risco: "muda", cartaoNoChat: false, chat: PROPRIO_CHAT },
   { id: "salas.parar", titulo: "Parar a sala", risco: "muda", cartaoNoChat: false, chat: falta },
+  // ADR-187 §7 (2026-11-18): pela tela, a tarefa nasce da primeira mensagem da pessoa; no chat, ela pede ao bot ("Abre uma
+  // tarefa com isto: «…»"), que abre pela ferramenta dele.
+  {
+    id: "trabalhos.abrir",
+    titulo: "Abrir uma tarefa",
+    schema: FERRAMENTAS_TRABALHO.abrir_task,
+    risco: "muda",
+    cartaoNoChat: false,
+    chat: { estado: "parcial", via: { ferramenta: "abrir_task" }, falta: "pelo chat quem escreve o pedido é o bot (abrir_task, pelo lote do dono); a tela grava a fala da pessoa como o pedido e não tem teste de contrato" },
+  },
+  // ADR-187 §6 (2026-11-18): renomear a tarefa na aba. No chat ainda não: nenhuma ferramenta do bot muda o título (a
+  // mesma onda das irmãs parar, depois e fazer_aqui).
+  { id: "trabalhos.renomear", titulo: "Renomear uma tarefa", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "trabalhos.parar", titulo: "Parar um trabalho", risco: "muda", cartaoNoChat: false, chat: falta },
+  // ADR-187 §6 (2026-11-18, Paper 4l): "Encerrar a tarefa" parada. No chat ainda não: nenhuma ferramenta do bot encerra a
+  // tarefa (a mesma onda das irmãs parar e renomear); continuar é falar nela (trabalhos.enviar).
+  { id: "trabalhos.encerrar", titulo: "Encerrar uma tarefa parada", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "trabalhos.enviar", titulo: "Mandar uma mensagem num trabalho", risco: "muda", cartaoNoChat: false, chat: PROPRIO_CHAT },
   { id: "trabalhos.depois", titulo: "Deixar um trabalho para depois", risco: "muda", cartaoNoChat: false, chat: falta },
   { id: "trabalhos.fazer_aqui", titulo: "Fazer um trabalho aqui", risco: "muda", cartaoNoChat: false, chat: falta },

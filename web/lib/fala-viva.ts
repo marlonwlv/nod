@@ -12,6 +12,12 @@
 
 /** Quanto a fala que saiu (o texto que virou mensagem) fica na tela esperando a releitura, que costuma levar menos de 1 s. */
 export const FALA_SAINDO_MS = 15_000;
+/**
+ * C2 (definido em 2026-11-12): o retrato não vence mais em FALA_SAINDO_MS — com a releitura atrasada (a fila do reidratar,
+ * a rede lenta) a fala sumia aos 15 s e a gravada só vinha depois. Ele sai quando a gravada está na conversa (a da tela ou
+ * a da resposta). Só o retrato órfão (o turno já acabou e nenhuma gravada veio, ex.: o fim sem fala) sai por tempo, este.
+ */
+export const FALA_ORFA_MS = 60_000;
 
 export function tempoDaFala(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -37,7 +43,7 @@ export function escreverTempos(raiz: { querySelectorAll(seletor: string): ArrayL
 }
 
 /** O atributo que diz quanto o cabeçalho precisa esperar (Parte 2 do plano "o pensamento no chat"); e o que escreve. */
-type ComPendente = { getAttribute(nome: string): string | null; removeAttribute(nome: string): void; querySelector(seletor: string): { textContent: string | null } | null };
+type ComPendente = { getAttribute(nome: string): string | null; removeAttribute(nome: string): void; querySelector(seletor: string): { textContent: string | null; removeAttribute?(nome: string): void } | null };
 
 /**
  * Parte 2: a troca do cabeçalho que o reducer deixou pendente (`comCabecalho`, permanência de 600 ms) entra quando dá o
@@ -55,10 +61,34 @@ export function escreverEstados(raiz: { querySelectorAll(seletor: string): Array
     if (Number.isFinite(desde) && agora - desde < permanenciaMs) { esperam++; continue; }
     const alvo = el.querySelector(".fala-viva-estado");
     if (alvo && alvo.textContent !== texto) alvo.textContent = texto;
+    // COP-14: o rótulo que entra depois da permanência é fixo — as variantes do anterior param de trocar.
+    alvo?.removeAttribute?.("data-variantes");
     el.removeAttribute("data-estado-pendente");
     el.removeAttribute("data-estado-desde");
   }
   return esperam;
+}
+
+type ComVariantes = { textContent: string | null; getAttribute(nome: string): string | null };
+
+/**
+ * COP-14 (item 2): as variantes do rótulo do indicador ("Refletindo" → "Pensando" → "Ponderando" a cada 2,5 s;
+ * "Trabalhando" em 5 a cada 5 s) trocam no lugar, sem regravar a região: a da vez é contada desde que o rótulo entrou
+ * (`data-variantes-desde`). Devolve quantas há (o relógio continua enquanto houver).
+ */
+export function escreverVariantes(raiz: { querySelectorAll(seletor: string): ArrayLike<ComVariantes> } | null, agora: number): number {
+  if (!raiz) return 0;
+  const els = raiz.querySelectorAll("[data-variantes]");
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i]!;
+    const variantes = (el.getAttribute("data-variantes") ?? "").split("|").filter(Boolean);
+    const periodo = Number(el.getAttribute("data-periodo"));
+    const desde = Number(el.getAttribute("data-variantes-desde"));
+    if (!variantes.length || !(periodo > 0) || !Number.isFinite(desde)) continue;
+    const texto = variantes[Math.floor(Math.max(0, agora - desde) / periodo) % variantes.length]!;
+    if (el.textContent !== texto) el.textContent = texto;
+  }
+  return els.length;
 }
 
 type Agendar = (fn: () => void, ms: number) => () => void;
@@ -166,4 +196,15 @@ export function criarAnunciador(falar: (texto: string) => void, agendar: Agendar
 /** "Usando Linear" → "usando Linear": só a primeira letra, para o nome da ferramenta continuar como é. */
 function minusculaInicial(s: string): string {
   return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/**
+ * C1 (definido em 2026-11-12): a chave do bloco da fala viva de um turno. Cada `turno.fala` congela a fala viva num retrato
+ * que FICA com a chave dela (o mesmo nó, sem animar de novo: a fala não "pula" de região nem nasce de novo) e a próxima
+ * fala viva do turno ganha uma chave nova, `vivo:<turno>:<n>` — ela, sim, é um balão novo e anima ao entrar. A primeira
+ * segue `vivo:<turno>`. A chave do retrato vale até ele virar a gravada (que mora no histórico, com o id dela).
+ */
+export function chaveDaFalaViva(estado: { falasDoTurno?: Readonly<Record<string, number>> }, turnoId: string): string {
+  const n = estado.falasDoTurno?.[turnoId] ?? 0;
+  return n ? `vivo:${turnoId}:${n}` : `vivo:${turnoId}`;
 }

@@ -4,7 +4,7 @@ import { cardProposta } from "../lib/card-proposta.ts";
 import { botao, esc } from "../lib/render.ts";
 import { ICONE_DA_PAGINA } from "./paginas.ts";
 
-const FONTE: Readonly<Record<PayloadPropostaApp["fonte"], string>> = { tarefas: "as tarefas do bot", conector: "um app conectado", arquivo: "um arquivo do bot", bot: "o que o bot mantém" };
+const FONTE: Readonly<Record<PayloadPropostaApp["fonte"], string>> = { tarefas: "o quadro do bot", conector: "um app conectado", arquivo: "um arquivo do bot", bot: "o que o bot mantém" };
 const FORMA: Readonly<Record<PayloadPropostaApp["forma"], string>> = { lista: "lista", quadro: "quadro", painel: "painel de números", doc: "doc" };
 
 /** A frase que "Ajustar" põe na caixa: o ajuste é feito pela conversa (o card segue aberto até Criar). */

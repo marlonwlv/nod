@@ -33,6 +33,21 @@ describe("situacaoDasFalasNaFrente", () => {
     expect(situacaoDasFalasNaFrente([viva, r], [doBot("b0", "viva", 5), daPessoa("m1", 10)])).toEqual([{ mensagemId: "m1", situacao: "entregue" }]);
   });
 
+  it("ADR-187 §6 + ADR-185: o recado que o Parar da tarefa pegou na fila, sem nunca rodar, fica guardado", () => {
+    const parado = turno("viva", { estado: "interrompido", motivoInterrupcao: "parado_pela_pessoa" });
+    const r = recado("r", "m1", { estado: "interrompido", motivoInterrupcao: "parado_pela_pessoa", despachadoEm: null });
+    expect(situacaoDasFalasNaFrente([parado, r], [daPessoa("m1", 10)])).toEqual([{ mensagemId: "m1", situacao: "guardada" }]);
+    // O que rodou e foi parado no meio não é recado guardado (é o trabalho que parou).
+    expect(situacaoDasFalasNaFrente([parado, { ...r, despachadoEm: 5 }], [daPessoa("m1", 10)])).toEqual([]);
+  });
+
+  it("ADR-187 §6 + ADR-185: absorvido e não lido por um turno que a pessoa parou: guardado; o lido, sem chip", () => {
+    const parado = turno("viva", { estado: "interrompido", motivoInterrupcao: "parado_pela_pessoa" });
+    const r = recado("r", "m1", { estado: "interrompido", motivoInterrupcao: "absorvido", absorvidoPor: "viva", lidoNaSessaoEm: null });
+    expect(situacaoDasFalasNaFrente([parado, r], [daPessoa("m1", 10)])).toEqual([{ mensagemId: "m1", situacao: "guardada" }]);
+    expect(situacaoDasFalasNaFrente([parado, { ...r, lidoNaSessaoEm: 12 }], [daPessoa("m1", 10)])).toEqual([]);
+  });
+
   it("o bot falou no turno que a leu depois dela: sem chip", () => {
     const r = recado("r", "m1", { estado: "interrompido", motivoInterrupcao: "absorvido", absorvidoPor: "viva" });
     expect(situacaoDasFalasNaFrente([viva, r], [daPessoa("m1", 10), doBot("b1", "viva", 11)])).toEqual([]);

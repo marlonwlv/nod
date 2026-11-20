@@ -56,6 +56,47 @@ export function entradaDaFrente(p: { titulo: string; pedido: string; deRotina: b
 }
 
 /**
+ * ADR-187 §7 (lote B, passo 2, definido em 2026-11-18): a tarefa que a pessoa abriu pela tela (⌘N, o "+" da aba), sem o
+ * dono no meio. O pedido é a primeira mensagem dela, escrita na própria tarefa; a conversa com o dono não a viu.
+ */
+export function molduraDaTarefaDaPessoa(titulo: string): string {
+  return `[nod] Tarefa "${titulo}", aberta pela pessoa direto na tela de tarefas: o pedido abaixo é a primeira mensagem dela, escrita aqui, e a conversa com você não o viu. Ela acompanha por esta tela; faça o trabalho até o fim e devolva o que fez com devolver_resumo.\n`;
+}
+
+/**
+ * "Levar o contexto da conversa" (Paper 3e, definido em 2026-11-18): as últimas falas da conversa com o dono, cada uma
+ * cortada, com um teto no total. Sem isso a tarefa nasce limpa (Paper 3d), que é o padrão.
+ */
+export const FALAS_DO_CONTEXTO = 12;
+export const CARACTERES_POR_FALA_DO_CONTEXTO = 600;
+export const CARACTERES_DO_CONTEXTO = 6000;
+
+export type FalaDoContexto = { autor: string; texto: string };
+
+/** O bloco do contexto: as falas mais novas cabem primeiro; vazio quando não há fala. */
+export function blocoDoContexto(falas: readonly FalaDoContexto[]): string {
+  const linhas: string[] = [];
+  let total = 0;
+  for (const f of [...falas].slice(-FALAS_DO_CONTEXTO).reverse()) {
+    const texto = f.texto.replace(/\s+/g, " ").trim();
+    if (!texto) continue;
+    const cortado = texto.length > CARACTERES_POR_FALA_DO_CONTEXTO ? `${texto.slice(0, CARACTERES_POR_FALA_DO_CONTEXTO - 1)}…` : texto;
+    const linha = `- ${f.autor}: ${cortado}`;
+    if (total + linha.length > CARACTERES_DO_CONTEXTO) break;
+    total += linha.length;
+    linhas.unshift(linha);
+  }
+  if (!linhas.length) return "";
+  return `[nod] A pessoa trouxe para esta tarefa as últimas falas da conversa com você (contexto, não pedido novo):\n${linhas.join("\n")}`;
+}
+
+/** A entrada do primeiro turno da tarefa da pessoa: a moldura, o pedido, o contexto (se ela levou) e a linha de empurrar. */
+export function entradaDaTarefaDaPessoa(p: { titulo: string; pedido: string; contexto?: readonly FalaDoContexto[] }): string {
+  const contexto = blocoDoContexto(p.contexto ?? []);
+  return `${molduraDaTarefaDaPessoa(p.titulo)}${p.pedido.trim()}\n\n${contexto ? `${contexto}\n\n` : ""}${linhaDeEmpurrar(false, false)}`;
+}
+
+/**
  * Como o dono segue depois que a rede de 2 min promove o turno dele a frente (definido em 2026-10-12, ADR-099, I8). Só
  * as capacidades declaradas e o anúncio da máquina decidem, nunca o nome do harness:
  * - `bifurcar`: o harness bifurca e a máquina do turno anunciou isso — a frente fica com a sessão e a próxima fala do
@@ -78,6 +119,43 @@ export function seguimentoNaRede(capacidades: Pick<CapacidadesHarness, "retomaSe
 export function linhaDeEmpurrar(podeEmpurrar: boolean, temRepositorio: boolean): string {
   if (podeEmpurrar) return "O dono autorizou empurrar o seu branch e abrir PR.";
   return temRepositorio ? "Não empurre: devolva o branch e o SHA." : "Se mexer num repositório, não empurre: devolva o branch e o SHA.";
+}
+
+/** A moldura do pedido da task de antes das frentes (ADR-099, I2): o "Fazer aqui" de uma task antiga ainda a tira. */
+function entradaDaTask(titulo: string, pedido: string, deRotina: boolean): string {
+  return deRotina
+    ? `[nod] Task "${titulo}", aberta pela sua rotina. Faça o trabalho até o fim e entregue o resultado.\n${pedido}`
+    : `[nod] Task "${titulo}", aberta por você na conversa com a pessoa. Ela acompanha pela tela da task; faça o trabalho até o fim e entregue o resultado.\n${pedido}`;
+}
+
+/**
+ * O pedido sem a moldura da task (definido em 2026-10-08, QA do épico): o "Fazer aqui" manda o pedido para a CONVERSA, e
+ * a moldura dizia ao bot que a pessoa "acompanha pela tela da task" — que ele estava numa task que acabou de ser
+ * desfeita. Entrada sem a moldura (a da rede é a mensagem da pessoa) volta como está.
+ */
+export function pedidoSemMoldura(titulo: string, entrada: string): string {
+  for (const deRotina of [false, true]) {
+    // revisto em 2026-10-12 (ADR-099, I2): a frente nasce com a moldura dela (molduraDaFrente); a task de antes, com esta.
+    // ADR-187 §7 (2026-11-18): e a tarefa que a pessoa abriu pela tela (o contexto da conversa, se levou, fica no pedido).
+    for (const moldura of [entradaDaTask(titulo, "", deRotina), molduraDaFrente(titulo, deRotina), molduraDaTarefaDaPessoa(titulo)]) {
+      // revisto em 2026-10-12 (ADR-099, I4): a linha de empurrar é da frente; no dono ela não faz sentido.
+      if (entrada.startsWith(moldura)) return semLinhaDeEmpurrar(entrada.slice(moldura.length));
+    }
+  }
+  return entrada;
+}
+
+/**
+ * ADR-187 §6 (definido em 2026-11-18, Paper 4k): o pedido que o dono escreveu ao abrir a frente, para o cartão "Pedido" da
+ * tela da tarefa — a entrada do primeiro turno sem a linha de moldura do nod (uma linha só, que começa em "[nod] "; pela
+ * linha e não pelo texto dela, porque a aba renomeia a tarefa e a moldura leva o título de antes) e sem a de empurrar.
+ * Entrada sem moldura (a fala da pessoa na rede, a tarefa que ela abriu) não é pedido do dono: null.
+ */
+export function pedidoDoDono(entrada: string): string | null {
+  const quebra = entrada.indexOf("\n");
+  if (!entrada.startsWith("[nod] ") || quebra < 0) return null;
+  const pedido = semLinhaDeEmpurrar(entrada.slice(quebra + 1)).trim();
+  return pedido === "" ? null : pedido;
 }
 
 /** O pedido da frente sem a linha de empurrar (o "Fazer aqui" o devolve ao dono, que não devolve resumo nem branch). */
@@ -124,9 +202,9 @@ export const DONO_INTEGRA = "Num repositório, dê a cada frente o repo e o bran
 
 /** "Começou a frente X" ou "Começou 3 frentes: A, B e C" (texto da mensagem `sistema`; a web desenha pelo payload). */
 export function textoFrentesAbertas(titulos: readonly string[]): string {
-  if (titulos.length === 1) return `Começou a frente ${titulos[0]}`;
+  if (titulos.length === 1) return `Começou a tarefa ${titulos[0]}`;
   const lista = titulos.length === 2 ? `${titulos[0]} e ${titulos[1]}` : `${titulos.slice(0, -1).join(", ")} e ${titulos.at(-1)}`;
-  return `Começou ${titulos.length} frentes: ${lista}`;
+  return `Começou ${titulos.length} tarefas: ${lista}`;
 }
 
 /**
@@ -137,7 +215,7 @@ export function textoFrentesAbertas(titulos: readonly string[]): string {
  */
 export function tituloDoLote(titulo: string | null, frentes: number, primeira: string): string {
   if (titulo) return titulo;
-  return frentes === 1 ? primeira : `${frentes} frentes`;
+  return frentes === 1 ? primeira : `${frentes} tarefas`;
 }
 
 /** definido em 2026-10-12 (I2): da última fala da frente, o resumo sem chamada leva até isto (o teto do texto é 1000). */
@@ -145,7 +223,9 @@ export const CORTE_DA_ULTIMA_FALA = 600;
 
 function cortar(texto: string): string {
   const limpo = texto.replace(/\s+/g, " ").trim();
-  return limpo.length > CORTE_DA_ULTIMA_FALA ? `${limpo.slice(0, CORTE_DA_ULTIMA_FALA - 1).trimEnd()}…` : limpo;
+  // Validação de 2026-11-17 (ADR-187): o corte diz que é do nod. Sem isso o dono lia a fala cortada como texto que veio
+  // pela metade e dizia à pessoa que faltava o fim (a tarefa da rede tinha entregue 9.262 caracteres inteiros).
+  return limpo.length > CORTE_DA_ULTIMA_FALA ? `${limpo.slice(0, CORTE_DA_ULTIMA_FALA - 1).trimEnd()}… [o nod cortou este resumo aqui; a fala original tem ${texto.trim().length} caracteres e não veio cortada]` : limpo;
 }
 
 /**
