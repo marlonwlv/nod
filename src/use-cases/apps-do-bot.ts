@@ -190,7 +190,7 @@ async function gravar(deps: Deps, agenteId: string, nova: readonly string[]): Pr
 
 // ------------------------------------------------------------------------------------------------- remover / restaurar
 
-export async function removerApp(deps: Deps, input: Comum & { app: string }): Promise<{ data: Resultado<{ paginas: PaginasDto; app: AppDto }>; events: RuntimeEvent[] }> {
+export async function removerApp(deps: Deps, input: Comum & { app: string }): Promise<{ data: Resultado<{ paginas: PaginasDto; app: AppDto; jaEstava?: true }>; events: RuntimeEvent[] }> {
   const f = await preparar(deps, input.agenteId);
   if (f) return { data: f, events: [] };
   const ref = input.app.trim();
@@ -202,7 +202,13 @@ export async function removerApp(deps: Deps, input: Comum & { app: string }): Pr
   // A trava do bot, como em ordenar, restaurar e no card: quem grava a ordem ou conta os apps ao mesmo tempo espera.
   await deps.repos.appsDoBot.travar(input.agenteId);
   const app = await acharApp(deps, input.agenteId, ref);
-  if (!app) return { data: falha("nao_encontrado", `o app ${ref} não existe neste bot`), events: [] };
+  if (!app) {
+    // QA-138: o remover repetido (retry do bot, duplo clique) acha o app já fora: devolve o mesmo resultado, sem evento,
+    // em vez de "não existe" (que fazia o bot dizer à pessoa que falhou o que já tinha saído).
+    const fora = await acharApp(deps, input.agenteId, ref, { removido: true });
+    if (fora) return { data: { ok: true, paginas: await montar(deps, input.agenteId), app: paraDto(fora, deps.agora()), jaEstava: true }, events: [] };
+    return { data: falha("nao_encontrado", `o app ${ref} não existe neste bot`), events: [] };
+  }
   const removido = await deps.repos.appsDoBot.remover(app.id, deps.agora());
   if (!removido) return { data: falha("nao_encontrado", "o app já foi removido"), events: [] };
   // Retenção: só o último removido de cada nome fica para o Desfazer (o restaurar pelo nome já traz só ele); os de antes
@@ -213,13 +219,18 @@ export async function removerApp(deps: Deps, input: Comum & { app: string }): Pr
 }
 
 /** O Desfazer da remoção: volta no lugar que tinha na ordem (a ordem guardada não perde o id enquanto ele está fora). */
-export async function restaurarApp(deps: Deps, input: Comum & { app: string }): Promise<{ data: Resultado<{ paginas: PaginasDto; app: AppDto }>; events: RuntimeEvent[] }> {
+export async function restaurarApp(deps: Deps, input: Comum & { app: string }): Promise<{ data: Resultado<{ paginas: PaginasDto; app: AppDto; jaEstava?: true }>; events: RuntimeEvent[] }> {
   const f = await preparar(deps, input.agenteId);
   if (f) return { data: f, events: [] };
   // A trava antes de contar: um card confirmado ao mesmo tempo espera (ou é esperado), e o limite vale para os dois.
   await deps.repos.appsDoBot.travar(input.agenteId);
   const app = await acharApp(deps, input.agenteId, input.app, { removido: true });
-  if (!app) return { data: falha("nao_encontrado", `não há app removido com esse id ou nome neste bot: ${input.app.trim()}`), events: [] };
+  if (!app) {
+    // QA-138: o restaurar repetido acha o app já de volta na pílula: devolve o mesmo resultado, sem evento.
+    const vivo = await acharApp(deps, input.agenteId, input.app);
+    if (vivo) return { data: { ok: true, paginas: await montar(deps, input.agenteId), app: paraDto(vivo, deps.agora()), jaEstava: true }, events: [] };
+    return { data: falha("nao_encontrado", `não há app removido com esse id ou nome neste bot: ${input.app.trim()}`), events: [] };
+  }
   const atual = await montar(deps, input.agenteId);
   if (!atual.cabeMais) return { data: falha("limite_de_apps", `o bot já tem ${LIMITE_DE_APPS - 1} apps, o limite (a ${LIMITE_DE_APPS}ª página é de Tarefas): remova um antes`), events: [] };
   const r = await deps.repos.appsDoBot.restaurar(app.id);
