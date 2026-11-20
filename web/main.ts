@@ -12536,6 +12536,27 @@ function abrirMenuDaBiblioteca(ancora: HTMLElement): void {
   // Revisão 2 (achado 2): a Biblioteca redesenha durante a espera (SSE, a releitura com `ate`) e troca o botão "…";
   // posição, aria-expanded e o foco de volta seguem o botão que está na tela.
   const ancoraViva = (): HTMLElement => (ancora.isConnected ? ancora : document.querySelector<HTMLElement>(`#detalhes [data-act="biblioteca-menu"][data-id="${CSS.escape(id)}"]`)) ?? ancora;
+  const irAteDaBiblioteca = (fala: HTMLElement, vizinha: boolean): void => {
+    abrirDetalhesAcima(fala);
+    // NOD-382: no celular, ir para a mensagem fecha o perfil de verdade (o estado junto), e a pessoa fica no chat.
+    if (ehCelular() && estado.perfilCelular) fecharPerfil("chat", false);
+    else if (window.matchMedia("(max-width: 1099px)").matches) {
+      document.querySelector(".app")?.classList.remove("detalhes-abertos");
+      marcarPainelNaPilula();
+    }
+    // Revisão 3 (B5): a vizinha não leva o realce de "é esta" (como o alvoDoQueEspera de levar-ao-alvo.ts).
+    levarAo(fala, !vizinha);
+  };
+  // ADR-179: o do Base UI quando o módulo dos diálogos chegou; a espera do Ir é a mesma.
+  if (moduloDosDialogos) {
+    moduloDosDialogos.abrirMenuDaBibliotecaNoReact(document, {
+      ancora, ancoraViva, nome, baixar: Boolean(url),
+      aoBaixar: () => { if (!url) return; const a = document.createElement("a"); a.href = baixarUrl(url); a.download = nome; a.click(); },
+      ir: (ui) => (mensagemDe ? irParaFalaDaBiblioteca(mundoDaFala, ui, conversa, mensagemDe) : null),
+      irAte: irAteDaBiblioteca,
+    });
+    return;
+  }
   const d = dialogo(htmlDoMenuDaBiblioteca({ nome, baixar: Boolean(url) }), true);
   d.setAttribute("aria-label", `Ações de ${nome}`);
   d.classList.add("menu-compartilhar");
@@ -12574,15 +12595,7 @@ function abrirMenuDaBiblioteca(ancora: HTMLElement): void {
     fechar: () => { if (d.open) d.close(); },
     irAte: (fala, vizinha) => {
       if (d.open) d.close();
-      abrirDetalhesAcima(fala);
-      // NOD-382: no celular, ir para a mensagem fecha o perfil de verdade (o estado junto), e a pessoa fica no chat.
-      if (ehCelular() && estado.perfilCelular) fecharPerfil("chat", false);
-      else if (window.matchMedia("(max-width: 1099px)").matches) {
-        document.querySelector(".app")?.classList.remove("detalhes-abertos");
-        marcarPainelNaPilula();
-      }
-      // Revisão 3 (B5): a vizinha não leva o realce de "é esta" (como o alvoDoQueEspera de levar-ao-alvo.ts).
-      levarAo(fala, !vizinha);
+      irAteDaBiblioteca(fala, vizinha);
     },
   });
   d.addEventListener("click", (e) => {

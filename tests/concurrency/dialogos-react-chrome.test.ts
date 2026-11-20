@@ -30,6 +30,16 @@ import { abrirMenuDeHtmlNoReact } from "./web/react/dialogos/menu-de-html.tsx";
 import { abrirMenuModoNoReact } from "./web/react/dialogos/menu-modo.tsx";
 import { abrirMenuIaNoReact } from "./web/react/dialogos/menu-ia.tsx";
 import { travarToqueDuploEm } from "./web/telas/folha-mais.ts";
+import { abrirMenuDaBibliotecaNoReact } from "./web/react/dialogos/menu-da-biblioteca.tsx";
+window.__biblioteca = () => {
+  window.__ui = null; window.__foi = null; window.__baixou = false; window.__soltou = false;
+  let b = document.getElementById("bib-mais");
+  if (!b) { b = Object.assign(document.createElement("button"), { id: "bib-mais", textContent: "…" }); b.style.cssText = "position:fixed;left:900px;top:200px;width:32px;height:32px"; document.body.append(b); }
+  b.focus();
+  abrirMenuDaBibliotecaNoReact(document, { ancora: b, ancoraViva: () => b, nome: "foto.png", baixar: true, aoBaixar: () => { window.__baixou = true; },
+    ir: (ui) => { window.__ui = ui; ui.carregando(); return { soltar: () => { window.__soltou = true; } }; },
+    irAte: (fala, vizinha) => { window.__foi = fala.id + ":" + vizinha; } });
+};
 window.__travar = () => { const menus = document.querySelectorAll(".rx-menu"); travarToqueDuploEm(menus[menus.length - 1]); };
 window.__menuIa = (html) => {
   window.__ia = null; window.__mudou = [];
@@ -508,5 +518,28 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await tocar();
     await ate(`window.__ia !== null`);
     expect(JSON.parse(await avaliar<string>(cdp, "window.__ia"))).toEqual({ tipo: "auto" });
+  }, 60_000);
+
+  it("o menu da Biblioteca: embaixo do …, alinhado à direita; o Ir carregando fica desligado e focável; a falha mostra a nota com o foco; depois, ir até a fala fecha", async () => {
+    await esperar(300);
+    await avaliar(cdp, "window.__biblioteca()");
+    await ate(`document.activeElement?.dataset?.gestao === "baixar"`);
+    const r = await avaliar<{ topo: number; direita: number }>(cdp, `(() => { const m = document.querySelector(".bot-menu.rx-menu.menu-compartilhar").getBoundingClientRect(); return { topo: Math.round(m.top), direita: Math.round(m.right) }; })()`);
+    expect(r).toEqual({ topo: 238, direita: 932 });
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.gestao === "ir"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`document.activeElement?.textContent === "Carregando…" && document.activeElement.getAttribute("aria-disabled") === "true"`);
+    expect(await avaliar<string>(cdp, `document.querySelector(".rx-menu .menu-status").textContent`)).toBe("Carregando…");
+    await avaliar(cdp, "window.__ui.falhou(false)");
+    await ate(`document.activeElement?.classList.contains("menu-nota")`);
+    expect(await avaliar<string>(cdp, `document.activeElement.textContent`)).toContain("demorou");
+    expect(await avaliar<string>(cdp, `document.querySelector('.rx-menu [data-gestao="ir"]').textContent`)).toBe("Ir para a mensagem");
+    await avaliar(cdp, `(() => { const f = Object.assign(document.createElement("div"), { id: "fala-1" }); document.body.append(f); window.__ui.irAte(f, true); })()`);
+    await ate(`!document.querySelector(".rx-menu-host")`);
+    expect(await avaliar<string>(cdp, "window.__foi")).toBe("fala-1:true");
+    expect(await avaliar<boolean>(cdp, "window.__soltou")).toBe(true);
+    expect(await avaliar<string | null>(cdp, `document.getElementById("bib-mais").getAttribute("aria-expanded")`)).toBe("false");
+    expect(await avaliar<boolean>(cdp, "window.__ui.aberto()")).toBe(false);
   }, 60_000);
 });

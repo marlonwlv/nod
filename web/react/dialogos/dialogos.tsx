@@ -14,3 +14,4 @@ export { abrirMenuDoBotNoReact } from "./menu-do-bot.tsx";
 export { abrirMenuDeHtmlNoReact } from "./menu-de-html.tsx";
 export { abrirMenuModoNoReact } from "./menu-modo.tsx";
 export { abrirMenuIaNoReact } from "./menu-ia.tsx";
+export { abrirMenuDaBibliotecaNoReact } from "./menu-da-biblioteca.tsx";

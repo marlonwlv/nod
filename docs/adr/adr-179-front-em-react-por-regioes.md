@@ -169,6 +169,9 @@ e o JSX leem — o HTML por string saiu idêntico em 1.155 estados.
 `?janelas-react=0`: o topo do Quick Chat (ADR-173: a pílula do bot com o `<select>` nativo por baixo, o alfinete da mesa,
 ⤢ e ✕) e o avatar solto na mesa, com o mesmo DOM de `htmlTopoQuickChat` e `htmlAvatarDaMesa` e as ações por prop. O
 módulo só baixa nessas janelas; a assinatura do main segue decidindo quando redesenhar.
+E **o menu da Biblioteca** (NOD-363, `web/react/dialogos/menu-da-biblioteca.tsx`): o mesmo conteúdo de
+`htmlDoMenuDaBiblioteca` e a mesma espera do "Ir para a mensagem" (`criarMenuDoIr`, `irParaFalaDaBiblioteca`); o item
+carregando e a nota da falha são estado, e o Ir carregando fica desligado e focável, como o `aria-disabled` de antes.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
