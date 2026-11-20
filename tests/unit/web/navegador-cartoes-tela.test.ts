@@ -41,7 +41,7 @@ describe("o pedido do navegador na conversa (L1–L4)", () => {
     expect(comVista?.html).toContain("Usar o cofre do nod");
     expect(comVista?.html).toContain("Para baixar a fatura de novembro · itau.com.br");
     const semVista = cartaoDoPedidoDoNavegador(pergunta, estadoCom({ mensagens: [pergunta], fio: "esperando_voce" }));
-    expect(semVista?.html).toContain("Abrir o navegador de Ada");
+    expect(semVista?.html).toContain("Abrir o navegador da Ada");
     const euMesmo = cartaoDoPedidoDoNavegador(pergunta, estadoCom({ mensagens: [pergunta], fio: "esperando_voce", navegador: { vista: vista({ pedido: { ...login, etapa: "eu_mesmo" } }), disponivel: true } }));
     expect(euMesmo?.html).toContain("Você está entrando no Itaú no navegador");
     expect(euMesmo?.html).not.toContain("nv-login");

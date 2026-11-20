@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OperacaoNavegador, RespostaNavegador, VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import { criarNavegadorNaTela, lerAbasDeLugar, MS_RELOGIO_GRAVACAO } from "../../../web/telas/navegador.ts";
-import { ESPERAS_DO_CANAL_MS, montarVistaNavegador, type SocketDaVista } from "../../../web/telas/navegador-vista.ts";
+import { ESPERAS_DO_CANAL_MS, montarVistaNavegador, MS_CRUZAR_PILULA, type SocketDaVista } from "../../../web/telas/navegador-vista.ts";
 
 /**
  * ADR-190 (Paper D1–D8) em happy-dom: a vista do navegador (o canal ao vivo falso, a pílula, o assumir e devolver, o mouse e
@@ -56,7 +56,7 @@ describe("a vista do navegador (D1–D4)", () => {
   beforeEach(() => { sockets = []; document.body.innerHTML = ""; });
   afterEach(() => { vi.useRealTimers(); });
 
-  function montar(r: RespostaNavegador | null = resposta(), o: { decidir?: (id: string, a: boolean, s: boolean) => Promise<void> } = {}) {
+  function montar(r: RespostaNavegador | null = resposta(), o: { decidir?: (id: string, a: boolean, s: boolean) => Promise<void>; menosMovimento?: () => boolean } = {}) {
     const { api, ops } = apiFalsa();
     const v = montarVistaNavegador({ api, agenteId: "a1", nome: () => "Ada", abrirSocket: () => { const s = new SocketFalso(); sockets.push(s); return s; }, menosMovimento: () => true, ...o });
     document.body.append(v.el);
@@ -69,7 +69,7 @@ describe("a vista do navegador (D1–D4)", () => {
     const { v } = montar();
     expect(sockets).toHaveLength(1);
     expect(v.el.dataset.estado).toBe("conectando");
-    expect(v.el.querySelector(".nv-estado-conectando")?.textContent).toContain("Conectando à tela de Ada…");
+    expect(v.el.querySelector(".nv-estado-conectando")?.textContent).toContain("Conectando à tela da Ada…");
     sockets[0]!.chega({ t: "quadro", seq: 1, jpeg: "QUJD", w: 1280, h: 800 });
     expect(v.el.dataset.estado).toBe("ao_vivo");
     const img = v.el.querySelector<HTMLImageElement>(".nv-quadro")!;
@@ -197,6 +197,43 @@ describe("a vista do navegador (D1–D4)", () => {
     v.ligar(false);
     expect(sockets[0]!.fechado).toBe(true);
   });
+
+  it("D8: assumir e devolver trocam o texto da pílula em fade cruzado de 180 ms; a velha não recebe clique nem leitor", () => {
+    vi.useFakeTimers();
+    const { v } = montar(resposta(), { menosMovimento: () => false });
+    expect(v.el.querySelector(".nv-pilula")?.getAttribute("data-estado")).toBe("assistindo");
+    v.atualizar(resposta({ controle: "pessoa" }));
+    const sai = v.el.querySelector<HTMLElement>(".nv-pilula-sai")!;
+    expect(sai.dataset.estado).toBe("assistindo");
+    expect(sai.getAttribute("aria-hidden")).toBe("true");
+    expect(sai.inert).toBe(true);
+    expect(sai.hasAttribute("role")).toBe(false);
+    const entra = v.el.querySelector<HTMLElement>(".nv-pilula:not(.nv-pilula-sai)")!;
+    expect(entra.dataset.estado).toBe("controle");
+    expect(entra.classList.contains("nv-pilula-entra")).toBe(true);
+    vi.advanceTimersByTime(MS_CRUZAR_PILULA);
+    expect(v.el.querySelector(".nv-pilula-sai")).toBeNull();
+    expect(v.el.querySelectorAll(".nv-pilula")).toHaveLength(1);
+    expect(entra.classList.contains("nv-pilula-entra")).toBe(false);
+    // Login e aprovação são outra pergunta: troca seca.
+    v.atualizar(resposta({ controle: "precisa_de_voce", pedido: { tipo: "login", decisaoId: "d", site: "itau.com.br", motivo: "", opcoes: [], podeTrazerDoChrome: false, etapa: "eu_mesmo", erro: null } }));
+    expect(v.el.querySelector(".nv-pilula-sai")).toBeNull();
+  });
+
+  it("D8 com movimento reduzido: a troca da pílula é seca", () => {
+    const { v } = montar();
+    v.atualizar(resposta({ controle: "pessoa" }));
+    expect(v.el.querySelector(".nv-pilula-sai")).toBeNull();
+    expect(v.el.querySelectorAll(".nv-pilula")).toHaveLength(1);
+  });
+
+  it("achado 10: o pedido de ajuda vira a faixa só com o motivo; a ação é a da pílula", () => {
+    const { v } = montar(resposta({ controle: "precisa_de_voce", pedido: { tipo: "ajuda", decisaoId: "d", motivo: "O site quer provar que é uma pessoa (CAPTCHA)", codigo: false } }));
+    const faixa = v.el.querySelector(".nv-aviso-site")!;
+    expect(faixa.textContent).toContain("O site quer provar que é uma pessoa (CAPTCHA)");
+    expect(faixa.querySelector("button")).toBeNull();
+    expect(v.el.querySelector(".nv-pilula")?.textContent).toContain("Assumir o controle");
+  });
 });
 
 describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
@@ -245,7 +282,10 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(painel().querySelector(".nv-lugares")?.textContent).toMatch(/Navegador.*Computador/);
     for (const a of ["em-aba", "tela-cheia", "menu", "fechar"]) expect(painel().querySelector(`[data-nv-p="${a}"]`)).not.toBeNull();
     expect(painel().querySelector(".nv-vista")).not.toBeNull();
-    expect(navegador.htmlBotaoDoCanto("a1")).toContain('aria-pressed="true"');
+    // C1 e 1a (Paper): com o painel aberto o botão do canto sai do cabeçalho; fechado, ele volta.
+    expect(navegador.htmlBotaoDoCanto("a1")).toBe("");
+    navegador.fechar();
+    expect(navegador.htmlBotaoDoCanto("a1")).toContain('aria-pressed="false"');
   });
 
   it("a alça: duplo clique volta ao padrão; as setas mudam 24 px; a largura é lembrada por pessoa", () => {
@@ -283,7 +323,7 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(app().classList.contains("nv-aba-ativa")).toBe(true);
     expect(navegador.abaNaFileira("a1")?.html).toContain('aria-current="page"');
     expect(lerAbasDeLugar(window.localStorage.getItem("nod:navegador:abas"))).toEqual(new Set(["a1"]));
-    expect(painel().querySelector(".nv-legenda")?.textContent).toBe("Navegador de Ada");
+    expect(painel().querySelector(".nv-legenda")?.textContent).toBe("Navegador da Ada");
     navegador.fecharAba("a1");
     expect(navegador.abaAberta("a1")).toBe(false);
     expect(app().classList.contains("nv-aba-ativa")).toBe(false);
@@ -327,7 +367,7 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     document.body.append(aba);
     aba.querySelector(".nv-aba-lugar")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }));
     const menu = document.querySelector(".nv-menu")!;
-    expect(menu.textContent).toMatch(/Pôr ao lado da conversa.*Assumir.*Abrir em tela cheia.*Fechar aba.*Encerrar o navegador de Ada/);
+    expect(menu.textContent).toMatch(/Pôr ao lado da conversa.*Assumir o controle.*Abrir em tela cheia.*Fechar aba.*Fechar os outros lugares.*Encerrar o navegador da Ada/);
     navegador.sincronizar({ agenteId: "a1", navegadores: { a1: resposta({ passo: { tipo: "clicar", frase: "", caixa: null, em: Date.now() } }) } });
     menu.querySelector<HTMLButtonElement>('[data-nv-menu="encerrar"]')!.click();
     expect(menu.textContent).toContain("está no meio de algo");
@@ -343,7 +383,7 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(d).not.toBeNull();
     expect(d.querySelector(".nv-tc-lugares")?.textContent).toMatch(/Navegador.*Computador/);
     expect(d.querySelector(".nv-tc-titulo")?.textContent).toBe("Ada");
-    expect(d.querySelector(".nv-recado-bt")?.textContent).toBe("Recado para Ada");
+    expect(d.querySelector(".nv-recado-bt")?.textContent).toBe("Recado para a Ada");
     expect(d.querySelector(".nv-vista")).not.toBeNull();
     const esc = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
     d.dispatchEvent(esc);
@@ -353,6 +393,19 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(document.querySelector("dialog.nv-tc")).toBeNull();
     expect(navegador.onde()).toEqual({ agenteId: "a1", modo: "painel" });
     expect(painel().querySelector(".nv-vista")).not.toBeNull();
+  });
+
+  it("5c: o lugar ativo (vivo, precisa de você, no controle) vai ao botão de abas e à pílula; o botão de abas o põe na fileira sem abrir", () => {
+    expect(navegador.lugarAtivo("a1")).toEqual({ agenteId: "a1", rotulo: "Navegador da Ada", estado: "ao vivo", ponto: "vivo", site: "Google Voos" });
+    navegador.sincronizar({ agenteId: "a1", navegadores: { a1: resposta({ controle: "precisa_de_voce" }) } });
+    expect(navegador.lugarAtivo("a1")).toMatchObject({ estado: "precisa de você", ponto: "precisa" });
+    navegador.sincronizar({ agenteId: "a1", navegadores: { a1: resposta({ estado: "pausa" }) } });
+    expect(navegador.lugarAtivo("a1")).toBeNull();
+    expect(navegador.lugarAtivo("outro")).toBeNull();
+    navegador.porNaFileira("a1");
+    expect(navegador.abaAberta("a1")).toBe(true);
+    expect(navegador.abaAtiva("a1")).toBe(false);
+    expect(painel().hidden).toBe(true);
   });
 
   it("sair da conversa do bot fecha o painel sem parar o bot", () => {
@@ -399,7 +452,8 @@ describe("ensinar uma tarefa na tela cheia (T1, T2)", () => {
     navegador.abrirPainel("a1");
     document.querySelector<HTMLButtonElement>('#navegador-painel [data-nv-p="menu"]')!.click();
     const item = document.querySelector<HTMLButtonElement>('.nv-menu [data-nv-menu="ensinar"]')!;
-    expect(item.textContent).toBe("Ensinar uma tarefaMostre aqui; Ada aprende");
+    // Achado 15: o mesmo subtítulo do + do campo.
+    expect(item.textContent).toBe("Ensinar uma tarefaMostre no navegador da Ada; ela aprende");
     item.click();
     await vi.waitFor(() => expect(ensinos).toEqual([["comecar", undefined]]));
     expect(operacoes).toContain("assumir");

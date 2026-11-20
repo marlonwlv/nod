@@ -4,9 +4,9 @@ import { htmlBarraDeGravacao, htmlPassosGravados, rotuloDaGravacao } from "../li
 import { esc } from "../lib/escape.ts";
 import { movimentoReduzido } from "../lib/movimento.ts";
 import {
-  alturaDaFolha, botNoMeio, CHAVE_LARGURA, gravarLargura, htmlAbaDeLugar, htmlAcoesDoPainel, htmlBotaoDoCanto, htmlLinhaDoNavegador, htmlLugares, htmlMenuDoNavegador, ICONES_NAVEGADOR,
+  alturaDaFolha, aoNome, botNoMeio, CHAVE_LARGURA, comArtigo, deNome, fraseMaiuscula, gravarLargura, htmlAbaDeLugar, htmlAcoesDoPainel, htmlBotaoDoCanto, htmlLinhaDoNavegador, htmlLugares, htmlMenuDoNavegador, ICONES_NAVEGADOR,
   imantar, larguraPadrao, legendaDoPasso, lerLargura, limitarLargura, linhaDoNavegadorVisivel, modoDoPainel, PAINEL_MIN, pontoDoLugar, proximoEncaixe, soltarFecha, soltarFolha,
-  estadoDaAbaDeLugar, htmlLugaresFechados, lugarFechadoAMao, type LugarDaVista, type ModoDoPainel, type PosicaoDaFolha,
+  estadoDaAbaDeLugar, htmlLugaresFechados, lugarFechadoAMao, tituloDaAbaAtiva, type LugarDaVista, type ModoDoPainel, type PosicaoDaFolha,
 } from "../lib/navegador-vista.ts";
 import { montarVistaNavegador, type Hospedeiro, type OpcoesDaVista, type VistaMontada } from "./navegador-vista.ts";
 
@@ -56,6 +56,9 @@ export type OpcoesNavegadorNaTela = {
 
 type Lugar = { agenteId: string; modo: "painel" | "aba" | "folha"; lugar: LugarDaVista };
 
+/** 5c: o lugar onde o bot está agora, como o botão de abas e a pílula do campo o mostram. */
+export type LugarAtivo = { agenteId: string; rotulo: string; estado: string; ponto: "vivo" | "precisa"; site: string };
+
 const CHAVE_ABAS = "nod:navegador:abas";
 /** D8: o painel abre em 260 ms (mola suave) e fecha em 200 ms. Movimento reduzido: fade de 120/100 ms. */
 export const MS_PAINEL_ABRE = 260;
@@ -66,6 +69,15 @@ export const MS_AVISO = 5_000;
 export const MS_DICA_ABA = 600;
 /** T2: o relógio da barra de gravação anda de segundo em segundo. */
 export const MS_RELOGIO_GRAVACAO = 1_000;
+/**
+ * D6, C e achado 13 do crítico: a folha do celular anda por `translateY` (não pela altura) em 320 ms, com a curva do
+ * projeto, sem passar do ponto; o quique (a curva que passa e volta) só quando a pessoa solta com velocidade.
+ */
+export const MS_FOLHA = 320;
+export const CURVA_FOLHA = "cubic-bezier(.22, 1, .36, 1)";
+export const CURVA_FOLHA_EMBALO = "cubic-bezier(.32, 1.2, .5, 1)";
+/** A velocidade (px/ms) acima da qual a soltura "tem embalo" (a mesma de soltarFolha). */
+const VELOCIDADE_DO_EMBALO = 0.6;
 /** D7: arrastar a aba de lugar começa depois de 6 px; soltar a até 80 px da borda direita a põe ao lado da conversa. */
 export const ARRASTO_MIN_PX = 6;
 export const BORDA_PAINEL_PX = 80;
@@ -231,8 +243,8 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
 
   /** O lugar "Computador" no painel: a tela de hoje abre na tela cheia dela (o computador não muda nesta entrega). */
   function htmlComputador(agenteId: string): string {
-    const n = esc(nomeDe(agenteId));
-    return `<div class="nv-computador"><span class="nv-estado-ic" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><b>Computador de ${n}</b><span class="nv-estado-sub">A tela do computador abre por inteiro.</span><button type="button" class="nv-estado-bt" data-nv-p="abrir-computador">Abrir a tela</button></div>`;
+    const n = esc(deNome(nomeDe(agenteId)));
+    return `<div class="nv-computador"><span class="nv-estado-ic" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><b>Computador ${n}</b><span class="nv-estado-sub">A tela do computador abre por inteiro.</span><button type="button" class="nv-estado-bt" data-nv-p="abrir-computador">Abrir a tela</button></div>`;
   }
 
   function encaixarVista(): void {
@@ -266,6 +278,8 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
 
   function abrirPainel(agenteId: string, lugar: LugarDaVista = "navegador"): void {
     montar();
+    // C1 e 1a: com o painel aberto o botão do canto sai do cabeçalho; o foco que estava nele vai para o × do painel.
+    const doCanto = !!(document.activeElement as HTMLElement | null)?.closest?.(".nv-canto");
     if (telaCheia) sairDaTelaCheia(false);
     if (o.celular()) { abrirFolha(agenteId, lugar); return; }
     const jaAberto = aberto?.modo === "painel" && aberto.agenteId === agenteId;
@@ -281,6 +295,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     pintarTopo();
     encaixarVista();
     o.render();
+    if (doCanto && !document.activeElement?.closest?.(".nv-canto")) painel.querySelector<HTMLElement>('[data-nv-p="fechar"]')?.focus({ preventScroll: true });
   }
 
   function animarAbrir(alvoL: number): void {
@@ -310,9 +325,10 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     // D4, E: fechar a vista no controle devolve; o aviso com Desfazer só aqui (a devolução foi indireta).
     if (noControle && o2.devolver !== false) {
       void v!.devolver();
-      if (o2.aviso !== false) avisar(`Devolvido à ${nomeDe(id)}`, () => { abrirPainel(id); void vistaDe(id).assumir(); });
+      if (o2.aviso !== false) avisar(`Devolvido ${aoNome(nomeDe(id))}`, () => { abrirPainel(id); void vistaDe(id).assumir(); });
     }
     if (eraModo === "aba") { fecharAba(id, false); return; }
+    const focoNoPainel = painel.contains(document.activeElement);
     const terminar = (): void => {
       v?.ligar(false);
       painel.hidden = true;
@@ -320,8 +336,10 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       if (aberto?.agenteId === id && aberto.modo === eraModo) aberto = null;
       classesDaApp();
       o.render();
+      // O botão do canto volta ao cabeçalho com o painel fechado: o foco que estava no painel volta para ele.
+      if (focoNoPainel) document.querySelector<HTMLElement>(`.nv-canto[data-agente="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
     };
-    if (eraModo === "folha") { moverFolha("fechada"); window.setTimeout(terminar, reduzido() ? 0 : 320); aberto = null; return; }
+    if (eraModo === "folha") { moverFolha("fechada"); window.setTimeout(terminar, reduzido() ? 0 : MS_FOLHA); aberto = null; return; }
     const a = app();
     if (a && !reduzido() && modo() === "lado") {
       a.classList.add("nv-animando", "nv-fechando");
@@ -403,7 +421,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (abaAtiva === agenteId) desativarAba(agenteId);
     o.render();
     // D7 e 5d: some a aba, o bot continua, aviso com Desfazer e ⌘⇧T.
-    if (comAviso) avisar(`Navegador de ${nomeDe(agenteId)} fechado. ${nomeDe(agenteId)} continua trabalhando.`, () => reabrirFechada(), "⌘⇧T");
+    if (comAviso) avisar(`Navegador ${deNome(nomeDe(agenteId))} fechado. ${fraseMaiuscula(comArtigo(nomeDe(agenteId)))} continua trabalhando.`, () => reabrirFechada(), "⌘⇧T");
   }
 
   function reabrirFechada(id = fechadas.at(-1)): void {
@@ -477,18 +495,40 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     moverFolha(window.matchMedia?.("(orientation: landscape)").matches ? "cheia" : "meia");
   }
 
-  function moverFolha(p: PosicaoDaFolha): void {
+  let animacaoDaFolha: Animation | null = null;
+  /**
+   * Da altura de agora para a nova, por transform (FLIP): crescendo, a folha já tem a altura nova e sobe de onde estava;
+   * encolhendo, desce até o ponto novo e só então perde a altura. Movimento reduzido: vai direto.
+   */
+  function animarFolha(de: number, para: number, embalo: boolean): void {
+    animacaoDaFolha?.cancel();
+    animacaoDaFolha = null;
+    const por = (h: number): void => folha.style.setProperty("--nv-folha-alto", `${Math.round(h)}px`);
+    if (reduzido() || typeof folha.animate !== "function" || Math.abs(para - de) < 1) { por(para); return; }
+    const easing = embalo ? CURVA_FOLHA_EMBALO : CURVA_FOLHA;
+    if (para > de) {
+      por(para);
+      animacaoDaFolha = folha.animate([{ transform: `translateY(${Math.round(para - de)}px)` }, { transform: "none" }], { duration: MS_FOLHA, easing });
+      return;
+    }
+    const a = folha.animate([{ transform: "none" }, { transform: `translateY(${Math.round(de - para)}px)` }], { duration: MS_FOLHA, easing, fill: "forwards" });
+    animacaoDaFolha = a;
+    a.onfinish = () => { por(para); a.cancel(); if (animacaoDaFolha === a) animacaoDaFolha = null; };
+  }
+
+  function moverFolha(p: PosicaoDaFolha, embalo = false): void {
+    const de = folha.getBoundingClientRect().height;
     posFolha = p;
     folha.dataset.pos = p;
     folha.classList.remove("arrastando");
-    folha.style.setProperty("--nv-folha-alto", `${alturaDaFolha(p, window.innerHeight)}px`);
+    animarFolha(de, alturaDaFolha(p, window.innerHeight), embalo);
     if (p === "fechada" && aberto?.modo === "folha") {
       const id = aberto.agenteId;
       const v = vistas.get(id);
-      if (v?.controleComPessoa()) { void v.devolver(); avisar(`Devolvido à ${nomeDe(id)}`, () => abrirPainel(id)); }
+      if (v?.controleComPessoa()) { void v.devolver(); avisar(`Devolvido ${aoNome(nomeDe(id))}`, () => abrirPainel(id)); }
       v?.ligar(false);
       aberto = null;
-      window.setTimeout(() => { if (!aberto) folha.hidden = true; }, reduzido() ? 0 : 320);
+      window.setTimeout(() => { if (!aberto) folha.hidden = true; }, reduzido() ? 0 : MS_FOLHA);
     }
   }
 
@@ -497,6 +537,9 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     const pega = folha.querySelector<HTMLElement>(".nv-folha-pega")!;
     pega.addEventListener("pointerdown", (e) => {
       if ((e.target as HTMLElement).closest("button")) return;
+      // O dedo pega a folha no meio do caminho: ela termina onde ia (a altura certa) e segue o dedo dali.
+      animacaoDaFolha?.finish();
+      animacaoDaFolha = null;
       inicio = { y: e.clientY, alto: alturaDaFolha(posFolha, window.innerHeight), em: e.timeStamp, ultimoY: e.clientY, ultimoEm: e.timeStamp };
       folha.classList.add("arrastando");
       try { pega.setPointerCapture(e.pointerId); } catch { /* sem captura */ }
@@ -514,7 +557,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       const dt = Math.max(1, e.timeStamp - inicio.em);
       const vel = (e.clientY - inicio.y) / dt;
       inicio = null;
-      moverFolha(soltarFolha(alto, window.innerHeight, vel));
+      moverFolha(soltarFolha(alto, window.innerHeight, vel), Math.abs(vel) > VELOCIDADE_DO_EMBALO);
     };
     pega.addEventListener("pointerup", soltar);
     pega.addEventListener("pointercancel", soltar);
@@ -532,7 +575,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     dialog.innerHTML = `<header class="ctc-topo nv-tc-topo"><h1 class="ctc-titulo nv-tc-titulo" id="nv-tc-titulo"></h1><div class="nv-tc-lugares"></div><button type="button" class="nv-tc-sair" data-nv-p="sair" aria-keyshortcuts="Meta+Shift+F">${'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>'}<span>Sair da tela cheia</span></button></header>`
       + `<div class="nv-grav-topo" hidden></div>`
       + `<div class="nv-tc-meio"><div class="nv-tc-corpo"></div><div class="nv-tc-lado" hidden></div></div>`
-      + `<div class="nv-recado"><form class="nv-recado-form" data-nv-form="recado" hidden><input class="nv-recado-input" name="texto" maxlength="2000" autocomplete="off" aria-label="Recado para ${esc(nomeDe(agenteId))}" placeholder="Recado para ${esc(nomeDe(agenteId))}…"><button type="submit" class="nv-recado-enviar">Mandar</button></form><button type="button" class="nv-recado-bt" data-nv-p="recado">Recado para ${esc(nomeDe(agenteId))}</button></div>`;
+      + `<div class="nv-recado"><form class="nv-recado-form" data-nv-form="recado" hidden><input class="nv-recado-input" name="texto" maxlength="2000" autocomplete="off" aria-label="Recado para ${esc(comArtigo(nomeDe(agenteId)))}" placeholder="Recado para ${esc(comArtigo(nomeDe(agenteId)))}…"><button type="submit" class="nv-recado-enviar">Mandar</button></form><button type="button" class="nv-recado-bt" data-nv-p="recado">Recado para ${esc(comArtigo(nomeDe(agenteId)))}</button></div>`;
     document.body.append(dialog);
     dialog.showModal();
     telaCheia = { agenteId, dialog, voltar };
@@ -670,7 +713,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     const ok = await operarEnsinar(agenteId, "salvar", nome.trim() || undefined);
     if (!ok) return;
     nomeando = false;
-    avisar(`Ensinado. A mensagem com os passos foi para ${nomeDe(agenteId)}.`, null);
+    avisar(`Ensinado. A mensagem com os passos foi para ${comArtigo(nomeDe(agenteId))}.`, null);
     // A tarefa foi para a conversa: sair da tela cheia devolve o navegador ao bot.
     if (telaCheia?.agenteId === agenteId) sairDaTelaCheia();
   }
@@ -745,7 +788,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       const agoraV = vistaAtual(agenteId);
       if (acao === "encerrar" && agoraV && botNoMeio(agoraV, Date.now()) && !m.querySelector(".nv-menu-confirma")) {
         // D1c: Encerrar pergunta antes só se o bot está no meio de algo (é o único item que não dá para desfazer).
-        m.innerHTML = `<div class="nv-menu-corpo nv-menu-confirma" role="alertdialog" aria-label="Encerrar o navegador"><p><b>Encerrar o navegador de ${esc(nomeDe(agenteId))}?</b><span>${esc(nomeDe(agenteId))} está no meio de algo. As abas fecham; os logins ficam.</span></p><div class="nv-menu-bts"><button type="button" data-nv-menu="cancelar">Cancelar</button><button type="button" class="danger" data-nv-menu="encerrar">Encerrar</button></div></div>`;
+        m.innerHTML = `<div class="nv-menu-corpo nv-menu-confirma" role="alertdialog" aria-label="Encerrar o navegador"><p><b>Encerrar o navegador ${esc(deNome(nomeDe(agenteId)))}?</b><span>${esc(fraseMaiuscula(comArtigo(nomeDe(agenteId))))} está no meio de algo. As abas fecham; os logins ficam.</span></p><div class="nv-menu-bts"><button type="button" data-nv-menu="cancelar">Cancelar</button><button type="button" class="danger" data-nv-menu="encerrar">Encerrar</button></div></div>`;
         m.querySelector<HTMLElement>('[data-nv-menu="cancelar"]')?.focus();
         return;
       }
@@ -1017,7 +1060,32 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     },
     htmlBotaoDoCanto(agenteId: string): string {
       if (!this.tem(agenteId)) return "";
-      return htmlBotaoDoCanto(agenteId, vistaAtual(agenteId), aberto?.agenteId === agenteId && aberto.modo === "painel");
+      // C1 e 1a (Paper): com o painel aberto ao lado, o botão do canto sai; o painel tem o × e o ⌘\ fecha.
+      if (aberto?.agenteId === agenteId && aberto.modo === "painel") return "";
+      return htmlBotaoDoCanto(agenteId, vistaAtual(agenteId), false);
+    },
+    /**
+     * 5c (2 e 3): o lugar ativo do bot (vivo, esperando a pessoa ou com ela no controle), para o botão de abas e a pílula do
+     * campo. null = nenhum (parado, desligado, sem navegador).
+     */
+    lugarAtivo(agenteId: string): LugarAtivo | null {
+      if (!this.tem(agenteId)) return null;
+      const v = vistaAtual(agenteId);
+      if (!lugarFechadoAMao(v)) return null;
+      const e = estadoDaAbaDeLugar(v);
+      return {
+        agenteId,
+        rotulo: `Navegador ${deNome(nomeDe(agenteId))}`,
+        estado: e === "precisa" ? "precisa de você" : e === "controle" ? "você está no controle" : "ao vivo",
+        ponto: e === "precisa" ? "precisa" : "vivo",
+        site: v ? tituloDaAbaAtiva(v) : "",
+      };
+    },
+    /** 5c (2): o botão de abas leva o lugar ativo para a fileira, sem abri-lo (a Conversa continua à vista). */
+    porNaFileira(agenteId: string): void {
+      if (abasDeLugar.has(agenteId)) return;
+      abasDeLugar = new Set(abasDeLugar).add(agenteId);
+      gravarAbas();
     },
     htmlLinha(agenteId: string): string {
       const v = vistaAtual(agenteId);

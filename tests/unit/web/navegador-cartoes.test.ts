@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { OfertaGuardarLogin, PedidoDaVistaNavegador, TarefaEnsinada } from "../../../src/contracts/navegador-do-bot.ts";
 import { CODIGO_ENVIADO, DO_CHROME, FALA_DA_AJUDA, FALA_DO_CODIGO, FALA_DO_LOGIN, LOGIN_PREENCHIDO, RETOMADA, SO_USUARIO } from "../../../src/adapters/fundo/navegadores.ts";
 import {
-  botoesDoLogin, htmlBarraDeGravacao, htmlCartaoAprovacao, htmlCartaoAprovacaoSemVista, htmlCartaoCodigo, htmlCartaoCombinar, htmlCartaoLogin, htmlHabilidades, htmlLinhaGuardar,
+  botoesDoLogin, htmlBarraDeGravacao, htmlCartaoAjudaNavegador, htmlCartaoAprovacao, htmlCartaoAprovacaoSemVista, htmlCartaoCodigo, htmlCartaoPedidoSemVista, htmlCartaoCombinar, htmlCartaoLogin, htmlHabilidades, htmlLinhaGuardar,
   htmlPassosGravados, htmlSeloDoLogin, linhaDaRespostaDoNavegador, nomeDoSite, nomeSugeridoDosPassos, noOuNa, pedidoDoNavegadorNaFala, rotuloDaGravacao,
 } from "../../../web/lib/navegador-cartoes.ts";
 import { htmlMenuDoMais } from "../../../web/telas/folha-mais.ts";
@@ -127,7 +127,8 @@ describe("A1, A2, A3: as aprovações do navegador", () => {
     expect(html).toContain("Pagar R$ 3.780 na TAP?");
     expect(ordemDosBotoes(html)).toEqual(["Ver a tela", "Não", "Pagar com Touch ID"]);
     const semMac = htmlCartaoAprovacao(ap({ touchId: false, avisoTouchId: "Seu Mac está desligado: a confirmação vai só pelo botão, sem o Touch ID." }), { agenteId: "a1", nome: "Ada", dono: false });
-    expect(ordemDosBotoes(semMac)).toEqual(["Não", "Pagar"]);
+    // Achado 1 do crítico: o botão diz que não vai pedir o Touch ID (o mesmo rótulo da pílula).
+    expect(ordemDosBotoes(semMac)).toEqual(["Não", "Pagar sem Touch ID"]);
     expect(semMac).toContain("sem o Touch ID");
   });
 
@@ -172,11 +173,14 @@ describe("T: ensinar uma tarefa", () => {
     expect(html).toContain("<h2>Passos gravados</h2>");
     expect(html).toContain("<li>1 · Abriu itau.com.br</li>");
     expect(html).toContain('<li class="nv-grav-ultimo">2 · Entrou em Itaú (senha não gravada)</li>');
+    // Achado 15: o nome citado com aspas curvas.
+    expect(htmlPassosGravados(['Clicou em "Faturas"'])).toContain("1 · Clicou em “Faturas”");
   });
 
   it("T1: o menu do + no computador com Ensinar uma tarefa", () => {
     const html = htmlMenuDoMais({ anexar: true, novaTarefa: { texto: "⌘N", aria: "Meta+N" }, ensinar: { agenteId: "a1", nome: "Ada" } });
-    expect(html.replace(/<[^>]+>/g, "|").split("|").filter(Boolean)).toEqual(["Foto ou arquivo", "Nova tarefa ", "⌘N", "Ensinar uma tarefa", "Mostre no navegador da Ada; ela aprende"]);
+    // Achado 15 do crítico: o atalho à direita (o CSS empurra) e o subtítulo igual ao do ⋯ do navegador.
+    expect(html.replace(/<[^>]+>/g, "|").split("|").filter(Boolean)).toEqual(["Foto ou arquivo", "Nova tarefa", "⌘N", "Ensinar uma tarefa", "Mostre no navegador da Ada; ela aprende"]);
     expect(htmlMenuDoMais({ anexar: false, novaTarefa: null, ensinar: { agenteId: "a2", nome: "Milton" } })).toContain("Mostre no navegador do Milton; ele aprende");
   });
 
@@ -193,5 +197,16 @@ describe("T: ensinar uma tarefa", () => {
     expect(lista).not.toContain("nvh-passos");
     expect(htmlHabilidades({ ...base, tarefas: [t], abertas: new Set(["t1"]) }, { agenteId: "a1", nome: "Ada", temNavegador: true })).toContain('<ol class="nvh-passos"><li>Abriu itau.com.br</li>');
     expect(htmlHabilidades({ ...base, tarefas: [t], apagando: new Set(["t1"]) }, { agenteId: "a1", nome: "Ada", temNavegador: true })).toContain("Nenhuma tarefa ensinada ainda");
+  });
+});
+
+describe("achado 7 do crítico: o nome do bot nos cartões (o artigo pela terminação)", () => {
+  it("da/do, à/ao e a/o no código, na ajuda, no caminho até a vista e na gravação", () => {
+    expect(htmlCartaoCodigo({ decisaoId: "d", agenteId: "a1", motivo: "O Itaú mandou um código", nome: "Milton" })).toContain("nem chega ao Milton.");
+    const ajuda = htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "Resolver o CAPTCHA", nome: "Milton" });
+    expect(ajuda).toContain("Assuma o navegador do Milton, faça esse passo e devolva. O Milton não vê o que você digita.");
+    expect(htmlCartaoAjudaNavegador({ decisaoId: "d", agenteId: "a1", motivo: "x", nome: "Ada" })).toContain("Assuma o navegador da Ada, faça esse passo e devolva. A Ada não vê o que você digita.");
+    expect(htmlCartaoPedidoSemVista({ tipo: "ajuda", motivo: "x" }, { decisaoId: "d", agenteId: "a1", nome: "Milton" })).toContain("Abrir o navegador do Milton");
+    expect(htmlHabilidades({ tarefas: [], erro: false, abertas: new Set(), apagando: new Set() }, { agenteId: "a1", nome: "Ada", temNavegador: true })).toContain("mostre no navegador da Ada.");
   });
 });

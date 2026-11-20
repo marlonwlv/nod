@@ -1,6 +1,41 @@
 import type { AbaNavegador, AvisoNavegador, CaixaNavegador, LugarNavegador, PedidoDaVistaNavegador, RespostaNavegador, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { esc } from "./escape.ts";
 
+// ---- o nome do bot em pt-BR (definido em 2026-11-20: sem saber o gênero, nome terminado em "a" é feminino) -------------
+
+/** "Ada", "Nina" → feminino; "Milton", "Nod" → masculino. Sem o gênero no DTO, a terminação decide. */
+export function feminino(nome: string): boolean {
+  return /a$/iu.test(nome.trim());
+}
+/** "a" ou "o" ("Ensinando a Ada", "Recado para o Milton"). */
+export function artigo(nome: string): string {
+  return feminino(nome) ? "a" : "o";
+}
+/** "da Ada", "do Milton" ("Navegador da Ada"). */
+export function deNome(nome: string): string {
+  return `${feminino(nome) ? "da" : "do"} ${nome}`;
+}
+/** "à Ada", "ao Milton" ("Devolver à Ada"). */
+export function aoNome(nome: string): string {
+  return `${feminino(nome) ? "à" : "ao"} ${nome}`;
+}
+/** "a Ada", "o Milton" ("Recado para a Ada"). */
+export function comArtigo(nome: string): string {
+  return `${artigo(nome)} ${nome}`;
+}
+/** "ela", "ele". */
+export function pronome(nome: string): string {
+  return feminino(nome) ? "ela" : "ele";
+}
+/** T1: o subtítulo de "Ensinar uma tarefa", igual no + do campo e no ⋯ do navegador. */
+export function subtituloDeEnsinar(nome: string): string {
+  return `Mostre no navegador ${deNome(nome)}; ${pronome(nome)} aprende`;
+}
+/** As aspas retas de um nome citado viram curvas ("Faturas" → “Faturas”); aspa sem par fica como está. */
+export function aspasCurvas(t: string): string {
+  return t.replace(/"([^"\n]*)"/gu, "\u201c$1\u201d");
+}
+
 /**
  * A vista do navegador do bot na web (ADR-190; Paper "Navegador, computador e seu Mac", linhas 1, 5 e 1+5, detalhes D1–D8).
  * Tudo aqui é puro (sem DOM): o HTML sai pronto, as contas de tamanho e de coordenada são funções, e o teste unitário lê
@@ -38,14 +73,16 @@ const GIRO = '<span class="nv-giro" aria-hidden="true"></span>';
 
 /** O rótulo do botão de uma aprovação (A1): pagar com Touch ID, ou o nome do botão do site ("Apagar", "Enviar"). */
 export function rotuloDaAprovacao(p: Extract<PedidoDaVistaNavegador, { tipo: "aprovacao" }>): string {
-  if (p.classe === "pagar") return p.touchId ? "Pagar com Touch ID" : "Pagar";
+  // Achado do crítico (2026-11-20): sem o app do Mac o botão diz que não vai pedir o Touch ID.
+  if (p.classe === "pagar") return p.touchId ? "Pagar com Touch ID" : "Pagar sem Touch ID";
   const b = p.botao.trim();
   return b ? b.charAt(0).toUpperCase() + b.slice(1, 40) : p.classe === "apagar" ? "Apagar" : "Enviar";
 }
 
 /**
  * A pílula (D1b, A): a mesma da tela cheia do computador (`.ctc-controle`, branca nos dois temas), com o texto do navegador.
- * O botão muda de nome, nunca de lugar (D4). No navegador o devolver diz "Devolver à {Bot}" (D1b, ajuste aceito).
+ * O botão muda de nome, nunca de lugar (D4). No navegador o devolver diz "Devolver à {Bot}" (D1b, ajuste aceito). Na
+ * aprovação (A1) o "sim" é preto como o botão do cartão e, sem o app do Mac, o aviso curto do cartão vai embaixo.
  */
 export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null): string {
   const nomeE = esc(nome);
@@ -53,7 +90,7 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
   let corpo: string;
   switch (estado) {
     case "controle":
-      corpo = `<span class="ctc-estado">${CURSOR_NA_JANELA}<span>Você está no controle</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="Meta+Shift+A" title="${nomeE} espera · ⌘⇧A devolve">Devolver à ${nomeE}</button>`;
+      corpo = `<span class="ctc-estado">${CURSOR_NA_JANELA}<span>Você está no controle</span></span><button type="button" class="ctc-bt ctc-parar nv-devolver" data-nv="devolver" aria-keyshortcuts="Meta+Shift+A" title="${nomeE} espera · ⌘⇧A devolve">Devolver ${esc(aoNome(nome))}</button>`;
       break;
     case "assumindo":
       corpo = `<span class="ctc-estado" role="status">${GIRO}<span>Assumindo…</span><span class="sr-only"> ${nomeE} está terminando um clique</span></span>${assumir(true)}`;
@@ -68,13 +105,14 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
       const p = pedido?.tipo === "aprovacao" ? pedido : null;
       const pergunta = p ? esc(p.pergunta) : "Posso seguir?";
       const sim = p ? esc(rotuloDaAprovacao(p)) : "Sim";
-      corpo = `<span class="ctc-estado nv-precisa-txt nv-pergunta" title="${pergunta}"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span>${pergunta}</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="recusar">Não</button><button type="button" class="ctc-bt nv-pronto" data-nv="aprovar">${sim}</button></span>`;
+      corpo = `<span class="ctc-estado nv-precisa-txt nv-pergunta" title="${pergunta}"><i class="ctc-ponto nv-ponto-precisa" aria-hidden="true"></i><span>${pergunta}</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-nv="recusar">Não</button><button type="button" class="ctc-bt nv-aprovar" data-nv="aprovar">${sim}</button></span>`;
       break;
     }
     default:
       corpo = `<span class="ctc-estado">${OLHO}<span>Assistindo</span></span>${assumir()}`;
   }
-  return `<div class="ctc-controle nv-pilula" data-estado="${estado}" role="group" aria-label="Controle do navegador de ${nomeE}">${corpo}</div>`;
+  const nota = estado === "aprovacao" && pedido?.tipo === "aprovacao" && pedido.avisoTouchId ? `<p class="nv-pilula-nota">${esc(pedido.avisoTouchId)}</p>` : "";
+  return `<div class="ctc-controle nv-pilula" data-estado="${estado}" role="group" aria-label="Controle do navegador ${esc(deNome(nome))}">${corpo}</div>${nota}`;
 }
 
 // ---- a barra do navegador (D2, A e B) -------------------------------------------------------------------------------------
@@ -148,12 +186,14 @@ export function htmlBarraDoNavegador(v: Pick<VistaNavegador, "abas" | "controle"
     const ponto = a.ativa && precisa ? '<i class="nv-aba-ponto" aria-hidden="true"></i>' : "";
     const cursor = a.ativa && !noControle ? CURSORZINHO : "";
     const rotulo = `${titulo}${a.ativa ? `, aba onde ${o.nome} está` : ""}${a.carregando ? ", carregando" : ""}`;
+    // Achado 6 do crítico: no painel estreito a aba inativa mostra só o favicon (o CSS esconde o título); o nome fica no
+    // `title` e no `aria-label`.
     return `<button type="button" class="nv-aba${a.ativa ? " ativa" : ""}" role="tab" aria-selected="${a.ativa}" data-nv="aba" data-aba="${esc(a.id)}"${noControle ? "" : ' aria-disabled="true"'} title="${esc(titulo)}" aria-label="${esc(rotulo)}">${htmlFavicon(a)}<span class="nv-aba-titulo">${esc(titulo)}</span>${cursor}${ponto}</button>`;
   }).join("");
   const maisAbas = mais > 0 ? `<span class="nv-aba-mais" title="${mais} ${mais === 1 ? "outra aba" : "outras abas"}">+${mais}</span>` : "";
   const ativa = v.abas.find((a) => a.ativa) ?? v.abas[0];
   const url = ativa?.url ?? "";
-  const lugar = `<span class="nv-lugar" title="Onde o navegador de ${esc(o.nome)} roda">${esc(textoDoLugar(v.lugar))}</span>`;
+  const lugar = `<span class="nv-lugar" title="Onde o navegador ${esc(deNome(o.nome))} roda">${esc(textoDoLugar(v.lugar))}</span>`;
   let endereco: string;
   if (noControle) {
     const valor = o.editando ?? url;
@@ -166,7 +206,7 @@ export function htmlBarraDoNavegador(v: Pick<VistaNavegador, "abas" | "controle"
     endereco = `<span class="nv-seta" aria-hidden="true">${SETA_VOLTAR}</span><span class="nv-seta" aria-hidden="true">${SETA_AVANCAR}</span>`
       + `<span class="nv-endereco" title="${esc(url)}">${selo}<span class="nv-dominio">${esc(p.dominio)}</span><span class="nv-resto">${esc(p.resto)}</span></span>`;
   }
-  return `<div class="nv-abas" role="tablist" aria-label="Abas do navegador de ${esc(o.nome)}">${abas}${maisAbas}</div><div class="nv-linha-endereco">${endereco}${lugar}</div>`;
+  return `<div class="nv-abas" role="tablist" aria-label="Abas do navegador ${esc(deNome(o.nome))}">${abas}${maisAbas}</div><div class="nv-linha-endereco">${endereco}${lugar}</div>`;
 }
 
 // ---- os avisos do site (D2, D; D1d) -------------------------------------------------------------------------------------
@@ -179,19 +219,24 @@ const TITULO_DO_AVISO: Readonly<Record<AvisoNavegador["tipo"], string>> = {
   janela_nova: "Janela nova",
 };
 
-/** A faixa fina entre o cabeçalho e a vista (um aviso por vez). `acao` (o servidor manda o rótulo) vira o botão. */
+/**
+ * A faixa fina entre o cabeçalho e a vista (um aviso por vez). `acao` (o servidor manda o rótulo) vira o botão. O texto
+ * quebra em até 2 linhas (achado 2 do crítico: o motivo não some) e vai inteiro no `title`. "Precisa de você" fica só
+ * com o motivo (achado 10): a ação é a da pílula, logo embaixo.
+ */
 export function htmlAvisoDoSite(a: AvisoNavegador | null): string {
   if (!a) return "";
-  const botao = a.acao ? `<button type="button" class="nv-aviso-acao" data-nv="aviso" data-tipo="${a.tipo}">${esc(a.acao)}</button>` : "";
-  return `<div class="nv-aviso-site" data-tipo="${a.tipo}" role="status"><b>${TITULO_DO_AVISO[a.tipo]}</b><span class="nv-aviso-txt">${esc(a.texto)}</span>${botao}</div>`;
+  const botao = a.acao && a.tipo !== "precisa_de_voce" ? `<button type="button" class="nv-aviso-acao" data-nv="aviso" data-tipo="${a.tipo}">${esc(aspasCurvas(a.acao))}</button>` : "";
+  const texto = aspasCurvas(a.texto);
+  return `<div class="nv-aviso-site" data-tipo="${a.tipo}" role="status"><b>${TITULO_DO_AVISO[a.tipo]}</b><span class="nv-aviso-txt" title="${esc(texto)}">${esc(texto)}</span>${botao}</div>`;
 }
 
 /** O pedido de ajuda/login vira a mesma faixa (D3, 8 com a D1d: a ação fora da imagem). */
 export function avisoDoPedido(v: Pick<VistaNavegador, "pedido" | "controle">): AvisoNavegador | null {
   const p = v.pedido;
   if (!p || v.controle === "pessoa") return null;
-  if (p.tipo === "login") return { tipo: "precisa_de_voce", texto: `Entrar em ${p.site}`, acao: "Assumir", em: 0 };
-  if (p.tipo === "ajuda") return { tipo: "precisa_de_voce", texto: p.motivo, acao: "Assumir", em: 0 };
+  if (p.tipo === "login") return { tipo: "precisa_de_voce", texto: `Entrar em ${p.site}`, acao: "", em: 0 };
+  if (p.tipo === "ajuda") return { tipo: "precisa_de_voce", texto: p.motivo, acao: "", em: 0 };
   return null;
 }
 
@@ -234,12 +279,14 @@ const ICONE_CADEADO = '<svg width="24" height="24" viewBox="0 0 24 24" fill="non
  */
 export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar" | "abas" | "atividadeEm" | "erro" | "pedido"> | null, nome: string): string {
   const n = esc(nome);
+  const dn = esc(deNome(nome));
   const lugar = v ? textoDoLugar(v.lugar) : "";
   switch (e) {
     case "conectando":
-      return `<div class="nv-estado nv-estado-conectando" role="status"><span class="nv-esq" aria-hidden="true"><i></i><i></i><i></i></span><span class="nv-estado-sub">Conectando à tela de ${n}…</span></div>`;
+      return `<div class="nv-estado nv-estado-conectando" role="status"><span class="nv-esq" aria-hidden="true"><i></i><i></i><i></i></span><span class="nv-estado-sub">Conectando à tela ${dn}…</span></div>`;
     case "ligando":
-      return `<div class="nv-estado nv-estado-ligando" role="status">${GIRO}<b>Ligando o navegador de ${n}</b><span class="nv-estado-sub">${esc(lugar.replace(/^n[oa] /, ""))}${lugar ? " · " : ""}leva uns 10 s</span></div>`;
+      // Achado 8 do crítico: o lugar inteiro ("No nod · leva uns 10 s"), não "nod · leva uns 10 s".
+      return `<div class="nv-estado nv-estado-ligando" role="status">${GIRO}<b>Ligando o navegador ${dn}</b><span class="nv-estado-sub">${esc(fraseMaiuscula(lugar))}${lugar ? " · " : ""}leva uns 10 s</span></div>`;
     case "terminou":
       return v ? `<div class="nv-estado nv-estado-terminou"><span class="nv-selo-fim" role="status">✓ ${n} terminou aqui · ${horaCurta(v.atividadeEm)}</span></div>` : "";
     case "pausa": {
@@ -247,14 +294,17 @@ export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar
       return `<div class="nv-estado nv-estado-parado"><b>Navegador em pausa</b><button type="button" class="nv-estado-bt" data-nv="retomar">Retomar</button>${guardadas ? `<span class="nv-estado-sub">${guardadas} ${guardadas === 1 ? "aba guardada" : "abas guardadas"}</span>` : ""}</div>`;
     }
     case "desligado":
-      return `<div class="nv-estado nv-estado-parado"><span class="nv-estado-ic">${ICONE_MONITOR}</span><b>Navegador de ${n} desligado</b><button type="button" class="nv-estado-bt" data-nv="ligar">Ligar</button></div>`;
+      return `<div class="nv-estado nv-estado-parado"><span class="nv-estado-ic">${ICONE_MONITOR}</span><b>Navegador ${dn} desligado</b><button type="button" class="nv-estado-bt" data-nv="ligar">Ligar</button></div>`;
     case "indisponivel":
-      return `<div class="nv-estado nv-estado-parado"><span class="nv-estado-ic">${ICONE_MONITOR}</span><b>O navegador de ${n} não está ligado aqui</b><span class="nv-estado-sub">${n} usa o navegador no seu Mac.</span><button type="button" class="nv-estado-bt" data-nv="reler">Tentar de novo</button></div>`;
+      return `<div class="nv-estado nv-estado-parado"><span class="nv-estado-ic">${ICONE_MONITOR}</span><b>O navegador ${dn} não está ligado aqui</b><span class="nv-estado-sub">${n} usa o navegador no seu Mac.</span><button type="button" class="nv-estado-bt" data-nv="reler">Tentar de novo</button></div>`;
     case "erro": {
       const causa = v?.erro?.causa ?? "A conexão caiu";
       const quando = v?.erro ? ` às ${horaCurta(v.erro.em)}` : "";
-      const onde = lugar && !/mac/i.test(causa) ? ` · ${lugar}` : "";
-      return `<div class="nv-estado nv-estado-erro" role="alert"><b>Não deu para mostrar a tela</b><span class="nv-estado-sub">${esc(causa)}${quando}${esc(onde)}</span><button type="button" class="nv-estado-bt" data-nv="ligar">Tentar de novo</button></div>`;
+      // Achado 8 do crítico: a causa que já cita o lugar ("A conexão com o nod caiu") não o repete no fim.
+      const onde = lugar && !causaCitaOLugar(causa, v!.lugar) ? ` · ${lugar}` : "";
+      // definido em 2026-11-20: causa que fala da conexão é a vista que caiu, não o trabalho — o bot segue.
+      const segue = quedaDaVista(causa) ? ` ${fraseMaiuscula(comArtigo(nome))} continua trabalhando.` : "";
+      return `<div class="nv-estado nv-estado-erro" role="alert"><b>Não deu para mostrar a tela</b><span class="nv-estado-sub">${esc(fraseMaiuscula(causa))}${quando}${esc(onde)}${segue ? `.${esc(segue)}` : ""}</span><button type="button" class="nv-estado-bt" data-nv="ligar">Tentar de novo</button></div>`;
     }
     case "segredo": {
       // L3: o campo de senha verde "Campo protegido"; o selo "Entrando com o 1Password…" mora na faixa de baixo.
@@ -263,6 +313,19 @@ export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar
     default:
       return "";
   }
+}
+
+/** A causa do erro já diz onde ("A conexão com o nod caiu", "Seu Mac está desligado", "A vm-sp está fora do ar")? */
+export function causaCitaOLugar(causa: string, l: LugarNavegador): boolean {
+  const nome = l.tipo === "nod" ? "nod" : l.nome;
+  const c = causa.toLocaleLowerCase("pt-BR");
+  // A causa que fala do Mac já diz onde o problema está (o lugar de agora seria outra pista, e confunde).
+  return c.includes(nome.toLocaleLowerCase("pt-BR")) || /\bmac\b/u.test(c);
+}
+
+/** A queda é da vista (a conexão até a tela), não do navegador: o bot continua no site. */
+export function quedaDaVista(causa: string): boolean {
+  return /conex[aã]o/iu.test(causa);
 }
 
 // ---- a imagem, o letterbox e as coordenadas (D1, 4; D5) -------------------------------------------------------------------
@@ -413,9 +476,16 @@ export function pontoDoLugar(v: Pick<VistaNavegador, "estado" | "controle" | "pe
   return null;
 }
 
-/** O seletor segmentado (D1, 1; D8: a pílula branca desliza). Só os lugares que o bot tem. */
+/**
+ * O seletor segmentado (D1, 1; D8: a pílula branca desliza). Só os lugares que o bot tem. Com um lugar só (achado 11 do
+ * crítico), não há o que escolher: vira o rótulo, sem fundo, sombra nem botão.
+ */
 export function htmlLugares(lugares: readonly LugarDaVista[], ativo: LugarDaVista, ponto: "vivo" | "precisa" | null, o: { escuro?: boolean } = {}): string {
   const nomes: Record<LugarDaVista, string> = { navegador: "Navegador", computador: "Computador" };
+  if (lugares.length <= 1) {
+    const marca = ponto ? `<i class="nv-lugar-ponto" data-ponto="${ponto}" aria-hidden="true"></i>` : "";
+    return `<span class="nv-lugares nv-lugar-unico${o.escuro ? " nv-lugares-escuro" : ""}">${marca}<span>${nomes[lugares[0] ?? ativo]}</span></span>`;
+  }
   const i = Math.max(0, lugares.indexOf(ativo));
   const itens = lugares.map((l) => {
     const marca = l === ativo && ponto ? `<i class="nv-lugar-ponto" data-ponto="${ponto}" aria-hidden="true"></i>` : "";
@@ -441,19 +511,19 @@ export function htmlAcoesDoPainel(o: { celular?: boolean } = {}): string {
  * navegador (vermelho). No modo abas, o clique direito da aba (D7) leva os itens da aba antes (`daAba`).
  */
 export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEndereco?: boolean; controle?: boolean; ensinar?: boolean } = {}): string {
-  const n = esc(nome);
+  // Achado 15 do crítico: um rótulo só ("Assumir o controle"), atalhos à direita em cinza e "Fechar os outros lugares".
   const aba = o.daAba
-    ? `<button type="button" role="menuitem" data-nv-menu="ao-lado">Pôr ao lado da conversa</button>${o.controle ? "" : '<button type="button" role="menuitem" data-nv-menu="assumir">Assumir</button>'}<button type="button" role="menuitem" data-nv-menu="tela-cheia">Abrir em tela cheia</button><hr><button type="button" role="menuitem" data-nv-menu="fechar-aba">Fechar aba<span class="nv-menu-dica">· ⌘W</span></button><button type="button" role="menuitem" data-nv-menu="fechar-outras">Fechar as outras abas de lugar</button><hr>`
+    ? `<button type="button" role="menuitem" data-nv-menu="ao-lado">Pôr ao lado da conversa</button>${o.controle ? "" : '<button type="button" role="menuitem" data-nv-menu="assumir">Assumir o controle</button>'}<button type="button" role="menuitem" data-nv-menu="tela-cheia">Abrir em tela cheia<span class="nv-menu-dica">⌘⇧F</span></button><hr><button type="button" role="menuitem" data-nv-menu="fechar-aba">Fechar aba<span class="nv-menu-dica">⌘W</span></button><button type="button" role="menuitem" data-nv-menu="fechar-outras">Fechar os outros lugares</button><hr>`
     : "";
   const desligado = o.temEndereco === false ? ' disabled aria-disabled="true"' : "";
-  return `<div role="menu" class="nv-menu-corpo" aria-label="Navegador de ${n}">${aba}`
+  return `<div role="menu" class="nv-menu-corpo" aria-label="Navegador ${esc(deNome(nome))}">${aba}`
     + `<button type="button" role="menuitem" data-nv-menu="recarregar"${desligado}>Recarregar a página</button>`
     + `<button type="button" role="menuitem" data-nv-menu="copiar"${desligado}>Copiar endereço</button>`
     + `<button type="button" role="menuitem" data-nv-menu="abrir-fora"${desligado}>Abrir no meu navegador</button>`
     + '<button type="button" role="menuitem" data-nv-menu="logins">Logins deste site…</button>'
     // T1: "Ensinar uma tarefa" também mora aqui (nunca no celular: um passo a passo longo não cabe ali).
-    + (o.ensinar ? `<button type="button" role="menuitem" class="nv-menu-ensinar" data-nv-menu="ensinar">Ensinar uma tarefa<span class="nv-menu-sub">Mostre aqui; ${n} aprende</span></button>` : "")
-    + `<hr><button type="button" role="menuitem" class="danger" data-nv-menu="encerrar">Encerrar o navegador de ${n}</button></div>`;
+    + (o.ensinar ? `<button type="button" role="menuitem" class="nv-menu-ensinar" data-nv-menu="ensinar">Ensinar uma tarefa<span class="nv-menu-sub">${esc(subtituloDeEnsinar(nome))}</span></button>` : "")
+    + `<hr><button type="button" role="menuitem" class="danger" data-nv-menu="encerrar">Encerrar o navegador ${esc(deNome(nome))}</button></div>`;
 }
 
 /** Encerrar pergunta antes só se o bot está no meio de algo (D1c): passo recente, carregando ou pedido aberto. */
@@ -467,7 +537,8 @@ export function botNoMeio(v: Pick<VistaNavegador, "estado" | "passo" | "pedido" 
 
 /** "clicando em Buscar": a frase do passo com a primeira letra minúscula, para depois do "·". */
 export function fraseMinuscula(frase: string): string {
-  return frase ? frase.charAt(0).toLocaleLowerCase("pt-BR") + frase.slice(1) : frase;
+  const f = aspasCurvas(frase);
+  return f ? f.charAt(0).toLocaleLowerCase("pt-BR") + f.slice(1) : f;
 }
 
 /**
@@ -487,7 +558,8 @@ export function fraseNoPassado(frase: string): string {
 
 /** "Baixou 14 notas": a frase do passo com a primeira letra maiúscula, para abrir a linha. */
 export function fraseMaiuscula(frase: string): string {
-  return frase ? frase.charAt(0).toLocaleUpperCase("pt-BR") + frase.slice(1) : frase;
+  const f = aspasCurvas(frase);
+  return f ? f.charAt(0).toLocaleUpperCase("pt-BR") + f.slice(1) : f;
 }
 
 /** O título da aba ativa do Chrome do bot ("Google Voos"), ou o domínio. */
@@ -500,7 +572,7 @@ export function tituloDaAbaAtiva(v: Pick<VistaNavegador, "abas">): string {
 /** D1d: a legenda da aba ("Navegador da Ada · lendo os voos diretos") e o título da tela cheia ("Ada · clicando em Buscar"). */
 export function legendaDoPasso(nome: string, v: Pick<VistaNavegador, "passo" | "controle" | "estado"> | null, onde: "aba" | "tela-cheia"): string {
   const frase = v?.controle === "pessoa" ? "você está no controle" : v?.passo?.frase ? fraseMinuscula(v.passo.frase) : v?.estado === "terminou" ? "terminou" : "";
-  const quem = onde === "aba" ? `Navegador de ${nome}` : nome;
+  const quem = onde === "aba" ? `Navegador ${deNome(nome)}` : nome;
   return frase ? `${quem} · ${frase}` : quem;
 }
 
@@ -540,14 +612,14 @@ export function htmlLinhaDoNavegador(nome: string, agenteId: string, v: Pick<Vis
   const site = tituloDaAbaAtiva(v);
   const lugar = v.lugar ? textoDoLugar(v.lugar) : "";
   const rotulo = o.modoAbas ? "Abrir" : "Ver";
-  const ver = `<button type="button" class="nv-linha-ver" data-act="navegador-ver" data-agente="${esc(agenteId)}" aria-label="${rotulo} o navegador de ${esc(nome)}">${rotulo}</button>`;
+  const ver = `<button type="button" class="nv-linha-ver" data-act="navegador-ver" data-agente="${esc(agenteId)}" aria-label="${rotulo} o navegador ${esc(deNome(nome))}">${rotulo}</button>`;
   if (v.estado === "terminou" && !v.pedido && v.controle === "bot") {
     const feito = [v.passo?.frase ? fraseNoPassado(v.passo.frase) : `Terminou${site ? ` em ${site}` : ""}`, horaDaLinha(Math.max(v.atividadeEm, v.passo?.em ?? 0)), lugar].filter(Boolean).join(" · ");
-    return `<div class="nv-linha terminou" data-agente="${esc(agenteId)}" data-ponto=""><span class="nv-linha-ok" aria-hidden="true">✓</span><span class="nv-linha-txt"><b>Navegador de ${esc(nome)}</b><small>${esc(feito)}</small></span>${ver}</div>`;
+    return `<div class="nv-linha terminou" data-agente="${esc(agenteId)}" data-ponto=""><span class="nv-linha-ok" aria-hidden="true">✓</span><span class="nv-linha-txt"><b>Navegador ${esc(deNome(nome))}</b><small>${esc(feito)}</small></span>${ver}</div>`;
   }
   const frase = v.controle === "pessoa" ? "você está no controle" : v.pedido || v.controle === "precisa_de_voce" ? "precisa de você" : v.passo?.frase ? fraseMinuscula(v.passo.frase) : v.estado === "ligando" ? "ligando" : "";
   const sub = [site, frase, lugar].filter(Boolean).join(" · ");
-  return `<div class="nv-linha" data-agente="${esc(agenteId)}" data-ponto="${ponto ?? ""}"><i class="nv-linha-ponto" aria-hidden="true"></i><span class="nv-linha-txt"><b>Navegador de ${esc(nome)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${ver}</div>`;
+  return `<div class="nv-linha" data-agente="${esc(agenteId)}" data-ponto="${ponto ?? ""}"><i class="nv-linha-ponto" aria-hidden="true"></i><span class="nv-linha-txt"><b>Navegador ${esc(deNome(nome))}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${ver}</div>`;
 }
 
 /** O botão da tela no canto do cabeçalho (1c, item 1): só com o lugar; com atividade diz o nome e leva o ponto. */
@@ -577,7 +649,7 @@ const GLOBO = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" strok
 export function dicaDaAbaDeLugar(nome: string, v: Pick<VistaNavegador, "estado" | "controle" | "pedido" | "abas" | "erro"> | null): string {
   const e = estadoDaAbaDeLugar(v);
   const como = e === "vivo" ? "ao vivo" : e === "precisa" ? "precisa de você" : e === "controle" ? "você está no controle" : e === "problema" ? (v?.erro?.causa ?? "com problema") : v?.estado === "pausa" ? "em pausa" : "parado";
-  return [`Navegador de ${nome}`, v ? tituloDaAbaAtiva(v) : "", como].filter(Boolean).join(" · ");
+  return [`Navegador ${deNome(nome)}`, v ? tituloDaAbaAtiva(v) : "", como].filter(Boolean).join(" · ");
 }
 
 /**
@@ -596,20 +668,23 @@ export function htmlLugaresFechados(itens: readonly { agenteId: string; nome: st
     const e = estadoDaAbaDeLugar(vista);
     const sub = dicaDaAbaDeLugar(nome, vista).split(" · ").slice(1).join(" · ");
     const ponto = e === "vivo" || e === "precisa" ? `<i class="nv-aba-lugar-ponto" data-ponto="${e}" aria-hidden="true"></i>` : "";
-    return `<button type="button" role="menuitem" class="at-item nv-lugar-fechado" data-lugar-agente="${esc(agenteId)}">${GLOBO}<span class="nv-lugar-fechado-txt"><span>Navegador de ${esc(nome)}</span>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${ponto}</button>`;
+    return `<button type="button" role="menuitem" class="at-item nv-lugar-fechado" data-lugar-agente="${esc(agenteId)}">${GLOBO}<span class="nv-lugar-fechado-txt"><span>Navegador ${esc(deNome(nome))}</span>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${ponto}</button>`;
   }).join("");
   return `<p class="menu-nome">Lugares</p>${linhas}<hr><p class="nv-lugar-fechado-dica">Clicar reabre a aba. ⌘⇧T reabre a última que você fechou.</p>`;
 }
 
-/** A aba de lugar no modo abas (D7): depois da conversa e das tarefas; hover com ×; o clique direito abre o menu. */
+/**
+ * A aba de lugar no modo abas (D7): depois da conversa e das tarefas; hover com ×; o clique direito abre o menu. Diz
+ * "Navegador" (achado 11 do crítico): o título da página já está na aba do Chrome logo abaixo e na dica.
+ */
 export function htmlAbaDeLugar(agenteId: string, nome: string, v: Pick<VistaNavegador, "estado" | "controle" | "pedido" | "abas" | "erro"> | null, ativa: boolean): string {
   const e = estadoDaAbaDeLugar(v);
-  const titulo = (v ? tituloDaAbaAtiva(v) : "") || `Navegador de ${nome}`;
+  const titulo = "Navegador";
   const marca = e === "controle" ? MAOZINHA : e === "problema" ? '<span class="nv-aba-lugar-erro" aria-hidden="true">!</span>' : e === "parada" ? "" : `<i class="nv-aba-lugar-ponto" data-ponto="${e}" aria-hidden="true"></i>`;
   const dica = dicaDaAbaDeLugar(nome, v);
   return `<div class="at-aba nv-aba-lugar${ativa ? " ativa" : ""}" data-estado="${e}" data-lugar-aba="navegador" data-agente="${esc(agenteId)}">`
     + `<button type="button" class="at-ir" data-act="navegador-aba" data-agente="${esc(agenteId)}"${ativa ? ' aria-current="page"' : ""} data-dica="${esc(dica)}" aria-label="${esc(dica)}">${GLOBO}<span class="at-titulo">${esc(titulo)}</span>${marca}</button>`
-    + `<span class="at-acoes"><button type="button" class="at-fechar" data-act="navegador-fechar-aba" data-agente="${esc(agenteId)}" aria-label="Fechar a aba do navegador" title="Fechar aba · ⌘W"><span aria-hidden="true">×</span></button></span></div>`;
+    + `<span class="at-acoes"><button type="button" class="at-fechar" data-act="navegador-fechar-aba" data-agente="${esc(agenteId)}" aria-label="Fechar a aba do navegador ${esc(deNome(nome))}" title="Fechar aba · ⌘W"><span aria-hidden="true">×</span></button></span></div>`;
 }
 
 /** A vista mudou de um jeito que a tela precisa redesenhar a barra (abas, controle, lugar) ou só a camada? */

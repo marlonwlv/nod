@@ -142,7 +142,7 @@ describe("N4 e D8: a linha de atividade com o lugar e a troca de passo", () => {
     expect(feito.querySelector("small")?.textContent).toBe("Baixou 14 notas fiscais · 3h02 · na vm-sp");
     expect(linhaDoNavegadorVisivel({ ...base, estado: "terminou" }, 2_000)).toBe(true);
     expect(linhaDoNavegadorVisivel({ ...base, estado: "terminou" }, 11 * 60_000)).toBe(false);
-    expect(fraseNoPassado('Clicando em "Baixar todas"')).toBe('Clicou em "Baixar todas"');
+    expect(fraseNoPassado('Clicando em "Baixar todas"')).toBe("Clicou em “Baixar todas”");
     expect(fraseNoPassado("Abrindo nfse.prefeitura.sp.gov.br")).toBe("Abriu nfse.prefeitura.sp.gov.br");
     expect(doc(htmlLinhaDoNavegador("Ada", ADA, base, { modoAbas: true })).querySelector(".nv-linha-ver")?.textContent).toBe("Abrir");
   });

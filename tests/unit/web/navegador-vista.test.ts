@@ -5,6 +5,7 @@ import {
   htmlAvisoDoSite, htmlBarraDoNavegador, htmlBotaoDoCanto, htmlEstadoDaTela, htmlLinhaDoNavegador, htmlLugares, htmlLugaresFechados, lugarFechadoAMao, htmlMenuDoNavegador, htmlPilula, imantar, larguraMaxima, larguraPadrao,
   legendaDoPasso, lerLargura, limitarLargura, linhaDoNavegadorVisivel, modoDoPainel, MS_ASSUMINDO_VISIVEL, partesDoEndereco, pontoDoLugar, pontoNoViewport, proximoEncaixe,
   retanguloDaImagem, rotuloDaAprovacao, soltarFecha, soltarFolha, textoDoLugar,
+  aoNome, aspasCurvas, causaCitaOLugar, comArtigo, deNome, quedaDaVista, subtituloDeEnsinar, fraseNoPassado,
 } from "../../../web/lib/navegador-vista.ts";
 
 /**
@@ -36,6 +37,7 @@ describe("a pílula (D1b A, D4, A1)", () => {
     const controle = htmlPilula("Nina", "controle");
     expect(controle).toContain("Você está no controle");
     expect(controle).toContain("Devolver à Nina");
+    expect(htmlPilula("Milton", "controle")).toContain("Devolver ao Milton");
     expect(controle).not.toContain("Parar");
     expect(htmlPilula("Nina", "assumindo")).toContain("disabled");
     expect(htmlPilula("Nina", "precisa")).toMatch(/Precisa de você.*Já resolvi.*Assumir o controle/s);
@@ -43,12 +45,18 @@ describe("a pílula (D1b A, D4, A1)", () => {
     const ap = htmlPilula("Nina", "aprovacao", aprovacao);
     expect(ap).toMatch(/Pagar R\$ 3\.780 na TAP\?.*Não.*Pagar com Touch ID/s);
     expect(ap).toContain('data-nv="aprovar"');
-    expect(rotuloDaAprovacao({ ...aprovacao, touchId: false })).toBe("Pagar");
+    // A1 (Paper): o "sim" é o preto do cartão, não o azul de "Pronto, pode seguir".
+    expect(ap).toContain('class="ctc-bt nv-aprovar" data-nv="aprovar"');
+    expect(ap).not.toContain("nv-pilula-nota");
+    // Achado 1 do crítico: sem o app do Mac, "Pagar sem Touch ID" e o aviso curto do cartão embaixo da pílula.
+    expect(rotuloDaAprovacao({ ...aprovacao, touchId: false })).toBe("Pagar sem Touch ID");
+    const semMac = htmlPilula("Nina", "aprovacao", { ...aprovacao, touchId: false, avisoTouchId: "Seu Mac está desligado: a confirmação vai só pelo botão, sem o Touch ID." });
+    expect(semMac).toMatch(/Pagar sem Touch ID<\/button>.*<p class="nv-pilula-nota">Seu Mac está desligado/s);
     expect(rotuloDaAprovacao({ ...aprovacao, classe: "enviar", botao: "enviar", touchId: false })).toBe("Enviar");
   });
 
   it("escapa o nome do bot", () => {
-    expect(htmlPilula("<b>", "controle")).toContain("Devolver à &lt;b&gt;");
+    expect(htmlPilula("<b>", "controle")).toContain("Devolver ao &lt;b&gt;");
   });
 });
 
@@ -94,14 +102,25 @@ describe("a barra do navegador (D2, A e B)", () => {
 });
 
 describe("os avisos do site (D2 D, D1d)", () => {
-  it("uma faixa por vez, com a ação; o pedido de login vira 'Entrar em … · Assumir'", () => {
+  it("uma faixa por vez, com a ação; o pedido de login vira 'Entrar em …' sem botão (a ação é a da pílula)", () => {
     expect(htmlAvisoDoSite(null)).toBe("");
     const d = htmlAvisoDoSite({ tipo: "download", texto: "fatura.pdf baixado", acao: "Abrir em Arquivos", em: 0 });
     expect(d).toContain("Download");
     expect(d).toContain("Abrir em Arquivos");
     const p = avisoDoPedido(vista({ controle: "precisa_de_voce", pedido: { tipo: "login", decisaoId: "d", site: "itau.com.br", motivo: "", opcoes: [], podeTrazerDoChrome: false, etapa: "escolher", erro: null } }));
-    expect(p).toMatchObject({ tipo: "precisa_de_voce", texto: "Entrar em itau.com.br", acao: "Assumir" });
+    expect(p).toMatchObject({ tipo: "precisa_de_voce", texto: "Entrar em itau.com.br", acao: "" });
     expect(avisoDoPedido(vista({ controle: "pessoa" }))).toBeNull();
+  });
+
+  it("achado 10: 'Precisa de você' fica só com o motivo, mesmo quando o servidor manda a ação", () => {
+    const html = htmlAvisoDoSite({ tipo: "precisa_de_voce", texto: "O site quer provar que é uma pessoa (CAPTCHA)", acao: "Assumir", em: 0 });
+    expect(html).toContain("O site quer provar que é uma pessoa (CAPTCHA)");
+    expect(html).not.toContain("<button");
+  });
+
+  it("achado 2: o texto inteiro no title (o CSS quebra em até 2 linhas) e as aspas curvas", () => {
+    const html = htmlAvisoDoSite({ tipo: "pergunta", texto: '"Sair sem salvar?" · a Ada respondeu Cancelar', acao: "Ver passo", em: 0 });
+    expect(html).toContain('<span class="nv-aviso-txt" title="“Sair sem salvar?” · a Ada respondeu Cancelar">“Sair sem salvar?” · a Ada respondeu Cancelar</span>');
   });
 });
 
@@ -125,14 +144,25 @@ describe("os estados da tela (D3)", () => {
   it("todo estado parado tem botão; nunca rodinha sem texto; o erro diz causa, hora e lugar", () => {
     const v = vista({ abas: [aba(), aba({ id: "t2" })], erro: { causa: "A conexão com o motor caiu", em: new Date(2026, 10, 20, 16, 2).getTime() } });
     expect(htmlEstadoDaTela("pausa", v, "Nina")).toMatch(/Navegador em pausa.*Retomar.*2 abas guardadas/s);
-    expect(htmlEstadoDaTela("desligado", v, "Nina")).toMatch(/Navegador de Nina desligado.*data-nv="ligar".*Ligar/s);
+    expect(htmlEstadoDaTela("desligado", v, "Nina")).toMatch(/Navegador da Nina desligado.*data-nv="ligar".*Ligar/s);
+    expect(htmlEstadoDaTela("desligado", v, "Milton")).toContain("Navegador do Milton desligado");
     const erro = htmlEstadoDaTela("erro", v, "Nina");
     expect(erro).toContain("Não deu para mostrar a tela");
-    expect(erro).toContain("A conexão com o motor caiu às 16:02 · no nod");
+    // Achado 8: a queda da conexão é da vista — o bot continua.
+    expect(erro).toContain("A conexão com o motor caiu às 16:02 · no nod. A Nina continua trabalhando.");
     expect(erro).toContain("Tentar de novo");
     expect(htmlEstadoDaTela("erro", vista({ erro: { causa: "Seu Mac está desligado", em: 0 } }), "Nina")).not.toContain("· no nod");
-    expect(htmlEstadoDaTela("ligando", v, "Nina")).toMatch(/nv-giro.*Ligando o navegador de Nina.*leva uns 10 s/s);
-    expect(htmlEstadoDaTela("conectando", v, "Nina")).toContain("Conectando à tela de Nina…");
+    // Achado 8: a causa que já cita o lugar não o repete; a falha do navegador não diz que o bot continua.
+    const doNod = htmlEstadoDaTela("erro", vista({ erro: { causa: "A conexão com o nod caiu", em: new Date(2026, 10, 20, 16, 2).getTime() } }), "Ada");
+    expect(doNod).toContain("A conexão com o nod caiu às 16:02. A Ada continua trabalhando.");
+    expect(doNod).not.toContain("· no nod");
+    const falhou = htmlEstadoDaTela("erro", vista({ erro: { causa: "o navegador não abriu", em: new Date(2026, 10, 20, 16, 2).getTime() } }), "Ada");
+    expect(falhou).toContain("O navegador não abriu às 16:02 · no nod</span>");
+    expect(falhou).not.toContain("continua trabalhando");
+    // Achado 8: o Ligando diz o lugar inteiro, não "nod · leva uns 10 s".
+    expect(htmlEstadoDaTela("ligando", v, "Nina")).toMatch(/nv-giro.*Ligando o navegador da Nina.*No nod · leva uns 10 s/s);
+    expect(htmlEstadoDaTela("ligando", vista({ lugar: { tipo: "maquina", maquinaId: "m", nome: "vm-sp" } }), "Nina")).toContain("Na vm-sp · leva uns 10 s");
+    expect(htmlEstadoDaTela("conectando", v, "Nina")).toContain("Conectando à tela da Nina…");
     expect(htmlEstadoDaTela("terminou", vista({ atividadeEm: new Date(2026, 10, 20, 16, 4).getTime() }), "Nina")).toContain("✓ Nina terminou aqui · 16:04");
     expect(htmlEstadoDaTela("segredo", v, "Nina")).toContain("Campo protegido");
     expect(htmlEstadoDaTela("ao_vivo", v, "Nina")).toBe("");
@@ -224,9 +254,20 @@ describe("os lugares, a linha, o canto e a aba (D1 1, 1c, D7)", () => {
     expect(htmlLugares(["navegador"], "navegador", null)).not.toContain("Computador");
   });
 
-  it("a legenda sai da vista: na aba 'Navegador de …', na tela cheia '{nome} · …'", () => {
+  it("achado 11: com um lugar só, o seletor vira rótulo (sem botão, sem a pílula que desliza)", () => {
+    const um = htmlLugares(["navegador"], "navegador", "vivo");
+    expect(um).toContain("nv-lugar-unico");
+    expect(um).toContain('data-ponto="vivo"');
+    expect(um).toContain("<span>Navegador</span>");
+    expect(um).not.toContain("<button");
+    expect(um).not.toContain("nv-lugar-fundo");
+    expect(um).not.toContain('role="tablist"');
+  });
+
+  it("a legenda sai da vista: na aba 'Navegador da …', na tela cheia '{nome} · …'", () => {
     const v = vista({ passo: { tipo: "clicar", frase: "Clicando em Buscar", caixa: null, em: 1 } });
-    expect(legendaDoPasso("Ada", v, "aba")).toBe("Navegador de Ada · clicando em Buscar");
+    expect(legendaDoPasso("Ada", v, "aba")).toBe("Navegador da Ada · clicando em Buscar");
+    expect(legendaDoPasso("Milton", vista({ passo: { tipo: "clicar", frase: 'Clicando em "Faturas"', caixa: null, em: 1 } }), "aba")).toBe("Navegador do Milton · clicando em “Faturas”");
     expect(legendaDoPasso("Ada", v, "tela-cheia")).toBe("Ada · clicando em Buscar");
     expect(legendaDoPasso("Ada", vista({ controle: "pessoa" }), "tela-cheia")).toBe("Ada · você está no controle");
   });
@@ -238,7 +279,7 @@ describe("os lugares, a linha, o canto e a aba (D1 1, 1c, D7)", () => {
     expect(linhaDoNavegadorVisivel({ ...v, controle: "precisa_de_voce" }, 600_000)).toBe(true);
     expect(linhaDoNavegadorVisivel(vista({ estado: "desligado" }), 0)).toBe(false);
     const html = htmlLinhaDoNavegador("Ada", "a1", v, { modoAbas: false });
-    expect(html).toMatch(/Navegador de Ada.*Google Voos · lendo os voos diretos.*data-act="navegador-ver".*Ver/s);
+    expect(html).toMatch(/Navegador da Ada.*Google Voos · lendo os voos diretos.*data-act="navegador-ver".*Ver/s);
     expect(htmlLinhaDoNavegador("Ada", "a1", v, { modoAbas: true })).toContain(">Abrir<");
   });
 
@@ -256,7 +297,10 @@ describe("os lugares, a linha, o canto e a aba (D1 1, 1c, D7)", () => {
     expect(estadoDaAbaDeLugar(vista({ controle: "pessoa" }))).toBe("controle");
     expect(estadoDaAbaDeLugar(vista({ estado: "terminou" }))).toBe("parada");
     expect(estadoDaAbaDeLugar(vista({ estado: "erro" }))).toBe("problema");
-    expect(dicaDaAbaDeLugar("Ada", vista())).toBe("Navegador de Ada · Google Voos · ao vivo");
+    expect(dicaDaAbaDeLugar("Ada", vista())).toBe("Navegador da Ada · Google Voos · ao vivo");
+    // Achado 11: a aba diz "Navegador"; o título da página fica na dica (e na aba do Chrome logo abaixo).
+    expect(htmlAbaDeLugar("a1", "Ada", vista(), false)).toMatch(/<span class="at-titulo">Navegador<\/span>/);
+    expect(htmlAbaDeLugar("a1", "Ada", vista(), false)).toContain('data-dica="Navegador da Ada · Google Voos · ao vivo"');
     const html = htmlAbaDeLugar("a1", "Ada", vista({ controle: "pessoa" }), true);
     expect(html).toContain("nv-aba-mao");
     expect(html).toContain('aria-current="page"');
@@ -266,10 +310,12 @@ describe("os lugares, a linha, o canto e a aba (D1 1, 1c, D7)", () => {
 
   it("o ⋯: os itens do navegador e, na aba, os do clique direito; Encerrar é o único vermelho", () => {
     const m = htmlMenuDoNavegador("Ada");
-    expect(m).toMatch(/Recarregar a página.*Copiar endereço.*Abrir no meu navegador.*Logins deste site….*Encerrar o navegador de Ada/s);
+    expect(m).toMatch(/Recarregar a página.*Copiar endereço.*Abrir no meu navegador.*Logins deste site….*Encerrar o navegador da Ada/s);
     expect(m.match(/class="danger"/g)).toHaveLength(1);
     const daAba = htmlMenuDoNavegador("Ada", { daAba: true });
-    expect(daAba).toMatch(/Pôr ao lado da conversa.*Assumir.*Abrir em tela cheia.*Fechar aba.*⌘W.*Fechar as outras abas de lugar/s);
+    // Achado 15: "Assumir o controle" (um rótulo só), o atalho à direita sem o "·" e "Fechar os outros lugares".
+    expect(daAba).toMatch(/Pôr ao lado da conversa.*Assumir o controle.*Abrir em tela cheia<span class="nv-menu-dica">⌘⇧F<\/span>.*Fechar aba<span class="nv-menu-dica">⌘W<\/span>.*Fechar os outros lugares/s);
+    expect(htmlMenuDoNavegador("Ada", { ensinar: true })).toContain('<span class="nv-menu-sub">Mostre no navegador da Ada; ela aprende</span>');
     expect(htmlMenuDoNavegador("Ada", { daAba: true, controle: true })).not.toContain('data-nv-menu="assumir"');
   });
 
@@ -289,9 +335,62 @@ describe("5e: o lugar fechado continua à mão", () => {
     expect(lugarFechadoAMao(vista({ estado: "desligado" }))).toBe(false);
     const html = htmlLugaresFechados([{ agenteId: "a1", nome: "Ada", vista: vista() }]);
     expect(html).toContain('data-lugar-agente="a1"');
-    expect(html).toContain("<span>Navegador de Ada</span><small>Google Voos · ao vivo</small>");
+    expect(html).toContain("<span>Navegador da Ada</span><small>Google Voos · ao vivo</small>");
     expect(html).toContain('data-ponto="vivo"');
     expect(html).toContain("⌘⇧T reabre a última que você fechou.");
     expect(htmlLugaresFechados([])).toBe("");
+  });
+});
+
+describe("achado 7: o nome do bot em pt-BR (o artigo pela terminação)", () => {
+  it("da/do, à/ao, a/o e ela/ele", () => {
+    expect(deNome("Ada")).toBe("da Ada");
+    expect(deNome("Milton")).toBe("do Milton");
+    expect(aoNome("Ada")).toBe("à Ada");
+    expect(aoNome("Milton")).toBe("ao Milton");
+    expect(comArtigo("Nina")).toBe("a Nina");
+    expect(comArtigo("Nod")).toBe("o Nod");
+    expect(subtituloDeEnsinar("Ada")).toBe("Mostre no navegador da Ada; ela aprende");
+    expect(subtituloDeEnsinar("Milton")).toBe("Mostre no navegador do Milton; ele aprende");
+  });
+
+  it("nenhum 'de {nome}' sobra nos textos do navegador", () => {
+    const v = vista({ passo: { tipo: "ler", frase: "Lendo", caixa: null, em: 1 } });
+    const textos = [
+      htmlPilula("Ada", "assistindo"), htmlPilula("Ada", "controle"), htmlBarraDoNavegador(v, { nome: "Ada" }), htmlMenuDoNavegador("Ada", { daAba: true, ensinar: true }),
+      htmlLinhaDoNavegador("Ada", "a1", v, { modoAbas: false }), htmlAbaDeLugar("a1", "Ada", v, true), htmlLugaresFechados([{ agenteId: "a1", nome: "Ada", vista: v }]),
+      ...(["conectando", "ligando", "desligado", "indisponivel"] as const).map((e) => htmlEstadoDaTela(e, v, "Ada")),
+    ].join("\n");
+    expect(textos).not.toMatch(/\bde Ada\b/);
+    expect(textos).not.toMatch(/à Ada.*Devolver/);
+  });
+});
+
+describe("achado 15: aspas curvas", () => {
+  it("o nome citado ganha aspas curvas; aspa sem par fica", () => {
+    expect(aspasCurvas('Clicou em "Faturas"')).toBe("Clicou em “Faturas”");
+    expect(aspasCurvas('5" de tela')).toBe('5" de tela');
+    expect(fraseNoPassado('Clicando em "Baixar"')).toBe("Clicou em “Baixar”");
+  });
+});
+
+describe("achado 8: o lugar na causa e a queda da vista", () => {
+  it("a causa que cita o lugar; a conexão é da vista", () => {
+    expect(causaCitaOLugar("A conexão com o nod caiu", { tipo: "nod" })).toBe(true);
+    expect(causaCitaOLugar("A vm-sp está fora do ar", { tipo: "maquina", maquinaId: "m", nome: "vm-sp" })).toBe(true);
+    expect(causaCitaOLugar("Seu Mac está desligado", { tipo: "mac", nome: "MacBook" })).toBe(true);
+    expect(causaCitaOLugar("o navegador não abriu", { tipo: "nod" })).toBe(false);
+    expect(quedaDaVista("A conexão com o nod caiu")).toBe(true);
+    expect(quedaDaVista("o navegador não abriu")).toBe(false);
+  });
+});
+
+describe("achado 6: muitas abas do Chrome no painel estreito", () => {
+  it("a inativa leva o nome no title e no aria-label (o CSS mostra só o favicon); até 6 e o resto em +N", () => {
+    const abas = Array.from({ length: 9 }, (_, i) => aba({ id: `t${i}`, titulo: `Aba ${i}`, url: `https://site${i}.com/`, ativa: i === 0 }));
+    const html = htmlBarraDoNavegador(vista({ abas }), { nome: "Ada" });
+    expect(html.match(/class="nv-aba[ "]/g)).toHaveLength(6);
+    expect(html).toContain('title="Aba 3" aria-label="Aba 3"');
+    expect(html).toContain('<span class="nv-aba-mais" title="3 outras abas">+3</span>');
   });
 });

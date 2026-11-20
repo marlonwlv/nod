@@ -449,7 +449,8 @@
     --nv-precisa: #6b9bff;
     --nv-precisa-soft: #172240;
     --nv-cursor: #9d86ff;
-    --nv-cursor-tinta: #ffffff;
+    /* definido em 2026-11-20 (achado 3 do crítico): o nome do cursor no lilás do escuro com tinta escura, 6,3:1 pela fórmula da WCAG (a branca dava 2,9:1). */
+    --nv-cursor-tinta: #161616;
     --nv-letterbox: #2a2a2a;
     --nv-lilas: #262036;
     --nv-barra-fundo: #1a1a1a;
@@ -616,7 +617,8 @@
   --nv-precisa: #6b9bff;
   --nv-precisa-soft: #172240;
   --nv-cursor: #9d86ff;
-  --nv-cursor-tinta: #ffffff;
+  /* definido em 2026-11-20 (achado 3 do crítico): o nome do cursor no lilás do escuro com tinta escura, 6,3:1 pela fórmula da WCAG (a branca dava 2,9:1). */
+  --nv-cursor-tinta: #161616;
   --nv-letterbox: #2a2a2a;
   --nv-lilas: #262036;
   --nv-barra-fundo: #1a1a1a;

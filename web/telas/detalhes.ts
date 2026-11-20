@@ -181,11 +181,13 @@ function avatarDoPainel(estado: Estado, a: Bot): ReturnType<typeof avatarDoBot> 
 
 function identidade(estado: Estado, a: Bot, dona: boolean): string {
   if (!identidadeEditavel(dona)) {
-    return `<div class="gv-identidade gvn-id">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2><span class="gvn-sub-fixo">${esc(a.titulo || (dona ? "Seu bot" : "Bot da equipe"))}</span></div>`;
+    return `<div class="gv-identidade gvn-id" data-chave="gvn-id:${esc(a.id)}">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2><span class="gvn-sub-fixo">${esc(a.titulo || (dona ? "Seu bot" : "Bot da equipe"))}</span></div>`;
   }
   const aberto = estado.avatarAberto?.agenteId === a.id;
   const avatar = `<div class="gvn-avatar-wrap"><button type="button" class="gvn-avatar" data-act="gaveta-avatar" data-id="${esc(a.id)}" aria-haspopup="dialog"${aberto ? ' aria-controls="gvn-pop"' : ""} aria-expanded="${aberto}" aria-label="Editar avatar de ${esc(a.nome)}" aria-describedby="gvn-dica">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<span class="gvn-lapis" aria-hidden="true">${ICONE.lapis}</span></button><span class="gvn-dica" id="gvn-dica" role="tooltip">Editar avatar</span>${aberto ? popoverAvatar(a) : ""}</div>`;
-  return `<div class="gv-identidade gvn-id">${avatar}
+  // A chave do bot (J2, 2026-11-20): no React (ADR-189) o campo vira `defaultValue` e, com a mesma chave para todo bot, o
+  // nó do bot anterior era reaproveitado com o nome dele ("Vera" na conversa da Ada). Outro bot, outro nó.
+  return `<div class="gv-identidade gvn-id" data-chave="gvn-id:${esc(a.id)}">${avatar}
     ${nomeEditavel(a, dona) ? `<label class="sr-only" for="gvn-nome">Nome do bot</label>
     <input id="gvn-nome" class="gvn-nome" data-campo="nome" data-id="${esc(a.id)}" data-salvo="${esc(a.nome)}" value="${esc(a.nome)}" maxlength="60" autocomplete="off" spellcheck="false" title="Enter salva · Esc desfaz" aria-describedby="gvn-erro" />` : `<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2>`}
     <label class="sr-only" for="gvn-sub">Subtítulo do bot</label>

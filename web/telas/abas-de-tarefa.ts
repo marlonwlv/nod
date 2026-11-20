@@ -149,15 +149,25 @@ export function renderFileiraDeAbas(estado: Estado, f: FileiraDeAbas): string {
 /**
  * O botão de abas ao lado da pílula do bot (Paper 9i A e 10b): só o ícone, sem número — quantas e em que estado quem diz é
  * a pílula sobre o campo. O ponto quando alguma precisa da pessoa; o número (`.ba-num`) o CSS só mostra fora da página
- * Conversa (Paper 10b, 2d), onde a pílula do campo não existe. `null` = nada a mostrar (nenhuma aba nem tarefa aberta).
+ * Conversa (Paper 10b, 2d), onde a pílula do campo não existe. `null` = nada a mostrar (nenhuma aba, tarefa nem lugar).
+ * ADR-190 (Paper 5c, 2): conta também os lugares ativos (o navegador do bot), com o ponto verde quando algum está ao vivo
+ * (o azul de quem precisa da pessoa vence).
  */
-export function botaoDeAbas(estado: Pick<Estado, "trabalhos" | "conversas" | "trabalhoDetalhe">, abas: readonly AbaDeTarefa[], agenteId: string): string | null {
+export function botaoDeAbas(estado: Pick<Estado, "trabalhos" | "conversas" | "trabalhoDetalhe">, abas: readonly AbaDeTarefa[], agenteId: string, lugares: readonly { ponto: "vivo" | "precisa" }[] = []): string | null {
   const ids = new Set(abasDoBot(estado, abas, agenteId, null).map((a) => a.id));
   for (const t of trabalhosConhecidos(estado)) if (t.agenteId === agenteId && aberto(t)) ids.add(t.id);
-  if (ids.size === 0) return null;
-  const precisa = [...ids].some((id) => precisaDaPessoa(estado, id));
-  const rotulo = `Mostrar as tarefas em abas, ${ids.size} ${ids.size === 1 ? "tarefa" : "tarefas"}${precisa ? ", uma precisa de você" : ""}`;
-  return `<button type="button" class="botao-abas${precisa ? " precisa" : ""}" data-act="mostrar-em-abas" data-agente="${esc(agenteId)}" aria-label="${esc(rotulo)}" title="Mostrar em abas">${ICONE_ABAS}<span class="ba-num" aria-hidden="true">${ids.size}</span><span class="ba-ponto" aria-hidden="true"></span></button>`;
+  const total = ids.size + lugares.length;
+  if (total === 0) return null;
+  const tarefaPrecisa = [...ids].some((id) => precisaDaPessoa(estado, id));
+  const lugarPrecisa = lugares.some((l) => l.ponto === "precisa");
+  const precisa = tarefaPrecisa || lugarPrecisa;
+  const vivo = !precisa && lugares.some((l) => l.ponto === "vivo");
+  const tarefas = `${ids.size} ${ids.size === 1 ? "tarefa" : "tarefas"}`;
+  const quem = tarefaPrecisa ? ", uma precisa de você" : lugarPrecisa ? ", o navegador precisa de você" : "";
+  const rotulo = lugares.length
+    ? `Mostrar em abas, ${[ids.size ? tarefas : "", `${lugares.length} ${lugares.length === 1 ? "lugar" : "lugares"}${vivo ? " ao vivo" : ""}`].filter(Boolean).join(" e ")}${quem}`
+    : `Mostrar as tarefas em abas, ${tarefas}${quem}`;
+  return `<button type="button" class="botao-abas${precisa ? " precisa" : vivo ? " vivo" : ""}" data-act="mostrar-em-abas" data-agente="${esc(agenteId)}" aria-label="${esc(rotulo)}" title="Mostrar em abas">${ICONE_ABAS}<span class="ba-num" aria-hidden="true">${total}</span><span class="ba-ponto" aria-hidden="true"></span></button>`;
 }
 
 /**

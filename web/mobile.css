@@ -928,4 +928,11 @@
   .nvl-frase-txt, .nvl-trocar, .nvl-desfazer, .nvl-trava { min-height: 44px; }
   .nvl-desfazer { min-width: 44px; }
   .nvl-item, .nvl-mais { min-height: 44px; }
+  /* Achado 12 do crítico: a ação da faixa do site, o Desfazer do aviso, os itens do ⋯, o seletor de destino e a caixa
+     "Não perguntar de novo" também com 44 px no toque. */
+  .nv-aviso-acao, .nv-aviso-desfazer { min-height: 44px; min-width: 44px; }
+  .nv-menu-corpo > button, .nv-menu-bts > button { height: auto; min-height: 44px; }
+  .nvc-destino { min-height: 44px; }
+  .nvc-lembrar { min-height: 44px; }
+  .nvc-lembrar input { width: 22px; height: 22px; }
 }

@@ -290,7 +290,7 @@ import { abaDoDestino, alvoDoFocoNaTabBar, contagemDaAbaSuaVez, criarHistoricoDa
 import { botDasTarefas, resumoDoQuadro, resumosDosQuadros, tarefasEmAndamento } from "./lib/tarefas-da-barra.ts";
 import { renderAbaQuadros, renderAbaSuaVez, renderFolhaRecentes, renderTabBar, renderTituloCompacto, renderTituloGrande } from "./telas/tab-bar-celular.ts";
 import { ligarTecladoVisivel } from "./lib/teclado-visivel.ts";
-import { criarNavegadorNaTela } from "./telas/navegador.ts";
+import { criarNavegadorNaTela, type LugarAtivo } from "./telas/navegador.ts";
 import type { ItemDoMenuDaPilula } from "./lib/gesto-da-pilula.ts";
 import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deveMostrarDica, escFechaABusca, gravarMarca, lerMarca, type Marcas, type ViaDaBusca } from "./lib/descoberta-da-busca.ts";
 import { comVerificadorDoProvisorio, criarTravaDeSessao } from "./lib/trava-sessao.ts";
@@ -725,6 +725,12 @@ function fileiraNaConversa(agenteId: string): boolean {
 /** ADR-190 (1c, item 1): o botão da tela no canto do cabeçalho, só com o navegador do bot (e só da dona). */
 function cantoDoNavegador(agenteId: string): string {
   return botGerido(agenteId)?.ownerId === estado.sessao?.pessoaId ? navegadorNaTela.htmlBotaoDoCanto(agenteId) : "";
+}
+/** ADR-190 (Paper 5c, 2 e 3): os lugares ativos do bot (o navegador vivo ou esperando), para o botão de abas e a pílula. */
+function lugaresAtivos(agenteId: string): LugarAtivo[] {
+  if (botGerido(agenteId)?.ownerId !== estado.sessao?.pessoaId) return [];
+  const l = navegadorNaTela.lugarAtivo(agenteId);
+  return l ? [l] : [];
 }
 /** A aba com o nome em edição (duplo clique, F2 ou "Renomear"): o campo é redesenhado com o texto e o cursor de agora. */
 let renomeandoAba: { id: string; texto: string; inicio: number | null; fim: number | null } | null = null;
@@ -1354,7 +1360,8 @@ const navegadorNaTela = criarNavegadorNaTela({
   },
   aoErro: (e) => mostrarErro(e),
   modoAbas: (id) => modoAbas.has(id),
-  ligarModoAbas: (id) => guardarModoAbas(id, true),
+  // Achado 14 do crítico: o "Abrir em aba" do navegador liga o modo abas com a fileira entrando em 300 ms, na curva do projeto.
+  ligarModoAbas: (id) => { if (!modoAbas.has(id)) sanfonaDoNavegador = true; guardarModoAbas(id, true); },
   render: () => render(),
   pessoaId: () => estado.sessao?.pessoaId ?? null,
   celular: () => ehCelular(),
@@ -3557,7 +3564,7 @@ function renderPrincipal(): void {
         comAbas = true;
       } else {
         guardarModoAbas(t.agenteId, false);
-        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId) ?? "" }) + cantoDoNavegador(t.agenteId);
+        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId, lugaresAtivos(t.agenteId)) ?? "" }) + cantoDoNavegador(t.agenteId);
       }
       partes = partesDaTimeline();
       {
@@ -5356,7 +5363,7 @@ function fileiraDeAbas(agenteId: string, ativa: string | null, naConversa = fals
   // ADR-190 (D7): com a aba de lugar à vista, a pílula fica apagada e volta para a conversa (como numa tarefa).
   const lugarAVista = naConversa && navegadorNaTela.abaAtiva(agenteId);
   const pilula = naConversa && !lugarAVista
-    ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId) ?? "" }
+    ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId, lugaresAtivos(agenteId)) ?? "" }
     : { html: renderCabecalhoConversa(estado, agenteId, { painel: false, irParaConversa: true }), conversaAtiva: false };
   const lugares = navegadorNaTela.abaNaFileira(agenteId) ?? undefined;
   const fechados = navegadorNaTela.lugaresFechados(agenteId);
@@ -5380,6 +5387,8 @@ function mostrarEmAbas(agenteId: string): void {
   }
   const abertas = trabalhosConhecidos(estado).filter((t) => t.agenteId === agenteId && aberto(t)).sort((a, b) => a.criadoEm - b.criadoEm).map((t) => ({ id: t.id, agenteId }));
   guardarAbas(abasAoMostrar(abasDeTarefa, abertas));
+  // ADR-190 (Paper 5c, 2): o lugar ativo vem junto para a fileira (a aba dele, sem abrir: a Conversa continua à vista).
+  if (lugaresAtivos(agenteId).length) navegadorNaTela.porNaFileira(agenteId);
   guardarModoAbas(agenteId, true);
   render();
 }
@@ -5449,7 +5458,14 @@ function animarAbasNovas(antes: Set<string> | null): void {
   }
 }
 const SANFONA_CURVA = "cubic-bezier(.32, .72, 0, 1)";
-function animarSanfona(de: DOMRect): void {
+/**
+ * ADR-190 (achado 14 do crítico, 2026-11-20): quando quem liga o modo abas é o "Abrir em aba" do navegador, a fileira entra
+ * em 300 ms com a curva do projeto (--curva), não nos 520 ms da sanfona das tarefas: a vista já está viajando junto.
+ */
+const SANFONA_NAVEGADOR_MS = 300;
+const CURVA_DO_PROJETO = "cubic-bezier(.22, 1, .36, 1)";
+let sanfonaDoNavegador = false;
+function animarSanfona(de: DOMRect, ms = SANFONA_MS, curva = SANFONA_CURVA): void {
   const el = pecaDaSanfona();
   if (!el) return;
   const r = el.getBoundingClientRect();
@@ -5460,23 +5476,27 @@ function animarSanfona(de: DOMRect): void {
     el.animate([
       { transform: `translate(${de.left - r.left}px, ${de.top - r.top}px)`, width: `${de.width}px`, height: `${de.height}px`, borderRadius: `${de.height / 2}px` },
       { transform: "none", width: `${r.width}px`, height: `${r.height}px`, borderRadius: "8px" },
-    ], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+    ], { duration: ms, easing: curva });
   } else {
     // Ao lado da pílula, mudar a largura empurraria a pílula (as duas centradas juntas): o "Fechar abas" encolhe em escala.
     el.animate([
       { transformOrigin: "0 0", transform: `translate(${de.left - r.left}px, ${de.top - r.top}px) scale(${de.width / r.width}, ${de.height / r.height})`, borderRadius: "8px" },
       { transformOrigin: "0 0", transform: "none", borderRadius: `${r.height / 2}px` },
-    ], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+    ], { duration: ms, easing: curva });
   }
   // O miolo (o × e "Fechar abas", ou o ícone de abas) entra depois que a peça já andou um pouco.
-  for (const filho of el.children) (filho as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: SANFONA_MS, easing: "ease-out" });
+  for (const filho of el.children) (filho as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: ms, easing: "ease-out" });
 }
 function botDoTopo(): string | null {
   const t = estado.tela;
   return t.tipo === "conversa" || t.tipo === "nova-tarefa" ? t.agenteId : t.tipo === "trabalho" ? trabalhoPorId(estado, t.id)?.agenteId ?? null : null;
 }
 function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
+  const doNavegador = sanfonaDoNavegador;
+  sanfonaDoNavegador = false;
   if (!antes || reduzirMovimento()) return;
+  const ms = doNavegador ? SANFONA_NAVEGADOR_MS : SANFONA_MS;
+  const curva = doNavegador ? CURVA_DO_PROJETO : SANFONA_CURVA;
   const el = document.querySelector<HTMLElement>("#cabecalho .qd-pil, #cabecalho .pilula-bot");
   const naFileira = !!el?.closest(".abas-com-pilula");
   if (!el || naFileira === antes.naFileira || antes.bot !== botDoTopo()) return;
@@ -5484,9 +5504,9 @@ function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
   const dx = antes.rect.left - r.left;
   const dy = antes.rect.top - r.top;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: SANFONA_MS, easing: SANFONA_CURVA });
-  if (antes.sanfona) animarSanfona(antes.sanfona);
-  if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando");
+  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: ms, easing: curva });
+  if (antes.sanfona) animarSanfona(antes.sanfona, ms, curva);
+  if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando", ...(doNavegador ? ["nv-rapido"] : []));
 }
 
 /** O painel do bot entrando ou saindo (validação de 2026-11-18): a classe dura a animação do CSS (painel-entra/sai). */
@@ -7218,7 +7238,7 @@ function desenharPilula(): void {
   // subir ou descer quando a sanfona abre ou fecha.
   const noTopo = fileiraNaConversa(t.agenteId);
   document.getElementById("faixa-trabalhos")?.classList.toggle("pf-no-topo", noTopo);
-  const p = pilulaNaConversa(estado, t.agenteId, progressoDaFala, novaTarefaNaAba(t));
+  const p = pilulaNaConversa(estado, t.agenteId, progressoDaFala, novaTarefaNaAba(t), lugaresAtivos(t.agenteId));
   if (p.tipo !== "pilula") {
     if (p.tipo === "nada" || p.tipo === "vazia") {
       const ao = aoSumir({ aberta: estado.faixaTrabalhosAberta === t.agenteId, focoDentro: pilula.focoDentro() });
@@ -9190,6 +9210,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     el.title = mostrar ? "Ocultar" : "Mostrar";
   },
   "navegador-aba": (el) => navegadorNaTela.mostrarAba(el.dataset.agente ?? ""),
+  // Paper 5c (3): o lugar na pílula do campo abre a aba dele (o modo abas, com ela à vista).
+  "navegador-abrir-aba": (el) => navegadorNaTela.abrirAba(el.dataset.agente ?? ""),
   "navegador-fechar-aba": (el) => navegadorNaTela.fecharAba(el.dataset.agente ?? ""),
   "mostrar-em-abas": (el) => mostrarEmAbas(el.dataset.agente ?? ""),
   "fechar-abas": (el) => fecharAbas(el.dataset.agente ?? ""),

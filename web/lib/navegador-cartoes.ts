@@ -1,6 +1,6 @@
 import type { FonteCofre, GravacaoNavegador, OfertaGuardarLogin, OpcaoLogin, PedidoDaVistaNavegador, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { esc } from "./escape.ts";
-import { dominioDe, rotuloDaAprovacao } from "./navegador-vista.ts";
+import { aoNome, aspasCurvas, comArtigo, deNome, dominioDe, fraseMaiuscula, rotuloDaAprovacao } from "./navegador-vista.ts";
 
 /**
  * Os cartões do navegador do bot na conversa, em "Sua vez" e no celular (ADR-190; Paper "Navegador · login e cofre,
@@ -166,7 +166,7 @@ export function htmlCartaoCodigo(o: { decisaoId: string; agenteId: string; motiv
     + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>${erro}`
     + `<div class="nvc-codigo-linha"><input class="nvc-codigo-campo" name="codigo" type="text" inputmode="text" autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="64" required aria-label="Código" data-privado="1"${o.enviando ? " disabled" : ""}>`
     + `<button type="submit" class="nvc-op nvc-op-principal nvc-enviar"${o.enviando ? ' disabled aria-busy="true"' : ""}>${o.enviando ? "Enviando…" : "Enviar"}</button></div>`
-    + `<p class="nvc-nota">Vai direto para a página. Não fica na conversa nem chega à ${esc(o.nome)}.</p></form>`;
+    + `<p class="nvc-nota">Vai direto para a página. Não fica na conversa nem chega ${esc(aoNome(o.nome))}.</p></form>`;
 }
 
 /** O pedido de ajuda sem código (CAPTCHA, confirmação no app do banco): assumir o controle ou dizer que já resolveu. */
@@ -175,7 +175,7 @@ export function htmlCartaoAjudaNavegador(o: { decisaoId: string; agenteId: strin
   const dados = `data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}"`;
   return `<div class="nvc nvc-ajuda" role="group" aria-label="${esc(`${o.nome} precisa de você no navegador`)}" ${dados}>`
     + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>`
-    + `<p class="nvc-sub">Assuma o navegador de ${esc(o.nome)}, faça esse passo e devolva. ${esc(o.nome)} não vê o que você digita.</p>`
+    + `<p class="nvc-sub">Assuma o navegador ${esc(deNome(o.nome))}, faça esse passo e devolva. ${esc(fraseMaiuscula(comArtigo(o.nome)))} não vê o que você digita.</p>`
     + `<div class="nvc-par"><button type="button" class="nvc-op nvc-op-contorno nvc-op-centro" data-act="nv-resolver" ${dados}>Já resolvi</button><button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="nv-assumir" ${dados}>Assumir o controle</button></div></div>`;
 }
 
@@ -184,7 +184,7 @@ export function htmlCartaoPedidoSemVista(p: PedidoNaFala, o: { decisaoId: string
   const titulo = p.tipo === "login" ? `${o.nome} precisa entrar ${noOuNa(nomeDoSite(p.site))} ${nomeDoSite(p.site)}` : frase(p.motivo);
   return `<div class="nvc nvc-espera" role="group" aria-label="${esc(titulo)}" data-agente="${esc(o.agenteId)}" data-decisao="${esc(o.decisaoId)}">`
     + `<p class="nvc-tit"><i class="nvc-ponto" aria-hidden="true"></i><span>${esc(titulo)}</span></p>${p.tipo === "login" && p.motivo ? `<p class="nvc-sub">${esc(frase(p.motivo))}</p>` : ""}`
-    + `<button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir o navegador de ${esc(o.nome)}</button></div>`;
+    + `<button type="button" class="nvc-op nvc-op-principal nvc-op-centro" data-act="navegador-ver" data-agente="${esc(o.agenteId)}">Abrir o navegador ${esc(deNome(o.nome))}</button></div>`;
 }
 
 // ---- L3: o selo do login embaixo da vista ----------------------------------------------------------------------------------
@@ -303,18 +303,14 @@ export function htmlBarraDeGravacao(o: { nome: string; gravacao: GravacaoNavegad
   const acoes = o.nomeando
     ? `<form class="nv-grav-nome" data-nv-form="nomear"><label class="sr-only" for="nv-grav-nome">Nome da tarefa</label><input id="nv-grav-nome" class="nv-grav-nome-campo" name="nome" maxlength="120" autocomplete="off" value="${esc(nomeSugeridoDosPassos(g.passos))}"><button type="button" class="nv-grav-bt" data-nv-p="nomear-cancelar">Cancelar</button><button type="submit" class="nv-grav-bt nv-grav-salvar">Salvar</button></form>`
     : `<button type="button" class="nv-grav-bt" data-nv-p="descartar-gravacao">Descartar</button><button type="button" class="nv-grav-bt nv-grav-salvar" data-nv-p="salvar-gravacao"${g.passos.length === 0 ? ' disabled aria-disabled="true" title="Faça ao menos um passo"' : ""}>Salvar e ensinar</button>`;
-  return `<div class="nv-grav-barra"><span class="nv-grav-estado"><i class="nv-grav-ponto" aria-hidden="true"></i><span>Ensinando ${artigo(o.nome)} ${esc(o.nome)} · <span class="nv-grav-relogio">${esc(rotuloDaGravacao(g, o.agora))}</span>${esc(parou)}</span></span><span class="nv-grav-acoes">${acoes}</span></div>`;
+  return `<div class="nv-grav-barra"><span class="nv-grav-estado"><i class="nv-grav-ponto" aria-hidden="true"></i><span>Ensinando ${esc(comArtigo(o.nome))} · <span class="nv-grav-relogio">${esc(rotuloDaGravacao(g, o.agora))}</span>${esc(parou)}</span></span><span class="nv-grav-acoes">${acoes}</span></div>`;
 }
 
-/** "a Ada", "o Milton": sem saber o gênero do bot, nome terminado em "a" leva "a"; o resto, "o" (definido em 2026-11-20). */
-function artigo(nome: string): string {
-  return /a$/iu.test(nome.trim()) ? "a" : "o";
-}
 
 /** T2: o painel lateral escuro "PASSOS GRAVADOS" com os passos em linguagem simples (o último em destaque). */
 export function htmlPassosGravados(passos: readonly string[]): string {
   const itens = passos.length
-    ? passos.map((p, i) => `<li${i === passos.length - 1 ? ' class="nv-grav-ultimo"' : ""}>${i + 1} · ${esc(p)}</li>`).join("")
+    ? passos.map((p, i) => `<li${i === passos.length - 1 ? ' class="nv-grav-ultimo"' : ""}>${i + 1} · ${esc(aspasCurvas(p))}</li>`).join("")
     : '<li class="nv-grav-vazio">Mexa na página: cada página aberta, clique e campo vira um passo aqui. O que você digita e as senhas não são gravados.</li>';
   return `<aside class="nv-grav-passos" aria-label="Passos gravados"><h2>Passos gravados</h2><ol aria-live="polite">${itens}</ol></aside>`;
 }
@@ -331,11 +327,11 @@ export function htmlHabilidades(t: TelaHabilidades | null, o: { agenteId: string
   const cab = '<h3>Habilidades</h3>';
   if (!t || (t.tarefas === null && !t.erro)) return `<section class="gv-secao nvh">${cab}<p class="mudo" role="status">Carregando…</p></section>`;
   if (t.erro && t.tarefas === null) return `<section class="gv-secao nvh">${cab}<p class="mudo">Não deu para ler as habilidades. <button type="button" class="gv-link" data-act="nv-habilidades-reler" data-agente="${esc(o.agenteId)}">Tentar de novo</button></p></section>`;
-  if (!lista?.length) return `<section class="gv-secao nvh">${cab}<p class="mudo">Nenhuma tarefa ensinada ainda. Use “Ensinar uma tarefa” no + do campo e mostre no navegador de ${esc(o.nome)}.</p></section>`;
+  if (!lista?.length) return `<section class="gv-secao nvh">${cab}<p class="mudo">Nenhuma tarefa ensinada ainda. Use “Ensinar uma tarefa” no + do campo e mostre no navegador ${esc(deNome(o.nome))}.</p></section>`;
   const linhas = lista.map((x) => {
     const aberta = t.abertas.has(x.id);
     const n = x.passos.length;
-    const passos = aberta ? `<ol class="nvh-passos">${x.passos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>` : "";
+    const passos = aberta ? `<ol class="nvh-passos">${x.passos.map((p) => `<li>${esc(aspasCurvas(p))}</li>`).join("")}</ol>` : "";
     return `<li class="nvh-item" data-tarefa="${esc(x.id)}"><div class="gv-linha nvh-linha"><span class="gv-linha-txt">${esc(x.nome)}<small>${n} ${n === 1 ? "passo" : "passos"}</small></span><button type="button" class="gv-link" data-act="nv-habilidade-ver" data-agente="${esc(o.agenteId)}" data-tarefa="${esc(x.id)}" aria-expanded="${aberta}">${aberta ? "Fechar" : "Ver"}</button><button type="button" class="gv-link nvh-apagar" data-act="nv-habilidade-apagar" data-agente="${esc(o.agenteId)}" data-tarefa="${esc(x.id)}" aria-label="${esc(`Apagar ${x.nome}`)}">Apagar</button></div>${passos}</li>`;
   }).join("");
   return `<section class="gv-secao nvh">${cab}<ul class="gv-cartao nvh-lista">${linhas}</ul></section>`;

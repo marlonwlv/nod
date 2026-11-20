@@ -2,7 +2,7 @@ import type { EntradaNavegador, OperacaoNavegador, QuadroAoVivoNavegador, Respos
 import type { Api } from "../lib/api.ts";
 import { movimentoReduzido } from "../lib/movimento.ts";
 import {
-  avisoDoPedido, botaoDoMouse, caixaNaVista, chaveDaBarra, duracaoDoCursor, estadoDaPilula, estadoDaTela, htmlAvisoDoSite, htmlBarraDoNavegador, htmlEstadoDaTela,
+  aoNome, avisoDoPedido, botaoDoMouse, caixaNaVista, chaveDaBarra, deNome, duracaoDoCursor, estadoDaPilula, estadoDaTela, htmlAvisoDoSite, htmlBarraDoNavegador, htmlEstadoDaTela,
   htmlPilula, legendaDoPasso, MS_ASSUMINDO_VISIVEL, MS_DICA_ASSUMIR, modificadoresDe, pontoNoViewport, type EstadoDaTela, type EstadoPilula,
 } from "../lib/navegador-vista.ts";
 import { pulsarHalo } from "./tela-cheia.ts";
@@ -54,6 +54,10 @@ export const MS_IMAGEM_REDE_FRACA = 2_000;
 export const MS_ONDINHA = 300;
 /** D2, B: a linha de carregamento completa e some em 200 ms. */
 export const MS_CARREGOU = 200;
+/** D8: o texto da pílula ao assumir/devolver troca em fade cruzado de 180 ms (reduzir movimento: troca seca). */
+export const MS_CRUZAR_PILULA = 180;
+/** Os estados da pílula entre os quais a troca é cruzada (assumir e devolver, D4). */
+const ESTADOS_CRUZADOS: ReadonlySet<string> = new Set(["assistindo", "assumindo", "controle", "precisa"]);
 /**
  * Emenda de 2026-11-20 da ADR-190 (item 4): o tamanho da área da vista vai ao servidor 600 ms depois do fim de um
  * redimensionamento (arrastar a alça manda um só, no fim), e ele ajusta o Chrome do bot.
@@ -219,9 +223,11 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     const htmlP = comPilula ? htmlPilula(nome, pilula!, v!.pedido) : "";
     if (htmlP !== pintadoPilula) {
       const tinhaFoco = pilulaLugar.contains(document.activeElement);
+      const antiga = pilulaLugar.querySelector<HTMLElement>(".nv-pilula:not(.nv-pilula-sai)");
       pilulaLugar.innerHTML = htmlP;
       pintadoPilula = htmlP;
-      if (tinhaFoco) pilulaLugar.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+      cruzarPilula(antiga, pilulaLugar.querySelector<HTMLElement>(".nv-pilula:not(.nv-pilula-sai)"));
+      if (tinhaFoco) pilulaLugar.querySelector<HTMLElement>(".nv-pilula:not(.nv-pilula-sai) button:not([disabled])")?.focus();
     }
     // L3: "Entrando com o 1Password…" embaixo da vista, enquanto o Mac confirma ou o segredo está na página.
     // Enquanto o Mac confirma, o selo toma o lugar da pílula (Paper L3: não há o que assumir nem devolver). Com o segredo
@@ -233,9 +239,31 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     tecladoBt.hidden = !(host === "folha" && controla());
     palco.dataset.controle = controla() ? "pessoa" : "bot";
     palco.tabIndex = controla() ? 0 : -1;
-    palco.setAttribute("aria-label", controla() ? `Tela do navegador de ${nome}, você está no controle` : `Tela do navegador de ${nome}`);
+    palco.setAttribute("aria-label", controla() ? `Tela do navegador ${deNome(nome)}, você está no controle` : `Tela do navegador ${deNome(nome)}`);
     cursorNome.textContent = nome;
     pintarCamada();
+  }
+
+  /**
+   * D8 (assumir e devolver): o texto da pílula troca em fade cruzado de 180 ms. A pílula velha fica por cima, sem clique nem
+   * leitor de tela, e some enquanto a nova aparece; com movimento reduzido a troca é seca. Outras trocas (login, aprovação)
+   * não cruzam: são outra pergunta, não o mesmo controle mudando de mão.
+   */
+  let timerCruzar = 0;
+  function cruzarPilula(antiga: HTMLElement | null, nova: HTMLElement | null): void {
+    pilulaLugar.querySelector(".nv-pilula-sai")?.remove();
+    if (timerCruzar) { window.clearTimeout(timerCruzar); timerCruzar = 0; }
+    if (!antiga || !nova || menosMovimento()) return;
+    const de = antiga.dataset.estado ?? "";
+    const para = nova.dataset.estado ?? "";
+    if (de === para || !ESTADOS_CRUZADOS.has(de) || !ESTADOS_CRUZADOS.has(para)) return;
+    antiga.classList.add("nv-pilula-sai");
+    antiga.setAttribute("aria-hidden", "true");
+    antiga.inert = true;
+    antiga.removeAttribute("role");
+    pilulaLugar.append(antiga);
+    nova.classList.add("nv-pilula-entra");
+    timerCruzar = window.setTimeout(() => { timerCruzar = 0; antiga.remove(); nova.classList.remove("nv-pilula-entra"); }, MS_CRUZAR_PILULA);
   }
 
   /** O que o bot faz, por cima da imagem (D2, C): o cursor com o nome, o anel no alvo, a ondinha e a barra de rolagem. */
@@ -416,11 +444,11 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   async function devolver(): Promise<void> {
     const v = vista();
     if (!v || !(v.controle === "pessoa" || v.controle === "precisa_de_voce")) return;
-    // Otimista: a borda some e a pílula volta a "Assistindo" num quadro (D8: 180 ms de fade cruzado no CSS).
+    // Otimista: a borda some e a pílula volta a "Assistindo" num quadro (D8: o fade cruzado de 180 ms do cruzarPilula).
     r = { ...r!, vista: { ...v, controle: "bot" } };
     pintar();
     await operar(v.controle === "precisa_de_voce" ? "resolver" : "devolver");
-    anuncio.textContent = `Devolvido à ${o.nome()}.`;
+    anuncio.textContent = `Devolvido ${aoNome(o.nome())}.`;
   }
 
   async function responderPedido(aprovar: boolean): Promise<void> {
@@ -462,7 +490,6 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     else if (c === "ligar") void operar("ligar");
     else if (c === "retomar") void operar("retomar");
     else if (c === "reler") void o.api.navegador(o.agenteId).then((nova) => { r = nova; pintar(); o.aoMudar?.(nova); }).catch((e: unknown) => o.aoErro?.(e));
-    else if (c === "aviso" && alvo.dataset.tipo === "precisa_de_voce") void assumir();
     else if (c === "teclado") { teclado.focus(); }
     else if (c === "aba" && controla()) {
       const aba = alvo.dataset.aba;
@@ -610,7 +637,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       visivel = false;
       desligarCanal();
       ro?.disconnect();
-      for (const t of [timerAssumindo, timerDica, timerCarregou, timerTamanho]) if (t) window.clearTimeout(t);
+      for (const t of [timerAssumindo, timerDica, timerCarregou, timerTamanho, timerCruzar]) if (t) window.clearTimeout(t);
       el.remove();
     },
   };

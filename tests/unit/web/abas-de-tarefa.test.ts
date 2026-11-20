@@ -229,6 +229,21 @@ describe("a fileira (web/telas/abas-de-tarefa.ts, Paper 4p)", () => {
     expect(botaoDeAbas(estadoCom([tarefa("t1", { estado: "terminado" })]), [aba("t1")], "b1")).toContain('class="botao-abas"');
   });
 
+  it("ADR-190 (Paper 5c, 2): o botão de abas conta também os lugares; o ponto verde com algum ao vivo, o azul vence", () => {
+    const soLugar = botaoDeAbas(estadoCom([]), [], "b1", [{ ponto: "vivo" }]) ?? "";
+    expect(soLugar).toContain('class="botao-abas vivo" data-act="mostrar-em-abas" data-agente="b1"');
+    expect(soLugar).toContain('aria-label="Mostrar em abas, 1 lugar ao vivo"');
+    expect(soLugar).toContain('<span class="ba-num" aria-hidden="true">1</span>');
+    const comTarefa = botaoDeAbas(estadoCom([tarefa("t1")]), [aba("t1")], "b1", [{ ponto: "vivo" }]) ?? "";
+    expect(comTarefa).toContain('aria-label="Mostrar em abas, 1 tarefa e 1 lugar ao vivo"');
+    expect(comTarefa).toContain('<span class="ba-num" aria-hidden="true">2</span>');
+    const precisa = botaoDeAbas(estadoCom([tarefa("t1")]), [aba("t1")], "b1", [{ ponto: "precisa" }]) ?? "";
+    expect(precisa).toContain('class="botao-abas precisa"');
+    expect(precisa).toContain(", o navegador precisa de você");
+    expect(botaoDeAbas(estadoCom([tarefa("t1", { estado: "precisa_de_voce" })]), [], "b1", [{ ponto: "vivo" }])).toContain('class="botao-abas precisa"');
+    expect(botaoDeAbas(estadoCom([]), [], "b1", [])).toBeNull();
+  });
+
   it("\"Tirar as feitas das abas\" aparece com feitas na fileira e diz quantas", () => {
     const e = estadoCom([tarefa("t1", { estado: "terminado" }), tarefa("t2", { estado: "falhou" }), tarefa("t3", { estado: "parado" })]);
     const feitas = feitasDaFileira(e, [aba("t1"), aba("t2"), aba("t3"), aba("t9", "b2")], "b1");
