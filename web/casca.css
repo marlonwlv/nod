@@ -135,6 +135,9 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .cabecalho-pilula .pilula-frentes { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: var(--fs-rotulo); font-weight: var(--peso-regular); color: var(--ink-3); }
 .cabecalho-pilula .pilula-frentes .ponto-aguardando { width: 6px; height: 6px; }
 .cabecalho-pilula :is(.abrir-bots, .buscar-celular, .pilula-sub, .pilula-presenca) { display: none; }
+/* A legenda da pílula (o modo do bot, que o hover do quadro.css mostra) flutua embaixo dela, fora do fluxo: o cabeçalho é
+   uma coluna centrada, e no fluxo ela empurrava a pílula 10 px para cima a cada passada do mouse (e saía cortada). */
+.stage > .cabecalho-pilula > .pilula-sub { position: absolute; top: calc(50% + 24px); left: 50%; transform: translateX(-50%); margin-top: 0; z-index: 1; pointer-events: none; }
 /* O botão do painel à direita (Paper: 32 px, sem fundo com o painel aberto; flutuante com ele fechado). */
 .cabecalho-pilula .painel-alternar {
   position: absolute; right: 16px; top: 12px; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; margin: 0;
