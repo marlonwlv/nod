@@ -22,7 +22,7 @@ export interface Pagina {
 }
 
 export const CONVERSA: Pagina = { id: "conversa", nome: "Conversa", icone: "conversa" };
-export const TAREFAS: Pagina = { id: "tarefas", nome: "Tarefas", icone: "tarefas" };
+export const TAREFAS: Pagina = { id: "tarefas", nome: "Quadro", icone: "tarefas" };
 /** ADA-13 (ADR-150): a página do app Canvas, quando o bot tem acesso (o servidor manda `temCanvas`). */
 export const CANVAS: Pagina = { id: "canvas", nome: "Canvas", icone: "canvas" };
 
@@ -72,7 +72,7 @@ export function caixaComFrase(rascunho: string, frase: string): string {
   return soFrasePreenchida(rascunho) ? frase : `${rascunho.trimEnd()}\n${frase}`;
 }
 /** No limite (12 páginas, a vaga de Tarefas reservada), a doca explica em uma linha. */
-export const linhaDoLimite = (limite: number): string => `Chegou ao limite de ${limite} páginas (Tarefas conta). Remova um app para pedir outro.`;
+export const linhaDoLimite = (limite: number): string => `Chegou ao limite de ${limite} páginas (Quadro conta). Remova um app para pedir outro.`;
 
 /** Até 6 pontinhos; depois disso, "+N". */
 export const MAX_PONTOS = 6;

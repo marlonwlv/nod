@@ -201,6 +201,13 @@ export function interpretarLinhaStreamJson(linha: string): EventoStream {
       const delta = obj(ev["delta"]);
       if (delta?.["type"] === "text_delta") return { tipo: "delta", texto: str(delta["text"]) };
     }
+    // definido em 2026-11-12 (estado vivo): a fase do bloco. O thinking_delta repetido não vira evento: o start já diz.
+    if (ev?.["type"] === "content_block_start") {
+      const tipoBloco = obj(ev["content_block"])?.["type"];
+      if (tipoBloco === "text") return { tipo: "fase", fase: "compondo" };
+      if (tipoBloco === "thinking" || tipoBloco === "redacted_thinking") return { tipo: "fase", fase: "pensando" };
+    }
+    if (ev?.["type"] === "content_block_stop") return { tipo: "fase", fase: "fim_bloco" };
     // O message_delta fecha a chamada com o usage completo dela (o do message_start ainda não tem a saída).
     if (ev?.["type"] === "message_delta" && obj(ev["usage"])) {
       const usage = obj(ev["usage"]);
@@ -392,6 +399,7 @@ export function classificarResultado(entrada: {
   const obrigatorios = entrada.falaDoMeio?.obrigatorios;
   const jaFaladas: string[] = [];
   const jaFaladasCruas: string[] = [];
+  const posicoesFaladas: number[] = [];
   let ultimaFerramenta = -1;
   // definido em 2026-10-11: o motivo de cada negação do hook do nod, pelo nome da ferramenta que o tool_use pediu.
   const nomePorId = new Map<string, string>();
@@ -427,6 +435,7 @@ export function classificarResultado(entrada: {
       if (falados?.has(ev)) {
         jaFaladas.push(normalizar(ev.texto));
         jaFaladasCruas.push(ev.texto);
+        posicoesFaladas.push(posicao);
       }
       else blocos.push({ texto: ev.texto, posicao, obrigatorio: obrigatorios?.has(ev) === true });
     }
@@ -445,7 +454,14 @@ export function classificarResultado(entrada: {
     // NOD-174: na falha, o `result` é o erro do CLI em inglês, não fala do bot — fica só no `erroCru`. O que o modelo
     // escreveu antes do erro continua (vira parcial no servidor).
     const doResult = result.sucesso && !jaFalado(result.texto) ? result.texto : "";
-    const final = doResult || juntarBlocos(depois) || juntarBlocos(todos) || deltas;
+    // Validação de 2026-11-17 (ADR-187): o final já saiu como fala do meio (a resposta à mensagem da pessoa era também o
+    // último texto depois da última ferramenta) — a entrega fica vazia em vez de cair nos blocos de antes. Caía na
+    // narração ("Vou delegar a pesquisa a um subagente."), e o resumo da tarefa da rede saía dela, sem o texto de 11 mil
+    // caracteres que a tarefa escreveu. Vazia, a entrega leva as ações para a última fala (assentar-turno).
+    const finalJaFalado = (result.sucesso && result.texto.trim() !== "" && jaFalado(result.texto)) || posicoesFaladas.some((p) => p > ultimaFerramenta);
+    // Os deltas que não fecharam bloco nenhum (o catcher) continuam; os dos blocos de antes, não.
+    const deltasForaDosBlocos = blocos.reduce((t, x) => t.replace(x.texto, ""), deltas);
+    const final = doResult || juntarBlocos(depois) || (finalJaFalado ? (deltasForaDosBlocos.trim() === "" ? "" : deltasForaDosBlocos) : juntarBlocos(todos) || deltas);
     const anteriores = blocos.filter((b) => b.posicao < ultimaFerramenta);
     const antes = anteriores.map((b) => b.texto);
     const fala = comporFalaContada(antes, final, new Set(anteriores.flatMap((b, i) => (b.obrigatorio ? [i] : []))));
@@ -551,6 +567,16 @@ function rodadas(eventos: readonly EventoStream[]): { fechadas: EventoStream[][]
 /** A fala de UMA rodada fechada (eventos até o `result`): a mesma composição do fim do turno. */
 export function textoDaRodada(eventos: readonly EventoStream[], falaDoMeio?: FalaDoMeioNoTurno): string {
   return classificarResultado({ eventos, exitCode: 0, signal: null, stderr: "", falaDoMeio }).texto;
+}
+
+/**
+ * ADR-186: o texto da volta que a mensagem da pessoa interrompeu. O motor pode cortar a volta sem fechar o bloco (o Codex
+ * não manda o item concluído; o Claude manda o `assistant` parcial): sem bloco, valem os `delta` que já tinham saído.
+ */
+export function textoDaVoltaInterrompida(eventos: readonly EventoStream[], falaDoMeio?: FalaDoMeioNoTurno): string {
+  const doBloco = textoDaRodada(eventos, falaDoMeio);
+  if (doBloco.trim() !== "") return doBloco;
+  return eventos.map((e) => (e.tipo === "delta" ? e.texto : "")).join("").trim();
 }
 
 const somarTokens = (a: TokensTurno, b: TokensTurno): TokensTurno => ({

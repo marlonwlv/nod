@@ -67,6 +67,12 @@ describe("NOD-20: os textos do histórico", () => {
     expect(agoraComMarca("igual", "igual")).toBe("igual");
   });
 
+  it("a comparação preserva emoji simples e composto como grafemas inteiros", () => {
+    expect(agoraComMarca("A😀X", "A😁X")).toBe('A<ins><span class="sr-only">só agora: </span>😁</ins>X');
+    expect(agoraComMarca("Tom 👍🏻 ok", "Tom 👍🏿 ok")).toBe('Tom <ins><span class="sr-only">só agora: </span>👍🏿</ins> ok');
+    expect(agoraComMarca("Família 👨‍👩‍👦 aqui", "Família 👩‍👩‍👧 aqui")).toBe('Família <ins><span class="sr-only">só agora: </span>👩‍👩‍👧</ins> aqui');
+  });
+
   it("o que difere de agora, o título e o efeito de restaurar", () => {
     const dif = gruposDiferentes(perfil({ descricao: "x", vozVelocidade: 1.25, cor: "c-blue" as PerfilVersionavel["cor"] }), perfil());
     expect(dif).toEqual(["descricao", "voz", "avatar"]);

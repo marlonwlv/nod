@@ -107,12 +107,12 @@ const CATALOGO: Record<ChaveRedacao, string> = {
   // definido em 2026-10-10 (emenda da ADR-036): o automático repetiu o pedido na próxima IA da ordem (aposLimite).
   "ia-trocada-limite": "O {de} chegou ao limite da assinatura · respondendo pelo {para}. Ele volta a ser usado {quando}.",
   // definido em 2026-10-12 (ADR-099 §7): a task bateu no limite e espera a cota renovar, em vez de falhar (aposLimiteNoFundo).
-  "cota-no-limite-espera": "A cota do {ia} chegou ao limite. Esta task espera e volta sozinha {quando}, de onde parou.",
+  "cota-no-limite-espera": "A cota do {ia} chegou ao limite. Esta tarefa espera e volta sozinha {quando}, de onde parou.",
   // definido em 2026-10-12 (ADR-101, QA do NOD-211): a conta em uso parou, há outra livre, mas o modo é "Perguntar antes"
   // (nada troca sozinho) e a task não tem ninguém para perguntar: espera a conta voltar. Só a posição, nunca o apelido.
   // definido em 2026-10-16 (ADR-108 R4): a task SEM sessão na IA que parou segue na outra IA na hora (não há o que perder).
-  "cota-no-limite-segue": "A cota do {ia} chegou ao limite. Esta task segue no {para}, de onde parou.",
-  "conta-no-limite-espera": "A conta {de} do {ia} chegou ao limite. Esta task espera e volta sozinha {quando}, de onde parou.",
+  "cota-no-limite-segue": "A cota do {ia} chegou ao limite. Esta tarefa segue no {para}, de onde parou.",
+  "conta-no-limite-espera": "A conta {de} do {ia} chegou ao limite. Esta tarefa espera e volta sozinha {quando}, de onde parou.",
   // definido em 2026-10-15 (NOD-274, NOD-269): o mesmo, no trabalho de fundo sem task — rotina, pedido de colega,
   // retorno do lote e a frente sem task. "Esta task" não servia: a pessoa lia uma task que não existe.
   "cota-no-limite-espera-pedido": "A cota do {ia} chegou ao limite. Este pedido espera e volta sozinho {quando}, de onde parou.",
@@ -123,7 +123,7 @@ const CATALOGO: Record<ChaveRedacao, string> = {
   // NOD-274: o colega que recebeu o pedido está sem cota; quem pediu lê a hora uma vez só, não um erro.
   "pedido-a-colega-espera-cota": "{agente} está sem cota do {ia}. Seu pedido espera e volta sozinho {quando}.",
   // definido em 2026-10-15 (NOD-258): o retorno do lote caiu de novo depois de refeito uma vez; os resumos não somem.
-  "retorno-do-lote-caiu": "O retorno do lote caiu duas vezes e não foi refeito de novo. Os resumos ficaram em cada frente: {frentes}.",
+  "retorno-do-lote-caiu": "O retorno do lote caiu duas vezes e não foi refeito de novo. Os resumos ficaram em cada tarefa: {frentes}.",
   // definido em 2026-10-20 (NOD-309): o fundo espera por toda queda, com UM aviso por cadeia. {pedido} já com artigo
   // ("Este pedido", "Esta frente", "Esta execução da rotina"); {quando} = "às 14:30" (quandoDaFrase).
   "fundo-espera-maquina": "{maquina} está sem contato. {pedido} fica na fila e retoma quando o contato voltar, de onde parou.",
@@ -159,7 +159,7 @@ const CATALOGO: Record<ChaveRedacao, string> = {
   // definido em 2026-10-08 (pedidos-parados.ts): o pedido de um colega caiu por infraestrutura e o servidor o retomou.
   "retomada-automatica": "Este pedido caiu ({motivo}) e foi retomado sozinho quando as máquinas voltaram: tentativa {tentativa} de {maximo}.",
   // definido em 2026-10-12 (ADR-099, I9): a frente de um lote caiu por infraestrutura e o servidor a retomou (frentes-caidas.ts).
-  "frente-retomada-automatica": "A frente {titulo} caiu ({motivo}) e foi retomada sozinha quando as máquinas voltaram: tentativa {tentativa} de {maximo}.",
+  "frente-retomada-automatica": "A tarefa {titulo} caiu ({motivo}) e foi retomada sozinha quando as máquinas voltaram: tentativa {tentativa} de {maximo}.",
   // definido em 2026-10-03: {tipo} já com artigo e acento ("uma preferência"), nunca o enum cru (lembrar.ts).
   anotei: "Anotei {tipo}: {texto}",
   // definido em 2026-09-24 (emenda da ADR-037): o aviso ÚNICO da transição; a hora sai no cartão da web.
@@ -201,7 +201,7 @@ const MOTIVO_EM_PORTUGUES: Readonly<Record<MotivoFalha | MotivoInterrupcao, stri
   // Revisão 3 do PR #544: também o turno de um pedido a colega que o prazo fechou (NOD-377), não só a rotina.
   vencido: "ficou na fila sem começar e o prazo passou",
   // NOD-293 A7: a pessoa revogou a chave da máquina com o turno rodando nela.
-  maquina_removida: "a máquina foi removida; a frente parou",
+  maquina_removida: "a máquina foi removida; a tarefa parou",
   erro_max_turns: "o agente chegou ao limite de passos deste turno",
   erro_execucao: "a IA parou por um erro; tente de novo e, se repetir, relate o problema nesta mensagem",
   motor_ausente: "a IA não está instalada neste computador",

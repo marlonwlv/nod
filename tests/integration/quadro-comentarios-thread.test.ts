@@ -131,7 +131,7 @@ describeIntegracao("comentários em thread e chips (tarefa aberta estilo Multica
       expect(t.status).toBe("voce");
       const previa = (await previaComentario(m.deps, { agenteId: m.ana.agenteId, tarefaId: t.id, texto: "azul" })).data;
       expect(previa.chips).toEqual([]);
-      expect(previa.nada).toContain(`${m.betoNome} volta à tarefa`);
+      expect(previa.nada).toContain(`${m.betoNome} volta ao card`);
       // Com uma @menção, o chip da menção aparece e o do responsável continua de fora — como no envio.
       const comMencao = (await previaComentario(m.deps, { agenteId: m.ana.agenteId, tarefaId: t.id, texto: `azul @${m.anaNome}` })).data;
       expect(comMencao.chips.map((c) => c.agenteId)).toEqual([m.ana.agenteId]);

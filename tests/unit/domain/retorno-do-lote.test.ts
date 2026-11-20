@@ -85,10 +85,10 @@ describe("retorno do lote (ADR-099, I3): os textos", () => {
   });
 
   it("as linhas e a resposta ao colega", () => {
-    expect(textoFrentesTerminadas([frente("a"), frente("b"), frente("c")])).toBe("3 frentes terminaram");
-    expect(textoFrentesTerminadas([frente("a")])).toBe("A frente Frente a terminou");
-    expect(textoFrentesTerminadas([frente("a", { estado: "parado" })])).toBe("A frente Frente a parou");
-    expect(textoFrentesTerminadas([frente("a", { estado: "falhou" })])).toBe("A frente Frente a falhou");
+    expect(textoFrentesTerminadas([frente("a"), frente("b"), frente("c")])).toBe("3 tarefas terminaram");
+    expect(textoFrentesTerminadas([frente("a")])).toBe("A tarefa Frente a terminou");
+    expect(textoFrentesTerminadas([frente("a", { estado: "parado" })])).toBe("A tarefa Frente a parou");
+    expect(textoFrentesTerminadas([frente("a", { estado: "falhou" })])).toBe("A tarefa Frente a falhou");
     expect(textoPedidoRespondido("Ada")).toBe("Respondi ao pedido de Ada");
     expect(respostaAoColega([frente("a", { resumo: { feito: "Fiz.", pr: 7, branch: "frente/a", sha: "abcdef12345", falta: "deploy" } })])).toBe("Fiz. PR #7. Branch frente/a (abcdef1). Falta: deploy");
     expect(respostaAoColega([frente("a"), frente("b", { estado: "parado" })])).toBe("- Frente a: fiz a\n- Frente b: (não concluída: parada pela pessoa) fiz b");

@@ -2,7 +2,7 @@
 
 Status: aceito em 2026-09-17.
 
-A referência de produto é o [menu enviado pela pessoa e a documentação oficial do Grok Bot](https://docs.x.ai/grok-bot/bots).
+A referência de produto é o menu enviado pela pessoa.
 Ocultar preserva o trabalho e não pausa rotinas. Duplicar reaproveita a configuração, sem histórico
 ou memória. Excluir precisa retirar o agente de operação, não apenas da lista.
 

@@ -142,7 +142,7 @@ export function quadroComentariosRepo(conn: Conn, escopo: Escopo) {
       const turnoDoPedido = uuidDoPayload(conn, conn`h.payload->>'tarefaId'`);
       const [l] = await conn<{ ok: boolean }[]>`
         select exists(select 1 from mensagens h
-          where h.tenant_id = ${escopo.tenantId} and h.owner_id = ${escopo.pessoaId} and ${pedidoAbertoSql(conn, "h")}
+          where h.tenant_id = ${escopo.tenantId} and h.owner_id = ${escopo.pessoaId} and ${pedidoAbertoSql(conn, "h", escopo.tenantId)}
             and h.payload->>'de' = ${de}::text and h.payload->>'para' = ${para}::text
             and (exists (select 1 from quadro_comentarios c where ${dona()} and c.tarefa_id = ${tarefaId} and ${turnoDoPedido} = any(c.turnos))
               or exists (select 1 from quadro_tarefas qt where qt.tenant_id = h.tenant_id and qt.id = ${tarefaId} and qt.turno_id = ${turnoDoPedido}))) as ok`;

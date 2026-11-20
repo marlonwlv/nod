@@ -274,7 +274,7 @@ describeIntegracao("turnosRepo.reivindicar: declínio do turno sem alvo (NOD-301
   it("CA1/CA2: com o declínio o Mac não pega e a VM pega; sem ele, o Mac pega como antes", async () => {
     await withRollback(MARLON, async (trx) => {
       const { repos, agenteId, conversaId } = await agenteComConversa(trx, MARLON);
-      const t = await repos.turnos.enfileirar(base(conversaId, agenteId));
+      const t = await repos.turnos.enfileirar(base(conversaId, agenteId, { harness: "claude-cli" }));
       const agora = Date.now();
       expect(await repos.turnos.reivindicar({ machineId: MAC, agora, harnessesProntos: ["claude-cli"], declinio: CLAUDE })).toBeNull();
       expect((await repos.turnos.reivindicar({ machineId: VM, agora, harnessesProntos: ["claude-cli"] }))?.id).toBe(t?.id);
@@ -302,13 +302,13 @@ describeIntegracao("turnosRepo.reivindicar: declínio do turno sem alvo (NOD-301
   it("CA5: o turno mais velho que ESPERA_DECLINIO_MS volta ao Mac; a volta marcada conta da hora dela", async () => {
     await withRollback(MARLON, async (trx) => {
       const { repos, agenteId, conversaId } = await agenteComConversa(trx, MARLON);
-      const t = await repos.turnos.enfileirar(base(conversaId, agenteId));
+      const t = await repos.turnos.enfileirar(base(conversaId, agenteId, { harness: "claude-cli" }));
       await envelhecer(trx, t!.id, ESPERA_DECLINIO_MS + 1_000);
       expect((await repos.turnos.reivindicar({ machineId: MAC, agora: Date.now(), harnessesProntos: ["claude-cli"], declinio: CLAUDE }))?.id).toBe(t?.id);
 
       const outro = await agenteComConversa(trx, MARLON);
       const agora = Date.now();
-      const volta = await repos.turnos.enfileirar(base(outro.conversaId, outro.agenteId, { acordarEm: agora - 1_000 }));
+      const volta = await repos.turnos.enfileirar(base(outro.conversaId, outro.agenteId, { acordarEm: agora - 1_000, harness: "claude-cli" }));
       await envelhecer(trx, volta!.id, 10 * 60_000);
       expect(await repos.turnos.reivindicar({ machineId: MAC, agora, harnessesProntos: ["claude-cli"], declinio: CLAUDE })).toBeNull();
       expect((await repos.turnos.reivindicar({ machineId: MAC, agora: agora + ESPERA_DECLINIO_MS, harnessesProntos: ["claude-cli"], declinio: CLAUDE }))?.id).toBe(volta?.id);
@@ -328,9 +328,9 @@ describeIntegracao("turnosRepo.reivindicar: declínio do turno sem alvo (NOD-301
     await withRollback(MARLON, async (trx) => {
       const { repos, agenteId, conversaId } = await agenteComConversa(trx, MARLON);
       const agora = Date.now();
-      await repos.turnos.enfileirar(base(conversaId, agenteId, { origem: "rotina" }));
+      await repos.turnos.enfileirar(base(conversaId, agenteId, { origem: "rotina", harness: "claude-cli" }));
       const outra = await agenteComConversa(trx, MARLON);
-      await repos.turnos.enfileirar(base(outra.conversaId, outra.agenteId));
+      await repos.turnos.enfileirar(base(outra.conversaId, outra.agenteId, { harness: "claude-cli" }));
       expect(await repos.turnos.reivindicar({ machineId: MAC, agora, harnessesProntos: ["claude-cli"], declinio: CLAUDE })).toBeNull();
       // O Codex declinado não segura o turno do Claude.
       expect(await repos.turnos.reivindicar({ machineId: MAC, agora, harnessesProntos: ["claude-cli"], declinio: { ias: ["codex-cli"], auto: false } })).not.toBeNull();
@@ -353,7 +353,7 @@ describeIntegracao("turnosRepo.reivindicar: declínio do turno sem alvo (NOD-301
       const { repos, agenteId, conversaId } = await agenteComConversa(trx, MARLON);
       const agora = Date.now();
       const semSessao = await repos.trabalhos.criar({ agenteId, conversaId, titulo: "Sem sessão", origem: "pessoa" });
-      await repos.turnos.enfileirar(base(conversaId, agenteId, { trabalhoId: semSessao!.id }));
+      await repos.turnos.enfileirar(base(conversaId, agenteId, { trabalhoId: semSessao!.id, harness: "claude-cli" }));
       expect(await repos.turnos.reivindicar({ machineId: MAC, agora, harnessesProntos: ["claude-cli"], declinio: CLAUDE })).toBeNull();
       const comSessao = await repos.trabalhos.criar({ agenteId, conversaId, titulo: "Com sessão", origem: "pessoa", sessaoCli: "sessao-do-mac", sessaoHarness: "claude-cli" });
       const t = await repos.turnos.enfileirar(base(conversaId, agenteId, { trabalhoId: comSessao!.id }));

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PRAZO_GUARDA, RAZAO_MAXIMA_LINEAR, razaoDeCrescimento } from "../../helpers/crescimento.ts";
 import { CAPACIDADES_HARNESS, SEM_CAPACIDADES } from "../../../src/contracts/harness.ts";
 import { seguimentoNaRede } from "../../../src/domain/frente.ts";
-import { CARACTERES_TITULO_PROVISORIO, esperaDoTrabalho, estadoDoTrabalho, linhaCurta, PALAVRAS_TITULO_PROVISORIO, pastaDoTrabalho, pastaRelativa, podeAbrirTask, podeMandarParaTask, promoveNaRede, REDE_MS, slugDoTrabalho, TITULO_PROVISORIO_RESERVA, tituloDoTrabalho, tituloOuNada, tituloProvisorio, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
+import { avisoDasFalasDevolvidas, CARACTERES_TITULO_PROVISORIO, esperaDoTrabalho, estadoDoTrabalho, linhaCurta, linhaDaFala, PALAVRAS_TITULO_PROVISORIO, pastaDoTrabalho, pastaRelativa, podeAbrirTask, podeMandarParaTask, promoveNaRede, REDE_MS, REDE_NAO_LIDA_MS, slugDoTrabalho, TITULO_PROVISORIO_RESERVA, tituloDoTrabalho, tituloOuNada, tituloProvisorio, type FatosTrabalho } from "../../../src/domain/trabalho.ts";
 
 const base: FatosTrabalho = { estadoAtual: "na_fila", iniciado: false, parando: 0, despachando: 0, pendentes: 0, esperandoOutro: false, decisaoPendente: false, aguardandoColega: false, ultimo: null };
 
@@ -193,6 +193,13 @@ describe("promoveNaRede (rede de 2 min)", () => {
     expect(promoveNaRede({ ...ok, fezFerramenta: false })).toBe(false);
     expect(promoveNaRede({ ...ok, trabalhoId: "w" })).toBe(false);
     expect(promoveNaRede({ ...ok, estado: "pendente" })).toBe(false);
+    // ADR-187 (2026-11-17): a fala não lida há REDE_NAO_LIDA_MS adianta a rede; as outras condições continuam valendo.
+    const cedo = { ...ok, despachadoHaMs: 30_000 };
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: REDE_NAO_LIDA_MS })).toBe(true);
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: REDE_NAO_LIDA_MS - 1 })).toBe(false);
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: null })).toBe(false);
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: REDE_NAO_LIDA_MS, fezFerramenta: false })).toBe(false);
+    expect(promoveNaRede({ ...cedo, naoLidaHaMs: REDE_NAO_LIDA_MS, origem: "rotina" })).toBe(false);
     for (const origem of ["sala", "rotina", "delegacao", "retomada", "ligacao", "peer"] as const) expect(promoveNaRede({ ...ok, origem })).toBe(false);
   });
   it("ADR-099 (I8): a retomada do dono em modo conversa também; a de rotina, colega, sala ou sem modo, não", () => {
@@ -244,5 +251,43 @@ describe("esperaDoTrabalho (ADR-099, parte 1: esperar não é trabalhar)", () =>
     ["na fila não é espera", { ...rodando, estado: "na_fila" as const, esperandoColega: colega }, null],
   ])("%s", (_nome, t, esperado) => {
     expect(esperaDoTrabalho(t)).toBe(esperado);
+  });
+});
+
+describe("linhaDaFala (validação de 2026-11-17: o resumo do cartão das tarefas vinha com markdown cru)", () => {
+  it("tira ênfase, código em linha e link da primeira linha", () => {
+    expect(linhaDaFala("O texto está pronto e salvo como `pao.md`. Tem **1.509 palavras** e [8 fontes](https://x.y/z).")).toBe("O texto está pronto e salvo como pao.md. Tem 1.509 palavras e 8 fontes.");
+    expect(linhaDaFala("Feito, *quase* tudo e ~~nada~~ mais")).toBe("Feito, quase tudo e nada mais");
+  });
+  it("título, citação, item de lista e régua viram texto, ou somem", () => {
+    expect(linhaDaFala("## História do pão\n\nTexto")).toBe("História do pão");
+    expect(linhaDaFala("---\n> - [x] **Pronto**")).toBe("Pronto");
+    expect(linhaDaFala("```ts\nconst a = 1;")).toBe("const a = 1;");
+  });
+  it("não mexe em snake_case, conta e asterisco solto", () => {
+    expect(linhaDaFala("rodei o meu_script_novo: 2 * 3 = 6")).toBe("rodei o meu_script_novo: 2 * 3 = 6");
+  });
+  it("corta depois de limpar: a marcação não gasta os 80 caracteres", () => {
+    const fala = `**${"a".repeat(78)}**`;
+    expect(linhaDaFala(fala)).toBe("a".repeat(78));
+  });
+});
+
+describe("avisoDasFalasDevolvidas (ADR-187 §3, validação de 2026-11-17: a tarefa respondia de novo o '2+2')", () => {
+  it("cita as falas, diz que a conversa já respondeu e manda seguir só com o pedido", () => {
+    const um = avisoDasFalasDevolvidas(["2+2?"]);
+    expect(um).toContain("«2+2?»");
+    expect(um).toContain("já respondeu a esta mensagem");
+    expect(um).toContain("Não responda a ela aqui; siga só com o pedido.");
+    const dois = avisoDasFalasDevolvidas(["2+2?", "como está indo?"]);
+    expect(dois).toContain("«2+2?», «como está indo?»");
+    expect(dois).toContain("Não responda a elas aqui");
+  });
+  it("corta a fala longa em 120 caracteres e junta as linhas", () => {
+    const aviso = avisoDasFalasDevolvidas([`linha um\n${"x".repeat(300)}`]);
+    const citada = /«([^»]*)»/.exec(aviso)?.[1] ?? "";
+    expect(citada.length).toBe(120);
+    expect(citada.startsWith("linha um x")).toBe(true);
+    expect(citada.endsWith("…")).toBe(true);
   });
 });

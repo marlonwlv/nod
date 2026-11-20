@@ -88,10 +88,11 @@ describe("ADA-6 critério 3: os recibos com ação", () => {
 });
 
 describe("ADA-6 critério 4: Responder sem fundo cheio", () => {
-  it("o botão do Responder é leve, não primário", () => {
+  // Revisto pela tela 18b do Paper (12/11): o cartão "te perguntou" tem o Enviar cheio do Paper; o "e seguir" (ADA-15) fica leve.
+  it("o cartão da pergunta: Enviar do Paper e o Responder e seguir leve", () => {
     const h = tarefaAberta({ t: t("1", { status: "fazendo", esperaPessoa: true, pergunta: "Qual?" }), q: q([]), agente });
-    expect(h).toMatch(/class="qd-bt qd-bt-leve">Responder</);
-    expect(h).not.toMatch(/qd-bt-pri">Responder/);
+    expect(h).toMatch(/class="ta-perg-enviar">Enviar</);
+    expect(h).toMatch(/class="qd-bt qd-bt-leve ta-perg-seguir" name="avancar" value="1">e seguir</);
   });
 
   it("o Enviar do Responder no card e na linha também é leve (revisão 3)", () => {

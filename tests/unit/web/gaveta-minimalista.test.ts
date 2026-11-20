@@ -71,7 +71,7 @@ describe("4: nome e subtítulo editáveis ali mesmo", () => {
 
 describe("5: o popover do avatar", () => {
   const aberto = (e: Estado) => reduzir(e, { tipo: "avatar-popover", aberto: { agenteId: "a1", forma: "shape-square", cor: "c-purple" } });
-  it("fechado, só o botão; aberto, 8 formas e 12 cores como rádios, com a atual marcada, e Redefinir", () => {
+  it("fechado, só o botão; aberto, 13 formas e 14 cores como rádios, com a atual marcada, e Redefinir", () => {
     const fechado = renderDetalhes(com(nina()));
     // Revisão 2: fechado, sem aria-controls (apontaria para um popover que não está no DOM).
     expect(fechado).toContain('data-act="gaveta-avatar" data-id="a1" aria-haspopup="dialog" aria-expanded="false"');
@@ -81,8 +81,9 @@ describe("5: o popover do avatar", () => {
     expect(html).toContain('aria-haspopup="dialog" aria-controls="gvn-pop" aria-expanded="true"');
     expect(html).toContain('role="dialog" aria-label="Editar avatar"');
     expect(html).not.toContain("aria-modal");
-    expect(html.match(/data-act="gaveta-forma"/g)).toHaveLength(8);
-    expect(html.match(/data-act="gaveta-cor"/g)).toHaveLength(12);
+    // ADR-174: 13 formas e 14 cores.
+    expect(html.match(/data-act="gaveta-forma"/g)).toHaveLength(13);
+    expect(html.match(/data-act="gaveta-cor"/g)).toHaveLength(14);
     expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
     expect(html).toMatch(/aria-checked="true" tabindex="0"[^>]*data-act="gaveta-forma" data-id="a1" data-valor="shape-square"/);
     expect(html).toContain('data-act="gaveta-redefinir"');
@@ -96,23 +97,25 @@ describe("5: o popover do avatar", () => {
 });
 
 describe("6: as abas", () => {
-  it("tablist com Detalhes, Biblioteca e Computador (NOD-326), tabindex roving e o painel ligado à aba", () => {
+  it("ADR-167 (Paper 02) + especificação D, item 2: abas Atividade e Biblioteca; o Computador é o cartão da Atividade, que abre a tela; tabindex roving", () => {
     const html = renderDetalhes(com(nina()));
     expect(html).toContain('role="tablist" aria-label="Seções do painel"');
-    expect(html).toContain('role="tab" class="gv-aba" id="gv-aba-detalhes" aria-controls="gv-painel-detalhes" aria-selected="true" tabindex="0"');
-    expect(html).toContain('id="gv-aba-computador" aria-controls="gv-painel-computador" aria-selected="false" tabindex="-1"');
+    expect(html).toContain('role="tab" class="gv-aba" id="gv-aba-detalhes" aria-controls="gv-painel-detalhes" aria-selected="true" tabindex="0" data-act="gaveta-aba" data-aba="detalhes" data-id="a1">Atividade');
     expect(html).toContain('id="gv-aba-biblioteca" aria-controls="gv-painel-biblioteca" aria-selected="false" tabindex="-1"');
+    expect(html).not.toContain('id="gv-aba-computador"');
+    expect(html).not.toContain('data-aba="computador"');
+    expect(html).toContain('data-act="abrir-computador" data-id="a1" aria-label="Abrir a tela de Nina"');
     expect(html.indexOf('data-aba="detalhes"')).toBeLessThan(html.indexOf('data-aba="biblioteca"'));
-    expect(html.indexOf('data-aba="biblioteca"')).toBeLessThan(html.indexOf('data-aba="computador"'));
     expect(html).toContain('role="tabpanel" id="gv-painel-detalhes" aria-labelledby="gv-aba-detalhes"');
-    expect(abasDoBot(true)).toEqual(["detalhes", "biblioteca", "computador"]);
+    expect(abasDoBot(true)).toEqual(["detalhes", "biblioteca"]);
     expect(abasDoBot(false)).toEqual(["detalhes", "biblioteca"]);
   });
 
-  it("a aba é lembrada por bot; a lembrada que não existe mais (bot da equipe) cai em Detalhes", () => {
+  it("a aba é lembrada por bot; a lembrada que não existe mais (a Computador de antes) cai em Detalhes", () => {
     const e = reduzir(com(nina()), { tipo: "aba-gaveta", agenteId: "a1", aba: "computador" });
     expect(e.abaGaveta).toEqual({ a1: "computador" });
-    expect(renderDetalhes(e)).toContain('id="gv-aba-computador" aria-controls="gv-painel-computador" aria-selected="true"');
+    expect(renderDetalhes(e)).toContain('role="tabpanel" id="gv-painel-detalhes"');
+    expect(renderDetalhes(reduzir(com(nina()), { tipo: "aba-gaveta", agenteId: "a1", aba: "biblioteca" }))).toContain('role="tabpanel" id="gv-painel-biblioteca"');
     expect(abaAberta(e, "a1", ["detalhes"])).toBe("detalhes");
     expect(abaAberta(e, "outro", ["detalhes", "computador"])).toBe("detalhes");
     // Ler do localStorage não atropela o que a pessoa escolheu nesta aba do navegador.
@@ -129,8 +132,9 @@ describe("7: Detalhes com as Rotinas e a linha Ajustes", () => {
     expect(html).not.toContain("ela aparece aqui");
     expect(html).toContain('data-act="rotina-no-chat" data-agente="a1"');
     expect(html).not.toContain('data-nivel="nova-rotina"');
+    // ADR-167 (Paper 02): o título "Ajustes" do painel leva ao nível (as linhas embaixo são Aprovações e Quadro).
     expect(html).toContain('data-act="gaveta" data-nivel="ajustes" data-agente="a1" data-origem="ajustes"');
-    expect(html).toContain("Ligar, trabalhos, memória, missão e acessos");
+    expect(html).toContain("Ajustes: ligar, tarefas, memória, missão e acessos");
   });
 });
 
@@ -148,12 +152,14 @@ describe("8–9: o nível Ajustes", () => {
     expect(dev).not.toContain("Pasta de trabalho");
   });
 
-  it("NOD-326: a Pasta fica no topo da aba Biblioteca, só no bot da pessoa (nada some sem destino)", () => {
+  it("NOD-326 + ADR-167 (Paper 02b): a Pasta fica na aba Biblioteca, embaixo dos cartões no computador e no topo no celular, só no bot da pessoa", () => {
     const e = com(nina());
     const a = e.frota!.agentes[0]! as never;
     const html = abaBiblioteca(e, a, true);
     expect(html).toContain('data-act="abrir-workspace"');
-    expect(html.indexOf("abrir-workspace")).toBeLessThan(html.indexOf('class="gv-secao gvb"'));
+    expect(html.indexOf("abrir-workspace")).toBeGreaterThan(html.indexOf('class="gv-secao gvb"'));
+    const cel = abaBiblioteca(e, a, true, true);
+    expect(cel.indexOf("abrir-workspace")).toBeLessThan(cel.indexOf('class="gv-secao gvb"'));
     expect(abaBiblioteca(e, a, false)).not.toContain("abrir-workspace");
   });
 });
@@ -177,42 +183,45 @@ describe("12: a aba Computador", () => {
     expect(estadoDoComputador({ computador: { ...c, ocupadoAte: 10 } as never, ativo: true }, 11)).toBe("ligado");
   });
 
-  it("ocupado mostra a miniatura e diz que está usando a tela; o reducer não troca o estado igual", () => {
-    expect(renderDetalhes(naAba(nina(), "ocupado"))).toContain("Ligado · usando a tela agora");
+  it("especificação D, item 2: ocupado (v1) deixa o cartão Ativo, sem imagem; o reducer não troca o estado igual", () => {
+    const html = renderDetalhes(naAba(nina(), "ocupado"));
+    expect(html).toContain('data-estado-miniatura="ativo"');
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("data-tela-bot");
+    expect(html).toContain('data-comp-bot="a1"');
     const e = reduzir(com(nina()), { tipo: "computador-visto", agenteId: "a1", estado: "ligado" });
     expect(e.computadorVisto).toEqual({ a1: "ligado" });
     expect(reduzir(e, { tipo: "computador-visto", agenteId: "a1", estado: "ligado" })).toBe(e);
   });
 
-  it("NOD-96 (v2): com o computador da pessoa, a aba mostra o estado dele (não o pulso do bot) e segue observável", () => {
-    const v2 = { estado: "dormindo", maquina: null, telas: [], esperando: [] } as unknown as Estado["computadorPessoa"];
+  it("NOD-96 (v2): com o computador da pessoa, o cartão mostra o estado dele (não o pulso do bot)", () => {
+    const v2 = { estado: "ligando", maquina: null, telas: [], esperando: [] } as unknown as Estado["computadorPessoa"];
     const html = renderDetalhes({ ...naAba(nina(), "ocupado"), computadorPessoa: v2 });
-    expect(html).toContain('data-gaveta-computador="dormindo"');
-    expect(html).toContain('data-comp-bot="a1"');
-    expect(html).toContain('data-op="acordar"');
-    expect(html).not.toContain("Ligado · usando a tela agora");
+    expect(html).toContain('data-estado-miniatura="ligando"');
+    expect(html).toContain("Ligando…");
+    expect(html).not.toContain("data-comp-bot");
   });
 });
 
 describe("12 (revisão): o computador não prende o alarme nem fica sem saída", () => {
   const naAba = (a: AgenteFrota, visto?: "dormindo" | "sem" | "fora" | "indisponivel" | "erro"): Estado => ({ ...com(a), abaGaveta: { a1: "computador" }, computadorVisto: visto ? { a1: visto } : {} });
-  it("o ponto vermelho vem só da frota: um 'fora' de pulso antigo não acende a aba", () => {
-    expect(renderDetalhes(naAba(nina(), "fora"))).not.toContain('class="gvn-ponto"');
-    expect(renderDetalhes(naAba(nina({ computadorForaDoAr: { desde: 0, motivo: "navegador_nao_abriu" } })))).toContain('class="gvn-ponto"');
+  it("o fora do ar vem só da frota: um 'fora' de pulso antigo não prende o cartão", () => {
+    expect(renderDetalhes(naAba(nina(), "fora"))).not.toContain('data-estado-miniatura="fora"');
+    const fora = renderDetalhes(naAba(nina({ computadorForaDoAr: { desde: 0, motivo: "navegador_nao_abriu" } })));
+    expect(fora).toContain('data-estado-miniatura="fora"');
+    expect(fora).toContain('data-act="religar-computador" data-id="a1"');
   });
   it("a frota que diz que o computador voltou apaga o 'fora' lido antes", () => {
     const e = { ...com(nina()), computadorVisto: { a1: "fora" as const, b: "dormindo" as const } };
     const depois = reduzir(e, { tipo: "hidratar-frota", frota: e.frota! });
     expect(depois.computadorVisto).toEqual({ b: "dormindo" });
   });
-  it("dormindo, sem computador, indisponível e erro de leitura têm Abrir computador; nenhum fica em 'Vendo…'", () => {
+  it("dormindo, sem computador, indisponível e erro de leitura: o cartão abre a tela e nenhum fica em 'Vendo…'", () => {
     for (const v of ["dormindo", "sem", "indisponivel", "erro"] as const) {
       const html = renderDetalhes(naAba(nina(), v));
       expect(html, v).toContain('data-act="abrir-computador"');
       expect(html, v).not.toContain("Vendo o computador");
     }
-    expect(renderDetalhes(naAba(nina(), "indisponivel"))).toContain("Ambiente indisponível agora");
-    expect(renderDetalhes(naAba(nina(), "erro"))).toContain("Não deu para ver o computador agora");
   });
   it("com o ambiente indisponível o estado não é 'dormindo' (Acordar falharia)", () => {
     const c = { id: "c", ocupadoAte: null, indisponivelDesde: null };

@@ -1,6 +1,7 @@
 import type { MsgDitadoCliente } from "../../src/contracts/ditado.ts";
 import { energiaPcm, lerMsgDitado, type EventoDitado, type FalhaDitado } from "./ditado-protocolo.ts";
 import { quadroMicrofone, VERSAO_PROTOCOLO } from "./ligacao-protocolo.ts";
+import { falhaDoMicrofone, windowsNoApp } from "./microfone-do-sistema.ts";
 // O mesmo worklet de captura da ligação (definido em 2026-10-11, ADR-095): reamostra para 16 kHz e entrega quadros de
 // 20 ms; a porta para o worklet de toque é opcional, e no ditado não existe.
 import urlCaptura from "./ligacao-captura.worklet.ts?worker&url";
@@ -150,7 +151,7 @@ export function iniciarDitado(o: OpcoesDitado): MotorDitado {
 
   // ---- microfone ---------------------------------------------------------------------------------------------------
   async function abrirMicrofone(): Promise<void> {
-    // O macOS pergunta antes do Chromium (no app): negado lá, getUserMedia nem chega a pedir.
+    // O sistema pergunta antes do Chromium (no app do Mac e do Windows): negado lá, getUserMedia nem chega a pedir.
     const acesso = await window.nodDesktop?.microfone?.().catch(() => undefined);
     if (acesso === "negado" || acesso === "restrito") return falhar(acesso === "negado" ? "microfone-negado" : "microfone-restrito");
     let stream: MediaStream;
@@ -158,7 +159,7 @@ export function iniciarDitado(o: OpcoesDitado): MotorDitado {
       stream = await navigator.mediaDevices.getUserMedia({ audio: RESTRICOES_AUDIO });
     } catch (e) {
       const nome = e instanceof DOMException ? e.name : "";
-      return falhar(nome === "NotAllowedError" || nome === "SecurityError" ? "microfone-negado" : "microfone-indisponivel");
+      return falhar(falhaDoMicrofone(nome, windowsNoApp()));
     }
     if (acabou || concluido) {
       for (const tr of stream.getTracks()) tr.stop();

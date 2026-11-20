@@ -275,8 +275,8 @@ async function registrarAdiada(deps: Deps, input: EntradaDisparo, segura: Segura
 export function textoAvisoAdiada(segura: Pick<Segura, "motivo" | "titulo">): string {
   const n = ADIADAS_PARA_AVISAR;
   if (segura.motivo === "frente_aberta") {
-    const frente = segura.titulo ? `a frente “${segura.titulo}”` : "uma frente desta rotina";
-    return `Esta rotina não rodou nas últimas ${n} janelas porque ${frente} ainda não terminou. Ela volta a rodar sozinha quando a frente terminar.`;
+    const frente = segura.titulo ? `a tarefa “${segura.titulo}”` : "uma tarefa desta rotina";
+    return `Esta rotina não rodou nas últimas ${n} janelas porque ${frente} ainda não terminou. Ela volta a rodar sozinha quando a tarefa terminar.`;
   }
   return `Esta rotina não rodou nas últimas ${n} janelas porque a execução anterior ainda não terminou. Ela volta a rodar sozinha quando essa execução terminar.`;
 }
@@ -436,6 +436,7 @@ const MOTIVO_NAO_RODOU: Readonly<Record<MotivoNaoRodouRotina, string>> = {
   maquina_sem_contato: "o computador do bot ficou sem contato",
   reinicio_servidor: "o servidor reiniciou",
   reinicio_do_motor: "o nod foi reiniciado na máquina",
+  tempo_esgotado: "a execução demorou mais que o esperado",
   erro_do_provedor: "a IA ficou fora do ar",
   // NOD-386: a máquina seguiu em contato e quem falhou foi o servidor; a linha não culpa a máquina.
   servidor_nao_respondeu: "o servidor do nod não respondeu a tempo",

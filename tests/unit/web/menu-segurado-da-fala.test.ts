@@ -6,7 +6,7 @@ import { estadoInicial, type ConversaEstado, type Estado } from "../../../web/es
 import { ACTS_COBERTOS, DESCRICAO_DA_TAREFA_MAX, htmlMenuSegurado, itensDoMenuSegurado, tarefaDaFala, TITULO_DA_TAREFA_MAX } from "../../../web/lib/menu-segurado-da-fala.ts";
 import { acoesDaFala, htmlMenuDaFala, itensDoMenu } from "../../../web/telas/acoes-da-fala.ts";
 
-/** ADA-2 F5 (ADR-156 §2 e §3): o menu do toque longo na mensagem e o "Criar tarefa disto". */
+/** ADA-2 F5 (ADR-156 §2 e §3): o menu do toque longo na mensagem e o "Criar card disto". */
 const AGORA = Date.parse("2026-11-07T14:02:00Z");
 const autoria = { autor_tipo: "agente", autor_id: "a", sob_procuracao_de: null, conta_de_execucao: "p", executor: "local", locality: "local", locality_reason: "tudo_local_nesta_rodada", machine_id: null, decidido_por: "regra:localidade", regra_versao: 1 } as const;
 const daPessoa = { ...autoria, autor_tipo: "pessoa", autor_id: "p", decidido_por: "pessoa" } as const;
@@ -23,15 +23,15 @@ const acoes = (itens: ReturnType<typeof itensDoMenuSegurado>): string[] => itens
 const BOT = msg("m1", "Fechei o PR 481 e abri a issue de follow-up para o cache dos convites.");
 
 describe("itensDoMenuSegurado: o menu do toque longo", () => {
-  it("fala do bot com quadro: Responder, Copiar, Criar tarefa disto; divisor; o resto do ⋯ e Reportar", () => {
+  it("fala do bot com quadro: Responder, Copiar, Criar card disto; divisor; o resto do ⋯ e Reportar", () => {
     const itens = itensDoMenuSegurado(BOT, cenario([BOT]), true);
     expect(acoes(itens)).toEqual(["responder", "copiar", "criar-tarefa", "—", "abrir-task", "lembrar", "relatar"]);
     const textos = itens.filter((i): i is Exclude<typeof i, { divisor: true }> => !("divisor" in i)).map((i) => i.texto);
-    expect(textos.slice(0, 3)).toEqual(["Responder", "Copiar", "Criar tarefa disto"]);
+    expect(textos.slice(0, 3)).toEqual(["Responder", "Copiar", "Criar card disto"]);
     expect(textos.at(-1)).toBe("Reportar problema nesta resposta");
   });
 
-  it("sem quadro, sem 'Criar tarefa disto'", () => {
+  it("sem quadro, sem 'Criar card disto'", () => {
     expect(acoes(itensDoMenuSegurado(BOT, cenario([BOT]), false))).toEqual(["responder", "copiar", "—", "abrir-task", "lembrar", "relatar"]);
   });
 
@@ -82,7 +82,7 @@ describe("itensDoMenuSegurado: o menu do toque longo", () => {
     expect(html).toMatch(/^<div role="menu" aria-label="Ações da mensagem">/);
   });
 
-  it("o ⋯ do computador também ganha 'Criar tarefa disto' logo depois de Copiar, só com quadro", () => {
+  it("o ⋯ do computador também ganha 'Criar card disto' logo depois de Copiar, só com quadro", () => {
     expect(itensDoMenu(BOT, cenario([BOT]), true).map((i) => i.acao).slice(0, 2)).toEqual(["copiar", "criar-tarefa"]);
     expect(itensDoMenu(BOT, cenario([BOT])).map((i) => i.acao)).not.toContain("criar-tarefa");
     expect(htmlMenuDaFala(BOT, cenario([BOT]), true)).toContain('data-fala="criar-tarefa"');

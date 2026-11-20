@@ -316,13 +316,17 @@ export function criarAtualizacaoDoApp(d: DepsAtualizacao) {
   function desconectado() { cancelarCiclo?.(); cancelarCiclo = null; }
   // `emVoo` sobrevive ao desconectar: o Squirrel segue baixando com a conexão antiga e o resultado ainda vale.
 
-  /** Reinicia e instala a versão baixada. Idempotente: a segunda chamada (clique duplo, notificação e menu) não faz nada. */
-  async function reiniciar(): Promise<boolean> {
+  /**
+   * Reinicia e instala a versão baixada. Idempotente: a segunda chamada (clique duplo, notificação e menu) não faz nada.
+   * `confirmado` (ADR-188): a janela web já perguntou o que precisava (o segurar do cartão ou a pergunta dela), então a
+   * caixa nativa não abre; quem chama confere a ligação antes (desktop/atualizacao-na-tela.ts).
+   */
+  async function reiniciar(confirmado = false): Promise<boolean> {
     if (estado.fase !== "pronta" || reiniciando) return false;
     reiniciando = true;
     let parou = false;
     try {
-      if (!(await d.podeReiniciar())) { reiniciando = false; return false; }
+      if (!confirmado && !(await d.podeReiniciar())) { reiniciando = false; return false; }
       instalando = true;
       d.registrar("atualizacao_app_reiniciando", { versao: estado.versao });
       desconectado();

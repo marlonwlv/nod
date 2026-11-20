@@ -48,20 +48,27 @@ export function acessosRepo(conn: Conn, escopo: Escopo) {
       const ls = await conn<{ conector_id: string; nivel: string }[]>`select conector_id, nivel from acessos_padrao where ${dona()} and nivel <> 'nenhum' order by conector_id`;
       return ls.flatMap((l) => (ehNivelDeAcesso(l.nivel) ? [{ conectorId: l.conector_id, nivel: l.nivel }] : []));
     },
+    /** O nível que os bots que seguem o padrão têm de fato: difere do padrão quando ele mudou com o app desligado (QA-105). */
+    async padraoEmVigor(conectorId: string): Promise<NivelDeAcesso> {
+      const [l] = await conn<{ nivel: string }[]>`select coalesce(nivel_em_vigor, nivel) as nivel from acessos_padrao where ${dona()} and conector_id = ${conectorId}`;
+      return l && ehNivelDeAcesso(l.nivel) ? l.nivel : "nenhum";
+    },
     /**
-     * Grava o padrão (trava a linha até o fim da tx) e devolve o anterior. A linha nasce como Nenhum antes da leitura
+     * Grava o padrão (trava a linha até o fim da tx) e devolve o anterior em vigor. A linha nasce como Nenhum antes da leitura
      * travada: FOR UPDATE não trava linha que não existe, e dois primeiros padrões ao mesmo tempo liam ambos "nenhum"
-     * (revisão do PR #706).
+     * (revisão do PR #706). `chegaAosBots` false (app desligado) só guarda: o em vigor fica o de antes (QA-105).
      */
-    async definirPadrao(conectorId: string, nivel: NivelDeAcesso): Promise<NivelDeAcesso> {
+    async definirPadrao(conectorId: string, nivel: NivelDeAcesso, chegaAosBots = true): Promise<NivelDeAcesso> {
       await conn`
         insert into acessos_padrao (tenant_id, owner_id, conector_id, nivel) values (${escopo.tenantId}, ${escopo.pessoaId}, ${conectorId}, 'nenhum')
         on conflict (tenant_id, conector_id) do nothing`;
-      const [antes] = await conn<{ nivel: string }[]>`select nivel from acessos_padrao where ${dona()} and conector_id = ${conectorId} for update`;
+      const [antes] = await conn<{ nivel: string }[]>`select coalesce(nivel_em_vigor, nivel) as nivel from acessos_padrao where ${dona()} and conector_id = ${conectorId} for update`;
+      const anterior: NivelDeAcesso = antes && ehNivelDeAcesso(antes.nivel) ? antes.nivel : "nenhum";
+      const emVigor = chegaAosBots ? nivel : anterior;
       await conn`
-        insert into acessos_padrao (tenant_id, owner_id, conector_id, nivel) values (${escopo.tenantId}, ${escopo.pessoaId}, ${conectorId}, ${nivel})
-        on conflict (tenant_id, conector_id) do update set nivel = excluded.nivel, atualizado_em = clock_timestamp()`;
-      return antes && ehNivelDeAcesso(antes.nivel) ? antes.nivel : "nenhum";
+        update acessos_padrao set nivel = ${nivel}, nivel_em_vigor = ${emVigor === nivel ? null : emVigor}, atualizado_em = clock_timestamp()
+        where ${dona()} and conector_id = ${conectorId}`;
+      return anterior;
     },
     /** A marca de um bot num app (lida sob a trava do par: a de `marcas` pode ter mudado enquanto esperava). */
     async marca(agenteId: string, conectorId: string): Promise<MarcaDeAcesso | null> {

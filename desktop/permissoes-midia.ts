@@ -32,6 +32,25 @@ export function estadoDoMicrofone(status: string): EstadoMicrofone | null {
   return "negado";
 }
 
+/**
+ * O mesmo no Windows (17/11/2026). O Electron lê `DeviceAccessInformation` do microfone: "denied" é o acesso do app
+ * desligado e "restricted" o acesso ao microfone desligado no computador todo; os dois a pessoa liga em Configurações ›
+ * Privacidade e segurança › Microfone, então os dois viram "negado" (com o botão que abre essa tela). O Windows não tem
+ * pergunta (não há `askForMediaAccess`): "not-determined"/"unknown" deixam o getUserMedia tentar.
+ */
+export function estadoDoMicrofoneWindows(status: string): EstadoMicrofone {
+  return status === "denied" || status === "restricted" ? "negado" : "concedido";
+}
+
+/**
+ * Onde o sistema libera o microfone (o botão do aviso "libere o microfone"). Endereço fixo daqui: a página só pede abrir.
+ * Windows: Configurações › Privacidade e segurança › Microfone. Mac: Ajustes do Sistema › Privacidade › Microfone.
+ */
+export const AJUSTES_DO_MICROFONE = {
+  win32: "ms-settings:privacy-microphone",
+  darwin: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+} as const;
+
 /** O argumento de `emLigacao`: só boolean; qualquer outra coisa → null (o handler recusa). */
 export function lerEmLigacao(valor: unknown): boolean | null {
   return typeof valor === "boolean" ? valor : null;

@@ -401,7 +401,7 @@ describe("meta, resumo e textos", () => {
   it("o resumo diz quantas, o prazo, quem e os PRs", () => {
     const nomes = new Map([[ZE.id, "Ze 1"], [ADA.id, "Ada"]]);
     const r = resumoDaMeta({ prazo: "2026-11-06" }, [{ status: "feito", prUrl: "https://github.com/gamefik/nod/pull/12", agenteId: ZE.id }, { status: "feito", prUrl: null, agenteId: ADA.id }, { status: "cancelado", prUrl: null, agenteId: null }], nomes, AGORA);
-    expect(r).toBe("2 de 2 tarefas feitas, no prazo (sex, 06/11). Feito por Ze 1, Ada. PRs: #12.");
+    expect(r).toBe("2 de 2 cards feitos, no prazo (sex, 06/11). Feito por Ze 1, Ada. PRs: #12.");
     expect(numeroDoPr("https://github.com/a/b/pull/77")).toBe(77);
     expect(prazoValido("2026-13-01")).toBe(false);
   });

@@ -74,15 +74,15 @@ describe("quadro-dados", () => {
 
   it("revisão 2 do PR #623: o mover que falha diz o porquê do servidor no 4xx; sem rede, a de sempre", () => {
     expect(fraseDoErroDoMover({ status: 409, codigo: "estado_invalido", motivo: "mudou_de_quadro", message: "Isso não pode ser feito agora." }))
-      .toEqual({ texto: "Não deu para mudar a tarefa de quadro: outra mudança levou a tarefa para outro quadro antes. Relendo.", reler: true });
-    expect(fraseDoErroDoMover({ status: 400, codigo: "entrada_invalida", motivo: "ja_neste_quadro" }).texto).toContain("ela já está nesse quadro");
+      .toEqual({ texto: "Não deu para mudar o card de quadro: outra mudança levou o card para outro quadro antes. Relendo.", reler: true });
+    expect(fraseDoErroDoMover({ status: 400, codigo: "entrada_invalida", motivo: "ja_neste_quadro" }).texto).toContain("ele já está nesse quadro");
     // Sem motivo conhecido, a frase que o servidor mandou (a da tabela, nunca a causa).
     expect(fraseDoErroDoMover({ status: 404, codigo: "nao_encontrado", motivo: "outro", message: "Não encontramos o que você pediu." }).texto)
-      .toBe("Não deu para mudar a tarefa de quadro. Não encontramos o que você pediu.");
+      .toBe("Não deu para mudar o card de quadro. Não encontramos o que você pediu.");
     expect(fraseDoErroDoMover({ status: 0, codigo: "sem_internet" })).toEqual({ texto: "Sem conexão com o servidor agora. Tente de novo em instantes.", reler: false });
-    expect(fraseDoErroDoMover(null).texto).toBe("Não deu para mudar a tarefa de quadro. Relendo.");
+    expect(fraseDoErroDoMover(null).texto).toBe("Não deu para mudar o card de quadro. Relendo.");
     // Toda recusa que a rota manda como motivo tem frase na tela.
-    for (const motivo of Object.keys(RECUSAS_DO_MOVER)) expect(fraseDoErroDoMover({ status: 400, motivo }).texto, motivo).toMatch(/^Não deu para mudar a tarefa de quadro: /);
+    for (const motivo of Object.keys(RECUSAS_DO_MOVER)) expect(fraseDoErroDoMover({ status: 400, motivo }).texto, motivo).toMatch(/^Não deu para mudar o card de quadro: /);
   });
 
   it("revisão 2 do PR #623: o link da tarefa de um bot que não está na lista avisa na hora, sem esperar o teto", async () => {
@@ -205,7 +205,9 @@ describe("quadro-real (o html)", () => {
     const linhas = [{ tipo: "ci_falhou" as const, texto: `GitHub · CI falhou no #612 ${MAL}`, criadoEm: Date.parse("2026-11-02T14:02:00Z") }];
     const h = String(tarefaAberta({ t: t("1", { prs, linhas }), q: q([]), agente }));
     expect(h).toContain(`href="https://github.com/gamefik/nod/pull/612"`);
-    expect(h).toContain("gamefik/nod #612</a><span class=\"qd-pr-estado\"> · CI falhou · conflito · aberto</span>");
+    // Tela 18b do Paper: o estado do PR num chip à direita; a frase inteira fica no title do link.
+    expect(h).toContain('title="CI falhou · conflito · aberto"');
+    expect(h).toContain('gamefik/nod #612</a><span class="ta-pr-chip ta-pr-falhou"><i aria-hidden="true"></i>CI falhou</span>');
     expect(h).not.toContain("javascript:");
     // 2026-11-10: os PRs têm a seção própria na lateral (as Entregas são os links dos comentários do agente).
     expect(h).toContain(`Pull requests <span class="qd-n">1</span>`);
@@ -223,12 +225,12 @@ describe("quadro-real (o html)", () => {
     expect(antes).not.toContain("Atividade");
   });
 
-  it("3ª revisão do PR #621: o ícone de cada PR em Entregáveis segue o estado (CI falhando, fechado sem merge, aberto, mergeado)", () => {
+  it("rodada 4 (tela 18b do Paper): o PR leva o ícone do PR e o estado vai no chip (CI falhando, fechado sem merge, aberto, mergeado)", () => {
     const pr = (numero: number, o: Partial<NonNullable<TarefaDto["prs"]>[number]>) => ({ repo: "o/r", numero, url: `https://github.com/o/r/pull/${numero}`, estado: "aberto" as const, ci: null, conflito: false, ...o });
     const prs = [pr(1, { ci: "falhou" }), pr(2, { estado: "fechado" }), pr(3, { ci: "ok" }), pr(4, { estado: "mergeado" })];
     const h = String(tarefaAberta({ t: t("1", { prs }), q: q([]), agente }));
-    const icones = [...h.matchAll(/<li><svg[^>]*class="([^"]*)"[^>]*>.*?o\/r #(\d+)<\/a>/g)].map((m) => [m[2], /qd-ic-[a-z]+/.exec(m[1]!)?.[0]]);
-    expect(icones).toEqual([["1", "qd-ic-falhou"], ["2", "qd-ic-fechado"], ["3", "qd-ic-fila"], ["4", "qd-ic-mergeado"]]);
+    const linhas = [...h.matchAll(/<li class="ta-pr"><svg class="ta-pr-ic"[^>]*>.*?o\/r #(\d+)<\/a><span class="ta-pr-chip ta-pr-([a-z]+)">/g)].map((m) => [m[1], m[2]]);
+    expect(linhas).toEqual([["1", "falhou"], ["2", "fechado"], ["3", "ok"], ["4", "mergeado"]]);
   });
 
   it("NOD-421 (🧭): o tom do ponto e o PR mais problemático do card", () => {
@@ -351,7 +353,7 @@ describe("NOD-415 (ADR-141): meta opcional, prazo e criar pela tela", () => {
     expect(h).toContain("qd-meta-fluxo");
     expect(h).toContain(">+ Meta<");
     expect(h).toContain("faltam 7 dias");
-    expect(h).not.toMatch(/de 2 feitas|progressbar|qd-barra/);
+    expect(h).not.toMatch(/de 2 feitos|progressbar|qd-barra/);
   });
 
   it("com meta: a meta clicável, a barra, N de M feitas e quanto falta; cumprida no lugar do falta", () => {
@@ -359,10 +361,10 @@ describe("NOD-415 (ADR-141): meta opcional, prazo e criar pela tela", () => {
     expect(h).toContain('data-act="editar-meta"');
     expect(h).not.toContain("<img");
     expect(h).toContain('aria-valuenow="1"');
-    expect(h).toContain("1 de 4 feitas");
+    expect(h).toContain("1 de 4 feitos");
     expect(h).toContain("falta 1 dia");
     expect(String(topoDoQuadro(q([], { meta: "M", feitas: 4, total: 4, cumpridoEm: 9 }), { agora: QUARTA }))).toContain(">cumprida<");
-    expect(String(topoDoQuadro(q([], { meta: "M", total: 0 }), { agora: QUARTA }))).toContain("nenhuma tarefa ainda");
+    expect(String(topoDoQuadro(q([], { meta: "M", total: 0 }), { agora: QUARTA }))).toContain("nenhum card ainda");
   });
 
   it("editando a meta: o campo com a meta atual, escapada", () => {
@@ -445,12 +447,13 @@ describe("NOD-416 (ADR-144): criar, Status e Responsável na tela, histórico e 
     expect(html).toContain(`<code class="qd-branch">ada-3-secao-de-planos</code>`);
     expect(html).toContain("Histórico");
     expect(html).toContain("criou em Backlog");
-    // Sem a lista de bots, o Responsável é só leitura; sem outro quadro, sem o Mover para; carregando, o histórico diz.
+    // Sem a lista de bots, o Responsável é só leitura; sem outro quadro, sem o Mover para. Rodada 4 (tela 18b do Paper):
+    // carregando ou vazio, o Histórico de campos não entra na lateral.
     const so = String(tarefaAberta({ t: tm, q: q([tm]), agente, historico: null }));
     expect(so).not.toContain(`data-campo="agente"`);
     expect(so).not.toContain(`data-campo="mover"`);
-    expect(so).toContain("Carregando…");
-    expect(String(tarefaAberta({ t: tm, q: q([tm]), agente, historico: [] }))).toContain("Sem histórico antes desta versão");
+    expect(so).not.toContain("Histórico de campos");
+    expect(String(tarefaAberta({ t: tm, q: q([tm]), agente, historico: [] }))).not.toContain("Histórico de campos");
   });
 
   it("revisão do PR #623: Status sem \"Precisa de você\" (ADR-162: não é coluna) e Mover só com o botão; Responsável sem o Nod", () => {
@@ -547,7 +550,7 @@ describe("NOD-460: a barra do quadro em tela cheia", () => {
     const html = String(quadroDaMeta({ ...base, q: q(ts), filtro: "agente:b", busca: "zzz" }));
     expect(html).toContain(`class="qd-vazio-1"`);
     expect(html).not.toMatch(/class="qd-vazio-1"[^>]*role=/);
-    expect(html).toContain("Nada com “zzz” nas tarefas de Bia.");
+    expect(html).toContain("Nada com “zzz” nos cards de Bia.");
     expect(html).toContain(`data-act="busca-limpar"`);
     expect(html).toContain(`data-act="filtro-do-quadro" data-filtro="todos">Ver em todas`);
     expect(html).not.toMatch(/role="dialog"|aria-modal/);
@@ -573,10 +576,10 @@ describe("NOD-460: a barra do quadro em tela cheia", () => {
     // A pessoa recolheu o Feito (com tarefa, ele nasce aberto).
     const rec = new Set(["feito"]);
     const html = String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra", alternadas: rec }));
-    expect(html).toContain("Nada nas colunas abertas; 1 tarefa em Feito.");
+    expect(html).toContain("Nada nas colunas abertas; 1 card em Feito.");
     expect(html).toContain(`data-act="abrir-coluna" data-status="feito">Abrir Feito</button>`);
     // Sem as recolhidas à vista (Exibir), o mesmo.
-    expect(String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra", alternadas: rec, exibir: { recolhidas: false, compacto: false } }))).toContain("1 tarefa em Feito.");
+    expect(String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra", alternadas: rec, exibir: { recolhidas: false, compacto: false } }))).toContain("1 card em Feito.");
     // Aberta a coluna, a tarefa aparece e a linha some.
     expect(String(quadroDaMeta({ ...base, q: q(comFeita), filtro: "todos", busca: "zebra" }))).not.toContain("qd-vazio-1");
   });
@@ -679,7 +682,7 @@ describe("ADA-16 (ADR-163): o card diz rodando, na fila há X min ou esperando",
   const html = (x: Partial<TarefaDto>) => String(quadroDaMeta({ ...base, q: q([t("2", { titulo: "Tela", agenteId: "b", agenteNome: "Bia", status: "fazendo", ...x })]), filtro: "todos", agora }));
 
   it("na fila com motivo real: \"na fila há 12 min\" e diz qual (a mesma tarefa em série ou o portão da máquina)", () => {
-    expect(html({ execucao: "fila", naFilaDesde: 1, motivoFila: "mesma_tarefa" })).toContain("na fila há 12 min · termina a etapa anterior desta tarefa");
+    expect(html({ execucao: "fila", naFilaDesde: 1, motivoFila: "mesma_tarefa" })).toContain("na fila há 12 min · termina a etapa anterior deste card");
     expect(html({ execucao: "fila", naFilaDesde: 1, motivoFila: "memoria" })).toContain("na fila há 12 min · a máquina está sem memória livre");
     expect(html({ execucao: "fila", naFilaDesde: 1, motivoFila: "processador" })).toContain("o processador da máquina está ocupado");
     expect(html({ execucao: "fila", naFilaDesde: 1, motivoFila: "disco" })).toContain("o disco da máquina está cheio");
@@ -700,7 +703,7 @@ describe("ADA-16 (ADR-163): o card diz rodando, na fila há X min ou esperando",
   it("2026-11-10 (uma fonte só): \"começando\" só no card otimista do mover; a fila do servidor diz \"na fila · motivo\"", () => {
     const servidor = html({ execucao: "fila", naFilaDesde: agora - 30_000, motivoFila: "mesma_tarefa" });
     expect(servidor).not.toContain("começando");
-    expect(servidor).toContain("na fila · termina a etapa anterior desta tarefa");
+    expect(servidor).toContain("na fila · termina a etapa anterior deste card");
     const otimista = html({ execucao: "fila", naFilaDesde: null, motivoFila: null, otimista: true } as never);
     expect(otimista).toContain("começando");
   });
@@ -739,7 +742,7 @@ describe("ADA-232: o card numa linha", () => {
     expect(esp({ quando: "merge" })).toEqual({ texto: "Esperando o merge", voce: false });
     expect(esp({ quando: "conflito" })).toEqual({ texto: "Esperando conflito", voce: false });
     expect(esp({ quando: "tarefa", tarefa: "ENG-12" })).toEqual({ texto: "Esperando ENG-12", voce: false });
-    expect(esp({ quando: "tarefa", tarefa: null })).toEqual({ texto: "Esperando outra tarefa", voce: false });
+    expect(esp({ quando: "tarefa", tarefa: null })).toEqual({ texto: "Esperando outro card", voce: false });
     const c = cardDaTarefa(t("9", { status: "fazendo", estadoLinha: { tipo: "esperando", motivo: null, volta: { ...volta, quando: "tarefa", tarefa: MAL } } }), agente);
     expect(String(card(c))).not.toContain(MAL);
   });
@@ -756,7 +759,7 @@ describe("ADA-232: o card numa linha", () => {
 describe("2026-11-10: o aviso do Backlog (o backlog_hint do Multica)", () => {
   it("com tarefa de um responsável parada no Backlog, a coluna diz como começar; sem responsável ou noutra coluna, nada", () => {
     const h = String(quadroDaMeta({ q: q([t("1", { status: "backlog", agenteId: "a" })]), nome: "Ada", agente, filtro: "todos", alternadas: new Set(), acesas: new Set() }));
-    expect(h).toContain('<p class="qd-col-dica">Parada no Backlog: mova para A fazer para começar.</p>');
+    expect(h).toContain('<p class="qd-col-dica">Parado no Backlog: mova para A fazer para começar.</p>');
     expect(String(quadroDaMeta({ q: q([t("1", { status: "backlog", agenteId: null })]), nome: "Ada", agente, filtro: "todos", alternadas: new Set(), acesas: new Set() }))).not.toContain("qd-col-dica");
     expect(String(quadroDaMeta({ q: q([t("1", { status: "afazer", agenteId: "a" })]), nome: "Ada", agente, filtro: "todos", alternadas: new Set(), acesas: new Set() }))).not.toContain("qd-col-dica");
   });

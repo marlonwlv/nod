@@ -311,20 +311,6 @@ export function rodandoNoMac<T extends TrabalhoDto>(lista: readonly T[]): T[] {
 }
 
 /**
- * NOD-372 (revisão do PR #537): as máquinas que entram na pílula do topo depois da de memória. O Mac que segura por
- * memória sem nada rodando nele nem esperando por ele sai: sem ele, o "Seu Mac está ocupado" tomaria o lugar da pílula de
- * memória que sumiu, com tudo na VM. As outras máquinas e os outros motivos do Mac seguem como antes.
- */
-export function maquinasDoAviso(maquinas: readonly LeituraDeMaquinaDto[], trabalhos: readonly TrabalhoDto[]): LeituraDeMaquinaDto[] {
-  const rodando = rodandoNoMac(trabalhos);
-  return maquinas.filter((m) => {
-    if (!m.ehMac || m.motivoEspera !== "memoria") return true;
-    const daqui = (t: TrabalhoDto): boolean => !t.maquina || t.maquina.id === m.id;
-    return rodando.some(daqui) || trabalhos.some((t) => seguradoPeloMac(t, false) && daqui(t));
-  });
-}
-
-/**
  * A pílula por máquina (2026-10-09, a tela fala por máquina): quem segura trabalho novo agora, pelo nome.
  * - Só o Mac: "Seu Mac está ocupado" (ou o disco), como antes, com o "Ver" para Este Mac.
  * - Só uma outra máquina: "nod-motor-teste está ocupada · 4 trabalhos esperam ela aliviar", com o "Ver" para Máquinas.
@@ -354,21 +340,6 @@ function pilula(titulo: string, detalhe: string, secao: string | null): string {
   return secao
     ? `<div class="linha-centro-wrap" role="status"><button type="button" class="pilula-memoria amarela" data-act="secao-espaco" data-secao="${secao}">${miolo}<span class="pm-ver">Ver ›</span></button></div>`
     : `<div class="linha-centro-wrap" role="status"><span class="pilula-memoria amarela">${miolo}</span></div>`;
-}
-
-/**
- * "os bots usam 0,4 GB do seu Mac e 0,7 GB na nod-motor-teste": a memória dos processos dos bots em cada máquina, só as
- * que têm (sem leitura útil, nada). Servidor anterior: o total, "do seu Mac", como antes.
- */
-export function memoriaDosBots(dto: Pick<TrabalhosDto, "maquinas" | "memoriaTotalMb"> | null | undefined): string {
-  const ms = maquinasDe(dto);
-  if (ms === undefined) {
-    const total = dto?.memoriaTotalMb ?? null;
-    return total !== null && total > 0 ? `os bots usam ${memoriaLegivel(total)} do seu Mac` : "";
-  }
-  // O Mac primeiro (é onde a pessoa está), depois as outras na ordem do servidor.
-  const partes = [...ms.filter((m) => m.ehMac), ...ms.filter((m) => !m.ehMac)].filter((m) => m.memoriaBotsMb > 0).map((m) => (m.ehMac ? `${memoriaLegivel(m.memoriaBotsMb)} do seu Mac` : `${memoriaLegivel(m.memoriaBotsMb)} na ${m.nome}`));
-  return partes.length ? `os bots usam ${juntar(partes)}` : "";
 }
 
 /**
@@ -463,8 +434,8 @@ export function juntar(nomes: readonly string[]): string {
  * títulos reais viravam um parágrafo em letra de título; agora vão numa lista no corpo (`listaPararTasks`).
  */
 export function textoPararTasks(lista: readonly Pick<TrabalhoDto, "titulo">[], nomeDoBot = "bot"): string {
-  if (lista.length === 1) return `Parar a task ${lista[0]?.titulo ?? ""}?`;
-  return `Parar as ${lista.length} tasks do ${nomeDoBot}?`;
+  if (lista.length === 1) return `Parar a tarefa ${lista[0]?.titulo ?? ""}?`;
+  return `Parar as ${lista.length} tarefas do ${nomeDoBot}?`;
 }
 
 /** Os títulos das tasks que o Parar da pílula vai parar, um por linha (vazio com uma task só: o título já diz). */
@@ -504,7 +475,7 @@ export function resumoDaPilula(lista: readonly TrabalhoDto[]): { ponto: "precisa
 }
 
 /** O chip de memória das pranchas M1–M3: traço na cor do texto da pílula (currentColor), sem cor própria. */
-const ICONE_MEMORIA = '<svg class="pm-icone" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"></rect><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"></path></svg>';
+export const ICONE_MEMORIA = '<svg class="pm-icone" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="2"></rect><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"></path></svg>';
 
 /**
  * O que a pílula de memória conta: "rodando" (NOD-372, com as máquinas no DTO: os trabalhos rodando no Mac, "N rodando
@@ -513,7 +484,7 @@ const ICONE_MEMORIA = '<svg class="pm-icone" width="14" height="14" viewBox="0 0
 export type RotuloMemoria = "rodando" | "abertos";
 
 export function textoDaContagemDeMemoria(n: number, rotulo: RotuloMemoria): string {
-  return rotulo === "rodando" ? `${n} rodando aqui` : `${n} ${n === 1 ? "trabalho aberto" : "trabalhos abertos"}`;
+  return rotulo === "rodando" ? `${n} rodando aqui` : `${n} ${n === 1 ? "tarefa aberta" : "tarefas abertas"}`;
 }
 
 /**
@@ -542,12 +513,12 @@ export function pilulaMemoria(nivel: NivelPressao | null, contagem: number, comV
  * uma linha), o `voltar` de fora continua — Fechar nunca vira uma pilha de tasks.
  */
 export function telaDaTask(atual: Tela, id: string): Extract<Tela, { tipo: "trabalho" }> {
-  return { tipo: "trabalho", id, voltar: atual.tipo === "trabalho" || atual.tipo === "linha" ? atual.voltar : atual };
+  return { tipo: "trabalho", id, voltar: atual.tipo === "trabalho" || atual.tipo === "linha" || atual.tipo === "nova-tarefa" ? atual.voltar : atual };
 }
 
 /** Para onde o Fechar (ou o Esc) da tela da task e da tela provisória leva; null = não é uma delas. */
 export function telaAoFechar(atual: Tela): Tela | null {
-  return atual.tipo === "trabalho" || atual.tipo === "linha" ? atual.voltar : null;
+  return atual.tipo === "trabalho" || atual.tipo === "linha" || atual.tipo === "nova-tarefa" ? atual.voltar : null;
 }
 
 /**
@@ -584,5 +555,5 @@ export function acoesDeFazer(t: TrabalhoDto | undefined, estado: Pick<Estado, "t
     : outras.length
       ? botao("trabalho-depois", `Fazer depois da ${esc(outras[outras.length - 1]?.titulo ?? "")}`, { classe: "sm", id: t.id, dados: { depois: outras[outras.length - 1]?.id ?? "" } })
       : "";
-  return `<div class="linha-acoes">${depois}${botao("trabalho-fazer-aqui", "Fazer aqui", { classe: "sm", id: t.id, titulo: "cancela a task e responde aqui na conversa" })}</div>`;
+  return `<div class="linha-acoes">${depois}${botao("trabalho-fazer-aqui", "Fazer aqui", { classe: "sm", id: t.id, titulo: "cancela a tarefa e responde aqui na conversa" })}</div>`;
 }

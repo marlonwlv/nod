@@ -45,6 +45,28 @@ const ABERTO = `t.estado in ('pendente', 'despachando')
                 select r.id, c.n + 1 from c join turnos r on r.tenant_id = t.tenant_id and r.retoma_turno_id = c.id and r.origem = 'retomada' where c.n < 10
               ) select 1 from c join turnos v on v.tenant_id = t.tenant_id and v.id = c.id where v.estado in ('pendente', 'despachando')))`;
 
+/**
+ * Os turnos cuja janela PODE estar aberta pelo ABERTO (definido em 2026-11-19): o ABERTO avaliado janela a janela varria as
+ * ~700 janelas da semana de uma rotina movimentada (≈90 ms cada, duas vezes por rotina na lista). Todo turno que o ABERTO
+ * aceita está aqui: (1) o próprio turno vivo; (2) o que divide o trabalho com um vivo; (3) o que tem um vivo na cadeia de
+ * retomadas abaixo dele, até 10 elos — subindo do vivo pelo `retoma_turno_id` com a mesma régua (filho 'retomada', n < 10).
+ * É um superconjunto: quem decide continua sendo o ABERTO, na consulta que usa os candidatos.
+ */
+function candidatosAbertos(conn: Conn, tenantId: string) {
+  return conn`with recursive vivos as (
+      select id, trabalho_id from turnos where tenant_id = ${tenantId} and estado in ('pendente', 'despachando')
+    ), sobe(id, n) as (
+      select id, 0 from vivos
+      union all
+      select p.retoma_turno_id, s.n + 1 from sobe s join turnos p on p.tenant_id = ${tenantId} and p.id = s.id
+      where p.origem = 'retomada' and p.retoma_turno_id is not null and s.n < 10
+    ), candidatos as (
+      select id from sobe
+      union
+      select x.id from turnos x where x.tenant_id = ${tenantId} and x.trabalho_id in (select trabalho_id from vivos where trabalho_id is not null)
+    )`;
+}
+
 const paraJanela = (l: Linha): JanelaRotina => ({
   tenantId: l.tenant_id,
   rotinaId: l.rotina_id,
@@ -99,18 +121,27 @@ export function rotinaJanelasRepo(conn: Conn, escopo: Escopo) {
      * `agora` é o relógio do servidor (o mesmo do disparo), não o now() do banco.
      */
     async turnoAberto(rotinaId: string, agora: number): Promise<TurnoAbertoDaRotina | null> {
-      const [l] = await conn<{ turno_id: string; instante_agendado: Date; estado: string; attempted: boolean; acordar_em: Date | null; criado_em: Date; trabalho_id: string | null; espera_nuvem: boolean }[]>`
-        select j.turno_id, j.instante_agendado, t.estado, t.attempted, t.acordar_em, t.criado_em, t.trabalho_id,
+      return (await repo.turnosAbertos([rotinaId], agora)).get(rotinaId) ?? null;
+    },
+
+    /**
+     * O `turnoAberto` de várias rotinas numa consulta só (definido em 2026-11-19): a lista de rotinas pedia duas vezes por
+     * rotina, e com ~100 rotinas e milhares de janelas na semana o GET /rotinas passava dos 10 s do prazo da web.
+     */
+    async turnosAbertos(rotinaIds: readonly string[], agora: number): Promise<Map<string, TurnoAbertoDaRotina>> {
+      if (rotinaIds.length === 0) return new Map();
+      const linhas = await conn<{ rotina_id: string; turno_id: string; instante_agendado: Date; estado: string; attempted: boolean; acordar_em: Date | null; criado_em: Date; trabalho_id: string | null; espera_nuvem: boolean }[]>`
+        ${candidatosAbertos(conn, escopo.tenantId)}
+        select distinct on (j.rotina_id) j.rotina_id, j.turno_id, j.instante_agendado, t.estado, t.attempted, t.acordar_em, t.criado_em, t.trabalho_id,
           ${nuvemSuspendePrazo(conn, conn`t.tenant_id`, alvoDoTurno(conn, agora))} as espera_nuvem
-        from rotina_janelas j
+        from candidatos cd
+        join rotina_janelas j on j.tenant_id = ${escopo.tenantId} and j.turno_id = cd.id
         join turnos t on t.tenant_id = j.tenant_id and t.id = j.turno_id
-        where j.tenant_id = ${escopo.tenantId} and j.rotina_id = ${rotinaId}
-          and j.turno_id is not null and j.instante_agendado > ${data(agora)}::timestamptz - interval '7 days'
+        where j.rotina_id = any(${[...rotinaIds]}::uuid[])
+          and j.instante_agendado > ${data(agora)}::timestamptz - interval '7 days'
           and (${conn.unsafe(ABERTO)})
-        order by j.instante_agendado desc limit 1`;
-      return l
-        ? { turnoId: l.turno_id, instanteAgendado: ms(l.instante_agendado), estado: l.estado, attempted: l.attempted, acordarEm: l.acordar_em ? ms(l.acordar_em) : null, criadoEm: ms(l.criado_em), trabalhoId: l.trabalho_id, esperaNuvem: l.espera_nuvem }
-        : null;
+        order by j.rotina_id, j.instante_agendado desc`;
+      return new Map(linhas.map((l) => [l.rotina_id, { turnoId: l.turno_id, instanteAgendado: ms(l.instante_agendado), estado: l.estado, attempted: l.attempted, acordarEm: l.acordar_em ? ms(l.acordar_em) : null, criadoEm: ms(l.criado_em), trabalhoId: l.trabalho_id, esperaNuvem: l.espera_nuvem }]));
     },
 
     /**
@@ -119,11 +150,13 @@ export function rotinaJanelasRepo(conn: Conn, escopo: Escopo) {
      */
     async contarAbertas(rotinaId: string, agora: number): Promise<number> {
       const [l] = await conn<{ n: number }[]>`
+        ${candidatosAbertos(conn, escopo.tenantId)}
         select count(*)::int as n
-        from rotina_janelas j
+        from candidatos cd
+        join rotina_janelas j on j.tenant_id = ${escopo.tenantId} and j.turno_id = cd.id
         join turnos t on t.tenant_id = j.tenant_id and t.id = j.turno_id
-        where j.tenant_id = ${escopo.tenantId} and j.rotina_id = ${rotinaId}
-          and j.turno_id is not null and j.instante_agendado > ${data(agora)}::timestamptz - interval '7 days'
+        where j.rotina_id = ${rotinaId}
+          and j.instante_agendado > ${data(agora)}::timestamptz - interval '7 days'
           and (${conn.unsafe(ABERTO)})`;
       return l?.n ?? 0;
     },

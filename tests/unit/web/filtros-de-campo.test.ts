@@ -67,7 +67,7 @@ describe("o descritor e o rótulo", () => {
     expect(descritorDosCampos({})[0]!.valores).toEqual([]);
   });
   it("o prazo legível: vencida, hoje, amanhã, dia da semana e a data", () => {
-    expect(rotuloDoPrazo("2026-11-08", AGORA, SP)).toEqual({ texto: "Vencida há 2 dias", tom: "vencida" });
+    expect(rotuloDoPrazo("2026-11-08", AGORA, SP)).toEqual({ texto: "Vencido há 2 dias", tom: "vencida" });
     expect(rotuloDoPrazo("2026-11-09", AGORA, SP)).toEqual({ texto: "Venceu ontem", tom: "vencida" });
     expect(rotuloDoPrazo("2026-11-10", AGORA, SP)).toEqual({ texto: "Hoje", tom: "hoje" });
     expect(rotuloDoPrazo("2026-11-11", AGORA, SP).texto).toBe("Amanhã");

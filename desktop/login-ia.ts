@@ -149,6 +149,7 @@ export function mensagemDaFalha(ia: IaDesktop, causa: CausaFalhaLogin): string {
     case "cli_antigo": return `Este ${cli} não tem o login pelo app. Atualize o ${cli} e tente de novo.`;
     case "config_invalida": return `A configuração do ${cli} tem um erro e o login não abre. Corrija o arquivo e tente de novo.`;
     case "nao_confirmou": return `O ${cli} não confirmou o login depois do código. Tente de novo.`;
+    case "recusou_antes_do_link": return `O ${cli} fechou com erro antes de abrir o login. Ele pode ter sido trocado ou estar com defeito: entre pelo Terminal para ver o motivo.`;
     case "falhou": return `O login no ${NOME[ia]} não terminou. Tente de novo.`;
   }
 }
@@ -335,7 +336,11 @@ export function criarLoginDasIas(d: DepsLogin): LoginDasIas {
       const disseQueEntrou = ia === "codex-cli" ? SUCESSO_DO_CODEX.test(limpar(f.saida)) : r.codigo === 0;
       if (s.logado && (entrouAgora(f, s) || disseQueEntrou)) await terminar(f, "sucesso");
       else if (/expired|expirou|timed out/i.test(limpar(f.saida))) await terminar(f, "expirou");
-      else await terminar(f, "falhou", causaDaFalha(ia, f.saida));
+      else {
+        // Saiu com erro sem nunca mostrar o link e sem causa conhecida: a tela diz isso, não o "não terminou" genérico.
+        const causa = causaDaFalha(ia, f.saida);
+        await terminar(f, "falhou", causa === "falhou" && !f.url && r.codigo !== 0 ? "recusou_antes_do_link" : causa);
+      }
     });
     return { ...f.login };
   }

@@ -13,7 +13,7 @@ afterEach(() => new Promise<void>((r) => (srv ? srv.close(() => r()) : r())));
 
 async function montar(o: { comVivo?: boolean; escopo?: typeof ESCOPO | null } = {}) {
   const sessoes = criarSessoesVivo();
-  const pedidos: Array<{ agenteId: string; sessao: string; token: string }> = [];
+  const pedidos: Array<{ agenteId: string; sessao: string; token: string; assistir?: boolean }> = [];
   srv = createServer();
   anexarCanaisVoz(srv, {
     resolverEscopo: async () => (o.escopo === undefined ? ESCOPO : o.escopo),
@@ -23,7 +23,7 @@ async function montar(o: { comVivo?: boolean; escopo?: typeof ESCOPO | null } = 
     anexarCerebro: () => null,
     anexarDitado: () => {},
     ...(o.comVivo === false ? {} : { computadorVivo: {
-      web(escopo, agenteId, canal) { const s = sessoes.abrir({ escopo, agenteId, web: canal }); pedidos.push({ agenteId, ...s }); },
+      web(escopo, agenteId, canal, modo) { const s = sessoes.abrir({ escopo, agenteId, web: canal }); pedidos.push({ agenteId, ...s, ...(modo?.assistir ? { assistir: true } : {}) }); },
       motor: (sessao, token, canal) => sessoes.anexarMotor(sessao, token, canal),
     } }),
   });
@@ -42,6 +42,14 @@ const fechou = (ws: WebSocket) => new Promise<number>((r) => ws.once("close", (c
 const mensagem = (ws: WebSocket) => new Promise<Buffer>((r) => ws.once("message", (d) => r(d as Buffer)));
 
 describe("tela ao vivo pelo WebSocket", () => {
+  it("card D, F3: ?modo=assistir chega como a sessão de quem só vê", async () => {
+    const { host, pedidos } = await montar();
+    const web = abrir(`ws://${host}/api/t/${ESCOPO.tenantId}/agentes/a1/computador/vivo?modo=assistir`, { origin: `http://${host}` });
+    await aberto(web);
+    expect(pedidos[0]).toMatchObject({ agenteId: "a1", assistir: true });
+    web.close();
+  });
+
   it("web (cookie + Origin) abre a sessão; motor chega com o token; os bytes atravessam nos dois sentidos", async () => {
     const { host, pedidos } = await montar();
     const web = abrir(`ws://${host}/api/t/${ESCOPO.tenantId}/agentes/a1/computador/vivo`, { origin: `http://${host}` });

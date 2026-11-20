@@ -20,7 +20,11 @@ import { limparPessoaE2E } from "./limpeza-e2e.ts";
 const WEB = join(process.cwd(), "dist/web");
 const chrome = existsSync(join(WEB, "index.html")) ? (() => { try { return acharChrome(); } catch { return null; } })() : null;
 if (process.env.NOD_QA_EXIGE_CHROME === "1" && !chrome) throw new Error("NOD-360: o CI precisa da web montada (npx vite build) e do Chromium");
-const descrever = chrome ? describeIntegracao : describe.skip;
+// Pulado em 2026-11-19: desde a COP-14 (2026-11-12, renderFalaViva) a fala viva é só o indicador — nem o balão nem o
+// resumo aparecem enquanto o turno roda —, então a medida "balão da viva → balão da gravada" não tem o que medir (na CI da
+// preview, 20 s só com o indicador). A prova nova (indicador → gravada sem pulo) fica para a próxima rodada da conversa.
+const descrever = describe.skip;
+void describeIntegracao;
 // Mais longa que PROMOCAO_CHARS (280, web/lib/atividade.ts): vira balão já durante o turno, e não só quando ele acaba.
 const RESPOSTA = "A fala terminou sem mudar de lugar. ".repeat(9).trim();
 const espera = (ms: number) => new Promise((ok) => setTimeout(ok, ms));

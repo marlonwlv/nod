@@ -46,7 +46,7 @@ describe("criarRotina (ferramenta, origem agente)", () => {
     expect(d.banco.propostas).toHaveLength(0);
   });
 
-  it("a 51ª rotina do bot é recusada com limite_atingido (Grok Bot: 50)", async () => {
+  it("a 51ª rotina do bot é recusada com limite_atingido (teto: 50)", async () => {
     const d = depsMemoria({ agora: () => AGORA });
     const { agenteId, conversaId } = await bot(d);
     for (let i = 0; i < ROTINAS_POR_AGENTE; i++) {

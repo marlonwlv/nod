@@ -200,7 +200,7 @@ recibo da aprovação que a pessoa decide depois da fala leva a autoria dela e, 
 faixa (QA do PR 6). "não confiável" e "parcial" ficam: dizem algo do texto que a pessoa está lendo. A linha
 efêmera do turno vivo antes da primeira ferramenta ("trabalhando · catcher · 3 s") não é fala e fica como está.
 
-**Divisores de data** (como o "Today 00:25" do Grok; protótipos Main e F1). Além do topo, um divisor quando o dia muda ou
+**Divisores de data** (como o "Hoje 00:25" dos protótipos Main e F1). Além do topo, um divisor quando o dia muda ou
 quando passam 30 min ou mais (decisão tomada 6) entre dois itens à vista: "Hoje 08:00" no topo e na troca de dia, só
 "15:40" no mesmo dia, "Ontem 22:10", "17/10 15:02" e, de outro ano, "17/10/2025 15:02". Regras:
 
