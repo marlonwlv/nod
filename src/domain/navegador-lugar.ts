@@ -105,3 +105,35 @@ export function avisoForaDoAr(nome: string, hora: string): AvisoDeLugar {
 export function avisoMaquinaSaiu(nome: string): AvisoDeLugar {
   return { tipo: "maquina_saiu", texto: `A ${nome} saiu da sua conta. Continuo no nod.` };
 }
+
+/** O que a espera diz (ADR-190, N): a causa que a vista mostra e a instrução que o bot lê (sem "servidor", "VM" nem "nuvem"). */
+export type EsperaDoNavegador = { motivo: "aparelho_desligado" | "maquina_fora_do_ar" | "app_sem_navegador"; causa: string; instrucao: string };
+
+const maiuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * definido em 2026-11-20: a espera em palavras. `appSemNavegador` = o app do aparelho está conectado mas não roda o
+ * navegador (versão antiga): a causa pede para atualizar, em vez de dizer que o Mac está desligado.
+ */
+export function esperaDoNavegador(r: Extract<ResolucaoLugar, { tipo: "espera" }>, appSemNavegador = false): EsperaDoNavegador {
+  if (r.motivo === "maquina_fora_do_ar") {
+    return {
+      motivo: "maquina_fora_do_ar",
+      causa: `A ${r.nome} está fora do ar`,
+      instrucao: `Seu navegador só roda na ${r.nome} (a pessoa pediu "Só na ${r.nome}"), e ela está fora do ar agora. Nada foi executado. Siga com o que dá sem o navegador; se não der, diga à pessoa numa frase que você faz isso quando a ${r.nome} voltar e encerre o turno.`,
+    };
+  }
+  const aparelho = r.nome.replace(/^seu /, "");
+  if (appSemNavegador) {
+    return {
+      motivo: "app_sem_navegador",
+      causa: `O app do nod no ${r.nome} precisa ser atualizado para o navegador`,
+      instrucao: `Seu navegador roda no ${aparelho} da pessoa, mas o app do nod de lá ainda não roda o navegador (precisa atualizar). Nada foi executado. Siga com o que dá sem o navegador; se não der, peça numa frase para ela atualizar o app do nod no ${aparelho} e encerre o turno.`,
+    };
+  }
+  return {
+    motivo: "aparelho_desligado",
+    causa: `${maiuscula(r.nome)} está desligado`,
+    instrucao: `Seu navegador roda no ${aparelho} da pessoa, e ele está desligado (ou com o app do nod fechado) agora. Nada foi executado. Siga com o que dá sem o navegador; se não der, diga à pessoa numa frase que você faz isso quando o ${aparelho} ligar (ou que ela pode deixar você continuar com o ${aparelho} desligado) e encerre o turno.`,
+  };
+}

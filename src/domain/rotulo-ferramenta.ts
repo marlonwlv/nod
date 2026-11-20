@@ -69,6 +69,7 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   gerir_maquinas: ["Mexeu nas máquinas", "Mexendo nas máquinas"],
   // NOD-119: o card que muda a barra lateral só depois de a pessoa confirmar.
   ajustar_barra_lateral: ["Sugeriu mudar a barra lateral", "Sugerindo mudar a barra lateral"],
+  ajustar_navegador: ["Mudou onde o navegador roda", "Mudando onde o navegador roda"],
   // NOD-50: o cartão de credencial; o rótulo nunca cita o valor (o bot nem o tem).
   pedir_credencial: ["Pediu uma chave", "Pedindo uma chave"],
   abrir_conta: ["Pediu um cartão de conta", "Pedindo um cartão de conta"],

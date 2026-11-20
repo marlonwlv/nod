@@ -36,6 +36,7 @@ import type { Morph } from "../lib/morph.ts";
 import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../lib/computador.ts";
 import { htmlLinhaTelaFechada, htmlPedidoDeTela } from "../lib/computador-pessoa.ts";
 import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDoComputador } from "../lib/computador-conversa.ts";
+import { htmlLinhaDoLugarDoNavegador } from "../lib/navegador-conversa.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
@@ -259,6 +260,8 @@ function corpoMensagem(m: Mensagem, estado: Estado): string {
     const acoes = aindaFora && dono ? `${botao("religar-computador", "Tentar de novo", { id: p.agenteId, classe: "cp-acao sm" })}${botao("abrir-computador", "Abrir computador", { id: p.agenteId, classe: "cp-acao sm" })}` : "";
     return avisoErro({ frase: `Computador do bot fora do ar desde ${dataHora(p.desde)}.`, ...(m.texto.trim() ? { mais: m.texto.trim() } : {}), acoes, classe: "msg-computador-fora" });
   }
+  // ADR-190 (N): o navegador do bot mudou de lugar sozinho; a linha cinza diz onde e traz o botão (Desfazer, "Só na …").
+  if (p?.kind === "navegador_lugar") return htmlLinhaDoLugarDoNavegador(p, m.texto, agenteDe(estado, p.agenteId)?.ownerId === estado.sessao?.pessoaId);
   // NOD-97 PR 5: o Chrome preencheu a senha salva; a linha cinza leva o selo "‹bot› não vê a senha".
   if (p?.kind === "computador_senha_preenchida") return htmlLinhaSenhaSalva(agenteDe(estado, p.agenteId)?.nome ?? "O bot");
   // definido em 2026-09-28 (ADR-051): o card do artefato; o iframe entra depois do render (telas/artefatos-vivos.ts).

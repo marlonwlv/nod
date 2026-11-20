@@ -12,23 +12,33 @@ export type PreferenciasNavegador = {
   agenteId: string;
   continuaSemMac: boolean;
   maquinaId: string | null;
+  /** 0181: "Volta para o nod", a escolha explícita (maquinaId nulo sem isto = a máquina automática). */
+  noNod: boolean;
   soNaMaquina: boolean;
   liberacoes: LiberacoesNavegador;
   atualizadoEm: EpochMs;
 };
 
-type LinhaPreferencias = { agente_id: string; continua_sem_mac: boolean; maquina_id: string | null; so_na_maquina: boolean; liberacoes: unknown; atualizado_em: Date };
-const preferencias = (l: LinhaPreferencias): PreferenciasNavegador => ({ agenteId: l.agente_id, continuaSemMac: l.continua_sem_mac, maquinaId: l.maquina_id, soNaMaquina: l.so_na_maquina, liberacoes: lerLiberacoes(l.liberacoes), atualizadoEm: ms(l.atualizado_em) });
+type LinhaPreferencias = { agente_id: string; continua_sem_mac: boolean; maquina_id: string | null; no_nod: boolean; so_na_maquina: boolean; liberacoes: unknown; atualizado_em: Date };
+const preferencias = (l: LinhaPreferencias): PreferenciasNavegador => ({ agenteId: l.agente_id, continuaSemMac: l.continua_sem_mac, maquinaId: l.maquina_id, noNod: l.no_nod, soNaMaquina: l.so_na_maquina, liberacoes: lerLiberacoes(l.liberacoes), atualizadoEm: ms(l.atualizado_em) });
 
 export function navegadorPreferenciasRepo(conn: Conn, escopo: Escopo) {
   async function buscar(agenteId: string): Promise<PreferenciasNavegador | null> {
     const [l] = await conn<LinhaPreferencias[]>`
-      select agente_id, continua_sem_mac, maquina_id, so_na_maquina, liberacoes, atualizado_em from navegador_preferencias
+      select agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, atualizado_em from navegador_preferencias
       where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and agente_id = ${agenteId}`;
     return l ? preferencias(l) : null;
   }
   return {
     buscar,
+
+    /** As preferências de todos os bots da pessoa (os avisos de quando uma máquina entra ou sai da conta, quadro N). */
+    async daPessoa(): Promise<PreferenciasNavegador[]> {
+      const linhas = await conn<LinhaPreferencias[]>`
+        select agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, atualizado_em from navegador_preferencias
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} order by agente_id`;
+      return linhas.map(preferencias);
+    },
 
     /** O que o portão usa (A2/A3); sem linha, nenhuma liberação. */
     async liberacoes(agenteId: string): Promise<LiberacoesNavegador> {
@@ -39,17 +49,18 @@ export function navegadorPreferenciasRepo(conn: Conn, escopo: Escopo) {
     async gravar(agenteId: string, p: Partial<Omit<PreferenciasNavegador, "agenteId" | "atualizadoEm">>, agora: EpochMs): Promise<PreferenciasNavegador | null> {
       const lib = p.liberacoes ? jsonb(conn, lerLiberacoes(p.liberacoes)) : null;
       const [l] = await conn<LinhaPreferencias[]>`
-        insert into navegador_preferencias (tenant_id, owner_id, agente_id, continua_sem_mac, maquina_id, so_na_maquina, liberacoes, atualizado_em)
-        select ${escopo.tenantId}, ${escopo.pessoaId}, a.id, ${p.continuaSemMac ?? false}, ${p.maquinaId ?? null}, ${p.soNaMaquina ?? false},
+        insert into navegador_preferencias (tenant_id, owner_id, agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, atualizado_em)
+        select ${escopo.tenantId}, ${escopo.pessoaId}, a.id, ${p.continuaSemMac ?? false}, ${p.maquinaId ?? null}, ${p.noNod ?? false}, ${p.soNaMaquina ?? false},
           coalesce(${lib}::jsonb, '{"pagar":[],"enviar":[]}'::jsonb), ${data(agora)}
         from agentes a where a.tenant_id = ${escopo.tenantId} and a.id = ${agenteId} and a.owner_id = ${escopo.pessoaId}
         on conflict (tenant_id, agente_id) do update set
           continua_sem_mac = case when ${p.continuaSemMac !== undefined} then excluded.continua_sem_mac else navegador_preferencias.continua_sem_mac end,
           maquina_id = case when ${p.maquinaId !== undefined} then excluded.maquina_id else navegador_preferencias.maquina_id end,
+          no_nod = case when ${p.noNod !== undefined} then excluded.no_nod else navegador_preferencias.no_nod end,
           so_na_maquina = case when ${p.soNaMaquina !== undefined} then excluded.so_na_maquina else navegador_preferencias.so_na_maquina end,
           liberacoes = case when ${p.liberacoes !== undefined} then excluded.liberacoes else navegador_preferencias.liberacoes end,
           atualizado_em = excluded.atualizado_em
-        returning agente_id, continua_sem_mac, maquina_id, so_na_maquina, liberacoes, atualizado_em`;
+        returning agente_id, continua_sem_mac, maquina_id, no_nod, so_na_maquina, liberacoes, atualizado_em`;
       return l ? preferencias(l) : null;
     },
   };

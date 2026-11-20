@@ -99,10 +99,14 @@ export function maquinaTokensRepo(conn: Conn, escopo: Escopo) {
       return l ?? null;
     },
 
-    /** ADR-090 (0067): o sistema que a máquina anunciou ao se conectar. Só escreve quando muda. */
-    async registrarPlataforma(id: string, plataforma: PlataformaMaquina): Promise<void> {
-      await conn`update maquina_tokens set plataforma = ${plataforma}
-        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and plataforma is distinct from ${plataforma}`;
+    /**
+     * ADR-090 (0067): o sistema que a máquina anunciou ao se conectar. Só escreve quando muda; true = mudou (a primeira
+     * conexão da máquina, ADR-190 N: a primeira máquina sempre ligada avisa os bots).
+     */
+    async registrarPlataforma(id: string, plataforma: PlataformaMaquina): Promise<boolean> {
+      const r = await conn`update maquina_tokens set plataforma = ${plataforma}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and plataforma is distinct from ${plataforma} returning id`;
+      return r.length > 0;
     },
 
     /**

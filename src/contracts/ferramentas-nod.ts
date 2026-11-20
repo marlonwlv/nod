@@ -24,6 +24,7 @@ import { FERRAMENTAS_COMPUTADORES } from "./ferramentas-computadores.ts";
 import { FERRAMENTAS_DECISOES } from "./ferramentas-decisoes.ts";
 import { SCHEMA_PEDIR_A_PESSOA } from "./pedido.ts";
 import { FERRAMENTAS_CARTOES } from "./ferramentas-cartoes.ts";
+import { FERRAMENTAS_NAVEGADOR_LUGAR } from "./ferramentas-navegador-lugar.ts";
 import type { JsonSchema } from "./json-schema.ts";
 export type { JsonSchema } from "./json-schema.ts";
 export type { ArgsPedirAPessoa } from "./pedido.ts";
@@ -50,7 +51,7 @@ export const FERRAMENTAS_NOD = {
   ...FERRAMENTAS_LIGACAO,
   ...FERRAMENTAS_TRABALHO,
   ...FERRAMENTAS_FRENTE,
-  ...FERRAMENTAS_DO_NOD, ...FERRAMENTAS_CRIAR_BOTS, ...FERRAMENTAS_RESPONDER_PEDIDO, ...FERRAMENTAS_CREDENCIAL, ...FERRAMENTAS_AVISO, ...FERRAMENTAS_CARTOES, ...FERRAMENTAS_BARRA, ...FERRAMENTAS_CONTA, ...FERRAMENTAS_CONVERSAS, ...FERRAMENTAS_QUADRO, ...FERRAMENTAS_APPS, ...FERRAMENTAS_NAO_LIDOS, ...FERRAMENTAS_TIMES, ...FERRAMENTAS_ACESSOS, ...FERRAMENTAS_CANVAS, ...FERRAMENTAS_MAQUINAS, ...FERRAMENTAS_COMPUTADORES, ...FERRAMENTAS_DECISOES,
+  ...FERRAMENTAS_DO_NOD, ...FERRAMENTAS_CRIAR_BOTS, ...FERRAMENTAS_RESPONDER_PEDIDO, ...FERRAMENTAS_CREDENCIAL, ...FERRAMENTAS_AVISO, ...FERRAMENTAS_CARTOES, ...FERRAMENTAS_BARRA, ...FERRAMENTAS_CONTA, ...FERRAMENTAS_CONVERSAS, ...FERRAMENTAS_QUADRO, ...FERRAMENTAS_APPS, ...FERRAMENTAS_NAO_LIDOS, ...FERRAMENTAS_TIMES, ...FERRAMENTAS_ACESSOS, ...FERRAMENTAS_CANVAS, ...FERRAMENTAS_MAQUINAS, ...FERRAMENTAS_COMPUTADORES, ...FERRAMENTAS_DECISOES, ...FERRAMENTAS_NAVEGADOR_LUGAR,
   lembrar: {
     type: "object",
     description: "Guarda uma memória deste agente (preferência, fato ou resumo). A memória não substitui fonte autoritativa.",
@@ -161,5 +162,5 @@ export const NOMES_FERRAMENTAS_NOD = [
   "pedir_a_pessoa", "passar", "encaminhar", "sem_novidade", "pedir_a_bot", "ver_colegas", "publicar_artefato", "ler_artefato",
   "iniciar_tarefa", "desligar",
   "anotar_entrevista", "concluir_entrevista", "propor_bot", "abrir_task", "mandar_para_task",
-  "gerir_bots", "ver_apps_conectados", "registrar_relato", "me_chame_as", "esperar_comando", "abrir_frentes", "mandar_para_frente", "devolver_resumo", "criar_bots", "responder_pedido", "pedir_credencial", "avisar_pessoa", "mostrar_cartoes", "abrir_conta", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "gerir_quadro", "nao_lidos", "decisoes", "gerir_apps", "gerir_times", "gerir_canvas", "gerir_acessos", "gerir_maquinas", "remover_computador",
+  "gerir_bots", "ver_apps_conectados", "registrar_relato", "me_chame_as", "esperar_comando", "abrir_frentes", "mandar_para_frente", "devolver_resumo", "criar_bots", "responder_pedido", "pedir_credencial", "avisar_pessoa", "mostrar_cartoes", "abrir_conta", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "gerir_quadro", "nao_lidos", "decisoes", "gerir_apps", "gerir_times", "gerir_canvas", "gerir_acessos", "gerir_maquinas", "remover_computador", "ajustar_navegador",
 ] as const satisfies readonly NomeFerramentaNod[];

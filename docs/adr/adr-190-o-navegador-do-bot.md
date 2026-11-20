@@ -64,6 +64,26 @@ As telas estão no Paper, arquivo "nod · Chat e conversa":
    - Máquina fora do ar: roda no nod daquela vez, a não ser que a pessoa tenha travado "Só na vm-sp".
    - A frase de baixo sempre diz onde; "servidor", "VM" e "nuvem" nunca aparecem.
    - Na máquina da pessoa, o app puxa os comandos (ADR-021) e empurra os quadros por um WebSocket que ele mesmo abre.
+   - Como ficou (2026-11-20, atrás de `NOD_NAVEGADOR_NA_MAQUINA=1`, só no modo compartilhado): o portão fala com um
+     motor remoto (`src/adapters/navegador/motor-remoto.ts`) que põe cada chamada na fila da máquina
+     (`canal-maquina.ts`; long-poll `POST /api/maquina/navegador/puxar`, resposta em `navegador/resultado`). A máquina roda
+     o mesmo `criarMotorAgentBrowser` (`src/adapters/executor/navegador.ts`), no app do Mac e no motor do Linux. A
+     máquina que faz o long-poll é a que está "ligada" para o navegador. Um app conectado que não faz o long-poll é de
+     uma versão sem o navegador, e a vista pede para atualizar.
+   - A vista: o servidor manda `assistir` com um token de uso único. A máquina liga o stream local e disca para
+     `/api/maquina/navegador/vivo/:agenteId?t=`. Sobem só `frame`, `tabs` e `status`. Descem a entrada (`input_*`) e o
+     relay (tecla e `insertText`), conferidos de novo na máquina.
+   - O lugar é decidido a cada chamada e a cada "ligar" (`decidirLugarDoNavegador`). As entradas são as preferências
+     (0180, mais `no_nod` da 0181), as chaves vivas da pessoa (Linux = sempre ligada, na ordem de conexão), quem puxa o
+     navegador agora e onde o computador do bot mora.
+   - Espera: a vista vai a `erro` com a causa ("Seu Mac está desligado") e o bot lê a instrução. Desvio: roda no nod e
+     a conversa ganha a linha "Fiz no nod" uma vez por queda.
+   - O Chrome no Mac: o Google Chrome do sistema quando existe, senão o Chrome for Testing que o `agent-browser install`
+     baixa na primeira vez (o bot ouve "tente em 2 min" enquanto isso). O binário do agent-browser vai fora do asar, em
+     `Contents/Resources/agent-browser`.
+   - O Chrome no Linux: `NOD_NAVEGADOR_CHROME`, senão o Chromium do computador em /opt/nod-motor/chromium, senão um do
+     PATH. O agent-browser vem da instalação do motor, em /opt/nod-motor/navegador.
+   - A chave que cifra os perfis na máquina é dela (`<dados>/navegadores/segredo`, 0600) e nunca vai ao servidor.
 6. **Logins sem o bot ver** (L).
    - `navegador_entrar` pede o login na conversa (azul) e oferece primeiro o item do cofre que casa com o site: cofre do
      nod (cifrado no servidor), 1Password (`op`, no app do Mac, ADR-177) ou Bitwarden (`bw`, no app do Mac).

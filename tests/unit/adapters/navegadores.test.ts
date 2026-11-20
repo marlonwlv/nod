@@ -550,3 +550,94 @@ describe("ensinar uma tarefa (T)", () => {
     expect(mensagens).toEqual([]);
   });
 });
+
+describe("o lugar decidido a cada chamada (ADR-190, decisão 5)", () => {
+  type Decidido = Awaited<ReturnType<NonNullable<OpcoesNavegadores["lugarDe"]>>>;
+  const MAC = { tipo: "mac" as const, nome: "seu Mac" };
+  const VM = { tipo: "maquina" as const, maquinaId: "00000000-0000-4000-8000-0000000000e1", nome: "vm-sp" };
+  let decidido: Decidido;
+  let avisos: { agenteId: string; maquina: { id: string; nome: string } }[];
+  let doMac: string[];
+  const motorMac: MotorNavegador = new Proxy({} as MotorNavegador, {
+    get(_t, op: string) {
+      if (op === "lugar") return MAC;
+      return async (...args: unknown[]) => {
+        doMac.push(op);
+        if (op === "abrir") return { url: String(args[1]), titulo: "No Mac" };
+        if (op === "url") return String(urlAgora);
+        if (op === "ler") return leitura;
+        if (op === "abas") return [{ id: "t1", titulo: "No Mac", url: urlAgora, ativa: true }];
+        return undefined;
+      };
+    },
+  });
+  const comLugar = () => criar({
+    motor: (l) => (l.tipo === "nod" ? motor : l.tipo === "mac" ? motorMac : null),
+    lugarDe: async () => decidido,
+    avisarForaDoAr: async (_d, agenteId, maquina) => { avisos.push({ agenteId, maquina }); },
+  });
+  beforeEach(() => {
+    decidido = { tipo: "roda", lugar: { tipo: "nod" }, desvio: null };
+    avisos = [];
+    doMac = [];
+  });
+
+  it("Mac desligado: o bot lê a instrução, a vista diz a causa e nenhum Chrome sobe", async () => {
+    decidido = { tipo: "espera", motivo: "aparelho_desligado", causa: "Seu Mac está desligado", instrucao: "Seu navegador roda no Mac da pessoa, e ele está desligado." };
+    const n = comLugar();
+    const r = await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://exemplo.com" });
+    expect(r).toMatchObject({ ok: true, isError: true });
+    expect(corpo(r)).toEqual({ erro: "espera", instrucao: "Seu navegador roda no Mac da pessoa, e ele está desligado." });
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "erro", erro: { causa: "Seu Mac está desligado" } });
+    expect(chamadas).toEqual([]);
+    expect(doMac).toEqual([]);
+    await expect(n.operar(MARLON, A, "ligar")).rejects.toMatchObject({ codigo: "estado_invalido", cause: "aparelho_desligado" });
+    // O Mac ligou: a causa sai e o comando vai para o motor dele.
+    decidido = { tipo: "roda", lugar: MAC, desvio: null };
+    expect(await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://exemplo.com" })).toMatchObject({ ok: true });
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "ao_vivo", erro: null, lugar: MAC });
+    expect(doMac).toContain("abrir");
+  });
+
+  it("o lugar muda: o Chrome do lugar velho fecha e o próximo comando vai ao novo", async () => {
+    const n = comLugar();
+    await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/carrinho" });
+    expect(n.vista(MARLON, A)?.lugar).toEqual({ tipo: "nod" });
+    decidido = { tipo: "roda", lugar: MAC, desvio: null };
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(ops()).toContain("fechar");
+    expect(doMac).toEqual(["ler"]);
+    expect(n.vista(MARLON, A)?.lugar).toEqual(MAC);
+  });
+
+  it("com a pessoa no controle, o lugar não muda no meio (ela não perde o navegador)", async () => {
+    const n = comLugar();
+    await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/carrinho" });
+    await n.operar(MARLON, A, "assumir");
+    decidido = { tipo: "roda", lugar: MAC, desvio: null };
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(n.vista(MARLON, A)?.lugar).toEqual({ tipo: "nod" });
+    expect(ops()).not.toContain("fechar");
+  });
+
+  it("máquina fora do ar: roda no nod e a conversa ganha a linha uma vez por queda", async () => {
+    const n = comLugar();
+    decidido = { tipo: "roda", lugar: { tipo: "nod" }, desvio: { maquinaId: VM.maquinaId, nome: "vm-sp" } };
+    await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://exemplo.com" });
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(avisos).toEqual([{ agenteId: A, maquina: { id: VM.maquinaId, nome: "vm-sp" } }]);
+    // Voltou e caiu de novo: outra linha.
+    decidido = { tipo: "roda", lugar: VM, desvio: null };
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    decidido = { tipo: "roda", lugar: { tipo: "nod" }, desvio: { maquinaId: VM.maquinaId, nome: "vm-sp" } };
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(avisos).toHaveLength(2);
+  });
+
+  it("no nod sem motor (sem NOD_NAVEGADOR_NO_SERVIDOR): indisponível com a frase de quem continua sem Mac", async () => {
+    const n = criar({ motor: (l) => (l.tipo === "mac" ? motorMac : null), lugarDe: async () => decidido, motivoIndisponivel: "O navegador do bot não roda no nod agora, e este bot continua com o Mac desligado sem uma máquina sempre ligada para ele.", algumLugar: () => true });
+    const r = await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://exemplo.com" });
+    expect(corpo(r)).toMatchObject({ erro: "indisponivel", instrucao: expect.stringContaining("continua com o Mac desligado") });
+    expect(n.disponivel()).toBe(true);
+  });
+});

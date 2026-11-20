@@ -52,6 +52,7 @@ import { cifrarCodigo } from "./lib/cifra.ts";
 import { criarInstalarSsh, type CampoSegredo } from "./lib/instalar-ssh.ts";
 import type { ContasIaDto } from "../src/contracts/contas-ia.ts";
 import type { Mensagem } from "../src/contracts/mensagem.ts";
+import type { MudancaLugarNavegador } from "../src/contracts/navegador-do-bot.ts";
 import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
 import { instalarOrdemArrastavel } from "./lib/ordem-arrastavel.ts";
@@ -8430,6 +8431,14 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // definido em 2026-09-24 (emenda da ADR-037): "Tentar de novo" é o mesmo ligar do computador; falhou, a
   // frota relê e o cartão continua dizendo o motivo.
   "religar-computador": (el) => ligarComputador(el.dataset.id ?? "", "religar"),
+  // ADR-190 (N): o botão da linha "o navegador mudou de lugar" (Desfazer, "Só na vm-sp, mesmo que atrase").
+  "navegador-lugar": (el) => agir(async () => {
+    let mudar: MudancaLugarNavegador = {};
+    try { mudar = JSON.parse(el.dataset.mudar ?? "{}") as MudancaLugarNavegador; } catch { return; }
+    await api!.mudarLugarDoNavegador(el.dataset.id ?? "", mudar);
+    el.setAttribute("disabled", "");
+    el.textContent = "Feito";
+  }),
   // ADR-125: Acordar, na aba Computador, é o mesmo ligar; o pulso seguinte lê o estado novo.
   "computador-acordar": (el) => ligarComputador(el.dataset.id ?? "", "acordar"),
   // ADR-125 (NOD-349): o topo da gaveta, as abas e o popover do avatar.

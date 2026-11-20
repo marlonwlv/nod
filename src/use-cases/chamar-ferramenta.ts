@@ -196,6 +196,7 @@ const DESPACHO: Despacho = {
   buscar_conversas: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.buscar_conversas](deps, { ...ctx, ...args }),
   ler_conversa: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.ler_conversa](deps, { ...ctx, ...args }),
   ajustar_barra_lateral: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.ajustar_barra_lateral](deps, { ...ctx, ...args }),
+  ajustar_navegador: (deps, ctx, args) => deps.useCases[USE_CASE_POR_FERRAMENTA.ajustar_navegador](deps, { ...ctx, ...args }),
 };
 
 /**

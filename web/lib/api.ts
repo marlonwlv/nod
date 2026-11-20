@@ -13,7 +13,7 @@ import type { AnexoMeta } from "../../src/contracts/anexo.ts";
 import type { CheckpointDaFala } from "../../src/contracts/checkpoint.ts";
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
 import type { AcaoComputador, ComputadorDto, ResultadoComputador } from "../../src/contracts/computador.ts";
-import type { OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaNavegador, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
+import type { MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLugarNavegador, RespostaNavegador, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } from "./computador-pessoa.ts";
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
@@ -292,6 +292,10 @@ export function criarApi(escopo: Escopo) {
     trocarAbaDoNavegador: (agenteId: string, aba: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/aba`, { aba }),
     /** ADR-190 (T): começar, descartar, desfazer o descarte e salvar a tarefa ensinada. */
     ensinarNoNavegador: (agenteId: string, operacao: OperacaoEnsinar, nome?: string) => post<RespostaEnsinar>(`agentes/${encodeURIComponent(agenteId)}/navegador/ensinar`, nome === undefined ? { operacao } : { operacao, nome }),
+    /** ADR-190 (M, N): onde o navegador do bot mora — a pergunta, as máquinas e os textos prontos. */
+    lugarDoNavegador: (agenteId: string) => get<RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`),
+    /** ADR-190 (N): muda o lugar (o interruptor, a máquina, "nod", "Só na …"); a mesma rota do Desfazer da conversa. */
+    mudarLugarDoNavegador: (agenteId: string, mudar: MudancaLugarNavegador) => post<{ ok: true } & RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`, mudar),
     /** ADR-190: o WebSocket do navegador ao vivo do bot (mesma origem; o cookie da sessão vai sozinho). */
     urlVivoNavegador: (agenteId: string) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${base}/agentes/${encodeURIComponent(agenteId)}/navegador/vivo`,
     trocarLugarDoComputador: (maquinaId: string, semLogins: boolean) => post<{ ok: true }>("computador/lugar", { maquinaId, semLogins }),

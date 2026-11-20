@@ -12,7 +12,7 @@ import { entradaDigita } from "../../domain/navegador-entrada.ts";
 import { arquivoDosPassos, campoDoElemento, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
 import { campoEhSecreto, redigirArvore, segredoAindaNaPagina } from "../../domain/navegador-sensivel.ts";
-import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, type OperacaoControle } from "../../domain/navegador-vista.ts";
+import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, type OperacaoControle } from "../../domain/navegador-vista.ts";
 import { log } from "../../obs/log.ts";
 import type { Escopo } from "../../shared/types.ts";
 import { errosDoSchema, type ResultadoChamada } from "../../use-cases/chamar-ferramenta.ts";
@@ -21,6 +21,7 @@ import { enviarMensagem } from "../../use-cases/enviar-mensagem.ts";
 import { pedirAprovacaoComputador } from "../../use-cases/pedir-aprovacao.ts";
 import { fecharComResposta, retomarComResposta } from "../../use-cases/responder-decisao.ts";
 import { pedirAPessoa } from "../../use-cases/pedir-a-pessoa.ts";
+import { avisarForaDoAr, type LugarDecidido } from "../../use-cases/navegador-lugar.ts";
 import { registrarNegacao } from "../../use-cases/registrar-negacao.ts";
 import type { Deps } from "../../use-cases/tipos.ts";
 import { ehFalhaNavegador, FalhaNavegador, type AbaMotor, type MotorNavegador, type RefLida, type SessaoNavegador } from "../navegador/motor-agent-browser.ts";
@@ -42,11 +43,18 @@ type Dentro = <T>(escopo: Escopo, fn: (d: Deps) => Promise<T>) => Promise<T>;
 export type OpcoesNavegadores = {
   dentro: Dentro;
   /** O motor de cada lugar; null = o navegador não roda ali agora (as ferramentas respondem indisponível com o motivo). */
-  motor(lugar: LugarNavegador): MotorNavegador | null;
-  /** O lugar de cada bot. definido em 2026-11-20: nesta etapa é sempre o nod (o servidor); a próxima liga o Mac. */
-  lugarDe?(escopo: Escopo, agenteId: string): LugarNavegador;
+  motor(lugar: LugarNavegador, escopo: Escopo): MotorNavegador | null;
+  /**
+   * Onde o navegador de cada bot roda agora (ADR-190, decisão 5; `navegador-lugar` nos use-cases): decidido a cada chamada
+   * do bot e a cada "ligar" da pessoa, dentro da transação dela. Ausente = sempre o nod.
+   */
+  lugarDe?(d: Deps, escopo: Escopo, agenteId: string): Promise<LugarDecidido>;
+  /** A linha "A vm-sp estava fora do ar às HH:MM. Fiz no nod." (padrão: `avisarForaDoAr`). */
+  avisarForaDoAr?(d: Deps, agenteId: string, maquina: { id: string; nome: string }): Promise<void>;
   /** Por que o motor do lugar está fora (a frase que o bot lê). */
   motivoIndisponivel?: string;
+  /** O plano oferece as navegador_* (algum lugar pode rodar o Chrome: o nod, ou as máquinas pela ponte). Ausente = o motor do nod. */
+  algumLugar?(): boolean;
   cifrar(s: string): string;
   decifrar(s: string): string;
   /** NOD_NAVEGADORES_MAX: Chromes vivos ao mesmo tempo no servidor (ADR-190, decisão 8; padrão 4). */
@@ -64,6 +72,8 @@ export type OpcoesNavegadores = {
   pedirAprovacao?: typeof pedirAprovacaoComputador;
   pedirAPessoa?: typeof pedirAPessoa;
 };
+
+export type { LugarDecidido };
 
 type Estado = {
   escopo: Escopo;
@@ -83,6 +93,10 @@ type Estado = {
   campo: { campo: string; protegido: boolean } | null;
   /** T: a última gravação descartada, guardada até `ate` para o Desfazer. */
   descartada: { gravacao: Gravacao; ate: number } | null;
+  /** O lugar espera (Mac desligado, máquina travada): a vista mostra a causa até o lugar voltar a rodar. */
+  esperando: boolean;
+  /** A máquina cujo "fora do ar" já foi avisado na conversa (uma linha por queda). */
+  desvioAvisado: string | null;
 };
 
 /** A mensagem que a pessoa manda ao salvar uma tarefa ensinada (T3). */
@@ -224,7 +238,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   const estados = new Map<string, Estado>();
   const resultados = new Map<string, { pessoaId: string; cifrado: string }>();
 
-  const lugarDe = (escopo: Escopo, agenteId: string): LugarNavegador => o.lugarDe?.(escopo, agenteId) ?? { tipo: "nod" };
+  const motorDe = (est: Estado): MotorNavegador | null => o.motor(est.vista.lugar, est.escopo);
   const sessao = (agenteId: string): SessaoNavegador => ({ agenteId });
 
   function estadoDe(escopo: Escopo, agenteId: string): Estado {
@@ -235,8 +249,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     }
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
-      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null,
-      vista: { agenteId, estado: "desligado", controle: "bot", lugar: lugarDe(escopo, agenteId), abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
+      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null,
+      vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
     return novo;
@@ -255,7 +269,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     let pausados = 0;
     for (const est of estados.values()) {
       if (!est.vivo || !deveriaPausar(est.vista, agora())) continue;
-      const motor = o.motor(est.vista.lugar);
+      const motor = motorDe(est);
       const abas = await motor?.abas(sessao(est.vista.agenteId)).catch(() => null);
       est.abasGuardadas = (abas ?? est.vista.abas).map((a) => a.url).filter(enderecoPermitido).slice(0, ABAS_GUARDADAS_MAX);
       est.vivo = false;
@@ -378,15 +392,61 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   /** O que só a pessoa no controle faz (a barra de endereço, as abas, recarregar). */
   function exigirPessoa(est: Estado): MotorNavegador {
     if (est.vista.controle !== "pessoa") throw new ErroDeDominio("estado_invalido", { cause: "assuma_primeiro" });
-    const motor = o.motor(est.vista.lugar);
+    const motor = motorDe(est);
     if (!motor) throw new ErroDeDominio("estado_invalido", { cause: "indisponivel" });
     if (!est.vivo) throw new ErroDeDominio("estado_invalido", { cause: "desligado" });
     return motor;
   }
 
+  /**
+   * O lugar de agora (ADR-190, decisão 5), decidido dentro da transação de quem pede. Mudou: o Chrome do lugar velho fecha
+   * (as abas ficam guardadas para o novo) — menos com a pessoa no controle, que não perde o navegador no meio. Espera: a
+   * vista mostra a causa ("Seu Mac está desligado") até voltar a rodar. Desvio (a máquina fora do ar, roda no nod): a
+   * conversa ganha a linha uma vez por queda.
+   */
+  async function decidirLugar(d: Deps, est: Estado): Promise<LugarDecidido> {
+    const agenteId = est.vista.agenteId;
+    const decidido: LugarDecidido = o.lugarDe ? await o.lugarDe(d, est.escopo, agenteId) : { tipo: "roda", lugar: { tipo: "nod" }, desvio: null };
+    if (decidido.tipo === "espera") {
+      if (est.vista.controle === "pessoa" && est.vivo) return decidido;
+      await soltarChrome(est);
+      est.esperando = true;
+      mudar(est, { estado: "erro", erro: { causa: decidido.causa, em: agora() }, passo: null, abas: [] });
+      return decidido;
+    }
+    if (JSON.stringify(decidido.lugar) !== JSON.stringify(est.vista.lugar)) {
+      if (est.vivo && est.vista.controle === "pessoa") return { tipo: "roda", lugar: est.vista.lugar, desvio: null };
+      await soltarChrome(est);
+      mudar(est, { lugar: decidido.lugar, abas: [], ...(est.vista.estado === "erro" || temChromeVivo(est.vista.estado) ? { estado: "desligado", erro: null } : {}) });
+    }
+    if (est.esperando) {
+      est.esperando = false;
+      mudar(est, { estado: est.vivo ? "ao_vivo" : "desligado", erro: null });
+    }
+    if (!decidido.desvio) est.desvioAvisado = null;
+    else if (est.desvioAvisado !== decidido.desvio.maquinaId) {
+      est.desvioAvisado = decidido.desvio.maquinaId;
+      await (o.avisarForaDoAr ?? avisarForaDoAr)(d, agenteId, { id: decidido.desvio.maquinaId, nome: decidido.desvio.nome })
+        .catch((e: unknown) => log("aviso", "navegador_aviso_fora_do_ar_falhou", { agente_id: agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
+    }
+    return decidido;
+  }
+
+  /** Fecha o Chrome do lugar de agora guardando as abas (o lugar mudou ou espera). */
+  async function soltarChrome(est: Estado): Promise<void> {
+    if (!est.vivo) return;
+    const motor = motorDe(est);
+    const s = sessao(est.vista.agenteId);
+    const abas = est.vista.abas.map((a) => a.url).filter(enderecoPermitido);
+    if (abas.length) est.abasGuardadas = abas.slice(0, ABAS_GUARDADAS_MAX);
+    est.vivo = false;
+    est.refs = null;
+    await motor?.fechar(s).catch((e: unknown) => log("aviso", "navegador_trocar_lugar_falhou", { agente_id: est.vista.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
+  }
+
   /** Liga o Chrome (ou o reabre da pausa com as abas guardadas). */
   async function ligar(est: Estado): Promise<void> {
-    const motor = o.motor(est.vista.lugar);
+    const motor = motorDe(est);
     if (!motor) throw new ErroDeDominio("estado_invalido", { cause: "indisponivel" });
     if (est.vivo && est.vista.estado !== "erro") return;
     if (!(await vaga(est))) throw new ErroDeDominio("estado_invalido", { cause: "na_fila" });
@@ -596,7 +656,11 @@ export function criarNavegadores(o: OpcoesNavegadores) {
 
   return {
     /** NOD_NAVEGADOR_NO_SERVIDOR=1: o plano oferece as ferramentas (ADR-190, decisão 8). */
-    disponivel: (lugar: LugarNavegador = { tipo: "nod" }) => o.motor(lugar) !== null,
+    /**
+     * Sem argumentos (o plano): algum lugar pode rodar o navegador (`algumLugar`; padrão, o motor do nod). Com o lugar e o
+     * escopo (a tela): aquele lugar tem motor agora.
+     */
+    disponivel: (lugar?: LugarNavegador, escopo?: Escopo) => (lugar && escopo ? o.motor(lugar, escopo) !== null : o.algumLugar?.() ?? o.motor({ tipo: "nod" }, { tenantId: "", pessoaId: "" }) !== null),
     async chamar(escopo: Escopo, plano: PlanoTurno, nome: string, argumentos: unknown): Promise<ResultadoChamada> {
       const args = obj(argumentos);
       const r = await o.dentro(escopo, async (d): Promise<ResultadoChamada | Contexto & { ferramenta: NomeFerramentaNavegador; args: Record<string, unknown> }> => {
@@ -625,7 +689,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         // Os passos levam nomes de botão e de página tirados do site: voltam não confiáveis, como a leitura (ADR-026).
         if (ferramenta === "navegador_tarefa_ensinada") return { ok: true, conteudo: JSON.stringify(tarefasParaOBot(await d.repos.navegadorTarefas.doAgente(plano.agenteId), argsDaFerramenta.nome)), confianca: "nao_confiavel" };
         const est = estadoDe(escopo, plano.agenteId);
-        const motor = o.motor(est.vista.lugar);
+        const lugar = await decidirLugar(d, est);
+        if (lugar.tipo === "espera") return { ok: true, isError: true, conteudo: JSON.stringify({ erro: "espera", instrucao: lugar.instrucao }), confianca: "confiavel" };
+        const motor = motorDe(est);
         if (!motor) return { ok: true, isError: true, conteudo: JSON.stringify({ erro: "indisponivel", instrucao: `${o.motivoIndisponivel ?? "O navegador do bot não está ligado neste servidor."} Nada foi executado; siga com o que dá sem ele e diga em uma frase o que ficou de fora.` }), confianca: "confiavel" };
         const agente = await d.repos.agentes.buscar(plano.agenteId);
         if (agente?.soLeitura === true && !PERMITIDAS_EM_SO_LEITURA.has(ferramenta)) return negar("capacidade_desligada");
@@ -675,7 +741,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const est = estadoDe(escopo, p.agenteId);
       if (est.vista.controle === "pessoa") throw new ErroDeDominio("nao_permitido");
       mudar(est, { controle: "bot", pedido: null });
-      const motor = o.motor(est.vista.lugar);
+      const motor = motorDe(est);
       const guardar = (conteudo: unknown) => {
         if (resultados.size >= RESULTADOS_MAX) resultados.delete(resultados.keys().next().value!);
         resultados.set(p.acaoId, { pessoaId: p.pessoaId, cifrado: o.cifrar(JSON.stringify(conteudo)) });
@@ -726,7 +792,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     async portaDoStream(escopo: Escopo, agenteId: string): Promise<number | null> {
       const est = estados.get(agenteId);
       if (!est || !est.vivo || est.escopo.pessoaId !== escopo.pessoaId) return null;
-      return (await o.motor(est.vista.lugar)?.portaDoStream(sessao(agenteId))) ?? null;
+      return (await motorDe(est)?.portaDoStream(sessao(agenteId))) ?? null;
     },
     /** Desliga o Chrome do bot (excluir o bot, a pessoa pediu). */
     async desligar(escopo: Escopo, agenteId: string): Promise<void> {
@@ -734,7 +800,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       if (!est || est.escopo.pessoaId !== escopo.pessoaId) return;
       est.vivo = false;
       est.refs = null;
-      await o.motor(est.vista.lugar)?.fechar(sessao(agenteId));
+      await motorDe(est)?.fechar(sessao(agenteId));
       mudar(est, { estado: "desligado", passo: null, abas: [] });
     },
     pausarOciosos,
@@ -769,13 +835,18 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (pedido && pedido.tipo !== "aprovacao") await (o.retomarPedido ?? retomarDoPedido)(escopo, pedido.decisaoId, RETOMADA[op]);
         return est.vista;
       }
-      if (op === "ligar" || op === "retomar") { await ligar(est); return est.vista; }
+      if (op === "ligar" || op === "retomar") {
+        const lugar = await o.dentro(escopo, (d) => decidirLugar(d, est));
+        if (lugar.tipo === "espera") throw new ErroDeDominio("estado_invalido", { cause: lugar.motivo });
+        await ligar(est);
+        return est.vista;
+      }
       if (op === "encerrar") {
         descartarGravacao(est);
         est.vivo = false;
         est.refs = null;
         est.abasGuardadas = [];
-        await o.motor(est.vista.lugar)?.fechar(sessao(agenteId));
+        await motorDe(est)?.fechar(sessao(agenteId));
         mudar(est, { estado: "desligado", passo: null, abas: [], controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
         return est.vista;
       }
@@ -870,7 +941,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     async antesDaEntrada(escopo: Escopo, agenteId: string, e: EntradaNavegador): Promise<void> {
       const est = estados.get(agenteId);
       if (!est || !est.gravacao || est.vista.controle !== "pessoa" || est.escopo.pessoaId !== escopo.pessoaId) return;
-      const motor = o.motor(est.vista.lugar);
+      const motor = motorDe(est);
       if (!motor) return;
       const s = sessao(agenteId);
       if (e.t === "mouse") {

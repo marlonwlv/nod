@@ -1,5 +1,6 @@
 import type { DefinicaoAcao } from "../../contracts/acoes.ts";
 import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../contracts/ferramentas-navegador.ts";
+import { FERRAMENTAS_NAVEGADOR_LUGAR } from "../../contracts/ferramentas-navegador-lugar.ts";
 
 /**
  * O navegador do bot (ADR-190; NOD-391, ADR-135). As rotas são da dona do bot (src/adapters/http/rotas/navegador.ts).
@@ -7,7 +8,8 @@ import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../contracts/ferramentas-naveg
  * definido em 2026-11-20: ligar, pausar e passar o controle ainda não têm caminho no chat (Onda 4, a dos computadores).
  * A barra de endereço e as abas têm o caminho parcial pelas ferramentas do próprio bot (navegador_abrir, navegador_abas):
  * a pessoa pede na conversa e o bot faz, mas pelo controle dele, não pelas mãos dela. Ensinar é sempre a pessoa fazendo
- * com as próprias mãos: nunca pelo chat.
+ * com as próprias mãos: nunca pelo chat. O lugar (onde o navegador roda com o Mac desligado, quadro N) tem o caminho vivo
+ * pela `ajustar_navegador` do próprio bot, com o mesmo executor da tela (`mudarLugarDoNavegador`).
  */
 const falta = { estado: "falta", onda: "NOD-396" } as const;
 
@@ -28,6 +30,15 @@ export const ACOES_NAVEGADOR = [
     risco: "muda",
     cartaoNoChat: false,
     chat: { estado: "parcial", via: { ferramenta: "navegador_abas" }, falta: "o bot troca pela navegador_abas (número da aba) com o controle dele; a tela troca pelo id da aba com a pessoa no controle" },
+  },
+  {
+    id: "navegador.lugar",
+    titulo: "Escolher onde o navegador do bot roda com o Mac desligado (continuar, numa máquina, no nod, só na máquina)",
+    schema: { type: "object", properties: FERRAMENTAS_NAVEGADOR_LUGAR.ajustar_navegador.properties, required: [], additionalProperties: false },
+    risco: "muda",
+    cartaoNoChat: false,
+    casoDeUso: "navegador.lugar",
+    chat: { estado: "vivo", via: { ferramenta: "ajustar_navegador" }, contrato: "tests/integration/navegador-lugar.test.ts" },
   },
   { id: "navegador.ensinar", titulo: "Ensinar uma tarefa ao bot no navegador (começar, descartar, salvar)", risco: "muda", cartaoNoChat: false, chat: { estado: "nunca", motivo: "ensinar é a pessoa fazendo com as próprias mãos no navegador do bot; o que vai ao chat é a mensagem dela com os passos" } },
 ] as const satisfies readonly DefinicaoAcao[];

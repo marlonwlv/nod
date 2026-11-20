@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **216**, mais 3 só de leitura. No chat: **80 vivas**, 6 parciais, 90 faltando e 43 que nunca vão para o chat. Piso de vivas: 80.
+Ações de pessoa que mudam algo: **217**, mais 3 só de leitura. No chat: **81 vivas**, 6 parciais, 90 faltando e 43 que nunca vão para o chat. Piso de vivas: 81.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -143,6 +143,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `navegador.operar` | Ligar, pausar, retomar, recarregar ou passar o controle do navegador de um bot | muda | falta (NOD-396) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador$` |
 | `navegador.ir_para` | Abrir um endereço no navegador do bot com as próprias mãos | muda | parcial (`navegador_abrir`): o bot abre pela navegador_abrir com o controle dele; a barra da tela exige a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/endereco$` |
 | `navegador.trocar_aba` | Trocar de aba no navegador do bot com as próprias mãos | muda | parcial (`navegador_abas`): o bot troca pela navegador_abas (número da aba) com o controle dele; a tela troca pelo id da aba com a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/aba$` |
+| `navegador.lugar` | Escolher onde o navegador do bot roda com o Mac desligado (continuar, numa máquina, no nod, só na máquina) | muda | vivo (`ajustar_navegador`) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/lugar$` |
 | `navegador.ensinar` | Ensinar uma tarefa ao bot no navegador (começar, descartar, salvar) | muda | nunca: ensinar é a pessoa fazendo com as próprias mãos no navegador do bot; o que vai ao chat é a mensagem dela com os passos | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/ensinar$` |
 
 ## conversas

@@ -5,7 +5,7 @@ import { classificarAcao, classificarAlvo, decidirNoNavegador, lerLiberacoes, SE
 import { buscarNoCatalogo, ehDoCatalogo } from "../../../src/domain/navegador-catalogo.ts";
 import { comandosDaEntrada, entradaDigita, lerEntradaNavegador, TEXTO_MAX_ENTRADA } from "../../../src/domain/navegador-entrada.ts";
 import { arquivoDosPassos, campoDoElemento, eventoDoClique, fraseDoPasso, gravar, hostDaUrl, MAX_PASSOS_GRAVACAO, nomeSugerido, novaGravacao, rotuloDaGravacao, type ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
-import { fraseDaPergunta, fraseDoLugar, maquinaPreferida, resolverLugar, subtituloDoInterruptor, type EntradaLugar } from "../../../src/domain/navegador-lugar.ts";
+import { esperaDoNavegador, fraseDaPergunta, fraseDoLugar, maquinaPreferida, resolverLugar, subtituloDoInterruptor, type EntradaLugar } from "../../../src/domain/navegador-lugar.ts";
 import { campoEhSecreto, MARCA_PROTEGIDO, redigirArvore, redigirSegredos, segredoAindaNaPagina } from "../../../src/domain/navegador-sensivel.ts";
 import { botPodeAgir, camposQueMudaram, deveriaPausar, PAUSA_APOS_MS, proximoControle } from "../../../src/domain/navegador-vista.ts";
 
@@ -272,5 +272,21 @@ describe("liberações guardadas e vista que mudou", () => {
     expect(camposQueMudaram(v, { ...v, abas: [{ id: "t1" }] } as never)).toEqual([]);
     expect(camposQueMudaram(v, { ...v, controle: "pessoa", viewport: { w: 2, h: 1 } } as never)).toEqual(["controle", "viewport"]);
     expect(camposQueMudaram(null, v).length).toBe(Object.keys(v).length);
+  });
+});
+
+describe("a espera do navegador em palavras (ADR-190, N)", () => {
+  it("Mac desligado, PC desligado, app sem o navegador e máquina travada: a causa da vista e a instrução do bot, sem servidor/VM/nuvem", () => {
+    const mac = esperaDoNavegador({ tipo: "espera", motivo: "aparelho_desligado", nome: "seu Mac" });
+    expect(mac).toMatchObject({ motivo: "aparelho_desligado", causa: "Seu Mac está desligado" });
+    expect(mac.instrucao).toContain("quando o Mac ligar");
+    expect(esperaDoNavegador({ tipo: "espera", motivo: "aparelho_desligado", nome: "seu PC" }).causa).toBe("Seu PC está desligado");
+    const antigo = esperaDoNavegador({ tipo: "espera", motivo: "aparelho_desligado", nome: "seu Mac" }, true);
+    expect(antigo).toMatchObject({ motivo: "app_sem_navegador", causa: "O app do nod no seu Mac precisa ser atualizado para o navegador" });
+    const travada = esperaDoNavegador({ tipo: "espera", motivo: "maquina_fora_do_ar", nome: "vm-sp" });
+    expect(travada).toMatchObject({ motivo: "maquina_fora_do_ar", causa: "A vm-sp está fora do ar" });
+    expect(travada.instrucao).toContain('"Só na vm-sp"');
+    // O nome da máquina é o que a pessoa deu ("vm-sp"); a palavra VM, servidor ou nuvem nunca vem do nod.
+    for (const e of [mac, antigo, travada]) expect(`${e.causa} ${e.instrucao}`.replaceAll("vm-sp", "")).not.toMatch(/servidor|\bVM\b|nuvem/i);
   });
 });

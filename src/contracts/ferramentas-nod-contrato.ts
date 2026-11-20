@@ -6,6 +6,7 @@ import type { ContratoFerramentasAviso } from "./ferramentas-aviso.ts";
 import type { ContratoFerramentasBarra } from "./ferramentas-barra.ts";
 import type { ContratoFerramentasCanvas } from "./ferramentas-canvas.ts";
 import type { ContratoFerramentasComputadores } from "./ferramentas-computadores.ts";
+import type { ContratoFerramentasNavegadorLugar } from "./ferramentas-navegador-lugar.ts";
 import type { ContratoFerramentasConta } from "./ferramentas-conta.ts";
 import type { ContratoFerramentasConversas } from "./ferramentas-conversas.ts";
 import type { ContratoFerramentasCredencial } from "./ferramentas-credencial.ts";
@@ -64,7 +65,7 @@ export type ResultadoPedirABot = { ok: true; tarefa_id: string; instrucao: strin
 
 import type { ContratoFerramentasCartoes } from "./ferramentas-cartoes.ts";
 
-export type ContratoFerramentaNod = ContratoFerramentasCartoes & ContratoFerramentasArtefato & ContratoFerramentasLigacao & ContratoFerramentasTrabalho & ContratoFerramentasFrente & ContratoFerramentasDoNod & ContratoFerramentasCriarBots & ContratoFerramentasResponderPedido & ContratoFerramentasCredencial & ContratoFerramentasAviso & ContratoFerramentasBarra & ContratoFerramentasConta & ContratoFerramentasConversas & ContratoFerramentasQuadro & ContratoFerramentasApps & ContratoFerramentasNaoLidos & ContratoFerramentasTimes & ContratoFerramentasAcessos & ContratoFerramentasCanvas & ContratoFerramentasMaquinas & ContratoFerramentasComputadores & ContratoFerramentasDecisoes & {
+export type ContratoFerramentaNod = ContratoFerramentasCartoes & ContratoFerramentasArtefato & ContratoFerramentasLigacao & ContratoFerramentasTrabalho & ContratoFerramentasFrente & ContratoFerramentasDoNod & ContratoFerramentasCriarBots & ContratoFerramentasResponderPedido & ContratoFerramentasCredencial & ContratoFerramentasAviso & ContratoFerramentasBarra & ContratoFerramentasConta & ContratoFerramentasConversas & ContratoFerramentasQuadro & ContratoFerramentasApps & ContratoFerramentasNaoLidos & ContratoFerramentasTimes & ContratoFerramentasAcessos & ContratoFerramentasCanvas & ContratoFerramentasMaquinas & ContratoFerramentasComputadores & ContratoFerramentasDecisoes & ContratoFerramentasNavegadorLugar & {
   lembrar: { args: ArgsLembrar; resultado: ResultadoLembrar };
   atualizar_perfil: { args: ArgsAtualizarPerfil; resultado: ResultadoAtualizarPerfil };
   pedir_acesso: { args: ArgsPedirAcesso; resultado: ResultadoPedirAcesso | RecusaPedirAcesso };
