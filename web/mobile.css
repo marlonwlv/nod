@@ -890,6 +890,6 @@
 }
 
 /* QA 2026-11-20: o × que nega e fecha o cartão de aprovação tinha 24 px no toque; ganha 44 px sem mexer no topo do cartão. */
-@media (hover: none) and (pointer: coarse) {
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .bt.aprov-fechar { width: 44px; height: 44px; min-height: 44px; margin: -10px -10px -10px auto; }
 }
