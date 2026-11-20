@@ -347,19 +347,20 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
   const d = identidadeDe(c, x);
   const nome = nomeDaContaNaTela(c);
   const [classe, estado] = estadoDaConta(c, x, usada);
-  const logins = x.ui.logins.filter((l) => contaDoLogin(l) === c.id).map((l) => blocoDoLogin(l, x, c)).join("");
+  // Paper G1b: o login nunca abre dentro da linha; ela só diz onde está entrando e leva à conta (G2c).
+  const loginDaConta = x.ui.logins.find((l) => contaDoLogin(l) === c.id);
+  const ondeEntra = loginDaConta ? x.maquinas.find((m) => m.id === maquinaDoLogin(loginDaConta)) : undefined;
   // No filtro, a conta que não está na máquina vira um botão grande (G2-M2).
-  const direita = fora && x.maquinas.find((m) => m.id === filtro)?.conectada && !logins
+  const direita = fora && x.maquinas.find((m) => m.id === filtro)?.conectada && !loginDaConta
     ? `<button type="button" class="bt sm" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(filtro!)}">Entrar na ${esc(nomeCurto(x.maquinas.find((m) => m.id === filtro)!, x.maquinas))}</button>`
-    : `<span class="contas-estado ${classe}">${esc(estado)}</span>${entrarDeNovo(c, x)}${chaveDaFila(c)}`;
-  return `<li class="cl-linha cl-linha-g1${fora ? " fora" : ""}${logins ? " entrando" : ""}" data-ordem-item="${esc(c.id)}">
+    : `${loginDaConta ? estadoDoLoginNaConta(loginDaConta, ondeEntra ? nomeCurto(ondeEntra, x.maquinas) : undefined) : `<span class="contas-estado ${classe}">${esc(estado)}</span>${entrarDeNovo(c, x)}`}${chaveDaFila(c)}`;
+  return `<li class="cl-linha cl-linha-g1${fora ? " fora" : ""}${loginDaConta ? " entrando" : ""}" data-ordem-item="${esc(c.id)}">
       <button type="button" class="cl-alca" data-alca-ordem aria-label="Mover ${esc(nome)} (setas para cima e para baixo)">${ICONE.alca}</button>
       <span class="cl-pos" aria-hidden="true">${pos}</span>
       ${logoDaIa(c.ia, "cl-logo")}
       <div class="cl-corpo">
         <div class="cl-nome"><button type="button" class="cl-nome-bt" data-act="cl-abrir" data-id="${esc(c.id)}"${c.corporativa ? ' title="Conta corporativa"' : ""}><b>${esc(nome)}</b></button>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${x.ui.recente === c.id ? '<span class="selo selo-nova">Nova</span>' : ""}</div>
         <div class="cl-ident"><span>${esc(metaDaConta(c, d))}</span></div>
-        ${logins}
       </div>
       <div class="cl-uso-col">${x.simulacao ? "" : usoCompacto(c)}</div>
       <div class="cl-dir">${direita}</div>
@@ -376,19 +377,35 @@ function linhaDaMaquina(c: ContaIa, m: MaquinaDto, x: ContextoContas): string {
   const v = c.maquinas.find((y) => y.maquinaId === m.id);
   const nome = nomeCurto(m, x.maquinas);
   const ic = m.plataforma === "darwin" ? ICONE.laptop : ICONE.servidor;
-  const entrando = x.ui.logins.some((l) => maquinaDoLogin(l) === m.id && contaDoLogin(l) === c.id);
+  const login = x.ui.logins.find((l) => maquinaDoLogin(l) === m.id && contaDoLogin(l) === c.id);
   const podeEntrar = m.plataforma !== "darwin" || ehEsteMac(m, x);
   const sair = v && v.estado !== "sem_acesso" ? `<button type="button" class="ob-link cl-maq-sair" data-act="cl-sair" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">Sair</button>` : "";
   let estado = "";
   let acao = "";
-  if (v?.estado === "pronta") estado = `<span class="contas-estado ${m.conectada ? "e-uso" : "e-fora"}">${m.conectada ? "✓ Pronta" : "Fora do ar"}</span>`;
-  else if (entrando) estado = '<span class="contas-estado e-disp">Entrando…</span>';
+  if (login) estado = estadoDoLoginNaConta(login);
+  else if (v?.estado === "pronta") estado = `<span class="contas-estado ${m.conectada ? "e-uso" : "e-fora"}">${m.conectada ? "✓ Pronta" : "Fora do ar"}</span>`;
   else if (v?.estado === "sem_acesso") estado = '<span class="contas-estado e-erro">Sem acesso</span>';
   else if (!m.conectada) estado = '<span class="contas-estado e-fora">Fora do ar</span>';
   else if (!podeEntrar) estado = `<span class="cl-maq-dica">Entre pelo app do nod no ${esc(nome)}</span>`;
   else acao = `<button type="button" class="bt pri sm" data-act="cl-entrar" data-id="${esc(c.id)}" data-maquina="${esc(m.id)}">${v?.estado === "sem_login" ? "Entrar de novo" : "Entrar"}</button>`;
-  const sub = v?.estado === "sem_login" ? "O login saiu desta máquina" : v?.estado === "sem_acesso" ? "A organização desligou o acesso desta conta" : v?.estado === "pronta" ? (m.conectada ? (m.iasDetalhe?.[c.ia]?.versao ? `${PROVEDOR[c.ia].cli} ${m.iasDetalhe[c.ia]!.versao}` : "Logada") : `${m.nome} fora do ar`) : "Ainda não entrou nesta máquina";
-  return `<li class="cl-maq-linha">${ic}<div class="cl-maq-txt"><b>${esc(m.nome)}</b><small>${esc(sub)}</small></div>${alvoPendente(c, m)}${estado}${acao}${sair}</li>`;
+  const sub = login ? `${m.iasDetalhe?.[c.ia]?.versao ? `${PROVEDOR[c.ia].cli} ${m.iasDetalhe[c.ia]!.versao} · ` : ""}${v ? "entrando de novo" : "entrando"}` : v?.estado === "sem_login" ? "O login saiu desta máquina" : v?.estado === "sem_acesso" ? "A organização desligou o acesso desta conta" : v?.estado === "pronta" ? (m.conectada ? (m.iasDetalhe?.[c.ia]?.versao ? `${PROVEDOR[c.ia].cli} ${m.iasDetalhe[c.ia]!.versao}` : "Logada") : `${m.nome} fora do ar`) : "Ainda não entrou nesta máquina";
+  // Paper G2c: o login mora embaixo da máquina dele, no mesmo bloco da Nova conta (sem repetir o nome da máquina).
+  const bloco = login ? `<li class="cl-maq-login">${blocoDoLogin(login, x, c)}</li>` : "";
+  return `<li class="cl-maq-linha">${ic}<div class="cl-maq-txt"><b>${esc(m.nome)}</b><small>${esc(sub)}</small></div>${alvoPendente(c, m)}${estado}${acao}${login ? "" : sair}</li>${bloco}`;
+}
+
+/** O estado do login na linha da máquina (Paper G2c) e na linha da lista (G1b). */
+function estadoDoLoginNaConta(l: LoginNaTela, onde?: string): string {
+  const em = onde ? ` na ${onde}` : "";
+  if (l.onde === "mac") return `<span class="contas-estado e-aviso">Entrando${esc(em)}</span>`;
+  const g = l.login;
+  if (g.fase === "pronto") return '<span class="contas-estado e-uso">✓ Pronta</span>';
+  if (g.fase === "falhou" || g.fase === "cancelado") return `<span class="contas-estado e-erro">Não entrou${esc(em)}</span>`;
+  if (onde) return `<span class="contas-estado e-aviso">Entrando${esc(em)}</span>`;
+  if (g.fase === "preparando") return `<span class="contas-estado e-disp">${g.preparo?.acao === "atualizar" ? "Atualizando…" : "Instalando…"}</span>`;
+  if (g.fase === "conferindo" || g.codigoEnviado) return '<span class="contas-estado e-disp">Testando a conta…</span>';
+  if (g.fase === "aguardando_pessoa" && g.url) return '<span class="contas-estado e-aviso">Esperando você no navegador</span>';
+  return '<span class="contas-estado e-disp">Abrindo o login…</span>';
 }
 
 export function renderContaAberta(c: ContaIa, x: ContextoContas, usada: string | null): string {
@@ -398,7 +415,8 @@ export function renderContaAberta(c: ContaIa, x: ContextoContas, usada: string |
   const posicao = x.contas.contas.findIndex((y) => y.id === c.id) + 1;
   const ident = [d.email, d.organizacao, `${posicao}ª da fila`, `pelo ${PROVEDOR[c.ia].cli}`].filter(Boolean).join(" · ");
   const maquinas = x.maquinas.filter((m) => m.conectada || c.maquinas.some((v) => v.maquinaId === m.id));
-  const logins = x.ui.logins.filter((l) => contaDoLogin(l) === c.id).map((l) => blocoDoLogin(l, x, c)).join("");
+  // Só o login de máquina que não está na lista (a linha de cada máquina já leva o dela, Paper G2c).
+  const logins = x.ui.logins.filter((l) => contaDoLogin(l) === c.id && !maquinas.some((m) => m.id === maquinaDoLogin(l))).map((l) => blocoDoLogin(l, x, c)).join("");
   // Paper A, desvio 7: a organização desligou o acesso — diz quem, para qual e-mail, e as duas saídas ali mesmo.
   const semAcesso = c.maquinas.some((v) => v.estado === "sem_acesso")
     ? `<div class="cl-conta-limite cl-conta-sem-acesso" role="status"><span class="contas-estado e-erro">Sem acesso</span><span class="mudo">${esc(`${d.organizacao ?? "A organização"} desligou o ${PROVEDOR[c.ia].nome} por assinatura${d.email ? ` para ${d.email}` : ""}. Os bots já pulam esta conta.`)}</span><button type="button" class="bt pri sm" data-act="cl-nova-da-conta" data-id="${esc(c.id)}">Entrar com outra conta</button>${c.entraNaTrocaAutomatica ? `<button type="button" class="bt sm" data-act="cl-fila" data-id="${esc(c.id)}">Tirar da fila</button>` : ""}</div>`

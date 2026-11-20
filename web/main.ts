@@ -9264,7 +9264,11 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "cl-remover": (el) => { const p = contasDaPessoa.pedirRemocao(el.dataset.id ?? ""); focarNovo(); void p.then(focarNovo); },
   "cl-confirmar": async () => { const volta = gatilhoDoDialogo(); await contasDaPessoa.confirmar(); focarGatilho(volta); },
   "cl-confirmar-fechar": () => { const volta = gatilhoDoDialogo(); contasDaPessoa.fecharConfirmacao(); focarGatilho(volta); },
-  "cl-entrar": (el) => contasDaPessoa.entrar(el.dataset.id ?? "", el.dataset.maquina ?? ""),
+  // Paper G1b: o "Entrar" da linha da lista abre a conta e o login aparece embaixo da máquina dele (G2c).
+  "cl-entrar": (el) => {
+    if (el.closest(".cl-linha-g1")) contasDaPessoa.abrirConta(el.dataset.id ?? null);
+    return contasDaPessoa.entrar(el.dataset.id ?? "", el.dataset.maquina ?? "");
+  },
   "cl-nova": () => { contasDaPessoa.abrirNova(); document.querySelector<HTMLElement>("#espaco [data-cl-nova-apelido], #espaco [data-act='cl-conectar-vm']")?.focus(); },
   // Sem máquina para o login: fecha a conta nova e abre o Conectar em Máquinas, já no comando com o convite.
   "cl-conectar-vm": (el) => { contasDaPessoa.fecharNova(); abrirEspaco("maquinas"); return ACOES["conectar-maquina"]!(el); },

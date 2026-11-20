@@ -1,7 +1,7 @@
 import type { CodigoCifrado, ContasIaDto, FrenteAtivaDaConta, IaComConta, LoginNaMaquina } from "../../src/contracts/contas-ia.ts";
 import type { DetalhesDasContas } from "../../src/contracts/desktop.ts";
 import type { MaquinaDto } from "../../src/contracts/maquina.ts";
-import { contaDoLogin, idDoLogin, maquinaDoLogin, type LoginNaTela, type UiContas } from "../telas/contas-lista.ts";
+import { contaDoLogin, idDoLogin, maquinaDoLogin, nomeDaContaNaTela, type LoginNaTela, type UiContas } from "../telas/contas-lista.ts";
 import { ErroApi } from "./erro-api.ts";
 import { PREFIXO_MENU_DA_IA } from "./ordem.ts";
 
@@ -45,7 +45,8 @@ export type DepsContasDaPessoa = {
    * instalação (o passo 1) ou a abertura do login falhou, e o login não começou; a nota mostra o erro.
    */
   entrarNoMac: (ia: IaComConta, apelido: string | null) => Promise<boolean | { erro: string }>;
-  avisarTermos: (ia: IaComConta) => Promise<boolean>;
+  /** Paper G3: a conta vai junto (o nome e o lugar dela na fila da IA). */
+  avisarTermos: (ia: IaComConta, conta?: { nome: string; ordem: number }) => Promise<boolean>;
   cifrar: (chavePublica: string, codigo: string) => Promise<CodigoCifrado>;
   agendar: (fn: () => void, ms: number) => void;
   agora: () => number;
@@ -222,7 +223,7 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
       if (!c) return;
       const conta = c.contas.find((x) => x.id === id);
       if (!conta || conta.entraNaTrocaAutomatica === ligado) return;
-      if (ligado && ligarPedeAvisoDosTermos(c, id) && !(await d.avisarTermos(conta.ia))) return;
+      if (ligado && ligarPedeAvisoDosTermos(c, id) && !(await d.avisarTermos(conta.ia, { nome: nomeDaContaNaTela(conta), ordem: c.contas.filter((x) => x.ia === conta.ia && x.entraNaTrocaAutomatica).length + 1 }))) return;
       const atual = d.contas() ?? c;
       d.trocarContas({ ...atual, contas: atual.contas.map((x) => (x.id === id ? { ...x, entraNaTrocaAutomatica: ligado } : x)) });
       await d.api()?.mudarConta(id, { entraNaTrocaAutomatica: ligado }).catch(() => d.mudar({ nota: "Não deu para salvar. Tente de novo." }));

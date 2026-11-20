@@ -197,7 +197,7 @@ describe("lista única de contas (ADR-102)", () => {
   });
 
   it("login na VM pela tela (Paper A2): a página já abriu, o Abrir de novo com o link oficial, o campo do código e o aviso de que vai cifrado; o terminal fica escondido", () => {
-    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login(), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login(), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(html).toContain("Abrimos a página da Anthropic no seu navegador.");
     expect(html).toContain('href="https://claude.com/cai/oauth/authorize?x=1" target="_blank" rel="noopener noreferrer">Abrir de novo');
     expect(html).toContain("o código renova sozinho se vencer");
@@ -205,22 +205,22 @@ describe("lista única de contas (ADR-102)", () => {
     expect(html).toContain("vai cifrado direto para a vm-bots");
     expect(html).toContain("Prefere o terminal?");
     expect(html).not.toContain("nod-motor entrar claude");
-    const aberto = renderListaDeContas(ctx({ ui: { terminal: login().id, logins: [{ onde: "vm", login: login(), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const aberto = renderListaDeContas(ctx({ ui: { aberta: GPT.id, terminal: login().id, logins: [{ onde: "vm", login: login(), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(aberto).toContain("nod-motor entrar claude");
   });
 
   it("NOD-9 PR4: login que falhou com a IA desatualizada mostra o Atualizar; outra falha, não", () => {
-    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(html).toContain('data-act="cl-atualizar-ia"');
     expect(html).toContain("nod-motor atualizar-ia claude");
-    const enviado = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: "Pedido enviado." }] } }));
+    const enviado = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: "Pedido enviado." }] } }));
     expect(enviado).toContain("Pedido enviado.");
-    const outra = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "codigo_invalido" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const outra = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "codigo_invalido" }), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(outra).not.toContain("cl-atualizar-ia");
   });
 
   it("devolução do #501: cli_antigo do Codex cita `atualizar-ia codex`; sem a capacidade (ou sem contato), sem o botão", () => {
-    const falhou = (ia: "claude-cli" | "codex-cli") => ({ ui: { logins: [{ onde: "vm" as const, login: login({ ia, fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: null }] } });
+    const falhou = (ia: "claude-cli" | "codex-cli") => ({ ui: { aberta: GPT.id, logins: [{ onde: "vm" as const, login: login({ ia, fase: "falhou", erro: "cli_antigo" }), codigo: "", enviando: false, erroEnvio: null }] } });
     const codex = renderListaDeContas(ctx(falhou("codex-cli")));
     expect(codex).toContain("nod-motor atualizar-ia codex");
     expect(codex).not.toContain("nod-motor atualizar-ia claude");
@@ -233,7 +233,7 @@ describe("lista única de contas (ADR-102)", () => {
   });
 
   it("Codex na VM (Paper C2): a página já abriu; o código do aparelho com só o Copiar, nada para colar de volta", () => {
-    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ ia: "codex-cli", pedeCodigo: false, codigoDispositivo: "ABCD-1234", url: "https://auth.openai.com/codex/device" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ ia: "codex-cli", pedeCodigo: false, codigoDispositivo: "ABCD-1234", url: "https://auth.openai.com/codex/device" }), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(html).toContain("<code>ABCD-1234</code>");
     expect(html).toContain("Abrimos a página da OpenAI no seu navegador.");
     expect(html).toContain("Nada para colar de volta");
@@ -752,7 +752,7 @@ describe("Nova conta (Jornadas da IA, Paper A1 → A1b/A2 → A3)", () => {
 
 describe("desvios do momento A que moram na web (Paper, tabela A)", () => {
   it("6: depois de o código renovar e vencer de novo, 'Recomeçar o login' e 'Pular esta máquina'", () => {
-    const html = renderListaDeContas(ctx({ ui: { logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "tempo_esgotado" }), codigo: "", enviando: false, erroEnvio: null }] } }));
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [{ onde: "vm", login: login({ fase: "falhou", erro: "tempo_esgotado" }), codigo: "", enviando: false, erroEnvio: null }] } }));
     expect(html).toContain("Os códigos venceram sem login");
     expect(html).toContain('data-act="cl-login-de-novo" data-login="33333333-3333-4333-8333-333333333333">Recomeçar o login<');
     expect(html).toContain(">Pular esta máquina<");
@@ -764,5 +764,34 @@ describe("desvios do momento A que moram na web (Paper, tabela A)", () => {
     expect(html).toContain("Leapy desligou o Claude por assinatura para pessoa1@exemplo.com.");
     expect(html).toContain(`data-act="cl-nova-da-conta" data-id="${PESSOAL.id}">Entrar com outra conta<`);
     expect(html).toContain(">Tirar da fila<");
+  });
+});
+
+describe("login aberto pela lista (Paper G1b e G2c)", () => {
+  const naVm = (o: Partial<LoginNaMaquina> = {}) => ({ onde: "vm" as const, login: login(o), codigo: "", enviando: false, erroEnvio: null });
+
+  it("G1b: a linha nunca leva o bloco do login; só 'Entrando na vm-bots' e a conta abre com ele", () => {
+    const html = renderListaDeContas(ctx({ ui: { logins: [naVm()] } }));
+    expect(html).not.toContain('data-form="cl-codigo"');
+    expect(html).not.toContain("Abrimos a página");
+    expect(html).toContain('<span class="contas-estado e-aviso">Entrando na vm-bots</span>');
+    const falhou = renderListaDeContas(ctx({ ui: { logins: [naVm({ fase: "falhou", erro: "codigo_invalido" })] } }));
+    expect(falhou).toContain('<span class="contas-estado e-erro">Não entrou na vm-bots</span>');
+  });
+
+  it("G2c: na conta aberta, o login mora embaixo da máquina dele, com o estado na linha e sem o Sair", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: GPT.id, logins: [naVm()] } }));
+    const vm = html.slice(html.indexOf("<b>vm-bots</b>"));
+    expect(vm.indexOf('<li class="cl-maq-login">')).toBeGreaterThan(-1);
+    expect(vm.indexOf('<li class="cl-maq-login">')).toBeLessThan(vm.indexOf("</ul>"));
+    expect(html).toContain('<span class="contas-estado e-aviso">Esperando você no navegador</span>');
+    expect(html).toContain("entrando");
+    expect(html).not.toContain(`data-act="cl-sair" data-id="${GPT.id}" data-maquina="${VM}"`);
+  });
+
+  it("o 'Entrar' da linha da lista abre a conta antes de começar o login (main.ts)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
+    expect(main).toMatch(/"cl-entrar": \(el\) => \{\s*if \(el\.closest\("\.cl-linha-g1"\)\) contasDaPessoa\.abrirConta/);
   });
 });

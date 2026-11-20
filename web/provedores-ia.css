@@ -219,10 +219,53 @@
 .cl-lista .cl-linha.cl-linha-g1:last-child { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
 .cl-linha-g1 .cl-nome-bt::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
 .cl-linha-g1 .cl-nome-bt:hover b { text-decoration: none; }
+/* foco-ok: o contorno vai para a linha inteira (o :has logo abaixo), que o forced-colors desenha com o outline dela. */
 .cl-linha-g1 .cl-nome-bt:focus-visible { outline: none; }
+@media (forced-colors: active) { .cl-linha-g1:has(.cl-nome-bt:focus-visible) { outline: 2px solid CanvasText; } }
 .cl-linha-g1:has(.cl-nome-bt:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .cl-linha-g1 :is(.cl-alca, .cl-dir button, .cl-mais, .cl-login, .cl-aviso) { position: relative; z-index: 1; }
 .cl-linha-g1 .cl-uso-col { pointer-events: none; }
 .cl-linha-g1 .cl-abrir-bt { opacity: 0; transition: opacity var(--dur-rapido, .12s); }
 .cl-linha-g1:is(:hover, :focus-within) .cl-abrir-bt { opacity: 1; }
 @media (hover: none) { .cl-linha-g1 .cl-abrir-bt { opacity: 1; } }
+
+/* Jornadas da IA (Paper G3, 2026-11-20): o aviso dos termos ao pôr a 2ª conta da mesma IA na fila, no design system
+   novo — cartão de raio 14, a conta no topo, título 17/600, o porquê em cinza, as fontes e as pílulas. */
+.termos-dialogo { width: min(440px, calc(100vw - 32px)); padding: 22px 22px 18px; border: 0; border-radius: var(--raio-14, 14px); background: var(--surface-elevated); color: var(--ink); box-shadow: var(--sombra-modal); font-family: var(--font-sans); }
+.termos-dialogo::backdrop { background: var(--veu-modal); }
+.termos-dialogo .termos-conta { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.termos-dialogo .termos-conta span { display: flex; flex-direction: column; }
+.termos-dialogo .termos-conta b { font-size: 13px; line-height: 18px; font-weight: var(--peso-medio); }
+.termos-dialogo .termos-conta small { font-size: 12px; line-height: 16px; color: var(--ink-3); }
+.termos-dialogo .cl-logo[data-logo-ia] { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: var(--marca-simbolo); }
+.termos-dialogo .cl-logo[data-logo-ia="claude"] { background: var(--marca-claude); }
+.termos-dialogo .cl-logo[data-logo-ia="chatgpt"] { background: var(--marca-chatgpt); }
+.termos-dialogo .cl-logo svg { width: 16px; height: 16px; }
+.termos-dialogo .cl-logo svg :is(path, circle) { fill: currentColor; }
+.termos-dialogo h2 { margin: 0 0 8px; font-size: 17px; line-height: 23px; font-weight: 600; letter-spacing: -.01em; }
+.termos-dialogo .termos-texto { margin: 0; font-size: 13px; line-height: 19px; color: var(--ink-2); }
+.termos-dialogo .termos-fontes { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 14px 0 0; font-size: 12px; line-height: 16px; }
+.termos-dialogo .termos-fontes a { color: var(--ink); font-weight: var(--peso-medio); text-decoration: none; }
+.termos-dialogo .termos-fontes a:hover { text-decoration: underline; }
+.termos-dialogo .termos-acoes { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.termos-dialogo :is(.termos-sim, .termos-nao) { height: 32px; padding: 0 14px; border: 0; border-radius: 999px; font: 500 13px/16px var(--font-sans); cursor: pointer; }
+.termos-dialogo .termos-sim { background: transparent; color: var(--ink-2); }
+.termos-dialogo .termos-sim:hover { background: var(--hover); color: var(--ink); }
+.termos-dialogo .termos-nao { padding: 0 16px; background: var(--action); color: var(--on-action); }
+.termos-dialogo .termos-nao:hover { background: var(--base-hover); }
+.termos-dialogo :is(.termos-sim, .termos-nao):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* O logo é um <span>: o `.cl-prov span { display: flex; flex-direction: column }` de navegacao.css o pegava e o símbolo
+   ia para o canto (teste da Nova conta, 2026-11-20). */
+.cl-nova-pag .cl-prov .cl-logo, .cl-prov-escolhido .cl-logo { display: grid; place-items: center; flex: none; }
+.cl-nova-pag .cl-logo[data-logo-ia] svg { display: block; }
+
+/* Paper G2c: o login embaixo da máquina dele, recuado sob o nome, num painel cinza; o cabeçalho do bloco (ícone e nome
+   da máquina) sai porque a linha de cima já diz — fica só o Cancelar, à direita. */
+.cl-maq-lista .cl-maq-login { padding: 0 14px 14px 41px; list-style: none; }
+.cl-maq-login .cl-login { margin: 0; padding: 12px; border: 0; border-radius: 10px; background: var(--hover); }
+.cl-maq-login .cl-login-cab { justify-content: flex-end; margin: 0 0 4px; }
+.cl-maq-login .cl-login-cab > :is(svg, b) { display: none; }
+.cl-maq-login .cl-login-cab .ob-link { font-size: 12px; }
+.cl-maq-login .cl-login.ok { padding: 8px 12px; }
+.cl-maq-lista .cl-maq-login + .cl-maq-linha { border-top: 1px solid var(--borda-sutil); }
