@@ -3,6 +3,7 @@ import type { DetalheDaConta, DetalhesDasContas } from "../../src/contracts/desk
 import type { CausaFalhaLogin, ResultadoColarCodigo } from "../../src/contracts/estado-ia.ts";
 import type { MaquinaDto } from "../../src/contracts/maquina.ts";
 import { ICONE } from "../lib/icones.ts";
+import { campoDeNome } from "../lib/nome-editavel.ts";
 import { esc } from "../lib/render.ts";
 import { haQuanto } from "../lib/relogio.ts";
 import { rotuloDoMac } from "../lib/aparelho.ts";
@@ -39,7 +40,6 @@ export type LoginNaTela =
 
 export type UiContas = {
   menu: string | null;
-  renomear: string | null;
   detalhe: string | null;
   /** "Adicionar conta" aberto. */
   nova: { ia: IaComConta; apelido: string; maquinas: string[]; /** Rodada 3: depois do "Entrar", o login de cada máquina aparece nela. */ entrando?: boolean } | null;
@@ -64,7 +64,7 @@ export type UiContas = {
   pendentes?: boolean;
 };
 
-export const UI_CONTAS_INICIAL: UiContas = { menu: null, renomear: null, detalhe: null, nova: null, confirmar: null, filtro: null, logins: [], terminal: null, nota: null, maquinaMenu: null, maquinaRenomear: null, desconectar: null, appAntigo: false, aberta: null, pendentes: false, recente: null };
+export const UI_CONTAS_INICIAL: UiContas = { menu: null, detalhe: null, nova: null, confirmar: null, filtro: null, logins: [], terminal: null, nota: null, maquinaMenu: null, maquinaRenomear: null, desconectar: null, appAntigo: false, aberta: null, pendentes: false, recente: null };
 
 export type ContextoContas = {
   contas: ContasIaDto;
@@ -376,7 +376,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
 /**
  * Jornadas da IA (Paper G2, 2026-11-19): a conta aberta numa tela própria, sem dropdown — identidade e o "na fila", o uso
  * com cada limite e quando renova, as máquinas (uma linha cada, com o estado e a ação ali mesmo) e as ações da conta.
- * O que antes morava no ⋯ (Renomear, Detalhes, Sair de cada máquina, Remover) vem para cá; renomear é o lápis ao lado do nome.
+ * O que antes morava no ⋯ (Renomear, Detalhes, Sair de cada máquina, Remover) vem para cá; o nome se edita no lugar.
  */
 function linhaDaMaquina(c: ContaIa, m: MaquinaDto, x: ContextoContas): string {
   const v = c.maquinas.find((y) => y.maquinaId === m.id);
@@ -433,11 +433,12 @@ export function renderContaAberta(c: ContaIa, x: ContextoContas, usada: string |
   const ondeMediu = c.cota?.maquinaId ? x.maquinas.find((m) => m.id === c.cota!.maquinaId) : undefined;
   const medido = c.cota && !x.simulacao ? `medido ${haQuanto(x.agora - c.cota.medidoEm)}${ondeMediu ? ` no ${nomeCurto(ondeMediu, x.maquinas)}` : ""}` : "";
   const uso = x.simulacao ? "" : usoDaConta(c, { agora: x.agora, contas: x.contas.contas, nomeDaMaquina: (id) => { const m = x.maquinas.find((y) => y.id === id); return m ? nomeCurto(m, x.maquinas) : null; } });
-  // Revisão de 2026-11-20: renomear sem botão — o lápis ao lado do nome ou o duplo clique no nome trocam o nome por um
-  // campo no mesmo lugar (Enter grava, Esc desiste, sair do campo grava).
-  const titulo = x.ui.renomear === c.id
-    ? `<form class="cl-renomear cl-renomear-no-lugar" data-form="cl-renomear" data-id="${esc(c.id)}"><input name="apelido" maxlength="40" value="${esc(c.apelido)}" aria-label="Novo nome de ${esc(nome)}" autocomplete="off" required data-cl-autofoco data-manter-foco="cl-renomear"></form>`
-    : `<b class="cl-nome-ed" data-cl-renomear-duplo="${esc(c.id)}" title="Duplo clique para renomear">${esc(nome)}</b><button type="button" class="cl-lapis" data-act="cl-renomear" data-id="${esc(c.id)}" aria-label="${esc(`Renomear ${nome}`)}" title="Renomear">${ICONE.lapis}</button>`;
+  // Revisão de 2026-11-20: o nome se edita no lugar, com o mesmo componente do nome do bot (web/lib/nome-editavel.ts).
+  // O apelido é o que se edita; o fornecedor fica fixo na frente quando o apelido não começa por ele ("Claude ·").
+  const apelido = c.apelido.trim();
+  const prov = PROVEDOR[c.ia].nome;
+  const prefixo = !apelido ? prov : nome === apelido ? "" : `${prov} ·`;
+  const titulo = `${prefixo ? `<span class="cl-nome-prov">${esc(prefixo)}</span>` : ""}${campoDeNome({ dono: "conta", campo: "apelido", id: c.id, valor: c.apelido, rotulo: `Nome da conta ${nome}`, maxlength: 40, inputId: "cl-conta-nome", classe: "cl-nome-campo", placeholder: "Dar um nome", extra: 'data-manter-foco="cl-conta-nome"' })}`;
   return `<div class="cl-conta-pag" data-pagina="cl-conta" data-id="${esc(c.id)}">
       <div class="cl-np-cab"><button type="button" class="cl-np-voltar" data-act="cl-fechar-conta" aria-label="Voltar para Provedores de IA">${ICONE_VOLTAR}</button><span class="cl-np-mig">Provedores de IA</span><span class="cl-np-sep" aria-hidden="true">/</span><h2 class="cl-nova-tit">${esc(nome)}</h2></div>
       <div class="cl-conta-id">${logoDaIa(c.ia, "cl-logo grande")}<div class="cl-conta-id-txt"><div class="cl-nome">${titulo}${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div><small>${esc(ident)}</small></div><label class="cl-conta-fila"><span>Bots podem usar</span>${chaveDaFila(c)}</label></div>

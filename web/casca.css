@@ -256,13 +256,12 @@ html[data-largura="recolhida"] .sidebar .me-nome { display: none; }
 .detalhes .gvn-id :is(.icon.mascote.xl, .gvn-avatar .icon) { width: 72px; height: 72px; }
 .detalhes .gvn-avatar { padding: 0; margin: 0 0 10px; border: 0; background: none; }
 .detalhes .gvn-id :is(.gvn-nome, .gvn-nome-fixo) {
-  margin: 0; padding: 0; height: 24px; border: 0; background: none; text-align: center; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3);
+  margin: 0; padding: 0; height: 24px; border: 0; text-align: center; font-size: var(--fs-titulo-3); line-height: var(--lh-titulo-3);
   letter-spacing: var(--tracking-titulo-3); font-weight: var(--peso-medio); color: var(--ink);
 }
 .detalhes .gvn-id :is(.gvn-sub, .gvn-sub-fixo) {
-  margin: 2px 0 0; padding: 0; height: 18px; border: 0; background: none; text-align: center; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-3);
+  margin: 2px 0 0; padding: 0; height: 18px; border: 0; text-align: center; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-3);
 }
-.detalhes .gvn-id :is(.gvn-nome, .gvn-sub):hover { background: var(--hover); border-radius: var(--raio-6); }
 .detalhes .gv-abas { display: flex; justify-content: center; gap: 4px; margin: -4px 0 0; padding: 0 0 14px; border: 0; }
 .detalhes .gv-aba {
   height: 26px; padding: 0 10px; border-radius: var(--raio-8); border: 0; background: transparent; box-shadow: none;

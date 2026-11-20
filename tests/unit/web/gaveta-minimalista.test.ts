@@ -57,8 +57,8 @@ describe("4: nome e subtítulo editáveis ali mesmo", () => {
   it("dois campos com rótulo, o valor salvo em data-salvo, placeholder 'Adicionar um rótulo' e a linha de erro role=status", () => {
     const html = renderDetalhes(com(nina({ titulo: "" })));
     expect(html).toContain('<label class="sr-only" for="gvn-nome">Nome do bot</label>');
-    expect(html).toMatch(/<input id="gvn-nome" class="gvn-nome" data-campo="nome" data-id="a1" data-salvo="Nina" value="Nina" maxlength="60"/);
-    expect(html).toMatch(/<input id="gvn-sub" class="gvn-sub" data-campo="titulo" data-id="a1" data-salvo="" value=""[^>]*placeholder="Adicionar um rótulo"/);
+    expect(html).toMatch(/<input id="gvn-nome" class="gvn-nome nome-editavel" data-nome-editavel="bot" data-campo="nome" data-id="a1" data-salvo="Nina" value="Nina" maxlength="60"/);
+    expect(html).toMatch(/<input id="gvn-sub" class="gvn-sub nome-editavel" data-nome-editavel="bot" data-campo="titulo" data-id="a1" data-salvo="" value=""[^>]*placeholder="Adicionar um rótulo"/);
     expect(html).toContain('<span class="gvn-erro" id="gvn-erro" role="status"></span>');
   });
 

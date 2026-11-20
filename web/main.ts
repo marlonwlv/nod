@@ -178,6 +178,8 @@ import { renderNovoBot } from "./telas/novo-bot.ts";
 import { renderNovaRotina } from "./telas/nova-rotina.ts";
 import { aoPedirRegrasDoBot, contextoInteligencia, nivelDaGaveta, paiDoNivel, regrasPodeFazer } from "./telas/detalhes.ts";
 import { avisarNaIdentidade, criarFilaDePerfil, criarSalvarAvatar, ERRO_AO_SALVAR, instalarIdentidade, sobreporPendentes } from "./lib/gaveta-identidade.ts";
+import { decidirCampo, ERRO_NOME_VAZIO } from "./lib/identidade-regras.ts";
+import { preservandoCampo, registrarNomeEditavel } from "./lib/nome-editavel.ts";
 import { renderEspaco, secaoInicialDasConfiguracoes } from "./telas/espaco.ts";
 import { diaDe, inicioDoDia } from "./lib/agenda.ts";
 import { agendaPorLer, escNaAgenda } from "./estado/agenda.ts";
@@ -4584,7 +4586,8 @@ function regiaoReabrindo(id: string, html: string, rolagem?: { seletor: string; 
   // NOD-367 (revisão 2): o botão, switch ou seletor focado volta ao mesmo controle no HTML novo (chave estável, não posição).
   const focado = !manter && document.activeElement instanceof HTMLElement && raiz.contains(document.activeElement) ? document.activeElement : null;
   const seletorFoco = focado ? seletorDoFocoNaRegiao(focado) : null;
-  regiao(id, html);
+  // O nome editável que sai do DOM no redesenho não salva o texto pela metade (web/lib/nome-editavel.ts).
+  preservandoCampo(() => regiao(id, html));
   if (focado && !focado.isConnected && seletorFoco) {
     try { raiz.querySelector<HTMLElement>(seletorFoco)?.focus({ preventScroll: true }); } catch { /* um data-* que não vira seletor: o foco não volta, o render segue */ }
   }
@@ -7383,10 +7386,7 @@ function focarGatilho(seletor: string | null): void {
 }
 /** O campo marcado com `data-cl-autofoco` recebe o foco logo depois do redesenho (o renomear, o diálogo). */
 function focarNovo(): void {
-  const el = document.querySelector<HTMLElement>("#espaco [data-cl-autofoco]");
-  el?.focus();
-  // O nome no lugar já vem selecionado: digitar troca, a seta mantém.
-  if (el instanceof HTMLInputElement && el.closest("form.cl-renomear-no-lugar")) el.select();
+  document.querySelector<HTMLElement>("#espaco [data-cl-autofoco]")?.focus();
 }
 
 /**
@@ -9258,8 +9258,6 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     if (nova) aoSoltarOrdem("pessoa", nova);
     focarGatilho(`[data-act="cl-menu"][data-id="${CSS.escape(chaveDoMenuDaIa(ia))}"]`);
   },
-  "cl-renomear": (el) => { contasDaPessoa.renomear(el.dataset.id ?? null); focarNovo(); },
-  "cl-renomear-fechar": () => contasDaPessoa.renomear(null),
   "cl-detalhe": (el) => contasDaPessoa.detalhe(el.dataset.id ?? ""),
   // Revisor do PR #429: o diálogo abre na hora (a busca das frentes leva até 5 s); o foco vai ao "Cancelar" já ao abrir e
   // de novo quando a lista chega e o diálogo é redesenhado.
@@ -9605,7 +9603,6 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     contasDaPessoa.mudarNova({ ia, apelido, maquinas });
     await contasDaPessoa.enviarNova();
   },
-  "cl-renomear": async (form) => contasDaPessoa.salvarApelido(form.dataset.id ?? "", form.querySelector<HTMLInputElement>('input[name="apelido"]')?.value ?? ""),
   "cl-codigo": async (form) => contasDaPessoa.enviarCodigo(form.dataset.login ?? "", form.querySelector<HTMLInputElement>('input[name="codigo"]')?.value ?? ""),
   "maq-renomear": (form) => agir(async () => {
     const nome = form.querySelector<HTMLInputElement>('input[name="nome"]')?.value.trim() ?? "";
@@ -9964,34 +9961,16 @@ document.addEventListener("keydown", (ev) => {
     document.querySelector<HTMLElement>(seletor)?.focus();
   }
 });
-// Revisão de 2026-11-20 (conta aberta): o nome se renomeia no lugar. Duplo clique no nome abre o campo; Esc desiste (sem
-// fechar as Configurações); sair do campo grava, como o Enter.
-document.addEventListener("dblclick", (ev) => {
-  const nome = (ev.target as HTMLElement).closest?.<HTMLElement>("#espaco [data-cl-renomear-duplo]");
-  if (!nome) return;
-  ev.preventDefault();
-  window.getSelection()?.removeAllRanges();
-  contasDaPessoa.renomear(nome.dataset.clRenomearDuplo ?? null);
-  focarNovo();
-});
-document.addEventListener("keydown", (ev) => {
-  if (ev.key !== "Escape") return;
-  const form = (ev.target as HTMLElement).closest?.<HTMLFormElement>('#espaco form[data-form="cl-renomear"]');
-  if (!form) return;
-  ev.preventDefault();
-  ev.stopImmediatePropagation();
-  const id = form.dataset.id ?? "";
-  contasDaPessoa.renomear(null);
-  document.querySelector<HTMLElement>(`#espaco .cl-lapis[data-id="${CSS.escape(id)}"]`)?.focus();
-}, true);
-document.addEventListener("focusout", (ev) => {
-  const form = (ev.target as HTMLElement).closest?.<HTMLFormElement>('#espaco form.cl-renomear-no-lugar');
-  if (!form || !form.isConnected || form.contains(ev.relatedTarget as Node | null)) return;
-  if (estado.contasUi.renomear !== form.dataset.id) return;
-  const valor = form.querySelector<HTMLInputElement>('input[name="apelido"]')?.value.trim() ?? "";
-  const atual = form.querySelector<HTMLInputElement>('input[name="apelido"]')?.defaultValue.trim() ?? "";
-  if (!valor || valor === atual) contasDaPessoa.renomear(null);
-  else form.requestSubmit();
+// Revisão de 2026-11-20: o nome da conta aberta é o nome editável do DS, o mesmo do bot (web/lib/nome-editavel.ts).
+registrarNomeEditavel("conta", (campo) => {
+  const salvo = campo.dataset.salvo ?? "";
+  const d = decidirCampo("nome", campo.value, salvo);
+  if (d.tipo === "nada") { campo.value = salvo; return; }
+  if (d.tipo === "vazio") { campo.value = salvo; dispatch({ tipo: "contas-ui", mudanca: { nota: ERRO_NOME_VAZIO } }); return; }
+  campo.value = d.valor;
+  campo.dataset.salvo = d.valor;
+  // Fora do focusout, como no bot: redesenhar aqui tiraria do DOM o que vai receber o foco ou o clique.
+  setTimeout(() => void contasDaPessoa.salvarApelido(campo.dataset.id ?? "", d.valor), 0);
 });
 // NOD-367: setas, Home e End no "…" das Configurações (o `.cl-menu` aberto), como no menu do avatar.
 document.addEventListener("keydown", (ev) => {

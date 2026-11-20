@@ -188,22 +188,20 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
         return l.contaId ? logadas.includes(l.contaId) : logadas.some((id) => !l.antes.includes(id));
       }).map(idDoLogin);
       if (fechar.length) d.mudar({ logins: logins().filter((l) => !fechar.includes(idDoLogin(l))) });
-      // Uma conta que sumiu da lista leva junto o menu, o renomear e o detalhe.
+      // Uma conta que sumiu da lista leva junto o menu e o detalhe.
       const ids = new Set(contas.contas.map((c) => c.id));
       const u = d.ui();
       const limpo: Partial<UiContas> = {};
       if (u.menu && !u.menu.startsWith(PREFIXO_MENU_DA_IA) && !ids.has(u.menu)) limpo.menu = null; // o "…" de uma IA não é de conta
-      if (u.renomear && !ids.has(u.renomear)) limpo.renomear = null;
       if (u.detalhe && !ids.has(u.detalhe)) limpo.detalhe = null;
       if (Object.keys(limpo).length) d.mudar(limpo);
     },
     menu(id: string): void { d.mudar({ menu: d.ui().menu === id ? null : id }); },
     fecharMenu(): void { if (d.ui().menu) d.mudar({ menu: null }); },
-    renomear(id: string | null): void { d.mudar({ renomear: id, menu: null }); },
     detalhe(id: string): void { d.mudar({ detalhe: d.ui().detalhe === id ? null : id, menu: null }); },
     filtro(maquinaId: string | null): void { d.mudar({ filtro: maquinaId, menu: null }); },
     /** Jornadas da IA (Paper G2): abre a conta na tela própria; fechar volta à lista. */
-    abrirConta(id: string | null): void { d.mudar({ aberta: id, menu: null, renomear: null, nova: null }); },
+    abrirConta(id: string | null): void { d.mudar({ aberta: id, menu: null, nova: null }); },
     /** Paper G1: a lista só com as contas que precisam da pessoa. */
     pendentes(sim: boolean): void { d.mudar({ pendentes: sim }); },
     terminal(loginId: string): void { d.mudar({ terminal: d.ui().terminal === loginId ? null : loginId }); },
@@ -213,7 +211,6 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
       if (!limpo) return;
       const c = d.contas();
       if (c) d.trocarContas({ ...c, contas: c.contas.map((x) => (x.id === id ? { ...x, apelido: limpo } : x)) });
-      d.mudar({ renomear: null });
       await d.api()?.mudarConta(id, { apelido: limpo }).catch(() => d.mudar({ nota: "Não deu para renomear. Tente de novo." }));
       d.invalidar();
     },

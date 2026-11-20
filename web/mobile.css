@@ -570,8 +570,6 @@
   .pfc-id .pfc-sub { margin: 0; min-height: 44px; padding: 0 44px; font-size: 15px; line-height: 20px; color: var(--ink-2); max-width: none; }
   .pfc-id .pfc-fixo { padding: 0 8px; display: flex; align-items: center; justify-content: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pfc-id h2.pfc-fixo { display: block; line-height: 44px; }
-  .pfc-id .pfc-nome:focus, .pfc-id .pfc-sub:focus { background: var(--surface-side); border-radius: 10px; }
-  .pfc-campo .pfc-nome:not(:focus), .pfc-campo .pfc-sub:not(:focus) { background: transparent; }
   .pfc-lapis { position: absolute; right: 0; top: 50%; translate: 0 -50%; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: var(--ink-3); }
   .pfc-lapis svg { width: 17px; height: 17px; }
   .pfc-campo:has(input:focus) .pfc-lapis { visibility: hidden; }

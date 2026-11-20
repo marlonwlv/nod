@@ -14,7 +14,9 @@ class InputFalso {
     this.value = salvo;
     this.dataset = { campo, id: "a1", salvo };
   }
-  matches(sel: string): boolean { return sel.includes(this.dataset.campo === "nome" ? ".gvn-nome" : ".gvn-sub"); }
+  // O campo é o nome editável do DS (web/lib/nome-editavel.ts), do dono "bot".
+  matches(sel: string): boolean { return sel.includes("data-nome-editavel"); }
+  getAttribute(nome: string): string | null { return nome === "data-nome-editavel" ? "bot" : null; }
   closest(): null { return null; }
   blur(): void { if (!this.focado) return; this.focado = false; this.disparar("focusout", { target: this }); }
   focus(): void { this.focado = true; }

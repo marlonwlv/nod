@@ -4,6 +4,7 @@ import type { RotinaDto } from "../../src/contracts/api.ts";
 import type { AbaGaveta, Estado, EstadoComputadorBot, NivelGaveta } from "../estado/reducer.ts";
 import { botao, dataHora, esc, hora, iconeAgente } from "../lib/render.ts";
 import { ICONE } from "../lib/icones.ts";
+import { campoDeNome } from "../lib/nome-editavel.ts";
 import { ENTRADA_PARADA, TENTAR_V2, entradaDoComputador, estadoDoCartaoDoBot, explicarComputador, htmlCartaoComputador, situacaoDaPessoa, telaCheiaAberta, type EntradaDoCartao } from "../lib/computador-estados.ts";
 import { ATALHO_SEMPRE_LIGADA, botaoDaParada, desdeDaParada, linhaOndeRoda, pedeAtalhoNaExecucao, rotuloExecucao } from "../lib/execucao.ts";
 import { avatarDoBot, mascoteAnimado, CORES_MASCOTE, FORMAS_MASCOTE, NOME_DA_COR, NOME_DA_FORMA, turnosVivosDaConversa, turnosVivosDoChat } from "../lib/mascote.ts";
@@ -183,10 +184,8 @@ function identidade(estado: Estado, a: Bot, dona: boolean): string {
   const aberto = estado.avatarAberto?.agenteId === a.id;
   const avatar = `<div class="gvn-avatar-wrap"><button type="button" class="gvn-avatar" data-act="gaveta-avatar" data-id="${esc(a.id)}" aria-haspopup="dialog"${aberto ? ' aria-controls="gvn-pop"' : ""} aria-expanded="${aberto}" aria-label="Editar avatar de ${esc(a.nome)}" aria-describedby="gvn-dica">${iconeAgente(a, "xl", avatarDoPainel(estado, a))}<span class="gvn-lapis" aria-hidden="true">${ICONE.lapis}</span></button><span class="gvn-dica" id="gvn-dica" role="tooltip">Editar avatar</span>${aberto ? popoverAvatar(a) : ""}</div>`;
   return `<div class="gv-identidade gvn-id">${avatar}
-    ${nomeEditavel(a, dona) ? `<label class="sr-only" for="gvn-nome">Nome do bot</label>
-    <input id="gvn-nome" class="gvn-nome" data-campo="nome" data-id="${esc(a.id)}" data-salvo="${esc(a.nome)}" value="${esc(a.nome)}" maxlength="60" autocomplete="off" spellcheck="false" title="Enter salva · Esc desfaz" aria-describedby="gvn-erro" />` : `<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2>`}
-    <label class="sr-only" for="gvn-sub">Subtítulo do bot</label>
-    <input id="gvn-sub" class="gvn-sub" data-campo="titulo" data-id="${esc(a.id)}" data-salvo="${esc(a.titulo)}" value="${esc(a.titulo)}" maxlength="80" autocomplete="off" placeholder="Adicionar um rótulo" title="Enter salva · Esc desfaz" aria-describedby="gvn-erro" />
+    ${nomeEditavel(a, dona) ? campoDeNome({ dono: "bot", campo: "nome", id: a.id, valor: a.nome, rotulo: "Nome do bot", maxlength: 60, inputId: "gvn-nome", classe: "gvn-nome", descritoPor: "gvn-erro" }) : `<h2 class="gvn-nome-fixo" title="${esc(a.nome)}">${esc(a.nome)}</h2>`}
+    ${campoDeNome({ dono: "bot", campo: "titulo", id: a.id, valor: a.titulo, rotulo: "Subtítulo do bot", maxlength: 80, inputId: "gvn-sub", classe: "gvn-sub", placeholder: "Adicionar um rótulo", descritoPor: "gvn-erro" })}
     <span class="gvn-erro-linha"><span class="gvn-erro-icone" aria-hidden="true">${ICONE.alerta}</span><span class="gvn-erro" id="gvn-erro" role="status"></span></span>${nomeEditavel(a, dona) ? statusDesfazer(a, estado.historicoPerfil[a.id], "identidade") : ""}</div>`;
 }
 
