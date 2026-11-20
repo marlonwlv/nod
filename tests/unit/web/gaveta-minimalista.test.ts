@@ -24,12 +24,13 @@ describe("1–3: o topo só com Compartilhar e Fechar; o ⋯ saiu da gaveta", ()
     expect(renderDetalhes(com(nina()))).not.toContain('data-act="menu-agente"');
   });
 
-  it("o menu de Compartilhar tem Copiar ID da conversa e Duplicar bot", () => {
-    const fonte = readFileSync(new URL("../../../web/telas/gestao-agentes.ts", import.meta.url), "utf8");
-    const corpo = fonte.slice(fonte.indexOf("export function abrirMenuCompartilhar"));
-    expect(corpo).toContain("Copiar ID da conversa");
-    expect(corpo).toContain("Duplicar bot");
-    expect(corpo).toContain('role="menu"');
+  it("o menu de Compartilhar tem Copiar ID da conversa e Duplicar bot (o Nod não se duplica)", async () => {
+    const { htmlMenuCompartilhar } = await import("../../../web/telas/gestao-agentes.ts");
+    const html = htmlMenuCompartilhar({ id: "b", nome: "Ada", papel: "bot" } as never);
+    expect(html).toContain("Copiar ID da conversa");
+    expect(html).toContain("Duplicar bot");
+    expect(html).toContain('role="menu"');
+    expect(htmlMenuCompartilhar({ id: "n", nome: "Nod", papel: "nod" } as never)).not.toContain("Duplicar bot");
   });
 
   it("o ⋯ mora na linha da lista (à vista só no toque) e Renomear não abre mais diálogo", () => {
