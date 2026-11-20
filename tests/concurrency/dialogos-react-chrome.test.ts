@@ -131,7 +131,9 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     const js = await build({ stdin: { contents: ENTRADA, resolveDir: fileURLToPath(RAIZ), loader: "ts" }, bundle: true, format: "iife", write: false, logLevel: "silent", jsx: "automatic", outdir: dir, loader: { ".css": "empty" } });
     let html = readFileSync(new URL("web/index.html", RAIZ), "utf8");
     html = html.replace(/<link rel="stylesheet" href="\/([\w/-]+\.css)" \/>/g, (_, f: string) => `<style>${readFileSync(new URL(`web/${f}`, RAIZ), "utf8")}</style>`);
-    html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<button id="antes">antes</button><script>${js.outputFiles.find((f) => f.path.endsWith(".js"))!.text}</script>`);
+    // O #antes fica fora do fluxo: abaixo do .app (800 px), ele fazia a página rolar, e a barra do Chrome do Linux (15 px,
+    // ao contrário da sobreposta do Mac) tirava largura da janela: tudo o que é "centrado" errava por 7 px no CI.
+    html = html.replace(/<script type="module" src="\/main.ts"><\/script>/, () => `<button id="antes" style="position:fixed;left:8px;top:300px">antes</button><script>${js.outputFiles.find((f) => f.path.endsWith(".js"))!.text}</script>`);
     writeFileSync(join(dir, "p.html"), html);
     url = pathToFileURL(join(dir, "p.html")).href;
     process.env.CARGA_CHROME = chrome!;
@@ -143,6 +145,8 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
     await cdp.enviar("Page.navigate", { url });
     for (let i = 0; i < 100 && !(await avaliar<boolean>(cdp, "!!window.__abrir")); i++) await esperar(50);
+    // A página não rola: no Mac a barra é sobreposta e nada muda, mas no Linux ela come 15 px da largura (o CI).
+    expect(await avaliar<number>(cdp, "document.documentElement.scrollHeight - innerHeight")).toBeLessThanOrEqual(0);
   }, 120_000);
   afterAll(() => { cdp?.fechar(); if (dir) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); });
 
