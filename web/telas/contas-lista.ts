@@ -376,7 +376,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
 /**
  * Jornadas da IA (Paper G2, 2026-11-19): a conta aberta numa tela própria, sem dropdown — identidade e o "na fila", o uso
  * com cada limite e quando renova, as máquinas (uma linha cada, com o estado e a ação ali mesmo) e as ações da conta.
- * O que antes morava no ⋯ (Renomear, Detalhes, Sair de cada máquina, Remover) vem para cá.
+ * O que antes morava no ⋯ (Renomear, Detalhes, Sair de cada máquina, Remover) vem para cá; renomear é o lápis ao lado do nome.
  */
 function linhaDaMaquina(c: ContaIa, m: MaquinaDto, x: ContextoContas): string {
   const v = c.maquinas.find((y) => y.maquinaId === m.id);
@@ -433,17 +433,18 @@ export function renderContaAberta(c: ContaIa, x: ContextoContas, usada: string |
   const ondeMediu = c.cota?.maquinaId ? x.maquinas.find((m) => m.id === c.cota!.maquinaId) : undefined;
   const medido = c.cota && !x.simulacao ? `medido ${haQuanto(x.agora - c.cota.medidoEm)}${ondeMediu ? ` no ${nomeCurto(ondeMediu, x.maquinas)}` : ""}` : "";
   const uso = x.simulacao ? "" : usoDaConta(c, { agora: x.agora, contas: x.contas.contas, nomeDaMaquina: (id) => { const m = x.maquinas.find((y) => y.id === id); return m ? nomeCurto(m, x.maquinas) : null; } });
-  const renomear = x.ui.renomear === c.id
-    ? `<form class="cl-renomear" data-form="cl-renomear" data-id="${esc(c.id)}"><input name="apelido" maxlength="40" value="${esc(c.apelido)}" aria-label="Apelido de ${esc(nome)}" data-cl-autofoco data-manter-foco="cl-renomear"><button type="submit" class="bt pri sm">Salvar</button><button type="button" class="bt sm" data-act="cl-renomear-fechar">Cancelar</button></form>`
-    : "";
+  // Revisão de 2026-11-20: renomear sem botão — o lápis ao lado do nome ou o duplo clique no nome trocam o nome por um
+  // campo no mesmo lugar (Enter grava, Esc desiste, sair do campo grava).
+  const titulo = x.ui.renomear === c.id
+    ? `<form class="cl-renomear cl-renomear-no-lugar" data-form="cl-renomear" data-id="${esc(c.id)}"><input name="apelido" maxlength="40" value="${esc(c.apelido)}" aria-label="Novo nome de ${esc(nome)}" autocomplete="off" required data-cl-autofoco data-manter-foco="cl-renomear"></form>`
+    : `<b class="cl-nome-ed" data-cl-renomear-duplo="${esc(c.id)}" title="Duplo clique para renomear">${esc(nome)}</b><button type="button" class="cl-lapis" data-act="cl-renomear" data-id="${esc(c.id)}" aria-label="${esc(`Renomear ${nome}`)}" title="Renomear">${ICONE.lapis}</button>`;
   return `<div class="cl-conta-pag" data-pagina="cl-conta" data-id="${esc(c.id)}">
       <div class="cl-np-cab"><button type="button" class="cl-np-voltar" data-act="cl-fechar-conta" aria-label="Voltar para Provedores de IA">${ICONE_VOLTAR}</button><span class="cl-np-mig">Provedores de IA</span><span class="cl-np-sep" aria-hidden="true">/</span><h2 class="cl-nova-tit">${esc(nome)}</h2></div>
-      <div class="cl-conta-id">${logoDaIa(c.ia, "cl-logo grande")}<div class="cl-conta-id-txt"><div class="cl-nome"><b>${esc(nome)}</b>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div><small>${esc(ident)}</small></div><label class="cl-conta-fila"><span>Bots podem usar</span>${chaveDaFila(c)}</label></div>
-      ${renomear}
+      <div class="cl-conta-id">${logoDaIa(c.ia, "cl-logo grande")}<div class="cl-conta-id-txt"><div class="cl-nome">${titulo}${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div><small>${esc(ident)}</small></div><label class="cl-conta-fila"><span>Bots podem usar</span>${chaveDaFila(c)}</label></div>
       ${limite}${semAcesso}
       <section class="cl-conta-sec" aria-label="Uso"><h3${c.cota !== undefined && !x.simulacao ? ` title="${esc(DE_ONDE_VEM_O_USO[c.ia])}"` : ""}>Uso${medido ? `<small>${esc(medido)}</small>` : ""}</h3>${uso || '<p class="mudo">O uso aparece depois do primeiro trabalho com esta conta.</p>'}</section>
       <section class="cl-conta-sec" aria-label="Máquinas"><h3>Máquinas</h3><ul class="cl-maq-lista">${maquinas.map((m) => linhaDaMaquina(c, m, x)).join("") || '<li class="cl-maq-linha mudo">Nenhuma máquina conectada.</li>'}</ul>${logins}</section>
-      <div class="cl-conta-acoes"><button type="button" class="bt sm" data-act="cl-renomear" data-id="${esc(c.id)}">Renomear</button><span class="cl-conta-acoes-sep"></span><button type="button" class="ob-link cl-remover-link" data-act="cl-remover" data-id="${esc(c.id)}">Remover conta</button></div>
+      <div class="cl-conta-acoes"><span class="cl-conta-acoes-sep"></span><button type="button" class="ob-link cl-remover-link" data-act="cl-remover" data-id="${esc(c.id)}">Remover conta</button></div>
     </div>`;
 }
 

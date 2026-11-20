@@ -95,12 +95,23 @@ describe("lista única de contas (ADR-102)", () => {
 
   it("a conta aberta tem Renomear, Sair de cada máquina e Remover conta (o que era do ⋯)", () => {
     const html = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id } }));
-    expect(html).toContain(`data-act="cl-renomear" data-id="${PESSOAL.id}"`);
+    // Revisão de 2026-11-20: renomear é o lápis ao lado do nome e o duplo clique no nome, não um botão nas ações.
+    expect(html).toContain(`<button type="button" class="cl-lapis" data-act="cl-renomear" data-id="${PESSOAL.id}"`);
+    expect(html).toContain(`data-cl-renomear-duplo="${PESSOAL.id}"`);
+    expect(html).not.toContain(">Renomear</button>");
     expect(html).toContain(`data-act="cl-sair" data-id="${PESSOAL.id}" data-maquina="${VM}"`);
     expect(html).toContain(`data-act="cl-sair" data-id="${PESSOAL.id}" data-maquina="${MAC}"`);
     expect(html).toContain(`data-act="cl-remover" data-id="${PESSOAL.id}"`);
     expect(html).toContain("Remover conta");
     expect(html).not.toContain("cl-detalhe");
+  });
+
+  it("renomeando, o nome vira um campo no mesmo lugar (sem Salvar/Cancelar: Enter grava, Esc desiste)", () => {
+    const html = renderListaDeContas(ctx({ ui: { aberta: PESSOAL.id, renomear: PESSOAL.id } }));
+    const cab = html.slice(html.indexOf('class="cl-conta-id"'), html.indexOf('class="cl-conta-fila"'));
+    expect(cab).toContain(`<form class="cl-renomear cl-renomear-no-lugar" data-form="cl-renomear" data-id="${PESSOAL.id}"><input name="apelido"`);
+    expect(cab).not.toContain("cl-lapis");
+    expect(html).not.toContain('data-act="cl-renomear-fechar"');
   });
 
   it("Paper G1: estados da conta — login venceu, sem acesso, falta entrar, disponível e fora da fila", () => {

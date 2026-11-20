@@ -195,9 +195,20 @@
 .cl-regras-det[open] > .cl-regras { margin-top: 10px; }
 .cl-regras .contas-privado { margin: 10px 0 0; }
 .selo.selo-nova { background: color-mix(in srgb, var(--signal, var(--action)) 12%, transparent); color: var(--signal, var(--action)); }
-/* G2: "medido há …" ao lado do Uso; o Remover em vermelho, sem caixa; Renomear em pílula. */
+/* G2: "medido há …" ao lado do Uso; o Remover em vermelho, sem caixa. */
 .cl-conta-sec h3 small { margin-left: 8px; font-size: 12px; font-weight: var(--peso-regular); color: var(--ink-3); }
-.cl-conta-acoes .bt { border-radius: 999px; }
+/* Revisão de 2026-11-20: renomear é o lápis ao lado do nome (ou o duplo clique nele), e o campo abre no lugar do nome,
+   no mesmo tamanho, sem empurrar o resto da página. */
+.cl-conta-pag .cl-nome { gap: 6px; }
+.cl-conta-pag .cl-nome-ed { cursor: text; }
+.cl-lapis { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-right: 2px; padding: 0; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-3); cursor: pointer; }
+.cl-lapis svg { width: 14px; height: 14px; }
+.cl-lapis:hover { background: var(--hover); color: var(--ink); }
+.cl-lapis:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.cl-conta-pag form.cl-renomear-no-lugar { display: block; margin: 0; }
+.cl-conta-pag form.cl-renomear-no-lugar input { width: min(320px, 100%); height: 30px; margin: -2px 0 -2px -7px; padding: 0 6px; box-sizing: border-box; border: 1px solid var(--borda); border-radius: var(--raio-8); background: var(--surface-elevated); font: 600 20px/26px var(--font-sans); color: var(--ink); }
+.cl-conta-pag form.cl-renomear-no-lugar input:focus { outline: none; border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+@media (forced-colors: active) { .cl-conta-pag form.cl-renomear-no-lugar input:focus { outline: 2px solid CanvasText; } }
 .cl-remover-link { margin-left: auto; color: var(--danger); font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); text-decoration: none; }
 .cl-remover-link:hover { text-decoration: underline; }
 /* A1/A1b/A2: os estados à direita da máquina numa linha (o `.cl-maq span` de navegacao.css os empilhava). */

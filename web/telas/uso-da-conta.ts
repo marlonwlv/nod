@@ -76,7 +76,14 @@ type Janela = { rotulo: string; nome: string; janela: JanelaDoPlano | null; reno
 function blocoDaJanela(j: Janela, agora: number): string {
   if (!j.janela) {
     if (j.renovou === null) return "";
-    return `<div class="cu-jan f-renovado"><div class="cu-cab"><span>${esc(j.rotulo)}</span></div><p class="cu-sub">renovou ${esc(quandoRenova(j.renovou, agora))} · o número volta no próximo trabalho</p></div>`;
+    // Revisão de 2026-11-20: a janela que renovou fica como a das outras, com a barra vazia (o texto longo ia em três
+    // linhas na coluna da direita); que o número volta no próximo trabalho vai no title e no texto falado.
+    const quando = quandoRenova(j.renovou, agora);
+    const falado = `${j.nome}: renovou ${quando}, o número volta no próximo trabalho`;
+    return `<div class="cu-jan f-renovado" role="meter" aria-label="${esc(j.nome)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="${esc(falado)}" title="O número volta no próximo trabalho">`
+      + `<div class="cu-cab" aria-hidden="true"><span>${esc(j.rotulo)}</span><b>0%</b></div>`
+      + '<div class="cu-barra" aria-hidden="true"><span style="width:0%"></span></div>'
+      + `<p class="cu-sub" aria-hidden="true">renovou ${esc(quando)}</p></div>`;
   }
   const faixa = faixaDaJanela(j.janela.utilizacao);
   const pct = pctUsado(j.janela.utilizacao);

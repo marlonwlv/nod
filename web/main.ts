@@ -7383,7 +7383,10 @@ function focarGatilho(seletor: string | null): void {
 }
 /** O campo marcado com `data-cl-autofoco` recebe o foco logo depois do redesenho (o renomear, o diálogo). */
 function focarNovo(): void {
-  document.querySelector<HTMLElement>("#espaco [data-cl-autofoco]")?.focus();
+  const el = document.querySelector<HTMLElement>("#espaco [data-cl-autofoco]");
+  el?.focus();
+  // O nome no lugar já vem selecionado: digitar troca, a seta mantém.
+  if (el instanceof HTMLInputElement && el.closest("form.cl-renomear-no-lugar")) el.select();
 }
 
 /**
@@ -9960,6 +9963,35 @@ document.addEventListener("keydown", (ev) => {
     // Depois do redesenho: o botão antigo já saiu do DOM.
     document.querySelector<HTMLElement>(seletor)?.focus();
   }
+});
+// Revisão de 2026-11-20 (conta aberta): o nome se renomeia no lugar. Duplo clique no nome abre o campo; Esc desiste (sem
+// fechar as Configurações); sair do campo grava, como o Enter.
+document.addEventListener("dblclick", (ev) => {
+  const nome = (ev.target as HTMLElement).closest?.<HTMLElement>("#espaco [data-cl-renomear-duplo]");
+  if (!nome) return;
+  ev.preventDefault();
+  window.getSelection()?.removeAllRanges();
+  contasDaPessoa.renomear(nome.dataset.clRenomearDuplo ?? null);
+  focarNovo();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Escape") return;
+  const form = (ev.target as HTMLElement).closest?.<HTMLFormElement>('#espaco form[data-form="cl-renomear"]');
+  if (!form) return;
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+  const id = form.dataset.id ?? "";
+  contasDaPessoa.renomear(null);
+  document.querySelector<HTMLElement>(`#espaco .cl-lapis[data-id="${CSS.escape(id)}"]`)?.focus();
+}, true);
+document.addEventListener("focusout", (ev) => {
+  const form = (ev.target as HTMLElement).closest?.<HTMLFormElement>('#espaco form.cl-renomear-no-lugar');
+  if (!form || !form.isConnected || form.contains(ev.relatedTarget as Node | null)) return;
+  if (estado.contasUi.renomear !== form.dataset.id) return;
+  const valor = form.querySelector<HTMLInputElement>('input[name="apelido"]')?.value.trim() ?? "";
+  const atual = form.querySelector<HTMLInputElement>('input[name="apelido"]')?.defaultValue.trim() ?? "";
+  if (!valor || valor === atual) contasDaPessoa.renomear(null);
+  else form.requestSubmit();
 });
 // NOD-367: setas, Home e End no "…" das Configurações (o `.cl-menu` aberto), como no menu do avatar.
 document.addEventListener("keydown", (ev) => {
