@@ -133,6 +133,15 @@ describe("NOD-422 · decisão 5: colunas recolhidas no quadro que veio do Linear
     expect(recolhidaPorPadrao(col({}), 3, false)).toBe(false);
   });
 
+  it("Feito e Cancelado começam recolhidos mesmo com tarefa; o Backlog só enquanto vazio (Paper K6-a)", () => {
+    for (const importado of [false, true]) {
+      expect(recolhidaPorPadrao(col({ id: "feito", grupo: "feito", recolhida: true }), 9, importado)).toBe(true);
+      expect(recolhidaPorPadrao(col({ id: "cancelado", grupo: "fechado", recolhida: true }), 2, importado)).toBe(true);
+    }
+    expect(recolhidaPorPadrao(col({ id: "backlog", grupo: "nao_iniciado", recolhida: true }), 0, false)).toBe(true);
+    expect(recolhidaPorPadrao(col({ id: "backlog", grupo: "nao_iniciado", recolhida: true }), 6, false)).toBe(false);
+  });
+
   it("o quadro importado desenha a coluna sem responsável recolhida", () => {
     const colunas = [col({ id: "backlog", nome: "Backlog", grupo: "nao_iniciado", fixa: true }), col({ id: "fazendo", nome: "Implementando", responsavel: "x" })];
     const tarefas = ["backlog", "fazendo"].map((s, i) => ({ id: `t${i}`, quadroId: "q", titulo: `T${i}`, descricao: "", status: s, agenteId: null, ordem: i, criadoEm: 0, atualizadoEm: 0, execucao: null, agenteNome: null, voltarPara: null, linearId: null, linearUrl: null, prUrl: null, pergunta: null, resposta: null, deFora: false, turnoId: null, mudadoEm: 0, terminadaEm: null, numero: null, codigo: `#${i}`, branch: "" }));

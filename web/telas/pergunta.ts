@@ -146,6 +146,18 @@ export function renderRespondendo(modo: ModoComposer, estado: Estado): string {
  * (aprovação, acesso). A faixa da pergunta, a faixa "lendo sua mensagem" e o seletor saíram (2026-10-18): a pergunta mora
  * no cartão; o status "Esperando você" do cabeçalho fica.
  */
+/**
+ * ADR-179 (fase 6, pedaço 2): o que o topo do campo diz, como dado — o topo em React (web/react/composer/topo-do-campo.tsx)
+ * desenha a partir disto; `renderTopoComposer`, logo abaixo, é o mesmo por string (o caminho de volta).
+ */
+export function topoDoComposer(modo: ModoComposer, estado: Estado, conversaId?: string): { tipo: "citacao"; trecho: string } | { tipo: "respondendo"; texto: string; trecho: string } | null {
+  const citacao = conversaId ? estado.citacoes[conversaId] : undefined;
+  if (citacao) return { tipo: "citacao", trecho: citacao.trecho };
+  if (modo.tipo !== "resposta" || modo.perguntas.length < 2) return null;
+  const texto = textoDaPergunta(estado, modo.alvo.decisao);
+  return { tipo: "respondendo", texto, trecho: inicioDaPergunta(texto, TRECHO_RESPONDENDO_MAX) };
+}
+
 export function renderTopoComposer(modo: ModoComposer, estado: Estado, conversaId?: string): string {
   // Paper (rodada 2): a faixa "N coisas esperam você" saiu — repetia os cartões da conversa, que já têm cada pedido.
   // ADR-113 (Parte 3b): com uma fala citada pelo "Responder", a caixa diz a fala, no lugar da pergunta (a mensagem que

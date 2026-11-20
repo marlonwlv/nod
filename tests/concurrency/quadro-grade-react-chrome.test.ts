@@ -56,7 +56,8 @@ const api = {
 };
 const frame = (tipo, dados) => window.__q.aoFrame({ streamId: "s", seq: 1, pessoaId: "p", tipo, dados });
 // A releitura que chega no meio de um arrasto: outra tarefa mudou (o quadro volta com outra versão).
-window.__mudou = () => { versao++; tarefas = tarefas.map((t) => (t.id === "t5" ? { ...t, titulo: "Tarefa 5 (editada " + versao + ")" } : t)); frame("quadro.mudou", { quadroId: "q1", agenteId: "a", loteId: null, tarefas: "t5" }); };
+// A t3 (Em revisão) é a que muda: a t5 está no Feito, que começa recolhido (Paper K6-a), e o card dela não aparece.
+window.__mudou = () => { versao++; tarefas = tarefas.map((t) => (t.id === "t3" ? { ...t, titulo: "Tarefa 3 (editada " + versao + ")" } : t)); frame("quadro.mudou", { quadroId: "q1", agenteId: "a", loteId: null, tarefas: "t3" }); };
 window.__montar = () => {
   document.getElementById("timeline").innerHTML = "<p>conversa</p>";
   document.getElementById("composer").innerHTML = "<textarea></textarea>";
@@ -152,19 +153,23 @@ descrever("ADR-180: a grade do quadro em React no Chrome real, arrastando por po
     // Um respiro longo no meio do arrasto (passa do GESTO_MS): o arrasto segue vivo, o flutuante e o card de origem no lugar.
     await esperar(1500);
     const durante = await avaliar<{ card: boolean; flutuantes: number; editada: boolean }>(cdp, `({ card: !!document.querySelector('#quadro li.qd-card[data-tarefa="t2"]')?.isConnected,
-      flutuantes: document.querySelectorAll(".rx-qd-flutuante").length, editada: /editada/.test(document.querySelector('#quadro li.qd-card[data-tarefa="t5"]')?.textContent ?? "") })`);
+      flutuantes: document.querySelectorAll(".rx-qd-flutuante").length, editada: /editada/.test(document.querySelector('#quadro li.qd-card[data-tarefa="t3"]')?.textContent ?? "") })`);
     expect(durante.card).toBe(true);
     expect(durante.flutuantes).toBe(1);
-    // O dnd-kit rola a grade sozinho com o ponteiro perto da borda: o destino é medido de novo antes de soltar.
+    // O dnd-kit rola a grade sozinho com o ponteiro perto da borda: o destino é medido de novo antes de soltar, na parte
+    // do Bloqueado que aparece (as tiras presas à direita, Feito e Cancelado, cobrem o fim da grade que rola por baixo).
     const d = await avaliar<{ x: number; y: number }>(cdp, `(() => { const c = document.querySelector('#quadro section.qd-col[data-coluna="bloqueado"]').getBoundingClientRect();
-      return { x: Math.round(c.left + c.width / 2), y: Math.round(c.top + 80) }; })()`);
+      const g = document.querySelector('#quadro .qd-grade').getBoundingClientRect();
+      const presas = [...document.querySelectorAll('#quadro .qd-grade > .qd-fixa')].map((e) => e.getBoundingClientRect().left - 10);
+      const fim = Math.min(c.right, g.right, ...presas), inicio = Math.max(c.left, g.left);
+      return { x: Math.round((inicio + fim) / 2), y: Math.round(c.top + 80) }; })()`);
     await mouse("mouseMoved", d.x, d.y, true);
     await esperar(50);
     await mouse("mouseReleased", d.x, d.y, false);
     await ate(`window.__mudancas.some((m) => m[0] === "t2")`);
     expect(await avaliar<unknown[]>(cdp, `window.__mudancas.find((m) => m[0] === "t2")`)).toEqual(["t2", "bloqueado"]);
-    // A releitura chega (no meio, se o gesto a soltou; ou logo depois): a t5 editada, e a grade nunca saiu do documento.
-    await ate(`/editada/.test(document.querySelector('#quadro li.qd-card[data-tarefa="t5"]')?.textContent ?? "")`);
+    // A releitura chega (no meio, se o gesto a soltou; ou logo depois): a t3 editada, e a grade nunca saiu do documento.
+    await ate(`/editada/.test(document.querySelector('#quadro li.qd-card[data-tarefa="t3"]')?.textContent ?? "")`);
     await ate(`document.querySelector('#quadro section.qd-col[data-coluna="bloqueado"] li.qd-card[data-tarefa="t2"]')`);
     expect(await avaliar<{ mesmo: boolean; saiu: number }>(cdp, `({ mesmo: document.querySelector("#quadro [data-react-regiao='quadro-grade']") === window.__grade, saiu: window.__saiu })`))
       .toEqual({ mesmo: true, saiu: 0 });

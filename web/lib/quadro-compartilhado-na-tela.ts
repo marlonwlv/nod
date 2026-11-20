@@ -30,6 +30,8 @@ export type ApiDoCompartilhado = {
 };
 
 export type DepsDoCompartilhado = {
+  /** ADR-179 (item 2): quem desenha o HTML no `#qcp` (o main passa o React, quando o módulo chegou); ausente, o innerHTML. */
+  desenharHtml?: (el: HTMLElement, html: string) => void;
   api: () => ApiDoCompartilhado;
   agente: AgenteDoQuadro;
   hora: (em: number) => string;
@@ -147,7 +149,8 @@ export function criarQuadroCompartilhadoNaTela(doc: Document, deps: DepsDoCompar
     // leitura que chega depois da abertura: o quadro já traz os comentários).
     const cabiaInteira = doAlvo && !!vista.aberta && !alvos.alvo("caixa") && rol.scrollHeight - rol.clientHeight <= COLADO_PX;
     minutoDesenhado = Math.floor(Date.now() / 60_000);
-    el.innerHTML = quadroCompartilhado(vista, { agente: deps.agente, hora: deps.hora });
+    const html = String(quadroCompartilhado(vista, { agente: deps.agente, hora: deps.hora }));
+    if (deps.desenharHtml) deps.desenharHtml(el, html); else el.innerHTML = html;
     el.dataset["qid"] = qid ?? "";
     el.dataset["vista"] = vistaAgora;
     for (const c of campos) {

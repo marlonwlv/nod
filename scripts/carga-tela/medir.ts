@@ -6,7 +6,12 @@ import { abrirChrome, avaliar, type Cdp } from "./cdp.ts";
 import { abrirQuadro, arrastarAte, COLUNA_B, prepararQuadro, tarefasPorColuna, type Abertura } from "./quadro.ts";
 import { api, botsDeCarga, CONFIG, entrar, escrever, promptStreaming, respostaRica, urlWeb, type Bot, type Sessao } from "./comum.ts";
 
-export const CENARIOS = ["ocioso", "varios-bots", "turno-pesado", "tudo-junto", "frentes", "quadro"] as const;
+export const CENARIOS = ["ocioso", "varios-bots", "turno-pesado", "tudo-junto", "frentes", "quadro", "tela-sua-vez", "tela-nao-lidos", "tela-trabalhos", "tela-tarefas"] as const;
+/**
+ * Fase da ADR-179 das telas no lugar da conversa (2026-11-19): a tela aberta pela barra (`data-act="navegar"`) enquanto os
+ * 8 bots escrevem fora dela — cada frame que a muda regravava a região `#timeline` inteira por string.
+ */
+const TELAS: Partial<Record<string, string>> = { "tela-sua-vez": "sua-vez", "tela-nao-lidos": "nao-lidos", "tela-trabalhos": "trabalhos", "tela-tarefas": "tarefas" };
 export type Cenario = (typeof CENARIOS)[number];
 
 /** Bots escrevendo ao mesmo tempo fora da tela, e quantos pedaços de texto cada um manda. */
@@ -55,7 +60,7 @@ const INSTRUMENTO = `(() => {
   setInterval(() => { const agora = performance.now(); c.lags.push(Math.max(0, agora - esperado)); esperado = agora + 20; }, 20);
 })();`;
 
-type Coleta = { quadro?: { regravacoes: number; leituras: number; leiturasMs: number[]; mudancasMs: number[]; solturasMs: number[]; perdidas: number }; frames: Record<string, number>; framesTotal: number; longtasks: { inicio: number; dur: number }[]; rafGaps: number[]; lags: number[]; falaRegravada: number; blocoTrocado: number; t0: number };
+type Coleta = { tela?: { regravacoes: number; nos: number }; quadro?: { regravacoes: number; leituras: number; leiturasMs: number[]; mudancasMs: number[]; solturasMs: number[]; perdidas: number }; frames: Record<string, number>; framesTotal: number; longtasks: { inicio: number; dur: number }[]; rafGaps: number[]; lags: number[]; falaRegravada: number; blocoTrocado: number; t0: number };
 
 /** O que a web instrumentada mediu (performance.measure "nod:regravar:<historico|ao-vivo>", "nod:progresso"). */
 const REGRAVACOES = `(() => { const r = {}; for (const e of performance.getEntriesByType('measure')) { if (!e.name.startsWith('nod:')) continue; const k = e.name.slice(4); const x = r[k] ??= { n: 0, totalMs: 0, maxMs: 0 }; x.n++; x.totalMs += e.duration; x.maxMs = Math.max(x.maxMs, e.duration); } return r; })()`;
@@ -134,7 +139,7 @@ async function esperarOcioso(s: Sessao, conversas: string[], inicio: number): Pr
 async function disparar(s: Sessao, cenario: Cenario, pesada: Bot, ativos: Bot[]): Promise<string[]> {
   const envios: Promise<unknown>[] = [];
   const conversas: string[] = [];
-  if (cenario === "varios-bots" || cenario === "tudo-junto" || cenario === "quadro") {
+  if (cenario === "varios-bots" || cenario === "tudo-junto" || cenario === "quadro" || TELAS[cenario]) {
     ativos.forEach((b, k) => {
       conversas.push(b.conversaId);
       // No quadro, os bots escrevem por mais tempo (o turno pesado): dá tempo de a pessoa arrastar ~15 cards no meio.
@@ -219,6 +224,17 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
     escrever(`[${rotulo}] conversa aberta: ${JSON.stringify(dom)}`);
 
     for (const cenario of cenarios) {
+      const tela = TELAS[cenario];
+      if (tela) {
+        // A tela pela barra; a conta de regravações da região (cada troca de filhos do #timeline).
+        // Pela delegação do main (data-act="navegar"), como o botão da barra ou do painel: nem toda tela tem botão na barra.
+        await avaliar(cdp, `(() => { const b = document.createElement("button"); b.dataset.act = "navegar"; b.dataset.tela = "${tela}"; document.getElementById("sidebar").append(b); b.click(); b.remove(); })()`);
+        for (let i = 0; i < 50 && !(await avaliar<boolean>(cdp, `document.querySelector('#timeline')?.dataset.tela === "${tela}" || !document.querySelector('#timeline-historico')`)); i++) await new Promise((r) => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 2500));
+        await avaliar(cdp, `(() => { const c = window.__carga; c.tela = { regravacoes: 0, nos: 0 }; const t = document.getElementById("timeline");
+          new MutationObserver((ms) => { for (const m of ms) { c.tela.regravacoes++; c.tela.nos += m.addedNodes.length; } }).observe(t, { childList: true, subtree: true }); return true; })()`);
+        escrever(`  ${cenario}: ${JSON.stringify(await avaliar(cdp, `({ nos: document.querySelectorAll('#timeline *').length, historico: !!document.querySelector('#timeline-historico'), react: !!document.querySelector('#timeline [data-rx-tela]') })`))}`);
+      }
       if (cenario === "quadro") {
         // Por último e à parte: liga o experimento, recarrega a página com o quadro e entra nele (o chat acima não muda).
         await prepararQuadro(s, pesada);
@@ -229,7 +245,7 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
         await new Promise((r) => setTimeout(r, 2000));
       }
       const aberturas = cenario === "quadro" ? await abrirQuadro(cdp) : null;
-      await avaliar(cdp, "(() => { const t = document.getElementById('composer-texto'); if (t) { t.value = ''; t.focus(); } window.__carga.reset(); if (window.__carga.quadro) Object.assign(window.__carga.quadro, { regravacoes: 0, leituras: 0, leiturasMs: [], mudancasMs: [], solturasMs: [], perdidas: 0 }); return true; })()");
+      await avaliar(cdp, "(() => { const t = document.getElementById('composer-texto'); if (t) { t.value = ''; t.focus(); } window.__carga.reset(); if (window.__carga.quadro) Object.assign(window.__carga.quadro, { regravacoes: 0, leituras: 0, leiturasMs: [], mudancasMs: [], solturasMs: [], perdidas: 0 }); if (window.__carga.tela) Object.assign(window.__carga.tela, { regravacoes: 0, nos: 0 }); return true; })()");
       const antesDoQuadro = cenario === "quadro" ? await tarefasPorColuna(s, pesada) : null;
       const antes = await metricas(cdp);
       await cdp.enviar("Profiler.setSamplingInterval", { interval: 500 });
@@ -302,14 +318,22 @@ export async function medir(rotulo: string, cenarios: readonly Cenario[] = CENAR
         perfil: agregarPerfil(profile),
         dom,
         ...(antesDoQuadro ? { quadro: { arrastos, chegaram: ((await tarefasPorColuna(s, pesada))[COLUNA_B] ?? 0) - (antesDoQuadro[COLUNA_B] ?? 0), regravacoes: c.quadro?.regravacoes ?? 0, leituras: c.quadro?.leituras ?? 0, ...resumoDoQuadro(c, aberturas) } } : {}),
+        ...(tela && c.tela ? { tela: { mutacoes: c.tela.regravacoes, nosCriados: c.tela.nos } } : {}),
         ...(cenario === "frentes" ? { frentes: { falaRegravada: c.falaRegravada, porMinuto: r1(c.falaRegravada / (janelaS / 60)), blocoTrocado: c.blocoTrocado, regravacoes: await avaliar<Record<string, { n: number; totalMs: number; maxMs: number }>>(cdp, REGRAVACOES) } } : {}),
       };
       writeFileSync(join(CONFIG.saida, `${rotulo}-${cenario}.json`), JSON.stringify(resumo, null, 2));
       escrever(`[${rotulo}] ${cenario}: turnos ${resumo.duracaoS} s, tela livre em ${telaLivreS} s, ${resumo.frames} frames, maior tarefa ${resumo.tarefasLongas.maxMs} ms, TBT ${resumo.tarefasLongas.tbtMs} ms, tecla p50/p95/max ${resumo.digitacao.p50}/${resumo.digitacao.p95}/${resumo.digitacao.max} ms`);
+      if (resumo.tela) escrever(`  ${cenario}: ${resumo.tela.mutacoes} mutações na região, ${resumo.tela.nosCriados} nós criados`);
       if (resumo.quadro) escrever(`  quadro: ${resumo.quadro.arrastos} arrastos, ${resumo.quadro.chegaram} chegaram ao servidor, ${resumo.quadro.regravacoes} regravações da grade, ${resumo.quadro.leituras} GET do quadro; soltar → card na coluna (tela) p50/p95/max ${JSON.stringify(resumo.quadro.soltura)}, PATCH (servidor) ${JSON.stringify(resumo.quadro.mover)}, GET ${JSON.stringify(resumo.quadro.leitura)}`);
       if (resumo.frentes) escrever(`  frentes: fala regravada ${resumo.frentes.falaRegravada}× (${resumo.frentes.porMinuto}/min; cada uma perde a seleção de texto nela), só o bloco trocado ${resumo.frentes.blocoTrocado}×, regravações ${JSON.stringify(resumo.frentes.regravacoes)}`);
       escrever(`  mais caro (próprio): ${resumo.perfil.proprio.slice(0, 8).map((x) => `${x.ms}ms ${x.fn}`).join(" | ")}`);
       await new Promise((r) => setTimeout(r, 2000));
+      // De volta à conversa pesada para o cenário seguinte.
+      if (tela) {
+        await avaliar(cdp, `document.querySelector('${linha}')?.click()`);
+        for (let i = 0; i < 150 && (await avaliar<number>(cdp, ITENS_DA_TIMELINE)) < 100; i++) await new Promise((r) => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 1500));
+      }
     }
   } finally {
     cdp.fechar();

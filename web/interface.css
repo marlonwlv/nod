@@ -299,6 +299,15 @@
 .bot-menu button>svg{width:18px;height:18px;flex-shrink:0}
 /* NOD-363: o item "Carregando…" do menu da Biblioteca continua focável, mas avisa que espera. */
 .bot-menu [aria-disabled="true"]{opacity:.6;cursor:progress}
+/* ADR-179: o menu do Base UI (no portal, posto pelo Positioner): por cima do app; o popup não é mais o que se posiciona. */
+.rx-menu-pos { z-index: 60; }
+.bot-menu.rx-menu { position: static; }
+/* O popup de estilo próprio (o `.pg-menu`, `position: fixed`) também é posto pelo Positioner. */
+.rx-menu-pos > .rx-menu { position: static; }
+/* O item desligado do Base UI (aria-disabled, focável): sem o cursor de espera do "Carregando…" da Biblioteca. */
+.bot-menu.rx-menu [data-disabled] { cursor: default; }
+/* foco-ok: o popup só segura o foco no instante em que abre, antes de o 1º item recebê-lo (os itens desenham o foco). */
+.bot-menu.rx-menu:focus { outline: none; }
 /* definido em 2026-09-18: compensar margem do viewBox Bloub (316 unidades para corpo de ~200). */
 .icon.mascote{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .icon.mascote>svg{width:100%;height:100%;flex-shrink:0;max-width:none}
@@ -1263,6 +1272,9 @@ nod-mascote[data-aviso="pergunta"], nod-mascote[data-aviso="nao-lido"] { --nod-a
 .artefato-dialogo[open] { display: flex; flex-direction: column; }
 .artefato-dialogo::backdrop { background: var(--backdrop); backdrop-filter: blur(2px); }
 .artefato-dialogo-corpo { flex: 1; min-height: 0; }
+/* ADR-179: a do Base UI (um <div> no portal): o fundo e o centrado que o ::backdrop e o <dialog> davam. */
+.rx-art-fundo { position: fixed; inset: 0; z-index: 60; background: var(--backdrop); backdrop-filter: blur(2px); }
+.artefato-dialogo.rx-art { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; display: flex; flex-direction: column; }
 .artefato-quadro.tela-cheia { height: 100%; }
 @media (max-width: 760px) {
   .artefato { margin-left: 0; }
@@ -2302,8 +2314,10 @@ span.pilula-memoria { padding-right: 12px; cursor: default; }
 
 /* A tela cheia: um <dialog> modal de borda a borda, a conversa escurecida atrás, a mídia ao centro, três botões redondos
    no canto e, com várias, as miniaturas no pé. Clicar fora da mídia fecha. */
-dialog.luz { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: rgba(9, 9, 11, .9); color: #fff; font-family: var(--font-sans); } /* cor-fixa: a tela cheia é sempre escura, nos dois temas */
+dialog.luz, .luz.rx-luz { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: rgba(9, 9, 11, .9); color: #fff; font-family: var(--font-sans); } /* cor-fixa: a tela cheia é sempre escura, nos dois temas */
 dialog.luz:not([open]) { display: none; }
+/* ADR-179: a do Base UI (um <div> no portal, sem ::backdrop) por cima do app, como o <dialog> no top layer. */
+.luz.rx-luz { z-index: 60; box-sizing: border-box; }
 dialog.luz::backdrop { background: transparent; }
 .luz.entra { animation: luz-entra .16s ease-out; }
 @keyframes luz-entra { from { opacity: 0; } }
@@ -2634,3 +2648,18 @@ textarea.re-corpo:focus-visible { border-color: var(--ink-3); }
 .bot-menu.ia-sel-menu .ia-sel-grupo { margin: 0; }
 .ia-sel-cab .ia-sel-frase { line-height: 16px; }
 .bot-menu.ia-sel-menu [role="menu"] > hr { margin: 4px -4px; }
+
+/* ADR-179 (item 4): o diálogo de confirmação (bot-dialogo) pelo Dialog do Base UI — o mesmo cartão do <dialog> nativo,
+   centrado, e o fundo que o ::backdrop dava. */
+.rx-dlg-fundo { position: fixed; inset: 0; z-index: 60; background: var(--backdrop); backdrop-filter: blur(3px); }
+.bot-dialogo.rx-dlg, .termos-dialogo.rx-dlg { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; box-sizing: border-box; }
+/* A saída dos diálogos do Base UI (confirmação e handoff): um fade curto, como o do onboarding; sem movimento, some na hora. */
+@media (prefers-reduced-motion: no-preference) {
+  .rx-dlg, .rx-dlg-fundo, .qd-handoff.rx-ho, .rx-ho-fundo { transition: opacity 0.12s ease; }
+}
+.rx-dlg[data-starting-style], .rx-dlg[data-ending-style], .rx-dlg-fundo[data-starting-style], .rx-dlg-fundo[data-ending-style],
+.qd-handoff.rx-ho[data-starting-style], .qd-handoff.rx-ho[data-ending-style], .rx-ho-fundo[data-starting-style], .rx-ho-fundo[data-ending-style] { opacity: 0; }
+
+/* ADR-179 (item 4): a prévia de arquivo pelo Dialog do Base UI — o fundo do ::backdrop e o centrado do <dialog>. */
+.rx-prv-fundo { position: fixed; inset: 0; z-index: 60; background: var(--backdrop); backdrop-filter: blur(4px); }
+.previa-arquivo.rx-prv { position: fixed; top: 50%; left: 50%; z-index: 61; translate: -50% -50%; margin: 0; box-sizing: border-box; }
