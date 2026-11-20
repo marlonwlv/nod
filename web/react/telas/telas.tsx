@@ -13,6 +13,7 @@ import { TelaTarefas, type AcoesDasTarefasDosBots } from "./tarefas.tsx";
 import { TelaNovaRotina, type AcoesDaNovaRotina } from "./nova-rotina.tsx";
 import { TelaNovaSala, type AcoesDaNovaSala } from "./nova-sala.tsx";
 import { TelaSuaVez, type AcoesDeSuaVez } from "./sua-vez.tsx";
+import { TelaConectoresAvancado, type AcoesDosConectores } from "./conectores-avancado.tsx";
 
 /**
  * ADR-179 (as telas no lugar da conversa): a tela que ocupa a região `#timeline` no lugar da conversa, em React. O main
@@ -24,10 +25,11 @@ import { TelaSuaVez, type AcoesDeSuaVez } from "./sua-vez.tsx";
  * a linha de Não lidos) acha os nós já no documento.
  *
  * As telas migradas até aqui: Sua vez, Não lidos, Rotinas, Nova rotina, a nova conversa (Novo bot), o novo chat em grupo
- * (Nova sala), Tarefas de todos (Cards) e Tarefas (`trabalhos`). As outras seguem pelo desenho por string.
+ * (Nova sala), Tarefas de todos (Cards), Tarefas (`trabalhos`) e a tela avançada dos Conectores (no computador). As outras
+ * seguem pelo desenho por string.
  */
-export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot" | "tarefas" | "trabalhos" | "nova-rotina" | "nova-sala" | "sua-vez";
-export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot; tarefas: AcoesDasTarefas; trabalhos: AcoesDasTarefasDosBots; novaRotina: AcoesDaNovaRotina; novaSala: AcoesDaNovaSala; suaVez: AcoesDeSuaVez }
+export type TelaNoReact = "nao-lidos" | "rotinas" | "novo-bot" | "tarefas" | "trabalhos" | "nova-rotina" | "nova-sala" | "sua-vez" | "conectores-avancado";
+export interface AcoesDasTelas { naoLidos: AcoesDeNaoLidos; rotinas: AcoesDeRotinas; novoBot: AcoesDoNovoBot; tarefas: AcoesDasTarefas; trabalhos: AcoesDasTarefasDosBots; novaRotina: AcoesDaNovaRotina; novaSala: AcoesDaNovaSala; suaVez: AcoesDeSuaVez; conectores: AcoesDosConectores }
 
 const CLASSE = "rx-tela";
 /** A classe do casco que o CSS da tela lê (`.timeline-wrap:has(> .tdt-casco)`), na própria vaga. */
@@ -67,7 +69,8 @@ export function criarTelasNoReact(loja: Loja<Estado>, acoes: AcoesDasTelas): Tel
               : tela === "trabalhos" ? <TelaTarefas loja={loja} acoes={acoes.trabalhos} />
                 : tela === "nova-rotina" ? <TelaNovaRotina loja={loja} acoes={acoes.novaRotina} />
                   : tela === "nova-sala" ? <TelaNovaSala loja={loja} acoes={acoes.novaSala} />
-                    : <TelaSuaVez loja={loja} acoes={acoes.suaVez} />;
+                    : tela === "conectores-avancado" ? <TelaConectoresAvancado loja={loja} acoes={acoes.conectores} />
+                      : <TelaSuaVez loja={loja} acoes={acoes.suaVez} />;
       flushSync(() => raiz.render(<StrictMode>{conteudo}</StrictMode>));
     },
     antesDeRegravar(html) {

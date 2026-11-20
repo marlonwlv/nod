@@ -185,6 +185,16 @@ ficam no mesmo nó. A jornada de rolagem (`quadro-rolagem-chrome`) roda pelo Rea
 innerHTML), os 76 casos nos dois caminhos; "regravou" passou a ser qualquer mudança na subárvore, porque o React não troca
 os filhos do casco. O JSX desta tela entra com o das regiões do #192 (item 5).
 
+**A tela avançada dos Conectores** (item 2; 2026-11-19), em JSX no computador (`web/react/telas/conectores-avancado.tsx`,
+a volta com `?telas-react=0`): o mesmo DOM de `renderConectores` com `avancado`, os formulários e os botões pelos mesmos
+handlers do main (`FORMS`/`ACOES`, com o formulário e o `dataset`). A vitrine do computador já era o Marketplace em modal.
+
+**Ficam para o 2º objetivo, por decisão de 2026-11-19 (com os itens 3 e 5):** a vitrine dos Conectores no celular e as
+outras peças próprias do celular (a folha "+" do campo, o bot e a fala segurados, o Compartilhar do perfil), testadas de
+uma vez no telefone; e **o menu da conta**, que segue no `<dialog>` como exceção: tem teclado próprio (← → nos submenus,
+Esc em dois níveis) e a animação de entrada e saída, os submenus do Base UI vão para um portal e pediriam o CSS do
+submenu refeito, e ele mora no rodapé do `#sidebar`, que o item 5 reescreve.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts

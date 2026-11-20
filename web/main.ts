@@ -607,6 +607,8 @@ if (telasNoReact) {
       },
       novaSala: { criar: (form) => void FORMS["criar-sala"]?.(form) },
       suaVez: { limparVencidos: (ids) => void limparVencidos(ids) },
+      // A tela avançada dos Conectores: os mesmos handlers de formulário e de botão do desenho por string.
+      conectores: { formulario: (qual, form) => void FORMS[qual]?.(form), acao: (qual, el) => void ACOES[qual]?.(el) },
     });
     if (estado.sessao) render();
   }, () => {
@@ -3594,7 +3596,8 @@ function renderPrincipal(): void {
       corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("rotinas") : renderRotinas(estado);
       break;
     case "conectores":
-      corpo = renderConectores(estado);
+      // ADR-179 (item 2): a tela avançada em React no computador; a vitrine do celular segue por string (o 2º objetivo).
+      corpo = moduloDasTelas && telasReact && t.avancado && !celular.ativo() ? moduloDasTelas.vagaDaTela("conectores-avancado") : renderConectores(estado);
       break;
     case "nova-sala":
       corpo = moduloDasTelas && telasReact ? moduloDasTelas.vagaDaTela("nova-sala") : renderNovaSala(estado);
