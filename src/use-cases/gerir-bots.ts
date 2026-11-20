@@ -128,7 +128,7 @@ async function executarAcao(deps: Deps, a: AcaoLote & { alvoNome: string }, botI
       // (`pelaPessoa`, que só decidirLoteDeBots liga) a dá; o modo do Nod nunca. `decidirLote` já manda essa ação ao card;
       // isto é a segunda cerca. Revisão do PR #401: não usa `porRegra === null`, que também é o Nod no manual.
       const r = await EXECUTORES_BOTS["bots.mudar_modo"](deps, { agenteId: exigirAlvo(), modo: a.modo, confirmado: ctx.pelaPessoa });
-      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [] };
+      return { botId: r.data.agente.id, nome: r.data.agente.nome, events: r.events ?? [], ...(r.data.aviso ? { aviso: r.data.aviso } : {}) };
     }
     case "restaurar_versao": {
       // NOD-20: o mesmo executor da rota POST /agentes/:id/perfil/versoes/:versao/restaurar.
