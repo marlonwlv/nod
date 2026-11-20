@@ -58,7 +58,7 @@ import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
 import { instalarOrdemArrastavel } from "./lib/ordem-arrastavel.ts";
 import { chaveDoMenuDaIa, ordemDoPasso } from "./lib/ordem.ts";
-import { abrirFolhaCompartilhar, abrirMenu, abrirMenuCompartilhar, abrirFolhaDeAtalhos, abrirMenuConta, abrirSobreONod, confirmarExclusaoNaFolha, menuContaAberto, dialogo, pedirGestao, textoDuplicar, type BotGerido, type AcaoGestao } from "./telas/gestao-agentes.ts";
+import { abrirFolhaCompartilhar, abrirMenu, abrirMenuCompartilhar, htmlMenuCompartilhar, abrirFolhaDeAtalhos, abrirMenuConta, abrirSobreONod, confirmarExclusaoNaFolha, menuContaAberto, dialogo, pedirGestao, textoDuplicar, type BotGerido, type AcaoGestao } from "./telas/gestao-agentes.ts";
 import { perfilAoAbrir, perfilAoAbrirNivel, saidaDoPerfil } from "./telas/perfil-celular.ts";
 import { criarMarcaDoPerfil, planoDaSaida } from "./lib/lista-apos-saida.ts";
 import { rascunhoMudou } from "./telas/memoria.ts";
@@ -8636,7 +8636,18 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // ADR-125: Acordar, na aba Computador, é o mesmo ligar; o pulso seguinte lê o estado novo.
   "computador-acordar": (el) => ligarComputador(el.dataset.id ?? "", "acordar"),
   // ADR-125 (NOD-349): o topo da gaveta, as abas e o popover do avatar.
-  "gaveta-compartilhar": (el) => { const a = botGerido(el.dataset.id); if (a) abrirMenuCompartilhar(a, el, (acao) => acaoDoBot(a, acao)); },
+  "gaveta-compartilhar": (el) => {
+    const a = botGerido(el.dataset.id);
+    if (!a) return;
+    // ADR-179: o do Base UI (embaixo do botão, pela esquerda, a 6 px), quando o módulo dos diálogos chegou.
+    if (!moduloDosDialogos) { abrirMenuCompartilhar(a, el, (acao) => acaoDoBot(a, acao)); return; }
+    el.setAttribute("aria-expanded", "true");
+    moduloDosDialogos.abrirMenuDeHtmlNoReact(document, {
+      html: htmlMenuCompartilhar(a), ancora: el, lado: "bottom", alinhar: "start", distancia: 6, classe: "menu-compartilhar",
+      aoFechar: () => el.setAttribute("aria-expanded", "false"),
+      aoEscolher: (b) => acaoDoBot(a, b.dataset.gestao as "copiar" | "duplicar"),
+    });
+  },
   "gaveta-aba": (el) => escolherAba(el.dataset.id ?? "", el.dataset.aba ?? ""),
   // NOD-326: a aba Biblioteca.
   "biblioteca-mais": (el) => void mostrarMaisNaBiblioteca(el.dataset.id ?? "", el.dataset.grupo ?? ""),

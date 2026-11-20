@@ -109,9 +109,14 @@ export function abrirMenu(a: BotGerido, dona: boolean, ancora: HTMLElement, exec
  * ADR-125 (NOD-349): o Compartilhar do topo da gaveta — o que já existia no menu do bot, num menu pequeno ancorado no
  * botão: Copiar ID da conversa e Duplicar bot (o Nod não se duplica, ADR-081).
  */
-export function abrirMenuCompartilhar(a: BotGerido, ancora: HTMLElement, executar: (acao: "copiar" | "duplicar") => void): void {
+/** O HTML do Compartilhar da gaveta (o `<dialog>` nativo e o menu do Base UI leem o mesmo). */
+export function htmlMenuCompartilhar(a: BotGerido): string {
   const item = (acao: "copiar" | "duplicar", texto: string) => `<button type="button" role="menuitem" data-gestao="${acao}"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8h13v13H8z M4 16H3V3h13v1"/></svg>${texto}</button>`;
-  const d = dialogo(`<div role="menu" aria-label="Compartilhar ${esc(a.nome)}">${item("copiar", "Copiar ID da conversa")}${a.papel === "nod" ? "" : item("duplicar", "Duplicar bot")}</div>`, true);
+  return `<div role="menu" aria-label="Compartilhar ${esc(a.nome)}">${item("copiar", "Copiar ID da conversa")}${a.papel === "nod" ? "" : item("duplicar", "Duplicar bot")}</div>`;
+}
+
+export function abrirMenuCompartilhar(a: BotGerido, ancora: HTMLElement, executar: (acao: "copiar" | "duplicar") => void): void {
+  const d = dialogo(htmlMenuCompartilhar(a), true);
   d.classList.add("menu-compartilhar");
   ancora.setAttribute("aria-expanded", "true");
   d.addEventListener("close", () => ancora.setAttribute("aria-expanded", "false"));

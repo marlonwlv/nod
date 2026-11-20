@@ -1,6 +1,7 @@
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { htmlDoMenuDaAba } from "../../../../../web/telas/abas-de-tarefa.ts";
+import { htmlMenuCompartilhar } from "../../../../../web/telas/gestao-agentes.ts";
 import { abrirMenuDeHtmlNoReact } from "../../../../../web/react/dialogos/menu-de-html.tsx";
 
 /** ADR-179 (item 4): os menus da barra pelo Menu do Base UI, a partir do mesmo HTML do `<dialog>` nativo. */
@@ -29,7 +30,7 @@ const popup = () => document.querySelector<HTMLElement>(".bot-menu.rx-menu")!;
 const nativo = (html: string): string => { const d = document.createElement("div"); d.innerHTML = html; return normalizar(d.firstElementChild!); };
 
 describe("os menus da barra pelo Base UI", () => {
-  it.each([["a aba de tarefa", htmlDoMenuDaAba({ titulo: "Revisar <o> PR", estado: "rodando" } as never, { fazerNaConversa: true })], ["o time (item desligado, nota)", TIME]])("%s: o mesmo conteúdo e o rótulo no popup", async (_, html) => {
+  it.each([["a aba de tarefa", htmlDoMenuDaAba({ titulo: "Revisar <o> PR", estado: "rodando" } as never, { fazerNaConversa: true })], ["o time (item desligado, nota)", TIME], ["o Compartilhar da gaveta", htmlMenuCompartilhar({ id: "b", nome: "Ada <x>", papel: "bot" } as never)], ["o Compartilhar do Nod", htmlMenuCompartilhar({ id: "n", nome: "Nod", papel: "nod" } as never)]])("%s: o mesmo conteúdo e o rótulo no popup", async (_, html) => {
     abrir(html);
     await waitFor(() => expect(popup()).toBeTruthy());
     const d = document.createElement("div");
