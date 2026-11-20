@@ -51,6 +51,11 @@ export type DepsContasDaPessoa = {
   agora: () => number;
   /** Injetável no teste; em produção a busca nunca segura a confirmação além deste prazo. */
   prazoFrentesMs?: number;
+  /**
+   * Jornadas da IA (Paper A2/C2): abre a página oficial do login no navegador assim que a VM manda o link. Sem ela (ou
+   * com o navegador bloqueando), o "Abrir de novo" do bloco resolve.
+   */
+  abrirPagina?: (url: string) => void;
 };
 
 /** definido em 2026-10-13: a tela confere o login aberto numa VM a cada segundo (a máquina puxa a cada 1 s com login). */
@@ -58,6 +63,8 @@ export const INTERVALO_LOGIN_TELA_MS = 1_000;
 /** O "✓ Entrou" fica à vista por um tempo antes de o bloco sair (a pílula da máquina já apareceu na linha). */
 export const PRONTO_VISIVEL_MS = 6_000;
 export const PRAZO_FRENTES_MS = 5_000;
+/** Paper A2/C2: o código que venceu com a pessoa no meio do login renova sozinho até 2 vezes (3 códigos ao todo). */
+export const RENOVACOES_DO_LOGIN = 2;
 
 const FINAIS = new Set(["pronto", "falhou", "cancelado"]);
 
@@ -79,6 +86,15 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
   const trocarLogin = (id: string, fn: (l: LoginNaTela) => LoginNaTela | null) => {
     d.mudar({ logins: logins().flatMap((l) => (idDoLogin(l) === id ? [fn(l)].filter((x): x is LoginNaTela => x !== null) : [l])) });
   };
+  /** Os logins cuja página já abriu (uma vez por login) e quantas vezes o código de cada máquina·IA·conta renovou. */
+  const paginasAbertas = new Set<string>();
+  const renovacoes = new Map<string, number>();
+  const chaveDaRenovacao = (g: LoginNaMaquina) => `${g.maquinaId}:${g.ia}:${g.contaId ?? `nova:${g.apelido ?? ""}`}`;
+  function abrirPaginaDoLogin(g: LoginNaMaquina): void {
+    if (g.fase !== "aguardando_pessoa" || !g.url || paginasAbertas.has(g.id)) return;
+    paginasAbertas.add(g.id);
+    d.abrirPagina?.(g.url);
+  }
   const erroCurto = (e: unknown, padrao: string) => (e instanceof ErroApi && e.status === 429 ? "Você já tem logins demais abertos. Termine ou cancele um deles." : padrao);
 
   /** Confere os logins abertos nas VMs; para sozinho quando não há nenhum em curso. */
@@ -94,7 +110,17 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
           if (l.onde !== "vm" || FINAIS.has(l.login.fase) || !api) continue;
           const novo = await api.verLogin(l.login.maquinaId, l.login.id).catch((e: unknown) => (e instanceof ErroApi && e.status === 404 ? ({ ...l.login, fase: "falhou", erro: "tempo_esgotado" } as LoginNaMaquina) : null));
           if (!novo || (novo.fase === l.login.fase && novo.atualizadoEm === l.login.atualizadoEm && novo.url === l.login.url)) continue;
+          // Paper A2/C2: o código venceu enquanto a pessoa estava na página — um login novo, sem pedir nada a ela.
+          const chave = chaveDaRenovacao(novo);
+          if (novo.fase === "falhou" && novo.erro === "tempo_esgotado" && l.login.fase === "aguardando_pessoa" && (renovacoes.get(chave) ?? 0) < RENOVACOES_DO_LOGIN) {
+            renovacoes.set(chave, (renovacoes.get(chave) ?? 0) + 1);
+            trocarLogin(l.login.id, () => null);
+            await entrarNaMaquina(novo.maquinaId, novo.ia, novo.contaId, novo.apelido);
+            continue;
+          }
           trocarLogin(l.login.id, (x) => (x.onde === "vm" ? { ...x, login: novo } : x));
+          abrirPaginaDoLogin(novo);
+          if (novo.fase === "pronto") renovacoes.delete(chave);
           if (novo.fase === "pronto") {
             d.invalidar();
             // A conta "nova" que já estava na lista deixa o aviso até a pessoa fechar (QA do PR #306, ISSUE-003).
@@ -123,6 +149,7 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
     try {
       const login = await api.pedirLogin(maquinaId, { ia, ...(contaId ? { contaId } : { apelido }) });
       d.mudar({ nota: null, logins: [...logins(), { onde: "vm", login, codigo: "", enviando: false, erroEnvio: null }] });
+      abrirPaginaDoLogin(login);
       conferir();
     } catch (e) {
       d.mudar({ nota: erroCurto(e, `Não deu para começar o login na ${m.nome}. Confira se ela está conectada e tente de novo.`) });
@@ -263,7 +290,8 @@ export function criarContasDaPessoa(d: DepsContasDaPessoa) {
       const n = d.ui().nova;
       if (n) d.mudar({ nova: { ...n, ...m } });
     },
-    fecharNova(): void { d.mudar({ nova: null }); },
+    /** Paper A3: o Concluir leva de volta à lista com a conta nova marcada. */
+    fecharNova(recente?: string): void { d.mudar({ nova: null, ...(recente ? { recente } : {}) }); },
     /** "Entrar nas N máquinas": um login por máquina, todos com o mesmo apelido. */
     async enviarNova(): Promise<void> {
       const n = d.ui().nova;

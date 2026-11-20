@@ -57,11 +57,13 @@ export type UiContas = {
   appAntigo: boolean;
   /** Jornadas da IA (Paper G2): a conta aberta na tela própria (uso, máquinas e ações); null = a lista. */
   aberta?: string | null;
+  /** Paper A3 → G1: a conta que acabou de entrar pela Nova conta ganha o selo "Nova" na lista. */
+  recente?: string | null;
   /** Jornadas da IA (Paper G1): a lista só com as contas que precisam da pessoa. */
   pendentes?: boolean;
 };
 
-export const UI_CONTAS_INICIAL: UiContas = { menu: null, renomear: null, detalhe: null, nova: null, confirmar: null, filtro: null, logins: [], terminal: null, nota: null, maquinaMenu: null, maquinaRenomear: null, desconectar: null, appAntigo: false, aberta: null, pendentes: false };
+export const UI_CONTAS_INICIAL: UiContas = { menu: null, renomear: null, detalhe: null, nova: null, confirmar: null, filtro: null, logins: [], terminal: null, nota: null, maquinaMenu: null, maquinaRenomear: null, desconectar: null, appAntigo: false, aberta: null, pendentes: false, recente: null };
 
 export type ContextoContas = {
   contas: ContasIaDto;
@@ -77,6 +79,8 @@ export type ContextoContas = {
   cartaoDoMac: (ia: IaComConta) => string;
   /** NOD-12: modo simulação (executor catcher): a lista não mostra o uso do plano (nenhum trabalho real o mede). */
   simulacao?: boolean;
+  /** Paper A1: os nomes dos harnesses ainda não integrados (vêm da API, `executor.harnesses`). */
+  emBreve?: readonly string[];
 };
 
 /**
@@ -229,22 +233,32 @@ function blocoDoLogin(l: LoginNaTela, x: ContextoContas, conta: ContaIa | null):
     return `<div class="cl-login" data-login="${id}" role="status">${cab(cancelar)}<p class="cl-passo-txt"><span class="ob-gira" aria-hidden="true"></span>Abrindo o login na ${esc(nome)}…${m && !m.conectada ? " A máquina está sem contato; o login começa quando ela voltar." : ""}</p></div>`;
   }
   const conferindo = g.fase === "conferindo" || g.codigoEnviado;
-  const passo1 = `<li class="feito"><span class="cl-n" aria-hidden="true">✓</span><div><b>Entre na página da ${esc(empresa)} com ${conta ? `a conta ${esc(conta.apelido)}` : "a conta que quer usar"}</b><a class="cl-link" href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Abrir a página da ${esc(empresa)} ↗</a></div></li>`;
-  const passo2 = g.codigoDispositivo
-    ? `<li><span class="cl-n" aria-hidden="true">2</span><div><b>Digite este código na página</b><div class="ia-codigo"><code>${esc(g.codigoDispositivo)}</code><button type="button" class="ob-link" data-act="copiar-texto" data-texto="${esc(g.codigoDispositivo)}" ${VIVO}>Copiar</button></div><small class="mudo">A ${esc(nome)} percebe sozinha quando terminar.</small></div></li>`
-    : g.pedeCodigo
-      ? `<li><span class="cl-n" aria-hidden="true">2</span><div><b>Cole aqui o código que a página mostrar</b>${conferindo
-        ? `<p class="cl-passo-txt"><span class="ob-gira" aria-hidden="true"></span>Conferindo na ${esc(nome)}…</p>`
-        : `<form class="cl-codigo" data-form="cl-codigo" data-login="${id}"><input name="codigo" autocomplete="off" spellcheck="false" maxlength="2048" placeholder="Cole aqui o código que a página mostrar" value="${esc(l.codigo)}" data-cl-codigo="${id}" data-manter-foco="cl-codigo-${id}" aria-label="Código da página da ${esc(empresa)}"><button type="submit" class="bt pri"${l.enviando ? " disabled" : ""}>Enviar</button></form>${l.erroEnvio ? `<p class="cl-erro">${esc(l.erroEnvio)}</p>` : ""}`}
-        <p class="cl-cadeado">${ICONE.cadeado}O código vai cifrado direto para a ${esc(nome)}. O servidor do nod só repassa e não consegue ler.</p></div></li>`
-      : "";
+  // Jornadas da IA (Paper A2/C2, 2026-11-19): a página oficial abre sozinha no navegador (web/lib/contas-da-pessoa.ts);
+  // o bloco diz isso e deixa só o que falta — colar o código (Claude) ou digitar o código lá (Codex) — e o "Abrir de novo".
+  const com = conta ? ` com a conta ${esc(conta.apelido)}` : "";
+  const reabrir = `A página não abriu? <a class="cl-link" href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">Abrir de novo ↗</a>`;
+  let corpo: string;
+  if (g.codigoDispositivo) {
+    corpo = `<p class="cl-passo-txt">Abrimos a página da ${esc(empresa)} no seu navegador. Entre${com} e digite lá este código:</p>
+      <div class="ia-codigo"><code>${esc(g.codigoDispositivo)}</code><button type="button" class="bt sm" data-act="copiar-texto" data-texto="${esc(g.codigoDispositivo)}" ${VIVO}>Copiar</button></div>
+      <p class="cl-reabrir mudo">Nada para colar de volta: a ${esc(nome)} percebe quando você confirmar. ${reabrir}</p>`;
+  } else if (g.pedeCodigo) {
+    corpo = `<p class="cl-passo-txt">Abrimos a página da ${esc(empresa)} no seu navegador. Entre${com} e cole aqui o código que ela mostrar.</p>
+      ${conferindo
+        ? `<p class="cl-passo-txt"><span class="ob-gira" aria-hidden="true"></span>Conferindo a conta na ${esc(nome)}…</p>`
+        : `<form class="cl-codigo" data-form="cl-codigo" data-login="${id}"><input name="codigo" autocomplete="off" spellcheck="false" maxlength="2048" placeholder="Código de autorização" value="${esc(l.codigo)}" data-cl-codigo="${id}" data-manter-foco="cl-codigo-${id}" aria-label="Código da página da ${esc(empresa)}"><button type="submit" class="bt pri"${l.enviando ? " disabled" : ""}>Enviar</button></form>${l.erroEnvio ? `<p class="cl-erro">${esc(l.erroEnvio)}</p>` : ""}`}
+      <p class="cl-reabrir mudo">${reabrir} · o código renova sozinho se vencer</p>
+      <p class="cl-cadeado">${ICONE.cadeado}O código vai cifrado direto para a ${esc(nome)}. O servidor do nod só repassa e não consegue ler.</p>`;
+  } else {
+    corpo = `<p class="cl-passo-txt">Abrimos a página da ${esc(empresa)} no seu navegador. Entre${com}; a ${esc(nome)} percebe sozinha quando terminar.</p><p class="cl-reabrir mudo">${reabrir}</p>`;
+  }
   // ADR-102 (2A): o caminho do terminal fica escondido, uma linha só, para quem prefere.
   const terminal = g.ia === "claude-cli"
     ? x.ui.terminal === g.id
       ? `<p class="cl-terminal">No terminal da ${esc(nome)}: <code>nod-motor entrar claude</code> <button type="button" class="ob-link" data-act="copiar-texto" data-texto="nod-motor entrar claude" ${VIVO}>Copiar</button></p>`
       : `<button type="button" class="cl-terminal-link" data-act="cl-terminal" data-login="${id}">Prefere o terminal?</button>`
     : "";
-  return `<div class="cl-login" data-login="${id}">${cab(cancelar)}<ol class="cl-passos">${passo1}${passo2}</ol>${terminal}</div>`;
+  return `<div class="cl-login" data-login="${id}">${cab(cancelar)}<div class="cl-login-corpo">${corpo}</div>${terminal}</div>`;
 }
 
 /** A versão que a máquina ficou depois do passo 1: a do preparo ou, sem ela, a que a máquina anunciou (`iasDetalhe`). */
@@ -332,7 +346,7 @@ function linha(c: ContaIa, pos: number, x: ContextoContas, usada: string | null)
       <span class="cl-pos" aria-hidden="true">${pos}</span>
       ${logoDaIa(c.ia, "cl-logo")}
       <div class="cl-corpo">
-        <div class="cl-nome"><button type="button" class="cl-nome-bt" data-act="cl-abrir" data-id="${esc(c.id)}"><b>${esc(nome)}</b></button>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}</div>
+        <div class="cl-nome"><button type="button" class="cl-nome-bt" data-act="cl-abrir" data-id="${esc(c.id)}"><b>${esc(nome)}</b></button>${c.plano ? `<span class="cl-plano">${esc(planoNaTela(c.plano))}</span>` : ""}${c.corporativa ? '<span class="selo">Corporativa</span>' : ""}${x.ui.recente === c.id ? '<span class="selo selo-nova">Nova</span>' : ""}</div>
         <div class="cl-ident"><span>${esc(metaDaConta(c, d))}</span></div>
         ${logins}
       </div>
@@ -409,7 +423,35 @@ export const REGRAS_DA_FILA: readonly { titulo: string; texto: string }[] = [
   { titulo: "Tarefas em andamento", texto: "trocar de IA faz a tarefa recomeçar do resumo. Por isso o Nod recomenda esperar ou trocar, pela hora em que a conta volta, e você decide." },
 ];
 
-/** O formulário "Adicionar conta" (G1-P2): provedor, apelido e em quais máquinas entrar. */
+/**
+ * Jornadas da IA (Paper A1, 2026-11-19): os fornecedores numa lista que cresce para baixo — os que já entram e, numa
+ * linha só, os que chegam em breve (os harnesses ainda não integrados, que a API manda em `executor.harnesses`).
+ */
+const ASSINATURA: Record<IaComConta, string> = { "claude-cli": "assinatura Pro, Max ou Team", "codex-cli": "assinatura Plus, Pro ou Team" };
+const IAS_COM_CONTA: readonly IaComConta[] = ["claude-cli", "codex-cli"];
+export function emBreve(nomes: readonly string[]): string {
+  if (!nomes.length) return "";
+  return `${nomes.length > 1 ? `${nomes.slice(0, -1).join(", ")} e ${nomes.at(-1)}` : nomes[0]} ${nomes.length > 1 ? "chegam" : "chega"} em breve`;
+}
+
+type MarcaDoPasso = "feito" | "ativo" | "girando" | "erro" | "depois";
+/** Paper A1b/A2: "Instalar · Conta · Teste" de uma máquina, pelo que o login dela diz. */
+export function trilhaDoLogin(g: LoginNaMaquina): [MarcaDoPasso, MarcaDoPasso, MarcaDoPasso] {
+  if (g.fase === "pronto") return ["feito", "feito", "feito"];
+  if (g.fase === "preparando") return ["girando", "depois", "depois"];
+  if (g.fase === "falhou" || g.fase === "cancelado") return g.erro === "preparo_falhou" || g.erro === "cli_antigo" || g.erro === "nao_instalada" ? ["erro", "depois", "depois"] : g.erro === "nao_confirmou" ? ["feito", "feito", "erro"] : ["feito", "erro", "depois"];
+  if (g.fase === "conferindo" || g.codigoEnviado) return ["feito", "feito", "girando"];
+  if (g.fase === "aguardando_pessoa" && g.url) return ["feito", "ativo", "depois"];
+  return ["feito", "girando", "depois"];
+}
+function trilha(marcas: readonly MarcaDoPasso[], g: LoginNaMaquina): string {
+  const nomes = [g.preparo || marcas[0] !== "feito" ? "Instalar" : "Instalado", "Conta", "Teste"];
+  const icone: Record<MarcaDoPasso, string> = { feito: "✓", ativo: "○", girando: '<span class="ob-gira" aria-hidden="true"></span>', erro: "!", depois: "○" };
+  const falado: Record<MarcaDoPasso, string> = { feito: "feito", ativo: "agora", girando: "em andamento", erro: "falhou", depois: "depois" };
+  return `<ol class="cl-trilha" aria-label="Passos nesta máquina">${marcas.map((m, k) => `<li class="t-${m}"><span aria-hidden="true">${icone[m]}</span>${nomes[k]}<span class="qd-sr"> (${falado[m]})</span></li>`).join("")}</ol>`;
+}
+
+/** O formulário "Nova conta" (Paper A1 → A1b/A2 → A3): fornecedor, apelido, onde roda e, depois do Conectar, cada máquina. */
 function formNova(x: ContextoContas): string {
   const n = x.ui.nova;
   if (!n) return `<button type="button" class="bt cl-adicionar" data-act="cl-nova">${ICONE.mais}Adicionar conta</button>`;
@@ -417,41 +459,74 @@ function formNova(x: ContextoContas): string {
   // e sim o porquê e o caminho (pedido do Marlon no PR #306: "não entendi esse ponto de conectar em uma máquina").
   const recebem = x.maquinas.filter((m) => m.conectada && (m.plataforma !== "darwin" || ehEsteMac(m, x)));
   if (recebem.length === 0) return semMaquina(x);
-  const ias: IaComConta[] = ["claude-cli", "codex-cli"];
-  // Tela 19b do Paper: o fornecedor em dois cartões (logo, nome, "Empresa · pelo CLI" e o rádio à direita).
-  const provedor = ias.map((ia) => `<label class="cl-prov${n.ia === ia ? " ativo" : ""}"><input type="radio" name="ia" value="${ia}" class="cl-prov-in" data-cl-nova-ia${n.ia === ia ? " checked" : ""}>${logoDaIa(ia, "cl-logo")}<span class="cl-prov-txt"><b>${esc(PROVEDOR[ia].nome)}</b><small>${esc(PROVEDOR[ia].empresa)} · pelo ${esc(PROVEDOR[ia].cli)}</small></span><i class="cl-prov-radio" aria-hidden="true"></i></label>`).join("");
-  // Rodada 3 (tela 19b do Paper): a VM na nuvem desligada aparece ("Desligada · liga ao entrar", ADR-121) e, depois do
-  // Entrar, o login de cada máquina mora na linha dela: o estado à direita e, na VM, os passos (o código) embaixo.
   const entrando = !!n.entrando;
+  const { nome: nomeIa, empresa, cli } = PROVEDOR[n.ia];
+  const breve = emBreve(x.emBreve ?? []);
+  const provedor = entrando
+    ? `<div class="cl-prov-escolhido">${logoDaIa(n.ia, "cl-logo")}<span class="cl-prov-txt"><b>${esc(nomeIa)}</b><small>${esc(empresa)} · pelo ${esc(cli)}</small></span></div>`
+    : `<div class="cl-provs" role="radiogroup" aria-labelledby="cl-np-forn">${IAS_COM_CONTA.map((ia) => `<label class="cl-prov${n.ia === ia ? " ativo" : ""}"><input type="radio" name="ia" value="${ia}" class="cl-prov-in" data-cl-nova-ia${n.ia === ia ? " checked" : ""}><i class="cl-prov-radio" aria-hidden="true"></i>${logoDaIa(ia, "cl-logo")}<span class="cl-prov-txt"><b>${esc(PROVEDOR[ia].nome)}</b><small>${esc(PROVEDOR[ia].empresa)} · pelo ${esc(PROVEDOR[ia].cli)} · ${esc(ASSINATURA[ia])}</small></span></label>`).join("")}${breve ? `<div class="cl-prov-breve"><span class="cl-prov-breve-logos" aria-hidden="true"><i></i><i></i></span><span>${esc(breve)}</span></div>` : ""}</div>`;
   const dela = (m: MaquinaDto) => x.ui.logins.find((l) => maquinaDoLogin(l) === m.id && contaDoLogin(l) === null && (l.onde === "vm" ? l.login.ia : l.ia) === n.ia);
   const recebe = (m: MaquinaDto) => m.conectada || (m.plataforma !== "darwin" && !!m.nuvem);
-  const maqs = x.maquinas.filter(recebe).map((m) => {
-    const mac = m.plataforma === "darwin";
-    const pode = !mac || ehEsteMac(m, x);
-    const dica = !m.conectada ? "Desligada · liga ao entrar" : mac ? (pode ? "Abre o navegador deste Mac" : "Abra o app do nod nesse Mac") : preparoNaNova(m, n.ia) ?? "O login aparece aqui na tela";
-    const l = entrando && n.maquinas.includes(m.id) ? dela(m) : undefined;
-    const marcada = entrando ? n.maquinas.includes(m.id) : n.maquinas.includes(m.id) && pode;
-    const linha = `<label class="cl-maq${pode ? "" : " mudo"}"><input type="checkbox" value="${esc(m.id)}" data-cl-nova-maq${marcada ? " checked" : ""}${!pode ? " disabled" : entrando ? ' aria-disabled="true" tabindex="-1"' : ""}>${mac ? ICONE.laptop : ICONE.servidor}<span><b>${esc(mac && pode ? rotuloDoMac() : m.nome)}</b><small>${esc(dica.charAt(0).toUpperCase() + dica.slice(1))}</small></span>${l ? estadoDoLoginNaNova(l) : ""}</label>`;
-    const passos = l && l.onde === "vm" && !["pronto", "pedido", "abrindo"].includes(l.login.fase) && (l.login.url || l.login.fase === "falhou" || l.login.fase === "cancelado" || l.login.fase === "preparando") ? `<div class="cl-np-login">${blocoDoLogin(l, x, null)}</div>` : "";
-    return linha + passos;
-  }).join("");
+  const versao = (m: MaquinaDto) => m.iasDetalhe?.[n.ia]?.versao ?? null;
+  const ic = (m: MaquinaDto) => (m.plataforma === "darwin" ? ICONE.laptop : ICONE.servidor);
+  const rotulo = (m: MaquinaDto) => (m.plataforma === "darwin" && ehEsteMac(m, x) ? rotuloDoMac() : m.nome);
+  let maqs: string;
+  if (!entrando) {
+    maqs = x.maquinas.filter(recebe).map((m) => {
+      const mac = m.plataforma === "darwin";
+      const pode = !mac || ehEsteMac(m, x);
+      const v = versao(m);
+      const sub = !m.conectada ? "Desligada" : m.ias[n.ia] === "ausente" ? `Sem ${cli} ainda` : v ? `${cli} ${v}` : mac && pode ? "Este Mac" : "";
+      const dica = !m.conectada ? "Liga ao conectar" : mac ? (pode ? "Abre o navegador deste Mac" : "Abra o app do nod nesse Mac") : preparoNaNova(m, n.ia) ?? "O login aparece aqui na tela";
+      const marcada = n.maquinas.includes(m.id) && pode;
+      return `<label class="cl-maq${pode ? "" : " mudo"}"><input type="checkbox" value="${esc(m.id)}" data-cl-nova-maq${marcada ? " checked" : ""}${!pode ? " disabled" : ""}>${ic(m)}<span><b>${esc(rotulo(m))}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</span><span class="cl-maq-dica">${esc(dica.charAt(0).toUpperCase() + dica.slice(1))}</span></label>`;
+    }).join("");
+  } else {
+    maqs = n.maquinas.map((id) => x.maquinas.find((m) => m.id === id)).filter((m): m is MaquinaDto => !!m).map((m) => {
+      const l = dela(m);
+      const cabeca = (sub: string, direita: string) => `<div class="cl-maq cl-maq-entrando">${ic(m)}<span><b>${esc(rotulo(m))}</b><small>${esc(sub)}</small></span>${direita}</div>`;
+      if (!l) return cabeca(m.conectada ? "Começando…" : "Ligando a máquina…", '<span class="cl-np-est"><span class="ob-gira" aria-hidden="true"></span>Aguarde</span>');
+      // O Mac mostra o cartão da IA do app (instalar, entrar, testar), com os passos dele.
+      if (l.onde === "mac") return `${cabeca(`${cli} pelo app do nod`, estadoDoLoginNaNova(l))}<div class="cl-np-login">${x.cartaoDoMac(l.ia)}</div>`;
+      const g = l.login;
+      const v = versaoNova(g, m);
+      const sub = g.fase === "preparando"
+        ? (g.preparo?.linha || `${g.preparo?.acao === "atualizar" ? "Atualizando" : "Instalando"} o ${cli} · leva até 2 minutos`)
+        : g.fase === "pronto" ? `${v ? `${cli} ${v} · ` : ""}a conta entrou e foi conferida` : v ? `${cli} ${v}${g.preparo ? " instalado agora" : ""}` : cli;
+      const passos = !["pronto", "pedido", "abrindo", "preparando"].includes(g.fase) && (g.url || g.fase === "falhou" || g.fase === "cancelado") ? `<div class="cl-np-login">${blocoDoLogin(l, x, null)}</div>` : "";
+      return `<div class="cl-maq-bloco">${cabeca(sub, estadoDoLoginNaNova(l))}${trilha(trilhaDoLogin(g), g)}${passos}</div>`;
+    }).join("");
+  }
   const marcadas = n.maquinas.filter((id) => x.maquinas.some((m) => m.id === id && recebe(m))).length;
   const daNova = n.maquinas.map((id) => x.maquinas.find((m) => m.id === id)).filter((m): m is MaquinaDto => !!m).map(dela);
   const andando = daNova.some((l) => l && (l.onde === "mac" || !FASES_FINAIS.has(l.login.fase)));
+  const instalando = daNova.some((l) => l?.onde === "vm" && l.login.fase === "preparando");
+  // Paper A3: a conta que entrou e o lugar dela na fila.
+  const finalId = daNova.map((l) => (l?.onde === "vm" && l.login.fase === "pronto" ? l.login.contaFinalId : null)).find(Boolean) ?? null;
+  const apelido = n.apelido.trim();
+  const final = entrando && !andando ? x.contas.contas.find((c) => c.id === finalId) ?? (apelido ? x.contas.contas.find((c) => c.ia === n.ia && c.apelido === apelido) : undefined) : undefined;
+  const pos = final ? x.contas.contas.findIndex((c) => c.id === final.id) + 1 : 0;
+  const fila = final
+    ? `<div class="cl-np-fila" role="status"><b>${esc(nomeDaContaNaTela(final))} ${final.entraNaTrocaAutomatica ? `é a ${pos}ª conta da fila` : "ficou fora da fila"}</b><p>${final.entraNaTrocaAutomatica
+      ? "Os bots em Automático já podem usar. Quando ela chegar ao limite, eles passam para a próxima sozinhos, e você vê a hora em que ela volta."
+      : "Ela só é usada quando você escolher. Para o nod passar para ela sozinho, ligue o “na fila” dela na lista."}</p></div>`
+    : "";
+  const passosAntes = entrando ? "" : `<div class="cl-np-passos"><b>Ao conectar, em cada máquina</b><ol><li><span>1</span>Instala o que faltar</li><li><span>2</span>Abre o login no navegador</li><li><span>3</span>Confere se a conta responde</li></ol></div>`;
   const entrar = !entrando
-    ? `<button type="submit" class="cl-np-entrar"${marcadas === 0 ? " disabled" : ""}>${marcadas > 1 ? `Entrar nas ${marcadas} máquinas` : "Entrar"}</button>`
+    ? `<button type="submit" class="cl-np-entrar"${marcadas === 0 ? " disabled" : ""}>${marcadas > 1 ? `Conectar nas ${marcadas} máquinas` : "Conectar"}</button>`
     : andando
-      ? `<button type="submit" class="cl-np-entrar" disabled>${marcadas > 1 ? `Entrando nas ${marcadas} máquinas…` : "Entrando…"}</button>`
-      : `<button type="button" class="cl-np-entrar" data-act="cl-nova-fechar">Concluir</button>`;
+      ? `<button type="submit" class="cl-np-entrar" disabled>${instalando ? "Instalando…" : "Conectando…"}</button>`
+      : `<button type="button" class="cl-np-entrar" data-act="cl-nova-fechar"${final ? ` data-recente="${esc(final.id)}"` : ""}>Concluir</button>`;
   return `<form class="cl-nova cl-nova-pag" data-form="cl-nova" aria-labelledby="cl-nova-tit">
       <div class="cl-np-cab"><button type="button" class="cl-np-voltar" data-act="cl-nova-fechar" aria-label="Voltar para Provedores de IA">${ICONE_VOLTAR}</button><span class="cl-np-mig">Provedores de IA</span><span class="cl-np-sep" aria-hidden="true">/</span><h2 class="cl-nova-tit" id="cl-nova-tit">Nova conta</h2></div>
       <span class="cl-campo-tit" id="cl-np-forn">Fornecedor</span>
-      <div class="cl-provs" role="radiogroup" aria-labelledby="cl-np-forn">${provedor}</div>
-      <label class="cl-campo"><span class="cl-campo-tit">Apelido</span><input name="apelido" maxlength="40" placeholder="ex.: Lumen, Pessoal, Freela" value="${esc(n.apelido)}" data-cl-nova-apelido data-manter-foco="cl-nova-apelido" aria-describedby="cl-np-apelido-dica"></label>
+      ${provedor}
+      <label class="cl-campo"><span class="cl-campo-tit">Apelido</span><input name="apelido" maxlength="40" placeholder="ex.: Lumen, Pessoal, Freela" value="${esc(n.apelido)}" data-cl-nova-apelido data-manter-foco="cl-nova-apelido" aria-describedby="cl-np-apelido-dica"${entrando ? " readonly" : ""}></label>
       <small class="qd-sr" id="cl-np-apelido-dica">Aparece na lista e na conversa. E-mail e organização ficam só nas suas máquinas.</small>
-      <span class="cl-campo-tit" id="cl-np-maqs">Entrar em</span>
-      <div class="cl-maqs-form" role="group" aria-labelledby="cl-np-maqs">${maqs}</div>
-      <div class="cl-nova-acoes"><p class="cl-np-nota">${ICONE_CADEADO}<span>O nod não vê sua senha: o login é no site da ${esc(PROVEDOR[n.ia].empresa)}, e a sessão fica em cada máquina.</span></p><button type="button" class="cl-np-cancelar" data-act="cl-nova-fechar">Cancelar</button>${entrar}</div>
+      <span class="cl-campo-tit" id="cl-np-maqs">Onde a conta vai rodar</span>
+      <div class="cl-maqs-form${entrando ? " entrando" : ""}" role="group" aria-labelledby="cl-np-maqs">${maqs}${entrando && !final ? '<p class="cl-np-paralelo mudo">As máquinas andam em paralelo. A instalação usa uma cópia do nod e não mexe no que você já usa no Terminal.</p>' : ""}</div>
+      ${passosAntes}${fila}
+      <div class="cl-nova-acoes"><p class="cl-np-nota">${ICONE_CADEADO}<span>O nod não vê sua senha: o login é no site da ${esc(empresa)}, e a sessão fica em cada máquina.</span></p><button type="button" class="cl-np-cancelar" data-act="cl-nova-fechar">Cancelar</button>${entrar}</div>
     </form>`;
 }
 
@@ -462,12 +537,12 @@ function estadoDoLoginNaNova(l: LoginNaTela): string {
   const gira = '<span class="ob-gira" aria-hidden="true"></span>';
   if (l.onde === "mac") return `<span class="cl-np-est">${gira}Termine no navegador…</span>`;
   const g = l.login;
-  if (g.fase === "pronto") return `<span class="cl-np-est ok">✓ Entrou</span>`;
+  if (g.fase === "pronto") return `<span class="cl-np-est ok">✓ Pronta</span>`;
   if (g.fase === "falhou" || g.fase === "cancelado") return `<span class="cl-np-est erro">Não entrou</span>`;
-  if (g.fase === "preparando") return `<span class="cl-np-est">${gira}Preparando…</span>`;
-  if (g.fase === "conferindo" || g.codigoEnviado) return `<span class="cl-np-est">${gira}Conferindo…</span>`;
+  if (g.fase === "preparando") return `<span class="cl-np-est">${gira}${g.preparo?.acao === "atualizar" ? "Atualizando…" : "Instalando…"}</span>`;
+  if (g.fase === "conferindo" || g.codigoEnviado) return `<span class="cl-np-est">${gira}Testando a conta…</span>`;
   if (!g.url || g.fase === "pedido" || g.fase === "abrindo") return `<span class="cl-np-est">${gira}Abrindo o login…</span>`;
-  return `<span class="cl-np-chip"><i aria-hidden="true"></i>Esperando o código</span>`;
+  return `<span class="cl-np-chip"><i aria-hidden="true"></i>Esperando você no navegador</span>`;
 }
 
 const ICONE_VOLTAR = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4L6 8l4 4"/></svg>';

@@ -7288,6 +7288,8 @@ const contasDaPessoa = criarContasDaPessoa({
   cifrar: (chave, codigo) => cifrarCodigo(chave, codigo),
   agendar: (fn, ms) => { window.setTimeout(fn, ms); },
   agora: Date.now,
+  // Paper A2/C2: a página oficial abre sozinha (no app, o target=_blank sai para o navegador padrão, ADR-053).
+  abrirPagina: (url) => { window.open(url, "_blank", "noopener,noreferrer"); },
 });
 /**
  * NOD-94: "Usar uma máquina só para o computador" (instalação por SSH). Os segredos ficam na memória do controlador;
@@ -9269,7 +9271,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // NOD-89 (corte 1): o atalho "Conectar uma máquina sempre ligada" da linha "Roda em" e da execução que não rodou abre
   // Máquinas › Conectar, no padrão do `cl-conectar-vm`. O fluxo da nuvem (NOD-92) entra no PR B.
   "conectar-sempre-ligada": (el) => { abrirEspaco("maquinas"); return ACOES["conectar-maquina"]!(el); },
-  "cl-nova-fechar": () => contasDaPessoa.fecharNova(),
+  "cl-nova-fechar": (el) => contasDaPessoa.fecharNova(el.dataset.recente),
   "cl-nova-na-maquina": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void contasDaPessoa.novaNaMaquina(ia, el.dataset.maquina ?? ""); },
   // ADR-108 (R8): o liga/desliga "na fila" de cada conta (a 2ª da mesma IA e a corporativa pedem os termos antes).
   "cl-fila": (el) => { void contasDaPessoa.naFila(el.dataset.id ?? "", el.getAttribute("aria-checked") !== "true"); },

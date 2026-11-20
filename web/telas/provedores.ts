@@ -106,6 +106,8 @@ function renderProvedoresContas(estado: Estado): string {
     botsNaMaquina: (id) => botsDaPessoa(estado).filter((b) => maquinaDoBot(estado, b)?.id === id).map((b) => b.nome),
     cartaoDoMac: (ia) => renderCartaoIa(vistaDaIa(ia, contexto), ui),
     simulacao: estado.executor?.atual === "catcher",
+    // Paper A1: os harnesses ainda não integrados aparecem como "chegam em breve" na Nova conta.
+    emBreve: (estado.executor?.harnesses?.opcoes ?? []).filter((h) => !h.integrado).map((h) => h.nome),
   });
   const executor = estado.executor && estado.executor.trocavel !== false ? `<div class="espaco-cartao prov-avancado">${renderExecutor(estado)}</div>` : "";
   const intro = filtro
