@@ -86,11 +86,11 @@ describe("Habilidades: as tarefas ensinadas (T3)", () => {
   it("GET lista sem ação; DELETE declara navegador.apagar_tarefa, confere o id e diz 404 quando não apagou", async () => {
     const { rotas, chamar, apagadas } = montarTarefas();
     expect(rotas.map((r) => [r.metodo, r.acao])).toEqual([["GET", undefined], ["DELETE", "navegador.apagar_tarefa"]]);
-    expect(await chamar("GET", `/agentes/${BOT}/navegador/tarefas`)).toMatchObject({ status: 200, body: { tarefas: [{ id: TAREFA, nome: "Baixar a fatura" }] } });
-    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/tarefas/nao-e-uuid`)).toEqual({ status: 0, body: "nao_encontrado" });
+    expect(await chamar("GET", `/agentes/${BOT}/navegador/habilidades`)).toMatchObject({ status: 200, body: { tarefas: [{ id: TAREFA, nome: "Baixar a fatura" }] } });
+    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/habilidades/nao-e-uuid`)).toEqual({ status: 0, body: "nao_encontrado" });
     expect(apagadas).toEqual([]);
-    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/tarefas/${TAREFA}`)).toEqual({ status: 200, body: { ok: true } });
-    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/tarefas/00000000-0000-4000-8000-0000000000c2`)).toEqual({ status: 0, body: "nao_encontrado" });
+    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/habilidades/${TAREFA}`)).toEqual({ status: 200, body: { ok: true } });
+    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/habilidades/00000000-0000-4000-8000-0000000000c2`)).toEqual({ status: 0, body: "nao_encontrado" });
     expect(apagadas).toEqual([[BOT, TAREFA], [BOT, "00000000-0000-4000-8000-0000000000c2"]]);
   });
 });

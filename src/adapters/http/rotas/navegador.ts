@@ -126,11 +126,11 @@ export function rotasCofreLogins(d: { dentro<T>(escopo: Escopo, fn: (d: Deps) =>
  */
 export function rotasTarefasEnsinadas(d: { dentro<T>(escopo: Escopo, fn: (d: Deps) => Promise<T>): Promise<T> }): Rota[] {
   return [
-    { metodo: "GET", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/tarefas$/, async handler(ctx) {
+    { metodo: "GET", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/habilidades$/, async handler(ctx) {
       const tarefas: TarefaEnsinada[] = await d.dentro(ctx.escopo, (deps) => deps.repos.navegadorTarefas.doAgente(ctx.params.id!));
       ctx.json(200, { tarefas });
     } },
-    { metodo: "DELETE", acao: "navegador.apagar_tarefa", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/tarefas\/(?<tarefa>[^/]+)$/, async handler(ctx) {
+    { metodo: "DELETE", acao: "navegador.apagar_tarefa", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/habilidades\/(?<tarefa>[^/]+)$/, async handler(ctx) {
       if (!UUID.test(ctx.params.tarefa ?? "")) throw new ErroDeDominio("nao_encontrado");
       const apagou = await d.dentro(ctx.escopo, (deps) => deps.repos.navegadorTarefas.apagar(ctx.params.id!, ctx.params.tarefa!));
       if (!apagou) throw new ErroDeDominio("nao_encontrado");
