@@ -1,4 +1,4 @@
-import type { EntradaDiario, Memoria, PaginaDiario, TipoMemoria } from "../contracts/memoria.ts";
+import { TEXTO_MEMORIA_MAX, type EntradaDiario, type Memoria, type PaginaDiario, type TipoMemoria } from "../contracts/memoria.ts";
 import type { Agente } from "../contracts/agente.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { autoriaPessoa, evento } from "./autoria-evento.ts";
@@ -32,6 +32,7 @@ export const editarMemoria: CasoDeUso<{ memoriaId: string; texto?: string; tipo?
   if (input.texto !== undefined) {
     if (typeof input.texto !== "string" || input.texto.trim() === "") throw new ErroDeDominio("texto_vazio");
     campos.texto = input.texto.trim();
+    if ([...campos.texto].length > TEXTO_MEMORIA_MAX) throw new ErroDeDominio("entrada_invalida", { cause: `texto da memória acima de ${TEXTO_MEMORIA_MAX} caracteres` });
   }
   if (input.tipo !== undefined) {
     if (!TIPOS.includes(input.tipo)) throw new ErroDeDominio("entrada_invalida", { cause: "tipo" });
