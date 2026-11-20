@@ -3418,7 +3418,12 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     tirarRecusa();
     // QA-146: pelo "Mover para…" (teclado), o foco segue o card até a coluna nova (ou volta a ele, se o handoff
     // foi cancelado): sem isto o botão some com o card, o foco cai no <body> e o Tab recomeça do topo da página.
-    const focar = (): void => { if (peloMenu) visivel(vista() ?? doc, `li[data-tarefa="${CSS.escape(tarefa)}"] .qd-card-mover`)?.focus(); };
+    // Feito e Cancelado começam recolhidos (#253): lá o card não aparece, e o foco vai para a tira da coluna, que o abre.
+    const focar = (): void => {
+      if (!peloMenu) return;
+      const raiz = vista() ?? doc;
+      (visivel(raiz, `li[data-tarefa="${CSS.escape(tarefa)}"] .qd-card-mover`) ?? visivel(raiz, `.qd-col-tira[data-act="abrir-coluna"][data-status="${CSS.escape(c.id)}"]`))?.focus();
+    };
     if (!t) { moverTarefa(tarefa, c.id); focar(); return; }
     // 2026-11-10: a coluna com responsável pergunta antes (o diálogo de handoff); sem responsável, move direto.
     void confirmarHandoff(t, c).then((ok) => { if (ok) moverTarefa(tarefa, c.id, ok.parar); else desenharVista(); focar(); });

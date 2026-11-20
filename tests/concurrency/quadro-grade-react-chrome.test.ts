@@ -242,4 +242,26 @@ descrever("ADR-180: a grade do quadro em React no Chrome real, arrastando por po
     // QA-146: o foco segue o card até a coluna nova (antes caía no <body> e o Tab recomeçava do topo da página).
     await ate(`document.activeElement === document.querySelector('#quadro section.qd-col[data-coluna="${coluna}"] li.qd-card[data-tarefa="t3"] .rx-qd-mover')`);
   }, 60_000);
+
+  it("Mover para… o Feito recolhido pelo teclado: o card some na tira e o foco vai para a tira do Feito (QA-146 × #253)", async () => {
+    await montar();
+    const bt = `#quadro li.qd-card[data-tarefa="t3"] .rx-qd-mover`;
+    await avaliar(cdp, `document.querySelector('${bt}').focus()`);
+    await tecla("Enter", "Enter", 13);
+    const aberto = `document.querySelector('[role="menu"]:not([data-closed])')`;
+    await ate(aberto);
+    await esperar(150);
+    // Desce até o item do Feito.
+    for (let i = 0; i < 12; i++) {
+      await tecla("ArrowDown", "ArrowDown", 40);
+      await esperar(40);
+      const txt = await avaliar<string>(cdp, `document.querySelector('[role="menu"]:not([data-closed]) [role="menuitem"][data-highlighted]')?.textContent ?? ""`);
+      if (/Feito/.test(txt)) break;
+    }
+    expect(await avaliar<string>(cdp, `document.querySelector('[role="menu"]:not([data-closed]) [role="menuitem"][data-highlighted]')?.textContent ?? ""`)).toMatch(/Feito/);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__mudancas.some((m) => m[0] === "t3" && m[1] === "feito")`);
+    // O Feito segue recolhido: o card não aparece, e o foco não cai no <body>.
+    await ate(`document.activeElement === document.querySelector('#quadro .qd-col-tira[data-act="abrir-coluna"][data-status="feito"]')`);
+  }, 60_000);
 });
