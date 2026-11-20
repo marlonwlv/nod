@@ -15,6 +15,7 @@ const svg = (d: string, classe: string, w = 16, sw = 1.6): string =>
   `<svg class="qd-ic ${classe}" width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
 export const ICONE_MIN = {
+  mais: svg('<path d="M12 5v14M5 12h14"/>', "qm-ic-mais", 14, 1.8),
   funil: svg('<path d="M4 6h16M7 12h10M10 18h4"/>', "qm-ic-funil"),
   opcoes: svg('<rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M9.5 4.5v15M14.5 4.5v15"/>', "qm-ic-opcoes"),
   nova: svg('<path d="M12 20h8"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>', "qm-ic-nova"),
@@ -121,8 +122,8 @@ export function pilulaDosAtivos(o: { quem: readonly QuemNoQuadro[]; aberta: bool
   if (!o.aberta) return confiar(`<span class="qm-ativos-l">${bt}</span>`);
   const item = (q: QuemNoQuadro): string => `<button type="button" role="menuitemradio" class="qm-it" data-act="filtro-do-quadro" data-filtro="${esc(q.filtro)}" aria-checked="${q.ativo}">` +
     `<span class="qm-av" aria-hidden="true">${q.avatar}</span><span class="qm-it-txt">${esc(q.nome)}</span>${q.rodando ? '<span class="qm-rodando" title="Trabalhando agora"><i aria-hidden="true"></i><span class="qd-sr">trabalhando agora</span></span>' : ""}<span class="qm-n">${q.n}</span></button>`;
-  const lista = o.quem.length ? o.quem.map(item).join("") : `<p class="qm-vazio">Ninguém com tarefa neste quadro.</p>`;
-  const todos = `<button type="button" role="menuitemradio" class="qm-it" data-act="filtro-do-quadro" data-filtro="todos" aria-checked="${!ativo}"><span class="qm-it-txt">Todas as tarefas</span><span class="qm-n">${o.total}</span></button>`;
+  const lista = o.quem.length ? o.quem.map(item).join("") : `<p class="qm-vazio">Ninguém com card neste quadro.</p>`;
+  const todos = `<button type="button" role="menuitemradio" class="qm-it" data-act="filtro-do-quadro" data-filtro="todos" aria-checked="${!ativo}"><span class="qm-it-txt">Todos os cards</span><span class="qm-n">${o.total}</span></button>`;
   return confiar(`<span class="qm-ativos-l">${bt}<div class="qm-pop qm-pop-ativos" id="qm-pop-ativos" role="menu" aria-label="Quem está no quadro">` +
     `<p class="qm-sec">No quadro</p>${todos}${lista}</div></span>`);
 }
@@ -158,15 +159,32 @@ export function popoverDasOpcoes(o: { op: OpcoesEfetivas; colunas: readonly Colu
  * A barra do quadro minimalista: à esquerda o funil (com quantos filtros ligados) e a busca; à direita a pílula de quem
  * trabalha, as Opções e a Nova tarefa. Embaixo, os chips dos filtros ligados. Os popovers vêm prontos de fora.
  */
-export function barraMinima(o: { nFiltros: number; filtroAberto: boolean; popFiltros: Html | ""; busca: string; ativos: Html; opAberto: boolean; opAjustadas: boolean; popOpcoes: Html | ""; podeCriar: boolean; chips: Html | ""; /** O nome e o menu do quadro (menu-do-quadro.ts): a mesma linha, à esquerda. */ cab?: Html }): Html {
+export function barraMinima(o: { nFiltros: number; filtroAberto: boolean; popFiltros: Html | ""; busca: string; ativos: Html; opAberto: boolean; opAjustadas: boolean; popOpcoes: Html | ""; podeCriar: boolean; chips: Html | ""; /** O nome e o menu do quadro (menu-do-quadro.ts): a mesma linha, à esquerda. */ cab?: Html; /** Tela 18 do Paper: Quadro | Lista à direita (sem ela, a visão fica só nas Opções). */ vista?: "quadro" | "lista" }): Html {
   const funil = `<span class="qm-fil-l"><button type="button" class="qm-icbt${o.nFiltros ? " qm-ligado" : ""}" data-act="fil-abrir" aria-haspopup="dialog" aria-expanded="${o.filtroAberto}"${o.filtroAberto ? ' aria-controls="qm-pop-fil"' : ""} aria-label="${esc(o.nFiltros ? `Filtros, ${o.nFiltros} ligados` : "Filtros")}" title="Filtros">${ICONE_MIN.funil}${o.nFiltros ? `<span class="qm-icbt-n">${o.nFiltros}</span>` : ""}</button>${o.popFiltros}</span>`;
-  const busca = `<span class="qd-busca-l"><label class="qd-busca">${ICONE_MIN.busca}<span class="qd-sr">Buscar tarefa por título ou código</span>` +
+  // Tela 18 do Paper: a busca é um ícone redondo de 30 que abre o campo no foco (ou com texto); o "/" continua.
+  const busca = `<span class="qd-busca-l"><label class="qd-busca${o.busca ? " qd-busca-cheia" : ""}">${ICONE_MIN.busca}<span class="qd-sr">Buscar card por título ou código</span>` +
     `<input type="search" id="qd-busca" class="qd-busca-in" data-campo="busca" placeholder="Buscar" value="${esc(o.busca)}" maxlength="200" autocomplete="off" spellcheck="false" aria-keyshortcuts="/">` +
     `${o.busca ? "" : `<kbd class="qd-kbd" title="Atalho: /" aria-hidden="true">/</kbd>`}</label>` +
     `${o.busca ? `<button type="button" class="qd-busca-limpar" data-act="busca-limpar" aria-label="Limpar busca">×</button>` : ""}</span>`;
-  const op = `<span class="qm-op-l"><button type="button" class="qm-icbt" data-act="op-abrir" aria-haspopup="dialog" aria-expanded="${o.opAberto}"${o.opAberto ? ' aria-controls="qm-pop-op"' : ""} aria-label="${o.opAjustadas ? "Opções do quadro (ajustadas)" : "Opções do quadro"}" title="Opções do quadro">${ICONE_MIN.opcoes}${o.opAjustadas ? '<i class="qd-ponto" aria-hidden="true"></i>' : ""}</button>${o.popOpcoes}</span>`;
-  const nova = o.podeCriar ? `<button type="button" class="qm-icbt" data-act="nt-abrir" aria-label="Nova tarefa" title="Nova tarefa (C)" aria-keyshortcuts="C">${ICONE_MIN.nova}</button>` : "";
-  return confiar(`<div class="qd-barra-q qm-barra"><span class="qm-esq">${o.cab ?? ""}${funil}${busca}</span><span class="qd-barra-dir">${o.ativos}${op}${nova}</span></div>${o.chips}`);
+  // As Opções (agrupar, ordenar, colunas, propriedades) saíram da barra para o menu do quadro ("Opções de exibição…");
+  // o popover continua ancorado à direita da barra.
+  const op = `<span class="qm-op-l qm-op-ancora"${o.opAjustadas ? ' data-ajustadas="1"' : ""}>${o.popOpcoes}</span>`;
+  const seg = (v: "quadro" | "lista", rot: string): string => `<button type="button" class="qm-vista-bt" data-act="op-vista" data-valor="${v}" aria-pressed="${o.vista === v}">${rot}</button>`;
+  const vista = o.vista ? `<span class="qm-vista" role="group" aria-label="Visão">${seg("quadro", "Quadro")}${seg("lista", "Lista")}</span>` : "";
+  const nova = o.podeCriar ? `<button type="button" class="qm-nova" data-act="nt-abrir" title="Novo card (C)" aria-keyshortcuts="C">${ICONE_MIN.mais}<span>Novo card</span></button>` : "";
+  return confiar(`<div class="qd-barra-q qm-barra"><span class="qm-esq">${o.cab ?? ""}${o.ativos}</span><span class="qd-barra-dir">${busca}${funil}${vista}${op}${nova}</span></div>${o.chips}`);
+}
+
+/**
+ * Tela 18 do Paper: o filtro por pessoa em segmentado ("Todas as tarefas 14", Você e cada bot com o mascote; quem trabalha
+ * agora ganha o ponto). Um clique filtra (o filtro rápido `agente:`/`comigo` da NOD-460); de novo, volta a Todas.
+ */
+export function segmentoDasPessoas(o: { quem: readonly QuemNoQuadro[]; total: number }): Html {
+  const ativo = o.quem.some((q) => q.ativo);
+  const todos = `<button type="button" class="qm-pes-bt qm-pes-todas" data-act="filtro-do-quadro" data-filtro="todos" aria-pressed="${!ativo}"><span>Todos os cards</span><span class="qm-pes-n">${o.total}</span></button>`;
+  const item = (q: QuemNoQuadro): string => `<button type="button" class="qm-pes-bt" data-act="filtro-do-quadro" data-filtro="${esc(q.ativo ? "todos" : q.filtro)}" aria-pressed="${q.ativo}" aria-label="${esc(`${q.nome}, ${q.n} ${q.n === 1 ? "card" : "cards"}${q.rodando ? ", trabalhando agora" : ""}`)}">` +
+    `<span class="qm-pes-av" aria-hidden="true">${q.avatar}${q.rodando ? '<i class="qm-pes-rodando"></i>' : ""}</span><span class="qm-pes-nome">${esc(q.nome)}</span></button>`;
+  return confiar(`<span class="qm-pes" role="group" aria-label="Filtrar por pessoa">${todos}${o.quem.map(item).join("")}</span>`);
 }
 
 /* ---------- Nova tarefa ---------- */
@@ -218,11 +236,11 @@ export function modalDaNovaTarefa(o: { m: ModalDaNovaTarefa; quadro: string; col
   const erro = m.erro ? `<p class="qm-nt-erro" role="alert">${esc(m.erro)}</p>` : "";
   const atalho = o.mac ? "⌘" : "Ctrl";
   return confiar(`<div class="qm-modal-fundo" data-act="nt-fora"></div><div class="qm-modal" role="dialog" aria-modal="true" aria-labelledby="qm-nt-cab">` +
-    `<form class="qm-nt" data-form="nova-tarefa-modal"><div class="qm-nt-cab" id="qm-nt-cab"><span class="qm-nt-quadro">${esc(o.quadro)}</span><span aria-hidden="true">${ICONE_MIN.chev}</span><span class="qm-nt-onde">Nova tarefa</span>` +
+    `<form class="qm-nt" data-form="nova-tarefa-modal"><div class="qm-nt-cab" id="qm-nt-cab"><span class="qm-nt-quadro">${esc(o.quadro)}</span><span aria-hidden="true">${ICONE_MIN.chev}</span><span class="qm-nt-onde">Novo card</span>` +
     `<button type="button" class="qm-icbt qm-nt-x" data-act="nt-fechar" aria-label="Fechar (Esc)" title="Fechar (Esc)">${ICONE_MIN.fechar}</button></div>` +
-    `<label class="qd-sr" for="qm-nt-tit">Título da tarefa</label><input id="qm-nt-tit" class="qm-nt-tit" name="titulo" maxlength="200" required autocomplete="off" placeholder="Título da tarefa" value="${esc(m.titulo)}"${m.erro ? ' aria-describedby="qm-nt-erro"' : ""}>` +
+    `<label class="qd-sr" for="qm-nt-tit">Título do card</label><input id="qm-nt-tit" class="qm-nt-tit" name="titulo" maxlength="200" required autocomplete="off" placeholder="Título do card" value="${esc(m.titulo)}"${m.erro ? ' aria-describedby="qm-nt-erro"' : ""}>` +
     `<label class="qd-sr" for="qm-nt-desc">Descrição</label><textarea id="qm-nt-desc" class="qm-nt-desc" name="descricao" maxlength="4000" rows="4" placeholder="Adicionar descrição…">${esc(m.descricao)}</textarea>` +
     `${dica}<div class="qm-nt-chips">${chips}</div>${erro}` +
-    `<div class="qm-nt-pe"><label class="qm-nt-outra"><input type="checkbox" data-nt="outra"${m.criarOutra ? " checked" : ""}><span class="qm-switch" aria-hidden="true"></span>Criar outra</label>` +
-    `<button type="submit" class="qm-nt-criar"${m.enviando ? " disabled" : ""}>${m.enviando ? "Criando…" : "Criar tarefa"}<kbd aria-hidden="true">${atalho}</kbd><kbd aria-hidden="true">↵</kbd></button></div></form></div>`);
+    `<div class="qm-nt-pe"><label class="qm-nt-outra"><input type="checkbox" data-nt="outra"${m.criarOutra ? " checked" : ""}><span class="qm-switch" aria-hidden="true"></span>Criar outro</label>` +
+    `<button type="submit" class="qm-nt-criar"${m.enviando ? " disabled" : ""}>${m.enviando ? "Criando…" : "Criar card"}<kbd aria-hidden="true">${atalho}</kbd><kbd aria-hidden="true">↵</kbd></button></div></form></div>`);
 }

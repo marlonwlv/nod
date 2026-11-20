@@ -3,10 +3,13 @@ import type { AnuncioMaquina, Entrega, FalaIntermediaria, PonteInterna, VigiaViv
 import type { EventoStream, ResultadoTurno, SinaisTurno } from "../../contracts/turno.ts";
 import { ehErroDeDominio } from "../../domain/erro.ts";
 import { capacidadesDe } from "../../domain/harness.ts";
-import { molduraMensagemNoMeio } from "../../domain/mensagem-no-meio.ts";
+import { type CapacidadesNoMeio, criarRastreadorDaVolta, decidirMensagemNoMeio, molduraDaInterrupcao, molduraMensagemNoMeio } from "../../domain/mensagem-no-meio.ts";
 import { SINAIS_ZERADOS } from "../../domain/stream-json.ts";
 import { AVALIACAO_VIGIA_MS, criarVigiaTurno } from "../../domain/vigia-turno.ts";
+import { conversaComAPessoa } from "../../domain/modo-aprovacao.ts";
 import { log } from "../../obs/log.ts";
+import type { AnexoMeta } from "../../contracts/anexo.ts";
+import { AGUARDAR_MENSAGEM_MS } from "../../contracts/estado-vivo.ts";
 import { CHECAGEM_MENSAGENS_MS, RENOVACAO_INDEFINIDO_MS, RENOVACAO_MS, TEXTO_ENTREGA_MAX_CHARS } from "../../shared/constantes.ts";
 import type { Relogio } from "../../shared/types.ts";
 import { INTERVALO_AMOSTRA_MEMORIA_MS, type FonteMemoria } from "./amostrador-memoria.ts";
@@ -44,6 +47,12 @@ export type OpcoesLaco = {
   renovacaoIndefinidoMs?: number;
   /** ADR-067: de quanto em quanto a sessão viva pergunta por mensagem nova da pessoa (injetável no teste). */
   checagemMensagensMs?: number;
+  /**
+   * ADR-186: a mensagem da pessoa interrompe a escrita do bot (padrão). `false` = o comportamento de antes (ela espera a
+   * fronteira, ADR-185) — a chave de reversão da ADR, e o jeito de comparar os dois. Ausente: `NOD_INTERROMPER_ESCRITA=0`
+   * no ambiente do executor desliga.
+   */
+  interromperEscrita?: boolean;
   /** Deltas são efêmeros: vão direto ao barramento (L8), nunca pelo outbox. */
   aoDelta?: (plano: PlanoTurno, texto: string) => void;
   /** ADR-067: o servidor gravou uma fala intermediária deste turno — a tela limpa o texto ao vivo que ela já mostrava. */
@@ -155,6 +164,23 @@ export function resultadoDeExcecao(erro: unknown, sinais: SinaisTurno, texto = "
  * Corta o texto em `max` caracteres CONTANDO o marcador, que diz quanto ficou de fora. A rota da
  * máquina recusa a Entrega inteira acima de TEXTO_ENTREGA_MAX_CHARS — e aí o turno nunca assentava.
  */
+/**
+ * C1 (2026-11-12): o long-poll que volta `false` antes disto não esperou de verdade (servidor antigo, sem o turno, falha):
+ * o laço dorme a checagem antes de renovar, como fazia antes, em vez de girar.
+ */
+export const ESPERA_MINIMA_DO_AGUARDAR_MS = 1_000;
+/** C1: de quanto em quanto o laço olha (local, sem rede) se a sessão viva já aceita mensagem, antes do long-poll. */
+export const OLHADA_DA_SESSAO_MS = 250;
+
+/** Pausa de relógio real (setTimeout sem segurar o processo): o long-poll da mensagem não usa o `dormir` dos testes. */
+const pausa = (ms: number) => new Promise<void>((ok) => { const t = setTimeout(ok, ms); t.unref?.(); });
+
+/** C1: os metadados de anexo que a renovação trouxe para uma fala, só com a forma certa (o cliente HTTP não valida). */
+export function anexosValidos(v: unknown): AnexoMeta[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((a): a is AnexoMeta => typeof a === "object" && a !== null && typeof (a as AnexoMeta).id === "string" && typeof (a as AnexoMeta).nome === "string" && typeof (a as AnexoMeta).mime === "string" && typeof (a as AnexoMeta).tamanho === "number").slice(0, 20);
+}
+
 export function cortarTexto(texto: string, max = TEXTO_ENTREGA_MAX_CHARS): string {
   if (texto.length <= max) return texto;
   const marcador = (fora: number) => `\n[cortado pelo nod: ${fora} caracteres ficaram de fora]`;
@@ -204,6 +230,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
   const renovacaoMs = o.renovacaoMs ?? RENOVACAO_MS;
   const renovacaoIndefinidoMs = o.renovacaoIndefinidoMs ?? RENOVACAO_INDEFINIDO_MS;
   const checagemMensagensMs = o.checagemMensagensMs ?? CHECAGEM_MENSAGENS_MS;
+  const interromperEscrita = o.interromperEscrita ?? process.env.NOD_INTERROMPER_ESCRITA !== "0";
   const vigiaMs = o.vigiaMs ?? AVALIACAO_VIGIA_MS;
   let parado = false;
   let acordar: (() => void) | null = null;
@@ -231,6 +258,11 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
     // `seq` uma vez), quantas mensagens novas da pessoa entraram, e se ainda pedimos mensagens ao servidor.
     let falas: FalaIntermediaria[] = [];
     let seqFala = 0;
+    // ADR-186: o estado da volta (dos eventos normalizados de qualquer driver) e se esta volta já foi interrompida por
+    // uma mensagem; e o que o harness deste turno sabe fazer.
+    const volta = criarRastreadorDaVolta();
+    let jaInterrompeu = false;
+    let noMeio: CapacidadesNoMeio = { interrompeVolta: false, parcialNoHistorico: false };
     let mensagensRecebidas = 0;
     // definido em 2026-10-07 (ADR-083 §5): só pede mensagens a driver que declara `mensagemNoMeio` (lido abaixo).
     let aceitando = false;
@@ -238,6 +270,8 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
     // conseguiu escrever (a sessão fechou). O servidor só tira da fila as confirmadas; o resto vira turno próprio.
     let entregues: string[] = [];
     let devolvidas: string[] = [];
+    // ADR-185: as que o modelo já leu (o adapter avisou `mensagemLida`), ainda não confirmadas ao servidor.
+    let lidas: string[] = [];
     let medirGrupo = false;
     // NOD-214: a sessão do CLI (do `init`), mandada em toda renovação — o servidor a grava cedo e a volta de um turno
     // perdido no reinício retoma a mesma sessão. E os ids já escritos na sessão: a renovação repetida depois de uma
@@ -246,7 +280,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
     const escritas = new Set<string>();
     /** QA da NOD-214: as que o adapter avisou que entraram (mensagemEntrou) — só essas a repetida confirma de novo. */
     const entraram = new Set<string>();
-    const aConfirmar = () => entregues.length > 0 || devolvidas.length > 0;
+    const aConfirmar = () => entregues.length > 0 || devolvidas.length > 0 || lidas.length > 0;
     // X5 (revisto em 2026-10-08): a última leitura de memória que o servidor confirmou (o número da amostra e quando).
     let memoriaEnviada: { amostra: number; em: number } | null = null;
     /** NOD-245: a renovação extra agendada depois de um `indefinido` (uma só por vez; a resposta boa volta à batida normal). */
@@ -267,7 +301,11 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
         const enviadas = [...falas];
         const confirmar = [...entregues];
         const devolver = [...devolvidas];
+        const lidasAgora = [...lidas];
+        const informaLeitura = adapterAtual?.informaLeitura?.() === true;
         const aceita = aceitando && adapterAtual?.aceitaMensagens?.() === true;
+        // C1 (2026-11-12): o driver que escreve anexo na sessão viva recebe também a fala com imagem.
+        const aceitaAnexos = aceita && adapterAtual?.aceitaAnexosNoMeio?.() === true;
         // A leitura é pedida sempre (registra o grupo do turno e acorda o amostrador); só VAI quando a amostra mudou ou
         // a cada 30 s — a renovação de 1 s do app levava a mesma leitura 30 vezes.
         const lida = o.memoria?.leitura(plano.turnoId, medirGrupo ? (adapterAtual?.grupoDeProcessos?.() ?? null) : null);
@@ -284,9 +322,12 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
             eventos: [],
             ...(enviadas.length ? { falas: enviadas } : {}),
             ...(aceita ? { aceitaMensagens: true } : {}),
+            ...(aceitaAnexos ? { aceitaAnexos: true } : {}),
             // A presença do campo diz ao servidor que este app confirma o que escreveu (#189).
             ...(aceita || confirmar.length ? { mensagensEntregues: confirmar } : {}),
             ...(devolver.length ? { mensagensDevolvidas: devolver } : {}),
+            ...(informaLeitura ? { informaLeitura: true } : {}),
+            ...(lidasAgora.length ? { mensagensLidas: lidasAgora } : {}),
             ...(memoria ? { memoria } : {}),
             ...(sessaoCli ? { sessaoCli } : {}),
           });
@@ -301,6 +342,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
           if (confirmou) {
             entregues = entregues.filter((id) => !confirmar.includes(id));
             devolvidas = devolvidas.filter((id) => !devolver.includes(id));
+            lidas = lidas.filter((id) => !lidasAgora.includes(id));
             if (memoria) memoriaEnviada = { amostra, em: agora };
           }
           const ids = r.mensagensIds ?? [];
@@ -310,7 +352,21 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
             // ADR-083 §6: a mensagem chega com a moldura ("responda a ela primeiro"), igual em todo driver. X3 (revisto
             // em 2026-10-08): o que vem do trabalho entra como veio — o recado do bot cru, a fala da pessoa já com a moldura
             // dela (NOD-376, definido em 2026-10-27).
-            const entrada = id !== undefined && semMoldura.includes(id) ? texto : molduraMensagemNoMeio(texto);
+            // ADR-186: a mesma regra para todo harness. Com o bot só escrevendo e um harness que para a volta sem matar a
+            // sessão, a volta é interrompida ANTES de a mensagem entrar, e a mensagem abre a seguinte; sem, ela espera a
+            // fronteira (ADR-185). O recado do trabalho (sem moldura) nunca interrompe.
+            const fala = id === undefined || !semMoldura.includes(id);
+            const decisao = fala
+              ? decidirMensagemNoMeio({ estado: volta.estado(), textoDaVolta: volta.textoDaVolta(), jaInterrompeu, daConversa: conversaComAPessoa(plano.modoTurno) && plano.daPessoa !== false && !plano.bastidores, capacidades: noMeio })
+              : ({ tipo: "entregar" } as const);
+            // ADR-186: cada decisão no log da máquina (o estado e por quê), para acompanhar a regra em todo harness.
+            if (fala) log("info", "laco_mensagem_no_meio", { turno_id: plano.turnoId, estado: volta.estado(), decisao: decisao.tipo, modo: plano.modoTurno ?? null, da_pessoa: plano.daPessoa ?? null, bastidores: plano.bastidores ?? null, interrompe_volta: noMeio.interrompeVolta, ja_interrompeu: jaInterrompeu, pode: typeof adapterAtual?.interromperVolta === "function" });
+            const interrompeu = decisao.tipo === "interromper_e_entregar" && adapterAtual?.interromperVolta?.() === true;
+            if (interrompeu) {
+              jaInterrompeu = true;
+              log("info", "laco_volta_interrompida_por_mensagem", { turno_id: plano.turnoId, com_trecho: decisao.trechoDaParcial !== null });
+            }
+            const entrada = !fala ? texto : interrompeu && decisao.tipo === "interromper_e_entregar" ? molduraDaInterrupcao(texto, decisao.trechoDaParcial) : molduraMensagemNoMeio(texto);
             // NOD-214: já escrita nesta sessão (a confirmação se perdeu): não escreve de novo, só confirma outra vez. QA da
             // NOD-214: a que ainda não entrou (o adapter vai escrever) espera o mensagemEntrou/mensagemDevolvida dela (X2).
             if (id !== undefined && escritas.has(id)) {
@@ -319,7 +375,8 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
               continue;
             }
             // X2: `true` = o adapter vai escrevê-la; ela só é confirmada quando ele avisar que entrou (mensagemEntrou).
-            if (adapterAtual?.receberMensagem?.(entrada, id)) {
+            const anexos = id !== undefined ? anexosValidos(r.mensagensAnexos?.[id]) : [];
+            if (adapterAtual?.receberMensagem?.(entrada, id, ...(anexos.length ? [anexos] : []))) {
               mensagensRecebidas += 1;
               if (id !== undefined) escritas.add(id);
             } else {
@@ -358,12 +415,43 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
     };
     const batida = setInterval(() => void renovar(), renovacaoMs);
     batida.unref?.();
-    // ADR-067: enquanto a sessão viva aceita mensagem nova, pergunta ao servidor a cada poucos segundos — a mensagem
-    // da pessoa entra no meio do trabalho, como no Claude Code, em vez de esperar o turno acabar.
-    const checagem = setInterval(() => {
-      if (aceitando && adapterAtual?.aceitaMensagens?.() === true) void renovar();
+    // ADR-067: enquanto a sessão viva aceita mensagem nova, a mensagem da pessoa entra no meio do trabalho, como no Claude
+    // Code, em vez de esperar o turno acabar. C1 (2026-11-12): por evento — o laço espera no long-poll da ponte
+    // (`aguardarMensagem`) e renova quando o servidor avisa (ou quando a espera vence). Ponte sem o verbo: a checagem de
+    // sempre, a cada `checagemMensagensMs`; a ponte que volta na hora (servidor antigo) também cai nela.
+    const aceitaAgora = () => aceitando && adapterAtual?.aceitaMensagens?.() === true;
+    const aguardar = o.ponte.aguardarMensagem?.bind(o.ponte);
+    const checagem = aguardar ? null : setInterval(() => {
+      if (aceitaAgora()) void renovar();
     }, checagemMensagensMs);
-    checagem.unref?.();
+    checagem?.unref?.();
+    if (aguardar) void (async () => {
+      let aceitavaAntes = false;
+      let rapidas = 0;
+      while (!entregue && !entregando) {
+        // Olhar se a sessão aceita é local (sem rede): uma olhada curta, para a fila de antes entrar logo que ela abrir.
+        if (!aceitaAgora()) {
+          aceitavaAntes = false;
+          await pausa(Math.min(checagemMensagensMs, OLHADA_DA_SESSAO_MS));
+          continue;
+        }
+        // A sessão acabou de abrir a entrada: o que já esperava na fila entra logo, sem esperar o próximo aviso.
+        if (!aceitavaAntes) {
+          aceitavaAntes = true;
+          await renovar();
+          continue;
+        }
+        const desde = Date.now();
+        const chegou = await aguardar(plano.turnoId, AGUARDAR_MENSAGEM_MS).catch(() => false);
+        if (entregue || entregando) break;
+        // A espera que volta na hora não esperou de verdade: sem aviso (servidor antigo, falha) ou aviso atrás de aviso
+        // (rajada), dorme a checagem de sempre antes de renovar; nunca gira sem ceder o event loop.
+        const rapida = Date.now() - desde < ESPERA_MINIMA_DO_AGUARDAR_MS;
+        rapidas = rapida ? rapidas + 1 : 0;
+        await pausa((!chegou && rapida) || rapidas > 3 ? checagemMensagensMs : 0);
+        if (aceitaAgora()) await renovar();
+      }
+    })().catch((erro: unknown) => log("aviso", "laco_aguardar_falhou", { turno_id: plano.turnoId, erro: erro instanceof Error ? erro.name : "desconhecido" }));
 
     /**
      * revisto em 2026-10-01 (ADR-067): nenhum relógio de trabalho. O watchdog de 2026-09-18 matava o turno depois de 5 min
@@ -441,6 +529,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
       }
       const capacidades = registro.driver.meta.capacidades ?? capacidadesDe(registro.driver.meta.id);
       aceitando = capacidades.mensagemNoMeio;
+      noMeio = { interrompeVolta: interromperEscrita && capacidades.interrompeVolta === true, parcialNoHistorico: capacidades.parcialNoHistorico === true };
       medirGrupo = capacidades.processoProprio;
       // NOD-310 (emenda da ADR-108 §5): o turno com passagem de bastão leva o estado do git e do PR da pasta da task,
       // lido nesta máquina agora (o servidor não vê o disco). Vale igual para todo driver. Nunca derruba o turno.
@@ -492,6 +581,9 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
           if (s === "promptSubmitted") await renovar();
         },
         evento(ev) {
+          volta.evento(ev);
+          // Uma interrupção por volta: a volta seguinte (aberta pela mensagem) pode ser interrompida de novo.
+          if (ev.tipo === "result") jaInterrompeu = false;
           if (ev.tipo === "init" && ev.sessaoCli) sessaoCli = ev.sessaoCli;
           o.aoEvento?.(plano, ev);
           avisar(vigia.registrar(ev, o.relogio()));
@@ -499,9 +591,9 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
         delta(texto) {
           o.aoDelta?.(plano, texto);
         },
-        falaIntermediaria(texto) {
+        falaIntermediaria(texto, f) {
           seqFala += 1;
-          falas.push({ seq: seqFala, texto: cortarTexto(texto) });
+          falas.push({ seq: seqFala, texto: cortarTexto(texto), ...(f?.interrompida ? { interrompida: true as const } : {}) });
           void renovar();
         },
         // X2 (revisto em 2026-10-08): só o que entrou na sessão é confirmado; o devolvido volta para a fila do servidor.
@@ -512,6 +604,11 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
         },
         mensagemDevolvida(id) {
           if (!devolvidas.includes(id)) devolvidas.push(id);
+          void renovar();
+        },
+        // ADR-185: o modelo leu o que entrou; vai na próxima renovação (a conversa troca o selo por "Lida").
+        mensagemLida(id) {
+          if (!lidas.includes(id)) lidas.push(id);
           void renovar();
         },
         async ocioso() {
@@ -542,7 +639,7 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
       await fecharFoto();
       clearInterval(batida);
       if (renovarLogo) clearTimeout(renovarLogo);
-      clearInterval(checagem);
+      if (checagem) clearInterval(checagem);
       clearInterval(observacao);
       o.memoria?.soltar(plano.turnoId);
       adapterAtual = null;
@@ -569,7 +666,10 @@ export function iniciarLaco(o: OpcoesLaco): Laco {
       }
       if (parado) break;
       if (!plano) {
-        await esperar(esperaVaziaMs + Math.floor(aleatorio() * jitterMs));
+        const espera = esperaVaziaMs + Math.floor(aleatorio() * jitterMs);
+        if (o.ponte.aguardarTrabalho) await Promise.race([o.ponte.aguardarTrabalho(o.pessoaId, espera), new Promise<void>((r) => (acordar = r))]);
+        else await esperar(espera);
+        acordar = null;
         continue;
       }
       await rodar(plano);

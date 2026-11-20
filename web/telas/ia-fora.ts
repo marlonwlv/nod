@@ -422,7 +422,7 @@ const nomeDaIa = (ia: string): string => (ehIa(ia) ? PROVEDOR_DA_IA[ia].nome : i
 function desfechoDaTroca(p: PayloadTrocaDeIa, nomeDoBot: string): string {
   const de = nomeDaIa(p.iaDe);
   const para = p.iaPara ? nomeDaIa(p.iaPara) : "a outra IA";
-  const tasks = p.tasks === 1 ? "A task" : "As tasks";
+  const tasks = p.tasks === 1 ? "A tarefa" : "As tarefas";
   switch (p.decisao) {
     case "esperar": return `${tasks} esperam o ${de}, como você escolheu.`;
     case "levar": return p.contaDe ? `${tasks} seguiram noutra conta do ${de}.` : `${tasks} foram para o ${para}.`;
@@ -460,13 +460,13 @@ export function cartaoTrocaDeIa(m: Mensagem, p: { nomeDoBot: string | null; agor
     const ate = volta ? volta.replace(/^(às|em) /, "") : null;
     const opcoes = [
       ...(t.conta ? [opcaoDaTroca({ act: "cl-seguir", dados: ` data-id="${esc(t.conta.id)}" data-conversa="${esc(m.conversaId)}"`, rotulo: `Continuar na conta ${de} · ${t.conta.apelido}`, consequencia: `${mesmaIaOutraConta(t.iaDe)}${t.conta.corporativa ? " É a conta da empresa." : ""}`, recomendada: false })] : []),
-      ...(para ? [opcaoDaTroca({ act: "troca-outra-ia", dados, rotulo: `Continuar no ${para}${ate ? ` até ${ate}` : ""}`, consequencia: `Outro provedor: ${bot} relê o necessário e as tasks recomeçam do resumo.${volta ? ` ${volta[0]!.toUpperCase()}${volta.slice(1)} volta ao ${de}.` : ""}`, recomendada: false })] : []),
+      ...(para ? [opcaoDaTroca({ act: "troca-outra-ia", dados, rotulo: `Continuar no ${para}${ate ? ` até ${ate}` : ""}`, consequencia: `Outro provedor: ${bot} relê o necessário e as tarefas recomeçam do resumo.${volta ? ` ${volta[0]!.toUpperCase()}${volta.slice(1)} volta ao ${de}.` : ""}`, recomendada: false })] : []),
     ].join("");
     // QA do PR 2 (16/10): sem artigo nem gênero para o nome do bot ("Vera parou", não "O Vera está parado").
     const texto = `Este bot usa só o ${de}, e as contas do ${de} da sua fila acabaram. Se você não fizer nada, ${bot} volta sozinho${volta ? ` ${volta}` : ""}.${opcoes ? " Para continuar agora, escolha um caminho:" : ""}`;
     return `<div class="aviso-estado tom-info aviso-troca" role="status"><div class="aviso-estado-txt"><b>${esc(bot)} parou${ate ? ` até ${esc(ate)}` : ""}</b><p>${esc(texto)}</p>${opcoes ? `<ul class="troca-opcoes">${opcoes}</ul>` : ""}</div></div>`;
   }
-  const tasks = t.tasks === 1 ? "a task" : `as ${t.tasks} tasks`;
+  const tasks = t.tasks === 1 ? "a tarefa" : `as ${t.tasks} tarefas`;
   // Revisão do PR 2 (I1): no ChatGPT, a conta da sessão parou e "levar" é para outra conta dele (a sessão fica na que parou).
   const mesmaIa = t.contaDe !== undefined && t.iaPara === t.iaDe;
   const destino = mesmaIa ? `outra conta do ${de}` : `o ${para}`;
@@ -478,7 +478,7 @@ export function cartaoTrocaDeIa(m: Mensagem, p: { nomeDoBot: string | null; agor
   // C5: a outra IA existe, mas não na máquina do bot — o cartão diz por que não oferece "levar".
   const fora = !para && t.foraDaMaquina ? `O ${nomeDaIa(t.foraDaMaquina.ia)} não está ${t.foraDaMaquina.maquina ? `em ${t.foraDaMaquina.maquina}, ` : "n"}a máquina do ${bot}. ` : "";
   const esperar = opcaoDaTroca({ act: "troca-esperar", dados, rotulo: `Esperar o ${de}`, consequencia: volta ? `Voltam ${volta} com tudo o que já fizeram.` : "Voltam quando a conta voltar, com tudo o que já fizeram.", recomendada: !levar });
-  const levarOp = para ? opcaoDaTroca({ act: "troca-levar", dados, rotulo: mesmaIa ? `Seguir noutra conta do ${de}` : `Levar as tasks para o ${para}`, consequencia: mesmaIa ? "Seguem agora, mas recomeçam do resumo: a sessão fica na conta que parou." : "Seguem agora, mas recomeçam do resumo de cada frente.", recomendada: levar }) : "";
+  const levarOp = para ? opcaoDaTroca({ act: "troca-levar", dados, rotulo: mesmaIa ? `Seguir noutra conta do ${de}` : `Levar as tarefas para o ${para}`, consequencia: mesmaIa ? "Seguem agora, mas recomeçam do resumo: a sessão fica na conta que parou." : "Seguem agora, mas recomeçam do resumo de cada tarefa.", recomendada: levar }) : "";
   const rodape = levar ? "Se você não escolher em 10 min, eu sigo a recomendação." : "Se você não escolher, eu sigo a recomendação.";
   // NOD-401: a IA inteira parou na máquina do bot — o título diz a conta que parou (o apelido, nunca o e-mail).
   const apelido = mesmaIa ? t.contaDe!.apelido : (t.contaQueParou?.apelido ?? null);

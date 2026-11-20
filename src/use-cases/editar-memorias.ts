@@ -19,7 +19,7 @@ async function botDaDona(deps: Deps, agenteId: string): Promise<Agente> {
   return agente;
 }
 
-/** Memória editável pela pessoa (Grok Bot): listar, editar texto/tipo, apagar. Sempre pela dona (repositório filtra owner_id). */
+/** Memória editável pela pessoa: listar, editar texto/tipo, apagar. Sempre pela dona (repositório filtra owner_id). */
 export const listarMemorias: CasoDeUso<{ agenteId: string }, { memorias: Memoria[]; aRevisar: number }> = async (deps, input) => {
   const agente = await deps.repos.agentes.buscar(input.agenteId);
   if (!agente) throw new ErroDeDominio("nao_encontrado");

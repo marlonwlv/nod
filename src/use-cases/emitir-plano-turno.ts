@@ -7,7 +7,7 @@ import type { AnexoMeta, TipoAnexo } from "../contracts/anexo.ts";
 import { tipoDoAnexo } from "../domain/anexo.ts";
 import type { CapacidadesHarness, IdHarness } from "../contracts/harness.ts";
 import type { PlataformaMaquina } from "../contracts/ponte.ts";
-import { capacidadesDe, causaHarnessIndisponivel, modeloMaisPotente, resolverHarness } from "../domain/harness.ts";
+import { capacidadesDe, causaHarnessIndisponivel, harnessFixado, modeloMaisPotente, resolverHarness } from "../domain/harness.ts";
 import { esperaDoTrabalho, pastaRelativa, podeAbrirTask } from "../domain/trabalho.ts";
 import { formaEfetiva } from "../domain/frente.ts";
 import { trabalhosParaDto } from "./trabalhos.ts";
@@ -30,6 +30,8 @@ import { temSessaoNaIa } from "../domain/troca-de-ia.ts";
 import type { MotivoRecomeco, Turno } from "../contracts/turno.ts";
 import { MOTIVO_FALHA_EM_PORTUGUES, modeloDoModo } from "../domain/computador.ts";
 import { COMANDO_GITHUB_NATIVO, SLUG_GITHUB } from "../contracts/github.ts";
+import { COMANDO_MAC_NATIVO, SLUG_MAC } from "../contracts/mac.ts";
+import { ferramentasMacNoPlano } from "../domain/mac.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
 import { ehNod } from "../domain/nod.ts";
 import { marcarExecucaoNaMaquina } from "../domain/github.ts";
@@ -71,6 +73,11 @@ export type EntradaEmitirPlano = {
    * As ferramentas do GitHub nativo DELA vão marcadas para rodar na máquina (o proxy executa).
    */
   ghNaMaquina?: boolean;
+  /**
+   * ADR-173 (definido em 2026-11-12): a máquina DESTE turno é um Mac da pessoa do turno. As ferramentas do conector
+   * `mac` DELA vão marcadas para rodar na máquina; sem isso (VM Linux, servidor, Windows, ausente) elas saem do plano.
+   */
+  macNaMaquina?: boolean;
   /**
    * NOD-164 (emenda à ADR-072): o modelo da ligação por harness, já lido e validado pelo compositor
    * (`lerModelosLigacao` sobre o env do servidor). Ausente = MODELOS_LIGACAO_PADRAO. O caso de uso não lê `process.env`.
@@ -183,7 +190,7 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   const inteligencia = inteligenciaDoAgente(agente);
   // definido em 2026-10-12 (ADR-099 §7): no trabalho de fundo, o Automático também pula a IA que a cota segura (reserva ou
   // limite) — o 1% que sobra dela fica para a conversa com a pessoa. Todas seguradas: a primeira pronta (iaDoAutomatico).
-  const fundo = !input.recompor && executor !== "catcher" && input.harnesses && turno.harness === "auto" && turno.modelo === "auto" && tipoParaCota(turno, null) !== "conversa";
+  const fundo = !input.recompor && executor !== "catcher" && input.harnesses && harnessFixado(turno.harness, turno.modelo) === null && tipoParaCota(turno, null) !== "conversa";
   // ADR-108 (revisão do PR 2, C1): a IA da sessão da task não entra aqui — trocar de IA por cota é decisão da pessoa (o
   // aviso de troca). Se a cota a segura de verdade (o limite medido segura o fundo que já começou), a guarda do despacho
   // (despachar-turno.ts, segurarTaskNaIaDaSessao) já devolveu o turno à espera; na reserva, a task que já começou segue nela.
@@ -469,8 +476,9 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   const reconfiguracao = elegivel && depoisDoInicio && (pedeConfigurar || emReconfiguracao(agente, agora));
   // NOD-480 (emenda da ADR-040): a janela que o Claude Code informou da última vez para este bot e este modelo. Falha ao
   // ler não derruba a emissão: o orçamento cai na tabela por nome. Só o Claude Code tem o autocompact.
+  const modeloEfetivo = modeloEscolhido ?? turno.modelo;
   const janelaObservada = (escolha?.harness ?? "claude-cli") === "claude-cli" && modo !== "ligacao"
-    ? await emSavepoint(deps, () => deps.repos.raioX.ultimaJanela(turno.conversaId, agente.id, turno.modelo)).catch(() => null) : null;
+    ? await emSavepoint(deps, () => deps.repos.raioX.ultimaJanela(turno.conversaId, agente.id, modeloEfetivo)).catch(() => null) : null;
   const parcial = montarPlano({
     ...(janelaObservada ? { janelaObservada } : {}),
     ...(reconfiguracao ? { reconfiguracao: true } : {}),
@@ -586,6 +594,14 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   } else if (motivoRecomeco) {
     // QA (bug 2): a fala com "/" vai crua, mas o turno recomeçou do mesmo jeito — o Raio-X diz isso, como a marca da fala.
     partesDoRecomeco = { motivo: motivoRecomeco, avisoChars: 0, resumoChars: 0, historicoChars: JSON.stringify(historico).length };
+  }
+  {
+    // ADR-173: Mail, Notas, Calendário, Lembretes, Contatos e iMessage só existem no Mac da pessoa; fora dele, somem.
+    const meuMac = guardados.find((c) => c.slug === SLUG_MAC && c.comando === COMANDO_MAC_NATIVO && c.ownerId === deps.escopo.pessoaId);
+    const deOutro = guardados.filter((c) => c.slug === SLUG_MAC && c.comando === COMANDO_MAC_NATIVO && c.ownerId !== deps.escopo.pessoaId);
+    parcial.catalogo.ferramentas = ferramentasMacNoPlano(parcial.catalogo.ferramentas, meuMac?.id ?? null, input.macNaMaquina === true);
+    // O Mac de uma pessoa nunca serve ao turno de outra: o conector `mac` de outra pessoa sai sempre.
+    for (const c of deOutro) parcial.catalogo.ferramentas = ferramentasMacNoPlano(parcial.catalogo.ferramentas, c.id, false);
   }
   if (input.ghNaMaquina) {
     // O login do gh serve à dona: só o conector github DELA roda na máquina; o de outra pessoa, nunca.

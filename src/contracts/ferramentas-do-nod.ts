@@ -29,7 +29,7 @@ export const FERRAMENTAS_DO_NOD = {
   gerir_bots: {
     type: "object",
     description:
-      "Muda vários bots da pessoa de uma vez, na ordem: criar, duplicar, editar, mover de time, excluir, criar rotina, dar acesso a um app já conectado, mudar o modo de aprovação e restaurar uma versão antiga do perfil (ver_colegas com o agente lista as últimas versões e o número de cada uma; se falhar com versao_redigida, um segredo sumiria: só a pessoa decide isso, no Histórico do bot). Uma chamada só por pedido. O seu modo decide: o que precisa da pessoa vira UM card com as ações marcáveis; o resto é feito na hora. Para usar um bot criado ou duplicado no mesmo pedido, dê a ele um ref e aponte as ações seguintes para \"@ref\".",
+      "Muda vários bots da pessoa de uma vez, na ordem: criar, duplicar, editar, mover de time, excluir, criar rotina, dar acesso a um app já conectado, mudar o modo de aprovação e restaurar uma versão antiga do perfil (ver_colegas com o agente lista as últimas versões e o número de cada uma; se falhar com versao_redigida, um segredo sumiria: só a pessoa decide isso, no Histórico do bot). Uma chamada só por pedido. O seu modo decide: o que precisa da pessoa vira UM card com as ações marcáveis; o resto é feito na hora. Para usar um bot criado ou duplicado no mesmo pedido, dê a ele um ref e aponte as ações seguintes para \"@ref\". O bot criado nasce com o acesso padrão de cada app (Apps > Quem pode usar); para tirar o acesso de vários bots ou mudar esse padrão, use gerir_acessos.",
     properties: {
       resumo: { type: "string", description: "O pedido em uma frase, como a pessoa vai ler no card.", minLength: 1, maxLength: 200 },
       acoes: {

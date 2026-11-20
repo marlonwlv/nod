@@ -131,7 +131,7 @@ describeIntegracao("Atividade do bot (chat limpo, PR 1)", () => {
       expect(porId.get(negada)).toMatchObject({ categoria: "bloqueios", titulo: "Bash negada", vezes: 3, alvo: { mensagemId: negada } });
       expect(porId.get(anotei)).toMatchObject({ categoria: null, titulo: "Anotou na memória", detalhe: "Anotei uma preferência: em reais" });
       expect(porId.get(respondido)).toMatchObject({ titulo: "Respondeu ao pedido de Ada" });
-      expect(porId.get(`trabalho:${t1!.id}:comecou`)).toMatchObject({ categoria: "frentes", titulo: "Abriu a task Hero w5", detalhe: "pedido seu", alvo: { trabalhoId: t1!.id } });
+      expect(porId.get(`trabalho:${t1!.id}:comecou`)).toMatchObject({ categoria: "frentes", titulo: "Abriu a tarefa Hero w5", detalhe: "pedido seu", alvo: { trabalhoId: t1!.id } });
       expect(porId.get(`trabalho:${t1!.id}:terminou`)).toMatchObject({ titulo: "Terminou Hero w5", detalhe: "em 2 h 00" });
       expect(porId.get(`trabalho:${t2!.id}:terminou`)?.titulo).toBe("Roteiros falhou");
 

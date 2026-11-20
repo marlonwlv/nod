@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Agente } from "../../../src/contracts/agente.ts";
 import { FERRAMENTAS_NOD } from "../../../src/contracts/ferramentas-nod.ts";
 import type { Turno } from "../../../src/contracts/turno.ts";
+import { pedidoDoDono, pedidoSemMoldura } from "../../../src/domain/frente.ts";
 import { BRANCH_NA_FRENTE_ATUAL, branchDaFrente, CORTE_DA_ULTIMA_FALA, DONO_INTEGRA, ehFrente, entradaDaFrente, instrucaoDoResumoInvalido, molduraDaFrente, resumoSemChamada, TEXTO_APROVACAO_VENCIDA, TEXTO_PERGUNTA_VENCIDA, semLinhaDeEmpurrar, textoFrentesAbertas, tituloDoLote } from "../../../src/domain/frente.ts";
 import { errosDoSchema } from "../../../src/domain/schema-args.ts";
 import { montarPlano, type EntradaPlano } from "../../../src/domain/plano-turno.ts";
@@ -85,14 +86,14 @@ describe("regras puras das frentes (ADR-099, I2)", () => {
   it("o título do lote (plano chat limpo, PR 5): o do modelo; sem ele, a frente (uma) ou 'N frentes'", () => {
     expect(tituloDoLote("frentes de hero", 5, "Hero da home")).toBe("frentes de hero");
     expect(tituloDoLote(null, 1, "Roteiros de animação")).toBe("Roteiros de animação");
-    expect(tituloDoLote(null, 3, "Login no Safari")).toBe("3 frentes");
+    expect(tituloDoLote(null, 3, "Login no Safari")).toBe("3 tarefas");
     expect(tituloDoLote("frentes de hero", 1, "Hero da home")).toBe("frentes de hero");
   });
 
   it("a linha do lote: uma frente pelo nome, várias pela contagem e a lista", () => {
-    expect(textoFrentesAbertas(["Login"])).toBe("Começou a frente Login");
-    expect(textoFrentesAbertas(["Login", "CI"])).toBe("Começou 2 frentes: Login e CI");
-    expect(textoFrentesAbertas(["A", "B", "C"])).toBe("Começou 3 frentes: A, B e C");
+    expect(textoFrentesAbertas(["Login"])).toBe("Começou a tarefa Login");
+    expect(textoFrentesAbertas(["Login", "CI"])).toBe("Começou 2 tarefas: Login e CI");
+    expect(textoFrentesAbertas(["A", "B", "C"])).toBe("Começou 3 tarefas: A, B e C");
   });
 
   it("a entrada da frente: a moldura, o pedido e, se houver, o repositório e o branch de partida", () => {
@@ -112,10 +113,15 @@ describe("regras puras das frentes (ADR-099, I2)", () => {
       }
     }
     expect(resumoSemChamada({ estado: "terminado", ultimaFala: "Corrigi o login." })).toEqual({ feito: "Corrigi o login." });
+    // Validação de 2026-11-17: o corte se anuncia, para o dono não dizer à pessoa que o texto veio pela metade.
+    const longo = resumoSemChamada({ estado: "terminado", ultimaFala: "palavra ".repeat(400) }).feito;
+    expect(longo).toContain("… [o nod cortou este resumo aqui; a fala original tem 3199 caracteres e não veio cortada]");
+    expect(longo.length).toBeLessThanOrEqual(1000);
     expect(resumoSemChamada({ estado: "terminado", ultimaFala: null }).feito).toBe("A frente terminou sem dizer o que fez.");
     expect(resumoSemChamada({ estado: "falhou", ultimaFala: "Rodando os testes" })).toMatchObject({ feito: "A frente falhou antes de devolver o resumo. Última fala: Rodando os testes", falta: expect.any(String) });
     expect(resumoSemChamada({ estado: "parado", ultimaFala: null }).feito).toBe("A pessoa parou a frente antes do fim.");
-    expect(resumoSemChamada({ estado: "terminado", ultimaFala: longa }).feito.length).toBe(CORTE_DA_ULTIMA_FALA);
+    // O trecho da fala vai até o corte (com as reticências); o aviso do nod vem depois dele.
+    expect(resumoSemChamada({ estado: "terminado", ultimaFala: longa }).feito.split(" [o nod cortou")[0]!.length).toBe(CORTE_DA_ULTIMA_FALA);
   });
 
   it("toda recusa do resumo vira instrução com o campo", () => {
@@ -204,5 +210,18 @@ describe("resumoSemChamada (NOD-282, G5): a decisão vencida pelo tipo", () => {
     expect(resumoSemChamada({ estado: "falhou", ultimaFala: "Posso enviar?", perguntaVencida: true, vencidaTipo: "aprovacao" }).feito).toBe(`A frente parou: ${TEXTO_APROVACAO_VENCIDA}.`);
     expect(resumoSemChamada({ estado: "falhou", ultimaFala: "Qual?", perguntaVencida: true, vencidaTipo: "pergunta" }).feito).toBe(`A frente parou: ${TEXTO_PERGUNTA_VENCIDA}.`);
     expect(resumoSemChamada({ estado: "falhou", ultimaFala: "Qual?", perguntaVencida: true }).feito).toBe(`A frente parou: ${TEXTO_PERGUNTA_VENCIDA}.`);
+  });
+});
+
+describe("pedidoDoDono (ADR-187 §6, Paper 4k)", () => {
+  it("tira a moldura do nod e a linha de empurrar, mesmo com a tarefa renomeada depois", () => {
+    const entrada = entradaDaFrente({ titulo: "Revisar o PR", pedido: "Revise o PR #821: rode os testes e confira o rollback.", deRotina: false });
+    expect(pedidoDoDono(entrada)).toBe("Revise o PR #821: rode os testes e confira o rollback.");
+    expect(pedidoSemMoldura("Outro nome", entrada)).toBe(entrada);
+  });
+
+  it("entrada sem moldura (a fala da pessoa) não é pedido do dono", () => {
+    expect(pedidoDoDono("quanto é dois mais dois?")).toBeNull();
+    expect(pedidoDoDono("[nod] só a moldura")).toBeNull();
   });
 });

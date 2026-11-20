@@ -1,4 +1,5 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -78,7 +79,10 @@ descrever("revisão 5 do PR #625: a região de status das Execuções no Chrome 
     ({ cdp } = await abrirChrome(9400 + (process.pid % 400), join(dir, "perfil")));
     await cdp.enviar("Page.enable");
   }, 120_000);
-  afterAll(() => { cdp?.fechar(); rmSync(dir, { recursive: true, force: true }); });
+  afterAll(async () => {
+    cdp?.fechar();
+    await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  });
 
   const ate = async (expr: string, ms = 5000): Promise<void> => {
     for (let i = 0; i < ms / 50; i++) { if (await avaliar<boolean>(cdp, `!!(${expr})`)) return; await esperar(50); }

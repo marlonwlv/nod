@@ -109,13 +109,21 @@ export function donosRepo(conn: Conn, escopo: Escopo) {
           order by t.criado_em, t.id`,
         // O pedido a colega sem resposta, da conversa ou de uma frente. NOD-377: "aberto" é o pedidoAbertoSql, o mesmo do varredor.
         conn<{ agente_id: string; trabalho_id: string | null; tarefa_id: string; nome: string | null; criado_em: Date; colega_id: string | null; colega_removido: boolean; colega_trabalhando: boolean; colega_fila: number; cobrado_em: Date | null; cobrancas: number }[]>`
+          -- 2026-11-19: os pedidos abertos da pessoa saem primeiro, materializados (o índice parcial dos handoffs, depois o
+          -- pedidoAbertoSql). Sem isso o planejador partia de todos os turnos dos bots (~30 mil) e calculava a cadeia de
+          -- cobranças para os ~1,5 mil pedidos antes de descartar os respondidos: ~7 s por chamada, a cada GET /trabalhos.
+          with h as materialized (
+            select m.* from mensagens m
+            where m.tenant_id = ${escopo.tenantId} and m.owner_id = ${escopo.pessoaId} and m.kind = 'handoff'
+              and ${pedidoAbertoSql(conn, "m", escopo.tenantId)}
+          )
           select t.agente_id, t.trabalho_id, h.payload->>'tarefaId' as tarefa_id, g.nome, h.criado_em, g.id as colega_id,
             (g.excluido_em is not null) as colega_removido,
             exists (select 1 from turnos q where q.tenant_id = g.tenant_id and q.agente_id = g.id and q.estado = 'despachando') as colega_trabalhando,
             (select count(*)::int from turnos q where q.tenant_id = h.tenant_id and q.agente_id = g.id and q.estado = 'pendente'
               and (q.acordar_em is null or q.acordar_em <= ${data(agora)})) as colega_fila,
             cb.ultima as cobrado_em, coalesce(cb.quantas, 0) as cobrancas
-          from mensagens h
+          from h
           join turnos t on t.tenant_id = h.tenant_id and t.id = h.turno_id
           -- Revisão 2 do PR #544 (B3): os mesmos joins do varredor (esperasDeColega) — o colega é o dono do turno da tarefa;
           -- sem o turno, o painel não mostra o que o varredor nunca fecharia.
@@ -134,8 +142,7 @@ export function donosRepo(conn: Conn, escopo: Escopo) {
             where q.origem = 'retomada' and left(q.entrada_texto, length(${ENTRADA_DA_COBRANCA} || d.id::text)) = ${ENTRADA_DA_COBRANCA} || d.id::text
           ) cb on true
           -- Os mesmos filtros do varredor (esperasDeColega): da pessoa e com quem pediu vivo (o painel só mostra o que fecha).
-          where h.tenant_id = ${escopo.tenantId} and h.owner_id = ${escopo.pessoaId} and h.kind = 'handoff'
-            and t.agente_id = any(${ids}::uuid[]) and ${pedidoAbertoSql(conn, "h")}
+          where t.agente_id = any(${ids}::uuid[])
             and exists (select 1 from agentes a where a.tenant_id = h.tenant_id and a.id = ${uuidDoPayload(conn, conn`h.payload->>'de'`)} and a.excluido_em is null)
           order by h.criado_em, h.id`,
         // Os pedidos na fila do dono, ainda não começados: a fala da pessoa, a triagem de um colega ou de uma rotina. A

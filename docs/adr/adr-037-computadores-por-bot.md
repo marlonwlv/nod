@@ -6,7 +6,7 @@ Definido em 2026-09-18. O produto começa com um ambiente completo por bot, com 
 
 | Opção | O que aproveitamos | Decisão |
 |---|---|---|
-| [Grok Bot](https://docs.x.ai/grok-bot/computer-and-apps) | Computador persistente, takeover para autenticação, conectores e navegador complementares | Referência da experiência. O Grok compartilha o computador da pessoa entre bots; nosso primeiro recorte é um computador por bot. |
+| Outros assistentes | Computador persistente, takeover para autenticação, conectores e navegador complementares | Referência da experiência. Há quem compartilhe o computador da pessoa entre bots; nosso primeiro recorte é um computador por bot. |
 | [OpenBot, CopilotKit](https://github.com/CopilotKit/openbot) | Volumes persistentes por bot, supervisor de computadores, separação do ambiente e autorização das ações | Referência de implantação. Integramos ao plano de turno, proxy, RLS e decisões que o nod já possui. |
 | [OpenMausBot](https://github.com/milind-soni/OpenMausBot) | Harnesses separados do computador remoto | Mantemos o driver de computador substituível; não acoplamos identidade do bot ao fornecedor ou ao CLI. |
 | Apenas navegador remoto | Provisionamento menor, sessões web persistentes | Insuficiente para terminal, aplicativos Linux, arquivos locais e controle do desktop. |

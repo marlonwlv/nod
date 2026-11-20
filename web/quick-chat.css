@@ -1,0 +1,113 @@
+/* Quick Chat (ADR-173, 2026-11-12; tela 10 do protótipo no Paper): a janela de 560×392 do atalho global (rodada 3: o cartão do Paper; a sombra é a da janela do macOS). Só o que muda
+   no modo compacto (`html[data-janela="quick-chat"]`): some a barra lateral, o cabeçalho, os detalhes e a faixa de
+   trabalhos; fica a conversa e o composer, com o topo do seletor de bot. O botão Capturar vale em qualquer janela.
+   Só tokens existentes; nenhum token global novo. */
+html[data-janela="quick-chat"] .sidebar,
+html[data-janela="quick-chat"] .borda-barra,
+html[data-janela="quick-chat"] .detalhes,
+html[data-janela="quick-chat"] #cabecalho,
+html[data-janela="quick-chat"] #faixa-trabalhos { display: none !important; }
+html[data-janela="quick-chat"] body { overflow: hidden; border-radius: 14px; }
+html[data-janela="quick-chat"] .app { grid-template-columns: 1fr !important; height: calc(100vh - 48px); }
+html[data-janela="quick-chat"] .stage { min-width: 0; }
+
+#quick-chat-topo { display: none; }
+html[data-janela="quick-chat"] #quick-chat-topo { display: block; height: 48px; -webkit-app-region: drag; }
+.qc-topo { display: flex; align-items: center; gap: 4px; height: 48px; padding: 0 10px 0 12px; box-sizing: border-box; }
+.qc-espaco { flex: 1; }
+.qc-bot { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 999px; background: var(--surface-selected); color: var(--ink); font-size: 13px; font-weight: 500; -webkit-app-region: no-drag; cursor: pointer; }
+.qc-bot-select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font: inherit; }
+.qc-bot:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.qc-bt { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--ink-2); cursor: pointer; -webkit-app-region: no-drag; }
+.qc-bt:hover { background: var(--surface-selected); color: var(--ink); }
+.qc-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* O Capturar do composer: pílula discreta ao lado do clipe, como no protótipo ("⌗ Capturar"). */
+.qc-capturar { display: inline-flex; align-items: center; gap: 6px; height: 28px; margin: 0 4px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--surface-selected); color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.qc-capturar:hover { color: var(--ink); }
+.qc-capturar:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (max-width: 520px) { .qc-capturar span { display: none; } }
+
+/* Avatar do bot solto na área de trabalho (ADR-173; tela 14): a janela é transparente e só o mascote aparece. A borda
+   arrasta a janela; o mascote e o × não (clique). */
+html[data-janela="avatar"], html[data-janela="avatar"] body { background: transparent !important; overflow: hidden; }
+html[data-janela="avatar"] .app, html[data-janela="avatar"] #quick-chat-topo { display: none !important; }
+html[data-janela="avatar"] body > *:not(#avatar-mesa) { display: none !important; }
+#avatar-mesa { display: none; }
+html[data-janela="avatar"] #avatar-mesa { position: fixed; inset: 0; display: grid; place-items: center; -webkit-app-region: drag; }
+.am { position: relative; }
+.am-bot { display: grid; place-items: center; width: 72px; height: 72px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; -webkit-app-region: no-drag; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .25)); }
+.am-bot:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.am-tirar { position: absolute; top: -4px; right: -4px; display: none; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: var(--surface-raised); color: var(--ink-2); font-size: 14px; line-height: 20px; cursor: pointer; -webkit-app-region: no-drag; box-shadow: 0 1px 4px rgba(0, 0, 0, .2); }
+.am:hover .am-tirar, .am-tirar:focus-visible { display: block; }
+.qc-bt.ativo { color: var(--ink); background: var(--surface-selected); }
+
+/* ---------- Tela 10 do Paper (rodada 2) ----------
+   A janela inteira na superfície elevada (sem a faixa cinza do topo); o topo de 44 com a pílula "mascote · Ada ⌄" (30) e
+   os botões redondos de 28; as falas sem autor, hora nem divisor de data (a do bot é texto solto, a da pessoa o balão);
+   o campo é um cartão de raio 18 com os anexos em cima, o texto e a linha clipe · Capturar · microfone … enviar.
+   O modo de aprovação e o seletor de modelo ficam na janela grande (o Paper não os põe aqui). */
+html[data-janela="quick-chat"], html[data-janela="quick-chat"] body, html[data-janela="quick-chat"] .app, html[data-janela="quick-chat"] .stage,
+html[data-janela="quick-chat"] #timeline, html[data-janela="quick-chat"] .composer-wrap { background: var(--surface-elevated) !important; }
+html[data-janela="quick-chat"] #quick-chat-topo { height: 44px; }
+html[data-janela="quick-chat"] .app { height: calc(100vh - 44px); }
+html[data-janela="quick-chat"] .qc-topo { height: 44px; gap: 0; padding: 0 10px 0 12px; }
+html[data-janela="quick-chat"] .qc-bot { height: 30px; gap: 6px; padding: 0 8px 0 4px; background: var(--hover); }
+html[data-janela="quick-chat"] .qc-bot:not(:has(.qc-bot-av)) { padding-left: 10px; }
+.qc-bot-av { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
+.qc-bot-av > * { width: 22px !important; height: 22px !important; min-width: 0 !important; }
+.qc-bot svg { color: var(--ink-3); }
+html[data-janela="quick-chat"] .qc-bt { width: 28px; height: 28px; border-radius: 999px; }
+html[data-janela="quick-chat"] .qc-bt:hover { background: var(--hover); }
+
+html[data-janela="quick-chat"] .timeline { padding: 4px 16px 8px; gap: 12px; }
+html[data-janela="quick-chat"] .time-sep, html[data-janela="quick-chat"] .msg-autor, html[data-janela="quick-chat"] .message.bot > .mascote,
+html[data-janela="quick-chat"] .message.bot > nod-mascote, html[data-janela="quick-chat"] .msg-actions { display: none !important; }
+html[data-janela="quick-chat"] .message { margin: 0; padding: 0; gap: 0; }
+html[data-janela="quick-chat"] .message.bot .bubble { padding: 0; background: none; font-size: 14px; line-height: 22px; color: var(--ink); max-width: 480px; }
+html[data-janela="quick-chat"] .message.you .bubble { font-size: 14px; line-height: 20px; }
+
+html[data-janela="quick-chat"] .composer-wrap { padding: 0 10px 10px !important; }
+html[data-janela="quick-chat"] .composer { max-width: none; }
+html[data-janela="quick-chat"] .composer .box { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 2px; min-height: 0; padding: 8px; border: 1px solid var(--borda); border-radius: 18px; background: var(--surface); box-shadow: none; }
+html[data-janela="quick-chat"] .composer .box > .anexos-fila { order: 0; flex: 1 1 100%; margin: 0 0 6px; }
+html[data-janela="quick-chat"] .composer .box > textarea { order: 1; flex: 1 1 100%; min-height: 22px; padding: 0 4px; margin-bottom: 6px; font-size: 14px; line-height: 22px; }
+html[data-janela="quick-chat"] .composer .box > .clipe, html[data-janela="quick-chat"] .composer .box > .qc-capturar,
+html[data-janela="quick-chat"] .composer .box > .mic, html[data-janela="quick-chat"] .composer .box > .ditado { order: 2; }
+html[data-janela="quick-chat"] .composer .box > .send, html[data-janela="quick-chat"] .composer .box > .parar-envio { order: 3; margin-left: auto; width: 28px; height: 28px; border-radius: 999px; }
+html[data-janela="quick-chat"] .composer .box > .modo-chip, html[data-janela="quick-chat"] .composer .box > .seletor-ia,
+html[data-janela="quick-chat"] .composer .box > .mais-campo, html[data-janela="quick-chat"] .composer .box > .anexos-resumo { display: none !important; }
+html[data-janela="quick-chat"] .composer .box > .clipe, html[data-janela="quick-chat"] .composer .box > .mic { width: 28px; height: 28px; border-radius: 999px; }
+html[data-janela="quick-chat"] .qc-capturar { height: 28px; margin: 0 2px; padding: 0 8px; gap: 6px; background: var(--ativo); color: var(--ink); font-size: 12px; line-height: 16px; }
+/* A dica da pílula de páginas (que mora no cabeçalho escondido) não aparece aqui; as falas ficam embaixo, junto do campo. */
+html[data-janela="quick-chat"] .pg-dica { display: none !important; }
+html[data-janela="quick-chat"] #timeline { display: flex; flex-direction: column; }
+html[data-janela="quick-chat"] #timeline > .timeline { margin-top: auto; }
+
+/* Rodada 3 (tela 10 do Paper): o enviar é a seta para cima no círculo preto de 28 (o "up" do Paper), não o ➤ da janela
+   grande. Só aqui: o campo da janela grande é da casca. A seta é uma máscara (o texto do botão fica para o leitor de tela). */
+html[data-janela="quick-chat"] .composer .box > .send { position: relative; padding: 0; font-size: 0; color: transparent; background: var(--action); }
+html[data-janela="quick-chat"] .composer .box > .send::before { content: ""; position: absolute; inset: 0; margin: auto; width: 16px; height: 16px; background: var(--on-action);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 7-7 7 7'/%3E%3Cpath d='M12 19V5'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 7-7 7 7'/%3E%3Cpath d='M12 19V5'/%3E%3C/svg%3E") center / 16px 16px no-repeat; }
+html[data-janela="quick-chat"] .composer .box > .send:disabled { opacity: 1; }
+
+/* Rodada 3 (tela 10 do Paper): a captura no campo é uma linha — miniatura 52×34, "Captura de região" e o tamanho, × de 12
+   — no fundo secundário de raio 10; a fala do bot vai até 480; os ícones do topo e o microfone em 16. */
+html[data-janela="quick-chat"] .anexo-thumb { display: inline-flex; align-items: center; gap: 8px; width: auto; height: auto; padding: 4px 10px 4px 4px; border: 0; border-radius: 10px; background: var(--hover); overflow: visible; }
+html[data-janela="quick-chat"] .anexo-thumb img { width: 52px; height: 34px; border: 1px solid var(--borda-sutil); border-radius: 6px; box-sizing: border-box; }
+html[data-janela="quick-chat"] .anexo-thumb .anexo-info-img { display: flex; flex-direction: column; min-width: 0; }
+html[data-janela="quick-chat"] .anexo-info-img b { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--ink); }
+html[data-janela="quick-chat"] .anexo-info-img span { font-size: 11px; line-height: 14px; color: var(--ink-3); }
+html[data-janela="quick-chat"] .anexo-thumb .anexo-x { position: static; width: 16px; height: 16px; background: none; color: var(--ink-3); }
+html[data-janela="quick-chat"] .anexo-thumb .anexo-x svg { width: 12px; height: 12px; }
+html[data-janela="quick-chat"] .message.bot { max-width: none; }
+html[data-janela="quick-chat"] .message.bot .bubble { max-width: 480px; width: auto; }
+html[data-janela="quick-chat"] .qc-bt svg { width: 16px; height: 16px; }
+html[data-janela="quick-chat"] .composer .box > .mic svg { width: 16px; height: 16px; }
+html[data-janela="quick-chat"] .message.bot .bubble-wrap { max-width: 480px; }
+html[data-janela="quick-chat"] .composer .box > .anexos-fila { padding: 0; }
+html[data-janela="quick-chat"] .composer .box.com-anexos:has(.anexos-fila:not([hidden])) { padding-top: 8px; border-radius: 18px; }
+html[data-janela="quick-chat"] .composer .box > .mic { background: none; color: var(--ink-2); }
+html[data-janela="quick-chat"] #timeline { padding: 0 !important; }
+html[data-janela="quick-chat"] #timeline > .timeline { display: flex; flex-direction: column; gap: 12px; }

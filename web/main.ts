@@ -1,13 +1,27 @@
+import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
+import { cancelarNaFila, desfazerCancelamento } from "./lib/cancelar-na-fila.ts";
+import { armazemComReserva, armazemDaFila, criarJournalDeEnvio, JournalEncerrado, tipoDaFalha, type ArmazemDoJournal, type Desfecho, type ItemDoJournal, type Journal } from "./lib/journal-envio.ts";
+import { armazemDoJournalIndexedDb } from "./lib/journal-envio-idb.ts";
+import { atalhoDoTeclado as atalhoDoQuickChat, type AjustesMac } from "./telas/ajustes-mac.ts";
+import { arquivoDaCaptura, botDaUrl, ehJanelaAvatar, ehJanelaQuickChat, fraseDaCaptura, htmlAvatarDaMesa, htmlBotaoCapturar, htmlTopoQuickChat } from "./lib/quick-chat.ts";
+import { invalidacoesDoChatSemProgresso } from "./lib/reconciliar-chat.ts";
 import { botaoDaBarraSemIa, conversaAguardandoIa, dicaDoComposerSemIa, iasNoCard, idDoCardSemIa, turnosVivosDe } from "./telas/sem-ia-conversa.ts";
+import { IGUAIS_UM_A_UM } from "./telas/pedidos-iguais.ts";
+import { criarTelaAprovacoes } from "./lib/ajustes-aprovacao.ts";
+import { criarTelaCofre } from "./lib/cofre.ts";
+import { renderCofre } from "./telas/config-cofre.ts";
+import { renderConfigAprovacoes, type BotDaTela } from "./telas/config-aprovacoes.ts";
 import { escNoEspaco, focoAoAbrirEspaco, voltarParaLista } from "./lib/navegacao-config.ts";
 import { perfilMudou } from "./lib/perfil-mudou.ts";
 import "./lib/mascote-elemento.ts";
 import { ligarModoDeFoco } from "./lib/modo-de-foco.ts";
 import { alternarExplicacao, detailsParaFecharComEsc } from "./lib/recomeco.ts";
-import { abrirCapturaAmpliada } from "./telas/captura-ampliada.ts";
 import { abrirPreviaArquivo } from "./telas/previa-arquivo.ts";
 import { abrirComputador, aplicarModoDevNoComputador } from "./telas/computador.ts";
 import { abrirTelaCheia } from "./telas/tela-cheia.ts";
+import { preencherMiniaturasAjuda } from "./lib/miniatura-ajuda.ts";
+import { abrirCartaoDestino, mostrarComputadorNoPainel } from "./telas/computador-chip.ts";
+import { LUGAR_CONECTAR } from "./telas/config-computador.ts";
 import { criarAcoesDaEspera } from "./lib/esperas-de-colega.ts";
 import { avisoDoComputador, OPERACOES_PESSOA, type OperacaoPessoa } from "./lib/computador-pessoa.ts";
 import { CHAVE_AVISO_RECRIADO } from "./telas/espaco.ts";
@@ -42,7 +56,7 @@ import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
 import { instalarOrdemArrastavel } from "./lib/ordem-arrastavel.ts";
 import { chaveDoMenuDaIa, ordemDoPasso } from "./lib/ordem.ts";
-import { abrirFolhaCompartilhar, abrirMenu, abrirMenuCompartilhar, abrirMenuConta, confirmarExclusaoNaFolha, dialogo, pedirGestao, textoDuplicar, type BotGerido, type AcaoGestao } from "./telas/gestao-agentes.ts";
+import { abrirFolhaCompartilhar, abrirMenu, abrirMenuCompartilhar, abrirFolhaDeAtalhos, abrirMenuConta, abrirSobreONod, confirmarExclusaoNaFolha, menuContaAberto, dialogo, pedirGestao, textoDuplicar, type BotGerido, type AcaoGestao } from "./telas/gestao-agentes.ts";
 import { perfilAoAbrir, perfilAoAbrirNivel, saidaDoPerfil } from "./telas/perfil-celular.ts";
 import { criarMarcaDoPerfil, planoDaSaida } from "./lib/lista-apos-saida.ts";
 import { rascunhoMudou } from "./telas/memoria.ts";
@@ -74,20 +88,28 @@ import type { Escopo } from "../src/shared/types.ts";
 import type { FrameSse } from "../src/contracts/frame.ts";
 import type { AnexoDaConversa } from "../src/contracts/anexo.ts";
 import { confirmacaoCaducou, HISTORICO_INICIAL, type HistoricoDoBot } from "./lib/historico-perfil.ts";
+import { armazemEmMemoria, criarCacheDeConversas, criarEsperaDoSpinner, criarRevalidacaoEmSegundoPlano, ESPERA_DO_PREFETCH_MS, juntarMudancasDaConversa } from "./lib/cache-conversas.ts";
+import type { ConversaComCursor } from "../src/contracts/estado-vivo.ts";
+import { armazemIndexedDb } from "./lib/cache-conversas-idb.ts";
 import { agenteDaTela, bibliotecaAberta, conversaAbertaTemNotaDeContas, conversaDaTela, estadoInicial, acoesAoMudarConexao, invalidacoesAoRetomar, sempreRelevante, invalidacoesDaTela, mudouNaTela, reduzir, secaoAberta, secaoDoPedido, type Acao, type Estado, type FalaPendente, type Invalidacao, type NivelGaveta, type PedidoSecao, type PerfilCelular, type SecaoEspaco, type Tela } from "./estado/reducer.ts";
 import { mascararDormindo, RetryDoAcordar, type PassosDoRetry } from "./lib/retry-computador.ts";
 import { contaApi, criarApi, minhaContaApi, ErroApi, observarRede, sessao as sessaoApi, type Api } from "./lib/api.ts";
 import { reagirACota } from "./lib/cota-provisorio.ts";
 import { resolverProvaNoNavegador } from "./lib/prova-trabalho.ts";
-import { abreProvisorio, CHAVE_EQUIPE, decidirPareamento, criarContaNoChat, equipeNoApp, fraseDoErro as fraseDoErroDeConta, linkDaEquipe, type PassoPareamento } from "./telas/conta-no-chat.ts";
+import { abreProvisorio, CHAVE_EQUIPE, decidirPareamento, criarContaNoChat, equipeNoApp, fraseDoErro as fraseDoErroDeConta, linkDaEquipe, saidaParaConta, type PassoPareamento } from "./telas/conta-no-chat.ts";
+import { etapaDaIntencao, htmlEntrarPrimeiro, intencaoDe, mostrarEntrarPrimeiro, type IntencaoEntrada } from "./telas/entrar-primeiro.ts";
+import { abrirCodigoGuardado, codigoDoLinkGuardado, guardarCodigoDoLink } from "./telas/parear-qr.ts";
 import { criarMinhaConta } from "./telas/minha-conta.ts";
 import { reduzirFoto } from "./lib/reduzir-foto.ts";
+import { criarLoja } from "./react/loja.ts";
 import { deveLembrar, htmlLembrete, jaFalou, marcarFalou } from "./telas/lembrete-conta.ts";
 import type { EstadoContaDto } from "../src/contracts/conta.ts";
+import { alternarTexto, versaoDosTextos } from "./lib/textos-abertos.ts";
+import { criarLeituraDeNovo } from "./lib/leitura-de-novo.ts";
 import { acaoDoErro, criarRegistroDeErros, detalhesDoErro, ehErroDeRede, erroDaAcao, erroDe as traduzirErro, erroParaRelatar, type ErroNaTela } from "./lib/erro-da-tela.ts";
 import { criarSondaDeRede } from "./lib/sonda-de-rede.ts";
 import { criarReleituraAdiada } from "./lib/releitura-adiada.ts";
-import { tabelaComo } from "./lib/texto-formatado.ts";
+import { CHECK_CODIGO_MS, tabelaComo } from "./lib/texto-formatado.ts";
 import { CHAVE_GUARDADA, lerGuardado, lerPedido, PARAMETROS_DO_PEDIDO, type PedidoPareamento } from "./lib/parear-mac.ts";
 import { abrirPareamento } from "./telas/parear-mac.ts";
 import { abrirOiDeNovo, mostrarEsteComputador } from "./telas/oi-de-novo.ts";
@@ -97,7 +119,7 @@ import { criarPuxadorDeepLink, destinoDoAlvo, leituraConta } from "./lib/deep-li
 import { criarLiveEvents, type LiveEvents } from "./lib/live-events.ts";
 import { ehCelular } from "./lib/celular.ts";
 import { contextoDaPilula, executarNaPilula } from "./lib/setas-da-pilula.ts";
-import { alvoDoAtalho, atalhoDoNovoBot, atalhoDoTeclado, lugarAtual, SELETOR_CAMPO, SELETOR_MODAL, type AcaoAtalho } from "./lib/atalhos.ts";
+import { alvoDoAtalho, atalhoDaNovaTarefa, atalhoDoNovoBot, atalhoDoTeclado, linhasDaFolha, lugarAtual, SELETOR_CAMPO, SELETOR_MODAL, teclasDoBot, type AcaoAtalho } from "./lib/atalhos.ts";
 import { rotuloDoMac } from "./lib/aparelho.ts";
 import { criarCelular, SELETOR_INTERATIVO } from "./lib/gaveta-bots.ts";
 import { tentarFrotaAgora } from "./lib/tentar-frota.ts";
@@ -108,8 +130,9 @@ import "./pwa.ts";
 import { avatar, botao, dataHora, esc, hora as horaDaFala, iconeAgente } from "./lib/render.ts";
 import { COPIADO_MS, mostrarCopia, ROTULO_COPIADO, type RelogioDoCopiar } from "./lib/copiar.ts";
 import { avisoDeEstado } from "./lib/aviso-estado.ts";
+import { abrirAjustesDoMicrofone, botaoAjustesDoMicrofone, CODIGO_DITADO_MICROFONE, podeAbrirAjustesDoMicrofone } from "./lib/microfone-do-sistema.ts";
 import { aplicarTema, lerTema, type EscolhaTema } from "./lib/tema.ts";
-import { adiar, aplicarBarra, escolherDensidade, lerBarra, pedidoDoChat, pintarBarra, serializar, type Barra, type PedidoBarra } from "./lib/densidade.ts";
+import { adiar, alternarCompacta, aplicarBarra, chaveDaBarra, lerBarra, PAINEL_DETALHES, pedidoDoChat, pintarBarra, type Barra, type PedidoBarra } from "./lib/densidade.ts";
 import type { BarraDesktop } from "../src/contracts/desktop-barra.ts";
 import { gravarDecisao, versaoDasDecisoesDaBarra } from "./telas/card-barra.ts";
 import { atualizarBorda, ligarBorda, ligarEtiqueta } from "./lib/borda-barra.ts";
@@ -119,39 +142,48 @@ import { caixaComFrase, FRASE_DE_PEDIR_APP, fraseDeEditarApp, fraseDeReconectar,
 import { aoGuardarOrdem, definirPaginas, ordemDoAgente, paginasDoAgente, paginasDtoDe } from "./lib/ordem-das-paginas.ts";
 import { criarPaginasDoServidor } from "./lib/paginas-do-servidor.ts";
 import { criarQuadroNaTela } from "./lib/quadro-na-tela.ts";
+import { comAbertaNaFrente } from "./lib/fila-do-reidratar.ts";
+import { criarLeiturasEmVoo } from "./lib/leituras-em-voo.ts";
 import { criarCanvasNaTela } from "./lib/canvas-na-tela.ts";
 import { configurarAppCanvas, esquecerErroDoCanvas, guardarAppCanvas } from "./telas/marketplace-canvas.ts";
 import { conversaDaTrilha, criarTrilhaDaConversa } from "./lib/trilha-conversa.ts";
 import { criarQuadroCompartilhadoNaTela } from "./lib/quadro-compartilhado-na-tela.ts";
+import { criarTarefasDeTodosNaTela } from "./lib/tarefas-de-todos-na-tela.ts";
 import { caminhoDoQuadro, quadroDaUrl, releListaDosCompartilhados } from "./lib/quadro-compartilhado.ts";
 import { secaoDosCompartilhados } from "./telas/quadro-compartilhado.ts";
 import type { QuadroCompartilhadoDto } from "../src/contracts/quadro-pessoas.ts";
 import { PARAMETRO_TAREFA, botDoLink, responsaveisDaTarefa } from "./lib/quadro-dados.ts";
 import { anel, confiar as confiarHtml } from "./telas/quadro.ts";
 import type { DadosConta } from "./telas/config-conta.ts";
-import { estadoMascoteNaConversa, mascoteComAviso, proximaViradaDoMascote } from "./lib/mascote.ts";
+import { avatarDoBot, avatarNaConversa, htmlMascote, mascoteComAviso, proximaViradaDoMascote } from "./lib/mascote.ts";
 import { lembrar } from "./lib/lembrar.ts";
 import { atualizarGaveta } from "./lib/gaveta-render.ts";
-import { blocosMudariam, esquecerRegiao, regiao, regiaoEmVoltaDe, regiaoMudaria, regiaoPorBlocos } from "./lib/regioes.ts";
+import { blocosMudariam, devolverRegiao, entregarRegiao, esquecerRegiao, focarDeNovo, regiao, regiaoEmVoltaDe, regiaoEntregue, regiaoMudaria, regiaoPorBlocos } from "./lib/regioes.ts";
+import { reactNaRegiao, type RegiaoReact } from "./lib/react-na-regiao.ts";
 import { mudancaSujaAGaveta, reporSeletor, salvarOuRepor } from "./lib/salvar-ou-repor.ts";
-import { criarAnunciador, criarRelogioDaFala, escreverEstados, escreverTempos, lerFalasNaTela, TICK_CURTO_MS, type FalaNaTela } from "./lib/fala-viva.ts";
+import { PERMANENCIA_MS } from "./lib/estado-do-indicador.ts";
+import { criarAnunciador, criarRelogioDaFala, escreverEstados, escreverTempos, escreverVariantes, lerFalasNaTela, TICK_CURTO_MS, type FalaNaTela } from "./lib/fala-viva.ts";
 import { criarRascunhos } from "./lib/rascunhos.ts";
 import { juntarSugestao, planoNovaRotina } from "./lib/rotina-no-chat.ts";
 import { criarRolagem } from "./lib/rolagem-na-tela.ts";
 import { rolaAoTopoAoNavegar } from "./lib/rolagem.ts";
 import { anunciosDeFim, aoEsconder, aoSumir, SEM_PROGRESSO, teclaNaPilula, type ProgressoNaTela } from "./lib/pilula.ts";
 import { criarPilulaNaTela } from "./lib/pilula-na-tela.ts";
-import { memoriaNaPilula, pilulaNaConversa, type Pilula } from "./telas/pilula-do-bot.ts";
+import { memoriaNaPilula, pilulaNaConversa, type NovaTarefaNaAba, type Pilula } from "./telas/pilula-do-bot.ts";
+import { botAceitaTarefa, PLACEHOLDER_NOVA_TAREFA, renderNovaTarefa } from "./telas/nova-tarefa.ts";
+import { abasDoBot, botaoDeAbas, feitasDaFileira, htmlDoMenuDaAba, htmlDoMenuDasOutras, outrasDaFileira, renderFileiraDeAbas } from "./telas/abas-de-tarefa.ts";
+import { abasAoMostrar, abrirAba, CHAVE_DAS_ABAS, CHAVE_DO_MODO_ABAS, fecharAba, gravarAbas, gravarModoAbas, lerAbas, lerModoAbas, podarAbas, vizinhaAoFechar, type AbaDeTarefa } from "./lib/abas-de-tarefa.ts";
 import { guardarCampo, restaurarCampo } from "./lib/campos-de-decisao.ts";
 import { renderNovoBot } from "./telas/novo-bot.ts";
 import { renderNovaRotina } from "./telas/nova-rotina.ts";
-import { contextoInteligencia, nivelDaGaveta, paiDoNivel } from "./telas/detalhes.ts";
+import { aoPedirRegrasDoBot, contextoInteligencia, nivelDaGaveta, paiDoNivel, regrasPodeFazer } from "./telas/detalhes.ts";
 import { avisarNaIdentidade, criarFilaDePerfil, criarSalvarAvatar, ERRO_AO_SALVAR, instalarIdentidade, sobreporPendentes } from "./lib/gaveta-identidade.ts";
 import { renderEspaco } from "./telas/espaco.ts";
 import { diaDe, inicioDoDia } from "./lib/agenda.ts";
 import { agendaPorLer, escNaAgenda } from "./estado/agenda.ts";
-import { diaParaFocarNoMes } from "./telas/agenda-rotinas.ts";
 import { confirmarCriarBot, criarRapido } from "./telas/confirmar-criar-bot.ts";
+import { abrirCriarBot, type DepsCriarBot, type DepsDialogoCriarBot } from "./telas/criar-bot.ts";
+import { ATRASO_PARA_PERGUNTAR_MS, ATRASO_PARA_REFLETIR_MS, faseDasBoasVindas, htmlRefletindo, linhaDasBoasVindas, PLACEHOLDER_DA_PERGUNTA, type FaseDasBoasVindas } from "./telas/boas-vindas.ts";
 import { USOS } from "./telas/este-mac.ts";
 import { botsDaPessoa, lerEstaMaquina, maquinaNova, maquinasDeTrabalho, nomeDeInstanciaSugerido, soComputador } from "./telas/maquinas.ts";
 import { appEncerraNoFim, ITEM_PONTE_FALHOU, itensDaPonte, itensDoServidor, textoDeRemover, type ItemDoFim } from "./telas/remover-computador.ts";
@@ -159,27 +191,32 @@ import { erroDoConectar, erroDoCriar, erroDoExcluir, recusaDoDormir, REGIAO_PADR
 import type { DormirAposMin, TamanhoMaquinaNuvem } from "../src/contracts/provedor-nuvem.ts";
 import { voltaDaTela } from "./lib/volta.ts";
 import { cabecalhoSecao, CHAVE_SECOES_RECOLHIDAS, chaveDaSecao, definirSecaoRecolhida, ESPERA, estadoDaSecao, gruposDaBarra, lerSecoesRecolhidas, type AvisoBot } from "./lib/secoes.ts";
-import { faixaDeConectores, faixaDoUso, type AvisoDoUso, type DadosMenuConta } from "./telas/menu-conta.ts";
+import { faixaDeConectores, faixaDoUso, provedoresDoMenu, type AvisoDoUso, type DadosMenuConta } from "./telas/menu-conta.ts";
 import { renderConectores } from "./telas/conectores.ts";
 import { appsQueFaltam } from "./telas/rotina-precisa.ts";
 import { criarConexoes } from "./lib/conexao.ts";
 import type { Proposta } from "../src/contracts/conversa.ts";
 import { criarProgressoNaTela } from "./telas/progresso-na-fala.ts";
-import { blocosAoVivo, blocosDoHistorico, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, type BlocoDaTimeline } from "./telas/conversa.ts";
+import { blocosAoVivo, blocosDoHistorico, botaoDoPainel, pensarFechado, botoesDoCampo, htmlComposer, pararNoCampoDaTela, renderCabecalhoConversa, renderTimeline, rotuloDoParar, tituloDoParar, tomarTrocaDoIndicador, type BlocoDaTimeline } from "./telas/conversa.ts";
 import { criarArtefatosVivos } from "./telas/artefatos-vivos.ts";
 import { criarDiagramasVivos } from "./telas/diagramas-vivos.ts";
 import { instalarDicaDeLink } from "./lib/dica-link.ts";
+import { umaPorVez } from "./lib/uma-por-vez.ts";
 import { inventarioEmUso, motorDesatualizado, situacaoMotorFora } from "./telas/frota.ts";
 import { ehIa, fraseDoMotivoDaNota, inventarioDaIa, pedeInstalar } from "./telas/ia-fora.ts";
 import { renderRotinas } from "./telas/rotinas.ts";
 import { nomesDosMembros, renderCabecalhoSala, renderNovaSala } from "./telas/sala.ts";
-import { abertasPorAgente, perguntasPorAgente, renderChamada, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
+import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
 import { aparenciaDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
-import { mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
+import { DURACAO_AVISO_LOTE_MS, mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
+import { criarAtualizacaoNaWeb } from "./lib/atualizacao-app.ts";
+import { criarPonteSimuladaNaWeb, versaoSimuladaNaWeb } from "./lib/atualizacao-simulada-web.ts";
+import { mostrarAvisoAtualizado } from "./lib/aviso-atualizado.ts";
+import { cartaoAtualizacao, MS_ENCHER_ATUALIZAR, renderSobre } from "./telas/atualizacao-app.ts";
 import { acessosNaTela, chaveDoClique } from "./lib/acessos-otimistas.ts";
 import { gavetaDeAcessos, loteDeEscritaPedeConfirmacao, ROTULO } from "./telas/acessos-do-app.ts";
-import { conectorDoApp, meusBots, nivelReal } from "./telas/app-acesso.ts";
+import { conectorDoApp, meusBots, nivelReal, situacaoDoApp } from "./telas/app-acesso.ts";
 import type { LoteDeAcessosDto } from "./lib/api.ts";
 import type { Conector } from "../src/contracts/conector.ts";
 import { ACTS_COBERTOS, htmlMenuSegurado, tarefaDaFala, type ExtraDaBarra } from "./lib/menu-segurado-da-fala.ts";
@@ -191,15 +228,16 @@ import { instalarDeslizeLida } from "./lib/deslize-lida-dom.ts";
 import { teclaNaoLidos } from "./lib/teclado-nao-lidos.ts";
 import { fraseDaContagemNoAviso, fraseDoAviso } from "./lib/frase-leitura.ts";
 import { frotaAoSoltar, ordemAoSoltar, velocidadeAutoRolagem, type Destino } from "./lib/arrastar.ts";
-import { rolagemDaBarra, type Faixa } from "./lib/rolagem-barra.ts";
+import { bordasDaLista, rolagemDaBarra, type Faixa } from "./lib/rolagem-barra.ts";
 import { comandoNoTexto, recentesDaConversa } from "./lib/barra.ts";
 import { ajustarAltura, arquivosDaColagem, criarBarra, escolherMencao, htmlSugestoes, sugestoesDaMencao, teclaDoCampo, type ContextoDaBarra } from "./lib/composer.ts";
 import type { ComandosDto } from "../src/contracts/comandos.ts";
-import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, opcoesDaPergunta, proximaDoComposer, textoDaLetra } from "./lib/perguntas.ts";
+import { destinoDoEnvio, enviarPeloComposer, idsDaResposta, modoDoComposer, type ResultadoEnvio, opcoesDaPergunta, proximaDoComposer, textoDaLetra } from "./lib/perguntas.ts";
 import { acharBotao, aplicarFocoDaFila, botaoEmFoco, proximoDaFila, VALIDADE_DO_FOCO_MS, type FocoDaFila } from "./lib/foco-da-fila.ts";
 import { aplicarEncolhidos, decididaNaConversa, type DecididaNestaAba } from "./lib/foco-do-encolhido.ts";
 import { seletorDoFocoNaRegiao } from "./lib/foco-do-bloco.ts";
-import { itensDaRecusa } from "./lib/recusa-da-aprovacao.ts";
+import { aprovacoesAbertasDaConversa, itensDaRecusa, PLACEHOLDER_COM_APROVACAO } from "./lib/recusa-da-aprovacao.ts";
+import { atalhoEnviarTodos } from "./telas/rascunhos-de-envio.ts";
 import { criarEnvios, enviarUmaVez } from "./lib/envio-idempotente.ts";
 import { iniciarMotorLigacao } from "./lib/ligacao.ts";
 import { ICONE_LIGACAO, VELOCIDADES, VERSAO_CONSENTIMENTO, VOZES } from "./telas/ligacao.ts";
@@ -209,9 +247,12 @@ import { anuncioDaLeitura, criarTocadorDeLeitura, TEXTO_FALHA_LEITURA, type Leit
 import { criarControleDitado } from "./telas/ditado-controle.ts";
 import { ditadoNaPilula, juntarAoCampo, textoDaFalha } from "./telas/ditado.ts";
 import { nomeDoEmail } from "./telas/conversa-texto.ts";
-import { criarTelaOnboarding, guardarFocoDaCamada } from "./telas/onboarding-controle.ts";
+import { criarTelaOnboarding } from "./telas/onboarding-controle.ts";
+import type { AcoesDoCartaoIa } from "./react/onboarding/cartao-ia.tsx";
+import type { DadosDaAcao } from "./react/onboarding/tipos.ts";
+import type { InicialDoMarketplace } from "./react/marketplace/tipos.ts";
 import { movimentoReduzido } from "./lib/movimento.ts";
-import { alvoDoQueEspera, levarAoAlvo, passoDoAtalho, type AlvoDoAtalho } from "./lib/levar-ao-alvo.ts";
+import { alvoDoQueEspera, levarAoAlvo, passoDoAtalho, REALCE_MS, type AlvoDoAtalho } from "./lib/levar-ao-alvo.ts";
 import { criarBuscaCelular, limparEntradaDaBusca } from "./telas/busca-celular.ts";
 import { alvoDepoisDeFalar, alvoNoFimDaConversa, apagarTodosOsRecentes, appInerte, buscarSemOcupado, chaveDosRecentes, dataCurta } from "./lib/busca-celular.ts";
 import type { MensagemAchada } from "../src/contracts/busca.ts";
@@ -221,26 +262,207 @@ import type { MotivoAvaliacaoLigacao } from "./lib/api.ts";
 import { aceitaDoBot } from "./lib/capacidades.ts";
 import { mimeDe, motivoRecusa, POR_MENSAGEM, renderItens as renderItensAnexo, resumo as resumoAnexos, retirarDaFila, contarNaFila, prontosDaFila, soltarEhDoChat, seletorDoClipe, type Aceita, type ItemAnexo } from "./lib/anexos.ts";
 import type { EstadoTrabalho, TipoLinha } from "../src/contracts/trabalho.ts";
-import { aberto, abertosDoBot, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, trabalhoPorId, trabalhosConhecidos } from "./lib/trabalhos.ts";
+import { ajusteDoHash, ajustePorId, linkDoAjuste } from "./lib/ajustes.ts";
+import { aplicarBalaoCor, lerBalaoCor } from "./lib/balao.ts";
+import { criarVigiaDeSons, gravarSons, lerSons, notasDoSom, tocarNotas, type ContextoDeAudio, type TipoSom } from "./lib/sons.ts";
+import { criarPaleta } from "./lib/paleta-na-tela.ts";
+import { itensDaPaleta, type ItemPaleta } from "./lib/paleta.ts";
+import { aguardandoPorAgente, contadorDosTrabalhos, rotuloDosTrabalhos, textoAguardando } from "./lib/aguardando.ts";
+import { pedidosAbertos } from "./lib/avisos.ts";
+import { aberto, abertosDoBot, acoesDeFazer, leituraDoMac, listaPararTasks, telaAoFechar, telaDaTask, textoPararTasks, tituloCurto, trabalhoPorId, trabalhosConhecidos } from "./lib/trabalhos.ts";
 import type { EventoTrilhaQuadro } from "../src/contracts/trilha-quadro.ts";
 import { criarTelemetria } from "./lib/telemetria-linhas.ts";
 import { chaveDaAtividade, criarVigiaDaAtividade, diaLocal, ehFiltroAtividade, fusoLocal, rotuloDoDia } from "./lib/atividade-do-bot.ts";
 import { anuncioDoFiltro, chaveDasDecisoes, diaDoDeslize, ehFiltroDecisoes, ehPeriodoDoCsv, periodoDoCsv, totalDoFiltro, type ExportarCsv } from "./lib/decisoes-do-bot.ts";
-import { anuncioDosSubagentes, blocosAoVivoDaTask, blocosDoHistoricoDaTask, htmlAcoesDaTask, renderIconeTrabalhos, renderTelaLinha, renderTodosOsTrabalhos, renderTopoTrabalho } from "./telas/trabalhos.ts";
-import { renderTrabalhosPorBot, sinalDoBot } from "./telas/linha-do-dono.ts";
-import { temDonos } from "./lib/dono.ts";
+import { anuncioDosSubagentes, blocosAoVivoDaTask, blocosDoHistoricoDaTask, renderIconeTrabalhos, renderTelaLinha, renderTopoTrabalho } from "./telas/trabalhos.ts";
+import { botsDaNovaTarefa, htmlDoMenuDaNovaTarefa, htmlDoMenuDeBots, renderTelaTarefas } from "./telas/tela-tarefas.ts";
+import { campoDaTarefa, htmlSaidaDaParada, perguntaAberta, TEXTO_CONTINUAR, type CampoDaTarefa } from "./telas/tarefa-detalhada.ts";
+import { sinalDoBot, sinalNaGrade } from "./telas/linha-do-dono.ts";
 import { executarRotinaComConfirmacao } from "./lib/executar-rotina.ts";
 import { copiarPorSelecao, type DocParaCopiar } from "./lib/copiar-por-selecao.ts";
 import { criarBuscaNaConversa } from "./telas/busca-na-conversa.ts";
 import { ligarTopoEncolhe, ROLAVEIS_DO_TOPO } from "./lib/topo-encolhe.ts";
 import { abaDoDestino, alvoDoFocoNaTabBar, contagemDaAbaSuaVez, criarHistoricoDaFolha, ficaAoEscolherRecente, destinoDaAbaQuadros, ehAba, itensDaAbaSuaVez, lerListaDaAbaQuadros, recentes, type AbaDoInicio, type QuadroDaLista } from "./lib/tab-bar-celular.ts";
+import { botDasTarefas, resumoDoQuadro, resumosDosQuadros, tarefasEmAndamento } from "./lib/tarefas-da-barra.ts";
 import { renderAbaQuadros, renderAbaSuaVez, renderFolhaRecentes, renderTabBar, renderTituloCompacto, renderTituloGrande } from "./telas/tab-bar-celular.ts";
 import { ligarTecladoVisivel } from "./lib/teclado-visivel.ts";
 import type { ItemDoMenuDaPilula } from "./lib/gesto-da-pilula.ts";
 import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deveMostrarDica, escFechaABusca, gravarMarca, lerMarca, type Marcas, type ViaDaBusca } from "./lib/descoberta-da-busca.ts";
+import { comVerificadorDoProvisorio, criarTravaDeSessao } from "./lib/trava-sessao.ts";
 // NOD-117: as teclas dos atalhos mudam com o lugar (app do Mac, navegador no Mac, Windows/Linux): web/lib/atalhos.ts.
 const LUGAR_TECLADO = lugarAtual();
+/** COP-12: ⌘/, "?", Suporte › Atalhos de teclado e a paleta abrem o diálogo de atalhos com as teclas deste lugar. */
+const abrirAtalhos = (): void => abrirFolhaDeAtalhos(linhasDaFolha(LUGAR_TECLADO));
+// ADR-187 §7 (2026-11-18): ⌘N é a nova tarefa; o novo bot foi para ⌘⇧N e o chat em grupo ficou sem tecla.
+const ATALHO_NOVA_TAREFA = atalhoDaNovaTarefa(LUGAR_TECLADO);
 const ATALHO_NOVO_BOT = atalhoDoNovoBot(LUGAR_TECLADO);
+/** ADR-167: o modificador mostrado nas teclas da paleta ⌘K (o mesmo da folha de atalhos). */
+const MOD_DA_PALETA = LUGAR_TECLADO === "app-mac" ? "⌘" : LUGAR_TECLADO === "navegador-mac" ? "⌃" : "Alt";
+
+/**
+ * ADR-167 (tela 08): a paleta ⌘K de tudo. Os itens saem do estado na hora de abrir: os bots na ordem da barra (o DOM, como
+ * o ⌘1–9), os trabalhos do mais recente, os ajustes do catálogo e as ações. Ela vive fora do render() (web/lib/paleta-na-tela.ts).
+ */
+const paleta = criarPaleta({
+  doc: document,
+  itens: () => {
+    const agentes = estado.frota?.agentes ?? [];
+    const porId = new Map(agentes.map((a) => [a.id, a]));
+    const ordem = [...new Set([...document.querySelectorAll<HTMLElement>("#sidebar .list [data-bot-contexto]")].map((n) => n.dataset.botContexto ?? ""))];
+    const bots = [...ordem.map((id) => porId.get(id)).filter((a) => a !== undefined), ...agentes.filter((a) => !ordem.includes(a.id))];
+    const trabalhos = [...(estado.trabalhos?.trabalhos ?? [])].sort((a, b) => b.criadoEm - a.criadoEm).slice(0, 30);
+    // Paper 08: com a paleta vazia, o bot aberto primeiro e depois os de conversa mais recente.
+    const t = estado.tela;
+    const aberto = t.tipo === "conversa" ? t.agenteId : null;
+    const recentes = [...agentes].sort((x, y) => (y.ultimaMensagem?.em ?? 0) - (x.ultimaMensagem?.em ?? 0)).map((a) => a.id).filter((id) => id !== aberto);
+    const recencia = new Map([...(aberto ? [aberto] : []), ...recentes].map((id, i) => [id, i] as const));
+    const botAberto = aberto ? porId.get(aberto) : undefined;
+    return itensDaPaleta({
+      mod: MOD_DA_PALETA,
+      atuais: { modo: MODO_NA_PALETA[botAberto?.modoAprovacao ?? "manual"] ?? "Manual", temaEscuro: document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches), quickChat: "⌥", rotinasAtivas: estado.rotinas.filter((r) => r.rotina.estado === "ativa" && r.rotina.ownerId === estado.sessao?.pessoaId).length },
+      bots: bots.map((a) => ({ id: a.id, nome: a.nome, titulo: a.titulo, conversaId: a.conversaId, previa: previaDoBot(a), recencia: recencia.get(a.id) ?? 999 })),
+      trabalhos: trabalhos.map((t) => ({ id: t.id, titulo: t.titulo, botNome: porId.get(t.agenteId)?.nome ?? "", quando: horaDaFala(new Date(t.criadoEm).toISOString()) })),
+      salas: estado.salas.map(({ sala, membros }) => ({ id: sala.id, nome: sala.nome, conversaId: sala.conversaId, membros: membros.map((m) => porId.get(m.agenteId ?? "")?.nome).filter(Boolean).join(", ") })),
+    });
+  },
+  avatar: (agenteId) => { const a = estado.frota?.agentes.find((x) => x.id === agenteId); return a ? iconeAgente(a, "") : ""; },
+  executar: (item) => executarDaPaleta(item),
+});
+
+const MODO_NA_PALETA: Readonly<Record<string, string>> = { manual: "Manual", automatico: "Automático", total: "Total" };
+
+/**
+ * Paper 08: "Pausar todas as rotinas". Desfazer a pausa em lote (protótipo do Paper, 2026-11-19): uma chamada só, que
+ * marca as rotinas com um lote, e o aviso de 15 s com o tempo à vista, Desfazer e ×. O Desfazer volta SÓ esse lote — as
+ * que a pessoa já tinha pausado antes ficam como estão —; passado o aviso, o lote segue em Ajustes › Rotinas.
+ */
+async function pausarTodasAsRotinas(): Promise<void> {
+  if (!api) return;
+  const cliente = api;
+  let r: Awaited<ReturnType<typeof cliente.pausarTodasRotinas>>;
+  try { r = await cliente.pausarTodasRotinas(); } catch { mostrarAvisoDesfazer({ texto: "Não deu para pausar as rotinas. Nada mudou." }); return; }
+  dispatch({ tipo: "invalidar", quais: ["rotinas"] });
+  const lote = r.lote;
+  if (!lote || r.rotinaIds.length === 0) { mostrarAvisoDesfazer({ texto: "Nenhuma rotina ativa para pausar" }); return; }
+  const n = r.rotinaIds.length;
+  mostrarAvisoDesfazer({
+    texto: `${n} ${n === 1 ? "rotina pausada" : "rotinas pausadas"}`,
+    ms: DURACAO_AVISO_LOTE_MS,
+    contagem: true,
+    fechar: true,
+    aoDesfazer: () => reativarLoteDeRotinas(lote.id),
+  });
+}
+
+/** O Desfazer do aviso e o "Reativar as N" de Ajustes › Rotinas: a mesma rota, que volta só as rotinas do lote. */
+async function reativarLoteDeRotinas(loteId: string): Promise<void> {
+  if (!api) return;
+  const cliente = api;
+  let r: Awaited<ReturnType<typeof cliente.reativarLoteDeRotinas>>;
+  try { r = await cliente.reativarLoteDeRotinas(loteId); } catch { mostrarAvisoDesfazer({ texto: "Não deu para reativar as rotinas. Tente de novo em Ajustes › Rotinas." }); return; } finally { dispatch({ tipo: "invalidar", quais: ["rotinas"] }); }
+  const n = r.reativadas.length;
+  mostrarAvisoDesfazer({ texto: n === 0 ? "Nenhuma rotina para reativar" : `${n} ${n === 1 ? "rotina reativada" : "rotinas reativadas"}` });
+}
+
+function executarDaPaleta(item: ItemPaleta): void {
+  const d = item.destino;
+  if (d.tipo === "conversa") { navegar({ tipo: "conversa", conversaId: d.conversaId, agenteId: d.agenteId }); requestAnimationFrame(() => document.getElementById("composer-texto")?.focus()); return; }
+  if (d.tipo === "trabalho") { abrirTrabalho(d.id); return; }
+  if (d.tipo === "sala") { navegar({ tipo: "sala", salaId: d.salaId, conversaId: d.conversaId }); return; }
+  if (d.tipo === "ajuste") { irAoAjuste(d.id); return; }
+  switch (d.id) {
+    case "novo-bot": executarAtalho({ tipo: "novo-bot" }); return;
+    case "nova-tarefa": abrirNovaTarefa(); return;
+    case "nova-sala": navegar({ tipo: "nova-sala" }); return;
+    case "barra": executarAtalho({ tipo: "barra" }); return;
+    case "ajustes": abrirEspaco("geral"); return;
+    case "trabalhos": navegar({ tipo: "trabalhos" }); return;
+    case "tarefas": navegar({ tipo: "tarefas" }); return;
+    case "sua-vez": navegar({ tipo: "sua-vez" }); return;
+    case "nao-lidos": navegar({ tipo: "nao-lidos" }); return;
+    case "marketplace": navegar({ tipo: "conectores" }); return;
+    case "atalhos": abrirAtalhos(); return;
+    case "modo-dev": void agir(alternarModoDev); return;
+    case "tema-claro": escolherTema("claro"); render(); return;
+    case "tema-escuro": escolherTema("escuro"); render(); return;
+    case "tema-sistema": escolherTema("sistema"); render(); return;
+    case "pausar-rotinas": void pausarTodasAsRotinas(); return;
+    // ADR-167 (tela 01): a vitrine do design system, página interna.
+    case "design-system": window.open("/design-system.html", "_blank", "noopener"); return;
+    // No app do Mac o ⌥Espaço abre o Quick Chat; no navegador, a mesma janela numa janela pequena.
+    case "quick-chat": window.open("/?janela=quick-chat", "nod-quick-chat", "width=608,height=440"); return;
+  }
+}
+
+/**
+ * Frente de comportamento ("o ⌘K encontra Bots, chats, configurações e ações"): o grupo Conversas são os trabalhos,
+ * que só hidratavam ao abrir a faixa de trabalhos. Abrir a paleta pede a lista se ela ainda não veio; a paleta relê os itens
+ * a cada busca.
+ */
+function abrirPaleta(): void {
+  if (!estado.trabalhos) dispatch({ tipo: "invalidar", quais: ["trabalhos"] });
+  paleta.abrir();
+}
+
+/**
+ * ADR-167: leva ao ajuste — abre as Configurações na seção dele e, quando a linha existe (id="ajuste-<id>"), rola até ela e
+ * a realça. Os atalhos de teclado são o diálogo deles (COP-12), não o bloco Ajuda.
+ */
+function irAoAjuste(id: string): void {
+  const a = ajustePorId(id);
+  if (!a) return;
+  if (a.id === "atalhos") { abrirAtalhos(); return; }
+  // O link de fora (ou a paleta) leva à linha mesmo com uma busca aberta nas Configurações: a busca sai.
+  termoAjustes = "";
+  abrirEspaco(a.secao);
+  // A seção que carrega depois (Aprovações) desenha a linha quando os dados chegam: procura por até ~3 s.
+  // O redesenho da seção que acabou de carregar troca o nó: o realce é reposto na linha nova até o fim dele.
+  const manterRealce = (ate: number): void => {
+    if (Date.now() >= ate) { document.getElementById(`ajuste-${a.id}`)?.classList.remove("realce"); return; }
+    document.getElementById(`ajuste-${a.id}`)?.classList.add("realce");
+    setTimeout(() => manterRealce(ate), 100);
+  };
+  const procurar = (resta: number): void => {
+    const linha = document.getElementById(`ajuste-${a.id}`);
+    if (linha) { levarAo(linha); manterRealce(Date.now() + REALCE_MS); } else if (resta > 0) setTimeout(() => procurar(resta - 1), 100);
+  };
+  requestAnimationFrame(() => procurar(30));
+}
+/** ADR-167: o que as Configurações leem do design system novo (balão, sons e a busca dos ajustes). */
+function extrasDoDs(): { balaoCor: boolean; sons: ReturnType<typeof lerSons>; buscaAjustes: string } {
+  return { balaoCor: lerBalaoCor(), sons: lerSons(), buscaAjustes: termoAjustes };
+}
+/** O que as Configurações ganharam na frente nova: o visual (ADR-167), Aprovações (ADR-166) e o Mac (ADR-173). Num só
+ * extra para o render() de Seu espaço caber na guarda da NOD-370. */
+function extrasDasConfiguracoes(): ReturnType<typeof extrasDoDs> & { aprovacoes: () => string; cofre: () => string; mac: AjustesMac | null; sobre: () => string } {
+  return { ...extrasDoDs(), aprovacoes: htmlAprovacoes, cofre: () => renderCofre(telaCofre.estado(), estado.agora || Date.now()), mac: ajustesMac, sobre: () => renderSobre(atualizacaoNaWeb.tela(), atualizacaoNaWeb.temPonte(), Date.now()) };
+}
+/** ADR-167: o termo da busca das Configurações; fechar as Configurações ou escolher um achado o limpa. */
+let termoAjustes = "";
+/** ADR-167: os sons opcionais (web/lib/sons.ts). O AudioContext nasce no primeiro som (o navegador exige um gesto antes). */
+let contextoDeAudio: AudioContext | null = null;
+const vigiaDeSons = criarVigiaDeSons({
+  escolha: () => lerSons(),
+  agora: () => Date.now(),
+  tocar: (tipo) => {
+    try {
+      contextoDeAudio ??= new AudioContext();
+      if (contextoDeAudio.state === "suspended") void contextoDeAudio.resume().catch(() => undefined);
+      tocarNotas(contextoDeAudio as unknown as ContextoDeAudio, notasDoSom(tipo));
+    } catch {
+      // Sem Web Audio (navegador antigo, política do sistema): o som é opcional, o resto segue.
+    }
+  },
+});
+/** O link de um ajuste aberto de fora (`#ajuste=tema`): vale uma vez, quando a sessão e a frota chegam. */
+let ajusteDoLink: string | null = ajusteDoHash(location.hash)?.id ?? null;
+window.addEventListener("hashchange", () => { const a = ajusteDoHash(location.hash); if (a) { ajusteDoLink = a.id; render(); } });
+// Paper 05b (rodada 2): o pensamento nasce aberto com o turno andando; fechar pela pessoa fica lembrado ("toggle" não
+// borbulha, por isso a captura).
+document.addEventListener("toggle", (ev) => {
+  const d = ev.target;
+  if (d instanceof HTMLDetailsElement && d.classList.contains("pensar") && d.dataset.fase !== "pronto" && d.dataset.disclosure?.startsWith("pensar-")) pensarFechado(d.dataset.disclosure.slice("pensar-".length), !d.open);
+}, true);
 
 /**
  * main.ts: sessão → hidratar → SSE (ADR-016) → laço "dispatch → reidratar o que o reducer invalidou →
@@ -248,9 +470,99 @@ const ATALHO_NOVO_BOT = atalhoDoNovoBot(LUGAR_TECLADO);
  * exige o app aberto: sem executor a tela continua respondendo (web-sem-app).
  */
 let estado: Estado = estadoInicial;
-/** Janela do Desfazer ao cancelar uma mensagem da fila. */
-const CANCELAR_DESFAZER_MS = 5_000;
+/** ADR-179 (fase 1 do React): a mesma `estado` vista pelas regiões React (useLoja). render() avisa; nenhuma região montada ainda. */
+const lojaDoEstado = criarLoja(() => estado);
+/** O Marketplace em modal (web/react/marketplace/; as funções moram junto de `abrirModalDoMarketplace`). Aqui no topo: render() lê. */
+let moduloMarketplace: typeof import("./react/marketplace/regiao.tsx") | null = null;
+let carregandoMarketplace = false;
+let modalDoMarketplace: { vez: number; inicial: InicialDoMarketplace } | null = null;
+let vezDoMarketplace = 0;
+let apiDoMarketplace: ReturnType<(typeof import("./react/marketplace/regiao.tsx"))["criarApiReal"]> | null = null;
+/**
+ * ADR-189 (fases 3, 4 e 6 da ADR-179): as regiões que o React desenha a partir do mesmo HTML das telas. Medido em
+ * 2026-11-19 (scripts/carga-tela): regravar a barra inteira a cada frame de outro bot recriava todas as linhas e mascotes;
+ * com o React só o que mudou toca o DOM, e o mascote fica no mesmo nó. A região é entregue pelo registro de
+ * `web/lib/regioes.ts` (`entregarRegiao`): quem escreve nela continua chamando `regiao()`. Enquanto o módulo baixa, ou com
+ * `?<nome>-react=0` na URL, a região segue por string.
+ */
+const REGIOES_NO_REACT: readonly (readonly [string, RegiaoReact])[] = [["sidebar", "barra"], ["cabecalho", "cabecalho"], ["detalhes", "detalhes"], ["espaco", "espaco"]];
+function guardadoDoNavegador(): Storage | null {
+  try { return window.localStorage; } catch { return null; }
+}
+const regioesLigadas = new Set(REGIOES_NO_REACT.filter(([, nome]) => reactNaRegiao(nome, window.location.href, guardadoDoNavegador())).map(([id]) => id));
+let moduloDoHtml: typeof import("./react/html/regiao-por-html.tsx") | null = null;
+
+/**
+ * Entrega a região ao React (no-op se já entregue, desligada ou com o módulo a caminho). O cabeçalho fica por string com a
+ * busca aberta: ela move a pílula do bot para dentro do campo (`encaixarNoCabecalho`), e o React não aceita nó dele
+ * levado para fora. A troca guarda a rolagem e o foco do desenho que sai: o React redesenha o mesmo HTML em nós novos.
+ */
+function entregarAoReact(id: string): void {
+  const el = document.getElementById(id);
+  if (!moduloDoHtml || !el || !regioesLigadas.has(id) || regiaoEntregue(id)) return;
+  if (id === "cabecalho" && buscaNaConversa.aberta()) return;
+  const todos = [...el.querySelectorAll("*")];
+  const rolagens = todos.flatMap((n, i) => (n.scrollTop > 0 || n.scrollLeft > 0 ? [{ i, topo: n.scrollTop, esquerda: n.scrollLeft }] : []));
+  const ativo = document.activeElement instanceof HTMLElement && el.contains(document.activeElement) ? document.activeElement : null;
+  entregarRegiao(id, moduloDoHtml.montarRegiaoPorHtml(id));
+  const novos = [...el.querySelectorAll("*")];
+  for (const r of rolagens) { const n = novos[r.i]; if (n) { n.scrollTop = r.topo; n.scrollLeft = r.esquerda; } }
+  if (ativo && !ativo.isConnected) focarDeNovo(ativo, el);
+}
+
+/**
+ * ADR-189 (fase 6 da ADR-179): as duas partes da conversa (o histórico e o ao vivo) desenhadas pelo React, bloco a bloco,
+ * no lugar do `regiaoPorBlocos`. Enquanto o módulo baixa (ou com `?conversa-react=0`), seguem pelo desenho por string.
+ */
+const conversaNoReact = reactNaRegiao("conversa", window.location.href, guardadoDoNavegador());
+const partesNoReact = new Map<string, import("./react/html/regiao-por-html.tsx").BlocosNoReact>();
+const conversaReact = (): typeof import("./react/html/regiao-por-html.tsx") | null => (conversaNoReact ? moduloDoHtml : null);
+function parteNoReact(id: string): import("./react/html/regiao-por-html.tsx").BlocosNoReact | null {
+  const el = document.getElementById(id);
+  const m = conversaReact();
+  if (!m || !el) return null;
+  const montada = partesNoReact.get(id);
+  if (montada?.em(el)) return montada;
+  // A casca da timeline foi regravada (outra tela, outra conversa): o root velho ficou num nó solto.
+  montada?.desmontar();
+  esquecerRegiao(id);
+  const nova = m.montarBlocosNoReact(el, id, { focarDeNovo: (focado, raiz) => focarDeNovo(focado, raiz) });
+  partesNoReact.set(id, nova);
+  return nova;
+}
+function blocosDaConversaMudariam(id: string, blocos: readonly BlocoDaTimeline[]): boolean {
+  if (!conversaReact()) return blocosMudariam(id, blocos);
+  const montada = partesNoReact.get(id);
+  return !montada?.em(document.getElementById(id)) || montada.mudariam(blocos);
+}
+function desenharBlocosDaConversa(id: string, blocos: readonly BlocoDaTimeline[]): HTMLElement[] {
+  const parte = parteNoReact(id);
+  return parte ? parte.desenhar(blocos) : regiaoPorBlocos(id, blocos);
+}
+if (conversaNoReact || regioesLigadas.size > 0) {
+  void import("./react/html/regiao-por-html.tsx").then((m) => {
+    moduloDoHtml = m;
+    for (const id of regioesLigadas) entregarAoReact(id);
+    if (estado.sessao) render();
+  }, () => {
+    // Sem o módulo (a rede caiu no meio do boot), as regiões continuam por string: nada a mostrar à pessoa.
+  });
+}
 let api: Api | null = null;
+
+/** ADR-166: Configurações › Aprovações. O estado é da seção (web/lib/ajustes-aprovacao.ts); a lista de bots é a da dona. */
+function botsDaTelaAprovacoes(): BotDaTela[] {
+  return botsDaPessoa(estado).map((a) => ({ id: a.id, nome: a.nome, modo: a.modoPedido ?? a.modoAprovacao ?? "manual" }));
+}
+const htmlAprovacoes = (): string => renderConfigAprovacoes(telaAprovacoes.estado(), botsDaTelaAprovacoes());
+/** Paper 07 (rodada 2): Configurações › Cofre, lido ao abrir a seção (web/lib/cofre.ts). */
+const telaCofre = criarTelaCofre({ api: () => api, render: () => render() });
+const telaAprovacoes = criarTelaAprovacoes({
+  api: () => api,
+  bots: botsDaTelaAprovacoes,
+  render: () => render(),
+  botsMudaram: () => dispatch({ tipo: "invalidar", quais: ["frota", "gestao"] }),
+});
 let live: LiveEvents | null = null;
 let composerDe: string | null = null;
 /** O pedido de foco depois de responder em "Sua vez" (web/lib/foco-da-fila.ts); null sem pedido. */
@@ -270,6 +582,19 @@ function marcarDecidida(el: HTMLElement, id: string | undefined): void {
 // NOD-156: a chave de idempotência da fala nasce aqui, uma por fala, e sobrevive ao reenvio depois de uma falha.
 const envios = criarEnvios();
 const rascunhos = criarRascunhos(() => { try { return localStorage; } catch { return null; } });
+/** Item 5 do chat: o cache das conversas (memória + IndexedDB, um por pessoa; até a sessão entrar, só a memória). */
+let cacheConversas = criarCacheDeConversas(armazemEmMemoria());
+/** O journal de envio da pessoa (web/lib/journal-envio.ts); nasce com a sessão. */
+let journal: Journal | null = null;
+/** A barra em dia: depois do boot, com a aba visível, relê uma por vez as conversas da barra que já têm réplica. */
+const revalidacaoDaBarra = criarRevalidacaoEmSegundoPlano({
+  candidatas: () => conversasDaBarraComReplica(),
+  revalidar: (id) => revalidarDaBarra(id),
+  visivel: () => !document.hidden,
+  agendar: (fn, ms) => void window.setTimeout(fn, ms),
+});
+/** Item 5 do chat: sem cache, a conversa anterior fica até 80 ms; depois o spinner (o redesenho agendado o mostra). */
+const esperaDoSpinner = criarEsperaDoSpinner((fn, ms) => void window.setTimeout(fn, ms), () => render());
 /**
  * O progresso na fala que a timeline mostra agora (chat limpo, PR 8): medido pela rolagem; a pílula do bot some com ele à
  * vista (web/lib/pilula.ts).
@@ -295,7 +620,6 @@ const pilula = criarPilulaNaTela(document.getElementById("faixa-trabalhos") as H
 let pilulaAtual: { pilula: Pilula; telemetria: string | null } | null = null;
 /** O estado de cada frente do bot na última olhada (a região viva diz quando uma termina); null = conversa nova. */
 let frentesVistas: { conversaId: string; estados: Map<string, EstadoTrabalho> } | null = null;
-let reidratando = false;
 let ambienteBanco: AmbienteBancoDto | null = null;
 /**
  * Telemetria das linhas do chat (definido em 2026-10-07, #191): cada linha mostrada conta uma vez por carga da página e
@@ -320,6 +644,45 @@ function contarLinhasMostradas(): void {
  * sessionStorage desta aba e, na próxima sessão, a task abre de novo. As outras telas abrem como sempre.
  */
 const CHAVE_TASK_ABERTA = "nod.taskAberta";
+
+/**
+ * ADR-187 §6 (lote B, passo 3, definido em 2026-11-18): as abas das tarefas que a pessoa abriu (as regras moram em
+ * web/lib/abas-de-tarefa.ts). Quais estão abertas fica no localStorage deste navegador, conveniência de quem vê; sem
+ * storage, a fileira funciona do mesmo jeito, só não lembra depois de recarregar.
+ */
+let abasDeTarefa: AbaDeTarefa[] = (() => {
+  try { return lerAbas(window.localStorage.getItem(CHAVE_DAS_ABAS)); } catch { return []; }
+})();
+function guardarAbas(novas: AbaDeTarefa[]): void {
+  const mudou = gravarAbas(novas) !== gravarAbas(abasDeTarefa);
+  abasDeTarefa = novas;
+  if (!mudou) return;
+  try { window.localStorage.setItem(CHAVE_DAS_ABAS, gravarAbas(novas)); } catch { /* sem storage, as abas valem só nesta página */ }
+}
+/**
+ * Modo pílula × modo abas (Paper 10b e 10c A, validação de 2026-11-18): os bots em modo abas. Abrir uma tarefa ou o botão
+ * de abas liga; só "Fechar abas" (ou tirar a última aba) desliga. Guardado como as abas, conveniência de quem vê.
+ */
+let modoAbas: Set<string> = (() => {
+  try { return lerModoAbas(window.localStorage.getItem(CHAVE_DO_MODO_ABAS)); } catch { return new Set<string>(); }
+})();
+function guardarModoAbas(agenteId: string, ligado: boolean): void {
+  if (!agenteId || modoAbas.has(agenteId) === ligado) return;
+  modoAbas = new Set(modoAbas);
+  if (ligado) modoAbas.add(agenteId); else modoAbas.delete(agenteId);
+  try { window.localStorage.setItem(CHAVE_DO_MODO_ABAS, gravarModoAbas(modoAbas)); } catch { /* sem storage, o modo vale só nesta página */ }
+}
+/** A Conversa deste bot mostra a fileira: modo abas ligado e alguma aba guardada (a lista, não a tela, que pode estar lendo). */
+function fileiraNaConversa(agenteId: string): boolean {
+  return modoAbas.has(agenteId) && abasDeTarefa.some((a) => a.agenteId === agenteId);
+}
+/** A aba com o nome em edição (duplo clique, F2 ou "Renomear"): o campo é redesenhado com o texto e o cursor de agora. */
+let renomeandoAba: { id: string; texto: string; inicio: number | null; fim: number | null } | null = null;
+/** O nome novo, enquanto o servidor não devolve a tarefa com ele (a aba não pisca o nome velho). */
+const titulosDasAbas = new Map<string, string>();
+let ultimoCliqueNaAba: { id: string; em: number } | null = null;
+/** A aba com o menu aberto (o chevron dela fica à vista mesmo se a fileira for redesenhada). */
+let abaComMenu: string | null = null;
 function lembrarTaskAberta(tela: Tela): void {
   try {
     if (tela.tipo === "trabalho") window.sessionStorage.setItem(CHAVE_TASK_ABERTA, JSON.stringify({ id: tela.id, voltar: tela.voltar.tipo === "conversa" || tela.voltar.tipo === "trabalhos" ? tela.voltar : { tipo: "inicio" } }));
@@ -345,7 +708,11 @@ let entrada: {
   conta?: { etapa: "entrar" | "recuperar"; erro: string | null; enviadoPara: string | null; ocupado: boolean };
   /** NOD-345: a página do link de recuperação (`#redefinir=<token>`); o token sai da URL na hora. */
   redefinir?: { token: string; erro: string | null; vencido: boolean; ocupado: boolean } | null;
+  /** #81: a tela "Já usa o nod?" da primeira visita na web, antes do espaço provisório. */
+  primeiro?: { ocupado: boolean; erro: string | null } | null;
 } = { modo: null, recusado: false };
+/** Login e criação do espaço mudam o mesmo cookie; nunca podem correr em paralelo nesta aba. */
+const travaDaSessao = criarTravaDeSessao();
 
 // definido em 2026-09-24 (revisão da interface): a tela principal é o chat; quem esconde o painel do
 // bot espera achá-lo escondido na próxima conversa e no próximo carregamento.
@@ -369,31 +736,65 @@ const celular = criarCelular(() => {
 });
 // A busca do celular aberta a partir da inicial: a conversa escolhida nela é uma escolha nova (NOD-422).
 let buscaDaInicial = false;
-// NOD-119: a densidade e a largura da barra (web/lib/densidade.ts). O index.html já pintou antes do primeiro quadro;
-// mudarBarra é o caminho único da escolha em Configurações, da borda e do card do chat.
+// ADR-179: a largura da barra (web/lib/densidade.ts). O index.html já pintou antes do primeiro quadro; mudarBarra é o
+// caminho único do puxador, das teclas, do ⌘B e do card do chat.
 let barraAtual: Barra = lerBarra();
-// A conversa depende da barra só pelo card do chat: ela lê `barraNaConversa`, que acompanha a barra quando o arrasto para.
-let barraNaConversa = serializar(barraAtual);
-const acompanharNaConversa = adiar<null>(250, () => { barraNaConversa = serializar(barraAtual); render(); });
+// A conversa depende da barra só pelo card do chat: ela lê `barraNaConversa`, que acompanha a barra quando ela para.
+let barraNaConversa = chaveDaBarra(barraAtual);
+const acompanharNaConversa = adiar<null>(250, () => { barraNaConversa = chaveDaBarra(barraAtual); render(); });
 const gravarNoMac = adiar<BarraDesktop | null>(250, (v) => { void window.nodDesktop?.definirBarra?.(v).catch(() => undefined); });
-function mudarBarra(nova: Barra, naHora = false): void {
-  const gravarFora = naHora ? gravarNoMac.agora : gravarNoMac;
-  barraAtual = aplicarBarra(nova, document.documentElement, celular.ativo(), undefined, gravarFora);
-  acompanharNaConversa(null);
+/** A janela e o painel da direita (aberto e à vista só a partir de 1100 px, fora do raio-x): o máximo da barra. */
+function medidasDaBarra(): { janela: number; painel: number } {
+  const app = document.querySelector(".app");
+  const painel = window.innerWidth >= 1100 && !!app?.classList.contains("com-detalhes") && !app.classList.contains("detalhes-ocultos") && !document.body.classList.contains("com-raio-x") ? PAINEL_DETALHES : 0;
+  return { janela: window.innerWidth, painel };
+}
+function pintarBarraAgora(): void {
+  const m = medidasDaBarra();
+  pintarBarra(barraAtual, document.documentElement, celular.ativo(), buscaAberta || termoBusca() !== "", m.janela, m.painel);
   const borda = document.getElementById("borda-barra");
-  if (borda) atualizarBorda(borda, barraAtual);
-  etiquetaDaBarra?.esconder();
+  if (borda) atualizarBorda(borda, barraAtual, m);
+}
+/** `gravar` falso: o arrasto ao vivo (só pinta; redesenha a barra só quando entra ou sai da compacta). */
+function mudarBarra(nova: Barra, naHora = false, gravar = true): void {
+  const antes = barraAtual;
+  const m = medidasDaBarra();
+  if (gravar) barraAtual = aplicarBarra(nova, document.documentElement, celular.ativo(), undefined, naHora ? gravarNoMac.agora : gravarNoMac, m.janela, m.painel);
+  else { barraAtual = nova; pintarBarra(nova, document.documentElement, celular.ativo(), false, m.janela, m.painel); }
+  const borda = document.getElementById("borda-barra");
+  if (borda) atualizarBorda(borda, barraAtual, m);
+  if (antes.compacta !== barraAtual.compacta) { etiquetaDaBarra?.esconder(); animarTrocaDaBarra(barraAtual.compacta); }
+  if (!gravar) { if (antes.compacta !== barraAtual.compacta) render(); return; }
+  acompanharNaConversa(null);
   render();
 }
-// A etiqueta só vale com a barra desenhada recolhida (com a busca por cima, a barra está aberta).
+/** ADR-179: recolher/abrir regrava a barra; html[data-barra-anim] liga as animações das linhas e do rodapé por 200 ms + atrasos (casca.css). */
+let timerAnimBarra = 0;
+function animarTrocaDaBarra(compacta: boolean): void {
+  const h = document.documentElement;
+  h.dataset.barraAnim = compacta ? "recolher" : "abrir";
+  window.clearTimeout(timerAnimBarra);
+  timerAnimBarra = window.setTimeout(() => { delete h.dataset.barraAnim; }, 320);
+}
+// A janela mudou: o máximo da barra também (o chat nunca fica com menos de 424 px).
+window.addEventListener("resize", () => pintarBarraAgora());
+// A etiqueta e a prévia só valem com a barra desenhada compacta (com a busca por cima, a barra está aberta).
 const recolhida = () => document.documentElement.dataset.largura === "recolhida";
 let etiquetaDaBarra: { esconder(): void } | null = null;
 {
   const borda = document.getElementById("borda-barra");
   const sidebar = document.getElementById("sidebar");
   const etiqueta = document.getElementById("etiqueta-barra");
-  if (borda) ligarBorda(borda, { obter: () => barraAtual, mudar: mudarBarra });
-  if (sidebar && etiqueta) etiquetaDaBarra = ligarEtiqueta(sidebar, etiqueta, recolhida);
+  if (borda) ligarBorda(borda, { obter: () => barraAtual, medidas: medidasDaBarra, pintar: (b) => mudarBarra(b, false, false), gravar: (b) => mudarBarra(b, true) });
+  if (sidebar && etiqueta) etiquetaDaBarra = ligarEtiqueta(sidebar, etiqueta, recolhida, (el) => {
+    // Paper 03: a posição do bot na ordem do ⌘1–9 (a mesma de botaoDoBotNoAtalho), só para quem abre conversa.
+    if (el.getAttribute("data-act") !== "abrir-conversa") return null;
+    const botoes = [...sidebar.querySelectorAll<HTMLElement>(".list .fixado, .list .bot-row")]
+      .filter((x) => !x.hidden && !x.classList.contains("escondida"))
+      .map((x) => x.querySelector(':scope > [data-act="abrir-conversa"]'));
+    const i = botoes.indexOf(el);
+    return i < 0 ? null : teclasDoBot(lugarAtual(), i + 1);
+  });
 }
 // NOD-379: a barra que ficou sem redesenhar enquanto a busca do celular tinha o foco. Ela é refeita um pouco depois do
 // focusout, para não trocar o DOM entre o toque e o clique na linha que a pessoa foi abrir.
@@ -506,6 +907,59 @@ function sairDasRecentes(devolverFoco = true, depois?: () => void): void {
 }
 // Esc fecha a folha antes de qualquer outro Esc (na janela, em captura: antes dos ouvintes do document); o Tab fica
 // preso nela (role=dialog, aria-modal).
+// ADR-166: Enter salva e Esc cancela a regra em edição nas Aprovações, antes do Esc que fecha as Configurações.
+window.addEventListener("keydown", (ev) => {
+  if (telaAprovacoes.tecla(ev)) ev.stopImmediatePropagation();
+}, true);
+document.addEventListener("input", (ev) => {
+  const el = ev.target as HTMLElement;
+  if (el instanceof HTMLInputElement && el.dataset.apvCampo) telaAprovacoes.digitar(el.value);
+});
+// ADR-166 (tela 06): a caixa "Salvar como regra" troca o rótulo do botão; no lote, a contagem do "Permitir os N".
+document.addEventListener("change", (ev) => {
+  const el = ev.target as HTMLElement;
+  if (!(el instanceof HTMLInputElement)) return;
+  if (el.dataset.crRegraMarca) {
+    const bt = document.querySelector<HTMLElement>(`[data-act="decidir-aprovacao-com-regra"][data-id="${CSS.escape(el.dataset.crRegraMarca)}"]`);
+    if (bt) bt.textContent = el.checked ? "Permitir e salvar regra" : "Permitir uma vez";
+    const campo = document.querySelector<HTMLInputElement>(`[data-cr-regra-texto="${CSS.escape(el.dataset.crRegraMarca)}"]`);
+    if (campo) campo.disabled = !el.checked;
+  }
+  if (el.dataset.igual) {
+    const card = el.closest<HTMLElement>(".aprov-iguais");
+    const n = [...(card?.querySelectorAll<HTMLInputElement>("input[data-igual]") ?? [])].filter((c) => c.checked).length;
+    const conta = card?.querySelector<HTMLElement>("[data-iguais-conta]");
+    if (conta) conta.textContent = String(n);
+    card?.querySelector<HTMLButtonElement>('[data-act="iguais-permitir"]')?.toggleAttribute("disabled", n === 0);
+  }
+});
+// ADR-166 (tela 06): Esc nega o cartão de aprovação em que está o foco (no lote, nega todos). Fora de um cartão, o Esc
+// segue para quem já o usava (menus, citação, Configurações). O campo de texto da regra não nega: lá o Esc é do campo.
+// ADR-167 (Paper 04): Enter no "Para:" ou no campo da nova conversa abre a sugestão marcada; ↑ ↓ trocam a marcada.
+document.addEventListener("keydown", (ev) => {
+  const alvo = ev.target as HTMLElement | null;
+  if (!alvo || (alvo.id !== "busca-destinatario" && alvo.id !== "nc-texto")) return;
+  if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); escolherNaNovaConversa(); return; }
+  if (alvo.id === "busca-destinatario" && (ev.key === "ArrowDown" || ev.key === "ArrowUp")) {
+    const bots = [...document.querySelectorAll<HTMLElement>(".nc-pop .nc-bot:not([hidden])")];
+    if (!bots.length) return;
+    ev.preventDefault();
+    const i = bots.findIndex((b) => b.hasAttribute("data-nc-atual"));
+    const j = (i + (ev.key === "ArrowDown" ? 1 : -1) + bots.length) % bots.length;
+    bots.forEach((b, k) => b.toggleAttribute("data-nc-atual", k === j));
+  }
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Escape" || ev.defaultPrevented) return;
+  const alvo = ev.target as HTMLElement | null;
+  if (!alvo?.closest || alvo.matches("input[type=text], input:not([type]), textarea")) return;
+  const card = alvo.closest<HTMLElement>("li.decisao");
+  const negar = card?.querySelector<HTMLButtonElement>('[data-act="iguais-negar"], [data-act="decidir-aprovacao-nenhum"]');
+  if (!negar || negar.disabled) return;
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+  negar.click();
+}, true);
 window.addEventListener("keydown", (ev) => {
   if (!folhaRecentes) return;
   if (ev.key === "Escape") { ev.preventDefault(); ev.stopImmediatePropagation(); sairDasRecentes(); return; }
@@ -567,7 +1021,6 @@ function fecharBusca(): void {
 /** definido em 2026-10-07 (ADR-081): o logo do nod (os olhos num quadrado) — o Nod discreto, na barra de cima. */
 const LOGO_NOD = '<svg class="logo-nod" width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect class="logo-fundo" width="32" height="32" rx="7.5"/><g class="logo-olhos" transform="rotate(14 16 16)"><rect x="8.6" y="8.5" width="5.6" height="15" rx="2.8"/><rect x="17.8" y="8.5" width="5.6" height="15" rx="2.8"/></g></svg>';
 const LUPA = '<svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>';
-const LOJA = '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5 4.5 3h11L17 7.5"/><path d="M3 7.5a2.3 2.3 0 0 0 4.7 0 2.3 2.3 0 0 0 4.6 0 2.3 2.3 0 0 0 4.7 0"/><path d="M4.2 10v7h11.6v-7"/><path d="M8 17v-4h4v4"/></svg>';
 
 // definido em 2026-10-04: as seções recolhidas da barra (web/lib/secoes.ts); um conjunto novo a cada troca.
 let secoesRecolhidas: ReadonlySet<string> = lerSecoesRecolhidas();
@@ -711,13 +1164,16 @@ const quadroNaTela = criarQuadroNaTela(document, {
   // NOD-442: o quadro de verdade (busca, frames, a pílula). O avatar é o mascote do próprio nod (HTML que o nod gera).
   dados: {
     api: () => api,
-    agente: (id) => { const b = botGerido(id); return b ? { avatar: confiarHtml(iconeAgente(b, "sm")), nome: b.nome } : null; },
+    // Rodada 4 (tela 18b do Paper): a cor (o ponto do Status) e o mascote em órbita (o chip "está trabalhando" e o run).
+    agente: (id) => { const b = botGerido(id); return b ? { avatar: confiarHtml(iconeAgente(b, "sm")), nome: b.nome, cor: b.cor, trabalhando: confiarHtml(iconeAgente(b, "sm", "trabalhando")) } : null; },
     hora: horaDaFala,
     // 2026-11-10: o SSE mudo (um proxy que segura o stream) faz o quadro reler sozinho.
     ultimoDadoAoVivo: () => live?.ultimoDado() ?? 0,
     // Os bots da pessoa: quem recebe a passagem de uma coluna (ADR-142) e quem pode ser o Responsável da tarefa aberta
     // (NOD-416). O código da tarefa aberta vai para a URL.
     agentes: () => responsaveisDaTarefa(estado.frota?.agentes ?? [], estado.sessao?.pessoaId),
+    // Rodada 3 (tela 18 do Paper): o "Você" do filtro por pessoa leva as iniciais de quem está logado.
+    voce: () => nomeParaAsIniciais(),
     naUrl: (codigo) => {
       const u = new URL(window.location.href);
       if (codigo) u.searchParams.set(PARAMETRO_TAREFA, codigo); else u.searchParams.delete(PARAMETRO_TAREFA);
@@ -803,13 +1259,33 @@ const quadroCompartilhado = criarQuadroCompartilhadoNaTela(document, {
   },
   agente: (id) => {
     const b = botGerido(id);
-    if (b) return { avatar: confiarHtml(iconeAgente(b, "sm")), nome: b.nome };
+    if (b) return { avatar: confiarHtml(iconeAgente(b, "sm")), nome: b.nome, cor: b.cor, trabalhando: confiarHtml(iconeAgente(b, "sm", "trabalhando")) };
     const c = compartilhados.find((x) => x.agenteId === id);
     return c ? { avatar: anel((c.agenteNome.trim()[0] ?? "?").toUpperCase(), c.agenteNome), nome: c.agenteNome } : null;
   },
   hora: horaDaFala,
   aoSair: () => navegar({ tipo: "inicio" }),
   aoPerderAcesso: (qid) => { compartilhados = compartilhados.filter((c) => c.id !== qid); render(); void lerCompartilhados(); },
+});
+/** Tela 18d do Paper: a página Tarefas de todos os bots (a linha "Tarefas" da barra abre `{ tipo: "tarefas" }`). */
+const tarefasDeTodos = criarTarefasDeTodosNaTela(document, {
+  api: () => {
+    if (!api) throw new ErroApi(0, "sem_sessao", "Sem sessão");
+    return api;
+  },
+  avatar: (id) => { const b = id ? botGerido(id) : undefined; return b ? iconeAgente(b, "sm") : ""; },
+  abrirTarefa: (dono, tarefa, quadro) => {
+    const bot = botGerido(dono);
+    if (!bot) return;
+    navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
+    quadroNaTela.abrirTarefa(bot.id, tarefa, quadro);
+  },
+  abrirPagina: (agenteId) => {
+    const bot = botGerido(agenteId);
+    if (!bot) return;
+    navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
+    quadroNaTela.abrirPagina("tarefas");
+  },
 });
 
 /**
@@ -892,7 +1368,7 @@ const telaLigacao = criarTelaLigacao({
   },
   aoOnboarding: (etapa, campos) => telaOnboarding.aoOnboarding(etapa, campos),
   // Rede de segurança da ligação (2026-10-05): o "Configurar sem voz" do aviso é o mesmo do onboarding.
-  configurarSemVoz: () => telaOnboarding.acoes["onboarding-sem-voz"]?.(document.body),
+  configurarSemVoz: () => telaOnboarding.acoes["onboarding-sem-voz"]?.({}),
 });
 /**
  * Ouvir uma resposta (definido em 2026-10-17, NOD-106): o tocador mora fora do reducer (o áudio), mas a fase vai para
@@ -974,7 +1450,7 @@ const ditado = criarControleDitado({
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
   },
-  avisar: (texto) => dispatch({ tipo: "erro", erro: { codigo: "ditado", mensagem: texto } }),
+  avisar: (texto, falha) => dispatch({ tipo: "erro", erro: { codigo: falha === "microfone-negado" ? CODIGO_DITADO_MICROFONE : "ditado", mensagem: texto } }),
   noApp: () => window.nodDesktop !== undefined,
 });
 function avisarDitado(f: Parameters<typeof textoDaFalha>[0]): void {
@@ -990,10 +1466,18 @@ const telaOnboarding = criarTelaOnboarding({
   // ADA-242: a jornada A (texto, sem ligação) só com NOD_ONBOARDING_TEXTO.
   texto: () => contas?.onboardingTexto === true,
   nomeSugerido: () => nomeDoEmail(quemEsta()?.email),
+  // ADR-174: o onboarding em 10 passos cria o bot com cor e forma (o mesmo preparo do "Criar novo bot").
+  criarBot: () => depsCriarBot(),
+  email: () => quemEsta()?.email ?? null,
   dados: () => estado.onboarding,
   aberto: () => estado.onboardingAberto,
   hidratar: (o) => dispatch({ tipo: "hidratar-onboarding", onboarding: o }),
   abrir: (aberto) => dispatch({ tipo: "onboarding-aberto", aberto }),
+  // #78: na web, num espaço sem conta, a etapa da IA deixa entrar na conta (onde estão os bots e o motor do outro computador).
+  entrarNaConta: {
+    disponivel: () => saidaParaConta({ contas: contas !== null, noApp: window.nodDesktop !== undefined, estado: contaAtual }),
+    entrar: () => void telaConta.abrir("inicio", true),
+  },
   ligacao: { ativa: () => telaLigacao.ativa(), cheia: () => telaLigacao.cheia(), atenderOnboarding: (l) => telaLigacao.atenderOnboarding(l) },
   garantirAgente: async (agenteId) => {
     for (let i = 0; i < 6 && api; i++) {
@@ -1017,7 +1501,120 @@ const telaOnboarding = criarTelaOnboarding({
   invalidar: () => dispatch({ tipo: "invalidar", quais: ["frota", "sua-vez", "rotinas", "conectores", ...(conversaDaTela(estado) ? [`conversa:${conversaDaTela(estado)?.conversa.id}` as Invalidacao] : [])] }),
   erro: (e) => mostrarErro(e),
   aoMudar: () => render(),
+  redesenhar: () => desenharCamadaOnboarding(),
 });
+
+/**
+ * ADR-179 (fase 5): a região `#onboarding` é do React (web/react/onboarding/). O módulo só é baixado quando a camada vai
+ * aparecer: quem já passou pelo onboarding não carrega o React por causa dele. Até o módulo chegar, a região fica
+ * escondida (a `.app` já está inerte por `telaOnboarding.cobre()`).
+ */
+let moduloOnboarding: typeof import("./react/onboarding/regiao.tsx") | null = null;
+let carregandoOnboarding = false;
+const executarNoOnboarding = (acao: string, dados: DadosDaAcao = {}): void => { void telaOnboarding.acoes[acao]?.(dados); };
+const copiarNoOnboarding = (texto: string): Promise<boolean> => navigator.clipboard.writeText(texto).then(() => true, () => false);
+/** Os cliques do cartão de IA no onboarding: os mesmos do `data-act="ia-…"` de Provedores de IA, sem a delegação. */
+const cartaoIaNoOnboarding: AcoesDoCartaoIa = {
+  agir: (act, ia, extra = {}) => {
+    switch (act) {
+      case "ia-instalar": void iasDoMac.instalar(ia); return;
+      case "ia-entrar": void iasDoMac.entrar(ia); return;
+      case "ia-trocar": void iasDoMac.trocar(ia); return;
+      case "ia-cancelar": void iasDoMac.cancelar(ia); return;
+      case "ia-verificar": void iasDoMac.verificar(ia); return;
+      // No onboarding, o teste é o dele (onboarding-teste.ts): é o veredito dele que libera o Continuar.
+      case "ia-testar": executarNoOnboarding("onboarding-ia-testar", { ia }); return;
+      case "ia-abrir-link": void iasDoMac.abrirLink(ia); return;
+      case "ia-copiar-codigo": void iasDoMac.copiarCodigo(ia, extra.texto ?? "").then((ok) => { if (ok) anunciar("Código copiado"); }); return;
+      case "ia-ajuda": iasDoMac.alternarAjuda(`${ia}:${extra.passo ?? ""}`); return;
+      case "ia-detalhe": iasDoMac.alternarDetalhe(ia); return;
+      case "ia-atualizar":
+        if (window.nodDesktop?.ias?.atualizar) void iasDoMac.atualizar(ia, { agora: extra.agora === true });
+        else void window.nodDesktop?.iaInstalar?.(ia).catch(() => undefined);
+        return;
+      case "ia-colar-codigo": return;
+      case "secao-espaco": abrirEspaco("conexao"); return;
+    }
+  },
+  digitarCodigo: (ia, codigo) => dispatch({ tipo: "ias-mac", mudanca: { codigo: { ...estado.iasMac.codigo, [ia]: codigo } } }),
+  colarCodigo: (ia, codigo) => { void iasDoMac.colarCodigo(ia, codigo); },
+  copiar: copiarNoOnboarding,
+};
+
+function desenharCamadaOnboarding(): void {
+  const vista = telaOnboarding.vista();
+  const regiaoOnb = document.getElementById("onboarding");
+  if (!moduloOnboarding) {
+    regiaoOnb?.toggleAttribute("hidden", true);
+    if (!vista || carregandoOnboarding) return;
+    carregandoOnboarding = true;
+    void import("./react/onboarding/regiao.tsx").then((m) => { moduloOnboarding = m; render(); }, (e: unknown) => { carregandoOnboarding = false; mostrarErro(e); });
+    return;
+  }
+  moduloOnboarding.desenharOnboarding(vista ? { vista, executar: executarNoOnboarding, copiar: copiarNoOnboarding, cartao: cartaoIaNoOnboarding } : null);
+  regiaoOnb?.toggleAttribute("hidden", vista === null);
+}
+
+/**
+ * O Marketplace em modal (2026-11-18, ADR-179; Paper "Apps por chave de API · jornada"): a região `#marketplace` é do
+ * React (web/react/marketplace/), baixada só na primeira vez que abre. Todo caminho que levava à tela cheia de
+ * Conectores (a barra, a paleta, o "Ver todos no Marketplace", `navegar` para "conectores") abre o modal por cima da tela
+ * de agora; a tela avançada (chave do Composio, MCP próprio) continua sendo tela. No celular fica a tela de sempre: o
+ * modal é do computador.
+ */
+
+/** O primeiro passo do modal quando quem chama já sabe o app (o "Abrir" de um app, o card do chat que leva a ele). */
+function inicialDoApp(slug: string | undefined): InicialDoMarketplace {
+  const app = slug ? estado.marketplace.find((a) => a.slug === slug) : undefined;
+  if (!app) return {};
+  const c = conectorDoApp(estado, app.slug);
+  if (c && situacaoDoApp(estado, app.slug) !== "atencao") return { vista: { tipo: "acessos", slug: app.slug, conectorId: c.id, conectadoAgora: false } };
+  if (app.conexao === "chave") return { vista: { tipo: "chave", slug: app.slug } };
+  return { busca: app.nome };
+}
+
+function abrirModalDoMarketplace(inicial: InicialDoMarketplace = {}): void {
+  esquecerErroDoCanvas();
+  modalDoMarketplace = { vez: ++vezDoMarketplace, inicial };
+  // O modal diz quais bots usam cada app: relê os conectores e as concessões de todos os bots da pessoa.
+  dispatch({ tipo: "invalidar", quais: ["conectores", ...meusBots(estado).map((a) => `concessoes:${a.id}` as Invalidacao)] });
+  desenharModalDoMarketplace();
+}
+
+function fecharModalDoMarketplace(): void {
+  if (!modalDoMarketplace) return;
+  modalDoMarketplace = null;
+  gavetaDeAcessos.abrir(null);
+  desenharModalDoMarketplace();
+}
+
+function desenharModalDoMarketplace(): void {
+  if (!moduloMarketplace) {
+    if (!modalDoMarketplace || carregandoMarketplace) return;
+    carregandoMarketplace = true;
+    void import("./react/marketplace/regiao.tsx").then((m) => { moduloMarketplace = m; desenharModalDoMarketplace(); }, (e: unknown) => { carregandoMarketplace = false; modalDoMarketplace = null; mostrarErro(e); });
+    return;
+  }
+  apiDoMarketplace ??= moduloMarketplace.criarApiReal({
+    estado: () => estado,
+    api: () => api,
+    // Sem a chave do Composio, o "Conectar" de sempre leva à tela avançada: o modal sai da frente antes.
+    iniciarConexao: (slug) => { if (!estado.composioConfigurado && slug !== "github") fecharModalDoMarketplace(); iniciarConexao(slug); },
+    cancelarConexao: (slug) => conexoes.cancelar(slug),
+    garantirAcessos: (conectorId) => garantirAcessosDoConector(conectorId),
+    acessos: (conectorId) => gavetaDeAcessos.acessos(conectorId),
+    definirNivel: (agenteId, conectorId, nivel) => { void mudarNivelOtimista([{ agenteId, conectorId }], nivel, () => api!.definirNivel(agenteId, conectorId, nivel)); },
+    aplicarLote: (conectorId, nivel, bots, confirmado) => aplicarLoteDeAcessos(conectorId, nivel, bots, confirmado, true),
+    desfazerLote: (conectorId, recibo) => recibo.loteId ? desfazerLoteDeAcessos(conectorId, recibo.loteId, recibo.alvos, true) : Promise.resolve(null),
+    // O mesmo "Desconectar" da tela antiga (data-act desconectar-app): desliga, as escolhas ficam guardadas.
+    desconectar: async (conectorId) => { await api!.habilitarConector(conectorId, false); dispatch({ tipo: "invalidar", quais: ["conectores"] }); },
+    definirPadrao: (conectorId, nivel, confirmado) => definirPadraoDoApp(conectorId, nivel, confirmado),
+    conectou: () => dispatch({ tipo: "invalidar", quais: ["conectores", "sua-vez", "frota", ...meusBots(estado).map((a) => `concessoes:${a.id}` as Invalidacao)] }),
+    abrirAvancado: () => { fecharModalDoMarketplace(); abrirMarketplace(true); },
+  });
+  const m = modalDoMarketplace;
+  moduloMarketplace.desenharMarketplace(m ? { vez: m.vez, api: apiDoMarketplace, inicial: m.inicial, aoFechar: fecharModalDoMarketplace } : null);
+}
 
 /**
  * NOD-345 (ADR-124): a conta no nod como cartões na conversa. `contas` vem de /api/sessao/modo (ausente = servidor sem
@@ -1061,6 +1658,8 @@ const telaConta = criarContaNoChat({
   contaMudou: (e) => { contaAtual = e; render(); if (decidirPareamento({ modoLido: true, contas: true, estado: e }) === "abrir") seguirPareamento("abrir"); },
   abrirUrl: (url) => { if (window.nodDesktop) window.open(url, "_blank", "noopener"); else window.location.assign(url); },
   agora: () => Date.now(),
+  // #84: o link do QR do pareamento sai do endereço onde este nod está aberto (no app, o do servidor).
+  origem: () => window.location.origin,
   digitado: () => [...document.querySelectorAll<HTMLInputElement>(".cc-bloco form input")].some((i) => i.value !== ""),
   campo: (form, nome) => String(new FormData(form as HTMLFormElement).get(nome) ?? ""),
 });
@@ -1263,6 +1862,8 @@ function dispatch(acao: Acao): void {
 function reduzirVendoSaida(acao: Acao): boolean {
   const antes = estado.tela;
   estado = reduzir(estado, sobreporPendentes(acao, perfilPendente));
+  // Journal de envio: a conversa que carregou depois do boot ganha as falas dela que ainda estão no journal.
+  if (acao.tipo === "hidratar-conversa") estado = comPendentesDoJournal(estado, acao.conversa.conversa.id);
   // NOD-379: o onboarding pendente continua abrindo no guia, não na inicial do celular.
   if (estado.onboardingAberto && !onboardingVisto) celular.fecharBots();
   onboardingVisto = !!estado.onboardingAberto;
@@ -1311,9 +1912,24 @@ let trocasPendentes = 0;
 const relogioDaFala = criarRelogioDaFala(() => {
   const aoVivo = document.getElementById("timeline-ao-vivo");
   const agora = Date.now();
-  trocasPendentes = escreverEstados(aoVivo, agora);
-  return escreverTempos(aoVivo, agora) + trocasPendentes;
+  // COP-14: a permanência do rótulo do indicador é de 800 ms (PERMANENCIA_MS); as variantes trocam no mesmo tick.
+  trocasPendentes = escreverEstados(aoVivo, agora, PERMANENCIA_MS);
+  return escreverTempos(aoVivo, agora) + trocasPendentes + escreverVariantes(aoVivo, agora);
 }, agendarNaJanela, () => document.hidden, () => (trocasPendentes > 0 ? TICK_CURTO_MS : 1000));
+/**
+ * Chat (polimento): o rótulo do indicador que esperava a permanência de 800 ms entra com um `tick` na hora (o relógio do
+ * estado anda e o render refaz o rótulo pelo caminho de sempre). Um agendamento por vez: o mais cedo ganha.
+ */
+let trocaDoIndicador: { em: number; t: number } | null = null;
+function agendarTrocaDoIndicador(em: number | null): void {
+  if (em === null || (trocaDoIndicador && trocaDoIndicador.em <= em)) return;
+  if (trocaDoIndicador) window.clearTimeout(trocaDoIndicador.t);
+  const t = window.setTimeout(() => {
+    trocaDoIndicador = null;
+    dispatch({ tipo: "tick", agora: Date.now() });
+  }, Math.max(0, em - Date.now()) + 16);
+  trocaDoIndicador = { em, t };
+}
 let anuncioPendente = 0;
 const anunciadorDoTurno = criarAnunciador((texto) => {
   const anuncio = document.getElementById("anuncio-turno");
@@ -1341,6 +1957,7 @@ function receberFrame(frame: FrameSse): void {
   quadroNaTela.aoFrame(frame);
   canvasNaTela.aoFrame(frame);
   quadroCompartilhado.aoFrame(frame);
+  tarefasDeTodos.aoFrame(frame);
   // NOD-455: o quadro de outra dona mudou (alguém entrou, saiu, o modo mudou): a barra relê os compartilhados.
   if (frame.tipo === "quadro.mudou" && typeof frame.dados["agenteId"] === "string" && !botGerido(frame.dados["agenteId"]) && releListaDosCompartilhados(frame, compartilhados.map((c) => c.id))) relerCompartilhados();
   // NOD-445: um app chegou, saiu ou mudou (ou a ordem), ou o quadro nasceu: relê as páginas do bot.
@@ -1393,7 +2010,7 @@ function avisarMotivoDaNota(motivo: Parameters<typeof fraseDoMotivoDaNota>[0]): 
 
 /** QA do NOD-314: o motivo do "Rodar em <outra> desta vez" da task (200 sem mover nada). */
 function avisarMotivoDaTask(motivo: string | null | undefined): void {
-  if (motivo === "ja_refeito") dispatch({ tipo: "erro", erro: { codigo: "task_ja_refeito", mensagem: "Esta task já foi mandada para essa máquina; nada foi repetido." } });
+  if (motivo === "ja_refeito") dispatch({ tipo: "erro", erro: { codigo: "task_ja_refeito", mensagem: "Esta tarefa já foi mandada para essa máquina; nada foi repetido." } });
 }
 
 function mostrarErro(e: unknown): void {
@@ -1641,12 +2258,25 @@ function conectorDaGaveta(): Conector | null {
 function garantirAcessosDoApp(): void {
   // A caixa "Selecionar todos" com só parte marcada fica no estado misto (o HTML não tem atributo para isso).
   for (const i of document.querySelectorAll<HTMLInputElement>(".acessos-todos input[data-misto]")) i.indeterminate = true;
+  // Com o modal do Marketplace aberto, é ele quem diz qual app está à vista (abrirAcessos → garantirAcessosDoConector);
+  // aqui só relê o dele depois de um lote, do padrão ou do Desfazer (que esquecem o carregado).
+  if (modalDoMarketplace) {
+    const aberto = gavetaDeAcessos.aberta();
+    if (aberto) garantirAcessosDoConector(aberto);
+    return;
+  }
   const c = conectorDaGaveta();
-  gavetaDeAcessos.abrir(c?.id ?? null);
-  if (!c || !api || !gavetaDeAcessos.precisaCarregar(c.id)) return;
-  void api.acessosDoApp(c.id).then(
-    (r) => { gavetaDeAcessos.guardar(c.id, { padrao: r.padrao, seguePadrao: new Set(r.bots.filter((b) => b.segue_padrao).map((b) => b.agenteId)) }); render(); },
-    () => gavetaDeAcessos.guardar(c.id, { padrao: "nenhum", seguePadrao: new Set() }),
+  if (c) garantirAcessosDoConector(c.id);
+  else gavetaDeAcessos.abrir(null);
+}
+
+/** O padrão do app e quem segue o padrão (GET conectores/:id/acessos), lidos de novo a cada vez que o app abre. */
+function garantirAcessosDoConector(conectorId: string): void {
+  gavetaDeAcessos.abrir(conectorId);
+  if (!api || !gavetaDeAcessos.precisaCarregar(conectorId)) return;
+  void api.acessosDoApp(conectorId).then(
+    (r) => { gavetaDeAcessos.guardar(conectorId, { padrao: r.padrao, seguePadrao: new Set(r.bots.filter((b) => b.segue_padrao).map((b) => b.agenteId)) }); render(); },
+    () => { gavetaDeAcessos.guardar(conectorId, { padrao: "nenhum", seguePadrao: new Set() }); render(); },
   );
 }
 
@@ -1678,9 +2308,13 @@ async function mudarNivelOtimista(pares: { agenteId: string; conectorId: string 
 }
 
 /** O lote: otimista em todos os alvos; no fim, o aviso com a frase do servidor e Desfazer (24 h no servidor). */
-async function aplicarLoteDeAcessos(conectorId: string, nivel: "nenhum" | "leitura" | "escrita", bots: "todos" | string[], confirmado: boolean): Promise<void> {
+/**
+ * `noModal`: o recibo volta para o Marketplace mostrar dentro dele (o aviso solto da página fica por baixo do <dialog>
+ * modal). Sem ele, o aviso com Desfazer de sempre.
+ */
+async function aplicarLoteDeAcessos(conectorId: string, nivel: "nenhum" | "leitura" | "escrita", bots: "todos" | string[], confirmado: boolean, noModal = false): Promise<{ frase: string; loteId: string | null; alvos: string[] } | null> {
   const c = estado.conectores.find((x) => x.id === conectorId);
-  if (!c || !api) return;
+  if (!c || !api) return null;
   // "Todos" com Ler não rebaixa quem tem Ler e alterar ou personalizado (o servidor mantém, alvosDoLote); a tela também não.
   const alvos = (bots === "todos" ? meusBots(estado).map((a) => a.id) : bots).filter((id) => !(bots === "todos" && nivel === "leitura" && ["escrita", "personalizado"].includes(nivelReal(estado, id, c))));
   const pares = alvos.map((agenteId) => ({ agenteId, conectorId }));
@@ -1688,20 +2322,26 @@ async function aplicarLoteDeAcessos(conectorId: string, nivel: "nenhum" | "leitu
   let lote: LoteDeAcessosDto | null = null;
   await mudarNivelOtimista(pares, nivel, async () => { lote = await api!.acessosEmLote(conectorId, { nivel, bots, chave, confirmado }); });
   const feito = lote as LoteDeAcessosDto | null;
-  if (!feito) return;
+  if (!feito) return null;
   gavetaDeAcessos.limpar(conectorId);
   render();
   const loteId = feito.lote_id;
-  mostrarAvisoDesfazer({ texto: feito.frase, ...(loteId ? { aoDesfazer: () => desfazerLoteDeAcessos(conectorId, loteId, alvos) } : {}) });
+  if (!noModal) mostrarAvisoDesfazer({ texto: feito.frase, ...(loteId ? { aoDesfazer: async () => { await desfazerLoteDeAcessos(conectorId, loteId, alvos); } } : {}) });
+  return { frase: feito.frase, loteId, alvos };
 }
 
-async function desfazerLoteDeAcessos(conectorId: string, loteId: string, alvos: readonly string[]): Promise<void> {
+/** Devolve a frase de quem mudou depois do lote e ficou como está (null = voltou tudo); `noModal` não abre aviso solto. */
+async function desfazerLoteDeAcessos(conectorId: string, loteId: string, alvos: readonly string[], noModal = false): Promise<string | null> {
   try {
     const r = await api!.desfazerLoteDeAcessos(loteId);
     recarregarAcessos(conectorId, alvos);
-    if (r.mudaram_depois.length) mostrarAvisoDesfazer({ texto: `Desfeito. ${r.mudaram_depois.map((b) => b.nome).join(", ")} ${r.mudaram_depois.length === 1 ? "mudou" : "mudaram"} depois e ${r.mudaram_depois.length === 1 ? "ficou" : "ficaram"} como está.` });
+    const frase = r.mudaram_depois.length ? `Desfeito. ${r.mudaram_depois.map((b) => b.nome).join(", ")} ${r.mudaram_depois.length === 1 ? "mudou" : "mudaram"} depois e ${r.mudaram_depois.length === 1 ? "ficou" : "ficaram"} como está.` : null;
+    if (frase && !noModal) mostrarAvisoDesfazer({ texto: frase });
+    return frase;
   } catch (e) {
+    if (noModal) throw e;
     mostrarErro(e);
+    return null;
   }
 }
 
@@ -1845,7 +2485,12 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
   // ADR-090: servidor sem a rota (404, versão anterior) fica sem máquinas; nenhum erro sobe.
   if (q === "maquinas") {
     relerEstaMaquina();
-    return { tipo: "hidratar-maquinas", maquinas: await api.maquinas().catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return { maquinas: [], padraoId: null }; throw e; }) };
+    const [maquinas, ondeRoda] = await Promise.all([
+      api.maquinas().catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return { maquinas: [], padraoId: null }; throw e; }),
+      // ADR-169: um extra da seção; qualquer falha deixa a tela como antes.
+      api.ondeRoda().catch(() => null),
+    ]);
+    return { tipo: "hidratar-maquinas", maquinas: ondeRoda ? { ...maquinas, ondeRoda } : maquinas };
   }
   // NOD-367: a falha vira a linha "Tentar de novo" em Feedback, sem a faixa vermelha e sem pedir de novo a cada quadro.
   if (q === "agenda") {
@@ -1902,7 +2547,10 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
     // Modo dev (0036): a faixa de cada resposta acompanha a conversa — o turno que acabou de assentar já tem Raio-X.
     void carregarRaioX(q.slice(9));
     const ate = ateDaBusca(q.slice(9));
-    return { tipo: "hidratar-conversa", conversa: notarAlvoDaBusca(q.slice(9), ate, await api.conversa(q.slice(9), ate)), agora };
+    // Item 5 do chat: a leitura de hoje é a revalidação do cache (a resposta é guardada); a conversa que sumiu (404) sai dele.
+    const cliente = api;
+    const conversa = await cacheConversas.revalidar(q.slice(9), (anterior) => buscarConversaAtualizada(cliente, q.slice(9), anterior, { ate })).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) cacheConversas.apagar(q.slice(9)); throw e; });
+    return { tipo: "hidratar-conversa", conversa: notarAlvoDaBusca(q.slice(9), ate, conversa), agora };
   }
   // QA do PR #302 (NOD-216): a conversa do bot que o dono diz trabalhando, lida fora da tela para a barra animar.
   if (q.startsWith("vivos:")) {
@@ -1994,69 +2642,107 @@ async function alternarExperimento(chave: keyof Experimentos): Promise<void> {
   if (p.experimentos) dispatch({ tipo: "experimentos", experimentos: p.experimentos, quadroLiberado: p.quadroLiberado ?? false });
 }
 
+/**
+ * Leva 2 (2026-11-13, ADR-181): as leituras de uma passada saem JUNTAS, por chave, com teto (web/lib/leituras-em-voo.ts),
+ * e a tela redesenha conforme cada uma chega. Antes havia uma trava única (`reidratando`) e a passada era em série, com
+ * o `render` só no fim: abrir um bot na primeira carga enfileirava ~15 GETs (~80 ms cada pela internet) e a conversa só
+ * aparecia depois do último; e um clique no meio de uma passada esperava a leitura mais lenta dela (o `GET conectores`
+ * que foi ao Composio).
+ *
+ *   frame / navegar / tique ──► reidratar()
+ *     relevantes = faltas da tela + invalidações, menos: já em voo · "trabalhos"/atividade na janela deles ·
+ *                  `conversa:*` com a janela de 200 ms aberta (o 1º frame relê na hora, os seguintes viram uma só)
+ *     cada chave ──► leituras.correr(chave, lerUma)  (teto 6; a mesma chave em voo não repete o GET)
+ *     cada resposta ──► estado ──► renderNoQuadro (a frota/gestão que tira a pessoa da conversa e os não lidos pintam
+ *                       síncrono, porque o que vem depois lê o DOM)
+ *     a rede caiu numa leitura ──► ela e as que ainda esperavam vaga vão para pendentesDeRede; erro e sonda uma vez
+ */
+const TETO_EM_VOO = 6;
+const leituras = criarLeiturasEmVoo<Invalidacao>(TETO_EM_VOO);
+const JANELA_CONVERSA_MS = 200;
+const janelaConversa = criarReleituraAdiada(JANELA_CONVERSA_MS, (fn, ms) => {
+  const t = window.setTimeout(fn, ms);
+  return () => window.clearTimeout(t);
+}, () => void reidratar());
+
 async function reidratar(): Promise<void> {
-  if (!api || reidratando) return;
+  if (!api) return;
   const pendentes = [...new Set([...estado.invalidacoes, ...invalidacoesDaTela(estado)])];
   // Só o que a tela atual olha entra agora; o resto fica marcado para quando a tela abrir.
-  const relevantes = pendentes.filter((q) => relevante(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente()));
+  // C5 (2026-11-12): a conversa aberta é a primeira da passada (web/lib/fila-do-reidratar.ts).
+  const relevantes = comAbertaNaFrente(pendentes.filter((q) => relevante(q) && !leituras.emVoo(q) && !(q === "trabalhos" && releituraTrabalhos.pendente()) && !(daAtividade(q) && releituraAtividade.pendente()) && !(q.startsWith("conversa:") && janelaConversa.pendente())), estado.tela.tipo === "conversa" ? estado.tela.conversaId : null);
   // definido em 2026-09-30: nada relevante, nada a buscar nem a redesenhar. A conversa de outro bot fica marcada
   // até ser aberta, e antes cada frame caía aqui e redesenhava a tela inteira de forma síncrona.
   if (relevantes.length === 0) return;
   const telaAntes = estado.tela;
   // NOD-136: a leitura que voltou depois de outra sessão começar não conta para o link desta.
   const lerParaDeepLink = deepLink.leitor();
-  reidratando = true;
-  let lerDepois = false;
-  let saiu = false;
-  try {
-    // definido em 2026-09-17: consumir antes do GET preserva frames recebidos durante a busca.
-    estado = reduzir(estado, { tipo: "invalidacoes-tratadas", quais: relevantes });
-    for (const [i, q] of relevantes.entries()) {
-      try {
-        const acao = await buscar(q);
-        if (acao && reduzirVendoSaida(acao)) saiu = true;
-        // NOD-136: o link `nod://` espera a frota e as salas da sessão (a conversa pode ser de uma sala).
-        const lida = acao ? leituraConta(q, { acao: acao.tipo }) : null;
-        if (lida) lerParaDeepLink(lida);
-        if (acao?.tipo === "hidratar-sua-vez") canalAvisos.contador(avisador.atualizar(acao.suaVez));
-        if (acao?.tipo === "hidratar-nao-lidos") {
-          lerDepois = true;
-          avisador.atualizarNaoLidos(acao.naoLidos);
-        }
-        if (acao?.tipo === "trabalho-sumiu") lembrarTaskAberta(estado.tela);
-      } catch (e) {
-        if (!(e instanceof ErroApi && e.status === 404)) {
-          const erro = erroDe(e);
-          if (erro && ehErroDeRede(erro)) {
-            // NOD-136: falha de rede não conta para o link (leituraConta); a leitura volta com a rede.
-            // Revisão NOD-215: a rede caiu depois das tentativas desta leitura. O resto da passada também cairia (cada
-            // GET esperaria mais 8,5 s com `reidratando` preso): guarda esta e as que faltam para quando o nod voltar.
-            for (const resto of relevantes.slice(i)) pendentesDeRede.add(resto);
-            if (estado.erro === null || ehErroDeRede(estado.erro)) estado = reduzir(estado, acaoDoErro(erro));
-            sonda.lembrar();
-            break;
-          }
-          if (erro) estado = reduzir(estado, acaoDoErro(erro));
-        }
-        // Servidor sem salas (404) ou com erro que não é de rede: sem salas nesta sessão, o link não espera mais por elas.
-        const lida = leituraConta(q, { erroDeRede: false });
-        if (lida) lerParaDeepLink(lida);
-      }
-    }
-    render();
-  } finally {
-    reidratando = false;
-  }
-  if (saiu) depoisDeSair();
-  else if (lerDepois) lerConversaDaTela();
+  const passada = { redeCaiu: false };
+  // definido em 2026-09-17: consumir antes do GET preserva frames recebidos durante a busca.
+  estado = reduzir(estado, { tipo: "invalidacoes-tratadas", quais: relevantes });
+  // A conversa relida agora abre a janela: os frames dos próximos 200 ms viram uma releitura só, no fim dela (e a
+  // resposta velha de uma leitura em voo é corrigida por essa releitura).
+  if (relevantes.some((q) => q.startsWith("conversa:"))) janelaConversa.pedir();
+  await Promise.all(relevantes.map((q) => leituras.correr(q, () => lerUma(q, passada, lerParaDeepLink))));
   // definido em 2026-09-28: a tela que mudou DURANTE a busca (clicar num bot com a primeira carga em andamento) também
   // pede o que lhe falta; antes a conversa esperava o próximo tique (15 s). Só quando a tela mudou: há falta que não se
   // resolve buscando (sem nenhuma sala, "salas" continua faltando) e voltaria a buscar sem parar.
-  const telaMudou = estado.tela !== telaAntes && invalidacoesDaTela(estado).some((q) => relevante(q));
+  const telaMudou = estado.tela !== telaAntes && invalidacoesDaTela(estado).some((q) => relevante(q) && !leituras.emVoo(q));
   // NOD-85 (Codex no PR 595): ir a um dia fora da janela durante a leitura troca a janela; a resposta velha é descartada
   // e a nova janela precisa ser lida já, não no próximo tique. agendaPorLer é falso depois de ler ou falhar: não gira.
   const agendaNova = agendaPorLer(estado.agenda) && invalidacoesDaTela(estado).includes("agenda");
-  if (telaMudou || agendaNova || estado.invalidacoes.some((q) => relevante(q))) void reidratar();
+  if (telaMudou || agendaNova || estado.invalidacoes.some((q) => relevante(q) && !leituras.emVoo(q))) void reidratar();
+}
+
+/** A leitura de fundo que falhou com 5xx volta à fila em 2, 5 e 10 s antes de o erro ir à tela. */
+const leituraDeNovo = criarLeituraDeNovo<Invalidacao>({
+  agendar: (fn, ms) => window.setTimeout(fn, ms),
+  reler: (q) => dispatch({ tipo: "invalidar", quais: [q] }),
+});
+
+/** Uma leitura da passada: busca, aplica, redesenha e trata o erro. Nunca rejeita (a chave em voo é compartilhada). */
+async function lerUma(q: Invalidacao, passada: { redeCaiu: boolean }, lerParaDeepLink: (lida: NonNullable<ReturnType<typeof leituraConta>>) => void): Promise<void> {
+  // A rede caiu numa leitura desta passada enquanto esta esperava vaga: nem tenta (cada GET esperaria mais 8,5 s).
+  if (passada.redeCaiu) { pendentesDeRede.add(q); return; }
+  try {
+    const acao = await buscar(q);
+    let saiu = false;
+    if (acao && reduzirVendoSaida(acao)) saiu = true;
+    // NOD-136: o link `nod://` espera a frota e as salas da sessão (a conversa pode ser de uma sala).
+    const lida = acao ? leituraConta(q, { acao: acao.tipo }) : null;
+    if (lida) lerParaDeepLink(lida);
+    if (acao?.tipo === "hidratar-sua-vez") { canalAvisos.contador(avisador.atualizar(acao.suaVez)); vigiaDeSons.suaVez(acao.suaVez); }
+    if (acao?.tipo === "hidratar-nao-lidos") { avisador.atualizarNaoLidos(acao.naoLidos); vigiaDeSons.naoLidos(acao.naoLidos); }
+    if (acao?.tipo === "trabalho-sumiu") lembrarTaskAberta(estado.tela);
+    // O que vem depois lê o DOM (a rolagem da tela nova, a conversa à vista marcada como lida): pinta síncrono.
+    if (saiu) { render(); depoisDeSair(); }
+    else if (acao?.tipo === "hidratar-nao-lidos") { render(); lerConversaDaTela(); }
+    else if (acao) renderNoQuadro();
+    leituraDeNovo.deuCerto(q);
+  } catch (e) {
+    if (!(e instanceof ErroApi && e.status === 404)) {
+      const erro = erroDe(e);
+      // A leitura de fundo que o servidor recusou com 5xx tenta de novo calada (web/lib/leitura-de-novo.ts).
+      if (erro && !ehErroDeRede(erro) && leituraDeNovo.falhou(q, erro) === "calar") return;
+      if (erro && ehErroDeRede(erro)) {
+        // NOD-136: falha de rede não conta para o link (leituraConta); a leitura volta com a rede.
+        // Revisão NOD-215: a rede caiu. Esta leitura fica guardada para quando o nod voltar; as que ainda esperam vaga
+        // nesta passada também (lerUma, acima); o erro e a sonda saem uma vez por passada.
+        pendentesDeRede.add(q);
+        if (!passada.redeCaiu) {
+          passada.redeCaiu = true;
+          if (estado.erro === null || ehErroDeRede(estado.erro)) estado = reduzir(estado, acaoDoErro(erro));
+          sonda.lembrar();
+          renderNoQuadro();
+        }
+        return;
+      }
+      if (erro) { estado = reduzir(estado, acaoDoErro(erro)); renderNoQuadro(); }
+    }
+    // Servidor sem salas (404) ou com erro que não é de rede: sem salas nesta sessão, o link não espera mais por elas.
+    const lida = leituraConta(q, { erroDeRede: false });
+    if (lida) lerParaDeepLink(lida);
+  }
 }
 
 function relevante(q: Invalidacao): boolean {
@@ -2069,7 +2755,7 @@ function relevante(q: Invalidacao): boolean {
   if (q === "gestao") return secao === "agentes";
   if (q === "rotinas") return t.tipo === "rotinas" || t.tipo === "conversa" || secao === "rotinas";
   if (q === "agenda") return secao === "rotinas";
-  if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala";
+  if (q === "conectores") return t.tipo === "conectores" || t.tipo === "conversa" || t.tipo === "sala" || modalDoMarketplace !== null;
   if (q === "chaves") return secao === "maquinas";
   if (q === "mcp-tokens") return secao === "geral";
   if (q === "maquinas") return secao === "maquinas" || secao === "agentes" || secao === "conexao" || t.tipo === "conversa" || t.tipo === "trabalho";
@@ -2080,7 +2766,7 @@ function relevante(q: Invalidacao): boolean {
   // NOD-58: a lista também com Ajustes aberto (o "N para revisar" da linha Memória); o histórico, só com a aba dele.
   if (q.startsWith("memoria:")) return t.tipo === "conversa" && estado.gaveta?.agenteId === q.slice(8) && (estado.gaveta.nivel.tipo === "memoria" || estado.gaveta.nivel.tipo === "ajustes");
   if (q.startsWith("diario:")) return t.tipo === "conversa" && estado.gaveta?.agenteId === q.slice(7) && estado.gaveta.nivel.tipo === "memoria" && estado.gaveta.nivel.aba === "historico" && (estado.frota?.agentes.some((a) => a.id === q.slice(7) && a.ownerId === estado.sessao?.pessoaId) ?? false);
-  if (q.startsWith("concessoes:")) return t.tipo === "conversa" && t.agenteId === q.slice(11) ? true : t.tipo === "conectores";
+  if (q.startsWith("concessoes:")) return t.tipo === "conversa" && t.agenteId === q.slice(11) ? true : t.tipo === "conectores" || modalDoMarketplace !== null;
   // 2026-09-21: o painel de detalhes (tela conversa) também mostra o histórico — é onde a pessoa
   // confere que uma rotina silenciosa (desfecho sem_novidade, que não escreve no chat) rodou.
   if (q.startsWith("execucoes:")) return t.tipo === "rotinas" || t.tipo === "conversa";
@@ -2136,12 +2822,78 @@ function conteudoDaAbaQuadros(): string {
   });
 }
 
+/** ADR-167 (telas 02–05 do Paper): os ícones da casca no desenho do Paper (caixa 16, traço 1.4). */
+const IC_PAPER = (corpo: string, t = 16): string => `<svg width="${t}" height="${t}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corpo}</svg>`;
+const IC_BARRA = IC_PAPER('<rect x="2" y="3" width="12" height="10" rx="2"/><path d="M6 3v10"/>');
+const IC_LUPA = IC_PAPER('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/>');
+const IC_MAIS = IC_PAPER('<path d="M8 3v10M3 8h10"/>');
+const IC_QUADRO = IC_PAPER('<rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M6 2.5v11M10 2.5v7"/>');
+const IC_GRADE = IC_PAPER('<rect x="2.5" y="2.5" width="4" height="4" rx="1"/><rect x="9.5" y="2.5" width="4" height="4" rx="1"/><rect x="2.5" y="9.5" width="4" height="4" rx="1"/><path d="M11.5 9.5v4M9.5 11.5h4"/>');
+/** As iniciais do rodapé ("MW"); sem nome, o "eu" de sempre. */
+function iniciaisDe(nome: string | null | undefined): string {
+  const partes = (nome ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return "eu";
+  return ((partes[0]?.[0] ?? "") + (partes.length > 1 ? partes[partes.length - 1]?.[0] ?? "" : "")).toUpperCase();
+}
+/** ADR-167: o ícone da linha fixa "Trabalhos" (a maleta, o mesmo desenho do antigo ícone do topo). */
+const ICONE_TRABALHOS_LINHA = '<svg class="linha-fixa-ic" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5.5" width="14" height="11" rx="2.2"/><path d="M7.5 5.5V4.2a1.2 1.2 0 0 1 1.2-1.2h2.6a1.2 1.2 0 0 1 1.2 1.2v1.3"/><path d="M3 10h14"/></svg>';
+
+/** Paper 02 (rodada 3 da casca): "Automático · 6 regras" no painel — os ajustes do bot lidos uma vez por bot e carga. */
+const regrasPedidas = new Set<string>();
+aoPedirRegrasDoBot((agenteId) => {
+  if (regrasPedidas.has(agenteId) || !api) return;
+  regrasPedidas.add(agenteId);
+  void api.ajustesAprovacao(agenteId).then((aj) => {
+    const n = [...aj.regras.padrao, ...aj.regras.doBot].filter((r) => r.lista === "permitir").length;
+    regrasPodeFazer.set(agenteId, n);
+    render();
+  }).catch(() => undefined);
+});
+
+/** ADR-167: as tarefas em andamento de todos os quadros, para o número da linha "Tarefas" (lido no fundo, no máximo 1×/min). */
+let tarefasDaBarra: { n: number; bots: string[]; em: number } | null = null;
+let lendoTarefasDaBarra = false;
+function tarefasAbertasConhecidas(): number {
+  if (!tarefasDaBarra || Date.now() - tarefasDaBarra.em > 60_000) void lerTarefasDaBarra();
+  return tarefasDaBarra?.n ?? 0;
+}
+async function lerTarefasDaBarra(): Promise<void> {
+  if (lendoTarefasDaBarra || !api || !estado.sessao || !estado.experimentos.quadro) return;
+  lendoTarefasDaBarra = true;
+  const cliente = api;
+  try {
+    const lista = await lerListaDaAbaQuadros(true, () => cliente.quadros());
+    const bots = [...new Set(lista.map((q) => q.agenteId))];
+    const quadros = await Promise.all(bots.map((id) => cliente.quadro(id).then((r) => r.quadro).catch(() => null)));
+    bots.forEach((id, i) => { const r = resumoDoQuadro(quadros[i]); if (r) resumosDosQuadros.set(id, r); else resumosDosQuadros.delete(id); });
+    const n = quadros.reduce((soma, q) => soma + tarefasEmAndamento(q), 0);
+    const mudou = n !== tarefasDaBarra?.n;
+    tarefasDaBarra = { n, bots, em: Date.now() };
+    if (mudou) render();
+  } catch {
+    tarefasDaBarra = { n: tarefasDaBarra?.n ?? 0, bots: tarefasDaBarra?.bots ?? [], em: Date.now() };
+  } finally {
+    lendoTarefasDaBarra = false;
+  }
+}
+/** A linha "Tarefas": abre a página Tarefas do bot aberto (ou do primeiro bot com quadro). */
+function abrirTarefasDaBarra(agenteId?: string): void {
+  const t = telaDeOrigem();
+  const id = agenteId || (botDasTarefas(t.tipo === "conversa" ? t.agenteId : null, tarefasDaBarra?.bots ?? []) ?? (t.tipo === "conversa" ? t.agenteId : null));
+  const bot = id ? botGerido(id) : undefined;
+  if (!bot) return;
+  if (!(t.tipo === "conversa" && t.agenteId === bot.id)) navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
+  quadroNaTela.abrirPagina("tarefas");
+}
+
+/** C3 (2026-11-12): a chave do motor do mascote da barra; a barra regravada não leva o mascote de volta ao repouso. */
+const motorDaBarra = (id: string): string => `data-motor="barra:${esc(id)}"`;
 function renderSidebar(estado: Estado): string {
   // NOD-379: no celular a barra é a tela inicial (topo do web, favoritos em grade, conversas como num mensageiro e a barra
   // flutuante de Buscar). O HTML do computador não muda.
   const ehCelular = celular.ativo();
   // NOD-119: na barra recolhida a etiqueta própria (web/lib/borda-barra.ts) substitui o title.
-  const semTitle = !ehCelular && barraAtual.largura === "recolhida" && !(buscaAberta || termoBusca() !== "");
+  const semTitle = !ehCelular && barraAtual.compacta && !(buscaAberta || termoBusca() !== "");
   const agentes = estado.frota?.agentes ?? [];
   const abertas = abertasPorAgente(estado);
   const perguntas = perguntasPorAgente(estado);
@@ -2153,25 +2905,36 @@ function renderSidebar(estado: Estado): string {
   // ADR-081: o Nod não se arrasta — ele não entra em seção; topo e discreto são pelo menu dele.
   // NOD-379: no celular nada se arrasta (o iOS arrastaria no toque longo, que abre o menu).
   const arrastavel = (a: (typeof agentes)[number]) => (ehCelular ? "" : a.ownerId === estado.sessao?.pessoaId && a.papel !== "nod" ? ` draggable="true" data-arrastavel="${esc(a.id)}"` : "");
-  const avisos = new Map(agentes.map((a): [string, AvisoBot] => [a.id, (abertas.get(a.id) ?? 0) > 0 ? "decisao" : perguntas.get(a.id) ? "pergunta" : temNovas(a.conversaId, estado) ? "nao-lido" : ""]));
+  // Spec do botão + (telas 4 e 5): o bot recém-criado pensa sem prévia; com a pergunta de boas-vindas aberta, não lido mesmo aberto.
+  const boasVindas = new Map(agentes.map((a) => [a.id, linhaDasBoasVindas(faseDasBoasVindasDe(a), a.nome)]));
+  const avisos = new Map(agentes.map((a): [string, AvisoBot] => [a.id, (abertas.get(a.id) ?? 0) > 0 ? "decisao" : perguntas.get(a.id) ? "pergunta" : temNovas(a.conversaId, estado) || boasVindas.get(a.id)?.naoLida ? "nao-lido" : ""]));
   const avisoDe = (a: (typeof agentes)[number]): AvisoBot => avisos.get(a.id) ?? "";
+  // ADR-167 (telas 16/16b): o pedido aberto mora na linha do bot — "Aguardando você: {motivo}" em laranja, o ponto laranja
+  // e o clique que abre a conversa no cartão pendente. Sem caixa nem sino separados.
+  const pedidos = pedidosAbertos(estado.suaVez);
+  // Spec D, itens 5 e 6: o pedido do computador diz a ação em poucas palavras ("abrir nfse.gov.br", "entrar no portal").
+  const aguardandoDe = aguardandoPorAgente(pedidos.map(pedidoParaAguardando));
+  const pendente = (a: (typeof agentes)[number]) => (avisoDe(a) === "decisao" || avisoDe(a) === "pergunta" ? aguardandoDe.get(a.id) : undefined);
+  const dadoPendente = (a: (typeof agentes)[number]) => { const p = pendente(a); return p ? ` data-pendente="${esc(p.decisaoId)}"` : ""; };
   const linha = (a: (typeof agentes)[number], escondida = false) => {
     // definido em 2026-09-24 (revisão da interface): a linha só tem UM sinal, o ponto do próprio mascote.
     // A cor diz o tipo — âmbar decisão, azul pergunta, cinza mensagem não lida —; o mascote animado já
     // diz quando o bot trabalha. Selos ⚑, estrela de fixado e pontos soltos saíram.
     const perguntando = perguntas.get(a.id) ?? 0;
     // definido em 2026-09-24 (emenda da ADR-044): "rotina parada" (âmbar) quando uma rotina dele espera acesso.
-    const nova = temNovas(a.conversaId, estado);
+    const bv = boasVindas.get(a.id);
+    const nova = temNovas(a.conversaId, estado) || !!bv?.naoLida;
     const aviso = avisoDe(a);
     const rotuloAviso = aviso ? ` (${ESPERA[aviso]})` : "";
-    const mascote = estadoMascoteNaConversa(estado, a.conversaId);
+    const mascote = avatarNaConversa(estado, a.conversaId);
     // NOD-216: a fila parada não esconde o aviso — ela é tão "parada" quanto o disponível.
-    const estadoVisual = mascoteComAviso(mascote, aviso);
-    // definido em 2026-09-24 (sidebar no estilo do Grok): o título vira um chip ao lado do nome e a linha de
+    const estadoVisual = bv?.pensando ? "pensando" : mascoteComAviso(mascote, aviso);
+    // definido em 2026-09-24 (sidebar compacta): o título vira um chip ao lado do nome e a linha de
     // baixo é a última mensagem; os estados que pedem ação (fora do ar, pergunta, rotina parada) ganham dela.
     // definido em 2026-10-04 (ADR-071): "Em ligação" ganha da última mensagem, discreto, com o fone.
     const emLigacao = estado.ligacaoViva?.agenteId === a.id;
-    const subtitulo = emLigacao ? `<span class="sub-em-ligacao">${ICONE_LIGACAO.fone(12)}Em ligação</span>` : a.computadorForaDoAr && a.ownerId === estado.sessao?.pessoaId ? '<span class="sub-fora-do-ar">computador fora do ar</span>' : perguntando ? SUBTITULO_ESPERANDO : paradas.has(a.id) ? SUBTITULO_ROTINA_PARADA : `<span${nova ? ' class="previa-nova"' : ""}>${esc(previaDoBot(a))}</span>`;
+    const espera = pendente(a);
+    const subtitulo = emLigacao ? `<span class="sub-em-ligacao">${ICONE_LIGACAO.fone(12)}Em ligação</span>` : a.computadorForaDoAr && a.ownerId === estado.sessao?.pessoaId ? '<span class="sub-fora-do-ar">computador fora do ar</span>' : espera ? `<span class="sub-aguardando" title="${esc(textoAguardando(espera))}">${esc(textoAguardando(espera))}</span>` : perguntando ? SUBTITULO_ESPERANDO : paradas.has(a.id) ? SUBTITULO_ROTINA_PARADA : bv?.semPrevia ? "<span></span>" : `<span${nova ? ' class="previa-nova"' : ""}>${esc(previaDoBot(a))}</span>`;
     // ADR-083 (#196, K8 variante 3): com trabalho aberto, o chip com o número e o ponto na cor do bot ao lado do nome.
     const chip = (a.titulo ? `<i class="chip">${esc(a.titulo)}</i>` : "") + sinalDoBot(estado, a);
     if (ehCelular) return linhaDoCelular(a, { escondida, aviso, nova, emLigacao, chip, estadoVisual, rotuloAviso, perguntando: perguntando > 0 });
@@ -2184,7 +2947,7 @@ function renderSidebar(estado: Estado): string {
     const extraAria = `${foraDoAr ? ", computador fora do ar" : ""}${!foraDoAr && paradas.has(a.id) ? ", rotina parada" : ""}${rotuloDoSinal(chip)}`;
     const nomeCompleto = a.titulo ? `${a.nome} · ${a.titulo}` : a.nome;
     const selecionado = selecaoBots.has(a.id);
-    return `<div class="bot-row${escondida ? " escondida" : ""}${selecionado ? " selecionado" : ""}" data-bot-contexto="${esc(a.id)}"${selecionado ? ' aria-selected="true"' : ""}${arrastavel(a)}${estadoBarra ? ` data-estado-barra="${estadoBarra}"` : ""} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}"><button class="row"${atual(a.conversaId)} data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}" data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}" data-etiqueta="${esc(nomeCompleto)}" aria-label="Abrir conversa com ${esc(a.nome)}${emLigacao ? " (em ligação)" : ""}${rotuloAviso}${esc(extraAria)}${selecionado ? ", selecionado" : ""}"${semTitle ? "" : ` title="${esc(nomeCompleto)}"`}>${iconeAgente(a, "", estadoVisual, aviso ? `data-aviso="${aviso}"` : "")}<span class="txt"><span class="nome-linha"><b>${esc(a.nome)}</b>${chip}</span>${subtitulo}</span></button><button type="button" class="bot-mais" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
+    return `<div class="bot-row${escondida ? " escondida" : ""}${selecionado ? " selecionado" : ""}" data-bot-contexto="${esc(a.id)}"${selecionado ? ' aria-selected="true"' : ""}${arrastavel(a)}${estadoBarra ? ` data-estado-barra="${estadoBarra}"` : ""} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}"${espera ? " data-aguardando" : ""}><button class="row"${atual(a.conversaId)} data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}"${dadoPendente(a)} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}" data-etiqueta="${esc(nomeCompleto)}" aria-label="${bv?.rotulo ? esc(bv.rotulo) : `Abrir conversa com ${esc(a.nome)}${emLigacao ? " (em ligação)" : ""}${rotuloAviso}${esc(extraAria)}`}${selecionado ? ", selecionado" : ""}"${semTitle ? "" : ` title="${esc(nomeCompleto)}"`}>${iconeAgente(a, "", estadoVisual, `${motorDaBarra(a.id)}${aviso ? ` data-aviso="${aviso}"` : ""}`)}<span class="txt"><span class="nome-linha"><b>${esc(a.nome)}</b>${chip}</span>${subtitulo}</span>${espera ? '<i class="ponto-aguardando" aria-hidden="true"></i>' : ""}</button><button type="button" class="bot-mais" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
   };
   /**
    * NOD-379 (protótipo v3): a linha de mensageiro — mascote de 48, nome e título, a hora à direita e a prévia embaixo. Quando
@@ -2199,7 +2962,7 @@ function renderSidebar(estado: Estado): string {
     const hora = em ? `<time class="inicio-hora" datetime="${new Date(em).toISOString()}">${horaDaLinha(em, Date.now(), fusoLocal())}</time>` : "";
     const tom = prefixo ? " pede" : o.nova ? " nao-lida" : "";
     const busca = esc(`${a.nome} ${a.titulo}`.toLowerCase());
-    return `<div class="bot-row inicio-linha${tom}${o.escondida ? " escondida" : ""}" data-bot-contexto="${esc(a.id)}" data-busca="${busca}"><button class="row" data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}" data-busca="${busca}" aria-label="Abrir conversa com ${esc(a.nome)}${o.emLigacao ? " (em ligação)" : ""}${o.rotuloAviso}">${iconeAgente(a, "", o.estadoVisual, o.aviso ? `data-aviso="${o.aviso}"` : "")}<span class="txt"><span class="nome-linha"><b>${esc(a.nome)}</b>${o.chip}${hora}</span>${sub}</span></button><button type="button" class="bot-mais" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
+    return `<div class="bot-row inicio-linha${tom}${o.escondida ? " escondida" : ""}" data-bot-contexto="${esc(a.id)}" data-busca="${busca}"><button class="row" data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}" data-busca="${busca}" aria-label="Abrir conversa com ${esc(a.nome)}${o.emLigacao ? " (em ligação)" : ""}${o.rotuloAviso}">${iconeAgente(a, "", o.estadoVisual, `${motorDaBarra(a.id)}${o.aviso ? ` data-aviso="${o.aviso}"` : ""}`)}<span class="txt"><span class="nome-linha"><b>${esc(a.nome)}</b>${o.chip}${hora}</span>${sub}</span></button><button type="button" class="bot-mais" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
   };
   // definido em 2026-10-04 (web/lib/secoes.ts): a seção recolhe pelo título. Recolhida, ficam à vista o bot da conversa
   // aberta e os com problema (computador fora do ar, em ligação); os outros continuam no HTML, escondidos pelo CSS — a
@@ -2214,20 +2977,26 @@ function renderSidebar(estado: Estado): string {
     const escondidos = ehCelular ? escondidosNoCelular(s.recolhida, bots) : s.escondidos;
     return `<section class="section"${atributos}${s.recolhida ? " data-recolhida" : ""}>${cabecalhoSecao(nome, chave, { recolhida: s.recolhida, total: lista.length, aviso: ehCelular ? "" : s.aviso })}${lista.map((a, i) => linha(a, escondidos[i])).join("")}</section>`;
   };
-  // definido em 2026-09-24 (sidebar no estilo do Grok): fixados em grade de 4 — avatar grande, nome e o
+  // definido em 2026-09-24 (sidebar compacta): fixados em grade de 4 — avatar grande, nome e o
   // título num chip. Mesmo aviso no mascote e o mesmo menu (clique direito / •••) da linha.
   const bloco = (a: (typeof agentes)[number], i: number) => {
     const aviso = avisoDe(a);
     // NOD-379: no celular, além dos 8 primeiros, só com "Ver todos" (ou buscando).
     const alem = ehCelular && i >= FAVORITOS_VISIVEIS && !favoritosTodos ? " alem-dos-visiveis" : "";
-    const mascote = estadoMascoteNaConversa(estado, a.conversaId);
+    // Paper 15–17 (rodada 3): o sinal no canto do avatar; trabalhando (o ponto vivo), o avatar gira com a frente.
+    // A mensagem nova (Paper 02–05b) é o ponto azul no canto, com o rosto de sempre (o "notify" fica para quem pede algo).
+    const novo = !ehCelular && aviso === "nao-lido";
+    const sinalGrade = ehCelular ? "" : sinalNaGrade(estado, a) || (novo ? '<span class="fixado-sinal" data-sinal="novo" aria-hidden="true"><i></i></span>' : "");
+    const mascote = sinalGrade.includes('data-sinal="vivo"') ? avatarDoBot(estado, a) : avatarNaConversa(estado, a.conversaId);
     const rotulo = aviso ? ` (${ESPERA[aviso]})` : "";
     const emLigacao = estado.ligacaoViva?.agenteId === a.id;
     const foraDoAr = !ehCelular && !!a.computadorForaDoAr && a.ownerId === estado.sessao?.pessoaId;
     const estadoBarra = ehCelular ? "" : emLigacao ? "ligacao" : foraDoAr ? "fora" : paradas.has(a.id) ? "parada" : "";
     const extraAria = ehCelular ? "" : `${emLigacao ? " (em ligação)" : ""}${foraDoAr ? ", computador fora do ar" : ""}${!foraDoAr && paradas.has(a.id) ? ", rotina parada" : ""}${rotuloDoSinal(sinalDoBot(estado, a))}`;
     const nomeCompleto = a.titulo ? `${a.nome} · ${a.titulo}` : a.nome;
-    return `<div class="fixado${emLigacao ? " em-ligacao" : ""}${alem}" data-bot-contexto="${esc(a.id)}"${arrastavel(a)}${estadoBarra ? ` data-estado-barra="${estadoBarra}"` : ""} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}"><button class="fixado-bt"${atual(a.conversaId)} data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}" data-etiqueta="${esc(nomeCompleto)}" aria-label="Abrir conversa com ${esc(a.nome)}${rotulo}${esc(extraAria)}"${semTitle ? "" : ` title="${esc(nomeCompleto)}"`}>${iconeAgente(a, "lg", mascoteComAviso(mascote, aviso), aviso ? `data-aviso="${aviso}"` : "")}<b>${esc(a.nome)}</b>${emLigacao ? `<i class="chip chip-em-ligacao">${ICONE_LIGACAO.fone(11)}Em ligação</i>` : sinalDoBot(estado, a) || (a.titulo ? `<i class="chip">${esc(a.titulo)}</i>` : "")}</button><button type="button" class="bot-mais bot-mais-fixado" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
+    // COP-12 (spec da barra): no computador a legenda do fixado é "Nome · título" numa linha, com reticências; o celular segue só com o nome.
+    const legenda = ehCelular ? a.nome : nomeCompleto;
+    return `<div class="fixado${emLigacao ? " em-ligacao" : ""}${alem}" data-bot-contexto="${esc(a.id)}"${arrastavel(a)}${estadoBarra ? ` data-estado-barra="${estadoBarra}"` : ""} data-busca="${esc(`${a.nome} ${a.titulo}`.toLowerCase())}"><button class="fixado-bt"${atual(a.conversaId)} data-act="abrir-conversa" data-conversa="${esc(a.conversaId)}" data-agente="${esc(a.id)}"${dadoPendente(a)} data-etiqueta="${esc(nomeCompleto)}" aria-label="Abrir conversa com ${esc(a.nome)}${rotulo}${esc(extraAria)}"${semTitle ? "" : ` title="${esc(nomeCompleto)}"`}>${iconeAgente(a, "lg", novo ? mascote : mascoteComAviso(mascote, aviso), `${motorDaBarra(a.id)}${aviso && !novo ? ` data-aviso="${aviso}"` : ""}`)}${sinalGrade}<b>${esc(legenda)}</b>${emLigacao ? `<i class="chip chip-em-ligacao">${ICONE_LIGACAO.fone(11)}Em ligação</i>` : sinalDoBot(estado, a) || (a.titulo ? `<i class="chip">${esc(a.titulo)}</i>` : "")}</button><button type="button" class="bot-mais bot-mais-fixado" data-act="menu-agente" data-id="${esc(a.id)}" aria-label="Ações de ${esc(a.nome)}" aria-haspopup="menu">⋯</button></div>`;
   };
   // definido em 2026-10-07 (ADR-081): o Nod nunca entra numa seção. Fixado, é o primeiro da grade; desafixado (discreto),
   // vira o botão com o logo e o nome na barra de cima, à esquerda da lupa (canvas "Nod — bot fixo", Alt E).
@@ -2288,13 +3057,18 @@ function renderSidebar(estado: Estado): string {
   const avisoDoMotor = agenteAguardando && aguardando
     ? botaoDaBarraSemIa(aguardando.conversaId, agenteAguardando.id)
     : falhaMotor ? avisoDeEstado({ tom: "alerta", texto: situacaoMotor, papel: "status", classe: "aviso-compacto", acao: botao("secao-espaco", motorDesatualizado(estado) ? "Atualizar" : "Conectar", { classe: "pri sm", dados: { secao: "conexao" } }) }) : "";
-  // definido em 2026-09-24 (sidebar no estilo do Grok): sem marca e sem título — o topo tem só busca,
+  // definido em 2026-09-24 (sidebar compacta): sem marca e sem título — o topo tem só busca,
   // sino e +. A busca é um ícone; o campo aparece ao clicar, com ⌘K, ou enquanto tem texto.
   const buscando = buscaAberta || termoBusca() !== "";
   // definido em 2026-09-29 (0039, canvas "Não lidos"): o ícone só existe com algo não lido (ou com a tela aberta).
   const comNovas = (estado.naoLidos?.conversas ?? []).some((c) => temNovas(c.conversaId, estado));
-  const naoLidos = comNovas || t.tipo === "nao-lidos"
-    ? `<button class="icone-topo nao-lidos-bt" data-act="navegar" data-tela="nao-lidos" aria-current="${t.tipo === "nao-lidos" ? "page" : "false"}" aria-label="${esc(rotuloNaoLidos(estado))}" title="Não lidos">${BANDEJA}${comNovas ? '<span class="ponto-novo" aria-hidden="true"></span>' : ""}</button>`
+  // Validação de 2026-11-16: "Não lidos" saiu do topo (aparecia entre a lupa e o + e empurrava o +) e virou linha fixa logo
+  // abaixo de "Trabalhos", com o número de conversas em azul (--signal, a cor do que é novo). O topo fica só com comandos
+  // (buscar, criar); os lugares com contagem moram na lista. Abaixo de "Trabalhos" para nada que já estava na tela mudar
+  // de lugar quando ela aparece. Só existe com algo não lido (ou com a tela aberta), como o ícone.
+  const nNovas = (estado.naoLidos?.conversas ?? []).filter((c) => temNovas(c.conversaId, estado)).length;
+  const linhaNaoLidos = comNovas || t.tipo === "nao-lidos"
+    ? `<div class="linha-fixa linha-nao-lidos"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="nao-lidos" aria-current="${t.tipo === "nao-lidos" ? "page" : "false"}" aria-label="${esc(rotuloNaoLidos(estado))}" data-etiqueta="Não lidos">${BANDEJA.replace("<svg ", '<svg class="linha-fixa-ic" ')}<span class="linha-fixa-nome">Não lidos</span>${nNovas ? `<span class="linha-fixa-cont linha-fixa-novas" aria-hidden="true">${nNovas}</span>` : ""}</button></div>`
     : "";
   if (ehCelular) {
     // O Nod está sempre lá: "vazio" é não ter nenhum outro bot (ele fica na grade, acima do convite).
@@ -2308,7 +3082,7 @@ function renderSidebar(estado: Estado): string {
     return `<div class="inicio-topo">
       <button class="me me-topo${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${estado.espaco ? "true" : "false"}" aria-label="Menu da conta: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}"><span class="av-me">eu</span>${avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}</button>
       ${renderTituloCompacto(abaDoInicio)}
-      <span class="inicio-topo-acoes">${renderIconeTrabalhos(estado)}<button class="create-trigger" data-act="navegar" data-tela="novo-bot" data-segurar="segurar-mais" aria-label="Nova conversa (segure para criar um bot direto)"><span class="segurar-anel" aria-hidden="true"></span>${MAIS}</button></span>
+      <span class="inicio-topo-acoes">${renderIconeTrabalhos(estado)}<button class="create-trigger" data-act="novo-bot-dialogo" data-segurar="segurar-mais" aria-label="Novo bot (segure para criar na hora)">${MAIS}</button></span>
     </div>
     ${renderIncidentes(estado)}
     ${ambiente}
@@ -2319,21 +3093,43 @@ function renderSidebar(estado: Estado): string {
     </div>
     ${renderTabBar(abaDoInicio, { pedidos: contagemDaAbaSuaVez(estado.suaVez), naoLidas: comNovas })}`;
   }
+  // ADR-167 (tela 16): "Trabalhos" vira linha fixa da barra, abaixo dos fixados, com o contador discreto ("N aguardando" em
+  // laranja quando algo pede a pessoa). O sino e o ícone de Trabalhos do topo saíram: o que eles diziam mora aqui e na
+  // linha de cada bot. "N aguardando" é um botão à parte que leva ao pedido (um só: a conversa no cartão; vários: Sua vez).
+  const nAbertos = (estado.trabalhos?.trabalhos ?? []).filter(aberto).length;
+  const contTrab = contadorDosTrabalhos({ abertos: nAbertos, aguardando: pedidos.length });
+  const primeiroPedido = pedidos[0]?.decisao;
+  const irAoPedido = pedidos.length === 1 && primeiroPedido
+    ? `data-act="abrir-conversa" data-conversa="${esc(primeiroPedido.conversaId)}" data-agente="${esc(primeiroPedido.agenteId)}" data-pendente="${esc(primeiroPedido.id)}"`
+    : 'data-act="navegar" data-tela="sua-vez"';
+  const linhaTrabalhos = meus.length ? `<div class="linha-fixa linha-trabalhos"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="trabalhos" aria-current="${t.tipo === "trabalhos" ? "page" : "false"}" aria-label="${esc(rotuloDosTrabalhos({ abertos: nAbertos, aguardando: pedidos.length }))}" data-etiqueta="Tarefas">${ICONE_TRABALHOS_LINHA}<span class="linha-fixa-nome">Tarefas</span>${contTrab?.tom === "neutro" ? `<span class="linha-fixa-cont" aria-hidden="true">${esc(contTrab.texto)}</span>` : ""}</button>${contTrab?.tom === "aguardando" ? `<button type="button" class="linha-fixa-aguardando" ${irAoPedido} aria-label="${esc(pedidos.length === 1 && pedidos[0] ? `${pedidos[0].agenteNome} precisa de você` : `${pedidos.length} pedidos esperando por você`)}"><i class="ponto-aguardando" aria-hidden="true"></i><span>${esc(contTrab.texto)}</span></button>` : ""}</div>` : "";
+  // Tela 18d do Paper (rodada 2): a linha "Tarefas" abre a página Tarefas de todos os bots (`{ tipo: "tarefas" }`).
+  // ADR-167 (telas 02–05 do Paper): a linha fixa fica acima de "Trabalhos"; o número é o de tarefas abertas que a tela já conhece.
+  const nTarefas = tarefasAbertasConhecidas();
+  const linhaTarefas = meus.length && estado.experimentos.quadro ? `<div class="linha-fixa linha-tarefas"><button type="button" class="linha-fixa-bt" data-act="navegar" data-tela="tarefas" aria-current="${t.tipo === "tarefas" ? "page" : "false"}" aria-label="Cards${nTarefas ? `, ${nTarefas} abertos` : ""}" data-etiqueta="Cards">${IC_QUADRO.replace("<svg ", '<svg class="linha-fixa-ic" ')}<span class="linha-fixa-nome">Cards</span>${nTarefas ? `<span class="linha-fixa-cont" aria-hidden="true">${nTarefas}</span>` : ""}</button></div>` : "";
+  const quem = quemEsta();
+  const nomeRodape = quem?.nome ?? quem?.email ?? "";
   const html = `<div class="search-wrap">
-      <div class="sh">${nodDiscreto}<button class="icone-topo" data-act="abrir-busca" aria-label="Buscar agentes" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${LUPA}</button>${naoLidos}${renderIconeTrabalhos(estado)}${renderChamada(estado)}<span class="create-actions"><button class="create-trigger" data-act="navegar" data-tela="novo-bot" data-segurar="segurar-mais" aria-label="Nova conversa (segure para criar um bot direto)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} Shift+Enter Shift+Space" title="Nova conversa (${ATALHO_NOVO_BOT.texto})"><span class="segurar-anel" aria-hidden="true"></span>+</button></span></div>
+      <div class="sh">${nodDiscreto}<button type="button" class="icone-topo barra-alternar" data-act="alternar-barra" aria-label="${barraAtual.compacta ? "Abrir a barra" : "Recolher a barra"}" aria-keyshortcuts="Meta+B" title="Barra só com avatares (⌘B)">${IC_BARRA}</button><button class="icone-topo icone-flutua" data-act="abrir-busca" aria-label="Buscar bots, conversas, ajustes e ações" aria-keyshortcuts="Meta+K Control+K" title="Buscar (⌘K)">${IC_LUPA}</button><span class="create-actions"><button class="create-trigger icone-flutua" data-act="novo-bot-dialogo" data-segurar="segurar-mais" aria-label="Novo bot (segure para criar na hora)" aria-keyshortcuts="${ATALHO_NOVO_BOT.aria} Shift+Enter Shift+Space" title="Novo bot (${ATALHO_NOVO_BOT.texto}) · segure para criar na hora"><span class="segurar-liquido" aria-hidden="true"><span class="sl-tinta"><span class="sl-onda"></span></span></span>${IC_MAIS}</button></span></div>
       <label class="search"${buscando ? "" : " hidden"}><span>⌕</span><input id="busca-bots" placeholder="Buscar agentes…" aria-label="Buscar agentes" autocomplete="off" /><kbd>esc</kbd></label>
     </div>
     ${renderIncidentes(estado)}
     <div class="list">
       ${grade}
+      ${linhaTarefas}
+      ${linhaTrabalhos}
+      ${linhaNaoLidos}
+      ${linhaProvisoria()}
       ${bots || listaVaziaDaBarra({ falhou: frotaFalhou, temFrota: !!estado.frota, botsDaEquipe: daEquipe.length }, SILHUETAS_DA_BARRA)}
       ${equipe}
     </div>
     ${ambiente}
     ${avisoDoMotor}
+    ${cartaoAtualizacao(atualizacaoNaWeb.tela(), barraAtual.compacta)}
     <div class="rodape">
-      <button class="me${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${estado.espaco ? "true" : "false"}"${falhaMotor ? ' data-etiqueta="Sua IA não está conectada"' : ""} aria-label="Menu da conta: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}" title="Menu da conta · ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}"><span class="av-me">eu</span>${falhaMotor ? '<span class="me-fora" aria-hidden="true">!</span>' : avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}<span class="me-conexao conexao-${esc(estado.conexao.estado)}" title="eventos ao vivo: ${esc(estado.conexao.estado)}"></span></button>
-      <button class="marketplace-bt" data-act="navegar" data-tela="conectores" aria-current="${t.tipo === "conectores" ? "true" : "false"}" data-etiqueta="Marketplace">${LOJA}<span class="marketplace-nome">Marketplace</span></button>
+      <button type="button" class="me conta-pilula${falhaMotor ? " me-falha" : ""}" data-act="menu-conta" aria-haspopup="menu" aria-expanded="${menuContaAberto() ? "true" : "false"}"${falhaMotor ? ' data-etiqueta="Sua IA não está conectada"' : ""} aria-label="Menu da conta${nomeRodape ? ` de ${esc(nomeRodape)}` : ""}: ${esc(situacaoMotor)}${avisoUso ? ` · ${esc(avisoUso.resumo)}` : ""}" title="${esc(nomeRodape || "Menu da conta")}"><span class="av-me">${esc(iniciaisDe(quem?.nome))}</span>${falhaMotor ? '<span class="me-fora" aria-hidden="true">!</span>' : avisoUso ? '<span class="me-ponto" aria-hidden="true"></span>' : ""}<span class="me-conexao conexao-${esc(estado.conexao.estado)}" title="eventos ao vivo: ${esc(estado.conexao.estado)}"></span>${nomeRodape ? `<span class="me-nome">${esc(nomeRodape)}</span>` : ""}</button>
+      ${linhaTarefas ? `<button type="button" class="rodape-ic rodape-tarefas" data-act="navegar" data-tela="tarefas" aria-label="Cards" data-etiqueta="Cards">${IC_QUADRO}</button>` : ""}
+      <button type="button" class="rodape-ic conectar-bt" data-act="navegar" data-tela="conectores" aria-current="${t.tipo === "conectores" ? "true" : "false"}" aria-label="Conectar aplicativos" title="Conectar aplicativos" data-etiqueta="Conectar aplicativos">${IC_GRADE}</button>
     </div>`;
   // NOD-119: na barra recolhida nenhum title nativo (a etiqueta escura o substitui; dois balões juntos confundem).
   return semTitle ? html.replace(/ title="[^"]*"/g, "") : html;
@@ -2382,8 +3178,34 @@ function htmlDoErro(e: ErroNaTela): string {
     return avisoDeEstado({ tom: "info", titulo: "Reconectando…", texto: e.mensagem, extra: detalhes, papel: "status", classe: "aviso-compacto aviso-reconectando" });
   }
   const nod = e.codigo === "erro_da_tela" ? (estado.frota?.agentes ?? []).find((a) => a.papel === "nod" && a.ownerId === estado.sessao?.pessoaId) : undefined;
-  const relatar = nod ? ` ${botao("abrir-conversa", "Relatar", { classe: "sm", dados: { conversa: nod.conversaId, agente: nod.id } })}` : "";
-  return `<div class="erro" role="alert">${esc(e.mensagem)}${relatar} ${botao("fechar-erro", "×", { classe: "sm" })}${detalhes}</div>`;
+  const relatar = nod ? botao("abrir-conversa", "Relatar", { classe: "sm erro-relatar", dados: { conversa: nod.conversaId, agente: nod.id } }) : "";
+  const ajustes = e.codigo === CODIGO_DITADO_MICROFONE && window.nodDesktop !== undefined && podeAbrirAjustesDoMicrofone() ? ` ${botaoAjustesDoMicrofone("sm")}` : "";
+  // Validação de 2026-11-16: o aviso compacto (casca.css) — ícone, a frase, Relatar, Detalhes e o × de ícone — no lugar
+  // da faixa vermelha de ponta a ponta; some sozinho em 8 s (sumirErroDaAcao).
+  return `<div class="erro" role="alert">${IC_ERRO}<span class="erro-txt">${esc(e.mensagem)}</span>${relatar}${ajustes}${detalhes}<button type="button" class="erro-fechar" data-act="fechar-erro" aria-label="Fechar o aviso">${IC_FECHAR_ERRO}</button></div>`;
+}
+
+const IC_ERRO = '<svg class="erro-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5"/><path d="M12 16h.01"/></svg>';
+const IC_FECHAR_ERRO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+/**
+ * O erro de uma ação some sozinho em 8 s, como o aviso passageiro do app de referência e do bot-hq; com o ponteiro ou o
+ * foco nele (lendo, abrindo Detalhes, indo ao Relatar), espera mais 2 s e confere de novo. O "Reconectando…" não entra:
+ * ele some quando a rede volta.
+ */
+const SUMICO_DO_ERRO_MS = 8000;
+let erroComPrazo: ErroNaTela | null = null;
+function sumirErroDaAcao(): void {
+  const e = estado.erro;
+  if (e === null || ehErroDeRede(e) || e === erroComPrazo) return;
+  erroComPrazo = e;
+  const conferir = (): void => {
+    if (estado.erro !== e) return;
+    const aviso = document.querySelector("#erro .erro");
+    if (aviso?.matches(":hover, :focus-within") || aviso?.querySelector("details[open]")) { window.setTimeout(conferir, 2000); return; }
+    dispatch({ tipo: "erro", erro: null });
+  };
+  window.setTimeout(conferir, SUMICO_DO_ERRO_MS);
 }
 
 /**
@@ -2446,6 +3268,8 @@ function abrirBuscaNaConversa(): void {
   // NOD-429: a busca é na conversa; aberta no modo Quadro, a conversa volta à vista antes.
   quadroNaTela.trocar("conversa");
   document.getElementById("cabecalho")?.classList.remove("bnc-dica"); // a dica "⌘F busca" não fica dentro da busca aberta
+  // ADR-189: a busca leva a pílula do bot para dentro do campo; o cabeçalho volta ao desenho por string antes.
+  devolverRegiao("cabecalho");
   buscaNaConversa.abrir(document.getElementById("cabecalho"));
 }
 
@@ -2519,14 +3343,35 @@ function abrirMenuDaPilula(ancora: HTMLElement, itens: readonly ItemDoMenuDaPilu
   });
 }
 
+/**
+ * Item 5 do chat: a conversa nova sem cache nenhum deixa a timeline como está (a conversa anterior) por até 80 ms; passado
+ * isso, o render seguinte (agendado pela espera) limpa a área e mostra só o spinner. Sem conversa anterior desenhada (a
+ * primeira carga), não há o que segurar: o spinner entra direto.
+ */
+function segurarConversaAnterior(conversaId: string, temOQuePintar: boolean): boolean {
+  // A réplica que ainda vem do IndexedDB (o boot antes do espelho, ou a que saiu da memória) também segura até 80 ms, com a
+  // casca da timeline já na tela (mesmo vazia): o spinner fica para o bot nunca aberto.
+  const historico = document.getElementById("timeline-historico");
+  const segura = historico?.firstElementChild || (historico && replicaACaminho(conversaId));
+  if (temOQuePintar || !segura) {
+    esperaDoSpinner.soltar();
+    return false;
+  }
+  return esperaDoSpinner.segurar(conversaId, performance.now());
+}
+
 function renderPrincipal(): void {
   const t = estado.tela;
   // NOD-174: a pessoa lê a frase do servidor; o código fechado fica só no <details>, para quem depura.
   const erro = estado.erro ? htmlDoErro(estado.erro) : "";
+  sumirErroDaAcao();
   let cabecalho = "";
   let corpo = "";
   let partes: PartesDaTimeline | null = null;
   let composer: { chave: string; html: string } | null = null;
+  // Item 5 do chat: sem nada para pintar da conversa nova, a anterior fica na tela até 80 ms (corte seco, sem "carregando").
+  let segurarTimeline = false;
+  let comAbas = false;
   switch (t.tipo) {
     case "novo-bot":
       corpo = renderNovoBot(estado);
@@ -2541,6 +3386,9 @@ function renderPrincipal(): void {
       break;
     case "nao-lidos":
       corpo = renderNaoLidos(estado);
+      break;
+    case "tarefas":
+      corpo = '<div id="tdt" class="tdt-casco"></div>';
       break;
     case "quadro-compartilhado":
       // NOD-455: o casco; o controlador desenha dentro dele (e não é regravado enquanto a tela é a mesma).
@@ -2557,40 +3405,76 @@ function renderPrincipal(): void {
       break;
     // ADR-083 (#195/#196): "Todos os trabalhos", a tela da task e a tela provisória de uma linha do chat.
     case "trabalhos":
-      // ADR-099 (parte 5): com o dono de cada bot no servidor, uma linha por bot; sem ele (servidor anterior), por task.
-      corpo = temDonos(estado) ? renderTrabalhosPorBot(estado) : renderTodosOsTrabalhos(estado, t.filtro);
+      // ADR-187 §8 (Paper 5a e 5b): abre em "Por bot" (com o dono de cada bot no servidor); "Por estado" é a outra vista.
+      corpo = renderTelaTarefas(estado, t);
       break;
-    case "trabalho":
-      cabecalho = renderTopoTrabalho(estado, t.id);
+    case "trabalho": {
+      // ADR-187 §6 (Paper 4k e 4p): a tarefa em tela cheia, com a fileira de abas no topo.
+      sincronizarAbas(t.id);
+      // O bot vem da tarefa ou, enquanto ela carrega (recém-criada, recarregada), da aba guardada.
+      const botDaAba = trabalhoPorId(estado, t.id)?.agenteId ?? abasDeTarefa.find((a) => a.id === t.id)?.agenteId;
+      cabecalho = renderTopoTrabalho(estado, t.id, botDaAba ? fileiraDeAbas(botDaAba, t.id) : undefined);
+      comAbas = !!botDaAba;
       // Por blocos como a conversa (definido em 2026-10-08, revisão W1, ADR-061): o texto ao vivo só mexe na parte ao vivo.
       partes = partesDaTask(t.id);
       anunciarSubagentes(t.id);
       corpo = CASCA_TIMELINE_TASK;
-      composer = { chave: `trabalho:${t.id}`, html: htmlComposer("Escreva para esta task…") + htmlAcoesDaTask(t.id) };
+      // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k e 4s): o campo da tarefa é o da conversa (o clipe, o seletor de IA,
+      // o ditado), com o Parar da tarefa no lugar do enviar; o que muda com o estado (o texto de dentro, a linha de baixo,
+      // as saídas da parada) o atualizarCampoDaTarefa troca sem regravar o campo.
+      {
+        const botDaTarefa = botDaAba ? botGerido(botDaAba) : undefined;
+        composer = { chave: `trabalho:${t.id}`, html: htmlComposer(campoDaTela(t.id).placeholder, [], { seletor: true, anexos: aceitaDo(botDaTarefa?.harness), bot: botDaTarefa?.nome, tarefa: t.id }) };
+      }
       break;
+    }
     case "linha":
       corpo = `<div class="timeline tk-timeline">${renderTelaLinha(estado, t)}</div>`;
       break;
+    // ADR-187 §7 (Paper 3b): a tarefa nova, limpa; a primeira mensagem a cria (criarTarefaNova).
+    case "nova-tarefa":
+      // ADR-187 §6 (Paper 4p): a tarefa nova entra na fileira como a aba "Nova tarefa", ativa, até a primeira mensagem.
+      sincronizarAbas(null, t.agenteId);
+      cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null)("")}</div>`;
+      comAbas = true;
+      corpo = renderNovaTarefa(estado, t.agenteId, levarContextoNaTarefa);
+      // Validação de 2026-11-18: o campo da tarefa nova tem o clipe, como o da tarefa (a fila sobe na conversa do bot).
+      composer = { chave: `nova-tarefa:${t.agenteId}`, html: htmlComposer(PLACEHOLDER_NOVA_TAREFA, [], { seletor: true, anexos: aceitaDo(botGerido(t.agenteId)?.harness) }) };
+      break;
     case "conversa":
       if (comQuadro(t.agenteId)) lerPaginas(t.agenteId);
-      {
-        const ps = paginasDaPilula(t.agenteId);
-        const dto = paginasDtoDe(t.agenteId);
-        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { comQuadro: comQuadro(t.agenteId), paginas: ps, ordem: ordemDoAgente(t.agenteId, ps), pedirApp: dto ? { cabeMais: dto.cabeMais, limite: dto.limite } : undefined });
+      // Paper 10b e 10c A: no modo abas a Conversa também tem a fileira, começando pela pílula; no modo pílula, a pílula de
+      // sempre com o botão de abas ao lado (quando há tarefas).
+      if (fileiraNaConversa(t.agenteId)) {
+        cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null, true)(botaoDoPainel(botGerido(t.agenteId)?.nome ?? "agente"))}</div>`;
+        comAbas = true;
+      } else {
+        guardarModoAbas(t.agenteId, false);
+        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId) ?? "" });
       }
       partes = partesDaTimeline();
-      corpo = partes ? CASCA_TIMELINE : renderTimeline(null, estado);
+      {
+        // Spec do botão + (tela 4): o bot recém-criado reflete enquanto a conversa dele não chega, no lugar do "carregando".
+        const bot = botGerido(t.agenteId);
+        const fase = bot ? faseDasBoasVindasDe(bot) : null;
+        if (fase === "vazia") { partes = null; corpo = '<div class="timeline"></div>'; }
+        else if (bot && botRecemCriado && fase === "pensando") { partes = null; corpo = htmlRefletindo(bot, botRecemCriado.em, Date.now()); }
+        else corpo = partes ? CASCA_TIMELINE : renderTimeline(null, estado);
+      }
+      segurarTimeline = segurarConversaAnterior(t.conversaId, partes !== null);
       composer = { chave: `conversa:${t.conversaId}`, html: htmlComposer(placeholderPadrao(), (estado.frota?.agentes ?? []).filter((a) => a.id !== t.agenteId && a.ownerId === estado.sessao?.pessoaId && a.confirmado).map((a) => a.nome), { anexos: aceitaDo(botGerido(t.agenteId)?.harness), comandos: true, aprovacao: true, bot: botGerido(t.agenteId)?.nome }) };
       break;
     case "sala":
       cabecalho = renderCabecalhoSala(estado, t.salaId);
       partes = partesDaTimeline();
       corpo = partes ? CASCA_TIMELINE : renderTimeline(null, estado);
+      segurarTimeline = segurarConversaAnterior(t.conversaId, partes !== null);
       composer = { chave: `sala:${t.salaId}`, html: htmlComposer(PLACEHOLDER_SALA, nomesDosMembros(estado, t.salaId)) };
       break;
   }
   atualizarGaveta(estado, gavetaSuja);
-  document.querySelector(".app")?.classList.toggle("com-detalhes", t.tipo === "conversa");
+  // Paper 15b (rodada 2): a página da frente mantém o painel do bot dela, com a frente marcada (renderDetalhes).
+  document.querySelector(".app")?.classList.toggle("com-detalhes", t.tipo === "conversa" || (t.tipo === "trabalho" && trabalhoPorId(estado, t.id)?.forma === "frente"));
   document.querySelector(".app")?.classList.toggle("detalhes-ocultos", painelOculto());
   const donoDaTela = t.tipo === "conversa" && botGerido(t.agenteId)?.ownerId === estado.sessao?.pessoaId;
   definirTelaDoBot(donoDaTela ? api : null, donoDaTela && t.tipo === "conversa" ? t.agenteId : null);
@@ -2599,12 +3483,20 @@ function renderPrincipal(): void {
   // NOD-42: a busca é da tela em que abriu (fecha ANTES do render: o "buscando" sai do cabeçalho junto). Aberta, o
   // cabeçalho é regravado em volta do miolo, que nunca sai do DOM (texto, foco, acento e cursor ficam).
   if (buscaNaConversa.aberta() && chaveDaTelaDeBusca() !== telaDaBusca) buscaNaConversa.fechar(false);
+  const pilulaAntes = medirPilulaDoTopo();
+  const abasAntes = abasNoTopo();
+  if (!buscaNaConversa.aberta()) entregarAoReact("cabecalho");
   regiaoEmVoltaDe("cabecalho", botaoAbrirBots(t.tipo === "conversa") + cabecalho + botaoBuscarCelular(), buscaNaConversa.no());
   buscaNaConversa.encaixar(document.getElementById("cabecalho"));
   document.getElementById("cabecalho")?.classList.toggle("so-menu", cabecalho === "");
-  document.getElementById("cabecalho")?.classList.toggle("cabecalho-task", t.tipo === "trabalho");
+  document.getElementById("cabecalho")?.classList.toggle("cabecalho-task", t.tipo === "trabalho" || t.tipo === "nova-tarefa");
+  document.getElementById("cabecalho")?.classList.toggle("cabecalho-abas", comAbas);
+  focarRenomeio();
   // Plano "tela limpa" (2026-10-16, T1): na conversa própria o cabeçalho é a pílula flutuante sobre o chat.
   document.getElementById("cabecalho")?.classList.toggle("cabecalho-pilula", t.tipo === "conversa");
+  // A sanfona mede o lugar novo só depois de o cabeçalho trocar de forma (as classes acima mudam o layout dele).
+  animarPilulaDoTopo(pilulaAntes);
+  animarAbasNovas(abasAntes);
   marcarPainelNaPilula();
   topoEncolhe.reavaliar();
   quadroNaTela.sincronizar(t.tipo === "conversa" && comQuadro(t.agenteId)
@@ -2613,12 +3505,21 @@ function renderPrincipal(): void {
   trilhaDaConversa.observar();
   regiao("erro", erro);
   const cascaMuda = regiaoMudaria("timeline", corpo);
-  const historicoMuda = cascaMuda || (partes !== null && blocosMudariam("timeline-historico", partes.historico));
-  const aoVivoMuda = cascaMuda || (partes !== null && blocosMudariam("timeline-ao-vivo", partes.aoVivo));
-  if (historicoMuda || aoVivoMuda) regravarTimeline(corpo, partes, { cascaMuda, historicoMuda, aoVivoMuda });
+  const historicoMuda = cascaMuda || (partes !== null && blocosDaConversaMudariam("timeline-historico", partes.historico));
+  const aoVivoMuda = cascaMuda || (partes !== null && blocosDaConversaMudariam("timeline-ao-vivo", partes.aoVivo));
+  if (!segurarTimeline && (historicoMuda || aoVivoMuda)) regravarTimeline(corpo, partes, { cascaMuda, historicoMuda, aoVivoMuda });
   // Chat limpo (PR 7; QA do PR 398): o progresso das frentes muda só o bloco dele, dentro da fala, sem regravá-la. O bloco
   // trocado é medido de novo antes da pílula (PR 8): ela some com o bloco à vista, e a frente nova do lote muda o bloco.
   if (progressoNaTela.desenhar(conversaDaTela(estado), estado, memoriaNaFala()) > 0) rolagem.progressoTrocado();
+  // Tela 18d: a página Tarefas de todos os bots também vive fora do reducer (relê sozinha no quadro.mudou).
+  if (t.tipo === "tarefas") {
+    tarefasDeTodos.abrir();
+    tarefasDeTodos.montar();
+    if (window.location.pathname !== CAMINHO_TAREFAS) window.history.replaceState(window.history.state, "", CAMINHO_TAREFAS + window.location.search + window.location.hash);
+  } else if (tarefasDeTodos.aberta()) {
+    tarefasDeTodos.fechar();
+    if (window.location.pathname === CAMINHO_TAREFAS) window.history.replaceState(window.history.state, "", "/" + window.location.search + window.location.hash);
+  }
   // NOD-455: o quadro compartilhado vive fora do reducer, como o da dona; a URL /quadros/:qid é só desta tela.
   if (t.tipo === "quadro-compartilhado") {
     if (quadroCompartilhado.atual() !== t.quadroId) quadroCompartilhado.abrir(t.quadroId);
@@ -2632,6 +3533,7 @@ function renderPrincipal(): void {
   // NOD-348: o tempo da fala viva é escrito logo depois do render (a parte trocada nasce vazia) e o anunciador vê o estado novo.
   relogioDaFala.tocar();
   anunciadorDoTurno.observar(falasNaTela());
+  agendarTrocaDoIndicador(tomarTrocaDoIndicador());
   // ADR-083 (#195): a faixa de Trabalhos fica colada em cima do campo, só na conversa e só com trabalho aberto do bot.
   // ADR-099 (parte 5): virou a linha do dono; chat limpo (PR 8): virou a pílula que se alarga, que some com a fala à vista.
   // Depois da timeline (revisão do PR 400): a medida do progresso na fala é a da timeline que acabou de ser desenhada
@@ -2648,6 +3550,9 @@ function renderPrincipal(): void {
     fecharFolhaMais();
     const saindo = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
     if (composerDe && saindo) rascunhos.guardar(composerDe, saindo.value);
+    // Item 5 do chat: trocar de uma conversa para outra tira o foco do campo (a borda volta ao repouso em 150 ms).
+    const trocaDeConversa = composerDe !== null && /^(conversa|sala):/.test(composerDe) && /^(conversa|sala):/.test(composer?.chave ?? "");
+    const tinhaFoco = !!saindo && document.activeElement === saindo;
     composerDe = composer?.chave ?? null;
     esquecerRegiao("composer");
     esquecerRegiao("composer-pergunta");
@@ -2659,8 +3564,13 @@ function renderPrincipal(): void {
       ajustarAltura(ta);
       ta.setSelectionRange(rascunho.length, rascunho.length);
     }
-    // No celular o foco abriria o teclado a cada conversa aberta: o campo espera o toque.
-    if (!celular.ativo()) ta?.focus();
+    // No celular o foco abriria o teclado a cada conversa aberta: o campo espera o toque. Na troca de conversa, também não.
+    if (!celular.ativo() && !trocaDeConversa) ta?.focus();
+    if (trocaDeConversa && tinhaFoco) {
+      const caixa = ta?.closest<HTMLElement>(".box");
+      caixa?.classList.add("saindo-do-foco");
+      caixa?.addEventListener("animationend", () => caixa.classList.remove("saindo-do-foco"), { once: true });
+    }
     redesenharAnexos();
   }
   atualizarComposer();
@@ -2721,7 +3631,9 @@ function anunciarSubagentes(id: string): void {
 
 /** A tela da task em duas partes: o histórico lembrado (só muda com mensagem nova) e o ao vivo do turno do trabalho. */
 function partesDaTask(id: string): PartesDaTimeline {
-  return { historico: lembrar("task-historico", estado, [id, versaoDasFases(), versaoDasDecisoesDaBarra(), barraNaConversa, ehCelular()], (e) => blocosDoHistoricoDaTask(e, id)), aoVivo: blocosAoVivoDaTask(estado, id) };
+  // Validação de 2026-11-17: com a versão dos textos abertos (ADR-185), o "Mostrar o texto todo" do texto parado na tela da
+  // tarefa redesenha; sem ela, o clique abria o texto só na memória e a tela seguia recolhida.
+  return { historico: lembrar("task-historico", estado, [id, versaoDasFases(), versaoDasDecisoesDaBarra(), barraNaConversa, ehCelular(), versaoDosTextos()], (e) => blocosDoHistoricoDaTask(e, id)), aoVivo: blocosAoVivoDaTask(estado, id) };
 }
 
 function partesDaTimeline(): PartesDaTimeline | null {
@@ -2730,7 +3642,7 @@ function partesDaTimeline(): PartesDaTimeline | null {
   // O chip de link do Slack diz "mensagem das HH:MM" no mesmo dia e "de DD/MM" depois: o dia é um extra.
   // Chat limpo (PR 7): o progresso das frentes na fala lê o ao vivo e o relógio, então não entra aqui — a fala leva só o
   // lugar dele, que `progressoNaTela` enche depois (web/telas/progresso-na-fala.ts); a fala não é regravada quando uma frente anda.
-  const historico = lembrar("timeline-historico", estado, [new Date().toDateString(), versaoDasFases(), versaoDasDecisoesDaBarra(), barraNaConversa, ehCelular()], (e) => {
+  const historico = lembrar("timeline-historico", estado, [new Date().toDateString(), versaoDasFases(), versaoDasDecisoesDaBarra(), barraNaConversa, ehCelular(), versaoDosTextos()], (e) => {
     const conversa = conversaDaTela(e);
     return conversa ? blocosDoHistorico(conversa, e) : [];
   });
@@ -2755,6 +3667,16 @@ function partesDaTimeline(): PartesDaTimeline | null {
  * fim. Com o histórico parado, só a parte ao vivo é mexida, e só nela se procura o que guardar: procurar no documento
  * inteiro (dezenas de milhares de nós numa conversa longa) a cada quadro de streaming custava mais que o próprio desenho.
  */
+/**
+ * Chat (polimento, protótipo C2b "passagem para a resposta"): a resposta do bot que acabou de entrar na conversa aberta
+ * sobe 12 px com fade (`.chegou`, web/chat.css), ~100 ms depois de o indicador sair; a fala que a pessoa acabou de mandar
+ * (a pendente) sobe na hora. Só os blocos novos (`regiaoPorBlocos`); abrir a conversa ou carregar o histórico não anima.
+ * A classe é da tela: `morfarDom` a preserva quando a pendente vira a gravada no mesmo nó.
+ */
+function animarChegada(blocos: HTMLElement[]): void {
+  for (const bloco of blocos) for (const b of bloco.querySelectorAll<HTMLElement>(".message.bot:not(.fala-viva) .bubble, .fala-pendente:not([data-envio=\"gravada\"]) .message.you .bubble")) b.classList.add("chegou");
+}
+
 const disclosuresAbertosEmTransicao = new Set<string>();
 // NOD-360 (CI da main, 14/11): a gravada pode entrar no histórico, ainda fechada, um instante antes de a fala que sai deixar
 // a região viva (as duas ficam ~100 ms na tela). Aberto nesse instante, o resumo da que sai valia só para ela, e a gravada
@@ -2804,8 +3726,8 @@ function regravarTimeline(corpo: string, partes: PartesDaTimeline | null, muda: 
     esquecerRegiao("timeline-ao-vivo");
   }
   if (partes) {
-    if (muda.historicoMuda) regiaoPorBlocos("timeline-historico", partes.historico);
-    if (muda.aoVivoMuda) regiaoPorBlocos("timeline-ao-vivo", partes.aoVivo);
+    if (muda.historicoMuda) animarChegada(desenharBlocosDaConversa("timeline-historico", partes.historico));
+    if (muda.aoVivoMuda) desenharBlocosDaConversa("timeline-ao-vivo", partes.aoVivo);
   }
   // O progresso das frentes entra nos lugares da fala antes de reabrir os <details> e de contar as linhas mostradas.
   if (muda.historicoMuda) {
@@ -2870,7 +3792,11 @@ function placeholderPadrao(): string {
   // Jornada C: com a fala guardada e nenhuma IA pronta, a dica diz quando o bot responde (o envio continua liberado).
   const c = estado.conversas[t.conversaId];
   if (c && conversaAguardandoIa({ [t.conversaId]: { mensagens: c.mensagens } }, iasNoCard(estado), turnosVivosDe(estado))) return `${dicaDoComposerSemIa(nome)}…`;
-  return `Escreva uma mensagem para ${nome}…`;
+  // Spec do botão + (tela 5): com o cartão de boas-vindas aberto, o campo também responde a ele.
+  const bot = botGerido(t.agenteId);
+  if (bot && faseDasBoasVindasDe(bot) === "pergunta") return PLACEHOLDER_DA_PERGUNTA;
+  // ADR-167 (Paper 02): "Mensagem para Ada", sem reticências.
+  return `Mensagem para ${nome}`;
 }
 
 /**
@@ -2883,15 +3809,21 @@ function atualizarComposer(): void {
   const alvo = conversaAtual();
   const caixa = document.querySelector<HTMLElement>("#composer .composer");
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
-  if (!alvo || !caixa || !ta) return;
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18): o campo da tarefa segue o estado dela, com o clipe, o + e o Parar dela.
+  if (estado.tela.tipo === "trabalho" && caixa && ta) { atualizarCampoDaTarefa(); atualizarSeletorIa(); atualizarMais(); atualizarParar(); return; }
+  // ADR-167: o seletor de modelo também vive no campo da task, que não tem conversa própria aqui.
+  if (!alvo || !caixa || !ta) { atualizarSeletorIa(); return; }
   const nota = document.getElementById("composer-nota");
   const a = aparenciaDoComposer(modoDoComposer(estado, alvo.conversaId), estado, { placeholder: placeholderPadrao(), nota: nota?.dataset.padrao ?? "" }, alvo.conversaId);
   regiao("composer-pergunta", a.topo);
   // ADR-094: no celular o texto de ajuda inteiro quebrava em duas linhas dentro do campo; lá fica o curto, e o leitor de
   // tela continua ouvindo o completo.
-  const placeholder = celular.ativo() ? "Mensagem" : a.placeholder;
+  // Item 10, rodada 2: com aprovação aberta e o campo no modo comum, mandar mensagem recusa o pedido (enviarComposer).
+  const comPedido = a.placeholder === placeholderPadrao() && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0;
+  const rotulo = comPedido ? PLACEHOLDER_COM_APROVACAO : a.placeholder;
+  const placeholder = celular.ativo() && !comPedido ? "Mensagem" : comPedido ? rotulo : placeholderComArquivo(rotulo);
   if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-  if (ta.getAttribute("aria-label") !== a.placeholder) ta.setAttribute("aria-label", a.placeholder);
+  if (ta.getAttribute("aria-label") !== rotulo) ta.setAttribute("aria-label", rotulo);
   // Plano "tela limpa" (2026-10-16, T5): a dica "Enter envia…" saiu. Plano "pergunta com botões" (2026-10-18): a nota do
   // modo resposta e o clipe desligado também — com pergunta aberta o campo não muda.
   if (nota && nota.textContent !== a.nota) nota.textContent = a.nota;
@@ -2899,6 +3831,35 @@ function atualizarComposer(): void {
   atualizarSeletorIa();
   atualizarMais();
   atualizarParar();
+}
+
+/** ADR-187 §6 (lote B, passo 4, 2026-11-18): o estado do campo da tarefa `id` (web/telas/tarefa-detalhada.ts). */
+function campoDaTela(id: string): CampoDaTarefa {
+  const d = estado.trabalhoDetalhe[id];
+  const tr = d?.trabalho ?? trabalhoPorId(estado, id);
+  const bot = tr ? (botGerido(tr.agenteId)?.nome ?? "o bot") : "o bot";
+  const guardadas = (d?.falasNaFila ?? []).filter((f) => f.situacao === "guardada").length;
+  return campoDaTarefa(tr, bot, guardadas);
+}
+
+/**
+ * Paper 4k, 4l, 4m e 4n: o campo da tarefa segue o estado dela sem ser regravado (ADR-020) — o texto de dentro, a linha de
+ * baixo ("A Ada está trabalhando · o recado entra no meio do trabalho" e "Esc para parar"), o anel azul de quando ela
+ * espera a pessoa e, parada, "Continuar de onde parou" e "Encerrar a tarefa" acima do campo.
+ */
+function atualizarCampoDaTarefa(): void {
+  const t = estado.tela;
+  const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+  if (t.tipo !== "trabalho" || !ta) return;
+  const c = campoDaTela(t.id);
+  const placeholder = celular.ativo() ? "Mensagem" : placeholderComArquivo(c.placeholder);
+  if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
+  if (ta.getAttribute("aria-label") !== c.placeholder) ta.setAttribute("aria-label", c.placeholder);
+  const nota = document.getElementById("composer-nota");
+  const html = c.nota ? `<span class="tk-nota">${esc(c.nota)}</span>${c.dica ? `<span class="tk-nota-dica" aria-hidden="true">${esc(c.dica)}</span>` : ""}` : "";
+  if (nota && nota.dataset.tarefa !== html) { nota.innerHTML = html; nota.dataset.tarefa = html; nota.classList.add("tk-nota-linha"); }
+  regiao("composer-pergunta", c.saida ? htmlSaidaDaParada(t.id) : "");
+  document.querySelector("#composer .composer .box")?.classList.toggle("tk-precisa-campo", c.precisa);
 }
 
 /**
@@ -2910,13 +3871,15 @@ function atualizarParar(): void {
   // ADA-5: o Enviar ⇄ Parar da pílula segue o mesmo turno vivo (e volta ao rótulo certo depois do ditado).
   quadroNaTela.atualizarPilula();
   const t = estado.tela;
-  const parar = document.querySelector<HTMLButtonElement>('#composer .parar-envio[data-act="parar-conversa"]');
+  const parar = document.querySelector<HTMLButtonElement>('#composer .parar-envio:is([data-act="parar-conversa"], [data-act="parar-trabalho"])');
   const enviar = document.querySelector<HTMLButtonElement>('#composer .send[data-act="enviar"]');
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
   if (!parar || !enviar || !ta) return;
-  const alvo = conversaAtual();
-  const anexos = alvo && !alvo.salaId ? (anexosPendentes.get(alvo.conversaId) ?? []).length : 0;
-  const b = botoesDoCampo({ trabalhando: pararNoCampoDaTela(estado), temConteudo: ta.value.trim() !== "" || anexos > 0, ditando: ditado.ativo() });
+  const fila = filaDosAnexos();
+  const anexos = fila ? (anexosPendentes.get(fila.chave) ?? []).length : 0;
+  // ADR-187 §6 (2026-11-18): no campo da tarefa, o Parar é o dela (a tarefa trabalhando ou na fila), com a mesma regra.
+  const trabalhando = t.tipo === "trabalho" ? campoDaTela(t.id).parar : pararNoCampoDaTela(estado);
+  const b = botoesDoCampo({ trabalhando, temConteudo: ta.value.trim() !== "" || anexos > 0, ditando: ditado.ativo() });
   if (parar.hidden !== !b.parar) parar.hidden = !b.parar;
   if (enviar.hidden !== !b.enviar) enviar.hidden = !b.enviar;
   if (b.parar && t.tipo === "conversa") {
@@ -2945,14 +3908,24 @@ function escreverNoCampo(ta: HTMLTextAreaElement, valor: string): void {
 function atualizarSeletorIa(): void {
   const bt = document.getElementById("composer-ia") as HTMLButtonElement | null;
   if (!bt) return;
-  const t = estado.tela;
-  const d = t.tipo === "conversa" ? dadosDoSeletor(estado, t.agenteId) : null;
+  const d = agenteDoSeletor() ? dadosDoSeletor(estado, agenteDoSeletor()!) : null;
   if (!d) { bt.hidden = true; return; }
   bt.hidden = false;
   const m = mioloDoSeletor(d, bt.getAttribute("aria-expanded") === "true");
   if (bt.dataset.miolo !== m.html) { bt.innerHTML = m.html; bt.dataset.miolo = m.html; }
   if (bt.title !== m.titulo) { bt.title = m.titulo; bt.setAttribute("aria-label", m.titulo); }
   bt.setAttribute("aria-disabled", String(!d.dona));
+}
+
+/**
+ * ADR-167: o seletor de modelo está em todo campo que fala com UM bot — a conversa dele e a task (frente) dele. Na sala,
+ * com vários bots, não há um modelo só, e o campo fica sem ele.
+ */
+function agenteDoSeletor(): string | null {
+  const t = estado.tela;
+  if (t.tipo === "conversa" || t.tipo === "nova-tarefa") return t.agenteId;
+  if (t.tipo === "trabalho") return trabalhoPorId(estado, t.id)?.agenteId ?? null;
+  return null;
 }
 
 /** O menu do seletor de IA aberto (um por vez) e se um clique dele ainda está gravando. */
@@ -2970,9 +3943,8 @@ function fecharMenuIa(): void {
  * chega depois de a conversa trocar (o menu é fechado por `fecharMenuIa`, mas o PUT pode estar no ar) não grava.
  */
 function abrirSeletorIa(el: HTMLElement): void {
-  const t = estado.tela;
-  const a = t.tipo === "conversa" ? estado.frota?.agentes.find((b) => b.id === t.agenteId) : undefined;
-  const d = t.tipo === "conversa" ? dadosDoSeletor(estado, t.agenteId) : null;
+  const a = agenteDoSeletor() ? estado.frota?.agentes.find((b) => b.id === agenteDoSeletor()) : undefined;
+  const d = agenteDoSeletor() ? dadosDoSeletor(estado, agenteDoSeletor()!) : null;
   if (!a || !d || !d.dona || gravandoIa || estado.ocupado) return;
   const chave = composerDe;
   menuIa = abrirMenuIa(el, renderMenuIa(d), (escolha) => {
@@ -3027,11 +3999,15 @@ function fecharFolhaMais(): void {
   folhaMais = null;
 }
 
-/** O que a folha do + mostra para o bot da tela (`linhasDoBot`). */
+/**
+ * O que a folha do + mostra para o bot da tela (`linhasDoBot`). Validação de 2026-11-18: no computador o + só anexa (a IA
+ * e o modo de aprovação já aparecem no hover do campo) e abre o seletor de arquivo direto, sem a folha do celular.
+ */
 function linhasDaFolhaMais(): LinhasDaFolhaMais {
+  if (!ehCelular()) return { anexar: document.getElementById("composer-arquivos") !== null, modo: null, ia: null };
   const t = estado.tela;
   const bot = t.tipo === "conversa" ? botGerido(t.agenteId) : undefined;
-  const d = t.tipo === "conversa" ? dadosDoSeletor(estado, t.agenteId) : null;
+  const d = agenteDoSeletor() ? dadosDoSeletor(estado, agenteDoSeletor()!) : null;
   return linhasDoBot({
     temArquivo: document.getElementById("composer-arquivos") !== null,
     dona: !!bot && bot.ownerId === estado.sessao?.pessoaId,
@@ -3071,6 +4047,7 @@ function atualizarMais(): void {
 function abrirFolhaMais(el: HTMLElement): void {
   const l = linhasDaFolhaMais();
   if (linhasVisiveis(l).length === 0) return;
+  if (!ehCelular()) { document.getElementById("composer-arquivos")?.click(); return; }
   fecharMenuIa();
   const chave = composerDe;
   const d = dialogo(renderFolhaMais(l), true);
@@ -3162,17 +4139,19 @@ const contaDaEntrada = (m: Partial<NonNullable<typeof entrada.conta>>) => { entr
 function entrarPelaTela(form: HTMLFormElement): Promise<void> {
   const d = new FormData(form);
   return trabalharNaEntrada(async () => {
-    try {
-      const r = await contaApi.entrar(String(d.get("email") ?? "").trim(), String(d.get("senha") ?? ""));
-      if (r.resultado === "recusado") return contaDaEntrada({ erro: ERRO_ENTRAR });
-      if (r.resultado === "entrou" && r.trocaApp && window.nodDesktop?.trocarConta) {
-        if (await window.nodDesktop.trocarConta(r.trocaApp).catch(() => false)) return;
-        return contaDaEntrada({ erro: FALHA_TROCA_APP });
+    await travaDaSessao.executar(async () => {
+      try {
+        const r = await contaApi.entrar(String(d.get("email") ?? "").trim(), String(d.get("senha") ?? ""));
+        if (r.resultado === "recusado") return contaDaEntrada({ erro: ERRO_ENTRAR });
+        if (r.resultado === "entrou" && r.trocaApp && window.nodDesktop?.trocarConta) {
+          if (await window.nodDesktop.trocarConta(r.trocaApp).catch(() => false)) return;
+          return contaDaEntrada({ erro: FALHA_TROCA_APP });
+        }
+        window.location.reload();
+      } catch (e) {
+        contaDaEntrada({ erro: fraseDoErroDeConta(e) });
       }
-      window.location.reload();
-    } catch (e) {
-      contaDaEntrada({ erro: fraseDoErroDeConta(e) });
-    }
+    });
   });
 }
 function recuperarPelaTela(form: HTMLFormElement): Promise<void> {
@@ -3235,6 +4214,17 @@ function renderEntrada(): string {
     ? `<p class="erro" role="alert">Não foi possível entrar com essa conta. Se ela ainda não tem acesso ao nod, peça para ser cadastrada.</p>`
     : "";
   if (!m) return `<section class="tela entrar"><h1>nod</h1><p class="mudo">carregando…</p></section>`;
+  if (entrada.primeiro && m.contas) {
+    const p = entrada.primeiro;
+    return htmlEntrarPrimeiro({
+      google: m.contas.google,
+      codigoPorEmail: m.contas.onboardingTexto === true,
+      equipe: linkDaEquipe({ loginGoogle: m.modo === "google", contaGoogle: m.contas.google, noApp: false, url: sessaoApi.urlGoogle }),
+      formEmailSenha: htmlEntradaConta(),
+      ocupado: p.ocupado,
+      erro: p.erro,
+    });
+  }
   if (m.modo === "google") {
     // NOD-345: com contas, quem não é da equipe entra com o e-mail (o Google da equipe continua aqui).
     return `<section class="tela entrar"><h1>nod</h1><p>Entre com a sua conta Google.</p>${doMac}${recusa}<a class="bt pri" href="${esc(sessaoApi.urlGoogle)}">Entrar com Google</a>${m.contas ? htmlEntradaConta() : ""}</section>`;
@@ -3258,6 +4248,16 @@ function agendarViradaDoMascote(): void {
 }
 
 function render(): void {
+  lojaDoEstado.avisar();
+  // O modal do Marketplace também lê o que mora fora do reducer (o padrão do app, o nível otimista): a foto dele só
+  // muda de objeto quando algo que ele mostra mudou (web/react/marketplace/real.ts).
+  apiDoMarketplace?.avisar();
+  if (ajusteDoLink && estado.sessao && estado.frota && !celular.ativo()) {
+    const id = ajusteDoLink;
+    ajusteDoLink = null;
+    history.replaceState(null, "", location.pathname + location.search);
+    queueMicrotask(() => irAoAjuste(id));
+  }
   // Um redesenho síncrono já cobre o que o quadro pendente ia mostrar.
   if (quadroPendente) {
     window.cancelAnimationFrame(quadroPendente);
@@ -3267,6 +4267,7 @@ function render(): void {
   // NOD-379: sem sessão a inicial não existe e a entrada (no palco) não pode ficar inerte.
   celular.definirSessao(!!estado.sessao);
   if (!estado.sessao) {
+    if (modalDoMarketplace) fecharModalDoMarketplace();
     document.querySelector(".app")?.classList.add("sem-sessao");
     definirTelaDoBot(null, null);
     regiao("detalhes", "");
@@ -3298,21 +4299,16 @@ function render(): void {
     conta: dadosConta(),
     contaPagina: contas?.minhaConta && estado.configUi.abertos.includes("conta-pagina") ? telaMinhaConta.render() : null,
     tema: lerTema(),
-    densidade: barraAtual.densidade,
     conexao: resumoConexao(),
+    ...extrasDasConfiguracoes(),
   }) : "", { seletor: ".espaco-conteudo", chave: secaoAberta(estado) === "agentes" || secaoAberta(estado) === "rotinas" ? secaoAberta(estado) : null });
-  rolarAgenda();
   devolverSegredosSsh();
   document.getElementById("espaco")?.toggleAttribute("hidden", !estado.espaco);
   // A ligação em tela cheia também deixa a .app (e Seu espaço) inerte; a pílula não: a pessoa usa o nod com a ligação aberta.
   // O onboarding por cima (olá, IA do Mac, "está te ligando") também deixa a .app inerte (ADR-077).
   // ADA-242 (aceite 6): quem já concluiu, numa máquina que não viu "Este computador", vê só essa tela (uma vez por sessão).
   void telaOnboarding.verificarMaquina();
-  const camadaOnboarding = telaOnboarding.camada();
-  const devolverFoco = regiaoMudaria("onboarding", camadaOnboarding) ? guardarFocoDaCamada(document.getElementById("onboarding")) : null;
-  regiao("onboarding", camadaOnboarding);
-  devolverFoco?.();
-  document.getElementById("onboarding")?.toggleAttribute("hidden", camadaOnboarding === "");
+  desenharCamadaOnboarding();
   // A busca do celular em tela cheia também (NOD-380): sem isto, o próximo render devolvia a .app ao Tab com o diálogo aberto.
   pintarInerciaDoApp();
   document.getElementById("espaco")?.toggleAttribute("inert", telaLigacao.cheia());
@@ -3323,10 +4319,13 @@ function render(): void {
     queueMicrotask(() => telaLigacao.retomar(retomar));
   }
   renderPrincipal();
+  if (api) preencherMiniaturasAjuda(api, document);
   garantirAcessosDoApp();
   // NOD-379: com a inicial do celular à vista (o voltar do navegador por cima do Marketplace), a gaveta de app não prende
   // o foco: ela deixaria a inicial inerte.
   prenderFocoNaGaveta(celular.botsAbertos() ? null : gavetaDoApp);
+  // ADR-173: o Quick Chat e o botão de captura antes do foco, que vale sobre o DOM já completo (guarda da NOD-370).
+  pintarQuickChat();
   codigo?.();
   focoPendente.aplicar();
 }
@@ -3390,9 +4389,9 @@ function prenderFocoNaGaveta(slug: string | null): void {
  * (digitar na busca filtra direto, no ouvinte de input).
  */
 function redesenharSidebar(): void {
-  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", serializar(barraAtual), JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo], renderSidebar);
-  // NOD-119: no celular a barra é a gaveta de sempre; o <html> só leva a densidade no computador (virar o aparelho muda).
-  pintarBarra(barraAtual, document.documentElement, celular.ativo(), buscaAberta || termoBusca() !== "");
+  const html = lembrar("sidebar", estado, [ambienteBanco, buscaAberta, termoBusca() !== "", naFrente(), deixarNaoLida, secoesRecolhidas, edicaoTime?.alvo ?? "", [...selecaoBots].join(","), celular.ativo(), celular.botsAbertos(), frotaFalhou, favoritosTodos, celular.ativo() ? new Date().toDateString() : "", barraAtual.compacta, JSON.stringify(compartilhados), abaDoInicio, suaVezFalhou, quadrosDaAba.tipo === "pronto" ? quadrosDaAba.em : quadrosDaAba.tipo, botProvisorio ? `${botProvisorio.nome}:${botProvisorio.agenteId ?? ""}` : "", JSON.stringify(atualizacaoNaWeb.tela())], renderSidebar);
+  // NOD-119/ADR-179: no celular a barra é a gaveta de sempre; o <html> só leva a largura no computador (virar o aparelho muda).
+  pintarBarraAgora();
   if (!regiaoMudaria("sidebar", html)) return;
   const busca = document.getElementById("busca-bots") as HTMLInputElement | null;
   const valorBusca = busca?.value ?? "";
@@ -3435,6 +4434,14 @@ function manterRolagemDaBarra(anterior: number): void {
     conversaNaVistaDaBarra = conversa;
   }
   lista.scrollTop = rolagemDaBarra({ anterior, altura: lista.clientHeight, linha });
+  marcarBordasDaLista(lista);
+}
+
+/** COP-12: a máscara de fade só na borda que esconde conteúdo (web/lib/rolagem-barra.ts, bordasDaLista; CSS em casca.css). */
+function marcarBordasDaLista(lista: HTMLElement): void {
+  const b = bordasDaLista({ rolagem: lista.scrollTop, altura: lista.clientHeight, total: lista.scrollHeight });
+  lista.toggleAttribute("data-fade-topo", b.topo);
+  lista.toggleAttribute("data-fade-base", b.base);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -3448,6 +4455,21 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   cancelarRetryDoComputador();
   // Os rascunhos são da pessoa: outra sessão, outros rascunhos.
   rascunhos.usar(`${escopo.tenantId}.${escopo.pessoaId}`);
+  // Item 5 do chat: as conversas guardadas também são da pessoa (um banco por pessoa). Lidas, a da tela que ainda espera
+  // o servidor já pinta (a primeira troca depois de recarregar vem do IndexedDB).
+  if (escopo.tenantId !== estado.sessao?.tenantId || escopo.pessoaId !== estado.sessao?.pessoaId) {
+    cacheConversas.descarregar();
+    const cache = criarCacheDeConversas(armazemIndexedDb(`${escopo.tenantId}.${escopo.pessoaId}`));
+    cacheConversas = cache;
+    // O journal de envio também é da pessoa: o da sessão anterior para de reenviar (o que ficou volta no boot dela).
+    journal?.encerrar();
+    journal = criarJournalDeEnvio({ armazem: armazemDoJournalDa(escopo), enviar: enviarDoJournal });
+    void cache.pronto.then(() => {
+      if (cache !== cacheConversas || !pintarDoCache(estado.tela)) return;
+      render();
+      void reidratar();
+    });
+  }
   api = criarApi(escopo);
   // NOD-324: a disponibilidade do ditado (e o aceite do aviso) é da sessão; a da anterior não decide o 🎤 desta.
   ditado.reiniciar();
@@ -3455,17 +4477,25 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   compartilhados = [];
   lendoCompartilhados++;
   quadroCompartilhado.fechar();
+  tarefasDeTodos.fechar();
   // Outra sessão, outra fila: a primeira leitura volta a ser só a linha de base.
   avisador.reiniciar();
   canalAvisos.contador(0);
   deepLink.novaSessao();
-  ambienteBanco = await api.ambiente();
+  // Leva 2 (ADR-181): a sessão entra na hora e a primeira passada já sai; o ambiente do banco (o selo "Efêmero" da barra
+  // no modo dev) chega depois e só redesenha — antes era uma ida e volta inteira antes de qualquer coisa aparecer.
   dispatch({ tipo: "sessao", escopo });
+  // Journal de envio: depois da sessão, o que ficou (recarregou no meio, ficou sem rede) volta à conversa e é reenviado.
+  reconciliarJournal();
+  revalidacaoDaBarra.iniciar();
+  void api.ambiente().then((a) => { ambienteBanco = a; renderNoQuadro(); }, () => undefined);
   void api.preferencias().then((p) => {
     if (p.usoDoMac) dispatch({ tipo: "uso-do-mac", uso: p.usoDoMac });
     atualizarModoNoComposer();
     dispatch({ tipo: "modo-dev", ligado: p.modoDev });
     if (p.experimentos) dispatch({ tipo: "experimentos", experimentos: p.experimentos, quadroLiberado: p.quadroLiberado ?? false });
+    // ADR-187 §5: a dica das tarefas (uma vez por pessoa) lê daqui se já foi vista.
+    dispatch({ tipo: "avisos-fechados", chaves: p.avisosFechados ?? [] });
     aplicarModoDevNoComputador(p.modoDev);
     const c = conversaDaTela(estado);
     if (p.modoDev && c) void carregarRaioX(c.conversa.id);
@@ -3485,6 +4515,7 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
       dispatch({ tipo: "invalidar", quais: invalidacoesAoRetomar(estado) });
       quadroNaTela.reler(); // NOD-442/455: fora do reducer
       quadroCompartilhado.reler();
+      tarefasDeTodos.reler();
       relerCompartilhados();
       // NOD-324: o aviso de voz, sem descartar a fala.
       void ditado.reler();
@@ -3492,6 +4523,7 @@ async function iniciarSessao(escopo: Escopo): Promise<void> {
   });
   live.subscribe((ev) => {
     if (ev.tipo === "frame") receberFrame(ev.frame);
+    else if (ev.tipo === "agentes.estado") dispatch({ tipo: "hidratar-estados-vivos", estados: ev.retrato.agentes });
     else if (ev.tipo === "conexao") {
       // NOD-216: o stream que volta depois de cair relê os turnos vivos (a conversa aberta e os donos da barra), mesmo
       // com o replay: um turno.encerrado de antes do buffer deixaria o mascote animado para sempre.
@@ -3535,16 +4567,6 @@ const chaveDaRolagem = new Map<string, string | null>();
  * Revisão do #228 (2026-10-09): regrava a região e reabre os `<details data-disclosure>` que estavam abertos, devolvendo
  * o foco ao que o tinha. Este Mac é relida a cada 30 s (ADR-091), e o "porquê" aberto pela pessoa fechava sozinho.
  */
-// NOD-85: com a agenda carregada, abre no agora (ou vai até o dia pedido pela régua, mini mês ou link) e avisa o estado
-// para não rolar de novo no próximo quadro. O movimento suave sai com prefers-reduced-motion.
-function rolarAgenda(): void {
-  const ui = estado.agenda.ui;
-  if (!estado.espaco || secaoAberta(estado) !== "rotinas" || !estado.agenda.dto || (ui.alvo === null && !ui.rolarAgora)) return;
-  const alvo = ui.alvo ? document.getElementById(`ag-dia-${ui.alvo}`) : document.querySelector<HTMLElement>("#espaco .ag-agora");
-  const suave = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  alvo?.scrollIntoView({ block: ui.alvo ? "start" : "center", behavior: suave ? "smooth" : "auto" });
-  queueMicrotask(() => dispatch({ tipo: "agenda-rolou" }));
-}
 function regiaoReabrindo(id: string, html: string, rolagem?: { seletor: string; chave: string | null }): void {
   const raiz = document.getElementById(id);
   const chaveAntes = chaveDaRolagem.get(id) ?? null;
@@ -3585,12 +4607,15 @@ const CHAVE_CODIGO_MAQUINA = "nod-parear-maquina";
 /** NOD-416 (ADR-144): o link da tarefa (`?tarefa=ZE-12`), guardado até a sessão existir. */
 const CHAVE_TAREFA_LINK = "nod-tarefa-link";
 const CHAVE_QUADRO_LINK = "nod-quadro-link";
+const CAMINHO_TAREFAS = "/tarefas";
 const CHAVE_VOLTA_NUVEM = "nod-volta-nuvem";
 async function boot(): Promise<void> {
   dispatch({ tipo: "tick", agora: Date.now() });
   let ticks = 0;
   window.setInterval(() => {
     ticks += 1;
+    const reconciliar = invalidacoesDoChatSemProgresso(estado, Date.now(), document.visibilityState === "visible");
+    if (reconciliar.length) estado = reduzir(estado, { tipo: "invalidar", quais: reconciliar });
     // definido em 2026-09-24 ("aviso no Mac"): a decisora designada que não é dona não recebe frame
     // decisao.* (o outbox manda à dona); sem isto o pedido dela só aparecia — e só avisava — quando
     // outra coisa relesse "Sua vez".
@@ -3625,9 +4650,14 @@ async function boot(): Promise<void> {
     url.searchParams.delete("parear-maquina");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   }
+  // #84: o link do QR do pareamento (`/#parear=<6 números>`). O código sai da URL na hora (não fica no histórico) e espera
+  // a sessão na sessionStorage da aba: a da pessoa, ou o espaço provisório da primeira visita do celular.
+  if (guardarCodigoDoLink(window)) url.hash = "";
   // NOD-455: o link direto /quadros/:qid (no recarregar e no celular) abre o quadro compartilhado depois da sessão.
   const quadroNaUrl = quadroDaUrl(url.pathname);
   if (quadroNaUrl) { try { window.sessionStorage.setItem(CHAVE_QUADRO_LINK, quadroNaUrl); } catch { /* sem storage: o link não abre */ } }
+  // Tela 18d: o link /tarefas (recarregar na página Tarefas de todos os bots) abre a mesma tela depois da sessão.
+  if (url.pathname === CAMINHO_TAREFAS) { try { window.sessionStorage.setItem(CHAVE_QUADRO_LINK, CAMINHO_TAREFAS); } catch { /* sem storage */ } }
   // NOD-416: o link da tarefa abre a conversa do bot dela, no Quadro, com a tarefa em tela cheia (depois do login se preciso).
   const tarefaNaUrl = url.searchParams.get(PARAMETRO_TAREFA);
   if (tarefaNaUrl !== null) {
@@ -3676,6 +4706,7 @@ async function boot(): Promise<void> {
     abrirVoltaDaNuvemGuardada();
     void abrirTarefaGuardada(); abrirQuadroGuardado();
     await lerContas(voltaDaConta);
+    await abrirParearGuardado();
     if (confirmando) { await confirmando; if (contas?.minhaConta) abrirEspaco("conta"); }
   } catch (e) {
     if (e instanceof ErroApi && e.status === 401) {
@@ -3689,11 +4720,19 @@ async function boot(): Promise<void> {
         // tela, sem executor. Sessão do app que caiu volta à tela de entrar.
         // NOD-406: a volta recusada do Google da equipe fica na tela de entrada, com o motivo, sem abrir um provisório.
         // A marca da equipe: quem já entrou pelo Google da equipe neste navegador volta à tela de entrar.
-        if (abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() }) && (await provisorioDaWeb())) {
+        const abre = abreProvisorio({ saiu, recusado: entrada.recusado, bootstrap: modo.contas?.bootstrap ?? false, noApp: window.nodDesktop !== undefined, equipe: daEquipe(), pareando: pedidoPendente() !== null || codigoDeMaquinaPendente() });
+        // #81: na primeira visita deste navegador, pergunta "Já usa o nod?" antes de abrir um espaço provisório novo.
+        // #84: quem chega pelo QR já escolheu entrar numa conta; segue direto para a confirmação do pareamento.
+        if (!codigoDoLinkGuardado(window) && mostrarEntrarPrimeiro({ abreProvisorio: abre, temVerificador: temVerificador() })) {
+          entrada = { ...entrada, primeiro: { ocupado: false, erro: null } };
+          return render();
+        }
+        if (abre && (await provisorioDaWeb())) {
           await iniciarSessao(await sessaoApi.atual());
           // O link da tarefa também vale na primeira visita, no espaço provisório (revisão do PR #623).
           void abrirTarefaGuardada(); abrirQuadroGuardado();
           await lerContas(voltaDaConta);
+          await abrirParearGuardado();
           return;
         }
         render();
@@ -3704,30 +4743,89 @@ async function boot(): Promise<void> {
   }
 }
 
+/**
+ * #84: o código do QR guardado no boot. Com a sessão aberta (a da pessoa ou o espaço provisório, que o pedido exige),
+ * tira o onboarding da frente e abre a confirmação "Conectar a esta conta"; o pedido só sai no clique (revisão do PR #85).
+ */
+async function abrirParearGuardado(): Promise<void> {
+  await abrirCodigoGuardado(window, {
+    // O onboarding do espaço provisório abriria por cima do cartão: lido agora, ele resolve (abre uma vez) e fecha aqui.
+    tirarDaFrente: async () => {
+      if (estado.onboarding === undefined && api) dispatch({ tipo: "hidratar-onboarding", onboarding: await api.onboarding().catch(() => null) });
+      dispatch({ tipo: "onboarding-aberto", aberto: false });
+    },
+    conta: telaConta,
+  });
+}
+
 /** NOD-345: o verificador desta instalação na web (aleatório, guardado; perder = um espaço novo, o antigo fica). */
 const CHAVE_VERIFICADOR = "nod-instalacao";
-async function provisorioDaWeb(): Promise<boolean> {
-  let v: string | null = null;
-  try { v = window.localStorage.getItem(CHAVE_VERIFICADOR); } catch { /* sem storage: um verificador por visita */ }
-  if (!v || !/^[A-Za-z0-9_-]{32,128}$/.test(v)) {
-    const b = crypto.getRandomValues(new Uint8Array(32));
-    v = btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    try { window.localStorage.setItem(CHAVE_VERIFICADOR, v); } catch { /* idem */ }
+function temVerificador(): boolean {
+  try { return /^[A-Za-z0-9_-]{32,128}$/.test(window.localStorage.getItem(CHAVE_VERIFICADOR) ?? ""); } catch { return false; }
+}
+
+/**
+ * #81: a escolha na tela "Já usa o nod?". Google, código por e-mail e pareamento pedem sessão (exigirSessao no servidor):
+ * abre o espaço provisório, tira o onboarding da frente e segue para o passo escolhido. "Começar sem conta" é o de antes.
+ */
+async function seguirEntrarPrimeiro(i: IntencaoEntrada): Promise<void> {
+  if (!entrada.primeiro || entrada.primeiro.ocupado) return;
+  entrada = { ...entrada, primeiro: { ocupado: true, erro: null } };
+  render();
+  if (!(await provisorioDaWeb())) {
+    const erro = entrada.conta?.erro === LIMITE_PROVISORIO ? LIMITE_PROVISORIO : "Não deu para falar com o nod agora. Tente de novo.";
+    entrada = { ...entrada, primeiro: { ocupado: false, erro } };
+    return render();
   }
+  entrada = { ...entrada, primeiro: null };
   try {
-    await contaApi.provisorioWeb(v);
-    return true;
-  } catch (e) {
-    if (e instanceof ErroApi && e.desafio && e.bits) {
-      const resposta = await resolverProvaNoNavegador(e.desafio, e.bits);
-      if (resposta !== null) {
-        try { await contaApi.provisorioWeb(v, { desafio: e.desafio, resposta }); return true; } catch { /* mostra o limite abaixo */ }
-      }
+    await iniciarSessao(await sessaoApi.atual());
+    void abrirTarefaGuardada(); abrirQuadroGuardado();
+    await lerContas(null);
+    if (i === "sem-conta") return;
+    // O onboarding do espaço provisório abriria por cima do cartão: lido agora, ele resolve (abre uma vez) e fecha aqui.
+    if (estado.onboarding === undefined && api) dispatch({ tipo: "hidratar-onboarding", onboarding: await api.onboarding().catch(() => null) });
+    dispatch({ tipo: "onboarding-aberto", aberto: false });
+    const etapa = etapaDaIntencao(i);
+    if (etapa) return void (await telaConta.abrir(etapa, true));
+    try {
+      window.location.assign((await contaApi.google(false)).url);
+    } catch {
+      await telaConta.abrir("inicio", true);
     }
-    // Muitos espaços novos da mesma rede (NAT de escritório, CGNAT): a tela de entrada diz por quê, em vez de só aparecer.
-    if (e instanceof ErroApi && e.status === 429) entrada = { ...entrada, conta: { etapa: "entrar", enviadoPara: null, ocupado: false, ...entrada.conta, erro: LIMITE_PROVISORIO } };
-    return false;
+  } catch (e) {
+    mostrarErroDoBoot(e);
   }
+}
+async function provisorioDaWeb(): Promise<boolean> {
+  return travaDaSessao.executar(async () => {
+    // O login pode ter vencido a corrida enquanto o boot esperava a trava. Nesse caso, mantém a sessão da conta.
+    try { await sessaoApi.atual(); return true; } catch (e) { if (!(e instanceof ErroApi && e.status === 401)) return false; }
+    return comVerificadorDoProvisorio({
+      ler: () => { try { return window.localStorage.getItem(CHAVE_VERIFICADOR); } catch { return null; } },
+      gravar: (v) => { try { window.localStorage.setItem(CHAVE_VERIFICADOR, v); } catch { /* sem storage: um verificador por visita */ } },
+      gerar: () => {
+        const b = crypto.getRandomValues(new Uint8Array(32));
+        return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      },
+      abrir: async (v) => {
+        try {
+          await contaApi.provisorioWeb(v);
+          return true;
+        } catch (e) {
+          if (e instanceof ErroApi && e.desafio && e.bits) {
+            const resposta = await resolverProvaNoNavegador(e.desafio, e.bits);
+            if (resposta !== null) {
+              try { await contaApi.provisorioWeb(v, { desafio: e.desafio, resposta }); return true; } catch { /* mostra o limite abaixo */ }
+            }
+          }
+          // Muitos espaços novos da mesma rede (NAT de escritório, CGNAT): a tela de entrada diz por quê, em vez de só aparecer.
+          if (e instanceof ErroApi && e.status === 429) entrada = { ...entrada, conta: { etapa: "entrar", enviadoPara: null, ocupado: false, ...entrada.conta, erro: LIMITE_PROVISORIO } };
+          return false;
+        }
+      },
+    });
+  });
 }
 
 /** NOD-346: o servidor não diz se a conta existiu (sem enumeração); a dica cobre quem excluiu e voltou depois do prazo. */
@@ -3740,6 +4838,7 @@ async function lerContas(volta: string | null): Promise<void> {
   // ADA-245: o texto do onboarding (Computadores, remover deste computador); sem a flag, as telas de antes.
   dispatch({ tipo: "onboarding-texto", ligado: modo?.onboardingTexto === true });
   contas = modo?.contas ?? null;
+  nomeParaAsIniciais(); // rodada 3: as iniciais do "Você" no quadro (lê o perfil uma vez, em segundo plano)
   loginGoogle = modo?.modo === "google";
   // NOD-406 (revisões r5/r6): o pedido "Conectar este Mac?" espera saber quem é a sessão. Sem contas ligadas, abre como
   // antes; sem conseguir ler o modo, fica guardado.
@@ -3869,6 +4968,9 @@ function trilharQuadro(e: EventoTrilhaQuadro): void {
 function navegar(tela: Tela, o: { filaDeSuaVez?: boolean } = {}): void {
   // NOD-85: a tela antiga de Rotinas virou a agenda das Configurações; todo caminho que levava a ela abre a seção.
   if (tela.tipo === "rotinas") { abrirRotinas(); return; }
+  // 2026-11-18 (ADR-179): no computador, o Marketplace é o modal por cima da tela de agora; só Avançado continua tela.
+  if (tela.tipo === "conectores" && !tela.avancado && !celular.ativo()) { abrirModalDoMarketplace(inicialDoApp(tela.gaveta?.slug ?? tela.app)); return; }
+  if (modalDoMarketplace) fecharModalDoMarketplace();
   const antes = estado.tela;
   // NOD-422: vindo da inicial do celular, é uma visita nova (pode contar outra vez). Antes do entrarNaConversa, que já
   // redesenha e observa (revisão 4 do PR #630: depois dele, a mesma visita agendava duas contas).
@@ -3880,6 +4982,7 @@ function navegar(tela: Tela, o: { filaDeSuaVez?: boolean } = {}): void {
   if (celular.ativo() && abaDoDestino(tela) === "sua-vez" && !o.filaDeSuaVez) { trocarAbaDoInicio("sua-vez"); celular.voltarAoInicio(); return; }
   const paraInicial = celular.ativo() && tela.tipo === "inicio";
   if (!paraInicial) celular.entrarNaConversa();
+  prepararConversaAoAbrir(antes, tela);
   aoTrocarDeTela(antes, tela);
   dispatch({ tipo: "navegar", tela });
   conversaEscolhida = tela.tipo === "conversa" ? tela.conversaId : null;
@@ -3893,6 +4996,146 @@ function navegar(tela: Tela, o: { filaDeSuaVez?: boolean } = {}): void {
   if (rolaAoTopoAoNavegar(tela.tipo)) document.getElementById("timeline")?.scrollTo({ top: 0 });
 }
 
+/** Releitura de menos de 2 s (o prefetch do hover, por exemplo) já é a revalidação: abrir logo depois não lê de novo. */
+const RELEITURA_RECENTE_MS = 2000;
+
+/**
+ * Item 5 do chat (stale-while-revalidate): abrir outra conversa pinta no mesmo quadro o que houver dela — a memória
+ * (`estado.conversas`) ou o IndexedDB (web/lib/cache-conversas.ts) — e pede a leitura de hoje, que o reducer aplica por
+ * cima; a timeline troca só os blocos que mudaram, e a rolagem colada no fim continua no fim. A conversa que sai é guardada.
+ */
+function prepararConversaAoAbrir(antes: Tela, tela: Tela): void {
+  if (tela.tipo !== "conversa" && tela.tipo !== "sala") return;
+  const de = antes.tipo === "conversa" || antes.tipo === "sala" ? antes.conversaId : null;
+  if (de === tela.conversaId) return;
+  const saindo = de ? estado.conversas[de] : undefined;
+  if (saindo && saindo.carregadaEm > 0) cacheConversas.guardar(saindo);
+  if (pintarDoCache(tela)) return;
+  const c = estado.conversas[tela.conversaId];
+  if (c && Date.now() - c.carregadaEm > RELEITURA_RECENTE_MS) estado = reduzir(estado, { tipo: "invalidar", quais: [`conversa:${tela.conversaId}`] });
+}
+
+/** A conversa da tela que não está na memória mas está no cache entra no estado (o reducer pede a releitura). */
+function pintarDoCache(tela: Tela): boolean {
+  if ((tela.tipo !== "conversa" && tela.tipo !== "sala") || estado.conversas[tela.conversaId]) return false;
+  const guardada = cacheConversas.ler(tela.conversaId);
+  if (!guardada) {
+    // A réplica parada que saiu da memória (10 min) volta do IndexedDB; a espera do spinner (80 ms) cobre a leitura.
+    if (cacheConversas.temGuardada(tela.conversaId)) trazerDoArmazem(tela.conversaId);
+    return false;
+  }
+  estado = comPendentesDoJournal(reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }), tela.conversaId);
+  return true;
+}
+
+function trazerDoArmazem(id: string): void {
+  const cache = cacheConversas;
+  void cache.carregar(id).then((guardada) => {
+    const t = estado.tela;
+    if (!guardada || cache !== cacheConversas || estado.conversas[id] || (t.tipo !== "conversa" && t.tipo !== "sala") || t.conversaId !== id) return;
+    estado = comPendentesDoJournal(reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }), id);
+    render();
+    void reidratar();
+  });
+}
+
+/** Item 5 do chat: a réplica desta conversa ainda vem do IndexedDB (o espelho não foi lido, ou ela saiu da memória). */
+function replicaACaminho(conversaId: string): boolean {
+  return !cacheConversas.estaPronto() || (cacheConversas.temGuardada(conversaId) && !estado.conversas[conversaId]);
+}
+
+/** As conversas da barra que já têm réplica, sem a aberta; nenhuma enquanto a aberta espera a leitura dela (não atrapalha). */
+function conversasDaBarraComReplica(): string[] {
+  if (!api) return [];
+  const t = estado.tela;
+  const aberta = t.tipo === "conversa" || t.tipo === "sala" ? t.conversaId : null;
+  if (aberta && estado.invalidacoes.includes(`conversa:${aberta}`)) return [];
+  const ids = [...document.querySelectorAll<HTMLElement>('#sidebar [data-act="abrir-conversa"][data-conversa]')].map((el) => el.dataset.conversa ?? "");
+  return [...new Set(ids)].filter((id) => id && id !== aberta && cacheConversas.temGuardada(id));
+}
+
+/** O cursor atualiza réplicas fora do estado; a conversa hidratada faz leitura inteira porque o delta só traz mensagens. */
+async function buscarConversaAtualizada(cliente: Api, id: string, anterior: ConversaComCursor | null, op: { ate?: string; incremental?: boolean } = {}): Promise<ConversaComCursor> {
+  if (!op.incremental || op.ate || !anterior?.cursor) return cliente.conversa(id, op.ate);
+  const mudancas = await cliente.conversaDesde(id, anterior.cursor);
+  // Servidor antigo ignora `depois_de` e já devolve a conversa inteira: aproveita em vez de pedir de novo.
+  if ("conversa" in mudancas) return mudancas as unknown as ConversaComCursor;
+  return juntarMudancasDaConversa(anterior, mudancas) ?? cliente.conversa(id);
+}
+
+/**
+ * A barra em dia: a leitura de sempre (GET da conversa), em segundo plano — guardada sem contar como uso; a conversa que
+ * já está na memória da tela (não a aberta) ganha a versão nova; a que sumiu (404) sai da réplica.
+ */
+async function revalidarDaBarra(id: string): Promise<void> {
+  const cliente = api;
+  const cache = cacheConversas;
+  const sessao = estado.sessao;
+  if (!cliente) return;
+  const estavaNoEstado = !!estado.conversas[id];
+  const conversa = await cache.revalidar(id, (anterior) => buscarConversaAtualizada(cliente, id, anterior, { incremental: !estavaNoEstado }), { emSegundoPlano: true }).catch((e: unknown) => {
+    if (e instanceof ErroApi && e.status === 404) cache.apagar(id);
+    throw e;
+  });
+  const t = estado.tela;
+  const aberta = (t.tipo === "conversa" || t.tipo === "sala") && t.conversaId === id;
+  if (api === cliente && estado.sessao === sessao && !aberta && estado.conversas[id]) dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() });
+}
+
+/**
+ * Item 5 do chat: as réplicas paradas há 10 min saem da memória (a do módulo e `estado.conversas`); o IndexedDB fica e as
+ * traz de volta ao abrir. Nunca a aberta, a com turno vivo, a com fala pendente nem a com fala no journal.
+ */
+function soltarReplicasParadas(): void {
+  const t = estado.tela;
+  const aberta = t.tipo === "conversa" || t.tipo === "sala" ? t.conversaId : null;
+  const vivas = new Set(Object.values(estado.turnosVivos).map((v) => v.conversaId));
+  const noJournal = new Set((journal?.itens() ?? []).map((i) => i.item.conversaId));
+  const manter = (id: string): boolean => id === aberta || vivas.has(id) || noJournal.has(id) || !!estado.conversas[id]?.pendentes?.length || !!estado.conversas[id]?.turnosEmCurso?.length;
+  const saem = cacheConversas.despejarParadas(manter);
+  if (saem.length) estado = reduzir(estado, { tipo: "conversas-saem-da-memoria", ids: saem });
+}
+window.setInterval(soltarReplicasParadas, 60_000);
+// A aba que some grava já o que esperava os 2 s (fechar a aba não perde a última releitura).
+window.addEventListener("pagehide", () => cacheConversas.descarregar());
+document.addEventListener("visibilitychange", () => { if (document.hidden) cacheConversas.descarregar(); });
+
+/**
+ * Item 5 do chat: o mouse parado 150 ms numa linha da barra busca a conversa daquele bot (o clique já acha o que pintar).
+ * Com ela no cache, só pinta do cache (abrir revalida); sem, lê do servidor e guarda. A que já está na memória não relê.
+ */
+let prefetchDe: string | null = null;
+let prefetchTimer: number | null = null;
+const prefetchEmCurso = new Set<string>();
+document.addEventListener("pointerover", (ev) => {
+  if (ev.pointerType === "touch") return;
+  const alvo = ev.target instanceof Element ? ev.target : null;
+  const id = alvo?.closest<HTMLElement>('#sidebar [data-act="abrir-conversa"][data-conversa]')?.dataset.conversa || null;
+  if (id === prefetchDe) return;
+  prefetchDe = id;
+  if (prefetchTimer !== null) window.clearTimeout(prefetchTimer);
+  prefetchTimer = id ? window.setTimeout(() => { prefetchTimer = null; prefetchConversa(id); }, ESPERA_DO_PREFETCH_MS) : null;
+});
+
+function prefetchConversa(id: string): void {
+  const t = estado.tela;
+  if (!api || estado.conversas[id] || prefetchEmCurso.has(id) || ((t.tipo === "conversa" || t.tipo === "sala") && t.conversaId === id)) return;
+  const guardada = cacheConversas.ler(id);
+  if (guardada) { estado = reduzir(estado, { tipo: "conversa-do-cache", conversa: guardada }); return; }
+  const cliente = api;
+  const sessao = estado.sessao;
+  prefetchEmCurso.add(id);
+  void cacheConversas.revalidar(id, (anterior) => buscarConversaAtualizada(cliente, id, anterior))
+    .then((conversa) => { if (api === cliente && estado.sessao === sessao && !estado.conversas[id]) dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() }); }, () => undefined)
+    .finally(() => prefetchEmCurso.delete(id));
+}
+
+// Item 5 do chat: a miniatura da imagem que a pessoa mandou é um skeleton até a foto carregar (web/chat-troca.css).
+document.addEventListener("load", (ev) => {
+  const img = ev.target;
+  if (img instanceof HTMLImageElement && img.parentElement?.classList.contains("msg-anexo-img")) img.parentElement.classList.add("carregou");
+}, true);
+
 /** A tela de onde a pessoa sai: no celular, com a inicial à vista, é a inicial (não a conversa escondida por baixo). */
 function telaDeOrigem(): Tela {
   return celular.botsAbertos() ? { tipo: "inicio" } : estado.tela;
@@ -3900,6 +5143,8 @@ function telaDeOrigem(): Tela {
 
 /** O que muda fora do reducer quando a tela troca: por `navegar` ou, na NOD-370, quando o bot da conversa saiu da frota. */
 function aoTrocarDeTela(antes: Tela, tela: Tela): void {
+  // ADR-187 §6 (Paper 10b, validação de 2026-11-18): nenhuma aba fecha sozinha ao sair; só o nome em edição é largado.
+  if (antes.tipo === "trabalho" && (tela.tipo !== "trabalho" || tela.id !== antes.id) && renomeandoAba?.id === antes.id) renomeandoAba = null;
   // NOD-380: a janela que cresce até a fala achada vale enquanto a pessoa está naquela conversa.
   if (alvoDaBusca && ((tela.tipo !== "conversa" && tela.tipo !== "sala") || tela.conversaId !== alvoDaBusca.conversaId)) alvoDaBusca = null;
   // A gaveta aberta só para um nível (ou a sobreposta, na janela estreita) fecha quando a conversa muda.
@@ -3928,12 +5173,422 @@ function abrirMarketplace(avancado = false): void {
 
 /** Abre a tela da task; de dentro de outra task (ou de uma linha), o Fechar continua voltando para a tela de fora. */
 function abrirTrabalho(id: string): void {
-  if (id) navegar(telaDaTask(telaDeOrigem(), id));
+  if (!id) return;
+  navegar(telaDaTask(telaDeOrigem(), id));
 }
 
 function fecharTask(): void {
   const voltar = telaAoFechar(estado.tela);
   if (voltar) navegar(voltar);
+}
+
+// ---- ADR-187 §6 (lote B, passo 3, 2026-11-18): a fileira de abas da tarefa (Paper 4j opção 1, 4o e 4p) ----------------
+
+/** A tarefa à vista vira aba (agora que o bot dela é conhecido) e saem as que a tela não conhece mais. */
+function sincronizarAbas(ativa: string | null, agenteId?: string): void {
+  let lista = abasDeTarefa;
+  const tr = ativa ? trabalhoPorId(estado, ativa) : undefined;
+  if (tr) lista = abrirAba(lista, { id: tr.id, agenteId: tr.agenteId });
+  // Paper 10b: abrir uma tarefa (ou a tarefa nova) liga o modo abas do bot dela.
+  guardarModoAbas(tr?.agenteId ?? agenteId ?? "", true);
+  if (estado.trabalhos) lista = podarAbas(lista, (id) => trabalhoPorId(estado, id) !== undefined, ativa);
+  guardarAbas(lista);
+  for (const [id, titulo] of titulosDasAbas) if (trabalhoPorId(estado, id)?.titulo === titulo) titulosDasAbas.delete(id);
+}
+
+/** As opções da cápsula das páginas do bot (NOD-445), as mesmas do cabeçalho da conversa. */
+function opcoesDaCapsula(agenteId: string): { comQuadro: boolean; paginas: ReturnType<typeof paginasDaPilula>; ordem: ReturnType<typeof ordemDoAgente>; pedirApp?: { cabeMais: boolean; limite: number } } {
+  const ps = paginasDaPilula(agenteId);
+  const dto = paginasDtoDe(agenteId);
+  return { comQuadro: comQuadro(agenteId), paginas: ps, ordem: ordemDoAgente(agenteId, ps), pedirApp: dto ? { cabeMais: dto.cabeMais, limite: dto.limite } : undefined };
+}
+
+/**
+ * A fileira do bot da tela; `fim` é o que renderTopoTrabalho põe à direita. Paper 10c A: ela começa pela pílula do bot,
+ * que é a aba da Conversa — na Conversa (`naConversa`) com a cápsula das páginas, o botão de abas (para as outras páginas)
+ * e o painel no fim; numa tarefa, a pílula simples, que volta para a conversa.
+ */
+function fileiraDeAbas(agenteId: string, ativa: string | null, naConversa = false): (fim: string) => string {
+  const pilula = naConversa
+    ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId) ?? "" }
+    : { html: renderCabecalhoConversa(estado, agenteId, { painel: false, irParaConversa: true }), conversaAtiva: false };
+  return (fim) => renderFileiraDeAbas(estado, {
+    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula, menuAberto: abaComMenu,
+    renomeando: renomeandoAba && renomeandoAba.id === ativa ? renomeandoAba : null,
+    novaTarefa: botAceitaTarefa(estado, agenteId) ? { texto: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria } : null,
+  });
+}
+
+/**
+ * O botão de abas (Paper 9i A e 10b): liga o modo abas e traz as tarefas abertas do bot para a fileira, ficando na
+ * Conversa. Numa outra página do bot (Quadro, Canvas, um app) com o modo já ligado, volta para a página Conversa.
+ */
+function mostrarEmAbas(agenteId: string): void {
+  if (!agenteId) return;
+  if (modoAbas.has(agenteId) && document.querySelector(".stage.qd-no-quadro")) {
+    document.querySelector<HTMLElement>('#cabecalho .pg-ic[data-pg-id="conversa"]')?.click();
+    return;
+  }
+  const abertas = trabalhosConhecidos(estado).filter((t) => t.agenteId === agenteId && aberto(t)).sort((a, b) => a.criadoEm - b.criadoEm).map((t) => ({ id: t.id, agenteId }));
+  guardarAbas(abasAoMostrar(abasDeTarefa, abertas));
+  guardarModoAbas(agenteId, true);
+  render();
+}
+
+/**
+ * "Fechar abas" (Paper 10b, 1d): as abas se recolhem para dentro da pílula, ela volta para o centro e a tela fica na
+ * Conversa, no modo pílula. Nenhuma tarefa é encerrada nem parada; as abas ficam guardadas para a próxima vez.
+ */
+function fecharAbas(agenteId: string): void {
+  if (!agenteId) return;
+  const nav = document.querySelector<HTMLElement>("#cabecalho .abas-com-pilula");
+  const sair = (): void => {
+    guardarModoAbas(agenteId, false);
+    const t = estado.tela;
+    if (t.tipo === "trabalho" || t.tipo === "nova-tarefa") voltarParaAConversa(agenteId);
+    else render();
+  };
+  if (!nav || reduzirMovimento()) { sair(); return; }
+  nav.classList.add("recolhendo");
+  window.setTimeout(sair, DURACAO_RECOLHER_ABAS_MS);
+}
+/**
+ * Paper 10b (1b e 1d): ao entrar no modo abas, a pílula desliza do centro para o começo da fileira e as abas saem dela; ao
+ * sair, o caminho inverso. A pílula é medida antes de o cabeçalho ser regravado e animada do lugar velho para o novo
+ * (FLIP), só quando o cabeçalho troca de forma (centro ↔ fileira) e é a mesma pílula do mesmo bot.
+ */
+function medirPilulaDoTopo(): { rect: DOMRect; naFileira: boolean; bot: string | null; sanfona: DOMRect | null } | null {
+  const el = document.querySelector<HTMLElement>("#cabecalho .qd-pil, #cabecalho .pilula-bot");
+  if (!el) return null;
+  const sanfona = pecaDaSanfona();
+  return { rect: el.getBoundingClientRect(), naFileira: !!el.closest(".abas-com-pilula"), bot: botDoTopo(), sanfona: sanfona?.getBoundingClientRect() ?? null };
+}
+/**
+ * A sanfona (validação de 2026-11-18): o botão de abas ao lado da pílula e o "Fechar abas" no fim da fileira são a mesma
+ * peça. Entrando, o botão viaja para a direita e se abre no "Fechar abas" enquanto a pílula vai para a esquerda; saindo, o
+ * "Fechar abas" encolhe de volta no círculo ao lado da pílula.
+ */
+function pecaDaSanfona(): HTMLElement | null {
+  return document.querySelector<HTMLElement>("#cabecalho .pilula-e-abas .botao-abas, #cabecalho .abas-com-pilula .at-fechar-abas");
+}
+const SANFONA_MS = 520;
+/** Uma aba abrindo (o "+", "N outras") ou fechando (o ×): validação de 2026-11-19. */
+const ABA_MS = 240;
+/** As abas com o × já clicado, encolhendo (um segundo clique não fecha outra vez). */
+const abasFechando = new Set<string>();
+/** As abas da fileira agora (o id, ou "nova" para a tarefa nova), para saber qual acabou de nascer. */
+function abasNoTopo(): Set<string> | null {
+  if (!document.querySelector("#cabecalho .abas-tarefa")) return null;
+  return new Set([...document.querySelectorAll<HTMLElement>("#cabecalho .abas-tarefa .at-aba")].map((a) => a.dataset.aba ?? "nova"));
+}
+/**
+ * A aba que nasce (validação de 2026-11-19): abre do zero no lugar dela, como a aba nova de um navegador. Não quando a
+ * fileira inteira acabou de aparecer (a sanfona cuida) nem quando a "Nova tarefa" vira a tarefa criada (é a mesma aba).
+ */
+function animarAbasNovas(antes: Set<string> | null): void {
+  if (!antes || reduzirMovimento()) return;
+  const agora = [...document.querySelectorAll<HTMLElement>("#cabecalho .abas-tarefa .at-aba")];
+  if (antes.has("nova") && !agora.some((a) => !a.dataset.aba)) return;
+  for (const el of agora) {
+    if (antes.has(el.dataset.aba ?? "nova")) continue;
+    const est = getComputedStyle(el);
+    el.style.overflow = "hidden";
+    el.animate([
+      { width: "0px", paddingLeft: "0px", paddingRight: "0px", opacity: 0 },
+      { width: `${el.getBoundingClientRect().width}px`, paddingLeft: est.paddingLeft, paddingRight: est.paddingRight, opacity: 1 },
+    ], { duration: ABA_MS, easing: SANFONA_CURVA }).onfinish = () => { el.style.overflow = ""; };
+  }
+}
+const SANFONA_CURVA = "cubic-bezier(.32, .72, 0, 1)";
+function animarSanfona(de: DOMRect): void {
+  const el = pecaDaSanfona();
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0) return;
+  const abrindo = el.classList.contains("at-fechar-abas");
+  if (abrindo) {
+    // No fim da fileira a largura pode animar (o espaço antes dele absorve); o botão abre no "Fechar abas".
+    el.animate([
+      { transform: `translate(${de.left - r.left}px, ${de.top - r.top}px)`, width: `${de.width}px`, height: `${de.height}px`, borderRadius: `${de.height / 2}px` },
+      { transform: "none", width: `${r.width}px`, height: `${r.height}px`, borderRadius: "8px" },
+    ], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+  } else {
+    // Ao lado da pílula, mudar a largura empurraria a pílula (as duas centradas juntas): o "Fechar abas" encolhe em escala.
+    el.animate([
+      { transformOrigin: "0 0", transform: `translate(${de.left - r.left}px, ${de.top - r.top}px) scale(${de.width / r.width}, ${de.height / r.height})`, borderRadius: "8px" },
+      { transformOrigin: "0 0", transform: "none", borderRadius: `${r.height / 2}px` },
+    ], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+  }
+  // O miolo (o × e "Fechar abas", ou o ícone de abas) entra depois que a peça já andou um pouco.
+  for (const filho of el.children) (filho as HTMLElement).animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: SANFONA_MS, easing: "ease-out" });
+}
+function botDoTopo(): string | null {
+  const t = estado.tela;
+  return t.tipo === "conversa" || t.tipo === "nova-tarefa" ? t.agenteId : t.tipo === "trabalho" ? trabalhoPorId(estado, t.id)?.agenteId ?? null : null;
+}
+function animarPilulaDoTopo(antes: ReturnType<typeof medirPilulaDoTopo>): void {
+  if (!antes || reduzirMovimento()) return;
+  const el = document.querySelector<HTMLElement>("#cabecalho .qd-pil, #cabecalho .pilula-bot");
+  const naFileira = !!el?.closest(".abas-com-pilula");
+  if (!el || naFileira === antes.naFileira || antes.bot !== botDoTopo()) return;
+  const r = el.getBoundingClientRect();
+  const dx = antes.rect.left - r.left;
+  const dy = antes.rect.top - r.top;
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+  el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: SANFONA_MS, easing: SANFONA_CURVA });
+  if (antes.sanfona) animarSanfona(antes.sanfona);
+  if (naFileira) el.closest(".abas-com-pilula")?.classList.add("entrando");
+}
+
+/** O painel do bot entrando ou saindo (validação de 2026-11-18): a classe dura a animação do CSS (painel-entra/sai). */
+const DURACAO_PAINEL_MS = 420;
+function animarPainel(app: Element, como: "entrando" | "saindo"): void {
+  if (reduzirMovimento()) return;
+  app.classList.remove("painel-entrando", "painel-saindo");
+  void (app as HTMLElement).offsetWidth;
+  app.classList.add(`painel-${como}`);
+  if (como === "entrando") window.setTimeout(() => app.classList.remove("painel-entrando"), DURACAO_PAINEL_MS + 40);
+}
+
+/** Paper 10b: as abas somem para dentro da pílula antes de ela voltar ao centro (a mesma duração do CSS). */
+const DURACAO_RECOLHER_ABAS_MS = 260;
+
+function reduzirMovimento(): boolean {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
+/** Sem nenhuma aba do bot, o modo abas desliga sozinho (Paper 10b: "se a última tarefa sair da fileira"). */
+function desligarModoSemAbas(agenteId: string): void {
+  if (!abasDeTarefa.some((a) => a.agenteId === agenteId)) guardarModoAbas(agenteId, false);
+}
+
+/** "‹ Conversa": a conversa do bot da fileira (a fileira some lá); sem ela na frota, o Fechar de sempre. */
+function voltarParaAConversa(agenteId: string): void {
+  const bot = estado.frota?.agentes.find((a) => a.id === agenteId);
+  if (bot?.conversaId) navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
+  else fecharTask();
+}
+
+/** O × da aba (e "Fechar aba" no menu): a à vista dá lugar à da direita, à da esquerda ou, sem nenhuma, à Conversa. */
+function fecharAbaDeTarefa(id: string, animar = true): void {
+  if (!id) return;
+  // Validação de 2026-11-19: a aba encolhe até sumir (as vizinhas deslizam para o lugar) e só então sai de verdade.
+  if (animar && abasFechando.has(id)) return;
+  const el = animar && !reduzirMovimento() ? document.querySelector<HTMLElement>(`#cabecalho .at-aba[data-aba="${CSS.escape(id)}"]`) : null;
+  if (el) {
+    abasFechando.add(id);
+    const est = getComputedStyle(el);
+    el.style.overflow = "hidden";
+    // Fecha uma vez só: no fim da animação ou, se o cabeçalho for redesenhado no meio e ela se perder, pelo tempo.
+    const fechar = (): void => { if (abasFechando.delete(id)) fecharAbaDeTarefa(id, false); };
+    el.animate([
+      { width: `${el.getBoundingClientRect().width}px`, paddingLeft: est.paddingLeft, paddingRight: est.paddingRight, opacity: 1 },
+      { width: "0px", paddingLeft: "0px", paddingRight: "0px", opacity: 0 },
+    ], { duration: ABA_MS, easing: SANFONA_CURVA }).onfinish = fechar;
+    window.setTimeout(fechar, ABA_MS + 80);
+    return;
+  }
+  const t = estado.tela;
+  const ativa = t.tipo === "trabalho" && t.id === id;
+  const agenteId = abasDeTarefa.find((a) => a.id === id)?.agenteId ?? trabalhoPorId(estado, id)?.agenteId ?? "";
+  const vizinha = ativa ? vizinhaAoFechar(abasDoBot(estado, abasDeTarefa, agenteId, id), id) : null;
+  if (renomeandoAba?.id === id) renomeandoAba = null;
+  guardarAbas(fecharAba(abasDeTarefa, id));
+  desligarModoSemAbas(agenteId);
+  if (!ativa) { render(); return; }
+  if (vizinha) abrirTrabalho(vizinha);
+  else voltarParaAConversa(agenteId);
+}
+
+/** O menu da aba (Paper 4p): pela seta ⌄, pelo clique direito, pelo toque longo e pela tecla de menu. */
+function abrirMenuDaAba(id: string, ancora: HTMLElement, ponto?: { x: number; y: number }): void {
+  if (!id) return;
+  const r = ancora.getBoundingClientRect();
+  const tr = trabalhoPorId(estado, id);
+  // Validação de 2026-11-18: o chevron fica à vista enquanto o menu da aba está aberto.
+  abaComMenu = id;
+  ancora.closest<HTMLElement>(".at-aba")?.classList.add("menu-aberto");
+  const menu = abrirMenuDaBarra(htmlDoMenuDaAba(tr, { fazerNaConversa: acoesDeFazer(tr, estado, tr?.conversaId) !== "" }), ancora, ponto ?? { x: r.left - 4, y: r.bottom }, (b) => {
+    const acao = b.dataset.abaAcao;
+    if (acao === "renomear") comecarRenomeio(id);
+    else if (acao === "fazer-aqui") void agir(async () => {
+      await api!.trabalhoFazerAqui(id);
+      dispatch({ tipo: "invalidar", quais: ["trabalhos", `trabalho:${id}`] });
+      if (tr) voltarParaAConversa(tr.agenteId);
+    });
+    else if (acao === "tarefas") navegar({ tipo: "trabalhos" });
+    else if (acao === "fechar") fecharAbaDeTarefa(id);
+    else if (acao === "parar") void agir(async () => {
+      await api!.pararTrabalho(id);
+      dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
+    });
+  });
+  menu.addEventListener("close", () => {
+    abaComMenu = null;
+    document.querySelector(`#cabecalho .at-aba[data-aba="${CSS.escape(id)}"]`)?.classList.remove("menu-aberto");
+  }, { once: true });
+}
+
+/** "Todos os bots ▾" da tela Tarefas (ADR-187 §8, Paper 5a): escolher um bot filtra as duas vistas; "Todos os bots" volta. */
+function abrirMenuDeBotsDasTarefas(ancora: HTMLElement): void {
+  const t = estado.tela;
+  if (t.tipo !== "trabalhos") return;
+  const r = ancora.getBoundingClientRect();
+  abrirMenuDaBarra(htmlDoMenuDeBots(estado, t.bot), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
+    const { bot: _antes, ...resto } = t;
+    navegar(b.dataset.bot ? { ...resto, bot: b.dataset.bot } : resto);
+  });
+}
+
+/** "N outras ⌄": as abas que não couberam e as tarefas abertas do bot que a pessoa ainda não abriu. */
+function abrirMenuDasOutras(agenteId: string, ancora: HTMLElement): void {
+  const t = estado.tela;
+  const outras = outrasDaFileira(estado, abasDeTarefa, agenteId, t.tipo === "trabalho" ? t.id : null);
+  const feitas = feitasDaFileira(estado, abasDeTarefa, agenteId);
+  const r = ancora.getBoundingClientRect();
+  abrirMenuDaBarra(htmlDoMenuDasOutras(outras, feitas.length), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
+    if (b.hasAttribute("data-tela-tarefas")) navegar({ tipo: "trabalhos" });
+    else if (b.hasAttribute("data-tirar-feitas")) tirarAsFeitas(agenteId, feitas);
+    else if (b.dataset.id) abrirTrabalho(b.dataset.id);
+  });
+}
+
+/** Paper 10b (3c): "Tirar as feitas das abas" limpa a fileira de uma vez; as tarefas seguem na tela Tarefas e na conversa. */
+function tirarAsFeitas(agenteId: string, feitas: readonly string[]): void {
+  const fora = new Set(feitas);
+  guardarAbas(abasDeTarefa.filter((a) => !fora.has(a.id)));
+  desligarModoSemAbas(agenteId);
+  const t = estado.tela;
+  if (t.tipo === "trabalho" && fora.has(t.id)) voltarParaAConversa(agenteId);
+  else render();
+}
+
+/** O nome entra em edição na própria aba (que passa a ser a à vista), com o texto todo selecionado. */
+function comecarRenomeio(id: string): void {
+  const tr = trabalhoPorId(estado, id);
+  if (!tr) return;
+  const t = estado.tela;
+  if (t.tipo !== "trabalho" || t.id !== id) abrirTrabalho(id);
+  const texto = titulosDasAbas.get(id) ?? tituloCurto(tr.titulo);
+  renomeandoAba = { id, texto, inicio: 0, fim: texto.length };
+  render();
+}
+
+/**
+ * Enter (ou sair do campo) salva; Esc desfaz. O nome novo aparece na hora (`titulosDasAbas`) e o servidor confirma pelo
+ * `trabalho_mudou`; recusado, volta o de antes e o erro aparece como em toda ação. `focarAba`: o teclado volta à aba.
+ */
+function terminarRenomeio(salvar: boolean, o: { redesenhar?: boolean; focarAba?: boolean } = {}): void {
+  const r = renomeandoAba;
+  if (!r) return;
+  renomeandoAba = null;
+  const tr = trabalhoPorId(estado, r.id);
+  const novo = r.texto.replace(/\s+/g, " ").trim();
+  const mudou = salvar && !!tr && novo !== "" && novo !== (titulosDasAbas.get(r.id) ?? tituloCurto(tr.titulo));
+  if (mudou) titulosDasAbas.set(r.id, novo);
+  if (o.redesenhar !== false) render();
+  if (o.focarAba) document.querySelector<HTMLElement>(`.abas-tarefa .at-aba[data-aba="${CSS.escape(r.id)}"] .at-ir`)?.focus({ preventScroll: true });
+  if (!mudou || !api) return;
+  const a = api;
+  void agir(async () => {
+    try {
+      await a.renomearTrabalho(r.id, novo);
+    } catch (e) {
+      titulosDasAbas.delete(r.id);
+      render();
+      throw e;
+    }
+    dispatch({ tipo: "invalidar", quais: [`trabalho:${r.id}`, "trabalhos"] });
+  });
+}
+
+/** Depois do redesenho: o campo do nome (refeito com o cabeçalho) volta a ter o foco e o cursor de antes. */
+function focarRenomeio(): void {
+  if (!renomeandoAba) return;
+  const campo = document.getElementById("at-nome");
+  if (!(campo instanceof HTMLInputElement) || document.activeElement === campo) return;
+  campo.focus({ preventScroll: true });
+  const fim = campo.value.length;
+  campo.setSelectionRange(Math.min(renomeandoAba.inicio ?? fim, fim), Math.min(renomeandoAba.fim ?? fim, fim));
+}
+
+/** ADR-187 §7 (Paper 3e): o "Levar o contexto da conversa" da tarefa nova; cada tarefa nova começa sem ele (limpa). */
+let levarContextoNaTarefa = false;
+
+/**
+ * O bot da tela para uma tarefa nova: o da conversa, o da tarefa aberta ou o da própria tarefa nova. Na tela Tarefas
+ * (ADR-187 §8), o bot escolhido em "Todos os bots ▾", o bot aberto na lista ou, com um bot só que aceita, ele.
+ */
+function botDaTarefaNova(): string | null {
+  const t = estado.tela;
+  if (t.tipo === "trabalhos") {
+    const unico = botsDaNovaTarefa(estado);
+    const id = [t.bot, estado.botAbertoEmTrabalhos, unico.length === 1 ? unico[0]?.id : null].find((x) => botAceitaTarefa(estado, x));
+    return id ?? null;
+  }
+  const id = t.tipo === "conversa" || t.tipo === "nova-tarefa" ? t.agenteId : t.tipo === "trabalho" ? trabalhoPorId(estado, t.id)?.agenteId ?? null : null;
+  return botAceitaTarefa(estado, id) ? id : null;
+}
+
+/**
+ * ADR-187 §7 (definido em 2026-11-18): ⌘N, o "+" da aba e o "Abrir uma tarefa" da dica abrem a tarefa nova, limpa, do
+ * bot da tela. Nada é criado antes da primeira mensagem. Já nela, a tecla só devolve o foco ao campo. Na tela Tarefas
+ * sem bot escolhido (ADR-187 §8, 2026-11-18), o "+ Nova tarefa" abre o menu "Nova tarefa com" para a pessoa escolher.
+ */
+function abrirNovaTarefa(ancora?: HTMLElement, escolhido?: string): void {
+  const id = escolhido ?? botDaTarefaNova();
+  if (!id && estado.tela.tipo === "trabalhos") {
+    const bots = botsDaNovaTarefa(estado);
+    const alvo = ancora ?? document.querySelector<HTMLElement>('.tela-tarefas [data-act="nova-tarefa"]');
+    if (bots.length && alvo) {
+      const r = alvo.getBoundingClientRect();
+      abrirMenuDaBarra(htmlDoMenuDaNovaTarefa(bots), alvo, { x: r.right - 284, y: r.bottom }, (b) => { if (b.dataset.bot) abrirNovaTarefa(undefined, b.dataset.bot); });
+      return;
+    }
+  }
+  if (!id) { anunciar("Abra a conversa de um bot seu para abrir uma tarefa"); return; }
+  const t = estado.tela;
+  if (t.tipo === "nova-tarefa" && t.agenteId === id) { document.getElementById("composer-texto")?.focus(); return; }
+  levarContextoNaTarefa = false;
+  const voltar = t.tipo === "trabalho" || t.tipo === "linha" || t.tipo === "nova-tarefa" ? t.voltar : telaDeOrigem();
+  navegar({ tipo: "nova-tarefa", agenteId: id, voltar });
+  requestAnimationFrame(() => document.getElementById("composer-texto")?.focus());
+}
+
+/**
+ * O campo da tarefa nova: a primeira mensagem cria a tarefa (`POST agentes/:id/trabalhos`) e a tela vira a da tarefa,
+ * com a fala dela já lá. Falhou: o texto fica no campo e nada foi criado.
+ */
+async function criarTarefaNova(tela: Extract<Tela, { tipo: "nova-tarefa" }>): Promise<void> {
+  const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+  const chave = composerDe;
+  const texto = ta?.value.trim() ?? "";
+  // Validação de 2026-11-18: os anexos do clipe vão no pedido; não sai com arquivo pela metade, como na conversa.
+  const filaChave = `nova-tarefa:${tela.agenteId}`;
+  const fila = anexosPendentes.get(filaChave) ?? [];
+  if (fila.some((i) => i.estado === "enviando")) return;
+  const ids = fila.flatMap((i) => (i.estado === "pronto" && i.meta ? [i.meta.id] : []));
+  if (!ta || !api || !texto) return;
+  const a = api;
+  const levar = levarContextoNaTarefa;
+  await enviarUmaVez(envios, `nova-tarefa:${tela.agenteId}`, texto, () => agir(async () => {
+    let id: string;
+    try {
+      id = (await a.abrirTarefa(tela.agenteId, texto, levar, ids)).trabalho.id;
+    } catch (e) {
+      if (e instanceof ErroApi && e.codigo === "cota_provisorio") {
+        await telaConta.abrir("cota", false);
+        return;
+      }
+      throw e;
+    }
+    limparDepoisDeEnviar(ta, chave, texto);
+    if (fila.length) limparAnexos(filaChave);
+    // ADR-187 §6: a aba "Nova tarefa" vira a aba dela já, antes de a lista relida trazer a tarefa.
+    guardarAbas(abrirAba(abasDeTarefa, { id, agenteId: tela.agenteId }));
+    dispatch({ tipo: "invalidar", quais: ["trabalhos", `trabalho:${id}`] });
+    if (estado.tela === tela) navegar({ tipo: "trabalho", id, voltar: tela.voltar });
+  }));
 }
 
 async function mudarGestao(fn: () => Promise<unknown>): Promise<void> {
@@ -4023,6 +5678,25 @@ function botGerido(id: string | undefined): BotGerido | undefined {
   const a = [...(estado.frota?.agentes ?? []), ...(estado.gestao?.agentes ?? [])].find((a) => a.id === id && !a.excluidoEm);
   // "Marcar como lido / não lido" no menu segue os não lidos, que chegam a cada mensagem (a frota não).
   return a && estado.naoLidos ? { ...a, naoLido: temNovas(a.conversaId) } : a;
+}
+
+/** O bot de um chip do computador: o autor da mensagem em que ele está; na fala viva (ou sem achar), o bot da conversa. */
+function botDoChip(el: HTMLElement): string | undefined {
+  const t = estado.tela;
+  const conversaId = t.tipo === "conversa" ? t.conversaId : undefined;
+  const mensagemId = el.closest<HTMLElement>("[data-mensagem]")?.dataset.mensagem;
+  const m = conversaId && mensagemId ? estado.conversas[conversaId]?.mensagens.find((x) => x.id === mensagemId) : undefined;
+  if (m?.autoria.autor_tipo === "agente") return m.autoria.autor_id;
+  return t.tipo === "conversa" ? t.agenteId : undefined;
+}
+
+/** D · Computador do bot: abre o painel de detalhes do bot (só abre; se já está à vista, fica), pelo mesmo `alternar-detalhes`. */
+function abrirPainelDoBot(): void {
+  const app = document.querySelector(".app");
+  if (!app) return;
+  const estreito = ehCelular() || window.matchMedia("(max-width: 1099px)").matches;
+  const aVista = estreito ? app.classList.contains("detalhes-abertos") : !app.classList.contains("detalhes-ocultos");
+  if (!aVista) void ACOES["alternar-detalhes"]?.(app as HTMLElement);
 }
 
 function menuDoBot(el: HTMLElement): void {
@@ -4143,13 +5817,23 @@ async function enviarParaTrabalho(id: string): Promise<void> {
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
   const chave = composerDe;
   const texto = ta?.value.trim() ?? "";
-  if (!ta || !api || !texto) return;
+  // ADR-187 §6 (2026-11-18): o clipe do campo da tarefa — não sai com arquivo pela metade, como na conversa.
+  const filaChave = `trabalho:${id}`;
+  const fila = anexosPendentes.get(filaChave) ?? [];
+  if (fila.some((i) => i.estado === "enviando")) return;
+  const ids = fila.flatMap((i) => (i.estado === "pronto" && i.meta ? [i.meta.id] : []));
+  if (!ta || !api || (!texto && ids.length === 0)) return;
   const a = api;
   rolagem.colar();
+  // Paper 4n: com a tarefa esperando a pessoa, a resposta livre do campo responde a pergunta dela (como o campo da conversa).
+  const d = estado.trabalhoDetalhe[id];
+  const pergunta = d && ids.length === 0 ? perguntaAberta(d.trabalho, d.mensagens) : null;
   // Revisão W3 (2026-10-08): Enter + botão não mandam o mesmo recado duas vezes (a rota da task não leva `idEnvio`).
   await enviarUmaVez(envios, `trabalho:${id}`, texto, () => agir(async () => {
     try {
-      await a.escreverNoTrabalho(id, texto);
+      if (pergunta) await a.responder(pergunta.decisaoId, texto);
+      else await a.escreverNoTrabalho(id, texto, ids);
+      if (ids.length) limparAnexos(filaChave);
     } catch (e) {
       if (e instanceof ErroApi && e.codigo === "cota_provisorio") {
         await telaConta.abrir("cota", false);
@@ -4167,6 +5851,7 @@ async function enviarComposer(): Promise<void> {
   if (ditado.ativo()) return ditado.concluir("enviar");
   const tela = estado.tela;
   if (tela.tipo === "trabalho") return enviarParaTrabalho(tela.id);
+  if (tela.tipo === "nova-tarefa") return criarTarefaNova(tela);
   const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
   const chave = composerDe;
   const alvo = conversaAtual();
@@ -4179,6 +5864,8 @@ async function enviarComposer(): Promise<void> {
   if (!texto && ids.length === 0) return;
   // Quem manda mensagem quer ver a própria mensagem e a resposta: a conversa volta a acompanhar o fim.
   rolagem.colar();
+  // O "Parado por você" é da parada anterior: a mensagem nova a deixa para trás (web/telas/faixa-parada.ts).
+  if (estado.faixaParada) dispatch({ tipo: "faixa", faixa: null });
   // definido em 2026-09-24 (emenda da ADR-045): com pergunta aberta, a mensagem RESPONDE por
   // POST decisoes/:id/responder (a retomada nasce lá), salvo "Outro assunto".
   if (ids.length === 0 && (await comandoDoNod(texto, alvo))) {
@@ -4209,9 +5896,14 @@ async function enviarComposer(): Promise<void> {
   }
   await agir(async () => {
     let enviou = false;
+    // Journal de envio: o primeiro POST falhou e os reenvios seguem sozinhos — a trava do campo solta já (outra fala pode ir).
+    let solto = false;
     let r: Awaited<ReturnType<typeof enviarPeloComposer>>;
     try {
-      r = await enviarPeloComposer(a, alvo, destino, enviado, ids, idEnvio);
+      const j = journal;
+      r = pendente && j
+        ? await enviarPeloJournal(j, { conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, texto: pendente.texto, anexos: ids, ...(pendente.respondeA ? { respondeA: pendente.respondeA } : {}), em: pendente.em }, () => { solto = true; envios.concluir(alvo.conversaId, false); })
+        : await enviarPeloComposer(a, alvo, destino, enviado, ids, idEnvio);
       enviou = true;
       // NOD-380: depois de falar, a conversa volta à janela comum; o alvo da busca não segura mais o `?ate=`.
       alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, alvo.conversaId);
@@ -4231,12 +5923,17 @@ async function enviarComposer(): Promise<void> {
       }
       // Revisão de engenharia (27/10): o porquê (limite do plano, conversa encerrada, sem internet…) vai na própria fala,
       // com a frase que a faixa de antes mostrava — sem ele, "Não foi enviada" não dizia o que fazer.
-      dispatch({ tipo: "fala-pendente-falhou", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, motivo: motivoDaFalha(e) });
+      // ADR-171 + journal: sem internet (ou 5xx), a fala segue no journal e vai sozinha no `online` ou no próximo boot.
+      dispatch({ tipo: "fala-pendente-falhou", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, motivo: motivoDoJournal(e) });
       return;
     } finally {
-      if (idEnvio) envios.concluir(alvo.conversaId, enviou);
+      if (idEnvio && !solto) envios.concluir(alvo.conversaId, enviou);
+      else if (idEnvio && enviou) envios.esquecer(alvo.conversaId, idEnvio);
     }
     if (pendente) dispatch({ tipo: "fala-pendente-confirmada", conversaId: alvo.conversaId, idEnvio: pendente.idEnvio, mensagemId: r.ids?.mensagem ?? null, turnoId: r.ids?.turno ?? null });
+    // Item 10, rodada 2: com aprovação aberta, o servidor fechou o pedido como substituído no envio
+    // (src/use-cases/substituir-aprovacoes.ts); a fila "Sua vez" relê para o cartão sair.
+    if (r.enviado === "mensagem" && !alvo.salaId && aprovacoesAbertasDaConversa(estado.suaVez?.itens, alvo.conversaId).length > 0) dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
     else limparDepoisDeEnviar(ta, chave, texto);
     if (r.enviado === "resposta") anunciarPergunta(`Resposta enviada: ${enviado}`);
     if (r.enviado === "mensagem" && !pendente) limparAnexos(alvo.conversaId);
@@ -4246,6 +5943,83 @@ async function enviarComposer(): Promise<void> {
     if (citacao && estado.citacoes[alvo.conversaId]?.mensagemId === citacao.mensagemId) dispatch({ tipo: "citar", conversaId: alvo.conversaId, citacao: null });
     dispatch({ tipo: "invalidar", quais: r.enviado === "resposta" ? [`conversa:${alvo.conversaId}`, "sua-vez", "frota"] : [`conversa:${alvo.conversaId}`] });
   });
+}
+
+/**
+ * Journal de envio (web/lib/journal-envio.ts): o armazém da pessoa — o IndexedDB, com a fila offline do `localStorage`
+ * (ADR-171) de reserva e de onde o que ela guardou antes passa para o IndexedDB; sem IndexedDB, só a fila (como antes).
+ */
+function armazemDoJournalDa(escopo: Escopo): ArmazemDoJournal {
+  let local: Storage | null = null;
+  try { local = window.localStorage; } catch { local = null; }
+  const fila = armazemDaFila(criarFilaOffline(local, escopo.pessoaId));
+  const idb = armazemDoJournalIndexedDb(`${escopo.tenantId}.${escopo.pessoaId}`);
+  return idb ? armazemComReserva(idb, fila) : fila;
+}
+
+/** O POST da fala do journal, pela mesma chave. Sem sessão, conta como rede (fica no journal, não vira recusa). */
+function enviarDoJournal(item: ItemDoJournal): Promise<unknown> {
+  const a = api;
+  if (!a) return Promise.reject(new DOMException("sem sessão", "AbortError"));
+  return item.respondeA ? a.enviar(item.conversaId, item.texto, item.anexos, item.idEnvio, item.respondeA) : a.enviar(item.conversaId, item.texto, item.anexos, item.idEnvio);
+}
+
+async function enviarPeloJournal(j: Journal, item: ItemDoJournal, aoFalharPrimeira?: () => void): Promise<ResultadoEnvio> {
+  const ids = idsDaResposta(await j.enviar(item, aoFalharPrimeira ? { aoFalharPrimeira } : {}));
+  return ids ? { enviado: "mensagem", ids } : { enviado: "mensagem" };
+}
+
+/** ADR-171: sem internet, o motivo diz que a fala vai sozinha (ela segue no journal); senão, a frase do erro. */
+function motivoDoJournal(e: unknown): string | undefined {
+  return falhouPorRede(navigator.onLine, e) ? MOTIVO_OFFLINE : motivoDaFalha(e);
+}
+
+function pendenteDoJournal(item: ItemDoJournal, falhou: boolean): FalaPendente {
+  return { idEnvio: item.idEnvio, texto: item.texto, anexos: [], ...(item.respondeA ? { respondeA: item.respondeA } : {}), em: item.em, estado: falhou ? "falhou" : "enviando", mensagemId: null, turnoId: null, ...(falhou ? { motivo: MOTIVO_OFFLINE } : {}) };
+}
+
+/** A conversa que carregou depois do boot mostra as falas dela que o journal ainda tem (o reducer só põe pendente em conversa carregada). */
+function comPendentesDoJournal(e: Estado, conversaId: string): Estado {
+  const j = journal;
+  if (!j || !e.conversas[conversaId]) return e;
+  let novo = e;
+  for (const { item, falhou } of j.itens()) {
+    if (item.conversaId !== conversaId || novo.conversas[conversaId]?.pendentes?.some((p) => p.idEnvio === item.idEnvio)) continue;
+    novo = reduzir(novo, { tipo: "fala-pendente", conversaId, pendente: pendenteDoJournal(item, falhou) });
+  }
+  return novo;
+}
+
+/** Como a fala do journal acabou (reconciliada no boot ou "Tentar de novo"): confirmada, ou "falhou" com o porquê. */
+function terminarDoJournal(j: Journal, item: ItemDoJournal, d: Desfecho): void {
+  if (j !== journal || (!d.ok && d.erro instanceof JournalEncerrado)) return;
+  const { conversaId, idEnvio } = item;
+  if (!d.ok) {
+    dispatch({ tipo: "fala-pendente-falhou", conversaId, idEnvio, motivo: motivoDoJournal(d.erro) });
+    if (d.erro instanceof ErroApi && d.erro.status === 401) mostrarErro(d.erro);
+    return;
+  }
+  envios.esquecer(conversaId, idEnvio);
+  // NOD-380: quem fala na conversa voltou para o fim; a janela deixa de crescer até a fala achada na busca.
+  alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, conversaId);
+  // `idsDaResposta` (revisão de engenharia, 27/10): a resposta sem `ids` (servidor de antes, no deploy) não pode virar
+  // "falhou" depois de enviada — a pendente sai e a releitura traz a gravada, como no envio pelo campo.
+  const gravados = idsDaResposta(d.resposta);
+  dispatch({ tipo: "fala-pendente-confirmada", conversaId, idEnvio, mensagemId: gravados?.mensagem ?? null, turnoId: gravados?.turno ?? null });
+  dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
+}
+
+/**
+ * Journal de envio, no boot (depois da sessão) e quando a conexão volta: o que ficou no journal volta à conversa como fala
+ * pendente e é reenviado pela mesma chave — o servidor não duplica. Substitui a drenagem da fila offline (ADR-171).
+ */
+function reconciliarJournal(): void {
+  const j = journal;
+  if (!j || !api) return;
+  void j.reconciliar(
+    (item) => { if (j === journal && estado.conversas[item.conversaId]) dispatch({ tipo: "fala-pendente", conversaId: item.conversaId, pendente: pendenteDoJournal(item, false) }); },
+    (item, d) => terminarDoJournal(j, item, d),
+  );
 }
 
 /** Os metadados dos anexos prontos, para a fala pendente desenhar os chips como a gravada vai desenhar. */
@@ -4259,37 +6033,113 @@ function motivoDaFalha(e: unknown): string | undefined {
   return erro ? erroDaAcao(erro).mensagem : undefined;
 }
 
+/** A fala da pessoa ligada ao turno na fila (a linha só tem o turno; o reducer guarda a conversa e a mensagem). */
+function falaDoTurnoNaFila(turnoId: string): { conversaId: string; mensagemId: string } | null {
+  const local = estado.cancelando[turnoId];
+  if (local) return { conversaId: local.conversaId, mensagemId: local.mensagemId };
+  for (const [conversaId, c] of Object.entries(estado.conversas)) {
+    const t = c?.turnosEmCurso.find((x) => x.id === turnoId);
+    if (t?.mensagemId) return { conversaId, mensagemId: t.mensagemId };
+  }
+  return null;
+}
+
+const seletorDaLinha = (act: string, turnoId: string): string => `.fila-linha [data-act="${act}"][data-id="${CSS.escape(turnoId)}"]`;
+
+function cancelarDaFila(turnoId: string): void {
+  const fala = falaDoTurnoNaFila(turnoId);
+  const a = api;
+  if (!turnoId || !fala || !a) return;
+  const origem = document.activeElement ?? document.body;
+  avisador.acaoPropria();
+  void cancelarNaFila({
+    cancelarTurno: (id) => a.cancelarTurno(id),
+    dispatch,
+    estado: () => estado.cancelando,
+    agora: () => Date.now(),
+    agendar: (fn, ms) => void window.setTimeout(fn, ms),
+    invalidar: (conversaId) => dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] }),
+    mostrarErro,
+    focarDesfazer: (id) => focarQuandoAparecer(seletorDaLinha("desfazer-cancelamento", id), origem),
+    focarTentarDeNovo: (id) => focarQuandoAparecer(seletorDaLinha("cancelar-turno", id), origem),
+    focarCampoSeSaiu: (id) => window.setTimeout(() => {
+      const ativo = document.activeElement as HTMLElement | null;
+      const perdeu = !ativo || ativo === document.body || !ativo.isConnected || ativo.matches(seletorDaLinha("desfazer-cancelamento", id));
+      if (perdeu) document.getElementById("composer-texto")?.focus();
+    }, 50),
+  }, { turnoId, ...fala });
+}
+
+/**
+ * O Desfazer da fala cancelada: sem anexo, a mesma fala vai de novo pelo journal (`conversas.enviar`, chave nova) e entra
+ * no fim da fila; com anexo (que já está preso à mensagem cancelada), o texto e os arquivos voltam ao campo vazio.
+ */
+function desfazerDaFila(turnoId: string): void {
+  desfazerCancelamento({
+    dispatch,
+    estado: () => estado.cancelando,
+    fala: (conversaId, mensagemId) => {
+      const m = estado.conversas[conversaId]?.mensagens.find((x) => x.id === mensagemId);
+      if (!m) return null;
+      const respondeA = m.payload?.kind === "resposta_a_fala" ? m.payload.respondeA.mensagemId : undefined;
+      return { texto: m.texto, anexos: (m.anexos ?? []).filter((x) => x.origem !== "bot"), ...(respondeA ? { respondeA } : {}) };
+    },
+    reenviar: reenviarDaFila,
+    campoVazio: (conversaId) => {
+      const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+      return conversaAtual()?.conversaId === conversaId && !!ta && ta.value.trim() === "" && (anexosPendentes.get(conversaId) ?? []).length === 0;
+    },
+    devolverAoCampo: (conversaId, texto, anexos) => {
+      const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+      if (ta) { escreverNoCampo(ta, texto); ajustarAltura(ta); atualizarBarra(ta); }
+      if (composerDe) rascunhos.guardar(composerDe, texto);
+      const tenant = estado.sessao?.tenantId;
+      if (!tenant || anexos.length === 0) return;
+      // Os bytes voltam da rota do anexo e sobem de novo como anexo novo (o de antes ficou preso à fala cancelada).
+      void Promise.all(anexos.map(async (x) => {
+        const r = await fetch(`/api/t/${encodeURIComponent(tenant)}/conversas/${encodeURIComponent(conversaId)}/anexos/${encodeURIComponent(x.id)}`, { credentials: "same-origin" });
+        if (!r.ok) throw new Error(`anexo ${r.status}`);
+        return new File([await r.blob()], x.nome, { type: x.mime });
+      })).then((arquivos) => { if (conversaAtual()?.conversaId === conversaId) adicionarArquivos(arquivos); }, mostrarErro);
+    },
+    focarCampo: () => document.getElementById("composer-texto")?.focus(),
+  }, turnoId);
+}
+
+/** O reenvio do Desfazer: o mesmo caminho da mensagem comum do campo (fala pendente + journal), sem passar pelo campo. */
+function reenviarDaFila(conversaId: string, texto: string, respondeA?: string): boolean {
+  const j = journal;
+  if (!api || !j) return false;
+  const idEnvio = envios.iniciar(conversaId, texto, [], respondeA);
+  if (!idEnvio) return false;
+  const em = Date.now();
+  dispatch({ tipo: "fala-pendente", conversaId, pendente: { idEnvio, texto, anexos: [], ...(respondeA ? { respondeA } : {}), em, estado: "enviando", mensagemId: null, turnoId: null } });
+  rolagem.colar();
+  const item: ItemDoJournal = { conversaId, idEnvio, texto, anexos: [], ...(respondeA ? { respondeA } : {}), em };
+  void j.enviar(item).then(
+    (resposta) => { envios.concluir(conversaId, true); terminarDoJournal(j, item, { ok: true, resposta }); },
+    (erro) => { envios.concluir(conversaId, false); terminarDoJournal(j, item, { ok: false, erro, tipo: tipoDaFalha(erro) }); },
+  );
+  return true;
+}
+
 /**
  * "Tentar de novo" da fala pendente que falhou (Parte 1): a mesma fala, pela mesma chave de idempotência (`envios` guarda
- * a chave pendente enquanto a assinatura é igual), sem passar pelo campo. Com outro envio em voo na conversa, espera.
+ * a chave pendente enquanto a assinatura é igual), sem passar pelo campo. Vai pelo journal: entra nele de novo, repete
+ * na rede e no 5xx, e o clique duplo devolve o mesmo envio (a chave já em voo).
  */
 async function reenviarPendente(conversaId: string, idEnvio: string): Promise<void> {
   const p = estado.conversas[conversaId]?.pendentes?.find((x) => x.idEnvio === idEnvio);
-  if (!p || !api) return;
-  const ids = p.anexos.map((x) => x.id);
-  // Revisão do PR (27/10): a chave é a da própria pendente (`envios` só trava o voo); e o motivo da falha anterior sai.
-  const chave = envios.iniciar(conversaId, p.texto, ids, p.respondeA, p.idEnvio);
-  if (chave === null) return;
+  const j = journal;
+  if (!p || !api || !j) return;
+  // Revisão do PR (27/10): a chave é a da própria pendente; e o motivo da falha anterior sai.
   const { motivo: _motivo, ...semMotivo } = p;
-  dispatch({ tipo: "fala-pendente", conversaId, pendente: { ...semMotivo, idEnvio: chave, estado: "enviando" } });
-  if (chave !== idEnvio) dispatch({ tipo: "fala-pendente-sai", conversaId, idEnvio });
-  const a = api;
-  let enviou = false;
+  dispatch({ tipo: "fala-pendente", conversaId, pendente: { ...semMotivo, estado: "enviando" } });
+  const item: ItemDoJournal = { conversaId, idEnvio, texto: p.texto, anexos: p.anexos.map((x) => x.id), ...(p.respondeA ? { respondeA: p.respondeA } : {}), em: p.em };
   try {
-    const r = await (p.respondeA ? a.enviar(conversaId, p.texto, ids, chave, p.respondeA) : a.enviar(conversaId, p.texto, ids, chave));
-    enviou = true;
-    // NOD-380: quem fala na conversa voltou para o fim; a janela deixa de crescer até a fala achada na busca.
-    alvoDaBusca = alvoDepoisDeFalar(alvoDaBusca, conversaId);
-    // `idsDaResposta` (revisão de engenharia, 27/10): a resposta sem `ids` (servidor de antes, no deploy) não pode virar
-    // "falhou" depois de enviada — a pendente sai e a releitura traz a gravada, como no envio pelo campo.
-    const gravados = idsDaResposta(r);
-    dispatch({ tipo: "fala-pendente-confirmada", conversaId, idEnvio: chave, mensagemId: gravados?.mensagem ?? null, turnoId: gravados?.turno ?? null });
-    dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
-  } catch (e) {
-    dispatch({ tipo: "fala-pendente-falhou", conversaId, idEnvio: chave, motivo: motivoDaFalha(e) });
-    if (e instanceof ErroApi && e.status === 401) mostrarErro(e);
-  } finally {
-    envios.concluir(conversaId, enviou);
+    terminarDoJournal(j, item, { ok: true, resposta: await j.enviar(item) });
+  } catch (erro) {
+    terminarDoJournal(j, item, { ok: false, erro, tipo: tipoDaFalha(erro) });
   }
 }
 
@@ -4303,10 +6153,29 @@ function aceitaDo(harness: string | undefined): Aceita | undefined {
   return aceitaDoBot(estado.executor?.harnesses, harness);
 }
 
-function redesenharAnexos(): void {
+/**
+ * ADR-187 §6 (lote B, passo 4, 2026-11-18): onde vão os anexos do campo da tela — a fila (por conversa; a da tarefa tem a
+ * dela, `trabalho:<id>`, para o rascunho de uma não aparecer na outra) e a conversa que recebe o upload (a do trabalho).
+ * Sala não tem clipe.
+ */
+function filaDosAnexos(): { chave: string; conversaId: string } | null {
+  const t = estado.tela;
+  if (t.tipo === "nova-tarefa") {
+    const conversaId = estado.frota?.agentes.find((a) => a.id === t.agenteId)?.conversaId;
+    return conversaId ? { chave: `nova-tarefa:${t.agenteId}`, conversaId } : null;
+  }
+  if (t.tipo === "trabalho") {
+    const conversaId = (estado.trabalhoDetalhe[t.id]?.trabalho ?? trabalhoPorId(estado, t.id))?.conversaId;
+    return conversaId ? { chave: `trabalho:${t.id}`, conversaId } : null;
+  }
   const alvo = conversaAtual();
-  if (!alvo || alvo.salaId) return;
-  const itens = anexosPendentes.get(alvo.conversaId) ?? [];
+  return alvo && !alvo.salaId ? { chave: alvo.conversaId, conversaId: alvo.conversaId } : null;
+}
+
+function redesenharAnexos(): void {
+  const alvo = filaDosAnexos();
+  if (!alvo) return;
+  const itens = anexosPendentes.get(alvo.chave) ?? [];
   // ADA-5: a fila é uma só (a da conversa); aparece no campo do chat e na pílula do Quadro.
   const pilula = document.querySelector<HTMLElement>('#quadro [data-composer="fila"]');
   if (pilula) { pilula.innerHTML = renderItensAnexo(itens); pilula.hidden = itens.length === 0; }
@@ -4317,7 +6186,24 @@ function redesenharAnexos(): void {
   fila.hidden = itens.length === 0;
   const r = document.getElementById("composer-resumo");
   if (r) r.textContent = resumoAnexos(itens);
+  // O texto de dentro do campo muda quando o primeiro arquivo entra ou o último sai (não a cada passo do upload).
+  const com = arquivosNoCampo();
+  if (com !== comArquivoNoCampo) { comArquivoNoCampo = com; atualizarComposer(); }
   atualizarParar();
+}
+
+/**
+ * Validação de 2026-11-18: com arquivo no campo o texto é opcional, e o campo diz isso (como o app de referência). A
+ * tarefa nova fica fora: ela precisa do pedido escrito.
+ */
+const PLACEHOLDER_COM_ARQUIVO = "Adicione uma mensagem ou aperte enviar";
+let comArquivoNoCampo = false;
+function arquivosNoCampo(): boolean {
+  const alvo = filaDosAnexos();
+  return !!alvo && estado.tela.tipo !== "nova-tarefa" && (anexosPendentes.get(alvo.chave) ?? []).some((i) => i.estado !== "erro");
+}
+function placeholderComArquivo(base: string): string {
+  return arquivosNoCampo() ? PLACEHOLDER_COM_ARQUIVO : base;
 }
 
 function limparAnexos(conversaId: string): void {
@@ -4327,13 +6213,13 @@ function limparAnexos(conversaId: string): void {
 }
 
 function adicionarArquivos(arquivos: readonly File[], doQuadro?: Aceita): void {
-  const alvo = conversaAtual();
+  const alvo = filaDosAnexos();
   const input = document.getElementById("composer-arquivos") as HTMLInputElement | null;
-  if (!alvo || alvo.salaId || !api || (!input && !doQuadro) || arquivos.length === 0) return;
+  if (!alvo || !api || (!input && !doQuadro) || arquivos.length === 0) return;
   const aceita = doQuadro ?? (input?.dataset.aceita as Aceita | undefined) ?? "tudo";
   const conversaId = alvo.conversaId;
-  const fila = anexosPendentes.get(conversaId) ?? [];
-  anexosPendentes.set(conversaId, fila);
+  const fila = anexosPendentes.get(alvo.chave) ?? [];
+  anexosPendentes.set(alvo.chave, fila);
   const a = api;
   for (const arquivo of arquivos) {
     const validos = fila.filter((i) => i.estado !== "erro").length;
@@ -4352,12 +6238,12 @@ function adicionarArquivos(arquivos: readonly File[], doQuadro?: Aceita): void {
 }
 
 function removerAnexo(chave: string): void {
-  const alvo = conversaAtual();
+  const alvo = filaDosAnexos();
   if (!alvo) return;
-  const fila = anexosPendentes.get(alvo.conversaId) ?? [];
+  const fila = anexosPendentes.get(alvo.chave) ?? [];
   const item = fila.find((i) => i.chave === chave);
   if (item?.previa) URL.revokeObjectURL(item.previa);
-  anexosPendentes.set(alvo.conversaId, fila.filter((i) => i.chave !== chave));
+  anexosPendentes.set(alvo.chave, fila.filter((i) => i.chave !== chave));
   redesenharAnexos();
 }
 
@@ -4511,6 +6397,135 @@ function alternarConfirmaWebhook(el: HTMLElement, abrir: boolean): void {
   else gatilho?.focus();
 }
 
+// ---- Quick Chat e captura (ADR-173) ---------------------------------------------------------------------------------
+// `?janela=quick-chat`: a janela pequena do atalho global (desktop/quick-chat.ts). O modo é lido uma vez; o CSS
+// (`html[data-janela="quick-chat"]`) faz o resto. O topo mora fora do #app regravado, e só é repintado quando a lista de
+// bots ou o bot aberto mudam. O Capturar entra ao lado do clipe em qualquer janela do app do Mac (o composer não é
+// regravado dentro da mesma conversa, então o botão fica até a próxima troca de conversa).
+const modoQuickChat = ehJanelaQuickChat(window.location.search);
+const modoAvatar = ehJanelaAvatar(window.location.search);
+/**
+ * ADR-188: a atualização do app do Mac na janela principal (o cartão da barra e Configurações › Sobre o nod). O Quick
+ * Chat e os avatares na mesa não mostram: o aviso "atualizado" sairia em cada janela.
+ */
+// Na 5280 (só em 127.0.0.1/localhost), `?simular-atualizacao=1.0.4` faz o papel do app do Mac (web/lib/atualizacao-simulada-web.ts).
+const versaoSimuladaWeb = versaoSimuladaNaWeb(window.location);
+const ponteSimuladaWeb = versaoSimuladaWeb && !window.nodDesktop?.atualizacaoApp
+  ? criarPonteSimuladaNaWeb({ versao: versaoSimuladaWeb, ocupado: new URLSearchParams(window.location.search).has("simular-ocupado"), recarregar: () => window.location.reload() })
+  : undefined;
+const atualizacaoNaWeb = criarAtualizacaoNaWeb({
+  msEncher: MS_ENCHER_ATUALIZAR,
+  ponte: () => (modoQuickChat || modoAvatar ? undefined : window.nodDesktop?.atualizacaoApp ?? ponteSimuladaWeb),
+  aoMudar: () => render(),
+  avisarAtualizado: (versao) => { mostrarAvisoAtualizado({ versao, aoNovidades: () => abrirEspaco("sobre") }); },
+});
+void atualizacaoNaWeb.carregar();
+if (modoQuickChat) document.documentElement.dataset.janela = "quick-chat";
+if (modoAvatar) document.documentElement.dataset.janela = "avatar";
+/** O avatar da mesa abre o Quick Chat já num bot: a página navega para ele uma vez, quando a frota chegar. */
+let botPedidoNaUrl = modoQuickChat ? botDaUrl(window.location.search) : null;
+let botsNaMesa: string[] = [];
+if (modoQuickChat) void window.nodDesktop?.naMesa?.().then((ids) => { botsNaMesa = ids; assinaturaQuickChat = ""; render(); }).catch(() => undefined);
+let assinaturaQuickChat = "";
+/** ADR-173: os ajustes do Mac (Configurações › Máquinas); null fora do app do Mac. */
+let ajustesMac: AjustesMac | null = null;
+async function carregarAjustesMac(): Promise<void> {
+  const ponte = window.nodDesktop;
+  if (!ponte?.ferramentasMac || !ponte.atalhoQuickChat) return;
+  const [familias, atalho] = await Promise.all([ponte.ferramentasMac(), ponte.atalhoQuickChat()]).catch(() => [null, null] as const);
+  if (!familias) return;
+  ajustesMac = { familias, atalho: atalho ?? null };
+  render();
+}
+async function gravarAtalhoQuick(atalho: string | null): Promise<void> {
+  const ponte = window.nodDesktop;
+  if (!ajustesMac || !ponte?.definirAtalhoQuickChat) return;
+  const r = await ponte.definirAtalhoQuickChat(atalho).catch(() => null);
+  const recusa = !r ? "Não deu para trocar o atalho agora." : r.ok ? null : r.motivo === "em_uso" ? "Outro app já usa esse atalho. Escolha outro." : "Use ⌘, ⌃ ou ⌥ com uma letra, um número, Espaço ou F1–F24.";
+  ajustesMac = { ...ajustesMac, atalho: r?.atalho ?? ajustesMac.atalho, gravando: false, recusaAtalho: recusa };
+  render();
+}
+document.addEventListener("keydown", (ev) => {
+  if (!ajustesMac?.gravando) return;
+  if (ev.key === "Escape") { ev.preventDefault(); ajustesMac = { ...ajustesMac, gravando: false }; render(); return; }
+  const atalho = atalhoDoQuickChat(ev);
+  if (!atalho) return;
+  ev.preventDefault();
+  void gravarAtalhoQuick(atalho);
+}, true);
+void carregarAjustesMac();
+function pintarQuickChat(): void {
+  if (window.nodDesktop?.capturarTela) {
+    const clipe = document.querySelector("#composer .clipe");
+    if (clipe && !clipe.parentElement?.querySelector('[data-act="capturar-tela"]')) clipe.insertAdjacentHTML("afterend", htmlBotaoCapturar());
+  }
+  if (modoAvatar) { pintarAvatarDaMesa(); return; }
+  if (!modoQuickChat) return;
+  if (botPedidoNaUrl && estado.frota) {
+    const pedido = estado.frota.agentes.find((a) => a.id === botPedidoNaUrl && !a.excluidoEm);
+    botPedidoNaUrl = null;
+    if (pedido && !(estado.tela.tipo === "conversa" && estado.tela.agenteId === pedido.id)) { navegar({ tipo: "conversa", conversaId: pedido.conversaId, agenteId: pedido.id }); return; }
+  }
+  const bots = (estado.frota?.agentes ?? []).filter((a) => !a.excluidoEm).map((a) => ({ id: a.id, nome: a.nome, conversaId: a.conversaId }));
+  const atual = estado.tela.tipo === "conversa" ? estado.tela.agenteId : null;
+  const doAtual = atual ? (estado.frota?.agentes ?? []).find((a) => a.id === atual) : undefined;
+  const assinatura = JSON.stringify([bots, atual, botsNaMesa, doAtual?.cor, doAtual?.forma]);
+  if (assinatura === assinaturaQuickChat) return;
+  assinaturaQuickChat = assinatura;
+  let topo = document.getElementById("quick-chat-topo");
+  if (!topo) { topo = document.createElement("div"); topo.id = "quick-chat-topo"; document.body.prepend(topo); }
+  topo.innerHTML = htmlTopoQuickChat(bots, atual, { pode: Boolean(window.nodDesktop?.montarNaMesa), montado: atual !== null && botsNaMesa.includes(atual) }, doAtual ? htmlMascote(doAtual, "sm") : "");
+}
+/** `?janela=avatar&bot=<id>`: só o mascote do bot, num fundo transparente. */
+function pintarAvatarDaMesa(): void {
+  const id = botDaUrl(window.location.search);
+  const bot = id ? (estado.frota?.agentes ?? []).find((a) => a.id === id && !a.excluidoEm) : undefined;
+  const assinatura = bot ? `${bot.id}|${bot.nome}|${bot.cor}|${bot.forma}` : "";
+  if (assinatura === assinaturaQuickChat) return;
+  assinaturaQuickChat = assinatura;
+  let raiz = document.getElementById("avatar-mesa");
+  if (!raiz) { raiz = document.createElement("div"); raiz.id = "avatar-mesa"; document.body.prepend(raiz); }
+  raiz.innerHTML = bot ? htmlAvatarDaMesa(bot, htmlMascote(bot, "xl")) : "";
+}
+async function capturarParaOComposer(): Promise<void> {
+  const captura = (await window.nodDesktop?.capturarTela?.().catch(() => null)) ?? null;
+  const frase = fraseDaCaptura(captura);
+  if (frase) { anunciar(frase); window.alert(frase); return; }
+  const arquivo = arquivoDaCaptura(captura);
+  if (arquivo) adicionarArquivos([arquivo]);
+  document.getElementById("composer-texto")?.focus();
+}
+document.addEventListener("click", (ev) => {
+  const alvo = (ev.target as HTMLElement).closest<HTMLElement>('[data-act="capturar-tela"], [data-act="quick-expandir"], [data-act="quick-fechar"], [data-act="quick-montar"], [data-act="quick-desmontar"], [data-act="avatar-abrir"], [data-act="avatar-tirar"]');
+  if (!alvo) return;
+  ev.preventDefault();
+  const id = alvo.dataset.id ?? "";
+  const ponte = window.nodDesktop;
+  if (alvo.dataset.act === "capturar-tela") void capturarParaOComposer();
+  else if (alvo.dataset.act === "avatar-abrir") void ponte?.quickChatAbrir?.(id);
+  else if (alvo.dataset.act === "avatar-tirar") void ponte?.desmontarDaMesa?.(id);
+  else if (alvo.dataset.act === "quick-montar") void ponte?.montarNaMesa?.(id).then((ok) => { if (ok && !botsNaMesa.includes(id)) botsNaMesa = [...botsNaMesa, id]; render(); });
+  else if (alvo.dataset.act === "quick-desmontar") void ponte?.desmontarDaMesa?.(id).then(() => { botsNaMesa = botsNaMesa.filter((b) => b !== id); render(); });
+  else if (alvo.dataset.act === "quick-expandir") void window.nodDesktop?.quickChatExpandir?.();
+  else void window.nodDesktop?.quickChatEsconder?.();
+});
+// Rodada 3 (tela 19 do Paper): "Todas as máquinas ⌄" em Provedores de IA filtra a fila pela máquina escolhida.
+document.addEventListener("change", (ev) => {
+  const sel = ev.target as HTMLSelectElement;
+  if (sel.matches?.("select[data-cl-filtro]")) contasDaPessoa.filtro(sel.value || null);
+});
+document.addEventListener("change", (ev) => {
+  const sel = ev.target as HTMLSelectElement;
+  if (!sel.matches?.('select[data-quick="bot"]')) return;
+  const bot = (estado.frota?.agentes ?? []).find((a) => a.id === sel.value);
+  if (bot) navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
+});
+document.addEventListener("keydown", (ev) => {
+  // Esc no Quick Chat esconde a janela, salvo quando outro Esc está em uso (menu, diálogo, sugestão do composer).
+  if (!modoQuickChat || ev.key !== "Escape" || ev.defaultPrevented || document.querySelector("dialog[open]")) return;
+  void window.nodDesktop?.quickChatEsconder?.();
+});
+
 function anunciar(texto: string): void {
   const anuncio = document.getElementById("anuncio-pergunta");
   if (!anuncio) return;
@@ -4655,7 +6670,7 @@ function acaoDoMenuDaFala(fala: Mensagem, acao: string, ancora: HTMLElement): vo
     rolagem.colar();
     await a.enviar(fala.conversaId, textoAbrirTask(fala), [], crypto.randomUUID(), fala.id);
     dispatch({ tipo: "invalidar", quais: [`conversa:${fala.conversaId}`] });
-    anunciar("Pedido enviado: abrir uma task com esta mensagem");
+    anunciar("Pedido enviado: abrir uma tarefa com esta mensagem");
   });
   if (acao === "lembrar") void agir(async () => {
     await a.criarMemoria(bot, "fato", textoParaLembrar(fala), fala.conversaId);
@@ -4702,12 +6717,12 @@ async function criarTarefaDaFala(fala: Mensagem, botId: string): Promise<void> {
       const tarefaId = r.lote?.tarefaIds[0] ?? null;
       const loteId = r.lote?.id ?? null;
       const aviso = mostrarAvisoDesfazer({
-        texto: "Tarefa criada",
+        texto: "Card criado",
         ...(tarefaId ? { abrir: { rotulo: "Abrir", aoAbrir: () => quadroNaTela.abrirTarefa(botId, tarefaId) } } : {}),
-        ...(loteId ? { aoDesfazer: () => agir(async () => { await a.desfazerLoteQuadro(botId, loteId); anunciar("Tarefa desfeita"); }) } : {}),
+        ...(loteId ? { aoDesfazer: () => agir(async () => { await a.desfazerLoteQuadro(botId, loteId); anunciar("Card desfeito"); }) } : {}),
       });
       aviso.dataset.tarefa = tarefaId ?? "";
-      anunciar("Tarefa criada no quadro");
+      anunciar("Card criado no quadro");
     });
   } finally {
     criandoTarefaDaFala = false;
@@ -5045,14 +7060,19 @@ function desenharPilula(): void {
     return;
   }
   anunciarFrentesTerminadas(t.conversaId, t.agenteId);
-  const p = pilulaNaConversa(estado, t.agenteId, progressoDaFala);
+  // Paper 10b: no modo abas as tarefas estão em cima; a pílula sobre o campo some (uma lista por vez). Validação de
+  // 2026-11-19: ela continua desenhada, só apagada (o CSS de .pf-no-topo), para o lugar dela não sumir e a conversa não
+  // subir ou descer quando a sanfona abre ou fecha.
+  const noTopo = fileiraNaConversa(t.agenteId);
+  document.getElementById("faixa-trabalhos")?.classList.toggle("pf-no-topo", noTopo);
+  const p = pilulaNaConversa(estado, t.agenteId, progressoDaFala, novaTarefaNaAba(t));
   if (p.tipo !== "pilula") {
-    if (p.tipo === "nada") {
+    if (p.tipo === "nada" || p.tipo === "vazia") {
       const ao = aoSumir({ aberta: estado.faixaTrabalhosAberta === t.agenteId, focoDentro: pilula.focoDentro() });
       if (ao.foco === "campo") document.getElementById("composer-texto")?.focus({ preventScroll: true });
       if (ao.fechar) window.setTimeout(() => { if (estado.faixaTrabalhosAberta === t.agenteId && pilulaAtual === null) dispatch({ tipo: "faixa-trabalhos", agenteId: null }); }, 0);
     }
-    pilula.desenhar(p.tipo === "legado" ? p : null);
+    pilula.desenhar(p.tipo === "legado" || p.tipo === "vazia" ? p : null);
     pilulaAtual = null;
     return;
   }
@@ -5067,7 +7087,26 @@ function desenharPilula(): void {
   pilula.desenhar({ tipo: "pilula", partes: p.partes, aberta, escondida: p.escondida });
   pilulaAtual = { pilula: p.pilula, telemetria: p.partes.telemetria };
   // ADR-099 (gatilho de 30%): a pílula que fala de frentes conta como "mostrada" quando aparece, no tipo `frentes`.
-  if (!p.escondida && p.partes.telemetria) telemetria.mostrada({ tipo: "frentes", agenteId: t.agenteId, chaveLinha: p.partes.telemetria });
+  if (!p.escondida && !noTopo && p.partes.telemetria) telemetria.mostrada({ tipo: "frentes", agenteId: t.agenteId, chaveLinha: p.partes.telemetria });
+}
+
+/**
+ * ADR-187 §5 (Paper 4q, B e C; definido em 2026-11-18): a aba "+ Nova tarefa ⌘N" sem tarefas e o "+" ao lado da que conta.
+ * Só na conversa do próprio bot da pessoa (botAceitaTarefa), com a conversa já lida, com IA e fora das boas-vindas — as
+ * mesmas guardas do placeholder do campo. A dica vai junto enquanto a pessoa não a viu.
+ */
+function novaTarefaNaAba(t: Extract<Tela, { tipo: "conversa" }>): NovaTarefaNaAba | null {
+  if (!botAceitaTarefa(estado, t.agenteId)) return null;
+  const c = estado.conversas[t.conversaId];
+  if (!c) return null;
+  if (conversaAguardandoIa({ [t.conversaId]: { mensagens: c.mensagens } }, iasNoCard(estado), turnosVivosDe(estado))) return null;
+  const bot = botGerido(t.agenteId);
+  if (!bot) return null;
+  // Validação de 2026-11-18: a aba aparece já na pergunta das boas-vindas ("Para que você quer minha ajuda?"), não só
+  // depois da primeira fala; só fica fora nos segundos em que o bot recém-criado ainda reflete (a conversa vazia).
+  const fase = faseDasBoasVindasDe(bot);
+  if (fase === "vazia" || fase === "pensando") return null;
+  return { atalho: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria };
 }
 
 /** "Hero w3 pronta": só quando uma frente do bot da conversa à vista termina, nunca a cada passo (web/lib/pilula.ts). */
@@ -5091,10 +7130,10 @@ function progressoDaPilula(p: Pilula, soAVista = false): HTMLElement | null {
   return null;
 }
 
-/** A pílula fechou sozinha com o foco dentro: o foco vai ao "ver as N" do bloco que entrou na vista (ou ao título da frente). */
+/** A pílula fechou sozinha com o foco dentro: o foco vai à primeira linha (ou chip) do cartão vivo que entrou na vista. */
 function focarProgressoNaFala(p: Pilula): void {
   const bloco = progressoDaPilula(p, true);
-  bloco?.querySelector<HTMLElement>(".progresso-resumo, .progresso-titulo")?.focus({ preventScroll: true });
+  bloco?.querySelector<HTMLElement>("[data-act]")?.focus({ preventScroll: true });
 }
 
 /** "Ver na conversa ↑": fecha a pílula, rola até a fala com o progresso e a realça (como o protótipo D4BE2). */
@@ -5115,7 +7154,7 @@ function pararPelaPilula(): void {
     await Promise.allSettled(frentes.map((x) => api!.pararTrabalho(x.id)));
     dispatch({ tipo: "invalidar", quais: ["trabalhos", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] });
   });
-  pedirGestao(textoPararTasks(frentes, p.nome), `${listaPararTasks(frentes)}<p>O que já foi feito fica.</p>`, frentes.length === 1 ? "Parar a task" : "Parar tudo", parar, true);
+  pedirGestao(textoPararTasks(frentes, p.nome), `${listaPararTasks(frentes)}<p>O que já foi feito fica.</p>`, frentes.length === 1 ? "Parar a tarefa" : "Parar tudo", parar, true);
 }
 
 /** "Ver aprovação" (definido em 2026-10-03): da lista "N coisas esperam você" ao card do pedido na timeline. */
@@ -5131,9 +7170,27 @@ function marcacoesDe(decisaoId: string): { id: string; selecionado: boolean; tex
   if (!raiz) return [];
   return [...raiz.querySelectorAll<HTMLInputElement>("input[data-item]")].map((cb) => {
     const id = cb.getAttribute("data-item") ?? "";
-    const texto = raiz.querySelector<HTMLInputElement>(`input[data-item-texto="${CSS.escape(id)}"]`)?.value;
+    // ADR-175: o corpo do rascunho é um <textarea>; o texto final do cartão de aprovação, um <input>.
+    const texto = raiz.querySelector<HTMLInputElement | HTMLTextAreaElement>(`input[data-item-texto="${CSS.escape(id)}"], textarea[data-item-texto="${CSS.escape(id)}"]`)?.value;
     return { id, selecionado: cb.checked, ...(texto !== undefined ? { textoFinal: texto } : {}) };
   });
+}
+
+/**
+ * ADR-175: "Enviar todos" e "Descartar todos" da barra de rascunhos. Uma chamada a `decisoes/:id/decidir` por decisão, a
+ * mesma do cartão de aprovação: enviar leva o que está marcado e o texto de cada caixa; descartar manda tudo desmarcado
+ * (`itensDaRecusa`, nunca `itens: []`, que aprovaria). Em sequência: a primeira falha para o resto e aparece como erro.
+ */
+async function enviarRascunhos(el: HTMLElement, enviar: boolean): Promise<void> {
+  const ids = (el.dataset.decisoes ?? "").split(",").filter(Boolean);
+  for (const id of ids) {
+    const marcas = marcacoesDe(id);
+    const itens = enviar ? marcas : itensDaRecusa(marcas, estado.suaVez?.itens.find((i) => i.decisao.id === id)?.itensAprovacao ?? []);
+    if (!itens || itens.length === 0) continue;
+    marcarDecidida(el, id);
+    await decidirAprovacaoReconciliando(id, { itens });
+  }
+  dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
 }
 
 /** O que está marcado no cartão de liberar apps (card-liberar.ts): cada app marcado com o nível do seletor dele. */
@@ -5366,11 +7423,47 @@ function aoSoltarOrdem(lista: string, ordem: string[]): void {
 }
 instalarOrdemArrastavel(document, aoSoltarOrdem);
 
+/** ADR-167 (Paper 04): na nova conversa, o termo vai para "Criar o bot “Ce”" e a 1ª sugestão ganha o ↵. */
+function marcarSugestaoDaNovaConversa(texto: string): void {
+  const pop = document.querySelector<HTMLElement>(".nc-pop");
+  if (!pop) return;
+  const termo = pop.querySelector<HTMLElement>(".nc-termo");
+  if (termo) termo.textContent = texto.trim();
+  pop.querySelector<HTMLElement>(".nc-criar")?.toggleAttribute("hidden", texto.trim() === "");
+  const bots = [...pop.querySelectorAll<HTMLElement>(".nc-bot")];
+  let mostrados = 0;
+  for (const b of bots) {
+    if (!b.hidden && mostrados >= 5) b.hidden = true;
+    if (!b.hidden) mostrados++;
+  }
+  const primeira = bots.find((b) => !b.hidden);
+  for (const b of bots) b.toggleAttribute("data-nc-atual", b === primeira);
+}
+
+/** Enter na nova conversa: a sugestão marcada (ou criar o bot com o nome digitado); o texto do campo vai junto. */
+function escolherNaNovaConversa(): void {
+  const pop = document.querySelector<HTMLElement>(".nc-pop");
+  const alvo = pop?.querySelector<HTMLElement>(".nc-bot[data-nc-atual]") ?? pop?.querySelector<HTMLElement>(".nc-criar:not([hidden])");
+  if (!alvo) { document.getElementById("busca-destinatario")?.focus(); return; }
+  const texto = (document.getElementById("nc-texto") as HTMLTextAreaElement | null)?.value.trim() ?? "";
+  alvo.click();
+  if (texto && alvo.classList.contains("nc-bot")) requestAnimationFrame(() => {
+    const campo = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+    if (!campo) return;
+    campo.value = texto;
+    campo.dispatchEvent(new Event("input", { bubbles: true }));
+    campo.focus();
+  });
+}
+
 function filtrarBots(texto: string, raiz = "#sidebar"): void {
   const termo = texto.trim().toLowerCase();
-  for (const el of document.querySelectorAll<HTMLElement>(`${raiz} [data-busca]`)) el.hidden = !el.dataset.busca?.includes(termo);
+  // ADR-167 (Paper 04): na nova conversa, "Ce" acha quem tem uma palavra que começa com "ce" (Cecília), não "Clarice".
+  const casa = raiz === ".contact-picker" ? (b: string) => termo === "" || ` ${b}`.includes(` ${termo}`) : (b: string) => b.includes(termo);
+  for (const el of document.querySelectorAll<HTMLElement>(`${raiz} [data-busca]`)) el.hidden = !casa(el.dataset.busca ?? "");
   // Buscando, as seções recolhidas mostram o que casa (navegacao.css) — por atributo, sem redesenhar a barra no meio da
   // digitação: refazer o campo cortava o acento de tecla morta ("´é") e o focusout fechava a busca (definido em 2026-10-04).
+  if (raiz === ".contact-picker") { marcarSugestaoDaNovaConversa(texto); return; }
   if (raiz !== "#sidebar") return;
   document.getElementById("sidebar")?.toggleAttribute("data-buscando", termo !== "");
   // NOD-379 (critério 6): buscando, a seção ou a grade sem nenhum resultado some inteira, com o título.
@@ -5392,6 +7485,8 @@ function filtrarBots(texto: string, raiz = "#sidebar"): void {
     aviso.hidden = !nada;
     aviso.textContent = nada ? `Nenhum bot com “${texto.trim()}”` : "";
   }
+  // A busca encolhe a lista sem redesenhar: o fade da base some quando tudo cabe.
+  if (lista && !celular.ativo()) marcarBordasDaLista(lista);
 }
 
 /** NOD-45: o timer que devolve o Copiar do card do bloco de código ao repouso, por botão. */
@@ -5581,13 +7676,124 @@ const acoesDaMemoria: Record<string, (el: HTMLElement) => Promise<void> | void> 
     }),
 };
 
-/** Cria um bot em branco e abre a conversa dele. */
+/**
+ * Spec do botão + (tela 3): a linha provisória da barra, entre o clique em Criar e o bot entrar na frota. `agenteId`
+ * chega quando a API devolve; a linha some quando a frota já traz esse bot (aí a linha dele, selecionada, ocupa o lugar).
+ */
+let botProvisorio: { nome: string; agenteId: string | null } | null = null;
+
+/** A linha provisória (null quando não há, ou quando o bot já está na frota). */
+function linhaProvisoria(): string {
+  const p = botProvisorio;
+  if (!p) return "";
+  if (p.agenteId) {
+    const agente = estado.frota?.agentes.find((a) => a.id === p.agenteId);
+    if (agente && faseDasBoasVindasDe(agente) !== "vazia") { botProvisorio = null; return ""; }
+  }
+  return `<div class="bot-row bot-provisorio selecionado" aria-busy="true"><span class="row" role="status" aria-label="${esc(p.nome)}, criando…"><span class="provisorio-av" aria-hidden="true">${IC_PESSOA_PROVISORIO}</span><span class="txt"><span class="nome-linha"><b>${esc(p.nome)}</b></span><span class="sub">Criando…</span></span></span></div>`;
+}
+/**
+ * Spec do botão + (telas 4 e 5): o bot que esta janela acabou de criar (diálogo ou segurar), com a hora em que nasceu (o
+ * divisor do "Refletindo"). Só ele pensa, com a conversa dele aberta e ainda não lida do servidor: quem sai antes não deixa
+ * a linha pensando. A fase sai de web/telas/boas-vindas.ts.
+ */
+let botRecemCriado: { agenteId: string; em: number } | null = null;
+
+function faseDasBoasVindasDe(a: { id: string; conversaId: string; confirmado: boolean }): FaseDasBoasVindas {
+  const t = estado.tela;
+  const recemCriado = botRecemCriado?.agenteId === a.id && t.tipo === "conversa" && t.agenteId === a.id;
+  const decorridoMs = recemCriado && botRecemCriado ? Date.now() - botRecemCriado.em : undefined;
+  return faseDasBoasVindas(estado.conversas[a.conversaId], { recemCriado, confirmado: a.confirmado, decorridoMs });
+}
+
+function agendarBoasVindas(agenteId: string): void {
+  for (const atraso of [ATRASO_PARA_REFLETIR_MS, ATRASO_PARA_PERGUNTAR_MS]) {
+    window.setTimeout(() => {
+      if (botRecemCriado?.agenteId !== agenteId) return;
+      if (atraso === ATRASO_PARA_PERGUNTAR_MS) {
+        const t = estado.tela;
+        const conversaId = t.tipo === "conversa" && t.agenteId === agenteId ? t.conversaId : estado.frota?.agentes.find((a) => a.id === agenteId)?.conversaId;
+        if (conversaId) {
+          dispatch({ tipo: "invalidar", quais: [`conversa:${conversaId}`] });
+          if (api) void api.conversa(conversaId).then((conversa) => {
+            dispatch({ tipo: "hidratar-conversa", conversa, agora: Date.now() });
+            esquecerRegiao("timeline");
+            render();
+            redesenharSidebar();
+          });
+        }
+      }
+      esquecerRegiao("timeline");
+      render();
+      redesenharSidebar();
+    }, atraso + 20);
+  }
+}
+
+const IC_PESSOA_PROVISORIO = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="5.5" r="2.5"/><path d="M3.5 13.5c.6-2.3 2.4-3.5 4.5-3.5s3.9 1.2 4.5 3.5"/></svg>';
+
+/**
+ * Spec do botão + (telas 1 a 5): clique no + e ⌘N abrem o diálogo "Criar novo bot". Criar chama o mesmo criarAgente
+ * interativo do segurar (criarBotAgora), com nome, forma e cor: o backend grava a fala boas_vindas na criação.
+ */
+function depsDialogoCriarBot(): DepsDialogoCriarBot {
+  return {
+    criar: async ({ nome, forma, cor }) => {
+      const r = await api!.criarAgente(nome, { interativo: true, forma, cor });
+      return { agenteId: r.agente.id, conversaId: r.conversa.id };
+    },
+    aoComecar: ({ nome }) => { botProvisorio = { nome, agenteId: null }; redesenharSidebar(); },
+    aoCriar: ({ agenteId, conversaId }, { nome }) => {
+      botProvisorio = { nome, agenteId };
+      botRecemCriado = { agenteId, em: Date.now() };
+      agendarBoasVindas(agenteId);
+      navegar({ tipo: "conversa", conversaId, agenteId });
+      dispatch({ tipo: "invalidar", quais: ["frota", `conversa:${conversaId}`] });
+    },
+    aoFalhar: () => { botProvisorio = null; redesenharSidebar(); },
+    depoisDeCriar: () => document.getElementById("composer-texto")?.focus(),
+  };
+}
+
+/** O diálogo "Criar novo bot" (clique no +, ⌘N, a paleta e o menu do botão direito do +). */
+function abrirDialogoCriarBot(nome = ""): void {
+  if (!api) return;
+  void abrirCriarBot(depsDialogoCriarBot(), { nome });
+}
+
+/** ADR-174: o que o onboarding pede ao app (o preparo com %, web/telas/criar-bot.ts). */
+function depsCriarBot(): DepsCriarBot {
+  return {
+    criar: async (nome) => {
+      const r = await api!.criarAgente(nome, { interativo: true });
+      dispatch({ tipo: "invalidar", quais: ["frota"] });
+      return { agenteId: r.agente.id, conversaId: r.conversa.id };
+    },
+    vestir: async (agenteId, forma, cor) => { await api!.editarPerfil(agenteId, { forma, cor }); },
+    computadorPronto: async (agenteId) => {
+      const frota = await api!.frota();
+      return !frota.agentes.find((a) => a.id === agenteId)?.computadorForaDoAr;
+    },
+    abrirConversa: (conversaId, agenteId) => navegar({ tipo: "conversa", conversaId, agenteId }),
+    verOQueHouve: (conversaId, agenteId) => navegar({ tipo: "conversa", conversaId, agenteId }),
+    invalidar: () => dispatch({ tipo: "invalidar", quais: ["frota"] }),
+  };
+}
+
 function criarBotAgora(): Promise<void> {
   return agir(async () => {
     const r = await api!.criarAgente(undefined, { interativo: true });
-    dispatch({ tipo: "invalidar", quais: ["frota"] });
+    botRecemCriado = { agenteId: r.agente.id, em: Date.now() };
+    agendarBoasVindas(r.agente.id);
+    dispatch({ tipo: "invalidar", quais: ["frota", `conversa:${r.conversa.id}`] });
     navegar({ tipo: "conversa", conversaId: r.conversa.id, agenteId: r.agente.id });
   });
+}
+
+/** Spec do botão + (tela 5): a opção do cartão de boas-vindas (ou o "Outra coisa") vai pelo campo, como a mensagem da pessoa. */
+function responderBoasVindas(texto: string): Promise<void> | void {
+  const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
+  if (ta && texto) { escreverNoCampo(ta, texto); return enviarComposer(); }
 }
 
 function pedidoDoCard(el: HTMLElement): PedidoBarra | null {
@@ -5596,11 +7802,14 @@ function pedidoDoCard(el: HTMLElement): PedidoBarra | null {
 }
 
 const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
-  // NOD-119: Configurações › Aparência › Barra lateral; recolhida continua recolhida.
-  "escolher-densidade": (el) => {
-    const d = el.dataset.valor === "compacta" ? "compacta" : "confortavel";
-    mudarBarra(escolherDensidade(barraAtual, d), true);
-    document.querySelector<HTMLElement>(`.segmentado [data-act="escolher-densidade"][data-valor="${d}"]`)?.focus();
+  // ADR-166: Configurações › Aprovações (os modos, as regras do revisor, os níveis por app).
+  ...telaAprovacoes.acoes,
+  // ADR-166: "Aprovado pela sua regra · Editar" (linha embaixo da fala) abre Aprovações já editando a regra.
+  "apv-editar-da-linha": (el) => {
+    const regra = el.dataset.regra;
+    if (!regra) return;
+    abrirEspaco("aprovacoes");
+    telaAprovacoes.editarRegra(el.dataset.agente || null, regra);
   },
   // NOD-119 (C1): o card do chat. Só o clique da pessoa muda a barra; a decisão fica neste computador.
   "aplicar-barra": (el) => {
@@ -5618,7 +7827,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     void window.nodDesktop?.definirDecisaoBarra?.(id, "recusada").catch(() => undefined);
     render();
   },
-  ...telaOnboarding.acoes,
+  // O bloco guiado na conversa da guia (ainda por string) chama as ações do onboarding pela delegação.
+  ...Object.fromEntries(Object.entries(telaOnboarding.acoes).map(([k, f]) => [k, (el: HTMLElement) => f(el.dataset)])),
   // NOD-323: a mídia do bot.
   "midia-abrir": abrirMidia,
   "midia-gif": alternarGif,
@@ -5642,6 +7852,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   }),
   ...(telaMinhaConta.acoes as Record<string, (el: HTMLElement) => Promise<void> | void>),
   "conta-abrir": (el) => { try { marcarFalou(window.localStorage); } catch { /* sem storage */ } return telaConta.acoes["conta-abrir"]?.(el); },
+  "entrada-primeiro": (el) => { const i = intencaoDe(el.dataset.intencao); if (i) void seguirEntrarPrimeiro(i); },
   "entrada-ir": (el) => { entrada = { ...entrada, conta: { etapa: el.dataset.etapa === "recuperar" ? "recuperar" : "entrar", erro: null, enviadoPara: null, ocupado: false }, redefinir: null }; render(); },
   // NOD-345: "Mostrar" a senha troca o tipo do campo ali mesmo (o valor nunca sai do DOM).
   "conta-mostrar": (el) => {
@@ -5670,6 +7881,10 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "ligacao-aprovar": (el) => agir(() => telaLigacao.decidir(el.dataset.id ?? "", true)),
   "ligacao-recusar": (el) => agir(() => telaLigacao.decidir(el.dataset.id ?? "", false)),
   "ligacao-retomar-audio": () => telaLigacao.retomarAudio(),
+  // O aviso de microfone negado (ligação e ditado, no app): abre Privacidade › Microfone do sistema.
+  "microfone-ajustes": () => abrirAjustesDoMicrofone(),
+  // O × do aviso de microfone que o ditado põe acima do campo (web/telas/ditado-controle.ts).
+  "ditado-aviso-fechar": (el) => el.closest(".ditado-aviso")?.remove(),
   "ligacao-sugestao": (el) => { telaLigacao.enviarTexto(el.dataset.texto ?? ""); },
   // Rede de segurança (2026-10-05): a IA do Mac caiu no meio da ligação.
   "ligacao-continuar-ia": (el) => telaLigacao.continuarCom(el.dataset.ia === "codex-cli" ? "codex-cli" : "claude-cli"),
@@ -5764,12 +7979,17 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     }
     setTimeout(() => { el.textContent = antes; }, 1500);
   },
-  entrar: (el) => agir(async () => { await iniciarSessao(await sessaoApi.entrar(el.dataset.pessoa ?? "")); void abrirTarefaGuardada(); abrirQuadroGuardado(); await lerContas(null); }),
+  entrar: (el) => agir(async () => {
+    await travaDaSessao.executar(async () => {
+      await iniciarSessao(await sessaoApi.entrar(el.dataset.pessoa ?? ""));
+      void abrirTarefaGuardada(); abrirQuadroGuardado(); await lerContas(null);
+    });
+  }),
   navegar: (el) => {
     const tela = el.dataset.tela;
     if (tela === "conectores") abrirMarketplace();
     else if (tela === "rotinas") abrirRotinas();
-    else if (tela === "sua-vez" || tela === "nao-lidos" || tela === "nova-sala" || tela === "novo-bot" || tela === "nova-rotina" || tela === "trabalhos") navegar({ tipo: tela });
+    else if (tela === "sua-vez" || tela === "nao-lidos" || tela === "nova-sala" || tela === "novo-bot" || tela === "nova-rotina" || tela === "trabalhos" || tela === "tarefas") navegar({ tipo: tela });
     // As antigas telas da conta são seções de Seu espaço desde 2026-09-30.
     else if (tela === "chaves") abrirEspaco("computadores");
     else if (tela === "relatos") abrirEspaco("relatos");
@@ -5777,46 +7997,43 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     else if (tela === "espaco") abrirEspaco("conexao");
   },
   // NOD-383: no celular, "Configurações" (a Geral do menu) abre a lista das seções; os outros itens abrem a seção direto.
-  "menu-conta": (el) => abrirMenuConta(el, dadosMenuConta(), { secao: (s) => abrirEspaco(s, s === "geral" && celular.ativo()), conta: (qual) => void abrirDoMenuConta(qual) }, celular.ativo()),
-  "secao-espaco": (el) => abrirEspaco((el.dataset.secao as SecaoEspaco | undefined) ?? "conexao"),
-  // NOD-85: a agenda das rotinas (Configurações › Rotinas).
-  "agenda-ir": (el) => { if (el.dataset.dia) dispatch({ tipo: "agenda-ir", dia: el.dataset.dia }); },
-  "agenda-mes": (el) => {
-    const ui = estado.agenda.ui;
-    const mes = el.dataset.mes ?? (ui.mes === null ? (ui.foco ?? diaDe(estado.agora)).slice(0, 7) : null);
-    dispatch({ tipo: "agenda-ui", mudanca: { mes, aberto: null, menu: null } });
-    if (mes !== null && !el.dataset.mes) requestAnimationFrame(() => diaParaFocarNoMes((sel) => document.querySelector<HTMLElement>(sel))?.focus());
+  // Spec do item 2: Atalhos de teclado abre o diálogo de atalhos (o mesmo do ⌘/), não a Ajuda; Sobre o nod, o diálogo da versão.
+  "menu-conta": (el) => abrirMenuConta(el, dadosMenuConta(), {
+    secao: (s) => abrirEspaco(s, s === "geral" && celular.ativo()),
+    conta: (qual) => void abrirDoMenuConta(qual),
+    acao: (qual) => (qual === "atalhos" ? abrirAtalhos() : abrirSobreONod(__NOD_VERSAO__)),
+  }, celular.ativo()),
+  "secao-espaco": (el) => {
+    abrirEspaco((el.dataset.secao as SecaoEspaco | undefined) ?? "conexao");
+    // ADR-187 (4t, 2026-11-18): o selo da aba das tarefas abre Máquinas NA máquina apertada — rola até a linha dela e a
+    // realça. A seção pode chegar depois (a lista das máquinas carrega): tenta por até ~1,5 s.
+    const maquina = el.dataset.maquina;
+    if (maquina) realcarMaquina(maquina);
   },
-  "agenda-bot": (el) => { if (el.dataset.id) dispatch({ tipo: "agenda-bot", id: el.dataset.id }); },
+  // Configurações › Rotinas em lista (2026-11-19; até então a agenda da NOD-85).
+  "agenda-visao": (el) => {
+    const visao = el.dataset.visao;
+    if (visao === "todas" || visao === "ativas" || visao === "pausadas") dispatch({ tipo: "agenda-ui", mudanca: { visao, aberto: null, menu: null, verTodas: false } });
+  },
   "agenda-linha": (el) => {
-    const chave = el.dataset.chave ?? null;
+    const id = el.dataset.id ?? null;
     const ui = estado.agenda.ui;
-    dispatch({ tipo: "agenda-ui", mudanca: { aberto: ui.aberto === chave ? null : chave, menu: null, mes: null } });
-    // QA do PR #595 (B5): no celular a linha abre numa folha por cima; o foco vai para ela (o Esc o devolve à linha).
-    if (celular.ativo() && ui.aberto !== chave) requestAnimationFrame(() => document.querySelector<HTMLElement>("#espaco .ag-folha")?.focus());
-  },
-  "agenda-bloco": (el) => {
-    const chave = el.dataset.chave ?? null;
-    dispatch({ tipo: "agenda-ui", mudanca: { bloco: estado.agenda.ui.bloco === chave ? null : chave, aberto: null } });
+    dispatch({ tipo: "agenda-ui", mudanca: { aberto: ui.aberto === id ? null : id, menu: null } });
+    // QA do PR #595 (B5): no celular a rotina abre numa folha por cima; o foco vai para ela (o Esc o devolve à linha).
+    if (celular.ativo() && ui.aberto !== id) requestAnimationFrame(() => document.querySelector<HTMLElement>("#espaco .ag-folha")?.focus());
   },
   "agenda-tentar": () => dispatch({ tipo: "agenda-tentar" }),
   "agenda-so-problema": () => dispatch({ tipo: "agenda-ui", mudanca: { soProblema: false } }),
-  "agenda-todos": () => dispatch({ tipo: "agenda-ui", mudanca: { bots: [], soProblema: false, busca: null } }),
-  "agenda-busca-abrir": () => {
-    dispatch({ tipo: "agenda-ui", mudanca: { busca: "" } });
-    requestAnimationFrame(() => document.querySelector<HTMLInputElement>("[data-agenda-busca]")?.focus());
-  },
-  "agenda-busca-fechar": () => {
-    dispatch({ tipo: "agenda-ui", mudanca: { busca: null } });
-    requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-act="agenda-busca-abrir"]')?.focus());
-  },
+  "agenda-todos": () => { dispatch({ tipo: "agenda-bot", id: null }); dispatch({ tipo: "agenda-ui", mudanca: { soProblema: false, visao: "todas" } }); },
+  "agenda-ver-todas": () => dispatch({ tipo: "agenda-ui", mudanca: { verTodas: !estado.agenda.ui.verTodas } }),
   "agenda-pausadas": () => dispatch({ tipo: "agenda-ui", mudanca: { pausadasAbertas: !estado.agenda.ui.pausadasAbertas } }),
-  "agenda-fechar": () => dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null, mes: null } }),
-  // O link "Abrir na agenda" que o bot escreve (ver_agenda): abre Rotinas no dia, com o filtro de problema.
+  "agenda-lote": (el) => dispatch({ tipo: "agenda-ui", mudanca: { loteAberto: estado.agenda.ui.loteAberto === el.dataset.id ? null : el.dataset.id ?? null } }),
+  "reativar-lote": (el) => void reativarLoteDeRotinas(el.dataset.id ?? ""),
+  "agenda-fechar": () => dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null } }),
+  // O link "Abrir na agenda" que o bot escreve (ver_agenda): abre Rotinas, com o filtro de problema (o dia ficou da agenda).
   "abrir-agenda": (el) => {
-    const dia = el.dataset.dia;
     abrirEspaco("rotinas");
-    dispatch({ tipo: "agenda-abrir", hoje: diaDe(estado.agora), ...(dia ? { dia } : {}), soProblema: el.dataset.problema === "1" });
+    dispatch({ tipo: "agenda-abrir", hoje: diaDe(estado.agora), soProblema: el.dataset.problema === "1" });
   },
   // NOD-312: a carona "relê o necessário" e a marca "recomeçou" abrem e fecham a explicação logo abaixo (no DOM, sem
   // re-render: o foco fica no botão); o estado sobrevive ao próximo render da timeline (web/lib/recomeco.ts).
@@ -5891,7 +8108,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "conta-falha-fechar": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void contasDoMac.fecharFalha(ia); },
   "ia-verificar": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void iasDoMac.verificar(ia); },
   // No onboarding, o teste é o dele (onboarding-teste.ts): é o veredito dele que libera o Continuar.
-  "ia-testar": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void (el.closest("#onboarding") ? telaOnboarding.acoes["onboarding-ia-testar"]?.(el) : iasDoMac.testar(ia)); },
+  // No onboarding (React), o "Testar" do cartão vai direto ao teste dele (cartaoIaNoOnboarding).
+  "ia-testar": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void iasDoMac.testar(ia); },
   "ia-abrir-link": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void iasDoMac.abrirLink(ia); },
   "ia-copiar-codigo": (el) => { const ia = el.dataset.ia; if (ehIa(ia)) void iasDoMac.copiarCodigo(ia, el.dataset.texto ?? "").then((ok) => { if (ok) anunciar("Código copiado"); }); },
   "ia-ajuda": (el) => iasDoMac.alternarAjuda(`${el.dataset.ia ?? ""}:${el.dataset.passo ?? ""}`),
@@ -5938,18 +8156,20 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // "Código copiado" no aria-label nem voltam ao "Copiar" no meio do segundo aviso.
   "copiar-codigo": async (el) => {
     const estadoEl = el.querySelector(".md-codigo-estado");
-    const mostrar = (texto: string, aria: string): void => {
+    // COP-14 (item 4): no balão do bot o botão é só ícone; a classe `copiado` troca o ícone por um check por 1,5 s.
+    const mostrar = (texto: string, aria: string, copiado = false): void => {
       if (estadoEl) estadoEl.textContent = texto;
       el.setAttribute("aria-label", aria);
+      el.classList.toggle("copiado", copiado);
     };
     try {
       await navigator.clipboard.writeText(el.closest(".md-codigo")?.querySelector("code")?.textContent ?? "");
-      mostrar(ROTULO_COPIADO, "Código copiado");
+      mostrar(ROTULO_COPIADO, "Código copiado", true);
     } catch {
       mostrar("Não copiou", "Não copiou o código");
     }
     clearTimeout(timersCopiarCodigo.get(el));
-    timersCopiarCodigo.set(el, window.setTimeout(() => mostrar("Copiar", "Copiar código"), COPIADO_MS));
+    timersCopiarCodigo.set(el, window.setTimeout(() => mostrar("Copiar", "Copiar código"), CHECK_CODIGO_MS));
   },
   "fechar-espaco": () => fecharEspaco(),
   // NOD-383: o ‹ de uma seção no celular volta para a lista das Configurações (o foco vai para a seção de onde saiu).
@@ -6110,16 +8330,25 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     else navegar({ tipo: "inicio" });
   },
   // NOD-383: no celular, segurar o + pergunta antes ("Criar um bot agora?"); só Criar chama o criarAgente.
-  // O toque explícito em "Criar novo bot" (Nova conversa) cria direto.
-  "criar-rapido": () => criarBotAgora(),
+  // Spec do botão + (tela 1): "Criar o bot “…”" (Nova conversa) abre o diálogo "Criar novo bot" com o nome digitado.
+  "criar-rapido": () => abrirDialogoCriarBot((document.getElementById("busca-destinatario") as HTMLInputElement | null)?.value.trim() ?? ""),
+  // Spec do botão + (tela 1): o clique no + da barra, o ⌘⇧N e a paleta abrem o diálogo. Segurar o + 500 ms continua criando
+  // na hora (segurar-mais). Validação de 2026-11-18: o menu "Novo" (Novo bot, Novo chat em grupo) saiu; o chat em grupo
+  // fica só na busca (⌘K, web/lib/paleta.ts).
+  "novo-bot-dialogo": () => abrirDialogoCriarBot(),
   // NOD-383: segurar o + do topo. No celular o toque longo sai sem querer: pergunta antes; no desktop cria direto.
   "segurar-mais": () => void criarRapido(celular.ativo(), () => confirmarCriarBot(LOGO_NOD), criarBotAgora),
-  "escolher-missao": (el) => {
-    const ta = document.getElementById("composer-texto") as HTMLTextAreaElement | null;
-    if (ta) { escreverNoCampo(ta, el.dataset.texto ?? ""); return enviarComposer(); }
-  },
+  // ADR-188: o cartão "Atualizar o nod". Um clique: a tinta sobe sozinha e, cheia, pede o reinício (spinner até fechar).
+  "atualizar-app": () => atualizacaoNaWeb.encher(),
+  "atualizar-app-agora": () => atualizacaoNaWeb.reiniciar("agora"),
+  "atualizar-app-forcar": () => atualizacaoNaWeb.reiniciar("forcar"),
+  "atualizar-app-quando-livre": () => atualizacaoNaWeb.reiniciar("quandoLivre"),
+  "atualizar-app-cancelar-espera": () => atualizacaoNaWeb.reiniciar("cancelarEspera"),
+  "atualizar-app-fechar": () => atualizacaoNaWeb.fecharPergunta(),
+  "atualizar-app-procurar": () => atualizacaoNaWeb.procurar(),
+  "atualizar-app-sozinho": () => atualizacaoNaWeb.definirSozinho(!(atualizacaoNaWeb.tela()?.estado.sozinho ?? true)),
+  "escolher-missao": (el) => responderBoasVindas(el.dataset.texto ?? ""),
   // NOD-56: a captura da tela do bot ao fim do turno, ampliada sobre a conversa.
-  "ampliar-captura": (el) => { abrirCapturaAmpliada(el); },
   // NOD-327: o card de CSV/PDF abre a prévia num modal claro sobre a conversa.
   "previa-arquivo": (el) => { abrirPreviaArquivo(el); },
   // NOD-96 (v2): Abrir leva à tela cheia em Assistindo (no pedido de ajuda, já no controle). Sem v2, o diálogo de antes.
@@ -6129,12 +8358,18 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     canvasNaTela.querAbrir(el.dataset.id, el.dataset.endereco ?? null);
     quadroNaTela.abrirPagina("canvas");
   },
+  // D · Computador do bot (item 1): o chip [Computador](nod-computador:) abre o cartão "Destino do link" do bot que falou.
+  "computador-chip": (el) => {
+    const a = botGerido(botDoChip(el));
+    if (a) abrirCartaoDestino(el, a);
+  },
+  "computador-mostrar-painel": (el) => { if (el.dataset.id) mostrarComputadorNoPainel(el.dataset.id, abrirPainelDoBot); },
   "abrir-computador": (el) => {
     const a = botGerido(el.dataset.id);
     if (!a || !api || a.ownerId !== estado.sessao?.pessoaId) return;
     const sessao = api;
     if (!estado.computadorPessoa) return abrirComputador(sessao, a, { assumir: el.dataset.assumir === "1", dev: () => estado.modoDev.ligado, aoFechar: render });
-    abrirTelaCheia(sessao, a, { assumir: el.dataset.assumir === "1", pedido: el.dataset.pedido ?? null, aoMudar: () => void lerComputadorAgora(), antigo: estado.modoDev.ligado ? () => abrirComputador(sessao, a, { assumir: false, dev: () => estado.modoDev.ligado }) : null });
+    abrirTelaCheia(sessao, a, { assumir: el.dataset.assumir === "1", pedido: el.dataset.pedido ?? null, aoMudar: () => void lerComputadorAgora(), aoFechar: () => mostrarComputadorNoPainel(a.id, abrirPainelDoBot), antigo: estado.modoDev.ligado ? () => abrirComputador(sessao, a, { assumir: false, dev: () => estado.modoDev.ligado }) : null });
   },
   // NOD-96 (v2): as operações do computador da pessoa. Redefinir, Sair de todos e Esquecer senhas pedem confirmação; o resto vai direto.
   "operar-computador": (el) => {
@@ -6239,7 +8474,30 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   ditar: () => ditado.comecar(),
   "ditado-parar": () => ditado.concluir("campo"),
   "remover-anexo": (el) => removerAnexo(el.dataset.id ?? ""),
-  "abrir-busca": () => abrirBusca(),
+  "abrir-busca": () => (celular.ativo() ? abrirBusca() : abrirPaleta()),
+  // ADR-167 (Paper): o botão de recolher do topo da barra (o mesmo ⌘B), a engrenagem do rodapé (⌘,) e a linha Tarefas.
+  "alternar-barra": () => { executarAtalho({ tipo: "barra" }); },
+  "abrir-ajustes": () => abrirEspaco("geral"),
+  "abrir-tarefas": (el) => abrirTarefasDaBarra(el.dataset.agente),
+  "fechar-nova-conversa": () => navegar({ tipo: "inicio" }),
+  "nc-enviar": () => escolherNaNovaConversa(),
+  // ADR-167: copia o link de um ajuste (`#ajuste=<id>`); quem abre o link chega nas Configurações já na linha.
+  "ir-ao-ajuste": (el) => { termoAjustes = ""; irAoAjuste(el.dataset.ajuste ?? ""); },
+  "alternar-balao-cor": () => { aplicarBalaoCor(!lerBalaoCor(), document.documentElement); render(); },
+  "alternar-som-app": (el) => {
+    const tipo = el.dataset.som === "mensagem" || el.dataset.som === "aprovacao" ? (el.dataset.som as TipoSom) : null;
+    if (!tipo) return;
+    const atual = lerSons();
+    const nova = gravarSons({ ...atual, [tipo]: !atual[tipo] });
+    // Ligou: toca uma vez para a pessoa ouvir como é (o clique é o gesto que o navegador pede para o áudio).
+    if (nova[tipo]) { try { contextoDeAudio ??= new AudioContext(); tocarNotas(contextoDeAudio as unknown as ContextoDeAudio, notasDoSom(tipo)); } catch { /* sem Web Audio */ } }
+    render();
+  },
+  "copiar-link-ajuste": (el) => {
+    const id = el.dataset.ajuste ?? "";
+    if (!ajustePorId(id)) return;
+    void navigator.clipboard?.writeText(linkDoAjuste(location.href, id)).then(() => anunciar("Link copiado"), () => undefined);
+  },
   "abrir-bots": () => celular.voltarAoInicio(),
   "abrir-recentes": () => abrirRecentes(document.querySelector<HTMLElement>("#cabecalho .voltar-bots")),
   "fechar-recentes": () => sairDasRecentes(),
@@ -6296,9 +8554,23 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       else if (t.tipo === "conversa") abrirPerfil(t.agenteId, "chat");
       return;
     }
-    if (window.matchMedia("(max-width: 1099px)").matches) { app.classList.toggle("detalhes-abertos"); marcarPainelNaPilula(); void reidratar(); return; }
+    if (window.matchMedia("(max-width: 1099px)").matches) {
+      const abrindo = !app.classList.contains("detalhes-abertos");
+      app.classList.toggle("detalhes-abertos");
+      if (abrindo) animarPainel(app, "entrando");
+      marcarPainelNaPilula();
+      void reidratar();
+      return;
+    }
     const oculto = !app.classList.contains("detalhes-ocultos");
-    app.classList.toggle("detalhes-ocultos", oculto);
+    // Validação de 2026-11-18: o painel entra e sai deslizando (a coluna cresce de 0 a 360 px), não de uma vez.
+    if (oculto && !reduzirMovimento() && app.classList.contains("com-detalhes")) {
+      animarPainel(app, "saindo");
+      window.setTimeout(() => { app.classList.add("detalhes-ocultos"); app.classList.remove("painel-saindo"); }, DURACAO_PAINEL_MS);
+    } else {
+      app.classList.toggle("detalhes-ocultos", oculto);
+      if (!oculto) animarPainel(app, "entrando");
+    }
     painelAberto = !oculto;
     painelAbertoNaHora = false;
     marcarPainelNaPilula();
@@ -6550,6 +8822,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "abrir-conversa": (el) => {
     // NOD-119: escolher um bot na barra aberta por cima (recolhida + busca) fecha a busca, para a barra voltar a recolher.
     if (document.documentElement.dataset.sobreposta && el.closest("#sidebar")) fecharBusca();
+    // ADR-167 (tela 16b): a linha que diz "Aguardando você" abre a conversa rolada até o cartão pendente, realçado.
+    if (el.dataset.pendente) return verPerguntaNaConversa(el.dataset.conversa ?? "", el.dataset.agente ?? "", el.dataset.pendente);
     navegar({ tipo: "conversa", conversaId: el.dataset.conversa ?? "", agenteId: el.dataset.agente ?? "" });
   },
   "marcar-lida": (el) => marcarComDesfazer(el.dataset.conversa ?? "", el.dataset.nome ?? ""),
@@ -6582,12 +8856,32 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "alternar-avisos": () => canalAvisos.alternar(),
   // NOD-115: o redesenho vem do aoMudar do canal, quando a ponte devolve as preferências. A seção é refeita: quem
   // alternou pelo teclado continua no interruptor.
+  // ADR-173: as famílias do Mac (desligadas por padrão) e o atalho do Quick Chat; o processo principal valida tudo.
+  "alternar-ferramenta-mac": async (el) => {
+    const familia = el.dataset.familia;
+    const ponte = window.nodDesktop;
+    if (!ajustesMac || !ponte?.definirFerramentaMac || !familia || !(familia in ajustesMac.familias)) return;
+    const f = familia as keyof typeof ajustesMac.familias;
+    const familias = await ponte.definirFerramentaMac(f, !ajustesMac.familias[f]).catch(() => null);
+    if (familias) { ajustesMac = { ...ajustesMac, familias }; render(); }
+    document.querySelector<HTMLElement>(`[data-act="alternar-ferramenta-mac"][data-familia="${f}"]`)?.focus({ preventScroll: true });
+  },
+  "gravar-atalho-quick": () => { if (ajustesMac) { ajustesMac = { ...ajustesMac, gravando: true, recusaAtalho: null }; render(); } },
+  "cancelar-atalho-quick": () => { if (ajustesMac) { ajustesMac = { ...ajustesMac, gravando: false }; render(); } },
+  "desligar-atalho-quick": async () => { await gravarAtalhoQuick(null); },
   "alternar-som": async (el) => {
     const comFoco = document.activeElement === el;
     await canalAvisos.alternarSom?.();
     if (comFoco) document.querySelector<HTMLElement>('[data-act="alternar-som"]')?.focus({ preventScroll: true });
   },
   "fechar-faixa": () => dispatch({ tipo: "faixa", faixa: null }),
+  // ADR-185: abre ou recolhe o texto que a pessoa parou no meio (web/lib/textos-abertos.ts).
+  "alternar-texto": (el) => {
+    const id = el.dataset.id;
+    if (!id) return;
+    alternarTexto(id);
+    render();
+  },
   enviar: () => enviarComposer(),
   "sondar-inventario": () => agir(async () => dispatch({ tipo: "hidratar-inventario", inventario: await api!.inventario(true) })),
   "trocar-executor": (el) =>
@@ -6601,18 +8895,14 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "parar-conversa": () => agir(async () => {
     const alvo = conversaAtual();
     if (!alvo) return;
-    dispatch({ tipo: "faixa", faixa: await api!.pararConversa(alvo.conversaId) });
+    dispatch({ tipo: "faixa", faixa: await api!.pararConversa(alvo.conversaId), conversaId: alvo.conversaId });
     dispatch({ tipo: "invalidar", quais: [`conversa:${alvo.conversaId}`, "frota", "trabalhos"] });
   }),
   // A tela da task (#195): Parar task para só ela; Fechar (ou Esc) volta para onde a pessoa estava.
   "abrir-trabalho": (el) => abrirTrabalho(el.dataset.id ?? ""),
-  // Chat limpo (PR 7): "ver as 5" do progresso na fala abre no lugar, como a troca; a abertura conta para o gatilho da
-  // ADR-099 ("detalhe das frentes aberto em mais de 30%"), no tipo `frentes`.
-  "abrir-progresso": (el) => {
-    if (el.closest("details")?.open) return;
-    const tipo = tipoLinha(el.dataset.linhaTipo);
-    if (tipo) telemetria.aberta({ tipo, agenteId: el.dataset.agente ?? "", chaveLinha: el.dataset.linhaChave ?? "" });
-  },
+  // ADR-187 §5 e §7 (2026-11-18): o "+" da aba, a aba "+ Nova tarefa", o "Abrir uma tarefa" da dica e o contexto da conversa.
+  "nova-tarefa": (el) => abrirNovaTarefa(el),
+  "nova-tarefa-contexto": () => { levarContextoNaTarefa = !levarContextoNaTarefa; render(); },
   // Chat limpo (PR 3): a troca abre no lugar (o <details> cuida disso); só a abertura conta na telemetria da ADR-083.
   "abrir-troca": (el) => {
     if (el.closest("details")?.open) return;
@@ -6628,10 +8918,40 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     navegar({ tipo: "linha", conversaId: el.dataset.conversa ?? "", mensagens: (el.dataset.mensagens ?? "").split(",").filter(Boolean), titulo: el.dataset.titulo ?? "", voltar: t.tipo === "trabalho" || t.tipo === "linha" ? t.voltar : t, ...(tipo === "rotina" ? { rotina: true } : {}) });
   },
   "fechar-trabalho": () => fecharTask(),
+  // ADR-187 §6 (Paper 4p): a fileira de abas. Clicar troca de tarefa; o segundo clique em até 400 ms renomeia.
+  "aba-tarefa": (el) => {
+    const id = el.dataset.id ?? "";
+    const agora = performance.now();
+    const duplo = ehCliqueDuplo(ultimoCliqueNaAba, id, agora);
+    ultimoCliqueNaAba = duplo ? null : { id, em: agora };
+    if (duplo) { comecarRenomeio(id); return; }
+    const t = estado.tela;
+    if (t.tipo !== "trabalho" || t.id !== id) abrirTrabalho(id);
+  },
+  "menu-aba-tarefa": (el) => abrirMenuDaAba(el.dataset.id ?? "", el.closest<HTMLElement>(".at-aba") ?? el),
+  "fechar-aba-tarefa": (el) => fecharAbaDeTarefa(el.dataset.id ?? ""),
+  "aba-conversa": (el) => voltarParaAConversa(el.dataset.agente ?? ""),
+  "mostrar-em-abas": (el) => mostrarEmAbas(el.dataset.agente ?? ""),
+  "fechar-abas": (el) => fecharAbas(el.dataset.agente ?? ""),
+  "abas-outras": (el) => abrirMenuDasOutras(el.dataset.agente ?? "", el),
   "parar-trabalho": (el) => agir(async () => {
     const id = el.dataset.id ?? "";
     await api!.pararTrabalho(id);
     dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
+  }),
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4l): as saídas da tarefa parada. Continuar é falar nela (o recado
+  // guardado no Parar volta antes, no servidor); Encerrar a dá por terminada e fecha a aba, como o ×.
+  "continuar-tarefa": (el) => estado.ocupado ? undefined : agir(async () => {
+    const id = el.dataset.id ?? "";
+    await api!.escreverNoTrabalho(id, TEXTO_CONTINUAR);
+    dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
+    document.getElementById("composer-texto")?.focus({ preventScroll: true });
+  }),
+  "encerrar-tarefa": (el) => estado.ocupado ? undefined : agir(async () => {
+    const id = el.dataset.id ?? "";
+    await api!.encerrarTrabalho(id);
+    dispatch({ tipo: "invalidar", quais: [`trabalho:${id}`, "trabalhos"] });
+    fecharAbaDeTarefa(id);
   }),
   "trabalho-depois": (el) => estado.ocupado ? undefined : agir(async () => {
     await api!.trabalhoDepois(el.dataset.id ?? "", el.dataset.depois ?? "");
@@ -6681,14 +9001,24 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   },
   // "Esperando você" leva à mensagem do bot com a pergunta (a decisão fica na conversa, nunca acima do campo).
   "ir-a-pergunta": (el) => irAoQueEsperaVoce(el.dataset.id ?? null),
-  "filtro-trabalhos": (el) => {
-    const f = el.dataset.id;
-    if (f === "todos" || f === "voce" || f === "rotinas" || f === "bots") navegar({ tipo: "trabalhos", filtro: f });
+  // ADR-187 §8 (Paper 5a e 5b): a vista, os chips e o bot da tela Tarefas trocam a tela e guardam o resto da escolha.
+  "vista-tarefas": (el) => {
+    const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const };
+    const bot = el.dataset.bot ?? t.bot;
+    navegar({ tipo: "trabalhos", ...(el.dataset.id === "por-estado" ? { filtro: "todos" as const } : {}), ...(t.mostrar ? { mostrar: t.mostrar } : {}), ...(bot ? { bot } : {}) });
   },
+  "mostrar-tarefas": (el) => {
+    const t = estado.tela.tipo === "trabalhos" ? estado.tela : { tipo: "trabalhos" as const };
+    const m = el.dataset.id;
+    if (m === "abertas" || m === "feitas" || m === "todas") navegar({ ...t, mostrar: m });
+  },
+  "bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),
   "parar-sala": (el) =>
     agir(async () => {
-      dispatch({ tipo: "faixa", faixa: await api!.pararSala(el.dataset.id ?? "") });
+      // A conversa é a da tela no clique: quem troca de bot enquanto o Parar volta não leva a faixa da sala junto.
       const alvo = conversaAtual();
+      const faixa = await api!.pararSala(el.dataset.id ?? "");
+      dispatch({ tipo: "faixa", faixa, conversaId: alvo?.conversaId ?? null });
       if (alvo) dispatch({ tipo: "invalidar", quais: [`conversa:${alvo.conversaId}`] });
     }),
   "confirmar-proposta": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await api!.confirmarProposta(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["frota", "rotinas", "sua-vez", ...(conversaAtual() ? [`conversa:${conversaAtual()?.conversaId}` as Invalidacao] : [])] }))),
@@ -6699,29 +9029,17 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   duplicar: (el) => { const a = botGerido(el.dataset.id); if (a) acaoDoBot(a, "duplicar"); },
   revogar: (el) => agir(async () => void (await api!.revogar(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: [`concessoes:${el.dataset.agente ?? ""}`, "frota"] }))),
   // definido em 2026-09-24 (ADR-045): "Entendi" no aviso de queda do Mac.
-  // definido em 2026-09-24: Cancelar de UMA mensagem da fila. Fica 5 s em "Cancelando… Desfazer" só na
-  // web; depois disso vai ao servidor. Desfazer antes do prazo não toca o servidor (nada a reenfileirar).
-  "cancelar-turno": (el) => {
-    const turnoId = el.dataset.id ?? "";
-    if (!turnoId) return;
-    dispatch({ tipo: "cancelando-turno", turnoId, agora: Date.now() });
-    window.setTimeout(() => {
-      if (!(turnoId in estado.cancelando)) return;
-      void agir(async () => {
-        try {
-          await api!.cancelarTurno(turnoId);
-        } finally {
-          dispatch({ tipo: "desfazer-cancelamento", turnoId });
-          const alvo = conversaAtual();
-          if (alvo) dispatch({ tipo: "invalidar", quais: [`conversa:${alvo.conversaId}`] });
-        }
-      });
-    }, CANCELAR_DESFAZER_MS);
-  },
-  "desfazer-cancelamento": (el) => dispatch({ tipo: "desfazer-cancelamento", turnoId: el.dataset.id ?? "" }),
+  // Cancelar só a mensagem na fila (revisto em 2026-11-16, web/lib/cancelar-na-fila.ts): o POST sai na hora do clique
+  // (a absorção acontece no próximo passo do bot, e os 5 s locais de antes perdiam a corrida); o Desfazer vem depois do OK.
+  "cancelar-turno": (el) => cancelarDaFila(el.dataset.id ?? ""),
+  "desfazer-cancelamento": (el) => desfazerDaFila(el.dataset.id ?? ""),
   // Parte 1 do plano "o pensamento no chat": a fala pendente que falhou.
   "reenviar-pendente": (el) => reenviarPendente(el.dataset.conversa ?? "", el.dataset.id ?? ""),
-  "descartar-pendente": (el) => dispatch({ tipo: "fala-pendente-sai", conversaId: el.dataset.conversa ?? "", idEnvio: el.dataset.id ?? "" }),
+  "descartar-pendente": (el) => {
+    // Descartada, a fala sai também do journal de envio (e os reenvios dela param).
+    journal?.esquecer(el.dataset.id ?? "");
+    dispatch({ tipo: "fala-pendente-sai", conversaId: el.dataset.conversa ?? "", idEnvio: el.dataset.id ?? "" });
+  },
   "dispensar-incidente": (el) => agir(async () => void (await api!.dispensarIncidente(el.dataset.id ?? ""), dispatch({ tipo: "invalidar", quais: ["sua-vez"] }))),
   // definido em 2026-09-24 (ADR-044): o grupo (app · nível) do painel sai inteiro, com um registro só.
   "revogar-acessos": (el) => agir(async () => void (await api!.revogarAcessos(el.dataset.agente ?? "", (el.dataset.ids ?? "").split(",").filter(Boolean)), dispatch({ tipo: "invalidar", quais: [`concessoes:${el.dataset.agente ?? ""}`, "frota"] }))),
@@ -6748,7 +9066,53 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // definido em 2026-09-28 (emenda da ADR-037): aprova este passo e libera o computador até o fim da tarefa.
   "decidir-aprovacao-resto": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), restoDaTarefa: true }))),
   "decidir-aprovacao-sempre": (el) => agir(async () => void (marcarDecidida(el, el.dataset.id), await decidirAprovacaoReconciliando(el.dataset.id ?? "", { itens: marcacoesDe(el.dataset.id ?? ""), sempre: true }))),
+  // ADR-166 (tela 06): permitir e, com "Salvar como regra" marcado, gravar a regra "Pode fazer sem perguntar" no bot do
+  // cartão. A aprovação sai primeiro (é o que a pessoa pediu agora); a regra que falhar avisa, sem desfazer a aprovação.
+  "decidir-aprovacao-com-regra": (el) => agir(async () => {
+    const id = el.dataset.id ?? "";
+    const marca = document.querySelector<HTMLInputElement>(`[data-cr-regra-marca="${CSS.escape(id)}"]`);
+    const texto = document.querySelector<HTMLInputElement>(`[data-cr-regra-texto="${CSS.escape(id)}"]`)?.value.trim() ?? "";
+    marcarDecidida(el, id);
+    await decidirAprovacaoReconciliando(id, { itens: marcacoesDe(id) });
+    if (marca?.checked && texto && el.dataset.agente) {
+      try {
+        await api!.criarRegraRevisor({ agenteId: el.dataset.agente, lista: "permitir", texto, origem: "sugestao" });
+      } catch {
+        dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: "Permiti, mas não deu para salvar a regra. Confira em Configurações › Aprovações." } });
+      }
+    }
+    dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
+  }),
+  // ADR-166 (tela 06, "Em lote"): cada pedido marcado é decidido pela rota de sempre; o desmarcado fica esperando.
+  "iguais-permitir": (el) => agir(async () => {
+    const card = el.closest<HTMLElement>(".aprov-iguais");
+    const ids = [...(card?.querySelectorAll<HTMLInputElement>("input[data-igual]") ?? [])].filter((c) => c.checked).map((c) => c.dataset.igual ?? "").filter(Boolean);
+    for (const id of ids) await decidirAprovacaoReconciliando(id, { itens: [] });
+    dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota"] });
+  }),
+  "iguais-negar": (el) => agir(async () => {
+    for (const id of (el.dataset.iguais ?? "").split(",").filter(Boolean)) {
+      const itens = itensDaRecusa([], estado.suaVez?.itens.find((i) => i.decisao.id === id)?.itensAprovacao ?? []);
+      if (itens) await decidirAprovacaoReconciliando(id, { itens });
+    }
+    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+  }),
+  "iguais-ver": (el) => {
+    if (el.dataset.chave) IGUAIS_UM_A_UM.add(el.dataset.chave);
+    render();
+  },
   // QA do PR 4 (2026-10-18): o cartão de um item não tem caixa de marcar e mandava `itens: []`, que aprova (web/lib/recusa-da-aprovacao.ts).
+  // ADR-175: o rascunho de uma decisão com vários sai da lista (ou volta) sem decidir; o envio é pela barra.
+  "rascunho-alternar": (el) => {
+    const cartao = el.closest<HTMLElement>("[data-rascunho]");
+    const caixa = cartao?.querySelector<HTMLInputElement>("input[data-item]");
+    if (!cartao || !caixa) return;
+    caixa.checked = !caixa.checked;
+    cartao.classList.toggle("re-descartado", !caixa.checked);
+    el.textContent = caixa.checked ? "Descartar" : "Desfazer";
+  },
+  "rascunhos-enviar-todos": (el) => agir(async () => enviarRascunhos(el, true)),
+  "rascunhos-descartar-todos": (el) => agir(async () => enviarRascunhos(el, false)),
   "decidir-aprovacao-nenhum": (el) => agir(async () => {
     const id = el.dataset.id ?? "";
     const itens = itensDaRecusa(marcacoesDe(id), estado.suaVez?.itens.find((i) => i.decisao.id === id)?.itensAprovacao ?? []);
@@ -6765,6 +9129,8 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     document.querySelector<HTMLElement>(`#espaco [data-act="filtrar-relatos"][data-filtro-tipo="${CSS.escape(el.dataset.filtroTipo ?? "todos")}"]`)?.focus();
   },
   "recarregar-relatos": () => dispatch({ tipo: "hidratar-relatos", relatos: null, erro: false }),
+  // Paper 07 (rodada 2): o "Tentar de novo" do Cofre relê a lista.
+  "recarregar-cofre": () => void telaCofre.abrir(),
   // NOD-367 (emenda da ADR-041): "Enviar feedback" não anexa conversa nenhuma; leva à conversa com o Nod, onde se conta
   // um bug, uma ideia ou uma dúvida sem mensagem de referência (0062).
   "enviar-feedback": () => {
@@ -6825,7 +9191,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
       const texto = el.dataset.texto ?? "";
       await api!.responder(el.dataset.id ?? "", texto);
       pedirFocoDaFila(el.dataset.id ?? "");
-      dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(alvo ? [`conversa:${alvo.conversaId}` as Invalidacao] : [])] });
+      // ADR-187 §6 (Paper 4n): respondida dentro da tarefa, a tarefa relê (a pergunta sai e ela volta a trabalhar).
+      const tela = estado.tela;
+      dispatch({ tipo: "invalidar", quais: ["sua-vez", "frota", ...(alvo ? [`conversa:${alvo.conversaId}` as Invalidacao] : []), ...(tela.tipo === "trabalho" ? [`trabalho:${tela.id}` as Invalidacao, "trabalhos" as Invalidacao] : [])] });
       anunciarPergunta(`Resposta enviada: ${texto}`);
     }),
   // A decisora designada que não é dona da conversa responde em "Sua vez" (não lê a conversa de outra pessoa).
@@ -7208,6 +9576,15 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   }),
 };
 
+const emitirChavePelaTela = umaPorVez(async (form: HTMLFormElement) => {
+  await agir(async () => {
+    const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
+    const emitida = await api!.emitirChave(nome);
+    form.reset();
+    dispatch({ tipo: "chave-emitida", emitida });
+  });
+});
+
 const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
   // NOD-94: o formulário do SSH e a senha do sudo (os valores já estão no controlador, pelo `input`).
   "instalar-ssh": () => agir(async () => { await instalarSsh.enviar(); focarNovo(); }),
@@ -7286,13 +9663,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
       form.reset();
       dispatch({ tipo: "mcp-token-emitido", emitido });
     }),
-  "emitir-chave": (form) =>
-    agir(async () => {
-      const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
-      const emitida = await api!.emitirChave(nome);
-      form.reset();
-      dispatch({ tipo: "chave-emitida", emitida });
-    }),
+  "emitir-chave": async (form) => { await emitirChavePelaTela(form); },
   "criar-agente": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() || undefined;
@@ -7441,6 +9812,18 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
 
 instalarDicaDeLink(document);
 
+// ADR-175: ⌘↵ (Ctrl+↵ fora do Mac) é o "Enviar todos" da barra de rascunhos (rascunhos-de-envio.ts decide quando vale).
+document.addEventListener("keydown", (ev) => {
+  const barra = document.querySelector<HTMLElement>('.re-barra [data-act="rascunhos-enviar-todos"]');
+  const alvo = ev.target as HTMLElement | null;
+  const campo = alvo?.closest?.("textarea, input, [contenteditable]") as HTMLTextAreaElement | HTMLInputElement | HTMLElement | null;
+  const foco = alvo?.closest?.(".re-decisao, .re-barra") ? "rascunho" : campo?.closest?.("#composer, .composer") ? (("value" in campo ? campo.value : campo.textContent ?? "").trim() ? "campo-com-texto" : "campo-vazio") : campo ? "outro" : "campo-vazio";
+  if (!atalhoEnviarTodos(ev, { noMac: NO_MAC, temBarra: !!barra, foco })) return;
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
+  if (barra) void ACOES["rascunhos-enviar-todos"]?.(barra);
+}, true);
+
 // NOD-119: o seletor segmentado das Configurações (radiogroup): setas, Home e End escolhem a opção ao lado e levam o foco.
 document.addEventListener("keydown", (ev) => {
   const el = (ev.target as HTMLElement | null)?.closest<HTMLElement>('.segmentado [role="radio"]');
@@ -7461,7 +9844,7 @@ document.addEventListener("click", (ev) => {
   if (!el || el.tagName === "BUTTON" && (el as HTMLButtonElement).type === "submit" && el.closest("form[data-form]")) return;
   const acao = ACOES[el.dataset.act ?? ""];
   // NOD-85: a ação escolhida na folha ou no menu da agenda (celular) fecha a folha antes de agir.
-  if (acao && el.closest(".ag-folha") && !el.dataset.act?.startsWith("agenda-")) dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null, mes: null } });
+  if (acao && el.closest(".ag-folha") && !el.dataset.act?.startsWith("agenda-")) dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null } });
   if (acao) void acao(el);
 });
 
@@ -7793,6 +10176,22 @@ document.addEventListener("focusout", (ev) => {
   if (!(para instanceof Node && document.getElementById("sidebar")?.contains(para))) redesenharSidebar();
 });
 
+// COP-12 (spec da barra): a barra de rolagem de 6 px só aparece enquanto a pessoa rola, e o fade acompanha as bordas.
+// definido em 2026-11-13: 650 ms parada esconde a barra (o bastante para a segunda passada da roda não piscar).
+let esconderRolagemDaBarra = 0;
+document.addEventListener("scroll", (ev) => {
+  const lista = ev.target;
+  if (!(lista instanceof HTMLElement) || !lista.matches("#sidebar .list") || celular.ativo()) return;
+  lista.toggleAttribute("data-rolando", true);
+  marcarBordasDaLista(lista);
+  window.clearTimeout(esconderRolagemDaBarra);
+  esconderRolagemDaBarra = window.setTimeout(() => lista.toggleAttribute("data-rolando", false), 650);
+}, true);
+window.addEventListener("resize", () => {
+  const lista = document.querySelector<HTMLElement>("#sidebar .list");
+  if (lista && !celular.ativo()) marcarBordasDaLista(lista);
+});
+
 // NOD-368 (celular = CONSULTA_CELULAR, revisão 3): o toque longo numa linha de Agentes marca o bot e liga a seleção; no modo seleção, tocar na
 // linha marca e desmarca. Os botões da linha (a caixa, o "…", o Tentar de novo) seguem com a ação deles.
 
@@ -7829,7 +10228,8 @@ document.addEventListener("click", (ev) => {
 }, true);
 
 document.addEventListener("keydown", (ev) => {
-  if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); abrirBusca(); return; }
+  // ADR-167: no computador ⌘K abre a paleta de tudo; no celular, a busca de tela cheia de sempre.
+  if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); if (celular.ativo() || !estado.sessao) abrirBusca(); else abrirPaleta(); return; }
   // NOD-42: ⌘F/Ctrl+F abre a busca na pílula; ⌘G/⇧⌘G andam (e abrem, se fechada). Fora da conversa, segue o padrão.
   // No Mac só o ⌘ (Ctrl+F é "avançar um caractere" no campo de texto do macOS).
   if ((NO_MAC ? ev.metaKey : ev.ctrlKey) && !ev.altKey && (ev.key.toLowerCase() === "f" || ev.key.toLowerCase() === "g") && podeBuscarNaConversa()) {
@@ -7887,7 +10287,7 @@ document.addEventListener("keydown", (ev) => {
   // não fecha Seu espaço por trás do diálogo.
   if (ev.key === "Escape" && estado.espaco && !(ev.target as HTMLElement).closest?.("dialog") && !document.querySelector("dialog[open]")) {
     ev.preventDefault();
-    // NOD-85: na agenda, o Esc fecha antes o que está aberto (o mês, a busca, a folha ou a linha), um por vez.
+    // Em Rotinas, o Esc fecha antes o que está aberto (o menu, a folha ou a rotina aberta).
     const ag = secaoAberta(estado) === "rotinas" ? escNaAgenda(estado.agenda.ui) : null;
     if (ag) {
       dispatch({ tipo: "agenda-ui", mudanca: ag.mudanca });
@@ -7913,7 +10313,15 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && estado.tela.tipo === "conectores" && estado.tela.voltar && !celular.botsAbertos() && !(ev.target as HTMLElement).closest?.("dialog, input, textarea, select")) { ev.preventDefault(); void ACOES["voltar-conexao"]?.(document.body); return; }
   // A tela da task (e a provisória de uma linha) fecha no Esc — menos com algo digitado no campo dela.
   // NOD-379: com a inicial do celular à vista, o Esc não age na tela escondida por baixo (Marketplace, Trabalho, linha).
-  if (ev.key === "Escape" && (estado.tela.tipo === "trabalho" || estado.tela.tipo === "linha") && !celular.botsAbertos() && !buscaNaConversa.aberta() && !(ev.target as HTMLElement).closest?.("dialog, input, select, #detalhes") && !((ev.target as HTMLTextAreaElement).id === "composer-texto" && (ev.target as HTMLTextAreaElement).value.trim())) { ev.preventDefault(); fecharTask(); return; }
+  // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k: "Esc para parar"): com a tarefa trabalhando, o Esc a para — também
+  // com o recado pela metade no campo (o rascunho fica). Menu, diálogo e o nome em edição têm o Esc deles antes.
+  if (ev.key === "Escape" && !ev.defaultPrevented && estado.tela.tipo === "trabalho" && campoDaTela(estado.tela.id).parar && !celular.botsAbertos() && !buscaNaConversa.aberta() && !ditado.ativo() && !document.querySelector("dialog[open], .bot-menu") && !(ev.target as HTMLElement).closest?.("dialog, input, select, #detalhes")) {
+    ev.preventDefault();
+    const parar = document.querySelector<HTMLElement>('#composer .parar-envio[data-act="parar-trabalho"]');
+    if (parar) void ACOES["parar-trabalho"]?.(parar);
+    return;
+  }
+  if (ev.key === "Escape" && (estado.tela.tipo === "trabalho" || estado.tela.tipo === "linha" || estado.tela.tipo === "nova-tarefa") && !celular.botsAbertos() && !buscaNaConversa.aberta() && !(ev.target as HTMLElement).closest?.("dialog, input, select, #detalhes") && !((ev.target as HTMLTextAreaElement).id === "composer-texto" && (ev.target as HTMLTextAreaElement).value.trim())) { ev.preventDefault(); fecharTask(); return; }
   // NOD-382: Esc na visão geral do perfil do celular volta à origem, como o ‹ (no campo do nome, o Esc só desfaz).
   if (ev.key === "Escape" && ehCelular() && estado.perfilCelular && !estado.gaveta && !estado.avatarAberto && (ev.target as HTMLElement).closest?.("#detalhes") && !(ev.target as HTMLElement).closest?.("input, textarea, dialog")) { ev.preventDefault(); fecharPerfil(); return; }
   // Esc dentro da gaveta, num nível interno, volta um nível (o mesmo ‹ do topo).
@@ -7923,6 +10331,12 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing && (ta as HTMLElement).closest?.(".pq-campo")) {
     ev.preventDefault();
     (ta as HTMLElement).closest(".pq-campo")?.querySelector<HTMLButtonElement>('[data-act="responder"]')?.click();
+    return;
+  }
+  // Spec do botão + (tela 5): "Outra coisa", o campo livre do cartão de boas-vindas — Enter manda o que foi escrito.
+  if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing && (ta as HTMLElement).classList?.contains("bv-outra-campo")) {
+    ev.preventDefault();
+    if (ta.value.trim()) void responderBoasVindas(ta.value.trim());
     return;
   }
   if (ta.id !== "composer-texto") return;
@@ -7973,7 +10387,10 @@ document.addEventListener("input", (ev) => {
   // NOD-444: digitar no campo tira a sugestão da nova rotina.
   if ((ta as HTMLElement).id === "composer-texto") mostrarSugestaoRotina(false);
   if ((ta as HTMLElement).dataset?.actInput === "midia-audio-ir") { irNoAudio(ta as unknown as HTMLInputElement); return; }
-  if ((ta as HTMLElement).matches?.("[data-agenda-busca]")) { dispatch({ tipo: "agenda-ui", mudanca: { busca: ta.value } }); return; }
+  // ADR-167: a busca dos ajustes redesenha as Configurações (o campo volta com o foco pelo data-manter-foco).
+  if ((ta as HTMLElement).id === "busca-ajustes") { termoAjustes = ta.value; render(); return; }
+  // Rotinas: o "Todos os bots ⌄" (um <select>; o input dele chega aqui como o de qualquer campo).
+  if ((ta as HTMLElement).matches?.("[data-agenda-bot]")) { dispatch({ tipo: "agenda-bot", id: ta.value || null }); return; }
   // O código do Claude atravessa o redesenho do cartão (o foco volta pelo `manterFocoDoCodigo`).
   const iaDoCodigo = (ta as HTMLElement).dataset?.iaCodigo;
   if (ehIa(iaDoCodigo)) { dispatch({ tipo: "ias-mac", mudanca: { codigo: { ...estado.iasMac.codigo, [iaDoCodigo]: ta.value } } }); return; }
@@ -8068,6 +10485,8 @@ document.addEventListener("visibilitychange", () => {
   avisarDitado("tela-bloqueou");
 });
 window.addEventListener("online", retomarStream);
+// ADR-171 + journal de envio: o que ficou no journal sai sozinho quando a conexão volta (no boot, `iniciarSessao` reconcilia).
+window.addEventListener("online", () => reconciliarJournal());
 window.addEventListener("pageshow", retomarStream);
 window.addEventListener("focus", retomarStream);
 // Outra aba recolheu ou abriu uma seção: esta acompanha (definido em 2026-10-04).
@@ -8090,7 +10509,7 @@ window.nod = { estado: () => estado, agente: () => agenteDaTela(estado) };
 // Segurar um gatilho por MS_SEGURAR dispara a ação de data-segurar; o clique curto
 // segue para o data-act normal. Mesma ideia do contextmenu abaixo: um gesto alternativo
 // sobre um botão que já tem um clique primário.
-// Fonte única do tempo do hold: o CSS lê --ms-segurar para a animação do anel,
+// Fonte única do tempo do hold: o CSS lê --ms-segurar para o líquido que enche o +,
 // senão os dois relógios andam separados e o anel fecha fora de hora.
 const MS_SEGURAR = 500;
 document.documentElement.style.setProperty("--ms-segurar", `${MS_SEGURAR}ms`);
@@ -8164,9 +10583,62 @@ document.addEventListener("keydown", (ev) => {
   if (acao) void acao(el);
 });
 
+// ADR-187 §6 (Paper 4p): o clique direito na aba abre o menu dela (no celular, o toque longo é o segurar da aba).
+document.addEventListener("contextmenu", (ev) => {
+  const aba = (ev.target as HTMLElement).closest?.<HTMLElement>(".abas-tarefa .at-aba[data-aba]");
+  if (!aba || aba.classList.contains("renomeando")) return;
+  ev.preventDefault();
+  if (celular.ativo()) return;
+  encerrarSegurar();
+  abrirMenuDaAba(aba.dataset.aba ?? "", aba, ev.clientX || ev.clientY ? { x: ev.clientX, y: ev.clientY } : undefined);
+});
+// O nome em edição: Enter salva e Esc desfaz (antes do Esc que fecha a tarefa); F2 na aba começa a edição.
+window.addEventListener("keydown", (ev) => {
+  const alvo = ev.target as HTMLElement | null;
+  if (ev.key === "F2" && !ev.repeat) {
+    const id = alvo?.closest?.<HTMLElement>(".abas-tarefa .at-ir[data-id]")?.dataset.id;
+    if (id) { ev.preventDefault(); comecarRenomeio(id); }
+    return;
+  }
+  // Paper 10b: Esc com o foco na fileira (fora do nome em edição) é o "Fechar abas".
+  if (ev.key === "Escape" && alvo?.id !== "at-nome") {
+    const nav = alvo?.closest?.<HTMLElement>("#cabecalho .abas-com-pilula");
+    const agenteId = nav?.querySelector<HTMLElement>('[data-act="fechar-abas"]')?.dataset.agente;
+    if (agenteId) { ev.preventDefault(); ev.stopImmediatePropagation(); fecharAbas(agenteId); return; }
+  }
+  if (alvo?.id !== "at-nome" || !renomeandoAba) return;
+  if (ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); ev.stopImmediatePropagation(); terminarRenomeio(true, { focarAba: true }); }
+  else if (ev.key === "Escape") { ev.preventDefault(); ev.stopImmediatePropagation(); terminarRenomeio(false, { focarAba: true }); }
+}, true);
+document.addEventListener("input", (ev) => {
+  const el = ev.target;
+  if (!(el instanceof HTMLInputElement) || el.id !== "at-nome" || !renomeandoAba) return;
+  renomeandoAba.texto = el.value;
+  renomeandoAba.inicio = el.selectionStart;
+  renomeandoAba.fim = el.selectionEnd;
+});
+document.addEventListener("selectionchange", () => {
+  const el = document.activeElement;
+  if (!(el instanceof HTMLInputElement) || el.id !== "at-nome" || !renomeandoAba) return;
+  renomeandoAba.inicio = el.selectionStart;
+  renomeandoAba.fim = el.selectionEnd;
+});
+// Sair do campo salva. Indo a um botão (outra aba, o ×), o clique dele redesenha: aqui não, senão o botão sob o ponteiro
+// é trocado entre o apertar e o soltar e o clique se perde. O redesenho que refaz o campo devolve o foco (focarRenomeio).
+document.addEventListener("focusout", (ev) => {
+  const el = ev.target as HTMLElement;
+  if (el.id !== "at-nome" || !renomeandoAba) return;
+  const indo = (ev as FocusEvent).relatedTarget as HTMLElement | null;
+  if (indo?.closest?.("[data-act]")) { terminarRenomeio(true, { redesenhar: false }); return; }
+  setTimeout(() => { if (renomeandoAba && document.activeElement?.id !== "at-nome") terminarRenomeio(true); }, 0);
+});
+
 // O menu do bot na barra lateral: abre onde o cursor está; pelo teclado (Shift+F10, tecla de menu) o evento vem sem
 // posição e o menu abre ao lado do bot.
 document.addEventListener("contextmenu", (ev) => {
+  // O + da barra não tem menu desde a validação de 2026-11-18; o clique direito (e o toque longo do celular, que é o
+  // segurar) não abre o menu do navegador por cima dele.
+  if ((ev.target as HTMLElement).closest("#sidebar .create-trigger")) { ev.preventDefault(); return; }
   // NOD-437: o clique direito no cabeçalho do time abre o mesmo menu do ⋯.
   const cab = (ev.target as HTMLElement).closest<HTMLElement>("#sidebar .time-cab");
   const idTime = cab?.querySelector<HTMLElement>("[data-time]")?.dataset.time;
@@ -8236,7 +10708,7 @@ document.addEventListener("pointerdown", (ev) => {
   if (row) toqueLongo.comecar(row, ev.clientX, ev.clientY);
   else toqueLongo.esquecer();
 }, true);
-// NOD-85: no celular, segurar uma linha da agenda abre o menu dela (Ver na conversa, Testar, Pausar).
+// NOD-85: no celular, segurar uma rotina abre o menu dela (Testar, Pausar, Mudar pela conversa).
 // ADA-19 (protótipo ada-2 v2, passo 2.6): segurar o ‹ da conversa abre a folha de recentes; o clique que vem depois do
 // toque longo é engolido (não volta para Conversas). Shift+Enter e o menu de contexto abrem a mesma folha.
 const toqueNoVoltar = criarToqueLongo<HTMLElement>({ agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => clearTimeout(id), agora: () => performance.now() }, (bt) => {
@@ -8268,10 +10740,10 @@ document.addEventListener("keydown", (ev) => {
 }, true);
 
 const toqueNaAgenda = criarToqueLongo<HTMLElement>({ agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => clearTimeout(id), agora: () => performance.now() }, (linha) => {
-  const chave = linha.dataset.chave;
-  if (!chave || !linha.isConnected) return false;
+  const id = linha.dataset.id;
+  if (!id || !linha.isConnected) return false;
   navigator.vibrate?.(10);
-  dispatch({ tipo: "agenda-ui", mudanca: { menu: chave, aberto: null } });
+  dispatch({ tipo: "agenda-ui", mudanca: { menu: id, aberto: null } });
   // QA do PR #595 (B5): o menu do toque longo recebe o foco no primeiro item.
   requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .ag-menu [role="menuitem"]')?.focus());
   return true;
@@ -8968,6 +11440,7 @@ function abrirQuadroGuardado(): void {
   let qid: string | null = null;
   try { qid = window.sessionStorage.getItem(CHAVE_QUADRO_LINK); window.sessionStorage.removeItem(CHAVE_QUADRO_LINK); } catch { /* sem storage */ }
   void lerCompartilhados();
+  if (qid === CAMINHO_TAREFAS) { if (estado.sessao && api) navegar({ tipo: "tarefas" }); return; }
   if (qid && estado.sessao && api) navegar({ tipo: "quadro-compartilhado", quadroId: qid });
 }
 
@@ -9001,14 +11474,14 @@ async function abrirTarefaGuardada(): Promise<void> {
     // Revisão 2 do PR #623: espera a lista de bots chegar (não o teto inteiro) e, sem o bot nela, diz em vez de calar.
     const bot = await botDoLink(() => botGerido(r.agenteId), () => !!estado.frota, (ms) => new Promise((ok) => window.setTimeout(ok, ms)));
     if (!bot) {
-      dispatch({ tipo: "erro", erro: { codigo: "nao_encontrado", mensagem: `A tarefa ${codigo} é de um bot que não está na sua lista (excluído, oculto ou de outra pessoa).`, status: 404 } });
+      dispatch({ tipo: "erro", erro: { codigo: "nao_encontrado", mensagem: `O card ${codigo} é de um bot que não está na sua lista (excluído, oculto ou de outra pessoa).`, status: 404 } });
       return;
     }
     navegar({ tipo: "conversa", conversaId: bot.conversaId, agenteId: bot.id });
     quadroNaTela.abrirTarefa(bot.id, r.tarefaId, r.quadroId);
   } catch (e) {
     // Código que não existe (ou de outra pessoa: a RLS dá 404): diz qual; o resto (rede) segue o erro de sempre.
-    if (e instanceof ErroApi && e.status === 404) dispatch({ tipo: "erro", erro: { codigo: e.codigo, mensagem: `Tarefa ${codigo} não encontrada.`, status: 404 } });
+    if (e instanceof ErroApi && e.status === 404) dispatch({ tipo: "erro", erro: { codigo: e.codigo, mensagem: `Card ${codigo} não encontrado.`, status: 404 } });
     else mostrarErro(e);
   }
 }
@@ -9099,7 +11572,7 @@ function trocarLugarDoComputador(maquinaId: string, semLogins: boolean): Promise
   if (!maquinaId) return Promise.resolve();
   // NOD-407: a troca mata a repetição pendente do Acordar (ela religaria a máquina de antes no meio da troca).
   cancelarRetryDoComputador();
-  dispatch({ tipo: "computador-ui", ui: { trocarPara: null, recusaDaTroca: null, etapasAbertas: secaoAberta(estado) === "maquinas" } });
+  dispatch({ tipo: "computador-ui", ui: { trocarPara: null, recusaDaTroca: null, etapasAbertas: secaoAberta(estado) === "computador" } });
   window.clearTimeout(computadorTimer);
   ++computadorGeracao;
   return agir(async () => {
@@ -9177,12 +11650,19 @@ function escolherTema(valor: string | undefined): EscolhaTema {
 
 /** NOD-367: as trocas dos seletores das Configurações (`data-act-change`), com o valor escolhido. */
 const ACOES_CHANGE: Record<string, (valor: string, el: HTMLSelectElement) => Promise<void> | void> = {
+  ...telaAprovacoes.change,
   "escolher-tema": (valor) => { escolherTema(valor); },
   // NOD-367: a máquina padrão (Máquinas) e a do bot (ficha dele), no mesmo seletor; "" = qualquer uma.
   "maquina-padrao": (valor, el) => agir(salvarOuRepor(() => reporSeletor(el), async () => {
     await api!.maquinaPadrao(valor || null);
     dispatch({ tipo: "invalidar", quais: ["maquinas"] });
   })),
+  // Especificação D, item 7: "Onde o computador mora" é um seletor; escolher outro lugar abre a confirmação de sempre.
+  "pc-lugar": (valor, el) => {
+    if (valor === LUGAR_CONECTAR) { reporSeletor(el); return ACOES["conectar-sempre-ligada"]!(el); }
+    dispatch({ tipo: "computador-ui", ui: { trocarPara: valor || null, recusaDaTroca: null } });
+    focarNovo();
+  },
   "maquina-do-bot": (valor, el) => agir(salvarOuRepor(() => reporSeletor(el), async () => {
     await api!.maquinaDoBot(el.dataset.id ?? "", valor || null);
     dispatch({ tipo: "invalidar", quais: ["frota", "maquinas"] });
@@ -9206,11 +11686,25 @@ function botaoDoBotNoAtalho(a: { tipo: "ir-ao-bot"; n: number } | { tipo: "vizin
 
 /** Faz o atalho; false quando não há alvo (aí não faz nada). */
 function executarAtalho(a: AcaoAtalho): boolean {
-  if (a.tipo === "folha") { abrirEspaco("ajuda"); return true; }
+  if (a.tipo === "folha") { abrirAtalhos(); return true; }
+  // ADR-167: os atalhos novos que não colidem com os do nod.
+  if (a.tipo === "barra") { mudarBarra(alternarCompacta(barraAtual), true); anunciar(barraAtual.compacta ? "Barra só com avatares" : "Barra aberta"); return true; }
+  if (a.tipo === "ajustes") { abrirEspaco("geral"); return true; }
+  if (a.tipo === "paleta") { abrirPaleta(); return true; }
+  // ADR-187 §7: ⌘N abre a tarefa nova do bot da tela (fora de um bot, só avisa e a tecla não vai ao navegador).
+  if (a.tipo === "nova-tarefa") { abrirNovaTarefa(); return true; }
+  if (a.tipo === "focar-campo") {
+    const campo = document.getElementById("composer-texto");
+    if (!campo) return false;
+    campo.focus();
+    return true;
+  }
+  if (a.tipo === "selecao-no-campo") return levarSelecaoAoCampo();
   // Com Seu espaço aberto só a folha chega aqui (atalhoDoTeclado, `espaco`).
+  // Spec do botão + : ⌘⇧N (era ⌘N até a ADR-187 §7) = o clique no + (o diálogo "Criar novo bot").
   if (a.tipo === "novo-bot") {
-    navegar({ tipo: "novo-bot" });
-    requestAnimationFrame(() => document.getElementById("busca-destinatario")?.focus());
+    if (!api) return false;
+    abrirDialogoCriarBot();
     return true;
   }
   // NOD-445: ⌘[ ⌘] andam pelas páginas da pílula; só chegam aqui com mais de uma página (atalhoDoTeclado, `paginas`).
@@ -9219,11 +11713,28 @@ function executarAtalho(a: AcaoAtalho): boolean {
   if (a.tipo === "pagina" || a.tipo === "mover-pagina" || a.tipo === "engolir") return executarNaPilula(document, a, quadroNaTela) ?? false;
   const bot = botaoDoBotNoAtalho(a);
   if (!bot) return false;
-  const nome = bot.querySelector("b")?.textContent ?? "";
+  // A legenda do fixado é "Nome · título" (COP-12): o anúncio fala só o nome.
+  const nome = botGerido(bot.dataset.agente)?.nome ?? bot.querySelector("b")?.textContent ?? "";
   void ACOES["abrir-conversa"]?.(bot);
   // Pelo teclado não há clique para o leitor de tela seguir: anuncia e põe o foco no campo da conversa.
   if (nome) anunciar(`Conversa com ${nome}`);
   requestAnimationFrame(() => document.getElementById("composer-texto")?.focus());
+  return true;
+}
+
+/**
+ * ADR-167 (⌘L, "Add selection to prompt"): o texto selecionado numa fala da conversa aberta vira a citação do
+ * campo ("Respondendo · trecho"), como o Responder do menu da fala. Fora de uma fala, nada (a tecla segue livre).
+ */
+function levarSelecaoAoCampo(): boolean {
+  const alvo = conversaAtual();
+  const sel = window.getSelection();
+  const texto = sel?.toString().trim() ?? "";
+  const no = sel?.anchorNode ?? null;
+  const fala = (no instanceof Element ? no : no?.parentElement)?.closest<HTMLElement>("#timeline [data-mensagem]");
+  if (!alvo || alvo.salaId || !texto || !fala?.dataset.mensagem) return false;
+  dispatch({ tipo: "citar", conversaId: alvo.conversaId, citacao: citacaoDaFala({ id: fala.dataset.mensagem, texto }) });
+  document.getElementById("composer-texto")?.focus();
   return true;
 }
 
@@ -9233,6 +11744,8 @@ function abrirEspaco(pedido: PedidoSecao, lista = false): void {
   const secao = secaoDoPedido(pedido);
   // O menu "Avisos no Mac" muda a preferência sem passar por aqui: Geral relê ao abrir.
   if (secao === "geral") void canalAvisos.reler();
+  if (secao === "aprovacoes") telaAprovacoes.abrir();
+  if (secao === "cofre") void telaCofre.abrir();
   const jaAberto = !!estado.espaco;
   if (secao === "conta" && contas?.minhaConta) telaMinhaConta.abrir();
   else if (estado.espaco?.secao === "conta" && contas?.minhaConta) telaMinhaConta.fechar();
@@ -9246,6 +11759,7 @@ function abrirEspaco(pedido: PedidoSecao, lista = false): void {
 /** Volta exatamente para onde estava: a tela de baixo nunca saiu do lugar. O que chegou enquanto isso ganha a linha "Novas". */
 function fecharEspaco(): void {
   if (!estado.espaco) return;
+  termoAjustes = "";
   if (estado.espaco.secao === "conta" && contas?.minhaConta) telaMinhaConta.fechar();
   dispatch({ tipo: "espaco", secao: null });
   const t = estado.tela;
@@ -9267,6 +11781,14 @@ function resumoConexao(): string {
   return !estado.executor ? "Verificando" : inv && inv.estado !== "pronto" ? "Desconectada" : estado.executor.atual === "catcher" ? "Simulação" : "Conectada";
 }
 
+/** As teclas da meta do menu da conta (Configurações e a folha de atalhos), pelo lugar do teclado. */
+const TECLAS_DO_MENU_CONTA = ((): { ajustes: string; atalhos: string } => {
+  const linhas = linhasDaFolha(LUGAR_TECLADO);
+  // "⌘," no Mac; "Ctrl+," fora dele.
+  const teclas = (titulo: string, i: number) => { const c = linhas.find((l) => l.titulo === titulo)?.combinacoes[i] ?? []; return c.join(c.some((t) => t.length > 1) ? "+" : ""); };
+  return { ajustes: teclas("Configurações", 0) || "⌘,", atalhos: teclas("Folha de atalhos", 1) || "⌘/" };
+})();
+
 function dadosMenuConta(): DadosMenuConta {
   const inv = inventarioEmUso(estado);
   const falha = !!inv && inv.estado !== "pronto";
@@ -9279,7 +11801,8 @@ function dadosMenuConta(): DadosMenuConta {
     faixa,
     conexao: resumoConexao(),
     maquina: avisoDasMaquinas(),
-    quem: quemEsta(),
+    provedores: estado.contasIa?.disponivel ? provedoresDoMenu(estado.contasIa.contas, estado.agora) : null,
+    teclas: TECLAS_DO_MENU_CONTA,
     // NOD-345: com contas no servidor, Sair por último (ou o convite, no espaço provisório).
     ...(contas && contaAtual ? { conta: { email: contaAtual.conta?.email ?? contaAtual.legado?.email ?? null, senha: contaAtual.conta?.senha ?? false, legado: !contaAtual.conta && !!contaAtual.legado } } : {}),
     equipe: contas ? (linkEquipe() ?? (equipeDoApp() ? "app" : null)) : null,
@@ -9293,9 +11816,33 @@ function avisoDasMaquinas(): DadosMenuConta["maquina"] {
   return estado.computadorPessoa ? avisoDoComputador(estado.computadorPessoa, estado.computadorMemoria.okMenuAte > estado.agora) : null;
 }
 
+/**
+ * Rodada 3 (tela 18 do Paper): o nome para as iniciais do "Você" no quadro. Minha conta só é lida quando abre; aqui, sem
+ * ela, o perfil é lido uma vez (só com contas) e a tela redesenha quando ele chega.
+ */
+let nomeDoPerfil: string | null = null;
+let perfilPedido = false;
+function nomeParaAsIniciais(): string | null {
+  const nome = quemEsta()?.nome ?? nomeDoPerfil;
+  if (nome || perfilPedido || !contas?.minhaConta) return nome;
+  perfilPedido = true;
+  void minhaContaApi.estado().then((d) => { nomeDoPerfil = d.perfil.nome || null; if (nomeDoPerfil) render(); }).catch(() => {});
+  return null;
+}
+
+/** ADR-167 (Paper 02): o rodapé da barra mostra o nome da pessoa; lido uma vez de Minha conta, no fundo. */
+let nomeLidoDoRodape: string | null | undefined;
+function nomeDoRodape(): string | null {
+  if (nomeLidoDoRodape === undefined) {
+    nomeLidoDoRodape = null;
+    minhaContaApi.estado().then((d) => { nomeLidoDoRodape = d.perfil.nome || null; if (nomeLidoDoRodape) render(); }).catch(() => undefined);
+  }
+  return nomeLidoDoRodape;
+}
+
 /** NOD-367: quem está logado (o topo do menu e a seção Conta). O nome vem de Minha conta, quando já lido. */
 function quemEsta(): { nome: string | null; email: string | null } | null {
-  const nome = contas?.minhaConta ? telaMinhaConta.vista().dados?.perfil.nome ?? null : null;
+  const nome = contas?.minhaConta ? telaMinhaConta.vista().dados?.perfil.nome ?? nomeDoRodape() : null;
   const email = contaAtual?.conta?.email ?? contaAtual?.legado?.email ?? null;
   return nome || email ? { nome, email } : null;
 }
@@ -9866,4 +12413,16 @@ function voltarNivel(): void {
     return;
   }
   fecharNivel();
+}
+
+/** ADR-187 (4t): rola até a linha da máquina em Máquinas e a realça por 2,4 s; espera a seção aparecer (até 12 quadros de 120 ms). */
+function realcarMaquina(id: string, tentativa = 0): void {
+  const linha = [...document.querySelectorAll<HTMLElement>("[data-maquina-linha]")].find((e) => e.dataset.maquinaLinha === id);
+  if (!linha) {
+    if (tentativa < 12) setTimeout(() => realcarMaquina(id, tentativa + 1), 120);
+    return;
+  }
+  linha.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  linha.classList.add("maq-realce");
+  setTimeout(() => linha.classList.remove("maq-realce"), 2400);
 }

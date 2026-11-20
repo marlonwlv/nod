@@ -12,7 +12,15 @@ export type AppDoProvedor = { slug: string; nome: string; logo: string | null };
  * definido em 2026-09-29 (ADR-057): um toolkit do catálogo público com login gerenciado pelo Composio —
  * conecta sem auth config no painel. Traz o que o `GET /toolkits` dá a mais: descrição e categorias, em inglês.
  */
-export type AppGerenciado = AppDoProvedor & { descricao: string; categorias: readonly string[] };
+export type AppGerenciado = AppDoProvedor & {
+  descricao: string;
+  categorias: readonly string[];
+  /**
+   * definido em 2026-11-18 (emenda ADR-057, apps por chave): sem login gerenciado, mas com esquema API_KEY. O Composio
+   * conecta quando a pessoa cola a chave; o nod cria a auth config sozinho (nenhum campo de configuração é pedido).
+   */
+  conexao?: "chave";
+};
 
 const CURADORIA = new Map(APPS_MARKETPLACE.map((a) => [a.slug, a]));
 const ORDEM = new Map(APPS_MARKETPLACE.map((a, i) => [a.slug, i]));
@@ -20,8 +28,8 @@ const ORDEM = new Map(APPS_MARKETPLACE.map((a, i) => [a.slug, i]));
 /**
  * definido em 2026-09-29 (ADR-057): o slug que vira conector. É o `SLUG` de
  * src/use-cases/registrar-conector.ts e o grupo das rotas `/marketplace/:slug/conectar|verificar`, com
- * o teto de 64 do provedor: toolkit com `_` no slug não cabe num conector, e botão que não conecta não
- * entra na grade.
+ * o teto de 64 do provedor. O `_` do provedor chega aqui já traduzido para `-` (toolkits-composio.ts);
+ * o que ainda não casar não conecta, e botão que não conecta não entra na grade.
  */
 const SLUG_CONECTAVEL = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
@@ -67,7 +75,7 @@ function resumir(texto: string): string {
 }
 
 /** Curadoria por cima; o que ela não diz, o catálogo público diz em inglês; o que nenhum diz, o padrão. */
-function montar(p: AppDoProvedor, g: AppGerenciado | undefined): AppComLogo {
+function montar(p: AppDoProvedor, g: AppGerenciado | undefined, noPainel = false): AppComLogo {
   const c = CURADORIA.get(p.slug);
   const descricao = g?.descricao ? resumir(g.descricao) : "";
   return {
@@ -77,7 +85,10 @@ function montar(p: AppDoProvedor, g: AppGerenciado | undefined): AppComLogo {
     categoria: c?.categoria ?? (g ? categoriaEmPortugues(g.categorias) : CATEGORIA_PADRAO),
     // definido em 2026-09-24 ("rotina nasce com o acesso"): o card da rotina escreve o "Não inclui" curado.
     ...(c?.naoIncluiNaLeitura ? { naoIncluiNaLeitura: c.naoIncluiNaLeitura } : {}),
+    ...(c?.orientacaoConexao ? { orientacaoConexao: c.orientacaoConexao } : {}),
     logo: p.logo ?? g?.logo ?? null,
+    // Com auth config no painel o login é o dele (OAuth ou o que o projeto configurou): a chave só vale fora dele.
+    ...(g?.conexao === "chave" && !noPainel ? { conexao: "chave" as const } : {}),
   };
 }
 
@@ -101,7 +112,7 @@ export function mesclarCatalogo(doProvedor: readonly AppDoProvedor[], gerenciado
   const doPainel = [...doProvedor, ...nativos];
   const noPainel = new Set(doPainel.map((p) => p.slug));
   const soNoCatalogo = [...doCatalogo.values()].filter((g) => !noPainel.has(g.slug) && SLUG_CONECTAVEL.test(g.slug));
-  const doTime = [...doPainel, ...soNoCatalogo.filter((g) => CURADORIA.has(g.slug))].map((p) => montar(p, doCatalogo.get(p.slug)));
+  const doTime = [...doPainel, ...soNoCatalogo.filter((g) => CURADORIA.has(g.slug))].map((p) => montar(p, doCatalogo.get(p.slug), noPainel.has(p.slug)));
   const mais = soNoCatalogo.filter((g) => !CURADORIA.has(g.slug)).map((g) => ({ ...montar(g, g), doCatalogo: true as const }));
   const porNome = (a: AppComLogo, b: AppComLogo) => a.nome.localeCompare(b.nome, "pt-BR");
   doTime.sort((a, b) => {
@@ -113,10 +124,10 @@ export function mesclarCatalogo(doProvedor: readonly AppDoProvedor[], gerenciado
 }
 
 /**
- * O piso: a curadoria inteira, sem logo. É o que a tela mostra quando não há chave configurada ou
+ * O piso: a curadoria que não exige confirmação do provedor, sem logo. É o que a tela mostra quando não há chave configurada ou
  * quando a chamada ao provedor falha — catálogo velho é melhor que grade vazia, e a curadoria é a
  * única lista que não depende de rede.
  */
 export function catalogoDoPiso(): AppComLogo[] {
-  return APPS_MARKETPLACE.map((a) => ({ ...a, logo: null }));
+  return APPS_MARKETPLACE.filter((a) => !a.exigeProvedor).map((a) => ({ ...a, logo: null }));
 }

@@ -534,7 +534,7 @@ describeIntegracao("paridade tela × chat do quadro.* (NOD-442, ADR-135)", () =>
       await pelo({ agenteId: nod.id, conversaId: nod.conversaId }, m.tela.agenteId);
       await pelo({ agenteId: m.gil.agenteId, conversaId: m.gil.conversaId }, m.chat.agenteId);
       const final = await estado(m, m.tela.agenteId);
-      expect(final).toMatchObject({ cumprida: true, resumo: expect.stringContaining("2 de 2 tarefas feitas") });
+      expect(final).toMatchObject({ cumprida: true, resumo: expect.stringContaining("2 de 2 cards feitos") });
       expect(await estado(m, m.chat.agenteId)).toEqual(final);
     });
   });

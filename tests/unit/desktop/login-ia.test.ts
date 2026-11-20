@@ -228,6 +228,24 @@ describe("login das IAs dentro do app: a máquina de estados", () => {
     expect(String(fim.saida)).not.toContain("code_challenge=");
   });
 
+  it("o CLI sai com erro antes de mostrar o link (2026-11-19: o `claude` trocado por um script) → 'recusou_antes_do_link'", async () => {
+    const { m, login, avancar, ultimo } = cenario();
+    await login.entrar("claude-cli");
+    m.sair!({ codigo: 64, stderr: "claude: gestão da conta não é permitida neste launcher\n" });
+    await avancar(0);
+    expect(ultimo()).toMatchObject({ fase: "falhou", causa: "recusou_antes_do_link" });
+    expect(ultimo().mensagem).not.toContain("launcher");
+    expect(String(m.eventos.find((e) => e.evento === "ia_login_fim")!.campos.saida)).toContain("launcher");
+
+    // Com o link já na tela, o erro de saída continua "falhou" (o motivo é outro: a pessoa já estava na página).
+    const b = cenario();
+    await b.login.entrar("claude-cli");
+    b.m.ouvinte!(SAIDA_CLAUDE);
+    b.m.sair!({ codigo: 1, stderr: "algo deu errado" });
+    await b.avancar(0);
+    expect(b.ultimo()).toMatchObject({ fase: "falhou", causa: "falhou" });
+  });
+
   it("Claude: código enviado e o CLI não termina em 60 s → falhou (nao_confirmou)", async () => {
     const { m, login, avancar, ultimo } = cenario();
     await login.entrar("claude-cli");

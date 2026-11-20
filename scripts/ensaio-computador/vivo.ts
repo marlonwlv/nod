@@ -6,6 +6,7 @@
  * servidor apontado; fora do loopback exige NOD_ENSAIO_REMOTO=1 (o login stub só sobe em loopback, então produção recusa).
  *
  * Uso: node scripts/ensaio-computador/vivo.ts --api http://127.0.0.1:8889 --tenant <uuid> --pessoa <uuid> --agente <uuid>
+ *      --formato motor|orgo. `orgo` só assiste: não assume nem devolve e não lê a credencial.
  */
 import WebSocket from "ws";
 
@@ -24,13 +25,13 @@ async function pedir(metodo: string, caminho: string, corpo?: unknown): Promise<
   return { status: r.status, json };
 }
 
-export function lerOpcoes(argv: string[]): { api: string; tenant: string; pessoa: string; agente: string } {
-  const r = { api: process.env.NOD_ENSAIO_API ?? "http://127.0.0.1:8889", tenant: "", pessoa: "", agente: "" };
+export function lerOpcoes(argv: string[]): { api: string; tenant: string; pessoa: string; agente: string; formato: "motor" | "orgo" } {
+  const r = { api: process.env.NOD_ENSAIO_API ?? "http://127.0.0.1:8889", tenant: "", pessoa: "", agente: "", formato: "motor" as "motor" | "orgo" };
   for (let i = 0; i < argv.length; i += 2) {
     const k = argv[i]!.replace(/^--/, "") as keyof typeof r;
     const v = argv[i + 1];
-    if (!(k in r) || v === undefined) throw new Error(`opção inválida: ${argv[i]} (use --api --tenant --pessoa --agente)`);
-    r[k] = v;
+    if (!(k in r) || v === undefined || (k === "formato" && v !== "motor" && v !== "orgo")) throw new Error(`opção inválida: ${argv[i]} (use --api --tenant --pessoa --agente --formato)`);
+    if (k === "formato") r.formato = v as "motor" | "orgo"; else r[k] = v;
   }
   if (!r.tenant || !r.pessoa || !r.agente) throw new Error("faltam --tenant, --pessoa e --agente");
   return r;
@@ -96,10 +97,16 @@ async function main(): Promise<void> {
   log(`entrar: ${entrar.status}`);
   if (entrar.status >= 300 || !cookie) { log("o login stub não respondeu (NOD_LOGIN=stub no servidor?)"); process.exitCode = 1; return; }
   const base = `/api/t/${o.tenant}`;
-  const preparo = await prepararEnsaio(pedir, base, o.agente, log);
+  const preparo = o.formato === "motor" ? await prepararEnsaio(pedir, base, o.agente, log) : await prepararProvedor(base);
   if ("falha" in preparo) { log(preparo.falha); process.exitCode = preparo.codigo; return; }
   const { telas } = preparo;
   const jaEraDaPessoa = telas.some((t) => t.agenteId === o.agente && t.controle === "pessoa");
+  if (o.formato === "orgo") {
+    const resultado = await ensaiarVnc(base, true);
+    log(`resultado: ${JSON.stringify(resultado)}`);
+    process.exitCode = resultado.ok ? 0 : 1;
+    return;
+  }
   const assumir = await pedir("POST", `${base}/agentes/${o.agente}/computador`, { operacao: "assumir" });
   log(`assumir: ${assumir.status}${jaEraDaPessoa ? " (a pessoa já estava no controle)" : ""}`);
   if (assumir.status >= 300) { log("não assumiu; nada a devolver"); process.exitCode = 1; return; }
@@ -113,7 +120,7 @@ async function main(): Promise<void> {
   process.once("SIGTERM", aoInterromper);
   let resultado: { ok: boolean; motivo?: string } = { ok: false, motivo: "não chegou ao VNC" };
   try {
-    resultado = await ensaiarVnc(base);
+    resultado = await ensaiarVnc(base, false);
   } finally {
     process.off("SIGINT", aoInterromper);
     process.off("SIGTERM", aoInterromper);
@@ -124,8 +131,19 @@ async function main(): Promise<void> {
 }
 
 /** Abre o WebSocket ao vivo e faz o começo do handshake RFB. */
-async function ensaiarVnc(base: string): Promise<{ ok: boolean; motivo?: string }> {
+async function prepararProvedor(base: string): Promise<{ telas: TelaDoEnsaio[] } | { falha: string; codigo: number }> {
+  for (let i = 0; i < 60; i++) {
+    const r = await pedir("POST", `${base}/agentes/${o.agente}/computador/acoes`, { tipo: "observar" });
+    if (r.status === 200) return { telas: [] };
+    log(`observar: ${r.status}`);
+    await new Promise((ok) => setTimeout(ok, 3_000));
+  }
+  return { falha: "a tela do provedor não abriu", codigo: 1 };
+}
+
+async function ensaiarVnc(base: string, assistir: boolean): Promise<{ ok: boolean; motivo?: string }> {
   const url = new URL(`${o.api}${base}/agentes/${o.agente}/computador/vivo`);
+  if (assistir) url.searchParams.set("modo", "assistir");
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(url, { headers: { cookie, origin: o.api } });
   ws.binaryType = "nodebuffer";

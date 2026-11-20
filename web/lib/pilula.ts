@@ -43,13 +43,11 @@ export function chaveDoProgresso(p: ProgressoNaTela): string {
 export type ConteudoDaPilula = { grupos: readonly { ids: readonly string[] }[]; esperas: number; fila: number };
 
 /**
- * A pílula some quando a fala com o progresso está à vista (plano, 4c): todo grupo tem pelo menos uma frente num bloco à
- * vista. Espera e fila não têm fala-âncora: com elas a pílula fica, esteja a fala onde estiver. Sem grupo nenhum (só espera
- * ou fila) ela também fica.
+ * ADR-187 §5 (lote B, passo 1, 2026-11-17): a pílula virou a aba presa ao campo (protótipo P1) e nunca some — antes ela se
+ * escondia com o bloco de progresso à vista (plano do chat limpo, 4c). A assinatura fica para quem chama.
  */
-export function pilulaEscondida(c: ConteudoDaPilula, progresso: ProgressoNaTela): boolean {
-  if (c.esperas > 0 || c.fila > 0 || c.grupos.length === 0) return false;
-  return c.grupos.every((g) => g.ids.some((id) => progresso.aVista.has(id)));
+export function pilulaEscondida(_c: ConteudoDaPilula, _progresso: ProgressoNaTela): boolean {
+  return false;
 }
 
 /**

@@ -165,6 +165,15 @@ describe("NOD-132: atualização do app do Mac", () => {
     expect(await t.a.reiniciar()).toBe(true);
     expect(t.chamadas.instalar).toBe(1);
   });
+  it("ADR-188: confirmado pela janela web, não abre a caixa nativa", async () => {
+    let perguntou = 0;
+    const t = montar({ podeReiniciar: async () => { perguntou++; return false; } });
+    t.a.procurar(false);
+    t.emitir("update-downloaded", {}, "", "1.1.0");
+    expect(await t.a.reiniciar(true)).toBe(true);
+    expect(perguntou).toBe(0);
+    expect([t.chamadas.antes, t.chamadas.instalar]).toEqual([1, 1]);
+  });
   it("quitAndInstall que lança depois de parar a ponte sai do app", async () => {
     const t = montar({ instalarLanca: true });
     t.a.procurar(false);
@@ -240,7 +249,9 @@ describe("NOD-132: ligação no processo principal (desktop/main.ts)", () => {
   });
   it("o 426 procura a atualização e a conexão bem-sucedida arma o ciclo", () => {
     expect(main).toMatch(/r\.status === 426[^\n]*\{\n\s*aoRecusarVersao\(atualizacaoApp\);/);
-    expect(main).toContain(`anterior?.close(); mensagem = "Conectado.";\n  atualizacaoApp?.conectado();`);
+    // ADR-182: a janela nasce antes do executor e a carga é aguardada no fim do conectar; o ciclo arma depois dela.
+    expect(main).toContain(`await carregamento;\n  atualizacaoApp?.conectado();`);
+    expect(main).toContain(`anterior?.close(); mensagem = "Conectado.";`);
     expect(main).toContain("atualize_app: TEXTOS_ATUALIZACAO.atualizeApp(linkDownloadMac(process.arch)),");
     expect(TEXTOS_ATUALIZACAO.atualizeApp("https://nodbot.ai/download/mac")).toContain("https://nodbot.ai/download/mac");
   });
@@ -248,7 +259,7 @@ describe("NOD-132: ligação no processo principal (desktop/main.ts)", () => {
     expect(main).toMatch(/app\.on\("window-all-closed", \(\) => \{ if \(sairAoFecharJanelas\(atualizacaoApp\)\) app\.quit\(\); \}\);/);
     expect(main).toMatch(/if \(!emLigacao \|\| encerrando\) return;/);
     expect(main).toMatch(/procurarAtualizacao: \(\) => \{ atualizacaoApp\?\.procurar\(true, true\); \}/);
-    expect(main).toMatch(/async function parar\(\) \{\n\s*atualizacaoApp\?\.desconectado\(\);/);
+    expect(main).toMatch(/async function parar\(\) \{\n(?:.*\n)?\s*atualizacaoApp\?\.desconectado\(\);/);
     expect(main).toMatch(/codigo === "chave_invalida"\) conexaoDaAtualizacao = null/);
   });
 });

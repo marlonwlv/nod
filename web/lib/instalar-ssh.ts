@@ -228,13 +228,15 @@ export function criarInstalarSsh(d: DepsInstalarSsh) {
     /** Abre o diálogo e carrega as máquinas que podem instalar (a mais recente primeiro). */
     async abrir(): Promise<void> {
       limpar();
-      geracao++;
+      const g = ++geracao;
       d.gravar(estadoInicial());
       try {
         const { instaladoras } = await d.api.instaladorasSsh();
+        if (g !== geracao) return;
         const a = atual();
         if (a) d.gravar({ ...a, instaladoras, origemId: instaladoras[0]?.id ?? null });
       } catch (e) {
+        if (g !== geracao) return;
         const a = atual();
         if (a) d.gravar({ ...a, instaladoras: [], erro: e instanceof Error ? e.message : String(e) });
       }

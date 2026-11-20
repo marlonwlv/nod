@@ -1,0 +1,67 @@
+/* Provedores de IA como a tela 19 do Paper (rodada 3 da frente "Cartões e telas iguais ao Paper", 12/11). Arquivo à parte
+   para não cruzar com a casca de Configurações (outra frente): só o conteúdo da página — a linha do uso, os chips por
+   máquina e o seletor "Todas as máquinas". Só tokens existentes. */
+
+/* O uso numa linha: "5 h ▬▬ 62%   semana ▬▬ 34%" (rótulo de 50, barra de 72, número de 38 à direita). */
+.cl-uso.cl-uso-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 4px; }
+.cl-uso-linha .cu-jan { flex-direction: row; align-items: center; gap: 0; }
+.cl-uso-linha .cu-cab { display: contents; }
+.cl-uso-linha .cu-cab > span { order: 0; width: 50px; font-size: var(--fs-rotulo); line-height: 16px; color: var(--ink-3); text-transform: lowercase; }
+.cl-uso-linha .cu-jan:first-child .cu-cab > span { text-transform: none; }
+.cl-uso-linha .cu-barra { order: 1; width: 72px; flex: none; background: var(--hover); }
+.cl-uso-linha .cu-cab > b { order: 2; width: 38px; text-align: right; font-size: var(--fs-rotulo); line-height: 16px; font-weight: var(--peso-regular); color: var(--ink-3); }
+.cl-uso-linha .f-perto .cu-cab > b { color: var(--ink); }
+.cl-uso-linha :is(.f-alerta, .f-limite) .cu-cab > b { color: var(--warning); font-weight: var(--peso-medio); }
+.cl-uso-linha .cu-barra > span { background: var(--ink-2); }
+.cl-uso-linha .cu-sub { display: none; }
+
+/* Os chips por máquina: logada é o verde com o visto; "Entrar na VM" é o tracejado sem ícone. */
+.cl-pil.ok { gap: 4px; height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: var(--success-soft, color-mix(in srgb, var(--success) 12%, transparent)); color: var(--success); font-size: 12px; font-weight: var(--peso-medio); }
+.cl-pil.ok svg { width: 11px; height: 11px; }
+.cl-pil.ok.fora { background: var(--hover); color: var(--ink-3); }
+.cl-pil.tracejada { height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; }
+
+/* "Todas as máquinas ⌄" ao lado de "Adicionar conta". */
+.cl-maq-sel { height: 28px; padding: 0 28px 0 10px; border: 1px solid var(--borda); border-radius: var(--raio-8); background-color: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); box-shadow: var(--sombra-controle); -webkit-appearance: none; appearance: none; cursor: pointer;
+  background-image: var(--chevron-select);
+  background-repeat: no-repeat; background-position: right 10px center; background-size: 12px 12px; }
+.cl-maq-sel:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* A linha da conta como o Paper: tudo alinhado em cima (a alça, a posição, o logo e a direita na altura do nome), o logo
+   num quadrado colorido de 28 (Claude laranja, ChatGPT preto, o símbolo branco), a identidade sem o ícone de pessoa e o
+   "Tentar de novo" embaixo do estado. */
+.cl-lista .cl-linha { grid-template-columns: 16px 12px 28px minmax(0, 1fr) auto 24px; gap: 0 10px; align-items: start; padding: 12px 14px; }
+.cl-lista .cl-linha > :is(.cl-alca, .cl-pos) { margin-top: 3px; }
+.cl-lista .cl-linha > .cl-dir, .cl-lista .cl-linha > .cl-mais { margin-top: 0; }
+.cl-lista .cl-ident > svg { display: none; }
+.cl-lista .cl-dir { flex-wrap: wrap; row-gap: 8px; max-width: 240px; }
+.cl-lista .cl-dir [data-act="cl-tentar-de-novo"] { order: 3; flex-basis: 100%; text-align: right; text-decoration: none; color: var(--ink-2); font-size: var(--fs-corpo-2); }
+.cl-lista .cl-dir .contas-estado { order: 1; } .cl-lista .cl-dir > :not(.contas-estado):not([data-act="cl-tentar-de-novo"]) { order: 2; }
+.cl-uso.cl-uso-linha { flex-wrap: nowrap; }
+:is(.cl-lista, .cl-nova-pag) .cl-logo[data-logo-ia] { width: 28px; height: 28px; border: 0; border-radius: 7px; color: var(--marca-simbolo); }
+:is(.cl-lista, .cl-nova-pag) .cl-logo[data-logo-ia] svg { width: 16px; height: 16px; }
+:is(.cl-lista, .cl-nova-pag) .cl-logo[data-logo-ia="claude"] { background: var(--marca-claude); }
+:is(.cl-lista, .cl-nova-pag) .cl-logo[data-logo-ia="chatgpt"] { background: var(--marca-chatgpt); }
+:is(.cl-lista, .cl-nova-pag) .cl-logo[data-logo-ia] svg :is(path, circle) { fill: currentColor; }
+
+/* Nova conta (tela 19b do Paper): o login em andamento mora na linha da máquina — o estado à direita ("Termine no
+   navegador…", "● Esperando o código"), os passos da VM embaixo, recuados sob o nome, sem a caixa nem o cabeçalho. */
+.cl-maqs-form .cl-maq > span { flex: 1; min-width: 0; }
+.cl-np-est { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.cl-np-est.ok { color: var(--success); } .cl-np-est.erro { color: var(--danger); }
+.cl-np-chip { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; flex: none; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--warning-soft, color-mix(in srgb, var(--warning) 12%, transparent)); color: var(--warning); font-size: 12px; font-weight: var(--peso-medio); }
+.cl-np-chip i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cl-maqs-form input[data-cl-nova-maq]:checked:disabled { opacity: 1; }
+.cl-np-login { padding: 4px 14px 14px 72px; border-top: 1px solid var(--borda-sutil); }
+.cl-np-login .cl-login { margin: 0; padding: 0; border: 0; background: none; }
+.cl-np-login .cl-login-cab { display: none; }
+.cl-np-login .cl-passos { margin-top: 10px; gap: 12px; }
+.cl-np-login .cl-passos li { grid-template-columns: minmax(0, 1fr); }
+.cl-np-login .cl-passos .cl-n { display: none; }
+.cl-np-login .cl-passos b { font-weight: var(--peso-regular); font-size: var(--fs-corpo-2); color: var(--ink-2); }
+.cl-maqs-form .cl-maq > span:is(.cl-np-est, .cl-np-chip) { flex: none; }
+.cl-maqs-form input[data-cl-nova-maq][aria-disabled="true"] { pointer-events: none; }
+.cl-maqs-form .cl-maq:has(input[aria-disabled="true"]) { cursor: default; }
+.cl-np-login .ia-codigo { gap: 8px; }
+.cl-np-login .ia-codigo code { height: 32px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 8px; font-size: 14px; letter-spacing: .08em; }
+.cl-np-login .ia-codigo .ob-link { height: 28px; padding: 0 10px; border-radius: 8px; background: var(--hover); color: var(--ink); text-decoration: none; font-size: var(--fs-corpo-2); font-weight: var(--peso-medio); }

@@ -1,0 +1,19 @@
+/* COP-14 (chat): chat-troca. Cores só por token (web/tokens.css, --chat-*). */
+
+/* Item 5: trocar de bot sem "carregando conversa". Sem cache nenhum (e passados 80 ms, web/lib/cache-conversas.ts), a
+   área da conversa fica limpa com só um anel de 28 px no centro, sem texto à vista: no computador e no celular. */
+.carregando-conversa { display: grid; place-items: center; height: 100%; min-height: 100%; box-sizing: border-box; }
+.giro-conversa { display: block; width: 28px; height: 28px; box-sizing: border-box; border: 2px solid var(--chat-spinner-trilho); border-top-color: var(--chat-tinta-3); border-radius: 50%; animation: giro-conversa 700ms linear infinite; }
+@keyframes giro-conversa { to { transform: rotate(360deg); } }
+
+/* Imagens anexadas: o texto entra na hora e cada imagem é um skeleton no tamanho dela até carregar (a caixa já tem o
+   tamanho da imagem: largura e proporção vêm do arquivo, web/lib/midia.ts). O giro pequeno de antes sai. */
+.timeline .msg-midia-bt:not(.carregou):not(.falhou), .timeline .msg-midia-cel:not(.carregou):not(.falhou) { background: var(--chat-preenchido); border-radius: 14px; }
+.timeline .msg-midia-bt > .msg-midia-giro, .timeline .msg-midia-cel > .msg-midia-giro { display: none; }
+/* A miniatura da imagem que a pessoa mandou: o fundo é o skeleton, a foto cobre quando chega (`carregou`, main.ts). */
+.timeline .msg-anexo-img { border-radius: 14px; }
+.timeline .msg-anexo-img:not(.carregou) { background: var(--chat-preenchido); }
+
+/* O foco sai do campo na troca: a borda volta do tom de foco ao de repouso em 150 ms (main.ts põe a classe no campo novo). */
+.composer .box.saindo-do-foco { animation: campo-sai-do-foco 150ms ease; }
+@keyframes campo-sai-do-foco { from { border-color: var(--chat-borda-campo-foco); } }

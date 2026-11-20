@@ -249,7 +249,8 @@ describe.skipIf(!CHROMIUM || !playwright || !XVFB)("Sair de todos numa tela aber
     const tela = criarTela({
       agenteId: "bot1", display: 90 + (process.pid % 100), raiz, run: join(raiz, "run"), ocultar: [], perfil: join(raiz, "perfis", "bot1"),
       perfilBase: join(raiz, "base"), workspace: join(raiz, "ws", "bot1"), logins: join(raiz, "logins"), tmp: join(raiz, "run/telas/bot1"),
-      x11: "/tmp/.X11-unix", sandbox: false, xvfbArgs: ["-noreset"], cookies: [], storage: [], geracao: 0, bin,
+      // Bus inexistente isola a fixture: endereço vazio permite autolaunch do DBus do host.
+      x11: "/tmp/.X11-unix", busEndereco: `unix:path=${join(raiz, "sem-bus")}`, sandbox: false, xvfbArgs: ["-noreset"], cookies: [], storage: [], geracao: 0, bin,
     }, () => {});
     const ver = async (host: string, caminho = "/") => {
       await tela.executar({ tipo: "navegar", url: `http://${host}:${porta}${caminho}` });
@@ -321,7 +322,8 @@ describe.skipIf(!CHROMIUM || !playwright || !XVFB)("Sair de todos numa tela aber
     const tela = criarTela({
       agenteId: "bot1", display: 190 + (process.pid % 50), raiz, run: join(raiz, "run"), ocultar: [], perfil: join(raiz, "perfis", "bot1"),
       perfilBase: join(raiz, "base"), workspace: join(raiz, "ws", "bot1"), logins: join(raiz, "logins"), tmp: join(raiz, "run/telas/bot1"),
-      x11: "/tmp/.X11-unix", sandbox: false, xvfbArgs: ["-noreset"], cookies: [], storage: [], geracao: 0,
+      // Bus inexistente isola a fixture: endereço vazio permite autolaunch do DBus do host.
+      x11: "/tmp/.X11-unix", busEndereco: `unix:path=${join(raiz, "sem-bus")}`, sandbox: false, xvfbArgs: ["-noreset"], cookies: [], storage: [], geracao: 0,
       bin: { xvfb: XVFB, openbox: nada, chromium: CHROMIUM, xdotool: nada, scrot, xclip: nada },
     }, () => {});
     type Obs = { tela: { dialogo?: { tipo: string }; texto: string } };

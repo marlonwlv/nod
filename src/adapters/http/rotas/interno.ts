@@ -26,6 +26,7 @@ import { assentarComNovaTentativa, TENTATIVAS_FASE2 } from "../../../use-cases/l
 import type { Rota } from "../roteador.ts";
 import { TAMANHO_MAX_MIDIA, TETO_CABECALHO_MIDIA, type CabecalhoMidia } from "../../../contracts/anexo.ts";
 import { receberMidiaDoBot, registrarRecusasDeMidia } from "../../../use-cases/midia-do-bot.ts";
+import { REGRA_APROVACAO_SUBSTITUIDA } from "../../../use-cases/substituir-aprovacoes.ts";
 import { bytes, lerBruto } from "../util.ts";
 import { executar, type DentroDeTx } from "./dentro-de-tx.ts";
 
@@ -145,14 +146,18 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
     },
     {
       // ADR-046: o driver baixa os bytes de um anexo DESTE turno. O plano em memória do token diz quais
-      // ids o turno pode ler; qualquer outro é 404, mesmo sendo da mesma pessoa.
+      // ids o turno pode ler; qualquer outro é 404, mesmo sendo da mesma pessoa (C1: salvo a fala pendente, abaixo).
       metodo: "GET",
       padrao: /^\/anexos\/(?<aid>[^/]+)$/,
       interno: true,
       async handler(ctx) {
         const plano = await deps.tokens.planoOuRecompor(ctx.params.turnoId ?? "");
         const aid = ctx.params.aid ?? "";
-        if (!plano?.entrada.anexos?.some((a) => a.id === aid)) {
+        // C1 (2026-11-12): também o anexo de uma fala da pessoa ainda pendente na conversa e no bot deste turno vivo — a
+        // fala com imagem que entra no meio do turno (o laço baixa antes de escrever na sessão, e só confirma depois).
+        const daFalaNoMeio = async () => plano !== null && plano !== undefined && (await deps.dentro(ctx.escopo, (d) => d.repos.turnos.pendentesDaPessoa(plano.conversaId)))
+          .some((t) => t.agenteId === plano.agenteId && t.origem === "conversa" && !t.trabalhoId && t.entradaAnexos.includes(aid));
+        if (!plano?.entrada.anexos?.some((a) => a.id === aid) && !(await daFalaNoMeio())) {
           ctx.json(404, { codigo: "nao_encontrado", mensagem: "anexo fora do turno" });
           return;
         }
@@ -265,7 +270,9 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
               // 0032: este turno é quem continua a decisão. Se uma retomada já ficou com ela, o turno encerra
               // (a retomada continua) — nunca os dois.
               if (decisao.estado === "decidida" && (await d.repos.decisoes.reivindicarContinuacao(decisaoId, "turno", deps.agora())) === "retomada") return { estado: "da_retomada" as const };
-              return { estado: "decidida" as const, itens: itens.map((i) => ({ idx: i.idx, desfecho: i.desfecho, acaoId: i.destino.conector === "computador" && typeof i.destino.argumentos?.acaoId === "string" ? i.destino.argumentos.acaoId : null })) };
+              // Item 10, rodada 2: a mensagem nova substituiu o pedido (src/use-cases/substituir-aprovacoes.ts); o hook diz isso ao modelo.
+              const substituida = decisao.desfecho?.tipo === "decidida_por_regra" && decisao.desfecho.regra === REGRA_APROVACAO_SUBSTITUIDA;
+              return { estado: "decidida" as const, substituida, itens: itens.map((i) => ({ idx: i.idx, desfecho: i.desfecho, acaoId: i.destino.conector === "computador" && typeof i.destino.argumentos?.acaoId === "string" ? i.destino.argumentos.acaoId : null })) };
             }
             return { estado: "pendente" as const, desde: Date.parse(decisao.criadoEm) };
           });
@@ -298,7 +305,7 @@ export function rotasInternas(deps: DepsRotasInternas): Rota[] {
               const resultado = acaoId && deps.computadores ? await deps.computadores.resultadoDaAcao(ctx.escopo, acaoId) : null;
               return resultado ? { ...i, resultado } : i;
             }));
-            ctx.json(200, { estado: "decidida", itens });
+            ctx.json(200, { estado: "decidida", ...(olhada.substituida ? { substituida: true } : {}), itens });
             return;
           }
           if (deps.agora() - inicio + intervalo > teto) {

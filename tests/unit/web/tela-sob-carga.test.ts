@@ -113,7 +113,7 @@ describe("lembrar: a string de uma parte da tela só é refeita quando algo que 
     expect(desenhos).toBe(2);
   });
 
-  it("o histórico da conversa aberta NÃO é refeito pelo texto ao vivo; a parte ao vivo mostra o texto", () => {
+  it("o histórico da conversa aberta NÃO é refeito pelo texto ao vivo; a parte ao vivo mostra só o indicador (COP-14)", () => {
     let desenhos = 0;
     const historico = (e: Estado) => lembrar("teste-historico", e, [], (x) => {
       desenhos += 1;
@@ -126,9 +126,13 @@ describe("lembrar: a string de uma parte da tela só é refeita quando algo que 
     expect(historico(e)).toBe(primeiro);
     expect(desenhos).toBe(1);
     const c = conversaDaTela(e);
-    expect(c && renderAoVivoDaTimeline(c, e)).toContain("pedaço 49");
+    // COP-14 (item 2): o reducer junta o texto, mas a tela não pinta o delta — o indicador diz "Digitando…".
+    expect(e.atividades[ABERTA]?.[TURNO]?.atual).toContain("pedaço 49");
+    const aoVivo = c ? renderAoVivoDaTimeline(c, e) : "";
+    expect(aoVivo).not.toContain("pedaço");
+    expect(aoVivo).toContain("Digitando…");
     // A timeline inteira (usada pelos testes das telas) continua trazendo as duas partes.
-    expect(renderTimeline(c, e)).toContain("pedaço 49");
+    expect(renderTimeline(c, e)).toContain("Digitando…");
     expect(renderTimeline(c, e)).toContain("<strong>negrito</strong>");
   });
 
@@ -141,8 +145,10 @@ describe("lembrar: a string de uma parte da tela só é refeita quando algo que 
     e = aplicarFrame(e, frame("turno.delta", { conversaId: ABERTA, turnoId: TURNO, texto: "segunda & fim" }, 4), AGORA);
     const depois = new Map(blocosAoVivo(c, e).map((b) => [b.chave, b.html]));
     expect(depois.get("vivo:t-2")).toBe(antes.get("vivo:t-2"));
-    // Parte 2 do plano "o pensamento no chat": o texto curto corre no cabeçalho do pensamento (a primeira linha, escapada).
-    expect(depois.get(`vivo:${TURNO}`)).toContain('<span class="fala-viva-estado">Primeira &lt;parte&gt;</span>');
+    // COP-14 (item 2): o texto não aparece ao vivo; o bloco do turno é o indicador, que não muda com mais texto.
+    expect(depois.get(`vivo:${TURNO}`)).toBe(antes.get(`vivo:${TURNO}`));
+    expect(depois.get(`vivo:${TURNO}`)).toContain("Digitando…");
+    expect(depois.get(`vivo:${TURNO}`)).not.toContain("Primeira");
     expect(renderAoVivoDaTimeline(c, e)).toBe([...depois.values()].join(""));
   });
 });
@@ -157,8 +163,11 @@ describe("histórico em blocos com chave: a mensagem nova não regrava as outras
     const porChave = new Map(bAntes.map((b) => [b.chave, b.html]));
     const iguais = bDepois.filter((b) => porChave.get(b.chave) === b.html).map((b) => b.chave);
     // O divisor do topo (chat limpo, PR 6) tem a chave da primeira mensagem do bloco (`sep:<id>`): ele nasce de novo com
-    // ela, e as mensagens do meio ficam.
-    expect(iguais).toEqual(["m1", "m2", "m3", "m4"]);
+    // ela, e as mensagens do meio ficam. COP-14 (item 3): as falas seguidas do bot formam um grupo, então a nova primeira
+    // (m1) e a antiga última (m4) mudam só a posição no grupo (data-grupo); o resto do HTML delas fica igual.
+    expect(iguais).toEqual(["m2", "m3"]);
+    const semGrupo = (html: string | undefined) => html?.replace(/ data-grupo="[a-z]+"( data-group-start)?/, "");
+    for (const k of ["m1", "m4"]) expect(semGrupo(bDepois.find((b) => b.chave === k)?.html)).toBe(semGrupo(porChave.get(k)));
     expect(bDepois.map((b) => b.chave)).toEqual(["sep:m1", "m1", "m2", "m3", "m4", "m5"]);
     // A string da timeline (a que os testes das telas leem) é a junção dos blocos.
     expect(renderTimeline(conversaDaTela(depois), depois)).toContain(bDepois.map((b) => b.html).join(""));
@@ -191,9 +200,9 @@ describe("textoFormatado com memória por mensagem", () => {
   });
 });
 
-/** NOD-328: o diagrama do histórico não pesa no texto ao vivo; o ao vivo mostra o card até a mensagem chegar. */
+/** NOD-328: o diagrama do histórico não pesa no texto ao vivo; COP-14: o ao vivo nem mostra o texto (só o indicador). */
 describe("diagrama sob carga", () => {
-  it("histórico com mermaid não é refeito por frames ao vivo, e o ao vivo não ganha figure", () => {
+  it("histórico com mermaid não é refeito por frames ao vivo, e o ao vivo não ganha figure nem código", () => {
     const mermaid = "```mermaid\nflowchart LR\n  A-->B\n```";
     let e = reduzir(cenario(), { tipo: "hidratar-conversa", conversa: conversa(ABERTA, [mensagem("d1", `Veja:\n${mermaid}`)]), agora: AGORA });
     let desenhos = 0;
@@ -209,6 +218,7 @@ describe("diagrama sob carga", () => {
     expect(desenhos).toBe(1);
     const c = conversaDaTela(e)!;
     expect(renderAoVivoDaTimeline(c, e)).not.toContain("md-diagrama");
-    expect(renderAoVivoDaTimeline(c, e)).toContain("md-codigo");
+    expect(renderAoVivoDaTimeline(c, e)).not.toContain("md-codigo");
+    expect(renderAoVivoDaTimeline(c, e)).toContain("Digitando…");
   });
 });

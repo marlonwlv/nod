@@ -1,0 +1,141 @@
+/* =====================================================================================
+   menu-conta.css — o rodapé da barra e o menu da conta (spec do item 2, 2026-11-12).
+   Carrega depois de casca.css: os seletores repetem o peso dos de lá para ganhar pela ordem. Os tokens novos
+   (--menu-realce, --icone-2…) vêm sempre com fallback num token antigo.
+   ===================================================================================== */
+
+/* ---- Rodapé (340 px): 52 de altura, 16 dos lados; a pílula da conta à esquerda, Conectar aplicativos à direita ---- */
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape {
+  height: 52px; box-sizing: border-box; padding: 0 16px; gap: 8px; justify-content: space-between;
+}
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape button.me.conta-pilula {
+  flex: 0 1 auto; min-width: 0; height: 36px; gap: 10px; padding: 0; border-radius: var(--raio-full, 9999px); background: none;
+}
+#sidebar.sidebar .rodape button.me.conta-pilula:hover { background: none; }
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape button.me.conta-pilula .av-me {
+  width: 36px; height: 36px; border-radius: 50%; font-size: 13px;
+}
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape button.me.conta-pilula .me-nome {
+  font-size: 14px; line-height: 20px; font-weight: 500; color: var(--ink-2);
+  transition: color 300ms cubic-bezier(0.2, 0, 0, 1);
+}
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape button.me.conta-pilula:is(:hover, :focus-visible, [aria-expanded="true"]) .me-nome,
+body:has(dialog.menu-conta[open]:not(.fechando)) #sidebar.sidebar .rodape button.me.conta-pilula .me-nome { color: var(--ink); }
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape button.me.conta-pilula .me-conexao { left: 27px; bottom: 0; }
+#sidebar.sidebar .rodape button.me.conta-pilula:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape button.rodape-ic.conectar-bt {
+  flex: none; width: 36px; height: 36px; display: grid; place-items: center; padding: 0; gap: 0;
+  border: 1px solid var(--borda-3, var(--borda)); border-radius: 50%; background: var(--surface-elevated); color: var(--icone-1, var(--ink));
+}
+html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape button.rodape-ic.conectar-bt:hover { background: var(--hover); }
+#sidebar.sidebar .rodape button.rodape-ic.conectar-bt[aria-current="true"] { background: var(--ativo); }
+#sidebar.sidebar .rodape button.rodape-ic.conectar-bt svg { width: 16px; height: 16px; }
+
+/* ---- Compacta (88 px): Conectar aplicativos em 28 sobre o avatar da conta (botão 54, imagem 36) ---- */
+html[data-largura="recolhida"] #sidebar.sidebar .rodape { flex-direction: column; align-items: center; }
+html[data-largura="recolhida"] #sidebar.sidebar .rodape button.rodape-ic.conectar-bt {
+  display: grid; place-items: center; order: -1; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--icone-2, var(--ink-2));
+}
+html[data-largura="recolhida"] #sidebar.sidebar .rodape button.rodape-ic.conectar-bt:hover { background: var(--hover); }
+html[data-largura="recolhida"] #sidebar.sidebar .rodape button.me.conta-pilula {
+  order: 1; width: 54px; height: 54px; display: grid; place-items: center; padding: 0; border-radius: var(--raio-12, 12px); background: none;
+}
+html[data-largura="recolhida"] #sidebar.sidebar .rodape button.me.conta-pilula:hover { background: var(--hover); }
+html[data-largura="recolhida"] #sidebar.sidebar .rodape button.me.conta-pilula .av-me { width: 36px; height: 36px; }
+
+/* ---- O menu: 264, fundo elevado, raio 16, padding 6, gap 2; sombra de menu (no escuro, a borda) ---- */
+.bot-menu.menu-conta:not(.folha) {
+  --mc-borda: transparent;
+  width: 264px; box-sizing: border-box; padding: 6px; overflow: visible; max-height: none;
+  border: 1px solid var(--mc-borda); border-radius: 16px; background: var(--surface-elevated); box-shadow: var(--sombra-menu, var(--shadow-pop));
+  color: var(--ink); transform-origin: bottom left;
+  animation: mc-entra 100ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+.bot-menu.menu-conta.fechando { animation: mc-sai 100ms cubic-bezier(0.165, 0.84, 0.44, 1) forwards; pointer-events: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bot-menu.menu-conta:not(.folha) { --mc-borda: var(--borda); box-shadow: none; }
+}
+:root[data-theme="dark"] .bot-menu.menu-conta:not(.folha) { --mc-borda: var(--borda); box-shadow: none; }
+
+.bot-menu.menu-conta:not(.folha) .mc-menu,
+.bot-menu.menu-conta:not(.folha) .mc-sub { display: flex; flex-direction: column; gap: 2px; }
+/* foco-ok: o menu recebe o foco só pelo código (tabindex -1, ao abrir) até o ↓; o contorno fica nos itens */
+.bot-menu.menu-conta:not(.folha) :is(.mc-menu, .mc-sub):focus { outline: none; }
+
+/* O submenu: a mesma casca, à direita, colado (left e top no TS). */
+.bot-menu.menu-conta:not(.folha) .mc-sub {
+  position: absolute; box-sizing: border-box; padding: 6px;
+  border: 1px solid var(--mc-borda); border-radius: 16px; background: var(--surface-elevated); box-shadow: var(--sombra-menu, var(--shadow-pop));
+  transform-origin: top left; animation: mc-entra 100ms cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bot-menu.menu-conta:not(.folha) .mc-sub { box-shadow: none; }
+}
+:root[data-theme="dark"] .bot-menu.menu-conta:not(.folha) .mc-sub { box-shadow: none; }
+.bot-menu.menu-conta:not(.folha) .mc-sub[hidden] { display: none; }
+.bot-menu.menu-conta:not(.folha) #mc-sub-provedores { width: 268px; }
+.bot-menu.menu-conta:not(.folha) #mc-sub-suporte { width: 196px; }
+.bot-menu.menu-conta:not(.folha) .mc-sub.saindo { animation: mc-sub-sai 50ms linear forwards; pointer-events: none; }
+
+/* Item: 32 de altura, padding 6/8, raio 8; ícone 14 num quadro de 18, 5 de espaço; texto 14/18; meta 14/20 texto 3. */
+.bot-menu.menu-conta:not(.folha) button[role="menuitem"] {
+  display: flex; align-items: center; gap: 5px; width: 100%; height: 32px; box-sizing: border-box; padding: 6px 8px;
+  border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: 14px; line-height: 18px; text-align: left; cursor: default;
+  transition: none;
+}
+.bot-menu.menu-conta:not(.folha) button[role="menuitem"]:hover { background: var(--menu-realce, var(--hover)); }
+.bot-menu.menu-conta:not(.folha) button[role="menuitem"]:focus-visible { background: var(--menu-realce, var(--hover)); outline: none; }
+.bot-menu.menu-conta:not(.folha) button[role="menuitem"][aria-expanded="true"] { background: var(--menu-submenu-aberto, var(--hover)); }
+.bot-menu.menu-conta:not(.folha) button[role="menuitem"][aria-expanded="true"]:focus-visible { background: var(--menu-realce, var(--hover)); }
+.bot-menu.menu-conta:not(.folha) .mc-ic { flex: none; box-sizing: border-box; width: 18px; height: 18px; padding: 2px; color: var(--icone-2, var(--ink-2)); }
+.bot-menu.menu-conta:not(.folha) .mc-nome { flex: 1; min-width: 0; width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 18px; color: var(--ink); }
+.bot-menu.menu-conta:not(.folha) .mc-meta { flex: none; width: auto; font-size: 14px; line-height: 20px; color: var(--ink-3); }
+.bot-menu.menu-conta:not(.folha) .mc-chevron { flex: none; width: 14px; height: 14px; color: var(--icone-3, var(--ink-3)); }
+.bot-menu.menu-conta:not(.folha) button[role="menuitem"] > span { width: auto; }
+
+/* Separador: 0,5 px, recuado 8 dos lados, 6 acima e abaixo. */
+.bot-menu.menu-conta:not(.folha) hr { flex: none; height: 0; margin: 6px 8px; border: 0; border-top: 0.5px solid var(--separador-menu, var(--borda)); }
+
+/* A linha informativa de uma conta (submenu Provedores de IA): 60, padding 12/8, opacidade .5. */
+.bot-menu.menu-conta:not(.folha) .mc-info {
+  display: flex; align-items: center; gap: 8px; min-height: 60px; box-sizing: border-box; padding: 12px 8px; opacity: .5; cursor: default;
+}
+.bot-menu.menu-conta:not(.folha) .mc-info-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bot-menu.menu-conta:not(.folha) .mc-info-titulo { font-size: 14px; line-height: 18px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-menu.menu-conta:not(.folha) .mc-info-detalhe { font-size: 12px; line-height: 16px; color: var(--ink-3); }
+
+/* A faixa de aviso, acima dos itens e fora do role=menu: ponto de 8 (atenção) + texto 12/16 texto 2 + separador. */
+.bot-menu.menu-conta:not(.folha) .mc-faixa {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 8px 12px; border-bottom: 0.5px solid var(--separador-menu, var(--borda));
+  font-size: 12px; line-height: 16px; color: var(--ink-2);
+}
+.bot-menu.menu-conta:not(.folha) .mc-faixa > i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warning); }
+.bot-menu.menu-conta:not(.folha) .mc-faixa-neutro > i { background: var(--ink-3); }
+.bot-menu.menu-conta:not(.folha) .mc-faixa-ok > i { background: var(--success); }
+.bot-menu.menu-conta:not(.folha) .mc-faixa > span { flex: 1; min-width: 0; width: auto; font-size: inherit; }
+.bot-menu.menu-conta:not(.folha) .mc-faixa button { flex: none; width: auto; min-height: 0; padding: 2px 4px; font-size: 12px; line-height: 16px; }
+
+/* Sobre o nod. */
+.bot-dialogo.mc-sobre-dialogo .mc-sobre-status:empty { display: none; }
+
+/* Atalhos de teclado (COP-12): uma linha por atalho, o que faz à esquerda e as teclas à direita; a lista rola sozinha. */
+.bot-dialogo.mc-atalhos-dialogo { width: min(520px, calc(100vw - 40px)); }
+.bot-dialogo.mc-atalhos-dialogo .mc-atalhos-lista { margin: 0; max-height: min(60vh, 520px); overflow: auto; }
+.bot-dialogo.mc-atalhos-dialogo .mc-atalho { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 36px; border-bottom: 0.5px solid var(--borda); }
+.bot-dialogo.mc-atalhos-dialogo .mc-atalho:last-child { border-bottom: 0; }
+.bot-dialogo.mc-atalhos-dialogo dt { min-width: 0; font-size: 14px; line-height: 20px; color: var(--ink); }
+.bot-dialogo.mc-atalhos-dialogo dd { flex: none; margin: 0; }
+
+/* Alto contraste: o realce some (fundo forçado); o item em foco volta a ter contorno. */
+@media (forced-colors: active) {
+  .bot-menu.menu-conta:not(.folha) button[role="menuitem"]:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+
+@keyframes mc-entra { from { opacity: 0; transform: translate3d(0, 2px, 0) scale(.98); } }
+@keyframes mc-sai { to { opacity: 0; transform: translate3d(0, 2px, 0) scale(.98); } }
+@keyframes mc-sub-sai { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .bot-menu.menu-conta, .bot-menu.menu-conta .mc-sub, .bot-menu.menu-conta.fechando, .bot-menu.menu-conta .mc-sub.saindo { animation: none; }
+  #sidebar.sidebar .rodape button.me.conta-pilula .me-nome { transition: none; }
+}

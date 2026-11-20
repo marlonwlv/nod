@@ -384,10 +384,10 @@ export function destinoDoPedido(pedido: PedidoInteligencia): string {
  */
 export function htmlDaPreviaDaTroca(p: { nomeDoBot: string; destino: string; tasks: number }): string {
   const uma = p.tasks === 1;
-  const tasks = uma ? "A task em andamento fica" : `As ${p.tasks} tasks em andamento ficam`;
+  const tasks = uma ? "A tarefa em andamento fica" : `As ${p.tasks} tarefas em andamento ficam`;
   return `<h2 id="previa-troca-titulo">Passar ${esc(p.nomeDoBot)} para ${esc(p.destino)}?</h2>
     <p>Muda agora: a conversa e o que ${esc(p.nomeDoBot)} começar daqui em diante.</p>
     <p class="p312-bloco">${esc(p.nomeDoBot)} leva a conversa, mas não o que já leu e testou na IA de agora. No próximo pedido, relê o necessário.</p>
     <p>${tasks} na IA de agora e ${uma ? "continua de onde parou" : "continuam de onde pararam"}. Se ${uma ? "for junto, recomeça" : "forem junto, recomeçam"} do resumo.</p>
-    <div class="acoes"><button class="bt" data-levar type="button">Levar as tasks também</button> <button class="bt pri" data-so-daqui type="button" autofocus>Só daqui em diante</button></div>`;
+    <div class="acoes"><button class="bt" data-levar type="button">Levar as tarefas também</button> <button class="bt pri" data-so-daqui type="button" autofocus>Só daqui em diante</button></div>`;
 }

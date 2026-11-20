@@ -43,7 +43,7 @@ async function montar(o: { ambienteTela?: Record<string, string>; antesDeRecolhe
     xvfb: "Xvfb", openbox: "openbox", chromium: "chromium", bwrap: null, xdotool: "xdotool", xclip: "xclip", scrot: "scrot",
   };
   const terminal = join(dir, "term.sock");
-  const st = criarServidorTerminal({ raiz: join(dir, "raiz") });
+  const st = criarServidorTerminal({ raiz: join(dir, "raiz"), bwrap: null });
   await escutar(st, terminal);
   limpar.push(() => new Promise((r) => st.close(r)));
   // A régua lê a memória daqui: vermelha com `limite` telas de pé (fechar uma devolve a memória, como na máquina de

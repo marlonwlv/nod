@@ -32,8 +32,8 @@ export type ErroDto = { codigo: string; mensagem: string; correlation_id?: strin
 export type FrotaDto = {
   /**
    * `computadorForaDoAr` (definido em 2026-09-24, emenda da ADR-037): o computador do bot deixou de responder — a barra
-   * lateral, o cabeçalho e o painel dizem isso sem abrir o computador. `ultimaMensagem` (mesma data, sidebar no estilo
-   * do Grok): a prévia de uma linha da última mensagem da conversa própria; null sem conversa ou sem texto.
+   * lateral, o cabeçalho e o painel dizem isso sem abrir o computador. `ultimaMensagem` (mesma data, sidebar com
+   * prévia): a prévia de uma linha da última mensagem da conversa própria; null sem conversa ou sem texto.
    */
   agentes: (Agente & { conversaId: string; descricaoEstado: string; computadorForaDoAr: { desde: EpochMs; motivo: MotivoFalhaComputador } | null; ultimaMensagem: { previa: string; em: EpochMs } | null })[];
   inventario: Inventario; /** NOD-437: os times da pessoa, na ordem da barra (Sem time incluso); quem está em cada um é o `secao` do bot. */ times?: import("./time.ts").TimeNaLista[];
@@ -61,6 +61,8 @@ export type ConversaDto = DonoNaConversa & TrocasNaConversa & AcoesDoModoNaConve
   turnosEmCurso: TurnoEmCursoDto[];
   /** Turnos que a pessoa cancelou antes de rodar: a mensagem que os disparou mostra "Cancelada · não rodou". */
   turnosCancelados: { id: string; mensagemId: string }[];
+  /** ADR-185 (2026-11-16): falas da pessoa que um turno vivo absorveu (escritas na sessão dele). `lidoEm` null = o bot ainda não as leu ("lê ao fim do passo atual"); com hora, "Lida". Ausente = servidor antigo. */
+  turnosNaSessao?: { id: string; mensagemId: string; absorvidoPor: string; lidoEm: number | null }[];
   /** Propostas PENDENTES da conversa (E1.1): o cartão da web nasce daqui, nunca de um kind de Mensagem (definido em 2026-09-16, L9). */
   propostas: Proposta[];
   /** definido em 2026-09-24 (fio da pergunta): os fios com mensagem na janela carregada, com o estado derivado. */
@@ -76,7 +78,7 @@ export type SuaVezDto = {
    * `rotinaParada` (mesma data, emenda da ADR-044): o pedido de acesso aberto que veio de uma rotina — desde quando e o que não rodou.
    * `nuncaPermanente` (ADR-047): sem "Sempre permitir". `pedido` (2026-10-18): PedidoDoItem. `trabalhoId` (NOD-114): a task do turno (null = conversa).
    */
-  itens: (ItemFila & { itensAprovacao: ItemAprovacao[]; proposta: Proposta | null; fio: FioDoItem | null; rotinaParada: ParadaDaRotina | null; nuncaPermanente?: string[]; pedido?: PedidoDoItem | null; trabalhoId?: string | null; /** NOD-402: o turno do pedido é dos bastidores. */ bastidores?: boolean; /** NOD-443 (revisão 7 do PR #628, achado 4): o nome de quem participa do quadro e pediu o turno que abriu o cartão (o bot da dona sob a procuração dela). */ aPedidoDe?: string })[];
+  itens: (ItemFila & { itensAprovacao: ItemAprovacao[]; proposta: Proposta | null; fio: FioDoItem | null; rotinaParada: ParadaDaRotina | null; nuncaPermanente?: string[]; pedido?: PedidoDoItem | null; trabalhoId?: string | null; /** NOD-402: o turno do pedido é dos bastidores. */ bastidores?: boolean; /** NOD-443 (revisão 7 do PR #628, achado 4): o nome de quem participa do quadro e pediu o turno que abriu o cartão (o bot da dona sob a procuração dela). */ aPedidoDe?: string; /** ADR-166: a regra pronta para "Salvar como regra" no cartão em que o revisor pediu. */ sugestaoDeRegra?: string })[];
   /** Avisos de infraestrutura (ADR-045): um por queda do Mac, nunca um card por turno. Não são decisões. */
   incidentes: IncidenteDto[];
   foraDoAr: { nome: string; desde: EpochMs }[];
@@ -93,10 +95,7 @@ export type RotinaDto = { rotina: Rotina; proximaExecucao: EpochMs; bloqueio: Bl
 export type MetodoHttp = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 export type EntradaRota = { metodo: MetodoHttp; caminho: string; lane: "L1" | "L4" | "L5" | "L6" | "L7" | "L8" | "L9" };
 
-/**
- * Tabela de rotas (ADR-005: prefixo /api/t/:tenantId/… salvo públicas e internas). Cada lane
- * escreve o handler fino da sua rota contra o roteador da L1; a posse é a coluna `lane`.
- */
+/** Tabela de rotas (ADR-005: prefixo /api/t/:tenantId/… salvo públicas e internas). Cada lane escreve o handler fino da sua rota contra o roteador da L1; a posse é a coluna `lane`. */
 export const ROTAS = [
   { metodo: "GET", caminho: "/api/saude", lane: "L1" }, { metodo: "GET", caminho: "/api/saude/lb", lane: "L1" }, // lb: Caddy, NOD-218
   /** Só com NOD_LOGIN=stub (desenvolvimento, loopback): entra como uma pessoa do cadastro (ADR-030). */
@@ -144,6 +143,7 @@ export const ROTAS = [
   { metodo: "GET", caminho: "rotinas", lane: "L7" },
   { metodo: "POST", caminho: "rotinas", lane: "L7" },
   { metodo: "POST", caminho: "rotinas/:id/pausar", lane: "L7" }, { metodo: "POST", caminho: "rotinas/:id/ativar", lane: "L7" }, { metodo: "POST", caminho: "rotinas/:id/ritmo", lane: "L7" }, // ritmo: NOD-313
+  { metodo: "POST", caminho: "rotinas/pausar-todas", lane: "L7" }, { metodo: "POST", caminho: "rotinas/lotes/:id/reativar", lane: "L7" }, // desfazer a pausa em lote (0178)
   { metodo: "POST", caminho: "rotinas/:id/executar", lane: "L7" }, { metodo: "GET", caminho: "rotinas/:id/execucoes", lane: "L7" }, { metodo: "GET", caminho: "rotinas/:id/endereco", lane: "L7" }, { metodo: "POST", caminho: "rotinas/:id/endereco", lane: "L7" }, { metodo: "POST", caminho: "rotinas/:id/testar-webhook", lane: "L7" }, // NOD-84
   { metodo: "POST", caminho: "/api/w/:token", lane: "L7" }, { metodo: "POST", caminho: "/api/w", lane: "L7" }, { metodo: "GET", caminho: "rotinas/agenda", lane: "L7" }, // agenda: NOD-85
   { metodo: "GET", caminho: "salas", lane: "L7" },

@@ -3,6 +3,7 @@ export type JsonSchema = {
   type?: "object" | "string" | "number" | "integer" | "boolean" | "array" | "null";
   anyOf?: JsonSchema[];
   oneOf?: JsonSchema[];
+  not?: JsonSchema;
   description?: string;
   properties?: Record<string, JsonSchema>;
   required?: readonly string[];

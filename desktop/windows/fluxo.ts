@@ -1,6 +1,7 @@
 import { posix, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ConexaoMotor } from "../../motor/conexao.ts";
+import { permitirChecagemDeMidia, permitirPedidoDeMidia } from "../permissoes-midia.ts";
 import type { EstadoDoMotor } from "./motor-status.ts";
 import type { ResultadoDaSessao } from "./sessao.ts";
 
@@ -86,16 +87,27 @@ export function servidorDoApp(embutido: string | undefined): string {
 }
 
 /**
- * A janela do Windows não pede câmera, microfone nem nada: nega o pedido e também a checagem (sem o check handler, o
- * Chromium responde "concedida" a `navigator.permissions.query` e a APIs que só checam). O Mac registra os dois (codex #2).
+ * As permissões da janela web do Windows (17/11/2026, o microfone no Windows): como no Mac (ADR-071), a única é o
+ * microfone — `media` só de áudio, só da origem do servidor conectado, só no frame de topo DESTA janela
+ * (desktop/permissoes-midia.ts). Antes a janela negava tudo e a ligação e o ditado nunca abriam o microfone, por mais
+ * que a pessoa o liberasse nas Configurações. Todo o resto continua negado no pedido e na checagem (sem o check
+ * handler, o Chromium responde "concedida" a `navigator.permissions.query` e a APIs que só checam; codex #2).
+ * `janela` e `origem` são lidos a cada pedido: a janela reaberta (ou com outro servidor) não herda a anterior.
  */
 export type SessaoComPermissoes = {
   setPermissionRequestHandler(f: (wc: unknown, p: string, cb: (ok: boolean) => void, d?: unknown) => void): void;
   setPermissionCheckHandler(f: (wc: unknown, p: string, origem: string, d?: unknown) => boolean): void;
 };
-export function travarPermissoes(s: SessaoComPermissoes): void {
-  s.setPermissionRequestHandler((_wc, _p, cb) => cb(false));
-  s.setPermissionCheckHandler(() => false);
+type DetalhesDaPermissao = { mediaTypes?: readonly string[]; mediaType?: string; requestingUrl?: string; isMainFrame?: boolean };
+export function permissoesDaJanela(s: SessaoComPermissoes, janela: () => unknown, origem: () => string | null): void {
+  s.setPermissionRequestHandler((wc, permissao, cb, d) => {
+    const det = (d ?? {}) as DetalhesDaPermissao;
+    cb(wc === janela() && permitirPedidoDeMidia({ permissao, tiposDeMidia: det.mediaTypes, urlDoPedido: det.requestingUrl, frameDeTopo: det.isMainFrame === true, servidor: origem() }));
+  });
+  s.setPermissionCheckHandler((wc, permissao, pedinte, d) => {
+    const det = (d ?? {}) as DetalhesDaPermissao;
+    return wc === janela() && permitirChecagemDeMidia({ permissao, tipoDeMidia: det.mediaType, origem: pedinte, frameDeTopo: det.isMainFrame === true, servidor: origem() });
+  });
 }
 
 /**

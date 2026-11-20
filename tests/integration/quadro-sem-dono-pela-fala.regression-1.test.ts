@@ -106,7 +106,7 @@ describeIntegracao("tarefa sem dono pela fala: bordas (QA do PR #8)", () => {
         const data = r.data as { ok: boolean; para_pessoa?: string };
         expect(data.ok).toBe(false);
         expect(data.para_pessoa).toMatch(/bot/);
-        expect(data.para_pessoa).not.toMatch(/Não achei a |código da tarefa/);
+        expect(data.para_pessoa).not.toMatch(/Não achei o |código do card/);
         for (const j of JARGAO) expect(data.para_pessoa!.toLowerCase()).not.toContain(j.toLowerCase());
       }
       expect(await m.tarefa(m.semDono.id)).toMatchObject({ status: antes.status, agenteId: null });
