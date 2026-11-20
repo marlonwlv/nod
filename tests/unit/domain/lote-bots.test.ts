@@ -260,3 +260,26 @@ describe("restaurar_versao no lote (NOD-20)", () => {
     expect(valida([{ tipo: "restaurar_versao", versao: 2 }]).ok).toBe(false);
   });
 });
+
+describe("nome repetido no lote (QA-118)", () => {
+  const motivos = (acoes: AcaoLote[], fora: string[] = []) => {
+    const r = validarLote(acoes, BOTS, APPS, P, undefined, fora);
+    return r.ok ? [] : r.problemas.map((p) => p.motivo);
+  };
+  it("criar ou renomear para o nome de outro bot recusa, sem diferenciar maiúsculas", () => {
+    expect(motivos([{ tipo: "criar", nome: " dev 1 ", descricao: "x" }])[0]).toContain('já existe um bot chamado "dev 1"');
+    expect(motivos([{ tipo: "editar", bot: "Dev 2", nome: "DEV 1" }])[0]).toContain("já existe um bot chamado");
+    expect(motivos([{ tipo: "criar", nome: "Da Ana", descricao: "x" }], ["Da Ana"])[0]).toContain("já existe");
+  });
+  it("dois criar com o mesmo nome no lote recusa o segundo", () => {
+    const m = validarLote([{ tipo: "criar", nome: "Ugo", descricao: "a" }, { tipo: "criar", nome: "ugo", descricao: "b" }], BOTS, APPS, P);
+    expect(m.ok ? [] : m.problemas.map((p) => p.i)).toEqual([1]);
+  });
+  it("o nome liberado no próprio lote (excluir, renomear) e o de um bot excluído podem ser usados", () => {
+    expect(motivos([{ tipo: "excluir", bot: "Dev 1" }, { tipo: "criar", nome: "Dev 1", descricao: "x" }])).toEqual([]);
+    expect(motivos([{ tipo: "editar", bot: "Dev 1", nome: "Dev Um" }, { tipo: "editar", bot: "Dev 2", nome: "Dev 1" }])).toEqual([]);
+    expect(motivos([{ tipo: "criar", nome: "Dev antigo", descricao: "x" }])).toEqual([]);
+    expect(motivos([{ tipo: "editar", bot: "Dev 1", nome: "DEV 1" }])).toEqual([]);
+    expect(motivos([{ tipo: "criar", nome: "Nova", descricao: "x", ref: "n" }, { tipo: "editar", bot: "@n", nome: "Nova 2" }, { tipo: "criar", nome: "Nova", descricao: "y" }])).toEqual([]);
+  });
+});

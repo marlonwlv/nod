@@ -252,8 +252,13 @@ export async function gerirBots(deps: Deps, input: ContextoFerramenta & { resumo
   const ctx = await turnoDoNodComAPessoa(deps, input);
   if (!ctx) return { data: { ok: false, erro: "fora_da_conversa", problemas: [], instrucao: "Só o Nod, na conversa com a pessoa, muda os bots dela." } };
   const pessoaId = deps.escopo.pessoaId;
-  const bots = (await deps.repos.agentes.listar({ incluirOcultos: true, incluirExcluidos: true })).filter((b) => b.ownerId === pessoaId);
-  const validado = validarLote(input.acoes, bots, await appsDaPessoa(deps), pessoaId, input.resumo);
+  // QA-118: com criar ou renomear no lote, a trava dos nomes (a do criar_bots) vem antes de ler: dois pedidos juntos não
+  // saem com o mesmo nome.
+  if (Array.isArray(input.acoes) && input.acoes.some((a) => a?.tipo === "criar" || (a?.tipo === "editar" && a.nome !== undefined))) await deps.repos.agentes.travarNomesDeBots();
+  const todos = await deps.repos.agentes.listar({ incluirOcultos: true, incluirExcluidos: true });
+  const bots = todos.filter((b) => b.ownerId === pessoaId);
+  const nomesDeFora = todos.filter((b) => b.ownerId !== pessoaId && b.excluidoEm == null).map((b) => b.nome);
+  const validado = validarLote(input.acoes, bots, await appsDaPessoa(deps), pessoaId, input.resumo, nomesDeFora);
   if (!validado.ok) return { data: { ok: false, erro: "entrada_invalida", problemas: validado.problemas, instrucao: "Nada foi feito. Corrija os problemas e chame gerir_bots de novo com o lote inteiro." } };
 
   // Cerca 3: dar acesso (e duplicar um bot com acessos) depois de ler conteúdo de fora vira card também no automático.
