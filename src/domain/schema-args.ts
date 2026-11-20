@@ -8,6 +8,19 @@ function tipoDe(v: unknown): string {
   return typeof v;
 }
 
+/** Pontos de código, sem alocar: um par substituto (emoji, CJK estendido) conta 1, como no JSON Schema. */
+function pontosDeCodigo(s: string): number {
+  let n = s.length;
+  for (let i = 0; i < s.length - 1; i++) {
+    const c = s.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const d = s.charCodeAt(i + 1);
+      if (d >= 0xdc00 && d <= 0xdfff) { n--; i++; }
+    }
+  }
+  return n;
+}
+
 export function errosDoSchema(schema: JsonSchema, valor: unknown, caminho = "$"): string[] {
   const erros: string[] = [];
   if (schema.not && errosDoSchema(schema.not, valor, caminho).length === 0) return [`${caminho}: valor não permitido`];
@@ -19,8 +32,12 @@ export function errosDoSchema(schema: JsonSchema, valor: unknown, caminho = "$")
   if (schema.type === "integer" && !Number.isInteger(valor)) erros.push(`${caminho}: esperado inteiro`);
   if (schema.type === "string") {
     const s = valor as string;
-    if (schema.minLength !== undefined && s.length < schema.minLength) erros.push(`${caminho}: mínimo ${schema.minLength} caracteres`);
-    if (schema.maxLength !== undefined && s.length > schema.maxLength) erros.push(`${caminho}: máximo ${schema.maxLength} caracteres`);
+    // 2026-11-19 (QA-71): o JSON Schema conta caracteres (pontos de código), como o modelo que monta a chamada e o
+    // domínio (caracteres() do artefato). Com s.length (UTF-16) um título de 120 caracteres com emoji no fim passava no
+    // modelo e no domínio, mas voltava negado aqui como "argumentos inválidos", sem campo para corrigir.
+    const n = schema.minLength !== undefined || schema.maxLength !== undefined ? pontosDeCodigo(s) : 0;
+    if (schema.minLength !== undefined && n < schema.minLength) erros.push(`${caminho}: mínimo ${schema.minLength} caracteres`);
+    if (schema.maxLength !== undefined && n > schema.maxLength) erros.push(`${caminho}: máximo ${schema.maxLength} caracteres`);
     if (schema.enum && !schema.enum.includes(s)) erros.push(`${caminho}: valor fora de [${schema.enum.join(", ")}]`);
   }
   if (schema.type === "array") {

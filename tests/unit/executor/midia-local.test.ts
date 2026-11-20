@@ -239,12 +239,19 @@ describe("proxy despacha anexar_midia pelo nome (NOD-323)", () => {
     writeFileSync(join(pasta, "g.png"), png(5, 5));
     const { proxy, enviados, ferramentas } = montar();
     await rpc(proxy, 1, "initialize");
-    const r = await rpc(proxy, 2, "tools/call", { name: "anexar_midia", arguments: { caminhos: ["g.png"] } });
+    const lista = JSON.parse((await proxy.tratarLinha(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })))!) as {
+      result: { tools: { name: string; annotations: { readOnlyHint: boolean } }[] };
+    };
+    expect(lista.result.tools.map((t) => [t.name, t.annotations.readOnlyHint])).toEqual([
+      ["ler_mais", true],
+      ["anexar_midia", false],
+    ]);
+    const r = await rpc(proxy, 3, "tools/call", { name: "anexar_midia", arguments: { caminhos: ["g.png"] } });
     expect(JSON.parse(r.result.content[0]!.text)).toEqual({ anexados: [{ nome: "g.png", tipo: "image/png" }], recusados: [] });
     expect(r.result.isError).toBeUndefined();
     expect(enviados).toHaveLength(1);
     expect(ferramentas).toEqual([]);
-    const lm = await rpc(proxy, 3, "tools/call", { name: "ler_mais", arguments: { ref: "r9" } });
+    const lm = await rpc(proxy, 4, "tools/call", { name: "ler_mais", arguments: { ref: "r9" } });
     expect(lm.result.content[0]!.text).not.toContain("anexados");
     expect(enviados).toHaveLength(1);
   });

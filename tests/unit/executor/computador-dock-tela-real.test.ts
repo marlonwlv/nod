@@ -126,6 +126,27 @@ exit 0`);
     expect(env.DBUS_SESSION_BUS_ADDRESS ?? "").toBe("");
   });
 
+  it("a pasta de downloads nasce vazia e os downloads do Chrome ficam nela", async () => {
+    expect(await tela.executar({ tipo: "arquivos", caminho: "downloads" })).toEqual({ arquivos: [] });
+    const srv = http.createServer((req, res) => {
+      if (req.url === "/arquivo") {
+        res.writeHead(200, { "content-type": "text/plain", "content-disposition": 'attachment; filename="qa.txt"' });
+        res.end("download confirmado");
+        return;
+      }
+      res.setHeader("content-type", "text/html");
+      res.end('<a id="baixar" href="/arquivo" download="qa.txt">Baixar</a><script>addEventListener("load", () => document.querySelector("#baixar").click())</script>');
+    }).listen(0, "127.0.0.1");
+    try {
+      await new Promise((ok) => srv.once("listening", ok));
+      await tela.executar({ tipo: "navegar", url: `http://127.0.0.1:${(srv.address() as AddressInfo).port}/` });
+      await vi.waitFor(async () => expect(await readFile(join(raiz, "ws", "bot1", "downloads", "qa.txt"), "utf8").catch(() => null)).toBe("download confirmado"));
+      expect(await tela.executar({ tipo: "arquivos", caminho: "downloads" })).toMatchObject({ arquivos: [{ nome: "qa.txt", caminho: "downloads/qa.txt", diretorio: false }] });
+    } finally {
+      srv.close();
+    }
+  }, 30_000);
+
   it("o clique do bot no Chrome passa pelo foco e chega ao xdotool", async () => {
     await limparLog();
     await tela.executar({ tipo: "clicar", x: 100, y: 200 });

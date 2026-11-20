@@ -51,7 +51,7 @@ it("slug longo com emoji é citado inteiro até 60 caracteres sem partir o emoji
   const r = await pedirAcessoDoBot(c.deps, c.args(slug, []));
   const instrucao = "instrucao" in r.data ? r.data.instrucao : "";
   expect(instrucao).toContain(`"${"a".repeat(59)}🚀…"`);
-  expect(instrucao.isWellFormed()).toBe(true);
+  expect(instrucao).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
   const muitas = await pedirAcessoDoBot(c.deps, c.args("gmail", ["x1", "x2", "x3", "x4", "x5", "x6", "x7"]));
   expect("instrucao" in muitas.data && muitas.data.instrucao).toMatch(/"x5" e mais 2\./);
   c.semEfeito();

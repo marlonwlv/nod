@@ -476,8 +476,9 @@ export const emitirPlanoTurno: CasoDeUso<EntradaEmitirPlano, PlanoTurno> = async
   const reconfiguracao = elegivel && depoisDoInicio && (pedeConfigurar || emReconfiguracao(agente, agora));
   // NOD-480 (emenda da ADR-040): a janela que o Claude Code informou da última vez para este bot e este modelo. Falha ao
   // ler não derruba a emissão: o orçamento cai na tabela por nome. Só o Claude Code tem o autocompact.
+  const modeloEfetivo = modeloEscolhido ?? turno.modelo;
   const janelaObservada = (escolha?.harness ?? "claude-cli") === "claude-cli" && modo !== "ligacao"
-    ? await emSavepoint(deps, () => deps.repos.raioX.ultimaJanela(turno.conversaId, agente.id, turno.modelo)).catch(() => null) : null;
+    ? await emSavepoint(deps, () => deps.repos.raioX.ultimaJanela(turno.conversaId, agente.id, modeloEfetivo)).catch(() => null) : null;
   const parcial = montarPlano({
     ...(janelaObservada ? { janelaObservada } : {}),
     ...(reconfiguracao ? { reconfiguracao: true } : {}),

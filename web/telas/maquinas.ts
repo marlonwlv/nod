@@ -604,7 +604,7 @@ function grupoFinal(estado: Estado, todas: readonly MaquinaDto[], noMac: boolean
     linhas.push(linhaConfig({ titulo: ob ? "Usar um servidor só para o computador dos bots" : "Usar uma máquina só para o computador", detalhe: "Um lugar para o computador do bot, sem terminal", icone: ICONE.monitor, controle: { tipo: "link", acao: "ssh-abrir" } }));
   }
   // ADR-031: a chave gerada à mão (o app do Mac de antes do convite); a crua aparece uma vez.
-  const manual = `<form class="cfg-chave-form" data-form="emitir-chave"><label>Nome do computador <input name="nome" required maxlength="60" placeholder="ex.: MacBook do trabalho" data-manter-foco="emitir-chave-nome"></label><button class="bt" type="submit">Gerar chave</button></form>`;
+  const manual = `<form class="cfg-chave-form" data-form="emitir-chave"><label>Nome do computador <input name="nome" required maxlength="60" placeholder="ex.: MacBook do trabalho" data-manter-foco="emitir-chave-nome"${estado.ocupado ? " disabled" : ""}></label><button class="bt" type="submit"${estado.ocupado ? ' disabled aria-busy="true"' : ""}>${estado.ocupado ? "Gerando…" : "Gerar chave"}</button></form>`;
   linhas.push(linhaConfig({
     titulo: ob ? "Conectar à mão" : "Gerar uma chave à mão",
     detalhe: ob ? "Para um computador antigo que pede um código de acesso" : "Para um computador que pede a chave em vez do código",

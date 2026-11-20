@@ -181,7 +181,6 @@ import { avisarNaIdentidade, criarFilaDePerfil, criarSalvarAvatar, ERRO_AO_SALVA
 import { renderEspaco } from "./telas/espaco.ts";
 import { diaDe, inicioDoDia } from "./lib/agenda.ts";
 import { agendaPorLer, escNaAgenda } from "./estado/agenda.ts";
-import { diaParaFocarNoMes } from "./telas/agenda-rotinas.ts";
 import { confirmarCriarBot, criarRapido } from "./telas/confirmar-criar-bot.ts";
 import { abrirCriarBot, type DepsCriarBot, type DepsDialogoCriarBot } from "./telas/criar-bot.ts";
 import { ATRASO_PARA_PERGUNTAR_MS, ATRASO_PARA_REFLETIR_MS, faseDasBoasVindas, htmlRefletindo, linhaDasBoasVindas, PLACEHOLDER_DA_PERGUNTA, type FaseDasBoasVindas } from "./telas/boas-vindas.ts";
@@ -202,6 +201,7 @@ import { blocosAoVivo, blocosDoHistorico, botaoDoPainel, pensarFechado, botoesDo
 import { criarArtefatosVivos } from "./telas/artefatos-vivos.ts";
 import { criarDiagramasVivos } from "./telas/diagramas-vivos.ts";
 import { instalarDicaDeLink } from "./lib/dica-link.ts";
+import { umaPorVez } from "./lib/uma-por-vez.ts";
 import { inventarioEmUso, motorDesatualizado, situacaoMotorFora } from "./telas/frota.ts";
 import { ehIa, fraseDoMotivoDaNota, inventarioDaIa, pedeInstalar } from "./telas/ia-fora.ts";
 import { renderRotinas } from "./telas/rotinas.ts";
@@ -209,7 +209,7 @@ import { nomesDosMembros, renderCabecalhoSala, renderNovaSala } from "./telas/sa
 import { abertasPorAgente, pedidoParaAguardando, perguntasPorAgente, renderIncidentes, renderSuaVez, rotinasParadasPorAgente, SUBTITULO_ESPERANDO, SUBTITULO_ROTINA_PARADA } from "./telas/sua-vez.ts";
 import { aparenciaDoComposer } from "./telas/pergunta.ts";
 import { BANDEJA, naoLidaDe, nomeDaConversa, renderNaoLidos, rotuloNaoLidos } from "./telas/nao-lidos.ts";
-import { mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
+import { DURACAO_AVISO_LOTE_MS, mostrarAvisoDesfazer } from "./lib/aviso-desfazer.ts";
 import { criarAtualizacaoNaWeb } from "./lib/atualizacao-app.ts";
 import { criarPonteSimuladaNaWeb, versaoSimuladaNaWeb } from "./lib/atualizacao-simulada-web.ts";
 import { mostrarAvisoAtualizado } from "./lib/aviso-atualizado.ts";
@@ -319,7 +319,7 @@ const paleta = criarPaleta({
     const botAberto = aberto ? porId.get(aberto) : undefined;
     return itensDaPaleta({
       mod: MOD_DA_PALETA,
-      atuais: { modo: MODO_NA_PALETA[botAberto?.modoAprovacao ?? "manual"] ?? "Manual", temaEscuro: document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches), quickChat: "⌥" },
+      atuais: { modo: MODO_NA_PALETA[botAberto?.modoAprovacao ?? "manual"] ?? "Manual", temaEscuro: document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches), quickChat: "⌥", rotinasAtivas: estado.rotinas.filter((r) => r.rotina.estado === "ativa" && r.rotina.ownerId === estado.sessao?.pessoaId).length },
       bots: bots.map((a) => ({ id: a.id, nome: a.nome, titulo: a.titulo, conversaId: a.conversaId, previa: previaDoBot(a), recencia: recencia.get(a.id) ?? 999 })),
       trabalhos: trabalhos.map((t) => ({ id: t.id, titulo: t.titulo, botNome: porId.get(t.agenteId)?.nome ?? "", quando: horaDaFala(new Date(t.criadoEm).toISOString()) })),
       salas: estado.salas.map(({ sala, membros }) => ({ id: sala.id, nome: sala.nome, conversaId: sala.conversaId, membros: membros.map((m) => porId.get(m.agenteId ?? "")?.nome).filter(Boolean).join(", ") })),
@@ -331,14 +331,37 @@ const paleta = criarPaleta({
 
 const MODO_NA_PALETA: Readonly<Record<string, string>> = { manual: "Manual", automatico: "Automático", total: "Total" };
 
-/** Paper 08: "Pausar todas as rotinas" — pausa cada rotina ativa da pessoa (a mesma ação da chave do painel). */
+/**
+ * Paper 08: "Pausar todas as rotinas". Desfazer a pausa em lote (protótipo do Paper, 2026-11-19): uma chamada só, que
+ * marca as rotinas com um lote, e o aviso de 15 s com o tempo à vista, Desfazer e ×. O Desfazer volta SÓ esse lote — as
+ * que a pessoa já tinha pausado antes ficam como estão —; passado o aviso, o lote segue em Ajustes › Rotinas.
+ */
 async function pausarTodasAsRotinas(): Promise<void> {
-  const ativas = estado.rotinas.filter((r) => r.rotina.estado === "ativa" && r.rotina.ownerId === estado.sessao?.pessoaId);
-  if (!api || !ativas.length) { anunciar("Nenhuma rotina ativa para pausar"); return; }
+  if (!api) return;
   const cliente = api;
-  await Promise.allSettled(ativas.map((r) => cliente.pausarRotina(r.rotina.id)));
-  anunciar(`${ativas.length} ${ativas.length === 1 ? "rotina pausada" : "rotinas pausadas"}`);
+  let r: Awaited<ReturnType<typeof cliente.pausarTodasRotinas>>;
+  try { r = await cliente.pausarTodasRotinas(); } catch { mostrarAvisoDesfazer({ texto: "Não deu para pausar as rotinas. Nada mudou." }); return; }
   dispatch({ tipo: "invalidar", quais: ["rotinas"] });
+  const lote = r.lote;
+  if (!lote || r.rotinaIds.length === 0) { mostrarAvisoDesfazer({ texto: "Nenhuma rotina ativa para pausar" }); return; }
+  const n = r.rotinaIds.length;
+  mostrarAvisoDesfazer({
+    texto: `${n} ${n === 1 ? "rotina pausada" : "rotinas pausadas"}`,
+    ms: DURACAO_AVISO_LOTE_MS,
+    contagem: true,
+    fechar: true,
+    aoDesfazer: () => reativarLoteDeRotinas(lote.id),
+  });
+}
+
+/** O Desfazer do aviso e o "Reativar as N" de Ajustes › Rotinas: a mesma rota, que volta só as rotinas do lote. */
+async function reativarLoteDeRotinas(loteId: string): Promise<void> {
+  if (!api) return;
+  const cliente = api;
+  let r: Awaited<ReturnType<typeof cliente.reativarLoteDeRotinas>>;
+  try { r = await cliente.reativarLoteDeRotinas(loteId); } catch { mostrarAvisoDesfazer({ texto: "Não deu para reativar as rotinas. Tente de novo em Ajustes › Rotinas." }); return; } finally { dispatch({ tipo: "invalidar", quais: ["rotinas"] }); }
+  const n = r.reativadas.length;
+  mostrarAvisoDesfazer({ texto: n === 0 ? "Nenhuma rotina para reativar" : `${n} ${n === 1 ? "rotina reativada" : "rotinas reativadas"}` });
 }
 
 function executarDaPaleta(item: ItemPaleta): void {
@@ -4279,7 +4302,6 @@ function render(): void {
     conexao: resumoConexao(),
     ...extrasDasConfiguracoes(),
   }) : "", { seletor: ".espaco-conteudo", chave: secaoAberta(estado) === "agentes" || secaoAberta(estado) === "rotinas" ? secaoAberta(estado) : null });
-  rolarAgenda();
   devolverSegredosSsh();
   document.getElementById("espaco")?.toggleAttribute("hidden", !estado.espaco);
   // A ligação em tela cheia também deixa a .app (e Seu espaço) inerte; a pílula não: a pessoa usa o nod com a ligação aberta.
@@ -4545,16 +4567,6 @@ const chaveDaRolagem = new Map<string, string | null>();
  * Revisão do #228 (2026-10-09): regrava a região e reabre os `<details data-disclosure>` que estavam abertos, devolvendo
  * o foco ao que o tinha. Este Mac é relida a cada 30 s (ADR-091), e o "porquê" aberto pela pessoa fechava sozinho.
  */
-// NOD-85: com a agenda carregada, abre no agora (ou vai até o dia pedido pela régua, mini mês ou link) e avisa o estado
-// para não rolar de novo no próximo quadro. O movimento suave sai com prefers-reduced-motion.
-function rolarAgenda(): void {
-  const ui = estado.agenda.ui;
-  if (!estado.espaco || secaoAberta(estado) !== "rotinas" || !estado.agenda.dto || (ui.alvo === null && !ui.rolarAgora)) return;
-  const alvo = ui.alvo ? document.getElementById(`ag-dia-${ui.alvo}`) : document.querySelector<HTMLElement>("#espaco .ag-agora");
-  const suave = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  alvo?.scrollIntoView({ block: ui.alvo ? "start" : "center", behavior: suave ? "smooth" : "auto" });
-  queueMicrotask(() => dispatch({ tipo: "agenda-rolou" }));
-}
 function regiaoReabrindo(id: string, html: string, rolagem?: { seletor: string; chave: string | null }): void {
   const raiz = document.getElementById(id);
   const chaveAntes = chaveDaRolagem.get(id) ?? null;
@@ -7998,44 +8010,30 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const maquina = el.dataset.maquina;
     if (maquina) realcarMaquina(maquina);
   },
-  // NOD-85: a agenda das rotinas (Configurações › Rotinas).
-  "agenda-ir": (el) => { if (el.dataset.dia) dispatch({ tipo: "agenda-ir", dia: el.dataset.dia }); },
-  "agenda-mes": (el) => {
-    const ui = estado.agenda.ui;
-    const mes = el.dataset.mes ?? (ui.mes === null ? (ui.foco ?? diaDe(estado.agora)).slice(0, 7) : null);
-    dispatch({ tipo: "agenda-ui", mudanca: { mes, aberto: null, menu: null } });
-    if (mes !== null && !el.dataset.mes) requestAnimationFrame(() => diaParaFocarNoMes((sel) => document.querySelector<HTMLElement>(sel))?.focus());
+  // Configurações › Rotinas em lista (2026-11-19; até então a agenda da NOD-85).
+  "agenda-visao": (el) => {
+    const visao = el.dataset.visao;
+    if (visao === "todas" || visao === "ativas" || visao === "pausadas") dispatch({ tipo: "agenda-ui", mudanca: { visao, aberto: null, menu: null, verTodas: false } });
   },
-  "agenda-bot": (el) => { if (el.dataset.id) dispatch({ tipo: "agenda-bot", id: el.dataset.id }); },
   "agenda-linha": (el) => {
-    const chave = el.dataset.chave ?? null;
+    const id = el.dataset.id ?? null;
     const ui = estado.agenda.ui;
-    dispatch({ tipo: "agenda-ui", mudanca: { aberto: ui.aberto === chave ? null : chave, menu: null, mes: null } });
-    // QA do PR #595 (B5): no celular a linha abre numa folha por cima; o foco vai para ela (o Esc o devolve à linha).
-    if (celular.ativo() && ui.aberto !== chave) requestAnimationFrame(() => document.querySelector<HTMLElement>("#espaco .ag-folha")?.focus());
-  },
-  "agenda-bloco": (el) => {
-    const chave = el.dataset.chave ?? null;
-    dispatch({ tipo: "agenda-ui", mudanca: { bloco: estado.agenda.ui.bloco === chave ? null : chave, aberto: null } });
+    dispatch({ tipo: "agenda-ui", mudanca: { aberto: ui.aberto === id ? null : id, menu: null } });
+    // QA do PR #595 (B5): no celular a rotina abre numa folha por cima; o foco vai para ela (o Esc o devolve à linha).
+    if (celular.ativo() && ui.aberto !== id) requestAnimationFrame(() => document.querySelector<HTMLElement>("#espaco .ag-folha")?.focus());
   },
   "agenda-tentar": () => dispatch({ tipo: "agenda-tentar" }),
   "agenda-so-problema": () => dispatch({ tipo: "agenda-ui", mudanca: { soProblema: false } }),
-  "agenda-todos": () => dispatch({ tipo: "agenda-ui", mudanca: { bots: [], soProblema: false, busca: null } }),
-  "agenda-busca-abrir": () => {
-    dispatch({ tipo: "agenda-ui", mudanca: { busca: "" } });
-    requestAnimationFrame(() => document.querySelector<HTMLInputElement>("[data-agenda-busca]")?.focus());
-  },
-  "agenda-busca-fechar": () => {
-    dispatch({ tipo: "agenda-ui", mudanca: { busca: null } });
-    requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-act="agenda-busca-abrir"]')?.focus());
-  },
+  "agenda-todos": () => { dispatch({ tipo: "agenda-bot", id: null }); dispatch({ tipo: "agenda-ui", mudanca: { soProblema: false, visao: "todas" } }); },
+  "agenda-ver-todas": () => dispatch({ tipo: "agenda-ui", mudanca: { verTodas: !estado.agenda.ui.verTodas } }),
   "agenda-pausadas": () => dispatch({ tipo: "agenda-ui", mudanca: { pausadasAbertas: !estado.agenda.ui.pausadasAbertas } }),
-  "agenda-fechar": () => dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null, mes: null } }),
-  // O link "Abrir na agenda" que o bot escreve (ver_agenda): abre Rotinas no dia, com o filtro de problema.
+  "agenda-lote": (el) => dispatch({ tipo: "agenda-ui", mudanca: { loteAberto: estado.agenda.ui.loteAberto === el.dataset.id ? null : el.dataset.id ?? null } }),
+  "reativar-lote": (el) => void reativarLoteDeRotinas(el.dataset.id ?? ""),
+  "agenda-fechar": () => dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null } }),
+  // O link "Abrir na agenda" que o bot escreve (ver_agenda): abre Rotinas, com o filtro de problema (o dia ficou da agenda).
   "abrir-agenda": (el) => {
-    const dia = el.dataset.dia;
     abrirEspaco("rotinas");
-    dispatch({ tipo: "agenda-abrir", hoje: diaDe(estado.agora), ...(dia ? { dia } : {}), soProblema: el.dataset.problema === "1" });
+    dispatch({ tipo: "agenda-abrir", hoje: diaDe(estado.agora), soProblema: el.dataset.problema === "1" });
   },
   // NOD-312: a carona "relê o necessário" e a marca "recomeçou" abrem e fecham a explicação logo abaixo (no DOM, sem
   // re-render: o foco fica no botão); o estado sobrevive ao próximo render da timeline (web/lib/recomeco.ts).
@@ -9017,8 +9015,9 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "bots-tarefas": (el) => abrirMenuDeBotsDasTarefas(el),
   "parar-sala": (el) =>
     agir(async () => {
-      const faixa = await api!.pararSala(el.dataset.id ?? "");
+      // A conversa é a da tela no clique: quem troca de bot enquanto o Parar volta não leva a faixa da sala junto.
       const alvo = conversaAtual();
+      const faixa = await api!.pararSala(el.dataset.id ?? "");
       dispatch({ tipo: "faixa", faixa, conversaId: alvo?.conversaId ?? null });
       if (alvo) dispatch({ tipo: "invalidar", quais: [`conversa:${alvo.conversaId}`] });
     }),
@@ -9577,6 +9576,15 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   }),
 };
 
+const emitirChavePelaTela = umaPorVez(async (form: HTMLFormElement) => {
+  await agir(async () => {
+    const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
+    const emitida = await api!.emitirChave(nome);
+    form.reset();
+    dispatch({ tipo: "chave-emitida", emitida });
+  });
+});
+
 const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
   // NOD-94: o formulário do SSH e a senha do sudo (os valores já estão no controlador, pelo `input`).
   "instalar-ssh": () => agir(async () => { await instalarSsh.enviar(); focarNovo(); }),
@@ -9655,13 +9663,7 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
       form.reset();
       dispatch({ tipo: "mcp-token-emitido", emitido });
     }),
-  "emitir-chave": (form) =>
-    agir(async () => {
-      const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() ?? "";
-      const emitida = await api!.emitirChave(nome);
-      form.reset();
-      dispatch({ tipo: "chave-emitida", emitida });
-    }),
+  "emitir-chave": async (form) => { await emitirChavePelaTela(form); },
   "criar-agente": (form) =>
     agir(async () => {
       const nome = (form.elements.namedItem("nome") as HTMLInputElement | null)?.value.trim() || undefined;
@@ -9842,7 +9844,7 @@ document.addEventListener("click", (ev) => {
   if (!el || el.tagName === "BUTTON" && (el as HTMLButtonElement).type === "submit" && el.closest("form[data-form]")) return;
   const acao = ACOES[el.dataset.act ?? ""];
   // NOD-85: a ação escolhida na folha ou no menu da agenda (celular) fecha a folha antes de agir.
-  if (acao && el.closest(".ag-folha") && !el.dataset.act?.startsWith("agenda-")) dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null, mes: null } });
+  if (acao && el.closest(".ag-folha") && !el.dataset.act?.startsWith("agenda-")) dispatch({ tipo: "agenda-ui", mudanca: { aberto: null, menu: null } });
   if (acao) void acao(el);
 });
 
@@ -10285,7 +10287,7 @@ document.addEventListener("keydown", (ev) => {
   // não fecha Seu espaço por trás do diálogo.
   if (ev.key === "Escape" && estado.espaco && !(ev.target as HTMLElement).closest?.("dialog") && !document.querySelector("dialog[open]")) {
     ev.preventDefault();
-    // NOD-85: na agenda, o Esc fecha antes o que está aberto (o mês, a busca, a folha ou a linha), um por vez.
+    // Em Rotinas, o Esc fecha antes o que está aberto (o menu, a folha ou a rotina aberta).
     const ag = secaoAberta(estado) === "rotinas" ? escNaAgenda(estado.agenda.ui) : null;
     if (ag) {
       dispatch({ tipo: "agenda-ui", mudanca: ag.mudanca });
@@ -10387,7 +10389,8 @@ document.addEventListener("input", (ev) => {
   if ((ta as HTMLElement).dataset?.actInput === "midia-audio-ir") { irNoAudio(ta as unknown as HTMLInputElement); return; }
   // ADR-167: a busca dos ajustes redesenha as Configurações (o campo volta com o foco pelo data-manter-foco).
   if ((ta as HTMLElement).id === "busca-ajustes") { termoAjustes = ta.value; render(); return; }
-  if ((ta as HTMLElement).matches?.("[data-agenda-busca]")) { dispatch({ tipo: "agenda-ui", mudanca: { busca: ta.value } }); return; }
+  // Rotinas: o "Todos os bots ⌄" (um <select>; o input dele chega aqui como o de qualquer campo).
+  if ((ta as HTMLElement).matches?.("[data-agenda-bot]")) { dispatch({ tipo: "agenda-bot", id: ta.value || null }); return; }
   // O código do Claude atravessa o redesenho do cartão (o foco volta pelo `manterFocoDoCodigo`).
   const iaDoCodigo = (ta as HTMLElement).dataset?.iaCodigo;
   if (ehIa(iaDoCodigo)) { dispatch({ tipo: "ias-mac", mudanca: { codigo: { ...estado.iasMac.codigo, [iaDoCodigo]: ta.value } } }); return; }
@@ -10705,7 +10708,7 @@ document.addEventListener("pointerdown", (ev) => {
   if (row) toqueLongo.comecar(row, ev.clientX, ev.clientY);
   else toqueLongo.esquecer();
 }, true);
-// NOD-85: no celular, segurar uma linha da agenda abre o menu dela (Ver na conversa, Testar, Pausar).
+// NOD-85: no celular, segurar uma rotina abre o menu dela (Testar, Pausar, Mudar pela conversa).
 // ADA-19 (protótipo ada-2 v2, passo 2.6): segurar o ‹ da conversa abre a folha de recentes; o clique que vem depois do
 // toque longo é engolido (não volta para Conversas). Shift+Enter e o menu de contexto abrem a mesma folha.
 const toqueNoVoltar = criarToqueLongo<HTMLElement>({ agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => clearTimeout(id), agora: () => performance.now() }, (bt) => {
@@ -10737,10 +10740,10 @@ document.addEventListener("keydown", (ev) => {
 }, true);
 
 const toqueNaAgenda = criarToqueLongo<HTMLElement>({ agendar: (fn, ms) => window.setTimeout(fn, ms), cancelar: (id) => clearTimeout(id), agora: () => performance.now() }, (linha) => {
-  const chave = linha.dataset.chave;
-  if (!chave || !linha.isConnected) return false;
+  const id = linha.dataset.id;
+  if (!id || !linha.isConnected) return false;
   navigator.vibrate?.(10);
-  dispatch({ tipo: "agenda-ui", mudanca: { menu: chave, aberto: null } });
+  dispatch({ tipo: "agenda-ui", mudanca: { menu: id, aberto: null } });
   // QA do PR #595 (B5): o menu do toque longo recebe o foco no primeiro item.
   requestAnimationFrame(() => document.querySelector<HTMLElement>('#espaco .ag-menu [role="menuitem"]')?.focus());
   return true;

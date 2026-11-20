@@ -146,6 +146,8 @@ export function useCasesDeTeste(): UseCasesNod {
     verAgendaPeloAgente: naoImplementado("verAgendaPeloAgente (L7)"),
     pausarRotinaPeloAgente: naoImplementado("pausarRotinaPeloAgente (L7)"),
     reativarRotinaPeloAgente: naoImplementado("reativarRotinaPeloAgente (L7)"),
+    pausarTodasRotinasPeloAgente: naoImplementado("pausarTodasRotinasPeloAgente (L7)"),
+    reativarLoteRotinasPeloAgente: naoImplementado("reativarLoteRotinasPeloAgente (L7)"),
     atualizarRotinaPeloAgente: naoImplementado("atualizarRotinaPeloAgente (L7)"),
     excluirRotinaPeloAgente: naoImplementado("excluirRotinaPeloAgente (L7)"),
     executarRotinaPeloAgente: naoImplementado("executarRotinaPeloAgente (L7)"),

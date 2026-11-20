@@ -34,6 +34,7 @@ import type {
   ResultadoPropostaRotina,
   ResultadoVerAgenda,
 } from "./ferramentas-rotina.ts";
+import type { ArgsPausarTodasRotinas, ArgsReativarLoteRotinas, ResultadoPausarTodasRotinas, ResultadoReativarLoteRotinas } from "./ferramentas-rotina-lote.ts";
 import type { ContratoFerramentasTimes } from "./ferramentas-times.ts";
 import type { ContratoFerramentasTrabalho } from "./ferramentas-trabalho.ts";
 import type { MotivoPasse, MotivoSemNovidade } from "./motivos.ts";
@@ -72,6 +73,8 @@ export type ContratoFerramentaNod = ContratoFerramentasCartoes & ContratoFerrame
   ver_agenda: { args: ArgsVerAgenda; resultado: ResultadoVerAgenda };
   pausar_rotina: { args: ArgsPausarRotina; resultado: ResultadoAlternarRotina };
   reativar_rotina: { args: ArgsReativarRotina; resultado: ResultadoAlternarRotina };
+  pausar_todas_rotinas: { args: ArgsPausarTodasRotinas; resultado: ResultadoPausarTodasRotinas };
+  reativar_lote_rotinas: { args: ArgsReativarLoteRotinas; resultado: ResultadoReativarLoteRotinas };
   atualizar_rotina: { args: ArgsAtualizarRotina; resultado: ResultadoPropostaRotina };
   excluir_rotina: { args: ArgsExcluirRotina; resultado: ResultadoPropostaRotina };
   executar_rotina: { args: ArgsExecutarRotina; resultado: ResultadoPropostaRotina };
