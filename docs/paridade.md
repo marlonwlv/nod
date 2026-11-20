@@ -148,7 +148,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `navegador.login` | Escolher como o bot entra num site: um login do cofre (nod, 1Password, Bitwarden), entrar eu mesmo ou trazer do meu Chrome | muda | nunca: o login vai do cofre direto ao campo da página; a escolha é um clique no cartão e a senha nunca passa pelo chat nem pelo bot (ADR-177, ADR-190 decisão 6) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/login$` |
 | `navegador.codigo` | Mandar o código de uso único (SMS, e-mail, app) direto para a página do navegador do bot | muda | nunca: o código vai do campo privado do cartão para a página; digitado no chat, passaria pela conversa e pelo bot | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/codigo$` |
 | `navegador.guardar_login` | Guardar no cofre (nod, 1Password, Bitwarden) o login que a pessoa digitou no navegador do bot, ou descartar | muda | nunca: guardar grava a senha que a pessoa digitou na página; ela fica só na memória do servidor e nunca passa pelo chat | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/guardar-login$` |
-| `navegador.apagar_tarefa` | Apagar uma tarefa ensinada (habilidade) do bot | muda | falta (NOD-396) | `DELETE ^\/agentes\/(?<id>[^/]+)\/navegador\/tarefas\/(?<tarefa>[^/]+)$` |
+| `navegador.apagar_tarefa` | Apagar uma tarefa ensinada (habilidade) do bot | muda | falta (NOD-396) | `DELETE ^\/agentes\/(?<id>[^/]+)\/navegador\/habilidades\/(?<tarefa>[^/]+)$` |
 | `navegador.ensinar` | Ensinar uma tarefa ao bot no navegador (começar, descartar, salvar) | muda | nunca: ensinar é a pessoa fazendo com as próprias mãos no navegador do bot; o que vai ao chat é a mensagem dela com os passos | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/ensinar$` |
 
 ## cofre
