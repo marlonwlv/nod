@@ -131,3 +131,17 @@ export function perguntaDaAcao(classe: Exclude<ClasseAcaoNavegador, "livre" | "s
 export function siteLegivel(host: string): string {
   return host.replace(/^www\./, "") || host;
 }
+
+/**
+ * As liberações guardadas (`navegador_preferencias.liberacoes`, 0180) como o portão as usa: o que não tem o formato
+ * (host vazio, teto negativo ou fracionado, destino vazio) cai fora em vez de virar uma liberação larga.
+ */
+export function lerLiberacoes(cru: unknown): LiberacoesNavegador {
+  const o = typeof cru === "object" && cru !== null && !Array.isArray(cru) ? (cru as Record<string, unknown>) : {};
+  const lista = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x)) : []);
+  const host = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+  return {
+    pagar: lista(o.pagar).flatMap((l) => (host(l.host) && typeof l.ateCentavos === "number" && Number.isSafeInteger(l.ateCentavos) && l.ateCentavos >= 0 ? [{ host: host(l.host), ateCentavos: l.ateCentavos }] : [])),
+    enviar: lista(o.enviar).flatMap((l) => (host(l.host) && typeof l.destino === "string" && l.destino.trim() ? [{ host: host(l.host), destino: l.destino.trim() }] : [])),
+  };
+}

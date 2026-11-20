@@ -63,3 +63,15 @@ export function horaCurta(ms: number, fusoMin = -180): string {
   const d = new Date(ms + fusoMin * 60_000);
   return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
+
+/** Os campos de topo da vista que mudaram (o frame `navegador.mudou` diz só isto; a web relê por REST). */
+export function camposQueMudaram(antes: VistaNavegador | null, depois: VistaNavegador): (keyof VistaNavegador)[] {
+  const chaves = Object.keys(depois) as (keyof VistaNavegador)[];
+  if (!antes) return chaves;
+  return chaves.filter((k) => antes[k] !== depois[k] && JSON.stringify(antes[k]) !== JSON.stringify(depois[k]));
+}
+
+/** Estados em que há Chrome para assistir (o canal ao vivo liga o stream só neles). */
+export function temChromeVivo(estado: EstadoNavegador): boolean {
+  return estado === "ligando" || estado === "conectando" || estado === "ao_vivo" || estado === "rede_fraca" || estado === "terminou";
+}

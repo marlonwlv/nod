@@ -177,7 +177,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     }
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
-      vista: { agenteId, estado: "desligado", controle: "bot", lugar: lugarDe(escopo, agenteId), abas: [], aviso: null, passo: null, pedido: null, gravacao: null, segredoNaPagina: false, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
+      vista: { agenteId, estado: "desligado", controle: "bot", lugar: lugarDe(escopo, agenteId), abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
     return novo;

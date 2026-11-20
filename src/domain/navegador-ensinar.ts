@@ -85,3 +85,26 @@ export function nomeSugerido(g: Gravacao): string {
   if (c && s) return `${c} em ${s}`;
   return c || s || "Tarefa ensinada";
 }
+
+/**
+ * O elemento sob o clique da pessoa, como o servidor o descreve na página (papel, nome acessível, rótulo do campo, tipo
+ * do input). Nunca o valor do campo.
+ */
+export type ElementoNaPagina = { papel: string; nome: string; rotulo: string; tipo: string | null; autocomplete: string | null; editavel: boolean };
+
+/** Papéis que a gravação guarda como "Clicou em …". Campo de texto vira o campo da próxima digitação, não um clique. */
+const PAPEIS_DO_CLIQUE: ReadonlySet<string> = new Set(["button", "link", "menuitem", "tab", "option", "checkbox", "radio", "switch", "combobox", "treeitem", "menuitemcheckbox", "menuitemradio"]);
+
+/** O clique gravado; null = não vale um passo (texto solto, o fundo da página, um campo de digitar). */
+export function eventoDoClique(el: ElementoNaPagina | null): EventoGravado | null {
+  if (!el || el.editavel) return null;
+  const nome = (el.nome || el.rotulo).trim();
+  if (!nome || !PAPEIS_DO_CLIQUE.has(el.papel.toLowerCase())) return null;
+  return { tipo: "clicou", papel: el.papel, nome: nome.slice(0, 200) };
+}
+
+/** O campo em que a pessoa digita: o rótulo (ou o nome acessível) e se é secreto. Nunca o que ela digitou. */
+export function campoDoElemento(el: ElementoNaPagina, secreto: (p: { papel: string; nome: string; tipo?: string | null; autocomplete?: string | null }) => boolean): { campo: string; protegido: boolean } {
+  const campo = (el.rotulo || el.nome).replace(/\s+/g, " ").trim().slice(0, 120) || "um campo";
+  return { campo, protegido: secreto({ papel: el.papel === "textbox" || el.papel === "searchbox" ? el.papel : "textbox", nome: campo, tipo: el.tipo, autocomplete: el.autocomplete }) };
+}

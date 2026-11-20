@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_CATALOGO, FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
-import { classificarAcao, classificarAlvo, decidirNoNavegador, SEM_LIBERACOES, valorDoRotulo } from "../../../src/domain/navegador-aprovacao.ts";
+import type { VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
+import { classificarAcao, classificarAlvo, decidirNoNavegador, lerLiberacoes, SEM_LIBERACOES, valorDoRotulo } from "../../../src/domain/navegador-aprovacao.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../../src/domain/navegador-catalogo.ts";
-import { arquivoDosPassos, fraseDoPasso, gravar, hostDaUrl, MAX_PASSOS_GRAVACAO, nomeSugerido, novaGravacao, rotuloDaGravacao } from "../../../src/domain/navegador-ensinar.ts";
+import { comandosDaEntrada, entradaDigita, lerEntradaNavegador, TEXTO_MAX_ENTRADA } from "../../../src/domain/navegador-entrada.ts";
+import { arquivoDosPassos, campoDoElemento, eventoDoClique, fraseDoPasso, gravar, hostDaUrl, MAX_PASSOS_GRAVACAO, nomeSugerido, novaGravacao, rotuloDaGravacao, type ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
 import { fraseDaPergunta, fraseDoLugar, maquinaPreferida, resolverLugar, subtituloDoInterruptor, type EntradaLugar } from "../../../src/domain/navegador-lugar.ts";
 import { campoEhSecreto, MARCA_PROTEGIDO, redigirArvore, redigirSegredos, segredoAindaNaPagina } from "../../../src/domain/navegador-sensivel.ts";
-import { botPodeAgir, deveriaPausar, PAUSA_APOS_MS, proximoControle } from "../../../src/domain/navegador-vista.ts";
+import { botPodeAgir, camposQueMudaram, deveriaPausar, PAUSA_APOS_MS, proximoControle } from "../../../src/domain/navegador-vista.ts";
 
 const botao = (nome: string, host = "tap.pt") => ({ papel: "button", nome, host });
 
@@ -181,7 +183,7 @@ describe("vista e controle (D3, D4)", () => {
     expect(deveriaPausar(v, PAUSA_APOS_MS - 1)).toBe(false);
     expect(deveriaPausar(v, PAUSA_APOS_MS)).toBe(true);
     expect(deveriaPausar({ ...v, controle: "pessoa" }, PAUSA_APOS_MS)).toBe(false);
-    expect(deveriaPausar({ ...v, gravacao: { desde: 0, passos: [] } }, PAUSA_APOS_MS)).toBe(false);
+    expect(deveriaPausar({ ...v, gravacao: { desde: 0, passos: [], parou: null } }, PAUSA_APOS_MS)).toBe(false);
   });
 
   it("assumir, devolver, pedir e resolver", () => {
@@ -193,5 +195,85 @@ describe("vista e controle (D3, D4)", () => {
     expect(proximoControle("precisa_de_voce", "resolver")).toBe("bot");
     expect(botPodeAgir("pessoa")).toBe(false);
     expect(botPodeAgir("bot")).toBe(true);
+  });
+});
+
+describe("entrada da pessoa no canal ao vivo", () => {
+  const vp = { w: 1280, h: 720 };
+  it("mouse: números finitos dentro do viewport, botão, cliques e modificadores no formato; o resto cai", () => {
+    expect(lerEntradaNavegador({ t: "mouse", evento: "mousePressed", x: 10, y: 20, botao: "left", cliques: 1 }, vp)).toMatchObject({ t: "mouse", evento: "mousePressed", x: 10, y: 20, botao: "left", cliques: 1, modificadores: 0 });
+    for (const ruim of [
+      { t: "mouse", evento: "mousePressed", x: 1281, y: 1 }, { t: "mouse", evento: "mousePressed", x: -1, y: 1 }, { t: "mouse", evento: "mouseMoved", x: Number.NaN, y: 1 },
+      { t: "mouse", evento: "mouseMoved", x: 1, y: "2" }, { t: "mouse", evento: "mouseDown", x: 1, y: 1 }, { t: "mouse", evento: "mousePressed", x: 1, y: 1, botao: "back" },
+      { t: "mouse", evento: "mousePressed", x: 1, y: 1, cliques: 4 }, { t: "mouse", evento: "mouseWheel", x: 1, y: 1, dy: 1e9 }, { t: "mouse", evento: "mouseMoved", x: 1, y: 1, modificadores: 16 },
+      { t: "outra" }, null, "texto", [],
+    ]) expect(lerEntradaNavegador(ruim, vp)).toBeNull();
+  });
+
+  it("tecla: char exige texto até 4096; keyDown/keyUp exigem tecla até 64", () => {
+    expect(lerEntradaNavegador({ t: "tecla", evento: "char", texto: "olá" }, vp)).toEqual({ t: "tecla", evento: "char", texto: "olá", modificadores: 0 });
+    expect(lerEntradaNavegador({ t: "tecla", evento: "char", texto: "x".repeat(TEXTO_MAX_ENTRADA + 1) }, vp)).toBeNull();
+    expect(lerEntradaNavegador({ t: "tecla", evento: "char", texto: "" }, vp)).toBeNull();
+    expect(lerEntradaNavegador({ t: "tecla", evento: "keyDown" }, vp)).toBeNull();
+    expect(lerEntradaNavegador({ t: "tecla", evento: "keyDown", tecla: "a".repeat(65) }, vp)).toBeNull();
+    expect(lerEntradaNavegador({ t: "tecla", evento: "keyDown", tecla: "a", codigo: "KeyA", texto: "a", modificadores: 8 }, vp)).toMatchObject({ tecla: "a", codigo: "KeyA", texto: "a", modificadores: 8 });
+  });
+
+  it("tradução (medida em 2026-11-20): char vira keyDown com texto; Backspace e atalhos vão como press; a tecla solta do press não vai", () => {
+    const e = (cru: unknown) => comandosDaEntrada(lerEntradaNavegador(cru, vp)!);
+    expect(e({ t: "tecla", evento: "char", texto: "çã" })).toEqual([
+      { via: "stream", mensagem: { type: "input_keyboard", eventType: "keyDown", key: "Unidentified", text: "çã" } },
+      { via: "stream", mensagem: { type: "input_keyboard", eventType: "keyUp", key: "Unidentified" } },
+    ]);
+    expect(e({ t: "tecla", evento: "keyDown", tecla: "Backspace" })).toEqual([{ via: "relay", comando: { action: "press", key: "Backspace" } }]);
+    expect(e({ t: "tecla", evento: "keyUp", tecla: "Backspace" })).toEqual([]);
+    expect(e({ t: "tecla", evento: "keyDown", tecla: "a", modificadores: 4 })).toEqual([{ via: "relay", comando: { action: "press", key: "Meta+a" } }]);
+    expect(e({ t: "tecla", evento: "keyDown", tecla: "A", modificadores: 8 })).toEqual([{ via: "stream", mensagem: { type: "input_keyboard", eventType: "keyDown", key: "A", text: "A", modifiers: 8 } }]);
+    expect(e({ t: "tecla", evento: "keyDown", tecla: "Shift", modificadores: 8 })).toEqual([]);
+    expect(e({ t: "mouse", evento: "mousePressed", x: 5, y: 6 })).toEqual([{ via: "stream", mensagem: { type: "input_mouse", eventType: "mousePressed", x: 5, y: 6, button: "left", clickCount: 1, deltaX: 0, deltaY: 0, modifiers: 0 } }]);
+    expect(e({ t: "mouse", evento: "mouseMoved", x: 5, y: 6 })[0]).toMatchObject({ mensagem: { button: "none", clickCount: 0 } });
+  });
+
+  it("o que conta como digitar (para a gravação)", () => {
+    const d = (cru: unknown) => entradaDigita(lerEntradaNavegador(cru, vp)!);
+    expect(d({ t: "tecla", evento: "char", texto: "a" })).toBe(true);
+    expect(d({ t: "tecla", evento: "keyDown", tecla: "a" })).toBe(true);
+    expect(d({ t: "tecla", evento: "keyDown", tecla: "Backspace" })).toBe(true);
+    expect(d({ t: "tecla", evento: "keyDown", tecla: "Enter" })).toBe(false);
+    expect(d({ t: "tecla", evento: "keyDown", tecla: "c", modificadores: 2 })).toBe(false);
+    expect(d({ t: "tecla", evento: "keyUp", tecla: "a" })).toBe(false);
+    expect(d({ t: "mouse", evento: "mousePressed", x: 1, y: 1 })).toBe(false);
+  });
+});
+
+describe("gravação: clique e campo (T)", () => {
+  const el = (o: Partial<ElementoNaPagina>): ElementoNaPagina => ({ papel: "button", nome: "", rotulo: "", tipo: null, autocomplete: null, editavel: false, ...o });
+  it("clique em botão ou link vira passo; campo de digitar, texto solto e sem nome não", () => {
+    expect(eventoDoClique(el({ nome: "Baixar fatura" }))).toEqual({ tipo: "clicou", papel: "button", nome: "Baixar fatura" });
+    expect(eventoDoClique(el({ papel: "link", rotulo: "Faturas" }))).toEqual({ tipo: "clicou", papel: "link", nome: "Faturas" });
+    expect(eventoDoClique(el({ papel: "textbox", nome: "E-mail", editavel: true }))).toBeNull();
+    expect(eventoDoClique(el({ papel: "paragraph", nome: "Bem-vindo" }))).toBeNull();
+    expect(eventoDoClique(el({ nome: "  " }))).toBeNull();
+    expect(eventoDoClique(null)).toBeNull();
+  });
+  it("o campo leva o rótulo e diz se é secreto (senha pelo tipo, cartão pelo nome)", () => {
+    expect(campoDoElemento(el({ papel: "textbox", rotulo: "E-mail", editavel: true }), campoEhSecreto)).toEqual({ campo: "E-mail", protegido: false });
+    expect(campoDoElemento(el({ papel: "textbox", rotulo: "Entrar", tipo: "password", editavel: true }), campoEhSecreto)).toEqual({ campo: "Entrar", protegido: true });
+    expect(campoDoElemento(el({ papel: "textbox", nome: "Número do cartão", editavel: true }), campoEhSecreto).protegido).toBe(true);
+    expect(campoDoElemento(el({ papel: "textbox", editavel: true }), campoEhSecreto).campo).toBe("um campo");
+  });
+});
+
+describe("liberações guardadas e vista que mudou", () => {
+  it("lerLiberacoes descarta o que não tem formato e baixa o host", () => {
+    expect(lerLiberacoes({ pagar: [{ host: "Loja.com", ateCentavos: 100 }, { host: "x", ateCentavos: 1.5 }, "lixo"], enviar: [{ host: "m.com", destino: " a@b " }, { host: "m.com" }] })).toEqual({ pagar: [{ host: "loja.com", ateCentavos: 100 }], enviar: [{ host: "m.com", destino: "a@b" }] });
+    expect(lerLiberacoes(null)).toEqual(SEM_LIBERACOES);
+    expect(lerLiberacoes([1, 2])).toEqual(SEM_LIBERACOES);
+  });
+  it("camposQueMudaram compara por valor, campo a campo", () => {
+    const v = { agenteId: "a", estado: "ao_vivo", controle: "bot", abas: [{ id: "t1" }], viewport: { w: 1, h: 1 } } as never as VistaNavegador;
+    expect(camposQueMudaram(v, { ...v, abas: [{ id: "t1" }] } as never)).toEqual([]);
+    expect(camposQueMudaram(v, { ...v, controle: "pessoa", viewport: { w: 2, h: 1 } } as never)).toEqual(["controle", "viewport"]);
+    expect(camposQueMudaram(null, v).length).toBe(Object.keys(v).length);
   });
 });

@@ -46,8 +46,11 @@ export type PedidoDaVistaNavegador =
   | { tipo: "ajuda"; decisaoId: string; motivo: string }
   | { tipo: "aprovacao"; decisaoId: string; pergunta: string; botao: string; touchId: boolean };
 
-/** A gravação de "Ensinar uma tarefa" (T). */
-export type GravacaoNavegador = { desde: number; passos: readonly string[] };
+/** A gravação de "Ensinar uma tarefa" (T). `parou`: bateu no teto de passos ou de tempo e não grava mais. */
+export type GravacaoNavegador = { desde: number; passos: readonly string[]; parou: "passos" | "tempo" | null };
+
+/** A gravação que a devolução ao bot descartou: a web oferece "Desfazer" até `ate` (10 s). */
+export type DescarteNavegador = { passos: number; ate: number };
 
 export type VistaNavegador = {
   agenteId: string;
@@ -59,6 +62,7 @@ export type VistaNavegador = {
   passo: PassoNavegador | null;
   pedido: PedidoDaVistaNavegador | null;
   gravacao: GravacaoNavegador | null;
+  descarte: DescarteNavegador | null;
   /** Segredo na página (L3): a vista some e a leitura do bot trava até a página mudar. */
   segredoNaPagina: boolean;
   /** Quando o bot terminou (D3, 5) ou parou de mexer (pausa em 10 min). */
@@ -68,16 +72,36 @@ export type VistaNavegador = {
   viewport: { w: number; h: number };
 };
 
-/** Quadros do canal ao vivo, servidor → web (JSON por WebSocket). */
+/**
+ * Quadros do canal ao vivo, servidor → web (JSON por WebSocket, `/api/t/:tenant/agentes/:id/navegador/vivo`).
+ * `quadro`: o JPEG da tela (base64), no máximo ~10 por segundo; some enquanto `vista.segredoNaPagina`. `vista`: a vista
+ * inteira, a cada mudança e como resposta a uma entrada recusada (a pessoa não está no controle). `fim`: o servidor vai
+ * fechar este canal (`motivo` em MOTIVOS_FIM_NAVEGADOR).
+ */
 export type QuadroAoVivoNavegador =
   | { t: "quadro"; seq: number; jpeg: string; w: number; h: number }
   | { t: "vista"; vista: VistaNavegador }
   | { t: "fim"; motivo: string };
 
+/** Por que o canal ao vivo fecha (o `motivo` do `fim`). */
+export const MOTIVOS_FIM_NAVEGADOR = ["outra_janela", "nao_permitido", "servidor_desligando"] as const;
+export type MotivoFimNavegador = (typeof MOTIVOS_FIM_NAVEGADOR)[number];
+
+/** Códigos de fechamento do canal ao vivo (os 4xxx são da aplicação; os mesmos da tela do computador, ADR-138). */
+export const FECHAMENTOS_NAVEGADOR_VIVO = { recusado: 4403, trocou: 4409, sessao: 4401 } as const;
+
 /** Entrada da pessoa no controle, web → servidor (coordenadas já na escala do viewport). */
 export type EntradaNavegador =
   | { t: "mouse"; evento: "mousePressed" | "mouseReleased" | "mouseMoved" | "mouseWheel"; x: number; y: number; botao?: "left" | "right" | "middle"; cliques?: number; dx?: number; dy?: number; modificadores?: number }
   | { t: "tecla"; evento: "keyDown" | "keyUp" | "char"; tecla?: string; codigo?: string; texto?: string; modificadores?: number };
+
+/** POST /agentes/:id/navegador {operacao}: o que a pessoa faz com o navegador do bot. */
+export const OPERACOES_NAVEGADOR = ["assumir", "devolver", "resolver", "ligar", "encerrar", "retomar", "recarregar"] as const;
+export type OperacaoNavegador = (typeof OPERACOES_NAVEGADOR)[number];
+
+/** POST /agentes/:id/navegador/ensinar {operacao, nome?} (T). */
+export const OPERACOES_ENSINAR = ["comecar", "descartar", "salvar", "desfazer_descarte"] as const;
+export type OperacaoEnsinar = (typeof OPERACOES_ENSINAR)[number];
 
 /** Escolha da pessoa sobre onde o bot continua com o Mac desligado (N). */
 export type EscolhaLugarNavegador = { continuaSemMac: boolean; maquinaId: string | null; soNaMaquina: boolean };
