@@ -18,13 +18,19 @@ export interface Ancora {
   /** Avisado quando o menu sai (escolhendo ou não), antes da escolha. */
   aoFechar?: (() => void) | undefined;
   /** Sem ponto: de que lado da âncora e como alinhado (padrão: à direita, pelo topo), e a que distância. */
-  lado?: "right" | "bottom" | undefined;
+  lado?: "right" | "bottom" | "top" | undefined;
+  /** O que recebe o foco ao abrir (padrão: o 1º item habilitado). */
+  focoInicial?: string | undefined;
   alinhar?: "start" | "center" | "end" | undefined;
   distancia?: number | undefined;
   /** Uma classe a mais no popup (`menu-pilula`, `menu-fala`…), como o nativo põe no `<dialog>`. */
   classe?: string | undefined;
   /** ← → andam como ↓ ↑ entre os itens (o menu da fala, com a linha de emojis). */
   setasDosLados?: boolean | undefined;
+  /** O menu vai fechar (`escape-key`, `outside-press`, `item-press`…): false o mantém aberto (o Esc que só fecha a confirmação). */
+  aoPedirFechar?: ((motivo: string) => boolean) | undefined;
+  /** Para fechar por código (`acoes.current.close()`). */
+  acoes?: { current: { close: () => void; unmount: () => void } | null } | undefined;
 }
 
 export function MenuAncorado({ a, rotulo, escolhida, sair, children }: {
@@ -43,7 +49,13 @@ export function MenuAncorado({ a, rotulo, escolhida, sair, children }: {
   const ponto = a.ponto;
   const ancora = ponto ? { getBoundingClientRect: () => DOMRect.fromRect({ x: ponto.x + 4, y: ponto.y + 4, width: 0, height: 0 }) } : a.ancora;
   return (
-    <Menu.Root defaultOpen modal onOpenChange={(o) => { if (!o) setTimeout(terminar, 1000); }} onOpenChangeComplete={(o) => { if (!o) terminar(); }}>
+    <Menu.Root defaultOpen modal actionsRef={a.acoes}
+      onOpenChange={(o, d) => {
+        if (o) return;
+        if (a.aoPedirFechar && !a.aoPedirFechar(d.reason)) { d.cancel(); return; }
+        setTimeout(terminar, 1000);
+      }}
+      onOpenChangeComplete={(o) => { if (!o) terminar(); }}>
       <Menu.Portal>
         <Menu.Positioner className="rx-menu-pos" anchor={ancora} side={ponto ? "bottom" : a.lado ?? "right"} align={ponto ? "start" : a.alinhar ?? "start"} sideOffset={ponto ? 0 : a.distancia ?? 0} collisionPadding={12}
           collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}>
@@ -56,7 +68,7 @@ export function MenuAncorado({ a, rotulo, escolhida, sair, children }: {
               ev.preventDefault();
               itens[(i + (ev.key === "ArrowRight" ? 1 : -1) + itens.length) % itens.length]?.focus();
             } : undefined}
-            ref={(el) => { if (el) requestAnimationFrame(() => { if (el.isConnected && !el.contains(document.activeElement)) el.querySelector<HTMLElement>('[role^="menuitem"]:not([disabled]):not([aria-disabled="true"])')?.focus(); }); }}>
+            ref={(el) => { if (el) requestAnimationFrame(() => { if (el.isConnected && !el.contains(document.activeElement)) ((a.focoInicial ? el.querySelector<HTMLElement>(a.focoInicial) : null) ?? el.querySelector<HTMLElement>('[role^="menuitem"]:not([disabled]):not([aria-disabled="true"])'))?.focus(); }); }}>
             {children}
           </Menu.Popup>
         </Menu.Positioner>

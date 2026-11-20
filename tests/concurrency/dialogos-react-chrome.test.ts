@@ -27,6 +27,14 @@ import { abrirLuzNoReact } from "./web/react/dialogos/luz.tsx";
 import { abrirArtefatoNoReact } from "./web/react/dialogos/artefato.tsx";
 import { abrirMenuDoBotNoReact } from "./web/react/dialogos/menu-do-bot.tsx";
 import { abrirMenuDeHtmlNoReact } from "./web/react/dialogos/menu-de-html.tsx";
+import { abrirMenuModoNoReact } from "./web/react/dialogos/menu-modo.tsx";
+window.__menuModo = () => {
+  window.__modo = null;
+  let b = document.getElementById("chip-modo");
+  if (!b) { b = Object.assign(document.createElement("button"), { id: "chip-modo", textContent: "modo" }); b.style.cssText = "position:fixed;left:300px;top:720px;width:40px;height:32px"; document.body.append(b); }
+  b.focus();
+  abrirMenuModoNoReact(document, b, "Ada", "manual", (modo, confirmado) => { window.__modo = modo + ":" + confirmado; window.__focoNoModo = document.activeElement?.id; });
+};
 window.__menuHtml = (html, extra = {}) => {
   window.__escolha = null; window.__fechou = false;
   let linha = document.getElementById("linha-bot") ?? document.getElementById("antes");
@@ -387,5 +395,41 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await tecla("Enter", "Enter", 13);
     await ate(`window.__escolha === "❤️"`);
     await ate(`!document.querySelector(".rx-menu-host")`);
+  }, 60_000);
+
+  it("o menu do modo: acima do botão com o foco no atual; o total abre a confirmação (foco em Agora não); Esc fecha só ela; o clique apressado não conta; confirmar escolhe", async () => {
+    await esperar(300);
+    await avaliar(cdp, "window.__menuModo()");
+    await ate(`document.activeElement?.dataset?.modo === "manual"`);
+    const r = await avaliar<{ fundo: number; esquerda: number }>(cdp, `(() => { const m = document.querySelector(".bot-menu.rx-menu.modo-menu").getBoundingClientRect(); return { fundo: Math.round(m.bottom), esquerda: Math.round(m.left) }; })()`);
+    expect(r).toEqual({ fundo: 712, esquerda: 300 });
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.modo === "total"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`document.activeElement?.dataset?.confirma === "nao"`);
+    expect(await avaliar<string | null>(cdp, `document.querySelector('.rx-menu [data-modo="total"]').getAttribute("aria-expanded")`)).toBe("true");
+    // O menu cresceu e continua acima do botão.
+    expect(await avaliar<number>(cdp, `Math.round(document.querySelector(".modo-menu.rx-menu").getBoundingClientRect().bottom)`)).toBe(712);
+    await tecla("Escape", "Escape", 27);
+    await ate(`!document.querySelector(".rx-menu .modo-confirma")`);
+    await ate(`document.activeElement?.dataset?.modo === "total"`);
+    expect(await avaliar<boolean>(cdp, `!!document.querySelector(".rx-menu-host")`)).toBe(true);
+    await tecla("Enter", "Enter", 13);
+    await ate(`document.querySelector('.rx-menu [data-confirma="sim"]')`);
+    const sim = async () => {
+      const p = await avaliar<{ x: number; y: number }>(cdp, `(() => { const r = document.querySelector('.rx-menu [data-confirma="sim"]').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+      for (const type of ["mouseMoved", "mousePressed", "mouseReleased"] as const) await cdp.enviar("Input.dispatchMouseEvent", { type, x: p.x, y: p.y, button: "left", clickCount: 1 });
+    };
+    // Logo depois de a confirmação abrir, o clique não conta (o segundo de um duplo clique).
+    await sim();
+    await esperar(150);
+    expect(await avaliar<unknown>(cdp, "window.__modo")).toBeNull();
+    await esperar(600);
+    await sim();
+    await ate(`window.__modo === "total:true"`);
+    expect(await avaliar<string>(cdp, "window.__focoNoModo")).toBe("chip-modo");
+    await ate(`!document.querySelector(".rx-menu-host")`);
+    expect(await avaliar<string | null>(cdp, `document.getElementById("chip-modo").getAttribute("aria-expanded")`)).toBe("false");
   }, 60_000);
 });

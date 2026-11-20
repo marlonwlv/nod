@@ -77,7 +77,7 @@ import { controleDaFolha, linhasDoBot, linhasVisiveis, renderFolhaMais, rotuloDo
 import { abrirMenuModo } from "./lib/menu-modo.ts";
 import { abrirMenuIa } from "./lib/menu-ia.ts";
 import { dadosDoSeletor, mioloDoSeletor, pedidoDoSeletor, renderMenuIa, rotuloDoSeletor } from "./telas/seletor-ia.ts";
-import type { FormaAgente, CorAgente } from "../src/contracts/agente.ts";
+import type { FormaAgente, CorAgente, ModoAprovacao } from "../src/contracts/agente.ts";
 import type { AmbienteBancoDto, ModoSessaoDto } from "../src/contracts/api.ts";
 import type { PedidoInteligencia } from "../src/contracts/inteligencia.ts";
 import { abrir as abrirLote, cancelar as cancelarLote, marcar as marcarLote, marcarTodos as marcarTodosLote, previaDoLote, valorComum as valorComumLote, type AcaoLote, type IaDoLote, type LoteAgentes } from "./lib/lote-agentes.ts";
@@ -4239,9 +4239,12 @@ function abrirModoAprovacao(el: HTMLElement): void {
   const bot = t.tipo === "conversa" ? botGerido(t.agenteId) : undefined;
   if (!bot || bot.ownerId !== estado.sessao?.pessoaId) return;
   // O total só chega aqui com `confirmado` (o segundo clique do menu); a linha de sistema na conversa confirma a troca.
-  abrirMenuModo(el, bot.nome, bot.modoAprovacao ?? "manual", (modo, confirmado) => {
+  const escolher = (modo: ModoAprovacao, confirmado: boolean): void => {
     void agir(async () => { await mudarGestao(() => api!.mudarModoAprovacao(bot.id, modo, confirmado)); });
-  }, estado.frota?.revisor === true);
+  };
+  // ADR-179: o do Base UI quando o módulo dos diálogos chegou (o mesmo HTML e a mesma regra do menu nativo).
+  const abrir = moduloDosDialogos ? moduloDosDialogos.abrirMenuModoNoReact.bind(null, document) : abrirMenuModo;
+  abrir(el, bot.nome, bot.modoAprovacao ?? "manual", escolher, estado.frota?.revisor === true);
 }
 
 /**

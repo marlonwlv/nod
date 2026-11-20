@@ -18,6 +18,13 @@ export interface MenuDeHtml extends Ancora {
   expandir?: { seletor: string; html: () => string; focar: string } | undefined;
   /** O rótulo do popup no lugar do `aria-label` do HTML (o nativo o põe no `<dialog>`). */
   rotulo?: string | undefined;
+  /**
+   * Quem decide cada clique (o menu do modo): `null` ignora; `{ fechar }` fecha e roda `depois` (já com o foco de volta);
+   * o resto (trocar o conteúdo) vai pelo `controle`. Com ele, nenhum item fecha sozinho e `aoEscolher` não é chamado.
+   */
+  aoClicar?: ((b: HTMLButtonElement, cliques: number) => { fechar: true; depois?: () => void } | null) | undefined;
+  /** Preenchido ao montar: trocar o HTML (e o que recebe o foco depois) e fechar por código. */
+  controle?: { current: { trocar: (html: string, focar: string) => void; fechar: () => void } | null } | undefined;
 }
 
 const PROPS: Record<string, string> = { class: "className", tabindex: "tabIndex", for: "htmlFor" };
@@ -34,6 +41,8 @@ function MenuDeHtmlRx({ m, sair }: { m: MenuDeHtml; sair: () => void }) {
   conversor.current ??= criarConversor();
   const [html, setHtml] = useState(m.html);
   const focarDepois = useRef<string | null>(null);
+  const acoes = useRef<{ close: () => void; unmount: () => void } | null>(null);
+  if (m.controle) m.controle.current = { trocar: (h, f) => { focarDepois.current = f; setHtml(h); }, fechar: () => acoes.current?.close() };
   const corpoRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     if (!focarDepois.current) return;
@@ -52,12 +61,17 @@ function MenuDeHtmlRx({ m, sair }: { m: MenuDeHtml; sair: () => void }) {
       const desligado = n.hasAttribute("disabled") || n.getAttribute("aria-disabled") === "true";
       const expande = !!m.expandir && n.matches(m.expandir.seletor);
       return (
-        <Menu.Item key={chave} nativeButton disabled={desligado} closeOnClick={!expande} render={<button type="button" />}
+        <Menu.Item key={chave} nativeButton disabled={desligado} closeOnClick={!expande && !m.aoClicar} render={<button type="button" />}
           {...propsDe(n, ["type", "disabled", "aria-disabled", n.getAttribute("role") === "menuitem" ? "role" : ""])}
           dangerouslySetInnerHTML={{ __html: n.innerHTML }}
           onClick={(ev) => {
             if (expande && m.expandir) { focarDepois.current = m.expandir.focar; setHtml(m.expandir.html()); return; }
             const b = ev.currentTarget as unknown as HTMLButtonElement;
+            if (m.aoClicar) {
+              const r = m.aoClicar(b, (ev as unknown as MouseEvent).detail);
+              if (r) { escolhida.current = r.depois ?? null; acoes.current?.close(); }
+              return;
+            }
             escolhida.current = () => m.aoEscolher(b);
           }} />
       );
@@ -70,7 +84,7 @@ function MenuDeHtmlRx({ m, sair }: { m: MenuDeHtml; sair: () => void }) {
     ? createElement("div", { ...propsDe(raiz, ["role", "aria-label"]), ref: corpoRef }, [...raiz.childNodes].map(no))
     : [...t.content.childNodes].map(no);
   return (
-    <MenuAncorado a={m} rotulo={m.rotulo ?? (ehMenu ? raiz.getAttribute("aria-label") ?? undefined : undefined)} escolhida={escolhida} sair={sair}>
+    <MenuAncorado a={{ ...m, acoes }} rotulo={m.rotulo ?? (ehMenu ? raiz.getAttribute("aria-label") ?? undefined : undefined)} escolhida={escolhida} sair={sair}>
       {corpo}
     </MenuAncorado>
   );
