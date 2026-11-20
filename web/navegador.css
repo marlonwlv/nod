@@ -455,7 +455,7 @@ html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 
 .nvl-item:focus-visible, .nvl-mais:focus-visible, .nvl-bt:focus-visible, .nvl-desfazer:focus-visible, .nvl-trava:focus-visible, .nvl-trocar:focus-visible, .nvl-frase-txt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 
 /* M2/J1/N1 e M3/K1: o cartão-pergunta (borda azul a 33 %, raio 14, padding 14, gap 10). */
-.nvl-cartao { position: relative; display: flex; flex-direction: column; gap: 10px; max-width: 520px; margin: 0; padding: 14px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--nv-precisa) 33%, transparent); border-radius: var(--raio-14); background: var(--surface-elevated); overflow-wrap: anywhere; }
+.nvl-cartao { position: relative; display: flex; flex-direction: column; gap: 10px; max-width: 520px; margin: 6px 0; padding: 14px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--nv-precisa) 33%, transparent); border-radius: var(--raio-14); background: var(--surface-elevated); overflow-wrap: anywhere; }
 .nvl-titulo { margin: 0; color: var(--ink); font-size: var(--fs-corpo); line-height: 19px; font-weight: 600; }
 .nvl-texto { margin: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 19px; }
 .nvl-bts { display: flex; gap: 8px; }
@@ -470,7 +470,7 @@ html.nv-solta-painel body::after { content: ""; position: fixed; top: 0; right: 
 .nvl-cartao .nvl-pop { top: auto; bottom: 8px; left: auto; right: 8px; transform: translateY(100%); }
 
 /* J2/K2 e N "Quando algo muda": a linha num cartão claro (raio 12), o texto e a ação à direita. */
-.nvl-resposta, .nvl-aviso { display: flex; align-items: center; gap: 10px; max-width: 520px; margin: 0; padding: 10px 12px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); color: var(--ink); font-size: var(--fs-corpo-2); line-height: 18px; overflow-wrap: anywhere; }
+.nvl-resposta, .nvl-aviso { display: flex; align-items: center; gap: 10px; max-width: 520px; margin: 6px 0; padding: 10px 12px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); color: var(--ink); font-size: var(--fs-corpo-2); line-height: 18px; overflow-wrap: anywhere; }
 .nvl-ok { flex: none; width: 14px; color: var(--nv-vivo); }
 .nvl-resposta-txt, .nvl-aviso-txt { flex: 1 1 0; min-width: 0; }
 .nvl-desfazer { flex: none; margin: 0; padding: 0; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--fs-corpo-2); line-height: 18px; cursor: pointer; }

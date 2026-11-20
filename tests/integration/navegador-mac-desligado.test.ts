@@ -52,7 +52,7 @@ describeIntegracao("navegador: os cartões do Mac desligado (ADR-190, M2/J1, K1)
   afterAll(() => srv.close());
 
   it("o registro tem a ação do cartão com o caminho parcial pela ajustar_navegador", () => {
-    expect(ACOES_NAVEGADOR.find((a) => a.id === "navegador.mac_desligado")).toMatchObject({ casoDeUso: "navegador.mac_desligado", cartaoNoChat: true, chat: { estado: "parcial", via: { ferramenta: "ajustar_navegador" } } });
+    expect(ACOES_NAVEGADOR.find((a) => a.id === "navegador.mac_desligado")).toMatchObject({ cartaoNoChat: true, chat: { estado: "parcial", via: { ferramenta: "ajustar_navegador" } } });
   });
 
   it("a pergunta vem na rotina das 3h (uma vez), não de dia nem sem o app; respondida pela rota, a linha sabe", async () => {

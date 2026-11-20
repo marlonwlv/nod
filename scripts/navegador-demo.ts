@@ -15,6 +15,15 @@
  *   curl -XPOST 127.0.0.1:8894/enviar    # A3: "Enviar … no web.whatsapp.com?" com a citação e o "Não perguntar de novo"
  *   curl -XPOST 127.0.0.1:8894/faturas   # T: a página com "Faturas" e "Novembro" para ensinar
  *   curl -XPOST 127.0.0.1:8894/limpar    # fecha o pedido aberto (recusa ou resolve)
+ * Onde o navegador mora (M, J, K, N; pede NOD_MODO=compartilhado e NOD_NAVEGADOR_NA_MAQUINA=1, para as máquinas Linux
+ * de mentira contarem como "ligadas" pelo long-poll de verdade):
+ *   curl -XPOST 127.0.0.1:8894/maquinas0 # o app do Mac na conta (desligado), nenhuma máquina sempre ligada
+ *   curl -XPOST 127.0.0.1:8894/maquinas1 # + vm-sp ligada        /maquinas2: + vm-rio ligada (o computador do bot na vm-sp)
+ *   curl -XPOST 127.0.0.1:8894/semapp    # sem o app no computador (só a vm-sp)
+ *   curl -XPOST 127.0.0.1:8894/pergunta  # M2/J1: a rotina das 3h traz "Às 3h seu Mac costuma estar desligado"
+ *   curl -XPOST 127.0.0.1:8894/macdesligado # K1: "Vê o preço da TAP…" com o Mac desligado → "Seu Mac está desligado"
+ *   curl -XPOST 127.0.0.1:8894/avisos    # N: as três linhas de quando o lugar muda sozinho
+ *   curl -XPOST 127.0.0.1:8894/terminou  # N4: a linha "✓ Baixou 14 notas fiscais · 3h02 · no nod"
  * A pessoa é a Marlon do seed e o bot é a Vera do seed, renomeada para "Ada" (como no Paper).
  */
 import { createServer } from "node:http";
@@ -24,6 +33,9 @@ import { boot } from "../src/adapters/http/boot.ts";
 import { PESSOA_MARLON, TENANT_PADRAO } from "../src/db/seed/index.ts";
 import { log } from "../src/obs/log.ts";
 import { autoriaDoAgente } from "../src/use-cases/registrar-negacao.ts";
+import { avisoMaquinaSaiu, avisoPrimeiraMaquina } from "../src/domain/navegador-lugar.ts";
+import { cunharChaveMaquina } from "../src/services/token-maquina.ts";
+import { avisarForaDoAr, avisarNaConversa } from "../src/use-cases/navegador-lugar.ts";
 
 const escopo = { tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON };
 const PORTA_CONTROLE = Number(process.env.NOD_DEMO_PORTA ?? 8894);
@@ -72,7 +84,7 @@ let turnoId = await turnoVivo();
 
 function plano(): PlanoTurno {
   return {
-    tenantId: TENANT_PADRAO, turnoId, agenteId: AGENTE, conversaId: CONVERSA, expiraEm: Date.now() + 3_600_000, confiancaEntrada: "confiavel",
+    tenantId: TENANT_PADRAO, turnoId, agenteId: AGENTE, conversaId: CONVERSA, expiraEm: Date.now() + 3_600_000, confiancaEntrada: "confiavel", modoTurno: "conversa",
     autoria: autoriaDoAgente(escopo, AGENTE),
     catalogo: { ferramentas: Object.keys(FERRAMENTAS_NAVEGADOR_DIRETAS).map((nome) => ({ nome, origem: "navegador" })) },
   } as never;
@@ -111,6 +123,50 @@ async function limpar(): Promise<void> {
   turnoId = await turnoVivo();
 }
 
+// ---- onde o navegador mora (M, J, K, N): máquinas de mentira pelo caminho de verdade (chave, conectar, long-poll) ----
+const chaves = new Map<string, { id: string; chave: string; plataforma: "linux" | "darwin"; parar: AbortController | null }>();
+async function maquina(nome: string, plataforma: "linux" | "darwin", ligada: boolean): Promise<void> {
+  let k = chaves.get(nome);
+  if (!k) {
+    const c = cunharChaveMaquina(escopo);
+    const criada = await s.app.dentro(escopo, (d) => d.repos.maquinaTokens.criar({ nome, prefixo: c.prefixo, hash: c.hash }));
+    if (!criada) throw new Error("sem chave");
+    k = { id: criada.id, chave: c.chave, plataforma, parar: null };
+    chaves.set(nome, k);
+    await s.app.dentro(escopo, (d) => d.repos.maquinaTokens.registrarPlataforma(criada.id, plataforma));
+  }
+  if (!ligada || k.parar) return;
+  const ponte = (rota: string, corpo: unknown, sinal?: AbortSignal) => fetch(`${base}/maquina/${rota}`, { method: "POST", headers: { authorization: `Bearer ${k!.chave}`, "content-type": "application/json", "x-nod-versao": "99.0.0" }, body: JSON.stringify(corpo), ...(sinal ? { signal: sinal } : {}) });
+  const r = await ponte("conectar", { versaoContrato: 1, nome, plataforma, inventario: { estado: "ausente", motivo: "demonstração", em: 0 } });
+  if (!r.ok) throw new Error(`conectar ${nome} → ${r.status} ${await r.text()}`);
+  const parar = new AbortController();
+  k.parar = parar;
+  void (async () => { while (!parar.signal.aborted) await ponte("navegador/puxar", {}, parar.signal).then((x) => x.text()).catch(() => new Promise((ok) => setTimeout(ok, 500))); })();
+}
+async function semMaquina(nome: string): Promise<void> {
+  const k = chaves.get(nome);
+  if (!k) return;
+  k.parar?.abort();
+  chaves.delete(nome);
+  await s.app.dentro(escopo, (d) => d.repos.maquinaTokens.revogar(k.id, Date.now()));
+}
+// As máquinas de mentira de uma subida anterior saem (a chave crua só existe na memória da subida que a criou).
+for (const m of await s.app.dentro(escopo, (d) => d.repos.maquinaTokens.listar())) {
+  if (["vm-sp", "vm-rio", "Mac da pessoa"].includes(m.nome)) await s.app.dentro(escopo, (d) => d.repos.maquinaTokens.revogar(m.id, Date.now()));
+}
+/** Volta a pergunta ao começo: nunca perguntada nem respondida, o interruptor desligado, nenhuma escolha. */
+async function lugarDoComeco(continuaSemMac = false): Promise<void> {
+  await s.app.dentro(escopo, (d) => d.repos.navegadorPreferencias.gravar(AGENTE, { continuaSemMac, maquinaId: null, noNod: false, soNaMaquina: false, perguntadoEm: null, respondidoEm: null, retomarTurnoId: null }, Date.now()));
+}
+async function maquinas(n: 0 | 1 | 2, app = true): Promise<unknown> {
+  if (app) await maquina("Mac da pessoa", "darwin", false);
+  else await semMaquina("Mac da pessoa");
+  if (n >= 1) await maquina("vm-sp", "linux", true); else await semMaquina("vm-sp");
+  if (n >= 2) await maquina("vm-rio", "linux", true); else await semMaquina("vm-rio");
+  await new Promise((ok) => setTimeout(ok, 400));
+  return api("GET", `/agentes/${AGENTE}/navegador/lugar`);
+}
+
 const CAIXA = "max-width:520px;margin:48px auto;padding:0 24px";
 const ESTADOS: Record<string, () => Promise<unknown>> = {
   async login() {
@@ -147,6 +203,40 @@ const ESTADOS: Record<string, () => Promise<unknown>> = {
     // Onde cada botão está na página (coordenadas do viewport): quem tira os prints clica neles pela vista, com a pessoa
     // no controle, e a gravação de "Ensinar" registra os cliques.
     return usar("navegador_avaliar", { expressao: "JSON.stringify({ w: innerWidth, h: innerHeight, botoes: [...document.querySelectorAll('button')].map((b) => { const r = b.getBoundingClientRect(); return { nome: b.textContent, x: r.x + r.width / 2, y: r.y + r.height / 2 }; }) })" });
+  },
+  async maquinas0() { await lugarDoComeco(true); return maquinas(0); },
+  async maquinas1() { await lugarDoComeco(true); return maquinas(1); },
+  async maquinas2() { await lugarDoComeco(true); return maquinas(2); },
+  async semapp() { await lugarDoComeco(true); return maquinas(1, false); },
+  async pergunta() {
+    await lugarDoComeco(false);
+    return api("POST", "/rotinas", { agenteId: AGENTE, cron: "0 3 * * *", fusoIana: "America/Sao_Paulo", instrucao: "Entra no portal da prefeitura e baixa as notas fiscais do dia anterior", fonte: "portal da prefeitura", entregavel: "as notas na pasta", limitesAprovacao: "nada sai sem aprovação", politicaSemDado: "diga que não houve" });
+  },
+  async macdesligado() {
+    await limpar();
+    await lugarDoComeco(false);
+    await maquina("Mac da pessoa", "darwin", false);
+    await api("POST", `/conversas/${CONVERSA}/mensagens`, { texto: "Vê o preço da TAP para Lisboa em março." }).catch((e: unknown) => log("info", "demo_msg", { erro: String(e) }));
+    return chamar("navegador_abrir", { url: "https://www.google.com/travel/flights" });
+  },
+  async avisos() {
+    const vmSp = chaves.get("vm-sp")?.id ?? null;
+    await s.app.dentro(escopo, async (d) => {
+      await avisarNaConversa(d, AGENTE, avisoPrimeiraMaquina("vm-sp"), { maquinaId: vmSp, nome: "vm-sp", acao: { rotulo: "Desfazer", mudar: { maquinaId: "nod" } } });
+      await avisarForaDoAr(d, AGENTE, { id: vmSp ?? "00000000-0000-4000-8000-000000000000", nome: "vm-sp" });
+      await avisarNaConversa(d, AGENTE, avisoMaquinaSaiu("vm-sp"), { maquinaId: vmSp, nome: "vm-sp", acao: null });
+    });
+    return "ok";
+  },
+  async terminou() {
+    await limpar();
+    await chamar("navegador_abrir", { url: "https://nfse.prefeitura.sp.gov.br/" });
+    await pagina(`<div style="${CAIXA}"><h2>Nota Fiscal Paulistana</h2><p>14 notas de ontem</p><button>Baixar todas</button></div>`, "NFS-e · Notas emitidas");
+    await chamar("navegador_clicar", { alvo: "button" });
+    // O turno acaba: o varredor marca "terminou" com o último passo.
+    await s.app.dentro(escopo, (d) => d.repos.turnos.assentar(turnoId, { estado: "interrompido", motivoInterrupcao: "sem_progresso" }));
+    await s.app.navegadores.pausarOciosos();
+    return vista();
   },
   async limpar() { await limpar(); return vista(); },
   async vista() { return vista(); },

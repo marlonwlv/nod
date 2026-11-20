@@ -178,7 +178,7 @@ describeIntegracao("navegador: as linhas na conversa quando o lugar muda sozinho
 
       // Fora do ar: a linha com "Só na vm-sp, mesmo que atrase" (hora no fuso das frases).
       await avisarForaDoAr(d, ada.agenteId, { id: vmSp, nome: "vm-sp" });
-      expect((await linhas(ada.conversaId)).at(-1)).toMatchObject({ texto: "A vm-sp estava fora do ar às 12:30. Fiz no nod.", payload: { aviso: "fez_no_nod", acao: { rotulo: "Só na vm-sp, mesmo que atrase", mudar: { soNaMaquina: true } } } });
+      expect((await linhas(ada.conversaId)).at(-1)).toMatchObject({ texto: "A vm-sp estava fora do ar às 12h30. Fiz no nod.", payload: { aviso: "fez_no_nod", acao: { rotulo: "Só na vm-sp, mesmo que atrase", mudar: { soNaMaquina: true } } } });
 
       // A Ada escolhe a vm-rio; a vm-rio sai da conta: ela volta para o nod e a conversa diz.
       await d.repos.navegadorPreferencias.gravar(ada.agenteId, { maquinaId: vmRio }, AGORA);

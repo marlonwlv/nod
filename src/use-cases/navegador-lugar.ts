@@ -1,8 +1,7 @@
 import type { LugarNavegador, MudancaLugarNavegador, PayloadNavegadorLugar, RespostaLugarNavegador } from "../contracts/navegador-do-bot.ts";
 import type { PlataformaMaquina } from "../contracts/ponte.ts";
-import { horaMinuto } from "../domain/erro-fornecedor.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { avisoForaDoAr, avisoMaquinaSaiu, avisoPrimeiraMaquina, esperaDoNavegador, fraseDaPergunta, fraseDoLugar, maquinaPreferida, resolverLugar, subtituloDoInterruptor, type AvisoDeLugar, type EntradaLugar, type EsperaDoNavegador, type ResolucaoLugar } from "../domain/navegador-lugar.ts";
+import { avisoForaDoAr, avisoMaquinaSaiu, avisoPrimeiraMaquina, esperaDoNavegador, fraseDaPergunta, fraseDoLugar, horaNoFuso, maquinaPreferida, resolverLugar, subtituloDoInterruptor, type AvisoDeLugar, type EntradaLugar, type EsperaDoNavegador, type ResolucaoLugar } from "../domain/navegador-lugar.ts";
 import type { PreferenciasNavegador } from "../repositories/navegador.repo.ts";
 import { autoriaAgente, evento } from "./apoio-l7.ts";
 import type { Deps } from "./tipos.ts";
@@ -146,7 +145,9 @@ export async function avisarNaConversa(d: D, agenteId: string, a: AvisoDeLugar, 
 
 /** O navegador que devia rodar na máquina rodou no nod porque ela estava fora do ar (N, "Fiz no nod"). */
 export async function avisarForaDoAr(d: D, agenteId: string, maquina: { id: string; nome: string }): Promise<void> {
-  const a = avisoForaDoAr(maquina.nome, horaMinuto(d.agora()));
+  // "às 3h", "às 22h30" (Paper N, "Quando algo muda"), no fuso das frases.
+  const t = horaNoFuso(d.agora());
+  const a = avisoForaDoAr(maquina.nome, t.m ? `${t.h}h${String(t.m).padStart(2, "0")}` : `${t.h}h`);
   if (a.tipo !== "fez_no_nod") return;
   await avisarNaConversa(d, agenteId, a, { maquinaId: maquina.id, nome: maquina.nome, acao: { rotulo: a.travar, mudar: { soNaMaquina: true } } });
 }

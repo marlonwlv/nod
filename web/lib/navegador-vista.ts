@@ -470,6 +470,21 @@ export function fraseMinuscula(frase: string): string {
   return frase ? frase.charAt(0).toLocaleLowerCase("pt-BR") + frase.slice(1) : frase;
 }
 
+/**
+ * N4: o passo terminado no passado ("Clicando em \"Baixar\"" → "Clicou em \"Baixar\""), para a linha do ✓. As frases
+ * vêm de `fraseDoPasso` (src/domain/navegador-vista.ts), todas no gerúndio; a que não casar fica como veio.
+ */
+const NO_PASSADO: readonly (readonly [RegExp, string])[] = [
+  [/^Abrindo /u, "Abriu "], [/^Lendo /u, "Leu "], [/^Clicando/u, "Clicou"], [/^Preenchendo /u, "Preencheu "], [/^Rolando /u, "Rolou "],
+  [/^Esperando /u, "Esperou "], [/^Olhando /u, "Olhou "], [/^Baixando /u, "Baixou "], [/^Enviando /u, "Enviou "], [/^Escolhendo /u, "Escolheu "],
+  [/^Mexendo /u, "Mexeu "], [/^Usando /u, "Usou "],
+];
+export function fraseNoPassado(frase: string): string {
+  const f = fraseMaiuscula(frase);
+  for (const [de, para] of NO_PASSADO) if (de.test(f)) return f.replace(de, para);
+  return f;
+}
+
 /** "Baixou 14 notas": a frase do passo com a primeira letra maiúscula, para abrir a linha. */
 export function fraseMaiuscula(frase: string): string {
   return frase ? frase.charAt(0).toLocaleUpperCase("pt-BR") + frase.slice(1) : frase;
@@ -491,6 +506,8 @@ export function legendaDoPasso(nome: string, v: Pick<VistaNavegador, "passo" | "
 
 /** A linha de atividade some depois que o bot para (D1, 5: "some 3 s depois"), mas fica enquanto ele precisa da pessoa. */
 export const MS_LINHA_DEPOIS = 3_000;
+/** definido em 2026-11-20 (N4): a linha do terminado fica até a pausa do navegador (10 min sem uso, D0). */
+export const MS_LINHA_TERMINOU = 10 * 60_000;
 
 /**
  * A linha "● Navegador da Ada · Google Voos · lendo os voos diretos · Ver" na conversa (linha 1, 1c, item 2): aparece quando
@@ -500,8 +517,9 @@ export function linhaDoNavegadorVisivel(v: Pick<VistaNavegador, "estado" | "cont
   if (!v) return false;
   if (v.pedido || v.controle === "precisa_de_voce" || v.controle === "pessoa") return true;
   if (v.estado === "ligando" || v.estado === "conectando") return true;
-  // N4/J3: terminou há pouco, a linha fica com o ✓, a hora e o lugar ("Baixou 14 notas fiscais · 3h02 · no nod").
-  if (v.estado !== "ao_vivo" && v.estado !== "rede_fraca" && v.estado !== "terminou") return false;
+  // N4/J3: terminado, a linha fica com o ✓, a hora e o lugar ("Baixou 14 notas fiscais · 3h02 · no nod") até a pausa.
+  if (v.estado === "terminou") return agora - Math.max(v.atividadeEm, v.passo?.em ?? 0) < MS_LINHA_TERMINOU;
+  if (v.estado !== "ao_vivo" && v.estado !== "rede_fraca") return false;
   const ultimo = Math.max(v.atividadeEm, v.passo?.em ?? 0);
   return agora - ultimo < MS_NO_MEIO + MS_LINHA_DEPOIS;
 }
@@ -524,7 +542,7 @@ export function htmlLinhaDoNavegador(nome: string, agenteId: string, v: Pick<Vis
   const rotulo = o.modoAbas ? "Abrir" : "Ver";
   const ver = `<button type="button" class="nv-linha-ver" data-act="navegador-ver" data-agente="${esc(agenteId)}" aria-label="${rotulo} o navegador de ${esc(nome)}">${rotulo}</button>`;
   if (v.estado === "terminou" && !v.pedido && v.controle === "bot") {
-    const feito = [v.passo?.frase ? fraseMaiuscula(v.passo.frase) : `Terminou${site ? ` em ${site}` : ""}`, horaDaLinha(Math.max(v.atividadeEm, v.passo?.em ?? 0)), lugar].filter(Boolean).join(" · ");
+    const feito = [v.passo?.frase ? fraseNoPassado(v.passo.frase) : `Terminou${site ? ` em ${site}` : ""}`, horaDaLinha(Math.max(v.atividadeEm, v.passo?.em ?? 0)), lugar].filter(Boolean).join(" · ");
     return `<div class="nv-linha terminou" data-agente="${esc(agenteId)}" data-ponto=""><span class="nv-linha-ok" aria-hidden="true">✓</span><span class="nv-linha-txt"><b>Navegador de ${esc(nome)}</b><small>${esc(feito)}</small></span>${ver}</div>`;
   }
   const frase = v.controle === "pessoa" ? "você está no controle" : v.pedido || v.controle === "precisa_de_voce" ? "precisa de você" : v.passo?.frase ? fraseMinuscula(v.passo.frase) : v.estado === "ligando" ? "ligando" : "";

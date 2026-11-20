@@ -237,6 +237,21 @@ describe("ler → agir por referência", () => {
     expect(corpo(await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e5" }))).toMatchObject({ ok: true });
   });
 
+  it("o turno que mexeu acabou: a vista vai a terminou com o último passo (N4), e o próximo passo volta ao vivo", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/notas" });
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "ao_vivo", passo: null });
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)?.estado).toBe("ao_vivo");
+    concluidos.add("turno-a");
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "terminou", passo: { frase: "Abrindo uma página" } });
+    // Um turno novo do bot (o de antes acabou) volta a mexer.
+    concluidos.delete("turno-a");
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(n.vista(MARLON, A)?.estado).toBe("ao_vivo");
+  });
+
   it("sem Chrome vivo, o tamanho pedido espera e vale quando ele liga", async () => {
     const n = criar();
     n.tamanho(MARLON, A, { w: 560, h: 700 });

@@ -14,8 +14,9 @@ export const lugarDoNavegador: CasoDeUso<{ agenteId: string; mudanca: MudancaLug
 });
 
 /**
- * ADR-190 (K1; ADR-135): o executor de `navegador.mac_desligado` — "Fazer agora" (continua sem o Mac e o pedido segue já)
- * ou "Quando o Mac ligar" (o pedido segue quando o app do Mac voltar).
+ * ADR-190 (K1; ADR-135): o que a rota de `navegador.mac_desligado` executa — "Fazer agora" (continua sem o Mac e o pedido
+ * segue já) ou "Quando o Mac ligar" (o pedido segue quando o app do Mac voltar). Fora de EXECUTORES_NAVEGADOR: o caminho no
+ * chat é parcial (a ajustar_navegador liga o continuar), e o mapa só leva ids com o caminho vivo.
  */
 export const macDesligadoDoNavegador: CasoDeUso<{ agenteId: string; turnoId: string; resposta: RespostaMacDesligado }, { turnoId: string | null }> = async (deps, input) => {
   const r = await responderMacDesligado(deps, input.agenteId, input.turnoId, input.resposta);
@@ -24,5 +25,4 @@ export const macDesligadoDoNavegador: CasoDeUso<{ agenteId: string; turnoId: str
 
 export const EXECUTORES_NAVEGADOR = {
   "navegador.lugar": lugarDoNavegador,
-  "navegador.mac_desligado": macDesligadoDoNavegador,
 } as const satisfies Partial<Record<IdAcao, CasoDeUso<never, unknown>>>;

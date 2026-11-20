@@ -921,4 +921,11 @@
   .cofre-form { grid-template-columns: 1fr; }
   .cofre-campo input { height: 44px; }
   .cofre-olho { width: 44px; height: 44px; right: 0; }
+  /* M3/K1/K2 e M2/J1: os botões do cartão empilham com 44 px (Paper YNZ-0); a frase, o Desfazer e os itens da lista também. */
+  .nvl-cartao, .nvl-resposta, .nvl-aviso { max-width: none; }
+  .nvl-bts { flex-direction: column; }
+  .nvl-bt { min-height: 44px; }
+  .nvl-frase-txt, .nvl-trocar, .nvl-desfazer, .nvl-trava { min-height: 44px; }
+  .nvl-desfazer { min-width: 44px; }
+  .nvl-item, .nvl-mais { min-height: 44px; }
 }

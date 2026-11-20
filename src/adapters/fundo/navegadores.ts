@@ -128,6 +128,9 @@ type Estado = {
   tamanho: { pedido: { w: number; h: number } | null; aplicado: { w: number; h: number } | null; mudando: boolean };
   /** As referências caíram porque o Chrome mudou de tamanho: a ref velha recebe "a página mudou de tamanho". */
   refsPorTamanho: boolean;
+  /** D3, 5 e N4: o turno que mexeu por último e o último passo dele; o turno acabado põe a vista em "terminou". */
+  turnoId: string | null;
+  ultimoPasso: PassoNavegador | null;
 };
 
 /** L5: o usuário e a senha que a pessoa digitou (cada um cifrado), o campo em que ela está e a URL de quando começou. */
@@ -340,7 +343,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
       abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, loginEmCurso: null, captura: null, ultimoTexto: null,
-      tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false,
+      tamanho: { pedido: null, aplicado: null, mudando: false }, refsPorTamanho: false, turnoId: null, ultimoPasso: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
@@ -384,8 +387,24 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     if (t.pedido !== alvo) void aplicarTamanho(est);
   }
 
+  /**
+   * D3, 5 e N4: o turno que mexeu por último acabou (concluído ou interrompido) e o bot não mexe mais — a vista vai a
+   * "terminou" com o último passo ("Baixou 14 notas fiscais"), que a linha de atividade mostra com o ✓, a hora e o lugar.
+   */
+  async function marcarTerminados(): Promise<void> {
+    for (const est of estados.values()) {
+      const turnoId = est.turnoId;
+      if (!turnoId || !est.vivo || est.vista.estado !== "ao_vivo" || est.vista.controle !== "bot" || est.vista.pedido || est.gravacao) continue;
+      const t = await o.dentro(est.escopo, (d) => d.repos.turnos.buscar(turnoId)).catch(() => null);
+      if (!t || (t.estado !== "concluido" && t.estado !== "interrompido") || est.turnoId !== turnoId) continue;
+      est.turnoId = null;
+      mudar(est, { estado: "terminou", passo: est.ultimoPasso });
+    }
+  }
+
   /** Fecha os Chromes parados há 10 min (D0): a vista fica "em pausa" e o perfil guarda os logins. */
   async function pausarOciosos(): Promise<number> {
+    await marcarTerminados();
     let pausados = 0;
     for (const est of estados.values()) {
       if (!est.vivo || !deveriaPausar(est.vista, agora())) continue;
@@ -837,7 +856,10 @@ export function criarNavegadores(o: OpcoesNavegadores) {
 
   /** A vista acompanha o passo: a frase da linha de atividade e "ao vivo"; a falha deixa a vista viva. */
   async function comPasso<T>(c: Contexto, ferramenta: string, alvo: AlvoResolvido | null, fn: () => Promise<T>): Promise<T> {
-    mudar(c.est, { passo: { tipo: tipoDoPasso(ferramenta), frase: fraseDoPasso(ferramenta, alvo?.nome ?? null, hostDe(c.est.url) || null), caixa: null, em: agora() }, atividadeEm: agora() });
+    const passo: PassoNavegador = { tipo: tipoDoPasso(ferramenta), frase: fraseDoPasso(ferramenta, alvo?.nome ?? null, hostDe(c.est.url) || null), caixa: null, em: agora() };
+    c.est.ultimoPasso = passo;
+    c.est.turnoId = c.plano.turnoId;
+    mudar(c.est, { passo, atividadeEm: agora() });
     try {
       return await fn();
     } catch (e) {
@@ -1010,6 +1032,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         // Os passos levam nomes de botão e de página tirados do site: voltam não confiáveis, como a leitura (ADR-026).
         if (ferramenta === "navegador_tarefa_ensinada") return { ok: true, conteudo: JSON.stringify(tarefasParaOBot(await d.repos.navegadorTarefas.doAgente(plano.agenteId), argsDaFerramenta.nome)), confianca: "nao_confiavel" };
         const est = estadoDe(escopo, plano.agenteId);
+        est.turnoId = plano.turnoId;
         const lugar = await decidirLugar(d, est);
         if (lugar.tipo === "espera") {
           let instrucao = lugar.instrucao;
@@ -1045,6 +1068,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       if ("entrar" in r) return pedirLogin(escopo, plano, r.entrar.est, r.entrar.site, r.entrar.motivo);
       if (!("est" in r)) return r;
       if (!(await vaga(r.est))) return { ok: true, conteudo: JSON.stringify(NA_FILA), confianca: "confiavel" };
+      // O bot voltou a mexer depois de terminar (D3, 5): a vista volta ao vivo.
+      if (r.est.vista.estado === "terminou") mudar(r.est, { estado: "ao_vivo", atividadeEm: agora() });
       try {
         if (r.ferramenta === "navegador_rodar_script") return await script(r, Array.isArray(r.args.passos) ? r.args.passos : []);
         return comoResultado(await passo(r, r.ferramenta, r.args));

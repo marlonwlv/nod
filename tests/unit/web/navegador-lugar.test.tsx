@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PayloadNavegadorLugar, PayloadNavegadorPergunta, RespostaLugarNavegador, RespostaNavegador, VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import { htmlCartaoDaPergunta, htmlLinhaDoLugarDoNavegador, htmlLinhaDoLugarNoPainel, htmlListaDoLugar, lugarEscolhido } from "../../../web/lib/navegador-lugar-tela.ts";
 import { criarTrocaDePasso, MS_ENTRE_TROCAS, MS_TROCA_DE_PASSO } from "../../../web/lib/navegador-troca-de-passo.ts";
-import { htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../../../web/lib/navegador-vista.ts";
+import { fraseNoPassado, htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../../../web/lib/navegador-vista.ts";
 import { passosDoAnexo } from "../../../web/telas/conversa.ts";
 import { MS_TAMANHO_PARADO, montarVistaNavegador, type SocketDaVista } from "../../../web/telas/navegador-vista.ts";
 
@@ -121,7 +121,7 @@ describe("N, \"Quando algo muda\": as linhas da conversa", () => {
 
   it("0→1 com Desfazer; fora do ar com a trava embaixo; saiu da conta com Ver máquinas; quem não é dona só lê", () => {
     expect(doc(htmlLinhaDoLugarDoNavegador(p({}), "Com o Mac desligado, agora continuo na vm-sp.", true)).textContent).toBe("Com o Mac desligado, agora continuo na vm-sp.Desfazer");
-    const fora = doc(htmlLinhaDoLugarDoNavegador(p({ aviso: "fez_no_nod", acao: { rotulo: "Só na vm-sp, mesmo que atrase", mudar: { soNaMaquina: true } } }), "A vm-sp estava fora do ar às 03:00. Fiz no nod.", true));
+    const fora = doc(htmlLinhaDoLugarDoNavegador(p({ aviso: "fez_no_nod", acao: { rotulo: "Só na vm-sp, mesmo que atrase", mudar: { soNaMaquina: true } } }), "A vm-sp estava fora do ar às 3h. Fiz no nod.", true));
     expect(fora.querySelector(".nvl-aviso.empilhado .nvl-trava")?.textContent).toBe("Só na vm-sp, mesmo que atrase");
     const saiu = doc(htmlLinhaDoLugarDoNavegador(p({ aviso: "maquina_saiu", acao: null }), "A vm-sp saiu da sua conta. Continuo no nod.", true));
     expect(saiu.querySelector<HTMLElement>("button")!.dataset.act).toBe("nv-ver-maquinas");
@@ -141,6 +141,9 @@ describe("N4 e D8: a linha de atividade com o lugar e a troca de passo", () => {
     expect(feito.querySelector(".nv-linha-ok")).not.toBeNull();
     expect(feito.querySelector("small")?.textContent).toBe("Baixou 14 notas fiscais · 3h02 · na vm-sp");
     expect(linhaDoNavegadorVisivel({ ...base, estado: "terminou" }, 2_000)).toBe(true);
+    expect(linhaDoNavegadorVisivel({ ...base, estado: "terminou" }, 11 * 60_000)).toBe(false);
+    expect(fraseNoPassado('Clicando em "Baixar todas"')).toBe('Clicou em "Baixar todas"');
+    expect(fraseNoPassado("Abrindo nfse.prefeitura.sp.gov.br")).toBe("Abriu nfse.prefeitura.sp.gov.br");
     expect(doc(htmlLinhaDoNavegador("Ada", ADA, base, { modoAbas: true })).querySelector(".nv-linha-ver")?.textContent).toBe("Abrir");
   });
 
