@@ -27,7 +27,16 @@ export const listarMemorias: CasoDeUso<{ agenteId: string }, { memorias: Memoria
   return { data: { memorias: await deps.repos.memorias.listarDoAgente(agente.id), aRevisar } };
 };
 
-export const editarMemoria: CasoDeUso<{ memoriaId: string; texto?: string; tipo?: TipoMemoria }, { memoria: Memoria }> = async (deps, input) => {
+/**
+ * QA-125: a memória precisa ser do bot da URL (`agenteId`, que a rota sempre passa); memória de outro bot da mesma dona
+ * é "não encontrada", sem mudar nada.
+ */
+const daMemoriaDoBot = (m: Memoria | null, agenteId: string | undefined): Memoria => {
+  if (!m || (agenteId !== undefined && m.agenteId !== agenteId)) throw new ErroDeDominio("nao_encontrado");
+  return m;
+};
+
+export const editarMemoria: CasoDeUso<{ agenteId?: string; memoriaId: string; texto?: string; tipo?: TipoMemoria }, { memoria: Memoria }> = async (deps, input) => {
   const campos: { texto?: string; tipo?: TipoMemoria } = {};
   if (input.texto !== undefined) {
     if (typeof input.texto !== "string" || input.texto.trim() === "") throw new ErroDeDominio("texto_vazio");
@@ -39,8 +48,7 @@ export const editarMemoria: CasoDeUso<{ memoriaId: string; texto?: string; tipo?
   }
   if (campos.texto === undefined && campos.tipo === undefined) throw new ErroDeDominio("entrada_invalida", { cause: "nada a editar" });
   await deps.repos.memorias.travar(input.memoriaId);
-  const existente = await deps.repos.memorias.buscar(input.memoriaId);
-  if (!existente) throw new ErroDeDominio("nao_encontrado");
+  daMemoriaDoBot(await deps.repos.memorias.buscar(input.memoriaId), input.agenteId);
   const memoria = await deps.repos.memorias.atualizar(input.memoriaId, campos, { autor: "pessoa" });
   if (!memoria) throw new ErroDeDominio("nao_permitido");
   const agora = deps.agora();
@@ -50,10 +58,9 @@ export const editarMemoria: CasoDeUso<{ memoriaId: string; texto?: string; tipo?
   };
 };
 
-export const apagarMemoria: CasoDeUso<{ memoriaId: string }, { apagada: true; agenteId: string }> = async (deps, input) => {
+export const apagarMemoria: CasoDeUso<{ agenteId?: string; memoriaId: string }, { apagada: true; agenteId: string }> = async (deps, input) => {
   await deps.repos.memorias.travar(input.memoriaId);
-  const existente = await deps.repos.memorias.buscar(input.memoriaId);
-  if (!existente) throw new ErroDeDominio("nao_encontrado");
+  const existente = daMemoriaDoBot(await deps.repos.memorias.buscar(input.memoriaId), input.agenteId);
   const apagada = await deps.repos.memorias.apagar(input.memoriaId, { autor: "pessoa" });
   if (!apagada) throw new ErroDeDominio("nao_permitido");
   const agora = deps.agora();
