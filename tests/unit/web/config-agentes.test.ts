@@ -77,4 +77,10 @@ describe("Configurações › Agentes (NOD-367)", () => {
     expect(main).toMatch(/\[data-config-busca\][^\n]*buscarAgentes\(ta\.value\)/);
     expect(main).toMatch(/function buscarAgentes[\s\S]{0,80}dispatch\(\{ tipo: "config-ui", mudanca: \{ busca: valor \} \}\)/);
   });
+
+  it("no celular, o menu de cada bot e Restaurar têm alvo de toque de 44 px", () => {
+    const css = readFileSync(new URL("../../../web/mobile.css", import.meta.url), "utf8");
+    expect(css).toContain('.cfg-celular .cfg-bot .cl-mais-bt { width: 44px; height: 44px; }');
+    expect(css).toContain('.cfg-celular .cfg-bot [data-act="restaurar-agente"] { min-height: 44px; }');
+  });
 });

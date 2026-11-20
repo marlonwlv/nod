@@ -17,6 +17,34 @@ const DIAS_MAX = 10;
 const ITENS_MAX = 30;
 const PREVIA_MAX = 6;
 
+const grafemas = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/**
+ * Corta no teto (unidades UTF-16) sem partir um grafema: `slice` deixava a metade de um emoji (surrogate sem par) e a
+ * fala inteira era recusada com um 400 genérico que o bot não sabia corrigir. Com `reticencias`, o "…" entra no teto.
+ */
+export function cortarTexto(texto: string, teto: number, reticencias = false): string {
+  if (texto.length <= teto) return texto;
+  const cabe = reticencias ? teto - 1 : teto;
+  let saida = "";
+  for (const { segment } of grafemas.segment(texto)) {
+    if (saida.length + segment.length > cabe) break;
+    saida += segment;
+  }
+  return reticencias ? `${saida.trimEnd()}…` : saida;
+}
+
+const DIAS_NO_MES = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const bissexto = (a: number): boolean => (a % 4 === 0 && a % 100 !== 0) || a % 400 === 0;
+/** Data que existe no calendário (sem 2026-13-45 nem 31 de fevereiro) e hora de 00:00 a 23:59. */
+function dataExiste(v: string): boolean {
+  const [a, m, d] = v.slice(0, 10).split("-").map(Number) as [number, number, number];
+  if (m < 1 || m > 12 || d < 1 || d > (m === 2 && !bissexto(a) ? 28 : DIAS_NO_MES[m - 1]!)) return false;
+  if (v.length === 10) return true;
+  const [h, min] = v.slice(11).split(":").map(Number) as [number, number];
+  return h <= 23 && min <= 59;
+}
+
 class Invalido extends Error {}
 const falhar = (m: string): never => { throw new Invalido(m); };
 
@@ -26,7 +54,7 @@ function txt(o: Record<string, unknown>, k: string, onde: string, obrigatorio = 
   if (typeof v !== "string") return falhar(`${onde}: ${k} tem de ser texto`);
   const l = semInvisiveis(v);
   if (!l) return obrigatorio ? falhar(`${onde}: falta ${k}`) : undefined;
-  return l.length > TEXTO_MAX ? `${l.slice(0, TEXTO_MAX - 1).trimEnd()}…` : l;
+  return cortarTexto(l, TEXTO_MAX, true);
 }
 function num(o: Record<string, unknown>, k: string, onde: string, min: number, max: number, obrigatorio = true, inteiro = false): number | undefined {
   const v = o[k];
@@ -38,7 +66,7 @@ const DATA = /^\d{4}-\d{2}-\d{2}$/;
 const DATA_HORA = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 function data(o: Record<string, unknown>, k: string, onde: string, re: RegExp = DATA): string {
   const v = txt(o, k, onde) ?? "";
-  return re.test(v) ? v : falhar(`${onde}: ${k} tem de ser ${re === DATA ? "AAAA-MM-DD" : "AAAA-MM-DDTHH:MM"}`);
+  return re.test(v) && dataExiste(v) ? v : falhar(`${onde}: ${k} tem de ser ${re === DATA ? "AAAA-MM-DD" : "AAAA-MM-DDTHH:MM"}`);
 }
 function dinheiro(o: Record<string, unknown>, k: string, onde: string, obrigatorio = false): Dinheiro | undefined {
   const v = o[k];
@@ -90,7 +118,7 @@ function umCartao(c: Record<string, unknown>, i: number): CartaoRico {
     case "arquivo": {
       const formato = c.formato === "pdf" || c.formato === "planilha" ? c.formato : falhar(`${onde}: formato é pdf ou planilha`);
       const bruta = c.previa;
-      const previa = Array.isArray(bruta) ? bruta.slice(0, PREVIA_MAX).map((l) => (Array.isArray(l) ? l.slice(0, PREVIA_MAX).map((x) => (typeof x === "string" || typeof x === "number" ? semInvisiveis(String(x)).slice(0, 40) : "")) : [])) : undefined;
+      const previa = Array.isArray(bruta) ? bruta.slice(0, PREVIA_MAX).map((l) => (Array.isArray(l) ? l.slice(0, PREVIA_MAX).map((x) => (typeof x === "string" || typeof x === "number" ? cortarTexto(semInvisiveis(String(x)), 40) : "")) : [])) : undefined;
       return com({ tipo: "arquivo" as const, formato, nome: txt(c, "nome", onde) ?? "" }, { paginas: num(c, "paginas", onde, 1, 100_000, false, true), previa: formato === "planilha" ? previa : undefined, link: linkSeguro(c.link) });
     }
     default:
@@ -100,7 +128,7 @@ function umCartao(c: Record<string, unknown>, i: number): CartaoRico {
 
 export function normalizarCartoes(args: { resumo?: unknown; cartoes?: unknown }): Validacao<{ resumo: string; cartoes: CartaoRico[] }> {
   try {
-    const resumo = typeof args.resumo === "string" ? semInvisiveis(args.resumo).slice(0, RESUMO_MAX) : "";
+    const resumo = typeof args.resumo === "string" ? cortarTexto(semInvisiveis(args.resumo), RESUMO_MAX) : "";
     if (!resumo) return { ok: false, motivo: "falta resumo. Corrija e chame mostrar_cartoes de novo." };
     const brutos = lista({ cartoes: args.cartoes }, "cartoes", "mostrar_cartoes", MAX_CARTOES);
     return { ok: true, valor: { resumo, cartoes: brutos.map(umCartao) } };

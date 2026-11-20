@@ -1266,7 +1266,7 @@ div.mac-medidor { padding-right: 36px; }
 @media (prefers-reduced-motion: reduce) { .wh-copiar svg { transition: none; } }
 @media (max-width: 640px) {
   .wh-copiar { width: 44px; height: 44px; }
-  .wh-acoes .bt.link, .wh-confirma .bt { min-height: 44px; }
+  .ce-rodape .bt.link.wh-teste, .wh-acoes .bt.link, .wh-confirma .bt { min-height: 44px; }
 }
 
 /* ---- Times de bots (NOD-437, protótipo aprovado) ------------------------------------------------------------------------

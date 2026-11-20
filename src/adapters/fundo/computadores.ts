@@ -171,6 +171,11 @@ async function turnoPermitido(d: Deps, turnoId: string, agenteId: string, aprova
 
 /** A ferramenta de texto tem instrução própria quando a ação falha (caminho, UTF-8, revisão). */
 const FERRAMENTAS_DE_TEXTO = new Set(["computador_ler_texto", "computador_gravar_texto"]);
+const INSTRUCAO_DA_FALHA_POR_FERRAMENTA: Readonly<Record<string, string>> = {
+  computador_audio: "A captura de áudio falhou. Nada foi ouvido; não repita neste turno nem afirme que ouviu.",
+  computador_abas: "Não consegui listar ou selecionar a aba. Confira a lista atual de abas antes de escolher outro índice; não afirme que trocou.",
+  computador_arquivos: "Não consegui listar essa pasta. Confira o caminho dentro de /workspace; não afirme que encontrou arquivos.",
+};
 
 /**
  * definido em 2026-09-24 (emenda da ADR-037): o que a ferramenta devolve ao agente — código fechado e
@@ -182,6 +187,7 @@ function erroDaFerramenta(nome: string, e: unknown): { erro: string; instrucao: 
   if (!ehFalhaComputador(e)) log("erro", "computador_erro_inesperado", { ferramenta: nome, erro: e instanceof Error ? e.name : "desconhecido" });
   const motivo = ehFalhaComputador(e) ? e.motivo : "acao_falhou";
   if (motivo === "acao_falhou" && FERRAMENTAS_DE_TEXTO.has(nome)) return { erro: motivo, instrucao: "A operação de texto falhou. Confira caminho, tamanho, UTF-8 e revisão; releia o arquivo antes de editar. Não afirme que gravou." };
+  if (motivo === "acao_falhou" && INSTRUCAO_DA_FALHA_POR_FERRAMENTA[nome]) return { erro: motivo, instrucao: INSTRUCAO_DA_FALHA_POR_FERRAMENTA[nome] };
   return { erro: motivo, instrucao: instrucaoDaFalha(motivo, ehFalhaComputador(e) ? e.limite : null, ehFalhaComputador(e) ? e.maquina : null) };
 }
 

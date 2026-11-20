@@ -40,6 +40,11 @@
 .cc-lembrete p { margin: 0; }
 .mc-conta { margin: 4px 12px 2px; font-size: var(--fs-corpo-2); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+@media (hover: none) and (pointer: coarse) {
+  .cc-cartao .bt { min-width: 44px; min-height: 44px; }
+  .cc-campo input { min-height: 44px; box-sizing: border-box; }
+}
+
 /* NOD-346 · Minha conta (protótipo aprovado da Jornada 3). Só tokens. */
 .conta-pagina { width: min(760px, 100%); margin: 0 auto; padding: 4px 0 72px; color: var(--ink); }
 .conta-cab { display: flex; align-items: center; gap: 14px; margin: 0 0 22px; }
@@ -118,6 +123,7 @@
   .entrar-primeiro .cc-sem-conta .cc-titulo, .entrar-primeiro .cc-sem-conta .cc-texto { display: none; }
   .entrar-primeiro .cc-sem-conta .cc-acoes, .entrar-primeiro .cc-sem-conta .bt { width: 100%; justify-content: center; }
   .conta-pagina { padding-bottom: 54px; }
+  .conta-pagina button, .conta-pagina .mc-foto { min-height: 44px; }
   .conta-cab { margin-bottom: 14px; }
   .conta-cab p { font-size: 13px; }
   .conta-abas { margin-inline: 0; padding-inline: 0; margin-bottom: 22px; }

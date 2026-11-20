@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **210**, mais 3 só de leitura. No chat: **75 vivas**, 4 parciais, 92 faltando e 42 que nunca vão para o chat. Piso de vivas: 75.
+Ações de pessoa que mudam algo: **212**, mais 3 só de leitura. No chat: **77 vivas**, 4 parciais, 92 faltando e 42 que nunca vão para o chat. Piso de vivas: 77.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -43,6 +43,8 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `rotinas.executar` | Rodar uma rotina agora | pessoa_confirma | vivo (`executar_rotina`) | `POST ^\/rotinas\/(?<id>[^/]+)\/executar$` |
 | `rotinas.pausar` | Pausar uma rotina (com data de volta opcional) | muda | vivo (`pausar_rotina`) | `POST ^\/rotinas\/(?<id>[^/]+)\/pausar$` |
 | `rotinas.ativar` | Ativar uma rotina | muda | vivo (`reativar_rotina`) | `POST ^\/rotinas\/(?<id>[^/]+)\/ativar$` |
+| `rotinas.pausar_todas` | Pausar todas as rotinas | muda | vivo (`pausar_todas_rotinas`) | `POST ^\/rotinas\/pausar-todas$` |
+| `rotinas.reativar_lote` | Reativar as rotinas pausadas juntas | muda | vivo (`reativar_lote_rotinas`) | `POST ^\/rotinas\/lotes\/(?<id>[^/]+)\/reativar$` |
 | `rotinas.mudar_ritmo` | Mudar o ritmo de uma rotina | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/ritmo$` |
 | `rotinas.gerar_endereco` | Gerar novo endereço do webhook | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/endereco$` |
 | `rotinas.enviar_teste` | Enviar teste ao webhook | muda | falta (NOD-393) | `POST ^\/rotinas\/(?<id>[^/]+)\/testar-webhook$` |
