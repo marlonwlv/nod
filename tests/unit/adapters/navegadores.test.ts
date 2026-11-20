@@ -274,6 +274,17 @@ describe("ler → agir por referência", () => {
     expect(n.vista(MARLON, A)?.estado).toBe("ao_vivo");
   });
 
+  it("assumir depois de o bot terminar põe a vista ao vivo: a pessoa não mexe num quadro esmaecido (prova real)", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/notas" });
+    concluidos.add("turno-a");
+    await n.pausarOciosos();
+    expect(n.vista(MARLON, A)?.estado).toBe("terminou");
+    expect(await n.operar(MARLON, A, "assumir")).toMatchObject({ controle: "pessoa", estado: "ao_vivo" });
+    // Devolvido sem turno do bot, segue ao vivo (o "terminou" é do turno que mexeu, e ele já foi marcado).
+    expect(await n.operar(MARLON, A, "devolver")).toMatchObject({ controle: "bot", estado: "ao_vivo" });
+  });
+
   it("sem Chrome vivo, o tamanho pedido espera e vale quando ele liga", async () => {
     const n = criar();
     n.tamanho(MARLON, A, { w: 560, h: 700 });
@@ -419,6 +430,14 @@ describe("controle e pedidos à pessoa", () => {
     expect(await n.chamar(MARLON, plano(A), "navegador_ler", {})).toMatchObject({ ok: true, confianca: "nao_confiavel" });
     expect(n.vista(MARLON, A)).toMatchObject({ controle: "bot", pedido: null });
     expect(chamadas.map((c) => c.op)).toEqual(["ler"]);
+  });
+
+  it("entrar com a URL inteira: o cartão e a fala ficam com o domínio (prova real: 'precisa entrar no https://…/login')", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_entrar", { site: "https://the-internet.herokuapp.com/login", motivo: "ler a área logada" });
+    expect(n.vista(MARLON, A)).toMatchObject({ pedido: { tipo: "login", site: "the-internet.herokuapp.com" } });
+    expect(pedidosAPessoa[0]!.texto).toContain("entrar em the-internet.herokuapp.com no meu navegador");
+    expect(pedidosAPessoa[0]!.texto).not.toContain("https://");
   });
 
   it("a vista é só da dona do bot", async () => {

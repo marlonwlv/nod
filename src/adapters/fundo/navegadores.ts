@@ -976,6 +976,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   async function pedirLogin(escopo: Escopo, plano: PlanoTurno, est: Estado, site: string, motivo: string): Promise<ResultadoChamada> {
     const daAba = /^https?:/i.test(est.url) ? hostDe(est.url) : "";
     const host = daAba || hostDoSite(site);
+    // Prova real (2026-11-20): o modelo passou a URL inteira ("https://…/login") e o cartão dizia "precisa entrar no
+    // https://…/login". Com esquema ou caminho, o cartão e a fala ficam com o domínio; um nome solto ("Itaú") fica.
+    site = /[:/]/.test(site) ? hostDoSite(site) || site : site;
     const { opcoes, podeTrazerDoChrome } = await montarOpcoes(escopo, plano.agenteId, host);
     return o.dentro(escopo, async (d) => {
       const texto = FALA_DO_LOGIN(site, motivo);
@@ -1223,7 +1226,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const est = estadoDe(escopo, agenteId);
       if (op === "assumir") {
         if (!proximoControle(est.vista.controle, "assumir")) throw new ErroDeDominio("estado_invalido", { cause: "ja_com_voce" });
-        mudar(est, { controle: "pessoa", atividadeEm: agora() });
+        // Prova real (2026-11-20): assumir depois de o bot terminar deixava a vista em "terminou", e a pessoa mexia na
+        // página com o quadro esmaecido (opacidade .55). Com ela no controle a imagem é ao vivo.
+        mudar(est, { controle: "pessoa", atividadeEm: agora(), ...(est.vista.estado === "terminou" ? { estado: "ao_vivo" as const } : {}) });
         return est.vista;
       }
       if (op === "devolver" || op === "resolver") {

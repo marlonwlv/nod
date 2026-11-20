@@ -93,6 +93,8 @@ type Bot = {
   conectando: boolean;
   reabrir: ReturnType<typeof setTimeout> | null;
   seq: number;
+  /** A última vista tinha segredo na página (os quadros de então foram descartados). */
+  segredo: boolean;
 };
 
 const inteiro = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
@@ -258,7 +260,7 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
       o.portao.conferirDona(escopo, agenteId).then(() => {
         if (!e.aberto) return;
         const k = chave(escopo, agenteId);
-        const b = bots.get(k) ?? { escopo, agenteId, espectadores: [], fonte: null, lugarDaFonte: "", conectando: false, reabrir: null, seq: 0 };
+        const b = bots.get(k) ?? { escopo, agenteId, espectadores: [], fonte: null, lugarDaFonte: "", conectando: false, reabrir: null, seq: 0, segredo: o.portao.vistaDe(escopo, agenteId).segredoNaPagina };
         bots.set(k, b);
         bot = b;
         for (const velho of b.espectadores.slice(0, Math.max(0, b.espectadores.length - POR_BOT + 1))) {
@@ -276,7 +278,12 @@ export function criarVivoNavegador(o: OpcoesVivoNavegador) {
       const bot = bots.get(chave(escopo, vista.agenteId));
       if (!bot) return;
       for (const e of bot.espectadores) enviar(e, { t: "vista", vista });
-      if (bot.fonte && bot.lugarDaFonte !== JSON.stringify(vista.lugar)) fecharStream(bot);
+      // Prova real (2026-11-20): os quadros da página nova chegam antes de o portão saber que a URL mudou e caem com o
+      // segredo; numa página parada (a área logada) não vem outro, e a vista ficava no quadro em branco da navegação.
+      // Saindo do segredo, o stream abre de novo: o agent-browser manda o quadro da página atual ao conectar.
+      const saiuDoSegredo = bot.segredo && !vista.segredoNaPagina;
+      bot.segredo = vista.segredoNaPagina;
+      if (bot.fonte && (saiuDoSegredo || bot.lugarDaFonte !== JSON.stringify(vista.lugar))) fecharStream(bot);
       if (temChromeVivo(vista.estado)) void garantirStream(bot);
       else fecharStream(bot);
     },

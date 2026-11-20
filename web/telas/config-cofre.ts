@@ -48,7 +48,7 @@ export function casaComFiltro(site: string, filtro: string): boolean {
  * usuário mascarado, data), "Adicionar login" (site, usuário, senha com mostrar/ocultar; a senha nunca vem à tela depois)
  * e Apagar com Desfazer. O filtro do "Logins deste site…" mostra só o site e um "Ver todos".
  */
-export function renderLoginsDoCofre(t: TelaCofre, agora: number, fuso?: string): string {
+export function renderLoginsDoCofre(t: TelaCofre, agora: number, fuso: string): string {
   const filtro = t.filtro ?? null;
   const adicionar = t.adicionando ? "" : `<button type="button" class="bt cofre-add" data-act="cofre-adicionar-login">Adicionar login</button>`;
   const cab = `<div class="cofre-logins-cab"><h3 class="lc-grupo-tit" id="cofre-logins">Logins de sites</h3>${adicionar}</div>`
@@ -88,8 +88,9 @@ function formularioDeLogin(filtro: string | null, t: TelaCofre): string {
 /**
  * Configurações › Cofre (Paper 07, rodada 2): as chaves que a pessoa guardou pelos cartões dos bots (`pedir_credencial`).
  * Só o nome, o app e quando foi guardada — o valor fica no cofre e nunca vem à tela. Embaixo, os logins de sites.
+ * `fuso` é obrigatório: sem ele as horas saíam em UTC ("guardado hoje 13:35" às 10:35 em Brasília, prova real de 2026-11-20).
  */
-export function renderCofre(t: TelaCofre, agora: number, fuso?: string): string {
+export function renderCofre(t: TelaCofre, agora: number, fuso: string): string {
   const cab = `<h2>Cofre</h2><p class="intro">As chaves que você guardou pelos cartões dos bots e os logins que o navegador deles usa. O valor fica só no cofre: aqui aparecem o nome, o site e quando foi guardado.</p>`;
   const logins = t.logins === undefined ? "" : renderLoginsDoCofre(t, agora, fuso);
   const sec = (miolo: string) => `<section class="espaco-secao cfg-secao cfg-cofre">${cab}${t.filtro ? logins + miolo : miolo + logins}</section>`;

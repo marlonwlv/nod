@@ -141,6 +141,26 @@ describe("navegador ao vivo pelo WebSocket", () => {
     web2.ws.close();
   });
 
+  it("saindo do segredo, o stream abre de novo para trazer o quadro da página atual (prova real: a área logada ficava em branco)", async () => {
+    const { ab, host, mudar } = await montar();
+    const web = await abrirWeb(host);
+    await ate(() => ab.abertas() === 1 && web.msgs.length === 1);
+    mudar({ segredoNaPagina: true });
+    // O quadro da página nova chega antes de o portão saber da URL nova: cai.
+    ab.mandar({ type: "frame", seq: 1, data: JPEG, metadata: { deviceWidth: 1280, deviceHeight: 720 } });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(quadros(web)).toHaveLength(0);
+    mudar({ segredoNaPagina: false });
+    await ate(() => ab.urls.length === 2 && ab.abertas() === 1);
+    ab.mandar({ type: "frame", seq: 2, data: JPEG, metadata: { deviceWidth: 1280, deviceHeight: 720 } });
+    await ate(() => quadros(web).length === 1);
+    // Outra vista sem segredo não reabre.
+    mudar({ atividadeEm: 1 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(ab.urls).toHaveLength(2);
+    web.ws.close();
+  });
+
   it("entrada: com o bot no controle volta a vista; com a pessoa, o mouse vai pelo stream e o texto e o Backspace pelo relay", async () => {
     const { ab, host, mudar, antes } = await montar();
     const web = await abrirWeb(host);

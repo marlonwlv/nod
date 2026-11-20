@@ -31,6 +31,13 @@ describe("respostas prontas (opcoes)", () => {
     expect(normalizarPedidoAPessoa({ tipo: "permissao_total", opcoes: "sim" })).toEqual({ tipo: "pergunta", texto: "(pedido sem texto)" });
   });
 
+  it("a frase em `pergunta` e as opções como texto JSON viram texto e opções (prova real: o cartão saía '(pedido sem texto)')", () => {
+    expect(normalizarPedidoAPessoa({ pergunta: "Quer que eu faça isso sozinho?", opcoes: ["Todo dia às 9h", "Só quando eu pedir"] })).toEqual({ tipo: "pergunta", texto: "Quer que eu faça isso sozinho?", opcoes: ["Todo dia às 9h", "Só quando eu pedir"] });
+    expect(normalizarPedidoAPessoa({ pergunta: "Faço sozinho?", opcoes: '["Todo dia às 9h", "Só quando eu pedir"]' })).toEqual({ tipo: "pergunta", texto: "Faço sozinho?", opcoes: ["Todo dia às 9h", "Só quando eu pedir"] });
+    // `texto` manda quando os dois vêm; texto JSON quebrado não vira opção.
+    expect(normalizarPedidoAPessoa({ texto: "A", pergunta: "B", opcoes: "[Sim, Não" })).toEqual({ tipo: "pergunta", texto: "A" });
+  });
+
   it("recomendada: a opção segue pela origem depois de repetidas e longas saírem, e vai para a primeira (recomendada: 0)", () => {
     const longa = "x".repeat(MAX_CARACTERES_OPCAO + 1);
     // Índice 3 bruto ("Tentar de novo") vira o 2 depois que a longa sai — e sobe para A.

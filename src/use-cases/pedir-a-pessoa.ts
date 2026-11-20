@@ -75,14 +75,29 @@ export function normalizarOpcoesComRecomendada(opcoesBrutas: unknown, recomendad
 export function normalizarPedidoAPessoa(args: unknown): ArgsPedirAPessoa {
   const a = (typeof args === "object" && args !== null ? args : {}) as Record<string, unknown>;
   const tipo = TIPOS_PEDIDO_A_PESSOA.find((t) => t === a.tipo) ?? "pergunta";
-  const texto = typeof a.texto === "string" && a.texto.trim() !== "" ? a.texto.trim() : "(pedido sem texto)";
+  // Prova real (2026-11-20): o modelo chamou sem o esquema carregado (ferramenta adiada do Claude Code) e mandou a frase em
+  // `pergunta` e, na segunda vez, `opcoes` como texto JSON; o cartão saiu "(pedido sem texto)" e sem botões. Os dois
+  // erros de forma viram o que o modelo quis dizer.
+  const bruto = typeof a.texto === "string" && a.texto.trim() !== "" ? a.texto : a.pergunta;
+  const texto = typeof bruto === "string" && bruto.trim() !== "" ? bruto.trim() : "(pedido sem texto)";
   const saida: ArgsPedirAPessoa = { tipo, texto };
   if (typeof a.dado === "string" && a.dado.trim() !== "") saida.dado = a.dado.trim();
   if (typeof a.quem_destrava === "string" && a.quem_destrava.trim() !== "") saida.quem_destrava = a.quem_destrava.trim();
-  const { opcoes, recomendada } = normalizarOpcoesComRecomendada(a.opcoes, a.recomendada);
+  const { opcoes, recomendada } = normalizarOpcoesComRecomendada(listaEmTexto(a.opcoes), a.recomendada);
   if (opcoes.length > 0) saida.opcoes = opcoes;
   if (recomendada !== undefined) saida.recomendada = recomendada;
   return saida;
+}
+
+/** `opcoes` que veio como texto de um array JSON (`"[\"Sim\", \"Não\"]"`) vira o array; qualquer outra coisa passa igual. */
+function listaEmTexto(v: unknown): unknown {
+  if (typeof v !== "string" || !/^\s*\[/.test(v)) return v;
+  try {
+    const lido: unknown = JSON.parse(v);
+    return Array.isArray(lido) ? lido : v;
+  } catch {
+    return v;
+  }
 }
 
 /** Resolve a pessoa nomeada entre as pessoas do tenant (nome inteiro ou primeiro nome, sem caixa); ausente/desconhecida = dona. */

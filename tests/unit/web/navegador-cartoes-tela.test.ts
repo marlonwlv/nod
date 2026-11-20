@@ -91,13 +91,19 @@ describe("Configurações › Cofre › Logins de sites", () => {
     expect(siteDoFiltro("https://www.itau.com.br/login")).toBe("itau.com.br");
     expect(casaComFiltro("internetpf.itau.com.br", "itau.com.br")).toBe(true);
     expect(casaComFiltro("bradesco.com.br", "itau.com.br")).toBe(false);
-    const html = renderCofre({ credenciais: [], carregando: false, erro: false, logins: [L("1", "itau.com.br"), L("2", "tap.pt")], filtro: "itau.com.br", adicionando: true, apagando: new Set() }, 0);
+    const html = renderCofre({ credenciais: [], carregando: false, erro: false, logins: [L("1", "itau.com.br"), L("2", "tap.pt")], filtro: "itau.com.br", adicionando: true, apagando: new Set() }, 0, "UTC");
     expect(html).toContain("Logins de <b>itau.com.br</b>");
     expect(html).toContain("itau.com.br");
     expect(html).not.toContain("tap.pt");
     expect(html).toContain('value="itau.com.br"');
     expect(/<input name="senha"[^>]*>/.exec(html)![0]).not.toMatch(/\svalue=/);
     expect(html).toContain('data-act="cofre-mostrar-senha"');
+  });
+
+  it("a hora do 'guardado' sai no fuso de quem vê, não em UTC (prova real: 13:35 às 10:35 em Brasília)", () => {
+    const guardado = Date.UTC(2026, 10, 20, 13, 35);
+    const t = { credenciais: [], carregando: false, erro: false, logins: [{ ...L("1", "the-internet.herokuapp.com"), criadoEm: guardado }], filtro: null, adicionando: false, apagando: new Set<string>() };
+    expect(renderCofre(t, guardado + 60_000, "America/Sao_Paulo")).toContain("guardado hoje 10:35");
   });
 
   it("guardar manda a senha só ao POST; apagar some na hora e só apaga quando o Desfazer passa", async () => {
