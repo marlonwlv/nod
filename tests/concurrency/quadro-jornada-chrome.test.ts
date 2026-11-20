@@ -1,4 +1,5 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import type { ChildProcess } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -132,6 +133,7 @@ const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 descrever("NOD-442 no Chrome real", () => {
   let cdp: Cdp;
+  let processoChrome: ChildProcess;
   let dir: string;
   let url: string;
 
@@ -139,10 +141,17 @@ descrever("NOD-442 no Chrome real", () => {
     dir = mkdtempSync(join(tmpdir(), "nod442-"));
     url = await pagina(dir);
     process.env.CARGA_CHROME = chrome!;
-    ({ cdp } = await abrirChrome(9000 + (process.pid % 400), join(dir, "perfil")));
+    ({ cdp, chrome: processoChrome } = await abrirChrome(9000 + (process.pid % 400), join(dir, "perfil")));
     await cdp.enviar("Page.enable");
   }, 120_000);
-  afterAll(() => { cdp?.fechar(); rmSync(dir, { recursive: true, force: true }); });
+  afterAll(async () => {
+    const saiu = processoChrome?.exitCode === null && processoChrome.signalCode === null
+      ? new Promise<void>((ok) => processoChrome.once("exit", () => ok()))
+      : Promise.resolve();
+    cdp?.fechar();
+    await saiu;
+    rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+  });
 
   const ate = async (expr: string, ms = 5000): Promise<void> => {
     for (let i = 0; i < ms / 50; i++) { if (await avaliar<boolean>(cdp, `!!(${expr})`)) return; await esperar(50); }

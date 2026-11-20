@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { posix } from "node:path";
 import type { AcaoComputador, ArquivoComputador, ResultadoComputador, TelaComputador } from "../../../contracts/computador.ts";
 import type { BotaoMouse, PrimitivasDeComputador, RefComputador } from "../../../contracts/provedor-computador.ts";
-import { FalhaComputador } from "../../../domain/computador.ts";
+import { FalhaComputador, passaDeCaracteres } from "../../../domain/computador.ts";
 import { anotarQuadro, aspasShell, type EstadoQuadros, mudarRevisao, novoEstadoQuadros, quadroValido } from "../../../domain/provedor-computador.ts";
 
 /**
@@ -199,7 +199,7 @@ export function criarExecutorPorPrimitivas(p: PrimitivasDeComputador, o: OpcoesP
       }
       case "gravar_texto": {
         const absoluto = dentroDaRaiz(ref, acao.caminho);
-        if (acao.texto.length > 131_072 || (acao.revisao !== "novo" && !/^[a-f0-9]{64}$/.test(acao.revisao))) throw new FalhaComputador("acao_falhou", { detalhe: "entrada_invalida" });
+        if (passaDeCaracteres(acao.texto, 131_072) || (acao.revisao !== "novo" && !/^[a-f0-9]{64}$/.test(acao.revisao))) throw new FalhaComputador("acao_falhou", { detalhe: "entrada_invalida" });
         const novos = Buffer.from(acao.texto, "utf8");
         // A conferência da revisão roda na MÁQUINA, no mesmo comando da escrita: entre ler e gravar pela rede, outro
         // processo de lá poderia mudar o arquivo.

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { acharChrome } from "../../src/adapters/tela/capturador-cdp.ts";
 import { htmlDialogoComputador, htmlPilula } from "../../web/lib/computador.ts";
+import { htmlLugares, UI_INICIAL, type ComputadorPessoaDto } from "../../web/lib/computador-pessoa.ts";
 import { abrirChrome, avaliar, type Cdp } from "../../scripts/carga-tela/cdp.ts";
 
 const chrome = (() => { try { return acharChrome(); } catch { return null; } })();
@@ -48,6 +49,34 @@ descrever("computador do bot no celular (Chrome real, 390×844)", () => {
     const parar = await medir(".computador-pilula-bt");
     const alvos = { fechar, assumir, parar };
     if (Object.values(alvos).some(({ w, h }) => w < 44 || h < 44)) throw new Error(`alvos menores que 44 px: ${JSON.stringify(alvos)}`);
+    const largura = JSON.parse(await avaliar<string>(cdp, `JSON.stringify([document.documentElement.scrollWidth, innerWidth])`)) as [number, number];
+    expect(largura[0]).toBeLessThanOrEqual(largura[1]);
+  });
+
+  it("trocar sem os logins mantém alvo de toque seguro na recusa", async () => {
+    await cdp.enviar("Emulation.setDeviceMetricsOverride", { width: 320, height: 568, deviceScaleFactor: 1, mobile: true });
+    const css = ["web/estilos.css", "web/interface.css", "web/navegacao.css", "web/computador-do-bot.css"]
+      .filter(existsSync)
+      .map((p) => readFileSync(p, "utf8"))
+      .join("\n");
+    const dto: ComputadorPessoaDto = {
+      estado: "pronto",
+      maquina: { id: "m-origem", nome: "Máquina de agora", contato: null },
+      telas: [],
+      esperando: [],
+      lugares: [
+        { maquinaId: "m-origem", nome: "Máquina de agora", tipo: "onde_o_nod_roda", atual: true, pronta: false, conectada: false },
+        { maquinaId: "m-destino", nome: "Servidor novo", tipo: "outra_maquina", atual: false, pronta: true },
+      ],
+    };
+    const corpo = htmlLugares(dto, { ...UI_INICIAL, recusaDaTroca: { maquinaId: "m-destino", texto: "A máquina de agora está sem contato. Ligue-a para levar os logins." } });
+    const pagina = `<!doctype html><meta name="viewport" content="width=device-width"><style>${css}</style><main>${corpo}</main>`;
+    await cdp.enviar("Page.navigate", { url: `data:text/html;charset=utf-8,${encodeURIComponent(pagina)}` });
+    await new Promise((r) => setTimeout(r, 150));
+
+    const alvo = JSON.parse(await avaliar<string>(cdp, `JSON.stringify((() => { const r = document.querySelector('[data-act="pc-trocar-sem-logins"]').getBoundingClientRect(); return { w: r.width, h: r.height }; })())`)) as { w: number; h: number };
+    expect(alvo.w).toBeGreaterThanOrEqual(44);
+    expect(alvo.h).toBeGreaterThanOrEqual(44);
     const largura = JSON.parse(await avaliar<string>(cdp, `JSON.stringify([document.documentElement.scrollWidth, innerWidth])`)) as [number, number];
     expect(largura[0]).toBeLessThanOrEqual(largura[1]);
   });

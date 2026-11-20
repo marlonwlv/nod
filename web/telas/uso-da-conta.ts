@@ -119,7 +119,7 @@ export function usoDaConta(c: ContaIa, x: ContextoDoUso): string {
   const pe = `<p class="cu-pe${velho ? " velho" : ""}">medido ${esc(ha(q.medidoEm, x.agora))}${onde ? ` no ${esc(onde)}` : ""}${velho ? " · pode ter mudado" : ""}</p>`;
   const maior = maiorUso(q);
   let fila = "";
-  if (maior !== null && faixaDaJanela(maior) === "alerta") {
+  if (maior !== null && maior >= ALERTA_USO) {
     const prox = proximaDaFila(c, x.contas, x.agora);
     fila = prox
       ? `<p class="cu-fila">Ao chegar no limite, os trabalhos seguem em ${esc(nomeDaConta(prox))}.</p>`

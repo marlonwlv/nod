@@ -1,6 +1,7 @@
 import type { IdAcao } from "../../domain/acoes/index.ts";
 import type { Rotina } from "../../contracts/rotina.ts";
 import { executarRotinaAgora } from "../executar-rotina-agora.ts";
+import { pausarTodasAsRotinas, reativarLoteDePausa } from "../pausa-em-lote.ts";
 import { pausarRotina } from "../pausar-rotina.ts";
 import type { CasoDeUso } from "../tipos.ts";
 
@@ -17,4 +18,8 @@ export const EXECUTORES_ROTINAS = {
   "rotinas.executar": executarRotinaAgora,
   "rotinas.pausar": ((deps, input) => pausarRotina(deps, { rotinaId: input.rotinaId, estado: "pausada", retomarEm: input.retomarEm ?? null, ...(input.ate !== undefined ? { ate: input.ate } : {}) })) as CasoDeUso<{ rotinaId: string; ate?: string; retomarEm?: number | null }, { rotina: Rotina }>,
   "rotinas.ativar": ((deps, input) => pausarRotina(deps, { rotinaId: input.rotinaId, estado: "ativa" })) as CasoDeUso<{ rotinaId: string }, { rotina: Rotina }>,
+  // Desfazer a pausa em lote (2026-11-19): POST rotinas/pausar-todas e rotinas/lotes/:id/reativar, e as ferramentas
+  // pausar_todas_rotinas/reativar_lote_rotinas.
+  "rotinas.pausar_todas": pausarTodasAsRotinas,
+  "rotinas.reativar_lote": reativarLoteDePausa,
 } as const satisfies Partial<Record<IdAcao, CasoDeUso<never, unknown>>>;

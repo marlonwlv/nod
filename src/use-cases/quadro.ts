@@ -283,8 +283,13 @@ export function falhaDoAchado(achado: { ambiguo: Quadro[] } | { semNome: string;
     const lista = achado.nomes.length ? `Os quadros da pessoa: ${achado.nomes.join(", ")}. Pergunte em qual deles` : "A pessoa ainda não tem quadro";
     return { erro: "nao_encontrado", detalhe: `não há um quadro "${achado.semNome}". ${lista}` };
   }
-  const nomes = achado.ambiguo.map((x) => `${agentes.find((a) => a.id === x.agenteId)?.nome ?? "?"} (${x.id})`).slice(0, 5).join(", ");
-  return { erro: "sem_quadro", detalhe: `a pessoa tem ${achado.ambiguo.length} quadros: diga qual em quadro (o nome do bot anfitrião ou o id): ${nomes}. Se ela não disse, pergunte` };
+  const LIMITE_OPCOES = 5;
+  const nomes = achado.ambiguo.map((x) => `${agentes.find((a) => a.id === x.agenteId)?.nome ?? "?"} (${x.id})`).slice(0, LIMITE_OPCOES).join(", ");
+  const restantes = achado.ambiguo.length - LIMITE_OPCOES;
+  const continuacao = restantes > 0
+    ? `. Estes são os primeiros ${LIMITE_OPCOES}; para ver os outros ${restantes}, chame listar_quadros {todos:true}`
+    : "";
+  return { erro: "sem_quadro", detalhe: `a pessoa tem ${achado.ambiguo.length} quadros: diga qual em quadro (o nome do bot anfitrião ou o id): ${nomes}${continuacao}. Se ela não disse, pergunte` };
 }
 
 /**
