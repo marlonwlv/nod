@@ -122,3 +122,19 @@ cada 70 min, porque sempre havia de 1 a 5 frentes rodando. Pela [ADR-131](adr-13
 o item 2 muda: drenando, o motor espera só os turnos da pessoa (`daPessoa` no plano) e pede o reinício por cima do fundo;
 o reinício é queda (`reinicio_do_motor`) e o servidor retoma o fundo na hora, sem gastar o teto de quedas. A regra
 "nenhum turno é interrompido" passa a ser "nenhum turno da pessoa é interrompido".
+
+## Emenda de 2026-11-20 — o motor não pede o que o root não troca
+
+O #165 pôs os processos do computador no manifesto e no script do root, mas esse script só chega à máquina na
+reinstalação. Na `nod-motor-teste`, com o script de 28/10 (troca só os três arquivos do motor), o motor comparou o
+computador, pediu, o root trocou o resto e reiniciou — a cada ~37 s, das 05:40 às 14:32 UTC, com cerca de 900 reinícios e
+turnos derrubados a cada volta. Duas regras:
+
+1. O motor só compara um arquivo do computador se o script do root (`/usr/local/sbin/nod-motor-atualizar`) o menciona
+   (`manifestoComparavel`). A máquina com o script antigo fica com o computador velho até a reinstalação, como antes do #165.
+2. O motor guarda a assinatura do manifesto de cada pedido (`~/.config/nod-motor/atualizacao-pedida.json`). Se volta do
+   reinício ainda diferente do mesmo manifesto, a troca não pegou: loga `motor_atualizacao_sem_efeito` com os arquivos que
+   seguem diferentes e espera `ESPERA_DEPOIS_DE_FALHAR_MS` (1 h), como numa falha do atualizador. No pior caso, um
+   reinício por hora em vez de um a cada meio minuto.
+
+Mudar o script do root continua exigindo reinstalar as máquinas (ou trocar o script) para valer nelas.

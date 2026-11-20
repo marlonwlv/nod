@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scriptDeInstalacao } from "../../../src/adapters/http/motor-instalacao.ts";
-import { ATUALIZACAO_PARADA, DRENAGEM_MAXIMA_MS, ESPERA_DEPOIS_DE_DESISTIR_MS, ESPERA_DEPOIS_DE_FALHAR_MS, ESPERA_DO_PEDIDO_MS, JANELA_OCIOSA_MS, motorDiferente, proximoPasso, type Drenagem } from "../../../src/domain/atualizacao-do-motor.ts";
+import { ATUALIZACAO_PARADA, DRENAGEM_MAXIMA_MS, ESPERA_DEPOIS_DE_DESISTIR_MS, ESPERA_DEPOIS_DE_FALHAR_MS, ESPERA_DO_PEDIDO_MS, JANELA_OCIOSA_MS, manifestoComparavel, motorDiferente, proximoPasso, type Drenagem } from "../../../src/domain/atualizacao-do-motor.ts";
 import { arquivoDoPedido, atualizacaoLigada, iniciarAtualizacao, shaDosArquivos } from "../../../motor/atualizacao.ts";
 
 const sha = (t: string) => createHash("sha256").update(t).digest("hex");
@@ -17,6 +17,12 @@ describe("o motor se atualiza sozinho (ADR-100): quando", () => {
     expect(motorDiferente({ a: "1", b: "x" }, { a: "1", b: "2" })).toBe(true);
     expect(motorDiferente({ a: "1", b: null }, { a: "1", b: "2" })).toBe(true);
     expect(motorDiferente({ a: "1" }, {})).toBe(false);
+  });
+
+  it("2026-11-20: o computador só entra na comparação se o script do root o troca", () => {
+    const m = { "nod-motor.mjs": "1", "computador-tela.mjs": "2", "computador-terminal.mjs": "3", "outro.mjs": "4" };
+    expect(manifestoComparavel(m, "")).toEqual({ "nod-motor.mjs": "1", "outro.mjs": "4" });
+    expect(manifestoComparavel(m, "for ARQUIVO in nod-motor.mjs computador-tela.mjs; do")).toEqual({ "nod-motor.mjs": "1", "computador-tela.mjs": "2", "outro.mjs": "4" });
   });
 
   it("igual: nada; diferente e sem turno: drena e pede na hora", () => {
@@ -171,11 +177,48 @@ describe("o motor se atualiza sozinho (ADR-100): no motor", () => {
     };
     const buscar = (async () => new Response(JSON.stringify({ versao: "0.5.0", arquivos }), { status: 200 })) as typeof fetch;
     const drenos: Drenagem[] = [];
-    const a = iniciarAtualizacao({ url: "https://nod", dir: igual.dir, dirComputador: computador, pastaDoMotor: igual.pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: (s) => drenos.push(s), buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0 });
+    const atualizador = join(computador, "nod-motor-atualizar");
+    await writeFile(atualizador, scriptDeInstalacao({ servidor: "https://nod.exemplo.com", versao: "0.5.0", computador: true }));
+    const a = iniciarAtualizacao({ url: "https://nod", dir: igual.dir, dirComputador: computador, atualizador, pastaDoMotor: igual.pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: (s) => drenos.push(s), buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0 });
     await a.agora();
     expect(drenos).toEqual(["fundo", "tudo"]);
     await expect(readFile(arquivoDoPedido(igual.pasta), "utf8")).resolves.toContain('"versao":"0.5.0"');
     a.parar();
+
+    // 2026-11-20: com o script de antes do #165 (troca só os três do motor), pedir não adiantaria — o computador fica fora.
+    const antigo = join(computador, "atualizador-antigo");
+    await writeFile(antigo, "for ARQUIVO in nod-motor.mjs proxy.mjs hook-nativas.mjs; do\n");
+    await rm(arquivoDoPedido(igual.pasta));
+    const nada: Drenagem[] = [];
+    const b = iniciarAtualizacao({ url: "https://nod", dir: igual.dir, dirComputador: computador, atualizador: antigo, pastaDoMotor: igual.pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: (s) => nada.push(s), buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0 });
+    await b.agora();
+    expect(nada).toEqual([]);
+    await expect(readFile(arquivoDoPedido(igual.pasta), "utf8")).rejects.toThrow();
+    b.parar();
+  });
+
+  it("2026-11-20: volta do reinício ainda diferente do mesmo manifesto — não pede de novo (sem laço) até a espera da falha", async () => {
+    const { dir, pasta, buscar } = await montar("// motor novo\n");
+    const iniciar = (agora: number, drenos: Drenagem[]) => iniciarAtualizacao({ url: "https://nod", dir, pastaDoMotor: pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: (s) => drenos.push(s), buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0, relogio: () => agora });
+    const primeiro: Drenagem[] = [];
+    const a = iniciar(1_000, primeiro);
+    await a.agora();
+    a.parar();
+    expect(primeiro).toEqual(["fundo", "tudo", false]);
+    // O root trocou, apagou o pedido e reiniciou — mas os arquivos seguem diferentes.
+    await rm(arquivoDoPedido(pasta));
+    const segundo: Drenagem[] = [];
+    const b = iniciar(1_000 + 40_000, segundo);
+    await b.agora();
+    expect(segundo).toEqual([]);
+    await expect(readFile(arquivoDoPedido(pasta), "utf8")).rejects.toThrow();
+    b.parar();
+    // Passada a espera de uma falha, tenta de novo.
+    const terceiro: Drenagem[] = [];
+    const c = iniciar(1_000 + ESPERA_DEPOIS_DE_FALHAR_MS, terceiro);
+    await c.agora();
+    expect(terceiro).toEqual(["fundo", "tudo"]);
+    c.parar();
   });
 
   it("ADR-131: só fundo rodando — pede o reinício por cima dele (o servidor o retoma); sem reiniciar, a fala volta a sair", async () => {
