@@ -221,7 +221,7 @@ describe("o controle", () => {
     await esperar();
     parado.t.aoClicar("trab-repetir");
     await esperar();
-    expect(parado.h()).toContain("A tarefa não está em andamento: mova-a antes.");
+    expect(parado.h()).toContain("O card não está em andamento: mova-o antes.");
   });
 
   it("ADA-232: Acordar agora chama a API e relê", async () => {

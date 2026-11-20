@@ -5,7 +5,11 @@ import { esperaDaConta, iaDaEntrada } from "../../../src/domain/espera-da-cota.t
 import { entradaDaTrocaDeConta, entradaDaVoltaDaCota } from "../../../src/domain/cota-da-ia.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
 import { situacaoDe } from "../../../web/lib/trabalhos.ts";
-import { renderTodosOsTrabalhos, renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+import { renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
+
+// ADR-187 §8 (2026-11-18): "Todas as tarefas" virou a vista Por estado da tela Tarefas, com o chip Todas.
+const renderTodosOsTrabalhos = (e: Estado, filtro: "todos" | "voce" | "rotinas" | "bots" = "todos"): string => renderTelaTarefas(e, { tipo: "trabalhos", filtro, mostrar: "todas" });
 
 /** definido em 2026-10-15 (NOD-277, pacote A3): a linha da task esperando a cota, com "Seguir com" nas contas livres. */
 

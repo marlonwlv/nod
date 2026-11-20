@@ -662,6 +662,23 @@ describe("a pasta do dock (PR #600, QA)", () => {
     for (const linha of ["quick_exec=0", "thumbnail_local=0", "show_thumbnail=0", "use_trash=0"]) expect(libfm).toContain(linha);
   });
 
+  it("usa o tema e os três apps reais do Paper sem confiar em comandos do bundle", async () => {
+    const tmp = await mkdtemp(path.join(tmpdir(), "nod-dock-paper-"));
+    const raiz = path.resolve("infra/computador/shell-visual/paper-v2");
+    const manifesto = JSON.parse(await readFile(path.join(raiz, "manifesto.json"), "utf8"));
+    const r = await prepararPastaDoDock(config(tmp), "cookie-x", { raiz, manifesto });
+    expect(r.lancadores.map((f) => path.basename(f))).toEqual(["browser.desktop", "terminal.desktop", "files.desktop"]);
+    for (const [arquivo, nome] of [[r.lancadores[0]!, "Browser"], [r.lancadores[1]!, "Terminal"], [r.lancadores[2]!, "Files"]] as const) {
+      const desktop = await readFile(arquivo, "utf8");
+      expect(desktop).toContain(`Name=${nome}`);
+      expect(desktop).toContain("Exec=/bin/sh ");
+    }
+    const rc = await readFile(r.rc, "utf8");
+    for (const arquivo of r.lancadores) expect(rc).toContain(`launcher_item_app = ${arquivo}`);
+    expect(r.wallpaper).not.toBeNull();
+    await expect(readFile(r.wallpaper!, "utf8")).resolves.toContain("<svg");
+  });
+
   it.skipIf(!BWRAP_RODA)("no bwrap real do dock a pasta não aceita arquivo novo, e o lançador do Chrome chega à tela pelo FIFO (revisão 10)", async () => {
     const tmp = await mkdtemp(path.join(tmpdir(), "nod-dock-"));
     const ws = await mkdtemp(path.join(tmpdir(), "nod-ws-"));

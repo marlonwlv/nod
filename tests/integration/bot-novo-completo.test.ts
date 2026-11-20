@@ -85,8 +85,12 @@ describeIntegracao("bot novo é bot completo (ADR-050)", () => {
       if ("erro" in data) throw new Error(data.erro);
       expect(data.colegas.map((x) => x.nome).sort()).toEqual(["Ada", "Nina"]);
       const nina = data.colegas.find((x) => x.nome === "Nina");
-      expect(nina).toMatchObject({ titulo: "Assistente de e-mail", descricao: "Verifica o Gmail três vezes ao dia", apps: [{ slug: "gmail", nome: "Gmail", nivel: "leitura" }] });
+      expect(nina).toMatchObject({ secao: null, titulo: "Assistente de e-mail", descricao: "Verifica o Gmail três vezes ao dia", apps: [{ slug: "gmail", nome: "Gmail", nivel: "leitura" }] });
       expect(nina?.rotinas).toEqual([{ id: c.nina.rotinaId, quando: expect.stringContaining("08:00"), estado: "ativa", instrucao: "Resumir os e-mails novos" }]);
+      // O time da barra lateral vem junto (null = Sem time): sem ele o Nod não conferia o "mover" de gerir_bots.
+      await c.repos.agentes.organizar(c.ada.agenteId, { secao: "Operações" });
+      const comTime = await verColegas(c.deps, { ...c.ctx, agente: "ada" });
+      expect("colegas" in comTime.data && comTime.data.colegas[0]?.secao).toBe("Operações");
 
       const so = await verColegas(c.deps, { ...c.ctx, agente: "@ada" });
       expect("colegas" in so.data && so.data.colegas.map((x) => x.id)).toEqual([c.ada.agenteId]);

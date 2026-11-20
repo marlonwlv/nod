@@ -139,10 +139,10 @@ export function fraseDoVazio(f: Filtro, busca: string, nomeDoAgente: (id: string
   const termo = busca.trim().slice(0, LIMITE_BUSCA);
   const ag = agenteDoFiltro(f);
   const nome = ag ? nomeDoAgente(ag) ?? "deste agente" : "";
-  const onde = f === "todos" ? "no quadro" : f === "comigo" ? "nas suas tarefas" : f === "trabalhando" ? "nas que estão rodando" : `nas tarefas de ${nome}`;
+  const onde = f === "todos" ? "no quadro" : f === "comigo" ? "nos seus cards" : f === "trabalhando" ? "nas que estão rodando" : `nos cards de ${nome}`;
   if (termo) return `Nada com “${termo}” ${onde}.`;
   if (f === "todos") return null;
   if (f === "comigo") return "Nada esperando você agora.";
   if (f === "trabalhando") return "Ninguém está trabalhando agora.";
-  return `${nome} não tem tarefa neste quadro.`;
+  return `${nome} não tem card neste quadro.`;
 }

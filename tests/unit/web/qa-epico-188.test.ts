@@ -41,7 +41,7 @@ describe("um sinal por bot (K8 variante 3): task rodando não anima o mascote", 
     const pelaLista: Estado = { ...estadoInicial, turnosVivos: { tv: vivo("tv") }, trabalhos: { trabalhos: [trabalho("login", { turnoVivoId: "tv" })], pressao: null, memoriaTotalMb: null } };
     expect(estadoMascoteNaConversa(pelaLista, "c-dev1")).toBe("disponivel");
     const conversa: Estado = { ...pelaLista, turnosVivos: { ...pelaLista.turnosVivos, tc: vivo("tc") } };
-    expect(estadoMascoteNaConversa(conversa, "c-dev1")).toBe("trabalhando");
+    expect(estadoMascoteNaConversa(conversa, "c-dev1")).toBe("pensando");
   });
 });
 

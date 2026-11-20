@@ -54,7 +54,7 @@ describe("a tela da participante", () => {
     const daOutra = html(vista(q([minha, daAna]), { aberta: "2" }));
     expect(daOutra).not.toContain("qcp-editar");
     expect(daOutra).not.toContain("qcp-excluir");
-    expect(daOutra).toContain("Tarefa da Ana: você muda o status e comenta");
+    expect(daOutra).toContain("Card da Ana: você muda o status e comenta");
     expect(daOutra).toContain('data-campo="qcp-status"');
     expect(daOutra).toContain('data-form="qcp-comentar"');
   });
@@ -844,7 +844,7 @@ describe("o controlador", () => {
     });
   }
 
-  it("B2: a mudança numa tarefa que sumiu (404) diz 'Essa tarefa não existe mais' (não fica muda)", async () => {
+  it("B2: a mudança numa tarefa que sumiu (404) diz 'Esse card não existe mais' (não fica muda)", async () => {
     let n = 0;
     const { c, caixa, disparar } = montar({
       quadroPorId: async () => ({ quadro: n++ === 0 ? q([t("1", { pedidoPor: ANA })]) : q([]) }),
@@ -855,7 +855,7 @@ describe("o controlador", () => {
     disparar("click", botao("abrir-tarefa", "1"));
     disparar("change", select("1", "fazendo"));
     await esperar(); await esperar(); await esperar();
-    expect(caixa.innerHTML).toContain("Essa tarefa não existe mais");
+    expect(caixa.innerHTML).toContain("Esse card não existe mais");
     expect(caixa.innerHTML).not.toContain("Você não participa");
   });
 

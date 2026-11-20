@@ -264,7 +264,7 @@ export function criarQuadroCompartilhadoNaTela(doc: Document, deps: DepsDoCompar
       if (e instanceof ErroApi && (e.status === 404 || e.codigo === "nao_encontrado")) {
         // A tarefa sumiu (ou ela saiu do quadro: a releitura vira "sem acesso"). Revisão 4 (B2) e 5 (B3): não fica muda, com
         // tarefa ou sem (o desfazer que outra aba já fez, o recado).
-        mudar({ ocupado: false, recusa: { tarefaId: null, texto: tarefaId ? "Essa tarefa não existe mais" : textoDaRecusa(acao, null) } });
+        mudar({ ocupado: false, recusa: { tarefaId: null, texto: tarefaId ? "Esse card não existe mais" : textoDaRecusa(acao, null) } });
         void ler({ esqueleto: false });
         return false;
       }

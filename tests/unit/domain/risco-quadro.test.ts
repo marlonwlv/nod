@@ -49,9 +49,9 @@ describe("NOD-415 (ADR-141): risco de prazo do quadro", () => {
 
   it("o texto: resumo, quanto falta e até 5 cortes; sem nada por começar, sugere rever prazo ou meta", () => {
     const q = { meta: "Lançar", prazo };
-    expect(textoDoRisco(q, { feitas: 1, total: 4, restanteMs: 1.5 * DIA, cortaveis: ["C", "D"], cortaveisDeFora: 0 })).toBe('O quadro "Lançar" está em risco: 1 de 4 tarefas feitas e faltam 2 dias para o prazo (qua, 11/11). Para caber, dá para cortar o que ainda não começou: "C", "D".');
+    expect(textoDoRisco(q, { feitas: 1, total: 4, restanteMs: 1.5 * DIA, cortaveis: ["C", "D"], cortaveisDeFora: 0 })).toBe('O quadro "Lançar" está em risco: 1 de 4 cards feitos e faltam 2 dias para o prazo (qua, 11/11). Para caber, dá para cortar o que ainda não começou: "C", "D".');
     expect(textoDoRisco(q, { feitas: 0, total: 9, restanteMs: 3_600_000, cortaveis: ["1", "2", "3", "4", "5", "6", "7"], cortaveisDeFora: 0 })).toContain('falta menos de 1 dia para o prazo (qua, 11/11). Para caber, dá para cortar o que ainda não começou: "1", "2", "3", "4", "5" e mais 2.');
-    expect(textoDoRisco(q, { feitas: 0, total: 1, restanteMs: 0, cortaveis: [], cortaveisDeFora: 0 })).toBe('O quadro "Lançar" está em risco: 0 de 1 tarefas feitas e o prazo (qua, 11/11) já passou. Tudo o que sobrou já começou: vale rever o prazo ou a meta.');
+    expect(textoDoRisco(q, { feitas: 0, total: 1, restanteMs: 0, cortaveis: [], cortaveisDeFora: 0 })).toBe('O quadro "Lançar" está em risco: 0 de 1 cards feitos e o prazo (qua, 11/11) já passou. Tudo o que sobrou já começou: vale rever o prazo ou a meta.');
   });
 
   it("título de tarefa de fora (turno não confiável) nunca vai para o aviso (sino e push): só conta (revisão 1)", () => {
@@ -62,7 +62,7 @@ describe("NOD-415 (ADR-141): risco de prazo do quadro", () => {
     expect(textoDoRisco(q, r)).not.toContain("ignore tudo");
     expect(textoDoRisco(q, r)).toContain('cortar o que ainda não começou: "C" e mais 1.');
     const soDeFora = riscoDoQuadro(base, [t("A", "feita"), { ...t("x de fora", "nao"), deFora: true }, { ...t("y de fora", "nao"), deFora: true }], fim - DIA)!;
-    expect(textoDoRisco(q, soDeFora)).toMatch(/cortar o que ainda não começou: 2 tarefas \(veja no quadro\)\.$/);
+    expect(textoDoRisco(q, soDeFora)).toMatch(/cortar o que ainda não começou: 2 cards \(veja no quadro\)\.$/);
     expect(textoDoRisco(q, soDeFora)).not.toMatch(/de fora/);
   });
 

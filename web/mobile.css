@@ -14,9 +14,9 @@
 /* Fora do celular o ‹ da inicial não existe e a faixa que só o teria também não. */
 .abrir-bots { display: none; }
 .cabecalho.so-menu { display: none; }
-/* NOD-381: o que só o celular desenha (o + do campo, a presença dentro da pílula e o esqueleto do carregando) não existe no
-   computador; lá a pílula segue com o nome e o ponto, como antes. */
-.mais-campo, .pilula-presenca, .esqueleto-conversa { display: none; }
+/* NOD-381: o que só o celular desenha (o + do campo e a presença dentro da pílula) não existe no computador; lá a pílula
+   segue com o nome e o ponto, como antes. O esqueleto do carregando saiu (item 5 do chat: só o spinner, web/chat-troca.css). */
+.mais-campo, .pilula-presenca { display: none; }
 .pilula-txt { display: contents; }
 
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
@@ -29,11 +29,17 @@
   .gvn-acao-texto, .gv-aba { min-height: 44px; }
   .gvn-nome { min-height: 44px; }
   .gvn-sub { min-height: 44px; }
+  /* QA 2026-11-17: rebaixar ou revogar um acesso é uma ação sensível; os dois controles precisam do alvo inteiro. */
+  .detalhes .bt.link.sm, .detalhes .gv-bt { min-height: 44px; }
   /* Revisão da NOD-349: a chave da rotina (30×18) ganha área de toque de 44 px sem mudar o desenho; + Nova também. */
   .detalhe-rotina .chave::after { content: ""; position: absolute; inset: -13px -7px; }
   .gv-secao-cab .gv-link { min-height: 44px; }
   .composer-chip { min-height: 44px; }
-
+  /* QA de 2026-11-17: a fila "Sua vez" ainda usava botões de 40 px e resumos de 24 px no celular. */
+  .tela-sua-vez button, .tela-sua-vez summary {
+    box-sizing: border-box; min-width: 44px; min-height: 44px;
+  }
+  .tela-sua-vez summary { display: flex; align-items: center; }
   html, body { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
   /* O cinza do toque do iOS por cima de cada botão: o :active de cada controle já responde. */
   body { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
@@ -192,6 +198,8 @@
   .presenca { display: none; }
   .cab-acoes { flex: none; flex-wrap: nowrap; gap: 4px; margin-left: 0; }
   .cab-acoes .bt { min-width: 44px; min-height: 44px; padding: 8px 10px; }
+  .tela-nova-sala .opcao { min-height: 44px; padding: 6px 0; box-sizing: border-box; }
+  .tela-nova-sala [data-act="criar-sala"] { min-height: 44px; }
   /* NOD-381 (protótipo nod-381, aprovado em 2026-10-27): o topo da conversa flutua sobre o chat — o ‹ num círculo de vidro
      à esquerda e a pílula do bot centrada (44 px, avatar 28, nome 15/600 e a presença em 12 px embaixo, sem ponto nem ›).
      Embaixo deles o texto esmaece (--surface sólido até o meio dos botões → transparente em sa+76). Só os botões recebem
@@ -205,6 +213,12 @@
   .cabecalho.cabecalho-pilula .voltar-bots { position: absolute; left: max(12px, env(safe-area-inset-left)); top: calc(env(safe-area-inset-top) + 4px);
     margin: 0; border: 1px solid var(--line); border-radius: 50%; color: var(--ink);
     background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-pop); }
+  /* QA-110: o "Recentes" é o atalho do leitor de tela para o segurar do ‹; com teclado (Tab) ele recebe foco e, recortado em
+     1×1 px pelo .sr-only, o anel some. Focado pelo teclado, aparece como pílula logo abaixo do ‹, sem empurrar o topo. */
+  .cabecalho.cabecalho-pilula .abrir-recentes-leitor:focus-visible { position: absolute !important; left: max(12px, env(safe-area-inset-left));
+    top: calc(env(safe-area-inset-top) + 52px); width: auto !important; height: 44px !important; min-width: 44px; padding: 0 16px !important;
+    margin: 0 !important; overflow: visible !important; clip: auto !important; white-space: nowrap !important; border: 1px solid var(--line) !important;
+    border-radius: 22px; color: var(--ink); font: inherit; font-size: 15px; background: var(--surface); box-shadow: var(--shadow-pop); }
   .cabecalho.cabecalho-pilula .pilula-bot { min-height: 44px; height: 44px; max-width: min(254px, 100%); gap: 8px; padding: 0 16px 0 8px; border-radius: 22px;
     background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-pop); }
   .cabecalho.cabecalho-pilula .pilula-bot:hover, .cabecalho.cabecalho-pilula .pilula-bot:focus-visible { padding-right: 16px; }
@@ -214,17 +228,13 @@
   .pilula-nome { font-size: 15px; font-weight: 600; line-height: 1.2; }
   .pilula-presenca { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; line-height: 1.2; color: var(--ink-2); }
   .pilula-presenca b { font-weight: 600; }
-  /* A linha do computador do bot fica na base da pílula (como no computador), não na base do véu sobre o chat. */
-  .cabecalho.cabecalho-pilula .pilula-bot:has(> .cb-fio) { position: relative; }
   /* QA: o ponto de presença do computador (interface.css, mais específico) vazava para a pílula do celular; aqui a
      presença é o texto de 12 px, só quando o bot não está disponível. */
   .cabecalho.cabecalho-pilula .pilula-bot .presenca { display: none; }
-  .cabecalho.cabecalho-pilula .pilula-bot > .cb-fio { left: 19px; right: 19px; border-radius: 2px; }
   /* A primeira mensagem começa abaixo da pílula (sa + 52 + 12), e a mensagem destacada também não para embaixo dela. */
   .cabecalho.cabecalho-pilula ~ .timeline-wrap { padding-top: calc(env(safe-area-inset-top) + 64px); scroll-padding-top: calc(env(safe-area-inset-top) + 64px); }
-  .cabecalho.cabecalho-pilula + #erro:not(:empty) { position: relative; z-index: 5; margin-top: calc(env(safe-area-inset-top) + 56px); }
-  /* Revisão 2: entre o #erro e a lista há os avisos sr-only, então o irmão é `~`, não `+`; e a folga da rolagem segue. */
-  .cabecalho.cabecalho-pilula + #erro:not(:empty) ~ .timeline-wrap { padding-top: 12px; scroll-padding-top: 12px; }
+  /* C6 (2026-11-12): sobreposto, como no desktop; a lista não muda de lugar quando o aviso aparece ou some. */
+  .cabecalho.cabecalho-pilula + #erro:not(:empty) { top: calc(env(safe-area-inset-top) + 56px); }
 
   /* ---- A conversa ---- */
   .timeline-wrap { padding: 14px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left)); overflow-x: hidden;
@@ -239,7 +249,7 @@
      No celular a barra fica dentro da coluna; sem isto o balão encolhia para 150 px em 390 px e o Ouvir e a dica saíam da tela. */
   .message.bot.ouvivel .bubble-wrap { max-width: calc(100% - 36px); }
   .bubble { font-size: 15px; }
-  .msg-handoff, .msg-peer, .msg-rotina, .msg-consentimento, .connection-card, .card-pasta, .welcome-options,
+  .msg-handoff, .msg-peer, .msg-rotina, .msg-consentimento, .connection-card, .card-pasta, .bv-cartao,
   .liberar-card { margin-left: 0; max-width: 100%; }
   .workspace-dialogo button { min-width: 44px; min-height: 44px; }
   .workspace-dialogo input { min-height: 44px; }
@@ -325,7 +335,7 @@
   .modo-confirma { margin-left: 12px; }
   .modo-confirma-acoes { flex-direction: column; }
   .bot-menu.modo-menu .modo-confirma-acoes button { min-height: 44px; width: 100%; justify-content: center; }
-  /* ADR-095 (as fotos do Grok no iPhone, docs/referencias/ditado-grok/): gravando, a linha do campo vira três pílulas —
+  /* ADR-095 (as fotos de referência no iPhone): gravando, a linha do campo vira três pílulas —
      ■ (para e põe no campo) | tempo e nível | enviar largo (para e envia direto). O resto do campo some até acabar. */
   .composer .mic { width: 44px; height: 44px; background: transparent; }
   .composer .box.gravando { border-radius: 0; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; background: transparent; box-shadow: none; padding: 0; gap: 10px; min-height: 52px; align-items: stretch; }
@@ -400,11 +410,13 @@
   .espaco-nav { width: 100%; max-height: 42%; overflow-y: auto; padding: 10px 10px 6px; border-right: 0; border-bottom: 1px solid var(--line); }
   .espaco-nav h1 { padding: 12px 12px 6px; font-size: 20px; }
   .espaco-conteudo { padding: 20px 16px 32px; }
+  /* QA 2026-11-16: sondar e trocar o harness são ações isoladas; o padding compacto do desktop deixava 35 px de altura. */
+  .espaco-conteudo .inventario .bt.sm { min-width: 44px; min-height: 44px; }
 
   /* ---- Telas e formulários: uma coluna ---- */
   .tela { min-width: 0; }
   .tela-conectores { padding: 4px 0 24px !important; }
-  .tela-nao-lidos, .tela-trabalhos { padding: 4px 0 24px; }
+  .tela-nao-lidos { padding: 4px 0 24px; }
   /* NOD-449: no celular a prévia tem 2 linhas, a linha vai de ponta a ponta e o aviso fica acima da barra de baixo. */
   .tela-nao-lidos .nl-topo { padding: 4px 16px 10px; }
   .tela-nao-lidos .nl-lista { margin: 0; }
@@ -426,6 +438,8 @@
   .form-dupla { grid-template-columns: minmax(0, 1fr); }
   .apps-grid, .cartoes { grid-template-columns: minmax(0, 1fr); }
   .mac-agora { grid-template-columns: minmax(0, 1fr); }
+  /* QA de 2026-11-17: as ações da rotina e as decisões do diálogo de outra execução mediam 32–40 px. */
+  .tela-rotinas .acoes .bt, .bot-dialogo .acoes .bt { min-height: 44px; }
   dialog { max-width: calc(100vw - 20px); max-height: calc(var(--altura-visivel, 100dvh) - 24px); overflow: auto; }
   .bot-menu, .bot-menu.menu-conta { max-width: calc(100vw - 24px); }
   .raio-x { width: 100vw; }
@@ -451,6 +465,10 @@
   .linha-espera .linha-centro { max-width: 100%; }
   /* Protótipo NOD-92: a linha da fila ("Acordando …", "Rodar em X desta vez", Cancelar) quebra em vez de vazar em 390 px. */
   .fila-chip { flex-wrap: wrap; row-gap: 2px; text-align: right; }
+  /* Acessos · fila: a linha quebra à direita, o texto fica em 12 px e o Cancelar/Desfazer ganha alvo de 44 px pelo ::after. */
+  .timeline .fila-linha { overflow-wrap: anywhere; }
+  .timeline .fila-linha .bt.link { position: relative; }
+  .timeline .fila-linha .bt.link::after { content: ""; position: absolute; inset: -14px -8px; }
   .nv-sono, .nv-conectar { padding-left: 18px; }
 }
 
@@ -468,7 +486,7 @@
   .pf-cab { min-height: 44px; }
   .pf-fechar { min-height: 44px; padding: 0 14px; }
   /* NOD-381: as linhas e os botões do painel de frentes com alvo de 44 px (eram 40). */
-  .pf-lista .progresso-item, .pf-item { min-height: 44px; }
+  .pf-lista .tv-linha, .pf-item { min-height: 44px; }
   .pf-ver, .pf-parar { min-height: 44px; min-width: 44px; }
   /* QA: o chip fechado tinha 42 px de altura dentro da moldura de 44. */
   .pf-botao { min-height: 44px; }
@@ -478,6 +496,18 @@
   .atv-filtro { min-height: 44px; padding: 8px 14px; }
   .atv-botao { min-height: 44px; }
   .atv-dia { min-height: 44px; }
+  /* QA de 2026-11-17: entrar numa conta é uma jornada sensível e os links, código e recuperação herdavam a densidade
+     do desktop (16–42 px). O formulário empilha no espaço estreito da linha para o campo não encolher a 26 px. */
+  .cl-login-cab .ob-link,
+  .cl-passos .cl-link,
+  .cl-passos .ia-codigo .ob-link,
+  .cl-terminal .ob-link,
+  .cl-login-acoes :is(.ob-link, .bt),
+  .cl-terminal-link,
+  .cl-codigo .bt { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+  .cl-codigo { flex-direction: column; }
+  .cl-codigo input { width: 100%; min-width: 44px; min-height: 44px; box-sizing: border-box; }
+  .cl-codigo .bt { width: 100%; }
   /* NOD-70: abas, Carregar mais, Exportar e Baixar com 44 px; os filtros das Decisões rolam de lado numa linha; a decisão
      aberta vira um cartão (folha) por cima da linha seguinte. */
   .atv-aba, .dec-baixar, .dec-mais .atv-link, .dec-exportar, .dec-detalhe .atv-link, .atv-revisor .atv-link[data-act="decisoes-negadas"] { min-height: 44px; }
@@ -485,15 +515,11 @@
   .dec-filtros .atv-filtro { flex: none; }
   .dec-item.aberto .dec-detalhe { margin: 0 4px 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); }
   .dec-dia { touch-action: pan-y; }
-  .tb-frente-passo { display: none; }
-  .tb-frentes { margin-left: 22px; }
-  .tb-frente { min-height: 40px; }
 }
 
 /* O progresso na fala e a linha do turno vivo no celular (chat limpo, PR 7): alvos de toque de 40 px, sem mudar o desenho. */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
-  .progresso-resumo { min-height: 40px; }
-  .progresso-titulo { min-height: 32px; }
+  .progresso .tv-linha, .progresso :is(.tv-chip, .tv-mais) { min-height: 40px; }
   .pensar > summary { min-height: 44px; }
   .message.ao-vivo { padding-left: 35px; }
   .message.ao-vivo.fala-viva, .message.fala-viva { padding-left: 0; }
@@ -725,6 +751,9 @@
   .cfg-celular .lc-switch::before { inset: -12px -5px; }
   .cfg-celular .lc-seletor { min-height: 44px; max-width: 46vw; }
   .cfg-celular .lc-link { min-height: 52px; }
+  /* QA 2026-11-16: Agentes tem o menu em cada linha e Restaurar nos excluídos; os dois precisam do alvo inteiro de toque. */
+  .cfg-celular .cfg-bot .cl-mais-bt { width: 44px; height: 44px; }
+  .cfg-celular .cfg-bot [data-act="restaurar-agente"] { min-height: 44px; }
 
   /* Feedback: o Enviar fica embaixo, à vista, logo acima do teclado (a coluna segue --altura-visivel). */
   .cfg-celular .cfg-fb { display: flex; flex-direction: column; min-height: 100%; }
@@ -789,12 +818,6 @@
   .artefato-acoes .bt.link { min-height: 44px; padding: 0 4px; }
   .artefato-acoes .bt.link, .artefato-dialogo .artefato-acoes .bt.sm { min-width: 44px; min-height: 44px; }
 
-  /* Carregando: três balões cinza no lugar do texto (o texto fica para o leitor de tela). */
-  .carregando-conversa { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .esqueleto-conversa { display: flex; flex-direction: column; gap: 14px; padding: 8px 4px; }
-  .esqueleto-conversa i { display: block; height: 44px; width: 70%; border-radius: 18px; background: var(--surface-raised); animation: esqueleto-pulsa 1.4s ease-in-out infinite; }
-  .esqueleto-conversa .eq-voce { align-self: flex-end; width: 52%; }
-  .esqueleto-conversa .curto { width: 40%; }
   /* Não enviada: o balão claro com contorno tracejado e a linha "Não foi enviada · Tentar de novo" em 13 px, sem o
      vermelho (o erro é da rede, não da pessoa). NOD-431: sem a opacidade de antes, que com a cor do bot caía abaixo de
      4,5:1. */
@@ -802,7 +825,6 @@
   .fala-pendente .envio-erro { font-size: 13px; color: var(--ink-2); }
   .fala-pendente .envio-erro .bt.envio-bt { min-height: 44px; font-size: 13px; border: 0; background: none; color: var(--ink); text-decoration: underline; }
 }
-@keyframes esqueleto-pulsa { 50% { opacity: .55; } }
 
 /* NOD-42 (definido em 2026-10-28, protótipo v3): no celular a busca aberta é [✕] ( mascote ⌕ termo 3/4 │ ˄ ˅ ). O ✕ ocupa
    o lugar e o tamanho do ‹; saem o nome do bot e o "desde" (o leitor ouve pelo anúncio); tudo com 44 px. */
@@ -859,3 +881,12 @@
 }
 
 @keyframes nl-sobe-c { from { opacity: 0; transform: translateY(8px); } }
+
+/* Acessos · computador, item 5 (definido em 2026-11-16): no celular o topo da tela cheia diz só "{Bot} · precisa de você"
+   e o pedido inteiro desce para baixo da pílula, centrado em 14 px; o Sair ganha 44 px de alvo. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .ctc-tit-longo, .ctc-tit-pedido { display: none; }
+  .ctc-tit-curto { display: inline; }
+  .ctc-pedido:not(:empty) { display: block; max-width: 100%; margin: 0; font-size: 14px; line-height: 20px; text-align: center; color: #ffffffa8; } /* cor-fixa: sobre o fundo fixo da tela cheia */
+  .ctc-sair { width: 44px; height: 44px; margin-right: -10px; }
+}

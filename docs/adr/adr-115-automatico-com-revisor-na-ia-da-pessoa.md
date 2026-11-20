@@ -15,8 +15,8 @@ Produção, 30 dias até 17/10, conta Gamefik, só contagens: 110 comandos no Ma
 desfecho. 66% das horas paradas vêm de rotinas, onde ninguém está olhando. E o Automático de hoje tem o buraco oposto:
 desde a ADR-066 ele envia o e-mail que um texto de fora pediu.
 
-A ADR-042 (seção "Revisor-modelo antes de cada ação"), a ADR-059 (alternativas descartadas) e o
-`docs/grokbot-comparison.md` ("Auto Review") recusaram um revisor-modelo por três razões: (1) os vazios dele não são
+A ADR-042 (seção "Revisor-modelo antes de cada ação") e a ADR-059 (alternativas descartadas)
+recusaram um revisor-modelo por três razões: (1) os vazios dele não são
 enumeráveis; (2) a lista fecha a superfície; (3) ele queima a cota da pessoa para vigiá-la, ou vira autoridade remota
 síncrona. O Marlon decidiu em 18/10 reverter essa recusa, com o revisor rodando na IA da própria pessoa.
 
@@ -67,8 +67,8 @@ síncrona. O Marlon decidiu em 18/10 reverter essa recusa, com o revisor rodando
    ADR-021 também (a máquina puxa, o servidor nunca disca). **A objeção da cota continua verdadeira e é aceita**: a
    pessoa a aceita ao escolher o Automático, com os tetos e a contagem visível (PR 4).
 
-Reverte de forma explícita: a recusa do revisor-modelo na ADR-042 (`adr-042:80-88`), na ADR-059 (`adr-059:99-102`) e em
-`docs/grokbot-comparison.md:104-108`; o gatilho de reversão da ADR-059 "qualquer comando da lista de arriscados rodando no
+Reverte de forma explícita: a recusa do revisor-modelo na ADR-042 (`adr-042:80-88`) e na ADR-059 (`adr-059:99-102`);
+o gatilho de reversão da ADR-059 "qualquer comando da lista de arriscados rodando no
 automático" (`adr-059:128-130`), que deixa de ser defeito quando o revisor libera. Pela parte do "Ignorar todas"
 (PR 6, abaixo): a alternativa descartada "Total sem a cerca da credencial" (`adr-059:111-113`) vira a decisão, e o
 gatilho "Credencial lida por bot no total sem card" (`adr-059:131`) vira o comportamento pedido.

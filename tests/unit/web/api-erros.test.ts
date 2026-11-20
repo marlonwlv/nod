@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ErroApi, FRASE_SEM_INTERNET, FRASE_SERVIDOR_INDISPONIVEL, rotaDe } from "../../../web/lib/erro-api.ts";
+import { ErroApi, FRASE_SEM_INTERNET, FRASE_SERVIDOR_DEMOROU, FRASE_SERVIDOR_INDISPONIVEL, rotaDe } from "../../../web/lib/erro-api.ts";
 
 /**
  * api.ts usa XMLHttpRequest (DOM) e o tsconfig.server.json, que checa tests/, não tem a lib DOM: o módulo entra por
@@ -55,6 +55,15 @@ describe("classificação da falha em pedir() (NOD-215)", () => {
       expect(e).toMatchObject({ status: 0, codigo, message: frase, rota: "GET /frota" });
       expect(e.message).not.toMatch(/Failed to fetch|confira a conexão/i);
     }
+  });
+
+  it("prazo vencido (TimeoutError) diz que o nod demorou, não que reinicia — mesmo código, repete igual (2026-11-19)", async () => {
+    vi.useFakeTimers();
+    online(true);
+    vi.stubGlobal("fetch", async () => { throw new DOMException("signal timed out", "TimeoutError"); });
+    const r = await assentar(criarApi(escopo).frota());
+    expect((r as { erro: ErroApi }).erro).toMatchObject({ status: 0, codigo: "servidor_indisponivel", message: FRASE_SERVIDOR_DEMOROU, rota: "GET /frota" });
+    expect(FRASE_SERVIDOR_DEMOROU).not.toMatch(/reinici/i);
   });
 
   it("502/503/504 sem corpo do nod viram servidor_indisponivel", async () => {

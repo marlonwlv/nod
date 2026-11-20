@@ -33,6 +33,33 @@ describe("NOD-293 (B7): a guia no mais potente não leva um raciocínio que o mo
   });
 });
 
+describe("NOD-480: a janela observada segue o modelo efetivo", () => {
+  const pronto = { estado: "pronto" as const, versao: "2.1.309", em: Date.now() };
+
+  it("trocar de Opus para Haiku com o turno em auto não reaproveita a janela antiga de 1M", async () => {
+    const { deps } = depsEmMemoria(MARLON);
+    const { data: bot } = await executar(deps, criarAgente, { dono: "pessoa", nome: "QA" });
+    await deps.repos.agentes.atualizarPerfil(bot.agente.id, { confirmado: true });
+    const turno = async () => {
+      const agente = (await deps.repos.agentes.buscar(bot.agente.id))!;
+      return (await deps.repos.turnos.enfileirar({ conversaId: bot.conversa.id, agenteId: agente.id, origem: "conversa", prazoEm: Date.now() + 86_400_000, profundidade: 0, entradaTexto: "continue", entradaConfianca: "confiavel", modelo: agente.modelo, harness: agente.harness, executor: "local" }))!;
+    };
+
+    await executar(deps, definirInteligenciaDoBot, { agenteId: bot.agente.id, pedido: { modo: "fixa", fixa: "claude-cli", escolhas: { "claude-cli": { modelo: "opus" } } } });
+    const opus = await turno();
+    const planoOpus = (await executar(deps, emitirPlanoTurno, { turnoId: opus.id, machineId: "maquina-1", executor: "local", harnesses: { "claude-cli": pronto } })).data;
+    expect(planoOpus.entrada.modelo).toBe("opus");
+    await deps.repos.raioX.gravarExecucao(opus.id, { chamadas: [], chamadasOmitidas: 0, compactacoes: [], janela: 1_000_000, modelo: "claude-opus", versaoCli: "2.1.309", custoSessaoUsd: null, ferramentasNoInit: 0, buscaDeFerramentas: false, duracaoMs: 1 });
+    await deps.repos.turnos.assentar(opus.id, { estado: "concluido" });
+
+    await executar(deps, definirInteligenciaDoBot, { agenteId: bot.agente.id, pedido: { modo: "fixa", fixa: "claude-cli", escolhas: { "claude-cli": { modelo: "haiku" } } } });
+    const haiku = await turno();
+    const planoHaiku = (await executar(deps, emitirPlanoTurno, { turnoId: haiku.id, machineId: "maquina-1", executor: "local", harnesses: { "claude-cli": pronto } })).data;
+    expect(planoHaiku.entrada.modelo).toBe("haiku");
+    expect(planoHaiku.orcamento).toMatchObject({ janela: 200_000, enxuto: true });
+  });
+});
+
 describe("NOD-23: a reconfiguração começa no turno do comando", () => {
   const pronto = { estado: "pronto" as const, versao: "fake", em: Date.now() };
 

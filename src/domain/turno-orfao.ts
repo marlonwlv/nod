@@ -121,7 +121,7 @@ export function motivoDaFila(d: DecisaoTurnoOrfao): MotivoFila | null {
 
 export function textoDoMotivoDaFila(m: MotivoFila): string {
   switch (m) {
-    case "depois_de": return "espera a task anterior terminar";
+    case "depois_de": return "espera a tarefa anterior terminar";
     case "faixa_ocupada": return "espera o bot terminar o que está fazendo";
     case "condicao_da_maquina": return "espera o computador do bot (cota da IA, Mac fora ou sem recursos)";
     default: return textoDaCausa(m);

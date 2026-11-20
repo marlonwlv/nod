@@ -9,11 +9,11 @@ import { botao, esc } from "../lib/render.ts";
  * escreve no Linear e ninguém começa: as tarefas entram sem responsável.
  */
 
-const tarefas = (n: number) => `${n} ${n === 1 ? "tarefa" : "tarefas"}`;
+const tarefas = (n: number) => `${n} ${n === 1 ? "card" : "cards"}`;
 
 /** As linhas curtas da prévia (texto, escapado aqui): quem começa, quem precisa da pessoa, os estados sem coluna. */
 export function linhasDaPrevia(p: PreviaImportacao): string[] {
-  const linhas = ["Ninguém começa: as tarefas entram sem responsável e nada muda no Linear."];
+  const linhas = ["Ninguém começa: os cards entram sem responsável e nada muda no Linear."];
   if (p.precisamDeVoce > 0) linhas.push(`${p.precisamDeVoce} ${p.precisamDeVoce === 1 ? "precisa" : "precisam"} de você (precisa-humano no Linear).`);
   if (p.semColuna.length > 0) linhas.push(`Sem coluna, vão para o Backlog: ${p.semColuna.join(", ")}.`);
   return linhas.map(esc);

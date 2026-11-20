@@ -114,7 +114,7 @@ describeIntegracao("frentes de lote que caem: o varredor retoma e, na 3ª queda,
         expect(retomada.entradaTexto).toContain("devolver_resumo");
         const aviso = (await m.repos.mensagens.listarDaConversa(m.ada.conversaId, 500)).filter((x) => x.turnoId === retomada.id && x.kind === "sistema");
         expect(aviso).toHaveLength(1);
-        expect(aviso[0]!.texto).toMatch(new RegExp(`^A frente CI vermelha caiu \\(.+\\) e foi retomada sozinha quando as máquinas voltaram: tentativa ${queda + 1} de ${MAX_QUEDAS_POR_PEDIDO}\\.$`));
+        expect(aviso[0]!.texto).toMatch(new RegExp(`^A tarefa CI vermelha caiu \\(.+\\) e foi retomada sozinha quando as máquinas voltaram: tentativa ${queda + 1} de ${MAX_QUEDAS_POR_PEDIDO}\\.$`));
         // Nenhum retorno ao dono enquanto a frente segue retomável.
         expect(await m.retomadasDoDono(dono)).toHaveLength(0);
       }

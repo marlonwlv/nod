@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ResultadoTurno } from "../../../src/contracts/turno.ts";
 import { LEASE_MS } from "../../../src/shared/constantes.ts";
 import { assentarTurno, desfechoDaEntrega, REGRA_ENTREGA_TARDIA } from "../../../src/use-cases/assentar-turno.ts";
 import { criarAgente } from "../../../src/use-cases/criar-agente.ts";
 import { dispararRotina } from "../../../src/use-cases/disparar-rotina.ts";
-import { interromperPorMaquina } from "../../../src/use-cases/interromper-por-maquina.ts";
+import { interromperBastidoresComTeto, interromperPorMaquina } from "../../../src/use-cases/interromper-por-maquina.ts";
 import { enfileirarRetomada } from "../../../src/use-cases/enfileirar-retomada.ts";
 import { ENTRADA_DA_RETOMADA_DA_QUEDA } from "../../../src/domain/cota-da-ia.ts";
 import { depsEmMemoria, executar, MARLON } from "../../helpers/deps-l6.ts";
@@ -20,7 +20,7 @@ const pronto: ResultadoTurno = { ...base, desfecho: "sucesso", texto: "Resumo: 3
  * ADR-045: o Mac dormiu no meio do turno; ao acordar a renovação volta {ativo:false} (lease vencido), o
  * laço mata o CLI e ENTREGA antes de o varredor passar. Essa entrega termina igual ao varredor.
  */
-async function cenario(tipo: "rotina" | "conversa") {
+async function cenario(tipo: "rotina" | "conversa" | "delegacao") {
   let agora = T0;
   const { deps, banco } = depsEmMemoria(MARLON, { relogio: () => agora });
   const { data: bot } = await executar(deps, criarAgente, { dono: "pessoa", nome: "Taga" });
@@ -33,7 +33,7 @@ async function cenario(tipo: "rotina" | "conversa") {
     turnoId = r.data.turno.id;
     rotinaId = rotina!.id;
   } else {
-    const t = await deps.repos.turnos.enfileirar({ executor: "catcher", conversaId: bot.conversa.id, agenteId: bot.agente.id, origem: "conversa", prazoEm: T0 + 86_400_000, profundidade: 0, entradaTexto: "resume meus e-mails", entradaConfianca: "confiavel", modelo: "m" });
+    const t = await deps.repos.turnos.enfileirar({ executor: "catcher", conversaId: bot.conversa.id, agenteId: bot.agente.id, origem: tipo, prazoEm: T0 + 86_400_000, profundidade: 0, entradaTexto: "resume meus e-mails", entradaConfianca: "confiavel", modelo: "m", ...(tipo === "delegacao" ? { sobProcuracaoDe: MARLON.pessoaId } : {}) });
     turnoId = t!.id;
   }
   const maquina = randomUUID();
@@ -142,6 +142,82 @@ describe("assentarTurno: entrega depois de o Mac cair (ADR-045)", () => {
 
 describe("ADR-131: o motor parou no meio do turno (atualização sozinha, restart, app fechado)", () => {
   const doMotor: ResultadoTurno = { ...cortado, causa: "reinicio_do_motor" };
+
+  it("NOD-452: o corte já pedido vence até uma conclusão concorrente", () => {
+    expect(desfechoDaEntrega({ pararSolicitadoEm: T0, leaseAte: T0 + LEASE_MS, motivoInterrupcao: "turno_travado" }, pronto, T0)).toEqual({
+      estado: "interrompido",
+      motivoInterrupcao: "turno_travado",
+      motivoFalha: null,
+    });
+  });
+
+  it("NOD-452: a telemetria do teto leva só origem, desfecho e duração", async () => {
+    const c = await cenario("rotina");
+    const turno = c.banco.turnos.find((t) => t.id === c.turnoId)!;
+    const linhas: Record<string, unknown>[] = [];
+    const saida = vi.spyOn(console, "log").mockImplementation((linha: string) => { linhas.push(JSON.parse(linha) as Record<string, unknown>); });
+    try {
+      await interromperBastidoresComTeto(c.deps, [turno]);
+    } finally {
+      saida.mockRestore();
+    }
+    const teto = linhas.find((linha) => linha.evento === "bastidor_teto_atingido");
+    expect(teto).toMatchObject({ origem: "rotina", desfecho: "interrupcao_solicitada", duracao_ms: 0 });
+    expect(teto).not.toHaveProperty("turno_id");
+    expect(teto).not.toHaveProperty("texto");
+    expect(teto).not.toHaveProperty("args");
+  });
+
+  it("NOD-452: a entrega do processo cortado libera a faixa com retomada pela política do fundo", async () => {
+    const c = await cenario("rotina");
+    const turno = c.banco.turnos.find((t) => t.id === c.turnoId)!;
+    turno.pararSolicitadoEm = T0;
+    turno.motivoInterrupcao = "turno_travado";
+    const r = await c.entregar(pronto);
+    expect(r.data.turno).toMatchObject({ estado: "interrompido", motivoInterrupcao: "turno_travado" });
+    expect(c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId)).toHaveLength(1);
+    expect(c.banco.decisoes).toEqual([]);
+  });
+
+  it("NOD-452: pedido de colega cortado também ganha uma única retomada com backoff", async () => {
+    const c = await cenario("delegacao");
+    const turno = c.banco.turnos.find((t) => t.id === c.turnoId)!;
+    await interromperBastidoresComTeto(c.deps, [turno]);
+    c.passar(1);
+    const r = await c.entregar(cortado);
+
+    expect(r.data.turno).toMatchObject({ estado: "interrompido", motivoInterrupcao: "turno_travado" });
+    const [retomada] = c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId);
+    expect(retomada).toMatchObject({ estado: "pendente" });
+    expect(retomada?.acordarEm).toBeGreaterThanOrEqual(T0 + 1 + 22_500);
+    expect(retomada?.acordarEm).toBeLessThanOrEqual(T0 + 1 + 37_500);
+  });
+
+  it("NOD-452: o Parar pedido depois do teto vence e não deixa retomada", async () => {
+    const c = await cenario("rotina");
+    const turno = c.banco.turnos.find((t) => t.id === c.turnoId)!;
+    turno.pararSolicitadoEm = T0;
+    turno.motivoInterrupcao = "turno_travado";
+    await c.deps.repos.turnos.pedirInterrupcao([c.turnoId], T0 + 1);
+    expect(turno.motivoInterrupcao).toBeNull();
+    await c.entregar(cortado);
+    expect(c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId)).toEqual([]);
+  });
+
+  it("NOD-452: o Parar vence mesmo quando o varredor guardou uma leitura anterior do teto", async () => {
+    const c = await cenario("rotina");
+    const vivo = c.banco.turnos.find((t) => t.id === c.turnoId)!;
+    await interromperBastidoresComTeto(c.deps, [vivo]);
+    const leituraAnterior = { ...vivo };
+
+    await c.deps.repos.turnos.pedirInterrupcao([c.turnoId], T0 + 1);
+    expect(vivo.motivoInterrupcao).toBeNull();
+    c.passar(LEASE_MS + 1);
+    await interromperPorMaquina(c.deps, { turnos: [leituraAnterior] });
+
+    expect(vivo).toMatchObject({ estado: "interrompido", motivoInterrupcao: "parado_pela_pessoa" });
+    expect(c.banco.turnos.filter((t) => t.retomaTurnoId === c.turnoId)).toEqual([]);
+  });
 
   it("desfechoDaEntrega: a causa reinicio_do_motor é queda, não trabalho incompleto; o Parar vence; o sucesso fica sucesso", () => {
     const livre = { pararSolicitadoEm: null, leaseAte: T0 + LEASE_MS };

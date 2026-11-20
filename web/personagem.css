@@ -1,0 +1,199 @@
+/* ADR-174 (2026-11-12): o personagem do nod — o modal "Criar novo bot" (tela 09 do Paper), o preparo com %
+   (tela 09b) e o onboarding em 10 passos (tela 13). Só tokens (tokens.css e os do ADR-167); nenhuma cor literal. */
+
+/* ---- seletores de forma e cor (modal e passo 9) ------------------------------------------------------------------- */
+.cb-formas, .cb-cores { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.cb-cores { gap: 6px; }
+.cb-forma { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--raio-14); border: 1.5px solid transparent; background: none; cursor: pointer; transition: background var(--dur-rapido) var(--curva), border-color var(--dur-rapido) var(--curva); }
+.cb-forma:hover { background: var(--hover); }
+.cb-forma[aria-checked="true"] { border-color: var(--ink); background: var(--ativo); }
+.cb-forma .icon.mascote.sm { width: 32px; height: 32px; }
+.cb-cor { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--raio-full); border: 2px solid transparent; background: none; cursor: pointer; padding: 0; }
+.cb-cor .cor-amostra { display: block; width: 22px; height: 22px; border-radius: var(--raio-full); background: var(--mascote-cor); box-shadow: inset 0 0 0 .5px var(--line-strong); transition: transform var(--dur-rapido) var(--curva); }
+.cb-cor:hover .cor-amostra { transform: scale(1.08); }
+.cb-cor[aria-checked="true"] { border-color: var(--ink); }
+.cb-forma:focus-visible, .cb-cor:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* No escuro a cor "tinta" do Paper é clara (o personagem preto vira branco): a amostra acompanha. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cb-cor .cor-amostra.c-black { background: var(--ink); } }
+:root[data-theme="dark"] .cb-cor .cor-amostra.c-black { background: var(--ink); }
+
+/* ---- o diálogo "Criar novo bot" (spec do botão +, telas 1 e 2) ----------------------------------------------------
+   Abre e fecha seco (sem animação, o scrim também). 440 de largura, altura pelo conteúdo; borda 2 (--borda), raio 14. */
+dialog.criar-bot { --cnb-fundo: var(--surface-criar-bot, var(--surface-elevated)); box-sizing: border-box; width: min(440px, calc(100vw - 32px)); max-width: none; padding: 0; border: 1px solid var(--borda); border-radius: 14px; background: var(--cnb-fundo); color: var(--ink); box-shadow: var(--sombra-modal); overflow: hidden; animation: none; }
+dialog.criar-bot::backdrop { background: var(--scrim, var(--backdrop)); animation: none; }
+dialog.criar-bot * { box-sizing: border-box; }
+.cnb { display: flex; flex-direction: column; margin: 0; }
+.cnb-topo { display: flex; align-items: center; justify-content: space-between; height: 55px; padding: 16px; border-bottom: 1px solid var(--borda); }
+.cnb-topo h2 { margin: 0; font-size: 14px; line-height: 22px; font-weight: 600; }
+.cnb-fechar { display: grid; place-items: center; width: 32px; height: 32px; margin-right: -8px; padding: 0; border: 0; border-radius: var(--raio-full); background: none; color: var(--icone-2, var(--ink-2)); cursor: pointer; }
+.cnb-fechar:hover { background: var(--hover); }
+.cnb-corpo { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 406px; max-width: 100%; margin: 0 auto; padding: 16px 0; }
+@media (max-width: 472px) { .cnb-corpo { width: auto; padding: 16px; } }
+.cnb-previa { display: grid; place-items: center; width: 96px; height: 96px; }
+.cnb-previa .icon.mascote.xl { width: 96px; height: 96px; }
+.cnb-nome { width: 100%; height: 36px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; line-height: 18px; text-align: center; }
+.cnb-nome::placeholder { color: var(--ink-3); }
+.cnb-nome:focus { outline: none; border-color: var(--borda-forte); box-shadow: 0 0 0 3px var(--focus-ring); }
+.cnb-formas, .cnb-cores { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cnb-formas .cnb-linha { display: flex; justify-content: center; gap: 10px; }
+.cnb-cores .cnb-linha { display: flex; justify-content: center; gap: 8px; }
+/* hover e clique trocam seco: sem transição nos rádios */
+.cnb-forma { position: relative; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: var(--raio-full); background: none; cursor: pointer; }
+.cnb-forma .icon.mascote.sm { width: 36px; height: 36px; }
+.cnb-forma:hover { background: var(--hover); }
+.cnb-forma[aria-checked="true"]::before { content: ""; position: absolute; inset: 2px; border-radius: var(--raio-full); box-shadow: inset 0 0 0 1px var(--borda-forte); pointer-events: none; }
+.cnb-cor { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--raio-full); background: none; cursor: pointer; }
+.cnb-cor .cnb-bolinha { display: block; width: 24px; height: 24px; border-radius: var(--raio-full); background: var(--mascote-cor); box-shadow: inset 0 0 0 .5px var(--borda); }
+.cnb-cor[aria-checked="true"] .cnb-bolinha { box-shadow: 0 0 0 3px var(--cnb-fundo), 0 0 0 4px var(--borda-forte); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cnb-bolinha.c-black { background: var(--ink); } }
+:root[data-theme="dark"] .cnb-bolinha.c-black { background: var(--ink); }
+.cnb-forma:focus-visible, .cnb-cor:focus-visible, .cnb-fechar:focus-visible, .cnb-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.cnb-erro { margin: 0; color: var(--danger); font-size: 13px; line-height: 18px; text-align: center; }
+.cnb-rodape { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 57px; padding: 12px 12px 12px 16px; border-top: 1px solid var(--borda); }
+.cnb-bt { height: 32px; padding: 0 12px; border: 0; border-radius: var(--raio-full); font: inherit; font-size: 14px; line-height: 20px; font-weight: var(--peso-medio); cursor: pointer; transition: background 120ms ease-out, color 120ms ease-out, opacity 120ms ease-out; }
+.cnb-cancelar { background: var(--hover); color: var(--ink); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--ink) 15%, transparent); }
+.cnb-criar { background: var(--action); color: var(--on-action); }
+.cnb-criar:hover:not(:disabled) { background: var(--base-hover); }
+.cnb-criar:disabled { background: color-mix(in srgb, var(--ink) 15%, transparent); color: color-mix(in srgb, var(--ink) 30%, transparent); cursor: default; }
+/* tela 2 · Criando…: todos os controles desabilitados (opacidade .5), 120 ms ease-out */
+.cnb-nome, .cnb-forma, .cnb-cor, .cnb-fechar { transition: opacity 120ms ease-out; }
+dialog.criar-bot.criando :is(.cnb-nome, .cnb-forma, .cnb-cor, .cnb-fechar, .cnb-cancelar, .cnb-criar) { opacity: .5; cursor: default; }
+dialog.criar-bot.criando .cnb-criar { background: var(--action); color: var(--on-action); }
+
+/* ---- a linha provisória da barra (tela 3): entre Criar e o bot entrar na frota ------------------------------------ */
+.bot-provisorio > .row { display: flex; align-items: center; gap: 10px; color: var(--ink-3); cursor: default; }
+.bot-provisorio .provisorio-av { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border: 1.5px solid var(--ink-4); border-radius: var(--raio-full); color: var(--ink-3); }
+.bot-provisorio .txt { display: flex; flex-direction: column; min-width: 0; }
+.bot-provisorio b, .bot-provisorio .sub { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-provisorio b { font-weight: var(--peso-medio); }
+.bot-provisorio.selecionado { background: var(--ativo); }
+
+
+/* ---- o preparo com % ---------------------------------------------------------------------------------------------- */
+.cb-preparo { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 12px; max-width: 360px; margin: 0 auto; text-align: center; }
+.cb-preparo > :not(.cb-barra, .cb-porcento) { grid-column: 1 / -1; }
+.cb-preparo-mascote { position: relative; display: grid; place-items: center; height: 140px; }
+.cb-preparo-mascote .icon.mascote.xl { width: 104px; height: 104px; }
+/* A órbita do Paper: dois anéis finos da cor do bot girando em volta do personagem enquanto ele trabalha. */
+.cb-preparo-mascote.orbita::before, .cb-preparo-mascote.orbita::after { content: ""; position: absolute; left: 50%; top: 50%; width: 132px; height: 52px; margin: -26px 0 0 -66px; border: 1.5px solid var(--mascote-cor, var(--ink-3)); border-radius: 50%; opacity: .55; animation: cb-orbita 2.4s linear infinite; pointer-events: none; }
+.cb-preparo-mascote.orbita::after { animation-duration: 3.1s; animation-direction: reverse; transform: rotate(60deg); }
+@keyframes cb-orbita { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+/* foco-ok: o título só recebe o foco do programa ao trocar de tela, para o leitor de tela anunciar; não é controle */
+.cb-preparo-titulo { margin: 8px 0 2px; font-size: var(--fs-titulo-3); font-weight: var(--peso-medio); outline: none; }
+.cb-preparo-sub { margin: 0 0 18px; color: var(--ink-3); font-size: var(--fs-corpo-2); }
+.cb-barra { grid-column: 1; height: 4px; border-radius: var(--raio-full); background: var(--hover); overflow: hidden; }
+.cb-barra-cheia { display: block; height: 100%; border-radius: inherit; background: var(--ink); transition: width var(--dur-normal) var(--curva); }
+.cb-porcento { grid-column: 2; min-width: 3.2em; text-align: right; font-size: var(--fs-rotulo); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.cb-passos { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 10px; text-align: left; }
+.cb-passo { display: flex; align-items: center; gap: 10px; font-size: var(--fs-corpo-2); color: var(--ink-3); }
+.cb-passo[data-situacao="feito"] { color: var(--ink-2); }
+.cb-passo[data-situacao="agora"] { color: var(--ink); font-weight: var(--peso-medio); }
+.cb-passo[data-situacao="erro"] { color: var(--danger); }
+.cb-marca { display: grid; place-items: center; width: 18px; height: 18px; flex: none; }
+.cb-passo[data-situacao="feito"] .cb-marca { color: var(--success); }
+.cb-marca .icon.mascote.sm { width: 18px; height: 18px; }
+.cb-ponto { width: 5px; height: 5px; border-radius: var(--raio-full); background: var(--line-strong); }
+.cb-detalhe { margin-left: auto; color: var(--ink-3); font-size: var(--fs-rotulo); font-weight: var(--peso-regular); }
+.cb-erro { margin-top: 18px; padding: 12px 14px; border-radius: var(--raio-12); border: 1px solid var(--borda); background: var(--surface); text-align: left; }
+.cb-erro p { margin: 0 0 10px; font-size: var(--fs-corpo-2); }
+.cb-erro .cb-erro-titulo { margin-bottom: 4px; color: var(--ink-3); font-size: var(--fs-rotulo); }
+.cb-erro-acoes { display: flex; gap: 8px; }
+
+/* ---- onboarding em 10 passos -------------------------------------------------------------------------------------- */
+.ap-camada { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px; background: var(--surface); color: var(--ink); }
+.ap { position: relative; display: flex; flex-direction: column; width: min(560px, 100%); min-height: min(440px, calc(100vh - 48px)); }
+.ap-palco { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; animation: ap-entra var(--dur-lento) var(--curva); }
+@keyframes ap-entra { from { opacity: 0; transform: translateX(14px); } }
+/* foco-ok: o título só recebe o foco do programa ao trocar de passo, para o leitor de tela anunciar; não é controle */
+.ap h1 { margin: 10px 0 0; font-size: var(--fs-titulo-2); line-height: var(--lh-titulo-2); font-weight: var(--peso-medio); letter-spacing: var(--tracking-titulo-2); outline: none; }
+.ap .ap-titulo-discreto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.ap-sub { margin: 0; color: var(--ink-2); font-size: var(--fs-corpo); max-width: 40ch; }
+.ap-personagem { display: grid; place-items: center; min-height: 120px; }
+.ap-personagem .icon.mascote.xl { width: 88px; height: 88px; }
+.ap-personagem .icon.mascote.xxl { width: 120px; height: 120px; }
+.ap-previa .icon.mascote.xxl { width: 104px; height: 104px; }
+.ap-exemplo .icon.mascote.lg { width: 52px; height: 52px; }
+.ap-rodape { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; min-height: 52px; }
+.ap-acoes { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.ap-pontos { display: flex; align-items: center; gap: 4px; }
+.ap-ponto { width: 4px; height: 4px; border-radius: var(--raio-full); background: var(--line-strong); transition: width var(--dur-normal) var(--curva), background var(--dur-normal) var(--curva); }
+.ap-ponto.atual { width: 16px; background: var(--ink); }
+.ap-voltar { position: absolute; top: -8px; left: -8px; width: 32px; height: 32px; border-radius: var(--raio-8); border: 0; background: none; color: var(--ink-3); font-size: var(--fs-titulo-2); cursor: pointer; }
+.ap-voltar:hover { background: var(--hover); color: var(--ink); }
+
+/* 1 · boas-vindas */
+.ap-boas-vindas { align-items: center; justify-content: center; gap: 14px; text-align: center; }
+.ap-marca { display: flex; align-items: center; gap: 12px; }
+.ap-marca h1 { margin: 0; font-size: var(--fs-titulo-1); line-height: 1; }
+.ap-entrar { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+.ap-termos { margin: 8px 0 0; color: var(--ink-3); font-size: var(--fs-legenda); }
+
+/* 3 · o computador do bot, com um cursor que anda e clica */
+.ap-cena-pc { width: 220px; border-radius: var(--raio-10); background: var(--ink); padding: 6px; box-shadow: var(--sombra-modal); }
+.ap-pc-barra { height: 6px; width: 40%; margin: 2px 4px 6px; border-radius: var(--raio-full); background: var(--ink-2); }
+.ap-pc-tela { position: relative; height: 92px; border-radius: var(--raio-6); background: var(--surface); padding: 10px; display: grid; align-content: start; gap: 6px; }
+.ap-pc-linha { display: block; height: 4px; border-radius: var(--raio-full); background: var(--line-strong); }
+.ap-pc-linha.l1 { width: 80%; } .ap-pc-linha.l2 { width: 92%; } .ap-pc-linha.l3 { width: 58%; }
+.ap-pc-cursor { position: absolute; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 12px solid var(--action); transform: rotate(-30deg); animation: ap-cursor 3.2s var(--curva) infinite; }
+@keyframes ap-cursor { 0% { left: 20%; top: 70%; } 35% { left: 62%; top: 40%; } 45% { left: 62%; top: 40%; transform: rotate(-30deg) scale(.82); } 55% { transform: rotate(-30deg) scale(1); } 80% { left: 34%; top: 22%; } 100% { left: 20%; top: 70%; } }
+
+/* 4 · o desfile de bots de exemplo */
+.ap-desfile { display: flex; gap: 28px; justify-content: center; margin-bottom: 4px; }
+.ap-exemplo { --atraso: 0ms; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: var(--fs-corpo-2); animation: ap-sobe var(--dur-lento) var(--curva) both; animation-delay: var(--atraso, 0ms); }
+@keyframes ap-sobe { from { opacity: 0; transform: translateY(10px); } }
+
+/* 5 · o quadro */
+.ap-quadro { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(360px, 100%); text-align: left; margin-bottom: 6px; }
+.ap-quadro > div { display: grid; align-content: start; gap: 6px; }
+.ap-quadro b { font-size: var(--fs-legenda); color: var(--ink-3); font-weight: var(--peso-regular); }
+.ap-cartao { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; border-radius: var(--raio-6); border: 1px solid var(--borda); background: var(--surface-elevated); }
+.ap-cartao i { flex: 1; height: 3px; border-radius: var(--raio-full); background: var(--line-strong); }
+.ap-cartao .icon.mascote.sm { width: 14px; height: 14px; }
+
+/* 6 e 7 · fichas */
+.ap-fichas { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 420px; margin-top: 12px; }
+.ap-ficha { height: 32px; padding: 0 14px; border-radius: var(--raio-full); border: 1px solid var(--borda); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); cursor: pointer; transition: background var(--dur-rapido) var(--curva), border-color var(--dur-rapido) var(--curva); }
+.ap-ficha:hover { background: var(--hover); }
+.ap-ficha[aria-checked="true"] { border-color: var(--ink); background: var(--surface-selected); }
+
+/* 8 · apps */
+.ap-apps { list-style: none; margin: 12px 0 0; padding: 0; width: min(380px, 100%); text-align: left; }
+.ap-app { display: flex; align-items: center; gap: 8px; min-height: 44px; border-bottom: 1px solid var(--borda-sutil); font-size: var(--fs-corpo-2); }
+.ap-app:last-child { border-bottom: 0; }
+.ap-app-nome { flex: 1; }
+.ap-sugerido { padding: 2px 8px; border-radius: var(--raio-full); background: var(--signal-soft); color: var(--signal); font-size: var(--fs-legenda); }
+.ap-conectado { color: var(--success); font-size: var(--fs-rotulo); }
+
+/* 9 · criar o bot */
+.ap-criar .ap-palco { gap: 12px; }
+.ap-previa { min-height: 140px; }
+.ap-nome { width: min(260px, 100%); height: 36px; padding: 0 12px; border-radius: var(--raio-10); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; text-align: center; }
+.ap-nome:focus { outline: 2px solid var(--focus-ring); border-color: transparent; }
+.ap-composer { display: flex; align-items: center; gap: 8px; width: min(420px, 100%); margin-top: 6px; padding: 6px 6px 6px 14px; border-radius: var(--raio-18); border: 1px solid var(--borda); background: var(--surface-elevated); box-shadow: var(--sombra-modal); }
+/* foco-no-conteiner: .ap-composer */
+.ap-composer textarea { flex: 1; min-width: 0; border: 0; outline: none; resize: none; background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo); line-height: 24px; height: 24px; }
+.ap-enviar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--raio-full); border: 0; background: var(--action); color: var(--on-action); cursor: pointer; }
+.ap-enviar[disabled] { background: var(--hover); color: var(--ink-3); cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-palco, .ap-exemplo { animation: none; }
+  .ap-pc-cursor, .cb-preparo-mascote.orbita::before, .cb-preparo-mascote.orbita::after { animation: none; }
+}
+
+/* Alto contraste: o campo da primeira mensagem mostra o contorno no composer inteiro. */
+@media (forced-colors: active) {
+  .ap-composer:focus-within { outline: 2px solid CanvasText; }
+}
+@media (forced-colors: active) { .cnb-nome:focus { outline: 2px solid CanvasText; } }
+
+/* O ponto do passo que falta: o .cb-ponto do computador do bot (vermelho, computador-do-bot.css) vazava aqui. */
+.cb-passo .cb-ponto { width: 6px; height: 6px; margin: 0; background: var(--borda-forte); animation: none; }
+
+/* Tela 13 do Paper (rodada 2): "Entrar →" em pílula de 32; a cena do computador com a moldura escura, a tela cinza e o
+   cursor violeta; o ícone de cada app na linha dos apps. */
+.ap-entrar.bt.pri { height: 32px; min-height: 32px; padding: 0 12px; border-radius: 999px; font-size: 14px; font-weight: 500; }
+.ap-cena-pc { width: 220px; padding: 8px; border-radius: 12px; background: var(--base); }
+.ap-pc-barra { background: color-mix(in srgb, var(--surface) 30%, transparent); }
+.ap-pc-tela { background: var(--surface-raised); border-radius: 6px; }
+.ap-pc-cursor { border-bottom-color: var(--agent-violet); }
+.ap-app-ic { flex: none; color: var(--ink-2); }

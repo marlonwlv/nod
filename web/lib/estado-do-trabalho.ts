@@ -14,7 +14,7 @@ export type SituacaoDoTrabalho = "trabalhando" | "fila" | "esperando" | "comecan
 export type MotivoDaFila = NonNullable<TarefaDto["motivoFila"]>;
 
 export const MOTIVO_DA_FILA: Readonly<Record<MotivoDaFila, string>> = {
-  mesma_tarefa: "termina a etapa anterior desta tarefa",
+  mesma_tarefa: "termina a etapa anterior deste card",
   memoria: "a máquina está sem memória livre",
   processador: "o processador da máquina está ocupado",
   disco: "o disco da máquina está cheio",

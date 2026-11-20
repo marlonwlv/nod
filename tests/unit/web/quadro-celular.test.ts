@@ -43,7 +43,7 @@ describe("ADA-18: lista agrupada do celular (passo 2)", () => {
 
   it("cabeçalho do grupo: ícone do status, nome, contagem e o + que cria no grupo", () => {
     const h = celular([t("1"), t("2")]);
-    expect(h).toMatch(/<h3 class="qd-cg-cab"><button type="button" class="qd-cg-bt" data-act="abrir-coluna" data-status="afazer" aria-expanded="true"><svg[^>]*qd-st[^>]*>.*?<\/svg><span class="qd-cg-nome">A fazer<\/span><span class="qd-cg-n">2<\/span><\/button><button type="button" class="qd-cg-mais" data-act="col-nova-tarefa" data-status="afazer" aria-label="Nova tarefa em A fazer">/);
+    expect(h).toMatch(/<h3 class="qd-cg-cab"><button type="button" class="qd-cg-bt" data-act="abrir-coluna" data-status="afazer" aria-expanded="true"><svg[^>]*qd-st[^>]*>.*?<\/svg><span class="qd-cg-nome">A fazer<\/span><span class="qd-cg-n">2<\/span><\/button><button type="button" class="qd-cg-mais" data-act="col-nova-tarefa" data-status="afazer" aria-label="Novo card em A fazer">/);
   });
 
   it("a linha: título na linha toda, o ID embaixo e o avatar (vazio tracejado sem responsável); abre a tarefa", () => {
@@ -105,7 +105,7 @@ describe("ADA-18: visão no título (passo 3)", () => {
     expect(h).toContain('data-act="cel-visao" aria-haspopup="dialog" aria-expanded="true"');
     expect(h).toContain('role="menuitemradio" class="qd-cel-it" data-act="cel-visao-escolher" data-visao="lista" aria-checked="false"');
     expect(h).toContain('data-visao="colunas" aria-checked="true"');
-    expect(h).toContain('data-visao="minhas" aria-checked="false"><span>Minhas tarefas</span>');
+    expect(h).toContain('data-visao="minhas" aria-checked="false"><span>Meus cards</span>');
     expect(h).toContain('class="qd-cel-it qd-cel-sep" data-act="col-folha">Ordem das colunas</button>');
     expect(h).toContain('class="qd-folha-fundo qd-cel-fundo" data-act="cel-fechar"');
   });
@@ -150,7 +150,7 @@ describe("ADA-18: colunas com snap e pontos (passo 5)", () => {
   it("pontos decorativos, o 1º aceso; o + da coluna cria nela", () => {
     const h = colunas([t("1")]);
     expect(h).toContain('<div class="qd-cel-pontos" aria-hidden="true"><span class="qd-cel-ponto qd-cel-ponto-on"></span><span class="qd-cel-ponto">');
-    expect(h).toContain('data-act="col-nova-tarefa" data-status="afazer" aria-label="Nova tarefa em A fazer"');
+    expect(h).toContain('data-act="col-nova-tarefa" data-status="afazer" aria-label="Novo card em A fazer"');
     const n = Number(/data-n="(\d+)"/.exec(h)![1]);
     expect((h.match(/class="qd-cel-ponto[ "]/g) ?? []).length).toBe(n);
   });
@@ -289,7 +289,7 @@ describe("2026-11-11: o celular com o aviso do Backlog e a prioridade do computa
   const aberto = {};
   it("o grupo do Backlog com tarefa de alguém tem a dica do computador (dicaDoBacklog); sem responsável, não", () => {
     const h = celular([t("1", { status: "backlog" })], aberto);
-    expect(h).toContain('<p class="qd-col-dica qd-cg-dica">Parada no Backlog: mova para A fazer para começar.</p>');
+    expect(h).toContain('<p class="qd-col-dica qd-cg-dica">Parado no Backlog: mova para A fazer para começar.</p>');
     expect(celular([t("1", { status: "backlog", agenteId: null })], aberto)).not.toContain("qd-cg-dica");
     expect(celular([t("1", { status: "afazer" })])).not.toContain("qd-cg-dica");
     expect(celular([t("1", { status: "backlog" })], { ...aberto, celular: { visao: "colunas" } })).toContain("qd-cg-dica");

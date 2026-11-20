@@ -73,12 +73,12 @@ describe("T1: a pílula no lugar do cabeçalho", () => {
     expect(html).not.toContain("aria-expanded");
   });
 
-  it("Disponível não ganha subtítulo; trabalhando, o subtítulo e o ponto verde, e o rótulo sem HTML", () => {
+  it("Disponível não ganha subtítulo; refletindo, o subtítulo e o ponto verde, e o rótulo sem HTML", () => {
     expect(renderCabecalhoConversa(cenario(), "a")).not.toContain("pilula-sub");
     const html = renderCabecalhoConversa(cenario({}, { turnosVivos: vivo() }), "a");
-    expect(html).toContain('<span class="pilula-sub" aria-hidden="true">Trabalhando</span>');
+    expect(html).toContain('<span class="pilula-sub" aria-hidden="true">Refletindo</span>');
     expect(html).toContain('class="presenca ativa"');
-    expect(html).toContain('aria-label="Painel de Eng 1 · Trabalhando"');
+    expect(html).toContain('aria-label="Painel de Eng 1 · Refletindo"');
   });
 
   it("o topo não tem mais MODO DEV, Ligar nem Parar", () => {
@@ -98,25 +98,29 @@ describe("E11: o Parar no campo", () => {
     expect(tituloDoParar(cenario({}, { turnosVivos: vivo() }), "a")).toBe("Parar o que está rodando nesta conversa");
   });
 
-  it("o Parar fica alcançável enquanto o bot trabalha, mesmo com rascunho, anexo ou ditado (revisão do PR 1)", () => {
-    // Bot livre: só o Enviar, com ou sem texto.
+  it("COP-14 (item 1, revisto nos acessos 3b): o Parar nunca some enquanto o bot trabalha — com rascunho, ao lado do Enviar", () => {
+    // Bot livre: só o Enviar, com ou sem texto (vazio, ele fica desabilitado no campo).
     expect(botoesDoCampo({ trabalhando: false, temConteudo: false, ditando: false })).toEqual({ enviar: true, parar: false });
     expect(botoesDoCampo({ trabalhando: false, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: false });
     // Trabalhando com o campo vazio: só o Parar.
     expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: false })).toEqual({ enviar: false, parar: true });
-    // Trabalhando com rascunho ou anexo, ou ditando: os dois — antes o Parar sumia aqui.
+    // Trabalhando com rascunho, anexo ou ditado: os dois (parar sem apagar o rascunho).
     expect(botoesDoCampo({ trabalhando: true, temConteudo: true, ditando: false })).toEqual({ enviar: true, parar: true });
     expect(botoesDoCampo({ trabalhando: true, temConteudo: false, ditando: true })).toEqual({ enviar: true, parar: true });
-    // Toda combinação com o bot trabalhando mostra o Parar.
-    for (const temConteudo of [false, true]) for (const ditando of [false, true]) expect(botoesDoCampo({ trabalhando: true, temConteudo, ditando }).parar).toBe(true);
+    // Nunca nenhum; o Parar aparece exatamente quando o bot trabalha.
+    for (const trabalhando of [false, true]) for (const temConteudo of [false, true]) for (const ditando of [false, true]) {
+      const b = botoesDoCampo({ trabalhando, temConteudo, ditando });
+      expect(b.enviar || b.parar).toBe(true);
+      expect(b.parar).toBe(trabalhando);
+    }
   });
 
   it("o campo da conversa nasce com o Parar (secundário, com o nome do bot) antes do Enviar e o seletor de IA; a sala não tem nenhum dos dois", () => {
     const conversa = htmlComposer("x", [], { aprovacao: true, comandos: true, bot: "Eng 1" });
-    expect(conversa).toContain('<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="Parar resposta do Eng 1"');
+    expect(conversa).toContain('<button type="button" class="parar-envio" data-act="parar-conversa" aria-label="Parar Eng 1"');
     expect(conversa).toMatch(/class="parar-envio"[^>]* hidden>/);
     expect(conversa.indexOf('data-act="parar-conversa"')).toBeLessThan(conversa.indexOf('data-act="enviar"'));
-    expect(htmlComposer("x", [], { aprovacao: true })).toContain('data-act="parar-conversa" aria-label="Parar resposta"');
+    expect(htmlComposer("x", [], { aprovacao: true })).toContain('data-act="parar-conversa" aria-label="Parar"');
     expect(conversa).toContain('id="composer-ia" data-act="seletor-ia"');
     // O seletor fica entre o texto e o microfone.
     expect(conversa.indexOf("composer-texto")).toBeLessThan(conversa.indexOf("composer-ia"));
@@ -372,7 +376,7 @@ describe("T6: o seletor de IA no campo", () => {
   it("a régua mostra só os níveis que o modelo aceita, com o atual e 'N de M no <modelo>'", () => {
     const opus = renderMenuIa(dadosDoSeletor(cenario(), "a")!);
     expect(opus.match(/data-escolha="raciocinio"/g)).toHaveLength(5);
-    expect(opus).toContain("<b>Médio</b><small>· 2 de 5 no Opus</small>");
+    expect(opus).toContain("<small>· Médio · 2 de 5 no Opus</small>");
     expect(opus).toContain('aria-checked="true" aria-label="Médio"');
     const haiku = dadosDoSeletor(cenario({ harness: "claude-cli", modelo: "haiku" }), "a")!;
     const niveisHaiku = HARNESSES.find((h) => h.id === "claude-cli")!.modelos.find((m) => m.id === "haiku")!.raciocinios!;
@@ -509,12 +513,23 @@ describe("CSS da tela limpa", () => {
     const i = css("interface.css");
     const veu = Number(/\.cabecalho\.cabecalho-pilula::before \{[^}]*height: (\d+)px/.exec(i)?.[1]);
     const padding = Number(/\.cabecalho\.cabecalho-pilula ~ \.timeline-wrap \{ padding-top: (\d+)px; \}/.exec(i)?.[1]);
-    const margemErro = Number(/\.cabecalho\.cabecalho-pilula \+ #erro:not\(:empty\) \{[^}]*margin-top: (\d+)px/.exec(i)?.[1]);
-    const comErro = Number(/\.cabecalho\.cabecalho-pilula \+ #erro:not\(:empty\) \+ \.timeline-wrap \{ padding-top: (\d+)px; \}/.exec(i)?.[1]);
     expect(veu).toBeGreaterThan(0);
     expect(padding).toBeGreaterThanOrEqual(veu);
-    // Com a faixa de erro no fluxo, a rolagem começa depois dela: a margem mais o padding já passam do véu.
-    expect(margemErro + comErro).toBeGreaterThanOrEqual(veu);
+    // C6: o #erro é sobreposto, então nenhuma regra muda o padding da lista quando ele aparece.
+    expect(i).not.toMatch(/#erro:not\(:empty\)\s*[+~]\s*\.timeline-wrap/);
+  });
+
+  it("C6: o \"Reconectando…\" fica por cima da conversa, abaixo da pílula, sem empurrar a lista (desktop e celular)", () => {
+    const i = css("interface.css");
+    const m = css("mobile.css");
+    const regra = /\.cabecalho\.cabecalho-pilula \+ #erro:not\(:empty\) \{([^}]*)\}/.exec(i)?.[1] ?? "";
+    expect(regra).toContain("position: absolute");
+    expect(regra).not.toMatch(/margin-top/);
+    // O aviso não rouba o clique da conversa fora dele; o botão dentro dele continua clicável.
+    expect(regra).toContain("pointer-events: none");
+    expect(i).toContain(".cabecalho.cabecalho-pilula + #erro:not(:empty) > * { pointer-events: auto; }");
+    expect(m).not.toMatch(/#erro:not\(:empty\)\s*[+~]\s*\.timeline-wrap/);
+    expect(/\.cabecalho\.cabecalho-pilula \+ #erro:not\(:empty\) \{([^}]*)\}/.exec(m)?.[1] ?? "").not.toMatch(/position: relative|margin-top/);
   });
 
   it("F7/F2/F9: o subtítulo da pílula só no hover/foco; o Parar é secundário (sem a cor de ação); 44 px no toque", () => {

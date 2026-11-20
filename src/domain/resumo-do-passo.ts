@@ -134,6 +134,12 @@ export function resumoDaFerramenta(nome: string, input: unknown): string | undef
     }
     return "";
   };
+  // D · Computador do bot (item 1): do interagir, só o tipo ("clicar", "digitar"), que dá o rótulo "Clicando na tela"
+  // (rotuloDoComputador); nunca o texto digitado, a tecla nem as coordenadas.
+  if (/(^|__)computador_interagir$/.test(nome)) {
+    const tipo = typeof o["tipo"] === "string" ? o["tipo"].trim().toLowerCase() : "";
+    return /^[a-z_]{1,12}$/.test(tipo) ? tipo : undefined;
+  }
   const busca = s("query", "consulta", "busca", "termo") || (classeDaFerramenta(nome) === "busca" ? s("pattern") : "");
   const arquivo = nomeDoArquivo(s("file_path", "notebook_path", "path", "caminho", "arquivo"));
   const cru = busca || arquivo || s("pattern") || s("description", "descricao") || semInvolucroShell(s("command", "cmd", "comando")) || urlCurta(s("url"));
