@@ -818,7 +818,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const d = decidirNoNavegador({ modo: c.modo, classe, host, rotulo: alvo?.nome ?? "", destino, liberacoes: c.liberacoes, revisorLigado: false });
     if (d.tipo === "pessoa_faz") return { recusa: PESSOA_FAZ };
     if (d.tipo === "pede") {
-      const pergunta = perguntaDaAcao(d.classe, alvo?.nome ?? ferramenta, host);
+      const pergunta = perguntaDaAcao(d.classe, alvo?.nome ?? ferramenta, host, destino);
       // ADR-177 (definido em 2026-11-20): a web do nod não tem o fluxo de passkey (WebAuthn) pronto; pagar pede o Touch ID
       // no app do Mac (`systemPreferences.promptTouchID`, pela fila da máquina) na hora de executar, por qualquer caminho
       // que a aprovação venha. Sem o app conectado, vale a confirmação comum, e o cartão diz isso (AVISO_SEM_TOUCH_ID).

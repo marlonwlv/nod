@@ -70,7 +70,7 @@ describe("a aprovação do navegador em Sua vez e na conversa (A1–A3)", () => 
 
   it("reconhece só o item de destino navegador; a barra lateral diz a pergunta", () => {
     expect(ehAprovacaoDoNavegador(item())).toBe(true);
-    expect(pedidoParaAguardando(item()).decisao.frase).toBe("Pagar R$ 3.780 na TAP");
+    expect((pedidoParaAguardando(item()) as { decisao: { frase: string } }).decisao.frase).toBe("Pagar R$ 3.780 na TAP");
   });
 
   it("com a vista: o cartão da pílula (Touch ID); sem ela: a pergunta com Não | Sim; fora da conversa, o rótulo do bot", () => {

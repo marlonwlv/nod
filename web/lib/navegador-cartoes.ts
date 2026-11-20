@@ -190,16 +190,27 @@ export function htmlCartaoPedidoSemVista(p: PedidoNaFala, o: { decisaoId: string
 // ---- L3: o selo do login embaixo da vista ----------------------------------------------------------------------------------
 
 /**
- * A fonte que a pessoa escolheu por último em cada bot (só nesta página, sem storage): o selo da L3 diz "Entrando com o
- * 1Password…" depois que o pedido fecha e o segredo está na página. Nunca guarda segredo, só o nome do cofre.
+ * A fonte que a pessoa escolheu por último em cada bot: o selo da L3 diz "Entrando com o 1Password…" enquanto o Mac
+ * confirma e depois, com o segredo na página. Nunca guarda segredo, só o nome do cofre; fica na memória e no
+ * sessionStorage da aba (recarregar no meio do "Confirme no seu Mac" não perde o nome), e sem storage vale só na memória.
  */
 const fontes = new Map<string, FonteCofre>();
+const CHAVE_FONTE = "nod:navegador:fonte:";
 export function lembrarFonteDoLogin(agenteId: string, fonte: FonteCofre | null): void {
   if (fonte) fontes.set(agenteId, fonte);
   else fontes.delete(agenteId);
+  try {
+    if (fonte) globalThis.sessionStorage?.setItem(CHAVE_FONTE + agenteId, fonte);
+    else globalThis.sessionStorage?.removeItem(CHAVE_FONTE + agenteId);
+  } catch { /* sem storage: só a memória */ }
 }
 export function fonteDoLogin(agenteId: string): FonteCofre | null {
-  return fontes.get(agenteId) ?? null;
+  const daMemoria = fontes.get(agenteId);
+  if (daMemoria) return daMemoria;
+  try {
+    const guardada = globalThis.sessionStorage?.getItem(CHAVE_FONTE + agenteId);
+    return guardada === "nod" || guardada === "1password" || guardada === "bitwarden" ? guardada : null;
+  } catch { return null; }
 }
 
 /** L3: "Entrando com o 1Password…" na faixa de baixo, enquanto o Mac confirma ou o segredo está na página. "" = sem selo. */

@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { cifrar, decifrar } from "../../src/db/cifra.ts";
 import { vincularEscopo } from "../../src/db/tx.ts";

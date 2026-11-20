@@ -146,9 +146,12 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
 
   const vista = (): VistaNavegador | null => r?.vista ?? null;
   const controla = (): boolean => vista()?.controle === "pessoa";
+  // O quadro manda: o clique e o realce seguem a imagem que a pessoa vê. medido em 2026-11-20: a vista dizia 1280×720 (o
+  // padrão) e o Chrome do bot mandava quadros de 1280×633; com a imagem limitada pela altura, a conta pela vista errava o y.
   const viewport = (): { w: number; h: number } => {
+    if (tamQuadro.w > 0 && tamQuadro.h > 0) return tamQuadro;
     const v = vista()?.viewport;
-    return v && v.w > 0 && v.h > 0 ? v : tamQuadro.w > 0 ? tamQuadro : { w: 1280, h: 800 };
+    return v && v.w > 0 && v.h > 0 ? v : { w: 1280, h: 800 };
   };
   const tamanhoDoPalco = (): { w: number; h: number } => {
     const b = palco.getBoundingClientRect();
@@ -214,8 +217,11 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       if (tinhaFoco) pilulaLugar.querySelector<HTMLElement>("button:not([disabled])")?.focus();
     }
     // L3: "Entrando com o 1Password…" embaixo da vista, enquanto o Mac confirma ou o segredo está na página.
+    // Enquanto o Mac confirma, o selo toma o lugar da pílula (Paper L3: não há o que assumir nem devolver). Com o segredo
+    // já na página, os dois ficam (a pessoa pode assumir); a faixa quebra a linha se faltar largura.
     const htmlS = htmlSeloDoLogin(v, fonteDoLogin(o.agenteId));
     if (htmlS !== pintadoSelo) { seloLugar.innerHTML = htmlS; pintadoSelo = htmlS; }
+    pilulaLugar.hidden = v?.pedido?.tipo === "login" && v.pedido.etapa === "confirme_no_mac";
     // Celular: no controle, o botão do teclado abre a digitação simples.
     tecladoBt.hidden = !(host === "folha" && controla());
     palco.dataset.controle = controla() ? "pessoa" : "bot";

@@ -579,6 +579,23 @@ function hidratarVistaDoNavegador(agenteId: string, vista: VistaNavegador): void
   dispatch({ tipo: "hidratar-navegador", agenteId, navegador: { vista, disponivel: estado.navegadores[agenteId]?.disponivel ?? true } });
 }
 
+/**
+ * O "Não" de uma aprovação do navegador (pílula e cartão): numa decisão `aprovacao`, recusar é desmarcar os itens (o
+ * `recusar: true` vale para pergunta e proposta, e numa aprovação seria lido como "aprovar o que está marcado"). Os ids
+ * dos itens vêm de "Sua vez"; sem ela à mão (outra tela), relê antes.
+ */
+async function corpoDaRecusaDoNavegador(decisaoId: string): Promise<{ itens: { id: string; selecionado: false }[] }> {
+  let item = estado.suaVez?.itens.find((i) => i.decisao.id === decisaoId);
+  if (!item && api) {
+    const suaVez = await api.suaVez(naFrente());
+    dispatch({ tipo: "hidratar-sua-vez", suaVez });
+    item = suaVez.itens.find((i) => i.decisao.id === decisaoId);
+  }
+  const itens = itensDaRecusa([], item?.itensAprovacao ?? []);
+  if (!itens) throw new ErroApi(409, "estado_invalido", "Este pedido já foi respondido.");
+  return { itens };
+}
+
 /** O que muda na conversa e em Sua vez quando um pedido do navegador é respondido. */
 function invalidarPedidoDoNavegador(): void {
   const conversa = conversaAtual();
@@ -1318,7 +1335,7 @@ const navegadorNaTela = criarNavegadorNaTela({
   },
   guardarVista: (id, r) => { if (estado.navegadores[id] !== r) dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador: r }); },
   decidir: async (decisaoId, aprovar, sempre) => {
-    await decidirAprovacaoReconciliando(decisaoId, aprovar ? (sempre ? { sempre: true } : {}) : { recusar: true });
+    await decidirAprovacaoReconciliando(decisaoId, aprovar ? (sempre ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(decisaoId));
     dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
   },
   mandarRecado: async (id, texto) => {
@@ -9088,7 +9105,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
     const aprovar = el.dataset.aprovar === "1";
     const lembrar = el.closest(".nvc")?.querySelector<HTMLInputElement>(".nvc-lembrar-caixa")?.checked === true;
     marcarDecidida(el, id);
-    await decidirAprovacaoReconciliando(id, aprovar ? (lembrar ? { sempre: true } : {}) : { recusar: true });
+    await decidirAprovacaoReconciliando(id, aprovar ? (lembrar ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(id));
   }),
   // ADR-190 (L5): "Guardar no cofre?" — o destino escolhido (só quando há mais de um) ou "Não".
   "nv-guardar": (el) => agir(async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_CATALOGO, FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
 import type { VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
-import { classificarAcao, classificarAlvo, decidirNoNavegador, lerLiberacoes, SEM_LIBERACOES, valorDoRotulo } from "../../../src/domain/navegador-aprovacao.ts";
+import { classificarAcao, classificarAlvo, decidirNoNavegador, lerLiberacoes, perguntaDaAcao, SEM_LIBERACOES, valorDoRotulo } from "../../../src/domain/navegador-aprovacao.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../../src/domain/navegador-catalogo.ts";
 import { comandosDaEntrada, entradaDigita, lerEntradaNavegador, TEXTO_MAX_ENTRADA } from "../../../src/domain/navegador-entrada.ts";
 import { arquivoDosPassos, campoDoElemento, eventoDoClique, fraseDoPasso, gravar, hostDaUrl, MAX_PASSOS_GRAVACAO, nomeSugerido, novaGravacao, rotuloDaGravacao, type ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
@@ -85,6 +85,13 @@ describe("aprovação no ponto sem volta (quadro A)", () => {
     expect(decidirNoNavegador({ ...base, classe: "pagar", host: "tap.pt", rotulo: "Pagar R$ 4.100" }).tipo).toBe("pede");
     expect(decidirNoNavegador({ ...base, classe: "pagar", host: "tap.pt", rotulo: "Pagar" }).tipo).toBe("pede");
     expect(decidirNoNavegador({ ...base, classe: "enviar", host: "web.whatsapp.com", rotulo: "Enviar", destino: "Pedro" })).toEqual({ tipo: "passa", motivo: "liberado_antes" });
+  });
+
+  it("a pergunta do cartão: o rótulo do botão e o site; no envio com destino visto, para quem (A3)", () => {
+    expect(perguntaDaAcao("pagar", "Pagar R$ 3.780", "www.flytap.com")).toBe("Pagar R$ 3.780 no flytap.com?");
+    expect(perguntaDaAcao("enviar", "Enviar", "web.whatsapp.com", "Pedro")).toBe("Enviar para Pedro no web.whatsapp.com?");
+    expect(perguntaDaAcao("enviar", "Enviar", "web.whatsapp.com", null)).toBe("Enviar no web.whatsapp.com?");
+    expect(perguntaDaAcao("pagar", "Pagar", "loja.com", "Pedro")).toBe("Pagar no loja.com?");
   });
 });
 

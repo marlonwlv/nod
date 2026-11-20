@@ -122,11 +122,11 @@ export function decidirNoNavegador(p: { modo: ModoAprovacao; classe: ClasseAcaoN
 }
 
 /** A pergunta da pílula (A1): curta, com o rótulo do próprio site. */
-export function perguntaDaAcao(classe: Exclude<ClasseAcaoNavegador, "livre" | "seguranca">, rotulo: string, host: string): string {
+export function perguntaDaAcao(classe: Exclude<ClasseAcaoNavegador, "livre" | "seguranca">, rotulo: string, host: string, para: string | null = null): string {
   const site = siteLegivel(host);
   const r = rotulo.trim().replace(/\s+/g, " ").slice(0, 80);
-  if (classe === "pagar") return `${r} no ${site}?`;
-  if (classe === "apagar") return `${r} no ${site}?`;
+  // A3 (Paper XZJ-0): no envio com o destino visto na página, a pergunta diz para quem ("Enviar para Pedro no …?").
+  if (classe === "enviar" && para) return `${r} para ${para.trim().slice(0, 80)} no ${site}?`;
   return `${r} no ${site}?`;
 }
 

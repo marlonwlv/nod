@@ -111,6 +111,17 @@ describe("a vista do navegador (D1–D4)", () => {
     ]);
   });
 
+  it("o clique segue o tamanho do QUADRO quando a vista diz outro viewport (o 1280×633 real contra o 1280×800 padrão)", async () => {
+    const { v } = montar();
+    sockets[0]!.chega({ t: "quadro", seq: 1, jpeg: "QUJD", w: 1280, h: 640 });
+    v.el.querySelector<HTMLButtonElement>('[data-nv="assumir"]')!.click();
+    await vi.waitFor(() => expect(v.controleComPessoa()).toBe(true));
+    // Palco baixo (640×200): o quadro 1280×640 vira 400×200 centrado (pela vista, 1280×800, seria 320×200 e o y sairia 400).
+    const palco = palcoEm(v.el, 640, 200);
+    palco.dispatchEvent(ponteiro("pointerdown", 320, 100));
+    expect(sockets[0]!.enviados.at(-1)).toMatchObject({ evento: "mousePressed", x: 640, y: 320 });
+  });
+
   it("o teclado com foco na vista vai ao site no controle; ⌘⇧A devolve", async () => {
     const { v, ops } = montar(resposta({ controle: "pessoa" }));
     const palco = palcoEm(v.el);

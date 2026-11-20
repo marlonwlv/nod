@@ -165,8 +165,8 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 .nv-estado-ligando .nv-giro { width: 22px; height: 22px; border-top-color: var(--nv-cursor); }
 
 /* A faixa de 52 px com a pílula (D1d): nada do nod cobre a vista; a janela baixa encolhe a vista antes da faixa. */
-.nv-faixa { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; }
-.nv-pilula-lugar:empty { display: none; }
+.nv-faixa { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; min-height: 52px; }
+.nv-pilula-lugar:empty, .nv-pilula-lugar[hidden] { display: none; }
 .nv-pilula { transition: width 180ms var(--curva); }
 .nv-pilula .ctc-estado span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .nv-pilula[data-estado="controle"] { width: auto; }
@@ -307,7 +307,9 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .nvc-par { display: flex; gap: 8px; }
 .nvc-par > * { flex: 1 1 0; min-width: 0; }
 .nvc-op { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 37px; margin: 0; padding: 8px 12px; box-sizing: border-box; border: 1px solid transparent; border-radius: var(--raio-10); background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); line-height: 19px; text-align: left; cursor: pointer; }
-.nvc-op small { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-legenda); line-height: 19px; }
+/* O nome da opção ("Usar o cofre do nod") fica inteiro; quem corta é o rótulo do item ("itau.com.br · marlon@…"). */
+.nvc-op > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nvc-op small { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--fs-legenda); line-height: 19px; }
 .nvc-op-centro { justify-content: center; text-align: center; }
 .nvc-op-principal { border-color: var(--action); background: var(--action); color: var(--on-action); }
 .nvc-op-principal small { color: color-mix(in srgb, var(--on-action) 66%, transparent); }
@@ -323,7 +325,8 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .nvc-link { flex: none; margin: 0; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; font-size: var(--fs-rotulo); line-height: 19px; cursor: pointer; }
 .nvc-link:hover { color: var(--ink); text-decoration: underline; }
 .nvc-de { margin: 0 0 6px; color: var(--ink-3); font-size: var(--fs-rotulo); }
-.nvc-item { list-style: none; }
+/* O <li> da decisão do navegador não tem moldura própria (como o .cc-cartao): o cartão .nvc é a moldura. */
+.lista > li.nvc-item, .decisoes-ancoradas > li.nvc-item, li.decisao.nvc-item { list-style: none; max-width: 462px; margin: 12px 0; padding: 0; border: 0 !important; border-left: 0 !important; border-radius: 0; background: none !important; box-shadow: none; }
 /* L4: o campo privado do código, 2 px de tinta, com os dígitos espaçados. */
 .nvc-codigo-linha { display: flex; gap: 8px; }
 .nvc-codigo-campo { flex: 1 1 0; min-width: 0; height: 41px; padding: 9px 10px; box-sizing: border-box; border: 2px solid var(--ink); border-radius: var(--raio-10); background: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); letter-spacing: .3em; }
