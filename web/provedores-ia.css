@@ -209,3 +209,20 @@
 .cl-maq-mac .cl-np-login > .ia-linha { display: none; }
 .cl-maq-mac .cl-np-login .ia-fluxo { margin: 0; padding: 12px; border-radius: 10px; background: var(--hover); }
 .cl-nova-pag .cl-np-est.erro { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--danger) 10%, transparent); font-size: 12px; font-weight: var(--peso-medio); }
+
+/* Pedido de 2026-11-20 (teste da G1): a linha inteira abre a conta e reage ao hover. O nome estica um ::after por cima
+   da linha toda (um botão só para o leitor de tela e o teclado); o que tem ação própria (alça, "na fila", "Entrar", a
+   seta, o login em andamento) fica acima dele. A seta só aparece no hover ou no foco. */
+.cl-lista .cl-linha.cl-linha-g1 { position: relative; cursor: pointer; transition: background-color var(--dur-rapido, .12s); }
+.cl-lista .cl-linha.cl-linha-g1:hover { background: var(--hover); }
+.cl-lista .cl-linha.cl-linha-g1:first-child { border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.cl-lista .cl-linha.cl-linha-g1:last-child { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
+.cl-linha-g1 .cl-nome-bt::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.cl-linha-g1 .cl-nome-bt:hover b { text-decoration: none; }
+.cl-linha-g1 .cl-nome-bt:focus-visible { outline: none; }
+.cl-linha-g1:has(.cl-nome-bt:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.cl-linha-g1 :is(.cl-alca, .cl-dir button, .cl-mais, .cl-login, .cl-aviso) { position: relative; z-index: 1; }
+.cl-linha-g1 .cl-uso-col { pointer-events: none; }
+.cl-linha-g1 .cl-abrir-bt { opacity: 0; transition: opacity var(--dur-rapido, .12s); }
+.cl-linha-g1:is(:hover, :focus-within) .cl-abrir-bt { opacity: 1; }
+@media (hover: none) { .cl-linha-g1 .cl-abrir-bt { opacity: 1; } }
