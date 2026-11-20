@@ -128,6 +128,16 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
   /** Os ouvintes da janela e do documento saem juntos em `destruir` (os testes montam várias). */
   const ac = new AbortController();
   const sinal = { signal: ac.signal };
+  /**
+   * Revisão da CI (2026-11-20): todo temporizador desta tela sai em `destruir`. Um `setTimeout` do fechar do painel disparava
+   * depois de o teste desmontar a página ("document is not defined") e derrubava a rodada do vitest.
+   */
+  const temporizadores = new Set<number>();
+  function depois(fn: () => void, ms?: number): number {
+    const t = window.setTimeout(() => { temporizadores.delete(t); if (!ac.signal.aborted) fn(); }, ms);
+    temporizadores.add(t);
+    return t;
+  }
 
   // ---- o painel (um só elemento; a vista entra e sai dele) -------------------------------------------------------------------
   const painel = document.createElement("aside");
@@ -326,7 +336,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     a.style.setProperty("--nv-dur", `${MS_PAINEL_ABRE}ms`);
     aplicarLargura(alvoL);
     painel.animate?.([{ transform: "translateX(24px)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: MS_PAINEL_ABRE, easing: "cubic-bezier(.22, 1, .36, 1)" });
-    window.setTimeout(() => a.classList.remove("nv-animando"), MS_PAINEL_ABRE + 20);
+    depois(() => a.classList.remove("nv-animando"), MS_PAINEL_ABRE + 20);
   }
 
   function fechar(o2: { devolver?: boolean; aviso?: boolean } = {}): void {
@@ -352,7 +362,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       // O botão do canto volta ao cabeçalho com o painel fechado: o foco que estava no painel volta para ele.
       if (focoNoPainel) document.querySelector<HTMLElement>(`.nv-canto[data-agente="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
     };
-    if (eraModo === "folha") { moverFolha("fechada"); window.setTimeout(terminar, reduzido() ? MS_FOLHA_REDUZIDO : MS_FOLHA); aberto = null; return; }
+    if (eraModo === "folha") { moverFolha("fechada"); depois(terminar, reduzido() ? MS_FOLHA_REDUZIDO : MS_FOLHA); aberto = null; return; }
     const a = app();
     if (a && !reduzido() && modo() === "lado") {
       a.classList.add("nv-animando", "nv-fechando");
@@ -360,7 +370,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       aplicarLargura(0);
       painel.animate?.([{ transform: "none", opacity: 1 }, { transform: "translateX(16px)", opacity: 0 }], { duration: MS_PAINEL_FECHA, easing: "cubic-bezier(.4, 0, 1, 1)" });
       aberto = null;
-      window.setTimeout(() => { a.classList.remove("nv-animando", "nv-fechando"); terminar(); }, MS_PAINEL_FECHA);
+      depois(() => { a.classList.remove("nv-animando", "nv-fechando"); terminar(); }, MS_PAINEL_FECHA);
       return;
     }
     if (reduzido()) painel.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 100 });
@@ -474,7 +484,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       a.aba.classList.remove("nv-aba-arrastando");
       a.aba.style.transform = "";
       engolirClique = true;
-      window.setTimeout(() => { engolirClique = false; }, 0);
+      depois(() => { engolirClique = false; }, 0);
       if (e.type === "pointercancel") return;
       if (pertoDaBorda(e.clientX)) {
         abasDeLugar = new Set(abasDeLugar);
@@ -544,7 +554,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       if (v?.controleComPessoa()) { void v.devolver(); avisar(`Devolvido ${aoNome(nomeDe(id))}`, () => abrirPainel(id)); }
       v?.ligar(false);
       aberto = null;
-      window.setTimeout(() => { if (!aberto) mostrarFolha(false); }, reduzido() ? MS_FOLHA_REDUZIDO : MS_FOLHA);
+      depois(() => { if (!aberto) mostrarFolha(false); }, reduzido() ? MS_FOLHA_REDUZIDO : MS_FOLHA);
     }
   }
 
@@ -823,7 +833,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       else if (acao === "fechar-aba") fecharAba(agenteId);
       else if (acao === "fechar-outras") { for (const id of [...abasDeLugar]) if (id !== agenteId) fecharAba(id, false); }
     });
-    window.setTimeout(() => document.addEventListener("pointerdown", fora, true), 0);
+    depois(() => document.addEventListener("pointerdown", fora, true), 0);
     function fora(e: Event): void {
       if (menuAberto && !menuAberto.contains(e.target as Node)) { fecharMenu(); document.removeEventListener("pointerdown", fora, true); }
     }
@@ -925,7 +935,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       app()?.classList.add("nv-animando");
       app()?.style.setProperty("--nv-dur", "200ms");
       aplicarLargura(l);
-      window.setTimeout(() => app()?.classList.remove("nv-animando"), 220);
+      depois(() => app()?.classList.remove("nv-animando"), 220);
       guardar(chaveDaLargura(), gravarLargura(l, area()));
     });
     alca.addEventListener("keydown", (e) => {
@@ -941,7 +951,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (!aberto || aberto.modo !== "painel" || modo() !== "lado") return;
     const l = proximoEncaixe(largura, area(), passo);
     const a = app();
-    if (a && !reduzido()) { a.classList.add("nv-animando"); a.style.setProperty("--nv-dur", "200ms"); window.setTimeout(() => a.classList.remove("nv-animando"), 220); }
+    if (a && !reduzido()) { a.classList.add("nv-animando"); a.style.setProperty("--nv-dur", "200ms"); depois(() => a.classList.remove("nv-animando"), 220); }
     aplicarLargura(l);
     guardar(chaveDaLargura(), gravarLargura(l, area()));
   }
@@ -979,16 +989,16 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (reduzido()) el.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 100, easing: "linear" });
     let resta = MS_AVISO;
     let desde = Date.now();
-    let timer = window.setTimeout(sair, resta);
+    let timer = depois(sair, resta);
     function sair(): void {
       if (avisoEl !== el) return;
       el.classList.add("saindo");
       if (reduzido()) el.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 100, easing: "linear", fill: "forwards" });
-      window.setTimeout(() => el.remove(), reduzido() ? 100 : 200);
+      depois(() => el.remove(), reduzido() ? 100 : 200);
       avisoEl = null;
     }
     el.addEventListener("mouseenter", () => { window.clearTimeout(timer); resta -= Date.now() - desde; });
-    el.addEventListener("mouseleave", () => { desde = Date.now(); timer = window.setTimeout(sair, Math.max(800, resta)); });
+    el.addEventListener("mouseleave", () => { desde = Date.now(); timer = depois(sair, Math.max(800, resta)); });
     el.querySelector("button")?.addEventListener("click", () => { window.clearTimeout(timer); sair(); desfazer?.(); });
   }
 
@@ -1017,7 +1027,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       const b = (e.target as HTMLElement).closest?.<HTMLElement>(".nv-aba-lugar .at-ir");
       if (!b) { if (dicaEl || timerDica) tirarDica(); return; }
       if (timerDica || dicaEl) return;
-      timerDica = window.setTimeout(() => {
+      timerDica = depois(() => {
         timerDica = 0;
         const r = b.getBoundingClientRect();
         dicaEl = document.createElement("div");
@@ -1148,6 +1158,8 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     /** Solta tudo (os testes): os ouvintes, as vistas, o painel e a folha. */
     destruir(): void {
       ac.abort();
+      for (const t of temporizadores) window.clearTimeout(t);
+      temporizadores.clear();
       if (relogio) { window.clearInterval(relogio); relogio = 0; }
       for (const v of vistas.values()) v.destruir();
       vistas.clear();
