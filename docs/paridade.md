@@ -140,7 +140,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 | Ação | O que faz | Risco | No chat | Rotas |
 | --- | --- | --- | --- | --- |
-| `navegador.operar` | Ligar, pausar, retomar, recarregar ou passar o controle do navegador de um bot | muda | falta (NOD-396) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador$` |
+| `navegador.operar` | Ligar, pausar, retomar, recarregar, voltar ou passar o controle do navegador de um bot | muda | falta (NOD-396) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador$` |
 | `navegador.ir_para` | Abrir um endereço no navegador do bot com as próprias mãos | muda | parcial (`navegador_abrir`): o bot abre pela navegador_abrir com o controle dele; a barra da tela exige a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/endereco$` |
 | `navegador.trocar_aba` | Trocar de aba no navegador do bot com as próprias mãos | muda | parcial (`navegador_abas`): o bot troca pela navegador_abas (número da aba) com o controle dele; a tela troca pelo id da aba com a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/aba$` |
 | `navegador.lugar` | Escolher onde o navegador do bot roda com o Mac desligado (continuar, numa máquina, no nod, só na máquina) | muda | vivo (`ajustar_navegador`) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/lugar$` |

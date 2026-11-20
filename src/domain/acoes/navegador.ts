@@ -15,7 +15,7 @@ import { FERRAMENTAS_NAVEGADOR_LUGAR } from "../../contracts/ferramentas-navegad
 const falta = { estado: "falta", onda: "NOD-396" } as const;
 
 export const ACOES_NAVEGADOR = [
-  { id: "navegador.operar", titulo: "Ligar, pausar, retomar, recarregar ou passar o controle do navegador de um bot", risco: "muda", cartaoNoChat: false, chat: falta },
+  { id: "navegador.operar", titulo: "Ligar, pausar, retomar, recarregar, voltar ou passar o controle do navegador de um bot", risco: "muda", cartaoNoChat: false, chat: falta },
   {
     id: "navegador.ir_para",
     titulo: "Abrir um endereço no navegador do bot com as próprias mãos",

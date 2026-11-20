@@ -155,8 +155,8 @@ export type RespostaNavegador = { vista: VistaNavegador; disponivel: boolean };
 /** POST /agentes/:id/navegador/ensinar: a vista e, ao salvar, a tarefa guardada. */
 export type RespostaEnsinar = { ok: true; vista: VistaNavegador; tarefa?: TarefaEnsinada };
 
-/** POST /agentes/:id/navegador {operacao}: o que a pessoa faz com o navegador do bot. */
-export const OPERACOES_NAVEGADOR = ["assumir", "devolver", "resolver", "ligar", "encerrar", "retomar", "recarregar"] as const;
+/** POST /agentes/:id/navegador {operacao}: o que a pessoa faz com o navegador do bot ("voltar": a barra no controle, D2 B). */
+export const OPERACOES_NAVEGADOR = ["assumir", "devolver", "resolver", "ligar", "encerrar", "retomar", "recarregar", "voltar"] as const;
 export type OperacaoNavegador = (typeof OPERACOES_NAVEGADOR)[number];
 
 /** POST /agentes/:id/navegador/ensinar {operacao, nome?} (T). */

@@ -1133,9 +1133,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         mudar(est, { estado: "desligado", passo: null, abas: [], controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
         return est.vista;
       }
-      // recarregar
+      // recarregar ou voltar (a barra do navegador no controle, D2 B)
       const motor = exigirPessoa(est);
-      await motor.historico(sessao(agenteId), "recarregar").catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "acao_falhou" }) : e; });
+      await motor.historico(sessao(agenteId), op === "voltar" ? "voltar" : "recarregar").catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "acao_falhou" }) : e; });
       est.refs = null;
       return est.vista;
     },
