@@ -23,14 +23,13 @@ const dto: AgendaDto = {
   de: Date.parse("2026-11-09T03:00:00Z"), ate: Date.parse("2026-11-30T03:00:00Z"), agora: AGORA, fuso: "America/Sao_Paulo",
   rotinas: [rotina], itens: [{ tipo: "prevista", rotinaId: "r1", dia: "2026-11-17", instante: Date.parse("2026-11-17T15:00:00Z") }],
 };
-const chave = `prevista:r1:${dto.itens[0]!.instante}`;
 const estado = {
   ...estadoInicial,
   agora: AGORA,
   sessao: { tenantId: "t", pessoaId: "p" },
   frota: { agentes: [{ id: "b1", conversaId: "c1", nome: "Ada", cor: "#222222", forma: "shape-circle" }] },
-  rotinas: [{ rotina: { id: "r1", agenteId: "b1", ownerId: "p", estado: "ativa", instrucao: rotina.instrucao }, bloqueio: null } as unknown as RotinaDto],
-  agenda: { dto, erro: false, janela: { de: "2026-11-09", ate: "2026-11-30" }, ui: { aberto: chave, menu: null, bots: [], soProblema: false, alvo: null, rolarAgora: false, mes: null, busca: null, pausadasAbertas: false, foco: "2026-11-17", bloco: null } },
+  rotinas: [{ rotina: { id: "r1", agenteId: "b1", conversaId: "c1", ownerId: "p", estado: "ativa", instrucao: rotina.instrucao, fusoIana: "America/Sao_Paulo", gatilho: "horario" }, proximaExecucao: Date.parse("2026-11-18T12:00:00Z"), resumo: rotina.resumo, bloqueio: null, espera: null } as unknown as RotinaDto],
+  agenda: { dto, erro: false, janela: { de: "2026-11-09", ate: "2026-11-30" }, ui: { aberto: "r1", menu: null, bots: [], soProblema: false, alvo: null, rolarAgora: false, mes: null, busca: null, pausadasAbertas: false, foco: "2026-11-17", bloco: null } },
 } as unknown as Estado;
 
 descrever("pausa temporária da agenda no celular (Chromium real, 320×568)", () => {
