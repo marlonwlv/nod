@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
 import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
+import type { MotivoFalhaNavegador } from "../../contracts/navegador-maquina.ts";
 import type { ElementoNaPagina } from "../../domain/navegador-ensinar.ts";
 
 /**
@@ -31,7 +32,7 @@ export type LeituraNavegador = { url: string; arvore: string; refs: Readonly<Rec
 export type AbaMotor = { id: string; titulo: string; url: string; ativa: boolean };
 export type AlvoProcurar = { por: "papel" | "texto" | "rotulo" | "placeholder"; valor: string; acao: "clicar" | "preencher" | "passar_mouse"; texto?: string; nome?: string };
 
-export type MotivoFalhaNavegador = "alvo_invalido" | "tempo_esgotado" | "acao_falhou" | "indisponivel";
+export type { MotivoFalhaNavegador };
 
 /** A falha de um comando do motor. `detalhe` é o erro do agent-browser (texto da página pode aparecer: não confiável). */
 export class FalhaNavegador extends Error {
@@ -46,8 +47,9 @@ export class FalhaNavegador extends Error {
 export const ehFalhaNavegador = (e: unknown): e is FalhaNavegador => e instanceof FalhaNavegador;
 
 /**
- * A costura por lugar (ADR-190, decisão 5): o portão fala com um `MotorNavegador`, e cada lugar (o servidor do nod, o
- * Mac da pessoa pelo app, uma máquina sempre ligada) dá o seu. Nesta etapa só existe o do servidor.
+ * A costura por lugar (ADR-190, decisão 5): o portão fala com um `MotorNavegador`, e cada lugar dá o seu. No servidor do
+ * nod, este (o agent-browser local); no Mac da pessoa e numa máquina sempre ligada, o remoto (`motor-remoto.ts`), que põe
+ * cada chamada na fila da máquina, onde este mesmo motor roda (`src/adapters/executor/navegador.ts`).
  */
 export interface MotorNavegador {
   readonly lugar: LugarNavegador;

@@ -2,6 +2,7 @@ import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { FECHAMENTOS_VIVO } from "../../contracts/computador-vivo.ts";
+import { FECHAMENTOS_NAVEGADOR_MAQUINA } from "../../contracts/navegador-maquina.ts";
 import { FECHAMENTOS_VOZ, MENSAGEM_MAX_BYTES } from "../../contracts/voz.ts";
 import { log } from "../../obs/log.ts";
 import type { Escopo } from "../../shared/types.ts";
@@ -64,7 +65,14 @@ export type DepsCanaisVoz = {
    * ADR-190: o navegador do bot ao vivo, só da dona (cookie, tenant do caminho, `Origin` do mesmo host); JSON nos dois
    * sentidos (src/adapters/navegador/vivo.ts). Ausente, o caminho dá 404.
    */
-  navegadorVivo?: { web(escopo: Escopo, agenteId: string, canal: CanalVoz): void };
+  navegadorVivo?: {
+    web(escopo: Escopo, agenteId: string, canal: CanalVoz): void;
+    /**
+     * A vista vinda da máquina da pessoa (`/api/maquina/navegador/vivo/:agenteId?t=`): sem cookie nem `Origin`, o token de
+     * uso único do comando `assistir` (que só saiu pela puxada escopada da chave da máquina) a autentica. false = recusado.
+     */
+    maquina?(agenteId: string, token: string, canal: CanalVoz): boolean;
+  };
   /** Teste: encurta a reconferência da sessão (RECONFERIR_SESSAO_MS). */
   reconferirSessaoMs?: number;
 };
@@ -75,6 +83,12 @@ const DITADO = /^\/api\/t\/([^/]+)\/voz\/v1\/ditado$/;
 const VIVO_WEB = /^\/api\/t\/([^/]+)\/agentes\/([^/]+)\/computador\/vivo$/;
 const VIVO_MOTOR = /^\/api\/maquina\/computador\/vivo\/([0-9a-f]{32})$/;
 const NAVEGADOR_VIVO = /^\/api\/t\/([^/]+)\/agentes\/([^/]+)\/navegador\/vivo$/;
+const NAVEGADOR_MAQUINA = /^\/api\/maquina\/navegador\/vivo\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+/**
+ * ADR-190: a máquina manda os quadros JPEG do stream como vieram (JSON com o base64), bem maiores que as mensagens da voz;
+ * o WebSocket dela tem teto próprio (o maior quadro aceito do stream, QUADRO_MAX, com folga).
+ */
+export const NAVEGADOR_MAQUINA_MAX_BYTES = 16 * 1024 * 1024;
 /**
  * NOD-95 (revisão do PR #599): o que um lado da tela ao vivo pode ter na fila de saída antes de cair. O VNC só manda o
  * que o cliente pede, então isto só enche com um par que parou de ler; aí a sessão fecha em vez de crescer a memória.
@@ -172,6 +186,7 @@ export type CanaisVoz = { fechar(): Promise<void> };
 /** Liga o upgrade dos caminhos (mídia, cérebro, ditado, a tela ao vivo e o navegador do bot) ao servidor HTTP. Qualquer outro caminho de upgrade é recusado com 404. */
 export function anexarCanaisVoz(server: Server, deps: DepsCanaisVoz): CanaisVoz {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MENSAGEM_MAX_BYTES, perMessageDeflate: false });
+  const wssNavegadorMaquina = new WebSocketServer({ noServer: true, maxPayload: NAVEGADOR_MAQUINA_MAX_BYTES, perMessageDeflate: false });
 
   server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     const caminho = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
@@ -233,6 +248,18 @@ export function anexarCanaisVoz(server: Server, deps: DepsCanaisVoz): CanaisVoz 
           ws.on("error", (e) => log("aviso", "navegador_vivo_erro_socket", { erro: e.name }));
           vivo.web(escopo, agenteId, canalDeSocket(ws));
         });
+      });
+      return;
+    }
+    // ADR-190: a vista do navegador vinda da máquina. Sem cookie e sem `Origin`: o token de uso único do `assistir`.
+    const navegadorMaquina = NAVEGADOR_MAQUINA.exec(caminho);
+    if (navegadorMaquina) {
+      const maquina = deps.navegadorVivo?.maquina;
+      if (!maquina) return recusar(socket, 404, caminho);
+      const token = new URL(req.url ?? "/", "http://127.0.0.1").searchParams.get("t") ?? "";
+      wssNavegadorMaquina.handleUpgrade(req, socket, head, (ws) => {
+        ws.on("error", (e) => log("aviso", "navegador_vivo_maquina_erro_socket", { erro: e.name }));
+        if (!maquina(navegadorMaquina[1]!.toLowerCase(), token, canalDeSocket(ws))) ws.close(FECHAMENTOS_NAVEGADOR_MAQUINA.recusado, "token desconhecido");
       });
       return;
     }
@@ -328,7 +355,9 @@ export function anexarCanaisVoz(server: Server, deps: DepsCanaisVoz): CanaisVoz 
   return {
     async fechar() {
       for (const c of wss.clients) c.terminate();
+      for (const c of wssNavegadorMaquina.clients) c.terminate();
       await new Promise<void>((r) => wss.close(() => r()));
+      await new Promise<void>((r) => wssNavegadorMaquina.close(() => r()));
     },
   };
 }

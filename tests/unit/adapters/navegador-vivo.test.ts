@@ -201,3 +201,44 @@ describe("navegador ao vivo pelo WebSocket", () => {
     await expect(abrirWeb(host, BOT, "http://outro.site")).rejects.toThrow("403");
   });
 });
+
+describe("a vista de um bot que roda na máquina da pessoa (lugar mac/maquina)", () => {
+  it("os quadros vêm da fonte da máquina, a entrada desce por ela e o lugar novo troca a fonte; o stream local nunca abre", async () => {
+    let vista = vistaBase({ lugar: { tipo: "mac", nome: "seu Mac" }, controle: "pessoa" });
+    const portao: PortaoDoVivo = {
+      conferirDona: async () => {}, vistaDe: () => vista, portaDoStream: async () => { throw new Error("não abre o stream local"); },
+      doStream: () => {}, antesDaEntrada: async () => {},
+    };
+    const doStream: ((t: string) => void)[] = [];
+    const desceu: unknown[] = [];
+    const relays: unknown[] = [];
+    let fechadas = 0;
+    let aberturas = 0;
+    const vivo = criarVivoNavegador({
+      portao, intervaloQuadroMs: 0, reabrirMs: 20,
+      conectar: async () => { throw new Error("não abre o stream local"); },
+      maquina: { abrir: async () => {
+        aberturas++;
+        return { stream: { enviar: (m) => desceu.push(m), fechar: () => { fechadas++; }, aoMensagem: (fn) => { doStream.push(fn); }, aoFechar: () => {} }, relay: async (c) => { relays.push(c); return true; } };
+      } },
+    });
+    const web: unknown[] = [];
+    const ouvintes: ((m: { texto: string }) => void)[] = [];
+    vivo.web(ESCOPO, BOT, { enviarJson: (m) => web.push(m), fechar: () => {}, aoMensagem: (fn) => { ouvintes.push(fn as (m: { texto: string }) => void); }, aoFechar: () => {}, pendente: () => 0 });
+    const ate = async (fn: () => boolean) => { for (let i = 0; i < 200 && !fn(); i++) await new Promise((r) => setTimeout(r, 5)); };
+    await ate(() => doStream.length === 1);
+    doStream[0]!(JSON.stringify({ type: "frame", data: JPEG, metadata: { deviceWidth: 800, deviceHeight: 600 } }));
+    expect(web.at(-1)).toMatchObject({ t: "quadro", jpeg: JPEG, w: 800, h: 600 });
+    ouvintes[0]!({ texto: JSON.stringify({ t: "mouse", evento: "mousePressed", x: 5, y: 5, botao: "left", cliques: 1 }) });
+    ouvintes[0]!({ texto: JSON.stringify({ t: "tecla", evento: "char", texto: "oi" }) });
+    await ate(() => relays.length === 1);
+    expect(desceu[0]).toMatchObject({ type: "input_mouse", eventType: "mousePressed" });
+    expect(relays).toEqual([{ action: "keyboard", subaction: "insertText", text: "oi" }]);
+    // O bot passou para a vm-sp: a fonte do Mac fecha e a da máquina nova abre.
+    vista = { ...vista, lugar: { tipo: "maquina", maquinaId: OUTRO, nome: "vm-sp" } };
+    vivo.vistaMudou(ESCOPO, vista);
+    await ate(() => aberturas === 2);
+    expect(fechadas).toBe(1);
+    vivo.fechar();
+  });
+});

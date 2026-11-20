@@ -2,6 +2,8 @@ import type { FaseDoBloco } from "../../contracts/evento-stream.ts";
 import { randomBytes } from "node:crypto";
 import { traceparentDoTurno } from "../../domain/traceparent.ts";
 import type { FluxoVivo } from "./computador.ts";
+import type { SocketDoVivoMaquina } from "./navegador.ts";
+import type { ResultadoComandoNavegador } from "../../contracts/navegador-maquina.ts";
 import type { ComandoComputador, EstadoComputadorRelatado, ResultadoComandoComputador } from "../../contracts/computador-motor.ts";
 import type { SessaoVivo } from "../../contracts/computador-vivo.ts";
 import { IAS_COM_CONTA, type IaComConta, type ProgressoDoLogin, type PuxadaDeContas } from "../../contracts/contas-ia.ts";
@@ -416,6 +418,49 @@ export function criarPonteHttp(o: { url: string; chave: string; versao: string; 
           enviar: (bytes) => { if (ws.readyState === ws.OPEN) ws.send(bytes); },
           aoDados: (fn) => { ws.onmessage = (e) => { if (e.data instanceof ArrayBuffer) fn(new Uint8Array(e.data)); }; },
           aoFechar: (fn) => { ws.onclose = () => fn(); },
+          fechar: () => ws.close(),
+          atraso: () => ws.bufferedAmount,
+        };
+      },
+    },
+    /**
+     * ADR-190 (definido em 2026-11-20): o navegador do bot nesta máquina. `puxar` é long-poll (até 20 s), com a mesma
+     * convenção do computador: null = sem resposta; "sem_rota" = servidor sem o navegador na máquina (404).
+     */
+    navegador: {
+      async puxar(): Promise<unknown[] | null | "sem_rota"> {
+        try {
+          const r = await chamar<{ comandos?: unknown }>("navegador/puxar", {}, { rota404: true });
+          return Array.isArray(r.comandos) ? r.comandos : [];
+        } catch (e) {
+          return e instanceof FalhaPonte && e.codigo === "rota_ausente" ? "sem_rota" : null;
+        }
+      },
+      async resultado(r: ResultadoComandoNavegador): Promise<boolean> {
+        try { await chamar("navegador/resultado", r, { rota404: true }); return true; } catch { return false; }
+      },
+      /**
+       * A vista ao vivo: um WebSocket de SAÍDA (ADR-021) para `/api/maquina/navegador/vivo/:agenteId`, autenticado pelo
+       * token de uso único que veio no comando `assistir` (o WebSocket global não leva header, como o do computador).
+       */
+      async vivo(agenteId: string, token: string): Promise<SocketDoVivoMaquina | null> {
+        const WS = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+        if (!WS) return null;
+        const url = new URL(`${o.url}/api/maquina/navegador/vivo/${encodeURIComponent(agenteId)}`);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        url.searchParams.set("t", token);
+        const ws = new WS(url);
+        const aberto = await new Promise<boolean>((r) => { ws.onopen = () => r(true); ws.onerror = () => r(false); ws.onclose = () => r(false); });
+        if (!aberto) return null;
+        ws.onerror = () => {};
+        const leitores: ((t: string) => void)[] = [];
+        const fechados: (() => void)[] = [];
+        ws.onmessage = (e) => { if (typeof e.data === "string") for (const f of leitores) f(e.data); };
+        ws.onclose = () => { for (const f of fechados) f(); };
+        return {
+          enviar: (t) => { if (ws.readyState === ws.OPEN) ws.send(t); },
+          aoMensagem: (fn) => { leitores.push(fn); },
+          aoFechar: (fn) => { fechados.push(fn); },
           fechar: () => ws.close(),
           atraso: () => ws.bufferedAmount,
         };

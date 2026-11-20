@@ -22,6 +22,8 @@ import type { Ctx, Rota } from "../roteador.ts";
 import { CORPO_MAX_RESULTADO_COMPUTADOR } from "../util.ts";
 import { cabecalhoCookieSessao } from "../sessao-cookie.ts";
 import type { CanalComputador } from "../../computador/canal.ts";
+import type { CanalNavegador } from "../../navegador/canal-maquina.ts";
+import { MOTIVOS_FALHA_NAVEGADOR, type MotivoFalhaNavegador, type ResultadoComandoNavegador } from "../../../contracts/navegador-maquina.ts";
 import type { EstadoComputadorRelatado } from "../../../contracts/computador-motor.ts";
 import type { MaquinaDaPessoa } from "../../computador/motor.ts";
 import { anuncioComputador, anuncioVmLocal, estadoComputadorRelatado, resultadoComandoComputador, capacidadesAnunciadas, contasAnunciadas, entrega, impressoes, progressoDoLogin, progressoDeInstalacao, exigir, falas, idsDeMensagens, inventario, memoria, objeto, relatoDesfazer, relatoEspera, sessaoDaRenovacao, sinais, texto, trechos, turnosEmAndamento, uuid } from "./ponte-validacao.ts";
@@ -84,6 +86,14 @@ export type DesfechoLocal = "executado" | "falhou_na_execucao";
  * resultado que chegar depois ainda é aceito uma vez: o desfecho só é gravado se estava aberto).
  */
 const RESERVA_ITEM_MS = 120_000;
+
+/** ADR-190: a resposta da máquina a um comando do navegador, conferida (forma estranha = 400). */
+function resultadoNavegador(b: Record<string, unknown>): ResultadoComandoNavegador {
+  const id = uuid(b.id);
+  if (b.ok === true) return { id, ok: true, ...(b.valor === undefined ? {} : { valor: b.valor }) };
+  exigir(b.ok === false && typeof b.motivo === "string" && (MOTIVOS_FALHA_NAVEGADOR as readonly string[]).includes(b.motivo) && texto(b.detalhe, 2000));
+  return { id, ok: false, motivo: b.motivo as MotivoFalhaNavegador, detalhe: b.detalhe as string };
+}
 const RECEBIDAS_GUARDADAS = 64;
 export function criarPonteHttpServidor(d: {
   criar(escopo: Escopo): PonteInternaNod;
@@ -153,6 +163,11 @@ export function criarPonteHttpServidor(d: {
    */
   computador?: { canal: CanalComputador; reconciliar?(escopo: Escopo, maquinaId: string, relato: EstadoComputadorRelatado): Promise<void> };
   /**
+   * ADR-190 (definido em 2026-11-20): o canal do navegador do bot na máquina da pessoa. Ausente = o servidor não leva o
+   * navegador às máquinas: as rotas `navegador/*` respondem 404 e a máquina não insiste (tenta de novo em 10 min).
+   */
+  navegador?: { canal: CanalNavegador };
+  /**
    * NOD-94 (emenda 11 da ADR-090): a máquina como instaladora por SSH — a puxada (com a chave pública do par que ela
    * gerou ao subir; a credencial vem cifrada com ela, uma vez) e o progresso. Ausente = modo local: 404 e a máquina segue.
    */
@@ -178,6 +193,8 @@ export function criarPonteHttpServidor(d: {
   const reservas = new Map<string, { machineId: string; ate: number }>();
   /** NOD-96 PR 3: máquinas com o long-poll do computador em curso (um por máquina, separado do `puxar` dos turnos). */
   const puxandoComputador = new Set<string>();
+  /** ADR-190: máquinas com o long-poll do navegador em curso (um por máquina). */
+  const puxandoNavegador = new Set<string>();
   /** Revisão do #209: um aviso por máquina para a leitura com defeito no puxar (ela chega a cada pedido). */
   const leiturasInvalidas = new Set<string>();
   /**
@@ -533,6 +550,37 @@ export function criarPonteHttpServidor(d: {
       await d.computador.reconciliar?.(ctx.escopo, ctx.params.chaveId!, relato).catch((e) => log("aviso", "computador_reconciliar_falhou", { machine_id: ctx.params.chaveId, erro: e instanceof Error ? e.name : "desconhecido" }));
       ctx.json(200, { ok: true });
     }),
+    /**
+     * ADR-190 (definido em 2026-11-20): a máquina PUXA os comandos do navegador do bot (o servidor nunca disca, ADR-021).
+     * Long-poll como o do computador; cada puxada também é a presença do navegador desta máquina (o lugar a vê "ligada").
+     */
+    rota("navegador/puxar", async (ctx) => {
+      const c = conexao(ctx);
+      if (!d.navegador) { ctx.json(404, { codigo: "sem_navegador" }); return; }
+      const id = ctx.params.chaveId!;
+      if (puxandoNavegador.has(id)) throw new ErroDeDominio("estado_invalido");
+      puxandoNavegador.add(id);
+      const canal = d.navegador.canal;
+      try {
+        const ate = d.agora() + (d.longpollMs ?? 20_000);
+        do {
+          if (ctx.res.destroyed) return;
+          c.ultimo = d.agora();
+          canal.presenca(ctx.escopo, id, { plataforma: c.plataforma, nome: c.nome });
+          if (drenando) break;
+          if (canal.temPara(ctx.escopo, id)) { ctx.json(200, { comandos: canal.puxar(ctx.escopo, id) }); return; }
+          await esperar(250);
+        } while (d.agora() < ate);
+        ctx.json(200, { comandos: [] });
+      } finally { puxandoNavegador.delete(id); }
+    }),
+    /** A resposta da máquina a um comando do navegador. Id desconhecido ou de outra máquina/pessoa: ignorado (`aceito: false`). */
+    rota("navegador/resultado", async (ctx, b) => {
+      const c = conexao(ctx);
+      if (!d.navegador) { ctx.json(404, { codigo: "sem_navegador" }); return; }
+      c.ultimo = d.agora();
+      ctx.json(200, { aceito: d.navegador.canal.resultado(ctx.escopo, ctx.params.chaveId!, resultadoNavegador(b)) });
+    }, { corpoMax: CORPO_MAX_RESULTADO_COMPUTADOR }),
     rota("itens-locais", async (ctx) => {
       const c = conexao(ctx);
       c.ultimo = d.agora();
@@ -637,6 +685,8 @@ export function criarPonteHttpServidor(d: {
       conexoes.delete(ctx.params.chaveId!);
       // NOD-96 PR 3: a foto do computador desta máquina deixa de valer (o despachante não a escolhe mais).
       d.computador?.canal.esquecerMaquina(ctx.params.chaveId!);
+      // ADR-190: o navegador desta máquina também (quem esperava um comando dela recebe `indisponivel` na hora).
+      d.navegador?.canal.esquecerMaquina(ctx.params.chaveId!);
       // NOD-300: a máquina que sai avisa a presença (a barra do dono relê na hora).
       const estava = presencaAvisada.get(ctx.params.chaveId!);
       presencaAvisada.set(ctx.params.chaveId!, { escopo: c.escopo, viva: false });

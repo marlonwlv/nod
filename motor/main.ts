@@ -24,6 +24,7 @@ import { criarExecutarComando, iniciarLimpezaDasTasks, modoDaLimpeza, type Limpe
 import { iniciarDesfazeres, type Desfazeres } from "../src/adapters/executor/desfazeres.ts";
 import { iniciarEsperas, type Esperas } from "../src/adapters/executor/esperas.ts";
 import { iniciarComputador, type LacoComputador } from "../src/adapters/executor/computador.ts";
+import { agentBrowserDoLinux, chromeDoLinux, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
 import type { PlanoTurno } from "../src/contracts/plano-turno.ts";
 import { PAPEIS_MAQUINA } from "../src/contracts/ponte.ts";
 import { iniciarInstaladora, type Instaladora } from "../src/shared/instaladora.ts";
@@ -154,6 +155,7 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   let desfazeres: Desfazeres | null = null;
   /** NOD-96 PR 3: o fio entre a ponte e o supervisor do computador desta máquina. */
   let computador: LacoComputador | null = null;
+  let navegador: NavegadorDaMaquina | null = null;
   /** NOD-94: a instaladora por SSH (só no papel motor e com o servidor que aceita). */
   let instaladora: Instaladora | null = null;
   const planosAqui = new Map<string, PlanoTurno>();
@@ -302,6 +304,9 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   // NOD-96 PR 3 (ADR-122): o computador da pessoa. Puxa os comandos e repassa ao supervisor; servidor sem a flag (404)
   // deixa o laço quieto, tentando de novo a cada 10 min.
   computador = NO_WINDOWS ? null : iniciarComputador({ canal: ponteHttp.computador });
+  // ADR-190 (decisão 5): o navegador do bot nesta máquina sempre ligada. Puxa os comandos; o Chrome só abre no primeiro
+  // (servidor sem NOD_NAVEGADOR_NA_MAQUINA: 404, o laço espera 10 min). Chrome e binário: chromeDoLinux/agentBrowserDoLinux.
+  navegador = NO_WINDOWS ? null : iniciarNavegadorDaMaquina({ canal: ponteHttp.navegador, motor: motorDaMaquina({ dados: join(pastaDoExecutor(process.env), "navegadores"), binario: agentBrowserDoLinux(process.env, process.arch), chrome: () => chromeDoLinux(process.env) }) });
 
   const subirLaco = (reg: Registry) => {
     if (papel === "computador") { log("info", "motor_so_computador", { machine_id: dados.machineId }); return; }
@@ -447,6 +452,7 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
     esperas?.parar();
     desfazeres?.parar();
     computador?.parar();
+    navegador?.parar();
     vigia?.parar();
     ponteHttp.cancelar();
     const anterior = laco; laco = null;
