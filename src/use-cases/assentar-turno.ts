@@ -11,7 +11,7 @@ import { custoDoTurno } from "../domain/custo-turno.ts";
 import { assuntoDaInterrupcao } from "../domain/destino-no-chat.ts";
 import { causaDaEntrega } from "../domain/stream-json.ts";
 import { ErroDeDominio } from "../domain/erro.ts";
-import { appSemJanelaReal, classificarErroFornecedor, ehErroTransitorio, fraseDoErroFornecedor, fraseDoLimiteDoPlano, horaDaFrase, quandoDaFrase } from "../domain/erro-fornecedor.ts";
+import { appSemJanelaReal, classificarErroFornecedor, ehErroTransitorio, fraseDoErroFornecedor, fraseDoLimiteDoPlano, horaDaFrase, horaDeVoltaNoTexto, quandoDaFrase } from "../domain/erro-fornecedor.ts";
 import { descreverNegacao } from "../domain/estado-degradacao.ts";
 import { iaDaNegacao } from "../domain/harness.ts";
 import { negacoesDoTurno } from "../domain/negacao-nativa.ts";
@@ -422,6 +422,9 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // para a ordem de todos os bots até `renovaEm`; um turno que dá certo na IA a tira do limite antes do prazo.
   const ehLimite = desfecho.estado === "interrompido" && !quedaDaMaquina && !resultado.causaSemIa
     && (desfecho.motivoFalha === "limite_do_plano" || (desfecho.motivoFalha !== null && classificarErroFornecedor(resultado.erroCru) === "limite_de_uso"));
+  // Jornadas da IA (2026-11-19): a hora em que o limite volta — a do protocolo e, sem ela, a lida do texto do fornecedor
+  // ("resets 6:50pm (America/Sao_Paulo)", "try again in 2 hours"); só sem nenhuma das duas fica o prazo sem hora.
+  const voltaDoLimite = ehLimite ? (desfecho.motivoFalha === "limite_do_plano" ? resultado.limiteVoltaEm ?? null : null) ?? horaDeVoltaNoTexto(resultado.erroCru, agora) : null;
   // NOD-309: o erro transitório do provedor (sobrecarga, 5xx, rede) — o fundo tenta de novo em vez de falhar. Nunca o limite
   // (ehLimite vem antes) nem a conta sem acesso.
   const transitorio = desfecho.estado === "interrompido" && !quedaDaMaquina && !resultado.causaSemIa && !ehLimite && desfecho.motivoFalha !== null && ehErroTransitorio(resultado.erroCru);
@@ -439,7 +442,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
   // ADR-102 (2026-10-13): no limite da conta da lista, quem para é ELA (vale em todas as máquinas), não a IA; a decisão
   // segue as regras da lista (contas-da-pessoa.ts).
   const limiteDaConta = ehLimite && contaDoTurnoId && !contaLivre
-    ? await decidirLimiteNoAssentamento(deps, { turno, contaId: contaDoTurnoId, machineId: entrega.machineId, ate: desfecho.motivoFalha === "limite_do_plano" ? resultado.limiteVoltaEm ?? null : null, agora })
+    ? await decidirLimiteNoAssentamento(deps, { turno, contaId: contaDoTurnoId, machineId: entrega.machineId, ate: voltaDoLimite, agora })
     : null;
   if (ehLimite && entrega.harness && contaLivre) {
     log("aviso", "conta_no_limite", { turno_id: turno.id, harness: entrega.harness, tipo: contas.tipo, de: contas.de, para: contas.tipo === "trocou" ? contas.para : null });
@@ -448,12 +451,12 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
     // NOD-253: a conta parada muda o portão da cota (cotaDasIasComContas) — as pontes releem na hora.
     limiteMudou = true;
   } else if (ehLimite && entrega.harness) {
-    const renovaEm = prazoDoLimite(desfecho.motivoFalha === "limite_do_plano" ? resultado.limiteVoltaEm : null, agora);
+    const renovaEm = prazoDoLimite(voltaDoLimite, agora);
     await deps.repos.preferencias.registrarLimite(entrega.harness, { renovaEm, desde: agora });
     // I6 (revisão do PR 2): `semHora` = o fornecedor não disse quando volta; o aviso de troca grava a volta vazia.
-    limite = { ia: entrega.harness, renovaEm, semHora: !(desfecho.motivoFalha === "limite_do_plano" && resultado.limiteVoltaEm === renovaEm) };
+    limite = { ia: entrega.harness, renovaEm, semHora: voltaDoLimite !== renovaEm };
     limiteMudou = true;
-    log("aviso", "ia_no_limite", { turno_id: turno.id, harness: entrega.harness, renova_em: renovaEm, do_fornecedor: desfecho.motivoFalha === "limite_do_plano" && resultado.limiteVoltaEm === renovaEm });
+    log("aviso", "ia_no_limite", { turno_id: turno.id, harness: entrega.harness, renova_em: renovaEm, do_fornecedor: voltaDoLimite === renovaEm });
   } else if (desfecho.estado === "concluido" && entrega.harness) {
     limiteMudou = await deps.repos.preferencias.limparLimite(entrega.harness);
     // ADR-102: o turno deu certo na conta — ela sai do limite antes do prazo.
@@ -519,7 +522,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
       contas && entrega.harness
         ? fraseDaDecisao(contas, { ia: nomeDaIa(entrega.harness), quando: (t) => horaDaFrase(t, agora), quandoVolta: (t) => quandoDaFrase(t, agora), origem: turno.origem })
         : desfecho.motivoFalha === "limite_do_plano"
-        ? fraseDoLimiteDoPlano(entrega.harness ?? null, resultado.limiteVoltaEm, agora)
+        ? fraseDoLimiteDoPlano(entrega.harness ?? null, voltaDoLimite ?? resultado.limiteVoltaEm, agora)
         : desfecho.motivoFalha
           ? fraseDoErroFornecedor(entrega.harness ?? null, resultado.erroCru, { versaoApp: entrega.versaoApp ?? null })
           : null;
@@ -536,7 +539,7 @@ export const assentarTurno: CasoDeUso<EntradaAssentarTurno, SaidaAssentarTurno> 
       assunto: assuntoDaInterrupcao(motivo),
       // ADR-101: a frase das contas já é uma frase inteira ("Conta 1 do Claude Code no limite até 14:00. Seguir com a conta 2?").
       texto: contas && entrega.harness && fraseFornecedor ? fraseFornecedor : redigir("turno-interrompido", agora, { motivo: fraseFornecedor ?? motivoNaMaquina(motivo, maquinaDoTurno) }),
-      ...(limite ? { payload: { kind: "limite_do_plano" as const, harness: entrega.harness ?? null, voltaEm: desfecho.motivoFalha === "limite_do_plano" && resultado.limiteVoltaEm && resultado.limiteVoltaEm > agora ? resultado.limiteVoltaEm : null, ...(contas ? { conta: contas } : {}) } } : {}),
+      ...(limite ? { payload: { kind: "limite_do_plano" as const, harness: entrega.harness ?? null, voltaEm: voltaDoLimite && voltaDoLimite > agora ? voltaDoLimite : null, ...(contas ? { conta: contas } : {}) } } : {}),
       confianca: "confiavel",
     });
     if (aviso) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { mensagem_id: aviso.id, kind: "sistema" } }));

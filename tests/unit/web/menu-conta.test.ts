@@ -159,7 +159,7 @@ describe("rodapé e CSS", () => {
     expect(rodape).toMatch(/data-tela="conectores"[^>]*aria-label="Conectar aplicativos"/);
     expect(rodape).toContain('class="me conta-pilula');
     expect(rodape).toMatch(/data-act="menu-conta" aria-haspopup="menu" aria-expanded="\$\{menuContaAberto\(\)/);
-    expect(main).toMatch(/if \(a\.tipo === "ajustes"\) \{ abrirEspaco\("geral"\)/);
+    expect(main).toMatch(/if \(a\.tipo === "ajustes"\) \{ abrirEspaco\(secaoInicialDasConfiguracoes\(estado\)\)/);
   });
 
   it("os tempos do movimento: 100 ms para abrir e fechar, 50 ms na troca de submenu, seco com reduced-motion", () => {

@@ -127,13 +127,33 @@ function comparar(rotulos: string[]): void {
   }
 }
 
+/** O quadro (fase 5 da ADR-179): abrir de novo (até pintar), soltar um card (até a coluna nova) e o PATCH, por variante. */
+function compararQuadro(rotulos: string[]): void {
+  type Tres = { n: number; p50: number; p95: number; max: number };
+  type Q = { quadro?: { arrastos: number; chegaram: number; regravacoes: number; soltura?: Tres & { perdidas: number }; mover?: Tres; abertura?: { primeira: { atePintarMs: number; maiorTarefaMs: number; servidorMs: number | null }; deNovo: { pintar: Tres; maiorTarefa: Tres; servidor: Tres } } } };
+  const linhas = rotulos.flatMap((r) => {
+    const arq = join(CONFIG.saida, `${r}-quadro.json`);
+    if (!existsSync(arq)) return [];
+    const q = (JSON.parse(readFileSync(arq, "utf8")) as Q).quadro;
+    const a = q?.abertura;
+    return q ? [[r, a ? `${a.primeira.atePintarMs} / ${a.primeira.maiorTarefaMs} / ${a.primeira.servidorMs ?? "-"}` : "-", a ? `${a.deNovo.pintar.p50} / ${a.deNovo.maiorTarefa.p50} / ${a.deNovo.servidor.p50}` : "-", `${q.arrastos} / ${q.chegaram}`, q.soltura ? `${q.soltura.p50} / ${q.soltura.p95} / ${q.soltura.max}` : "-", q.mover ? `${q.mover.p50} / ${q.mover.p95}` : "-", q.regravacoes].join(" | ")] : [];
+  });
+  if (!linhas.length) return;
+  escrever("");
+  escrever("quadro: variante | 1ª abertura: pintar / maior tarefa / servidor (ms) | de novo p50: pintar / maior tarefa / servidor | arrastos / chegaram | soltar → coluna p50/p95/max | PATCH p50/p95 | regravações");
+  for (const l of linhas) escrever(l);
+}
+
 const [comando, ...resto] = process.argv.slice(2);
 if (comando === "preparar") await preparar();
 else if (comando === "medir") {
   const [rotulo = "depois", lista] = resto;
   const cenarios = lista ? (lista.split(",") as Cenario[]) : CENARIOS;
   await medirVariante(rotulo, cenarios);
-} else if (comando === "comparar") comparar(resto.length ? resto : ["antes", "depois"]);
+} else if (comando === "comparar") {
+  comparar(resto.length ? resto : ["antes", "depois"]);
+  compararQuadro(resto.length ? resto : ["antes", "depois"]);
+}
 else {
   escrever("uso: node scripts/carga-tela/rodar.ts preparar | medir <rotulo> [cenario,...] | comparar <rotulo>...");
   process.exit(2);

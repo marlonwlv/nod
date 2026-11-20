@@ -3,6 +3,9 @@
  * do avatar. `instalarIdentidade` liga os eventos no documento uma vez só; as regras puras moram em identidade-regras.ts.
  */
 import { AVISO_MS, decidirCampo, desfazerAoFalhar, ERRO_AO_SALVAR, ERRO_NOME_VAZIO, proximaAba, proximoRadio, type CampoIdentidade } from "./identidade-regras.ts";
+import { registrarNomeEditavel } from "./nome-editavel-eventos.ts";
+
+export { preservandoCampo } from "./nome-editavel-eventos.ts";
 
 export { comPendentes, criarFilaDePerfil, criarSalvarAvatar, ERRO_AO_SALVAR, sobreporPendentes } from "./identidade-regras.ts";
 
@@ -40,39 +43,36 @@ export function reaplicarAviso(raiz: ParentNode = document): void {
   linha.closest(".gvn-erro-linha")?.classList.add("visivel");
 }
 
-// Revisão 3 da NOD-349: o redesenho com o foco num campo tira o input do DOM e o devolve; no Chromium isso dispara
-// focusout, que salvaria o texto pela metade. Durante a troca, o focusout não conta.
-let trocandoCampo = false;
-export function preservandoCampo(trocar: () => void): void {
-  trocandoCampo = true;
-  try { trocar(); } finally { trocandoCampo = false; }
-}
-
-const campoDe = (el: EventTarget | null): HTMLInputElement | null =>
-  el instanceof HTMLInputElement && el.matches("#detalhes .gvn-nome, #detalhes .gvn-sub") ? el : null;
-
-/** Liga Enter/Esc/blur dos campos, o teclado das abas e o do popover (setas, Tab preso, Esc e clique fora). */
+/**
+ * Liga o nome e o rótulo do bot ao nome editável do DS (Enter, Esc e o sair do campo moram em nome-editavel.ts), o
+ * teclado das abas e o do popover (setas, Tab preso, Esc e clique fora).
+ */
 export function instalarIdentidade(acoes: AcoesDaIdentidade, doc: Document = document): void {
-  // Esc desfaz: o blur que vem depois não salva (a marca vale para aquele blur só).
-  const desfeitos = new WeakSet<HTMLInputElement>();
+  registrarNomeEditavel("bot", (campo) => {
+    const id = campo.dataset.id ?? "";
+    const qual: CampoIdentidade = campo.dataset.campo === "titulo" ? "titulo" : "nome";
+    const salvo = campo.dataset.salvo ?? "";
+    const d = decidirCampo(qual, campo.value, salvo);
+    if (d.tipo === "nada") { campo.value = salvo; return; }
+    if (d.tipo === "vazio") { campo.value = salvo; avisarNaIdentidade(ERRO_NOME_VAZIO, doc); return; }
+    campo.value = d.valor;
+    campo.dataset.salvo = d.valor;
+    // Fora do focusout (revisão da NOD-349): redesenhar aqui tiraria do DOM o campo ou o botão que vai receber o foco ou
+    // o clique. No próximo tique o foco já chegou lá (e o render respeita o campo focado e o ponteiro apertado).
+    setTimeout(() => {
+      acoes.salvarCampo(id, qual, d.valor).catch(() => {
+        // Só desfaz a tentativa que falhou: se a pessoa já digitou outra coisa ou outro valor foi salvo, fica como está.
+        const atual = doc.querySelector<HTMLInputElement>(`#detalhes [data-campo="${qual}"][data-id="${CSS.escape(id)}"]`) ?? campo;
+        const volta = desfazerAoFalhar({ salvo: atual.dataset.salvo ?? "", valor: atual.value }, d.valor, salvo);
+        if (!volta) return;
+        atual.dataset.salvo = volta.salvo;
+        atual.value = volta.valor;
+        avisarNaIdentidade(ERRO_AO_SALVAR, doc);
+      });
+    }, 0);
+  }, doc);
 
   doc.addEventListener("keydown", (ev) => {
-    const campo = campoDe(ev.target);
-    if (campo) {
-      // Revisão da NOD-349: o Enter que confirma a composição do IME não salva; depois de Enter ou Esc o foco volta ao
-      // campo (o blur só dispara o salvar), para quem usa teclado não cair no começo da página.
-      if (ev.isComposing) return;
-      if (ev.key === "Enter") { ev.preventDefault(); campo.blur(); campo.focus(); return; }
-      if (ev.key === "Escape") {
-        ev.preventDefault();
-        ev.stopPropagation();
-        campo.value = campo.dataset.salvo ?? "";
-        desfeitos.add(campo);
-        campo.blur();
-        campo.focus();
-      }
-      return;
-    }
     const alvo = ev.target as HTMLElement | null;
     const tab = alvo?.closest?.<HTMLButtonElement>('#detalhes [role="tab"]');
     if (tab) {
@@ -109,34 +109,6 @@ export function instalarIdentidade(acoes: AcoesDaIdentidade, doc: Document = doc
     ev.preventDefault();
     acoes.escolherRadio(radios[i]!);
   }, true);
-
-  doc.addEventListener("focusout", (ev) => {
-    if (trocandoCampo) return;
-    const campo = campoDe(ev.target);
-    if (!campo) return;
-    const id = campo.dataset.id ?? "";
-    const qual: CampoIdentidade = campo.dataset.campo === "titulo" ? "titulo" : "nome";
-    const salvo = campo.dataset.salvo ?? "";
-    if (desfeitos.has(campo)) { desfeitos.delete(campo); return; }
-    const d = decidirCampo(qual, campo.value, salvo);
-    if (d.tipo === "nada") { campo.value = salvo; return; }
-    if (d.tipo === "vazio") { campo.value = salvo; avisarNaIdentidade(ERRO_NOME_VAZIO, doc); return; }
-    campo.value = d.valor;
-    campo.dataset.salvo = d.valor;
-    // Fora do focusout (revisão da NOD-349): redesenhar aqui tiraria do DOM o campo ou o botão que vai receber o foco ou
-    // o clique. No próximo tique o foco já chegou lá (e o render respeita o campo focado e o ponteiro apertado).
-    setTimeout(() => {
-      acoes.salvarCampo(id, qual, d.valor).catch(() => {
-        // Só desfaz a tentativa que falhou: se a pessoa já digitou outra coisa ou outro valor foi salvo, fica como está.
-        const atual = doc.querySelector<HTMLInputElement>(`#detalhes [data-campo="${qual}"][data-id="${CSS.escape(id)}"]`) ?? campo;
-        const volta = desfazerAoFalhar({ salvo: atual.dataset.salvo ?? "", valor: atual.value }, d.valor, salvo);
-        if (!volta) return;
-        atual.dataset.salvo = volta.salvo;
-        atual.value = volta.valor;
-        avisarNaIdentidade(ERRO_AO_SALVAR, doc);
-      });
-    }, 0);
-  });
 
   // Clique fora fecha o popover (o clique no próprio avatar é o data-act que alterna).
   doc.addEventListener("pointerdown", (ev) => {

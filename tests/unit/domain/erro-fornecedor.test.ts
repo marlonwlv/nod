@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appSemJanelaReal, CLASSES_ERRO_FORNECEDOR, classificarErroFornecedor, ehErroTransitorio, FRASE_ERRO_FORNECEDOR, fraseDoErroFornecedor, fraseDoLimiteDoPlano, horaDaFrase, VERSAO_APP_ATUALIZA_SOZINHO, VERSAO_APP_JANELA_REAL } from "../../../src/domain/erro-fornecedor.ts";
+import { appSemJanelaReal, CLASSES_ERRO_FORNECEDOR, classificarErroFornecedor, ehErroTransitorio, FRASE_ERRO_FORNECEDOR, fraseDoErroFornecedor, fraseDoLimiteDoPlano, horaDaFrase, horaDeVoltaNoTexto, VERSAO_APP_ATUALIZA_SOZINHO, VERSAO_APP_JANELA_REAL } from "../../../src/domain/erro-fornecedor.ts";
 import { redigir } from "../../../src/domain/redacao.ts";
 import { redigirSegredos } from "../../../src/domain/segredos.ts";
 
@@ -196,5 +196,30 @@ describe("erro do fornecedor em classe fechada (NOD-174)", () => {
     expect(cru).not.toContain(chave);
     expect(classificarErroFornecedor(cru)).toBe("login_expirado");
     expect(fraseDoErroFornecedor("claude-cli", cru)).not.toContain("sk-ant");
+  });
+});
+
+describe("Jornadas da IA (2026-11-19): o texto real de produção", () => {
+  it("'OAuth session expired' é login vencido", () => {
+    expect(classificarErroFornecedor("Failed to authenticate: OAuth session expired and could not be refreshed")).toBe("login_expirado");
+  });
+
+  it("a hora em que o limite volta, lida do texto só quando dá para ler sem chutar", () => {
+    const agora = Date.UTC(2026, 10, 19, 15, 0); // 12:00 em São Paulo
+    // Claude Code com o fuso: hoje às 18:50 em São Paulo = 21:50 UTC.
+    expect(horaDeVoltaNoTexto("api_error: usage_limit_reached | You've hit your 5-hour limit · resets 6:50pm (America/Sao_Paulo)", agora)).toBe(Date.UTC(2026, 10, 19, 21, 50));
+    // A hora que já passou hoje é amanhã.
+    expect(horaDeVoltaNoTexto("resets 9am (UTC)", agora)).toBe(Date.UTC(2026, 10, 20, 9, 0));
+    // Com o dia.
+    expect(horaDeVoltaNoTexto("Weekly limit reached · resets Nov 21, 3pm (UTC)", agora)).toBe(Date.UTC(2026, 10, 21, 15, 0));
+    // Codex com a duração.
+    expect(horaDeVoltaNoTexto("You've hit your usage limit. Try again in 2 hours 5 minutes.", agora)).toBe(agora + 2 * 3_600_000 + 5 * 60_000);
+    expect(horaDeVoltaNoTexto("try again in 3 days", agora)).toBe(agora + 3 * 86_400_000);
+    // Sem fuso, fuso inventado, longe demais ou nada: null (fica o prazo sem hora de sempre).
+    expect(horaDeVoltaNoTexto("resets 6:50pm", agora)).toBeNull();
+    expect(horaDeVoltaNoTexto("resets 6:50pm (Lugar/Nenhum)", agora)).toBeNull();
+    expect(horaDeVoltaNoTexto("try again in 30 days", agora)).toBeNull();
+    expect(horaDeVoltaNoTexto("You've hit your usage limit.", agora)).toBeNull();
+    expect(horaDeVoltaNoTexto(null, agora)).toBeNull();
   });
 });

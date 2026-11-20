@@ -105,16 +105,28 @@ function renderProvedoresContas(estado: Estado): string {
     noApp: ui.noApp && estado.detalhesContas !== null,
     botsNaMaquina: (id) => botsDaPessoa(estado).filter((b) => maquinaDoBot(estado, b)?.id === id).map((b) => b.nome),
     cartaoDoMac: (ia) => renderCartaoIa(vistaDaIa(ia, contexto), ui),
+    // Paper A2: os passos do app do Mac viram a trilha da Nova conta (o passo instalar ausente = já instalada).
+    passosDoMac: (ia) => {
+      const passos = vistaDaIa(ia, contexto).passos;
+      if (!passos?.length) return null;
+      const marca = (id: "instalar" | "entrar" | "testar") => passos.find((p) => p.id === id)?.marca ?? (id === "instalar" ? "feito" : "depois");
+      return [marca("instalar"), marca("entrar"), marca("testar")];
+    },
     simulacao: estado.executor?.atual === "catcher",
+    // Paper A1: os harnesses ainda não integrados aparecem como "chegam em breve" na Nova conta.
+    emBreve: (estado.executor?.harnesses?.opcoes ?? []).filter((h) => !h.integrado).map((h) => h.nome),
   });
   const executor = estado.executor && estado.executor.trocavel !== false ? `<div class="espaco-cartao prov-avancado">${renderExecutor(estado)}</div>` : "";
   const intro = filtro
     ? `Mostrando as contas d${filtro.plataforma === "darwin" ? "o" : "a"} ${esc(nomeCurto(filtro, maquinas))}. A ordem é a mesma em todas as máquinas: os bots dela pulam as que não estão logadas lá.`
-    : "Suas contas de IA numa fila só. Quando uma acaba, o Nod passa para a próxima ligada, na máquina onde o bot trabalha. Arraste para mudar a ordem; desligue a que não deve entrar sozinha.";
+    // Jornadas da IA (Paper G1): uma linha só; o resto mora no "Como o nod troca de conta", no pé.
+    : "Os bots usam a primeira conta disponível da fila. Arraste para mudar a ordem.";
   // Tela 19b do Paper: a Nova conta é uma sub-página ("‹ Provedores de IA / Nova conta"), sem o título nem a lista.
   if (estado.contasUi.nova && !filtro && lista.includes('data-form="cl-nova"')) return `<section class="espaco-secao cfg-secao provedores prov-contas prov-nova">${lista}</section>`;
+  // Jornadas da IA (Paper G2): a conta aberta também é uma sub-página, sem o título nem a lista.
+  if (estado.contasUi.aberta && !filtro && lista.includes('data-pagina="cl-conta"')) return `<section class="espaco-secao cfg-secao provedores prov-contas prov-conta">${lista}</section>`;
   return `<section class="espaco-secao cfg-secao provedores prov-contas">
-      <h2 class="prov-titulo">${pilhaDeAvatares()}Provedores de IA</h2>
+      <h2 class="prov-titulo">Provedores de IA</h2>
       <p class="intro">${intro}</p>
       ${lista}
       ${executor}

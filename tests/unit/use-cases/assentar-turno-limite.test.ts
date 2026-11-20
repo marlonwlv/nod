@@ -71,6 +71,12 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
     expect(c.banco.mensagens.slice(c.antes)[0]?.payload).toMatchObject({ kind: "ia_trocada", de: "codex-cli", para: "claude-cli", causa: "limite" });
   });
 
+  it("Jornadas da IA: o limite que chega só em texto com a duração ('try again in 2 hours') grava a hora certa, não o palpite de 1 h", async () => {
+    const c = await cenario();
+    await c.entregar({ ...limiteDoCodex, erroCru: "You've hit your usage limit. Try again in 2 hours." }, "codex-cli");
+    expect((await c.deps.repos.preferencias.buscar()).iasNoLimite).toEqual({ "codex-cli": { renovaEm: T0 + 2 * 3_600_000, desde: T0 } });
+  });
+
   it("sem outra IA pronta fora do limite: o aviso do limite de sempre (com a hora) e nada repetido; o limite fica gravado", async () => {
     for (const prontos of [["claude-cli"], ["claude-cli", "codex-cli"]] as IdHarness[][]) {
       const c = await cenario();

@@ -65,6 +65,12 @@ const IA_VOLTOU_MS = 12_000;
 
 export type TelaLigacao = ReturnType<typeof criarTelaLigacao>;
 
+/**
+ * ADR-179: o que a tela da ligação em React lê (`instantaneo`, o mesmo objeto até a próxima mudança) e assina. A região
+ * só fica à vista (`hidden` fora) quando há o que mostrar: a ligação, a avaliação ou a recusa.
+ */
+export type InstantaneoDaLigacao = { t: EstadoTelaLigacao | null; card: CardJanela | null; avaliacao: AvaliacaoLigacao | null; recusa: { texto: string } | null };
+
 export function criarTelaLigacao(deps: DepsTelaLigacao) {
   let t: EstadoTelaLigacao | null = null;
   let motor: MotorLigacao | null = null;
@@ -77,6 +83,10 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
   /** A pessoa saiu pelo "Configurar sem voz" do aviso: o fim `recusada` que vem em seguida não precisa de explicação. */
   let saindoSemVoz = false;
   const noApp = typeof window !== "undefined" && !!window.nodDesktop;
+  /** ADR-179: a região desenhada pelo React (`desenharPorFora`): o render só avisa quem assina. */
+  let porFora = false;
+  let instante: InstantaneoDaLigacao | null = null;
+  const ouvintes = new Set<() => void>();
 
   function mudar(fn: (e: EstadoTelaLigacao) => EstadoTelaLigacao, foraDaRegiao = false): void {
     if (!t) return;
@@ -103,6 +113,12 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
   function render(): void {
     const raiz = document.getElementById("ligacao");
     if (!raiz) return;
+    if (porFora) {
+      raiz.toggleAttribute("hidden", !t && !avaliacao && !recusa);
+      instante = null;
+      for (const f of ouvintes) f();
+      return;
+    }
     if (!t) {
       const html = avaliacao ? renderAvaliacao(avaliacao) : recusa ? renderRecusa(recusa.texto) : "";
       subRegiao("ligacao", html, SUBS);
@@ -131,6 +147,12 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
     const calou = t.quemFala === "pessoa" && agora > falaPessoaAte;
     t = { ...t, agora };
     if (calou) mudar((e) => ({ ...e, quemFala: null }));
+    if (porFora) {
+      // O React redesenha o cronômetro e a contagem (o resto da tela é o mesmo objeto e não muda).
+      if (t.janela && agora >= t.janela.ate) mudar((e) => ({ ...e, janela: null }));
+      else render();
+      return;
+    }
     for (const el of document.querySelectorAll<HTMLElement>("[data-ligacao-relogio]")) el.textContent = duracaoRelogio(agora - t.desde);
     const contagem = document.getElementById("ligacao-contagem");
     if (t.janela && agora >= t.janela.ate) mudar((e) => ({ ...e, janela: null }));
@@ -314,7 +336,7 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
     tique = window.setInterval(aCadaSegundo, 1_000);
     render();
     deps.aoMudar();
-    if (modo === "cheia") document.querySelector<HTMLElement>('#ligacao [data-act="ligacao-encolher"]')?.focus();
+    if (modo === "cheia") document.querySelector<HTMLElement>('#ligacao :is([data-act="ligacao-encolher"], [data-lig="encolher"])')?.focus();
   }
 
   /** O clique em "Ligar": disponibilidade → consentimento (se preciso) → POST ligacoes → tela cheia e motor. */
@@ -405,6 +427,21 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
     ativa: (): { ligacaoId: string; agenteId: string; conversaId: string; modo: "cheia" | "pilula" } | null => (t ? { ligacaoId: t.ligacao.id, agenteId: t.agente.id, conversaId: t.ligacao.conversaId, modo: t.modo } : null),
     cheia: (): boolean => t?.modo === "cheia",
     render,
+    /** ADR-179: o que a tela em React desenha (o mesmo objeto até mudar). */
+    instantaneo: (): InstantaneoDaLigacao => (instante ??= { t, card: cardAtual(), avaliacao, recusa }),
+    assinar(f: () => void): () => void {
+      ouvintes.add(f);
+      return () => ouvintes.delete(f);
+    },
+    /** ADR-179: daqui em diante a região é do React; o desenho por string sai (e as sub-regiões são esquecidas). */
+    desenharPorFora(): void {
+      if (porFora) return;
+      porFora = true;
+      esquecerRegiao("ligacao");
+      for (const f of SUBS) esquecerRegiao(f);
+      document.getElementById("ligacao")?.replaceChildren();
+      render();
+    },
     ligar,
     /**
      * ADR-077: o Atender do onboarding. A ligação já foi criada pelo servidor (iniciada pelo produto) e o consentimento
@@ -423,11 +460,11 @@ export function criarTelaLigacao(deps: DepsTelaLigacao) {
     },
     encolher(): void {
       mudar((e) => ({ ...e, modo: "pilula", teclado: false }), true);
-      document.querySelector<HTMLElement>('#ligacao [data-act="ligacao-expandir"]')?.focus();
+      document.querySelector<HTMLElement>('#ligacao :is([data-act="ligacao-expandir"], [data-lig="expandir"])')?.focus();
     },
     expandir(): void {
       mudar((e) => ({ ...e, modo: "cheia" }), true);
-      document.querySelector<HTMLElement>('#ligacao [data-act="ligacao-encolher"]')?.focus();
+      document.querySelector<HTMLElement>('#ligacao :is([data-act="ligacao-encolher"], [data-lig="encolher"])')?.focus();
     },
     alternarMudo(): void {
       if (!t) return;

@@ -27,12 +27,12 @@ type Agente = NonNullable<Estado["frota"]>["agentes"][number];
 export type TelaTarefas = Extract<Tela, { tipo: "trabalhos" }>;
 
 // Paper 5a: o anel tracejado de quem espera (14 de caixa, raio 5,5, traço 1,6 em 2 2), o par do anel de quem roda.
-const ANEL_ESPERANDO = '<svg class="pf-aba-ic tf-espera" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="7" cy="7" r="5.5"/></svg>';
-const SETA_DIREITA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.75 2.5 L6.25 5 L3.75 7.5"/></svg>';
-const SETA_CIMA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.25 L5 3.75 L7.5 6.25"/></svg>';
-const SETA_MENU = '<svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M2 3.5 H8 L5 7 Z"/></svg>';
+export const ANEL_ESPERANDO = '<svg class="pf-aba-ic tf-espera" width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2" aria-hidden="true"><circle cx="7" cy="7" r="5.5"/></svg>';
+export const SETA_DIREITA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.75 2.5 L6.25 5 L3.75 7.5"/></svg>';
+export const SETA_CIMA = '<svg class="tf-seta" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.25 L5 3.75 L7.5 6.25"/></svg>';
+export const SETA_MENU = '<svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true"><path d="M2 3.5 H8 L5 7 Z"/></svg>';
 
-const plural = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`;
+export const plural = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`;
 const precisaDeVoce = (t: Pick<TrabalhoDto, "estado">): boolean => t.estado === "precisa_de_voce" || t.estado === "fechado_ocioso";
 const esperandoAlgo = (t: TrabalhoDto): boolean => t.estado === "rodando" && emEspera(t);
 const rodandoDeFato = (t: TrabalhoDto): boolean => t.estado === "rodando" && !emEspera(t);
@@ -107,22 +107,22 @@ export function renderTelaTarefas(estado: Estado, tela: TelaTarefas = { tipo: "t
 
 // ---- Por bot (Paper 5a) -----------------------------------------------------------------------------------------------
 
-const GRUPOS_DO_BOT: { chave: GrupoDoBot; titulo: string }[] = [
+export const GRUPOS_DO_BOT: { chave: GrupoDoBot; titulo: string }[] = [
   { chave: "precisa", titulo: "Precisa de você" },
   { chave: "trabalhando", titulo: "Trabalhando" },
   { chave: "esperando", titulo: "Esperando" },
 ];
 
-type LinhaDoBot = { bot: Agente; dono: DonoDto; linha: LinhaDoDono; grupo: GrupoDoBot };
+export type LinhaDoBot = { bot: Agente; dono: DonoDto; linha: LinhaDoDono; grupo: GrupoDoBot };
 
 /** As decisões abertas do bot (a mais nova primeiro): a pergunta vira o título da linha do bot sem tarefa. */
-function decisoesDoBot(estado: Estado, agenteId: string): { frase: string; desde: number }[] {
+export function decisoesDoBot(estado: Estado, agenteId: string): { frase: string; desde: number }[] {
   const itens = (estado.suaVez?.itens ?? []).filter((i) => i.decisao.agenteId === agenteId && i.estadoColuna !== "vencido");
   return itens.map((i) => ({ frase: i.decisao.frase, desde: Date.parse(i.decisao.criadoEm) })).sort((a, b) => b.desde - a.desde);
 }
 
 /** As tarefas do bot na ordem da lista aberta: quem precisa de você, quem roda, quem espera, a fila (o mais antigo antes). */
-function tarefasDoBot(todos: readonly TrabalhoDto[], agenteId: string, hoje: number, mostrar: MostrarTarefas): TrabalhoDto[] {
+export function tarefasDoBot(todos: readonly TrabalhoDto[], agenteId: string, hoje: number, mostrar: MostrarTarefas): TrabalhoDto[] {
   const doBot = todos.filter((t) => t.agenteId === agenteId);
   const ordem = (t: TrabalhoDto): number => (precisaDeVoce(t) ? 0 : rodandoDeFato(t) ? 1 : t.estado === "rodando" ? 2 : 3);
   const abertas = doBot.filter(aberto).sort((a, b) => ordem(a) - ordem(b) || a.criadoEm - b.criadoEm);
@@ -134,7 +134,7 @@ function tarefasDoBot(todos: readonly TrabalhoDto[], agenteId: string, hoje: num
  * O título da linha do bot (Paper 5a): a tarefa principal (a aberta mais antiga); sem tarefa, a pergunta que espera a
  * pessoa, o que o bot faz na conversa ou o que ele espera.
  */
-function tituloDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[]): string {
+export function tituloDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[]): string {
   const [principal] = todos.filter((t) => t.agenteId === x.bot.id && aberto(t)).sort((a, b) => (a.iniciadoEm ?? a.criadoEm) - (b.iniciadoEm ?? b.criadoEm));
   if (principal) return tituloCurto(principal.titulo);
   if (x.grupo === "precisa") {
@@ -145,7 +145,7 @@ function tituloDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[
 }
 
 /** "1 precisa de você · 8 rodando · 3 prontas" (Paper 5a): o que o bot tem em cada estado, com as prontas de hoje. */
-function contasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[], hoje: number): string {
+export function contasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[], hoje: number): string {
   const doBot = todos.filter((t) => t.agenteId === x.bot.id);
   const daConversa = x.dono.esperas.filter((e) => e.trabalhoId === null).length;
   const precisa = doBot.filter(precisaDeVoce).length || (x.grupo === "precisa" ? Math.max(1, decisoesDoBot(estado, x.bot.id).length) : 0);
@@ -159,13 +159,13 @@ function contasDoBot(estado: Estado, x: LinhaDoBot, todos: readonly TrabalhoDto[
   return partes.filter(Boolean).join(" · ");
 }
 
-function prontas(doBot: readonly TrabalhoDto[], hoje: number): string {
+export function prontas(doBot: readonly TrabalhoDto[], hoje: number): string {
   const n = doBot.filter((t) => t.estado === "terminado" && (t.terminadoEm ?? t.criadoEm) >= hoje).length;
   return n ? plural(n, "pronta", "prontas") : "";
 }
 
 /** O tempo à direita: "há 9 min" (menos de uma hora) ou "desde 9:14"; a espera de colega vencida, "sem resposta há 26h". */
-function tempoDoBot(estado: Estado, x: LinhaDoBot): string {
+export function tempoDoBot(estado: Estado, x: LinhaDoBot): string {
   const desde = x.dono.estado.desde ?? estado.agora;
   if (x.grupo === "precisa") {
     const ds = decisoesDoBot(estado, x.bot.id);
@@ -182,7 +182,7 @@ function tempoDoBot(estado: Estado, x: LinhaDoBot): string {
   return estado.agora - desde < 60 * 60_000 ? `há ${duracaoCurta(estado.agora - desde)}` : `desde ${horaSemZero(desde)}`;
 }
 
-const ICONE_DO_GRUPO: Record<GrupoDoBot | "feitas", string> = { precisa: PONTO_PRECISA, trabalhando: ANEL_RODANDO, esperando: ANEL_ESPERANDO, feitas: `<span class="pf-aba-ic at-feita">${IC_OK}</span>` };
+export const ICONE_DO_GRUPO: Record<GrupoDoBot | "feitas", string> = { precisa: PONTO_PRECISA, trabalhando: ANEL_RODANDO, esperando: ANEL_ESPERANDO, feitas: `<span class="pf-aba-ic at-feita">${IC_OK}</span>` };
 
 /** Uma linha de bot (Paper 5a): estado, mascote, nome (90), o título, as contas, o tempo (60) e a seta. */
 function linhaDoBot(estado: Estado, b: { bot: Agente; grupo: GrupoDoBot | "feitas"; titulo: string; contas: string; tempo: string }, aberta: boolean, tarefas: string): string {
@@ -200,7 +200,7 @@ function tarefaNoBot(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Esta
 }
 
 // definido em 2026-11-18 (Paper 5a: três tarefas e "+ 9 tarefas do mesmo pedido"): até 4 cabem; mais que isso, 3 e a conta.
-const TAREFAS_A_VISTA = 3;
+export const TAREFAS_A_VISTA = 3;
 
 /** As tarefas do bot aberto, as esperas da conversa, a fila e o rodapé ("+ N tarefas do mesmo pedido", "Abrir a conversa"). */
 function tarefasDoBotAberto(estado: Estado, x: { bot: Agente; dono: DonoDto | null }, todos: readonly TrabalhoDto[], mostrar: MostrarTarefas): string {
@@ -222,7 +222,7 @@ function tarefasDoBotAberto(estado: Estado, x: { bot: Agente; dono: DonoDto | nu
 }
 
 /** As esperas da própria conversa (sem tarefa): o colega, o comando, a volta marcada; vencida, com Cobrar e Desistir. */
-function esperasDaConversa(estado: Estado, agenteId: string, dono: DonoDto): string {
+export function esperasDaConversa(estado: Estado, agenteId: string, dono: DonoDto): string {
   return dono.esperas.filter((e) => e.trabalhoId === null).map((d) => comAcaoLocal(d)).filter((e) => e !== null).map((e) => {
     const v = esperaNaTela(e, estado.agora);
     const c = v.colega;
@@ -235,7 +235,7 @@ function esperasDaConversa(estado: Estado, agenteId: string, dono: DonoDto): str
 }
 
 /** As linhas de bot pelo dono de cada um (ADR-099 item 10): o grupo sai do sinal da linha; sem linha, o bot está livre. */
-function linhasDosBots(estado: Estado): { linhas: LinhaDoBot[]; livres: Agente[] } {
+export function linhasDosBots(estado: Estado): { linhas: LinhaDoBot[]; livres: Agente[] } {
   const linhas: LinhaDoBot[] = [];
   const livres: Agente[] = [];
   for (const dono of estado.trabalhos?.donos ?? []) {
@@ -295,7 +295,7 @@ export function renderTarefasPorBot(estado: Estado, tela: TelaTarefas = { tipo: 
 
 // ---- Por estado (Paper 5b) --------------------------------------------------------------------------------------------
 
-const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; mostrar: MostrarTarefas }[] = [
+export const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; mostrar: MostrarTarefas }[] = [
   { chave: "precisa", titulo: "Precisa de você", mostrar: "abertas" },
   { chave: "trabalhando", titulo: "Trabalhando", mostrar: "abertas" },
   { chave: "esperando", titulo: "Esperando", mostrar: "abertas" },
@@ -304,7 +304,7 @@ const GRUPOS_DO_ESTADO: { chave: keyof GruposTrabalhos; titulo: string; mostrar:
 ];
 
 /** O passo da linha ("rodando os testes de unidade", "esperando a CI"); a terminada diz como acabou. */
-function passoDaTarefa(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Estado): { passo: string; dica: string } {
+export function passoDaTarefa(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Estado): { passo: string; dica: string } {
   if (!aberto(t)) return { passo: t.estado === "terminado" ? (t.ultimoPasso ?? "pronta") : t.estado === "parado" ? "parada" : "não terminou", dica: "" };
   const passo = situacaoDe(t, todos, estado.trabalhos?.segurando === true, estado.agora);
   // O passo corta: o title leva o texto inteiro e, sem contato com a máquina, o que fazer.
@@ -312,7 +312,7 @@ function passoDaTarefa(t: TrabalhoDto, todos: readonly TrabalhoDto[], estado: Es
 }
 
 /** O tempo à direita: rodando, há quanto ("22 min"); na fila, nada; terminada, a hora. */
-function tempoDaTarefa(t: TrabalhoDto, agora: number): string {
+export function tempoDaTarefa(t: TrabalhoDto, agora: number): string {
   if (!aberto(t)) return hora(t.terminadoEm ?? t.criadoEm);
   return t.estado === "na_fila" ? "" : tempoDe(t, agora);
 }

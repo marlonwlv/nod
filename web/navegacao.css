@@ -93,7 +93,9 @@
 .espaco-conteudo .tela { margin: 0; padding: 0; }
 .espaco-conteudo .espaco-secao > h2, .espaco-conteudo .tela-cab h1, .espaco-conteudo .tela > h1 { margin: 0 0 6px; font-size: var(--fs-titulo-1); font-weight: 600; letter-spacing: -.4px; }
 .espaco-conteudo .intro { margin: 0 0 18px; font-size: var(--fs-corpo); }
-.espaco-cartao { border: 1px solid var(--line); border-radius: var(--raio-14); overflow: hidden; }
+/* Cartão sobre o fundo (2026-11-20, referência: Grok): um tom mais claro que a superfície (--surface-elevated sobre
+   --surface, nos dois temas) e borda sutil — o contraste vem da cor, não de uma linha forte. Vale para todo cartão do DS. */
+.espaco-cartao { border: 1px solid var(--borda-sutil); border-radius: var(--raio-14); background: var(--surface-elevated); overflow: hidden; }
 .espaco-ia { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
 .espaco-ia > div { flex: 1; min-width: 0; }
 .espaco-ia b { display: block; font-size: var(--fs-corpo); font-weight: 500; }
@@ -990,10 +992,14 @@ div.mac-medidor { padding-right: 36px; }
 .gvn-sub, .gvn-sub-fixo { margin-top: 1px; padding: 1px 8px; font-size: var(--fs-corpo-2); line-height: 20px; color: var(--ink-3); }
 .gvn-sub-fixo { display: block; }
 .gvn-sub::placeholder { color: var(--ink-3); opacity: .75; }
-.gvn-nome:hover, .gvn-sub:hover { background: var(--surface-side); }
-.gvn-nome:focus, .gvn-sub:focus { outline: none; border-radius: var(--raio-6); background: var(--surface-raised); }
-@media (forced-colors: active) { .gvn-nome:focus, .gvn-sub:focus { outline: 2px solid CanvasText; } }
-.gvn-nome:focus-visible, .gvn-sub:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* DS · nome editável (web/lib/nome-editavel.ts, revisão de 2026-11-20): todo nome que se edita no lugar — o do bot, o da
+   conta de IA — é um campo desenhado como o texto. O lugar dá só o tamanho e o alinhamento; os estados moram aqui. */
+.nome-editavel { box-sizing: border-box; border: 0; border-radius: var(--raio-6); background: transparent; font: inherit; color: var(--ink); text-overflow: ellipsis; cursor: text; }
+.nome-editavel::placeholder { color: var(--ink-3); opacity: .75; }
+@media (hover: hover) { .nome-editavel:hover { background: var(--hover); } }
+.nome-editavel:focus { outline: none; }
+.nome-editavel:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (forced-colors: active) { .nome-editavel { border: 1px solid ButtonText; } .nome-editavel:focus { outline: 2px solid CanvasText; } }
 .gvn-erro-linha { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; font-size: var(--fs-rotulo); line-height: 16px; color: var(--ink-2); }
 .gvn-erro-linha:has(> .gvn-erro:empty) { display: none; }
 .gvn-erro-icone { flex: none; display: grid; color: var(--danger); }
@@ -1030,7 +1036,6 @@ div.mac-medidor { padding-right: 36px; }
 /* Revisão da NOD-349: em forced-colors o fundo some; o ponto e os campos editáveis ganham cor e borda do sistema. */
 @media (forced-colors: active) {
   .gvn-ponto { forced-color-adjust: none; background: CanvasText; }
-  .gvn-nome, .gvn-sub { border: 1px solid ButtonText; }
 }
 
 .gvn-vazio { margin: 0; padding: 0 4px; font-size: var(--fs-corpo-2); color: var(--ink-3); }

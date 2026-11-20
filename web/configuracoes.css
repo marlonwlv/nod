@@ -31,7 +31,7 @@
 /* foco-ok: recebe o foco só pelo código (o menu "Ajuda" abre Geral em #ajuda); não é um controle */
 .lc-grupo-tit:focus { outline: none; }
 .lc-grupo-tit span { margin-left: 4px; font-weight: 400; color: var(--ink-3); }
-.lc-lista { box-sizing: border-box; width: 100%; overflow: visible; border: 1px solid var(--line); border-radius: var(--raio-14); background: var(--surface); }
+.lc-lista { box-sizing: border-box; width: 100%; overflow: visible; border: 1px solid var(--borda-sutil); border-radius: var(--raio-14); background: var(--surface-elevated); }
 .lc-lista > * + * { border-top: 1px solid var(--line); }
 .lc-linha { box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 11px 16px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; }
 .lc-lista > .lc-linha:first-child, .lc-lista > :first-child > .lc-linha:first-child { border-top-left-radius: var(--raio-14); border-top-right-radius: var(--raio-14); }
@@ -224,7 +224,7 @@
 .rm-fim-acoes .bt { min-height: 44px; padding: 0 22px; }
 
 /* ADR-166 (tela 07 do protótipo): Configurações › Aprovações. Só tokens existentes; cada linha é título + frase. */
-.apv .apv-modos { display: grid; gap: 2px; margin: 4px 0 18px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.apv .apv-modos { display: grid; gap: 2px; margin: 4px 0 18px; padding: 6px; border: 1px solid var(--borda-sutil); border-radius: 14px; background: var(--surface-elevated); }
 .apv-modo { display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .apv-modo:hover, .apv-modo.apv-marcado { background: var(--surface-raised); }
 .apv-modo:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
@@ -251,7 +251,7 @@
 .apv-botao:focus-visible, .apv-icone:focus-visible, .apv-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .apv-primario { border-color: var(--ink); background: var(--ink); color: var(--surface); }
 .apv-primario:hover { background: var(--ink); opacity: .9; }
-.apv-lista { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.apv-lista { border: 1px solid var(--borda-sutil); border-radius: 14px; background: var(--surface-elevated); overflow: hidden; }
 .apv-lista > * + * { border-top: 1px solid var(--line); }
 .apv-regra { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 8px 8px 14px; font-size: 13.5px; line-height: 1.45; }
 .apv-regra:hover { background: var(--surface-raised); }

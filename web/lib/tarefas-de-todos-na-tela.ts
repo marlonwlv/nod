@@ -27,13 +27,21 @@ export type DepsDasTarefas = {
   agendar?: (f: () => void) => void;
 };
 
+/** O que a tela lê do controlador (ADR-179: a tela em React assina; a por string é desenhada por ele mesmo no #tdt). */
+export type DadosDasTarefas = { quadros: QuadroComProjeto[] | null; erro: string | null };
+
 export type TarefasDeTodosNaTela = {
+  /** A tela em React: o que foi lido (o mesmo objeto até a próxima leitura) e o aviso de que mudou. */
+  dados(): DadosDasTarefas;
+  assinar(ouvinte: () => void): () => void;
   abrir(): void;
   fechar(): void;
   aberta(): boolean;
   montar(): void;
   aoFrame(frame: FrameSse): void;
   reler(): void;
+  /** O "Tentar de novo" do erro: limpa o erro e lê de novo. */
+  tentarDeNovo(): void;
 };
 
 export function criarTarefasDeTodosNaTela(doc: Document, deps: DepsDasTarefas): TarefasDeTodosNaTela {
@@ -47,6 +55,13 @@ export function criarTarefasDeTodosNaTela(doc: Document, deps: DepsDasTarefas): 
   const agora = deps.agora ?? (() => Date.now());
   const agendar = deps.agendar ?? ((f: () => void) => { setTimeout(f, 250); });
   const caixa = (): HTMLElement | null => doc.getElementById("tdt");
+  let dados: DadosDasTarefas = { quadros: null, erro: null };
+  const ouvintes = new Set<() => void>();
+  const avisar = (): void => {
+    if (dados.quadros === quadros && dados.erro === erro) return;
+    dados = { quadros, erro };
+    for (const o of [...ouvintes]) o();
+  };
 
   async function ler(): Promise<void> {
     const n = ++leitura;
@@ -65,6 +80,7 @@ export function criarTarefasDeTodosNaTela(doc: Document, deps: DepsDasTarefas): 
       if (n !== leitura || !aberta) return;
       if (!quadros) erro = "Não deu para ler os quadros.";
     }
+    avisar();
     desenhar();
   }
 
@@ -100,7 +116,7 @@ export function criarTarefasDeTodosNaTela(doc: Document, deps: DepsDasTarefas): 
       if (act === "tdt-vista") { vista = (alvo.dataset.vista as VistaDasTarefas | undefined) ?? "quadro"; desenhar(); return; }
       if (act === "tdt-aberto") { filtros.emAberto = !filtros.emAberto; desenhar(); return; }
       if (act === "tdt-prioridade") { filtros.porPrioridade = !filtros.porPrioridade; desenhar(); return; }
-      if (act === "tdt-reler") { erro = null; desenhar(); void ler(); return; }
+      if (act === "tdt-reler") { erro = null; avisar(); desenhar(); void ler(); return; }
       if (act === "tdt-abrir") { const { dono, tarefa, quadro } = alvo.dataset; if (dono && tarefa && quadro) deps.abrirTarefa(dono, tarefa, quadro); return; }
       if (act === "tdt-pagina") { const a = alvo.dataset.agente; if (a) deps.abrirPagina(a, alvo.dataset.quadro ?? null); return; }
       if (act === "tdt-nova") { const q = quadros?.[0]?.quadro; if (q) deps.abrirPagina(q.agenteId, q.id); }
@@ -112,6 +128,11 @@ export function criarTarefasDeTodosNaTela(doc: Document, deps: DepsDasTarefas): 
   }
 
   return {
+    dados: () => dados,
+    assinar(ouvinte) {
+      ouvintes.add(ouvinte);
+      return () => ouvintes.delete(ouvinte);
+    },
     abrir() {
       if (aberta) return;
       aberta = true;
@@ -129,5 +150,6 @@ export function criarTarefasDeTodosNaTela(doc: Document, deps: DepsDasTarefas): 
       agendar(() => { agendada = false; if (aberta) void ler(); });
     },
     reler() { if (aberta) void ler(); },
+    tentarDeNovo() { erro = null; avisar(); desenhar(); void ler(); },
   };
 }

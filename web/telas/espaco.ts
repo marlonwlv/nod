@@ -6,7 +6,9 @@ import { ICONE } from "../lib/icones.ts";
 import { comSaibaMais } from "../lib/linha-config.ts";
 import { esc } from "../lib/render.ts";
 import type { Volta } from "../lib/volta.ts";
-import { pilhaDeAvatares } from "./cartao-ia.ts";
+import { ehIaMac, pilhaDeAvatares, PROVEDOR, type IaMac } from "./cartao-ia.ts";
+import { LOGOS_IA } from "./onboarding-logos.ts";
+import { inventarioEmUso } from "./frota.ts";
 import { renderProvedores } from "./provedores.ts";
 import { botsDaPessoa, renderMaquinas } from "./maquinas.ts";
 import { renderRelatos } from "./relatos.ts";
@@ -111,18 +113,57 @@ export type ExtrasEspaco = {
   sobre?: () => string;
 };
 
+/**
+ * Jornadas da IA (Paper "Jornadas da IA · conectar e conversar", artboard M, 2026-11-19): o item IA mostra o estado das
+ * contas sem brilho permanente — tudo certo: os logos dos provedores na fila; algo precisa da pessoa: a contagem em âmbar;
+ * nenhuma IA: o único destaque forte (fundo de acento, "Conectar" e um brilho que passa uma vez). null = sem marca.
+ */
+export type MarcaDaIa = { tipo: "ok"; ias: IaMac[] } | { tipo: "atencao"; n: number } | { tipo: "sem_ia" };
+
+export function marcaDoItemIa(estado: Pick<Estado, "contasIa" | "executor" | "inventario">): MarcaDaIa | null {
+  const lista = estado.contasIa;
+  if (lista?.disponivel) {
+    if (!lista.contas.length) return { tipo: "sem_ia" };
+    const naFila = lista.contas.filter((c) => c.entraNaTrocaAutomatica);
+    const n = naFila.filter((c) => !c.maquinas.length || c.maquinas.some((m) => m.estado !== "pronta")).length;
+    if (n) return { tipo: "atencao", n };
+    return { tipo: "ok", ias: [...new Set(naFila.map((c) => c.ia))].filter(ehIaMac) };
+  }
+  // Sem a lista de contas (modo local, app antigo): só a falta de IA conta; o resto o cartão da seção explica.
+  return estado.executor && inventarioEmUso(estado as Estado)?.estado === "ausente" ? { tipo: "sem_ia" } : null;
+}
+
+/** Ao abrir as Configurações sem pedir seção (atalho, menu): sem IA nenhuma, IA vem primeiro — nada funciona sem ela. */
+export function secaoInicialDasConfiguracoes(estado: Pick<Estado, "contasIa" | "executor" | "inventario">): SecaoEspaco {
+  return marcaDoItemIa(estado)?.tipo === "sem_ia" ? "conexao" : "geral";
+}
+
+function htmlMarcaDaIa(m: MarcaDaIa | null): string {
+  if (!m) return "";
+  if (m.tipo === "atencao") return `<span class="ia-marca ia-marca-n" aria-label="${m.n} ${m.n === 1 ? "conta precisa" : "contas precisam"} de você">${m.n}</span>`;
+  if (m.tipo === "sem_ia") return '<span class="ia-marca ia-marca-conectar">Conectar</span>';
+  return m.ias.length ? `<span class="ia-marca ia-marca-provs" aria-hidden="true">${m.ias.map((ia) => `<span class="ia-marca-prov" data-logo-ia="${PROVEDOR[ia].logo}">${LOGOS_IA[PROVEDOR[ia].logo]}</span>`).join("")}</span>` : "";
+}
+
+/** A ordem do menu no computador, em grupos (Paper M): conta; onde os bots trabalham; o que eles podem usar; e o resto. */
+const GRUPOS_DO_MENU: readonly (readonly (SecaoEspaco | "apps")[])[] = [["geral", "conta"], ["conexao", "maquinas", "computador"], ["aprovacoes", "apps", "cofre"]];
+
 export function renderEspaco(estado: Estado, avisos: EstadoAvisos, volta: Volta, extras: ExtrasEspaco, celular = ehCelular()): string {
   if (celular) return renderEspacoCelular(estado, avisos, volta, extras);
   const secao = estado.espaco?.secao ?? "conexao";
-  // ADR-167 (Paper 07): no computador as Configurações são um modal sobre o app — a busca no topo das seções, na ordem do
-  // Paper (Geral, Conta, Máquinas, Aprovações, Apps, IA); Agentes, Rotinas e Feedback, que o Paper não desenhou, vêm depois.
-  const item = (s: (typeof SECOES_ESPACO)[number]) => `<button type="button" class="espaco-item" data-act="secao-espaco" data-secao="${s.id}"${s.id === secao ? ' aria-current="page"' : ""}>${ICONE_DA_SECAO[s.id] ?? s.icone}<span>${esc(s.id === "conexao" ? "IA" : nomeDaSecao(s, estado))}</span></button>`;
+  const marca = marcaDoItemIa(estado);
+  const item = (s: (typeof SECOES_ESPACO)[number]) => {
+    const ia = s.id === "conexao";
+    const semIa = ia && marca?.tipo === "sem_ia";
+    return `<button type="button" class="espaco-item${semIa ? " espaco-item-ia-sem" : ""}" data-act="secao-espaco" data-secao="${s.id}"${s.id === secao ? ' aria-current="page"' : ""}>${ICONE_DA_SECAO[s.id] ?? s.icone}<span>${esc(ia ? "IA" : nomeDaSecao(s, estado))}</span>${ia ? htmlMarcaDaIa(marca) : ""}${semIa ? '<span class="ia-brilho" aria-hidden="true"></span>' : ""}</button>`;
+  };
   const porId = (id: SecaoEspaco) => SECOES_ESPACO.find((s) => s.id === id);
   const apps = `<button type="button" class="espaco-item" data-act="navegar" data-tela="conectores">${ICONE_APPS}<span>Apps</span></button>`;
-  const doPaper = (["geral", "conta", "maquinas", "computador", "aprovacoes"] as const).map((id) => porId(id)).filter((s) => s !== undefined).map(item).join("") + apps + (["cofre", "conexao"] as const).map((id) => porId(id)).filter((s) => s !== undefined).map(item).join("");
-  // Decisão do Marlon (rodada 2): Agentes, Rotinas e Feedback, que o Paper não desenhou, ficam no fim, num grupo à parte.
-  const resto = SECOES_ESPACO.filter((s) => !["geral", "conta", "maquinas", "computador", "aprovacoes", "cofre", "conexao"].includes(s.id)).map(item).join("");
-  const nav = `${doPaper}<span class="espaco-nav-sep" role="separator"></span>${resto}`;
+  const grupo = (ids: readonly (SecaoEspaco | "apps")[]) => ids.map((id) => (id === "apps" ? apps : ((s) => (s ? item(s) : ""))(porId(id)))).join("");
+  const noMenu = new Set(GRUPOS_DO_MENU.flat());
+  // Decisão do Marlon (rodada 2): Agentes, Rotinas, Sobre e Feedback ficam no fim, depois do divisor.
+  const resto = SECOES_ESPACO.filter((s) => !noMenu.has(s.id)).map(item).join("");
+  const nav = `${GRUPOS_DO_MENU.map(grupo).join('<span class="espaco-nav-espaco" aria-hidden="true"></span>')}<span class="espaco-nav-sep" role="separator"></span>${resto}`;
   return `<div class="espaco cfg-espaco cfg-modal" role="dialog" aria-modal="true" aria-labelledby="espaco-titulo">
     <nav class="espaco-nav" aria-label="Seções das Configurações">
       <h1 id="espaco-titulo" class="sr-only">Configurações</h1>

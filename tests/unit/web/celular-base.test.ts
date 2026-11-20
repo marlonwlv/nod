@@ -102,7 +102,7 @@ describe("ADA-2 F1: base do celular", () => {
   });
 
   it("4ª revisão: com a tarefa aberta o vidro do topo segue a página (--surface), não o cinza do quadro", () => {
-    expect(ultimo(base, ".stage.qd-no-quadro:has(.qd-tarefa) .cabecalho.cabecalho-pilula.topo-encolhido", "background")).toContain("var(--surface)");
+    expect(ultimo(base, ".stage.qd-no-quadro.palco-tarefa .cabecalho.cabecalho-pilula.topo-encolhido", "background")).toContain("var(--surface)");
     expect(ultimo(base, ".qd-tarefa", "background")).toBe("var(--surface)");
   });
 

@@ -85,10 +85,13 @@ describe("o bloco de uso da conta (Provedores de IA)", () => {
     expect(uso(pessoal)).toContain("Sem outra conta do Claude na fila: no limite, as rotinas esperam até renovar.");
   });
 
-  it("renovado: sem barra nem número velho, diz quando renovou", () => {
+  it("renovado: a barra fica vazia (sem o número velho) e diz quando renovou; o resto vai no title e no texto falado", () => {
     const html = uso(conta("a", "Pessoal", { cota: cota(null, 0.3, { renovou: { cincoHoras: RENOVA - 4 * HORA, semana: null } }) }));
-    expect(html).toContain(`<div class="cu-jan f-renovado"><div class="cu-cab"><span>5 h</span></div><p class="cu-sub">renovou às ${hora(RENOVA - 4 * HORA)} · o número volta no próximo trabalho</p></div>`);
-    expect(html.match(/role="meter"/g)).toHaveLength(1);
+    const quando = `às ${hora(RENOVA - 4 * HORA)}`;
+    expect(html).toContain(`<div class="cu-jan f-renovado" role="meter" aria-label="5 horas" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="5 horas: renovou ${quando}, o número volta no próximo trabalho" title="O número volta no próximo trabalho">`);
+    expect(html).toContain('<div class="cu-barra" aria-hidden="true"><span style="width:0%"></span></div>');
+    expect(html).toContain(`<p class="cu-sub" aria-hidden="true">renovou ${quando}</p>`);
+    expect(html.match(/role="meter"/g)).toHaveLength(2);
   });
 
   it("sem leitura: o Claude espera o primeiro trabalho; o ChatGPT 'não informou'; sem o campo (servidor anterior), nada", () => {

@@ -1,14 +1,18 @@
 import { memo, useCallback, useMemo, useState, type CSSProperties } from "react";
 import { DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
+import { Menu } from "@base-ui/react/menu";
 import type { Html, PartesDaColuna } from "../../telas/quadro.ts";
-import { CardDaGrade, CardFlutuante, type DadosDoCard, type DestinoDoMover } from "./card-da-grade.tsx";
+import { CardDaGrade, CardFlutuante, mesmoCard, type DadosDoCard, type DestinoDoMover, type MenuDoMover as HandleDoMover } from "./card-da-grade.tsx";
 
 /**
  * ADR-180 (fase 2 do React): a grade do quadro no computador. As colunas e os cards vêm prontos do quadro-real.ts (as
  * mesmas partes do desenho por string); aqui ficam o arrasto (dnd-kit) e o "Mover para…" (Base UI). Quem decide o que
  * soltar faz — a trava, o diálogo de handoff da coluna com responsável, o mudar_tarefa otimista, a ordem — é o
  * quadro-na-tela, pelas `acoes`: a regra é uma só para o arrasto, o menu e o teclado.
+ *
+ * Fase 5 da ADR-179 (medido em 2026-11-19 com 160 cards): a coluna que não mudou não redesenha (memo por valor: o
+ * desenho por string recria os objetos a cada frame), o "Mover para…" é um menu só para a grade inteira, e os cards são
+ * só arrastáveis (sem ordem manual não há o que reordenar; com ela, a coluna volta a ter o `SortableContext`).
  */
 export interface ColunaDaGrade { partes: PartesDaColuna; antes: Html[]; cards: DadosDoCard[] }
 export type ItemDaGrade = { tipo: "coluna"; coluna: ColunaDaGrade } | { tipo: "extra"; chave: string; html: Html };
@@ -21,13 +25,11 @@ export interface AcoesDaGrade {
   destinos: (tarefa: string) => readonly DestinoDoMover[];
   /** Começou ou acabou um arrasto (o quadro-na-tela segura a regravação enquanto dura). */
   arrastando: (ativo: boolean) => void;
-  /** Reordenar dentro da coluna (ordem manual). Sem isto, os cards não abrem espaço e soltar na própria coluna é `soltar`. */
-  reordenar?: (tarefa: string, antesDe: string | null) => void;
 }
 
 export interface PropsDaGrade { rotulo: string; classe: string; trilhas: string; itens: ItemDaGrade[]; acoes: AcoesDaGrade }
 
-/** Não arrasta a partir de campo, botão de menu aberto ou link: o card só pega no corpo (o clique curto segue sendo clique). */
+/** Não arrasta a partir de campo, do botão "Mover para…" ou de menu aberto: o card só pega no corpo (o clique curto segue sendo clique). */
 class SensorDoCard extends PointerSensor {
   static override activators = [{
     eventName: "onPointerDown" as const,
@@ -36,8 +38,6 @@ class SensorDoCard extends PointerSensor {
   }];
 }
 
-/** Sem reordenar, os outros cards ficam parados (nada de abrir espaço que não vai ser gravado). */
-const parado: SortingStrategy = () => null;
 /** A coluna sob o ponteiro; fora de qualquer uma, a que o card cobre mais. */
 const colisao: CollisionDetection = (a) => { const sob = pointerWithin(a); return sob.length ? sob : rectIntersection(a); };
 const colunaDoAlvo = (over: DragOverEvent["over"]): string | null => (over?.data.current?.["coluna"] as string | undefined) ?? null;
@@ -46,6 +46,7 @@ export function GradeDoQuadro({ rotulo, classe, trilhas, itens, acoes }: PropsDa
   const sensores = useSensors(useSensor(SensorDoCard, { activationConstraint: { distance: 6 } }));
   const [ativo, setAtivo] = useState<{ card: DadosDoCard; de: string } | null>(null);
   const [alvo, setAlvo] = useState<{ coluna: string; dica: string | null } | null>(null);
+  const [menu] = useState<HandleDoMover>(() => Menu.createHandle<string>());
   const cardDe = useMemo(() => {
     const m = new Map<string, { card: DadosDoCard; de: string }>();
     for (const i of itens) if (i.tipo === "coluna") for (const c of i.coluna.cards) m.set(c.id, { card: c, de: i.coluna.partes.id });
@@ -66,27 +67,44 @@ export function GradeDoQuadro({ rotulo, classe, trilhas, itens, acoes }: PropsDa
   const soltou = useCallback((e: DragEndEvent) => {
     const tarefa = String(e.active.id);
     const coluna = colunaDoAlvo(e.over);
-    const de = cardDe.get(tarefa)?.de;
     fim();
-    if (!coluna) return;
-    if (coluna === de && acoes.reordenar && e.over && e.over.id !== tarefa) {
-      acoes.reordenar(tarefa, e.over.data.current?.["tipo"] === "card" ? String(e.over.id) : null);
-      return;
-    }
-    acoes.soltar(tarefa, coluna);
-  }, [acoes, cardDe, fim]);
-  const estrategia = acoes.reordenar ? verticalListSortingStrategy : parado;
+    if (coluna) acoes.soltar(tarefa, coluna);
+  }, [acoes, fim]);
   return (
     <div className={`qd-quadro ${classe}`} role="region" aria-label={rotulo}>
       <DndContext sensors={sensores} collisionDetection={colisao} onDragStart={inicio} onDragOver={sobre} onDragEnd={soltou} onDragCancel={fim}>
         <div className="qd-grade" style={{ gridTemplateColumns: trilhas }}>
           {itens.map((i) => i.tipo === "extra"
             ? <Extra key={i.chave} html={i.html} />
-            : <ColunaRx key={i.coluna.partes.id} coluna={i.coluna} alvo={alvo?.coluna === i.coluna.partes.id && ativo?.de !== i.coluna.partes.id ? alvo : null} estrategia={estrategia} acoes={acoes} />)}
+            : <ColunaRx key={i.coluna.partes.id} coluna={i.coluna} alvo={alvo?.coluna === i.coluna.partes.id && ativo?.de !== i.coluna.partes.id ? alvo : null} menu={menu} />)}
         </div>
         <DragOverlay dropAnimation={null}>{ativo ? <CardFlutuante card={ativo.card} /> : null}</DragOverlay>
       </DndContext>
+      <MenuDoMover menu={menu} titulo={(t) => cardDe.get(t)?.card.titulo ?? ""} destinos={acoes.destinos} aoMover={acoes.soltar} />
     </div>
+  );
+}
+
+/** O "Mover para…" da grade inteira (Base UI): aberto pelo trigger do card (handle), com a tarefa como payload. */
+function MenuDoMover({ menu, titulo, destinos, aoMover }: { menu: HandleDoMover; titulo: (tarefa: string) => string; destinos: AcoesDaGrade["destinos"]; aoMover: AcoesDaGrade["soltar"] }) {
+  return (
+    <Menu.Root handle={menu}>
+      {({ payload: tarefa }: { payload: string | undefined }) => (
+      <Menu.Portal>
+        <Menu.Positioner className="rx-qd-menu-pos" sideOffset={4} align="start">
+          <Menu.Popup className="qd-menu qd-menu-mover rx-qd-menu" aria-label={tarefa ? `Mover ${titulo(tarefa)} para` : undefined}>
+            {tarefa && destinos(tarefa).map((d) => (
+              <Menu.Item key={d.id} className="qd-menu-it" onClick={() => aoMover(tarefa, d.id)}>
+                <span className="rx-qd-ic" dangerouslySetInnerHTML={{ __html: d.icone }} />
+                <span>{d.nome}</span>
+                {d.nota && <small className="qd-menu-porque">{d.nota}</small>}
+              </Menu.Item>
+            ))}
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+      )}
+    </Menu.Root>
   );
 }
 
@@ -94,12 +112,18 @@ const Extra = memo(function Extra({ html }: { html: Html }) {
   return <div className="rx-qd-extra" dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
-interface PropsDaColuna { coluna: ColunaDaGrade; alvo: { dica: string | null } | null; estrategia: SortingStrategy; acoes: AcoesDaGrade }
+interface PropsDaColuna { coluna: ColunaDaGrade; alvo: { dica: string | null } | null; menu: HandleDoMover }
 
-const ColunaRx = memo(function ColunaRx({ coluna, alvo, estrategia, acoes }: PropsDaColuna) {
+const mesmasPartes = (a: PartesDaColuna, b: PartesDaColuna): boolean =>
+  a === b || (a.id === b.id && a.classe === b.classe && a.rotulo === b.rotulo && a.grupo === b.grupo && a.direita === b.direita && a.tira === b.tira && a.cab === b.cab && a.dica === b.dica && a.fim === b.fim);
+const mesmaLista = <T,>(a: readonly T[], b: readonly T[], igual: (x: T, y: T) => boolean): boolean => a === b || (a.length === b.length && a.every((x, i) => igual(x, b[i] as T)));
+/** A mesma coluna, por valor: o desenho por string recria os objetos a cada frame, mas o que se vê quase nunca muda. */
+export const mesmaColuna = (a: ColunaDaGrade, b: ColunaDaGrade): boolean =>
+  a === b || (mesmasPartes(a.partes, b.partes) && mesmaLista(a.antes, b.antes, (x, y) => x === y) && mesmaLista(a.cards, b.cards, mesmoCard));
+
+const ColunaRx = memo(function ColunaRx({ coluna, alvo, menu }: PropsDaColuna) {
   const p = coluna.partes;
   const { setNodeRef } = useDroppable({ id: `coluna:${p.id}`, data: { coluna: p.id, tipo: "coluna" } });
-  const ids = useMemo(() => coluna.cards.map((c) => c.id), [coluna.cards]);
   const estilo: CSSProperties | undefined = p.direita !== undefined ? { right: p.direita } : undefined;
   const dados = { "data-status": p.id, "data-coluna": p.id, "data-grupo": p.grupo };
   if (p.tira) return <section ref={setNodeRef} className={p.classe} aria-label={p.rotulo} {...dados} style={estilo} dangerouslySetInnerHTML={{ __html: p.tira }} />;
@@ -110,11 +134,9 @@ const ColunaRx = memo(function ColunaRx({ coluna, alvo, estrategia, acoes }: Pro
       {p.dica && <div className="rx-qd-extra" dangerouslySetInnerHTML={{ __html: p.dica }} />}
       <ul className="qd-col-lista">
         {coluna.antes.map((h, i) => <Extra key={`antes-${i}`} html={h} />)}
-        <SortableContext items={ids} strategy={estrategia}>
-          {coluna.cards.map((c) => <CardDaGrade key={c.id} card={c} coluna={p.id} destinos={acoes.destinos} aoMover={acoes.soltar} />)}
-        </SortableContext>
+        {coluna.cards.map((c) => <CardDaGrade key={c.id} card={c} coluna={p.id} menu={menu} />)}
         {p.fim && <Extra html={p.fim} />}
       </ul>
     </section>
   );
-});
+}, (a, b) => a.alvo === b.alvo && a.menu === b.menu && mesmaColuna(a.coluna, b.coluna));

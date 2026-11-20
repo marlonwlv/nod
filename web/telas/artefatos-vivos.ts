@@ -16,6 +16,21 @@ export type DepsArtefatos = {
   salvarAoSair(artefatoId: string, dados: unknown): void;
   /** definido em 2026-09-28: 600 ms juntam uma rajada de cliques numa gravação só. */
   esperaMs?: number;
+  /**
+   * ADR-179 (item 4): quem abre a tela cheia por fora do `<dialog>` daqui (o Dialog do Base UI), lido na hora de abrir
+   * (o módulo chega depois do boot); null ou ausente, o `<dialog>` nativo.
+   */
+  telaCheiaPorFora?: () => ((d: TelaCheiaDoArtefato) => void) | null;
+};
+
+/** O que a tela cheia de fora precisa: o cabeçalho, o iframe montado no corpo que ela der e o Baixar. */
+export type TelaCheiaDoArtefato = {
+  titulo: string;
+  versao: number;
+  /** Monta o iframe vivo no corpo; o retorno o solta (ao fechar). */
+  montar: (corpo: Element) => () => void;
+  baixar: () => void;
+  origem: HTMLElement | null;
 };
 
 type ComMoveBefore = { moveBefore?: (no: Node, antes: Node | null) => void };
@@ -229,7 +244,22 @@ export function criarArtefatosVivos(deps: DepsArtefatos) {
   async function telaCheia(mensagemId: string): Promise<void> {
     const alvo = doCard(mensagemId);
     if (!alvo) return;
+    const origem = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const conteudo = await carregar(alvo.artefatoId, alvo.versao);
+    const porFora = deps.telaCheiaPorFora?.();
+    if (porFora) {
+      porFora({
+        titulo: conteudo.titulo,
+        versao: alvo.versao,
+        montar: (corpo) => {
+          const quadro = montar(corpo, { artefatoId: alvo.artefatoId, versao: alvo.versao, mensagemId, telaCheia: true }, conteudo, "artefato-quadro tela-cheia");
+          return () => { if (quadro) quadros.delete(quadro); renovar(alvo.artefatoId); };
+        },
+        baixar: () => void baixar(mensagemId),
+        origem,
+      });
+      return;
+    }
     const dialog = document.createElement("dialog");
     dialog.className = "artefato-dialogo";
     dialog.setAttribute("aria-label", conteudo.titulo);

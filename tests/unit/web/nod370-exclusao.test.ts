@@ -157,7 +157,10 @@ describe("NOD-370: a fiação em main.ts", () => {
     const main = await ler("../../../web/main.ts");
     // NOD-383: o bloco do Esc ganhou o ramo do celular (volta para a lista); a guarda do diálogo é a mesma.
     const linha = main.split("\n").find((l) => l.includes('ev.key === "Escape" && estado.espaco &&'));
-    expect(linha).toContain('!document.querySelector("dialog[open]")');
+    // ADR-179: o seletor conta também os diálogos e menus do Base UI (o host com data-rx-modal).
+    expect(linha).toContain("!document.querySelector(SELETOR_SOBREPOSICAO)");
+    const { SELETOR_SOBREPOSICAO } = await import("../../../web/lib/atalhos.ts");
+    expect(SELETOR_SOBREPOSICAO.split(", ")).toContain("dialog[open]");
   });
 
   it("depois de desenhar a tela para onde a saída levou, o dispatch e a releitura leem a conversa nova", async () => {

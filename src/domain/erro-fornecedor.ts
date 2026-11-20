@@ -48,6 +48,9 @@ const PADROES: readonly (readonly [Exclude<ClasseErroFornecedor, "desconhecido">
   ["login_expirado", [
     /invalid api key/i,
     /oauth token (?:has )?expired/i,
+    // Jornadas da IA (2026-11-19): o Claude Code 2.1.3xx diz "Failed to authenticate: OAuth session expired and could not
+    // be refreshed" (6 turnos em produção de 13 a 17/11 caíam em `desconhecido`).
+    /oauth session expired/i,
     /not logged in/i,
     /please run \/login/i,
     /authentication_error/i,
@@ -241,4 +244,57 @@ export function fraseDoLimiteDoPlano(harness: IdHarness | null | undefined, volt
 /** "às 14:30" no dia de `agora`, "em 09/10 às 14:30" em outro (a hora da volta de uma IA, nas frases gravadas). */
 export function quandoDaFrase(instante: number, agora: number): string {
   return diaMes(instante) === diaMes(agora) ? `às ${horaDaFrase(instante, agora)}` : `em ${horaDaFrase(instante, agora)}`;
+}
+
+const MESES = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const TETO_DA_VOLTA_MS = 8 * 24 * 60 * 60_000;
+
+/** Minutos que o fuso `tz` está à frente do UTC no `instante`; null quando o fuso não existe. */
+function deslocamentoDoFuso(tz: string, instante: number): number | null {
+  try {
+    const partes = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(instante));
+    const v = (k: string) => Number(partes.find((x) => x.type === k)?.value);
+    return (Date.UTC(v("year"), v("month") - 1, v("day"), v("hour"), v("minute"), v("second")) - Math.floor(instante / 1000) * 1000) / 60_000;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Jornadas da IA (2026-11-19): quando o limite chega só em texto, a hora em que a conta volta — em vez do palpite de 1 h
+ * (PRAZO_LIMITE_SEM_HORARIO_MS). Só o que dá para ler sem chutar: o "resets 6:50pm (America/Sao_Paulo)" do Claude Code,
+ * com o fuso entre parênteses (e o dia, quando vem: "resets Nov 21, 3pm (UTC)"), e o "try again in 2 hours 5 minutes" do
+ * Codex. Hora sem fuso fica de fora: o CLI escreve no fuso da máquina, que o servidor não sabe. null = não deu para ler.
+ */
+export function horaDeVoltaNoTexto(texto: string | null | undefined, agora: number): number | null {
+  if (!texto) return null;
+  const dentro = (t: number) => (t > agora && t <= agora + TETO_DA_VOLTA_MS ? t : null);
+  const daqui = /try again in\s+((?:\d+\s*(?:days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b[\s,]*(?:and\s+)?)+)/i.exec(texto);
+  if (daqui) {
+    const ms: Record<string, number> = { d: 86_400_000, h: 3_600_000, m: 60_000, s: 1_000 };
+    let total = 0;
+    // A primeira letra da unidade basta: "days"/"d", "hours"/"hrs"/"h", "minutes"/"mins"/"m", "seconds"/"secs"/"s".
+    for (const [, n, u] of daqui[1]!.matchAll(/(\d+)\s*([a-z]+)/gi)) total += Number(n) * (ms[u!.toLowerCase()[0]!] ?? 0);
+    return total > 0 ? dentro(agora + total) : null;
+  }
+  const r = /resets\s+(?:([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(?:at\s+)?)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*\(([^)]+)\)/i.exec(texto);
+  if (!r) return null;
+  const [, mes, dia, h, min, ampm, tz] = r;
+  const desloc = deslocamentoDoFuso(tz!.trim(), agora);
+  if (desloc === null) return null;
+  const hora = (Number(h) % 12) + (ampm!.toLowerCase() === "pm" ? 12 : 0);
+  const local = new Date(agora + desloc * 60_000);
+  let ano = local.getUTCFullYear();
+  let m = local.getUTCMonth();
+  let d = local.getUTCDate();
+  if (mes) {
+    const i = MESES.indexOf(mes.toLowerCase());
+    if (i < 0) return null;
+    if (i < m) ano++;
+    m = i;
+    d = Number(dia);
+  }
+  let t = Date.UTC(ano, m, d, hora, Number(min ?? 0)) - desloc * 60_000;
+  if (!mes && t <= agora) t += 86_400_000;
+  return dentro(t);
 }

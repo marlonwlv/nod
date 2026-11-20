@@ -320,7 +320,7 @@
 .qd-conteudo:has(> .qm-barra) { gap: 4px; }
 .qm-barra .qd-busca > .qd-ic { width: 16px; height: 16px; flex: none; }
 /* O véu de 104 px da pílula (que lavava a barra a 60%) sai no quadro, como no canvas: o Paper tem o fundo liso. */
-.stage.qd-no-quadro:has(> .qd-vista:not([hidden]) .qm-barra) > .cabecalho-pilula::before { display: none; }
+.stage.qd-no-quadro.palco-barra > .cabecalho-pilula::before { display: none; }
 /* Rodada 3 (tela 18 do Paper): o "Você" do filtro por pessoa é o anel neutro com as iniciais (MW), não o azul. */
 .qm-pes-av > .qd-anel-voce { background: var(--hover); color: var(--ink-2); border-color: var(--borda-sutil); font-weight: var(--peso-medio); }
 
