@@ -69,6 +69,8 @@ export type OpcoesNavegadores = {
   /** NOD_NAVEGADORES_MAX: Chromes vivos ao mesmo tempo no servidor (ADR-190, decisão 8; padrão 4). */
   max?: number;
   agora?: () => number;
+  /** D2 C e D8: quanto o anel fica no alvo antes do clique (padrão MS_MIRAR_ANTES, 300 ms; os testes passam 0). */
+  msMirar?: number;
   /** A vista de um bot mudou (estado, controle, abas, passo): o canal ao vivo manda a vista e o SSE avisa a web. */
   aoMudar?(escopo: Escopo, vista: VistaNavegador): void;
   /** O executor vivo (o da retomada do turno e da mensagem "Ensinei: …"); ausente = catcher. */
@@ -231,6 +233,11 @@ function campoDoLogin(el: ElementoNaPagina | null): "usuario" | "senha" | null {
 }
 const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
+/** definido em 2026-11-20 (D2 C, D8): o anel aparece no alvo 300 ms antes do clique. */
+export const MS_MIRAR_ANTES = 300;
+/** As ferramentas cujo alvo a pessoa vê na imagem: o passo leva a caixa dele (o cursor com o nome e o anel, D2 C). */
+const FERRAMENTAS_COM_ALVO_NA_TELA: ReadonlySet<string> = new Set(["navegador_clicar", "navegador_preencher", "navegador_digitar", "navegador_selecionar", "navegador_marcar", "navegador_passar_mouse", "navegador_baixar", "navegador_enviar_arquivo", "navegador_rolar"]);
+
 function tipoDoPasso(ferramenta: string): PassoNavegador["tipo"] {
   if (ferramenta === "navegador_clicar" || ferramenta === "navegador_procurar" || ferramenta === "navegador_pixel") return "clicar";
   if (ferramenta === "navegador_preencher" || ferramenta === "navegador_digitar" || ferramenta === "navegador_tecla") return "digitar";
@@ -316,6 +323,7 @@ export async function mandarMensagemPadrao(d: Deps, p: MensagemDaPessoa & { exec
 
 export function criarNavegadores(o: OpcoesNavegadores) {
   const agora = o.agora ?? (() => Date.now());
+  const msMirar = o.msMirar ?? MS_MIRAR_ANTES;
   const max = Math.max(1, o.max ?? MAX_PADRAO);
   const aprovar = o.pedirAprovacao ?? pedirAprovacaoComputador;
   const perguntar = o.pedirAPessoa ?? pedirAPessoa;
@@ -652,6 +660,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   /** O que só a pessoa no controle faz (a barra de endereço, as abas, recarregar). */
   function exigirPessoa(est: Estado): MotorNavegador {
     if (est.vista.controle !== "pessoa") throw new ErroDeDominio("estado_invalido", { cause: "assuma_primeiro" });
+    return exigirVivo(est);
+  }
+  function exigirVivo(est: Estado): MotorNavegador {
     const motor = motorDe(est);
     if (!motor) throw new ErroDeDominio("estado_invalido", { cause: "indisponivel" });
     if (!est.vivo) throw new ErroDeDominio("estado_invalido", { cause: "desligado" });
@@ -855,10 +866,16 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   }
 
   /** A vista acompanha o passo: a frase da linha de atividade e "ao vivo"; a falha deixa a vista viva. */
-  async function comPasso<T>(c: Contexto, ferramenta: string, alvo: AlvoResolvido | null, fn: () => Promise<T>): Promise<T> {
-    const passo: PassoNavegador = { tipo: tipoDoPasso(ferramenta), frase: fraseDoPasso(ferramenta, alvo?.nome ?? null, hostDe(c.est.url) || null), caixa: null, em: agora() };
+  async function comPasso<T>(c: Contexto, ferramenta: string, alvo: AlvoResolvido | null, fn: () => Promise<T>, caixa: CaixaNavegador | null = null): Promise<T> {
+    const passo: PassoNavegador = { tipo: tipoDoPasso(ferramenta), frase: fraseDoPasso(ferramenta, alvo?.nome ?? null, hostDe(c.est.url) || null), caixa, em: agora() };
     c.est.ultimoPasso = passo;
     c.est.turnoId = c.plano.turnoId;
+    // D2 C: com o alvo na tela, o cursor com o nome vai até ele e o anel verde aparece 300 ms antes do clique.
+    if (caixa && passo.tipo === "clicar" && msMirar > 0) {
+      mudar(c.est, { passo: { ...passo, tipo: "mirar" }, atividadeEm: agora() });
+      await new Promise((ok) => setTimeout(ok, msMirar));
+      passo.em = agora();
+    }
     mudar(c.est, { passo, atividadeEm: agora() });
     try {
       return await fn();
@@ -910,7 +927,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       } });
       return { aguardar: r.decisao_id };
     }
-    return { saida: await comPasso(c, ferramenta, alvo, () => efeito(c, ferramenta, args)) };
+    // O campo protegido (senha, código, cartão) não leva caixa: o efeito recusa sem tocar nele.
+    const caixa = FERRAMENTAS_COM_ALVO_NA_TELA.has(ferramenta) && typeof args.alvo === "string" && !alvoSecreto(c.est, args.alvo) ? await caixaDoAlvo(c, args.alvo) : null;
+    return { saida: await comPasso(c, ferramenta, alvo, () => efeito(c, ferramenta, args), caixa) };
   }
 
   /** A3: o que vai ser enviado, para a pessoa ler no cartão — o último texto que o bot preencheu nesta mesma página. */
@@ -1237,8 +1256,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         mudar(est, { estado: "desligado", passo: null, abas: [], controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
         return est.vista;
       }
-      // recarregar ou voltar (a barra do navegador no controle, D2 B)
-      const motor = exigirPessoa(est);
+      // Recarregar vale assistindo (D1c: "Recarregar e copiar funcionam assistindo, sem assumir"); voltar é da barra no
+      // controle (D2 B). A leitura do bot cai nos dois: a referência velha ouve "leia de novo".
+      const motor = op === "recarregar" ? exigirVivo(est) : exigirPessoa(est);
       await motor.historico(sessao(agenteId), op === "voltar" ? "voltar" : "recarregar").catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "acao_falhou" }) : e; });
       est.refs = null; est.refsPorTamanho = false;
       return est.vista;

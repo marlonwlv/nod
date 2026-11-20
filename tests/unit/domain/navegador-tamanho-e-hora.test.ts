@@ -14,8 +14,10 @@ describe("o Chrome do bot acompanha quem assiste (emenda de 2026-11-20 da ADR-19
     expect(viewportDeQuemAssiste({ w: 300, h: 2000 }).h).toBe(VIEWPORT_ALTURA_MAX);
   });
 
-  it("só muda com mais de 8% de diferença em algum lado", () => {
+  it("só muda com mais de 4% de diferença em algum lado", () => {
     expect(viewportMudouMuito({ w: 896, h: 1120 }, { w: 900, h: 1150 })).toBe(false);
+    // A faixa cinza de ~6% que sobrava embaixo da imagem (revisão lado a lado de 2026-11-20) agora muda o Chrome.
+    expect(viewportMudouMuito({ w: 800, h: 1000 }, { w: 800, h: 1060 })).toBe(true);
     expect(viewportMudouMuito({ w: 1280, h: 720 }, { w: 896, h: 1120 })).toBe(true);
     expect(viewportMudouMuito({ w: 1000, h: 1000 }, { w: 1000, h: 1090 })).toBe(true);
   });

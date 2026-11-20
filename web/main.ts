@@ -5359,8 +5359,10 @@ function fileiraDeAbas(agenteId: string, ativa: string | null, naConversa = fals
     ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId) ?? "" }
     : { html: renderCabecalhoConversa(estado, agenteId, { painel: false, irParaConversa: true }), conversaAtiva: false };
   const lugares = navegadorNaTela.abaNaFileira(agenteId) ?? undefined;
+  const fechados = navegadorNaTela.lugaresFechados(agenteId);
   return (fim) => renderFileiraDeAbas(estado, {
     agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula, menuAberto: abaComMenu, ...(lugares ? { lugares } : {}),
+    ...(fechados ? { lugaresFechados: { quantos: fechados.quantos, ponto: fechados.ponto } } : {}),
     renomeando: renomeandoAba && renomeandoAba.id === ativa ? renomeandoAba : null,
     novaTarefa: botAceitaTarefa(estado, agenteId) ? { texto: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria } : null,
   });
@@ -5593,8 +5595,9 @@ function abrirMenuDasOutras(agenteId: string, ancora: HTMLElement): void {
   const outras = outrasDaFileira(estado, abasDeTarefa, agenteId, t.tipo === "trabalho" ? t.id : null);
   const feitas = feitasDaFileira(estado, abasDeTarefa, agenteId);
   const r = ancora.getBoundingClientRect();
-  abrirMenuDaBarra(htmlDoMenuDasOutras(outras, feitas.length), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
-    if (b.hasAttribute("data-tela-tarefas")) navegar({ tipo: "trabalhos" });
+  abrirMenuDaBarra(htmlDoMenuDasOutras(outras, feitas.length, navegadorNaTela.lugaresFechados(agenteId)?.html ?? ""), ancora, { x: r.left - 4, y: r.bottom }, (b) => {
+    if (b.dataset.lugarAgente) navegadorNaTela.reabrirFechada(b.dataset.lugarAgente);
+    else if (b.hasAttribute("data-tela-tarefas")) navegar({ tipo: "trabalhos" });
     else if (b.hasAttribute("data-tirar-feitas")) tirarAsFeitas(agenteId, feitas);
     else if (b.dataset.id) abrirTrabalho(b.dataset.id);
   });

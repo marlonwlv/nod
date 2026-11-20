@@ -6,7 +6,7 @@ import { movimentoReduzido } from "../lib/movimento.ts";
 import {
   alturaDaFolha, botNoMeio, CHAVE_LARGURA, gravarLargura, htmlAbaDeLugar, htmlAcoesDoPainel, htmlBotaoDoCanto, htmlLinhaDoNavegador, htmlLugares, htmlMenuDoNavegador, ICONES_NAVEGADOR,
   imantar, larguraPadrao, legendaDoPasso, lerLargura, limitarLargura, linhaDoNavegadorVisivel, modoDoPainel, PAINEL_MIN, pontoDoLugar, proximoEncaixe, soltarFecha, soltarFolha,
-  estadoDaAbaDeLugar, type LugarDaVista, type ModoDoPainel, type PosicaoDaFolha,
+  estadoDaAbaDeLugar, htmlLugaresFechados, lugarFechadoAMao, type LugarDaVista, type ModoDoPainel, type PosicaoDaFolha,
 } from "../lib/navegador-vista.ts";
 import { montarVistaNavegador, type Hospedeiro, type OpcoesDaVista, type VistaMontada } from "./navegador-vista.ts";
 
@@ -406,9 +406,11 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     if (comAviso) avisar(`Navegador de ${nomeDe(agenteId)} fechado. ${nomeDe(agenteId)} continua trabalhando.`, () => reabrirFechada(), "⌘⇧T");
   }
 
-  function reabrirFechada(): void {
-    const id = fechadas.pop();
-    if (id) abrirAba(id);
+  function reabrirFechada(id = fechadas.at(-1)): void {
+    if (!id) return;
+    const i = fechadas.lastIndexOf(id);
+    if (i >= 0) fechadas.splice(i, 1);
+    abrirAba(id);
   }
 
   // ---- arrastar a aba de lugar (D7: arrastar reordena; arrastar para a borda direita vira painel) -------------------------
@@ -720,9 +722,6 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     const m = document.createElement("div");
     m.className = "nv-menu";
     m.innerHTML = htmlMenuDoNavegador(nomeDe(agenteId), { daAba, temEndereco: !!url, controle: v?.controle === "pessoa", ensinar: !o.celular() && !!o.api()?.ensinarNoNavegador && !v?.gravacao });
-    // Recarregar com o bot no controle pede o controle (o servidor só aceita a pessoa): aqui fica apagado com a dica.
-    const rec = m.querySelector<HTMLButtonElement>('[data-nv-menu="recarregar"]');
-    if (rec && v?.controle !== "pessoa") { rec.disabled = true; rec.title = "Assuma o controle para recarregar"; }
     const host = telaCheia?.dialog ?? document.body;
     host.append(m);
     const b = m.getBoundingClientRect();
@@ -913,13 +912,17 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     el.innerHTML = `<span>${esc(texto)}</span>${desfazer ? `<button type="button" class="nv-aviso-desfazer">Desfazer${atalho ? `<kbd>${esc(atalho)}</kbd>` : ""}</button>` : ""}`;
     document.body.append(el);
     avisoEl = el;
+    // D8 (reduzir movimento): o aviso aparece e some num fade curto (120/100 ms). O corte geral de animações CSS do app
+    // (interface.css) apaga a animação do CSS; a do elemento (Web Animations) vale.
+    if (reduzido()) el.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: "linear" });
     let resta = MS_AVISO;
     let desde = Date.now();
     let timer = window.setTimeout(sair, resta);
     function sair(): void {
       if (avisoEl !== el) return;
       el.classList.add("saindo");
-      window.setTimeout(() => el.remove(), reduzido() ? 0 : 200);
+      if (reduzido()) el.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 100, easing: "linear", fill: "forwards" });
+      window.setTimeout(() => el.remove(), reduzido() ? 100 : 200);
       avisoEl = null;
     }
     el.addEventListener("mouseenter", () => { window.clearTimeout(timer); resta -= Date.now() - desde; });
@@ -1027,6 +1030,14 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       const v = vistaAtual(agenteId);
       return { html: htmlAbaDeLugar(agenteId, nomeDe(agenteId), v, abaAtiva === agenteId), frente: estadoDaAbaDeLugar(v) === "precisa" || posicaoDaAba.get(agenteId) === "inicio", ativa: abaAtiva === agenteId };
     },
+    /** 5e: os lugares fechados deste bot que ainda estão à mão (o bot vivo neles). */
+    lugaresFechados(agenteId: string): { quantos: number; ponto: "vivo" | "precisa" | null; html: string } | null {
+      if (abasDeLugar.has(agenteId) || !fechadas.includes(agenteId)) return null;
+      const v = vistaAtual(agenteId);
+      if (!lugarFechadoAMao(v)) return null;
+      const e = estadoDaAbaDeLugar(v);
+      return { quantos: 1, ponto: e === "precisa" ? "precisa" : e === "vivo" || e === "controle" ? "vivo" : null, html: htmlLugaresFechados([{ agenteId, nome: nomeDe(agenteId), vista: v }]) };
+    },
     abaAberta: (agenteId: string): boolean => abasDeLugar.has(agenteId),
     abaAtiva: (agenteId: string): boolean => abaAtiva === agenteId,
     painelAberto: (agenteId: string): boolean => aberto?.agenteId === agenteId && aberto.modo === "painel",
@@ -1038,6 +1049,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     desativarAba,
     fecharAba,
     abrirTelaCheia,
+    reabrirFechada,
     ensinar,
     /** O "Assumir o controle" dos cartões de ajuda: abre a vista e assume. */
     assumir(agenteId: string): void { ver(agenteId); void vistaDe(agenteId).assumir(); },

@@ -93,7 +93,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     + `<div class="nv-palco" tabindex="-1" role="application" aria-roledescription="tela do navegador">`
     + `<img class="nv-quadro" alt="" draggable="false" hidden>`
     + `<div class="nv-camada" aria-hidden="true"><span class="nv-realce" hidden></span><span class="nv-anel" hidden></span><span class="nv-ondinha" hidden></span><span class="nv-rolar" hidden></span>`
-    + `<span class="nv-cursor" hidden><span class="nv-cursor-y"><svg width="14" height="14" viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 1.2 10.4 5 6.3 6.3 5 10.4z" fill="currentColor"/></svg><b class="nv-cursor-nome"></b></span></span></div>`
+    + `<span class="nv-cursor" hidden><span class="nv-cursor-y"><svg width="18" height="20" viewBox="0 0 18 20" aria-hidden="true"><path d="M2 2l13 7-6 1.6L6 17 2 2z" fill="currentColor"/></svg><b class="nv-cursor-nome"></b></span></span></div>`
     + `<div class="nv-estado-lugar"></div>`
     + `<span class="nv-dica-assumir" role="status" hidden>Assumir para mexer</span>`
     + `<input class="nv-teclado" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Digitar no site" tabindex="-1">`
@@ -369,6 +369,11 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   function mandarTamanho(): void {
     if (!sock || sock.readyState !== 1) return;
     const t = tamanhoDoPalco();
+    // definido em 2026-11-20 (D1d + emenda do item 4): a faixa do aviso do site encolhe a vista só enquanto está lá; o Chrome
+    // do bot fica do tamanho sem ela (senão cada aviso mudava o viewport e derrubava a leitura do bot, e o que sobrava
+    // abaixo do limiar de 8 % virava faixa cinza embaixo da imagem depois que o aviso saía).
+    const aviso = el.querySelector<HTMLElement>(".nv-aviso-site");
+    if (aviso) t.h += aviso.getBoundingClientRect().height + (parseFloat(getComputedStyle(aviso).marginBottom) || 0);
     if (t.w < 120 || t.h < 120) return;
     const chave = `${Math.round(t.w)}x${Math.round(t.h)}`;
     if (chave === tamanhoMandado) return;

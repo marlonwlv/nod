@@ -92,8 +92,12 @@ export const VIEWPORT_ESCALA = 1.6;
 export const VIEWPORT_LARGURA_MIN = 800;
 export const VIEWPORT_LARGURA_MAX = 1440;
 export const VIEWPORT_ALTURA_MAX = 2400;
-/** definido em 2026-11-20: o Chrome só muda de tamanho quando a diferença passa de 8% em algum lado (arrastar a alça não sacode a página). */
-export const VIEWPORT_DIFERENCA_MIN = 0.08;
+/**
+ * definido em 2026-11-20: o Chrome só muda de tamanho quando a diferença passa de 4% em algum lado (arrastar a alça manda
+ * um só no fim, e a faixa do aviso do site não conta). Era 8%: na revisão lado a lado com o Paper, o que ficava abaixo do
+ * limiar aparecia como uma faixa cinza de até ~50 px embaixo da imagem, contra a vista que enche a área.
+ */
+export const VIEWPORT_DIFERENCA_MIN = 0.04;
 
 export function viewportDeQuemAssiste(area: { w: number; h: number }): { w: number; h: number } {
   const w = Math.min(VIEWPORT_LARGURA_MAX, Math.max(VIEWPORT_LARGURA_MIN, Math.round(area.w * VIEWPORT_ESCALA)));

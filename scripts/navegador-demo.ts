@@ -15,6 +15,10 @@
  *   curl -XPOST 127.0.0.1:8894/enviar    # A3: "Enviar … no web.whatsapp.com?" com a citação e o "Não perguntar de novo"
  *   curl -XPOST 127.0.0.1:8894/faturas   # T: a página com "Faturas" e "Novembro" para ensinar
  *   curl -XPOST 127.0.0.1:8894/limpar    # fecha o pedido aberto (recusa ou resolve)
+ *   curl -XPOST 127.0.0.1:8894/voos      # 1a/5a/C1/D1: "Google Voos" com os 3 melhores voos e a aba "Decolar" (prints lado a lado)
+ *   curl -XPOST 127.0.0.1:8894/ajuda     # D3, 8: "O site quer provar que é uma pessoa (CAPTCHA)" (precisa de você)
+ *   curl -XPOST 127.0.0.1:8894/caixavoo  # a caixa do voo da TAP no viewport de agora (o cursor do print)
+ *   curl -XPOST 127.0.0.1:8894/desligar  # D3, 7: encerra o Chrome do bot (a vista diz "desligado" com [Ligar])
  * Onde o navegador mora (M, J, K, N; pede NOD_MODO=compartilhado e NOD_NAVEGADOR_NA_MAQUINA=1, para as máquinas Linux
  * de mentira contarem como "ligadas" pelo long-poll de verdade):
  *   curl -XPOST 127.0.0.1:8894/maquinas0 # o app do Mac na conta (desligado), nenhuma máquina sempre ligada
@@ -55,7 +59,7 @@ async function api(metodo: string, caminho: string, corpo?: unknown): Promise<un
 }
 
 // Um bot novo, "Ada" (como no Paper), com a conversa limpa a cada vez que o demo sobe.
-const criado = await api("POST", "/agentes", { dono: "pessoa", nome: `Ada ${new Date().toISOString().slice(11, 16).replace(":", "h")}`, titulo: "Assistente", descricao: "Cuida das contas e das viagens." }) as { agente: { id: string }; conversa: { id: string } };
+const criado = await api("POST", "/agentes", { dono: "pessoa", nome: `Ada ${new Date().toISOString().slice(11, 16).replace(":", "h")}`, titulo: "PM", descricao: "Cuida das contas e das viagens." }) as { agente: { id: string }; conversa: { id: string } };
 const AGENTE = criado.agente.id;
 const CONVERSA = criado.conversa.id;
 await api("PATCH", `/agentes/${AGENTE}`, { nome: "Ada" }).catch((e: unknown) => log("info", "demo_nome", { erro: String(e) }));
@@ -100,7 +104,7 @@ const usar = (ferramenta: string, argumentos: Record<string, unknown>) => chamar
 
 /** Troca o corpo da página (a página de mentira de cada estado) e lê de novo. Devolve as referências por nome. */
 async function pagina(html: string, titulo: string): Promise<Record<string, string>> {
-  const js = `(() => { document.title = ${JSON.stringify(titulo)}; document.body.style.cssText = "margin:0;font:15px -apple-system,system-ui,sans-serif;background:#fff;color:#1d1d1f"; document.body.innerHTML = ${JSON.stringify(html)}; return "ok"; })()`;
+  const js = `(() => { let t = document.querySelector("title"); if (!t) { t = document.createElement("title"); (document.head || document.documentElement).prepend(t); } t.textContent = ${JSON.stringify(titulo)}; document.body.style.cssText = "margin:0;font:15px -apple-system,system-ui,sans-serif;background:#fff;color:#1d1d1f"; document.body.innerHTML = ${JSON.stringify(html)}; return "ok"; })()`;
   await usar("navegador_avaliar", { expressao: js });
   const l = await chamar("navegador_ler", {});
   const refs: Record<string, string> = {};
@@ -167,6 +171,9 @@ async function maquinas(n: 0 | 1 | 2, app = true): Promise<unknown> {
   return api("GET", `/agentes/${AGENTE}/navegador/lugar`);
 }
 
+const VOO = (cor: string, horas: string, linha: string, preco: string, destaque = false) => `<div ${destaque ? "data-voo " : ""}style="display:flex;align-items:center;gap:14px;margin:0 0 14px;padding:14px;border:1px solid #e8eaed;border-radius:10px"><span style="width:28px;height:28px;border-radius:6px;background:${cor}"></span><span style="flex:1"><b style="font-weight:500">${horas}</b><br><small style="color:#666">${linha}</small></span><b style="${destaque ? "color:#16835b" : ""}">${preco}</b></div>`;
+const CHIP = (t: string) => `<span style="display:inline-block;margin:0 8px 0 0;padding:7px 12px;border:1px solid #d6d6d6;border-radius:6px;font-size:13px">${t}</span>`;
+const PAGINA_VOOS = `<div style="padding:22px 24px;max-width:1100px"><p style="margin:0 0 18px">${CHIP("São Paulo (GRU)")}${CHIP("Lisboa (LIS)")}${CHIP("10 mar – 24 mar")}</p><h3 style="margin:0 0 14px;font-weight:600;font-size:16px">Melhores voos</h3>${VOO("#d0443b", "21:40 – 11:15⁺¹", "TAP · direto · 9 h 35 min", "R$ 3.780", true)}${VOO("#1d1a5c", "18:05 – 10:50⁺¹", "LATAM · 1 parada · 12 h 45 min", "R$ 3.420")}${VOO("#b8232f", "23:55 – 18:20⁺¹", "Iberia · 1 parada · 14 h 25 min", "R$ 3.190")}</div>`;
 const CAIXA = "max-width:520px;margin:48px auto;padding:0 24px";
 const ESTADOS: Record<string, () => Promise<unknown>> = {
   async login() {
@@ -204,6 +211,50 @@ const ESTADOS: Record<string, () => Promise<unknown>> = {
     // no controle, e a gravação de "Ensinar" registra os cliques.
     return usar("navegador_avaliar", { expressao: "JSON.stringify({ w: innerWidth, h: innerHeight, botoes: [...document.querySelectorAll('button')].map((b) => { const r = b.getBoundingClientRect(); return { nome: b.textContent, x: r.x + r.width / 2, y: r.y + r.height / 2 }; }) })" });
   },
+  async voos() {
+    await limpar();
+    // As páginas de verdade (SPA) refazem o corpo depois que ele é trocado: abre o robots.txt (texto puro, sem script) do
+    // mesmo site e põe o caminho de verdade na barra com replaceState (a barra do nod mostra o endereço "de verdade").
+    const falso = async (url: string, caminho: string, html: string, titulo: string) => {
+      const nova = url.includes("decolar");
+      await chamar("navegador_abrir", { url: `${url}/robots.txt`, ...(nova ? { nova_aba: true } : {}) });
+      if (nova) { await usar("navegador_abas", { acao: "trocar", aba: 2 }); await chamar("navegador_esperar", { ms: 1500 }); }
+      const r = await usar("navegador_avaliar", { expressao: `history.replaceState(null, "", ${JSON.stringify(caminho)}), "ok"` });
+      if (r.erro) log("info", "demo_replace", { url, r: JSON.stringify(r).slice(0, 400) });
+      return pagina(html, titulo);
+    };
+    await falso("https://www.google.com", "/travel/flights?q=GRU-LIS", PAGINA_VOOS, "Google Voos");
+    // A segunda aba é a Decolar de verdade (só o título e o ícone dela aparecem na barra).
+    await chamar("navegador_abrir", { url: "https://www.decolar.com/", nova_aba: true });
+    await chamar("navegador_esperar", { ms: 4000 });
+    // O site de verdade abre janelas sozinho: ficam só as duas abas do print.
+    for (let i = 0; i < 12; i++) {
+      const l = await usar("navegador_abas", { acao: "listar" }) as { abas?: unknown[] };
+      if (!l.abas || l.abas.length <= 2) break;
+      await usar("navegador_abas", { acao: "fechar", aba: l.abas.length });
+    }
+    await usar("navegador_abas", { acao: "trocar", aba: 1 });
+    await chamar("navegador_ler", {});
+    // Onde o voo da TAP está no viewport (para o cursor "Ada" do print, que só aparece durante um passo de verdade).
+    const caixa = await usar("navegador_avaliar", { expressao: "JSON.stringify((() => { const r = document.querySelector('[data-voo]').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, vw: innerWidth, vh: innerHeight }; })())" });
+    return { caixa };
+  },
+  /** D3, 8 e D1b: o site pede uma pessoa (CAPTCHA): "Precisa de você | Já resolvi | Assumir o controle". */
+  async ajuda() {
+    await limpar();
+    return chamar("navegador_pedir_ajuda", { motivo: "O site quer provar que é uma pessoa (CAPTCHA)" });
+  },
+  /** A caixa do voo da TAP no viewport de agora (ele acompanha quem assiste): o cursor "Ada" do print vai nela. */
+  async caixavoo() {
+    const r = await usar("navegador_avaliar", { expressao: "JSON.stringify((() => { const el = document.querySelector('[data-voo]'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })())" });
+    return JSON.parse(JSON.parse(String(r.resultado ?? "null")) ?? "null");
+  },
+  /** Onde cada botão da página está agora (o viewport acompanha quem assiste: na tela cheia ele muda). */
+  async botoes() {
+    return usar("navegador_avaliar", { expressao: "JSON.stringify({ w: innerWidth, h: innerHeight, botoes: [...document.querySelectorAll('button')].map((b) => { const r = b.getBoundingClientRect(); return { nome: b.textContent, x: r.x + r.width / 2, y: r.y + r.height / 2 }; }) })" });
+  },
+  async abas() { return usar("navegador_abas", { acao: "listar" }); },
+  async desligar() { await limpar(); return api("POST", `/agentes/${AGENTE}/navegador`, { operacao: "encerrar" }); },
   async maquinas0() { await lugarDoComeco(true); return maquinas(0); },
   async maquinas1() { await lugarDoComeco(true); return maquinas(1); },
   async maquinas2() { await lugarDoComeco(true); return maquinas(2); },

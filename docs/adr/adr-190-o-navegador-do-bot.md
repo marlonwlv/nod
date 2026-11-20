@@ -69,8 +69,8 @@ As telas estão no Paper, arquivo "nod · Chat e conversa":
      `{t:"tamanho", w, h}` (a área da vista em CSS px) 600 ms depois do fim de um redimensionamento (`EntradaNavegador`;
      conferido em `lerEntradaNavegador`, 120–8192). O servidor põe o viewport (`set viewport` do agent-browser; na
      máquina, a operação `tamanho` da fila) em largura = clamp(round(w × 1,6), 800, 1440) e altura = largura × h / w,
-     arredondada, até 2400 (`viewportDeQuemAssiste`). Só muda com mais de 8% de diferença em algum lado
-     (`viewportMudouMuito`). Sem ninguém assistindo, fica o último; o Chrome que liga de novo nasce no padrão e ganha o
+     arredondada, até 2400 (`viewportDeQuemAssiste`). Só muda com mais de 4% de diferença em algum lado
+     (`viewportMudouMuito`; era 8%, e o que sobrava virava faixa cinza embaixo da imagem; a faixa do aviso do site não conta). Sem ninguém assistindo, fica o último; o Chrome que liga de novo nasce no padrão e ganha o
      tamanho pedido quando fica ao vivo. Mudar o tamanho derruba a última leitura do bot: a referência velha ouve "a
      página mudou de tamanho; leia de novo". A vista enche a área, e o clique segue mapeado pelo tamanho real do quadro.
 5. **Onde mora** (`src/domain/navegador-lugar.ts`, M e N). A pessoa responde só "Continuar com o seu Mac desligado".

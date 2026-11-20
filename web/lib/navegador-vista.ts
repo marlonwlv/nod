@@ -580,6 +580,27 @@ export function dicaDaAbaDeLugar(nome: string, v: Pick<VistaNavegador, "estado" 
   return [`Navegador de ${nome}`, v ? tituloDaAbaAtiva(v) : "", como].filter(Boolean).join(" · ");
 }
 
+/**
+ * 5e: o lugar fechado continua à mão. A aba fechada some da fileira, mas o bot segue nele: ele entra em "N outras", numa
+ * seção "Lugares" ("Navegador da Ada · Google Voos · ao vivo" com o ponto), e clicar reabre a aba. Só os que estão vivos ou
+ * esperando a pessoa (parado não precisa estar à mão: o botão do canto abre).
+ */
+export function lugarFechadoAMao(v: Pick<VistaNavegador, "estado" | "controle" | "pedido"> | null): boolean {
+  const e = estadoDaAbaDeLugar(v);
+  return e === "vivo" || e === "precisa" || e === "controle";
+}
+
+export function htmlLugaresFechados(itens: readonly { agenteId: string; nome: string; vista: Pick<VistaNavegador, "estado" | "controle" | "pedido" | "abas" | "erro"> | null }[]): string {
+  if (!itens.length) return "";
+  const linhas = itens.map(({ agenteId, nome, vista }) => {
+    const e = estadoDaAbaDeLugar(vista);
+    const sub = dicaDaAbaDeLugar(nome, vista).split(" · ").slice(1).join(" · ");
+    const ponto = e === "vivo" || e === "precisa" ? `<i class="nv-aba-lugar-ponto" data-ponto="${e}" aria-hidden="true"></i>` : "";
+    return `<button type="button" role="menuitem" class="at-item nv-lugar-fechado" data-lugar-agente="${esc(agenteId)}">${GLOBO}<span class="nv-lugar-fechado-txt"><span>Navegador de ${esc(nome)}</span>${sub ? `<small>${esc(sub)}</small>` : ""}</span>${ponto}</button>`;
+  }).join("");
+  return `<p class="menu-nome">Lugares</p>${linhas}<hr><p class="nv-lugar-fechado-dica">Clicar reabre a aba. ⌘⇧T reabre a última que você fechou.</p>`;
+}
+
 /** A aba de lugar no modo abas (D7): depois da conversa e das tarefas; hover com ×; o clique direito abre o menu. */
 export function htmlAbaDeLugar(agenteId: string, nome: string, v: Pick<VistaNavegador, "estado" | "controle" | "pedido" | "abas" | "erro"> | null, ativa: boolean): string {
   const e = estadoDaAbaDeLugar(v);

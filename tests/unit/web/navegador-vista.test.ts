@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AbaNavegador, VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
 import {
   abasVisiveis, alturaDaFolha, avisoDoPedido, botNoMeio, caixaNaVista, dicaDaAbaDeLugar, duracaoDoCursor, estadoDaAbaDeLugar, estadoDaPilula, estadoDaTela, gravarLargura, htmlAbaDeLugar,
-  htmlAvisoDoSite, htmlBarraDoNavegador, htmlBotaoDoCanto, htmlEstadoDaTela, htmlLinhaDoNavegador, htmlLugares, htmlMenuDoNavegador, htmlPilula, imantar, larguraMaxima, larguraPadrao,
+  htmlAvisoDoSite, htmlBarraDoNavegador, htmlBotaoDoCanto, htmlEstadoDaTela, htmlLinhaDoNavegador, htmlLugares, htmlLugaresFechados, lugarFechadoAMao, htmlMenuDoNavegador, htmlPilula, imantar, larguraMaxima, larguraPadrao,
   legendaDoPasso, lerLargura, limitarLargura, linhaDoNavegadorVisivel, modoDoPainel, MS_ASSUMINDO_VISIVEL, partesDoEndereco, pontoDoLugar, pontoNoViewport, proximoEncaixe,
   retanguloDaImagem, rotuloDaAprovacao, soltarFecha, soltarFolha, textoDoLugar,
 } from "../../../web/lib/navegador-vista.ts";
@@ -278,5 +278,20 @@ describe("os lugares, a linha, o canto e a aba (D1 1, 1c, D7)", () => {
     expect(botNoMeio(vista({ passo: { tipo: "clicar", frase: "", caixa: null, em: 10_000 } }), 60_000)).toBe(false);
     expect(botNoMeio(vista({ estado: "pausa", pedido: aprovacao }), 0)).toBe(false);
     expect(botNoMeio(vista({ abas: [aba({ carregando: true })] }), 0)).toBe(true);
+  });
+});
+
+describe("5e: o lugar fechado continua à mão", () => {
+  it("só o vivo, o que precisa de você e o do controle ficam à mão; o item diz o site e o estado e reabre a aba", () => {
+    expect(lugarFechadoAMao(vista())).toBe(true);
+    expect(lugarFechadoAMao(vista({ controle: "precisa_de_voce" }))).toBe(true);
+    expect(lugarFechadoAMao(vista({ estado: "pausa" }))).toBe(false);
+    expect(lugarFechadoAMao(vista({ estado: "desligado" }))).toBe(false);
+    const html = htmlLugaresFechados([{ agenteId: "a1", nome: "Ada", vista: vista() }]);
+    expect(html).toContain('data-lugar-agente="a1"');
+    expect(html).toContain("<span>Navegador de Ada</span><small>Google Voos · ao vivo</small>");
+    expect(html).toContain('data-ponto="vivo"');
+    expect(html).toContain("⌘⇧T reabre a última que você fechou.");
+    expect(htmlLugaresFechados([])).toBe("");
   });
 });

@@ -44,6 +44,8 @@ export type FileiraDeAbas = {
    * pessoa (`frente`) ela passa à frente das tarefas. O HTML vem de web/lib/navegador-vista.ts (htmlAbaDeLugar).
    */
   lugares?: { html: string; frente: boolean; ativa?: boolean };
+  /** 5e: lugares cuja aba a pessoa fechou com o bot ainda nele; entram em "N outras" (o ponto diz se algum está vivo). */
+  lugaresFechados?: { quantos: number; ponto: "vivo" | "precisa" | null };
 };
 
 // Paper 4p: seta ‹ de 12 (traço 1,4), seta ⌄ de 10 (traço 1,3), "+" de 14 (traço 1,5) e o quadrado da parada (o do Parar).
@@ -126,9 +128,13 @@ export function renderFileiraDeAbas(estado: Estado, f: FileiraDeAbas): string {
   const abas = aVista.map((a) => htmlDaAba(estado, a, a.id === f.ativa, f)).join("");
   const nova = f.ativa === null && !f.pilula?.conversaAtiva && !f.lugares?.ativa ?'<div class="at-aba ativa at-nova"><span class="at-ir" aria-current="page"><span class="at-titulo">Nova tarefa</span></span></div>' : "";
   // Paper 10b (3b): se uma escondida precisa da pessoa (mais delas do que cabem), "N outras" ganha o ponto.
-  const outraPrecisa = outras.some((t) => precisaDaPessoa(estado, t.id));
-  const maisOutras = outras.length
-    ? `<button type="button" class="at-outras${outraPrecisa ? " precisa" : ""}" data-act="abas-outras" data-agente="${esc(f.agenteId)}" aria-haspopup="menu">${outras.length} ${outras.length === 1 ? "outra" : "outras"}${SETA_MENU}${outraPrecisa ? '<span class="at-sr">, uma precisa de você</span>' : ""}</button>`
+  const fechados = f.lugaresFechados?.quantos ?? 0;
+  const outraPrecisa = outras.some((t) => precisaDaPessoa(estado, t.id)) || f.lugaresFechados?.ponto === "precisa";
+  const total = outras.length + fechados;
+  // 5e: um lugar fechado com o bot vivo nele leva o ponto verde ("● 1 outra").
+  const pontoLugar = f.lugaresFechados?.ponto && !outraPrecisa ? `<i class="nv-aba-lugar-ponto" data-ponto="${f.lugaresFechados.ponto}" aria-hidden="true"></i>` : "";
+  const maisOutras = total
+    ? `<button type="button" class="at-outras${outraPrecisa ? " precisa" : ""}" data-act="abas-outras" data-agente="${esc(f.agenteId)}" aria-haspopup="menu">${pontoLugar}${total} ${total === 1 ? "outra" : "outras"}${SETA_MENU}${outraPrecisa ? '<span class="at-sr">, uma precisa de você</span>' : ""}</button>`
     : "";
   const mais = f.novaTarefa
     ? `<button type="button" class="at-mais" data-act="nova-tarefa" aria-label="Nova tarefa com ${esc(nomeDoBot)}" aria-keyshortcuts="${esc(f.novaTarefa.aria)}">${MAIS}<span class="at-dica" aria-hidden="true">Nova tarefa com ${esc(nomeDoBot)}<kbd>${esc(f.novaTarefa.texto)}</kbd></span></button>`
@@ -158,10 +164,12 @@ export function botaoDeAbas(estado: Pick<Estado, "trabalhos" | "conversas" | "tr
  * Os itens de "N outras ⌄" (no menu da barra): o ícone do estado e o título curto; depois, com feitas na fileira, "Tirar as
  * N feitas das abas" (Paper 10b, 3c), e o último leva à tela Tarefas.
  */
-export function htmlDoMenuDasOutras(outras: readonly TrabalhoDto[], feitasNaFileira = 0): string {
+export function htmlDoMenuDasOutras(outras: readonly TrabalhoDto[], feitasNaFileira = 0, lugares = ""): string {
   const itens = outras.map((t) => `<button type="button" role="menuitem" class="at-item" data-id="${esc(t.id)}">${iconeDaAba(t).html}<span class="at-item-titulo">${esc(tituloCurto(t.titulo))}</span></button>`).join("");
   const tirar = feitasNaFileira > 0 ? `<button type="button" role="menuitem" data-tirar-feitas>Tirar ${feitasNaFileira === 1 ? "a feita" : `as ${feitasNaFileira} feitas`} das abas</button>` : "";
-  return `<div role="menu" class="menu-aba-corpo" aria-label="Outras tarefas"><p class="menu-nome">Outras tarefas</p>${itens}<hr>${tirar}<button type="button" role="menuitem" data-tela-tarefas>Ver todas na tela Tarefas</button></div>`;
+  // 5e: os lugares fechados vêm primeiro, com a dica do ⌘⇧T; sem outras tarefas, o menu é só deles.
+  const tarefas = outras.length || !lugares ? `<p class="menu-nome">Outras tarefas</p>${itens}<hr>${tirar}<button type="button" role="menuitem" data-tela-tarefas>Ver todas na tela Tarefas</button>` : "";
+  return `<div role="menu" class="menu-aba-corpo" aria-label="${lugares && !outras.length ? "Lugares fechados" : "Outras tarefas"}">${lugares}${lugares && tarefas ? "<hr>" : ""}${tarefas}</div>`;
 }
 
 /** As abas do bot cuja tarefa terminou de vez (para "Tirar as feitas das abas"). */

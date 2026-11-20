@@ -38,6 +38,7 @@ let tarefas: TarefaEnsinada[];
 let retomadas: { decisaoId: string; texto: string }[];
 let mensagens: MensagemDaPessoa[];
 let elemento: ElementoNaPagina | null;
+let caixaNaPagina: { x: number; y: number; w: number; h: number } | null;
 
 const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
   get(_t, op: string) {
@@ -53,7 +54,7 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
         case "texto": return "Pagar agora";
         case "focado": return { papel: "button", nome: "Enviar mensagem" };
         case "clicar": if (falhaNoClique) throw falhaNoClique; return undefined;
-        case "obter": return "valor";
+        case "obter": return args[1] === "caixa" && caixaNaPagina ? caixaNaPagina : "valor";
         case "descreverElemento": return elemento;
         default: return undefined;
       }
@@ -134,6 +135,7 @@ beforeEach(() => {
   retomadas = [];
   mensagens = [];
   elemento = null;
+  caixaNaPagina = null;
 });
 
 describe("negações do portão (molde de computadores.chamar)", () => {
@@ -207,6 +209,26 @@ describe("ler → agir por referência", () => {
     const fora = await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e99" });
     expect(fora).toMatchObject({ ok: true, isError: true });
     expect(ops()).not.toContain("clicar");
+  });
+
+  it("o clique leva a caixa do alvo: primeiro o anel (mirar), depois o clique, com o cursor no mesmo lugar (D2 C)", async () => {
+    caixaNaPagina = { x: 40, y: 300, w: 200, h: 48 };
+    const n = criar({ msMirar: 1 });
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    vistas = [];
+    await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e5" });
+    const passos = vistas.map((v) => v.passo).filter((p) => p !== null);
+    expect(passos.map((p) => p.tipo)).toEqual(["mirar", "clicar"]);
+    expect(passos.every((p) => p.caixa?.x === 40 && p.caixa.w === 200)).toBe(true);
+    expect(ops().indexOf("obter")).toBeLessThan(ops().indexOf("clicar"));
+  });
+
+  it("sem caixa (alvo por seletor ou fora da tela), o clique não espera nem mostra o anel", async () => {
+    const n = criar({ msMirar: 1 });
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    vistas = [];
+    await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e5" });
+    expect(vistas.map((v) => v.passo).filter((p) => p !== null).map((p) => [p.tipo, p.caixa])).toEqual([["clicar", null]]);
   });
 
   it("clique livre passa direto; a página que muda invalida as referências", async () => {
@@ -548,6 +570,16 @@ describe("operações da pessoa (POST /agentes/:id/navegador)", () => {
     await n.operar(MARLON, A, "assumir");
     expect(await n.operar(MARLON, A, "devolver")).toMatchObject({ controle: "precisa_de_voce", pedido: { tipo: "aprovacao" } });
     expect(retomadas).toHaveLength(1);
+  });
+
+  it("recarregar vale assistindo (D1c); voltar só no controle (D2 B)", async () => {
+    const n = criar();
+    await n.operar(MARLON, A, "ligar");
+    await n.operar(MARLON, A, "recarregar");
+    expect(chamadas.find((c) => c.op === "historico")?.args).toEqual(["recarregar"]);
+    await expect(n.operar(MARLON, A, "voltar")).rejects.toThrow("estado_invalido");
+    await n.operar(MARLON, A, "encerrar");
+    await expect(n.operar(MARLON, A, "recarregar")).rejects.toThrow("estado_invalido");
   });
 
   it("barra de endereço e abas só com a pessoa no controle; a URL passa pela validação do portão", async () => {
