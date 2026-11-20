@@ -24,10 +24,18 @@ export const pausarTodasAsRotinas: CasoDeUso<{ autoria?: Autoria }, { lote: Lote
   const events: RuntimeEvent[] = [];
   const pausadas: string[] = [];
   for (const r of ativas) {
+    // QA-115: trava a linha e relê. Dois "Pausar todas" ao mesmo tempo (Enter duplo no ⌘K, ⌘K + chat) liam as mesmas
+    // ativas; o segundo esperava o primeiro, contava as três como suas e trocava o lote delas, e o Desfazer do primeiro
+    // aviso não reativava nada. Agora o segundo espera, vê a rotina já pausada e a deixa no lote de quem a pausou.
+    const travada = await deps.repos.rotinas.buscarParaAtualizar(r.id);
+    if (!travada || travada.estado !== "ativa") continue;
     const x = await pausarRotina(deps, { rotinaId: r.id, estado: "pausada", ...(input.autoria ? { autoria: input.autoria } : {}) });
     events.push(...(x.events ?? []));
     if (x.data.rotina.estado === "pausada") pausadas.push(r.id);
   }
+  // QA-115: nenhuma pausada aqui (outro pedido pausou antes) = sem lote, como quando não havia ativa; senão o aviso
+  // ofereceria um Desfazer de um lote vazio.
+  if (pausadas.length === 0) return { data: { lote: null, rotinaIds: [] }, events };
   const lote: LoteDePausa = { id: randomUUID(), em: deps.agora() };
   await deps.repos.rotinas.marcarLoteDePausa(pausadas, lote.id, lote.em);
   return { data: { lote, rotinaIds: pausadas }, events };
@@ -47,6 +55,9 @@ export const reativarLoteDePausa: CasoDeUso<{ loteId: string; autoria?: Autoria 
   const reativadas: string[] = [];
   for (const r of doLote) {
     if (r.estado !== "pausada" || !podemVoltar.has(r.id)) continue;
+    // QA-115: o mesmo para dois Desfazer ao mesmo tempo (o aviso e o chat): quem chega depois vê a rotina já ativa.
+    const travada = await deps.repos.rotinas.buscarParaAtualizar(r.id);
+    if (!travada || travada.estado !== "pausada" || travada.pausaLote?.id !== input.loteId) continue;
     const x = await pausarRotina(deps, { rotinaId: r.id, estado: "ativa", ...(input.autoria ? { autoria: input.autoria } : {}) });
     events.push(...(x.events ?? []));
     reativadas.push(r.id);

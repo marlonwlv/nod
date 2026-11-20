@@ -2389,6 +2389,7 @@ img.luz-midia { display: block; flex: none; width: min(var(--w), calc(100cqw - 1
 @media (pointer: coarse) {
   .linha-centro button.p312-carona,
   .p312-marca { position: relative; }
+  .p312-marca { min-height: 44px; }
   .linha-centro button.p312-carona::after,
   .p312-marca::after { content: ""; position: absolute; inset: -10px -4px; }
 }

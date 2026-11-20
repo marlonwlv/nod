@@ -710,6 +710,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         b.memorias.push(memoria);
         return memoria;
       },
+      async criarDoAgenteSeAusente(m) {
+        const existente = doTenant(b.memorias).find((x) => x.agenteId === m.agenteId && x.tipo === m.tipo && x.texto === m.texto && x.origem === "agente");
+        if (existente) return { memoria: existente, criada: false };
+        const memoria: Memoria = { tenantId: escopo.tenantId, id: randomUUID(), agenteId: m.agenteId, tipo: m.tipo, texto: m.texto, origem: "agente", criadoEm: agora() };
+        b.memorias.push(memoria);
+        return { memoria, criada: true };
+      },
       async buscar(id) {
         return doTenant(b.memorias).find((m) => m.id === id) ?? null;
       },
@@ -3716,7 +3723,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return { turnoId: t.id, agenteId: t.agenteId, estado: t.estado, custoUsd: t.custoUsd, criadoEm: t.criadoEm, composicao: r?.composicao ?? null, execucao: r?.execucao ?? null };
       },
       async ultimaJanela(conversaId, agenteId, modelo) {
-        const t = doTenant(b.turnos).filter((x) => x.conversaId === conversaId && x.agenteId === agenteId && x.modelo === modelo).sort((x, y) => y.criadoEm - x.criadoEm).slice(0, TURNOS_DA_JANELA)
+        const t = doTenant(b.turnos).filter((x) => x.conversaId === conversaId && x.agenteId === agenteId && (b.raioX.get(x.id)?.composicao?.modelo ?? x.modelo) === modelo).sort((x, y) => y.criadoEm - x.criadoEm).slice(0, TURNOS_DA_JANELA)
           .find((x) => typeof b.raioX.get(x.id)?.execucao?.janela === "number");
         return t ? b.raioX.get(t.id)?.execucao?.janela ?? null : null;
       },
@@ -4141,6 +4148,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     // ADA-241 (0156): padrão por app e lotes são do Postgres (tests/integration/acessos-lote.test.ts); aqui, sem padrão.
     acessos: {
       padrao: async () => "nenhum",
+      padraoEmVigor: async () => "nenhum",
       padroes: async () => [],
       definirPadrao: soNoPostgres,
       marca: async () => null,

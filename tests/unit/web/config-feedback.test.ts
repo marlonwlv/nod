@@ -31,6 +31,12 @@ describe("Configurações › Feedback (NOD-367)", () => {
     expect(tituloDoRelato(relato("n2", { origem: "nod", tipo: "duvida" }))).toBe("Dúvida");
   });
 
+  it("não corta um emoji ao meio no limite do título", () => {
+    const titulo = `${"a".repeat(78)}😀bc`;
+    expect(tituloDoRelato(relato("unicode", { titulo }))).toBe(`${"a".repeat(78)}😀…`);
+    expect(tituloDoRelato(relato("unicode", { titulo }))).not.toContain("�");
+  });
+
   it("linhas linhaConfig com a data numa coluna e o status da falha; sem <details> e sem card-prop", () => {
     const html = renderRelatos({ relatos: RELATOS, configUi: ui() });
     expect(html).toContain("<h2>Feedback</h2>");

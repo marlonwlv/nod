@@ -8,7 +8,10 @@ import { linhaEmSegundoPlano, renderInstalarSsh } from "../../../web/telas/insta
 const CHAVE = "-----BEGIN RSA PRIVATE KEY-----\nSEGREDO-DA-CHAVE\n-----END RSA PRIVATE KEY-----";
 const ate = () => new Promise((r) => setTimeout(r, 0));
 
-function montar(respostas: Partial<InstalacaoSshDto>[] = []) {
+function montar(
+  respostas: Partial<InstalacaoSshDto>[] = [],
+  buscasDeInstaladoras: Promise<{ instaladoras: NonNullable<InstalarSsh["instaladoras"]> }>[] = [],
+) {
   let estado: InstalarSsh | null = null;
   const chamadas: { nome: string; args: unknown[] }[] = [];
   const agendadas: (() => void)[] = [];
@@ -20,7 +23,7 @@ function montar(respostas: Partial<InstalacaoSshDto>[] = []) {
     motivo: null, impressoes: null, linhas: [], maquinaId: null, pedeCredencial: false, expiraEm: Date.now() + 60_000, atualizadoEm: Date.now(),
   };
   const api: ApiDaInstalacao = {
-    instaladorasSsh: async () => ({ instaladoras: [{ id: "mac", nome: "Mac do Marlon", plataforma: "darwin" }] }),
+    instaladorasSsh: async () => buscasDeInstaladoras.shift() ?? { instaladoras: [{ id: "mac", nome: "Mac do Marlon", plataforma: "darwin" }] },
     pedirInstalacaoSsh: async (p) => {
       chamadas.push({ nome: "pedir", args: [p] });
       if (pedirFalha) { const e = pedirFalha; pedirFalha = null; throw e; }
@@ -62,6 +65,21 @@ async function preencher(m: ReturnType<typeof montar>, o: { frase?: string } = {
 }
 
 describe("instalar por SSH: o controlador (NOD-94)", () => {
+  it("uma busca antiga de instaladoras não sobrescreve a abertura mais recente", async () => {
+    let concluirAntiga!: (r: { instaladoras: NonNullable<InstalarSsh["instaladoras"]> }) => void;
+    const antiga = new Promise<{ instaladoras: NonNullable<InstalarSsh["instaladoras"]> }>((resolve) => { concluirAntiga = resolve; });
+    const nova = Promise.resolve({ instaladoras: [{ id: "nova", nome: "Máquina nova", plataforma: "linux" }] });
+    const m = montar([], [antiga, nova]);
+
+    const primeiraAbertura = m.ctl.abrir();
+    await m.ctl.abrir();
+    expect(m.estado().instaladoras?.[0]?.id).toBe("nova");
+
+    concluirAntiga({ instaladoras: [{ id: "antiga", nome: "Máquina antiga", plataforma: "darwin" }] });
+    await primeiraAbertura;
+    expect(m.estado().instaladoras?.[0]?.id).toBe("nova");
+  });
+
   it("lerEndereco: host, host:porta, [ipv6]:porta; recusa espaço, porta fora e host que começa com -", () => {
     expect(lerEndereco("vm.exemplo.com")).toEqual({ host: "vm.exemplo.com", porta: 22 });
     expect(lerEndereco(" 203.0.113.7:2222 ")).toEqual({ host: "203.0.113.7", porta: 2222 });
