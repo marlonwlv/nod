@@ -201,6 +201,8 @@
   .tela-nova-sala .opcao { min-height: 44px; padding: 6px 0; box-sizing: border-box; }
   .tela-nova-sala [data-act="criar-sala"] { min-height: 44px; }
   .bot-dialogo .acoes .bt { min-width: 44px; min-height: 44px; }
+  /* Jornadas da IA: o aviso dos termos trocou o .acoes .bt pelas pílulas próprias; o alvo de 44 px vale para elas também. */
+  .bot-dialogo .termos-acoes :is(.termos-sim, .termos-nao) { min-width: 44px; min-height: 44px; }
   /* NOD-381 (protótipo nod-381, aprovado em 2026-10-27): o topo da conversa flutua sobre o chat — o ‹ num círculo de vidro
      à esquerda e a pílula do bot centrada (44 px, avatar 28, nome 15/600 e a presença em 12 px embaixo, sem ponto nem ›).
      Embaixo deles o texto esmaece (--surface sólido até o meio dos botões → transparente em sa+76). Só os botões recebem
