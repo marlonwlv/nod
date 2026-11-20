@@ -219,6 +219,12 @@ describe("rotas: conectores, concessões, trilha e internas", () => {
     expect((await srv.chamar(sessao, "POST", `agentes/${alheio.id}/acessos`, { conectorId, nivel: "leitura" })).status).toBe(404);
     expect((await srv.chamar(sessao, "POST", `conectores/${conectorId}/desabilitar`)).status).toBe(200);
     expect((await srv.chamar(sessao, "POST", `agentes/${agenteId}/acessos`, { conectorId, nivel: "leitura" })).status).toBe(409);
+    // QA-107: a capacidade avulsa (form de Conectores) segue a mesma regra do nível: app desligado → 409, sem consentimento novo.
+    const consentimentos = memoria.banco.mensagens.filter((m) => m.kind === "consentimento").length;
+    const avulsa = await srv.chamar(sessao, "POST", `agentes/${agenteId}/concessoes`, { conectorId, capacidade: "gravar" });
+    expect(avulsa.status).toBe(409);
+    expect(memoria.banco.mensagens.filter((m) => m.kind === "consentimento")).toHaveLength(consentimentos);
+    expect((await srv.chamar(sessao, "POST", `agentes/${alheio.id}/concessoes`, { conectorId, capacidade: "somar" })).status).toBe(404);
     expect((await srv.chamar(sessao, "POST", `agentes/${agenteId}/acessos`, { conectorId, nivel: "nenhum" })).status).toBe(200);
   });
 });

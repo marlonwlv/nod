@@ -161,7 +161,7 @@ const computadores = criarComputadores({
 const plano = (agenteId: string) => ({
   tenantId: MARLON.tenantId, turnoId: `turno-${agenteId.slice(-1)}`, agenteId, conversaId: "conversa-1", expiraEm: Number.MAX_SAFE_INTEGER, confiancaEntrada: "confiavel",
   autoria: { conta_de_execucao: MARLON.pessoaId },
-  catalogo: { ferramentas: [{ nome: "computador_observar", origem: "computador" }, { nome: "computador_navegar", origem: "computador" }] },
+  catalogo: { ferramentas: ["computador_observar", "computador_navegar", "computador_audio", "computador_abas", "computador_arquivos"].map((nome) => ({ nome, origem: "computador" })) },
 }) as never;
 const observar = (agenteId: string) => computadores.chamar(MARLON, plano(agenteId), "computador_observar", {});
 
@@ -210,6 +210,24 @@ it("a ação do bot vai à tela dele; o registro leva o bot e a tela; a tela fic
   expect(registros).toEqual([expect.objectContaining({ computadorId: "pessoa-1", telaId: "tela-a", agenteId: A, autor: "bot", estado: "concluida" })]);
   expect(telas.get("tela-a")).toMatchObject({ estado: "aberta", operacaoId: null, ultimaAtividadeEm: T0 });
   expect(telas.get("tela-b")!.estado).toBe("fechada");
+});
+
+it.each([
+  ["computador_audio", { segundos: 1 }, /captura de áudio falhou.*não repita neste turno/i],
+  ["computador_abas", {}, /lista atual de abas.*outro índice/i],
+  ["computador_arquivos", {}, /caminho dentro de \/workspace/i],
+] as const)("falha de %s orienta a recuperação da própria ferramenta, não observar a tela", async (nome, argumentos, instrucao) => {
+  const executar = driver.executar;
+  driver.executar = async () => { throw new (await import("../../../src/domain/computador.ts")).FalhaComputador("acao_falhou"); };
+  try {
+    const r = await computadores.chamar(MARLON, plano(A), nome, argumentos);
+    const corpo = JSON.parse((r as { conteudo: string }).conteudo);
+    expect(r).toMatchObject({ ok: true, isError: true });
+    expect(corpo).toMatchObject({ erro: "acao_falhou", instrucao: expect.stringMatching(instrucao) });
+    expect(corpo.instrucao).not.toMatch(/observe a tela/i);
+  } finally {
+    driver.executar = executar;
+  }
 });
 
 it("sem memória para a tela, o bot espera na fila (sem 'Nada foi executado') e a ação sai quando a vez chega", async () => {

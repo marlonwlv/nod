@@ -1492,6 +1492,7 @@ export function criarTela(config, avisar) {
     await mkdir(config.x11, { recursive: true, mode: 0o1777 }).catch(() => {});
     await mkdir(ambienteX.HOME, { recursive: true, mode: 0o700 });
     await mkdir(config.workspace, { recursive: true });
+    await mkdir(path.join(config.workspace, 'downloads'), { recursive: true });
     await forkDoPerfil(config.perfilBase, config.perfil);
     // NOD-97 PR 6: houve um Sair de todos enquanto esta tela estava fechada: o storage do perfil sai antes do Chrome.
     await aplicarGeracaoNoPerfil(config.perfil, config.geracao);
@@ -1688,7 +1689,7 @@ export function criarTela(config, avisar) {
     });
     p.on('download', async (d) => {
       try {
-        await d.saveAs(path.join(config.workspace, path.basename(d.suggestedFilename())));
+        await d.saveAs(path.join(config.workspace, 'downloads', path.basename(d.suggestedFilename())));
       } catch {
         // falha de download fica visível no navegador, como no runtime
       }

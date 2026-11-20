@@ -25,7 +25,7 @@ export const TABELA_ERROS: Readonly<Record<CodigoErro, { status: number; mensage
   nao_permitido: { status: 403, mensagem: "Você não tem permissão para fazer isso." },
   mudou_depois: { status: 409, mensagem: "Esta memória foi alterada depois. Desfaça a mudança mais nova primeiro." },
   estado_invalido: { status: 409, mensagem: "Isso não pode ser feito agora. Atualize a página e tente de novo." },
-  executor_indisponivel: { status: 503, mensagem: "A inteligência não está disponível neste Mac agora. Abra o nod no Mac e tente de novo." },
+  executor_indisponivel: { status: 503, mensagem: "Nenhuma máquina com essa inteligência está disponível agora. Abra o nod em uma delas e tente de novo." },
   fuso_invalido: { status: 400, mensagem: "Fuso horário inválido. Use o nome de uma região, como America/Sao_Paulo, e não uma diferença de horas." },
   cron_sem_futuro: { status: 400, mensagem: "Esse horário não acontece mais. Escolha outro." },
   sala_tamanho: { status: 400, mensagem: "Uma sala tem de 2 a 6 bots." },

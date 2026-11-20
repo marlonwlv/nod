@@ -109,6 +109,13 @@ export const criarRotina: CasoNod<Deps, "criar_rotina"> = async (deps, input) =>
     if (ehErroDeDominio(e)) return { data: { erro: e.codigo } };
     throw e;
   }
+  // ADR-059 (emenda de 2026-09-30): no automático e no total a rotina nasce ativa — o modo confirma na hora.
+  const porRegra = await confirmacaoPeloModo(deps, input, { arriscada: false, gravaInstrucao: true });
+  // QA r113: o bot repetir a MESMA rotina (retry, chamada duplicada) não abre outro card nem agenda outra igual.
+  // Antes, no supervisionado nasciam dois cards e aprovar os dois criava duas rotinas; no automático, duas ativas
+  // disparavam em dobro. Supervisionado: devolve o card aberto. Automático/total: devolve a rotina ativa igual.
+  const repetida = await rotinaRepetida(deps, input, payload, porRegra !== null);
+  if (repetida) return { data: repetida };
   const proposta = await deps.repos.propostas.criar({ conversaId: input.conversaId, agenteId: input.agenteId, payload });
   if (!proposta) throw new ErroDeDominio("estado_invalido", { cause: "proposta não criada" });
   const decisao = await deps.repos.decisoes.criar({
@@ -124,8 +131,6 @@ export const criarRotina: CasoNod<Deps, "criar_rotina"> = async (deps, input) =>
   const events: RuntimeEvent[] = [
     evento(deps, "proposta_criada", autoria, { propostaId: proposta.id, kind: "rotina", proximaExecucao: payload.proximaExecucao }, { conversaId: input.conversaId, turnoId: input.turnoId }),
   ];
-  // ADR-059 (emenda de 2026-09-30): no automático e no total a rotina nasce ativa — o modo confirma na hora.
-  const porRegra = await confirmacaoPeloModo(deps, input, { arriscada: false, gravaInstrucao: true });
   if (porRegra) {
     try {
       const ativada = await ativarRotina(deps, { propostaId: proposta.id, porRegra });
@@ -139,6 +144,38 @@ export const criarRotina: CasoNod<Deps, "criar_rotina"> = async (deps, input) =>
   if (decisao) events.push(evento(deps, "decisao_criada", autoria, { decisaoId: decisao.id, tipo: "rotina" }, { conversaId: input.conversaId, turnoId: input.turnoId }));
   return { data: { proposta_id: proposta.id, proxima_execucao: payload.proximaExecucao, resumo: payload.resumo }, events };
 };
+
+type CamposDaRotina = Pick<PayloadPropostaRotina, "cron" | "fusoIana" | "instrucao" | "fonte" | "entregavel" | "limitesAprovacao" | "politicaSemDado"> & {
+  acessos?: readonly AcessoPedido[] | null;
+  gatilho?: "horario" | "webhook";
+  provedor?: string | null;
+  eventos?: readonly string[] | null;
+};
+
+/** A chave do "é a mesma rotina": o que foi normalizado e vai para a linha (horário, fuso, textos, acessos e gatilho). */
+function chaveDaRotina(r: CamposDaRotina): string {
+  const webhook = r.gatilho === "webhook";
+  return JSON.stringify([r.cron, r.fusoIana, r.instrucao, r.fonte, r.entregavel, r.limitesAprovacao, r.politicaSemDado, r.acessos ?? null, webhook, webhook ? (r.provedor ?? null) : null, webhook ? [...(r.eventos ?? [])].sort() : null]);
+}
+
+async function rotinaRepetida(
+  deps: Deps,
+  input: { agenteId: string; conversaId: string },
+  payload: PayloadPropostaRotina,
+  peloModo: boolean,
+): Promise<{ proposta_id: string; proxima_execucao: number; resumo: string; aplicada?: true } | null> {
+  const chave = chaveDaRotina(payload);
+  if (peloModo) {
+    const igual = (await deps.repos.rotinas.listarDoAgente(input.agenteId)).find((r) => r.estado === "ativa" && chaveDaRotina(r) === chave);
+    return igual ? { proposta_id: igual.id, proxima_execucao: igual.proximaExecucao, resumo: payload.resumo, aplicada: true } : null;
+  }
+  for (const p of await deps.repos.propostas.pendentesDaConversa(input.conversaId)) {
+    if (p.agenteId !== input.agenteId || p.payload.kind !== "rotina" || chaveDaRotina(p.payload) !== chave) continue;
+    const decisao = await deps.repos.decisoes.buscar(p.id);
+    if (decisao && (decisao.estado === "pendente" || decisao.estado === "reaberta")) return { proposta_id: p.id, proxima_execucao: p.payload.proximaExecucao, resumo: p.payload.resumo };
+  }
+  return null;
+}
 
 /**
  * `criar_rotina` com `para_bot` (definido em 2026-10-04, ADR-077): no onboarding por ligação a Nina propõe a rotina DO

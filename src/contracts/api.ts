@@ -143,6 +143,7 @@ export const ROTAS = [
   { metodo: "GET", caminho: "rotinas", lane: "L7" },
   { metodo: "POST", caminho: "rotinas", lane: "L7" },
   { metodo: "POST", caminho: "rotinas/:id/pausar", lane: "L7" }, { metodo: "POST", caminho: "rotinas/:id/ativar", lane: "L7" }, { metodo: "POST", caminho: "rotinas/:id/ritmo", lane: "L7" }, // ritmo: NOD-313
+  { metodo: "POST", caminho: "rotinas/pausar-todas", lane: "L7" }, { metodo: "POST", caminho: "rotinas/lotes/:id/reativar", lane: "L7" }, // desfazer a pausa em lote (0178)
   { metodo: "POST", caminho: "rotinas/:id/executar", lane: "L7" }, { metodo: "GET", caminho: "rotinas/:id/execucoes", lane: "L7" }, { metodo: "GET", caminho: "rotinas/:id/endereco", lane: "L7" }, { metodo: "POST", caminho: "rotinas/:id/endereco", lane: "L7" }, { metodo: "POST", caminho: "rotinas/:id/testar-webhook", lane: "L7" }, // NOD-84
   { metodo: "POST", caminho: "/api/w/:token", lane: "L7" }, { metodo: "POST", caminho: "/api/w", lane: "L7" }, { metodo: "GET", caminho: "rotinas/agenda", lane: "L7" }, // agenda: NOD-85
   { metodo: "GET", caminho: "salas", lane: "L7" },

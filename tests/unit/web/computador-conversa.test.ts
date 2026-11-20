@@ -73,7 +73,9 @@ describe("o chip [Computador](nod-computador:)", () => {
     const css = readFileSync(new URL("../../../web/computador-conversa.css", import.meta.url), "utf8");
     expect(index).toContain('<link rel="stylesheet" href="/computador-conversa.css" />');
     expect(css).toMatch(/\.cc-chip \{[^}]*white-space: nowrap/);
-    expect(css).toMatch(/\.cc-cartao \{[^}]*width: 300px[^}]*padding: 6px[^}]*border-radius: 16px/);
+    expect(css).toMatch(/\.cc-destino \{[^}]*position: fixed[^}]*width: 300px[^}]*padding: 6px[^}]*border-radius: 16px/);
+    // `.cc-cartao` é o cartão na conversa (pedido de ajuda, aprovação, conta): um fixed aqui o jogava por cima do chat.
+    expect(css).not.toMatch(/(^|[\s,}])\.cc-cartao\s*[{,]/);
     expect(css).toMatch(/animation: cc-faixa 1\.2s linear infinite/);
     expect(css).toContain("linear-gradient(110deg");
   });
