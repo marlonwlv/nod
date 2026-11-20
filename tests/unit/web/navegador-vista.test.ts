@@ -163,7 +163,10 @@ describe("os estados da tela (D3)", () => {
     expect(htmlEstadoDaTela("ligando", v, "Nina")).toMatch(/nv-giro.*Ligando o navegador da Nina.*No nod · leva uns 10 s/s);
     expect(htmlEstadoDaTela("ligando", vista({ lugar: { tipo: "maquina", maquinaId: "m", nome: "vm-sp" } }), "Nina")).toContain("Na vm-sp · leva uns 10 s");
     expect(htmlEstadoDaTela("conectando", v, "Nina")).toContain("Conectando à tela da Nina…");
-    expect(htmlEstadoDaTela("terminou", vista({ atividadeEm: new Date(2026, 10, 20, 16, 4).getTime() }), "Nina")).toContain("✓ Nina terminou aqui · 16:04");
+    // Nada por cima da imagem (D1d): a hora vai na pílula, no formato da linha de atividade.
+    expect(htmlEstadoDaTela("terminou", vista({ atividadeEm: new Date(2026, 10, 20, 16, 4).getTime() }), "Nina")).toBe("");
+    expect(htmlPilula("Nina", "assistindo", null, new Date(2026, 10, 20, 16, 4).getTime())).toContain("Terminou · 16h04");
+    expect(htmlPilula("Nina", "assistindo", null)).toContain("Assistindo");
     expect(htmlEstadoDaTela("segredo", v, "Nina")).toContain("Campo protegido");
     expect(htmlEstadoDaTela("ao_vivo", v, "Nina")).toBe("");
     expect(htmlEstadoDaTela("rede_fraca", v, "Nina")).toBe("");

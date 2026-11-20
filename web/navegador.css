@@ -177,7 +177,6 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 .nv-estado-segredo b, .nv-estado-segredo .nv-estado-ic { color: var(--nv-vivo); }
 /* Terminou: o último quadro esmaecido e o selo embaixo, à esquerda (D3, 5). */
 .nv-estado-terminou { justify-content: flex-end; align-items: flex-start; background: none; pointer-events: none; }
-.nv-selo-fim { padding: 4px 10px; border-radius: var(--raio-full); background: var(--action); color: var(--on-action); font-size: var(--fs-rotulo); line-height: 16px; }
 .nv-giro { display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; border: 1.6px solid var(--borda); border-top-color: var(--ink-2); border-radius: 50%; animation: nv-gira .8s linear infinite; }
 .nv-estado-ligando .nv-giro { width: 22px; height: 22px; border-top-color: var(--nv-cursor); }
 
@@ -186,7 +185,7 @@ button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
 .nv-pilula-lugar:empty, .nv-pilula-lugar[hidden] { display: none; }
 .nv-pilula { transition: width 180ms var(--curva); }
 .nv-pilula .ctc-estado span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.nv-pilula[data-estado="controle"] { width: auto; }
+.nv-pilula[data-estado="controle"], .nv-pilula.nv-pilula-terminou { width: auto; }
 .nv-pilula[data-estado="login"], .nv-pilula[data-estado="aprovacao"] { width: auto; gap: 12px; max-width: 100%; }
 .nv-pergunta { min-width: 0; max-width: 260px; }
 .nv-pergunta > span { overflow: hidden; text-overflow: ellipsis; }

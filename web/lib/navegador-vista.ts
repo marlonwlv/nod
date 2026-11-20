@@ -84,7 +84,7 @@ export function rotuloDaAprovacao(p: Extract<PedidoDaVistaNavegador, { tipo: "ap
  * O botão muda de nome, nunca de lugar (D4). No navegador o devolver diz "Devolver à {Bot}" (D1b, ajuste aceito). Na
  * aprovação (A1) o "sim" é preto como o botão do cartão e, sem o app do Mac, o aviso curto do cartão vai embaixo.
  */
-export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null): string {
+export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaVistaNavegador | null = null, terminouEm: number | null = null): string {
   const nomeE = esc(nome);
   const assumir = (desligado = false) => `<button type="button" class="ctc-bt ctc-assumir nv-assumir" data-nv="assumir"${desligado ? ' disabled aria-disabled="true"' : ""}><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`;
   let corpo: string;
@@ -109,10 +109,15 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
       break;
     }
     default:
-      corpo = `<span class="ctc-estado">${OLHO}<span>Assistindo</span></span>${assumir()}`;
+      // definido em 2026-11-20 (prova real com o modelo): o "terminou aqui" ficava por cima da imagem, contra a D1d; ele
+      // mora na pílula, no lugar do "Assistindo", com a hora no formato da linha de atividade ("10h12").
+      corpo = terminouEm !== null
+        ? `<span class="ctc-estado nv-terminou-txt" role="status"><span aria-hidden="true">✓</span><span>Terminou · ${horaComH(terminouEm)}</span><span class="sr-only"> ${nomeE} terminou o que fazia no navegador</span></span>${assumir()}`
+        : `<span class="ctc-estado">${OLHO}<span>Assistindo</span></span>${assumir()}`;
   }
+  const terminou = terminouEm !== null && estado === "assistindo";
   const nota = estado === "aprovacao" && pedido?.tipo === "aprovacao" && pedido.avisoTouchId ? `<p class="nv-pilula-nota">${esc(pedido.avisoTouchId)}</p>` : "";
-  return `<div class="ctc-controle nv-pilula" data-estado="${estado}" role="group" aria-label="Controle do navegador ${esc(deNome(nome))}">${corpo}</div>${nota}`;
+  return `<div class="ctc-controle nv-pilula${terminou ? " nv-pilula-terminou" : ""}" data-estado="${estado}" role="group" aria-label="Controle do navegador ${esc(deNome(nome))}">${corpo}</div>${nota}`;
 }
 
 // ---- a barra do navegador (D2, A e B) -------------------------------------------------------------------------------------
@@ -269,6 +274,12 @@ export function estadoDaTela(r: Pick<RespostaNavegador, "disponivel"> & { vista:
 }
 
 /** "16:04" no relógio de quem vê. */
+/** "10h12": a hora como a linha de atividade escreve. */
+export function horaComH(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getHours()}h${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 export function horaCurta(ms: number): string {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -280,7 +291,7 @@ const ICONE_CADEADO = '<svg width="24" height="24" viewBox="0 0 24 24" fill="non
 /**
  * A camada do estado (D3) por cima do palco: o esqueleto do "conectando", o lilás do "ligando", os parados com o botão, o
  * erro com causa, hora e lugar, e o segredo na página (L3). "" = ao vivo, rede fraca (a imagem fica sozinha).
- * "terminou" é só o selo embaixo (o último quadro fica esmaecido pelo CSS).
+ * "terminou" não desenha nada por cima: o último quadro fica esmaecido pelo CSS e a hora vai na pílula.
  */
 export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar" | "abas" | "atividadeEm" | "erro" | "pedido"> | null, nome: string): string {
   const n = esc(nome);
@@ -293,7 +304,8 @@ export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar
       // Achado 8 do crítico: o lugar inteiro ("No nod · leva uns 10 s"), não "nod · leva uns 10 s".
       return `<div class="nv-estado nv-estado-ligando" role="status">${GIRO}<b>Ligando o navegador ${dn}</b><span class="nv-estado-sub">${esc(fraseMaiuscula(lugar))}${lugar ? " · " : ""}leva uns 10 s</span></div>`;
     case "terminou":
-      return v ? `<div class="nv-estado nv-estado-terminou"><span class="nv-selo-fim" role="status">✓ ${n} terminou aqui · ${horaCurta(v.atividadeEm)}</span></div>` : "";
+      // A hora de quando terminou mora na pílula (fora da imagem, D1d); aqui fica só o último quadro esmaecido.
+      return "";
     case "pausa": {
       const guardadas = v?.abas.length ?? 0;
       return `<div class="nv-estado nv-estado-parado"><b>Navegador em pausa</b><button type="button" class="nv-estado-bt" data-nv="retomar">Retomar</button>${guardadas ? `<span class="nv-estado-sub">${guardadas} ${guardadas === 1 ? "aba guardada" : "abas guardadas"}</span>` : ""}</div>`;
