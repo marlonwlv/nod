@@ -40,6 +40,8 @@ export type OpcoesDaVista = {
   aoErro?: (e: unknown) => void;
   /** A aprovação no ponto sem volta (A1): a mesma decisão da conversa. */
   decidir?: (decisaoId: string, aprovar: boolean, sempre: boolean) => Promise<void>;
+  /** O "Entrar eu mesmo" do cartão de login (L1): a mesma escolha, feita tocando a tela. Devolve a vista nova. */
+  entrarEuMesmo?: (agenteId: string, decisaoId: string) => Promise<VistaNavegador | null>;
   /** Os testes passam um socket falso e o relógio; o padrão é o WebSocket do navegador. */
   abrirSocket?: (url: string) => SocketDaVista;
   agora?: () => number;
@@ -441,6 +443,36 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     if (controla()) { palco.focus({ preventScroll: true }); anuncio.textContent = `Você está no controle. ${fraseMaiuscula(comArtigo(o.nome()))} espera.`; }
   }
 
+  /** O bot parou e espera a pessoa: o login (antes do Touch ID) ou o "precisa de você" (captcha, código). */
+  function esperaAPessoa(): boolean {
+    const v = vista();
+    if (!v || v.controle === "pessoa") return false;
+    if (v.pedido?.tipo === "login") return v.pedido.etapa !== "confirme_no_mac" && !!o.entrarEuMesmo;
+    return v.controle === "precisa_de_voce" && !v.pedido;
+  }
+
+  let assumindoPeloToque = false;
+  async function assumirPeloToque(e: PointerEvent): Promise<void> {
+    if (assumindoPeloToque) return;
+    const p = pontoDoEvento(e);
+    const botao = botaoDoMouse(e.button);
+    const modificadores = modificadoresDe(e);
+    assumindoPeloToque = true;
+    try {
+      const v = vista();
+      if (v?.pedido?.tipo === "login") {
+        const nova = await o.entrarEuMesmo!(o.agenteId, v.pedido.decisaoId).catch((err: unknown) => { o.aoErro?.(err); return null; });
+        if (nova && !destruida) mudouVista(nova);
+      } else await assumir();
+    } finally { assumindoPeloToque = false; }
+    if (destruida || !controla()) return;
+    palco.focus({ preventScroll: true });
+    anuncio.textContent = `Você está no controle. ${fraseMaiuscula(comArtigo(o.nome()))} espera.`;
+    if (!p) return;
+    enviar({ t: "mouse", evento: "mousePressed", x: p.x, y: p.y, botao, cliques: 1, modificadores });
+    enviar({ t: "mouse", evento: "mouseReleased", x: p.x, y: p.y, botao, cliques: 1, modificadores });
+  }
+
   async function devolver(): Promise<void> {
     const v = vista();
     if (!v || !(v.controle === "pessoa" || v.controle === "precisa_de_voce")) return;
@@ -527,6 +559,10 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     if (!controla()) {
       if (!temQuadro || estadoAgora() === "segredo") return;
       e.preventDefault();
+      // definido em 2026-11-20 (teste do dono): com o bot esperando a pessoa (o login ou o "precisa de você"), a tela
+      // azul já é dela; tocar nela assume e o mesmo toque chega ao site. A dica "Assumir para mexer" fica para quando o
+      // bot está trabalhando (D4, A).
+      if (esperaAPessoa()) { void assumirPeloToque(e); return; }
       mostrarDicaAssumir(e);
       return;
     }

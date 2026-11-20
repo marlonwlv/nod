@@ -1352,6 +1352,17 @@ const navegadorNaTela = criarNavegadorNaTela({
       .catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador: null }); });
   },
   guardarVista: (id, r) => { if (estado.navegadores[id] !== r) dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador: r }); },
+  // Tocar a tela azul do login = "Entrar eu mesmo" do cartão (L1, D4 D): o cartão fecha e o controle vai para a pessoa.
+  entrarEuMesmo: async (agenteId, decisaoId) => {
+    if (!api || !agenteId) return null;
+    lembrarFonteDoLogin(agenteId, null);
+    try {
+      const r = await api.escolherLoginNoNavegador(agenteId, decisaoId, "eu_mesmo");
+      hidratarVistaDoNavegador(agenteId, r.vista);
+      if (r.aviso) anunciar(r.aviso);
+      return r.vista;
+    } finally { invalidarPedidoDoNavegador(); }
+  },
   decidir: async (decisaoId, aprovar, sempre) => {
     await decidirAprovacaoReconciliando(decisaoId, aprovar ? (sempre ? { sempre: true } : {}) : await corpoDaRecusaDoNavegador(decisaoId));
     dispatch({ tipo: "invalidar", quais: ["sua-vez"] });

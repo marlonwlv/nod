@@ -37,6 +37,7 @@ export type OpcoesNavegadorNaTela = {
   /** A vista mudou por fora do reducer (canal ou operação): guarda no estado da tela. */
   guardarVista: (agenteId: string, r: RespostaNavegador) => void;
   decidir: OpcoesDaVista["decidir"];
+  entrarEuMesmo?: OpcoesDaVista["entrarEuMesmo"];
   /** "Recado para a {Bot}" (D1c): manda na conversa do bot; mandar devolve o controle. */
   mandarRecado: (agenteId: string, texto: string) => Promise<void>;
   /** "Logins deste site…" (D1c). */
@@ -205,6 +206,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       aoMudar: (r) => { respostas.set(agenteId, r); o.guardarVista(agenteId, r); pintarTopo(); pintarTelaCheia(); avisarDescarte(agenteId, r.vista); },
       aoErro: o.aoErro,
       decidir: o.decidir,
+      entrarEuMesmo: o.entrarEuMesmo,
     });
     v.atualizar(respostas.get(agenteId) ?? null);
     vistas.set(agenteId, v);

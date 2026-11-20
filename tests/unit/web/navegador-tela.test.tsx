@@ -57,7 +57,7 @@ describe("a vista do navegador (D1–D4)", () => {
   beforeEach(() => { sockets = []; document.body.innerHTML = ""; });
   afterEach(() => { vi.useRealTimers(); });
 
-  function montar(r: RespostaNavegador | null = resposta(), o: { decidir?: (id: string, a: boolean, s: boolean) => Promise<void>; menosMovimento?: () => boolean } = {}) {
+  function montar(r: RespostaNavegador | null = resposta(), o: { decidir?: (id: string, a: boolean, s: boolean) => Promise<void>; menosMovimento?: () => boolean; entrarEuMesmo?: (a: string, d: string) => Promise<VistaNavegador | null> } = {}) {
     const { api, ops } = apiFalsa();
     const v = montarVistaNavegador({ api, agenteId: "a1", nome: () => "Ada", abrirSocket: () => { const s = new SocketFalso(); sockets.push(s); return s; }, menosMovimento: () => true, ...o });
     document.body.append(v.el);
@@ -89,6 +89,28 @@ describe("a vista do navegador (D1–D4)", () => {
     expect(sockets[0]!.enviados).toEqual([]);
     expect(v.el.querySelector<HTMLElement>(".nv-dica-assumir")!.hidden).toBe(false);
     expect(v.el.querySelector(".nv-anuncio")?.textContent).toContain("Assuma o controle");
+  });
+
+  it("login esperando a pessoa: tocar a tela é o 'Entrar eu mesmo' e o mesmo toque chega ao site", async () => {
+    const login = { tipo: "login" as const, decisaoId: "d1", site: "accounts.google.com", motivo: "", opcoes: [], podeTrazerDoChrome: false, etapa: "escolher" as const, erro: null };
+    const entrarEuMesmo = vi.fn(async () => vista({ controle: "pessoa", pedido: { ...login, etapa: "eu_mesmo" } }));
+    const { v } = montar(resposta({ controle: "precisa_de_voce", pedido: login }), { entrarEuMesmo });
+    sockets[0]!.chega({ t: "quadro", seq: 1, jpeg: "QUJD", w: 1280, h: 800 });
+    palcoEm(v.el).dispatchEvent(ponteiro("pointerdown", 320, 300));
+    await vi.waitFor(() => expect(v.controleComPessoa()).toBe(true));
+    expect(entrarEuMesmo).toHaveBeenCalledWith("a1", "d1");
+    expect(v.el.querySelector<HTMLElement>(".nv-dica-assumir")!.hidden).toBe(true);
+    expect(sockets[0]!.enviados.map((m) => (m as { evento?: string }).evento)).toEqual(["mousePressed", "mouseReleased"]);
+    expect(document.activeElement).toBe(v.el.querySelector(".nv-palco"));
+  });
+
+  it("precisa de você (captcha): tocar a tela assume direto, sem a dica", async () => {
+    const { v, ops } = montar(resposta({ controle: "precisa_de_voce" }));
+    sockets[0]!.chega({ t: "quadro", seq: 1, jpeg: "QUJD", w: 1280, h: 800 });
+    palcoEm(v.el).dispatchEvent(ponteiro("pointerdown", 320, 300));
+    await vi.waitFor(() => expect(v.controleComPessoa()).toBe(true));
+    expect(ops).toEqual(["assumir"]);
+    expect(sockets[0]!.enviados).toHaveLength(2);
   });
 
   it("assumir: a pílula vira 'Você está no controle | Devolver à Ada', a borda preta; o mouse vai ao viewport", async () => {
