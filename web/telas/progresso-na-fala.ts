@@ -3,7 +3,8 @@ import type { EstadoTrabalho, TrabalhoDto } from "../../src/contracts/trabalho.t
 import type { ConversaEstado, Estado } from "../estado/reducer.ts";
 import { seletoresDoFoco } from "../lib/foco-do-bloco.ts";
 import { esc, hora } from "../lib/render.ts";
-import { aberto, emEspera, juntar, passoDaFrente, tempoDe, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { aberto, emEspera, passoDaFrente, tempoDe, tituloCurto, trabalhosConhecidos } from "../lib/trabalhos.ts";
+import { ANEL_FILA, ANEL_RODANDO, DISCO_FALHOU, DISCO_FEITA, PONTO_PRECISA, QUADRADO_PARADA } from "./icones-da-tarefa.ts";
 
 /**
  * O progresso mora na fala que abriu as frentes (definido em 2026-10-18, chat limpo, PR 7; plano, Parte 4 · 4b; protótipo
@@ -11,12 +12,14 @@ import { aberto, emEspera, juntar, passoDaFrente, tempoDe, tituloCurto, trabalho
  * terminaram" saíram do chat no PR 2 (são `anexo`); o que o bot está fazendo nelas volta para dentro da fala dele:
  *
  * - **onde**: embaixo do texto da fala do bot do mesmo turno que gravou `frentes_abertas` (a última do turno à vista, a
- *   mesma que `linhaDepoisDaFala` acha); a frente da rede, que não tem fala antes, entra embaixo do balão da pessoa que
- *   virou a frente (a mensagem dela leva o `trabalhoId`). Sem a abertura na janela, ou sem a fala à vista (a rotina que
+ *   mesma que `linhaDepoisDaFala` acha); a frente da rede entra embaixo da linha dela, "Seguiu numa tarefa para o chat
+ *   ficar livre" (ADR-187, linhas-do-chat.ts). Sem a abertura na janela, ou sem a fala à vista (a rotina que
  *   abriu frentes, o pedido de um colega), não há bloco — a pílula do PR 8 cobre esse caso;
- * - **o quê**: uma barra com um segmento por frente e "3 de 5 prontas · Hero w3 e Hero w5 rodando · ver as 5", que abre a
- *   lista no lugar (prontas com ✓ e a hora, rodando com o último passo e o tempo, parada com ■). Com uma frente só, uma
- *   linha (o ponto, o título e o passo), sem barra nem lista;
+ * - **o quê** (ADR-187 §5, lote B passo 6, 2026-11-18; Paper 1c, 1d e P1): o cartão vivo. Com várias tarefas, o topo
+ *   ("2 tarefas · 1 pronta" e o tempo à direita), a barra com um segmento por tarefa e uma linha por tarefa (o ícone do
+ *   estado, o título, o estado em poucas palavras e "Ver"; a que precisa de você, a pergunta em azul e "Responder"). Acima
+ *   de cinco, as linhas viram chips ("✓ #812", "#831 na fila") e "Ver detalhes ›", e a que precisa de você ganha a linha
+ *   realçada. Com uma tarefa só, o cartão é a própria linha (o título, o passo e o tempo embaixo, e "Ver");
  * - **de onde**: o estado de cada frente sai de `trabalhosConhecidos`; a que já saiu da lista (terminou noutro dia, ou a
  *   lista não chegou), de `frentes_terminadas` (anexo, na janela). Sem nenhum dos dois, "sem notícia" — nunca "pronta".
  *
@@ -43,6 +46,10 @@ export type FrenteNaFala = {
   tempo: string | null;
   /** Quando terminou (pronta, parada ou falhou), se se sabe. */
   terminouEm: number | null;
+  /** Desde quando anda (as que já começaram): o tempo do topo do cartão é o da mais antiga. */
+  inicio?: number | null;
+  /** Esperando sem ter começado ("#831 na fila", Paper P1). */
+  naFila?: boolean;
 };
 
 /** A abertura de frentes: `frentes_abertas`, ou `trabalho_aberto` da rede (a conversa que virou frente sozinha). */
@@ -73,12 +80,8 @@ export function ancorasDoProgresso(mensagens: readonly Mensagem[], visivel: (m: 
         if (x && x.turnoId === a.turnoId && x.kind === "texto" && x.autoria.autor_tipo === "agente" && visivel(x)) alvo = x;
       }
     }
-    // A frente da rede não tem fala antes: o turno promovido virou a frente e as falas dele moram nela. O bloco fica no
-    // balão da pessoa que pediu (o servidor marca a mensagem dela com o trabalho do turno que ela disparou).
-    if (a.rede) {
-      const ids = new Set(a.frentes.map((f) => f.trabalhoId));
-      alvo = mensagens.find((x) => x.kind === "texto" && x.autoria.autor_tipo === "pessoa" && x.trabalhoId && ids.has(x.trabalhoId) && visivel(x));
-    }
+    // A frente da rede não procura âncora: a linha dela ("Seguiu numa tarefa…", linhas-do-chat.ts) já traz o lugar do
+    // bloco, do lado do bot (ADR-187, 2026-11-17). Antes o bloco ia no balão da pessoa que pediu.
     if (alvo) ancoras.set(alvo.id, [...(ancoras.get(alvo.id) ?? []), a.id]);
   });
   return ancoras;
@@ -126,7 +129,9 @@ export function frentesNaFala(abertura: Pick<Abertura, "frentes">, mensagens: re
     if (t && !(fim && aberto(t) && !abertasNaConversa.has(t.id))) {
       const e = estadoDoTrabalho(t);
       const vivo = e === "rodando" || e === "precisa" || e === "esperando";
-      return { trabalhoId: t.id, titulo: t.titulo, estado: e, passo: vivo ? passoDaFrente(estado, t, todos) : null, tempo: vivo && t.estado !== "na_fila" ? tempoDe(t, estado.agora) : null, terminouEm: vivo ? null : t.terminadoEm };
+      // Paper 15: a pronta mostra o último passo dela ("Corrigiu 2 testes · CI verde") embaixo do título.
+      const anda = vivo && t.estado !== "na_fila";
+      return { trabalhoId: t.id, titulo: t.titulo, estado: e, passo: vivo ? passoDaFrente(estado, t, todos) : e === "pronta" ? (t.ultimoPasso ?? null) : null, tempo: anda ? tempoDe(t, estado.agora) : null, terminouEm: vivo ? null : t.terminadoEm, ...(anda ? { inicio: t.iniciadoEm ?? t.criadoEm } : {}), ...(t.estado === "na_fila" ? { naFila: true } : {}) };
     }
     if (fim) return { trabalhoId: f.trabalhoId, titulo: fim.titulo || f.titulo, estado: ESTADO_DO_FIM[fim.estado] ?? "sem_noticia", passo: null, tempo: null, terminouEm: fim.em };
     return { trabalhoId: f.trabalhoId, titulo: f.titulo, estado: "sem_noticia", passo: null, tempo: null, terminouEm: null };
@@ -136,82 +141,130 @@ export function frentesNaFala(abertura: Pick<Abertura, "frentes">, mensagens: re
   return frentes.map((f, i) => ({ f, i })).sort((a, b) => ordem(a.f.estado) - ordem(b.f.estado) || (a.f.terminouEm ?? 0) - (b.f.terminouEm ?? 0) || a.i - b.i).map((x) => x.f);
 }
 
-/** definido em 2026-10-18: até dois títulos, somando até 40 caracteres, vão por nome; mais que isso, a contagem. */
-const NOMES_ATE = 40;
-
-/** "3 de 5 prontas" e o que vem depois, em cinza: quem roda, quem espera você, quem parou ou falhou. */
-export function resumoDoProgresso(frentes: readonly FrenteNaFala[]): { principal: string; resto: string[] } {
-  const de = (e: EstadoNaFala): FrenteNaFala[] => frentes.filter((f) => f.estado === e);
-  const nomes = (fs: readonly FrenteNaFala[]): string | null => {
-    const ts = fs.map((f) => tituloCurto(f.titulo));
-    return fs.length <= 2 && ts.join("").length <= NOMES_ATE ? juntar(ts) : null;
-  };
-  const resto: string[] = [];
-  const rodando = de("rodando");
-  if (rodando.length) resto.push(`${nomes(rodando) ?? rodando.length} rodando`);
-  const precisa = de("precisa");
-  if (precisa.length) resto.push(precisa.length === 1 ? `${nomes(precisa) ?? "1"} precisa de você` : `${precisa.length} precisam de você`);
-  const esperando = de("esperando");
-  if (esperando.length) resto.push(`${esperando.length} esperando`);
-  const paradas = de("parada");
-  const [parada] = paradas;
-  if (paradas.length === 1 && parada) resto.push(`${tituloCurto(parada.titulo)} parada${parada.terminouEm ? ` às ${hora(parada.terminouEm)}` : ""}`);
-  else if (paradas.length > 1) resto.push(`${paradas.length} paradas`);
-  const falhas = de("falhou");
-  const [falha] = falhas;
-  if (falhas.length === 1 && falha) resto.push(`${tituloCurto(falha.titulo)} não terminou`);
-  else if (falhas.length > 1) resto.push(`${falhas.length} não terminaram`);
-  // A frente sem notícia (terminou noutro dia, antes do fecho do lote: nem a lista nem `frentes_terminadas` a trazem) é dita,
-  // senão "0 de 5 prontas" parecia "nenhuma pronta" (revisão do PR 398).
-  const semNoticia = de("sem_noticia").length;
-  if (semNoticia) resto.push(`${semNoticia} sem notícia`);
-  return { principal: `${de("pronta").length} de ${frentes.length} prontas`, resto };
+/**
+ * Paper 15 (ADR-167): o nome curto da tarefa, o pedaço antes do primeiro " · " ("PR #491 · Passagem por coluna" → "PR #491").
+ * O cartão vivo o usa nos chips e na linha realçada de quem precisa de você (Paper P1: "#812", "PR #821 · Posso…?").
+ */
+export function nomeNoResumo(titulo: string): string {
+  const curto = tituloCurto(titulo);
+  const i = curto.indexOf(" · ");
+  return i > 0 ? curto.slice(0, i) : curto;
 }
 
-const ROTULO: Record<EstadoNaFala, string> = { pronta: "pronta", rodando: "rodando", precisa: "precisa de você", esperando: "esperando", parada: "parada", falhou: "não terminou", sem_noticia: "sem notícia" };
-const IC_OK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const contagem = (n: number, um: string, varios: string): string => (n === 1 ? `1 ${um}` : `${n} ${varios}`);
 
-function icone(e: EstadoNaFala): string {
-  if (e === "pronta") return `<span class="progresso-ic pronta">${IC_OK}</span>`;
-  if (e === "parada") return '<span class="progresso-ic parada" aria-hidden="true"></span>';
-  if (e === "falhou") return '<span class="progresso-ic falhou" aria-hidden="true">!</span>';
-  return `<span class="progresso-ic ${e}" aria-hidden="true"></span>`;
-}
-
-/** O lado direito do item: a hora em que terminou ou o tempo rodando. */
-function fimDoItem(f: FrenteNaFala): string {
-  const texto = f.terminouEm ? hora(f.terminouEm) : f.tempo ?? "";
-  return texto ? `<span class="progresso-fim">${esc(texto)}</span>` : "";
-}
-
-/** Um item: o ícone, o título (abre a frente), o passo embaixo quando anda, e a hora ou o tempo. A pílula alargada usa o mesmo. */
-export function itemDaFrente(f: FrenteNaFala): string {
-  const curto = tituloCurto(f.titulo);
-  const sub = f.passo ? `<span class="progresso-passo">${esc(f.passo)}</span>` : f.estado === "parada" || f.estado === "falhou" || f.estado === "sem_noticia" ? `<span class="progresso-passo">${esc(ROTULO[f.estado])}</span>` : "";
-  return `<li class="progresso-item ${f.estado}">${icone(f.estado)}<span class="progresso-corpo"><button type="button" class="progresso-titulo" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}"${curto === f.titulo ? "" : ` title="${esc(f.titulo)}"`}>${esc(curto)}</button><span class="sr-only"> (${ROTULO[f.estado]})</span>${sub}</span>${fimDoItem(f)}</li>`;
+/**
+ * O topo do cartão (Paper 1c: "2 tarefas · 1 pronta"; Paper 4d: "· 1 precisa de você"): quantas são, quantas ficaram prontas
+ * e o que pede atenção. Sem nenhuma pronta, só a conta ("2 tarefas"): o "0 prontas" lia como problema. `comPrecisa` sai
+ * quando a pergunta já tem a linha realçada embaixo (Paper P1: "12 tarefas · 3 prontas").
+ */
+export function resumoDoProgresso(frentes: readonly FrenteNaFala[], comPrecisa = true): string {
+  const de = (e: EstadoNaFala): number => frentes.filter((f) => f.estado === e).length;
+  const partes = [frentes.length === 1 ? "1 tarefa" : `${frentes.length} tarefas`];
+  if (de("pronta")) partes.push(contagem(de("pronta"), "pronta", "prontas"));
+  if (comPrecisa && de("precisa")) partes.push(contagem(de("precisa"), "precisa de você", "precisam de você"));
+  if (de("parada")) partes.push(contagem(de("parada"), "parada", "paradas"));
+  if (de("falhou")) partes.push(contagem(de("falhou"), "não terminou", "não terminaram"));
+  // A tarefa sem notícia (terminou noutro dia, antes do fecho do lote) é dita: sem ela a conta não fecha (revisão do PR 398).
+  if (de("sem_noticia")) partes.push(`${de("sem_noticia")} sem notícia`);
+  return partes.join(" · ");
 }
 
 /**
- * O bloco de uma abertura. `agenteId` é o bot da conversa (a telemetria conta por ele); `chave`, o id da abertura, que dá o
- * `data-disclosure` (a lista aberta sobrevive ao re-render) e a chave da linha `frentes` na telemetria (ADR-099, gatilho
- * "detalhe das frentes aberto em mais de 30%": no PR 8, a pílula alargada conta no mesmo tipo).
+ * A ordem da barra e das linhas (Paper P1: as prontas em preto, a que precisa de você em azul, as que rodam e por fim as da
+ * fila): o que terminou à esquerda, o que ainda anda à direita. As linhas seguem a mesma ordem (Paper 1c e 4d).
+ */
+const ORDEM_NO_CARTAO: readonly EstadoNaFala[] = ["pronta", "falhou", "parada", "sem_noticia", "precisa", "rodando", "esperando"];
+
+/** definido em 2026-11-18 (ADR-187 §5, Paper P1): acima de cinco tarefas, as linhas viram chips. */
+export const CHIPS_ACIMA = 5;
+
+const ROTULO: Record<EstadoNaFala, string> = { pronta: "pronta", rodando: "rodando", precisa: "precisa de você", esperando: "esperando", parada: "parada", falhou: "não terminou", sem_noticia: "sem notícia" };
+/** O ✓ solto (menus, abas de tarefa, tela Tarefas); o cartão vivo usa o ✓ no disco (`DISCO_FEITA`). */
+export const IC_OK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+const ICONE: Record<EstadoNaFala, string> = { pronta: DISCO_FEITA, rodando: ANEL_RODANDO, precisa: PONTO_PRECISA, esperando: ANEL_FILA, parada: QUADRADO_PARADA, falhou: DISCO_FALHOU, sem_noticia: ANEL_FILA };
+
+function icone(e: EstadoNaFala): string {
+  return `<span class="tv-ic" aria-hidden="true">${ICONE[e]}</span>`;
+}
+
+/**
+ * Onde a linha aparece: `cartao` (uma de várias no cartão vivo, Paper 1c), `uma` (o cartão de uma tarefa só, Paper 1d: o
+ * passo leva o tempo) e `lista` (a lista aberta da aba, Paper 4d/OR4: o estado curto à direita, sem "Ver").
+ */
+export type ModoDaLinha = "cartao" | "uma" | "lista";
+
+/** O estado em poucas palavras: o último passo quando há; senão o rótulo, com a hora para a que terminou. */
+function textoDoEstado(f: FrenteNaFala, modo: ModoDaLinha): string {
+  if (modo === "lista" && (f.estado === "pronta" || f.estado === "precisa")) return ROTULO[f.estado];
+  const fim = f.terminouEm && (f.estado === "pronta" || f.estado === "parada" || f.estado === "falhou") ? ` às ${hora(f.terminouEm)}` : "";
+  const base = f.passo ?? (f.naFila ? "na fila" : `${ROTULO[f.estado]}${fim}`);
+  return modo === "uma" && f.tempo ? `${base} · ${f.tempo}` : base;
+}
+
+/**
+ * Uma linha de tarefa (ADR-187 §5, lote B passo 6): o ícone do estado, o título, o estado em poucas palavras e, no cartão,
+ * "Ver" (ou "Responder", na que precisa de você). A linha inteira é um botão que abre a tarefa em tela cheia, na aba dela
+ * (Paper 4d: '"Ver" (ou a linha inteira)'). O mesmo desenho no cartão vivo e na lista aberta da aba.
+ */
+export function linhaDaTarefa(f: FrenteNaFala, modo: ModoDaLinha): string {
+  const curto = tituloCurto(f.titulo);
+  const estado = textoDoEstado(f, modo);
+  const sr = estado === ROTULO[f.estado] ? "" : `<span class="sr-only"> (${ROTULO[f.estado]})</span>`;
+  const ver = modo === "lista" ? "" : `<span class="tv-ver">${f.estado === "precisa" ? "Responder" : "Ver"}</span>`;
+  return `<li class="tv-item"><button type="button" class="tv-linha" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}" data-estado="${f.estado}"${curto === f.titulo ? "" : ` title="${esc(f.titulo)}"`}>${icone(f.estado)}<span class="tv-texto"><span class="tv-titulo">${esc(curto)}</span>${sr}<span class="tv-estado">${esc(estado)}</span></span>${ver}</button></li>`;
+}
+
+/** Paper P1: a que precisa de você, acima dos chips, realçada em azul ("PR #821 · Posso rodar a migração…?" e "Responder"). */
+function linhaQuePede(f: FrenteNaFala): string {
+  const texto = f.passo ? `${nomeNoResumo(f.titulo)} · ${f.passo}` : nomeNoResumo(f.titulo);
+  return `<li class="tv-item"><button type="button" class="tv-linha tv-pede" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}" data-estado="precisa" title="${esc(f.titulo)}">${icone("precisa")}<span class="tv-texto"><span class="tv-titulo">${esc(texto)}</span><span class="sr-only"> (precisa de você)</span></span><span class="tv-ver">Responder</span></button></li>`;
+}
+
+/** Paper P1: o chip ("✓ #812", "◌ #815", "#831 na fila"); o título inteiro e o estado no nome acessível. */
+function chip(f: FrenteNaFala): string {
+  const nome = `${nomeNoResumo(f.titulo)}${f.naFila ? " na fila" : ""}`;
+  return `<li class="tv-item"><button type="button" class="tv-chip" data-act="abrir-trabalho" data-id="${esc(f.trabalhoId)}" data-estado="${f.estado}" title="${esc(f.titulo)}" aria-label="${esc(`${tituloCurto(f.titulo)}: ${ROTULO[f.estado]}`)}">${icone(f.estado)}${esc(nome)}</button></li>`;
+}
+
+/** O tempo à direita do topo: o da tarefa que anda há mais tempo; sem nenhuma andando, a hora em que a última terminou. */
+function tempoDoCartao(frentes: readonly FrenteNaFala[]): string {
+  const vivas = frentes.filter((f) => f.estado === "rodando" || f.estado === "precisa" || f.estado === "esperando");
+  if (vivas.length) {
+    const [antiga] = vivas.filter((f) => f.tempo && f.inicio != null).sort((a, b) => (a.inicio ?? 0) - (b.inicio ?? 0));
+    return antiga?.tempo ?? "";
+  }
+  const fim = Math.max(0, ...frentes.map((f) => f.terminouEm ?? 0));
+  return fim ? hora(fim) : "";
+}
+
+/**
+ * O bloco de uma abertura: o cartão vivo. `chave` é o id da abertura e `agenteId` o bot da conversa (ficam para quem desenha:
+ * a pílula conta a abertura do detalhe no tipo `frentes` da telemetria, ADR-099). `memoria` é o ponto do Mac (PR 8).
  */
 export function htmlProgresso(frentes: readonly FrenteNaFala[], p: { chave: string; agenteId: string; memoria?: MemoriaNoProgresso | null }): string {
   const [unica] = frentes;
   if (!unica) return "";
-  // PR 8: `data-frentes` diz à rolagem de quais frentes este bloco fala — a pílula some quando ele está à vista.
+  // PR 8: `data-frentes` diz à rolagem de quais frentes este bloco fala (Ver na conversa da pílula).
   const ids = esc(frentes.map((f) => f.trabalhoId).join(" "));
   const memoria = p.memoria ? `<span class="progresso-memoria ${p.memoria.nivel}" role="img" aria-label="${esc(p.memoria.texto)}" title="${esc(p.memoria.texto)}"></span>` : "";
-  if (frentes.length === 1) {
-    const curto = tituloCurto(unica.titulo);
-    const detalhe = unica.passo ?? (unica.terminouEm && unica.estado !== "sem_noticia" ? `${ROTULO[unica.estado]} às ${hora(unica.terminouEm)}` : ROTULO[unica.estado]);
-    return `<section class="progresso progresso-uma" data-frentes="${ids}" aria-label="${esc(`Frente ${curto}: ${ROTULO[unica.estado]}`)}"><div class="progresso-item ${unica.estado}">${icone(unica.estado)}<span class="progresso-corpo progresso-em-linha"><button type="button" class="progresso-titulo" data-act="abrir-trabalho" data-id="${esc(unica.trabalhoId)}"${curto === unica.titulo ? "" : ` title="${esc(unica.titulo)}"`}>${esc(curto)}</button><span class="progresso-passo">${esc(detalhe)}</span></span>${memoria}${unica.tempo ? `<span class="progresso-fim">${esc(unica.tempo)}</span>` : ""}</div></section>`;
-  }
-  const { principal, resto } = resumoDoProgresso(frentes);
-  const barra = frentes.map((f) => `<span class="progresso-seg ${f.estado}"></span>`).join("");
-  const texto = `${esc(principal)}${memoria}${resto.length ? `<span class="progresso-resto"> · ${esc(resto.join(" · "))}</span>` : ""}`;
-  const resumo = `<summary class="progresso-resumo" data-act="abrir-progresso" data-linha-tipo="frentes" data-linha-chave="${esc(`frentes:${p.chave}`)}" data-agente="${esc(p.agenteId)}"><span class="progresso-txt">${texto}</span><span class="progresso-ver">ver as ${frentes.length}</span><span class="progresso-ocultar">ocultar</span></summary>`;
-  return `<section class="progresso" data-frentes="${ids}" aria-label="${esc(`Frentes: ${principal}`)}"><div class="progresso-barra" aria-hidden="true">${barra}</div><details class="progresso-det" data-disclosure="progresso-${esc(p.chave)}">${resumo}<ul class="progresso-lista">${frentes.map(itemDaFrente).join("")}</ul></details></section>`;
+  // Paper 1d: uma tarefa só é uma linha num cartão, sem topo nem barra.
+  if (frentes.length === 1) return `<section class="progresso progresso-uma" data-frentes="${ids}" aria-label="${esc(`Tarefa ${tituloCurto(unica.titulo)}: ${ROTULO[unica.estado]}`)}"><ul class="tv-linhas">${linhaDaTarefa(unica, "uma")}</ul>${memoria}</section>`;
+  const ordenadas = [...frentes].sort((a, b) => ORDEM_NO_CARTAO.indexOf(a.estado) - ORDEM_NO_CARTAO.indexOf(b.estado));
+  const chips = frentes.length > CHIPS_ACIMA;
+  const resumo = resumoDoProgresso(frentes, !chips);
+  const tempo = tempoDoCartao(frentes);
+  const topo = `<div class="tv-topo"><b class="tv-resumo">${esc(resumo)}</b>${memoria}${tempo ? `<span class="tv-tempo">${esc(tempo)}</span>` : ""}</div>`;
+  const barra = `<div class="tv-barra" aria-hidden="true">${ordenadas.map((f) => `<span class="tv-seg" data-estado="${f.estado}"></span>`).join("")}</div>`;
+  let corpo: string;
+  if (chips) {
+    const pedem = ordenadas.filter((f) => f.estado === "precisa");
+    // "Ver detalhes ›" abre a lista aberta da aba (a mesma ação da aba: `pilula`, que conta a abertura na telemetria).
+    const mais = `<li class="tv-item"><button type="button" class="tv-mais" data-act="pilula">Ver detalhes<span aria-hidden="true">›</span></button></li>`;
+    corpo = `${pedem.length ? `<ul class="tv-pedem">${pedem.map(linhaQuePede).join("")}</ul>` : ""}<ul class="tv-chips">${ordenadas.filter((f) => f.estado !== "precisa").map(chip).join("")}${mais}</ul>`;
+  } else corpo = `<ul class="tv-linhas">${ordenadas.map((f) => linhaDaTarefa(f, "cartao")).join("")}</ul>`;
+  return `<section class="progresso" data-frentes="${ids}" aria-label="${esc(`Tarefas: ${resumo}`)}">${topo}${barra}${corpo}</section>`;
 }
 
 /** As aberturas da janela por id, uma vez por lista de mensagens (a tela pede a cada quadro). */
@@ -278,13 +331,14 @@ export type LugarNaTela = {
   innerHTML: string;
   isConnected: boolean;
   contains(outro: unknown): boolean;
-  querySelector(seletor: string): { open?: boolean; focus?: (o?: { preventScroll?: boolean }) => void } | null;
+  querySelector(seletor: string): { focus?: (o?: { preventScroll?: boolean }) => void } | null;
 };
 
 /**
  * O progresso na tela (QA do PR 398): os lugares são procurados só quando o histórico é regravado (`achar`, nunca a cada
- * quadro — ADR-061) e, a cada desenho, só o lugar cujo bloco mudou é trocado (`desenhar`), guardando a lista aberta e o
- * foco (o "ver as 5" ou o título de uma frente, como `regiaoPorBlocos` faz com o bloco refeito). Devolve quantos trocou.
+ * quadro — ADR-061) e, a cada desenho, só o lugar cujo bloco mudou é trocado (`desenhar`), guardando o foco (a linha ou o
+ * chip de uma tarefa, como `regiaoPorBlocos` faz com o bloco refeito). Devolve quantos trocou. Desde 2026-11-18 (lote B,
+ * passo 6) o cartão não abre nem fecha: não há lista aberta a guardar.
  */
 export function criarProgressoNaTela(ativo: () => unknown = () => (globalThis as { document?: { activeElement: unknown } }).document?.activeElement ?? null): {
   achar(raiz: { querySelectorAll(seletor: string): Iterable<LugarNaTela> } | null): void;
@@ -303,14 +357,11 @@ export function criarProgressoNaTela(ativo: () => unknown = () => (globalThis as
         if (!lugar.isConnected) continue;
         const html = blocoDaAbertura(lugar.dataset.progresso ?? "", c, estado, memoria);
         if (desenhado.get(lugar) === html) continue;
-        const aberta = lugar.querySelector("details")?.open === true;
         const foco = ativo() as { dataset?: { act?: string; id?: string } } | null;
         const focado = foco && lugar.contains(foco) ? foco : null;
         lugar.innerHTML = html;
         desenhado.set(lugar, html);
         trocados++;
-        const det = aberta ? lugar.querySelector("details") : null;
-        if (det) det.open = true;
         if (focado) {
           for (const seletor of seletoresDoFoco(focado.dataset ?? {})) {
             const alvo = lugar.querySelector(seletor);

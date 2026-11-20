@@ -1,4 +1,4 @@
-import { MAX_DECISOES_BARRA_DESKTOP, VALORES_BARRA_DESKTOP, type BarraDesktop, type DecisaoBarraDesktop, type DecisoesBarraDesktop } from "../src/contracts/desktop-barra.ts";
+import { LIMITES_BARRA_DESKTOP, MAX_DECISOES_BARRA_DESKTOP, VALORES_BARRA_ANTIGOS, type BarraDesktop, type BarraGuardadaDesktop, type DecisaoBarraDesktop, type DecisoesBarraDesktop } from "../src/contracts/desktop-barra.ts";
 import { LIMITES_AVISO, type AlvoAviso, type AvisoDesktop, type PreferenciasDesktop, type TemaDesktop } from "../src/contracts/desktop.ts";
 
 /**
@@ -74,9 +74,21 @@ export function lerTemaDesktop(valor: unknown): TemaDesktop | null {
   return valor === "sistema" || valor === "claro" || valor === "escuro" ? valor : null;
 }
 
-/** NOD-119: a densidade da barra que a página pede (ou que está no arquivo); null = o padrão ou valor desconhecido. */
-export function lerBarraDesktop(valor: unknown): BarraDesktop | null {
-  return typeof valor === "string" && (VALORES_BARRA_DESKTOP as readonly string[]).includes(valor) ? (valor as BarraDesktop) : null;
+/**
+ * ADR-179: a barra que a página pede — a largura expandida (inteira, entre os limites) e o compacto; copia só os dois
+ * campos. null = o padrão ou valor desconhecido.
+ */
+export function lerBarraNovaDesktop(valor: unknown): BarraDesktop | null {
+  if (typeof valor !== "object" || valor === null || Array.isArray(valor)) return null;
+  const { larguraExpandida: l, compacta: c } = valor as Record<string, unknown>;
+  if (typeof l !== "number" || !Number.isInteger(l) || l < LIMITES_BARRA_DESKTOP.min || l > LIMITES_BARRA_DESKTOP.max) return null;
+  return typeof c === "boolean" ? { larguraExpandida: l, compacta: c } : null;
+}
+
+/** A barra que está no arquivo: a nova ou, de quem atualizou o app, o valor antigo (a web migra uma vez). */
+export function lerBarraDesktop(valor: unknown): BarraGuardadaDesktop | null {
+  if (typeof valor === "string") return (VALORES_BARRA_ANTIGOS as readonly string[]).includes(valor) ? (valor as BarraGuardadaDesktop) : null;
+  return lerBarraNovaDesktop(valor);
 }
 
 /**
@@ -121,7 +133,7 @@ export function respostaSincrona<T>(validar: () => void, valor: () => T, padrao:
 
 /** NOD-119: a barra pedida pela página; null volta ao padrão, valor desconhecido é erro. */
 export function barraDoPedido(barra: unknown): BarraDesktop | null {
-  const lida = lerBarraDesktop(barra);
+  const lida = lerBarraNovaDesktop(barra);
   if (barra !== null && lida === null) throw new Error("entrada_invalida");
   return lida;
 }
@@ -155,7 +167,7 @@ export function lerDecisoesBarra(conteudo: string | null): DecisoesBarraDesktop 
  * preferencias.json: sem arquivo, corrompido ou sem o campo, os avisos e o som (NOD-196) nascem ligados e o tema segue
  * o sistema.
  */
-export function lerPreferencias(conteudo: string | null): Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraDesktop | null } {
+export function lerPreferencias(conteudo: string | null): Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraGuardadaDesktop | null } {
   let lido: unknown = null;
   try {
     lido = conteudo === null ? null : JSON.parse(conteudo);

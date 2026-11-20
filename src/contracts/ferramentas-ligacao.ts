@@ -55,8 +55,8 @@ export const FERRAMENTAS_LIGACAO = {
     properties: {
       nome: { type: "string", description: "Nome curto do bot (uma palavra).", minLength: 1, maxLength: 60 },
       descricao: { type: "string", description: "O que ele faz, em uma ou duas frases, na primeira pessoa da dona (\"Lê os meus e-mails…\").", minLength: 1, maxLength: 600 },
-      forma: { type: "string", description: "Mascote (opcional): shape-square, shape-hex, shape-circle, shape-pebble, shape-capsule, shape-triangle, shape-cloud ou shape-drop." },
-      cor: { type: "string", description: "Cor (opcional): c-red, c-pink, c-purple, c-blue, c-teal, c-green, c-orange, c-black, c-brown, c-amber, c-gray ou c-cream." },
+      forma: { type: "string", description: "Mascote (opcional): shape-square, shape-hex, shape-circle, shape-pebble, shape-capsule, shape-triangle, shape-cloud, shape-drop, shape-egg, shape-heart, shape-star, shape-flower ou shape-clover." },
+      cor: { type: "string", description: "Cor (opcional): c-red, c-pink, c-purple, c-blue, c-teal, c-green, c-orange, c-black, c-brown, c-amber, c-gray, c-cream, c-magenta ou c-indigo." },
       voz: { type: "string", description: "Voz (opcional): clara, bento, luna, theo, aurora, caio, iris ou rui." },
     },
     required: ["nome", "descricao"],

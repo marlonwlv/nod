@@ -2,6 +2,20 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import type { WorkspacePreparado } from "../../contracts/workspace.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
+import { ORCAMENTO_RESULTADO_CHARS } from "../../shared/constantes.ts";
+
+/**
+ * definido em 2026-11-18: duas páginas do proxy mantêm a memória limitada e deixam `ler_mais` entregar
+ * saídas maiores que uma página. O teto antigo de 5.000 caracteres descartava o começo antes do proxy.
+ */
+export const LIMITE_SAIDA_TERMINAL_CHARS = ORCAMENTO_RESULTADO_CHARS * 2;
+
+export function limitarSaidaTerminal(saida: string): { saida: string; truncado: boolean } {
+  if (JSON.stringify(saida).length <= LIMITE_SAIDA_TERMINAL_CHARS) return { saida, truncado: false };
+  let mantida = saida.slice(-LIMITE_SAIDA_TERMINAL_CHARS);
+  while (JSON.stringify(mantida).length > LIMITE_SAIDA_TERMINAL_CHARS) mantida = mantida.slice(Math.ceil(mantida.length / 8));
+  return { saida: mantida, truncado: true };
+}
 
 /** definido em 2026-09-18: comandos não recebem ambiente/credenciais do host e não têm fallback sem isolamento. */
 export function executarNoWorkspace(w: WorkspacePreparado, comando: string, sinal: AbortSignal, imagem = "nod-computador:1"): Promise<{ saida: string; codigoSaida: number; truncado: boolean }> {
@@ -16,7 +30,14 @@ export function executarNoWorkspace(w: WorkspacePreparado, comando: string, sina
     let saida = "";
     let truncado = false;
     let interrompido = false;
-    const coletar = (b: Buffer) => { saida += b.toString(); if (saida.length > 5000) { saida = saida.slice(-5000); truncado = true; } };
+    const coletar = (b: Buffer) => {
+      saida += b.toString();
+      // O dobro evita crescimento sem limite entre eventos; o ajuste exato para JSON acontece no fechamento.
+      if (saida.length > LIMITE_SAIDA_TERMINAL_CHARS * 2) {
+        saida = saida.slice(-LIMITE_SAIDA_TERMINAL_CHARS * 2);
+        truncado = true;
+      }
+    };
     const cancelar = () => {
       interrompido = true;
       const limpeza = spawn("docker", ["rm", "-f", nome], { stdio: "ignore" });
@@ -30,7 +51,9 @@ export function executarNoWorkspace(w: WorkspacePreparado, comando: string, sina
     p.on("error", () => { limpar(); falha(new ErroDeDominio("executor_indisponivel")); });
     p.on("close", code => {
       limpar();
-      while (JSON.stringify(saida).length > 5500) { saida = saida.slice(Math.ceil(saida.length / 4)); truncado = true; }
+      const limitada = limitarSaidaTerminal(saida);
+      saida = limitada.saida;
+      truncado ||= limitada.truncado;
       const fim = () => ok({ saida: interrompido ? "Comando interrompido ou prazo de 60 segundos atingido." : saida, codigoSaida: interrompido ? 124 : code ?? 1, truncado });
       if (!interrompido) { fim(); return; }
       // definido em 2026-09-18: repetir remoção após o cliente encerrar cobre cancelamento durante a criação.

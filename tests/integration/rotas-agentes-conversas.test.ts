@@ -14,6 +14,7 @@ import { vincularEscopo } from "../../src/db/tx.ts";
 import { criarRepos } from "../../src/repositories/index.ts";
 import type { Escopo, Tx } from "../../src/shared/types.ts";
 import { atualizarPerfil } from "../../src/use-cases/atualizar-perfil.ts";
+import { INSTRUCAO_APRESENTACAO } from "../../src/use-cases/apresentar-bot.ts";
 import { png } from "../fixtures/midia/construir.ts";
 import { idDaProposta } from "../helpers/perfil.ts";
 import { depsSobreTrx, executar, MARLON, servicosDeTeste, useCasesDeTeste } from "../helpers/deps-l6.ts";
@@ -52,6 +53,28 @@ describeIntegracao("rotas agentes/conversas/propostas/turnos/frota (L6) com serv
     servidor = await servidorDeTeste([...criarRotasFrota(deps), ...criarRotasAgentes(deps), ...criarRotasConversas(deps), ...criarRotasPropostas(deps), ...criarRotasTurnos(deps)]);
   });
   afterAll(() => servidor.close());
+
+  it("A4: criar com o id do cliente e apresentar → 201 e um turno de apresentação; repetir → 200 repetido, sem segundo bot nem turno", async () => {
+    await withRollback(MARLON, async (trx) => {
+      trxAtual = trx;
+      const marlon = await servidor.entrar("marlon");
+      const id = randomUUID();
+      const r1 = await servidor.chamar(marlon, "POST", "agentes", { dono: "pessoa", nome: "Lia", id, apresentar: true });
+      expect(r1.status).toBe(201);
+      const c1 = (await r1.json()) as { agente: Agente; conversa: Conversa; repetido?: true };
+      expect(c1.agente.id).toBe(id);
+      const turnos = await trx<{ entrada_texto: string; mensagem_origem_id: string | null; origem: string }[]>`select entrada_texto, mensagem_origem_id, origem from turnos where agente_id = ${id}`;
+      expect(turnos).toHaveLength(1);
+      expect(turnos[0]).toMatchObject({ entrada_texto: INSTRUCAO_APRESENTACAO, mensagem_origem_id: null, origem: "conversa" });
+      const r2 = await servidor.chamar(marlon, "POST", "agentes", { dono: "pessoa", nome: "Lia", id, apresentar: true });
+      expect(r2.status).toBe(200);
+      const c2 = (await r2.json()) as { agente: Agente; conversa: Conversa; repetido?: true };
+      expect(c2).toMatchObject({ repetido: true, agente: { id }, conversa: { id: c1.conversa.id } });
+      expect(await trx`select 1 from turnos where agente_id = ${id}`).toHaveLength(1);
+      expect(await trx`select 1 from agentes where id = ${id}`).toHaveLength(1);
+      expect((await servidor.chamar(marlon, "POST", "agentes", { dono: "pessoa", id: "nao-e-uuid" })).status).toBe(400);
+    });
+  });
 
   it("sessão ausente → 401; tenant da URL ≠ sessão → 404; criar bot → 201 'Novo agente' e frota 'sem acessos · nunca executou'", async () => {
     await withRollback(MARLON, async (trx) => {
@@ -120,7 +143,10 @@ describeIntegracao("rotas agentes/conversas/propostas/turnos/frota (L6) com serv
       const parada = await servidor.chamar(marlon, "POST", `conversas/${conversa.id}/parar`);
       expect(parada.status).toBe(200);
       const faixa = (await parada.json()) as FaixaParada;
-      expect(faixa).toMatchObject({ interrompidas: 1, nadaRodando: false });
+      // ADR-185 (2026-11-16): com o turno do chat rodando, a fala que espera atrás dele ("e aí?") fica na fila; só o Parar
+      // global a para.
+      expect(faixa).toMatchObject({ interrompidas: 0, nadaRodando: false });
+      expect(((await (await servidor.chamar(marlon, "GET", `turnos/${segundo.turno}`)).json()) as { turno: { estado: string } }).turno.estado).toBe("pendente");
       expect(faixa.naoInterrompidas).toEqual([{ turnoId: ids.turno, motivo: "sem_processo_neste_servidor_aguarda_renovacao_do_lease" }]);
       const global = (await (await servidor.chamar(marlon, "POST", "parar")).json()) as FaixaParada;
       expect(global.nadaRodando).toBe(false);

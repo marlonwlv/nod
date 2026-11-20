@@ -57,6 +57,13 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
     expect(r.events[0]?.dados).toMatchObject({ motivo_falha: "limite_do_plano", ia_no_limite: "claude-cli", renova_em: T0 + DUAS_HORAS });
   });
 
+  it("Automático legado com Sonnet cai no Codex sem carregar o modelo do Claude", async () => {
+    const c = await cenario();
+    c.turno().modelo = "sonnet";
+    await c.entregar(limiteDoClaude(T0 + DUAS_HORAS), "claude-cli");
+    expect(c.banco.turnos.filter((t) => t.id !== c.turnoId)).toMatchObject([{ estado: "pendente", harness: "codex-cli", modelo: "auto", reenvios: 1 }]);
+  });
+
   it("a ordem do bot decide para onde vai; o Codex no limite sem horário fica fora por 1 h", async () => {
     const c = await cenario({ pedido: { ordem: ["codex-cli", "claude-cli"] } });
     await c.entregar(limiteDoCodex, "codex-cli");
@@ -123,7 +130,7 @@ describe("assentarTurno: a IA chegou ao limite da assinatura", () => {
       const novas = c.banco.mensagens.slice(c.antes);
       expect(novas.map((m) => m.kind)).toEqual(["sistema"]);
       expect(novas[0]?.payload ?? null).toBeNull();
-      expect(novas[0]?.texto).toMatch(/^A cota do Claude Code chegou ao limite\. Esta task espera e volta sozinha (às|em \d\d\/\d\d às) \d\d:\d\d, de onde parou\.$/);
+      expect(novas[0]?.texto).toMatch(/^A cota do Claude Code chegou ao limite\. Esta tarefa espera e volta sozinha (às|em \d\d\/\d\d às) \d\d:\d\d, de onde parou\.$/);
       expect(r.events.map((e) => e.kind)).toEqual(expect.arrayContaining(["turno_interrompido", "turno_criado", "mensagem_criada"]));
       // A task segue aberta (a volta está na fila), não "não terminou".
       expect((await c.deps.repos.trabalhos.buscar(c.trabalhoId!))?.estado).not.toBe("falhou");

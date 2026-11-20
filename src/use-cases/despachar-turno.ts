@@ -126,7 +126,12 @@ export const despacharTurno: CasoDeUso<EntradaDespacharTurno, SaidaDespacharTurn
     ? [...new Set([...input.harnessesProntos, ...Object.entries(input.harnessesDaPessoa).filter(([, i]) => i?.estado === "pronto" || (i?.estado === "ausente" && (i.causa === "sonda_lenta" || i.causa === "atualizando"))).map(([id]) => id)])]
     : undefined;
   const { harnessesAuto, cota, declinio } = portaoDoDespacho(input);
-  const turno = await deps.repos.turnos.reivindicar({ machineId: input.machineId, agora, harnessesProntos: input.harnessesProntos, ...(harnessesAuto ? { harnessesAuto } : {}), harnessesProntosPessoa: prontosPessoa, aceitaLigacao: input.aceitaLigacao, segurarFundo: input.segurarFundo, segurarNovo: input.segurarNovo, fundoSemPrazo: input.fundoSemPrazo, espacarFundo: input.espacarFundo, ...(input.soComoAlvo ? { soComoAlvo: true } : {}), ...(input.soDaPessoa ? { soDaPessoa: true } : {}), ...(cota ? { cota } : {}), ...(declinio ? { declinio } : {}) });
+  // Para um modelo legado no Automático, a fila ainda prefere a máquina da IA dona do modelo. A lista efetiva da pessoa
+  // tira quem está no limite: só então outra máquina pode assumir e `resolverHarness` troca também o modelo.
+  const harnessesAutoPessoa = prontosPessoa && input.noLimite?.length
+    ? iasParaOAutomatico({ prontosMaquina: prontosPessoa, prontosPessoa, noLimite: input.noLimite })
+    : prontosPessoa;
+  const turno = await deps.repos.turnos.reivindicar({ machineId: input.machineId, agora, harnessesProntos: input.harnessesProntos, ...(harnessesAuto ? { harnessesAuto } : {}), harnessesProntosPessoa: prontosPessoa, harnessesAutoPessoa, aceitaLigacao: input.aceitaLigacao, segurarFundo: input.segurarFundo, segurarNovo: input.segurarNovo, fundoSemPrazo: input.fundoSemPrazo, espacarFundo: input.espacarFundo, ...(input.soComoAlvo ? { soComoAlvo: true } : {}), ...(input.soDaPessoa ? { soDaPessoa: true } : {}), ...(cota ? { cota } : {}), ...(declinio ? { declinio } : {}) });
   if (!turno) return { data: { plano: null, turno: null, motivo: "fila_vazia" } };
   // NOD-268: o alarme do reenvio em laço (só log; o freio é o teto de reenvios). Revisão do PR #319: a falha da consulta
   // não derruba o despacho de um turno já reivindicado.
@@ -169,14 +174,14 @@ export const despacharTurno: CasoDeUso<EntradaDespacharTurno, SaidaDespacharTurn
   // L4 (callback injetado), não o puxar — definido em 2026-09-16: um upsert por puxar (a cada 1 s por pessoa)
   // é churn e travou com o advisory lock da reivindicação em dois puxares paralelos da mesma pessoa.
   const inventario = input.inventario ?? (await deps.repos.inventario.buscar(motorDe(executor))) ?? inventarioAusente(agora);
-  if (inventario.estado !== "pronto") return recusarPorExecutor(deps, { turno, executor, inventario, agora, semIaOnde: "maquina_do_bot" });
+  if (inventario.estado !== "pronto") return recusarPorExecutor(deps, { turno, maquinaId: input.machineId, executor, inventario, agora, semIaOnde: "maquina_do_bot" });
 
   // NOD-171: fixado num harness que esta máquina não tem pronto. O reivindicar só entrega isso quando nenhuma máquina
   // viva da pessoa o tem (harnessesProntosPessoa): recusa já, nomeando o harness, e o turno não fica preso na fila.
   const fixo = harnessFixado(turno.harness, turno.modelo);
   if (fixo && input.harnessesProntos && !input.harnessesProntos.includes(fixo)) {
     const doHarness = input.harnessesDaPessoa?.[fixo] ?? inventarioHarnessSemSonda(agora);
-    return recusarPorExecutor(deps, { turno, executor, inventario: doHarness, agora, harness: fixo });
+    return recusarPorExecutor(deps, { turno, maquinaId: input.machineId, executor, inventario: doHarness, agora, harness: fixo });
   }
 
   // ADR-102 (2026-10-13): a máquina tem contas anunciadas e nenhuma serve sem a pessoa decidir — na conversa, a nota com
@@ -245,7 +250,7 @@ export const despacharTurno: CasoDeUso<EntradaDespacharTurno, SaidaDespacharTurn
         }
         // Duas visões consecutivas discordaram do plano: falha fechado, nunca executa com conta/IA obsoleta.
         deps.services.tokenTurno.revogar(comFila.id);
-        const recusado = await recusarPorExecutor(deps, { turno: comFila, executor, inventario, agora, ...(plano.harness ? { harness: plano.harness } : {}) });
+        const recusado = await recusarPorExecutor(deps, { turno: comFila, maquinaId: input.machineId, executor, inventario, agora, ...(plano.harness ? { harness: plano.harness } : {}) });
         return { data: recusado.data, events: [...events, ...recusado.events] };
       }
     }
@@ -257,9 +262,9 @@ export const despacharTurno: CasoDeUso<EntradaDespacharTurno, SaidaDespacharTurn
     // NOD-171: com a causa, a recusa fala do harness que faltou (e do modelo inválido), nunca do motor.
     if (ehErroDeDominio(e) && e.codigo === "executor_indisponivel") {
       const causa = causaHarnessIndisponivel(e);
-      if (!causa) return recusarPorExecutor(deps, { turno, executor, inventario, agora, semIaOnde: "maquina_do_bot" });
+      if (!causa) return recusarPorExecutor(deps, { turno, maquinaId: input.machineId, executor, inventario, agora, semIaOnde: "maquina_do_bot" });
       const doHarness = causa.inventario ?? input.harnessesDaPessoa?.[causa.harness] ?? (causa.motivo === "modelo_invalido" ? inventario : inventarioHarnessSemSonda(agora));
-      return recusarPorExecutor(deps, { turno, executor, inventario: doHarness, agora, harness: causa.harness, modeloInvalido: causa.motivo === "modelo_invalido" ? causa.modelo : undefined, anexoNaoLido: causa.motivo === "anexo_nao_lido" ? causa.tipo : undefined });
+      return recusarPorExecutor(deps, { turno, maquinaId: input.machineId, executor, inventario: doHarness, agora, harness: causa.harness, modeloInvalido: causa.motivo === "modelo_invalido" ? causa.modelo : undefined, anexoNaoLido: causa.motivo === "anexo_nao_lido" ? causa.tipo : undefined });
     }
     throw e;
   }
@@ -274,7 +279,7 @@ async function adiarNoAutomatico(
   p: { turno: Turno; executor: Executor; prontos?: readonly string[]; noLimite?: readonly string[]; agora: number },
 ): Promise<{ data: SaidaDespacharTurno; events: RuntimeEvent[] } | null> {
   const { turno, agora } = p;
-  if (turno.origem !== "conversa" || turno.harness !== "auto" || turno.modelo !== "auto" || (turno.acordarEm ?? null) !== null || turno.pararSolicitadoEm !== null) return null;
+  if (turno.origem !== "conversa" || harnessFixado(turno.harness, turno.modelo) !== null || (turno.acordarEm ?? null) !== null || turno.pararSolicitadoEm !== null) return null;
   const prontos = p.prontos ?? [];
   if (prontos.length === 0 || !prontos.every((id) => p.noLimite?.includes(id))) return null;
   const limites = (await deps.repos.preferencias.buscar()).iasNoLimite;
@@ -423,14 +428,15 @@ async function segurarTaskNaIaDaSessao(
   return { data: { plano: null, turno: assentado ?? turno, motivo: "executor_indisponivel" }, events: [...espera, ...aviso, ...(await sincronizarDoTurno(deps, turno))] };
 }
 
+/** A negação leva a máquina que recusou (`maquina`): a web diz o estado de cada conta NELA, não a cota em geral. */
 async function recusarPorExecutor(
   deps: Deps,
-  p: { turno: Turno; executor: Executor; inventario: Inventario; agora: number; harness?: string; modeloInvalido?: string; anexoNaoLido?: TipoAnexo; semIaOnde?: "maquina_do_bot" },
+  p: { turno: Turno; maquinaId: string; executor: Executor; inventario: Inventario; agora: number; harness?: string; modeloInvalido?: string; anexoNaoLido?: TipoAnexo; semIaOnde?: "maquina_do_bot" },
 ): Promise<{ data: SaidaDespacharTurno; events: RuntimeEvent[] }> {
   // nao_autenticado/motor_ausente são MotivoFalha (do inventário, nunca do classificador); a interrupção é executor_indisponivel.
   const motivoFalha = p.inventario.estado === "nao_autenticado" ? "nao_autenticado" : "motor_ausente";
   const assentado = await deps.repos.turnos.assentar(p.turno.id, { estado: "interrompido", motivoInterrupcao: "executor_indisponivel", motivoFalha, ultimoSinalEm: p.agora });
-  const negacao = await mensagemExecutorIndisponivel(deps, { conversaId: p.turno.conversaId, turnoId: p.turno.id, agenteId: p.turno.agenteId, executor: p.executor, inventario: p.inventario, agora: p.agora, harness: p.harness, modeloInvalido: p.modeloInvalido, anexoNaoLido: p.anexoNaoLido, semIaOnde: p.semIaOnde });
+  const negacao = await mensagemExecutorIndisponivel(deps, { conversaId: p.turno.conversaId, turnoId: p.turno.id, agenteId: p.turno.agenteId, executor: p.executor, inventario: p.inventario, agora: p.agora, harness: p.harness, modeloInvalido: p.modeloInvalido, anexoNaoLido: p.anexoNaoLido, semIaOnde: p.semIaOnde, maquinaId: p.maquinaId });
   const autoria = autoriaAgente({ agenteId: p.turno.agenteId, contaDeExecucao: p.turno.ownerId, executor: p.executor, localityReason: "motor_ausente" });
   const events = [
     evento(deps.escopo, { kind: "turno_interrompido", autoria, agora: p.agora, conversaId: p.turno.conversaId, turnoId: p.turno.id, dados: { motivo: "executor_indisponivel", motivo_falha: motivoFalha, inventario: p.inventario.estado } }),

@@ -40,6 +40,8 @@ export type NovaMemoria = {
  */
 export type OpcoesDiario = { autor?: AutorMemoria; desfazId?: string | null; diario?: boolean };
 
+export type ResultadoCriarMemoria = { memoria: Memoria; criada: boolean };
+
 /**
  * Memória por bot: editável pela pessoa; injetada no prompt com "não substitui fonte autoritativa".
  * NOD-58: criar, atualizar e apagar gravam a entrada do diário NO MESMO STATEMENT (CTE): a escrita e o diário
@@ -62,6 +64,39 @@ export function memoriasRepo(conn: Conn, escopo: Escopo) {
         )
         select ${conn.unsafe(COLUNAS)} from m`;
       return l ? paraMemoria(l) : null;
+    },
+
+    /**
+     * O executor pode repetir a mesma chamada depois de perder o recibo. Serializa pelo conteúdo e devolve a
+     * memória já existente, sem criar outra entrada no diário nem duplicar o texto no prompt do bot.
+     */
+    async criarDoAgenteSeAusente(m: Omit<NovaMemoria, "id" | "origem" | "criadoEm">): Promise<ResultadoCriarMemoria | null> {
+      // Precisa ser uma instrução separada: no READ COMMITTED, a consulta seguinte ganha um snapshot novo depois
+      // de esperar a transação concorrente terminar e passa a enxergar a memória que ela acabou de confirmar.
+      await conn`select pg_advisory_xact_lock(
+        hashtext(${escopo.tenantId}),
+        hashtext(${`lembrar:${m.agenteId}:${m.tipo}:${m.texto}`})
+      )`;
+      const [l] = await conn<(Linha & { criada: boolean })[]>`
+        with existente as (
+          select ${conn.unsafe(COLUNAS)} from agente_memorias
+          where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}
+            and agente_id = ${m.agenteId} and tipo = ${m.tipo} and texto = ${m.texto} and origem = 'agente'
+          order by criado_em, id limit 1
+        ), criada as (
+          insert into agente_memorias (tenant_id, owner_id, agente_id, tipo, texto, origem)
+          select ${escopo.tenantId}, ${escopo.pessoaId}, ${m.agenteId}, ${m.tipo}, ${m.texto}, 'agente'
+          where not exists (select 1 from existente)
+          returning *
+        ), diario as (
+          insert into memoria_diario (tenant_id, owner_id, agente_id, memoria_id, acao, autor, memoria_origem, memoria_criado_em, depois_tipo, depois_texto)
+          select tenant_id, owner_id, agente_id, id, 'criada', 'agente', origem, criado_em, tipo, texto from criada
+        )
+        select ${conn.unsafe(COLUNAS)}, true as criada from criada
+        union all
+        select ${conn.unsafe(COLUNAS)}, false as criada from existente
+        limit 1`;
+      return l ? { memoria: paraMemoria(l), criada: l.criada } : null;
     },
 
     async buscar(id: string): Promise<Memoria | null> {

@@ -2,7 +2,7 @@ import type { PreferenciaHarness } from "../../../contracts/harness.ts";
 import type { Escopo } from "../../../shared/types.ts";
 import type { IdHarness } from "../../../contracts/harness.ts";
 import { gerirAgente } from "../../../use-cases/gerir-agente.ts";
-import type { DonoAgente, FormaAgente, CorAgente } from "../../../contracts/agente.ts";
+import { CORES_AGENTE, FORMAS_AGENTE, type DonoAgente, type FormaAgente, type CorAgente } from "../../../contracts/agente.ts";
 import type { TipoMemoria } from "../../../contracts/memoria.ts";
 import { apagarMemoria, desfazerEntradaDiario, editarMemoria, listarDiarioMemoria, listarMemorias, revisarDiarioMemoria } from "../../../use-cases/editar-memorias.ts";
 import { EXECUTORES_BOTS } from "../../../use-cases/acoes/bots.ts";
@@ -17,6 +17,17 @@ import { TABELA_ERROS } from "../erros.ts";
 import { corpoObjeto, criarExecutor, texto, textoOpcional, type DepsRotas } from "./executar-caso.ts";
 
 const ID = "(?<id>[^/]+)";
+
+/**
+ * Spec do botão + (diálogo "Criar novo bot", 2026-11-12): o diálogo manda a forma e a cor escolhidas no mesmo POST do
+ * criarAgente interativo (o que cria a fala boas_vindas). Valor fora da lista é recusado; ausente = rodízio de sempre.
+ */
+function aparenciaDoCorpo(corpo: Record<string, unknown>): { forma?: FormaAgente; cor?: CorAgente } {
+  const { forma, cor } = corpo;
+  if (forma !== undefined && !(FORMAS_AGENTE as readonly unknown[]).includes(forma)) throw new ErroDeDominio("entrada_invalida", { cause: "forma" });
+  if (cor !== undefined && !(CORES_AGENTE as readonly unknown[]).includes(cor)) throw new ErroDeDominio("entrada_invalida", { cause: "cor" });
+  return { ...(forma !== undefined ? { forma: forma as FormaAgente } : {}), ...(cor !== undefined ? { cor: cor as CorAgente } : {}) };
+}
 
 /**
  * Rotas de agentes (tabela ROTAS, lane L6): criação {dono, nome?} (EMENDA 17), PATCH de perfil
@@ -44,8 +55,11 @@ export function criarRotasAgentes(d: DepsRotas, prontosPorMaquina?: (escopo: Esc
       padrao: /^\/agentes$/,
       async handler(ctx) {
         const corpo = corpoObjeto(await ctx.corpo());
-        const r = await executar(ctx.escopo, EXECUTORES_BOTS["bots.criar"], { dono: corpo.dono as DonoAgente, interativo: corpo.interativo === true, nome: textoOpcional(corpo.nome), titulo: textoOpcional(corpo.titulo), descricao: textoOpcional(corpo.descricao), modelo: textoOpcional(corpo.modelo), harness: corpo.harness as PreferenciaHarness | undefined });
-        ctx.json(201, r);
+        // A4 (2026-11-12): `id` do cliente (idempotente: a repetição volta 200 com `repetido`) e `apresentar` (o bot fala primeiro).
+        const r = await executar(ctx.escopo, EXECUTORES_BOTS["bots.criar"], { dono: corpo.dono as DonoAgente, interativo: corpo.interativo === true, nome: textoOpcional(corpo.nome), titulo: textoOpcional(corpo.titulo), descricao: textoOpcional(corpo.descricao), modelo: textoOpcional(corpo.modelo),
+          harness: corpo.harness as PreferenciaHarness | undefined, ...aparenciaDoCorpo(corpo),
+          ...(corpo.id !== undefined ? { id: corpo.id as string } : {}), ...(corpo.apresentar === true ? { apresentar: true, ...(d.executor ? { executor: d.executor } : {}), ...(d.prazoDecisaoMs ? { prazoMs: d.prazoDecisaoMs } : {}) } : {}) });
+        ctx.json(r.repetido ? 200 : 201, r);
       },
     },
     {

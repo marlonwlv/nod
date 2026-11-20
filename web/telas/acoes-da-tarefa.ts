@@ -33,7 +33,7 @@ export type MenuDaTarefa = {
 /** O ⋯ do topo e, aberto, o menu. Repetir só com responsável; Parar só com run vivo; Concluir fora do grupo Feito. */
 export function menuDaTarefa(m: MenuDaTarefa): string {
   const { t } = m;
-  const bt = `<button type="button" class="ta-menu-bt" data-act="tmenu" aria-haspopup="menu" aria-expanded="${m.aberto}" aria-label="Mais ações da tarefa">${PONTOS}</button>`;
+  const bt = `<button type="button" class="ta-menu-bt" data-act="tmenu" aria-haspopup="menu" aria-expanded="${m.aberto}" aria-label="Mais ações do card">${PONTOS}</button>`;
   if (!m.aberto) return `<span class="ta-menu">${bt}</span>`;
   const item = (act: string, rotulo: string, extra = ""): string => `<button type="button" role="menuitem" class="ta-menu-op" data-act="${act}" data-id="${esc(t.id)}"${extra}>${esc(rotulo)}</button>`;
   const sub = m.status
@@ -48,7 +48,7 @@ export function menuDaTarefa(m: MenuDaTarefa): string {
     m.podeMover ? item("tmenu-mover", "Mover para outro quadro…") : "",
     fim && !jaNoFim ? item("tmenu-coluna", "Concluir", ` data-coluna="${esc(fim)}"`) : "",
   ].filter(Boolean).join("");
-  return `<span class="ta-menu">${bt}<div class="ta-menu-pop" role="menu" aria-label="Ações da tarefa">${itens}</div></span>`;
+  return `<span class="ta-menu">${bt}<div class="ta-menu-pop" role="menu" aria-label="Ações do card">${itens}</div></span>`;
 }
 
 /**
@@ -61,7 +61,7 @@ export function avisoDeParada(t: Pick<TarefaDto, "status" | "agenteId">, cs: rea
   if (!col || col.grupo !== "nao_iniciado" || acionaNaColuna(col) || col.responsavel) return "";
   const alvo = cs.find((c) => c.id === "afazer") ?? cs.find((c) => acionaNaColuna(c) && !c.responsavel);
   const onde = col.id === "backlog" ? `no ${col.nome}` : `em ${col.nome}`;
-  return `<p class="ta-parada">Parada ${esc(onde)}: o responsável só começa quando ela for para ${alvo ? esc(alvo.nome) : "o andamento"}</p>`;
+  return `<p class="ta-parada">Parado ${esc(onde)}: o responsável só começa quando ele for para ${alvo ? esc(alvo.nome) : "o andamento"}</p>`;
 }
 
 /** A nota sob o select (Status ou Responsável): "Ada vai começar". A região existe sempre (o leitor de tela ouve a troca). */

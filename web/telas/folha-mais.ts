@@ -90,7 +90,7 @@ export function controleDaFolha(mais: { setAttribute(nome: string, valor: string
 /** O nome do + para leitor de tela: o que a folha tem e, no modo total, o aviso (revisão 2 do PR 545). */
 export function rotuloDoMais(l: LinhasDaFolhaMais, modoTotal = l.modo?.atencao === true): string {
   const base = l.modo || l.ia ? "Anexar, modo e IA" : "Anexar";
-  return modoTotal ? `${base} · ${MODOS.total.titulo}` : base;
+  return modoTotal ? `${base} · ${MODOS.total.titulo} ligado` : base;
 }
 
 /** Quanto o menu de Modo/IA aberto pela folha ignora toques: o 2º de um toque duplo cai onde as linhas da folha estavam. */

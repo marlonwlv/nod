@@ -65,38 +65,39 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
     expect(so.pilula.resto).not.toContain("esperando VM-1 · sem contato");
     // Com outra espera do bot (a conversa esperando a CI), conta só a outra, sem o motivo (que pode ser o da presa).
     const duas = daPilula(pilulaNaConversa(estadoCom(presa, dono({ principal: "esperando", esperando: 2, motivoEspera: "VM-1 · sem contato", desde: AGORA - 12 * MIN })), "orq", SEM_PROGRESSO));
-    expect(duas.pilula.resto.slice(1)).toEqual(["1 esperando"]);
+    // ADR-187 (P1): a aba de uma tarefa abre com o nome e o estado dela; a outra espera vem depois.
+    expect(duas.pilula.resto.slice(2)).toEqual(["1 esperando"]);
   });
 
-  it("um lote: \"5 frentes\" e \"3 de 5 prontas\", com o ponto vivo; o botão abre o painel (aria-expanded, aria-controls)", () => {
+  it("ADR-187 (P1): \"5 tarefas · 3 prontas\", com o ponto vivo; o botão abre o painel (aria-expanded, aria-controls)", () => {
     const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono({ principal: "trabalhando", frentes: 2 })), "orq", SEM_PROGRESSO));
-    expect(p.pilula.texto).toBe("5 frentes");
-    expect(p.pilula.resto).toEqual(["3 de 5 prontas"]);
-    expect(p.partes.botao).toBe('<span class="pf-ponto vivo" aria-hidden="true"></span><span class="pf-texto">5 frentes</span><span class="sr-only">, </span><span class="pf-resto">3 de 5 prontas</span>' + p.partes.botao.slice(p.partes.botao.indexOf("<svg")));
+    expect(p.pilula.texto).toBe("5 tarefas");
+    expect(p.pilula.resto).toEqual(["3 prontas"]);
+    // P1: o anel de quem roda na frente, "5 tarefas" e o resto em cinza depois do separador, e a seta de 10 px.
+    expect(p.partes.botao.startsWith('<svg class="pf-aba-ic pf-anel"')).toBe(true);
+    expect(p.partes.botao).toContain('<span class="pf-texto">5 tarefas</span><span class="sr-only">, </span><span class="pf-resto">· 3 prontas</span><svg class="pf-seta" width="10" height="10"');
     const html = htmlDaPilula(p.partes, { aberta: false, escondida: false });
     expect(html).toContain(`<button type="button" class="pf-botao" data-act="pilula" aria-expanded="false" aria-controls="${ID_PAINEL}">`);
   });
 
-  it("o título do lote vem do servidor (PR 5, `tituloDoLote`) quando ele manda; a frente sozinha diz o que está fazendo", () => {
+  it("ADR-187 (P1): a aba conta as tarefas, com ou sem título do lote; a tarefa sozinha diz o nome e o que está fazendo", () => {
     const comTitulo = HEROS.map((t) => ({ ...t, tituloDoLote: "frentes de hero" }));
-    expect(daPilula(pilulaNaConversa(estadoCom(comTitulo, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe(`${HEROS.length} frentes de hero`);
-    const outroAssunto = HEROS.map((t) => ({ ...t, tituloDoLote: "Roteiros do hero" }));
-    expect(daPilula(pilulaNaConversa(estadoCom(outroAssunto, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe(`${HEROS.length} frentes · Roteiros do hero`);
-    const jaContado = HEROS.map((t) => ({ ...t, tituloDoLote: "5 frentes de hero" }));
-    expect(daPilula(pilulaNaConversa(estadoCom(jaContado, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe("5 frentes de hero");
+    expect(daPilula(pilulaNaConversa(estadoCom(comTitulo, dono()), "orq", SEM_PROGRESSO)).pilula.texto).toBe(`${HEROS.length} tarefas`);
     const sozinha = [frente("h", "Hero do site", { loteId: "l2", lote: { id: "l2", abertoEm: AGORA, frentes: 1, abertas: 1 }, ultimoPasso: "montando o layout" })];
     const p = daPilula(pilulaNaConversa(estadoCom(sozinha, dono()), "orq", SEM_PROGRESSO));
-    expect([p.pilula.texto, ...p.pilula.resto]).toEqual(["Hero do site", "montando o layout"]);
+    expect([p.pilula.texto, ...p.pilula.resto]).toEqual(["1 tarefa", "Hero do site", "montando o layout"]);
   });
 
   it("vários lotes somam: \"2 lotes · 4 de 7 prontas\"; a frente do lote que saiu da lista conta no total (`lote.frentes`)", () => {
     const outro = [frente("a1", "Arte do convite", { loteId: "l9", lote: { id: "l9", abertoEm: AGORA, frentes: 2, abertas: 1 } }), frente("a2", "Arte do banner", { loteId: "l9", lote: { id: "l9", abertoEm: AGORA, frentes: 2, abertas: 1 }, estado: "terminado", terminadoEm: AGORA - MIN })];
     const p = daPilula(pilulaNaConversa(estadoCom([...HEROS, ...outro], dono()), "orq", SEM_PROGRESSO));
-    expect(p.pilula.texto).toBe("2 lotes");
-    expect(p.pilula.resto).toEqual(["4 de 7 prontas"]);
-    // Alargada, separa por lote.
-    expect(p.partes.corpo).toContain('<h3 class="pf-lote">5 frentes · 3 de 5 prontas</h3>');
-    expect(p.partes.corpo).toContain('<h3 class="pf-lote">2 frentes · 1 de 2 prontas</h3>');
+    expect(p.pilula.texto).toBe("7 tarefas");
+    expect(p.pilula.resto).toEqual(["4 prontas"]);
+    // Alargada (validação de 2026-11-18, Paper 9f): os lotes juntos, por urgência — as que rodam numa seção, as prontas
+    // recolhidas numa linha só.
+    expect(p.partes.corpo).not.toContain("pf-lote");
+    expect(p.partes.corpo).toContain('<h3 class="pf-secao">Rodando · 3</h3>');
+    expect(p.partes.corpo).toMatch(/<details class="pf-prontas"><summary>.*<span>4 prontas<\/span>/);
   });
 
   it("sem frentes: a espera com o ponto vazado (\"Esperando a CI do #845 · 38 min\") ou a fila (\"1 pedido na fila\")", () => {
@@ -110,7 +111,7 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
 
   it("frentes e espera juntas: as frentes no texto e a espera em contagem ao lado", () => {
     const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono({ esperando: 1, motivoEspera: "a CI do #845", fila: 1 }, [], [{ turnoId: "t1", de: "colega", nome: "Leonardo", desde: AGORA }])), "orq", SEM_PROGRESSO));
-    expect(p.pilula.resto).toEqual(["3 de 5 prontas", "esperando a CI do #845", "1 pedido na fila"]);
+    expect(p.pilula.resto).toEqual(["3 prontas", "esperando a CI do #845", "1 pedido na fila"]);
   });
 
   it("\"Esperando você\" saiu da pílula (a pergunta tem o cartão); o bot livre não tem pílula", () => {
@@ -122,12 +123,12 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
 
   it("revisão do PR 400: a frente parada à espera da pessoa aparece fechada, como no bloco da fala (a linha do dono dizia \"Esperando você\")", () => {
     const comUma = HEROS.map((t) => (t.id === "w5" ? { ...t, estado: "precisa_de_voce" as const, ultimoPasso: "rodando os testes" } : t));
-    expect(daPilula(pilulaNaConversa(estadoCom(comUma, dono()), "orq", SEM_PROGRESSO)).pilula.resto).toEqual(["3 de 5 prontas", "1 precisa de você"]);
+    expect(daPilula(pilulaNaConversa(estadoCom(comUma, dono()), "orq", SEM_PROGRESSO)).pilula.resto).toEqual(["1 precisa de você", "3 prontas"]);
     const comDuas = comUma.map((t) => (t.id === "w3" ? { ...t, estado: "fechado_ocioso" as const } : t));
-    expect(daPilula(pilulaNaConversa(estadoCom(comDuas, dono()), "orq", SEM_PROGRESSO)).pilula.resto).toEqual(["3 de 5 prontas", "2 precisam de você"]);
+    expect(daPilula(pilulaNaConversa(estadoCom(comDuas, dono()), "orq", SEM_PROGRESSO)).pilula.resto).toEqual(["2 precisam de você", "3 prontas"]);
     // A frente sozinha: o estado ganha do último passo, que esconderia o "precisa de você".
     const sozinha = [frente("h", "Hero do site", { estado: "precisa_de_voce", ultimoPasso: "montando o layout", loteId: "l2", lote: { id: "l2", abertoEm: AGORA, frentes: 1, abertas: 1 } })];
-    expect(daPilula(pilulaNaConversa(estadoCom(sozinha, dono()), "orq", SEM_PROGRESSO)).pilula.resto).toEqual(["precisa de você"]);
+    expect(daPilula(pilulaNaConversa(estadoCom(sozinha, dono()), "orq", SEM_PROGRESSO)).pilula.resto).toEqual(["Hero do site", "precisa de você"]);
   });
 
   it("sem o dono no servidor (anterior ao I10): a faixa de tasks de antes", () => {
@@ -140,21 +141,34 @@ describe("a pílula fechada: o texto prioriza as frentes", () => {
 describe("a pílula alargada (protótipo D4BE2)", () => {
   const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono()), "orq", progresso([], ["w1", "w2", "w3", "w4", "w5"])));
 
-  it("rodando primeiro, com o último passo e o tempo; depois as prontas pela hora, com ✓; o traço entre as duas", () => {
+  it("ADR-187 §5 (Paper 4d, 2026-11-18): a linha do cartão vivo — rodando primeiro com o passo, depois as prontas da mais nova para a mais velha, com o estado curto à direita", () => {
     const ordem = [...p.partes.corpo.matchAll(/data-id="(w\d)"/g)].map((m) => m[1]);
-    expect(ordem).toEqual(["w3", "w5", "w1", "w2", "w4"]);
-    expect(p.partes.corpo).toContain('Hero w3 · Terminal retrô</button><span class="sr-only"> (rodando)</span><span class="progresso-passo">ajustando o contraste</span></span><span class="progresso-fim">12 min</span>');
-    expect(p.partes.corpo).toContain('<span class="progresso-passo">rodando os testes</span></span><span class="progresso-fim">9 min</span>');
-    expect(p.partes.corpo).toContain('<li class="progresso-item pf-depois pronta">');
-    expect(p.partes.corpo).toContain('<span class="progresso-fim">01:09</span>');
-    expect(p.partes.corpo.match(/pf-depois/g)).toHaveLength(1);
+    expect(ordem).toEqual(["w3", "w5", "w4", "w2", "w1"]);
+    expect(p.partes.corpo).toContain('<button type="button" class="tv-linha" data-act="abrir-trabalho" data-id="w3" data-estado="rodando">');
+    expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w3 · Terminal retrô</span><span class="sr-only"> (rodando)</span><span class="tv-estado">ajustando o contraste</span></span></button>');
+    expect(p.partes.corpo).toContain('<span class="tv-titulo">Hero w1 · Aurora</span><span class="tv-estado">pronta</span>');
+    // Na lista da aba a linha inteira abre a tarefa: sem "Ver", sem o tempo e sem o traço entre as que andam e as prontas.
+    expect(p.partes.corpo).not.toContain("tv-ver");
+    expect(p.partes.corpo).not.toContain("pf-depois");
   });
 
-  it("o cabeçalho com o resumo e \"fechar\"; no pé, \"Ver na conversa ↑\" (com a fala na janela) e \"Parar\"", () => {
-    expect(p.partes.cab).toContain('<span class="pf-cab-titulo">5 frentes · 3 de 5 prontas</span>');
-    expect(p.partes.cab).toContain(`class="pf-fechar" data-act="pilula" data-recolher="1" aria-expanded="true" aria-controls="${ID_PAINEL}">fechar`);
+  it("Paper 4d: a que precisa de você em cima, realçada, com \"precisa de você\"; e \"+ Nova tarefa ⌘N\" no fim quando a pessoa pode abrir uma", () => {
+    const comPergunta = HEROS.map((t) => (t.id === "w5" ? { ...t, estado: "precisa_de_voce" as const, ultimoPasso: "Posso incluir a Ásia?" } : t));
+    const n = { atalho: "⌘N", aria: "Meta+N" };
+    const corpo = daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO, n)).partes.corpo;
+    expect([...corpo.matchAll(/data-id="(w\d)"/g)].map((m) => m[1])).toEqual(["w5", "w3", "w4", "w2", "w1"]);
+    expect(corpo).toContain('data-id="w5" data-estado="precisa"');
+    expect(corpo).toContain('<span class="tv-estado">precisa de você</span>');
+    expect(corpo).toMatch(/<button type="button" class="pf-nova-linha" data-act="nova-tarefa" aria-keyshortcuts="Meta\+N">\+ Nova tarefa <kbd class="pf-nova-atalho">⌘N<\/kbd><\/button>$/);
+    expect(daPilula(pilulaNaConversa(estadoCom(comPergunta, dono()), "orq", SEM_PROGRESSO)).partes.corpo).not.toContain("pf-nova-linha");
+  });
+
+  it("o topo \"Tarefas abertas\" e \"Ver todas ›\" (Paper 9f); no pé, \"Ver na conversa ↑\" (com a fala na janela) e \"Parar\"", () => {
+    expect(p.partes.cab).toContain('<span class="pf-cab-titulo"><b>Tarefas abertas</b></span>');
+    expect(p.partes.cab).toContain('class="pf-ver-todas" data-act="abrir-tarefas" data-agente="orq">Ver todas');
+    expect(p.partes.cab).not.toContain("pf-fechar");
     expect(p.partes.pe).toContain('data-act="pilula-ver-na-conversa">Ver na conversa');
-    expect(p.partes.pe).toContain('<button type="button" class="pf-parar" data-act="pilula-parar">Parar</button>');
+    expect(p.partes.pe).toMatch(/<button type="button" class="pf-parar" data-act="pilula-parar"><svg[^]*?<\/svg>Parar<\/button>/);
     expect(p.pilula.abertas.map((t) => t.id)).toEqual(["w3", "w5"]);
     // A fala fora da janela carregada: "Ver na conversa" não tem para onde levar.
     expect(daPilula(pilulaNaConversa(estadoCom(HEROS, dono()), "orq", SEM_PROGRESSO)).partes.pe).not.toContain("Ver na conversa");
@@ -164,28 +178,28 @@ describe("a pílula alargada (protótipo D4BE2)", () => {
     const d = dono({ esperando: 1, motivoEspera: "a CI do #845", fila: 1 }, [{ tipo: "comando", trabalhoId: "w5", motivo: "a CI do #845", desde: AGORA - 38 * MIN, comando: "gh pr checks 845 --watch", ultimaLinha: "checks · pending", tentativa: 2, tentativas: 3 }], [{ turnoId: "t1", de: "colega", nome: "Leonardo", desde: new Date(2026, 9, 18, 1, 2).getTime() }]);
     const corpo = daPilula(pilulaNaConversa(estadoCom(HEROS, d), "orq", SEM_PROGRESSO)).partes.corpo;
     expect(corpo.indexOf('<h3 class="pf-secao">Esperando</h3>')).toBeGreaterThan(corpo.indexOf("Hero w4"));
-    expect(corpo).toContain('<code class="pf-comando">gh pr checks 845 --watch</code><span class="pf-sub mono">última linha: checks · pending</span><span class="pf-sub">volta quando a CI do #845 terminar · tentativa 2 de 3 · da frente Hero w5 · Boot do time</span></span><span class="pf-item-fim">38 min</span>');
+    expect(corpo).toContain('<code class="pf-comando">gh pr checks 845 --watch</code><span class="pf-sub mono">última linha: checks · pending</span><span class="pf-sub">volta quando a CI do #845 terminar · tentativa 2 de 3 · da tarefa Hero w5 · Boot do time</span></span><span class="pf-item-fim">38 min</span>');
     expect(corpo.indexOf('<h3 class="pf-secao">Na fila</h3>')).toBeGreaterThan(corpo.indexOf("Esperando</h3>"));
     expect(corpo).toContain('<span class="pf-item-titulo">Pedido do Leonardo</span></span><span class="pf-item-fim">01:02</span>');
   });
 
   it("o painel é uma região com nome; fechado ele é `hidden`, aberto não", () => {
     const fechada = htmlDaPilula(p.partes, { aberta: false, escondida: false });
-    expect(fechada).toContain(`<section class="pf-painel" id="${ID_PAINEL}" role="region" aria-label="Frentes de Orquestrador de Sites" hidden>`);
+    expect(fechada).toContain(`<section class="pf-painel" id="${ID_PAINEL}" role="region" aria-label="Tarefas de Orquestrador de Sites" hidden>`);
     const aberta = htmlDaPilula(p.partes, { aberta: true, escondida: false });
     expect(aberta).toContain('<div class="pilula-frentes" data-estado="aberta">');
     expect(aberta).toContain('aria-expanded="true"');
-    expect(aberta).toContain('role="region" aria-label="Frentes de Orquestrador de Sites"><div class="pf-cab">');
+    expect(aberta).toContain('role="region" aria-label="Tarefas de Orquestrador de Sites"><div class="pf-cab">');
     // No celular a folha tem o fundo que fecha ao toque, fora do Tab e da árvore de acessibilidade.
     expect(aberta).toContain('<button type="button" class="pf-fundo" data-act="pilula" data-recolher="1" tabindex="-1" aria-hidden="true"></button>');
   });
 });
 
-describe("some com a fala à vista, não com espera nem fila", () => {
+describe("ADR-187 (P1): a aba presa ao campo nunca some", () => {
   const grupos = [{ ids: ["w1", "w2", "w3"] }];
 
-  it("todo grupo com uma frente num bloco à vista: escondida; a fala fora da vista ou fora da janela: à vista", () => {
-    expect(pilulaEscondida({ grupos, esperas: 0, fila: 0 }, progresso(["w2"]))).toBe(true);
+  it("nem com o bloco de progresso à vista (antes ela se escondia com ele)", () => {
+    expect(pilulaEscondida({ grupos, esperas: 0, fila: 0 }, progresso(["w2"]))).toBe(false);
     expect(pilulaEscondida({ grupos, esperas: 0, fila: 0 }, progresso([], ["w2"]))).toBe(false);
     expect(pilulaEscondida({ grupos, esperas: 0, fila: 0 }, SEM_PROGRESSO)).toBe(false);
     // Dois lotes: só a fala de um à vista não basta.
@@ -198,10 +212,10 @@ describe("some com a fala à vista, não com espera nem fila", () => {
     expect(pilulaEscondida({ grupos: [], esperas: 1, fila: 0 }, SEM_PROGRESSO)).toBe(false);
   });
 
-  it("escondida, sai da árvore de acessibilidade e do Tab com `hidden` (nunca só opacidade)", () => {
+  it("escondida (quem desenha ainda pode pedir), sai da árvore de acessibilidade e do Tab com `hidden`; com a fala à vista, fica", () => {
     const e = estadoCom(HEROS, dono());
     const p = daPilula(pilulaNaConversa(e, "orq", progresso(["w3"])));
-    expect(p.escondida).toBe(true);
+    expect(p.escondida).toBe(false);
     expect(htmlDaPilula(p.partes, { aberta: false, escondida: true })).toMatch(/^<div class="pilula-frentes" data-estado="fechada" hidden>/);
     const comFila = estadoCom(HEROS, dono({ fila: 1 }, [], [{ turnoId: "t1", de: "pessoa", nome: null, desde: AGORA }]));
     expect(daPilula(pilulaNaConversa(comFila, "orq", progresso(["w3"]))).escondida).toBe(false);
@@ -266,7 +280,8 @@ describe("alargar, Esc e o foco", () => {
     expect(pilulaNaConversa(estadoCom(prontas, dono()), "orq", SEM_PROGRESSO).tipo).toBe("nada");
     const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
     const desenhar = main.slice(main.indexOf("function desenharPilula(): void {"), main.indexOf("function anunciarFrentesTerminadas("));
-    expect(desenhar).toMatch(/if \(p\.tipo === "nada"\) \{\n\s+const ao = aoSumir\(/);
+    // ADR-187 §5: a aba "+ Nova tarefa" (vazia) no lugar da pílula também tira o foco de dentro dela.
+    expect(desenhar).toMatch(/if \(p\.tipo === "nada" \|\| p\.tipo === "vazia"\) \{\n\s+const ao = aoSumir\(/);
     expect(desenhar).toMatch(/ao\.foco === "campo"\) document\.getElementById\("composer-texto"\)\?\.focus/);
   });
 
@@ -380,11 +395,11 @@ describe("a conversa aberta antes do histórico chegar (QA do PR 400)", () => {
   // para fora quando as mensagens chegavam com a fala à vista. Achado pelo /qa em 2026-10-18 (conversa curta aberta do zero).
   const carregada = (e: Estado): Estado => ({ ...e, conversas: { [C]: { id: C, mensagens: [], carregadaEm: AGORA } as never } });
 
-  it("com frentes e sem o histórico: escondida (não conta \"mostrada\"); com ele, decide pela medida da fala", () => {
+  it("ADR-187 (P1): com frentes, à vista com ou sem o histórico (a aba não depende da medida da fala)", () => {
     const e = estadoCom(HEROS, dono());
-    expect(daPilula(pilulaNaConversa(e, "orq", SEM_PROGRESSO)).escondida).toBe(true);
+    expect(daPilula(pilulaNaConversa(e, "orq", SEM_PROGRESSO)).escondida).toBe(false);
     expect(daPilula(pilulaNaConversa(carregada(e), "orq", SEM_PROGRESSO)).escondida).toBe(false);
-    expect(daPilula(pilulaNaConversa(carregada(e), "orq", progresso(["w3"]))).escondida).toBe(true);
+    expect(daPilula(pilulaNaConversa(carregada(e), "orq", progresso(["w3"]))).escondida).toBe(false);
   });
 
   it("espera e fila não têm fala-âncora: aparecem já, mesmo sem o histórico", () => {

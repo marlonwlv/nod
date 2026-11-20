@@ -256,11 +256,11 @@ export function quadroExecucoesRepo(conn: Conn, escopo: Escopo) {
           -- Revisão 4 do PR #625: o pedido a um colega (pedir_a_bot) que ainda não voltou também é espera — a resposta
           -- abre a retomada da cadeia. Sem isto o trabalho saía concluído (ou falho, e repetia) com o colega trabalhando.
           or exists (select 1 from mensagens h where h.tenant_id = ${escopo.tenantId}
-            and h.turno_id in (select id from desce where desce.raiz = a.raiz) and ${pedidoAbertoSql(conn, "h")})) as aguardando,
+            and h.turno_id in (select id from desce where desce.raiz = a.raiz) and ${pedidoAbertoSql(conn, "h", escopo.tenantId)})) as aguardando,
         exists (select 1 from decisoes x where x.tenant_id = ${escopo.tenantId} and x.estado in ${conn.unsafe(DECISAO_ABERTA)} and x.tipo <> 'retomar_turno'
           and x.turno_id in (select id from desce where desce.raiz = a.raiz)) as aguarda_pessoa,
         exists (select 1 from mensagens h where h.tenant_id = ${escopo.tenantId}
-          and h.turno_id in (select id from desce where desce.raiz = a.raiz) and ${pedidoAbertoSql(conn, "h")}) as aguarda_colega,
+          and h.turno_id in (select id from desce where desce.raiz = a.raiz) and ${pedidoAbertoSql(conn, "h", escopo.tenantId)}) as aguarda_colega,
         -- 2026-11-11 ("Ver o trabalho"): a máquina onde o trabalho roda (ou rodou): a do turno mais novo da cadeia que foi pego.
         (select mt.nome from desce d2 join turnos t2 on t2.tenant_id = ${escopo.tenantId} and t2.id = d2.id
           join maquina_tokens mt on mt.tenant_id = ${escopo.tenantId} and mt.owner_id = ${escopo.pessoaId} and mt.id = t2.machine_id
@@ -340,7 +340,7 @@ export function quadroExecucoesRepo(conn: Conn, escopo: Escopo) {
           select t.id, d.n + 1 from turnos t join desce d on t.tenant_id = ${escopo.tenantId} and t.retoma_turno_id = d.id where d.n < 50
         )
         select distinct h.payload->>'tarefaId' as colega from mensagens h where h.tenant_id = ${escopo.tenantId}
-          and h.turno_id in (select id from desce) and ${pedidoAbertoSql(conn, "h")}`;
+          and h.turno_id in (select id from desce) and ${pedidoAbertoSql(conn, "h", escopo.tenantId)}`;
       return ls.map((l) => l.colega).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
     },
     async cancelarEsperasDasCadeias(raizes: readonly string[], motivoFim: string, agora: number): Promise<number> {

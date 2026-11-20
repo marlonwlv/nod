@@ -5,7 +5,7 @@ import type { FilaDoPedido } from "../../src/contracts/mensagem.ts";
  * `textoDoMotivoDaFila` (src/domain/turno-orfao.ts); tests/unit/web/tarefa-delegada.test.ts confere as duas.
  */
 export const TEXTO_DO_MOTIVO_DA_FILA: Record<NonNullable<FilaDoPedido["motivo"]>, string> = {
-  depois_de: "espera a task anterior terminar",
+  depois_de: "espera a tarefa anterior terminar",
   faixa_ocupada: "espera o bot terminar o que está fazendo",
   condicao_da_maquina: "espera o computador do bot (cota da IA, Mac fora ou sem recursos)",
   agente_excluido: "o bot foi excluído",

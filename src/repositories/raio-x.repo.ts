@@ -76,7 +76,8 @@ export function raioXRepo(conn: Conn, escopo: Escopo) {
 
     /**
      * NOD-480 (emenda da ADR-040): a janela de contexto que o Claude Code informou num turno recente deste bot, nesta
-     * conversa, com o mesmo modelo (`execucao.janela`). null = nenhum dos últimos TURNOS_DA_JANELA tem a janela gravada;
+     * conversa, com o mesmo modelo efetivo da composição (`execucao.janela`). null = nenhum dos últimos
+     * TURNOS_DA_JANELA tem a janela gravada;
      * quem chama cai na tabela por nome.
      * Revisão do PR #721: roda em TODA emissão de plano. Pelo bot inteiro, `turnos` não tem índice por `agente_id` (varria
      * os turnos do tenant) e o filtro `execucao->'janela'` destoastava a execução de cada candidato (~100 kB no pior caso, contracts/raio-x.ts) antes
@@ -86,9 +87,11 @@ export function raioXRepo(conn: Conn, escopo: Escopo) {
       const [l] = await conn<{ janela: number | null }[]>`
         select (r.execucao->>'janela')::bigint as janela
         from (
-          select tenant_id, id, criado_em from turnos
-          where tenant_id = ${escopo.tenantId} and conversa_id = ${conversaId} and agente_id = ${agenteId} and modelo = ${modelo}
-          order by criado_em desc
+          select t.tenant_id, t.id, t.criado_em from turnos t
+          left join turno_raio_x r0 on r0.tenant_id = t.tenant_id and r0.turno_id = t.id
+          where t.tenant_id = ${escopo.tenantId} and t.conversa_id = ${conversaId} and t.agente_id = ${agenteId}
+            and coalesce(r0.composicao->>'modelo', t.modelo) = ${modelo}
+          order by t.criado_em desc
           limit ${TURNOS_DA_JANELA}
         ) t
         join turno_raio_x r on r.tenant_id = t.tenant_id and r.turno_id = t.id

@@ -26,10 +26,17 @@ export function uuidDoPayload(conn: Conn, expr: postgres.PendingQuery<postgres.R
 export const PROFUNDIDADE_DA_CADEIA = 500;
 
 /** O handoff ainda sem peer_ask da mesma tarefa NA MESMA conversa (CA8) — a parte de pedidoAbertoSql que `abertos` usa. */
-export function semRespostaSql(conn: Conn, alias: string) {
+export function semRespostaSql(conn: Conn, alias: string, tenantId: string) {
   const h = conn(alias);
-  return conn`not exists (select 1 from mensagens r where r.tenant_id = ${h}.tenant_id and r.conversa_id = ${h}.conversa_id and r.kind = 'peer_ask'
-      and r.payload->>'tarefaId' = ${h}.payload->>'tarefaId')`;
+  // revisto em 2026-11-19: era um `not exists` correlacionado, e o planejador o fazia por índice, um pedido de cada vez —
+  // cada busca lia as dezenas de `peer_ask` da conversa (o `->>` não vira condição de índice sob RLS, ver a 0115) e o
+  // painel dos donos levava ~7 s com 1,5 mil pedidos. O `not in` sem correlação vira um hashed SubPlan: as respostas do
+  // tenant são lidas uma vez por consulta. Mesmo resultado: `conversa_id` é NOT NULL e as duas pontas do `tarefaId`
+  // excluem o nulo (o `not in` com nulo daria desconhecido; o pedido sem tarefa fica, como no `not exists`). A tabela de
+  // hash cabe no hash_mem com dezenas de milhares de respostas por tenant (eram ~2 mil em produção).
+  return conn`(${h}.payload->>'tarefaId' is null or (${h}.conversa_id, ${h}.payload->>'tarefaId') not in (
+      select r.conversa_id, r.payload->>'tarefaId' from mensagens r
+      where r.tenant_id = ${tenantId} and r.kind = 'peer_ask' and r.payload->>'tarefaId' is not null))`;
 }
 
 /**
@@ -40,10 +47,10 @@ export function semRespostaSql(conn: Conn, alias: string) {
  * trabalho, depois da CTE materializada — antes cada um tinha a sua, e o painel mostrava o que
  * o varredor já não olhava.
  */
-export function pedidoAbertoSql(conn: Conn, alias: string) {
+export function pedidoAbertoSql(conn: Conn, alias: string, tenantId: string) {
   const h = conn(alias);
   return conn`${h}.kind = 'handoff' and ${h}.payload->>'tarefaId' is not null
-    and ${semRespostaSql(conn, alias)}
+    and ${semRespostaSql(conn, alias, tenantId)}
     and not exists (select 1 from trabalhos k where k.tenant_id = ${h}.tenant_id and k.id = ${uuidDoPayload(conn, conn`${h}.payload->>'trabalhoId'`)}
       and k.estado in ('terminado', 'parado', 'falhou'))`;
 }
@@ -132,7 +139,7 @@ export function pedidosDeColegaRepo(conn: Conn, escopo: Escopo) {
             and m.criado_em >= ${data(piso)}
             ${de === undefined ? conn`` : conn`and m.payload->>'de' = ${de}::text`}
             -- NOD-377 (CA5): a mesma "sem resposta" do painel e do varredor (pedidoAbertoSql); o trabalho fechado vem depois.
-            and ${semRespostaSql(conn, "m")}
+            and ${semRespostaSql(conn, "m", escopo.tenantId)}
         )
         select h.de, h.para, h.tarefa_id, h.criado_em, h.texto from h
         where not exists (select 1 from trabalhos k where k.tenant_id = ${escopo.tenantId} and h.trabalho is not null and k.id = h.trabalho
@@ -308,7 +315,7 @@ export function pedidosDeColegaRepo(conn: Conn, escopo: Escopo) {
           select h.id as handoff_id, h.criado_em, h.conversa_id, ${uuidDoPayload(conn, conn`h.payload->>'de'`)} as de_id, ${uuidDoPayload(conn, conn`h.payload->>'trabalhoId'`)} as trabalho_id, d.id as tarefa_id, d.conversa_id as tarefa_conversa, d.agente_id as colega_id
           from mensagens h
           join turnos d on d.tenant_id = h.tenant_id and d.id = ${uuidDoPayload(conn, conn`h.payload->>'tarefaId'`)}
-          where h.tenant_id = ${escopo.tenantId} and h.owner_id = ${escopo.pessoaId} and ${pedidoAbertoSql(conn, "h")}
+          where h.tenant_id = ${escopo.tenantId} and h.owner_id = ${escopo.pessoaId} and ${pedidoAbertoSql(conn, "h", escopo.tenantId)}
             and exists (select 1 from agentes a where a.tenant_id = h.tenant_id and a.id = ${uuidDoPayload(conn, conn`h.payload->>'de'`)} and a.excluido_em is null)
             ${adiados.length === 0 ? conn`` : conn`and not (h.payload->>'tarefaId' = any(${[...adiados]}::text[]))`}
             ${tarefas === null ? conn`` : conn`and h.payload->>'tarefaId' = any(${[...tarefas]}::text[])`}
@@ -339,7 +346,7 @@ export function pedidosDeColegaRepo(conn: Conn, escopo: Escopo) {
             -- Revisão 4 do PR #544 (M2): o colega que pediu a um terceiro e espera a resposta dele também está trabalhando
             -- (o mesmo "aguardando_colega" de entregar-resposta-peer.ts). A espera de lá tem fim pela regra dela.
             or exists (select 1 from mensagens hh join membros mb on mb.id = hh.turno_id
-              where hh.tenant_id = ${escopo.tenantId} and mb.raiz = p.tarefa_id and ${pedidoAbertoSql(conn, "hh")})) as aguardando,
+              where hh.tenant_id = ${escopo.tenantId} and mb.raiz = p.tarefa_id and ${pedidoAbertoSql(conn, "hh", escopo.tenantId)})) as aguardando,
           coalesce(f.vivo, false) as vivo,
           coalesce(f.na_fila, false) as na_fila, f.fila_desde, coalesce(f.rodou, false) as rodou,
           u.id as ultimo_id, u.estado::text as ultimo_estado, u.motivo_interrupcao::text as ultimo_motivo, u.fim as ultimo_fim,

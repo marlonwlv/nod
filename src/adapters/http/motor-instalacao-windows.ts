@@ -526,12 +526,38 @@ function RegistrarInicio {
   }
 }
 
+# O motor nao subiu: o motivo vai para o log. O conhost --headless da tarefa joga fora o stderr do motor; aqui ele roda
+# direto por ate 20 s com a saida num arquivo e, se ficar de pe, e derrubado (a tarefa e quem cuida dele).
+function DiagnosticarMotor {
+  if ($Estado.Modo -eq 'tarefa') {
+    try {
+      $info = Get-ScheduledTaskInfo -TaskName $NomeDaTarefa -TaskPath '\' -ErrorAction Stop
+      Registrar ('tarefa ' + $NomeDaTarefa + ': ultima execucao ' + $info.LastRunTime + ', resultado ' + $info.LastTaskResult)
+    } catch { Registrar ('tarefa ' + $NomeDaTarefa + ': ' + $_.Exception.Message) }
+  }
+  $erro = Join-Path $Pasta 'motor-diagnostico.err'
+  $saida = Join-Path $Pasta 'motor-diagnostico.out'
+  try {
+    $p = Start-Process -FilePath $NodeExe -ArgumentList ('"' + $MotorMjs + '" rodar') -NoNewWindow -PassThru -RedirectStandardError $erro -RedirectStandardOutput $saida
+    $null = $p.Handle
+    if ($p.WaitForExit(20000)) { Registrar ('motor rodando direto: saiu com ' + $p.ExitCode) }
+    else {
+      Registrar 'motor rodando direto: ficou de pe por 20 s (so pela tarefa ele nao subiu)'
+      $null = Rodar $Taskkill @('/PID', [string]$p.Id, '/T', '/F')
+    }
+    foreach ($arquivo in @($erro, $saida)) {
+      if (Test-Path -LiteralPath $arquivo) { Get-Content -LiteralPath $arquivo -Encoding UTF8 | Select-Object -Last 20 | ForEach-Object { Registrar ('motor: ' + $_) } }
+    }
+  } catch { Registrar ('motor rodando direto: ' + $_.Exception.Message) }
+  finally { foreach ($arquivo in @($erro, $saida)) { Remove-Item -LiteralPath $arquivo -Force -ErrorAction SilentlyContinue } }
+}
+
 function IniciarMotor {
   if ($Estado.Modo -eq 'tarefa') { Start-ScheduledTask -TaskName $NomeDaTarefa -TaskPath '\' }
   else { Start-Process -FilePath $Conhost -ArgumentList $ArgumentosDoMotor -WindowStyle Hidden | Out-Null }
   $ate = (Get-Date).AddSeconds(15)
   while ((PidsDoMotor).Count -eq 0 -and (Get-Date) -lt $ate) { Start-Sleep -Milliseconds 250 }
-  if ((PidsDoMotor).Count -eq 0) { Falhar ('O motor foi instalado, mas não iniciou. Confira ' + $Log + ' e rode de novo.') }
+  if ((PidsDoMotor).Count -eq 0) { DiagnosticarMotor; Falhar ('O motor foi instalado, mas não iniciou. Confira ' + $Log + ' e rode de novo.') }
   $Estado.Iniciado = $true
 }
 

@@ -36,6 +36,11 @@ function canal(mac: PonteAvisosDesktop) {
 }
 
 const esperarMicrotarefas = () => new Promise((r) => setTimeout(r, 0));
+const adiar = <T>() => {
+  let resolver!: (valor: T) => void;
+  const promessa = new Promise<T>((resolve) => { resolver = resolve; });
+  return { promessa, resolver };
+};
 
 describe("canal de avisos: som (NOD-196)", () => {
   it("ponte sem definirSom (app antigo): o canal não expõe o som", async () => {
@@ -154,6 +159,92 @@ describe("canal de avisos: app antigo (NOD-196)", () => {
     await esperarMicrotarefas();
     expect(aoMudar).not.toHaveBeenCalled();
     expect(c.ligado()).toBe(true);
+  });
+});
+
+describe("canal de avisos: respostas fora de ordem", () => {
+  it("dois cliques simultâneos em avisos e som preservam as duas alternâncias", async () => {
+    const mac = ponte();
+    let prefs = PADRAO;
+    const avisos: boolean[] = [];
+    mac.preferencias = async () => prefs;
+    mac.definirAvisos = async (ligado) => {
+      avisos.push(ligado);
+      return (prefs = { ...prefs, avisos: ligado });
+    };
+    mac.definirSom = async (ligado) => {
+      mac.chamadas.push(ligado);
+      return (prefs = { ...prefs, som: ligado });
+    };
+    const { canal: c } = canal(mac);
+    await esperarMicrotarefas();
+
+    await Promise.all([c.alternar(), c.alternar(), c.alternarSom!(), c.alternarSom!()]);
+
+    expect(avisos).toEqual([false, true]);
+    expect(mac.chamadas).toEqual([false, true]);
+    expect(c.estado()).toEqual({ onde: "mac", situacao: "ligados", som: true });
+  });
+
+  it("uma falha não trava a fila e a tentativa seguinte aplica a preferência", async () => {
+    const mac = ponte();
+    let tentativa = 0;
+    mac.definirAvisos = async (ligado) => {
+      tentativa += 1;
+      if (tentativa === 1) throw new Error("ipc caiu");
+      return { ...PADRAO, avisos: ligado };
+    };
+    const { canal: c } = canal(mac);
+    await esperarMicrotarefas();
+
+    await c.alternar();
+    expect(c.estado().situacao).toBe("ligados");
+    await c.alternar();
+
+    expect(tentativa).toBe(2);
+    expect(c.estado().situacao).toBe("desligados");
+  });
+
+  it("a leitura inicial antiga termina antes de aplicar a alteração pedida depois", async () => {
+    const leitura = adiar<PreferenciasDesktop>();
+    const mac = ponte();
+    mac.definirAvisos = async (ligado) => {
+      mac.chamadas.push(ligado);
+      return { ...PADRAO, avisos: ligado };
+    };
+    mac.preferencias = () => leitura.promessa;
+    const { canal: c } = canal(mac);
+
+    const alteracao = c.alternar();
+    await esperarMicrotarefas();
+    expect(mac.chamadas).toEqual([]);
+
+    leitura.resolver(PADRAO);
+    await alteracao;
+    expect(mac.chamadas).toEqual([false]);
+    expect(c.estado()).toEqual({ onde: "mac", situacao: "desligados", som: true });
+  });
+
+  it("releitura, avisos e som preservam a ordem mesmo quando cada IPC fica pendente", async () => {
+    const leitura = adiar<PreferenciasDesktop>();
+    const aviso = adiar<PreferenciasDesktop>();
+    const som = adiar<PreferenciasDesktop>();
+    const mac = ponte({ definirSom: () => som.promessa });
+    mac.preferencias = () => leitura.promessa;
+    mac.definirAvisos = () => aviso.promessa;
+    const { canal: c } = canal(mac);
+
+    const mudaAviso = c.alternar();
+    const mudaSom = c.alternarSom!();
+    await esperarMicrotarefas();
+    leitura.resolver(PADRAO);
+    await esperarMicrotarefas();
+    aviso.resolver({ ...PADRAO, avisos: false });
+    await esperarMicrotarefas();
+    som.resolver({ ...PADRAO, avisos: false, som: false });
+    await Promise.all([mudaAviso, mudaSom]);
+
+    expect(c.estado()).toEqual({ onde: "mac", situacao: "desligados", som: false });
   });
 });
 

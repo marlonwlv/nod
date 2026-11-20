@@ -15,7 +15,7 @@ describe("o popover da passagem com as saídas da etapa", () => {
     const h = popoverDePassagem(col("afazer"), AGENTES, CS);
     expect(h).toContain(`<label class="qd-rotulo" for="qd-pas-proxima">Etapa concluída vai para</label>`);
     expect(h).toContain(`<option value="">Fazendo (padrão)</option>`);
-    expect(h).toContain(`<option value="">Sem volta (comente na tarefa)</option>`);
+    expect(h).toContain(`<option value="">Sem volta (comente no card)</option>`);
     const proxima = h.slice(h.indexOf(`name="proxima"`), h.indexOf("</select>", h.indexOf(`name="proxima"`)));
     expect(proxima).not.toContain(`value="bloqueado"`);
     expect(proxima).not.toContain(`value="afazer"`);

@@ -198,10 +198,10 @@ describe("o histórico da tarefa aberta", () => {
   });
 
   it("o último não vale mais: sem botão, o porquê no title; o desfeito vem riscado; sem movimentos, nada", () => {
-    expect(historicoDaTarefa(t({ status: "feito" }), dto())).toContain(`title="A tarefa mudou depois: mova à mão"`);
+    expect(historicoDaTarefa(t({ status: "feito" }), dto())).toContain(`title="O card mudou depois: mova à mão"`);
     expect(historicoDaTarefa(t({ status: "feito" }), dto())).not.toContain("data-act=");
     // Revisão 4 do PR #629: o porquê chega ao leitor de tela, não só no title.
-    expect(historicoDaTarefa(t({ status: "feito" }), dto())).toContain(`<span class="qd-sr"> (A tarefa mudou depois: mova à mão)</span>`);
+    expect(historicoDaTarefa(t({ status: "feito" }), dto())).toContain(`<span class="qd-sr"> (O card mudou depois: mova à mão)</span>`);
     expect(historicoDaTarefa(t({ movimentos: [mov({ desfeitoEm: 1 })] }), dto())).toContain("qd-hist-desfeito");
     expect(historicoDaTarefa(t({ movimentos: [] }), dto())).toBe("");
     const recusa = mov({ tipo: "nao_e_comigo", motivo: MAL });

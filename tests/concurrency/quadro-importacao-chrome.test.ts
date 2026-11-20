@@ -145,13 +145,13 @@ descrever("NOD-422 no Chrome real: Trazer do Linear pela tela", () => {
     await ate(`document.querySelector('#quadro [data-act="importar-sem-backlog"]')`);
     await clicar('#quadro [data-act="importar-sem-backlog"]');
     await ate(`document.querySelector('#quadro [data-act="importar-confirmar"]')`);
-    expect(await texto("#quadro .ci-painel")).toContain("Trazer 2 tarefas do Linear (NOD) para o quadro de Ada");
+    expect(await texto("#quadro .ci-painel")).toContain("Trazer 2 cards do Linear (NOD) para o quadro de Ada");
     expect(await texto("#quadro .ci-painel")).toContain("Só o que não está em Backlog.");
     expect((await chamadas()).filter((c) => c[0] === "importar")).toHaveLength(0);
 
     // Trazer: o importar sai com o filtro; a linha anda sozinha e termina no resultado; o painel fecha.
     await clicar('#quadro [data-act="importar-confirmar"]');
-    await ate(`/Trouxe 2 tarefas/.test(document.querySelector("#quadro .qm-cab-imp")?.textContent ?? "")`);
+    await ate(`/Trouxe 2 cards/.test(document.querySelector("#quadro .qm-cab-imp")?.textContent ?? "")`);
     expect((await chamadas()).filter((c) => c[0] === "importar")).toEqual([["importar", "NOD", "sem_backlog"]]);
     expect(await avaliar<boolean>(cdp, `!document.querySelector("#quadro .ci-painel")`)).toBe(true);
     expect(await texto("#qc-faixa")).toContain("Trazendo do Linear (NOD)");

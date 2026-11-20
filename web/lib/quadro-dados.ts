@@ -38,7 +38,7 @@ export function fraseDaEspera(t: Pick<TarefaDto, "esperaPessoa" | "decide" | "es
   // 2026-11-10 (os wait.* do Multica): as esperas por evento do me_chame_as.
   if (l.volta.quando === "merge") return { texto: "Esperando o merge", voce: false };
   if (l.volta.quando === "conflito") return { texto: "Esperando conflito", voce: false };
-  if (l.volta.quando === "tarefa") return { texto: `Esperando ${l.volta.tarefa ?? "outra tarefa"}`, voce: false };
+  if (l.volta.quando === "tarefa") return { texto: `Esperando ${l.volta.tarefa ?? "outro card"}`, voce: false };
   if (l.volta.em !== null) {
     const d = new Date(l.volta.em);
     const h = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -85,19 +85,19 @@ export function reciboDaNovaTarefa(titulo: string, r: { quadro: QuadroDto | null
  * RECUSAS_DO_MOVER); sem motivo, num 4xx, a frase dele; sem rede, a de sempre. `reler`: o quadro mudou, relê.
  */
 const FRASE_DO_MOVER: Record<string, string> = {
-  ja_neste_quadro: "ela já está nesse quadro.",
-  fora_do_quadro: "ela não está mais neste quadro.",
-  tarefa_sumiu: "ela não existe mais.",
-  quadro_sumiu: "a tarefa ou o quadro não existe mais.",
-  mudou_de_quadro: "outra mudança levou a tarefa para outro quadro antes.",
-  linear_no_destino: "o quadro de destino já tem esta tarefa do Linear.",
+  ja_neste_quadro: "ele já está nesse quadro.",
+  fora_do_quadro: "ele não está mais neste quadro.",
+  tarefa_sumiu: "ele não existe mais.",
+  quadro_sumiu: "o card ou o quadro não existe mais.",
+  mudou_de_quadro: "outra mudança levou o card para outro quadro antes.",
+  linear_no_destino: "o quadro de destino já tem este card do Linear.",
 };
 export function fraseDoErroDoMover(e: { status?: number; codigo?: string; motivo?: string | null; message?: string } | null | undefined): { texto: string; reler: boolean } {
   if (e?.codigo === "servidor_indisponivel" || e?.codigo === "sem_internet") return { texto: "Sem conexão com o servidor agora. Tente de novo em instantes.", reler: false };
   const porque = e?.motivo ? FRASE_DO_MOVER[e.motivo] : undefined;
-  if (porque) return { texto: `Não deu para mudar a tarefa de quadro: ${porque} Relendo.`, reler: true };
-  if (e?.status && e.status >= 400 && e.status < 500 && e.message) return { texto: `Não deu para mudar a tarefa de quadro. ${e.message}`, reler: true };
-  return { texto: "Não deu para mudar a tarefa de quadro. Relendo.", reler: true };
+  if (porque) return { texto: `Não deu para mudar o card de quadro: ${porque} Relendo.`, reler: true };
+  if (e?.status && e.status >= 400 && e.status < 500 && e.message) return { texto: `Não deu para mudar o card de quadro. ${e.message}`, reler: true };
+  return { texto: "Não deu para mudar o card de quadro. Relendo.", reler: true };
 }
 
 /**
@@ -124,8 +124,9 @@ export function opcoesDeStatus(colunas: readonly Pick<ColunaDto, "id" | "nome" |
  * NOD-416: os bots que podem ser o Responsável da tarefa aberta: os ativos da pessoa. O Nod fica fora (ele não pega
  * tarefa do quadro; revisão do PR #623), e também os excluídos, os ocultos e os de outra pessoa.
  */
-export function responsaveisDaTarefa(agentes: readonly { id: string; nome: string; papel?: string | null; ownerId?: string | null; excluidoEm?: number | null; oculto?: boolean | null }[], pessoaId: string | null | undefined): { id: string; nome: string }[] {
-  return agentes.filter((a) => a.papel !== "nod" && !a.excluidoEm && !a.oculto && !!pessoaId && a.ownerId === pessoaId).map((a) => ({ id: a.id, nome: a.nome }));
+export function responsaveisDaTarefa(agentes: readonly { id: string; nome: string; titulo?: string | null; papel?: string | null; ownerId?: string | null; excluidoEm?: number | null; oculto?: boolean | null }[], pessoaId: string | null | undefined): { id: string; nome: string; titulo?: string }[] {
+  // Rodada 3: o título vai junto ("Chico · Tech Lead" no seletor da passagem, tela 18c do Paper).
+  return agentes.filter((a) => a.papel !== "nod" && !a.excluidoEm && !a.oculto && !!pessoaId && a.ownerId === pessoaId).map((a) => ({ id: a.id, nome: a.nome, ...(a.titulo ? { titulo: a.titulo } : {}) }));
 }
 
 /** NOD-416: o "Mover para…": os outros quadros da pessoa (o da tarefa fica de fora), pelo nome do bot. */
@@ -146,7 +147,7 @@ function quandoFoi(em: number, agora: number): string {
  */
 export function linhaDoHistorico(e: Pick<EntradaHistoricoDto, "campo" | "de" | "para" | "deNome" | "paraNome" | "autor" | "autorNome" | "criadoEm">, agora: number = Date.now()): { quem: string; oque: string; quando: string } {
   // NOD-422: a linha da importação é do Linear ("No Linear em Implementando", com a data de lá; ou "fechada no Linear").
-  if (e.campo === "linear") return { quem: "Linear", oque: e.para ? `em ${e.para}` : "fechada no Linear", quando: quandoFoi(e.criadoEm, agora) };
+  if (e.campo === "linear") return { quem: "Linear", oque: e.para ? `em ${e.para}` : "fechado no Linear", quando: quandoFoi(e.criadoEm, agora) };
   const quem = e.autor === "pessoa" ? "Você" : e.autor === "regra" ? "Regra" : (e.autorNome ?? "Um bot");
   const de = e.deNome ?? e.de;
   const para = e.paraNome ?? e.para;

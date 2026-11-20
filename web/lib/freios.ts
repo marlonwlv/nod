@@ -100,9 +100,9 @@ export function ultimoDesfazivel(ms: readonly MovimentoDto[] | undefined): Movim
  */
 export function porqueNaoDesfaz(t: Pick<TarefaDto, "status" | "agenteId" | "movimentos">, m: MovimentoDto, cs: readonly { id: string }[]): string | null {
   if (m.desfeitoEm !== null) return "Já desfeito";
-  if (!mudou(m)) return "Não mudou a tarefa de lugar nem de mão";
+  if (!mudou(m)) return "Não mudou o card de lugar nem de mão";
   if (ultimoDesfazivel(t.movimentos ?? [m])?.id !== m.id) return "Só o último movimento se desfaz";
-  if (t.status !== m.para || t.agenteId !== m.agenteDepois) return "A tarefa mudou depois: mova à mão";
+  if (t.status !== m.para || t.agenteId !== m.agenteDepois) return "O card mudou depois: mova à mão";
   if (!cs.some((c) => c.id === m.de)) return "A coluna de antes não existe mais: mova à mão";
   return null;
 }

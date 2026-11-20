@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { soLinks, tabelaComo, textoFormatado } from "../../../web/lib/texto-formatado.ts";
+import { realcarCodigo, soLinks, tabelaComo, textoFormatado } from "../../../web/lib/texto-formatado.ts";
 
-/** NOD-45: o card do bloco de código. `codigo` já vem escapado; o Copiar só aparece com a cerca fechada. */
-const COPIAR = '<button type="button" data-act="copiar-codigo" aria-label="Copiar código" aria-live="polite"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg><span class="md-codigo-estado">Copiar</span></button>';
+/**
+ * NOD-45: o card do bloco de código. `codigo` já vem escapado; o Copiar só aparece com a cerca fechada.
+ * COP-14 (item 4): o Copiar leva os ícones de copiar e de check, e o código fechado sai com o realce de sintaxe.
+ */
+const COPIAR = '<button type="button" class="md-codigo-copiar" data-act="copiar-codigo" aria-label="Copiar código" title="Copiar código" aria-live="polite"><svg class="md-ic-copiar" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg><svg class="md-ic-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg><span class="md-codigo-estado">Copiar</span></button>';
+const desesc = (html: string): string => html.replaceAll("&quot;", '"').replaceAll("&#39;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+/** O texto do código, sem as tags do realce (o que o textContent do <code> devolve, ainda escapado). */
+const semRealce = (html: string): string => html.replace(/<\/?span[^>]*>/g, "");
 const card = (codigo: string, linguagem = "", fechado = true): string =>
-  `<div class="md-codigo"><div class="md-codigo-topo">${linguagem ? `<span class="md-codigo-ling">${linguagem}</span>` : ""}${fechado ? COPIAR : ""}</div><pre><code>${codigo}</code></pre></div>`;
+  `<div class="md-codigo"><div class="md-codigo-topo">${linguagem ? `<span class="md-codigo-ling">${linguagem}</span>` : ""}${fechado ? COPIAR : ""}</div><pre><code>${fechado ? realcarCodigo(desesc(codigo)) : codigo}</code></pre></div>`;
+const p = (html: string): string => `<p class="md-paragrafo">${html}</p>`;
 
 describe("texto do modelo na conversa", () => {
   it("mostra ênfase e quebras sem transformar HTML ou URLs em elementos ativos", () => {
     expect(textoFormatado('**Dica:** use *clareza*\n<script>alert(1)</script> [abrir](javascript:alert(1))')).toBe('<strong>Dica:</strong> use <em>clareza</em><br>&lt;script&gt;alert(1)&lt;/script&gt; [abrir](javascript:alert(1))');
   });
   it("preserva código e escapa conteúdo em blocos e trechos inline", () => {
-    expect(textoFormatado('```html\n<img onerror="alert(1)">\n```\n`**literal**`')).toBe(`${card("&lt;img onerror=&quot;alert(1)&quot;&gt;", "html")}<br><code>**literal**</code>`);
+    expect(textoFormatado('```html\n<img onerror="alert(1)">\n```\n`**literal**`')).toBe(`${card("&lt;img onerror=&quot;alert(1)&quot;&gt;", "html")}${p("<code>**literal**</code>")}`);
   });
 });
 
@@ -55,11 +62,11 @@ describe("tabelas no texto do bot", () => {
 
   it("cabeçalho e linha |---| viram tabela; o texto em volta segue como antes", () => {
     const html = textoFormatado(tabela);
-    expect(html.startsWith("<strong>Mais recentes</strong>")).toBe(true);
+    expect(html.startsWith(p("<strong>Mais recentes</strong>"))).toBe(true);
     expect(html).toContain('<div class="md-tabela"><div class="md-tabela-rolagem"><table><thead><tr><th class="curta">PR</th><th class="curta">Título</th><th class="curta">Data</th></tr></thead>');
     expect(html).toContain('<tr><td class="curta">#481</td><td>fix(coletas): barra contrato vencido</td><td class="curta">28/09</td></tr>');
     expect(html).not.toContain("|---|");
-    expect(html.endsWith("<br><strong>Antigos</strong>")).toBe(true);
+    expect(html.endsWith(p("<strong>Antigos</strong>"))).toBe(true);
   });
 
   it("os dois-pontos alinham a coluna", () => {
@@ -125,8 +132,10 @@ describe("listas e títulos no texto do bot (2026-10-03)", () => {
     expect(textoFormatado("3. terceiro\n   continua\n4. quarto")).toBe('<ol class="md-lista" start="3"><li>terceiro continua</li><li>quarto</li></ol>');
   });
 
-  it("sem lista nem título, o texto sai exatamente como antes", () => {
-    expect(textoFormatado("um *dois*\n\ntrês")).toBe("um <em>dois</em><br><br>três");
+  // COP-14 (item 4): parágrafos separados por linha em branco viram <p> (o balão espaça 10 px); um parágrafo só, como antes.
+  it("sem lista nem título: um parágrafo sai como antes; dois viram <p>", () => {
+    expect(textoFormatado("um *dois*\ncontinua")).toBe("um <em>dois</em><br>continua");
+    expect(textoFormatado("um *dois*\n\ntrês")).toBe(`${p("um <em>dois</em>")}${p("três")}`);
   });
 
   it("*itálico* no começo da linha não vira lista; HTML continua texto dentro do item", () => {
@@ -152,18 +161,19 @@ describe("bloco de código aberto e linha da linguagem (NOD-201)", () => {
     const html = textoFormatado("antes\n```ts\n- a\n| x | y |\n|---|---|\n**b**");
     expect(html).toContain(card("- a\n| x | y |\n|---|---|\n**b**", "ts", false));
     for (const proibido of ["<ul>", "<li>", "md-tabela", "<strong>"]) expect(html).not.toContain(proibido);
-    expect(html).toBe(`${textoFormatado("antes\n")}${card("- a\n| x | y |\n|---|---|\n**b**", "ts", false)}`);
+    expect(html).toBe(`${p("antes")}${card("- a\n| x | y |\n|---|---|\n**b**", "ts", false)}`);
     expect(html).not.toContain("copiar-codigo");
   });
 
   // NOD-45: a última quebra sai nos dois modos, e o card só ganha o Copiar quando a cerca fecha.
-  it("sem salto: o bloco aberto e o mesmo bloco fechado têm o mesmo <pre><code>; o fechado só ganha o Copiar", () => {
+  // COP-14 (item 4): o fechado ganha também o realce; o texto do <code> é o mesmo.
+  it("sem salto: o bloco aberto e o mesmo bloco fechado têm o mesmo texto no <pre><code>; o fechado só ganha o Copiar e o realce", () => {
     const aberto = textoFormatado("x\n```ts\nconst a = 1\n");
     const fechado = textoFormatado("x\n```ts\nconst a = 1\n```");
     expect(bloco(aberto)).toEqual(["<pre><code>const a = 1</code></pre>"]);
-    expect(bloco(aberto)).toEqual(bloco(fechado));
+    expect(bloco(aberto)).toEqual(bloco(fechado).map(semRealce));
     expect(aberto).not.toContain("copiar-codigo");
-    expect(fechado.replace(COPIAR, "")).toBe(aberto);
+    expect(semRealce(fechado.replace(COPIAR, ""))).toBe(semRealce(aberto));
   });
 
   it("segurança: HTML na cerca aberta sai escapado", () => {
@@ -173,7 +183,7 @@ describe("bloco de código aberto e linha da linguagem (NOD-201)", () => {
   });
 
   it("dois blocos: o primeiro fechado, o meio formatado e o segundo aberto como código", () => {
-    expect(textoFormatado("```\na\n```\nmeio **m**\n```\nb")).toBe(`${card("a")}<br>meio <strong>m</strong><br>${card("b", "", false)}`);
+    expect(textoFormatado("```\na\n```\nmeio **m**\n```\nb")).toBe(`${card("a")}${p("meio <strong>m</strong>")}${card("b", "", false)}`);
   });
 
   it("linguagem com +, - e #: a linha sai do código; primeira linha que não é linguagem fica (escapada)", () => {
@@ -188,8 +198,8 @@ describe("bloco de código aberto e linha da linguagem (NOD-201)", () => {
 
   it("cerca recém-aberta só com a linguagem, sem \\n: o corpo sai vazio, sem a palavra piscar", () => {
     expect(textoFormatado("```ts")).toBe(card("", "", false));
-    expect(textoFormatado("x\n```ty")).toBe(`x<br>${card("", "", false)}`);
-    expect(textoFormatado("x\n```")).toBe(`x<br>${card("", "", false)}`);
+    expect(textoFormatado("x\n```ty")).toBe(`${p("x")}${card("", "", false)}`);
+    expect(textoFormatado("x\n```")).toBe(`${p("x")}${card("", "", false)}`);
   });
 
   it("primeira linha com espaço não é linguagem e continua dentro do código", () => {
@@ -200,8 +210,8 @@ describe("bloco de código aberto e linha da linguagem (NOD-201)", () => {
     expect(textoFormatado("```\nuse `x` e *y*")).toBe(card("use `x` e *y*", "", false));
   });
 
-  it("texto sem cerca sai idêntico ao de antes (esperado gerado com o formatar da main 43a4b3b)", () => {
-    expect(textoFormatado("um *dois*\n\ntrês")).toBe("um <em>dois</em><br><br>três");
+  it("texto sem cerca sai idêntico ao de antes (esperado gerado com o formatar da main 43a4b3b; COP-14: dois parágrafos viram <p>)", () => {
+    expect(textoFormatado("um *dois*\n\ntrês")).toBe(`${p("um <em>dois</em>")}${p("três")}`);
     expect(textoFormatado("## Resumo\n- a\n- b")).toBe('<p class="md-titulo">Resumo</p><ul class="md-lista"><li>a</li><li>b</li></ul>');
     expect(textoFormatado("| a | b |\n|---|---|\n| 1 | 2 |")).toMatch(/^<div class="md-tabela"><div class="md-tabela-rolagem"><table><thead><tr><th class="curta">a<\/th>/);
     expect(textoFormatado("use `x` aqui")).toBe("use <code>x</code> aqui");
@@ -217,7 +227,7 @@ describe("bloco de código aberto e linha da linguagem (NOD-201)", () => {
   // NOD-204: o mesmo teste roda também com aoVivo (o esperado da versão normal não muda).
   it.each([false, true])("streaming caractere a caractere: o código de cada quadro é prefixo do código final (aoVivo: %s)", (aoVivo) => {
     const final = "Segue:\n```ts\n- a\n- b\n| x | y |\n|---|---|\n**n**\nconst a: number = 1;\n```\nPronto, **ok**.";
-    const codigoDe = (texto: string): string | undefined => /<pre><code>([\s\S]*?)<\/code><\/pre>/.exec(textoFormatado(texto, { aoVivo }))?.[1];
+    const codigoDe = (texto: string): string | undefined => { const c = /<pre><code>([\s\S]*?)<\/code><\/pre>/.exec(textoFormatado(texto, { aoVivo }))?.[1]; return c === undefined ? c : semRealce(c); };
     const doFinal = codigoDe(final) ?? "";
     expect(doFinal).toBe("- a\n- b\n| x | y |\n|---|---|\n**n**\nconst a: number = 1;");
     for (let i = final.indexOf("```") + 3; i <= final.length; i++) {
@@ -252,7 +262,7 @@ describe("cerca partida só ao vivo (NOD-204)", () => {
 
   it("G: streaming caractere a caractere, ao vivo: nenhum quadro tem crase e o código de cada quadro é prefixo do final", () => {
     const final = "Segue:\n```ts\nconst a = 1;\nfoo()```\nPronto.";
-    const codigoDe = (html: string): string | undefined => /<pre><code>([\s\S]*?)<\/code><\/pre>/.exec(html)?.[1];
+    const codigoDe = (html: string): string | undefined => { const c = /<pre><code>([\s\S]*?)<\/code><\/pre>/.exec(html)?.[1]; return c === undefined ? c : semRealce(c); };
     const htmlFinal = vivo(final);
     expect(htmlFinal).not.toContain("`");
     expect(htmlFinal).toBe(textoFormatado(final));
@@ -274,7 +284,7 @@ describe("cerca partida só ao vivo (NOD-204)", () => {
     ["lista com hífen, 2 espaços", "- Passo:\n  ```sh\nmake\n  ```\nFim."],
     ["1 espaço", "Segue:\n ```ts\nconst a = 1;\n```\nPronto."],
   ])("cerca indentada (%s), ao vivo: nenhum quadro tem crase e o código de cada quadro é prefixo do final", (_nome, final) => {
-    const codigoDe = (html: string): string | undefined => /<pre><code>([\s\S]*?)<\/code><\/pre>/.exec(html)?.[1];
+    const codigoDe = (html: string): string | undefined => { const c = /<pre><code>([\s\S]*?)<\/code><\/pre>/.exec(html)?.[1]; return c === undefined ? c : semRealce(c); };
     const htmlFinal = vivo(final);
     expect(htmlFinal).not.toContain("`");
     expect(htmlFinal).toBe(textoFormatado(final));
@@ -312,7 +322,7 @@ describe("cerca partida só ao vivo (NOD-204)", () => {
   it("cerca com linguagem e crase colada, ou quatro crases: corpo vazio, sem piscar e sem quebrar", () => {
     expect(vivo("```ts`")).toBe(card("", "", false));
     expect(vivo("````")).toBe(card("", "", false));
-    expect(vivo("x\n````")).toBe(`x<br>${card("", "", false)}`);
+    expect(vivo("x\n````")).toBe(`${p("x")}${card("", "", false)}`);
   });
 
   it("prosa: crase no fim mas fora do começo da linha não muda; prosa no meio do texto não muda", () => {
@@ -343,8 +353,8 @@ describe("card do bloco de código (NOD-45)", () => {
   it("bloco ts fechado vira card com rótulo, botão Copiar e código sem a última quebra", () => {
     const html = textoFormatado("```ts\nconst a = 1\n```");
     expect(html).toBe(card("const a = 1", "ts"));
-    expect(html).toContain('<button type="button" data-act="copiar-codigo" aria-label="Copiar código" aria-live="polite">');
-    expect(html).toContain("<pre><code>const a = 1</code></pre>");
+    expect(html).toContain('<button type="button" class="md-codigo-copiar" data-act="copiar-codigo" aria-label="Copiar código" title="Copiar código" aria-live="polite">');
+    expect(html).toContain('<pre><code>const a <span class="sx-p">=</span> <span class="sx-n">1</span></code></pre>');
   });
 
   it("sem linguagem: card sem rótulo; c++ e objective-c saem como rótulo", () => {
@@ -358,7 +368,7 @@ describe("card do bloco de código (NOD-45)", () => {
     const html = textoFormatado("```\"><img src=x onerror=alert(1)>\nx\n```");
     expect(html).not.toContain("md-codigo-ling");
     expect(html).not.toContain("<img");
-    expect(html).toContain("&quot;&gt;&lt;img src=x onerror=alert(1)&gt;\nx");
+    expect(semRealce(html)).toContain("&quot;&gt;&lt;img src=x onerror=alert(1)&gt;\nx");
     // Mais de 20 caracteres também não é rótulo: a linha continua no código, como hoje.
     const longa = "a".repeat(21);
     expect(textoFormatado(`\`\`\`${longa}\nx\n\`\`\``)).toBe(card(`${longa}\nx`));

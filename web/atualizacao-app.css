@@ -1,0 +1,149 @@
+/* =====================================================================================
+   ADR-188 (Paper "Atualizar o nod · opções", A3 e D): o cartão "Atualizar o nod" no pé da barra e Configurações ›
+   Sobre o nod. Um clique no cartão enche de tinta de baixo para cima, com a superfície ondulando, como o + da barra
+   (web/interface.css, "jeito A · Líquido"): a tinta é a cor de ação e o texto vira a cor sobre a ação onde ela passa.
+   Cheio, vira o spinner até a janela fechar. Só transform e clip-path animam.
+   ===================================================================================== */
+
+/* --ms-encher: o mesmo MS_ENCHER_ATUALIZAR de web/telas/atualizacao-app.ts (o pedido sai quando a tinta enche). */
+.atz { --ms-encher: 800ms; flex: none; padding: 0 8px 8px; }
+
+/* ---------- O cartão (o botão) ---------- */
+.atz-cartao {
+  position: relative; isolation: isolate; display: flex; align-items: center; width: 100%; min-height: 58px; margin: 0; padding: 0;
+  border: 1px solid var(--borda-sutil); border-radius: 14px; background: var(--surface-elevated); box-shadow: var(--sombra-controle);
+  color: var(--ink); font: inherit; text-align: left; overflow: hidden; cursor: pointer;
+  transition: transform 160ms cubic-bezier(.2, .8, .2, 1);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.atz-cartao:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.atz-cartao:disabled { cursor: default; }
+.atz-miolo { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 10px 12px; }
+.atz-ic { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--hover); }
+.atz-txt { display: flex; flex-direction: column; min-width: 0; }
+.atz-txt b { font-size: 14px; font-weight: 500; line-height: 20px; }
+.atz-txt small { overflow: hidden; color: var(--ink-2); font-size: 12px; line-height: 16px; white-space: nowrap; text-overflow: ellipsis; }
+
+/* A tinta: parada, fica 8 px abaixo do cartão (a crista da onda não aparece como risco na base). */
+.atz-liquido { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.atz-tinta { position: absolute; inset: 0; transform: translateY(calc(100% + 8px)); }
+/* A onda: a mesma máscara do + (200% de largura, período em 50%, correr −50% emenda sem salto). */
+.atz-onda {
+  position: absolute; top: -5px; left: 0; width: 200%; height: calc(100% + 5px); background: var(--action);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3C6 0 12 0 18 3S30 6 36 3V6H0Z'/%3E%3C/svg%3E") repeat-x 0 0/50% 6px, linear-gradient(#000 0 0) no-repeat 0 5px/100% calc(100% - 5px); /* cor-fixa: o #000 da máscara só define o alfa */
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3C6 0 12 0 18 3S30 6 36 3V6H0Z'/%3E%3C/svg%3E") repeat-x 0 0/50% 6px, linear-gradient(#000 0 0) no-repeat 0 5px/100% calc(100% - 5px); /* cor-fixa: o #000 da máscara só define o alfa */
+}
+/* O mesmo miolo na cor sobre a ação, recortado na altura da tinta: o recorte anda igual a ela (mesmo tempo, mesma curva,
+   e começa 8 px abaixo, como a tinta), então o texto vira claro exatamente onde o líquido passa. */
+.atz-claro { position: absolute; inset: 0; z-index: 2; display: flex; color: var(--on-action); pointer-events: none;
+  clip-path: inset(calc(100% + 8px) 0 0 0); }
+.atz-claro .atz-ic { background: color-mix(in srgb, var(--on-action) 14%, transparent); }
+.atz-claro .atz-txt small { color: color-mix(in srgb, var(--on-action) 72%, transparent); }
+
+/* Enchendo (depois do clique): o cartão afunda um pouco e a tinta sobe sozinha em 800 ms; começa devagar e acelera no fim,
+   como líquido despejado. É animação (não transição) para o nó novo de uma barra regravada continuar de onde estava:
+   --atz-atraso (negativo) vem do HTML, com o tempo desde o clique. */
+.atz-cartao.enchendo, .atz-redondo.enchendo { cursor: default; }
+.atz-cartao.enchendo { transform: scale(.98); }
+.atz-redondo.enchendo { transform: scale(.94); }
+.atz-cartao.enchendo .atz-tinta, .atz-redondo.enchendo .atz-tinta { animation: atz-sobe var(--ms-encher, 800ms) cubic-bezier(.45, 0, .8, .6) var(--atz-atraso, 0ms) both; will-change: transform; }
+.atz-cartao.enchendo .atz-claro { animation: atz-recorte var(--ms-encher, 800ms) cubic-bezier(.45, 0, .8, .6) var(--atz-atraso, 0ms) both; }
+.atz-cartao.enchendo .atz-onda, .atz-redondo.enchendo .atz-onda { animation: sl-onda 640ms linear infinite; will-change: transform; }
+.atz-redondo.enchendo .atz-ic-redondo { animation: atz-ic-claro var(--ms-encher, 800ms) linear var(--atz-atraso, 0ms) both; }
+@keyframes atz-sobe { from { transform: translateY(calc(100% + 8px)); } to { transform: translateY(0); } }
+@keyframes atz-recorte { from { clip-path: inset(calc(100% + 8px) 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes atz-ic-claro { 0%, 55% { color: var(--ink); } 56%, 100% { color: var(--on-action); } }
+
+/* Cheio: o pedido saiu (um instante) e depois "Reiniciando…" até a janela fechar. */
+.atz-cheio { border-color: var(--action); background: var(--action); color: var(--on-action); cursor: default; }
+.atz-cheio .atz-ic { background: color-mix(in srgb, var(--on-action) 14%, transparent); }
+.atz-cheio .atz-txt small { color: color-mix(in srgb, var(--on-action) 72%, transparent); }
+.atz-girando { animation: atz-gira 800ms linear infinite; }
+@keyframes atz-gira { to { transform: rotate(1turn); } }
+
+/* Esperando o último bot terminar: o cartão parado, com o Cancelar à direita. */
+.atz-esperando { cursor: default; }
+.atz-cancelar { flex: none; margin-right: 8px; }
+
+/* ---------- A pergunta (bot trabalhando ou ligação aberta), Paper "E · Depois do clique", momento 1 ----------
+   Título forte, uma frase, e os botões empilhados: a ação principal cheia (tinta), "Reiniciar agora" em pílula cinza e
+   "Cancelar" só texto. Botões próprios (.atz-bt): o .bt dentro da barra lateral vira bloco com contorno (estilos.css). */
+.atz-pergunta { display: flex; flex-direction: column; gap: 6px; padding: 16px; border: 1px solid var(--borda-sutil); border-radius: 16px;
+  background: var(--surface-elevated); box-shadow: var(--shadow-pop, var(--sombra-controle)); color: var(--ink); }
+.atz-pergunta b { font-size: 15px; font-weight: 600; line-height: 20px; }
+.atz-pergunta p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 19px; }
+.atz-acoes { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.atz-bt { display: inline-flex; align-items: center; justify-content: center; height: 34px; margin: 0; padding: 0 16px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; line-height: 18px; white-space: nowrap; cursor: pointer;
+  transition: background-color 120ms, transform 120ms; }
+.atz-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.atz-bt:active { transform: scale(.98); }
+.atz-bt:disabled { opacity: .5; cursor: default; transform: none; }
+.atz-bt-pri { background: var(--action); color: var(--on-action); }
+.atz-bt-pri:hover { background: color-mix(in srgb, var(--action) 88%, var(--surface)); }
+.atz-bt-sec { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.atz-bt-sec:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.atz-bt-link { height: 30px; color: var(--ink-2); font-weight: 400; }
+.atz-bt-link:hover { color: var(--ink); }
+
+/* ---------- Barra recolhida: um redondo com a mesma tinta ---------- */
+.atz-compacta { display: flex; justify-content: center; padding: 0 0 8px; }
+.atz-redondo { position: relative; isolation: isolate; display: grid; place-items: center; width: 36px; height: 36px; padding: 0;
+  border: 1px solid var(--borda-sutil); border-radius: 50%; background: var(--surface-elevated); color: var(--ink); overflow: hidden; cursor: pointer;
+  transition: transform 160ms cubic-bezier(.2, .8, .2, 1); -webkit-user-select: none; user-select: none; }
+.atz-redondo.atz-cheio { border-color: var(--action); background: var(--action); color: var(--on-action); }
+.atz-redondo .atz-liquido { border-radius: 50%; overflow: hidden; }
+.atz-ic-redondo { position: relative; z-index: 2; display: grid; place-items: center; }
+.atz-ponto { position: absolute; top: 4px; right: 4px; z-index: 3; width: 8px; height: 8px; border: 1.5px solid var(--surface-elevated); border-radius: 50%; background: var(--signal); }
+
+/* ---------- Configurações › Sobre o nod ---------- */
+.atz-destaque { display: flex; align-items: center; gap: 16px; margin: 4px 0 20px; padding: 18px; border: 1px solid var(--borda-sutil); border-radius: 12px; background: var(--surface-elevated); color: var(--ink); }
+.atz-marca { display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 14px; background: var(--action); color: var(--on-action); font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+.atz-destaque .atz-txt { flex: 1; gap: 2px; }
+.atz-destaque .atz-txt b { font-size: 15px; font-weight: 600; }
+.atz-destaque .atz-txt small { color: var(--ink-2); font-size: 13px; line-height: 18px; white-space: normal; }
+.atz-destaque .bt { flex: none; }
+.atz-destaque-cheio { border-color: var(--action); background: var(--action); color: var(--on-action); }
+.atz-destaque-cheio .atz-marca { background: var(--on-action); color: var(--action); }
+.atz-destaque-cheio .atz-txt small { color: color-mix(in srgb, var(--on-action) 72%, transparent); }
+.cfg-sobre .atz-pergunta { margin: -8px 0 20px; }
+.cfg-sobre .atz-acoes { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.atz-rodape { margin: 12px 0 0; padding: 0 14px; color: var(--ink-3); font-size: 12px; }
+
+/* ---------- A entrada do cartão (uma vez, quando a versão fica pronta) ----------
+   O espaço abre de baixo (a lista sobe junto, sem pulo) e o cartão surge subindo com uma mola curta. --atz-entrada
+   (negativo) vem do HTML com o tempo desde que ficou pronta: a barra regravada no meio continua a animação, e depois
+   do fim a classe some. --ms-entrar é o MS_ENTRAR_ATUALIZAR de web/telas/atualizacao-app.ts. */
+.atz { --ms-entrar: 520ms; }
+.atz.atz-entra { overflow: hidden; animation: atz-abre var(--ms-entrar) cubic-bezier(.2, .8, .2, 1) var(--atz-entrada, 0ms) both; }
+.atz.atz-entra > * { animation: atz-surge calc(var(--ms-entrar) - 120ms) cubic-bezier(.2, .9, .25, 1.12) calc(var(--atz-entrada, 0ms) + 120ms) both; }
+@keyframes atz-abre { from { max-height: 0; padding-bottom: 0; } to { max-height: 80px; padding-bottom: 8px; } }
+@keyframes atz-surge { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+
+/* ---------- O aviso "nod atualizado" (Paper E, momento 3) ----------
+   Uma pílula sobre a conversa (centrada fora da barra lateral), acima do campo: o check verde, a frase e "Novidades". */
+.atz-aviso { position: fixed; z-index: 60; left: calc(50% + var(--largura-barra, 0px) / 2); bottom: 120px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 6px 0 12px; border: 1px solid var(--borda-sutil); border-radius: 999px;
+  background: var(--surface-elevated); box-shadow: var(--shadow-pop); color: var(--ink); font-size: 14px; line-height: 20px; white-space: nowrap;
+  animation: atz-aviso-entra 380ms cubic-bezier(.2, .9, .25, 1.12) both; }
+.atz-aviso-ic { display: grid; place-items: center; color: var(--success); }
+.atz-aviso-txt b { font-weight: 600; }
+.atz-aviso-bt { height: 32px; margin-left: 2px; padding: 0 14px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color 120ms, transform 120ms; }
+.atz-aviso-bt:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.atz-aviso-bt:active { transform: scale(.97); }
+.atz-aviso-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.atz-aviso.atz-aviso-sai { animation: atz-aviso-sai 200ms cubic-bezier(.4, 0, 1, 1) both; }
+@keyframes atz-aviso-entra { from { opacity: 0; transform: translate(-50%, 14px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes atz-aviso-sai { to { opacity: 0; transform: translate(-50%, 8px) scale(.98); } }
+
+/* Sem movimento: a tinta aparece cheia de uma vez (sem subir nem ondular) e o spinner fica parado. */
+@media (prefers-reduced-motion: reduce) {
+  .atz-cartao, .atz-redondo { transition: none; }
+  .atz-cartao.enchendo, .atz-redondo.enchendo { transform: none; }
+  .enchendo .atz-tinta, .enchendo .atz-claro, .enchendo .atz-onda, .enchendo .atz-ic-redondo, .atz-girando { animation: none; }
+  .enchendo .atz-tinta { transform: translateY(0); }
+  .enchendo .atz-claro { clip-path: inset(0 0 0 0); }
+  .atz-redondo.enchendo .atz-ic-redondo { color: var(--on-action); }
+  .atz.atz-entra, .atz.atz-entra > *, .atz-aviso, .atz-aviso.atz-aviso-sai { animation: none; }
+}
