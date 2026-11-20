@@ -1,0 +1,381 @@
+import { spawn } from "node:child_process";
+import { hkdfSync, randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { basename, dirname, join } from "node:path";
+import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
+
+/**
+ * O motor do navegador do bot (ADR-190): o agent-browser 0.43.0 (binário nativo do pacote npm, versão fixa), um daemon
+ * com um Chrome por sessão. Cada operação é um processo curto do CLI (`--json --no-webmcp`), com env limpo, prazo e saída
+ * limitada; o daemon da sessão sobrevive entre os comandos e morre sozinho com `AGENT_BROWSER_IDLE_TIMEOUT_MS`.
+ *
+ * Uma sessão por bot (nome do agenteId), perfil persistente por bot no diretório de dados do nod e a chave de cifra do
+ * estado derivada por bot (HKDF da NOD_CREDENTIAL_KEY): nada de segredo em claro no disco nem no argv.
+ *
+ * medido em 2026-11-20 (agent-browser 0.43.0, example.com, Chrome for Testing 156): a resposta JSON é
+ * `{success, data, error}`; `open` → `data.{title,url,targetId}`; `snapshot -i` → `data.{snapshot, refs:{e1:{name,role}},
+ * origin}`; `tab` → `data.tabs[{tabId:"t1",title,url,active}]`; `screenshot <path>` grava o arquivo e devolve
+ * `data.path`; `eval` → `data.result`; `get text|url|title|count|box|styles` → `data.{text|url|title|count|x,y,width,
+ * height|styles}`; ref inexistente → `success:false, error:"Unknown ref: e99"` e código 1; `stream status` →
+ * `data.{port,enabled,connected}`. Abrir uma aba nova invalida as referências da leitura anterior.
+ */
+
+/** A sessão de um bot no motor. `agenteId` é o id do bot (uuid); o nome da sessão sai dele. */
+export type SessaoNavegador = { agenteId: string };
+
+export type RefLida = { papel: string; nome: string };
+export type LeituraNavegador = { url: string; arvore: string; refs: Readonly<Record<string, RefLida>> };
+export type AbaMotor = { id: string; titulo: string; url: string; ativa: boolean };
+export type AlvoProcurar = { por: "papel" | "texto" | "rotulo" | "placeholder"; valor: string; acao: "clicar" | "preencher" | "passar_mouse"; texto?: string; nome?: string };
+
+export type MotivoFalhaNavegador = "alvo_invalido" | "tempo_esgotado" | "acao_falhou" | "indisponivel";
+
+/** A falha de um comando do motor. `detalhe` é o erro do agent-browser (texto da página pode aparecer: não confiável). */
+export class FalhaNavegador extends Error {
+  readonly motivo: MotivoFalhaNavegador;
+  readonly detalhe: string;
+  constructor(motivo: MotivoFalhaNavegador, detalhe: string) {
+    super(`navegador_${motivo}`);
+    this.motivo = motivo;
+    this.detalhe = detalhe.slice(0, 500);
+  }
+}
+export const ehFalhaNavegador = (e: unknown): e is FalhaNavegador => e instanceof FalhaNavegador;
+
+/**
+ * A costura por lugar (ADR-190, decisão 5): o portão fala com um `MotorNavegador`, e cada lugar (o servidor do nod, o
+ * Mac da pessoa pelo app, uma máquina sempre ligada) dá o seu. Nesta etapa só existe o do servidor.
+ */
+export interface MotorNavegador {
+  readonly lugar: LugarNavegador;
+  abrir(s: SessaoNavegador, url: string, novaAba?: boolean): Promise<{ url: string; titulo: string }>;
+  ler(s: SessaoNavegador, o?: { soInterativos?: boolean; dentro?: string }): Promise<LeituraNavegador>;
+  clicar(s: SessaoNavegador, alvo: string, duplo?: boolean): Promise<void>;
+  preencher(s: SessaoNavegador, alvo: string, texto: string): Promise<void>;
+  digitar(s: SessaoNavegador, alvo: string, texto: string): Promise<void>;
+  tecla(s: SessaoNavegador, tecla: string): Promise<void>;
+  rolar(s: SessaoNavegador, o: { direcao?: "cima" | "baixo" | "esquerda" | "direita"; pixels?: number; alvo?: string }): Promise<void>;
+  esperar(s: SessaoNavegador, o: { alvo?: string; texto?: string; ms?: number }): Promise<void>;
+  /** O print da página em JPEG (base64). */
+  print(s: SessaoNavegador, o?: { paginaInteira?: boolean }): Promise<{ jpeg: string }>;
+  texto(s: SessaoNavegador, alvo?: string): Promise<string>;
+  obter(s: SessaoNavegador, oQue: "url" | "titulo" | "valor" | "atributo" | "html" | "quantos" | "caixa", alvo?: string, nome?: string): Promise<unknown>;
+  estilos(s: SessaoNavegador, alvo: string): Promise<Record<string, string>>;
+  selecionar(s: SessaoNavegador, alvo: string, opcoes: readonly string[]): Promise<void>;
+  marcar(s: SessaoNavegador, alvo: string, marcado: boolean): Promise<void>;
+  passarMouse(s: SessaoNavegador, alvo: string): Promise<void>;
+  arrastar(s: SessaoNavegador, de: string, para: string): Promise<void>;
+  /** Clique, movimento ou roda por coordenada da página (o `pixel` do catálogo). */
+  mouse(s: SessaoNavegador, o: { acao: "mover" | "clicar" | "rolar"; x: number; y: number; delta?: number }): Promise<void>;
+  historico(s: SessaoNavegador, acao: "voltar" | "avancar" | "recarregar"): Promise<void>;
+  abas(s: SessaoNavegador): Promise<AbaMotor[]>;
+  abaNova(s: SessaoNavegador, url?: string): Promise<void>;
+  abaTrocar(s: SessaoNavegador, id: string): Promise<void>;
+  abaFechar(s: SessaoNavegador, id?: string): Promise<void>;
+  /** Entra num iframe (seletor ou ref); `null` volta à página principal. */
+  quadro(s: SessaoNavegador, alvo: string | null): Promise<void>;
+  dialogo(s: SessaoNavegador, aceitar: boolean, texto?: string): Promise<void>;
+  /** Baixa clicando no alvo; o arquivo fica na pasta do bot, com o nome dado (sem caminho). */
+  baixar(s: SessaoNavegador, alvo: string, nome: string): Promise<{ nome: string; bytes: number }>;
+  /** Envia arquivos da pasta do bot (só nomes, nunca caminho). */
+  enviarArquivo(s: SessaoNavegador, alvo: string, nomes: readonly string[]): Promise<void>;
+  pdf(s: SessaoNavegador, nome: string): Promise<{ nome: string; bytes: number }>;
+  procurar(s: SessaoNavegador, o: AlvoProcurar): Promise<void>;
+  avaliar(s: SessaoNavegador, expressao: string): Promise<unknown>;
+  /** O elemento com o foco (para classificar o Enter): papel e nome, como a leitura daria. */
+  focado(s: SessaoNavegador): Promise<RefLida | null>;
+  url(s: SessaoNavegador): Promise<string>;
+  /** A porta do WebSocket de quadros da sessão (liga o streaming se estiver desligado); null sem sessão viva. */
+  portaDoStream(s: SessaoNavegador): Promise<number | null>;
+  fechar(s: SessaoNavegador): Promise<void>;
+}
+
+/** O que roda o binário (injetável: o teste nunca sobe Chrome). */
+export type ExecutorProcesso = (p: { bin: string; args: readonly string[]; env: Readonly<Record<string, string>>; prazoMs: number; limiteSaida: number }) => Promise<{ codigo: number | null; saida: string; erro: string; estourou: boolean }>;
+
+export type OpcoesMotorAgentBrowser = {
+  /** Diretório de dados do nod para os navegadores (perfis, prints e arquivos por bot). */
+  dados: string;
+  /** A chave mestra do servidor (a mesma das credenciais): a cifra do estado de cada bot sai dela por HKDF. */
+  segredo: Buffer;
+  /** O binário; ausente = o do pacote npm desta plataforma. */
+  binario?: string | null;
+  /** O Chrome a usar (AGENT_BROWSER_EXECUTABLE_PATH); ausente = o que o agent-browser acha. */
+  chrome?: string | null;
+  executor?: ExecutorProcesso;
+  /** definido em 2026-11-20: o daemon morre sozinho depois disto sem comando (ADR-190: pausa em 10 min). */
+  ociosoMs?: number;
+};
+
+/** definido em 2026-11-20: prazo de um comando comum; abrir e baixar esperam a página. Cobrem o `wait` de até 10 s. */
+const PRAZO_COMANDO_MS = 30_000;
+const PRAZO_ABRIR_MS = 60_000;
+const OCIOSO_PADRAO_MS = 10 * 60_000;
+/** medido em 2026-11-20: `wait --text` sem casar só volta aos 25 s ("Wait timed out after 25000ms"); o contrato é 10 s. */
+const PRAZO_ESPERAR_MS = 12_000;
+/** definido em 2026-11-20: a árvore de uma página grande cabe folgada; o proxy corta para o modelo (ler_mais). */
+const LIMITE_SAIDA = 4 * 1024 * 1024;
+const LIMITE_STDERR = 16 * 1024;
+
+const PACOTE_POR_PLATAFORMA: Readonly<Record<string, string>> = {
+  "darwin-arm64": "@agent-browser/cli-darwin-arm64",
+  "darwin-x64": "@agent-browser/cli-darwin-x64",
+  "linux-x64": "@agent-browser/cli-linux-x64-gnu",
+  "linux-arm64": "@agent-browser/cli-linux-arm64-gnu",
+};
+
+/** O binário nativo do agent-browser desta plataforma, pelo pacote da plataforma ou pelo bin/ do pacote principal. */
+export function binarioAgentBrowser(plataforma = `${process.platform}-${process.arch}`): string | null {
+  const req = createRequire(import.meta.url);
+  const pacote = PACOTE_POR_PLATAFORMA[plataforma];
+  const candidatos: string[] = [];
+  if (pacote) {
+    try { candidatos.push(join(dirname(req.resolve(`${pacote}/package.json`)), "bin", "agent-browser")); } catch { /* tenta o principal */ }
+  }
+  try { candidatos.push(join(dirname(req.resolve("agent-browser/package.json")), "bin", `agent-browser-${plataforma}`)); } catch { /* sem o pacote */ }
+  return candidatos.find((c) => existsSync(c)) ?? null;
+}
+
+/** O nome da sessão do agent-browser para um bot: só `[A-Za-z0-9_-]`, até 64. */
+export function nomeDaSessao(agenteId: string): string {
+  const limpo = agenteId.replace(/[^A-Za-z0-9_-]/g, "");
+  if (!limpo) throw new FalhaNavegador("indisponivel", "bot sem id");
+  return `nod-${limpo}`.slice(0, 64);
+}
+
+/** A chave de cifra do estado de um bot (hex de 64), derivada da chave mestra; nunca guardada. */
+export function chaveDoBot(segredo: Buffer, agenteId: string): string {
+  return Buffer.from(hkdfSync("sha256", segredo, Buffer.alloc(0), `nod-navegador:${agenteId}`, 32)).toString("hex");
+}
+
+/** Nome de arquivo seguro dentro da pasta do bot: sem caminho, sem começar por ponto. */
+export function nomeDeArquivo(nome: string): string {
+  const b = basename(nome.replace(/\\/g, "/")).replace(/[^\p{L}\p{N}._ -]/gu, "_").replace(/^\.+/, "").slice(0, 200);
+  if (!b) throw new FalhaNavegador("alvo_invalido", "nome de arquivo vazio");
+  return b;
+}
+
+const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const str = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/**
+ * A resposta de um comando: `data` no sucesso; senão a falha tipada. Saída que não é JSON é falha do motor (o CLI
+ * mudou ou caiu antes de responder).
+ */
+export function lerResposta(saida: string, codigo: number | null): Record<string, unknown> {
+  const linha = saida.trim().split("\n").filter(Boolean).at(-1) ?? "";
+  let r: unknown;
+  try { r = JSON.parse(linha); } catch { throw new FalhaNavegador("acao_falhou", codigo === 0 ? "resposta sem JSON" : `o navegador saiu com ${codigo ?? "sinal"}`); }
+  const o = obj(r);
+  if (o.success === true) return obj(o.data);
+  const erro = str(o.error) || "falhou";
+  if (/unknown ref|no element|not found|no node|did not match|not visible|not attached|is not an? (input|select|checkbox)/i.test(erro)) throw new FalhaNavegador("alvo_invalido", erro);
+  if (/timed? ?out|timeout/i.test(erro)) throw new FalhaNavegador("tempo_esgotado", erro);
+  throw new FalhaNavegador("acao_falhou", erro);
+}
+
+export function lerLeitura(data: Record<string, unknown>): LeituraNavegador {
+  const refs: Record<string, RefLida> = {};
+  for (const [k, v] of Object.entries(obj(data.refs))) {
+    if (!/^e\d+$/.test(k)) continue;
+    const r = obj(v);
+    refs[k] = { papel: str(r.role), nome: str(r.name) };
+  }
+  return { url: str(data.origin), arvore: str(data.snapshot), refs };
+}
+
+export function lerAbas(data: Record<string, unknown>): AbaMotor[] {
+  const abas = Array.isArray(data.tabs) ? data.tabs : [];
+  return abas.map(obj).filter((a) => a.type === undefined || a.type === "page").map((a) => ({ id: str(a.tabId), titulo: str(a.title), url: str(a.url), ativa: a.active === true }));
+}
+
+/** O alvo como o agent-browser o entende: ref (`@e3` ou `e3`) vira `@e3`; o resto é seletor CSS. */
+export function alvoDoMotor(alvo: string): string {
+  const t = alvo.trim();
+  return /^@?e\d+$/.test(t) ? `@${t.replace(/^@/, "")}` : t;
+}
+
+const DIRECAO: Readonly<Record<string, string>> = { cima: "up", baixo: "down", esquerda: "left", direita: "right" };
+const OBTER: Readonly<Record<string, string>> = { url: "url", titulo: "title", valor: "value", atributo: "attr", html: "html", quantos: "count", caixa: "box" };
+const POR: Readonly<Record<string, string>> = { papel: "role", texto: "text", rotulo: "label", placeholder: "placeholder" };
+const ACAO_PROCURAR: Readonly<Record<string, string>> = { clicar: "click", preencher: "fill", passar_mouse: "hover" };
+
+/** O elemento focado (e, num campo de formulário, o botão que o Enter dispara), em JS de página fixo do servidor. */
+const JS_FOCADO = `(() => { const e = document.activeElement; if (!e || e === document.body) return null;
+  const nomeDe = (x) => (x.getAttribute('aria-label') || x.innerText || x.value || x.getAttribute('title') || '').trim().slice(0, 200);
+  const tag = e.tagName.toLowerCase(); const tipo = (e.getAttribute('type') || '').toLowerCase();
+  if (e.form && tag === 'input' && tipo !== 'submit' && tipo !== 'button') { const b = e.form.querySelector('[type=submit], button:not([type])'); if (b) return { papel: 'button', nome: nomeDe(b) }; return { papel: 'textbox', nome: nomeDe(e) }; }
+  const papel = e.getAttribute('role') || (tag === 'a' ? 'link' : tag === 'button' || tipo === 'submit' || tipo === 'button' ? 'button' : tag);
+  return { papel, nome: nomeDe(e) }; })()`;
+
+export const executorPadrao: ExecutorProcesso = ({ bin, args, env, prazoMs, limiteSaida }) => new Promise((resolve) => {
+  const filho = spawn(bin, args, { env, stdio: ["ignore", "pipe", "pipe"] });
+  let saida = "";
+  let erro = "";
+  let estourou = false;
+  let fim = false;
+  const terminar = (codigo: number | null) => {
+    if (fim) return;
+    fim = true;
+    clearTimeout(relogio);
+    resolve({ codigo, saida, erro, estourou });
+  };
+  const relogio = setTimeout(() => { estourou = true; filho.kill("SIGKILL"); }, prazoMs);
+  filho.stdout.setEncoding("utf8").on("data", (c: string) => {
+    if (saida.length + c.length > limiteSaida) { estourou = true; filho.kill("SIGKILL"); return; }
+    saida += c;
+  });
+  filho.stderr.setEncoding("utf8").on("data", (c: string) => { if (erro.length < LIMITE_STDERR) erro += c.slice(0, LIMITE_STDERR - erro.length); });
+  filho.on("error", () => terminar(null));
+  filho.on("close", (codigo) => terminar(codigo));
+});
+
+export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegador {
+  const bin = o.binario ?? binarioAgentBrowser();
+  const executor = o.executor ?? executorPadrao;
+  const ocioso = o.ociosoMs ?? OCIOSO_PADRAO_MS;
+  const pasta = (s: SessaoNavegador) => join(o.dados, nomeDaSessao(s.agenteId));
+
+  /** Env limpo: só o que o CLI e o daemon precisam; nenhuma variável do servidor (chaves, banco) passa. */
+  function ambiente(s: SessaoNavegador): Record<string, string> {
+    const base = pasta(s);
+    return {
+      PATH: process.env.PATH ?? "/usr/bin:/bin",
+      HOME: process.env.HOME ?? base,
+      ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}),
+      AGENT_BROWSER_SESSION: nomeDaSessao(s.agenteId),
+      AGENT_BROWSER_NAMESPACE: "nod",
+      AGENT_BROWSER_PROFILE: join(base, "perfil"),
+      AGENT_BROWSER_DOWNLOAD_PATH: join(base, "arquivos"),
+      AGENT_BROWSER_ENCRYPTION_KEY: chaveDoBot(o.segredo, s.agenteId),
+      AGENT_BROWSER_IDLE_TIMEOUT_MS: String(ocioso),
+      AGENT_BROWSER_NO_VERSION_CHECK: "1",
+      AGENT_BROWSER_NO_WEBMCP: "1",
+      AGENT_BROWSER_SCREENSHOT_FORMAT: "jpeg",
+      AGENT_BROWSER_SCREENSHOT_QUALITY: "70",
+      ...(o.chrome ? { AGENT_BROWSER_EXECUTABLE_PATH: o.chrome } : {}),
+    };
+  }
+
+  async function rodar(s: SessaoNavegador, args: readonly string[], prazoMs = PRAZO_COMANDO_MS): Promise<Record<string, unknown>> {
+    if (!bin) throw new FalhaNavegador("indisponivel", "o agent-browser não está instalado nesta máquina");
+    await mkdir(join(pasta(s), "arquivos"), { recursive: true });
+    const r = await executor({ bin, args: [...args, "--session", nomeDaSessao(s.agenteId), "--json", "--no-webmcp"], env: ambiente(s), prazoMs, limiteSaida: LIMITE_SAIDA });
+    if (r.estourou) throw new FalhaNavegador("tempo_esgotado", "o navegador não respondeu a tempo");
+    return lerResposta(r.saida, r.codigo);
+  }
+  const alvoOuFalha = (alvo: string) => {
+    const a = alvoDoMotor(alvo);
+    if (!a) throw new FalhaNavegador("alvo_invalido", "alvo vazio");
+    return a;
+  };
+  async function arquivoNaPasta(s: SessaoNavegador, nome: string): Promise<{ nome: string; caminho: string }> {
+    const n = nomeDeArquivo(nome);
+    return { nome: n, caminho: join(pasta(s), "arquivos", n) };
+  }
+
+  return {
+    lugar: { tipo: "nod" },
+    async abrir(s, url, novaAba) {
+      const d = await rodar(s, novaAba ? ["tab", "new", url] : ["open", url], PRAZO_ABRIR_MS);
+      return { url: str(d.url) || url, titulo: str(d.title) };
+    },
+    async ler(s, l) {
+      const args = ["snapshot", ...(l?.soInterativos === false ? [] : ["-i"]), ...(l?.dentro ? ["-s", l.dentro] : [])];
+      return lerLeitura(await rodar(s, args));
+    },
+    async clicar(s, alvo, duplo) { await rodar(s, [duplo ? "dblclick" : "click", alvoOuFalha(alvo)]); },
+    async preencher(s, alvo, texto) { await rodar(s, ["fill", alvoOuFalha(alvo), texto]); },
+    async digitar(s, alvo, texto) { await rodar(s, ["type", alvoOuFalha(alvo), texto]); },
+    async tecla(s, tecla) { await rodar(s, ["press", tecla]); },
+    async rolar(s, r) {
+      if (r.alvo) { await rodar(s, ["scrollintoview", alvoOuFalha(r.alvo)]); return; }
+      await rodar(s, ["scroll", DIRECAO[r.direcao ?? "baixo"] ?? "down", String(Math.max(1, Math.min(20_000, Math.round(r.pixels ?? 600))))]);
+    },
+    async esperar(s, e) {
+      // O `wait` do agent-browser espera até 25 s por um alvo ou texto; o contrato é até 10 s, então o prazo do processo corta.
+      if (e.alvo) await rodar(s, ["wait", alvoOuFalha(e.alvo)], PRAZO_ESPERAR_MS);
+      else if (e.texto) await rodar(s, ["wait", "--text", e.texto], PRAZO_ESPERAR_MS);
+      else await rodar(s, ["wait", String(Math.max(0, Math.min(10_000, Math.round(e.ms ?? 1000))))], PRAZO_ESPERAR_MS);
+    },
+    async print(s, p) {
+      const dir = join(pasta(s), "prints");
+      await mkdir(dir, { recursive: true });
+      const caminho = join(dir, `${randomUUID()}.jpg`);
+      try {
+        await rodar(s, ["screenshot", caminho, ...(p?.paginaInteira ? ["--full"] : [])]);
+        return { jpeg: (await readFile(caminho)).toString("base64") };
+      } finally { await rm(caminho, { force: true }); }
+    },
+    async texto(s, alvo) { return str((await rodar(s, ["get", "text", alvo ? alvoOuFalha(alvo) : "body"])).text); },
+    async obter(s, oQue, alvo, nome) {
+      const verbo = OBTER[oQue] ?? "url";
+      const args = ["get", verbo, ...(verbo === "attr" ? [alvoOuFalha(alvo ?? ""), nome ?? ""] : alvo && verbo !== "url" && verbo !== "title" ? [alvoOuFalha(alvo)] : [])];
+      const d = await rodar(s, args);
+      if (verbo === "box") return { x: d.x, y: d.y, w: d.width, h: d.height };
+      const chave = ({ url: "url", title: "title", value: "value", attr: "value", html: "html", count: "count" } as Record<string, string>)[verbo] ?? verbo;
+      return d[chave] ?? d.text ?? d.result ?? null;
+    },
+    async estilos(s, alvo) {
+      const st = obj((await rodar(s, ["get", "styles", alvoOuFalha(alvo)])).styles);
+      return Object.fromEntries(Object.entries(st).filter(([, v]) => typeof v === "string")) as Record<string, string>;
+    },
+    async selecionar(s, alvo, opcoes) { await rodar(s, ["select", alvoOuFalha(alvo), ...opcoes]); },
+    async marcar(s, alvo, marcado) { await rodar(s, [marcado ? "check" : "uncheck", alvoOuFalha(alvo)]); },
+    async passarMouse(s, alvo) { await rodar(s, ["hover", alvoOuFalha(alvo)]); },
+    async arrastar(s, de, para) { await rodar(s, ["drag", alvoOuFalha(de), alvoOuFalha(para)]); },
+    async mouse(s, m) {
+      const x = String(Math.round(m.x));
+      const y = String(Math.round(m.y));
+      await rodar(s, ["mouse", "move", x, y]);
+      if (m.acao === "clicar") { await rodar(s, ["mouse", "down", "left"]); await rodar(s, ["mouse", "up", "left"]); }
+      if (m.acao === "rolar") await rodar(s, ["mouse", "wheel", String(Math.round(m.delta ?? 300))]);
+    },
+    async historico(s, acao) { await rodar(s, [acao === "voltar" ? "back" : acao === "avancar" ? "forward" : "reload"], PRAZO_ABRIR_MS); },
+    async abas(s) { return lerAbas(await rodar(s, ["tab"])); },
+    async abaNova(s, url) { await rodar(s, ["tab", "new", ...(url ? [url] : [])], PRAZO_ABRIR_MS); },
+    async abaTrocar(s, id) { await rodar(s, ["tab", id]); },
+    async abaFechar(s, id) { await rodar(s, ["tab", "close", ...(id ? [id] : [])]); },
+    async quadro(s, alvo) { await rodar(s, ["frame", alvo === null ? "main" : alvoOuFalha(alvo)]); },
+    async dialogo(s, aceitar, texto) { await rodar(s, aceitar ? ["dialog", "accept", ...(texto ? [texto] : [])] : ["dialog", "dismiss"]); },
+    async baixar(s, alvo, nome) {
+      const a = await arquivoNaPasta(s, nome);
+      await rodar(s, ["download", alvoOuFalha(alvo), a.caminho], PRAZO_ABRIR_MS);
+      return { nome: a.nome, bytes: (await stat(a.caminho)).size };
+    },
+    async enviarArquivo(s, alvo, nomes) {
+      const caminhos = await Promise.all(nomes.map(async (n) => {
+        const a = await arquivoNaPasta(s, n);
+        await stat(a.caminho).catch(() => { throw new FalhaNavegador("alvo_invalido", `arquivo ${a.nome} não está nos arquivos do navegador`); });
+        return a.caminho;
+      }));
+      await rodar(s, ["upload", alvoOuFalha(alvo), ...caminhos]);
+    },
+    async pdf(s, nome) {
+      const a = await arquivoNaPasta(s, nome.toLowerCase().endsWith(".pdf") ? nome : `${nome}.pdf`);
+      await rodar(s, ["pdf", a.caminho], PRAZO_ABRIR_MS);
+      return { nome: a.nome, bytes: (await stat(a.caminho)).size };
+    },
+    async procurar(s, p) {
+      const args = ["find", POR[p.por] ?? "text", p.valor, ACAO_PROCURAR[p.acao] ?? "click", ...(p.acao === "preencher" ? [p.texto ?? ""] : []), ...(p.nome ? ["--name", p.nome] : [])];
+      await rodar(s, args);
+    },
+    async avaliar(s, expressao) { return (await rodar(s, ["eval", "-b", Buffer.from(expressao, "utf8").toString("base64")])).result ?? null; },
+    async focado(s) {
+      const r = obj((await rodar(s, ["eval", "-b", Buffer.from(JS_FOCADO, "utf8").toString("base64")])).result);
+      return typeof r.papel === "string" ? { papel: r.papel, nome: str(r.nome) } : null;
+    },
+    async url(s) { return str((await rodar(s, ["get", "url"])).url); },
+    async portaDoStream(s) {
+      let d = await rodar(s, ["stream", "status"]);
+      if (d.enabled !== true) {
+        await rodar(s, ["stream", "enable"]);
+        d = await rodar(s, ["stream", "status"]);
+      }
+      return typeof d.port === "number" ? d.port : null;
+    },
+    async fechar(s) { await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; }); },
+  };
+}
