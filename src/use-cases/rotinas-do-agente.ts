@@ -57,11 +57,13 @@ async function alternar(deps: Deps, input: { agenteId: string; rotinaId: string;
     const { rotina: atual, quem } = await rotinaAlternavel(deps, input);
     // NOD-412: `ate` é hora local no fuso DA ROTINA (a pessoa fala do horário dela); vira instante aqui, e o executor valida.
     const retomarEm = estado === "pausada" && input.ate !== undefined ? instanteLocal(input.ate, atual.fusoIana) : null;
-    const jaEstava = atual.estado === estado && (estado === "ativa" || retomarEm === null || retomarEm === (atual.retomarEm ?? null));
+    // QA r128: sem `ate` é "até a pessoa reativar" (o schema diz isso): a pausada com data perde a data e não está "já".
+    const semRetomada = estado === "pausada" && input.ate === undefined;
+    const jaEstava = atual.estado === estado && (estado === "ativa" || retomarEm === (atual.retomarEm ?? null));
     // Na conversa do colega fica dito quem pausou e a pedido de quem: a pessoa abre a Nina e entende.
     const ate = retomarEm !== null ? ` até ${textoRetomada(retomarEm, atual.fusoIana, deps.agora())}: volta sozinha.` : ": nada será disparado até você reativar.";
     const texto = quem && estado === "pausada" ? `${quem} pausou esta rotina a seu pedido${ate}` : undefined;
-    const { data } = await pausarRotina(deps, { rotinaId: input.rotinaId, estado, retomarEm, autoria: autoriaAgente(input.agenteId, deps.escopo.pessoaId), ...(texto ? { texto } : {}) });
+    const { data } = await pausarRotina(deps, { rotinaId: input.rotinaId, estado, retomarEm, ...(semRetomada ? { semRetomada: true as const } : {}), autoria: autoriaAgente(input.agenteId, deps.escopo.pessoaId), ...(texto ? { texto } : {}) });
     return { data: { rotina_id: data.rotina.id, estado: data.rotina.estado, ja_estava: jaEstava, proxima_execucao: data.rotina.estado === "ativa" ? data.rotina.proximaExecucao : null, retomar_em: data.rotina.estado === "pausada" ? data.rotina.retomarEm ?? null : null } };
   } catch (e) {
     if (ehErroDeDominio(e)) return { data: { erro: e.codigo } };
