@@ -186,6 +186,16 @@ describe("motor sem janela (ADR-090)", () => {
     expect(script).toContain("/swapfile-nod none swap sw 0 0");
   });
 
+  it("em dev (node motor/main.ts), o proxy e o hook apontam para fontes que rodam o main sozinhos (prova real: o proxy saía calado)", async () => {
+    const fonte = await readFile(join(process.cwd(), "motor/main.ts"), "utf8");
+    const pares = [...fonte.matchAll(/caminhoAoLado\("([^"]+)", "([^"]+)"\)/g)].map((m) => m[2]!);
+    expect(pares.length).toBeGreaterThanOrEqual(3);
+    for (const arquivo of new Set(pares)) {
+      const codigo = await readFile(join(process.cwd(), arquivo), "utf8");
+      expect(codigo, arquivo).toContain("ehPontoDeEntrada(import.meta.url)");
+    }
+  });
+
   it("QA NOD-199: o motor reanuncia pela rota só de inventário, como o app do Mac — nunca pelo conectar direto", async () => {
     // O `conectar` com turno rodando volta 409 (o aoFalhar do motor reanuncia de novo) e, depois de 90 s, limpa os planos.
     // Quem decide entre `inventario` e `conectar` é o cliente (`anunciarInventario`, coberto em ponte-http-inventario).

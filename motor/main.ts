@@ -84,9 +84,13 @@ async function versaoDoMotor(): Promise<string> {
   return pkg.version;
 }
 
-/** Bundles (dist/motor) ficam lado a lado; em dev (`node motor/main.ts`) usa os fontes do desktop. */
+/**
+ * Bundles (dist/motor) ficam lado a lado; em dev (`node motor/main.ts`) usa o fonte que roda o `main` sozinho. Prova real
+ * (2026-11-20): o dev apontava para desktop/proxy.ts, que só reexporta o `main` (o bundle é quem o chama); o proxy saía
+ * calado e o turno ficava sem as ferramentas do nod ("o servidor nod falhou ao conectar").
+ */
 function caminhoAoLado(bundle: string, fonte: string): string {
-  return import.meta.url.endsWith(".mjs") ? join(dir, bundle) : join(dir, "..", "desktop", fonte);
+  return import.meta.url.endsWith(".mjs") ? join(dir, bundle) : join(dir, "..", fonte);
 }
 
 const INTERVALO_ITENS_GITHUB_MS = 5_000;
@@ -166,7 +170,7 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   /** NOD-9 PR4: a atualização das IAs desta máquina (npm do motor no ~/.local); criada depois dos drivers. */
   let atualizadorIas: AtualizadorDeIas | null = null;
 
-  const lig = { urlNod: c.url, proxyPath: caminhoAoLado("proxy.mjs", "proxy.ts"), hookPath: caminhoAoLado("hook-nativas.mjs", "hook-nativas.ts"), nodePath: process.execPath, electronComoNode: false, sondaSemTurno: true, prazoSondaMs: prazoSondaDoEnv(process.env), filaDoForno: process.env.NOD_FILA_DO_FORNO !== "0", plataforma: process.platform, codexTerminalNoWindows: process.env.NOD_CODEX_TERMINAL_WINDOWS === "1" };
+  const lig = { urlNod: c.url, proxyPath: caminhoAoLado("proxy.mjs", "src/adapters/mcp-proxy/proxy.ts"), hookPath: caminhoAoLado("hook-nativas.mjs", "src/adapters/executor/hook-nativas.ts"), nodePath: process.execPath, electronComoNode: false, sondaSemTurno: true, prazoSondaMs: prazoSondaDoEnv(process.env), filaDoForno: process.env.NOD_FILA_DO_FORNO !== "0", plataforma: process.platform, codexTerminalNoWindows: process.env.NOD_CODEX_TERMINAL_WINDOWS === "1" };
   // A pasta do executor (sessões e turnos do CLI) fica fora da pasta da chave (pastaDoExecutor): um turno não está a um `../` dela.
   const envExecutor = { ...process.env, NOD_HOME: executor };
   // NOD-9 PR4: o mesmo portão do Mac (desktop/main.ts): o turno do Claude espera a atualização e pede a versão do modelo.
@@ -496,7 +500,7 @@ async function rodar(): Promise<number> {
   const novasNoPath = atualizarPathNoWindows();
   if (novasNoPath.length > 0) log("info", "motor_path_do_registro", { pastas_novas: novasNoPath.length });
   // ADA-11 (ADR-147): no Windows o motor só sobe com o Git for Windows e o hook rodando pelo Git Bash (falha fechada).
-  const semGit = conferirGitForWindows({ nodePath: process.execPath, hookPath: caminhoAoLado("hook-nativas.mjs", "hook-nativas.ts") });
+  const semGit = conferirGitForWindows({ nodePath: process.execPath, hookPath: caminhoAoLado("hook-nativas.mjs", "src/adapters/executor/hook-nativas.ts") });
   if (semGit) {
     log("erro", "motor_sem_git_for_windows", { motivo: semGit });
     process.stderr.write(MENSAGEM_SEM_GIT_FOR_WINDOWS);
@@ -680,7 +684,7 @@ async function estado(): Promise<number> {
   process.stdout.write(!marca ? `Atualização automática: desligada (sem ${MARCA_DA_ATUALIZACAO})\n`
     : !mesmoServidor ? `Atualização automática: parada (a instalação é de outro servidor; rode de novo: ${comandoDeReinstalar(c?.url ?? "")})\n`
       : "Atualização automática: ligada (espera um momento sem turno)\n");
-  const lig = { urlNod: c?.url ?? "https://127.0.0.1", proxyPath: caminhoAoLado("proxy.mjs", "proxy.ts"), sondaSemTurno: true, electronComoNode: false };
+  const lig = { urlNod: c?.url ?? "https://127.0.0.1", proxyPath: caminhoAoLado("proxy.mjs", "src/adapters/mcp-proxy/proxy.ts"), sondaSemTurno: true, electronComoNode: false };
   const envExecutor = { ...process.env, NOD_HOME: pastaDoExecutor(process.env) };
   const cfg = await configDosDrivers(envExecutor);
   const criado = await criarRegistryDetalhado(envExecutor, [criarClaudeCliDriver(lig), criarCodexCliDriver(lig)], { cfg });
