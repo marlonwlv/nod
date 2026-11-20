@@ -119,6 +119,8 @@ export function htmlPilula(nome: string, estado: EstadoPilula, pedido: PedidoDaV
 
 /** D2, A: até 6 abas do Chrome à vista; o resto vira "+N". A ativa sempre fica entre as visíveis. */
 export const MAX_ABAS_CHROME = 6;
+/** definido em 2026-11-20 (achado 6): a partir de 4 abas à vista as inativas viram só o favicon no painel estreito. */
+export const ABAS_PARA_ENCOLHER = 4;
 
 export function abasVisiveis(abas: readonly AbaNavegador[], max = MAX_ABAS_CHROME): { aVista: AbaNavegador[]; mais: number } {
   if (abas.length <= max) return { aVista: [...abas], mais: 0 };
@@ -206,7 +208,9 @@ export function htmlBarraDoNavegador(v: Pick<VistaNavegador, "abas" | "controle"
     endereco = `<span class="nv-seta" aria-hidden="true">${SETA_VOLTAR}</span><span class="nv-seta" aria-hidden="true">${SETA_AVANCAR}</span>`
       + `<span class="nv-endereco" title="${esc(url)}">${selo}<span class="nv-dominio">${esc(p.dominio)}</span><span class="nv-resto">${esc(p.resto)}</span></span>`;
   }
-  return `<div class="nv-abas" role="tablist" aria-label="Abas do navegador ${esc(deNome(o.nome))}">${abas}${maisAbas}</div><div class="nv-linha-endereco">${endereco}${lugar}</div>`;
+  // Achado 6 do crítico: com muitas abas (4 ou mais à vista), o painel estreito mostra só o favicon das inativas.
+  const muitas = aVista.length >= ABAS_PARA_ENCOLHER ? " nv-abas-muitas" : "";
+  return `<div class="nv-abas${muitas}" role="tablist" aria-label="Abas do navegador ${esc(deNome(o.nome))}">${abas}${maisAbas}</div><div class="nv-linha-endereco">${endereco}${lugar}</div>`;
 }
 
 // ---- os avisos do site (D2, D; D1d) -------------------------------------------------------------------------------------
@@ -228,7 +232,8 @@ export function htmlAvisoDoSite(a: AvisoNavegador | null): string {
   if (!a) return "";
   const botao = a.acao && a.tipo !== "precisa_de_voce" ? `<button type="button" class="nv-aviso-acao" data-nv="aviso" data-tipo="${a.tipo}">${esc(aspasCurvas(a.acao))}</button>` : "";
   const texto = aspasCurvas(a.texto);
-  return `<div class="nv-aviso-site" data-tipo="${a.tipo}" role="status"><b>${TITULO_DO_AVISO[a.tipo]}</b><span class="nv-aviso-txt" title="${esc(texto)}">${esc(texto)}</span>${botao}</div>`;
+  // O título vai na mesma linha do texto (não numa coluna à parte): no painel estreito as 2 linhas cabem o motivo inteiro.
+  return `<div class="nv-aviso-site" data-tipo="${a.tipo}" role="status"><span class="nv-aviso-txt" title="${esc(texto)}"><b>${TITULO_DO_AVISO[a.tipo]}</b> ${esc(texto)}</span>${botao}</div>`;
 }
 
 /** O pedido de ajuda/login vira a mesma faixa (D3, 8 com a D1d: a ação fora da imagem). */

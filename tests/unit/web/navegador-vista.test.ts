@@ -120,7 +120,7 @@ describe("os avisos do site (D2 D, D1d)", () => {
 
   it("achado 2: o texto inteiro no title (o CSS quebra em até 2 linhas) e as aspas curvas", () => {
     const html = htmlAvisoDoSite({ tipo: "pergunta", texto: '"Sair sem salvar?" · a Ada respondeu Cancelar', acao: "Ver passo", em: 0 });
-    expect(html).toContain('<span class="nv-aviso-txt" title="“Sair sem salvar?” · a Ada respondeu Cancelar">“Sair sem salvar?” · a Ada respondeu Cancelar</span>');
+    expect(html).toContain('<span class="nv-aviso-txt" title="“Sair sem salvar?” · a Ada respondeu Cancelar"><b>Pergunta do site</b> “Sair sem salvar?” · a Ada respondeu Cancelar</span>');
   });
 });
 
@@ -392,5 +392,8 @@ describe("achado 6: muitas abas do Chrome no painel estreito", () => {
     expect(html.match(/class="nv-aba[ "]/g)).toHaveLength(6);
     expect(html).toContain('title="Aba 3" aria-label="Aba 3"');
     expect(html).toContain('<span class="nv-aba-mais" title="3 outras abas">+3</span>');
+    expect(html).toContain('class="nv-abas nv-abas-muitas"');
+    // Com poucas abas o nome cabe: elas não encolhem.
+    expect(htmlBarraDoNavegador(vista({ abas: abas.slice(0, 2) }), { nome: "Ada" })).toContain('class="nv-abas"');
   });
 });

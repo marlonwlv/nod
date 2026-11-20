@@ -54,6 +54,7 @@ import type { ContasIaDto } from "../src/contracts/contas-ia.ts";
 import type { Mensagem } from "../src/contracts/mensagem.ts";
 import type { EscolhaLoginNavegador, FonteCofre, MudancaLugarNavegador, VistaNavegador } from "../src/contracts/navegador-do-bot.ts";
 import { lembrarFonteDoLogin, NOME_DA_FONTE } from "./lib/navegador-cartoes.ts";
+import { comArtigo } from "./lib/navegador-vista.ts";
 import { registrarHabilidades } from "./lib/habilidades.ts";
 import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
@@ -3913,7 +3914,7 @@ function placeholderPadrao(): string {
   const bot = botGerido(t.agenteId);
   if (bot && faseDasBoasVindasDe(bot) === "pergunta") return PLACEHOLDER_DA_PERGUNTA;
   // ADR-190 (Paper 1+5, D7): com a aba de lugar à vista, o campo manda um recado ao bot que trabalha no navegador.
-  if (navegadorNaTela.abaAtiva(t.agenteId)) return `Mande um recado para ${nome}…`;
+  if (navegadorNaTela.abaAtiva(t.agenteId)) return `Mande um recado para ${comArtigo(nome)}…`;
   // ADR-167 (Paper 02): "Mensagem para Ada", sem reticências.
   return `Mensagem para ${nome}`;
 }

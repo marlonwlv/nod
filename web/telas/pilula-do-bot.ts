@@ -331,8 +331,8 @@ const SETA_DIREITA = '<svg class="pf-prontas-seta" width="10" height="10" viewBo
 export function partesDaPilula(p: Pilula, progresso: Pick<ProgressoNaTela, "naTimeline">, novaTarefa: NovaTarefaNaAba | null = null, lugares: readonly LugarNaPilula[] = []): PartesDaPilula {
   // P1: o resto começa com o separador ("12 tarefas · 1 precisa de você · 3 prontas"); com tarefas, o ícone diz o estado —
   // o ponto azul quando alguma precisa da pessoa, o anel quando alguma roda; sem tarefas (espera, fila), o ponto de antes.
-  // Paper 5c (3): o lugar ativo entra no fim ("2 tarefas · rodando · navegador ao vivo") e no topo da lista aberta.
-  const comLugares = [...p.resto, ...lugares.map((l) => `navegador ${l.estado}`)];
+  // Paper 5c (3): o lugar ativo entra no fim ("2 tarefas · rodando · Navegador da Ada ao vivo") e no topo da lista aberta.
+  const comLugares = [...p.resto, ...lugares.map((l) => `${l.rotulo} ${l.estado}`)];
   const resto = comLugares.length ? `<span class="sr-only">, </span><span class="pf-resto${p.vencida ? " p377-resto" : ""}">· ${esc(comLugares.join(" · "))}</span>` : "";
   const precisa = p.grupos.some((g) => g.frentes.some((f) => f.estado === "precisa"));
   const icone = p.grupos.length && precisa ? PONTO_PRECISA : p.grupos.length && p.sinal === "vivo" ? ANEL_RODANDO : ponto(p.sinal);

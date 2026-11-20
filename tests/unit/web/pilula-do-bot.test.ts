@@ -466,7 +466,7 @@ describe("ADR-190 (Paper 5c, 3): a pílula do campo lista também os lugares ati
   it("com tarefas, o lugar entra no fim do texto e no topo da lista aberta", () => {
     const p = daPilula(pilulaNaConversa(estadoCom(HEROS, dono({ principal: "trabalhando", frentes: 2 })), "orq", progresso(HEROS.map((h) => h.id)), null, [ADA]));
     expect(p.escondida).toBe(false);
-    expect(p.partes.botao).toMatch(/pf-resto[^>]*>· .* · navegador ao vivo<\/span>/);
+    expect(p.partes.botao).toMatch(/pf-resto[^>]*>· .* · Navegador da Ada ao vivo<\/span>/);
     expect(p.partes.corpo).toMatch(/^<h3 class="pf-secao">Lugares<\/h3><ul class="pf-lista"><li class="tv-item"><button type="button" class="tv-linha pf-lugar-linha" data-act="navegador-abrir-aba" data-agente="orq"/);
     expect(p.partes.corpo).toContain('<span class="tv-titulo">Navegador da Ada</span><span class="tv-estado">Google Voos · ao vivo</span>');
   });
