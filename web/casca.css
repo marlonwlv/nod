@@ -455,6 +455,22 @@ html:not([data-largura="recolhida"]) #sidebar.sidebar .rodape-tarefas { display:
 .cfg-modal .espaco-item:hover { background: var(--hover); }
 .cfg-modal .espaco-item[aria-current="page"] { background: var(--ativo); font-weight: var(--peso-regular); }
 .cfg-modal .espaco-nav-sep { height: 1px; margin: 8px 10px; background: var(--divisoria); }
+/* Jornadas da IA (Paper M): grupos do menu e a marca do item IA — logos (tudo certo), contagem (precisa de você), Conectar (sem IA). */
+.cfg-modal .espaco-nav-espaco { display: block; height: 8px; }
+.cfg-modal .espaco-item > span:not(.ia-marca):not(.ia-brilho) { flex: 1; min-width: 0; }
+.cfg-modal .ia-marca { flex: none; display: inline-flex; align-items: center; }
+.cfg-modal .ia-marca-provs { gap: 3px; }
+.cfg-modal .ia-marca-prov { width: 16px; height: 16px; border-radius: 5px; overflow: hidden; display: grid; place-items: center; }
+.cfg-modal .ia-marca-prov > svg { width: 16px; height: 16px; }
+.cfg-modal .ia-marca-n { min-width: 20px; height: 20px; padding: 0 7px; gap: 5px; border-radius: var(--raio-full); background: var(--warning-soft); color: var(--warning); font-size: 12px; font-weight: 600; }
+.cfg-modal .ia-marca-n::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cfg-modal .espaco-item-ia-sem { position: relative; overflow: hidden; background: color-mix(in srgb, var(--acento) 9%, transparent); color: var(--acento); font-weight: 600; padding-right: 6px; }
+.cfg-modal .espaco-item-ia-sem > svg { color: var(--acento); }
+.cfg-modal .espaco-item-ia-sem:hover { background: color-mix(in srgb, var(--acento) 14%, transparent); }
+.cfg-modal .ia-marca-conectar { height: 22px; padding: 0 9px; border-radius: var(--raio-full); background: var(--acento); color: #fff; font-size: 12px; font-weight: 500; } /* cor-fixa: texto branco sobre o acento, igual nos dois temas */
+.cfg-modal .ia-brilho { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, #fff 70%, transparent) 50%, transparent 70%); transform: translateX(-100%); animation: ia-brilho 1.6s ease-out .3s 1 both; } /* cor-fixa: o reflexo do brilho é branco nos dois temas */
+@keyframes ia-brilho { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .cfg-modal .ia-brilho { display: none; } }
 .cfg-modal .espaco-conteudo { position: relative; flex: 1; min-width: 0; overflow: auto; padding: 21px 30px 30px 29px; }
 .cfg-modal .cfg-modal-topo { position: sticky; top: 0; height: 0; z-index: 3; display: flex; justify-content: flex-end; }
 .cfg-modal .cfg-fechar { width: 28px; height: 28px; margin-top: 2px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--raio-full); background: var(--surface); color: var(--ink-2); }

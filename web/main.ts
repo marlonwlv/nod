@@ -178,7 +178,7 @@ import { renderNovoBot } from "./telas/novo-bot.ts";
 import { renderNovaRotina } from "./telas/nova-rotina.ts";
 import { aoPedirRegrasDoBot, contextoInteligencia, nivelDaGaveta, paiDoNivel, regrasPodeFazer } from "./telas/detalhes.ts";
 import { avisarNaIdentidade, criarFilaDePerfil, criarSalvarAvatar, ERRO_AO_SALVAR, instalarIdentidade, sobreporPendentes } from "./lib/gaveta-identidade.ts";
-import { renderEspaco } from "./telas/espaco.ts";
+import { renderEspaco, secaoInicialDasConfiguracoes } from "./telas/espaco.ts";
 import { diaDe, inicioDoDia } from "./lib/agenda.ts";
 import { agendaPorLer, escNaAgenda } from "./estado/agenda.ts";
 import { confirmarCriarBot, criarRapido } from "./telas/confirmar-criar-bot.ts";
@@ -374,7 +374,7 @@ function executarDaPaleta(item: ItemPaleta): void {
     case "nova-tarefa": abrirNovaTarefa(); return;
     case "nova-sala": navegar({ tipo: "nova-sala" }); return;
     case "barra": executarAtalho({ tipo: "barra" }); return;
-    case "ajustes": abrirEspaco("geral"); return;
+    case "ajustes": abrirEspaco(secaoInicialDasConfiguracoes(estado)); return;
     case "trabalhos": navegar({ tipo: "trabalhos" }); return;
     case "tarefas": navegar({ tipo: "tarefas" }); return;
     case "sua-vez": navegar({ tipo: "sua-vez" }); return;
@@ -8476,7 +8476,7 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   "abrir-busca": () => (celular.ativo() ? abrirBusca() : abrirPaleta()),
   // ADR-167 (Paper): o botão de recolher do topo da barra (o mesmo ⌘B), a engrenagem do rodapé (⌘,) e a linha Tarefas.
   "alternar-barra": () => { executarAtalho({ tipo: "barra" }); },
-  "abrir-ajustes": () => abrirEspaco("geral"),
+  "abrir-ajustes": () => abrirEspaco(secaoInicialDasConfiguracoes(estado)),
   "abrir-tarefas": (el) => abrirTarefasDaBarra(el.dataset.agente),
   "fechar-nova-conversa": () => navegar({ tipo: "inicio" }),
   "nc-enviar": () => escolherNaNovaConversa(),
@@ -11684,7 +11684,7 @@ function executarAtalho(a: AcaoAtalho): boolean {
   if (a.tipo === "folha") { abrirAtalhos(); return true; }
   // ADR-167: os atalhos novos que não colidem com os do nod.
   if (a.tipo === "barra") { mudarBarra(alternarCompacta(barraAtual), true); anunciar(barraAtual.compacta ? "Barra só com avatares" : "Barra aberta"); return true; }
-  if (a.tipo === "ajustes") { abrirEspaco("geral"); return true; }
+  if (a.tipo === "ajustes") { abrirEspaco(secaoInicialDasConfiguracoes(estado)); return true; }
   if (a.tipo === "paleta") { abrirPaleta(); return true; }
   // ADR-187 §7: ⌘N abre a tarefa nova do bot da tela (fora de um bot, só avisa e a tecla não vai ao navegador).
   if (a.tipo === "nova-tarefa") { abrirNovaTarefa(); return true; }
