@@ -94,19 +94,31 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
+      # Cache das camadas no próprio Artifact Registry (tag nod:cache): o runner é novo a cada deploy, e sem cache os dois
+      # `npm ci` do Dockerfile rodam do zero mesmo quando o package-lock não mudou. mode=max guarda também o estágio do
+      # build da web. ignore-error: uma falha ao gravar o cache não derruba o deploy; sem cache o build só fica mais lento.
+      # provenance/sbom desligados: a imagem continua um manifesto só, como a do `docker build` de antes.
       - name: Imagem
         run: |
           gcloud auth configure-docker "${REGIAO}-docker.pkg.dev" --quiet
-          docker build -t "$REGISTRO/nod:$SHA" .
-          docker push "$REGISTRO/nod:$SHA" >/dev/null
+          docker buildx create --use --driver docker-container --name nod-deploy >/dev/null
+          docker buildx build --push --provenance=false --sbom=false -t "$REGISTRO/nod:$SHA" \
+            --cache-from "type=registry,ref=$REGISTRO/nod:cache" \
+            --cache-to "type=registry,ref=$REGISTRO/nod:cache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true" .
           echo "imagem publicada: nod:$SHA"
 
+      # Falhar rápido quando a VM não responde (issue #135): sem limite, um SSH que não completa ficava mudo até o
+      # timeout de 1h do job e o run aparecia só como "cancelled". O passo leva ~15 s; 5 min é folga. ConnectTimeout cobre
+      # a abertura da conexão e ServerAlive derruba uma sessão aberta que parou de responder (~1 min sem resposta).
       - name: Arquivos da VM
+        timeout-minutes: 5
         run: |
           gcloud compute ssh "$VM_NOME" --project="$PROJETO" --zone="$ZONA" --tunnel-through-iap --ssh-key-expire-after=1h --quiet \
+            --ssh-flag="-o ConnectTimeout=30" --ssh-flag="-o ServerAliveInterval=15" --ssh-flag="-o ServerAliveCountMax=4" \
             --command="mkdir -p ~/nod-deploy-publico"
           gcloud compute scp infra/gcp/config.env infra/gcp/vm/compose.yml infra/gcp/vm/Caddyfile infra/gcp/vm/deploy.sh \
-            "$VM_NOME":nod-deploy-publico/ --project="$PROJETO" --zone="$ZONA" --tunnel-through-iap --ssh-key-expire-after=1h --quiet
+            "$VM_NOME":nod-deploy-publico/ --project="$PROJETO" --zone="$ZONA" --tunnel-through-iap --ssh-key-expire-after=1h --quiet \
+            --scp-flag="-o ConnectTimeout=30" --scp-flag="-o ServerAliveInterval=15" --scp-flag="-o ServerAliveCountMax=4"
 
       # NOD-331: o Caddyfile vai em estágio (Caddyfile.novo); o deploy.sh só o promove na troca, com a cor nova
       # saudável, e devolve o anterior se a troca não confirmar. Caddyfile.novo.tag diz de que deploy é o estágio: um
@@ -114,8 +126,12 @@ jobs:
       # NOD-485: a trava da VM (flock em /opt/nod/deploy.lock, a mesma do deploy.sh, que reaproveita o descritor herdado)
       # cobre a instalação dos arquivos E o deploy: sem ela, um deploy do gamefik/nod trocaria config.env, compose.yml e
       # Caddyfile.novo no meio deste. A pasta de estágio (~/nod-deploy-publico) é só deste repo; o de lá usa ~/nod-deploy.
+      # 40 min: até 30 de espera pela trava, mais o deploy (~2 min) e a migração. ServerAlive só derruba a sessão se o sshd
+      # parar de responder; um deploy.sh quieto (migração longa) mantém a sessão viva.
       - name: Deploy
+        timeout-minutes: 40
         run: |
           gcloud compute ssh "$VM_NOME" --project="$PROJETO" --zone="$ZONA" --tunnel-through-iap --ssh-key-expire-after=1h --quiet \
+            --ssh-flag="-o ConnectTimeout=30" --ssh-flag="-o ServerAliveInterval=15" --ssh-flag="-o ServerAliveCountMax=4" \
             --command="sudo flock -w 1800 -E 75 /opt/nod/deploy.lock sh -c 'install -m 0640 \$1/config.env \$1/compose.yml /opt/nod/ && install -m 0640 \$1/Caddyfile /opt/nod/Caddyfile.novo && echo \$2 > /opt/nod/Caddyfile.novo.tag && install -m 0750 \$1/deploy.sh /opt/nod/ && exec /opt/nod/deploy.sh \$2' _ ~/nod-deploy-publico '$SHA'" ||
             { rc=$?; [ "$rc" != 75 ] || echo "::error::outro deploy segura /opt/nod/deploy.lock há 30 min; nada foi mexido"; exit "$rc"; }

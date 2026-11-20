@@ -1,10 +1,12 @@
 import type { SuaVezDto } from "../contracts/api.ts";
+import { limparTextoDaRegra, regraSugeridaDaFrase } from "../domain/ajustes-aprovacao.ts";
 import type { Decisao, TipoDecisao } from "../contracts/decisao.ts";
 import type { ItemAprovacao } from "../contracts/item-aprovacao.ts";
 import type { PedidoDoItem } from "../contracts/pedido.ts";
 import type { Turno } from "../contracts/turno.ts";
 import { nuncaPermanente as ehNuncaPermanente } from "../domain/aprovacao-permanente.ts";
 import { montarFila } from "../domain/fila-frota.ts";
+import { rascunhoDoItem } from "../domain/rascunho.ts";
 import { aPedidoDeOutraPessoa } from "../domain/modo-aprovacao.ts";
 import { incidentesVisiveis } from "./dispensar-incidente.ts";
 import { fiosDosItens } from "./fios-da-pergunta.ts";
@@ -61,6 +63,25 @@ async function comFraseDaAcao(deps: DepsSuaVez, decisaoId: string, itens: ItemAp
   for (const i of itens) {
     const frase = i.motivoManual === "revisor_pediu" || i.motivoManual === "revisor_falhou" ? await fraseDoItem(deps, tipo, i, conectores) : null;
     saida.push(frase ? { ...i, fraseDaAcao: frase } : i);
+  }
+  return saida;
+}
+
+/**
+ * ADR-175: os itens que são uma mensagem que sai (e-mail, Slack, iMessage/SMS, chat) ganham o `rascunho`, que a conversa
+ * desenha como o cartão de rascunho. Calculado a cada leitura, como a frase; o nome do app sai do mesmo mapa de conectores.
+ */
+async function comRascunho(deps: DepsSuaVez, itens: ItemAprovacao[], conectores: ConectoresDaLeitura): Promise<ItemAprovacao[]> {
+  const saida: ItemAprovacao[] = [];
+  for (const i of itens) {
+    if (i.destino.conector === "computador" || i.destino.conector === "terminal") { saida.push(i); continue; }
+    let busca = conectores.get(i.destino.conector);
+    if (!busca) {
+      busca = deps.repos.conectores.buscarPorSlug(i.destino.conector);
+      conectores.set(i.destino.conector, busca);
+    }
+    const r = rascunhoDoItem(i, (await busca)?.nome ?? i.destino.conector);
+    saida.push(r ? { ...i, rascunho: r } : i);
   }
   return saida;
 }
@@ -125,13 +146,18 @@ export async function listarSuaVez(deps: DepsSuaVez, input: EntradaSuaVez = {}):
     for (const id of marcar ? item.gemeas : []) {
       if (porId.get(id)?.vistaEm === null) await repos.decisoes.marcarVista(id, agora);
     }
-    const itensAprovacao: ItemAprovacao[] = decisao.tipo === "aprovacao" ? await comFraseDaAcao(deps, decisao.id, await repos.itensAprovacao.listar(decisao.id), conectores) : [];
+    const itensAprovacao: ItemAprovacao[] = decisao.tipo === "aprovacao" ? await comRascunho(deps, await comFraseDaAcao(deps, decisao.id, await repos.itensAprovacao.listar(decisao.id), conectores), conectores) : [];
     const proposta = TIPOS_COM_PROPOSTA.has(decisao.tipo) ? await repos.propostas.buscar(decisao.id) : null;
     // definido em 2026-09-24 (emenda da ADR-044): o pedido aberto de uma rotina diz desde quando ela está
     // parada e quais janelas não rodaram — só no aberto; o vencido já pausou a rotina.
     const rotinaParada = proposta && aberta && decisao.tipo === "acesso" ? await paradaDoPedido(repos, proposta) : null;
     const nuncaPermanente = itensAprovacao.filter((i) => ehNuncaPermanente(i.destino.ferramenta)).map((i) => i.id);
-    itens.push({ ...item, decisao, itensAprovacao, proposta, fio: fios.get(decisao.id) ?? null, rotinaParada, nuncaPermanente, pedido: pedidos.get(decisao.id) ?? null, trabalhoId: decisao.turnoId ? (trabalhos.get(decisao.turnoId) ?? null) : null, ...(decisao.turnoId && bastidores.has(decisao.turnoId) ? { bastidores: true } : {}), ...(decisao.turnoId && aPedidoDe.has(decisao.turnoId) ? { aPedidoDe: aPedidoDe.get(decisao.turnoId)! } : {}) });
+    // ADR-166: no cartão aberto em que o revisor pediu, a regra pronta para "Salvar como regra": a que ele sugeriu (texto de
+    // modelo; a pessoa lê e edita antes) ou, sem ela, a feita da frase da ação. Só no Automático: é onde as regras valem.
+    const sugestaoDeRegra = aberta && itensAprovacao.some((i) => i.motivoManual === "revisor_pediu")
+      ? limparTextoDaRegra((await repos.acoesPeloModo.daDecisao(decisao.id))?.sugestao ?? "") ?? regraSugeridaDaFrase(itensAprovacao.length === 1 ? itensAprovacao[0]?.fraseDaAcao?.texto : null)
+      : null;
+    itens.push({ ...item, decisao, ...(sugestaoDeRegra ? { sugestaoDeRegra } : {}), itensAprovacao, proposta, fio: fios.get(decisao.id) ?? null, rotinaParada, nuncaPermanente, pedido: pedidos.get(decisao.id) ?? null, trabalhoId: decisao.turnoId ? (trabalhos.get(decisao.turnoId) ?? null) : null, ...(decisao.turnoId && bastidores.has(decisao.turnoId) ? { bastidores: true } : {}), ...(decisao.turnoId && aPedidoDe.has(decisao.turnoId) ? { aPedidoDe: aPedidoDe.get(decisao.turnoId)! } : {}) });
   }
 
   const foraDoAr = (await repos.inventario.listar())

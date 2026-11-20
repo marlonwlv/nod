@@ -140,8 +140,8 @@ const DESENHOS: Record<IconeLink, string> = {
   local: '<rect x="1.5" y="2" width="9" height="6" rx="1"/><path d="M4.5 10.5h3M6 8v2.5"/>',
 };
 
-export function iconeDoLink(icone: IconeLink): string {
-  return `<span class="lk-ic lk-ic-${icone}" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${DESENHOS[icone]}</svg></span>`;
+export function iconeDoLink(icone: IconeLink, extra = ""): string {
+  return `<span class="lk-ic lk-ic-${icone}${extra ? ` ${extra}` : ""}" aria-hidden="true"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${DESENHOS[icone]}</svg></span>`;
 }
 
 const ATRIBUTOS = 'data-lk target="_blank" rel="noopener noreferrer nofollow"';
@@ -159,7 +159,9 @@ const PARECE_ENDERECO = /^(https?:\/\/)?([\p{L}\p{N}-]+\.)+[\p{L}]{2,}(:\d+)?([/
 export function linkComNome(nome: string, url: URL, agora?: Date): string {
   if (PARECE_ENDERECO.test(nome.trim()) || /https?:\/\//i.test(nome)) return chipDoLink(url, agora);
   const info = nomeDoLink(url, agora);
-  const icone = info.app || info.icone === "local" ? iconeDoLink(info.icone) : "";
+  // COP-14 (item 4): o site comum também leva o ícone (o globo, ou o cadeado sem https), marcado `lk-ic-so-chat`: só o
+  // balão do bot mostra (web/chat-formato.css), onde o link vira chip e o domínio sai para a prévia do hover.
+  const icone = iconeDoLink(info.icone, info.app || info.icone === "local" ? "" : "lk-ic-so-chat");
   const lado = info.app || info.icone === "local" ? "" : `<span class="lk-dominio">${esc(dominio(url))}</span>`;
   return `<a class="lk" href="${esc(url.href)}" ${ATRIBUTOS}>${icone}${esc(nome)}</a>${lado}`;
 }
@@ -194,4 +196,17 @@ export function partesDoEndereco(href: string): PartesDoEndereco | null {
   if (!url) return null;
   const resto = (url.pathname === "/" ? "" : url.pathname) + url.search + url.hash;
   return { host: url.host, resto: resto.length > LIMITE_RESTO ? `${resto.slice(0, LIMITE_RESTO - 1)}…` : resto, seguro: url.protocol === "https:" };
+}
+
+/** COP-14 (item 4): no balão do bot, a prévia do link aparece depois de 500 ms de mouse parado em cima dele. */
+export const ATRASO_PREVIA_MS = 500;
+/**
+ * O endereço que a prévia mostra: o href inteiro sem "https://" (o "http://" fica, porque avisa que não é seguro) e sem
+ * a barra solta da raiz. O corte com reticências é do CSS (máx. 320 px). null = não é link que abre (ADR-053).
+ */
+export function enderecoDaPrevia(href: string): string | null {
+  const url = lerLink(href);
+  if (!url) return null;
+  const texto = url.href.replace(/^https:\/\//, "");
+  return url.pathname === "/" && !url.search && !url.hash ? texto.replace(/\/$/, "") : texto;
 }

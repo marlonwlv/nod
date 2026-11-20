@@ -60,6 +60,10 @@ export const gavetaDeAcessos = {
     }
     aberta = conectorId;
   },
+  /** O conector aberto agora (a gaveta antiga ou o "Quem pode usar" do modal do Marketplace). */
+  aberta(): string | null {
+    return aberta;
+  },
   /** Devolve true se é para buscar agora (nem carregado nem buscando). */
   precisaCarregar(conectorId: string): boolean {
     if (carregados.has(conectorId) || carregando.has(conectorId)) return false;

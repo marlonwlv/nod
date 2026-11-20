@@ -40,7 +40,11 @@ export function descreverNegacao(n: Negacao, agora: number, fusoIana = "UTC"): s
       // definido em 2026-09-24: tempo esgotado não é "servidor fora" — a Nina leu "fora há menos de
       // 1 min" como queda de infraestrutura e desistiu de uma chamada que só estava lenta.
       if (n.causa === "acesso_recusado") return `conector ${n.nome} recusou o acesso: o app precisa ser reconectado`;
-      if (n.motivo === "timeout_transporte") return `conector ${n.nome} não respondeu a tempo: a chamada pode ser grande demais; tente pedir menos itens ou só metadados`;
+      // definido em 2026-11-16: o prazo esgota do lado do cliente, não do servidor — uma ação que
+      // altera algo (criar 11 bots num lote) seguiu e COMMITOU depois do prazo, e o modelo, lendo só
+      // "pedir menos itens", disse à pessoa que nada fora criado e tentou de novo. Sem saber o efeito,
+      // conferir antes de repetir; a dica de pedir menos itens segue para a leitura grande.
+      if (n.motivo === "timeout_transporte") return `conector ${n.nome} não respondeu a tempo: o resultado é desconhecido. Se a chamada altera algo, ela pode ter sido concluída mesmo assim; confira o estado (liste de novo daqui a alguns segundos) antes de repetir ou de dizer que falhou. Se só lê, a chamada pode ser grande demais; tente pedir menos itens ou só metadados`;
       return `conector ${n.nome} indisponível: servidor fora ${haQuanto(n.desde, agora)}`;
     case "ferramenta_negada": {
       // definido em 2026-10-11: com a causa que o hook do nod deu, ela diz o porquê; sem ela (motor anterior), o motivo do enum.

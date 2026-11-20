@@ -15,6 +15,8 @@ import { evento } from "./autoria-evento.ts";
 import { confirmacaoPeloModo, semCard } from "./confirmar-pelo-modo.ts";
 import { decidirAcesso } from "./decidir-acesso.ts";
 import { garantirGithubSemConfiguracao } from "./conectar-github.ts";
+import { garantirMacSemConfiguracao } from "./conectar-mac.ts";
+import { SLUG_MAC } from "../contracts/mac.ts";
 import { abrirDecisaoDeAcesso, eventosDoPedido, garantirPedidoDeAcesso } from "./garantir-pedido-de-acesso.ts";
 import { autoriaDoAgente } from "./registrar-negacao.ts";
 import { alvoDoParaBot } from "./onboarding-contexto.ts";
@@ -84,12 +86,13 @@ export const pedirAcesso: CasoNod<Deps, "pedir_acesso"> = async (deps, input) =>
   const ligacao = await rotinaDoTurno(deps.repos, input.turnoId);
   let conector = await deps.repos.conectores.buscarPorSlug(input.conector);
   let entrada = input;
-  if (input.conector === SLUG_GITHUB && !conector?.habilitado) {
+  // ADR-173: o `mac` nasce do mesmo jeito (sem configuração; o catálogo é o contrato).
+  if ((input.conector === SLUG_GITHUB || input.conector === SLUG_MAC) && !conector?.habilitado) {
     // definido em 2026-09-24 (ADR-048): com o gh desta máquina logado (ou o App da organização no
     // servidor), o GitHub nasce aqui mesmo e o
     // card já sai com o botão de permitir — nada de card de conexão nem passo de configuração. Sem
     // capacidades nomeadas, o nível decide: leitura = as de leitura, escrita = o catálogo inteiro.
-    const r = await garantirGithubSemConfiguracao(deps, { pelaPessoa: false });
+    const r = input.conector === SLUG_MAC ? await garantirMacSemConfiguracao(deps) : await garantirGithubSemConfiguracao(deps, { pelaPessoa: false });
     if (r.ok) {
       conector = r.conector;
       // revisto em 2026-09-25 (ADR-049): o mesmo nível de todo app — escrita sem o grupo apagar.
@@ -178,8 +181,9 @@ async function pedirAcessoParaBot(deps: Deps, input: ContextoFerramenta & Parame
   if (!alvo) throw new ErroDeDominio("entrada_invalida", { cause: "para_bot só vale para o bot novo do onboarding" });
   let conector = await deps.repos.conectores.buscarPorSlug(input.conector);
   let entrada = input;
-  if (input.conector === SLUG_GITHUB && !conector?.habilitado) {
-    const r = await garantirGithubSemConfiguracao(deps, { pelaPessoa: false });
+  // ADR-173: o `mac` nasce do mesmo jeito (sem configuração; o catálogo é o contrato).
+  if ((input.conector === SLUG_GITHUB || input.conector === SLUG_MAC) && !conector?.habilitado) {
+    const r = input.conector === SLUG_MAC ? await garantirMacSemConfiguracao(deps) : await garantirGithubSemConfiguracao(deps, { pelaPessoa: false });
     if (r.ok) {
       conector = r.conector;
       if (input.capacidades.length === 0) entrada = { ...input, capacidades: capacidadesDoNivel(r.conector.catalogo, input.nivel) };

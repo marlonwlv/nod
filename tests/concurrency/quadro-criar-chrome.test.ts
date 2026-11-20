@@ -157,7 +157,7 @@ descrever("NOD-415 no Chrome real: criar, meta, prazo e remover pela tela", () =
     await ate(`document.querySelector("#quadro .qm-cab-meta")`);
     expect(await texto("#quadro .qm-cab-meta")).toBe("Lançar o quadro");
     await abrirMenu();
-    expect(await texto("#qm-pop-quadro")).toContain("nenhuma tarefa ainda");
+    expect(await texto("#qm-pop-quadro")).toContain("nenhum card ainda");
     expect(await texto("#qc-faixa")).toContain("Meta trocada.");
 
     // Prazo… abre o select no menu; a troca grava na hora e o prazo aparece ao lado da meta.

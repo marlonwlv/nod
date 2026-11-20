@@ -117,9 +117,9 @@ async function cuidarDoFundoPreso(deps: Deps, saida: SaidaTurnosOrfaos, isolar: 
 const PEDIDO_DO_FUNDO: Readonly<Record<FundoPreso, string>> = {
   rotina: "Esta execução da rotina",
   colega: "Este pedido",
-  frente: "Esta task",
-  task: "Esta task",
-  lote: "O retorno das frentes",
+  frente: "Esta tarefa",
+  task: "Esta tarefa",
+  lote: "O retorno das tarefas",
 };
 
 /** Um UUID estável por cadeia (a chave de envio é uuid, única por conversa): a linha da raiz sai uma vez só. */

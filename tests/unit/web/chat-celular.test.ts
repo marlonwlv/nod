@@ -55,9 +55,9 @@ describe("NOD-381: o topo da conversa", () => {
     expect(livre).toContain('<span class="pilula-txt"><span class="pilula-nome">Eng 1</span></span>');
     expect(livre).not.toContain("pilula-presenca");
     const ocupado = renderCabecalhoConversa(cenario({ turnosVivos: vivo() }), "a");
-    expect(ocupado).toContain('<span class="pilula-presenca" aria-hidden="true">Trabalhando</span>');
+    expect(ocupado).toContain('<span class="pilula-presenca" aria-hidden="true">Refletindo</span>');
     // O aria-label continua dizendo tudo: a presença visível é só desenho.
-    expect(ocupado).toContain('aria-label="Painel de Eng 1 · Trabalhando"');
+    expect(ocupado).toContain('aria-label="Painel de Eng 1 · Refletindo"');
   });
 
   it("no celular a faixa flutua sem tomar o toque, e a primeira mensagem começa abaixo da pílula (sa + 64)", () => {
@@ -148,15 +148,17 @@ describe("NOD-381: alvos de 44 px e estados", () => {
     // A miniatura cortava o alvo do ✕ (overflow: hidden); no celular o corte fica só na foto.
     expect(m).toContain(".anexo-thumb { overflow: visible; }");
     expect(m).toContain(".pf-cab { min-height: 44px; }");
-    expect(m).toContain(".pf-lista .progresso-item, .pf-item { min-height: 44px; }");
+    expect(m).toContain(".pf-lista .tv-linha, .pf-item { min-height: 44px; }");
     expect(m).toContain(".pf-ver, .pf-parar { min-height: 44px; min-width: 44px; }");
     expect(m).toMatch(/\.artefato-acoes \.bt\.link, \.artefato-dialogo \.artefato-acoes \.bt\.sm \{ min-width: 44px; min-height: 44px; \}/);
   });
 
-  it("carregando: o texto continua (leitor de tela e computador) e o esqueleto de três balões vem junto, escondido do leitor", () => {
+  it("carregando (item 5 do chat): no celular também é só o spinner — sem o texto e sem o esqueleto de três balões", () => {
     const html = renderTimeline(null, cenario());
-    expect(html).toContain("carregando conversa…");
-    expect(html).toMatch(/<div class="esqueleto-conversa" aria-hidden="true">(<i[^>]*><\/i>){3}<\/div>/);
+    expect(html).not.toContain("carregando conversa");
+    expect(html).not.toContain("esqueleto-conversa");
+    expect(html).toContain('class="giro-conversa"');
+    expect(css("mobile.css")).not.toContain(".esqueleto-conversa");
   });
 
   it("não enviada no celular: o balão claro sem opacidade (NOD-431) e a linha em 13 px sem o vermelho", () => {
@@ -176,8 +178,7 @@ describe("NOD-381: o computador não muda", () => {
       "@keyframes inicio-segurar { from { transform: none; } to { transform: scale(1.02); } } " +
       "@keyframes inicio-folha { from { transform: translateY(100%); } to { transform: none; } } " +
       ".abrir-bots { display: none; } .cabecalho.so-menu { display: none; } " +
-      ".mais-campo, .pilula-presenca, .esqueleto-conversa { display: none; } .pilula-txt { display: contents; } " +
-      "@keyframes esqueleto-pulsa { 50% { opacity: .55; } } " +
+      ".mais-campo, .pilula-presenca { display: none; } .pilula-txt { display: contents; } " +
       // NOD-449: o aviso do Desfazer sobe do pé no celular (só a consulta usa este nome).
       "@keyframes nl-sobe-c { from { opacity: 0; transform: translateY(8px); } }",
     );
@@ -252,8 +253,8 @@ describe("NOD-381 (revisão 1): \"ir para as novas\" não para embaixo do topo",
     }
   });
 
-  it("a linha do computador do bot fica na base da pílula, não na do véu", () => {
-    expect(css("mobile.css")).toContain(".cabecalho.cabecalho-pilula .pilula-bot:has(> .cb-fio) { position: relative; }");
+  it("D · Computador do bot: a linha de progresso do computador (.cb-fio) saiu da pílula", () => {
+    expect(css("mobile.css")).not.toContain("cb-fio");
   });
 });
 
@@ -263,7 +264,7 @@ describe("NOD-381 (revisão 2)", () => {
 
   it("modo total: o + avisa em --warning (o chip do modo saiu do campo) e o rótulo diz o modo", () => {
     expect(m).toContain(".composer .mais-campo[data-atencao] { position: relative; color: var(--warning); }");
-    expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: true, modo: "total", ia: "Auto" }))).toBe("Anexar, modo e IA · Ignorar todas as aprovações");
+    expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: true, modo: "total", ia: "Auto" }))).toBe("Anexar, modo e IA · Ignorar todas as aprovações ligado");
     expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: true, modo: "manual", ia: "Auto" }))).toBe("Anexar, modo e IA");
     expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: false, modo: "total", ia: null }))).toBe("Anexar");
     expect(main).toMatch(/toggleAttribute\("data-atencao", atencao\)/);
@@ -300,8 +301,9 @@ describe("NOD-381 (revisão 2)", () => {
     expect(main).toContain('if (escolha === "anexar") { d.close(); controle.escolher(escolha); } else { controle.escolher(escolha); d.close(); }');
   });
 
-  it("com erro na tela, a lista não ganha folga dobrada (há avisos sr-only entre o #erro e a lista)", () => {
-    expect(m).toContain(".cabecalho.cabecalho-pilula + #erro:not(:empty) ~ .timeline-wrap { padding-top: 12px; scroll-padding-top: 12px; }");
+  it("com erro na tela, a lista não muda de lugar: o #erro é sobreposto (C6), abaixo da área segura e da pílula", () => {
+    expect(m).toContain(".cabecalho.cabecalho-pilula + #erro:not(:empty) { top: calc(env(safe-area-inset-top) + 56px); }");
+    expect(m).not.toContain("#erro:not(:empty) ~ .timeline-wrap");
   });
 
   it("sem o + (folha vazia), o texto não encosta na borda; a caixa fica 8 px acima da área segura", () => {
@@ -355,7 +357,7 @@ describe("NOD-381 (revisão 5): o aviso do modo total vale para o colega também
 
   it("o + avisa pelo modo do bot, não por quem é a dona; sem o +, o chip do total volta ao campo", () => {
     expect(main).toContain('const atencao = t.tipo === "conversa" && botGerido(t.agenteId)?.modoAprovacao === "total";');
-    expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: false, modo: "total", ia: null }), true)).toBe("Anexar · Ignorar todas as aprovações");
+    expect(rotuloDoMais(linhasDoBot({ temArquivo: true, dona: false, modo: "total", ia: null }), true)).toBe("Anexar · Ignorar todas as aprovações ligado");
     expect(m).toContain('.composer .box.com-mais:has(> .mais-campo[hidden]) > .modo-chip[data-modo="total"] { display: inline-grid; width: 44px; height: 44px; }');
   });
 

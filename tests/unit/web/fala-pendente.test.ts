@@ -75,6 +75,28 @@ describe("fala pendente: entra no clique, confirma pelo id, sai na releitura", (
     expect(ks).not.toContain("pendente:e1");
   });
 
+  it("C4: a releitura que chega ANTES do POST casa a pendente pelo idEnvio — uma fala só, com a chave do bloco da pendente", () => {
+    let e = reduzir(comConversa([msg("m0", "oi")]), { tipo: "fala-pendente", conversaId: C, pendente: pendente() });
+    // O GET do próprio mensagem.nova volta com a gravada, que traz o idEnvio do envio (0057), antes de o POST responder.
+    e = comConversa([msg("m0", "oi"), { ...msg("m1", "Cria a task no Linear", AGORA + 20), idEnvio: "e1" }], e);
+    expect(e.conversas[C]?.pendentes).toBeUndefined();
+    expect(e.conversas[C]?.enviadas).toEqual({ m1: "e1" });
+    const ks = chaves(e);
+    expect(ks.filter((k) => k === "pendente:e1")).toHaveLength(1);
+    expect(ks).not.toContain("m1");
+    // A resposta do POST, depois, não muda a chave nem recria a pendente.
+    const depois = reduzir(e, { tipo: "fala-pendente-confirmada", conversaId: C, idEnvio: "e1", mensagemId: "m1", turnoId: "t1" });
+    expect(depois.conversas[C]?.pendentes).toBeUndefined();
+    expect(chaves(depois)).toEqual(ks);
+  });
+
+  it("C4: a gravada de OUTRO envio (outro idEnvio) não tira a pendente", () => {
+    let e = reduzir(comConversa([msg("m0", "oi")]), { tipo: "fala-pendente", conversaId: C, pendente: pendente() });
+    e = comConversa([msg("m0", "oi"), { ...msg("m9", "Cria a task no Linear", AGORA + 20), idEnvio: "outro" }], e);
+    expect(e.conversas[C]?.pendentes).toHaveLength(1);
+    expect(chaves(e)).toEqual(expect.arrayContaining(["m9", "pendente:e1"]));
+  });
+
   it("confirmada sem id (servidor de antes): a pendente sai e a releitura traz a gravada", () => {
     let e = reduzir(comConversa(), { tipo: "fala-pendente", conversaId: C, pendente: pendente() });
     e = reduzir(e, { tipo: "fala-pendente-confirmada", conversaId: C, idEnvio: "e1", mensagemId: null, turnoId: null });

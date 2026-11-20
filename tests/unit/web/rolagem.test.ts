@@ -108,6 +108,7 @@ describe("rolar ao topo ao navegar", () => {
     conversa: false,
     sala: false,
     trabalho: false,
+    "nova-tarefa": true,
     inicio: true,
     rotinas: true,
     "nova-rotina": true,
@@ -118,6 +119,7 @@ describe("rolar ao topo ao navegar", () => {
     "quadro-compartilhado": true,
     "nova-sala": true,
     trabalhos: true,
+    tarefas: true,
     linha: true,
   };
 

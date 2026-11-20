@@ -63,7 +63,7 @@ async function cenario(o: { fixo?: boolean } = {}) {
   return { deps, banco, relogio, vm, bot: bot.agente, conversaId: bot.conversa.id, contas: { cPessoal: cPessoal!, gPessoal: gPessoal!, cLumen: cLumen! }, task, conversa, bateNoLimite, trocas, avisos, payload };
 }
 
-describe("R4: a task com sessão na IA que parou não troca de IA sozinha", () => {
+describe("R4: a tarefa com sessão na IA que parou não troca de IA sozinha", () => {
   it("volta perto (≤ 30 min): espera a conta voltar e o bot ganha UM aviso recomendando esperar", async () => {
     const c = await cenario();
     const t = await c.task();
@@ -72,11 +72,11 @@ describe("R4: a task com sessão na IA que parou não troca de IA sozinha", () =
     expect(volta).toMatchObject({ estado: "pendente", origem: "retomada", acordarEm: T0 + 11 * MIN, harness: "auto" });
     expect(c.trocas()).toMatchObject([{ agenteId: c.bot.id, iaDe: "claude-cli", iaPara: "codex-cli", recomendacao: "esperar", aplicarEm: null, decididoEm: null }]);
     expect(c.payload()).toMatchObject({ kind: "troca_de_ia", iaDe: "claude-cli", iaPara: "codex-cli", recomendacao: "esperar", voltaEm: T0 + 11 * MIN, tasks: 1, aplicarEm: null });
-    // A linha mora na conversa do bot, fora da task (sem turno).
+    // A linha mora na conversa do bot, fora da tarefa (sem turno).
     expect(c.avisos()[0]).toMatchObject({ conversaId: c.conversaId, turnoId: null });
   });
 
-  it("volta longe (> 30 min): recomenda levar, com prazo de 10 min; a segunda task atualiza o MESMO aviso", async () => {
+  it("volta longe (> 30 min): recomenda levar, com prazo de 10 min; a segunda tarefa atualiza o MESMO aviso", async () => {
     const c = await cenario();
     const a = await c.task();
     const b = await c.task();
@@ -102,7 +102,7 @@ describe("R4: a task com sessão na IA que parou não troca de IA sozinha", () =
     expect(c.trocas()).toEqual([]);
     expect(c.banco.turnos.find((x) => x.retomaTurnoId === t.turnoId)).toMatchObject({ acordarEm: T0 });
     expect(c.banco.turnos.find((x) => x.retomaTurnoId === t.turnoId)?.entradaTexto).toMatch(/passou este trabalho para o Codex/);
-    expect(c.banco.mensagens.map((m) => m.texto).join("\n")).toMatch(/Esta task segue no Codex/);
+    expect(c.banco.mensagens.map((m) => m.texto).join("\n")).toMatch(/Esta tarefa segue no Codex/);
   });
 
   it("a conversa no Automático continua trocando de IA na hora (R3), sem aviso de troca", async () => {

@@ -24,6 +24,8 @@ export type ContextoBiblioteca = {
   agora: number;
   /** NOD-382: no perfil do celular, o vazio é só o título e o erro é a linha "· Tentar de novo" (critérios 7 e 8). */
   celular?: boolean;
+  /** ADR-167 (Paper 02b): no painel do computador, "Recentes" numa grade de cartões de duas colunas, com "Ver tudo". */
+  cartoes?: boolean;
 };
 
 const PONTOS = ICONE.pontos;
@@ -53,15 +55,35 @@ function miniatura(i: ItemDaBiblioteca, c: ContextoBiblioteca, acao: ReturnType<
   return `<span class="gvb-ic${acao === "nada" ? " gvb-ic-mudo" : ""}">${iconeDoArquivo(familia)}</span>`;
 }
 
+/** Paper 02b (rodada 3 da casca): o tipo do cartão em palavra ("Página · ontem", "Planilha · ontem", "Documento · 9 nov"). */
+const TIPO_DO_CARTAO: Partial<Record<string, string>> = { planilha: "Planilha", documento: "Documento", apresentacao: "Apresentação", pdf: "PDF", zip: "Arquivo compactado", html: "Página", texto: "Documento", imagem: "Imagem" };
+const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+export function legendaDoCartao(i: Pick<ItemDaBiblioteca, "mime" | "nome" | "criadoEm">, agora: number): string {
+  const fam = familiaWeb(i.mime);
+  const tipo = fam === "video" ? "Vídeo" : fam === "audio" ? "Áudio" : fam === "imagem" || fam === "gif" ? "Imagem" : TIPO_DO_CARTAO[familiaDoArquivo(i.mime, i.nome)] ?? "Arquivo";
+  const em = Date.parse(i.criadoEm);
+  if (!Number.isFinite(em)) return tipo;
+  const dia = (t: number) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+  const dias = Math.round((dia(agora) - dia(em)) / 864e5);
+  const d = new Date(em);
+  return `${tipo} · ${dias <= 0 ? "hoje" : dias === 1 ? "ontem" : `${d.getDate()} ${MESES[d.getMonth()]}`}`;
+}
+/** Paper 02b: a capa do arquivo sem imagem é uma folha com linhas, não o ícone do tipo (o tipo vai na legenda). */
+const FOLHA = '<span class="gvb-folha" aria-hidden="true"><i></i><i></i><i></i><i></i></span>';
+
 /** Só o ícone (ou a miniatura) e o nome, sem tamanho e sem data; a 2ª linha só no "Saiu da pasta" e no "Fica na pasta". */
 function item(i: ItemDaBiblioteca, c: ContextoBiblioteca, naLuz: () => number): string {
   const acao = acaoDoItem(i, c.sumiram);
   const sumiu = c.sumiram.has(i.id);
   const aviso = sumiu ? `Saiu da pasta de ${c.bot}` : i.semBytes ? `Fica na pasta de ${c.bot}${i.maquina ? ` em ${i.maquina.nome}` : ""}` : "";
-  const texto = aviso
+  const semExtensao = i.nome.replace(/\.[A-Za-z0-9]{1,8}$/, "");
+  const texto = c.cartoes
+    ? `<span class="gv-linha-txt gvb-nome gvb-nome-2"><span class="gvb-nome-l">${esc(semExtensao)}</span><small>${esc(aviso || legendaDoCartao(i, c.agora))}</small></span>`
+    : aviso
     ? `<span class="gv-linha-txt gvb-nome gvb-nome-2"><span class="gvb-nome-l">${nomeEmPartes(i.nome)}</span><small>${esc(aviso)}</small></span>`
     : `<span class="gv-linha-txt gvb-nome">${nomeEmPartes(i.nome)}</span>`;
-  const corpo = miniatura(i, c, acao) + texto;
+  const capa = miniatura(i, c, acao);
+  const corpo = (c.cartoes && !capa.includes("<img") && !capa.includes("gvb-video") ? `<span class="gvb-ic${acao === "nada" ? " gvb-ic-mudo" : ""}">${FOLHA}</span>` : capa) + texto;
   const url = c.url(i.id);
   const t = `title="${esc(i.nome)}"`;
   let principal: string;
@@ -101,6 +123,17 @@ export function renderListaBiblioteca(b: BibliotecaDaConversa | undefined, c: Co
     const id = `gvb-${g.grupo}`;
     return `<section class="gv-secao gvb-grupo" aria-labelledby="${id}"><h3 id="${id}">${ROTULO_GRUPO[g.grupo]}</h3><ul class="gv-cartao gvb-itens" role="list">${itens}${mais}</ul></section>`;
   }).join("");
+  if (c.cartoes) {
+    // Paper 02b: um grupo só, "Recentes", em cartões; "Ver tudo" pede mais do primeiro grupo que tem mais.
+    const luz2: ItemLuz[] = [];
+    const todos = grupos.flatMap((g) => g.itens).map((i) => item(i, c, () => {
+      luz2.push({ id: i.id, nome: i.nome, mime: i.mime, url: c.url(i.id), ...(i.largura ? { w: i.largura } : {}), ...(i.altura ? { h: i.altura } : {}), ...(i.duracaoMs !== undefined ? { dur: i.duracaoMs } : {}), ...(i.maquina ? { mac: i.maquina.id } : {}) });
+      return luz2.length - 1;
+    })).join("");
+    const comMais = grupos.find((g) => g.maisLocal || g.maisNoServidor);
+    const verTudo = comMais ? `<button type="button" class="gv-link gvb-ver-tudo" data-act="biblioteca-mais" data-id="${esc(c.conversaId)}" data-grupo="${comMais.grupo}">Ver tudo</button>` : "";
+    return `<div class="msg-midias gvb-lista gvb-cartoes" data-biblioteca="${esc(c.conversaId)}" data-luz="${esc(JSON.stringify(luz2))}"><section class="gv-secao gvb-grupo" aria-labelledby="gvb-recentes"><div class="gv-secao-cab"><h3 id="gvb-recentes">Recentes</h3>${verTudo}</div><ul class="gvb-grade" role="list">${todos}</ul></section></div>`;
+  }
   return `<div class="msg-midias gvb-lista" data-biblioteca="${esc(c.conversaId)}" data-luz="${esc(JSON.stringify(luz))}">${secoes}</div>`;
 }
 

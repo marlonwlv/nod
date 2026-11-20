@@ -4,7 +4,7 @@ import { metricas as registroPadrao, type Metricas } from "../../obs/metricas.ts
 import { criarRepos } from "../../repositories/index.ts";
 import { LEASE_MS } from "../../shared/constantes.ts";
 import type { Db, Escopo, Relogio, Transacao } from "../../shared/types.ts";
-import { interromperPorMaquina, registrarVoltaDasMaquinas, type SaidaQuedaDaMaquina } from "../../use-cases/interromper-por-maquina.ts";
+import { interromperBastidoresComTeto, interromperPorMaquina, registrarVoltaDasMaquinas, type SaidaQuedaDaMaquina } from "../../use-cases/interromper-por-maquina.ts";
 import { varrerEsperasSemNoticia } from "../../use-cases/esperar-comando.ts";
 import { logarTickLento, paraCadaPessoa, type OpcoesLaco } from "./escopos-de-fundo.ts";
 
@@ -13,6 +13,8 @@ export const INTERVALO_VARREDOR_LEASE_MS = 15_000;
 
 export type OpcoesVarredura = {
   prazoDecisaoMs?: number;
+  /** NOD-452: ausente = observação somente, sem cortar bastidores. */
+  tetoBastidoresMs?: number;
   metricas?: Metricas;
   /**
    * Só no modo COMPARTILHADO (ADR-045): quando o processo subiu — turno sem sinal desde antes disso foi
@@ -41,15 +43,26 @@ export async function varrerPessoa(tx: Transacao, escopo: Escopo, agora: number,
     // NOD-214: a carência do lease no boot (só com inicioDoProcesso, o modo compartilhado).
     const carenciaAte = opcoes.inicioDoProcesso !== undefined ? opcoes.inicioDoProcesso + LEASE_MS : null;
     const r = vencidos.length ? await interromperPorMaquina(deps, { turnos: vencidos, prazoMs: opcoes.prazoDecisaoMs, inicioDoProcesso: opcoes.inicioDoProcesso ?? null, maquinaPresente: presente, carenciaAte }) : null;
+    const acimaDoTeto = opcoes.tetoBastidoresMs ? await repos.turnos.bastidoresAcimaDoTeto(agora, opcoes.tetoBastidoresMs) : [];
+    const teto = acimaDoTeto.length ? await interromperBastidoresComTeto(deps, acimaDoTeto) : null;
     if (r?.events.length) await repos.events.gravarComOutbox(r.events);
+    if (teto?.events.length) await repos.events.gravarComOutbox(teto.events);
     if (r) contarPerdidos(opcoes.metricas ?? registroPadrao, escopo, r.data);
     // ADR-099 (parte 2): a espera de comando cuja máquina sumiu cai e acorda o dono (depois dos turnos: a volta lê o turno).
     const esperas = await varrerEsperasSemNoticia(deps);
     if (esperas.events.length) await repos.events.gravarComOutbox(esperas.events);
     // Por ÚLTIMO: fechar o aviso em curso trava o incidente, e a ordem é turnos → trava por pessoa → incidente.
     const voltaram = presente ? await registrarVoltaDasMaquinas(deps, presente) : [];
-    return { interrompidos: r?.data.interrompidos ?? [], decisoes: r?.data.decisoes ?? [], ...(r ? { incidenteId: r.data.incidenteId } : {}), ...(voltaram.length ? { voltaram } : {}), ...(esperas.caidas.length ? { esperasCaidas: esperas.caidas } : {}) };
+    return { interrompidos: [...(r?.data.interrompidos ?? []), ...(teto?.data.interrompidos ?? [])], decisoes: [...(r?.data.decisoes ?? []), ...(teto?.data.decisoes ?? [])], ...(r ? { incidenteId: r.data.incidenteId } : {}), ...(voltaram.length ? { voltaram } : {}), ...(esperas.caidas.length ? { esperasCaidas: esperas.caidas } : {}) };
   });
+}
+
+/** NOD-452: 0/vazio desliga; valor positivo inteiro liga. Inválido falha no boot, sem teto acidental. */
+export function lerTetoBastidoresMs(valor: string | undefined): number | undefined {
+  if (valor === undefined || valor.trim() === "" || valor.trim() === "0") return undefined;
+  const n = Number(valor);
+  if (!Number.isInteger(n) || n <= 0) throw new Error("NOD_TETO_BASTIDORES_MS inválido");
+  return n;
 }
 
 /** ADR-017 #4: turno perdido, pela origem — o Mac que sumiu ou o servidor que reiniciou. A borda observa. */
@@ -84,7 +97,7 @@ export function iniciarVarredorLease(p: {
    * revisto em 2026-10-01 (ADR-067): o token de turno não expira mais por relógio, então o turno que o varredor
    * encerrou tem o token revogado aqui — senão ele ficaria vivo em memória até o servidor reiniciar.
    */
-  aoInterromper?: (turnoIds: string[]) => void;
+  aoInterromper?: (turnoIds: string[]) => void | Promise<void>;
   /** NOD-267: chamado ao TERMINAR cada tick (sucesso ou erro); o tick pulado por `rodando` não bate. */
   aoBater?: () => void;
 }): { parar(): Promise<void> } {
@@ -99,7 +112,7 @@ export function iniciarVarredorLease(p: {
     try {
       const r = await varrer(p.db, inicio, p.opcoes);
       const interrompidos = Object.values(r).flatMap((x) => x.interrompidos);
-      if (interrompidos.length) p.aoInterromper?.(interrompidos);
+      if (interrompidos.length) await p.aoInterromper?.(interrompidos);
     } finally {
       rodando = false;
       logarTickLento("varredor_lease", relogio() - inicio, intervaloMs);

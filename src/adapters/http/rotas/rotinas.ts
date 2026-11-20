@@ -146,6 +146,24 @@ export function criarRotasRotinas(deps: DepsRotasL7): Rota[] {
       },
     },
     {
+      // Desfazer a pausa em lote (2026-11-19): o "Pausar todas as rotinas" do ⌘K. Devolve o lote para o Desfazer do aviso.
+      metodo: "POST", acao: "rotinas.pausar_todas",
+      padrao: /^\/rotinas\/pausar-todas$/,
+      async handler(ctx) {
+        const r = await executar(deps, ctx.escopo, EXECUTORES_ROTINAS["rotinas.pausar_todas"], {});
+        ctx.json(200, { ok: true, lote: r.lote, rotinaIds: r.rotinaIds });
+      },
+    },
+    {
+      // O Desfazer do aviso e o "Reativar as N" de Ajustes › Rotinas: volta só as rotinas que seguem no lote.
+      metodo: "POST", acao: "rotinas.reativar_lote",
+      padrao: /^\/rotinas\/lotes\/(?<id>[^/]+)\/reativar$/,
+      async handler(ctx) {
+        const r = await executar(deps, ctx.escopo, EXECUTORES_ROTINAS["rotinas.reativar_lote"], { loteId: uuid(ctx.params.id, "id") });
+        ctx.json(200, { ok: true, reativadas: r.reativadas });
+      },
+    },
+    {
       metodo: "POST", acao: "rotinas.ativar",
       padrao: /^\/rotinas\/(?<id>[^/]+)\/ativar$/,
       async handler(ctx) {

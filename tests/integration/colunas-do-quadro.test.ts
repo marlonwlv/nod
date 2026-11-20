@@ -287,7 +287,7 @@ describeIntegracao("colunas do quadro (NOD-448, ADR-140)", () => {
       ok(await m.pessoa([{ tipo: "criar_tarefa", titulo: "B", status: "backlog" }, { tipo: "criar_tarefa", titulo: "C", status: "backlog" }]));
       expect((await executar(m.d, decidirColunasDoQuadro, { decisaoId: p.data.proposta_id, recusar: false, executor: "catcher" })).data).toMatchObject({ aplicado: true });
       const recibo = (await m.d.repos.mensagens.listarDaConversa(m.doces.conversaId)).find((x) => x.texto.startsWith("Colunas trocadas"));
-      expect(recibo?.texto).toContain("3 tarefas mudaram de coluna");
+      expect(recibo?.texto).toContain("3 cards mudaram de coluna");
     });
   });
 

@@ -52,12 +52,7 @@ export type Turno = {
   prazoEm: EpochMs;
   motivoInterrupcao: MotivoInterrupcao | null;
   motivoFalha: MotivoFalha | null;
-  /**
-   * O agente chamou `sem_novidade` neste turno (definido em 2026-09-21): consultou a fonte e nada
-   * mudou. null = não pediu silêncio. Quando presente, o assentamento NÃO escreve a fala na
-   * conversa e a rotina registra desfecho 'sem_novidade' sem marcador. Motivo TIPADO, nunca
-   * inferido do texto (Regra 9).
-   */
+  /** O agente chamou `sem_novidade` neste turno (definido em 2026-09-21): consultou a fonte e nada mudou. null = não pediu silêncio. Quando presente, o assentamento NÃO escreve a fala na conversa e a rotina registra desfecho 'sem_novidade' sem marcador. Motivo TIPADO, nunca inferido do texto (Regra 9). */
   semNovidadeMotivo: MotivoSemNovidade | null;
   /** Retomar = turno NOVO apontando para o interrompido (ADR-009/010: nunca requeue). */
   retomaTurnoId: string | null;
@@ -81,6 +76,8 @@ export type Turno = {
   mensagemOrigemId?: string | null;
   /** Turno que respondeu por este, quando ele foi lido junto com outro (motivo 'absorvido'). */
   absorvidoPor?: string | null;
+  /** ADR-185: quando o bot leu a fala que o turno vivo absorveu; null = escrita na sessão e ainda não lida. */
+  lidoNaSessaoEm?: number | null;
   trabalhoId?: string | null; // ADR-083: o trabalho deste turno; null = turno da conversa
   acordarEm?: number | null; // ADR-086: a volta marcada ("me chame às 16:00") — a fila só a entrega a partir daqui
   /** NOD-272 (0088): a pessoa está olhando ("Testar agora", "Permitir e rodar agora" e as frentes deles) — conta como conversa na cota. */

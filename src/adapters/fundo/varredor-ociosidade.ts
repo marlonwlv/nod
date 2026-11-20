@@ -1,3 +1,4 @@
+import { limiteDoSono } from "../../domain/computador-vivo.ts";
 import { log } from "../../obs/log.ts";
 import type { Db } from "../../shared/types.ts";
 import type { Computadores } from "./computadores.ts";
@@ -10,14 +11,15 @@ export const INTERVALO_VARREDOR_OCIOSIDADE_MS = 60_000;
  * Uma volta: os ligados deste host UMA vez, fora de transação (docker ps, 5 s), e então cada pessoa desliga os
  * seus ociosos (paraCadaPessoa: uma que falha não impede as outras). Docker fora do ar: a volta não faz nada.
  */
-export async function varrerOciosos(db: Db, computadores: Pick<Computadores, "ligados" | "desligarOciosos">, limiteMs: number, opcoes: OpcoesLaco = {}): Promise<number> {
+export async function varrerOciosos(db: Db, computadores: Pick<Computadores, "ligados" | "desligarOciosos">, limiteMs: number, opcoes: OpcoesLaco = {}, presente?: (pessoaId: string) => boolean): Promise<number> {
   const ligados = await computadores.ligados().catch((e: unknown) => {
     log("aviso", "varredor_ociosidade_sem_docker", { erro: e instanceof Error ? e.name : "desconhecido" });
     return null;
   });
   if (!ligados?.size) return 0;
   let total = 0;
-  await paraCadaPessoa(db, async (escopo) => { total += await computadores.desligarOciosos(escopo, ligados, limiteMs); }, opcoes);
+  // D (2026-11-12): a presença da pessoa decide o sono — com o nod aberto, o limite se multiplica (limiteDoSono).
+  await paraCadaPessoa(db, async (escopo) => { total += await computadores.desligarOciosos(escopo, ligados, limiteDoSono(limiteMs, presente?.(escopo.pessoaId) === true)); }, opcoes);
   return total;
 }
 
@@ -25,7 +27,7 @@ export async function varrerOciosos(db: Db, computadores: Pick<Computadores, "li
  * definido em 2026-10-05 (NOD-170): o computador sem atividade há `ociosoMin` desliga sozinho (os volumes ficam;
  * a próxima ação do bot religa). `ociosoMin = 0` (NOD_COMPUTADOR_OCIOSO_MIN=0): o laço nem sobe.
  */
-export function iniciarVarredorOciosidade(p: { db: Db; computadores: Pick<Computadores, "ligados" | "desligarOciosos">; ociosoMin: number; intervaloMs?: number; opcoes?: OpcoesLaco }): { parar(): Promise<void> } {
+export function iniciarVarredorOciosidade(p: { db: Db; computadores: Pick<Computadores, "ligados" | "desligarOciosos">; ociosoMin: number; intervaloMs?: number; opcoes?: OpcoesLaco; presente?: (pessoaId: string) => boolean }): { parar(): Promise<void> } {
   if (p.ociosoMin <= 0) return { parar: async () => undefined };
   let rodando = false;
   let emVoo: Promise<unknown> | null = null;
@@ -33,7 +35,7 @@ export function iniciarVarredorOciosidade(p: { db: Db; computadores: Pick<Comput
     if (rodando) return;
     rodando = true;
     try {
-      await varrerOciosos(p.db, p.computadores, p.ociosoMin * 60_000, p.opcoes);
+      await varrerOciosos(p.db, p.computadores, p.ociosoMin * 60_000, p.opcoes, p.presente);
     } catch (e) {
       log("erro", "varredor_ociosidade_falhou", { erro: e instanceof Error ? e.name : "desconhecido" });
     } finally {

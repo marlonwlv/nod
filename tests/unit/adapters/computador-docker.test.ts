@@ -214,6 +214,24 @@ describe("driver Docker: log computador_iniciado mede o boot (NOD-162)", () => {
     expect(iniciados()).toEqual([expect.objectContaining({ partida: "quente", reiniciou: true, ok: true })]);
   });
 
+  it("runtime zumbi reinicia somente o container da máquina consultada e fica pronto", async () => {
+    host({ ligados: [ID], rodando: true });
+    let primeiroPing = true;
+    responder = ((anterior) => (args: string[]) => {
+      if (args[0] === "exec" && args.includes("/opt/nod/client.mjs") && primeiroPing) {
+        primeiroPing = false;
+        return { saida: JSON.stringify({ resultado: { pronto: false, falha: "navegador_nao_abriu", detalhe: "o navegador fechou" } }) };
+      }
+      return anterior(args);
+    })(responder);
+
+    await criarDriverDocker(ENV).iniciar(ID);
+
+    expect(comandos().filter((c) => c.startsWith("restart "))).toEqual([`restart --time 10 nod-computador-${ID}`]);
+    expect(comandos()).not.toContain(`restart --time 10 nod-egress-${ID}`);
+    expect(iniciados()).toEqual([expect.objectContaining({ partida: "quente", reiniciou: true, ok: true })]);
+  });
+
   // QA NOD-162: no Mac carregado o 1º ping estoura os 3 s. Ping sem resposta não mostra cofre trancado nem
   // código parado, e nada foi reiniciado: não pode contar como reinício na medição.
   it("de pé, mas o 1º ping não responde (prazo estourado): quente sem reiniciou", async () => {
@@ -309,4 +327,16 @@ describe("driver Docker: log computador_iniciado mede o boot (NOD-162)", () => {
     // O cofre foi mesmo para o unlock (prova de que o teste compara o HMAC certo).
     expect(entradas).toContain(cofre);
   });
+});
+
+it("encaminha contrato semântico ao runtime sem converter em pixels nem repetir após falha", async () => {
+  const acao = { tipo: "elementos" as const, operacao: "clicar" as const, observacao: "a".repeat(64), papel: "button", nome: "Enviar", referencia: "b".repeat(64) };
+  responder = args => ({ saida: args[0] === "inspect" ? "true 0" : JSON.stringify({ resultado: { verificacao: { satisfeita: true } } }) });
+  const driver = criarDriverDocker(ENV);
+  expect(await driver.executar(ID, acao)).toEqual({ verificacao: { satisfeita: true } });
+  expect(JSON.parse(entradas.at(-1)!)).toEqual(acao);
+  chamadas.length = 0;
+  responder = args => args[0] === "inspect" ? { saida: "true 0" } : { codigo: 1, erro: "sem_resposta" };
+  await expect(driver.executar(ID, acao)).rejects.toBeInstanceOf(FalhaComputador);
+  expect(chamadas.filter(c => c[0] === "exec")).toHaveLength(1);
 });

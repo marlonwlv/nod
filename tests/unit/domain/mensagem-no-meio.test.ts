@@ -119,4 +119,28 @@ describe("primeira fala depois de uma mensagem absorvida (stream-json gravado)",
     const comOutro: EventoStream[] = [eventos[0]!, { tipo: "delta", texto: "passo 1. " }, ...eventos.slice(1, 3), { ...(eventos[3] as Extract<EventoStream, { tipo: "result" }>), texto: "" }];
     expect(classificarResultado({ eventos: comOutro, exitCode: 0, signal: null, stderr: "", falaDoMeio: meio }).texto).toBe("passo 1. ");
   });
+
+  it("validação de 2026-11-17: narração, ferramenta, a mensagem no meio e a resposta longa que já saiu como fala — a entrega fica vazia, nunca a narração", () => {
+    const meio = criarFalaDoMeio();
+    const narracao: EventoStream = { tipo: "texto_bloco", texto: "Vou delegar a pesquisa a um subagente." };
+    const longo = `2+2 = 4.\n\nAgora o texto. ${"O chocolate nasceu na Amazônia. ".repeat(40)}`;
+    const resposta: EventoStream = { tipo: "texto_bloco", texto: longo };
+    const result = (texto: string): EventoStream => ({ tipo: "result", sucesso: true, subtype: "success", sessaoCli: "s", texto, custoUsd: 0, tokens: { entrada: 0, saida: 0, cacheLeitura: 0, cacheCriacao: 0 }, numTurnos: 1, negacoesPermissao: [], erroCru: null });
+    const eventos: EventoStream[] = [
+      { tipo: "init", sessaoCli: "s", ferramentas: [], modelo: "m", versaoCli: "v", apiKeySource: "none" },
+      { tipo: "delta", texto: "Vou delegar a pesquisa a um subagente." },
+      narracao,
+      { tipo: "tool_use", id: "t1", nome: "Agent", input: {} },
+      { tipo: "tool_result", toolUseId: "t1", texto: "achados", isError: false },
+      { tipo: "delta", texto: longo },
+      resposta,
+      result(longo),
+    ];
+    meio.absorveu();
+    for (const ev of eventos) meio.avaliar(ev, true);
+    expect([...meio.falados]).toEqual([resposta]);
+    expect(classificarResultado({ eventos, exitCode: 0, signal: null, stderr: "", falaDoMeio: meio }).texto).toBe("");
+    // Codex: o `result.texto` vem sempre vazio; o bloco falado depois da última ferramenta basta.
+    expect(classificarResultado({ eventos: [...eventos.slice(0, -1), result("")], exitCode: 0, signal: null, stderr: "", falaDoMeio: meio }).texto).toBe("");
+  });
 });

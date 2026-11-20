@@ -51,9 +51,14 @@ export const meChameAs: CasoNod<Deps, "me_chame_as"> = async (deps, input) => {
   if (input.estado !== undefined && !(ESTADOS_ESPERADOS as readonly string[]).includes(input.estado)) throw new ErroDeDominio("entrada_invalida", { cause: `estado só aceita ${ESTADOS_ESPERADOS.join(", ")}` });
   const porEvento = quandoVolta !== undefined;
   const minutos = porEvento ? VOLTA_CI_MAX_MS / 60_000 : Math.round(input.em_minutos ?? Number.NaN);
-  if (!Number.isFinite(minutos) || minutos < ACORDAR_MIN_MINUTOS || minutos > ACORDAR_MAX_MINUTOS) throw new ErroDeDominio("entrada_invalida", { cause: `em_minutos fora de ${ACORDAR_MIN_MINUTOS}–${ACORDAR_MAX_MINUTOS}` });
   const motivo = input.motivo.trim().slice(0, MOTIVO_MAX_DESPERTAR);
   if (motivo === "") throw new ErroDeDominio("texto_vazio");
+  // 2026-11-19 (QA-70): a faixa errada é recuperável pelo próprio bot. O 400 genérico só dizia "algum dado não está
+  // certo" e o motivo ficava no log; agora a recusa diz o campo e a faixa, sem marcar volta nenhuma.
+  if (!Number.isFinite(minutos) || minutos < ACORDAR_MIN_MINUTOS || minutos > ACORDAR_MAX_MINUTOS) {
+    const recebido = input.em_minutos === undefined ? "Faltou em_minutos." : `em_minutos ${String(input.em_minutos).slice(0, 20)} está fora da faixa.`;
+    return { data: { ok: false, erro: "fora_da_faixa", instrucao: `${recebido} Passe um inteiro de ${ACORDAR_MIN_MINUTOS} a ${ACORDAR_MAX_MINUTOS} (24 h) ou, no trabalho de uma tarefa do quadro, use quando. Nenhuma volta foi marcada.` } };
+  }
   const trabalho = turno.trabalhoId ? await deps.repos.trabalhos.buscar(turno.trabalhoId) : null;
   if (trabalho && !trabalhoAberto(trabalho.estado)) return { data: { ok: false, erro: "task_fechada", instrucao: "Esta task já foi fechada (parada, terminada ou falhou). Não marque volta: encerre o turno." } };
   if ((await deps.repos.turnos.voltasMarcadas(origemDaVolta(turno))) >= VOLTAS_SEGUIDAS_MAX) {

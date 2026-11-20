@@ -251,7 +251,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(pil.dir).toBeLessThanOrEqual(390);
     // Só ícones no celular (a CONSULTA_CELULAR casou), e o nome segue para o leitor de tela.
     expect(pil.abas).toEqual([44, 44, 44, 44]);
-    expect(pil.nomes).toEqual(["Conversa", "Tarefas", "Painel", "Doc"]);
+    expect(pil.nomes).toEqual(["Conversa", "Quadro", "Painel", "Doc"]);
   }, 30_000);
 
   for (const [largura, deitado] of [[390, false], [844, true]] as const) {
@@ -288,7 +288,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(await estadoFinal()).toEqual({ atual: "quadro", quadroOculto: false, timelineVis: "hidden", timelineInert: true, selecionada: "quadro" });
     // ADR-162 (PR #723): "Precisa de você" deixou de ser coluna (virou a marca `voce`); o quadro padrão tem 7 colunas.
     expect(await avaliar<number>(cdp, `document.querySelectorAll("#quadro .qd-so-largo .qd-col").length`)).toBe(7);
-    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("página 2 de 4, Tarefas");
+    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("página 2 de 4, Quadro");
 
     const volta = await trocar("conversa");
     expect(volta.quadro).toEqual(["translateX(0)", "translateX(48px)"]);
@@ -328,7 +328,8 @@ descrever("NOD-429 no Chrome real", () => {
     const nome = await avaliar<{ x: number; y: number }>(cdp, `(() => { const r = document.querySelector("#cabecalho .pilula-bot").getBoundingClientRect(); return { x: r.left + 10, y: r.top + r.height / 2 }; })()`);
     expect(await avaliar<number>(cdp, `document.querySelector("#cabecalho .pg-doca").getBoundingClientRect().width`)).toBe(0);
     await cdp.enviar("Input.dispatchMouseEvent", { type: "mouseMoved", x: nome.x, y: nome.y });
-    // Amostra a largura a cada quadro até assentar: a mola passa do alvo antes de parar.
+    // Amostra a largura a cada quadro até assentar: a mola passa do alvo antes de parar. O alvo é o offsetWidth do miolo
+    // (rodada 3 da casca, Paper 17: o scrollWidth contava as dicas absolutas que vazam e deixava ~100 px vazios no fim).
     const m = await avaliar<{ max: number; fim: number; alvo: number; aberta: boolean }>(cdp, `new Promise((ok) => {
       const d = document.querySelector("#cabecalho .pg-doca");
       let max = 0, n = 0, parada = 0, antes = -1;
@@ -337,7 +338,7 @@ descrever("NOD-429 no Chrome real", () => {
         max = Math.max(max, w);
         parada = w > 0 && Math.abs(w - antes) < 0.01 ? parada + 1 : 0;
         antes = w;
-        if (parada > 10 || ++n > 300) ok({ max, fim: w, alvo: d.firstElementChild.scrollWidth, aberta: d.parentElement.classList.contains("pg-aberta") });
+        if (parada > 10 || ++n > 300) ok({ max, fim: w, alvo: d.firstElementChild.offsetWidth, aberta: d.parentElement.classList.contains("pg-aberta") });
         else requestAnimationFrame(passo);
       };
       requestAnimationFrame(passo);
@@ -469,7 +470,7 @@ descrever("NOD-429 no Chrome real", () => {
     const { c, toque } = await dedo();
     await toque("touchStart", c.x, c.y);
     await ate(`window.__menus.length > 0`);
-    expect(await avaliar<string[][]>(cdp, `window.__menus`)).toEqual([["buscar", "Conversa*", "Tarefas", "Painel", "Doc"]]);
+    expect(await avaliar<string[][]>(cdp, `window.__menus`)).toEqual([["buscar", "Conversa*", "Quadro", "Painel", "Doc"]]);
     expect(await avaliar<boolean>(cdp, `document.querySelector("#cabecalho .qd-pil").classList.contains("pg-aberta")`)).toBe(false);
     await toque("touchEnd", c.x, c.y);
     await acabar();
@@ -762,7 +763,7 @@ descrever("NOD-429 no Chrome real", () => {
     expect(await avaliar<string>(cdp, `document.querySelector("#cabecalho .pg-ic.pg-casa").dataset.pagina`)).toBe("1");
     // O clique do fim do arrasto não trocou de página; o anúncio diz a posição nova.
     expect(await estadoFinal()).toMatchObject({ atual: "conversa" });
-    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("Tarefas, página 1 de 4");
+    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("Quadro, página 1 de 4");
     // Abrir o agente de novo (outra montagem, como ao clicar nele na lista) cai direto em Tarefas, sem animação.
     await montar();
     expect(await estadoFinal()).toMatchObject({ atual: "quadro", quadroOculto: false, timelineInert: true });
@@ -808,7 +809,7 @@ descrever("NOD-429 no Chrome real", () => {
     await tecla("ArrowRight", true);
     expect(await aberta()).toBe(true);
     expect(await avaliar<string[]>(cdp, `window.__salvos`)).toEqual(['a:["conversa","tarefas","app:id-painel","app:id-doc"]']);
-    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("Tarefas, página 2 de 4");
+    expect(await avaliar<string>(cdp, `document.getElementById("pg-anuncio").textContent`)).toBe("Quadro, página 2 de 4");
     // No ícone focado, ⌥⇧← a traz de volta e o foco segue o ícone.
     await avaliar(cdp, `document.querySelector('#cabecalho .pg-ic[data-pagina="1"]').focus()`);
     await tecla("ArrowLeft", true);

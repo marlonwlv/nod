@@ -337,8 +337,8 @@ describeIntegracao("turno preso a uma máquina sem contato (NOD-314)", () => {
       const sistema = (await repos.mensagens.listarDaConversa(a.conversaId)).filter((m) => m.kind === "sistema");
       expect(sistema).toHaveLength(1);
       expect(sistema[0]?.texto).toBe("Tirei este pedido da fila: MacBook do Marlon ficou sem contato por mais de 24 h. Nada foi feito com ele.");
-      // QA do NOD-314 (achado 2): a IA fixada do turno ("sonnet" → Claude Code) vai junto; o atalho só oferece máquina com conta dela.
-      expect(sistema[0]?.payload).toEqual({ kind: "turno_preso", maquinaId: mac, ia: "claude-cli" });
+      // No Automático, "sonnet" é preferência e não fixa a IA; o atalho pode escolher uma IA pronta ao recuperar.
+      expect(sistema[0]?.payload).toEqual({ kind: "turno_preso", maquinaId: mac, ia: null });
       expect(r.events.find((e) => e.kind === "turno_interrompido" && e.turnoId === preso.id)?.dados).toMatchObject({ motivo: "maquina_sem_contato", causa: "maquina_alvo_sem_contato" });
 
       await cuidarDosTurnosOrfaos(deps);
