@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { devolverFocoNaFila, lugarDoFocoNaFila, renderItens, type ItemAnexo } from "../../../web/lib/anexos.ts";
+import { renderItens, type ItemAnexo } from "../../../web/lib/anexos.ts";
+import { devolverFocoNaFila, lugarDoFocoNaFila } from "../../../web/lib/anexos-foco.ts";
 
 /** QA-149: remover um anexo pelo teclado não deixa o foco cair no corpo da página. */
 const item = (chave: string): ItemAnexo => ({ chave, nome: `${chave}.txt`, mime: "text/plain", tamanho: 10, estado: "pronto", progresso: 1 }) as ItemAnexo;

@@ -265,7 +265,8 @@ import { gavetaPrendeFoco, irmaosAteARaiz, seletoresDaOrigem, voltaDoTab } from 
 import type { Ligacao } from "../src/contracts/ligacao.ts";
 import type { MotivoAvaliacaoLigacao } from "./lib/api.ts";
 import { aceitaDoBot } from "./lib/capacidades.ts";
-import { devolverFocoNaFila, lugarDoFocoNaFila, mimeDe, motivoRecusa, POR_MENSAGEM, renderItens as renderItensAnexo, resumo as resumoAnexos, retirarDaFila, contarNaFila, prontosDaFila, soltarEhDoChat, seletorDoClipe, type Aceita, type ItemAnexo } from "./lib/anexos.ts";
+import { mimeDe, motivoRecusa, POR_MENSAGEM, renderItens as renderItensAnexo, resumo as resumoAnexos, retirarDaFila, contarNaFila, prontosDaFila, soltarEhDoChat, seletorDoClipe, type Aceita, type ItemAnexo } from "./lib/anexos.ts";
+import { devolverFocoNaFila, lugarDoFocoNaFila } from "./lib/anexos-foco.ts";
 import type { EstadoTrabalho, TipoLinha } from "../src/contracts/trabalho.ts";
 import { ajusteDoHash, ajustePorId, linkDoAjuste } from "./lib/ajustes.ts";
 import { aplicarBalaoCor, lerBalaoCor } from "./lib/balao.ts";
