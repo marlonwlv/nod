@@ -17,11 +17,20 @@ export interface Ancora {
   ponto?: { x: number; y: number } | undefined;
   /** Avisado quando o menu sai (escolhendo ou não), antes da escolha. */
   aoFechar?: (() => void) | undefined;
+  /** Sem ponto: de que lado da âncora e como alinhado (padrão: à direita, pelo topo), e a que distância. */
+  lado?: "right" | "bottom" | undefined;
+  alinhar?: "start" | "center" | "end" | undefined;
+  distancia?: number | undefined;
+  /** Uma classe a mais no popup (`menu-pilula`, `menu-fala`…), como o nativo põe no `<dialog>`. */
+  classe?: string | undefined;
+  /** ← → andam como ↓ ↑ entre os itens (o menu da fala, com a linha de emojis). */
+  setasDosLados?: boolean | undefined;
 }
 
-export function MenuAncorado({ a, rotulo, classe, escolhida, sair, children }: {
-  a: Ancora; rotulo: string | undefined; classe?: string | undefined; escolhida: { current: (() => void) | null }; sair: () => void; children: ReactNode;
+export function MenuAncorado({ a, rotulo, escolhida, sair, children }: {
+  a: Ancora; rotulo: string | undefined; escolhida: { current: (() => void) | null }; sair: () => void; children: ReactNode;
 }) {
+  const classe = a.classe;
   const saiu = useRef(false);
   const terminar = (): void => {
     if (saiu.current) return;
@@ -36,10 +45,18 @@ export function MenuAncorado({ a, rotulo, classe, escolhida, sair, children }: {
   return (
     <Menu.Root defaultOpen modal onOpenChange={(o) => { if (!o) setTimeout(terminar, 1000); }} onOpenChangeComplete={(o) => { if (!o) terminar(); }}>
       <Menu.Portal>
-        <Menu.Positioner className="rx-menu-pos" anchor={ancora} side={ponto ? "bottom" : "right"} align="start" collisionPadding={12}
+        <Menu.Positioner className="rx-menu-pos" anchor={ancora} side={ponto ? "bottom" : a.lado ?? "right"} align={ponto ? "start" : a.alinhar ?? "start"} sideOffset={ponto ? 0 : a.distancia ?? 0} collisionPadding={12}
           collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}>
           <Menu.Popup className={`bot-menu rx-menu${classe ? ` ${classe}` : ""}`} aria-label={rotulo} finalFocus={false}
-            ref={(el) => { if (el) requestAnimationFrame(() => { if (el.isConnected && !el.contains(document.activeElement)) el.querySelector<HTMLElement>('[role="menuitem"]:not([disabled]):not([aria-disabled="true"])')?.focus(); }); }}>
+            onKeyDown={a.setasDosLados ? (ev) => {
+              if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+              const itens = [...ev.currentTarget.querySelectorAll<HTMLElement>('[role^="menuitem"]')];
+              const i = itens.indexOf(document.activeElement as HTMLElement);
+              if (!itens.length) return;
+              ev.preventDefault();
+              itens[(i + (ev.key === "ArrowRight" ? 1 : -1) + itens.length) % itens.length]?.focus();
+            } : undefined}
+            ref={(el) => { if (el) requestAnimationFrame(() => { if (el.isConnected && !el.contains(document.activeElement)) el.querySelector<HTMLElement>('[role^="menuitem"]:not([disabled]):not([aria-disabled="true"])')?.focus(); }); }}>
             {children}
           </Menu.Popup>
         </Menu.Positioner>

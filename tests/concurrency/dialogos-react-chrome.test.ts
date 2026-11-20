@@ -27,11 +27,16 @@ import { abrirLuzNoReact } from "./web/react/dialogos/luz.tsx";
 import { abrirArtefatoNoReact } from "./web/react/dialogos/artefato.tsx";
 import { abrirMenuDoBotNoReact } from "./web/react/dialogos/menu-do-bot.tsx";
 import { abrirMenuDeHtmlNoReact } from "./web/react/dialogos/menu-de-html.tsx";
-window.__menuHtml = (html) => {
+window.__menuHtml = (html, extra = {}) => {
   window.__escolha = null; window.__fechou = false;
-  const linha = document.getElementById("linha-bot") ?? document.getElementById("antes");
+  let linha = document.getElementById("linha-bot") ?? document.getElementById("antes");
+  if (extra.classe === "menu-pilula") {
+    linha = document.getElementById("pilula") ?? Object.assign(document.createElement("button"), { id: "pilula", textContent: "Conversa" });
+    linha.style.cssText = "position:fixed;left:540px;top:20px;width:200px;height:32px";
+    document.body.append(linha);
+  }
   linha.focus();
-  abrirMenuDeHtmlNoReact(document, { html, ancora: linha, aoEscolher: (b) => { window.__escolha = b.dataset.abaAcao ?? b.dataset.acaoTime ?? "?"; }, aoFechar: () => { window.__fechou = true; } });
+  abrirMenuDeHtmlNoReact(document, { html, ancora: linha, ...extra, aoEscolher: (b) => { window.__escolha = b.dataset.abaAcao ?? b.dataset.acaoTime ?? b.dataset.pos ?? b.dataset.pilula ?? b.dataset.reacao ?? b.dataset.fala ?? "?"; }, aoFechar: () => { window.__fechou = true; } });
 };
 window.__menuBot = (ponto) => {
   window.__acao = null;
@@ -334,5 +339,53 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await tecla("Escape", "Escape", 27);
     await ate(`!document.querySelector(".rx-menu-host")`);
     expect(await avaliar<unknown>(cdp, "window.__escolha")).toBeNull();
+  }, 60_000);
+
+  it("o menu da pílula: centrado 8 px abaixo dela, as páginas como menuitemradio (a atual marcada), ↓ e Enter vão à página", async () => {
+    await esperar(300);
+    const html = '<div role="menu" aria-label="Conversa"><button type="button" role="menuitem" data-pilula="buscar">Buscar na conversa</button><button type="button" role="menuitemradio" data-pilula="pagina" data-pos="0" aria-checked="true">Conversa</button><button type="button" role="menuitemradio" data-pilula="pagina" data-pos="1" aria-checked="false">Tarefa NOD-7</button></div>';
+    await avaliar(cdp, `window.__menuHtml(${JSON.stringify(html)}, { lado: "bottom", alinhar: "center", distancia: 8, classe: "menu-pilula" })`);
+    await ate(`document.activeElement?.dataset?.pilula === "buscar"`);
+    const r = await avaliar<{ cx: number; top: number; acx: number; abottom: number; papeis: string[]; marcado: string | null }>(cdp, `(() => { const m = document.querySelector(".bot-menu.rx-menu.menu-pilula").getBoundingClientRect(); const a = document.getElementById("pilula").getBoundingClientRect();
+      return { cx: Math.round(m.left + m.width / 2), top: Math.round(m.top), acx: Math.round(a.left + a.width / 2), abottom: Math.round(a.bottom), papeis: [...document.querySelectorAll(".rx-menu [data-pilula]")].map((b) => b.getAttribute("role")), marcado: document.querySelector('.rx-menu [aria-checked="true"]')?.dataset.pos ?? null }; })()`);
+    expect(Math.abs(r.cx - r.acx)).toBeLessThanOrEqual(1);
+    expect(r.top).toBe(r.abottom + 8);
+    expect(r.papeis).toEqual(["menuitem", "menuitemradio", "menuitemradio"]);
+    expect(r.marcado).toBe("0");
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await tecla("ArrowDown", "ArrowDown", 40);
+    await ate(`document.activeElement?.dataset?.pos === "1"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__escolha === "1"`);
+  }, 60_000);
+
+  it("o menu da fala: o + troca a linha de emojis sem fechar (o foco no 1º), ← → andam, o desligado não escolhe, o emoji escolhe", async () => {
+    await esperar(300);
+    const emoji = (e: string, marcado = false) => `<button type="button" role="menuitemcheckbox" class="emoji-reacao" data-reacao="${e}" aria-checked="${marcado}" aria-label="${e}" title="${e}">${e}</button>`;
+    const linha = (todas: boolean) => `<div class="linha-emojis${todas ? " todas" : ""}" role="group" aria-label="Reagir">${["👍", "❤️"].map((e, i) => emoji(e, i === 0)).join("")}${todas ? emoji("🎉") + emoji("👀") : '<button type="button" role="menuitem" class="emoji-mais" data-reacao-mais aria-label="Mais emojis" title="Mais emojis">+</button>'}</div>`;
+    const html = `<div role="menu" aria-label="Mais ações da mensagem">${linha(false)}<button type="button" role="menuitem" data-fala="copiar">Copiar texto</button><button type="button" role="menuitem" data-fala="desfazer" class="dft-mi" aria-disabled="true">Desfazer</button></div>`;
+    await avaliar(cdp, `window.__linhaToda = ${JSON.stringify(linha(true))}; window.__menuHtml(${JSON.stringify(html)}, { lado: "bottom", alinhar: "start", distancia: 6, classe: "menu-fala", setasDosLados: true, rotulo: "Mais ações da mensagem",
+      expandir: { seletor: "[data-reacao-mais]", html: () => ${JSON.stringify(html)}.replace(/<div class="linha-emojis[\\s\\S]*?<\\/div>/, window.__linhaToda), focar: ".linha-emojis button" } })`);
+    await ate(`document.activeElement?.dataset?.reacao === "👍"`);
+    expect(await avaliar<string | null>(cdp, `document.activeElement.getAttribute("role") + ":" + document.activeElement.getAttribute("aria-checked")`)).toBe("menuitemcheckbox:true");
+    await tecla("ArrowRight", "ArrowRight", 39);
+    await ate(`document.activeElement?.dataset?.reacao === "❤️"`);
+    await tecla("ArrowRight", "ArrowRight", 39);
+    await ate(`document.activeElement?.hasAttribute("data-reacao-mais")`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`document.querySelectorAll(".rx-menu .linha-emojis.todas button").length === 4`);
+    await ate(`document.activeElement?.dataset?.reacao === "👍"`);
+    expect(await avaliar<unknown>(cdp, "window.__escolha")).toBeNull();
+    await tecla("ArrowLeft", "ArrowLeft", 37);
+    await ate(`document.activeElement?.dataset?.fala === "desfazer"`);
+    await tecla("Enter", "Enter", 13);
+    await esperar(200);
+    expect(await avaliar<unknown>(cdp, "window.__escolha")).toBeNull();
+    await tecla("ArrowRight", "ArrowRight", 39);
+    await tecla("ArrowRight", "ArrowRight", 39);
+    await ate(`document.activeElement?.dataset?.reacao === "❤️"`);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__escolha === "❤️"`);
+    await ate(`!document.querySelector(".rx-menu-host")`);
   }, 60_000);
 });

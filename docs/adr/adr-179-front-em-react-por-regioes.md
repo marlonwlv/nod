@@ -137,7 +137,10 @@ comum virou `MenuAncorado` (`web/react/dialogos/menu-ancorado.tsx`), que também
 tarefa, os bots e as outras abas, a nova tarefa, os times; `abrirMenuDaBarra`): `web/react/dialogos/menu-de-html.tsx` lê o
 MESMO HTML do `<dialog>` nativo — o papel e o rótulo do `<div role="menu">` vão ao popup, o `<div>` fica com a classe que o
 CSS lê, cada botão vira item com os mesmos atributos e miolo, e a escolha recebe o botão. Uma diferença de propósito: o
-item desligado fica focável (e inerte), como a APG pede para menus; no nativo as setas o pulavam.
+item desligado fica focável (e inerte), como a APG pede para menus; no nativo as setas o pulavam. Pelo mesmo caminho
+vão **o menu da pílula** (embaixo e centrado nela; as páginas seguem `menuitemradio`) e **o menu da fala** (reagir e ⋯; os
+emojis seguem `menuitemcheckbox`, o "+" troca a linha sem fechar e põe o foco no 1º emoji, ← → andam como ↓ ↑, e o
+"Desfazer" com `aria-disabled` não escolhe). O bot segurado e a fala segurada do celular seguem no `<dialog>`.
 
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 

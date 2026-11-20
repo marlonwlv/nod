@@ -1,4 +1,4 @@
-import { createElement, useRef, type ReactNode } from "react";
+import { createElement, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import { MenuAncorado, montarMenu, type Ancora } from "./menu-ancorado.tsx";
@@ -14,6 +14,10 @@ import { MenuAncorado, montarMenu, type Ancora } from "./menu-ancorado.tsx";
 export interface MenuDeHtml extends Ancora {
   html: string;
   aoEscolher: (b: HTMLButtonElement) => void;
+  /** O botão que troca o conteúdo sem fechar (o "+" dos emojis): o HTML novo e o que recebe o foco depois. */
+  expandir?: { seletor: string; html: () => string; focar: string } | undefined;
+  /** O rótulo do popup no lugar do `aria-label` do HTML (o nativo o põe no `<dialog>`). */
+  rotulo?: string | undefined;
 }
 
 const PROPS: Record<string, string> = { class: "className", tabindex: "tabIndex", for: "htmlFor" };
@@ -28,8 +32,16 @@ function MenuDeHtmlRx({ m, sair }: { m: MenuDeHtml; sair: () => void }) {
   const escolhida = useRef<(() => void) | null>(null);
   const conversor = useRef<ConversorDeHtml | null>(null);
   conversor.current ??= criarConversor();
+  const [html, setHtml] = useState(m.html);
+  const focarDepois = useRef<string | null>(null);
+  const corpoRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (!focarDepois.current) return;
+    corpoRef.current?.closest(".rx-menu")?.querySelector<HTMLElement>(focarDepois.current)?.focus();
+    focarDepois.current = null;
+  }, [html]);
   const t = document.createElement("template");
-  t.innerHTML = m.html;
+  t.innerHTML = html;
   const raiz = t.content.firstElementChild;
   let k = 0;
   const no = (n: ChildNode): ReactNode => {
@@ -37,11 +49,17 @@ function MenuDeHtmlRx({ m, sair }: { m: MenuDeHtml; sair: () => void }) {
     if (!(n instanceof Element)) return null;
     const chave = `${k++}`;
     if (n.tagName === "BUTTON") {
-      const desligado = n.hasAttribute("disabled");
+      const desligado = n.hasAttribute("disabled") || n.getAttribute("aria-disabled") === "true";
+      const expande = !!m.expandir && n.matches(m.expandir.seletor);
       return (
-        <Menu.Item key={chave} nativeButton disabled={desligado} render={<button type="button" />} {...propsDe(n, ["type", "disabled", "role"])}
+        <Menu.Item key={chave} nativeButton disabled={desligado} closeOnClick={!expande} render={<button type="button" />}
+          {...propsDe(n, ["type", "disabled", "aria-disabled", n.getAttribute("role") === "menuitem" ? "role" : ""])}
           dangerouslySetInnerHTML={{ __html: n.innerHTML }}
-          onClick={(ev) => { const b = ev.currentTarget as unknown as HTMLButtonElement; escolhida.current = () => m.aoEscolher(b); }} />
+          onClick={(ev) => {
+            if (expande && m.expandir) { focarDepois.current = m.expandir.focar; setHtml(m.expandir.html()); return; }
+            const b = ev.currentTarget as unknown as HTMLButtonElement;
+            escolhida.current = () => m.aoEscolher(b);
+          }} />
       );
     }
     if (!n.querySelector("button")) return <ConvertidoComChave key={chave} no={conversor.current!.converter(n.outerHTML)} />;
@@ -49,10 +67,10 @@ function MenuDeHtmlRx({ m, sair }: { m: MenuDeHtml; sair: () => void }) {
   };
   const ehMenu = raiz?.getAttribute("role") === "menu";
   const corpo = raiz && ehMenu
-    ? createElement("div", propsDe(raiz, ["role", "aria-label"]), [...raiz.childNodes].map(no))
+    ? createElement("div", { ...propsDe(raiz, ["role", "aria-label"]), ref: corpoRef }, [...raiz.childNodes].map(no))
     : [...t.content.childNodes].map(no);
   return (
-    <MenuAncorado a={m} rotulo={ehMenu ? raiz.getAttribute("aria-label") ?? undefined : undefined} escolhida={escolhida} sair={sair}>
+    <MenuAncorado a={m} rotulo={m.rotulo ?? (ehMenu ? raiz.getAttribute("aria-label") ?? undefined : undefined)} escolhida={escolhida} sair={sair}>
       {corpo}
     </MenuAncorado>
   );

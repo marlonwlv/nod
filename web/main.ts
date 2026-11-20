@@ -3471,7 +3471,11 @@ function abrirMenuDaPilula(ancora: HTMLElement, itens: readonly ItemDoMenuDaPilu
   const botoes = itens.map((it) => it.tipo === "buscar"
     ? `<button type="button" role="menuitem" data-pilula="buscar">${lupa}Buscar na conversa</button>`
     : `<button type="button" role="menuitemradio" data-pilula="pagina" data-pos="${it.pos}" aria-checked="${it.atual}">${esc(it.nome)}</button>`).join("");
-  const d = dialogo(`<div role="menu" aria-label="Conversa">${botoes}</div>`, true);
+  const html = `<div role="menu" aria-label="Conversa">${botoes}</div>`;
+  const escolher = (b: HTMLElement): void => { if (b.dataset.pilula === "buscar") abrirBuscaNaConversa(); else irPara(Number(b.dataset.pos)); };
+  // ADR-179: o do Base UI, embaixo da pílula e centrado nela (como o nativo), quando o módulo dos diálogos chegou.
+  if (moduloDosDialogos) { moduloDosDialogos.abrirMenuDeHtmlNoReact(document, { html, ancora, lado: "bottom", alinhar: "center", distancia: 8, classe: "menu-pilula", aoEscolher: escolher }); return; }
+  const d = dialogo(html, true);
   d.classList.add("menu-pilula");
   const r = ancora.getBoundingClientRect();
   d.style.left = `${Math.max(12, Math.min(r.left + r.width / 2 - d.offsetWidth / 2, window.innerWidth - d.offsetWidth - 12))}px`;
@@ -3490,8 +3494,7 @@ function abrirMenuDaPilula(ancora: HTMLElement, itens: readonly ItemDoMenuDaPilu
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-pilula]");
     if (!b) return;
     d.close();
-    if (b.dataset.pilula === "buscar") abrirBuscaNaConversa();
-    else irPara(Number(b.dataset.pos));
+    escolher(b);
   });
 }
 
@@ -6763,10 +6766,26 @@ function abrirMenuDaFala(ancora: HTMLElement, tipo: "reagir" | "mais"): void {
   const fala = falaPorId(ancora.dataset.id ?? "");
   if (!fala) return;
   const bot = botDaFala(fala, estado);
-  const d = dialogo(tipo === "reagir" ? htmlSeletorDeReacao(fala, estado) : htmlMenuDaFala(fala, estado, !!bot && comQuadro(bot)), true);
-  d.classList.add("menu-fala");
-  d.setAttribute("aria-label", tipo === "reagir" ? "Reagir a esta mensagem" : "Mais ações da mensagem");
+  const html = tipo === "reagir" ? htmlSeletorDeReacao(fala, estado) : htmlMenuDaFala(fala, estado, !!bot && comQuadro(bot));
+  const rotulo = tipo === "reagir" ? "Reagir a esta mensagem" : "Mais ações da mensagem";
   ancora.setAttribute("aria-expanded", "true");
+  // ADR-179: o do Base UI quando o módulo dos diálogos chegou: o mesmo HTML; o "+" troca a linha de emojis sem fechar.
+  if (moduloDosDialogos) {
+    moduloDosDialogos.abrirMenuDeHtmlNoReact(document, {
+      html, rotulo, ancora, lado: "bottom", alinhar: "start", distancia: 6, classe: "menu-fala", setasDosLados: true,
+      expandir: { seletor: "[data-reacao-mais]", html: () => html.replace(/<div class="linha-emojis[\s\S]*?<\/div>/, linhaDeEmojis(fala, estado, true)), focar: ".linha-emojis button" },
+      aoFechar: () => ancora.setAttribute("aria-expanded", "false"),
+      aoEscolher: (b) => {
+        const emoji = b.dataset.reacao;
+        if (emoji) { void alternarReacao(fala, emoji); return; }
+        if (b.dataset.fala) acaoDoMenuDaFala(fala, b.dataset.fala, ancora);
+      },
+    });
+    return;
+  }
+  const d = dialogo(html, true);
+  d.classList.add("menu-fala");
+  d.setAttribute("aria-label", rotulo);
   d.addEventListener("close", () => ancora.setAttribute("aria-expanded", "false"));
   const posicionar = (): void => {
     const r = ancora.getBoundingClientRect();
