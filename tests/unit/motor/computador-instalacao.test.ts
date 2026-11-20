@@ -11,6 +11,7 @@ import {
 } from "../../../src/adapters/http/computador-instalacao.ts";
 import { RESOLV_DO_STUB as RESOLV_DO_BWRAP } from "../../../infra/computador/isolamento.mjs";
 import { scriptDeInstalacao } from "../../../src/adapters/http/motor-instalacao.ts";
+import { ARQUIVOS_DO_COMPUTADOR as CODIGO_DO_COMPUTADOR } from "../../../src/domain/atualizacao-do-motor.ts";
 import { rotasMotor } from "../../../src/adapters/http/rotas/motor.ts";
 import {
   anuncioDoComputador, BINARIOS_DO_COMPUTADOR, PASTA_DO_COMPUTADOR, RESOLV_DO_COMPUTADOR, SOCKET_DO_COMPUTADOR, type SondaComputador,
@@ -27,7 +28,7 @@ describe("instalação do computador da pessoa (ADR-122)", () => {
     const com = scriptDeInstalacao({ ...base, computador: true });
     expect(com).toContain(`passo "motor $NOD_VERSAO"\n${blocoDoComputador()}`);
     expect(com).toContain('"$SERVIDOR/api/motor/arquivos/$ARQUIVO"');
-    for (const nome of ARQUIVOS_DO_COMPUTADOR) expect(com).toContain(`$TMP/${nome}`);
+    for (const nome of CODIGO_DO_COMPUTADOR) expect(com).toContain(`$TMP/${nome}`);
     expect(com).toContain("systemctl try-restart nod-computador.service nod-computador-terminal.service");
     expect(com.indexOf("nod-computador")).toBeGreaterThan(com.indexOf('passo "motor $NOD_VERSAO"'));
     // O shell aceita o script inteiro.
@@ -39,6 +40,7 @@ describe("instalação do computador da pessoa (ADR-122)", () => {
     expect(PACOTES_DO_COMPUTADOR).toContain("scrot");
     // NOD-95 (ADR-138): a tela ao vivo precisa do x11vnc na máquina.
     expect(PACOTES_DO_COMPUTADOR).toContain("x11vnc");
+    expect(PACOTES_DO_COMPUTADOR).toContain("feh");
     expect(b).toContain(`install -y -qq ${PACOTES_DO_COMPUTADOR.join(" ")}`);
     expect(b).toContain("useradd --system --no-create-home --home-dir /var/lib/nod-computador --shell /usr/sbin/nologin --gid nod-pc-arquivos nod-pc\n");
     expect(b).toContain("--gid nod-pc-arquivos nod-pc-term");
@@ -75,6 +77,9 @@ describe("instalação do computador da pessoa (ADR-122)", () => {
     }
     expect(u["nod-computador.service"]).toContain("User=nod-pc\n");
     expect(u["nod-computador.service"]).toContain("Environment=NOD_PC_TELA=/opt/nod-motor/computador/tela.mjs\n");
+    expect(u["nod-computador.service"]).toContain("Environment=NOD_SHELL_VISUAL=paper-v2\n");
+    expect(u["nod-computador.service"]).toContain("Environment=NOD_SHELL_VISUAL_PACOTE=/opt/nod-motor/computador/shell-visual/paper-v2\n");
+    expect(u["nod-computador.service"]).toContain("Environment=NOD_SHELL_VISUAL_ESTADO=/var/lib/nod-computador/shell-visual\n");
     expect(u["nod-computador-terminal.service"]).toContain("User=nod-pc-term\n");
     expect(u["nod-computador-terminal.service"]).not.toContain("DISPLAY");
     expect(u["nod-computador.socket"]).toMatch(/ListenStream=\/run\/nod-computador\/ctl\.sock\n[\s\S]*SocketGroup=nod\nSocketMode=0660\n/);
@@ -132,7 +137,12 @@ describe("instalação do computador da pessoa (ADR-122)", () => {
       expect((await fetch(`${sem.url}/api/motor/arquivos/computador-tela.mjs`)).status).toBe(404);
       expect(await (await fetch(`${sem.url}/api/motor/instalar`)).text()).not.toContain("nod-computador");
       expect(await (await fetch(`${com.url}/api/motor/arquivos/computador-tela.mjs`)).text()).toContain("computador-tela.mjs");
+      const shell = ARQUIVOS_DO_COMPUTADOR.find((nome) => nome.endsWith("manifesto.json"))!;
+      const respostaShell = await fetch(`${com.url}/api/motor/arquivos/${shell}`);
+      expect(respostaShell.headers.get("content-type")).toBe("application/octet-stream");
+      expect(await respostaShell.text()).toContain("manifesto.json");
       expect(await (await fetch(`${com.url}/api/motor/instalar`)).text()).toContain("nod-computador.service");
+      expect(await (await fetch(`${com.url}/api/motor/instalar`)).text()).toContain("shell-visual/paper-v2/manifesto.json");
     } finally {
       await sem.close();
       await com.close();

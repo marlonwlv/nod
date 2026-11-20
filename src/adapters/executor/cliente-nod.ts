@@ -34,6 +34,9 @@ export type RespostaFerramenta =
   /** ADR-048: o servidor decidiu e a ferramenta roda NESTA máquina (gh do Mac); o proxy executa e relata. */
   | { executarLocal: { capacidade: string; argumentos: Record<string, unknown> } };
 
+/** Erro de domínio HTTP preservado: não é falha de transporte nem indisponibilidade do serviço. */
+export type RespostaErroHttp = { erroHttp: { status: number; codigo: string; mensagem: string } };
+
 export type RespostaAguardar =
   /** `resultado` (0032): o que a ação aprovada no computador devolveu — conteúdo NÃO confiável. */
   | { estado: "decidida"; itens: { idx: number; desfecho: DesfechoItem | null; resultado?: string }[] }
@@ -46,7 +49,7 @@ export type ConteudoFerramenta = { conteudo: string; isError: boolean };
 
 export interface ClienteNod {
   plano(): Promise<RespostaPlano>;
-  ferramenta(nome: string, argumentos: Record<string, unknown>): Promise<RespostaFerramenta | FalhaTransporte>;
+  ferramenta(nome: string, argumentos: Record<string, unknown>): Promise<RespostaFerramenta | RespostaErroHttp | FalhaTransporte>;
   aguardar(decisaoId: string, fatiaMs: number): Promise<RespostaAguardar | FalhaTransporte>;
   /** Negação decidida LOCALMENTE pelo proxy (fora do catálogo): o servidor grava trilha e pede interrupção. */
   negacao(n: Negacao): Promise<void>;
@@ -82,7 +85,7 @@ function ehFalha(x: unknown): x is FalhaTransporte {
 }
 
 /** Predicado: a resposta é falha de TRANSPORTE (servidor fora, timeout), não uma decisão do servidor. */
-export function ehFalhaTransporte(x: RespostaFerramenta | RespostaAguardar | FalhaTransporte): x is FalhaTransporte {
+export function ehFalhaTransporte(x: RespostaFerramenta | RespostaErroHttp | RespostaAguardar | FalhaTransporte): x is FalhaTransporte {
   return ehFalha(x);
 }
 
@@ -143,7 +146,12 @@ export function criarClienteNod(opcoes: OpcoesClienteNod): ClienteNod {
         // Servidor de teste sem chamar-ferramenta: {conteudo, isError} cru vira resposta ok (confiança do chamador).
         if (typeof c["conteudo"] === "string") return c["isError"] === true ? { ok: true, conteudo: `erro: ${c["conteudo"]}`, confianca: "confiavel" } : { ok: true, conteudo: c["conteudo"], confianca: "confiavel" };
       }
-      // 401/403/404/5xx: o corpo é o JSON seguro do servidor (código fechado, ADR-002), nunca err.message.
+      // 4xx de domínio é resposta tipada do servidor, não falha de transporte. Preservar o código evita que o proxy
+      // diga falsamente que o serviço está fora e permite ao modelo corrigir a chamada.
+      if (r.status >= 400 && r.status < 500 && c && typeof c["codigo"] === "string" && typeof c["mensagem"] === "string") {
+        return { erroHttp: { status: r.status, codigo: c["codigo"], mensagem: c["mensagem"] } };
+      }
+      // 5xx ou corpo fora do contrato continuam falha técnica.
       return { transporte: "falha_tecnica", status: r.status };
     },
 

@@ -35,7 +35,14 @@ export const executarRotinaAgora: CasoDeUso<{ rotinaId: string; executor: Execut
   const rotina = await deps.repos.rotinas.buscar(input.rotinaId);
   if (!rotina) throw new ErroDeDominio("nao_encontrado");
   if (rotina.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_permitido");
-  if (input.confirmar !== true) {
+  // QA-116 (2026-11-20): sem confirmar, a checagem da fila corre com a rotina travada, como o "Rodar agora" do card
+  // (travarRotinaEReler). Sem a trava, o Testar agora e o card clicados juntos viam a fila vazia e abriam duas execuções.
+  // Travada, a chave é o instante exato (como o card): o minuto cheio pode ser a janela que o scheduler segura enquanto
+  // espera esta mesma rotina, e esperar por ela fecharia um ciclo. O clique duplo fica deduplicado pela trava: o segundo
+  // espera, vê a execução aberta e volta `jaNaFila`.
+  const travada = input.confirmar !== true;
+  if (travada) {
+    if (!(await deps.repos.rotinas.buscarParaAtualizar(rotina.id))) throw new ErroDeDominio("nao_encontrado");
     const aberto = await deps.repos.rotinaJanelas.turnoAberto(rotina.id, deps.agora());
     if (aberto) return { data: { conversaId: rotina.conversaId, turnoId: null, bloqueio: null, jaNaFila: { turnoId: aberto.turnoId, instanteAgendado: aberto.instanteAgendado, fusoIana: rotina.fusoIana } } };
   }
@@ -49,7 +56,7 @@ export const executarRotinaAgora: CasoDeUso<{ rotinaId: string; executor: Execut
     const linha = await deps.repos.mensagens.criar({ conversaId: rotina.conversaId, autoria, kind: "sistema", assunto: "parada", texto: "Parada encerrada: você usou Executar agora e a rotina voltou a rodar.", confianca: "confiavel" });
     if (linha) antes.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: rotina.conversaId, dados: { mensagem_id: linha.id, kind: "sistema" } }));
   }
-  const r = await dispararRotina(deps, { rotina, instanteAgendado: input.instanteExato === true ? deps.agora() : Math.floor(deps.agora() / 60_000) * 60_000, machineId: randomUUID(), executor: input.executor, preservarAgenda: true });
+  const r = await dispararRotina(deps, { rotina, instanteAgendado: input.instanteExato === true || travada ? deps.agora() : Math.floor(deps.agora() / 60_000) * 60_000, machineId: randomUUID(), executor: input.executor, preservarAgenda: true });
   const bloqueio = "bloqueada" in r.data ? { motivo: r.data.bloqueada, propostaId: r.data.propostaId } : null;
   return { data: { conversaId: rotina.conversaId, turnoId: "turno" in r.data ? r.data.turno.id : null, bloqueio }, events: [...antes, ...(r.events ?? [])] };
 };

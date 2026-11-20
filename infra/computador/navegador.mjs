@@ -5,6 +5,7 @@ const token = () => randomBytes(32).toString('hex');
 const PRAZO = 120_000;
 const MAX_ELEMENTOS = 150;
 const MAX_TEXTOS = 12_000;
+const LEITURAS_PARALELAS = 8;
 
 /**
  * Adaptador de MotorNavegador. Recebe a página da sessão existente: não cria perfil nem toca credenciais.
@@ -23,6 +24,7 @@ export function criarNavegador({ pagina, revisao, invalidar, agora = Date.now })
     const r = revisao();
     const id = token();
     const alvos = new Map();
+    const handles = new Set();
     const elementos = [];
     const textos = [];
     let caracteres = 0;
@@ -72,7 +74,8 @@ export function criarNavegador({ pagina, revisao, invalidar, agora = Date.now })
           if (texto) textos.push(texto);
           caracteres += texto.length;
         }
-        async function visitar(nodes) {
+        const candidatos = [];
+        function visitar(nodes) {
           for (const n of Array.isArray(nodes) ? nodes : [nodes]) {
             if (!n || typeof n !== 'object') continue;
             if (++visitados > 3000) { truncada = true; return; }
@@ -81,32 +84,48 @@ export function criarNavegador({ pagina, revisao, invalidar, agora = Date.now })
               const chave = JSON.stringify([i, n.role, nome]);
               if (!vistos.has(chave)) {
                 vistos.add(chave);
-                if (elementos.length >= MAX_ELEMENTOS) truncada = true;
-                else {
-                  const locator = frame.getByRole(n.role, { name: nome, exact: true });
-                  // Nunca escolher first/nth silenciosamente quando há nomes duplicados.
-                  if (await locator.count() === 1) {
-                    const handle = await locator.elementHandle({ timeout: 1000 });
-                    if (handle && !(await handle.evaluate(el => el.matches('input[type=password]') || (el.isContentEditable && !['textbox', 'searchbox'].includes(el.getAttribute('role')))))) {
-                      const referencia = token();
-                      const semantica = await locator.ariaSnapshot({ timeout: 1000 });
-                      alvos.set(referencia, { handle, locator, semantica, frame, url: frame.url(), papel: n.role, nome: String(nome).slice(0, 1000) });
-                      elementos.push({ referencia, papel: n.role, nome: String(nome).slice(0, 1000), frame: i });
-                    } else await handle?.dispose();
-                  }
-                }
+                candidatos.push({ papel: n.role, nome });
               }
             }
-            if (n.children) await visitar(n.children);
+            if (n.children) visitar(n.children);
           }
         }
-        await visitar(arvore);
+        visitar(arvore);
+        // Só leituras independentes em paralelo; ordem, teto e validação antes do efeito permanecem iguais.
+        for (let inicio = 0; inicio < candidatos.length;) {
+          const vagas = MAX_ELEMENTOS - elementos.length;
+          if (!vagas) { truncada = true; break; }
+          const lote = candidatos.slice(inicio, inicio + Math.min(LEITURAS_PARALELAS, vagas));
+          inicio += lote.length;
+          const resultados = await Promise.allSettled(lote.map(async ({ papel, nome }) => {
+            const locator = frame.getByRole(papel, { name: nome, exact: true });
+            if (await locator.count() !== 1) return null;
+            const handle = await locator.elementHandle({ timeout: 1000 });
+            if (!handle) return null;
+            handles.add(handle);
+            if (await handle.evaluate(el => el.matches('input[type=password]') || (el.isContentEditable && !['textbox', 'searchbox'].includes(el.getAttribute('role'))))) {
+              await handle.dispose(); handles.delete(handle); return null;
+            }
+            const semantica = await locator.ariaSnapshot({ timeout: 1000 });
+            return { handle, locator, semantica, frame, url: frame.url(), papel, nome: String(nome).slice(0, 1000) };
+          }));
+          // Esperar o lote inteiro permite descartar todos os handles mesmo se uma leitura falhar.
+          const falha = resultados.find(r => r.status === 'rejected');
+          if (falha) throw falha.reason;
+          for (const resultado of resultados) {
+            const alvo = resultado.value;
+            if (!alvo) continue;
+            const referencia = token();
+            alvos.set(referencia, alvo);
+            elementos.push({ referencia, papel: alvo.papel, nome: alvo.nome, frame: i });
+          }
+        }
       }
       if (r !== revisao() || p !== await pagina()) throw new Error('tela_alterada');
       observada = { id, p, r, em: agora(), alvos, fotos };
       return { pagina: { observacao: id, url: p.url(), titulo: await p.title(), elementos, textos, truncada } };
     } catch (e) {
-      await Promise.all([...alvos.values()].map(a => a.handle.dispose().catch(() => {})));
+      await Promise.all([...handles].map(handle => handle.dispose().catch(() => {})));
       throw e;
     }
   }

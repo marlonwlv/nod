@@ -33,9 +33,17 @@ export async function lerTexto(caminho, inicio = 0, esperada) {
   return { texto: { conteudo, inicio, proximo: fim < completo.length ? fim : null, total: completo.length, revisao: atual } };
 }
 
+// O teto anunciado ao bot é em caracteres; `length` conta unidades UTF-16 e recusaria um emoji no limite.
+function passaDeCaracteres(s, max) {
+  if (s.length <= max) return false;
+  let n = 0;
+  for (const _ of s) if (++n > max) return true;
+  return false;
+}
+
 // definido em 2026-09-18: ações do computador são serializadas pelo gateway; revisão recusa sobrescrita baseada em leitura antiga.
 export async function gravarTexto(caminho, texto, esperada) {
-  if (typeof texto !== 'string' || texto.length > 131072 || (esperada !== 'novo' && !/^[a-f0-9]{64}$/.test(esperada))) throw new Error('entrada_invalida');
+  if (typeof texto !== 'string' || passaDeCaracteres(texto, 131072) || (esperada !== 'novo' && !/^[a-f0-9]{64}$/.test(esperada))) throw new Error('entrada_invalida');
   const bytes = Buffer.from(texto, 'utf8');
   if (esperada === 'novo') {
     await writeFile(caminho, bytes, { flag: 'wx' });

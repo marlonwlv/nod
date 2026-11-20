@@ -440,7 +440,7 @@ describeIntegracao("e2e com catcher: trabalhos em paralelo (#192, #193, #194)", 
         const pressao = await c.srv.esperar(async () => (await c.trabalhos(bot.agenteId)).pressao ?? null, { nome: "pressão lida", timeoutMs: 15_000 });
         const fim = await c.esperarTrabalho(rodando.id, (t) => !["na_fila", "rodando"].includes(t.estado), "task acabou", 30_000);
         const turnos = await c.comoPessoa((trx) => trx<{ estado: string; motivo_interrupcao: string | null }[]>`select estado, motivo_interrupcao from turnos where trabalho_id = ${rodando.id}`);
-        const fechou = (await c.conversa(bot.conversaId)).mensagens.some((m) => m.kind === "sistema" && m.texto.startsWith("Fechei a task"));
+        const fechou = (await c.conversa(bot.conversaId)).mensagens.some((m) => m.kind === "sistema" && m.texto.startsWith("Fechei a tarefa"));
         // O outbox publica com atraso de uma passada: o frame da mudança já saiu quando a task terminou.
         const frames = c.frames.filter((f) => f.tipo === "memoria.mudou").map((f) => f.dados.nivel);
         return { pressao, fim, turnos, fechou, frames };

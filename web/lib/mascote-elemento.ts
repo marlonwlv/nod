@@ -1,10 +1,11 @@
 import { BotEngine } from "../vendor/bloub/engine.ts";
-import { STATE_BY_ID, POSES, type StateId } from "../vendor/bloub/states.ts";
+import { STATE_BY_ID, POSES, stateAfterElapsed, type StateId } from "../vendor/bloub/states.ts";
 import { SHAPE_BY_ID } from "../vendor/bloub/skins.ts";
 import { expressaoMascote } from "./mascote-pose.ts";
 import { FORMAS_BLOUB } from "./mascote-catalogo.ts";
 import { PintorMascote, svgMascote } from "./mascote-svg.ts";
 import { CONSULTA_MOVIMENTO_REDUZIDO, instanteDoMascote, lacoDoMascoteSegue, movimentoReduzido } from "./movimento.ts";
+import { criarGuardaDeMotores } from "./motores-do-mascote.ts";
 
 // medido em 2026-09-30: criar 200 mascotes num innerHTML custava ~1 s síncrono, com 1.000 pinturas e 1.000
 // getComputedStyle — 4 pinturas por mascote no upgrade —, e 10 mascotes animados, 9 a 16 ms de CPU por quadro, cada um
@@ -15,6 +16,8 @@ const INK = "var(--mascote-cor, var(--agent-gris))";
 const ASSENTA = .8;
 /** definido em 2026-09-30: teto de 60 quadros por segundo; numa tela de 120 Hz o rAF dobraria o custo sem ganho visível. */
 const QUADRO_MS = 1000 / 60;
+/** ADR-174: estados que, assentados, não se mexem (não pedem quadro nenhum). */
+const ESTATICOS: ReadonlySet<StateId> = new Set<StateId>(["idle", "offline"]);
 const reduced = matchMedia(CONSULTA_MOVIMENTO_REDUZIDO);
 /**
  * NOD-122 (revisão): a resposta continua vindo de movimentoReduzido(), mas lida da MediaQueryList guardada acima. Chamar
@@ -51,6 +54,8 @@ reduced.addEventListener("change", () => { for (const el of conectados) el.wake(
 const observer = new IntersectionObserver(entries => {
   for (const entry of entries) (entry.target as MascoteElemento).setVisible(entry.isIntersecting);
 });
+/** C3: o motor de quem saiu, pela chave `data-motor`, para o elemento recriado no mesmo instante retomar. */
+const motores = criarGuardaDeMotores<BotEngine>(() => performance.now());
 /** Quadro parado (repouso assentado ou reduced-motion) por estado|forma|expressão|fixo; "@@" é o lugar do id. */
 const parados = new Map<string, string>();
 
@@ -67,20 +72,30 @@ class MascoteElemento extends HTMLElement {
   private applied = "";
   private shown = "";
   private painter: PintorMascote | null = null;
-  private get state(): StateId {
+  private runningAssentado = false;
+  private get estadoPedido(): StateId {
     const id = this.getAttribute("state") as StateId;
     return STATE_BY_ID.has(id) ? id : "idle";
   }
-  private get pose(): string {
-    return `${this.state}|${this.getAttribute("shape")}|${this.getAttribute("expression")}`;
+  private get posePedida(): string {
+    return `${this.estadoPedido}|${this.getAttribute("shape")}|${this.getAttribute("expression")}`;
   }
   connectedCallback(): void {
     conectados.add(this);
-    // Como antes: o motor nasce em repouso e funde para o estado pedido; em repouso não há fusão nenhuma.
-    this.engine = new BotEngine(100, "idle", radii(this.getAttribute("shape")), expressaoMascote(this.getAttribute("expression")));
-    this.time = 0;
-    this.changed = -Infinity;
-    this.applied = `idle|${this.getAttribute("shape")}|${this.getAttribute("expression")}`;
+    // C3 (2026-11-12): o elemento recriado (a região regravada) retoma o motor de quem acabou de sair com a mesma chave.
+    const guardado = motores.retomar(this.getAttribute("data-motor"));
+    if (guardado) {
+      this.engine = guardado.motor;
+      this.time = guardado.tempo;
+      this.changed = guardado.mudou;
+      this.applied = guardado.aplicado;
+    } else {
+      // Como antes: o motor nasce em repouso e funde para o estado pedido; em repouso não há fusão nenhuma.
+      this.engine = new BotEngine(100, "idle", radii(this.getAttribute("shape")), expressaoMascote(this.getAttribute("expression")));
+      this.time = 0;
+      this.changed = -Infinity;
+      this.applied = `idle|${this.getAttribute("shape")}|${this.getAttribute("expression")}`;
+    }
     this.apply();
     this.wake();
   }
@@ -89,6 +104,7 @@ class MascoteElemento extends HTMLElement {
     ativos.delete(this);
     if (this.observed) observer.unobserve(this);
     this.observed = false;
+    if (this.engine) motores.guardar(this.getAttribute("data-motor"), { motor: this.engine, tempo: this.time, aplicado: this.applied, mudou: this.changed });
     this.engine = null;
     this.painter = null;
     this.shown = "";
@@ -102,19 +118,20 @@ class MascoteElemento extends HTMLElement {
   }
   /** Passa forma, expressão e estado ao motor; diz se algo mudou de fato. */
   private apply(): boolean {
-    const pose = this.pose;
+    const pose = this.posePedida;
     if (!this.engine || pose === this.applied) return false;
     this.applied = pose;
     this.engine.setShape(radii(this.getAttribute("shape")), this.time);
     this.engine.setExpression(expressaoMascote(this.getAttribute("expression")), this.time);
-    this.engine.setState(this.state, this.time);
+    this.engine.setState(this.estadoPedido, this.time);
+    this.runningAssentado = false;
     this.changed = this.time;
     return true;
   }
   replay(): void {
     if (!this.engine) return;
     this.engine.reset("idle", this.time);
-    this.engine.setState(this.state, this.time);
+    this.engine.setState(this.estadoPedido, this.time);
     this.changed = this.time;
     this.wake();
   }
@@ -150,32 +167,48 @@ class MascoteElemento extends HTMLElement {
     if (this.last && stamp - this.last < QUADRO_MS - 2) return;
     this.time += this.last ? Math.min((stamp - this.last) / 1000, .05) : 0;
     this.last = stamp;
+    const depois = stateAfterElapsed(this.estadoPedido, this.time - this.changed);
+    if (this.estadoPedido === "running" && depois !== this.estadoPedido && !this.runningAssentado) {
+      this.engine?.setState(depois, this.time);
+      this.runningAssentado = true;
+    }
     this.paint();
     if (!this.moving()) this.wake();
   }
   private moving(): boolean {
-    return this.state !== "idle" || this.time - this.changed < ASSENTA;
+    // ADR-174: offline é pose fixa, como o repouso — só a transição de entrada anima.
+    return !ESTATICOS.has(this.estadoPedido) || this.time - this.changed < ASSENTA;
   }
   private paint(): void {
     const fixed = reduzido();
-    const state = this.state;
+    const state = this.estadoPedido;
     if (fixed || !this.moving()) {
-      const chave = `${this.pose}|${fixed}`;
+      const chave = `${this.posePedida}|${fixed}`;
       if (this.shown === chave) return;
       let svg = parados.get(chave);
       if (!svg) {
         const engine = fixed ? new BotEngine(100, state, radii(this.getAttribute("shape")), expressaoMascote(this.getAttribute("expression"))) : this.engine!;
-        svg = svgMascote(engine.sample(instanteDoMascote({ reduzido: fixed, pose: POSES[state], tempo: this.time }), state !== "idle"), "@@", INK);
+        svg = svgMascote(engine.sample(instanteDoMascote({ reduzido: fixed, pose: POSES[state], tempo: this.time }), !ESTATICOS.has(state)), "@@", INK);
         if (parados.size >= 64) parados.clear();
         parados.set(chave, svg);
       }
       this.innerHTML = svg.replaceAll("@@", this.uid);
+      this.decorateSleeping();
       this.shown = chave;
       this.painter = null;
       return;
     }
     this.shown = "";
-    (this.painter ??= new PintorMascote(this, this.uid, INK)).pintar(this.engine!.sample(this.time, state !== "idle"));
+    (this.painter ??= new PintorMascote(this, this.uid, INK)).pintar(this.engine!.sample(this.time, !ESTATICOS.has(state)));
+    this.decorateSleeping();
+  }
+  private decorateSleeping(): void {
+    const existing = this.querySelector(":scope > .mascote-zz");
+    if (this.estadoPedido !== "sleeping") {
+      existing?.remove();
+      return;
+    }
+    if (!existing) this.insertAdjacentHTML("beforeend", '<span class="mascote-zz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>');
   }
 }
 customElements.define("nod-mascote", MascoteElemento);

@@ -8,13 +8,15 @@ import { constants, open as abrirDescritor } from 'node:fs';
 import net from 'node:net';
 import { promisify } from 'node:util';
 import { createHash, randomBytes } from 'node:crypto';
-import { access, chmod, cp, link, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, cp, link, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { URL, pathToFileURL } from 'node:url';
 import process from 'node:process';
 import { Buffer } from 'node:buffer';
 import { setTimeout as esperar } from 'node:timers/promises';
 import { clearInterval, clearTimeout, setInterval, setTimeout } from 'node:timers';
+import { gravarSelecaoDoX } from './selecao-x.mjs';
+export { gravarSelecaoDoX } from './selecao-x.mjs';
 import { criarNavegador } from './navegador.mjs';
 import { lerTexto, gravarTexto } from './texto.mjs';
 import { codigoDaAcao, falhaDe, primeiraLinha, PRAZO_NAVEGADOR_MS, TRAVAS_DO_PERFIL } from './falhas.mjs';
@@ -23,6 +25,8 @@ import { mascararForaDaJanela } from './mascara-png.mjs';
 import { chaveDoCookie, diffDeCookies } from './loja-cookies.mjs';
 import { coletarNaPagina, comPrazo, hashDosDados, origemDe, origemTemLogin, PRAZO_COLETA_MS, restaurarOrigem, ritmoDeColeta, TETO_STORAGE_BYTES } from './login-storage.mjs';
 import { importarNoPerfil } from './login-senhas.mjs';
+import { selecaoDoShellVisual, verificarShellVisual } from './shell-visual.mjs';
+import { dimensoesShell, renderizarHomeShell, temaOpenboxShellSeguro, tint2ShellSeguro } from './shell-visual-runtime.mjs';
 
 const exec = promisify(execFile);
 
@@ -267,8 +271,8 @@ export function arquivoXauthority(display, cookie = randomBytes(16)) {
 }
 
 /** Os argumentos do Xvfb: só o socket do caminho (sem TCP nem o abstrato) e só com o cookie (`-auth`). */
-export function argsDoXvfb(display, xauthority, extras = []) {
-  return [`:${display}`, '-screen', '0', '1280x800x24', '-nolisten', 'tcp', '-nolisten', 'local', '-auth', xauthority, ...extras];
+export function argsDoXvfb(display, xauthority, extras = [], dimensoes = { largura: 1280, altura: 800 }) {
+  return [`:${display}`, '-screen', '0', `${dimensoes.largura}x${dimensoes.altura}x24`, '-nolisten', 'tcp', '-nolisten', 'local', '-auth', xauthority, ...extras];
 }
 
 /**
@@ -386,16 +390,18 @@ export function temSenhaPreenchida() {
 }
 /* eslint-enable no-undef */
 
-// NOD-410 (definido em 2026-10-30): o desktop tem um dock (tint2) embaixo, como o do Grok: o Chrome continua sem moldura
+// NOD-410 (definido em 2026-10-30): o desktop tem um dock (tint2) embaixo: o Chrome continua sem moldura
 // e maximizado (ocupa o que o dock deixa); o terminal e os arquivos que a pessoa abre pelo dock vêm com moldura.
 /** As classes X do Chrome, em glob do openbox: o mesmo conjunto que CLASSE_DO_CHROME casa no xdotool (revisão do PR #600). */
 export const CLASSES_DO_CHROME_NO_OPENBOX = ['Chromium*', 'chromium*', 'Google-chrome*', 'google-chrome*', 'chrome*'];
 // Revisão 15 do PR #600: teclado, mouse e menu explícitos. Sem eles valiam os padrões do openbox, cujo menu do botão
 // direito na área de trabalho pode abrir um terminal fora do bwrap do dock. Só foco, mover e os botões da janela: sem
 // nenhum ShowMenu ligado, o menu do sistema fica inalcançável (conferido num openbox 3.6 real com Xvfb).
-export const OPENBOX_XML = `<?xml version="1.0" encoding="UTF-8"?>
+export function openboxShellSeguro(template = '<theme><name>Clearlooks</name><keepBorder>no</keepBorder></theme>') {
+  const tema = temaOpenboxShellSeguro(template);
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
-  <theme><titleLayout>LC</titleLayout><font place="ActiveWindow"><name>sans</name><size>9</size></font></theme>
+  <theme><name>${tema.nome}</name><keepBorder>${tema.manterBorda}</keepBorder><titleLayout>LC</titleLayout><font place="ActiveWindow"><name>sans</name><size>9</size></font></theme>
   <applications>
 ${CLASSES_DO_CHROME_NO_OPENBOX.map((c) => `    <application class="${c}">
       <decor>no</decor>
@@ -412,6 +418,8 @@ ${CLASSES_DO_CHROME_NO_OPENBOX.map((c) => `    <application class="${c}">
     <context name="Iconify"><mousebind button="Left" action="Click"><action name="Iconify"/></mousebind></context>
   </mouse>
 </openbox_config>`;
+}
+export const OPENBOX_XML = openboxShellSeguro();
 
 /** A classe X da janela do Chrome, como regex do xdotool: Chromium, ou Google Chrome (for Testing) do Playwright. */
 export const CLASSE_DO_CHROME = '^(Chromium|Google-chrome|google-chrome|chrome)';
@@ -425,7 +433,7 @@ export function tint2rc(lancadores) {
   return [
     'panel_items = LT',
     'panel_position = bottom center horizontal',
-    // Largura pelo conteúdo (`panel_shrink`, o caminho documentado do tint2): um dock flutuante no meio, como o do Grok,
+    // Largura pelo conteúdo (`panel_shrink`, o caminho documentado do tint2): um dock flutuante no meio,
     // não uma barra de ponta a ponta.
     `panel_size = 100% ${DOCK_ALTURA}`,
     'panel_shrink = 1',
@@ -678,20 +686,6 @@ export function criarGuardaDaSelecao(limpar, ler) {
   };
 }
 
-/**
- * Revisão 29 do PR #600 (QA): o `xclip` que grava uma seleção deixa um filho no fundo, dono dela, com a saída herdada.
- * Pelo `execFile` a ação esperava esse filho até o prazo (25 s por seleção, 50 s na guarda: estourava o prazo da ação).
- * Aqui a saída vai para o nada e basta o pai sair. Erro, código diferente de 0 ou o prazo vencido viram falha.
- */
-export function gravarSelecaoDoX(bin, selecao, arquivo, env, prazoMs = 5000) {
-  return new Promise((ok, falha) => {
-    const filho = spawn(bin, ['-selection', selecao, arquivo], { env, stdio: 'ignore' });
-    const prazo = setTimeout(() => { filho.kill('SIGKILL'); falha(new Error('xclip_preso')); }, prazoMs);
-    filho.on('error', (e) => { clearTimeout(prazo); falha(e); });
-    filho.on('exit', (codigo) => { clearTimeout(prazo); if (codigo === 0) ok(); else falha(new Error(`xclip saiu com ${codigo}`)); });
-  });
-}
-
 /** O quadro observado ainda vale: a tela não mudou desde a captura (mesma revisão) e ele tem menos de 2 min. */
 export function quadroVale(observado, revisao, agora) {
   return Boolean(observado) && observado.revision === revisao && agora - observado.em <= 120000;
@@ -720,7 +714,7 @@ export async function dockPossivel(bin) {
  * symlink plantado faria a tela (fora do bwrap, como nod-pc) gravar noutro lugar. Por isso nasce de novo a cada subida e cada
  * arquivo é criado sem seguir link (`wx`). O tmp é noexec: o Exec chama `/bin/sh <script>`.
  */
-export async function prepararPastaDoDock(config, xauthority) {
+export async function prepararPastaDoDock(config, xauthority, shellVisual = null) {
   const { pasta, rc } = caminhosDoDock(config.tmp);
   await rm(pasta, { recursive: true, force: true });
   await mkdir(pasta, { mode: 0o700 });
@@ -744,21 +738,42 @@ export async function prepararPastaDoDock(config, xauthority) {
   const terminal = await script('dock-terminal', `cd ${aspas(config.workspace)} && unset DBUS_SESSION_BUS_ADDRESS && exec ${aspas(config.bin.terminalGrafico ?? 'xfce4-terminal')} --disable-server --working-directory=${aspas(config.workspace)} --command=${aspas('/bin/bash --norc --noprofile')}`);
   // O ícone do Chrome é o do próprio Chromium do Playwright (product_logo_48.png ao lado do binário); sem ele, o do tema.
   const logoDoChrome = path.join(path.dirname(config.bin.chromium ?? ''), 'product_logo_48.png');
-  const iconeDoChrome = await access(logoDoChrome).then(() => logoDoChrome, () => 'web-browser');
+  let iconeDoChrome = await access(logoDoChrome).then(() => logoDoChrome, () => 'web-browser');
+  const icones = { browser: iconeDoChrome, files: 'system-file-manager', terminal: 'utilities-terminal' };
+  if (shellVisual) {
+    for (const app of ['browser', 'files', 'terminal']) {
+      const destino = path.join(pasta, `${app}.svg`);
+      await copyFile(path.join(shellVisual.raiz, shellVisual.manifesto.apps[app]), destino);
+      await chmod(destino, 0o600);
+      icones[app] = destino;
+    }
+    iconeDoChrome = icones.browser;
+  }
   const lancadores = [];
-  for (const [nome, rotulo, icone, exec] of [['chrome', 'Chrome', iconeDoChrome, chrome], ['arquivos', 'Arquivos', 'system-file-manager', arquivos], ['terminal', 'Terminal', 'utilities-terminal', terminal]]) {
+  for (const [nome, rotulo, icone, exec] of shellVisual
+    ? [['browser', 'Browser', iconeDoChrome, chrome], ['terminal', 'Terminal', icones.terminal, terminal], ['files', 'Files', icones.files, arquivos]]
+    : [['chrome', 'Chrome', iconeDoChrome, chrome], ['arquivos', 'Arquivos', icones.files, arquivos], ['terminal', 'Terminal', icones.terminal, terminal]]) {
     const f = path.join(pasta, `${nome}.desktop`);
     await gravarNovo(f, lancadorDesktop({ nome: rotulo, icone, exec }));
     lancadores.push(f);
   }
-  await gravarNovo(rc, tint2rc(lancadores));
+  const tint2 = shellVisual
+    ? tint2ShellSeguro(await readFile(path.join(shellVisual.raiz, shellVisual.manifesto.papeis.tint2), 'utf8'), lancadores)
+    : tint2rc(lancadores);
+  await gravarNovo(rc, tint2);
+  let wallpaper = null;
+  if (shellVisual) {
+    wallpaper = path.join(pasta, 'wallpaper.svg');
+    await copyFile(path.join(shellVisual.raiz, shellVisual.manifesto.papeis.wallpaper), wallpaper);
+    await chmod(wallpaper, 0o600);
+  }
   // Os Arquivos não executam com dois cliques sem perguntar (o bot pode plantar um script ou .desktop no workspace):
   // `quick_exec=0` faz o libfm perguntar se abre ou executa (revisão 6; risco residual na ADR-138).
   await mkdir(path.join(pasta, 'libfm'), { mode: 0o700 });
   // Revisão 27: sem miniaturas, o gdk-pixbuf e os geradores externos não processam o que o bot gravou no workspace.
   // Revisão 28: sem lixeira, apagar pelo Arquivos não deixa `.Trash-<uid>` no workspace do bot.
   await gravarNovo(path.join(pasta, 'libfm', 'libfm.conf'), '[config]\nquick_exec=0\nthumbnail_local=0\nshow_thumbnail=0\nuse_trash=0\n');
-  return { pasta, rc, xauthority: xauthorityDoDock, pedidoDoChrome, lancadores };
+  return { pasta, rc, xauthority: xauthorityDoDock, pedidoDoChrome, lancadores, wallpaper };
 }
 
 /**
@@ -1351,6 +1366,9 @@ export function criarTela(config, avisar) {
   // O cookie do X fica no tmp desta tela (0600, some no bwrap das outras): só os filhos dela abrem o DISPLAY.
   const XAUTHORITY = path.join(config.tmp, 'Xauthority');
   const ambienteX = { ...process.env, DISPLAY, XAUTHORITY, DBUS_SESSION_BUS_ADDRESS: config.busEndereco ?? '', TMPDIR: config.tmp, HOME: path.join(config.perfil, '..', `casa-${config.agenteId}`) };
+  const dimensoes = dimensoesShell(process.env);
+  let shellVisual = null;
+  let homeArquivo = null;
   const run = (bin, args, opcoes = {}) => exec(bin, args, { timeout: 25000, maxBuffer: 8 * 1024 * 1024, env: ambienteX, ...opcoes });
   const mudar = () => {
     revision = randomBytes(32).toString('hex');
@@ -1368,7 +1386,7 @@ export function criarTela(config, avisar) {
   // `config.scripts`, sob a raiz dos computadores (exec, e some atrás do tmpfs dentro do bwrap).
   const pastaDosScripts = config.scripts ?? config.tmp;
   let dockDisponivel = false;
-  let alturaDoChrome = 800;
+  let alturaDoChrome = dimensoes.altura;
   // Revisão 9 do PR #600: o lançador do dock (que pode relançar o Chrome e trocar a página) e a ação do bot numa fila só.
   let filaDaEntrada = Promise.resolve();
   function naFila(fn) {
@@ -1403,7 +1421,7 @@ export function criarTela(config, avisar) {
   }
 
   /**
-   * NOD-410 (definido em 2026-10-30): o desktop com dock, como o do Grok. Fundo escuro (xsetroot) e o tint2 com três
+   * NOD-410 (definido em 2026-10-30): o desktop com dock. Fundo escuro (xsetroot) e o tint2 com três
    * lançadores — Chrome (traz a janela do Chrome para a frente; é o mesmo Chrome do bot), Arquivos (pcmanfm no workspace
    * do bot) e Terminal (xfce4-terminal no workspace) — mais as janelas abertas. O dock e o que a pessoa abre por ele rodam
    * no bwrap do desktop: só o workspace entra; o perfil do Chrome e os logins ficam fora. Sem tint2 na máquina, a tela
@@ -1412,7 +1430,7 @@ export function criarTela(config, avisar) {
   async function subirDock() {
     dockDisponivel = await dockPossivel(config.bin);
     if (!dockDisponivel) return;
-    const { pasta: pastaDoDock, rc, xauthority: xauthorityDoDock, pedidoDoChrome } = await prepararPastaDoDock(config, await readFile(XAUTHORITY));
+    const { pasta: pastaDoDock, rc, xauthority: xauthorityDoDock, pedidoDoChrome, wallpaper } = await prepararPastaDoDock(config, await readFile(XAUTHORITY), shellVisual);
     // Um toque gera mais de um evento e qualquer processo do sandbox pode tocar em rajada: um pedido por vez, no máximo a
     // cada 500 ms. O erro do watcher não derruba a tela.
     let ultimoToque = 0;
@@ -1430,15 +1448,34 @@ export function criarTela(config, avisar) {
     // fica no /run da máquina: um arquivo grande no Terminal enchia o /run de todos (revisão 6). A config (tint2, libfm)
     // vem da pasta do dock (XDG_CONFIG_HOME), só leitura no bwrap (revisão 10): ler vale, gravar falha sem efeito.
     const ambienteDoDock = { HOME: '/tmp', XAUTHORITY: xauthorityDoDock, TMPDIR: '/tmp', XDG_CONFIG_HOME: pastaDoDock, XDG_CACHE_HOME: '/tmp/cache', DBUS_SESSION_BUS_ADDRESS: '' };
-    if (config.bin.xsetroot && await binarioDisponivel(config.bin.xsetroot)) iniciarOpcional(await noBwrap('xsetroot', config.bin.xsetroot, 'workspace', pastaDoDock), ['-solid', COR_DO_FUNDO], { env: ambienteDoDock });
+    if (wallpaper && config.bin.feh && await binarioDisponivel(config.bin.feh)) iniciarOpcional(await noBwrap('feh', config.bin.feh, 'workspace', pastaDoDock), ['--no-fehbg', '--bg-fill', wallpaper], { env: ambienteDoDock });
+    else if (config.bin.xsetroot && await binarioDisponivel(config.bin.xsetroot)) iniciarOpcional(await noBwrap('xsetroot', config.bin.xsetroot, 'workspace', pastaDoDock), ['-solid', COR_DO_FUNDO], { env: ambienteDoDock });
     iniciarOpcional(await noBwrap('tint2', config.bin.tint2, 'workspace', pastaDoDock), ['-c', rc], { env: ambienteDoDock });
     // Só agora o Chrome cede os 48 px: se algo acima falhou, ele segue com a tela inteira.
-    alturaDoChrome = 800 - DOCK_ALTURA;
+    alturaDoChrome = dimensoes.altura - DOCK_ALTURA;
   }
 
   const donoDoTmp = randomBytes(16).toString('hex');
   async function subir() {
+    const versaoShell = selecaoDoShellVisual(process.env);
+    if (versaoShell) {
+      shellVisual = await verificarShellVisual({ estado: process.env.NOD_SHELL_VISUAL_ESTADO });
+      if (!shellVisual || shellVisual.versao !== versaoShell) throw new Error('shell_versao_divergente');
+    }
     await mkdir(config.tmp, { recursive: true, mode: 0o700 });
+    if (shellVisual) {
+      const wallpaper = path.join(config.tmp, 'nod-shell-wallpaper.svg');
+      await copyFile(path.join(shellVisual.raiz, shellVisual.manifesto.papeis.wallpaper), wallpaper);
+      const template = await readFile(path.join(shellVisual.raiz, shellVisual.manifesto.papeis.home), 'utf8');
+      const agora = new Date();
+      const home = renderizarHomeShell(template, {
+        nome: process.env.NOD_SHELL_NOME ?? 'Nod', papel: process.env.NOD_SHELL_PAPEL ?? 'Agente', display: DISPLAY,
+        hora: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }).format(agora),
+        data: new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(agora),
+      }).replaceAll('wallpaper-nod.svg', pathToFileURL(wallpaper).href);
+      homeArquivo = path.join(config.tmp, 'nod-shell-home.html');
+      await writeFile(homeArquivo, home, { mode: 0o600 });
+    }
     // 30/10 (NOD-433): a tela que fecha só apaga o tmp se ainda é dela. Num reinício do serviço, a tela nova (mesmo
     // agente, mesmo tmp) nascia enquanto a antiga ainda fechava, e o `rm` da antiga levava o Xauthority e o dock da nova.
     // Um token por instância (não o PID, que se repete entre reinícios); no mesmo supervisor, abrirTela espera o fechar.
@@ -1455,6 +1492,7 @@ export function criarTela(config, avisar) {
     await mkdir(config.x11, { recursive: true, mode: 0o1777 }).catch(() => {});
     await mkdir(ambienteX.HOME, { recursive: true, mode: 0o700 });
     await mkdir(config.workspace, { recursive: true });
+    await mkdir(path.join(config.workspace, 'downloads'), { recursive: true });
     await forkDoPerfil(config.perfilBase, config.perfil);
     // NOD-97 PR 6: houve um Sair de todos enquanto esta tela estava fechada: o storage do perfil sai antes do Chrome.
     await aplicarGeracaoNoPerfil(config.perfil, config.geracao);
@@ -1472,14 +1510,17 @@ export function criarTela(config, avisar) {
     await writeFile(XAUTHORITY, arquivoXauthority(config.display), { mode: 0o600 });
     await chmod(XAUTHORITY, 0o600);
     soDoDock = await programasParaEsconder([config.bin.arquivos ?? 'pcmanfm', config.bin.terminalGrafico ?? 'xfce4-terminal', ...PROGRAMAS_SO_DO_DOCK]);
-    iniciar(await noBwrap('xvfb', config.bin.xvfb, false), argsDoXvfb(config.display, XAUTHORITY, config.xvfbArgs ?? []));
+    iniciar(await noBwrap('xvfb', config.bin.xvfb, false), argsDoXvfb(config.display, XAUTHORITY, config.xvfbArgs ?? [], dimensoes));
     for (let i = 0; i < 100; i++) {
       if (await access(socketX).then(() => true, () => false)) break;
       if (i === 99 || erroAoIniciar) throw falhaDe('nao_iniciou', `o Xvfb não abriu${erroAoIniciar ? ` (${erroAoIniciar})` : ''}`);
       await esperar(100);
     }
     const cfg = path.join(config.tmp, 'openbox.xml');
-    await writeFile(cfg, OPENBOX_XML);
+    const openbox = shellVisual
+      ? openboxShellSeguro(await readFile(path.join(shellVisual.raiz, shellVisual.manifesto.papeis.openbox), 'utf8'))
+      : OPENBOX_XML;
+    await writeFile(cfg, openbox);
     iniciar(await noBwrap('openbox', config.bin.openbox, false), ['--config-file', cfg]);
     // O dock é opcional (a tela sobe sem ele), mas a falha não pode sumir calada: foi assim que o QA do PR #600 achou
     // um dock que nunca subia com todos os testes verdes.
@@ -1534,7 +1575,7 @@ export function criarTela(config, avisar) {
         // NOD-96 (28/10): o Chromium cria o SingletonSocket em $TMPDIR/org.chromium.Chromium.XXXXXX/, e o caminho de um
         // socket unix tem teto de 108 bytes. O tmp da tela (/run/nod-computador-pc/<uuid>/telas/<uuid>) passa disso com os
         // ids reais e o Chrome morria ao abrir ("Socket path too long"). No bwrap o /tmp já é um tmpfs só desta tela.
-        chromiumSandbox: config.sandbox !== false, env: { ...ambienteX, TMPDIR: '/tmp' },
+        chromiumSandbox: config.chromiumSandbox !== false, env: { ...ambienteX, TMPDIR: '/tmp' },
         args: ['--password-store=gnome-libsecret', '--start-maximized', `--window-size=1280,${alturaDoChrome}`, '--window-position=0,0', '--disable-dev-shm-usage', '--disable-quic', '--autoplay-policy=no-user-gesture-required', '--test-type', '--hide-crash-restore-bubble', '--no-first-run', '--no-default-browser-check'],
       });
     } catch (e) {
@@ -1573,6 +1614,10 @@ export function criarTela(config, avisar) {
     const relancamento = await cookies.aoAbrir(c);
     const primeira = c.pages()[0] ?? (await comPrazo(c.newPage(), PRAZO_DO_CDP_MS * 2, VENCEU));
     if (primeira === VENCEU) throw falhaDe('navegador_nao_abriu', 'o Chrome não abriu a página');
+    if (homeArquivo && primeira.url() === 'about:blank') {
+      const abriu = await comPrazo(primeira.goto(pathToFileURL(homeArquivo).href, { waitUntil: 'domcontentloaded' }).then(() => true, () => false), PRAZO_DO_CDP_MS * 2, false);
+      if (!abriu) throw falhaDe('navegador_nao_abriu', 'a home do shell não abriu');
+    }
     if (dockDisponivel) {
       // Revisão 21: sem estas travas a abertura falha (fecha o Chrome): a página não lê a área de transferência que a
       // pessoa encheu no Terminal nem captura a tela inteira.
@@ -1587,7 +1632,7 @@ export function criarTela(config, avisar) {
       };
       if ((await comPrazo(travou().catch(() => false), PRAZO_DO_CDP_MS * 2, false)) !== true) throw falhaDe('navegador_nao_abriu', 'o Chrome não aceitou as travas do dock');
     }
-    await exec(config.bin.xdotool, ['search', '--onlyvisible', '--class', CLASSE_DO_CHROME, 'windowmove', '0', '0', 'windowsize', '1280', String(alturaDoChrome)], { timeout: 4000, env: ambienteX }).catch(() => {});
+    await exec(config.bin.xdotool, ['search', '--onlyvisible', '--class', CLASSE_DO_CHROME, 'windowmove', '0', '0', 'windowsize', String(dimensoes.largura), String(alturaDoChrome)], { timeout: 4000, env: ambienteX }).catch(() => {});
     c.pages().forEach(acompanhar);
     c.on('page', (p) => {
       acompanhar(p);
@@ -1644,7 +1689,7 @@ export function criarTela(config, avisar) {
     });
     p.on('download', async (d) => {
       try {
-        await d.saveAs(path.join(config.workspace, path.basename(d.suggestedFilename())));
+        await d.saveAs(path.join(config.workspace, 'downloads', path.basename(d.suggestedFilename())));
       } catch {
         // falha de download fica visível no navegador, como no runtime
       }

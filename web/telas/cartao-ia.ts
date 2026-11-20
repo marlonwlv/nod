@@ -542,7 +542,7 @@ export const ICONE_IA = {
 };
 const GIRA = '<span class="ob-gira grande" aria-hidden="true"></span>';
 
-export const logoDaIa = (ia: IaMac, classe = "ob-logo"): string => `<span class="${classe}" aria-hidden="true">${LOGOS_IA[PROVEDOR[ia].logo]}</span>`;
+export const logoDaIa = (ia: IaMac, classe = "ob-logo"): string => `<span class="${classe}" data-logo-ia="${PROVEDOR[ia].logo}" aria-hidden="true">${LOGOS_IA[PROVEDOR[ia].logo]}</span>`;
 
 /** A pilha de logos redondos (título de Provedores de IA, item do menu e da navegação de Seu espaço). */
 export function pilhaDeAvatares(mini = false): string {

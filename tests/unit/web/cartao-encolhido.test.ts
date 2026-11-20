@@ -55,11 +55,12 @@ const chaves = (c: ConversaEstado, e: Estado): string[] => blocosDoHistorico(c, 
 describe("cada tipo de cartão encolhido", () => {
   const { e } = cenario([]);
 
-  it("aprovação: o pedido como título e 'Aprovado por você · feito HH:MM' com ✓; recusada, a linha discreta", () => {
+  it("aprovação (tela 06 do Paper, rodada 3): o pedido como título e 'Permitido uma vez' com ✓; recusada, 'Negado' com o ×; quem e quando no title", () => {
     const d = dadosDoEncolhido(aprovacao("r", AGORA, "t1"), e);
     expect(d).toMatchObject({ decisaoId: "d1", titulo: "Enviar e-mail para Helena Souza · “Re: Proposta Q4”", marca: "ok", anuncio: "Aprovado: Enviar e-mail para Helena Souza · “Re: Proposta Q4”" });
-    expect(d?.resultado).toMatch(/^Aprovado por você · feito \d\d:\d\d$/);
-    expect(dadosDoEncolhido(aprovacao("r", AGORA, "t1", "d1", "retirado_pela_pessoa"), e)).toMatchObject({ resultado: "Recusado por você", marca: null });
+    expect(d?.resultado).toBe("Permitido uma vez");
+    expect(d?.dica).toMatch(/^Decidido por você às \d\d:\d\d$/);
+    expect(dadosDoEncolhido(aprovacao("r", AGORA, "t1", "d1", "retirado_pela_pessoa"), e)).toMatchObject({ resultado: "Negado", marca: null });
   });
 
   it("acesso pelo pedido: a frase do pedido e 'Acesso permitido · Gmail', com o registro de autorização (emenda da ADR-044)", () => {
@@ -68,8 +69,9 @@ describe("cada tipo de cartão encolhido", () => {
     expect(html).toContain('data-cartao-encolhido="d7"');
     expect(html).toContain('tabindex="-1">Clarice quer ler seus e-mails no Gmail</span>');
     // NOD-399: uma linha: ✓, o resultado e, depois do separador, o pedido.
-    expect(html).toMatch(/class="cp-linha cp-ok cartao-encolhido cp-com-extra"[^>]*><svg class="cp-ic"[^]*?<span class="ce-resultado">Acesso permitido · Gmail<\/span><span class="sr-only"> \(feito\)<\/span>/);
-    expect(html).toContain("<summary>Ver registro de autorização</summary>");
+    expect(html).toMatch(/class="cp-linha cp-ok cartao-encolhido"[^>]*><svg class="cp-ic"[^]*?<span class="ce-resultado">Acesso permitido · Gmail<\/span><span class="sr-only"> \(feito\)<\/span>/);
+    // Rodada 3 (tela 06 do Paper): o registro é o link do fim da linha ("· Ver registro de autorização").
+    expect(html).toContain('<span class="ce-link">Ver registro de autorização</span></summary>');
     expect(html).toContain("Concedido por Marlon em 2026-10-18 11:00 UTC");
   });
 
@@ -256,11 +258,11 @@ describe("foco e anúncio só na aba que decidiu", () => {
   });
 
   it("com o foco já no campo, anuncia e não rouba o foco; vencido o prazo, o pedido cai", () => {
-    const d = doc({ d1: "Recusado: Enviar e-mail" }, { id: "composer-texto" });
+    const d = doc({ d1: "Negado: Enviar e-mail" }, { id: "composer-texto" });
     const ditos: string[] = [];
     aplicarEncolhidos(d, [pedidoDe("d1")], AGORA, (t) => ditos.push(t));
     expect(d.titulos.get("d1")?.focado).toBe(false);
-    expect(ditos).toEqual(["Recusado: Enviar e-mail"]);
+    expect(ditos).toEqual(["Negado: Enviar e-mail"]);
     expect(aplicarEncolhidos(doc({}), [pedidoDe("d1", AGORA - 1)], AGORA, () => undefined)).toEqual([]);
   });
 });

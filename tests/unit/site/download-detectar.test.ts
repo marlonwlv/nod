@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * ADA-226: o botão de download do site escolhe a versão pelo sistema de quem visita (como a página do Grok).
+ * ADA-226: o botão de download do site escolhe a versão pelo sistema de quem visita.
  * As funções puras moram inline no index.html (a CSP só deixa script inline), entre os marcadores dl:inicio e dl:fim;
  * o teste as recorta e roda como estão.
  */

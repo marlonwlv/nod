@@ -214,7 +214,7 @@ export function linhaDoTempo(v: VistaDaTarefaCelular): string {
   const add = (em: number, html: string, ordem = 0): void => { itens.push({ em, ordem, html }); };
   const movs = t.movimentos ?? [];
   const lotesDosMovimentos = new Set(movs.map((m) => m.loteId).filter(Boolean));
-  if (v.coms?.criadaPor) add(t.criadoEm, evento(`${esc(v.coms.criadaPor)} criou a tarefa`, t.criadoEm, hora), -1);
+  if (v.coms?.criadaPor) add(t.criadoEm, evento(`${esc(v.coms.criadaPor)} criou o card`, t.criadoEm, hora), -1);
   for (const l of v.coms?.atividade ?? []) {
     if (lotesDosMovimentos.has(l.loteId)) continue; // o movimento do mesmo lote já diz isso (com o Desfazer)
     add(l.criadoEm, evento(`<strong>${esc(l.quem)}</strong> ${esc(l.resumo.charAt(0).toLowerCase() + l.resumo.slice(1))}`, l.criadoEm, hora));
@@ -277,9 +277,9 @@ export function bandejaDeChips(v: VistaDaTarefaCelular): string {
     // 2026-11-11: a Prioridade como no computador (à vista quando preenchida; vazia, mora em Ajustes): abre a folha dela.
     prioridadeDe(t) !== "sem" ? chip("qd-t-prioridade", "prioridade", `${iconeDaPrioridade(prioridadeDe(t), false)}<span>${esc(NOME_DA_PRIORIDADE[prioridadeDe(t)])}</span>`, `Prioridade: ${NOME_DA_PRIORIDADE[prioridadeDe(t)]}`) : "",
     t.branch ? chip("qd-t-branch", "branch", `${BRANCH}<span class="qd-chip-branch">${esc(t.branch)}</span>`, `Branch: ${t.branch}`) : "",
-    chip("qd-t-ajustes", "ajustes", `${AJUSTES}<span>Ajustes</span>`, "Ajustes da tarefa"),
+    chip("qd-t-ajustes", "ajustes", `${AJUSTES}<span>Ajustes</span>`, "Ajustes do card"),
   ].join("");
-  return `<div class="qd-bandeja" role="toolbar" aria-label="Propriedades da tarefa">${chips}</div>`;
+  return `<div class="qd-bandeja" role="toolbar" aria-label="Propriedades do card">${chips}</div>`;
 }
 
 /** O composer único: comentar (o comentário da pessoa aciona o responsável, NOD-417) ou responder a um comentário. */

@@ -11,6 +11,6 @@ it("nao_encontrado do bot diz que faltou o bot; o da tarefa segue pedindo o cód
   const f = fraseParaPessoa("nao_encontrado", "ADA-17", false, true)!;
   expect(f).toContain("bot");
   expect(f).toContain("ADA-17");
-  expect(f).not.toMatch(/Não achei a |código da tarefa/);
-  expect(fraseParaPessoa("nao_encontrado", "ADA-17")).toContain("confira o código da tarefa");
+  expect(f).not.toMatch(/Não achei o |código do card/);
+  expect(fraseParaPessoa("nao_encontrado", "ADA-17")).toContain("confira o código do card");
 });

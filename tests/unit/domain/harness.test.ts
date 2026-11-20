@@ -15,10 +15,10 @@ describe("escolha de inteligência", () => {
     expect(resolverHarness({ modelo: "auto", prontos: ["codex-cli", "claude-cli"], preferido: "codex-cli" }).harness).toBe("codex-cli");
     expect(resolverHarness({ modelo: "auto", prontos: ["claude-cli"], preferido: "codex-cli" }).harness).toBe("claude-cli");
   });
-  it("nunca troca silenciosamente um fornecedor escolhido nem simula falta de conexão", () => {
+  it("não troca fornecedor fixado e, no Automático, usa uma IA disponível com modelo compatível", () => {
     expect(() => resolverHarness({ harness: "codex-cli", modelo: "auto", prontos: ["claude-cli"] })).toThrow("executor_indisponivel");
     expect(() => resolverHarness({ modelo: "auto", prontos: [] })).toThrow("executor_indisponivel");
-    expect(() => resolverHarness({ modelo: "sonnet", prontos: ["codex-cli"] })).toThrow("executor_indisponivel");
+    expect(resolverHarness({ modelo: "sonnet", prontos: ["codex-cli"] })).toEqual({ harness: "codex-cli", modelo: "gpt-5.6-sol", raciocinio: "medium" });
   });
   it("recusa combinação de fornecedores, harness não integrado e entrada inválida", () => {
     for (const [h, m] of [["codex-cli", "sonnet"], ["claude-cli", "gpt-6-astra"], ["hermes", "auto"], ["auto", "--model x"], ["auto", null], [null, "auto"]]) expect(() => validarInteligencia(h, m)).toThrow("entrada_invalida");
@@ -34,7 +34,7 @@ describe("escolha de inteligência", () => {
     const causaDe = (f: () => unknown) => { try { f(); } catch (e) { return causaHarnessIndisponivel(e); } return null; };
     it("diz qual harness faltou", () => {
       expect(causaDe(() => resolverHarness({ harness: "codex-cli", modelo: "auto", prontos: ["claude-cli"] }))).toEqual({ harness: "codex-cli" });
-      expect(causaDe(() => resolverHarness({ modelo: "sonnet", prontos: ["codex-cli"] }))).toEqual({ harness: "claude-cli" });
+      expect(causaDe(() => resolverHarness({ modelo: "sonnet", prontos: ["codex-cli"] }))).toBeNull();
       expect(causaDe(() => resolverHarness({ modelo: "auto", prontos: [] }))).toBeNull();
     });
     it("modelo inválido vira indisponibilidade com causa, não entrada_invalida (sem laço na fila)", () => {
@@ -46,9 +46,9 @@ describe("escolha de inteligência", () => {
       expect(resolverHarness({ modelo: "haiku", prontos: ["claude-cli"] })).toEqual({ harness: "claude-cli", modelo: "haiku", raciocinio: "medium" });
       expect(resolverHarness({ harness: "codex-cli", modelo: "gpt-5.6-luna", prontos: ["codex-cli"] })).toEqual({ harness: "codex-cli", modelo: "gpt-5.6-luna", raciocinio: "medium" });
     });
-    it("harnessFixado: auto/auto não fixa; modelo do Claude fixa no Claude", () => {
+    it("harnessFixado: o Automático não fixa fornecedor, mesmo com modelo preferido", () => {
       expect(harnessFixado("auto", "auto")).toBeNull();
-      expect(harnessFixado("auto", "opus")).toBe("claude-cli");
+      expect(harnessFixado("auto", "opus")).toBeNull();
       expect(harnessFixado("codex-cli", "auto")).toBe("codex-cli");
     });
     it("a negação nomeia o harness escolhido e o estado dele, nunca 'motor pronto'", () => {
@@ -97,16 +97,16 @@ describe("escolha de inteligência", () => {
       expect(iaDoModelo("auto")).toBeNull();
       expect(iaDoModelo("gpt-zz")).toBeNull();
     });
-    it("harnessFixado: auto + GPT fixa no Codex (antes caía no Claude Code)", () => {
-      expect(harnessFixado("auto", "gpt-5.6-sol")).toBe("codex-cli");
+    it("harnessFixado: auto + GPT continua no Automático, com o GPT como preferência", () => {
+      expect(harnessFixado("auto", "gpt-5.6-sol")).toBeNull();
       expect(validarInteligencia("auto", "gpt-5.6-sol")).toBeUndefined();
     });
     it("auto + GPT com Codex e Claude prontos roda no Codex", () => {
       expect(resolverHarness({ modelo: "gpt-5.6-sol", prontos: ["claude-cli", "codex-cli"] })).toMatchObject({ harness: "codex-cli", modelo: "gpt-5.6-sol" });
     });
-    it("auto + GPT com Codex fora e Claude pronto: a negação nomeia o Codex, não o Claude", () => {
-      expect(() => resolverHarness({ modelo: "gpt-5.6-sol", prontos: ["claude-cli"] })).toThrow("executor_indisponivel");
-      expect(causaDe(() => resolverHarness({ modelo: "gpt-5.6-sol", prontos: ["claude-cli"] }))).toEqual({ harness: "codex-cli" });
+    it("auto + GPT com Codex fora e Claude pronto: cai no Claude com modelo compatível", () => {
+      expect(resolverHarness({ modelo: "gpt-5.6-sol", prontos: ["claude-cli"] })).toEqual({ harness: "claude-cli", modelo: "opus", raciocinio: "medium" });
+      expect(causaDe(() => resolverHarness({ modelo: "gpt-5.6-sol", prontos: ["claude-cli"] }))).toBeNull();
     });
     it("codex-cli + GPT com o Codex no limite: indisponível e nomeando o Codex", () => {
       expect(causaDe(() => resolverHarness({ harness: "codex-cli", modelo: "gpt-5.6-sol", prontos: ["claude-cli"], noLimite: ["codex-cli"] }))).toEqual({ harness: "codex-cli" });
@@ -122,6 +122,7 @@ describe("escolha de inteligência", () => {
     });
     it("auto + modelo do Claude continua no Claude; auto + auto continua no Automático", () => {
       expect(resolverHarness({ modelo: "sonnet", prontos: ["claude-cli", "codex-cli"] })).toMatchObject({ harness: "claude-cli", modelo: "sonnet" });
+      expect(resolverHarness({ modelo: "sonnet", prontos: ["claude-cli", "codex-cli"], noLimite: ["claude-cli"] })).toEqual({ harness: "codex-cli", modelo: "gpt-5.6-sol", raciocinio: "medium" });
       expect(resolverHarness({ modelo: "auto", prontos: ["codex-cli", "claude-cli"] })).toEqual({ harness: "claude-cli", modelo: "opus", raciocinio: "medium" });
     });
   });

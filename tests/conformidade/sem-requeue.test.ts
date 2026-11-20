@@ -24,12 +24,29 @@ async function arquivosTs(dir: string): Promise<string[]> {
  * UPDATE turnos … SET … estado = 'pendente' com o `estado = 'pendente'` DENTRO do SET (antes do WHERE):
  * o `where t.estado = 'pendente'` da própria reivindicação não é requeue.
  */
-const REQUEUE = /update\s+turnos\b[\s\S]{0,300}?\bset\b(?:(?!\bwhere\b)[\s\S]){0,600}?\bestado\s*=\s*'pendente'/i;
+const REQUEUE = /update\s+turnos\b[\s\S]{0,300}?\bset\b(?:(?!\bwhere\b)[\s\S]){0,600}?\bestado\s*=\s*'pendente'/gi;
+
+/**
+ * As exceções, cada uma decidida numa ADR (2026-11-16 e 2026-11-18): a FALA DA PESSOA que nunca rodou como turno próprio
+ * volta à fila — não é o turno do bot recomeçando. `devolverNaoLidos` (ADR-185): a fala que o turno parado absorveu e o
+ * bot não leu. `devolverRecadosParados` (ADR-187 §6 + ADR-185): o recado que esperava na fila da tarefa parada, sem
+ * `despachado_em`. O UPDATE dentro de qualquer outro método continua acusado.
+ */
+const EXCECOES = new Set(["devolverNaoLidos", "devolverRecadosParados"]);
+
+function metodoEmVolta(codigo: string, i: number): string | null {
+  const antes = codigo.slice(0, i);
+  let ultimo: string | null = null;
+  for (const m of antes.matchAll(/async\s+(\w+)\s*\(/g)) ultimo = m[1] ?? null;
+  return ultimo;
+}
 
 function acusar(codigo: string): string[] {
   const achados: string[] = [];
-  const m = REQUEUE.exec(codigo);
-  if (m) achados.push(m[0].replace(/\s+/g, " ").slice(0, 120));
+  for (const m of codigo.matchAll(REQUEUE)) {
+    if (EXCECOES.has(metodoEmVolta(codigo, m.index) ?? "")) continue;
+    achados.push(m[0].replace(/\s+/g, " ").slice(0, 120));
+  }
   return achados;
 }
 
@@ -40,6 +57,8 @@ describe("gate: nenhum caminho reenfileira turno (UPDATE turnos SET estado = 'pe
     expect(acusar("insert into turnos (estado) values ('pendente')")).toHaveLength(0);
     expect(acusar("update turnos set estado = 'interrompido' where id = 1")).toHaveLength(0);
     expect(acusar("update turnos set estado = 'despachando', lease_ate = now() where (tenant_id, id) = (select t.tenant_id, t.id from turnos t where t.estado = 'pendente' limit 1)")).toHaveLength(0);
+    expect(acusar("async devolverNaoLidos(id) { await conn`update turnos set estado = 'pendente' where id = ${id}`; }")).toHaveLength(0);
+    expect(acusar("async devolverNaoLidos(id) {}\n async reenfileirar(id) { await conn`update turnos set estado = 'pendente' where id = ${id}`; }")).toHaveLength(1);
   });
 
   it("src/** não contém nenhum UPDATE que volte um turno a 'pendente'", async () => {

@@ -60,7 +60,10 @@ export function rotasConcessoes(deps: DepsRotasConcessoes): Rota[] {
       async handler(ctx) {
         // definido em 2026-10-05: as dispensas do cartão de liberar apps vêm na mesma resposta — a conversa decide se
         // mostra o cartão com as duas leituras juntas, sem um quadro em que ele aparece antes de a dispensa chegar.
-        const r = await deps.dentro(ctx.escopo, async (d) => ({ concessoes: await d.repos.concessoes.doAgente(ctx.params.id ?? ""), liberacoesDispensadas: await d.repos.liberacoesDispensadas.doAgente(ctx.params.id ?? "") }));
+        const r = await deps.dentro(ctx.escopo, async (d) => {
+          const [concessoes, liberacoesDispensadas] = await Promise.all([d.repos.concessoes.doAgente(ctx.params.id ?? ""), d.repos.liberacoesDispensadas.doAgente(ctx.params.id ?? "")]);
+          return { concessoes, liberacoesDispensadas };
+        });
         ctx.json(200, r);
       },
     },

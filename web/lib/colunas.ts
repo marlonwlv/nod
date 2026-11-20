@@ -271,12 +271,12 @@ export function prazoNoPopover(min: number | undefined): { valor: string; unidad
 /** "parada há 5 min", "parada há 3 h", "parada há 2 dias" (pelo relógio, sem segundos). */
 export function paradaHa(desde: number, agora: number): string {
   const min = Math.max(0, Math.floor((agora - desde) / 60_000));
-  if (min < 1) return "parada agora";
-  if (min < 60) return `parada há ${min} min`;
+  if (min < 1) return "parado agora";
+  if (min < 60) return `parado há ${min} min`;
   const h = Math.floor(min / 60);
-  if (h < 24) return `parada há ${h} h`;
+  if (h < 24) return `parado há ${h} h`;
   const d = Math.floor(h / 24);
-  return `parada há ${d === 1 ? "1 dia" : `${d} dias`}`;
+  return `parado há ${d === 1 ? "1 dia" : `${d} dias`}`;
 }
 
 /** NOD-420: o recibo da resposta, "Voltou para Em revisão · Beto segue" (sem Desfazer: a resposta já acionou). */

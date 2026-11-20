@@ -121,7 +121,7 @@ describe("o nível Atividade", () => {
     const com = renderAtividade(aberta(dto(itens), { trabalhos, pressao: "amarela" }), BOT as never);
     expect(com).toContain('<span class="atv-hora">Agora</span>');
     expect(com).toContain("Pouca memória no seu Mac");
-    expect(com).toContain("2 trabalhos abertos");
+    expect(com).toContain("2 tarefas abertas");
     expect(com).toContain('data-act="navegar" data-tela="trabalhos">ver');
     expect(com.indexOf("Agora")).toBeLessThan(com.indexOf("Terminou Hero w5"));
     expect(renderAtividade(aberta(dto(itens), { trabalhos, pressao: "amarela" }, { filtro: "frentes" }), BOT as never)).not.toContain("Pouca memória");
@@ -129,12 +129,12 @@ describe("o nível Atividade", () => {
     expect(renderAtividade(aberta(dto(itens), { trabalhos, pressao: "verde" }), BOT as never)).not.toContain("Agora");
   });
 
-  // QA do PR 2: com a memória amarela e nada aberto no bot, a linha dizia "Pouca memória no seu Mac · 0 trabalhos abertos".
-  it("sem trabalho aberto no bot, a memória não entra na linha 'Agora' (como o ponto); o disco cheio que segura tudo entra", () => {
+  // QA do PR 2: com a memória amarela e nada aberto no bot, a linha dizia "Pouca memória no seu Mac · 0 tarefas abertas".
+  it("sem tarefa aberta no bot, a memória não entra na linha 'Agora' (como o ponto); o disco cheio que segura tudo entra", () => {
     const vazio = { trabalhos: [], pressao: "amarela" as const, memoriaTotalMb: null };
     const sem = renderAtividade(aberta(dto(itens), { trabalhos: vazio, pressao: "amarela" }), BOT as never);
     expect(sem).not.toContain("Agora");
-    expect(sem).not.toContain("0 trabalhos abertos");
+    expect(sem).not.toContain("0 tarefas abertas");
     const disco = { ...vazio, motivoEspera: "disco", seguraTudoNovo: true };
     expect(renderAtividade(aberta(dto(itens), { trabalhos: disco as never, pressao: "amarela" }), BOT as never)).toContain("Pouco espaço no disco do seu Mac");
   });
@@ -185,33 +185,34 @@ describe("o ponto da memória na pílula do bot (decisão tomada 5; PR 8)", () =
   const conversa = (mensagens: Mensagem[]) => ({ [C]: { conversa: { id: C, tipo: "propria", agenteId: "ada" }, mensagens, turnosPendentes: [], turnosEmCurso: [], turnosCancelados: [], propostas: [], fios: [], trabalhos: [], dono: null } }) as never;
   const trabalhos = (pressao: "amarela" | "vermelha" | "verde") => ({ trabalhos: [{ id: "w", agenteId: "ada", conversaId: C, titulo: "Relatório", estado: "rodando", criadoEm: AGORA } as TrabalhoDto], pressao, memoriaTotalMb: null });
 
-  it("na conversa limpa, com trabalho aberto: a frase e para onde leva (Trabalhos)", () => {
+  it("na conversa limpa, com tarefa aberta: a frase e para onde leva (Trabalhos)", () => {
     const e = base({ conversas: conversa([msgLimpa]), trabalhos: trabalhos("amarela"), pressao: "amarela" });
-    expect(memoriaNaPilula(e, "ada", C)).toEqual({ texto: "Pouca memória no seu Mac · 1 trabalho aberto", nivel: "amarela", alvo: 'data-act="navegar" data-tela="trabalhos"' });
+    expect(memoriaNaPilula(e, "ada", C)).toEqual({ texto: "Pouca memória no seu Mac · 1 tarefa aberta", nivel: "amarela", alvo: 'data-act="navegar" data-tela="trabalhos"' });
     expect(memoriaNaPilula(base({ conversas: conversa([msgLimpa]), trabalhos: trabalhos("vermelha"), pressao: "vermelha" }), "ada", C)?.nivel).toBe("vermelha");
   });
 
-  it("sem pressão, sem trabalho aberto ou na conversa sem destino (servidor de antes): nada", () => {
+  it("sem pressão, sem tarefa aberta ou na conversa sem destino (servidor de antes): nada", () => {
     expect(memoriaNaPilula(base({ conversas: conversa([msgLimpa]), trabalhos: trabalhos("verde"), pressao: "verde" }), "ada", C)).toBeNull();
     expect(memoriaNaPilula(base({ conversas: conversa([msgLimpa]), trabalhos: { trabalhos: [], pressao: "amarela", memoriaTotalMb: null }, pressao: "amarela" }), "ada", C)).toBeNull();
     expect(memoriaNaPilula(base({ conversas: conversa([{ id: "m", conversaId: C } as Mensagem]), trabalhos: trabalhos("amarela"), pressao: "amarela" }), "ada", C)).toBeNull();
   });
 
-  it("na pílula: um ponto ao lado dela, com a frase no title e no nome acessível; a frase inteira só dentro da alargada", () => {
+  it("ADR-187 (4t): na aba, o selo com o texto ao lado dela (servidor sem máquinas: o texto do Mac); a frase no title e na alargada", () => {
     const livre = { agenteId: "ada", principal: "livre", frentes: 0, conversaTrabalhando: false, esperandoVoce: 0, esperando: 0, fila: 0, motivoEspera: null, desde: null };
     const e = base({ conversas: conversa([msgLimpa]), trabalhos: { ...trabalhos("amarela"), donos: [{ estado: livre, esperas: [], fila: [] }] } as never, pressao: "amarela" });
     const p = pilulaNaConversa(e, "ada", SEM_PROGRESSO);
     if (p.tipo !== "pilula") throw new Error("sem pílula");
-    expect(p.partes.memoria).toContain('class="pf-memoria amarela" data-act="navegar" data-tela="trabalhos" title="Pouca memória no seu Mac · 1 trabalho aberto" aria-label="Pouca memória no seu Mac · 1 trabalho aberto"');
-    expect(p.partes.memoria).not.toContain("Pouca memória no seu Mac</");
+    expect(p.partes.memoria).toContain('class="pf-selo amarela" data-act="navegar" data-tela="trabalhos" title="Pouca memória no seu Mac · 1 tarefa aberta" aria-label="Pouca memória no seu Mac · 1 tarefa aberta"');
+    expect(p.partes.memoria).toContain("<span>Pouca memória no seu Mac · 1 tarefa aberta</span></button>");
     expect(p.partes.botao).not.toContain("memória");
-    expect(p.partes.corpo).toContain('class="pf-memoria-linha amarela" data-act="navegar" data-tela="trabalhos"><span class="pf-memoria-ponto" aria-hidden="true"></span>Pouca memória no seu Mac · 1 trabalho aberto</button>');
+    expect(p.partes.corpo).toContain('class="pf-memoria-linha amarela" data-act="navegar" data-tela="trabalhos"><span class="pf-memoria-ponto" aria-hidden="true"></span>Pouca memória no seu Mac · 1 tarefa aberta</button>');
   });
 
   it("no bloco de progresso na fala: o ponto ao lado do número, só no bloco que ainda anda", () => {
     const frentes = [{ trabalhoId: "w", titulo: "Relatório", estado: "rodando" as const, passo: "lendo", tempo: "3 min", terminouEm: null }, { trabalhoId: "w2", titulo: "Resumo", estado: "pronta" as const, passo: null, tempo: null, terminouEm: AGORA }];
-    const html = htmlProgresso(frentes, { chave: "a1", agenteId: "ada", memoria: { texto: "Pouca memória no seu Mac · 1 trabalho aberto", nivel: "amarela" } });
-    expect(html).toContain('1 de 2 prontas<span class="progresso-memoria amarela" role="img" aria-label="Pouca memória no seu Mac · 1 trabalho aberto" title="Pouca memória no seu Mac · 1 trabalho aberto"></span>');
+    const html = htmlProgresso(frentes, { chave: "a1", agenteId: "ada", memoria: { texto: "Pouca memória no seu Mac · 1 tarefa aberta", nivel: "amarela" } });
+    // ADR-187 §5 (lote B passo 6, 2026-11-18): o topo do cartão vivo diz "2 tarefas · 1 pronta"; o ponto vem logo depois.
+    expect(html).toContain('<b class="tv-resumo">2 tarefas · 1 pronta</b><span class="progresso-memoria amarela" role="img" aria-label="Pouca memória no seu Mac · 1 tarefa aberta" title="Pouca memória no seu Mac · 1 tarefa aberta"></span>');
     expect(htmlProgresso(frentes, { chave: "a1", agenteId: "ada" })).not.toContain("progresso-memoria");
   });
 });

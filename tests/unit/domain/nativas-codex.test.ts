@@ -69,6 +69,9 @@ describe("ADR-103: o kit do terminal no Codex", () => {
     expect(cred.mcp).toContain("~/.ssh/id_ed25519");
     // Argumentos grandes chegam ao card cortados.
     expect(decidirNativa({ ferramenta: "mcp__x__y", entrada: { t: "a".repeat(5_000) }, mcpDaPessoa: true }).mcp!.length).toBeLessThan(2_100);
+    const unicode = decidirNativa({ ferramenta: "mcp__x__y", entrada: { t: `${"a".repeat(1_993)}😀fim` }, mcpDaPessoa: true }).mcp!;
+    expect(unicode).toContain("😀");
+    expect(unicode).not.toMatch(/[\uD800-\uDFFF](?![\uDC00-\uDFFF])/u);
   });
 });
 

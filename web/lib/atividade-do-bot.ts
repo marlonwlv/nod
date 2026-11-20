@@ -19,7 +19,7 @@ export type FiltroAtividade = "tudo" | "sem_aprovacao" | "frentes" | "bloqueios"
 export const FILTROS_DA_ATIVIDADE: readonly { filtro: FiltroAtividade; rotulo: string }[] = [
   { filtro: "tudo", rotulo: "Tudo" },
   { filtro: "sem_aprovacao", rotulo: "Sem aprovação" },
-  { filtro: "frentes", rotulo: "Frentes" },
+  { filtro: "frentes", rotulo: "Tarefas" },
   { filtro: "bloqueios", rotulo: "Bloqueios" },
   { filtro: "maquina_ia", rotulo: "Máquina e IA" },
 ];

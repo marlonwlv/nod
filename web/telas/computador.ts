@@ -2,14 +2,23 @@ import type { AcaoComputador, ComputadorDto, ResultadoComputador, TelaComputador
 import type { Api } from "../lib/api.ts";
 import { agruparAtividade, aoFecharATela, AVISO_CLIQUE_SO_ASSUMIU, criarCliqueQueAssume, esperaParaAssumir, estadoEmPalavras, falhaQuePassaAoAssumir, foraDoAr, htmlDialogoComputador, htmlPilula, marcarTelaFechadaNaAjuda, mensagemDoLimite, MOTIVO_FALHA_TEXTO, rotuloDaAtividade, rotuloDoEstado, rotuloDoFechar, tituloDaFalha, type FaseDaPilula, type OrigemDoAssumir } from "../lib/computador.ts";
 import { dataHora, esc } from "../lib/render.ts";
-import { lembrarTela } from "./tela-do-bot.ts";
+import type { Agente } from "../../src/contracts/agente.ts";
+import { abrirTelaCheia } from "./tela-cheia.ts";
 
 /** O diálogo aberto acompanha o Modo dev sem fechar: ⌘⇧D no meio da tela mostra ou esconde as ferramentas. */
 export function aplicarModoDevNoComputador(ligado: boolean): void {
   document.querySelector(".computador-dialog")?.classList.toggle("computador-dev", ligado);
 }
 
-export function abrirComputador(api: Api, agente: { id: string; nome: string }, opcoes: { assumir?: boolean; dev?: () => boolean; aoFechar?: () => void } = {}): void {
+/**
+ * O diálogo antigo (terminal, arquivos, barra de ferramentas). Card D, item 0 (2026-11-12): só existe atrás do Modo dev;
+ * fora dele, quem chama cai no visualizador em tela cheia (web/telas/tela-cheia.ts), o único jeito de ver a tela.
+ */
+export function abrirComputador(api: Api, agente: Pick<Agente, "id" | "nome"> & Partial<Pick<Agente, "cor" | "forma">>, opcoes: { assumir?: boolean; dev?: () => boolean; aoFechar?: () => void } = {}): void {
+  if (!opcoes.dev?.()) {
+    abrirTelaCheia(api, agente, { assumir: opcoes.assumir ?? false, ...(opcoes.aoFechar ? { aoMudar: opcoes.aoFechar, aoFechar: opcoes.aoFechar } : {}) });
+    return;
+  }
   document.querySelector<HTMLDialogElement>(".computador-dialog")?.close();
   const dialog = document.createElement("dialog");
   dialog.className = "computador-dialog";
@@ -160,7 +169,6 @@ export function abrirComputador(api: Api, agente: { id: string; nome: string }, 
       q(".computador-browser-dialog").hidden = !tela.dialogo;
       q(".computador-browser-dialog p").textContent = tela.dialogo?.mensagem ?? "";
       const img = q<HTMLImageElement>("img"); img.src = `data:image/png;base64,${tela.imagem}`; img.hidden = false;
-      lembrarTela(agente.id, tela.imagem);
       q(".computador-vazio").hidden = true;
       const url = q<HTMLInputElement>(".computador-url input"); if (document.activeElement !== url) url.value = tela.url;
       q(".computador-abas").innerHTML = tela.abas.map((a,i) => `<button data-aba="${i}" class="${a.ativa ? "ativa" : ""}">${esc(a.titulo || a.url || "Nova aba")}</button>`).join("");

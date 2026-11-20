@@ -39,7 +39,7 @@ describeIntegracao("computadores: autorização e controle pelo servidor complet
         const pasta = join(raizArquivos, id); await mkdir(pasta, {recursive:true});
         return acao.tipo === "ler_texto" ? lerTexto(join(pasta, acao.caminho), acao.inicio, acao.revisao) : gravarTexto(join(pasta, acao.caminho), acao.texto, acao.revisao);
       }
-      return {tela:{quadro,imagem:"iVBORw0KGgo=",largura:1280,altura:800,titulo:"Teste",url:"https://example.com",texto:"Site não confiável",abas:[]}};
+      return {tela:{quadro,imagem:Buffer.from(id).toString("base64"),largura:1280,altura:800,titulo:"Teste",url:"https://example.com",texto:"Site não confiável",abas:[]}};
     },
   };
   beforeAll(async()=>{
@@ -149,6 +149,27 @@ describeIntegracao("computadores: autorização e controle pelo servidor complet
   const botNovo=async()=>{const b=await srv.json<{agente:Agente;conversa:Conversa}>("POST","agentes",{dono:"pessoa",interativo:true});novos.push(b);await srv.json("POST",`agentes/${b.agente.id}/modo-aprovacao`,{modo:"manual"});return b;}; // NOD-316: parte do Manual, explícito.
   // Lido por SQL, não pelo GET (até a NOD-192, o GET do painel criava a linha em `computadores`).
   const vinculo=(b:{agente:Agente})=>srv.app.dentro(srv.pessoa,d=>d.tx(async trx=>(await trx<{computador_id:string|null}[]>`select computador_id from agentes where id = ${b.agente.id}`)[0]!.computador_id));
+  it("NOD-498 e2e: dois bots simultâneos recebem displays distintos e nunca trocam stream",async()=>{
+    const [a,b]=await Promise.all([botNovo(),botNovo()]);
+    await Promise.all([
+      srv.json("POST",`agentes/${a.agente.id}/computador`,{operacao:"iniciar"}),
+      srv.json("POST",`agentes/${b.agente.id}/computador`,{operacao:"iniciar"}),
+    ]);
+    await Promise.all([
+      srv.json("POST",`agentes/${a.agente.id}/computador`,{operacao:"assumir",origem:"clique"}),
+      srv.json("POST",`agentes/${b.agente.id}/computador`,{operacao:"assumir",origem:"clique"}),
+    ]);
+    const [ra,rb]=await Promise.all([
+      srv.json<ResultadoComputador>("POST",`agentes/${a.agente.id}/computador/acoes`,{tipo:"observar"}),
+      srv.json<ResultadoComputador>("POST",`agentes/${b.agente.id}/computador/acoes`,{tipo:"observar"}),
+    ]);
+    const [idA,idB]=await Promise.all([vinculo(a),vinculo(b)]);
+    if(!idA||!idB)throw new Error("computador não vinculado");
+    expect(idA).not.toBe(idB);
+    expect(Buffer.from(ra.tela!.imagem,"base64").toString()).toBe(idA);
+    expect(Buffer.from(rb.tela!.imagem,"base64").toString()).toBe(idB);
+    expect(efeitos.slice(-2).map((e)=>e.id).sort()).toEqual([idA,idB].sort());
+  });
   it("(a) plano emitido e turno sem computador_*: nenhum iniciar e agentes.computador_id nulo",async()=>{
     const b=await botNovo();const antes=inicios.length;
     await emitirPlano(b);

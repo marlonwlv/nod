@@ -18,14 +18,17 @@ describe("renderMidiasDoBot (NOD-323)", () => {
     expect(renderMidiasDoBot([img("a", 10, 10, { origem: "pessoa" }), img("b", 10, 10, { origem: "captura" })], { url })).toBe("");
   });
 
-  it("1 imagem: proporção real, cabe em 400 × 400, alt com o nome, abre em tela cheia", () => {
+  it("1 imagem (D · item 8): balão próprio com o lado maior de 307 px na proporção real, alt com o nome, abre em tela cheia", () => {
     const h = renderMidiasDoBot([img("a", 1600, 900)], { url });
-    expect(h).toContain('class="msg-midia-img" style="--w:400px;--ar:1.778"');
+    expect(h).toContain('class="msg-midia-img msg-midia-print" style="--w:307px;--ar:1.778"');
+    // o print 16:10 do computador do bot: 307 × 192
+    expect(renderMidiasDoBot([img("t", 1280, 800)], { url })).toContain('style="--w:307px;--ar:1.6"');
+    expect(renderMidiasDoBot([{ id: "s", nome: "s.png", mime: "image/png", tamanho: 1, origem: "bot" }], { url })).toContain('style="--w:307px;--ar:1.6"');
     expect(h).toContain('alt="Imagem: a.png"');
     expect(h).toContain('data-act="midia-abrir" data-anexo-id="a" data-i="0" aria-haspopup="dialog"');
     expect(h).toContain('width="1600" height="900"');
-    // retrato: a altura manda (400 de altura → 225 de largura); pequena: o tamanho do arquivo
-    expect(renderMidiasDoBot([img("r", 900, 1600)], { url })).toContain("--w:225px");
+    // retrato: a altura manda (307 de altura → 173 de largura); pequena: o tamanho do arquivo
+    expect(renderMidiasDoBot([img("r", 900, 1600)], { url })).toContain("--w:173px");
     expect(renderMidiasDoBot([img("p", 120, 80)], { url })).toContain("--w:120px");
   });
 
@@ -154,10 +157,11 @@ describe("na conversa (renderMensagem)", () => {
     expect(html).toContain(`/api/t/t/conversas/${C}/anexos/g`);
   });
 
-  it("a captura antiga (sem origem) continua captura", () => {
+  it("D · Computador do bot (decisão b): a captura antiga (sem origem) abre como a imagem comum do bot", () => {
     const html = renderMensagem(msg({ anexos: [{ id: "c", nome: "tela.png", mime: "image/png", tamanho: 1 }] }), estado());
-    expect(html).toContain("msg-captura");
-    expect(html).not.toContain("msg-midias");
+    expect(html).not.toContain("msg-captura");
+    expect(html).toContain('class="msg-midias"');
+    expect(html).toContain('data-act="midia-abrir" data-anexo-id="c"');
   });
 
   it("fala só com mídia não desenha balão vazio; as recusas aparecem na linha discreta", () => {

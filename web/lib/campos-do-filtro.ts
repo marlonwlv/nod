@@ -112,11 +112,11 @@ export function camposDoFiltro(o: { porLabel?: PredicadoDeCampo; porPrazo?: Pred
     { campo: "responsavel", nome: "Responsável", valores: (ts) => unicos(ts.map(responsavelDe)).map((r) => ({ valor: r, nome: r })), passa: (t, v) => responsavelDe(t) === v },
     { campo: "criador", nome: "Criado por", valores: (ts) => unicos(ts.map(criadorDe)).map((c) => ({ valor: c, nome: c })),
       passa: (t, v, ctx) => criadorDe(t) === v || (v === ctx.pessoaId && ctx.dona && !t.pedidoPor) },
-    { campo: "relacao", nome: "Relação comigo", valores: fixos([{ valor: "comigo", nome: "Esperando por mim" }, { valor: "criadas", nome: "Criadas por mim" }]),
+    { campo: "relacao", nome: "Relação comigo", valores: fixos([{ valor: "comigo", nome: "Esperando por mim" }, { valor: "criadas", nome: "Criados por mim" }]),
       // T5: "Esperando por mim" é o mesmo Comigo do filtro rápido e da pílula (a pergunta, Bloqueado e "só a pessoa").
       passa: (t, v, ctx) => (v === "comigo" ? ehComigo(t, ctx.colunas ?? []) : !!ctx.pessoaId && (t.pedidoPor === ctx.pessoaId || (!t.pedidoPor && ctx.dona))) },
     { campo: "data", nome: "Data", valores: fixos([
-      { valor: "criada:1", nome: "Criada hoje" }, { valor: "criada:7", nome: "Criada nos últimos 7 dias" }, { valor: "criada:30", nome: "Criada nos últimos 30 dias" },
+      { valor: "criada:1", nome: "Criado hoje" }, { valor: "criada:7", nome: "Criado nos últimos 7 dias" }, { valor: "criada:30", nome: "Criado nos últimos 30 dias" },
       { valor: "atualizada:1", nome: "Atualizada hoje" }, { valor: "atualizada:7", nome: "Atualizada nos últimos 7 dias" }, { valor: "atualizada:30", nome: "Atualizada nos últimos 30 dias" }]),
       passa: (t, v, ctx) => {
         const [qual, dias] = v.split(":");

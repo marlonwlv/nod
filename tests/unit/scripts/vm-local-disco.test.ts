@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, wri
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { blocoDoComputador } from "../../../src/adapters/http/computador-instalacao.ts";
+import { ARQUIVOS_DO_COMPUTADOR, blocoDoComputador } from "../../../src/adapters/http/computador-instalacao.ts";
 import { NODE_DO_MOTOR } from "../../../src/adapters/http/motor-instalacao.ts";
 import { montarOrigem, scriptDoConvidado } from "../../../scripts/vm-local/origem-do-disco.ts";
 
@@ -137,10 +137,11 @@ describe("infra/vm-local/construir-disco.sh (NOD-93)", () => {
     it("monta a origem com os .mjs do motor, o computador.sh executável e a versão do node", () => {
       const motor = join(tmp, "motor");
       mkdirSync(motor, { recursive: true });
-      for (const a of ["computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"]) writeFileSync(join(motor, a), a);
+      for (const a of ARQUIVOS_DO_COMPUTADOR) writeFileSync(join(motor, a), a);
       const saida = join(tmp, "origem");
       montarOrigem(motor, saida);
       expect(readFileSync(join(saida, "computador-tela.mjs"), "utf8")).toBe("computador-tela.mjs");
+      expect(ARQUIVOS_DO_COMPUTADOR.some((a) => a.endsWith("manifesto.json") && readFileSync(join(saida, a), "utf8") === a)).toBe(true);
       expect(statSync(join(saida, "computador.sh")).mode & 0o111).not.toBe(0);
       expect(readFileSync(join(saida, "node.versao"), "utf8")).toBe(`${NODE_DO_MOTOR}\n`);
     });

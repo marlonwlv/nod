@@ -207,7 +207,7 @@ export async function avisarQuemParticipa(deps: Deps, q: Quadro, t: TarefaQuadro
   const via = pelosBots.find((l) => l.tarefaIds.includes(t.id)) ?? pelosBots[0];
   const bot = via?.autor.tipo === "agente" ? via.autor.agenteId : null;
   if (!bot) return;
-  const texto = `Uma tarefa que você pediu no quadro de ${await nomeDaDona(deps)} espera você: ${codigoDaTarefa(q.prefixo, t)}. Responda por aqui, a este bot (ele leva a resposta ao quadro). [Abrir no quadro](nod-quadro:${q.id})`;
+  const texto = `Um card que você pediu no quadro de ${await nomeDaDona(deps)} espera você: ${codigoDaTarefa(q.prefixo, t)}. Responda por aqui, a este bot (ele leva a resposta ao quadro). [Abrir no quadro](nod-quadro:${q.id})`;
   // Revisão 3 (achados 4 e 7): a volta só grava este aviso, assinado pela regra (src/db/porta-da-dona.ts).
   await deps.avisoComVoce(q.id, pessoaId, { agenteId: bot, texto, chave: `${t.id}:${t.mudadoEm}` });
 }

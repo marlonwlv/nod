@@ -462,8 +462,9 @@ jobs:
   # O bucket público dos downloads (vars.NOD_DOWNLOADS_BUCKET), pela Workload Identity Federation: nenhuma chave da GCP
   # mora no GitHub. Atrás de vars.NOD_RELEASE_BUCKET == '1' (sem ela, os arquivos sobem à mão como antes). Só a pasta da
   # versão (v<versão>/, onde o app baixa o disco da VM: URL_DISCO_PADRAO em desktop/vm-local/origem.ts), com
-  # --no-clobber: nunca sobrescreve. Os nomes estáveis da raiz (nod-mac-arm64.dmg, nod-mac-x64.dmg, nod-windows-x64.exe,
-  # os do site/_redirects) não mudam aqui: trocam à mão depois do aceite nos dois Macs. O pool WIF deste job é outro que
+  # --no-clobber: nunca sobrescreve. O site não muda aqui: o site/_redirects passa a apontar para esta pasta à mão depois
+  # do aceite (docs/release-desktop.md; desde 2026-11-19, porque a retenção de 365 dias do bucket não deixa sobrescrever
+  # os nomes da raiz). O pool WIF deste job é outro que
   # o do deploy (a conta dele só cria objetos neste bucket), e aceita só tag v* no environment release.
   downloads:
     needs: draft

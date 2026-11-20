@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EstadoOnboarding } from "../../../src/contracts/onboarding.ts";
 import { saidaParaConta } from "../../../web/telas/conta-no-chat.ts";
 import { criarTelaOnboarding, type DepsOnboarding } from "../../../web/telas/onboarding-controle.ts";
-import { htmlEntrarNaConta, htmlExecutor } from "../../../web/telas/onboarding.ts";
+
 
 /**
  * #78: quem já usa o nod noutro computador e abre pelo celular ou por outro navegador cai num espaço sem conta que a web
@@ -20,9 +20,6 @@ const semIa = {
   modelo: { app: { slug: "gmail" } },
 } as unknown as EstadoOnboarding;
 
-const tela = (entrarNaConta: boolean, procurando = false) =>
-  ({ dados: semIa, procurando, iaEntrando: null, notaIa: null, teste: null, iasMac: null, entrarNaConta });
-
 describe("a saída 'Entrar na sua conta' na etapa da IA", () => {
   it("mantém o alvo de toque de 44 px mesmo com a regra posterior do contorno", () => {
     const css = readFileSync(new URL("../../../web/onboarding.css", import.meta.url), "utf8");
@@ -32,18 +29,6 @@ describe("a saída 'Entrar na sua conta' na etapa da IA", () => {
 
     expect(regra(alvo)).toMatch(/height:\s*44px/);
     expect(especificidade(alvo)).toBeGreaterThan(especificidade(".ob-pilula.contorno"));
-  });
-
-  it("aparece na tela da IA do navegador, inclusive enquanto procura, só com entrarNaConta", () => {
-    for (const procurando of [false, true]) {
-      const h = htmlExecutor(tela(true, procurando));
-      expect(h).toContain("A IA dos seus bots");
-      expect(h).toContain("Já usa o nod em outro computador?");
-      expect(h).toContain('data-act="onboarding-entrar-na-conta"');
-      expect(h).toContain(">Entrar na sua conta<");
-      expect(htmlExecutor(tela(false, procurando))).not.toContain("onboarding-entrar-na-conta");
-    }
-    expect(htmlEntrarNaConta({})).toBe("");
   });
 
   it("saidaParaConta: só na web, com contas, num espaço sem conta e sem equipe já lido", () => {
@@ -93,15 +78,14 @@ describe("o clique em 'Entrar na sua conta' (controlador)", () => {
 
   it("a camada da IA mostra a saída; o clique fecha a camada e abre o cartão de conta, sem concluir o onboarding", async () => {
     const m = montar(true);
-    await m.t.acoes["onboarding-pular-ola"]!({ dataset: {} } as HTMLElement);
-    const h = m.t.camada();
-    expect(h).toContain("A IA dos seus bots");
-    expect(h).toContain('data-act="onboarding-entrar-na-conta"');
-    await m.t.acoes["onboarding-entrar-na-conta"]!({ dataset: {} } as HTMLElement);
+    await m.t.acoes["onboarding-pular-ola"]!({});
+    const h = m.t.vista();
+    expect(h).toMatchObject({ camada: { tipo: "executor", tela: { entrarNaConta: true } } });
+    await m.t.acoes["onboarding-entrar-na-conta"]!({});
     expect(m.abrir).toHaveBeenLastCalledWith(false);
     expect(m.entrar).toHaveBeenCalledOnce();
     expect(m.concluir).not.toHaveBeenCalled();
-    expect(m.t.camada()).toBe("");
+    expect(m.t.vista()).toBeNull();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(m.sondar).not.toHaveBeenCalled();
   });
@@ -109,12 +93,12 @@ describe("o clique em 'Entrar na sua conta' (controlador)", () => {
   it("ignora a resposta de uma sondagem que já estava em voo quando a pessoa sai", async () => {
     let responder: ((estado: EstadoOnboarding) => void) | undefined;
     const m = montar(true, () => new Promise((ok) => { responder = ok; }));
-    await m.t.acoes["onboarding-pular-ola"]!({ dataset: {} } as HTMLElement);
-    m.t.camada();
+    await m.t.acoes["onboarding-pular-ola"]!({});
+    m.t.vista();
     await vi.advanceTimersByTimeAsync(3_000);
     expect(m.sondar).toHaveBeenCalledOnce();
 
-    await m.t.acoes["onboarding-entrar-na-conta"]!({ dataset: {} } as HTMLElement);
+    await m.t.acoes["onboarding-entrar-na-conta"]!({});
     responder?.(semIa);
     await Promise.resolve();
     expect(m.hidratar).not.toHaveBeenCalled();
@@ -124,9 +108,9 @@ describe("o clique em 'Entrar na sua conta' (controlador)", () => {
 
   it("com conta, na equipe ou no app (disponivel = false): sem saída e o clique não faz nada", async () => {
     const m = montar(false);
-    await m.t.acoes["onboarding-pular-ola"]!({ dataset: {} } as HTMLElement);
-    expect(m.t.camada()).not.toContain("onboarding-entrar-na-conta");
-    await m.t.acoes["onboarding-entrar-na-conta"]!({ dataset: {} } as HTMLElement);
+    await m.t.acoes["onboarding-pular-ola"]!({});
+    expect(m.t.vista()).toMatchObject({ camada: { tipo: "executor", tela: { entrarNaConta: false } } });
+    await m.t.acoes["onboarding-entrar-na-conta"]!({});
     expect(m.abrir).not.toHaveBeenCalledWith(false);
     expect(m.entrar).not.toHaveBeenCalled();
   });

@@ -52,11 +52,10 @@ export function criarCatalogoComposio(deps: DepsCatalogoComposio) {
     }
   }
 
-  return async function catalogo(tenantId: string, cifrada: string | null): Promise<AppComLogo[]> {
-    if (!cifrada) return catalogoDoPiso();
-    const agora = Date.now();
-    const posto = catalogoPorTenant.get(tenantId);
-    if (posto && agora - posto.em < JANELA_CATALOGO_MS) return posto.apps;
+  /** Leva 2 (ADR-183): a renovação em voo de cada tenant — N pedidos na mesma janela fazem UMA chamada ao Composio. */
+  const renovando = new Map<string, Promise<AppComLogo[]>>();
+
+  async function renovar(tenantId: string, cifrada: string, agora: number, posto: { em: number; apps: AppComLogo[] } | undefined): Promise<AppComLogo[]> {
     try {
       const cliente = criarClienteComposio(deps.decifrar(cifrada), deps.fetchImpl);
       const [doProvedor, publicos] = await Promise.all([cliente.catalogo(), gerenciados(tenantId, cliente, agora)]);
@@ -71,7 +70,28 @@ export function criarCatalogoComposio(deps: DepsCatalogoComposio) {
         codigo: e instanceof ErroDeDominio ? e.codigo : "desconhecido",
         usou_cache: !!posto,
       });
+      // A falha também conta como leitura: a próxima janela tenta de novo, sem bater no Composio a cada GET.
+      if (posto) catalogoPorTenant.set(tenantId, { em: agora, apps: posto.apps });
       return posto?.apps ?? catalogoDoPiso();
     }
+  }
+
+  /**
+   * Leva 2 (2026-11-13, ADR-183): o catálogo vencido é servido NA HORA e renovado em segundo plano — antes, o GET
+   * conectores da abertura do bot esperava a chamada HTTP ao Composio (até 30 s com as tentativas) a cada 60 s. Só a
+   * primeira leitura do tenant (sem nada guardado) espera; e N pedidos juntos compartilham a mesma renovação.
+   */
+  return async function catalogo(tenantId: string, cifrada: string | null): Promise<AppComLogo[]> {
+    if (!cifrada) return catalogoDoPiso();
+    const agora = Date.now();
+    const posto = catalogoPorTenant.get(tenantId);
+    if (posto && agora - posto.em < JANELA_CATALOGO_MS) return posto.apps;
+    let emVoo = renovando.get(tenantId);
+    if (!emVoo) {
+      emVoo = renovar(tenantId, cifrada, agora, posto).finally(() => renovando.delete(tenantId));
+      renovando.set(tenantId, emVoo);
+    }
+    if (posto) { void emVoo.catch(() => undefined); return posto.apps; }
+    return emVoo;
   };
 }

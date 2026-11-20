@@ -121,7 +121,8 @@ describe("script de instalação do motor no Windows (ADR-151)", () => {
     expect(shims).toContain("Join-Path $PastaNpm $Binario");
     const iniciar = script.slice(script.indexOf("function IniciarMotor"), script.indexOf("function RetomarMotor"));
     expect(iniciar).toContain("while ((PidsDoMotor).Count -eq 0");
-    expect(iniciar).toContain("if ((PidsDoMotor).Count -eq 0) { Falhar");
+    // O motor que não sobe deixa o motivo no log (o stderr dele some no conhost --headless da tarefa).
+    expect(iniciar).toContain("if ((PidsDoMotor).Count -eq 0) { DiagnosticarMotor; Falhar");
     expect(iniciar.indexOf("$Estado.Iniciado = $true")).toBeGreaterThan(iniciar.indexOf("Falhar"));
     expect(script.indexOf("Motor atualizado e no ar")).toBeGreaterThan(script.indexOf("IniciarMotor"));
   });

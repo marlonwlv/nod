@@ -21,9 +21,9 @@ const MOTIVO_HUMANO: Readonly<Record<string, string>> = {
   pergunta_sem_resposta: "ninguém respondeu a pergunta",
   // definido em 2026-10-16 (NOD-243/NOD-272): a janela adiada e a execução que a seguinte (ou o Pausar) encerrou.
   execucao_anterior_aberta: "a execução anterior ainda não tinha terminado",
-  frente_aberta: "uma frente desta rotina ainda estava aberta",
+  frente_aberta: "uma tarefa desta rotina ainda estava aberta",
   vencida: "ficou na fila e a janela seguinte a encerrou",
-  frente_parada: "a frente ficou parada por mais de 24 h",
+  frente_parada: "a tarefa ficou parada por mais de 24 h",
   rotina_pausada: "a rotina foi pausada",
   // definido em 2026-10-15 (NOD-274): a janela que não rodou (desfecho 'nao_rodou', MOTIVOS_NAO_RODOU_ROTINA). A de
   // execucao_anterior_aberta (C9) virou 'adiada' na integração com o #335; a linha antiga usa o rótulo acima.
@@ -148,7 +148,7 @@ export function linhaNaoRodaram(p: ParadaDaRotina | null, agora: number): string
  */
 export function linhaDaEspera(e: EsperaRotinaDto | null, agora: number, fusoIana: string): string {
   if (!e) return "";
-  const quem = e.motivo === "frente_aberta" ? (e.frente ? `Esperando a frente “${e.frente}” terminar` : "Esperando uma frente desta rotina terminar") : "Esperando a execução anterior terminar";
+  const quem = e.motivo === "frente_aberta" ? (e.frente ? `Esperando a tarefa “${e.frente}” terminar` : "Esperando uma tarefa desta rotina terminar") : "Esperando a execução anterior terminar";
   const quantas = e.seguidas === 1 ? `a janela de ${quandoCurto(e.desde, agora, fusoIana)} foi adiada` : `${e.seguidas} janelas adiadas ${desdeQuando(e.desde, agora, fusoIana)}`;
   return `<div class="rt-linha rt-espera">${esc(`${quem} · ${quantas}.`)}</div>`;
 }

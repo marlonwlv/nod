@@ -17,8 +17,8 @@ describe("scripts/computador/build.ts (NOD-93)", () => {
   it("sem escolha, constrói as duas; a nativa primeiro com --load, a estrangeira depois e só no cache", () => {
     const passos = planoDoBuild({ plataformas: lerPlataformas(undefined), nativa: "linux/amd64", versao: "1.2.3", contexto: "ctx" });
     expect(passos.map((p) => p.plataforma)).toEqual(["linux/amd64", "linux/arm64"]);
-    expect(passos[0]!.args).toEqual(["buildx", "build", "--platform", "linux/amd64", "--label", `${ROTULO_VERSAO}=1.2.3`, "-t", "nod-computador:1", "--load", "ctx"]);
-    expect(passos[1]!.args).toEqual(["buildx", "build", "--platform", "linux/arm64", "--label", `${ROTULO_VERSAO}=1.2.3`, "-t", "nod-computador:1", "--output", "type=cacheonly", "ctx"]);
+    expect(passos[0]!.args).toEqual(["buildx", "build", "--platform", "linux/amd64", "--label", `${ROTULO_VERSAO}=1.2.3`, "-t", "nod-computador:1", "-f", "ctx/infra/computador/Dockerfile", "--load", "ctx"]);
+    expect(passos[1]!.args).toEqual(["buildx", "build", "--platform", "linux/arm64", "--label", `${ROTULO_VERSAO}=1.2.3`, "-t", "nod-computador:1", "-f", "ctx/infra/computador/Dockerfile", "--output", "type=cacheonly", "ctx"]);
   });
 
   it("servidor e motor sem escolha: a estrangeira que falha (sem binfmt) não derruba o build; com escolha, derruba", () => {
@@ -35,13 +35,13 @@ describe("scripts/computador/build.ts (NOD-93)", () => {
   it("sem o plugin buildx, cai no docker build de antes (só a nativa, mesma tag) com o rótulo da versão", () => {
     expect(planoSemBuildx({ nativa: "linux/amd64", versao: "1.2.3", contexto: "ctx" })).toEqual({
       plataforma: "linux/amd64",
-      args: ["build", "--label", `${ROTULO_VERSAO}=1.2.3`, "-t", "nod-computador:1", "ctx"],
+      args: ["build", "--label", `${ROTULO_VERSAO}=1.2.3`, "-t", "nod-computador:1", "-f", "ctx/infra/computador/Dockerfile", "ctx"],
     });
   });
 
   it("com --saida, grava um docker save por arquitetura (o que o disco da VM carrega) e ainda carrega a nativa", () => {
     const passos = planoDoBuild({ plataformas: ["linux/arm64", "linux/amd64"], nativa: "linux/arm64", versao: "v", contexto: "ctx", saida: "out" });
-    const saidas = passos.map((p) => `${p.plataforma} ${p.args.slice(8, -1).join(" ")}`);
+    const saidas = passos.map((p) => `${p.plataforma} ${p.args.slice(10, -1).join(" ")}`);
     expect(saidas).toEqual([
       "linux/arm64 --output type=docker,dest=out/nod-computador-arm64.tar",
       "linux/arm64 --load",
@@ -76,7 +76,7 @@ describe("scripts/computador/build.ts (NOD-93)", () => {
   it("o Dockerfile não fixa plataforma no FROM (cada build pega a variante pedida)", () => {
     const dockerfile = readFileSync(join(RAIZ, "infra/computador/Dockerfile"), "utf8");
     const from = dockerfile.split("\n").filter((l) => l.startsWith("FROM "));
-    expect(from).toEqual(["FROM node:24.19.0-bookworm-slim"]);
+    expect(from).toEqual(["FROM node:24.19.0-bookworm-slim AS bundle", "FROM node:24.19.0-bookworm-slim"]);
   });
 
   describe("o script com um docker falso (servidor e motor não mudam de comportamento)", () => {
@@ -114,7 +114,7 @@ describe("scripts/computador/build.ts (NOD-93)", () => {
     it("sem o plugin buildx: o docker build de antes, só a nativa, e termina com 0", () => {
       const r = rodar("sem-buildx", { comBuildx: false });
       expect(r.status, r.saida).toBe(0);
-      expect(r.chamadas.slice(1)).toEqual([`build --label ${ROTULO_VERSAO}=9.9.9 -t nod-computador:1 ${join(RAIZ, "infra/computador")}`]);
+      expect(r.chamadas.slice(1)).toEqual([`build --label ${ROTULO_VERSAO}=9.9.9 -t nod-computador:1 -f ${join(RAIZ, "infra/computador/Dockerfile")} ${RAIZ}`]);
     });
 
     it("com escolha explícita (o release), a estrangeira que falha derruba o comando", () => {

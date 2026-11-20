@@ -185,7 +185,7 @@ describeIntegracao("fila de turnos (ADR-010): enviar → despachar → assentar,
       await executar(deps, assentarTurno, { turnoId, machineId: maquina, seqLocal: 1, fala: { tipo: "texto", texto: "feito" }, resultado: sucesso("feito", { negacoesPermissao: ["Bash"], negacoesDoNod }) });
       const pilulas = (await deps.repos.mensagens.listarDaConversa(criado.conversa.id)).filter((m) => m.kind === "negacao");
       expect(pilulas.map((m) => m.texto)).toEqual([
-        "ferramenta Bash negada: git fora da pasta da task; o bot recebeu o caminho certo (2 vezes)",
+        "ferramenta Bash negada: git fora da pasta da tarefa; o bot recebeu o caminho certo (2 vezes)",
         "ferramenta Bash negada: você não aprovou o comando",
       ]);
       expect(pilulas[0]?.payload).toMatchObject({ motivo: "alcance_insuficiente", causaNativa: "git_fora_da_pasta", vezes: 2 });
@@ -237,7 +237,8 @@ describeIntegracao("fila de turnos (ADR-010): enviar → despachar → assentar,
     await withRollback(MARLON, async (trx) => {
       const deps = depsSobreTrx(trx, MARLON);
       const casos = [
-        { erro: "Credit balance is too low", aviso: "Turno interrompido: a IA parou por um erro; tente de novo e, se repetir, relate o problema nesta mensagem." },
+        // ADR-171 (falhas tipadas, como a fatura em aberto): o crédito acabado tem frase própria, não a genérica.
+        { erro: "Credit balance is too low", aviso: "Turno interrompido: a conta do Claude Code está sem crédito ou com fatura em aberto; espere o uso renovar e tente de novo." },
         { erro: "Invalid API key · Please run /login", aviso: "Turno interrompido: sua conta do Claude Code saiu deste Mac; use Conectar IA para entrar de novo." },
       ];
       for (const c of casos) {

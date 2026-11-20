@@ -79,3 +79,7 @@ The live screen of the bot's computer (`web/lib/tela-vivo.ts`, NOD-95, ADR-138) 
 under the Mozilla Public License 2.0. It is consumed unmodified as an npm dependency; the MPL-2.0 text
 ships in `node_modules/@novnc/novnc/LICENSE.txt`. The server side uses `x11vnc` (GPL-2.0) as a separate
 process on the person's machine, never linked into nod.
+
+The external-provider RFB relay handshake (`src/adapters/computador/relay-vnc.ts`) is adapted from Bot HQ,
+Copyright (c) 2026 Bot HQ contributors, licensed under the MIT License. The adaptation keeps only the protocol
+handshake shape; Nod's authorization, origin checks, backpressure, watch filter and provider isolation remain its own.

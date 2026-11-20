@@ -166,7 +166,7 @@ async function aposQuedaNoFundo(deps: DepsQueda, c: Caido & { rotinaId: string |
   const events: RuntimeEvent[] = [
     evento(deps.escopo, { kind: "turno_criado", autoria, agora, conversaId: turno.conversaId, turnoId: volta.id, dados: { origem: volta.origem, agente_id: turno.agenteId, retoma_turno_id: retomaTurnoId, trabalho_id: turno.trabalhoId ?? null, acordar_em: acordarEm } }),
   ];
-  const pedido = chave === "frente" ? "Esta task" : chave === "rotina" ? "Esta execução da rotina" : "Este pedido";
+  const pedido = chave === "frente" ? "Esta tarefa" : chave === "rotina" ? "Esta execução da rotina" : "Este pedido";
   // NOD-401: a troca de conta (seguiu na hora, sem avisar a espera) não conta como espera da cadeia.
   const jaEsperou = turno.origem === "retomada" && cadeiaJaEsperou(turno.entradaTexto, ehVoltaDoFundo);
   // QA do NOD-386: a espera anterior foi de outro tipo (servidor ↔ máquina) — a causa mudou, e a linha nova é notícia.

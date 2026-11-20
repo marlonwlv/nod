@@ -69,7 +69,8 @@ export type CabecalhoDoPensamento = { id: string; texto: string; desde: number; 
  * fim do turno, e, sem id, pela próxima ferramenta. Falhou só vem do frame (tool_result.isError), nunca inventado.
  */
 export type EstadoDaAcao = "rodando" | "feita" | "falhou";
-export type AcaoNaTela = { id: string | null; rotulo: string; estado: EstadoDaAcao; emUso: string | null; frentes?: true; nota?: number };
+/** `resumo` (ADR-187 §6, 2026-11-18): o argumento em uma linha que o frame traz (o arquivo, o comando), já redigido. */
+export type AcaoNaTela = { id: string | null; rotulo: string; estado: EstadoDaAcao; emUso: string | null; frentes?: true; nota?: number; resumo?: string };
 /** Teto das chamadas guardadas por turno; o resumo mostra as primeiras `ACOES_DO_RESUMO_MAX` linhas (a regra da gravada). */
 export const ACOES_GUARDADAS = 2_000;
 export const ACOES_DO_RESUMO_MAX = 200;
@@ -155,7 +156,7 @@ export function comTexto(a: AtividadeTurno | undefined, trecho: string): Ativida
  * Narração antes da ferramenta vira etapa com 1 ferramenta; ferramentas seguidas sem narração somam na
  * última etapa; ferramenta sem etapa nenhuma antes abre uma etapa com o próprio rótulo.
  */
-export function comFerramenta(a: AtividadeTurno | undefined, rotulo: string, emUso: FerramentaEmUso = SEM_NOME_DA_FERRAMENTA, id: string | null = null): AtividadeTurno {
+export function comFerramenta(a: AtividadeTurno | undefined, rotulo: string, emUso: FerramentaEmUso = SEM_NOME_DA_FERRAMENTA, id: string | null = null, resumo: string | null = null): AtividadeTurno {
   const base = a ?? ATIVIDADE_VAZIA;
   const narracao = base.atual.trim();
   const ultima = base.etapas[base.etapas.length - 1];
@@ -175,7 +176,7 @@ export function comFerramenta(a: AtividadeTurno | undefined, rotulo: string, emU
   const nota = (base.curtasDescartadas ?? 0) + (base.antes?.length ?? 0) + (narracao ? 1 : 0);
   // `cabecalho` segue (Parte 2): é o reducer quem o recalcula depois, com a permanência; perdê-lo aqui zeraria o tempo.
   // `frentesEm` também (Parte 3; revisão do PR, 27/10): a segunda frente aberta logo depois da primeira cortava o `comet`.
-  return { atual: "", etapas: etapas.slice(-ETAPAS_GUARDADAS), totalEtapas, ferramentas: base.ferramentas + 1, ultimaFerramenta: rotulo, tarefas: base.tarefas, vigia: base.vigia, emUso, subagentes: base.subagentes, ...depoisDaFerramenta(base, narracao !== ""), acoes: comAcao(narracao ? acoesFechadas(base.acoes) : base.acoes, rotulo, emUso, id, nota), ...(base.cabecalho ? { cabecalho: base.cabecalho } : {}), ...(base.frentesEm !== undefined ? { frentesEm: base.frentesEm } : {}) };
+  return { atual: "", etapas: etapas.slice(-ETAPAS_GUARDADAS), totalEtapas, ferramentas: base.ferramentas + 1, ultimaFerramenta: rotulo, tarefas: base.tarefas, vigia: base.vigia, emUso, subagentes: base.subagentes, ...depoisDaFerramenta(base, narracao !== ""), acoes: comAcao(narracao ? acoesFechadas(base.acoes) : base.acoes, rotulo, emUso, id, nota, resumo), ...(base.cabecalho ? { cabecalho: base.cabecalho } : {}), ...(base.frentesEm !== undefined ? { frentesEm: base.frentesEm } : {}) };
 }
 
 /** As que rodavam viram feitas (o texto voltou, a volta acabou, o turno acabou); devolve a mesma lista se nada mudou. */
@@ -193,11 +194,11 @@ export function acoesSemNota(acoes: readonly AcaoNaTela[]): AcaoNaTela[] {
   return acoes.some((x) => x.nota !== undefined) ? acoes.map(({ nota: _nota, ...x }) => x) : [...acoes];
 }
 
-function comAcao(acoes: readonly AcaoNaTela[], rotulo: string, emUso: FerramentaEmUso, id: string | null, nota = 0): AcaoNaTela[] {
+function comAcao(acoes: readonly AcaoNaTela[], rotulo: string, emUso: FerramentaEmUso, id: string | null, nota = 0, resumo: string | null = null): AcaoNaTela[] {
   // App antigo (sem id): não há fim por chamada; a ferramenta seguinte fecha as que estavam sem id.
   const base = id === null ? acoes.map((x) => (x.estado === "rodando" && x.id === null ? { ...x, estado: "feita" as const, emUso: null } : x)) : [...acoes];
   if (base.length >= ACOES_GUARDADAS) return base;
-  return [...base, { id, rotulo, estado: "rodando", emUso: emUso.texto, ...(emUso.frentes ? { frentes: true as const } : {}), ...(nota ? { nota } : {}) }];
+  return [...base, { id, rotulo, estado: "rodando", emUso: emUso.texto, ...(emUso.frentes ? { frentes: true as const } : {}), ...(nota ? { nota } : {}), ...(resumo ? { resumo } : {}) }];
 }
 
 /**
@@ -545,21 +546,29 @@ export function linhaAtual(a: AtividadeTurno): string {
  * Mascote: Pensando e Escrevendo ficam atentos (idle + attentif, não `thinking`); ferramenta e frentes, `orbit`.
  */
 export type ChaveDaFala = "pensando" | "escrevendo" | "ferramenta" | "frentes";
-export type EstadoDaFala = { chave: ChaveDaFala; texto: string; mascote: { state: "idle" | "orbit" | "thinking"; expression: "attentif" | null } };
+export type EstadoDaFala = { chave: ChaveDaFala; texto: string; mascote: { state: "thinking" | "working" | "running" | "streaming" | "reading"; expression: null } };
 
-const ATENTO = { state: "idle", expression: "attentif" } as const;
-const FAZENDO = { state: "orbit", expression: null } as const;
+const TRABALHANDO = { state: "working", expression: null } as const;
+const DIGITANDO = { state: "streaming", expression: null } as const;
+const EXECUTANDO = { state: "running", expression: null } as const;
+const LENDO = { state: "reading", expression: null } as const;
 /** Parte 3 do plano "o pensamento no chat" (2026-10-26): pensando é o `thinking` do Bloub (os três pontos), não o repouso atento. */
 const PENSANDO = { state: "thinking", expression: null } as const;
 
 export function estadoDaFala(a: AtividadeTurno | undefined): EstadoDaFala {
-  if (a?.atual.trim()) return { chave: "escrevendo", texto: "Escrevendo", mascote: ATENTO };
-  if (a?.emUso) return { chave: a.emUso.frentes ? "frentes" : "ferramenta", texto: a.emUso.texto, mascote: FAZENDO };
+  // O texto novo encerra a ferramenta anterior: o indicador vira "Digitando…" no mesmo frame.
+  if (a?.atual.trim()) return { chave: "escrevendo", texto: "Digitando…", mascote: DIGITANDO };
+  if (a?.emUso) {
+    const state = !a.emUso.frentes && /^(Lendo|Buscando|Procurando|Pesquisando|Abrindo|Consultando)\b/.test(a.emUso.texto) ? LENDO
+      : /^(Rodando|Executando|No terminal)\b/i.test(a.emUso.texto) ? EXECUTANDO : TRABALHANDO;
+    return { chave: a.emUso.frentes ? "frentes" : "ferramenta", texto: a.emUso.texto, mascote: state };
+  }
   return { chave: "pensando", texto: "Pensando", mascote: PENSANDO };
 }
 
 /** Parte 3: quanto duram os disparos únicos do mascote (ms): `wink` quando a fala entra, `comet` quando as frentes saem. */
 export const WINK_MS = 1_700;
+export const FINISHED_MS = 13_000;
 export const COMET_MS = 2_500;
 
 /** Parte 3: as frentes acabaram de sair (o `emUso` com `frentes` nasceu neste frame): o mascote faz `comet` por `COMET_MS`. */

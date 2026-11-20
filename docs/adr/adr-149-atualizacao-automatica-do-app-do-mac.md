@@ -41,7 +41,8 @@ reiniciar.
    `codesign --deep --strict`, `stapler validate` e `spctl` antes do upload, e entra no `SHA256-<arch>.txt`.
 6. **Procura e aviso só no nativo.** 30 s depois de conectar e a cada 4 h, pelo menu (**Procurar atualizações…**) e na
    hora quando o servidor responde `atualize_app`. Pronta, o menu ganha **Reiniciar para atualizar (x.y.z)**, sai uma
-   notificação e a tela de conexão mostra a linha. Sem faixa na web.
+   notificação e a tela de conexão mostra a linha. Sem faixa na web. *Emendado pela [ADR-188](adr-188-atualizar-o-nod-pela-janela-web.md): a
+   janela web mostra o cartão "Atualizar o nod" e Configurações › Sobre o nod.*
 7. **Reiniciar nunca derruba trabalho sem perguntar.** Procura pelo menu responde numa caixa (em dia ou erro). Enquanto o
    Squirrel não responde, nenhuma procura nova reconfigura o feed (evita dois downloads). Em ligação, recusa; com turno no Mac ou tela aberta no
    computador do bot, confirma ("Reiniciar agora interrompe o trabalho"). Prazo da tela: 5 min na procura e 25 min no download (acima dos 20 min

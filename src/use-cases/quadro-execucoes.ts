@@ -524,7 +524,7 @@ async function situacaoDaOutra(deps: Pick<Deps, "repos">, tarefaId: string): Pro
 }
 
 /** ADA-232: o freio de acionamentos na hora (contando as retomadas) segurou o reacionamento. */
-const MOTIVO_FREIO_REACIONAR = `Freio: o bot foi acionado ${LIMITE_ACIONAMENTOS_HORA} vezes ou mais na última hora nesta tarefa e parou sem saída. Veja a conversa e diga o próximo passo.`;
+const MOTIVO_FREIO_REACIONAR = `Freio: o bot foi acionado ${LIMITE_ACIONAMENTOS_HORA} vezes ou mais na última hora neste card e parou sem saída. Veja a conversa e diga o próximo passo.`;
 
 /** ADA-232: a frase da espera da pessoa quando o reacionamento não tem onde retomar (ADR-162: o comentário do sistema). */
 const MOTIVO_SEM_SAIDA_FRASE = "O bot parou sem saída e não deu para chamá-lo de volta. Veja a conversa e diga o próximo passo.";
@@ -623,7 +623,7 @@ async function cuidarDaTarefa(deps: Deps, antes: TarefaQuadro): Promise<{ tratad
     }
     events.push(eventoQuadro(deps, DO_VARREDOR, q, null, [t.id]));
     // Revisão 5 do PR #625: a tarefa escrita de fora (deFora) não leva o título ao aviso: o texto dela fica fora da conversa.
-    const texto = atual.deFora ? `Uma tarefa parou no quadro. ${motivo}` : `"${atual.titulo}" parou no quadro. ${motivo}`;
+    const texto = atual.deFora ? `Um card parou no quadro. ${motivo}` : `"${atual.titulo}" parou no quadro. ${motivo}`;
     const aviso = salva && atual.agenteId ? await avisarComVoce(deps, salva, atual.agenteId, texto, salva.agenteId, `quadro-aviso:${e.id}`, "atraso") : null;
     if (aviso) events.push(aviso);
     bloqueou = true;

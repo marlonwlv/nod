@@ -111,6 +111,8 @@ function renderProvedoresContas(estado: Estado): string {
   const intro = filtro
     ? `Mostrando as contas d${filtro.plataforma === "darwin" ? "o" : "a"} ${esc(nomeCurto(filtro, maquinas))}. A ordem é a mesma em todas as máquinas: os bots dela pulam as que não estão logadas lá.`
     : "Suas contas de IA numa fila só. Quando uma acaba, o Nod passa para a próxima ligada, na máquina onde o bot trabalha. Arraste para mudar a ordem; desligue a que não deve entrar sozinha.";
+  // Tela 19b do Paper: a Nova conta é uma sub-página ("‹ Provedores de IA / Nova conta"), sem o título nem a lista.
+  if (estado.contasUi.nova && !filtro && lista.includes('data-form="cl-nova"')) return `<section class="espaco-secao cfg-secao provedores prov-contas prov-nova">${lista}</section>`;
   return `<section class="espaco-secao cfg-secao provedores prov-contas">
       <h2 class="prov-titulo">${pilhaDeAvatares()}Provedores de IA</h2>
       <p class="intro">${intro}</p>

@@ -25,8 +25,8 @@ async function alternar(
   };
 }
 
-/** Pin (Grok Bot): sem `fixado` no corpo, alterna. */
+/** Fixar: sem `fixado` no corpo, alterna. */
 export const fixarAgente: CasoDeUso<{ agenteId: string; fixado?: boolean }, { agente: Agente }> = (deps, input) => alternar(deps, input.agenteId, "fixado", input.fixado);
 
-/** Hide (Grok Bot): oculto sai da frota mas continua existindo; sem `oculto` no corpo, alterna. */
+/** Ocultar: oculto sai da frota mas continua existindo; sem `oculto` no corpo, alterna. */
 export const ocultarAgente: CasoDeUso<{ agenteId: string; oculto?: boolean }, { agente: Agente }> = (deps, input) => alternar(deps, input.agenteId, "oculto", input.oculto);
