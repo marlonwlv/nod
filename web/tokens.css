@@ -276,6 +276,18 @@
   --chat-cartao-sombra: 0 0 0 .5px #1c1c1c1f, 0 2px 6px #1c1c1c0a;
   --chat-barra-andando: #1c1c1c40;
   --chat-barra-vazia: #1c1c1c14;
+  /* ADR-190 (Paper "Navegador, computador e seu Mac"): o navegador do bot. Verde ao vivo, azul "precisa de você", o roxo do
+     cursor do bot, o lilás do "ligando", a faixa clara do letterbox (nunca preta) e a barra do Chrome. */
+  --nv-vivo: #16835b;
+  --nv-vivo-soft: #f2faf6;
+  --nv-precisa: #2563eb;
+  --nv-precisa-soft: #eef3fe;
+  --nv-cursor: #7b5cfa;
+  --nv-cursor-tinta: #ffffff;
+  --nv-letterbox: #f1f1f1;
+  --nv-lilas: #ece8f8;
+  --nv-barra-fundo: #f7f7f7;
+  --nv-endereco: #f5f5f7;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -432,6 +444,16 @@
     --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
     --chat-barra-andando: #f5f5f540;
     --chat-barra-vazia: #f5f5f514;
+    --nv-vivo: #3fbf8a;
+    --nv-vivo-soft: #12271e;
+    --nv-precisa: #6b9bff;
+    --nv-precisa-soft: #172240;
+    --nv-cursor: #9d86ff;
+    --nv-cursor-tinta: #ffffff;
+    --nv-letterbox: #2a2a2a;
+    --nv-lilas: #262036;
+    --nv-barra-fundo: #1a1a1a;
+    --nv-endereco: #232323;
   }
 }
 
@@ -589,6 +611,16 @@
   --chat-cartao-sombra: 0 0 0 .5px #f5f5f51f, 0 2px 6px #00000033;
   --chat-barra-andando: #f5f5f540;
   --chat-barra-vazia: #f5f5f514;
+  --nv-vivo: #3fbf8a;
+  --nv-vivo-soft: #12271e;
+  --nv-precisa: #6b9bff;
+  --nv-precisa-soft: #172240;
+  --nv-cursor: #9d86ff;
+  --nv-cursor-tinta: #ffffff;
+  --nv-letterbox: #2a2a2a;
+  --nv-lilas: #262036;
+  --nv-barra-fundo: #1a1a1a;
+  --nv-endereco: #232323;
 }
 
 /* =====================================================================================

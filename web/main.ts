@@ -287,6 +287,7 @@ import { abaDoDestino, alvoDoFocoNaTabBar, contagemDaAbaSuaVez, criarHistoricoDa
 import { botDasTarefas, resumoDoQuadro, resumosDosQuadros, tarefasEmAndamento } from "./lib/tarefas-da-barra.ts";
 import { renderAbaQuadros, renderAbaSuaVez, renderFolhaRecentes, renderTabBar, renderTituloCompacto, renderTituloGrande } from "./telas/tab-bar-celular.ts";
 import { ligarTecladoVisivel } from "./lib/teclado-visivel.ts";
+import { criarNavegadorNaTela } from "./telas/navegador.ts";
 import type { ItemDoMenuDaPilula } from "./lib/gesto-da-pilula.ts";
 import { DICA_MS, MARCA_CUTUCAO, MARCA_DICA, deveCutucar, criarFiltroDeEco, deveMostrarDica, escFechaABusca, gravarMarca, lerMarca, type Marcas, type ViaDaBusca } from "./lib/descoberta-da-busca.ts";
 import { comVerificadorDoProvisorio, criarTravaDeSessao } from "./lib/trava-sessao.ts";
@@ -675,7 +676,12 @@ function guardarModoAbas(agenteId: string, ligado: boolean): void {
 }
 /** A Conversa deste bot mostra a fileira: modo abas ligado e alguma aba guardada (a lista, não a tela, que pode estar lendo). */
 function fileiraNaConversa(agenteId: string): boolean {
-  return modoAbas.has(agenteId) && abasDeTarefa.some((a) => a.agenteId === agenteId);
+  // ADR-190 (D7): a aba de lugar (o navegador do bot) também mantém a fileira.
+  return modoAbas.has(agenteId) && (abasDeTarefa.some((a) => a.agenteId === agenteId) || navegadorNaTela.abaAberta(agenteId));
+}
+/** ADR-190 (1c, item 1): o botão da tela no canto do cabeçalho, só com o navegador do bot (e só da dona). */
+function cantoDoNavegador(agenteId: string): string {
+  return botGerido(agenteId)?.ownerId === estado.sessao?.pessoaId ? navegadorNaTela.htmlBotaoDoCanto(agenteId) : "";
 }
 /** A aba com o nome em edição (duplo clique, F2 ou "Renomear"): o campo é redesenhado com o texto e o cursor de agora. */
 let renomeandoAba: { id: string; texto: string; inicio: number | null; fim: number | null } | null = null;
@@ -1267,6 +1273,47 @@ const quadroCompartilhado = criarQuadroCompartilhadoNaTela(document, {
   hora: horaDaFala,
   aoSair: () => navegar({ tipo: "inicio" }),
   aoPerderAcesso: (qid) => { compartilhados = compartilhados.filter((c) => c.id !== qid); render(); void lerCompartilhados(); },
+});
+/**
+ * ADR-190 (Paper "Navegador, computador e seu Mac"): a vista do navegador do bot no painel ao lado, na aba de lugar, na
+ * tela cheia e na folha do celular (web/telas/navegador.ts). Vive fora do reducer (o canal ao vivo e os quadros); a vista
+ * em si vem de `estado.navegadores` (o REST e o `navegador.mudou`).
+ */
+const navegadorNaTela = criarNavegadorNaTela({
+  api: () => api,
+  nome: (id) => botGerido(id)?.nome ?? "o bot",
+  temComputador: () => estado.computadorPessoa !== null && estado.computadorPessoa !== undefined,
+  abrirComputador: (id) => { const el = document.createElement("button"); el.dataset.id = id; void ACOES["abrir-computador"]?.(el); },
+  lerVista: (id) => {
+    const sessao = api;
+    if (!sessao) return;
+    void sessao.navegador(id)
+      .then((navegador) => dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador }))
+      .catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador: null }); });
+  },
+  guardarVista: (id, r) => { if (estado.navegadores[id] !== r) dispatch({ tipo: "hidratar-navegador", agenteId: id, navegador: r }); },
+  decidir: async (decisaoId, aprovar, sempre) => {
+    await decidirAprovacaoReconciliando(decisaoId, aprovar ? (sempre ? { sempre: true } : {}) : { recusar: true });
+    dispatch({ tipo: "invalidar", quais: ["sua-vez"] });
+  },
+  mandarRecado: async (id, texto) => {
+    const bot = botGerido(id);
+    if (!api || !bot?.conversaId) return;
+    await api.enviar(bot.conversaId, texto);
+    dispatch({ tipo: "invalidar", quais: [`conversa:${bot.conversaId}`] });
+  },
+  abrirLogins: () => abrirEspaco("cofre"),
+  abrirFora: (url) => {
+    const desk = (window as { nodDesktop?: { abrirNoNavegador?: (u: string) => void } }).nodDesktop;
+    if (desk?.abrirNoNavegador) desk.abrirNoNavegador(url);
+    else window.open(url, "_blank", "noopener,noreferrer");
+  },
+  aoErro: (e) => mostrarErro(e),
+  modoAbas: (id) => modoAbas.has(id),
+  ligarModoAbas: (id) => guardarModoAbas(id, true),
+  render: () => render(),
+  pessoaId: () => estado.sessao?.pessoaId ?? null,
+  celular: () => ehCelular(),
 });
 /** Tela 18d do Paper: a página Tarefas de todos os bots (a linha "Tarefas" da barra abre `{ tipo: "tarefas" }`). */
 const tarefasDeTodos = criarTarefasDeTodosNaTela(document, {
@@ -3455,11 +3502,11 @@ function renderPrincipal(): void {
       // Paper 10b e 10c A: no modo abas a Conversa também tem a fileira, começando pela pílula; no modo pílula, a pílula de
       // sempre com o botão de abas ao lado (quando há tarefas).
       if (fileiraNaConversa(t.agenteId)) {
-        cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null, true)(botaoDoPainel(botGerido(t.agenteId)?.nome ?? "agente"))}</div>`;
+        cabecalho = `<div class="tk-topo tk-topo-abas">${fileiraDeAbas(t.agenteId, null, true)((navegadorNaTela.abaAberta(t.agenteId) ? "" : cantoDoNavegador(t.agenteId)) + botaoDoPainel(botGerido(t.agenteId)?.nome ?? "agente"))}</div>`;
         comAbas = true;
       } else {
         guardarModoAbas(t.agenteId, false);
-        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId) ?? "" });
+        cabecalho = renderCabecalhoConversa(estado, t.agenteId, { ...opcoesDaCapsula(t.agenteId), depoisDaPilula: botaoDeAbas(estado, abasDeTarefa, t.agenteId) ?? "" }) + cantoDoNavegador(t.agenteId);
       }
       partes = partesDaTimeline();
       {
@@ -3487,6 +3534,7 @@ function renderPrincipal(): void {
   document.querySelector(".app")?.classList.toggle("detalhes-ocultos", painelOculto());
   const donoDaTela = t.tipo === "conversa" && botGerido(t.agenteId)?.ownerId === estado.sessao?.pessoaId;
   definirTelaDoBot(donoDaTela ? api : null, donoDaTela && t.tipo === "conversa" ? t.agenteId : null);
+  navegadorNaTela.sincronizar({ agenteId: donoDaTela && t.tipo === "conversa" ? t.agenteId : null, navegadores: estado.navegadores });
   // ADR-094: um cabeçalho só. No celular o ☰ da gaveta de bots entra no próprio cabeçalho da tela; tela sem cabeçalho
   // ganha uma faixa só com ele (`so-menu`, que no computador não aparece).
   // NOD-42: a busca é da tela em que abriu (fecha ANTES do render: o "buscando" sai do cabeçalho junto). Aberta, o
@@ -5218,11 +5266,14 @@ function opcoesDaCapsula(agenteId: string): { comQuadro: boolean; paginas: Retur
  * e o painel no fim; numa tarefa, a pílula simples, que volta para a conversa.
  */
 function fileiraDeAbas(agenteId: string, ativa: string | null, naConversa = false): (fim: string) => string {
-  const pilula = naConversa
+  // ADR-190 (D7): com a aba de lugar à vista, a pílula fica apagada e volta para a conversa (como numa tarefa).
+  const lugarAVista = naConversa && navegadorNaTela.abaAtiva(agenteId);
+  const pilula = naConversa && !lugarAVista
     ? { html: renderCabecalhoConversa(estado, agenteId, { ...opcoesDaCapsula(agenteId), painel: false }), conversaAtiva: true, botaoDeAbas: botaoDeAbas(estado, abasDeTarefa, agenteId) ?? "" }
     : { html: renderCabecalhoConversa(estado, agenteId, { painel: false, irParaConversa: true }), conversaAtiva: false };
+  const lugares = navegadorNaTela.abaNaFileira(agenteId) ?? undefined;
   return (fim) => renderFileiraDeAbas(estado, {
-    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula, menuAberto: abaComMenu,
+    agenteId, ativa, abas: abasDeTarefa, fim, titulos: titulosDasAbas, pilula, menuAberto: abaComMenu, ...(lugares ? { lugares } : {}),
     renomeando: renomeandoAba && renomeandoAba.id === ativa ? renomeandoAba : null,
     novaTarefa: botAceitaTarefa(estado, agenteId) ? { texto: ATALHO_NOVA_TAREFA.texto, aria: ATALHO_NOVA_TAREFA.aria } : null,
   });
@@ -8947,7 +8998,17 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   },
   "menu-aba-tarefa": (el) => abrirMenuDaAba(el.dataset.id ?? "", el.closest<HTMLElement>(".at-aba") ?? el),
   "fechar-aba-tarefa": (el) => fecharAbaDeTarefa(el.dataset.id ?? ""),
-  "aba-conversa": (el) => voltarParaAConversa(el.dataset.agente ?? ""),
+  "aba-conversa": (el) => {
+    // ADR-190 (D7): da aba de lugar, a pílula volta para a conversa do mesmo bot (a aba fica na fileira).
+    const id = el.dataset.agente ?? "";
+    if (navegadorNaTela.abaAtiva(id)) { navegadorNaTela.desativarAba(id); render(); return; }
+    voltarParaAConversa(id);
+  },
+  // ADR-190: o navegador do bot — o "Ver" da linha de atividade, o botão do canto e a aba de lugar (D7).
+  "navegador-ver": (el) => navegadorNaTela.ver(el.dataset.agente ?? ""),
+  "navegador-alternar": (el) => navegadorNaTela.alternar(el.dataset.agente ?? ""),
+  "navegador-aba": (el) => navegadorNaTela.mostrarAba(el.dataset.agente ?? ""),
+  "navegador-fechar-aba": (el) => navegadorNaTela.fecharAba(el.dataset.agente ?? ""),
   "mostrar-em-abas": (el) => mostrarEmAbas(el.dataset.agente ?? ""),
   "fechar-abas": (el) => fecharAbas(el.dataset.agente ?? ""),
   "abas-outras": (el) => abrirMenuDasOutras(el.dataset.agente ?? "", el),

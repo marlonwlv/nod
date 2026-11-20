@@ -39,6 +39,11 @@ export type FileiraDeAbas = {
   pilula?: { html: string; conversaAtiva: boolean; botaoDeAbas?: string };
   /** A aba com o menu aberto: o chevron dela fica à vista (validação de 2026-11-18). */
   menuAberto?: string | null;
+  /**
+   * ADR-190 (Paper D7): a aba de lugar (o navegador do bot), depois da conversa e das tarefas; com o bot precisando da
+   * pessoa (`frente`) ela passa à frente das tarefas. O HTML vem de web/lib/navegador-vista.ts (htmlAbaDeLugar).
+   */
+  lugares?: { html: string; frente: boolean; ativa?: boolean };
 };
 
 // Paper 4p: seta ‹ de 12 (traço 1,4), seta ⌄ de 10 (traço 1,3), "+" de 14 (traço 1,5) e o quadrado da parada (o do Parar).
@@ -119,7 +124,7 @@ export function renderFileiraDeAbas(estado: Estado, f: FileiraDeAbas): string {
     ? `<div class="at-pilula${f.pilula.conversaAtiva ? " ativa" : ""}">${f.pilula.html}${f.pilula.botaoDeAbas ?? ""}</div>${traco}`
     : `<button type="button" class="at-conversa" data-act="aba-conversa" data-agente="${esc(f.agenteId)}" aria-label="Voltar para a conversa com ${esc(nomeDoBot)}">${SETA_VOLTAR}<span>Conversa</span></button>${traco}`;
   const abas = aVista.map((a) => htmlDaAba(estado, a, a.id === f.ativa, f)).join("");
-  const nova = f.ativa === null && !f.pilula?.conversaAtiva ?'<div class="at-aba ativa at-nova"><span class="at-ir" aria-current="page"><span class="at-titulo">Nova tarefa</span></span></div>' : "";
+  const nova = f.ativa === null && !f.pilula?.conversaAtiva && !f.lugares?.ativa ?'<div class="at-aba ativa at-nova"><span class="at-ir" aria-current="page"><span class="at-titulo">Nova tarefa</span></span></div>' : "";
   // Paper 10b (3b): se uma escondida precisa da pessoa (mais delas do que cabem), "N outras" ganha o ponto.
   const outraPrecisa = outras.some((t) => precisaDaPessoa(estado, t.id));
   const maisOutras = outras.length
@@ -130,7 +135,9 @@ export function renderFileiraDeAbas(estado: Estado, f: FileiraDeAbas): string {
     : "";
   // Paper 10b: "Fechar abas" é o único jeito de sair do modo abas (e Esc com o foco na fileira); não para nenhuma tarefa.
   const fechar = f.pilula ? `<button type="button" class="at-fechar-abas" data-act="fechar-abas" data-agente="${esc(f.agenteId)}" title="Volta para a pílula; as tarefas continuam">${XIS}<span>Fechar abas</span></button>` : "";
-  return `<nav class="abas-tarefa${f.pilula ? " abas-com-pilula" : ""}" aria-label="Tarefas abertas de ${esc(nomeDoBot)}">${conversa}${abas}${nova}${maisOutras}${mais}<span class="at-espaco"></span>${fechar}${f.fim ? `<span class="at-fim">${f.fim}</span>` : ""}</nav>`;
+  const lugarFrente = f.lugares?.frente ? f.lugares.html : "";
+  const lugarFim = f.lugares && !f.lugares.frente ? f.lugares.html : "";
+  return `<nav class="abas-tarefa${f.pilula ? " abas-com-pilula" : ""}" aria-label="Tarefas abertas de ${esc(nomeDoBot)}">${conversa}${lugarFrente}${abas}${lugarFim}${nova}${maisOutras}${mais}<span class="at-espaco"></span>${fechar}${f.fim ? `<span class="at-fim">${f.fim}</span>` : ""}</nav>`;
 }
 
 /**

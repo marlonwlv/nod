@@ -37,6 +37,7 @@ import { htmlCartaoTela, htmlLinhaSenhaSalva, motivoDoPedidoDeTela } from "../li
 import { htmlLinhaTelaFechada, htmlPedidoDeTela } from "../lib/computador-pessoa.ts";
 import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDoComputador } from "../lib/computador-conversa.ts";
 import { htmlLinhaDoLugarDoNavegador } from "../lib/navegador-conversa.ts";
+import { htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../lib/navegador-vista.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
@@ -1708,6 +1709,7 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
     ...paradas((s) => !vivosIds.has(s.turno.turnoId)),
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
     { chave: "computador", html: linhaDoComputador(c, estado) },
+    { chave: "navegador", html: linhaDoNavegador(c, estado) },
     { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
   return blocos.filter((b) => b.html !== "");
@@ -1732,6 +1734,20 @@ function linhaDoComputador(c: ConversaEstado, estado: Estado): string {
   // O erro só aparece no chat de quem estava usando ou esperando o computador.
   if (falha) return dto.telas.some((t) => t.agenteId === id) || mem.esperas[id] ? falha : "";
   return mem.fechadas?.agentes.includes(id) && dto.operacao ? htmlLinhaTelaFechada(mem.fechadas.tipo, nomes[id] ?? "o bot") : "";
+}
+
+/**
+ * ADR-190 (Paper, linha 1, 1c, item 2): "● Navegador da Ada · Google Voos · lendo os voos diretos · Ver" embaixo do turno,
+ * enquanto o bot usa o navegador (ou precisa da pessoa nele). "Ver" abre o painel; no modo abas, a aba de lugar. Só no chat
+ * de um bot da pessoa e só com a vista já lida (`estado.navegadores`).
+ */
+function linhaDoNavegador(c: ConversaEstado, estado: Estado): string {
+  const id = c.conversa.agenteId;
+  if (!id) return "";
+  const a = agenteDe(estado, id);
+  const r = estado.navegadores[id];
+  if (!a || a.ownerId !== estado.sessao?.pessoaId || !r || !linhaDoNavegadorVisivel(r.vista, estado.agora || Date.now())) return "";
+  return htmlLinhaDoNavegador(a.nome, id, r.vista, { modoAbas: false });
 }
 
 export function renderHistoricoDaTimeline(c: ConversaEstado, estado: Estado): string {

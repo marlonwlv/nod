@@ -1,0 +1,321 @@
+/*
+ * O navegador do bot (ADR-190; Paper "Navegador, computador e seu Mac", linhas 1, 5 e 1+5, detalhes D1–D8).
+ * A vista (web/telas/navegador-vista.ts), o painel, a aba, a tela cheia e a folha do celular (web/telas/navegador.ts).
+ * Medidas do Paper (get_computed_styles): painel com padding 12/16/16 e gap 12; lugares em pílula de 3 px; o cartão do
+ * navegador com raio 14 e borda fina; abas do Chrome de 12 px com 7/12 e raio 9 em cima; endereço 12 px em 5/10 raio 8;
+ * a faixa de 52 px com a pílula de 248 px (a mesma .ctc-controle da tela cheia do computador). Só tokens.
+ */
+
+@property --nv-largura { syntax: "<length>"; inherits: true; initial-value: 0px; }
+
+/* ---------- A coluna do painel (D5, D6 A): a conversa encolhe junto quando ele abre ---------- */
+.nv-painel[hidden] { display: none; }
+.app.nv-lado:not(.sem-sessao):not(#nv-nenhum) { grid-template-columns: var(--largura-barra, 340px) minmax(0, 1fr) var(--nv-largura, 0px); }
+.app.nv-lado:not(#nv-nenhum) > .detalhes { display: none; }
+.app.nv-lado.nv-animando:not(#nv-nenhum) { transition: --nv-largura var(--nv-dur, 260ms) var(--curva); }
+.app.nv-lado.nv-animando.nv-fechando:not(#nv-nenhum) { transition-timing-function: var(--curva-saida); }
+.app.nv-lado > .nv-painel { grid-column: 3; grid-row: 1; }
+.nv-painel {
+  position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; height: 100%;
+  padding: 12px 16px 0; box-sizing: border-box; background: var(--surface); border-left: 1px solid var(--borda-sutil); overflow: hidden;
+}
+/* D6 B: 900–1179 px, o painel cobre a conversa com sombra; clicar na conversa recolhe. */
+.nv-painel.nv-cobrindo { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; width: var(--nv-largura, 480px); max-width: 100vw; box-shadow: var(--sombra-modal); }
+
+/* ---------- A alça de largura (D5): parado só a linha; hover pega 4 px ↔; arrastando linha azul + selo % ---------- */
+.nv-alca { position: absolute; left: -3px; top: 0; bottom: 0; z-index: 3; width: 8px; cursor: col-resize; touch-action: none; }
+.nv-alca:focus:not(:focus-visible) { outline: none; }
+.nv-alca-linha { position: absolute; left: 3px; top: 0; bottom: 0; width: 1px; background: transparent; transition: background var(--dur-rapido) var(--curva-padrao); }
+.nv-alca:hover .nv-alca-linha, .nv-alca:focus-visible .nv-alca-linha { width: 2px; left: 2px; background: var(--borda-forte); }
+.nv-painel.arrastando .nv-alca-linha { width: 2px; left: 2px; background: var(--nv-precisa); }
+.nv-painel.soltar-fecha .nv-alca-linha { background: var(--danger); }
+.nv-alca-selo { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); padding: 2px 8px; border-radius: var(--raio-6); background: var(--action); color: var(--on-action); font-size: var(--fs-legenda); line-height: var(--lh-legenda); white-space: nowrap; pointer-events: none; }
+.nv-alca-selo[hidden] { display: none; }
+.nv-cobrindo .nv-alca { display: none; }
+html.nv-arrastando, html.nv-arrastando * { cursor: col-resize !important; user-select: none; }
+
+/* ---------- O topo: lugares e ações (D1, 1 e 2) ---------- */
+.nv-topo { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 36px; }
+.nv-lugares { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; gap: 2px; border-radius: var(--raio-full); background: var(--hover); min-width: 0; }
+/* D8: a pílula branca desliza até o lugar ativo (180 ms). */
+.nv-lugar-fundo { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px - (var(--nv-n) - 1) * 2px) / var(--nv-n)); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle); transform: translateX(calc(var(--nv-i) * (100% + 2px))); transition: transform 180ms var(--curva); }
+.nv-lugar-bt { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 12px; margin: 0; border: 0; border-radius: var(--raio-full); background: none; font: inherit; font-size: var(--fs-corpo-2); line-height: 16px; color: var(--ink-2); white-space: nowrap; cursor: pointer; }
+.nv-lugar-bt.ativo { color: var(--ink); }
+.nv-lugar-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.nv-lugar-ponto { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--nv-vivo); }
+.nv-lugar-ponto[data-ponto="precisa"] { background: var(--nv-precisa); animation: nv-cresce 400ms var(--curva) 1; }
+.nv-acoes { display: flex; align-items: center; gap: 2px; flex: none; }
+.nv-ic { display: grid; place-items: center; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: var(--raio-8); background: none; color: var(--ink-2); cursor: pointer; }
+.nv-ic:hover { background: var(--hover); color: var(--ink); }
+.nv-ic:focus-visible, .nv-bt-texto:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.nv-bt-texto { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; margin: 0; border: 1px solid var(--borda); border-radius: var(--raio-full); background: var(--surface-elevated); font: inherit; font-size: var(--fs-corpo-2); color: var(--ink); cursor: pointer; }
+.nv-bt-texto:hover { background: var(--hover); }
+.nv-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* ---------- A vista (D1, 3–6; D1d) ---------- */
+.nv-vista { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.nv-legenda { flex: none; margin: 0; padding: 0 0 10px; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nv-legenda[hidden] { display: none; }
+.nv-aviso-lugar:empty { display: none; }
+/* D2, D: a faixa fina entre o cabeçalho e a vista (a vista encolhe enquanto ela está lá). */
+.nv-aviso-site { display: flex; align-items: center; gap: 8px; min-height: 36px; margin: 0 0 8px; padding: 6px 6px 6px 14px; box-sizing: border-box; border-radius: var(--raio-10); background: var(--surface-raised); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink-2); animation: nv-sobe 200ms var(--curva) both; }
+.nv-aviso-site b { flex: none; font-weight: var(--peso-medio); color: var(--ink); }
+.nv-aviso-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nv-aviso-site[data-tipo="download"] { background: var(--nv-vivo-soft); }
+.nv-aviso-site[data-tipo="download"] :is(b, .nv-aviso-txt, .nv-aviso-acao) { color: var(--nv-vivo); }
+.nv-aviso-site[data-tipo="precisa_de_voce"] { background: var(--nv-precisa-soft); }
+.nv-aviso-site[data-tipo="precisa_de_voce"] :is(b, .nv-aviso-txt, .nv-aviso-acao) { color: var(--nv-precisa); }
+.nv-aviso-acao { flex: none; height: 26px; padding: 0 8px; margin: 0; border: 0; border-radius: var(--raio-6); background: none; font: inherit; font-weight: var(--peso-medio); color: var(--ink); cursor: pointer; }
+.nv-aviso-acao:hover { background: var(--hover); }
+.nv-aviso-acao:focus-visible { outline: 2px solid var(--focus-ring); }
+
+/* O cartão do navegador: raio 14, borda fina; no controle 2 px preta; precisa de você 2 px azul (D3, 8 e 9; D8: 180 ms). */
+.nv-moldura { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; border-radius: var(--raio-14); background: var(--surface-elevated); box-shadow: 0 0 0 1px var(--line); overflow: hidden; transition: box-shadow 180ms var(--curva); }
+.nv-moldura[data-controle="pessoa"] { box-shadow: 0 0 0 2px var(--action); }
+.nv-moldura[data-controle="precisa"] { box-shadow: 0 0 0 2px var(--nv-precisa); }
+
+/* A barra do Chrome (D2, A e B). */
+.nv-barra { flex: none; }
+.nv-barra[hidden] { display: none; }
+.nv-abas { display: flex; align-items: flex-end; gap: 6px; padding: 8px 12px 0; background: var(--nv-barra-fundo); overflow: hidden; }
+.nv-aba { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 180px; padding: 7px 12px; margin: 0; border: 0; border-radius: 9px 9px 0 0; background: none; font: inherit; font-size: var(--fs-rotulo); line-height: 16px; color: var(--ink-3); cursor: default; }
+.nv-aba.ativa { background: var(--surface-elevated); color: var(--ink); }
+.nv-aba:not([aria-disabled]) { cursor: pointer; }
+.nv-aba:not([aria-disabled]):not(.ativa):hover { background: var(--hover); }
+.nv-aba:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.nv-aba-titulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nv-favicon { display: grid; place-items: center; flex: none; width: 14px; height: 14px; border-radius: var(--raio-4); background: hsl(var(--nv-matiz, 220) 62% 52%); color: var(--on-signal); font-size: 9px; line-height: 1; font-weight: var(--peso-forte); } /* cor-fixa: a matiz vem do domínio; branco sobre ela nos dois temas */
+.nv-favicon-giro { background: none; border: 1.5px solid var(--borda); border-top-color: var(--ink-2); border-radius: 50%; box-sizing: border-box; animation: nv-gira .8s linear infinite; }
+.nv-aba-cursor { flex: none; color: var(--nv-cursor); }
+.nv-aba-ponto { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--nv-precisa); }
+.nv-aba-mais { flex: none; padding: 7px 6px; font-size: var(--fs-rotulo); line-height: 16px; color: var(--ink-3); }
+.nv-linha-endereco { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--surface-elevated); border-bottom: 1px solid var(--divisoria); }
+.nv-seta { display: grid; place-items: center; flex: none; width: 24px; height: 24px; margin: 0; padding: 0; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-4); }
+button.nv-seta { color: var(--ink-2); cursor: pointer; }
+button.nv-seta:hover { background: var(--hover); color: var(--ink); }
+button.nv-seta:focus-visible { outline: 2px solid var(--focus-ring); }
+.nv-endereco { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 5px; height: 26px; padding: 0 10px; margin: 0; box-sizing: border-box; border-radius: var(--raio-8); background: var(--nv-endereco); font-size: var(--fs-rotulo); line-height: 16px; white-space: nowrap; overflow: hidden; }
+.nv-dominio { color: var(--ink); }
+.nv-resto { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
+.nv-cadeado { flex: none; color: var(--ink-3); }
+.nv-inseguro { flex: none; color: var(--danger); }
+.nv-endereco-campo { justify-content: stretch; padding: 0; background: none; }
+/* foco-ok: o campo só existe no controle e o foco é a borda de 2 px (no alto contraste ela vira CanvasText) */
+.nv-endereco-input { width: 100%; height: 28px; padding: 0 10px; margin: 0; box-sizing: border-box; border: 2px solid var(--action); border-radius: var(--raio-8); background: var(--surface-elevated); font: inherit; font-size: var(--fs-rotulo); color: var(--ink); outline: none; }
+.nv-lugar { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-legenda); line-height: var(--lh-legenda); color: var(--ink-3); white-space: nowrap; }
+
+/* A linha de carregamento de 2 px em cima da vista (D2, B): avança; ao terminar completa e some em 200 ms. */
+.nv-carregando { position: relative; flex: none; height: 0; z-index: 2; }
+.nv-carregando i { position: absolute; left: 0; top: 0; height: 2px; width: 0; background: var(--nv-vivo); opacity: 0; }
+.nv-carregando[data-fase="andando"] i { opacity: 1; animation: nv-carrega 6s cubic-bezier(.1, .7, .3, 1) forwards; }
+.nv-carregando[data-fase="completo"] i { width: 100%; opacity: 0; transition: width 120ms ease-out, opacity 200ms ease-in 80ms; }
+
+/* O palco: a imagem 16:10 do site com o letterbox claro (nunca preto) no que sobra (D1, 4). */
+.nv-palco { position: relative; flex: 1; min-height: 120px; background: var(--nv-letterbox); overflow: hidden; touch-action: none; }
+.nv-palco:focus:not(:focus-visible) { outline: none; }
+.nv-palco[data-controle="pessoa"] { cursor: default; }
+.nv-palco[data-controle="pessoa"]:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-ring); }
+.nv-quadro { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: top; user-select: none; -webkit-user-drag: none; transition: opacity 200ms var(--curva-padrao), filter 200ms var(--curva-padrao); }
+.nv-quadro[hidden] { display: none; }
+.nv-vista[data-estado="terminou"] .nv-quadro { opacity: .55; filter: saturate(.6); }
+.nv-teclado { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; pointer-events: none; }
+
+/* O que o bot faz por cima da imagem (D2, C): o cursor com o nome, o anel no alvo, a ondinha e a rolagem. Só isso. */
+.nv-camada { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.nv-camada [hidden] { display: none; }
+.nv-cursor { position: absolute; left: 0; top: 0; will-change: transform; }
+.nv-cursor-y { display: flex; align-items: flex-start; gap: 2px; color: var(--nv-cursor); transition-property: transform; }
+.nv-cursor-y svg { flex: none; margin: -2px 0 0 -2px; filter: drop-shadow(0 1px 1px var(--borda)); }
+.nv-cursor-nome { margin-top: 8px; padding: 2px 7px; border-radius: var(--raio-full); background: var(--nv-cursor); color: var(--nv-cursor-tinta); font-size: var(--fs-legenda); line-height: 14px; font-weight: var(--peso-medio); white-space: nowrap; }
+.nv-cursor.esmaecido { opacity: .4; transition: opacity 180ms; }
+.nv-anel { position: absolute; border-radius: var(--raio-10); box-shadow: 0 0 0 2px var(--nv-vivo); background: color-mix(in srgb, var(--nv-vivo) 6%, transparent); animation: nv-anel 150ms var(--curva) both; }
+.nv-ondinha { position: absolute; width: 0; height: 0; margin: 0; border-radius: 50%; background: color-mix(in srgb, var(--nv-cursor) 35%, transparent); transform: translate(-50%, -50%); }
+.nv-ondinha.tocando { animation: nv-ondinha 300ms ease-out forwards; }
+.nv-realce { position: absolute; border-radius: var(--raio-8); box-shadow: 0 0 0 2px var(--nv-precisa), 0 0 0 6px color-mix(in srgb, var(--nv-precisa) 18%, transparent); }
+.nv-rolar { position: absolute; right: 3px; top: 30%; width: 4px; height: 22%; border-radius: var(--raio-full); background: var(--nv-cursor); opacity: .85; }
+
+/* A dica "Assumir para mexer" perto do cursor, 2 s (D4, A). Fica no palco, não na imagem: some sozinha. */
+.nv-dica-assumir { position: absolute; z-index: 3; padding: 4px 10px; border-radius: var(--raio-full); background: var(--action); color: var(--on-action); font-size: var(--fs-rotulo); line-height: 16px; white-space: nowrap; pointer-events: none; animation: nv-sobe 150ms var(--curva) both; }
+.nv-dica-assumir[hidden] { display: none; }
+
+/* Os estados (D3): nunca tela preta; nunca rodinha sem texto; todo parado tem botão. */
+.nv-estado-lugar:empty { display: none; }
+.nv-estado-lugar { position: absolute; inset: 0; z-index: 2; }
+.nv-estado { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; box-sizing: border-box; text-align: center; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); color: var(--ink); background: var(--surface-raised); }
+.nv-estado b { font-weight: var(--peso-regular); }
+.nv-estado-sub { font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.nv-estado-ic { color: var(--ink-3); }
+.nv-estado-bt { height: 32px; padding: 0 14px; margin: 0; border: 1px solid var(--borda); border-radius: var(--raio-full); background: var(--surface-elevated); font: inherit; font-size: var(--fs-corpo-2); color: var(--ink); cursor: pointer; }
+.nv-estado-bt:hover { background: var(--surface-raised); }
+.nv-estado-bt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.nv-estado-conectando { align-items: stretch; justify-content: space-between; padding: 18px 18px 14px; text-align: left; }
+.nv-esq { display: flex; flex-direction: column; gap: 10px; }
+.nv-esq i { display: block; height: 12px; border-radius: var(--raio-6); background: var(--hover); }
+.nv-esq i:nth-child(1) { width: 52%; } .nv-esq i:nth-child(2) { width: 74%; } .nv-esq i:nth-child(3) { width: 36%; }
+.nv-estado-ligando { background: var(--nv-lilas); }
+.nv-estado-erro { background: var(--danger-soft); }
+.nv-estado-erro b { font-weight: var(--peso-medio); color: var(--danger); }
+.nv-estado-erro .nv-estado-sub { color: var(--danger); }
+.nv-estado-segredo { background: var(--nv-vivo-soft); }
+.nv-estado-segredo b, .nv-estado-segredo .nv-estado-ic { color: var(--nv-vivo); }
+/* Terminou: o último quadro esmaecido e o selo embaixo, à esquerda (D3, 5). */
+.nv-estado-terminou { justify-content: flex-end; align-items: flex-start; background: none; pointer-events: none; }
+.nv-selo-fim { padding: 4px 10px; border-radius: var(--raio-full); background: var(--action); color: var(--on-action); font-size: var(--fs-rotulo); line-height: 16px; }
+.nv-giro { display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; border: 1.6px solid var(--borda); border-top-color: var(--ink-2); border-radius: 50%; animation: nv-gira .8s linear infinite; }
+.nv-estado-ligando .nv-giro { width: 22px; height: 22px; border-top-color: var(--nv-cursor); }
+
+/* A faixa de 52 px com a pílula (D1d): nada do nod cobre a vista; a janela baixa encolhe a vista antes da faixa. */
+.nv-faixa { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; }
+.nv-pilula-lugar:empty { display: none; }
+.nv-pilula { transition: width 180ms var(--curva); }
+.nv-pilula .ctc-estado span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.nv-pilula[data-estado="controle"] { width: auto; }
+.nv-pilula[data-estado="login"], .nv-pilula[data-estado="aprovacao"] { width: auto; gap: 12px; max-width: 100%; }
+.nv-pergunta { min-width: 0; max-width: 260px; }
+.nv-pergunta > span { overflow: hidden; text-overflow: ellipsis; }
+.nv-precisa-txt { color: var(--nv-precisa); }
+.ctc-controle .nv-ponto-precisa { background: var(--nv-precisa); }
+.nv-pronto { background: var(--nv-precisa); color: var(--on-signal); }
+.nv-pronto:hover { filter: brightness(1.08); }
+.nv-teclado-bt { height: 36px; padding: 0 12px; border: 1px solid var(--borda); border-radius: var(--raio-full); background: var(--surface-elevated); font: inherit; font-size: var(--fs-corpo-2); color: var(--ink); }
+.nv-teclado-bt[hidden] { display: none; }
+
+/* ---------- A aba (modo abas, D7; C2): a vista no lugar da conversa ---------- */
+.app.nv-aba-ativa:not(#nv-nenhum) .stage > :is(#timeline, #pilula-novas, #faixa-trabalhos) { display: none; }
+.nv-painel.nv-em-aba { flex: 1; min-height: 0; height: auto; padding: 12px 32px 0; border-left: 0; gap: 0; }
+.nv-em-aba .nv-alca { display: none; }
+.nv-em-aba .nv-topo { position: absolute; top: 8px; right: 32px; z-index: 2; height: 32px; }
+.nv-em-aba .nv-legenda { height: 32px; line-height: 32px; padding: 0 0 8px; padding-right: 320px; }
+.nv-topo-aba { display: flex; align-items: center; gap: 6px; }
+/* A aba de lugar na fileira: ponto verde parado, azul que cresce uma vez, mãozinha, parada sem ponto, "!" vermelho. */
+.abas-tarefa .nv-aba-lugar .at-ir svg:first-child { flex: none; color: var(--ink-2); }
+.abas-tarefa .nv-aba-lugar .at-titulo { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* No modo abas o botão do canto entra na fileira, antes do painel (não fica solto no topo). */
+.cabecalho-pilula .abas-tarefa .nv-canto, .tk-topo .nv-canto { position: static; }
+.nv-aba-lugar-ponto { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--nv-vivo); }
+.nv-aba-lugar-ponto[data-ponto="precisa"] { background: var(--nv-precisa); animation: nv-cresce 400ms var(--curva) 1; }
+.nv-aba-lugar[data-estado="parada"] .at-titulo { color: var(--ink-3); }
+.nv-aba-lugar-erro { flex: none; font-weight: var(--peso-forte); color: var(--danger); }
+.nv-aba-mao { flex: none; color: var(--ink); }
+.nv-dica-aba { position: fixed; z-index: 70; max-width: 320px; padding: 4px 8px; border-radius: var(--raio-6); background: var(--action); color: var(--on-action); font-size: var(--fs-rotulo); line-height: 16px; pointer-events: none; }
+
+/* ---------- O botão da tela no canto do cabeçalho (1c, item 1) e a linha de atividade (1c, item 2) ---------- */
+.cabecalho-pilula .nv-canto { position: absolute; right: 56px; top: 12px; }
+.nv-canto { display: inline-flex; align-items: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 8px; margin: 0; box-sizing: border-box; justify-content: center; border: 1px solid var(--borda-sutil); border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-controle); font: inherit; font-size: var(--fs-corpo-2); color: var(--ink-2); cursor: pointer; }
+.nv-canto.com-texto { padding: 0 12px 0 10px; color: var(--ink); }
+.nv-canto:hover { background: var(--surface-raised); }
+.nv-canto.aberto { background: var(--ativo); box-shadow: none; }
+.nv-canto:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+/* D8: o ponto ao vivo respira 100 % → 45 % em 2 s só aqui (parado nas abas e nas linhas). */
+.nv-canto-ponto { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--nv-vivo); animation: nv-respira 2s ease-in-out infinite; }
+.nv-canto-ponto[data-ponto="precisa"] { background: var(--nv-precisa); animation: nv-cresce 400ms var(--curva) 1; }
+.nv-linha { display: flex; align-items: center; gap: 12px; max-width: 560px; margin: 8px 0; padding: 10px 8px 10px 16px; box-sizing: border-box; border: 1px solid var(--borda-sutil); border-radius: var(--raio-12); background: var(--surface-elevated); animation: nv-sobe-6 200ms var(--curva) both; }
+.nv-linha-ponto { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--ink-4); }
+.nv-linha[data-ponto="vivo"] .nv-linha-ponto { background: var(--nv-vivo); }
+.nv-linha[data-ponto="precisa"] .nv-linha-ponto { background: var(--nv-precisa); }
+.nv-linha-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nv-linha-txt b { font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); font-weight: var(--peso-regular); color: var(--ink); }
+.nv-linha-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); color: var(--ink-3); }
+.nv-linha-ver { flex: none; height: 28px; padding: 0 10px; margin: 0; border: 0; border-radius: var(--raio-8); background: none; font: inherit; font-size: var(--fs-corpo-2); color: var(--ink-2); cursor: pointer; }
+.nv-linha-ver:hover { background: var(--hover); color: var(--ink); }
+.nv-linha-ver:focus-visible { outline: 2px solid var(--focus-ring); }
+
+/* ---------- O ⋯ e o clique direito (D1c, D7) ---------- */
+.nv-menu { position: fixed; z-index: 80; min-width: 240px; max-width: 320px; padding: 6px; box-sizing: border-box; border-radius: var(--raio-12); background: var(--surface-elevated); box-shadow: var(--sombra-menu); animation: nv-sobe 150ms var(--curva) both; }
+.nv-menu-corpo { display: flex; flex-direction: column; }
+.nv-menu-corpo > button, .nv-menu-bts > button { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; margin: 0; border: 0; border-radius: var(--raio-6); background: none; font: inherit; font-size: var(--fs-corpo-2); color: var(--ink); text-align: left; cursor: pointer; }
+.nv-menu-corpo > button:hover:not(:disabled), .nv-menu-corpo > button:focus-visible { background: var(--menu-realce); outline: none; }
+.nv-menu-corpo > button:disabled { color: var(--ink-4); cursor: default; }
+.nv-menu-corpo .danger, .nv-menu-bts .danger { color: var(--danger); }
+.nv-menu-corpo hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--separador-menu); }
+.nv-menu-dica { color: var(--ink-3); }
+.nv-menu-confirma p { display: flex; flex-direction: column; gap: 4px; margin: 6px 10px 10px; font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); }
+.nv-menu-confirma p span { color: var(--ink-3); font-size: var(--fs-rotulo); line-height: var(--lh-rotulo); }
+.nv-menu-bts { display: flex; justify-content: flex-end; gap: 4px; }
+.nv-menu-bts > button:hover, .nv-menu-bts > button:focus-visible { background: var(--menu-realce); outline: none; }
+
+/* ---------- O aviso com Desfazer (D4 E, D7; D8: sobe 8 px, 5 s, some em 200/150) ---------- */
+.nv-aviso { position: fixed; z-index: 75; left: 50%; bottom: 96px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 6px 6px 6px 16px; box-sizing: border-box; border-radius: var(--raio-full); background: var(--action); color: var(--on-action); font-size: var(--fs-corpo-2); line-height: var(--lh-corpo-2); box-shadow: var(--sombra-menu); animation: nv-aviso-sobe 200ms var(--curva) both; }
+.nv-aviso.saindo { animation: nv-aviso-some 150ms ease-in both; }
+.nv-aviso > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nv-aviso-desfazer { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; margin: 0; border: 0; border-radius: var(--raio-full); background: color-mix(in srgb, var(--on-action) 14%, transparent); font: inherit; color: var(--on-action); cursor: pointer; }
+.nv-aviso-desfazer kbd { font: inherit; font-size: var(--fs-legenda); opacity: .6; }
+.nv-aviso-desfazer:focus-visible { outline: 2px solid var(--on-action); }
+
+/* ---------- O lugar Computador no painel ---------- */
+.nv-computador { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-radius: var(--raio-14); box-shadow: 0 0 0 1px var(--line); background: var(--surface-raised); font-size: var(--fs-corpo-2); text-align: center; padding: 16px; }
+.nv-computador b { font-weight: var(--peso-regular); }
+
+/* ---------- A tela cheia (D1c): a mesma do computador, com o seletor no topo e o recado ---------- */
+dialog.nv-tc[open] { display: flex; flex-direction: column; }
+.nv-tc-topo { justify-content: space-between; gap: 12px; }
+.nv-tc-titulo { flex: 1 1 0; }
+.nv-tc-lugares { flex: none; display: flex; justify-content: center; }
+.nv-lugares-escuro { background: #ffffff14; } /* cor-fixa: sobre o #141414 da tela cheia */
+.nv-lugares-escuro .nv-lugar-bt { color: #ffffffa8; } /* cor-fixa: sobre o #141414 da tela cheia */
+.nv-lugares-escuro .nv-lugar-bt.ativo { color: #1c1c1c; } /* cor-fixa: sobre a pílula branca */
+.nv-lugares-escuro .nv-lugar-fundo { background: #ffffff; box-shadow: none; } /* cor-fixa: a pílula branca nos dois temas */
+.nv-tc-sair { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; height: 28px; padding: 0; margin: 0; border: 0; background: none; font: inherit; font-size: var(--fs-corpo-2); color: #ffffffd9; cursor: pointer; -webkit-app-region: no-drag; } /* cor-fixa: sobre o #141414 */
+.nv-tc-sair span { padding: 4px 10px; border-radius: var(--raio-full); background: #ffffff14; } /* cor-fixa: sobre o #141414 */
+.nv-tc-sair:hover span { background: #ffffff24; } /* cor-fixa: sobre o #141414 */
+.nv-tc-sair svg { display: none; }
+.nv-tc-sair:focus-visible { outline: 2px solid #4ea3f0; outline-offset: 2px; } /* cor-fixa: o --focus-ring do escuro */
+.nv-tc-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 8px; }
+.nv-tc .nv-vista { color-scheme: light; }
+.nv-tc .nv-moldura { border-radius: var(--raio-8); }
+.nv-tc .nv-aviso-site { margin: 0 0 8px; }
+.nv-recado { position: absolute; right: 16px; bottom: 8px; display: flex; align-items: center; gap: 6px; height: 36px; }
+.nv-recado-bt, .nv-recado-enviar { height: 32px; padding: 0 14px; margin: 0; border: 0; border-radius: var(--raio-full); background: #ffffff; font: inherit; font-size: var(--fs-corpo-2); color: #1c1c1c; cursor: pointer; } /* cor-fixa: botão branco sobre o #141414 */
+.nv-recado-bt[hidden], .nv-recado-form[hidden] { display: none; }
+.nv-recado-form { display: flex; gap: 6px; }
+/* foco-ok: o campo branco sobre o escuro; o anel de foco vem na regra de :focus-visible abaixo */
+.nv-recado-input { width: 260px; height: 32px; padding: 0 12px; box-sizing: border-box; border: 0; border-radius: var(--raio-full); background: #ffffff; font: inherit; font-size: var(--fs-corpo-2); color: #1c1c1c; outline: none; } /* cor-fixa: campo branco sobre o #141414 */
+.nv-recado-bt:focus-visible, .nv-recado-enviar:focus-visible, .nv-recado-input:focus-visible { outline: 2px solid #4ea3f0; outline-offset: 2px; } /* cor-fixa: o --focus-ring do escuro */
+
+/* ---------- A folha do celular (D6, C): meia, cheia, fechada; segue o dedo; solta com mola de 320 ms ---------- */
+.nv-folha { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: flex; flex-direction: column; height: var(--nv-folha-alto, 0px); max-height: 100dvh; box-sizing: border-box; padding: 0 12px env(safe-area-inset-bottom); border-radius: var(--raio-20) var(--raio-20) 0 0; background: var(--surface); box-shadow: var(--sombra-modal); overflow: hidden; transition: height 320ms cubic-bezier(.32, 1.2, .5, 1); }
+.nv-folha[hidden] { display: none; }
+.nv-folha.arrastando { transition: none; }
+.nv-folha[data-pos="cheia"] { border-radius: 0; padding-top: env(safe-area-inset-top); }
+.nv-folha-pega { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 10px; touch-action: none; }
+.nv-folha-alca { width: 36px; height: 5px; border-radius: var(--raio-full); background: var(--borda-forte); }
+.nv-folha-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+.nv-folha-topo .nv-lugar-bt { min-height: 44px; }
+.nv-folha-topo .nv-ic { width: 44px; height: 44px; }
+.nv-folha-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.nv-folha .nv-moldura { flex: none; }
+.nv-folha .nv-palco { flex: none; aspect-ratio: 16 / 10; min-height: 0; }
+.nv-folha .nv-faixa { height: auto; padding: 10px 0; }
+.nv-folha .nv-pilula .ctc-bt, .nv-folha .nv-estado-bt, .nv-folha .nv-teclado-bt { min-height: 44px; }
+.nv-folha .nv-pilula { height: 52px; }
+.nv-folha .nv-aba, .nv-folha button.nv-seta { min-height: 44px; }
+.nv-folha .nv-endereco-input { height: 44px; font-size: 16px; }
+
+/* ---------- Animações (D8: ≤ 320 ms, nenhuma bloqueia clique) ---------- */
+@keyframes nv-gira { to { transform: rotate(360deg); } }
+@keyframes nv-respira { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes nv-cresce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
+@keyframes nv-sobe { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes nv-sobe-6 { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes nv-anel { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: none; } }
+@keyframes nv-ondinha { from { width: 0; height: 0; opacity: 1; } to { width: 28px; height: 28px; opacity: 0; } }
+@keyframes nv-carrega { from { width: 0; } to { width: 85%; } }
+@keyframes nv-aviso-sobe { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes nv-aviso-some { to { opacity: 0; transform: translate(-50%, 4px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .app.nv-lado.nv-animando:not(#nv-nenhum) { transition: none; }
+  .nv-lugar-fundo, .nv-moldura, .nv-pilula, .nv-quadro, .nv-folha { transition: none; }
+  .nv-canto-ponto, .nv-lugar-ponto, .nv-aba-lugar-ponto, .nv-favicon-giro, .nv-giro, .nv-carregando[data-fase="andando"] i { animation: none; }
+  .nv-carregando[data-fase="andando"] i { width: 60%; }
+  .nv-anel, .nv-linha, .nv-aviso-site, .nv-menu, .nv-dica-assumir { animation-duration: 1ms; }
+  .nv-aviso { animation: nv-aviso-fade 120ms linear both; }
+  .nv-aviso.saindo { animation: nv-aviso-fade 100ms linear reverse both; }
+  @keyframes nv-aviso-fade { from { opacity: 0; } to { opacity: 1; } }
+}
+@media (forced-colors: active) {
+  .nv-alca:focus-visible, .nv-endereco-input:focus, .nv-palco:focus-visible, .nv-menu-corpo > button:focus-visible, .nv-menu-bts > button:focus-visible, .nv-recado-input:focus { outline: 2px solid Highlight; }
+  .nv-moldura, .nv-canto, .nv-linha, .nv-menu { outline: 1px solid CanvasText; }
+  .nv-moldura[data-controle="pessoa"], .nv-moldura[data-controle="precisa"] { outline: 2px solid Highlight; }
+  .nv-lugar-ponto, .nv-canto-ponto, .nv-aba-lugar-ponto, .nv-linha-ponto { forced-color-adjust: none; background: CanvasText; }
+}

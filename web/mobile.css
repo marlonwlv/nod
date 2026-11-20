@@ -901,3 +901,13 @@
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .cfg-chave.chave-emitida .bt { min-width: 44px; min-height: 44px; }
 }
+
+/* ADR-190 (D6, C): no celular o botão da tela do navegador vira só o ícone de 44 px, à esquerda da lupa (o nome do bot fica
+   inteiro no centro); a vista abre na folha de baixo (web/telas/navegador.ts). */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .cabecalho.cabecalho-pilula .nv-canto { position: absolute; right: calc(max(12px, env(safe-area-inset-right)) + 50px); top: calc(env(safe-area-inset-top) + 4px); width: 44px; height: 44px; min-width: 44px; padding: 0; }
+  .cabecalho.cabecalho-pilula .nv-canto .nv-canto-txt { display: none; }
+  .cabecalho.cabecalho-pilula .nv-canto .nv-canto-ponto { position: absolute; top: 9px; right: 9px; }
+  .cabecalho.buscando .nv-canto { display: none; }
+  .nv-linha-ver { min-width: 44px; min-height: 44px; }
+}
