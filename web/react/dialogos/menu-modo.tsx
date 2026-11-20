@@ -17,7 +17,9 @@ function comConfirmacao(html: string, nome: string): string {
   return t.innerHTML;
 }
 
-export function abrirMenuModoNoReact(doc: Document, ancora: HTMLElement, nome: string, atual: ModoAprovacao, escolher: (modo: ModoAprovacao, confirmado: boolean) => void, revisor = false): void {
+export function abrirMenuModoNoReact(doc: Document, ancora: HTMLElement, nome: string, atual: ModoAprovacao, escolher: (modo: ModoAprovacao, confirmado: boolean) => void, revisor = false,
+  /** O relógio do clique apressado (o teste do Chrome o controla; no app, o `performance.now`). */
+  agora: () => number = () => performance.now()): void {
   const base = renderMenuModo(nome, atual, revisor);
   let confirmando = false;
   let abriuEm = 0;
@@ -34,7 +36,7 @@ export function abrirMenuModoNoReact(doc: Document, ancora: HTMLElement, nome: s
       return false;
     },
     aoClicar: (b, cliques) => {
-      const clique = { cliques, msDesdeAConfirmacao: performance.now() - abriuEm };
+      const clique = { cliques, msDesdeAConfirmacao: agora() - abriuEm };
       const confirma = b.dataset.confirma;
       const ev = confirma ? { tipo: confirma === "sim" ? "confirmar" as const : "agora-nao" as const, ...clique } : { tipo: "item" as const, modo: b.dataset.modo as ModoAprovacao, ...clique };
       const r = reagirMenuModo(atual, confirmando, ev);
@@ -43,7 +45,7 @@ export function abrirMenuModoNoReact(doc: Document, ancora: HTMLElement, nome: s
       if (r.tipo === "escolher") return { fechar: true, depois: () => escolher(r.modo, r.confirmado) };
       if (r.tipo === "abrir-confirmacao") {
         confirmando = true;
-        abriuEm = performance.now();
+        abriuEm = agora();
         // O foco vai para "Agora não": Enter sem querer não liga o modo.
         controle.current?.trocar(comConfirmacao(base, nome), '[data-confirma="nao"]');
       } else fecharConfirmacao();

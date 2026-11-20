@@ -43,7 +43,7 @@ window.__menuModo = () => {
   let b = document.getElementById("chip-modo");
   if (!b) { b = Object.assign(document.createElement("button"), { id: "chip-modo", textContent: "modo" }); b.style.cssText = "position:fixed;left:300px;top:720px;width:40px;height:32px"; document.body.append(b); }
   b.focus();
-  abrirMenuModoNoReact(document, b, "Ada", "manual", (modo, confirmado) => { window.__modo = modo + ":" + confirmado; window.__focoNoModo = document.activeElement?.id; });
+  abrirMenuModoNoReact(document, b, "Ada", "manual", (modo, confirmado) => { window.__modo = modo + ":" + confirmado; window.__focoNoModo = document.activeElement?.id; }, false, () => window.__relogio ?? performance.now());
 };
 window.__menuHtml = (html, extra = {}) => {
   window.__escolha = null; window.__fechou = false;
@@ -434,6 +434,9 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await ate(`!document.querySelector(".rx-menu .modo-confirma")`);
     await ate(`document.activeElement?.dataset?.modo === "total"`);
     expect(await avaliar<boolean>(cdp, `!!document.querySelector(".rx-menu-host")`)).toBe(true);
+    // O relógio do menu fica parado enquanto a confirmação abre e o clique apressado chega: o tempo das idas e voltas ao
+    // Chrome (que no CI passa dos 500 ms) não decide o teste. Depois anda 600 ms, e o clique seguinte conta.
+    await avaliar(cdp, "window.__relogio = performance.now()");
     await tecla("Enter", "Enter", 13);
     await ate(`document.querySelector('.rx-menu [data-confirma="sim"]')`);
     const sim = async () => {
@@ -444,9 +447,10 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await sim();
     await esperar(150);
     expect(await avaliar<unknown>(cdp, "window.__modo")).toBeNull();
-    await esperar(600);
+    await avaliar(cdp, "window.__relogio += 600");
     await sim();
     await ate(`window.__modo === "total:true"`);
+    await avaliar(cdp, "window.__relogio = null");
     expect(await avaliar<string>(cdp, "window.__focoNoModo")).toBe("chip-modo");
     await ate(`!document.querySelector(".rx-menu-host")`);
     expect(await avaliar<string | null>(cdp, `document.getElementById("chip-modo").getAttribute("aria-expanded")`)).toBe("false");
