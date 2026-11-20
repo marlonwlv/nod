@@ -52,6 +52,7 @@ function DialogoDeHandoff({ d, agora, responder, sair }: { d: DadosDoHandoff; ag
 export function abrirHandoffNoReact(doc: Document, d: DadosDoHandoff, agora = Date.now()): Promise<Escolha> {
   const host = doc.createElement("div");
   host.className = "rx-ho-host";
+  host.dataset["rxModal"] = "";
   doc.body.append(host);
   const raiz = createRoot(host, { identifierPrefix: "handoff-" });
   let saiu = false;

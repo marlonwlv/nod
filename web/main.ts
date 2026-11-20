@@ -121,7 +121,7 @@ import { criarPuxadorDeepLink, destinoDoAlvo, leituraConta } from "./lib/deep-li
 import { criarLiveEvents, type LiveEvents } from "./lib/live-events.ts";
 import { ehCelular } from "./lib/celular.ts";
 import { contextoDaPilula, executarNaPilula } from "./lib/setas-da-pilula.ts";
-import { alvoDoAtalho, atalhoDaNovaTarefa, atalhoDoNovoBot, atalhoDoTeclado, linhasDaFolha, lugarAtual, SELETOR_CAMPO, SELETOR_MODAL, teclasDoBot, type AcaoAtalho } from "./lib/atalhos.ts";
+import { alvoDoAtalho, atalhoDaNovaTarefa, atalhoDoNovoBot, atalhoDoTeclado, linhasDaFolha, lugarAtual, SELETOR_CAMPO, SELETOR_DENTRO_DA_SOBREPOSICAO, SELETOR_MODAL, SELETOR_SOBREPOSICAO, teclasDoBot, type AcaoAtalho } from "./lib/atalhos.ts";
 import { rotuloDoMac } from "./lib/aparelho.ts";
 import { criarCelular, SELETOR_INTERATIVO } from "./lib/gaveta-bots.ts";
 import { tentarFrotaAgora } from "./lib/tentar-frota.ts";
@@ -3411,7 +3411,7 @@ function podeBuscarNaConversa(): boolean {
 /** Seu espaço, ligação em tela cheia, onboarding ou um diálogo cobrem a conversa (o `.app` fica inerte). */
 function camadaSobreABusca(): boolean {
   // A busca geral do celular (NOD-380) e a inicial dos bots (NOD-379) também cobrem a conversa.
-  return !!estado.espaco || telaLigacao.cheia() || telaOnboarding.cobre() || !!document.querySelector("dialog:modal")
+  return !!estado.espaco || telaLigacao.cheia() || telaOnboarding.cobre() || !!document.querySelector("dialog:modal") || !!document.querySelector("[data-rx-modal]")
     || !!document.querySelector(".busca-celular:not(.saindo)") || celular.botsAbertos();
 }
 
@@ -4187,7 +4187,9 @@ function linhasDaFolhaMais(): LinhasDaFolhaMais {
 function travarToqueDuplo(): void {
   const abertos = document.querySelectorAll<HTMLDialogElement>("dialog[open]");
   const d = abertos[abertos.length - 1];
-  if (d) travarToqueDuploEm(d);
+  if (d) { travarToqueDuploEm(d); return; }
+  // ADR-179: o menu do Base UI (modo, IA) monta o popup um quadro depois, no portal.
+  requestAnimationFrame(() => { const menus = document.querySelectorAll<HTMLElement>(".rx-menu"); const m = menus[menus.length - 1]; if (m) travarToqueDuploEm(m); });
 }
 
 /** O + só aparece quando a folha teria o que mostrar (bot de outra pessoa sem anexo, frota ainda chegando: escondido). */
@@ -6713,7 +6715,7 @@ document.addEventListener("change", (ev) => {
 });
 document.addEventListener("keydown", (ev) => {
   // Esc no Quick Chat esconde a janela, salvo quando outro Esc está em uso (menu, diálogo, sugestão do composer).
-  if (!modoQuickChat || ev.key !== "Escape" || ev.defaultPrevented || document.querySelector("dialog[open]")) return;
+  if (!modoQuickChat || ev.key !== "Escape" || ev.defaultPrevented || document.querySelector(SELETOR_SOBREPOSICAO)) return;
   void window.nodDesktop?.quickChatEsconder?.();
 });
 
@@ -10499,9 +10501,9 @@ document.addEventListener("keydown", (ev) => {
   }
   if (ev.key === "Escape" && (ev.target as HTMLElement).id === "busca-bots") { fecharBusca(); return; }
   // ADR-095: Esc com o ditado aberto joga a gravação fora (no campo fica o que já estava escrito).
-  if (ev.key === "Escape" && ditado.ativo() && !(ev.target as HTMLElement).closest?.("dialog")) { ev.preventDefault(); ditado.descartar(); return; }
+  if (ev.key === "Escape" && ditado.ativo() && !(ev.target as HTMLElement).closest?.(SELETOR_DENTRO_DA_SOBREPOSICAO)) { ev.preventDefault(); ditado.descartar(); return; }
   // Esc na ligação em tela cheia encolhe para a pílula; nunca desliga (definido em 2026-10-04).
-  if (ev.key === "Escape" && telaLigacao.cheia() && !(ev.target as HTMLElement).closest?.("dialog")) { ev.preventDefault(); telaLigacao.encolher(); return; }
+  if (ev.key === "Escape" && telaLigacao.cheia() && !(ev.target as HTMLElement).closest?.(SELETOR_DENTRO_DA_SOBREPOSICAO)) { ev.preventDefault(); telaLigacao.encolher(); return; }
   // Chat limpo (PR 8): Esc dentro da pílula alargada fecha e devolve o foco a ela (web/lib/pilula-na-tela.ts).
   if (teclaNaPilula(ev.key, estado.faixaTrabalhosAberta !== null) === "fechar" && (ev.target as HTMLElement).closest?.("#faixa-trabalhos")) { ev.preventDefault(); dispatch({ tipo: "faixa-trabalhos", agenteId: null }); return; }
   // NOD-368: Esc fecha o seletor do lote (o foco volta ao botão que o abriu) antes de fechar Seu espaço.
@@ -10516,7 +10518,7 @@ document.addEventListener("keydown", (ev) => {
   }
   // QA da NOD-370: com o confirmar aberto e o pedido andando, os botões dele ficam desativados e o foco cai no <body>; o Esc
   // não fecha Seu espaço por trás do diálogo.
-  if (ev.key === "Escape" && estado.espaco && !(ev.target as HTMLElement).closest?.("dialog") && !document.querySelector("dialog[open]")) {
+  if (ev.key === "Escape" && estado.espaco && !(ev.target as HTMLElement).closest?.(SELETOR_DENTRO_DA_SOBREPOSICAO) && !document.querySelector(SELETOR_SOBREPOSICAO)) {
     ev.preventDefault();
     // Em Rotinas, o Esc fecha antes o que está aberto (o menu, a folha ou a rotina aberta).
     const ag = secaoAberta(estado) === "rotinas" ? escNaAgenda(estado.agenda.ui) : null;
@@ -10541,20 +10543,20 @@ document.addEventListener("keydown", (ev) => {
     if (alvo !== null) { ev.preventDefault(); focaveis[alvo]?.focus(); return; }
   }
   // Sem gaveta, Esc no Marketplace volta para onde a pessoa estava (definido em 2026-10-04) — menos digitando num campo.
-  if (ev.key === "Escape" && estado.tela.tipo === "conectores" && estado.tela.voltar && !celular.botsAbertos() && !(ev.target as HTMLElement).closest?.("dialog, input, textarea, select")) { ev.preventDefault(); void ACOES["voltar-conexao"]?.(document.body); return; }
+  if (ev.key === "Escape" && estado.tela.tipo === "conectores" && estado.tela.voltar && !celular.botsAbertos() && !(ev.target as HTMLElement).closest?.(`${SELETOR_DENTRO_DA_SOBREPOSICAO}, input, textarea, select`)) { ev.preventDefault(); void ACOES["voltar-conexao"]?.(document.body); return; }
   // A tela da task (e a provisória de uma linha) fecha no Esc — menos com algo digitado no campo dela.
   // NOD-379: com a inicial do celular à vista, o Esc não age na tela escondida por baixo (Marketplace, Trabalho, linha).
   // ADR-187 §6 (lote B, passo 4, 2026-11-18; Paper 4k: "Esc para parar"): com a tarefa trabalhando, o Esc a para — também
   // com o recado pela metade no campo (o rascunho fica). Menu, diálogo e o nome em edição têm o Esc deles antes.
-  if (ev.key === "Escape" && !ev.defaultPrevented && estado.tela.tipo === "trabalho" && campoDaTela(estado.tela.id).parar && !celular.botsAbertos() && !buscaNaConversa.aberta() && !ditado.ativo() && !document.querySelector("dialog[open], .bot-menu") && !(ev.target as HTMLElement).closest?.("dialog, input, select, #detalhes")) {
+  if (ev.key === "Escape" && !ev.defaultPrevented && estado.tela.tipo === "trabalho" && campoDaTela(estado.tela.id).parar && !celular.botsAbertos() && !buscaNaConversa.aberta() && !ditado.ativo() && !document.querySelector("dialog[open], .bot-menu") && !(ev.target as HTMLElement).closest?.(`${SELETOR_DENTRO_DA_SOBREPOSICAO}, input, select, #detalhes`)) {
     ev.preventDefault();
     const parar = document.querySelector<HTMLElement>('#composer .parar-envio[data-act="parar-trabalho"]');
     if (parar) void ACOES["parar-trabalho"]?.(parar);
     return;
   }
-  if (ev.key === "Escape" && (estado.tela.tipo === "trabalho" || estado.tela.tipo === "linha" || estado.tela.tipo === "nova-tarefa") && !celular.botsAbertos() && !buscaNaConversa.aberta() && !(ev.target as HTMLElement).closest?.("dialog, input, select, #detalhes") && !((ev.target as HTMLTextAreaElement).id === "composer-texto" && (ev.target as HTMLTextAreaElement).value.trim())) { ev.preventDefault(); fecharTask(); return; }
+  if (ev.key === "Escape" && (estado.tela.tipo === "trabalho" || estado.tela.tipo === "linha" || estado.tela.tipo === "nova-tarefa") && !celular.botsAbertos() && !buscaNaConversa.aberta() && !(ev.target as HTMLElement).closest?.(`${SELETOR_DENTRO_DA_SOBREPOSICAO}, input, select, #detalhes`) && !((ev.target as HTMLTextAreaElement).id === "composer-texto" && (ev.target as HTMLTextAreaElement).value.trim())) { ev.preventDefault(); fecharTask(); return; }
   // NOD-382: Esc na visão geral do perfil do celular volta à origem, como o ‹ (no campo do nome, o Esc só desfaz).
-  if (ev.key === "Escape" && ehCelular() && estado.perfilCelular && !estado.gaveta && !estado.avatarAberto && (ev.target as HTMLElement).closest?.("#detalhes") && !(ev.target as HTMLElement).closest?.("input, textarea, dialog")) { ev.preventDefault(); fecharPerfil(); return; }
+  if (ev.key === "Escape" && ehCelular() && estado.perfilCelular && !estado.gaveta && !estado.avatarAberto && (ev.target as HTMLElement).closest?.("#detalhes") && !(ev.target as HTMLElement).closest?.(`input, textarea, ${SELETOR_DENTRO_DA_SOBREPOSICAO}`)) { ev.preventDefault(); fecharPerfil(); return; }
   // Esc dentro da gaveta, num nível interno, volta um nível (o mesmo ‹ do topo).
   if (ev.key === "Escape" && estado.gaveta && (ev.target as HTMLElement).closest?.("#detalhes")) { ev.preventDefault(); voltarNivel(); return; }
   const ta = ev.target as HTMLTextAreaElement;

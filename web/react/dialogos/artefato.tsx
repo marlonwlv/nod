@@ -38,6 +38,7 @@ function TelaCheia({ d, sair }: { d: TelaCheiaDoArtefato; sair: () => void }) {
 export function abrirArtefatoNoReact(doc: Document, d: TelaCheiaDoArtefato): void {
   const host = doc.createElement("div");
   host.className = "rx-art-host";
+  host.dataset["rxModal"] = "";
   doc.body.append(host);
   const raiz = createRoot(host, { identifierPrefix: "artefato-" });
   let saiu = false;

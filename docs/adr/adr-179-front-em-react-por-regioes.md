@@ -147,6 +147,14 @@ pelo `reason` `escape-key`). E **o seletor de IA do campo** (`web/react/dialogos
 (filho do `.box`), só o menu muda — acima dele, alinhado à direita, com o foco na escolha atual; o main o fecha por código
 quando o campo troca de conversa.
 
+**As sobreposições do Base UI contam como modal para o main** (achado da migração dos menus). Os atalhos globais
+(`SELETOR_MODAL`), a camada sobre a busca, o Esc do quick chat, o Esc que fecha Seu espaço e os Esc das telas por baixo
+liam `dialog[open]`/`dialog:modal` ou `closest("dialog")` — e um diálogo ou menu do Base UI não é `<dialog>` (o popup
+vai para um portal no `body`). Cada host marca `data-rx-modal` enquanto existe; `SELETOR_SOBREPOSICAO` ("há algo por
+cima") e `SELETOR_DENTRO_DA_SOBREPOSICAO` ("o alvo está dentro de uma"), em `web/lib/atalhos.ts`, servem todos esses
+pontos. A tela cheia da ligação (`role="dialog"`) fica de fora de propósito: o Esc dela segue encolhendo. A trava do toque
+duplo da folha "+" vale no popup do Base UI, e o zoom (+/−) da prévia de PDF passou a ler o popup também.
+
 A ordem das fases 2–6 é a proposta desta ADR (da menos para a mais quente); trocar a ordem não muda as regras acima.
 
 **A régua de fps e tarefa longa é o portão de cada fase.** Antes e depois de cada região, `node scripts/carga-tela/rodar.ts

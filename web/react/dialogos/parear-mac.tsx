@@ -42,6 +42,7 @@ function DialogoDoMac({ nome, conectar, aoFechar, sair }: { nome: string; conect
 export function abrirPareamentoNoReact(doc: Document, o: { nome: string; conectar: () => Promise<void>; aoFechar: () => void }): void {
   const host = doc.createElement("div");
   host.className = "rx-dlg-host";
+  host.dataset["rxModal"] = "";
   doc.body.append(host);
   const raiz = createRoot(host, { identifierPrefix: "parear-" });
   let saiu = false;

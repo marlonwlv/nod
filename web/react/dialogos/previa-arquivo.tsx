@@ -86,6 +86,7 @@ export function abrirPreviaNoReact(doc: Document, origem: HTMLElement): true | n
   doc.querySelector(".rx-prv-host")?.dispatchEvent(new CustomEvent("rx-fechar"));
   const host = doc.createElement("div");
   host.className = "rx-prv-host";
+  host.dataset["rxModal"] = "";
   doc.body.append(host);
   const raiz = createRoot(host, { identifierPrefix: "previa-" });
   let saiu = false;

@@ -3707,7 +3707,7 @@ export function criarQuadroNaTela(doc: Document, o: { busca?: BuscaDaPilula; men
     if (!aberta && vista()?.querySelector("#qd-busca")) return;
     const el = ev.target;
     if (el instanceof Element && el.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
-    if (doc.querySelector("dialog[open]")) return;
+    if (doc.querySelector("dialog[open], [data-rx-modal]")) return;
     const txt = pilulaNaTela()?.querySelector<HTMLTextAreaElement>("#qc-txt");
     if (!txt) return;
     ev.preventDefault();

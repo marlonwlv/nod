@@ -325,7 +325,9 @@ describe("NOD-381 (revisão 3)", () => {
     // Os dois menus abertos pela folha ganham a trava (e só eles: o chip e o seletor do computador não passam por aqui).
     expect(main).toContain("modo: () => { abrirModoAprovacao(el); travarToqueDuplo(); },");
     expect(main).toContain("ia: () => { abrirSeletorIa(el); travarToqueDuplo(); },");
-    expect(main).toContain("if (d) travarToqueDuploEm(d);");
+    expect(main).toContain("if (d) { travarToqueDuploEm(d); return; }");
+    // ADR-179: o menu do Base UI (modo, IA) também ganha a trava, no popup que monta um quadro depois.
+    expect(main).toMatch(/requestAnimationFrame\(\(\) => \{ const menus = document\.querySelectorAll<HTMLElement>\("\.rx-menu"\);[^\n]*travarToqueDuploEm\(m\)/);
   });
 
   it("com anexo, o resumo sai da linha do texto (o campo mantém os 60%)", () => {

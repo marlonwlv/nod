@@ -29,6 +29,8 @@ import { abrirMenuDoBotNoReact } from "./web/react/dialogos/menu-do-bot.tsx";
 import { abrirMenuDeHtmlNoReact } from "./web/react/dialogos/menu-de-html.tsx";
 import { abrirMenuModoNoReact } from "./web/react/dialogos/menu-modo.tsx";
 import { abrirMenuIaNoReact } from "./web/react/dialogos/menu-ia.tsx";
+import { travarToqueDuploEm } from "./web/telas/folha-mais.ts";
+window.__travar = () => { const menus = document.querySelectorAll(".rx-menu"); travarToqueDuploEm(menus[menus.length - 1]); };
 window.__menuIa = (html) => {
   window.__ia = null; window.__mudou = [];
   let b = document.getElementById("composer-ia");
@@ -471,5 +473,23 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await avaliar(cdp, "window.__menuIaAberto.fechar()");
     await ate(`!document.querySelector(".rx-menu-host")`);
     expect(await avaliar<unknown>(cdp, "window.__ia")).toBeNull();
+  }, 60_000);
+
+  it("a trava do toque duplo (a folha + do celular) vale no popup do Base UI: o toque cedo demais não escolhe; o de depois, sim", async () => {
+    await esperar(300);
+    const html = '<div role="menu" aria-label="IA e modelo"><button type="button" role="menuitemradio" data-escolha="auto" aria-checked="true">Automático</button></div>';
+    await avaliar(cdp, `window.__menuIa(${JSON.stringify(html)})`);
+    await ate(`document.querySelector(".ia-sel-menu.rx-menu [data-escolha]")`);
+    await avaliar(cdp, "window.__travar()");
+    const p = await avaliar<{ x: number; y: number }>(cdp, `(() => { const r = document.querySelector('.rx-menu [data-escolha="auto"]').getBoundingClientRect(); return { x: Math.round(r.left + 20), y: Math.round(r.top + r.height / 2) }; })()`);
+    const tocar = async () => { for (const type of ["mousePressed", "mouseReleased"] as const) await cdp.enviar("Input.dispatchMouseEvent", { type, x: p.x, y: p.y, button: "left", clickCount: 1 }); };
+    await tocar();
+    await esperar(150);
+    expect(await avaliar<unknown>(cdp, "window.__ia")).toBeNull();
+    expect(await avaliar<boolean>(cdp, `!!document.querySelector(".rx-menu-host")`)).toBe(true);
+    await esperar(600);
+    await tocar();
+    await ate(`window.__ia !== null`);
+    expect(JSON.parse(await avaliar<string>(cdp, "window.__ia"))).toEqual({ tipo: "auto" });
   }, 60_000);
 });

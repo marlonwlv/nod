@@ -165,6 +165,7 @@ export function abrirLuzNoReact(doc: Document, origem: HTMLElement, o: OpcoesLuz
   doc.querySelector(".rx-luz-host")?.dispatchEvent(new CustomEvent("rx-fechar"));
   const host = doc.createElement("div");
   host.className = "rx-luz-host";
+  host.dataset["rxModal"] = "";
   doc.body.append(host);
   const raiz = createRoot(host, { identifierPrefix: "luz-" });
   let saiu = false;

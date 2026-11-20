@@ -82,6 +82,7 @@ export function montarMenu(doc: Document, prefixo: string, conteudo: (sair: () =
   doc.querySelector(".rx-menu-host")?.dispatchEvent(new CustomEvent("rx-fechar"));
   const host = doc.createElement("div");
   host.className = "rx-menu-host";
+  host.dataset["rxModal"] = "";
   doc.body.append(host);
   const raiz = createRoot(host, { identifierPrefix: `${prefixo}-` });
   let saiu = false;

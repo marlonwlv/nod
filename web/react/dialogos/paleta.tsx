@@ -90,6 +90,7 @@ export function criarPaletaNoReact(deps: DepsPaleta): { abrir(): void; fechar():
       antes = deps.doc.activeElement instanceof HTMLElement ? deps.doc.activeElement : null;
       casca = deps.doc.createElement("div");
       casca.className = "paleta-camada";
+      casca.dataset["rxModal"] = "";
       deps.doc.body.append(casca);
       raiz = createRoot(casca, { identifierPrefix: "paleta-" });
       const r = raiz;

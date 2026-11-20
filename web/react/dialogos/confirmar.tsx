@@ -49,6 +49,7 @@ function DialogoDeConfirmar({ c, responder, sair }: { c: Confirmacao; responder:
 export function confirmarNoReact(doc: Document, c: Confirmacao): Promise<boolean> {
   const host = doc.createElement("div");
   host.className = "rx-dlg-host";
+  host.dataset["rxModal"] = "";
   doc.body.append(host);
   const raiz = createRoot(host, { identifierPrefix: "confirmar-" });
   let saiu = false;

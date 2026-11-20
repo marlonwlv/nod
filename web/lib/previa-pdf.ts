@@ -116,7 +116,8 @@ export async function desenhar(corpo: HTMLElement, bytes: ArrayBuffer, ctx: Cont
 
   menos.addEventListener("click", () => aplicarZoom(proximoZoom(zoom, -1)));
   mais.addEventListener("click", () => aplicarZoom(proximoZoom(zoom, 1)));
-  const dialog = corpo.closest("dialog");
+  // O <dialog> nativo ou o popup do Base UI (ADR-179): o + e o − do zoom valem na prévia inteira.
+  const dialog = corpo.closest<HTMLElement>("dialog, .previa-arquivo");
   const teclas = (ev: KeyboardEvent) => {
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     if (ev.key === "+" || ev.key === "=") { ev.preventDefault(); aplicarZoom(proximoZoom(zoom, 1)); }
