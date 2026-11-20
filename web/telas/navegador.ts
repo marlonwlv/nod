@@ -1,4 +1,6 @@
 import type { RespostaNavegador, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
+import type { Api } from "../lib/api.ts";
+import { htmlBarraDeGravacao, htmlPassosGravados, rotuloDaGravacao } from "../lib/navegador-cartoes.ts";
 import { esc } from "../lib/escape.ts";
 import { movimentoReduzido } from "../lib/movimento.ts";
 import {
@@ -21,7 +23,7 @@ import { montarVistaNavegador, type Hospedeiro, type OpcoesDaVista, type VistaMo
 
 export type OpcoesNavegadorNaTela = {
   /** A sessão (null antes de entrar): a vista só existe com ela. */
-  api: () => OpcoesDaVista["api"] | null;
+  api: () => (OpcoesDaVista["api"] & Partial<Pick<Api, "ensinarNoNavegador">>) | null;
   /** O nome do bot (a vista nunca diz "Ada": diz o nome real). */
   nome: (agenteId: string) => string;
   /** O bot tem o computador (o lugar "Computador" no seletor). */
@@ -62,6 +64,8 @@ export const MS_PAINEL_FECHA = 200;
 export const MS_AVISO = 5_000;
 /** D7: a dica da aba aparece depois de 600 ms. */
 export const MS_DICA_ABA = 600;
+/** T2: o relógio da barra de gravação anda de segundo em segundo. */
+export const MS_RELOGIO_GRAVACAO = 1_000;
 
 function guardado(chave: string): string | null {
   try { return window.localStorage.getItem(chave); } catch { return null; }
@@ -91,6 +95,12 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
   /** A aba de lugar à vista (modo abas): o bot. */
   let abaAtiva: string | null = null;
   let telaCheia: { agenteId: string; dialog: HTMLDialogElement; voltar: Lugar | null } | null = null;
+  /** T2: o campo do nome aberto no lugar de "Salvar e ensinar", e o relógio vivo da barra. */
+  let nomeando = false;
+  let relogio = 0;
+  let pintadoGravacao = "";
+  /** T2: o descarte já avisado de cada bot (pelo `ate`), para o aviso com Desfazer sair uma vez. */
+  const descartesAvisados = new Map<string, number>();
   const fechadas: string[] = [];
   let largura = 0;
   let posFolha: PosicaoDaFolha = "meia";
@@ -153,7 +163,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       api: apiDaVista,
       agenteId,
       nome: () => o.nome(agenteId),
-      aoMudar: (r) => { respostas.set(agenteId, r); o.guardarVista(agenteId, r); pintarTopo(); },
+      aoMudar: (r) => { respostas.set(agenteId, r); o.guardarVista(agenteId, r); pintarTopo(); pintarTelaCheia(); avisarDescarte(agenteId, r.vista); },
       aoErro: o.aoErro,
       decidir: o.decidir,
     });
@@ -462,7 +472,8 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     dialog.setAttribute("aria-labelledby", "nv-tc-titulo");
     if ((window as { nodDesktop?: unknown }).nodDesktop !== undefined) dialog.classList.add("no-mac");
     dialog.innerHTML = `<header class="ctc-topo nv-tc-topo"><h1 class="ctc-titulo nv-tc-titulo" id="nv-tc-titulo"></h1><div class="nv-tc-lugares"></div><button type="button" class="nv-tc-sair" data-nv-p="sair" aria-keyshortcuts="Meta+Shift+F">${'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>'}<span>Sair da tela cheia</span></button></header>`
-      + `<div class="nv-tc-corpo"></div>`
+      + `<div class="nv-grav-topo" hidden></div>`
+      + `<div class="nv-tc-meio"><div class="nv-tc-corpo"></div><div class="nv-tc-lado" hidden></div></div>`
       + `<div class="nv-recado"><form class="nv-recado-form" data-nv-form="recado" hidden><input class="nv-recado-input" name="texto" maxlength="2000" autocomplete="off" aria-label="Recado para ${esc(nomeDe(agenteId))}" placeholder="Recado para ${esc(nomeDe(agenteId))}…"><button type="submit" class="nv-recado-enviar">Mandar</button></form><button type="button" class="nv-recado-bt" data-nv-p="recado">Recado para ${esc(nomeDe(agenteId))}</button></div>`;
     document.body.append(dialog);
     dialog.showModal();
@@ -479,6 +490,13 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     dialog.addEventListener("cancel", (e) => e.preventDefault());
     dialog.addEventListener("click", (e) => cliqueDoPainel(e, agenteId));
     dialog.addEventListener("submit", (e) => {
+      const nomear = (e.target as HTMLElement).closest<HTMLFormElement>("[data-nv-form=nomear]");
+      if (nomear) {
+        e.preventDefault();
+        const nome = nomear.querySelector<HTMLInputElement>("input")?.value ?? "";
+        void salvarGravacao(agenteId, nome);
+        return;
+      }
       const f = (e.target as HTMLElement).closest<HTMLFormElement>("[data-nv-form=recado]");
       if (!f) return;
       e.preventDefault();
@@ -504,12 +522,123 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     const lug = d.querySelector<HTMLElement>(".nv-tc-lugares")!;
     const html = htmlLugares(lugaresDe(id), "navegador", pontoDoLugar(vistaAtual(id)), { escuro: true }).replaceAll('data-nv="', 'data-nv-p="');
     if (lug.innerHTML !== html) lug.innerHTML = html;
+    pintarGravacao();
+  }
+
+  // ---- ensinar uma tarefa (T2): a barra no topo, a moldura vermelha e os passos ao lado ------------------------------------
+  function pintarGravacao(): void {
+    if (!telaCheia) return;
+    const id = telaCheia.agenteId;
+    const d = telaCheia.dialog;
+    const g = vistaAtual(id)?.gravacao ?? null;
+    d.classList.toggle("nv-gravando", g !== null);
+    const topoTc = d.querySelector<HTMLElement>(".nv-tc-topo")!;
+    const barraG = d.querySelector<HTMLElement>(".nv-grav-topo")!;
+    const lado = d.querySelector<HTMLElement>(".nv-tc-lado")!;
+    topoTc.hidden = g !== null;
+    barraG.hidden = g === null;
+    lado.hidden = g === null;
+    if (!g) {
+      nomeando = false;
+      pintadoGravacao = "";
+      if (relogio) { window.clearInterval(relogio); relogio = 0; }
+      return;
+    }
+    // A barra só se refaz quando os passos, o teto ou o campo do nome mudam: o relógio anda sozinho (o campo não perde o foco).
+    const chave = `${g.desde}|${g.passos.length}|${g.parou ?? ""}|${nomeando ? "n" : ""}|${nomeDe(id)}`;
+    if (chave !== pintadoGravacao) {
+      const campo = barraG.querySelector<HTMLInputElement>(".nv-grav-nome-campo");
+      const digitado = nomeando && campo ? campo.value : null;
+      barraG.innerHTML = htmlBarraDeGravacao({ nome: nomeDe(id), gravacao: g, agora: Date.now(), nomeando });
+      lado.innerHTML = htmlPassosGravados(g.passos);
+      const novo = barraG.querySelector<HTMLInputElement>(".nv-grav-nome-campo");
+      if (novo && digitado !== null) novo.value = digitado;
+      pintadoGravacao = chave;
+    }
+    if (!relogio) {
+      relogio = window.setInterval(() => {
+        const vg = telaCheia ? vistaAtual(telaCheia.agenteId)?.gravacao : null;
+        const r = telaCheia?.dialog.querySelector<HTMLElement>(".nv-grav-relogio");
+        if (!vg || !r) { window.clearInterval(relogio); relogio = 0; return; }
+        const t = rotuloDaGravacao(vg, Date.now());
+        if (r.textContent !== t) r.textContent = t;
+      }, MS_RELOGIO_GRAVACAO);
+    }
+  }
+
+  /** A vista nova que uma operação de ensinar devolveu: guarda, repassa à vista montada e redesenha. */
+  function aplicarVista(agenteId: string, vista: VistaNavegador): void {
+    const r: RespostaNavegador = { vista, disponivel: respostas.get(agenteId)?.disponivel ?? true };
+    respostas.set(agenteId, r);
+    vistas.get(agenteId)?.atualizar(r);
+    o.guardarVista(agenteId, r);
+    pintarTopo();
+    pintarTelaCheia();
+    avisarDescarte(agenteId, vista);
+  }
+
+  async function operarEnsinar(agenteId: string, op: "comecar" | "descartar" | "salvar" | "desfazer_descarte", nome?: string): Promise<boolean> {
+    const api = o.api();
+    if (!api?.ensinarNoNavegador) return false;
+    try {
+      const r = await api.ensinarNoNavegador(agenteId, op, nome);
+      aplicarVista(agenteId, r.vista);
+      return true;
+    } catch (e) { o.aoErro(e); return false; }
+  }
+
+  /**
+   * T1: "Ensinar uma tarefa" (o + do campo e o ⋯ do navegador). Liga ou retoma o navegador se precisar, assume o controle,
+   * abre a tela cheia e começa a gravar (o servidor só grava com a pessoa no controle).
+   */
+  async function ensinar(agenteId: string): Promise<void> {
+    montar();
+    if (!respostas.has(agenteId)) {
+      const api = o.api();
+      if (api) { try { const r = await api.navegador(agenteId); respostas.set(agenteId, r); o.guardarVista(agenteId, r); } catch (e) { o.aoErro(e); return; } }
+    }
+    const v = vistaDe(agenteId);
+    v.atualizar(respostas.get(agenteId) ?? null);
+    const estadoAgora = vistaAtual(agenteId)?.estado;
+    if (estadoAgora === "desligado" || estadoAgora === "erro") await v.operar("ligar");
+    else if (estadoAgora === "pausa") await v.operar("retomar");
+    if (!telaCheia || telaCheia.agenteId !== agenteId) abrirTelaCheia(agenteId);
+    if (!v.controleComPessoa()) await v.assumir();
+    if (!v.controleComPessoa()) return;
+    await operarEnsinar(agenteId, "comecar");
+  }
+
+  async function salvarGravacao(agenteId: string, nome: string): Promise<void> {
+    const ok = await operarEnsinar(agenteId, "salvar", nome.trim() || undefined);
+    if (!ok) return;
+    nomeando = false;
+    avisar(`Ensinado. A mensagem com os passos foi para ${nomeDe(agenteId)}.`, null);
+    // A tarefa foi para a conversa: sair da tela cheia devolve o navegador ao bot.
+    if (telaCheia?.agenteId === agenteId) sairDaTelaCheia();
+  }
+
+  /** T2: devolver no meio (ou Descartar) jogou a gravação fora; o aviso com Desfazer sai uma vez por descarte. */
+  function avisarDescarte(agenteId: string, v: VistaNavegador): void {
+    const d = v.descarte;
+    if (!d || d.ate <= Date.now() || descartesAvisados.get(agenteId) === d.ate) return;
+    descartesAvisados.set(agenteId, d.ate);
+    avisar(`Gravação descartada${d.passos ? ` (${d.passos} ${d.passos === 1 ? "passo" : "passos"})` : ""}`, () => void desfazerDescarte(agenteId));
+  }
+
+  async function desfazerDescarte(agenteId: string): Promise<void> {
+    const v = vistaDe(agenteId);
+    if (!telaCheia || telaCheia.agenteId !== agenteId) abrirTelaCheia(agenteId);
+    if (!v.controleComPessoa()) await v.assumir();
+    await operarEnsinar(agenteId, "desfazer_descarte");
   }
 
   function sairDaTelaCheia(voltarParaOnde = true): void {
     const t = telaCheia;
     if (!t) return;
     telaCheia = null;
+    nomeando = false;
+    pintadoGravacao = "";
+    if (relogio) { window.clearInterval(relogio); relogio = 0; }
     const v = vistas.get(t.agenteId);
     // Sair no controle devolve ao bot, como a tela cheia do computador.
     if (v?.controleComPessoa()) void v.devolver();
@@ -534,7 +663,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     const url = v?.abas.find((a) => a.ativa)?.url ?? "";
     const m = document.createElement("div");
     m.className = "nv-menu";
-    m.innerHTML = htmlMenuDoNavegador(nomeDe(agenteId), { daAba, temEndereco: !!url, controle: v?.controle === "pessoa" });
+    m.innerHTML = htmlMenuDoNavegador(nomeDe(agenteId), { daAba, temEndereco: !!url, controle: v?.controle === "pessoa", ensinar: !o.celular() && !!o.api()?.ensinarNoNavegador && !v?.gravacao });
     // Recarregar com o bot no controle pede o controle (o servidor só aceita a pessoa): aqui fica apagado com a dica.
     const rec = m.querySelector<HTMLButtonElement>('[data-nv-menu="recarregar"]');
     if (rec && v?.controle !== "pessoa") { rec.disabled = true; rec.title = "Assuma o controle para recarregar"; }
@@ -570,6 +699,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       else if (acao === "copiar") void navigator.clipboard?.writeText(url).catch(() => undefined);
       else if (acao === "abrir-fora" && url) o.abrirFora(url);
       else if (acao === "logins") o.abrirLogins(agenteId, url);
+      else if (acao === "ensinar") void ensinar(agenteId);
       else if (acao === "encerrar") void vm.operar("encerrar");
       else if (acao === "ao-lado") { abasDeLugar = new Set(abasDeLugar); abasDeLugar.delete(agenteId); gravarAbas(); desativarAba(agenteId); abrirPainel(agenteId); }
       else if (acao === "assumir") void vm.assumir();
@@ -593,6 +723,9 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     else if (c === "ao-lado") { abasDeLugar = new Set(abasDeLugar); abasDeLugar.delete(id); gravarAbas(); desativarAba(id); abrirPainel(id); }
     else if (c === "tela-cheia") abrirTelaCheia(id);
     else if (c === "sair") sairDaTelaCheia();
+    else if (c === "descartar-gravacao") void operarEnsinar(id, "descartar");
+    else if (c === "salvar-gravacao") { nomeando = true; pintarGravacao(); const campo = telaCheia?.dialog.querySelector<HTMLInputElement>(".nv-grav-nome-campo"); campo?.focus(); campo?.select(); }
+    else if (c === "nomear-cancelar") { nomeando = false; pintarGravacao(); telaCheia?.dialog.querySelector<HTMLElement>('[data-nv-p="salvar-gravacao"]')?.focus(); }
     else if (c === "menu") { const b = el.getBoundingClientRect(); abrirMenu(id, { x: b.right - 240, y: b.bottom + 6 }, false); }
     else if (c === "abrir-computador") o.abrirComputador(id);
     else if (c === "recado") {
@@ -796,6 +929,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
         if (respostas.get(id) === r) continue;
         respostas.set(id, r);
         vistas.get(id)?.atualizar(r);
+        if (r) avisarDescarte(id, r.vista);
       }
       if (s.agenteId && !Object.hasOwn(s.navegadores, s.agenteId)) pedirVista(s.agenteId);
       // Saiu da conversa do bot: o painel e a aba somem (o bot continua); a tela cheia fica até a pessoa sair.
@@ -837,10 +971,16 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     desativarAba,
     fecharAba,
     abrirTelaCheia,
+    ensinar,
+    /** O "Assumir o controle" dos cartões de ajuda: abre a vista e assume. */
+    assumir(agenteId: string): void { ver(agenteId); void vistaDe(agenteId).assumir(); },
+    /** O "Já resolvi" dos cartões de ajuda. */
+    resolver(agenteId: string): Promise<void> { return vistaDe(agenteId).operar("resolver"); },
     fechar: () => fechar(),
     /** Solta tudo (os testes): os ouvintes, as vistas, o painel e a folha. */
     destruir(): void {
       ac.abort();
+      if (relogio) { window.clearInterval(relogio); relogio = 0; }
       for (const v of vistas.values()) v.destruir();
       vistas.clear();
       telaCheia?.dialog.remove();

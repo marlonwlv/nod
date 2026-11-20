@@ -88,6 +88,8 @@ export type PedidoDaVistaNavegador =
     caixa: CaixaNavegador | null;
     /** A3: só envio com destino visto na página; dinheiro nunca leva. `padrao` true = a caixa vem marcada. */
     lembrar: { padrao: true; texto: string } | null;
+    /** A3: o que vai ser enviado (o último texto que o bot preencheu nesta página), para a pessoa ler antes. Só em envio. */
+    citacao?: string | null;
   }
   | { tipo: "combinar"; decisaoId: string; titulo: string; texto: string; sim: string; nao: string; touchId: boolean };
 

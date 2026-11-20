@@ -13,7 +13,7 @@ import type { AnexoMeta } from "../../src/contracts/anexo.ts";
 import type { CheckpointDaFala } from "../../src/contracts/checkpoint.ts";
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
 import type { AcaoComputador, ComputadorDto, ResultadoComputador } from "../../src/contracts/computador.ts";
-import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaNavegador, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
+import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaNavegador, TarefaEnsinada, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } from "./computador-pessoa.ts";
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
@@ -309,6 +309,9 @@ export function criarApi(escopo: Escopo) {
     cofreLogins: () => get<{ logins: LoginDoCofreNaTela[] }>("cofre/logins"),
     guardarNoCofre: (login: { site: string; usuario: string; senha: string }) => post<{ ok: true; login: LoginDoCofreNaTela }>("cofre/logins", login),
     apagarDoCofre: (id: string) => del<{ ok: true }>(`cofre/logins/${encodeURIComponent(id)}`),
+    /** ADR-190 (T3): as habilidades do bot — as tarefas que a pessoa ensinou no navegador dele. */
+    tarefasEnsinadas: (agenteId: string) => get<{ tarefas: TarefaEnsinada[] }>(`agentes/${encodeURIComponent(agenteId)}/navegador/tarefas`),
+    apagarTarefaEnsinada: (agenteId: string, id: string) => del<{ ok: true }>(`agentes/${encodeURIComponent(agenteId)}/navegador/tarefas/${encodeURIComponent(id)}`),
     /** ADR-190: o WebSocket do navegador ao vivo do bot (mesma origem; o cookie da sessão vai sozinho). */
     urlVivoNavegador: (agenteId: string) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${base}/agentes/${encodeURIComponent(agenteId)}/navegador/vivo`,
     trocarLugarDoComputador: (maquinaId: string, semLogins: boolean) => post<{ ok: true }>("computador/lugar", { maquinaId, semLogins }),

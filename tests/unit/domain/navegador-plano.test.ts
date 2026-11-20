@@ -25,6 +25,8 @@ describe("o navegador no plano (ADR-190)", () => {
     expect(p.catalogo.ferramentas.some((x) => x.nome === "ler_mais")).toBe(true);
     expect(p.promptSistema).toContain("Você tem um navegador só seu");
     expect(p.promptSistema).toContain("Nunca peça senha no chat");
+    // T3: a tarefa ensinada vira a pergunta com as duas respostas rápidas (pedir_a_pessoa com opções).
+    expect(p.promptSistema).toContain("pergunte com pedir_a_pessoa se você faz sozinho, com duas opções curtas: um ritmo que caiba na tarefa (como “Todo dia 5”) e “Só quando eu pedir”");
   });
 
   it("desligado (sem motor em lugar nenhum), nada do navegador entra nem no prompt", () => {

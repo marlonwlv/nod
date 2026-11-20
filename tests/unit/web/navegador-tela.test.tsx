@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OperacaoNavegador, RespostaNavegador, VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
-import { criarNavegadorNaTela, lerAbasDeLugar } from "../../../web/telas/navegador.ts";
+import { criarNavegadorNaTela, lerAbasDeLugar, MS_RELOGIO_GRAVACAO } from "../../../web/telas/navegador.ts";
 import { ESPERAS_DO_CANAL_MS, montarVistaNavegador, type SocketDaVista } from "../../../web/telas/navegador-vista.ts";
 
 /**
@@ -324,5 +324,79 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
     expect(navegador.onde()).toBeNull();
     expect(operacoes).toEqual([]);
     expect(renders).toBeGreaterThan(0);
+  });
+});
+
+describe("ensinar uma tarefa na tela cheia (T1, T2)", () => {
+  let navegador: ReturnType<typeof criarNavegadorNaTela>;
+  let operacoes: string[];
+  let ensinos: (string | undefined)[][];
+  let atual: VistaNavegador;
+  beforeEach(() => {
+    Object.defineProperty(window, "innerWidth", { value: 1440, configurable: true });
+    document.body.innerHTML = '<div class="app"><aside id="sidebar"></aside><main class="stage"><footer id="composer"></footer></main></div>';
+    const { api, ops } = apiFalsa();
+    operacoes = ops;
+    ensinos = [];
+    atual = vista({ controle: "pessoa" });
+    const ensinarNoNavegador = vi.fn(async (_id: string, op: "comecar" | "descartar" | "salvar" | "desfazer_descarte", nome?: string) => {
+      ensinos.push([op, nome]);
+      if (op === "comecar" || op === "desfazer_descarte") atual = vista({ controle: "pessoa", gravacao: { desde: Date.now() - 42_000, passos: ["Abriu itau.com.br"], parou: null } });
+      if (op === "descartar") atual = vista({ controle: "pessoa", gravacao: null, descarte: { passos: 1, ate: Date.now() + 10_000 } });
+      if (op === "salvar") atual = vista({ controle: "pessoa", gravacao: null });
+      return { ok: true as const, vista: atual };
+    });
+    navegador = criarNavegadorNaTela({
+      api: () => ({ ...api, ensinarNoNavegador }),
+      nome: () => "Ada", temComputador: () => false, abrirComputador: vi.fn(), lerVista: vi.fn(), guardarVista: vi.fn(), decidir: vi.fn(async () => undefined),
+      mandarRecado: vi.fn(async () => undefined), abrirLogins: vi.fn(), abrirFora: vi.fn(), aoErro: vi.fn(), modoAbas: () => false, ligarModoAbas: vi.fn(),
+      render: () => undefined, pessoaId: () => "p1", celular: () => false,
+    });
+    navegador.sincronizar({ agenteId: "a1", navegadores: { a1: resposta() } });
+  });
+  afterEach(() => { navegador.destruir(); vi.restoreAllMocks(); });
+  const tc = () => document.querySelector<HTMLDialogElement>("dialog.nv-tc")!;
+
+  it("T1 no ⋯: começar assume, abre a tela cheia e grava; a barra tem o relógio vivo e os passos ficam ao lado", async () => {
+    const intervalos = vi.spyOn(window, "setInterval");
+    navegador.abrirPainel("a1");
+    document.querySelector<HTMLButtonElement>('#navegador-painel [data-nv-p="menu"]')!.click();
+    const item = document.querySelector<HTMLButtonElement>('.nv-menu [data-nv-menu="ensinar"]')!;
+    expect(item.textContent).toBe("Ensinar uma tarefaMostre aqui; Ada aprende");
+    item.click();
+    await vi.waitFor(() => expect(ensinos).toEqual([["comecar", undefined]]));
+    expect(operacoes).toContain("assumir");
+    expect(tc().classList.contains("nv-gravando")).toBe(true);
+    expect(tc().querySelector<HTMLElement>(".nv-tc-topo")!.hidden).toBe(true);
+    expect(tc().querySelector(".nv-grav-barra")?.textContent).toMatch(/^Ensinando a Ada · 0:4[23] · 1 passo/);
+    expect(tc().querySelector(".nv-grav-passos")?.textContent).toBe("Passos gravados1 · Abriu itau.com.br");
+    const tique = intervalos.mock.calls.find((c) => c[1] === MS_RELOGIO_GRAVACAO)?.[0] as (() => void) | undefined;
+    expect(tique).toBeDefined();
+    const daqui = Date.now() + 60_000;
+    vi.spyOn(Date, "now").mockReturnValue(daqui);
+    tique!();
+    expect(tc().querySelector(".nv-grav-relogio")?.textContent).toMatch(/^1:4[2-4] · 1 passo$/);
+  });
+
+  it("Salvar e ensinar pede o nome com a sugestão pronta, salva e sai da tela cheia (devolvendo à Ada)", async () => {
+    await navegador.ensinar("a1");
+    tc().querySelector<HTMLButtonElement>('[data-nv-p="salvar-gravacao"]')!.click();
+    const campo = tc().querySelector<HTMLInputElement>(".nv-grav-nome-campo")!;
+    expect(campo.value).toBe("itau.com.br");
+    campo.value = "Baixar a fatura do Itaú";
+    tc().querySelector<HTMLFormElement>('[data-nv-form="nomear"]')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(ensinos.at(-1)).toEqual(["salvar", "Baixar a fatura do Itaú"]));
+    await vi.waitFor(() => expect(document.querySelector("dialog.nv-tc")).toBeNull());
+    expect(document.querySelector(".nv-aviso")?.textContent).toContain("Ensinado");
+  });
+
+  it("Descartar joga fora com aviso e Desfazer; Desfazer assume de novo e devolve a gravação", async () => {
+    await navegador.ensinar("a1");
+    tc().querySelector<HTMLButtonElement>('[data-nv-p="descartar-gravacao"]')!.click();
+    await vi.waitFor(() => expect(document.querySelector(".nv-aviso")?.textContent).toContain("Gravação descartada (1 passo)"));
+    expect(tc().classList.contains("nv-gravando")).toBe(false);
+    document.querySelector<HTMLButtonElement>(".nv-aviso button")!.click();
+    await vi.waitFor(() => expect(ensinos.at(-1)).toEqual(["desfazer_descarte", undefined]));
+    expect(tc().classList.contains("nv-gravando")).toBe(true);
   });
 });

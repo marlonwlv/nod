@@ -1,6 +1,6 @@
 import type { Navegadores } from "../../fundo/navegadores.ts";
 import type { Rota } from "../roteador.ts";
-import { FONTES_COFRE, OPERACOES_ENSINAR, OPERACOES_NAVEGADOR, type EscolhaLoginNavegador, type FonteCofre, type LoginDoCofreNaTela, type MudancaLugarNavegador, type OperacaoEnsinar, type OperacaoNavegador, type RespostaEnsinar, type RespostaLoginNavegador, type RespostaLugarNavegador, type RespostaNavegador } from "../../../contracts/navegador-do-bot.ts";
+import { FONTES_COFRE, OPERACOES_ENSINAR, OPERACOES_NAVEGADOR, type EscolhaLoginNavegador, type FonteCofre, type LoginDoCofreNaTela, type MudancaLugarNavegador, type OperacaoEnsinar, type OperacaoNavegador, type RespostaEnsinar, type RespostaLoginNavegador, type RespostaLugarNavegador, type RespostaNavegador, type TarefaEnsinada } from "../../../contracts/navegador-do-bot.ts";
 import { codigoValido, hostDoSite, mascararUsuario } from "../../../domain/navegador-cofre.ts";
 import type { LoginDoCofre } from "../../../repositories/cofre-logins.repo.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
@@ -113,6 +113,26 @@ export function rotasCofreLogins(d: { dentro<T>(escopo: Escopo, fn: (d: Deps) =>
     { metodo: "DELETE", acao: "cofre.apagar_login", padrao: /^\/cofre\/logins\/(?<id>[^/]+)$/, async handler(ctx) {
       if (!UUID.test(ctx.params.id ?? "")) throw new ErroDeDominio("nao_encontrado");
       const apagou = await d.dentro(ctx.escopo, (deps) => deps.repos.cofreLogins.apagar(ctx.params.id!));
+      if (!apagou) throw new ErroDeDominio("nao_encontrado");
+      ctx.json(200, { ok: true });
+    } },
+  ];
+}
+
+/**
+ * As habilidades do bot (ADR-190, T3; Ajustes do bot › Habilidades): as tarefas que a pessoa ensinou no navegador. Listar
+ * (o nome, os passos em frases e a data) e apagar. Só a dona: o filtro por owner_id no repositório, além do RLS. A lista
+ * do bot é a mesma que `navegador_tarefa_ensinada` devolve a ele (mais novas primeiro, até TAREFAS_POR_BOT).
+ */
+export function rotasTarefasEnsinadas(d: { dentro<T>(escopo: Escopo, fn: (d: Deps) => Promise<T>): Promise<T> }): Rota[] {
+  return [
+    { metodo: "GET", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/tarefas$/, async handler(ctx) {
+      const tarefas: TarefaEnsinada[] = await d.dentro(ctx.escopo, (deps) => deps.repos.navegadorTarefas.doAgente(ctx.params.id!));
+      ctx.json(200, { tarefas });
+    } },
+    { metodo: "DELETE", acao: "navegador.apagar_tarefa", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/tarefas\/(?<tarefa>[^/]+)$/, async handler(ctx) {
+      if (!UUID.test(ctx.params.tarefa ?? "")) throw new ErroDeDominio("nao_encontrado");
+      const apagou = await d.dentro(ctx.escopo, (deps) => deps.repos.navegadorTarefas.apagar(ctx.params.id!, ctx.params.tarefa!));
       if (!apagou) throw new ErroDeDominio("nao_encontrado");
       ctx.json(200, { ok: true });
     } },

@@ -292,6 +292,118 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 .nv-folha .nv-endereco-input { height: 44px; font-size: 16px; }
 
 /* ---------- Animações (D8: ≤ 320 ms, nenhuma bloqueia clique) ---------- */
+/* ---------- Os cartões do navegador na conversa, em Sua vez e no celular (L, A; K3, M4) ----------
+   Paper (get_jsx): borda 1 px no azul a 33 %, raio 14, padding 14, gap 10; título 14/19 semibold com o ponto azul de 7 px;
+   subtítulo 12/19; botões 13/19 de raio 10 (preto 9/12, contorno 8); indisponível cinza com o motivo de 11 px. */
+.nvc { display: flex; flex-direction: column; gap: 10px; max-width: 462px; margin: 0; padding: 14px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--nv-precisa) 33%, transparent); border-radius: var(--raio-14); background: var(--surface-elevated); font-size: var(--fs-rotulo); line-height: 16px; overflow-wrap: anywhere; }
+.nvc p { margin: 0; }
+.nvc-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.nvc-tit { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: var(--fs-corpo); line-height: 19px; font-weight: 600; }
+.nvc-ponto { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--nv-precisa); }
+.nvc-sub { color: var(--ink-3); font-size: var(--fs-rotulo); line-height: 19px; }
+.nvc-nota { color: var(--ink-3); font-size: var(--fs-legenda); line-height: 19px; }
+.nvc-erro { color: var(--danger); font-size: var(--fs-rotulo); line-height: 18px; }
+.nvc-ops { display: flex; flex-direction: column; gap: 8px; }
+.nvc-par { display: flex; gap: 8px; }
+.nvc-par > * { flex: 1 1 0; min-width: 0; }
+.nvc-op { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 37px; margin: 0; padding: 8px 12px; box-sizing: border-box; border: 1px solid transparent; border-radius: var(--raio-10); background: none; color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); line-height: 19px; text-align: left; cursor: pointer; }
+.nvc-op small { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-legenda); line-height: 19px; }
+.nvc-op-centro { justify-content: center; text-align: center; }
+.nvc-op-principal { border-color: var(--action); background: var(--action); color: var(--on-action); }
+.nvc-op-principal small { color: color-mix(in srgb, var(--on-action) 66%, transparent); }
+.nvc-op-principal:hover:not(:disabled) { background: color-mix(in srgb, var(--action) 88%, var(--surface)); }
+.nvc-op-contorno { border-color: color-mix(in srgb, var(--ink) 16%, transparent); }
+.nvc-op-contorno:hover:not(:disabled) { background: var(--hover); }
+.nvc-op-indisponivel { border-color: transparent; background: var(--nv-endereco); color: var(--ink-3); cursor: default; }
+.nvc-op-indisponivel small { color: var(--ink-3); }
+.nvc-op:disabled:not(.nvc-op-indisponivel) { opacity: .55; cursor: default; }
+.nvc-op:focus-visible, .nvc-link:focus-visible, .nvc-codigo-campo:focus-visible, .nvc-guardar button:focus-visible, .nvc-destino:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.nvc-mac { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: var(--fs-corpo-2); line-height: 19px; }
+.nvc-giro { display: inline-block; flex: none; width: 14px; height: 14px; box-sizing: border-box; border: 1.6px solid var(--borda); border-top-color: var(--nv-precisa); border-radius: 50%; animation: nv-gira .8s linear infinite; }
+.nvc-link { flex: none; margin: 0; padding: 0; border: 0; background: none; color: var(--ink-3); font: inherit; font-size: var(--fs-rotulo); line-height: 19px; cursor: pointer; }
+.nvc-link:hover { color: var(--ink); text-decoration: underline; }
+.nvc-de { margin: 0 0 6px; color: var(--ink-3); font-size: var(--fs-rotulo); }
+.nvc-item { list-style: none; }
+/* L4: o campo privado do código, 2 px de tinta, com os dígitos espaçados. */
+.nvc-codigo-linha { display: flex; gap: 8px; }
+.nvc-codigo-campo { flex: 1 1 0; min-width: 0; height: 41px; padding: 9px 10px; box-sizing: border-box; border: 2px solid var(--ink); border-radius: var(--raio-10); background: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); letter-spacing: .3em; }
+.nvc-codigo-campo:disabled { opacity: .6; }
+.nvc-enviar { flex: none; padding: 9px 14px; }
+/* A3: a citação do que vai ser enviado e o "Não perguntar de novo". */
+.nvc-citacao { margin: 0; padding: 8px 10px; border-radius: var(--raio-8); background: var(--nv-endereco); color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 19px; }
+.nvc-lembrar { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: var(--fs-rotulo); line-height: 19px; cursor: pointer; }
+.nvc-lembrar input { width: 14px; height: 14px; margin: 0; accent-color: var(--action); }
+/* L5: a linha discreta "Guardar no cofre?". */
+.nvc-guardar { display: flex; align-items: center; gap: 10px; max-width: 462px; margin: 4px 0 12px auto; padding: 10px 14px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); font-size: var(--fs-corpo-2); line-height: 19px; }
+.nvc-guardar-txt { flex: 1 1 0; min-width: 0; color: var(--ink-2); }
+.nvc-guardar button { flex: none; margin: 0; padding: 4px 2px; border: 0; background: none; font: inherit; cursor: pointer; }
+.nvc-guardar-sim { color: var(--ink); font-weight: 600; }
+.nvc-guardar-nao { color: var(--ink-3); }
+.nvc-destino { height: 28px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--raio-8); background: var(--surface-elevated); color: var(--ink); font: inherit; font-size: var(--fs-rotulo); }
+.msg-sistema.nvc-linha { font-size: var(--fs-rotulo); line-height: 16px; }
+.nvc-linha .nvc-link { font-size: inherit; line-height: inherit; text-decoration: underline; }
+
+/* L3: o selo "Entrando com o 1Password…" na faixa de baixo, ao lado da pílula. */
+.nv-selo-lugar:empty { display: none; }
+.nv-selo-login { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: var(--raio-full); background: var(--surface-elevated); box-shadow: var(--sombra-menu), 0 0 0 1px var(--line); color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 19px; white-space: nowrap; }
+.nv-selo-login .nvc-giro { width: 12px; height: 12px; }
+
+/* T1: "Ensinar uma tarefa" no ⋯ do navegador e no + do campo (o subtítulo em 11 px). */
+.nv-menu-corpo > .nv-menu-ensinar { height: auto; flex-direction: column; align-items: flex-start; gap: 0; padding: 6px 10px; }
+.nv-menu-sub, .menu-do-mais .mm-ensinar small { color: var(--ink-3); font-size: var(--fs-legenda); line-height: 19px; }
+.menu-do-mais .mm-item > span { width: auto; font-size: inherit; }
+.menu-do-mais .mm-atalho { color: var(--ink-3); }
+.menu-do-mais .mm-ensinar { flex-direction: column; align-items: flex-start; gap: 0; }
+
+/* T2: gravando na tela cheia — a barra no topo, a moldura vermelha fina e os passos no painel escuro ao lado. */
+.nv-tc-topo[hidden], .nv-grav-topo[hidden], .nv-tc-lado[hidden] { display: none; }
+.nv-tc-meio { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 0 8px; }
+.nv-tc-meio > .nv-tc-corpo { flex: 1 1 0; min-width: 0; padding: 0; }
+.nv-tc-lado { flex: none; display: flex; width: 260px; }
+.nv-tc.nv-gravando .nv-moldura { box-shadow: 0 0 0 2px #e5484d; } /* cor-fixa: o vermelho de gravação do Paper sobre o #141414 */
+.nv-grav-topo { flex: none; padding: 10px 14px 10px; }
+.nv-grav-barra { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; padding: 4px 6px; color: #ffffff; font-size: var(--fs-corpo-2); line-height: 19px; } /* cor-fixa: sobre o #141414 */
+.nv-grav-estado { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.nv-grav-ponto { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #e5484d; animation: nv-respira 2s ease-in-out infinite; } /* cor-fixa: o vermelho de gravação */
+.nv-grav-relogio { font-variant-numeric: tabular-nums; }
+.nv-grav-acoes, .nv-grav-nome { display: inline-flex; align-items: center; gap: 8px; }
+.nv-grav-bt { height: 31px; margin: 0; padding: 6px 12px; box-sizing: border-box; border: 0; border-radius: var(--raio-full); background: #ffffff1f; color: #ffffff; font: inherit; font-size: var(--fs-rotulo); line-height: 19px; cursor: pointer; } /* cor-fixa: sobre o #141414 */
+.nv-grav-bt:hover:not(:disabled) { background: #ffffff33; } /* cor-fixa: sobre o #141414 */
+.nv-grav-bt.nv-grav-salvar { background: #ffffff; color: #1c1c1c; } /* cor-fixa: o botão branco do Paper sobre o #141414 */
+.nv-grav-bt:disabled { opacity: .5; cursor: default; }
+.nv-grav-bt:focus-visible, .nv-grav-nome-campo:focus-visible { outline: 2px solid #4ea3f0; outline-offset: 2px; } /* cor-fixa: o --focus-ring do escuro */
+.nv-grav-nome-campo { width: 240px; height: 31px; padding: 0 12px; box-sizing: border-box; border: 1px solid #ffffff33; border-radius: var(--raio-full); background: #ffffff1f; color: #ffffff; font: inherit; font-size: var(--fs-rotulo); } /* cor-fixa: sobre o #141414 */
+.nv-grav-passos { flex: 1; min-height: 0; overflow: auto; padding: 12px; border-radius: var(--raio-10); background: #ffffff14; } /* cor-fixa: sobre o #141414 */
+.nv-grav-passos h2 { margin: 0 0 8px; color: #ffffff8f; font-size: var(--fs-legenda); line-height: 17px; font-weight: 400; letter-spacing: .04em; text-transform: uppercase; } /* cor-fixa: sobre o #141414 */
+.nv-grav-passos ol { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.nv-grav-passos li { color: #ffffffd9; font-size: var(--fs-rotulo); line-height: 17px; } /* cor-fixa: sobre o #141414 */
+.nv-grav-passos li.nv-grav-ultimo { color: #ffffff; } /* cor-fixa: sobre o #141414 */
+.nv-grav-passos li.nv-grav-vazio { color: #ffffff8f; } /* cor-fixa: sobre o #141414 */
+
+/* T3: Ajustes do bot › Habilidades. */
+.nvh-lista { margin: 0; padding: 0; list-style: none; }
+.nvh-linha .gv-linha-txt small { display: block; }
+.nvh-linha .gv-link + .gv-link { margin-left: 4px; }
+.nvh-apagar { color: var(--danger); }
+.nvh-passos { margin: 0 12px 10px 40px; padding: 0; color: var(--ink-2); font-size: var(--fs-rotulo); line-height: 18px; }
+
+/* Configurações › Cofre › Logins de sites (ADR-190, decisão 6). */
+.cofre-logins { margin-top: 24px; }
+.cofre-logins-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cofre-logins-nota { margin: 4px 0 10px; }
+.cofre-filtro { margin: 0 0 10px; color: var(--ink-2); font-size: var(--fs-corpo-2); }
+.cofre-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; margin: 0 0 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--raio-12); background: var(--surface-elevated); }
+.cofre-campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; color: var(--ink-2); font-size: var(--fs-rotulo); }
+.cofre-campo input { width: 100%; height: 34px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--raio-8); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-corpo-2); }
+.cofre-senha { position: relative; display: flex; }
+.cofre-senha input { padding-right: 36px; }
+.cofre-olho { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); display: grid; place-items: center; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: var(--raio-6); background: none; color: var(--ink-3); cursor: pointer; }
+.cofre-olho[aria-pressed="true"] { color: var(--ink); }
+.cofre-olho:hover { background: var(--hover); }
+.cofre-form-erro { grid-column: 1 / -1; margin: 0; color: var(--danger); font-size: var(--fs-rotulo); }
+.cofre-form-bts { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.cofre-apagar { color: var(--danger); }
+
 @keyframes nv-gira { to { transform: rotate(360deg); } }
 @keyframes nv-respira { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @keyframes nv-cresce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
@@ -306,7 +418,7 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 @media (prefers-reduced-motion: reduce) {
   .app.nv-lado.nv-animando:not(#nv-nenhum) { transition: none; }
   .nv-lugar-fundo, .nv-moldura, .nv-pilula, .nv-quadro, .nv-folha { transition: none; }
-  .nv-canto-ponto, .nv-lugar-ponto, .nv-aba-lugar-ponto, .nv-favicon-giro, .nv-giro, .nv-carregando[data-fase="andando"] i { animation: none; }
+  .nv-canto-ponto, .nv-lugar-ponto, .nv-aba-lugar-ponto, .nv-favicon-giro, .nv-giro, .nvc-giro, .nv-grav-ponto, .nv-carregando[data-fase="andando"] i { animation: none; }
   .nv-carregando[data-fase="andando"] i { width: 60%; }
   .nv-anel, .nv-linha, .nv-aviso-site, .nv-menu, .nv-dica-assumir { animation-duration: 1ms; }
   .nv-aviso { animation: nv-aviso-fade 120ms linear both; }
@@ -316,6 +428,8 @@ dialog.nv-tc[open] { display: flex; flex-direction: column; }
 @media (forced-colors: active) {
   .nv-alca:focus-visible, .nv-endereco-input:focus, .nv-palco:focus-visible, .nv-menu-corpo > button:focus-visible, .nv-menu-bts > button:focus-visible, .nv-recado-input:focus { outline: 2px solid Highlight; }
   .nv-moldura, .nv-canto, .nv-linha, .nv-menu { outline: 1px solid CanvasText; }
-  .nv-moldura[data-controle="pessoa"], .nv-moldura[data-controle="precisa"] { outline: 2px solid Highlight; }
+  .nv-moldura[data-controle="pessoa"], .nv-moldura[data-controle="precisa"], .nv-tc.nv-gravando .nv-moldura { outline: 2px solid Highlight; }
+  .nvc, .nvc-guardar, .nv-selo-login, .nv-grav-passos, .cofre-form { outline: 1px solid CanvasText; }
+  .nvc-op:focus-visible, .nvc-link:focus-visible, .nvc-codigo-campo:focus-visible, .nvc-guardar button:focus-visible, .nvc-destino:focus-visible, .nv-grav-bt:focus-visible, .nv-grav-nome-campo:focus-visible, .cofre-olho:focus-visible { outline: 2px solid Highlight; }
   .nv-lugar-ponto, .nv-canto-ponto, .nv-aba-lugar-ponto, .nv-linha-ponto { forced-color-adjust: none; background: CanvasText; }
 }

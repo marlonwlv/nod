@@ -91,5 +91,14 @@ export function navegadorTarefasRepo(conn: Conn, escopo: Escopo) {
         order by criada_em desc, id limit ${TAREFAS_POR_BOT}`;
       return linhas.map(tarefa);
     },
+
+    /** Habilidades (Ajustes do bot): apaga uma tarefa ensinada da dona. false = não existe ou não é dela. */
+    async apagar(agenteId: string, id: string): Promise<boolean> {
+      const linhas = await conn`
+        delete from navegador_tarefas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and agente_id = ${agenteId} and id = ${id}
+        returning id`;
+      return linhas.length > 0;
+    },
   };
 }

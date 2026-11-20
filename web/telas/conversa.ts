@@ -38,6 +38,7 @@ import { htmlLinhaTelaFechada, htmlPedidoDeTela } from "../lib/computador-pessoa
 import { htmlFalhaDoComputador, htmlLinhaDeSistemaDoComputador, rotuloDaEsperaDoComputador } from "../lib/computador-conversa.ts";
 import { htmlLinhaDoLugarDoNavegador } from "../lib/navegador-conversa.ts";
 import { htmlLinhaDoNavegador, linhaDoNavegadorVisivel } from "../lib/navegador-vista.ts";
+import { htmlLinhaGuardar, linhaDaRespostaDoNavegador } from "../lib/navegador-cartoes.ts";
 import { cartaoDaPergunta, desenharFios, linhaDaRetomada, respostaPorOpcao, rotuloDaResposta, tempoDasLinhas, type LinhaDaConversa } from "./pergunta.ts";
 import { comDivisores, type TempoDoBloco } from "./divisores-de-data.ts";
 import { cartaoDeBoasVindas, faseDasBoasVindas } from "./boas-vindas.ts";
@@ -52,7 +53,7 @@ import { renderCardAcesso, tituloDoPedidoDeAcesso } from "./card-acesso.ts";
 import { ehCartaoCredencial, renderCardCredencial } from "./card-credencial.ts";
 import { renderBarraRascunhos } from "./rascunhos-de-envio.ts";
 import { renderMensagemCartoes } from "./cartoes-ricos.ts";
-import { acaoHumana, cartaoDoPedidoDeAjuda, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
+import { acaoHumana, cartaoDoPedidoDeAjuda, cartaoDoPedidoDoNavegador, idsGemeas, marcaGemeas, marcaRotinaParada, ancoradosComIguais, pedidosAncoraveis, renderDecisoesDaConversa, rotulosAcesso } from "./sua-vez.ts";
 import { renderCardPasta } from "./card-pasta.ts";
 import { dadosDoEncolhido, pedidoDoRecibo, renderCartaoEncolhido, turnoDoEncolhido } from "./cartao-encolhido.ts";
 import { renderCardLote } from "./card-lote.ts";
@@ -758,6 +759,9 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   const pergunta = !ehPessoa && m.payload?.kind === "pedido_a_pessoa" ? m.payload : null;
   const resposta = ehPessoa && m.payload?.kind === "resposta_a_pedido" ? m.payload : null;
   if (resposta && respostaPorOpcao(m, estado)) return "";
+  // ADR-190: a resposta que o portão do navegador gravou ao fechar um pedido (login preenchido, código enviado) é para o
+  // bot; na conversa, a pergunta já virou a linha discreta com o que aconteceu.
+  if (resposta && linhaDaRespostaDoNavegador(m.texto) !== null) return "";
   // Sala e tela da task (que passa o `chipDaFala`) não têm Cancelar.
   const fila = sala || opcoes.chipDaFala !== undefined ? null : situacaoNaFila(m, estado);
   if (fila?.tipo === "oculta") return "";
@@ -794,7 +798,10 @@ export function renderMensagem(m: Mensagem, estado: Estado, sala = false, opcoes
   // Item 6: no computador da pessoa o pedido de ajuda é o cartão "Entre no {site}"; resolvido, vira linha de sistema.
   const ajuda = motivoTela !== null && estado.computadorPessoa ? cartaoDoPedidoDeAjuda(m, estado) : null;
   if (ajuda?.linha) return ajuda.html;
-  const balao = ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m)) && m.texto.trim() === "" ? "" : ehPessoa
+  // ADR-190 (L1–L4): o pedido do navegador (login, código, ajuda) é o cartão do navegador; resolvido, vira linha.
+  const doNavegador = pergunta && motivoTela === null ? cartaoDoPedidoDoNavegador(m, estado) : null;
+  if (doNavegador?.linha) return doNavegador.html;
+  const balao = doNavegador ? doNavegador.html : ajuda ? ajuda.html : motivoTela !== null ? (estado.computadorPessoa ? htmlPedidoDeTela(motivoTela, agente?.id ?? "", telaAberta) : htmlCartaoTela(motivoTela, agente?.id ?? "", telaAberta, agente?.nome, pergunta?.decisaoId)) : pergunta ? cartaoDaPergunta(m, estado) : (ehPessoa ? m.anexos?.length : temMidiaDoBot(m)) && m.texto.trim() === "" ? "" : ehPessoa
       ? reciboDaPessoa(m, estado, metaTags) ?? `<div class="bubble">${comChipDeComando(m.texto)}${metaTags}</div>`
       : baloesDoBot(m.texto, m.id, opcoes.diagramas === true, metaTags);
   const emVoo = fila?.tipo === "na_fila" || fila?.tipo === "cancelando" ? ' data-na-fila aria-busy="true"' : "";
@@ -1710,6 +1717,7 @@ export function blocosAoVivo(c: ConversaEstado, estado: Estado): BlocoDaTimeline
     ...vivos.flatMap((t) => [...paradas((s) => s.turno.turnoId === t.turnoId), ...blocosDoTurnoVivo(t, c, estado)]),
     { chave: "computador", html: linhaDoComputador(c, estado) },
     { chave: "navegador", html: linhaDoNavegador(c, estado) },
+    { chave: "navegador-guardar", html: linhaGuardarDoNavegador(c, estado) },
     { chave: "faixa", html: renderFaixaParada(faixaQueFalta(estado.faixaParada?.conversaId === c.conversa.id ? estado.faixaParada : null, c.mensagens)) },
   ];
   return blocos.filter((b) => b.html !== "");
@@ -1748,6 +1756,17 @@ function linhaDoNavegador(c: ConversaEstado, estado: Estado): string {
   const r = estado.navegadores[id];
   if (!a || a.ownerId !== estado.sessao?.pessoaId || !r || !linhaDoNavegadorVisivel(r.vista, estado.agora || Date.now())) return "";
   return htmlLinhaDoNavegador(a.nome, id, r.vista, { modoAbas: false });
+}
+
+/**
+ * ADR-190 (L5): "Você entrou no Bradesco digitando. Guardar no cofre? Guardar | Não" — a linha discreta no fim da conversa
+ * do bot enquanto a oferta vale (5 min no servidor). Só no chat de um bot da pessoa.
+ */
+function linhaGuardarDoNavegador(c: ConversaEstado, estado: Estado): string {
+  const id = c.conversa.agenteId;
+  if (!id || agenteDe(estado, id)?.ownerId !== estado.sessao?.pessoaId) return "";
+  const oferta = estado.navegadores[id]?.vista.ofertaGuardar;
+  return oferta ? htmlLinhaGuardar({ oferta, agenteId: id, agora: estado.agora || Date.now() }) : "";
 }
 
 export function renderHistoricoDaTimeline(c: ConversaEstado, estado: Estado): string {

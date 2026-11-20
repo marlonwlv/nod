@@ -113,6 +113,8 @@ type Estado = {
   loginEmCurso: Promise<void> | null;
   /** L5: o que a pessoa digita no login "Entrar eu mesmo", só em memória e cifrado, até `ate`. */
   captura: Captura | null;
+  /** A3: o último texto que o BOT preencheu e em que página (a citação do cartão de envio). Nunca o que a pessoa digita. */
+  ultimoTexto: { url: string; texto: string } | null;
 };
 
 /** L5: o usuário e a senha que a pessoa digitou (cada um cifrado), o campo em que ela está e a URL de quando começou. */
@@ -140,7 +142,7 @@ export const DESFAZER_DESCARTE_MS = 10_000;
 /** definido em 2026-11-20 (D0): reabrir mais que isto de abas ao retomar pesa mais do que ajuda. */
 const ABAS_GUARDADAS_MAX = 10;
 /** As frases que retomam o turno que esperava a pessoa (login, captcha, ajuda). */
-const RETOMADA = {
+export const RETOMADA = {
   devolver: "Terminei no navegador e devolvi o controle. Leia a página de novo (navegador_ler) e continue.",
   resolver: "Resolvi o que você pediu no navegador. Leia a página de novo (navegador_ler) e continue.",
 } as const;
@@ -228,11 +230,23 @@ const abaDaVista = (a: { id: string; titulo: string; url: string; ativa: boolean
 const AGUARDANDO_PESSOA = { estado: "aguardando_pessoa", instrucao: "A pessoa está com o navegador (ou ele espera um passo dela). Nada foi executado. Encerre o turno e aguarde; ela devolve e você continua." };
 const NA_FILA = { estado: "na_fila", instrucao: "Os navegadores do nod estão todos em uso agora. Nada foi executado. Siga com o que dá sem o navegador e tente de novo em 30 s; não diga que o navegador quebrou." };
 const SEGREDO_NA_PAGINA = { erro: "segredo_na_pagina", instrucao: "A página tem uma senha ou código que o nod preencheu; a leitura e o print ficam travados até a página mudar. Clique no botão de entrar (ou espere a página seguinte) e leia de novo." };
-/** As frases que fecham o pedido de login e retomam o bot (nunca com valor nenhum). */
-const LOGIN_PREENCHIDO = (site: string) => `Login preenchido no ${site} (a senha não passa por você). A leitura e o print ficam travados até a página mudar: aperte Enter (navegador_tecla) ou clique no botão de entrar com a referência da última leitura. Se a página seguinte pedir um código, chame navegador_pedir_ajuda com codigo: true.`;
-const SO_USUARIO = (site: string) => `Preenchi só o usuário no ${site}: a página não mostra o campo de senha ainda. Clique em continuar (ou avançar) e chame navegador_entrar de novo na página da senha.`;
-const CODIGO_ENVIADO = "Código enviado. A pessoa pôs o código no campo da página (você não o vê). A leitura fica travada até a página mudar: aperte Enter (navegador_tecla) ou clique no botão de confirmar com a referência da última leitura.";
-const DO_CHROME = (site: string, n: number) => `Trouxe do Chrome da pessoa a sessão de ${site} (${n} cookies) e recarreguei a página. Leia a página de novo; se ainda pedir login, chame navegador_entrar.`;
+/**
+ * As frases que fecham o pedido de login e retomam o bot (nunca com valor nenhum). Exportadas para o teste da web, que
+ * reconhece a resposta e a desenha como linha discreta (web/lib/navegador-cartoes.ts, `linhaDaRespostaDoNavegador`).
+ */
+export const LOGIN_PREENCHIDO = (site: string) => `Login preenchido no ${site} (a senha não passa por você). A leitura e o print ficam travados até a página mudar: aperte Enter (navegador_tecla) ou clique no botão de entrar com a referência da última leitura. Se a página seguinte pedir um código, chame navegador_pedir_ajuda com codigo: true.`;
+export const SO_USUARIO = (site: string) => `Preenchi só o usuário no ${site}: a página não mostra o campo de senha ainda. Clique em continuar (ou avançar) e chame navegador_entrar de novo na página da senha.`;
+export const CODIGO_ENVIADO = "Código enviado. A pessoa pôs o código no campo da página (você não o vê). A leitura fica travada até a página mudar: aperte Enter (navegador_tecla) ou clique no botão de confirmar com a referência da última leitura.";
+export const DO_CHROME = (site: string, n: number) => `Trouxe do Chrome da pessoa a sessão de ${site} (${n} cookies) e recarreguei a página. Leia a página de novo; se ainda pedir login, chame navegador_entrar.`;
+/**
+ * As falas do bot que abrem os pedidos de login, de código e de ajuda (a mensagem `pedido_a_pessoa` da conversa). A web as
+ * reconhece para trocar o cartão de pergunta pelo do navegador (web/lib/navegador-cartoes.ts, `pedidoDoNavegadorNaFala`).
+ */
+export const FALA_DO_LOGIN = (site: string, motivo: string) => `Preciso entrar em ${site} no meu navegador para continuar: ${motivo}. A senha vai do cofre direto para a página; ela não passa por mim.`;
+export const FALA_DO_CODIGO = (motivo: string) => `Preciso do código que chegou para você: ${motivo}. Digite no cartão; ele vai direto para a página, não para mim.`;
+export const FALA_DA_AJUDA = (motivo: string) => `Preciso de você no meu navegador: ${motivo}`;
+/** A citação do envio (A3): o último texto que o bot preencheu na mesma página, até este tamanho. */
+export const CITACAO_MAX = 280;
 /** O aviso da pílula quando pagar pede Touch ID e o Mac está desligado (ADR-177; definido em 2026-11-20). */
 export const AVISO_SEM_TOUCH_ID = "Seu Mac está desligado: a confirmação vai só pelo botão, sem o Touch ID.";
 /** L2: a resposta ao celular quando o Mac pede a confirmação. */
@@ -310,7 +324,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     }
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
-      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, loginEmCurso: null, captura: null,
+      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, loginEmCurso: null, captura: null, ultimoTexto: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
@@ -687,6 +701,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (alvoSecreto(c.est, alvo)) return { conteudo: { erro: "campo_protegido", instrucao: "Este campo é de senha, código ou cartão: você nunca o preenche. Use navegador_entrar (login) ou navegador_pedir_ajuda (código, cartão)." }, isError: true };
         if (ferramenta === "navegador_preencher") await m.preencher(s, alvo, String(args.texto ?? ""));
         else await m.digitar(s, alvo, String(args.texto ?? ""));
+        c.est.ultimoTexto = { url: c.est.url, texto: String(args.texto ?? "") };
         break;
       }
       case "navegador_tecla": await m.tecla(s, String(args.tecla)); break;
@@ -822,10 +837,19 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         tipo: "aprovacao", decisaoId: r.decisao_id, pergunta, botao: (alvo?.nome ?? "").slice(0, 80), classe: d.classe,
         touchId: comMac, avisoTouchId: d.touchId && !comMac ? AVISO_SEM_TOUCH_ID : null, caixa,
         lembrar: lembrar ? { padrao: true, texto: textoDoLembrar(lembrar.destino) } : null,
+        citacao: citacaoDoEnvio(c.est, d.classe),
       } });
       return { aguardar: r.decisao_id };
     }
     return { saida: await comPasso(c, ferramenta, alvo, () => efeito(c, ferramenta, args)) };
+  }
+
+  /** A3: o que vai ser enviado, para a pessoa ler no cartão — o último texto que o bot preencheu nesta mesma página. */
+  function citacaoDoEnvio(est: Estado, classe: string): string | null {
+    const t = est.ultimoTexto;
+    if (classe !== "enviar" || !t || t.url !== est.url) return null;
+    const limpo = t.texto.replace(/\s+/g, " ").trim();
+    return limpo ? (limpo.length > CITACAO_MAX ? `${limpo.slice(0, CITACAO_MAX - 1)}…` : limpo) : null;
   }
 
   const comoResultado = (d: Desfecho): ResultadoChamada => {
@@ -866,7 +890,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const host = daAba || hostDoSite(site);
     const { opcoes, podeTrazerDoChrome } = await montarOpcoes(escopo, plano.agenteId, host);
     return o.dentro(escopo, async (d) => {
-      const texto = `Preciso entrar em ${site} no meu navegador para continuar: ${motivo}. A senha vai do cofre direto para a página; ela não passa por mim.`;
+      const texto = FALA_DO_LOGIN(site, motivo);
       const p = await perguntarSemTexto(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto });
       if (p.events?.length) await d.repos.events.gravarComOutbox(p.events);
       est.loginHost = host || null;
@@ -953,7 +977,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
           const motivo = String(args.motivo).slice(0, 300);
           const codigo = args.codigo === true;
           // L4: o código de uso único entra pelo campo privado do cartão, nunca pelo chat (o pedido não aceita texto).
-          const p = await (codigo ? perguntarSemTexto : perguntar)(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto: codigo ? `Preciso do código que chegou para você: ${motivo}. Digite no cartão; ele vai direto para a página, não para mim.` : `Preciso de você no meu navegador: ${motivo}` });
+          const p = await (codigo ? perguntarSemTexto : perguntar)(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto: codigo ? FALA_DO_CODIGO(motivo) : FALA_DA_AJUDA(motivo) });
           if (p.events?.length) await d.repos.events.gravarComOutbox(p.events);
           mudar(est, { controle: "precisa_de_voce", passo: null, pedido: { tipo: "ajuda", decisaoId: p.data.decisao_id, motivo, codigo } });
           return { ok: true, conteudo: JSON.stringify(p.data), confianca: "confiavel" };

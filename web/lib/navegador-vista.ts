@@ -257,8 +257,8 @@ export function htmlEstadoDaTela(e: EstadoDaTela, v: Pick<VistaNavegador, "lugar
       return `<div class="nv-estado nv-estado-erro" role="alert"><b>Não deu para mostrar a tela</b><span class="nv-estado-sub">${esc(causa)}${quando}${esc(onde)}</span><button type="button" class="nv-estado-bt" data-nv="ligar">Tentar de novo</button></div>`;
     }
     case "segredo": {
-      const fonte = v?.pedido?.tipo === "login" ? "Entrando com o cofre…" : "Campo protegido";
-      return `<div class="nv-estado nv-estado-segredo" role="status"><span class="nv-estado-ic">${ICONE_CADEADO}</span><b>${fonte}</b><span class="nv-estado-sub">A página tem uma senha. ${n} não vê esta tela até ela mudar.</span></div>`;
+      // L3: o campo de senha verde "Campo protegido"; o selo "Entrando com o 1Password…" mora na faixa de baixo.
+      return `<div class="nv-estado nv-estado-segredo" role="status"><span class="nv-estado-ic">${ICONE_CADEADO}</span><b>Campo protegido</b><span class="nv-estado-sub">A página tem uma senha. ${n} não vê esta tela até ela mudar.</span></div>`;
     }
     default:
       return "";
@@ -440,7 +440,7 @@ export function htmlAcoesDoPainel(o: { celular?: boolean } = {}): string {
  * O ⋯ do navegador (D1c): Recarregar a página · Copiar endereço · Abrir no meu navegador · Logins deste site… | Encerrar o
  * navegador (vermelho). No modo abas, o clique direito da aba (D7) leva os itens da aba antes (`daAba`).
  */
-export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEndereco?: boolean; controle?: boolean } = {}): string {
+export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEndereco?: boolean; controle?: boolean; ensinar?: boolean } = {}): string {
   const n = esc(nome);
   const aba = o.daAba
     ? `<button type="button" role="menuitem" data-nv-menu="ao-lado">Pôr ao lado da conversa</button>${o.controle ? "" : '<button type="button" role="menuitem" data-nv-menu="assumir">Assumir</button>'}<button type="button" role="menuitem" data-nv-menu="tela-cheia">Abrir em tela cheia</button><hr><button type="button" role="menuitem" data-nv-menu="fechar-aba">Fechar aba<span class="nv-menu-dica">· ⌘W</span></button><button type="button" role="menuitem" data-nv-menu="fechar-outras">Fechar as outras abas de lugar</button><hr>`
@@ -451,6 +451,8 @@ export function htmlMenuDoNavegador(nome: string, o: { daAba?: boolean; temEnder
     + `<button type="button" role="menuitem" data-nv-menu="copiar"${desligado}>Copiar endereço</button>`
     + `<button type="button" role="menuitem" data-nv-menu="abrir-fora"${desligado}>Abrir no meu navegador</button>`
     + '<button type="button" role="menuitem" data-nv-menu="logins">Logins deste site…</button>'
+    // T1: "Ensinar uma tarefa" também mora aqui (nunca no celular: um passo a passo longo não cabe ali).
+    + (o.ensinar ? `<button type="button" role="menuitem" class="nv-menu-ensinar" data-nv-menu="ensinar">Ensinar uma tarefa<span class="nv-menu-sub">Mostre aqui; ${n} aprende</span></button>` : "")
     + `<hr><button type="button" role="menuitem" class="danger" data-nv-menu="encerrar">Encerrar o navegador de ${n}</button></div>`;
 }
 

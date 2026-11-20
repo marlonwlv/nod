@@ -283,6 +283,18 @@ describe("aprovação no ponto sem volta (quadro A)", () => {
     await expect(n.executarAprovado({ ...MARLON, agenteId: B, turnoId: "turno-b", acaoId, acao })).rejects.toMatchObject({ codigo: "nao_permitido" });
   });
 
+  it("A3: o cartão de envio cita o último texto que o bot preencheu na mesma página (nunca o de outra página)", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    await n.chamar(MARLON, plano(A), "navegador_preencher", { alvo: "@e5", texto: "Pedro,   a passagem saiu: TAP, 10/3, 21:40." });
+    expect(await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e3" })).toEqual({ aguardar: "decisao-1" });
+    expect(n.vista(MARLON, A)).toMatchObject({ pedido: { tipo: "aprovacao", classe: "enviar", citacao: "Pedro, a passagem saiu: TAP, 10/3, 21:40." } });
+    // Pagar nunca leva citação.
+    decisoes.set("decisao-1", { estado: "decidida" });
+    expect(await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e1" })).toEqual({ aguardar: "decisao-2" });
+    expect(n.vista(MARLON, A)).toMatchObject({ pedido: { classe: "pagar", citacao: null } });
+  });
+
   it("enviar pede no manual e passa no total; apagar pede no automático", async () => {
     const n = criar();
     await n.chamar(MARLON, plano(A), "navegador_ler", {});

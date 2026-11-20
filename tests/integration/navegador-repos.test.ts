@@ -50,6 +50,20 @@ describeIntegracao("navegador do bot: repositórios (0180)", () => {
     });
   });
 
+  it("tarefas: apagar (Habilidades) só a da dona, do bot certo; a outra pessoa apaga zero", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { repos, agenteId } = await agenteComConversa(trx, MARLON);
+      const t = await repos.navegadorTarefas.criar({ agenteId, nome: "Baixar a fatura", passos: ["Abriu itau.com.br"] });
+      await vincularEscopo(trx, ANA);
+      expect(await criarRepos(trx, ANA).navegadorTarefas.apagar(agenteId, t!.id)).toBe(false);
+      await vincularEscopo(trx, MARLON);
+      expect(await repos.navegadorTarefas.apagar(randomUUID(), t!.id)).toBe(false);
+      expect(await repos.navegadorTarefas.apagar(agenteId, t!.id)).toBe(true);
+      expect(await repos.navegadorTarefas.doAgente(agenteId)).toEqual([]);
+      expect(await repos.navegadorTarefas.apagar(agenteId, t!.id)).toBe(false);
+    });
+  });
+
   it("cofre: a senha só entra cifrada e volta cifrada; a listagem não a leva; outra pessoa não lê", async () => {
     await withRollback(MARLON, async (trx) => {
       const repos = criarRepos(trx, MARLON);

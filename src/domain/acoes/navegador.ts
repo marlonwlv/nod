@@ -70,5 +70,14 @@ export const ACOES_NAVEGADOR = [
     chat: { estado: "nunca", motivo: "a senha não passa pelo chat (ADR-177, ADR-190 decisão 6): ela entra pela tela e vai cifrada ao cofre" },
   },
   { id: "cofre.apagar_login", titulo: "Apagar um login do cofre do nod", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-395" } },
+  {
+    id: "navegador.apagar_tarefa",
+    titulo: "Apagar uma tarefa ensinada (habilidade) do bot",
+    risco: "muda",
+    cartaoNoChat: false,
+    // definido em 2026-11-20: listar tem caminho pela navegador_tarefa_ensinada (o bot lê as suas); apagar ainda não tem
+    // ferramenta. Fica com a onda dos computadores, a mesma das outras ações do navegador sem caminho.
+    chat: falta,
+  },
   { id: "navegador.ensinar", titulo: "Ensinar uma tarefa ao bot no navegador (começar, descartar, salvar)", risco: "muda", cartaoNoChat: false, chat: { estado: "nunca", motivo: "ensinar é a pessoa fazendo com as próprias mãos no navegador do bot; o que vai ao chat é a mensagem dela com os passos" } },
 ] as const satisfies readonly DefinicaoAcao[];

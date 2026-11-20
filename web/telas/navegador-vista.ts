@@ -6,6 +6,7 @@ import {
   htmlPilula, legendaDoPasso, MS_ASSUMINDO_VISIVEL, MS_DICA_ASSUMIR, modificadoresDe, pontoNoViewport, type EstadoDaTela, type EstadoPilula,
 } from "../lib/navegador-vista.ts";
 import { pulsarHalo } from "./tela-cheia.ts";
+import { fonteDoLogin, htmlSeloDoLogin } from "../lib/navegador-cartoes.ts";
 
 /**
  * A vista do navegador do bot (ADR-190; Paper D1–D4, D1d, D8): UM elemento por bot, que viaja entre os hospedeiros (o
@@ -92,7 +93,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
     + `<span class="nv-dica-assumir" role="status" hidden>Assumir para mexer</span>`
     + `<input class="nv-teclado" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Digitar no site" tabindex="-1">`
     + `</div></div>`
-    + `<div class="nv-faixa"><div class="nv-pilula-lugar"></div><button type="button" class="nv-teclado-bt" data-nv="teclado" hidden aria-label="Abrir o teclado">Teclado</button></div>`
+    + `<div class="nv-faixa"><div class="nv-pilula-lugar"></div><div class="nv-selo-lugar"></div><button type="button" class="nv-teclado-bt" data-nv="teclado" hidden aria-label="Abrir o teclado">Teclado</button></div>`
     + `<p class="nv-anuncio sr-only" aria-live="polite"></p>`;
   const q = <T extends HTMLElement = HTMLElement>(s: string) => el.querySelector<T>(s)!;
   const legenda = q(".nv-legenda");
@@ -112,6 +113,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   const estadoEl = q(".nv-estado-lugar");
   const dica = q(".nv-dica-assumir");
   const pilulaLugar = q(".nv-pilula-lugar");
+  const seloLugar = q(".nv-selo-lugar");
   const teclado = q<HTMLInputElement>(".nv-teclado");
   const tecladoBt = q<HTMLButtonElement>(".nv-teclado-bt");
   const anuncio = q(".nv-anuncio");
@@ -133,6 +135,7 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
   let editando: string | null = null;
   let pintadoBarra = "";
   let pintadoPilula = "";
+  let pintadoSelo = "";
   let pintadoEstado = "";
   let pintadoAviso = "";
   let ultimoPasso = 0;
@@ -210,6 +213,9 @@ export function montarVistaNavegador(o: OpcoesDaVista): VistaMontada {
       pintadoPilula = htmlP;
       if (tinhaFoco) pilulaLugar.querySelector<HTMLElement>("button:not([disabled])")?.focus();
     }
+    // L3: "Entrando com o 1Password…" embaixo da vista, enquanto o Mac confirma ou o segredo está na página.
+    const htmlS = htmlSeloDoLogin(v, fonteDoLogin(o.agenteId));
+    if (htmlS !== pintadoSelo) { seloLugar.innerHTML = htmlS; pintadoSelo = htmlS; }
     // Celular: no controle, o botão do teclado abre a digitação simples.
     tecladoBt.hidden = !(host === "folha" && controla());
     palco.dataset.controle = controla() ? "pessoa" : "bot";

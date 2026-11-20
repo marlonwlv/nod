@@ -52,7 +52,9 @@ import { cifrarCodigo } from "./lib/cifra.ts";
 import { criarInstalarSsh, type CampoSegredo } from "./lib/instalar-ssh.ts";
 import type { ContasIaDto } from "../src/contracts/contas-ia.ts";
 import type { Mensagem } from "../src/contracts/mensagem.ts";
-import type { MudancaLugarNavegador } from "../src/contracts/navegador-do-bot.ts";
+import type { EscolhaLoginNavegador, FonteCofre, MudancaLugarNavegador, VistaNavegador } from "../src/contracts/navegador-do-bot.ts";
+import { lembrarFonteDoLogin, NOME_DA_FONTE } from "./lib/navegador-cartoes.ts";
+import { registrarHabilidades } from "./lib/habilidades.ts";
 import type { TipoMemoria } from "../src/contracts/memoria.ts";
 import { criarIasDoMac } from "./lib/ias-do-mac.ts";
 import { instalarOrdemArrastavel } from "./lib/ordem-arrastavel.ts";
@@ -72,7 +74,7 @@ import { baixaveis } from "./lib/midia.ts";
 import { botDaFala, citacaoDaFala, htmlMenuDaFala, htmlSeletorDeReacao, linhaDeEmojis, reacoesDaFala, textoAbrirTask, textoParaLembrar } from "./telas/acoes-da-fala.ts";
 import { podeAbrirCartao, TEXTO_DA_RECUSA } from "./telas/desfazer.ts";
 import { renderChipModo } from "./telas/aprovacoes.ts";
-import { controleDaFolha, linhasDoBot, linhasVisiveis, renderFolhaMais, rotuloDoMais, travarToqueDuploEm, type EscolhaDaFolhaMais, type LinhasDaFolhaMais } from "./telas/folha-mais.ts";
+import { controleDaFolha, htmlMenuDoMais, linhasDoBot, linhasVisiveis, renderFolhaMais, rotuloDoMais, travarToqueDuploEm, type EscolhaDaFolhaMais, type LinhasDaFolhaMais } from "./telas/folha-mais.ts";
 import { abrirMenuModo } from "./lib/menu-modo.ts";
 import { abrirMenuIa } from "./lib/menu-ia.ts";
 import { dadosDoSeletor, mioloDoSeletor, pedidoDoSeletor, renderMenuIa, rotuloDoSeletor } from "./telas/seletor-ia.ts";
@@ -558,7 +560,30 @@ function botsDaTelaAprovacoes(): BotDaTela[] {
 }
 const htmlAprovacoes = (): string => renderConfigAprovacoes(telaAprovacoes.estado(), botsDaTelaAprovacoes());
 /** Paper 07 (rodada 2): Configurações › Cofre, lido ao abrir a seção (web/lib/cofre.ts). */
-const telaCofre = criarTelaCofre({ api: () => api, render: () => render() });
+const telaCofre = criarTelaCofre({
+  api: () => api,
+  render: () => render(),
+  avisar: (texto, desfazer) => { mostrarAvisoDesfazer(desfazer ? { texto, aoDesfazer: desfazer } : { texto }); },
+  aoErro: (e) => mostrarErro(e),
+});
+/** ADR-190 (T3): Ajustes do bot › Habilidades — as tarefas ensinadas no navegador (web/lib/habilidades.ts). */
+const habilidades = registrarHabilidades({
+  api: () => api,
+  render: () => render(),
+  avisar: (texto, desfazer) => { mostrarAvisoDesfazer({ texto, aoDesfazer: desfazer }); },
+  aoErro: (e) => mostrarErro(e),
+});
+
+/** A vista que uma rota do navegador devolveu (login, código, guardar): entra no estado como a do REST. */
+function hidratarVistaDoNavegador(agenteId: string, vista: VistaNavegador): void {
+  dispatch({ tipo: "hidratar-navegador", agenteId, navegador: { vista, disponivel: estado.navegadores[agenteId]?.disponivel ?? true } });
+}
+
+/** O que muda na conversa e em Sua vez quando um pedido do navegador é respondido. */
+function invalidarPedidoDoNavegador(): void {
+  const conversa = conversaAtual();
+  dispatch({ tipo: "invalidar", quais: ["sua-vez", ...(conversa ? [`conversa:${conversa.conversaId}` as Invalidacao] : [])] });
+}
 const telaAprovacoes = criarTelaAprovacoes({
   api: () => api,
   bots: botsDaTelaAprovacoes,
@@ -1302,7 +1327,8 @@ const navegadorNaTela = criarNavegadorNaTela({
     await api.enviar(bot.conversaId, texto);
     dispatch({ tipo: "invalidar", quais: [`conversa:${bot.conversaId}`] });
   },
-  abrirLogins: () => abrirEspaco("cofre"),
+  // D1c: "Logins deste site…" abre o Cofre já filtrado pelo site da aba.
+  abrirLogins: (_id, url) => { abrirEspaco("cofre"); telaCofre.filtrar(url); requestAnimationFrame(() => document.getElementById("cofre-logins")?.scrollIntoView({ block: "start" })); },
   abrirFora: (url) => {
     const desk = (window as { nodDesktop?: { abrirNoNavegador?: (u: string) => void } }).nodDesktop;
     if (desk?.abrirNoNavegador) desk.abrirNoNavegador(url);
@@ -4080,12 +4106,24 @@ function travarToqueDuplo(): void {
   if (d) travarToqueDuploEm(d);
 }
 
+/**
+ * ADR-190 (T1): o bot da conversa à vista, se "Ensinar uma tarefa" vale nele — só no computador, só bot da pessoa e só com
+ * o navegador do bot conhecido pela tela.
+ */
+function ensinarNoMais(): { agenteId: string; nome: string } | null {
+  if (ehCelular()) return null;
+  const t = estado.tela;
+  const bot = t.tipo === "conversa" ? botGerido(t.agenteId) : undefined;
+  if (!bot || bot.ownerId !== estado.sessao?.pessoaId || !navegadorNaTela.tem(bot.id)) return null;
+  return { agenteId: bot.id, nome: bot.nome };
+}
+
 /** O + só aparece quando a folha teria o que mostrar (bot de outra pessoa sem anexo, frota ainda chegando: escondido). */
 function atualizarMais(): void {
   const mais = document.querySelector<HTMLButtonElement>("#composer .mais-campo");
   if (!mais) return;
   const l = linhasDaFolhaMais();
-  const vazio = linhasVisiveis(l).length === 0;
+  const vazio = linhasVisiveis(l).length === 0 && ensinarNoMais() === null;
   if (mais.hidden !== vazio) mais.hidden = vazio;
   // Revisão 2: o aviso do modo total continua no campo (ADR-059) e o rótulo diz o que a folha tem. Revisão 5: o aviso
   // vale para quem conversa com o bot, dona ou colega (o colega é quem manda o texto que o faz agir sozinho).
@@ -4103,7 +4141,25 @@ function atualizarMais(): void {
  */
 function abrirFolhaMais(el: HTMLElement): void {
   const l = linhasDaFolhaMais();
-  if (linhasVisiveis(l).length === 0) return;
+  const ensinar = ensinarNoMais();
+  if (linhasVisiveis(l).length === 0 && !ensinar) return;
+  if (!ehCelular() && ensinar) {
+    // T1: o menu pequeno acima do + (Foto ou arquivo · Nova tarefa · Ensinar uma tarefa).
+    const r = el.getBoundingClientRect();
+    const t = estado.tela;
+    const novaTarefa = t.tipo === "conversa" && botAceitaTarefa(estado, t.agenteId) ? ATALHO_NOVA_TAREFA : null;
+    el.setAttribute("aria-expanded", "true");
+    const d = abrirMenuDaBarra(htmlMenuDoMais({ anexar: l.anexar, novaTarefa, ensinar }), el, { x: r.left - 4, y: r.top - 8 }, (b) => {
+      const q = b.dataset.maisPc;
+      if (q === "anexar") document.getElementById("composer-arquivos")?.click();
+      else if (q === "nova-tarefa") abrirNovaTarefa(el);
+      else if (q === "ensinar") void navegadorNaTela.ensinar(b.dataset.agente ?? ensinar.agenteId);
+    });
+    // Abre para cima: o campo fica embaixo da tela.
+    d.style.top = `${Math.max(12, r.top - d.offsetHeight - 8)}px`;
+    d.addEventListener("close", () => el.setAttribute("aria-expanded", "false"));
+    return;
+  }
   if (!ehCelular()) { document.getElementById("composer-arquivos")?.click(); return; }
   fecharMenuIa();
   const chave = composerDe;
@@ -9007,6 +9063,65 @@ const ACOES: Record<string, (el: HTMLElement) => Promise<void> | void> = {
   // ADR-190: o navegador do bot — o "Ver" da linha de atividade, o botão do canto e a aba de lugar (D7).
   "navegador-ver": (el) => navegadorNaTela.ver(el.dataset.agente ?? ""),
   "navegador-alternar": (el) => navegadorNaTela.alternar(el.dataset.agente ?? ""),
+  // ADR-190 (L1, L2): a escolha do cartão de login. Nenhum segredo passa aqui: só a fonte e a referência do item do cofre.
+  "nv-login": (el) => agir(async () => {
+    const agenteId = el.dataset.agente ?? "";
+    const decisaoId = el.dataset.decisao ?? "";
+    const e = el.dataset.escolha;
+    const escolha: EscolhaLoginNavegador = e === "eu_mesmo" || e === "chrome" ? e : { fonte: (el.dataset.fonte ?? "nod") as FonteCofre, ref: el.dataset.ref ?? "" };
+    lembrarFonteDoLogin(agenteId, typeof escolha === "object" ? escolha.fonte : null);
+    for (const b of el.closest(".nvc")?.querySelectorAll<HTMLButtonElement>("button") ?? []) b.disabled = true;
+    try {
+      const r = await api!.escolherLoginNoNavegador(agenteId, decisaoId, escolha);
+      hidratarVistaDoNavegador(agenteId, r.vista);
+      if (r.aviso) anunciar(r.aviso);
+      // D4, D: "Entrar eu mesmo" — o cartão fecha e a pílula assume; a vista abre para a pessoa digitar.
+      if (escolha === "eu_mesmo") navegadorNaTela.ver(agenteId);
+    } finally {
+      for (const b of document.querySelectorAll<HTMLButtonElement>(`.nvc[data-decisao="${CSS.escape(decisaoId)}"] button:not([aria-disabled="true"])`)) b.disabled = false;
+      invalidarPedidoDoNavegador();
+    }
+  }),
+  // ADR-190 (A1–A3): a mesma decisão da pílula. O "Não perguntar de novo" marcado vai como `sempre`.
+  "nv-decidir": (el) => agir(async () => {
+    const id = el.dataset.decisao ?? "";
+    const aprovar = el.dataset.aprovar === "1";
+    const lembrar = el.closest(".nvc")?.querySelector<HTMLInputElement>(".nvc-lembrar-caixa")?.checked === true;
+    marcarDecidida(el, id);
+    await decidirAprovacaoReconciliando(id, aprovar ? (lembrar ? { sempre: true } : {}) : { recusar: true });
+  }),
+  // ADR-190 (L5): "Guardar no cofre?" — o destino escolhido (só quando há mais de um) ou "Não".
+  "nv-guardar": (el) => agir(async () => {
+    const agenteId = el.dataset.agente ?? "";
+    const guardar = el.dataset.guardar === "1";
+    const destino = (el.closest(".nvc-guardar")?.querySelector<HTMLInputElement | HTMLSelectElement>(".nvc-destino")?.value ?? "nod") as FonteCofre;
+    const r = await api!.guardarLoginDoNavegador(agenteId, guardar, guardar ? destino : undefined);
+    hidratarVistaDoNavegador(agenteId, r.vista);
+    if (guardar) mostrarAvisoDesfazer({ texto: `Login guardado n${NOME_DA_FONTE[destino]}` });
+  }),
+  "nv-assumir": (el) => navegadorNaTela.assumir(el.dataset.agente ?? ""),
+  "nv-resolver": (el) => agir(async () => { await navegadorNaTela.resolver(el.dataset.agente ?? ""); invalidarPedidoDoNavegador(); }),
+  // ADR-190 (T1): "Ensinar uma tarefa" do + do campo.
+  "nv-ensinar": (el) => void navegadorNaTela.ensinar(el.dataset.agente ?? ""),
+  // ADR-190 (T3): Ajustes do bot › Habilidades.
+  "nv-habilidade-ver": (el) => habilidades.alternar(el.dataset.agente ?? "", el.dataset.tarefa ?? ""),
+  "nv-habilidade-apagar": (el) => habilidades.apagar(el.dataset.agente ?? "", el.dataset.tarefa ?? ""),
+  "nv-habilidades-reler": (el) => void habilidades.reler(el.dataset.agente ?? ""),
+  // ADR-190 (decisão 6): Configurações › Cofre › Logins de sites.
+  "cofre-adicionar-login": () => { telaCofre.adicionando(true); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.cofre-form input[name="site"]')?.focus()); },
+  "cofre-cancelar-login": () => { for (const c of document.querySelectorAll<HTMLInputElement>('.cofre-form input')) c.value = ""; telaCofre.adicionando(false); document.querySelector<HTMLElement>('[data-act="cofre-adicionar-login"]')?.focus(); },
+  "cofre-ver-todos": () => telaCofre.filtrar(""),
+  "cofre-apagar-login": (el) => telaCofre.apagarLogin(el.dataset.id ?? ""),
+  // Mostrar troca o tipo do campo sem redesenhar: o valor fica onde está e não passa por estado nenhum.
+  "cofre-mostrar-senha": (el) => {
+    const campo = el.closest(".cofre-senha")?.querySelector<HTMLInputElement>('input[name="senha"]');
+    if (!campo) return;
+    const mostrar = campo.type === "password";
+    campo.type = mostrar ? "text" : "password";
+    el.setAttribute("aria-pressed", String(mostrar));
+    el.setAttribute("aria-label", mostrar ? "Ocultar a senha" : "Mostrar a senha");
+    el.title = mostrar ? "Ocultar" : "Mostrar";
+  },
   "navegador-aba": (el) => navegadorNaTela.mostrarAba(el.dataset.agente ?? ""),
   "navegador-fechar-aba": (el) => navegadorNaTela.fecharAba(el.dataset.agente ?? ""),
   "mostrar-em-abas": (el) => mostrarEmAbas(el.dataset.agente ?? ""),
@@ -9826,6 +9941,38 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     form.reset();
     dispatch({ tipo: "aviso-conexao", texto: "GitHub App da organização guardado. As rotinas de quem não conectou o próprio GitHub passam a usá-lo." });
   }),
+  // ADR-190 (L4): o código vai do campo privado do cartão direto para a página (POST navegador/codigo). Não passa por
+  // estado, storage nem conversa; o campo é limpo assim que o servidor responde.
+  "nv-codigo": async (form) => {
+    const agenteId = form.dataset.agente ?? "";
+    const decisaoId = form.dataset.decisao ?? "";
+    const campo = form.querySelector<HTMLInputElement>('input[name="codigo"]');
+    const bt = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (!campo || !api || !campo.value.trim()) { campo?.focus(); return; }
+    campo.disabled = true;
+    if (bt) { bt.disabled = true; bt.textContent = "Enviando…"; }
+    try {
+      const r = await api.codigoNoNavegador(agenteId, decisaoId, campo.value.trim());
+      campo.value = "";
+      if (bt) bt.textContent = "Código enviado";
+      hidratarVistaDoNavegador(agenteId, r.vista);
+      invalidarPedidoDoNavegador();
+    } catch (e) {
+      campo.disabled = false;
+      if (bt) { bt.disabled = false; bt.textContent = "Enviar"; }
+      mostrarErro(e);
+      campo.focus();
+    }
+  },
+  // ADR-190 (decisão 6): o login novo do Cofre. A senha sai do campo direto para o POST e o formulário é limpo em seguida.
+  "cofre-guardar-login": async (form) => {
+    const d = new FormData(form);
+    const senha = form.querySelector<HTMLInputElement>('input[name="senha"]');
+    const ok = await telaCofre.guardarLogin({ site: String(d.get("site") ?? ""), usuario: String(d.get("usuario") ?? ""), senha: String(d.get("senha") ?? "") });
+    if (senha) senha.value = "";
+    if (ok) document.querySelector<HTMLElement>('[data-act="cofre-adicionar-login"]')?.focus();
+    else document.querySelector<HTMLInputElement>('.cofre-form input[name="senha"]')?.focus();
+  },
   // NOD-50: o valor sai do campo direto para POST propostas/:id/credencial e não passa por estado, storage nem conversa.
   // Recusada ou mal formatada: o campo volta vazio e recebe o foco. Rede: o valor fica no campo e o botão vira "Tentar de novo".
   "guardar-credencial": async (form) => {

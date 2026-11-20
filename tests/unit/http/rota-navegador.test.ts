@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import { describe, expect, it } from "vitest";
 import type { Navegadores } from "../../../src/adapters/fundo/navegadores.ts";
-import { MOTIVOS_DO_NAVEGADOR, rotasNavegador } from "../../../src/adapters/http/rotas/navegador.ts";
+import { MOTIVOS_DO_NAVEGADOR, rotasNavegador, rotasTarefasEnsinadas } from "../../../src/adapters/http/rotas/navegador.ts";
 import { ErroDeDominio } from "../../../src/domain/erro.ts";
 
 /**
@@ -58,5 +58,39 @@ describe("rotas do navegador do bot", () => {
     expect(await montar(new ErroDeDominio("estado_invalido", { cause: "segredo interno" })).chamar("POST", `/agentes/${BOT}/navegador`, { operacao: "ligar" }))
       .toMatchObject({ status: 409, body: { motivo: "indisponivel" } });
     expect(await montar(new ErroDeDominio("nao_encontrado")).chamar("POST", `/agentes/${BOT}/navegador/aba`, { aba: "t1" })).toEqual({ status: 0, body: "nao_encontrado" });
+  });
+});
+
+describe("Habilidades: as tarefas ensinadas (T3)", () => {
+  const TAREFA = "00000000-0000-4000-8000-0000000000c1";
+  function montarTarefas() {
+    const apagadas: string[][] = [];
+    const repos = { navegadorTarefas: {
+      doAgente: async (id: string) => [{ id: TAREFA, nome: "Baixar a fatura", passos: ["Abriu itau.com.br"], criadaEm: 1, agente: id }],
+      apagar: async (id: string, t: string) => { apagadas.push([id, t]); return t === TAREFA; },
+    } };
+    const rotas = rotasTarefasEnsinadas({ dentro: async (_e, fn) => fn({ repos } as never) });
+    const chamar = async (metodo: string, caminho: string) => {
+      const rota = rotas.find((r) => r.metodo === metodo && r.padrao.test(caminho))!;
+      const params = (rota.padrao.exec(caminho)?.groups ?? {}) as Record<string, string>;
+      let resposta: { status: number; body: unknown } | null = null;
+      const req = new IncomingMessage(new Socket());
+      try {
+        await rota.handler({ req, res: new ServerResponse(req), escopo: ESCOPO, params, corpo: async () => ({}), json: (status: number, body: unknown) => { resposta = { status, body }; } } as never);
+      } catch (e) { return { status: 0, body: e instanceof ErroDeDominio ? e.codigo : String(e) }; }
+      return resposta!;
+    };
+    return { rotas, chamar, apagadas };
+  }
+
+  it("GET lista sem ação; DELETE declara navegador.apagar_tarefa, confere o id e diz 404 quando não apagou", async () => {
+    const { rotas, chamar, apagadas } = montarTarefas();
+    expect(rotas.map((r) => [r.metodo, r.acao])).toEqual([["GET", undefined], ["DELETE", "navegador.apagar_tarefa"]]);
+    expect(await chamar("GET", `/agentes/${BOT}/navegador/tarefas`)).toMatchObject({ status: 200, body: { tarefas: [{ id: TAREFA, nome: "Baixar a fatura" }] } });
+    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/tarefas/nao-e-uuid`)).toEqual({ status: 0, body: "nao_encontrado" });
+    expect(apagadas).toEqual([]);
+    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/tarefas/${TAREFA}`)).toEqual({ status: 200, body: { ok: true } });
+    expect(await chamar("DELETE", `/agentes/${BOT}/navegador/tarefas/00000000-0000-4000-8000-0000000000c2`)).toEqual({ status: 0, body: "nao_encontrado" });
+    expect(apagadas).toEqual([[BOT, TAREFA], [BOT, "00000000-0000-4000-8000-0000000000c2"]]);
   });
 });

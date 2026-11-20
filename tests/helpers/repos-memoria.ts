@@ -4487,6 +4487,12 @@ function navegadorEmMemoria(b: object, escopo: Escopo): Pick<Repos, "navegadorPr
         return tarefa;
       },
       doAgente: async (agenteId) => st.tarefas.filter((t) => t.chave === chave(agenteId)).sort((x, y) => y.criadaEm - x.criadaEm).map(({ chave: _c, ...t }) => t),
+      apagar: async (agenteId, id) => {
+        const i = st.tarefas.findIndex((t) => t.chave === chave(agenteId) && t.id === id);
+        if (i < 0) return false;
+        st.tarefas.splice(i, 1);
+        return true;
+      },
     },
   };
 }

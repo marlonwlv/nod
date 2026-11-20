@@ -36,7 +36,7 @@ import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
 import { aoConectarMaquina, decidirLugarDoNavegador } from "../../use-cases/navegador-lugar.ts";
 import { criarMotorAgentBrowser } from "../navegador/motor-agent-browser.ts";
 import { rotasComputadores } from "./rotas/computadores.ts";
-import { rotasCofreLogins, rotasNavegador } from "./rotas/navegador.ts";
+import { rotasCofreLogins, rotasNavegador, rotasTarefasEnsinadas } from "./rotas/navegador.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { expandirTil } from "../executor/caminho.ts";
@@ -1729,6 +1729,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...rotasComputadores(computadores),
     ...rotasNavegador(navegadores, { dentro, ligadas: (escopo) => canalNavegador?.ligadas(escopo) ?? [] }),
     ...rotasCofreLogins({ dentro, cifrar: (s) => cifrar(s, chave) }),
+    ...rotasTarefasEnsinadas({ dentro }),
     ...rotasWorkspaces(workspaces, dentro),
     ...rotasInternas({ dentro, computadores, navegadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
     ...criarRotasRotinas(depsL7),

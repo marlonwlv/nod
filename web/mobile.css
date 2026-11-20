@@ -911,3 +911,14 @@
   .cabecalho.buscando .nv-canto { display: none; }
   .nv-linha-ver { min-width: 44px; min-height: 44px; }
 }
+
+/* ADR-190 (K3, M4, L4, L5): no celular os cartões do navegador ocupam a largura e cada opção é um alvo de 44 px; o
+   formulário de login do Cofre empilha os campos. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .nvc, .nvc-guardar { max-width: none; }
+  .nvc-op, .nvc-codigo-campo { min-height: 44px; }
+  .nvc-guardar button, .nvc-link { min-width: 44px; min-height: 44px; }
+  .cofre-form { grid-template-columns: 1fr; }
+  .cofre-campo input { height: 44px; }
+  .cofre-olho { width: 44px; height: 44px; right: 0; }
+}

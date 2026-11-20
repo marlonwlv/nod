@@ -426,7 +426,7 @@ describe("A1: a aprovação no ponto sem volta, na vista e no Touch ID", () => {
     await chamar(n, "navegador_abrir", { url: "https://www.flytap.com/pagar" });
     await chamar(n, "navegador_ler", {});
     expect(await chamar(n, "navegador_clicar", { alvo: "@e2" })).toEqual({ aguardar: "decisao-1" });
-    expect(n.vista(MARLON, A)!.pedido).toEqual({ tipo: "aprovacao", decisaoId: "decisao-1", pergunta: "Pagar R$ 3.780 no flytap.com?", botao: "Pagar R$ 3.780", classe: "pagar", touchId: true, avisoTouchId: null, caixa: { x: 10, y: 20, w: 120, h: 40 }, lembrar: null });
+    expect(n.vista(MARLON, A)!.pedido).toEqual({ tipo: "aprovacao", decisaoId: "decisao-1", pergunta: "Pagar R$ 3.780 no flytap.com?", botao: "Pagar R$ 3.780", classe: "pagar", touchId: true, avisoTouchId: null, caixa: { x: 10, y: 20, w: 120, h: 40 }, lembrar: null, citacao: null });
     const { acaoId, acao } = aprovacoes[0]!.itens[0]!.destino.argumentos as { acaoId: string; acao: string };
     mac.touch = "recusado";
     await expect(n.executarAprovado({ ...MARLON, agenteId: A, turnoId: "turno-a", acaoId, acao })).rejects.toThrow("nao_permitido");

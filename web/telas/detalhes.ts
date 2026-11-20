@@ -1,3 +1,5 @@
+import { pedirHabilidades, telaDasHabilidades } from "../lib/habilidades.ts";
+import { htmlHabilidades } from "../lib/navegador-cartoes.ts";
 import { avisoErro } from "../lib/card-proposta.ts";
 import { secaoOnboardingDetalhes } from "./onboarding.ts";
 import type { RotinaDto } from "../../src/contracts/api.ts";
@@ -447,7 +449,10 @@ export function nivelAjustes(estado: Estado, a: Bot, dona: boolean, celular = fa
     ? `<section class="gv-secao pfc-na-lista"><h3>Na lista</h3><div class="gv-cartao"><div class="gv-linha">${ICONE.olho}<span class="gv-linha-txt">Ocultar da lista</span>${chaveCelular(a.oculto === true, "perfil-ocultar", a.id, "Ocultar da lista")}</div></div></section>`
     : "";
   const dev = estado.modoDev.ligado ? `<section class="gv-secao gv-dev"><h3>Modo dev</h3><div class="gv-dev-corpo">${renderSeloModoDev(estado, a.conversaId, a.nome)}</div></section>` : "";
-  return { titulo: "Ajustes", corpo: atalhos + perfil + naLista + acessosHtml + ambienteHtml + dev };
+  // ADR-190 (T3): Habilidades — as tarefas que a dona ensinou no navegador do bot (Ver, Apagar com Desfazer).
+  if (dona) pedirHabilidades(a.id);
+  const habilidades = dona ? htmlHabilidades(telaDasHabilidades(a.id), { agenteId: a.id, nome: a.nome, temNavegador: estado.navegadores[a.id] != null }) : "";
+  return { titulo: "Ajustes", corpo: atalhos + perfil + habilidades + naLista + acessosHtml + ambienteHtml + dev };
 }
 
 /**
