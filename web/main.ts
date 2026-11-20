@@ -179,7 +179,7 @@ import { renderNovaRotina } from "./telas/nova-rotina.ts";
 import { aoPedirRegrasDoBot, contextoInteligencia, nivelDaGaveta, paiDoNivel, regrasPodeFazer } from "./telas/detalhes.ts";
 import { avisarNaIdentidade, criarFilaDePerfil, criarSalvarAvatar, ERRO_AO_SALVAR, instalarIdentidade, sobreporPendentes } from "./lib/gaveta-identidade.ts";
 import { decidirCampo, ERRO_NOME_VAZIO } from "./lib/identidade-regras.ts";
-import { preservandoCampo, registrarNomeEditavel } from "./lib/nome-editavel.ts";
+import { preservandoCampo, registrarNomeEditavel } from "./lib/nome-editavel-eventos.ts";
 import { renderEspaco, secaoInicialDasConfiguracoes } from "./telas/espaco.ts";
 import { diaDe, inicioDoDia } from "./lib/agenda.ts";
 import { agendaPorLer, escNaAgenda } from "./estado/agenda.ts";
@@ -10043,7 +10043,7 @@ document.addEventListener("keydown", (ev) => {
     return;
   }
   const u = estado.contasUi;
-  const mudanca = u.confirmar ? { confirmar: null } : u.desconectar ? { desconectar: null } : u.menu || u.maquinaMenu ? { menu: null, maquinaMenu: null } : u.renomear ? { renomear: null } : u.maquinaRenomear ? { maquinaRenomear: null } : null;
+  const mudanca = u.confirmar ? { confirmar: null } : u.desconectar ? { desconectar: null } : u.menu || u.maquinaMenu ? { menu: null, maquinaMenu: null } : u.maquinaRenomear ? { maquinaRenomear: null } : null;
   if (!mudanca) return;
   ev.stopPropagation();
   const volta = gatilhoDoDialogo();

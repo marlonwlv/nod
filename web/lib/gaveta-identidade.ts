@@ -3,9 +3,9 @@
  * do avatar. `instalarIdentidade` liga os eventos no documento uma vez só; as regras puras moram em identidade-regras.ts.
  */
 import { AVISO_MS, decidirCampo, desfazerAoFalhar, ERRO_AO_SALVAR, ERRO_NOME_VAZIO, proximaAba, proximoRadio, type CampoIdentidade } from "./identidade-regras.ts";
-import { registrarNomeEditavel } from "./nome-editavel.ts";
+import { registrarNomeEditavel } from "./nome-editavel-eventos.ts";
 
-export { preservandoCampo } from "./nome-editavel.ts";
+export { preservandoCampo } from "./nome-editavel-eventos.ts";
 
 export { comPendentes, criarFilaDePerfil, criarSalvarAvatar, ERRO_AO_SALVAR, sobreporPendentes } from "./identidade-regras.ts";
 
