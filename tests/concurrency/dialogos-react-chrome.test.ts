@@ -418,7 +418,7 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await esperar(300);
     await avaliar(cdp, "window.__menuModo()");
     await ate(`document.activeElement?.dataset?.modo === "manual"`);
-    await ate(`Math.round(document.querySelector(".bot-menu.rx-menu.modo-menu").getBoundingClientRect().bottom) === 712`);
+    await ate(`Math.round(document.querySelector(".bot-menu.rx-menu.modo-menu")?.getBoundingClientRect().bottom ?? 0) === 712`);
     const r = await avaliar<{ fundo: number; esquerda: number }>(cdp, `(() => { const m = document.querySelector(".bot-menu.rx-menu.modo-menu").getBoundingClientRect(); return { fundo: Math.round(m.bottom), esquerda: Math.round(m.left) }; })()`);
     expect(r).toEqual({ fundo: 712, esquerda: 300 });
     await tecla("ArrowDown", "ArrowDown", 40);
@@ -429,7 +429,7 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     expect(await avaliar<string | null>(cdp, `document.querySelector('.rx-menu [data-modo="total"]').getAttribute("aria-expanded")`)).toBe("true");
     // O menu cresceu e continua acima do botão: o Base UI reposiciona no quadro seguinte ao crescimento (no CI, mais lento,
     // a medida logo depois do foco ainda pega o topo antigo), então espera assentar.
-    await ate(`Math.round(document.querySelector(".modo-menu.rx-menu").getBoundingClientRect().bottom) === 712`);
+    await ate(`Math.round(document.querySelector(".modo-menu.rx-menu")?.getBoundingClientRect().bottom ?? 0) === 712`);
     await tecla("Escape", "Escape", 27);
     await ate(`!document.querySelector(".rx-menu .modo-confirma")`);
     await ate(`document.activeElement?.dataset?.modo === "total"`);
@@ -439,6 +439,9 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     await avaliar(cdp, "window.__relogio = performance.now()");
     await tecla("Enter", "Enter", 13);
     await ate(`document.querySelector('.rx-menu [data-confirma="sim"]')`);
+    // A confirmação fez o menu crescer: o centro do Sim só vale depois de o Base UI o reposicionar (senão o clique cai
+    // fora do menu, no lugar antigo, e o fecha).
+    await ate(`Math.round(document.querySelector(".modo-menu.rx-menu")?.getBoundingClientRect().bottom ?? 0) === 712`);
     const sim = async () => {
       const p = await avaliar<{ x: number; y: number }>(cdp, `(() => { const r = document.querySelector('.rx-menu [data-confirma="sim"]').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
       for (const type of ["mouseMoved", "mousePressed", "mouseReleased"] as const) await cdp.enviar("Input.dispatchMouseEvent", { type, x: p.x, y: p.y, button: "left", clickCount: 1 });
@@ -461,7 +464,7 @@ descrever("ADR-179: o diálogo de handoff pelo Base UI no Chrome real", () => {
     const html = '<div role="menu" aria-label="IA e modelo"><button type="button" role="menuitemradio" data-escolha="auto" aria-checked="false">Automático</button><p class="ia-sel-grupo">Claude</p><button type="button" role="menuitemradio" data-escolha="modelo" data-ia="claude-cli" data-modelo="opus" aria-checked="true">Opus</button><button type="button" role="menuitemradio" data-escolha="modelo" data-ia="codex-cli" data-modelo="gpt" aria-checked="false" disabled>GPT</button><button type="button" role="menuitem" data-escolha="provedores">Provedores de IA</button></div>';
     await avaliar(cdp, `window.__menuIa(${JSON.stringify(html)})`);
     await ate(`document.activeElement?.dataset?.modelo === "opus"`);
-    await ate(`Math.round(document.querySelector(".bot-menu.rx-menu.ia-sel-menu").getBoundingClientRect().bottom) === 712`);
+    await ate(`Math.round(document.querySelector(".bot-menu.rx-menu.ia-sel-menu")?.getBoundingClientRect().bottom ?? 0) === 712`);
     const r = await avaliar<{ fundo: number; direita: number }>(cdp, `(() => { const m = document.querySelector(".bot-menu.rx-menu.ia-sel-menu").getBoundingClientRect(); return { fundo: Math.round(m.bottom), direita: Math.round(m.right) }; })()`);
     expect(r).toEqual({ fundo: 712, direita: 980 });
     expect(await avaliar<string[]>(cdp, "window.__mudou")).toEqual(["true"]);
