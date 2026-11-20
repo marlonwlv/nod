@@ -219,12 +219,9 @@ describe("entrada da pessoa no canal ao vivo", () => {
     expect(lerEntradaNavegador({ t: "tecla", evento: "keyDown", tecla: "a", codigo: "KeyA", texto: "a", modificadores: 8 }, vp)).toMatchObject({ tecla: "a", codigo: "KeyA", texto: "a", modificadores: 8 });
   });
 
-  it("tradução (medida em 2026-11-20): char vira keyDown com texto; Backspace e atalhos vão como press; a tecla solta do press não vai", () => {
+  it("tradução (medida em 2026-11-20): char vira insertText pelo relay; Backspace e atalhos vão como press; a tecla solta do press não vai", () => {
     const e = (cru: unknown) => comandosDaEntrada(lerEntradaNavegador(cru, vp)!);
-    expect(e({ t: "tecla", evento: "char", texto: "çã" })).toEqual([
-      { via: "stream", mensagem: { type: "input_keyboard", eventType: "keyDown", key: "Unidentified", text: "çã" } },
-      { via: "stream", mensagem: { type: "input_keyboard", eventType: "keyUp", key: "Unidentified" } },
-    ]);
+    expect(e({ t: "tecla", evento: "char", texto: "1234" })).toEqual([{ via: "relay", comando: { action: "keyboard", subaction: "insertText", text: "1234" } }]);
     expect(e({ t: "tecla", evento: "keyDown", tecla: "Backspace" })).toEqual([{ via: "relay", comando: { action: "press", key: "Backspace" } }]);
     expect(e({ t: "tecla", evento: "keyUp", tecla: "Backspace" })).toEqual([]);
     expect(e({ t: "tecla", evento: "keyDown", tecla: "a", modificadores: 4 })).toEqual([{ via: "relay", comando: { action: "press", key: "Meta+a" } }]);

@@ -62,12 +62,13 @@ const SO_MODIFICADOR: ReadonlySet<string> = new Set(["Alt", "Control", "Meta", "
 const ACORDE = [[1, "Alt"], [2, "Control"], [4, "Meta"], [8, "Shift"]] as const;
 
 /**
- * O que vai ao agent-browser: `stream` = mensagem pelo WebSocket de quadros (ordenada com o mouse); `relay` = comando
- * `press` pelo `POST /api/command` do mesmo daemon.
+ * O que vai ao agent-browser: `stream` = mensagem pelo WebSocket de quadros; `relay` = comando `press` ou `insertText`
+ * pelo `POST /api/command` do mesmo daemon. medido em 2026-11-20: um clique pelo stream seguido na hora de um
+ * `insertText` pelo relay cai no campo clicado (a ordem se mantém).
  */
 export type ComandoDaEntrada =
   | { via: "stream"; mensagem: Readonly<Record<string, unknown>> }
-  | { via: "relay"; comando: { action: "press"; key: string } };
+  | { via: "relay"; comando: { action: "press"; key: string } | { action: "keyboard"; subaction: "insertText"; text: string } };
 
 /** Um atalho (Control, Alt ou Meta; Shift sozinho com um caractere é só a letra maiúscula). */
 function ehAtalho(tecla: string, mods: number): boolean {
@@ -77,8 +78,9 @@ function ehAtalho(tecla: string, mods: number): boolean {
 
 /**
  * A tradução de uma entrada conferida. medido em 2026-11-20 (mesma bancada): `input_keyboard` com eventType "char" e
- * texto NÃO insere nada; keyDown com `text` insere o texto inteiro (inclusive "çã!"). Por isso o `char` da web vira
- * keyDown+keyUp com o texto. A tecla solta de um `press` não vai (o press já soltou).
+ * texto NÃO insere nada, e keyDown com `text` insere "abc" e "çã!" mas não "1234" (só dígitos, mais de um); o
+ * `insertText` do relay insere todos. Por isso o `char` da web (texto, colar, acento) vai como insertText; a tecla
+ * comum de um caractere segue pelo stream. A tecla solta de um `press` não vai (o press já soltou).
  */
 export function comandosDaEntrada(e: EntradaNavegador): ComandoDaEntrada[] {
   if (e.t === "mouse") {
@@ -90,13 +92,7 @@ export function comandosDaEntrada(e: EntradaNavegador): ComandoDaEntrada[] {
     } }];
   }
   const mods = e.modificadores ?? 0;
-  if (e.evento === "char") {
-    const texto = e.texto ?? "";
-    return [
-      { via: "stream", mensagem: { type: "input_keyboard", eventType: "keyDown", key: "Unidentified", text: texto } },
-      { via: "stream", mensagem: { type: "input_keyboard", eventType: "keyUp", key: "Unidentified" } },
-    ];
-  }
+  if (e.evento === "char") return [{ via: "relay", comando: { action: "keyboard", subaction: "insertText", text: e.texto ?? "" } }];
   const tecla = e.tecla ?? "";
   if (SO_MODIFICADOR.has(tecla)) return [];
   const pelaTecla = TECLAS_DISCRETAS.has(tecla) || ehAtalho(tecla, mods);

@@ -139,7 +139,7 @@ describe("navegador ao vivo pelo WebSocket", () => {
     web2.ws.close();
   });
 
-  it("entrada: com o bot no controle volta a vista; com a pessoa, mouse e texto vão pelo stream e o Backspace pelo relay", async () => {
+  it("entrada: com o bot no controle volta a vista; com a pessoa, o mouse vai pelo stream e o texto e o Backspace pelo relay", async () => {
     const { ab, host, mudar, antes } = await montar();
     const web = await abrirWeb(host);
     await ate(() => ab.abertas() === 1 && web.msgs.length === 1);
@@ -155,13 +155,9 @@ describe("navegador ao vivo pelo WebSocket", () => {
     web.ws.send(JSON.stringify({ t: "tecla", evento: "keyDown", tecla: "Backspace" }));
     web.ws.send(JSON.stringify({ t: "tecla", evento: "keyUp", tecla: "Backspace" }));
     // O keyUp do Backspace só é tratado depois que a resposta do relay volta: espera as quatro entradas no portão.
-    await ate(() => ab.recebidas.length === 3 && ab.relay.length === 1 && antes.length === 4);
-    expect(ab.recebidas).toEqual([
-      { type: "input_mouse", eventType: "mousePressed", x: 40, y: 30, button: "left", clickCount: 1, deltaX: 0, deltaY: 0, modifiers: 0 },
-      { type: "input_keyboard", eventType: "keyDown", key: "Unidentified", text: "olá" },
-      { type: "input_keyboard", eventType: "keyUp", key: "Unidentified" },
-    ]);
-    expect(ab.relay).toEqual([{ action: "press", key: "Backspace" }]);
+    await ate(() => ab.recebidas.length === 1 && ab.relay.length === 2 && antes.length === 4);
+    expect(ab.recebidas).toEqual([{ type: "input_mouse", eventType: "mousePressed", x: 40, y: 30, button: "left", clickCount: 1, deltaX: 0, deltaY: 0, modifiers: 0 }]);
+    expect(ab.relay).toEqual([{ action: "keyboard", subaction: "insertText", text: "olá" }, { action: "press", key: "Backspace" }]);
     // O portão viu cada entrada repassada (para a gravação), antes do repasse.
     expect(antes.map((e) => e.t + ":" + e.evento)).toEqual(["mouse:mousePressed", "tecla:char", "tecla:keyDown", "tecla:keyUp"]);
     web.ws.close();
