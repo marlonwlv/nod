@@ -97,7 +97,8 @@
   /* ---------- ADA-17: a tarefa aberta no celular (web/telas/tarefa-celular.ts) ---------- */
   :root { --teclado: 0px; } /* o JS grava o valor no style do html (web/lib/teclado-visivel.ts), que vence esta regra */
   /* Com a tarefa aberta o composer é o da tarefa: a pílula do quadro sai (o anúncio para o leitor de tela fica). */
-  .qd-vista:has(> .qd-conteudo > .qd-tarefa-cel) > .qc-wrap > :not(.qd-anuncio) { display: none; }
+  /* ADR-189: o sujeito nomeia o filho (.qc-caixa, o único além do anúncio): `> :not(.qd-anuncio)` invalidava a página inteira. */
+  .qd-vista:has(> .qd-conteudo > .qd-tarefa-cel) > .qc-wrap > .qc-caixa { display: none; }
   .qd-tarefa-cel { display: flex; flex-direction: column; min-height: 100%; padding-inline: 0; }
   .qd-tarefa-cel > .qd-t-cab, .qd-tarefa-cel > .qd-t-principal { padding-inline: 16px; }
   .qd-tarefa-cel .qd-t-principal { flex: 1; display: flex; flex-direction: column; gap: 16px; padding-bottom: 16px; }

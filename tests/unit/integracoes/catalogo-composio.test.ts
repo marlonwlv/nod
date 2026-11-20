@@ -19,6 +19,9 @@ function provedor(rotas: Record<string, Resposta | (() => Resposta)>) {
   return { f, chamadas };
 }
 
+/** Deixa a renovação em segundo plano assentar (o relógio falso é só o Date; o setTimeout é real). */
+const assentar = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+
 const toolkit = (slug: string, extra: Record<string, unknown> = {}) => ({
   slug, name: slug.toUpperCase(), type: "native", is_local_toolkit: false, no_auth: false,
   auth_schemes: ["OAUTH2"], composio_managed_auth_schemes: ["OAUTH2"],
@@ -109,10 +112,44 @@ describe("catálogo do tenant: painel + catálogo público (ADR-057)", () => {
     await catalogo(tenant, "ak");
     expect(chamadas).toEqual(["/auth_configs", "/toolkits?limit=1000"]);
     vi.setSystemTime(new Date("2026-09-29T12:01:01Z"));
+    // Leva 2 (ADR-183): o vencido é servido na hora e relido em segundo plano; a releitura assenta no próximo tique.
     await catalogo(tenant, "ak");
+    await assentar();
     expect(chamadas).toEqual(["/auth_configs", "/toolkits?limit=1000", "/auth_configs"]);
     vi.setSystemTime(new Date("2026-09-29T13:00:01Z"));
     await catalogo(tenant, "ak");
+    await assentar();
     expect(chamadas.filter((c) => c.startsWith("/toolkits"))).toHaveLength(2);
+  });
+
+  it("ADR-183: o catálogo vencido sai na hora (sem esperar o Composio) e N pedidos na janela fazem uma chamada só", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-29T12:00:00Z"));
+    let soltar: (() => void) | null = null;
+    const segurado = new Promise<void>((r) => { soltar = r; });
+    let vez = 0;
+    const chamadas: string[] = [];
+    const f: typeof fetch = async (url) => {
+      const caminho = String(url).replace("https://backend.composio.dev/api/v3.1", "");
+      chamadas.push(caminho);
+      if (caminho === "/toolkits?limit=1000") return Response.json({ items: [toolkit("asana")] });
+      // O painel: a 1ª resposta sai na hora; a 2ª (a renovação) fica presa até o teste soltar.
+      if (++vez > 1) await segurado;
+      return Response.json({ items: [{ toolkit: { slug: vez > 1 ? "github" : "slack", name: "x" } }] });
+    };
+    const catalogo = criarCatalogoComposio({ decifrar: (s) => s, fetchImpl: f });
+    const tenant = randomUUID();
+    const primeiro = await catalogo(tenant, "ak");
+    expect(primeiro.some((a) => a.slug === "slack")).toBe(true);
+    vi.setSystemTime(new Date("2026-09-29T12:01:01Z"));
+    // Três pedidos com o catálogo vencido: os três voltam na hora com o velho, e só UMA renovação sai.
+    const [a, b, c] = await Promise.all([catalogo(tenant, "ak"), catalogo(tenant, "ak"), catalogo(tenant, "ak")]);
+    for (const r of [a, b, c]) expect(r.some((x) => x.slug === "slack")).toBe(true);
+    expect(chamadas.filter((x) => x === "/auth_configs")).toHaveLength(2);
+    soltar!();
+    await assentar();
+    const depois = await catalogo(tenant, "ak");
+    expect(depois.some((x) => x.slug === "github")).toBe(true);
+    expect(chamadas.filter((x) => x === "/auth_configs")).toHaveLength(2);
   });
 });

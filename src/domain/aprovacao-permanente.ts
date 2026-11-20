@@ -3,6 +3,7 @@ import type { CapacidadeConector } from "../contracts/conector.ts";
 import type { DestinoItem } from "../contracts/item-aprovacao.ts";
 import type { MotivoAprovacaoManual } from "../contracts/motivos.ts";
 import type { FerramentaPlano, PlanoTurno } from "../contracts/plano-turno.ts";
+import type { NivelFerramenta } from "../contracts/ajustes-aprovacao.ts";
 import { grupoDaCapacidade } from "./grupos-de-acesso.ts";
 import { conversaComAPessoa, decidirPeloModo, type GatilhoDeRevisao, type RegraDoModo } from "./modo-aprovacao.ts";
 
@@ -137,6 +138,14 @@ export type EntradaAprovacao = {
   envioParaFora?: boolean;
   /** Só com o revisor: o turno (entrada ou marca) ou a conversa nas últimas 24 h leu conteúdo de fora. Ausente = a marca do turno. */
   contaminadoParaRevisor?: boolean;
+  /** ADR-166: só com o revisor — a pessoa tem regras de "Sempre me pergunte" para o bot (o envio limpo também vai a ele). */
+  regrasDePerguntar?: boolean;
+  /**
+   * ADR-166: o nível que a pessoa deu a esta ferramenta (`nivelDaFerramenta`, no tipo dela: leitura ou escrita). Ausente
+   * = `revisor`, a decisão de antes. `bloqueado` e o só leitura quem chama nega ANTES (`barradoDeAntemao`); aqui o
+   * bloqueado ainda pergunta (fail-closed, nunca roda).
+   */
+  nivel?: NivelFerramenta;
 };
 
 /**
@@ -180,6 +189,10 @@ export function decidirAprovacao(entrada: EntradaAprovacao): DecisaoDoApp {
   const nome = `${entrada.destino.conector}__${entrada.destino.ferramenta}`;
   const ferramenta: FerramentaPlano | undefined = plano.catalogo.ferramentas.find((f) => f.nome === nome);
   if (!ferramenta || ferramenta.origem !== "conector") return { automatico: false, motivo: "fora_do_catalogo" };
+  // ADR-166: "Bloqueado" nunca roda (quem chama já negou; aqui é a rede) e "Sempre pedir" pede a pessoa em todo modo, até
+  // na leitura. Sem motivo novo no enum (0019): é a ausência de regra que deixe, dita pela própria pessoa.
+  if (entrada.nivel === "bloqueado") return { automatico: false, motivo: "fora_do_catalogo" };
+  if (entrada.nivel === "sempre_pedir") return { automatico: false, motivo: "sem_regra_permanente" };
   if (ferramenta.readOnlyHint) return { automatico: true, regra: REGRA_CONSULTA_SEM_DECISAO, versao: VERSAO_CONSULTA_SEM_DECISAO };
 
   const deFora = plano.confiancaEntrada === "nao_confiavel" || entrada.contaminado === true;
@@ -187,7 +200,7 @@ export function decidirAprovacao(entrada: EntradaAprovacao): DecisaoDoApp {
   // ADR-115 (PR 5, decisão 4 do Marlon de 2026-10-18): com o revisor, o alívio sai — o apagar pedido na conversa também
   // vai a ele (o A4) —, e o envio para fora depois de conteúdo de fora deixa de rodar direto (o A3). Sem o revisor, hoje.
   const situacao = entrada.revisor === true
-    ? { arriscada: entrada.arriscada === true, credencial: false, envioParaFora: entrada.envioParaFora === true, contaminado: entrada.contaminadoParaRevisor ?? deFora }
+    ? { arriscada: entrada.arriscada === true, credencial: false, envioParaFora: entrada.envioParaFora === true, contaminado: entrada.contaminadoParaRevisor ?? deFora, regrasDePerguntar: entrada.regrasDePerguntar === true }
     : { arriscada: entrada.arriscada === true && !conversaComAPessoa(plano.modoTurno), credencial: false };
   // A regra da PESSOA cai inteira depois de conteúdo de fora; a do CONECTOR (acima) não, porque só lê. Num turno limpo,
   // "Sempre permitir" vem antes do modo: a regra da pessoa pula o revisor (é onde `sempreServe` diz que ela serve).
@@ -199,7 +212,9 @@ export function decidirAprovacao(entrada: EntradaAprovacao): DecisaoDoApp {
   const envioAposFora = entrada.revisor === true && entrada.envioParaFora === true && (entrada.contaminadoParaRevisor ?? deFora);
   if (deFora || envioAposFora) return doModo ?? { automatico: false, motivo: "regra_suspensa_conteudo_nao_confiavel" };
   if (nuncaPermanente(nome, ferramenta.readOnlyHint)) return doModo ?? { automatico: false, motivo: "sem_regra_permanente" };
-  if (plano.semprePermitir.includes(nome)) return { automatico: true, regra: REGRA_APROVACAO_PERMANENTE, versao: VERSAO_APROVACAO_PERMANENTE };
+  // ADR-166: o nível "Sempre permitir" dos Ajustes vale como o clique "Sempre permitir" do cartão (ADR-042): num turno
+  // limpo e fora do que nunca é permanente; depois de conteúdo de fora o modo decide (a regra da pessoa cai, claim 6).
+  if (plano.semprePermitir.includes(nome) || entrada.nivel === "sempre_permitir") return { automatico: true, regra: REGRA_APROVACAO_PERMANENTE, versao: VERSAO_APROVACAO_PERMANENTE };
   return doModo ?? { automatico: false, motivo: "sem_regra_permanente" };
 }
 
@@ -216,7 +231,7 @@ export function decidirLote(entradas: readonly EntradaAprovacao[]): { automatico
   // gatilho do lote é o mais forte: arriscado se algum item é, senão envio depois de conteúdo de fora.
   const algumCartao = brutas.some((d) => !("revisar" in d) && !d.automatico);
   const gatilhos = brutas.flatMap((d) => ("revisar" in d ? [d.gatilho] : []));
-  const revisar = !algumCartao && gatilhos.length > 0 ? (gatilhos.includes("arriscado") ? "arriscado" : "envio_apos_fora") : null;
+  const revisar = !algumCartao && gatilhos.length > 0 ? (gatilhos.includes("arriscado") ? "arriscado" : gatilhos.includes("envio_apos_fora") ? "envio_apos_fora" : "regra_da_pessoa") : null;
   const porItem = brutas.map(semRevisorNoApp);
   const automatico = porItem.length > 0 && porItem.every((d) => d.automatico);
   return { automatico, revisar, porItem };

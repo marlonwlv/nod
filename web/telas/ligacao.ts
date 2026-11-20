@@ -5,6 +5,8 @@ import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { FaseLigacao, MotivoFimLigacao } from "../../src/contracts/voz.ts";
 import type { IdVozNod, VelocidadeVoz, VOZES_NOD as VozesNod, VELOCIDADES_VOZ as VelocidadesVoz } from "../../src/contracts/vozes.ts";
 import { avisoDeEstado, type TomDoAviso } from "../lib/aviso-estado.ts";
+import { botaoAjustesDoMicrofone, ondeLiberarMicrofone } from "../lib/microfone-do-sistema.ts";
+import { desteMac, plataformaDaTela } from "../lib/plataforma-da-tela.ts";
 import type { EstadoLocalLigacao, MotivoAvaliacaoLigacao } from "../lib/ligacao-protocolo.ts";
 import type { EstadoMascote } from "../lib/mascote.ts";
 import { botao, esc, hora, iconeAgente } from "../lib/render.ts";
@@ -42,7 +44,8 @@ export const TEXTO_CONSENTIMENTO: typeof TextoConsentimento =
 
 export type AgenteDaLigacao = Pick<Agente, "id" | "nome" | "cor" | "forma">;
 export type LinhaLegenda = { chave: string; autor: "pessoa" | "bot"; texto: string; final: boolean; espera: boolean };
-export type AvisoLigacao = { tom: TomDoAviso; texto: string };
+/** `ajustes`: o aviso traz "Abrir Configurações"/"Abrir Ajustes" (o microfone bloqueado pelo sistema, no app). */
+export type AvisoLigacao = { tom: TomDoAviso; texto: string; ajustes?: true };
 
 export type EstadoTelaLigacao = {
   ligacao: Ligacao;
@@ -138,15 +141,20 @@ export function textoFim(motivo: MotivoFimLigacao, bot: string): string | null {
   return textos[motivo];
 }
 
-/** Os estados locais do motor que viram aviso na tela. `noApp` muda onde liberar o microfone. */
-export function avisoDoEstadoLocal(estado: EstadoLocalLigacao, noApp: boolean): AvisoLigacao | null {
+/**
+ * Os estados locais do motor que viram aviso na tela. `noApp` muda onde liberar o microfone; `ajustes` (o app sabe abrir
+ * a tela do sistema) põe o botão que leva até lá.
+ */
+export function avisoDoEstadoLocal(estado: EstadoLocalLigacao, noApp: boolean, ajustes = false): AvisoLigacao | null {
+  const comAjustes = noApp && ajustes ? { ajustes: true as const } : {};
   switch (estado) {
     case "microfone-negado":
-      return { tom: "erro", texto: noApp ? "Libere o microfone em Ajustes do Sistema › Privacidade › Microfone. Enquanto isso, dá para digitar." : "Libere o microfone para este site nos ajustes do navegador. Enquanto isso, dá para digitar." };
+      return { tom: "erro", texto: noApp ? `${ondeLiberarMicrofone()} Enquanto isso, dá para digitar.` : "Libere o microfone para este site nos ajustes do navegador. Enquanto isso, dá para digitar.", ...comAjustes };
     case "microfone-restrito":
-      return { tom: "erro", texto: "O microfone deste Mac está bloqueado por quem administra o computador. Enquanto isso, dá para digitar." };
+      return { tom: "erro", texto: `O microfone ${desteMac()} está bloqueado por quem administra o computador. Enquanto isso, dá para digitar.` };
     case "microfone-mudo":
-      return { tom: "erro", texto: noApp ? "O microfone não está mandando som. Confira em Ajustes do Sistema › Privacidade › Microfone e o aparelho de entrada em Som. Enquanto isso, dá para digitar." : "O microfone não está mandando som. Confira se o navegador tem acesso ao microfone em Ajustes do Sistema › Privacidade › Microfone e qual aparelho de entrada ele usa. Enquanto isso, dá para digitar." };
+      if (noApp && plataformaDaTela() === "windows") return { tom: "erro", texto: "O microfone não está mandando som. Confira em Configurações › Privacidade e segurança › Microfone e o dispositivo de entrada em Configurações › Sistema › Som. Enquanto isso, dá para digitar.", ...comAjustes };
+      return { tom: "erro", ...comAjustes, texto: noApp ? "O microfone não está mandando som. Confira em Ajustes do Sistema › Privacidade › Microfone e o aparelho de entrada em Som. Enquanto isso, dá para digitar." : "O microfone não está mandando som. Confira se o navegador tem acesso ao microfone em Ajustes do Sistema › Privacidade › Microfone e qual aparelho de entrada ele usa. Enquanto isso, dá para digitar." };
     case "microfone-indisponivel":
       return { tom: "erro", texto: "Nenhum microfone encontrado. Conecte um e ligue de novo; enquanto isso, dá para digitar." };
     case "voz-fora":
@@ -253,7 +261,7 @@ function htmlAviso(t: EstadoTelaLigacao): string {
 }
 
 function htmlAvisoComum(t: EstadoTelaLigacao): string {
-  const aviso = t.aviso ? avisoDeEstado({ tom: t.aviso.tom, texto: t.aviso.texto, papel: t.aviso.tom === "erro" ? "alert" : "status", classe: "aviso-compacto" }) : "";
+  const aviso = t.aviso ? avisoDeEstado({ tom: t.aviso.tom, texto: t.aviso.texto, papel: t.aviso.tom === "erro" ? "alert" : "status", classe: "aviso-compacto", ...(t.aviso.ajustes ? { acao: botaoAjustesDoMicrofone() } : {}) }) : "";
   const audio = t.audioSuspenso ? avisoDeEstado({ tom: "alerta", texto: "O navegador segurou o som da ligação.", acao: botao("ligacao-retomar-audio", "Ouvir", { classe: "pri sm" }), classe: "aviso-compacto" }) : "";
   return aviso + audio;
 }

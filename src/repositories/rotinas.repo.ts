@@ -27,10 +27,12 @@ interface Linha {
   provedor: string | null;
   eventos: string[] | null;
   retomar_em: Date | null;
+  pausa_lote_id: string | null;
+  pausa_lote_em: Date | null;
 }
 
 const COLUNAS =
-  "tenant_id, id, owner_id, agente_id, conversa_id, cron, fuso_iana, instrucao, fonte, entregavel, limites_aprovacao, politica_sem_dado, exige_aprovacao, case when exists (select 1 from agentes a where a.tenant_id = rotinas.tenant_id and a.id = rotinas.agente_id and a.geracao_execucao = rotinas.geracao_execucao and a.excluido_em is null) then estado else 'pausada'::estado_rotina end as estado, proxima_execucao, criado_em, excluido_em, acessos, gatilho, provedor, eventos, retomar_em";
+  "tenant_id, id, owner_id, agente_id, conversa_id, cron, fuso_iana, instrucao, fonte, entregavel, limites_aprovacao, politica_sem_dado, exige_aprovacao, case when exists (select 1 from agentes a where a.tenant_id = rotinas.tenant_id and a.id = rotinas.agente_id and a.geracao_execucao = rotinas.geracao_execucao and a.excluido_em is null) then estado else 'pausada'::estado_rotina end as estado, proxima_execucao, criado_em, excluido_em, acessos, gatilho, provedor, eventos, retomar_em, pausa_lote_id, pausa_lote_em";
 
 const paraRotina = (l: Linha): Rotina => ({
   tenantId: l.tenant_id,
@@ -55,6 +57,7 @@ const paraRotina = (l: Linha): Rotina => ({
   provedor: l.provedor,
   eventos: l.eventos,
   retomarEm: l.retomar_em ? ms(l.retomar_em) : null,
+  pausaLote: l.pausa_lote_id && l.pausa_lote_em ? { id: l.pausa_lote_id, em: ms(l.pausa_lote_em) } : null,
 });
 
 export type NovaRotina = {
@@ -143,6 +146,57 @@ export function rotinasRepo(conn: Conn, escopo: Escopo) {
       const retomar = estado === "pausada" && retomarEm !== null ? data(retomarEm) : null;
       const [l] = await conn<Linha[]>`update rotinas set estado = ${estado}, retomar_em = ${retomar} where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} returning ${conn.unsafe(COLUNAS)}`;
       return l ? paraRotina(l) : null;
+    },
+
+    /**
+     * Desfazer a pausa em lote (0178): carimba o lote nas rotinas que o "Pausar todas" acabou de pausar. Só as pausadas da
+     * dona; a que voltou a ativa no meio (outra aba) fica de fora pelo CHECK rotinas_lote_so_pausada. Devolve quantas.
+     */
+    async marcarLoteDePausa(ids: readonly string[], loteId: string, em: number): Promise<number> {
+      if (ids.length === 0) return 0;
+      const r = await conn`
+        update rotinas set pausa_lote_id = ${loteId}, pausa_lote_em = ${data(em)}
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = any(${ids as string[]}::uuid[]) and estado = 'pausada' and excluido_em is null`;
+      return r.count;
+    },
+
+    /** As rotinas da pessoa que seguem marcadas com o lote (as reativadas uma a uma já perderam a marca pelo trigger). */
+    async listarDoLoteDePausa(loteId: string): Promise<Rotina[]> {
+      const linhas = await conn<Linha[]>`
+        select ${conn.unsafe(COLUNAS)} from rotinas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and pausa_lote_id = ${loteId} and excluido_em is null
+        order by criado_em`;
+      return linhas.map(paraRotina);
+    },
+
+    /**
+     * Das rotinas dadas, as que podem voltar a ativa: bot vivo e da mesma geração (senão o trigger nod_rotina_agente_ativo
+     * recusa o UPDATE e derruba a transação inteira do lote). Mesma condição de pausadasParaRetomar.
+     */
+    async podemVoltar(ids: readonly string[]): Promise<string[]> {
+      if (ids.length === 0) return [];
+      const linhas = await conn<{ id: string }[]>`
+        select id from rotinas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = any(${[...ids]}::uuid[]) and excluido_em is null
+          and exists (select 1 from agentes a where a.tenant_id = rotinas.tenant_id and a.id = rotinas.agente_id and a.excluido_em is null and a.geracao_execucao = rotinas.geracao_execucao)`;
+      return linhas.map((l) => l.id);
+    },
+
+    /** A pausa em lote mais recente da pessoa que ainda tem rotina marcada; null quando não há nenhuma. */
+    async ultimoLoteDePausa(): Promise<{ id: string; em: number } | null> {
+      const [l] = await conn<{ id: string; em: Date }[]>`
+        select pausa_lote_id as id, max(pausa_lote_em) as em from rotinas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and pausa_lote_id is not null and excluido_em is null
+        group by pausa_lote_id order by max(pausa_lote_em) desc limit 1`;
+      return l ? { id: l.id, em: ms(l.em) } : null;
+    },
+
+    /** Tira a marca do lote das rotinas que sobraram nele (as que não puderam voltar). Devolve quantas. */
+    async limparLoteDePausa(loteId: string): Promise<number> {
+      const r = await conn`
+        update rotinas set pausa_lote_id = null, pausa_lote_em = null
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and pausa_lote_id = ${loteId}`;
+      return r.count;
     },
 
     /** NOD-412: as pausadas da pessoa cuja data de retomada já chegou (o tick as reativa antes de procurar as vencidas). */

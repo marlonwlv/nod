@@ -9,9 +9,13 @@ import { ESTADOS_ABERTOS, agrupar, filtrar, foraDoMac, listaPararTasks, memoriaL
 import { comFerramenta, comTexto, ATIVIDADE_VAZIA } from "../../../web/lib/atividade.ts";
 import { renderDetalhes } from "../../../web/telas/detalhes.ts";
 import { renderTaxasLinhas } from "../../../web/telas/modo-dev.ts";
-import { chipTrabalhosDoBot, htmlAcoesDaTask, renderFaixaTrabalhos, renderGavetaTrabalhos, renderIconeTrabalhos, renderTelaTrabalho, renderTodosOsTrabalhos, renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
+import { chipTrabalhosDoBot, htmlAcoesDaTask, renderFaixaTrabalhos, renderGavetaTrabalhos, renderIconeTrabalhos, renderTelaTrabalho, renderTopoTrabalho } from "../../../web/telas/trabalhos.ts";
 
-/** As telas dos trabalhos (#195, filha 07; #196, filha 08): faixa, tela da task, barra, gaveta, "Todos os trabalhos", memória. */
+// ADR-187 §8 (2026-11-18): "Todas as tarefas" virou a vista Por estado da tela Tarefas, com o chip Todas.
+const renderTodosOsTrabalhos = (e: Estado, filtro: "todos" | "voce" | "rotinas" | "bots" = "todos"): string => renderTelaTarefas(e, { tipo: "trabalhos", filtro, mostrar: "todas" });
+
+/** As telas dos trabalhos (#195, filha 07; #196, filha 08): faixa, tela da task, barra, gaveta, "Todas as tarefas", memória. */
 
 const MIN = 60_000;
 const AGORA = new Date(2026, 9, 7, 21, 0).getTime();
@@ -57,8 +61,8 @@ describe("faixa de Trabalhos e pílula (#195, K1/K6)", () => {
 
   it("aberta, uma linha por trabalho do bot (ponto, título, status curto, seta → tela da task); origem e tempo só no hover", () => {
     const html = renderFaixaTrabalhos(estadoCom([migrar, churn, pedido, trabalho("feito", { estado: "terminado", terminadoEm: AGORA })], { faixaTrabalhosAberta: "leo" }), "leo");
-    // revisto em 2026-10-09: "Trabalhos · Leonardo" — o print do Marlon tinha "Trabalhos do Cecília".
-    expect(html).toContain("<span>Trabalhos · Leonardo</span><span class=\"ft-n\">3</span>");
+    // revisto em 2026-10-09: "Tarefas · Leonardo" — o print do Marlon tinha "Trabalhos do Cecília".
+    expect(html).toContain("<span>Tarefas · Leonardo</span><span class=\"ft-n\">3</span>");
     expect(html.match(/class="ft-linha"/g)).toHaveLength(3);
     expect(html).toContain('data-act="abrir-trabalho" data-id="migrar"');
     expect(html).toContain('<span class="ponto-trabalho c-purple pulso-trab"');
@@ -87,7 +91,7 @@ describe("faixa de Trabalhos e pílula (#195, K1/K6)", () => {
     expect(renderFaixaTrabalhos(estadoCom([migrar], { faixaTrabalhosAberta: "leo" }), "leo")).toContain('<span class="ft-titulo">Migrar relatórios</span>');
   });
 
-  it("some sem trabalho aberto (o terminado não conta; o de outro bot também não)", () => {
+  it("some sem tarefa aberta (o terminado não conta; o de outro bot também não)", () => {
     expect(renderFaixaTrabalhos(estadoCom([trabalho("x", { estado: "terminado" }), trabalho("y", { agenteId: "dev1" })]), "leo")).toBe("");
     expect(renderFaixaTrabalhos(estadoCom([]), "leo")).toBe("");
   });
@@ -147,7 +151,7 @@ describe("faixa de Trabalhos e pílula (#195, K1/K6)", () => {
     expect(css).toMatch(/\.lugar-faixa-trabalhos:has\(\.faixa-trab\) \+ \.composer-wrap \.composer \.box \{ border-top-left-radius: 0; border-top-right-radius: 0; \}/);
     // QA do épico (2026-10-08): com algo acima do campo entre a faixa de Trabalhos e o campo (desde 2026-10-18, a caixa
     // "Respondendo" ou "N coisas esperam você", no lugar da faixa da pergunta), a faixa fecha e o campo fica redondo.
-    expect(css).toMatch(/\.lugar-faixa-trabalhos:has\(\+ \.composer-wrap \.composer-pergunta:not\(:empty\)\) \.faixa-trab \{ margin-bottom: 8px; border-bottom: 1px solid var\(--line\); border-radius: 16px; \}/);
+    expect(css).toMatch(/\.lugar-faixa-trabalhos:has\(\+ \.composer-wrap \.composer-pergunta:not\(:empty\)\) \.faixa-trab \{ margin-bottom: 8px; border-bottom: 1px solid var\(--line\); border-radius: var\(--raio-16\); \}/);
     expect(css).toMatch(/\.composer-wrap:has\(\.composer-pergunta:not\(:empty\)\) \.composer \.box \{ border-top-left-radius: 28px; border-top-right-radius: 28px; \}/);
     expect(readFileSync(new URL("../../../web/index.html", import.meta.url), "utf8")).toMatch(/id="pilula-novas"[^\n]*\n[^\n]*\n\s*<div class="lugar-faixa-trabalhos" id="faixa-trabalhos"><\/div>\n\s*<footer class="composer-wrap" id="composer">/);
   });
@@ -155,7 +159,7 @@ describe("faixa de Trabalhos e pílula (#195, K1/K6)", () => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("a tela da task (#195, K2/K7)", () => {
+describe("a tela da tarefa (#195, K2/K7)", () => {
   const login = trabalho("login", {
     agenteId: "dev1", conversaId: "c-dev1", titulo: "Login do app", origem: "colega", pedidoPorAgenteId: "chico", pedidoPorNome: "Chico", pasta: "~/nod/Dev 1/lumen-86akr9u9u",
     iniciadoEm: AGORA - 19 * MIN, turnoVivoId: "tv", esperandoComputadorDe: "Soft delete",
@@ -164,9 +168,9 @@ describe("a tela da task (#195, K2/K7)", () => {
   it("o topo: chip com ponto vivo, mascote, título e o status curto (sem tempo); a linha de quem pediu, acessos e pasta; a espera do computador", () => {
     const html = renderTopoTrabalho(estadoCom([login]), "login");
     expect(html).toContain('<span class="tk-chip"><span class="ponto-trabalho c-green pulso-trab"');
-    expect(html).toContain('<span class="tk-titulo">Login do app</span><button type="button" class="tk-status" data-act="tempo-task" data-id="login" aria-expanded="false" title="Ver o tempo da task">trabalhando<svg');
+    expect(html).toContain('<span class="tk-titulo">Login do app</span><button type="button" class="tk-status" data-act="tempo-task" data-id="login" aria-expanded="false" title="Ver o tempo da tarefa">trabalhando<svg');
     expect(html).not.toContain("tk-pop");
-    expect(html).toContain("task do Dev 1, pedida pelo Chico · com os acessos do Dev 1 · pasta ~/nod/Dev 1/lumen-86akr9u9u");
+    expect(html).toContain("Tarefa do Dev 1, pedida pelo Chico · com os acessos do Dev 1 · pasta ~/nod/Dev 1/lumen-86akr9u9u");
     expect(html).toContain("esperando o computador do Dev 1 (em uso por: Soft delete)");
   });
 
@@ -184,15 +188,19 @@ describe("a tela da task (#195, K2/K7)", () => {
     expect(html).toContain("· pedido do Chico · a resposta volta para o Chico");
     expect(html).toContain("Dev 1, pega o login");
     expect(html).toContain("Pego. Reproduzi o bug.");
-    expect(html).toContain('<div class="passo"><span class="passo-ok" aria-hidden="true">✓</span><span>Criou a worktree.</span></div>');
-    expect(html).toContain('<div class="passo passo-agora">');
+    // ADR-187 §6 (lote B, passo 4, Paper 4k): a narração do meio da volta é o balão cinza; a ferramenta feita, a linha com ✓;
+    // a de agora, o anel girando.
+    expect(html).toContain('<div class="tk-narracao"><div class="tk-narracao-balao">');
+    expect(html).toContain("Criou a worktree.");
+    expect(html).toContain('<span class="tk-passo-rot">Bash</span>');
+    expect(html).toContain('<div class="tk-agora" role="status">');
     expect(css).toMatch(/\.passo \{ display: flex; align-items: center; justify-content: center;/);
   });
 
   it("Parar task usa a rota do trabalho; Fechar volta à tela de antes (e não empilha tasks)", async () => {
     const acoes = htmlAcoesDaTask("login");
     expect(acoes).toContain('data-act="parar-trabalho" data-id="login"');
-    expect(acoes).toContain(">Parar task<");
+    expect(acoes).toContain(">Parar tarefa<");
     expect(acoes).toContain('data-act="fechar-trabalho"');
     const conversa: Tela = { tipo: "conversa", conversaId: "c-leo", agenteId: "leo" };
     const task = telaDaTask(conversa, "login");
@@ -215,17 +223,17 @@ describe("a tela da task (#195, K2/K7)", () => {
   it("o Parar do chat com tasks abertas lista antes", () => {
     // QA do épico (2026-10-08): os títulos vão numa lista no corpo; o título do diálogo fica curto.
     const duas = [{ titulo: "Migrar relatórios" }, { titulo: "Dashboard <churn>" }];
-    expect(textoPararTasks(duas, "Dev 1")).toBe("Parar as 2 tasks do Dev 1?");
+    expect(textoPararTasks(duas, "Dev 1")).toBe("Parar as 2 tarefas do Dev 1?");
     expect(listaPararTasks(duas)).toBe('<ul class="parar-lista"><li>Migrar relatórios</li><li>Dashboard &lt;churn&gt;</li></ul>');
-    expect(textoPararTasks([{ titulo: "Migrar relatórios" }], "Dev 1")).toBe("Parar a task Migrar relatórios?");
+    expect(textoPararTasks([{ titulo: "Migrar relatórios" }], "Dev 1")).toBe("Parar a tarefa Migrar relatórios?");
     expect(listaPararTasks([{ titulo: "Migrar relatórios" }])).toBe("");
   });
 });
 
-describe("reducer: trabalhos, a tela da task e a memória", () => {
+describe("reducer: trabalhos, a tela da tarefa e a memória", () => {
   const frame = (tipo: FrameSse["tipo"], dados: Record<string, unknown>): FrameSse => ({ tipo, dados } as FrameSse);
 
-  it("trabalho.mudou relê os trabalhos e a conversa do bot; a tela da task aberta também", () => {
+  it("trabalho.mudou relê os trabalhos e a conversa do bot; a tela da tarefa aberta também", () => {
     const e = aplicarFrame(estadoCom([]), frame("trabalho.mudou", { trabalhoId: "migrar", agenteId: "leo", conversaId: "c-leo", estado: "rodando" }), AGORA);
     expect(e.invalidacoes).toEqual(expect.arrayContaining(["trabalhos", "conversa:c-leo"]));
     expect(e.invalidacoes).not.toContain("trabalho:migrar");
@@ -252,7 +260,7 @@ describe("reducer: trabalhos, a tela da task e a memória", () => {
     expect(e.turnosVivos.tv).toMatchObject({ conversaId: "c-dev1", estado: "rodando", trabalhoId: "login" });
     const comDelta = aplicarFrame(e, frame("turno.delta", { turnoId: "tv", conversaId: "c-dev1", texto: "gravando" }), AGORA);
     expect(comDelta.atividades["c-dev1"]?.tv?.atual).toBe("gravando");
-    // Fala nova na conversa do bot da task: a tela da task relê as mensagens dela.
+    // Fala nova na conversa do bot da task: a tela da tarefa relê as mensagens dela.
     expect(aplicarFrame(e, frame("turno.fala", { turnoId: "tv", conversaId: "c-dev1" }), AGORA).invalidacoes).toContain("trabalho:login");
     expect(aplicarFrame(e, frame("turno.fala", { turnoId: "tx", conversaId: "c-outra" }), AGORA).invalidacoes).not.toContain("trabalho:login");
     // O frame turno.iniciado marca o turno do trabalho (o chat não o desenha).
@@ -260,7 +268,7 @@ describe("reducer: trabalhos, a tela da task e a memória", () => {
     expect(iniciado.turnosVivos.t9?.trabalhoId).toBe("migrar");
   });
 
-  it("QA do NOD-314 (achado 2): a tela da task aberta direto hidrata a frota e as contas", () => {
+  it("QA do NOD-314 (achado 2): a tela da tarefa aberta direto hidrata a frota e as contas", () => {
     const tela: Tela = { tipo: "trabalho", id: "login", voltar: { tipo: "inicio" } };
     const faltas = invalidacoesDaTela({ ...estadoCom([]), sessao: { tenantId: "t", pessoaId: "p" }, tela });
     expect(faltas).toContain("maquinas");
@@ -282,7 +290,7 @@ describe("reducer: trabalhos, a tela da task e a memória", () => {
 describe("barra lateral (#196, K8 variante 3)", () => {
   it("bot com trabalho rodando: chip com o número e o ponto na cor do bot piscando; sem trabalho, nada", () => {
     const e = estadoCom([trabalho("a"), trabalho("b", { estado: "na_fila" })]);
-    expect(chipTrabalhosDoBot(e, { id: "leo", cor: "c-purple", conversaId: "c-leo" })).toBe('<span class="chip-trab" title="2 trabalhos abertos"><span class="ponto-trabalho c-purple pulso-trab" aria-hidden="true"></span>2</span>');
+    expect(chipTrabalhosDoBot(e, { id: "leo", cor: "c-purple", conversaId: "c-leo" })).toBe('<span class="chip-trab" title="2 tarefas abertas"><span class="ponto-trabalho c-purple pulso-trab" aria-hidden="true"></span>2</span>');
     expect(chipTrabalhosDoBot(e, { id: "dev1", cor: "c-green", conversaId: "c-dev1" })).toBe("");
     // Só na fila (nenhum rodando): o número fica, o ponto não pisca.
     expect(chipTrabalhosDoBot(estadoCom([trabalho("b", { estado: "na_fila" })]), { id: "leo", cor: "c-purple", conversaId: "c-leo" })).not.toContain("pulso-trab");
@@ -292,10 +300,10 @@ describe("barra lateral (#196, K8 variante 3)", () => {
     const leo = { id: "leo", cor: "c-purple" as const, conversaId: "c-leo" };
     const volta = trabalho("volta", { acordaEm: AGORA + 20 * MIN });
     const colega = trabalho("colega", { esperandoColega: { nome: "Ze 1", desde: AGORA - 10 * MIN, trabalhoId: null } });
-    expect(chipTrabalhosDoBot(estadoCom([volta, colega]), leo)).toBe('<span class="chip-trab" title="2 trabalhos abertos · 2 esperando"><span class="ponto-trabalho fora-do-mac" aria-hidden="true"></span>2</span>');
+    expect(chipTrabalhosDoBot(estadoCom([volta, colega]), leo)).toBe('<span class="chip-trab" title="2 tarefas abertas · 2 esperando"><span class="ponto-trabalho fora-do-mac" aria-hidden="true"></span>2</span>');
     const comUm = chipTrabalhosDoBot(estadoCom([volta, colega, trabalho("vivo", { turnoVivoId: "t1" })]), leo);
     expect(comUm).toContain("ponto-trabalho c-purple pulso-trab");
-    expect(comUm).toContain('title="3 trabalhos abertos · 2 esperando"');
+    expect(comUm).toContain('title="3 tarefas abertas · 2 esperando"');
     // Precisa de você junto com a espera: o ponto do bot, sem piscar (o azul por bot fica para a parte 5 da ADR-099).
     expect(chipTrabalhosDoBot(estadoCom([volta, trabalho("p", { estado: "precisa_de_voce" })]), leo)).toContain('class="ponto-trabalho c-purple"');
   });
@@ -307,16 +315,16 @@ describe("barra lateral (#196, K8 variante 3)", () => {
     expect(css).toMatch(/\.ponto-trabalho \{[^}]*background: var\(--mascote-cor, var\(--ink-3\)\);/);
   });
 
-  it("o ícone 'Trabalhos' do topo só com trabalho aberto, com o número", () => {
+  it("o ícone 'Trabalhos' do topo só com tarefa aberta, com o número", () => {
     expect(renderIconeTrabalhos(estadoCom([trabalho("x", { estado: "terminado" })]))).toBe("");
     const html = renderIconeTrabalhos(estadoCom([trabalho("a"), trabalho("b", { agenteId: "dev1" })]));
     expect(html).toContain('data-act="navegar" data-tela="trabalhos"');
-    expect(html).toContain('aria-label="Trabalhos: 2 abertos"');
+    expect(html).toContain('aria-label="Tarefas: 2 abertas"');
     expect(html).toContain('<span class="contagem-topo" aria-hidden="true">2</span>');
   });
 });
 
-describe("gaveta e 'Todos os trabalhos' (#196, K3/K9/M3)", () => {
+describe("gaveta e 'Todas as tarefas' (#196, K3/K9/M3)", () => {
   const lista = [
     trabalho("churn", { titulo: "Dashboard de churn Q3", estado: "precisa_de_voce", ultimoPasso: "pergunta: por plano ou por segmento?" }),
     trabalho("migrar", { titulo: "Migrar relatórios", memoriaMb: 800 }),
@@ -346,20 +354,23 @@ describe("gaveta e 'Todos os trabalhos' (#196, K3/K9/M3)", () => {
     expect(html).toContain('data-act="abrir-trabalho" data-id="rev"');
     // ADR-125: a linha Trabalhos mora nos Atalhos do nível Ajustes.
     expect(renderDetalhes({ ...e, gaveta: { agenteId: "leo", nivel: { tipo: "ajustes" } } })).toContain('data-act="gaveta" data-nivel="trabalhos" data-agente="leo"');
-    expect(renderDetalhes({ ...e, gaveta: { agenteId: "leo", nivel: { tipo: "trabalhos" } } })).toContain("Trabalhos de Leonardo");
+    expect(renderDetalhes({ ...e, gaveta: { agenteId: "leo", nivel: { tipo: "trabalhos" } } })).toContain("Tarefas de Leonardo");
   });
 
-  it("'Todos os trabalhos': todos os bots, o resumo, a memória de cada um e os filtros De você / Rotinas / Entre bots", () => {
+  // ADR-187 §8 (Paper 5b, 2026-11-18): o resumo do topo, a memória por linha e os chips De você / Rotinas / Entre bots
+  // saíram; os grupos contam no rótulo e o filtro por origem segue no estado da tela (sem chip).
+  it("'Todas as tarefas' (Por estado, Todas): todos os bots, os que mais usam memória primeiro e o filtro por origem", () => {
     const e = estadoCom(lista, { tela: { tipo: "trabalhos" }, trabalhos: { trabalhos: lista, pressao: null, memoriaTotalMb: 3174 } });
     const html = renderTodosOsTrabalhos(e);
-    expect(html).toContain("3 trabalhando · 1 na fila · 1 precisa de você · os bots usam 3,1 GB do seu Mac");
-    // QA (2026-10-08): com 0 MB (nenhum harness com processo próprio) a frase da memória some, em vez de "0 MB".
-    expect(renderTodosOsTrabalhos({ ...e, trabalhos: { trabalhos: lista, pressao: null, memoriaTotalMb: 0 } })).not.toContain("os bots usam");
+    expect(html).toContain("Precisa de você · 1");
+    expect(html).toContain("Trabalhando · 3");
+    expect(html).toContain("Na fila · 1");
+    expect(html).toContain("Feitas hoje · 1");
+    expect(html).not.toContain("os bots usam");
     expect(html.indexOf("Login do app")).toBeLessThan(html.indexOf("Revisar dados"));
     expect(html.indexOf("Revisar dados")).toBeLessThan(html.indexOf("Migrar relatórios"));
-    expect(html).toContain("2,1 GB");
-    expect(html).toContain("os que mais usam memória primeiro");
-    expect(html).toContain('data-act="filtro-trabalhos" data-id="bots" aria-pressed="false"');
+    expect(html).not.toContain("2,1 GB");
+    expect(html).not.toContain("filtro-trabalhos");
     const bots = renderTodosOsTrabalhos(e, "bots");
     expect(bots).toContain("Login do app");
     expect(bots).not.toContain("Migrar relatórios");
@@ -390,10 +401,9 @@ describe("esperar não é trabalhar (ADR-099, parte 1)", () => {
     expect(agrupar([trabalho("acordou", { acordaEm: AGORA - MIN, turnoVivoId: "t" })], AGORA).trabalhando.map((t) => t.id)).toEqual(["acordou"]);
   });
 
-  it("'Todos os trabalhos': '1 trabalhando · 13 esperando · 1 na fila' e o grupo Esperando entre Trabalhando e Na fila", () => {
+  it("'Todas as tarefas': '1 trabalhando · 13 esperando · 1 na fila' e o grupo Esperando entre Trabalhando e Na fila", () => {
     const e = estadoCom(dia, { tela: { tipo: "trabalhos" }, trabalhos: { trabalhos: dia, pressao: null, memoriaTotalMb: 300 } });
     const html = renderTodosOsTrabalhos(e);
-    expect(html).toContain("1 trabalhando · 13 esperando · 1 na fila · os bots usam 300 MB do seu Mac");
     const ordem = ["Trabalhando · 1", "Esperando · 13", "Na fila · 1"].map((t) => html.indexOf(t));
     expect(ordem.every((i) => i >= 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
@@ -419,7 +429,7 @@ describe("esperar não é trabalhar (ADR-099, parte 1)", () => {
 });
 
 describe("memória (#196, M1/M2/M3)", () => {
-  it("amarela e vermelha, centralizadas, com 'Ver' que abre 'Todos os trabalhos'; verde ou sem leitura, nada", () => {
+  it("amarela e vermelha, centralizadas, com 'Ver' que abre 'Todas as tarefas'; verde ou sem leitura, nada", () => {
     expect(pilulaMemoria("verde", 3)).toBe("");
     expect(pilulaMemoria(null, 3)).toBe("");
     const amarela = pilulaMemoria("amarela", 18);
@@ -432,11 +442,13 @@ describe("memória (#196, M1/M2/M3)", () => {
     expect(pilulaMemoria("vermelha", 24)).toContain("<b>Seu Mac está quase sem memória</b><span class=\"pm-detalhe\">· pode travar; 24 rodando aqui</span>");
   });
 
-  it("no topo de 'Todos os trabalhos' sob pressão", () => {
+  // ADR-187 §8 (2026-11-18): o aviso da máquina mora no selo da aba das tarefas (web/lib/aviso-da-maquina.ts); a tela
+  // Tarefas não o repete.
+  it("a tela Tarefas sob pressão não repete o aviso da máquina; a pílula segue com as cores", () => {
     const e = estadoCom([trabalho("a")], { tela: { tipo: "trabalhos" }, pressao: "amarela" });
     const html = renderTodosOsTrabalhos(e);
-    expect(html.indexOf("Pouca memória no seu Mac")).toBeGreaterThan(-1);
-    expect(html.indexOf("Pouca memória no seu Mac")).toBeLessThan(html.indexOf("Trabalhando ·"));
+    expect(html).not.toContain("Pouca memória no seu Mac");
+    expect(html).toContain("Trabalhando · 1");
     expect(css).toMatch(/\.pilula-memoria\.amarela \{ background: var\(--warning-soft\);/);
     expect(css).toMatch(/\.pilula-memoria\.vermelha \{ background: var\(--danger-soft\);/);
   });
@@ -475,7 +487,7 @@ describe("telemetria das linhas (#191)", () => {
   });
 });
 
-describe("tempo da task: esperando x trabalhando (protótipo aprovado em 2026-10-08)", () => {
+describe("tempo da tarefa: esperando x trabalhando (protótipo aprovado em 2026-10-08)", () => {
   const pedidoAoDev = { nome: "Dev 1", desde: AGORA - 80 * MIN, trabalhoId: "w-dev1" };
   const esperando = trabalho("resumo", { titulo: "Resumo do time", iniciadoEm: AGORA - 300 * MIN, trabalhouMs: 21 * MIN, esperandoColega: pedidoAoDev });
 
@@ -492,7 +504,7 @@ describe("tempo da task: esperando x trabalhando (protótipo aprovado em 2026-10
 
   it("no topo, o status curto abre o cartão: aberta há, trabalhando, esperando e o atalho para a task do colega", () => {
     const fechado = renderTopoTrabalho(estadoCom([esperando]), "resumo");
-    expect(fechado).toContain('class="tk-status fora-do-mac" data-act="tempo-task" data-id="resumo" aria-expanded="false" title="Ver o tempo da task">esperando Dev 1<svg');
+    expect(fechado).toContain('class="tk-status fora-do-mac" data-act="tempo-task" data-id="resumo" aria-expanded="false" title="Ver o tempo da tarefa">esperando Dev 1<svg');
     expect(fechado).not.toContain("tk-pop");
 
     const e = reduzir(estadoCom([esperando]), { tipo: "tempo-task", id: "resumo" });
@@ -503,7 +515,7 @@ describe("tempo da task: esperando x trabalhando (protótipo aprovado em 2026-10
     expect(aberto).toContain("<span>Esperando</span><b>5h</b>");
     expect(aberto).toContain('<span style="width:7%"></span>');
     expect(aberto).toContain("Dev 1 recebeu o pedido às");
-    expect(aberto).toContain('data-act="abrir-trabalho" data-id="w-dev1">Ver task</button>');
+    expect(aberto).toContain('data-act="abrir-trabalho" data-id="w-dev1">Ver tarefa</button>');
     expect(reduzir(e, { tipo: "tempo-task", id: null }).tempoTaskAberto).toBeNull();
   });
 
@@ -538,7 +550,7 @@ describe("tempo da task: esperando x trabalhando (protótipo aprovado em 2026-10
 });
 
 describe("Fazer aqui e Fazer depois (chat limpo, PR 2; ADR-114)", () => {
-  it("saem da linha 'Abriu a task' do chat e ficam no topo da tela da task e embaixo da linha dela em Trabalhos", () => {
+  it("saem da linha 'Abriu a tarefa' do chat e ficam no topo da tela da tarefa e embaixo da linha dela em Trabalhos", () => {
     const antiga = trabalho("antiga", { titulo: "Relatório", criadoEm: HOJE - MIN });
     const nova = trabalho("nova", { titulo: "Planilha", estado: "na_fila" });
     const e = estadoCom([antiga, nova]);
@@ -556,7 +568,7 @@ describe("Fazer aqui e Fazer depois (chat limpo, PR 2; ADR-114)", () => {
 
   // QA do PR 2: as três frentes de um lote paralelo ganhavam "Fazer depois da <irmã>" e "Fazer aqui" em Trabalhos; no chat de
   // antes a linha "Começou N frentes" nunca teve os botões.
-  it("a frente de um lote com várias frentes não leva os botões; a frente única do lote leva, como a 'Abriu a task' de antes", () => {
+  it("a frente de um lote com várias frentes não leva os botões; a frente única do lote leva, como a 'Abriu a tarefa' de antes", () => {
     const lote = ["a", "b", "c"].map((id, i) => trabalho(id, { titulo: `NOD-${id}`, forma: "frente", loteId: "L", criadoEm: HOJE - (3 - i) * MIN }));
     const e = estadoCom(lote);
     for (const id of ["a", "b", "c"]) expect(renderTopoTrabalho(e, id), id).not.toContain("trabalho-fazer-aqui");

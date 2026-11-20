@@ -13,22 +13,30 @@ export type EntradaAtividade = { agenteId: string; dia: string; fuso: string };
  */
 async function recorte(deps: Deps, input: EntradaAtividade) {
   if (!diaValido(input.dia)) throw new ErroDeDominio("entrada_invalida", { cause: "dia" });
+  // O fuso que o Intl não conhece é recusado antes de qualquer consulta (a consulta recusada abortaria a transação).
+  try { diaNoFuso(0, input.fuso); } catch { throw new ErroDeDominio("fuso_invalido"); }
   let nascimento: string;
-  const agente = await deps.repos.agentes.buscar(input.agenteId);
+  // Leva 2 (ADR-183): a faixa do dia só depende do dia e do fuso: sai junto com o agente, DEPOIS dele na fila da conexão
+  // (o postgres.js executa na ordem de chamada: o agente responde antes de um fuso que só o tzdata do Postgres recusa
+  // abortar a transação). A faixa é aguardada antes da conversa; a promessa já ouvida não vira rejeição solta.
+  const agentePromessa = deps.repos.agentes.buscar(input.agenteId);
+  const faixaPromessa = deps.repos.atividade.faixaDoDia(input.dia, input.fuso).then((v) => ({ ok: true as const, v }), (e: unknown) => {
+    // Revisão pré-merge de 2026-10-18: um nome que o Intl do Node ainda aceita e o tzdata do Postgres já não tem
+    // ("US/Pacific-New") voltava 500. O Postgres responde 22023 (invalid_parameter_value); é o mesmo 400 do fuso.
+    if (typeof e === "object" && e !== null && "code" in e && e.code === "22023") return { ok: false as const, e: new ErroDeDominio("fuso_invalido") };
+    return { ok: false as const, e };
+  });
+  const [agente, faixaLida] = await Promise.all([agentePromessa, faixaPromessa]);
   if (!agente || agente.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado");
   try {
     nascimento = diaNoFuso(agente.criadoEm, input.fuso);
   } catch {
     throw new ErroDeDominio("fuso_invalido");
   }
+  if (!faixaLida.ok) throw faixaLida.e;
+  const faixa = faixaLida.v;
   const conversa = await deps.repos.conversas.buscarPropriaDoAgente(agente.id);
   if (!conversa) throw new ErroDeDominio("nao_encontrado");
-  const faixa = await deps.repos.atividade.faixaDoDia(input.dia, input.fuso).catch((e: unknown) => {
-    // Revisão pré-merge de 2026-10-18: um nome que o Intl do Node ainda aceita e o tzdata do Postgres já não tem
-    // ("US/Pacific-New") voltava 500. O Postgres responde 22023 (invalid_parameter_value); é o mesmo 400 do fuso.
-    if (typeof e === "object" && e !== null && "code" in e && e.code === "22023") throw new ErroDeDominio("fuso_invalido");
-    throw e;
-  });
   return { agente, conversa, faixa, nascimento };
 }
 

@@ -841,6 +841,73 @@ describe("driver claude-cli contra o binário falso (contrato empírico 2026-09-
       expect(falas[0]).toMatch(/^Recebi: A pessoa escreveu enquanto você trabalhava: «qual é o prazo\?»/);
       expect(resultado).toMatchObject({ desfecho: "sucesso", texto: "Revisei as três." });
     });
+
+    it("ADR-185: escrita no meio da volta entra na hora e só é LIDA na fronteira seguinte (o tool_result)", async () => {
+      const { instance } = await instanciar("mensagem-no-meio", {}, { ...HELP, NOD_FALSO_MEIO_CEDO: "1" });
+      const adapter = instance.adapter(planoDeTeste(dir));
+      const linha: string[] = [];
+      let mandou = false;
+      const espiao = sinksEspiao({});
+      await adapter.rodarTurno({
+        ...espiao.sinks,
+        evento: (e) => {
+          espiao.sinks.evento(e);
+          if (e.tipo === "tool_result" || e.tipo === "result") linha.push(e.tipo);
+          if (e.tipo === "delta" && !mandou) mandou = adapter.receberMensagem!(molduraMensagemNoMeio("qual é o prazo?"), "m1");
+        },
+        falaIntermediaria: () => undefined,
+        mensagemEntrou: (id) => linha.push(`entrou:${id}`),
+        mensagemLida: (id) => linha.push(`lida:${id}`),
+        ocioso: async () => false,
+      });
+      expect(adapter.informaLeitura?.()).toBe(true);
+      const entrou = linha.indexOf("entrou:m1"), lida = linha.indexOf("lida:m1");
+      expect(entrou).toBeGreaterThanOrEqual(0);
+      expect(lida).toBeGreaterThan(entrou);
+      // Entre a escrita e a leitura há uma fronteira: o CLI só lê ali.
+      expect(linha.slice(entrou, lida).some((x) => x === "tool_result" || x === "result")).toBe(true);
+      expect(linha.filter((x) => x === "lida:m1")).toHaveLength(1);
+    });
+
+    it("ADR-186: com o bot só escrevendo, interromperVolta corta a volta; o texto dela sai já, marcado, e a mensagem abre a seguinte", async () => {
+      const { instance, stdin } = await instanciar("ligacao-voz", {}, HELP);
+      const adapter = instance.adapter(planoDeTeste(dir, { texto: "demorar [[ate-corte]]" }));
+      expect(adapter.interromperVolta?.()).toBe(false); // antes de a volta abrir não há o que parar
+      const linha: string[] = [];
+      let cortou = false;
+      const espiao = sinksEspiao({});
+      const resultado = await adapter.rodarTurno({
+        ...espiao.sinks,
+        evento: (e) => {
+          espiao.sinks.evento(e);
+          if (e.tipo === "delta" && e.texto === "Pensando" && !cortou) {
+            cortou = adapter.interromperVolta!();
+            linha.push(`interrompeu:${cortou}`);
+            // A segunda da rajada não interrompe de novo (uma por volta).
+            linha.push(`de-novo:${adapter.interromperVolta!()}`);
+            adapter.receberMensagem!("na verdade, só 3 frases", "m1");
+          }
+          if (e.tipo === "result") linha.push(`result:${e.subtype}`);
+        },
+        falaIntermediaria: (t, f) => linha.push(`fala:${f?.interrompida ? "interrompida:" : ""}${t}`),
+        mensagemLida: (id) => linha.push(`lida:${id}`),
+        ocioso: async () => false,
+      });
+      expect(linha.slice(0, 2)).toEqual(["interrompeu:true", "de-novo:false"]);
+      // A volta cortada fecha com erro e vira fala marcada ANTES da resposta à mensagem.
+      const iCorte = linha.indexOf("result:error_during_execution");
+      const iParcial = linha.indexOf("fala:interrompida:Pensando");
+      expect(iCorte).toBeGreaterThan(0);
+      expect(iParcial).toBeGreaterThan(iCorte);
+      expect(linha).toContain("lida:m1");
+      // O turno não vira falha por causa da volta interrompida: vale o último `result`.
+      expect(resultado.desfecho).toBe("sucesso");
+      expect(resultado.texto).toContain("na verdade, só 3 frases");
+      expect(resultado.texto).not.toContain("Pensando");
+      // O pedido de interrupção saiu pelo stdin, como o CLI espera.
+      const entradas = (await readFile(stdin, "utf8")).trim().split("\n").map((l) => JSON.parse(l) as { type: string; request?: { subtype?: string } });
+      expect(entradas.some((e) => e.type === "control_request" && e.request?.subtype === "interrupt")).toBe(true);
+    });
   });
 
   describe("capacidades anunciadas (X9, revisão do épico #188)", () => {

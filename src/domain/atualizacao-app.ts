@@ -94,3 +94,20 @@ export function lerConfigAtualizacaoApp(env: Readonly<Record<string, string | un
   if (!sha256) throw new Error("NOD_APP_VERSAO_PUBLICADA exige NOD_APP_ATUALIZACAO_SHA256");
   return { versao, bucket, sha256: lerSha256(sha256) };
 }
+
+/**
+ * ADR-170 (definido em 2026-11-12): a versão de teste do app, publicada no MESMO bucket que a estável
+ * (`NOD_APP_VERSAO_TESTE` + `NOD_APP_ATUALIZACAO_TESTE_SHA256`). Ausente = sem canal de teste.
+ */
+export function lerConfigTesteDoApp(env: Readonly<Record<string, string | undefined>>): ConfigAtualizacaoApp {
+  if (!env.NOD_APP_VERSAO_TESTE?.trim()) return null;
+  return lerConfigAtualizacaoApp({ NOD_APP_VERSAO_PUBLICADA: env.NOD_APP_VERSAO_TESTE, NOD_APP_ATUALIZACAO_BUCKET: env.NOD_APP_ATUALIZACAO_BUCKET, NOD_APP_ATUALIZACAO_SHA256: env.NOD_APP_ATUALIZACAO_TESTE_SHA256 });
+}
+
+/** Quem está no canal de teste recebe a de teste só se ela for mais nova que a estável (nunca volta de versão). */
+export function configDoCanal(estavel: ConfigAtualizacaoApp, teste: ConfigAtualizacaoApp): ConfigAtualizacaoApp {
+  if (!teste) return estavel;
+  if (!estavel) return teste;
+  const c = compararVersoesDoApp(teste.versao, estavel.versao);
+  return c !== null && c > 0 ? teste : estavel;
+}

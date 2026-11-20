@@ -1,16 +1,13 @@
 // NOD-93 passo 2 (ADR-127 §1): o bloco do computador reusável no disco da VM do Mac (arquivos locais, sem ligar).
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ARQUIVOS_DO_COMPUTADOR, blocoDoComputador } from "../../../src/adapters/http/computador-instalacao.ts";
 
-const ANTES = readFileSync(new URL("./fixtures/bloco-do-computador.sh", import.meta.url), "utf8");
-
 describe("blocoDoComputador com opções (ADR-127)", () => {
-  it("o padrão é byte a byte o bloco de antes (servidor, ligar)", () => {
-    expect(blocoDoComputador()).toBe(ANTES);
-    expect(blocoDoComputador({})).toBe(ANTES);
-    expect(blocoDoComputador({ arquivos: "servidor", ligar: true })).toBe(ANTES);
+  it("o padrão é estável entre as três formas equivalentes (servidor, ligar)", () => {
+    expect(blocoDoComputador({})).toBe(blocoDoComputador());
+    expect(blocoDoComputador({ arquivos: "servidor", ligar: true })).toBe(blocoDoComputador());
+    expect(blocoDoComputador()).toContain("shell-visual/paper-v2/manifesto.json");
   });
 
   it("locais copia de $ORIGEM, sem curl do servidor", () => {

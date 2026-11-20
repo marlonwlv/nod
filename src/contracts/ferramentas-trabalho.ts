@@ -95,7 +95,7 @@ export type ResultadoMandarParaTask =
 /** `volta_as`: a hora no fuso de São Paulo (horaDaFrase; o servidor não guarda o da pessoa); `acordar_em`: o instante (ISO). */
 export type ResultadoMeChameAs =
   | { ok: true; volta_as: string; acordar_em: string; instrucao: string }
-  | { ok: false; erro: "turno_parado" | "task_fechada" | "voltas_demais" | "ja_esperando" | "sem_pr" | "sem_tarefa"; instrucao: string };
+  | { ok: false; erro: "turno_parado" | "task_fechada" | "voltas_demais" | "ja_esperando" | "sem_pr" | "sem_tarefa" | "fora_da_faixa"; instrucao: string };
 /** ADR-099 (parte 2): `espera_id` para a tela e o Raio-X; o resto é instrução. */
 export type ResultadoEsperarComando =
   | { ok: true; espera_id: string; instrucao: string }

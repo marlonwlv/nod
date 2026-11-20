@@ -73,7 +73,7 @@ describe("saúde do computador do bot (emenda da ADR-037)", () => {
     expect(instrucaoDaFalha("limite_de_computadores", limite)).toBe("Este Mac já tem 3 computadores ligados, o limite. Nada foi executado. Os computadores sem uso há 15 min desligam sozinhos. Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.");
     // Sem ociosidade, a promessa de desligar sozinho some; sem números, o texto genérico.
     expect(textoDoLimite({ maximo: 2, ociosoMin: 0 })).toBe("Este Mac já tem 2 computadores ligados, o limite. Nada foi executado.");
-    expect(instrucaoDaFalha("limite_de_computadores")).toMatch(/^Este Mac já tem o máximo de computadores ligados\. Nada foi executado\. Não tente de novo/);
+    expect(instrucaoDaFalha("limite_de_computadores")).toMatch(/^O provedor chegou ao limite de computadores ligados\. Pare um computador sem uso ou ajuste o limite do plano\. Nada foi executado\. Não tente de novo/);
     expect(instrucaoDaFalha("limite_de_computadores")).not.toContain("não respondeu");
   });
 

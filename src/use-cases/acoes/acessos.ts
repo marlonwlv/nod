@@ -135,9 +135,11 @@ const definirEmLote: CasoDeUso<EntradaLote, SaidaLote> = async (d, input) => {
   // devolver a marca. Quem o "todos com Ler" não rebaixa fica fora: a pessoa não escolheu o nível dele.
   const escolhidos = mantidos.filter((id) => atuais.get(id) === input.nivel);
   const marcas = alvos.length + escolhidos.length > 0 ? await d.repos.acessos.marcas(conector.id) : new Map<string, MarcaDeAcesso>();
+  let soMarcados = 0;
   for (const id of escolhidos) {
     const marca = marcas.get(id);
     if (marca === "pessoa") continue;
+    soMarcados++;
     if (marca) marcasAntes[id] = marca;
     const ficou = (await conjuntoAtual(d, id, conector.id)).map((c) => c.capacidade).sort();
     antes[id] = ficou;
@@ -155,7 +157,9 @@ const definirEmLote: CasoDeUso<EntradaLote, SaidaLote> = async (d, input) => {
     await d.repos.acessos.marcar(id, conector.id, "pessoa");
   }
   let loteId: string | null = null;
-  if (alvos.length > 0) {
+  // QA r104: o lote em que ninguém muda de nível, mas alguém deixa de seguir o padrão, também é gravado; senão a marca
+  // muda sem Desfazer e o padrão seguinte deixa esse bot de fora sem a pessoa saber.
+  if (alvos.length > 0 || soMarcados > 0) {
     const lote = await d.repos.acessos.criarLote({ conectorId: conector.id, nivel: input.nivel, chave, antes, depois, marcasAntes, autorTipo: input.botId ? "bot" : "pessoa", autorId: input.botId ?? d.escopo.pessoaId });
     // A mesma chave gravada por outra transação no meio: o índice único segurou; esta volta inteira.
     if (!lote) throw new ErroDeDominio("estado_invalido", { cause: "lote repetido" });
@@ -228,7 +232,8 @@ const desfazerLote: CasoDeUso<{ loteId: string } & Autor, SaidaDesfazer> = async
 
 // ------------------------------------------------------------------------------------------------- padrão do app
 
-export type SaidaPadrao = { app: string; padrao: NivelDeAcesso; anterior: NivelDeAcesso; aplicados: { agenteId: string; nome: string }[] };
+/** `soGuardado`: o app está desligado e o padrão não chegou aos bots (vale para os bots novos quando ele for ligado). */
+export type SaidaPadrao = { app: string; padrao: NivelDeAcesso; anterior: NivelDeAcesso; aplicados: { agenteId: string; nome: string }[]; soGuardado: boolean };
 
 /**
  * O padrão do app: o bot novo nasce com ele (aplicarPadroes) e, com `aplicar` (padrão: sim), quem segue o padrão
@@ -239,16 +244,25 @@ const definirPadrao: CasoDeUso<{ conectorId: string; nivel: NivelDeAcesso; aplic
   if (!conector || conector.ownerId !== d.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado", { cause: "conector" });
   if (input.nivel !== "nenhum" && capacidadesDoNivel(conector.catalogo, input.nivel).length === 0) throw new ErroDeDominio("estado_invalido", { cause: "o app não tem ferramenta para esse nível" });
   if (input.nivel === "escrita" && input.confirmado !== true) throw new ErroDeDominio("estado_invalido", { cause: "confirmacao_necessaria" });
-  const anterior = await d.repos.acessos.definirPadrao(conector.id, input.nivel);
+  // App desligado guarda o padrão, mas não concede nada agora (o nível de cada bot só vale com o app ligado). Quem seguia
+  // o padrão continua seguindo pelo nível em vigor: a próxima mudança com o app ligado o alcança (QA-105).
+  const chegaAosBots = conector.habilitado || input.nivel === "nenhum";
+  const anterior = await d.repos.acessos.definirPadrao(conector.id, input.nivel, chegaAosBots);
   const aplicados: SaidaPadrao["aplicados"] = [];
   const events: RuntimeEvent[] = [];
-  // App desligado guarda o padrão, mas não concede nada agora (o nível de cada bot só vale com o app ligado).
-  if (input.aplicar !== false && (conector.habilitado || input.nivel === "nenhum")) {
+  if (input.aplicar !== false && chegaAosBots) {
     for (const bot of [...(await botsDaDona(d))].sort((a, b) => (a.id < b.id ? -1 : 1))) {
       await d.repos.concessoes.travar(bot.id, conector.id);
       // A marca é lida DEPOIS da trava: quem a pessoa acabou de escolher (outra tx, mesma trava) não volta ao padrão.
       const atual = nivelDoConjunto(conector.catalogo, (await conjuntoAtual(d, bot.id, conector.id)).map((c) => c.capacidade));
-      if (!segueOPadrao(await d.repos.acessos.marca(bot.id, conector.id), atual, anterior)) continue;
+      const marca = await d.repos.acessos.marca(bot.id, conector.id);
+      if (!segueOPadrao(marca, atual, anterior)) {
+        // QA r109: marcado 'padrao' mas fora do padrão anterior (um card aprovado, uma rotina) é porque deixou de seguir.
+        // Sem gravar isso, na troca seguinte o conjunto dele coincidia com o padrão anterior e ele "voltava a seguir":
+        // padrão Nenhum → card aprovado dá Ler → padrão Ler → padrão Nenhum tirava o Ler aprovado.
+        if (marca === "padrao") await d.repos.acessos.marcar(bot.id, conector.id, "pessoa" satisfies MarcaDeAcesso);
+        continue;
+      }
       if (atual !== input.nivel) {
         events.push(...(await aplicar(d, bot.id, conector, { nivel: input.nivel }, input)).events);
         aplicados.push({ agenteId: bot.id, nome: bot.nome });
@@ -256,7 +270,7 @@ const definirPadrao: CasoDeUso<{ conectorId: string; nivel: NivelDeAcesso; aplic
       await d.repos.acessos.marcar(bot.id, conector.id, "padrao" satisfies MarcaDeAcesso);
     }
   }
-  return { data: { app: conector.nome, padrao: input.nivel, anterior, aplicados }, events };
+  return { data: { app: conector.nome, padrao: input.nivel, anterior, aplicados, soGuardado: !chegaAosBots }, events };
 };
 
 /** O bot que acabou de nascer recebe o padrão de cada app ligado da dona (ADA-241). Sem padrão, nada muda. */
@@ -278,11 +292,12 @@ export async function verAcessosDoApp(d: Deps, conectorId: string): Promise<{ pa
   const conector = await d.repos.conectores.buscar(conectorId);
   if (!conector || conector.ownerId !== d.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado", { cause: "conector" });
   const padrao = await d.repos.acessos.padrao(conector.id);
+  const emVigor = await d.repos.acessos.padraoEmVigor(conector.id);
   const marcas = await d.repos.acessos.marcas(conector.id);
   const bots = [];
   for (const b of await botsDaDona(d)) {
     const nivel = nivelDoConjunto(conector.catalogo, (await conjuntoAtual(d, b.id, conector.id)).map((c) => c.capacidade));
-    bots.push({ agenteId: b.id, nivel, seguePadrao: segueOPadrao(marcas.get(b.id) ?? null, nivel, padrao) });
+    bots.push({ agenteId: b.id, nivel, seguePadrao: segueOPadrao(marcas.get(b.id) ?? null, nivel, emVigor) });
   }
   return { padrao, bots };
 }

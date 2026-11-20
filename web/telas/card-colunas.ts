@@ -17,7 +17,7 @@ export function renderCardColunas(p: Pick<Proposta, "id" | "estado">, c: Payload
   const linhas = [ordem];
   if (saem.length > 0) linhas.push(esc(`Saem: ${saem.join(", ")}`));
   if (movidas.length === 1) linhas.push(esc(fraseMovidas(movidas[0]!)));
-  else if (movidas.length > 1) linhas.push(esc(`${movidas.reduce((n, m) => n + m.tarefas, 0)} tarefas mudam de coluna, nenhuma se perde`));
+  else if (movidas.length > 1) linhas.push(esc(`${movidas.reduce((n, m) => n + m.tarefas, 0)} cards mudam de coluna, nenhum se perde`));
   const detalhes = movidas.length > 1 ? `<ul class="cc-movidas">${movidas.map((m) => `<li>${esc(fraseMovidas(m))}</li>`).join("")}</ul>` : undefined;
   const desfecho = p.estado === "confirmada" ? '<p class="cp-rodape">Colunas trocadas. Dá para desfazer pelo quadro.</p>'
     : p.estado === "recusada" ? '<p class="cp-rodape">Colunas mantidas.</p>' : "";
@@ -33,7 +33,7 @@ export function renderCardColunas(p: Pick<Proposta, "id" | "estado">, c: Payload
 }
 
 function fraseMovidas(m: { de: string; para: string; tarefas: number }): string {
-  return `${m.tarefas} ${m.tarefas === 1 ? "tarefa vai" : "tarefas vão"} de ${m.de} para ${m.para}`;
+  return `${m.tarefas} ${m.tarefas === 1 ? "card vai" : "cards vão"} de ${m.de} para ${m.para}`;
 }
 
 /** Lista curta para "Sua vez": a ordem nova, para a pessoa ver o que troca antes do clique. */

@@ -30,11 +30,11 @@ describe("o aviso de troca de IA (R4, canvas C1/C2)", () => {
   it("volta perto: título com a volta, recomenda esperar (primeira opção, marcada) e o rodapé sem prazo", () => {
     const html = cartaoTrocaDeIa(aviso(), { nomeDoBot: "Eng 1", agora: AGORA })!;
     expect(html).toContain("O Claude chegou ao limite · volta às");
-    expect(html).toContain("Para as 19 tasks, recomendo esperar: o Claude volta em 11 min e elas continuam de onde pararam.");
+    expect(html).toContain("Para as 19 tarefas, recomendo esperar: o Claude volta em 11 min e elas continuam de onde pararam.");
     expect(html.indexOf('data-act="troca-esperar"')).toBeLessThan(html.indexOf('data-act="troca-levar"'));
     expect(html).toMatch(/class="troca-opcao recomendada" data-act="troca-esperar"[^>]*><span class="troca-opcao-tit">Esperar o Claude<span class="troca-reco">Recomendado<\/span>/);
-    expect(html).toContain("Levar as tasks para o ChatGPT");
-    expect(html).toContain("Seguem agora, mas recomeçam do resumo de cada frente.");
+    expect(html).toContain("Levar as tarefas para o ChatGPT");
+    expect(html).toContain("Seguem agora, mas recomeçam do resumo de cada tarefa.");
     expect(html).toContain("Se você não escolher, eu sigo a recomendação.");
     expect(html).toContain(`data-id="${AGENTE}" data-conversa="${CONVERSA}"`);
     // Usa as classes de aviso existentes (a outra frente cuida da cor); nada de âmbar novo.
@@ -51,7 +51,7 @@ describe("o aviso de troca de IA (R4, canvas C1/C2)", () => {
 
   it("fechado: vira uma linha leve com o desfecho, sem botões", () => {
     const levado = cartaoTrocaDeIa(aviso({ decisao: "expirou", decididoEm: AGORA }), { nomeDoBot: "Eng 1", agora: AGORA })!;
-    expect(levado).toContain("Sem escolha em 10 min: as tasks foram para o ChatGPT, como recomendado.");
+    expect(levado).toContain("Sem escolha em 10 min: as tarefas foram para o ChatGPT, como recomendado.");
     expect(levado).not.toContain("data-act");
     expect(cartaoTrocaDeIa(aviso({ decisao: "voltou", decididoEm: AGORA }), { nomeDoBot: "Eng 1", agora: AGORA })).toContain("O Claude voltou");
   });
@@ -105,11 +105,11 @@ describe("a prévia ao trocar a IA do bot (R5, canvas D1)", () => {
     expect(destinoDoPedido({ modo: "auto" })).toBe("o Automático");
   });
 
-  it("o padrão é 'Só daqui em diante' (primário, com o foco); 'Levar as tasks também' é a outra", () => {
+  it("o padrão é 'Só daqui em diante' (primário, com o foco); 'Levar as tarefas também' é a outra", () => {
     const html = htmlDaPreviaDaTroca({ nomeDoBot: "Eng 1", destino: "o ChatGPT", tasks: 19 });
     expect(html).toContain("Passar Eng 1 para o ChatGPT?");
     expect(html).toContain("Muda agora: a conversa e o que Eng 1 começar daqui em diante.");
-    expect(html).toContain("As 19 tasks em andamento ficam na IA de agora e continuam de onde pararam. Se forem junto, recomeçam do resumo.");
+    expect(html).toContain("As 19 tarefas em andamento ficam na IA de agora e continuam de onde pararam. Se forem junto, recomeçam do resumo.");
     expect(html).toMatch(/<button class="bt pri" data-so-daqui type="button" autofocus>Só daqui em diante<\/button>/);
     expect(html).toContain("data-levar");
   });
@@ -162,7 +162,7 @@ describe("NOD-312: a copy do cartão diz a verdade da sessão", () => {
     const html = cartaoTrocaDeIa(aviso({ fixo: true, iaDe: "codex-cli", iaPara: "claude-cli", conta }), { nomeDoBot: "Eng 1", agora: AGORA })!;
     expect(html).toContain("Mesmo modelo, mas relê o necessário.");
     expect(html).not.toContain("continua de onde parou");
-    expect(html).toContain("Outro provedor: Eng 1 relê o necessário e as tasks recomeçam do resumo.");
+    expect(html).toContain("Outro provedor: Eng 1 relê o necessário e as tarefas recomeçam do resumo.");
   });
   it("Claude Code: as contas dividem as sessões e, na mesma máquina, a sessão segue — a frase fica", () => {
     const html = cartaoTrocaDeIa(aviso({ fixo: true, conta }), { nomeDoBot: "Eng 1", agora: AGORA })!;

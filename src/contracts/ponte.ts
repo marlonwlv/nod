@@ -1,3 +1,5 @@
+import type { FaseDoBloco } from "./evento-stream.ts";
+import type { PedidoRenovarAnexos, PonteAguardaMensagem, RespostaRenovarAnexos } from "./estado-vivo.ts";
 import type { AnuncioComputador } from "./computador-motor.ts";
 import type { DesfazerParaRodar, RelatoDesfazer } from "./checkpoint.ts";
 import type { ContaAnunciada } from "./contas-ia.ts";
@@ -84,7 +86,7 @@ export type Entrega = {
  * Uma volta do modelo numa sessão viva que não encerrou o turno (definido em 2026-10-01, ADR-067). `seq` sobe de 1 em
  * 1 por turno: o servidor grava cada uma uma vez só, mesmo que a renovação seja repetida.
  */
-export type FalaIntermediaria = { seq: number; texto: string };
+export type FalaIntermediaria = { seq: number; texto: string; /** ADR-186: a volta que a mensagem nova da pessoa interrompeu. */ interrompida?: true };
 export type PedidoRenovar = {
   turnoId: string;
   machineId: string;
@@ -105,6 +107,13 @@ export type PedidoRenovar = {
   mensagensEntregues?: string[];
   /** #189: ids que o adapter não conseguiu escrever (a sessão fechou entre o pedido e a resposta): ficam na fila. */
   mensagensDevolvidas?: string[];
+  /**
+   * ADR-185 (definido em 2026-11-16): este app informa quando o bot LÊ o que foi escrito na sessão. Com isto, a absorção
+   * confirmada em `mensagensEntregues` nasce "não lida"; sem, nasce lida, como antes (app antigo, Codex).
+   */
+  informaLeitura?: boolean;
+  /** ADR-185: ids escritos na sessão que o bot já leu (o CLI chegou à fronteira seguinte à escrita). */
+  mensagensLidas?: string[];
   /** definido em 2026-10-07 (ADR-083, #194): a memória do Mac, amostrada uma vez por máquina a cada 30 s. */
   memoria?: LeituraMemoria;
   /**
@@ -112,7 +121,7 @@ export type PedidoRenovar = {
    * servidor a grava cedo: se a entrega se perder num reinício, a volta retoma a mesma sessão em vez de abrir outra.
    */
   sessaoCli?: string;
-};
+} & PedidoRenovarAnexos;
 /**
  * O que a renovação devolve. `mensagens`: as falas da pessoa que entraram neste turno vivo, na ordem (ADR-067).
  * `mensagensIds` (#189): o id do turno de cada uma, na mesma ordem, para o app confirmar em `mensagensEntregues`.
@@ -129,21 +138,9 @@ export type PedidoRenovar = {
  */
 export const MOTIVOS_RENOVACAO_NEGADA = ["sem_plano", "parado", "agente_excluido", "lease_vencido"] as const;
 export type MotivoRenovacaoNegada = (typeof MOTIVOS_RENOVACAO_NEGADA)[number];
-export type RespostaRenovar = { ativo: boolean | "indefinido"; versaoMinimaApp: string; motivo?: MotivoRenovacaoNegada; mensagens?: string[]; mensagensIds?: string[]; mensagensSemMoldura?: string[]; ligacaoEncerrada?: boolean };
+export type RespostaRenovar = { ativo: boolean | "indefinido"; versaoMinimaApp: string; motivo?: MotivoRenovacaoNegada; mensagens?: string[]; mensagensIds?: string[]; mensagensSemMoldura?: string[]; ligacaoEncerrada?: boolean } & RespostaRenovarAnexos;
 
-/**
- * O que o app desktop viu do turno vivo desde a última renovação, NA ORDEM: texto do modelo e nomes de ferramenta (nunca o
- * resultado). Republicado como turno.delta / turno.atividade e gravado em turno_passos. NOD-353: `id` do tool_use; `{fim,
- * falhou}`: a chamada terminou. ADR-165: `resumo` é UMA linha do argumento (até 120), já redigida no executor
- * (src/domain/resumo-do-passo.ts); o servidor corta em 160 e redige de novo. Nunca o argumento inteiro nem a saída. */
-export type TrechoVivo = { texto: string } | { ferramenta: string; id?: string; resumo?: string } | { fim: string; falhou: boolean } | { tarefas: TarefaDoBot[] } | { vigia: VigiaVivo } | { subagentes: SubagenteVivo[]; ocioso?: boolean };
-
-/**
- * O vigia do turno (definido em 2026-10-05, NOD-73; src/domain/vigia-turno.ts): só AVISA, nunca corta. `mudoMs` > 0
- * é o silêncio desde o último evento do CLI (0 = houve novidade); `aberta` é o NOME da ferramenta sem resultado;
- * `emFundo` conta os comandos em segundo plano; `repeticao` é o maior limiar (5, 10, 20) já atingido no turno. Só
- * nome e números: os argumentos nunca saem do Mac. Um trecho novo substitui o anterior no buffer da ponte.
- */
+/** O que o app desktop viu do turno vivo desde a última renovação, NA ORDEM: texto do modelo e nomes de ferramenta (nunca o resultado). Republicado como turno.delta / turno.atividade e gravado em turno_passos. NOD-353: `id` do tool_use; `{fim, falhou}`: a chamada terminou. ADR-165: `resumo` é UMA linha do argumento (até 120), já redigida no executor (src/domain/resumo-do-passo.ts); o servidor corta em 160 e redige de novo. Nunca o argumento inteiro nem a saída. `fase`: estado vivo (2026-11-12). */ export type TrechoVivo = { texto: string } | { fase: FaseDoBloco } | { ferramenta: string; id?: string; resumo?: string } | { fim: string; falhou: boolean } | { tarefas: TarefaDoBot[] } | { vigia: VigiaVivo } | { subagentes: SubagenteVivo[]; ocioso?: boolean };  /** O vigia do turno (definido em 2026-10-05, NOD-73; src/domain/vigia-turno.ts): só AVISA, nunca corta. `mudoMs` > 0 é o silêncio desde o último evento do CLI (0 = houve novidade); `aberta` é o NOME da ferramenta sem resultado; `emFundo` conta os comandos em segundo plano; `repeticao` é o maior limiar (5, 10, 20) já atingido no turno. Só nome e números: os argumentos nunca saem do Mac. Um trecho novo substitui o anterior no buffer da ponte. */
 export type VigiaVivo = { mudoMs: number; aberta?: string; emFundo: number; repeticao?: { nome: string; vezes: number } };
 
 export type { MotivoPuladaLimpeza, PastaParaLimpar, RelatoLimpeza } from "./limpeza.ts";
@@ -151,11 +148,8 @@ export type { MotivoPuladaLimpeza, PastaParaLimpar, RelatoLimpeza } from "./limp
 /** ADR-130: o que a máquina aceita neste puxar. Ausente = tudo, como antes. */
 export type OpcoesDoPuxar = { soDaPessoa?: boolean };
 
-/**
- * Os cinco verbos da ponte (ADR-021), faladas in-process nesta rodada. A ponte HTTP entra depois
- * sem trocar o driver. {ativo:false} em renovar manda o executor abortar.
- */
-export interface PonteInterna {
+/** Os cinco verbos da ponte (ADR-021). {ativo:false} em renovar manda o executor abortar. C1: aguardarMensagem. */
+export interface PonteInterna extends PonteAguardaMensagem {
   conectar(m: AnuncioMaquina): Promise<void>;
   /**
    * NOD-199 (emenda à ADR-021): reanuncia só as IAs da máquina já conectada, sem mexer nos turnos em andamento. Opcional:
@@ -165,6 +159,8 @@ export interface PonteInterna {
   /** ADR-085: `maquina` é a leitura do Mac que pede (ausente = app antigo ou sem leitura). ADR-130: `soDaPessoa` = drenando
    * para se atualizar (ADR-100), só aceita o que a pessoa espera agora (conversa, ligação, `pessoa_esperando`). */
   puxar(pessoaId: string, maquina?: LeituraMemoria, opcoes?: OpcoesDoPuxar): Promise<PlanoTurno | null>;
+  /** C1: a ponte interna espera trabalho novo; na HTTP o próprio `puxar` já faz long-poll. */
+  aguardarTrabalho?(pessoaId: string, ms: number): Promise<boolean>;
   renovar(p: PedidoRenovar): Promise<RespostaRenovar>;
   entregar(e: Entrega): Promise<void>;
   desconectar(machineId: string): Promise<void>;

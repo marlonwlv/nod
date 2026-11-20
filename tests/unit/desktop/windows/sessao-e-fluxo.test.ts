@@ -73,19 +73,46 @@ describe("ADA-229: o fluxo do app do Windows", () => {
   });
 });
 
-describe("codex #2: a janela do Windows nega pedido e checagem de permissão", () => {
-  it("travarPermissoes registra os dois handlers, e os dois negam", async () => {
-    const { travarPermissoes } = await import("../../../../desktop/windows/fluxo.ts");
+describe("17/11/2026: a janela do Windows só libera o microfone (codex #2 continua: o resto é negado)", () => {
+  const SERVIDOR = "https://app.nodbot.ai";
+  async function montar(origem: string | null = SERVIDOR) {
+    const { permissoesDaJanela } = await import("../../../../desktop/windows/fluxo.ts");
     let pedido: ((...a: unknown[]) => void) | null = null;
     let checagem: ((...a: unknown[]) => boolean) | null = null;
-    travarPermissoes({ setPermissionRequestHandler: (f) => { pedido = f as never; }, setPermissionCheckHandler: (f) => { checagem = f as never; } });
-    const respostas: boolean[] = [];
-    pedido!(null, "media", (ok: boolean) => respostas.push(ok));
-    expect(respostas).toEqual([false]);
-    expect(checagem!(null, "media", "https://app.nodbot.ai", {})).toBe(false);
+    const wc = { id: 1 };
+    permissoesDaJanela({ setPermissionRequestHandler: (f) => { pedido = f as never; }, setPermissionCheckHandler: (f) => { checagem = f as never; } }, () => wc, () => origem);
+    const pedir = (alvo: unknown, permissao: string, d: unknown) => { const r: boolean[] = []; pedido!(alvo, permissao, (ok: boolean) => r.push(ok), d); return r[0]; };
+    return { wc, pedir, checar: (alvo: unknown, permissao: string, o: string, d: unknown) => checagem!(alvo, permissao, o, d) };
+  }
+  it("microfone da página do servidor, no frame de topo desta janela: libera o pedido e a checagem", async () => {
+    const { wc, pedir, checar } = await montar();
+    expect(pedir(wc, "media", { mediaTypes: ["audio"], requestingUrl: `${SERVIDOR}/c/1`, isMainFrame: true })).toBe(true);
+    expect(checar(wc, "media", SERVIDOR, { mediaType: "audio", isMainFrame: true })).toBe(true);
   });
-  it("o main do Windows usa o travarPermissoes", async () => {
+  it("vídeo, outra permissão, outro frame, outra origem, outra janela ou sem servidor: nega", async () => {
+    const { wc, pedir, checar } = await montar();
+    expect(pedir(wc, "media", { mediaTypes: ["audio", "video"], requestingUrl: SERVIDOR, isMainFrame: true })).toBe(false);
+    expect(pedir(wc, "notifications", { requestingUrl: SERVIDOR, isMainFrame: true })).toBe(false);
+    expect(pedir(wc, "media", { mediaTypes: ["audio"], requestingUrl: SERVIDOR, isMainFrame: false })).toBe(false);
+    expect(pedir(wc, "media", { mediaTypes: ["audio"], requestingUrl: "https://evil.example", isMainFrame: true })).toBe(false);
+    expect(pedir({ id: 2 }, "media", { mediaTypes: ["audio"], requestingUrl: SERVIDOR, isMainFrame: true })).toBe(false);
+    expect(pedir(wc, "media", undefined)).toBe(false);
+    expect(checar(wc, "media", SERVIDOR, { mediaType: "video", isMainFrame: true })).toBe(false);
+    expect(checar(wc, "media", "https://evil.example", { mediaType: "audio", isMainFrame: true })).toBe(false);
+    expect(checar(wc, "geolocation", SERVIDOR, { isMainFrame: true })).toBe(false);
+    const sem = await montar(null);
+    expect(sem.pedir(sem.wc, "media", { mediaTypes: ["audio"], requestingUrl: SERVIDOR, isMainFrame: true })).toBe(false);
+    expect(sem.checar(sem.wc, "media", SERVIDOR, { mediaType: "audio", isMainFrame: true })).toBe(false);
+  });
+  it("o main do Windows registra as permissões da janela, o estado do microfone e o atalho das Configurações", async () => {
     const { readFileSync } = await import("node:fs");
-    expect(readFileSync(new URL("../../../../desktop/windows/main.ts", import.meta.url), "utf8")).toMatch(/travarPermissoes\(janela\.webContents\.session\)/);
+    const main = readFileSync(new URL("../../../../desktop/windows/main.ts", import.meta.url), "utf8");
+    expect(main).toMatch(/permissoesDaJanela\(janela\.webContents\.session, \(\) => \(desta\.isDestroyed\(\) \? null : desta\.webContents\), \(\) => origemDaJanela\);/);
+    expect(main).toMatch(/estadoDoMicrofoneWindows\(systemPreferences\.getMediaAccessStatus\("microphone"\)\)/);
+    expect(main).toMatch(/shell\.openExternal\(AJUSTES_DO_MICROFONE\.win32\)/);
+    expect(main).not.toMatch(/travarPermissoes/);
+    const preload = readFileSync(new URL("../../../../desktop/windows/preload-web-windows.ts", import.meta.url), "utf8");
+    expect(preload).toMatch(/microfone: \(\) => ipcRenderer\.invoke\(CANAIS_DESKTOP\.microfone\)/);
+    expect(preload).toMatch(/ajustesMicrofone: \(\) => ipcRenderer\.invoke\(CANAIS_MICROFONE\.ajustes\)/);
   });
 });

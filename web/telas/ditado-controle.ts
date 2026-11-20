@@ -1,4 +1,7 @@
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
+import { avisoDeEstado } from "../lib/aviso-estado.ts";
+import { botaoAjustesDoMicrofone, podeAbrirAjustesDoMicrofone } from "../lib/microfone-do-sistema.ts";
+import { botao } from "../lib/render.ts";
 import { iniciarDitado, type MotorDitado } from "../lib/ditado.ts";
 import type { EventoDitado } from "../lib/ditado-protocolo.ts";
 import { formatarTempo, passoAposSemConsentimento, passoDoToque, textoDaFalha } from "./ditado.ts";
@@ -19,7 +22,8 @@ export type DepsDitado = {
    * em que a gravação começou (ADA-5: o do chat ou o da pílula do Quadro).
    */
   aoTexto(texto: string, destino: "campo" | "enviar", ta: HTMLTextAreaElement | null): void;
-  avisar(texto: string): void;
+  /** `falha` (quando há): o motivo, para o banner do microfone negado ganhar o botão que abre os ajustes do sistema. */
+  avisar(texto: string, falha?: string): void;
   noApp(): boolean;
   /**
    * ADA-5: o composer que está na tela (o `#composer` do chat ou a pílula do Quadro). A gravação fica no composer em que
@@ -46,6 +50,14 @@ export type ControleDitado = {
   /** Gravando ou transcrevendo: o ↑ e o Enter são do ditado. */
   ativo(): boolean;
 };
+
+/**
+ * As falhas do próprio microfone (17/11/2026, o microfone no Windows): o aviso fica junto do 🎤, logo acima do campo. No
+ * banner do topo da conversa ele ficava longe de quem acabou de tocar no microfone, lá embaixo. Os outros avisos do
+ * ditado (e todos, na pílula do Quadro) seguem no banner.
+ */
+const FALHAS_DO_MICROFONE: ReadonlySet<string> = new Set(["microfone-negado", "microfone-restrito", "microfone-indisponivel"]);
+export const CLASSE_AVISO_NO_CAMPO = "ditado-aviso";
 
 export function criarControleDitado(d: DepsDitado): ControleDitado {
   let disp: DisponibilidadeDitado | null = null;
@@ -76,6 +88,20 @@ export function criarControleDitado(d: DepsDitado): ControleDitado {
   // A pílula do Quadro é a própria caixa (a raiz é o form [data-composer="caixa"]); no chat, a .box dentro do #composer.
   const caixa = (): HTMLElement | null => { const r = raiz(); return r?.matches('[data-composer="caixa"]') ? r : r?.querySelector<HTMLElement>('.composer .box, [data-composer="caixa"]') ?? null; };
   const ta = () => peca<HTMLTextAreaElement>("#composer-texto") ?? peca<HTMLTextAreaElement>("textarea");
+
+  function fecharAvisoNoCampo(): void {
+    for (const a of document.querySelectorAll(`.${CLASSE_AVISO_NO_CAMPO}`)) a.remove();
+  }
+
+  /** O aviso de falha do microfone acima da caixa do chat; fora do chat (a pílula do Quadro), o banner de sempre. */
+  function avisarNoCampo(texto: string, falha: string): void {
+    const box = caixa();
+    if (!box || box.matches('[data-composer="caixa"]') || !box.closest(".composer")) return d.avisar(texto, falha);
+    fecharAvisoNoCampo();
+    const ajustes = falha === "microfone-negado" && d.noApp() && podeAbrirAjustesDoMicrofone() ? botaoAjustesDoMicrofone() : "";
+    const fechar = botao("ditado-aviso-fechar", "×", { classe: "sm", aria: "Fechar o aviso" });
+    box.insertAdjacentHTML("beforebegin", avisoDeEstado({ tom: "erro", texto, papel: "alert", classe: `aviso-compacto ${CLASSE_AVISO_NO_CAMPO}`, acao: ajustes + fechar }));
+  }
 
   function lerDisponibilidade(): Promise<boolean> {
     if (lendo) return lendo;
@@ -188,7 +214,8 @@ export function criarControleDitado(d: DepsDitado): ControleDitado {
       mostrar("parado");
       // NOD-324: a falta do aviso nunca vira banner; o motor já fechou o microfone.
       if (ev.codigo === "sem_consentimento") return void aposSemConsentimento(viaDialogo);
-      d.avisar(textoDaFalha(ev.codigo, d.noApp()));
+      if (FALHAS_DO_MICROFONE.has(ev.codigo)) return avisarNoCampo(textoDaFalha(ev.codigo, d.noApp()), ev.codigo);
+      d.avisar(textoDaFalha(ev.codigo, d.noApp()), ev.codigo);
     }
   }
 
@@ -273,6 +300,8 @@ export function criarControleDitado(d: DepsDitado): ControleDitado {
     atualizar,
     comecar() {
       if (pedindo) return;
+      // Nova tentativa: o aviso da anterior sai (se o microfone falhar de novo, ele volta).
+      fecharAvisoNoCampo();
       const passo = passoDoToque(disp, motor !== null, VERSAO_CONSENTIMENTO);
       if (passo === "consentir") return pedirConsentimento(tentativa);
       if (passo === "atualizar-pagina") return d.avisar(textoDaFalha("aviso-mudou", d.noApp()));

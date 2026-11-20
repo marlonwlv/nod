@@ -109,6 +109,18 @@ describe("desktop-release.yml e release-pendente.yml no repo público (portados 
     }
   });
 
+  it("desktop-release: o Windows roda no runner hospedado e segura o rascunho", () => {
+    const js = jobs(release.slice(release.indexOf("\njobs:")));
+    const windows = js.find((j) => j.nome === "windows")?.corpo ?? "";
+    const draft = js.find((j) => j.nome === "draft")?.corpo ?? "";
+    expect(windows).toMatch(/^ {4}needs: verify$/m);
+    expect(windows).toContain("github.repository == 'marlonwlv/nod'");
+    expect(windows).toMatch(/^ {4}environment: release$/m);
+    expect(windows).toMatch(/^ {4}runs-on: windows-latest$/m);
+    expect(draft).toContain("needs: [mac, windows, vm-local]");
+    expect(draft).toContain("needs.windows.result == 'success'");
+  });
+
   it("desktop-release: segredo e WIF só nos jobs do environment release; o rascunho só publicando numa tag", () => {
     for (const j of jobs(release.slice(release.indexOf("\njobs:")))) {
       const usaSegredo = /secrets\.(?!GITHUB_TOKEN)|id-token: write/.test(j.corpo);

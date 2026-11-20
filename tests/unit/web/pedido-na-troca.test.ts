@@ -224,7 +224,7 @@ describe("NOD-402 (revisÃ£o 8): a fila da pessoa segura e o ao vivo da rotina nÃ
     expect(e.atividades[C]?.tr).toBeUndefined();
     expect(blocosAoVivo(e.conversas[C]!, e).map((b) => b.chave).filter((k) => k.includes("tr"))).toEqual([]);
     expect(pararNoCampoDaConversa(e, C)).toBe(false);
-    expect(renderCabecalhoConversa(e, "ze")).toContain("Trabalhando");
+    expect(renderCabecalhoConversa(e, "ze")).toContain("Refletindo");
     // Controle: o mesmo delta sem a marca, num turno da pessoa, faz o ao vivo.
     const daPessoa = aplicarFrame(aplicarFrame(e, fr("turno.iniciado", { conversaId: C, turnoId: "tp", kind: "turno_despachado", origem: "mensagem", agente_id: "ze" }), AGORA), fr("turno.delta", { conversaId: C, turnoId: "tp", texto: "Oi" }), AGORA + 7);
     expect(daPessoa.atividades[C]?.tp).toBeDefined();

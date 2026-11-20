@@ -26,6 +26,7 @@ import type { CasoDeUso, Deps, Services, UseCasesNod } from "../../src/use-cases
 import { PESSOA_ANA, PESSOA_MARLON, TENANT_PADRAO } from "./ids.ts";
 import { criarBancoMemoria, type BancoMemoria } from "./repos-memoria.ts";
 import { avisarPessoa } from "../../src/use-cases/avisar-pessoa.ts";
+import { mostrarCartoes } from "../../src/use-cases/mostrar-cartoes.ts";
 import { ajustarBarraLateral } from "../../src/use-cases/ajustar-barra-lateral.ts";
 import { gerirQuadro, gerirQuadroEmFases } from "../../src/use-cases/gerir-quadro.ts";
 import { gerirApps } from "../../src/use-cases/gerir-apps.ts";
@@ -145,6 +146,8 @@ export function useCasesDeTeste(): UseCasesNod {
     verAgendaPeloAgente: naoImplementado("verAgendaPeloAgente (L7)"),
     pausarRotinaPeloAgente: naoImplementado("pausarRotinaPeloAgente (L7)"),
     reativarRotinaPeloAgente: naoImplementado("reativarRotinaPeloAgente (L7)"),
+    pausarTodasRotinasPeloAgente: naoImplementado("pausarTodasRotinasPeloAgente (L7)"),
+    reativarLoteRotinasPeloAgente: naoImplementado("reativarLoteRotinasPeloAgente (L7)"),
     atualizarRotinaPeloAgente: naoImplementado("atualizarRotinaPeloAgente (L7)"),
     excluirRotinaPeloAgente: naoImplementado("excluirRotinaPeloAgente (L7)"),
     executarRotinaPeloAgente: naoImplementado("executarRotinaPeloAgente (L7)"),
@@ -173,6 +176,7 @@ export function useCasesDeTeste(): UseCasesNod {
     responderPedido,
     pedirCredencial,
     avisarPessoa,
+    mostrarCartoes,
     ajustarBarraLateral,
     gerirQuadro,
     gerirQuadroEmFases,

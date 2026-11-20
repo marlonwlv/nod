@@ -28,7 +28,7 @@ const htmlDe = (e: Estado, id: string) => blocosDoHistoricoDaTask(e, "f1").find(
 describe("NOD-376: o chip da fala na tela da frente", () => {
   it("o texto diz quem lê e quando, e escapa o nome", () => {
     expect(chipDaFalaNaFrente("na_fila", "Faustino", { rodando: true })).toContain("Na fila · Faustino lê no próximo passo");
-    expect(chipDaFalaNaFrente("na_fila", "Faustino", { rodando: false })).toContain("Na fila · Faustino volta à frente para responder");
+    expect(chipDaFalaNaFrente("na_fila", "Faustino", { rodando: false })).toContain("Na fila · Faustino volta à tarefa para responder");
     expect(chipDaFalaNaFrente("entregue", "Faustino", { rodando: true })).toContain("Entregue · Faustino lê ao fim do passo atual");
     expect(chipDaFalaNaFrente("lendo", "Faustino", { rodando: true })).toContain("Entregue · Faustino está lendo agora");
     expect(chipDaFalaNaFrente("na_fila", "Faustino", { rodando: false, precisaDeVoce: true })).toContain("lê depois que você responder o que ele perguntou");
@@ -42,14 +42,14 @@ describe("NOD-376: o chip da fala na tela da frente", () => {
     expect(htmlDe(e, "m1")).not.toContain("fila-chip");
   });
 
-  it("o turno que começa na conversa da frente relê o detalhe da task (o chip não fica velho na reabertura)", () => {
+  it("o turno que começa na conversa da frente relê o detalhe da tarefa (o chip não fica velho na reabertura)", () => {
     const e = naFrente(trabalho({ estado: "terminado", turnoVivoId: null }), [{ mensagemId: "m2", situacao: "na_fila" }]);
     const depois = aplicarFrame(e, { streamId: "s", seq: 1, pessoaId: "p", tipo: "turno.iniciado", dados: { turnoId: "t2", conversaId: "c-x", kind: "turno_despachado" } } as never, AGORA);
     expect(depois.invalidacoes).toContain("trabalho:f1");
   });
 
   it("a frente parada diz que o bot volta para responder; entregue muda o texto; sem situação, sem chip", () => {
-    expect(htmlDe(naFrente(trabalho({ estado: "terminado", turnoVivoId: null }), [{ mensagemId: "m1", situacao: "na_fila" }]), "m1")).toContain("volta à frente para responder");
+    expect(htmlDe(naFrente(trabalho({ estado: "terminado", turnoVivoId: null }), [{ mensagemId: "m1", situacao: "na_fila" }]), "m1")).toContain("volta à tarefa para responder");
     expect(htmlDe(naFrente(trabalho(), [{ mensagemId: "m1", situacao: "entregue" }]), "m1")).toContain("Entregue · Faustino");
     expect(htmlDe(naFrente(trabalho()), "m1")).not.toContain("fila-chip");
   });

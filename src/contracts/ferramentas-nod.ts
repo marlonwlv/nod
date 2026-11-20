@@ -1,4 +1,5 @@
 import { FERRAMENTAS_ROTINA, PARA_BOT } from "./ferramentas-rotina.ts";
+import { FERRAMENTAS_ROTINA_LOTE } from "./ferramentas-rotina-lote.ts";
 import { FERRAMENTAS_PERFIL } from "./ferramentas-perfil.ts";
 import { FERRAMENTAS_ARTEFATO } from "./ferramentas-artefato.ts";
 import { FERRAMENTAS_LIGACAO } from "./ferramentas-ligacao.ts";
@@ -22,6 +23,7 @@ import { FERRAMENTAS_MAQUINAS } from "./ferramentas-maquinas.ts";
 import { FERRAMENTAS_COMPUTADORES } from "./ferramentas-computadores.ts";
 import { FERRAMENTAS_DECISOES } from "./ferramentas-decisoes.ts";
 import { SCHEMA_PEDIR_A_PESSOA } from "./pedido.ts";
+import { FERRAMENTAS_CARTOES } from "./ferramentas-cartoes.ts";
 import type { JsonSchema } from "./json-schema.ts";
 export type { JsonSchema } from "./json-schema.ts";
 export type { ArgsPedirAPessoa } from "./pedido.ts";
@@ -42,12 +44,13 @@ export type { ArgsEncaminhar, ArgsLembrar, ArgsPassar, ArgsPedirABot, ArgsPedirA
  */
 export const FERRAMENTAS_NOD = {
   ...FERRAMENTAS_ROTINA,
+  ...FERRAMENTAS_ROTINA_LOTE,
   ...FERRAMENTAS_PERFIL,
   ...FERRAMENTAS_ARTEFATO,
   ...FERRAMENTAS_LIGACAO,
   ...FERRAMENTAS_TRABALHO,
   ...FERRAMENTAS_FRENTE,
-  ...FERRAMENTAS_DO_NOD, ...FERRAMENTAS_CRIAR_BOTS, ...FERRAMENTAS_RESPONDER_PEDIDO, ...FERRAMENTAS_CREDENCIAL, ...FERRAMENTAS_AVISO, ...FERRAMENTAS_BARRA, ...FERRAMENTAS_CONTA, ...FERRAMENTAS_CONVERSAS, ...FERRAMENTAS_QUADRO, ...FERRAMENTAS_APPS, ...FERRAMENTAS_NAO_LIDOS, ...FERRAMENTAS_TIMES, ...FERRAMENTAS_ACESSOS, ...FERRAMENTAS_CANVAS, ...FERRAMENTAS_MAQUINAS, ...FERRAMENTAS_COMPUTADORES, ...FERRAMENTAS_DECISOES,
+  ...FERRAMENTAS_DO_NOD, ...FERRAMENTAS_CRIAR_BOTS, ...FERRAMENTAS_RESPONDER_PEDIDO, ...FERRAMENTAS_CREDENCIAL, ...FERRAMENTAS_AVISO, ...FERRAMENTAS_CARTOES, ...FERRAMENTAS_BARRA, ...FERRAMENTAS_CONTA, ...FERRAMENTAS_CONVERSAS, ...FERRAMENTAS_QUADRO, ...FERRAMENTAS_APPS, ...FERRAMENTAS_NAO_LIDOS, ...FERRAMENTAS_TIMES, ...FERRAMENTAS_ACESSOS, ...FERRAMENTAS_CANVAS, ...FERRAMENTAS_MAQUINAS, ...FERRAMENTAS_COMPUTADORES, ...FERRAMENTAS_DECISOES,
   lembrar: {
     type: "object",
     description: "Guarda uma memória deste agente (preferência, fato ou resumo). A memória não substitui fonte autoritativa.",
@@ -75,7 +78,7 @@ export const FERRAMENTAS_NOD = {
   pedir_aprovacao: {
     type: "object",
     description:
-      "Submete itens de efeito externo para aprovação em lista. Se voltar 'pendente', ENCERRE o turno: a decisão retoma depois.",
+      "Submete ações de apps/conectores para aprovação em lista. Computador e terminal não entram aqui: chame computador_interagir/computador_terminal diretamente; o adaptador deles aplica o modo de aprovação e cria o cartão quando necessário. Se voltar 'pendente', ENCERRE o turno: a decisão retoma depois.",
     properties: {
       resumo: { type: "string", description: "Resumo do lote em uma frase.", minLength: 1 },
       itens: {
@@ -84,11 +87,11 @@ export const FERRAMENTAS_NOD = {
         items: {
           type: "object",
           properties: {
-            texto: { type: "string", description: "O item como a pessoa vai ler.", minLength: 1 },
+            texto: { type: "string", description: "O item como a pessoa vai ler. Numa mensagem que sai (e-mail, Slack, iMessage, SMS), o corpo exato da mensagem, igual ao argumento do corpo: ela aparece como rascunho, e a pessoa edita o corpo antes de enviar. Uma mensagem por item.", minLength: 1 },
             destino: {
               type: "object",
               properties: {
-                conector: { type: "string", description: "Slug do conector.", minLength: 1 },
+                conector: { type: "string", description: "Slug de um app/conector. Nunca use computador ou terminal; chame computador_interagir/computador_terminal diretamente.", minLength: 1, not: { type: "string", enum: ["computador", "terminal"] } },
                 ferramenta: { type: "string", description: "Ferramenta do conector.", minLength: 1 },
                 argumentos: { type: "object", description: "Argumentos da chamada." },
               },
@@ -154,9 +157,9 @@ export type NomeFerramentaNod = keyof typeof FERRAMENTAS_NOD;
  */
 export const NOMES_FERRAMENTAS_NOD = [
   "lembrar", "atualizar_perfil", "pedir_acesso", "criar_rotina",
-  "listar_rotinas", "ver_agenda", "pausar_rotina", "reativar_rotina", "atualizar_rotina", "excluir_rotina", "executar_rotina", "pedir_aprovacao",
+  "listar_rotinas", "ver_agenda", "pausar_rotina", "reativar_rotina", "pausar_todas_rotinas", "reativar_lote_rotinas", "atualizar_rotina", "excluir_rotina", "executar_rotina", "pedir_aprovacao",
   "pedir_a_pessoa", "passar", "encaminhar", "sem_novidade", "pedir_a_bot", "ver_colegas", "publicar_artefato", "ler_artefato",
   "iniciar_tarefa", "desligar",
   "anotar_entrevista", "concluir_entrevista", "propor_bot", "abrir_task", "mandar_para_task",
-  "gerir_bots", "ver_apps_conectados", "registrar_relato", "me_chame_as", "esperar_comando", "abrir_frentes", "mandar_para_frente", "devolver_resumo", "criar_bots", "responder_pedido", "pedir_credencial", "avisar_pessoa", "abrir_conta", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "gerir_quadro", "nao_lidos", "decisoes", "gerir_apps", "gerir_times", "gerir_canvas", "gerir_acessos", "gerir_maquinas", "remover_computador",
+  "gerir_bots", "ver_apps_conectados", "registrar_relato", "me_chame_as", "esperar_comando", "abrir_frentes", "mandar_para_frente", "devolver_resumo", "criar_bots", "responder_pedido", "pedir_credencial", "avisar_pessoa", "mostrar_cartoes", "abrir_conta", "buscar_conversas", "ler_conversa", "ajustar_barra_lateral", "gerir_quadro", "nao_lidos", "decisoes", "gerir_apps", "gerir_times", "gerir_canvas", "gerir_acessos", "gerir_maquinas", "remover_computador",
 ] as const satisfies readonly NomeFerramentaNod[];

@@ -66,10 +66,10 @@ export function linhaDoDono(dono: DonoDto, agora: number, opcoes: { comConversa?
   const conversa = opcoes.comConversa === true && conversaPropria(e);
   const fila = e.fila > 0 ? textoDaFila(e, dono.fila.length) : "";
   const esperas = e.esperando > 0 ? textoDasEsperas(e) : "";
-  const trabalhando = e.frentes > 0 ? plural(e.frentes, "frente trabalhando", "frentes trabalhando") : conversa ? "trabalhando na conversa" : "";
+  const trabalhando = e.frentes > 0 ? plural(e.frentes, "tarefa trabalhando", "tarefas trabalhando") : conversa ? "trabalhando na conversa" : "";
   if (e.esperandoVoce > 0) return { sinal: "voce", texto: "Esperando você", extras: [trabalhando, esperas, fila].filter(Boolean), quantos: e.esperandoVoce };
   if (e.frentes > 0 || conversa) {
-    const texto = e.frentes > 0 ? `Trabalhando em ${plural(e.frentes, "frente", "frentes")}` : "Trabalhando na conversa";
+    const texto = e.frentes > 0 ? `Trabalhando em ${plural(e.frentes, "tarefa", "tarefas")}` : "Trabalhando na conversa";
     return { sinal: "vivo", texto, extras: [esperas, fila].filter(Boolean), quantos: Math.max(1, e.frentes) };
   }
   if (e.esperando > 0) {
@@ -155,7 +155,7 @@ function colegaNaTela(e: EsperaDoDonoDto, agora: number): ColegaNaTela | undefin
  */
 export function esperaNaTela(e: EsperaDoDonoDto, agora: number, frente?: string | null): EsperaNaTela {
   const tempo = duracaoCurta(agora - e.desde);
-  const daFrente = frente ? `da frente ${frente}` : "";
+  const daFrente = frente ? `da tarefa ${frente}` : "";
   if (e.tipo === "comando") {
     const tentativa = e.tentativa && e.tentativas ? `tentativa ${e.tentativa} de ${e.tentativas}` : "";
     const linhas = [

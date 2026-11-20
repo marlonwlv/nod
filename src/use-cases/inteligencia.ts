@@ -80,7 +80,7 @@ async function avisarSemIaParaLevar(deps: Deps, p: { agenteId: string; nomeDoBot
   const conversa = await deps.repos.conversas.buscarPropriaDoAgente(p.agenteId);
   if (!conversa) return [];
   const autoria = autoriaPessoa(deps.escopo);
-  const texto = `Nenhuma IA está pronta agora na máquina do ${p.nomeDoBot}: as tasks em andamento ficaram onde estavam. Daqui em diante ele usa o Automático.`;
+  const texto = `Nenhuma IA está pronta agora na máquina do ${p.nomeDoBot}: as tarefas em andamento ficaram onde estavam. Daqui em diante ele usa o Automático.`;
   const linha = await deps.repos.mensagens.criar({ conversaId: conversa.id, autoria, kind: "sistema", assunto: "inteligencia", texto, confianca: "confiavel" });
   log("info", "inteligencia_sem_ia_para_levar", { agente_id: p.agenteId });
   return linha ? [evento(deps.escopo, { kind: "mensagem_criada", autoria, agora: p.agora, conversaId: conversa.id, dados: { mensagem_id: linha.id, kind: "sistema" } })] : [];

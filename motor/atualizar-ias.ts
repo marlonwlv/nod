@@ -279,9 +279,10 @@ export function passoNpmLocal(d: DepsNpmLocal): PassoAtualizar {
         const atende = depois !== null && compararVersoes(depois, alvo) >= 0;
         if (r.estourouTempo) return { resultado: "tempo_esgotado", antes, depois, atende };
         if (r.erroSpawn || r.exitCode !== 0) return { resultado: resultadoDoNpm(saida.slice(-65_536)), antes, depois, atende };
-        // O npm instalou em ~/.local/bin, mas o nod usa outro binário (vem antes no PATH): o "subiu pouco" seria
-        // mentira. Falhou, com o log que diz qual binário o nod usa e a versão que ficou no ~/.local.
-        if (binDepois && !dentroDe(binDepois, join(prefixo, "bin")) && !atende) {
+        // O npm instalou em ~/.local, mas o nod usa outro binário (vem antes no PATH): o "subiu pouco" seria
+        // mentira. Falhou, com o log que diz qual binário o nod usa e a versão que ficou no ~/.local. O binário do
+        // pacote (~/.local/lib/node_modules, quando o do PATH foi trocado: caminho.ts) conta como do ~/.local.
+        if (binDepois && !dentroDe(binDepois, prefixo) && !atende) {
           const local = await d.lerVersao(join(prefixo, "bin", PACOTE_DA_IA[d.ia].binario)).catch(() => null);
           d.registrar("ia_binario", { ia: d.ia, fora_do_local: true, pasta: dirname(binDepois), versao: depois, versao_no_local: local });
           return { resultado: "falhou", antes, depois, atende: false };
