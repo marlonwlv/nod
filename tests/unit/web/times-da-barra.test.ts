@@ -97,7 +97,8 @@ describe("times na barra lateral (NOD-437)", () => {
     expect(h).toContain('data-act="menu-time" data-time="t1"');
     expect(h).toContain('draggable="true" data-time-arrastavel="t1"');
     const sem = cabecalhoDoTime({ id: "t0", nome: "", semTime: true, recolhido: false }, { indice: 0, total: 4, bots: 1, aviso: "", arrastavel: false });
-    expect(sem).toContain(">Sem time<");
+    // Paper 02/15 (rodada 2): o rótulo do grupo sem time na barra é o da prancheta, "Sem seção".
+    expect(sem).toContain(">Sem seção<");
     expect(sem).toContain('aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"');
     expect(sem).not.toContain("draggable");
     const provisorio = cabecalhoDoTime({ id: null, nome: "Novo", semTime: false, recolhido: false }, { indice: 2, total: 3, bots: 1, aviso: "", arrastavel: true });

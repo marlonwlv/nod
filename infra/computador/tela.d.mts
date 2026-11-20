@@ -31,7 +31,7 @@ export const OPENBOX_XML: string;
 export const CLASSE_DO_CHROME: string;
 export function caminhosDoDock(tmp: string): { pasta: string; rc: string };
 export function dockPossivel(bin: { bwrap?: string; tint2?: string }): Promise<boolean>;
-export function prepararPastaDoDock(config: { tmp: string; workspace: string; bin: { arquivos?: string; terminalGrafico?: string; chromium?: string } }, xauthority: string | Uint8Array): Promise<{ pasta: string; rc: string; xauthority: string; pedidoDoChrome: string; lancadores: string[] }>;
+export function prepararPastaDoDock(config: { tmp: string; workspace: string; bin: { arquivos?: string; terminalGrafico?: string; chromium?: string } }, xauthority: string | Uint8Array, shellVisual?: { raiz: string; manifesto: { apps: Record<"browser" | "files" | "terminal", string>; papeis: { tint2: string; wallpaper: string } } } | null): Promise<{ pasta: string; rc: string; xauthority: string; pedidoDoChrome: string; lancadores: string[]; wallpaper: string | null }>;
 export function cookiesDoRelancamento<C extends { expires?: number }>(conhecidos: Iterable<C>, agoraSeg: number): C[];
 type CookieDaTela = { name: string; value: string; domain: string; path: string; expires?: number };
 type IdDeCookie = { name: string; domain: string; path: string };

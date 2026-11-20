@@ -44,6 +44,25 @@ export function concessoesRepo(conn: Conn, escopo: Escopo) {
       return l ? paraConcessao(l) : null;
     },
 
+    /**
+     * Várias capacidades do MESMO (agente, conector, mensagem) num único INSERT. O laço de conceder()
+     * fazia uma ida ao banco por capacidade: com catálogos de centenas de ferramentas, o padrão de app
+     * aplicado a cada bot novo (ADA-241) somava milhares de idas e a criação em lote passava do prazo
+     * do proxy (35s), virando "falhou" para o modelo enquanto o servidor ainda concluía. Devolve só as
+     * que nasceram (as já existentes ficam fora, como o null de conceder()), na ordem pedida.
+     */
+    async concederVarias(c: Omit<NovaConcessao, "id" | "capacidade"> & { capacidades: readonly string[] }): Promise<Concessao[]> {
+      if (c.capacidades.length === 0) return [];
+      const linhas = await conn<Linha[]>`
+        insert into concessoes (tenant_id, id, owner_id, agente_id, conector_id, capacidade, mensagem_id)
+        select ${escopo.tenantId}, gen_random_uuid(), ${escopo.pessoaId}, ${c.agenteId}, ${c.conectorId}, cap, ${c.mensagemId}
+        from unnest(${[...c.capacidades]}::text[]) as cap
+        on conflict (tenant_id, agente_id, conector_id, capacidade) do nothing
+        returning ${conn.unsafe(COLUNAS)}`;
+      const porCap = new Map(linhas.map((l) => [l.capacidade, paraConcessao(l)]));
+      return c.capacidades.flatMap((cap) => porCap.get(cap) ?? []);
+    },
+
     async buscar(id: string): Promise<Concessao | null> {
       const [l] = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)} from concessoes where tenant_id = ${escopo.tenantId} and id = ${id}`;
       return l ? paraConcessao(l) : null;

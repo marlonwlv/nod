@@ -195,7 +195,7 @@ export const MOTIVO_FALHA_TEXTO: Readonly<Record<MotivoFalhaComputador, string>>
   acao_falhou: "a ação falhou dentro do computador",
   tela_alterada: "a tela mudou desde a última observação",
   ocupado: "outra ação estava em andamento",
-  limite_de_computadores: "este Mac já tem o máximo de computadores ligados",
+  limite_de_computadores: "o provedor chegou ao limite de computadores ligados",
   maquina_sem_contato: "a máquina do computador não está respondendo",
   faltam_pacotes: "faltam pacotes do computador na máquina",
   sem_suporte: "a máquina não consegue rodar o computador",
@@ -217,7 +217,7 @@ export function textoDoLimite(l: { maximo: number; ociosoMin: number }): string 
 export function mensagemDoLimite(d: Pick<ComputadorDto, "ativo" | "atividade" | "limite">): string | null {
   const ultima = d.atividade[0];
   if (d.ativo || ultima?.estado !== "falhou" || ultima.motivo !== "limite_de_computadores") return null;
-  return d.limite ? textoDoLimite(d.limite) : "Este Mac já tem o máximo de computadores ligados. Nada foi executado.";
+  return d.limite ? textoDoLimite(d.limite) : "O provedor chegou ao limite de computadores ligados. Pare um computador sem uso ou ajuste o limite do plano. Nada foi executado.";
 }
 
 /** "O navegador do computador não abriu" — o título do cartão de fora do ar. */

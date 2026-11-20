@@ -12,8 +12,8 @@ export type SituacaoDoTrabalho = { estado: EstadoExecucao; vivo: boolean; volta:
 export async function situacaoDasTarefas(deps: Pick<Deps, "repos">, tarefaIds: readonly string[]): Promise<Map<string, SituacaoDoTrabalho>> {
   const atuais = (await deps.repos.quadroExecucoes.atuaisDasTarefas(tarefaIds)).filter((e) => e.canceladaEm === null);
   const raizes = atuais.map((e) => e.turnoId);
-  const desfechos = await deps.repos.quadroExecucoes.desfechos(raizes);
-  const voltas = await deps.repos.quadroExecucoes.voltasDasCadeias(raizes);
+  // Q5 (2026-11-12): as duas dependem só das raízes; juntas, numa ida só ao banco.
+  const [desfechos, voltas] = await Promise.all([deps.repos.quadroExecucoes.desfechos(raizes), deps.repos.quadroExecucoes.voltasDasCadeias(raizes)]);
   const r = new Map<string, SituacaoDoTrabalho>();
   for (const e of atuais) {
     const estado = estadoDaExecucao(e, desfechos.get(e.turnoId));

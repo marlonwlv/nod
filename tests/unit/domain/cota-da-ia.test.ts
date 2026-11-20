@@ -98,10 +98,10 @@ describe("tipoParaCota e cotaSegura: o 1% fica para a conversa com a pessoa", ()
 describe("situacaoDoTurno e portaoDaCota: a IA do turno", () => {
   const reservaClaude = cotaDasIas({ usos: [uso(0.995)], limites: {}, agora: AGORA });
 
-  it("fixado: a da IA dele; o `auto` antigo com modelo é o Claude", () => {
+  it("fixado: a da IA dele; o Automático com modelo pode cair para outra IA livre", () => {
     expect(situacaoDoTurno({ harness: "claude-cli", modelo: "opus" }, reservaClaude, [])).toBe("reserva");
     expect(situacaoDoTurno({ harness: "codex-cli", modelo: "auto" }, reservaClaude, [])).toBe("livre");
-    expect(situacaoDoTurno({ harness: "auto", modelo: "sonnet" }, reservaClaude, [])).toBe("reserva");
+    expect(situacaoDoTurno({ harness: "auto", modelo: "sonnet" }, reservaClaude, ["claude-cli", "codex-cli"])).toBe("livre");
   });
 
   it("Automático: segura só se TODAS as IAs que podem pegá-lo seguram", () => {

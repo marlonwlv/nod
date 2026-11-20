@@ -10,24 +10,30 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#131315" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Nod" />
     <!-- Tema escolhido em Preferências (web/lib/tema.ts, mesma chave): aplicado antes do primeiro quadro, senão o app pisca claro. -->
+    <!-- ADR-167: o balão da pessoa na cor do bot é opção (web/lib/balao.ts, mesma chave); o padrão é o preto. -->
+    <script>try { if (localStorage.getItem("nod.balao") !== "preto") document.documentElement.dataset.balao = "cor"; } catch (e) { document.documentElement.dataset.balao = "cor"; }</script>
     <script>try { var t = localStorage.getItem("nod.tema"); if (t === "claro" || t === "escuro") document.documentElement.dataset.theme = t === "claro" ? "light" : "dark"; } catch (e) {}</script>
-    <!-- NOD-119: densidade e largura da barra (web/lib/densidade.ts, mesma chave, valores e consulta do celular): aplicadas antes do primeiro quadro, senão a barra abre larga e encolhe. -->
-    <script>try { var d = localStorage.getItem("nod.densidade"), px = { "compacta": 200, "compacta:recolhida": 56, "compacta:larga": 340, "confortavel:recolhida": 72 }; if (Object.prototype.hasOwnProperty.call(px, d) && !matchMedia("(hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px)").matches) { var h = document.documentElement, p = d.split(":"); h.dataset.densidade = p[0]; if (p[1]) h.dataset.largura = p[1]; h.style.setProperty("--largura-barra", px[d] + "px"); } } catch (e) {}</script>
-    <!-- A Geist pedida já com o HTML, sem esperar o tokens.css: menos tempo com a fonte do sistema e o texto mudando de largura. -->
-    <link rel="preload" href="/fontes/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- ADR-179: a largura da barra (web/lib/densidade.ts: mesmas chaves, migração da chave antiga, limites e consulta do celular), aplicada antes do primeiro quadro, senão a barra abre em 340 e pula. -->
+    <script>try { var s = localStorage.getItem("nod.barra.largura"), a = localStorage.getItem("nod.densidade"), b = { l: 340, c: false }; if (s) { try { var o = JSON.parse(s); if (o && typeof o === "object" && typeof o.larguraExpandida === "number" && isFinite(o.larguraExpandida) && typeof o.compacta === "boolean") b = { l: o.larguraExpandida, c: o.compacta }; } catch (e) {} } else if (a === "compacta:recolhida" || a === "confortavel:recolhida") b.c = true; else if (a === "compacta") b.l = 240; if (!matchMedia("(hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px)").matches) { var h = document.documentElement, m = Math.max(240, Math.min(400, Math.floor(innerWidth - 424))); h.dataset.barra = b.c ? "compacta" : "expandida"; if (b.c) h.dataset.largura = "recolhida"; h.style.setProperty("--largura-barra", (b.c ? 88 : Math.min(m, Math.max(240, Math.round(b.l)))) + "px"); } } catch (e) {}</script>
     <link rel="stylesheet" href="/tokens.css" />
     <link rel="stylesheet" href="/estilos.css" />
     <link rel="stylesheet" href="/interface.css" />
     <link rel="stylesheet" href="/navegacao.css" />
     <link rel="stylesheet" href="/ligacao.css" />
     <link rel="stylesheet" href="/onboarding.css" />
+    <link rel="stylesheet" href="/personagem.css" />
     <link rel="stylesheet" href="/computador-do-bot.css" />
+    <link rel="stylesheet" href="/computador-tela-cheia.css" />
+    <link rel="stylesheet" href="/computador-painel.css" />
+    <link rel="stylesheet" href="/computador-cartoes.css" />
+    <link rel="stylesheet" href="/computador-conversa.css" />
+    <link rel="stylesheet" href="/quick-chat.css" />
     <link rel="stylesheet" href="/conta.css" />
     <link rel="stylesheet" href="/configuracoes.css" />
     <link rel="stylesheet" href="/agentes-lote.css" />
@@ -36,12 +42,26 @@
     <link rel="stylesheet" href="/card-proposta.css" />
     <link rel="stylesheet" href="/densidade.css" />
     <link rel="stylesheet" href="/quadro.css" />
+    <link rel="stylesheet" href="/react/quadro/grade-do-quadro.css" />
     <link rel="stylesheet" href="/tarefa-aberta.css" />
     <link rel="stylesheet" href="/paginas.css" />
     <link rel="stylesheet" href="/canvas.css" />
     <link rel="stylesheet" href="/historico-perfil.css" />
     <link rel="stylesheet" href="/quadro-celular.css" />
     <link rel="stylesheet" href="/quadro-min.css" />
+    <link rel="stylesheet" href="/tarefas-de-todos.css" />
+    <link rel="stylesheet" href="/provedores-ia.css" />
+    <!-- ADR-167: os componentes do design system (web/ds.css) vêm depois das telas do computador e antes das do celular. -->
+    <link rel="stylesheet" href="/ds.css" />
+    <!-- ADR-167: a casca igual ao Paper (barra, pílula, conversa, campo e painel), depois do design system. -->
+    <link rel="stylesheet" href="/casca.css" />
+    <link rel="stylesheet" href="/menu-conta.css" />
+    <!-- ADR-188: o cartão "Atualizar o nod" no pé da barra e Configurações › Sobre o nod. -->
+    <link rel="stylesheet" href="/atualizacao-app.css" />
+    <!-- COP-14: o chat (base, balões, pensando, formato da resposta e troca de bot), depois da casca. -->
+    <link rel="stylesheet" href="/chat.css" />
+    <link rel="stylesheet" href="/chat-formato.css" />
+    <link rel="stylesheet" href="/chat-troca.css" />
     <link rel="stylesheet" href="/mobile.css" />
     <link rel="stylesheet" href="/celular-base.css" />
     <link rel="stylesheet" href="/tab-bar-celular.css" />
@@ -54,7 +74,7 @@
     <div id="anuncio-config" class="sr-only" role="status" aria-live="polite"></div>
     <div id="anuncio-subagentes" class="sr-only" aria-live="polite"></div>
     <div id="anuncio-gestao" class="sr-only" aria-live="polite"></div>
-    <!-- NOD-119: a etiqueta do "só avatares" (nome e título no mouse e no foco); visual, o leitor de tela já ouve o aria-label. -->
+    <!-- NOD-119/ADR-179: a etiqueta e a prévia da barra compacta (nome e título no foco; a prévia do chat no mouse num bot). -->
     <div class="etiqueta-barra" id="etiqueta-barra" aria-hidden="true" hidden></div>
     <div class="app">
       <aside class="sidebar" id="sidebar" aria-label="Bots e salas"></aside>
@@ -74,8 +94,8 @@
         <section class="qd-vista" id="quadro" role="tabpanel" aria-labelledby="qd-aba-quadro" hidden></section>
       </main>
       <aside class="detalhes" id="detalhes" aria-label="Detalhes do bot"></aside>
-      <!-- NOD-119: a borda da barra (web/lib/borda-barra.ts), fora do #sidebar regravado; encaixa nas larguras de web/lib/densidade.ts. -->
-      <div class="borda-barra" id="borda-barra" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Largura da barra lateral" aria-valuemin="0" aria-valuemax="100" tabindex="0"></div>
+      <!-- ADR-179: o puxador da barra (web/lib/borda-barra.ts), fora do #sidebar regravado; os valores em px (web/lib/densidade.ts). -->
+      <div class="borda-barra" id="borda-barra" role="separator" aria-orientation="vertical" aria-controls="sidebar" aria-label="Redimensionar barra lateral" aria-valuemin="88" aria-valuemax="400" tabindex="0"></div>
     </div>
     <!-- Seu espaço (2026-09-30): camada de tela cheia por cima do app; a tela de baixo continua montada. -->
     <div id="espaco" hidden></div>
@@ -83,6 +103,8 @@
     <div id="ligacao" hidden></div>
     <!-- Onboarding por ligação (2026-10-04, ADR-077): olá, a IA do Mac, "está te ligando" e o painel da entrevista. -->
     <div id="onboarding" hidden></div>
+    <!-- Marketplace (2026-11-18, ADR-179): o modal de apps em React (web/react/marketplace/), um <dialog> aberto por cima de tudo. -->
+    <div id="marketplace"></div>
     <script type="module" src="/main.ts"></script>
   </body>
 </html>

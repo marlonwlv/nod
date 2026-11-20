@@ -76,7 +76,7 @@ describe("o aviso com Abrir e Desfazer", () => {
     expect(el.className).toBe("nl-aviso");
     expect(html.indexOf(">Abrir<")).toBeGreaterThan(0);
     expect(html.indexOf(">Abrir<")).toBeLessThan(html.indexOf(">Desfazer<"));
-    ouvintes[".nl-abrir"]!();
+    ouvintes[".nl-aviso-abrir"]!();
     expect(abriu).toHaveBeenCalledTimes(1);
     expect(desfez).not.toHaveBeenCalled();
     ouvintes[".nl-desfazer-acao"]!();

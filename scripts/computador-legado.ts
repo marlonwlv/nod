@@ -21,6 +21,7 @@ export const PRAZO_VOLUMES_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type Legado = { id: string; arquivadoEm: number };
 export type Plano = { desligar: string[]; apagar: string[]; aguardando: { id: string; dias: number }[] };
+export type MigracaoLegado = { tenantId: string; pessoaId: string; id: string; agenteId: string; destinoId: string; arquivadoEm: number | null };
 
 /** O que fazer com cada legado arquivado: todos desligam; com `--apagar-volumes`, só os de 30 dias ou mais apagam. */
 export function planejar(legados: Legado[], agora: number, apagarVolumes: boolean): Plano {
@@ -70,6 +71,81 @@ export function executar(plano: Plano, docker: Docker): { desligados: string[]; 
   return { desligados, apagados, falhas };
 }
 
+/**
+ * Copia antes de arquivar. A cópia integral fica em `legado/<bot>` e os diretórios conhecidos também entram no lugar
+ * ativo sem sobrescrever nada que o computador compartilhado já tenha produzido. O marcador no volume de destino faz
+ * a repetição barata e segura; a origem nunca é removida aqui.
+ */
+export function migrarVolumesDocker(m: Pick<MigracaoLegado, "id" | "agenteId" | "destinoId">, docker: Docker, imagem = "nod-computador:1"): void {
+  const origem = nomes(m.id);
+  const destino = nomes(m.destinoId);
+  const marcador = `/destino/computadores/${m.destinoId}/legado/${m.agenteId}/.concluido`;
+  for (const nome of [origem.maquina, origem.proxy]) {
+    try { docker(["stop", nome]); } catch (e) { if (!jaNaoExiste(e)) throw e; }
+  }
+  // O destino precisa estar parado: perfil e workspace não podem mudar durante a reconciliação.
+  try {
+    const rodando = docker(["inspect", "--format", "{{.State.Running}}", destino.maquina]).trim();
+    if (rodando === "true") throw new Error("o computador compartilhado precisa estar parado para migrar o legado");
+  } catch (e) {
+    if (!jaNaoExiste(e)) throw e;
+  }
+  docker(["volume", "create", "--label", "nod.computador=true", `${destino.maquina}-home`]);
+  const script = [
+    "set -eu",
+    `marcador=${JSON.stringify(marcador)}`,
+    "[ ! -f \"$marcador\" ] || exit 0",
+    `base=/destino/computadores/${m.destinoId}`,
+    `bot=${m.agenteId}`,
+    "tmp=\"$base/legado/.migracao-$bot-$$\"",
+    "trap 'rm -rf \"$tmp\"' EXIT",
+    "mkdir -p \"$tmp/home\" \"$tmp/workspace\" \"$base/perfis\" \"$base/workspace/$bot\" \"$base/legado\"",
+    "cp -a /origem-home/. \"$tmp/home/\"",
+    "cp -a /origem-workspace/. \"$tmp/workspace/\"",
+    // O perfil antigo continua inteiro no snapshot. A cópia ativa só nasce se o bot ainda não tiver perfil novo.
+    "if [ -d /origem-home/profile ] && [ ! -e \"$base/perfis/$bot\" ]; then cp -a /origem-home/profile \"$base/perfis/$bot\"; fi",
+    // Não sobrescreve arquivos novos; qualquer colisão continua preservada no snapshot integral.
+    "cp -an /origem-workspace/. \"$base/workspace/$bot/\"",
+    "mkdir -p \"$base/legado/$bot\"",
+    "rm -rf \"$base/legado/$bot/home\" \"$base/legado/$bot/workspace\"",
+    "mv \"$tmp/home\" \"$base/legado/$bot/home\"",
+    "mv \"$tmp/workspace\" \"$base/legado/$bot/workspace\"",
+    "touch \"$marcador\"",
+  ].join("; ");
+  docker(["run", "--rm", "--network", "none", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "0:0",
+    "--cap-add", "CHOWN", "--cap-add", "FOWNER", "--cap-add", "DAC_OVERRIDE",
+    "--mount", `type=volume,source=${origem.maquina}-home,target=/origem-home,readonly`,
+    "--mount", `type=volume,source=${origem.maquina}-workspace,target=/origem-workspace,readonly`,
+    "--mount", `type=volume,source=${destino.maquina}-home,target=/destino`,
+    "--entrypoint", "sh", imagem, "-c", script]);
+}
+
+/** Descobre a origem e o bot antes de tocar nos volumes. Sem identidade, aborta tudo e preserva os vínculos. */
+export async function descobrirMigracoes(db: Db, listarPessoas?: OpcoesLaco["listarPessoas"]): Promise<MigracaoLegado[]> {
+  const migracoes: MigracaoLegado[] = [];
+  await paraCadaPessoa(db, (escopo, tx) => tx(async (trx) => {
+    const repo = computadoresRepo(trx, escopo);
+    const destino = await repo.obterDaPessoa();
+    for (const l of await repo.legadosParaMigrar(destino.id)) {
+      if (!l.agenteId) throw new Error(`legado ${l.id} sem identidade do bot; volume preservado`);
+      migracoes.push({ ...escopo, id: l.id, agenteId: l.agenteId, destinoId: destino.id, arquivadoEm: l.arquivadoEm });
+    }
+  }), { ...(listarPessoas ? { listarPessoas } : {}), aoFalhar: (_escopo, erro) => { throw erro; } });
+  return migracoes;
+}
+
+/** O recibo e o arquivamento só entram depois da cópia; repetir confirma o mesmo destino, nunca troca silenciosamente. */
+export async function confirmarMigracoes(db: Db, migracoes: readonly MigracaoLegado[], agora: number, listarPessoas?: OpcoesLaco["listarPessoas"]): Promise<void> {
+  const porPessoa = new Map(migracoes.map((m) => [`${m.tenantId}:${m.pessoaId}:${m.id}`, m]));
+  await paraCadaPessoa(db, (escopo, tx) => tx(async (trx) => {
+    const repo = computadoresRepo(trx, escopo);
+    for (const m of porPessoa.values()) {
+      if (m.tenantId !== escopo.tenantId || m.pessoaId !== escopo.pessoaId) continue;
+      if (!await repo.concluirMigracaoLegado(m.id, m.agenteId, m.destinoId, agora)) throw new Error(`recibo recusado para o legado ${m.id}`);
+    }
+  }), { ...(listarPessoas ? { listarPessoas } : {}), aoFalhar: (_escopo, erro) => { throw erro; } });
+}
+
 /** Arquiva os por bot de cada pessoa (como nod_app, pessoa por pessoa: RLS) e devolve todos os arquivados. */
 export async function arquivarTodos(db: Db, agora: number, listarPessoas?: OpcoesLaco["listarPessoas"]): Promise<Legado[]> {
   const legados: Legado[] = [];
@@ -98,8 +174,8 @@ async function principal(): Promise<void> {
     // sem .env: variáveis vêm do ambiente
   }
   const escrever = (s: string) => process.stdout.write(`${s}\n`);
-  if (process.env.NOD_COMPUTADORES !== "motor") {
-    escrever("Nada feito: a passagem ao computador da pessoa só roda com NOD_COMPUTADORES=motor.");
+  if (!new Set(["motor", "docker"]).has(process.env.NOD_COMPUTADORES ?? "")) {
+    escrever("Nada feito: a passagem ao computador da pessoa só roda com o computador compartilhado.");
     process.exitCode = 1;
     return;
   }
@@ -110,15 +186,18 @@ async function principal(): Promise<void> {
   }
   const db = criarDb(url, { max: 1 });
   const agora = Date.now();
-  let legados: Legado[];
+  let migracoes: MigracaoLegado[];
   try {
-    legados = await arquivarTodos(db, agora);
+    migracoes = await descobrirMigracoes(db);
+    for (const m of migracoes) migrarVolumesDocker(m, dockerReal, process.env.NOD_COMPUTADOR_IMAGEM || "nod-computador:1");
+    await confirmarMigracoes(db, migracoes, agora);
   } finally {
     await db.end({ timeout: 2 });
   }
+  const legados = migracoes.map((m) => ({ id: m.id, arquivadoEm: m.arquivadoEm ?? agora }));
   const plano = planejar(legados, agora, process.argv.includes("--apagar-volumes"));
   const r = executar(plano, dockerReal);
-  escrever(`Computadores por bot arquivados: ${legados.length} · desligados: ${r.desligados.length}`);
+  escrever(`Computadores por bot migrados e arquivados: ${legados.length} · desligados: ${r.desligados.length}`);
   if (plano.apagar.length || plano.aguardando.length) escrever(`Apagados (30 dias ou mais): ${r.apagados.length}`);
   for (const a of plano.aguardando) escrever(`  ${a.id}: faltam ${a.dias} dia(s) para poder apagar os volumes`);
   if (r.falhas.length) {

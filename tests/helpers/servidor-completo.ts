@@ -56,6 +56,8 @@ export type OpcoesServidorCompleto = {
   capturador?: OpcoesBoot["capturador"];
   /** NOD-132: o assinador da URL do ZIP (vale com `env.NOD_APP_VERSAO_PUBLICADA`); ausente = o signBlob de verdade. */
   assinadorAtualizacaoApp?: OpcoesBoot["assinadorAtualizacaoApp"];
+  /** ADR-166: a API falsa do revisor do Automático (vale com `env.NOD_REVISOR` e `NOD_REVISOR_CHAVE`). */
+  revisor?: OpcoesBoot["revisor"];
 };
 
 /**
@@ -113,6 +115,7 @@ export async function servidorCompleto(o: OpcoesServidorCompleto = {}): Promise<
     corAtiva: o.corAtiva,
     capturador: o.capturador,
     assinadorAtualizacaoApp: o.assinadorAtualizacaoApp,
+    revisor: o.revisor,
   });
 
   const sessaoDe = (e: Escopo): SessaoDeTeste => ({ cookie: `nod_sessao=${cunharCookie(e, SEGREDO_DE_TESTE)}`, tenantId: e.tenantId, pessoaId: e.pessoaId });

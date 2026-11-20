@@ -341,7 +341,7 @@ describeIntegracao("freios e travas do quadro (NOD-419)", () => {
       expect(r.events.filter((e) => e.kind === "mensagem_criada")).toHaveLength(1);
       const conversaAda = (await d.repos.conversas.buscarPropriaDoAgente(ada))!;
       const avisos = (await d.repos.mensagens.listarDaConversa(conversaAda.id)).filter((x) => x.payload?.kind === "aviso_pessoa");
-      expect(avisos).toMatchObject([{ texto: expect.stringMatching(/^Uma tarefa do quadro foi para Bloqueado: Laço/) }]);
+      expect(avisos).toMatchObject([{ texto: expect.stringMatching(/^Um card do quadro foi para Bloqueado: Laço/) }]);
       expect(avisos[0]!.texto).not.toContain("Login");
       // Revisão 8 do PR #629: os nomes das colunas também saem (um turno de fora pode tê-los escrito).
       expect(avisos[0]!.texto).not.toMatch(/Fazendo|revisão/);
@@ -501,7 +501,7 @@ describeIntegracao("freios e travas do quadro (NOD-419)", () => {
         const conversaAda = (await d.repos.conversas.buscarPropriaDoAgente(ada))!;
         expect(r.events!.filter((e) => e.kind === "mensagem_criada")).toMatchObject([{ dados: { aviso: true }, conversaId: conversaAda.id }]);
         const avisos = (await d.repos.mensagens.listarDaConversa(conversaAda.id)).filter((x) => x.payload?.kind === "aviso_pessoa");
-        expect(avisos).toMatchObject([{ texto: origemConfiavel ? expect.stringMatching(/^Em "Login": Freio/) : expect.stringMatching(/^Numa tarefa do quadro: Freio/) }]);
+        expect(avisos).toMatchObject([{ texto: origemConfiavel ? expect.stringMatching(/^Em "Login": Freio/) : expect.stringMatching(/^Num card do quadro: Freio/) }]);
         const telemetria = await trx<{ dados: Record<string, unknown> }[]>`select dados from events where kind = 'quadro_avisou'`;
         expect(telemetria.map((e) => e.dados)).toEqual([{ quadro_id: q.id, tipo: "freio", tarefas: 1, mensagem_id: avisos[0]!.id }]);
         // O segundo comentário freado na mesma hora não repete o aviso.

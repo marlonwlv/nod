@@ -88,6 +88,8 @@ export function trechos(v: unknown): TrechoVivo[] {
       continue;
     }
     if (Object.keys(o).length !== 1) continue;
+    // definido em 2026-11-12 (estado vivo): a fase do bloco, só os três valores; qualquer outro some.
+    if (o.fase === "compondo" || o.fase === "pensando" || o.fase === "fim_bloco") { saida.push({ fase: o.fase }); continue; }
     if (texto(o.texto, 16_000)) { total += o.texto.length; saida.push({ texto: o.texto }); }
     else if (nomeDeFerramenta(o.ferramenta)) saida.push({ ferramenta: o.ferramenta });
     else if (Array.isArray(o.tarefas)) { const t = tarefasDoTrecho(o.tarefas); if (t) saida.push({ tarefas: t }); }
@@ -107,7 +109,8 @@ export function falas(v: unknown): FalaIntermediaria[] {
   return v.map((f) => {
     const o = objeto(f);
     exigir(typeof o.seq === "number" && Number.isSafeInteger(o.seq) && o.seq >= 1 && texto(o.texto));
-    return { seq: o.seq, texto: o.texto };
+    // ADR-186: a volta que a mensagem da pessoa interrompeu (só `true` conta; o resto é fala comum).
+    return { seq: o.seq, texto: o.texto, ...(o.interrompida === true ? { interrompida: true as const } : {}) };
   });
 }
 /** definido em 2026-10-07 (ADR-083, #194): no máximo um RSS por turno vivo; 64 cobre o pico de 25 turnos do diário. */
@@ -125,7 +128,9 @@ export function memoria(v: unknown): LeituraMemoria | undefined {
   const porTurno = (o.porTurno as unknown[]).map((x) => {
     const t = objeto(x);
     exigir(typeof t.turnoId === "string" && UUID.test(t.turnoId) && typeof t.mb === "number" && Number.isFinite(t.mb) && t.mb >= 0 && t.mb <= TETO_MB);
-    return { turnoId: t.turnoId, mb: t.mb };
+    // ADR-171: o %cpu do grupo do turno é opcional; fora de 0–10000 (100 núcleos) é ignorado, sem derrubar a renovação.
+    const cpu = typeof t.cpuPct === "number" && Number.isFinite(t.cpuPct) && t.cpuPct >= 0 && t.cpuPct <= 10_000 ? t.cpuPct : undefined;
+    return { turnoId: t.turnoId, mb: t.mb, ...(cpu !== undefined ? { cpuPct: cpu } : {}) };
   });
   // ADR-085: o processador é opcional (app anterior à 0.4.0-rc.6 não manda); a carga por núcleo vai até 1000 (um Mac
   // travado passa de 20 — medido em 06/10: 265 em 12 núcleos). Revisão do #209: fora disso o processador é ignorado, e

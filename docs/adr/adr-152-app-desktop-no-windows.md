@@ -52,6 +52,14 @@ um instalador, um ícone e a conversa numa janela, com a máquina conectada sem 
     e o processo principal roda o login do próprio CLI como o Mac (ADR-077): sem shell, desanexado, sem janela, ambiente
     limpo; o `.cmd` do npm vira `node <script>` (ADR-147) com o Node do motor. Quem percebe o login é a vigia do motor.
     O resto da ponte do Mac (avisos, contas, mídia, teste das IAs) segue de fora: a web trata tudo como opcional.
+11. **O microfone (revisão de 17/11/2026, primeiro teste da voz no Windows).** A janela negava toda permissão
+    (`travarPermissoes`), então a ligação e o ditado nunca abriam o microfone, por mais que a pessoa o liberasse nas
+    Configurações, e o aviso apontava os Ajustes do Sistema do Mac. Agora vale a regra do Mac (ADR-071): `media` só de
+    áudio, só da origem do servidor, só no frame de topo da janela (`fluxo.ts` `permissoesDaJanela`); o resto continua
+    negado no pedido e na checagem. A ponte ganha `microfone` (o acesso do Windows, `getMediaAccessStatus`) e
+    `ajustesMicrofone`, que abre `ms-settings:privacy-microphone` (endereço fixo do processo principal; o Mac abre o
+    seu, Privacidade › Microfone). O aviso de microfone negado diz o caminho das Configurações e traz "Abrir
+    Configurações".
 
 ## Consequências
 

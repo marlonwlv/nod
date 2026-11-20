@@ -4,7 +4,7 @@ import { formatoData } from "../lib/formato-data.ts";
 import { esc, hora } from "../lib/render.ts";
 
 /**
- * Memória do bot (Grok Bot): injetada no prompt com "não substitui fonte autoritativa".
+ * Memória do bot: injetada no prompt com "não substitui fonte autoritativa".
  * NOD-58 (protótipo v2, Editar opção A, aprovado): duas abas, Memórias | Histórico · N. Em Memórias, cada memória se lê
  * por padrão e edita no lugar (texto em cima, tipo e Cancelar/Salvar embaixo); Apagar mora no "…", longe do Salvar, e a
  * apagada fica no lugar com Desfazer. O Histórico mostra cada mudança (do bot e da pessoa) por dia, com Desfazer e, nas

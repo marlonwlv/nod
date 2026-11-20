@@ -60,7 +60,9 @@ export function ligarGestosDaPilula(doc: Document, p: PilulaDePaginas): GestosDa
   let timerAbrir: ReturnType<typeof setTimeout> | null = null;
   let timerFechar: ReturnType<typeof setTimeout> | null = null;
 
-  const alvoDaLargura = (): number => (aberta ? (doca()?.firstElementChild as HTMLElement | null)?.scrollWidth ?? 0 : 0);
+  // Rodada 3 da casca (Paper 17): offsetWidth, e não scrollWidth — as dicas (absolutas, sem quebra) vazam do miolo e o
+  // scrollWidth as contava, deixando ~100 px vazios no fim da cápsula aberta.
+  const alvoDaLargura = (): number => (aberta ? (doca()?.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0 : 0);
   function pintar(): void {
     const d = doca();
     const c = pil();

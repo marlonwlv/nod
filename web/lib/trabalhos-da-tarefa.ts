@@ -9,7 +9,7 @@
 import type { MotivoDaFila } from "./estado-do-trabalho.ts";
 import type { QuadroDto } from "../../src/contracts/quadro.ts";
 import type { ExecucoesDaTarefa } from "../../src/contracts/quadro-execucoes.ts";
-import { anuncioDoTrabalho, logDoTrabalho, passosDoTrabalho, secaoDoTrabalho, vivo, type VistaDoTrabalho } from "../telas/trabalhos-da-tarefa.ts";
+import { anuncioDoTrabalho, logDoTrabalho, passosDoTrabalho, secaoDoTrabalho, secaoDoTrabalhoCompacta, vivo, type VistaDoTrabalho } from "../telas/trabalhos-da-tarefa.ts";
 import { PRAZO_DO_ENVIO_MS, comPrazo } from "./com-prazo.ts";
 import { ErroApi, ehRecusaDoServidor } from "./erro-api.ts";
 import { GESTO_MS } from "./quadro.ts";
@@ -226,7 +226,7 @@ export function criarTrabalhosDaTarefa(o: {
       }
       // O 409 não abriu nada: o trabalho roda (o duplo clique, outra aba) ou a tarefa está fora do andamento (Feito,
       // Cancelado, Backlog: revisão 2 do PR #625).
-      if (de === alvo) aviso = e instanceof ErroApi && e.codigo === "estado_invalido" ? (turnoEscutado(dados) ? "Já está rodando: cancele antes." : "A tarefa não está em andamento: mova-a antes.") : "Não consegui. Tente de novo.";
+      if (de === alvo) aviso = e instanceof ErroApi && e.codigo === "estado_invalido" ? (turnoEscutado(dados) ? "Já está rodando: cancele antes." : "O card não está em andamento: mova-o antes.") : "Não consegui. Tente de novo.";
       if (de === alvo && aviso) falar(aviso);
       // O servidor recusou (409, regra): tentar o mesmo de novo falha igual. Só a rede ganha o "Tentar de novo".
       // Revisão 9: a queda de rede é ErroApi com status 0, que não é recusa.
@@ -269,10 +269,10 @@ export function criarTrabalhosDaTarefa(o: {
     /** ADA-12: a primeira leitura da tarefa aberta ainda não chegou. */
     carregando: (): boolean => !!alvo && !!api() && dados === null && !erro,
     /** A seção; undefined = a API não tem os trabalhos (ou outra tarefa). */
-    html(tarefaId: string, h: { bloqueada: boolean; agenteId: string | null; conversaAtual: string | null; motivoFila?: MotivoDaFila | null; hora: (em: number) => string }): string | undefined {
+    html(tarefaId: string, h: { bloqueada: boolean; agenteId: string | null; conversaAtual: string | null; motivoFila?: MotivoDaFila | null; hora: (em: number) => string; /** Rodada 3: o bloco no Registro de execução (tela 18b do Paper). */ compacto?: boolean }): string | undefined {
       if (!api() || alvo?.tarefaId !== tarefaId) return undefined;
       const atual = dados?.execucoes[0];
-      return secaoDoTrabalho({
+      return (h.compacto ? secaoDoTrabalhoCompacta : secaoDoTrabalho)({
         tarefaId, dados, erro, bloqueada: h.bloqueada, agenteId: h.agenteId, conversaAtual: h.conversaAtual,
         atividade: atual ? atividades.get(atual.turnoAtual) : undefined, passosAbertos: passos, anterioresAbertos: anteriores, aviso, ocupado, recadoPendente, motivoFila: h.motivoFila ?? null,
       }, h.hora);

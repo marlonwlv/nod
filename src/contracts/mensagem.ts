@@ -12,7 +12,6 @@ import type { PayloadRotinaEvento, PayloadRotinaRitmo } from "./rotina.ts";
 import type { PayloadPedidoRespondido, PayloadPeerPedido } from "./troca-entre-bots.ts";
 import type { AncoraDoConsentimento, PayloadPropostaDecidida, PayloadRegraPermanente } from "./cartao-encolhido.ts";
 import type { DesfechoItem, DesfechoRotina, MotivoFalhaComputador, MotivoNegacao, MotivoPasse } from "./motivos.ts";
-
 /** Marca de confiança é propriedade do CONTEÚDO, nunca do nome da ferramenta (ADR-026). */
 /**
  * definido em 2026-10-15 (NOD-257, H5): o pedido a colega parado na fila e o porquê. Não é gravado: `lerConversa` o põe
@@ -41,7 +40,10 @@ export type KindMensagem =
 
 /** Payload tipado por kind: estado de controle nunca se lê do texto (Regra 9, GRUPO.passe-tipado). */
 export type PayloadMensagem =
-  | { kind: "boas_vindas" } | { kind: "acoes_do_turno"; acoes: { rotulo: string; falhou?: true; vezes?: number }[]; duracaoMs?: number } // NOD-353: resumo das ações; duracaoMs (26/10, "Pensou por 9 s" na gravada)
+  /** ADR-186 (definido em 2026-11-16): a fala do bot que a mensagem nova da pessoa interrompeu no meio (`parcial` = true). */
+  | { kind: "fala_interrompida"; por: "mensagem_nova"; /** O bot retomou depois de responder (pergunta à parte, acréscimo): só pausada. */ retomou?: true }
+  | { kind: "boas_vindas"; pergunta?: string; opcoes?: { rotulo: string; texto: string }[] } // botão +, tela 5; as gravadas antes não têm pergunta/opções
+  | { kind: "acoes_do_turno"; acoes: { rotulo: string; falhou?: true; vezes?: number }[]; duracaoMs?: number } // NOD-353: resumo das ações; duracaoMs (26/10, "Pensou por 9 s" na gravada)
   /** `trabalhoId` (2026-10-07, ADR-083): o trabalho de quem RECEBEU o pedido. `nomePara` (2026-10-18, chat limpo PR 3): o nome dele no momento. */
   | { kind: "handoff"; de: string; para: string; motivo: string; tarefaId?: string; trabalhoId?: string; fila?: FilaDoPedido; nomePara?: string }
   /** ADR-047/058 e chat limpo (PR 3, `nome`): troca-entre-bots.ts. */
@@ -57,7 +59,7 @@ export type PayloadMensagem =
    * definido em 2026-10-03: `frase` (o pedido) e `texto` por item entram para a web desenhar o recibo compacto da
    * decisão sem reler o texto redigido; as mensagens gravadas antes não os têm. `revisor` (modos, PR 4): o cartão era do revisor ("Negado por você").
    */
-  | { kind: "resultado_aprovacao"; decisaoId: string; frase?: string; itens: { idx: number; desfecho: DesfechoItem; texto?: string }[]; revisor?: true }
+  | { kind: "resultado_aprovacao"; decisaoId: string; frase?: string; itens: { idx: number; desfecho: DesfechoItem; texto?: string }[]; revisor?: true; /** item 10, rodada 2: a mensagem nova substituiu o pedido (sem resposta, não recusa) */ substituida?: true }
   /**
    * `causa` (definido em 2026-10-05): a IA estava logada e a conta não serviu (src/contracts/inventario.ts).
    * `modelo` (NOD-171): o harness está pronto, mas o modelo escolhido no agente não é aceito por ele; a tela pede outro
@@ -68,7 +70,7 @@ export type PayloadMensagem =
    * `ia` não. A web decide "já voltou" e nomeia a IA por `ia`; valor fora do catálogo da web não vale (nada se infere).
    * As negações gravadas antes não o têm: a web nunca conclui "já voltou" por inferência de outra IA.
    */
-  | { kind: "negacao"; classe: "ferramenta_negada" | "conector_indisponivel" | "plano_ausente"; nome: string; motivo: MotivoNegacao; terminal: boolean; causa?: CausaSemIa; modelo?: string; causaNativa?: CausaNativa; vezes?: number; ia?: IdHarness; anexo?: TipoAnexo; /** jornada C: fala fixa sem IA, turno guardado (src/domain/sem-ia.ts) */ aguardaIa?: true }
+  | { kind: "negacao"; classe: "ferramenta_negada" | "conector_indisponivel" | "plano_ausente"; nome: string; motivo: MotivoNegacao; terminal: boolean; causa?: CausaSemIa; modelo?: string; causaNativa?: CausaNativa; vezes?: number; ia?: IdHarness; anexo?: TipoAnexo; /** a máquina que recusou o turno no despacho (id da chave); a web diz o estado das contas nela */ maquina?: string; /** jornada C: fala fixa sem IA, turno guardado (src/domain/sem-ia.ts) */ aguardaIa?: true }
   /**
    * definido em 2026-10-05: o bot em "automático" passou a responder por outra IA porque a conta da primeira não
    * serviu. Linha de sistema, dita uma vez por troca; o turno que falhou foi repetido na outra IA.
@@ -141,7 +143,7 @@ export type PayloadMensagem =
    */
   | { kind: "pasta_aberta"; propostaId: string; agenteId: string; pasta: string; nome: string; onde?: string; turnoId?: string | null }
   /** 2026-09-28 (ADR-051): só ids, o HTML não viaja com a conversa; o canvas (ADA-13, ADR-150) também: ids e contagens; a lista compacta dele (ADA-228, J7-5) só o resumo. */
-  | { kind: "artefato"; artefatoId: string; versao: number; titulo: string } | { kind: "canvas"; canvasId: string; agenteId: string; versao: number; titulo: string; issue?: string | null; jornadas: number; telas: number; importado: boolean; confiavel?: boolean; origemUrl?: string | null } | import("./ferramentas-canvas.ts").PayloadCanvasLista
+  | { kind: "artefato"; artefatoId: string; versao: number; titulo: string } | { kind: "canvas"; canvasId: string; agenteId: string; versao: number; titulo: string; issue?: string | null; jornadas: number; telas: number; importado: boolean; confiavel?: boolean; origemUrl?: string | null } | import("./ferramentas-canvas.ts").PayloadCanvasLista | import("./ferramentas-cartoes.ts").PayloadCartoes
   /** definido em 2026-10-04 (ADR-075): a linha "Chat de voz · mm:ss"; a transcrição vem por GET ligacoes/:id/falas. */
   | PayloadLinhaLigacao
   /**

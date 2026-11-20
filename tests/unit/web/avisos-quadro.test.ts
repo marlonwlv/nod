@@ -7,7 +7,7 @@ import { folhaDasColunas, menuDaColuna, popoverDePrazo } from "../../../web/tela
 import { PASSOU_DO_PRAZO, rotuloDoCard } from "../../../web/telas/quadro.ts";
 import { cardDaTarefa, quadroDaMeta } from "../../../web/telas/quadro-real.ts";
 
-/** NOD-420: o prazo da coluna, o "parada há" e o Responder no card, sem DOM. */
+/** NOD-420: o prazo da coluna, o "parado há" e o Responder no card, sem DOM. */
 
 const MIN = 60_000;
 const AGORA = 1_800_000_000_000;
@@ -117,21 +117,21 @@ describe("web/lib/colunas: prazo (NOD-420)", () => {
   });
 });
 
-describe("card: parada há e Responder (NOD-420)", () => {
-  it("'parada há' pelo relógio, em destaque além do prazo; tarefa andando sem prazo não mostra", () => {
-    expect(paradaHa(AGORA - 30_000, AGORA)).toBe("parada agora");
-    expect(paradaHa(AGORA - 5 * MIN, AGORA)).toBe("parada há 5 min");
-    expect(paradaHa(AGORA - 3 * 60 * MIN, AGORA)).toBe("parada há 3 h");
-    expect(paradaHa(AGORA - 50 * 60 * MIN, AGORA)).toBe("parada há 2 dias");
+describe("card: parado há e Responder (NOD-420)", () => {
+  it("'parado há' pelo relógio, em destaque além do prazo; tarefa andando sem prazo não mostra", () => {
+    expect(paradaHa(AGORA - 30_000, AGORA)).toBe("parado agora");
+    expect(paradaHa(AGORA - 5 * MIN, AGORA)).toBe("parado há 5 min");
+    expect(paradaHa(AGORA - 3 * 60 * MIN, AGORA)).toBe("parado há 3 h");
+    expect(paradaHa(AGORA - 50 * 60 * MIN, AGORA)).toBe("parado há 2 dias");
     const h = tela([
       t("1", { status: "revisao", naColunaDesde: AGORA - 3 * 60 * MIN }),
       t("2", { status: "revisao", naColunaDesde: AGORA - 10 * MIN }),
       t("3", { status: "fazendo", naColunaDesde: AGORA - 999 * MIN }),
     ]);
     // Revisão 4 do PR #624 (a11y): o relógio decorativo e o "passou do prazo" para quem não vê a cor.
-    expect(h).toMatch(/<span class="qd-quando qd-atrasada" title="Passou do prazo da coluna"><svg class="qd-ic qd-ic-prazo"[^>]*aria-hidden="true">.*?<\/svg>parada há 3 h<span class="qd-sr">, passou do prazo<\/span><\/span>/);
-    expect(h).toContain(`<span class="qd-quando">parada há 10 min</span>`);
-    expect(h).not.toContain("parada há 16 h");
+    expect(h).toMatch(/<span class="qd-quando qd-atrasada" title="Passou do prazo da coluna"><svg class="qd-ic qd-ic-prazo"[^>]*aria-hidden="true">.*?<\/svg>parado há 3 h<span class="qd-sr">, passou do prazo<\/span><\/span>/);
+    expect(h).toContain(`<span class="qd-quando">parado há 10 min</span>`);
+    expect(h).not.toContain("parado há 16 h");
     // O rótulo do botão do card (o que o leitor de tela lê ao focar) também diz.
     expect(h).toContain(`data-act="abrir-tarefa" data-id="1" aria-label="#1, Tarefa 1, ${PASSOU_DO_PRAZO}"`);
     const agente: Parameters<typeof cardDaTarefa>[1] = () => null;

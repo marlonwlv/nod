@@ -26,9 +26,11 @@ export type Mensagem = {
   raiz?: { turnoId: string; origem: OrigemTurno };
   trabalhoId?: string | null;
   fimDoTurno?: boolean;
+  /** Validação de 2026-11-16 (ADR-185): a fala parcial do turno que a PESSOA parou — quando ela apertou Parar. Ausente = não. */
+  paradaPelaPessoaEm?: number;
   bastidores?: boolean;
   turnoDesde?: number;
-  motivoRecomeco?: MotivoRecomeco;
+  motivoRecomeco?: MotivoRecomeco; idEnvio?: string;
   destino?: Destino;
   tarefa?: TarefaDaMensagem;
   checkpoint?: CheckpointDaFala;

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { pastaDoExecutor, pastaDoMotor } from "../../../motor/conexao.ts";
-import { comandoDeParear, comandoDeReinstalar, comandoParaAbrir, conferirGitForWindows, plataformaDoMotor, servidorAceitaPlataforma } from "../../../motor/windows.ts";
+import { atualizarPathNoWindows, comandoDeParear, comandoDeReinstalar, comandoParaAbrir, conferirGitForWindows, juntarPaths, plataformaDoMotor, servidorAceitaPlataforma } from "../../../motor/windows.ts";
 import { RESPOSTA_DO_AUTOTESTE, type Disco } from "../../../src/adapters/executor/plataforma.ts";
 
 /** ADA-11 (ADR-147): o motor no Windows, com a plataforma, o disco e o bash injetados. */
@@ -45,6 +45,34 @@ describe("Git for Windows obrigatório (ADR-147)", () => {
   it("o hook de verdade responde ao autoteste", () => {
     const saida = execFileSync(process.execPath, ["src/adapters/executor/hook-nativas.ts", "autoteste"], { encoding: "utf8", timeout: 20_000 });
     expect(saida.trim()).toBe(RESPOSTA_DO_AUTOTESTE);
+  });
+});
+
+describe("o Path do registro na Tarefa Agendada (instalação da rc.9 no Windows)", () => {
+  const GIT_DO_USUARIO = "C:\\Users\\a\\AppData\\Local\\Programs\\Git";
+  const discoGitDoUsuario = disco([`${GIT_DO_USUARIO}\\bin\\bash.exe`, `${GIT_DO_USUARIO}\\cmd\\git.exe`]);
+  const lerPaths = () => ({ maquina: "C:\\Windows\\system32;C:\\Windows", usuario: `${GIT_DO_USUARIO}\\cmd;C:\\Users\\a\\AppData\\Roaming\\npm` });
+
+  it("juntarPaths mantém a ordem e não repete pasta (maiúscula ou \\ no fim não contam)", () => {
+    expect(juntarPaths("C:\\a;C:\\B\\", "c:\\b;C:\\c", null, " ;C:\\A\\")).toBe("C:\\a;C:\\B\\;C:\\c");
+  });
+
+  it("a tarefa com o Path do login antigo ganha o Git e o npm que a instalação acabou de gravar", () => {
+    const env: Record<string, string | undefined> = { Path: "C:\\Windows\\system32;C:\\so-do-processo", LOCALAPPDATA: "C:\\Users\\a\\AppData\\Local", PATHEXT: ".EXE" };
+    const novas = atualizarPathNoWindows({ plataforma: "win32", env, disco: discoGitDoUsuario, lerPaths });
+    expect(env.Path).toBe(`C:\\Windows\\system32;C:\\Windows;${GIT_DO_USUARIO}\\cmd;C:\\Users\\a\\AppData\\Roaming\\npm;C:\\so-do-processo`);
+    expect(novas).toEqual(["C:\\Windows", `${GIT_DO_USUARIO}\\cmd`, "C:\\Users\\a\\AppData\\Roaming\\npm"]);
+    expect(conferirGitForWindows({ ...base, env, disco: discoGitDoUsuario, bash: () => ({ status: 0, stdout: RESPOSTA_DO_AUTOTESTE }) })).toBeNull();
+  });
+
+  it("sem ler o registro, o Git Bash da pasta padrão traz o cmd dele; fora do Windows não mexe em nada", () => {
+    const env: Record<string, string | undefined> = { PATH: "C:\\Windows\\system32", LOCALAPPDATA: "C:\\Users\\a\\AppData\\Local", PATHEXT: ".EXE" };
+    expect(atualizarPathNoWindows({ plataforma: "win32", env, disco: discoGitDoUsuario, lerPaths: () => ({ maquina: null, usuario: null }) })).toEqual([`${GIT_DO_USUARIO}\\cmd`]);
+    expect(env.PATH).toBe(`C:\\Windows\\system32;${GIT_DO_USUARIO}\\cmd`);
+    expect(Object.keys(env)).not.toContain("Path");
+    const linux: Record<string, string | undefined> = { PATH: "/usr/bin" };
+    expect(atualizarPathNoWindows({ plataforma: "linux", env: linux, lerPaths: () => { throw new Error("não lê"); } })).toEqual([]);
+    expect(linux.PATH).toBe("/usr/bin");
   });
 });
 

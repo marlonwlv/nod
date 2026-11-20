@@ -62,7 +62,19 @@ function texto(args: Args, campo: string, obrigatorio = false): string | undefin
 }
 
 const iso = (ms: number | null | undefined): string | null => (typeof ms === "number" && Number.isFinite(ms) ? new Date(ms).toISOString() : null);
-const corte = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+const segmentador = new Intl.Segmenter("pt-BR", { granularity: "grapheme" });
+
+/** Encurta a saída sem deixar substituto UTF-16, acento ou emoji composto pela metade. */
+function corte(s: string, n: number): string {
+  if (s.length <= n) return s;
+  let fim = 0;
+  for (const { index, segment } of segmentador.segment(s)) {
+    const proximoFim = index + segment.length;
+    if (proximoFim > n - 1) break;
+    fim = proximoFim;
+  }
+  return `${s.slice(0, fim)}…`;
+}
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 
 async function chamarOk(ctx: ContextoFerramenta, pedido: PedidoInterno): Promise<unknown> {

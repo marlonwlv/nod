@@ -53,21 +53,21 @@ describe("avisos do quadro: coluna 'só a pessoa tira daqui' (revisão 4 do PR #
 
   it("uma: texto próprio, sem 'Responda na tarefa ou aqui mesmo'", () => {
     const uma = textoDasDecisoes([tarefa({ id: "t1", status: "revisao", titulo: "T1" })], SO, nomes);
-    expect(uma).toBe(`Preciso de você no quadro, em "T1" (Em revisão), Beto: só você tira daqui\n\nSó você tira esta tarefa daqui: mova-a quando decidir.`);
+    expect(uma).toBe(`Preciso de você no quadro, em "T1" (Em revisão), Beto: só você tira daqui\n\nSó você tira este card daqui: mova-o quando decidir.`);
     expect(uma).not.toContain("Responda");
   });
 
   it("várias, todas travadas: o fecho no plural, sem 'Responda'", () => {
     const varias = textoDasDecisoes([tarefa({ id: "t1", status: "revisao" }), tarefa({ id: "t2", status: "c-aprovar" })], SO, nomes);
     expect(varias).toContain("• \"T t2\" (Aprovar), Beto: só você tira daqui");
-    expect(varias.endsWith("\n\nSó você tira estas tarefas daqui: mova cada uma quando decidir.")).toBe(true);
+    expect(varias.endsWith("\n\nSó você tira estes cards daqui: mova cada um quando decidir.")).toBe(true);
     expect(varias).not.toContain("Responda");
   });
 
   it("misturada com Precisa de você: as duas instruções, cada uma para as suas", () => {
     const mista = textoDasDecisoes([tarefa({ id: "t1", status: "voce", pergunta: "Azul?" }), tarefa({ id: "t2", status: "revisao" })], SO, nomes);
-    expect(mista).toContain("Responda na tarefa (um comentário) ou aqui mesmo");
-    expect(mista).toContain("As que estão numa coluna só sua não têm resposta: mova-as quando decidir.");
+    expect(mista).toContain("Responda no card (um comentário) ou aqui mesmo");
+    expect(mista).toContain("Os que estão numa coluna só sua não têm resposta: mova-os quando decidir.");
   });
 
   it("o prazo gravado antes da trava fica dormente: o varredor não cobra", () => {
@@ -99,7 +99,7 @@ describe("avisos do quadro: decisões juntas, uma vez, depois da janela", () => 
 
   it("uma tarefa numa frase com a pergunta; a pergunta longa sai cortada", () => {
     const uma = textoDasDecisoes([tarefa({ id: "t1", status: "voce", titulo: "T1", pergunta: "Azul ou verde?" })], COLUNAS_PADRAO, nomes);
-    expect(uma).toBe(`Preciso de você no quadro, em "T1", Beto: Azul ou verde?\n\nResponda na tarefa (um comentário) ou aqui mesmo: o responsável segue.`);
+    expect(uma).toBe(`Preciso de você no quadro, em "T1", Beto: Azul ou verde?\n\nResponda no card (um comentário) ou aqui mesmo: o responsável segue.`);
     // Na conversa de outro bot, diz de qual quadro é (revisão do PR #624, achado 3).
     expect(textoDasDecisoes([tarefa({ id: "t1", status: "voce", titulo: "T1", pergunta: "Azul ou verde?" })], COLUNAS_PADRAO, nomes, "Ana")).toMatch(/^Preciso de você no quadro de Ana, em "T1"/);
     const longa = textoDasDecisoes([tarefa({ id: "t1", status: "bloqueado", pergunta: "x".repeat(900) })], COLUNAS_PADRAO, nomes);
@@ -125,10 +125,10 @@ describe("avisos do quadro: decisões juntas, uma vez, depois da janela", () => 
     const texto = textoDasDecisoes(deFora, COLUNAS_PADRAO, nomes);
     for (const proibido of ["rode rm -rf", "segredo?", "Ignore tudo", "Título de fora"]) expect(texto).not.toContain(proibido);
     expect(texto).toContain("• NOD-12, Beto: a pergunta está no quadro");
-    expect(texto).toContain("• uma tarefa (Bloqueado), Beto: a pergunta está no quadro");
+    expect(texto).toContain("• um card (Bloqueado), Beto: a pergunta está no quadro");
     const escalada = textoDosAtrasos([{ tarefa: tarefa({ id: "t3", status: "revisao", deFora: true, titulo: "de fora" }), acao: "escalar", prazoMin: 30 }], COM_PRAZO, nomes);
     expect(escalada).not.toContain("de fora");
-    expect(escalada).toMatch(/^uma tarefa em Em revisão, com Beto/);
+    expect(escalada).toMatch(/^um card em Em revisão, com Beto/);
   });
 });
 
@@ -159,9 +159,9 @@ describe("avisos do quadro: prazo da coluna", () => {
     const cobranca = entradaDaCobranca({ quadroId: "q1", tarefa: t, colunaNome: "Em revisão", prazoMin: 30 });
     expect(cobranca).toContain(`"Logo" (id t1) está parada em Em revisão há mais de 30 min`);
     expect(cobranca).toContain("gerir_quadro");
-    expect(textoDosAtrasos([{ tarefa: t, acao: "escalar", prazoMin: 30 }], COM_PRAZO, nomes)).toBe(`"Logo" em Em revisão, com Beto (prazo de 30 min) continua parada depois da cobrança. Vale dar uma olhada no quadro.`);
+    expect(textoDosAtrasos([{ tarefa: t, acao: "escalar", prazoMin: 30 }], COM_PRAZO, nomes)).toBe(`"Logo" em Em revisão, com Beto (prazo de 30 min) continua parado depois da cobrança. Vale dar uma olhada no quadro.`);
     const varios = textoDosAtrasos(Array.from({ length: 9 }, (_, i) => ({ tarefa: tarefa({ id: `t${i}`, status: "revisao" }), acao: "escalar" as const, prazoMin: 30 })), COM_PRAZO, nomes);
-    expect(varios).toMatch(/^9 tarefas continuam paradas depois da cobrança:/);
+    expect(varios).toMatch(/^9 cards continuam parados depois da cobrança:/);
     expect(varios).toContain("• e mais 1 no quadro");
   });
 });

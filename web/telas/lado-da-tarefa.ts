@@ -13,7 +13,7 @@ import type { AgenteDoQuadro } from "./quadro-real.ts";
 import { anel } from "./quadro.ts";
 
 const vivo = (r: RunDaTarefa): boolean => r.estado === "fila" || r.estado === "rodando";
-const quem = (r: RunDaTarefa, agente: AgenteDoQuadro) => agente(r.agenteId) ?? { avatar: anel((r.agenteNome ?? "?").slice(0, 1), r.agenteNome ?? "Bot", false), nome: r.agenteNome ?? "Bot" };
+const quem = (r: RunDaTarefa, agente: AgenteDoQuadro): NonNullable<ReturnType<AgenteDoQuadro>> => agente(r.agenteId) ?? { avatar: anel((r.agenteNome ?? "?").slice(0, 1), r.agenteNome ?? "Bot", false), nome: r.agenteNome ?? "Bot" };
 const NOME_DO_ESTADO: Readonly<Record<RunDaTarefa["estado"], string>> = { fila: "na fila", rodando: "trabalhando", concluido: "concluído", falhou: "falhou", cancelado: "cancelado" };
 
 /** O rótulo do run: o da fonte única enquanto vive; o nome do fim depois. */
@@ -35,7 +35,8 @@ export function chipTrabalhando(runs: readonly RunDaTarefa[], agente: AgenteDoQu
   const trabalhando = vivos.some((r) => situacaoDoRun(r) === "trabalhando");
   const so = (s: string) => vivos.every((r) => situacaoDoRun(r) === s);
   const estado = trabalhando ? "trabalhando" : so("fila") ? "na fila" : so("esperando") ? "esperando" : "ativo";
-  const pilha = pessoas.slice(0, 3).map((p) => `<span class="ta-pilha-av">${p.avatar}</span>`).join("");
+  // Rodada 4 (tela 18b do Paper): o mascote em órbita (o estado "trabalhando") quando há, não o de repouso.
+  const pilha = pessoas.slice(0, 3).map((p) => `<span class="ta-pilha-av">${trabalhando ? p.trabalhando ?? p.avatar : p.avatar}</span>`).join("");
   const frase = pessoas.length === 1 ? `${pessoas[0]!.nome} está ${estado}` : `${pessoas.length} agentes ${trabalhando ? "trabalhando" : "ativos"}`;
   const linhas = vivos.map((r) => {
     const p = quem(r, agente);
@@ -81,7 +82,7 @@ function linhaDoRun(r: RunDaTarefa, agente: AgenteDoQuadro, agora: number, motiv
   const rot = r.motivoFila === undefined && motivoFila ? rotuloDoRun(r, motivoFila) : rotuloCompletoDoRun(r, agora);
   const gat = gatilhoDoRun(r, comentarios);
   const bts = acoes ? `<span class="ta-reg-ac">${vivo(r) ? `<button type="button" class="qd-link" data-act="run-parar" data-turno="${esc(r.turnoId)}">Parar</button>` : `<button type="button" class="qd-link" data-act="run-repetir" data-turno="${esc(r.turnoId)}">Repetir</button>`}</span>` : "";
-  return `<li class="ta-reg" data-estado="${r.estado}"${titulo}><span class="ta-reg-av" aria-hidden="true">${p.avatar}</span><span class="ta-reg-txt"><span class="ta-reg-nome">${esc(p.nome)}</span>` +
+  return `<li class="ta-reg" data-estado="${r.estado}"${titulo}><span class="ta-reg-av" aria-hidden="true">${r.estado === "rodando" ? p.trabalhando ?? p.avatar : p.avatar}</span><span class="ta-reg-txt"><span class="ta-reg-nome">${esc(p.nome)}</span>` +
     `<span class="ta-reg-meta">${[esc(rot), t, esc(g)].filter(Boolean).join(" · ")}</span>${gat ? `<span class="ta-reg-gat">${esc(gat)}</span>` : ""}</span>` +
     `<time class="ta-reg-hora" datetime="${new Date(r.criadoEm).toISOString()}">${esc(tempoRelativo(r.criadoEm, agora))}</time>${bts}</li>`;
 }
@@ -98,8 +99,7 @@ export function registroDeExecucao(o: { runs: readonly RunDaTarefa[]; agente: Ag
   const lista = vivos.length || recentes.length
     ? `<ul class="ta-regs">${[...vivos, ...recentes].map((r, i) => linhaDoRun(r, o.agente, o.agora, o.motivoFila ?? null, o.comentarios ?? [], vivo(r) || i === vivos.length)).join("")}</ul>` : `<p class="qd-lado-vazio">Nenhum run ainda</p>`;
   const nota = semCusto ? `<p class="ta-lado-nota">Sem custo registrado nestes runs: só a duração.</p>` : "";
-  const botao = o.runs.length ? `<button type="button" class="qd-link ta-lado-mais" data-act="runs-abrir">Runs no tempo</button>` : "";
-  return secao("Registro de execução", "reg", o.aberto, `${lista}${nota}${botao}${o.trabalho ? `<div class="ta-reg-trab">${o.trabalho}</div>` : ""}`, o.runs.filter(vivo).length || null);
+  return secao("Registro de execução", "reg", o.aberto, `${lista}${nota}${o.trabalho ? `<div class="ta-reg-trab">${o.trabalho}</div>` : ""}`, o.runs.length || null);
 }
 
 /** As Entregas: os links que os comentários do agente entregaram, os mais novos; "ver todos" abre o resto. */
@@ -109,14 +109,14 @@ export function entregas(o: { comentarios: readonly ComentarioDto[]; todas: bool
   const corpo = lista.length
     ? `<ul class="ta-ents">${vis.map((e) => `<li><a class="qd-link" href="${esc(e.url)}" target="_blank" rel="noopener noreferrer" title="${esc(e.url)}">${esc(e.rotulo)}</a>${e.autor ? `<span class="ta-ent-de"> · ${esc(e.autor)}</span>` : ""}</li>`).join("")}</ul>` +
       (lista.length > 4 ? `<button type="button" class="qd-link ta-lado-mais" data-act="entregas-todas" aria-expanded="${o.todas}">${o.todas ? "ver menos" : `ver todos (${lista.length})`}</button>` : "")
-    : `<p class="qd-lado-vazio">Nada entregue ainda</p>`;
+    : `<p class="qd-lado-vazio">Nada entregue ainda.</p>`;
   return secao("Entregas", "ent", o.aberto, corpo, lista.length || null);
 }
 
 /** Uma seção recolhível da lateral (o estado de cada uma fica na tela, por chave). */
 export function secao(titulo: string, chave: string, aberto: boolean, corpo: string, n: number | null = null): string {
   return `<section class="qd-lado-sec ta-lado-sec" data-sec="${esc(chave)}"><h2 class="qd-rotulo"><button type="button" class="ta-sec-tg" data-act="lado-sec" data-sec="${esc(chave)}" aria-expanded="${aberto}">` +
-    `<span class="ta-sec-seta" aria-hidden="true">${aberto ? "▾" : "▸"}</span>${esc(titulo)}${n ? ` <span class="qd-n">${n}</span>` : ""}</button></h2>${aberto ? corpo : ""}</section>`;
+    `<svg class="ta-sec-seta${aberto ? "" : " ta-sec-fechada"}" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>${esc(titulo)}${n ? ` <span class="qd-n">${n}</span>` : ""}</button></h2>${aberto ? corpo : ""}</section>`;
 }
 
 /** O diálogo "Runs no tempo": uma barra por run na janela do primeiro ao último (ou agora) e a lista embaixo. */

@@ -62,7 +62,7 @@ export function quadroQueAbre(d: QuadrosDoBotDto | null, pedido: string | null):
 const CHEVRON = '<svg class="qd-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>';
 
 function itemDoQuadro(q: QuadroDoBotDto, atual: string | null): string {
-  const n = q.meta ? `${q.feitas} de ${q.total}` : q.abertas === 1 ? "1 aberta" : `${q.abertas} abertas`;
+  const n = q.meta ? `${q.feitas} de ${q.total}` : q.abertas === 1 ? "1 aberto" : `${q.abertas} abertos`;
   const outros = q.bots.filter((b) => !b.dono).length;
   return `<li><button type="button" class="qd-qs-it" data-act="quadro-escolher" data-id="${esc(q.id)}"${q.id === atual ? ' aria-current="true"' : ""}>` +
     `<span class="qd-qs-nome">${esc(q.nome)}</span>` +

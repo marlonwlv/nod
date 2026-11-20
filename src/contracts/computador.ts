@@ -32,6 +32,7 @@ export type Computador = {
   indisponivelDesde: EpochMs | null;
 };
 export type AcaoComputador =
+  | ({ tipo: "elementos" } & import("./navegador.ts").PedidoNavegador)
   /** `forcar` (NOD-161): devolve imagem e texto mesmo se iguais à última entrega; não vai ao runtime. */
   | { tipo: "observar"; forcar?: boolean }
   | { tipo: "navegar"; url: string }
@@ -64,7 +65,7 @@ export type TelaComputador = {
   senhaPreenchida?: { origem: string };
 };
 export type ArquivoComputador = { nome: string; caminho: string; tamanho: number; diretorio: boolean };
-export type ResultadoComputador = {
+export type ResultadoComputador = import("./navegador.ts").RespostaNavegador & {
   tela?: TelaComputador;
   arquivos?: ArquivoComputador[];
   arquivo?: { nome: string; base64: string };

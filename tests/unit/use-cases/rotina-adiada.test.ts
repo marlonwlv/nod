@@ -125,8 +125,8 @@ describe("rotina adiada (NOD-243)", () => {
 describe("aviso da adiada (revisão do Gil no #335, A2)", () => {
   it("diz por que, com \"terminar\" como a lista", () => {
     expect(textoAvisoAdiada({ motivo: "execucao_anterior_aberta" })).toBe(`Esta rotina não rodou nas últimas ${ADIADAS_PARA_AVISAR} janelas porque a execução anterior ainda não terminou. Ela volta a rodar sozinha quando essa execução terminar.`);
-    expect(textoAvisoAdiada({ motivo: "frente_aberta", titulo: "Revisar PRs" })).toBe(`Esta rotina não rodou nas últimas ${ADIADAS_PARA_AVISAR} janelas porque a frente “Revisar PRs” ainda não terminou. Ela volta a rodar sozinha quando a frente terminar.`);
-    expect(textoAvisoAdiada({ motivo: "frente_aberta" })).toContain("porque uma frente desta rotina ainda não terminou.");
+    expect(textoAvisoAdiada({ motivo: "frente_aberta", titulo: "Revisar PRs" })).toBe(`Esta rotina não rodou nas últimas ${ADIADAS_PARA_AVISAR} janelas porque a tarefa “Revisar PRs” ainda não terminou. Ela volta a rodar sozinha quando a tarefa terminar.`);
+    expect(textoAvisoAdiada({ motivo: "frente_aberta" })).toContain("porque uma tarefa desta rotina ainda não terminou.");
   });
 });
 

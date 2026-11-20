@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "versao": "paper-v2",
+  "fonte": "paper",
+  "breakpoints": [
+    {
+      "largura": 1440,
+      "altura": 900
+    },
+    {
+      "largura": 1024,
+      "altura": 768
+    },
+    {
+      "largura": 390,
+      "altura": 844
+    }
+  ],
+  "arquivos": [
+    {
+      "caminho": "tema/home.html",
+      "sha256": "55747f0ababf478ba985c8bc5f1f0d121055ff119409bede21da7f7b6dd9eb12"
+    },
+    {
+      "caminho": "tema/openbox.xml",
+      "sha256": "2250b368f76fff58fe03d9a6bb50083948c33daa56d159b8c6b8e6b2374933e2"
+    },
+    {
+      "caminho": "tema/tint2rc",
+      "sha256": "d25e5a85761a56443752842599fc619ba9816b20b7184fac0d3065e339f84487"
+    },
+    {
+      "caminho": "tema/wallpaper-nod.svg",
+      "sha256": "bc830abbdd401732ab331577fd8958689ad506078fd1178c8bf7718fdf3b26ce"
+    },
+    {
+      "caminho": "apps/browser.svg",
+      "sha256": "b521c902999dd4777267d403b3358fdf4d87d8c45537481e4a329c12baed2e4e"
+    },
+    {
+      "caminho": "apps/files.svg",
+      "sha256": "1f5553581a4cca8b3fb9c770716b427c0c730d011626591feee591015972e5a0"
+    },
+    {
+      "caminho": "apps/terminal.svg",
+      "sha256": "8f5536cda1b5c9bdf85cfa25b96634b60e298da35546a826b49d36f55dba5d02"
+    },
+    {
+      "caminho": "referencias/shell-config.json",
+      "sha256": "a353b301e36b665d16cbfd5f0669711556e4e5f8717400108f5276e5e79809d4"
+    },
+    {
+      "caminho": "referencias/tokens.json",
+      "sha256": "b3c41fd12428d6a5632b6533ee09bdd7a769d885bf1556eeedeabfb1c23bfaa9"
+    }
+  ],
+  "papeis": {
+    "home": "tema/home.html",
+    "openbox": "tema/openbox.xml",
+    "tint2": "tema/tint2rc",
+    "wallpaper": "tema/wallpaper-nod.svg"
+  },
+  "apps": {
+    "browser": "apps/browser.svg",
+    "files": "apps/files.svg",
+    "terminal": "apps/terminal.svg"
+  }
+}

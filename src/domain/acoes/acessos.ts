@@ -74,6 +74,7 @@ export const ACOES_ACESSOS = [
   { id: "apps.desabilitar", titulo: "Desligar um app", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-394" } },
   { id: "apps.conectar", titulo: "Conectar um app do Marketplace", risco: "muda", cartaoNoChat: true, chat: { estado: "falta", onda: "NOD-394" } },
   { id: "apps.verificar", titulo: "Verificar a conexão de um app do Marketplace", risco: "leitura", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-394" } },
+  { id: "apps.conectar_com_chave", titulo: "Conectar um app com a chave de API da pessoa", risco: "pessoa_confirma", cartaoNoChat: false, chat: { estado: "nunca", motivo: SEGREDO } },
   { id: "apps.credenciais", titulo: "Guardar as credenciais de um app", risco: "pessoa_confirma", cartaoNoChat: false, chat: { estado: "nunca", motivo: SEGREDO } },
   { id: "apps.configurar_marketplace", titulo: "Guardar a chave do Marketplace", risco: "pessoa_confirma", cartaoNoChat: false, chat: { estado: "nunca", motivo: SEGREDO } },
   { id: "apps.github_token", titulo: "Conectar o GitHub por token", risco: "pessoa_confirma", cartaoNoChat: false, chat: { estado: "nunca", motivo: SEGREDO } },

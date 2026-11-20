@@ -50,6 +50,19 @@ export function propostasRepo(conn: Conn, escopo: Escopo) {
       return l ? paraProposta(l) : null;
     },
 
+    /**
+     * O Cofre (Paper 07, rodada 2): as credenciais que a pessoa guardou pelo cartão (proposta `credencial` confirmada), com a
+     * hora da decisão. Só o alvo, a chave (o NOME) e o app do payload — o valor nunca foi gravado aqui.
+     */
+    async credenciaisGuardadas(): Promise<{ alvo: string; chave: string | null; app: string; guardadaEm: number }[]> {
+      const linhas = await conn<{ alvo: string; chave: string | null; app: string; em: Date }[]>`
+        select p.payload->>'alvo' as alvo, p.payload->>'chave' as chave, coalesce(p.payload->>'app', '') as app, coalesce(d.decidida_em, p.criado_em) as em
+        from propostas p left join decisoes d on d.tenant_id = p.tenant_id and d.id = p.id
+        where p.tenant_id = ${escopo.tenantId} and p.owner_id = ${escopo.pessoaId} and p.kind = 'credencial' and p.estado = 'confirmada'
+        order by em desc, p.id`;
+      return linhas.map((l) => ({ alvo: l.alvo, chave: l.chave, app: l.app, guardadaEm: ms(l.em) }));
+    },
+
     async buscar(id: string): Promise<Proposta | null> {
       const [l] = await conn<Linha[]>`select ${conn.unsafe(COLUNAS)} from propostas where tenant_id = ${escopo.tenantId} and id = ${id}`;
       return l ? paraProposta(l) : null;

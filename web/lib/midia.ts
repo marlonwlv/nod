@@ -68,10 +68,21 @@ export function duracaoHumana(ms: number | undefined): string | null {
 const proporcao = (a: AnexoDaConversa, padrao: number): number => (a.largura && a.altura ? a.largura / a.altura : padrao);
 const num = (n: number): string => String(Math.round(n * 1000) / 1000);
 
-/** A imagem única cabe em 400 × 400 na proporção real (o tamanho vem do arquivo), nunca recortada. */
+/** A imagem única cabe em 400 × 400 na proporção real (o tamanho vem do arquivo), nunca recortada. O GIF segue assim. */
 function larguraUnica(a: AnexoDaConversa): number {
   const ar = proporcao(a, 4 / 3);
   const caixa = Math.min(400, 400 * ar);
+  return Math.round(Math.min(a.largura ?? caixa, caixa));
+}
+
+/**
+ * D · Computador do bot (item 8): a imagem única do bot (o print da tela dele) num balão próprio com o lado maior de 307 px
+ * (16:10 → 307 × 192), na proporção real e nunca maior que o arquivo. Sem tamanho conhecido, 16:10.
+ */
+export const LADO_DO_PRINT = 307;
+export function larguraDoPrint(a: Pick<AnexoDaConversa, "largura" | "altura">): number {
+  const ar = a.largura && a.altura ? a.largura / a.altura : 16 / 10;
+  const caixa = ar >= 1 ? LADO_DO_PRINT : LADO_DO_PRINT * ar;
   return Math.round(Math.min(a.largura ?? caixa, caixa));
 }
 
@@ -100,7 +111,8 @@ function galeria(itens: { a: AnexoDaConversa; i: number }[], o: OpcoesMidia): st
   if (itens.length === 1) {
     const { a, i } = itens[0]!;
     if (familiaWeb(a.mime) === "gif") return gif(a, o, i, "");
-    return `<figure class="msg-midia-img" style="--w:${larguraUnica(a)}px;--ar:${num(proporcao(a, 4 / 3))}">${botaoImagem(a, o, i, "msg-midia-bt")}</figure>`;
+    // Item 8: enquanto não decodifica, o skeleton com a faixa diagonal (web/computador-conversa.css), sem o giro.
+    return `<figure class="msg-midia-img msg-midia-print" style="--w:${larguraDoPrint(a)}px;--ar:${num(proporcao(a, 16 / 10))}">${botaoImagem(a, o, i, "msg-midia-bt")}</figure>`;
   }
   const ars = itens.map(({ a }) => proporcao(a, 1));
   const mesma = ars.every((r) => Math.abs(r - ars[0]!) / ars[0]! < 0.02);

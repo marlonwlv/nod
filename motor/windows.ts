@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { win32 } from "node:path";
 import { invocarDoHook } from "../src/adapters/executor/drivers/claude-cli.ts";
-import { acharGitBash, ehWindows, RESPOSTA_DO_AUTOTESTE, resolverBinario, type Disco } from "../src/adapters/executor/plataforma.ts";
+import { acharGitBash, ehWindows, powershellDoSistema, RESPOSTA_DO_AUTOTESTE, resolverBinario, variavel, type Disco } from "../src/adapters/executor/plataforma.ts";
 
 /**
  * ADA-11 (ADR-147): o que o motor muda quando roda no Windows nativo. A plataforma vai de verdade no anúncio e no
@@ -52,6 +53,67 @@ export function conferirGitForWindows(o: { plataforma?: NodeJS.Platform; env?: R
   const script = `${invocarDoHook({ nodePath: o.nodePath, hookPath: o.hookPath, windows: true })} autoteste`;
   const r = (o.bash ?? bashDeVerdade)(bash, script);
   return r.status === 0 && r.stdout.trim() === RESPOSTA_DO_AUTOTESTE ? null : "hook_nao_roda";
+}
+
+/** O Path da máquina e o do usuário como estão no registro agora (já expandidos); null no que não deu para ler. */
+export type PathsDoRegistro = { maquina: string | null; usuario: string | null };
+
+/**
+ * Lê os dois Paths pelo .NET (o `GetValue` expande o REG_EXPAND_SZ) e devolve em JSON UTF-8: o `reg query` sai na
+ * página OEM e estragaria uma pasta com acento (C:\Users\João).
+ */
+const lerPathsDeVerdade = (env: Readonly<Record<string, string | undefined>>): PathsDoRegistro => {
+  const script = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; ConvertTo-Json -Compress @{ maquina = [Environment]::GetEnvironmentVariable('Path', 'Machine'); usuario = [Environment]::GetEnvironmentVariable('Path', 'User') }";
+  const r = spawnSync(powershellDoSistema(env), ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8", timeout: 20_000, windowsHide: true });
+  try {
+    const lido = JSON.parse(String(r.stdout ?? "").replace(/^\uFEFF/, "").trim()) as { maquina?: unknown; usuario?: unknown };
+    return { maquina: typeof lido.maquina === "string" ? lido.maquina : null, usuario: typeof lido.usuario === "string" ? lido.usuario : null };
+  } catch {
+    return { maquina: null, usuario: null };
+  }
+};
+
+/** Uma pasta do Path como o Windows a compara: sem maiúscula e sem a `\` do fim. */
+const chaveDaPasta = (pasta: string) => pasta.trim().replace(/\\+$/, "").toLowerCase();
+
+/** Junta as listas de pastas na ordem dada, sem repetir (sem diferenciar maiúscula nem a `\` do fim). Puro. */
+export function juntarPaths(...listas: (string | null | undefined)[]): string {
+  const vistas = new Set<string>();
+  const saida: string[] = [];
+  for (const lista of listas) {
+    for (const bruta of (lista ?? "").split(";")) {
+      const pasta = bruta.trim();
+      const chave = chaveDaPasta(pasta);
+      if (!chave || vistas.has(chave)) continue;
+      vistas.add(chave);
+      saida.push(pasta);
+    }
+  }
+  return saida.join(";");
+}
+
+/**
+ * No Windows, o Path do motor vem do registro de agora. A Tarefa Agendada sobe o motor com o ambiente que o serviço do
+ * Agendador guardou no login: o Git, o Node e as IAs que o instalador acabou de pôr no Path do usuário só apareceriam
+ * no próximo login, e o motor sairia com 3 (`sem_git`) logo depois da instalação. A ordem é a do Windows (máquina;
+ * usuário); o que só o processo tinha fica no fim. Se ainda faltar o `git.exe` com o Git Bash achado na pasta padrão,
+ * entra a `…\Git\cmd` dele. Muda o `env` (o `process.env` do motor) e devolve as pastas que entraram.
+ */
+export function atualizarPathNoWindows(o: { plataforma?: NodeJS.Platform; env?: Record<string, string | undefined>; disco?: Disco; lerPaths?: () => PathsDoRegistro } = {}): string[] {
+  if (!ehWindows(o.plataforma ?? process.platform)) return [];
+  const env = o.env ?? process.env;
+  const nome = Object.keys(env).find((k) => k.toUpperCase() === "PATH") ?? "Path";
+  const antes = variavel(env, "PATH", "win32") ?? "";
+  const { maquina, usuario } = (o.lerPaths ?? (() => lerPathsDeVerdade(env)))();
+  let novo = juntarPaths(maquina, usuario, antes);
+  const disco = o.disco ? { disco: o.disco } : {};
+  if (!resolverBinario("git", { env: { ...env, [nome]: novo }, plataforma: "win32", soExe: true, ...disco })) {
+    const bash = acharGitBash({ env: { ...env, [nome]: novo }, ...disco });
+    if (bash) novo = juntarPaths(novo, win32.join(win32.dirname(win32.dirname(bash)), "cmd"));
+  }
+  env[nome] = novo;
+  const tinha = new Set(antes.split(";").map(chaveDaPasta));
+  return novo.split(";").filter((p) => !tinha.has(chaveDaPasta(p)));
 }
 
 /**

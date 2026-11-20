@@ -10,8 +10,8 @@ servidor discar).
 Com a pessoa no controle, a tela cheia mostrava uma captura (scrot → PNG → base64) a cada 2 s, e cada clique, tecla ou
 rolagem virava uma ação: transação com trava, registro, reserva, fila da máquina (long-poll de 250 ms), socket, IPC,
 xdotool e uma captura de volta — seis saltos por quadro. A ADR-037 exclui streaming de propósito. No primeiro ensaio
-real no Mac (29/10/2026) o Marlon tentou rolar uma página e desistiu: "impossível usar". A referência de produto (Grok
-Bot) mostra o desktop inteiro ao vivo, com "Take control", e a pessoa usa como um computador remoto.
+real no Mac (29/10/2026) o Marlon tentou rolar uma página e desistiu: "impossível usar". A referência de produto
+mostra o desktop inteiro ao vivo, com "Take control", e a pessoa usa como um computador remoto.
 
 ## Decisão
 

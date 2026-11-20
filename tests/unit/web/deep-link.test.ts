@@ -231,9 +231,9 @@ describe("leituraConta (revisão, 3ª rodada)", () => {
     expect(leituraConta("frota", { erroDeRede: false })).toBeNull();
   });
 
-  it("no web/main, a falha das salas conta só depois do `break` da rede", () => {
+  it("no web/main, a falha das salas conta só depois do `return` da rede (leituras em voo, ADR-181)", () => {
     const main = readFileSync(new URL("../../../web/main.ts", import.meta.url), "utf8");
-    expect(main).toMatch(/break;\n\s*\}\n[\s\S]{0,400}?leituraConta\(q, \{ erroDeRede: false \}\);\n\s*if \(lida\) lerParaDeepLink\(lida\);/);
+    expect(main).toMatch(/return;\n\s*\}\n[\s\S]{0,400}?leituraConta\(q, \{ erroDeRede: false \}\);\n\s*if \(lida\) lerParaDeepLink\(lida\);/);
     expect(main).toContain("const lida = acao ? leituraConta(q, { acao: acao.tipo }) : null;");
   });
 });

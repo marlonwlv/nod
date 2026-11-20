@@ -176,7 +176,8 @@ const TETO_ARGUMENTOS_MCP = 2_000;
 function textoDoMcp(ferramenta: string, entrada: Record<string, unknown>): string {
   const [, servidor = "", ...resto] = ferramenta.split("__");
   const argumentos = JSON.stringify(entrada);
-  return `${servidor}: ${resto.join("__")} ${argumentos.length > TETO_ARGUMENTOS_MCP ? `${argumentos.slice(0, TETO_ARGUMENTOS_MCP)}…` : argumentos}`;
+  const pontos = Array.from(argumentos);
+  return `${servidor}: ${resto.join("__")} ${pontos.length > TETO_ARGUMENTOS_MCP ? `${pontos.slice(0, TETO_ARGUMENTOS_MCP).join("")}…` : argumentos}`;
 }
 
 /**
