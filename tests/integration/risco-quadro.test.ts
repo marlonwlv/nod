@@ -43,7 +43,7 @@ describeIntegracao("risco de prazo do quadro (NOD-415)", () => {
       const r = await m.lote({ ops: [{ tipo: "mudar_tarefa", tarefa: "Copy", descricao: "rascunho" }] });
       expect(r.events?.find((e) => e.kind === "mensagem_criada")?.dados).toMatchObject({ aviso: true });
       expect(await m.avisos()).toMatchObject([
-        { texto: expect.stringMatching(/^O quadro "Lançar" está em risco: 0 de 2 tarefas feitas e falta menos de 1 dia para o prazo \(.+\)\. Para caber, dá para cortar o que ainda não começou: "Copy", "Tela"\.$/), confianca: "nao_confiavel", autoria: { autor_tipo: "agente", autor_id: m.ana.agenteId } },
+        { texto: expect.stringMatching(/^O quadro "Lançar" está em risco: 0 de 2 cards feitos e falta menos de 1 dia para o prazo \(.+\)\. Para caber, dá para cortar o que ainda não começou: "Copy", "Tela"\.$/), confianca: "nao_confiavel", autoria: { autor_tipo: "agente", autor_id: m.ana.agenteId } },
       ]);
       const [telemetria] = await trx<{ dados: Record<string, unknown> }[]>`select dados from events where kind = 'quadro_avisou'`;
       expect(telemetria?.dados).toMatchObject({ quadro_id: expect.any(String), tipo: "risco", tarefas: 2, mensagem_id: (await m.avisos())[0]!.id });
@@ -100,7 +100,7 @@ describeIntegracao("risco de prazo do quadro (NOD-415)", () => {
       expect((await varrerRiscosDosQuadros(m.deps)).avisos).toBe(1);
       const [aviso] = await m.avisos();
       expect(aviso?.texto).not.toContain("IGNORE");
-      expect(aviso?.texto).toContain("0 de 3 tarefas feitas");
+      expect(aviso?.texto).toContain("0 de 3 cards feitos");
       expect(aviso?.texto).toMatch(/"Copy", "Tela" e mais 1/);
     });
   });
@@ -114,7 +114,7 @@ describeIntegracao("risco de prazo do quadro (NOD-415)", () => {
       expect(r.data).toMatchObject({ ok: true, quadro: { meta: "Lançar", cumpridoEm: null } });
       m.relogio.agora = EM_RISCO;
       expect((await varrerRiscosDosQuadros(m.deps)).avisos).toBe(1);
-      expect((await m.avisos())[0]?.texto).toContain("0 de 1 tarefa");
+      expect((await m.avisos())[0]?.texto).toContain("0 de 1 card");
     });
   });
 
@@ -127,7 +127,7 @@ describeIntegracao("risco de prazo do quadro (NOD-415)", () => {
       // 1 de 3 feitas (a de "Entregue"), e a de "Ideias" entra no corte como não iniciada.
       m.relogio.agora = EM_RISCO;
       expect((await varrerRiscosDosQuadros(m.deps)).avisos).toBe(1);
-      expect((await m.avisos())[0]?.texto).toMatch(/1 de 3 tarefas feitas.*"Copy", "Tela"/);
+      expect((await m.avisos())[0]?.texto).toMatch(/1 de 3 cards feitos.*"Copy", "Tela"/);
     });
   });
 

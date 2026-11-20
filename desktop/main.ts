@@ -1,5 +1,5 @@
 import { criarCodexCliDriver } from "../src/adapters/executor/drivers/codex-cli.ts";
-import { app, autoUpdater, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Notification, powerMonitor, powerSaveBlocker, safeStorage, screen, session, shell, systemPreferences, type IpcMainInvokeEvent } from "electron";
+import { app, autoUpdater, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, powerSaveBlocker, safeStorage, screen, session, shell, systemPreferences, type IpcMainInvokeEvent } from "electron";
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { createWriteStream, existsSync } from "node:fs";
@@ -51,7 +51,7 @@ import { cabeAprovacao, criarElevador, depsReaisDoElevador } from "./elevar-mac.
 import { ambienteDoBinarioDoNod, ativarPrefixo, candidatosDoNod, descartarPrefixo, escolherBinario, nomeDaVersao, pastasFerramentas, prefixoAtivo, prepararPrefixoNovo, type Candidato } from "./ferramentas.ts";
 import { criarVigiaDasIas, type Veredito, type VigiaDasIas } from "./vigia-ias.ts";
 import { criarFilaDeepLink, criarLogAdiado, criarReceptorDeepLink, deepLinkDoArgv } from "./deep-link.ts";
-import type { BarraDesktop, DecisoesBarraDesktop } from "../src/contracts/desktop-barra.ts";
+import type { BarraGuardadaDesktop, DecisoesBarraDesktop } from "../src/contracts/desktop-barra.ts";
 import { barraDoPedido, criarFilaDeGravacao, decisoesComPedido, lerAviso, lerContador, lerDecisoesBarra, lerPreferencias, respostaSincrona, lerTemaDesktop, opcoesDoAviso, origemDe, remetenteWebValido } from "./avisos-mac.ts";
 import { abreNoNavegador } from "./links-externos.ts";
 import { arquivoDaMidia } from "./midia-mac.ts";
@@ -65,7 +65,8 @@ import { abrirPrimeiroUsoDaVm, focarJanela, LARGURA_MINIMA, lerEstadoJanela, med
 import { AJUSTES_DO_MICROFONE, estadoDoMicrofone, lerEmLigacao, permitirChecagemDeMidia, permitirPedidoDeMidia, TEXTO_FECHAR_EM_LIGACAO } from "./permissoes-midia.ts";
 import { CANAIS_MICROFONE } from "../src/contracts/desktop-microfone.ts";
 import type { EstadoMicrofone } from "../src/contracts/desktop.ts";
-import { criarDetectorGh, executarGithubNaMaquina } from "../src/adapters/conectores-locais/github/maquina.ts";
+import { criarDetectorGh } from "../src/adapters/conectores-locais/github/maquina.ts";
+import { executarConectorNaMaquina } from "../src/adapters/conectores-locais/maquina.ts";
 import { pedirProvisorio, segredoDeTroca, servidorOfereceProvisorio, trocarChaveDoApp, verificadorNovo, verificadorValido } from "./conta-provisoria.ts";
 import { FalhaPareamento, parearPeloNavegador } from "./parear.ts";
 import { criarGoogleNoApp } from "./google-conta.ts";
@@ -78,13 +79,30 @@ import { montarDiagnostico, nomeArquivoDiagnostico, TETO_REGISTROS_BYTES, type E
 import { definirDestinoDoLog, log } from "../src/obs/log.ts";
 import type { Inventario } from "../src/contracts/inventario.ts";
 import type { IdDriver } from "../src/adapters/executor/spi.ts";
+import { montarQuickChat, type QuickChatApp } from "./quick-chat-app.ts";
+import { ATALHO_PADRAO_QUICK_CHAT, lerAtalho } from "./quick-chat.ts";
+import { capturarNoMac } from "./captura-mac.ts";
+import { deveAtualizarOcioso, INTERVALO_OCIOSO_MS } from "./atualizar-ocioso.ts";
+import { atualizadoDe, decidirReinicio, estadoNaTela, lerPedidoReinicio, lerPrefsAtualizacao, livreParaReiniciar, type SinaisReinicio } from "./atualizacao-na-tela.ts";
+import { criarUpdaterSimulado, depsDaSimulacao, lerSimuladoPara, versaoSimulada } from "./atualizacao-simulada.ts";
+import { CANAIS_ATUALIZACAO, type AtualizacaoNaTela, type RespostaReinicio } from "../src/contracts/desktop-atualizacao.ts";
+import { dentroDeUmaTela, ehIdDeBot, lerAvatares, MAX_AVATARES, posicaoNova, TAMANHO_AVATAR, urlDoAvatar, type AvatarNaMesa } from "./avatar-mesa.ts";
+import { CANAIS_MAC } from "../src/contracts/desktop-mac.ts";
+import { caminhoFamiliasMac, carregarFamiliasMac, ehFamiliaMac } from "../src/adapters/conectores-locais/mac/familias.ts";
 
 /** ADR-069: o endereço do servidor vem no build (scripts/desktop/build.mjs, NOD_SERVIDOR_PADRAO); vazio = a pessoa informa. */
 declare const __NOD_SERVIDOR_PADRAO__: string;
 const SERVIDOR_PADRAO = typeof __NOD_SERVIDOR_PADRAO__ === "string" ? __NOD_SERVIDOR_PADRAO__ : "";
 
 /** `provisoria`: a conexão de um espaço provisório (NOD-345); só ela o "Sou da equipe" (NOD-406) pode desfazer. */
-type Config = { url: string; chave: string; provisoria?: true };
+type Config = { url: string; chave: string; provisoria?: true; pessoaId?: string };
+/**
+ * ADR-182 (2026-11-13): a partição da janela web é PERSISTENTE (`persist:`): o cache HTTP guarda o bundle (`/assets`,
+ * público e imutável, ~1,5 MB) entre aberturas do app, em vez de baixá-lo de novo a cada uma; o IndexedDB da web (a
+ * réplica das conversas e o journal de envio do chat) sobrevive também. O que é da pessoa (cookie da sessão, storage)
+ * continua sendo apagado quando a pessoa ou o servidor muda (clearStorageData em `conectar`).
+ */
+const PARTICAO_WEB = "persist:nod-web";
 const dir = dirname(fileURLToPath(import.meta.url));
 const setup = join(dir, "setup.html");
 const setupUrl = pathToFileURL(setup).href;
@@ -198,7 +216,7 @@ function vigiarItensGithub(c: ReturnType<typeof criarPonteHttp>) {
       for (const item of await c.itensLocais()) {
         const jaRodou = relatosPendentes.get(item.itemId);
         if (jaRodou) { await relatar(item.itemId, jaRodou); continue; }
-        const r = await executarGithubNaMaquina({ capacidade: item.capacidade, argumentos: item.argumentos, ambiente: process.env });
+        const r = await executarConectorNaMaquina({ capacidade: item.capacidade, argumentos: item.argumentos, ambiente: process.env });
         await relatar(item.itemId, r.isError ? "falhou_na_execucao" : "executado");
       }
     })().catch(() => undefined).finally(() => { ocupado = false; });
@@ -219,7 +237,38 @@ function caminhoConfig() { return join(app.getPath("userData"), "conexao.enc"); 
 // A preferência mora em userData/preferencias.json: o localStorage da janela web é apagado a cada
 // conexão (clearStorageData abaixo). O aviso sai daqui, do processo principal — a página continua sem
 // permissão nenhuma (proteger) —, e só com a janela fora de foco.
-let preferencias: Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraDesktop | null; decisoesBarra: DecisoesBarraDesktop } = { avisos: true, tema: "sistema", som: true, barra: null, decisoesBarra: {} };
+let preferencias: Pick<PreferenciasDesktop, "avisos" | "tema" | "som"> & { barra: BarraGuardadaDesktop | null; decisoesBarra: DecisoesBarraDesktop; atalhoQuickChat?: string | null; avataresNaMesa?: AvatarNaMesa[]; reiniciarSozinho?: boolean; ultimaVersao?: string | null; simuladoPara?: string | null } = { avisos: true, tema: "sistema", som: true, barra: null, decisoesBarra: {} };
+/** ADR-173: o Quick Chat da conexão atual (recriado a cada conectar, destruído ao fechar a janela principal). */
+let quickChat: QuickChatApp | null = null;
+/** ADR-173: os avatares soltos na mesa, por bot (desktop/avatar-mesa.ts). Vivem com a conexão, como o Quick Chat. */
+const avataresVivos = new Map<string, BrowserWindow>();
+function abrirAvatar(servidor: string, a: AvatarNaMesa): void {
+  if (avataresVivos.has(a.agenteId)) return;
+  const pos = dentroDeUmaTela(a, screen.getAllDisplays().map((d) => d.workArea));
+  const w = new BrowserWindow({ x: pos.x, y: pos.y, width: TAMANHO_AVATAR, height: TAMANHO_AVATAR, show: false, frame: false, transparent: true, hasShadow: false, resizable: false, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, alwaysOnTop: true, title: "nod", webPreferences: { partition: PARTICAO_WEB, preload: join(dir, "preload-web.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true } });
+  w.setAlwaysOnTop(true, "floating");
+  w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  proteger(w, new URL(servidor).origin);
+  w.once("ready-to-show", () => w.showInactive());
+  // Arrastou: guarda onde ficou (a fila de preferências já serializa as escritas).
+  w.on("moved", () => {
+    const [x, y] = w.getPosition();
+    preferencias = { ...preferencias, avataresNaMesa: (preferencias.avataresNaMesa ?? []).map((v) => (v.agenteId === a.agenteId ? { ...v, x: x ?? v.x, y: y ?? v.y } : v)) };
+    void gravarPreferencias();
+  });
+  w.on("closed", () => { if (avataresVivos.get(a.agenteId) === w) avataresVivos.delete(a.agenteId); });
+  void w.loadURL(urlDoAvatar(servidor, a.agenteId));
+  avataresVivos.set(a.agenteId, w);
+}
+function fecharAvatares(): void { for (const w of avataresVivos.values()) if (!w.isDestroyed()) w.destroy(); avataresVivos.clear(); }
+/** O atalho guardado: ausente = o padrão (⌥Espaço); null = a pessoa desligou; inválido = o padrão. */
+function lerAtalhoGuardado(conteudo: string | null): string | null | undefined {
+  try {
+    const obj: unknown = conteudo === null ? null : JSON.parse(conteudo);
+    if (typeof obj !== "object" || obj === null || !("atalhoQuickChat" in obj)) return undefined;
+    return obj.atalhoQuickChat === null ? null : lerAtalho(obj.atalhoQuickChat) ?? undefined;
+  } catch { return undefined; }
+}
 /** O último aviso falhou ao aparecer (o macOS bloqueou); o próximo que aparecer desfaz. */
 let bloqueados = false;
 let contadorAtual = 0;
@@ -230,7 +279,13 @@ function caminhoPreferencias() { return join(app.getPath("userData"), "preferenc
 function estadoPreferencias(): PreferenciasDesktop { return { avisos: preferencias.avisos, tema: preferencias.tema, som: preferencias.som, bloqueados }; }
 async function carregarPreferencias() {
   const conteudo = await readFile(caminhoPreferencias(), "utf8").catch(() => null);
-  preferencias = { ...lerPreferencias(conteudo), decisoesBarra: lerDecisoesBarra(conteudo) };
+  const atalho = lerAtalhoGuardado(conteudo);
+  let avatares: AvatarNaMesa[] = [];
+  try { const obj: unknown = conteudo === null ? null : JSON.parse(conteudo); if (typeof obj === "object" && obj !== null && "avataresNaMesa" in obj) avatares = lerAvatares(obj.avataresNaMesa); } catch { /* sem avatares */ }
+  // ADR-188: o interruptor "Reiniciar sozinho", a última versão que abriu (o aviso "nod atualizado para…") e a promessa do
+  // reinício simulado (desktop/atualizacao-simulada.ts).
+  const pa = lerPrefsAtualizacao(conteudo);
+  preferencias = { ...lerPreferencias(conteudo), decisoesBarra: lerDecisoesBarra(conteudo), ...(atalho !== undefined ? { atalhoQuickChat: atalho } : {}), avataresNaMesa: avatares, reiniciarSozinho: pa.reiniciarSozinho, ultimaVersao: pa.ultimaVersao, simuladoPara: lerSimuladoPara(conteudo) };
 }
 // NOD-119: as escritas entram numa fila (o arrasto da borda grava a cada passo): sem corrida no rename do .tmp, e cada
 // uma grava as preferências do momento em que roda, então a última vence.
@@ -304,13 +359,70 @@ function montarMenu() {
 }
 // ---- Atualização do app do Mac (NOD-132, ADR-149) --------------------------------------------------------------------
 // O autoUpdater nativo (Squirrel.Mac) lê o feed do servidor com a chave da máquina; o estado aparece no menu nod, numa
-// notificação quando a versão nova fica pronta e na tela de conexão. A web não sabe de nada (decisão de produto).
+// notificação quando a versão nova fica pronta e na tela de conexão. ADR-188: a janela web também mostra (o cartão
+// "Atualizar o nod" e Configurações › Sobre o nod) e pede o reinício pela ponte (CANAIS_ATUALIZACAO).
 let atualizacaoApp: AtualizacaoDoApp | null = null;
+/** ADR-188: a pessoa pediu "Reiniciar quando terminar"; o vigia reinicia quando nada mais roda. */
+let esperandoLivre = false;
+let vigiaLivre: ReturnType<typeof setInterval> | null = null;
+/** ADR-188: a versão de antes quando o app acabou de voltar de uma atualização (o aviso da web, uma vez). */
+let atualizadoDeVersao: string | null = null;
+/** ADR-188: `NOD_SIMULAR_ATUALIZACAO` no app do código; null no empacotado. */
+const SIMULAR_ATUALIZACAO = versaoSimulada(process.env.NOD_SIMULAR_ATUALIZACAO, app.isPackaged);
+/** Depois de um reinício simulado, a versão "nova" passa a ser a que está em uso (só na tela). */
+let versaoSimuladaEmUso: string | null = null;
+function versaoEmUso(): string { return versaoSimuladaEmUso ?? app.getVersion(); }
+function atualizacaoNaTela(): AtualizacaoNaTela | null {
+  const a = atualizacaoApp;
+  if (!a) return null;
+  return estadoNaTela(a.estado(), { versaoAtual: versaoEmUso(), esperandoLivre, reiniciando: a.reiniciando(), sozinho: preferencias.reiniciarSozinho !== false, atualizadoDe: atualizadoDeVersao });
+}
+/** Manda o estado a toda janela da web do servidor conectado (a principal, o Quick Chat e os avatares na mesa). */
+function enviarAtualizacaoParaWeb(): void {
+  const e = atualizacaoNaTela();
+  const origem = origemDe(configuracao?.url);
+  if (!e || !origem) return;
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed() && origemDe(w.webContents.getURL()) === origem) w.webContents.send(CANAIS_ATUALIZACAO.mudou, e);
+  }
+}
+function sinaisReinicio(): SinaisReinicio {
+  return { pronta: atualizacaoApp?.estado().fase === "pronta", emLigacao, turnos: planosNoMac.size, telas: vmLocal?.preparador.telasAbertas() ?? 0 };
+}
+function armarEsperaLivre(ligar: boolean): void {
+  esperandoLivre = ligar;
+  if (vigiaLivre) { clearInterval(vigiaLivre); vigiaLivre = null; }
+  if (ligar) { vigiaLivre = setInterval(verificarEsperaLivre, 3_000); vigiaLivre.unref(); }
+  enviarAtualizacaoParaWeb();
+}
+/** O "quando terminar" armado: o último turno acabou (ou a tela fechou, ou a ligação caiu) e nada mais roda. */
+function verificarEsperaLivre(): void {
+  if (!esperandoLivre || !livreParaReiniciar(sinaisReinicio())) return;
+  armarEsperaLivre(false);
+  log("info", "atualizacao_app_livre", {});
+  void atualizacaoApp?.reiniciar(true);
+}
+function reiniciarPelaTela(pedido: unknown): RespostaReinicio {
+  const p = lerPedidoReinicio(pedido);
+  if (!p) return { ok: false, motivo: "naoPronta" };
+  const d = decidirReinicio(p, sinaisReinicio());
+  if (d.fazer === "cancelar") armarEsperaLivre(false);
+  else if (d.fazer === "esperar") armarEsperaLivre(true);
+  else if (d.fazer === "reiniciar") {
+    armarEsperaLivre(false);
+    log("info", "atualizacao_app_pela_tela", { quando: p.quando });
+    // Sem await: a janela fecha no meio, e a resposta já está decidida.
+    void atualizacaoApp?.reiniciar(true).then(() => enviarAtualizacaoParaWeb());
+  }
+  return d.resposta;
+}
 /** O servidor e a chave da conexão atual ou da última tentativa: o app recusado com 426 ainda precisa do feed. */
 let conexaoDaAtualizacao: { url: string; chave: string } | null = null;
 let avisoDaAtualizacao: Notification | null = null;
 function aoMudarAtualizacao(e: EstadoAtualizacaoApp) {
   montarMenu();
+  if (e.fase !== "pronta" && esperandoLivre) armarEsperaLivre(false);
+  enviarAtualizacaoParaWeb();
   const w = janela;
   if (w && !w.isDestroyed() && w !== janelaWeb()) w.webContents.send("nod:atualizacao", linhaDaAtualizacao(e, process.arch));
   if (e.fase === "pronta" && !avisoDaAtualizacao && preferencias.avisos && Notification.isSupported()) {
@@ -452,7 +564,7 @@ async function ler(): Promise<Config | null> {
   try {
     if (!safeStorage.isEncryptionAvailable()) return null;
     const c = JSON.parse(safeStorage.decryptString(await readFile(caminhoConfig()))) as Config;
-    return { url: urlServidor(c.url, !app.isPackaged), chave: c.chave, ...(c.provisoria === true ? { provisoria: true as const } : {}) };
+    return { url: urlServidor(c.url, !app.isPackaged), chave: c.chave, ...(c.provisoria === true ? { provisoria: true as const } : {}), ...(typeof c.pessoaId === "string" ? { pessoaId: c.pessoaId } : {}) };
   } catch { return null; }
 }
 function proteger(w: BrowserWindow, origem?: string) {
@@ -517,6 +629,7 @@ async function mostrarSetup() {
   anterior?.close();
 }
 async function parar() {
+  quickChat?.destruir(); quickChat = null; fecharAvatares(); // ADR-173: sem conexão, o atalho solta e os avatares saem
   atualizacaoApp?.desconectado(); // NOD-132: o ciclo de 4 h volta só no próximo conectado()
   if (itensGithub) clearInterval(itensGithub);
   itensGithub = null;
@@ -593,6 +706,40 @@ function limparOrfaosUmaVez(): Promise<void> {
   })();
   return limpezaDeOrfaos;
 }
+/**
+ * ADR-182: a janela web, criada e carregada sem esperar o executor. Devolve a carga da página: quem chama a aguarda no
+ * fim do `conectar` (a falha de carga já cai no `did-fail-load`, que leva à tela de conexão).
+ */
+function abrirJanelaWeb(c: Config): Promise<void> {
+  const anterior = janela;
+  // definido em 2026-09-24 ("aviso no Mac"): preload próprio da janela web — só `nodDesktop` (preload-web.ts).
+  // NOD-137: nasce onde a pessoa deixou, inteira numa tela que existe; o mínimo de 900 cede numa tela mais estreita.
+  const bounds = resolverEstadoJanela(estadoJanela, telas(), TAMANHO_PADRAO_JANELA);
+  // Os bounds normais da janela maximizada vêm da memória (medirEstadoJanela): valem os da criação, já ajustados à tela.
+  estadoJanela = bounds;
+  const nova = new BrowserWindow({ x: bounds.x, y: bounds.y, width: bounds.largura, height: bounds.altura, minWidth: Math.min(LARGURA_MINIMA, bounds.largura), title: "nod", backgroundColor: fundoDaJanela(), webPreferences: { partition: PARTICAO_WEB, preload: join(dir, "preload-web.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true } });
+  if (bounds.maximizada) nova.maximize();
+  janela = nova; proteger(nova, c.url);
+  // A checagem de tela cheia é no disparo do timer; no Electron 43 isFullScreen() já é true desde o 1º resize da animação.
+  let esperaEstado: ReturnType<typeof setTimeout> | null = null;
+  const cancelarEstado = () => { if (esperaEstado) clearTimeout(esperaEstado); esperaEstado = null; };
+  const agendarEstado = () => { cancelarEstado(); esperaEstado = setTimeout(() => { esperaEstado = null; capturarEstadoJanela(nova); }, ESPERA_ESTADO_JANELA_MS); };
+  nova.on("move", agendarEstado);
+  nova.on("resize", agendarEstado);
+  nova.on("maximize", agendarEstado);
+  nova.on("unmaximize", agendarEstado);
+  nova.on("enter-full-screen", () => { cancelarEstado(); capturarEstadoJanela(nova); });
+  nova.on("close", (e) => {
+    cancelarEstado(); capturarEstadoJanela(nova);
+    // Saindo (Cmd+Q já confirmado, ou o reinício da atualização): a pergunta da ligação seguraria o quitAndInstall.
+    if (!emLigacao || encerrando) return;
+    e.preventDefault();
+    void confirmarFecharEmLigacao(nova).then((sim) => { if (sim) { definirEmLigacao(false); nova.close(); } });
+  });
+  nova.on("closed", () => { cancelarEstado(); if (janela === nova) { janela = null; definirEmLigacao(false); quickChat?.destruir(); quickChat = null; fecharAvatares(); } });
+  nova.webContents.on("did-fail-load", (_e, code, _description, _url, main) => { if (main && code !== -3) { mensagem = mensagens.servidor_fora!; void mostrarSetup(); } });
+  return nova.loadURL(c.url).then(() => { anterior?.close(); mensagem = "Conectado."; }, () => undefined);
+}
 async function conectar(c: Config) {
   conexaoDaAtualizacao = { url: c.url, chave: c.chave };
   await limparOrfaosUmaVez();
@@ -608,10 +755,19 @@ async function conectar(c: Config) {
   const dados = await r.json() as { escopo: { pessoaId: string }; machineId: string; instalacoes?: unknown };
   const cookie = r.headers.get("set-cookie")?.match(/(?:^|;\s*)nod_sessao=([^;]+)/)?.[1];
   if (!cookie || !dados.escopo?.pessoaId || !dados.machineId) throw new FalhaPonte("resposta_invalida");
-  const web = session.fromPartition("nod-web");
-  await web.clearStorageData();
+  const web = session.fromPartition(PARTICAO_WEB);
+  // ADR-182: o storage da web (localStorage, IndexedDB: a réplica das conversas, o journal de envio) só é apagado quando
+  // a pessoa ou o servidor mudou — o mesmo Mac, a mesma pessoa, reabre com o que tinha. O cookie da sessão é sempre
+  // trocado. O cache HTTP (o bundle) nunca entra aqui: é público e imutável.
+  const mesmaPessoa = configuracao?.url === c.url && configuracao?.pessoaId === dados.escopo.pessoaId;
+  await web.clearStorageData(mesmaPessoa ? { storages: ["cookies"] } : undefined);
   await web.cookies.set({ url: c.url, name: "nod_sessao", value: cookie, path: "/", httpOnly: true, secure: c.url.startsWith("https:"), sameSite: "strict" });
-  await guardar(c); configuracao = c;
+  const comPessoa: Config = { ...c, pessoaId: dados.escopo.pessoaId };
+  await guardar(comPessoa); configuracao = comPessoa;
+  // ADR-182: a janela nasce AQUI, antes de montar o executor, sondar as IAs e sincronizar as contas (segundos no Mac
+  // carregado): a pessoa vê a tela do nod enquanto isso roda. A web já trata o estado `procurando` das IAs e a lista de
+  // contas vazia até a sonda chegar (emitirEstados avisa). A carga da página corre em paralelo e é aguardada no fim.
+  const carregamento = abrirJanelaWeb(c);
   // ADR-052: o hook do nod vai empacotado ao lado do proxy; sem ele o kit do terminal não liga.
   const lig = { urlNod: c.url, proxyPath: app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked", "dist", "desktop", "proxy.mjs") : join(dir, "proxy.mjs"), hookPath: app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked", "dist", "desktop", "hook-nativas.mjs") : join(dir, "hook-nativas.mjs"), nodePath: process.execPath, electronComoNode: true, sondaSemTurno: true, prazoSondaMs: prazoSondaDoEnv(process.env), filaDoForno: process.env.NOD_FILA_DO_FORNO !== "0" };
   const envExecutor = { ...process.env, NOD_HOME: join(app.getPath("userData"), "executor") };
@@ -681,7 +837,7 @@ async function conectar(c: Config) {
     const tarefasVivas = criarAcompanhanteDeTarefas((turnoId, tarefas) => cliente?.tarefas(turnoId, tarefas));
     // NOD-350: a ponte já junta os trechos até a renovação (1 s), então aqui toda mudança vai para ela.
     const subagentesVivos = criarAcompanhanteDeSubagentes((turnoId, lista, ocioso) => cliente?.subagentes(turnoId, lista, ocioso), { intervaloMs: 0 });
-    laco = iniciarPoolDeLacos((ponte) => iniciarLaco({ ponte, registry: reg, pessoaId: dados.escopo.pessoaId, machineId: dados.machineId, relogio: () => Date.now(), renovacaoMs: 1_000, esperaVaziaMs: 1000, memoria: memoriaDoMac, registroDaConta, urlNod: lig.urlNod, aoDelta: (p, t) => cliente?.delta(p.turnoId, t), aoEvento: (p, ev) => { if (cliente) repassarAcaoDoEvento(cliente, p.turnoId, ev); tarefasVivas.evento(p.turnoId, ev); subagentesVivos.evento(p.turnoId, ev); }, aoIniciarTurno: (p) => { planosNoMac.set(p.turnoId, p); }, aoTerminarTurno: (p) => { tarefasVivas.esquecer(p.turnoId); subagentesVivos.parar(p.turnoId); subagentesVivos.esquecer(p.turnoId); planosNoMac.delete(p.turnoId); void atualizador.verificar().catch(() => undefined); },
+    laco = iniciarPoolDeLacos((ponte) => iniciarLaco({ ponte, registry: reg, pessoaId: dados.escopo.pessoaId, machineId: dados.machineId, relogio: () => Date.now(), renovacaoMs: 1_000, esperaVaziaMs: 1000, memoria: memoriaDoMac, registroDaConta, urlNod: lig.urlNod, aoDelta: (p, t) => cliente?.delta(p.turnoId, t), aoEvento: (p, ev) => { if (cliente) repassarAcaoDoEvento(cliente, p.turnoId, ev); tarefasVivas.evento(p.turnoId, ev); subagentesVivos.evento(p.turnoId, ev); }, aoIniciarTurno: (p) => { planosNoMac.set(p.turnoId, p); }, aoTerminarTurno: (p) => { tarefasVivas.esquecer(p.turnoId); subagentesVivos.parar(p.turnoId); subagentesVivos.esquecer(p.turnoId); planosNoMac.delete(p.turnoId); verificarEsperaLivre(); void atualizador.verificar().catch(() => undefined); },
       // NOD-73: o vigia do turno só avisa — o aviso vai como trecho vivo, só nome e números (os argumentos ficam no Mac).
       aoVigia: (p, aviso) => cliente?.vigia(p.turnoId, aviso),
       // definido em 2026-10-05: o turno disse que a conta desta IA não serve — o veredito fica guardado e o Mac reanuncia.
@@ -757,36 +913,13 @@ async function conectar(c: Config) {
     void instalacoesNoServidor?.parar();
     instalacoesNoServidor = dados.instalacoes === true ? iniciarInstalacoesNoServidor({ ponte: ponteHttp.instalacoes, env: cfg.env, agendar: agendarTimer, servidor: c.url }) : null;
   }
-  const anterior = janela;
-  // definido em 2026-09-24 ("aviso no Mac"): preload próprio da janela web — só `nodDesktop` (preload-web.ts).
-  // NOD-137: nasce onde a pessoa deixou, inteira numa tela que existe; o mínimo de 900 cede numa tela mais estreita.
-  const bounds = resolverEstadoJanela(estadoJanela, telas(), TAMANHO_PADRAO_JANELA);
-  // Os bounds normais da janela maximizada vêm da memória (medirEstadoJanela): valem os da criação, já ajustados à tela.
-  estadoJanela = bounds;
-  const nova = new BrowserWindow({ x: bounds.x, y: bounds.y, width: bounds.largura, height: bounds.altura, minWidth: Math.min(LARGURA_MINIMA, bounds.largura), title: "nod", backgroundColor: fundoDaJanela(), webPreferences: { partition: "nod-web", preload: join(dir, "preload-web.cjs"), nodeIntegration: false, contextIsolation: true, sandbox: true } });
-  if (bounds.maximizada) nova.maximize();
-  janela = nova; proteger(nova, c.url);
-  // A checagem de tela cheia é no disparo do timer; no Electron 43 isFullScreen() já é true desde o 1º resize da animação.
-  let esperaEstado: ReturnType<typeof setTimeout> | null = null;
-  const cancelarEstado = () => { if (esperaEstado) clearTimeout(esperaEstado); esperaEstado = null; };
-  const agendarEstado = () => { cancelarEstado(); esperaEstado = setTimeout(() => { esperaEstado = null; capturarEstadoJanela(nova); }, ESPERA_ESTADO_JANELA_MS); };
-  nova.on("move", agendarEstado);
-  nova.on("resize", agendarEstado);
-  nova.on("maximize", agendarEstado);
-  nova.on("unmaximize", agendarEstado);
-  nova.on("enter-full-screen", () => { cancelarEstado(); capturarEstadoJanela(nova); });
-  nova.on("close", (e) => {
-    cancelarEstado(); capturarEstadoJanela(nova);
-    // Saindo (Cmd+Q já confirmado, ou o reinício da atualização): a pergunta da ligação seguraria o quitAndInstall.
-    if (!emLigacao || encerrando) return;
-    e.preventDefault();
-    void confirmarFecharEmLigacao(nova).then((sim) => { if (sim) { definirEmLigacao(false); nova.close(); } });
-  });
-  nova.on("closed", () => { cancelarEstado(); if (janela === nova) { janela = null; definirEmLigacao(false); } });
-  nova.webContents.on("did-fail-load", (_e, code, _description, _url, main) => { if (main && code !== -3) { mensagem = mensagens.servidor_fora!; void mostrarSetup(); } });
-  await nova.loadURL(c.url);
-  anterior?.close(); mensagem = "Conectado.";
+  await carregamento;
   atualizacaoApp?.conectado();
+  // ADR-173: o Quick Chat nasce com a conexão, na origem do servidor desta conexão.
+  quickChat?.destruir();
+  quickChat = montarQuickChat({ servidor: c.url, preload: join(dir, "preload-web.cjs"), fundo: fundoDaJanela, proteger, atalhoInicial: preferencias.atalhoQuickChat === undefined ? ATALHO_PADRAO_QUICK_CHAT : preferencias.atalhoQuickChat });
+  fecharAvatares();
+  if (process.platform === "darwin") for (const a of preferencias.avataresNaMesa ?? []) abrirAvatar(c.url, a);
 }
 /**
  * "Entrar" num card de IA (ADR-077): o login do próprio CLI, sem shell, desanexado e com o ambiente limpo dos drivers
@@ -1379,7 +1512,8 @@ function validarRemetente(event: IpcMainInvokeEvent) {
 /** A janela web: a principal, frame de topo, na origem do servidor configurado. */
 function validarRemetenteWeb(event: IpcMainInvokeEvent) {
   const frame = event.senderFrame;
-  if (event.sender !== janela?.webContents || !remetenteWebValido({ frameUrl: frame?.url, frameDeTopo: !!frame && frame.parent === null, servidor: configuracao?.url })) throw new Error("origem_invalida");
+  const doQuickChat = (quickChat !== null && event.sender === quickChat.webContents()) || [...avataresVivos.values()].some((w) => !w.isDestroyed() && w.webContents === event.sender);
+  if ((event.sender !== janela?.webContents && !doQuickChat) || !remetenteWebValido({ frameUrl: frame?.url, frameDeTopo: !!frame && frame.parent === null, servidor: configuracao?.url })) throw new Error("origem_invalida");
 }
 // NOD-174: menu de contexto, diálogos nativos e validação da página em pt-BR mesmo num Mac em inglês. Só vale antes do
 // `ready`: depois disso o Chromium ignora a troca em silêncio.
@@ -1421,7 +1555,7 @@ else {
   // NOD-137/NOD-132: o Squirrel reabre o app logo depois de trocar o pacote; com o lock ainda preso, a cópia nova sairia
   // como segunda instância. Solta SÓ aqui: no before-quit comum o lock segura um segundo clique no Dock durante a saída.
   if (process.platform === "darwin") autoUpdater.on("before-quit-for-update", () => { app.releaseSingleInstanceLock(); });
-  app.on("will-quit", () => { atualizador.parar(); encerrarGruposVivos(); });
+  app.on("will-quit", () => { globalShortcut.unregisterAll(); atualizador.parar(); encerrarGruposVivos(); });
   void app.whenReady().then(async () => {
     // ADR-101: o contas.json antes de qualquer config dos drivers (a conta em uso vai no ambiente deles).
     await contasDoApp.iniciar().catch((erro: unknown) => log("erro", "contas_ler_falhou", { erro: erro instanceof Error ? erro.name : "desconhecido" }));
@@ -1444,6 +1578,25 @@ else {
     await carregarPreferencias();
     await carregarEstadoJanela();
     aplicarTemaNativo();
+    // ADR-188: o aviso "nod atualizado para…" — a última versão que abriu era menor (ou o reinício simulado prometeu uma).
+    if (SIMULAR_ATUALIZACAO && preferencias.simuladoPara) {
+      versaoSimuladaEmUso = preferencias.simuladoPara;
+      atualizadoDeVersao = app.getVersion();
+      preferencias = { ...preferencias, simuladoPara: null };
+      void gravarPreferencias();
+    } else {
+      atualizadoDeVersao = atualizadoDe(preferencias.ultimaVersao ?? null, app.getVersion());
+      if (preferencias.ultimaVersao !== app.getVersion()) { preferencias = { ...preferencias, ultimaVersao: app.getVersion() }; void gravarPreferencias(); }
+    }
+    const updaterSimulado = SIMULAR_ATUALIZACAO ? criarUpdaterSimulado({
+      versao: SIMULAR_ATUALIZACAO, emUso: versaoEmUso,
+      agendar: (f, ms) => { setTimeout(f, ms).unref(); },
+      aoInstalar: (versao) => {
+        preferencias = { ...preferencias, simuladoPara: versao };
+        void gravarPreferencias().finally(() => { app.relaunch(); app.exit(0); });
+      },
+    }) : null;
+    if (SIMULAR_ATUALIZACAO) log("aviso", "atualizacao_app_simulada", { versao: SIMULAR_ATUALIZACAO });
     atualizacaoApp = criarAtualizacaoDoApp({
       updater: autoUpdater, empacotado: app.isPackaged, plataforma: process.platform, arquitetura: process.arch,
       naPastaAplicativos: () => { try { return app.isInApplicationsFolder(); } catch { return false; } },
@@ -1461,8 +1614,35 @@ else {
         const o: Electron.MessageBoxOptions = { type: "info", message: texto, buttons: ["OK"] };
         void (w ? dialog.showMessageBox(w, o) : dialog.showMessageBox(o));
       },
+      // ADR-188: a simulação (só no app do código) troca o updater e o que ele precisa para procurar; nada mais.
+      ...(updaterSimulado ? depsDaSimulacao(updaterSimulado, versaoEmUso()) : {}),
     });
     montarMenu();
+    // ADR-173: a versão pronta entra sozinha com o Mac ocioso e nada rodando (desktop/atualizar-ocioso.ts).
+    let ultimaTentativaOciosa: number | null = null;
+    setInterval(() => {
+      const a = atualizacaoApp;
+      // ADR-188: o interruptor "Reiniciar sozinho" de Sobre o nod desliga esta entrada sozinha (o resto segue igual).
+      if (!a || preferencias.reiniciarSozinho === false) return;
+      const sinais = { pronta: a.estado().fase === "pronta", ociosoSegundos: powerMonitor.getSystemIdleTime(), turnos: planosNoMac.size, telas: vmLocal?.preparador.telasAbertas() ?? 0, emLigacao, janelaEmFoco: BrowserWindow.getFocusedWindow() !== null, ultimaTentativaEm: ultimaTentativaOciosa, agora: Date.now() };
+      if (!deveAtualizarOcioso(sinais)) return;
+      ultimaTentativaOciosa = sinais.agora;
+      log("info", "atualizacao_app_ociosa", { ocioso_s: sinais.ociosoSegundos });
+      void a.reiniciar();
+    }, INTERVALO_OCIOSO_MS).unref();
+    // ADR-188: a atualização na janela web (o cartão da barra e Sobre o nod). A tela pede; daqui sai a decisão.
+    ipcMain.handle(CANAIS_ATUALIZACAO.estado, (e) => { validarRemetenteWeb(e); return atualizacaoNaTela(); });
+    ipcMain.handle(CANAIS_ATUALIZACAO.reiniciar, (e, pedido: unknown) => { validarRemetenteWeb(e); return reiniciarPelaTela(pedido); });
+    ipcMain.handle(CANAIS_ATUALIZACAO.procurar, (e) => { validarRemetenteWeb(e); atualizacaoApp?.procurar(true); return atualizacaoNaTela(); });
+    ipcMain.handle(CANAIS_ATUALIZACAO.definirSozinho, async (e, ligado: unknown) => {
+      validarRemetenteWeb(e);
+      if (typeof ligado !== "boolean") return atualizacaoNaTela();
+      preferencias = { ...preferencias, reiniciarSozinho: ligado };
+      await gravarPreferencias();
+      enviarAtualizacaoParaWeb();
+      return atualizacaoNaTela();
+    });
+    ipcMain.handle(CANAIS_ATUALIZACAO.avisoVisto, (e) => { validarRemetenteWeb(e); atualizadoDeVersao = null; });
     ipcMain.handle(CANAIS_DESKTOP.avisar, (e, dados: unknown) => {
       validarRemetenteWeb(e);
       const aviso = lerAviso(dados);
@@ -1474,6 +1654,73 @@ else {
       if (lido !== null) { contadorAtual = lido; aplicarContador(); }
     });
     ipcMain.handle(CANAIS_DESKTOP.preferencias, (e) => { validarRemetenteWeb(e); return estadoPreferencias(); });
+    // ADR-173: Quick Chat, captura de janela/região e os liga/desliga das ferramentas do Mac. Tudo validado aqui.
+    ipcMain.handle(CANAIS_MAC.capturarTela, async (e) => {
+      validarRemetenteWeb(e);
+      const quem = BrowserWindow.fromWebContents(e.sender);
+      // A janela sai da frente durante a captura (senão ela cobre o que a pessoa quer capturar) e volta depois.
+      const esconder = quem && quem.isVisible() && quickChat?.webContents() === e.sender;
+      if (esconder) quem.hide();
+      try {
+        return await capturarNoMac({ plataforma: process.platform, medir: (bytes) => { const t = nativeImage.createFromBuffer(bytes).getSize(); return t.width > 0 ? { largura: t.width, altura: t.height } : null; } });
+      } finally {
+        if (esconder && !quem.isDestroyed()) { quem.show(); quem.focus(); }
+      }
+    });
+    ipcMain.handle(CANAIS_MAC.atalhoQuickChat, (e) => { validarRemetenteWeb(e); return quickChat?.atalho() ?? (preferencias.atalhoQuickChat === undefined ? ATALHO_PADRAO_QUICK_CHAT : preferencias.atalhoQuickChat); });
+    ipcMain.handle(CANAIS_MAC.definirAtalhoQuickChat, async (e, atalho: unknown) => {
+      validarRemetenteWeb(e);
+      if (atalho !== null && typeof atalho !== "string") throw new Error("entrada_invalida");
+      if (!quickChat) return { ok: false, motivo: "invalido", atalho: null };
+      const r = quickChat.definirAtalho(atalho);
+      if (r.ok) { preferencias = { ...preferencias, atalhoQuickChat: r.atalho }; await gravarPreferencias(); }
+      return r;
+    });
+    ipcMain.handle(CANAIS_MAC.quickChatExpandir, (e) => { validarRemetenteWeb(e); quickChat?.esconder(); focarJanela(janela); });
+    ipcMain.handle(CANAIS_MAC.quickChatEsconder, (e) => { validarRemetenteWeb(e); quickChat?.esconder(); });
+    ipcMain.handle(CANAIS_MAC.montarNaMesa, async (e, agenteId: unknown) => {
+      validarRemetenteWeb(e);
+      if (!ehIdDeBot(agenteId)) throw new Error("entrada_invalida");
+      const servidor = configuracao?.url;
+      const lista = preferencias.avataresNaMesa ?? [];
+      if (!servidor || process.platform !== "darwin") return false;
+      if (lista.some((a) => a.agenteId === agenteId)) { avataresVivos.get(agenteId)?.showInactive(); return true; }
+      if (lista.length >= MAX_AVATARES) return false;
+      const novo = { agenteId, ...posicaoNova(screen.getPrimaryDisplay().workArea, lista.length) };
+      preferencias = { ...preferencias, avataresNaMesa: [...lista, novo] };
+      await gravarPreferencias();
+      abrirAvatar(servidor, novo);
+      return true;
+    });
+    ipcMain.handle(CANAIS_MAC.desmontarDaMesa, async (e, agenteId: unknown) => {
+      validarRemetenteWeb(e);
+      if (!ehIdDeBot(agenteId)) throw new Error("entrada_invalida");
+      preferencias = { ...preferencias, avataresNaMesa: (preferencias.avataresNaMesa ?? []).filter((a) => a.agenteId !== agenteId) };
+      await gravarPreferencias();
+      const w = avataresVivos.get(agenteId);
+      avataresVivos.delete(agenteId);
+      if (w && !w.isDestroyed()) w.destroy();
+    });
+    ipcMain.handle(CANAIS_MAC.naMesa, (e) => { validarRemetenteWeb(e); return (preferencias.avataresNaMesa ?? []).map((a) => a.agenteId); });
+    ipcMain.handle(CANAIS_MAC.quickChatAbrir, (e, agenteId: unknown) => {
+      validarRemetenteWeb(e);
+      if (!ehIdDeBot(agenteId)) throw new Error("entrada_invalida");
+      quickChat?.abrirNoBot(agenteId);
+    });
+    ipcMain.handle(CANAIS_MAC.ferramentasMac, (e) => { validarRemetenteWeb(e); return carregarFamiliasMac(homedir()); });
+    ipcMain.handle(CANAIS_MAC.definirFerramentaMac, async (e, familia: unknown, ligada: unknown) => {
+      validarRemetenteWeb(e);
+      if (!ehFamiliaMac(familia) || typeof ligada !== "boolean") throw new Error("entrada_invalida");
+      // Só no Mac: na VM Linux e no Windows as famílias não existem (a tela nem mostra os interruptores).
+      if (process.platform !== "darwin") throw new Error("entrada_invalida");
+      const novas = { ...(await carregarFamiliasMac(homedir())), [familia]: ligada };
+      const arquivo = caminhoFamiliasMac(homedir());
+      await mkdir(dirname(arquivo), { recursive: true, mode: 0o700 });
+      await writeFile(`${arquivo}.tmp`, JSON.stringify(novas), { mode: 0o600 });
+      await rename(`${arquivo}.tmp`, arquivo);
+      log("info", "ferramenta_mac_alterada", { familia, ligada });
+      return novas;
+    });
     // NOD-136: a web busca o link `nod://` da fila quando tem sessão e frota; só a janela web, na origem do servidor.
     ipcMain.handle(CANAIS_DESKTOP.deepLinkPendente, (e) => { validarRemetenteWeb(e); return entregarDeepLink(); });
     // NOD-136: o esquema `nod://` é registrado só pelo Info.plist (electron-builder.yml, mac.protocols); sem
@@ -1496,7 +1743,7 @@ else {
       if (!lido) throw new Error("entrada_invalida");
       return definirTema(lido);
     });
-    // NOD-119: a densidade da barra. O preload pede o valor de forma síncrona e o repõe no localStorage antes da página
+    // NOD-119/ADR-179: a largura da barra. O preload pede o valor de forma síncrona e o repõe no localStorage antes da página
     // (apagado a cada conexão), para a barra abrir sem piscar. Remetente fora da janela web recebe null.
     ipcMain.on(CANAIS_DESKTOP.barraInicial, (e) => {
       e.returnValue = respostaSincrona(() => validarRemetenteWeb(e), () => preferencias.barra, null);

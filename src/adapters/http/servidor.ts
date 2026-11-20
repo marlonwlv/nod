@@ -21,8 +21,13 @@ import { criarSessao, exigirConfiguracaoSegura, segredoEfetivo, type ContasNaSes
  * `/metrics` por convenção e o roteador só casa públicas sob `/api`; a resposta é montada aqui,
  * antes do roteador, e a Rota da L8 continua servindo `/api/metrics`. A tabela ROTAS fica com "/metrics".
  */
-/** ADA-226: o nod-windows-x64.exe mais novo (gs://nodbot-downloads, como os .dmg do site). */
-export const URL_DO_EXE_WINDOWS = "https://storage.googleapis.com/nodbot-downloads/nod-windows-x64.exe";
+/**
+ * ADA-226: o .exe do Windows aceito (gs://nodbot-downloads, como os .dmg do site). Desde 2026-11-19 aponta para a pasta
+ * da versão, igual ao /download/windows do site/_redirects: a retenção de 365 dias do bucket (desde 2026-11-13) não
+ * deixa sobrescrever o nome estável da raiz, que ficou na rc.6 até 2027-11-08. Troca junto com o _redirects
+ * (docs/release-desktop.md); o teste do site amarra os dois.
+ */
+export const URL_DO_EXE_WINDOWS = "https://storage.googleapis.com/nodbot-downloads/v1.0.0-rc.9/nod-1.0.0-rc.9-win-x64.exe";
 
 export interface OpcoesServidor {
   rotas?: Rota[];

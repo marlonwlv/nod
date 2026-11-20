@@ -63,5 +63,5 @@ export function textoDaPrevia(p: PreviaDoComentario, _nomeDaColuna?: string | nu
   if (n.length > 1) return `${n.slice(0, -1).join(", ")} e ${n.at(-1)} vão ver agora`;
   if (p.motivo === "nota") return NOTA_NAO_ACIONA;
   if (p.motivo === "todos") return "@todos é anúncio: não aciona o responsável (@nome chama um bot)";
-  return "fica só registrado (a tarefa não tem responsável; @nome chama um bot)";
+  return "fica só registrado (o card não tem responsável; @nome chama um bot)";
 }

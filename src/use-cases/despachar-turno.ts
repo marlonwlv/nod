@@ -126,7 +126,12 @@ export const despacharTurno: CasoDeUso<EntradaDespacharTurno, SaidaDespacharTurn
     ? [...new Set([...input.harnessesProntos, ...Object.entries(input.harnessesDaPessoa).filter(([, i]) => i?.estado === "pronto" || (i?.estado === "ausente" && (i.causa === "sonda_lenta" || i.causa === "atualizando"))).map(([id]) => id)])]
     : undefined;
   const { harnessesAuto, cota, declinio } = portaoDoDespacho(input);
-  const turno = await deps.repos.turnos.reivindicar({ machineId: input.machineId, agora, harnessesProntos: input.harnessesProntos, ...(harnessesAuto ? { harnessesAuto } : {}), harnessesProntosPessoa: prontosPessoa, aceitaLigacao: input.aceitaLigacao, segurarFundo: input.segurarFundo, segurarNovo: input.segurarNovo, fundoSemPrazo: input.fundoSemPrazo, espacarFundo: input.espacarFundo, ...(input.soComoAlvo ? { soComoAlvo: true } : {}), ...(input.soDaPessoa ? { soDaPessoa: true } : {}), ...(cota ? { cota } : {}), ...(declinio ? { declinio } : {}) });
+  // Para um modelo legado no Automático, a fila ainda prefere a máquina da IA dona do modelo. A lista efetiva da pessoa
+  // tira quem está no limite: só então outra máquina pode assumir e `resolverHarness` troca também o modelo.
+  const harnessesAutoPessoa = prontosPessoa && input.noLimite?.length
+    ? iasParaOAutomatico({ prontosMaquina: prontosPessoa, prontosPessoa, noLimite: input.noLimite })
+    : prontosPessoa;
+  const turno = await deps.repos.turnos.reivindicar({ machineId: input.machineId, agora, harnessesProntos: input.harnessesProntos, ...(harnessesAuto ? { harnessesAuto } : {}), harnessesProntosPessoa: prontosPessoa, harnessesAutoPessoa, aceitaLigacao: input.aceitaLigacao, segurarFundo: input.segurarFundo, segurarNovo: input.segurarNovo, fundoSemPrazo: input.fundoSemPrazo, espacarFundo: input.espacarFundo, ...(input.soComoAlvo ? { soComoAlvo: true } : {}), ...(input.soDaPessoa ? { soDaPessoa: true } : {}), ...(cota ? { cota } : {}), ...(declinio ? { declinio } : {}) });
   if (!turno) return { data: { plano: null, turno: null, motivo: "fila_vazia" } };
   // NOD-268: o alarme do reenvio em laço (só log; o freio é o teto de reenvios). Revisão do PR #319: a falha da consulta
   // não derruba o despacho de um turno já reivindicado.
@@ -274,7 +279,7 @@ async function adiarNoAutomatico(
   p: { turno: Turno; executor: Executor; prontos?: readonly string[]; noLimite?: readonly string[]; agora: number },
 ): Promise<{ data: SaidaDespacharTurno; events: RuntimeEvent[] } | null> {
   const { turno, agora } = p;
-  if (turno.origem !== "conversa" || turno.harness !== "auto" || turno.modelo !== "auto" || (turno.acordarEm ?? null) !== null || turno.pararSolicitadoEm !== null) return null;
+  if (turno.origem !== "conversa" || harnessFixado(turno.harness, turno.modelo) !== null || (turno.acordarEm ?? null) !== null || turno.pararSolicitadoEm !== null) return null;
   const prontos = p.prontos ?? [];
   if (prontos.length === 0 || !prontos.every((id) => p.noLimite?.includes(id))) return null;
   const limites = (await deps.repos.preferencias.buscar()).iasNoLimite;

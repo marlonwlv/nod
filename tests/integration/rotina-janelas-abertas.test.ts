@@ -53,6 +53,93 @@ describeIntegracao("rotina_janelas: execução aberta, poda e pausa (NOD-243/271
     });
   });
 
+  it("turnosAbertos: várias rotinas numa consulta, com cada ramo do ABERTO e a cadeia limitada a 10 elos (2026-11-19)", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const novaRotina = async () => {
+        const r = await m.repos.rotinas.criar({ agenteId: m.agenteId, conversaId: m.conversaId, cron: "0 8 * * *", fusoIana: "America/Sao_Paulo", instrucao: "i", fonte: "f", entregavel: "e", limitesAprovacao: "l", politicaSemDado: "p", proximaExecucao: AGORA });
+        if (!r) throw new Error("rotina");
+        return r.id;
+      };
+      const janelaDe = async (rotinaId: string, instante: number, turnoId: string) => {
+        expect(await m.repos.rotinaJanelas.reivindicar({ rotinaId, instanteAgendado: instante, machineId: randomUUID(), executor: "catcher" })).toBe(true);
+        expect(await m.repos.rotinaJanelas.vincularTurno({ rotinaId, instanteAgendado: instante, turnoId })).toBe(true);
+      };
+      const concluir = (id: string) => m.repos.turnos.assentar(id, { estado: "concluido" });
+
+      // O próprio turno vivo: a janela mais nova aberta ganha da mais velha acabada.
+      const vivo = await novaRotina();
+      const acabado = await m.turno();
+      await concluir(acabado.id);
+      await janelaDe(vivo, AGORA - 2 * DIA, acabado.id);
+      const pendente = await m.turno();
+      await janelaDe(vivo, AGORA - DIA, pendente.id);
+
+      // O mesmo trabalho: o turno da janela acabou, outro turno da frente ainda está na fila.
+      const doTrabalho = await novaRotina();
+      const frente = await m.repos.trabalhos.criar({ agenteId: m.agenteId, conversaId: m.conversaId, titulo: "Frente", origem: "pessoa", forma: "frente" });
+      if (!frente) throw new Error("trabalho");
+      const daFrente = await m.turno({ trabalhoId: frente.id });
+      await concluir(daFrente.id);
+      await m.turno({ trabalhoId: frente.id });
+      await janelaDe(doTrabalho, AGORA - DIA, daFrente.id);
+
+      // A cadeia de retomadas: dois elos abaixo, o último ainda pendente.
+      const daCadeia = await novaRotina();
+      const raiz = await m.turno();
+      await concluir(raiz.id);
+      const elo1 = await m.turno({ origem: "retomada", retomaTurnoId: raiz.id });
+      await concluir(elo1.id);
+      await m.turno({ origem: "retomada", retomaTurnoId: elo1.id });
+      await janelaDe(daCadeia, AGORA - DIA, raiz.id);
+
+      // A régua do ABERTO (n < 10): o pendente no 10.º elo ainda segura; no 11.º, não.
+      const cadeiaCom = async (elos: number) => {
+        const rotinaId = await novaRotina();
+        const topo = await m.turno();
+        await concluir(topo.id);
+        let anterior = topo.id;
+        for (let i = 1; i <= elos; i++) {
+          const elo = await m.turno({ origem: "retomada", retomaTurnoId: anterior });
+          if (i < elos) await concluir(elo.id);
+          anterior = elo.id;
+        }
+        await janelaDe(rotinaId, AGORA - DIA, topo.id);
+        return { rotinaId, topo: topo.id };
+      };
+      const dez = await cadeiaCom(10);
+      const { rotinaId: longa } = await cadeiaCom(11);
+
+      const fechada = await novaRotina();
+      const so = await m.turno();
+      await concluir(so.id);
+      await janelaDe(fechada, AGORA - DIA, so.id);
+
+      const abertos = await m.repos.rotinaJanelas.turnosAbertos([vivo, doTrabalho, daCadeia, dez.rotinaId, longa, fechada], AGORA);
+      expect(new Map([...abertos].map(([r, a]) => [r, a.turnoId]))).toEqual(new Map([[vivo, pendente.id], [doTrabalho, daFrente.id], [daCadeia, raiz.id], [dez.rotinaId, dez.topo]]));
+      expect(abertos.get(vivo)).toMatchObject({ instanteAgendado: AGORA - DIA, estado: "pendente" });
+      expect(await m.repos.rotinaJanelas.turnoAberto(daCadeia, AGORA)).toMatchObject({ turnoId: raiz.id, estado: "concluido" });
+      expect(await m.repos.rotinaJanelas.turnoAberto(longa, AGORA)).toBeNull();
+      expect(await m.repos.rotinaJanelas.contarAbertas(vivo, AGORA)).toBe(1);
+      expect(await m.repos.rotinaJanelas.contarAbertas(fechada, AGORA)).toBe(0);
+      expect(await m.repos.rotinaJanelas.turnosAbertos([], AGORA)).toEqual(new Map());
+    });
+  });
+
+  it("ultimasDasRotinas: as mais recentes de cada rotina, no limite, como o listar de cada uma", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const outra = await m.repos.rotinas.criar({ agenteId: m.agenteId, conversaId: m.conversaId, cron: "0 9 * * *", fusoIana: "America/Sao_Paulo", instrucao: "i", fonte: "f", entregavel: "e", limitesAprovacao: "l", politicaSemDado: "p", proximaExecucao: AGORA });
+      if (!outra) throw new Error("rotina");
+      for (let i = 0; i < 4; i++) await m.repos.rotinaExecucoes.registrar({ rotinaId: m.rotina.id, instanteAgendado: AGORA - i * DIA, desfecho: "adiada", motivo: "frente_aberta", em: AGORA - i * DIA });
+      await m.repos.rotinaExecucoes.registrar({ rotinaId: outra.id, instanteAgendado: AGORA, desfecho: "adiada", motivo: "frente_aberta", em: AGORA });
+      const ultimas = await m.repos.rotinaExecucoes.ultimasDasRotinas([m.rotina.id, outra.id, randomUUID()], 3);
+      expect(ultimas.get(m.rotina.id)).toEqual(await m.repos.rotinaExecucoes.listar(m.rotina.id, 3));
+      expect(ultimas.get(outra.id)).toHaveLength(1);
+      expect(ultimas.size).toBe(2);
+    });
+  });
+
   it("turnosPendentesDaRotina: o da janela, o da frente e a retomada — o que já roda fica de fora", async () => {
     await withRollback(MARLON, async (trx) => {
       const m = await montar(trx);

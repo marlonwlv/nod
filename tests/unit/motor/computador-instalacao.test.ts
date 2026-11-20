@@ -36,6 +36,7 @@ describe("instalação do computador da pessoa (ADR-122)", () => {
     expect(PACOTES_DO_COMPUTADOR).toContain("scrot");
     // NOD-95 (ADR-138): a tela ao vivo precisa do x11vnc na máquina.
     expect(PACOTES_DO_COMPUTADOR).toContain("x11vnc");
+    expect(PACOTES_DO_COMPUTADOR).toContain("feh");
     expect(b).toContain(`install -y -qq ${PACOTES_DO_COMPUTADOR.join(" ")}`);
     expect(b).toContain("useradd --system --no-create-home --home-dir /var/lib/nod-computador --shell /usr/sbin/nologin --gid nod-pc-arquivos nod-pc\n");
     expect(b).toContain("--gid nod-pc-arquivos nod-pc-term");
@@ -72,6 +73,9 @@ describe("instalação do computador da pessoa (ADR-122)", () => {
     }
     expect(u["nod-computador.service"]).toContain("User=nod-pc\n");
     expect(u["nod-computador.service"]).toContain("Environment=NOD_PC_TELA=/opt/nod-motor/computador/tela.mjs\n");
+    expect(u["nod-computador.service"]).toContain("Environment=NOD_SHELL_VISUAL=paper-v2\n");
+    expect(u["nod-computador.service"]).toContain("Environment=NOD_SHELL_VISUAL_PACOTE=/opt/nod-motor/computador/shell-visual/paper-v2\n");
+    expect(u["nod-computador.service"]).toContain("Environment=NOD_SHELL_VISUAL_ESTADO=/var/lib/nod-computador/shell-visual\n");
     expect(u["nod-computador-terminal.service"]).toContain("User=nod-pc-term\n");
     expect(u["nod-computador-terminal.service"]).not.toContain("DISPLAY");
     expect(u["nod-computador.socket"]).toMatch(/ListenStream=\/run\/nod-computador\/ctl\.sock\n[\s\S]*SocketGroup=nod\nSocketMode=0660\n/);
@@ -129,7 +133,12 @@ describe("instalação do computador da pessoa (ADR-122)", () => {
       expect((await fetch(`${sem.url}/api/motor/arquivos/computador-tela.mjs`)).status).toBe(404);
       expect(await (await fetch(`${sem.url}/api/motor/instalar`)).text()).not.toContain("nod-computador");
       expect(await (await fetch(`${com.url}/api/motor/arquivos/computador-tela.mjs`)).text()).toContain("computador-tela.mjs");
+      const shell = ARQUIVOS_DO_COMPUTADOR.find((nome) => nome.endsWith("manifesto.json"))!;
+      const respostaShell = await fetch(`${com.url}/api/motor/arquivos/${shell}`);
+      expect(respostaShell.headers.get("content-type")).toBe("application/octet-stream");
+      expect(await respostaShell.text()).toContain("manifesto.json");
       expect(await (await fetch(`${com.url}/api/motor/instalar`)).text()).toContain("nod-computador.service");
+      expect(await (await fetch(`${com.url}/api/motor/instalar`)).text()).toContain("shell-visual/paper-v2/manifesto.json");
     } finally {
       await sem.close();
       await com.close();

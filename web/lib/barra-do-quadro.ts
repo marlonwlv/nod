@@ -43,7 +43,7 @@ const MENU_ITENS = '#qm-pop-quadro [role="menuitem"]';
 const SAEM_DO_MENU = new Set(["painel-pessoas", "painel-atividade", "trazer-linear", "quadro-seletor", "remover-quadro"]);
 /** O botão que abriu cada popover (o foco volta para ele ao fechar). */
 function voltaDo(p: PopoverDaBarra): string {
-  return p === "filtros" ? '[data-act="fil-abrir"]' : p === "opcoes" ? '[data-act="op-abrir"]' : p === "quadro" ? '.qm-cab-bt' : '[data-act="ativos-abrir"]';
+  return p === "filtros" ? '[data-act="fil-abrir"]' : p === "opcoes" ? '[data-act="op-abrir"], .qm-cab-bt' : p === "quadro" ? '.qm-cab-bt' : '[data-act="ativos-abrir"]';
 }
 
 export function criarBarraDoQuadro(d: DepsDaBarra) {
@@ -111,7 +111,7 @@ export function criarBarraDoQuadro(d: DepsDaBarra) {
   async function enviarModal(): Promise<void> {
     if (!modal || modal.enviando) return;
     const titulo = modal.titulo.trim();
-    if (!titulo) { modal = { ...modal, erro: "Dê um título à tarefa." }; d.desenhar(); d.focar("#qm-nt-tit"); return; }
+    if (!titulo) { modal = { ...modal, erro: "Dê um título ao card." }; d.desenhar(); d.focar("#qm-nt-tit"); return; }
     const m = modal;
     modal = { ...m, enviando: true, erro: null };
     d.desenhar();
@@ -122,7 +122,7 @@ export function criarBarraDoQuadro(d: DepsDaBarra) {
       modal = { ...m, titulo: "", descricao: "", enviando: false, erro: null };
       d.desenhar();
       d.focar("#qm-nt-tit");
-      d.anunciar(`Tarefa criada: ${titulo}. Pode escrever a próxima.`);
+      d.anunciar(`Card criado: ${titulo}. Pode escrever o próximo.`);
     } else {
       modal = null;
       d.desenhar();

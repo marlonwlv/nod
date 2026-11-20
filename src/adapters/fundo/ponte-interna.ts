@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Executor, RuntimeEvent } from "../../contracts/evento.ts";
 import { HARNESSES, type IdHarness } from "../../contracts/harness.ts";
 import type { LimitesIa } from "../../contracts/inteligencia.ts";
@@ -26,7 +26,7 @@ import type { Db, Escopo, Relogio, Tx } from "../../shared/types.ts";
 import { assentarTurno, type SaidaAssentarTurno } from "../../use-cases/assentar-turno.ts";
 import { despacharTurno } from "../../use-cases/despachar-turno.ts";
 import { avisarFundoSeguradoPelaCota, type EntradaFundoSegurado } from "../../use-cases/fundo-segurado-pela-cota.ts";
-import { absorverNaSessao, confirmarNaSessao, gravarFalasDaSessao } from "../../use-cases/sessao-viva.ts";
+import { absorverNaSessao, confirmarNaSessao, gravarFalasDaSessao, marcarLidosNaSessao } from "../../use-cases/sessao-viva.ts";
 import { absorverNoTrabalho, promoverNaRede } from "../../use-cases/coordenar-trabalhos.ts";
 import { avisosDeRecadoLido, ofertarRecadosDoQuadro } from "../../use-cases/quadro-execucoes.ts";
 import { avisoDaEtapaNaSessao } from "../../use-cases/etapa-presa.ts";
@@ -36,7 +36,7 @@ import { relatarEspera as relatarEsperaDaMaquina } from "../../use-cases/esperar
 import { relatarDesfazer as relatarDesfazerDaMaquina } from "../../use-cases/desfazer-turno.ts";
 import type { DesfazerParaRodar, RelatoDesfazer } from "../../contracts/checkpoint.ts";
 import type { EsperaParaRodar, RelatoEspera, RespostaRelatoEspera } from "../../contracts/espera.ts";
-import { REDE_MS } from "../../domain/trabalho.ts";
+import { avisoDasFalasDevolvidas, REDE_MS, REDE_NAO_LIDA_MS } from "../../domain/trabalho.ts";
 import type { MudancaDePressao } from "./trabalhos-vivos.ts";
 import type { LeituraDisco, LeituraMemoria, NivelPressao } from "../../contracts/trabalho.ts";
 import type { UsoDoMac } from "../../contracts/raio-x.ts";
@@ -44,12 +44,27 @@ import { USO_DO_MAC_PADRAO } from "../../contracts/raio-x.ts";
 import { ESPACO_FUNDO_MS, portaoDoMac } from "../../domain/memoria-mac.ts";
 import type { Deps, Services, UseCasesNod } from "../../use-cases/tipos.ts";
 import type { TokenTurno } from "../../services/token-turno.ts";
+import type { AvisoDeMensagem } from "../../services/aviso-de-mensagem.ts";
+import { AGUARDAR_MENSAGEM_MS } from "../../contracts/estado-vivo.ts";
+import type { AnexoMeta } from "../../contracts/anexo.ts";
 import type { Turno } from "../../contracts/turno.ts";
 
 /** ADR-130: a fala da pessoa que esperou mais que isto para começar vira a linha `fala_esperou`. */
 const FALA_ESPEROU_MS = 10_000;
 
 /** definido em 2026-09-16: versão mínima do app = a do package.json desta rodada; a ponte HTTP compara quando entrar (ADR-021). */
+
+/** ADR-171 (definido em 2026-11-12): o último log de recursos de cada turno, para 1 linha por minuto (renovação a cada ~10 s). */
+const recursosLogados = new Map<string, number>();
+const INTERVALO_LOG_RECURSOS_MS = 60_000;
+function registrarRecursosDoTurno(t: { turnoId: string; mb: number; cpuPct?: number }, agenteId: string | null, agora: number): void {
+  const antes = recursosLogados.get(t.turnoId);
+  if (antes !== undefined && agora - antes < INTERVALO_LOG_RECURSOS_MS) return;
+  recursosLogados.set(t.turnoId, agora);
+  if (recursosLogados.size > 2000) for (const [id, em] of recursosLogados) if (agora - em > 10 * INTERVALO_LOG_RECURSOS_MS) recursosLogados.delete(id);
+  log("info", "turno_recursos", { turno_id: t.turnoId, agente_id: agenteId, memoria_mb: t.mb, cpu_pct: t.cpuPct ?? null });
+}
+
 export const VERSAO_MINIMA_APP = "0.1.0";
 
 /** NOD-452: contrato fechado da medição usada para escolher o teto; conteúdo e identificadores não entram. */
@@ -67,6 +82,8 @@ export type DepsPonte = {
   agora?: Relogio;
   /** 'local' (claude-cli) ou 'catcher' — o que a máquina conectada de fato roda. Função = valor VIVO (o interruptor de executor troca em tempo de execução). */
   executor?: Executor | (() => Executor);
+  /** C1 (2026-11-12): o aviso que acorda o long-poll da mensagem (aguardarMensagem). Ausente = a ponte não oferece o verbo. */
+  avisoDeMensagem?: Pick<AvisoDeMensagem, "aguardar">;
   /** Fonte das pessoas para resolver tenant de um pessoaId; só em teste (default: tabela pessoas). */
   listarPessoas?: () => Promise<Pick<Pessoa, "tenantId" | "id">[]>;
   /** Depois de entregar: soltar o processo do interruptor (criarInterruptor().esquecer). */
@@ -234,6 +251,12 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
    */
   const despachados = new Map<string, { em: number; sessaoCli: string | null; bifurcou: boolean; modo: PlanoTurno["modoTurno"] | null; conta?: string | null }>();
   /**
+   * ADR-187 (2026-11-17): quando chegou a fala absorvida mais antiga que o turno ainda não leu, vista na última renovação.
+   * O long-poll (`aguardarMensagem`) volta quando ela completa REDE_NAO_LIDA_MS, para a rede promover na hora e não na
+   * renovação seguinte (medido no mesmo dia: 20 s de espera a mais). Some com `despachados`.
+   */
+  const naoLidas = new Map<string, number>();
+  /**
    * Revisão do épico (S21, 2026-10-08): a última vez que o turno foi puxado ou renovado. Passado o lease sem notícia, o
    * varredor de lease o encerra no banco e a entrega talvez nunca chegue: `oferecidas` e `despachados` dele saem aqui
    * (o escopo fica: a entrega tardia ainda assenta, ADR-045). Antes só a entrega os limpava.
@@ -297,6 +320,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       avisosDeEtapa.delete(turnoId);
       oferecidas.delete(turnoId);
       despachados.delete(turnoId);
+      naoLidas.delete(turnoId);
       adotadosNaEntrega.delete(turnoId);
     }
   }
@@ -543,6 +567,29 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       }
     },
 
+    // C1 (2026-11-14): a ponte interna não tem o long-poll HTTP de `puxar`; o mesmo aviso do envio corta a soneca ociosa.
+    ...(deps.avisoDeMensagem ? {
+      aguardarTrabalho(pessoaId: string, ms: number): Promise<boolean> {
+        return deps.avisoDeMensagem!.aguardar(pessoaId, ms);
+      },
+    } : {}),
+
+    // C1 (2026-11-12): o long-poll da mensagem — acorda quando sai, para a pessoa do turno, um frame que pode trazer fala.
+    ...(deps.avisoDeMensagem ? {
+      async aguardarMensagem(turnoId: string, ms: number): Promise<boolean> {
+        const escopo = escopos.get(turnoId);
+        if (!escopo) return false;
+        // A rede de 2 min (ADR-083) promove na renovação: a espera volta no prazo dela, para a promoção não atrasar.
+        const despachado = despachados.get(turnoId);
+        const ateARede = despachado ? despachado.em + (deps.redeMs ?? REDE_MS) - agora() : -1;
+        const naoLida = naoLidas.get(turnoId);
+        const ateANaoLida = naoLida === undefined ? -1 : naoLida + REDE_NAO_LIDA_MS - agora();
+        const prazos = [AGUARDAR_MENSAGEM_MS, ...(ateARede > 0 ? [ateARede + 50] : []), ...(ateANaoLida > 0 ? [ateANaoLida + 50] : [])];
+        const teto = Math.min(...prazos);
+        return deps.avisoDeMensagem!.aguardar(escopo.pessoaId, Math.min(Math.max(0, ms), teto));
+      },
+    } : {}),
+
     async renovar(p: PedidoRenovar): Promise<RespostaRenovar> {
       esquecerVencidos();
       const escopo = escopos.get(p.turnoId);
@@ -556,7 +603,7 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       for (const id of p.mensagensDevolvidas ?? []) jaOferecidas.delete(id);
       // NOD-293 (E9): a oferecida há mais de REOFERTA_MS sem confirmação se perdeu no caminho — entra de novo abaixo.
       soltarOferecidasPerdidas(jaOferecidas, agora());
-      const { ativo, motivo, mensagens, ids, semMoldura, doDonoSemTrabalho } = await abrirTxEscopada(db, escopo)(async (trx) => {
+      const { ativo, motivo, mensagens, ids, semMoldura, anexos, doDonoSemTrabalho, naoLidaDesde } = await abrirTxEscopada(db, escopo)(async (trx) => {
         const d = depsDe(trx, escopo);
         // NOD-214: a sessão do CLI fica no turno já na renovação — a entrega pode se perder num reinício.
         const r = await d.repos.turnos.renovarLease(p.turnoId, p.machineId, p.sinais, agora(), p.sessaoCli ? { sessaoCli: p.sessaoCli } : {});
@@ -565,20 +612,27 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         if (p.eventos.length) await d.repos.events.gravarComOutbox(p.eventos);
         const events: RuntimeEvent[] = [];
         if (novas.length) {
-          const g = await gravarFalasDaSessao(d, { turnoId: p.turnoId, machineId: p.machineId, executor, textos: novas.map((f) => f.texto) });
+          const g = await gravarFalasDaSessao(d, { turnoId: p.turnoId, machineId: p.machineId, executor, textos: novas.map((f) => f.texto), interrompidas: novas.flatMap((f, i) => (f.interrompida ? [i] : [])) });
           events.push(...(g.events ?? []));
         }
         // Turno parado (ativo:false) não confirma: a resposta não vai sair, e a mensagem fica para o próximo turno.
         if (r.ativo && p.mensagensEntregues?.length) {
-          const c = await confirmarNaSessao(d, { turnoId: p.turnoId, executor, ids: p.mensagensEntregues });
+          const c = await confirmarNaSessao(d, { turnoId: p.turnoId, executor, ids: p.mensagensEntregues, informaLeitura: p.informaLeitura === true });
           events.push(...(c.events ?? []));
+        }
+        // ADR-185: depois da confirmação (a mesma renovação pode trazer a escrita e a leitura da mesma fala).
+        if (r.ativo && p.mensagensLidas?.length) {
+          const l = await marcarLidosNaSessao(d, { turnoId: p.turnoId, executor, ids: p.mensagensLidas });
+          events.push(...(l.events ?? []));
         }
         let textos: string[] = [];
         let ids: string[] = [];
+        let anexos: Record<string, AnexoMeta[]> = {};
         if (r.ativo && p.aceitaMensagens) {
-          const a = await absorverNaSessao(d, { turnoId: p.turnoId, executor, confirma, jaOferecidas: [...jaOferecidas.keys()] });
+          const a = await absorverNaSessao(d, { turnoId: p.turnoId, executor, confirma, jaOferecidas: [...jaOferecidas.keys()], aceitaAnexos: p.aceitaAnexos === true });
           textos = a.data.textos;
           ids = a.data.ids;
+          anexos = a.data.anexos ?? {};
           events.push(...(a.events ?? []));
         }
         // ADR-083 (#193): a fala mandada à task (tela da task ou mandar_para_task) entra no turno vivo dela.
@@ -621,6 +675,8 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
         let mudanca: MudancaDePressao | undefined;
         if (p.memoria) {
           await d.repos.trabalhos.atualizarMemoria(p.memoria.porTurno);
+          // ADR-171: memória e CPU do grupo do turno, por bot, no log (no máximo 1 linha por turno por minuto).
+          for (const t of p.memoria.porTurno) if (t.turnoId === p.turnoId) registrarRecursosDoTurno(t, turno?.agenteId ?? null, Date.now());
           mudanca = deps.registrarMemoria?.(escopo.pessoaId, p.machineId, p.memoria);
           if (mudanca?.mudou) events.push(eventoPressao(d, mudanca, p.memoria));
         }
@@ -631,7 +687,10 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
           if (mudanca) deps.desfazerMemoria?.(escopo.pessoaId, mudanca);
           throw e;
         }
-        return { ativo: r.ativo, motivo: r.motivo, mensagens: textos, ids, semMoldura, doDonoSemTrabalho: turno !== null && !turno.trabalhoId && (turno.origem === "conversa" || turno.origem === "retomada") };
+        const doDonoSemTrabalho = turno !== null && !turno.trabalhoId && (turno.origem === "conversa" || turno.origem === "retomada");
+        // ADR-187 (2026-11-17): a fala absorvida e ainda não lida adianta a rede; lida depois da confirmação acima.
+        const naoLidaDesde = doDonoSemTrabalho ? await d.repos.turnos.naoLidaMaisAntiga(p.turnoId) : null;
+        return { ativo: r.ativo, motivo: r.motivo, mensagens: textos, ids, semMoldura, anexos, doDonoSemTrabalho, naoLidaDesde };
       });
       // #189: o que o app confirmou já saiu da fila (absorvido): não está mais "oferecido e esperando confirmação".
       if (ativo) for (const id of p.mensagensEntregues ?? []) jaOferecidas.delete(id);
@@ -648,21 +707,33 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       // ela sairia duas vezes (no turno promovido e no turno próprio que a mensagem viraria). NOD-293 (E9): só conta a que
       // está dentro da janela de REOFERTA_MS — a perdida saiu do mapa acima e, se ainda pendente, está em `ids`.
       const semMensagemNoAr = ids.length === 0 && jaOferecidas.size === 0;
-      if (ativo && doDonoSemTrabalho && despachado && harness !== null && semMensagemNoAr && agora() - despachado.em >= redeMs && deps.fezFerramenta?.(p.turnoId)) {
+      const daRede: { aviso: { id: string; texto: string } | null } = { aviso: null };
+      if (ativo && doDonoSemTrabalho && despachado && harness !== null && semMensagemNoAr && (agora() - despachado.em >= redeMs || (naoLidaDesde !== null && agora() - naoLidaDesde >= REDE_NAO_LIDA_MS)) && deps.fezFerramenta?.(p.turnoId)) {
         await abrirTxEscopada(db, escopo)(async (trx) => {
           const d = depsDe(trx, escopo);
           const r = await promoverNaRede(d, { turnoId: p.turnoId, despachadoEm: despachado.em, fezFerramenta: true, harness, sessaoCli: despachado.sessaoCli, sessaoExecutor: executores.get(p.turnoId) ?? null, maquinaBifurca, modo: despachado.modo, redeMs });
           if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+          // ADR-187 §3: as falas devolvidas à conversa já estão na sessão; o aviso vai cru (sem a moldura de fala da
+          // pessoa), com um id próprio que não é de turno nenhum — a confirmação dele não acha nada para absorver.
+          if (r.data.devolvidas?.length) daRede.aviso = { id: randomUUID(), texto: avisoDasFalasDevolvidas(r.data.devolvidas) };
         }).catch((e: unknown) => log("aviso", "rede_promover_falhou", { turno_id: p.turnoId, erro: e instanceof Error ? e.name : "desconhecido" }));
       }
+      // O aviso vai no fim da resposta, com id e sem moldura. Só com os ids alinhados aos textos (um aviso de etapa sem id
+      // no meio desalinharia o id do aviso): nesse caso raro ele fica de fora, e a tarefa pode responder de novo.
+      const comAviso = daRede.aviso !== null && mensagens.length === ids.length;
+      const mensagensDaResposta = comAviso ? [...mensagens, daRede.aviso!.texto] : mensagens;
+      const idsDaResposta = comAviso ? [...ids, daRede.aviso!.id] : ids;
+      const semMolduraDaResposta = comAviso ? [...semMoldura, daRede.aviso!.id] : semMoldura;
       if (novas.length) falasGravadas.set(p.turnoId, novas.at(-1)!.seq);
+      if (ativo && naoLidaDesde !== null) naoLidas.set(p.turnoId, naoLidaDesde);
+      else naoLidas.delete(p.turnoId);
       if (ativo) vistos.set(p.turnoId, agora());
       if (confirma && ativo) {
         const em = agora();
-        for (const id of ids) jaOferecidas.set(id, em);
+        for (const id of idsDaResposta) jaOferecidas.set(id, em);
         oferecidas.set(p.turnoId, jaOferecidas);
       }
-      return { ativo, versaoMinimaApp: VERSAO_MINIMA_APP, ...(!ativo && motivo ? { motivo } : {}), ...(mensagens.length ? { mensagens, mensagensIds: ids } : {}), ...(semMoldura.length ? { mensagensSemMoldura: semMoldura } : {}) };
+      return { ativo, versaoMinimaApp: VERSAO_MINIMA_APP, ...(!ativo && motivo ? { motivo } : {}), ...(mensagensDaResposta.length ? { mensagens: mensagensDaResposta, mensagensIds: idsDaResposta } : {}), ...(semMolduraDaResposta.length ? { mensagensSemMoldura: semMolduraDaResposta } : {}), ...(Object.keys(anexos).length ? { mensagensAnexos: anexos } : {}) };
     },
 
     async entregar(e: Entrega) {
@@ -777,12 +848,11 @@ export function criarPonteInterna(db: Db, deps: DepsPonte): PonteInternaNod {
       falasGravadas.delete(e.turnoId);
       oferecidas.delete(e.turnoId);
       despachados.delete(e.turnoId);
+      naoLidas.delete(e.turnoId);
       vistos.delete(e.turnoId);
       avisosDeEtapa.delete(e.turnoId);
       adotadosNaEntrega.delete(e.turnoId);
       deps.services.tokenTurno.revogar(e.turnoId);
-      // NOD-200: a captura do turno sai só com o assentar confirmado; na falha fica, como o escopo, para a entrega repetida.
-      deps.services.capturas?.esquecer(e.turnoId);
       deps.esquecerTurno?.(e.turnoId);
     },
 

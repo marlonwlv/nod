@@ -56,7 +56,8 @@ export type DepsCanaisVoz = {
    * Ausente, os dois caminhos dão 404 (sem NOD_COMPUTADORES=motor).
    */
   computadorVivo?: {
-    web(escopo: Escopo, agenteId: string, canal: LadoVivoWs): void;
+    /** Card D, F3: `assistir` (`?modo=assistir`) abre a sessão de quem só vê; o teclado e o mouse ficam no filtro. */
+    web(escopo: Escopo, agenteId: string, canal: LadoVivoWs, modo?: { assistir: boolean }): void;
     motor(sessao: string, token: string, canal: LadoVivoWs): boolean;
   };
   /** Teste: encurta a reconferência da sessão (RECONFERIR_SESSAO_MS). */
@@ -204,7 +205,8 @@ export function anexarCanaisVoz(server: Server, deps: DepsCanaisVoz): CanaisVoz 
         wss.handleUpgrade(req, socket, head, (ws) => {
           vigiarSessao(ws, req, escopo);
           ws.on("error", (e) => log("aviso", "computador_vivo_erro_socket", { erro: e.name }));
-          vivo.web(escopo, agenteId, ladoDeSocket(ws));
+          const assistir = new URL(req.url ?? "/", "http://127.0.0.1").searchParams.get("modo") === "assistir";
+          vivo.web(escopo, agenteId, ladoDeSocket(ws), { assistir });
         });
       });
       return;

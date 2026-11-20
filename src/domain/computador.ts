@@ -80,7 +80,7 @@ export const MOTIVO_FALHA_EM_PORTUGUES: Readonly<Record<MotivoFalhaComputador, s
   acao_falhou: "a ação falhou dentro do computador",
   tela_alterada: "a tela mudou desde a última observação",
   ocupado: "outra ação estava em andamento",
-  limite_de_computadores: "este Mac já tem o máximo de computadores ligados",
+  limite_de_computadores: "o provedor chegou ao limite de computadores ligados",
   maquina_sem_contato: "a máquina do computador não está respondendo",
   faltam_pacotes: "faltam pacotes do computador na máquina",
   sem_suporte: "a máquina não consegue rodar o computador",
@@ -135,7 +135,7 @@ export const TEXTO_ATUALIZANDO = "O computador está atualizando; tento de novo 
 export function instrucaoDaFalha(motivo: MotivoFalhaComputador, limite: LimiteDeComputadores | null = null, maquina: string | null = null): string {
   const ligar = textoDeLigar(motivo, maquina);
   if (ligar) return `${ligar}. Nada foi executado. Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.${caminhoParaAPessoa(motivo)}`;
-  if (motivo === "limite_de_computadores") return `${limite ? textoDoLimite(limite) : "Este Mac já tem o máximo de computadores ligados. Nada foi executado."} Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.`;
+  if (motivo === "limite_de_computadores") return `${limite ? textoDoLimite(limite) : "O provedor chegou ao limite de computadores ligados. Pare um computador sem uso ou ajuste o limite do plano. Nada foi executado."} Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.`;
   if (motivo === "faltam_pacotes" || motivo === "sem_suporte") return `O computador não está disponível: ${MOTIVO_FALHA_EM_PORTUGUES[motivo]}. Nada foi executado. Não tente de novo neste turno; siga com os acessos que você tem e diga em uma frase o que ficou de fora.`;
   // NOD-96 PR 5: a operação da pessoa (Atualizar, Redefinir, Sair de todos) é espera, não erro.
   if (motivo === "atualizando") return TEXTO_ATUALIZANDO;
@@ -162,11 +162,19 @@ export function resumirDetalhe(texto: string | null | undefined): string | null 
   return redigirECortar(redigida, 200);
 }
 
+/** Os tetos anunciados ao bot são em caracteres; `length` conta unidades UTF-16 e recusaria um emoji no limite. */
+export function passaDeCaracteres(s: string, max: number): boolean {
+  if (s.length <= max) return false;
+  let n = 0;
+  for (const _ of s) if (++n > max) return true;
+  return false;
+}
+
 export function validarAcaoComputador(valor: unknown): AcaoComputador {
   if (!valor || typeof valor !== "object" || Array.isArray(valor)) throw new ErroDeDominio("entrada_invalida");
   const a = valor as Record<string, unknown>;
   const texto = (k: string, max = 8000) => {
-    if (typeof a[k] !== "string" || (a[k] as string).length > max) throw new ErroDeDominio("entrada_invalida");
+    if (typeof a[k] !== "string" || passaDeCaracteres(a[k] as string, max)) throw new ErroDeDominio("entrada_invalida");
     return a[k] as string;
   };
   const numero = (k: string, min: number, max: number) => {
@@ -236,6 +244,8 @@ export function validarAcaoComputador(valor: unknown): AcaoComputador {
     case "gravar_arquivo": {
       const base64 = texto("base64", 699052);
       if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) throw new ErroDeDominio("entrada_invalida");
+      const bytes = base64.length / 4 * 3 - (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+      if (bytes > 524_288) throw new ErroDeDominio("entrada_invalida");
       return { tipo: a.tipo, caminho: caminho(), base64 };
     }
     case "anexar": return { tipo: a.tipo, quadro: quadro(), caminho: caminho() };
@@ -316,6 +326,45 @@ const ATIVIDADE_EM_PORTUGUES: Readonly<Record<string, string>> = {
 export function textoDaAtividade(tipo: string, estado: string): string {
   const texto = ATIVIDADE_EM_PORTUGUES[tipo] ?? "usou o computador";
   return estado === "falhou" ? `${texto} (não deu certo)` : texto;
+}
+
+/**
+ * D · Computador do bot (item 1): o rótulo da linha de atividade enquanto o bot usa o computador, no lugar do genérico
+ * "Usando o computador". `ferramenta` é o nome sem o prefixo (`computador_navegar`); `resumo` é o resumo de uma linha do
+ * argumento (`resumoDaFerramenta`, já redigido): a URL curta do navegar ("www.exemplo.com/caminho") e o `tipo` do
+ * interagir ("clicar", "digitar"…). Nunca o texto digitado, o comando nem o caminho; sempre em português. Sem resumo
+ * (app antigo), o genérico do verbo ("Abrindo uma página", "Mexendo na tela").
+ */
+const ROTULO_DO_COMPUTADOR: Readonly<Record<string, string>> = {
+  elementos: "Interagindo com a página", observar: "Olhando a tela", terminal: "Rodando no terminal", abas: "Trocando de aba", audio: "Ouvindo o computador",
+  arquivos: "Olhando os arquivos", ler_arquivo: "Lendo um arquivo", ler_texto: "Lendo um arquivo", gravar_texto: "Gravando um arquivo",
+  gravar_arquivo: "Gravando um arquivo", pedir_ajuda: "Pedindo ajuda a você",
+};
+const ROTULO_DA_INTERACAO: Readonly<Record<string, string>> = {
+  clicar: "Clicando na tela", arrastar: "Clicando na tela", dialogo: "Clicando na tela", digitar: "Digitando na tela",
+  tecla: "Digitando na tela", rolar: "Rolando a tela", anexar: "Anexando um arquivo",
+};
+/** O tipo do interagir que vira resumo do passo (`resumoDaFerramenta`): só a palavra do enum, nunca o resto do argumento. */
+export const TIPOS_DA_INTERACAO: readonly string[] = Object.keys(ROTULO_DA_INTERACAO);
+
+/** O domínio da URL (ou da URL curta) sem `www.`, porta, credencial nem caminho; null se não parece um domínio. */
+export function dominioDaUrl(url: string): string | null {
+  const m = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^/?#@\s]*@)?([^/?#:\s]+)/i.exec(url.trim());
+  const host = m?.[1]?.toLowerCase().replace(/^www\./, "").replace(/\.$/, "") ?? "";
+  return /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/.test(host) && host.length <= 80 ? host : null;
+}
+
+export function rotuloDoComputador(ferramenta: string, resumo?: string | null): string {
+  const curto = ferramenta.replace(/^computador_/, "");
+  if (curto === "navegar") {
+    const dominio = resumo ? dominioDaUrl(resumo) : null;
+    return dominio ? `Abrindo ${dominio}` : "Abrindo uma página";
+  }
+  if (curto === "interagir") {
+    const tipo = resumo?.trim().toLowerCase() ?? "";
+    return Object.hasOwn(ROTULO_DA_INTERACAO, tipo) ? ROTULO_DA_INTERACAO[tipo]! : "Mexendo na tela";
+  }
+  return Object.hasOwn(ROTULO_DO_COMPUTADOR, curto) ? ROTULO_DO_COMPUTADOR[curto]! : "Usando o computador";
 }
 
 /**

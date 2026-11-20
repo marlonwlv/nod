@@ -428,8 +428,9 @@ describe("lembrete e menu (opção 2)", () => {
     const sem = htmlMenuConta({ ...base, conta: { email: null, senha: false } });
     expect(sem).toContain("Criar conta ou entrar");
     expect(sem).toContain("Seu espaço está só neste computador");
-    const com = htmlMenuConta({ ...base, quem: { nome: null, email: "ana@x.com" }, conta: { email: "ana@x.com", senha: true } });
-    expect(com).toContain("ana@x.com");
+    const com = htmlMenuConta({ ...base, conta: { email: "ana@x.com", senha: true } });
+    // Spec do item 2: o e-mail mora em Configurações › Conta (o nome já está no rodapé).
+    expect(com).not.toContain("ana@x.com");
     expect([...com.matchAll(/data-conta="([^"]+)"/g)].map((m) => m[1])).toEqual(["sair"]);
     for (const t of ["Trocar senha", "Sessões", "Conectar outro computador"]) expect(com).not.toContain(t);
   });

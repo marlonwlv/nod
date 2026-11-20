@@ -106,7 +106,7 @@ descrever("NOD-430 · o código da tarefa no Chrome real", () => {
   it("o código vira botão com o rótulo do que abre", async () => {
     await abrir();
     const b = await avaliar<{ texto: string; rotulo: string | null; agente: string; tarefa: string }>(cdp, `(() => { const b = document.querySelector('#timeline [data-act="abrir-tarefa-quadro"]'); return { texto: b.textContent, rotulo: b.getAttribute("aria-label"), agente: b.dataset.agente, tarefa: b.dataset.tarefa }; })()`);
-    expect(b).toEqual({ texto: "1a2b", rotulo: "Abrir tarefa 1a2b no quadro", agente: ENG, tarefa: TAREFA });
+    expect(b).toEqual({ texto: "1a2b", rotulo: "Abrir o card 1a2b no quadro", agente: ENG, tarefa: TAREFA });
   });
 
   it("com a conversa do dono na tela: o clique abre a tarefa no quadro dele", async () => {

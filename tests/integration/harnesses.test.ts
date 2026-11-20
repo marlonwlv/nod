@@ -185,6 +185,15 @@ it("NOD-171: com os prontos da pessoa, o computador com Claude reivindica o fixa
     expect(await repos.turnos.reivindicar({ machineId: randomUUID(), agora: Date.now(), harnessesProntos: ["claude-cli"], harnessesProntosPessoa: ["claude-cli"] })).toMatchObject({ id: turno!.id });
   });
 });
+it("Automático com Sonnet espera o Claude apto, mas cai na máquina Codex quando o Claude sai da lista efetiva", async () => {
+  await withRollback(escopo, async (trx) => {
+    const { repos, agenteId, conversaId } = await agenteComConversa(trx, escopo);
+    const turno = await repos.turnos.enfileirar({ executor: "catcher", agenteId, conversaId, origem: "conversa", prazoEm: Date.now() + 60000, profundidade: 0, entradaTexto: "oi", entradaConfianca: "confiavel", modelo: "sonnet", harness: "auto" });
+    const base = { machineId: randomUUID(), agora: Date.now(), harnessesProntos: ["codex-cli"], harnessesAuto: ["codex-cli"], harnessesProntosPessoa: ["claude-cli", "codex-cli"] } as const;
+    expect(await repos.turnos.reivindicar({ ...base, harnessesAutoPessoa: ["claude-cli", "codex-cli"] })).toBeNull();
+    expect(await repos.turnos.reivindicar({ ...base, harnessesAutoPessoa: ["codex-cli"] })).toMatchObject({ id: turno!.id, harness: "auto", modelo: "sonnet" });
+  });
+});
 
 });
 
@@ -298,24 +307,19 @@ describeIntegracao("NOD-213: bot 'auto' com modelo GPT roda no Codex", () => {
     });
   });
 
-  it("app do Mac: a fila manda o turno para a máquina com o Codex, não para a do Claude", async () => {
+  it("app do Mac: prefere a máquina com Codex enquanto ela está apta", async () => {
     await withRollback(escopo, async (trx) => {
       const b = await montar(trx, { "claude-cli": pronto, "codex-cli": pronto });
       const harnessesDaPessoa = { "claude-cli": pronto, "codex-cli": pronto };
       expect((await puxar(b, { harnessesProntos: ["claude-cli"], harnessesDaPessoa })).data.motivo).toBe("fila_vazia");
-      expect(await b.repos.turnos.buscar(b.turno.id)).toMatchObject({ estado: "pendente" });
-      expect((await puxar(b, { harnessesProntos: ["codex-cli"], harnessesDaPessoa })).data.plano).toMatchObject({ harness: "codex-cli" });
+      expect((await puxar(b, { harnessesProntos: ["codex-cli"], harnessesDaPessoa })).data.plano).toMatchObject({ harness: "codex-cli", entrada: { modelo: "gpt-5.6-sol" } });
     });
   });
 
-  it("com o Codex fora e o Claude pronto, a negação nomeia o Codex (nunca o Claude, nunca modelo recusado)", async () => {
+  it("com o Codex fora e o Claude pronto, cai no Claude com modelo compatível", async () => {
     await withRollback(escopo, async (trx) => {
       const b = await montar(trx, { "claude-cli": pronto, "codex-cli": { estado: "nao_autenticado", motivo: "faça login", em: Date.now() } });
-      expect((await puxar(b)).data).toMatchObject({ plano: null, motivo: "executor_indisponivel" });
-      const negacao = await b.repos.mensagens.ultimaDaConversa(b.conversaId);
-      expect(negacao).toMatchObject({ kind: "negacao", payload: { nome: "codex-cli", ia: "codex-cli" } });
-      expect(negacao?.payload).not.toHaveProperty("modelo");
-      expect(negacao?.texto).toContain("Codex sem conta conectada");
+      expect((await puxar(b)).data.plano).toMatchObject({ harness: "claude-cli", entrada: { modelo: "claude-haiku-4-5-20251001" } });
     });
   });
 });

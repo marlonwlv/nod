@@ -6,7 +6,8 @@ import { esperaDoTrabalho } from "../../../src/domain/trabalho.ts";
 import { aplicarFrame, estadoInicial, reduzir, type Estado } from "../../../web/estado/reducer.ts";
 import { esperaNaTela, fraseDoDono, linhaDoDono, quemPediu, textoDaFila } from "../../../web/lib/dono.ts";
 import { agrupar, foraDoMac, pontoTrabalho, situacaoDe } from "../../../web/lib/trabalhos.ts";
-import { renderTrabalhosPorBot, sinalDoBot } from "../../../web/telas/linha-do-dono.ts";
+import { sinalDoBot } from "../../../web/telas/linha-do-dono.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
 
 /**
  * A tela do um dono por bot (ADR-099 item 10, parte 5; protótipo docs/prototipos/um-dono-por-bot/): as frases por
@@ -54,9 +55,9 @@ const comando = (extra: Partial<EsperaDoDonoDto> = {}): EsperaDoDonoDto => ({
 describe("a linha acima do campo, por prioridade (quadro 08)", () => {
   it("Esperando você > Trabalhando em N frentes > Esperando X > N na fila > livre (some)", () => {
     const voce = linhaDoDono(dono({ esperandoVoce: 1, frentes: 2, fila: 1 }, [], [pedido(1)]), AGORA);
-    expect(voce).toEqual({ sinal: "voce", texto: "Esperando você", extras: ["2 frentes trabalhando", "1 pedido na fila"], quantos: 1 });
+    expect(voce).toEqual({ sinal: "voce", texto: "Esperando você", extras: ["2 tarefas trabalhando", "1 pedido na fila"], quantos: 1 });
     const trab = linhaDoDono(dono({ frentes: 3, esperando: 1, motivoEspera: "a CI do #845" }), AGORA);
-    expect(trab).toEqual({ sinal: "vivo", texto: "Trabalhando em 3 frentes", extras: ["esperando a CI do #845"], quantos: 3 });
+    expect(trab).toEqual({ sinal: "vivo", texto: "Trabalhando em 3 tarefas", extras: ["esperando a CI do #845"], quantos: 3 });
     const esp = linhaDoDono(dono({ esperando: 1, motivoEspera: "a CI do #845", desde: AGORA - 38 * MIN, fila: 2 }, [], [pedido(1), pedido(2)]), AGORA);
     expect(esp).toEqual({ sinal: "espera", texto: "Esperando a CI do #845", extras: ["38 min", "2 pedidos na fila"], quantos: 1 });
     expect(linhaDoDono(dono({ fila: 2 }, [], [pedido(1), pedido(2)]), AGORA)).toEqual({ sinal: "fila", texto: "2 pedidos na fila", extras: [], quantos: 2 });
@@ -70,7 +71,7 @@ describe("a linha acima do campo, por prioridade (quadro 08)", () => {
   });
 
   it("textos de contagem: uma frente no singular, várias esperas sem motivo, fila misturada com frentes na vez", () => {
-    expect(linhaDoDono(dono({ frentes: 1 }), AGORA)?.texto).toBe("Trabalhando em 1 frente");
+    expect(linhaDoDono(dono({ frentes: 1 }), AGORA)?.texto).toBe("Trabalhando em 1 tarefa");
     expect(linhaDoDono(dono({ frentes: 1, esperando: 3, motivoEspera: "a CI" }), AGORA)?.extras).toEqual(["3 esperando"]);
     expect(linhaDoDono(dono({ esperando: 3, motivoEspera: "a CI", desde: AGORA - 5 * MIN }), AGORA)?.extras).toEqual(["5 min", "mais 2 esperando"]);
     expect(textoDaFila({ fila: 3 }, 1)).toBe("3 na fila");
@@ -81,7 +82,7 @@ describe("a linha acima do campo, por prioridade (quadro 08)", () => {
 
 describe("as esperas e a fila em frase (a pílula alargada lê daqui)", () => {
   it("as esperas em frase: comando, volta marcada e colega; quem pediu o que está na fila", () => {
-    expect(esperaNaTela(comando({ ultimaLinha: null }), AGORA, "Mobile")).toEqual({ titulo: "gh pr checks 845 --watch", comando: true, linhas: ["volta quando a CI do #845 terminar · tentativa 2 de 3 · da frente Mobile"], tempo: "38 min" });
+    expect(esperaNaTela(comando({ ultimaLinha: null }), AGORA, "Mobile")).toEqual({ titulo: "gh pr checks 845 --watch", comando: true, linhas: ["volta quando a CI do #845 terminar · tentativa 2 de 3 · da tarefa Mobile"], tempo: "38 min" });
     const volta = esperaNaTela({ tipo: "volta", trabalhoId: null, motivo: "o deploy terminar", desde: AGORA - 10 * MIN, acordaEm: new Date(2026, 9, 11, 19, 5).getTime() }, AGORA);
     expect(volta.titulo).toBe("Volta às 19:05");
     expect(volta.linhas).toEqual(["o deploy terminar"]);
@@ -119,7 +120,7 @@ describe("a barra lateral: um sinal por bot", () => {
   });
 });
 
-describe("Trabalhos com uma linha por bot (quadro 05)", () => {
+describe("Tarefas com uma linha por bot (quadro 05, Paper 5a)", () => {
   const frenteZe2a = trabalho("g66", { agenteId: "ze2", conversaId: "c-ze2", titulo: "GFK-1866 · publicar versão completa", turnoVivoId: "x1", iniciadoEm: AGORA - 22 * MIN });
   const frenteZe2b = trabalho("g70", { agenteId: "ze2", conversaId: "c-ze2", titulo: "GFK-1870 · coins e gemas", turnoVivoId: "x2", iniciadoEm: AGORA - 18 * MIN });
   const feitaZe2 = trabalho("g68", { agenteId: "ze2", conversaId: "c-ze2", titulo: "GFK-1868 · preservar Ferons", estado: "terminado", terminadoEm: AGORA - 10 * MIN });
@@ -133,41 +134,46 @@ describe("Trabalhos com uma linha por bot (quadro 05)", () => {
   const decisao = { decisao: { id: "d1", agenteId: "ze1", conversaId: "c-ze1", frase: "parei para perguntar a Marlon: Como seguir com o #845?", criadoEm: new Date(AGORA - 33 * MIN).toISOString() }, estadoColuna: "pendente" } as never;
   const base = (extra: Partial<Estado> = {}) => estadoCom([frenteZe2a, frenteZe2b, feitaZe2], donos, { tela: { tipo: "trabalhos" }, suaVez: { itens: [decisao], incidentes: [], foraDoAr: [], vazio: false, ultimaDecisaoEm: null }, ...extra });
 
-  it("os grupos Precisa de você, Trabalhando e Esperando, e os livres numa linha; o topo conta bots", () => {
-    const html = renderTrabalhosPorBot(base());
-    expect(html).toContain("<p>1 bot trabalhando · 1 esperando · 1 precisa de você</p>");
-    const ordem = ["Precisa de você · 1", "Trabalhando · 1", "Esperando · 1"].map((t) => html.indexOf(t));
+  // ADR-187 §8 (lote B, passo 5, 2026-11-18; Paper 5a): a tela Tarefas por bot ganhou cartões por grupo, o rótulo
+  // "Precisa de você · 1 bot", a linha com ícone, mascote, nome, título, contas e tempo, e o resumo do topo saiu.
+  const porBot = (e: Estado): string => renderTelaTarefas(e, { tipo: "trabalhos" });
+
+  it("os grupos Precisa de você, Trabalhando e Esperando, com os bots contados no rótulo, e os livres numa linha", () => {
+    const html = porBot(base());
+    const ordem = ["Precisa de você · 1 bot", "Trabalhando · 1 bot", "Esperando · 1 bot"].map((t) => html.indexOf(t));
     expect(ordem.every((i) => i > 0)).toBe(true);
     expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
-    expect(html).toContain('<p class="tb-livres">Livres: Nod, Eng 1</p>');
-    // Uma linha por bot, não por task.
-    expect(html.match(/class="tt-linha tb-linha"/g)).toHaveLength(3);
-    expect(html).not.toContain("tt-filtros");
+    expect(html).toContain('<p class="tf-livres">Livres: Nod, Eng 1</p>');
+    // Uma linha por bot, não por tarefa.
+    expect(html.match(/class="tf-linha-bot"/g)).toHaveLength(3);
+    expect(html).toContain('data-act="vista-tarefas" data-id="por-bot" aria-pressed="true">Por bot');
+    expect(html).not.toContain("bot trabalhando ·");
   });
 
-  it("cada linha: ponto, mascote, nome, a frase e o detalhe curto, o tempo", () => {
-    const html = renderTrabalhosPorBot(base());
-    expect(html).toMatch(/<span class="ponto-trabalho precisa"[^>]*><\/span><span class="tt-bot">.*<b>Ze 1<\/b><\/span><span class="tt-meio"><span class="tt-titulo">Como seguir com o #845\?<\/span><span class="tt-passo">2 pedidos na fila<\/span><\/span><span class="tt-fim">há 33 min<\/span>/);
-    expect(html).toContain('<span class="tt-titulo">Trabalhando em 2 frentes</span><span class="tt-passo">1 pedido na fila</span>');
-    expect(html).toContain('<span class="ponto-trabalho c-teal pulso-trab"');
-    expect(html).toContain('<span class="ponto-trabalho fora-do-mac" aria-hidden="true"></span><span class="tt-bot">');
-    expect(html).toContain('<span class="tt-titulo">Esperando Ze 1</span></span><span class="tt-fim">desde ');
+  it("cada linha (Paper 5a): o ícone do grupo, o mascote, o nome, o título, as contas e o tempo", () => {
+    const html = porBot(base());
+    expect(html).toMatch(/data-agente="ze1" aria-expanded="false" data-grupo="precisa"><span class="tf-ic"><svg class="pf-aba-ic pf-precisa"[^]*?<b class="tf-nome">Ze 1<\/b><span class="tf-titulo" title="Como seguir com o #845\?">Como seguir com o #845\?<\/span><span class="tf-contas">1 precisa de você · 2 na fila<\/span><span class="tf-tempo">há 33 min<\/span>/);
+    // A tarefa principal (a aberta mais antiga) é o título; as contas trazem as prontas de hoje.
+    expect(html).toMatch(/data-grupo="trabalhando"><span class="tf-ic"><svg class="pf-aba-ic pf-anel"[^]*?<span class="tf-titulo"[^>]*>GFK-1866 · publicar versão completa<\/span><span class="tf-contas">2 rodando · 1 na fila · 1 pronta<\/span><span class="tf-tempo">há 28 min<\/span>/);
+    expect(html).toMatch(/data-grupo="esperando"><span class="tf-ic"><svg class="pf-aba-ic tf-espera"[^]*?<span class="tf-titulo"[^>]*>Esperando Ze 1<\/span><span class="tf-contas">1 esperando<\/span><span class="tf-tempo">17:58<\/span>/);
   });
 
-  it("clicar no bot abre as frentes dele embaixo da linha (abertas, terminadas hoje, a fila)", () => {
+  it("clicar no bot abre as tarefas dele embaixo da linha (abertas e a fila) e o 'Abrir a conversa'", () => {
     const e = reduzir(base(), { tipo: "bot-trabalhos", agenteId: "ze2" });
-    const html = renderTrabalhosPorBot(e);
+    const html = porBot(e);
     expect(html).toContain('data-act="bot-trabalhos" data-agente="ze2" aria-expanded="true"');
-    expect(html).toContain('<div class="tb-frentes" role="group" aria-label="Frentes de Ze 2">');
+    expect(html).toContain('<div class="tf-tarefas-do-bot" role="group" aria-label="Tarefas de Ze 2">');
     expect(html).toContain('data-act="abrir-trabalho" data-id="g66"');
-    expect(html).toContain('<span class="tb-frente-fim">frente · 22 min</span>');
-    expect(html).toContain("GFK-1868 · preservar Ferons");
+    expect(html).toMatch(/data-id="g66"[^]*?<span class="tf-tempo">22 min<\/span>/);
+    // Com "Abertas", a terminada de hoje fica de fora (aparece com Feitas ou Todas).
+    expect(html).not.toContain("GFK-1868 · preservar Ferons");
     expect(html).toContain("Na fila: pedido do Leonardo");
-    // Revisão do Gil no #340: a linha corta com reticências; o title traz a frase inteira (e some sem frase).
-    const passos = [...html.matchAll(/<span class="tb-frente-passo"( title="([^"]*)")?>([^<]*)<\/span>/g)];
+    expect(html).toContain('data-act="abrir-conversa" data-conversa="c-ze2" data-agente="ze2">Abrir a conversa com Ze 2 ›</button>');
+    // A linha corta com reticências; o title traz a frase inteira (e some sem frase).
+    const passos = [...html.matchAll(/<span class="tf-t-passo"( title="([^"]*)")?>([^<]*)<\/span>/g)];
     expect(passos.length).toBeGreaterThan(0);
     for (const [, temTitle, title, texto] of passos) expect(temTitle ? title : "").toBe(texto);
-    expect(passos.some(([, temTitle]) => temTitle)).toBe(true);
+    expect(renderTelaTarefas(e, { tipo: "trabalhos", mostrar: "todas" })).toContain("GFK-1868 · preservar Ferons");
     expect(reduzir(e, { tipo: "bot-trabalhos", agenteId: null }).botAbertoEmTrabalhos).toBeNull();
   });
 
@@ -176,28 +182,27 @@ describe("Trabalhos com uma linha por bot (quadro 05)", () => {
     const pedidosNaFila = [{ turnoId: "p3", agenteId: "ze2", de: "Leonardo", pedido: "Revise o PR 42.", ia: "claude-cli" as const, situacao: "reserva" as const, voltaEm, criadoEm: AGORA - 57 * MIN }];
     const comCota = base();
     const e = reduzir({ ...comCota, trabalhos: { ...comCota.trabalhos!, cota: { situacao: "reserva", ias: ["claude-cli"], voltaEm }, pedidosNaFila } }, { tipo: "bot-trabalhos", agenteId: "ze2" });
-    const html = renderTrabalhosPorBot(e);
-    expect(html).toContain('<div class="tb-frente estatica" data-cota="1"><span class="ld-ordem" aria-hidden="true">1</span><span class="tb-frente-titulo">Na fila: pedido do Leonardo</span><span class="tb-frente-passo">na fila (cota) · volta às 20:30</span>');
+    const html = porBot(e);
+    expect(html).toContain('<div class="tf-tarefa-bot estatica" data-cota="1"><span class="tf-ic tf-ordem" aria-hidden="true">1</span><span class="tf-t-titulo">Na fila: pedido do Leonardo</span><span class="tf-t-passo">na fila (cota) · volta às 20:30</span>');
     expect(html).toContain("1 espera · trabalho de fundo volta às 20:30");
     // Sem a cota segurando, a fila de sempre.
-    expect(renderTrabalhosPorBot(reduzir(base(), { tipo: "bot-trabalhos", agenteId: "ze2" }))).not.toContain("na fila (cota)");
+    expect(porBot(reduzir(base(), { tipo: "bot-trabalhos", agenteId: "ze2" }))).not.toContain("na fila (cota)");
   });
 
   it("o bot que só conversa: trabalhando pelo turno ao vivo da conversa, não pelo GET trabalhos (que fica velho)", () => {
     const comVelho = estadoCom([], [dono({ agenteId: "nod", principal: "trabalhando", conversaTrabalhando: true })], { tela: { tipo: "trabalhos" } });
-    expect(renderTrabalhosPorBot(comVelho)).toContain("Livres: Nod");
+    // "Livres" são todos os bots sem linha, não só os donos.
+    expect(porBot(comVelho)).toContain('<p class="tf-livres">Livres: Nod, Ze 1, Ze 2, Leonardo, Eng 1</p>');
     const vivo = { ...comVelho, turnosVivos: { t1: { turnoId: "t1", conversaId: "c-nod", estado: "rodando" as const, executor: null, machineId: null, desde: AGORA, trabalhoId: null } } };
-    expect(renderTrabalhosPorBot(vivo)).toContain('<span class="tt-titulo">Trabalhando na conversa</span>');
+    expect(porBot(vivo)).toContain('<span class="tf-titulo" title="Trabalhando na conversa">Trabalhando na conversa</span>');
   });
 
-  it("NOD-369: o topo por bot fica sem o custo de hoje (mesmo com um que sobre no estado); a pílula da memória continua", () => {
-    const html = renderTrabalhosPorBot({ ...base({ pressao: "amarela" }), custoHoje: { totalUsd: 4.2, foraDoRitmo: true, bots: [] } } as Estado);
-    const topo = html.slice(html.indexOf('<header class="tt-cab">'), html.indexOf("</header>"));
-    expect(topo).not.toContain("US$");
-    expect(html).not.toContain("tt-custo");
+  it("NOD-369: o topo fica sem o custo de hoje (mesmo com um que sobre no estado); o aviso da máquina mora na aba das tarefas", () => {
+    const html = porBot({ ...base({ pressao: "amarela" }), custoHoje: { totalUsd: 4.2, foraDoRitmo: true, bots: [] } } as Estado);
+    expect(html).not.toContain("US$");
     expect(html).not.toContain("custo-hoje");
-    expect(renderTrabalhosPorBot(base())).not.toContain("US$");
-    expect(html).toContain("Pouca memória no seu Mac");
+    expect(porBot(base())).not.toContain("US$");
+    expect(html).not.toContain("Seu Mac está com pouca memória");
   });
 });
 

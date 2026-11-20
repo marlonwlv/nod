@@ -21,7 +21,7 @@ export type EntradaRegistrarMemoria = {
 };
 
 /**
- * Memória por bot (Grok Bot: memória não é fonte). Grava a linha e, quando há conversa, a mensagem de
+ * Memória por bot (memória não é fonte). Grava a linha e, quando há conversa, a mensagem de
  * sistema 'anotei' na MESMA tx. A memória entra no prompt de sistema com "não substitui fonte autoritativa".
  */
 export const registrarMemoria: CasoDeUso<EntradaRegistrarMemoria, { memoria: Memoria; mensagem: Mensagem | null }> = async (deps, input) => {
@@ -31,8 +31,12 @@ export const registrarMemoria: CasoDeUso<EntradaRegistrarMemoria, { memoria: Mem
   const agente = await deps.repos.agentes.buscar(input.agenteId);
   if (!agente) throw new ErroDeDominio("nao_encontrado");
 
-  const memoria = await deps.repos.memorias.criar({ agenteId: agente.id, tipo: input.tipo, texto, origem: input.origem });
+  const criada = input.origem === "agente"
+    ? await deps.repos.memorias.criarDoAgenteSeAusente({ agenteId: agente.id, tipo: input.tipo, texto })
+    : null;
+  const memoria = criada?.memoria ?? await deps.repos.memorias.criar({ agenteId: agente.id, tipo: input.tipo, texto, origem: input.origem });
   if (!memoria) throw new ErroDeDominio("nao_permitido");
+  if (criada && !criada.criada) return { data: { memoria, mensagem: null }, events: [] };
 
   const agora = deps.agora();
   const autoria = input.origem === "agente" ? autoriaAgente({ agenteId: agente.id, contaDeExecucao: deps.escopo.pessoaId, executor: "catcher" }) : autoriaPessoa(deps.escopo);

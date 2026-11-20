@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc"><theme><name>Clearlooks</name><keepBorder>no</keepBorder></theme><applications><application class="Chromium"><decor>no</decor><maximized>yes</maximized><desktop>all</desktop></application><application class="Xfce4-terminal|Pcmanfm"><decor>yes</decor><maximized>no</maximized><desktop>all</desktop></application></applications></openbox_config>

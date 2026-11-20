@@ -96,7 +96,7 @@ describeIntegracao("quadro-agente (NOD-442)", () => {
       expect(pr.data).toMatchObject({ ok: true, comecaram: [], quadro: { tarefas: [{ status: "revisao" }], cumpridoEm: null } });
       const feito = await m.lote({ autor: beto, quadro: m.anaNome, ops: [{ tipo: "mudar_tarefa", tarefa: "T1", status: "feito" }] });
       if (!feito.data.ok) throw new Error(feito.data.detalhe);
-      expect(feito.data.quadro).toMatchObject({ cumpridoEm: AGORA, feitas: 1, total: 1, resumo: `1 de 1 tarefas feitas, no prazo (sex, 06/11). Feito por ${m.betoNome}. PRs: #700.` });
+      expect(feito.data.quadro).toMatchObject({ cumpridoEm: AGORA, feitas: 1, total: 1, resumo: `1 de 1 cards feitos, no prazo (sex, 06/11). Feito por ${m.betoNome}. PRs: #700.` });
       // Sair de feito reabre a meta.
       const volta = await m.lote({ autor: { tipo: "pessoa" }, anfitriaoId: m.ana.agenteId, ops: [{ tipo: "mudar_tarefa", tarefa: "T1", status: "revisao" }] });
       expect(volta.data).toMatchObject({ ok: true, quadro: { cumpridoEm: null, resumo: null } });
@@ -302,7 +302,36 @@ describeIntegracao("quadro-agente (NOD-442)", () => {
       await varrerAvisosDosQuadros(m.deps);
       const lista = await avisos();
       expect(lista).toHaveLength(1);
-      expect(lista[0]!.texto).toContain(`"T1" em Em revisão, com ${m.betoNome} (prazo de 1 h) continua parada depois da cobrança.`);
+      expect(lista[0]!.texto).toContain(`"T1" em Em revisão, com ${m.betoNome} (prazo de 1 h) continua parado depois da cobrança.`);
+    });
+  });
+
+  // 2026-11-20 (CPU do Cloud SQL em 90–99%): a passada de 30 s lia a situação (desfechos e voltas) de TODAS as tarefas de
+  // cada quadro. Agora só lê a das que venceram o prazo: sem nenhuma vencida, o banco não é consultado.
+  it("prazo da coluna: o varredor só lê a situação do trabalho das tarefas vencidas", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const m = await montar(trx);
+      const base = Date.now();
+      m.relogio.agora = base;
+      await m.lote({ ops: [{ tipo: "criar_quadro", meta: "M" }, { tipo: "renomear_coluna", coluna: "revisao", prazo_min: 60 },
+        { tipo: "criar_tarefa", titulo: "T1", agente: m.betoNome, status: "afazer" }, { tipo: "criar_tarefa", titulo: "T2", agente: m.betoNome, status: "afazer" }] });
+      const beto = { tipo: "agente", agenteId: m.beto.agenteId } as const;
+      const r = await m.lote({ autor: beto, quadro: m.anaNome, ops: [{ tipo: "mudar_tarefa", tarefa: "T1", status: "revisao" }] });
+      if (!r.data.ok) throw new Error(r.data.detalhe);
+      const t1 = r.data.quadro!.tarefas.find((t) => t.titulo === "T1")!;
+      const lidas: string[][] = [];
+      const ex = m.deps.repos.quadroExecucoes;
+      const deps = { ...m.deps, repos: { ...m.deps.repos, quadroExecucoes: { ...ex, desfechos: (ids: readonly string[]) => (lidas.push([...ids]), ex.desfechos(ids)) } } };
+
+      m.relogio.agora = base + 59 * 60_000;
+      await varrerAvisosDosQuadros(deps);
+      expect(lidas).toEqual([]);
+
+      m.relogio.agora = base + 61 * 60_000;
+      await varrerAvisosDosQuadros(deps);
+      // A situação da vencida e, na cobrança, o trabalho dela: só a T1, nunca a T2 (fora de coluna com prazo).
+      expect(lidas.length).toBeGreaterThan(0);
+      expect(lidas.every((ids) => ids.length === 1 && ids[0] === t1.turnoId)).toBe(true);
     });
   });
 
@@ -409,7 +438,7 @@ describeIntegracao("quadro-agente (NOD-442)", () => {
         m.relogio.agora = Date.now() + 80 * 60_000 + JANELA_AGRUPAR_MS;
         await varrerAvisosDosQuadros(m.deps);
         expect(logs.filter((l) => l.includes("cobranca_quadro_falhou"))).toHaveLength(1);
-        expect((await avisos()).at(-1)?.texto).toContain("continua parada depois da cobrança");
+        expect((await avisos()).at(-1)?.texto).toContain("continua parado depois da cobrança");
       });
     } finally {
       definirDestinoDoLog(null);
@@ -500,7 +529,7 @@ describeIntegracao("quadro-agente (NOD-442)", () => {
       m.relogio.agora = base + 122 * 60_000;
       await varrerAvisosDosQuadros(m.deps);
       const avisos = (await m.repos.mensagens.listarDaConversa(m.beto.conversaId)).filter((x) => x.payload?.kind === "aviso_pessoa");
-      expect(avisos.map((x) => x.texto)).toEqual([expect.stringContaining("continua parada depois da cobrança")]);
+      expect(avisos.map((x) => x.texto)).toEqual([expect.stringContaining("continua parado depois da cobrança")]);
       expect(await trx`select dados from events where kind = 'quadro_avisou'`).toMatchObject([{ dados: { quadro_id: quadroId, tipo: "escalada", tarefas: 1, mensagem_id: avisos[0]!.id } }]);
     });
   });

@@ -50,11 +50,16 @@ describe("NOD-350: os subagentes na tela da task", () => {
     expect(html).toContain("Rodou um comando…");
     expect(html).toContain('<span class="p350-cab-txt">2 subagentes trabalhando</span>');
     expect(html).toMatch(/<div class="passo p350-cab"><span class="ponto-trabalho c-purple" aria-hidden="true">/);
-    expect(pulsos(html)).toBe(1);
+    // ADR-187 §6 (lote B, passo 4, Paper 4k): o passo de agora do bot é o anel girando, no lugar do mascote; o ponto do
+    // cabeçalho dos subagentes fica parado. Uma coisa só se mexe na tela.
+    expect(html).toMatch(/<div class="tk-agora" role="status"><div class="tk-agora-linha"><span class="tk-passo-ic"><svg class="tk-gira"/);
+    expect(pulsos(html)).toBe(0);
+    // Os subagentes que trabalham também levam o mascote no lugar do ponto.
+    expect(html).toContain('<li class="progresso-item rodando" data-p350-sub="a1"><span class="progresso-ic rodando com-mascote" aria-hidden="true"><nod-mascote');
 
     e = f(e, "turno.fala", {});
     html = ao(e);
-    expect(html).toContain('<span class="passo-ok" aria-hidden="true">✓</span><span>Rodou um comando</span>');
+    expect(html).toMatch(/<div class="tk-passo"><span class="tk-passo-ic"><svg[^]*?<\/svg><\/span><span class="tk-passo-rot">Rodou um comando<\/span><\/div>/);
     expect(html).not.toContain("Rodou um comando…");
     expect(html).toContain('<div class="passo passo-agora p350-cab"><span class="ponto-trabalho c-purple pulso-trab"');
     expect(pulsos(html)).toBe(1);

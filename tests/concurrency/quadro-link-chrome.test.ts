@@ -90,7 +90,7 @@ descrever("revisão 7 do PR #623: o link ?tarefa= no boot do app (Chrome real)",
 
   it("com sessão: um código que não existe vira o aviso, sem abrir tarefa nenhuma", async () => {
     await cdp.enviar("Page.navigate", { url: `${srv.url}/?tarefa=ZZZ-999999` });
-    await ate(`document.body.textContent.includes("Tarefa ZZZ-999999 não encontrada.")`, "o aviso do código que não existe");
+    await ate(`document.body.textContent.includes("Card ZZZ-999999 não encontrado.")`, "o aviso do código que não existe");
     expect(await avaliar<boolean>(cdp, `!document.querySelector("#quadro .qd-tarefa")`)).toBe(true);
   }, 60_000);
 

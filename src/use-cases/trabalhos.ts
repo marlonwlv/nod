@@ -20,8 +20,8 @@ import { esperaDaConta, iaDaEntrada } from "../domain/espera-da-cota.ts";
 import { acabaLogo, DISCO_ALERTA_MB, DISCO_CRITICO_MB, esperaDoMac, esperaNaMaquina, nivelDoDisco, piorNivel, portaoDoMac, seguravelPeloMac, type PortaoDoMac } from "../domain/memoria-mac.ts";
 import { pastaDoBot } from "../domain/nativas.ts";
 import { nomeDaMaquina, semContatoDesde as semContatoDaMaquina } from "../domain/presenca-da-maquina.ts";
-import { ehFrente, tituloDoLote } from "../domain/frente.ts";
-import { estadoDoTrabalho, linhaCurta, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
+import { ehFrente, pedidoDoDono, tituloDoLote } from "../domain/frente.ts";
+import { estadoDoTrabalho, linhaCurta, linhaDaFala, pastaDoTrabalho, textoTrabalhoAberto, tituloDoTrabalho, tituloOuNada, trabalhoAberto, trabalhoFinal } from "../domain/trabalho.ts";
 import type { ExtrasTrabalho, NovoTrabalho } from "../repositories/trabalhos.repo.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
 import { colegaComCota } from "./cota-do-colega.ts";
@@ -208,7 +208,7 @@ export async function trabalhosParaDto(deps: Pick<Deps, "repos" | "services" | "
       rotinaNome: e?.rotinaNome ? linhaCurta(e.rotinaNome) : null,
       // O nome da última ferramenta do turno vivo (o processo sabe) ganha da última fala, que pode ser de minutos atrás.
       // NOD-350: e a contagem dos subagentes que ainda trabalham ganha das duas (o bot pode ter falado e estar esperando).
-      ultimoPasso: (vivo ? (deps.services.trabalhosVivos?.resumoSubagentes?.(vivo) ?? deps.services.trabalhosVivos?.ultimaFerramenta(vivo)) : null) ?? (e?.ultimaFala ? linhaCurta(e.ultimaFala) : null),
+      ultimoPasso: (vivo ? (deps.services.trabalhosVivos?.resumoSubagentes?.(vivo) ?? deps.services.trabalhosVivos?.ultimaFerramenta(vivo)) : null) ?? (e?.ultimaFala ? linhaDaFala(e.ultimaFala) : null),
       turnoVivoId: vivo,
       // revisto em 2026-10-08 (ADR-085): a memória é a do processo vivo. Sem turno vivo (esperando você, um colega ou a
       // vez na fila) não há processo, e a última leitura gravada fazia "Todos os trabalhos" somar vários GB que o Mac
@@ -404,6 +404,9 @@ function maquinasDaPessoa(deps: Pick<Deps, "escopo">, servico: ServicoDasMaquina
   return { maquinas, portoes, nomear, semContatoDesde };
 }
 
+/** definido em 2026-11-18 (ADR-187 §6): os últimos passos que a tela da tarefa recebe (a página da rota dos passos do quadro). */
+export const PASSOS_DA_TAREFA = 200;
+
 /**
  * GET trabalhos/:id (a tela da task): o trabalho e as mensagens dele — as falas dos turnos dele (inclui as do meio) e
  * as falas da pessoa que abriram um turno dele (`mensagem_origem_id`).
@@ -417,9 +420,15 @@ export const detalharTrabalho: CasoDeUso<{ trabalhoId: string }, TrabalhoDetalhe
   const onde = servico ? (await maquinaDosTrabalhos(deps, servico, usoDoMac)).ondeRoda : undefined;
   const [dto] = await trabalhosParaDto(deps, [t], onde);
   const mensagens: Mensagem[] = await deps.repos.mensagens.doTrabalho(t.id);
+  const turnos = await deps.repos.turnos.doTrabalho(t.id);
   // NOD-376: o estado de cada fala da pessoa ainda sem resposta ("na fila" → "entregue" → some), do que o servidor sabe.
-  const falasNaFila = situacaoDasFalasNaFrente(await deps.repos.turnos.doTrabalho(t.id), mensagens);
-  return { data: { trabalho: dto!, mensagens, ...(falasNaFila.length ? { falasNaFila } : {}) } };
+  const falasNaFila = situacaoDasFalasNaFrente(turnos, mensagens);
+  // ADR-187 §6 (definido em 2026-11-18, Paper 4k): a conversa detalhada — os passos gravados dos turnos dela e o pedido
+  // que o dono escreveu (o primeiro turno sem fala da pessoa na origem).
+  const passos = await deps.repos.turnoPassos.doTrabalho(turnos.map((x) => x.id), PASSOS_DA_TAREFA);
+  const primeiro = turnos[0];
+  const pedidoDoBot = primeiro && !primeiro.mensagemOrigemId ? pedidoDoDono(primeiro.entradaTexto) : null;
+  return { data: { trabalho: dto!, mensagens, ...(falasNaFila.length ? { falasNaFila } : {}), passos, pedidoDoBot } };
 };
 
 /**
@@ -436,7 +445,7 @@ export async function fecharPorMemoria(deps: DepsTrabalho, turnoId: string): Pro
   const fechado = await deps.repos.trabalhos.mudarEstado(t.id, "fechado_ocioso", deps.agora());
   if (!fechado) return { fechou: false, events: [] };
   const autoria = autoriaAgente({ agenteId: t.agenteId, contaDeExecucao: deps.escopo.pessoaId, executor: "catcher", decididoPor: "regra:memoria" });
-  const linha = await deps.repos.mensagens.criar({ conversaId: t.conversaId, autoria, kind: "sistema", assunto: "memoria.task_fechada", texto: `Fechei a task "${t.titulo}", parada esperando você, para liberar memória. Ela volta do mesmo ponto quando você responder.`, confianca: "confiavel" });
+  const linha = await deps.repos.mensagens.criar({ conversaId: t.conversaId, autoria, kind: "sistema", assunto: "memoria.task_fechada", texto: `Fechei a tarefa "${t.titulo}", parada esperando você, para liberar memória. Ela volta do mesmo ponto quando você responder.`, confianca: "confiavel" });
   const events = [eventoTrabalhoMudou(deps, fechado)];
   if (linha) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora: deps.agora(), conversaId: t.conversaId, dados: { mensagem_id: linha.id, kind: "sistema", trabalho_id: t.id } }));
   return { fechou: true, events };
@@ -476,16 +485,36 @@ export async function travarTrabalhoComTurnos(deps: Pick<Deps, "repos">, trabalh
 }
 
 /**
+ * ADR-187 §6 (definido em 2026-11-18): a pessoa renomeia a tarefa na própria aba (POST trabalhos/:id/titulo). O título
+ * passa pela mesma regra do nascimento (`tituloOuNada`: primeira linha, 80 caracteres, com letra); sem letra, entrada
+ * inválida. Só o nome muda: a pasta e a sessão continuam. O frame `trabalho_mudou` faz a aba, a pílula e a tela Tarefas relerem.
+ */
+export const renomearTrabalho: CasoDeUso<{ trabalhoId: string; titulo: string }, { trabalho: TrabalhoDto }> = async (deps, input) => {
+  const titulo = tituloOuNada(input.titulo);
+  if (!titulo) throw new ErroDeDominio("entrada_invalida", { cause: "titulo" });
+  const t = await deps.repos.trabalhos.renomear(input.trabalhoId, titulo);
+  if (!t) throw new ErroDeDominio("nao_encontrado");
+  const [dto] = await trabalhosParaDto(deps, [t]);
+  return { data: { trabalho: dto! }, events: [eventoTrabalhoMudou(deps, t)] };
+};
+
+/**
  * Parar uma task só (POST trabalhos/:id/parar): interrompe os pendentes dela, pede a interrupção do que roda (a
  * próxima renovação devolve {ativo:false}) e tenta o SIGTERM pelo interruptor. Não abre parada: a conversa e as outras
  * tasks seguem.
+ * ADR-187 §6 + ADR-185 (definido em 2026-11-18): o Parar da tarefa para o trabalho, não o que a pessoa disse. O recado dela
+ * que esperava na fila e o que entrou na sessão sem o bot ler ficam guardados (não rodam agora: a tarefa parou) e voltam à
+ * fila quando ela continua (`devolverGuardados`). `recadosGuardados` diz quantos.
  */
-export const pararTrabalho: CasoDeUso<{ trabalhoId: string }, { trabalho: TrabalhoDto; interrompidos: number }> = async (deps, input) => {
+export const pararTrabalho: CasoDeUso<{ trabalhoId: string }, { trabalho: TrabalhoDto; interrompidos: number; recadosGuardados: number }> = async (deps, input) => {
   const t = await travarTrabalhoComTurnos(deps, input.trabalhoId);
   const agora = deps.agora();
   const autoria = autoriaPessoa(deps.escopo);
   const events: RuntimeEvent[] = [];
   const turnos = t.turnos;
+  const despachando = new Set(turnos.filter((x) => x.estado === "despachando").map((x) => x.id));
+  const naoLidos = (await deps.repos.turnos.absorvidosPorVivos(t.conversaId)).filter((a) => a.absorvidoPor && despachando.has(a.absorvidoPor) && !a.lidoNaSessaoEm).length;
+  const recadosNaFila = turnos.filter((x) => x.estado === "pendente" && x.mensagemOrigemId && !x.despachadoEm).length;
   let interrompidos = 0;
   for (const p of turnos.filter((x) => x.estado === "pendente")) {
     if (!(await deps.repos.turnos.interromper(p.id, "parado_pela_pessoa"))) continue;
@@ -499,6 +528,39 @@ export const pararTrabalho: CasoDeUso<{ trabalhoId: string }, { trabalho: Trabal
   events.push(...(await marcarParado(deps, trabalho)));
   const atual = (await deps.repos.trabalhos.buscar(t.id)) ?? trabalho;
   const [dto] = await trabalhosParaDto(deps, [atual]);
-  return { data: { trabalho: dto!, interrompidos }, events };
+  return { data: { trabalho: dto!, interrompidos, recadosGuardados: naoLidos + recadosNaFila }, events };
+};
+
+/**
+ * ADR-187 §6 + ADR-185 (definido em 2026-11-18): a pessoa continua a tarefa parada (o "Continuar de onde parou" ou
+ * qualquer fala nela). O que ela tinha dito e a tarefa não leu antes do Parar volta à fila, na ordem em que chegou, antes
+ * da fala nova: a absorvida e não lida por um turno parado e o recado que nunca rodou. Só da tarefa `parado`.
+ */
+export async function devolverGuardados(deps: DepsTrabalho, t: Pick<Trabalho, "id" | "estado">): Promise<Turno[]> {
+  if (t.estado !== "parado") return [];
+  const voltam: Turno[] = [];
+  for (const parado of (await deps.repos.turnos.doTrabalho(t.id)).filter((x) => x.estado === "interrompido" && x.motivoInterrupcao === "parado_pela_pessoa")) {
+    voltam.push(...(await deps.repos.turnos.devolverNaoLidos(parado.id)));
+  }
+  voltam.push(...(await deps.repos.turnos.devolverRecadosParados(t.id)));
+  return voltam.sort((a, b) => a.criadoEm - b.criadoEm);
+}
+
+/**
+ * ADR-187 §6 (definido em 2026-11-18, Paper 4l): "Encerrar a tarefa" — a pessoa dá por encerrada a tarefa parada (ou que
+ * falhou): ela passa a `terminado`, a aba fecha quando a pessoa sai dela, e o que ficou guardado do Parar não volta mais
+ * (só a tarefa `parado` devolve). Rodando, na fila ou esperando a pessoa: estado_invalido (pare antes). Já terminada: nada.
+ */
+export const encerrarTrabalho: CasoDeUso<{ trabalhoId: string }, { trabalho: TrabalhoDto }> = async (deps, input) => {
+  const t = await travarTrabalhoComTurnos(deps, input.trabalhoId);
+  const { turnos, ...trabalho } = t;
+  if (t.estado !== "terminado") {
+    if ((t.estado !== "parado" && t.estado !== "falhou") || turnos.some((x) => x.estado === "pendente" || x.estado === "despachando")) {
+      throw new ErroDeDominio("estado_invalido", { cause: "só a tarefa parada ou que falhou se encerra" });
+    }
+  }
+  const mudou = t.estado === "terminado" ? null : await deps.repos.trabalhos.mudarEstado(t.id, "terminado", deps.agora());
+  const [dto] = await trabalhosParaDto(deps, [mudou ?? trabalho]);
+  return { data: { trabalho: dto! }, events: mudou ? [eventoTrabalhoMudou(deps, mudou)] : [] };
 };
 

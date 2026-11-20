@@ -63,6 +63,9 @@ export default defineConfig({
     maxWorkers: MAX_WORKERS,
     projects: [
       { test: { ...raiz, name: "unit", include: ["tests/unit/**/*.test.ts"] } },
+      // ADR-179 (fase 1 do React): componentes React em happy-dom com Testing Library. Projeto à parte para o unit
+      // seguir em node (mais rápido e sem DOM falso onde não precisa); `npm run test:unit` roda os dois.
+      { esbuild: { jsx: "automatic", jsxImportSource: "react" }, test: { ...raiz, name: "componentes", include: ["tests/unit/**/*.test.tsx"], environment: "happy-dom", setupFiles: ["tests/setup/componentes.ts"] } },
       // ADA-11 (ADR-147): o smoke do Windows de verdade; só roda no job `windows` da CI (fora do win32 os testes pulam).
       { test: { ...raiz, name: "windows", include: ["tests/windows/**/*.test.ts"] } },
       { test: { ...raiz, ...BANCO, name: "integration", include: ["tests/integration/**/*.test.ts"] } },

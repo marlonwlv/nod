@@ -18,7 +18,7 @@
 #
 # Uso:
 #   construir-disco.sh [--simular] <arm64|amd64> <versao> <origem> <saida>
-# <origem> é a pasta de `node scripts/vm-local/origem-do-disco.ts` (computador-*.mjs, computador.sh, node.versao).
+# <origem> é a pasta de `node scripts/vm-local/origem-do-disco.ts` (computador-*: .mjs e o shell visual; computador.sh, node.versao).
 # --simular: imprime os comandos externos em vez de executá-los (sem download, sem root).
 set -euo pipefail
 DIR_VM="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -179,7 +179,9 @@ construir() { # arch versao origem saida
   passo "node $node_versao do motor"
   mkdir -p "$TRAB/origem"
   baixar_node "$arch" "$node_versao" "$TRAB/origem"
-  [ "$SIMULAR" = 1 ] || cp "$origem"/computador-*.mjs "$origem/computador.sh" "$TRAB/origem/"
+  # definido em 2026-11-19 (release da rc.9): computador-* e não só *.mjs — o shell visual (NOD-497) entra como
+  # computador-shell-*.json/.html/.svg/…, e o computador.sh os instala pelo nome; com *.mjs o disco caía no install.
+  [ "$SIMULAR" = 1 ] || cp "$origem"/computador-* "$origem/computador.sh" "$TRAB/origem/"
 
   passo "chrony, o computador da pessoa (ADR-122) e os arquivos do nod no convidado"
   preparar_convidado

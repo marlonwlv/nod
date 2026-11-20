@@ -75,7 +75,11 @@ const lista = (trabalhos: TrabalhoDto[]): Partial<Estado> => ({ trabalhos: { tra
 /** Os blocos do histórico com o progresso já desenhado (o que main.ts mostra). */
 const blocos = (c: ConversaEstado, e: Estado) => comProgressoNaFala(blocosDoHistorico(c, e), c, e).filter((b) => !b.chave.startsWith("sep:"));
 const doBloco = (c: ConversaEstado, e: Estado, chave: string): string => blocos(c, e).find((b) => b.chave === chave)?.html ?? "";
-const segmentos = (html: string): string[] => [...html.matchAll(/class="progresso-seg ([a-z_]+)"/g)].map((m) => m[1] ?? "");
+const segmentos = (html: string): string[] => [...html.matchAll(/class="tv-seg" data-estado="([a-z_]+)"/g)].map((m) => m[1] ?? "");
+/** O topo do cartão vivo como a pessoa lê ("5 tarefas · 3 prontas"; ADR-187 §5, Paper 1c). */
+const resumoLido = (html: string): string => /<b class="tv-resumo">([^<]*)<\/b>/.exec(html)?.[1] ?? "";
+/** As linhas do cartão: o estado e o miolo de cada uma, na ordem da tela. */
+const linhas = (html: string) => [...html.matchAll(/<button type="button" class="tv-linha" data-act="abrir-trabalho" data-id="([^"]+)" data-estado="([a-z_]+)"[^>]*>([\s\S]*?)<\/button>/g)].map((m) => ({ id: m[1], estado: m[2], html: m[3] ?? "" }));
 
 /** O dia do protótipo: w1, w2 e w4 prontas; w3 rodando com o ao vivo; w5 rodando, só com o último passo do servidor. */
 function diaDoPrototipo(): { e: Estado; c: ConversaEstado } {
@@ -94,15 +98,15 @@ function diaDoPrototipoCom(mensagens: Mensagem[]): { e: Estado; c: ConversaEstad
 }
 
 describe("o bloco mora na fala que abriu as frentes", () => {
-  it("dentro do balão da última fala do turno, depois do texto; a abertura não vira linha e as outras falas não ganham nada", () => {
+  it("embaixo do balão da última fala do turno, fora dele (ADR-187); a abertura não vira linha e as outras falas não ganham nada", () => {
     const { e, c } = diaDoPrototipo();
     const chaves = blocos(c, e).map((b) => b.chave);
     expect(chaves).toEqual(["p1", "b0", "b1", "p2", "b2"]);
     const b1 = doBloco(c, e, "b1");
-    expect(b1).toContain('<div class="bubble com-progresso">');
+    expect(b1).not.toContain("com-progresso");
     expect(b1.indexOf("Te mostro quando as 5 ficarem prontas")).toBeLessThan(b1.indexOf('<section class="progresso"'));
-    // Dentro do balão: a seção fecha e logo depois fecha o balão.
-    expect(b1).toContain("</section></div>");
+    // Fora do balão: o balão fecha antes de o bloco começar.
+    expect(b1.indexOf("</div>", b1.indexOf("Te mostro quando as 5 ficarem prontas"))).toBeLessThan(b1.indexOf('<section class="progresso"'));
     for (const outra of ["p1", "b0", "p2", "b2"]) expect(doBloco(c, e, outra)).not.toContain("progresso");
     // O marcador não sobra na tela.
     expect(blocos(c, e).some((b) => b.html.includes("<!--progresso:"))).toBe(false);
@@ -112,56 +116,69 @@ describe("o bloco mora na fala que abriu as frentes", () => {
     expect(ids).toHaveLength(5);
   });
 
-  it("estados: a barra enche das prontas para as que rodam, e o resumo diz quais rodam (protótipo '3 de 5 prontas · w3 e w5 rodando')", () => {
+  it("estados: a barra enche das prontas para as que rodam; o topo diz quantas são e quantas ficaram prontas, com o tempo à direita (Paper 1c)", () => {
     const { e, c } = diaDoPrototipo();
     const b1 = doBloco(c, e, "b1");
     expect(segmentos(b1)).toEqual(["pronta", "pronta", "pronta", "rodando", "rodando"]);
-    expect(b1).toContain('<span class="progresso-txt">3 de 5 prontas<span class="progresso-resto"> · Hero w3 e Hero w5 rodando</span></span>');
-    expect(b1).toContain('<span class="progresso-ver">ver as 5</span>');
-    expect(b1).toContain('aria-label="Frentes: 3 de 5 prontas"');
+    expect(resumoLido(b1)).toBe("5 tarefas · 3 prontas");
+    // O tempo do topo é o da tarefa que anda há mais tempo (w3, há 12 min).
+    expect(b1).toContain('<b class="tv-resumo">5 tarefas · 3 prontas</b><span class="tv-tempo">12 min</span>');
+    expect(b1).toContain('aria-label="Tarefas: 5 tarefas · 3 prontas"');
+    // ADR-187 §5 (lote B passo 6): o cartão não abre nem fecha — sem "ver as 5", "ocultar" nem <details>.
+    expect(b1).not.toContain("<details");
+    expect(b1).not.toContain("ver as");
   });
 
-  it("'ver as 5' abre a lista no lugar: prontas com ✓ e a hora, rodando com o último passo (ao vivo, senão o do servidor) e o tempo; cada título abre a frente", () => {
+  it("uma linha por tarefa, na ordem da barra: o ícone do estado, o título, o estado em poucas palavras e 'Ver'; a linha inteira abre a tarefa (Paper 1c e 4d)", () => {
     const { e, c } = diaDoPrototipo();
     const b1 = doBloco(c, e, "b1");
-    expect(b1).toContain('<details class="progresso-det" data-disclosure="progresso-fa">');
-    const itens = [...b1.matchAll(/<li class="progresso-item ([a-z_]+)">([\s\S]*?)<\/li>/g)].map((m) => ({ estado: m[1], html: m[2] ?? "" }));
+    const itens = linhas(b1);
+    // As prontas pela hora em que terminaram (w1 às 01:09, no relógio local, 19 min depois de 00:50), depois as que rodam.
+    expect(itens.map((i) => i.id)).toEqual(["w1", "w2", "w4", "w3", "w5"]);
     expect(itens.map((i) => i.estado)).toEqual(["pronta", "pronta", "pronta", "rodando", "rodando"]);
-    // As prontas pela hora em que terminaram: w1 às 01:09, no relógio local (19 min depois de 00:50).
-    expect(itens[0]!.html).toContain(">Hero w1 · Aurora</button>");
-    expect(itens[0]!.html).toContain('<span class="progresso-fim">01:09</span>');
-    expect(itens[0]!.html).toContain("<svg");
-    const w3 = itens.find((i) => i.html.includes(">Hero w3</button>"))!.html;
-    expect(w3).toContain('<span class="progresso-passo">Ajustando o contraste do título…</span>');
-    expect(w3).toContain('<span class="progresso-fim">12 min</span>');
-    const w5 = itens.find((i) => i.html.includes(">Hero w5</button>"))!.html;
-    expect(w5).toContain('<span class="progresso-passo">rodando os testes</span>');
-    expect(w5).toContain('<span class="progresso-fim">9 min</span>');
-    expect(b1).toContain('data-act="abrir-trabalho" data-id="w3"');
-    expect(b1).toContain('<span class="sr-only"> (rodando)</span>');
+    const w1 = itens[0]!.html;
+    expect(w1).toContain('<span class="tv-titulo">Hero w1 · Aurora</span>');
+    expect(w1).toContain('<span class="tv-estado">pronta às 01:09</span>');
+    expect(w1).toContain('<span class="tv-ver">Ver</span>');
+    expect(w1).toContain('<circle cx="7" cy="7" r="6" fill="currentColor"/>');
+    const w3 = itens.find((i) => i.id === "w3")!.html;
+    // A que roda: o anel e o passo de agora (ao vivo, senão o do servidor); o tempo fica no topo.
+    expect(w3).toContain("pf-anel");
+    expect(w3).toContain('<span class="sr-only"> (rodando)</span><span class="tv-estado">Ajustando o contraste do título…</span>');
+    expect(w3).not.toContain("12 min");
+    expect(itens.find((i) => i.id === "w5")!.html).toContain('<span class="tv-estado">rodando os testes</span>');
   });
 
-  it("parada e falhou: '4 de 5 prontas · Hero w3 parada às 01:36', com ■ e !, no fim da barra", () => {
+  it("parada e falhou: '5 tarefas · 4 prontas · 1 parada', com ■ e !, logo depois das prontas na barra", () => {
     const trabalhos = [pronta("w1", 19), pronta("w2", 20), trabalho("w3", { estado: "parado", terminadoEm: t0 + 46 * MIN }), pronta("w4", 20), pronta("w5", 31)];
     const { e, c } = cenario(conversaDoHero(), lista(trabalhos));
     const b1 = doBloco(c, e, "b1");
     expect(segmentos(b1)).toEqual(["pronta", "pronta", "pronta", "pronta", "parada"]);
-    expect(b1).toContain("4 de 5 prontas<span class=\"progresso-resto\"> · Hero w3 parada às 01:36</span>");
-    expect(b1).toContain('<li class="progresso-item parada"><span class="progresso-ic parada" aria-hidden="true"></span>');
+    expect(resumoLido(b1)).toBe("5 tarefas · 4 prontas · 1 parada");
+    const w3 = linhas(b1).find((i) => i.id === "w3")!;
+    expect(w3.estado).toBe("parada");
+    expect(w3.html).toContain('<rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor"/>');
+    expect(w3.html).toContain('<span class="tv-estado">parada às 01:36</span>');
     const falhou = cenario(conversaDoHero(), lista([pronta("w1", 19), pronta("w2", 20), trabalho("w3", { estado: "falhou", terminadoEm: t0 + 46 * MIN }), trabalho("w4", { estado: "parado" }), trabalho("w5", { estado: "parado" })]));
     const html = doBloco(falhou.c, falhou.e, "b1");
-    expect(segmentos(html)).toEqual(["pronta", "pronta", "parada", "parada", "falhou"]);
-    expect(html).toContain("2 de 5 prontas<span class=\"progresso-resto\"> · 2 paradas · Hero w3 não terminou</span>");
+    expect(segmentos(html)).toEqual(["pronta", "pronta", "falhou", "parada", "parada"]);
+    expect(resumoLido(html)).toBe("5 tarefas · 2 prontas · 2 paradas · 1 não terminou");
   });
 
   it("esperando e precisando de você não contam como rodando", () => {
     const trabalhos = [trabalho("w1", { estado: "precisa_de_voce" }), trabalho("w2", { estado: "na_fila", iniciadoEm: null }), trabalho("w3", { esperandoColega: { nome: "Motion", desde: t0, trabalhoId: null } }), pronta("w4", 20), trabalho("w5")];
     const { e, c } = cenario(conversaDoHero(), lista(trabalhos));
     const b1 = doBloco(c, e, "b1");
-    expect(segmentos(b1)).toEqual(["pronta", "rodando", "precisa", "esperando", "esperando"]);
-    expect(b1).toContain("1 de 5 prontas<span class=\"progresso-resto\"> · Hero w5 rodando · Hero w1 · Aurora precisa de você · 2 esperando</span>");
-    // Na fila não tem tempo; esperando o colega diz quem.
-    expect(b1).toContain('<span class="progresso-passo">esperando Motion</span>');
+    // Paper P1: as prontas, a que precisa de você (azul), as que rodam e por fim as que esperam.
+    expect(segmentos(b1)).toEqual(["pronta", "precisa", "rodando", "esperando", "esperando"]);
+    expect(resumoLido(b1)).toBe("5 tarefas · 1 pronta · 1 precisa de você");
+    // Paper 4d: a que precisa de você diz "Responder" no lugar de "Ver".
+    const w1 = linhas(b1).find((i) => i.id === "w1")!;
+    expect(w1.estado).toBe("precisa");
+    expect(w1.html).toContain('<span class="tv-ver">Responder</span>');
+    expect(w1.html).toContain("pf-precisa");
+    // Esperando o colega diz quem.
+    expect(b1).toContain('<span class="tv-estado">esperando Motion</span>');
   });
 });
 
@@ -170,16 +187,19 @@ describe("de onde vem o estado", () => {
     const terminadas = anexo("ft", t0 + 30 * MIN, { kind: "frentes_terminadas", loteId: "l1", frentes: [{ trabalhoId: "w1", titulo: "Hero w1 · Aurora", estado: "terminado" }, { trabalhoId: "w2", titulo: "Hero w2 · Motor no escuro", estado: "parado" }] });
     const { e, c } = cenario(conversaDoHero([terminadas]), lista([trabalho("w3"), trabalho("w4")]));
     const b1 = doBloco(c, e, "b1");
-    expect(segmentos(b1)).toEqual(["pronta", "rodando", "rodando", "parada", "sem_noticia"]);
-    expect(b1).toContain("1 de 5 prontas<span class=\"progresso-resto\"> · Hero w3 e Hero w4 · Wordmark gigante rodando · Hero w2 · Motor no escuro parada às 01:20 · 1 sem notícia</span>");
-    expect(b1).toMatch(/>Hero w1 · Aurora<\/button>[\s\S]*?<span class="progresso-fim">01:20<\/span>/);
-    expect(b1).toMatch(/<li class="progresso-item sem_noticia">[\s\S]*?>Hero w5<\/button>[\s\S]*?sem notícia/);
+    expect(segmentos(b1)).toEqual(["pronta", "parada", "sem_noticia", "rodando", "rodando"]);
+    expect(resumoLido(b1)).toBe("5 tarefas · 1 pronta · 1 parada · 1 sem notícia");
+    const itens = linhas(b1);
+    expect(itens.find((i) => i.id === "w1")!.html).toContain('<span class="tv-estado">pronta às 01:20</span>');
+    expect(itens.find((i) => i.id === "w2")!.html).toContain('<span class="tv-estado">parada às 01:20</span>');
+    expect(itens.find((i) => i.id === "w5")).toMatchObject({ estado: "sem_noticia" });
+    expect(itens.find((i) => i.id === "w5")!.html).toContain('<span class="tv-estado">sem notícia</span>');
   });
 
   it("a lista da conversa ainda diz 'rodando' mas 'frentes_terminadas' já chegou: vale o fim", () => {
     const terminadas = anexo("ft", t0 + 30 * MIN, { kind: "frentes_terminadas", loteId: "l1", frentes: HEROS.map((h) => ({ ...h, estado: "terminado" as const })) });
     const { e, c } = cenario(conversaDoHero([terminadas]), lista(HEROS.map((h) => trabalho(h.trabalhoId))));
-    expect(doBloco(c, e, "b1")).toContain("5 de 5 prontas");
+    expect(resumoLido(doBloco(c, e, "b1"))).toBe("5 tarefas · 5 prontas");
   });
 
   it("a frente reaberta depois do fecho do lote (a conversa a lista aberta junto das mensagens) volta a rodar, sem o ✓ do fim", () => {
@@ -188,15 +208,17 @@ describe("de onde vem o estado", () => {
     const { e, c } = cenario(conversaDoHero([terminadas]), lista([reaberta]), { trabalhos: [reaberta] });
     const b1 = doBloco(c, e, "b1");
     expect(segmentos(b1)).toEqual(["pronta", "pronta", "pronta", "pronta", "rodando"]);
-    expect(b1).toContain("4 de 5 prontas<span class=\"progresso-resto\"> · Hero w3 rodando</span>");
-    expect(b1).toMatch(/<li class="progresso-item rodando">[\s\S]*?>Hero w3<\/button>/);
+    expect(resumoLido(b1)).toBe("5 tarefas · 4 prontas");
+    expect(linhas(b1).find((i) => i.id === "w3")).toMatchObject({ estado: "rodando" });
   });
 
-  it("frentesNaFala e resumoDoProgresso, puros: o título longo vira contagem", () => {
+  it("frentesNaFala e resumoDoProgresso, puros: sem nenhuma pronta, só a conta", () => {
     const longas = [{ trabalhoId: "a", titulo: "Migrar os relatórios do financeiro para o novo banco" }, { trabalhoId: "b", titulo: "Revisar a CI" }];
     const { e } = cenario([]);
     const frentes = frentesNaFala({ frentes: longas }, [], { ...e, ...lista([trabalho("a", { titulo: longas[0]!.titulo }), trabalho("b", { titulo: "Revisar a CI" })]) }, C);
-    expect(resumoDoProgresso(frentes)).toEqual({ principal: "0 de 2 prontas", resto: ["2 rodando"] });
+    expect(resumoDoProgresso(frentes)).toBe("2 tarefas");
+    expect(resumoDoProgresso([{ ...frentes[0]!, estado: "precisa" }, frentes[1]!])).toBe("2 tarefas · 1 precisa de você");
+    expect(resumoDoProgresso([{ ...frentes[0]!, estado: "precisa" }, frentes[1]!], false)).toBe("2 tarefas");
   });
 
   it("o título com '$&', \"$'\" ou '$`' entra como está, sem colar pedaços da fala no lugar do bloco", () => {
@@ -204,8 +226,8 @@ describe("de onde vem o estado", () => {
     const ms = conversaDoHero().map((m) => (m.id === "fa" ? abriu(titulos) : m));
     const { e, c } = cenario(ms, lista([trabalho("w1", { titulo: titulos[0]!.titulo }), trabalho("w2", { titulo: titulos[1]!.titulo })]));
     const b1 = doBloco(c, e, "b1");
-    expect(b1).toContain(">Preço em R$&#39; e $&amp; no hero</button>".replace("&#39;", b1.includes("R$&#39;") ? "&#39;" : "'"));
-    expect(b1).toContain(">Custo $` total</button>");
+    expect(b1).toContain(">Preço em R$&#39; e $&amp; no hero</span>".replace("&#39;", b1.includes("R$&#39;") ? "&#39;" : "'"));
+    expect(b1).toContain(">Custo $` total</span>");
     // Uma fala só, um bloco só: nada do texto da fala foi duplicado pela troca.
     expect(b1.split("Te mostro quando as 5 ficarem prontas").length).toBe(2);
     expect(b1.split('<section class="progresso"').length).toBe(2);
@@ -235,7 +257,7 @@ describe("sem âncora, sem bloco", () => {
   });
 
   it("a rotina que abriu frentes: o 'comecei…' segue escondido, então não há bloco (a pílula do PR 8 cobre)", () => {
-    const ms = [msg("r1", t0, { turnoId: "tr", origemTurno: "rotina", fimDoTurno: true, texto: "Comecei 2 frentes" }), abriu(HEROS.slice(0, 2), { turnoId: "tr", origemTurno: "rotina" })];
+    const ms = [msg("r1", t0, { turnoId: "tr", origemTurno: "rotina", fimDoTurno: true, texto: "Comecei 2 tarefas" }), abriu(HEROS.slice(0, 2), { turnoId: "tr", origemTurno: "rotina" })];
     const { e, c } = cenario(ms, lista([trabalho("w1"), trabalho("w2")]));
     expect(renderHistoricoDaTimeline(c, e)).not.toContain("progresso");
   });
@@ -244,30 +266,36 @@ describe("sem âncora, sem bloco", () => {
     const semDestino = conversaDoHero().map(({ destino: _d, ...m }) => m as Mensagem);
     const { e, c } = cenario(semDestino, lista([trabalho("w1")]));
     const html = renderHistoricoDaTimeline(c, e);
-    expect(html).toContain("Começou 5 frentes");
+    expect(html).toContain("Começou 5 tarefas");
     expect(html).not.toContain('<section class="progresso"');
   });
 });
 
 describe("a frente da rede e a frente única", () => {
-  it("a rede não tem fala antes: o bloco entra embaixo do balão da pessoa que virou a frente, numa linha só", () => {
+  it("ADR-187: a rede tem a linha dela do lado do bot, com o bloco embaixo, numa linha só; o balão da pessoa fica sem bloco", () => {
     const ms = [
       daPessoa("p1", t0, { texto: "Migra os relatórios do financeiro", trabalhoId: "wr" }),
       msg("r1", t0 + MIN, { turnoId: "tr", origemTurno: "conversa", trabalhoId: "wr", texto: "Convertendo o lote 1" }),
       anexo("ta", t0 + 2 * MIN, { kind: "trabalho_aberto", trabalhoId: "wr", titulo: "Migrar relatórios", origem: "rede" }, { turnoId: "tr", origemTurno: "conversa", trabalhoId: "wr" }),
     ];
     const { e, c } = cenario(ms, lista([trabalho("wr", { titulo: "Migrar relatórios", origem: "rede", ultimoPasso: "convertendo o lote 2", iniciadoEm: AGORA - 8 * MIN })]));
-    const p1 = doBloco(c, e, "p1");
-    expect(p1).toContain('<section class="progresso progresso-uma" data-frentes="wr" aria-label="Frente Migrar relatórios: rodando">');
-    // Embaixo do balão (fora dele), antes do fim do artigo.
-    expect(p1.indexOf("</div>", p1.indexOf('class="bubble"'))).toBeLessThan(p1.indexOf('<section class="progresso'));
-    expect(p1).toContain('<span class="progresso-passo">convertendo o lote 2</span>');
-    expect(p1).toContain('<span class="progresso-fim">8 min</span>');
-    expect(p1).not.toContain("progresso-barra");
-    expect(p1).not.toContain("ver as");
+    expect(doBloco(c, e, "p1")).not.toContain("progresso");
+    const linha = doBloco(c, e, "linha:ta");
+    expect(linha).toContain('class="message bot rede-virou"');
+    expect(linha).toContain("Seguiu numa tarefa para o chat ficar livre");
+    expect(linha.indexOf("Seguiu numa tarefa")).toBeLessThan(linha.indexOf('<section class="progresso'));
+    expect(linha).toContain('<section class="progresso progresso-uma" data-frentes="wr" aria-label="Tarefa Migrar relatórios: rodando">');
+    // Paper 1d: uma tarefa só é uma linha num cartão — o título, o passo com o tempo embaixo e "Ver"; sem topo nem barra.
+    expect(linha).toContain('<span class="tv-estado">convertendo o lote 2 · 8 min</span>');
+    expect(linha).toContain('<span class="tv-ver">Ver</span>');
+    expect(linha).not.toContain("tv-barra");
+    expect(linha).not.toContain("tv-topo");
+    // A fala de antes da promoção vem antes da linha (a linha não desce para depois das falas do turno).
+    const chaves = blocos(c, e).map((b) => b.chave);
+    expect(chaves.indexOf("r1")).toBeLessThan(chaves.indexOf("linha:ta"));
   });
 
-  it("a rede que terminou: a resposta final dela (balão 'da task …' do mesmo turno) não puxa o bloco do balão da pessoa", () => {
+  it("a rede que terminou: a resposta final dela (balão 'da tarefa …' do mesmo turno) não puxa o bloco nem a linha", () => {
     const ms = [
       daPessoa("p1", t0, { texto: "Migra os relatórios do financeiro", trabalhoId: "wr" }),
       anexo("ta", t0 + 2 * MIN, { kind: "trabalho_aberto", trabalhoId: "wr", titulo: "Migrar relatórios", origem: "rede" }, { turnoId: "tr", origemTurno: "conversa", trabalhoId: "wr" }),
@@ -277,27 +305,31 @@ describe("a frente da rede e a frente única", () => {
     const { e, c } = cenario(ms, lista([feita]));
     expect(doBloco(c, e, "r9")).toContain("Migrei os 3 lotes.");
     expect(doBloco(c, e, "r9")).not.toContain("progresso");
-    expect(doBloco(c, e, "p1")).toContain('<section class="progresso progresso-uma"');
+    expect(doBloco(c, e, "linha:ta")).toContain('<section class="progresso progresso-uma"');
+    const chaves = blocos(c, e).map((b) => b.chave);
+    expect(chaves.indexOf("linha:ta")).toBeLessThan(chaves.indexOf("r9"));
   });
 
   it("uma frente só (o abrir_task de sempre): a linha com o título e o passo; pronta, 'pronta às HH:MM'", () => {
     const ms = conversaDoHero().map((m) => (m.id === "fa" ? abriu([HEROS[0]!]) : m));
     const rodando = cenario(ms, lista([trabalho("w1", { ultimoPasso: "abrindo o Figma" })]));
-    expect(doBloco(rodando.c, rodando.e, "b1")).toContain('<span class="progresso-passo">abrindo o Figma</span>');
+    expect(doBloco(rodando.c, rodando.e, "b1")).toContain('<span class="tv-estado">abrindo o Figma · 49 min</span>');
     const feita = cenario(ms, lista([pronta("w1", 19)]));
     const html = doBloco(feita.c, feita.e, "b1");
-    expect(html).toContain('<span class="progresso-passo">pronta às 01:09</span>');
-    expect(html).toContain('<span class="progresso-ic pronta">');
+    expect(html).toContain('<span class="tv-estado">pronta às 01:09</span>');
+    expect(html).toContain('data-estado="pronta"');
   });
 });
 
-describe("NOD-358 (revisão 6 do PR #522): a fala em vários balões", () => {
-  it("o progresso vai só no último balão", () => {
+describe("COP-14 (item 4): a fala de vários parágrafos é um balão só", () => {
+  it("o progresso vai embaixo do balão único, fora dele (ADR-187)", () => {
     const ms = conversaDoHero().map((m) => (m.id === "b1" ? { ...m, texto: "Abri 5 frentes.\n\nTe aviso quando saírem." } : m));
     const { e, c } = diaDoPrototipoCom(ms);
     const b1 = doBloco(c, e, "b1");
-    expect(b1.split("com-progresso").length - 1).toBe(1);
-    expect(b1).toContain('<div class="bubble com-progresso" data-balao="1">');
+    expect(b1).not.toContain("com-progresso");
+    expect(b1).not.toContain("data-balao");
+    expect(b1).toContain('<div class="bubble"><p class="md-paragrafo">Abri 5 frentes.</p><p class="md-paragrafo">Te aviso quando saírem.</p></div>');
+    expect(b1.indexOf("Te aviso quando saírem.")).toBeLessThan(b1.indexOf('<div class="progresso-lugar"'));
   });
 });
 
@@ -307,7 +339,7 @@ describe("a fala que abriu as frentes é uma pergunta", () => {
     const { e, c } = diaDoPrototipoCom(ms);
     const b1 = doBloco(c, e, "b1");
     expect(b1).toContain('<section class="progresso"');
-    expect(b1).toContain("3 de 5 prontas");
+    expect(b1).toContain("5 tarefas · 3 prontas");
     expect(b1).not.toContain("com-progresso");
     expect(b1.indexOf("qual paleta?")).toBeLessThan(b1.indexOf('<section class="progresso"'));
   });
@@ -323,9 +355,26 @@ describe("dentro da fala e na tela", () => {
     expect(b1.indexOf('<section class="progresso"')).toBeLessThan(b1.indexOf("reacao-chip"));
   });
 
-  it("telemetria: 'ver as 5' é uma linha do tipo 'frentes' (gatilho da ADR-099), com a chave da abertura e o bot", () => {
-    const { e, c } = diaDoPrototipo();
-    expect(doBloco(c, e, "b1")).toContain('<summary class="progresso-resumo" data-act="abrir-progresso" data-linha-tipo="frentes" data-linha-chave="frentes:fa" data-agente="orq">');
+  it("acima de cinco tarefas (Paper P1): chips, a pergunta realçada com 'Responder' e 'Ver detalhes ›', que abre a lista da aba", () => {
+    const pr = (n: number) => ({ trabalhoId: `pr${n}`, titulo: `#${n} · Revisar o PR ${n}` });
+    const doze = [812, 815, 819, 821, 824, 831, 818].map(pr);
+    const ms = conversaDoHero().map((m) => (m.id === "fa" ? abriu(doze) : m));
+    const t = (n: number, extra: Partial<TrabalhoDto> = {}) => trabalho(`pr${n}`, { titulo: `#${n} · Revisar o PR ${n}`, ...extra });
+    const { e, c } = cenario(ms, lista([t(812, { estado: "terminado", terminadoEm: t0 + 9 * MIN }), t(819, { estado: "terminado", terminadoEm: t0 + 10 * MIN }), t(824, { estado: "terminado", terminadoEm: t0 + 11 * MIN }), t(815), t(818), t(821, { estado: "precisa_de_voce", ultimoPasso: "Posso rodar a migração no banco de teste?" }), t(831, { estado: "na_fila", iniciadoEm: null })]));
+    const b1 = doBloco(c, e, "b1");
+    // O topo não repete a pergunta: ela tem a linha dela logo embaixo.
+    expect(resumoLido(b1)).toBe("7 tarefas · 3 prontas");
+    expect(segmentos(b1)).toEqual(["pronta", "pronta", "pronta", "precisa", "rodando", "rodando", "esperando"]);
+    expect(b1).toContain('<button type="button" class="tv-linha tv-pede" data-act="abrir-trabalho" data-id="pr821" data-estado="precisa" title="#821 · Revisar o PR 821">');
+    expect(b1).toContain('<span class="tv-titulo">#821 · Posso rodar a migração no banco de teste?</span>');
+    expect(b1).toContain('<span class="tv-ver">Responder</span>');
+    expect(linhas(b1)).toEqual([]);
+    const chips = [...b1.matchAll(/class="tv-chip" data-act="abrir-trabalho" data-id="([^"]+)" data-estado="([a-z_]+)"[^>]*>[\s\S]*?<\/svg><\/span>([^<]*)<\/button>/g)].map((m) => `${m[2]}:${m[3]}`);
+    expect(chips).toEqual(["pronta:#812", "pronta:#819", "pronta:#824", "rodando:#815", "rodando:#818", "esperando:#831 na fila"]);
+    expect(b1).toContain('aria-label="#812 · Revisar o PR 812: pronta"');
+    expect(b1).toContain('<button type="button" class="tv-mais" data-act="pilula">Ver detalhes<span aria-hidden="true">›</span></button>');
+    // Até cinco, linhas (sem chips).
+    expect(doBloco(diaDoPrototipo().c, diaDoPrototipo().e, "b1")).not.toContain("tv-chip");
   });
 
   it("ADR-061: o histórico lembrado não lê o ao vivo nem o relógio; a frente que anda não muda nenhum bloco, só o do lugar", () => {
@@ -344,7 +393,7 @@ describe("dentro da fala e na tela", () => {
     const depois = blocoDaAbertura("fa", andou.conversas[C]!, andou);
     expect(antes).toContain("Ajustando o contraste do título…");
     expect(depois).toContain("Rodando o Lighthouse…");
-    expect(depois).toContain('<span class="progresso-fim">15 min</span>');
+    expect(depois).toContain('<span class="tv-tempo">15 min</span>');
     expect(blocoDaAbertura("nao-existe", c, e)).toBe("");
   });
 });
@@ -355,19 +404,19 @@ describe("dentro da fala e na tela", () => {
  * Elementos falsos: o teste roda sem navegador.
  */
 describe("o progresso na tela troca só o lugar", () => {
-  type Falso = LugarNaTela & { trocas: number; det: { open: boolean } | null; focados: string[] };
+  type Falso = LugarNaTela & { trocas: number; focados: string[] };
   function lugarFalso(id: string): Falso {
     let html = "";
     const l: Falso = {
-      dataset: { progresso: id }, isConnected: true, trocas: 0, det: null, focados: [],
+      dataset: { progresso: id }, isConnected: true, trocas: 0, focados: [],
       get innerHTML() { return html; },
-      set innerHTML(v: string) { html = v; l.trocas++; l.det = v.includes("<details") ? { open: false } : null; },
+      set innerHTML(v: string) { html = v; l.trocas++; },
       contains: (x) => x === focoFalso,
-      querySelector: (seletor) => (seletor === "details" ? l.det : html.includes('data-act="abrir-progresso"') && seletor.includes("abrir-progresso") ? { focus: () => l.focados.push(seletor) } : null),
+      querySelector: (seletor) => (html.includes('data-act="abrir-trabalho" data-id="w3"') && seletor === '[data-act="abrir-trabalho"][data-id="w3"]' ? { focus: () => l.focados.push(seletor) } : null),
     };
     return l;
   }
-  const focoFalso = { dataset: { act: "abrir-progresso" } };
+  const focoFalso = { dataset: { act: "abrir-trabalho", id: "w3" } };
   const raizCom = (...lugares: LugarNaTela[]) => ({ querySelectorAll: () => lugares });
 
   it("desenha o bloco no lugar; o mesmo estado não troca de novo; a frente que anda troca só o lugar", () => {
@@ -393,26 +442,24 @@ describe("o progresso na tela troca só o lugar", () => {
     expect(lugar.innerHTML).toMatch(/^<section class="progresso" data-frentes="[^"]+"/);
     expect(lugar.innerHTML).not.toContain("progresso-memoria");
     // O ponto chega sem a frente andar: só o lugar é trocado, com o ponto ao lado do número.
-    const memoria = { texto: "Pouca memória no seu Mac · 2 trabalhos abertos", nivel: "amarela" as const };
+    const memoria = { texto: "Pouca memória no seu Mac · 2 tarefas abertas", nivel: "amarela" as const };
     expect(tela.desenhar(c, e, memoria)).toBe(1);
-    expect(lugar.innerHTML).toContain('<span class="progresso-memoria amarela" role="img" aria-label="Pouca memória no seu Mac · 2 trabalhos abertos"');
+    expect(lugar.innerHTML).toContain('<span class="progresso-memoria amarela" role="img" aria-label="Pouca memória no seu Mac · 2 tarefas abertas"');
     expect(tela.desenhar(c, e, memoria)).toBe(0);
     expect(blocoDaAbertura("fa", c, e, memoria)).toBe(lugar.innerHTML);
   });
 
-  it("a lista aberta continua aberta e o foco no 'ver as 5' volta depois da troca", () => {
+  it("o foco na linha de uma tarefa volta à mesma linha depois da troca", () => {
     const { e, c } = diaDoPrototipo();
     let foco: unknown = null;
     const tela = criarProgressoNaTela(() => foco);
     const lugar = lugarFalso("fa");
     tela.achar(raizCom(lugar));
     tela.desenhar(c, e);
-    lugar.det!.open = true;
     foco = focoFalso;
     const andou: Estado = { ...e, agora: AGORA + 3 * MIN };
     expect(tela.desenhar(andou.conversas[C]!, andou)).toBe(1);
-    expect(lugar.det?.open).toBe(true);
-    expect(lugar.focados).toEqual(['[data-act="abrir-progresso"]']);
+    expect(lugar.focados).toEqual(['[data-act="abrir-trabalho"][data-id="w3"]']);
   });
 
   it("o lugar que saiu da tela não é desenhado; sem conversa ou sem lugares, nada", () => {

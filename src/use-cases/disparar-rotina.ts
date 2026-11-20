@@ -275,8 +275,8 @@ async function registrarAdiada(deps: Deps, input: EntradaDisparo, segura: Segura
 export function textoAvisoAdiada(segura: Pick<Segura, "motivo" | "titulo">): string {
   const n = ADIADAS_PARA_AVISAR;
   if (segura.motivo === "frente_aberta") {
-    const frente = segura.titulo ? `a frente “${segura.titulo}”` : "uma frente desta rotina";
-    return `Esta rotina não rodou nas últimas ${n} janelas porque ${frente} ainda não terminou. Ela volta a rodar sozinha quando a frente terminar.`;
+    const frente = segura.titulo ? `a tarefa “${segura.titulo}”` : "uma tarefa desta rotina";
+    return `Esta rotina não rodou nas últimas ${n} janelas porque ${frente} ainda não terminou. Ela volta a rodar sozinha quando a tarefa terminar.`;
   }
   return `Esta rotina não rodou nas últimas ${n} janelas porque a execução anterior ainda não terminou. Ela volta a rodar sozinha quando essa execução terminar.`;
 }

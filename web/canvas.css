@@ -65,14 +65,19 @@
 
 /* Pinos e post-its (a mesma linguagem da moldura _nod/canvas). O pino tem tamanho fixo na tela. */
 .cv-pinos { position: absolute; inset: 0; pointer-events: none; }
-.cv-pino { position: absolute; z-index: 2; display: grid; place-items: center; width: 20px; height: 20px; margin: 0; padding: 0; border: 0;
-  border-radius: 50% 50% 50% 2px; background: var(--ink); color: var(--surface); font: 600 10.5px/1 var(--font-sans);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .18); transform: translate(-2px, -100%) scale(var(--cv-inv)); transform-origin: 2px 100%; pointer-events: auto; cursor: pointer; }
-.cv-pino-ativo { background: var(--signal); }
-.cv-pino-rasc { background: var(--surface); color: var(--ink); outline: 1.5px dashed var(--ink-3); }
-.cv-pino-ok { background: var(--surface); color: var(--success); outline: 1px solid var(--line-strong); opacity: .85; }
+.cv-pino { position: absolute; z-index: 2; display: grid; place-items: center; width: 44px; height: 44px; margin: 0; padding: 0; border: 0;
+  background: transparent; color: var(--surface); font: 600 10.5px/1 var(--font-sans);
+  transform: translate(-14px, -32px) scale(var(--cv-inv)); transform-origin: 14px 32px; pointer-events: auto; cursor: pointer; }
+.cv-pino::before { content: ""; position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; border-radius: 50% 50% 50% 2px;
+  background: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .18); transform: translate(-50%, -50%); }
+.cv-pino-ativo::before { background: var(--signal); }
+.cv-pino-rasc { color: var(--ink); }
+.cv-pino-rasc::before { background: var(--surface); outline: 1.5px dashed var(--ink-3); }
+.cv-pino-ok { color: var(--success); opacity: .85; }
+.cv-pino-ok::before { background: var(--surface); outline: 1px solid var(--line-strong); }
 .cv-pino-ok::after { content: "✓"; font-size: 11px; font-weight: 700; }
-.cv-pino-velho { background: var(--surface); color: var(--ink-2); outline: 1px solid var(--line-strong); box-shadow: none; }
+.cv-pino-velho { color: var(--ink-2); }
+.cv-pino-velho::before { background: var(--surface); outline: 1px solid var(--line-strong); box-shadow: none; }
 .cv-notas { position: absolute; display: flex; flex-direction: column; gap: calc(10px * var(--cv-k)); }
 .cv-nota { display: flex; flex-direction: column; gap: calc(4px * var(--cv-k)); width: calc(168px * var(--cv-k)); padding: calc(10px * var(--cv-k)) calc(12px * var(--cv-k));
   border: max(1px, var(--cv-k) * 1px) solid #ece2b9; border-radius: calc(8px * var(--cv-k)); background: #fbf6e2;
@@ -303,7 +308,13 @@ button.cv-nota { cursor: pointer; }
 /* ---------- Celular (390): a barra vai embaixo da pílula e rola; o input fica fixo ---------- */
 @media (max-width: 760px) {
   .cv-topo { left: 12px; right: 12px; top: 66px; }
+  .cv-fer { height: 46px; padding-inline: 1px; }
+  .cv-fer-bt, .cv-fer-nome, .cv-fer-ver, .cv-fer-pct, .cv-fer-enviar { min-width: 44px; height: 44px; border-radius: 22px; }
+  .cv-aviso { min-height: 44px; }
+  .cv-aviso-x { width: 44px; height: 44px; border-radius: 22px; }
   .cv-menu-ver { margin-left: 0; }
+  .cv-filtros { flex-wrap: wrap; }
+  .cv-filtro { min-height: 44px; border-radius: 22px; }
   .cv-lin-a { grid-template-columns: 72px minmax(0, 1fr); }
   .cv-lin-mini { width: 72px; height: 46px; }
   .cv-lin-est, .cv-lin-a time { grid-column: 2; }

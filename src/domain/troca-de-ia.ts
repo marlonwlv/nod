@@ -64,7 +64,7 @@ export function fraseDaTroca(p: {
     // QA do PR 2 (16/10): sem artigo nem gênero para o nome do bot.
     return `${p.nomeDoBot} parou${ate}: as contas do ${p.nomeDe} da sua fila acabaram. Volta sozinho ${volta ?? "quando uma conta voltar"}.`;
   }
-  const tasks = p.tasks === 1 ? "a task" : `as ${p.tasks} tasks`;
+  const tasks = p.tasks === 1 ? "a tarefa" : `as ${p.tasks} tarefas`;
   const apelido = p.contaDe ?? p.contaQueParou ?? null;
   const quem = apelido ? `A conta ${apelido} do ${p.nomeDe}` : `O ${p.nomeDe}`;
   const quandoVolta = volta ? ` · volta ${volta}` : ` · o ${p.nomeDe} não disse quando volta`;

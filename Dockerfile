@@ -21,7 +21,7 @@ COPY src ./src
 COPY scripts/migrate.ts scripts/seed.ts scripts/ligacoes-orfas.ts scripts/aviso-total-credenciais.ts ./scripts/
 COPY tests/helpers/catcher-roteiro.ts ./tests/helpers/catcher-roteiro.ts
 # definido em 2026-10-03: src/adapters/workspace/pastas.ts importa este módulo; sem ele o servidor não sobe.
-COPY infra/computador/texto.mjs ./infra/computador/texto.mjs
+COPY infra/computador/texto.mjs infra/computador/shell-visual-distribuicao.mjs ./infra/computador/
 COPY --from=web /app/dist/web ./dist/web
 # definido em 2026-10-09 (ADR-090): o motor sem janela desta versão, servido em /api/motor/arquivos para a VM da pessoa.
 COPY --from=web /app/dist/motor ./dist/motor

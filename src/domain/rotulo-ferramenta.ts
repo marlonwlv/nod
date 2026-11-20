@@ -6,6 +6,8 @@
 import type { DadosDaAtividade } from "../contracts/frame.ts";
 import { RESUMO_DO_PASSO_MAX } from "../contracts/quadro-comentarios.ts";
 import type { EventoStream } from "../contracts/turno.ts";
+import type { FaseDoBloco } from "../contracts/evento-stream.ts";
+import { rotuloDoComputador } from "./computador.ts";
 import { classeDaFerramenta, nomeCurtoDaFerramenta, redigirResumo, resumoDaFerramenta } from "./resumo-do-passo.ts";
 /**
  * NOD-352 (definido em 2026-10-28): cada ferramenta do nod no passado (etapas, resumo gravado, último passo do subagente)
@@ -21,6 +23,8 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   ver_agenda: ["Consultou a agenda", "Consultando a agenda"],
   pausar_rotina: ["Pausou uma rotina", "Pausando uma rotina"],
   reativar_rotina: ["Reativou uma rotina", "Reativando uma rotina"],
+  pausar_todas_rotinas: ["Pausou todas as rotinas", "Pausando todas as rotinas"],
+  reativar_lote_rotinas: ["Reativou as rotinas pausadas juntas", "Reativando as rotinas pausadas juntas"],
   atualizar_rotina: ["Propôs mudança numa rotina", "Propondo mudança numa rotina"],
   excluir_rotina: ["Propôs excluir uma rotina", "Propondo excluir uma rotina"],
   executar_rotina: ["Propôs rodar uma rotina agora", "Propondo rodar uma rotina agora"],
@@ -36,13 +40,13 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   buscar_conversas: ["Buscou nas conversas passadas", "Buscando nas conversas passadas"],
   ler_conversa: ["Leu uma conversa passada", "Lendo uma conversa passada"],
   // ADR-083 (#193): a conversa coordena as tasks.
-  abrir_task: ["Abriu uma task", "Abrindo uma task"],
-  mandar_para_task: ["Repassou a uma task", "Repassando a uma task"],
+  abrir_task: ["Abriu uma tarefa", "Abrindo uma tarefa"],
+  mandar_para_task: ["Repassou a uma tarefa", "Repassando a uma tarefa"],
   me_chame_as: ["Saiu do Mac até a hora de voltar", "Marcando a hora de voltar"],
   // ADR-099 (I2): o dono abre frentes em lote e cada frente devolve um resumo.
-  abrir_frentes: ["Começou frentes", "Abrindo frentes"],
+  abrir_frentes: ["Começou tarefas", "Abrindo tarefas"],
   // O cabeçalho de frentes é um só, "Abrindo frentes" (NOD-348, ADR-114), para abrir e para repassar.
-  mandar_para_frente: ["Repassou a uma frente", "Abrindo frentes"],
+  mandar_para_frente: ["Repassou a uma tarefa", "Abrindo tarefas"],
   devolver_resumo: ["Devolveu o resumo", "Devolvendo o resumo"],
   // ADR-099 (parte 2): o Nod roda o comando e acorda o bot quando ele termina.
   esperar_comando: ["Deixou um comando esperando por ele", "Deixando um comando esperando por ele"],
@@ -51,6 +55,7 @@ const NOD: Record<string, readonly [passado: string, presente: string]> = {
   // NOD-262: o bot fecha da conversa um pedido de colega que já resolveu.
   responder_pedido: ["Respondeu a um pedido de colega", "Respondendo a um pedido de colega"],
   avisar_pessoa: ["Avisou você", "Avisando você"],
+  mostrar_cartoes: ["Mostrou cartões", "Mostrando cartões"],
   gerir_quadro: ["Mexeu no quadro", "Mexendo no quadro"],
   gerir_apps: ["Mexeu nas páginas", "Mexendo nas páginas"],
   decisoes: ["Consultou as decisões", "Consultando as decisões"],
@@ -233,24 +238,25 @@ const FRENTES = new Set(["abrir_frentes", "mandar_para_frente"]);
 /**
  * NOD-352: o rótulo no presente ("Rodando um comando", "Anotando na memória", "Usando o computador"). Conector e servidor
  * MCP de fora seguem "Usando ‹app›" (o formato da fala viva do Gil, "usando Gmail"); desconhecida é "Usando uma
- * ferramenta"; nunca o id cru nem o nome da IA.
+ * ferramenta"; nunca o id cru nem o nome da IA. D · Computador do bot (item 1): as do computador dizem o que o bot faz na
+ * tela ("Abrindo exemplo.com", "Clicando na tela"), pelo `resumo` do argumento (`rotuloDoComputador`).
  */
-export function rotuloAgora(nomeCli: string): string {
+export function rotuloAgora(nomeCli: string, resumo?: string | null): string {
   const m = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(semIaNoNome(nomeCli));
   if (!m) return de(NATIVAS, nomeCli)?.[1] ?? "Usando uma ferramenta";
   const nome = m[2]!;
   const nod = doNod(nomeCli);
   if (nod) return nod[1];
-  if (nome.startsWith("computador_")) return "Usando o computador";
+  if (nome.startsWith("computador_")) return rotuloDoComputador(nome, resumo);
   if (nome.startsWith("workspace_")) return "Usando a pasta de trabalho";
   if (m[1] === "navegador") return "Usando o navegador";
   if (/__/.test(nome) || m[1] !== "nod") return `Usando ${nomeDaFerramenta(nomeCli)}`;
   return "Usando uma ferramenta";
 }
 
-export function ferramentaEmUso(nomeCli: string): FerramentaEmUso {
+export function ferramentaEmUso(nomeCli: string, resumo?: string | null): FerramentaEmUso {
   const m = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(nomeCli);
-  return { texto: rotuloAgora(nomeCli), frentes: !!m && m[1] === "nod" && FRENTES.has(m[2]!) };
+  return { texto: rotuloAgora(nomeCli, resumo), frentes: !!m && m[1] === "nod" && FRENTES.has(m[2]!) };
 }
 
 /** NOD-353: teto do rótulo da ação, o mesmo no frame ao vivo e no resumo gravado (a troca da viva pela gravada não muda o texto). */
@@ -267,9 +273,11 @@ export function frameVivoDoEvento(ev: EventoStream): { tipo: "turno.atividade"; 
 
 /** NOD-353: o desktop e o motor repassam à ponte a chamada e o fim dela (o mesmo mapa nos dois). */
 /** ADR-165: com o resumo de uma linha do argumento (`resumoDaFerramenta`, já redigido), nunca o input inteiro. */
-export function repassarAcaoDoEvento(alvo: { ferramenta(turnoId: string, nome: string, id?: string, resumo?: string): void; fimDaFerramenta(turnoId: string, id: string, falhou: boolean): void }, turnoId: string, ev: EventoStream): void {
+/** definido em 2026-11-12 (estado vivo): e a fase do bloco (compondo, pensando, fim), quando o alvo a aceita. */
+export function repassarAcaoDoEvento(alvo: { ferramenta(turnoId: string, nome: string, id?: string, resumo?: string): void; fimDaFerramenta(turnoId: string, id: string, falhou: boolean): void; fase?(turnoId: string, fase: FaseDoBloco): void }, turnoId: string, ev: EventoStream): void {
   if (ev.tipo === "tool_use") alvo.ferramenta(turnoId, ev.nome, ev.id, resumoDaFerramenta(ev.nome, ev.input));
   else if (ev.tipo === "tool_result") alvo.fimDaFerramenta(turnoId, ev.toolUseId, ev.isError);
+  else if (ev.tipo === "fase") alvo.fase?.(turnoId, ev.fase);
 }
 
 /** Revisão 2 do #578: o presente também tem o teto do rótulo (um conector de slug longo vira "Usando ‹slug›"). */
@@ -284,5 +292,5 @@ function comTeto(e: FerramentaEmUso): FerramentaEmUso {
  */
 export function frameDaFerramenta(nomeCli: string, id?: string, resumo?: string | null): Omit<DadosDaAtividade, "seq"> {
   const r = typeof resumo === "string" ? redigirResumo(resumo, RESUMO_DO_PASSO_MAX) : "";
-  return { nome: nomeCli, rotulo: rotuloFerramenta(nomeCli).slice(0, ROTULO_DA_ACAO_MAX), emUso: comTeto(ferramentaEmUso(nomeCli)), ...(id ? { id } : {}), resumo: r || null, classe: classeDaFerramenta(nomeCli), ferramenta: nomeCurtoDaFerramenta(nomeCli) };
+  return { nome: nomeCli, rotulo: rotuloFerramenta(nomeCli).slice(0, ROTULO_DA_ACAO_MAX), emUso: comTeto(ferramentaEmUso(nomeCli, r || null)), ...(id ? { id } : {}), resumo: r || null, classe: classeDaFerramenta(nomeCli), ferramenta: nomeCurtoDaFerramenta(nomeCli) };
 }

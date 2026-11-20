@@ -91,6 +91,8 @@ export type OpcoesBoot = {
   capturador?: OpcoesCompor["capturador"];
   /** NOD-132, só em teste: o assinador falso da URL do ZIP (vale com NOD_APP_VERSAO_PUBLICADA). Default: signBlob do IAM. */
   assinadorAtualizacaoApp?: OpcoesCompor["assinadorAtualizacaoApp"];
+  /** ADR-115, só em teste: a API falsa do revisor (o e2e das regras do Automático, ADR-166). Default: a da Anthropic. */
+  revisor?: OpcoesCompor["revisor"];
 };
 
 /** `lacos_prazo_vencido` (NOD-331): parar os laços de fundo passou de `PRAZO_PARAR_LACOS_MS` e a drenagem seguiu. */
@@ -206,7 +208,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
 
   // 2. composição + 3. listen (a URL do servidor é insumo do driver catcher e do claude-cli).
   let canaisVoz: { fechar(): Promise<void> } | null = null;
-  const app = comporApp({ db, computador: o.computador, voz: o.voz, env: { ...env, NOD_MACHINE_ID: machineId, NOD_HOST: o.host ?? env.NOD_HOST }, relogio: agora, listarPessoas: o.listarPessoas, redeMs: o.redeMs, inicioDoProcesso, capturador: o.capturador, assinadorAtualizacaoApp: o.assinadorAtualizacaoApp });
+  const app = comporApp({ db, computador: o.computador, voz: o.voz, env: { ...env, NOD_MACHINE_ID: machineId, NOD_HOST: o.host ?? env.NOD_HOST }, relogio: agora, listarPessoas: o.listarPessoas, redeMs: o.redeMs, inicioDoProcesso, capturador: o.capturador, assinadorAtualizacaoApp: o.assinadorAtualizacaoApp, revisor: o.revisor });
   // NOD-267 (emenda à ADR-017): a saúde olha o banco e, só no compartilhado, o batimento do agendador e do varredor de
   // lease — no Mac, acordar do sono deixaria o batimento velho e daria 503 falso. A rota e o watchdog usam a MESMA
   // verificação, para compartilharem o `select 1` em voo.
@@ -385,7 +387,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     });
     varredorExpiracao = iniciarVarredorExpiracao(db, { services: app.services, useCases: app.useCases, agora, intervaloMs: iv.expiracaoMs, executor: () => app.executor }, { listarPessoas: o.listarPessoas });
     // NOD-170: só com computadores ligados; NOD_COMPUTADOR_OCIOSO_MIN=0 não sobe o laço.
-    if (app.computadores) varredorOciosidade = iniciarVarredorOciosidade({ db, computadores: app.computadores, ociosoMin: limiteDoAmbiente(env).ociosoMin, intervaloMs: iv.ociosidadeMs, opcoes: { listarPessoas: o.listarPessoas } });
+    if (app.computadores) varredorOciosidade = iniciarVarredorOciosidade({ db, computadores: app.computadores, ociosoMin: limiteDoAmbiente(env).ociosoMin, intervaloMs: iv.ociosidadeMs, opcoes: { listarPessoas: o.listarPessoas }, presente: (pessoaId) => app.barramento.inscritos(pessoaId) > 0 });
     despachante = iniciarDespachanteOutbox(db, app.barramento, { intervaloMs: iv.outboxMs, listarPessoas: o.listarPessoas, presenca: app.services.maquinas });
     varredorMaquinas = app.iniciarVarredorMaquinas(o.varredorMaquinasMs);
     // NOD-346: só com NOD_MINHA_CONTA (a exportação e, com NOD_PURGA_CONTA, a purga).

@@ -19,6 +19,16 @@ describe("responderErro registra a recusa no log", () => {
   afterEach(() => saida.mockClear());
   const linhas = () => saida.mock.calls.map((c) => JSON.parse(String(c[0])));
 
+  it("executor indisponível orienta qualquer plataforma sem mandar abrir um Mac", () => {
+    const r = resposta();
+    responderErro(r.res, new ErroDeDominio("executor_indisponivel"));
+    expect(r.status()).toBe(503);
+    expect(r.corpo()).toEqual({
+      codigo: "executor_indisponivel",
+      mensagem: "Nenhuma máquina com essa inteligência está disponível agora. Abra o nod em uma delas e tente de novo.",
+    });
+  });
+
   it("4xx de domínio vira linha com código, status, método, rota sem ids e cause; o cliente segue sem o cause", () => {
     const r = resposta();
     const id = "9ad2843f-f636-461d-9134-fabb31f6f14d";

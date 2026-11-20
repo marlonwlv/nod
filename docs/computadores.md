@@ -6,7 +6,7 @@ A política **Com aprovação por ação** pede autorização antes de interaç�
 
 ## Casos de uso e critérios de aceite
 
-As referências de produto são os [guias](https://x.ai/bot/guides) e [casos de uso do Grok Bot](https://x.ai/bot/use-cases). Esta tabela descreve o comportamento buscado, não uma afirmação de que todos os serviços citados já foram homologados.
+Esta tabela descreve o comportamento buscado, não uma afirmação de que todos os serviços citados já foram homologados.
 
 | Caso | O computador precisa fazer | Critério de aceite |
 |---|---|---|
@@ -33,6 +33,8 @@ npm run db:migrate:test
 
 No ambiente do servidor, configure `NOD_COMPUTADORES=docker` e uma `NOD_CREDENTIAL_KEY` de 32 bytes em hexadecimal, secreta e estável. Não use a chave pública de exemplo com contas reais. Reinicie o servidor nod. A imagem padrão é `nod-computador:1`; `NOD_COMPUTADOR_IMAGEM` permite fixar outra versão. `NOD_COMPUTADOR_RUNTIME` seleciona um runtime Docker já instalado e validado no host.
 
+Volumes criados antes do isolamento por tenant continuam disponíveis somente com adoção explícita: defina `NOD_COMPUTADOR_LEGADO_POR_ID` como um objeto JSON `UUID → hash`, em que o hash são os 12 primeiros hex de SHA-256 sobre `tenantId:pessoaId`. Sem o mapeamento, o escopo recebe volumes novos; isso evita entregar login legado a outro tenant com UUID colidente.
+
 `npm run computador:build` constrói a imagem para `linux/arm64` e `linux/amd64` (buildx) e carrega a da arquitetura do host como `nod-computador:1`. A outra arquitetura roda emulada: sem o binfmt do QEMU (o Docker Desktop já traz), ela vira só um aviso e a nativa fica pronta; para construí-la, instale com `docker run --privileged --rm tonistiigi/binfmt --install arm64,amd64`. Sem o plugin buildx, o comando cai no `docker build` de antes (só a nativa). Com `NOD_COMPUTADOR_PLATAFORMAS=linux/amd64` (ou `linux/arm64`), `--plataformas` ou `--saida`, qualquer falha é erro. `-- --saida <pasta>` grava também um `docker save` por arquitetura, que é o que entra no disco da VM local do Mac (`infra/vm-local/`, ADR-123).
 
 O computador é provisionado ao ligar pela interface ou na primeira ação autorizada do bot. A imagem precisa estar preparada antecipadamente: uma solicitação do bot não instala Docker nem constrói imagens.
@@ -51,6 +53,21 @@ node scripts/desktop/smoke-proxy.mjs node_modules/electron/dist/Electron.app/Con
 O smoke cria dois computadores descartáveis, usa arquivos/cookies fictícios e não chama modelos pagos. Remove apenas seus próprios containers, redes e volumes. IDs para diagnóstico ficam em `/tmp/nod-computadores-smoke-ids.json`.
 
 Os volumes têm nomes `nod-computador-<id>-home` e `nod-computador-<id>-workspace`. Faça backup com o computador desligado e preserve a chave do servidor separadamente; sem a chave, o cofre não abre. Não monte um mesmo perfil em dois Chromium ativos. Planeje recuperação e retenção antes de remover dados de bots excluídos.
+
+### Provedor do computador (ADR-168)
+
+O computador vem de um **provedor**: o Docker do servidor (padrão com `NOD_COMPUTADORES=docker`) ou um serviço de fora. A escolha é configuração, com precedência bot > pessoa > global:
+
+| Variável | Exemplo |
+|---|---|
+| `NOD_COMPUTADOR_PROVEDOR` | `orgo` (todos os bots sem escolha própria) |
+| `NOD_COMPUTADOR_PROVEDOR_POR_PESSOA` | `{"<pessoaId>":"orgo"}` |
+| `NOD_COMPUTADOR_PROVEDOR_POR_BOT` | `{"<agenteId>":"docker"}` |
+
+O Orgo só existe com `NOD_COMPUTADOR_ORGO=1`. A chave da conta Orgo da pessoa fica no cofre: conector `orgo`, chave `ORGO_API_KEY`, guardada pelo cartão do `pedir_credencial`; nunca no env do servidor. Os computadores nascem no workspace `nod` da conta dela, com nome escopado por tenant, pessoa e id do computador. Trocar de provedor não leva arquivos nem logins. Valor desconhecido é ignorado com o aviso `computador_provedor_config` no log.
+
+O transporte ao vivo, o fallback Docker, o ensaio real do Orgo e a fronteira entre tela, display e shell estão em
+[Computador ao vivo](computador-ao-vivo.md).
 
 ### Ciclo de vida no host (NOD-170)
 

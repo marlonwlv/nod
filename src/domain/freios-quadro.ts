@@ -372,7 +372,7 @@ export function acionamentosNaHora(historico: readonly MovimentoTarefa[], tarefa
 }
 
 /** Revisão 8 do PR #629: o motivo do laço sem os nomes das colunas (o aviso de turno não confiável). */
-export const MOTIVO_LACO_SEM_NOMES = `Laço: a tarefa foi e voltou entre duas colunas mais de ${LIMITE_IDAS_E_VOLTAS} vezes. Confira e diga o próximo passo.`;
+export const MOTIVO_LACO_SEM_NOMES = `Laço: o card foi e voltou entre duas colunas mais de ${LIMITE_IDAS_E_VOLTAS} vezes. Confira e diga o próximo passo.`;
 
 /** Bloqueado, se o quadro tiver; senão esperando a pessoa (ADR-162: a marca, que não depende de coluna). */
 const bloqueio = (colunas: readonly ColunaQuadro[]): IdColuna => (colunas.some((c) => c.id === "bloqueado") ? "bloqueado" : ESPERA_PESSOA);
@@ -405,7 +405,7 @@ export function frearDepois(p: {
     const de = origemDaTrava(a.status, a.voltarPara);
     if (de === t.status) continue;
     if (passagensEntre(p.historico, id, de, t.status) + 1 <= 2 * LIMITE_IDAS_E_VOLTAS) continue;
-    const motivo = `Laço: a tarefa foi e voltou entre ${nomeDaColuna(p.colunas, de)} e ${nomeDaColuna(p.colunas, t.status)} mais de ${LIMITE_IDAS_E_VOLTAS} vezes. Confira e diga o próximo passo.`;
+    const motivo = `Laço: o card foi e voltou entre ${nomeDaColuna(p.colunas, de)} e ${nomeDaColuna(p.colunas, t.status)} mais de ${LIMITE_IDAS_E_VOLTAS} vezes. Confira e diga o próximo passo.`;
     // O passo 5 da jornada: Bloqueado (decisão 4 da Ada), sem acionar ninguém.
     esperar(t, bloqueio(p.colunas), motivo);
     tirar(id);
@@ -414,7 +414,7 @@ export function frearDepois(p: {
   for (const id of [...p.comecam]) {
     const t = p.tarefas.find((x) => x.id === id);
     if (!t || t.nova || (p.acionamentos ? p.acionamentos.get(id) ?? 0 : acionamentosNaHora(p.historico, id, p.agora)) < LIMITE_ACIONAMENTOS_HORA) continue;
-    const motivo = `Freio: o responsável foi acionado mais de ${LIMITE_ACIONAMENTOS_HORA} vezes na última hora nesta tarefa. Parei sem acionar; responda para seguir.`;
+    const motivo = `Freio: o responsável foi acionado mais de ${LIMITE_ACIONAMENTOS_HORA} vezes na última hora neste card. Parei sem acionar; responda para seguir.`;
     esperar(t, bloqueio(p.colunas), motivo);
     tirar(id);
     freadas.set(id, { tipo: "freio", motivo });

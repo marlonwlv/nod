@@ -59,6 +59,7 @@ interface Linha {
   criado_em: Date;
   mensagem_origem_id: string | null;
   absorvido_por: string | null;
+  lido_na_sessao_em: Date | null;
   sob_procuracao_de: string | null;
   ligacao_id: string | null;
   trabalho_id: string | null;
@@ -77,7 +78,7 @@ interface Linha {
 export type SessaoDoTurno = { sessaoCli: string; executor: string; harness: string | null; contaId: string | null; machineId: string | null };
 
 const COLUNAS =
-  "tenant_id, id, owner_id, conversa_id, agente_id, origem, estado, attempted, rejected, prompt_submitted, produced_output, machine_id, lease_ate, prazo_em, motivo_interrupcao, motivo_falha, sem_novidade_motivo, retoma_turno_id, profundidade, reenvios, parar_solicitado_em, entrada_texto, entrada_anexos, entrada_confianca, custo_usd, modelo, harness, executor, criado_em, mensagem_origem_id, absorvido_por, sob_procuracao_de, ligacao_id, trabalho_id, acordar_em, pessoa_esperando, decidido_por, despachado_em, tentativas_transitorias, maquina_desta_vez, bastidores, motivo_recomeco";
+  "tenant_id, id, owner_id, conversa_id, agente_id, origem, estado, attempted, rejected, prompt_submitted, produced_output, machine_id, lease_ate, prazo_em, motivo_interrupcao, motivo_falha, sem_novidade_motivo, retoma_turno_id, profundidade, reenvios, parar_solicitado_em, entrada_texto, entrada_anexos, entrada_confianca, custo_usd, modelo, harness, executor, criado_em, mensagem_origem_id, absorvido_por, lido_na_sessao_em, sob_procuracao_de, ligacao_id, trabalho_id, acordar_em, pessoa_esperando, decidido_por, despachado_em, tentativas_transitorias, maquina_desta_vez, bastidores, motivo_recomeco";
 
 function paraTurno(l: Linha): Turno {
   return {
@@ -109,6 +110,7 @@ function paraTurno(l: Linha): Turno {
     criadoEm: ms(l.criado_em),
     mensagemOrigemId: l.mensagem_origem_id,
     absorvidoPor: l.absorvido_por,
+    lidoNaSessaoEm: msOuNull(l.lido_na_sessao_em),
     sobProcuracaoDe: l.sob_procuracao_de,
     ligacaoId: l.ligacao_id,
     trabalhoId: l.trabalho_id,
@@ -216,7 +218,7 @@ export type Assentamento = {
   ultimoSinalEm?: number;
 };
 
-/** NOD-213: a IA do turno `t` — a fixada, ou a dona do modelo escolhido (iaDoModelo, pelos `modelosPorIa`), ou o legado. */
+/** A IA fixa do turno `t`; só é usada quando `harness` não é Automático. */
 function iaDoTurnoSql(c: Conn) {
   const porIa = modelosPorIa();
   return c`(case when t.harness <> 'auto' then t.harness else coalesce((select x.ia from unnest(${porIa.modelos}::text[], ${porIa.ias}::text[]) as x(modelo, ia) where x.modelo = t.modelo), ${HARNESS_LEGADO}) end)`;
@@ -232,7 +234,7 @@ function iaDoTurnoSql(c: Conn) {
  */
 function seguradoPelaCotaSql(c: Conn, cota: PortaoDaCota) {
   const iaDoTurno = iaDoTurnoSql(c);
-  const naCota = (ias: readonly string[], auto: boolean) => c`(case when t.harness = 'auto' and t.modelo = 'auto' then ${auto}::boolean else ${iaDoTurno} = any(${[...ias]}::text[]) end)`;
+  const naCota = (ias: readonly string[], auto: boolean) => c`(case when t.harness = 'auto' then ${auto}::boolean else ${iaDoTurno} = any(${[...ias]}::text[]) end)`;
   // NOD-272: o turno que a pessoa está olhando ("Testar agora" e as frentes dele) também nunca espera.
   return c`(t.origem <> 'ligacao' and not t.pessoa_esperando and (
                 (((t.trabalho_id is null and t.origem in ('rotina', 'delegacao', 'peer'))
@@ -333,6 +335,19 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
     },
 
     /**
+     * definido em 2026-11-12 (fim do turno no frame): o `id_envio` da fala mais nova da pessoa que este turno leu — a que o
+     * disparou ou a de um turno que ele absorveu. null = nenhuma com id_envio (cliente antigo, rotina, colega).
+     */
+    async idEnvioQueFechou(turnoId: string): Promise<string | null> {
+      const [l] = await conn<{ id_envio: string }[]>`
+        select m.id_envio from turnos t
+        join mensagens m on m.tenant_id = t.tenant_id and m.id = t.mensagem_origem_id
+        where t.tenant_id = ${escopo.tenantId} and (t.id = ${turnoId} or t.absorvido_por = ${turnoId}) and m.id_envio is not null
+        order by m.criado_em desc, m.id desc limit 1`;
+      return l?.id_envio ?? null;
+    },
+
+    /**
      * Leitura com trava de linha (FOR UPDATE) para quem vai ASSENTAR o turno. medido em 2026-09-16 (e2e da L9):
      * Parar e a entrega do laço correm em transações paralelas — a entrega lia `parar_solicitado_em` NULL
      * (leitura sem trava, READ COMMITTED) e só esperava o commit de Parar no UPDATE seguinte, assentando
@@ -364,7 +379,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * 0068: `harnessesAuto` (ausente = os prontos) são as IAs desta máquina que valem para o turno do Automático — sem a
      * que está no limite enquanto a pessoa tiver outra fora dele (iasParaOAutomatico).
      */
-    async reivindicar(p: { machineId: string; agora: number; harnessesProntos?: readonly string[]; harnessesAuto?: readonly string[]; harnessesProntosPessoa?: readonly string[]; aceitaLigacao?: boolean; segurarFundo?: boolean; espacarFundo?: boolean; segurarNovo?: boolean; fundoSemPrazo?: boolean; soComoAlvo?: boolean; soDaPessoa?: boolean; cota?: PortaoDaCota | null; declinio?: { ias: readonly string[]; auto: boolean } | null }): Promise<Turno | null> {
+    async reivindicar(p: { machineId: string; agora: number; harnessesProntos?: readonly string[]; harnessesAuto?: readonly string[]; harnessesProntosPessoa?: readonly string[]; harnessesAutoPessoa?: readonly string[]; aceitaLigacao?: boolean; segurarFundo?: boolean; espacarFundo?: boolean; segurarNovo?: boolean; fundoSemPrazo?: boolean; soComoAlvo?: boolean; soDaPessoa?: boolean; cota?: PortaoDaCota | null; declinio?: { ias: readonly string[]; auto: boolean } | null }): Promise<Turno | null> {
       const dentro = async (trx: Conn): Promise<Turno | null> => {
         await trx`select pg_advisory_xact_lock(hashtext(${`${escopo.tenantId}:${escopo.pessoaId}`}))`;
         // NOD-94 (emenda 11 da ADR-090): a máquina só-computador nunca pega turno, venha o puxar de onde vier (o papel é o
@@ -390,14 +405,21 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
               and (t.acordar_em is null or t.acordar_em <= ${data(p.agora)})
               -- ADR-090 (revisão do PR): a máquina que é o alvo do turno o pega mesmo sem a IA pronta; o despacho recusa nomeando a
               -- IA (NOD-171), em vez de o turno esperar em silêncio uma máquina que nunca vai pegá-lo.
-              ${p.harnessesProntos === undefined ? trx`` : trx`and (${alvo} = ${p.machineId} or (t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0}) or (not (t.harness = 'auto' and t.modelo = 'auto') and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[]))
-                ${p.harnessesProntosPessoa === undefined ? trx`` : trx`or (not (t.harness = 'auto' and t.modelo = 'auto') and ${iaDoTurno} <> all(${[...p.harnessesProntosPessoa]}::text[]))`})`}
+              ${p.harnessesProntos === undefined ? trx`` : trx`and (${alvo} = ${p.machineId}
+                or (t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})
+                or (t.harness = 'auto' and t.modelo <> 'auto' and (${iaDoTurno} = any(${[...(p.harnessesAuto ?? p.harnessesProntos)]}::text[])
+                  or (${iaDoTurno} <> all(${[...(p.harnessesAutoPessoa ?? p.harnessesProntosPessoa ?? p.harnessesProntos)]}::text[]) and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})))
+                or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[]))
+                ${p.harnessesProntosPessoa === undefined ? trx`` : trx`or (t.harness <> 'auto' and ${iaDoTurno} <> all(${[...p.harnessesProntosPessoa]}::text[]))`})`}
               and exists (select 1 from agentes a where a.tenant_id = t.tenant_id and a.id = t.agente_id and a.excluido_em is null and a.geracao_execucao = t.geracao_execucao)
               -- Jornada C do onboarding (2026-11-07): a fala da pessoa guardada sem IA (a negação aguardaIa do turno, gravada
               -- só com NOD_ONBOARDING_TEXTO=1) espera uma máquina com a IA dela pronta — a máquina-alvo sem IA não a pega para
               -- recusar, como faz com o resto (acima). Rotina, catcher, ligação e o turno sem a fala guardada não mudam.
               ${p.harnessesProntos === undefined ? trx`` : trx`and not (t.origem = 'conversa'
-                and not ((t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0}) or (not (t.harness = 'auto' and t.modelo = 'auto') and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[])))
+                and not ((t.harness = 'auto' and t.modelo = 'auto' and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})
+                  or (t.harness = 'auto' and t.modelo <> 'auto' and (${iaDoTurno} = any(${[...(p.harnessesAuto ?? p.harnessesProntos)]}::text[])
+                    or (${iaDoTurno} <> all(${[...(p.harnessesAutoPessoa ?? p.harnessesProntosPessoa ?? p.harnessesProntos)]}::text[]) and ${(p.harnessesAuto ?? p.harnessesProntos).length > 0})))
+                  or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...p.harnessesProntos]}::text[])))
                 and exists (select 1 from mensagens g where g.tenant_id = t.tenant_id and g.turno_id = t.id and g.kind = 'negacao' and g.payload->>'aguardaIa' = 'true'))`}
               -- definido em 2026-10-22 (ADR-121, NOD-92): a máquina na nuvem que adormece, dorme ou acorda não pega turno até
               -- falar com o servidor depois de ligar (ligou_em). Sob a mesma trava da pessoa que o dormir toma: o turno
@@ -465,7 +487,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
               ${declinio === null ? trx`` : trx`and not (${alvo} is null and t.origem <> 'ligacao'
                 and greatest(t.criado_em, t.acordar_em) > ${data(p.agora - ESPERA_DECLINIO_MS)}
                 and not exists (select 1 from trabalhos w where w.tenant_id = t.tenant_id and w.id = t.trabalho_id and w.sessao_cli is not null)
-                and ((t.harness = 'auto' and t.modelo = 'auto' and ${declinio.auto}::boolean) or (not (t.harness = 'auto' and t.modelo = 'auto') and ${iaDoTurno} = any(${[...declinio.ias]}::text[]))))`}
+                and ((t.harness = 'auto' and ${declinio.auto}::boolean) or (t.harness <> 'auto' and ${iaDoTurno} = any(${[...declinio.ias]}::text[]))))`}
             -- Ligação primeiro; depois a fala da pessoa; depois o que não é rotina nem pedido de colega (o turno ou o trabalho
             -- dele); depois a ordem.
             order by (t.origem = 'ligacao') desc,
@@ -675,7 +697,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
           and starts_with(t.entrada_texto, ${ENTRADA_DA_VOLTA_DA_COTA})
           ${opcoes.turnoId === undefined ? conn`` : conn`and t.id = ${opcoes.turnoId}`}
           ${opcoes.agenteId === undefined ? conn`` : conn`and t.agente_id = ${opcoes.agenteId}`}
-          ${ia === null ? conn`` : conn`and ((t.harness = 'auto' and t.modelo = 'auto')
+          ${ia === null ? conn`` : conn`and (t.harness = 'auto'
             or (case when t.harness <> 'auto' then t.harness else coalesce((select x.ia from unnest(${porIa.modelos}::text[], ${porIa.ias}::text[]) as x(modelo, ia) where x.modelo = t.modelo), ${HARNESS_LEGADO}) end) = ${ia})`}
         returning t.id`;
       return linhas.map((l) => l.id);
@@ -1122,7 +1144,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       // (pendente, com a entrada da retomada da queda) e é a única que aponta para este turno, o sucesso tardio a
       // absorve: o trabalho terminou e não roda de novo. Já despachada, vale a regra de antes (a fala vira parcial).
       await conn`
-        update turnos r set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${id}, lease_ate = null
+        update turnos r set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${id}, lease_ate = null, lido_na_sessao_em = now()
         where r.tenant_id = ${escopo.tenantId} and r.owner_id = ${escopo.pessoaId} and r.retoma_turno_id = ${id}
           and r.estado = 'pendente' and starts_with(r.entrada_texto, ${ENTRADA_DA_RETOMADA_DA_QUEDA})
           and exists (select 1 from turnos t where t.tenant_id = ${escopo.tenantId} and t.id = ${id} and t.estado = 'interrompido'
@@ -1201,7 +1223,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      */
     async absorverDelegacao(id: string, porTurnoId: string): Promise<Turno | null> {
       const [l] = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${porTurnoId}, lease_ate = null
+        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${porTurnoId}, lease_ate = null, lido_na_sessao_em = now()
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and origem = 'delegacao' and estado = 'pendente'
         returning ${conn.unsafe(COLUNAS)}`;
       return l ? paraTurno(l) : null;
@@ -1220,7 +1242,7 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
       // NOD-23: com `ids`, só estas (o caso de uso cortou no primeiro comando da conversa); vazio = nenhuma.
       if (ids && ids.length === 0) return { turno, absorvidos: [] };
       const linhas = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null
+        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null, lido_na_sessao_em = now()
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conversa_id = ${turno.conversaId} and agente_id = ${turno.agenteId}
           and estado = 'pendente' and origem in ('conversa', 'sala') and mensagem_origem_id is not null and id <> ${turno.id}
           and trabalho_id is not distinct from ${turno.trabalhoId ?? null}::uuid
@@ -1250,20 +1272,24 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * é o caso de uso (absorverNaSessao).
      * definido em 2026-10-07 (#189): com `ids`, só estas — as que o app confirmou ter escrito na sessão
      * (confirmarNaSessao); sem, todas as da fila, como antes (app que não confirma).
+     * C1 (2026-11-12): com `ids`, a fala com anexo entra quando está entre as confirmadas (o servidor só a oferece ao app que
+     * a escreve na sessão, `aceitaAnexos`), e o print pendente só barra as posteriores quando ele mesmo não foi confirmado.
      */
-    async absorverNaSessao(turno: Turno, ids?: readonly string[]): Promise<Turno[]> {
+    async absorverNaSessao(turno: Turno, ids?: readonly string[], o: { informaLeitura?: boolean } = {}): Promise<Turno[]> {
+      const lidoAgora = o.informaLeitura !== true;
       if (ids && ids.length === 0) return [];
       const linhas = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null
+        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null, lido_na_sessao_em = case when ${lidoAgora}::boolean then now() end
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and conversa_id = ${turno.conversaId} and agente_id = ${turno.agenteId}
-          and estado = 'pendente' and origem = 'conversa' and mensagem_origem_id is not null and cardinality(entrada_anexos) = 0 and id <> ${turno.id}
+          and estado = 'pendente' and origem = 'conversa' and mensagem_origem_id is not null and id <> ${turno.id}
           and trabalho_id is null
-          ${ids ? conn`and id = any(${ids as string[]}::uuid[])` : conn``}
+          ${ids ? conn`and id = any(${ids as string[]}::uuid[])` : conn`and cardinality(entrada_anexos) = 0`}
           and not exists (
             select 1 from turnos a
             where a.tenant_id = ${escopo.tenantId} and a.owner_id = ${escopo.pessoaId} and a.conversa_id = ${turno.conversaId} and a.agente_id = ${turno.agenteId}
               and a.estado = 'pendente' and a.origem = 'conversa' and a.mensagem_origem_id is not null and a.trabalho_id is null and a.id <> ${turno.id}
-              and cardinality(a.entrada_anexos) > 0 and (a.criado_em, a.id) < (turnos.criado_em, turnos.id))
+              and cardinality(a.entrada_anexos) > 0 and (a.criado_em, a.id) < (turnos.criado_em, turnos.id)
+              ${ids ? conn`and not (a.id = any(${ids as string[]}::uuid[]))` : conn``})
         returning ${conn.unsafe(COLUNAS)}`;
       return linhas.map(paraTurno).sort(porChegada);
     },
@@ -1275,10 +1301,11 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * primeira fala pendente com anexo da faixa (a posterior espera com ela).
      * revisto em 2026-10-08 (revisão do épico, S18): com `ids`, só estas — as que o app confirmou (confirmarNaSessao).
      */
-    async absorverDoTrabalho(turno: Turno, ids?: readonly string[]): Promise<Turno[]> {
+    async absorverDoTrabalho(turno: Turno, ids?: readonly string[], o: { informaLeitura?: boolean } = {}): Promise<Turno[]> {
       if (!turno.trabalhoId || (ids && ids.length === 0)) return [];
+      const lidoAgora = o.informaLeitura !== true;
       const linhas = await conn<Linha[]>`
-        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null
+        update turnos set estado = 'interrompido', motivo_interrupcao = 'absorvido', absorvido_por = ${turno.id}, lease_ate = null, lido_na_sessao_em = case when ${lidoAgora}::boolean then now() end
         where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and trabalho_id = ${turno.trabalhoId}
           and estado = 'pendente' and mensagem_origem_id is not null and cardinality(entrada_anexos) = 0 and id <> ${turno.id}
           ${ids ? conn`and id = any(${ids as string[]}::uuid[])` : conn``}
@@ -1288,6 +1315,73 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
               and a.estado = 'pendente' and a.mensagem_origem_id is not null and a.id <> ${turno.id}
               and cardinality(a.entrada_anexos) > 0 and (a.criado_em, a.id) < (turnos.criado_em, turnos.id))
         returning ${conn.unsafe(COLUNAS)}`;
+      return linhas.map(paraTurno).sort(porChegada);
+    },
+
+    /**
+     * ADR-185 (definido em 2026-11-16): o app avisou que o bot LEU estas falas que o turno vivo absorveu (o CLI chegou à
+     * fronteira seguinte à escrita). Só as ainda não lidas mudam; devolve as que mudaram.
+     */
+    async marcarLidosNaSessao(turnoId: string, ids: readonly string[]): Promise<Turno[]> {
+      if (ids.length === 0) return [];
+      const linhas = await conn<Linha[]>`
+        update turnos set lido_na_sessao_em = now()
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and absorvido_por = ${turnoId}
+          and motivo_interrupcao = 'absorvido' and lido_na_sessao_em is null and id = any(${ids as string[]}::uuid[])
+        returning ${conn.unsafe(COLUNAS)}`;
+      return linhas.map(paraTurno).sort(porChegada);
+    },
+
+    /**
+     * ADR-185: o Parar não perde o que a pessoa disse. As falas que o turno parado absorveu e o bot não chegou a ler
+     * voltam a 'pendente', na ordem em que chegaram, e rodam depois como turno próprio. Devolve as que voltaram.
+     */
+    async devolverNaoLidos(turnoId: string): Promise<Turno[]> {
+      const linhas = await conn<Linha[]>`
+        update turnos set estado = 'pendente', motivo_interrupcao = null, absorvido_por = null, lease_ate = null
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and absorvido_por = ${turnoId}
+          and estado = 'interrompido' and motivo_interrupcao = 'absorvido' and lido_na_sessao_em is null
+          and mensagem_origem_id is not null
+        returning ${conn.unsafe(COLUNAS)}`;
+      return linhas.map(paraTurno).sort(porChegada);
+    },
+
+    /**
+     * ADR-187 §6 + ADR-185 (definido em 2026-11-18): o recado da pessoa que esperava na fila da tarefa quando ela a parou
+     * (o Parar o interrompe sem nunca ter rodado: `despachado_em` nulo) volta a 'pendente' quando ela continua a tarefa, na
+     * ordem em que chegou — é a primeira coisa que a tarefa lê. Devolve os que voltaram.
+     */
+    async devolverRecadosParados(trabalhoId: string): Promise<Turno[]> {
+      const linhas = await conn<Linha[]>`
+        update turnos set estado = 'pendente', motivo_interrupcao = null, lease_ate = null
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and trabalho_id = ${trabalhoId}
+          and estado = 'interrompido' and motivo_interrupcao = 'parado_pela_pessoa' and mensagem_origem_id is not null
+          and despachado_em is null and parar_solicitado_em is null
+        returning ${conn.unsafe(COLUNAS)}`;
+      return linhas.map(paraTurno).sort(porChegada);
+    },
+
+    /**
+     * ADR-187 (definido em 2026-11-17): quando chegou a fala mais antiga que este turno absorveu e o bot ainda não leu
+     * (null se não há). A rede de 2 min promove antes por ela (`promoveNaRede`). Só o app que informa a leitura deixa
+     * `lido_na_sessao_em` nulo, então o app antigo nunca adianta a promoção.
+     */
+    async naoLidaMaisAntiga(turnoId: string): Promise<number | null> {
+      const [l] = await conn<{ em: Date | null }[]>`
+        select min(criado_em) as em from turnos
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and absorvido_por = ${turnoId}
+          and estado = 'interrompido' and motivo_interrupcao = 'absorvido' and lido_na_sessao_em is null
+          and mensagem_origem_id is not null`;
+      return l?.em ? l.em.getTime() : null;
+    },
+
+    /** ADR-185: as falas que turnos ainda vivos absorveram (a conversa mostra "lê ao fim do passo atual" × "Lida"). */
+    async absorvidosPorVivos(conversaId: string): Promise<Turno[]> {
+      const linhas = await conn<Linha[]>`
+        select ${conn.unsafe(COLUNAS.split(", ").map((c) => `a.${c}`).join(", "))} from turnos a
+        join turnos v on v.tenant_id = a.tenant_id and v.id = a.absorvido_por
+        where a.tenant_id = ${escopo.tenantId} and a.owner_id = ${escopo.pessoaId} and a.conversa_id = ${conversaId}
+          and a.motivo_interrupcao = 'absorvido' and a.mensagem_origem_id is not null and v.estado in ('pendente', 'despachando')`;
       return linhas.map(paraTurno).sort(porChegada);
     },
 
@@ -1732,10 +1826,14 @@ export function turnosRepo(conn: Conn, escopo: Escopo) {
      * A rede de 2 min (ADR-083, #193): o turno de conversa que está rodando passa a ser do trabalho. Só o que ainda roda
      * e ainda não tem trabalho — duas renovações seguidas não promovem duas vezes.
      */
-    async vincularTrabalho(id: string, trabalhoId: string): Promise<Turno | null> {
+    /**
+     * Liga o turno ao trabalho: o da rede (despachando, promovido no meio) ou, ADR-187 §7 (definido em 2026-11-18), o
+     * primeiro turno da tarefa que a pessoa abriu pela tela (pendente, na mesma transação que o criou).
+     */
+    async vincularTrabalho(id: string, trabalhoId: string, estado: "despachando" | "pendente" = "despachando"): Promise<Turno | null> {
       const [l] = await conn<Linha[]>`
         update turnos set trabalho_id = ${trabalhoId}
-        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and trabalho_id is null and estado = 'despachando'
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} and trabalho_id is null and estado = ${estado}
         returning ${conn.unsafe(COLUNAS)}`;
       return l ? paraTurno(l) : null;
     },

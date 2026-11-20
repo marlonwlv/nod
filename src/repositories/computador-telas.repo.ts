@@ -13,6 +13,7 @@ type Linha = {
   controle: ControleComputador; politica: PoliticaComputador; ajuda: string | null; ajuda_decisao_id: string | null;
   operacao_id: string | null; ocupado_ate: Date | null; ultima_atividade_em: Date; memoria_mb: number | null;
   falha_motivo: MotivoFalhaComputador | null; criado_em: Date;
+  provedor_ref: string | null;
 };
 const tela = (l: Linha): TelaComputadorBot => ({
   id: l.id, computadorId: l.computador_id, agenteId: l.agente_id, estado: l.estado, esperandoDesde: l.esperando_desde?.getTime() ?? null,
@@ -55,6 +56,37 @@ export function computadorTelasRepo(conn: Conn, escopo: Escopo) {
       const linhas = await conn<Linha[]>`select * from computador_telas where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId}
         and computador_id = ${computadorId} order by ultima_atividade_em desc, id`;
       return linhas.map(tela);
+    },
+    /** Referência opaca do display no provider. A trava + índice único fecham duas alocações concorrentes. */
+    async provedorRef(id: string): Promise<string | null> {
+      const [l] = await conn<{ provedor_ref: string | null }[]>`select provedor_ref from computador_telas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}`;
+      return l?.provedor_ref ?? null;
+    },
+    async fixarProvedorRef(id: string, ref: string | null): Promise<boolean> {
+      if (ref === null) {
+        const linhas = await conn`update computador_telas set provedor_ref = null
+          where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id} returning id`;
+        return linhas.length === 1;
+      }
+      const [alvo] = await conn<{ computador_id: string }[]>`select computador_id from computador_telas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}`;
+      if (!alvo) return false;
+      // Um UNIQUE violado aborta a transação Postgres inteira, mesmo se o erro for capturado em JS. Serializar pelo
+      // display antes de consultar evita a violação e funciona também entre processos/cores diferentes.
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`${escopo.tenantId}:${alvo.computador_id}:${ref}`}, 0))`;
+      const linhas = await conn`update computador_telas t set provedor_ref = ${ref}
+        where t.tenant_id = ${escopo.tenantId} and t.owner_id = ${escopo.pessoaId} and t.id = ${id}
+          and not exists (select 1 from computador_telas outra where outra.tenant_id = t.tenant_id
+            and outra.computador_id = t.computador_id and outra.provedor_ref = ${ref} and outra.id <> t.id)
+        returning id`;
+      return linhas.length === 1;
+    },
+    async provedoresRef(computadorId: string): Promise<string[]> {
+      const linhas = await conn<{ provedor_ref: string }[]>`select provedor_ref from computador_telas
+        where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and computador_id = ${computadorId}
+          and provedor_ref is not null order by id`;
+      return linhas.map((l) => l.provedor_ref);
     },
     /** A fila da régua: as telas esperando vez, da que chegou primeiro à última. */
     async fila(computadorId: string): Promise<TelaComputadorBot[]> {
