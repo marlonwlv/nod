@@ -890,14 +890,16 @@
   .ctc-tit-curto { display: inline; }
   .ctc-pedido:not(:empty) { display: block; max-width: 100%; margin: 0; font-size: 14px; line-height: 20px; text-align: center; color: #ffffffa8; } /* cor-fixa: sobre o fundo fixo da tela cheia */
   .ctc-sair { width: 44px; height: 44px; margin-right: -10px; }
-/* QA 2026-11-16: filtros e ações do Marketplace tinham só 27–36 px no toque. */
-@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
-  .mkt-filtros .bt, .mkt-atencao .cp-acao, .app-card-actions .bt, .app-card-actions a {
-    display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; box-sizing: border-box;
-  }
 }
 
 /* QA 2026-11-20: o × que nega e fecha o cartão de aprovação tinha 24 px no toque; ganha 44 px sem mexer no topo do cartão. */
 @media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
   .bt.aprov-fechar { width: 44px; height: 44px; min-height: 44px; margin: -10px -10px -10px auto; }
+}
+
+/* QA 2026-11-16: filtros e ações do Marketplace tinham só 27–36 px no toque. */
+@media (hover: none) and (pointer: coarse) and (max-width: 600px), (hover: none) and (pointer: coarse) and (max-height: 500px) {
+  .mkt-filtros .bt, .mkt-atencao .cp-acao, .app-card-actions .bt, .app-card-actions a {
+    display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; box-sizing: border-box;
+  }
 }
