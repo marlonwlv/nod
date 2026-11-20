@@ -101,7 +101,7 @@ export function descritorDosCampos(q: { labels?: readonly LabelDto[] | null }): 
 export function rotuloDoPrazo(prazoEm: string, agora: number, fuso: string): { texto: string; tom: "vencida" | "hoje" | "normal" } {
   const hoje = diaNoFuso(agora, fuso);
   const d = diasEntre(hoje, prazoEm);
-  if (d < 0) return { texto: d === -1 ? "Venceu ontem" : `Vencida há ${-d} dias`, tom: "vencida" };
+  if (d < 0) return { texto: d === -1 ? "Venceu ontem" : `Vencido há ${-d} dias`, tom: "vencida" };
   if (d === 0) return { texto: "Hoje", tom: "hoje" };
   if (d === 1) return { texto: "Amanhã", tom: "normal" };
   const data = new Date(diaUtc(prazoEm));

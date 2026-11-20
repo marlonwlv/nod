@@ -5,7 +5,7 @@ import type { MotivoNegacao } from "./motivos.ts";
  * definido em 2026-10-11: por que o nod barrou uma ferramenta nativa, lido do motivo que o hook devolveu ao modelo
  * (src/domain/negacao-nativa.ts). Muda a redação da pílula sem criar motivo novo no enum (ADR-029).
  */
-export const CAUSAS_NATIVAS = ["git_fora_da_pasta", "espera_com_sleep", "esperando_aprovacao", "recusado_pela_pessoa", "credencial", "fora_do_plano", "sem_conferencia", "outra"] as const;
+export const CAUSAS_NATIVAS = ["git_fora_da_pasta", "espera_com_sleep", "esperando_aprovacao", "recusado_pela_pessoa", "substituido_por_mensagem", "credencial", "fora_do_plano", "sem_conferencia", "outra"] as const;
 export type CausaNativa = (typeof CAUSAS_NATIVAS)[number];
 
 export type ClasseNegacao = "ferramenta_negada" | "conector_indisponivel" | "plano_ausente";

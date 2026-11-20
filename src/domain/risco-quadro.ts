@@ -52,10 +52,10 @@ function quantoFalta(restanteMs: number, prazo: string): string {
 
 /** O aviso, determinístico: o resumo e o que cortar (o que ainda não começou). */
 export function textoDoRisco(q: { meta: string; prazo: string }, r: Risco): string {
-  const resumo = `O quadro "${q.meta}" está em risco: ${r.feitas} de ${r.total} tarefas feitas e ${quantoFalta(r.restanteMs, q.prazo)}.`;
+  const resumo = `O quadro "${q.meta}" está em risco: ${r.feitas} de ${r.total} cards feitos e ${quantoFalta(r.restanteMs, q.prazo)}.`;
   const nCortaveis = r.cortaveis.length + r.cortaveisDeFora;
   if (nCortaveis === 0) return `${resumo} Tudo o que sobrou já começou: vale rever o prazo ou a meta.`;
-  if (r.cortaveis.length === 0) return `${resumo} Para caber, dá para cortar o que ainda não começou: ${nCortaveis === 1 ? "1 tarefa" : `${nCortaveis} tarefas`} (veja no quadro).`;
+  if (r.cortaveis.length === 0) return `${resumo} Para caber, dá para cortar o que ainda não começou: ${nCortaveis === 1 ? "1 card" : `${nCortaveis} cards`} (veja no quadro).`;
   const lista = r.cortaveis.slice(0, MAX_SUGESTOES).map((t) => `"${t}"`).join(", ");
   const sobra = nCortaveis - Math.min(r.cortaveis.length, MAX_SUGESTOES);
   const mais = sobra > 0 ? ` e mais ${sobra}` : "";

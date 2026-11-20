@@ -72,6 +72,8 @@ export function rolaAoTopoAoNavegar(tela: Tela["tipo"]): boolean {
     case "trabalhos":
     case "linha":
     case "quadro-compartilhado":
+    case "tarefas":
+    case "nova-tarefa": // ADR-187 §7: a tarefa nova abre vazia, sem o que colar no fim.
       return true;
     default: {
       // Uma tela nova não compila até alguém decidir se ela abre no topo ou colada no fim.
@@ -122,6 +124,22 @@ export function pilulaDaPergunta(p: PerguntaNaJanela | null): string {
   if (!p || p.posicao === "visivel") return "";
   const seta = p.posicao === "abaixo" ? SETA_BAIXO : SETA_CIMA;
   return `<button type="button" class="pilula-novas pilula-pergunta" data-act="ver-pergunta" data-id="${esc(p.decisaoId)}" title="Ir para a pergunta"><span class="pp-ponto" aria-hidden="true"></span><span>${esc(p.nome)} perguntou algo</span>${seta}</button>`;
+}
+
+/** Os cartões de aprovação abertos na conversa, vistos da janela: quantos há e o mais perto fora dela (ou nenhum fora). */
+export type PedidosNaJanela = { decisaoId: string; nome: string; total: number; posicao: "abaixo" | "acima" | "visivel" };
+
+/**
+ * A pílula dos pedidos fora da tela (item 10 dos acessos devolvidos, rodada 2, 2026-11-16; o "N itens precisam de você" do
+ * app de referência): no lugar da pílula fixa "N esperam você", que ficava solta acima do campo, a mesma pílula da pergunta
+ * fora da tela — só quando NENHUM cartão de aprovação aberto está à vista; leva ao mais perto (`ver-decisao`). Com um
+ * cartão à vista, nada: o cartão já é o aviso.
+ */
+export function pilulaDosPedidos(p: PedidosNaJanela | null): string {
+  if (!p || p.posicao === "visivel" || p.total === 0) return "";
+  const seta = p.posicao === "abaixo" ? SETA_BAIXO : SETA_CIMA;
+  const texto = p.total === 1 ? `${p.nome} precisa de você` : `${p.total} pedidos precisam de você`;
+  return `<button type="button" class="pilula-novas pilula-pergunta pilula-pedidos" data-act="ver-decisao" data-id="${esc(p.decisaoId)}" title="Ir para o pedido"><span class="pp-ponto" aria-hidden="true"></span><span>${esc(texto)}</span>${seta}</button>`;
 }
 
 const SETA_BAIXO = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5"/></svg>';

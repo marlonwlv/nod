@@ -24,7 +24,7 @@ const icone = (c: ColunaDto): Html => {
   return c.daPessoa ? confiar(ic.replace('class="qd-ic qd-st ', 'class="qd-ic qd-st qd-st-pessoa ')) : ic;
 };
 
-const tarefas = (n: number): string => (n === 1 ? "1 tarefa" : `${n} tarefas`);
+const tarefas = (n: number): string => (n === 1 ? "1 card" : `${n} cards`);
 
 function item(o: { act: string; coluna: string; rotulo: string; tecla?: string; porque?: string | null; perigo?: boolean; grupo?: GrupoColuna }): string {
   const des = o.porque ? ` aria-disabled="true" title="${esc(o.porque)}"` : "";
@@ -72,7 +72,7 @@ export function popoverDeTrava(cs: readonly ColunaDto[], c: ColunaDto): Html {
   const ops = cs.filter((x) => x.id !== c.id && x.id !== "voce" && x.id !== "bloqueado").map((x) =>
     `<label class="qd-pas-op"><input type="checkbox" name="sai_para" value="${esc(x.id)}"${marcadas.has(x.id) ? " checked" : ""}><span>${esc(x.nome)}</span></label>`).join("");
   return confiar(`<div class="qd-pop qd-pop-trava" role="dialog" aria-labelledby="qd-trv-tit">` +
-    `<form data-form="col-trava" data-coluna="${esc(c.id)}"><p class="qd-pop-tit" id="qd-trv-tit">De <b>${esc(c.nome)}</b> a tarefa só sai para</p>` +
+    `<form data-form="col-trava" data-coluna="${esc(c.id)}"><p class="qd-pop-tit" id="qd-trv-tit">De <b>${esc(c.nome)}</b> o card só sai para</p>` +
     `<fieldset class="qd-pas-modos"><legend class="qd-sr">Destinos</legend>${ops}</fieldset>` +
     `<p class="qd-dica">Nenhuma marcada: sai para qualquer coluna. Bloqueado vale sempre.</p>` +
     `<div class="qd-pop-bts"><button type="button" class="qd-bt" data-act="col-fechar">Cancelar</button><button type="submit" class="qd-bt qd-bt-pri">Salvar</button></div></form></div>`);
@@ -83,14 +83,16 @@ export function popoverDeRemover(cs: readonly ColunaDto[], c: ColunaDto, n: numb
   const { opcoes, padrao } = destinosAoRemover(cs, c.id);
   const ops = opcoes.map((x) => `<option value="${esc(x.id)}"${x.id === padrao ? " selected" : ""}>${esc(x.nome)}</option>`).join("");
   return confiar(`<div class="qd-pop" role="dialog" aria-labelledby="qd-pop-tit">` +
-    `<form data-form="col-remover" data-coluna="${esc(c.id)}"><p class="qd-pop-tit" id="qd-pop-tit"><b>${esc(c.nome)}</b> tem ${esc(tarefas(n))}. Para onde elas vão?</p>` +
-    `<label class="qd-sr" for="qd-col-destino">Destino das tarefas</label><select id="qd-col-destino" class="qd-sel" name="destino">${ops}</select>` +
+    `<form data-form="col-remover" data-coluna="${esc(c.id)}"><p class="qd-pop-tit" id="qd-pop-tit"><b>${esc(c.nome)}</b> tem ${esc(tarefas(n))}. Para onde eles vão?</p>` +
+    `<label class="qd-sr" for="qd-col-destino">Destino dos cards</label><select id="qd-col-destino" class="qd-sel" name="destino">${ops}</select>` +
     `<div class="qd-pop-bts"><button type="button" class="qd-bt" data-act="col-fechar">Cancelar</button><button type="submit" class="qd-bt qd-bt-perigo">Remover</button></div>` +
     `<p class="qd-dica">Mudar de coluna não aciona ninguém.</p></form></div>`);
 }
 
+const ICONE_PASSAGEM = '<svg class="qd-pas-ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h13"/><path d="m12 7 5 5-5 5"/><path d="M21 5v14"/></svg>';
+
 /** Um agente que pode receber a passagem (ADR-142). */
-export type AgenteDaPassagem = { id: string; nome: string };
+export type AgenteDaPassagem = { id: string; nome: string; /** Rodada 3: "Chico · Tech Lead" no seletor. */ titulo?: string | null };
 
 /**
  * ADR-142: quem começa quando a tarefa entra na coluna. Com responsável, o nome curto (sempre à vista); sem, o
@@ -122,7 +124,7 @@ function saidasDoPopover(c: ColunaDto, cs: readonly ColunaDto[]): string {
     `<option value="">${esc(padrao ? `${padrao.nome} (padrão)` : vazio)}</option>` +
     validas.map((x) => `<option value="${esc(x.id)}"${x.id === atual ? " selected" : ""}>${esc(x.nome)}</option>`).join("") + `</select>`;
   return sel("proxima", "Etapa concluída vai para", c.proxima, padraoProx, cs.filter((x) => x.id !== c.id && !espera(x)), "Fica aqui (última)") +
-    sel("volta", "Ajustes voltam para", c.volta, padraoVolta, cs.filter((x) => x.id !== c.id && aceitaPassagem(x)), "Sem volta (comente na tarefa)");
+    sel("volta", "Ajustes voltam para", c.volta, padraoVolta, cs.filter((x) => x.id !== c.id && aceitaPassagem(x)), "Sem volta (comente no card)");
 }
 
 /**
@@ -135,17 +137,30 @@ export function previaDoQueRecebe(c: Pick<ColunaDto, "recebe" | "responsavelNome
     `<pre class="qd-pas-recebe-txt">${esc(c.recebe)}</pre><p class="qd-dica">Como está salvo. Muda depois de Salvar.</p></details>`;
 }
 
-export function popoverDePassagem(c: ColunaDto, agentes: readonly AgenteDaPassagem[], cs: readonly ColunaDto[] = []): Html {
+/** Rodada 3 (tela 18c do Paper): o selo do grupo da coluna e o que trocar o responsável faz nela. */
+export function seloDaPassagem(c: ColunaDto): string {
+  const grupo = NOME_DO_GRUPO[c.grupo];
+  return `${grupo} · ${acionaNaColuna(c) ? "trocar o responsável aciona" : "trocar o responsável não aciona"}`;
+}
+
+export function popoverDePassagem(c: ColunaDto, agentes: readonly AgenteDaPassagem[], cs: readonly ColunaDto[] = [], avatarDe?: (agenteId: string) => Html | null): Html {
   const com = !!c.responsavel;
-  const ops = [`<option value="">Escolha o agente</option>`, ...agentes.map((a) => `<option value="${esc(a.id)}"${a.id === c.responsavel ? " selected" : ""}>${esc(a.nome)}</option>`)].join("");
+  const rotuloDo = (a: AgenteDaPassagem) => (a.titulo ? `${a.nome} · ${a.titulo}` : a.nome);
+  const ops = [`<option value="">Escolha o agente</option>`, ...agentes.map((a) => `<option value="${esc(a.id)}"${a.id === c.responsavel ? " selected" : ""}>${esc(rotuloDo(a))}</option>`)].join("");
+  // Rodada 3 (tela 18c do Paper): o mascote do agente escolhido ao lado do nome, dentro do campo (o select é nativo; o
+  // mascote fica por cima, à esquerda, e muda quando a escolha muda — web/lib/quadro-na-tela.ts).
+  const av = c.responsavel && avatarDe ? avatarDe(c.responsavel) : null;
+  const mascote = avatarDe ? `<span class="qd-pas-av" aria-hidden="true">${av ?? ""}</span>` : "";
+  const n = (c.instrucoes ?? "").length;
   const radio = (v: string, marcado: boolean, rotulo: string, dica: string) =>
     `<label class="qd-pas-op"><input type="radio" name="modo" value="${v}"${marcado ? " checked" : ""}><span>${esc(rotulo)}<small>${esc(dica)}</small></span></label>`;
   return confiar(`<div class="qd-pop qd-pop-passa" role="dialog" aria-labelledby="qd-pas-tit">` +
-    `<form data-form="col-passagem" data-coluna="${esc(c.id)}"><p class="qd-pop-tit" id="qd-pas-tit">Quando a tarefa entra em <b>${esc(c.nome)}</b></p>` +
+    `<form data-form="col-passagem" data-coluna="${esc(c.id)}"><p class="qd-pop-tit" id="qd-pas-tit">${ICONE_PASSAGEM}Quando o card entra em <b>${esc(c.nome)}</b></p>` +
+    `<p class="qd-pas-selo">${esc(seloDaPassagem(c))}</p>` +
     `<fieldset class="qd-pas-modos"><legend class="qd-sr">Passagem</legend>` +
-    radio("sem", !com, "Sem passagem", "o responsável continua") + radio("agente", com, "Passar para um agente", acionaNaColuna(c) ? "começa na hora" : "passa para ele, sem acionar") + `</fieldset>` +
-    `<label class="qd-sr" for="qd-pas-agente">Agente</label><select id="qd-pas-agente" class="qd-sel" name="agente">${ops}</select>` +
-    `<label class="qd-rotulo" for="qd-pas-inst">O que essa etapa faz</label>` +
+    radio("sem", !com, "Sem passagem", "O responsável continua") + radio("agente", com, "Passar para um agente", acionaNaColuna(c) ? "Começa na hora" : "Passa para ele, sem acionar") + `</fieldset>` +
+    `<label class="qd-sr" for="qd-pas-agente">Agente</label><span class="qd-pas-agente${mascote ? " qd-pas-com-av" : ""}">${mascote}<select id="qd-pas-agente" class="qd-sel" name="agente">${ops}</select></span>` +
+    `<span class="qd-pas-inst-cab"><label class="qd-rotulo" for="qd-pas-inst">O que essa etapa faz</label><span class="qd-pas-cont" id="qd-pas-cont" aria-live="off">${n} / ${LIMITE_INSTRUCOES}</span></span>` +
     `<textarea id="qd-pas-inst" class="qd-pas-inst" name="instrucoes" rows="3" maxlength="${LIMITE_INSTRUCOES}" placeholder="Ex.: revise o PR e aponte o que falta">${esc(c.instrucoes ?? "")}</textarea>` +
     (cs.length ? saidasDoPopover(c, cs) : "") +
     previaDoQueRecebe(c) +
@@ -165,7 +180,7 @@ export function popoverDePrazo(c: ColunaDto, erro?: string): Html {
     `<div class="qd-prz-campos"><label class="qd-sr" for="qd-prz-valor">Quanto tempo</label>` +
     `<input id="qd-prz-valor" class="qd-sel qd-prz-valor" name="valor" type="number" inputmode="decimal" step="any" value="${esc(valor)}"${erro ? ' aria-invalid="true" aria-describedby="qd-prz-erro"' : ""}>` +
     `<label class="qd-sr" for="qd-prz-unidade">Unidade</label><select id="qd-prz-unidade" class="qd-sel" name="unidade">${op("min", "min")}${op("h", "horas")}${op("dias", "dias")}</select></div>${err}` +
-    `<p class="qd-dica">Parada além disso, o quadro cobra o responsável; se continuar, avisa você.</p>` +
+    `<p class="qd-dica">Parado além disso, o quadro cobra o responsável; se continuar, avisa você.</p>` +
     `<div class="qd-pop-bts">${c.prazoMin ? `<button type="button" class="qd-bt" data-act="col-prazo-tirar" data-coluna="${esc(c.id)}">Sem prazo</button>` : ""}` +
     `<button type="button" class="qd-bt" data-act="col-fechar">Cancelar</button><button type="submit" class="qd-bt qd-bt-pri">Salvar</button></div></form></div>`);
 }
@@ -197,7 +212,7 @@ export function aposDoCabecalho(cs: readonly ColunaDto[], c: ColunaDto, ed: Edic
   const passa = agentes ? passagemDoCabecalho(c, passaAberta, c.responsavel && avatarDe ? avatarDe(c.responsavel) : null) : "";
   const dentro = menuAberto ? menuDaColuna(cs, c, nomeDoBot)
     : ed?.tipo === "remover" && ed.coluna === c.id && !naFolha(ed) ? popoverDeRemover(cs, c, n)
-      : passaAberta && agentes ? popoverDePassagem(c, agentes, cs)
+      : passaAberta && agentes ? popoverDePassagem(c, agentes, cs, avatarDe)
         : ed?.tipo === "trava" && ed.coluna === c.id ? popoverDeTrava(cs, c)
         : ed?.tipo === "prazo" && ed.coluna === c.id && !naFolha(ed) ? popoverDePrazo(c, ed.erro) : "";
   return confiar(passa + bt + dentro);

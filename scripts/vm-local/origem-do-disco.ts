@@ -16,7 +16,7 @@ import { NODE_DO_MOTOR } from "../../src/adapters/http/motor-instalacao.ts";
  * Roda depois do `node scripts/motor/build.mjs`.
  */
 
-/** O script que roda como root dentro do convidado (virt-customize --run), sem servidor e sem systemd de pé. */
+/** O script que roda como root dentro do convidado (chroot do construir-disco.sh), sem servidor e sem systemd de pé. */
 export function scriptDoConvidado(): string {
   return `#!/bin/sh
 # Gerado por scripts/vm-local/origem-do-disco.ts (NOD-93, ADR-127). Não edite à mão.

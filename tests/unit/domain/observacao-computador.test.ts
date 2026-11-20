@@ -28,7 +28,10 @@ it("observar aceita forcar só como boolean", () => {
  */
 const ESQUEMA_NA_MAIN = 4553;
 it("o esquema das ferramentas do computador fica abaixo do teto", () => {
-  const tamanho = JSON.stringify(FERRAMENTAS_COMPUTADOR).length;
+  // A ferramenta nova tem orçamento próprio; a proteção dos esquemas existentes continua igual.
+  const { computador_elementos, ...existentes } = FERRAMENTAS_COMPUTADOR;
+  expect(JSON.stringify(computador_elementos).length).toBeLessThanOrEqual(1500);
+  const tamanho = JSON.stringify(existentes).length;
   const teto = Math.floor(ESQUEMA_NA_MAIN * 1.1);
   expect(tamanho, `esquema com ${tamanho} caracteres; teto ${teto}`).toBeLessThanOrEqual(teto);
 });

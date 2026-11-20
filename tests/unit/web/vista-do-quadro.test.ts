@@ -125,11 +125,11 @@ describe("vista do quadro: chips", () => {
 describe("vista do quadro: o vazio inline (sem modal)", () => {
   const nome = (id: string) => (id === "x" ? "Faustino" : null);
   it("a busca diz onde não achou; sem busca, cada filtro tem a frase dele; Todas sem busca não tem frase", () => {
-    expect(fraseDoVazio("agente:x", " onboarding ", nome)).toBe("Nada com “onboarding” nas tarefas de Faustino.");
+    expect(fraseDoVazio("agente:x", " onboarding ", nome)).toBe("Nada com “onboarding” nos cards de Faustino.");
     expect(fraseDoVazio("todos", "abc", nome)).toBe("Nada com “abc” no quadro.");
     expect(fraseDoVazio("comigo", "", nome)).toBe("Nada esperando você agora.");
     expect(fraseDoVazio("trabalhando", "", nome)).toBe("Ninguém está trabalhando agora.");
-    expect(fraseDoVazio("agente:x", "", nome)).toBe("Faustino não tem tarefa neste quadro.");
+    expect(fraseDoVazio("agente:x", "", nome)).toBe("Faustino não tem card neste quadro.");
     expect(fraseDoVazio("todos", "", nome)).toBeNull();
   });
 });

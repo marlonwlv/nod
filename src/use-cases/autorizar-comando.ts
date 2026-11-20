@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { FRASE_SO_LEITURA } from "../domain/ajustes-aprovacao.ts";
+import { ajustesDoBot } from "./ajustes-aprovacao.ts";
 import type { RuntimeEvent } from "../contracts/evento.ts";
 import type { PlanoTurno } from "../contracts/plano-turno.ts";
 import { classificarComando, comandoArriscado, enviaPeloTerminal, tocaChaveDoNod, tocaCredencial } from "../domain/comando.ts";
@@ -100,6 +102,10 @@ function registroDoTotal(pedido: Pedido, credencial: boolean, risco: string | nu
  */
 async function decidirComando(deps: Deps, plano: PlanoTurno, texto: string, pedido: Pedido, medir = false): Promise<(Permitir & { registro?: RegistroDoTotal }) | PedeCard | VaiAoRevisor | { negar: string }> {
   const contaminado = plano.confiancaEntrada !== "confiavel" || (await deps.repos.turnos.contaminado(plano.turnoId));
+  // ADR-166: o bot em só leitura (dele ou pelo teto do admin) roda só o comando que lê — mesmo depois de conteúdo de fora,
+  // que é o que ele está ali para fazer — e o resto é negado sem cartão, em todo modo.
+  const ajustes = await ajustesDoBot(deps, plano.agenteId);
+  if (ajustes.soLeitura) return pedido.tipo === "comando" && classificarComando(texto).tipo === "leitura" ? { permitir: true, porque: "leitura" } : { negar: FRASE_SO_LEITURA };
   if (pedido.tipo === "comando" && classificarComando(texto).tipo === "leitura" && !contaminado) return { permitir: true, porque: "leitura" };
   // revisto em 2026-10-18 (revisão de engenharia 4): pelo texto do item, que acha também a gravação de arquivo aprovada.
   const aprovado = await deps.repos.itensAprovacao.aprovadoNaCadeia(plano.turnoId, texto, guardaArquivo(pedido));
@@ -134,7 +140,7 @@ async function decidirComando(deps: Deps, plano: PlanoTurno, texto: string, pedi
   // ligado, o envio para fora depois de conteúdo de fora (turno ou conversa em 24 h) vai a ele (plano, 3a). Se a leitura
   // da conversa falhou (avaliação nula), o lado seguro: conta como contaminado — o envio vai ao revisor, nunca roda direto.
   const contaminadoParaRevisor = avaliacao ? avaliacao.contaminado : revisor || contaminado;
-  const decidido = decidirPeloModo(modoAprovacao, { arriscada: risco !== null, credencial, chaveDoNod, envioParaFora, contaminado: contaminadoParaRevisor }, revisor);
+  const decidido = decidirPeloModo(modoAprovacao, { arriscada: risco !== null, credencial, chaveDoNod, envioParaFora, contaminado: contaminadoParaRevisor, regrasDePerguntar: ajustes.regras.perguntar.length > 0 }, revisor);
   // O manual não muda (PR 6): o arquivo de credencial continua negado ali, com a frase que o hook dizia sozinho.
   if (decidido === null && pedido.tipo === "credencial") return { negar: pedido.acao === "mcp" ? FRASE_MCP_COM_CREDENCIAL : FRASE_ARQUIVO_DE_CREDENCIAL };
   // O `esperar_comando` (medir = false) não abre cartão nem tem revisor: o que seria revisado não roda por ali.

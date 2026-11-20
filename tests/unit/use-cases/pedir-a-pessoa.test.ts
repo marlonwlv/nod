@@ -134,4 +134,13 @@ describe("pedirAPessoa grava a fala ligada à decisão", () => {
     expect(resposta?.payload).toEqual({ kind: "resposta_a_pedido", decisaoId: r.data.decisao_id, agenteId: bot.agente.id, perguntaEm: Date.parse(decisao?.criadoEm ?? ""), retomada: true, turnoRetomadaId: ids.turnoRetomada, via: "opcao", opcao: 0 });
     expect(banco.turnos.find((t) => t.id === ids.turnoRetomada)).toMatchObject({ origem: "retomada", retomaTurnoId: turno.id });
   });
+
+it.each(["automatico", "total"] as const)("confirmação explicitamente pedida permanece pendente no %s", async (modo) => {
+  const { deps, banco, bot, turno } = await cenario();
+  await deps.repos.agentes.definirModoAprovacao(bot.agente.id, modo);
+  const r = await pedirAPessoa(deps, { turnoId: turno.id, conversaId: bot.conversa.id, agenteId: bot.agente.id, tipo: "pergunta", texto: "Confirma enviar oi ao contato de teste?" });
+  expect(banco.decisoes.find((d) => d.id === r.data.decisao_id)?.estado).toBe("pendente");
+  expect(banco.turnos.filter((t) => t.retomaTurnoId === turno.id)).toHaveLength(0);
+});
+
 });

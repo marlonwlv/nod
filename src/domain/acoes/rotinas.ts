@@ -1,6 +1,7 @@
 import type { DefinicaoAcao } from "../../contracts/acoes.ts";
 import { FERRAMENTAS_DO_NOD } from "../../contracts/ferramentas-do-nod.ts";
 import { FERRAMENTAS_ROTINA } from "../../contracts/ferramentas-rotina.ts";
+import { FERRAMENTAS_ROTINA_LOTE } from "../../contracts/ferramentas-rotina-lote.ts";
 
 /** As rotinas dos bots (NOD-391, ADR-135). Criar já existe no lote do Nod, mas por outro executor que o da tela. */
 
@@ -34,6 +35,12 @@ export const ACOES_ROTINAS = [
   // rotina). Aplicam direto (ADR-043): reversíveis em um clique.
   { id: "rotinas.pausar", titulo: "Pausar uma rotina (com data de volta opcional)", schema: FERRAMENTAS_ROTINA.pausar_rotina, risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: "pausar_rotina" }, contrato: "tests/integration/paridade-pausar-rotina.test.ts" }, casoDeUso: "rotinas.pausar" },
   { id: "rotinas.ativar", titulo: "Ativar uma rotina", schema: FERRAMENTAS_ROTINA.reativar_rotina, risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: "reativar_rotina" }, contrato: "tests/integration/paridade-pausar-rotina.test.ts" }, casoDeUso: "rotinas.ativar" },
+  // Desfazer a pausa em lote (2026-11-19, migração 0178): o "Pausar todas as rotinas" do ⌘K (POST rotinas/pausar-todas) e
+  // a ferramenta pausar_todas_rotinas marcam as rotinas com um lote; o Desfazer do aviso e o "Reativar as N" de Ajustes ›
+  // Rotinas (POST rotinas/lotes/:id/reativar) e reativar_lote_rotinas voltam só esse lote. Mesmo executor
+  // (src/use-cases/pausa-em-lote.ts). Aplicam direto, como pausar e ativar uma (ADR-043): reversíveis em um passo.
+  { id: "rotinas.pausar_todas", titulo: "Pausar todas as rotinas", schema: FERRAMENTAS_ROTINA_LOTE.pausar_todas_rotinas, risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: "pausar_todas_rotinas" }, contrato: "tests/integration/paridade-pausa-em-lote.test.ts" }, casoDeUso: "rotinas.pausar_todas" },
+  { id: "rotinas.reativar_lote", titulo: "Reativar as rotinas pausadas juntas", schema: FERRAMENTAS_ROTINA_LOTE.reativar_lote_rotinas, risco: "muda", cartaoNoChat: false, chat: { estado: "vivo", via: { ferramenta: "reativar_lote_rotinas" }, contrato: "tests/integration/paridade-pausa-em-lote.test.ts" }, casoDeUso: "rotinas.reativar_lote" },
   { id: "rotinas.mudar_ritmo", titulo: "Mudar o ritmo de uma rotina", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
   { id: "rotinas.gerar_endereco", titulo: "Gerar novo endereço do webhook", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },
   { id: "rotinas.enviar_teste", titulo: "Enviar teste ao webhook", risco: "muda", cartaoNoChat: false, chat: { estado: "falta", onda: "NOD-393" } },

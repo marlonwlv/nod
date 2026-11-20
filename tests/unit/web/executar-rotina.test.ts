@@ -53,7 +53,7 @@ describe("rotina adiada na lista (NOD-243)", () => {
   const agora = Date.parse("2026-09-18T09:00:00-03:00");
   it("a linha de espera diz quem segura e há quantas janelas", () => {
     const html = linhaDaEspera({ motivo: "frente_aberta", seguidas: 3, desde: Date.parse("2026-09-17T08:00:00-03:00"), frente: "Revisar PRs" }, agora, TZ);
-    expect(html).toContain("Esperando a frente “Revisar PRs” terminar · 3 janelas adiadas desde ontem 08:00.");
+    expect(html).toContain("Esperando a tarefa “Revisar PRs” terminar · 3 janelas adiadas desde ontem 08:00.");
     expect(linhaDaEspera(null, agora, TZ)).toBe("");
   });
   it("execução anterior: \"terminar\", não \"sair da fila\" (pode estar rodando); uma janela só diz qual foi", () => {
@@ -66,9 +66,9 @@ describe("rotina adiada na lista (NOD-243)", () => {
     expect(TAG_ESPERANDO).toContain(">esperando</span>");
   });
   it("o histórico traduz os motivos novos", () => {
-    expect(rotuloExecucao({ desfecho: "adiada", motivo: "frente_aberta" })).toBe("adiada · uma frente desta rotina ainda estava aberta");
+    expect(rotuloExecucao({ desfecho: "adiada", motivo: "frente_aberta" })).toBe("adiada · uma tarefa desta rotina ainda estava aberta");
     expect(rotuloExecucao({ desfecho: "adiada", motivo: "execucao_anterior_aberta" })).toBe("adiada · a execução anterior ainda não tinha terminado");
-    expect(rotuloExecucao({ desfecho: "interrompida", motivo: "frente_parada" })).toBe("interrompida · a frente ficou parada por mais de 24 h");
+    expect(rotuloExecucao({ desfecho: "interrompida", motivo: "frente_parada" })).toBe("interrompida · a tarefa ficou parada por mais de 24 h");
     expect(rotuloExecucao({ desfecho: "nao_rodou", motivo: "maquina_sem_contato" })).toBe("não rodou · a máquina ficou sem contato");
     expect(rotuloExecucao({ desfecho: "interrompida", motivo: "vencida" })).toBe("interrompida · ficou na fila e a janela seguinte a encerrou");
     expect(rotuloExecucao({ desfecho: "interrompida", motivo: "rotina_pausada" })).toBe("interrompida · a rotina foi pausada");

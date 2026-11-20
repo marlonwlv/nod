@@ -11,7 +11,7 @@ import { withRollback } from "../helpers/with-rollback.ts";
 
 const PRONTO = { estado: "pronto" as const, versao: "teste", em: 0 };
 
-describeIntegracao("memória por bot (Grok Bot: memória não é fonte)", () => {
+describeIntegracao("memória por bot (memória não é fonte)", () => {
   it("lembrar (ferramenta) grava com origem 'agente' e a mensagem 'anotei' no turno; a pessoa lista, edita e apaga", async () => {
     await withRollback(MARLON, async (trx) => {
       const deps = depsSobreTrx(trx, MARLON);
@@ -60,6 +60,24 @@ describeIntegracao("memória por bot (Grok Bot: memória não é fonte)", () => 
 
       await executar(deps, registrarMemoria, { agenteId: criado.agente.id, conversaId: null, turnoId: null, tipo: "fato", texto, origem: "pessoa" });
       expect((await listarMemorias(deps, { agenteId: criado.agente.id })).data.memorias.map((m) => m.origem)).toEqual(["pessoa"]);
+    });
+  });
+
+  it("repetir lembrar com o mesmo conteúdo devolve o id original sem duplicar memória, diário ou mensagem", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const deps = depsSobreTrx(trx, MARLON);
+      const { data: criado } = await executar(deps, criarAgente, { dono: "pessoa" });
+      const turno = await deps.repos.turnos.enfileirar({ executor: "catcher", conversaId: criado.conversa.id, agenteId: criado.agente.id, origem: "conversa", prazoEm: Date.now() + 1000, profundidade: 0, entradaTexto: "x", entradaConfianca: "confiavel", modelo: "m" });
+      const input = { turnoId: turno?.id ?? "", agenteId: criado.agente.id, conversaId: criado.conversa.id, tipo: "fato" as const, texto: "o playbook fica na pasta do QA" };
+
+      const primeira = await executar(deps, lembrar, input);
+      const repetida = await executar(deps, lembrar, input);
+
+      expect(repetida.data).toEqual(primeira.data);
+      expect(repetida.events).toEqual([]);
+      expect((await deps.repos.memorias.listarDoAgente(criado.agente.id))).toHaveLength(1);
+      expect((await deps.repos.memoriasDiario.listar(criado.agente.id, null)).entradas).toHaveLength(1);
+      expect((await deps.repos.mensagens.listarDaConversa(criado.conversa.id)).filter((m) => m.kind === "sistema" && m.texto === "Anotei um fato: o playbook fica na pasta do QA")).toHaveLength(1);
     });
   });
 
