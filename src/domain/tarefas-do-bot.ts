@@ -6,6 +6,8 @@ import type { EstadoDaTarefa, EventoStream, TarefaDoBot } from "../contracts/tur
  *  - TaskCreate {subject, description} → resultado "Task #1 created successfully: Ler o diff";
  *  - TaskUpdate {taskId, status: pending | in_progress | completed} → "Updated task #1 status";
  *  - TaskList {} → uma linha por tarefa, "#2 [in_progress] Checar SQL".
+ * Medido no CLI 2.1.312: id que não existe volta "Task not found" SEM is_error, e a tarefa bloqueada sai na listagem
+ * como "#2 [pending] B [blocked by #1]" — nenhum dos dois pode virar tarefa nem título na checklist.
  * O id só existe no RESULTADO da criação, então a chamada fica pendente até o tool_result dela (pelo id do uso).
  * Puro: quem guarda o estado por turno é o adaptador (o laço do servidor e o app do Mac).
  */
@@ -23,9 +25,17 @@ export const SEM_TAREFAS: AcompanhamentoDeTarefas = { tarefas: [], pendentes: {}
 
 const ESTADOS: Record<string, EstadoDaTarefa> = { pending: "pendente", in_progress: "andamento", completed: "feita" };
 
-function texto(v: unknown): string | null {
-  return typeof v === "string" && v.trim() !== "" ? v.trim().slice(0, TETO_TITULO_TAREFA) : null;
+/** Corta por ponto de código: o teto não parte um emoji ao meio (o corte em UTF-16 deixava um surrogate solto). */
+function cortar(s: string): string {
+  return Array.from(s).slice(0, TETO_TITULO_TAREFA).join("");
 }
+
+function texto(v: unknown): string | null {
+  return typeof v === "string" && v.trim() !== "" ? cortar(v.trim()) : null;
+}
+
+/** O CLI responde "Task not found" como resultado normal (sem is_error) quando o id não existe. */
+const NAO_ACHOU = /^\s*Task not found\b/i;
 
 function comTarefa(tarefas: TarefaDoBot[], t: TarefaDoBot): TarefaDoBot[] {
   const i = tarefas.findIndex((x) => x.id === t.id);
@@ -37,9 +47,9 @@ function comTarefa(tarefas: TarefaDoBot[], t: TarefaDoBot): TarefaDoBot[] {
 function daListagem(saida: string): TarefaDoBot[] | null {
   const tarefas: TarefaDoBot[] = [];
   for (const linha of saida.split("\n")) {
-    const m = /^#(\S+)\s+\[(\w+)\]\s+(.+)$/.exec(linha.trim());
+    const m = /^#(\S+)\s+\[(\w+)\]\s+(.+?)(?:\s+\[blocked by [^\]]*\])?$/.exec(linha.trim());
     const estado = m ? ESTADOS[m[2]!] : undefined;
-    if (m && estado) tarefas.push({ id: m[1]!, titulo: m[3]!.slice(0, TETO_TITULO_TAREFA), estado });
+    if (m && estado) tarefas.push({ id: m[1]!, titulo: cortar(m[3]!), estado });
   }
   return tarefas.length ? tarefas.slice(0, TETO_TAREFAS) : null;
 }
@@ -61,7 +71,7 @@ export function reduzirTarefas(a: AcompanhamentoDeTarefas, ev: EventoStream): { 
   if (ev.tipo !== "tool_result" || !a.pendentes[ev.toolUseId]) return { acompanhamento: a, mudou: false };
   const p = a.pendentes[ev.toolUseId]!;
   const { [ev.toolUseId]: _feito, ...pendentes } = a.pendentes;
-  if (ev.isError) return { acompanhamento: { ...a, pendentes }, mudou: false };
+  if (ev.isError || NAO_ACHOU.test(ev.texto)) return { acompanhamento: { ...a, pendentes }, mudou: false };
   let tarefas = a.tarefas;
   if (p.tipo === "criar") {
     const id = /#(\S+?)\b/.exec(ev.texto)?.[1] ?? String(a.tarefas.length + 1);

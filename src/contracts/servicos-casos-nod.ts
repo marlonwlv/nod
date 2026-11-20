@@ -21,6 +21,8 @@ export interface UseCasesNod<Deps> {
   verAgendaPeloAgente: CasoNod<Deps, "ver_agenda">;
   pausarRotinaPeloAgente: CasoNod<Deps, "pausar_rotina">;
   reativarRotinaPeloAgente: CasoNod<Deps, "reativar_rotina">;
+  pausarTodasRotinasPeloAgente: CasoNod<Deps, "pausar_todas_rotinas">;
+  reativarLoteRotinasPeloAgente: CasoNod<Deps, "reativar_lote_rotinas">;
   atualizarRotinaPeloAgente: CasoNod<Deps, "atualizar_rotina">;
   excluirRotinaPeloAgente: CasoNod<Deps, "excluir_rotina">;
   executarRotinaPeloAgente: CasoNod<Deps, "executar_rotina">;

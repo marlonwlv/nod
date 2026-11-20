@@ -182,6 +182,7 @@
   .cb-login-mini { width: 72px; height: 48px; }
   .pc-acao { flex-wrap: wrap; gap: 10px 16px; }
   .pc-acao > .bt { min-height: 44px; }
+  .pc-recusa .cb-link { display: inline-flex; align-items: center; min-height: 44px; }
   .pc-faixa { flex-wrap: wrap; }
   .pc-faixa > .bt, .pc-faixa > .cb-bt-ghost { margin-left: 24px; min-height: 44px; }
   .pc-atividade li { padding: 10px 14px; align-items: flex-start; }
