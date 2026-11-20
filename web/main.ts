@@ -1,3 +1,4 @@
+import { criarSugestoesDaNovaConversa } from "./lib/sugestao-nova-conversa.ts";
 import { criarFilaOffline, falhouPorRede, MOTIVO_OFFLINE } from "./lib/fila-offline.ts";
 import { abrirDialogoDeHandoff } from "./telas/dialogo-handoff.ts";
 import { marcarEstadoDaPagina } from "./lib/estado-da-pagina.ts";
@@ -1045,12 +1046,8 @@ document.addEventListener("keydown", (ev) => {
   if (!alvo || (alvo.id !== "busca-destinatario" && alvo.id !== "nc-texto")) return;
   if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); escolherNaNovaConversa(); return; }
   if (alvo.id === "busca-destinatario" && (ev.key === "ArrowDown" || ev.key === "ArrowUp")) {
-    const bots = [...document.querySelectorAll<HTMLElement>(".nc-pop .nc-bot:not([hidden])")];
-    if (!bots.length) return;
-    ev.preventDefault();
-    const i = bots.findIndex((b) => b.hasAttribute("data-nc-atual"));
-    const j = (i + (ev.key === "ArrowDown" ? 1 : -1) + bots.length) % bots.length;
-    bots.forEach((b, k) => b.toggleAttribute("data-nc-atual", k === j));
+    const pop = document.querySelector<HTMLElement>(".nc-pop");
+    if (pop && sugestoesDaNovaConversa.mover(pop, ev.key === "ArrowDown" ? 1 : -1)) ev.preventDefault();
   }
 });
 document.addEventListener("keydown", (ev) => {
@@ -7714,21 +7711,11 @@ function aoSoltarOrdem(lista: string, ordem: string[]): void {
 }
 instalarOrdemArrastavel(document, aoSoltarOrdem);
 
-/** ADR-167 (Paper 04): na nova conversa, o termo vai para "Criar o bot “Ce”" e a 1ª sugestão ganha o ↵. */
+/** ADR-167 (Paper 04) e QA-155: o termo, o teto e o ↵ da nova conversa (a escolha das setas sobrevive ao redesenho). */
+const sugestoesDaNovaConversa = criarSugestoesDaNovaConversa();
 function marcarSugestaoDaNovaConversa(texto: string): void {
   const pop = document.querySelector<HTMLElement>(".nc-pop");
-  if (!pop) return;
-  const termo = pop.querySelector<HTMLElement>(".nc-termo");
-  if (termo) termo.textContent = texto.trim();
-  pop.querySelector<HTMLElement>(".nc-criar")?.toggleAttribute("hidden", texto.trim() === "");
-  const bots = [...pop.querySelectorAll<HTMLElement>(".nc-bot")];
-  let mostrados = 0;
-  for (const b of bots) {
-    if (!b.hidden && mostrados >= 5) b.hidden = true;
-    if (!b.hidden) mostrados++;
-  }
-  const primeira = bots.find((b) => !b.hidden);
-  for (const b of bots) b.toggleAttribute("data-nc-atual", b === primeira);
+  if (pop) sugestoesDaNovaConversa.marcar(pop, texto);
 }
 
 /** Enter na nova conversa: a sugestão marcada (ou criar o bot com o nome digitado); o texto do campo vai junto. */
