@@ -1,5 +1,6 @@
 import { OPERACOES_MOTOR_NAVEGADOR, type OperacaoMotorNavegador } from "../../contracts/navegador-maquina.ts";
 import type { ElementoNaPagina } from "../../domain/navegador-ensinar.ts";
+import type { CookieNavegador } from "../../contracts/navegador-maquina.ts";
 import { FalhaNavegador, type AbaMotor, type AlvoProcurar, type LeituraNavegador, type MotorNavegador, type RefLida, type SessaoNavegador } from "./motor-agent-browser.ts";
 
 /**
@@ -46,6 +47,23 @@ function url(op: string, v: unknown): string {
 function textos(op: string, v: unknown): string[] {
   if (!Array.isArray(v) || v.length > 50) throw invalido(op);
   return v.map((x) => texto(op, x));
+}
+
+/** definido em 2026-11-20: um site com mais de 200 cookies é raro; o resto cai (o login costuma estar nos primeiros). */
+export const COOKIES_MAX = 200;
+const SAME_SITE = ["Strict", "Lax", "None"] as const;
+/** Os cookies conferidos (forma do `CookieNavegador`); um fora da forma derruba o lote inteiro. */
+export function lerCookies(op: string, v: unknown): CookieNavegador[] {
+  if (!Array.isArray(v) || v.length > COOKIES_MAX) throw invalido(op);
+  return v.map((c) => {
+    const o = obj(c);
+    const nome = texto(op, o.name, false);
+    const valor = texto(op, o.value);
+    const dominio = texto(op, o.domain, false);
+    const caminho = typeof o.path === "string" && o.path.startsWith("/") ? texto(op, o.path) : "/";
+    if (nome.length > 4096 || valor.length > 8192 || !/^\.?[a-z0-9.-]+$/i.test(dominio) || typeof o.expires !== "number" || !Number.isFinite(o.expires)) throw invalido(op);
+    return { name: nome, value: valor, domain: dominio.toLowerCase(), path: caminho, expires: o.expires, secure: o.secure === true, httpOnly: o.httpOnly === true, sameSite: um(op, o.sameSite ?? "Lax", SAME_SITE) };
+  });
 }
 
 /** A máquina: confere os argumentos da operação e chama o motor local. Falha de argumento é `alvo_invalido`. */
@@ -104,6 +122,13 @@ export async function executarOperacao(m: MotorNavegador, s: SessaoNavegador, op
     }
     case "url": return m.url(s);
     case "fechar": return m.fechar(s);
+    case "camposDeLogin": return m.camposDeLogin(s);
+    case "inserirTexto": {
+      const t = texto(op, a[1], false);
+      if (t.length > 4096) throw invalido(op);
+      return m.inserirTexto(s, a[0] === null ? null : texto(op, a[0], false), t);
+    }
+    case "definirCookies": return m.definirCookies(s, lerCookies(op, a[0]));
   }
 }
 
@@ -122,7 +147,8 @@ const LEITORES: { [K in OperacaoMotorNavegador]: (v: unknown) => unknown } = {
   },
   clicar: vazio, preencher: vazio, digitar: vazio, tecla: vazio, rolar: vazio, esperar: vazio, selecionar: vazio, marcar: vazio, passarMouse: vazio,
   arrastar: vazio, mouse: vazio, historico: vazio, abaNova: vazio, abaTrocar: vazio, abaFechar: vazio, quadro: vazio, dialogo: vazio, enviarArquivo: vazio,
-  procurar: vazio, fechar: vazio,
+  procurar: vazio, fechar: vazio, inserirTexto: vazio, definirCookies: vazio,
+  camposDeLogin: (v) => ({ usuario: obj(v).usuario === true, senha: obj(v).senha === true, codigo: obj(v).codigo === true }),
   print: (v) => {
     const jpeg = str(obj(v).jpeg);
     if (!/^\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(jpeg)) throw new FalhaNavegador("acao_falhou", "o print da máquina veio sem imagem");

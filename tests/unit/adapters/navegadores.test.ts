@@ -8,7 +8,7 @@ import type { TarefaEnsinada } from "../../../src/contracts/navegador-do-bot.ts"
 import { SEM_LIBERACOES, type LiberacoesNavegador } from "../../../src/domain/navegador-aprovacao.ts";
 import type { ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
 import { PAUSA_APOS_MS } from "../../../src/domain/navegador-vista.ts";
-import { executarItens } from "../../../src/use-cases/decidir.ts";
+import { comLembrarNoNavegador, executarItens } from "../../../src/use-cases/decidir.ts";
 import { MARLON } from "../use-cases/deps-l5.ts";
 
 /**
@@ -73,6 +73,7 @@ const deps = () => ({
     },
     agentes: { buscar: async (id: string) => (id === A || id === B ? { id, ownerId: MARLON.pessoaId, modoAprovacao: modo, soLeitura } : null), execucaoBloqueada: async () => false },
     navegadorPreferencias: { liberacoes: async () => liberacoes },
+    cofreLogins: { listar: async () => [] },
     navegadorTarefas: {
       doAgente: async () => tarefas,
       criar: async (t: { agenteId: string; nome: string; passos: string[] }) => { const nova = { id: `tarefa-${tarefas.length + 1}`, nome: t.nome, passos: t.passos, criadaEm: agora }; tarefas.unshift(nova); return nova; },
@@ -256,7 +257,7 @@ describe("aprovação no ponto sem volta (quadro A)", () => {
     const item = aprovacoes[0]!.itens[0]!;
     expect(item.texto).toBe("Pagar R$ 120,00 no loja.exemplo.com?");
     expect(item.destino).toMatchObject({ conector: "navegador", ferramenta: "executar", argumentos: { acaoId: expect.stringMatching(/^[0-9a-f-]{36}$/), acao: expect.stringMatching(/^c:/) } });
-    expect(n.vista(MARLON, A)).toMatchObject({ controle: "precisa_de_voce", pedido: { tipo: "aprovacao", decisaoId: "decisao-1", touchId: true } });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "precisa_de_voce", pedido: { tipo: "aprovacao", decisaoId: "decisao-1", classe: "pagar", touchId: false, avisoTouchId: expect.stringContaining("Touch ID"), lembrar: null } });
     // Enquanto a pessoa não responde, o bot espera.
     expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ estado: "aguardando_pessoa" });
   });
@@ -333,7 +334,7 @@ describe("controle e pedidos à pessoa", () => {
     const r = await n.chamar(MARLON, plano(A), "navegador_entrar", { site: "gmail.com", motivo: "ler a fatura" });
     expect(corpo(r)).toMatchObject({ estado: "pendente", decisao_id: "pedido-1" });
     expect(pedidosAPessoa[0]!.texto).toContain("gmail.com");
-    expect(pedidosAPessoa[0]!.texto).toContain("A senha não passa por mim");
+    expect(pedidosAPessoa[0]!.texto).toContain("não passa por mim");
     expect(n.vista(MARLON, A)).toMatchObject({ controle: "precisa_de_voce", pedido: { tipo: "login", site: "gmail.com" } });
     expect(corpo(await n.chamar(MARLON, plano(A), "navegador_ler", {}))).toMatchObject({ estado: "aguardando_pessoa" });
     decisoes.set("pedido-1", { estado: "respondida" });
@@ -425,6 +426,9 @@ describe("decisão aprovada → executarItens", () => {
     expect(await executarItens(services, [{ item, conectorId: null, navegador }])).toEqual([{ itemId: "i1", desfecho: "executado" }]);
     expect(recebidos).toEqual([navegador]);
     expect(await executarItens({ conectores: {} } as never, [{ item, conectorId: null, navegador }])).toEqual([{ itemId: "i1", desfecho: "falhou_na_execucao" }]);
+    // A3: o "sempre" do cartão chega ao portão como `lembrar`, só nos itens do navegador.
+    const deApp = { item, conectorId: "c1" };
+    expect(comLembrarNoNavegador([{ item, conectorId: null, navegador }, deApp])).toEqual([{ item, conectorId: null, navegador: { ...navegador, lembrar: true } }, deApp]);
   });
 });
 

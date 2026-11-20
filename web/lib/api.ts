@@ -13,7 +13,7 @@ import type { AnexoMeta } from "../../src/contracts/anexo.ts";
 import type { CheckpointDaFala } from "../../src/contracts/checkpoint.ts";
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
 import type { AcaoComputador, ComputadorDto, ResultadoComputador } from "../../src/contracts/computador.ts";
-import type { MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLugarNavegador, RespostaNavegador, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
+import type { EscolhaLoginNavegador, FonteCofre, LoginDoCofreNaTela, MudancaLugarNavegador, OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaLoginNavegador, RespostaLugarNavegador, RespostaNavegador, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } from "./computador-pessoa.ts";
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
@@ -296,6 +296,19 @@ export function criarApi(escopo: Escopo) {
     lugarDoNavegador: (agenteId: string) => get<RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`),
     /** ADR-190 (N): muda o lugar (o interruptor, a máquina, "nod", "Só na …"); a mesma rota do Desfazer da conversa. */
     mudarLugarDoNavegador: (agenteId: string, mudar: MudancaLugarNavegador) => post<{ ok: true } & RespostaLugarNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/lugar`, mudar),
+    /**
+     * ADR-190 (L1, L2): a escolha do cartão de login. Com o 1Password, o Bitwarden ou o Chrome, `aviso` = "Confirme no seu
+     * Mac" e o preenchimento segue no servidor (a vista muda pelo `navegador.mudou`). Nenhum segredo vai neste corpo.
+     */
+    escolherLoginNoNavegador: (agenteId: string, decisaoId: string, escolha: EscolhaLoginNavegador) => post<RespostaLoginNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador/login`, { decisaoId, escolha }),
+    /** ADR-190 (L4): o código de uso único do campo privado do cartão, direto para a página. */
+    codigoNoNavegador: (agenteId: string, decisaoId: string, codigo: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/codigo`, { decisaoId, codigo }),
+    /** ADR-190 (L5): "Guardar no cofre?" — `guardar: false` descarta (o texto sai da memória do servidor). */
+    guardarLoginDoNavegador: (agenteId: string, guardar: boolean, destino?: FonteCofre) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/guardar-login`, destino ? { guardar, destino } : { guardar }),
+    /** ADR-190 (decisão 6): o cofre do nod — site, usuário mascarado e data; a senha nunca volta. */
+    cofreLogins: () => get<{ logins: LoginDoCofreNaTela[] }>("cofre/logins"),
+    guardarNoCofre: (login: { site: string; usuario: string; senha: string }) => post<{ ok: true; login: LoginDoCofreNaTela }>("cofre/logins", login),
+    apagarDoCofre: (id: string) => del<{ ok: true }>(`cofre/logins/${encodeURIComponent(id)}`),
     /** ADR-190: o WebSocket do navegador ao vivo do bot (mesma origem; o cookie da sessão vai sozinho). */
     urlVivoNavegador: (agenteId: string) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${base}/agentes/${encodeURIComponent(agenteId)}/navegador/vivo`,
     trocarLugarDoComputador: (maquinaId: string, semLogins: boolean) => post<{ ok: true }>("computador/lugar", { maquinaId, semLogins }),

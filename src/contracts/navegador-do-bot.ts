@@ -40,11 +40,63 @@ export type PassoNavegador = {
   em: number;
 };
 
-/** Pedido aberto para a pessoa: login (L), ajuda (captcha, SMS) ou aprovação no ponto sem volta (A1). */
+/** De onde vem o login (L1): o cofre do nod (cifrado no servidor), o 1Password ou o Bitwarden da pessoa (no app do Mac). */
+export const FONTES_COFRE = ["nod", "1password", "bitwarden"] as const;
+export type FonteCofre = (typeof FONTES_COFRE)[number];
+
+/**
+ * Um item de cofre que casa com o site (L1), sem segredo: `ref` é o id do login no cofre do nod, a referência `op://…`
+ * do 1Password ou o id do item do Bitwarden. `rotulo` = "Itaú · marlon@…" (usuário mascarado). `disponivel: false`
+ * (cinza) traz o motivo: "precisa do seu Mac ligado" ou "destravar no seu Mac".
+ */
+export type OpcaoLogin = { fonte: FonteCofre; ref: string; rotulo: string; disponivel: boolean; motivoIndisponivel?: string };
+
+/**
+ * Em que pé está o login (L1, L2, L5): `escolher` (o cartão com as opções), `confirme_no_mac` (a pessoa escolheu o
+ * 1Password, o Bitwarden ou o Chrome e o Mac pede o Touch ID ou o Keychain), `eu_mesmo` (a pessoa está entrando com as
+ * próprias mãos; a pílula diz "A Ada espera você entrar | Pronto, pode seguir").
+ */
+export const ETAPAS_LOGIN = ["escolher", "confirme_no_mac", "eu_mesmo"] as const;
+export type EtapaLogin = (typeof ETAPAS_LOGIN)[number];
+
+/** A caixa do alvo na página (coordenadas do viewport), para a web desenhar o realce fora da imagem (A1). */
+export type CaixaNavegador = { x: number; y: number; w: number; h: number };
+
+/**
+ * Pedido aberto para a pessoa: login (L), ajuda (captcha; `codigo` = a página pede um código de uso único, L4),
+ * aprovação no ponto sem volta (A1) ou o combinado de antemão (A2). Todos apontam para UMA decisão: respondida num
+ * lugar (pílula, conversa, celular), some dos outros.
+ */
 export type PedidoDaVistaNavegador =
-  | { tipo: "login"; decisaoId: string; site: string; motivo: string }
-  | { tipo: "ajuda"; decisaoId: string; motivo: string }
-  | { tipo: "aprovacao"; decisaoId: string; pergunta: string; botao: string; touchId: boolean };
+  | {
+    tipo: "login"; decisaoId: string; site: string; motivo: string;
+    /** Os itens que casam com o site, na ordem do cartão (o primeiro disponível é o botão preto). */
+    opcoes: readonly OpcaoLogin[];
+    /** "Trazer do meu Chrome" só existe com o app do Mac conectado. */
+    podeTrazerDoChrome: boolean;
+    etapa: EtapaLogin;
+    /** A última tentativa falhou (frase pronta, sem dado da pessoa). */
+    erro: string | null;
+  }
+  | { tipo: "ajuda"; decisaoId: string; motivo: string; codigo: boolean }
+  | {
+    tipo: "aprovacao"; decisaoId: string; pergunta: string; botao: string;
+    classe: "pagar" | "apagar" | "enviar";
+    /** Pagar pede o Touch ID no Mac (ADR-177). false com `avisoTouchId`: o Mac está desligado e vale o botão. */
+    touchId: boolean;
+    avisoTouchId: string | null;
+    caixa: CaixaNavegador | null;
+    /** A3: só envio com destino visto na página; dinheiro nunca leva. `padrao` true = a caixa vem marcada. */
+    lembrar: { padrao: true; texto: string } | null;
+  }
+  | { tipo: "combinar"; decisaoId: string; titulo: string; texto: string; sim: string; nao: string; touchId: boolean };
+
+/**
+ * L5: a pessoa entrou digitando ("Entrar eu mesmo") e a página mudou. A linha discreta "Você entrou no Bradesco digitando.
+ * Guardar no cofre? Guardar | Não" com os cofres possíveis (o 1Password e o Bitwarden só com o Mac ligado). O que ela
+ * digitou fica só em memória do servidor, cifrado, por até 5 min (`ate`).
+ */
+export type OfertaGuardarLogin = { site: string; usuario: string; destinos: readonly FonteCofre[]; ate: number };
 
 /** A gravação de "Ensinar uma tarefa" (T). `parou`: bateu no teto de passos ou de tempo e não grava mais. */
 export type GravacaoNavegador = { desde: number; passos: readonly string[]; parou: "passos" | "tempo" | null };
@@ -65,6 +117,8 @@ export type VistaNavegador = {
   descarte: DescarteNavegador | null;
   /** Segredo na página (L3): a vista some e a leitura do bot trava até a página mudar. */
   segredoNaPagina: boolean;
+  /** L5: guardar no cofre o login que a pessoa digitou. */
+  ofertaGuardar: OfertaGuardarLogin | null;
   /** Quando o bot terminou (D3, 5) ou parou de mexer (pausa em 10 min). */
   atividadeEm: number;
   erro: { causa: string; em: number } | null;
@@ -152,3 +206,15 @@ export type PayloadNavegadorLugar = {
 
 /** Habilidade aprendida com "Ensinar uma tarefa". */
 export type TarefaEnsinada = { id: string; nome: string; passos: readonly string[]; criadaEm: number };
+
+/**
+ * POST /agentes/:id/navegador/login (L1): o que a pessoa escolheu no cartão de login. O segredo nunca passa por aqui nem
+ * pelo chat: só a fonte e a referência do item.
+ */
+export type EscolhaLoginNavegador = { fonte: FonteCofre; ref: string } | "eu_mesmo" | "chrome";
+
+/** A resposta do POST /navegador/login: a vista e, quando o Mac pede a confirmação, a frase do celular (L2). */
+export type RespostaLoginNavegador = { ok: true; vista: VistaNavegador; aviso: string | null };
+
+/** GET /cofre/logins: o cofre do nod na tela, sem a senha (só site, usuário mascarado e data). */
+export type LoginDoCofreNaTela = { id: string; site: string; usuario: string; criadoEm: number };

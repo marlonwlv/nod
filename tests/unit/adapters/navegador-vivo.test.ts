@@ -19,7 +19,7 @@ const servidores: { close(cb: () => void): void }[] = [];
 afterEach(async () => { for (const s of servidores.splice(0)) await new Promise<void>((r) => s.close(() => r())); });
 
 function vistaBase(o: Partial<VistaNavegador> = {}): VistaNavegador {
-  return { agenteId: BOT, estado: "ao_vivo", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, atividadeEm: 0, erro: null, viewport: { w: 1280, h: 720 }, ...o };
+  return { agenteId: BOT, estado: "ao_vivo", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: 0, erro: null, viewport: { w: 1280, h: 720 }, ...o };
 }
 
 /** O agent-browser falso: guarda o que chegou pelo stream e pelo relay e manda o que o teste pedir. */

@@ -42,6 +42,16 @@ export function cofreLoginsRepo(conn: Conn, escopo: Escopo) {
       return linhas.map(login);
     },
 
+    /**
+     * O login inteiro para preencher (ADR-190, L3): o site (o portão confere que casa com a aba), o usuário e a senha ainda
+     * cifrada, que o servidor decifra na hora e esquece. null = não existe ou não é da pessoa.
+     */
+    async paraPreencher(id: string): Promise<{ site: string; usuario: string; senhaCifrada: string } | null> {
+      const [l] = await conn<{ site: string; usuario: string; senha_cifrada: string }[]>`
+        select site, usuario, senha_cifrada from cofre_logins where tenant_id = ${escopo.tenantId} and owner_id = ${escopo.pessoaId} and id = ${id}`;
+      return l ? { site: l.site, usuario: l.usuario, senhaCifrada: l.senha_cifrada } : null;
+    },
+
     /** A senha ainda cifrada, para o servidor decifrar na hora de preencher o campo. */
     async senhaCifrada(id: string): Promise<string | null> {
       const [l] = await conn<{ senha_cifrada: string }[]>`

@@ -1,6 +1,8 @@
 import type { Navegadores } from "../../fundo/navegadores.ts";
 import type { Rota } from "../roteador.ts";
-import { OPERACOES_ENSINAR, OPERACOES_NAVEGADOR, type MudancaLugarNavegador, type OperacaoEnsinar, type OperacaoNavegador, type RespostaEnsinar, type RespostaLugarNavegador, type RespostaNavegador } from "../../../contracts/navegador-do-bot.ts";
+import { FONTES_COFRE, OPERACOES_ENSINAR, OPERACOES_NAVEGADOR, type EscolhaLoginNavegador, type FonteCofre, type LoginDoCofreNaTela, type MudancaLugarNavegador, type OperacaoEnsinar, type OperacaoNavegador, type RespostaEnsinar, type RespostaLoginNavegador, type RespostaLugarNavegador, type RespostaNavegador } from "../../../contracts/navegador-do-bot.ts";
+import { codigoValido, hostDoSite, mascararUsuario } from "../../../domain/navegador-cofre.ts";
+import type { LoginDoCofre } from "../../../repositories/cofre-logins.repo.ts";
 import { ErroDeDominio } from "../../../domain/erro.ts";
 import type { Escopo } from "../../../shared/types.ts";
 import { painelDoLugar, type MaquinaLigada } from "../../../use-cases/navegador-lugar.ts";
@@ -12,6 +14,34 @@ import type { Deps } from "../../../use-cases/tipos.ts";
 export type DepsLugarNavegador = { dentro<T>(escopo: Escopo, fn: (d: Deps) => Promise<T>): Promise<T>; ligadas(escopo: Escopo): readonly MaquinaLigada[] };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const ehFonte = (v: unknown): v is FonteCofre => typeof v === "string" && (FONTES_COFRE as readonly string[]).includes(v);
+/** A referência de cada cofre: o id do login do nod, `op://…` do 1Password (ou vazio = o item do site), o id do Bitwarden. */
+const REF_DA_FONTE: Readonly<Record<FonteCofre, RegExp>> = {
+  nod: UUID,
+  "1password": /^(?:op:\/\/[^\\"'$`\p{Cc}]{1,300})?$/u,
+  bitwarden: /^[A-Za-z0-9-]{0,64}$/,
+};
+
+/** O corpo do POST /navegador/login (L1), conferido: a decisão e a escolha, nunca um segredo. */
+export function lerEscolhaLogin(c: Record<string, unknown>): { decisaoId: string; escolha: EscolhaLoginNavegador } {
+  if (typeof c.decisaoId !== "string" || !UUID.test(c.decisaoId)) throw new ErroDeDominio("entrada_invalida");
+  const e = c.escolha;
+  if (e === "eu_mesmo" || e === "chrome") return { decisaoId: c.decisaoId, escolha: e };
+  const o = corpoObj(e);
+  if (Object.keys(o).some((k) => k !== "fonte" && k !== "ref") || !ehFonte(o.fonte) || typeof o.ref !== "string" || !REF_DA_FONTE[o.fonte].test(o.ref)) throw new ErroDeDominio("entrada_invalida");
+  return { decisaoId: c.decisaoId, escolha: { fonte: o.fonte, ref: o.ref } };
+}
+
+/** O cofre do nod na tela (GET/POST /cofre/logins): nunca a senha, e o usuário mascarado. */
+export const loginNaTela = (l: LoginDoCofre): LoginDoCofreNaTela => ({ id: l.id, site: l.site, usuario: mascararUsuario(l.usuario), criadoEm: l.criadoEm });
+
+/** O corpo do POST /cofre/logins, conferido: o site vira host; usuário até 320; senha de 1 a 4096. */
+export function lerNovoLogin(c: Record<string, unknown>): { site: string; usuario: string; senha: string } {
+  const site = typeof c.site === "string" && c.site.length <= 2000 ? hostDoSite(c.site).replace(/^www\./, "") : "";
+  if (!site || typeof c.usuario !== "string" || c.usuario.length > 320 || typeof c.senha !== "string" || c.senha.length < 1 || c.senha.length > 4096) throw new ErroDeDominio("entrada_invalida");
+  return { site, usuario: c.usuario.trim(), senha: c.senha };
+}
 
 /** O corpo do POST /navegador/lugar, conferido: só as três chaves, cada uma do seu tipo. */
 export function lerMudancaLugar(c: Record<string, unknown>): MudancaLugarNavegador {
@@ -46,6 +76,13 @@ export const MOTIVOS_DO_NAVEGADOR: Readonly<Record<string, string>> = {
   aparelho_desligado: "O seu computador está desligado (ou com o app do nod fechado): o navegador do bot volta quando ele ligar.",
   maquina_fora_do_ar: "A máquina escolhida está fora do ar e o bot só trabalha nela. O navegador volta quando ela voltar.",
   app_sem_navegador: "O app do nod no seu computador precisa ser atualizado para rodar o navegador do bot.",
+  sem_pedido: "Este pedido já foi respondido.",
+  login_em_curso: "O login ainda está sendo preenchido. Confirme no seu Mac.",
+  site_mudou: "A página mudou de site. Peça o login de novo.",
+  precisa_do_mac: "Isto precisa do seu Mac ligado, com o app do nod aberto.",
+  nao_preencheu: "Não achei o campo na página. Entre você mesmo pelo navegador.",
+  sem_oferta: "Não há login para guardar agora.",
+  nao_guardou: "O cofre do seu Mac não guardou o login. Tente de novo.",
 };
 
 function responderCausa(ctx: { json(status: number, corpo: unknown): void }, e: unknown): boolean {
@@ -57,6 +94,30 @@ function responderCausa(ctx: { json(status: number, corpo: unknown): void }, e: 
 }
 
 const corpoObj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+
+/**
+ * O cofre do nod na tela (ADR-190, decisão 6): listar (sem a senha), guardar (a senha entra cifrada pelo servidor e nunca
+ * volta) e apagar. Só a dona vê os dela (owner_id no filtro, além do RLS).
+ */
+export function rotasCofreLogins(d: { dentro<T>(escopo: Escopo, fn: (d: Deps) => Promise<T>): Promise<T>; cifrar(s: string): string }): Rota[] {
+  return [
+    { metodo: "GET", padrao: /^\/cofre\/logins$/, async handler(ctx) {
+      const logins = await d.dentro(ctx.escopo, (deps) => deps.repos.cofreLogins.listar());
+      ctx.json(200, { logins: logins.map(loginNaTela) });
+    } },
+    { metodo: "POST", acao: "cofre.criar_login", padrao: /^\/cofre\/logins$/, async handler(ctx) {
+      const novo = lerNovoLogin(corpoObj(await ctx.corpo()));
+      const l = await d.dentro(ctx.escopo, (deps) => deps.repos.cofreLogins.criar({ site: novo.site, usuario: novo.usuario, senhaCifrada: d.cifrar(novo.senha) }));
+      ctx.json(200, { ok: true, login: loginNaTela(l) });
+    } },
+    { metodo: "DELETE", acao: "cofre.apagar_login", padrao: /^\/cofre\/logins\/(?<id>[^/]+)$/, async handler(ctx) {
+      if (!UUID.test(ctx.params.id ?? "")) throw new ErroDeDominio("nao_encontrado");
+      const apagou = await d.dentro(ctx.escopo, (deps) => deps.repos.cofreLogins.apagar(ctx.params.id!));
+      if (!apagou) throw new ErroDeDominio("nao_encontrado");
+      ctx.json(200, { ok: true });
+    } },
+  ];
+}
 
 /** As rotas da dona do bot (ADR-190). O canal ao vivo é um WebSocket à parte (src/adapters/voz/ws.ts). */
 export function rotasNavegador(navegadores: Navegadores, lugar?: DepsLugarNavegador): Rota[] {
@@ -100,6 +161,30 @@ export function rotasNavegador(navegadores: Navegadores, lugar?: DepsLugarNavega
       const corpo = corpoObj(await ctx.corpo());
       if (typeof corpo.aba !== "string") throw new ErroDeDominio("entrada_invalida");
       await comCausa(ctx, async () => ({ ok: true, vista: await navegadores.trocarAba(ctx.escopo, ctx.params.id!, corpo.aba as string) }));
+    } },
+    /** L1/L2: a escolha do cartão de login (cofre do nod, 1Password, Bitwarden, "Entrar eu mesmo" ou o Chrome do Mac). */
+    { metodo: "POST", acao: "navegador.login", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/login$/, async handler(ctx) {
+      const { decisaoId, escolha } = lerEscolhaLogin(corpoObj(await ctx.corpo()));
+      await comCausa(ctx, async (): Promise<RespostaLoginNavegador> => {
+        const r = await navegadores.escolherLogin(ctx.escopo, ctx.params.id!, decisaoId, escolha);
+        return { ok: true, vista: r.vista, aviso: r.aviso };
+      });
+    } },
+    /** L4: o código de uso único, do campo privado do cartão direto para a página. */
+    { metodo: "POST", acao: "navegador.codigo", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/codigo$/, async handler(ctx) {
+      const c = corpoObj(await ctx.corpo());
+      if (typeof c.decisaoId !== "string" || !UUID.test(c.decisaoId) || !codigoValido(c.codigo)) throw new ErroDeDominio("entrada_invalida");
+      const decisaoId = c.decisaoId;
+      const codigo = c.codigo;
+      await comCausa(ctx, async () => ({ ok: true, vista: await navegadores.enviarCodigo(ctx.escopo, ctx.params.id!, decisaoId, codigo) }));
+    } },
+    /** L5: "Guardar no cofre?" depois que a pessoa entrou digitando. */
+    { metodo: "POST", acao: "navegador.guardar_login", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/guardar-login$/, async handler(ctx) {
+      const c = corpoObj(await ctx.corpo());
+      if (typeof c.guardar !== "boolean" || (c.destino !== undefined && !ehFonte(c.destino)) || (c.guardar && c.destino === undefined)) throw new ErroDeDominio("entrada_invalida");
+      const guardar = c.guardar;
+      const destino: FonteCofre = ehFonte(c.destino) ? c.destino : "nod";
+      await comCausa(ctx, async () => ({ ok: true, vista: await navegadores.guardarLogin(ctx.escopo, ctx.params.id!, guardar, destino) }));
     } },
     { metodo: "POST", acao: "navegador.ensinar", padrao: /^\/agentes\/(?<id>[^/]+)\/navegador\/ensinar$/, async handler(ctx) {
       const corpo = corpoObj(await ctx.corpo());

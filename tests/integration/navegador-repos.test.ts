@@ -61,6 +61,10 @@ describeIntegracao("navegador do bot: repositórios (0180)", () => {
       const cifrada = await repos.cofreLogins.senhaCifrada(login.id);
       expect(cifrada).not.toContain("s3nh4");
       expect(decifrar(cifrada!, chave)).toBe("s3nh4-forte");
+      // L3: o login inteiro para preencher (site e usuário em claro; a senha ainda cifrada).
+      const preencher = await repos.cofreLogins.paraPreencher(login.id);
+      expect(preencher).toMatchObject({ site: "www.itau.com.br", usuario: "marlon" });
+      expect(decifrar(preencher!.senhaCifrada, chave)).toBe("s3nh4-forte");
       // Em claro não grava: nem pelo repositório, nem por fora dele (o CHECK da 0180).
       await expect(repos.cofreLogins.criar({ site: "x.com", usuario: "a", senhaCifrada: "minha-senha" })).rejects.toThrow("entrada_invalida");
       await expect(trx.savepoint((sp) => sp`insert into cofre_logins (tenant_id, owner_id, site, usuario, senha_cifrada) values (${MARLON.tenantId}, ${MARLON.pessoaId}, 'x.com', 'a', 'minha-senha')`)).rejects.toThrow(/cofre_logins_senha_cifrada/);
@@ -68,6 +72,7 @@ describeIntegracao("navegador do bot: repositórios (0180)", () => {
       const daAna = criarRepos(trx, ANA);
       expect(await daAna.cofreLogins.listar()).toEqual([]);
       expect(await daAna.cofreLogins.senhaCifrada(login.id)).toBeNull();
+      expect(await daAna.cofreLogins.paraPreencher(login.id)).toBeNull();
       expect(await daAna.cofreLogins.apagar(login.id)).toBe(false);
       await vincularEscopo(trx, MARLON);
       expect(await repos.cofreLogins.apagar(login.id)).toBe(true);

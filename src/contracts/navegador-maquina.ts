@@ -10,7 +10,7 @@
  */
 
 /** Por que um comando do navegador falhou (o mesmo motivo do motor local, `FalhaNavegador`). */
-export const MOTIVOS_FALHA_NAVEGADOR = ["alvo_invalido", "tempo_esgotado", "acao_falhou", "indisponivel"] as const;
+export const MOTIVOS_FALHA_NAVEGADOR = ["alvo_invalido", "tempo_esgotado", "acao_falhou", "indisponivel", "recusado"] as const;
 export type MotivoFalhaNavegador = (typeof MOTIVOS_FALHA_NAVEGADOR)[number];
 
 /**
@@ -21,16 +21,49 @@ export const OPERACOES_MOTOR_NAVEGADOR = [
   "abrir", "ler", "clicar", "preencher", "digitar", "tecla", "rolar", "esperar", "print", "texto", "obter", "estilos",
   "selecionar", "marcar", "passarMouse", "arrastar", "mouse", "historico", "abas", "abaNova", "abaTrocar", "abaFechar",
   "quadro", "dialogo", "baixar", "enviarArquivo", "pdf", "procurar", "avaliar", "focado", "descreverElemento", "url", "fechar",
+  "camposDeLogin", "inserirTexto", "definirCookies",
 ] as const;
 export type OperacaoMotorNavegador = (typeof OPERACOES_MOTOR_NAVEGADOR)[number];
 
 /** O que vale para todo comando: o id (a resposta volta com ele), o bot (a sessão do agent-browser) e até quando vale. */
 type BaseComando = { id: string; agenteId: string; prazoEm: number };
 
+/**
+ * Um cookie como o agent-browser o aceita (`cookies_set`, medido em 2026-11-20): `expires` em segundos Unix (-1 = de
+ * sessão), `sameSite` do Chrome. Só cookies do site pedido viajam (`cookieServeAoHost`).
+ */
+export type CookieNavegador = { name: string; value: string; domain: string; path: string; expires: number; secure: boolean; httpOnly: boolean; sameSite: "Strict" | "Lax" | "None" };
+
+/** O cofre da pessoa no app do Mac (ADR-177, ADR-190 decisão 6): 1Password (`op`) e Bitwarden (`bw`). */
+export const FONTES_DO_MAC = ["1password", "bitwarden"] as const;
+export type FonteDoMac = (typeof FONTES_DO_MAC)[number];
+
+/**
+ * O que o cofre do Mac faz por um comando da fila (ADR-190, L):
+ * - `listar`: os itens de login que casam com o host, SEM segredo (referência e rótulo);
+ * - `preencher`: (`ref` vazio = o primeiro item que casa com `host`, quando a lista não veio a tempo) lê o segredo e preenche no navegador do bot DESTA máquina (o segredo não sai do Mac);
+ * - `ler`: lê o segredo e o devolve ao servidor pela ponte (HTTPS + chave da máquina), quando o navegador roda em outro
+ *   lugar; o servidor preenche e esquece;
+ * - `guardar`: grava no 1Password ou no Bitwarden o login que a pessoa digitou (L5).
+ */
+export type PedidoCofreDoMac =
+  | { operacao: "listar"; host: string }
+  | { operacao: "preencher"; fonte: FonteDoMac; ref: string; host: string }
+  | { operacao: "ler"; fonte: FonteDoMac; ref: string; host: string }
+  | { operacao: "guardar"; fonte: FonteDoMac; site: string; usuario: string; senha: string };
+
 export type ComandoNavegadorMaquina =
   | (BaseComando & { tipo: "motor"; operacao: OperacaoMotorNavegador; args: readonly unknown[] })
   /** Abrir a vista ao vivo: a máquina liga o stream local do Chrome do bot e disca para o servidor com `token`. */
-  | (BaseComando & { tipo: "assistir"; token: string });
+  | (BaseComando & { tipo: "assistir"; token: string })
+  | (BaseComando & { tipo: "cofre"; pedido: PedidoCofreDoMac })
+  /**
+   * L1 "Trazer do meu Chrome": os cookies DAQUELE site no Chrome da pessoa (o macOS pergunta se o nod pode usar o
+   * Keychain). `aplicar`: o navegador do bot roda nesta máquina e os cookies vão direto para ele (não saem do Mac).
+   */
+  | (BaseComando & { tipo: "chrome"; host: string; aplicar: boolean })
+  /** A1 (ADR-177): o Touch ID do Mac antes de pagar. `motivo` aparece no diálogo do sistema. */
+  | (BaseComando & { tipo: "touch_id"; motivo: string });
 
 export type ResultadoComandoNavegador =
   | { id: string; ok: true; valor?: unknown }

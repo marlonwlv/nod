@@ -53,6 +53,13 @@ As telas estão no Paper, arquivo "nod · Chat e conversa":
    - Pagar pede sempre, com Touch ID, a não ser que a pessoa tenha dado um teto para aquele site (A2).
    - Trocar senha, e-mail ou segurança da conta é sempre a pessoa que faz.
    - "Não perguntar de novo" vale para destinos de envio, nunca para dinheiro (A3).
+   - Como ficou (2026-11-20): o pedido entra na vista (`pedido.tipo "aprovacao"`, com a pergunta, o botão, a `caixa` do
+     alvo e o `lembrar`) e se responde pela MESMA decisão (`POST /decisoes/:id/decidir`; o `sempre` do cartão é o
+     "Não perguntar de novo"). O destino só vale se o `para` de `navegador_clicar` aparece no texto da página ou no título
+     da aba. O combinado de antemão (A2) é a `navegador_combinar` do catálogo: a resposta grava o teto (ou o destino) por
+     site em `liberacoes`. A web não tem o fluxo de passkey: pagar e o teto pedem o Touch ID do app do Mac
+     (`systemPreferences.promptTouchID`, pela fila) na hora de executar, por qualquer caminho; sem o app, vale o botão e
+     o cartão avisa. O revisor do Automático (ADR-115) ainda não olha o navegador: no automático, envio passa.
 4. **Vista ao vivo por screencast, não por VNC.** O agent-browser já transmite quadros JPEG, abas e estado por
    WebSocket, e recebe `input_mouse` e `input_keyboard`. O servidor repassa à web em
    `/api/t/:tenant/agentes/:id/navegador/vivo`, só para a dona. A entrada da pessoa só passa com ela no controle.
@@ -93,6 +100,14 @@ As telas estão no Paper, arquivo "nod · Chat e conversa":
      (`src/domain/navegador-sensivel.ts`). A árvore entregue ao modelo troca o valor de senha, cartão e código por
      `[campo protegido]`.
    - O código de SMS entra num campo privado do cartão e vai direto para a página.
+   - Como ficou (2026-11-20): o cartão (`pedido.tipo "login"`) traz as opções sem segredo, montadas na hora: o cofre do
+     nod do site e, com o app do Mac ligado, os itens do 1Password (`op item list`) e do Bitwarden (`bw list items`) que
+     o app achou, pela fila da máquina (`mac-da-pessoa.ts`). Com o Mac desligado, os itens vistos por último ficam cinza.
+     `POST /agentes/:id/navegador/login` preenche: o usuário por `fill`, a senha pelo relay do daemon (`focus` e
+     `insertText`, medidos), nunca por argv. Com o navegador no próprio Mac, o segredo não sai dele; em outro lugar, o
+     app o devolve pela ponte e o servidor preenche e esquece. "Trazer do meu Chrome" lê os cookies DAQUELE site do Chrome
+     do Mac (o macOS pergunta pelo Keychain) e os grava pelo relay (`cookies_set`, medido). "Entrar eu mesmo" guarda o que
+     a pessoa digita só em memória, cifrado, por 5 min, e oferece guardar no cofre quando a página muda.
 7. **Ensinar uma tarefa** (T). Com a pessoa no controle, o nod grava páginas, cliques (nome do botão) e campos (o
    rótulo, nunca o valor), até 200 passos ou 10 min (`src/domain/navegador-ensinar.ts`). "Salvar e ensinar" manda uma
    mensagem da pessoa com `passos-gravados.txt` anexado. A tarefa fica guardada no bot e

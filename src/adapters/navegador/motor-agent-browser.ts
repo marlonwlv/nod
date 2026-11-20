@@ -5,7 +5,8 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
 import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
-import type { MotivoFalhaNavegador } from "../../contracts/navegador-maquina.ts";
+import type { CookieNavegador, MotivoFalhaNavegador } from "../../contracts/navegador-maquina.ts";
+import { relayPadrao } from "./stream-local.ts";
 import type { ElementoNaPagina } from "../../domain/navegador-ensinar.ts";
 
 /**
@@ -30,6 +31,8 @@ export type SessaoNavegador = { agenteId: string };
 export type RefLida = { papel: string; nome: string };
 export type LeituraNavegador = { url: string; arvore: string; refs: Readonly<Record<string, RefLida>> };
 export type AbaMotor = { id: string; titulo: string; url: string; ativa: boolean };
+/** Os campos de login que a página tem agora (L3, L4), já marcados para o foco (`SELETOR_CAMPO`). Nunca o valor. */
+export type CamposDeLogin = { usuario: boolean; senha: boolean; codigo: boolean };
 export type AlvoProcurar = { por: "papel" | "texto" | "rotulo" | "placeholder"; valor: string; acao: "clicar" | "preencher" | "passar_mouse"; texto?: string; nome?: string };
 
 export type { MotivoFalhaNavegador };
@@ -95,6 +98,18 @@ export interface MotorNavegador {
    */
   descreverElemento(s: SessaoNavegador, ponto: { x: number; y: number } | null): Promise<ElementoNaPagina | null>;
   url(s: SessaoNavegador): Promise<string>;
+  /**
+   * L3/L4: acha na página o campo de usuário, o de senha e o de código de uso único (pelo tipo, pelo autocomplete e pelo
+   * rótulo, as mesmas regras de `campoEhSecreto`) e os marca com `data-nod-campo` para `inserirTexto` focar.
+   */
+  camposDeLogin(s: SessaoNavegador): Promise<CamposDeLogin>;
+  /**
+   * Põe um texto (o segredo do cofre, o código do SMS) no campo `alvo` (ou no focado, com null) como digitação, pelo
+   * relay `insertText` do daemon: o texto nunca entra no argv de um processo, no log nem na resposta.
+   */
+  inserirTexto(s: SessaoNavegador, alvo: string | null, texto: string): Promise<void>;
+  /** L1 "Trazer do meu Chrome": grava os cookies do site no perfil do bot, pelo relay (`cookies_set`), fora do argv. */
+  definirCookies(s: SessaoNavegador, cookies: readonly CookieNavegador[]): Promise<void>;
   /** A porta do WebSocket de quadros da sessão (liga o streaming se estiver desligado); null sem sessão viva. */
   portaDoStream(s: SessaoNavegador): Promise<number | null>;
   fechar(s: SessaoNavegador): Promise<void>;
@@ -115,7 +130,34 @@ export type OpcoesMotorAgentBrowser = {
   executor?: ExecutorProcesso;
   /** definido em 2026-11-20: o daemon morre sozinho depois disto sem comando (ADR-190: pausa em 10 min). */
   ociosoMs?: number;
+  /** O `POST /api/command` do daemon (padrão: o relay local de stream-local.ts); o teste troca por um falso. */
+  relay?: (porta: number, comando: Readonly<Record<string, unknown>>) => Promise<boolean>;
 };
+
+/** Onde `camposDeLogin` marcou cada campo (o atributo é do nod; o site pode vê-lo, e só diz "este é o campo"). */
+export const SELETOR_CAMPO = { usuario: '[data-nod-campo="usuario"]', senha: '[data-nod-campo="senha"]', codigo: '[data-nod-campo="codigo"]' } as const;
+
+/**
+ * Os campos de login da página, em JS fixo do servidor (nada do modelo entra). Visível = tem caixa na tela. A senha é o
+ * primeiro `type=password` visível (ou autocomplete current-password); o usuário, o campo de texto/e-mail visível antes
+ * dela no mesmo formulário (autocomplete username/email primeiro), ou, sem senha na página (login em duas etapas), o campo
+ * de e-mail/usuário; o código, autocomplete one-time-code, ou um campo
+ * curto cujo nome/rótulo diz código, OTP, token ou SMS. Nunca lê o valor de nenhum campo.
+ */
+export const JS_CAMPOS_LOGIN = `(() => { document.querySelectorAll('[data-nod-campo]').forEach((e) => e.removeAttribute('data-nod-campo'));
+  const visivel = (e) => !e.disabled && !e.readOnly && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+  const campos = [...document.querySelectorAll('input')].filter(visivel);
+  const tipo = (e) => (e.getAttribute('type') || 'text').toLowerCase(); const auto = (e) => (e.getAttribute('autocomplete') || '').toLowerCase();
+  const texto = (e) => [e.name, e.id, e.getAttribute('aria-label'), e.getAttribute('placeholder'), e.labels && e.labels[0] ? e.labels[0].innerText : ''].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const senha = campos.find((e) => tipo(e) === 'password' && !/new-password/.test(auto(e))) || campos.find((e) => /current-password/.test(auto(e)));
+  const deTexto = (e) => ['text', 'email', 'tel', ''].includes(tipo(e));
+  let usuario = null;
+  if (senha) { const antes = campos.slice(0, campos.indexOf(senha)).filter((e) => deTexto(e) && (!senha.form || e.form === senha.form));
+    usuario = antes.find((e) => /username|email/.test(auto(e))) || antes[antes.length - 1] || null; }
+  else usuario = campos.find((e) => /username|email/.test(auto(e))) || campos.find((e) => tipo(e) === 'email') || null;
+  const codigo = campos.find((e) => /one-time-code/.test(auto(e))) || campos.find((e) => e !== senha && e !== usuario && deTexto(e) && (e.maxLength > 0 && e.maxLength <= 10 || /numeric/.test(e.inputMode || '')) && /codigo|code|otp|token|sms|verifica/.test(texto(e))) || null;
+  if (senha) senha.setAttribute('data-nod-campo', 'senha'); if (usuario) usuario.setAttribute('data-nod-campo', 'usuario'); if (codigo) codigo.setAttribute('data-nod-campo', 'codigo');
+  return { usuario: !!usuario, senha: !!senha, codigo: !!codigo }; })()`;
 
 /** definido em 2026-11-20: prazo de um comando comum; abrir e baixar esperam a página. Cobrem o `wait` de até 10 s. */
 const PRAZO_COMANDO_MS = 30_000;
@@ -266,6 +308,7 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
   const bin = o.binario ?? binarioAgentBrowser();
   const executor = o.executor ?? executorPadrao;
   const ocioso = o.ociosoMs ?? OCIOSO_PADRAO_MS;
+  const relay = o.relay ?? relayPadrao;
   const pasta = (s: SessaoNavegador) => join(o.dados, nomeDaSessao(s.agenteId));
 
   /** Env limpo: só o que o CLI e o daemon precisam; nenhuma variável do servidor (chaves, banco) passa. */
@@ -301,6 +344,14 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     if (!a) throw new FalhaNavegador("alvo_invalido", "alvo vazio");
     return a;
   };
+  async function portaDoStream(s: SessaoNavegador): Promise<number | null> {
+    let d = await rodar(s, ["stream", "status"]);
+    if (d.enabled !== true) {
+      await rodar(s, ["stream", "enable"]);
+      d = await rodar(s, ["stream", "status"]);
+    }
+    return typeof d.port === "number" ? d.port : null;
+  }
   async function arquivoNaPasta(s: SessaoNavegador, nome: string): Promise<{ nome: string; caminho: string }> {
     const n = nomeDeArquivo(nome);
     return { nome: n, caminho: join(pasta(s), "arquivos", n) };
@@ -403,14 +454,28 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
       return { papel: r.papel, nome: str(r.nome), rotulo: str(r.rotulo), tipo: typeof r.tipo === "string" ? r.tipo : null, autocomplete: typeof r.autocomplete === "string" ? r.autocomplete : null, editavel: r.editavel === true };
     },
     async url(s) { return str((await rodar(s, ["get", "url"])).url); },
-    async portaDoStream(s) {
-      let d = await rodar(s, ["stream", "status"]);
-      if (d.enabled !== true) {
-        await rodar(s, ["stream", "enable"]);
-        d = await rodar(s, ["stream", "status"]);
-      }
-      return typeof d.port === "number" ? d.port : null;
+    async camposDeLogin(s) {
+      const r = obj((await rodar(s, ["eval", "-b", Buffer.from(JS_CAMPOS_LOGIN, "utf8").toString("base64")])).result);
+      return { usuario: r.usuario === true, senha: r.senha === true, codigo: r.codigo === true };
     },
+    // medido em 2026-11-20 (agent-browser 0.43.0, Chrome for Testing 156): o relay aceita `{action:"focus", selector}`
+    // (ref `@e1` ou CSS) e `{action:"keyboard", subaction:"insertText", text}`; o texto entra inteiro no campo focado,
+    // inclusive num type=password. O comando sai pelo corpo do POST local, nunca pelo argv.
+    async inserirTexto(s, alvo, texto) {
+      const porta = await portaDoStream(s);
+      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
+      if (alvo !== null && !(await relay(porta, { action: "focus", selector: alvoOuFalha(alvo) }).catch(() => false))) throw new FalhaNavegador("alvo_invalido", "não consegui focar o campo");
+      if (!(await relay(porta, { action: "keyboard", subaction: "insertText", text: texto }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o campo não recebeu o texto");
+    },
+    // medido em 2026-11-20 (mesma bancada): `{action:"cookies_set", cookies:[{name,value,domain,path,secure,httpOnly,
+    // sameSite,expires}]}` grava com os atributos (o Chrome corta a validade em ~400 dias).
+    async definirCookies(s, cookies) {
+      if (!cookies.length) return;
+      const porta = await portaDoStream(s);
+      if (porta === null) throw new FalhaNavegador("indisponivel", "o navegador do bot não está aberto");
+      if (!(await relay(porta, { action: "cookies_set", cookies: cookies.map((c) => ({ ...c })) }).catch(() => false))) throw new FalhaNavegador("acao_falhou", "o navegador não aceitou os cookies");
+    },
+    portaDoStream,
     async fechar(s) { await rodar(s, ["close"]).catch((e: unknown) => { if (!ehFalhaNavegador(e) || e.motivo === "indisponivel") throw e; }); },
   };
 }

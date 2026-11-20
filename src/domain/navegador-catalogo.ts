@@ -24,6 +24,7 @@ const SINONIMOS: Readonly<Record<string, readonly NomeFerramentaNavegadorCatalog
   javascript: ["navegador_avaliar"], js: ["navegador_avaliar"], eval: ["navegador_avaliar"], script: ["navegador_rodar_script", "navegador_avaliar"], lote: ["navegador_rodar_script"],
   texto: ["navegador_texto"], ler: ["navegador_texto"], url: ["navegador_obter"], titulo: ["navegador_obter"], valor: ["navegador_obter"], atributo: ["navegador_obter"], html: ["navegador_obter"],
   digitar: ["navegador_digitar"], achar: ["navegador_procurar"], encontrar: ["navegador_procurar"], procurar: ["navegador_procurar"], rotulo: ["navegador_procurar"],
+  combinar: ["navegador_combinar"], teto: ["navegador_combinar"], limite: ["navegador_combinar"], antemao: ["navegador_combinar"], pagar: ["navegador_combinar"], pagamento: ["navegador_combinar"], comprar: ["navegador_combinar"], compra: ["navegador_combinar"],
   ensinada: ["navegador_tarefa_ensinada"], ensinou: ["navegador_tarefa_ensinada"], habilidade: ["navegador_tarefa_ensinada"], tarefa: ["navegador_tarefa_ensinada"],
 };
 

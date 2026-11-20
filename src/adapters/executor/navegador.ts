@@ -2,7 +2,9 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
-import { MOTIVOS_FALHA_NAVEGADOR, type ComandoNavegadorMaquina, type ResultadoComandoNavegador } from "../../contracts/navegador-maquina.ts";
+import { FONTES_DO_MAC, MOTIVOS_FALHA_NAVEGADOR, type ComandoNavegadorMaquina, type CookieNavegador, type FonteDoMac, type PedidoCofreDoMac, type ResultadoComandoNavegador } from "../../contracts/navegador-maquina.ts";
+import type { OpcaoLogin } from "../../contracts/navegador-do-bot.ts";
+import { preencherLogin } from "../navegador/preencher-login.ts";
 import { log } from "../../obs/log.ts";
 import { criarMotorAgentBrowser, ehFalhaNavegador, executorPadrao, FalhaNavegador, type ExecutorProcesso, type MotorNavegador } from "../navegador/motor-agent-browser.ts";
 import { ehOperacao, executarOperacao } from "../navegador/operacoes-remotas.ts";
@@ -39,8 +41,26 @@ export type CanalNavegadorDaMaquina = {
   vivo(agenteId: string, token: string): Promise<SocketDoVivoMaquina | null>;
 };
 
+/**
+ * O que só o app do Mac tem (ADR-177, ADR-190 decisão 6): o 1Password e o Bitwarden da pessoa, os cookies do Chrome dela
+ * e o Touch ID. O motor do Linux não passa isto, e os comandos `cofre`, `chrome` e `touch_id` respondem `indisponivel`.
+ * Nenhum destes devolve segredo a não ser `ler` (que vai ao servidor pela ponte) e `cookiesDoChrome` (só do site).
+ */
+export type RecursosDoMac = {
+  /** Os itens de login que casam com o host (sem segredo); o que não respondeu a tempo vem como opção genérica. */
+  listar(host: string): Promise<OpcaoLogin[]>;
+  /** O usuário e a senha do item (`ref` vazio = o primeiro item que casa com `host`). O 1Password pede o Touch ID sozinho. */
+  ler(fonte: FonteDoMac, ref: string, host: string): Promise<{ usuario: string; senha: string }>;
+  guardar(fonte: FonteDoMac, site: string, usuario: string, senha: string): Promise<void>;
+  cookiesDoChrome(host: string): Promise<CookieNavegador[]>;
+  /** true = a pessoa confirmou no Touch ID; false = cancelou (ou o Mac não tem Touch ID e ela recusou a senha). */
+  touchId(motivo: string): Promise<boolean>;
+};
+
 export type OpcoesNavegadorDaMaquina = {
   canal: CanalNavegadorDaMaquina;
+  /** Só o app do Mac (desktop/cofres-do-mac.ts). */
+  mac?: RecursosDoMac;
   /** O motor desta máquina, criado no primeiro comando (pode falhar com `indisponivel`: Chrome ainda sendo preparado). */
   motor: () => Promise<MotorNavegador>;
   conectarStream?: (porta: number) => Promise<StreamDoNavegador>;
@@ -68,6 +88,21 @@ export function lerComandoNavegador(v: unknown): ComandoNavegadorMaquina | null 
   const base = { id: c.id, agenteId: c.agenteId, prazoEm: c.prazoEm };
   if (c.tipo === "motor" && ehOperacao(c.operacao) && Array.isArray(c.args) && c.args.length <= 8) return { ...base, tipo: "motor", operacao: c.operacao, args: c.args };
   if (c.tipo === "assistir" && typeof c.token === "string" && /^[A-Za-z0-9_-]{16,128}$/.test(c.token)) return { ...base, tipo: "assistir", token: c.token };
+  if (c.tipo === "cofre") { const pedido = lerPedidoCofre(c.pedido); return pedido ? { ...base, tipo: "cofre", pedido } : null; }
+  if (c.tipo === "chrome" && typeof c.host === "string" && HOST.test(c.host)) return { ...base, tipo: "chrome", host: c.host, aplicar: c.aplicar === true };
+  if (c.tipo === "touch_id" && typeof c.motivo === "string" && c.motivo.length >= 1 && c.motivo.length <= 200) return { ...base, tipo: "touch_id", motivo: c.motivo };
+  return null;
+}
+
+const HOST = /^[a-z0-9.-]{1,253}$/;
+const ehFonte = (v: unknown): v is FonteDoMac => typeof v === "string" && (FONTES_DO_MAC as readonly string[]).includes(v);
+const ehTexto = (v: unknown, max: number): v is string => typeof v === "string" && v.length <= max;
+/** O pedido ao cofre do Mac, conferido (a referência vai ao `op`/`bw` só como argumento de `execFile`, sem shell). */
+function lerPedidoCofre(v: unknown): PedidoCofreDoMac | null {
+  const p = obj(v);
+  if (p.operacao === "listar") return typeof p.host === "string" && HOST.test(p.host) ? { operacao: "listar", host: p.host } : null;
+  if ((p.operacao === "preencher" || p.operacao === "ler") && ehFonte(p.fonte) && ehTexto(p.ref, 300) && typeof p.host === "string" && HOST.test(p.host)) return { operacao: p.operacao, fonte: p.fonte, ref: p.ref, host: p.host };
+  if (p.operacao === "guardar" && ehFonte(p.fonte) && typeof p.site === "string" && HOST.test(p.site) && ehTexto(p.usuario, 320) && ehTexto(p.senha, 4096) && p.senha !== "") return { operacao: "guardar", fonte: p.fonte, site: p.site, usuario: p.usuario, senha: p.senha };
   return null;
 }
 
@@ -141,12 +176,47 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
     return { id: c.id, ok: true };
   }
 
+  function exigirMac(): RecursosDoMac {
+    if (!o.mac) throw new FalhaNavegador("indisponivel", "esta máquina não tem os cofres nem o Chrome da pessoa");
+    return o.mac;
+  }
+
+  /**
+   * Os comandos que só o Mac atende (L1, L2, L5, A1). O segredo que `preencher` lê vai direto para o navegador do bot
+   * desta máquina e some; só `ler` o devolve, e só pela resposta à ponte.
+   */
+  async function doMac(c: Exclude<ComandoNavegadorMaquina, { tipo: "motor" | "assistir" }>): Promise<unknown> {
+    const mac = exigirMac();
+    const s = { agenteId: c.agenteId };
+    if (c.tipo === "touch_id") {
+      if (!(await mac.touchId(c.motivo))) throw new FalhaNavegador("recusado", "a pessoa não confirmou no Touch ID");
+      return { confirmado: true };
+    }
+    if (c.tipo === "chrome") {
+      const cookies = await mac.cookiesDoChrome(c.host);
+      if (!c.aplicar) return { cookies };
+      const motor = await o.motor();
+      await motor.definirCookies(s, cookies);
+      if (cookies.length) await motor.historico(s, "recarregar");
+      return { quantos: cookies.length };
+    }
+    const p = c.pedido;
+    if (p.operacao === "listar") return { opcoes: await mac.listar(p.host) };
+    if (p.operacao === "guardar") { await mac.guardar(p.fonte, p.site, p.usuario, p.senha); return { guardado: true }; }
+    const cred = await mac.ler(p.fonte, p.ref, p.host);
+    if (p.operacao === "ler") return cred;
+    return await preencherLogin(await o.motor(), s, cred);
+  }
+
   async function rodar(c: ComandoNavegadorMaquina): Promise<void> {
     if (c.prazoEm <= agora()) return;
     let r: ResultadoComandoNavegador;
     try {
       if (c.tipo === "assistir") r = await abrirVivo(c);
-      else {
+      else if (c.tipo !== "motor") {
+        const valor = await doMac(c);
+        r = { id: c.id, ok: true, ...(valor === undefined ? {} : { valor }) };
+      } else {
         const valor = await executarOperacao(await o.motor(), { agenteId: c.agenteId }, c.operacao, c.args);
         r = { id: c.id, ok: true, ...(valor === undefined ? {} : { valor }) };
       }
@@ -162,8 +232,10 @@ export function iniciarNavegadorDaMaquina(o: OpcoesNavegadorDaMaquina): Navegado
     if (vistos.has(c.id)) return;
     vistos.add(c.id);
     if (vistos.size > VISTOS_MAX) vistos.delete(vistos.values().next().value!);
-    // A vista não segura os comandos do bot (ela fica aberta enquanto a pessoa assiste).
-    if (c.tipo === "assistir") { void rodar(c); return; }
+    // A vista não segura os comandos do bot (ela fica aberta enquanto a pessoa assiste), nem o que só espera a pessoa no
+    // Mac (o Touch ID, a lista do cofre): só o que mexe no navegador do bot entra na fila dele.
+    const mexeNoNavegador = c.tipo === "motor" || (c.tipo === "chrome" && c.aplicar) || (c.tipo === "cofre" && c.pedido.operacao === "preencher");
+    if (!mexeNoNavegador) { void rodar(c); return; }
     const antes = filas.get(c.agenteId) ?? Promise.resolve();
     const agoraVai = antes.then(() => rodar(c));
     filas.set(c.agenteId, agoraVai);

@@ -1,4 +1,5 @@
 import type { ModoAprovacao } from "../contracts/agente.ts";
+import { mesmoDestino, mesmoSite } from "./navegador-cofre.ts";
 
 /**
  * Aprovação no navegador do bot (ADR-190, quadro "A" do Paper): pede só no ponto sem volta. Puro.
@@ -106,14 +107,16 @@ export function decidirNoNavegador(p: { modo: ModoAprovacao; classe: ClasseAcaoN
   if (classe === "seguranca") return { tipo: "pessoa_faz" };
   if (classe === "pagar") {
     const valor = valorDoRotulo(p.rotulo);
-    const teto = p.liberacoes.pagar.find((l) => l.host === p.host);
+    // definido em 2026-11-20 (A2): o teto vale para o site (o domínio registrável), não só para o host exato da aba.
+    const teto = p.liberacoes.pagar.find((l) => mesmoSite(l.host, p.host));
     if (teto && valor !== null && valor <= teto.ateCentavos) return { tipo: "passa", motivo: "liberado_antes" };
     return { tipo: "pede", classe: "pagar", touchId: true, podeLembrar: false };
   }
   if (p.modo === "total") return { tipo: "passa", motivo: "modo" };
   if (classe === "apagar") return { tipo: "pede", classe: "apagar", touchId: false, podeLembrar: false };
   // enviar
-  if (p.destino && p.liberacoes.enviar.some((l) => l.host === p.host && l.destino === p.destino)) return { tipo: "passa", motivo: "liberado_antes" };
+  const destino = p.destino;
+  if (destino && p.liberacoes.enviar.some((l) => mesmoSite(l.host, p.host) && mesmoDestino(l.destino, destino))) return { tipo: "passa", motivo: "liberado_antes" };
   if (p.modo === "automatico") return p.revisorLigado ? { tipo: "revisor" } : { tipo: "passa", motivo: "modo" };
   return { tipo: "pede", classe: "enviar", touchId: false, podeLembrar: p.destino !== null };
 }
@@ -144,4 +147,21 @@ export function lerLiberacoes(cru: unknown): LiberacoesNavegador {
     pagar: lista(o.pagar).flatMap((l) => (host(l.host) && typeof l.ateCentavos === "number" && Number.isSafeInteger(l.ateCentavos) && l.ateCentavos >= 0 ? [{ host: host(l.host), ateCentavos: l.ateCentavos }] : [])),
     enviar: lista(o.enviar).flatMap((l) => (host(l.host) && typeof l.destino === "string" && l.destino.trim() ? [{ host: host(l.host), destino: l.destino.trim() }] : [])),
   };
+}
+
+/** definido em 2026-11-20: até 100 tetos e 100 destinos por bot (a coluna tem 64 KiB; nenhuma pessoa chega perto). */
+export const LIBERACOES_MAX = 100;
+
+/**
+ * Uma resposta de antemão nova junta-se às guardadas (A2, A3): o teto de um site troca o anterior do mesmo site; o
+ * destino que já estava não repete. As mais novas ficam, as mais velhas saem acima do teto da lista.
+ */
+export function juntarLiberacoes(atual: LiberacoesNavegador, nova: { pagar?: { host: string; ateCentavos: number }; enviar?: { host: string; destino: string } }): LiberacoesNavegador {
+  const teto = nova.pagar;
+  const pagar = teto ? [...atual.pagar.filter((l) => !mesmoSite(l.host, teto.host)), { host: teto.host.toLowerCase(), ateCentavos: teto.ateCentavos }] : [...atual.pagar];
+  const novoDestino = nova.enviar;
+  const enviar = novoDestino && !atual.enviar.some((l) => mesmoSite(l.host, novoDestino.host) && mesmoDestino(l.destino, novoDestino.destino))
+    ? [...atual.enviar, { host: novoDestino.host.toLowerCase(), destino: novoDestino.destino.trim() }]
+    : [...atual.enviar];
+  return { pagar: pagar.slice(-LIBERACOES_MAX), enviar: enviar.slice(-LIBERACOES_MAX) };
 }

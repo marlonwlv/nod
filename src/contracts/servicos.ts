@@ -53,7 +53,8 @@ export interface ServicesNod<Trx> extends ServicosLinear {
    */
   navegadores?: {
     disponivel(): boolean;
-    executarAprovado(p: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string }): Promise<void>;
+    /** `lembrar` (A3): a pessoa deixou marcado "Não perguntar de novo para …" (o `sempre` do cartão). */
+    executarAprovado(p: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean }): Promise<void>;
   };
   /**
    * definido em 2026-10-07 (ADR-083): o que só o processo sabe dos trabalhos — a última ferramenta de cada turno vivo

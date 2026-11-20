@@ -30,12 +30,13 @@ import { criarVivoNavegador } from "../navegador/vivo.ts";
 import { criarCanalNavegador } from "../navegador/canal-maquina.ts";
 import { criarMotorRemoto } from "../navegador/motor-remoto.ts";
 import { criarVivoDaMaquina } from "../navegador/vivo-maquina.ts";
+import { criarMacDaPessoa } from "../navegador/mac-da-pessoa.ts";
 import type { MotorNavegador } from "../navegador/motor-agent-browser.ts";
 import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
 import { aoConectarMaquina, decidirLugarDoNavegador } from "../../use-cases/navegador-lugar.ts";
 import { criarMotorAgentBrowser } from "../navegador/motor-agent-browser.ts";
 import { rotasComputadores } from "./rotas/computadores.ts";
-import { rotasNavegador } from "./rotas/navegador.ts";
+import { rotasCofreLogins, rotasNavegador } from "./rotas/navegador.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { expandirTil } from "../executor/caminho.ts";
@@ -894,8 +895,12 @@ export function comporApp(o: OpcoesCompor): App {
     if (!m) { m = criarMotorRemoto({ canal: canalNavegador, escopo, maquinaId, lugar }); motoresRemotos.set(k, m); }
     return m;
   };
+  // ADR-177/190 (L, A1): o cofre do Mac (1Password, Bitwarden), os cookies do Chrome e o Touch ID vêm do app pela mesma
+  // fila; sem a fila, só o cofre do nod e a confirmação comum.
+  const macDoNavegador = canalNavegador ? criarMacDaPessoa({ canal: canalNavegador }) : null;
   const navegadores = criarNavegadores({ dentro, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave), max: numero(env.NOD_NAVEGADORES_MAX, 4),
     motor: (lugar, escopo) => (lugar.tipo === "nod" ? motorNoServidor : motorRemoto(lugar, escopo)),
+    ...(macDoNavegador ? { mac: macDoNavegador, maquinaDoLugar } : {}),
     algumLugar: () => motorNoServidor !== null || canalNavegador !== null,
     ...(canalNavegador ? { lugarDe: (d: Deps, escopo: Escopo, agenteId: string) => decidirLugarDoNavegador(d, agenteId, {
       ligadas: canalNavegador.ligadas(escopo),
@@ -1723,6 +1728,7 @@ export function comporApp(o: OpcoesCompor): App {
     // definido em 2026-09-16: NOD_LONGPOLL_MS encurta a fatia do long-poll de aprovação (testes/e2e); default LONGPOLL_APROVACAO_MS.
     ...rotasComputadores(computadores),
     ...rotasNavegador(navegadores, { dentro, ligadas: (escopo) => canalNavegador?.ligadas(escopo) ?? [] }),
+    ...rotasCofreLogins({ dentro, cifrar: (s) => cifrar(s, chave) }),
     ...rotasWorkspaces(workspaces, dentro),
     ...rotasInternas({ dentro, computadores, navegadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
     ...criarRotasRotinas(depsL7),

@@ -2,7 +2,7 @@
 
 <!-- Gerado por `npm run paridade` a partir de src/domain/acoes/ (NOD-391, ADR-135). Não edite à mão: a catraca (tests/conformidade/paridade.test.ts) compara. -->
 
-Ações de pessoa que mudam algo: **217**, mais 3 só de leitura. No chat: **81 vivas**, 6 parciais, 90 faltando e 43 que nunca vão para o chat. Piso de vivas: 81.
+Ações de pessoa que mudam algo: **222**, mais 3 só de leitura. No chat: **81 vivas**, 6 parciais, 91 faltando e 47 que nunca vão para o chat. Piso de vivas: 81.
 
 Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrato; **parcial** = o chat faz, mas diverge ou falta parâmetro; **falta** = a onda dona ainda vai ligar; **nunca** = exceção escrita.
 
@@ -144,7 +144,17 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 | `navegador.ir_para` | Abrir um endereço no navegador do bot com as próprias mãos | muda | parcial (`navegador_abrir`): o bot abre pela navegador_abrir com o controle dele; a barra da tela exige a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/endereco$` |
 | `navegador.trocar_aba` | Trocar de aba no navegador do bot com as próprias mãos | muda | parcial (`navegador_abas`): o bot troca pela navegador_abas (número da aba) com o controle dele; a tela troca pelo id da aba com a pessoa no controle | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/aba$` |
 | `navegador.lugar` | Escolher onde o navegador do bot roda com o Mac desligado (continuar, numa máquina, no nod, só na máquina) | muda | vivo (`ajustar_navegador`) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/lugar$` |
+| `navegador.login` | Escolher como o bot entra num site: um login do cofre (nod, 1Password, Bitwarden), entrar eu mesmo ou trazer do meu Chrome | muda | nunca: o login vai do cofre direto ao campo da página; a escolha é um clique no cartão e a senha nunca passa pelo chat nem pelo bot (ADR-177, ADR-190 decisão 6) | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/login$` |
+| `navegador.codigo` | Mandar o código de uso único (SMS, e-mail, app) direto para a página do navegador do bot | muda | nunca: o código vai do campo privado do cartão para a página; digitado no chat, passaria pela conversa e pelo bot | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/codigo$` |
+| `navegador.guardar_login` | Guardar no cofre (nod, 1Password, Bitwarden) o login que a pessoa digitou no navegador do bot, ou descartar | muda | nunca: guardar grava a senha que a pessoa digitou na página; ela fica só na memória do servidor e nunca passa pelo chat | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/guardar-login$` |
 | `navegador.ensinar` | Ensinar uma tarefa ao bot no navegador (começar, descartar, salvar) | muda | nunca: ensinar é a pessoa fazendo com as próprias mãos no navegador do bot; o que vai ao chat é a mensagem dela com os passos | `POST ^\/agentes\/(?<id>[^/]+)\/navegador\/ensinar$` |
+
+## cofre
+
+| Ação | O que faz | Risco | No chat | Rotas |
+| --- | --- | --- | --- | --- |
+| `cofre.criar_login` | Guardar um login (site, usuário e senha) no cofre do nod | muda | nunca: a senha não passa pelo chat (ADR-177, ADR-190 decisão 6): ela entra pela tela e vai cifrada ao cofre | `POST ^\/cofre\/logins$` |
+| `cofre.apagar_login` | Apagar um login do cofre do nod | muda | falta (NOD-395) | `DELETE ^\/cofre\/logins\/(?<id>[^/]+)$` |
 
 ## conversas
 
@@ -390,7 +400,7 @@ Estados: **vivo** = o chat faz pelo mesmo executor da tela, com teste de contrat
 
 - **NOD-393** (Onda 1: bots e rotinas): `bots.definir_inteligencia`, `bots.cobrar_colega`, `memoria.criar`, `memoria.editar`, `memoria.apagar`, `memoria.revisar_diario`, `memoria.desfazer_diario`, `rotinas.mudar_ritmo`, `rotinas.gerar_endereco`, `rotinas.enviar_teste`
 - **NOD-394** (Onda 2: apps e acessos): `acessos.conceder`, `acessos.liberar`, `acessos.dispensar`, `acessos.revogar`, `apps.criar`, `apps.sondar`, `apps.habilitar`, `apps.desabilitar`, `apps.conectar`, `apps.verificar`, `canvas.instalar`, `canvas.desinstalar`, `canvas.dar_acesso`
-- **NOD-395** (Onda 3: conta e segurança): `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
+- **NOD-395** (Onda 3: conta e segurança): `cofre.apagar_login`, `conta.sair_das_outras`, `conta.editar_perfil`, `conta.trocar_email`, `conta.remover_google`, `conta.exportar`, `conta.excluir`, `mcp.revogar_token`
 - **NOD-396** (Onda 4: máquinas e computadores): `maquinas.revogar_chave`, `maquinas.convidar`, `maquinas.editar`, `maquinas.desconectar`, `maquinas.atualizar_ia`, `maquinas.escolher_do_bot`, `maquinas.definir_bots`, `maquinas.rodar_desta_vez`, `maquinas.instalar_ssh`, `maquinas.confiar_ssh`, `maquinas.cancelar_ssh`, `nuvem.criar_maquina`, `nuvem.excluir_maquina`, `nuvem.dormir`, `nuvem.acordar`, `nuvem.dormir_apos`, `computador.operar`, `computador.trocar_lugar`, `computador.operar_do_bot`, `navegador.operar`
 - **NOD-397** (Onda 5: conversa, salas, voz e preferências): `bots.mudar_voz`, `conversas.reagir`, `conversas.desfazer_turno`, `conversas.parar`, `conversas.parar_tudo`, `conversas.nova_sessao`, `conversas.definir_pasta`, `conversas.criar_pasta`, `conversas.tirar_pasta`, `turnos.retomar_decisao`, `turnos.cancelar`, `turnos.retomar`, `incidentes.dispensar`, `modo.contestar`, `salas.criar`, `salas.adicionar_membro`, `salas.parar`, `trabalhos.renomear`, `trabalhos.parar`, `trabalhos.encerrar`, `trabalhos.depois`, `trabalhos.fazer_aqui`, `voz.ligar`, `voz.encerrar`, `voz.continuar`, `voz.apagar_falas`, `voz.avaliar`, `preferencias.salvar`
 - **NOD-400** (Onda 4b: contas de IA): `bots.decidir_troca_de_ia`, `contas_ia.ordenar`, `contas_ia.mudar_modo`, `contas_ia.editar`, `contas_ia.sair`, `contas_ia.remover`, `contas_ia.seguir`, `contas_ia.tentar_de_novo`, `contas_ia.entrar`, `contas_ia.codigo_do_login`, `contas_ia.cancelar_login`, `contas_ia.trocar_executor`

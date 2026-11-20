@@ -28,7 +28,7 @@ export type ItemAExecutar = {
   conectorId: string | null;
   computador?: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string };
   /** ADR-190: a ação do navegador do bot, cifrada no item (`acao`), roda no portão do navegador. */
-  navegador?: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string };
+  navegador?: { tenantId: string; pessoaId: string; agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean };
   /** ADR-048: a dona da decisão — item `execucao: "maquina"` só roda no gh do Mac DELA. */
   dono?: { tenantId: string; pessoaId: string };
   /** NOD-70: a regra que liberou ESTE item no lote automático (a trilha grava por item; o lote guarda a que mais concede). */
@@ -41,6 +41,14 @@ export type ItemAExecutar = {
   /** NOD-282 (G6): a mesma ação já saiu numa decisão posterior da mesma faixa — não chama o conector de novo. */
   jaFeito?: boolean;
 };
+
+/**
+ * ADR-190 (A3, definido em 2026-11-20): o terceiro botão do cartão (`sempre`) num item do navegador é o "Não perguntar de
+ * novo para <destino>": vai ao portão como `lembrar`, que só o grava quando a ação tinha um destino visto na página.
+ */
+export function comLembrarNoNavegador(aExecutar: readonly ItemAExecutar[]): ItemAExecutar[] {
+  return aExecutar.map((a) => (a.navegador ? { ...a, navegador: { ...a.navegador, lembrar: true } } : a));
+}
 
 export type SaidaMarcarEDecidir = { decisao: Decisao; itens: ItemAprovacao[]; aExecutar: ItemAExecutar[] };
 

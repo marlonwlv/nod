@@ -2,14 +2,15 @@ import { randomUUID } from "node:crypto";
 import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_DIRETAS, NAVEGADOR_SO_LEITURA, type NomeFerramentaNavegador } from "../../contracts/ferramentas-navegador.ts";
 import type { JsonSchema } from "../../contracts/json-schema.ts";
 import type { Executor } from "../../contracts/evento.ts";
-import type { AbaNavegador, EntradaNavegador, GravacaoNavegador, LugarNavegador, OperacaoEnsinar, OperacaoNavegador, PassoNavegador, TarefaEnsinada, VistaNavegador } from "../../contracts/navegador-do-bot.ts";
+import type { AbaNavegador, CaixaNavegador, EntradaNavegador, EscolhaLoginNavegador, FonteCofre, GravacaoNavegador, LugarNavegador, OpcaoLogin, OperacaoEnsinar, OperacaoNavegador, PassoNavegador, PedidoDaVistaNavegador, TarefaEnsinada, VistaNavegador } from "../../contracts/navegador-do-bot.ts";
 import type { PlanoTurno } from "../../contracts/plano-turno.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import { modoNoTurno } from "../../domain/modo-aprovacao.ts";
 import { motorLe, tipoDoAnexo } from "../../domain/anexo.ts";
-import { classificarAcao, decidirNoNavegador, perguntaDaAcao, SEM_LIBERACOES, type AlvoResolvido, type LiberacoesNavegador } from "../../domain/navegador-aprovacao.ts";
+import { classificarAcao, decidirNoNavegador, juntarLiberacoes, perguntaDaAcao, SEM_LIBERACOES, siteLegivel, type AlvoResolvido, type LiberacoesNavegador } from "../../domain/navegador-aprovacao.ts";
+import { aplicarDigitacao, codigoValido, destinoNaPagina, DIGITADO_DURA_MS, dominioRegistravel, hostDoSite, itemCasaComHost, MOTIVO_SEM_MAC, OPCOES_MAX, ordenarOpcoes, rotuloDoItem, textoDoCombinar, textoDoLembrar, type Digitado } from "../../domain/navegador-cofre.ts";
 import { entradaDigita } from "../../domain/navegador-entrada.ts";
-import { arquivoDosPassos, campoDoElemento, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
+import { arquivoDosPassos, campoDoElemento, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type ElementoNaPagina, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
 import { campoEhSecreto, redigirArvore, segredoAindaNaPagina } from "../../domain/navegador-sensivel.ts";
 import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, temChromeVivo, type OperacaoControle } from "../../domain/navegador-vista.ts";
@@ -20,11 +21,13 @@ import { receberAnexo } from "../../use-cases/anexos.ts";
 import { enviarMensagem } from "../../use-cases/enviar-mensagem.ts";
 import { pedirAprovacaoComputador } from "../../use-cases/pedir-aprovacao.ts";
 import { fecharComResposta, retomarComResposta } from "../../use-cases/responder-decisao.ts";
-import { pedirAPessoa } from "../../use-cases/pedir-a-pessoa.ts";
+import { pedirAjudaDoComputador, pedirAPessoa } from "../../use-cases/pedir-a-pessoa.ts";
 import { avisarForaDoAr, type LugarDecidido } from "../../use-cases/navegador-lugar.ts";
 import { registrarNegacao } from "../../use-cases/registrar-negacao.ts";
 import type { Deps } from "../../use-cases/tipos.ts";
 import { ehFalhaNavegador, FalhaNavegador, type AbaMotor, type MotorNavegador, type RefLida, type SessaoNavegador } from "../navegador/motor-agent-browser.ts";
+import type { MacDaPessoa } from "../navegador/mac-da-pessoa.ts";
+import { inserirCodigo, preencherLogin } from "../navegador/preencher-login.ts";
 import { turnoPermitido } from "./computadores.ts";
 
 /**
@@ -68,9 +71,16 @@ export type OpcoesNavegadores = {
   retomarPedido?: (escopo: Escopo, decisaoId: string, texto: string) => Promise<void>;
   /** Costura de teste: a mensagem da pessoa com o arquivo anexado (padrão: anexo + enviarMensagem na conversa do bot). */
   mandarMensagem?: (d: Deps, p: MensagemDaPessoa) => Promise<void>;
-  /** Costuras de teste: os casos de uso que criam a decisão (padrão: os reais). */
+  /** Costuras de teste: os casos de uso que criam a decisão (padrão: os reais; login e código usam o pedido de ajuda). */
   pedirAprovacao?: typeof pedirAprovacaoComputador;
   pedirAPessoa?: typeof pedirAPessoa;
+  /**
+   * O app do Mac da pessoa (ADR-177, L): o 1Password, o Bitwarden, os cookies do Chrome e o Touch ID, pela fila da
+   * máquina. Ausente = só o cofre do nod e a confirmação comum.
+   */
+  mac?: MacDaPessoa;
+  /** A máquina onde o navegador de um lugar remoto roda (o Mac do lugar "mac"): preencher no próprio Mac quando é o mesmo. */
+  maquinaDoLugar?(lugar: LugarNavegador, escopo: Escopo): string | null;
 };
 
 export type { LugarDecidido };
@@ -97,13 +107,28 @@ type Estado = {
   esperando: boolean;
   /** A máquina cujo "fora do ar" já foi avisado na conversa (uma linha por queda). */
   desvioAvisado: string | null;
+  /** L: o host da aba quando o cartão de login foi montado (o preenchimento confere que a página não mudou de site). */
+  loginHost: string | null;
+  /** L2: o preenchimento em segundo plano (o Mac pede o Touch ID ou o Keychain). */
+  loginEmCurso: Promise<void> | null;
+  /** L5: o que a pessoa digita no login "Entrar eu mesmo", só em memória e cifrado, até `ate`. */
+  captura: Captura | null;
 };
+
+/** L5: o usuário e a senha que a pessoa digitou (cada um cifrado), o campo em que ela está e a URL de quando começou. */
+type Captura = { host: string; url: string; ate: number; campo: "usuario" | "senha" | null; usuario: string | null; senha: string | null; tudo: { usuario: boolean; senha: boolean }; ofertada: boolean };
 
 /** A mensagem que a pessoa manda ao salvar uma tarefa ensinada (T3). */
 export type MensagemDaPessoa = { agenteId: string; texto: string; arquivo: { nome: string; conteudo: string } };
 
-/** A ação pendente de aprovação, cifrada no item da decisão: roda como foi aprovada. */
-type AcaoPendente = { agenteId: string; turnoId: string; ferramenta: NomeFerramentaNavegador; argumentos: Record<string, unknown> };
+/**
+ * A ação pendente de aprovação, cifrada no item da decisão: roda como foi aprovada. `touchId` (A1, ADR-177): pagar pede o
+ * Touch ID do Mac antes de rodar, por qualquer caminho que a aprovação venha (pílula, conversa, celular). `lembrar` (A3):
+ * o destino visto na página que o "Não perguntar de novo" grava. `combinar` (A2): o teto ou o destino de antemão.
+ */
+type AcaoPendente =
+  | { tipo?: "ferramenta"; agenteId: string; turnoId: string; ferramenta: NomeFerramentaNavegador; argumentos: Record<string, unknown>; touchId?: boolean; pergunta?: string; lembrar?: { host: string; destino: string } }
+  | { tipo: "combinar"; agenteId: string; turnoId: string; host: string; ateCentavos: number | null; destino: string | null; touchId: boolean; pergunta: string };
 
 /** O conteúdo de uma ferramenta que rodou, antes de virar JSON. */
 type Saida = { conteudo: Record<string, unknown>; imagem?: string; isError?: boolean };
@@ -131,7 +156,7 @@ const RESULTADOS_MAX = 200;
 const PAPEIS_DE_ACAO_NO_CSS = "button";
 
 /** Ferramentas que não entram num script (nem script dentro de script). */
-const FORA_DO_SCRIPT: ReadonlySet<string> = new Set(["navegador_buscar", "navegador_usar", "navegador_rodar_script", "navegador_entrar", "navegador_pedir_ajuda", "navegador_tarefa_ensinada"]);
+const FORA_DO_SCRIPT: ReadonlySet<string> = new Set(["navegador_buscar", "navegador_usar", "navegador_rodar_script", "navegador_entrar", "navegador_pedir_ajuda", "navegador_tarefa_ensinada", "navegador_combinar"]);
 /** ADR-166: o bot em só leitura navega e lê; o que muda a página (clicar, preencher, enviar) é negado. */
 const PERMITIDAS_EM_SO_LEITURA: ReadonlySet<string> = new Set([...NAVEGADOR_SO_LEITURA, "navegador_abrir", "navegador_rolar", "navegador_historico", "navegador_abas", "navegador_usar", "navegador_entrar", "navegador_pedir_ajuda", "navegador_quadro"]);
 /** O que mostra o conteúdo da página: trava com segredo na página (L3). */
@@ -177,6 +202,15 @@ function alvoSecreto(est: { refs: Readonly<Record<string, RefLida>> | null }, al
   return r !== undefined && campoEhSecreto({ papel: r.papel, nome: r.nome });
 }
 const hostDe = (url: string) => { try { return new URL(url).hostname; } catch { return ""; } };
+/**
+ * L5: o campo do login em que a pessoa digita. Senha = type=password ou autocomplete de senha; o código de uso único e o
+ * cartão (outros campos protegidos) nunca são capturados; um campo de digitar comum é o usuário.
+ */
+function campoDoLogin(el: ElementoNaPagina | null): "usuario" | "senha" | null {
+  if (!el?.editavel) return null;
+  if (el.tipo === "password" || /^(current-password|new-password)/.test(el.autocomplete ?? "")) return "senha";
+  return campoEhSecreto({ papel: el.papel, nome: el.rotulo || el.nome, tipo: el.tipo, autocomplete: el.autocomplete }) ? null : "usuario";
+}
 const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
 function tipoDoPasso(ferramenta: string): PassoNavegador["tipo"] {
@@ -194,6 +228,25 @@ const abaDaVista = (a: { id: string; titulo: string; url: string; ativa: boolean
 const AGUARDANDO_PESSOA = { estado: "aguardando_pessoa", instrucao: "A pessoa está com o navegador (ou ele espera um passo dela). Nada foi executado. Encerre o turno e aguarde; ela devolve e você continua." };
 const NA_FILA = { estado: "na_fila", instrucao: "Os navegadores do nod estão todos em uso agora. Nada foi executado. Siga com o que dá sem o navegador e tente de novo em 30 s; não diga que o navegador quebrou." };
 const SEGREDO_NA_PAGINA = { erro: "segredo_na_pagina", instrucao: "A página tem uma senha ou código que o nod preencheu; a leitura e o print ficam travados até a página mudar. Clique no botão de entrar (ou espere a página seguinte) e leia de novo." };
+/** As frases que fecham o pedido de login e retomam o bot (nunca com valor nenhum). */
+const LOGIN_PREENCHIDO = (site: string) => `Login preenchido no ${site} (a senha não passa por você). A leitura e o print ficam travados até a página mudar: aperte Enter (navegador_tecla) ou clique no botão de entrar com a referência da última leitura. Se a página seguinte pedir um código, chame navegador_pedir_ajuda com codigo: true.`;
+const SO_USUARIO = (site: string) => `Preenchi só o usuário no ${site}: a página não mostra o campo de senha ainda. Clique em continuar (ou avançar) e chame navegador_entrar de novo na página da senha.`;
+const CODIGO_ENVIADO = "Código enviado. A pessoa pôs o código no campo da página (você não o vê). A leitura fica travada até a página mudar: aperte Enter (navegador_tecla) ou clique no botão de confirmar com a referência da última leitura.";
+const DO_CHROME = (site: string, n: number) => `Trouxe do Chrome da pessoa a sessão de ${site} (${n} cookies) e recarreguei a página. Leia a página de novo; se ainda pedir login, chame navegador_entrar.`;
+/** O aviso da pílula quando pagar pede Touch ID e o Mac está desligado (ADR-177; definido em 2026-11-20). */
+export const AVISO_SEM_TOUCH_ID = "Seu Mac está desligado: a confirmação vai só pelo botão, sem o Touch ID.";
+/** L2: a resposta ao celular quando o Mac pede a confirmação. */
+export const CONFIRME_NO_MAC = "Confirme no seu Mac";
+/** Os erros do cartão de login (frases fixas, sem dado da pessoa). */
+const ERRO_LOGIN: Readonly<Record<string, string>> = {
+  recusado: "Você não confirmou no Mac. Escolha de novo.",
+  alvo_invalido: "Não achei o campo de login nesta página.",
+  tempo_esgotado: "O Mac não respondeu a tempo. Tente de novo.",
+  indisponivel: "O seu Mac não está ligado agora.",
+  acao_falhou: "Não deu para preencher agora. Tente de novo.",
+  site_mudou: "A página mudou de site. Peça o login de novo.",
+  sem_cookies: "O seu Chrome não tem uma sessão deste site.",
+};
 const PESSOA_FAZ = { erro: "a_pessoa_faz", instrucao: "Trocar senha, e-mail ou a segurança da conta é sempre a pessoa que faz. Nada foi executado. Chame navegador_pedir_ajuda com o motivo e encerre o turno." };
 
 function instrucaoDaFalha(e: FalhaNavegador): { erro: string; detalhe: string; instrucao: string } {
@@ -202,6 +255,7 @@ function instrucaoDaFalha(e: FalhaNavegador): { erro: string; detalhe: string; i
     tempo_esgotado: "O site não respondeu a tempo. Leia a página de novo antes de repetir; não afirme que a ação aconteceu.",
     acao_falhou: "A ação falhou no navegador. Leia a página de novo antes de repetir; não afirme que a ação aconteceu.",
     indisponivel: "O navegador não está disponível agora. Nada foi executado; siga com o que dá sem ele e diga em uma frase o que ficou de fora.",
+    recusado: "A pessoa não confirmou. Nada foi executado; não tente de novo sem ela pedir.",
   }[e.motivo];
   return { erro: e.motivo, detalhe: e.detalhe, instrucao };
 }
@@ -235,6 +289,13 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   const max = Math.max(1, o.max ?? MAX_PADRAO);
   const aprovar = o.pedirAprovacao ?? pedirAprovacaoComputador;
   const perguntar = o.pedirAPessoa ?? pedirAPessoa;
+  /** Login e código se respondem pelos botões (nunca com texto no chat: a senha e o código não passam por lá). */
+  const perguntarSemTexto = o.pedirAPessoa ?? pedirAjudaDoComputador;
+  /** As opções do Mac vistas por último, por pessoa e site (sem segredo): com o Mac desligado, elas aparecem cinza (M4). */
+  const opcoesDoMacVistas = new Map<string, OpcaoLogin[]>();
+  /** Os cofres do Mac que a pessoa usa (vistos numa lista): a oferta de guardar (L5) só oferece esses. */
+  const fontesVistas = new Map<string, Set<FonteCofre>>();
+  const chavePessoa = (escopo: Escopo) => `${escopo.tenantId}:${escopo.pessoaId}`;
   const estados = new Map<string, Estado>();
   const resultados = new Map<string, { pessoaId: string; cifrado: string }>();
 
@@ -249,8 +310,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     }
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
-      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null,
-      vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
+      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null, esperando: false, desvioAvisado: null, loginHost: null, loginEmCurso: null, captura: null,
+      vista: { agenteId, estado: "desligado", controle: "bot", lugar: { tipo: "nod" }, abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, ofertaGuardar: null, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
     return novo;
@@ -354,6 +415,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       est.campo = null;
       if (est.urlDoSegredo && !segredoAindaNaPagina(est.urlDoSegredo, ativa.url)) { est.urlDoSegredo = null; mudar(est, { segredoNaPagina: false }); }
       if (/^https?:/i.test(ativa.url)) registrar(est, { tipo: "abriu", url: ativa.url });
+      oferecerGuardar(est, ativa.url);
     }
     const novas = abas.map(abaDaVista);
     if (JSON.stringify(novas) !== JSON.stringify(est.vista.abas)) mudar(est, { abas: novas });
@@ -381,6 +443,125 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     est.parou = null;
     est.campo = null;
     mudar(est, { gravacao: null, descarte: { passos, ate } });
+  }
+
+  /** L5: o que a pessoa digitou sai da memória (guardou, disse não, venceu os 5 min ou começou outro login). */
+  function limparCaptura(est: Estado): void {
+    if (!est.captura && !est.vista.ofertaGuardar) return;
+    est.captura = null;
+    if (est.vista.ofertaGuardar) mudar(est, { ofertaGuardar: null });
+  }
+
+  /** A captura de agora, ou null se venceu (e aí some de vez). */
+  function capturaViva(est: Estado): Captura | null {
+    if (est.captura && est.captura.ate <= agora()) limparCaptura(est);
+    return est.captura;
+  }
+
+  /** L5: começa a guardar (em memória, cifrado) o que a pessoa digitar no login dela; some sozinho em 5 min. */
+  function comecarCaptura(est: Estado, host: string): void {
+    limparCaptura(est);
+    const ate = agora() + DIGITADO_DURA_MS;
+    est.captura = { host, url: est.url, ate, campo: null, usuario: null, senha: null, tudo: { usuario: false, senha: false }, ofertada: false };
+    const t = setTimeout(() => { if (est.captura?.ate === ate) limparCaptura(est); }, DIGITADO_DURA_MS);
+    t.unref?.();
+  }
+
+  /** Uma tecla da pessoa no campo de usuário ou de senha do login dela (L5). */
+  function capturar(est: Estado, campo: "usuario" | "senha", e: EntradaNavegador): void {
+    const c = est.captura;
+    if (!c || c.ofertada) return;
+    const antes: Digitado = { texto: c[campo] ? o.decifrar(c[campo]!) : "", tudo: c.tudo[campo] };
+    const depois = aplicarDigitacao(antes, e);
+    if (depois.texto === antes.texto && depois.tudo === antes.tudo) return;
+    c[campo] = depois.texto ? o.cifrar(depois.texto) : null;
+    c.tudo[campo] = depois.tudo;
+  }
+
+  /** Os cofres para onde a oferta de guardar pode ir: o do nod sempre; os do Mac só os que a pessoa usa, com o Mac ligado. */
+  function destinosDeGuardar(escopo: Escopo): FonteCofre[] {
+    const vistos = fontesVistas.get(chavePessoa(escopo)) ?? new Set<FonteCofre>();
+    const comMac = o.mac?.maquina(escopo) ? (["1password", "bitwarden"] as const).filter((f) => vistos.has(f)) : [];
+    return ["nod", ...comMac];
+  }
+
+  /** L5: a página mudou depois de a pessoa digitar uma senha no login dela: a vista ganha a linha "Guardar no cofre?". */
+  function oferecerGuardar(est: Estado, url: string): void {
+    const c = capturaViva(est);
+    if (!c || c.ofertada || !c.senha || url === c.url) return;
+    c.ofertada = true;
+    c.campo = null;
+    mudar(est, { ofertaGuardar: { site: siteLegivel(c.host), usuario: c.usuario ? o.decifrar(c.usuario) : "", destinos: destinosDeGuardar(est.escopo), ate: c.ate } });
+  }
+
+  /**
+   * As opções do cartão de login (L1): os logins do cofre do nod que casam com o site e, com o Mac ligado, os do 1Password e
+   * do Bitwarden que o app achou (sem segredo). Com o Mac desligado, os do Mac vistos por último aparecem cinza (M4).
+   */
+  async function montarOpcoes(escopo: Escopo, agenteId: string, host: string): Promise<{ opcoes: OpcaoLogin[]; podeTrazerDoChrome: boolean }> {
+    if (!host) return { opcoes: [], podeTrazerDoChrome: false };
+    const doNod: OpcaoLogin[] = (await o.dentro(escopo, (d) => d.repos.cofreLogins.listar()))
+      .filter((l) => itemCasaComHost(l.site, host))
+      .map((l) => ({ fonte: "nod", ref: l.id, rotulo: rotuloDoItem(siteLegivel(l.site), l.usuario), disponivel: true }));
+    const chave = `${chavePessoa(escopo)}:${dominioRegistravel(host)}`;
+    const macLigado = o.mac?.maquina(escopo) ?? null;
+    let doMac: OpcaoLogin[] = [];
+    if (o.mac && macLigado) {
+      const lista = await o.mac.listar(escopo, agenteId, host);
+      if (lista) {
+        doMac = lista;
+        opcoesDoMacVistas.set(chave, lista.map((x) => ({ ...x })));
+        const vistas = fontesVistas.get(chavePessoa(escopo)) ?? new Set<FonteCofre>();
+        for (const x of lista) vistas.add(x.fonte);
+        fontesVistas.set(chavePessoa(escopo), vistas);
+      } else doMac = opcoesDoMacVistas.get(chave) ?? [];
+    } else {
+      doMac = (opcoesDoMacVistas.get(chave) ?? []).map((x) => ({ fonte: x.fonte, ref: x.ref, rotulo: x.rotulo, disponivel: false, motivoIndisponivel: MOTIVO_SEM_MAC }));
+    }
+    return { opcoes: ordenarOpcoes([...doMac, ...doNod]).slice(0, OPCOES_MAX), podeTrazerDoChrome: macLigado !== null };
+  }
+
+  /** O pedido aberto com esta decisão (e ainda aberto no banco), de um dos tipos, ou o erro de estado para a rota. */
+  async function pedidoAberto<T extends PedidoDaVistaNavegador["tipo"]>(escopo: Escopo, est: Estado, decisaoId: string, tipos: readonly T[]): Promise<Extract<PedidoDaVistaNavegador, { tipo: T }>> {
+    const p = est.vista.pedido;
+    if (!p || !(tipos as readonly string[]).includes(p.tipo) || p.decisaoId !== decisaoId) throw new ErroDeDominio("estado_invalido", { cause: "sem_pedido" });
+    const aberta = await o.dentro(escopo, async (d) => {
+      const decisao = await d.repos.decisoes.buscar(decisaoId);
+      return decisao !== null && (decisao.estado === "pendente" || decisao.estado === "reaberta");
+    });
+    if (!aberta) { mudar(est, { pedido: null, controle: est.vista.controle === "precisa_de_voce" ? "bot" : est.vista.controle }); throw new ErroDeDominio("estado_invalido", { cause: "sem_pedido" }); }
+    return p as Extract<PedidoDaVistaNavegador, { tipo: T }>;
+  }
+
+  /** O pedido fecha com a frase e o bot retoma; a vista volta ao bot. */
+  async function fecharPedido(est: Estado, decisaoId: string, texto: string): Promise<void> {
+    mudar(est, { controle: "bot", pedido: null, atividadeEm: agora() });
+    est.loginHost = null;
+    await (o.retomarPedido ?? retomarDoPedido)(est.escopo, decisaoId, texto);
+  }
+
+  /** O motor com o Chrome aberto e a URL de agora (o login e o código mexem na página que está lá). */
+  async function motorAberto(est: Estado): Promise<{ motor: MotorNavegador; url: string }> {
+    const motor = motorDe(est);
+    if (!motor) throw new ErroDeDominio("estado_invalido", { cause: "indisponivel" });
+    if (!est.vivo) throw new ErroDeDominio("estado_invalido", { cause: "desligado" });
+    const url = await motor.url(sessao(est.vista.agenteId)).catch(() => est.url);
+    est.url = url;
+    return { motor, url };
+  }
+
+  /** O erro do cartão de login: o pedido volta a "escolher" com a frase. */
+  function erroNoLogin(est: Estado, decisaoId: string, causa: string): void {
+    const p = est.vista.pedido;
+    if (p?.tipo !== "login" || p.decisaoId !== decisaoId) return;
+    mudar(est, { pedido: { ...p, etapa: "escolher", erro: ERRO_LOGIN[causa] ?? ERRO_LOGIN.acao_falhou! } });
+  }
+
+  /** Depois de preencher: a trava do segredo (L3) e o pedido fechado com a frase para o bot (sem valor nenhum). */
+  async function depoisDePreencher(est: Estado, decisaoId: string, url: string, r: { usuario: boolean; senha: boolean }): Promise<void> {
+    const site = siteLegivel(hostDe(url));
+    if (r.senha) { est.urlDoSegredo = url; mudar(est, { segredoNaPagina: true }); }
+    await fecharPedido(est, decisaoId, r.senha ? LOGIN_PREENCHIDO(site) : SO_USUARIO(site));
   }
 
   /** As rotas da pessoa e o canal ao vivo: o bot tem de ser dela (o estado em memória não basta para quem chega primeiro). */
@@ -576,6 +757,22 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     return { conteudo: { ok: true, url: c.est.url, ...(c.est.refs ? {} : { instrucao: "A página mudou: leia de novo (navegador_ler) antes do próximo passo." }) } };
   }
 
+  /** A3: o destino que o bot disse aparece na página (texto do corpo ou título da aba)? */
+  async function destinoVisto(c: Contexto, para: string): Promise<string | null> {
+    const s = sessao(c.plano.agenteId);
+    const [texto, titulo] = await Promise.all([c.motor.texto(s).catch(() => ""), c.motor.obter(s, "titulo").catch(() => "")]);
+    return destinoNaPagina(para, texto.slice(0, TEXTO_MAX), typeof titulo === "string" ? titulo : "");
+  }
+
+  /** A1: a caixa do botão na página, para a web desenhar o realce azul fora da imagem (só com ref da leitura). */
+  async function caixaDoAlvo(c: Contexto, alvo: unknown): Promise<CaixaNavegador | null> {
+    if (typeof alvo !== "string" || !ehRef(alvo)) return null;
+    const b = obj(await c.motor.obter(sessao(c.plano.agenteId), "caixa", alvo).catch(() => null));
+    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    const [x, y, w, h] = [n(b.x), n(b.y), n(b.w), n(b.h)];
+    return x !== null && y !== null && w !== null && h !== null && w > 0 && h > 0 ? { x, y, w, h } : null;
+  }
+
   /** A vista acompanha o passo: a frase da linha de atividade e "ao vivo"; a falha deixa a vista viva. */
   async function comPasso<T>(c: Contexto, ferramenta: string, alvo: AlvoResolvido | null, fn: () => Promise<T>): Promise<T> {
     mudar(c.est, { passo: { tipo: tipoDoPasso(ferramenta), frase: fraseDoPasso(ferramenta, alvo?.nome ?? null, hostDe(c.est.url) || null), caixa: null, em: agora() }, atividadeEm: agora() });
@@ -597,13 +794,23 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const alvo = await resolverAlvo(c, ferramenta, args);
     const classe = classificarAcao({ ferramenta, alvo, ...(typeof args.tecla === "string" ? { tecla: args.tecla } : {}) });
     const host = hostDe(c.est.url);
-    // TODO(2026-11-20): o revisor do Automático (ADR-115) para envios; por ora o automático passa como sem revisor. As
-    // liberações de antemão (A2/A3) vêm de navegador_preferencias (0180); o destino do envio ainda não é resolvido.
-    const d = decidirNoNavegador({ modo: c.modo, classe, host, rotulo: alvo?.nome ?? "", destino: null, liberacoes: c.liberacoes, revisorLigado: false });
+    // A3: o destino do envio só vale se aparece na página (texto ou título da aba); o que o bot diz sozinho não libera.
+    const destino = classe === "enviar" && typeof args.para === "string" ? await destinoVisto(c, args.para) : null;
+    // definido em 2026-11-20 (ADR-115 fica de fora): o revisor do Automático roda sobre itens de conector, em três fases com
+    // a fila do executor e o assentamento (`revisar-acao.ts`); o clique do navegador não é item de conector e o efeito
+    // roda no portão. Ligar os dois pede um item de revisão próprio do navegador — trabalho de outra etapa. Até lá, no
+    // automático o envio para destino novo passa como sem revisor (o manual pede; o liberado antes passa).
+    const d = decidirNoNavegador({ modo: c.modo, classe, host, rotulo: alvo?.nome ?? "", destino, liberacoes: c.liberacoes, revisorLigado: false });
     if (d.tipo === "pessoa_faz") return { recusa: PESSOA_FAZ };
     if (d.tipo === "pede") {
       const pergunta = perguntaDaAcao(d.classe, alvo?.nome ?? ferramenta, host);
-      const acao: AcaoPendente = { agenteId: c.plano.agenteId, turnoId: c.plano.turnoId, ferramenta, argumentos: args };
+      // ADR-177 (definido em 2026-11-20): a web do nod não tem o fluxo de passkey (WebAuthn) pronto; pagar pede o Touch ID
+      // no app do Mac (`systemPreferences.promptTouchID`, pela fila da máquina) na hora de executar, por qualquer caminho
+      // que a aprovação venha. Sem o app conectado, vale a confirmação comum, e o cartão diz isso (AVISO_SEM_TOUCH_ID).
+      const comMac = d.touchId && (o.mac?.maquina(c.escopo) ?? null) !== null;
+      const lembrar = d.podeLembrar && destino ? { host, destino } : null;
+      const acao: AcaoPendente = { agenteId: c.plano.agenteId, turnoId: c.plano.turnoId, ferramenta, argumentos: args, ...(d.touchId ? { touchId: true, pergunta: pergunta.replace(/\?$/, "") } : {}), ...(lembrar ? { lembrar } : {}) };
+      const caixa = await caixaDoAlvo(c, args.alvo);
       const r = await o.dentro(c.escopo, async (dd) => {
         const pedido = await aprovar(dd, { turnoId: c.plano.turnoId, agenteId: c.plano.agenteId, conversaId: c.plano.conversaId, resumo: "Ação no navegador do bot", itens: [{ texto: pergunta, destino: { conector: "navegador", ferramenta: "executar", argumentos: { acaoId: randomUUID(), acao: o.cifrar(JSON.stringify(acao)) } } }] });
         if (pedido.events?.length) await dd.repos.events.gravarComOutbox(pedido.events);
@@ -611,8 +818,11 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       });
       if (r.estado === "recusada") return { recusa: { erro: "recusada", erros: r.erros, instrucao: r.instrucao } };
       if (r.estado !== "pendente") throw new ErroDeDominio("estado_invalido");
-      // TODO(2026-11-20): pagar pede Touch ID (ADR-177, d.touchId); o cartão ainda é o de aprovação comum.
-      mudar(c.est, { controle: "precisa_de_voce", pedido: { tipo: "aprovacao", decisaoId: r.decisao_id, pergunta, botao: (alvo?.nome ?? "").slice(0, 80), touchId: d.touchId } });
+      mudar(c.est, { controle: "precisa_de_voce", pedido: {
+        tipo: "aprovacao", decisaoId: r.decisao_id, pergunta, botao: (alvo?.nome ?? "").slice(0, 80), classe: d.classe,
+        touchId: comMac, avisoTouchId: d.touchId && !comMac ? AVISO_SEM_TOUCH_ID : null, caixa,
+        lembrar: lembrar ? { padrao: true, texto: textoDoLembrar(lembrar.destino) } : null,
+      } });
       return { aguardar: r.decisao_id };
     }
     return { saida: await comPasso(c, ferramenta, alvo, () => efeito(c, ferramenta, args)) };
@@ -647,6 +857,45 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     return resposta({ ok: true, passos: feitos });
   }
 
+  /**
+   * L1: o cartão "A Ada precisa entrar no Itaú". O site para casar os cofres é o da aba (a página onde o login vai), ou o
+   * que o bot disse quando a aba ainda não abriu nada; o preenchimento confere de novo que a aba não mudou de site.
+   */
+  async function pedirLogin(escopo: Escopo, plano: PlanoTurno, est: Estado, site: string, motivo: string): Promise<ResultadoChamada> {
+    const daAba = /^https?:/i.test(est.url) ? hostDe(est.url) : "";
+    const host = daAba || hostDoSite(site);
+    const { opcoes, podeTrazerDoChrome } = await montarOpcoes(escopo, plano.agenteId, host);
+    return o.dentro(escopo, async (d) => {
+      const texto = `Preciso entrar em ${site} no meu navegador para continuar: ${motivo}. A senha vai do cofre direto para a página; ela não passa por mim.`;
+      const p = await perguntarSemTexto(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto });
+      if (p.events?.length) await d.repos.events.gravarComOutbox(p.events);
+      est.loginHost = host || null;
+      limparCaptura(est);
+      mudar(est, { controle: "precisa_de_voce", passo: null, pedido: { tipo: "login", decisaoId: p.data.decisao_id, site, motivo, opcoes, podeTrazerDoChrome, etapa: "escolher", erro: null } });
+      return { ok: true, conteudo: JSON.stringify(p.data), confianca: "confiavel" };
+    });
+  }
+
+  /**
+   * A2: o combinado de antemão. O bot diz o que vai fazer e o teto (ou o destino); a pessoa responde uma vez, e a resposta
+   * grava em `liberacoes` (o teto por site, o destino por site). "Me pergunte antes" = recusar: nada é gravado. O teto de
+   * dinheiro também passa pelo Touch ID (ADR-177).
+   */
+  async function combinar(d: Deps, escopo: Escopo, plano: PlanoTurno, est: Estado, args: Record<string, unknown>): Promise<ResultadoChamada> {
+    const host = hostDoSite(String(args.site ?? "")) || (/^https?:/i.test(est.url) ? hostDe(est.url) : "");
+    const ateCentavos = typeof args.ate_valor_centavos === "number" && Number.isSafeInteger(args.ate_valor_centavos) && args.ate_valor_centavos > 0 ? args.ate_valor_centavos : null;
+    const destino = typeof args.destino === "string" && args.destino.trim() ? args.destino.replace(/\s+/g, " ").trim().slice(0, 120) : null;
+    if (!host || (ateCentavos === null && destino === null)) return resposta({ erro: "combinado_incompleto", instrucao: "Diga o site (domínio, como tap.pt) e o teto em centavos (ate_valor_centavos) ou o destino do envio (destino)." }, true);
+    const t = textoDoCombinar({ host, oQue: String(args.o_que ?? ""), ateCentavos, destino });
+    const acao: AcaoPendente = { tipo: "combinar", agenteId: plano.agenteId, turnoId: plano.turnoId, host, ateCentavos, destino, touchId: ateCentavos !== null, pergunta: t.titulo };
+    const pedido = await aprovar(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, resumo: t.texto, itens: [{ texto: t.titulo, destino: { conector: "navegador", ferramenta: "executar", argumentos: { acaoId: randomUUID(), acao: o.cifrar(JSON.stringify(acao)) } } }] });
+    if (pedido.events?.length) await d.repos.events.gravarComOutbox(pedido.events);
+    if (pedido.data.estado === "recusada") return resposta({ erro: "recusada", erros: pedido.data.erros, instrucao: pedido.data.instrucao }, true);
+    if (pedido.data.estado !== "pendente") throw new ErroDeDominio("estado_invalido");
+    mudar(est, { controle: "precisa_de_voce", passo: null, pedido: { tipo: "combinar", decisaoId: pedido.data.decisao_id, titulo: t.titulo, texto: t.texto, sim: t.sim, nao: t.nao, touchId: ateCentavos !== null && (o.mac?.maquina(escopo) ?? null) !== null } });
+    return { aguardar: pedido.data.decisao_id };
+  }
+
   /** O pedido aberto para a pessoa já foi respondido (ou venceu): o controle volta ao bot. */
   async function pedidoResolvido(d: Deps, est: Estado): Promise<boolean> {
     if (est.vista.controle !== "precisa_de_voce" || !est.vista.pedido) return false;
@@ -663,7 +912,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     disponivel: (lugar?: LugarNavegador, escopo?: Escopo) => (lugar && escopo ? o.motor(lugar, escopo) !== null : o.algumLugar?.() ?? o.motor({ tipo: "nod" }, { tenantId: "", pessoaId: "" }) !== null),
     async chamar(escopo: Escopo, plano: PlanoTurno, nome: string, argumentos: unknown): Promise<ResultadoChamada> {
       const args = obj(argumentos);
-      const r = await o.dentro(escopo, async (d): Promise<ResultadoChamada | Contexto & { ferramenta: NomeFerramentaNavegador; args: Record<string, unknown> }> => {
+      type Entrar = { entrar: { est: Estado; site: string; motivo: string } };
+      const r = await o.dentro(escopo, async (d): Promise<ResultadoChamada | Entrar | Contexto & { ferramenta: NomeFerramentaNavegador; args: Record<string, unknown> }> => {
         const negar = async (motivo: "parada_ativa" | "fora_do_catalogo" | "args_invalidos" | "capacidade_desligada" | "plano_expirado") => {
           const n = await registrarNegacao(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, nome, motivo, classe: "ferramenta_negada", autoria: plano.autoria });
           if (n.events?.length) await d.repos.events.gravarComOutbox(n.events);
@@ -697,23 +947,23 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         if (agente?.soLeitura === true && !PERMITIDAS_EM_SO_LEITURA.has(ferramenta)) return negar("capacidade_desligada");
         if (await pedidoResolvido(d, est)) mudar(est, { controle: "bot", pedido: null });
         if (!botPodeAgir(est.vista.controle)) return { ok: true, conteudo: JSON.stringify(AGUARDANDO_PESSOA), confianca: "confiavel" };
-        if (ferramenta === "navegador_pedir_ajuda" || ferramenta === "navegador_entrar") {
-          const login = ferramenta === "navegador_entrar";
+        // L1: o cartão de login monta as opções fora da transação (o Mac pode levar uns segundos para listar o cofre).
+        if (ferramenta === "navegador_entrar") return { entrar: { est, site: String(args.site).slice(0, 300), motivo: String(args.motivo).slice(0, 300) } };
+        if (ferramenta === "navegador_pedir_ajuda") {
           const motivo = String(args.motivo).slice(0, 300);
-          const site = String(args.site ?? "").slice(0, 300);
-          // TODO(2026-11-20): o cartão de login (L) com o item do cofre que casa com o site; por ora a pessoa entra ela mesma.
-          const texto = login
-            ? `Preciso que você entre em ${site} no meu navegador para eu continuar: ${motivo}. A senha não passa por mim.`
-            : `Preciso de você no meu navegador: ${motivo}`;
-          const p = await perguntar(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto });
+          const codigo = args.codigo === true;
+          // L4: o código de uso único entra pelo campo privado do cartão, nunca pelo chat (o pedido não aceita texto).
+          const p = await (codigo ? perguntarSemTexto : perguntar)(d, { turnoId: plano.turnoId, agenteId: plano.agenteId, conversaId: plano.conversaId, tipo: "pergunta", texto: codigo ? `Preciso do código que chegou para você: ${motivo}. Digite no cartão; ele vai direto para a página, não para mim.` : `Preciso de você no meu navegador: ${motivo}` });
           if (p.events?.length) await d.repos.events.gravarComOutbox(p.events);
-          mudar(est, { controle: "precisa_de_voce", passo: null, pedido: login ? { tipo: "login", decisaoId: p.data.decisao_id, site, motivo } : { tipo: "ajuda", decisaoId: p.data.decisao_id, motivo } });
+          mudar(est, { controle: "precisa_de_voce", passo: null, pedido: { tipo: "ajuda", decisaoId: p.data.decisao_id, motivo, codigo } });
           return { ok: true, conteudo: JSON.stringify(p.data), confianca: "confiavel" };
         }
+        if (ferramenta === "navegador_combinar") return combinar(d, escopo, plano, est, argsDaFerramenta);
         const modo = modoNoTurno(agente?.modoAprovacao, plano.autoria) ?? "manual";
         const liberacoes = await d.repos.navegadorPreferencias.liberacoes(plano.agenteId);
         return { escopo, plano, est, motor, modo, liberacoes, ferramenta, args: argsDaFerramenta };
       });
+      if ("entrar" in r) return pedirLogin(escopo, plano, r.entrar.est, r.entrar.site, r.entrar.motivo);
       if (!("est" in r)) return r;
       if (!(await vaga(r.est))) return { ok: true, conteudo: JSON.stringify(NA_FILA), confianca: "confiavel" };
       try {
@@ -729,23 +979,48 @@ export function criarNavegadores(o: OpcoesNavegadores) {
      * A ação aprovada roda como foi pedida (molde de `computadores.executarAprovado`): o turno ainda vale, a pessoa não
      * está no controle. O resultado espera o turno que pediu (`resultadoDaAcao`), cifrado e entregue uma vez.
      */
-    async executarAprovado(p: Escopo & { agenteId: string; turnoId: string; acaoId: string; acao: string }): Promise<void> {
+    async executarAprovado(p: Escopo & { agenteId: string; turnoId: string; acaoId: string; acao: string; lembrar?: boolean }): Promise<void> {
       const acao = JSON.parse(o.decifrar(p.acao)) as AcaoPendente;
-      if (acao.agenteId !== p.agenteId || acao.turnoId !== p.turnoId || !Object.hasOwn(FERRAMENTAS_NAVEGADOR, acao.ferramenta)) throw new ErroDeDominio("nao_permitido");
+      if (acao.agenteId !== p.agenteId || acao.turnoId !== p.turnoId || (acao.tipo !== "combinar" && !Object.hasOwn(FERRAMENTAS_NAVEGADOR, acao.ferramenta))) throw new ErroDeDominio("nao_permitido");
       const escopo = { tenantId: p.tenantId, pessoaId: p.pessoaId };
+      const guardarResultado = (conteudo: unknown) => {
+        if (resultados.size >= RESULTADOS_MAX) resultados.delete(resultados.keys().next().value!);
+        resultados.set(p.acaoId, { pessoaId: p.pessoaId, cifrado: o.cifrar(JSON.stringify(conteudo)) });
+      };
       const plano = await o.dentro(escopo, async (d) => {
         if (!await turnoPermitido(d, p.turnoId, p.agenteId, true)) throw new ErroDeDominio("nao_permitido");
         const t = await d.repos.turnos.buscar(p.turnoId);
         return { turnoId: p.turnoId, agenteId: p.agenteId, conversaId: t?.conversaId ?? "" };
       });
+      const devolverAoBot = () => {
+        const e = estados.get(p.agenteId);
+        if (e && e.escopo.pessoaId === p.pessoaId && e.escopo.tenantId === p.tenantId && e.vista.controle !== "pessoa") mudar(e, { controle: "bot", pedido: null });
+      };
+      // A1/A2 (ADR-177): dinheiro passa pelo Touch ID do Mac antes de qualquer efeito; recusado, nada roda.
+      if (acao.touchId && o.mac) {
+        const t = await o.mac.touchId(escopo, p.agenteId, acao.pergunta ?? "Confirmar o pagamento");
+        if (t === "recusado") {
+          guardarResultado({ erro: "touch_id_recusado", instrucao: "A pessoa não confirmou no Touch ID. Nada foi pago nem combinado; não tente de novo sem ela pedir." });
+          devolverAoBot();
+          throw new ErroDeDominio("nao_permitido", { cause: "touch_id_recusado" });
+        }
+      }
+      if (acao.tipo === "combinar") {
+        // A2: a resposta "Pode" grava o teto (ou o destino) do site; o bot segue sem perguntar de novo dentro dele.
+        await o.dentro(escopo, async (d) => {
+          const atual = await d.repos.navegadorPreferencias.liberacoes(p.agenteId);
+          const nova = juntarLiberacoes(atual, { ...(acao.ateCentavos !== null ? { pagar: { host: acao.host, ateCentavos: acao.ateCentavos } } : {}), ...(acao.destino ? { enviar: { host: acao.host, destino: acao.destino } } : {}) });
+          if (!(await d.repos.navegadorPreferencias.gravar(p.agenteId, { liberacoes: nova }, d.agora()))) throw new ErroDeDominio("nao_encontrado");
+        });
+        devolverAoBot();
+        guardarResultado({ ok: true, combinado: { site: acao.host, ...(acao.ateCentavos !== null ? { ate_valor_centavos: acao.ateCentavos } : {}), ...(acao.destino ? { destino: acao.destino } : {}) }, instrucao: "Combinado. Dentro do teto (ou para este destino) você segue sem perguntar; valor acima ou destino diferente pergunta de novo." });
+        return;
+      }
       const est = estadoDe(escopo, p.agenteId);
       if (est.vista.controle === "pessoa") throw new ErroDeDominio("nao_permitido");
       mudar(est, { controle: "bot", pedido: null });
       const motor = motorDe(est);
-      const guardar = (conteudo: unknown) => {
-        if (resultados.size >= RESULTADOS_MAX) resultados.delete(resultados.keys().next().value!);
-        resultados.set(p.acaoId, { pessoaId: p.pessoaId, cifrado: o.cifrar(JSON.stringify(conteudo)) });
-      };
+      const guardar = guardarResultado;
       if (!motor || !(await vaga(est))) {
         guardar({ erro: "indisponivel", instrucao: "O navegador não estava disponível quando a pessoa aprovou. Nada foi executado; peça de novo." });
         throw new ErroDeDominio("estado_invalido", { cause: "navegador indisponível" });
@@ -756,6 +1031,14 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         // O print aprovado não volta ao modelo (o turno não pediu para ver): só o texto.
         guardar(s.conteudo);
         if (s.isError) throw new ErroDeDominio("estado_invalido");
+        // A3: "Não perguntar de novo para o Pedro" — só o destino que o servidor viu na página, nunca dinheiro.
+        const lembrar = acao.lembrar;
+        if (p.lembrar === true && lembrar) {
+          await o.dentro(escopo, async (d) => {
+            const atual = await d.repos.navegadorPreferencias.liberacoes(p.agenteId);
+            await d.repos.navegadorPreferencias.gravar(p.agenteId, { liberacoes: juntarLiberacoes(atual, { enviar: lembrar }) }, d.agora());
+          }).catch((e: unknown) => log("aviso", "navegador_lembrar_falhou", { agente_id: p.agenteId, erro: e instanceof Error ? e.name : "desconhecido" }));
+        }
       } catch (e) {
         if (ehFalhaNavegador(e)) { guardar(instrucaoDaFalha(e)); throw new ErroDeDominio("estado_invalido", { cause: e.motivo }); }
         throw e;
@@ -927,6 +1210,129 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       mudar(est, { gravacao: null });
       return { vista: est.vista, tarefa };
     },
+    /**
+     * POST /agentes/:id/navegador/login (L1, L2). Cofre do nod: o servidor decifra e preenche na hora. 1Password/Bitwarden:
+     * o app do Mac lê (o 1Password pede o Touch ID sozinho) e preenche lá, se o navegador roda nele, ou devolve ao
+     * servidor, que preenche; a resposta já volta com "Confirme no seu Mac" e o preenchimento segue em segundo plano.
+     * "chrome": os cookies do site no Chrome da pessoa (o macOS pede o Keychain). "eu_mesmo": o controle vai para ela.
+     * A página tem de estar no mesmo site de quando o cartão foi montado.
+     */
+    async escolherLogin(escopo: Escopo, agenteId: string, decisaoId: string, escolha: EscolhaLoginNavegador): Promise<{ vista: VistaNavegador; aviso: string | null }> {
+      await conferirDona(escopo, agenteId);
+      const est = estadoDe(escopo, agenteId);
+      const pedido = await pedidoAberto(escopo, est, decisaoId, ["login"] as const);
+      if (est.loginEmCurso) throw new ErroDeDominio("estado_invalido", { cause: "login_em_curso" });
+      if (escolha === "eu_mesmo") {
+        comecarCaptura(est, est.loginHost ?? hostDoSite(pedido.site));
+        mudar(est, { controle: "pessoa", pedido: { ...pedido, etapa: "eu_mesmo", erro: null }, atividadeEm: agora() });
+        return { vista: est.vista, aviso: null };
+      }
+      const { motor, url } = await motorAberto(est);
+      const host = hostDe(url);
+      if (!est.loginHost || !host || !itemCasaComHost(host, est.loginHost)) { erroNoLogin(est, decisaoId, "site_mudou"); throw new ErroDeDominio("estado_invalido", { cause: "site_mudou" }); }
+      const s = sessao(agenteId);
+      if (escolha !== "chrome" && escolha.fonte === "nod") {
+        const item = await o.dentro(escopo, (d) => d.repos.cofreLogins.paraPreencher(escolha.ref));
+        if (!item || !itemCasaComHost(item.site, host)) throw new ErroDeDominio("nao_encontrado", { cause: "login" });
+        let r: { usuario: boolean; senha: boolean };
+        try {
+          r = await preencherLogin(motor, s, { usuario: item.usuario, senha: o.decifrar(item.senhaCifrada) });
+        } catch (e) {
+          if (!ehFalhaNavegador(e)) throw e;
+          erroNoLogin(est, decisaoId, e.motivo);
+          throw new ErroDeDominio("estado_invalido", { cause: "nao_preencheu" });
+        }
+        await depoisDePreencher(est, decisaoId, url, r);
+        return { vista: est.vista, aviso: null };
+      }
+      const mac = o.mac;
+      const macId = mac?.maquina(escopo) ?? null;
+      if (!mac || !macId) { erroNoLogin(est, decisaoId, "indisponivel"); throw new ErroDeDominio("estado_invalido", { cause: "precisa_do_mac" }); }
+      // O navegador roda neste mesmo Mac: o segredo e os cookies não saem dele.
+      const noMac = est.vista.lugar.tipo === "mac" && o.maquinaDoLugar?.(est.vista.lugar, escopo) === macId;
+      mudar(est, { pedido: { ...pedido, etapa: "confirme_no_mac", erro: null } });
+      est.loginEmCurso = (async () => {
+        try {
+          if (escolha === "chrome") {
+            let n = 0;
+            if (noMac) n = Number(await mac.cookies(escopo, agenteId, host, true));
+            else {
+              const cookies = await mac.cookies(escopo, agenteId, host, false);
+              if (typeof cookies !== "number" && cookies.length) {
+                await motor.definirCookies(s, cookies);
+                await motor.historico(s, "recarregar");
+                n = cookies.length;
+              }
+            }
+            if (!n) { erroNoLogin(est, decisaoId, "sem_cookies"); return; }
+            est.refs = null;
+            await fecharPedido(est, decisaoId, DO_CHROME(siteLegivel(host), n));
+            return;
+          }
+          const fonte = escolha.fonte === "1password" ? "1password" : "bitwarden";
+          const r = noMac
+            ? await mac.preencher(escopo, agenteId, fonte, escolha.ref, host)
+            : await preencherLogin(motor, s, await mac.ler(escopo, agenteId, fonte, escolha.ref, host));
+          await depoisDePreencher(est, decisaoId, url, r);
+        } catch (e) {
+          erroNoLogin(est, decisaoId, ehFalhaNavegador(e) ? e.motivo : "acao_falhou");
+          if (!ehFalhaNavegador(e)) log("aviso", "navegador_login_falhou", { agente_id: agenteId, erro: e instanceof Error ? e.name : "desconhecido" });
+        } finally {
+          est.loginEmCurso = null;
+        }
+      })();
+      return { vista: est.vista, aviso: CONFIRME_NO_MAC };
+    },
+    /** Só testes: espera o preenchimento em segundo plano (L2) terminar. */
+    esperarLogin: async (agenteId: string): Promise<void> => { await estados.get(agenteId)?.loginEmCurso; },
+    /**
+     * POST /agentes/:id/navegador/codigo (L4): o código vai do campo privado do cartão direto para o campo de código da
+     * página (ou o focado), como digitação pelo relay; nunca para a conversa, a trilha, o log ou o bot. O pedido fecha com
+     * "Código enviado" e o bot segue.
+     */
+    async enviarCodigo(escopo: Escopo, agenteId: string, decisaoId: string, codigo: string): Promise<VistaNavegador> {
+      await conferirDona(escopo, agenteId);
+      if (!codigoValido(codigo)) throw new ErroDeDominio("entrada_invalida", { cause: "codigo" });
+      const est = estadoDe(escopo, agenteId);
+      await pedidoAberto(escopo, est, decisaoId, ["ajuda", "login"] as const);
+      const { motor, url } = await motorAberto(est);
+      try {
+        await inserirCodigo(motor, sessao(agenteId), codigo);
+      } catch (e) {
+        if (!ehFalhaNavegador(e)) throw e;
+        throw new ErroDeDominio("estado_invalido", { cause: "nao_preencheu" });
+      }
+      est.urlDoSegredo = url;
+      mudar(est, { segredoNaPagina: true });
+      await fecharPedido(est, decisaoId, CODIGO_ENVIADO);
+      return est.vista;
+    },
+    /**
+     * POST /agentes/:id/navegador/guardar-login (L5): guarda (cofre do nod cifrado; 1Password ou Bitwarden pelo app do Mac)
+     * ou descarta o login que a pessoa digitou. Nos dois casos o texto sai da memória.
+     */
+    async guardarLogin(escopo: Escopo, agenteId: string, guardar: boolean, destino: FonteCofre): Promise<VistaNavegador> {
+      await conferirDona(escopo, agenteId);
+      const est = estadoDe(escopo, agenteId);
+      const c = capturaViva(est);
+      const oferta = est.vista.ofertaGuardar;
+      const senhaCifrada = c?.senha;
+      if (!c || !senhaCifrada || !oferta) throw new ErroDeDominio("estado_invalido", { cause: "sem_oferta" });
+      if (!guardar) { limparCaptura(est); return est.vista; }
+      if (!oferta.destinos.includes(destino)) throw new ErroDeDominio("estado_invalido", { cause: destino === "nod" ? "sem_oferta" : "precisa_do_mac" });
+      const usuario = c.usuario ? o.decifrar(c.usuario) : "";
+      const site = c.host.replace(/^www\./, "");
+      if (destino === "nod") {
+        // A senha já está cifrada com a chave do servidor (a mesma do cofre): vai ao banco sem voltar a texto.
+        await o.dentro(escopo, (d) => d.repos.cofreLogins.criar({ site, usuario, senhaCifrada }));
+      } else {
+        const mac = o.mac;
+        if (!mac?.maquina(escopo)) throw new ErroDeDominio("estado_invalido", { cause: "precisa_do_mac" });
+        await mac.guardar(escopo, agenteId, destino, site, usuario, o.decifrar(senhaCifrada)).catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "nao_guardou" }) : e; });
+      }
+      limparCaptura(est);
+      return est.vista;
+    },
     /** O stream ao vivo do Chrome mandou abas ou o tamanho da tela (só para quem já tem estado: a dona assistindo). */
     doStream(escopo: Escopo, agenteId: string, m: { abas?: readonly AbaMotor[]; viewport?: { w: number; h: number } }): void {
       const est = estados.get(agenteId);
@@ -940,22 +1346,32 @@ export function criarNavegadores(o: OpcoesNavegadores) {
      */
     async antesDaEntrada(escopo: Escopo, agenteId: string, e: EntradaNavegador): Promise<void> {
       const est = estados.get(agenteId);
-      if (!est || !est.gravacao || est.vista.controle !== "pessoa" || est.escopo.pessoaId !== escopo.pessoaId) return;
+      if (!est || est.vista.controle !== "pessoa" || est.escopo.pessoaId !== escopo.pessoaId) return;
+      const captura = capturaViva(est);
+      const capturando = captura !== null && !captura.ofertada ? captura : null;
+      if (!est.gravacao && !capturando) return;
       const motor = motorDe(est);
       if (!motor) return;
       const s = sessao(agenteId);
       if (e.t === "mouse") {
         if (e.evento !== "mousePressed") return;
         const el = await motor.descreverElemento(s, { x: e.x, y: e.y }).catch(() => null);
+        if (capturando) capturando.campo = campoDoLogin(el);
+        if (!est.gravacao) return;
         if (el?.editavel) { est.campo = campoDoElemento(el, campoEhSecreto); return; }
         est.campo = null;
         const clique = eventoDoClique(el);
         if (clique) registrar(est, clique);
         return;
       }
-      if (e.evento === "keyDown" && e.tecla === "Enter") { registrar(est, { tipo: "tecla", tecla: "Enter" }); return; }
-      if (e.evento === "keyDown" && e.tecla === "Tab") { est.campo = null; return; }
-      if (!entradaDigita(e)) return;
+      if (e.evento === "keyDown" && e.tecla === "Enter") { if (est.gravacao) registrar(est, { tipo: "tecla", tecla: "Enter" }); return; }
+      if (e.evento === "keyDown" && e.tecla === "Tab") { est.campo = null; if (capturando) capturando.campo = null; return; }
+      // L5: a tecla no campo de usuário ou de senha do login dela (o campo focado, se o clique não disse qual).
+      if (capturando && e.evento !== "keyUp") {
+        if (!capturando.campo) capturando.campo = campoDoLogin(await motor.descreverElemento(s, null).catch(() => null));
+        if (capturando.campo) capturar(est, capturando.campo, e);
+      }
+      if (!est.gravacao || !entradaDigita(e)) return;
       if (!est.campo) {
         const el = await motor.descreverElemento(s, null).catch(() => null);
         if (!el?.editavel) return;

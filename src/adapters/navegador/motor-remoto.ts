@@ -2,7 +2,7 @@ import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
 import type { OperacaoMotorNavegador } from "../../contracts/navegador-maquina.ts";
 import type { Escopo } from "../../shared/types.ts";
 import type { CanalNavegador } from "./canal-maquina.ts";
-import { FalhaNavegador, type AbaMotor, type LeituraNavegador, type MotorNavegador, type RefLida, type SessaoNavegador } from "./motor-agent-browser.ts";
+import { FalhaNavegador, type AbaMotor, type CamposDeLogin, type LeituraNavegador, type MotorNavegador, type RefLida, type SessaoNavegador } from "./motor-agent-browser.ts";
 import type { ElementoNaPagina } from "../../domain/navegador-ensinar.ts";
 import { lerValor } from "./operacoes-remotas.ts";
 
@@ -68,6 +68,11 @@ export function criarMotorRemoto(o: { canal: CanalNavegador; escopo: Escopo; maq
     focado: async (s) => (await chamar("focado", s, [])) as RefLida | null,
     descreverElemento: async (s, ponto) => (await chamar("descreverElemento", s, [ponto])) as ElementoNaPagina | null,
     url: async (s) => (await chamar("url", s, [])) as string,
+    camposDeLogin: async (s) => (await chamar("camposDeLogin", s, [])) as CamposDeLogin,
+    // O texto (segredo do cofre do nod, código do SMS) vai à máquina no corpo do comando, pela ponte (HTTPS + chave da
+    // máquina); lá entra pelo relay local, como aqui.
+    inserirTexto: (s, alvo, t) => vazio("inserirTexto", s, [alvo, t]),
+    definirCookies: (s, cookies) => vazio("definirCookies", s, [cookies.map((c) => ({ ...c }))]),
     portaDoStream: async () => null,
     fechar: (s) => vazio("fechar", s, []),
   };
