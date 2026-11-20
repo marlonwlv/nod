@@ -71,7 +71,11 @@ export function camposQueMudaram(antes: VistaNavegador | null, depois: VistaNave
   return chaves.filter((k) => antes[k] !== depois[k] && JSON.stringify(antes[k]) !== JSON.stringify(depois[k]));
 }
 
-/** Estados em que há Chrome para assistir (o canal ao vivo liga o stream só neles). */
+/**
+ * Estados em que há Chrome para assistir (o canal ao vivo liga o stream só neles). definido em 2026-11-20: "ligando" fica
+ * de fora — o Chrome ainda está subindo pelo comando do bot, e pedir o stream no meio abriria um segundo comando na
+ * mesma sessão antes de o daemon existir.
+ */
 export function temChromeVivo(estado: EstadoNavegador): boolean {
-  return estado === "ligando" || estado === "conectando" || estado === "ao_vivo" || estado === "rede_fraca" || estado === "terminou";
+  return estado === "ao_vivo" || estado === "rede_fraca" || estado === "terminou";
 }

@@ -1,22 +1,29 @@
 import { randomUUID } from "node:crypto";
 import { FERRAMENTAS_NAVEGADOR, FERRAMENTAS_NAVEGADOR_DIRETAS, NAVEGADOR_SO_LEITURA, type NomeFerramentaNavegador } from "../../contracts/ferramentas-navegador.ts";
 import type { JsonSchema } from "../../contracts/json-schema.ts";
-import type { AbaNavegador, LugarNavegador, PassoNavegador, VistaNavegador } from "../../contracts/navegador-do-bot.ts";
+import type { Executor } from "../../contracts/evento.ts";
+import type { AbaNavegador, EntradaNavegador, GravacaoNavegador, LugarNavegador, OperacaoEnsinar, OperacaoNavegador, PassoNavegador, TarefaEnsinada, VistaNavegador } from "../../contracts/navegador-do-bot.ts";
 import type { PlanoTurno } from "../../contracts/plano-turno.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import { modoNoTurno } from "../../domain/modo-aprovacao.ts";
-import { classificarAcao, decidirNoNavegador, perguntaDaAcao, SEM_LIBERACOES, type AlvoResolvido } from "../../domain/navegador-aprovacao.ts";
+import { motorLe, tipoDoAnexo } from "../../domain/anexo.ts";
+import { classificarAcao, decidirNoNavegador, perguntaDaAcao, SEM_LIBERACOES, type AlvoResolvido, type LiberacoesNavegador } from "../../domain/navegador-aprovacao.ts";
+import { entradaDigita } from "../../domain/navegador-entrada.ts";
+import { arquivoDosPassos, campoDoElemento, eventoDoClique, gravar, nomeSugerido, novaGravacao, passosDaGravacao, type EventoGravado, type Gravacao } from "../../domain/navegador-ensinar.ts";
 import { buscarNoCatalogo, ehDoCatalogo } from "../../domain/navegador-catalogo.ts";
 import { campoEhSecreto, redigirArvore, segredoAindaNaPagina } from "../../domain/navegador-sensivel.ts";
 import { botPodeAgir, deveriaPausar, fraseDoPasso, proximoControle, type OperacaoControle } from "../../domain/navegador-vista.ts";
 import { log } from "../../obs/log.ts";
 import type { Escopo } from "../../shared/types.ts";
 import { errosDoSchema, type ResultadoChamada } from "../../use-cases/chamar-ferramenta.ts";
+import { receberAnexo } from "../../use-cases/anexos.ts";
+import { enviarMensagem } from "../../use-cases/enviar-mensagem.ts";
 import { pedirAprovacaoComputador } from "../../use-cases/pedir-aprovacao.ts";
+import { fecharComResposta, retomarComResposta } from "../../use-cases/responder-decisao.ts";
 import { pedirAPessoa } from "../../use-cases/pedir-a-pessoa.ts";
 import { registrarNegacao } from "../../use-cases/registrar-negacao.ts";
 import type { Deps } from "../../use-cases/tipos.ts";
-import { ehFalhaNavegador, FalhaNavegador, type MotorNavegador, type RefLida, type SessaoNavegador } from "../navegador/motor-agent-browser.ts";
+import { ehFalhaNavegador, FalhaNavegador, type AbaMotor, type MotorNavegador, type RefLida, type SessaoNavegador } from "../navegador/motor-agent-browser.ts";
 import { turnoPermitido } from "./computadores.ts";
 
 /**
@@ -45,8 +52,14 @@ export type OpcoesNavegadores = {
   /** NOD_NAVEGADORES_MAX: Chromes vivos ao mesmo tempo no servidor (ADR-190, decisão 8; padrão 4). */
   max?: number;
   agora?: () => number;
-  /** A vista de um bot mudou (estado, controle, abas, passo): a próxima etapa publica o quadro `vista` à web. */
+  /** A vista de um bot mudou (estado, controle, abas, passo): o canal ao vivo manda a vista e o SSE avisa a web. */
   aoMudar?(escopo: Escopo, vista: VistaNavegador): void;
+  /** O executor vivo (o da retomada do turno e da mensagem "Ensinei: …"); ausente = catcher. */
+  executor?: () => Executor;
+  /** Costura de teste: fecha o pedido aberto com a frase e retoma o turno (padrão: fecharComResposta + retomarComResposta). */
+  retomarPedido?: (escopo: Escopo, decisaoId: string, texto: string) => Promise<void>;
+  /** Costura de teste: a mensagem da pessoa com o arquivo anexado (padrão: anexo + enviarMensagem na conversa do bot). */
+  mandarMensagem?: (d: Deps, p: MensagemDaPessoa) => Promise<void>;
   /** Costuras de teste: os casos de uso que criam a decisão (padrão: os reais). */
   pedirAprovacao?: typeof pedirAprovacaoComputador;
   pedirAPessoa?: typeof pedirAPessoa;
@@ -62,16 +75,37 @@ type Estado = {
   urlDoSegredo: string | null;
   /** O Chrome deste bot conta no limite de vivos. */
   vivo: boolean;
+  /** D0: as URLs das abas quando o Chrome pausou; `retomar` as reabre. */
+  abasGuardadas: string[];
+  /** T: a gravação em curso (só com a pessoa no controle) e o campo em que ela digita agora (rótulo, nunca o valor). */
+  gravacao: Gravacao | null;
+  parou: GravacaoNavegador["parou"];
+  campo: { campo: string; protegido: boolean } | null;
+  /** T: a última gravação descartada, guardada até `ate` para o Desfazer. */
+  descartada: { gravacao: Gravacao; ate: number } | null;
 };
+
+/** A mensagem que a pessoa manda ao salvar uma tarefa ensinada (T3). */
+export type MensagemDaPessoa = { agenteId: string; texto: string; arquivo: { nome: string; conteudo: string } };
 
 /** A ação pendente de aprovação, cifrada no item da decisão: roda como foi aprovada. */
 type AcaoPendente = { agenteId: string; turnoId: string; ferramenta: NomeFerramentaNavegador; argumentos: Record<string, unknown> };
 
 /** O conteúdo de uma ferramenta que rodou, antes de virar JSON. */
 type Saida = { conteudo: Record<string, unknown>; imagem?: string; isError?: boolean };
-type Contexto = { escopo: Escopo; plano: Pick<PlanoTurno, "turnoId" | "agenteId" | "conversaId">; est: Estado; motor: MotorNavegador; modo: "manual" | "automatico" | "total" };
+type Contexto = { escopo: Escopo; plano: Pick<PlanoTurno, "turnoId" | "agenteId" | "conversaId">; est: Estado; motor: MotorNavegador; modo: "manual" | "automatico" | "total"; liberacoes: LiberacoesNavegador };
 
 const MAX_PADRAO = 4;
+/** definido em 2026-11-20 (T): o Desfazer da gravação descartada vale 10 s. */
+export const DESFAZER_DESCARTE_MS = 10_000;
+/** definido em 2026-11-20 (D0): reabrir mais que isto de abas ao retomar pesa mais do que ajuda. */
+const ABAS_GUARDADAS_MAX = 10;
+/** As frases que retomam o turno que esperava a pessoa (login, captcha, ajuda). */
+const RETOMADA = {
+  devolver: "Terminei no navegador e devolvi o controle. Leia a página de novo (navegador_ler) e continue.",
+  resolver: "Resolvi o que você pediu no navegador. Leia a página de novo (navegador_ler) e continue.",
+} as const;
+const TAB_ID = /^t[1-9]\d{0,8}$/;
 /** definido em 2026-11-20 (ADR-190): `navegador_rodar_script` roda até 20 passos, parando no primeiro erro. */
 const PASSOS_MAX = 20;
 /** definido em 2026-11-20: o resultado de `navegador_avaliar` volta com até 4000 caracteres (contrato). */
@@ -158,6 +192,30 @@ function instrucaoDaFalha(e: FalhaNavegador): { erro: string; detalhe: string; i
   return { erro: e.motivo, detalhe: e.detalhe, instrucao };
 }
 
+/** O que `navegador_tarefa_ensinada` devolve: a lista (nome e quantos passos) ou os passos da tarefa pedida pelo nome. */
+export function tarefasParaOBot(tarefas: readonly TarefaEnsinada[], nome: unknown): Record<string, unknown> {
+  if (!tarefas.length) return { tarefas: [], instrucao: "Nenhuma tarefa foi ensinada a você no navegador ainda." };
+  const pedido = typeof nome === "string" ? nome.trim().toLowerCase() : "";
+  const achada = pedido ? tarefas.find((t) => t.nome.toLowerCase() === pedido) ?? tarefas.find((t) => t.nome.toLowerCase().includes(pedido)) : undefined;
+  if (achada) return { nome: achada.nome, passos: achada.passos, instrucao: "Estes são os passos que a pessoa fez com as próprias mãos. Repita-os no navegador, lendo a página antes de cada passo; os campos marcados como não gravados você pede a ela (navegador_entrar ou navegador_pedir_ajuda)." };
+  return { tarefas: tarefas.map((t) => ({ nome: t.nome, passos: t.passos.length })), ...(pedido ? { erro: "tarefa_inexistente" } : {}), instrucao: "Chame de novo com o nome de uma destas tarefas para ver os passos." };
+}
+
+/**
+ * A mensagem da pessoa com o arquivo dos passos (T3), na conversa do bot: o anexo nasce solto e entra no envio, que
+ * enfileira o turno normal do bot. O bot fixado numa IA que não lê texto recebe os passos no próprio texto.
+ */
+export async function mandarMensagemPadrao(d: Deps, p: MensagemDaPessoa & { executor?: Executor }): Promise<void> {
+  const conversa = await d.repos.conversas.buscarPropriaDoAgente(p.agenteId);
+  const agente = await d.repos.agentes.buscar(p.agenteId);
+  if (!conversa || !agente) throw new ErroDeDominio("nao_encontrado", { cause: "conversa do bot" });
+  const fixo = agente.harness && agente.harness !== "auto" ? agente.harness : null;
+  const leTexto = !fixo || motorLe(fixo, tipoDoAnexo("text/plain"));
+  const anexos = leTexto ? [(await receberAnexo(d, { conversaId: conversa.id, nome: p.arquivo.nome, mime: "text/plain", conteudo: Buffer.from(p.arquivo.conteudo, "utf8") })).data.id] : [];
+  const r = await enviarMensagem(d, { conversaId: conversa.id, texto: leTexto ? p.texto : `${p.texto}\n\n${p.arquivo.conteudo}`, anexos, ...(p.executor ? { executor: p.executor } : {}) });
+  if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+}
+
 export function criarNavegadores(o: OpcoesNavegadores) {
   const agora = o.agora ?? (() => Date.now());
   const max = Math.max(1, o.max ?? MAX_PADRAO);
@@ -177,6 +235,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     }
     const novo: Estado = {
       escopo: { tenantId: escopo.tenantId, pessoaId: escopo.pessoaId }, refs: null, url: "", urlDoSegredo: null, vivo: false,
+      abasGuardadas: [], gravacao: null, parou: null, campo: null, descartada: null,
       vista: { agenteId, estado: "desligado", controle: "bot", lugar: lugarDe(escopo, agenteId), abas: [], aviso: null, passo: null, pedido: null, gravacao: null, descarte: null, segredoNaPagina: false, atividadeEm: agora(), erro: null, viewport: { w: 1280, h: 720 } },
     };
     estados.set(agenteId, novo);
@@ -184,7 +243,10 @@ export function criarNavegadores(o: OpcoesNavegadores) {
   }
 
   function mudar(est: Estado, parcial: Partial<VistaNavegador>): void {
-    est.vista = { ...est.vista, ...parcial };
+    // O aviso de Desfazer some sozinho na próxima mudança depois do prazo.
+    const descarte = est.descartada && est.descartada.ate < agora() ? { descarte: null } : {};
+    if ("descarte" in descarte) est.descartada = null;
+    est.vista = { ...est.vista, ...descarte, ...parcial };
     try { o.aoMudar?.(est.escopo, est.vista); } catch (e) { log("aviso", "navegador_aviso_falhou", { erro: e instanceof Error ? e.name : "desconhecido" }); }
   }
 
@@ -194,6 +256,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     for (const est of estados.values()) {
       if (!est.vivo || !deveriaPausar(est.vista, agora())) continue;
       const motor = o.motor(est.vista.lugar);
+      const abas = await motor?.abas(sessao(est.vista.agenteId)).catch(() => null);
+      est.abasGuardadas = (abas ?? est.vista.abas).map((a) => a.url).filter(enderecoPermitido).slice(0, ABAS_GUARDADAS_MAX);
       est.vivo = false;
       est.refs = null;
       pausados++;
@@ -258,12 +322,100 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     return false;
   }
 
-  async function atualizarAbas(c: Contexto): Promise<void> {
-    const abas = await c.motor.abas(sessao(c.plano.agenteId)).catch(() => null);
-    if (!abas) return;
+  async function atualizarAbasDe(est: Estado, motor: MotorNavegador): Promise<void> {
+    const abas = await motor.abas(sessao(est.vista.agenteId)).catch(() => null);
+    if (abas) aplicarAbas(est, abas);
+  }
+  const atualizarAbas = (c: Contexto) => atualizarAbasDe(c.est, c.motor);
+
+  /**
+   * As abas de agora (do motor ou do stream ao vivo): a URL ativa mudou, as referências e o segredo na página caem (L3) e,
+   * gravando, a página nova vira "Abriu …". Só avisa a web se algo mudou.
+   */
+  function aplicarAbas(est: Estado, abas: readonly AbaMotor[]): void {
     const ativa = abas.find((a) => a.ativa);
-    if (ativa) c.est.url = ativa.url;
-    mudar(c.est, { abas: abas.map(abaDaVista) });
+    if (ativa && ativa.url !== est.url) {
+      est.url = ativa.url;
+      est.refs = null;
+      est.campo = null;
+      if (est.urlDoSegredo && !segredoAindaNaPagina(est.urlDoSegredo, ativa.url)) { est.urlDoSegredo = null; mudar(est, { segredoNaPagina: false }); }
+      if (/^https?:/i.test(ativa.url)) registrar(est, { tipo: "abriu", url: ativa.url });
+    }
+    const novas = abas.map(abaDaVista);
+    if (JSON.stringify(novas) !== JSON.stringify(est.vista.abas)) mudar(est, { abas: novas });
+  }
+
+  const vistaDaGravacao = (est: Estado): GravacaoNavegador | null => (est.gravacao ? { desde: est.gravacao.desde, passos: passosDaGravacao(est.gravacao), parou: est.parou } : null);
+
+  /** Um passo da gravação, só com a pessoa no controle (T). Igual ao anterior (o mesmo campo, a mesma página) não muda nada. */
+  function registrar(est: Estado, e: EventoGravado): void {
+    if (!est.gravacao || est.vista.controle !== "pessoa") return;
+    const r = gravar(est.gravacao, e, agora());
+    if (r.gravacao === est.gravacao && r.parou === est.parou) return;
+    est.gravacao = r.gravacao;
+    est.parou = r.parou ?? est.parou;
+    mudar(est, { gravacao: vistaDaGravacao(est) });
+  }
+
+  /** Devolver no meio (ou Descartar) joga a gravação fora, mas a guarda 10 s para o Desfazer. */
+  function descartarGravacao(est: Estado): void {
+    if (!est.gravacao) return;
+    const ate = agora() + DESFAZER_DESCARTE_MS;
+    est.descartada = { gravacao: est.gravacao, ate };
+    const passos = est.gravacao.eventos.length;
+    est.gravacao = null;
+    est.parou = null;
+    est.campo = null;
+    mudar(est, { gravacao: null, descarte: { passos, ate } });
+  }
+
+  /** As rotas da pessoa e o canal ao vivo: o bot tem de ser dela (o estado em memória não basta para quem chega primeiro). */
+  async function conferirDona(escopo: Escopo, agenteId: string): Promise<void> {
+    const agente = await o.dentro(escopo, (d) => d.repos.agentes.buscar(agenteId));
+    if (!agente || agente.ownerId !== escopo.pessoaId) throw new ErroDeDominio("nao_encontrado");
+  }
+
+  /** O que só a pessoa no controle faz (a barra de endereço, as abas, recarregar). */
+  function exigirPessoa(est: Estado): MotorNavegador {
+    if (est.vista.controle !== "pessoa") throw new ErroDeDominio("estado_invalido", { cause: "assuma_primeiro" });
+    const motor = o.motor(est.vista.lugar);
+    if (!motor) throw new ErroDeDominio("estado_invalido", { cause: "indisponivel" });
+    if (!est.vivo) throw new ErroDeDominio("estado_invalido", { cause: "desligado" });
+    return motor;
+  }
+
+  /** Liga o Chrome (ou o reabre da pausa com as abas guardadas). */
+  async function ligar(est: Estado): Promise<void> {
+    const motor = o.motor(est.vista.lugar);
+    if (!motor) throw new ErroDeDominio("estado_invalido", { cause: "indisponivel" });
+    if (est.vivo && est.vista.estado !== "erro") return;
+    if (!(await vaga(est))) throw new ErroDeDominio("estado_invalido", { cause: "na_fila" });
+    const s = sessao(est.vista.agenteId);
+    const [primeira, ...outras] = est.abasGuardadas;
+    try {
+      await motor.abrir(s, primeira ?? "about:blank");
+      for (const url of outras) await motor.abaNova(s, url);
+    } catch (e) {
+      est.vivo = false;
+      mudar(est, { estado: "erro", erro: { causa: ehFalhaNavegador(e) ? e.detalhe : "o navegador não abriu", em: agora() } });
+      throw new ErroDeDominio("estado_invalido", { cause: "nao_ligou" });
+    }
+    est.abasGuardadas = [];
+    est.refs = null;
+    await atualizarAbasDe(est, motor);
+    mudar(est, { estado: "ao_vivo", erro: null, passo: null, atividadeEm: agora() });
+  }
+
+  /** Devolver/resolver fecham o pedido aberto (login, ajuda) com a frase e retomam o turno que esperava (molde do computador). */
+  async function retomarDoPedido(escopo: Escopo, decisaoId: string, texto: string): Promise<void> {
+    await o.dentro(escopo, async (d) => {
+      const decisao = await d.repos.decisoes.buscar(decisaoId);
+      if (!decisao || (decisao.estado !== "pendente" && decisao.estado !== "reaberta")) return;
+      const r = await fecharComResposta(d, { decisaoId, texto });
+      if (r.events?.length) await d.repos.events.gravarComOutbox(r.events);
+      const retomada = await retomarComResposta(d, { decisao: r.data.decisao, texto, respondidaPor: { id: escopo.pessoaId, nome: "A pessoa" }, executor: o.executor?.() ?? "catcher" });
+      if (retomada.events?.length) await d.repos.events.gravarComOutbox(retomada.events);
+    });
   }
 
   /** O efeito de uma ferramenta já aprovada (ou que não pede): fala com o motor e devolve o que o bot lê. */
@@ -385,9 +537,9 @@ export function criarNavegadores(o: OpcoesNavegadores) {
     const alvo = await resolverAlvo(c, ferramenta, args);
     const classe = classificarAcao({ ferramenta, alvo, ...(typeof args.tecla === "string" ? { tecla: args.tecla } : {}) });
     const host = hostDe(c.est.url);
-    // TODO(2026-11-20): o revisor do Automático (ADR-115) para envios; por ora o automático passa como sem revisor, e as
-    // liberações de antemão (A2/A3) ainda não são guardadas.
-    const d = decidirNoNavegador({ modo: c.modo, classe, host, rotulo: alvo?.nome ?? "", destino: null, liberacoes: SEM_LIBERACOES, revisorLigado: false });
+    // TODO(2026-11-20): o revisor do Automático (ADR-115) para envios; por ora o automático passa como sem revisor. As
+    // liberações de antemão (A2/A3) vêm de navegador_preferencias (0180); o destino do envio ainda não é resolvido.
+    const d = decidirNoNavegador({ modo: c.modo, classe, host, rotulo: alvo?.nome ?? "", destino: null, liberacoes: c.liberacoes, revisorLigado: false });
     if (d.tipo === "pessoa_faz") return { recusa: PESSOA_FAZ };
     if (d.tipo === "pede") {
       const pergunta = perguntaDaAcao(d.classe, alvo?.nome ?? ferramenta, host);
@@ -470,10 +622,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
           if (!ehDoCatalogo(alvo) || errosDoSchema(FERRAMENTAS_NAVEGADOR[alvo], argsDaFerramenta).length) return negar("args_invalidos");
           ferramenta = alvo;
         }
-        if (ferramenta === "navegador_tarefa_ensinada") {
-          // TODO(2026-11-20): as tarefas ensinadas (T) ainda não são guardadas; a gravação chega com a vista ao vivo.
-          return { ok: true, conteudo: JSON.stringify({ tarefas: [], instrucao: "Nenhuma tarefa foi ensinada a você no navegador ainda." }), confianca: "confiavel" };
-        }
+        if (ferramenta === "navegador_tarefa_ensinada") return { ok: true, conteudo: JSON.stringify(tarefasParaOBot(await d.repos.navegadorTarefas.doAgente(plano.agenteId), argsDaFerramenta.nome)), confianca: "confiavel" };
         const est = estadoDe(escopo, plano.agenteId);
         const motor = o.motor(est.vista.lugar);
         if (!motor) return { ok: true, isError: true, conteudo: JSON.stringify({ erro: "indisponivel", instrucao: `${o.motivoIndisponivel ?? "O navegador do bot não está ligado neste servidor."} Nada foi executado; siga com o que dá sem ele e diga em uma frase o que ficou de fora.` }), confianca: "confiavel" };
@@ -495,7 +644,8 @@ export function criarNavegadores(o: OpcoesNavegadores) {
           return { ok: true, conteudo: JSON.stringify(p.data), confianca: "confiavel" };
         }
         const modo = modoNoTurno(agente?.modoAprovacao, plano.autoria) ?? "manual";
-        return { escopo, plano, est, motor, modo, ferramenta, args: argsDaFerramenta };
+        const liberacoes = await d.repos.navegadorPreferencias.liberacoes(plano.agenteId);
+        return { escopo, plano, est, motor, modo, liberacoes, ferramenta, args: argsDaFerramenta };
       });
       if (!("est" in r)) return r;
       if (!(await vaga(r.est))) return { ok: true, conteudo: JSON.stringify(NA_FILA), confianca: "confiavel" };
@@ -533,7 +683,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
         guardar({ erro: "indisponivel", instrucao: "O navegador não estava disponível quando a pessoa aprovou. Nada foi executado; peça de novo." });
         throw new ErroDeDominio("estado_invalido", { cause: "navegador indisponível" });
       }
-      const c: Contexto = { escopo, plano, est, motor, modo: "total" };
+      const c: Contexto = { escopo, plano, est, motor, modo: "total", liberacoes: SEM_LIBERACOES };
       try {
         const s = await comPasso(c, acao.ferramenta, null, () => efeito(c, acao.ferramenta, acao.argumentos));
         // O print aprovado não volta ao modelo (o turno não pediu para ver): só o texto.
@@ -561,6 +711,7 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       const est = estadoDe(escopo, agenteId);
       const proximo = proximoControle(est.vista.controle, op);
       if (!proximo) return null;
+      if (proximo !== "pessoa") descartarGravacao(est);
       mudar(est, { controle: proximo, ...(proximo === "bot" ? { pedido: null } : {}), atividadeEm: agora() });
       return est.vista;
     },
@@ -586,6 +737,160 @@ export function criarNavegadores(o: OpcoesNavegadores) {
       mudar(est, { estado: "desligado", passo: null, abas: [] });
     },
     pausarOciosos,
+    conferirDona,
+    /** A vista de um bot, criada se ainda não existe (o canal ao vivo, depois de conferir a dona). */
+    vistaDe: (escopo: Escopo, agenteId: string): VistaNavegador => estadoDe(escopo, agenteId).vista,
+    /**
+     * POST /agentes/:id/navegador (D3, D4). devolver e resolver fecham o pedido aberto (login, ajuda) e retomam o turno
+     * que esperava; com uma aprovação aberta, o controle volta a esperar por ela (a aprovação se responde pelos botões).
+     * Devolver no meio de uma gravação a descarta (com Desfazer por 10 s).
+     */
+    async operar(escopo: Escopo, agenteId: string, op: OperacaoNavegador): Promise<VistaNavegador> {
+      await conferirDona(escopo, agenteId);
+      const est = estadoDe(escopo, agenteId);
+      if (op === "assumir") {
+        if (!proximoControle(est.vista.controle, "assumir")) throw new ErroDeDominio("estado_invalido", { cause: "ja_com_voce" });
+        mudar(est, { controle: "pessoa", atividadeEm: agora() });
+        return est.vista;
+      }
+      if (op === "devolver" || op === "resolver") {
+        if (!proximoControle(est.vista.controle, op)) throw new ErroDeDominio("estado_invalido", { cause: "sem_controle" });
+        descartarGravacao(est);
+        const pedido = est.vista.pedido;
+        if (pedido?.tipo === "aprovacao") {
+          const aberta = await o.dentro(escopo, async (d) => {
+            const decisao = await d.repos.decisoes.buscar(pedido.decisaoId);
+            return decisao !== null && (decisao.estado === "pendente" || decisao.estado === "reaberta");
+          });
+          if (aberta) { mudar(est, { controle: "precisa_de_voce", atividadeEm: agora() }); return est.vista; }
+        }
+        mudar(est, { controle: "bot", pedido: null, atividadeEm: agora() });
+        if (pedido && pedido.tipo !== "aprovacao") await (o.retomarPedido ?? retomarDoPedido)(escopo, pedido.decisaoId, RETOMADA[op]);
+        return est.vista;
+      }
+      if (op === "ligar" || op === "retomar") { await ligar(est); return est.vista; }
+      if (op === "encerrar") {
+        descartarGravacao(est);
+        est.vivo = false;
+        est.refs = null;
+        est.abasGuardadas = [];
+        await o.motor(est.vista.lugar)?.fechar(sessao(agenteId));
+        mudar(est, { estado: "desligado", passo: null, abas: [], controle: est.vista.controle === "pessoa" ? "bot" : est.vista.controle });
+        return est.vista;
+      }
+      // recarregar
+      const motor = exigirPessoa(est);
+      await motor.historico(sessao(agenteId), "recarregar").catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "acao_falhou" }) : e; });
+      est.refs = null;
+      return est.vista;
+    },
+    /** POST /agentes/:id/navegador/endereco: a pessoa no controle digita na barra (a mesma validação do portão). */
+    async irPara(escopo: Escopo, agenteId: string, url: string): Promise<VistaNavegador> {
+      await conferirDona(escopo, agenteId);
+      const est = estadoDe(escopo, agenteId);
+      if (!enderecoPermitido(url)) throw new ErroDeDominio("entrada_invalida", { cause: "endereco_recusado" });
+      const motor = exigirPessoa(est);
+      await motor.abrir(sessao(agenteId), url).catch((e: unknown) => { throw ehFalhaNavegador(e) ? new ErroDeDominio("estado_invalido", { cause: "acao_falhou" }) : e; });
+      await atualizarAbasDe(est, motor);
+      mudar(est, { atividadeEm: agora() });
+      return est.vista;
+    },
+    /** POST /agentes/:id/navegador/aba: a pessoa no controle troca de aba (o id da vista, `t1`). */
+    async trocarAba(escopo: Escopo, agenteId: string, aba: string): Promise<VistaNavegador> {
+      await conferirDona(escopo, agenteId);
+      const est = estadoDe(escopo, agenteId);
+      if (!TAB_ID.test(aba)) throw new ErroDeDominio("entrada_invalida", { cause: "aba" });
+      const motor = exigirPessoa(est);
+      const abas = await motor.abas(sessao(agenteId));
+      if (!abas.some((a) => a.id === aba)) throw new ErroDeDominio("nao_encontrado", { cause: "aba" });
+      await motor.abaTrocar(sessao(agenteId), aba);
+      await atualizarAbasDe(est, motor);
+      return est.vista;
+    },
+    /**
+     * POST /agentes/:id/navegador/ensinar (T). Começar só com a pessoa no controle; salvar grava a tarefa e manda, em nome
+     * dela, "Ensinei: <nome>." com `passos-gravados.txt` na conversa do bot (o turno normal do bot vem dessa mensagem).
+     */
+    async ensinar(escopo: Escopo, agenteId: string, op: OperacaoEnsinar, nome?: string): Promise<{ vista: VistaNavegador; tarefa?: TarefaEnsinada }> {
+      await conferirDona(escopo, agenteId);
+      const est = estadoDe(escopo, agenteId);
+      if (op === "comecar") {
+        if (est.vista.controle !== "pessoa") throw new ErroDeDominio("estado_invalido", { cause: "assuma_primeiro" });
+        if (!est.gravacao) {
+          est.gravacao = novaGravacao(agora());
+          est.parou = null;
+          est.campo = null;
+          est.descartada = null;
+          mudar(est, { gravacao: vistaDaGravacao(est), descarte: null });
+          if (/^https?:/i.test(est.url)) registrar(est, { tipo: "abriu", url: est.url });
+        }
+        return { vista: est.vista };
+      }
+      if (op === "descartar") {
+        if (!est.gravacao) throw new ErroDeDominio("estado_invalido", { cause: "sem_gravacao" });
+        descartarGravacao(est);
+        return { vista: est.vista };
+      }
+      if (op === "desfazer_descarte") {
+        if (!est.descartada || est.descartada.ate < agora()) throw new ErroDeDominio("estado_invalido", { cause: "sem_descarte" });
+        est.gravacao = est.descartada.gravacao;
+        est.descartada = null;
+        mudar(est, { gravacao: vistaDaGravacao(est), descarte: null });
+        return { vista: est.vista };
+      }
+      // salvar
+      const g = est.gravacao;
+      if (!g || g.eventos.length === 0) throw new ErroDeDominio("estado_invalido", { cause: "sem_passos" });
+      const nomeFinal = (nome?.replace(/\s+/g, " ").trim() || nomeSugerido(g)).slice(0, 120);
+      const tarefa = await o.dentro(escopo, async (d) => {
+        const t = await d.repos.navegadorTarefas.criar({ agenteId, nome: nomeFinal, passos: passosDaGravacao(g) });
+        if (!t) throw new ErroDeDominio("nao_encontrado");
+        const mandar = o.mandarMensagem ?? ((dd: Deps, m: MensagemDaPessoa) => mandarMensagemPadrao(dd, { ...m, ...(o.executor ? { executor: o.executor() } : {}) }));
+        await mandar(d, { agenteId, texto: `Ensinei: ${nomeFinal}.`, arquivo: { nome: "passos-gravados.txt", conteudo: arquivoDosPassos(nomeFinal, g) } });
+        return t;
+      });
+      est.gravacao = null;
+      est.parou = null;
+      est.campo = null;
+      mudar(est, { gravacao: null });
+      return { vista: est.vista, tarefa };
+    },
+    /** O stream ao vivo do Chrome mandou abas ou o tamanho da tela (só para quem já tem estado: a dona assistindo). */
+    doStream(escopo: Escopo, agenteId: string, m: { abas?: readonly AbaMotor[]; viewport?: { w: number; h: number } }): void {
+      const est = estados.get(agenteId);
+      if (!est || est.escopo.pessoaId !== escopo.pessoaId || est.escopo.tenantId !== escopo.tenantId || !est.vivo) return;
+      if (m.abas) aplicarAbas(est, m.abas);
+      if (m.viewport && (m.viewport.w !== est.vista.viewport.w || m.viewport.h !== est.vista.viewport.h)) mudar(est, { viewport: m.viewport });
+    },
+    /**
+     * Antes de repassar uma entrada da pessoa ao Chrome (T): gravando, o clique vira "Clicou em …" (o elemento no ponto,
+     * descrito ANTES do clique, que pode trocar de página) e a digitação vira "Preencheu <rótulo>" (nunca o texto).
+     */
+    async antesDaEntrada(escopo: Escopo, agenteId: string, e: EntradaNavegador): Promise<void> {
+      const est = estados.get(agenteId);
+      if (!est || !est.gravacao || est.vista.controle !== "pessoa" || est.escopo.pessoaId !== escopo.pessoaId) return;
+      const motor = o.motor(est.vista.lugar);
+      if (!motor) return;
+      const s = sessao(agenteId);
+      if (e.t === "mouse") {
+        if (e.evento !== "mousePressed") return;
+        const el = await motor.descreverElemento(s, { x: e.x, y: e.y }).catch(() => null);
+        if (el?.editavel) { est.campo = campoDoElemento(el, campoEhSecreto); return; }
+        est.campo = null;
+        const clique = eventoDoClique(el);
+        if (clique) registrar(est, clique);
+        return;
+      }
+      if (e.evento === "keyDown" && e.tecla === "Enter") { registrar(est, { tipo: "tecla", tecla: "Enter" }); return; }
+      if (e.evento === "keyDown" && e.tecla === "Tab") { est.campo = null; return; }
+      if (!entradaDigita(e)) return;
+      if (!est.campo) {
+        const el = await motor.descreverElemento(s, null).catch(() => null);
+        if (!el?.editavel) return;
+        est.campo = campoDoElemento(el, campoEhSecreto);
+      }
+      registrar(est, { tipo: "digitou", campo: est.campo.campo, protegido: est.campo.protegido });
+    },
     /** Quantos Chromes vivos no servidor (o limite NOD_NAVEGADORES_MAX). */
     vivos: () => [...estados.values()].filter((e) => e.vivo).length,
   };

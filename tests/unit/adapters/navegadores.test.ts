@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { criarNavegadores, enderecoPermitido, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
+import { criarNavegadores, DESFAZER_DESCARTE_MS, enderecoPermitido, tarefasParaOBot, type MensagemDaPessoa, type OpcoesNavegadores } from "../../../src/adapters/fundo/navegadores.ts";
 import type { MotorNavegador, RefLida } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FalhaNavegador } from "../../../src/adapters/navegador/motor-agent-browser.ts";
 import { FERRAMENTAS_NAVEGADOR_DIRETAS } from "../../../src/contracts/ferramentas-navegador.ts";
 import type { VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
+import type { TarefaEnsinada } from "../../../src/contracts/navegador-do-bot.ts";
+import { SEM_LIBERACOES, type LiberacoesNavegador } from "../../../src/domain/navegador-aprovacao.ts";
+import type { ElementoNaPagina } from "../../../src/domain/navegador-ensinar.ts";
 import { PAUSA_APOS_MS } from "../../../src/domain/navegador-vista.ts";
 import { executarItens } from "../../../src/use-cases/decidir.ts";
 import { MARLON } from "../use-cases/deps-l5.ts";
@@ -30,6 +33,11 @@ let aprovacoes: { itens: { texto: string; destino: { conector: string; ferrament
 let pedidosAPessoa: { texto: string }[];
 let vistas: VistaNavegador[];
 let falhaNoClique: FalhaNavegador | null;
+let liberacoes: LiberacoesNavegador;
+let tarefas: TarefaEnsinada[];
+let retomadas: { decisaoId: string; texto: string }[];
+let mensagens: MensagemDaPessoa[];
+let elemento: ElementoNaPagina | null;
 
 const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
   get(_t, op: string) {
@@ -46,6 +54,7 @@ const motor: MotorNavegador = new Proxy({} as MotorNavegador, {
         case "focado": return { papel: "button", nome: "Enviar mensagem" };
         case "clicar": if (falhaNoClique) throw falhaNoClique; return undefined;
         case "obter": return "valor";
+        case "descreverElemento": return elemento;
         default: return undefined;
       }
     };
@@ -62,7 +71,12 @@ const deps = () => ({
       buscar: async (id: string) => ({ id, estado: concluidos.has(id) ? "concluido" : "executando", agenteId: id.endsWith("b") ? B : A, ownerId: MARLON.pessoaId, conversaId: "conversa-1", pararSolicitadoEm: null, motivoInterrupcao: null }),
       pedirInterrupcao: async () => {},
     },
-    agentes: { buscar: async (id: string) => ({ id, modoAprovacao: modo, soLeitura }), execucaoBloqueada: async () => false },
+    agentes: { buscar: async (id: string) => (id === A || id === B ? { id, ownerId: MARLON.pessoaId, modoAprovacao: modo, soLeitura } : null), execucaoBloqueada: async () => false },
+    navegadorPreferencias: { liberacoes: async () => liberacoes },
+    navegadorTarefas: {
+      doAgente: async () => tarefas,
+      criar: async (t: { agenteId: string; nome: string; passos: string[] }) => { const nova = { id: `tarefa-${tarefas.length + 1}`, nome: t.nome, passos: t.passos, criadaEm: agora }; tarefas.unshift(nova); return nova; },
+    },
     paradas: { ativa: async () => false },
     decisoes: { buscar: async (id: string) => decisoes.get(id) ?? null },
     events: { gravarComOutbox: async () => {} },
@@ -74,6 +88,8 @@ function criar(o: Partial<OpcoesNavegadores> = {}) {
     dentro: async <T>(_e: unknown, fn: (d: never) => Promise<T>) => fn(deps() as never),
     motor: () => motor, cifrar: (s) => `c:${s}`, decifrar: (s) => s.slice(2), agora: () => agora,
     aoMudar: (_e, v) => { vistas.push(v); },
+    retomarPedido: async (_e, decisaoId, texto) => { retomadas.push({ decisaoId, texto }); },
+    mandarMensagem: async (_d, m) => { mensagens.push(m); },
     pedirAprovacao: (async (_d: unknown, input: { itens: (typeof aprovacoes)[number]["itens"] }) => {
       aprovacoes.push({ itens: input.itens });
       const id = `decisao-${aprovacoes.length}`;
@@ -112,6 +128,11 @@ beforeEach(() => {
   pedidosAPessoa = [];
   vistas = [];
   falhaNoClique = null;
+  liberacoes = SEM_LIBERACOES;
+  tarefas = [];
+  retomadas = [];
+  mensagens = [];
+  elemento = null;
 });
 
 describe("negações do portão (molde de computadores.chamar)", () => {
@@ -404,5 +425,126 @@ describe("decisão aprovada → executarItens", () => {
     expect(await executarItens(services, [{ item, conectorId: null, navegador }])).toEqual([{ itemId: "i1", desfecho: "executado" }]);
     expect(recebidos).toEqual([navegador]);
     expect(await executarItens({ conectores: {} } as never, [{ item, conectorId: null, navegador }])).toEqual([{ itemId: "i1", desfecho: "falhou_na_execucao" }]);
+  });
+});
+
+describe("liberações e tarefas guardadas (0180)", () => {
+  it("o teto de antemão para o site deixa pagar sem perguntar (A2); acima do teto, pede", async () => {
+    liberacoes = { pagar: [{ host: "loja.exemplo.com", ateCentavos: 15_000 }], enviar: [] };
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e1" })).toMatchObject({ ok: true });
+    expect(aprovacoes).toHaveLength(0);
+    liberacoes = { pagar: [{ host: "loja.exemplo.com", ateCentavos: 10_000 }], enviar: [] };
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    expect(await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e1" })).toEqual({ aguardar: "decisao-1" });
+  });
+
+  it("navegador_tarefa_ensinada lista as guardadas e devolve os passos pelo nome", async () => {
+    const n = criar();
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_tarefa_ensinada", argumentos: {} }))).toMatchObject({ tarefas: [] });
+    tarefas = [{ id: "t1", nome: "Baixar a fatura", passos: ["Abriu itau.com.br", 'Clicou em "Faturas"'], criadaEm: T0 }];
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_tarefa_ensinada", argumentos: {} }))).toMatchObject({ tarefas: [{ nome: "Baixar a fatura", passos: 2 }] });
+    expect(corpo(await n.chamar(MARLON, plano(A), "navegador_usar", { ferramenta: "navegador_tarefa_ensinada", argumentos: { nome: "fatura" } }))).toMatchObject({ nome: "Baixar a fatura", passos: ["Abriu itau.com.br", 'Clicou em "Faturas"'] });
+    expect(tarefasParaOBot(tarefas, "outra")).toMatchObject({ erro: "tarefa_inexistente" });
+    expect(chamadas).toEqual([]);
+  });
+});
+
+describe("operações da pessoa (POST /agentes/:id/navegador)", () => {
+  it("bot de outra pessoa (ou que não existe) é nao_encontrado, sem criar estado", async () => {
+    const n = criar();
+    await expect(n.operar(MARLON, "00000000-0000-4000-8000-0000000000ee", "assumir")).rejects.toThrow("nao_encontrado");
+    expect(n.vista(MARLON, "00000000-0000-4000-8000-0000000000ee")).toBeNull();
+  });
+
+  it("ligar abre o Chrome; encerrar fecha; pausa guarda as abas e retomar as reabre", async () => {
+    const n = criar();
+    expect(await n.operar(MARLON, A, "ligar")).toMatchObject({ estado: "ao_vivo", abas: [{ id: "t1" }] });
+    expect(chamadas[0]).toEqual({ op: "abrir", args: ["about:blank"] });
+    await n.chamar(MARLON, plano(A), "navegador_abrir", { url: "https://loja.exemplo.com/carrinho" });
+    agora += PAUSA_APOS_MS;
+    expect(await n.pausarOciosos()).toBe(1);
+    expect(n.vista(MARLON, A)).toMatchObject({ estado: "pausa" });
+    chamadas = [];
+    expect(await n.operar(MARLON, A, "retomar")).toMatchObject({ estado: "ao_vivo" });
+    expect(chamadas[0]).toEqual({ op: "abrir", args: ["https://loja.exemplo.com/carrinho"] });
+    expect(await n.operar(MARLON, A, "encerrar")).toMatchObject({ estado: "desligado", abas: [] });
+    expect(ops()).toContain("fechar");
+  });
+
+  it("devolver com login aberto fecha o pedido e retoma o turno; com aprovação aberta, volta a esperar por ela", async () => {
+    const n = criar();
+    await n.chamar(MARLON, plano(A), "navegador_entrar", { site: "gmail.com", motivo: "ler a fatura" });
+    expect(await n.operar(MARLON, A, "assumir")).toMatchObject({ controle: "pessoa" });
+    expect(await n.operar(MARLON, A, "devolver")).toMatchObject({ controle: "bot", pedido: null });
+    expect(retomadas).toEqual([{ decisaoId: "pedido-1", texto: expect.stringContaining("devolvi o controle") }]);
+    await expect(n.operar(MARLON, A, "devolver")).rejects.toThrow("estado_invalido");
+    await n.chamar(MARLON, plano(A), "navegador_ler", {});
+    await n.chamar(MARLON, plano(A), "navegador_clicar", { alvo: "@e1" });
+    expect(n.vista(MARLON, A)).toMatchObject({ controle: "precisa_de_voce", pedido: { tipo: "aprovacao" } });
+    await n.operar(MARLON, A, "assumir");
+    expect(await n.operar(MARLON, A, "devolver")).toMatchObject({ controle: "precisa_de_voce", pedido: { tipo: "aprovacao" } });
+    expect(retomadas).toHaveLength(1);
+  });
+
+  it("barra de endereço e abas só com a pessoa no controle; a URL passa pela validação do portão", async () => {
+    const n = criar();
+    await n.operar(MARLON, A, "ligar");
+    await expect(n.irPara(MARLON, A, "https://exemplo.com")).rejects.toThrow("estado_invalido");
+    await n.operar(MARLON, A, "assumir");
+    await expect(n.irPara(MARLON, A, "http://169.254.169.254/")).rejects.toThrow("entrada_invalida");
+    expect(await n.irPara(MARLON, A, "https://exemplo.com/")).toMatchObject({ abas: [{ url: "https://exemplo.com/" }] });
+    await expect(n.trocarAba(MARLON, A, "t9")).rejects.toThrow("nao_encontrado");
+    await expect(n.trocarAba(MARLON, A, "../x")).rejects.toThrow("entrada_invalida");
+    await n.trocarAba(MARLON, A, "t1");
+    expect(ops()).toContain("abaTrocar");
+  });
+});
+
+describe("ensinar uma tarefa (T)", () => {
+  it("grava com a pessoa no controle: página, clique pelo nome e campo pelo rótulo (nunca o texto); salvar manda a mensagem da pessoa", async () => {
+    const n = criar();
+    await n.operar(MARLON, A, "ligar");
+    await expect(n.ensinar(MARLON, A, "comecar")).rejects.toThrow("estado_invalido");
+    await n.operar(MARLON, A, "assumir");
+    await n.irPara(MARLON, A, "https://itau.com.br/");
+    expect((await n.ensinar(MARLON, A, "comecar")).vista.gravacao).toMatchObject({ passos: ["Abriu itau.com.br"] });
+    elemento = { papel: "textbox", nome: "", rotulo: "Agência", tipo: "text", autocomplete: null, editavel: true };
+    await n.antesDaEntrada(MARLON, A, { t: "mouse", evento: "mousePressed", x: 10, y: 10 });
+    await n.antesDaEntrada(MARLON, A, { t: "tecla", evento: "char", texto: "1234" });
+    await n.antesDaEntrada(MARLON, A, { t: "tecla", evento: "char", texto: "5" });
+    elemento = { papel: "textbox", nome: "", rotulo: "Senha", tipo: "password", autocomplete: "current-password", editavel: true };
+    await n.antesDaEntrada(MARLON, A, { t: "mouse", evento: "mousePressed", x: 10, y: 40 });
+    await n.antesDaEntrada(MARLON, A, { t: "tecla", evento: "char", texto: "hunter22" });
+    elemento = { papel: "button", nome: "Faturas", rotulo: "", tipo: null, autocomplete: null, editavel: false };
+    await n.antesDaEntrada(MARLON, A, { t: "mouse", evento: "mousePressed", x: 10, y: 80 });
+    n.doStream(MARLON, A, { abas: [{ id: "t1", titulo: "Faturas", url: "https://itau.com.br/faturas", ativa: true }] });
+    const passos = n.vista(MARLON, A)!.gravacao!.passos;
+    expect(passos).toEqual(["Abriu itau.com.br", 'Preencheu "Agência"', "Preencheu Senha (não gravado)", 'Clicou em "Faturas"', "Abriu itau.com.br"]);
+    expect(JSON.stringify(passos)).not.toMatch(/1234|hunter22/);
+    const { tarefa, vista } = await n.ensinar(MARLON, A, "salvar", "  Baixar a fatura ");
+    expect(tarefa).toMatchObject({ nome: "Baixar a fatura", passos });
+    expect(vista.gravacao).toBeNull();
+    expect(mensagens).toEqual([{ agenteId: A, texto: "Ensinei: Baixar a fatura.", arquivo: { nome: "passos-gravados.txt", conteudo: expect.stringContaining('4. Clicou em "Faturas"') } }]);
+    expect(mensagens[0]!.arquivo.conteudo).not.toMatch(/1234|hunter22/);
+  });
+
+  it("devolver ao bot no meio descarta a gravação, com Desfazer por 10 s; a entrada do bot nunca grava", async () => {
+    const n = criar();
+    await n.operar(MARLON, A, "ligar");
+    await n.operar(MARLON, A, "assumir");
+    await n.ensinar(MARLON, A, "comecar");
+    elemento = { papel: "link", nome: "Entrar", rotulo: "", tipo: null, autocomplete: null, editavel: false };
+    await n.antesDaEntrada(MARLON, A, { t: "mouse", evento: "mousePressed", x: 1, y: 1 });
+    expect(await n.operar(MARLON, A, "devolver")).toMatchObject({ gravacao: null, descarte: { passos: 1, ate: T0 + DESFAZER_DESCARTE_MS } });
+    await n.antesDaEntrada(MARLON, A, { t: "mouse", evento: "mousePressed", x: 1, y: 1 });
+    expect((await n.ensinar(MARLON, A, "desfazer_descarte")).vista).toMatchObject({ gravacao: { passos: ['Clicou em "Entrar"'] }, descarte: null });
+    await n.operar(MARLON, A, "assumir");
+    await n.ensinar(MARLON, A, "descartar");
+    agora += DESFAZER_DESCARTE_MS + 1;
+    await expect(n.ensinar(MARLON, A, "desfazer_descarte")).rejects.toThrow("estado_invalido");
+    await expect(n.ensinar(MARLON, A, "salvar")).rejects.toThrow("estado_invalido");
+    expect(mensagens).toEqual([]);
   });
 });

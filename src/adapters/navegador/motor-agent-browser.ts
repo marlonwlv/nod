@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
 import type { LugarNavegador } from "../../contracts/navegador-do-bot.ts";
+import type { ElementoNaPagina } from "../../domain/navegador-ensinar.ts";
 
 /**
  * O motor do navegador do bot (ADR-190): o agent-browser 0.43.0 (binário nativo do pacote npm, versão fixa), um daemon
@@ -86,6 +87,11 @@ export interface MotorNavegador {
   avaliar(s: SessaoNavegador, expressao: string): Promise<unknown>;
   /** O elemento com o foco (para classificar o Enter): papel e nome, como a leitura daria. */
   focado(s: SessaoNavegador): Promise<RefLida | null>;
+  /**
+   * "Ensinar uma tarefa" (T): o elemento sob o ponto da página (ou o focado, com `ponto` null), com papel, nome
+   * acessível, rótulo e tipo do campo. Nunca o valor de um campo de digitar.
+   */
+  descreverElemento(s: SessaoNavegador, ponto: { x: number; y: number } | null): Promise<ElementoNaPagina | null>;
   url(s: SessaoNavegador): Promise<string>;
   /** A porta do WebSocket de quadros da sessão (liga o streaming se estiver desligado); null sem sessão viva. */
   portaDoStream(s: SessaoNavegador): Promise<number | null>;
@@ -209,6 +215,28 @@ const JS_FOCADO = `(() => { const e = document.activeElement; if (!e || e === do
   if (e.form && tag === 'input' && tipo !== 'submit' && tipo !== 'button') { const b = e.form.querySelector('[type=submit], button:not([type])'); if (b) return { papel: 'button', nome: nomeDe(b) }; return { papel: 'textbox', nome: nomeDe(e) }; }
   const papel = e.getAttribute('role') || (tag === 'a' ? 'link' : tag === 'button' || tipo === 'submit' || tipo === 'button' ? 'button' : tag);
   return { papel, nome: nomeDe(e) }; })()`;
+
+/**
+ * O elemento sob o ponto (ou o focado), em JS de página fixo do servidor; o ponto entra como número já conferido. Sobe
+ * do nó clicado ao interativo mais próximo (o texto dentro de um botão conta como o botão). O valor de um campo de
+ * digitar nunca é lido; o de um input de botão (submit) é o rótulo dele.
+ */
+export function jsDescreverElemento(ponto: { x: number; y: number } | null): string {
+  const alvo = ponto ? `document.elementFromPoint(${Number(ponto.x)}, ${Number(ponto.y)})` : "document.activeElement";
+  return `(() => { const bruto = ${alvo}; if (!bruto || bruto === document.body || bruto === document.documentElement) return null;
+  const e = bruto.closest('a,button,input,textarea,select,summary,[role],[contenteditable=""],[contenteditable="true"]') || bruto;
+  const tag = e.tagName.toLowerCase(); const tipo = (e.getAttribute('type') || '').toLowerCase();
+  const botaoInput = tag === 'input' && ['button', 'submit', 'reset', 'image'].includes(tipo);
+  const editavel = (tag === 'input' && !botaoInput && !['checkbox', 'radio', 'file', 'range', 'color', 'hidden'].includes(tipo)) || tag === 'textarea' || e.isContentEditable === true;
+  const papel = e.getAttribute('role') || (tag === 'a' ? 'link' : tag === 'button' || botaoInput ? 'button' : tag === 'select' ? 'combobox' : tipo === 'checkbox' ? 'checkbox' : tipo === 'radio' ? 'radio' : editavel ? (tipo === 'search' ? 'searchbox' : 'textbox') : tag);
+  const texto = (x) => (x || '').replace(/\\s+/g, ' ').trim().slice(0, 200);
+  let rotulo = '';
+  if (e.labels && e.labels.length) rotulo = e.labels[0].innerText;
+  if (!rotulo && e.getAttribute('aria-labelledby')) { const l = document.getElementById(e.getAttribute('aria-labelledby').split(' ')[0]); if (l) rotulo = l.innerText; }
+  if (!rotulo) rotulo = e.getAttribute('aria-label') || e.getAttribute('placeholder') || e.getAttribute('title') || e.getAttribute('name') || '';
+  const nome = editavel ? '' : (e.getAttribute('aria-label') || (botaoInput ? e.value : e.innerText) || e.getAttribute('title') || e.getAttribute('alt') || '');
+  return { papel, nome: texto(nome), rotulo: texto(rotulo), tipo: tipo || null, autocomplete: e.getAttribute('autocomplete'), editavel }; })()`;
+}
 
 export const executorPadrao: ExecutorProcesso = ({ bin, args, env, prazoMs, limiteSaida }) => new Promise((resolve) => {
   const filho = spawn(bin, args, { env, stdio: ["ignore", "pipe", "pipe"] });
@@ -366,6 +394,11 @@ export function criarMotorAgentBrowser(o: OpcoesMotorAgentBrowser): MotorNavegad
     async focado(s) {
       const r = obj((await rodar(s, ["eval", "-b", Buffer.from(JS_FOCADO, "utf8").toString("base64")])).result);
       return typeof r.papel === "string" ? { papel: r.papel, nome: str(r.nome) } : null;
+    },
+    async descreverElemento(s, ponto) {
+      const r = obj((await rodar(s, ["eval", "-b", Buffer.from(jsDescreverElemento(ponto), "utf8").toString("base64")])).result);
+      if (typeof r.papel !== "string") return null;
+      return { papel: r.papel, nome: str(r.nome), rotulo: str(r.rotulo), tipo: typeof r.tipo === "string" ? r.tipo : null, autocomplete: typeof r.autocomplete === "string" ? r.autocomplete : null, editavel: r.editavel === true };
     },
     async url(s) { return str((await rodar(s, ["get", "url"])).url); },
     async portaDoStream(s) {
