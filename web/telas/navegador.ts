@@ -143,8 +143,16 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
   // A folha do celular (D6, C).
   const folha = document.createElement("div");
   folha.className = "nv-folha";
-  folha.hidden = true;
-  folha.setAttribute("role", "dialog");
+  /**
+   * Revisão da CI (2026-11-20): o papel de diálogo só existe com a folha aberta. Escondida com role="dialog", ela casava com
+   * SELETOR_MODAL (web/lib/atalhos.ts) e o app achava que havia uma janela aberta: ⌘B, ⌘, e os outros atalhos paravam.
+   */
+  const mostrarFolha = (sim: boolean): void => {
+    folha.hidden = !sim;
+    if (sim) folha.setAttribute("role", "dialog");
+    else folha.removeAttribute("role");
+  };
+  mostrarFolha(false);
   folha.setAttribute("aria-label", "Tela do bot");
   folha.innerHTML = `<div class="nv-folha-pega"><span class="nv-folha-alca" aria-hidden="true"></span><div class="nv-folha-topo"></div></div><div class="nv-folha-corpo"></div>`;
   const folhaTopo = folha.querySelector<HTMLElement>(".nv-folha-topo")!;
@@ -332,7 +340,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     const terminar = (): void => {
       v?.ligar(false);
       painel.hidden = true;
-      folha.hidden = true;
+      mostrarFolha(false);
       if (aberto?.agenteId === id && aberto.modo === eraModo) aberto = null;
       classesDaApp();
       o.render();
@@ -487,7 +495,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     montar();
     aberto = { agenteId, modo: "folha", lugar };
     if (!respostas.has(agenteId)) pedirVista(agenteId);
-    folha.hidden = false;
+    mostrarFolha(true);
     pintarTopo();
     encaixarVista();
     folha.style.setProperty("--nv-folha-alto", "0px");
@@ -528,7 +536,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
       if (v?.controleComPessoa()) { void v.devolver(); avisar(`Devolvido ${aoNome(nomeDe(id))}`, () => abrirPainel(id)); }
       v?.ligar(false);
       aberto = null;
-      window.setTimeout(() => { if (!aberto) folha.hidden = true; }, reduzido() ? 0 : MS_FOLHA);
+      window.setTimeout(() => { if (!aberto) mostrarFolha(false); }, reduzido() ? 0 : MS_FOLHA);
     }
   }
 
@@ -584,7 +592,7 @@ export function criarNavegadorNaTela(o: OpcoesNavegadorNaTela) {
     v.hospedar("tela-cheia");
     v.ligar(true);
     if (aberto?.modo === "painel") { painel.hidden = true; }
-    if (aberto?.modo === "folha") folha.hidden = true;
+    if (aberto?.modo === "folha") mostrarFolha(false);
     pintarTelaCheia();
     // Esc não fecha (no controle ele vai ao site); só "Sair da tela cheia" e ⌘⇧F.
     dialog.addEventListener("keydown", (e) => { if (e.key === "Escape") e.preventDefault(); }, true);

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OperacaoNavegador, RespostaNavegador, VistaNavegador } from "../../../src/contracts/navegador-do-bot.ts";
+import { SELETOR_MODAL } from "../../../web/lib/atalhos.ts";
 import { criarNavegadorNaTela, lerAbasDeLugar, MS_RELOGIO_GRAVACAO } from "../../../web/telas/navegador.ts";
 import { ESPERAS_DO_CANAL_MS, montarVistaNavegador, MS_CRUZAR_PILULA, type SocketDaVista } from "../../../web/telas/navegador-vista.ts";
 
@@ -273,6 +274,11 @@ describe("o painel, a aba e a tela cheia (D1, D1c, D4 E, D5, D7)", () => {
   afterEach(() => navegador.destruir());
   const painel = () => document.getElementById("navegador-painel")!;
   const app = () => document.querySelector<HTMLElement>(".app")!;
+
+  it("com a folha do celular fechada nada casa com SELETOR_MODAL (senão os atalhos ⌘B e ⌘, param; CI de 2026-11-20)", () => {
+    navegador.abrirPainel("a1");
+    expect(document.querySelector(SELETOR_MODAL)).toBeNull();
+  });
 
   it("abre ao lado com os lugares e as ações; a conversa encolhe (40 % da área) e o painel do bot sai", () => {
     navegador.abrirPainel("a1");
