@@ -26,7 +26,12 @@ import type { CasoDeUso } from "./tipos.ts";
  * data (sem corte de fila, que já foi feito); com a mesma data, ou sem data numa pausada, segue sem efeito como sempre.
  */
 export const pausarRotina: CasoDeUso<{ rotinaId: string; estado: EstadoRotina; retomarEm?: number | null; ate?: string; retomadaAutomatica?: true; autoria?: Autoria; texto?: string; semLinha?: true }, { rotina: Rotina; corte?: { cortados: number; rodando: boolean } }> = async (deps, input) => {
-  const atual = exigir(await deps.repos.rotinas.buscar(input.rotinaId), "nao_encontrado", "rotina");
+  // QA-120 (2026-11-20): relê com FOR UPDATE. Duas pausas (ou dois reativar) da mesma rotina ao mesmo tempo — o botão da
+  // tela e o pausar_rotina do chat, ou dois cliques — liam o mesmo estado e cada uma escrevia a sua linha; quem chega
+  // depois agora espera, vê o estado já mudado e sai sem efeito.
+  // Quem não é a dona não trava (a policy esconde) e segue no `buscar`, para receber o nao_permitido de sempre.
+  const visto = exigir(await deps.repos.rotinas.buscar(input.rotinaId), "nao_encontrado", "rotina");
+  const atual = (await deps.repos.rotinas.buscarParaAtualizar(visto.id)) ?? visto;
   const agora = deps.agora();
   // `ate` (a tela manda a hora local, como o chat) vira instante no fuso DA ROTINA; `retomarEm` já é o instante.
   const retomarEm = input.estado !== "pausada" ? null : input.ate !== undefined ? instanteLocal(input.ate, atual.fusoIana) : input.retomarEm ?? null;
