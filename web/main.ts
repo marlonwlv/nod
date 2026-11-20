@@ -231,6 +231,7 @@ import { atalhoDoCabecalho, avisoDoNome, cabecalhoDoTime, campoDoNome, chaveDoTi
 import type { TimeNaLista } from "../src/contracts/time.ts";
 import { instalarDeslizeLida } from "./lib/deslize-lida-dom.ts";
 import { teclaNaoLidos } from "./lib/teclado-nao-lidos.ts";
+import { focoAntesDeMarcarTudo, focoAntesDeSair } from "./lib/nao-lidos-foco.ts";
 import { fraseDaContagemNoAviso, fraseDoAviso } from "./lib/frase-leitura.ts";
 import { frotaAoSoltar, ordemAoSoltar, velocidadeAutoRolagem, type Destino } from "./lib/arrastar.ts";
 import { bordasDaLista, rolagemDaBarra, type Faixa } from "./lib/rolagem-barra.ts";
@@ -2413,7 +2414,10 @@ function invalidarLeitura(): void {
 
 /** NOD-449: marca uma conversa como lida e mostra "X marcada como lida · Desfazer" (o Desfazer volta o "lido até" de antes). */
 function marcarComDesfazer(conversaId: string, nome: string): Promise<void> {
-  document.querySelector(`.nl-item[data-conversa="${CSS.escape(conversaId)}"]`)?.classList.add("nl-sai");
+  const item = document.querySelector(`.nl-item[data-conversa="${CSS.escape(conversaId)}"]`);
+  // QA-156: o foco sai da linha antes de ela sair (o ✓ pelo teclado e o E na última linha deixavam o foco no <body>).
+  focoAntesDeSair(item);
+  item?.classList.add("nl-sai");
   return agir(async () => {
     try {
       const r = await api!.marcarLida(conversaId);
@@ -2425,6 +2429,7 @@ function marcarComDesfazer(conversaId: string, nome: string): Promise<void> {
 }
 
 function marcarTudoComDesfazer(): Promise<void> {
+  focoAntesDeMarcarTudo();
   const nomePorId = new Map((estado.naoLidos?.conversas ?? []).map((c) => [c.conversaId, nomeDaConversa(c, estado)]));
   return agir(async () => {
     try {
@@ -10155,11 +10160,12 @@ document.addEventListener("keydown", (ev) => {
   if (r.tipo === "mover") linhas[r.indice]?.querySelector<HTMLElement>(".nl-abrir")?.focus();
   else {
     const l = linhas[atual]!;
-    // O foco segue para a próxima linha (ou a anterior, se era a última): dá para marcar várias seguidas com E.
+    // O foco segue para a próxima linha (ou a anterior, se era a última) já no marcarComDesfazer (QA-156): dá para marcar
+    // várias seguidas com E; depois da resposta, volta a ela se o redesenho da tela por string a recriou.
     const prox = linhas[atual + 1] ?? linhas[atual - 1];
     void marcarComDesfazer(l.dataset.conversa ?? "", l.dataset.nome ?? "").then(() => {
       const c = prox?.dataset.conversa;
-      if (c) document.querySelector<HTMLElement>(`.nl-item[data-conversa="${CSS.escape(c)}"] .nl-abrir`)?.focus();
+      if (c && (document.activeElement === document.body || !document.activeElement?.isConnected)) document.querySelector<HTMLElement>(`.nl-item[data-conversa="${CSS.escape(c)}"] .nl-abrir`)?.focus();
     });
   }
 });
