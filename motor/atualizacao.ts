@@ -40,6 +40,26 @@ export async function shaDosArquivos(dir: string): Promise<Record<string, string
   return r;
 }
 
+/** O script do root que troca os arquivos (gravado na instalação). */
+export const ATUALIZADOR_DA_INSTALACAO = "/usr/local/sbin/nod-motor-atualizar";
+
+/**
+ * QA-127: o atualizador do root é gravado na instalação e não se atualiza. O de antes do #165 troca só os arquivos do
+ * motor: comparar o computador nessas máquinas deixaria o manifesto sempre diferente, e o motor pediria, reiniciaria e
+ * pediria de novo a cada momento ocioso (drenando o fundo no meio). Só entra na comparação o que o atualizador instala.
+ */
+export async function atualizadorTrocaOComputador(atualizador: string, dirComputador: string): Promise<boolean> {
+  const texto = await readFile(atualizador, "utf8").catch(() => "");
+  return texto.includes(`${dirComputador.replace(/\/+$/, "")}/`);
+}
+
+/** O manifesto que esta máquina consegue cumprir: sem o código do computador quando o atualizador não o troca. */
+export function manifestoComparavel(manifesto: Readonly<Record<string, string>>, trocaOComputador: boolean): Record<string, string> {
+  if (trocaOComputador) return { ...manifesto };
+  const fora = new Set<string>(ARQUIVOS_DO_COMPUTADOR);
+  return Object.fromEntries(Object.entries(manifesto).filter(([nome]) => !fora.has(nome)));
+}
+
 async function shaDoManifesto(dir: string, manifesto: Readonly<Record<string, string>>, dirComputador: string): Promise<Record<string, string | null>> {
   const locais = await shaDosArquivos(dir);
   for (const nome of ARQUIVOS_DO_COMPUTADOR) {
@@ -76,6 +96,8 @@ export function iniciarAtualizacao(o: {
   dir: string;
   /** A pasta dos processos do computador, atualizados junto quando aparecem no manifesto. */
   dirComputador?: string;
+  /** O script do root que troca os arquivos (QA-127: o computador só é comparado se ele o troca). */
+  atualizador?: string;
   pastaDoMotor: string;
   turnosRodando: () => number;
   /** ADR-131: dos turnos rodando, os que a pessoa espera agora (pool-lacos `turnosDaPessoa`). */
@@ -92,6 +114,7 @@ export function iniciarAtualizacao(o: {
   const buscar = o.buscar ?? fetch;
   let estado: EstadoDaAtualizacao = ATUALIZACAO_PARADA;
   let locais: Record<string, string | null> | null = null;
+  let trocaOComputador: boolean | null = null;
   let emCurso: Promise<void> | null = null;
   let ultimoMotivo = "";
   let rapido: ReturnType<typeof setInterval> | null = null;
@@ -116,8 +139,11 @@ export function iniciarAtualizacao(o: {
       if (!r?.ok) return;
       const manifesto = (await r.json()) as { versao?: string; arquivos?: Record<string, string> };
       if (!manifesto.arquivos) return;
-      locais ??= await shaDoManifesto(o.dir, manifesto.arquivos, o.dirComputador ?? "/opt/nod-motor/computador");
-      const diferente = motorDiferente(locais, manifesto.arquivos);
+      const dirComputador = o.dirComputador ?? "/opt/nod-motor/computador";
+      trocaOComputador ??= await atualizadorTrocaOComputador(o.atualizador ?? ATUALIZADOR_DA_INSTALACAO, dirComputador);
+      const comparavel = manifestoComparavel(manifesto.arquivos, trocaOComputador);
+      locais ??= await shaDoManifesto(o.dir, comparavel, dirComputador);
+      const diferente = motorDiferente(locais, comparavel);
       const p = proximoPasso(estado, { agora: relogio(), diferente, turnosRodando: o.turnosRodando(), turnosDaPessoa: o.turnosDaPessoa() });
       if (p.estado.drenando !== estado.drenando) o.drenar(p.estado.drenando ? "fundo" : false);
       estado = p.estado;

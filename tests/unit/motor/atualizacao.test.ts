@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scriptDeInstalacao } from "../../../src/adapters/http/motor-instalacao.ts";
 import { ATUALIZACAO_PARADA, DRENAGEM_MAXIMA_MS, ESPERA_DEPOIS_DE_DESISTIR_MS, ESPERA_DEPOIS_DE_FALHAR_MS, ESPERA_DO_PEDIDO_MS, JANELA_OCIOSA_MS, motorDiferente, proximoPasso, type Drenagem } from "../../../src/domain/atualizacao-do-motor.ts";
-import { arquivoDoPedido, atualizacaoLigada, iniciarAtualizacao, shaDosArquivos } from "../../../motor/atualizacao.ts";
+import { arquivoDoPedido, atualizacaoLigada, atualizadorTrocaOComputador, iniciarAtualizacao, manifestoComparavel, shaDosArquivos } from "../../../motor/atualizacao.ts";
 
 const sha = (t: string) => createHash("sha256").update(t).digest("hex");
 const MIN = 60_000;
@@ -171,11 +171,58 @@ describe("o motor se atualiza sozinho (ADR-100): no motor", () => {
     };
     const buscar = (async () => new Response(JSON.stringify({ versao: "0.5.0", arquivos }), { status: 200 })) as typeof fetch;
     const drenos: Drenagem[] = [];
-    const a = iniciarAtualizacao({ url: "https://nod", dir: igual.dir, dirComputador: computador, pastaDoMotor: igual.pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: (s) => drenos.push(s), buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0 });
+    const atualizador = join(computador, "nod-motor-atualizar");
+    await writeFile(atualizador, `install -o root -g root -m 644 "$TMP/computador-tela.mjs" "${computador}/tela.mjs"\n`);
+    const a = iniciarAtualizacao({ url: "https://nod", dir: igual.dir, dirComputador: computador, atualizador, pastaDoMotor: igual.pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: (s) => drenos.push(s), buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0 });
     await a.agora();
     expect(drenos).toEqual(["fundo", "tudo"]);
     await expect(readFile(arquivoDoPedido(igual.pasta), "utf8")).resolves.toContain('"versao":"0.5.0"');
     a.parar();
+  });
+
+  it("QA-127: atualizador de antes do #165 (só troca o motor) não entra em laço por causa do computador", async () => {
+    const igual = await montar("// nod-motor.mjs\n");
+    const computador = await mkdtemp(join(tmpdir(), "nod-motor-computador-"));
+    await writeFile(join(computador, "tela.mjs"), "// tela antiga\n");
+    // O atualizador gravado na instalação antiga: baixa e instala só nod-motor.mjs, proxy.mjs e hook-nativas.mjs.
+    const atualizador = join(computador, "nod-motor-atualizar");
+    await writeFile(atualizador, 'for ARQUIVO in nod-motor.mjs proxy.mjs hook-nativas.mjs; do\n  install -o root -g root -m 644 "$TMP/$ARQUIVO" "$APP.novo/$ARQUIVO"\ndone\nsystemctl restart nod-motor\n');
+    const arquivos = {
+      "nod-motor.mjs": sha("// nod-motor.mjs\n"),
+      "proxy.mjs": sha("// proxy.mjs\n"),
+      "hook-nativas.mjs": sha("// hook-nativas.mjs\n"),
+      "computador-supervisor.mjs": sha("// supervisor novo\n"),
+      "computador-tela.mjs": sha("// tela nova\n"),
+      "computador-terminal.mjs": sha("// terminal novo\n"),
+    };
+    const buscar = (async () => new Response(JSON.stringify({ versao: "0.5.0", arquivos }), { status: 200 })) as typeof fetch;
+    // Dois "reinícios" seguidos: cada motor novo compara de novo do zero, como depois do systemctl restart.
+    for (let i = 0; i < 2; i++) {
+      const drenos: Drenagem[] = [];
+      const a = iniciarAtualizacao({ url: "https://nod", dir: igual.dir, dirComputador: computador, atualizador, pastaDoMotor: igual.pasta, turnosRodando: () => 0, turnosDaPessoa: () => 0, drenar: (s) => drenos.push(s), buscar, intervaloMs: 3_600_000, esperaDoPuxarMs: 0 });
+      await a.agora();
+      expect(drenos).toEqual([]);
+      expect(a.ocupado()).toBe(false);
+      await expect(readFile(arquivoDoPedido(igual.pasta), "utf8")).rejects.toThrow();
+      a.parar();
+    }
+  });
+
+  it("QA-127: o atualizador que a instalação com computador grava troca o computador (e o sem computador, não)", async () => {
+    const atualizadorDe = (computador: boolean) => {
+      const script = scriptDeInstalacao({ servidor: "https://nod.exemplo", versao: "1.0.0", ...(computador ? { computador: true } : {}) });
+      const inicio = script.indexOf("<<'NODATUALIZAR'\n");
+      return script.slice(inicio, script.indexOf("\nNODATUALIZAR\n", inicio));
+    };
+    const pasta = await mkdtemp(join(tmpdir(), "nod-motor-atualizador-"));
+    const com = join(pasta, "com");
+    const sem = join(pasta, "sem");
+    await writeFile(com, atualizadorDe(true));
+    await writeFile(sem, atualizadorDe(false));
+    expect(await atualizadorTrocaOComputador(com, "/opt/nod-motor/computador")).toBe(true);
+    expect(await atualizadorTrocaOComputador(sem, "/opt/nod-motor/computador")).toBe(false);
+    expect(await atualizadorTrocaOComputador(join(pasta, "nao-existe"), "/opt/nod-motor/computador")).toBe(false);
+    expect(Object.keys(manifestoComparavel({ "nod-motor.mjs": "a", "computador-tela.mjs": "b" }, false))).toEqual(["nod-motor.mjs"]);
   });
 
   it("ADR-131: só fundo rodando — pede o reinício por cima dele (o servidor o retoma); sem reiniciar, a fala volta a sair", async () => {
