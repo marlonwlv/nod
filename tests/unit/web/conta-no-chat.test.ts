@@ -104,10 +104,10 @@ describe("cartões: HTML puro", () => {
       { id: "s3", origem: "maquina" as const, aparelho: "macOS · app do nod", criadaEm: 0, ultimoUsoEm: 0, revogadaEm: null },
       { id: "s4", origem: "web" as const, aparelho: "Velha", criadaEm: 0, ultimoUsoEm: 0, revogadaEm: 5 },
     ] };
-    const lista = htmlEtapa({ tipo: "sessoes", dados, confirmar: false }, vista);
+    const lista = htmlEtapa({ tipo: "sessoes", dados, confirmar: false, erro: false }, vista);
     expect(lista).toContain("esta sessão");
     expect(lista).not.toContain("Velha");
-    const conf = htmlEtapa({ tipo: "sessoes", dados, confirmar: true }, vista);
+    const conf = htmlEtapa({ tipo: "sessoes", dados, confirmar: true, erro: false }, vista);
     expect(conf).toMatch(/class="bt danger" data-act="conta-sair-outras">Sair de 2 sessões/);
   });
 
@@ -494,6 +494,35 @@ describe("NOD-406 (revisões r5 a r7): o pedido do Mac guardado", () => {
 });
 
 describe("NOD-351: o cartão aberto pelo chat (frame conta.abrir)", () => {
+  it("sessões: falha sai do carregamento, tenta de novo e ignora resposta de uma abertura antiga", async () => {
+    let entregarAntiga!: (dados: { atual: string; sessoes: [] }) => void;
+    let entregarNova!: (dados: { atual: string; sessoes: [{ id: string; origem: "web"; aparelho: string; criadaEm: number; ultimoUsoEm: number; revogadaEm: null }] }) => void;
+    const antiga = new Promise<{ atual: string; sessoes: [] }>((ok) => { entregarAntiga = ok; });
+    const nova = new Promise<{ atual: string; sessoes: [{ id: string; origem: "web"; aparelho: string; criadaEm: number; ultimoUsoEm: number; revogadaEm: null }] }>((ok) => { entregarNova = ok; });
+    const sessoes = vi.fn()
+      .mockReturnValueOnce(antiga)
+      .mockRejectedValueOnce(new Error("rede fora"))
+      .mockReturnValueOnce(nova);
+    const { c, bloco } = montar({ sessoes } as unknown as Partial<ApiConta>);
+
+    await c.abrir("sessoes");
+    await c.abrir("entrar");
+    await c.abrir("sessoes");
+    await esperar();
+    expect(bloco()).toContain("Não deu para carregar as sessões");
+    expect(bloco()).toContain("Tentar de novo");
+
+    await c.acoes["conta-sessoes-reler"]!(el());
+    expect(bloco()).toContain("Carregando…");
+    entregarNova({ atual: "nova", sessoes: [{ id: "nova", origem: "web", aparelho: "Celular novo", criadaEm: 0, ultimoUsoEm: 0, revogadaEm: null }] });
+    await esperar();
+    expect(bloco()).toContain("Celular novo");
+    entregarAntiga({ atual: "antiga", sessoes: [] });
+    await esperar();
+    expect(bloco()).toContain("Celular novo");
+    expect(c.etapa()).toMatchObject({ tipo: "sessoes", dados: { atual: "nova" }, erro: false });
+  });
+
   it("abre na conversa DO FRAME (nem na da tela nem na do Nod) e não troca a conversa da tela", async () => {
     const api = { sessoes: vi.fn(async () => ({ atual: "s1", sessoes: [] })) };
     const { c, irParaConversa } = montar(api as unknown as Partial<ApiConta>);
@@ -539,8 +568,8 @@ describe("NOD-351: o cartão aberto pelo chat (frame conta.abrir)", () => {
     expect(emRepouso({ tipo: "parear-entrar", simbolos: null, erro: null })).toBe(false);
     expect(emRepouso({ tipo: "parear-gerar", codigo: "1", expiraEm: 1, pedido: { aparelho: "Mac", simbolos: ["a"] }, vencido: false })).toBe(false);
     expect(emRepouso({ tipo: "parear-gerar", codigo: "1", expiraEm: 1, pedido: null, vencido: true })).toBe(true);
-    expect(emRepouso({ tipo: "sessoes", dados: null, confirmar: true })).toBe(false);
-    expect(emRepouso({ tipo: "sessoes", dados: null, confirmar: false })).toBe(true);
+    expect(emRepouso({ tipo: "sessoes", dados: null, confirmar: true, erro: false })).toBe(false);
+    expect(emRepouso({ tipo: "sessoes", dados: null, confirmar: false, erro: false })).toBe(true);
     expect(emRepouso({ tipo: "entrar", erro: null })).toBe(false);
     expect(emRepouso({ tipo: "senha", erro: null, salva: null })).toBe(false);
     expect(emRepouso({ tipo: "senha", erro: null, salva: 1 })).toBe(true);

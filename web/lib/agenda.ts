@@ -82,10 +82,17 @@ export function proximaVez(ms: number, agora: number): { hora: string; quando: s
 
 export const itemComProblema = (i: ItemAgenda): boolean => (i.tipo === "execucao" ? i.problema : i.tipo === "faixa" ? i.problemas > 0 : false);
 
+const GRAFEMAS = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
 /** O começo da instrução, como título curto da rotina (o mesmo corte da mini-agenda do chat). */
 export function tituloDaRotina(instrucao: string, max = 48): string {
   const t = instrucao.replace(/\s+/g, " ").trim();
-  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+  if (t.length <= max) return t;
+  // QA-103: corta por grafema (Intl.Segmenter), nunca no meio de um emoji; o teto continua em unidades UTF-16.
+  const partes = Array.from(GRAFEMAS.segment(t), (s) => s.segment);
+  let tamanho = t.length;
+  while (partes.length > 0 && tamanho > max - 1) tamanho -= partes.pop()!.length;
+  return `${partes.join("").trimEnd()}…`;
 }
 
 export type BotDaAgenda = Pick<Agente, "id" | "nome" | "cor" | "forma">;

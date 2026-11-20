@@ -185,6 +185,11 @@
 .ag-folha-item { display: flex; align-items: center; width: 100%; min-height: 52px; padding: 0 20px; border: 0; border-top: 1px solid var(--divisoria); background: none;
   font: 400 var(--fs-titulo-3)/1.2 var(--font-sans); color: var(--ink); text-align: left; cursor: pointer; }
 .ag-folha-item:active { background: var(--hover); }
+.ag-folha-pausar { padding: 10px 20px 4px; border-top: 1px solid var(--divisoria); }
+.ag-folha-pausar .ag-pausar-ate { margin: 0 !important; }
+.ag-folha-pausar .ag-pausar-data { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; width: 100%; }
+.ag-folha-pausar .ag-pausar-ate input, .ag-folha-pausar .ag-link { min-height: 44px; }
+.ag-folha-pausar .ag-pausar-ate input { min-width: 0; width: 100%; font-size: 16px; }
 .ag-menu .ag-folha-item:first-child { border-top: 0; }
 
 /* ---------- Alto contraste e movimento ---------- */

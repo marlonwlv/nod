@@ -31,6 +31,15 @@
 export const ARQUIVOS_DO_MOTOR = ["nod-motor.mjs", "proxy.mjs", "hook-nativas.mjs"] as const;
 export type ArquivoDoMotor = (typeof ARQUIVOS_DO_MOTOR)[number];
 
+/** Partes do computador que precisam acompanhar o motor quando o servidor oferece esse recurso. */
+export const ARQUIVOS_DO_COMPUTADOR = ["computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"] as const;
+export type ArquivoDoComputador = (typeof ARQUIVOS_DO_COMPUTADOR)[number];
+export const DESTINOS_DO_COMPUTADOR: Record<ArquivoDoComputador, string> = {
+  "computador-supervisor.mjs": "supervisor.mjs",
+  "computador-tela.mjs": "tela.mjs",
+  "computador-terminal.mjs": "terminal.mjs",
+};
+
 /** Sem um momento ocioso nesse tempo, o motor para de puxar trabalho novo para conseguir se atualizar. */
 export const JANELA_OCIOSA_MS = 30 * 60_000;
 /** O pedido feito e o motor ainda de pé depois disso: o atualizador falhou. */

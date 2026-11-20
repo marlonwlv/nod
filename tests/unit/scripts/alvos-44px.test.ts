@@ -38,6 +38,7 @@ describe("alvos-44px: a regra", () => {
     expect(COLETOR).toContain("const raio = 22;");
     expect(COLETOR).toContain("document.elementFromPoint");
     expect(COLETOR).toContain("naoMedidos.push");
+    expect(COLETOR).toContain('cs.clipPath === "none"');
     expect(COLETOR).toContain("const janela =");
     // Nenhum atalho que aprove pelo tamanho da caixa: só o dedo (elementFromPoint) decide.
     expect(COLETOR).not.toMatch(/>=\s*44/);
@@ -65,6 +66,7 @@ describe("alvos-44px: a regra", () => {
     const rodar = readFileSync(new URL("../../../scripts/alvos-44px/rodar.ts", import.meta.url), "utf8");
     expect(rodar).toContain('["conta", "geral", "conexao", "maquinas", "agentes", "feedback"]');
     expect(rodar).toContain("folha-criar-bot");
+    expect(rodar).toMatch(/maisNaTela[\s\S]*if \(!maisNaTela\)[\s\S]*o \+ da lista de bots/);
     expect(rodar).toMatch(/width: LARGURA, height: ALTURA/);
   });
 

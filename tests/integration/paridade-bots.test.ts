@@ -23,9 +23,9 @@ import { withRollback } from "../helpers/with-rollback.ts";
  * É o arquivo que o registro cita como `contrato` das ações vivas (src/domain/acoes/bots.ts).
  */
 
-type Retrato = { nome: string; titulo: string; descricao: string; modelo: string; esforco: string | null; secao: string | null; modo: string | null; excluido: boolean };
+type Retrato = { nome: string; titulo: string; descricao: string; modelo: string; esforco: string | null; secao: string | null; modo: string | null; excluido: boolean; fixado: boolean; oculto: boolean };
 const retrato = (a: Agente | null | undefined): Retrato | null =>
-  a ? { nome: a.nome, titulo: a.titulo, descricao: a.descricao, modelo: a.modelo, esforco: a.esforco ?? null, secao: a.secao ?? null, modo: a.modoAprovacao ?? null, excluido: a.excluidoEm != null } : null;
+  a ? { nome: a.nome, titulo: a.titulo, descricao: a.descricao, modelo: a.modelo, esforco: a.esforco ?? null, secao: a.secao ?? null, modo: a.modoAprovacao ?? null, excluido: a.excluidoEm != null, fixado: a.fixado, oculto: a.oculto } : null;
 
 describeIntegracao("paridade tela × chat do piloto bots.* (NOD-391, ADR-135)", () => {
   let servidor: ServidorDeTeste;
@@ -95,6 +95,9 @@ describeIntegracao("paridade tela × chat do piloto bots.* (NOD-391, ADR-135)", 
     // NOD-20: os dois bots ganham a v2 (missão nova) e voltam à v1 — mesma descrição, mesma versão nova (3, restauracao).
     { id: "bots.restaurar_versao", preparar: async (d, a) => void (await executar(d, EXECUTORES_BOTS["bots.editar"], { agenteId: a, descricao: "Missão nova." })), tela: (a) => ({ metodo: "POST", caminho: `/agentes/${a}/perfil/versoes/1/restaurar`, status: 200 }), chat: (a) => ({ tipo: "restaurar_versao", bot: a, versao: 1 }), comparar: ["Bot Tela"] },
     { id: "bots.excluir", tela: (a) => ({ metodo: "DELETE", caminho: `/agentes/${a}`, status: 200 }), chat: (a) => ({ tipo: "excluir", bot: a }), comparar: ["Bot Tela"] },
+    { id: "bots.restaurar", preparar: async (d, a) => void (await executar(d, EXECUTORES_BOTS["bots.excluir"], { agenteId: a })), tela: (a) => ({ metodo: "POST", caminho: `/agentes/${a}/restaurar`, status: 200 }), chat: (a) => ({ tipo: "restaurar", bot: a }), comparar: ["Bot Tela"] },
+    { id: "bots.fixar", tela: (a) => ({ metodo: "POST", caminho: `/agentes/${a}/fixar`, corpo: { fixado: true }, status: 200 }), chat: (a) => ({ tipo: "fixar", bot: a, fixado: true }), comparar: ["Bot Tela"] },
+    { id: "bots.ocultar", tela: (a) => ({ metodo: "POST", caminho: `/agentes/${a}/ocultar`, corpo: { oculto: true }, status: 200 }), chat: (a) => ({ tipo: "ocultar", bot: a, oculto: true }), comparar: ["Bot Tela"] },
   ];
 
   it("cobre exatamente as ações vivas do piloto", () => {

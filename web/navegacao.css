@@ -872,8 +872,11 @@ div.mac-medidor { padding-right: 36px; }
 .cx-espera small { margin-left: auto; color: var(--ink-3); font-size: var(--fs-rotulo); }
 .linha-link.forte { font-weight: 600; }
 @media (max-width: 640px) {
-  .cl-linha { grid-template-columns: 32px 40px minmax(0, 1fr) 40px; padding: 12px; }
-  .cl-alca, .cl-mais-bt { width: 40px; height: 44px; }
+  .cl-linha { grid-template-columns: 44px 40px minmax(0, 1fr) 44px; padding: 12px; }
+  .cl-alca, .cl-mais-bt { width: 44px; height: 44px; }
+  .cl-menu button { min-height: 44px; }
+  /* QA de 2026-11-17: preserva o desenho 30×18 da chave, mas amplia seu toque para 44×44. */
+  .cl-fila::after { content: ""; position: absolute; inset: -13px -7px; }
   .cl-pil { padding: 8px 12px; }
   .cl-pos { display: none; }
   .cl-dir { grid-column: 3; justify-content: flex-start; }
