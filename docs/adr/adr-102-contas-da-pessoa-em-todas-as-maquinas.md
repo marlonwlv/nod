@@ -125,3 +125,21 @@ escolherem o mesmo. Sem "Continuar ligado", o computador sai da conta: na hora q
 na hora e a limpeza local fica com a pessoa. Com "Continuar ligado", a chave fica e a puxada só leva `remover`. O pedido
 para o computador desligado vive em memória por 24 h e se perde num reinício do servidor.
 Gatilho de reversão: pedido perdido em reinício virando reclamação (aí o pedido vai para o banco).
+
+## Emenda de 2026-11-20 — a sessão do Claude vai junto quando a conta muda
+
+O servidor retoma a conversa do Claude em qualquer conta da máquina (só o Codex fica preso à conta da sessão), mas o
+Claude Code grava a sessão dentro da pasta da conta (`<CLAUDE_CONFIG_DIR>/projects/<cwd>/<sessão>.jsonl`). Na
+`nod-motor-teste`, a conversa da Clarice nasceu na conta do gmail; a conta saiu da lista da máquina, os turnos passaram
+para a conta da Leapy e todo `--resume` morria em ~4 s, antes de chamar a IA, com `erro_execucao` e `erro_cru: null`.
+
+Antes do `--resume`, o driver do Claude procura a sessão nas outras pastas de conta da mesma máquina (as irmãs da pasta
+da conta e o `~/.claude`) e a COPIA para a pasta da conta do turno, com a pasta ao lado (subagentes, resultados de
+ferramenta). Nunca move nem sobrescreve. Loga `sessao_trazida_de_outra_conta` ou `sessao_nao_achada`, e a falha do CLI
+passa a deixar o fim do stderr em `turno_falhou_no_cli`.
+
+Fora: a conta padrão (sem `CLAUDE_CONFIG_DIR`) não procura nas irmãs, e a sessão que não existe em nenhuma pasta da
+máquina continua falhando. O OpenMausBot resolve esse caso com uma relançada única sem `--resume`, levando a transcrição
+no prompt, quando o CLI recusa a sessão antes do `init`.
+Gatilho de reversão: cópia de sessões grandes atrasando o começo do turno, ou sessão copiada divergindo da original
+quando as duas contas voltam a rodar a mesma conversa (aí a sessão passa a ser guardada por conta, como no OpenMausBot).
