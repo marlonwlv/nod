@@ -186,6 +186,26 @@ export function relatosRepo(conn: Conn, escopo: Escopo) {
       return l ? paraRelato(l) : null;
     },
 
+    /**
+     * QA-123: serializa os registrar_relato da pessoa até o fim da transação, para o retry não duplicar e duas chamadas
+     * simultâneas não passarem juntas do teto diário (o conta-e-insere sem trava deixava as duas entrarem).
+     */
+    async travarDoNod(): Promise<void> {
+      await conn`select pg_advisory_xact_lock(hashtextextended(${`relatos-do-nod:${escopo.tenantId}:${escopo.pessoaId}`}, 0))`;
+    },
+
+    /** QA-123: o relato igual (tipo, categoria, título e texto) que o Nod já anotou neste turno, se houver. */
+    async doNodIgualNoTurno(r: { turnoId: string; tipo: TipoRelato; categoria: CategoriaRelato; titulo: string | null; textoPessoa: string }): Promise<string | null> {
+      const [l] = await conn<{ id: string }[]>`
+        select r.id from relatos r
+        join relato_prosa p on p.tenant_id = r.tenant_id and p.relato_id = r.id and p.owner_id = ${escopo.pessoaId}
+        where r.tenant_id = ${escopo.tenantId} and r.owner_id = ${escopo.pessoaId} and r.origem = 'nod' and r.turno_id = ${r.turnoId}
+          and r.tipo = ${r.tipo} and r.categoria = ${r.categoria}
+          and p.titulo is not distinct from ${r.titulo} and p.texto_pessoa = ${r.textoPessoa}
+        order by r.criado_em asc limit 1`;
+      return l?.id ?? null;
+    },
+
     /** Quantos relatos esta pessoa contou ao Nod desde `desde` (o teto diário de registrar_relato). */
     async contarDoNodDesde(desde: number): Promise<number> {
       const [l] = await conn<{ n: number }[]>`select count(*)::int as n from relatos
