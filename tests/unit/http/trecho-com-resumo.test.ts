@@ -12,3 +12,10 @@ describe("trechos da renovação (ADR-165): a ferramenta com o resumo do argumen
       .toEqual([{ ferramenta: "Bash", id: "t1" }, { ferramenta: "Bash", id: "t2" }]);
   });
 });
+
+describe("trecho fase (estado vivo, 2026-11-12)", () => {
+  it("aceita só os três valores, sozinho no objeto", () => {
+    expect(trechos([{ fase: "compondo" }, { fase: "pensando" }, { fase: "fim_bloco" }, { fase: "outra" }, { fase: "compondo", texto: "x" }]))
+      .toEqual([{ fase: "compondo" }, { fase: "pensando" }, { fase: "fim_bloco" }]);
+  });
+});

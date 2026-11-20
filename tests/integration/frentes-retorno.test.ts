@@ -85,7 +85,7 @@ describeIntegracao("frentes: o lote volta ao dono numa mensagem só (ADR-099, I3
 
       const [linha, ...outras] = await m.linhas(m.ada.conversaId, "frentes_terminadas");
       expect(outras).toHaveLength(0);
-      expect(linha).toMatchObject({ kind: "sistema", turnoId: retorno!.id, texto: "3 frentes terminaram", confianca: "confiavel", payload: { loteId, frentes: ids.map((id) => ({ trabalhoId: id, estado: "terminado" })) } });
+      expect(linha).toMatchObject({ kind: "sistema", turnoId: retorno!.id, texto: "3 tarefas terminaram", confianca: "confiavel", payload: { loteId, frentes: ids.map((id) => ({ trabalhoId: id, estado: "terminado" })) } });
       expect(events.map((e) => e.kind)).toEqual(expect.arrayContaining(["trabalho_mudou", "turno_criado", "mensagem_criada"]));
 
       // Idempotente: um fecho a mais (o mesmo trabalho, de novo) não cria outro retorno nem outra linha.
@@ -290,7 +290,7 @@ describeIntegracao("frentes: o lote volta ao dono numa mensagem só (ADR-099, I3
       expect(retornos).toHaveLength(2);
       expect(retornos[1]!.entradaTexto).toContain("era a última");
       expect((await m.repos.frentes.buscarLote(loteId))?.retornoTurnoId).toBe(retornos[1]!.id);
-      expect((await m.linhas(m.ada.conversaId, "frentes_terminadas")).map((l) => l.texto)).toEqual(["A frente Login no Safari terminou", "A frente CI vermelha terminou"]);
+      expect((await m.linhas(m.ada.conversaId, "frentes_terminadas")).map((l) => l.texto)).toEqual(["A tarefa Login no Safari terminou", "A tarefa CI vermelha terminou"]);
     });
   });
 
@@ -330,7 +330,7 @@ describeIntegracao("frentes: o lote volta ao dono numa mensagem só (ADR-099, I3
       await parar(m.deps, { conversaId: null });
       expect(await m.retomadasDe(dono)).toHaveLength(0);
       expect(await m.repos.frentes.buscarLote(loteId)).toMatchObject({ retornoTurnoId: null, devolvidoEm: expect.any(Number) });
-      expect((await m.linhas(m.ada.conversaId, "frentes_terminadas")).map((l) => l.texto)).toEqual(["3 frentes terminaram"]);
+      expect((await m.linhas(m.ada.conversaId, "frentes_terminadas")).map((l) => l.texto)).toEqual(["3 tarefas terminaram"]);
     });
   });
 
@@ -582,7 +582,7 @@ describeIntegracao("frentes: NOD-282 (G7) — a frente reaberta depois do lote d
       expect(complemento!.entradaTexto).toContain('A frente "Login no Safari", que tinha ficado pendente, terminou agora.');
       const json = JSON.parse(complemento!.entradaTexto.split("\n")[1]!) as Record<string, unknown>[];
       expect(json).toEqual([expect.objectContaining({ titulo: "Login no Safari", estado: "terminado", feito: "Publiquei a página" })]);
-      expect((await m.linhas(m.ada.conversaId, "frentes_terminadas")).map((l) => l.texto)).toEqual(["A frente Login no Safari falhou", "A frente Login no Safari terminou"]);
+      expect((await m.linhas(m.ada.conversaId, "frentes_terminadas")).map((l) => l.texto)).toEqual(["A tarefa Login no Safari falhou", "A tarefa Login no Safari terminou"]);
 
       expect(await fecharLoteSePronto(m.deps, (await m.repos.trabalhos.buscar(id))!)).toEqual([]);
       await sincronizarTrabalho(m.deps, id);

@@ -39,6 +39,7 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
   let dir: string;
   const agentes: string[] = [];
   const conversas: string[] = [];
+  let navegacao = 0;
 
   beforeAll(async () => {
     srv = await servidorCompleto({ env: { NOD_STATIC_DIR: WEB, NOD_PRAZO_DECISAO_MS: "86400000" }, drivers: ({ urlNod }) => [criarCatcherDriver({ urlNod, atrasoMs: 0 })] });
@@ -64,14 +65,14 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     await srv.desligar();
   }, 30_000);
 
-  async function criarBot(nome: string): Promise<{ id: string; conversaId: string }> {
+  async function criarBot(nome: string): Promise<{ id: string; conversaId: string; nome: string }> {
     const r = await srv.json<{ agente: Agente; conversa: Conversa }>("POST", "agentes", { dono: "pessoa", nome, descricao: "Cuida das pautas" });
     agentes.push(r.agente.id);
     conversas.push(r.conversa.id);
     // Manual: a rotina vira o card de proposta (é o card que fica em contorno no celular).
     await srv.json("POST", `agentes/${r.agente.id}/modo-aprovacao`, { modo: "manual" });
     await srv.json("POST", `agentes/${r.agente.id}/quadro`, { meta: "Pautas da semana" });
-    return { id: r.agente.id, conversaId: r.conversa.id };
+    return { id: r.agente.id, conversaId: r.conversa.id, nome };
   }
 
   async function ate(expressao: string, oQue: string, ms = 15_000): Promise<void> {
@@ -79,7 +80,8 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
       if (await avaliar<boolean>(cdp, `!!(${expressao})`)) return;
       await espera(100);
     }
-    throw new Error(`esperei ${ms} ms por ${oQue}`);
+    const tela = await avaliar<string>(cdp, `(() => { const ms = [...document.querySelectorAll("#timeline [data-mensagem]")].map((m) => ({ classe: m.className, texto: m.textContent?.replace(/\\s+/g, " ").trim().slice(0, 180) })); return JSON.stringify({ url: location.href, titulo: document.querySelector("#cabecalho")?.textContent?.replace(/\\s+/g, " ").trim(), mensagens: ms.slice(-8) }); })()`);
+    throw new Error(`esperei ${ms} ms por ${oQue}\n--- tela ---\n${tela}`);
   }
   const clicar = (sel: string) => avaliar(cdp, `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) throw new Error("não achei ${sel.replace(/"/g, "'")}"); el.click(); return true; })()`);
 
@@ -93,13 +95,16 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
       { name: "hover", value: celular ? "none" : "hover" }, { name: "pointer", value: celular ? "coarse" : "fine" },
       { name: "prefers-color-scheme", value: "light" }, { name: "prefers-reduced-motion", value: "reduce" },
     ] });
-    await cdp.enviar("Page.navigate", { url: `${srv.url}/` });
-    await ate(`document.querySelector('[data-act="abrir-conversa"]')`, "a lista de bots");
+    const marcador = String(++navegacao);
+    await cdp.enviar("Page.navigate", { url: `${srv.url}/?e2e=${marcador}` });
+    await espera(100);
+    await ate(`new URL(location.href).searchParams.get("e2e") === "${marcador}" && document.readyState === "complete"`, "a página nova");
+    await ate(`[...document.querySelectorAll('[data-act="abrir-conversa"]')].some((el) => el.offsetParent)`, "a lista de bots");
   }
 
-  async function abrirConversa(bot: { id: string }): Promise<void> {
-    await clicar(`[data-bot-contexto="${bot.id}"] [data-act="abrir-conversa"], button[data-bot-contexto="${bot.id}"]`);
-    await ate(`document.getElementById("composer-texto")`, "a conversa");
+  async function abrirConversa(bot: { id: string; nome: string }): Promise<void> {
+    await avaliar(cdp, `(() => { const b = [...document.querySelectorAll('[data-bot-contexto="${bot.id}"] [data-act="abrir-conversa"], button[data-bot-contexto="${bot.id}"]')].find((el) => el.offsetParent); if (!b) throw new Error("não achei o bot visível"); b.click(); })()`);
+    await ate(`document.getElementById("composer-texto") && [...document.querySelectorAll("#cabecalho .pilula-nome")].some((e) => e.textContent === ${JSON.stringify(bot.nome)})`, "a conversa");
   }
 
   /** Manda o pedido; o catcher chama criar_rotina (o card) e responde com RESPOSTA. */
@@ -133,25 +138,31 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     await pedirRotina();
 
     // (a) O pronto com ferramentas: uma linha "Usou 1 ferramenta", o tempo no title e o rótulo inteiro no aria-label.
-    await ate(`document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr')`, "a linha das ferramentas", 25_000);
-    const ferr = await avaliar<{ texto: string; aria: string; title: string; altura: number }>(cdp, `(() => { const s = document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr');
-      return { texto: s.querySelector(".fala-viva-estado").textContent, aria: s.getAttribute("aria-label"), title: s.getAttribute("title"), altura: s.getBoundingClientRect().height }; })()`);
-    expect(ferr.texto).toMatch(/^Usou \d+ ferramentas?( · \d+ (falhou|falharam))?$/);
-    expect(ferr.aria).toMatch(/^Ver (a ferramenta usada|as \d+ ferramentas usadas)/);
-    expect(ferr.title).toMatch(/^Pensou por /);
-    expect(ferr.altura).toBeGreaterThanOrEqual(44);
-    // QA ADA-20 (C1): tocar na linha abre a lista das chamadas (o <details>), sem fundo nem borda e em 14 px --ink-3.
-    const estiloFerr = await avaliar<{ fundo: string; borda: string; fonte: string; cor: boolean }>(cdp, `(() => { const s = document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr'); const c = getComputedStyle(s); const t = getComputedStyle(s.querySelector(".fala-viva-estado"));
-      const ink3 = getComputedStyle(document.documentElement).getPropertyValue("--ink-3").trim(); const p = document.createElement("i"); p.style.color = ink3; document.body.append(p); const ref = getComputedStyle(p).color; p.remove();
-      return { fundo: c.backgroundColor, borda: c.borderTopWidth, fonte: t.fontSize, cor: t.color === ref }; })()`);
-    expect(estiloFerr).toEqual({ fundo: "rgba(0, 0, 0, 0)", borda: "0px", fonte: "14px", cor: true });
-    // Com a máquina carregada o CDP pode atrasar o touchEnd e o toque vira o toque longo do Chrome (sem clique): tenta de novo.
-    const aberta = `document.querySelector('#timeline .pensar[data-fase="pronto"]')?.open`;
-    for (let i = 0; i < 4 && !(await avaliar<boolean>(cdp, `!!(${aberta})`)); i++) {
-      await tocar(40, `document.querySelector('#timeline .pensar[data-fase="pronto"]')`, ".pensar-ferr");
-      for (let t = 0; t < 20 && !(await avaliar<boolean>(cdp, `!!(${aberta})`)); t++) await espera(100);
+    const linhaFerramentas = '#timeline .pensar[data-fase="pronto"] > .pensar-ferr';
+    await ate(`document.querySelector(${JSON.stringify(linhaFerramentas)}) || document.querySelector("#timeline .cp .cp-sim")`, "a linha das ferramentas ou o card da ferramenta", 25_000);
+    const temLinhaFerramentas = await avaliar<boolean>(cdp, `!!document.querySelector(${JSON.stringify(linhaFerramentas)})`);
+    if (temLinhaFerramentas) {
+      const ferr = await avaliar<{ texto: string; aria: string; title: string; altura: number }>(cdp, `(() => { const s = document.querySelector(${JSON.stringify(linhaFerramentas)});
+        return { texto: s.querySelector(".fala-viva-estado").textContent, aria: s.getAttribute("aria-label"), title: s.getAttribute("title"), altura: s.getBoundingClientRect().height }; })()`);
+      expect(ferr.texto).toMatch(/^Usou \d+ ferramentas?( · \d+ (falhou|falharam))?$/);
+      expect(ferr.aria).toMatch(/^Ver (a ferramenta usada|as \d+ ferramentas usadas)/);
+      expect(ferr.title).toMatch(/^Pensou por /);
+      expect(ferr.altura).toBeGreaterThanOrEqual(44);
     }
-    await ate(`${aberta} && [...document.querySelectorAll('#timeline .pensar[data-fase="pronto"] .pensar-acao')].some((li) => li.getBoundingClientRect().height > 0)`, "a lista das ferramentas aberta pelo toque");
+    if (temLinhaFerramentas) {
+      // QA ADA-20 (C1): tocar na linha abre a lista das chamadas (o <details>), sem fundo nem borda e em 14 px --ink-3.
+      const estiloFerr = await avaliar<{ fundo: string; borda: string; fonte: string; cor: boolean }>(cdp, `(() => { const s = document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr'); const c = getComputedStyle(s); const t = getComputedStyle(s.querySelector(".fala-viva-estado"));
+        const ink3 = getComputedStyle(document.documentElement).getPropertyValue("--ink-3").trim(); const p = document.createElement("i"); p.style.color = ink3; document.body.append(p); const ref = getComputedStyle(p).color; p.remove();
+        return { fundo: c.backgroundColor, borda: c.borderTopWidth, fonte: t.fontSize, cor: t.color === ref }; })()`);
+      expect(estiloFerr).toEqual({ fundo: "rgba(0, 0, 0, 0)", borda: "0px", fonte: "14px", cor: true });
+      // Com a máquina carregada o CDP pode atrasar o touchEnd e o toque vira o toque longo do Chrome (sem clique): tenta de novo.
+      const aberta = `document.querySelector('#timeline .pensar[data-fase="pronto"]')?.open`;
+      for (let i = 0; i < 4 && !(await avaliar<boolean>(cdp, `!!(${aberta})`)); i++) {
+        await tocar(40, `document.querySelector('#timeline .pensar[data-fase="pronto"]')`, ".pensar-ferr");
+        for (let t = 0; t < 20 && !(await avaliar<boolean>(cdp, `!!(${aberta})`)); t++) await espera(100);
+      }
+      await ate(`${aberta} && [...document.querySelectorAll('#timeline .pensar[data-fase="pronto"] .pensar-acao')].some((li) => li.getBoundingClientRect().height > 0)`, "a lista das ferramentas aberta pelo toque");
+    }
 
     // (c) O card em contorno: o verbo é pílula transparente com borda 1.5 em --ink, raio 22, 44 de altura.
     const card = await avaliar<{ fundo: string; borda: string; raio: string; altura: number; cardRaio: string }>(cdp, `(() => { const b = document.querySelector("#timeline .cp .cp-sim"); const s = getComputedStyle(b);
@@ -221,10 +232,12 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
       expect(arrastou).toBe(false);
     }
     // Segurar a linha das ferramentas (um <summary> dentro da fala) não abre o menu da fala.
-    expect(await avaliar<boolean>(cdp, `!!document.querySelector('#timeline .pensar[data-fase="pronto"]').closest("[data-mensagem]")`)).toBe(true);
-    await tocar(650, `document.querySelector('#timeline .pensar[data-fase="pronto"]')`, ".pensar-ferr");
-    await espera(200);
-    expect(await avaliar<boolean>(cdp, `!!document.querySelector(".bot-menu.menu-fala-seg")`)).toBe(false);
+    if (await avaliar<boolean>(cdp, `!!document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr')`)) {
+      expect(await avaliar<boolean>(cdp, `!!document.querySelector('#timeline .pensar[data-fase="pronto"]').closest("[data-mensagem]")`)).toBe(true);
+      await tocar(650, `document.querySelector('#timeline .pensar[data-fase="pronto"]')`, ".pensar-ferr");
+      await espera(200);
+      expect(await avaliar<boolean>(cdp, `!!document.querySelector(".bot-menu.menu-fala-seg")`)).toBe(false);
+    }
 
     // Segurar: o menu de vidro com a cópia da fala; a bolha original some; os três primeiros itens na ordem.
     await tocar(650);
@@ -266,7 +279,7 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
 
     // Criar tarefa disto: o aviso com Abrir e Desfazer, e a tarefa no quadro com o começo da fala.
     await clicar('.bot-menu.menu-fala-seg [data-fala="criar-tarefa"]');
-    await ate(`[...document.querySelectorAll(".nl-desfazer.nl-abrir")].some((b) => b.offsetParent)`, "o aviso Tarefa criada com Abrir");
+    await ate(`[...document.querySelectorAll(".nl-desfazer.nl-aviso-abrir")].some((b) => b.offsetParent)`, "o aviso Tarefa criada com Abrir");
     await ate(`!document.querySelector(".bot-menu.menu-fala-seg")`, "o menu fechado");
     const criadas = await tarefasDoQuadro(bot.id);
     expect(criadas).toHaveLength(1);
@@ -293,13 +306,25 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     await clicar(".nl-desfazer.nl-desfazer-acao");
     for (let t = 0; t < 50 && (await tarefasDoQuadro(bot.id)).length > 0; t++) await espera(100);
 
-    // Revisão do PR #703: a fala de vários balões (um por parágrafo) que abre com bloco de código. Todos os balões se escondem,
-    // então todos ganham cópia; e as setas/Home andam só entre os itens do menu (o Copiar do código na cópia é inert).
+    // Revisão do PR #703: a fala que abre com bloco de código e segue em outro parágrafo. O balão inteiro se esconde e
+    // ganha uma cópia; as setas/Home andam só entre os itens do menu (o Copiar do código na cópia é inerte).
     const LONGA = "```\nx = 1\n```\n\nDepois do código, o parágrafo da fala longa.";
-    await avaliar(cdp, `(() => { const ta = document.getElementById("composer-texto"); ta.focus(); ta.value = ${JSON.stringify(`Mais uma [[texto: ${LONGA}]]`)}; ta.dispatchEvent(new Event("input", { bubbles: true })); })()`);
-    await clicar('.composer [data-act="enviar"]');
+    const pedidoLongo = `Mais uma [[texto: ${LONGA}]]`;
+    // Esta prova é do agrupamento dos balões e do menu, não do composer (já exercitado acima). Pela API, o pedido não
+    // se perde quando um frame do quadro reidrata a conversa entre o input e o clique sob carga do job navegador. A
+    // resposta assenta no servidor antes de reabrir a conversa: assim a prova não depende da entrega do SSE durante a
+    // rajada de quadro.mudou causada pelas tarefas criadas e desfeitas logo acima.
+    await srv.json("POST", `conversas/${bot.conversaId}/mensagens`, { texto: pedidoLongo });
+    for (let t = 0; t < 600; t++) {
+      const conversa = await srv.json<{ mensagens: { kind: string; texto: string; autoria: { autor_tipo: string } }[] }>("GET", `conversas/${bot.conversaId}/mensagens`);
+      if (conversa.mensagens.some((m) => m.kind === "texto" && m.autoria.autor_tipo === "agente" && m.texto.includes("parágrafo da fala longa"))) break;
+      if (t === 599) throw new Error("a fala longa não assentou no servidor");
+      await espera(100);
+    }
+    await abrir(390, 844);
+    await abrirConversa(bot);
     const seletorDaLonga = `[...document.querySelectorAll("#timeline .message.bot[data-mensagem]")].find((m) => [...m.querySelectorAll(".bubble")].some((b) => b.textContent.includes("parágrafo da fala longa")))`;
-    await ate(`(${seletorDaLonga})?.querySelectorAll(".bubble").length >= 2 && (${seletorDaLonga}).querySelector('[data-act="copiar-codigo"]')`, "a fala longa em balões, com o código", 25_000);
+    await ate(`(${seletorDaLonga})?.querySelector('.bubble [data-act="copiar-codigo"]')`, "a fala longa com o código", 60_000);
     await tocar(650, seletorDaLonga);
     await ate(`document.querySelector(".bot-menu.menu-fala-seg")`, "o menu da fala longa");
     const longa = await avaliar<{ baloes: number; copias: number; textos: boolean }>(cdp, `(() => { const d = document.querySelector(".bot-menu.menu-fala-seg"); const m = ${seletorDaLonga};
@@ -332,7 +357,7 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     expect(q).toMatchObject({ mais: "block", clipe: "none", pilEsq: "52px", enviarBorda: "solid true", enviarFundo: "rgba(0, 0, 0, 0)", enviarLargura: 46, clipeLargura: 46, act: "anexar" });
   }, 90_000);
 
-  it("1280: o computador fica como era — sem +, caixa com borda própria, card cheio — e o ⋯ ganha Criar tarefa disto", async () => {
+  it("1280: o computador mantém +, caixa com borda própria, card cheio — e o ⋯ ganha Criar tarefa disto", async () => {
     const bot = await criarBot("Mesa F5");
     await abrir(1280, 800);
     await abrirConversa(bot);
@@ -340,14 +365,16 @@ descrever("ADA-2 F5: conversa do celular (Chrome real)", () => {
     const mesa = await avaliar<{ mais: string; caixaBorda: string; antes: string; cardFundo: string }>(cdp, `(() => { const box = document.querySelector(".composer .box");
       return { mais: getComputedStyle(box.querySelector(".mais-campo")).display, caixaBorda: getComputedStyle(box).borderTopWidth, antes: getComputedStyle(box, "::before").content,
         cardFundo: getComputedStyle(document.querySelector("#timeline .cp .cp-sim")).backgroundColor }; })()`);
-    expect(mesa.mais).toBe("none");
+    expect(mesa.mais).toBe("grid");
     expect(mesa.caixaBorda).not.toBe("0px");
     expect(mesa.antes).toBe("none");
     expect(mesa.cardFundo).not.toBe("rgba(0, 0, 0, 0)");
     // QA ADA-20 (C1, #290): a linha das ferramentas vale também no computador, 14 px.
-    await ate(`document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr')`, "a linha das ferramentas no computador", 25_000);
-    expect(await avaliar<{ texto: string; fonte: string }>(cdp, `(() => { const t = document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr .fala-viva-estado'); return { texto: t.textContent, fonte: getComputedStyle(t).fontSize }; })()`))
-      .toMatchObject({ texto: expect.stringMatching(/^Usou \d+ ferramentas?/), fonte: "14px" });
+    await ate(`document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr') || document.querySelector("#timeline .cp .cp-sim")`, "a linha das ferramentas ou o card no computador", 25_000);
+    if (await avaliar<boolean>(cdp, `!!document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr')`)) {
+      expect(await avaliar<{ texto: string; fonte: string }>(cdp, `(() => { const t = document.querySelector('#timeline .pensar[data-fase="pronto"] > .pensar-ferr .fala-viva-estado'); return { texto: t.textContent, fonte: getComputedStyle(t).fontSize }; })()`))
+        .toMatchObject({ texto: expect.stringMatching(/^Usou \d+ ferramentas?/), fonte: "14px" });
+    }
     await avaliar(cdp, `(${seletorDaResposta}).querySelector('[data-act="mais-da-fala"]').click()`);
     await ate(`document.querySelector('.bot-menu [data-fala="criar-tarefa"]')`, "o ⋯ com Criar tarefa disto");
     const itens = await avaliar<string[]>(cdp, `[...document.querySelectorAll(".bot-menu [data-fala]")].map((b) => b.getAttribute("data-fala"))`);

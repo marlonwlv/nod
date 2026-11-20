@@ -9,15 +9,20 @@ import path from 'node:path';
 import process from 'node:process';
 import { access, unlink } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { argsDoBwrap } from './isolamento.mjs';
 
 export const PRAZO_TERMINAL_MS = 20_000;
 export const SAIDA_MAXIMA = 30_000;
 export const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Roda `comando` no bash, com cwd no workspace do computador e um ambiente mínimo (sem DISPLAY, sem credenciais). */
-export function rodarComando({ workspace, comando, prazoMs = PRAZO_TERMINAL_MS, path: caminhoPath = process.env.PATH }) {
+export function rodarComando({ workspace, comando, prazoMs = PRAZO_TERMINAL_MS, path: caminhoPath = process.env.PATH, bwrap = null, raiz = null }) {
   return new Promise((resolve) => {
-    const proc = spawn('/bin/bash', ['-c', comando], {
+    const programa = bwrap ?? '/bin/bash';
+    const argumentos = bwrap
+      ? [...argsDoBwrap({ raiz, workspace, semUsuario: true }), '--chdir', workspace, '--', '/bin/bash', '-c', comando]
+      : ['-c', comando];
+    const proc = spawn(programa, argumentos, {
       cwd: workspace,
       env: { PATH: caminhoPath ?? '/usr/local/bin:/usr/bin:/bin', HOME: workspace, LANG: 'C.UTF-8', TERM: 'dumb' },
       detached: true,
@@ -50,8 +55,8 @@ export function rodarComando({ workspace, comando, prazoMs = PRAZO_TERMINAL_MS, 
   });
 }
 
-/** O servidor do terminal. `raiz`: /var/lib/nod-computador; o workspace é raiz/<id>/workspace. */
-export function criarServidorTerminal({ raiz }) {
+/** O servidor do terminal. `raiz`: /var/lib/nod-computador; o workspace é raiz/<id>/workspace/<agenteId>. */
+export function criarServidorTerminal({ raiz, bwrap = process.env.NOD_PC_BWRAP === 'nao' ? null : (process.env.NOD_PC_BWRAP ?? 'bwrap') }) {
   return net.createServer({ allowHalfOpen: true }, (socket) => {
     let corpo = '';
     socket.setTimeout(PRAZO_TERMINAL_MS + 10_000, () => socket.destroy());
@@ -69,16 +74,16 @@ export function criarServidorTerminal({ raiz }) {
         return;
       }
       const comando = typeof pedido?.comando === 'string' ? pedido.comando : '';
-      if (!ID_VALIDO.test(String(pedido?.computadorId ?? '')) || !comando.trim() || comando.length > 8000) {
+      if (!ID_VALIDO.test(String(pedido?.computadorId ?? '')) || !ID_VALIDO.test(String(pedido?.agenteId ?? '')) || !comando.trim() || comando.length > 8000) {
         socket.end(JSON.stringify({ erro: 'acao_falhou' }));
         return;
       }
-      const workspace = path.join(raiz, pedido.computadorId, 'workspace');
+      const workspace = path.join(raiz, pedido.computadorId, 'workspace', pedido.agenteId);
       if (!(await access(workspace).then(() => true, () => false))) {
         socket.end(JSON.stringify({ erro: 'nao_iniciou' }));
         return;
       }
-      socket.end(JSON.stringify({ resultado: await rodarComando({ workspace, comando }) }));
+      socket.end(JSON.stringify({ resultado: await rodarComando({ workspace, comando, bwrap, raiz }) }));
     });
   });
 }

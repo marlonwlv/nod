@@ -13,7 +13,7 @@ describe("card de trocar as colunas (NOD-448)", () => {
     const h = renderCardColunas({ id: "p1", estado: "pendente" }, payload([{ de: "Fazendo", para: "Pedido", tarefas: 2 }]), true);
     expect(h).toContain("Trocar as colunas do quadro de Doces &lt;b&gt;");
     expect(h).toContain("Pedido → Pago");
-    expect(h).toContain("2 tarefas vão de Fazendo para Pedido");
+    expect(h).toContain("2 cards vão de Fazendo para Pedido");
     expect(h).toContain('data-act="decidir-proposta"');
     expect(h).toContain('data-act="recusar-decisao"');
   });
@@ -22,8 +22,8 @@ describe("card de trocar as colunas (NOD-448)", () => {
     const h = renderCardColunas({ id: "p1", estado: "confirmada" }, payload([{ de: "A", para: "Pedido", tarefas: 1 }, { de: "B", para: "Pago", tarefas: 3 }]), false);
     expect(h).not.toContain("decidir-proposta");
     expect(h).toContain("Colunas trocadas");
-    expect(h).toContain("4 tarefas mudam de coluna");
-    expect(h).toContain("1 tarefa vai de A para Pedido");
+    expect(h).toContain("4 cards mudam de coluna");
+    expect(h).toContain("1 card vai de A para Pedido");
     expect(renderCardColunas({ id: "p1", estado: "recusada" }, payload([]), false)).toContain("Colunas mantidas");
     expect(listaDasColunasParaSuaVez(payload([]))).toContain("Pedido → Pago");
   });

@@ -4,6 +4,8 @@ import { aplicarPadroes } from "./acessos.ts";
 import type { Agente } from "../../contracts/agente.ts";
 import type { IdAcao } from "../../domain/acoes/index.ts";
 import { criarAgente, type EntradaCriarAgente, type SaidaCriarAgente } from "../criar-agente.ts";
+import { apresentarBot } from "../apresentar-bot.ts";
+import type { Executor } from "../../contracts/evento.ts";
 import { duplicarAgente } from "../duplicar-agente.ts";
 import { editarPerfil } from "../editar-perfil.ts";
 import { gerirAgente } from "../gerir-agente.ts";
@@ -19,11 +21,18 @@ import { restaurarVersaoDoPerfil } from "../versoes-perfil.ts";
  */
 
 /** bots.criar: cria o bot e, com `secao`, já o põe nela (o lote; a tela organiza depois, pelo bots.mover). */
-export const criarBot: CasoDeUso<EntradaCriarAgente & { secao?: string }, SaidaCriarAgente> = async (deps, input) => {
-  const { secao, ...entrada } = input;
+export const criarBot: CasoDeUso<EntradaCriarAgente & { secao?: string; executor?: Executor; prazoMs?: number }, SaidaCriarAgente> = async (deps, input) => {
+  const { secao, executor, prazoMs, ...entrada } = input;
   const criado = await criarAgente(deps, { ...entrada, modelo: entrada.modelo ?? deps.modeloPadrao });
+  // A4 (2026-11-12): a criação repetida com o mesmo id não refaz nada (nem padrões, nem seção, nem apresentação).
+  if (criado.data.repetido) return criado;
   // ADA-241: o bot novo nasce com o padrão de cada app ligado (sem padrão, nada muda).
   const r = { data: criado.data, events: [...(criado.events ?? []), ...(await aplicarPadroes(deps, criado.data.agente.id))] };
+  // A4: o bot fala primeiro (o turno de apresentação), na mesma transação da criação.
+  if (input.apresentar) {
+    const a = await apresentarBot(deps, { agente: criado.data.agente, conversaId: criado.data.conversa.id, ...(executor ? { executor } : {}), ...(prazoMs ? { prazoMs } : {}) });
+    r.events.push(...(a.events ?? []));
+  }
   if (secao === undefined || secao.trim() === "") return r;
   // NOD-437: a seção é um time; o nome vira o do time (criado no fim se não existe).
   const { nome } = await garantirTime(deps, secao);

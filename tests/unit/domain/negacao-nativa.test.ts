@@ -58,7 +58,7 @@ describe("a pílula diz por que o nod barrou a nativa (definido em 2026-10-11)",
 
   it("a frase: a causa no lugar de 'peça aprovação', com as vezes; sem causa, a de antes", () => {
     const base = { classe: "ferramenta_negada", nome: "Bash", motivo: "alcance_insuficiente", desde: 0, terminal: false } as const;
-    expect(descreverNegacao({ ...base, causa: "git_fora_da_pasta", vezes: 3 }, 0)).toBe("ferramenta Bash negada: git fora da pasta da task; o bot recebeu o caminho certo (3 vezes)");
+    expect(descreverNegacao({ ...base, causa: "git_fora_da_pasta", vezes: 3 }, 0)).toBe("ferramenta Bash negada: git fora da pasta da tarefa; o bot recebeu o caminho certo (3 vezes)");
     expect(descreverNegacao({ ...base, causa: "esperando_aprovacao" }, 0)).toBe("ferramenta Bash negada: esperando sua aprovação na conversa");
     expect(descreverNegacao(base, 0)).toBe("ferramenta Bash negada: alcance insuficiente — peça aprovação");
     for (const causa of CAUSAS_NATIVAS) expect(descreverNegacao({ ...base, causa }, 0)).toContain(CAUSA_NATIVA_HUMANA[causa]);

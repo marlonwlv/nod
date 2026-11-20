@@ -1,7 +1,9 @@
+import type { AnexoMeta } from "../contracts/anexo.ts";
 import type { Executor } from "../contracts/evento.ts";
 import type { OrigemTurno, Turno } from "../contracts/turno.ts";
 import { ehComandoDeTurno } from "../domain/comandos.ts";
-import { ateOPrimeiroAnexo, ateOPrimeiroComando } from "../domain/ordem-das-falas.ts";
+import { extrairMarcaDeRetomada } from "../domain/mensagem-no-meio.ts";
+import { ateOPrimeiroAnexo, ateOPrimeiroComando, porChegada } from "../domain/ordem-das-falas.ts";
 import { autoriaAgente, autoriaPessoa, evento } from "./autoria-evento.ts";
 import { contaminarSeAbsorveuDeFora } from "./coordenar-trabalhos.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
@@ -20,7 +22,7 @@ const vivo = (t: Turno | null): t is Turno => t !== null && t.estado === "despac
  * Uma volta do modelo que não encerrou o turno vira fala na conversa na hora, com a autoria e a confiança da fala final
  * (assentarTurno). Fala de sala nunca chega aqui: o driver a junta na entrega, que passa pelos responders.
  */
-export const gravarFalasDaSessao: CasoDeUso<{ turnoId: string; machineId: string; executor: Executor; textos: readonly string[] }, { gravadas: number }> = async (deps, e) => {
+export const gravarFalasDaSessao: CasoDeUso<{ turnoId: string; machineId: string; executor: Executor; textos: readonly string[]; /** ADR-186: os índices de `textos` que são a volta interrompida pela mensagem da pessoa. */ interrompidas?: readonly number[] }, { gravadas: number }> = async (deps, e) => {
   const turno = await deps.repos.turnos.buscar(e.turnoId);
   if (!vivo(turno) || turno.origem === "sala" || (turno.machineId !== null && turno.machineId !== e.machineId)) return { data: { gravadas: 0 } };
   // NOD-402 (ADR-130): o turno dos bastidores da conversa não fala no meio — o driver não manda a fala na hora
@@ -29,10 +31,16 @@ export const gravarFalasDaSessao: CasoDeUso<{ turnoId: string; machineId: string
   const agora = deps.agora();
   const autoria = autoriaAgente({ agenteId: turno.agenteId, contaDeExecucao: turno.ownerId, executor: e.executor, machineId: e.machineId });
   const events = [];
-  for (const texto of e.textos) {
+  for (const [i, bruto] of e.textos.entries()) {
+    // ADR-186: a resposta que RETOMA o que o bot fazia vem com a marca; ela sai do texto e a fala pausada vira "retomada".
+    const { texto, retomou } = extrairMarcaDeRetomada(bruto);
+    if (retomou) await deps.repos.mensagens.marcarRetomada(turno.id);
     if (texto.trim() === "") continue;
-    const m = await deps.repos.mensagens.criar({ conversaId: turno.conversaId, turnoId: turno.id, autoria, kind: "texto", texto, payload: null, confianca: turno.entradaConfianca });
-    if (m) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { mensagem_id: m.id, kind: "texto", parcial: false } }));
+    // ADR-186: a volta interrompida pela mensagem da pessoa é parcial e leva a marca (a conversa a recolhe, com a linha
+    // "Interrompido pela sua mensagem").
+    const interrompida = e.interrompidas?.includes(i) === true;
+    const m = await deps.repos.mensagens.criar({ conversaId: turno.conversaId, turnoId: turno.id, autoria, kind: "texto", texto, payload: interrompida ? { kind: "fala_interrompida", por: "mensagem_nova" } : null, confianca: turno.entradaConfianca, ...(interrompida ? { parcial: true } : {}) });
+    if (m) events.push(evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: turno.conversaId, turnoId: turno.id, dados: { mensagem_id: m.id, kind: "texto", parcial: interrompida } }));
   }
   return { data: { gravadas: events.length }, events };
 };
@@ -72,19 +80,26 @@ export async function aceitaNaSessao(deps: Deps, t: Turno): Promise<boolean> {
  * em vez de sumir como `interrompido/absorvido` (`laco_mensagem_sem_sessao`). `jaOferecidas` evita entregá-las de novo
  * enquanto a confirmação não volta. Sem `confirma` (app antigo), saem `absorvido` na hora, como antes.
  */
-export const absorverNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; confirma?: boolean; jaOferecidas?: readonly string[] }, { textos: string[]; ids: string[] }> = async (deps, e) => {
+export const absorverNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; confirma?: boolean; jaOferecidas?: readonly string[]; aceitaAnexos?: boolean }, { textos: string[]; ids: string[]; anexos?: Record<string, AnexoMeta[]> }> = async (deps, e) => {
   const nada = { data: { textos: [], ids: [] } };
   const turno = await deps.repos.turnos.buscar(e.turnoId);
   if (!turno || !(await aceitaNaSessao(deps, turno))) return nada;
   // NOD-286: corta na primeira fala pendente com anexo (a que veio depois do print espera com ele). NOD-23: e na
   // primeira que é comando da conversa com turno próprio (ateOPrimeiroComando).
   const daSessao = (await deps.repos.turnos.pendentesDaPessoa(turno.conversaId)).filter((t) => t.id !== turno.id && t.agenteId === turno.agenteId && t.origem === "conversa" && Boolean(t.mensagemOrigemId) && !t.trabalhoId);
-  const absorviveis = ateOPrimeiroComando(ateOPrimeiroAnexo(daSessao), ehComandoDeTurno);
+  // C1 (2026-11-12): o app que escreve anexo na sessão viva (`aceitaAnexos`, só com `confirma`) recebe a fala com imagem
+  // no meio do turno, com os metadados; sem ele, o corte de sempre (o anexo espera o próximo turno).
+  const comAnexo = e.aceitaAnexos === true && e.confirma === true;
+  const absorviveis = ateOPrimeiroComando(comAnexo ? [...daSessao].sort(porChegada) : ateOPrimeiroAnexo(daSessao), ehComandoDeTurno);
   if (e.confirma) {
-    // A já oferecida sai depois do corte: ela nunca tem anexo nem é comando, então não muda onde a fila para.
+    // A já oferecida sai depois do corte: ela nunca é comando (nem tem anexo, sem `aceitaAnexos`), então não muda onde a fila para.
     const fora = new Set(e.jaOferecidas ?? []);
     const fila = absorviveis.filter((t) => !fora.has(t.id));
-    return { data: { textos: fila.map((t) => t.entradaTexto), ids: fila.map((t) => t.id) } };
+    const anexos: Record<string, AnexoMeta[]> = {};
+    if (comAnexo) {
+      for (const t of fila) if (t.entradaAnexos.length > 0) anexos[t.id] = await deps.repos.anexos.metas(t.entradaAnexos);
+    }
+    return { data: { textos: fila.map((t) => t.entradaTexto), ids: fila.map((t) => t.id), ...(Object.keys(anexos).length ? { anexos } : {}) } };
   }
   // App que não confirma: absorve só as que passaram pelos cortes (o repositório refaz o corte do anexo no SQL).
   const absorvidos = await deps.repos.turnos.absorverNaSessao(turno, absorviveis.map((t) => t.id));
@@ -96,7 +111,7 @@ export const absorverNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; 
  * #189: o app escreveu estas mensagens na sessão do turno vivo. Só agora cada uma sai interrompido/'absorvido'
  * apontando para ele (a tela tira o "na fila"). A que já não está pendente (Cancelar chegou antes) fica como está.
  */
-export const confirmarNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; ids: readonly string[] }, { confirmadas: number }> = async (deps, e) => {
+export const confirmarNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; ids: readonly string[]; informaLeitura?: boolean }, { confirmadas: number }> = async (deps, e) => {
   if (e.ids.length === 0) return { data: { confirmadas: 0 } };
   const turno = await deps.repos.turnos.buscar(e.turnoId);
   if (!turno) return { data: { confirmadas: 0 } };
@@ -106,7 +121,9 @@ export const confirmarNaSessao: CasoDeUso<{ turnoId: string; executor: Executor;
   const lidos = await avisosDeRecadoLido(deps, e.ids);
   // Revisão do épico (S18, 2026-10-08): no turno de um trabalho, as confirmadas são os recados da faixa DELE (a fala da
   // pessoa na tela da task, o mandar_para_task) — o absorverNaSessao só olha a conversa (`trabalho_id is null`).
-  const absorvidos = turno.trabalhoId ? await deps.repos.turnos.absorverDoTrabalho(turno, e.ids) : await deps.repos.turnos.absorverNaSessao(turno, e.ids);
+  // ADR-185: o app que informa leitura grava a absorção como "escrita, não lida"; o lido vem depois (marcarLidosNaSessao).
+  const o = { informaLeitura: e.informaLeitura === true };
+  const absorvidos = turno.trabalhoId ? await deps.repos.turnos.absorverDoTrabalho(turno, e.ids, o) : await deps.repos.turnos.absorverNaSessao(turno, e.ids, o);
   if (turno.trabalhoId) await contaminarSeAbsorveuDeFora(deps, turno.id, absorvidos);
   return { data: { confirmadas: absorvidos.length }, events: [...eventosDeAbsorcao(deps, e.executor, turno.id, absorvidos), ...lidos] };
 };
@@ -116,3 +133,17 @@ function eventosDeAbsorcao(deps: Deps, executor: Executor, turnoId: string, abso
   const autoria = autoriaPessoa(deps.escopo, executor);
   return absorvidos.map((a) => evento(deps.escopo, { kind: "turno_interrompido", autoria, agora, conversaId: a.conversaId, turnoId: a.id, dados: { motivo: "absorvido", absorvido_por: turnoId } }));
 }
+
+/**
+ * ADR-185 (definido em 2026-11-16): o app avisa que o bot LEU as falas que escreveu na sessão do turno vivo (o CLI chegou
+ * à fronteira seguinte à escrita: o fim de uma ferramenta ou da resposta). A conversa troca "lê ao fim do passo atual"
+ * por "Lida", e o Parar deixa de devolvê-las à fila.
+ */
+export const marcarLidosNaSessao: CasoDeUso<{ turnoId: string; executor: Executor; ids: readonly string[] }, { lidas: number }> = async (deps, e) => {
+  if (e.ids.length === 0) return { data: { lidas: 0 } };
+  const lidos = await deps.repos.turnos.marcarLidosNaSessao(e.turnoId, e.ids);
+  const agora = deps.agora();
+  const autoria = autoriaPessoa(deps.escopo, e.executor);
+  const conversas = [...new Set(lidos.map((t) => t.conversaId))];
+  return { data: { lidas: lidos.length }, events: conversas.map((conversaId) => evento(deps.escopo, { kind: "turno_lido", autoria, agora, conversaId, turnoId: e.turnoId, dados: { lidas: lidos.filter((t) => t.conversaId === conversaId).length } })) };
+};

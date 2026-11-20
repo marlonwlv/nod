@@ -1,7 +1,13 @@
+import { slugDoToolkit, toolkitAceito, toolkitComposio } from "./toolkits-composio.ts";
 import { COMPOSIO_POR_CAPACIDADE_GITHUB } from "../../contracts/github.ts";
 import { ErroDeDominio } from "../../domain/erro.ts";
 import type { ArgsGithub } from "../../domain/github.ts";
 import type { AppGerenciado } from "../../domain/catalogo-marketplace.ts";
+import type { CampoDeConexao } from "../../contracts/marketplace.ts";
+
+export type ConferenciaDeChave = { endpoint: string; metodo: "GET" | "POST" };
+/** O que um app de chave pede, e como conferir a chave depois de conectar. */
+export type EsquemaDeChave = { campos: CampoDeConexao[]; conferencia: ConferenciaDeChave | null };
 import { classificarFalhaHttp, ehRedirecionamentoRecusado, esperaAntes, lerRetryAfterMs, podeRepetir, prazoDaTentativa, type FalhaHttp } from "../../domain/nova-tentativa.ts";
 import { log } from "../../obs/log.ts";
 import { CHAMADA_CONECTOR_MS, ORCAMENTO_CONECTOR_MS } from "../../shared/constantes.ts";
@@ -47,6 +53,11 @@ function urlDoProvedor(valor: string, hosts: string[]): URL {
 
 const BASE = "https://backend.composio.dev/api/v3.1";
 
+/** O nome do campo volta como chave do `val` da conta (generic_api_key, subdomain, suffix.one…). */
+const NOME_DE_CAMPO = /^[a-z][a-z0-9_.]{0,63}$/;
+/** Ids do Composio (ac_…, ca_…) entram em caminho de URL: só o formato conhecido passa. */
+const ID_COMPOSIO = /^[A-Za-z0-9_-]{1,80}$/;
+
 const HOSTS_LOGO = ["logos.composio.dev", "assets.composio.dev", "cdn.composio.dev"];
 
 /** O logo só passa com host da allowlist: o servidor é quem busca a imagem (ADR-041 §6). */
@@ -84,7 +95,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
    * (que pode ser !ok: quem chama classifica); só erro de rede sem resposta lança. O prazo de cada tentativa é
    * cortado ao que sobra dos 30 s e cobre também a leitura do corpo (o timer não é limpo no retorno).
    */
-  async function requisitar(metodo: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<Response> {
+  async function requisitar(metodo: "GET" | "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<Response> {
     const inicio = agora();
     const restante = () => Math.min(ORCAMENTO_CONECTOR_MS - (agora() - inicio), prazoFinal - agora());
     const rotulo = `${metodo} /${path.split("?")[0]?.split("/")[1] ?? ""}`;
@@ -167,8 +178,10 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
         if (!it || typeof it !== "object") continue;
         const o = it as Record<string, unknown>;
         const tk = o.toolkit as Record<string, unknown> | string | undefined;
-        const slug = (typeof tk === "string" ? tk : typeof tk?.slug === "string" ? tk.slug : null)?.toLowerCase();
-        if (!slug || !/^[a-z0-9_-]{1,64}$/.test(slug)) continue;
+        const slugRemoto = (typeof tk === "string" ? tk : typeof tk?.slug === "string" ? tk.slug : null)?.toLowerCase();
+        if (!slugRemoto || !/^[a-z0-9_-]{1,64}$/.test(slugRemoto)) continue;
+        if (!toolkitAceito(slugRemoto)) continue;
+        const slug = slugDoToolkit(slugRemoto);
         if (o.status === "DISABLED" || o.deleted === true) continue;
         const meta = (tk && typeof tk === "object" ? tk : {}) as Record<string, unknown>;
         const logo = logoDoProvedor(meta.logo ?? (meta.meta as Record<string, unknown> | undefined)?.logo ?? o.logo);
@@ -193,10 +206,15 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
         for (const it of r.items as unknown[]) {
           if (!it || typeof it !== "object") continue;
           const o = it as Record<string, unknown>;
-          const slug = typeof o.slug === "string" ? o.slug.toLowerCase() : null;
-          if (!slug || !/^[a-z0-9_-]{1,64}$/.test(slug) || porSlug.has(slug)) continue;
+          const slugRemoto = typeof o.slug === "string" ? o.slug.toLowerCase() : null;
+          if (!slugRemoto || !/^[a-z0-9_-]{1,64}$/.test(slugRemoto)) continue;
+          if (!toolkitAceito(slugRemoto)) continue;
+          const slug = slugDoToolkit(slugRemoto);
+          if (porSlug.has(slug)) continue;
           const gerenciado = Array.isArray(o.composio_managed_auth_schemes) && o.composio_managed_auth_schemes.length > 0;
-          if (!gerenciado || o.no_auth === true || o.is_local_toolkit === true || o.type === "custom") continue;
+          // Emenda ADR-057 (2026-11-18): sem login gerenciado, o esquema API_KEY ainda conecta, com a chave da pessoa.
+          const porChave = !gerenciado && Array.isArray(o.auth_schemes) && o.auth_schemes.includes("API_KEY");
+          if (!(gerenciado || porChave) || o.no_auth === true || o.is_local_toolkit === true || o.type === "custom") continue;
           const meta = (o.meta && typeof o.meta === "object" ? o.meta : {}) as Record<string, unknown>;
           const categorias = (Array.isArray(meta.categories) ? meta.categories as unknown[] : [])
             .map((c) => typeof c === "string" ? c : c && typeof c === "object" ? (c as Record<string, unknown>).name : null)
@@ -207,6 +225,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
             logo: logoDoProvedor(meta.logo),
             descricao: typeof meta.description === "string" ? meta.description : "",
             categorias,
+            ...(porChave ? { conexao: "chave" as const } : {}),
           });
         }
         cursor = typeof r.next_cursor === "string" && r.next_cursor ? r.next_cursor : null;
@@ -214,9 +233,11 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       }
       return [...porSlug.values()];
     },
-    async criarSessao(userId: string, toolkit: string) {
+    /** `authConfigId`: a auth config do app de chave (sem ela a sessão cai no login gerenciado, que o app não tem). */
+    async criarSessao(userId: string, toolkit: string, authConfigId?: string) {
       const r = await pedir("/tool_router/session", {
-        user_id: userId, toolkits: { enable: [toolkit] }, preload: { tools: "all" },
+        user_id: userId, toolkits: { enable: [toolkitComposio(toolkit)] }, preload: { tools: "all" },
+        ...(authConfigId ? { auth_configs: { [toolkitComposio(toolkit)]: authConfigId } } : {}),
         manage_connections: { enable: false }, workbench: { enable: false, enable_proxy_execution: false },
         search: { enable: false }, execute: { enable_multi_execute: false },
       });
@@ -226,7 +247,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       return { id: r.session_id, url: url.href };
     },
     async autorizar(sessaoId: string, toolkit: string) {
-      const r = await pedir(`/tool_router/session/${encodeURIComponent(sessaoId)}/link`, { toolkit });
+      const r = await pedir(`/tool_router/session/${encodeURIComponent(sessaoId)}/link`, { toolkit: toolkitComposio(toolkit) });
       if (typeof r.redirect_url !== "string" || typeof r.connected_account_id !== "string") throw new ErroDeDominio("conector_indisponivel");
       const url = urlDoProvedor(r.redirect_url, ["app.composio.dev", "connect.composio.dev", "backend.composio.dev"]);
       return { url: url.href, contaId: r.connected_account_id };
@@ -246,10 +267,105 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
       if (!r.data || typeof r.data !== "object" || Array.isArray(r.data)) throw new ErroDeDominio("conector_indisponivel");
       return r.data as Record<string, unknown>;
     },
+    /**
+     * Emenda ADR-057 (2026-11-18): os campos que a pessoa preenche para conectar por chave, lidos do esquema API_KEY do
+     * toolkit (`connected_account_initiation`). Campo invisível ao usuário fica de fora; nome fora do formato também
+     * (é ele que volta como chave do `val`). Sem esquema API_KEY: nao_encontrado.
+     */
+    async esquemaDaChave(toolkit: string): Promise<EsquemaDeChave> {
+      const r = await pedir(`/toolkits/${encodeURIComponent(toolkitComposio(toolkit))}`);
+      const detalhes = Array.isArray(r.auth_config_details) ? r.auth_config_details as unknown[] : [];
+      const esquema = detalhes.find((d): d is Record<string, unknown> => !!d && typeof d === "object" && (d as Record<string, unknown>).mode === "API_KEY");
+      if (!esquema) throw new ErroDeDominio("nao_encontrado");
+      const inicio = ((esquema.fields as Record<string, unknown> | undefined)?.connected_account_initiation ?? {}) as Record<string, unknown>;
+      const ler = (lista: unknown, obrigatorio: boolean): CampoDeConexao[] => (Array.isArray(lista) ? lista : []).flatMap((c) => {
+        if (!c || typeof c !== "object") return [];
+        const o = c as Record<string, unknown>;
+        if (typeof o.name !== "string" || !NOME_DE_CAMPO.test(o.name) || o.user_visible === false) return [];
+        const rotulo = typeof o.displayName === "string" && o.displayName.trim() ? o.displayName.trim() : o.name;
+        return [{ nome: o.name, rotulo, descricao: typeof o.description === "string" ? o.description.trim() : "", segredo: o.is_secret === true, obrigatorio: obrigatorio && o.required !== false }];
+      });
+      const campos = [...ler(inicio.required, true), ...ler(inicio.optional, false)];
+      if (!campos.some((c) => c.obrigatorio)) throw new ErroDeDominio("nao_encontrado");
+      // O endpoint de "quem sou eu" do app confere a chave depois de conectar (o Composio só confere em alguns apps).
+      const endpoint = typeof r.get_current_user_endpoint === "string" && r.get_current_user_endpoint.startsWith("https://") ? r.get_current_user_endpoint : null;
+      const metodo = r.get_current_user_endpoint_method === "POST" ? "POST" : "GET";
+      return { campos, conferencia: endpoint ? { endpoint, metodo } : null };
+    },
+    /**
+     * Confere a chave recém-conectada chamando o endpoint de usuário atual do app pelo proxy do Composio (a chave fica
+     * lá; o nod só lê o status). Recusa = 401/403 do app ou erro que fala de autenticação no corpo (o Fireflies responde
+     * 500 com auth_failed). Sucesso 2xx sem erro = valida. O resto (placeholder sem valor, rede, 5xx sem esse sinal,
+     * app sem endpoint) é inconclusiva: não bloqueia, a sonda e o primeiro uso dizem o resto.
+     */
+    async conferirChave(contaId: string, conferencia: ConferenciaDeChave | null, valores: Record<string, string>): Promise<"valida" | "recusada" | "inconclusiva"> {
+      if (!conferencia) return "inconclusiva";
+      const endpoint = conferencia.endpoint.replace(/\{\{\s*([a-z][a-z0-9_.]*)\s*\}\}/gi, (inteiro, nome: string) => valores[nome] !== undefined ? encodeURIComponent(valores[nome]) : inteiro);
+      if (endpoint.includes("{{")) return "inconclusiva";
+      try { if (new URL(endpoint).protocol !== "https:") return "inconclusiva"; } catch { return "inconclusiva"; }
+      // apollo-require-preflight: APIs GraphQL (Fireflies) barram GET sem ele como CSRF; nas outras é um cabeçalho a mais.
+      const r = await requisitar("POST", "/tools/execute/proxy", { endpoint, method: conferencia.metodo, connected_account_id: contaId, parameters: [{ type: "header", name: "apollo-require-preflight", value: "true" }] }).catch(() => null);
+      if (!r?.ok) return "inconclusiva";
+      const corpo: unknown = await r.json().catch(() => null);
+      if (!corpo || typeof corpo !== "object") return "inconclusiva";
+      const status = (corpo as Record<string, unknown>).status;
+      const dados = JSON.stringify((corpo as Record<string, unknown>).data ?? "");
+      if (status === 401 || status === 403) return "recusada";
+      if (/auth_failed|unauthenticated|unauthori[sz]ed|invalid[_ ]?(api[_ ]?)?(key|token|credentials?)|authentication (failed|error)|recheck your api key/i.test(dados)) return "recusada";
+      if (typeof status === "number" && status >= 200 && status < 300) return "valida";
+      return "inconclusiva";
+    },
+    /** Apaga a conta conectada que nasceu com a chave recusada (não sobra conta morta no projeto). Falha aqui só loga. */
+    async removerConta(contaId: string): Promise<boolean> {
+      const r = await requisitar("DELETE", `/connected_accounts/${encodeURIComponent(contaId)}`).catch(() => null);
+      return !!r?.ok;
+    },
+    /**
+     * A auth config de chave do toolkit: reaproveita a habilitada do projeto (custom, API_KEY) ou cria uma, sem
+     * credenciais (a chave é de cada pessoa, na conta conectada). A sessão só acha contas de config com
+     * `is_enabled_for_tool_router`; a criada pela API nasce sem a marca, então o PATCH a liga.
+     */
+    async garantirConfigDeChave(toolkit: string): Promise<string> {
+      const remoto = toolkitComposio(toolkit);
+      const lista = await pedir(`/auth_configs?toolkit_slug=${encodeURIComponent(remoto)}&limit=200`);
+      const itens = (Array.isArray(lista.items) ? lista.items : []) as Record<string, unknown>[];
+      const existente = itens.find((i) => i && i.type === "custom" && i.auth_scheme === "API_KEY" && i.status !== "DISABLED" && (i.toolkit as { slug?: unknown } | undefined)?.slug === remoto && typeof i.id === "string" && ID_COMPOSIO.test(i.id));
+      let id = existente?.id as string | undefined;
+      let naSessao = existente?.is_enabled_for_tool_router === true;
+      if (!id) {
+        const criada = await pedir("/auth_configs", { toolkit: { slug: remoto }, auth_config: { type: "use_custom_auth", authScheme: "API_KEY", name: `nod · ${remoto}`, credentials: {} } });
+        const ac = criada.auth_config as { id?: unknown } | undefined;
+        if (typeof ac?.id !== "string" || !ID_COMPOSIO.test(ac.id)) throw new ErroDeDominio("conector_indisponivel");
+        id = ac.id;
+        naSessao = false;
+      }
+      if (!naSessao) {
+        const r = await requisitar("PATCH", `/auth_configs/${encodeURIComponent(id)}`, { type: "custom", is_enabled_for_tool_router: true }).catch(() => null);
+        if (!r?.ok) throw new ErroDeDominio("conector_indisponivel");
+      }
+      return id;
+    },
+    /**
+     * Cria a conta conectada com os valores que a pessoa colou. O Composio confere a chave com o app quando o app
+     * permite (ConnectedAccount_CredentialValidationRejected = recusada); sem essa conferência a conta nasce e a sonda
+     * é quem descobre. O texto do provedor nunca sai daqui: só o código vira erro de domínio.
+     */
+    async conectarComChave(authConfigId: string, userId: string, valores: Record<string, string>): Promise<string> {
+      const r = await requisitar("POST", "/connected_accounts", { auth_config: { id: authConfigId }, connection: { user_id: userId, state: { authScheme: "API_KEY", val: { status: "ACTIVE", ...valores } } } }).catch(() => null);
+      if (!r) throw new ErroDeDominio("conector_indisponivel");
+      const corpo: unknown = await r.json().catch(() => null);
+      if (!r.ok) {
+        const texto = JSON.stringify(corpo ?? "");
+        throw new ErroDeDominio(r.status === 401 || r.status === 403 || /CredentialValidationRejected|invalid[_ ](api[_ ])?key|unauthori[sz]ed/i.test(texto) ? "integracao_autenticacao" : "conector_indisponivel");
+      }
+      const id = corpo && typeof corpo === "object" ? (corpo as Record<string, unknown>).id : null;
+      if (typeof id !== "string" || !ID_COMPOSIO.test(id)) throw new ErroDeDominio("conector_indisponivel");
+      return id;
+    },
     async conectado(contaId: string, userId: string, toolkit: string) {
       const r = await pedir(`/connected_accounts/${encodeURIComponent(contaId)}`);
       const t = r.toolkit as { slug?: unknown } | undefined;
-      return r.status === "ACTIVE" && r.is_disabled !== true && r.user_id === userId && t?.slug === toolkit;
+      return r.status === "ACTIVE" && r.is_disabled !== true && r.user_id === userId && t?.slug === toolkitComposio(toolkit);
     },
     /**
      * NOD-212: a resposta do PATCH traz `tool_router_tools`, as ferramentas que a sessão expõe depois de fixar a conta.
@@ -257,7 +373,7 @@ export function criarClienteComposio(chave: string, f: typeof fetch = fetch, opc
      * noutro formato) e ninguém conclui nada dela. `avisos` são só os códigos (ex.: PRELOAD_TOOLS_HIGH_CONTEXT_USAGE).
      */
     async fixarConta(sessaoId: string, toolkit: string, contaId: string): Promise<{ ferramentas: number | null; avisos: string[] }> {
-      const r = await requisitar("PATCH", `/tool_router/session/${encodeURIComponent(sessaoId)}`, { connected_accounts: { [toolkit]: [contaId] } }).catch(() => null);
+      const r = await requisitar("PATCH", `/tool_router/session/${encodeURIComponent(sessaoId)}`, { connected_accounts: { [toolkitComposio(toolkit)]: [contaId] } }).catch(() => null);
       if (!r?.ok) throw new ErroDeDominio("conector_indisponivel");
       const lido: unknown = await r.json().catch(() => null);
       const corpo = lido && typeof lido === "object" && !Array.isArray(lido) ? lido as Record<string, unknown> : null;

@@ -4,6 +4,8 @@ import { arquivosDoMac, trocarArquivos, type ArquivoDoMac, type ArquivoSubido } 
 import { sondarConector, type ConfigSonda } from "../adapters/mcp-proxy/probe.ts";
 import type { Conector } from "../contracts/conector.ts";
 import { COMANDO_GITHUB_NATIVO } from "../contracts/github.ts";
+import { COMANDO_MAC_NATIVO } from "../contracts/mac.ts";
+import { sondaMacNativa } from "../domain/mac.ts";
 import type { ResultadoSonda, ServicesNod } from "../contracts/servicos.ts";
 import { montarAmbiente } from "../domain/ambiente-executor.ts";
 import { log } from "../obs/log.ts";
@@ -161,6 +163,8 @@ export function criarConectoresVivos(opcoes: OpcoesConectoresVivos): ConectoresV
       // definido em 2026-10-26 (NOD-374): a sonda de fundo (manterVivos) não descarta o cliente de uma chamada em curso.
       if (!o?.manterVivos) await descartar(conector.id);
       if (conector.comando === COMANDO_GITHUB_NATIVO) return (await opcoes.sondarNativo?.(conector)) ?? { ok: false, motivo: "conector_indisponivel" };
+      // ADR-173: o `mac` nunca roda no servidor; o catálogo é o contrato (como o gh, ADR-048).
+      if (conector.comando === COMANDO_MAC_NATIVO) return sondaMacNativa();
       const guardada = (await opcoes.carregar(conector.id, { rotina: false })) ?? { nome: conector.slug, transporte: conector.transporte, comando: conector.comando, args: conector.args, url: conector.url, env: {} };
       // NOD-50: o cartão de credencial sonda a chave CANDIDATA antes de gravá-la (só o env muda; comando, args e url são os guardados).
       const cfg = o?.env ? { ...guardada, env: o.env } : guardada;

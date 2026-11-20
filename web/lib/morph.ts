@@ -56,6 +56,8 @@ export function decidirBloco(antes: { html: string; morfar?: Morph } | undefined
 /** O mínimo do DOM que o aplicador usa (os testes não têm DOM; ver tests/unit/web/morph-da-fala.test.ts). */
 export type NoDoMorph = {
   className: string;
+  /** O DOM tem; os testes sem DOM podem omitir (sem ele, `trocarConteudo` troca os filhos como antes). */
+  readonly tagName?: string;
   readonly firstElementChild: NoDoMorph | null;
   readonly nextElementSibling: NoDoMorph | null;
   readonly parentNode: unknown;
@@ -129,5 +131,17 @@ export function trocarConteudo(velho: NoDoMorph, novo: NoDoMorph): void {
     const valor = novo.getAttribute(nome) ?? "";
     if (velho.getAttribute(nome) !== valor) velho.setAttribute(nome, valor);
   }
+  // Chat (polimento): com um filho elemento só, da mesma tag e da mesma `data-chave` dos dois lados (o rótulo do indicador
+  // da mesma etapa dentro do lugar dele), o filho fica e recebe o conteúdo novo — a animação dele segue em vez de recomeçar.
+  const filhoVelho = filhoUnico(velho);
+  const filhoNovo = filhoUnico(novo);
+  // `data-chave` diferente (o rótulo de outra etapa) faz o filho nascer de novo, com a entrada dele.
+  if (filhoVelho && filhoNovo && filhoVelho.tagName !== undefined && filhoVelho.tagName === filhoNovo.tagName && filhoVelho.getAttribute("data-chave") === filhoNovo.getAttribute("data-chave")) return trocarConteudo(filhoVelho, filhoNovo);
   velho.replaceChildren(...([...novo.childNodes] as never[]));
+}
+
+/** O único filho de `no` quando ele é um elemento e não há mais nada (texto, outro elemento); senão null. */
+function filhoUnico(no: NoDoMorph): NoDoMorph | null {
+  const f = no.firstElementChild;
+  return f && !f.nextElementSibling && no.childNodes.length === 1 ? f : null;
 }

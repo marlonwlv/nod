@@ -1,5 +1,11 @@
 import { expect, it } from "vitest";
-import { prepararEnsaio, recusaDoEnsaio } from "../../../scripts/ensaio-computador/vivo.ts";
+import { lerOpcoes, prepararEnsaio, recusaDoEnsaio } from "../../../scripts/ensaio-computador/vivo.ts";
+
+it("vivo.ts distingue o motor do ensaio Orgo somente-assistir", () => {
+  expect(lerOpcoes(["--tenant", "t", "--pessoa", "p", "--agente", "a"])).toMatchObject({ formato: "motor" });
+  expect(lerOpcoes(["--tenant", "t", "--pessoa", "p", "--agente", "a", "--formato", "orgo"])).toMatchObject({ formato: "orgo" });
+  expect(() => lerOpcoes(["--tenant", "t", "--pessoa", "p", "--agente", "a", "--formato", "docker"])).toThrow(/opção inválida/);
+});
 
 // Revisão independente (PR 602): o ensaio não assume nem devolve a tela do bot que espera a pessoa (pedido de ajuda).
 it("vivo.ts recusa a tela que pediu ajuda e segue com a do bot ou a da pessoa", () => {

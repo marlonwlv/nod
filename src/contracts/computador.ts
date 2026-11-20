@@ -1,7 +1,6 @@
 import type { EpochMs } from "./ids.ts";
 import type { MotivoFalhaComputador } from "./motivos.ts";
 import type { VmLocalAnunciada } from "./vm-local.ts";
-import type { AcessoTelaAoVivo } from "./provedor-computador.ts";
 
 export type ControleComputador = "bot" | "pessoa" | "aguardando_pessoa";
 export type PoliticaComputador = "supervisionado" | "autonomo";
@@ -33,6 +32,7 @@ export type Computador = {
   indisponivelDesde: EpochMs | null;
 };
 export type AcaoComputador =
+  | ({ tipo: "elementos" } & import("./navegador.ts").PedidoNavegador)
   /** `forcar` (NOD-161): devolve imagem e texto mesmo se iguais à última entrega; não vai ao runtime. */
   | { tipo: "observar"; forcar?: boolean }
   | { tipo: "navegar"; url: string }
@@ -65,7 +65,7 @@ export type TelaComputador = {
   senhaPreenchida?: { origem: string };
 };
 export type ArquivoComputador = { nome: string; caminho: string; tamanho: number; diretorio: boolean };
-export type ResultadoComputador = {
+export type ResultadoComputador = import("./navegador.ts").RespostaNavegador & {
   tela?: TelaComputador;
   arquivos?: ArquivoComputador[];
   arquivo?: { nome: string; base64: string };
@@ -155,8 +155,6 @@ export interface DriverComputador {
    * WebSocket de volta ao servidor com `sessao` e `token`; resolve quando o supervisor aceitou (o fluxo chega em seguida).
    */
   vivo?(id: string, sessao: { sessao: string; token: string }, escopo?: EscopoDoDriver): Promise<void>;
-  /** Provedor externo: acesso efêmero que o servidor transforma no mesmo relay VNC da web; o token nunca vai ao navegador. */
-  acessoTelaAoVivo?(id: string, escopo?: EscopoDoDriver): Promise<AcessoTelaAoVivo>;
   /**
    * NOD-365: muda o computador para a máquina `destinoId`, levando a loja de logins cifrada (sem `semLogins`), liga lá e
    * marca a pasta da origem para sair em 30 dias. Se o `iniciar` no destino falhar, o banco volta a apontar para a origem.

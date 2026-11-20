@@ -216,7 +216,7 @@ describe("o cabeçalho pronto e a espera", () => {
   it("ADA-2 F5 (#290): o CSS da linha é 14 px --ink-3 sem fundo, e a › gira 90° ao abrir", () => {
     const css = readFileSync(new URL("../../../web/interface.css", import.meta.url), "utf8");
     expect(css).toMatch(/\.pensar\[data-fase="pronto"\] > \.pensar-cab\.pensar-ferr \{[^}]*color: var\(--ink-3\); background: none; border: 0;/);
-    expect(css).toMatch(/\.pensar-ferr \.fala-viva-estado \{ font-size: 14px;/);
+    expect(css).toMatch(/\.pensar-ferr \.fala-viva-estado \{ font-size: var\(--fs-corpo\);/);
     expect(css).toContain('.pensar[open] > .pensar-ferr .pensar-seta { transform: rotate(90deg); }');
   });
 

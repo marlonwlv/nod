@@ -7,7 +7,7 @@ type ItemAprovacao = Item["itensAprovacao"][number];
 
 /**
  * O cartão compacto do revisor (definido em 2026-10-26, plano dos modos de aprovação, PR 4; tela A3 "cartão compacto, com
- * cor (estilo Grok)", o cartão escolhido pelo Marlon em 18/10). É o cartão que sobra quando o revisor do Automático pede
+ * cor", o cartão escolhido pelo Marlon em 18/10). É o cartão que sobra quando o revisor do Automático pede
  * o ok da pessoa (`revisor_pediu`) ou não conseguiu revisar (`revisor_falhou`): fundo azul claro, o escudo, a pergunta
  * numa linha com o motivo do revisor embaixo, o comando (ou os detalhes do app) num `<details>` e os botões em pílula
  * Aprovar / Negar / Sempre permitir. As ações são as de hoje (`decidir-aprovacao`, `decidir-aprovacao-nenhum`,
@@ -35,6 +35,9 @@ export function sempreNoCartao(item: Pick<Item, "itensAprovacao" | "nuncaPermane
   const nunca = new Set(item.nuncaPermanente ?? []);
   return item.itensAprovacao.filter((i) => i.sempreServe === true && i.motivoManual === "revisor_pediu" && !i.origemSensivel && i.destino.conector !== "terminal" && i.destino.conector !== "computador" && !nunca.has(i.id));
 }
+
+/** O brilho de "sugerida pelo revisor" (tela 06). */
+const ICONE_BRILHO = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M8 2l1.3 3.7L13 7l-3.7 1.3L8 12l-1.3-3.7L3 7l3.7-1.3z"/></svg>';
 
 const cortar = (t: string): string => (t.length > MOTIVO_NA_TELA_MAX ? `${t.slice(0, MOTIVO_NA_TELA_MAX - 1).trimEnd()}…` : t);
 
@@ -73,7 +76,11 @@ export type DadosDoCartaoRevisor = {
   codigo?: readonly [number, number];
   motivo: { rotulo: string | null; texto: string };
   /** O que abre embaixo: o comando inteiro ("ver comando") ou os detalhes do app; HTML já escapado por quem monta. */
-  detalhe: { rotulo: string; html: string } | null;
+  detalhe: { rotulo: string; html: string; aberto?: boolean } | null;
+  /** O mascote do bot no topo do cartão (HTML pronto); sem ele, o escudo. */
+  avatar?: string;
+  /** A linha do topo: "O revisor pediu sua decisão" (padrão) ou outra. */
+  titulo?: string;
   /** "Sempre permitir" e a dica de para que ele vale; null = o botão não aparece. */
   sempre: { titulo: string } | null;
   /** Em "Sua vez": quem pede e há quanto (HTML pronto); na conversa, nada — o cartão fica embaixo da fala. */
@@ -85,6 +92,11 @@ export type DadosDoCartaoRevisor = {
    * a procuração dela). Em "Sua vez" isso já vai no cabeçalho.
    */
   aPedidoDe?: string | null;
+  /**
+   * ADR-166 (tela 06, "Com regra sugerida"): a regra pronta para salvar com o clique de permitir. Marcada por padrão; a
+   * pessoa edita o texto ali mesmo. Só no `revisor_pediu` aberto (quem monta decide).
+   */
+  regra?: { sugestao: string; agenteId: string };
 };
 
 /**
@@ -94,15 +106,26 @@ export type DadosDoCartaoRevisor = {
 export function renderCartaoRevisor(d: DadosDoCartaoRevisor, estadoColuna: string): string {
   const id = esc(d.decisaoId);
   const titulo = `cr-t-${id}`;
-  const motivo = `<p class="cr-motivo">${d.motivo.rotulo ? `<b>${esc(d.motivo.rotulo)}</b> ` : ""}${esc(d.motivo.texto)}</p>`;
-  const detalhe = d.detalhe ? `<details class="cr-detalhe" data-disclosure="cr-${id}"><summary>${esc(d.detalhe.rotulo)}</summary><div class="cr-detalhe-corpo">${d.detalhe.html}</div></details>` : "";
+  // O topo já diz "O revisor pediu sua decisão": o rótulo "Revisor:" fica só para o leitor de tela.
+  const motivo = `<p class="cr-motivo">${d.motivo.rotulo ? `<span class="sr-only">${esc(d.motivo.rotulo)} </span>` : ""}${esc(d.motivo.texto)}</p>`;
+  // ADR-166 (tela 06, "Com regra sugerida"): o que vai sair fica à vista numa caixa; com várias ações, atrás do disclosure.
+  const detalhe = !d.detalhe ? "" : d.detalhe.aberto
+    ? `<div class="cr-caixa">${d.detalhe.html}</div>`
+    : `<details class="cr-detalhe" data-disclosure="cr-${id}"><summary>${esc(d.detalhe.rotulo)}</summary><div class="cr-detalhe-corpo">${d.detalhe.html}</div></details>`;
+  const blocoRegra = d.regra
+    ? `<div class="cr-regra"><label class="cr-regra-marca"><input type="checkbox" data-cr-regra-marca="${id}" checked><span>Salvar como regra</span></label><span class="cr-regra-origem">${ICONE_BRILHO}sugerida pelo revisor</span><input class="cr-regra-texto" data-cr-regra-texto="${id}" maxlength="1000" value="${esc(d.regra.sugestao)}" aria-label="Texto da regra"></div>`
+    : "";
   const acoes = [
-    botao("decidir-aprovacao", "Aprovar", { classe: "cr-aprovar", id: d.decisaoId }),
-    botao("decidir-aprovacao-nenhum", "Negar", { classe: "cr-negar", id: d.decisaoId }),
+    botao("decidir-aprovacao-nenhum", 'Negar <kbd class="kbd-esc">Esc</kbd>', { classe: "cr-negar", id: d.decisaoId, aria: "Negar" }),
     d.sempre ? botao("decidir-aprovacao-sempre", "Sempre permitir", { classe: "cr-sempre", id: d.decisaoId, titulo: d.sempre.titulo, descritoPor: `cr-d-${d.decisaoId}` }) : "",
+    d.regra
+      ? botao("decidir-aprovacao-com-regra", "Permitir e salvar regra", { classe: "cr-aprovar", id: d.decisaoId, dados: { agente: d.regra.agenteId } })
+      : botao("decidir-aprovacao", "Permitir uma vez", { classe: "cr-aprovar", id: d.decisaoId }),
   ].join("");
   // QA do PR 4 (2026-10-26): a dica do "Sempre permitir" só existia no `title`, que quem usa toque nunca vê. Agora é texto
   // embaixo dos botões onde não há ponteiro que paire (web/interface.css) e a descrição do botão para o leitor de tela.
   const dica = d.sempre ? `<p class="cr-sempre-dica" id="cr-d-${id}">${esc(d.sempre.titulo)}</p>` : "";
-  return `<li class="decisao cartao-revisor dec-${esc(estadoColuna)}" data-decisao="${id}"><div class="cr" role="group" aria-labelledby="${titulo}"><span class="cr-escudo">${ICONE_ESCUDO_PEDE}</span><div class="cr-corpo">${d.cabecalho ?? ""}${d.aPedidoDe ? `<p class="cr-pedido-de">A pedido de ${esc(d.aPedidoDe)}</p>` : ""}<p class="cr-pergunta" id="${titulo}">${textoComCodigo(d.pergunta, d.codigo)}</p>${motivo}${detalhe}<div class="cr-acoes">${acoes}</div>${dica}${d.rodape ?? ""}</div></div></li>`;
+  const quem = d.titulo ?? "O revisor pediu sua decisão";
+  const cab = `<div class="cr-topo">${d.avatar ? `<span class="aprov-av">${d.avatar}</span>` : `<span class="cr-escudo">${ICONE_ESCUDO_PEDE}</span>`}<span class="aprov-quem">${esc(quem)}</span><span class="aprov-esc">Esc</span>${botao("decidir-aprovacao-nenhum", "×", { classe: "aprov-fechar", id: d.decisaoId, aria: "Negar e fechar" })}</div>`;
+  return `<li class="decisao cartao-revisor dec-${esc(estadoColuna)}" data-decisao="${id}"><div class="cr" role="group" aria-labelledby="${titulo}">${cab}<div class="cr-corpo">${d.cabecalho ?? ""}${d.aPedidoDe ? `<p class="cr-pedido-de">A pedido de ${esc(d.aPedidoDe)}</p>` : ""}<p class="cr-pergunta" id="${titulo}">${textoComCodigo(d.pergunta, d.codigo)}</p>${motivo}${detalhe}${blocoRegra}<div class="cr-acoes">${acoes}</div>${dica}${d.rodape ?? ""}</div></div></li>`;
 }

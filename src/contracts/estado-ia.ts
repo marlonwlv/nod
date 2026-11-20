@@ -43,9 +43,11 @@ export type FaseLoginIa = (typeof FASES_LOGIN_IA)[number];
  *  - cli_antigo: o CLI não conhece o login por código (atualize);
  *  - config_invalida: o CLI não abriu por causa da configuração da pessoa;
  *  - nao_confirmou: o código foi enviado e o CLI não terminou;
+ *  - recusou_antes_do_link: o CLI saiu sozinho, com erro, antes de mostrar o link (definido em 2026-11-19: um `claude`
+ *    trocado por um script que recusava `auth login` caía em "falhou" e ninguém via o motivo);
  *  - falhou: outro motivo (o detalhe fica só no log do Mac).
  */
-export const CAUSAS_FALHA_LOGIN = ["nao_instalada", "sem_link", "link_nao_oficial", "codigo_invalido", "login_por_codigo_bloqueado", "cli_antigo", "config_invalida", "nao_confirmou", "falhou"] as const;
+export const CAUSAS_FALHA_LOGIN = ["nao_instalada", "sem_link", "link_nao_oficial", "codigo_invalido", "login_por_codigo_bloqueado", "cli_antigo", "config_invalida", "nao_confirmou", "recusou_antes_do_link", "falhou"] as const;
 export type CausaFalhaLogin = (typeof CAUSAS_FALHA_LOGIN)[number];
 
 export type LoginDaIa = {

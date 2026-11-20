@@ -268,8 +268,8 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     expect(await avaliar<boolean>(cdp, `document.querySelector('[data-act="mover-quadro"]').disabled`)).toBe(false);
     // O primeiro perde a corrida: a faixa diz o porquê do servidor (não "Não deu" genérico) e a tarefa segue aberta.
     await avaliar(cdp, `document.querySelector('[data-act="mover-quadro"]').click()`);
-    await ate(`/outra mudança levou a tarefa/.test(document.querySelector("#qc-faixa")?.textContent ?? "")`);
-    expect(await texto("#qc-faixa")).toContain("Não deu para mudar a tarefa de quadro: outra mudança levou a tarefa para outro quadro antes. Relendo.");
+    await ate(`/outra mudança levou o card/.test(document.querySelector("#qc-faixa")?.textContent ?? "")`);
+    expect(await texto("#qc-faixa")).toContain("Não deu para mudar o card de quadro: outra mudança levou o card para outro quadro antes. Relendo.");
     expect(await avaliar<boolean>(cdp, `!!document.querySelector("#quadro .qd-tarefa")`)).toBe(true);
     await ate(`document.querySelector('#qd-t-mover option[value="q2"]')`);
     await escolher("#qd-t-mover", "q2");
@@ -339,8 +339,10 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     // Compacto e sem as colunas recolhidas (o Backlog vazio nasce recolhido: some).
     await ate(`document.querySelector("#quadro .qd-compacto")`);
     expect(await avaliar<boolean>(cdp, `!document.querySelector('#quadro .qd-so-largo [data-act="abrir-coluna"][data-status="backlog"]')`)).toBe(true);
-    // Quadro minimalista (PR #723): o Exibir mora no popover das Opções (as tiras das recolhidas e o compacto).
-    await avaliar(cdp, `document.querySelector('#quadro [data-act="op-abrir"]').click()`);
+    // Quadro minimalista (PR #723): o Exibir mora no popover das Opções; tela 18 do Paper: as Opções abrem pelo menu do quadro.
+    await avaliar(cdp, `document.querySelector('#quadro .qm-cab-bt').click()`);
+    await ate(`document.querySelector('#qm-pop-quadro [data-act="op-abrir"]')`);
+    await avaliar(cdp, `document.querySelector('#qm-pop-quadro [data-act="op-abrir"]').click()`);
     await ate(`document.querySelector('#qm-pop-op [data-act="exibir-alternar"][data-chave="compacto"]')`);
     await avaliar(cdp, `document.querySelector('#qm-pop-op [data-act="exibir-alternar"][data-chave="compacto"]').click()`);
     await ate(`!document.querySelector("#quadro .qd-compacto")`);
@@ -391,18 +393,17 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     await avaliar(cdp, `document.querySelector('#quadro .qd-vazio-1 [data-act="busca-limpar"]').click()`);
     await ate(`!document.querySelector("#quadro .qd-vazio-1")`);
 
-    // Com as Opções abertas, o clique em quem está no quadro não se perde: abre a lista (as Opções fecham), e o
-    // clique na Ada filtra e fecha a lista.
-    await avaliar(cdp, `document.querySelector('#quadro [data-act="op-abrir"]').click()`);
+    // Com as Opções abertas (pelo menu do quadro), o clique na Ada do filtro por pessoa (tela 18 do Paper) não se perde:
+    // filtra e as Opções fecham.
+    await avaliar(cdp, `document.querySelector('#quadro .qm-cab-bt').click()`);
+    await ate(`document.querySelector('#qm-pop-quadro [data-act="op-abrir"]')`);
+    await avaliar(cdp, `document.querySelector('#qm-pop-quadro [data-act="op-abrir"]').click()`);
     await ate(`document.querySelector("#qm-pop-op")`);
-    await avaliar(cdp, `document.querySelector('#quadro [data-act="ativos-abrir"]').click()`);
-    await ate(`document.querySelector('#qm-pop-ativos [data-act="filtro-do-quadro"][data-filtro="agente:a"]') && !document.querySelector("#qm-pop-op")`);
-    await avaliar(cdp, `document.querySelector('#qm-pop-ativos [data-act="filtro-do-quadro"][data-filtro="agente:a"]').click()`);
-    await ate(`document.querySelector('#quadro .qm-ativos')?.classList.contains("qm-ligado")`);
-    expect(await avaliar<boolean>(cdp, `!document.querySelector("#qm-pop-ativos")`)).toBe(true);
+    await avaliar(cdp, `document.querySelector('#quadro .qm-pes [data-act="filtro-do-quadro"][data-filtro="agente:a"]').click()`);
+    await ate(`document.querySelector('#quadro .qm-pes [aria-pressed="true"]')?.textContent.includes("Ada") && !document.querySelector("#qm-pop-op")`);
     expect(await texto("#quadro")).toContain("Responsável: Ada");
     await avaliar(cdp, `document.querySelector('#quadro [data-act="filtro-do-quadro"][data-filtro="todos"]').click()`);
-    await ate(`!document.querySelector('#quadro .qm-ativos')?.classList.contains("qm-ligado")`);
+    await ate(`document.querySelector('#quadro .qm-pes [aria-pressed="true"]')?.textContent.includes("Todos os cards")`);
 
     // Setas, Home e End andam entre os itens do menu do quadro.
     await avaliar(cdp, `document.querySelector('#quadro [data-act="qmenu-abrir"]').click()`);
@@ -436,14 +437,14 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     expect(await avaliar<unknown[]>(cdp, "window.__urls")).toEqual(["ADA-1"]);
   }, 30_000);
 
-  it("revisão 7 do PR #623: o link de uma tarefa que não está no quadro abre o quadro e anuncia \"Tarefa não encontrada neste quadro.\"", async () => {
+  it("revisão 7 do PR #623: o link de uma tarefa que não está no quadro abre o quadro e anuncia \"Card não encontrado neste quadro.\"", async () => {
     await cdp.enviar("Page.navigate", { url });
     await ate("window.__montarSemFlag");
     await avaliar(cdp, `window.__api.criarTarefa("a", { titulo: "Fica" })`);
     await avaliar(cdp, "window.__montarSemFlag()");
     await avaliar(cdp, `window.__q.abrirTarefa("a", "nao-existe")`);
     await avaliar(cdp, `window.__q.sincronizar({ chave: "c1", nome: "Ada", agenteId: "a" })`);
-    await ate(`/Tarefa não encontrada neste quadro\\./.test(document.querySelector("#quadro > .qc-wrap > .qd-anuncio[role=status]")?.textContent ?? "")`);
+    await ate(`/Card não encontrado neste quadro\\./.test(document.querySelector("#quadro > .qc-wrap > .qd-anuncio[role=status]")?.textContent ?? "")`);
     expect(await avaliar<string>(cdp, "window.__q.modo()")).toBe("quadro");
     expect(await avaliar<boolean>(cdp, `!document.querySelector("#quadro .qd-tarefa")`)).toBe(true);
     expect(await avaliar<unknown[]>(cdp, "window.__urls")).toEqual([]);
@@ -502,7 +503,7 @@ descrever("NOD-416 no Chrome real: criar, abrir pelo link, mudar status e respon
     await ate(`!document.querySelector('[data-act="mover-quadro"]').disabled`);
     await avaliar(cdp, `document.querySelector('[data-act="mover-quadro"]').click()`);
     const anuncio = `document.querySelector("#quadro > .qc-wrap > .qd-anuncio[role=status]")?.textContent ?? ""`;
-    await ate(`/foi para o quadro de Caio como CA-1.*Tarefa não encontrada neste quadro\\./.test(${anuncio})`);
+    await ate(`/foi para o quadro de Caio como CA-1.*Card não encontrado neste quadro\\./.test(${anuncio})`);
     await ate(`/foi para o quadro de Caio como CA-1/.test(document.querySelector("#qc-faixa")?.textContent ?? "")`);
     expect(await avaliar<unknown[]>(cdp, "window.__idas")).toEqual([["c", "t1"]]);
     expect(await avaliar<string>(cdp, "window.__q.modo()")).toBe("quadro");

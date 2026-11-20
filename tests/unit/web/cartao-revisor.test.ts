@@ -57,11 +57,13 @@ describe("o cartão compacto do revisor (tela A3)", () => {
     // Sem a frase da ação (servidor de antes do PR 4b), a frase da decisão. A pergunta quebra a linha desde o PR 4b, então
     // o `title` com o texto inteiro saiu (repetia o que já se lê).
     expect(html).toContain('<p class="cr-pergunta" id="cr-t-d1">Ze quer rodar um comando no seu Mac</p>');
-    expect(html).toContain('<p class="cr-motivo"><b>Revisor:</b> Você pediu um push, não um push forçado.</p>');
-    expect(html).toContain("<summary>ver comando</summary>");
+    // Tela 06 do Paper: o topo diz "O revisor pediu sua decisão"; o rótulo fica para o leitor de tela e o comando, à vista.
+    expect(html).toContain('<span class="aprov-quem">O revisor pediu sua decisão</span>');
+    expect(html).toContain('<p class="cr-motivo"><span class="sr-only">Revisor: </span>Você pediu um push, não um push forçado.</p>');
+    expect(html).toContain('<div class="cr-caixa"><pre class="ap-comando">');
     expect(html).toContain('<pre class="ap-comando"><code>git push --force origin feat/login</code></pre>');
-    expect(html).toContain('class="bt cr-aprovar" data-act="decidir-aprovacao" data-id="d1">Aprovar</button>');
-    expect(html).toContain('class="bt cr-negar" data-act="decidir-aprovacao-nenhum" data-id="d1">Negar</button>');
+    expect(html).toContain('class="bt cr-aprovar" data-act="decidir-aprovacao" data-id="d1">Permitir uma vez</button>');
+    expect(html).toContain('class="bt cr-negar" data-act="decidir-aprovacao-nenhum" data-id="d1" aria-label="Negar">Negar <kbd class="kbd-esc">Esc</kbd></button>');
     // Terminal: sem "Sempre permitir" e sem o "resto desta tarefa" do cartão de antes; nada do cartão âmbar.
     expect(html).not.toContain("decidir-aprovacao-sempre");
     expect(html).not.toContain("decidir-aprovacao-resto");
@@ -113,8 +115,8 @@ describe("o cartão compacto do revisor (tela A3)", () => {
     const app = (extra: Partial<ItemAprov> = {}) => itemAprov({ destino: { conector: "clickup", ferramenta: "delete_task", argumentos: { task_id: "42" } }, textoOriginal: "Apagar a task 42", textoFinal: "Apagar a task 42", justificativa: "2 delas foram editadas esta semana", ...extra });
     const serve = naConversa(estadoCom([cartao([app({ sempreServe: true })], { decisao: { ...cartao([]).decisao, frase: "Ze quer apagar 14 planilhas" } })]));
     expect(serve).toContain('class="bt cr-sempre" data-act="decidir-aprovacao-sempre" data-id="d1" title="Vale já para delete task no clickup, em qualquer destino');
-    expect(serve).toContain("<summary>ver detalhes</summary>");
-    expect(serve).toContain("<b>Revisor:</b> 2 delas foram editadas esta semana");
+    expect(serve).toContain('<div class="cr-caixa"><div class="cr-item">');
+    expect(serve).toContain('<span class="sr-only">Revisor: </span>2 delas foram editadas esta semana');
     for (const itens of [[app({ sempreServe: false })], [app()], [app({ sempreServe: true, motivoManual: "revisor_falhou" })], [itemAprov({ sempreServe: true })], [app({ sempreServe: true, origemSensivel: true })]]) {
       expect(naConversa(estadoCom([cartao(itens)]))).not.toContain("decidir-aprovacao-sempre");
     }
@@ -157,8 +159,8 @@ describe("PR 4b: a pergunta do cartão diz a ação (tela A3)", () => {
     const html = naConversa(estadoCom([cartao([email()], { decisao: { ...cartao([]).decisao, frase: "Clarice quer usar Planilhas e e-mail" } })]));
     expect(html).toContain('<p class="cr-pergunta" id="cr-t-d1">Enviar e-mail “Lista de clientes” para financeiro@acme-pagamentos.co?</p>');
     expect(html).not.toContain("Clarice quer usar");
-    expect(html).toContain('<p class="cr-motivo"><b>Revisor:</b> O pedido veio de um e-mail, não de você.</p>');
-    expect(html).toContain("<summary>ver detalhes</summary>");
+    expect(html).toContain('<p class="cr-motivo"><span class="sr-only">Revisor: </span>O pedido veio de um e-mail, não de você.</p>');
+    expect(html).toContain('<div class="cr-caixa">');
     expect(html).toContain("Usar enviar_email no Planilhas e e-mail");
   });
 
@@ -194,12 +196,12 @@ describe("decidido, o cartão encolhe (cartao-encolhido.ts)", () => {
     autoria: { autor_tipo: "pessoa", autor_id: "p" } as never,
     payload: { kind: "resultado_aprovacao", decisaoId: "d1", frase: "Ze quer rodar um comando no seu Mac", itens: [{ idx: 0, desfecho, texto: "git push --force" }], ...(revisor ? { revisor: true as const } : {}) },
   } as Mensagem);
-  it("'Aprovado por você' e, no cartão do revisor, 'Negado por você' (o mesmo verbo do botão)", () => {
+  it("'Permitido uma vez' e 'Negado' (tela 06 do Paper; o mesmo verbo do botão), com ou sem o revisor", () => {
     const e = estadoCom([]);
-    expect(dadosDoEncolhido(recibo("executado", true), e)?.resultado).toMatch(/^Aprovado por você · feito /);
-    expect(dadosDoEncolhido(recibo("retirado_pela_pessoa", true), e)).toMatchObject({ resultado: "Negado por você", anuncio: "Negado: Ze quer rodar um comando no seu Mac" });
+    expect(dadosDoEncolhido(recibo("executado", true), e)?.resultado).toBe("Permitido uma vez");
+    expect(dadosDoEncolhido(recibo("retirado_pela_pessoa", true), e)).toMatchObject({ resultado: "Negado", anuncio: "Negado: Ze quer rodar um comando no seu Mac" });
     // Recibo antigo, ou de outro cartão: "Recusado", como sempre.
-    expect(dadosDoEncolhido(recibo("retirado_pela_pessoa", false), e)?.resultado).toBe("Recusado por você");
+    expect(dadosDoEncolhido(recibo("retirado_pela_pessoa", false), e)?.resultado).toBe("Negado");
   });
 });
 

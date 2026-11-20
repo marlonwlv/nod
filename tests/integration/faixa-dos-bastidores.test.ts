@@ -4,6 +4,7 @@ import type { OrigemTurno } from "../../src/contracts/turno.ts";
 import { criarAgente } from "../../src/use-cases/criar-agente.ts";
 import { despacharTurno } from "../../src/use-cases/despachar-turno.ts";
 import { enviarMensagem, lerConversa } from "../../src/use-cases/enviar-mensagem.ts";
+import { interromperBastidoresComTeto, interromperPorMaquina } from "../../src/use-cases/interromper-por-maquina.ts";
 import { depsSobreTrx, executar, MARLON } from "../helpers/deps-l6.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
@@ -99,6 +100,37 @@ describeIntegracao("ADR-130: a conversa do bot tem a faixa da pessoa e a dos bas
       expect((await deps.repos.turnos.buscar(rotina.id))?.estado).toBe("pendente");
       // Fora da drenagem, a rotina sai (nos bastidores, ao lado da fala que roda).
       expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId).toBe(rotina.id);
+    });
+  });
+
+  it("NOD-452: a rotina acima do teto cai, o pedido seguinte sai e a rotina ganha retomada", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const deps = depsSobreTrx(trx, MARLON);
+      const { data: criado } = await executar(deps, criarAgente, { dono: "pessoa" });
+      const rotina = await fundo(deps, criado, "rotina");
+      const colega = await fundo(deps, criado, "delegacao");
+      const maquina = randomUUID();
+      expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId).toBe(rotina.id);
+      const agora = Date.now();
+      await trx`update turnos set despachado_em = to_timestamp(${agora - 120_000} / 1000.0) where id = ${rotina.id}`;
+      const candidatos = await deps.repos.turnos.bastidoresAcimaDoTeto(agora, 60_000);
+      const corte = await interromperBastidoresComTeto({ ...deps, agora: () => agora, aleatorio: () => 0.5 }, candidatos);
+      expect(corte.data.interrompidos).toEqual([rotina.id]);
+      const cortado = await deps.repos.turnos.buscar(rotina.id);
+      expect(cortado).toMatchObject({ estado: "despachando", motivoInterrupcao: "turno_travado", pararSolicitadoEm: agora });
+      // A marca manda o executor parar, mas mantém a faixa ocupada até ele entregar ou perder o lease.
+      expect(await deps.repos.turnos.renovarLease(rotina.id, maquina, {}, agora)).toMatchObject({ ativo: false, motivo: "parado" });
+      expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano).toBeNull();
+
+      const depoisDoLease = (cortado?.leaseAte ?? agora) + 1;
+      const assentado = await interromperPorMaquina({ ...deps, agora: () => depoisDoLease, aleatorio: () => 0.5 }, { turnos: cortado ? [cortado] : [] });
+      expect(assentado.data.interrompidos).toEqual([rotina.id]);
+      // `retomadaNaFila` só devolve voltas já acordadas; esta precisa ficar pendente no backoff de 30 s.
+      const [retomada] = await trx<{ estado: string; acordar_em: Date | null }[]>`
+        select estado, acordar_em from turnos where retoma_turno_id = ${rotina.id} order by criado_em desc limit 1`;
+      expect(retomada).toMatchObject({ estado: "pendente" });
+      expect(retomada?.acordar_em?.getTime()).toBe(depoisDoLease + 30_000);
+      expect((await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data.plano?.turnoId).toBe(colega.id);
     });
   });
 });

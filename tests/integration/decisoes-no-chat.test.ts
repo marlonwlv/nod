@@ -76,4 +76,22 @@ describeIntegracao("NOD-414: decisões pelo chat", () => {
       expect(recusado.data.arquivos).toEqual([]);
     });
   });
+  it("QA-112: confirmar ou recusar a exportação avisa que o card fechou (decisao_decidida) e o segundo clique diz o motivo", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const d = depsSobreTrx(trx, MARLON);
+      const bia = await agenteComConversa(trx, MARLON, { nome: "Bia evento" });
+      const ctx = await turnoDe(d, bia.agenteId, bia.conversaId);
+      for (const recusar of [false, true]) {
+        const p = await executar(d, decisoesNoChat, { ...ctx, acao: "exportar", de: "2026-11-01", ate: "2026-11-13", fuso: "UTC" });
+        if (!p.data.ok || !("decisao_id" in p.data)) throw new Error("proposta");
+        const id = p.data.decisao_id;
+        const r = await executar(d, aplicarExportacaoDecisoes, { propostaId: id, recusar });
+        const fechou = (r.events ?? []).find((e) => e.kind === "decisao_decidida");
+        expect(fechou, recusar ? "recusar" : "confirmar").toMatchObject({ conversaId: bia.conversaId, turnoId: ctx.turnoId, dados: { decisao_id: id, tipo: "decisoes_exportacao", recusada: recusar } });
+        const segunda = await executar(d, aplicarExportacaoDecisoes, { propostaId: id, recusar: !recusar }).then(() => null, (e: unknown) => e);
+        expect(segunda).toMatchObject({ codigo: "estado_invalido" });
+        expect(String((segunda as Error).cause ?? "")).toMatch(/já/);
+      }
+    });
+  });
 });

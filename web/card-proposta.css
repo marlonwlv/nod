@@ -185,6 +185,8 @@
 .cp-ok .cp-ic { color: var(--success); }
 .cp-recusado { color: var(--ink-3); }
 .cp-recusado .cp-ic, .cp-expirado .cp-ic, .cp-aguarda .cp-ic { color: var(--ink-3); }
+.cp-sem-resposta { color: var(--ink-3); }
+.cp-sem-resposta .cp-ic { color: var(--ink-3); }
 .cp-link {
   margin: 0;
   padding: 0;

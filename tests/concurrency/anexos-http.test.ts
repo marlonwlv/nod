@@ -23,6 +23,8 @@ describeIntegracao("anexos no chat pela HTTP (ADR-046)", () => {
   let srv: ServidorCompleto;
   const baixados: { plano: PlanoTurno; bytes: (number[] | null)[]; alheio: number }[] = [];
   let idAlheio = "00000000-0000-4000-8000-000000000000";
+  // C1 (2026-11-12): o turno vivo espera neste portão enquanto a pessoa manda outra fala com print, e baixa o print dela.
+  let portao: { aberto: Promise<void>; abrir: () => void; idDoMeio: string; status: number | null } | null = null;
 
   beforeAll(async () => {
     // Driver de teste: antes do roteiro do catcher, baixa os anexos do plano como o claude-cli faria,
@@ -39,6 +41,13 @@ describeIntegracao("anexos no chat pela HTTP (ADR-046)", () => {
             return {
               ...a,
               async rodarTurno(sinks) {
+                const p = portao;
+                if (p) {
+                  portao = null;
+                  await p.aberto;
+                  p.status = (await fetch(`${urlNod}/api/interno/anexos/${p.idDoMeio}`, { headers: { authorization: `Bearer ${plano.tokenDeTurno}` } })).status;
+                  return a.rodarTurno(sinks);
+                }
                 const r = await baixarAnexos(plano, urlNod);
                 const alheio = await fetch(`${urlNod}/api/interno/anexos/${idAlheio}`, { headers: { authorization: `Bearer ${plano.tokenDeTurno}` } });
                 baixados.push({ plano, bytes: r.map((x) => (x.bytes ? [...x.bytes] : null)), alheio: alheio.status });
@@ -103,5 +112,21 @@ describeIntegracao("anexos no chat pela HTTP (ADR-046)", () => {
     expect(new Uint8Array(await g.arrayBuffer())).toEqual(PNG);
     // O id certo pela conversa errada não serve.
     expect((await srv.chamar("GET", `conversas/${outro.conversa.id}/anexos/${meta.id}`)).status).toBe(404);
+  }, 30_000);
+
+  it("C1: o turno vivo baixa o print de uma fala da pessoa ainda pendente na mesma conversa e bot", async () => {
+    const { conversa } = await srv.json<{ agente: Agente; conversa: Conversa }>("POST", "agentes", { dono: "pessoa", nome: "Meio" });
+    let abrir = () => {};
+    const aberto = new Promise<void>((ok) => { abrir = ok; });
+    const p = { aberto, abrir, idDoMeio: "", status: null as number | null };
+    portao = p;
+    const primeiro = await srv.json<RespostaMutacao>("POST", `conversas/${conversa.id}/mensagens`, { texto: "começa um trabalho" });
+    await srv.esperar(async () => ((await srv.json<{ turno: Turno }>("GET", `turnos/${primeiro.ids.turno ?? ""}`)).turno.estado === "despachando" ? true : null), { nome: "turno vivo", timeoutMs: 15_000 });
+    const meta = (await (await subir(conversa.id, "erro.png", "image/png", PNG)).json()) as AnexoMeta;
+    await srv.json<RespostaMutacao>("POST", `conversas/${conversa.id}/mensagens`, { texto: "olha esse erro", anexos: [meta.id] });
+    p.idDoMeio = meta.id;
+    p.abrir();
+    await srv.esperar(async () => (p.status !== null ? true : null), { nome: "download do print do meio", timeoutMs: 15_000 });
+    expect(p.status).toBe(200);
   }, 30_000);
 });

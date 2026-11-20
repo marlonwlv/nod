@@ -90,6 +90,28 @@ export function turnoPassosRepo(conn: Conn, escopo: Escopo) {
       return { passos: ls.slice(0, n).map(paraPasso), fim: ls.length <= n };
     },
 
+    /**
+     * ADR-187 §6 (definido em 2026-11-18): os passos dos turnos de uma tarefa (a conversa detalhada da tela dela), os
+     * últimos `limite` em ordem de seq, cada um com o turno que o gravou. Lê pelas raízes das cadeias dos turnos (o índice
+     * turno_passos_da_raiz) e fica só com os desses turnos: a raiz de um turno promovido pela rede pode ser da conversa.
+     */
+    async doTrabalho(turnoIds: readonly string[], limite: number = PASSOS_POR_PAGINA): Promise<(PassoDoRun & { turnoId: string })[]> {
+      if (turnoIds.length === 0) return [];
+      const ids = conn.array([...new Set(turnoIds)]);
+      const n = Math.max(1, Math.min(PASSOS_POR_TURNO_MAX, Math.trunc(limite) || PASSOS_POR_PAGINA));
+      const ls = await conn<(Linha & { turno_id: string })[]>`
+        with recursive cadeia(id, retoma_turno_id, saltos) as (
+          select id, retoma_turno_id, 0 from turnos where tenant_id = ${escopo.tenantId} and id = any(${ids}::uuid[])
+          union all
+          select t.id, t.retoma_turno_id, c.saltos + 1 from turnos t join cadeia c on t.tenant_id = ${escopo.tenantId} and t.id = c.retoma_turno_id
+          where c.saltos < 50
+        ), raizes as (select distinct id from cadeia where retoma_turno_id is null)
+        select ${conn.unsafe(COLUNAS)}, turno_id from turno_passos
+        where tenant_id = ${escopo.tenantId} and raiz_id in (select id from raizes) and turno_id = any(${ids}::uuid[])
+        order by seq desc limit ${n}`;
+      return ls.map((l) => ({ ...paraPasso(l), turnoId: l.turno_id })).sort((a, b) => a.seq - b.seq);
+    },
+
     /** Quantos passos cada run tem e o último (RunDaTarefa.nPassos/ultimoPasso). Run sem passo: n 0, último null. */
     async resumo(raizes: readonly string[]): Promise<Map<string, { n: number; ultimo: PassoDoRun | null }>> {
       const saida = new Map<string, { n: number; ultimo: PassoDoRun | null }>(raizes.map((r) => [r, { n: 0, ultimo: null }]));

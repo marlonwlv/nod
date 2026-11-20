@@ -1,9 +1,11 @@
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { FalhaDitado } from "../lib/ditado-protocolo.ts";
+import { desteMac } from "../lib/plataforma-da-tela.ts";
+import { ondeLiberarMicrofone } from "../lib/microfone-do-sistema.ts";
 import { ICONE_LIGACAO } from "./ligacao.ts";
 
 /**
- * O microfone do campo de mensagem (definido em 2026-10-11, ADR-095; referência do Grok em docs/referencias/ditado-grok/).
+ * O microfone do campo de mensagem (definido em 2026-10-11, ADR-095).
  *
  * - 🎤 começa a gravar: o placeholder vira "Ouvindo…", aparece a pílula `■ 0:08 ••••` e o ➤ vira ↑.
  * - ■ para e põe o texto no campo, para conferir e enviar (o jeito do computador).
@@ -15,7 +17,7 @@ import { ICONE_LIGACAO } from "./ligacao.ts";
  */
 
 const QUADRADO = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1" y="1" width="12" height="12" rx="2.5" fill="currentColor"/></svg>';
-/** definido em 2026-10-11 (as fotos do Grok): 12 barras no nível; no computador o CSS as mostra como pontos. */
+/** definido em 2026-10-11 (fotos de referência): 12 barras no nível; no computador o CSS as mostra como pontos. */
 const BARRAS = 12;
 
 /** O botão do microfone (escondido até a disponibilidade chegar) e a pílula da gravação. */
@@ -64,7 +66,7 @@ export function ditadoNaPilula(campo: CampoDaPilula, texto: string, destino: "ca
   campo.setSelectionRange(campo.value.length, campo.value.length);
 }
 
-/** O aviso de cada falha. `noApp` muda onde liberar o microfone (Ajustes do Sistema × navegador). */
+/** O aviso de cada falha. `noApp` muda onde liberar o microfone (Ajustes do Sistema ou Configurações × navegador). */
 export function textoDaFalha(f: FalhaDitado | "vazio" | "teto" | "tela-bloqueou" | "aviso-mudou", noApp: boolean): string {
   switch (f) {
     // NOD-324: o servidor pede outra versão do aviso que a desta página; o texto do diálogo aqui é o velho.
@@ -72,9 +74,9 @@ export function textoDaFalha(f: FalhaDitado | "vazio" | "teto" | "tela-bloqueou"
     case "aviso-mudou":
       return noApp ? "O aviso sobre a voz mudou. Feche e abra o app para ditar." : "O aviso sobre a voz mudou. Atualize a página para ditar.";
     case "microfone-negado":
-      return noApp ? "Libere o microfone em Ajustes do Sistema › Privacidade › Microfone para ditar." : "Libere o microfone para este site nos ajustes do navegador para ditar.";
+      return noApp ? ondeLiberarMicrofone() : "Libere o microfone para este site nos ajustes do navegador para ditar.";
     case "microfone-restrito":
-      return "O microfone deste Mac está bloqueado por quem administra o computador.";
+      return `O microfone ${desteMac()} está bloqueado por quem administra o computador.`;
     case "microfone-indisponivel":
       return "Nenhum microfone encontrado. Conecte um e tente de novo.";
     case "sem_consentimento":

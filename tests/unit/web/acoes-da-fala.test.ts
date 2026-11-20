@@ -76,7 +76,7 @@ describe("a barra ao lado da fala (tela S6)", () => {
     expect(rotulos(acoesDaFala(parcial, cenario([parcial])))).toEqual(["Ações da mensagem", "Reportar problema nesta resposta", "Mais ações"]);
   });
 
-  it("responder só na conversa própria aberta (na tela da task ou noutra conversa o campo é outro)", () => {
+  it("responder só na conversa própria aberta (na tela da tarefa ou noutra conversa o campo é outro)", () => {
     const naTask = cenario([BOT], { tela: { tipo: "trabalho", id: "w1" } as never });
     expect(rotulos(acoesDaFala(BOT, naTask))).not.toContain("Responder");
     expect(itensDoMenu(BOT, naTask).map((i) => i.acao)).toEqual(["copiar"]);
@@ -110,7 +110,7 @@ describe("o menu ⋯ e o seletor da carinha", () => {
     const comDev = htmlMenuDaFala(BOT, cenario([BOT], { modoDev: true }));
     expect(rotulos(comDev)).toEqual(["Mais ações da mensagem", "Reagir", "Curtir", "Amei", "Feito", "Olhando", "Mais emojis"]);
     const itens = [...comDev.matchAll(/<button type="button" role="menuitem" data-fala="([^"]+)">(<svg[^]*?<\/svg>)([^<]+)<\/button>/g)].map((m) => [m[1], m[3]]);
-    expect(itens).toEqual([["copiar", "Copiar texto"], ["abrir-task", "Abrir task com isto"], ["lembrar", "Lembrar disso"], ["raio-x", "Ver no Raio-X"]]);
+    expect(itens).toEqual([["copiar", "Copiar texto"], ["abrir-task", "Abrir tarefa com isto"], ["lembrar", "Lembrar disso"], ["raio-x", "Ver no Raio-X"]]);
     expect(htmlMenuDaFala(BOT, cenario([BOT]))).not.toContain("Ver no Raio-X");
     // A fala sem turno (a da pessoa) não tem Raio-X nem reações.
     const minha = msg("m2", "pode pegar", { autoria: daPessoa, turnoId: null });
@@ -155,19 +155,19 @@ describe("o menu ⋯ e o seletor da carinha", () => {
     expect([...textoParaLembrar({ texto: "palavra ".repeat(200) })].length).toBeLessThanOrEqual(MEMORIA_DA_FALA_MAX + 1);
   });
 
-  // QA do PR 392 (2026-10-18): a rede de 2 min tira o título da task do texto da mensagem; com o pedido sozinho, a task
-  // nascia com o título "Abre uma task com isto.".
-  it("Abrir task com isto leva o assunto da fala, e o título que a rede de 2 min tira dele é útil e cabe inteiro", () => {
+  // QA do PR 392 (2026-10-18): a rede de 2 min tira o título da tarefa do texto da mensagem; com o pedido sozinho, a task
+  // nascia com o título "Abre uma tarefa com isto.".
+  it("Abrir tarefa com isto leva o assunto da fala, e o título que a rede de 2 min tira dele é útil e cabe inteiro", () => {
     const fala = { texto: "O deploy de ontem quebrou o login do app quando a pessoa entra pelo Google. Vale olhar o callback e o cookie de sessão." };
     const texto = textoAbrirTask(fala);
-    expect(texto).toBe("Abre uma task com isto: «O deploy de ontem quebrou o login do app quando a…»");
+    expect(texto).toBe("Abre uma tarefa com isto: «O deploy de ontem quebrou o login do app quando a…»");
     const titulo = tituloDoTrabalho(semCitacao(comCitacao(texto, trechoDaCitacao(fala.texto))));
     expect(titulo).toBe(texto);
     expect(titulo.length).toBeLessThanOrEqual(80);
-    expect(textoAbrirTask({ texto: "Curta." })).toBe("Abre uma task com isto: «Curta.»");
-    expect(textoAbrirTask({ texto: "linha 1\n\nlinha 2" })).toBe("Abre uma task com isto: «linha 1 linha 2»");
-    expect(textoAbrirTask({ texto: "fecha ») aqui" })).toBe("Abre uma task com isto: «fecha ›) aqui»");
-    expect(textoAbrirTask({ texto: "   " })).toBe("Abre uma task com isto.");
+    expect(textoAbrirTask({ texto: "Curta." })).toBe("Abre uma tarefa com isto: «Curta.»");
+    expect(textoAbrirTask({ texto: "linha 1\n\nlinha 2" })).toBe("Abre uma tarefa com isto: «linha 1 linha 2»");
+    expect(textoAbrirTask({ texto: "fecha ») aqui" })).toBe("Abre uma tarefa com isto: «fecha ›) aqui»");
+    expect(textoAbrirTask({ texto: "   " })).toBe("Abre uma tarefa com isto.");
     const longa = { texto: "a".repeat(300) };
     expect(tituloDoTrabalho(textoAbrirTask(longa)).endsWith("…»")).toBe(true);
   });

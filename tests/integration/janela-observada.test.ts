@@ -25,11 +25,12 @@ async function cenario(trx: Trx) {
   const base = await agenteComConversa(trx, MARLON, { nome: "Atlas" });
   let em = Date.now() - 3_600_000;
   /** Um turno do bot com a execução gravada; `criado_em` crescente, um segundo por turno (sem empate de ms). */
-  const turno = async (janela: number | null, o: { conversaId?: string; modelo?: string } = {}) => {
+  const turno = async (janela: number | null, o: { conversaId?: string; modelo?: string; modeloEfetivo?: string } = {}) => {
     const t = (await base.repos.turnos.enfileirar({ executor: "local", conversaId: o.conversaId ?? base.conversaId, agenteId: base.agenteId, origem: "conversa", prazoEm: Date.now() + 600_000, profundidade: 0, entradaTexto: "oi", entradaConfianca: "confiavel", modelo: o.modelo ?? "haiku", harness: "claude-cli" }))!;
     em += 1_000;
     await trx`update turnos set criado_em = ${new Date(em)}, estado = 'concluido' where id = ${t.id}`;
     await base.repos.raioX.gravarExecucao(t.id, execucao(janela));
+    if (o.modeloEfetivo) await trx`update turno_raio_x set composicao = ${trx.json({ modelo: o.modeloEfetivo })} where turno_id = ${t.id}`;
     return t;
   };
   return { ...base, turno };
@@ -46,6 +47,15 @@ describeIntegracao("NOD-480: a janela observada no Raio-X", () => {
       expect(await c.repos.raioX.ultimaJanela(c.conversaId, c.agenteId, "haiku")).toBe(200_000);
       expect(await c.repos.raioX.ultimaJanela(c.conversaId, c.agenteId, "sonnet")).toBe(500_000);
       expect(await c.repos.raioX.ultimaJanela(c.conversaId, c.agenteId, "opus")).toBeNull();
+    });
+  });
+
+  it("usa o modelo efetivo da composição quando o turno persistido está em auto", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const c = await cenario(trx);
+      await c.turno(1_000_000, { modelo: "auto", modeloEfetivo: "opus" });
+      expect(await c.repos.raioX.ultimaJanela(c.conversaId, c.agenteId, "opus")).toBe(1_000_000);
+      expect(await c.repos.raioX.ultimaJanela(c.conversaId, c.agenteId, "auto")).toBeNull();
     });
   });
 

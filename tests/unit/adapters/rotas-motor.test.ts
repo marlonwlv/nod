@@ -113,6 +113,6 @@ describe("rotas do motor (ADR-090)", () => {
       expect(r.headers.get("cache-control")).toBe("no-store");
     }
     expect((await fetch(`${srv.url}/download/windows`, { method: "HEAD", redirect: "manual" })).status).toBe(302);
-    expect(URL_DO_EXE_WINDOWS).toBe("https://storage.googleapis.com/nodbot-downloads/nod-windows-x64.exe");
+    expect(URL_DO_EXE_WINDOWS).toMatch(/^https:\/\/storage\.googleapis\.com\/nodbot-downloads\/v(\d+\.\d+\.\d+(?:-rc\.\d+)?)\/nod-\1-win-x64\.exe$/);
   });
 });

@@ -116,7 +116,9 @@ function serializarComCampo(base: Record<string, unknown>, campo: string, json: 
  */
 export function candidatas(schema: JsonSchema | undefined): EntradaDeFuzz[] {
   const base = schema?.type === "object" || !schema ? (valorPlausivel(schema ?? { type: "object" }) as Record<string, unknown>) : {};
-  const campos = schema?.properties ? Object.keys(schema.properties) : CAMPOS_GENERICOS;
+  // Schema sem campo nenhum (a ação sem argumentos, como rotinas.pausar_todas) também leva os genéricos: a rota segue
+  // recebendo lixo nos campos que não existem.
+  const campos = schema?.properties && Object.keys(schema.properties).length > 0 ? Object.keys(schema.properties) : CAMPOS_GENERICOS;
   const saida: EntradaDeFuzz[] = [...CORPOS_QUEBRADOS];
   for (const campo of campos) {
     for (const v of VALORES_ABSURDOS) saida.push({ rotulo: `${campo}: ${v.rotulo}`, corpo: serializarComCampo(base, campo, v.json) });

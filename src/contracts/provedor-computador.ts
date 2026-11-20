@@ -2,7 +2,7 @@ import type { AcaoComputador, AmbienteComputador, ResultadoComputador } from "./
 import type { MotivoFalhaComputador } from "./motivos.ts";
 
 /**
- * ADR-170 (definido em 2026-11-12): o computador do bot é PLUG AND PLAY. Quem dá a máquina (Docker próprio, o motor da
+ * ADR-168 (definido em 2026-11-12): o computador do bot é PLUG AND PLAY. Quem dá a máquina (Docker próprio, o motor da
  * pessoa, um serviço de terceiros como o Orgo) é um `ProvedorDeComputador`; o portão (fundo/computadores.ts), as
  * ferramentas `computador_*` e o agente só conhecem o `DriverComputador` de sempre, montado por cima do provedor escolhido
  * (adapters/computador/provedores/seletor.ts). Trocar de provedor é configuração (`NOD_COMPUTADOR_PROVEDOR`, por pessoa ou
@@ -45,7 +45,14 @@ export type CapacidadesProvedor = {
  * O computador como o provedor o vê. `id` é sempre o `computadores.id` do nod; o provedor guarda o próprio id (o UUID do
  * Orgo, o nome do container) por conta dele, derivado do nosso (nome `nod-<id>`), para não precisar de coluna nova.
  */
-export type RefComputador = { id: string; escopo?: { tenantId: string; pessoaId: string } };
+export type RefComputador = {
+  /** Id da alocação compartilhada da pessoa. Nunca é o id do bot. */
+  id: string;
+  escopo?: { tenantId: string; pessoaId: string };
+  /** Tela persistida no Nod e bot que a ocupa. Ausentes nas operações da máquina inteira. */
+  telaId?: string;
+  agenteId?: string;
+};
 
 export type EstadoNoProvedor = "inexistente" | "criando" | "ligado" | "suspenso" | "parado" | "erro";
 
@@ -61,6 +68,14 @@ export type SaudeComputador = {
 
 /** O acesso à tela ao vivo que o provedor dá (ADR-138 para o motor; VNC por WebSocket para os de fora). Segredo de sessão. */
 export type AcessoTelaAoVivo = { tipo: "vnc_websocket"; url: string; token: string; validoAte: number | null };
+
+/** Origem binária já autenticada de uma tela ao vivo. O relay é o único consumidor e fecha os dois lados juntos. */
+export type FluxoTelaAoVivo = {
+  enviar(bytes: Uint8Array): void;
+  aoDados(fn: (bytes: Uint8Array) => void): void;
+  aoFechar(fn: () => void): void;
+  fechar(codigo: number, motivo?: string): void;
+};
 
 export type BotaoMouse = "esquerdo" | "direito" | "meio";
 
@@ -109,13 +124,15 @@ export interface ProvedorDeComputador {
   /** Plano de dados mínimo (provedores de fora); `executarPorPrimitivas` faz o resto. */
   primitivas?: PrimitivasDeComputador;
   /** Com `primitivas`: a pasta de trabalho do bot na máquina (o /workspace do runtime do nod). */
-  raizDeTrabalho?: string;
+  raizDeTrabalho?: string | ((ref: RefComputador) => string);
   /** O acesso à tela ao vivo, quando `telaAoVivo` é `vnc_websocket`. */
   acessoTela?(ref: RefComputador): Promise<AcessoTelaAoVivo>;
+  /** Origem local pronta para o relay (Docker: `docker exec` → socket Unix do x11vnc). */
+  abrirTelaAoVivo?(ref: RefComputador): Promise<FluxoTelaAoVivo>;
 }
 
 /**
- * A escolha do provedor, por configuração (ADR-170). A ordem de precedência é bot > pessoa > global > padrão; o padrão é
+ * A escolha do provedor, por configuração (ADR-168). A ordem de precedência é bot > pessoa > global > padrão; o padrão é
  * o que o servidor já fazia (`NOD_COMPUTADORES=docker`; o motor (ADR-122, um computador por pessoa) segue no caminho próprio), para nada mudar sem alguém pedir.
  */
 export type ConfigProvedores = {
