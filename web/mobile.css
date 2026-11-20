@@ -888,3 +888,8 @@
   .ctc-pedido:not(:empty) { display: block; max-width: 100%; margin: 0; font-size: 14px; line-height: 20px; text-align: center; color: #ffffffa8; } /* cor-fixa: sobre o fundo fixo da tela cheia */
   .ctc-sair { width: 44px; height: 44px; margin-right: -10px; }
 }
+
+/* QA 2026-11-20: o × que nega e fecha o cartão de aprovação tinha 24 px no toque; ganha 44 px sem mexer no topo do cartão. */
+@media (hover: none) and (pointer: coarse) {
+  .bt.aprov-fechar { width: 44px; height: 44px; min-height: 44px; margin: -10px -10px -10px auto; }
+}
