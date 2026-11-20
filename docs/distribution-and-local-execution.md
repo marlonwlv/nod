@@ -100,11 +100,11 @@ Quando não há laptop, o OpenMausBot spawna `claude auth login` com pipes, capt
 
 ### O contra-exemplo que confirma a regra (driver do Factory droid)
 
-É o único driver que LÊ arquivo de credencial: checa a existência de ~/.factory/auth.v2.file, auth.v2.loginkeychain e auth.v2.keyring. E o comentário admite a fragilidade: qual arquivo existe depende de um feature flag que o droid busca por conta, então checar um nome só reporta um login recém-feito como deslogado — e os nomes foram lidos do binário 0.196.0 por engenharia reversa.
+É o único driver que LÊ arquivo de credencial: checa a existência de ~/.factory/auth.v2.file, auth.v2.loginkeychain e auth.v2.keyring. E o comentário admite a fragilidade: qual arquivo existe depende de um feature flag que o droid busca por conta, então checar um nome só reporta um login recém-feito como deslogado — e os nomes foram lidos do binário 0.196.0 por inspeção.
 
 **No OpenMausBot.** `server/drivers/acp/droid.ts:25-43`
 
-**Para o nod.** Serve como argumento de custo para o ADR-019. Três nomes de arquivo descobertos por engenharia reversa de um binário, e ainda frágil — exatamente o erro que o driver do Claude cometeu (issue #108) e abandonou. Com 2-3 engenheiros, não há orçamento para manter engenharia reversa de credenciais de três fornecedores.
+**Para o nod.** Serve como argumento de custo para o ADR-019. Três nomes de arquivo descobertos inspecionando um binário, e ainda frágil — exatamente o erro que o driver do Claude cometeu (issue #108) e abandonou. Com 2-3 engenheiros, não há orçamento para manter a inspeção de binários atrás de credenciais de três fornecedores.
 
 ### Empacotamento desktop com dois modos de boot
 

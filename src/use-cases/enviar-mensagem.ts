@@ -2,14 +2,14 @@ import { comandoDaConversa } from "../domain/comandos.ts";
 import { COMANDO_CONFIGURAR, JANELA_RECONFIGURACAO_MS, podeReconfigurar } from "../domain/reconfiguracao.ts";
 import type { AcaoDoModoNaFala } from "../contracts/acoes-do-modo.ts";
 import type { TipoAnexo } from "../contracts/anexo.ts";
-import type { ConversaDto } from "../contracts/api.ts";
+import type { ConversaComCursor } from "../contracts/estado-vivo.ts";
 import { comFilaDosPedidos } from "./fila-do-pedido.ts";
 import type { Executor } from "../contracts/evento.ts";
 import type { IdHarness } from "../contracts/harness.ts";
 import type { Inventario } from "../contracts/inventario.ts";
 import type { Mensagem } from "../contracts/mensagem.ts";
 import type { OrigemTurno, Turno } from "../contracts/turno.ts";
-import { grupoNaFala, linhaNaFala } from "../domain/acoes-do-modo.ts";
+import { grupoNaFala, linhaNaFala, semInvisiveis } from "../domain/acoes-do-modo.ts";
 import { fraseNoMeio } from "../domain/frase-da-acao.ts";
 import { fraseDoItem, type ConectoresDaLeitura } from "./frase-da-acao.ts";
 import { excedeQuantidade, motorLe, tipoDoAnexo } from "../domain/anexo.ts";
@@ -23,6 +23,7 @@ import { aguardaIa, falaSemIa, PRAZO_SEM_IA_MS } from "../domain/sem-ia.ts";
 import { log } from "../obs/log.ts";
 import { autoriaAgente, autoriaPessoa, evento, inventarioAusente, motorDe, PRAZO_DECISAO_PADRAO_MS } from "./autoria-evento.ts";
 import { fiosDaConversa } from "./fios-da-pergunta.ts";
+import { substituirAprovacoesAbertas } from "./substituir-aprovacoes.ts";
 import { donosDosBots, presencaDasMaquinas } from "./estado-do-dono.ts";
 import { trabalhosParaDto } from "./trabalhos.ts";
 import type { CasoDeUso, Deps } from "./tipos.ts";
@@ -151,6 +152,8 @@ export const enviarMensagem: CasoDeUso<EntradaEnviarMensagem, SaidaEnviarMensage
   }
 
   const events = [evento(deps.escopo, { kind: "mensagem_criada", autoria, agora, conversaId: conversa.id, turnoId: turno.id, dados: { mensagem_id: mensagem.id, kind: "texto" } })];
+  // Item 10, rodada 2 (2026-11-16): a fala nova substitui as aprovações abertas da conversa própria (src/use-cases/substituir-aprovacoes.ts).
+  if (conversa.tipo === "propria") events.push(...(await substituirAprovacoesAbertas(deps, conversa.id)));
   let negacao: Mensagem | null = null;
   if (guarda) {
     negacao = await deps.repos.mensagens.criar({
@@ -253,7 +256,7 @@ export function tetoAnexosAte(desde: number | null, limite = JANELA_PADRAO): num
   return desde !== null && janelaAte(desde, limite) > limite ? TETO_JANELA_ATE : undefined;
 }
 
-export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?: string }, ConversaDto> = async (deps, input) => {
+export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?: string }, ConversaComCursor> = async (deps, input) => {
   const conversa = await deps.repos.conversas.buscar(input.conversaId);
   if (!conversa) throw new ErroDeDominio("nao_encontrado");
   const desde = input.ate ? await deps.repos.mensagens.contarDesde(conversa.id, input.ate, TETO_JANELA_ATE + 1) : null;
@@ -261,7 +264,12 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
   // Revisão 5 do PR #551: os anexos só sobem ao teto quando a fala achada está mesmo fora da janela de sempre; um `ate` de
   // outra conversa, invisível ou já nas 200 recentes (a web o repete a cada releitura) não pesa a leitura.
   const tetoAnexos = tetoAnexosAte(desde, input.limite);
-  const [lidas, turnosPendentes, vivos, propostas] = await Promise.all([
+  // definido em 2026-11-12 (0175): o cursor ANTES da página — o que mudar entre os dois volta no próximo `depois_de`.
+  const cursor = await deps.repos.mensagens.cursorDaConversa(conversa.id);
+  const doBot = conversa.tipo === "propria" ? conversa.agenteId : null;
+  // Instantâneo (2026-11-13): tudo o que só depende da conversa sai numa leva; o que depende das falas lidas, na seguinte.
+  // Antes eram ~12 idas ao banco em fila para cada abertura de conversa.
+  const [lidas, turnosPendentes, vivos, propostas, turnosRecentes, abertos, presenca, naSessao] = await Promise.all([
     // Chat limpo (ADR-114, PR 2): na conversa própria a janela conta só os itens de chat (os avisos que saem moram na
     // Atividade do bot), traz os `anexo` desde o corte e cada mensagem leva o destino resolvido no servidor. Na sala, nada muda.
     // NOD-380: com `ate` fora da janela de sempre, os anexos têm o mesmo teto da janela; com o teto de sempre (300), o piso deles cortava a fala achada.
@@ -269,38 +277,46 @@ export const lerConversa: CasoDeUso<{ conversaId: string; limite?: number; ate?:
     deps.repos.turnos.pendentesRenderizaveis(conversa.id),
     deps.repos.turnos.vivosDaConversa(conversa.id),
     deps.repos.propostas.pendentesDaConversa(conversa.id),
+    deps.repos.turnos.listarDaConversa(conversa.id),
+    // Os abertos do bot da conversa (a faixa, ADR-083); conversa de sala não tem bot próprio: lista vazia.
+    doBot ? deps.repos.trabalhos.abertosDoAgente(doBot) : Promise.resolve([]),
+    doBot ? presencaDasMaquinas(deps, deps.services.maquinas) : Promise.resolve(undefined),
+    // ADR-185: as falas que um turno vivo absorveu, e se o bot já as leu (o selo embaixo da fala).
+    deps.repos.turnos.absorvidosPorVivos(conversa.id),
   ]);
+  const turnosNaSessao = naSessao.flatMap((t) => (t.mensagemOrigemId && t.absorvidoPor ? [{ id: t.id, mensagemId: t.mensagemOrigemId, absorvidoPor: t.absorvidoPor, lidoEm: t.lidoNaSessaoEm ?? null }] : []));
   // NOD-200: a fala do bot também pode ter anexo (a captura de tela do turno), e não só a mensagem da pessoa.
   const anexos = await deps.repos.anexos.daConversa(lidas.filter((m) => m.autoria.autor_tipo === "pessoa" || m.kind === "texto").map((m) => m.id));
   const comAnexos = anexos.size === 0 ? lidas : lidas.map((m) => (anexos.has(m.id) ? { ...m, anexos: anexos.get(m.id) } : m));
-  // NOD-257 (H5): o pedido a colega na fila leva o porquê no card.
-  const mensagens = await comFilaDosPedidos(deps, comAnexos);
+  const [mensagens, trabalhos, dono] = await Promise.all([
+    // NOD-257 (H5): o pedido a colega na fila leva o porquê no card.
+    comFilaDosPedidos(deps, comAnexos),
+    trabalhosParaDto(deps, abertos),
+    // ADR-099 (I10): o dono do bot da conversa própria — a linha acima do campo (estado, esperas e fila).
+    // NOD-300: a frente presa a máquina sem contato espera, pela regra do chip.
+    doBot ? donosDosBots(deps, [doBot], abertos, presenca).then((m) => m.get(doBot) ?? null) : Promise.resolve(null),
+  ]);
   // Cancelado antes de rodar = interrompido pela pessoa sem nunca ter sido reivindicado (attempted
   // nasce false e só o reivindicar o liga). Um Parar no meio da execução não entra: aquele rodou.
-  const turnosCancelados = (await deps.repos.turnos.listarDaConversa(conversa.id))
+  const turnosCancelados = turnosRecentes
     .filter((t) => t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && !t.sinais.attempted && t.mensagemOrigemId)
     .map((t) => ({ id: t.id, mensagemId: t.mensagemOrigemId as string }));
   const turnosEmCurso = vivos
     .filter((t): t is typeof t & { estado: "pendente" | "despachando" } => t.estado === "pendente" || t.estado === "despachando")
     .map((t) => ({ id: t.id, estado: t.estado, desde: Math.max(t.criadoEm, t.acordarEm ?? 0), mensagemId: t.mensagemOrigemId ?? null, trabalhoId: t.trabalhoId ?? null, origem: t.origem, despachadoEm: t.despachadoEm ?? null, maquinaDestaVez: t.maquinaDestaVez ?? null, agenteId: t.agenteId, ...(t.bastidores && !t.trabalhoId ? { bastidores: true } : {}) }));
-  const fios = await fiosDaConversa(deps.repos, mensagens);
-  const doBot = conversa.tipo === "propria" ? conversa.agenteId : null;
-  // Os abertos do bot da conversa (a faixa, ADR-083); conversa de sala não tem bot próprio: lista vazia.
-  const abertos = doBot ? await deps.repos.trabalhos.abertosDoAgente(doBot) : [];
-  const trabalhos = await trabalhosParaDto(deps, abertos);
-  // ADR-099 (I10): o dono do bot da conversa própria — a linha acima do campo (estado, esperas e fila).
-  // NOD-300: a frente presa a máquina sem contato espera, pela regra do chip.
-  const dono = doBot ? ((await donosDosBots(deps, [doBot], abertos, await presencaDasMaquinas(deps, deps.services.maquinas))).get(doBot) ?? null) : null;
-  // ADR-113: as reações das falas da janela, numa consulta (o chip "👍 1" embaixo de cada fala).
-  const reacoes = await deps.repos.reacoes.dasMensagens(mensagens.map((m) => m.id));
-  // Chat limpo (PR 3, plano decisão 18): quem pediu cada turno de delegação da janela (próprio ou raiz), numa consulta à
-  // parte — a troca agrupada diz o nome mesmo com o `peer_pedido` fora da janela. Só na conversa própria.
-  const pedidosDeColega = conversa.tipo === "propria" ? await deps.repos.mensagens.pedidosDeColega(turnosDeDelegacao(mensagens)) : undefined;
-  // PR 6 dos modos de aprovação (telas Y1 e Y2): o que o "Ignorar todas" rodou nos turnos da janela e entra na linha
-  // embaixo da fala (credencial e arriscado), numa consulta à parte. Só na conversa própria; nada vira mensagem. PR 4
-  // (telas A1 e A2): também o que o revisor do Automático liberou.
-  const acoesDoModo = conversa.tipo === "propria" ? await acoesDoModoNaConversa(deps, mensagens) : undefined;
-  return { data: { conversa, mensagens, turnosPendentes, turnosEmCurso, turnosCancelados, propostas, fios, trabalhos, dono, reacoes, ...(pedidosDeColega ? { pedidosDeColega } : {}), ...(acoesDoModo ? { acoesDoModo } : {}) } };
+  const [fios, reacoes, pedidosDeColega, acoesDoModo] = await Promise.all([
+    fiosDaConversa(deps.repos, mensagens),
+    // ADR-113: as reações das falas da janela, numa consulta (o chip "👍 1" embaixo de cada fala).
+    deps.repos.reacoes.dasMensagens(mensagens.map((m) => m.id)),
+    // Chat limpo (PR 3, plano decisão 18): quem pediu cada turno de delegação da janela (próprio ou raiz), numa consulta à
+    // parte — a troca agrupada diz o nome mesmo com o `peer_pedido` fora da janela. Só na conversa própria.
+    conversa.tipo === "propria" ? deps.repos.mensagens.pedidosDeColega(turnosDeDelegacao(mensagens)) : Promise.resolve(undefined),
+    // PR 6 dos modos de aprovação (telas Y1 e Y2): o que o "Ignorar todas" rodou nos turnos da janela e entra na linha
+    // embaixo da fala (credencial e arriscado), numa consulta à parte. Só na conversa própria; nada vira mensagem. PR 4
+    // (telas A1 e A2): também o que o revisor do Automático liberou.
+    conversa.tipo === "propria" ? acoesDoModoNaConversa(deps, mensagens) : Promise.resolve(undefined),
+  ]);
+  return { data: { conversa, mensagens, turnosPendentes, turnosEmCurso, turnosCancelados, turnosNaSessao, propostas, fios, trabalhos, dono, reacoes, ...(pedidosDeColega ? { pedidosDeColega } : {}), ...(acoesDoModo ? { acoesDoModo } : {}), ...(cursor ? { cursor } : {}) } };
 };
 
 /**
@@ -316,7 +332,8 @@ async function acoesDoModoNaConversa(deps: Deps, mensagens: readonly Mensagem[])
     if (!gatilho) continue;
     const acao = gatilho === "revisor" && a.item ? await fraseDoItem(deps, a.tipo, { textoFinal: a.item.texto_final, destino: a.item.destino }, conectores) : null;
     const { frase, codigo } = linhaNaFala(a, a.linux, acao ? fraseNoMeio(acao) : null);
-    (porTurno[a.turno_id] ??= []).push({ id: a.id, turnoId: a.turno_id, em: a.criado_em.getTime(), gatilho, frase, ...(codigo ? { codigo } : {}) });
+    const regra = gatilho === "revisor" && a.regra ? { regra: { id: a.regra.id, texto: semInvisiveis(a.regra.texto).slice(0, 200), agenteId: a.regra.agente_id } } : {};
+    (porTurno[a.turno_id] ??= []).push({ id: a.id, turnoId: a.turno_id, em: a.criado_em.getTime(), gatilho, frase, ...(codigo ? { codigo } : {}), ...regra });
   }
   return porTurno;
 }

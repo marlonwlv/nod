@@ -1,5 +1,7 @@
 import { build } from "esbuild";
-import { mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { ARQUIVOS_DO_SHELL_VISUAL, VERSAO_SHELL_VISUAL } from "../../infra/computador/shell-visual-distribuicao.mjs";
 /**
  * definido em 2026-10-09 (ADR-090): o motor sem janela vira três arquivos em dist/motor, servidos pelo próprio servidor
  * (GET /motor e /motor/arquivos/<nome>): o laço (nod-motor.mjs), o proxy MCP e o hook do terminal — os mesmos fontes do
@@ -13,6 +15,9 @@ await build({ ...comum, entryPoints: { proxy: "desktop/proxy.ts", "hook-nativas"
 // NOD-96 PR 2 (ADR-122): o computador da pessoa (supervisor, tela e terminal), servidos só com NOD_COMPUTADORES=motor e
 // instalados em /opt/nod-motor/computador. O playwright-core fica de fora: o script instala a versão fixa ao lado.
 const computador = await build({ ...comum, entryPoints: { "computador-supervisor": "infra/computador/supervisor.mjs", "computador-tela": "infra/computador/tela.mjs", "computador-terminal": "infra/computador/terminal.mjs" }, outdir: "dist/motor", outExtension: { ".js": ".mjs" }, external: ["playwright-core"] });
+for (const [saida, relativo] of Object.entries(ARQUIVOS_DO_SHELL_VISUAL)) {
+  await copyFile(join("infra/computador/shell-visual", VERSAO_SHELL_VISUAL, relativo), join("dist/motor", saida));
+}
 for (const arquivo of Object.keys(computador.metafile.inputs)) {
   if (/src\/(db|repositories|use-cases|adapters)\/|electron/.test(arquivo)) throw new Error(`Servidor ou Electron não podem entrar no computador: ${arquivo}`);
 }

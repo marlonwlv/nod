@@ -2,8 +2,7 @@ import { renderCaixaCitacao } from "./acoes-da-fala.ts";
 import type { Mensagem } from "../../src/contracts/mensagem.ts";
 import type { FioDaPergunta } from "../../src/contracts/pedido.ts";
 import type { Estado } from "../estado/reducer.ts";
-import { ehPergunta, estadoDaPergunta, fiosDaConversa, iconeBalao, inicioDaPergunta, mensagemDaPergunta, modoDoComposer, rodadaEscrita, type ItemPergunta, type ModoComposer } from "../lib/perguntas.ts";
-import { emQuanto } from "../lib/relogio.ts";
+import { estadoDaPergunta, fiosDaConversa, iconeBalao, inicioDaPergunta, mensagemDaPergunta, modoDoComposer, rodadaEscrita, type ItemPergunta, type ModoComposer } from "../lib/perguntas.ts";
 import { botao, esc, hora } from "../lib/render.ts";
 import { renderCartaoPergunta, rodapeDaConversa, type SituacaoDoCartao } from "./cartao-pergunta.ts";
 import { rotuloVencido } from "./sua-vez.ts";
@@ -129,7 +128,7 @@ export const TRECHO_RESPONDENDO_MAX = 90;
 
 /**
  * A caixa "Respondendo" presa ao campo (plano "pergunta com botões", Parte 3a; tela "Duas perguntas abertas"), no padrão do
- * Grok: com duas ou mais perguntas abertas, diz a qual a próxima mensagem responde — a mais recente, salvo "Trocar". O ×
+ * protótipo: com duas ou mais perguntas abertas, diz a qual a próxima mensagem responde — a mais recente, salvo "Trocar". O ×
  * manda a mensagem como assunto novo (o `outroAssunto` de antes). Substitui a citação "1 de 2" e o seletor.
  * revisto em 2026-10-18 (QA do PR #389): só "Respondendo", como na tela S2 do protótipo; o "· N de M" saiu (o trecho já diz
  * qual é, e "Trocar" passa à outra).
@@ -148,41 +147,11 @@ export function renderRespondendo(modo: ModoComposer, estado: Estado): string {
  * no cartão; o status "Esperando você" do cabeçalho fica.
  */
 export function renderTopoComposer(modo: ModoComposer, estado: Estado, conversaId?: string): string {
-  const outros = conversaId ? outrosPedidos(estado, conversaId) : [];
+  // Paper (rodada 2): a faixa "N coisas esperam você" saiu — repetia os cartões da conversa, que já têm cada pedido.
   // ADR-113 (Parte 3b): com uma fala citada pelo "Responder", a caixa diz a fala, no lugar da pergunta (a mensagem que
   // cita vai como mensagem comum, e a pergunta segue aberta). O × da caixa tira a citação e a da pergunta volta.
   const citacao = conversaId ? estado.citacoes[conversaId] : undefined;
-  return (outros.length ? renderEspera(outros, estado) : "") + (citacao ? renderCaixaCitacao(citacao) : renderRespondendo(modo, estado));
-}
-
-type ItemDaFila = NonNullable<Estado["suaVez"]>["itens"][number];
-
-/** Os pedidos abertos da conversa que NÃO são pergunta (aprovação, acesso, proposta…), do mais antigo ao mais novo. */
-function outrosPedidos(estado: Estado, conversaId: string): ItemDaFila[] {
-  return (estado.suaVez?.itens ?? [])
-    .filter((i) => i.decisao.conversaId === conversaId && i.estadoColuna !== "vencido" && !ehPergunta(i.decisao.tipo))
-    .sort((a, b) => Date.parse(a.decisao.criadoEm) - Date.parse(b.decisao.criadoEm));
-}
-
-const ROTULO_DO_PEDIDO: Partial<Record<ItemDaFila["decisao"]["tipo"], string>> = { aprovacao: "aprovação", acesso: "acesso", gate_rotina: "rotina", retomar_turno: "retomar" };
-
-/**
- * "N coisas esperam você" (definido em 2026-10-03, canvas "Uma conversa de verdade · depois"): um ponto só acima do campo,
- * em ordem, com uma ação para cada pedido, que leva ao card dele. revisto em 2026-10-18 (plano "pergunta com botões"):
- * só os outros pedidos (aprovação, acesso) — a pergunta já está no cartão, e as linhas dela saíram.
- */
-function renderEspera(outros: readonly ItemDaFila[], estado: Estado): string {
-  const linhas = outros.map((i) => {
-    const d = i.decisao;
-    const vence = estado.agora ? Date.parse(d.prazoDecisaoEm) - estado.agora : i.recusaAutomaticaEmMs;
-    const slug = i.itensAprovacao[0]?.destino.conector;
-    const app = slug ? estado.conectores.find((c) => c.slug === slug)?.nome ?? slug : "";
-    const prazo = d.tipo === "aprovacao" || d.tipo === "acesso" ? `recusa automática ${emQuanto(vence)}` : `vence ${emQuanto(vence)}`;
-    const ver = botao("ver-decisao", d.tipo === "aprovacao" || d.tipo === "gate_rotina" ? "Ver aprovação" : "Ver pedido", { classe: "link sm", id: d.id });
-    return `<span class="tag tag-ambar">${esc(ROTULO_DO_PEDIDO[d.tipo] ?? "decisão")}</span><span class="esp-txt">${esc(d.frase)}<small>${esc([app, prazo].filter(Boolean).join(" · "))}</small></span>${ver}`;
-  });
-  const n = linhas.length;
-  return `<section class="espera" aria-label="O que espera você agora"><div class="espera-cab"><span class="espera-n">${n}</span>${n === 1 ? "coisa espera você" : "coisas esperam você"}</div><ol>${linhas.map((l, k) => `<li><span class="espera-ord">${k + 1}</span>${l}</li>`).join("")}</ol></section>`;
+  return citacao ? renderCaixaCitacao(citacao) : renderRespondendo(modo, estado);
 }
 
 export type AparenciaComposer = {

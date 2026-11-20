@@ -79,7 +79,8 @@ export function rotasMotor(o: { pasta: string; versao: string; urlPublica?: stri
         let corpo: Buffer;
         try { corpo = await readFile(join(o.pasta, nome)); }
         catch { ctx.json(404, { codigo: "nao_encontrado", mensagem: "Este servidor não tem o motor empacotado (npm run motor:build)." }); return; }
-        ctx.res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
+        const tipo = nome.endsWith(".mjs") ? "text/javascript; charset=utf-8" : "application/octet-stream";
+        ctx.res.writeHead(200, { "content-type": tipo, "cache-control": "no-store" });
         ctx.res.end(corpo);
       },
     },

@@ -66,12 +66,12 @@ describe("estadoDaFala", () => {
     expect(estadoDaFala(undefined)).toEqual({ chave: "pensando", texto: "Pensando", mascote: { state: "thinking", expression: null } });
     expect(estadoDaFala(ATIVIDADE_VAZIA).chave).toBe("pensando");
   });
-  it("texto chegando é Escrevendo, atento", () => {
-    expect(estadoDaFala(comTexto(undefined, "Oi"))).toEqual({ chave: "escrevendo", texto: "Escrevendo", mascote: { state: "idle", expression: "attentif" } });
+  it("texto chegando é Digitando", () => {
+    expect(estadoDaFala(comTexto(undefined, "Oi"))).toEqual({ chave: "escrevendo", texto: "Digitando…", mascote: { state: "streaming", expression: null } });
   });
   it("ferramenta em uso diz o nome e o mascote trabalha; espaço solto não volta a Escrevendo", () => {
     const a = comFerramenta(comTexto(undefined, "Vou ver."), "Consultou Linear", { texto: "Usando Linear", frentes: false });
-    expect(estadoDaFala(a)).toEqual({ chave: "ferramenta", texto: "Usando Linear", mascote: { state: "orbit", expression: null } });
+    expect(estadoDaFala(a)).toEqual({ chave: "ferramenta", texto: "Usando Linear", mascote: { state: "working", expression: null } });
     expect(estadoDaFala(comTexto(a, " \n")).texto).toBe("Usando Linear");
     expect(estadoDaFala(comTexto(a, "Achei.")).chave).toBe("escrevendo");
   });
@@ -80,7 +80,7 @@ describe("estadoDaFala", () => {
   });
   it("trocar de ferramenta troca o texto; abrir frentes tem estado próprio", () => {
     const a = comFerramenta(comFerramenta(undefined, "Rodou um comando", { texto: "Rodando um comando", frentes: false }), "Começou frentes", { texto: "Abrindo frentes", frentes: true });
-    expect(estadoDaFala(a)).toEqual({ chave: "frentes", texto: "Abrindo frentes", mascote: { state: "orbit", expression: null } });
+    expect(estadoDaFala(a)).toEqual({ chave: "frentes", texto: "Abrindo frentes", mascote: { state: "working", expression: null } });
   });
 });
 

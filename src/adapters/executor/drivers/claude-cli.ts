@@ -1,3 +1,4 @@
+import { anotarSinal, modoDosPrazos, novaVigia, rearmar, verificarVigia } from "../../../domain/vigia-do-modelo.ts";
 import { MODELO_SONDA_PADRAO } from "../../../contracts/modelos.ts";
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -15,10 +16,12 @@ import type { CatalogoDeComandos } from "../../../contracts/comandos.ts";
 import { lerCatalogoDoMac } from "../catalogo-comandos.ts";
 import { log } from "../../../obs/log.ts";
 import { pastaValidaNoWindows } from "../../../domain/caminhos.ts";
-import { baixarAnexos, mensagemClaude } from "../anexos-turno.ts";
+import { baixarAnexos, mensagemClaude, type AnexoBaixado } from "../anexos-turno.ts";
+import type { AnexoMeta } from "../../../contracts/anexo.ts";
 import { rodarLigacaoClaude } from "./claude-ligacao.ts";
-import { classificarSessao, fimDoStderr, eventosDaLinhaStreamJson, reduzirSinais, SINAIS_ZERADOS, textoDaRodada } from "../../../domain/stream-json.ts";
+import { classificarSessao, fimDoStderr, eventosDaLinhaStreamJson, reduzirSinais, SINAIS_ZERADOS, textoDaRodada, textoDaVoltaInterrompida } from "../../../domain/stream-json.ts";
 import { capacidadesDe, versaoMinimaDoModelo } from "../../../domain/harness.ts";
+import { criarFalaPorBloco } from "../../../domain/fala-por-bloco.ts";
 import { criarFalaDoMeio } from "../../../domain/mensagem-no-meio.ts";
 import { caminhoAumentado, resolverBinario } from "../caminho.ts";
 import { compararVersoes, conferirFloors, conferirPisoCli, FLAG_FLOORS, inventarioAbaixoDoPiso, type FlagComPiso } from "../flag-floors.ts";
@@ -587,23 +590,65 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
           // ADR-067: a entrada da sessão viva fica aberta até o modelo responder sem nada em segundo plano e sem
           // mensagem nova; só então fecha e o processo sai. Fora da sessão viva ela fecha logo depois do prompt.
           let entradaAberta = false;
+          // C1: as falas do meio que esperam um anexo baixar, em fila (a ordem em que chegaram é a ordem no stdin).
+          let escritas: Promise<void> = Promise.resolve();
+          let escritasNaFila = 0;
           // ADR-083 §6: a primeira fala depois de uma mensagem do meio sai na hora, de qualquer tamanho.
           const meio = criarFalaDoMeio();
           // X1 (revisto em 2026-10-08): o modelo está parado entre voltas (o último evento foi um `result`). Uma mensagem
           // escrita agora abre a próxima volta, sem narração de antes no caminho: a próxima fala já é a resposta.
           let entreVoltas = false;
+          // ADR-185 (definido em 2026-11-16): as mensagens que entraram no stdin no MEIO de uma volta e o CLI ainda não leu.
+          // Ele as lê na fronteira seguinte (X1: o tool_result ou o result); só então o laço as dá por lidas ao servidor —
+          // até lá o Parar as devolve à fila. Entre voltas a escrita abre a volta seguinte: lida na hora.
+          const naoLidas: string[] = [];
+          // ADR-186: o laço pediu para parar a volta (a pessoa mandou mensagem com o bot só escrevendo). O `result` que
+          // vier fecha a volta interrompida: o texto dela vira fala própria, marcada, antes da resposta à mensagem.
+          let interrompendo = false;
           let sinksDoTurno: SinksTurno | null = null;
 
           return {
             aceitaMensagens: () => entradaAberta && processo !== null,
-            receberMensagem(texto: string, id?: string): boolean {
+            receberMensagem(texto: string, id?: string, anexos?: readonly AnexoMeta[]): boolean {
               if (!entradaAberta || !processo) return false;
-              processo.escrever(mensagemClaude(texto, []));
-              // X1: no meio da volta, o CLI só lê a mensagem na fronteira seguinte (tool_result ou result).
-              if (entreVoltas) meio.armar();
-              else meio.absorveu();
-              // X2: o stdin aceitou a escrita: a mensagem entrou na sessão.
-              if (id !== undefined) sinksDoTurno?.mensagemEntrou?.(id);
+              const escrever = (baixados: AnexoBaixado[]) => {
+                // C1: a sessão fechou enquanto o anexo baixava — a fala volta para a fila e vira turno próprio.
+                if (!entradaAberta || !processo) {
+                  if (id !== undefined) sinksDoTurno?.mensagemDevolvida?.(id);
+                  return;
+                }
+                processo.escrever(mensagemClaude(texto, baixados));
+                // X1: no meio da volta, o CLI só lê a mensagem na fronteira seguinte (tool_result ou result).
+                const abreAVolta = entreVoltas;
+                if (entreVoltas) meio.armar();
+                else meio.absorveu();
+                // X2: o stdin aceitou a escrita: a mensagem entrou na sessão.
+                if (id !== undefined) sinksDoTurno?.mensagemEntrou?.(id);
+                if (id !== undefined) {
+                  if (abreAVolta) sinksDoTurno?.mensagemLida?.(id);
+                  else naoLidas.push(id);
+                }
+              };
+              // C1 (2026-11-12): a fala com imagem baixa os bytes antes de escrever; as falas seguem na ordem em que chegaram.
+              if (!anexos?.length && escritasNaFila === 0) {
+                escrever([]);
+                return true;
+              }
+              escritasNaFila += 1;
+              escritas = escritas
+                .then(async () => escrever(anexos?.length && lig.urlNod ? await baixarAnexos({ ...plano, entrada: { ...plano.entrada, anexos: [...anexos] } }, lig.urlNod) : []))
+                .catch(() => { if (id !== undefined) sinksDoTurno?.mensagemDevolvida?.(id); })
+                .finally(() => { escritasNaFila -= 1; });
+              return true;
+            },
+            aceitaAnexosNoMeio: () => entradaAberta && Boolean(lig.urlNod),
+            informaLeitura: () => true,
+            // ADR-186 (medido em 2026-11-16, CLI 2.1.326): o `control_request` interrupt pelo stdin para a volta em <100 ms;
+            // a sessão continua e lê a mensagem que vier em seguida. Entre voltas não há o que parar.
+            interromperVolta(): boolean {
+              if (!entradaAberta || !processo || entreVoltas || interrompendo) return false;
+              processo.escrever(`${JSON.stringify({ type: "control_request", request_id: `nod-interrupt-${randomUUID()}`, request: { subtype: "interrupt" } })}\n`);
+              interrompendo = true;
               return true;
             },
             grupoDeProcessos: () => processo?.pid ?? null,
@@ -755,6 +800,18 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 // ADR-067: o que segura a sessão viva aberta — comandos em segundo plano ainda rodando — e as voltas
                 // do modelo já fechadas por um `result` (cada uma vira fala; a última vai na entrega).
                 const emFundo = new Set<string>();
+                // ADR-171: prazo de primeiro token (150 s) e de ociosidade (90 s) do MODELO, nunca do turno (ADR-067). Por
+                // padrão só mede e loga `turno_modelo_mudo`; NOD_PRAZOS_DO_MODELO=encerrar interrompe o CLI.
+                const modoPrazos = modoDosPrazos(cfg.env.NOD_PRAZOS_DO_MODELO);
+                const vigia = novaVigia(Date.now());
+                const relogioVigia = modoPrazos === "desligado" ? null : setInterval(() => {
+                  if (emFundo.size > 0) return;
+                  const estouro = verificarVigia(vigia, Date.now());
+                  if (!estouro) return;
+                  log("aviso", "turno_modelo_mudo", { turno_id: plano.turnoId, estouro, modo: modoPrazos, parado_ms: Date.now() - vigia.desde });
+                  if (modoPrazos === "encerrar") void processo?.interromper();
+                }, 5000);
+                relogioVigia?.unref?.();
                 const rodadas: EventoStream[][] = [];
                 let inicioDaRodada = 0;
                 let rodadasFaladas = 0;
@@ -763,6 +820,7 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 // NOD-402 (ADR-130): nem nos bastidores da conversa — a rotina não fala no meio; tudo vai na entrega,
                 // que o `sem_novidade` cala.
                 const falaNaHora = plano.modoTurno !== "sala" && !plano.bastidores && sinks.falaIntermediaria !== undefined;
+                const porBloco = criarFalaPorBloco(meio);
                 const falarRodadas = () => {
                   if (!falaNaHora) return;
                   for (; rodadasFaladas < rodadas.length; rodadasFaladas++) {
@@ -781,6 +839,7 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                   if (emFundo.size > 0) return falarRodadas();
                   const chegou = sinks.ocioso ? await sinks.ocioso() : false;
                   if (!entradaAberta) return;
+                  if (chegou) anotarSinal(vigia, { tipo: "pedido" }, Date.now());
                   if (chegou || emFundo.size > 0) return falarRodadas();
                   fechar();
                 };
@@ -803,6 +862,16 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                     // ADR-083 §6: a resposta à mensagem do meio vira fala gravada agora, não passo do card.
                     const resposta = meio.avaliar(ev, falaNaHora);
                     if (resposta !== null && falaNaHora) sinks.falaIntermediaria!(resposta);
+                    // Fala por bloco (2026-11-12): o bloco fechado (content_block_stop) vira mensagem própria, sem esperar o result.
+                    const doBloco = falaNaHora ? porBloco.avaliar(ev) : null;
+                    if (doBloco !== null) sinks.falaIntermediaria!(doBloco);
+                    if (ev.tipo === "tool_use") anotarSinal(vigia, { tipo: "ferramenta_comecou", id: ev.id }, Date.now());
+                    else if (ev.tipo === "tool_result") anotarSinal(vigia, { tipo: "ferramenta_acabou", id: ev.toolUseId }, Date.now());
+                    else if (ev.tipo === "result") anotarSinal(vigia, { tipo: "fim_da_volta" }, Date.now());
+                    else if (ev.tipo === "delta" || ev.tipo === "texto_bloco" || ev.tipo === "init") anotarSinal(vigia, { tipo: "token" }, Date.now());
+                    rearmar(vigia);
+                    // ADR-185: a fronteira em que o CLI lê o que esperava no stdin.
+                    if ((ev.tipo === "tool_result" || ev.tipo === "result") && naoLidas.length > 0) for (const id of naoLidas.splice(0)) sinks.mensagemLida?.(id);
                     if (ev.tipo === "result") entreVoltas = true;
                     else if (ev.tipo === "delta" || ev.tipo === "texto_bloco" || ev.tipo === "tool_use" || ev.tipo === "init") entreVoltas = false;
                     if (ev.tipo === "tarefa_fundo") {
@@ -813,6 +882,18 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                     if (ev.tipo === "result") {
                       rodadas.push(eventos.slice(inicioDaRodada));
                       inicioDaRodada = eventos.length;
+                      // ADR-186: a volta que a mensagem interrompeu sai já, marcada, e as anteriores ainda não faladas antes dela
+                      // (a ordem da conversa fica: o que ele escreveu, a mensagem, a resposta).
+                      if (interrompendo) {
+                        interrompendo = false;
+                        if (falaNaHora) {
+                          for (; rodadasFaladas < rodadas.length; rodadasFaladas++) {
+                            const ultima = rodadasFaladas === rodadas.length - 1;
+                            const texto = ultima ? textoDaVoltaInterrompida(rodadas[rodadasFaladas]!, meio) : textoDaRodada(rodadas[rodadasFaladas]!, meio);
+                            if (texto.trim() !== "") sinks.falaIntermediaria!(texto, ultima ? { interrompida: true } : undefined);
+                          }
+                        }
+                      }
                       if (viva) decidindo = decidindo.then(aposRodada).catch(() => fechar());
                     }
                     const depois = reduzirSinais(sinais, ev);
@@ -822,6 +903,8 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                     sinais = depois;
                 }
                 processo = proc;
+                // O relógio da vigia morre com o processo, mesmo se algo lançar antes do `await proc.fim`.
+                void proc.fim.finally(() => { if (relogioVigia) clearInterval(relogioVigia); });
                 if (interromperPedido) await proc.interromper();
 
                 // ADR-009: promptSubmitted é gravado ANTES de o prompt sair para o CLI.
@@ -832,6 +915,7 @@ export function criarClaudeCliDriver(lig: LigacaoClaudeCli): Driver {
                 else proc.fecharStdin();
 
                 const fim = await proc.fim;
+                if (relogioVigia) clearInterval(relogioVigia);
                 entradaAberta = false;
                 await decidindo;
                 await Promise.all(pendentes);

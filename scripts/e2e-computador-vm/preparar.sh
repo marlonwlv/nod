@@ -35,7 +35,7 @@ if [ ! -f dist/motor/computador-supervisor.mjs ]; then
 fi
 SERVE=$(mktemp -d)
 mkdir -p "$SERVE/api/motor/arquivos"
-cp dist/motor/computador-*.mjs "$SERVE/api/motor/arquivos/"
+cp dist/motor/computador-*.mjs dist/motor/computador-shell-* "$SERVE/api/motor/arquivos/"
 python3 -m http.server 8099 --bind 127.0.0.1 --directory "$SERVE" >/dev/null 2>&1 &
 HTTP_PID=$!
 trap 'kill $HTTP_PID 2>/dev/null || true' EXIT

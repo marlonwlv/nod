@@ -54,7 +54,7 @@ apagar() {
 trap apagar EXIT
 node scripts/motor/build.mjs >/dev/null
 git archive --format=tar --prefix=nod/ HEAD > "$TMP/nod.tar"
-tar -rf "$TMP/nod.tar" --transform 's,^,nod/,' dist/motor/computador-supervisor.mjs dist/motor/computador-tela.mjs dist/motor/computador-terminal.mjs
+tar -rf "$TMP/nod.tar" --transform 's,^,nod/,' dist/motor/computador-supervisor.mjs dist/motor/computador-tela.mjs dist/motor/computador-terminal.mjs dist/motor/computador-shell-*
 gzip "$TMP/nod.tar"
 
 # A rede de teste: criada uma vez (modo auto) e reaproveitada; só SSH entra.

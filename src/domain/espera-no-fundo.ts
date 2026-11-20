@@ -13,7 +13,7 @@ import { comJitter } from "./nova-tentativa.ts";
  * a máquina estava em contato: `maquinaPresente` vem falso e a volta é quando ela puxar (NOD-386). O reinício do motor (ADR-131)
  * volta na hora, sem a espera crescente do servidor, e não conta no teto de quedas (QUEDAS_FORA_DO_TETO).
  */
-export const CAUSAS_DE_ESPERA_NO_FUNDO = ["cota", "reinicio_servidor", "reinicio_do_motor", "maquina_sem_contato", "erro_transitorio"] as const;
+export const CAUSAS_DE_ESPERA_NO_FUNDO = ["cota", "reinicio_servidor", "reinicio_do_motor", "maquina_sem_contato", "turno_travado", "erro_transitorio"] as const;
 export type CausaDeEsperaNoFundo = (typeof CAUSAS_DE_ESPERA_NO_FUNDO)[number];
 
 /** Por que o fundo desistiu: `falhou` com aviso único a quem pediu. */
@@ -61,6 +61,7 @@ export const MOTIVO_NAO_RODOU_DA_CAUSA: Readonly<Record<CausaDeEsperaNoFundo, Mo
   reinicio_servidor: "reinicio_servidor",
   reinicio_do_motor: "reinicio_do_motor",
   maquina_sem_contato: "maquina_sem_contato",
+  turno_travado: "tempo_esgotado",
   erro_transitorio: "erro_do_provedor",
 };
 
@@ -87,7 +88,7 @@ export function esperaQuedaNoFundo(n: number, aleatorio: number): number {
  */
 export function decidirEsperaNoFundo(e: EntradaEsperaNoFundo): DecisaoEsperaNoFundo {
   if (e.causa === "erro_transitorio" && e.tentativasTransitorias >= TENTATIVAS_TRANSITORIAS_MAX) return { tipo: "desistir", motivo: "tentativas_esgotadas" };
-  if ((e.causa === "reinicio_servidor" || e.causa === "maquina_sem_contato") && e.quedas >= MAX_QUEDAS_NO_FUNDO_NA_JANELA) return { tipo: "desistir", motivo: "quedas_esgotadas" };
+  if ((e.causa === "reinicio_servidor" || e.causa === "maquina_sem_contato" || e.causa === "turno_travado") && e.quedas >= MAX_QUEDAS_NO_FUNDO_NA_JANELA) return { tipo: "desistir", motivo: "quedas_esgotadas" };
 
   const voltaEm = voltaDaCausa(e);
   // A rotina tem prazo próprio (a próxima janela); o resto do fundo, 24 h desde o começo da cadeia.
@@ -112,6 +113,7 @@ function voltaDaCausa(e: EntradaEsperaNoFundo): number | null {
     // ADR-131: o motor que se reiniciou de propósito já está de volta — sem espera.
     case "reinicio_do_motor": return e.agora;
     case "maquina_sem_contato": return e.maquinaPresente ? e.agora + esperaQuedaNoFundo(e.quedas + 1, e.aleatorio) : null;
+    case "turno_travado": return e.agora + esperaQuedaNoFundo(e.quedas + 1, e.aleatorio);
     case "erro_transitorio": return e.agora + esperaTransitoriaNoFundo(e.tentativasTransitorias + 1, e.aleatorio);
   }
 }

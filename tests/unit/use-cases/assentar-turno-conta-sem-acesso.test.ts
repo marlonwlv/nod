@@ -63,13 +63,20 @@ describe("assentarTurno: a conta da IA não serve (causaSemIa)", () => {
     expect(r.events.map((e) => e.kind)).toEqual(["turno_interrompido", "mensagem_criada"]);
   });
 
-  it("IA escolhida à mão, modelo escolhido ou turno de rotina não trocam de IA sozinhos: negação, sem repetir", async () => {
-    for (const o of [{ harness: "claude-cli" as const }, { modelo: "sonnet" }, { origem: "rotina" as const }]) {
+  it("IA escolhida à mão e turno de rotina não trocam de IA sozinhos: negação, sem repetir", async () => {
+    for (const o of [{ harness: "claude-cli" as const }, { origem: "rotina" as const }]) {
       const c = await cenario(o);
       await c.entregar("codex-cli");
       expect(c.banco.mensagens.slice(c.antes).map((m) => m.kind), JSON.stringify(o)).toEqual(["negacao"]);
       expect(c.banco.turnos, JSON.stringify(o)).toHaveLength(1);
     }
+  });
+
+  it("Automático com Sonnet cai para o Codex quando a conta Claude não serve", async () => {
+    const c = await cenario({ modelo: "sonnet" });
+    await c.entregar("codex-cli");
+    expect(c.banco.mensagens.slice(c.antes)).toMatchObject([{ kind: "sistema", payload: { kind: "ia_trocada", de: "claude-cli", para: "codex-cli" } }]);
+    expect(c.banco.turnos.filter((t) => t.id !== c.turnoId)).toMatchObject([{ estado: "pendente", harness: "auto", modelo: "sonnet", reenvios: 1 }]);
   });
 });
 

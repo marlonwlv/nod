@@ -4,6 +4,7 @@ import type { EstadoTelaComputador } from "../../src/contracts/computador-motor.
 import type { MotivoFalhaComputador } from "../../src/contracts/motivos.ts";
 import type { VmLocalAnunciada } from "../../src/contracts/vm-local.ts";
 import { htmlCenaDoPreparo } from "./cena-do-preparo.ts";
+import { htmlCartaoDoComputador } from "./computador-estados.ts";
 import { htmlMascote } from "./mascote.ts";
 import { esc } from "./escape.ts";
 import { linhaConfig } from "./linha-config.ts";
@@ -271,15 +272,6 @@ export function avisoDoComputador(dto: ComputadorPessoaDto | null, ok = false): 
   return ok && dto ? { texto: "Computador do bot pronto", tom: "ok" } : null;
 }
 
-/** A linha de 2 px dentro da pílula do cabeçalho do chat, durante uma operação. */
-export function htmlFio(dto: ComputadorPessoaDto | null): string {
-  const prep = preparoAtivo(dto);
-  const pct = dto?.operacao ? pctDaOperacao(dto) : prep && (prep.estado === "baixando" || prep.estado === "pausado_sem_internet") ? pctDoPreparo(prep) : null;
-  if (pct === null) return "";
-  return `<span class="cb-fio" aria-hidden="true"><i style="width:${pct}%"></i></span>`;
-}
-
-
 // ---- a gaveta --------------------------------------------------------------------------------------------------------
 
 export type EstadoDaGaveta = "miniatura" | "sem_tela" | "dormindo" | "acordando" | "fora";
@@ -308,7 +300,7 @@ function htmlSono(bot: BotVisto, titulo: string, sub: string, acao: string): str
 }
 
 /** O topo da gaveta (só a dona): miniatura com Abrir, a linha "sem tela", o mascote dormindo ou acordando. */
-export function htmlGavetaTela(dto: ComputadorPessoaDto, bot: BotVisto, recusa: string | null = null): string {
+export function htmlGavetaTela(dto: ComputadorPessoaDto, bot: BotVisto, recusa: string | null = null, agora: number = Date.now()): string {
   const g = estadoDaGaveta(dto, bot.id);
   const atualizarApp = textoAppDesatualizado(dto);
   const semContato = tituloSemContato(dto);
@@ -326,7 +318,8 @@ export function htmlGavetaTela(dto: ComputadorPessoaDto, bot: BotVisto, recusa: 
           ? `<div class="cb-acordando">${htmlSono(bot, "Acordando…", dto.preparo?.estado === "ligando" || dto.preparo?.estado === "esperando_memoria" ? "Ligando o computador no seu Mac · pode levar até 3 min" : `Abrindo a tela de ${bot.nome}`, "")}</div>`
           : htmlAviso({ titulo: "O computador parou de responder", apoio: dto.falha ? textoDaFalha(dto.falha.motivo) : "Atualizar costuma resolver.", acoes: [link("Tentar de novo", 'data-act="operar-computador" data-op="tentar_de_novo"'), link("Ver computador do bot", 'data-act="ver-computador-do-bot" data-realce="atualizar"')] }));
   // `data-comp-bot`: a aba Computador da gaveta (ADR-125) à vista — o laço de web/telas/tela-do-bot.ts só observa com ela.
-  return `<section class="gv-secao gv-tela" data-comp-bot="${esc(bot.id)}" data-gaveta-computador="${g}">${corpo}</section>`;
+  // Tela 11 (ADR-173): o cartão com o estado em uma palavra (Conectando, Ao vivo, Reconectando, Sem conexão, Em repouso).
+  return `<section class="gv-secao gv-tela" data-comp-bot="${esc(bot.id)}" data-gaveta-computador="${g}">${htmlCartaoDoComputador(dto, bot, agora)}${corpo}</section>`;
 }
 
 const FALHA_CURTA: Partial<Record<MotivoFalhaComputador, string>> = {
@@ -464,28 +457,94 @@ export function htmlLinhaTelaFechada(tipo: OperacaoLonga, nome: string): string 
 }
 
 
-// ---- a tela cheia ----------------------------------------------------------------------------------------------------
+// ---- a tela cheia (card D, item 3 e 4) -------------------------------------------------------------------------------
 
-export type EstadoPilula = "assistindo" | "assumindo" | "controle";
+/** A barra de controle embaixo do quadro. "assumindo" só aparece se o assumir passar de MS_ASSUMINDO_VISIVEL. */
+export type EstadoBarra = "assistindo" | "assumindo" | "controle" | "precisa";
 
-export function estadoDaPilula(controle: ControleComputador | undefined, assumindo: boolean): EstadoPilula {
+/** Card D, item 4 (definido em 2026-11-12): até isto o assumir não muda nada na barra; depois, "Assumindo…". */
+export const MS_ASSUMINDO_VISIVEL = 300;
+/** Card D, F9: as esperas entre as tentativas de religar o VNC; a última se repete. */
+export const ESPERAS_RECONECTAR_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000];
+/** Card D, F9: sem o VNC por isto, as capturas de 2 s entram como plano B (a interface não muda). */
+export const MS_PLANO_B = 30_000;
+export const MS_CAPTURA_PLANO_B = 2_000;
+/** Card D, item 4: o pulso do halo do "Assumir o controle" ao clicar na tela assistindo. */
+export const MS_PULSO = 2_400;
+export const AVISO_ASSUMA = "Assuma o controle para clicar e digitar";
+
+/** A espera antes da n-ésima tentativa de religar (n a partir de 0). */
+export function esperaParaReconectar(n: number): number {
+  return ESPERAS_RECONECTAR_MS[Math.max(0, Math.min(n, ESPERAS_RECONECTAR_MS.length - 1))]!;
+}
+
+/**
+ * O estado da barra. `assumindoDesde` é quando a pessoa clicou em "Assumir o controle" (null sem pedido em curso): o
+ * "Assumindo…" só aparece depois de MS_ASSUMINDO_VISIVEL; antes disso a barra fica como estava.
+ */
+export function estadoDaBarra(controle: ControleComputador | undefined, assumindoDesde: number | null, agora: number): EstadoBarra {
   if (controle === "pessoa") return "controle";
-  return assumindo ? "assumindo" : "assistindo";
+  if (assumindoDesde !== null && agora - assumindoDesde >= MS_ASSUMINDO_VISIVEL) return "assumindo";
+  // definido em 2026-11-14 (QA do card D): com o pedido de ajuda do bot aberto a barra diz que ele espera a pessoa e
+  // oferece "Já resolvi". Antes ela dizia "Assistindo", como se o bot estivesse no controle, e quem resolvia só olhando
+  // (ex.: um QR code lido pelo celular) não tinha como devolver.
+  return controle === "aguardando_pessoa" ? "precisa" : "assistindo";
 }
 
-/** A pílula embaixo e no meio da tela: o estado e a ação em link. */
-export function htmlPilula(nome: string, estado: EstadoPilula): string {
-  const corpo = estado === "assumindo"
-    ? `<span class="cb-pilula-est" role="status">${GIRO}<span>Assumindo… ${esc(nome)} termina a ação em curso</span></span>`
-    : estado === "controle"
-      ? `<span class="cb-pilula-est" role="status">${ICONE_CB.cursor}<span>Você está no controle</span></span>${SEP}${link("Parar", 'data-c="devolver"')}`
-      : `<span class="cb-pilula-est" role="status">${ICONE_CB.olho}<span>Assistindo</span></span>${SEP}${link("Assumir o controle", 'data-c="assumir"')}`;
-  return `<div class="cb-pilula cb-${estado}" role="group" aria-label="Controle da tela de ${esc(nome)}">${corpo}</div>`;
+const svg12 = (corpo: string) => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${corpo}</svg>`;
+export const ICONE_TELA_CHEIA = {
+  olho: svg12('<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>'),
+  /** O cursor numa janela. */
+  cursorNaJanela: svg12('<path d="M12.03 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7"/><path d="M3 9h18"/><path d="m14.6 14.6 6.1 2.5-2.6 1-1 2.6z"/>'),
+  /** Recolher (sair da tela cheia), 14 px. */
+  recolher: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 10 7-7"/><path d="M20 10h-6V4"/><path d="m3 21 7-7"/><path d="M4 14h6v6"/></svg>',
+};
+
+/** A barra de controle (pílula branca). O botão do assumir carrega a camada do pulso por cima do halo fixo. */
+export function htmlBarraDeControle(nome: string, estado: EstadoBarra): string {
+  const corpo = estado === "controle"
+    ? `<span class="ctc-estado">${ICONE_TELA_CHEIA.cursorNaJanela}<span>Você está no controle</span></span><button type="button" class="ctc-bt ctc-parar" data-c="devolver">Parar</button>`
+    : estado === "assumindo"
+      ? `<span class="ctc-estado" role="status">${ICONE_TELA_CHEIA.olho}<span>Assumindo…</span><span class="sr-only"> ${esc(nome)} termina a ação em curso</span></span><button type="button" class="ctc-bt ctc-assumir" data-c="assumir" disabled aria-disabled="true"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`
+      : estado === "precisa"
+        ? `<span class="ctc-estado"><i class="ctc-ponto" aria-hidden="true"></i><span>Precisa de você</span></span><span class="ctc-acoes"><button type="button" class="ctc-bt ctc-parar" data-c="devolver">Já resolvi</button><button type="button" class="ctc-bt ctc-assumir" data-c="assumir"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button></span>`
+        : `<span class="ctc-estado">${ICONE_TELA_CHEIA.olho}<span>Assistindo</span></span><button type="button" class="ctc-bt ctc-assumir" data-c="assumir"><span class="ctc-pulso" aria-hidden="true"></span>Assumir o controle</button>`;
+  return `<div class="ctc-controle" data-estado="${estado}" role="group" aria-label="Controle da tela de ${esc(nome)}">${corpo}</div>`;
 }
 
-/** A tela cheia: quase a janela toda, título pequeno, ✕ discreto, a imagem inteira e a pílula. */
-export function htmlTelaCheia(nome: string, pedido: string | null): string {
-  return `<div class="cb-tela"><header class="cb-tela-cab"><h2 class="cb-tela-tit">Tela de ${esc(nome)}</h2><span class="cb-tela-pedido">${esc(pedido ?? "")}</span><button type="button" class="cb-tela-x" data-c="fechar" aria-label="Fechar a tela de ${esc(nome)}">${ICONE_CB.fechar}</button></header><div class="cb-tela-vista"><img alt="Tela de ${esc(nome)}" tabindex="0" draggable="false" hidden /><div class="cb-tela-vivo" hidden></div><p class="cb-gv-linha cb-tela-vazia" role="status">${ICONE_CB.monitor}<span>${esc(nome)} não está usando o navegador agora.</span></p><div class="cb-tela-pilula"></div></div></div>`;
+/**
+ * Acessos · computador, item 5 (definido em 2026-11-16): o título discreto do topo da tela cheia. "Tela de Nina" no
+ * repouso; com o pedido de ajuda aberto (o bot espera a pessoa), "Nina precisa de você · <pedido>". Só o
+ * `aguardando_pessoa` mostra o pedido: no controle a pessoa já está resolvendo, e depois do Já resolvi ele fechou.
+ */
+export function tituloDaTelaCheia(nome: string, controle: ControleComputador | undefined, pedido: string | null | undefined): string {
+  const p = pedido?.trim();
+  return controle === "aguardando_pessoa" && p ? `${nome} precisa de você · ${p}` : `Tela de ${nome}`;
+}
+
+/**
+ * O HTML do título: o ponto âmbar, quem pede (mais claro) e o pedido em uma linha (cortado com reticências; o texto
+ * inteiro vai no `title` do h1). No celular o topo diz só "Nina · precisa de você" e o pedido desce para baixo da
+ * pílula (`.ctc-pedido`); os dois jeitos estão aqui e o CSS mostra um.
+ */
+export function htmlTituloDaTelaCheia(nome: string, controle: ControleComputador | undefined, pedido: string | null | undefined): string {
+  const p = pedido?.trim();
+  if (controle !== "aguardando_pessoa" || !p) return `<span class="ctc-tit-nome">${esc(`Tela de ${nome}`)}</span>`;
+  return `<i class="ctc-tit-ponto" aria-hidden="true"></i><span class="ctc-tit-quem"><span class="ctc-tit-longo">${esc(`${nome} precisa de você`)}</span><span class="ctc-tit-curto">${esc(`${nome} · precisa de você`)}</span></span><span class="ctc-tit-pedido">${esc(` · ${p}`)}</span>`;
+}
+
+/**
+ * O visualizador em tela cheia (card D, item 3): a barra de 44 px com o título e "Sair da tela cheia", o palco, o quadro
+ * 16:10 (a captura, o último quadro do VNC que caiu e o VNC ao vivo), a espera com o personagem e o aviso ao leitor de
+ * tela. `personagem` é o HTML do personagem do bot (htmlMascote) que gira na espera.
+ */
+export function htmlTelaCheia(nome: string, personagem: string): string {
+  return `<header class="ctc-topo"><h1 class="ctc-titulo" id="ctc-titulo" title="${esc(`Tela de ${nome}`)}">${htmlTituloDaTelaCheia(nome, undefined, null)}</h1><span class="ctc-fora" role="status" hidden>Fora do ar</span><button type="button" class="ctc-sair" data-c="fechar" aria-label="Sair da tela cheia">${ICONE_TELA_CHEIA.recolher}</button></header>`
+    + `<div class="ctc-corpo"><div class="ctc-palco"><div class="ctc-coluna">`
+    + `<div class="ctc-quadro" tabindex="-1" aria-label="Tela de ${esc(nome)}"><img class="ctc-captura" alt="" tabindex="-1" draggable="false" hidden /><div class="ctc-ultimo" hidden></div><div class="ctc-vivo"></div></div>`
+    + `<div class="ctc-barra-lugar"></div><p class="ctc-pedido"></p></div>`
+    + `<div class="ctc-espera" role="status"><span class="ctc-masc" aria-hidden="true">${personagem}</span><span class="ctc-espera-txt">Iniciando desktop</span></div>`
+    + `</div></div><p class="ctc-aviso sr-only" aria-live="polite"></p>`;
 }
 
 /** O pedido de login leve (duas linhas, sem caixa): a miniatura é o clique. */
@@ -561,9 +620,9 @@ export function htmlPainelComputadorDoBot(dto: ComputadorPessoaDto, bots: readon
   const cheia = memoriaCheia(dto);
   const memoria = dto.estado === "dormindo" || pct === null
     ? ""
-    : `<div class="pc-memoria"><div class="pc-mem-cab"><span>Memória</span><span>${abertas.length} ${abertas.length === 1 ? "tela" : "telas"} · ${pct}%${cheia ? " · cheia" : ""}</span></div><div class="pc-barra${cheia ? " cheia" : ""}" role="meter" aria-label="Memória em uso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
+    : `<div class="pc-memoria"><div class="pc-mem-cab"><span>Memória</span><span class="pc-mem-valor">${abertas.length} ${abertas.length === 1 ? "tela" : "telas"} · ${pct}%${cheia ? " · cheia" : ""}</span></div><div class="pc-barra${cheia ? " cheia" : ""}" role="meter" aria-label="Memória em uso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div></div>`;
   const progresso = dto.operacao
-    ? `<div class="pc-prog-inline"><div class="pc-mem-cab"><span>${esc(NOME_OPERACAO[dto.operacao.tipo].gerundio)} o computador</span><span>${pctDaOperacao(dto)}%</span></div><div class="pc-barra grande" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctDaOperacao(dto)}"><i style="width:${pctDaOperacao(dto)}%"></i></div>${htmlEtapas(dto.operacao.tipo, dto.operacao.etapa, pctDaOperacao(dto))}</div>`
+    ? `<div class="pc-prog-inline"><div class="pc-mem-cab"><span>${esc(NOME_OPERACAO[dto.operacao.tipo].gerundio)} o computador</span><span class="pc-mem-valor">${pctDaOperacao(dto)}%</span></div><div class="pc-barra grande" role="progressbar" aria-label="Progresso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctDaOperacao(dto)}"><i style="width:${pctDaOperacao(dto)}%"></i></div>${htmlEtapas(dto.operacao.tipo, dto.operacao.etapa, pctDaOperacao(dto))}</div>`
     : "";
   // NOD-93: o download da VM local (o primeiro uso no Mac), com a barra e os MB; pausado diz que continua sozinho.
   const prep = preparoAtivo(dto);

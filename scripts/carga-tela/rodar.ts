@@ -23,8 +23,18 @@ const repo = resolve(process.env.CARGA_REPO ?? join(AQUI, "../.."));
 const BOTS = 12;
 const TROCAS = Number(process.env.CARGA_TROCAS ?? 150);
 
+/**
+ * dropdb/createdb no banco efêmero: pelo container (o padrão) ou, com CARGA_PG_BIN (a pasta `bin` de um Postgres
+ * local, ex.: `$(mise where postgres@16.15)/bin`), direto na porta CARGA_BANCO_PORTA, para máquina sem Docker.
+ */
 function docker(...args: string[]): void {
-  execFileSync("docker", ["exec", container(), ...args], { stdio: "inherit" });
+  const bin = process.env.CARGA_PG_BIN;
+  if (!bin) {
+    execFileSync("docker", ["exec", container(), ...args], { stdio: "inherit" });
+    return;
+  }
+  const [cmd = "", ...resto] = args;
+  execFileSync(join(bin, cmd), ["-h", "127.0.0.1", "-p", String(CONFIG.bancoPorta), ...resto], { stdio: "inherit" });
 }
 
 async function subirApi(webDir?: string): Promise<ChildProcess> {
@@ -85,7 +95,9 @@ async function preparar(): Promise<void> {
 
 async function medirVariante(rotulo: string, cenarios: readonly Cenario[]): Promise<void> {
   const webDir = join(CONFIG.saida, `web-${rotulo}`);
-  const build = spawnSync("npx", ["vite", "build", "--outDir", webDir, "--emptyOutDir"], { cwd: repo, stdio: ["ignore", "ignore", "inherit"] });
+  // CARGA_SEM_MINIFICAR=1: o perfil sai com os nomes das funções do código (mais lento que o build de produção, só para achar o caro).
+  const minificar = process.env.CARGA_SEM_MINIFICAR === "1" ? ["--minify", "false"] : [];
+  const build = spawnSync("npx", ["vite", "build", "--outDir", webDir, "--emptyOutDir", ...minificar], { cwd: repo, stdio: ["ignore", "ignore", "inherit"] });
   if (build.status !== 0) throw new Error(`o build da web de ${repo} falhou`);
   docker("dropdb", "-U", "postgres", "--if-exists", "--force", "nod");
   docker("createdb", "-U", "postgres", "-T", "nod_base", "-O", "nod_dono", "nod");

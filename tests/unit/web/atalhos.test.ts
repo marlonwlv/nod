@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alvoDoAtalho, alvoVizinho, atalhoDoNovoBot, atalhoDoTeclado, campoTemTexto, indiceDoBot, linhasAVista, linhasDaFolha, lugarDoTeclado, SELETOR_CAMPO, setaDaPilula, SELETOR_MODAL, type ContextoTecla, type ElementoDeCampo, type LugarTeclado, type Tecla } from "../../../web/lib/atalhos.ts";
+import { alvoDoAtalho, alvoVizinho, atalhoDaNovaTarefa, atalhoDoNovoBot, atalhoDoTeclado, campoTemTexto, indiceDoBot, linhasAVista, linhasDaFolha, lugarDoTeclado, SELETOR_CAMPO, setaDaPilula, SELETOR_MODAL, type ContextoTecla, type ElementoDeCampo, type LugarTeclado, type Tecla } from "../../../web/lib/atalhos.ts";
 
 const tecla = (code: string, key: string, mods: Partial<Tecla> = {}): Tecla => ({ code, key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods });
 const ctx = (lugar: LugarTeclado, extra: Partial<ContextoTecla> = {}): ContextoTecla => ({ lugar, emCampo: false, dialogo: false, celular: false, ...extra });
@@ -17,10 +17,16 @@ describe("NOD-117: lugar do teclado", () => {
 });
 
 describe("NOD-117: atalhoDoTeclado", () => {
-  it("Novo bot: ⌘N no app, ⌃N no navegador do Mac, Alt+N no Windows", () => {
-    expect(atalhoDoTeclado(tecla("KeyN", "n", { metaKey: true }), ctx("app-mac"))).toEqual({ tipo: "novo-bot" });
-    expect(atalhoDoTeclado(tecla("KeyN", "n", { ctrlKey: true }), ctx("navegador-mac"))).toEqual({ tipo: "novo-bot" });
-    expect(atalhoDoTeclado(tecla("KeyN", "ñ", { altKey: true }), ctx("outro"))).toEqual({ tipo: "novo-bot" });
+  // ADR-187 §7 (2026-11-18): ⌘N é a nova tarefa; o novo bot foi para ⌘⇧N.
+  it("Nova tarefa: ⌘N no app, ⌃N no navegador do Mac, Alt+N no Windows; o novo bot com Shift", () => {
+    expect(atalhoDoTeclado(tecla("KeyN", "n", { metaKey: true }), ctx("app-mac"))).toEqual({ tipo: "nova-tarefa" });
+    expect(atalhoDoTeclado(tecla("KeyN", "n", { ctrlKey: true }), ctx("navegador-mac"))).toEqual({ tipo: "nova-tarefa" });
+    expect(atalhoDoTeclado(tecla("KeyN", "ñ", { altKey: true }), ctx("outro"))).toEqual({ tipo: "nova-tarefa" });
+    expect(atalhoDoTeclado(tecla("KeyN", "N", { metaKey: true, shiftKey: true }), ctx("app-mac"))).toEqual({ tipo: "novo-bot" });
+    expect(atalhoDoTeclado(tecla("KeyN", "N", { ctrlKey: true, shiftKey: true }), ctx("navegador-mac"))).toEqual({ tipo: "novo-bot" });
+    expect(atalhoDoTeclado(tecla("KeyN", "N", { altKey: true, shiftKey: true }), ctx("outro"))).toEqual({ tipo: "novo-bot" });
+    // No campo de mensagem também (a tarefa nova abre com o que está à vista; o rascunho da conversa fica guardado).
+    expect(atalhoDoTeclado(tecla("KeyN", "n", { metaKey: true }), ctx("app-mac", { emCampo: true }))).toEqual({ tipo: "nova-tarefa" });
   });
 
   it("o modificador de outro lugar não age (⌘N no navegador é do navegador)", () => {
@@ -225,22 +231,26 @@ describe("NOD-117: índice e vizinho", () => {
 });
 
 describe("NOD-117: folha e rótulo do +", () => {
-  it("9 linhas, com as teclas do lugar (NOD-461: ⌥← → na de página e a linha de mover)", () => {
-    const app = linhasDaFolha("app-mac");
-    expect(app.map((l) => l.titulo)).toEqual(["Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar agentes", "Modo dev", "Fechar e voltar"]);
-    expect(app[0]!.combinacoes).toEqual([["⌘", "N"]]);
+  it("14 linhas (a nova tarefa entra, o chat em grupo sai: ADR-187 §7), com as teclas do lugar (NOD-461: ⌥← → na de página e a linha de mover)", () => {
+    const app0 = linhasDaFolha("app-mac");
+    expect(app0.map((l) => l.titulo)).toEqual(["Nova tarefa do bot aberto", "Nova conversa (novo bot)", "Ir ao bot 1 a 9 da barra", "Bot anterior e próximo", "Página anterior e próxima do bot", "Mover a página atual na pílula", "Folha de atalhos", "Buscar bots, conversas, ajustes e ações", "Modo dev", "Fechar e voltar", "Barra lateral só com avatares", "Configurações", "Ir ao campo de mensagem", "Levar o texto selecionado ao campo"]);
+    expect(app0[0]!.combinacoes).toEqual([["⌘", "N"]]);
+    expect(app0[1]!.combinacoes).toEqual([["⌘", "⇧", "N"]]);
+    expect(linhasDaFolha("outro")[1]!.combinacoes).toEqual([["Alt", "Shift", "N"]]);
+    // Daqui em diante, as linhas de antes (sem a da nova tarefa).
+    const app = app0.slice(1);
     expect(app[3]!.combinacoes).toEqual([["⌘", "["], ["⌘", "]"], ["⌥", "←"], ["⌥", "→"]]);
     expect(app[4]!.combinacoes).toEqual([["⌥", "⇧", "←"], ["⌥", "⇧", "→"]]);
     expect(app[4]!.falado).toBe("Option Shift seta para os lados");
     expect(app[5]!.combinacoes).toEqual([["?"], ["⌘", "/"]]);
     expect(app[7]!.combinacoes).toEqual([["⌘", "⇧", "D"]]);
-    const nav = linhasDaFolha("navegador-mac");
-    expect(nav[0]!.combinacoes).toEqual([["⌃", "N"]]);
+    const nav = linhasDaFolha("navegador-mac").slice(1);
+    expect(nav[0]!.combinacoes).toEqual([["⌃", "⇧", "N"]]);
     expect(nav[4]!.combinacoes).toEqual([["⌥", "⇧", "←"], ["⌥", "⇧", "→"]]);
     expect(nav[5]!.combinacoes).toEqual([["?"], ["⌃", "/"]]);
     expect(nav[6]!.combinacoes).toEqual([["⌘", "K"]]);
-    const win = linhasDaFolha("outro");
-    expect(win[0]!.combinacoes).toEqual([["Alt", "N"]]);
+    const win = linhasDaFolha("outro").slice(1);
+    expect(win[0]!.combinacoes).toEqual([["Alt", "Shift", "N"]]);
     expect(win[2]!.combinacoes).toEqual([["Alt", "Shift", "["], ["Alt", "Shift", "]"]]);
     expect(win[3]!.combinacoes).toEqual([["Alt", "["], ["Alt", "]"], ["Alt", "←"], ["Alt", "→"]]);
     expect(win[3]!.falado).toBe("Alt colchete esquerdo e Alt colchete direito, ou Alt seta para os lados");
@@ -249,13 +259,17 @@ describe("NOD-117: folha e rótulo do +", () => {
     expect(win[6]!.combinacoes).toEqual([["Ctrl", "K"]]);
     expect(win[7]!.combinacoes).toEqual([["Ctrl", "Shift", "D"]]);
     for (const l of [...app, ...nav, ...win]) expect(l.falado.length).toBeGreaterThan(0);
-    expect(nav[0]!.falado).toBe("Control N");
+    expect(nav[0]!.falado).toBe("Control Shift N");
+    expect(linhasDaFolha("navegador-mac")[0]!.falado).toBe("Control N");
   });
 
-  it("rótulo do + por lugar", () => {
-    expect(atalhoDoNovoBot("app-mac")).toEqual({ texto: "⌘N", aria: "Meta+N" });
-    expect(atalhoDoNovoBot("navegador-mac")).toEqual({ texto: "⌃N", aria: "Control+N" });
-    expect(atalhoDoNovoBot("outro")).toEqual({ texto: "Alt+N", aria: "Alt+N" });
+  it("rótulo do + (novo bot, ⌘⇧N) e da nova tarefa (⌘N) por lugar", () => {
+    expect(atalhoDoNovoBot("app-mac")).toEqual({ texto: "⇧⌘N", aria: "Meta+Shift+N" });
+    expect(atalhoDoNovoBot("navegador-mac")).toEqual({ texto: "⇧⌃N", aria: "Control+Shift+N" });
+    expect(atalhoDoNovoBot("outro")).toEqual({ texto: "Alt+Shift+N", aria: "Alt+Shift+N" });
+    expect(atalhoDaNovaTarefa("app-mac")).toEqual({ texto: "⌘N", aria: "Meta+N" });
+    expect(atalhoDaNovaTarefa("navegador-mac")).toEqual({ texto: "⌃N", aria: "Control+N" });
+    expect(atalhoDaNovaTarefa("outro")).toEqual({ texto: "Alt+N", aria: "Alt+N" });
   });
 });
 
@@ -335,5 +349,35 @@ describe("NOD-461: ⌥← → troca e ⌥⇧← → move a página, de qualquer 
 
   it("o colchete segue sem `seta` (⌘[ ⌘] não abrem a doca)", () => {
     expect(atalhoDoTeclado(tecla("BracketRight", "]", { metaKey: true }), ctx("app-mac", { paginas: 3 }))).toEqual({ tipo: "pagina", passo: 1 });
+  });
+});
+
+describe("ADR-167: os atalhos novos que não colidem", () => {
+  it.each(LUGARES)("⌘B, ⌘, , ⌘I, ⌘L e ⌘⇧N (o novo bot desde a ADR-187 §7) no modificador do lugar (%s)", (lugar) => {
+    expect(atalhoDoTeclado(tecla("KeyB", "b", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "barra" });
+    expect(atalhoDoTeclado(tecla("Comma", ",", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "ajustes" });
+    expect(atalhoDoTeclado(tecla("KeyI", "i", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "focar-campo" });
+    expect(atalhoDoTeclado(tecla("KeyL", "l", MOD[lugar]), ctx(lugar))).toEqual({ tipo: "selecao-no-campo" });
+    expect(atalhoDoTeclado(tecla("KeyN", "N", { ...MOD[lugar], shiftKey: true }), ctx(lugar))).toEqual({ tipo: "novo-bot" });
+  });
+
+  it("no navegador do Mac, num campo, ⌃B ⌃I ⌃L são do macOS; ⌃, segue valendo", () => {
+    const c = ctx("navegador-mac", { emCampo: true });
+    for (const [code, key] of [["KeyB", "b"], ["KeyI", "i"], ["KeyL", "l"]] as const) expect(atalhoDoTeclado(tecla(code, key, { ctrlKey: true }), c)).toBeNull();
+    expect(atalhoDoTeclado(tecla("Comma", ",", { ctrlKey: true }), c)).toEqual({ tipo: "ajustes" });
+    // No app do Mac (⌘) o campo não segura: ⌘B recolhe a barra mesmo escrevendo.
+    expect(atalhoDoTeclado(tecla("KeyB", "b", { metaKey: true }), ctx("app-mac", { emCampo: true }))).toEqual({ tipo: "barra" });
+  });
+
+  it("os de antes não mudam: ⌘N (nova tarefa desde a ADR-187 §7), ⌘[ da pílula e ⌘⇧[ do vizinho", () => {
+    expect(atalhoDoTeclado(tecla("KeyN", "n", { metaKey: true }), ctx("app-mac"))).toEqual({ tipo: "nova-tarefa" });
+    expect(atalhoDoTeclado(tecla("BracketLeft", "[", { metaKey: true }), ctx("app-mac", { paginas: 2 }))).toEqual({ tipo: "pagina", passo: -1 });
+    expect(atalhoDoTeclado(tecla("BracketLeft", "{", { metaKey: true, shiftKey: true }), ctx("app-mac"))).toEqual({ tipo: "vizinho", passo: -1 });
+  });
+
+  it("diálogo aberto, celular e Seu espaço seguram os novos", () => {
+    expect(atalhoDoTeclado(tecla("KeyB", "b", { metaKey: true }), ctx("app-mac", { dialogo: true }))).toBeNull();
+    expect(atalhoDoTeclado(tecla("KeyB", "b", { metaKey: true }), ctx("app-mac", { celular: true }))).toBeNull();
+    expect(atalhoDoTeclado(tecla("Comma", ",", { metaKey: true }), ctx("app-mac", { espaco: true }))).toBeNull();
   });
 });

@@ -192,9 +192,9 @@ export function textoFrentesTerminadas(frentes: readonly Pick<FrenteNoFecho, "ti
   const [unica] = frentes;
   if (frentes.length === 1 && unica) {
     const verbo = unica.estado === "parado" ? "parou" : unica.estado === "falhou" ? "falhou" : "terminou";
-    return `A frente ${unica.titulo} ${verbo}`;
+    return `A tarefa ${unica.titulo} ${verbo}`;
   }
-  return `${frentes.length} frentes terminaram`;
+  return `${frentes.length} tarefas terminaram`;
 }
 
 /** Uma frente em uma linha de texto: o feito, o PR, o branch e o commit, e o que falta. */

@@ -11,9 +11,10 @@ describe("o botão de aprovações no campo (ADR-059; Fase 4, PR 2)", () => {
     expect(conversa).toContain('id="composer-modo"');
     expect(conversa).toContain('data-act="modo-aprovacao"');
     expect(conversa).not.toContain("composer-aviso");
-    // O botão fica depois do clipe e antes do campo, como no Claude e no ChatGPT.
-    expect(conversa.indexOf('data-act="anexar"')).toBeLessThan(conversa.indexOf('id="composer-modo"'));
-    expect(conversa.indexOf('id="composer-modo"')).toBeLessThan(conversa.indexOf("<textarea"));
+    // Acessos do campo (3c): o botão fica depois do texto, logo depois do seletor de IA e antes do 🎤.
+    expect(conversa.indexOf("<textarea")).toBeLessThan(conversa.indexOf('id="composer-ia"'));
+    expect(conversa.indexOf('id="composer-ia"')).toBeLessThan(conversa.indexOf('id="composer-modo"'));
+    expect(conversa.indexOf('id="composer-modo"')).toBeLessThan(conversa.indexOf('class="mic'));
     const sala = htmlComposer("Escreva…", ["Vera"]);
     expect(sala).not.toContain("composer-modo");
   });

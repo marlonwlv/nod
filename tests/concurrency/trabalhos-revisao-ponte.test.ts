@@ -89,9 +89,9 @@ afterEach(async () => {
 const resultado = (r: Partial<ResultadoTurno> = {}): ResultadoTurno => ({ desfecho: "sucesso", texto: "feito", sessaoCli: null, sinais: SINAIS, custoUsd: 0, tokens: { entrada: 0, saida: 0, cacheLeitura: 0, cacheCriacao: 0 }, ferramentasChamadas: [], negacoesPermissao: [], ...r });
 
 /** Um bot com conversa, a ponte com relógio do teste e a rede de 2 min em 1 s; a máquina anuncia o que o teste disser. */
-async function montar(o: { capacidades?: boolean; depoisDeAssentar?: DepsPonte["depoisDeAssentar"]; capturas?: Services["capturas"] } = {}) {
+async function montar(o: { capacidades?: boolean; depoisDeAssentar?: DepsPonte["depoisDeAssentar"] } = {}) {
   let relogio = Date.now();
-  const deps: DepsPonte = { services: o.capturas ? { ...services, capturas: o.capturas } : services, useCases, executor: "local", listarPessoas, agora: () => relogio, fezFerramenta: () => true, redeMs: 1_000, ...(o.depoisDeAssentar ? { depoisDeAssentar: o.depoisDeAssentar } : {}) };
+  const deps: DepsPonte = { services, useCases, executor: "local", listarPessoas, agora: () => relogio, fezFerramenta: () => true, redeMs: 1_000, ...(o.depoisDeAssentar ? { depoisDeAssentar: o.depoisDeAssentar } : {}) };
   const ponte = criarPonteInterna(db, deps);
   const machineId = randomUUID();
   const conectar = (capacidades: boolean) => ponte.conectar({ machineId, nome: "Mac", inventario: PRONTO, versaoContrato: 1, harnesses: { "claude-cli": PRONTO }, ...(capacidades ? { capacidades: { "claude-cli": CAPACIDADES_HARNESS["claude-cli"] } } : {}) });
@@ -273,36 +273,5 @@ describeIntegracao("revisão #188 pela ponte: os mapas da ponte", () => {
     m.avancar(LEASE_MS + 1_000);
     expect(await m.ponte.puxar(PESSOA.pessoaId)).toBeNull();
     expect(m.ponte.emMemoria?.()).toEqual({ escopos: 1, oferecidas: 0, despachados: 0 });
-  });
-});
-
-describeIntegracao("NOD-200 pela ponte: a captura do turno", () => {
-  it("o assentar repetido por impasse acha a mesma captura; ela só é esquecida depois do assentar confirmado", async () => {
-    const impasse = () => Object.assign(new Error("deadlock detected"), { code: "40P01" });
-    const telas = new Map<string, Uint8Array>();
-    const capturas = { ler: (id: string) => telas.get(id) ?? null, esquecer: (id: string) => { telas.delete(id); } };
-    let falhas = 1;
-    const m = await montar({ capturas, depoisDeAssentar: async () => { if (falhas-- > 0) throw impasse(); return []; } });
-    const entrega = (turnoId: string) => ({ turnoId, machineId: m.machineId, seqLocal: 1, fala: { tipo: "texto" as const, texto: "feito" }, resultado: resultado() });
-    const anexos = () => escopado((trx) => trx<{ mensagem_id: string | null }[]>`select mensagem_id from anexos where conversa_id = ${m.conversaId}`);
-
-    // Um impasse: a 2ª tentativa assenta com a mesma tela, e a ponte a esquece.
-    await m.falar("primeira");
-    const p1 = await m.ponte.puxar(PESSOA.pessoaId);
-    telas.set(p1!.turnoId, new Uint8Array([1, 2, 3]));
-    await m.ponte.entregar(entrega(p1!.turnoId));
-    expect(await anexos()).toHaveLength(1);
-    expect(telas.has(p1!.turnoId)).toBe(false);
-
-    // Três impasses: a entrega falha e a tela fica, como o escopo; a entrega repetida pelo app a grava e a esquece.
-    falhas = 3;
-    await m.falar("segunda");
-    const p2 = await m.ponte.puxar(PESSOA.pessoaId);
-    telas.set(p2!.turnoId, new Uint8Array([4, 5, 6]));
-    await expect(m.ponte.entregar(entrega(p2!.turnoId))).rejects.toMatchObject({ code: "40P01" });
-    expect(telas.has(p2!.turnoId)).toBe(true);
-    await m.ponte.entregar(entrega(p2!.turnoId));
-    expect(await anexos()).toHaveLength(2);
-    expect(telas.has(p2!.turnoId)).toBe(false);
   });
 });

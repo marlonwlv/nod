@@ -157,6 +157,13 @@ export async function fecharCardAtendido(deps: Pick<Deps, "repos" | "escopo" | "
 
 /** Uma capacidade: o lote de um. Quem decide acesso por botão chama `concederLote` (decidir-acesso.ts). */
 export const conceder: CasoDeUso<EntradaConceder, SaidaConceder> = async (deps, input) => {
+  // QA-107: a capacidade avulsa (form de Conectores, POST agentes/:id/concessoes) segue a regra do nível (definirNivelDoBot):
+  // bot e app da pessoa, e app ligado. Antes ela gravava o consentimento num app desligado, que o "Dar acesso" recusa.
+  const agente = await deps.repos.agentes.buscar(input.agenteId);
+  if (!agente || agente.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado", { cause: "agente" });
+  const conector = await deps.repos.conectores.buscar(input.conectorId);
+  if (!conector || conector.ownerId !== deps.escopo.pessoaId) throw new ErroDeDominio("nao_encontrado", { cause: "conector" });
+  if (!conector.habilitado) throw new ErroDeDominio("estado_invalido", { cause: "conecte o app antes de dar acesso" });
   const r = await concederLote(deps, { agenteId: input.agenteId, conectorId: input.conectorId, capacidades: [input.capacidade], autorTipo: input.autorTipo });
   const [c] = r.data.concessoes;
   if (!c) throw new ErroDeDominio("estado_invalido", { cause: "concessão não gravada" });

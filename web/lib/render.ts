@@ -54,6 +54,11 @@ export function hora(instante: number | string): string {
   return formatoData("pt-BR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(t));
 }
 
+/** Rodada 3 da casca ("igual ao Paper"): 'H:MM', sem o zero à esquerda, onde o Paper escreve assim ("Hoje 9:12", "desde 9:14"). */
+export function horaSemZero(instante: number | string): string {
+  return hora(instante).replace(/^0(\d:)/, "$1");
+}
+
 export function dataHora(instante: number | string, fusoIana?: string): string {
   const t = typeof instante === "number" ? instante : Date.parse(instante);
   if (Number.isNaN(t)) return "instante inválido";

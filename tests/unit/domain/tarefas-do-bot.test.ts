@@ -54,4 +54,38 @@ describe("lista de tarefas do bot (formato medido no CLI 2.1.284)", () => {
     expect(final.tarefas).toHaveLength(TETO_TAREFAS);
     expect(final.tarefas[0]!.titulo).toHaveLength(200);
   });
+
+  it("id inexistente (\"Task not found\" sem is_error, CLI 2.1.312) não cria tarefa fantasma", () => {
+    const { final, mudancas } = aplicar([
+      uso("u1", "TaskCreate", { subject: "A", description: "a" }), resultado("u1", "Task #1 created successfully: A"),
+      uso("u2", "TaskUpdate", { taskId: "999", status: "completed" }), resultado("u2", "Task not found"),
+      uso("u3", "TaskUpdate", { taskId: "998", status: "deleted" }), resultado("u3", "Task not found"),
+    ]);
+    expect(final.tarefas).toEqual([{ id: "1", titulo: "A", estado: "pendente" }]);
+    expect(mudancas).toBe(1);
+    expect(final.pendentes).toEqual({});
+  });
+
+  it("listagem com bloqueio não cola \"[blocked by #1]\" no título", () => {
+    const { final, mudancas } = aplicar([
+      uso("u1", "TaskCreate", { subject: "A", description: "a" }), resultado("u1", "Task #1 created successfully: A"),
+      uso("u2", "TaskCreate", { subject: "B", description: "b" }), resultado("u2", "Task #2 created successfully: B"),
+      uso("u3", "TaskUpdate", { taskId: "2", addBlockedBy: ["1"] }), resultado("u3", "Updated task #2 blockedBy"),
+      uso("u4", "TaskList", {}), resultado("u4", "#1 [pending] A\n#2 [pending] B [blocked by #1, #3]"),
+    ]);
+    expect(final.tarefas).toEqual([
+      { id: "1", titulo: "A", estado: "pendente" },
+      { id: "2", titulo: "B", estado: "pendente" },
+    ]);
+    expect(mudancas).toBe(2);
+  });
+
+  it("o teto do título não parte emoji ao meio", () => {
+    const titulo = "x".repeat(199) + "👨‍👩‍👧";
+    const { final } = aplicar([uso("u1", "TaskCreate", { subject: titulo }), resultado("u1", "Task #1 created successfully: x")]);
+    const t = final.tarefas[0]!.titulo;
+    expect(Array.from(t)).toHaveLength(200);
+    expect(t.endsWith("👨")).toBe(true);
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(t)).toBe(false);
+  });
 });

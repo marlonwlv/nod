@@ -6,6 +6,7 @@ import { criarAgente } from "../../src/use-cases/criar-agente.ts";
 import { despacharTurno } from "../../src/use-cases/despachar-turno.ts";
 import { emitirPlanoTurno } from "../../src/use-cases/emitir-plano-turno.ts";
 import { enviarMensagem, lerConversa } from "../../src/use-cases/enviar-mensagem.ts";
+import { absorverNaSessao, confirmarNaSessao } from "../../src/use-cases/sessao-viva.ts";
 import { depsSobreTrx, esperarErro, executar, MARLON } from "../helpers/deps-l6.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
@@ -73,6 +74,31 @@ describeIntegracao("fila da conversa no Postgres (0024): cancelar uma, ler as re
       const terceiro = (await executar(deps, despacharTurno, { machineId: maquina, inventario: PRONTO })).data;
       expect(terceiro.plano?.turnoId).toBe(depois.data.turno.id);
       expect(terceiro.plano?.entrada.texto).toBe("depois");
+    });
+  });
+
+  it("Acessos · fila: o Cancelar entre a oferta à sessão e a confirmação vence; depois da confirmação é tarde", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const deps = depsSobreTrx(trx, MARLON);
+      const { data: criado } = await executar(deps, criarAgente, { dono: "pessoa" });
+      const conversaId = criado.conversa.id;
+      const rodando = await executar(deps, enviarMensagem, { conversaId, texto: "fazer a triagem", inventario: PRONTO });
+      await executar(deps, despacharTurno, { machineId: randomUUID(), inventario: PRONTO });
+      const vivo = rodando.data.turno.id;
+
+      // O app recebe a fala na oferta (com `confirma`), mas a pessoa cancela antes de ele confirmar a escrita na sessão.
+      const a = await executar(deps, enviarMensagem, { conversaId, texto: "esquece o e-mail", inventario: PRONTO });
+      expect((await executar(deps, absorverNaSessao, { turnoId: vivo, executor: "local", confirma: true })).data.ids).toEqual([a.data.turno.id]);
+      await executar(deps, cancelarTurno, { turnoId: a.data.turno.id });
+      expect((await executar(deps, confirmarNaSessao, { turnoId: vivo, executor: "local", ids: [a.data.turno.id] })).data.confirmadas).toBe(0);
+      expect(await deps.repos.turnos.buscar(a.data.turno.id)).toMatchObject({ estado: "interrompido", motivoInterrupcao: "parado_pela_pessoa" });
+      expect((await lerConversa(deps, { conversaId })).data.turnosCancelados).toEqual([{ id: a.data.turno.id, mensagemId: a.data.mensagem.id }]);
+
+      // Confirmada a escrita, a fala já é do turno vivo: o Cancelar chega tarde (a tela diz "Já entrou no turno").
+      const b = await executar(deps, enviarMensagem, { conversaId, texto: "e põe prazo sexta", inventario: PRONTO });
+      await executar(deps, absorverNaSessao, { turnoId: vivo, executor: "local", confirma: true });
+      expect((await executar(deps, confirmarNaSessao, { turnoId: vivo, executor: "local", ids: [b.data.turno.id] })).data.confirmadas).toBe(1);
+      await esperarErro(() => cancelarTurno(deps, { turnoId: b.data.turno.id }), "estado_invalido");
     });
   });
 });

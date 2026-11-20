@@ -294,7 +294,7 @@ async function decidirGerirQuadro(deps: Deps, input: EntradaGerirQuadro, modo: M
     if (!achado) return recusa("sem_quadro", "não há quadro: crie com criar_quadro");
     const { visao, recolhidas, compacto, vista, agrupar, ordenar, inverter, ocultas, propriedades } = exibir;
     await exibirDoQuadro(deps, { quadroId: achado.id, visao, recolhidas, compacto, vista, agrupar, ordenar, inverter, ocultas, propriedades });
-    const nomes = { lista: "Lista", colunas: "Colunas", minhas: "Minhas tarefas" } as const;
+    const nomes = { lista: "Lista", colunas: "Colunas", minhas: "Meus cards" } as const;
     const o_que = [visao && `a visão do celular agora é ${nomes[visao]}`, recolhidas !== undefined && `as colunas recolhidas ${recolhidas ? "aparecem" : "somem"}`, compacto !== undefined && `os cards ${compacto ? "ficam compactos" : "voltam ao normal"}`, ...fraseDasOpcoes(exibir)].filter(Boolean).join("; ");
     return { data: { ok: true, quadro: null, lote_id: null, comecaram: [], instrucao: `Feito: ${o_que} (só na tela da pessoa; não tem Desfazer, troca de novo se ela pedir). Diga isso em uma frase.` } };
   }

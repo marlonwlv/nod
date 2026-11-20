@@ -31,7 +31,9 @@ export const FERRAMENTA_ANEXAR_MIDIA: FerramentaPlano = {
   nomeMcp: "mcp__nod__anexar_midia",
   origem: "proxy",
   conectorId: null,
-  readOnlyHint: true,
+  // Faz upload e prende o anexo à fala final; para o cliente MCP isto é uma escrita,
+  // mesmo sendo uma ferramenta local do proxy e não passando pela aprovação de conectores.
+  readOnlyHint: false,
   tocaDadoPessoal: false,
   schema: {
     type: "object",

@@ -1,5 +1,7 @@
 import { contasIaMemoria, estadoContasIaMemoria, type EstadoContasIaMemoria } from "./contas-ia-memoria.ts";
 import type { CondicaoDaVolta } from "../../src/contracts/quadro-execucoes.ts";
+import type { NivelDeFerramenta, RegraRevisor, TetoModo } from "../../src/contracts/ajustes-aprovacao.ts";
+import { tetoMaisFechado } from "../../src/domain/ajustes-aprovacao.ts";
 import { temFalha, type EstadoDisjuntor } from "../../src/domain/disjuntor-conector.ts";
 import { ehDecisao, MOTIVOS_DE_CONECTOR_FORA } from "../../src/domain/decisoes.ts";
 import { desfechoAutorizaItemLocal } from "../../src/domain/autoridade-item-local.ts";
@@ -46,8 +48,6 @@ import { cotaSegura, ehVoltaDoFundo, ENTRADA_DA_RETOMADA_DA_QUEDA, ENTRADA_DA_VO
 import { MODO_APROVACAO_INICIAL } from "../../src/domain/modo-aprovacao.ts";
 import { recusaPendente } from "../../src/domain/rotina-webhook.ts";
 import { harnessFixado } from "../../src/domain/harness.ts";
-import { iaDoModelo } from "../../src/domain/ia-do-modelo.ts";
-import { HARNESS_LEGADO } from "../../src/contracts/harness.ts";
 import { derivadosDa, INTELIGENCIA_PADRAO, inteligenciaDoLegado } from "../../src/domain/inteligencia.ts";
 import type { ConectorGuardado } from "../../src/repositories/conectores.repo.ts";
 import type { EventoGravavel } from "../../src/repositories/events.repo.ts";
@@ -59,7 +59,7 @@ import type { TrocaDeIa } from "../../src/contracts/troca-de-ia.ts";
 import type { RitmoRotina } from "../../src/contracts/rotina-ritmo.ts";
 import type { Parada } from "../../src/repositories/paradas.repo.ts";
 import type { Pessoa } from "../../src/repositories/pessoas.repo.ts";
-import type { JanelaReivindicada } from "../../src/repositories/rotina-janelas.repo.ts";
+import type { JanelaReivindicada, TurnoAbertoDaRotina } from "../../src/repositories/rotina-janelas.repo.ts";
 import type { GatilhoVivo } from "../../src/repositories/rotina-gatilhos.repo.ts";
 import type { ChamadaWebhook } from "../../src/contracts/rotina.ts";
 import type { Repos } from "../../src/repositories/tipos.ts";
@@ -326,12 +326,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       .sort((x, y) => y.instanteAgendado - x.instanteAgendado);
     return abertas;
   };
-  /** A regra de seguradoPelaCotaSql (turnos.repo.ts): a IA fixada (ou a do modelo), o tipo do turno e o portão da cota. */
+  /** A regra de seguradoPelaCotaSql (turnos.repo.ts): a IA fixada ou o portão do Automático, mais o tipo do turno. */
   const seguradoPelaCota = (t: Turno, cota: PortaoDaCota): boolean => {
     if (t.origem === "ligacao") return false;
-    const ia = harnessFixado(t.harness, t.modelo) ?? (t.modelo !== "auto" ? iaDoModelo(t.modelo) : null);
+    const ia = harnessFixado(t.harness, t.modelo);
     const trabalho = t.trabalhoId ? (doTenant(b.trabalhos).find((x) => x.id === t.trabalhoId) ?? null) : null;
-    const auto = t.harness === "auto" && t.modelo === "auto";
+    const auto = t.harness === "auto";
     const naReserva = auto ? cota.autoReserva : cota.reserva.includes(ia ?? "");
     const noLimite = auto ? cota.autoLimite : cota.limite.includes(ia ?? "");
     return cotaSegura(tipoParaCota(t, trabalho), noLimite ? "limite" : naReserva ? "reserva" : "livre");
@@ -359,6 +359,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
   const repos = {
     computadores: {
       buscarVinculo: async () => null, buscarDoAgente: async () => undefined,
+      agenteDoComputador: async () => null,
       obter: async () => null, travar: async () => null, configurar: async () => undefined,
       ocupar: async () => undefined, liberar: async () => undefined, atividade: async () => [], ociosos: async () => [], emUsoPor: async () => null,
       buscarAcao: async () => null, concluir: async () => undefined,
@@ -375,16 +376,21 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       obterDaPessoa: async () => { throw new Error("use o banco para testar o computador da pessoa"); },
       fixarMaquina: async () => undefined, fixarSupervisor: async () => null, esquecerSupervisor: async () => undefined,
       iniciarOperacao: async () => false, progredirOperacao: async () => false, terminarOperacao: async () => false, arquivarLegado: async () => [], legadosArquivados: async () => [],
+      legadosParaMigrar: async () => [], concluirMigracaoLegado: async () => false,
       trocarSupervisor: async () => false, fixarLugar: async () => false, adicionarSaidaPendente: async () => false, saidaMarcada: async () => {}, avisoRecriado: async () => false, atividadeDaPessoa: async () => [],
     },
     computadorTelas: {
       buscar: async () => null, porId: async () => null, obter: async () => null, travar: async () => null, doComputador: async () => [], fila: async () => [],
+      provedorRef: async () => null, fixarProvedorRef: async () => false, provedoresRef: async () => [],
       mudarEstado: async () => false, configurar: async () => undefined, ocupar: async () => undefined, liberar: async () => undefined,
       relatar: async () => undefined, registrarFalha: async () => undefined, apagar: async () => undefined,
     },
     pessoas: {
       async buscar(id: string) {
         return doTenant(b.pessoas).find((p) => p.id === id) ?? null;
+      },
+      async buscarVarias(ids: readonly string[]) {
+        return doTenant(b.pessoas).filter((p) => ids.includes(p.id));
       },
       async listarDoTenant() {
         return doTenant(b.pessoas).sort((x, y) => x.nome.localeCompare(y.nome));
@@ -552,6 +558,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return a;
       },
       async criar(a) {
+        // A4: como o `on conflict (id) do nothing` do SQL.
+        if (a.id && b.agentes.some((x) => x.id === a.id)) return null;
         // 0068: como o SQL — a inteligência inteira e os derivados gravados juntos.
         const inteligencia = a.inteligencia ?? inteligenciaDoLegado(INTELIGENCIA_PADRAO, { harness: a.harness ?? "auto", modelo: a.modelo });
         const d = derivadosDa(inteligencia);
@@ -584,6 +592,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
       async buscar(id, incluirExcluidos = false) {
         return doTenant(b.agentes).find((a) => a.id === id && (incluirExcluidos || !a.excluidoEm)) ?? null;
+      },
+      async buscarVarios(ids, incluirExcluidos = false) {
+        return doTenant(b.agentes).filter((a) => ids.includes(a.id) && (incluirExcluidos || !a.excluidoEm));
       },
       async buscarPorNome(nome) {
         return doTenant(b.agentes).find((a) => a.nome.toLowerCase() === nome.toLowerCase()) ?? null;
@@ -644,6 +655,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         for (const a of as) a.maquinaId = maquinaId;
         return as;
       },
+      async definirSoLeitura(id, soLeitura) {
+        const a = doTenant(b.agentes).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.excluidoEm);
+        if (!a) return null;
+        a.soLeitura = soLeitura;
+        a.soLeituraPedido = soLeitura;
+        return a;
+      },
       async definirModoAprovacao(id, modo) {
         const a = doTenant(b.agentes).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.excluidoEm);
         if (!a) return null;
@@ -691,6 +709,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const memoria: Memoria = { tenantId: escopo.tenantId, id: m.id ?? randomUUID(), agenteId: m.agenteId, tipo: m.tipo, texto: m.texto, origem: m.origem, criadoEm: agora() };
         b.memorias.push(memoria);
         return memoria;
+      },
+      async criarDoAgenteSeAusente(m) {
+        const existente = doTenant(b.memorias).find((x) => x.agenteId === m.agenteId && x.tipo === m.tipo && x.texto === m.texto && x.origem === "agente");
+        if (existente) return { memoria: existente, criada: false };
+        const memoria: Memoria = { tenantId: escopo.tenantId, id: randomUUID(), agenteId: m.agenteId, tipo: m.tipo, texto: m.texto, origem: "agente", criadoEm: agora() };
+        b.memorias.push(memoria);
+        return { memoria, criada: true };
       },
       async buscar(id) {
         return doTenant(b.memorias).find((m) => m.id === id) ?? null;
@@ -1008,6 +1033,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     },
 
     mensagens: {
+      // 2026-11-12 (cursor, 0175): o banco em memória não tem o gatilho do cursor; sem cursor, a leitura sai sem ele.
+      async mudadasDesde() {
+        return [];
+      },
+      async cursorDaConversa() {
+        return null;
+      },
       async criar(m) {
         const chave = m.idEnvio ? `${escopo.tenantId}:${m.conversaId}:${m.idEnvio}` : null;
         if (chave && b.idsDeEnvio.has(chave)) return null;
@@ -1108,6 +1140,11 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           if (m?.payload?.kind === "peer_pedido") saida[id] = { agenteId: m.autoria.autor_id, nome: m.payload.nome ?? null };
         }
         return saida;
+      },
+      async marcarRetomada(turnoId) {
+        const pausadas = doTenant(b.mensagens).filter((x) => x.turnoId === turnoId && x.payload?.kind === "fala_interrompida" && !x.payload.retomou);
+        for (const m of pausadas) m.payload = { kind: "fala_interrompida", por: "mensagem_nova", retomou: true };
+        return pausadas.length;
       },
       async marcarParcial(id, parcial) {
         const m = doTenant(b.mensagens).find((x) => x.id === id);
@@ -1210,6 +1247,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         p.payload = payload;
         return p;
       },
+      // O cofre (nome, app e data; nunca o valor) só existe no Postgres; em memória não há credencial guardada.
+      async credenciaisGuardadas() { return []; },
     },
 
     contasIa: contasIaMemoria(b.contasIa, escopo),
@@ -1384,7 +1423,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           .map((a) => {
             const itens = a.modo === "automatico" && a.veredito === "libera" && a.decisaoId ? b.itens.filter((i) => i.decisaoId === a.decisaoId) : [];
             const item = itens.length === 1 && itens[0] ? { texto_final: itens[0].textoFinal, destino: itens[0].destino } : null;
-            return { id: a.id, turno_id: a.turnoId, modo: a.modo, tipo: a.tipo, gatilho: a.gatilho, resumo: a.resumo, risco: a.risco, veredito: a.veredito ?? null, motivo: a.motivo ?? null, criado_em: new Date(a.criadoEm), linux: false, item };
+            return { id: a.id, turno_id: a.turnoId, modo: a.modo, tipo: a.tipo, gatilho: a.gatilho, resumo: a.resumo, risco: a.risco, veredito: a.veredito ?? null, motivo: a.motivo ?? null, criado_em: new Date(a.criadoEm), linux: false, item, regra: null };
           });
       },
       async semAprovacaoDoDia(agenteId, f, limite) {
@@ -1568,6 +1607,12 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         t.depoisDeTrabalhoId = depoisDeId;
         return semDonoTrabalho(t);
       },
+      async renomear(id, titulo) {
+        const t = doTenant(b.trabalhos).find((x) => x.id === id && x.ownerId === escopo.pessoaId);
+        if (!t) return null;
+        t.titulo = titulo;
+        return semDonoTrabalho(t);
+      },
       async redeComSessao(conversaId, sessaoCli) {
         const t = doTenant(b.trabalhos).filter((x) => x.conversaId === conversaId && x.origem === "rede" && x.sessaoCli === sessaoCli).sort((x, y) => y.criadoEm - x.criadoEm)[0];
         return t ? semDonoTrabalho(t) : null;
@@ -1640,6 +1685,9 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     },
 
     turnos: {
+      async idEnvioQueFechou() {
+        return null;
+      },
       async somarRecusasDeMidia(id, recusas) {
         const t = b.turnos.find((x) => x.id === id);
         if (!t || t.estado !== "despachando") return false;
@@ -1659,6 +1707,16 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       // NOD-309 (PR 4): como os órfãos, o fundo preso se prova no Postgres (tests/integration/turnos-orfaos.test.ts).
       async fundosPresos() {
         return [];
+      },
+      async bastidoresAcimaDoTeto(agora, tetoMs) {
+        return b.turnos.filter((t) => t.estado === "despachando" && t.bastidores === true && !t.trabalhoId && t.pararSolicitadoEm === null && t.despachadoEm != null && t.despachadoEm <= agora - tetoMs);
+      },
+      async pedirInterrupcaoPorTeto(id, agora) {
+        const t = b.turnos.find((x) => x.id === id && x.estado === "despachando" && x.bastidores === true && !x.trabalhoId && x.pararSolicitadoEm === null);
+        if (!t) return null;
+        t.pararSolicitadoEm = agora;
+        t.motivoInterrupcao = "turno_travado";
+        return t;
       },
       async encerrarOrfao() {
         return null;
@@ -1684,7 +1742,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           for (const t of todos) if (t.retomaTurnoId && cadeia.has(t.retomaTurnoId) && !cadeia.has(t.id)) { cadeia.add(t.id); mudou = true; }
         }
         return todos.filter((t) => cadeia.has(t.id) && t.id !== exceto && t.estado === "interrompido"
-          && (MOTIVOS_DE_QUEDA as readonly string[]).includes(t.motivoInterrupcao ?? "") && !QUEDAS_FORA_DO_TETO.includes(t.motivoInterrupcao ?? "") && !(MOTIVOS_FALHA_SEM_QUEDA as readonly string[]).includes(t.motivoFalha ?? "")
+          && ((MOTIVOS_DE_QUEDA as readonly string[]).includes(t.motivoInterrupcao ?? "") || t.motivoInterrupcao === "turno_travado") && !QUEDAS_FORA_DO_TETO.includes(t.motivoInterrupcao ?? "") && !(MOTIVOS_FALHA_SEM_QUEDA as readonly string[]).includes(t.motivoFalha ?? "")
           && (ULTIMO_SINAL.get(t) ?? t.criadoEm) >= desde).length;
       },
       async reescreverFundoDoBot(agenteId: string, para: { harness: NonNullable<Turno["harness"]>; modelo: string }) {
@@ -1705,7 +1763,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return alvo.length;
       },
       async anteciparEsperasDaCota(ia: string | null, opcoes: { turnoId?: string; agenteId?: string } = {}) {
-        const iaDe = (t: Turno): string | null => (t.harness ?? "auto") !== "auto" ? t.harness! : t.modelo === "auto" ? null : (iaDoModelo(t.modelo) ?? HARNESS_LEGADO);
+        const iaDe = (t: Turno): string | null => harnessFixado(t.harness, t.modelo);
         const alvo = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.estado === "pendente" && (t.acordarEm ?? null) !== null && t.entradaTexto.startsWith(ENTRADA_DA_VOLTA_DA_COTA)
           && (opcoes.turnoId === undefined || t.id === opcoes.turnoId) && (opcoes.agenteId === undefined || t.agenteId === opcoes.agenteId)
           && (ia === null || iaDe(t) === null || iaDe(t) === ia));
@@ -2025,7 +2083,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         const filhas = doTenant(b.turnos).filter((r) => r.retomaTurnoId === id);
         // NOD-309 (PR 3): a retomada da queda ainda na fila, única, é absorvida pelo sucesso tardio.
         if (filhas.length === 1 && filhas[0]!.estado === "pendente" && filhas[0]!.entradaTexto.startsWith(ENTRADA_DA_RETOMADA_DA_QUEDA)) {
-          Object.assign(filhas[0]!, { estado: "interrompido", motivoInterrupcao: "absorvido", absorvidoPor: id, leaseAte: null });
+          Object.assign(filhas[0]!, { estado: "interrompido", motivoInterrupcao: "absorvido", absorvidoPor: id, leaseAte: null, lidoNaSessaoEm: Date.now() });
         } else if (filhas.length > 0) return null;
         t.estado = "concluido";
         t.motivoInterrupcao = null;
@@ -2050,7 +2108,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         // NOD-241: a guarda do varredor, como o UPDATE do repo real (o lease renovado no meio não é interrompido).
         if (o.leaseVencidoEm !== undefined && t.leaseAte !== null && t.leaseAte >= o.leaseVencidoEm) return null;
         t.estado = "interrompido";
-        t.motivoInterrupcao = motivo;
+        // NOD-452: a decisão usa a linha viva, não a leitura anterior do varredor; Parar sempre vence o teto.
+        t.motivoInterrupcao = o.leaseVencidoEm !== undefined && t.pararSolicitadoEm !== null && t.motivoInterrupcao !== "turno_travado" ? "parado_pela_pessoa" : motivo;
         if (o.ultimoSinalEm !== undefined && !ULTIMO_SINAL.has(t)) ULTIMO_SINAL.set(t, o.ultimoSinalEm);
         t.leaseAte = null;
         return t;
@@ -2071,6 +2130,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         t.motivoInterrupcao = "absorvido";
         t.absorvidoPor = porTurnoId;
         t.leaseAte = null;
+        t.lidoNaSessaoEm = Date.now();
         return t;
       },
       async absorverPendentes(turno, entrada, ids) {
@@ -2083,6 +2143,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           t.motivoInterrupcao = "absorvido";
           t.absorvidoPor = turno.id;
           t.leaseAte = null;
+          t.lidoNaSessaoEm = Date.now();
         }
         if (absorvidos.length === 0) return { turno, absorvidos };
         const alvo = doTenant(b.turnos).find((t) => t.id === turno.id) ?? turno;
@@ -2093,19 +2154,22 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         if (!alvo.motivoRecomeco && motivo) alvo.motivoRecomeco = motivo;
         return { turno: alvo, absorvidos };
       },
-      async absorverNaSessao(turno, ids) {
+      async absorverNaSessao(turno, ids, o = {}) {
         // NOD-286: como o SQL — fora de trabalho, e só até a primeira fala pendente com anexo do mesmo escopo.
         const escopoDaFala = doTenant(b.turnos).filter((t) => t.id !== turno.id && t.ownerId === escopo.pessoaId && t.conversaId === turno.conversaId && t.agenteId === turno.agenteId && t.estado === "pendente" && t.origem === "conversa" && t.mensagemOrigemId && !t.trabalhoId);
-        const absorvidos = ateOPrimeiroAnexo(escopoDaFala).filter((t) => !ids || ids.includes(t.id));
+        // C1: com `ids`, o print confirmado entra; o print pendente que não foi confirmado barra os posteriores.
+        if (ids && ids.length === 0) return [];
+        const absorvidos = ids ? ateOPrimeiroAnexo(escopoDaFala.map((t) => (ids.includes(t.id) ? { ...t, entradaAnexos: [] } : t))).flatMap((x) => (ids.includes(x.id) ? [escopoDaFala.find((t) => t.id === x.id)!] : [])) : ateOPrimeiroAnexo(escopoDaFala);
         for (const t of absorvidos) {
           t.estado = "interrompido";
           t.motivoInterrupcao = "absorvido";
           t.absorvidoPor = turno.id;
           t.leaseAte = null;
+          t.lidoNaSessaoEm = o.informaLeitura === true ? null : Date.now();
         }
         return absorvidos;
       },
-      async absorverDoTrabalho(turno, ids) {
+      async absorverDoTrabalho(turno, ids, o = {}) {
         if (!turno.trabalhoId || (ids && ids.length === 0)) return [];
         const daFaixa = doTenant(b.turnos).filter((t) => t.id !== turno.id && t.ownerId === escopo.pessoaId && t.trabalhoId === turno.trabalhoId && t.estado === "pendente" && t.mensagemOrigemId);
         const absorvidos = ateOPrimeiroAnexo(daFaixa).filter((t) => !ids || ids.includes(t.id));
@@ -2114,8 +2178,32 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           t.motivoInterrupcao = "absorvido";
           t.absorvidoPor = turno.id;
           t.leaseAte = null;
+          t.lidoNaSessaoEm = o.informaLeitura === true ? null : Date.now();
         }
         return absorvidos;
+      },
+      async marcarLidosNaSessao(turnoId, ids) {
+        const lidos = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.absorvidoPor === turnoId && t.motivoInterrupcao === "absorvido" && !t.lidoNaSessaoEm && ids.includes(t.id));
+        for (const t of lidos) t.lidoNaSessaoEm = Date.now();
+        return lidos.sort((x, y) => x.criadoEm - y.criadoEm);
+      },
+      async devolverNaoLidos(turnoId) {
+        const voltam = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.absorvidoPor === turnoId && t.estado === "interrompido" && t.motivoInterrupcao === "absorvido" && !t.lidoNaSessaoEm && t.mensagemOrigemId);
+        for (const t of voltam) Object.assign(t, { estado: "pendente", motivoInterrupcao: null, absorvidoPor: null, leaseAte: null });
+        return voltam.sort((x, y) => x.criadoEm - y.criadoEm);
+      },
+      async devolverRecadosParados(trabalhoId) {
+        const voltam = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.trabalhoId === trabalhoId && t.estado === "interrompido" && t.motivoInterrupcao === "parado_pela_pessoa" && t.mensagemOrigemId && !t.despachadoEm && !t.pararSolicitadoEm);
+        for (const t of voltam) Object.assign(t, { estado: "pendente", motivoInterrupcao: null, leaseAte: null });
+        return voltam.sort((x, y) => x.criadoEm - y.criadoEm);
+      },
+      async naoLidaMaisAntiga(turnoId) {
+        const ts = doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.absorvidoPor === turnoId && t.estado === "interrompido" && t.motivoInterrupcao === "absorvido" && !t.lidoNaSessaoEm && t.mensagemOrigemId);
+        return ts.length ? Math.min(...ts.map((t) => t.criadoEm)) : null;
+      },
+      async absorvidosPorVivos(conversaId) {
+        const vivos = new Set(doTenant(b.turnos).filter((t) => t.estado === "pendente" || t.estado === "despachando").map((t) => t.id));
+        return doTenant(b.turnos).filter((t) => t.ownerId === escopo.pessoaId && t.conversaId === conversaId && t.motivoInterrupcao === "absorvido" && t.mensagemOrigemId && t.absorvidoPor && vivos.has(t.absorvidoPor)).sort((x, y) => x.criadoEm - y.criadoEm);
       },
       // ADR-090: o fake não guarda nem aplica a máquina do turno (o reivindicar dele ignora onde o bot trabalha); a regra é
       // coberta só por tests/integration/maquina-do-bot.test.ts, contra o Postgres.
@@ -2156,6 +2244,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         for (const t of doTenant(b.turnos)) {
           if (ids.includes(t.id) && t.estado === "despachando") {
             t.pararSolicitadoEm ??= em;
+            if (t.motivoInterrupcao === "turno_travado") t.motivoInterrupcao = null;
             n += 1;
           }
         }
@@ -2235,8 +2324,8 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async doTrabalho(trabalhoId) {
         return doTenant(b.turnos).filter((t) => t.trabalhoId === trabalhoId).sort((x, y) => x.criadoEm - y.criadoEm);
       },
-      async vincularTrabalho(id, trabalhoId) {
-        const t = doTenant(b.turnos).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.trabalhoId && x.estado === "despachando");
+      async vincularTrabalho(id, trabalhoId, estado = "despachando") {
+        const t = doTenant(b.turnos).find((x) => x.id === id && x.ownerId === escopo.pessoaId && !x.trabalhoId && x.estado === estado);
         if (!t) return null;
         t.trabalhoId = trabalhoId;
         return t;
@@ -2578,9 +2667,33 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       async atualizarEstado(id, estado, retomarEm = null) {
         const r = doTenant(b.rotinas).find((x) => x.id === id);
         if (!r) return null;
+        // Espelha o trigger nod_rotina_limpa_lote (0178): a pausada que volta a ativa perde o lote.
+        if (r.estado === "pausada" && estado === "ativa") r.pausaLote = null;
         r.estado = estado;
         r.retomarEm = estado === "pausada" ? retomarEm : null;
         return r;
+      },
+      async marcarLoteDePausa(ids, loteId, em) {
+        let n = 0;
+        for (const r of doTenant(b.rotinas)) if (ids.includes(r.id) && r.ownerId === escopo.pessoaId && r.estado === "pausada" && r.excluidoEm === null) { r.pausaLote = { id: loteId, em }; n++; }
+        return n;
+      },
+      async listarDoLoteDePausa(loteId) {
+        return doTenant(b.rotinas).filter((r) => r.ownerId === escopo.pessoaId && r.pausaLote?.id === loteId && r.excluidoEm === null);
+      },
+      async podemVoltar(ids) {
+        // Sem geração de bot na memória: volta a que é da dona e não foi excluída.
+        return doTenant(b.rotinas).filter((r) => ids.includes(r.id) && r.ownerId === escopo.pessoaId && r.excluidoEm === null).map((r) => r.id);
+      },
+      async ultimoLoteDePausa() {
+        const marcadas = doTenant(b.rotinas).filter((r) => r.ownerId === escopo.pessoaId && r.pausaLote && r.excluidoEm === null);
+        const ultima = marcadas.sort((a, c) => (c.pausaLote?.em ?? 0) - (a.pausaLote?.em ?? 0))[0];
+        return ultima?.pausaLote ?? null;
+      },
+      async limparLoteDePausa(loteId) {
+        let n = 0;
+        for (const r of doTenant(b.rotinas)) if (r.ownerId === escopo.pessoaId && r.pausaLote?.id === loteId) { r.pausaLote = null; n++; }
+        return n;
       },
       async pausadasParaRetomar(em) {
         return doTenant(b.rotinas).filter((r) => r.ownerId === escopo.pessoaId && r.estado === "pausada" && r.excluidoEm === null && r.retomarEm != null && r.retomarEm <= em);
@@ -2656,6 +2769,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
           ? { turnoId: t.id, instanteAgendado: j.instanteAgendado, estado: t.estado, attempted: t.sinais.attempted, acordarEm: t.acordarEm ?? null, criadoEm: t.criadoEm, trabalhoId: t.trabalhoId ?? null }
           : null;
       },
+      async turnosAbertos(rotinaIds, ref) {
+        const saida = new Map<string, TurnoAbertoDaRotina>();
+        for (const id of new Set(rotinaIds)) {
+          const a = await this.turnoAberto(id, ref);
+          if (a) saida.set(id, a);
+        }
+        return saida;
+      },
       // definido em 2026-10-15 (pacote A3): a execução aberta com o instante da janela (a lista conta os horários pulados).
       async execucaoAberta(rotinaId, ref) {
         const a = await this.turnoAberto(rotinaId, ref);
@@ -2710,6 +2831,14 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       },
       async listar(rotinaId, limite = EXECUCOES_GUARDADAS) {
         return doTenant(b.execucoes).filter((e) => e.rotinaId === rotinaId).sort((x, y) => y.em - x.em || y.id.localeCompare(x.id)).slice(0, limite);
+      },
+      async ultimasDasRotinas(rotinaIds, limite) {
+        const saida = new Map<string, ExecucaoRotina[]>();
+        for (const id of new Set(rotinaIds)) {
+          const ultimas = await this.listar(id, limite);
+          if (ultimas.length > 0) saida.set(id, ultimas);
+        }
+        return saida;
       },
       async dasRotinas(rotinaIds) {
         const ids = new Set(rotinaIds);
@@ -3594,7 +3723,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return { turnoId: t.id, agenteId: t.agenteId, estado: t.estado, custoUsd: t.custoUsd, criadoEm: t.criadoEm, composicao: r?.composicao ?? null, execucao: r?.execucao ?? null };
       },
       async ultimaJanela(conversaId, agenteId, modelo) {
-        const t = doTenant(b.turnos).filter((x) => x.conversaId === conversaId && x.agenteId === agenteId && x.modelo === modelo).sort((x, y) => y.criadoEm - x.criadoEm).slice(0, TURNOS_DA_JANELA)
+        const t = doTenant(b.turnos).filter((x) => x.conversaId === conversaId && x.agenteId === agenteId && (b.raioX.get(x.id)?.composicao?.modelo ?? x.modelo) === modelo).sort((x, y) => y.criadoEm - x.criadoEm).slice(0, TURNOS_DA_JANELA)
           .find((x) => typeof b.raioX.get(x.id)?.execucao?.janela === "number");
         return t ? b.raioX.get(t.id)?.execucao?.janela ?? null : null;
       },
@@ -4019,6 +4148,7 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
     // ADA-241 (0156): padrão por app e lotes são do Postgres (tests/integration/acessos-lote.test.ts); aqui, sem padrão.
     acessos: {
       padrao: async () => "nenhum",
+      padraoEmVigor: async () => "nenhum",
       padroes: async () => [],
       definirPadrao: soNoPostgres,
       marca: async () => null,
@@ -4285,6 +4415,13 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
         return true;
       },
     },
+    // ADR-166: as regras do revisor, os níveis e o teto em memória (o Postgres é provado em tests/integration/ajustes-aprovacao.test.ts).
+    ajustesAprovacao: ajustesEmMemoria(b, escopo),
+    // 0174: VM do Nod, vez na sala, memória de time e passkey são só do Postgres (tests/integration/vm-sala-memoria-passkey.test.ts).
+    vmsDoNod: reposSoNoPostgres("vmsDoNod"),
+    vezNaSala: reposSoNoPostgres("vezNaSala"),
+    memoriaDeTime: reposSoNoPostgres("memoriaDeTime"),
+    passkeys: reposSoNoPostgres("passkeys"),
     // NOD-346: o "Sobre mim" é do Postgres (tests/integration/minha-conta.test.ts); aqui fica vazio.
     perfil: {
       buscar: async () => ({ apelido: null, sobreMim: null, temFoto: false }),
@@ -4298,12 +4435,58 @@ function reposSobre(b: BancoMemoria, escopo: Escopo): Repos {
       gravar: async () => [],
       marcarFalha: async () => false,
       daCadeia: async () => ({ passos: [], fim: true }),
+      doTrabalho: async () => [],
       resumo: async (raizes: readonly string[]) => new Map(raizes.map((r) => [r, { n: 0, ultimo: null }])),
       podar: async () => 0,
     },
   } satisfies Repos;
 
   return repos;
+}
+
+/** ADR-166: Ajustes > Aprovações em memória, um conjunto por banco de mentira. */
+const AJUSTES_EM_MEMORIA = new WeakMap<object, { regras: RegraRevisor[]; niveis: (NivelDeFerramenta & { ownerId: string })[]; tetos: { ownerId: string; teto: TetoModo }[] }>();
+/** Repo que só existe no Postgres: qualquer chamada em memória é erro do teste, nunca um vazio silencioso. */
+function reposSoNoPostgres<K extends "vmsDoNod" | "vezNaSala" | "memoriaDeTime" | "passkeys">(nome: K): Repos[K] {
+  return new Proxy({}, { get: (_, m) => () => { throw new Error(`${nome}.${String(m)} só existe no Postgres`); } }) as Repos[K];
+}
+
+function ajustesEmMemoria(b: object, escopo: Escopo): Repos["ajustesAprovacao"] {
+  const st = AJUSTES_EM_MEMORIA.get(b) ?? { regras: [], niveis: [], tetos: [] };
+  AJUSTES_EM_MEMORIA.set(b, st);
+  return {
+    regras: async () => st.regras.slice(),
+    regrasDaLista: async (agenteId, lista) => st.regras.filter((r) => r.agenteId === agenteId && r.lista === lista),
+    buscarRegra: async (id) => st.regras.find((r) => r.id === id) ?? null,
+    criarRegra: async (r) => {
+      const regra: RegraRevisor = { id: randomUUID(), criadoEm: Date.now() + st.regras.length, ...r };
+      st.regras.push(regra);
+      return regra;
+    },
+    editarRegra: async (id, texto) => {
+      const r = st.regras.find((x) => x.id === id);
+      if (!r) return null;
+      r.texto = texto;
+      return r;
+    },
+    apagarRegra: async (id) => {
+      const i = st.regras.findIndex((x) => x.id === id);
+      if (i < 0) return false;
+      st.regras.splice(i, 1);
+      return true;
+    },
+    niveis: async () => st.niveis.filter((n) => n.ownerId === escopo.pessoaId).map(({ ownerId: _o, ...n }) => n),
+    definirNivel: async (n) => {
+      const i = st.niveis.findIndex((x) => x.ownerId === escopo.pessoaId && x.agenteId === n.agenteId && x.conector === n.conector && x.ferramenta === n.ferramenta && x.tipo === n.tipo);
+      if (i >= 0) st.niveis.splice(i, 1);
+      if (n.nivel !== "revisor") st.niveis.push({ ...n, ownerId: escopo.pessoaId });
+    },
+    teto: async () => tetoMaisFechado(st.tetos.map((t) => t.teto)),
+    definirTeto: async (teto) => {
+      st.tetos = st.tetos.filter((t) => t.ownerId !== escopo.pessoaId);
+      if (teto) st.tetos.push({ ownerId: escopo.pessoaId, teto });
+    },
+  };
 }
 
 /** NOD-374: o estado do disjuntor de um conector em memória (campos opcionais no contrato viram os padrões). */

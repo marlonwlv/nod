@@ -12,8 +12,8 @@ import { iaDoAutomatico, modeloERaciocinio, ordemEfetiva } from "./inteligencia.
 export function validarInteligencia(harness: unknown, modelo: unknown): asserts harness is PreferenciaHarness {
   if (typeof modelo !== "string" || !modelo.trim() || modelo.length > 160 || !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/.test(modelo)) throw new ErroDeDominio("entrada_invalida");
   if (harness === "auto") {
-    // NOD-213: `auto` com um modelo escolhido vale para a IA DONA do modelo (iaDoModelo): o Claude para os do Claude
-    // (a regra de 2026-09-18), o Codex para os GPT. Modelo fora do catálogo continua recusado.
+    // No Automático, um modelo conhecido indica a IA preferida, mas não a fixa: se ela estiver indisponível, a outra
+    // recebe o próprio modelo recomendado. Modelo fora do catálogo continua recusado.
     if (modelo === "auto" || iaDoModelo(modelo) !== null) return;
     throw new ErroDeDominio("entrada_invalida");
   }
@@ -39,19 +39,17 @@ export function causaHarnessIndisponivel(e: unknown): CausaHarnessIndisponivel |
 }
 
 /**
- * O harness em que o turno está fixado; null = `auto`/`auto`, que vai para qualquer harness pronto. NOD-213: o `auto` com
- * modelo escolhido fica na IA DONA do modelo (iaDoModelo: GPT → Codex, Claude → Claude Code); modelo desconhecido, no
- * legado (é o `validarInteligencia` que o recusa, nomeando esse harness).
+ * O harness em que o turno está fixado; null = Automático, que pode usar qualquer harness pronto. Um modelo escolhido
+ * no Automático só ordena a preferência em `resolverHarness`; não autoriza enviar o modelo de uma IA para outra.
  */
-export function harnessFixado(harness: string | undefined, modelo: string): IdHarness | null {
+export function harnessFixado(harness: string | undefined, _modelo: string): IdHarness | null {
   const pedido = harness ?? "auto";
-  if (pedido !== "auto") return pedido as IdHarness;
-  return modelo === "auto" ? null : (iaDoModelo(modelo) ?? HARNESS_LEGADO);
+  return pedido === "auto" ? null : pedido as IdHarness;
 }
 
 /**
- * A IA, o modelo e o raciocínio do turno (revisto em 2026-10-10, emenda da ADR-036). Fixado (o bot em "Uma IA só", ou o
- * `auto` antigo com modelo do Claude): aquela IA, pronta ou nada. Automático: a primeira PRONTA da `ordem` (a do bot, a
+ * A IA, o modelo e o raciocínio do turno (revisto em 2026-10-10, emenda da ADR-036). Fixado (o bot em "Uma IA só"):
+ * aquela IA, pronta ou nada. Automático: a primeira PRONTA da `ordem` (a do bot, a
  * da pessoa ou a padrão) fora do limite (`noLimite`); todas no limite = a primeira pronta (iaDoAutomatico). Sem `ordem`,
  * vale a padrão com o `preferido` na frente. O modelo `auto` vira a escolha do bot para a IA, senão o recomendado
  * (Opus / GPT-5.6 Sol); o raciocínio vem da escolha, senão o médio, sempre um nível que o modelo aceita.
@@ -67,7 +65,14 @@ export function resolverHarness(p: { harness?: PreferenciaHarness; modelo: strin
     }
     throw e;
   }
-  const ordem = p.ordem ?? ordemEfetiva({ preferido: p.preferido });
+  const ordemBase = p.ordem ?? ordemEfetiva({ preferido: p.preferido });
+  // No Automático, o modelo escolhido é uma preferência, não uma trava de fornecedor. Isto importa sobretudo para
+  // agentes antigos, que guardavam `auto` + `sonnet`: se o Claude está no limite ou fora do ar, o Codex precisa receber
+  // o seu próprio modelo recomendado, nunca a string `sonnet`. Uma IA explicitamente fixada continua sem fallback.
+  const iaPreferidaPeloModelo = pedido === "auto" ? iaDoModelo(p.modelo) : null;
+  const ordem = iaPreferidaPeloModelo
+    ? [iaPreferidaPeloModelo, ...ordemBase.filter((ia) => ia !== iaPreferidaPeloModelo)]
+    : ordemBase;
   // NOD-285 (K1): com anexo, o Automático só considera a IA pronta que lê TODOS os tipos (o `noLimite` continua valendo
   // entre elas). A IA fixa já foi conferida na entrada (enviar-mensagem) e segue a regra de antes.
   const tipos = [...new Set(p.tiposDeAnexo ?? [])];
@@ -79,7 +84,8 @@ export function resolverHarness(p: { harness?: PreferenciaHarness; modelo: strin
   }
   const escolhido = fixo ?? iaDoAutomatico({ ordem, prontos, noLimite: p.noLimite });
   if (!escolhido || !p.prontos.includes(escolhido)) throw new ErroDeDominio("executor_indisponivel", { cause: escolhido ? ({ harness: escolhido } satisfies CausaHarnessIndisponivel) : undefined });
-  return { harness: escolhido, ...modeloERaciocinio(escolhido, p.escolhas, p.modelo) };
+  const modeloDoEscolhido = pedido === "auto" && iaPreferidaPeloModelo !== escolhido ? "auto" : p.modelo;
+  return { harness: escolhido, ...modeloERaciocinio(escolhido, p.escolhas, modeloDoEscolhido) };
 }
 
 /** O modelo mais potente do harness (MODELO_MAIS_POTENTE); null para harness ainda sem catálogo. */

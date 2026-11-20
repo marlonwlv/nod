@@ -14,7 +14,7 @@ const T = "22222222-2222-4222-8222-222222222222";
 
 describe("o código da tarefa na resposta do bot (NOD-430)", () => {
   it("vira o botão que abre a tarefa no quadro do dono", () => {
-    expect(textoFormatado(`Criei [NOD-12](nod-tarefa:${ENG}:${T}).`)).toBe(`Criei <button type="button" class="md-midia-link md-tarefa-link" data-act="abrir-tarefa-quadro" data-agente="${ENG}" data-tarefa="${T}" aria-label="Abrir tarefa NOD-12 no quadro">NOD-12</button>.`);
+    expect(textoFormatado(`Criei [NOD-12](nod-tarefa:${ENG}:${T}).`)).toBe(`Criei <button type="button" class="md-midia-link md-tarefa-link" data-act="abrir-tarefa-quadro" data-agente="${ENG}" data-tarefa="${T}" aria-label="Abrir o card NOD-12 no quadro">NOD-12</button>.`);
   });
   it("id que não é uuid fica como o bot escreveu", () => {
     expect(textoFormatado("[x](nod-tarefa:abc:def)")).not.toContain("data-act");
@@ -29,7 +29,7 @@ describe("card de excluir o quadro (NOD-430)", () => {
     expect(h).toContain("Excluir o quadro do EngApp");
     // ADA-14: com N quadros, o card diz qual (o sem nome segue "o quadro do EngApp").
     expect(renderCardQuadroExclusao({ id: "p1", estado: "pendente" }, { ...PAYLOAD, quadroNome: "Site" }, true)).toContain("Excluir o quadro &quot;Site&quot; do EngApp");
-    expect(h).toContain("Sai: 12 tarefas, 5 colunas, a meta e o histórico");
+    expect(h).toContain("Sai: 12 cards, 5 colunas, a meta e o histórico");
     expect(h).toContain("Fica: a conversa e a memória do EngApp");
     expect(h).toContain("Não dá para desfazer.");
     expect(h).toMatch(/data-act="decidir-proposta"[^>]*>Excluir</);
@@ -37,7 +37,7 @@ describe("card de excluir o quadro (NOD-430)", () => {
   });
   it("decidido: sem botões, com o desfecho", () => {
     const sim = renderCardQuadroExclusao({ id: "p1", estado: "confirmada" }, { ...PAYLOAD, tarefas: 1, colunas: 1, temMeta: false }, false);
-    expect(sim).toContain("Sai: 1 tarefa, 1 coluna e o histórico");
+    expect(sim).toContain("Sai: 1 card, 1 coluna e o histórico");
     expect(sim).toContain("Quadro excluído. EngApp voltou a ser um agente comum.");
     expect(sim).not.toContain("data-act");
     expect(renderCardQuadroExclusao({ id: "p1", estado: "recusada" }, PAYLOAD, false)).toContain("Quadro mantido.");
@@ -74,10 +74,11 @@ describe("assinatura na tarefa aberta (NOD-430)", () => {
     expect(h).toContain("Você, pela Ada");
     expect(h.split("Você, pela Ada").length - 1).toBe(1);
   });
-  it("quem criou a tarefa vem antes dos comentários", () => {
+  it("quem criou o card vem antes dos comentários", () => {
     const h = linha([com({ criadoEm: 120_000 })], { criadaPor: "Você, pela Ada", criadaEm: 60_000 });
-    expect(h).toContain("<b>Você, pela Ada</b> criou a tarefa");
-    expect(h.indexOf("criou a tarefa")).toBeLessThan(h.indexOf("Olhei"));
+    // Rodada 4 (tela 18b): a criação é um evento do quadro; quem criou é o bot quando foi "Você, pela Ada".
+    expect(h).toContain('<p class="ta-ev-txt">Ada criou o card.</p>');
+    expect(h.indexOf("criou o card")).toBeLessThan(h.indexOf("Olhei"));
   });
   it("revisão 1: a hora do comentário leva o datetime ISO no <time>", () => {
     const em = Date.UTC(2026, 10, 2, 13, 6);

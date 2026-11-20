@@ -29,7 +29,7 @@ import { sincronizarPrsDoQuadro } from "../../use-cases/prs-do-quadro.ts";
 import { executar } from "./rotas/dentro-de-tx.ts";
 import { limiteDoAmbiente } from "../../domain/computador.ts";
 import { iniciarVarredorExpiracao } from "../fundo/varredor-expiracao.ts";
-import { INTERVALO_VARREDOR_LEASE_MS, iniciarVarredorLease } from "../fundo/varredor-lease.ts";
+import { INTERVALO_VARREDOR_LEASE_MS, iniciarVarredorLease, lerTetoBastidoresMs } from "../fundo/varredor-lease.ts";
 import { comporApp, type App, type AtivarDriver, type EnvApp, type OpcoesCompor } from "./compor.ts";
 import { lerModelosLigacao } from "../../domain/modelo-ligacao.ts";
 import { lerDominiosAdmitidos } from "../../domain/dominios-admitidos.ts";
@@ -91,6 +91,8 @@ export type OpcoesBoot = {
   capturador?: OpcoesCompor["capturador"];
   /** NOD-132, só em teste: o assinador falso da URL do ZIP (vale com NOD_APP_VERSAO_PUBLICADA). Default: signBlob do IAM. */
   assinadorAtualizacaoApp?: OpcoesCompor["assinadorAtualizacaoApp"];
+  /** ADR-115, só em teste: a API falsa do revisor (o e2e das regras do Automático, ADR-166). Default: a da Anthropic. */
+  revisor?: OpcoesCompor["revisor"];
 };
 
 /** `lacos_prazo_vencido` (NOD-331): parar os laços de fundo passou de `PRAZO_PARAR_LACOS_MS` e a drenagem seguiu. */
@@ -206,7 +208,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
 
   // 2. composição + 3. listen (a URL do servidor é insumo do driver catcher e do claude-cli).
   let canaisVoz: { fechar(): Promise<void> } | null = null;
-  const app = comporApp({ db, computador: o.computador, voz: o.voz, env: { ...env, NOD_MACHINE_ID: machineId, NOD_HOST: o.host ?? env.NOD_HOST }, relogio: agora, listarPessoas: o.listarPessoas, redeMs: o.redeMs, inicioDoProcesso, capturador: o.capturador, assinadorAtualizacaoApp: o.assinadorAtualizacaoApp });
+  const app = comporApp({ db, computador: o.computador, voz: o.voz, env: { ...env, NOD_MACHINE_ID: machineId, NOD_HOST: o.host ?? env.NOD_HOST }, relogio: agora, listarPessoas: o.listarPessoas, redeMs: o.redeMs, inicioDoProcesso, capturador: o.capturador, assinadorAtualizacaoApp: o.assinadorAtualizacaoApp, revisor: o.revisor });
   // NOD-267 (emenda à ADR-017): a saúde olha o banco e, só no compartilhado, o batimento do agendador e do varredor de
   // lease — no Mac, acordar do sono deixaria o batimento velho e daria 503 falso. A rota e o watchdog usam a MESMA
   // verificação, para compartilharem o `select 1` em voo.
@@ -368,16 +370,24 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
       opcoes: {
         listarPessoas: o.listarPessoas,
         prazoDecisaoMs: Number(env.NOD_PRAZO_DECISAO_MS) || undefined,
+        tetoBastidoresMs: lerTetoBastidoresMs(env.NOD_TETO_BASTIDORES_MS),
         // Só no compartilhado: no modo local o servidor É o nod no Mac — reiniciar é "nod fechado".
         ...(app.compartilhado ? { inicioDoProcesso, ultimoContato: (id: string) => app.ultimoContatoDaMaquina(id) } : {}),
       },
       // ADR-067: o token sem relógio some junto com o turno que o lease encerrou.
-      aoInterromper: (ids) => { for (const id of ids) app.services.tokenTurno.revogar(id); },
+      aoInterromper: async (ids) => {
+        // NOD-452: no executor local, espera o SIGTERM antes de o tick terminar; no remoto a renovação vê a marca no banco.
+        await Promise.all(ids.map(async (id) => {
+          try { await app.services.interruptor.interromper(id); }
+          catch (e) { log("aviso", "interrupcao_do_varredor_falhou", { turno_id: id, erro: e instanceof Error ? e.name : "desconhecido" }); }
+          finally { app.services.tokenTurno.revogar(id); }
+        }));
+      },
       aoBater: batimentos.registrar("varredor_lease", iv.leaseMs ?? INTERVALO_VARREDOR_LEASE_MS),
     });
     varredorExpiracao = iniciarVarredorExpiracao(db, { services: app.services, useCases: app.useCases, agora, intervaloMs: iv.expiracaoMs, executor: () => app.executor }, { listarPessoas: o.listarPessoas });
     // NOD-170: só com computadores ligados; NOD_COMPUTADOR_OCIOSO_MIN=0 não sobe o laço.
-    if (app.computadores) varredorOciosidade = iniciarVarredorOciosidade({ db, computadores: app.computadores, ociosoMin: limiteDoAmbiente(env).ociosoMin, intervaloMs: iv.ociosidadeMs, opcoes: { listarPessoas: o.listarPessoas } });
+    if (app.computadores) varredorOciosidade = iniciarVarredorOciosidade({ db, computadores: app.computadores, ociosoMin: limiteDoAmbiente(env).ociosoMin, intervaloMs: iv.ociosidadeMs, opcoes: { listarPessoas: o.listarPessoas }, presente: (pessoaId) => app.barramento.inscritos(pessoaId) > 0 });
     despachante = iniciarDespachanteOutbox(db, app.barramento, { intervaloMs: iv.outboxMs, listarPessoas: o.listarPessoas, presenca: app.services.maquinas });
     varredorMaquinas = app.iniciarVarredorMaquinas(o.varredorMaquinasMs);
     // NOD-346: só com NOD_MINHA_CONTA (a exportação e, com NOD_PURGA_CONTA, a purga).

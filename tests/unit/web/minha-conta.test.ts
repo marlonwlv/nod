@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { MinhaContaDto } from "../../../src/contracts/minha-conta.ts";
 import { ErroApi } from "../../../web/lib/erro-api.ts";
@@ -58,6 +59,12 @@ async function aberto(api: Partial<ApiMinhaConta>, inicial?: MinhaContaDto, extr
 }
 
 describe("Minha conta: perfil", () => {
+  it("QA: no celular, todo botão e o seletor de foto têm alvo de toque de 44 px", () => {
+    const css = readFileSync(new URL("../../../web/conta.css", import.meta.url), "utf8");
+    const celular = css.slice(css.indexOf("@media (max-width: 760px)"), css.indexOf("@media (prefers-reduced-motion"));
+    expect(celular).toContain(".conta-pagina button, .conta-pagina .mc-foto { min-height: 44px; }");
+  });
+
   it("carrega, mostra as três abas, as iniciais e o Sobre mim; salvar diz que vale no próximo turno", async () => {
     const salvarPerfil = vi.fn(async (p: { nome: string; sobreMim: string }) => ({ nome: p.nome, sobreMim: p.sobreMim, temFoto: false }));
     const { c, html } = await aberto({ salvarPerfil });

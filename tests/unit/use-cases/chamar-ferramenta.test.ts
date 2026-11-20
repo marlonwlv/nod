@@ -489,6 +489,10 @@ describe("validação pelo subconjunto JSON Schema", () => {
     expect(validarArgsNod("pedir_acesso", { conector: "x", capacidades: [], nivel: "leitura", nao_pedido: [] })).toMatchObject({ ok: true });
     expect(validarArgsNod("pedir_acesso", { conector: "x", capacidades: [1], nivel: "raiz", nao_pedido: [] })).toMatchObject({ ok: false });
     expect(validarArgsNod("pedir_aprovacao", { resumo: "r", itens: [{ texto: "t", destino: { conector: "c", ferramenta: "f", argumentos: { livre: true } } }] }).ok).toBe(true);
+    for (const conector of ["computador", "terminal"]) {
+      expect(validarArgsNod("pedir_aprovacao", { resumo: "r", itens: [{ texto: "t", destino: { conector, ferramenta: "executar", argumentos: {} } }] }))
+        .toMatchObject({ ok: false, erros: ["$.itens[0].destino.conector: valor não permitido"] });
+    }
     expect(validarArgsNod("pedir_aprovacao", { resumo: "r", itens: [{ texto: "t", destino: { conector: "c", ferramenta: "f" } }] })).toMatchObject({ ok: false, erros: ["$.itens[0].destino.argumentos: obrigatório"] });
     expect(errosDoSchema({ type: "array", minItems: 1, items: { type: "string" } }, [])).toEqual(["$: mínimo 1 itens"]);
     // definido em 2026-09-24 (emenda da ADR-045): o teto que o subconjunto expõe (opcoes de pedir_a_pessoa) também valida.

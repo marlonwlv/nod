@@ -25,9 +25,9 @@ const JA: Record<PedidoBarra, string> = {
   normal: "A barra lateral já está no normal",
 };
 const NOTA: Record<PedidoBarra, string> = {
-  compacta: "Linhas mais baixas, sem a prévia da última mensagem. Vale só para este computador.",
-  so_avatares: "A barra fica só com os mascotes; arraste a borda para a direita para abrir de novo. Vale só para este computador.",
-  normal: "A barra volta à Confortável, com a prévia das mensagens. Vale só para este computador.",
+  compacta: "A barra fica estreita, em 240 px; arraste a borda para mudar. Vale só para este computador.",
+  so_avatares: "A barra fica só com os mascotes; ⌘B ou arrastar a borda para a direita abre de novo. Vale só para este computador.",
+  normal: "A barra volta aberta, na última largura que você deixou. Vale só para este computador.",
 };
 const PEDIDOS = new Set<string>(["compacta", "so_avatares", "normal"]);
 

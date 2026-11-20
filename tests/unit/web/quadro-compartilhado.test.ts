@@ -50,7 +50,7 @@ describe("o gate da participante", () => {
     expect(podeMudarStatus(quadro, vezDaAna)).toBe(false);
     expect(podeResponder(quadro, t("6"))).toBe(false);
     // QA: a frase não promete o select que não aparece.
-    expect(linhaDaTarefaAlheia(quadro, { ...vezDaAna, pedidoPor: ANA })).toBe("Tarefa da Ana: você comenta");
+    expect(linhaDaTarefaAlheia(quadro, { ...vezDaAna, pedidoPor: ANA })).toBe("Card da Ana: você comenta");
     // G6: a que espera alguém sem `decide` (o servidor não disse quem): ninguém de fora muda o status.
     expect(podeMudarStatus(quadro, t("7", { status: "fazendo", voltarPara: "fazendo", esperaPessoa: true, pergunta: "?" }))).toBe(false);
   });
@@ -66,7 +66,7 @@ describe("o gate da participante", () => {
     expect(podePedir(quadro)).toBe(false);
     expect(campoDePedir(quadro)).toEqual({ tipo: "recado", placeholder: "Deixar recado para Marlon", botao: "Deixar recado" });
     expect(textoDoVazio(quadro)).toBe("Nada no quadro do Marlon ainda. Deixe um recado.");
-    expect(linhaDaTarefaAlheia(quadro, daAna)).toBe("Tarefa da Ana: você comenta");
+    expect(linhaDaTarefaAlheia(quadro, daAna)).toBe("Card da Ana: você comenta");
   });
 
   it("desfaz só o lote dela (o servidor diz em voce.podeDesfazer) e nunca o já desfeito", () => {
@@ -94,8 +94,8 @@ describe("o gate da participante", () => {
   it("a linha da tarefa alheia diz de quem é; na dela, nenhuma", () => {
     const quadro = q([minha, daAna, daDona]);
     expect(linhaDaTarefaAlheia(quadro, minha)).toBeNull();
-    expect(linhaDaTarefaAlheia(quadro, daAna)).toBe("Tarefa da Ana: você muda o status e comenta");
-    expect(linhaDaTarefaAlheia(quadro, daDona)).toBe("Tarefa da Marlon: você muda o status e comenta");
+    expect(linhaDaTarefaAlheia(quadro, daAna)).toBe("Card da Ana: você muda o status e comenta");
+    expect(linhaDaTarefaAlheia(quadro, daDona)).toBe("Card da Marlon: você muda o status e comenta");
     expect(donoDaTarefa(quadro, t("9", { pedidoPor: "quem-saiu" }))).toBe("outra pessoa");
     // Quem pediu e saiu: o servidor ainda manda o nome.
     expect(donoDaTarefa(quadro, t("9", { pedidoPor: "quem-saiu", pedidoPorNome: "Caio" }))).toBe("Caio");

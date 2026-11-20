@@ -18,7 +18,7 @@ const MARLON = { tenantId: TENANT_PADRAO, pessoaId: PESSOA_MARLON };
 const T0 = Date.parse("2026-10-20T09:00:00-03:00");
 /** Depois do lease do turno reivindicado em T0: o varredor só lê vencidos. */
 const VENCIDO = T0 + LEASE_MS + 60_000;
-const FRASE_REMOVIDA = "Turno interrompido: a máquina foi removida; a frente parou. O que já saiu fica marcado como parcial; nada foi reenviado.";
+const FRASE_REMOVIDA = "Turno interrompido: a máquina foi removida; a tarefa parou. O que já saiu fica marcado como parcial; nada foi reenviado.";
 
 async function chaveDe(repos: Repos, nome: string): Promise<string> {
   const c = await repos.maquinaTokens.criar({ nome, prefixo: randomBytes(4).toString("hex"), hash: randomBytes(32) });

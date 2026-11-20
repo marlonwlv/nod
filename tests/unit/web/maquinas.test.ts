@@ -137,6 +137,13 @@ describe("Seu espaço › Máquinas (ADR-090)", () => {
     expect(renderMaquinas({ ...com([]), maquinas: null })).toContain("Verificando…");
   });
 
+  it("QA: enquanto uma chave está sendo gerada, o formulário bloqueia outro envio", () => {
+    const base = com([]);
+    const html = renderMaquinas({ ...base, ocupado: true, configUi: { ...base.configUi, abertos: ["chave-manual"] } });
+    expect(html).toMatch(/name="nome"[^>]* disabled/);
+    expect(html).toContain('type="submit" disabled aria-busy="true">Gerando…');
+  });
+
   it("a máquina do bot é a dele, senão o padrão da pessoa, senão nenhuma", () => {
     const e = com([maquina("vm", "vm-sp"), maquina("mac", "MacBook")], { padraoId: "mac" });
     expect(maquinaDoBot(e, { maquinaId: "vm" })?.id).toBe("vm");
