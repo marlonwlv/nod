@@ -265,6 +265,7 @@ import { gavetaPrendeFoco, irmaosAteARaiz, seletoresDaOrigem, voltaDoTab } from 
 import type { Ligacao } from "../src/contracts/ligacao.ts";
 import type { MotivoAvaliacaoLigacao } from "./lib/api.ts";
 import { aceitaDoBot } from "./lib/capacidades.ts";
+import { FRASE_CREDENCIAIS_INVALIDAS, lerCredenciaisJson } from "./lib/credenciais-json.ts";
 import { mimeDe, motivoRecusa, POR_MENSAGEM, renderItens as renderItensAnexo, resumo as resumoAnexos, retirarDaFila, contarNaFila, prontosDaFila, soltarEhDoChat, seletorDoClipe, type Aceita, type ItemAnexo } from "./lib/anexos.ts";
 import type { EstadoTrabalho, TipoLinha } from "../src/contracts/trabalho.ts";
 import { ajusteDoHash, ajustePorId, linkDoAjuste } from "./lib/ajustes.ts";
@@ -10077,9 +10078,8 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
   }),
   "credenciais-conector": (form) => agir(async () => {
     const d = new FormData(form);
-    let env: Record<string, string>;
-    try { env = JSON.parse(String(d.get("env") ?? "{}")) as Record<string, string>; }
-    catch { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: "Informe as credenciais como um objeto JSON válido." } }); return; }
+    const env = lerCredenciaisJson(String(d.get("env") ?? ""), "obrigatorio");
+    if (!env) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: FRASE_CREDENCIAIS_INVALIDAS } }); return; }
     await api!.atualizarCredenciais(form.dataset.id ?? "", env);
     form.reset();
     dispatch({ tipo: "invalidar", quais: ["conectores"] });
@@ -10088,9 +10088,8 @@ const FORMS: Record<string, (form: HTMLFormElement) => Promise<void>> = {
     agir(async () => {
       const d = new FormData(form);
       const args = String(d.get("args") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
-      let env: Record<string, string> = {};
-      const envTexto = String(d.get("env") ?? "").trim();
-      if (envTexto) env = JSON.parse(envTexto) as Record<string, string>;
+      const env = lerCredenciaisJson(String(d.get("env") ?? ""), "vale-vazio");
+      if (!env) { dispatch({ tipo: "erro", erro: { codigo: "entrada_invalida", mensagem: FRASE_CREDENCIAIS_INVALIDAS } }); return; }
       await api!.registrarConector({ nome: d.get("nome"), slug: d.get("slug"), transporte: d.get("transporte"), comando: String(d.get("comando") ?? "") || null, args, url: String(d.get("url") ?? "") || null, env, declaracao: d.get("declaracao") });
       form.reset();
       dispatch({ tipo: "invalidar", quais: ["conectores"] });
