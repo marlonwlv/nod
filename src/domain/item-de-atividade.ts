@@ -53,7 +53,7 @@ const ROTULO: Readonly<Record<Assunto, string>> = {
   "negacao.terminal": "Negado",
   "negacao.plano_ausente": "IA indisponível",
   "ia.trocada": "Trocou de IA",
-  "ia.troca": "A IA das tasks chegou ao limite",
+  "ia.troca": "A IA das tarefas chegou ao limite",
   "ia.limite_do_plano": "Limite da IA",
   "ia.fala_espera": "Mensagem esperando a IA",
   "conta.trocada": "Trocou de conta",
@@ -68,13 +68,13 @@ const ROTULO: Readonly<Record<Assunto, string>> = {
   "computador.em_operacao": "Computador em manutenção",
   "computador.tela_fechada": "Fechou a tela do computador",
   "computador.senha_preenchida": "Preencheu a senha salva",
-  "trabalho.aberto": "Abriu uma task",
-  "frentes.abertas": "Começou frentes",
-  "frentes.terminadas": "Frentes terminaram",
-  "frentes.recado": "Recado a uma frente",
+  "trabalho.aberto": "Abriu uma tarefa",
+  "frentes.abertas": "Começou tarefas",
+  "frentes.terminadas": "Tarefas terminaram",
+  "frentes.recado": "Recado a uma tarefa",
   "pedido.respondido": "Respondeu a um pedido",
   "memoria.anotada": "Anotou na memória",
-  "memoria.task_fechada": "Fechou uma task para liberar memória",
+  "memoria.task_fechada": "Fechou uma tarefa para liberar memória",
   compactacao: "Conversa compactada",
   "arquivos.desfeitos": "Desfez os arquivos de um turno",
   "proposta.decidida": "Proposta decidida",
@@ -85,8 +85,8 @@ const ROTULO: Readonly<Record<Assunto, string>> = {
   "acesso.automatico": "Acesso pela aprovação automática",
   "decisao.vencida": "Pedido vencido",
   "sistema.generico": "Aviso do sistema",
-  "tarefa.precisa": "Tarefa precisa de você",
-  "tarefa.resultado": "Terminou uma etapa da tarefa",
+  "tarefa.precisa": "Card precisa de você",
+  "tarefa.resultado": "Terminou uma etapa do card",
   "bastidor.turno_falhou": "Turno de bastidor interrompido",
   "bastidor.turno_orfao": "Pedido de bastidor tirado da fila",
   "bastidor.lote_retorno_caiu": "O retorno do lote caiu",
@@ -113,11 +113,11 @@ function tituloDoPayload(m: Mensagem): string | null {
     case "negacao":
       return p.classe === "conector_indisponivel" ? `${p.nome} indisponível` : p.classe === "plano_ausente" ? ROTULO["negacao.plano_ausente"] : `${p.nome} negada`;
     case "trabalho_aberto":
-      return `Abriu a task ${p.titulo}`;
+      return `Abriu a tarefa ${p.titulo}`;
     case "frentes_abertas":
-      return p.frentes.length === 1 ? `Começou a frente ${p.frentes[0]?.titulo ?? ""}`.trim() : `Começou ${p.frentes.length} frentes`;
+      return p.frentes.length === 1 ? `Começou a tarefa ${p.frentes[0]?.titulo ?? ""}`.trim() : `Começou ${p.frentes.length} tarefas`;
     case "frentes_terminadas":
-      return p.frentes.length === 1 ? `A frente ${p.frentes[0]?.titulo ?? ""} terminou` : `${p.frentes.length} ${plural(p.frentes.length, "frente terminou", "frentes terminaram")}`;
+      return p.frentes.length === 1 ? `A tarefa ${p.frentes[0]?.titulo ?? ""} terminou` : `${p.frentes.length} ${plural(p.frentes.length, "tarefa terminou", "tarefas terminaram")}`;
     case "recado_a_frente":
       return `Repassou um recado a ${p.titulo}`;
     case "pedido_respondido":
@@ -226,7 +226,7 @@ export function itensDoTrabalho(t: { id: string; titulo: string; forma: "task" |
   const itens: ItemDeAtividade[] = [];
   const alvo = { trabalhoId: t.id };
   if (t.criadoEm >= faixa.ini && t.criadoEm < faixa.fim) {
-    itens.push({ id: `trabalho:${t.id}:comecou`, em: t.criadoEm, categoria: "frentes", titulo: t.forma === "frente" ? `Começou a frente ${t.titulo}` : `Abriu a task ${t.titulo}`, detalhe: ORIGEM[t.origem] ?? null, alvo });
+    itens.push({ id: `trabalho:${t.id}:comecou`, em: t.criadoEm, categoria: "frentes", titulo: t.forma === "frente" ? `Começou a tarefa ${t.titulo}` : `Abriu a tarefa ${t.titulo}`, detalhe: ORIGEM[t.origem] ?? null, alvo });
   }
   if (t.terminadoEm !== null && t.terminadoEm >= faixa.ini && t.terminadoEm < faixa.fim) {
     // terminado_em só existe nos estados finais (CHECK trabalho_terminado, 0063): terminado, parado e falhou.

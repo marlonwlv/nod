@@ -21,3 +21,14 @@ export function rolagemDaBarra(p: { anterior: number; altura: number; linha: Fai
   if (p.linha.base > p.anterior + p.altura) return Math.max(0, p.linha.base - p.altura + margem);
   return p.anterior;
 }
+
+/**
+ * COP-12 (spec da barra, "rolável com fade nas bordas"): de que lado a lista tem conteúdo escondido. A máscara só
+ * dissolve a borda que esconde algo; no topo da lista a primeira linha (os fixados) aparece inteira. `folga` absorve o
+ * scrollTop fracionário do zoom (a base nunca chega exata a scrollHeight − clientHeight).
+ */
+export function bordasDaLista(p: { rolagem: number; altura: number; total: number; folga?: number }): { topo: boolean; base: boolean } {
+  const folga = p.folga ?? 1;
+  if (p.altura <= 0 || p.total <= p.altura + folga) return { topo: false, base: false };
+  return { topo: p.rolagem > folga, base: p.rolagem + p.altura < p.total - folga };
+}

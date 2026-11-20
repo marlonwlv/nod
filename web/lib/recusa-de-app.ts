@@ -7,7 +7,7 @@ import { ErroApi } from "./erro-api.ts";
  * que não diz o que fazer. O limite é o da ADR-146 (12 páginas além da Conversa, Tarefas conta).
  */
 const FRASE: Readonly<Record<MotivoRecusaApp, string>> = {
-  limite_de_apps: "Este app não cabe de volta: o bot já está no limite de 12 páginas (Tarefas conta). Remova outro app e peça na conversa para trazer este.",
+  limite_de_apps: "Este app não cabe de volta: o bot já está no limite de 12 páginas (Quadro conta). Remova outro app e peça na conversa para trazer este.",
   nome_em_uso: "Este app não volta: outro app do bot já usa o nome. Renomeie aquele pela conversa e peça para trazer este.",
   conversa_fica: "A Conversa fica sempre na pílula; dá só para mudar de lugar.",
 };
@@ -17,7 +17,7 @@ const FRASE: Readonly<Record<MotivoRecusaApp, string>> = {
  * enquanto o card esperava) volta com o mesmo `motivo`; a frase diz que o app não foi criado e o que fazer.
  */
 const FRASE_DO_CARD: Readonly<Partial<Record<MotivoRecusaApp, string>>> = {
-  limite_de_apps: "O app não foi criado: o bot já está no limite de 12 páginas (Tarefas conta). Remova um app e peça de novo na conversa.",
+  limite_de_apps: "O app não foi criado: o bot já está no limite de 12 páginas (Quadro conta). Remova um app e peça de novo na conversa.",
   nome_em_uso: "O app não foi criado: outro app do bot já usa esse nome. Peça de novo na conversa com outro nome.",
 };
 

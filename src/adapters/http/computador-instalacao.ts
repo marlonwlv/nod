@@ -15,9 +15,12 @@
  * (nod-pc-arquivos) para trocar arquivos com os bots.
  */
 
+import { ARQUIVOS_DO_SHELL_VISUAL, VERSAO_SHELL_VISUAL } from "../../../infra/computador/shell-visual-distribuicao.mjs";
+
 /** Os arquivos do computador em dist/motor (servidos em /api/motor/arquivos/<nome> só com a flag). */
-export const ARQUIVOS_DO_COMPUTADOR = ["computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"] as const;
-export type ArquivoDoComputador = (typeof ARQUIVOS_DO_COMPUTADOR)[number];
+const CODIGO_DO_COMPUTADOR = ["computador-supervisor.mjs", "computador-tela.mjs", "computador-terminal.mjs"] as const;
+export const ARQUIVOS_DO_COMPUTADOR: readonly string[] = [...CODIGO_DO_COMPUTADOR, ...Object.keys(ARQUIVOS_DO_SHELL_VISUAL)];
+export type ArquivoDoComputador = string;
 
 /** A versão do playwright-core do supervisor (a mesma de infra/computador/package.json; um teste confere). */
 export const PLAYWRIGHT_DO_COMPUTADOR = "1.63.0";
@@ -30,7 +33,7 @@ export const PLAYWRIGHT_DO_COMPUTADOR = "1.63.0";
 export const PACOTES_DO_COMPUTADOR = [
   "xvfb", "openbox", "xdotool", "xclip", "scrot", "x11vnc", "dbus-x11", "gnome-keyring", "libsecret-tools", "pulseaudio", "ffmpeg",
   "fonts-liberation", "fonts-noto-color-emoji", "bubblewrap",
-  "tint2", "pcmanfm", "xfce4-terminal", "adwaita-icon-theme", "x11-xserver-utils",
+  "tint2", "pcmanfm", "xfce4-terminal", "adwaita-icon-theme", "x11-xserver-utils", "feh",
 ] as const;
 
 /**
@@ -103,6 +106,9 @@ Environment=NOD_PC_RAIZ=/var/lib/nod-computador
 Environment=NOD_PC_RUN=/run/nod-computador-pc
 Environment=NOD_PC_TERMINAL=/run/nod-computador/term.sock
 Environment=NOD_PC_TELA=/opt/nod-motor/computador/tela.mjs
+Environment=NOD_SHELL_VISUAL=${VERSAO_SHELL_VISUAL}
+Environment=NOD_SHELL_VISUAL_PACOTE=/opt/nod-motor/computador/shell-visual/${VERSAO_SHELL_VISUAL}
+Environment=NOD_SHELL_VISUAL_ESTADO=/var/lib/nod-computador/shell-visual
 Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/nod-motor/chromium
 ExecStart=/opt/nod-motor/node/bin/node /opt/nod-motor/computador/supervisor.mjs
 Restart=always
@@ -149,6 +155,7 @@ const DESTINO: Record<ArquivoDoComputador, string> = {
   "computador-supervisor.mjs": "supervisor.mjs",
   "computador-tela.mjs": "tela.mjs",
   "computador-terminal.mjs": "terminal.mjs",
+  ...Object.fromEntries(Object.entries(ARQUIVOS_DO_SHELL_VISUAL).map(([arquivo, relativo]) => [arquivo, `shell-visual/${VERSAO_SHELL_VISUAL}/${relativo}`])),
 };
 
 /**
@@ -218,13 +225,13 @@ function baixaDoServidor(): string {
 for ARQUIVO in ${ARQUIVOS_DO_COMPUTADOR.join(" ")}; do
   curl -fsSL "$NOD_SERVIDOR/api/motor/arquivos/$ARQUIVO" -o "$BAIXADOS/$ARQUIVO"
 done
-${ARQUIVOS_DO_COMPUTADOR.map((a) => `$SUDO install -o root -g root -m 644 "$BAIXADOS/${a}" "$PASTA/computador/${DESTINO[a]}"`).join("\n")}
+${ARQUIVOS_DO_COMPUTADOR.map((a) => `$SUDO install -D -o root -g root -m 644 "$BAIXADOS/${a}" "$PASTA/computador/${DESTINO[a]}"`).join("\n")}
 rm -rf "$BAIXADOS"
 `;
 }
 
 /** `$ORIGEM` tem os mesmos nomes de dist/motor (computador-*.mjs). */
 function copiaLocal(): string {
-  return `${ARQUIVOS_DO_COMPUTADOR.map((a) => `$SUDO install -o root -g root -m 644 "$ORIGEM/${a}" "$PASTA/computador/${DESTINO[a]}"`).join("\n")}
+  return `${ARQUIVOS_DO_COMPUTADOR.map((a) => `$SUDO install -D -o root -g root -m 644 "$ORIGEM/${a}" "$PASTA/computador/${DESTINO[a]}"`).join("\n")}
 `;
 }

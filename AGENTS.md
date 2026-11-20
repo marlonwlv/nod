@@ -14,6 +14,7 @@ ou remover esse volume sem um pedido explícito de perda total dos dados.
 npm ci                      # Node 24.19.0 (pinado em .mise.toml)
 npm run dev:setup           # sobe o Postgres (127.0.0.1:5434, container nod-postgres), migra nod + nod_test (0001–0010) e roda o seed em nod
 npm run dev                 # api 8888 + web 5274 (5173 e 5432 são de OUTROS projetos: nunca use); executor catcher por default
+npm run test:unit           # projetos unit (node) e componentes (React em happy-dom, tests/unit/**/*.test.tsx; ADR-179: região inteira, sem data-act, CSS só com tokens)
 npm run check               # lint → typecheck → fence:domain → fence:migrations → unit → integration → conformidade → concurrency → db:test:limpar
 npm run diario:prod         # Nod diário sem modo dev (#218): build da web + só a API, que serve a página em 127.0.0.1:8888 (docs/ambiente-local-persistente.md)
 npm run e2e:fumaca          # doze jornadas sobre o servidor completo com catcher (tests/concurrency/e2e-catcher.test.ts), custo zero
@@ -144,6 +145,13 @@ feature que estavam corretos (docs/praticas-herdadas.md §8). Se algo falhar sem
   O compilador guarda a pureza (`tsconfig.domain.json`); o eslint guarda a direção entre camadas.
 - **`src/services` é SEM BANCO.** Laço de fundo que abre transação mora em `src/adapters/fundo/` e
   passa por `paraCadaPessoa`.
+- **`:has()` nunca termina num sujeito largo** (ADR-189). Com um `:has()` antes do sujeito, o sujeito nomeia o que
+  estiliza por classe, id ou atributo — não `*`, `:not(…)` sozinho, só uma tag ou `::placeholder`. Medido em 2026-11-19:
+  uma regra assim fazia cada nó novo (o mascote repintando, o bloco da fala) recalcular o estilo da página inteira
+  (~40 mil elementos, ~180 ms), e era o que travava a tecla no campo com bots trabalhando. Estado da página inteira vira
+  classe no `<html>` posta pelo JS. `tests/unit/web/css-has-sem-sujeito-universal.test.ts` varre o CSS e acusa. Para
+  achar o caro de novo: `CARGA_TRACE_S=4 node scripts/carga-tela/rodar.ts medir <rotulo> turno-pesado` e
+  `node scripts/carga-tela/trace.ts <saida>/<rotulo>-turno-pesado.trace.json`.
 - **Sem `console.*`** fora de `src/obs/log.ts`. Sem `DELETE FROM`/`TRUNCATE` em teste fora de
   `tests/concurrency/`. Sem `as unknown as`.
 - **Erro nunca vaza `message`.** `ErroDeDominio(codigo)`; a mensagem sai de uma tabela fixa em
@@ -474,6 +482,10 @@ Computador de trabalho e máquina executora do harness são recursos diferentes.
 com reserva confirmada antes do efeito e nova validação depois do boot, fora da transação.
 Takeover só termina por devolução explícita. Não use `--password-store=basic`: perfil usa GNOME
 Keyring e checkpoint de cookies cifrado. Preserve a chave de credenciais junto da estratégia de backup.
+Provedor do computador (ADR-168): fora do motor, quem dá a máquina é um `ProvedorDeComputador`
+(`src/adapters/computador/provedores/`), escolhido por `NOD_COMPUTADOR_PROVEDOR[_POR_PESSOA|_POR_BOT]`; provedor novo
+implementa as primitivas e herda a semântica do nod de `primitivas.ts`. Nunca leia chave de provedor do env do servidor:
+ela vem do cofre da pessoa (conector com o slug do provedor).
 `node scripts/smoke-computador.ts` usa dois ambientes descartáveis, sem modelos pagos. Limites e
 operação: [docs/computadores.md](docs/computadores.md).
 

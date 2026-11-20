@@ -319,6 +319,20 @@ describe("isolamento e tela", () => {
     const lento = await rodarComando({ workspace: ws, comando: "sleep 5", prazoMs: 200 });
     expect(lento.saida).toContain("Limite");
   });
+
+  it("o terminal com bwrap enxerga só o workspace do agente", async () => {
+    const raiz = await pasta();
+    const a = join(raiz, "pc", "workspace", "bot-a");
+    const b = join(raiz, "pc", "workspace", "bot-b");
+    await mkdir(a, { recursive: true });
+    await mkdir(b, { recursive: true });
+    await writeFile(join(a, "meu.txt"), "a");
+    await writeFile(join(b, "segredo.txt"), "b");
+    const r = await rodarComando({ workspace: a, comando: "cat meu.txt; cat ../bot-b/segredo.txt", bwrap: "/usr/bin/bwrap", raiz });
+    expect(r.codigoSaida).not.toBe(0);
+    expect(r.saida).toContain("a");
+    expect(r.saida).not.toContain("b\n");
+  });
 });
 
 describe("chromiumDoPlaywright (ADR-127 §4)", () => {

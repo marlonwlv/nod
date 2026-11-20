@@ -43,7 +43,7 @@ export type NovaExecucao = {
   voltaEm?: number | null;
 };
 
-/** Últimas 20 execuções por rotina (Grok Bot); passou_em_branco ≠ falhou (E7.3). */
+/** Últimas 20 execuções por rotina; passou_em_branco ≠ falhou (E7.3). */
 export function rotinaExecucoesRepo(conn: Conn, escopo: Escopo) {
   return {
     async registrar(e: NovaExecucao): Promise<ExecucaoRotina | null> {
@@ -78,6 +78,26 @@ export function rotinaExecucoesRepo(conn: Conn, escopo: Escopo) {
         select ${conn.unsafe(COLUNAS)} from rotina_execucoes where tenant_id = ${escopo.tenantId} and rotina_id = ${rotinaId}
         order by em desc, id desc limit ${limite}`;
       return linhas.map(paraExecucao);
+    },
+
+    /**
+     * O `listar` de várias rotinas numa consulta só (definido em 2026-11-19, a lista de rotinas lia uma a uma): as `limite`
+     * mais recentes de cada, mais recente primeiro. Rotina sem execução não entra no mapa.
+     */
+    async ultimasDasRotinas(rotinaIds: readonly string[], limite: number): Promise<Map<string, ExecucaoRotina[]>> {
+      if (rotinaIds.length === 0) return new Map();
+      const linhas = await conn<Linha[]>`
+        select ${conn.unsafe(COLUNAS)} from (
+          select ${conn.unsafe(COLUNAS)}, row_number() over (partition by rotina_id order by em desc, id desc) as n
+          from rotina_execucoes where tenant_id = ${escopo.tenantId} and rotina_id = any(${[...rotinaIds]}::uuid[])
+        ) x where n <= ${limite}
+        order by rotina_id, em desc, id desc`;
+      const porRotina = new Map<string, ExecucaoRotina[]>();
+      for (const l of linhas) {
+        const e = paraExecucao(l);
+        porRotina.set(e.rotinaId, [...(porRotina.get(e.rotinaId) ?? []), e]);
+      }
+      return porRotina;
     },
 
     /**

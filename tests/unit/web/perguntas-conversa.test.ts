@@ -139,7 +139,8 @@ describe("o cartão da pergunta na conversa (tela E2)", () => {
     for (const html of [timeline(e), renderSuaVez(e)]) {
       const titulo = html.slice(html.indexOf('<div class="pq-titulo"'), html.indexOf('class="pq-lista"'));
       expect(titulo).toContain('href="https://github.com/gamefik/nod/pull/7"');
-      expect(titulo).toContain('<a class="lk" href="https://example.com/plano" data-lk target="_blank" rel="noopener noreferrer nofollow">plano</a>');
+      // COP-14 (item 4): o link de site comum leva o globo marcado `lk-ic-so-chat` (só o balão do bot mostra).
+      expect(titulo).toMatch(/<a class="lk" href="https:\/\/example\.com\/plano" data-lk target="_blank" rel="noopener noreferrer nofollow"><span class="lk-ic lk-ic-web lk-ic-so-chat" aria-hidden="true">.*?<\/span>plano<\/a>/);
       expect(html).not.toContain("<img src=x");
       expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
       expect(html).not.toContain('href="javascript:');

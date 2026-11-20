@@ -332,3 +332,14 @@ describe("a credencial no hook novo × servidor novo e antigo (PR 6)", () => {
     expect(s.chamadas).toEqual([]);
   });
 });
+
+describe("o pedido que a mensagem nova substituiu (item 10, rodada 2)", () => {
+  it("o hook nega dizendo que a pessoa mandou outra mensagem — não 'a pessoa não aprovou'", async () => {
+    const { SUBSTITUIDO_POR_MENSAGEM } = await import("../../../src/adapters/executor/hook-nativas.ts");
+    const { causaDaNegacaoNativa } = await import("../../../src/domain/negacao-nativa.ts");
+    const s = servidor({ "/api/interno/nativas": [{ aguardar: "d1" }], "/api/interno/decisoes/d1/aguardar": [{ estado: "decidida", substituida: true, itens: [{ desfecho: null }] }] });
+    const r = await confirmarNoServidor({ url: "http://nod/", token: "tok" }, { fetch: s.f, dormir: async () => undefined })({ ferramenta: "Bash", contamina: false, comando: "mkdir x" });
+    expect(r).toEqual({ permitir: false, motivo: SUBSTITUIDO_POR_MENSAGEM });
+    expect(causaDaNegacaoNativa(SUBSTITUIDO_POR_MENSAGEM)).toBe("substituido_por_mensagem");
+  });
+});

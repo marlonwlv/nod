@@ -89,9 +89,9 @@ export function statusDoDisco(d: DiscoDoMac): string {
 function detalheDoDisco(d: DiscoDoMac): string {
   // ADR-096 §6: no ritmo das últimas horas, quando o livre chega ao limite; a limpeza já age sozinha.
   const tendencia = typeof d.acabaEmMs === "number"
-    ? ` No ritmo das últimas horas, o espaço livre chega a ${discoLegivel(d.criticoMb)} em ${tempoAteAcabar(d.acabaEmMs)}. O Nod apaga sozinho o que dá quando o espaço aperta ou está para acabar: tasks encerradas, cópias paradas e caches. O que não se refaz é guardado compactado antes.`
+    ? ` No ritmo das últimas horas, o espaço livre chega a ${discoLegivel(d.criticoMb)} em ${tempoAteAcabar(d.acabaEmMs)}. O Nod apaga sozinho o que dá quando o espaço aperta ou está para acabar: tarefas encerradas, cópias paradas e caches. O que não se refaz é guardado compactado antes.`
     : "";
-  const base = `${discoLegivel(d.livreMb)} livres de ${discoLegivel(d.totalMb)}.${tendencia} Com menos de ${discoLegivel(d.alertaMb)} livres, rotinas e pedidos entre bots esperam; com menos de ${discoLegivel(d.criticoMb)}, nenhuma task nova começa, em qualquer opção. As que já rodam continuam.`;
+  const base = `${discoLegivel(d.livreMb)} livres de ${discoLegivel(d.totalMb)}.${tendencia} Com menos de ${discoLegivel(d.alertaMb)} livres, rotinas e pedidos entre bots esperam; com menos de ${discoLegivel(d.criticoMb)}, nenhuma tarefa nova começa, em qualquer opção. As que já rodam continuam.`;
   // Revisão do #224: o número é o livre que o macOS informa aos apps (statfs); o Finder soma o espaço que o sistema libera
   // sozinho (purgável) e pode mostrar um pouco mais.
   const comoMede = " É o espaço livre que o macOS informa aos apps; pode ser um pouco menor que o do Finder.";

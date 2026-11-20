@@ -1,3 +1,4 @@
+import { secaoOndeRoda } from "./onde-roda.ts";
 import type { MaquinaDto } from "../../src/contracts/maquina.ts";
 import type { EstaMaquina } from "../../src/contracts/desktop-esta-maquina.ts";
 import type { Agente } from "../../src/contracts/agente.ts";
@@ -158,7 +159,7 @@ export function leituraDaMaquina(estado: Pick<Estado, "trabalhos">, id: string):
     l.memoriaBotsMb > 0 ? `os bots usam ${memoriaLegivel(l.memoriaBotsMb)}` : "",
   ].filter(Boolean).join(" · ");
   const porque = l.motivoEspera === null ? ""
-    : l.seguraTudoNovo ? " Com o disco quase sem espaço, nenhuma task nova começa nela; as que já rodam continuam."
+    : l.seguraTudoNovo ? " Com o disco quase sem espaço, nenhuma tarefa nova começa nela; as que já rodam continuam."
       : " Rotinas e pedidos entre bots que ainda não começaram esperam; o que você pede começa.";
   return { curto, nivel, status, texto: `Agora: ${numeros}.${porque}` };
 }
@@ -543,6 +544,7 @@ export function renderMaquinas(estado: Estado): string {
       : grupoConfig(tituloSuas, linhas, { classe: "cfg-maquinas", ...(ob ? { contagem: linhas.length } : {}) });
   return `<section class="espaco-secao cfg-secao cfg-maquinas-secao maquinas">
     ${cab}
+    ${secaoOndeRoda(dados?.ondeRoda ?? null)}
     ${avisoDaNuvem(estado)}
     ${painelCriar(estado)}
     ${conectar}
@@ -602,7 +604,7 @@ function grupoFinal(estado: Estado, todas: readonly MaquinaDto[], noMac: boolean
     linhas.push(linhaConfig({ titulo: ob ? "Usar um servidor só para o computador dos bots" : "Usar uma máquina só para o computador", detalhe: "Um lugar para o computador do bot, sem terminal", icone: ICONE.monitor, controle: { tipo: "link", acao: "ssh-abrir" } }));
   }
   // ADR-031: a chave gerada à mão (o app do Mac de antes do convite); a crua aparece uma vez.
-  const manual = `<form class="cfg-chave-form" data-form="emitir-chave"><label>Nome do computador <input name="nome" required maxlength="60" placeholder="ex.: MacBook do trabalho" data-manter-foco="emitir-chave-nome"></label><button class="bt" type="submit">Gerar chave</button></form>`;
+  const manual = `<form class="cfg-chave-form" data-form="emitir-chave"><label>Nome do computador <input name="nome" required maxlength="60" placeholder="ex.: MacBook do trabalho" data-manter-foco="emitir-chave-nome"${estado.ocupado ? " disabled" : ""}></label><button class="bt" type="submit"${estado.ocupado ? ' disabled aria-busy="true"' : ""}>${estado.ocupado ? "Gerando…" : "Gerar chave"}</button></form>`;
   linhas.push(linhaConfig({
     titulo: ob ? "Conectar à mão" : "Gerar uma chave à mão",
     detalhe: ob ? "Para um computador antigo que pede um código de acesso" : "Para um computador que pede a chave em vez do código",

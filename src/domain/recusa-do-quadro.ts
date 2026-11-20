@@ -49,16 +49,16 @@ export function faltouOBot(instrucao: string): boolean {
  * ("peça à pessoa na conversa" para quem já estava pedindo); o caminho que sobra é mudar direto no quadro.
  */
 export function fraseParaPessoa(erro: ErroDoQuadro, codigo: string | null, jaCitou = false, semOBot = false): string | null {
-  const alvo = codigo ? `a ${codigo}` : "isso";
+  const alvo = codigo ? `o ${codigo}` : "isso";
   switch (erro) {
     case "nao_permitido":
       return `Não consigo mudar ${alvo} por aqui; dá para mudar direto no quadro.`;
     case "entrada_invalida":
     case "estado_invalido":
-      if (codigo && jaCitou) return `Não consegui mudar a ${codigo} por aqui; você pode mudar direto no quadro.`;
+      if (codigo && jaCitou) return `Não consegui mudar o ${codigo} por aqui; você pode mudar direto no quadro.`;
       return codigo
-        ? `Para eu mudar a ${codigo}, me peça aqui citando o código (ex.: "cancela a ${codigo}"), ou mude direto no quadro.`
-        : "Para eu mudar o quadro, me peça aqui citando o código da tarefa (ex.: \"cancela a ADA-17\"), ou mude direto no quadro.";
+        ? `Para eu mudar o ${codigo}, me peça aqui citando o código (ex.: "cancela o ${codigo}"), ou mude direto no quadro.`
+        : "Para eu mudar o quadro, me peça aqui citando o código do card (ex.: \"cancela o ADA-17\"), ou mude direto no quadro.";
     case "conflito":
       return "Alguém mudou o quadro ao mesmo tempo; confira o quadro e me peça de novo se ainda quiser.";
     case "experimento_desligado":
@@ -66,8 +66,8 @@ export function fraseParaPessoa(erro: ErroDoQuadro, codigo: string | null, jaCit
     case "sem_quadro":
       return "Ainda não há quadro aqui; se quiser, me peça para criar um.";
     case "nao_encontrado":
-      if (semOBot) return `Não achei esse bot no quadro; me diga o nome de um dos bots dele para ${codigo ? `a ${codigo}` : "a tarefa"}.`;
-      return codigo ? `Não achei a ${codigo} no quadro; confira o código da tarefa.` : "Não achei essa tarefa no quadro; me diga o código dela (ex.: ADA-17).";
+      if (semOBot) return `Não achei esse bot no quadro; me diga o nome de um dos bots dele para ${codigo ? `o ${codigo}` : "o card"}.`;
+      return codigo ? `Não achei o ${codigo} no quadro; confira o código do card.` : "Não achei esse card no quadro; me diga o código dele (ex.: ADA-17).";
     default:
       return null;
   }

@@ -7,6 +7,11 @@ export const FALHA_SEM_FRASE = "Algo deu errado. Tente de novo; se repetir, rela
 /** NOD-215: a falha de transporte diz a causa — nunca mais "confira a conexão" para um servidor reiniciando. */
 export const FRASE_SEM_INTERNET = "Seu dispositivo está sem internet. Assim que voltar, tentamos de novo.";
 export const FRASE_SERVIDOR_INDISPONIVEL = "O servidor está reiniciando. Tentamos de novo sozinhos.";
+/**
+ * 2026-11-19: o GET que estourou o prazo (PRAZO_GET_MS) não é servidor fora — o nod respondeu tarde. Dizer "reiniciando"
+ * mandava a pessoa procurar um deploy que não houve. O código continua `servidor_indisponivel` (repete e reconecta igual).
+ */
+export const FRASE_SERVIDOR_DEMOROU = "O nod está demorando para responder. Tentamos de novo sozinhos.";
 /** Proxy/balanceador respondendo no lugar do nod enquanto ele sobe (deploy): sem corpo do nod, é servidor fora. */
 const STATUS_DE_PROXY = new Set([502, 503, 504]);
 
@@ -39,12 +44,17 @@ export function rotaDe(metodo: string, url: string): string {
   return `${metodo.toUpperCase()} ${caminho === "" ? "/" : caminho}`;
 }
 
-/** O `fetch` rejeitou (ou o XHR deu onerror): o nod não respondeu. `onLine === false` é a única prova de sem internet. */
-export function falhaDeTransporte(rota: string): ErroApi {
+/** O prazo da leitura venceu (`AbortSignal.timeout`): o `fetch` rejeita com `TimeoutError`, não com `AbortError`. */
+export const ehPrazoVencido = (e: unknown): boolean => typeof e === "object" && e !== null && (e as { name?: string }).name === "TimeoutError";
+
+/**
+ * O `fetch` rejeitou (ou o XHR deu onerror): o nod não respondeu. `onLine === false` é a única prova de sem internet;
+ * `causa` é o que o `fetch` lançou — o prazo vencido diz que o nod demorou, não que caiu.
+ */
+export function falhaDeTransporte(rota: string, causa?: unknown): ErroApi {
   const semInternet = typeof navigator !== "undefined" && (navigator as { onLine?: boolean }).onLine === false;
-  return semInternet
-    ? new ErroApi(0, "sem_internet", FRASE_SEM_INTERNET, null, rota)
-    : new ErroApi(0, "servidor_indisponivel", FRASE_SERVIDOR_INDISPONIVEL, null, rota);
+  if (semInternet) return new ErroApi(0, "sem_internet", FRASE_SEM_INTERNET, null, rota);
+  return new ErroApi(0, "servidor_indisponivel", ehPrazoVencido(causa) ? FRASE_SERVIDOR_DEMOROU : FRASE_SERVIDOR_INDISPONIVEL, null, rota);
 }
 
 /** Resposta de erro → ErroApi. 502/503/504 sem o corpo do nod viram servidor fora; com corpo, o código do servidor manda. */

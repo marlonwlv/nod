@@ -68,6 +68,12 @@ export type Confirmar = (p: { ferramenta: string; contamina: boolean; comando?: 
 const saida = (permitir: boolean, motivo: string): SaidaHook => ({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: permitir ? "allow" : "deny", permissionDecisionReason: `nod: ${motivo}` } });
 
 /** O motivo que o modelo lê quando a espera acaba sem resposta: a aprovação segue na conversa e retoma a tarefa. */
+/**
+ * O motivo que o modelo lê quando a pessoa mandou outra mensagem com o pedido aberto (item 10, rodada 2, 2026-11-16;
+ * src/use-cases/substituir-aprovacoes.ts): não é recusa — o pedido saiu do caminho e a mensagem nova vem a seguir.
+ */
+export const SUBSTITUIDO_POR_MENSAGEM = "a pessoa mandou outra mensagem antes de responder a este pedido, e o comando não rodou. Não é uma recusa: leia a mensagem nova e siga por ela; se o comando ainda for necessário, peça de novo.";
+
 export const AINDA_ESPERANDO = "o pedido de aprovação deste comando continua na conversa; quando a pessoa decidir, a tarefa retoma sozinha. Encerre o turno dizendo que está esperando — não repita o comando agora.";
 
 /** Uma decisão completa: evento do CLI → saída do hook. `confirmar` fala com o servidor (injetável no teste). */
@@ -183,7 +189,7 @@ function liberada(r: RespostaNativa): Confirmacao {
   return r.credencial === "permitida" ? { permitir: true, credencial: "permitida" } : { permitir: true };
 }
 /** `soltar` (ADR-083, #194): o servidor fechou a espera porque o Mac apertou — o turno encerra e volta quando a pessoa decidir. */
-type RespostaAguardar = { estado?: string; soltar?: boolean; itens?: { desfecho?: string | null }[] };
+type RespostaAguardar = { estado?: string; soltar?: boolean; substituida?: boolean; itens?: { desfecho?: string | null }[] };
 
 /**
  * definido em 2026-10-09 (ADR-089, #217): entre duas consultas da mesma espera passa ao menos isto. A rota segura cada
@@ -269,6 +275,7 @@ export function confirmarNoServidor(cfg: ConfigHook, opcoes: { agora?: () => num
         if (passou < PAUSA_MINIMA_ENTRE_CONSULTAS_MS) await dormir(PAUSA_MINIMA_ENTRE_CONSULTAS_MS - passou);
         continue;
       }
+      if (d.substituida === true) return { permitir: false, motivo: SUBSTITUIDO_POR_MENSAGEM };
       if (!(d.itens ?? []).some((i) => i.desfecho === "executado")) return { permitir: false, motivo: "a pessoa não aprovou este comando" };
       const segunda = await pedir(randomUUID());
       return "permitir" in segunda ? segunda : segunda.ok === true ? liberada(segunda) : { permitir: false, motivo: "o servidor do nod não liberou o comando aprovado" };

@@ -1,9 +1,11 @@
 import type { BotFrame } from "../vendor/bloub/engine.ts";
-import { DEMI_VIEWBOX as V, RAYON } from "../vendor/bloub/repere.ts";
+import { RAYON } from "../vendor/bloub/repere.ts";
 import { mixHex } from "../vendor/bloub/skins.ts";
 import { esc } from "./escape.ts";
 
 const PAPEL = "#ffffff";
+/** Corpo de raio 100 em 212 unidades: 94% do quadrado, com decoração livre para transbordar. */
+const V = 106;
 /**
  * A tinta pode ser CSS (`var(--mascote-cor)`), e aí vai em `style`: o elemento não precisa de getComputedStyle para
  * pintar. medido em 2026-09-30: o Chrome 148 também resolve var() em atributo de apresentação (getComputedStyle de um
@@ -26,7 +28,7 @@ export function svgMascote(f: BotFrame, id: string, ink: string, paper = PAPEL):
       : `<circle cx="${d.x}" cy="${d.y}" r="${d.r}" ${fill} opacity="${d.opacity}"/>`;
   }).join("");
   const arcs = (side: "front" | "back") => f.arcs.map((a, i) => `<path d="${esc(a[side])}" fill="none" stroke="url(#${id}-a${i})" stroke-width="${a.width}" stroke-linecap="round" opacity="${a.opacity}"/>`).join("");
-  return `<svg viewBox="-${V} -${V} ${2*V} ${2*V}" aria-hidden="true"><defs>
+  return `<svg class="mascote-svg" viewBox="-${V} -${V} ${2*V} ${2*V}" aria-hidden="true"><defs>
     <mask id="${id}" maskUnits="userSpaceOnUse" x="-${V}" y="-${V}" width="${2*V}" height="${2*V}"><path d="${esc(f.bodyPath)}" fill="white"/>
     ${f.eyes.map(e => `<path d="${esc(e.d)}" transform="${e.matrix}" fill="black" opacity="${e.alpha}"/>`).join("")}
     ${f.notch ? `<circle cx="${f.notch.x}" cy="${f.notch.y}" r="${f.notch.r}" fill="black"/>` : ""}</mask>

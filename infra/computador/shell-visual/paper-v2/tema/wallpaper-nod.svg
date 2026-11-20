@@ -1,0 +1,22 @@
+<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1440" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.42" stop-color="#F7F4FF"/>
+      <stop offset="1" stop-color="#DDD5FF"/>
+    </linearGradient>
+    <radialGradient id="glow-a" cx="0" cy="0" r="1" gradientTransform="translate(180 140) rotate(45) scale(520)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.91"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow-b" cx="0" cy="0" r="1" gradientTransform="translate(1260 760) rotate(45) scale(560)">
+      <stop stop-color="#6F5CFF" stop-opacity="0.19"/>
+      <stop offset="1" stop-color="#6F5CFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1440" height="900" fill="url(#bg)"/>
+  <rect width="1440" height="900" fill="url(#glow-a)"/>
+  <rect width="1440" height="900" fill="url(#glow-b)"/>
+  <path d="M74 154l34 34 62-74M1260 118c12 48 31 67 82 86-51 20-70 39-82 87-12-48-31-67-82-87 51-19 70-38 82-86ZM92 690l118-82M1220 674c0-59 46-105 105-105 0 59-46 105-105 105Zm0 0 68-68M338 94c16-28 32-28 48 0s32 28 48 0 32-28 48 0" stroke="#6F5CFF" stroke-opacity="0.24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M1270 386h84M1312 344v84M176 384c0-30 24-54 54-54s54 24 54 54-24 54-54 54-54-24-54-54Z" stroke="#6F5CFF" stroke-opacity="0.18" stroke-width="3"/>
+</svg>

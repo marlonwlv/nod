@@ -77,6 +77,12 @@ describe("espera no fundo por toda queda (NOD-309)", () => {
     expect(decidirEsperaNoFundo(base({ causa: "reinicio_do_motor", inicioDaCadeia: T0 - PRAZO_DO_FUNDO_MS }))).toEqual({ tipo: "desistir", motivo: "prazo_esgotado" });
   });
 
+  it("NOD-452: bastidor cortado espera um degrau antes de retomar e respeita o teto da cadeia", () => {
+    expect(decidirEsperaNoFundo(base({ causa: "turno_travado" }))).toEqual({ tipo: "esperar", voltaEm: T0 + 30_000, tentativa: 1 });
+    expect(decidirEsperaNoFundo(base({ causa: "turno_travado", quedas: 4 }))).toEqual({ tipo: "esperar", voltaEm: T0 + 10 * MIN, tentativa: 5 });
+    expect(decidirEsperaNoFundo(base({ causa: "turno_travado", quedas: 5 }))).toEqual({ tipo: "desistir", motivo: "quedas_esgotadas" });
+  });
+
   it("pedido de colega, frente e lote: 24 h desde o começo da cadeia, contando a hora da volta", () => {
     const inicio = T0 - PRAZO_DO_FUNDO_MS;
     expect(decidirEsperaNoFundo(base({ causa: "reinicio_servidor", inicioDaCadeia: inicio }))).toEqual({ tipo: "desistir", motivo: "prazo_esgotado" });

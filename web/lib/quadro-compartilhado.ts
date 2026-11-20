@@ -82,7 +82,7 @@ export function assinaturaDoCard(t: TarefaDto, mural: readonly LinhaMuralDto[] |
 export function linhaDaTarefaAlheia(q: QuadroDto, t: TarefaDto): string | null {
   if (ehMinha(q, t)) return null;
   // A que espera outra pessoa decidir também não tem o select: a frase diz só o que a tela deixa fazer.
-  return podeMudarStatus(q, t) ? `Tarefa da ${donoDaTarefa(q, t)}: você muda o status e comenta` : `Tarefa da ${donoDaTarefa(q, t)}: você comenta`;
+  return podeMudarStatus(q, t) ? `Card da ${donoDaTarefa(q, t)}: você muda o status e comenta` : `Card da ${donoDaTarefa(q, t)}: você comenta`;
 }
 
 /** O campo de baixo: pedir tarefa, ou (só a dona) deixar recado, que vira comentário. */

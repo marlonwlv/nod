@@ -112,6 +112,53 @@ recusada do Google mostra o motivo e tira a marca. Valem os gatilhos de reversã
 dias); além deles, qualquer abuso de bootstrap visível no gasto do dia. Reverter é `NOD_BOOTSTRAP` vazio no
 `config.env` e o deploy (as contas já criadas seguem entrando).
 
+### Emenda de 2026-11-16 (#81): a primeira visita na web pergunta "Já usa o nod?"
+
+Na web, a §2 criava um espaço provisório na primeira visita de qualquer navegador. Quem já tinha conta e um computador
+com o motor, e abria a web pelo celular, caía num espaço vazio sem IA, coberto pelo onboarding (#78). A partir de agora,
+na **primeira visita deste navegador** (sem o verificador `nod-instalacao`) e só onde o provisório abriria
+(`abreProvisorio`), a web mostra antes a tela "Já usa o nod?": entrar com Google, código por e-mail, e-mail e senha,
+código de outro computador e o link da equipe, ao lado de **"Começar sem conta"**, com o mesmo peso. "Começar sem conta"
+segue o caminho de antes, então o uso sem conta continua sem portão: é uma pergunta, não um cadastro.
+
+- Entrar com e-mail e senha não cria espaço. Google, código por e-mail e pareamento exigem sessão: o provisório é criado
+  no clique, o onboarding sai da frente e o cartão de conta abre na etapa escolhida. Entrar numa conta existente a partir
+  desse provisório vazio passa pela escolha da §3 (importar ou cancelar). O servidor não muda.
+- Com a conta, os bots e o despacho são os da pessoa (ADR-031, ADR-102): a web mostra os bots servidos pelo motor do
+  outro computador.
+- O app não muda: o provisório dele vem pelo processo principal, com a chave de máquina.
+
+**Gatilho de reversão:** se, nos 14 dias seguintes ao deploy, os espaços provisórios criados pela web caírem mais de 30%
+sem que as entradas em conta vindas da web subam, a pergunta virou barreira. Nesse caso, voltar a abrir o provisório
+direto e deixar a entrada só no onboarding (#79).
+
+### Emenda de 2026-11-16 (#84): o pareamento também vai por QR code
+
+O cartão "Conectar outro computador" passa a se chamar "Conectar celular ou outro computador". Junto do código de 6
+números, ele mostra um QR com o link `<endereço do nod>/#parear=<código>`. No celular, a câmera abre o link; a web tira o
+código da URL na hora, cria o espaço provisório se for a primeira visita (§2) e mostra o código com a pergunta
+"Conectar a esta conta?". Só o clique em "Conectar a esta conta" manda o código, pelo mesmo `POST /parear/pedir`;
+"Cancelar" fecha sem mandar nada. O computador confirma pelos símbolos, como no código digitado, e a sessão do celular
+passa para a conta do computador, mesmo que o celular estivesse noutra conta.
+
+- A confirmação no celular é obrigatória (revisão do PR #85). Sem ela, um link `#parear=` mandado por outra pessoa, que
+  confirma o pedido no próprio computador, trocaria a sessão do aparelho para a conta dela sem a pessoa perceber (CSRF
+  de login). Os símbolos só existem depois do POST (o servidor os sorteia nele), então antes do clique o que se confere
+  é o próprio código, o mesmo que aparece na tela do computador; o cartão avisa que o aparelho sai da conta em que está.
+
+- Na primeira visita, quem chega pelo link do QR não vê a tela "Já usa o nod?" (emenda #81): o código guardado já
+  diz que a pessoa quer entrar numa conta, então o espaço provisório abre direto e a confirmação aparece em seguida.
+- O servidor não muda: o QR é só outro jeito de digitar o mesmo código (5 minutos, uso único, confirmação no
+  computador, os mesmos limites de tentativa).
+- O código vai no fragmento (`#`), que o navegador não manda ao servidor: não entra em log de acesso nem no `Referer`.
+- O QR é gerado na própria web (`web/lib/qr.ts`: modo byte, correção M, versões 1 a 10), sem dependência nova
+  (ADR-020, ADR-149).
+- Sem endereço que o celular alcance (`localhost`, `127.x`, arquivo local), o cartão fica como antes, só com o código.
+
+**Gatilho de reversão:** se pareamentos pedidos pelo link do QR forem recusados ou vencerem mais que os digitados, ou
+se aparecer abuso do link (pedidos de pareamento de fora vindos dele), tirar o QR do cartão e voltar ao código
+digitado; o servidor não precisa de mudança para isso.
+
 ## Impacto nas decisões anteriores
 
 - **ADR-030:** deixa de valer a regra “login só consulta pessoa admitida”. A allowlist e a admissão por domínio ficam

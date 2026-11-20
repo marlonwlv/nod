@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { URL_DO_EXE_WINDOWS } from "../../../src/adapters/http/servidor.ts";
 
 /**
  * NOD-322: contrato final dos CTAs do nodbot.ai antes de liberar a indexação. Discord oficial, downloads por
@@ -47,10 +48,16 @@ describe("NOD-322: CTAs reais e indexação liberada", () => {
     expect([...convites]).toEqual([DISCORD]);
   });
 
-  it("os aliases de download vão (302) para os nomes estáveis exatos no bucket nodbot-downloads", () => {
-    expect(redirects.get("/download/mac")).toEqual({ destino: `${BUCKET}nod-mac-arm64.dmg`, status: "302" });
-    expect(redirects.get("/download/mac-intel")).toEqual({ destino: `${BUCKET}nod-mac-x64.dmg`, status: "302" });
-    expect(redirects.get("/download/windows")).toEqual({ destino: `${BUCKET}nod-windows-x64.exe`, status: "302" });
+  it("os aliases de download vão (302) para a pasta de uma só versão no bucket nodbot-downloads, e o servidor junto", () => {
+    // Desde 2026-11-19: a retenção de 365 dias do bucket (2026-11-13) não deixa sobrescrever os nomes estáveis da raiz,
+    // então a versão aceita entra pelo _redirects (docs/release-desktop.md).
+    const mac = /^v(\d+\.\d+\.\d+(?:-rc\.\d+)?)\/nod-\1-mac-arm64\.dmg$/.exec(redirects.get("/download/mac")!.destino.slice(BUCKET.length));
+    expect(mac, "/download/mac").not.toBeNull();
+    const v = mac![1]!;
+    expect(redirects.get("/download/mac")!.status).toBe("302");
+    expect(redirects.get("/download/mac-intel")).toEqual({ destino: `${BUCKET}v${v}/nod-${v}-mac-x64.dmg`, status: "302" });
+    expect(redirects.get("/download/windows")).toEqual({ destino: `${BUCKET}v${v}/nod-${v}-win-x64.exe`, status: "302" });
+    expect(URL_DO_EXE_WINDOWS).toBe(redirects.get("/download/windows")!.destino);
   });
 
   it("sem JS, o CTA principal já diz 'Baixar para macOS' e baixa o .dmg do Apple Silicon", () => {
@@ -70,15 +77,12 @@ describe("NOD-322: CTAs reais e indexação liberada", () => {
     expect(secao).toContain("NOD-333");
   });
 
-  it("o runbook da release cita os nomes estáveis exatamente como o _redirects e diz que a cópia é manual", () => {
+  it("o runbook da release cita os três aliases, a pasta da versão e diz que a troca é manual", () => {
     const runbook = ler("docs/release-desktop.md");
-    for (const alias of ["/download/mac", "/download/mac-intel", "/download/windows"]) {
-      const destino = redirects.get(alias)!.destino;
-      const nome = destino.slice(BUCKET.length);
-      expect(runbook, nome).toContain(`gs://nodbot-downloads/${nome}`);
-      expect(runbook, alias).toContain(alias);
-    }
+    for (const alias of ["/download/mac", "/download/mac-intel", "/download/windows"]) expect(runbook, alias).toContain(alias);
+    for (const arquivo of ["mac-arm64.dmg", "mac-x64.dmg", "win-x64.exe"]) expect(runbook, arquivo).toContain(`nod-$V-${arquivo}`);
+    expect(runbook).toContain("URL_DO_EXE_WINDOWS");
     expect(runbook).toMatch(/manual/i);
-    expect(runbook).toMatch(/sha256sum -c/);
+    expect(runbook).toMatch(/shasum -a 256 -c/);
   });
 });

@@ -162,7 +162,7 @@ descrever("celular: aviso do Backlog, prioridade, alvos de 44 px e a máquina em
       const li = document.querySelector('#quadro .qd-cel [data-tarefa="${ids["Parada no backlog"]}"]');
       return { dica: g.querySelector('.qd-cg-dica')?.textContent ?? null, pri: li.querySelector('.qd-cl-pri [data-act="tarefa-prioridade"]')?.getAttribute('aria-label') ?? null };
     })()`);
-    expect(m.dica).toMatch(/^Parada no Backlog: mova para A fazer para começar\.$/);
+    expect(m.dica).toMatch(/^Parado no Backlog: mova para A fazer para começar\.$/);
     expect(m.pri).toBe("Prioridade: Alta. Mudar");
     await print("1-quadro-dica-e-prioridade");
     await clicar(`#quadro .qd-cel [data-tarefa="${ids["Parada no backlog"]}"] [data-act="tarefa-prioridade"]`);
@@ -179,6 +179,8 @@ descrever("celular: aviso do Backlog, prioridade, alvos de 44 px e a máquina em
     expect(await avaliar<string[]>(cdp, MEDIR("#quadro"))).toEqual([]);
     // Os popovers da barra (o funil, a pílula de quem trabalha e as Opções), um de cada vez.
     for (const [act, pop] of [["fil-abrir", "#qm-pop-fil"], ["ativos-abrir", "#qm-pop-ativos"], ["op-abrir", "#qm-pop-op"]] as const) {
+      // A barra atual só desenha controles aplicáveis (Opções foi para o menu do quadro; sem participantes, não há pílula).
+      if (!(await avaliar<boolean>(cdp, `!!document.querySelector('#quadro [data-act="${act}"]')`))) continue;
       await clicar(`#quadro [data-act="${act}"]`);
       await ate(`document.querySelector('${pop}')`, `o popover ${pop}`);
       expect(await avaliar<string[]>(cdp, MEDIR(pop))).toEqual([]);
@@ -201,7 +203,7 @@ descrever("celular: aviso do Backlog, prioridade, alvos de 44 px e a máquina em
     await abrirTarefa("Parada no backlog");
     const m = await json<{ parada: string | null; chip: string | null }>(`({ parada: document.querySelector('#quadro .qd-tarefa-cel .ta-parada')?.textContent ?? null,
       chip: document.querySelector('#quadro .qd-tarefa-cel #qd-t-prioridade')?.getAttribute('aria-label') ?? null })`);
-    expect(m.parada).toMatch(/^Parada no Backlog: o responsável só começa quando ela for para A fazer/);
+    expect(m.parada).toMatch(/^Parado no Backlog: o responsável só começa quando ele for para A fazer/);
     expect(m.chip).toBe("Prioridade: Baixa");
     await print("3-tarefa-backlog-aviso-e-prioridade");
     expect(await avaliar<string[]>(cdp, MEDIR("#quadro .qd-tarefa-cel"))).toEqual([]);

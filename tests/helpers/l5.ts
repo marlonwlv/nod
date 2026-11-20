@@ -27,6 +27,7 @@ import { pedirAprovacao } from "../../src/use-cases/pedir-aprovacao.ts";
 import type { Deps, Services, UseCasesNod } from "../../src/use-cases/tipos.ts";
 import { criarBancoMemoria, type BancoMemoria } from "./repos-memoria.ts";
 import { avisarPessoa } from "../../src/use-cases/avisar-pessoa.ts";
+import { mostrarCartoes } from "../../src/use-cases/mostrar-cartoes.ts";
 import { ajustarBarraLateral } from "../../src/use-cases/ajustar-barra-lateral.ts";
 import { gerirQuadro } from "../../src/use-cases/gerir-quadro.ts";
 import { gerirApps } from "../../src/use-cases/gerir-apps.ts";
@@ -126,6 +127,8 @@ export function useCasesDeTeste(sobrescrita: Partial<UseCasesNod> = {}): UseCase
     verAgendaPeloAgente: async () => ({ data: { erro: "nao_encontrado" as const } }),
     pausarRotinaPeloAgente: async () => ({ data: { rotina_id: "rotina-falsa", estado: "pausada" as const, ja_estava: false, proxima_execucao: null, retomar_em: null } }),
     reativarRotinaPeloAgente: async () => ({ data: { rotina_id: "rotina-falsa", estado: "ativa" as const, ja_estava: false, proxima_execucao: Date.now() + 1000, retomar_em: null } }),
+    pausarTodasRotinasPeloAgente: async () => ({ data: { lote_id: null, pausadas: 0, pausado_em: null } }),
+    reativarLoteRotinasPeloAgente: async () => ({ data: { lote_id: null, pausado_em: null, reativadas: 0 } }),
     atualizarRotinaPeloAgente: async () => ({ data: { proposta_id: "proposta-atualizacao-falsa", resumo: "rotina falsa" } }),
     excluirRotinaPeloAgente: async () => ({ data: { proposta_id: "proposta-exclusao-falsa", resumo: "rotina falsa" } }),
     executarRotinaPeloAgente: async () => ({ data: { proposta_id: "proposta-execucao-falsa", resumo: "rotina falsa" } }),
@@ -154,6 +157,7 @@ export function useCasesDeTeste(sobrescrita: Partial<UseCasesNod> = {}): UseCase
     responderPedido,
     pedirCredencial,
     avisarPessoa,
+    mostrarCartoes,
     ajustarBarraLateral,
     gerirQuadro,
     gerirApps,

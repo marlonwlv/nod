@@ -112,6 +112,38 @@ it("mensagem no meio entra por turn/steer e a resposta vira fala na hora; a fala
   expect(adapter.aceitaMensagens?.()).toBe(false);
 });
 
+it("ADR-186: com o bot só escrevendo, interromperVolta faz turn/interrupt; o texto cortado sai marcado e a mensagem abre o turno seguinte (sem steer)", async () => {
+  const instance = await criarCodexCliDriver(lig).create(cfg);
+  const adapter: Adapter = instance.adapter(planoHarness({ texto: "demorar" }));
+  const linha: string[] = [];
+  let cortou = false;
+  const r = await adapter.rodarTurno({
+    sinal: async () => {},
+    delta: () => {},
+    evento: (e) => {
+      if (e.tipo === "delta" && e.texto === "Pensando" && !cortou) {
+        cortou = adapter.interromperVolta?.() ?? false;
+        linha.push(`interrompeu:${cortou}`);
+        linha.push(`de-novo:${adapter.interromperVolta?.() ?? false}`);
+        adapter.receberMensagem?.("na verdade, só 3 frases", "m1");
+      }
+      if (e.tipo === "result") linha.push(`result:${e.subtype}`);
+    },
+    falaIntermediaria: (t, f) => linha.push(`fala:${f?.interrompida ? "interrompida:" : ""}${t}`),
+    mensagemEntrou: (id) => linha.push(`entrou:${id}`),
+    ocioso: async () => false,
+  });
+  expect(linha.slice(0, 2)).toEqual(["interrompeu:true", "de-novo:false"]);
+  const iCorte = linha.indexOf("result:error_interrupted");
+  expect(iCorte).toBeGreaterThan(0);
+  expect(linha.indexOf("fala:interrompida:Pensando")).toBeGreaterThan(iCorte);
+  // A mensagem não foi por steer no turno que parava (o Codex não a guardaria): abriu o turno seguinte.
+  expect((await registro()).steers).toHaveLength(0);
+  expect(linha).toContain("entrou:m1");
+  expect(r.desfecho).toBe("sucesso");
+  expect(r.texto).not.toContain("Pensando");
+});
+
 it("mensagem depois da volta: o ocioso a entrega, ela abre outro turn/start; sem nada novo, a entrada fecha", async () => {
   const instance = await criarCodexCliDriver(lig).create(cfg);
   const adapter = instance.adapter(planoHarness({ texto: "oi" }));

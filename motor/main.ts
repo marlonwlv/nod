@@ -8,13 +8,14 @@ import { setTimeout as esperar } from "node:timers/promises";
 import { criarAcompanhanteDeTarefas } from "../src/adapters/executor/acompanhar-tarefas.ts";
 import { criarAcompanhanteDeSubagentes } from "../src/adapters/executor/acompanhar-subagentes.ts";
 import { criarAmostradorMemoria } from "../src/adapters/executor/amostrador-memoria.ts";
-import { resolverBinario } from "../src/adapters/executor/caminho.ts";
+import { protegerIasDoNod, resolverBinario } from "../src/adapters/executor/caminho.ts";
 import { BinarioSemSuporte, comoRodar, type Alvo } from "../src/adapters/executor/plataforma.ts";
 import { criarClaudeCliDriver } from "../src/adapters/executor/drivers/claude-cli.ts";
 import { criarCodexCliDriver } from "../src/adapters/executor/drivers/codex-cli.ts";
 import { driverDoPlano, iniciarLaco } from "../src/adapters/executor/laco.ts";
 import { iniciarPoolDeLacos, type PoolDeLacos } from "../src/adapters/executor/pool-lacos.ts";
 import { criarPonteHttp, FalhaPonte, urlServidor } from "../src/adapters/executor/ponte-http.ts";
+import { vigiarRede } from "../src/adapters/executor/vigia-de-rede.ts";
 import { encerrarGruposVivos, executarColetando, registrarGruposEm } from "../src/adapters/executor/processo.ts";
 import { encerrarGruposOrfaos, type ResultadoDaLimpeza } from "../src/adapters/executor/grupos-orfaos.ts";
 import { encerrarFugitivosDaInstancia } from "../src/adapters/executor/fugitivos.ts";
@@ -30,7 +31,8 @@ import { sistemaDeVerdade } from "../src/shared/instalador-ssh.ts";
 import { configDosDrivers, criarRegistryDetalhado } from "../src/adapters/executor/registry.ts";
 import { prazoSondaDoEnv } from "../src/adapters/executor/sonda.ts";
 import type { ConfigDriver, Driver, Registry, RegistroDriver } from "../src/adapters/executor/spi.ts";
-import { criarDetectorGh, executarGithubNaMaquina } from "../src/adapters/conectores-locais/github/maquina.ts";
+import { criarDetectorGh } from "../src/adapters/conectores-locais/github/maquina.ts";
+import { executarConectorNaMaquina } from "../src/adapters/conectores-locais/maquina.ts";
 import type { IaDesktop } from "../src/contracts/desktop.ts";
 import { compararVersoes, extrairVersao, PISO_CLI } from "../src/adapters/executor/flag-floors.ts";
 import type { AtualizadorDeIas } from "../desktop/atualizador-ias.ts";
@@ -52,7 +54,7 @@ import { anuncioDoComputador, sondaLocal } from "./computador.ts";
 import { arquivoDasAtualizacoes, arquivoDoEstadoDeIa, arquivoDoPedidoDeIa, ESPERA_DA_RESPOSTA_MS, ESPERA_DO_SERVICO_MS, gravarJson, IA_DO_TERMINAL, lerEstadoDoPedido, passoNpmLocal, vigiarPedidosDoTerminal } from "./atualizar-ias.ts";
 import { criarPreparoNoMotor } from "./preparo-do-login.ts";
 import { criarIasDoMotor, esperarNoTerminal, quemNaoPodeAtualizar } from "./ias-do-motor.ts";
-import { comandoDeParear, comandoDeReinstalar, comandoParaAbrir, conferirGitForWindows, MENSAGEM_SEM_GIT_FOR_WINDOWS, plataformaDoMotor, SAIDA_SEM_GIT_FOR_WINDOWS, servidorAceitaPlataforma } from "./windows.ts";
+import { atualizarPathNoWindows, comandoDeParear, comandoDeReinstalar, comandoParaAbrir, conferirGitForWindows, MENSAGEM_SEM_GIT_FOR_WINDOWS, plataformaDoMotor, SAIDA_SEM_GIT_FOR_WINDOWS, servidorAceitaPlataforma } from "./windows.ts";
 import { AJUDA, aposentarChaveAntiga, arquivoDaConexao, carregarConexao, comandoDeEntrar, guardarConexao, guardarMaquinaDoMotor, lerComando, pastaDoExecutor, pastaDoMotor, type ConexaoMotor } from "./conexao.ts";
 
 /**
@@ -251,7 +253,9 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
   };
   // ADR-099 (I5): a frente que terminou sem trabalho sai na hora (a resposta do entregar traz a pasta).
   const ponteHttp = criarPonteHttp({ url: c.url, chave: c.chave, versao, aoFalhar, aoLimparAgora: (pastas) => void limpeza?.limparAgora(pastas) });
-  const gh = await criarDetectorGh({ ambiente: process.env }).logado();
+  // ADR-171: rede nova (Wi-Fi, VPN, IP) renova na hora o puxar preso no socket da rede velha.
+  vigiarRede({ aoMudar: () => { ponteHttp.renovarEsperas(); } });
+  const gh =await criarDetectorGh({ ambiente: process.env }).logado();
   const anuncio = { machineId: dados.machineId, nome: hostname(), versaoContrato: 1, github: { gh: gh && papel === "motor" }, ligacao: papel === "motor", plataforma: PLATAFORMA, papel, atualizaIas: !NO_WINDOWS } as const;
   // NOD-96 PR 2/3 (ADR-122): o computador da pessoa nesta máquina (só quando a instalação o trouxe). Relido a cada
   // reanúncio (a instalação pode ter terminado depois); a prova do bwrap roda uma vez só (não muda com o motor no ar).
@@ -276,7 +280,7 @@ async function conectar(c: ConexaoMotor, executor: string, pasta: string, versao
         for (const item of await ponteHttp.itensLocais()) {
           const jaRodou = relatos.get(item.itemId);
           if (jaRodou) { await relatar(item.itemId, jaRodou); continue; }
-          const r = await executarGithubNaMaquina({ capacidade: item.capacidade, argumentos: item.argumentos, ambiente: process.env });
+          const r = await executarConectorNaMaquina({ capacidade: item.capacidade, argumentos: item.argumentos, ambiente: process.env });
           await relatar(item.itemId, r.isError ? "falhou_na_execucao" : "executado");
         }
       })().catch(() => undefined).finally(() => { ocupado = false; });
@@ -481,6 +485,10 @@ async function rodar(): Promise<number> {
   const c = await carregarConexao(pasta);
   if (!c) { process.stderr.write(`Esta máquina ainda não está conectada. Rode: ${comandoDeParear("https://seu-nod")}\n`); return 2; }
   const versao = await versaoDoMotor();
+  // A Tarefa Agendada sobe o motor com o Path do último login: o Git, o Node e as IAs que a instalação acabou de pôr no
+  // Path do usuário vêm do registro, senão o motor sairia com 3 logo depois da primeira instalação.
+  const novasNoPath = atualizarPathNoWindows();
+  if (novasNoPath.length > 0) log("info", "motor_path_do_registro", { pastas_novas: novasNoPath.length });
   // ADA-11 (ADR-147): no Windows o motor só sobe com o Git for Windows e o hook rodando pelo Git Bash (falha fechada).
   const semGit = conferirGitForWindows({ nodePath: process.execPath, hookPath: caminhoAoLado("hook-nativas.mjs", "hook-nativas.ts") });
   if (semGit) {
@@ -687,6 +695,26 @@ async function desinstalarDaqui(c: { manterConexao: boolean; manterIas: boolean;
   return r.itens.some((i) => i.estado === "falhou") ? 1 : 0;
 }
 
+/**
+ * Definido em 2026-11-19: no Linux, o `claude`/`codex` do PATH só vale se for o do pacote que o nod instalou em
+ * ~/.local (src/adapters/executor/caminho.ts). Um bot que troque o `~/.local/bin/claude` não muda o que o motor roda.
+ * No Windows o motor não instala as IAs (`atualizaIas: false`): lá o binário é o da pessoa, como sempre.
+ */
+function protegerAsIas(): void {
+  if (NO_WINDOWS) return;
+  const avisados = new Set<string>();
+  protegerIasDoNod({
+    prefixo: join(process.env.HOME ?? homedir(), ".local"),
+    aoTrocar: ({ nome, achado, pacote }) => {
+      const chave = `${nome}\0${achado ?? ""}`;
+      if (avisados.has(chave)) return;
+      avisados.add(chave);
+      log("aviso", "ia_binario_trocado", { ia: nome, achado, pacote });
+    },
+  });
+}
+
+protegerAsIas();
 const comando = lerComando(process.argv.slice(2));
 const saida =
   comando.tipo === "rodar" ? rodar()

@@ -1,6 +1,7 @@
 import type { MsgMidiaCliente, MsgMidiaServidor, RotaSaida } from "../../src/contracts/voz.ts";
 import { decidirPorVoz, type DecisaoPorVoz } from "./api.ts";
 import type { EstadoLocalLigacao } from "./ligacao-protocolo.ts";
+import { falhaDoMicrofone, windowsNoApp } from "./microfone-do-sistema.ts";
 import { FECHAMENTOS, fechamentoDefinitivo, lerMsgServidor, lerQuadroVoz, mensagemCliente, quadroMicrofone, rotaPeloNome, VERSAO_PROTOCOLO } from "./ligacao-protocolo.ts";
 // Os worklets entram como bundle próprio (definido em 2026-10-04): `new URL("./x.worklet.ts", import.meta.url)` faz o
 // Vite copiar o .ts CRU para o build (asset), e o AudioWorklet não entende TypeScript; `?worker&url` compila o arquivo
@@ -220,7 +221,7 @@ export function iniciarMotorLigacao(o: OpcoesMotor): MotorLigacao {
     if (c.state === "suspended") await c.resume().catch(() => undefined);
     if (c.state === "suspended") emitir({ t: "local", estado: "audio-suspenso" });
 
-    // O macOS pergunta antes do Chromium (no app): negado lá, getUserMedia nem chega a pedir.
+    // O sistema pergunta antes do Chromium (no app do Mac e do Windows): negado lá, getUserMedia nem chega a pedir.
     const acesso = await window.nodDesktop?.microfone?.().catch(() => undefined);
     if (acesso === "negado" || acesso === "restrito") {
       emitir({ t: "local", estado: acesso === "negado" ? "microfone-negado" : "microfone-restrito" });
@@ -235,7 +236,7 @@ export function iniciarMotorLigacao(o: OpcoesMotor): MotorLigacao {
       stream = await abrirMicrofone();
     } catch (e) {
       const nome = e instanceof DOMException ? e.name : "";
-      emitir({ t: "local", estado: nome === "NotAllowedError" || nome === "SecurityError" ? "microfone-negado" : "microfone-indisponivel" });
+      emitir({ t: "local", estado: falhaDoMicrofone(nome, windowsNoApp()) });
       return;
     }
     if (fechado) {

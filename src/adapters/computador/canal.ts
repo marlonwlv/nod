@@ -15,7 +15,7 @@ type Foto = { escopo: Escopo; relato: EstadoComputadorRelatado; em: number };
 
 export type CanalComputador = ReturnType<typeof criarCanalComputador>;
 
-export function criarCanalComputador(o: { agora: () => number }) {
+export function criarCanalComputador(o: { agora: () => number; aoEstado?: (escopo: Escopo, maquinaId: string, relato: EstadoComputadorRelatado) => void }) {
   const pendentes = new Map<string, Pendente>();
   /** A última foto de cada máquina (a chave é a máquina: um supervisor por máquina). */
   const fotos = new Map<string, Foto>();
@@ -75,6 +75,8 @@ export function criarCanalComputador(o: { agora: () => number }) {
     },
     relatarEstado(escopo: Escopo, maquinaId: string, relato: EstadoComputadorRelatado): void {
       fotos.set(maquinaId, { escopo, relato, em: o.agora() });
+      // D (2026-11-12): a foto vai ao stream da pessoa (quem decide se mudou o bastante é o gancho). Nunca derruba o relato.
+      try { o.aoEstado?.(escopo, maquinaId, relato); } catch (e) { log("aviso", "computador_estado_stream_falhou", { maquina_id: maquinaId, erro: e instanceof Error ? e.name : "desconhecido" }); }
     },
     /** A foto viva (até 45 s) desta máquina, se é da pessoa. */
     foto(escopo: Escopo, maquinaId: string): EstadoComputadorRelatado | null {

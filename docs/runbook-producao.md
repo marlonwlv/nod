@@ -250,4 +250,33 @@ login, atualização do CLI ou processo morto. Investigue a troca do servidor e 
 
 Os mesmos exemplos, com o "como o filtro funciona", estão em [deploy-gcp.md](deploy-gcp.md#logs).
 
+### Deploy parado no SSH: a VM quebrou no kernel (issue #135)
+
+**Sintoma.** O passo "Arquivos da VM" ou o "Deploy" fica sem saída e o run falha pelo `timeout-minutes` do passo. O
+app continua respondendo com o build antigo: os processos que já estavam na memória servem, mas toda escrita nova no
+disco trava, inclusive abrir uma sessão SSH.
+
+**Onde olhar.** Sem SSH, a saída serial é o único log:
+
+```bash
+gcloud compute instances get-serial-port-output "$VM_NOME" --zone="$ZONA" --project="$PROJETO" \
+  | grep -n -E 'BUG: kernel|Oops|EXT4-fs (error|warning)|Linux version'
+```
+
+**Caso de 2026-11-17.** O `unattended-upgrade` instalou sozinho o kernel Debian `6.1.0-55` (6.1.192). Com ele, o
+`docker pull` do deploy derrubou o ext4 (`BUG: kernel NULL pointer dereference` em `ext4_mb_load_buddy_gfp`, processo
+`containerd`) duas vezes no mesmo dia. Um reset devolve a VM, mas o crash volta no pull seguinte. O `e2fsck -f` com o
+disco ligado numa VM de resgate achou o sistema de arquivos íntegro: a causa é o kernel, não o disco.
+
+**Estado atual da VM.** O boot está fixado no kernel `6.1.0-53` (`GRUB_DEFAULT` em `/etc/default/grub`; o original
+ficou em `/etc/default/grub.antes-20261117`) e o upgrade do kernel está em hold (`apt-mark hold linux-image-cloud-amd64`).
+O hold deixa a VM sem atualização de segurança do kernel. Para sair dele: instalar um kernel Debian mais novo que o
+6.1.192, voltar `GRUB_DEFAULT=0`, `update-grub`, `apt-mark unhold linux-image-cloud-amd64`, reiniciar e acompanhar um
+deploy inteiro pela saída serial.
+
+**Conserto, se voltar.** Reset da VM (`gcloud compute instances reset`) destrava, mas não resolve. Para o kernel: com a
+VM desligada, tirar um snapshot do disco, ligá-lo numa VM temporária, rodar `e2fsck -f`, ajustar o `GRUB_DEFAULT` pelo
+`chroot` (o UUID é o do disco da produção, `blkid` na VM de resgate, não o da própria VM de resgate), devolver o disco
+como boot e conferir na serial o `Linux version` do boot seguinte.
+
 ## Rollback de código: definido na NOD-173

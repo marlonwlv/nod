@@ -217,7 +217,7 @@ export async function comentarTarefa(deps: Deps, p: PedidoLote, op: Comentar, ex
     }
   }
   await coms.registrarTurnos(comentario.id, turnos);
-  const motivoDoFreio = `Freio: o responsável foi acionado mais de ${LIMITE_ACIONAMENTOS_HORA} vezes na última hora nesta tarefa. O comentário ficou gravado sem acionar ninguém; a pessoa responde para seguir.`;
+  const motivoDoFreio = `Freio: o responsável foi acionado mais de ${LIMITE_ACIONAMENTOS_HORA} vezes na última hora neste card. O comentário ficou gravado sem acionar ninguém; a pessoa responde para seguir.`;
   await repo.inserirMovimentos(q.id, null, [...comecaram.map((c) => mov("acionou", null, c.agenteId)), ...(freado ? [mov("freio", motivoDoFreio)] : [])]);
   // Revisão 7 do PR #629: o freio do comentário também avisa na conversa do responsável (ou de quem comentou), como o do
   // lote; o texto é do sistema e o título sai se a tarefa ou o turno são de fora. Um aviso por tarefa e hora (o idEnvio).
@@ -530,9 +530,9 @@ export const previaComentario: CasoDeUso<{ agenteId: string; tarefaId: string; t
   const nada = chips.some((c) => !c.aviso) ? null
     : nota ? NOTA_NAO_ACIONA
     // Revisão do PR #723 (P2): a pergunta feita no Backlog volta para lá com a resposta, sem turno.
-    : respondeEspera && responsavelNome ? (respostaFicaNaEspera(colunasDe(q!), t) ? "é a resposta à pergunta: fica no card até a tarefa começar" : `responde à pergunta: ${responsavelNome} volta à tarefa`)
+    : respondeEspera && responsavelNome ? (respostaFicaNaEspera(colunasDe(q!), t) ? "é a resposta à pergunta: fica no card até ele começar" : `responde à pergunta: ${responsavelNome} volta ao card`)
     : todos ? "@todos é anúncio: não aciona o responsável (@nome chama um bot)"
-    : !t.agenteId && !raizId ? "fica só registrado (a tarefa não tem responsável; @nome chama um bot)"
+    : !t.agenteId && !raizId ? "fica só registrado (o card não tem responsável; @nome chama um bot)"
     : "fica só registrado (@nome chama um bot)";
   return { data: { chips, pessoas, todos, nada } };
 };

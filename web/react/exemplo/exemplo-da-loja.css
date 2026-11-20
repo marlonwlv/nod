@@ -1,0 +1,9 @@
+/* ADR-179 (fase 1): CSS do componente de exemplo. Cada componente React tem o seu CSS, com prefixo próprio (rx-) e só
+   var(--…) de web/tokens.css e web/ds.css. Sem Tailwind, sem cor literal (tests/unit/web/cores-por-token.test.ts). */
+.rx-exemplo { display: flex; flex-direction: column; gap: 4px; color: var(--ink); font-size: var(--fs-corpo); }
+.rx-exemplo-gatilho { all: unset; cursor: pointer; color: var(--ink-2); border-radius: var(--raio-8); padding: 4px 8px; }
+.rx-exemplo-gatilho:hover { background: var(--hover); color: var(--ink); }
+.rx-exemplo-gatilho:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.rx-exemplo-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rx-exemplo-item { all: unset; cursor: pointer; display: block; padding: 4px 8px; border-radius: var(--raio-8); border: 1px solid var(--borda-sutil); }
+.rx-exemplo-item:hover { border-color: var(--borda); }

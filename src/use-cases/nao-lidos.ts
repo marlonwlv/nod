@@ -10,9 +10,10 @@ import type { CasoDeUso, Deps } from "./tipos.ts";
  * fala também não entra aqui; sala entra sempre que a pessoa a lê.
  */
 async function visiveis(deps: Deps): Promise<ResumoNaoLida[]> {
-  const resumo = await deps.repos.leituras.resumo();
+  // Leva 2 (ADR-183): as duas leituras juntas (a lista de agentes é pequena; esperar o resumo para pedi-la custava uma ida).
+  const [resumo, agentes] = await Promise.all([deps.repos.leituras.resumo(), deps.repos.agentes.listar()]);
   if (resumo.length === 0) return [];
-  const naBarra = new Set((await deps.repos.agentes.listar()).map((a) => a.id));
+  const naBarra = new Set(agentes.map((a) => a.id));
   return resumo.filter((r) => r.tipo === "sala" || (r.agenteId !== null && naBarra.has(r.agenteId)));
 }
 

@@ -74,7 +74,8 @@ function cenario(mensagens: Mensagem[], extra: Partial<Estado> = {}, conversa: P
 }
 
 const itens = (c: ConversaEstado, e: Estado) => blocosDoHistorico(c, e).filter((b) => !b.chave.startsWith("sep:"));
-const ehBalao = (html: string): boolean => /^\s*<article class="message /.test(html);
+// COP-14 (item 3): o balão do histórico pode levar data-grupo/data-group-start antes da classe (./grupos-do-chat.ts).
+const ehBalao = (html: string): boolean => /^\s*<article (?:data-grupo="[a-z]+" (?:data-group-start )?)?class="message /.test(html);
 const ehLinha = (html: string): boolean => /^\s*<div class="linha-centro-wrap"/.test(html);
 
 describe("a semente da filha 03: 11 itens, 9 você↔bot", () => {
@@ -152,9 +153,9 @@ describe("a semente da filha 03: 11 itens, 9 você↔bot", () => {
 });
 
 describe("tasks na conversa (#195)", () => {
-  const aberta = (trabalhoId: string, titulo: string, criadoEm: number): Mensagem => msg(`a-${trabalhoId}`, criadoEm, { kind: "sistema", texto: `Abriu a task ${titulo}`, payload: { kind: "trabalho_aberto", trabalhoId, titulo, origem: "pessoa" }, turnoId: "tc", origemTurno: "conversa" });
+  const aberta = (trabalhoId: string, titulo: string, criadoEm: number): Mensagem => msg(`a-${trabalhoId}`, criadoEm, { kind: "sistema", texto: `Abriu a tarefa ${titulo}`, payload: { kind: "trabalho_aberto", trabalhoId, titulo, origem: "pessoa" }, turnoId: "tc", origemTurno: "conversa" });
 
-  it("'Abriu a task' é linha centralizada clicável; as falas do meio somem; o resultado vira balão 'da task …' com a linha 'terminou'", () => {
+  it("'Abriu a tarefa' é linha centralizada clicável; as falas do meio somem; o resultado vira balão 'da tarefa …' com a linha 'terminou'", () => {
     const mensagens = [
       daPessoa("p1", t0), doBot("b1", t0 + MIN, "tc"), aberta("tb-1", "Migrar relatórios", t0 + MIN),
       msg("m1", t0 + 2 * MIN, { turnoId: "tt", origemTurno: "conversa", trabalhoId: "tb-1", texto: "Convertendo o lote 1" }),
@@ -164,23 +165,23 @@ describe("tasks na conversa (#195)", () => {
     const { e, c } = cenario(mensagens, { trabalhos: { trabalhos: [t], pressao: null, memoriaTotalMb: null } });
     const blocos = itens(c, e);
     expect(blocos.map((b) => b.chave)).toEqual(["p1", "b1", "linha:a-tb-1", "m2"]);
-    expect(blocos[2]!.html).toContain("<span>Abriu a task</span><b>Migrar relatórios</b>");
+    expect(blocos[2]!.html).toContain("<span>Abriu a tarefa</span><b>Migrar relatórios</b>");
     expect(blocos[2]!.html).toContain('data-trabalho="tb-1"');
     expect(blocos[2]!.html).toContain('data-linha-tipo="task"');
-    expect(blocos[3]!.html).toContain('<span class="etiqueta-origem" title="da task Migrar relatórios">da task Migrar relatórios</span>');
+    expect(blocos[3]!.html).toContain('<span class="etiqueta-origem" title="da tarefa Migrar relatórios">da tarefa Migrar relatórios</span>');
     expect(blocos[3]!.html).toContain("terminou · 39 min · US$ 0,88");
     expect(blocos.map((b) => b.html).join("")).not.toContain("Convertendo o lote 1");
   });
 
-  it("a pergunta da task chega como balão com a etiqueta, mesmo no meio do turno", () => {
+  it("a pergunta da tarefa chega como balão com a etiqueta, mesmo no meio do turno", () => {
     const pergunta = msg("q1", t0 + 5 * MIN, { turnoId: "tt", origemTurno: "conversa", trabalhoId: "tb-2", payload: { kind: "pedido_a_pessoa", decisaoId: "d1", opcoes: ["Por plano", "Os dois"] }, texto: "Separo por plano ou por segmento?" });
     const { e, c } = cenario([aberta("tb-2", "Dashboard de churn Q3", t0), pergunta], { trabalhos: { trabalhos: [trabalho("tb-2", { titulo: "Dashboard de churn Q3", estado: "precisa_de_voce" })], pressao: null, memoriaTotalMb: null } });
     const html = itens(c, e).find((b) => b.chave === "q1")!.html;
-    expect(html).toContain("da task Dashboard de churn Q3");
+    expect(html).toContain("da tarefa Dashboard de churn Q3");
     expect(html).toContain("Separo por plano ou por segmento?");
   });
 
-  it("'Fazer depois da …' e 'Fazer aqui' na linha da task nova; a pílula de memória entra embaixo dela sob pressão", () => {
+  it("'Fazer depois da …' e 'Fazer aqui' na linha da tarefa nova; a pílula de memória entra embaixo dela sob pressão", () => {
     const um = trabalho("tb-1", { titulo: "Migrar relatórios", criadoEm: t0 });
     const dois = trabalho("tb-2", { titulo: "Dashboard de churn Q3", criadoEm: t0 + 10 * MIN, estado: "na_fila" });
     const { e, c } = cenario([aberta("tb-1", "Migrar relatórios", t0), aberta("tb-2", "Dashboard de churn Q3", t0 + 10 * MIN)], { pressao: "amarela", trabalhos: { trabalhos: [um, dois], pressao: "amarela", memoriaTotalMb: null } });
@@ -192,11 +193,11 @@ describe("tasks na conversa (#195)", () => {
     expect(primeira).not.toContain("pilula-memoria");
     expect(segunda).toContain('class="pilula-memoria amarela"');
     expect(segunda).toContain("Pouca memória no seu Mac");
-    expect(segunda).toContain("· 2 trabalhos abertos");
+    expect(segunda).toContain("· 2 tarefas abertas");
     const vermelha = cenario(c.mensagens, { ...e, pressao: "vermelha" });
     expect(itens(vermelha.c, vermelha.e)[1]!.html).toContain("Seu Mac está quase sem memória");
     expect(itens(vermelha.c, vermelha.e)[1]!.html).toContain("pode travar");
-    // #219: com o disco crítico (nenhuma task nova começa), a pílula do disco no lugar da de memória — uma só; com o
+    // #219: com o disco crítico (nenhuma tarefa nova começa), a pílula do disco no lugar da de memória — uma só; com o
     // disco só em alerta, a task da pessoa começa e fica a de memória.
     const segurada = { ...dois, esperaDoMac: "disco" as const };
     const disco = cenario(c.mensagens, { ...e, trabalhos: { trabalhos: [um, segurada], pressao: "amarela", memoriaTotalMb: null, segurando: true, motivoEspera: "disco", seguraTudoNovo: true } });
@@ -208,9 +209,9 @@ describe("tasks na conversa (#195)", () => {
     expect(itens(alerta.c, alerta.e)[1]!.html).toContain("Pouca memória no seu Mac");
   });
 
-  // NOD-372: com as máquinas no DTO, a pílula embaixo da "Abriu a task" só com trabalho rodando no Mac (de qualquer
+  // NOD-372: com as máquinas no DTO, a pílula embaixo da "Abriu a tarefa" só com trabalho rodando no Mac (de qualquer
   // conversa), e contando só esses; o que roda na VM, na fila sem máquina ou em espera não conta.
-  it("NOD-372: na 'Abriu a task', a memória só com trabalho rodando no Mac ('N rodando aqui'); só na VM, nada", () => {
+  it("NOD-372: na 'Abriu a tarefa', a memória só com trabalho rodando no Mac ('N rodando aqui'); só na VM, nada", () => {
     const MAC = { id: "mac", nome: "Este Mac", ehMac: true };
     const VM = { id: "vm", nome: "nod-motor-teste", ehMac: false };
     const leitura = (m: typeof MAC, pressao: "verde" | "amarela" | "vermelha") => ({ ...m, pressao, memoriaBotsMb: 0, processador: "verde" as const, usoProcessador: 0.2, cargaProcessador: 0.2, fila: "verde" as const, disco: null, discoSuportado: true, motivoEspera: null, seguraTudoNovo: false });
@@ -227,7 +228,7 @@ describe("tasks na conversa (#195)", () => {
     expect(html).toContain('class="pilula-memoria amarela"');
     expect(html).toContain("· 1 rodando aqui");
     expect(ultima(comTrabalhos(misto, "vermelha"))).toContain("· pode travar; 1 rodando aqui");
-    // A conta da "Abriu a task" é de qualquer conversa, como a de antes (QA do PR #537): outro bot rodando no Mac conta.
+    // A conta da "Abriu a tarefa" é de qualquer conversa, como a de antes (QA do PR #537): outro bot rodando no Mac conta.
     const outroNoMac = [...naVm, trabalho("tb-outro", { maquina: MAC, agenteId: "chico", conversaId: "outra" })];
     expect(ultima(comTrabalhos(outroNoMac, "amarela"))).toContain("· 1 rodando aqui");
   });
@@ -258,7 +259,7 @@ describe("tasks na conversa (#195)", () => {
 describe("revisão W7/W8/W10 (2026-10-08)", () => {
   const rotina = (id: string, criadoEm: number, extra: Partial<Mensagem> = {}): Mensagem => msg(id, criadoEm, { turnoId: "tr1", origemTurno: "rotina", trabalhoId: "tb-r1", ...extra });
 
-  it("W7: a rotina em andamento não diz 'nada para você' (trabalho aberto, ou sem a linha da execução nem a última fala)", () => {
+  it("W7: a rotina em andamento não diz 'nada para você' (tarefa aberta, ou sem a linha da execução nem a última fala)", () => {
     const meio = [daPessoa("p1", t0), rotina("r1", t0 + MIN, { texto: "Lendo o #suporte" })];
     const comTrabalho = cenario(meio, { trabalhos: { trabalhos: [trabalho("tb-r1", { origem: "rotina", rotinaNome: "Triagem", estado: "rodando" })], pressao: null, memoriaTotalMb: null } });
     expect(itens(comTrabalho.c, comTrabalho.e).map((b) => b.html).join("")).not.toContain("nada para você");
@@ -272,7 +273,7 @@ describe("revisão W7/W8/W10 (2026-10-08)", () => {
     expect(itens(acabou.c, acabou.e)[0]?.html).toContain("rodou 1 vez · 09:00 · nada para você");
   });
 
-  it("W8: o que a pessoa escreveu no campo da task mora na task; na `rede`, só a fala anterior à promoção fica no chat", () => {
+  it("W8: o que a pessoa escreveu no campo da tarefa mora na task; na `rede`, só a fala anterior à promoção fica no chat", () => {
     const naTask = (id: string, trabalhoId: string): Mensagem => msg(id, t0 + 5 * MIN, { autoria: { autor_tipo: "pessoa", autor_id: "p" } as never, origemTurno: null, trabalhoId, texto: `recado ${id}` });
     const aberta = (trabalhoId: string, origem: "pessoa" | "rede"): Mensagem => msg(`a-${trabalhoId}`, t0, { kind: "sistema", texto: "Abriu", payload: { kind: "trabalho_aberto", trabalhoId, titulo: `Task ${trabalhoId}`, origem }, turnoId: "tc", origemTurno: "conversa" });
     const daConversa = { ...naTask("x2", "tb-2"), criadoEm: t0 - MIN };
@@ -282,7 +283,7 @@ describe("revisão W7/W8/W10 (2026-10-08)", () => {
     expect(html).toContain("recado x2");
     expect(html).not.toContain("recado x2-seguinte");
     expect(html).toContain("recado x3");
-    // Pela lista de trabalhos também (a linha "Abriu a task" saiu da janela carregada).
+    // Pela lista de trabalhos também (a linha "Abriu a tarefa" saiu da janela carregada).
     const pelaLista = cenario([naTask("x4", "tb-4")], { trabalhos: { trabalhos: [trabalho("tb-4")], pressao: null, memoriaTotalMb: null } });
     expect(itens(pelaLista.c, pelaLista.e).map((b) => b.html).join("")).not.toContain("recado x4");
   });
@@ -319,7 +320,7 @@ describe("revisão W7/W8/W10 (2026-10-08)", () => {
   });
 });
 
-describe("quem pede a um colega (padrão Grok)", () => {
+describe("quem pede a um colega", () => {
   it("'Enviou mensagem para Chico' no pedido e 'N mensagens com Chico' na volta; a fala de quem pediu continua balão", () => {
     const handoff = msg("h1", t0, { turnoId: "t-pede", origemTurno: "conversa", kind: "handoff", texto: "x", payload: { kind: "handoff", de: "clarice", para: "chico", motivo: "revisar", tarefaId: "tarefa-1", trabalhoId: "tb-chico" } });
     const resposta = msg("h2", t0 + 30 * MIN, { turnoId: "t-volta", origemTurno: "retomada", kind: "peer_ask", texto: "Revisei", payload: { kind: "peer_ask", agenteId: "chico", nome: "Chico", naoSupervisionado: true, tarefaId: "tarefa-1", delegada: true } });
@@ -401,7 +402,7 @@ describe("QA do épico (2026-10-08): nome de rotina longo não estica a linha ne
   });
 });
 
-describe("QA do épico (2026-10-08): o aviso de turno interrompido da task fica na tela dela", () => {
+describe("QA do épico (2026-10-08): o aviso de turno interrompido da tarefa fica na tela dela", () => {
   it("Parar task / Fazer depois / Fazer aqui não deixam 'Turno interrompido' no chat; a task que falhou deixa", () => {
     const aviso = (id: string, trabalhoId: string): Mensagem => msg(id, t0 + MIN, { kind: "sistema", texto: "Turno interrompido: você pediu para parar.", turnoId: `t-${id}`, origemTurno: "conversa", trabalhoId });
     const lista = [trabalho("tb-parada", { estado: "parado", terminadoEm: t0 + MIN }), trabalho("tb-fila", { estado: "na_fila" }), trabalho("tb-falhou", { estado: "falhou", terminadoEm: t0 + MIN }), trabalho("tb-espera", { estado: "precisa_de_voce" })];
@@ -412,8 +413,8 @@ describe("QA do épico (2026-10-08): o aviso de turno interrompido da task fica 
 });
 
 describe("QA do épico (2026-10-08): a linha do meio do turno desce para depois da fala que a anunciou (K1, B1)", () => {
-  it("\"Abriu a task\" e \"Enviou mensagem para\" entram depois do balão do bot do mesmo turno", () => {
-    const abriu = msg("ab", t0 + MIN, { kind: "sistema", texto: "Abriu a task Migrar relatórios", turnoId: "tc", origemTurno: "conversa", payload: { kind: "trabalho_aberto", trabalhoId: "tb-m", titulo: "Migrar relatórios", origem: "pessoa" } });
+  it("\"Abriu a tarefa\" e \"Enviou mensagem para\" entram depois do balão do bot do mesmo turno", () => {
+    const abriu = msg("ab", t0 + MIN, { kind: "sistema", texto: "Abriu a tarefa Migrar relatórios", turnoId: "tc", origemTurno: "conversa", payload: { kind: "trabalho_aberto", trabalhoId: "tb-m", titulo: "Migrar relatórios", origem: "pessoa" } });
     const anuncio = msg("an", t0 + 2 * MIN, { turnoId: "tc", origemTurno: "conversa", fimDoTurno: true, texto: "Abri uma task para isso." });
     const pediu = msg("hp", t0 + 4 * MIN, { turnoId: "tp", origemTurno: "conversa", kind: "handoff", texto: "x", payload: { kind: "handoff", de: "clarice", para: "chico", motivo: "revisar", tarefaId: "tarefa-9" } });
     const falou = msg("fp", t0 + 5 * MIN, { turnoId: "tp", origemTurno: "conversa", fimDoTurno: true, texto: "Pedi ao Chico." });
@@ -433,25 +434,25 @@ describe("ADR-099 (I2): o lote de frentes vira uma linha só, e o recado a uma f
     const { e, c } = cenario([daPessoa("p1", t0), tres, anuncio, uma]);
     const planos = planejarLinhas(c.mensagens, e);
     const htmlTres = (planos.get("l3") as { html: string }).html;
-    expect(htmlTres).toContain("Começou 3 frentes");
+    expect(htmlTres).toContain("Começou 3 tarefas");
     for (const id of ["f-a", "f-b", "f-c"]) expect(htmlTres).toContain(`data-act="abrir-trabalho" data-id="${id}"`);
     expect(htmlTres).toContain("CI &lt;vermelha&gt;");
     const htmlUma = (planos.get("l1") as { html: string }).html;
-    expect(htmlUma).toContain("Começou a frente");
+    expect(htmlUma).toContain("Começou a tarefa");
     expect(htmlUma).toContain('data-trabalho="f-d"');
-    // A linha do turno desce para depois da fala que a anunciou, como a "Abriu a task".
+    // A linha do turno desce para depois da fala que a anunciou, como a "Abriu a tarefa".
     expect(itens(c, e).map((b) => b.chave)).toEqual(["p1", "an", "linha:l3", "linha:l1"]);
     for (const b of itens(c, e)) expect(ehBalao(b.html) || ehLinha(b.html), b.chave).toBe(true);
   });
 
-  it("ADR-099 (parte 5, quadro 06): a linha das várias frentes é uma só, \"●●● Começou 3 frentes: A, B e C · hora\", com um ponto na cor do bot por frente", () => {
+  it("ADR-099 (parte 5, quadro 06): a linha das várias frentes é uma só, \"●●● Começou 3 tarefas: A, B e C · hora\", com um ponto na cor do bot por frente", () => {
     const tres = lote("l3", [{ trabalhoId: "f-a", titulo: "Login" }, { trabalhoId: "f-b", titulo: "CI" }, { trabalhoId: "f-c", titulo: "Notas" }], t0 + MIN);
     const cinco = lote("l5", ["a", "b", "c", "d", "e"].map((x) => ({ trabalhoId: `g-${x}`, titulo: x })), t0 + 2 * MIN);
     const { e, c } = cenario([daPessoa("p1", t0), tres, cinco]);
     const planos = planejarLinhas(c.mensagens, e);
     const html = (planos.get("l3") as { html: string }).html;
     expect(html).toContain('<div class="linha-centro-wrap"><div class="linha-centro linha-task linha-frentes estatica">');
-    expect(html).toContain("<span>Começou 3 frentes:</span>");
+    expect(html).toContain("<span>Começou 3 tarefas:</span>");
     expect(html.match(/<span class="ponto-trabalho c-red"><\/span>/g)).toHaveLength(3);
     expect(html).toMatch(/Login<\/button><span class="linha-sep">, <\/span><button[^>]*>CI<\/button><span class="linha-sep"> e <\/span><button[^>]*>Notas<\/button>/);
     expect(html).toContain('<span class="linha-hora">· 09:01</span>');
@@ -461,20 +462,20 @@ describe("ADR-099 (I2): o lote de frentes vira uma linha só, e o recado a uma f
     expect((planos.get("l5") as { html: string }).html.match(/class="ponto-trabalho c-red"/g)).toHaveLength(3);
   });
 
-  it("ADR-099 (parte 5, quadro 02): \"✓ 3 frentes terminaram · hora\" centralizada; com uma frente, a linha abre a tela dela; parou/falhou dizem", () => {
+  it("ADR-099 (parte 5, quadro 02): \"✓ 3 tarefas terminaram · hora\" centralizada; com uma frente, a linha abre a tela dela; parou/falhou dizem", () => {
     const fim = (id: string, frentes: { trabalhoId: string; titulo: string; estado: "terminado" | "parado" | "falhou" }[], criadoEm: number) =>
-      msg(id, criadoEm, { kind: "sistema", texto: "3 frentes terminaram", turnoId: "tv", payload: { kind: "frentes_terminadas", loteId: `l-${id}`, frentes } });
+      msg(id, criadoEm, { kind: "sistema", texto: "3 tarefas terminaram", turnoId: "tv", payload: { kind: "frentes_terminadas", loteId: `l-${id}`, frentes } });
     const todas = fim("ft", [{ trabalhoId: "f-a", titulo: "Login", estado: "terminado" }, { trabalhoId: "f-b", titulo: "CI", estado: "terminado" }, { trabalhoId: "f-c", titulo: "Notas", estado: "terminado" }], t0 + 55 * MIN);
     const uma = fim("f1", [{ trabalhoId: "f-d", titulo: "Deploy", estado: "terminado" }], t0 + 56 * MIN);
     const mista = fim("fm", [{ trabalhoId: "f-e", titulo: "A", estado: "terminado" }, { trabalhoId: "f-f", titulo: "B", estado: "falhou" }], t0 + 57 * MIN);
     const { e, c } = cenario([daPessoa("p1", t0), todas, uma, mista]);
     const planos = planejarLinhas(c.mensagens, e);
     const html = (id: string) => (planos.get(id) as { html: string }).html;
-    expect(html("ft")).toContain('<span class="linha-ok" aria-hidden="true">✓</span><span>3 frentes terminaram · 09:55</span>');
+    expect(html("ft")).toContain('<span class="linha-ok" aria-hidden="true">✓</span><span>3 tarefas terminaram · 09:55</span>');
     expect(html("ft")).toContain("linha-centro estatica");
     expect(html("f1")).toContain('data-trabalho="f-d"');
     expect(html("f1")).toContain("<b>Deploy</b><span>terminou · 09:56</span>");
-    expect(html("fm")).toContain('<span class="linha-falhou" aria-hidden="true">!</span><span>2 frentes voltaram · 1 falhou · 09:57</span>');
+    expect(html("fm")).toContain('<span class="linha-falhou" aria-hidden="true">!</span><span>2 tarefas voltaram · 1 falhou · 09:57</span>');
     // Nada disso é a mensagem de sistema comum (a caixa cinza à esquerda).
     for (const b of itens(c, e)) expect(b.html).not.toContain("msg-sistema");
   });
@@ -491,19 +492,19 @@ describe("ADR-099 (I2): o lote de frentes vira uma linha só, e o recado a uma f
     expect((planos.get("px") as { html: string }).html).toContain("&lt;b&gt;x&lt;/b&gt;");
   });
 
-  it("\"Virou a frente\" (a rede de 2 min) também é linha centralizada que abre a frente", () => {
-    const virou = msg("vf", t0 + MIN, { kind: "sistema", texto: "Virou a frente Relatório", turnoId: "tc", origemTurno: "conversa", payload: { kind: "trabalho_aberto", trabalhoId: "f-r", titulo: "Relatório", origem: "rede" } });
+  it("\"Virou a tarefa\" (a rede de 2 min) também é linha centralizada que abre a frente", () => {
+    const virou = msg("vf", t0 + MIN, { kind: "sistema", texto: "Virou a tarefa Relatório", turnoId: "tc", origemTurno: "conversa", payload: { kind: "trabalho_aberto", trabalhoId: "f-r", titulo: "Relatório", origem: "rede" } });
     const { e, c } = cenario([daPessoa("p1", t0), virou]);
     const html = (planejarLinhas(c.mensagens, e).get("vf") as { html: string }).html;
-    expect(html).toContain("<span>Virou a frente</span><b>Relatório</b>");
+    expect(html).toContain("<span>Virou a tarefa</span><b>Relatório</b>");
     expect(html).toContain('<div class="linha-centro-wrap"><button type="button" class="linha-centro linha-task"');
   });
 
   it("o recado a uma frente é uma linha que abre a frente", () => {
-    const copia = msg("rc", t0 + MIN, { kind: "sistema", texto: "Recado para a frente Login: teste no iPhone", confianca: "nao_confiavel", turnoId: "tc", origemTurno: "conversa", payload: { kind: "recado_a_frente", trabalhoId: "f-a", titulo: "Login" } });
+    const copia = msg("rc", t0 + MIN, { kind: "sistema", texto: "Recado para a tarefa Login: teste no iPhone", confianca: "nao_confiavel", turnoId: "tc", origemTurno: "conversa", payload: { kind: "recado_a_frente", trabalhoId: "f-a", titulo: "Login" } });
     const { e, c } = cenario([daPessoa("p1", t0), copia]);
     const html = (planejarLinhas(c.mensagens, e).get("rc") as { html: string }).html;
-    expect(html).toContain("Repassou um recado à frente");
+    expect(html).toContain("Repassou um recado à tarefa");
     expect(html).toContain('data-trabalho="f-a"');
   });
 });
@@ -512,18 +513,18 @@ describe("ADR-099 (I7 revista): a rotina e o pedido de colega sem trabalho segue
   // A execução é um turno do dono sem trabalho ("tr"); o retorno das frentes é uma retomada dele ("tv", raiz "tr").
   const daTriagem = (criadoEm: number): Mensagem[] => [
     msg("ra", criadoEm, { turnoId: "tr", origemTurno: "rotina", fimDoTurno: true, texto: "Abri uma frente para o PR 7." }),
-    msg("rf", criadoEm, { kind: "sistema", texto: "Começou a frente PR 7", turnoId: "tr", origemTurno: "rotina", payload: { kind: "frentes_abertas", loteId: "l1", origem: "rotina", frentes: [{ trabalhoId: "f-7", titulo: "PR 7" }] } }),
+    msg("rf", criadoEm, { kind: "sistema", texto: "Começou a tarefa PR 7", turnoId: "tr", origemTurno: "rotina", payload: { kind: "frentes_abertas", loteId: "l1", origem: "rotina", frentes: [{ trabalhoId: "f-7", titulo: "PR 7" }] } }),
   ];
   const doRetorno = (criadoEm: number): Mensagem[] => [
     msg("rx", criadoEm, { turnoId: "tr", origemTurno: "rotina", kind: "rotina_execucao", texto: "Rotina executou em …", payload: { kind: "rotina_execucao", rotinaId: "rot-prs", instanteAgendado: criadoEm, desfecho: "executou" } }),
     msg("rv", criadoEm, { turnoId: "tv", origemTurno: "retomada", raiz: { turnoId: "tr", origem: "rotina" }, fimDoTurno: true, texto: "O PR 7 tem dois comentários seus para responder." }),
   ];
 
-  it("enquanto as frentes rodam: a fala do dono some, fica a linha \"Começou a frente\" e nada de \"nada para você\"", () => {
+  it("enquanto as frentes rodam: a fala do dono some, fica a linha \"Começou a tarefa\" e nada de \"nada para você\"", () => {
     const { e, c } = cenario([daPessoa("p1", t0), ...daTriagem(t0 + MIN)]);
     const tudo = itens(c, e).map((b) => b.html).join("");
     expect(tudo).not.toContain("Abri uma frente para o PR 7.");
-    expect(tudo).toContain("Começou a frente");
+    expect(tudo).toContain("Começou a tarefa");
     expect(tudo).not.toContain("nada para você");
   });
 
@@ -585,38 +586,38 @@ describe("chat limpo com destino (ADR-114, PR 2)", () => {
     expect(html(c, e)).toContain("3 avisos do sistema · ver");
   });
 
-  it("o anexo não vira linha: sem 'Abriu a task', sem 'terminou · 39 min', e o balão do resultado leva o título da task", () => {
+  it("o anexo não vira linha: sem 'Abriu a tarefa', sem 'terminou · 39 min', e o balão do resultado leva o título da task", () => {
     const ms = comDestino([
       daPessoa("p1", t0), doBot("b1", t0 + MIN, "tc"),
-      destino(sistema("a-tb-1", t0 + MIN, "Abriu a task Migrar relatórios", { payload: { kind: "trabalho_aberto", trabalhoId: "tb-1", titulo: "Migrar relatórios", origem: "pessoa" }, turnoId: "tc", origemTurno: "conversa" }), "anexo"),
+      destino(sistema("a-tb-1", t0 + MIN, "Abriu a tarefa Migrar relatórios", { payload: { kind: "trabalho_aberto", trabalhoId: "tb-1", titulo: "Migrar relatórios", origem: "pessoa" }, turnoId: "tc", origemTurno: "conversa" }), "anexo"),
       msg("m1", t0 + 2 * MIN, { turnoId: "tt", origemTurno: "conversa", trabalhoId: "tb-1", texto: "Convertendo o lote 1" }),
       msg("m2", t0 + 40 * MIN, { turnoId: "tt", origemTurno: "conversa", trabalhoId: "tb-1", fimDoTurno: true, texto: "Migração pronta: 33 relatórios" }),
-      destino(sistema("f1", t0 + 42 * MIN, "3 frentes terminaram", { payload: { kind: "frentes_terminadas", loteId: "l2", frentes: [{ trabalhoId: "x", titulo: "X", estado: "terminado" }, { trabalhoId: "y", titulo: "Y", estado: "terminado" }] } }), "anexo"),
+      destino(sistema("f1", t0 + 42 * MIN, "3 tarefas terminaram", { payload: { kind: "frentes_terminadas", loteId: "l2", frentes: [{ trabalhoId: "x", titulo: "X", estado: "terminado" }, { trabalhoId: "y", titulo: "Y", estado: "terminado" }] } }), "anexo"),
     ]);
     // O trabalho já saiu da lista: o título vem só do anexo.
     const t = trabalho("tb-1", { titulo: "Migrar relatórios", estado: "terminado", terminadoEm: t0 + 39 * MIN, custoUsd: 0.88 });
     const { e, c } = cenario(ms, { trabalhos: { trabalhos: [t], pressao: null, memoriaTotalMb: null } });
     const blocos = itens(c, e);
     expect(blocos.map((b) => b.chave)).toEqual(["p1", "b1", "m2"]);
-    expect(blocos[2]!.html).toContain('<span class="etiqueta-origem" title="da task Migrar relatórios">da task Migrar relatórios</span>');
+    expect(blocos[2]!.html).toContain('<span class="etiqueta-origem" title="da tarefa Migrar relatórios">da tarefa Migrar relatórios</span>');
     const tudo = html(c, e);
-    expect(tudo).not.toContain("Abriu a task");
+    expect(tudo).not.toContain("Abriu a tarefa");
     expect(tudo).not.toContain("terminou ·");
     // O "Respondi ao pedido de" (também `anexo`) entra na troca agrupada do PR 3: ver "a conversa com outros bots numa linha".
     expect(tudo).not.toContain("frentes terminaram");
     const semLista = cenario(ms);
-    expect(itens(semLista.c, semLista.e).find((b) => b.chave === "m2")?.html).toContain("da task Migrar relatórios");
+    expect(itens(semLista.c, semLista.e).find((b) => b.chave === "m2")?.html).toContain("da tarefa Migrar relatórios");
   });
 
   it("a rotina que abriu frentes não vira resultado antes da hora: o 'comecei…' segue escondido com o anexo", () => {
     const ms = comDestino([
-      msg("r1", t0, { turnoId: "tr", origemTurno: "rotina", fimDoTurno: true, texto: "Comecei 2 frentes" }),
-      destino(sistema("fa", t0 + 1, "Começou 2 frentes", { turnoId: "tr", origemTurno: "rotina", payload: { kind: "frentes_abertas", loteId: "l", origem: "rotina", frentes: [{ trabalhoId: "f1", titulo: "A" }, { trabalhoId: "f2", titulo: "B" }] } }), "anexo"),
+      msg("r1", t0, { turnoId: "tr", origemTurno: "rotina", fimDoTurno: true, texto: "Comecei 2 tarefas" }),
+      destino(sistema("fa", t0 + 1, "Começou 2 tarefas", { turnoId: "tr", origemTurno: "rotina", payload: { kind: "frentes_abertas", loteId: "l", origem: "rotina", frentes: [{ trabalhoId: "f1", titulo: "A" }, { trabalhoId: "f2", titulo: "B" }] } }), "anexo"),
     ]);
     const { e, c } = cenario(ms);
     const tudo = html(c, e);
-    expect(tudo).not.toContain("Comecei 2 frentes");
-    expect(tudo).not.toContain("Começou 2 frentes");
+    expect(tudo).not.toContain("Comecei 2 tarefas");
+    expect(tudo).not.toContain("Começou 2 tarefas");
   });
 
   it("a sala não tem destino e segue como antes", () => {
@@ -800,7 +801,7 @@ describe("a conversa com outros bots numa linha (chat limpo, PR 3)", () => {
     const comLote = cena([
       msg("lp", t0, { autoria: { ...autoriaBot("ada"), sob_procuracao_de: "p" }, turnoId: "tl", origemTurno: "delegacao", payload: { kind: "peer_pedido", conversaOrigemId: "c-ada", turnoOrigemId: "t-ada", nome: "Ada" }, texto: "Revise o login e a CI" }),
       doLeonardo("lc", t0 + MIN, { turnoId: "tl", origemTurno: "delegacao", fimDoTurno: true, texto: "Comecei duas frentes." }),
-      { ...msg("lf", t0 + MIN, { turnoId: "tl", origemTurno: "delegacao", kind: "sistema", texto: "Começou 2 frentes", payload: { kind: "frentes_abertas", loteId: "l", origem: "colega", frentes: [{ trabalhoId: "f1", titulo: "Login" }, { trabalhoId: "f2", titulo: "CI" }] } }), destino: "anexo" as const },
+      { ...msg("lf", t0 + MIN, { turnoId: "tl", origemTurno: "delegacao", kind: "sistema", texto: "Começou 2 tarefas", payload: { kind: "frentes_abertas", loteId: "l", origem: "colega", frentes: [{ trabalhoId: "f1", titulo: "Login" }, { trabalhoId: "f2", titulo: "CI" }] } }), destino: "anexo" as const },
       { ...msg("lr", t0 + 40 * MIN, { kind: "sistema", texto: "Respondi ao pedido de Ada", confianca: "nao_confiavel", payload: { kind: "pedido_respondido", loteId: "l", agenteId: "ada", nome: "Ada", resposta: "- Login: ok\n- CI: um teste instável", turnoRaizId: "tl" } }), destino: "anexo" as const },
     ]);
     expect(comLote.map((b) => b.chave)).toEqual(["troca:turno:tl"]);
@@ -825,7 +826,7 @@ describe("a conversa com outros bots numa linha (chat limpo, PR 3)", () => {
     const troca = blocos[0]!.html;
     expect(troca).toContain("Conversou com <b>Ze 1</b> · 2 mensagens · 1 não terminou");
     expect(troca).toContain("Não conseguiu terminar o pedido: você pediu para parar");
-    expect(troca).toContain('data-act="abrir-trabalho" data-id="w-ze">Ver a task do Ze 1</button>');
+    expect(troca).toContain('data-act="abrir-trabalho" data-id="w-ze">Ver a tarefa do Ze 1</button>');
     expect(troca).not.toContain("msg-peer-falhou");
   });
 
@@ -890,7 +891,7 @@ describe("frente de lote (NOD-325)", () => {
     const { e, c } = cenario(comDestino([daPessoa("p1", t0), lote([{ trabalhoId: "f-a", titulo: "Runner" }]), pergunta]), conhecidos(["f-a"]));
     const b = baloes(c, e);
     expect(b.map((x) => x.chave)).toEqual(["q1"]);
-    expect(b[0]!.html).toContain("da task Frente f-a");
+    expect(b[0]!.html).toContain("da tarefa Frente f-a");
   });
 
   it("task normal (destino chat) continua com o balão 'da task'", () => {
@@ -898,7 +899,7 @@ describe("frente de lote (NOD-325)", () => {
     const { e, c } = cenario(comDestino([daPessoa("p1", t0), fala]), conhecidos(["tb-1"]));
     const b = baloes(c, e);
     expect(b.map((x) => x.chave)).toEqual(["m2"]);
-    expect(b[0]!.html).toContain("da task Frente tb-1");
+    expect(b[0]!.html).toContain("da tarefa Frente tb-1");
   });
 
   it("sem destino (servidor antigo): a fala da frente continua balão", () => {
@@ -908,7 +909,7 @@ describe("frente de lote (NOD-325)", () => {
     // Sem destino a conversa não é "limpa": o balão vem com a linha "terminou" logo acima, como antes.
     const fz = itens(c, e).find((b) => b.chave === "fz");
     expect(fz?.html).toContain('<article class="message ');
-    expect(fz?.html).toContain("da task Frente f-a");
+    expect(fz?.html).toContain("da tarefa Frente f-a");
   });
 });
 

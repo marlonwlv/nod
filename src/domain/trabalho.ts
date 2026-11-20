@@ -36,6 +36,36 @@ export function linhaCurta(texto: string): string {
 }
 
 /**
+ * O último passo que vem da fala do bot: a primeira linha como texto corrido, depois `linhaCurta` (validação de
+ * 2026-11-17: o cartão das tarefas, a tela Tarefas e o painel mostravam "**1.509 palavras**" e "`pao.md`" crus, porque a
+ * fala é markdown e a linha é texto). Tira título, citação, item de lista, régua, cerca de código, link, código em linha
+ * e ênfase; não mexe em snake_case nem em "2 * 3".
+ */
+export function linhaDaFala(texto: string): string {
+  for (const l of texto.split("\n")) {
+    const limpa = semMarcacao(l).replace(/\s+/g, " ").trim();
+    if (limpa !== "") return linhaCurta(limpa);
+  }
+  return linhaCurta("");
+}
+
+function semMarcacao(linha: string): string {
+  const s = linha.trim();
+  if (/^([-*_])(\s*\1){2,}$/u.test(s) || /^(```|~~~)/u.test(s)) return "";
+  return s
+    .replace(/^(?:>\s?)+/u, "")
+    .replace(/^#{1,6}\s+(.*?)\s*#*$/u, "$1")
+    .replace(/^(?:[-*+•]|\d{1,3}[.)])\s+(?:\[[ xX]\]\s+)?/u, "")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)\s]*\)/gu, "$1")
+    .replace(/`([^`]+)`/gu, "$1")
+    .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/gu, "$2")
+    .replace(/~~(?=\S)(.+?)(?<=\S)~~/gu, "$1")
+    .replace(/(^|[^\p{L}\p{N}*])\*(?=\S)([^*]+?)(?<=\S)\*(?![\p{L}\p{N}*])/gu, "$1$2")
+    .replace(/(^|[^\p{L}\p{N}_])_(?=\S)([^_]+?)(?<=\S)_(?![\p{L}\p{N}_])/gu, "$1$2");
+}
+
+/**
  * Os primeiros `n` caracteres (unidades UTF-16) sem partir um par substituto: a letra fora do plano básico ("𝐀", o CJK
  * da extensão B) cortada ao meio deixava meia letra no título, que o UTF-8 do Postgres e do JSON trocam por "�".
  * definido em 2026-10-18 (revisão do PR 5).
@@ -78,7 +108,7 @@ export function tituloOuNada(texto: string): string | null {
 export const PALAVRAS_TITULO_PROVISORIO = 6;
 export const CARACTERES_TITULO_PROVISORIO = 40;
 /** O reserva do título provisório, quando a mensagem não tem letra (só link, emoji, "??" ou nada). */
-export const TITULO_PROVISORIO_RESERVA = "Frente da conversa";
+export const TITULO_PROVISORIO_RESERVA = "Tarefa da conversa";
 
 // A saudação do começo ("Oi", "Bom dia", "E aí", "Tudo bem?"), com o vocativo curto que vem depois ("Oi Nina,").
 // revisto em 2026-10-18 (QA do PR 5): também a do espanhol ("Hola, ¿puedes arreglar…" dava "Hola, ¿puedes arreglar el
@@ -195,7 +225,7 @@ function primeiraOracao(corpo: string): string {
  * "Abre uma task com isto: «começo da fala…»". definido em 2026-10-18 (rebase do PR 5 sobre o #392): o título sai do
  * assunto citado; sem isso, a primeira oração dava "Abre uma task com isto".
  */
-const PEDIDO_TASK_DA_FALA = /^Abre uma task com isto: «([^»]+)»$/u;
+const PEDIDO_TASK_DA_FALA = /^Abre uma (?:task|tarefa) com isto: «([^»]+)»$/u;
 
 export function tituloProvisorio(texto: string): string {
   texto = PEDIDO_TASK_DA_FALA.exec(texto.trim())?.[1] ?? texto;
@@ -375,19 +405,46 @@ export function soltarPorMemoria(p: { nivel: "verde" | "amarela" | "vermelha" | 
 export const REDE_MS = 120_000;
 
 /**
+ * ADR-187 (validação de 2026-11-17): a fala da pessoa que o turno absorveu e o bot não leu há isto (ele esperava um
+ * subagente) promove o turno antes dos 2 min. Medido no mesmo dia: "quanto é dois mais dois?" esperou 80 s pela rede; com
+ * 15 s e a renovação de 20 s, 24 s. Com 8 s e o long-poll voltando no prazo (ponte-interna, `naoLidas`), a promoção sai
+ * uns 9 s depois da fala.
+ */
+export const REDE_NAO_LIDA_MS = 8_000;
+
+/**
  * A rede de 2 min (#193): só o turno do dono com a pessoa (nada de sala, ligação, rotina ou colega), sem trabalho,
  * rodando há REDE_MS, que já chamou ao menos uma ferramenta. `redeMs` existe só para o e2e (ausente, vale REDE_MS).
  * revisto em 2026-10-12 (ADR-099, I8): também a retomada do dono em modo conversa, e com harness que bifurca OU que nem
  * retoma sessão (o dono segue com o histórico). As capacidades são as declaradas do harness; quem escolhe entre bifurcar
  * e largar a sessão é a máquina (`seguimentoNaRede`, domain/frente.ts).
+ * revisto em 2026-11-17 (ADR-187): `naoLidaHaMs` (há quanto tempo a fala absorvida mais antiga espera leitura) promove
+ * antes, a partir de REDE_NAO_LIDA_MS — a conversa larga o pedido e responde a pessoa já.
  */
-export function promoveNaRede(p: { origem: OrigemTurno; modo?: ModoTurno | null; trabalhoId: string | null | undefined; estado: EstadoTurno; despachadoHaMs: number; fezFerramenta: boolean; capacidades: CapacidadesHarness; redeMs?: number }): boolean {
+export function promoveNaRede(p: { origem: OrigemTurno; modo?: ModoTurno | null; trabalhoId: string | null | undefined; estado: EstadoTurno; despachadoHaMs: number; fezFerramenta: boolean; capacidades: CapacidadesHarness; redeMs?: number; naoLidaHaMs?: number | null }): boolean {
   const doDono = p.origem === "conversa" || (p.origem === "retomada" && p.modo === "conversa");
-  return doDono && !p.trabalhoId && p.estado === "despachando" && p.despachadoHaMs >= (p.redeMs ?? REDE_MS) && p.fezFerramenta && (p.capacidades.bifurcaSessao || !p.capacidades.retomaSessao);
+  const naHora = p.despachadoHaMs >= (p.redeMs ?? REDE_MS) || (p.naoLidaHaMs ?? -1) >= REDE_NAO_LIDA_MS;
+  return doDono && !p.trabalhoId && p.estado === "despachando" && naHora && p.fezFerramenta && (p.capacidades.bifurcaSessao || !p.capacidades.retomaSessao);
+}
+
+/**
+ * ADR-187 §3 (validação de 2026-11-17): o aviso que a sessão do turno promovido recebe quando a rede devolve à conversa as
+ * falas que ele ainda não tinha lido. Elas já estão escritas na sessão; sem o aviso, a tarefa respondia de novo ("2 + 2 =
+ * 4.") e a resposta chegava à conversa junto com a entrega. Cada fala vai cortada em 120 caracteres.
+ */
+export function avisoDasFalasDevolvidas(falas: readonly string[]): string {
+  const citadas = falas.map((f) => `«${linhaCurtaDe(f, 120)}»`).join(", ");
+  return `[aviso do nod] Este pedido seguiu em segundo plano. A conversa com a pessoa já respondeu a ${falas.length === 1 ? "esta mensagem" : "estas mensagens"}: ${citadas}. Não responda a ${falas.length === 1 ? "ela" : "elas"} aqui; siga só com o pedido.`;
+}
+
+function linhaCurtaDe(texto: string, max: number): string {
+  const t = texto.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${cortar(t, max - 1).trimEnd()}…` : t;
 }
 
 /** O que a linha "Abriu a task …" diz por origem (texto da mensagem `sistema`; a web desenha pelo payload). */
 export function textoTrabalhoAberto(titulo: string, origem: OrigemTrabalho): string {
   // revisto em 2026-10-12 (ADR-099, I8): a rede promove a frente, não mais a task.
-  return origem === "rede" ? `Virou a frente ${titulo}` : `Abriu a task ${titulo}`;
+  // ADR-187 §7 (2026-11-18): a tarefa que a pessoa abriu pela tela (as do bot abrem pela linha `frentes_abertas`).
+  return origem === "rede" ? `Virou a tarefa ${titulo}` : origem === "pessoa" ? `Você abriu a tarefa ${titulo}` : `Abriu a tarefa ${titulo}`;
 }

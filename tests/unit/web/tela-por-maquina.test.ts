@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { LeituraDeMaquinaDto } from "../../../src/contracts/maquina.ts";
 import type { TrabalhoDto, TrabalhosDto } from "../../../src/contracts/trabalho.ts";
 import { estadoInicial, type Estado } from "../../../web/estado/reducer.ts";
-import { leituraDoMac, memoriaDosBots, pilulaDasMaquinas, situacaoDe, textoDaEspera } from "../../../web/lib/trabalhos.ts";
+import { leituraDoMac, pilulaDasMaquinas, situacaoDe, textoDaEspera } from "../../../web/lib/trabalhos.ts";
 import { renderEsteMac, statusDoDisco, tempoAteAcabar } from "../../../web/telas/este-mac.ts";
 import { leituraNoCartao } from "../../../web/telas/maquinas.ts";
-import { renderTodosOsTrabalhos } from "../../../web/telas/trabalhos.ts";
+import { renderTelaTarefas } from "../../../web/telas/tela-tarefas.ts";
+
+// ADR-187 §8 (2026-11-18): "Todas as tarefas" virou a vista Por estado da tela Tarefas, com o chip Todas.
+const renderTodosOsTrabalhos = (e: Estado, filtro: "todos" | "voce" | "rotinas" | "bots" = "todos"): string => renderTelaTarefas(e, { tipo: "trabalhos", filtro, mostrar: "todas" });
 
 /**
  * A tela fala por máquina (definido em 2026-10-09): no diário de 09/10 os bots estavam presos à VM `nod-motor-teste`, a
@@ -81,18 +84,13 @@ describe("a pílula nomeia quem segura", () => {
     expect(pilulaDasMaquinas([leitura(VM), macFolgado], fila)).toBe("");
   });
 
-  it("Todos os trabalhos: a pílula e o topo falam da VM; a memória por máquina", () => {
+  // ADR-187 §8 (2026-11-18): a tela Tarefas não repete o aviso da máquina (mora no selo da aba das tarefas) nem a memória
+  // dos bots no topo; a linha de quem espera fala da máquina pelo nome.
+  it("Tarefas (Por estado): a linha fala da VM; sem pílula nem memória no topo", () => {
     const html = renderTodosOsTrabalhos(estadoCom(fila, [vmCheia, macFolgado]));
-    expect(html).toContain("nod-motor-teste está ocupada");
-    expect(html).not.toContain("Seu Mac está ocupado");
-    expect(html).toContain("os bots usam 400 MB do seu Mac e 700 MB na nod-motor-teste");
+    expect(html).not.toContain("nod-motor-teste está ocupada");
+    expect(html).not.toContain("os bots usam");
     expect(html).toContain("esperando nod-motor-teste aliviar");
-  });
-
-  it("servidor anterior (sem `maquinas`): o texto de antes", () => {
-    expect(memoriaDosBots({ memoriaTotalMb: 1100 })).toBe("os bots usam 1,1 GB do seu Mac");
-    const html = renderTodosOsTrabalhos(estadoCom([trabalho("Slack")], [], { maquinas: undefined }));
-    expect(html).toContain("Seu Mac está ocupado");
   });
 });
 

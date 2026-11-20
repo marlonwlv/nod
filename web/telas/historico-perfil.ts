@@ -85,18 +85,23 @@ export function textoComRedacao(texto: string): string {
   return texto.split(/(«redigido[^»]*»)/).map((parte, i) => (i % 2 === 1 ? `<span class="p20-redigido">${esc(parte)}</span>` : esc(parte))).join("");
 }
 
+const grafemas = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const separarGrafemas = (texto: string): string[] => Array.from(grafemas.segment(texto), (parte) => parte.segment);
+
 /**
  * O "Agora" de um texto longo com o que só existe agora sublinhado (prefixo e sufixo comuns). Sem parte comum, o texto
  * vai inteiro, sem marca: sublinhar tudo não ajuda a ler.
  */
 export function agoraComMarca(antes: string, agora: string): string {
+  const antesPartes = separarGrafemas(antes);
+  const agoraPartes = separarGrafemas(agora);
   let ini = 0;
-  while (ini < antes.length && ini < agora.length && antes[ini] === agora[ini]) ini++;
+  while (ini < antesPartes.length && ini < agoraPartes.length && antesPartes[ini] === agoraPartes[ini]) ini++;
   let fim = 0;
-  while (fim < antes.length - ini && fim < agora.length - ini && antes[antes.length - 1 - fim] === agora[agora.length - 1 - fim]) fim++;
-  const meio = agora.slice(ini, agora.length - fim);
+  while (fim < antesPartes.length - ini && fim < agoraPartes.length - ini && antesPartes[antesPartes.length - 1 - fim] === agoraPartes[agoraPartes.length - 1 - fim]) fim++;
+  const meio = agoraPartes.slice(ini, agoraPartes.length - fim).join("");
   if (!meio || ini + fim === 0) return textoComRedacao(agora);
-  return `${textoComRedacao(agora.slice(0, ini))}<ins><span class="sr-only">só agora: </span>${textoComRedacao(meio)}</ins>${textoComRedacao(agora.slice(agora.length - fim))}`;
+  return `${textoComRedacao(agoraPartes.slice(0, ini).join(""))}<ins><span class="sr-only">só agora: </span>${textoComRedacao(meio)}</ins>${textoComRedacao(agoraPartes.slice(agoraPartes.length - fim).join(""))}`;
 }
 
 /** Os grupos em que a versão difere do perfil de agora. */

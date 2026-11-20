@@ -50,6 +50,11 @@ export type Rotina = {
    * null (ou ausente nas fixtures antigas) = pausa sem data, a de sempre.
    */
   retomarEm?: EpochMs | null;
+  /**
+   * definido em 2026-11-19 (migração 0178): só na pausada pelo "Pausar todas as rotinas" — o lote daquela pausa e quando
+   * ela aconteceu. Reativar o lote volta só as rotinas dele. null (ou ausente nas fixtures antigas) = pausada sozinha.
+   */
+  pausaLote?: { id: string; em: EpochMs } | null;
 };
 
 /**
