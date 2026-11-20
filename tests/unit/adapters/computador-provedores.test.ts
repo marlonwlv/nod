@@ -169,6 +169,9 @@ describe("ações do nod sobre primitivas (provedor de fora)", () => {
     await ex.executar(ref, { tipo: "gravar_texto", caminho: "notas/a.txt", texto: "segunda", revisao: lido.texto!.revisao });
     await expect(ex.executar(ref, { tipo: "gravar_texto", caminho: "notas/a.txt", texto: "terceira", revisao: lido.texto!.revisao })).rejects.toMatchObject({ detalhe: expect.stringMatching(/arquivo_alterado/) });
     expect(readFileSync(join(raiz, "notas/a.txt"), "utf8")).toBe("segunda");
+    const noLimite = "a".repeat(131071) + "😀";
+    await ex.executar(ref, { tipo: "gravar_texto", caminho: "notas/limite.txt", texto: noLimite, revisao: "novo" });
+    expect(readFileSync(join(raiz, "notas/limite.txt"), "utf8")).toBe(noLimite);
 
     // Binário maior que um pedaço: vários comandos, cada um abaixo do MAX_ARG_STRLEN, e o arquivo sai igual.
     const grande = Buffer.alloc(150_000, 7);

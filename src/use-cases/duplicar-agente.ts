@@ -43,6 +43,9 @@ export const duplicarAgente: CasoDeUso<{ agenteId: string; rotinasPausadas?: boo
   // ADR-081: o Nod é um por pessoa; a cópia seria um bot comum se passando por ele.
   if (ehNod(original)) throw new ErroDeDominio("nod_protegido", { cause: "duplicar" });
   const dona = original.ownerId === deps.escopo.pessoaId;
+  // QA-117: dois Duplicar juntos (duplo clique, tela + chat, dois bots) liam os mesmos nomes e saíam como o mesmo
+  // "X (cópia)", com a mesma pasta. A trava dos nomes (a do criar_bots) faz o segundo esperar e ver o primeiro.
+  await deps.repos.agentes.travarNomesDeBots();
   const existentes = (await deps.repos.agentes.listar({ incluirOcultos: true, incluirExcluidos: true })).map((a) => a.nome);
   const maquinaId = dona && original.maquinaId && (await chaveViva(deps, original.maquinaId)) ? original.maquinaId : null;
 

@@ -27,10 +27,12 @@ export const TETO_TITULO_RELATO = 80;
 export const VAZIO_FEEDBACK = "Nenhum envio ainda. O que você mandar aparece aqui.";
 /** O resumo da listagem vem cortado em 160 caracteres pelo repositório (relatos.repo.ts). */
 const TETO_RESUMO = 160;
+const GRAFEMAS = new Intl.Segmenter("pt-BR", { granularity: "grapheme" });
 
 function cortar(texto: string, teto: number): string {
   const t = texto.trim().replace(/\s+/g, " ");
-  return t.length > teto ? `${t.slice(0, teto - 1).trimEnd()}…` : t;
+  const partes = Array.from(GRAFEMAS.segment(t), (s) => s.segment);
+  return partes.length > teto ? `${partes.slice(0, teto - 1).join("").trimEnd()}…` : t;
 }
 
 /**

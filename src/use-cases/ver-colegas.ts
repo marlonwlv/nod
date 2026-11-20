@@ -6,6 +6,7 @@ import { INSTRUCAO_ROTINA_NO_PROMPT } from "../domain/prompt-sistema.ts";
 import { quandoDaRotina } from "../domain/rotina-texto.ts";
 import { agenteVisivel, assertUuid } from "./apoio-l7.ts";
 import type { Deps } from "./tipos.ts";
+import { cortarComReticencia } from "../domain/corte-por-grafema.ts";
 
 /**
  * Cortes do resultado (definido em 2026-09-28, ADR-050): o proxy corta tudo em ORCAMENTO_RESULTADO_CHARS
@@ -16,10 +17,6 @@ const DESCRICAO_RESUMIDA = 300;
 const INSTRUCAO_INTEIRA = 1_500;
 /** NOD-20: com `agente`, as últimas versões do perfil (o número que o restaurar_versao do gerir_bots pede). */
 const VERSOES_NO_COLEGA = 5;
-
-function cortar(texto: string, teto: number): string {
-  return texto.length > teto ? `${texto.slice(0, teto - 1)}…` : texto;
-}
 
 /**
  * Quem este agente enxerga como colega: o MESMO filtro do diretório de colegas do prompt
@@ -70,8 +67,8 @@ export const verColegas: CasoNod<Deps, "ver_colegas"> = async (deps, input) => {
       titulo: a.titulo,
       // definido em 2026-11-16: sem o time, o Nod não conferia o "mover" nem dizia em que time cada bot ficou.
       secao: a.secao ? a.secao : null,
-      descricao: inteiro ? a.descricao : cortar(a.descricao, DESCRICAO_RESUMIDA),
-      rotinas: rotinas.map((r) => ({ id: r.id, quando: quandoDaRotina(r), estado: r.estado, instrucao: cortar(r.instrucao, inteiro ? INSTRUCAO_INTEIRA : INSTRUCAO_ROTINA_NO_PROMPT) })),
+      descricao: inteiro ? a.descricao : cortarComReticencia(a.descricao, DESCRICAO_RESUMIDA),
+      rotinas: rotinas.map((r) => ({ id: r.id, quando: quandoDaRotina(r), estado: r.estado, instrucao: cortarComReticencia(r.instrucao, inteiro ? INSTRUCAO_INTEIRA : INSTRUCAO_ROTINA_NO_PROMPT) })),
       apps,
       ...(inteiro ? { versoes: await versoesDoColega(deps, a.id) } : {}),
     });

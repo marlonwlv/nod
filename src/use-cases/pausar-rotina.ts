@@ -26,7 +26,10 @@ import type { CasoDeUso } from "./tipos.ts";
  * data (sem corte de fila, que já foi feito); com a mesma data, ou sem data numa pausada, segue sem efeito como sempre.
  */
 export const pausarRotina: CasoDeUso<{ rotinaId: string; estado: EstadoRotina; retomarEm?: number | null; ate?: string; retomadaAutomatica?: true; autoria?: Autoria; texto?: string; semLinha?: true }, { rotina: Rotina; corte?: { cortados: number; rodando: boolean } }> = async (deps, input) => {
-  const atual = exigir(await deps.repos.rotinas.buscar(input.rotinaId), "nao_encontrado", "rotina");
+  // QA r100 (2026-11-19): a linha fica TRAVADA até o fim da tx. Sem isso, oito "ativar" simultâneos liam todos "pausada" e
+  // escreviam seis "Rotina ativa" no chat (e pausas repetidas cortavam a fila de novo). A segunda espera a primeira e relê o
+  // estado já mudado, caindo no "sem efeito". Quem não é a dona não trava (policy de UPDATE) e segue pelo `buscar` de sempre.
+  const atual = exigir((await deps.repos.rotinas.buscarParaAtualizar(input.rotinaId)) ?? (await deps.repos.rotinas.buscar(input.rotinaId)), "nao_encontrado", "rotina");
   const agora = deps.agora();
   // `ate` (a tela manda a hora local, como o chat) vira instante no fuso DA ROTINA; `retomarEm` já é o instante.
   const retomarEm = input.estado !== "pausada" ? null : input.ate !== undefined ? instanteLocal(input.ate, atual.fusoIana) : input.retomarEm ?? null;
