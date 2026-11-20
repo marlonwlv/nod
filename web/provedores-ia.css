@@ -269,3 +269,10 @@
 .cl-maq-login .cl-login-cab .ob-link { font-size: 12px; }
 .cl-maq-login .cl-login.ok { padding: 8px 12px; }
 .cl-maq-lista .cl-maq-login + .cl-maq-linha { border-top: 1px solid var(--borda-sutil); }
+
+/* Pedido de 2026-11-20 (proximidade e Fitts): o rodapé da Nova conta vinha preso ao fundo da janela (margin-top: auto)
+   e o "Conectar" ficava ~400 px abaixo do último bloco num monitor alto. Agora ele segue o conteúdo e só gruda no fundo
+   quando a página rola (sticky): curta, a ação fica logo abaixo; longa, continua à vista. O -30px cobre o padding de
+   baixo do .espaco-conteudo, para nada passar por baixo do rodapé. */
+.cl-nova.cl-nova-pag { flex: none; }
+.cl-nova-pag .cl-nova-acoes { margin-top: 6px; position: sticky; bottom: -30px; z-index: 2; padding: 14px 0 30px; margin-bottom: -30px; background: var(--surface); border-top: 1px solid var(--divisoria); }
