@@ -20,6 +20,7 @@ import { criarExecutarComando, iniciarLimpezaDasTasks, modoDaLimpeza, type Limpe
 import { iniciarDesfazeres, type Desfazeres } from "../src/adapters/executor/desfazeres.ts";
 import { chromeDoMac, iniciarNavegadorDaMaquina, motorDaMaquina, type NavegadorDaMaquina } from "../src/adapters/executor/navegador.ts";
 import { binarioAgentBrowser, type MotorNavegador } from "../src/adapters/navegador/motor-agent-browser.ts";
+import { criarCofresDoMac } from "./cofres-do-mac.ts";
 import { iniciarEsperas, type Esperas } from "../src/adapters/executor/esperas.ts";
 import type { PlanoTurno } from "../src/contracts/plano-turno.ts";
 import { configDosDrivers, criarRegistryDetalhado } from "../src/adapters/executor/registry.ts";
@@ -184,6 +185,17 @@ function binarioDoNavegador(): string | null {
   if (!app.isPackaged) return binarioAgentBrowser();
   const b = join(process.resourcesPath, "agent-browser", "agent-browser");
   return existsSync(b) ? b : null;
+}
+/**
+ * ADR-177 (definido em 2026-11-20): a confirmação de pagar do navegador do bot. Com Touch ID, o do sistema
+ * (`promptTouchID`, o motivo aparece no diálogo); num Mac sem Touch ID, um diálogo do app com o mesmo motivo — a pessoa
+ * está no Mac, que é o que a trava pede. Cancelar = não paga.
+ */
+async function confirmarNoMac(motivo: string): Promise<boolean> {
+  const texto = motivo.slice(0, 200);
+  if (systemPreferences.canPromptTouchID()) return systemPreferences.promptTouchID(texto).then(() => true, () => false);
+  const r = await dialog.showMessageBox({ type: "question", message: texto, detail: "O navegador do bot pede a sua confirmação neste Mac.", buttons: ["Confirmar", "Cancelar"], defaultId: 1, cancelId: 1 });
+  return r.response === 0;
 }
 /** Revisão do #225: os turnos rodando neste Mac — a limpeza não mexe na pasta de nenhum deles. */
 const planosNoMac = new Map<string, PlanoTurno>();
@@ -827,7 +839,8 @@ async function conectar(c: Config) {
     // for Testing que o agent-browser instala na primeira vez (chromeDoMac, motorDaMaquina).
     motorDoNavegador ??= motorDaMaquina({ dados: join(app.getPath("userData"), "navegadores"), binario: binarioDoNavegador(), chrome: () => chromeDoMac(homedir()) });
     navegadorDoMac?.parar();
-    navegadorDoMac = iniciarNavegadorDaMaquina({ canal: ponteHttp.navegador, motor: motorDoNavegador });
+    // ADR-177/190 (L, A1): o 1Password, o Bitwarden, os cookies do Chrome da pessoa e o Touch ID, para os comandos da fila.
+    navegadorDoMac = iniciarNavegadorDaMaquina({ canal: ponteHttp.navegador, motor: motorDoNavegador, ...(process.platform === "darwin" ? { mac: criarCofresDoMac({ home: homedir(), touchId: confirmarNoMac }) } : {}) });
   }
   // ADR-102 (2026-10-13): as contas deste Mac, lidas pelo CLI na pasta de cada uma (impressão = e-mail + organização +
   // pessoa, nunca em claro ao servidor). A lista segue a do app (contas.json); a primeira leitura é inteira (a pessoa
