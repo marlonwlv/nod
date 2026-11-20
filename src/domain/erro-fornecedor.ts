@@ -294,7 +294,10 @@ export function horaDeVoltaNoTexto(texto: string | null | undefined, agora: numb
     m = i;
     d = Number(dia);
   }
-  let t = Date.UTC(ano, m, d, hora, Number(min ?? 0)) - desloc * 60_000;
-  if (!mes && t <= agora) t += 86_400_000;
+  let local0 = Date.UTC(ano, m, d, hora, Number(min ?? 0));
+  if (!mes && local0 - desloc * 60_000 <= agora) local0 += 86_400_000;
+  // QA-145: o fuso de hoje não é o do dia da volta quando o horário de verão muda no meio ("resets Nov 2, 3pm
+  // (America/New_York)" lido em 30/10 caía 1 h antes). O deslocamento vale no instante da volta.
+  const t = local0 - (deslocamentoDoFuso(tz!.trim(), local0 - desloc * 60_000) ?? desloc) * 60_000;
   return dentro(t);
 }
