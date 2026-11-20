@@ -3,6 +3,7 @@ import type { Estado } from "../../estado/reducer.ts";
 import { contarFios } from "../../lib/perguntas.ts";
 import { foraDoArDesde, nadaEsperando } from "../../lib/relogio.ts";
 import { dispensavel, renderComIguais, renderItem } from "../../telas/sua-vez.ts";
+import { useFocoQueNaoCai } from "../use-foco-que-nao-cai.ts";
 import { criarConversor, type ConversorDeHtml } from "../html/html-em-react.tsx";
 import type { Loja } from "../loja.ts";
 import { useLoja } from "../use-loja.ts";
@@ -23,16 +24,19 @@ export function TelaSuaVez({ loja, acoes }: { loja: Loja<Estado>; acoes: AcoesDe
   const conversor = useRef<ConversorDeHtml | null>(null);
   conversor.current ??= criarConversor();
   useLayoutEffect(() => conversor.current?.fecharQuadro());
+  // QA-157: decidir um cartão ou "Limpar vencidos" pelo teclado não deixa o foco no <body>.
+  const raiz = useRef<HTMLElement | null>(null);
+  useFocoQueNaoCai(raiz, { item: "[data-decisao]", titulo: ".tela-cab h1" });
   const html = (h: string) => (h ? conversor.current!.converter(h) : null);
   const sv = estado.suaVez;
-  if (!sv) return <section className="tela"><header className="tela-cab"><h1>Sua vez</h1></header><p className="mudo">carregando…</p></section>;
+  if (!sv) return <section ref={raiz} className="tela"><header className="tela-cab"><h1>Sua vez</h1></header><p className="mudo">carregando…</p></section>;
   const abertos = sv.itens.filter((i) => i.estadoColuna !== "vencido");
   const vencidos = sv.itens.filter((i) => i.estadoColuna === "vencido");
   // O número do título conta fios (definido em 2026-09-24): as rodadas de uma pergunta são uma espera só.
   const esperando = contarFios(abertos);
   const ids = vencidos.filter(dispensavel).map((i) => i.decisao.id);
   return (
-    <section className="tela tela-sua-vez">
+    <section ref={raiz} className="tela tela-sua-vez">
       <header className="tela-cab"><h1>{`Sua vez${esperando ? ` · ${esperando}` : ""}`}</h1><span className="chip">mais antiga no topo · vencidas recolhidas no fim</span></header>
       {sv.vazio && sv.foraDoAr.length === 0 && <p className="vazio">{nadaEsperando(sv.ultimaDecisaoEm, estado.agora)}</p>}
       <ul className="lista">
