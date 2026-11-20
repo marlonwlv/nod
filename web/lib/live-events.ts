@@ -125,6 +125,7 @@ const TIPOS: Record<TipoFrame, true> = {
   "agente.estado": true,
   "computador.cursor": true,
   "computador.estado": true,
+  "navegador.mudou": true,
   resumed: true,
 };
 

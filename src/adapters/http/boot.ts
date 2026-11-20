@@ -23,6 +23,7 @@ import { garantirParticoes } from "../fundo/particoes.ts";
 import { sincronizarDominiosAdmitidos } from "../fundo/dominios-admitidos.ts";
 import { INTERVALO_SCHEDULER_MS, iniciarScheduler } from "../fundo/scheduler-rotina.ts";
 import { iniciarVarredorOciosidade } from "../fundo/varredor-ociosidade.ts";
+import { iniciarVarredorNavegadores } from "../fundo/varredor-navegadores.ts";
 import { iniciarLacoMinhaConta } from "../fundo/laco-minha-conta.ts";
 import { iniciarLacoPrsDoQuadro, planoPrsDoQuadro } from "../fundo/prs-do-quadro.ts";
 import { sincronizarPrsDoQuadro } from "../../use-cases/prs-do-quadro.ts";
@@ -60,7 +61,7 @@ export type OpcoesBoot = {
   porta?: number;
   host?: string;
   /** Intervalos dos laços (testes encurtam). */
-  intervalos?: { orquestradorMs?: number; schedulerMs?: number; leaseMs?: number; expiracaoMs?: number; outboxMs?: number; ociosidadeMs?: number; disjuntorMs?: number; prsDoQuadroMs?: number };
+  intervalos?: { orquestradorMs?: number; schedulerMs?: number; leaseMs?: number; expiracaoMs?: number; outboxMs?: number; ociosidadeMs?: number; navegadoresMs?: number; disjuntorMs?: number; prsDoQuadroMs?: number };
   listarPessoas?: () => Promise<{ tenantId: string; id: string }[]>;
   /** Drivers do registry; default: catcher (+ claude-cli/codex-cli quando NOD_EXECUTOR os pede ou é auto). */
   drivers?: (p: { urlNod: string; app: App }) => Driver[];
@@ -315,6 +316,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
   let varredorLease: Laco = nada;
   let varredorExpiracao: Laco = nada;
   let varredorOciosidade: Laco = nada;
+  let varredorNavegadores: Laco = nada;
   let varredorMaquinas: Laco = nada;
   let lacoMinhaConta: Laco = nada;
   let lacoDisjuntor: Laco = nada;
@@ -388,6 +390,8 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     varredorExpiracao = iniciarVarredorExpiracao(db, { services: app.services, useCases: app.useCases, agora, intervaloMs: iv.expiracaoMs, executor: () => app.executor }, { listarPessoas: o.listarPessoas });
     // NOD-170: só com computadores ligados; NOD_COMPUTADOR_OCIOSO_MIN=0 não sobe o laço.
     if (app.computadores) varredorOciosidade = iniciarVarredorOciosidade({ db, computadores: app.computadores, ociosoMin: limiteDoAmbiente(env).ociosoMin, intervaloMs: iv.ociosidadeMs, opcoes: { listarPessoas: o.listarPessoas }, presente: (pessoaId) => app.barramento.inscritos(pessoaId) > 0 });
+    // ADR-190 (D0): os Chromes parados há 10 min pausam guardando as abas; só a cor ativa varre (o estado é do processo).
+    varredorNavegadores = iniciarVarredorNavegadores({ navegadores: app.navegadores, intervaloMs: iv.navegadoresMs });
     despachante = iniciarDespachanteOutbox(db, app.barramento, { intervaloMs: iv.outboxMs, listarPessoas: o.listarPessoas, presenca: app.services.maquinas });
     varredorMaquinas = app.iniciarVarredorMaquinas(o.varredorMaquinasMs);
     // NOD-346: só com NOD_MINHA_CONTA (a exportação e, com NOD_PURGA_CONTA, a purga).
@@ -423,7 +427,7 @@ export async function boot(o: OpcoesBoot = {}): Promise<ServidorNod> {
     (parandoLacos ??= (async () => {
       await ligando?.catch(() => undefined);
       const pararDespachante = o.soLigacoes ? despachante?.soLigacoes(() => app.voz.pessoasComLigacao()) : despachante?.parar();
-      await Promise.all([scheduler.parar(), varredorLease.parar(), varredorExpiracao.parar(), varredorOciosidade.parar(), varredorMaquinas.parar(), lacoMinhaConta.parar(), lacoDisjuntor.parar(), lacoPrsDoQuadro.parar(), pararDespachante]);
+      await Promise.all([scheduler.parar(), varredorLease.parar(), varredorExpiracao.parar(), varredorOciosidade.parar(), varredorNavegadores.parar(), varredorMaquinas.parar(), lacoMinhaConta.parar(), lacoDisjuntor.parar(), lacoPrsDoQuadro.parar(), pararDespachante]);
       // Não religa: ligarLacos() já recusa com drenando/fechado; o estado() passa a dizer a verdade.
       lacosLigados = false;
     })());

@@ -3,7 +3,8 @@ import { expect, it } from "vitest";
 import { cifrar, decifrar } from "../../src/db/cifra.ts";
 import { vincularEscopo } from "../../src/db/tx.ts";
 import { criarRepos } from "../../src/repositories/index.ts";
-import { ANA, MARLON } from "../helpers/deps-l6.ts";
+import { mandarMensagemPadrao } from "../../src/adapters/fundo/navegadores.ts";
+import { ANA, depsSobreTrx, MARLON } from "../helpers/deps-l6.ts";
 import { agenteComConversa } from "../helpers/fabricas.ts";
 import { describeIntegracao } from "../helpers/integracao.ts";
 import { withRollback } from "../helpers/with-rollback.ts";
@@ -71,6 +72,25 @@ describeIntegracao("navegador do bot: repositórios (0180)", () => {
       await vincularEscopo(trx, MARLON);
       expect(await repos.cofreLogins.apagar(login.id)).toBe(true);
       expect(await repos.cofreLogins.listar()).toEqual([]);
+    });
+  });
+});
+
+describeIntegracao("navegador do bot: Ensinar manda a mensagem da pessoa (T3)", () => {
+  it("'Ensinei: <nome>.' com passos-gravados.txt anexado entra na conversa do bot como da pessoa e enfileira o turno", async () => {
+    await withRollback(MARLON, async (trx) => {
+      const { agenteId, conversaId } = await agenteComConversa(trx, MARLON);
+      const d = depsSobreTrx(trx, MARLON);
+      await mandarMensagemPadrao(d, { agenteId, texto: "Ensinei: Baixar a fatura.", arquivo: { nome: "passos-gravados.txt", conteudo: "Tarefa ensinada: Baixar a fatura\n\n1. Abriu itau.com.br" } });
+      const mensagens = await d.repos.mensagens.listarDaConversa(conversaId);
+      const minha = mensagens.find((m) => m.texto === "Ensinei: Baixar a fatura.");
+      expect(minha?.autoria).toMatchObject({ autor_tipo: "pessoa", autor_id: MARLON.pessoaId });
+      const anexos = (await d.repos.anexos.daMensagens([minha!.id])).get(minha!.id) ?? [];
+      expect(anexos).toMatchObject([{ nome: "passos-gravados.txt", mime: "text/plain" }]);
+      // O turno nasce da mensagem com o anexo na entrada (aqui, sem IA no banco de teste, ele nasce interrompido; o que
+      // importa é que é o turno normal da fala da pessoa).
+      const [turno] = await trx<{ entrada_anexos: string[] }[]>`select entrada_anexos from turnos where mensagem_origem_id = ${minha!.id}`;
+      expect(turno?.entrada_anexos).toEqual([anexos[0]!.id]);
     });
   });
 });

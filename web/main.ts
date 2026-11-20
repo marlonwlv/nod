@@ -2563,6 +2563,12 @@ async function buscar(q: Invalidacao): Promise<Acao | null> {
   }
   if (q.startsWith("diario:")) return { tipo: "hidratar-diario", agenteId: q.slice(7), pagina: await api.diarioMemoria(q.slice(7)) };
   if (q.startsWith("concessoes:")) return { tipo: "hidratar-concessoes", agenteId: q.slice(11), ...(await api.concessoes(q.slice(11))) };
+  // ADR-190: a vista do navegador do bot (404: servidor de antes ou bot de outra pessoa — fica indisponível, sem faixa).
+  if (q.startsWith("navegador:")) {
+    const agenteId = q.slice(10);
+    const navegador = await api.navegador(agenteId).catch((e: unknown) => { if (e instanceof ErroApi && e.status === 404) return null; throw e; });
+    return { tipo: "hidratar-navegador", agenteId, navegador };
+  }
   if (q.startsWith("execucoes:")) return { tipo: "hidratar-execucoes", rotinaId: q.slice(10), execucoes: (await api.execucoes(q.slice(10))).execucoes };
   // ADR-114 (chat limpo, PR 2): a página do dia da Atividade (404: servidor de antes ou bot de outra pessoa — fica
   // indisponível, sem faixa de erro) e o "N hoje", que é informativo: qualquer falha deixa a linha sem número.
@@ -2767,6 +2773,8 @@ function relevante(q: Invalidacao): boolean {
   if (q.startsWith("memoria:")) return t.tipo === "conversa" && estado.gaveta?.agenteId === q.slice(8) && (estado.gaveta.nivel.tipo === "memoria" || estado.gaveta.nivel.tipo === "ajustes");
   if (q.startsWith("diario:")) return t.tipo === "conversa" && estado.gaveta?.agenteId === q.slice(7) && estado.gaveta.nivel.tipo === "memoria" && estado.gaveta.nivel.aba === "historico" && (estado.frota?.agentes.some((a) => a.id === q.slice(7) && a.ownerId === estado.sessao?.pessoaId) ?? false);
   if (q.startsWith("concessoes:")) return t.tipo === "conversa" && t.agenteId === q.slice(11) ? true : t.tipo === "conectores" || modalDoMarketplace !== null;
+  // ADR-190: só relê o navegador do bot cuja vista a tela já leu (a tela do navegador, na próxima etapa, faz a 1ª leitura).
+  if (q.startsWith("navegador:")) return Object.hasOwn(estado.navegadores, q.slice(10));
   // 2026-09-21: o painel de detalhes (tela conversa) também mostra o histórico — é onde a pessoa
   // confere que uma rotina silenciosa (desfecho sem_novidade, que não escreve no chat) rodou.
   if (q.startsWith("execucoes:")) return t.tipo === "rotinas" || t.tipo === "conversa";

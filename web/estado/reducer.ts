@@ -15,6 +15,7 @@ import type { ContasIaDto } from "../../src/contracts/contas-ia.ts";
 import type { DetalhesDasContas } from "../../src/contracts/desktop.ts";
 import type { EstaMaquina } from "../../src/contracts/desktop-esta-maquina.ts";
 import type { Concessao } from "../../src/contracts/concessao.ts";
+import type { RespostaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import type { Conector } from "../../src/contracts/conector.ts";
 import type { EstadoExecutor } from "../../src/contracts/executor.ts";
 import type { FrameSse, TipoFrame } from "../../src/contracts/frame.ts";
@@ -340,7 +341,7 @@ export type EscolhaComposer = { outroAssunto: boolean; alvoId: string | null };
  */
 export type CitacaoNoCampo = { mensagemId: string; trecho: string };
 
-export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "mcp-tokens" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}`;
+export type Invalidacao = "onboarding" | "ligacao" | "trabalhos" | `trabalho:${string}` | `disponibilidade:${string}` | "gestao" | "frota" | "sua-vez" | "nao-lidos" | "rotinas" | "conectores" | "inventario" | "executor" | "ias" | "uso-plano" | "salas" | "chaves" | "mcp-tokens" | "maquinas" | "nuvem" | "contas" | "relatos" | "agenda" | `conversa:${string}` | `vivos:${string}` | `memoria:${string}` | `diario:${string}` | `concessoes:${string}` | `execucoes:${string}` | `atividade:${string}` | `atividade-hoje:${string}` | `decisoes:${string}` | `biblioteca:${string}` | `navegador:${string}`;
 
 export type Estado = {
   sessao: Escopo | null;
@@ -478,6 +479,8 @@ export type Estado = {
   bibliotecaDoBot: Record<string, BibliotecaDaConversa>;
   avisoConexao: string | null;
   concessoes: Record<string, Concessao[]>;
+  /** ADR-190: a vista do navegador de cada bot já lida (GET /agentes/:id/navegador); null = indisponível (404). */
+  navegadores: Record<string, RespostaNavegador | null>;
   /**
    * O "Agora não" do cartão de liberar apps (definido em 2026-10-05, 0054): por bot, o instante em que a pessoa
    * dispensou cada app (conectorId → ms). Chega junto com as concessões; ausente = ainda não carregou, e o cartão
@@ -680,6 +683,7 @@ export type Acao =
   | { tipo: "lista-de-pasta"; propostaId: string; lista: "curta" | "todas" }
   | { tipo: "hidratar-conectores"; conectores: Conector[]; marketplace?: AppComLogo[]; composioConfigurado?: boolean }
   | { tipo: "hidratar-concessoes"; agenteId: string; concessoes: Concessao[]; liberacoesDispensadas?: Record<string, number> }
+  | { tipo: "hidratar-navegador"; agenteId: string; navegador: RespostaNavegador | null }
   | { tipo: "hidratar-memorias"; agenteId: string; memorias: Memoria[]; aRevisar?: number }
   | { tipo: "hidratar-diario"; agenteId: string; pagina: PaginaDiario; anexar?: boolean }
   | { tipo: "diario-revisado"; agenteId: string; entradaId: string | null; aRevisar: number }
@@ -798,6 +802,7 @@ export const estadoInicial: Estado = {
   decisoesDoBot: {},
   avisoConexao: null,
   concessoes: {},
+  navegadores: {},
   liberacoesDispensadas: {},
   memorias: {},
   memoriasARevisar: {},
@@ -1568,6 +1573,11 @@ const POR_FRAME: Record<TipoFrame, Handler> = {
   "computador.cursor": (e) => e,
   // D (2026-11-12): o estado da máquina no stream; a tela do computador (C/D) o usa — aqui ainda não muda nada.
   "computador.estado": (e) => e,
+  // ADR-190: a vista do navegador daquele bot mudou; a releitura só corre para o bot cuja vista a tela já leu (main.ts).
+  "navegador.mudou": (e, f) => {
+    const agenteId = texto(f.dados.agenteId);
+    return agenteId ? invalidar(e, `navegador:${agenteId}`) : e;
+  },
   "contas.mudou": (e) => invalidar(e, "contas", "maquinas", usoPlano(e)),
   "agente.mudou": (e, f) => {
     const agenteId = texto(f.dados.agente_id) ?? texto(f.dados.agenteId);
@@ -2007,6 +2017,8 @@ export function reduzir(estado: Estado, acao: Acao): Estado {
       // Emenda ADR-057 (2026-11-18): o estado guarda o catálogo inteiro, com os apps de chave; o modal do Marketplace
       // (web/react/marketplace/) conecta os dois jeitos. Quem só sabe abrir login filtra na hora de desenhar (`appsDeLogin`).
       return { ...estado, conectores: acao.conectores, marketplace: acao.marketplace ?? estado.marketplace, composioConfigurado: acao.composioConfigurado ?? estado.composioConfigurado, carregado: estado.carregado.conectores ? estado.carregado : { ...estado.carregado, conectores: true } };
+    case "hidratar-navegador":
+      return { ...estado, navegadores: { ...estado.navegadores, [acao.agenteId]: acao.navegador } };
     case "hidratar-concessoes":
       // Sem as dispensas na resposta, o que havia fica: sem saber o que a pessoa dispensou, o cartão de liberar não aparece.
       return { ...estado, concessoes: { ...estado.concessoes, [acao.agenteId]: acao.concessoes }, liberacoesDispensadas: acao.liberacoesDispensadas ? { ...estado.liberacoesDispensadas, [acao.agenteId]: acao.liberacoesDispensadas } : estado.liberacoesDispensadas };

@@ -13,6 +13,7 @@ import type { AnexoMeta } from "../../src/contracts/anexo.ts";
 import type { CheckpointDaFala } from "../../src/contracts/checkpoint.ts";
 import type { ArtefatoDto } from "../../src/contracts/artefato.ts";
 import type { AcaoComputador, ComputadorDto, ResultadoComputador } from "../../src/contracts/computador.ts";
+import type { OperacaoEnsinar, OperacaoNavegador, RespostaEnsinar, RespostaNavegador, VistaNavegador } from "../../src/contracts/navegador-do-bot.ts";
 import { lerComputadorPessoa, type ComputadorPessoaDto, type OperacaoPessoa } from "./computador-pessoa.ts";
 import type { DisponibilidadeDitado } from "../../src/contracts/ditado.ts";
 import type { PreferenciaHarness } from "../../src/contracts/harness.ts";
@@ -281,6 +282,18 @@ export function criarApi(escopo: Escopo) {
       }
     },
     operarComputador: (operacao: OperacaoPessoa) => post<unknown>("computador", { operacao }),
+    /** ADR-190: a vista do navegador do bot e se ele roda neste servidor (404: servidor de antes ou bot de outra pessoa). */
+    navegador: (agenteId: string) => get<RespostaNavegador>(`agentes/${encodeURIComponent(agenteId)}/navegador`),
+    /** ADR-190: ligar, encerrar, retomar, recarregar e passar o controle (409 traz `motivo` em MOTIVOS_DO_NAVEGADOR). */
+    operarNavegador: (agenteId: string, operacao: OperacaoNavegador) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador`, { operacao }),
+    /** ADR-190: a pessoa no controle digita na barra de endereço. */
+    irParaNoNavegador: (agenteId: string, url: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/endereco`, { url }),
+    /** ADR-190: a pessoa no controle troca de aba (o id da aba na vista, `t1`). */
+    trocarAbaDoNavegador: (agenteId: string, aba: string) => post<{ ok: true; vista: VistaNavegador }>(`agentes/${encodeURIComponent(agenteId)}/navegador/aba`, { aba }),
+    /** ADR-190 (T): começar, descartar, desfazer o descarte e salvar a tarefa ensinada. */
+    ensinarNoNavegador: (agenteId: string, operacao: OperacaoEnsinar, nome?: string) => post<RespostaEnsinar>(`agentes/${encodeURIComponent(agenteId)}/navegador/ensinar`, nome === undefined ? { operacao } : { operacao, nome }),
+    /** ADR-190: o WebSocket do navegador ao vivo do bot (mesma origem; o cookie da sessão vai sozinho). */
+    urlVivoNavegador: (agenteId: string) => `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${base}/agentes/${encodeURIComponent(agenteId)}/navegador/vivo`,
     trocarLugarDoComputador: (maquinaId: string, semLogins: boolean) => post<{ ok: true }>("computador/lugar", { maquinaId, semLogins }),
     urlEventos: `${base}/eventos`,
     frota: () => get<FrotaDto>("frota"),

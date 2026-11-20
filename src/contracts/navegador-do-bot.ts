@@ -95,6 +95,12 @@ export type EntradaNavegador =
   | { t: "mouse"; evento: "mousePressed" | "mouseReleased" | "mouseMoved" | "mouseWheel"; x: number; y: number; botao?: "left" | "right" | "middle"; cliques?: number; dx?: number; dy?: number; modificadores?: number }
   | { t: "tecla"; evento: "keyDown" | "keyUp" | "char"; tecla?: string; codigo?: string; texto?: string; modificadores?: number };
 
+/** GET /agentes/:id/navegador: a vista e se o navegador roda neste servidor (sem motor, a tela diz "indisponível"). */
+export type RespostaNavegador = { vista: VistaNavegador; disponivel: boolean };
+
+/** POST /agentes/:id/navegador/ensinar: a vista e, ao salvar, a tarefa guardada. */
+export type RespostaEnsinar = { ok: true; vista: VistaNavegador; tarefa?: TarefaEnsinada };
+
 /** POST /agentes/:id/navegador {operacao}: o que a pessoa faz com o navegador do bot. */
 export const OPERACOES_NAVEGADOR = ["assumir", "devolver", "resolver", "ligar", "encerrar", "retomar", "recarregar"] as const;
 export type OperacaoNavegador = (typeof OPERACOES_NAVEGADOR)[number];

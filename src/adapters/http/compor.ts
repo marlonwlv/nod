@@ -24,9 +24,12 @@ import { criarDriverMotor } from "../computador/motor.ts";
 import { lugarPadrao } from "../../domain/computador-canal.ts";
 import type { EstadoComputadorRelatado } from "../../contracts/computador-motor.ts";
 import { type Computadores, criarComputadores, reconciliarTelas } from "../fundo/computadores.ts";
-import { criarNavegadores } from "../fundo/navegadores.ts";
+import { criarNavegadores, type Navegadores } from "../fundo/navegadores.ts";
+import { criarAvisoNavegadorMudou } from "../navegador/aviso-mudou.ts";
+import { criarVivoNavegador } from "../navegador/vivo.ts";
 import { criarMotorAgentBrowser } from "../navegador/motor-agent-browser.ts";
 import { rotasComputadores } from "./rotas/computadores.ts";
+import { rotasNavegador } from "./rotas/navegador.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { expandirTil } from "../executor/caminho.ts";
@@ -355,6 +358,8 @@ export type App = {
   computadores: Computadores | null;
   /** NOD-374: o disjuntor por app — a confirmação depois da chamada que falhou e o laço de re-sonda (o boot liga na cor ativa). */
   disjuntor: Disjuntor;
+  /** ADR-190: o navegador do bot; o boot liga a pausa dos ociosos (varredor-navegadores.ts) na cor ativa. */
+  navegadores: Navegadores;
   /** Liga os dois canais WebSocket da ligação ao servidor HTTP (boot, depois do listen). */
   anexarVoz(server: Server, resolverEscopo: (req: IncomingMessage) => Escopo | null | Promise<Escopo | null>): CanaisVoz;
   fechar(): Promise<void>;
@@ -859,9 +864,16 @@ export function comporApp(o: OpcoesCompor): App {
   const motorNoServidor = env.NOD_NAVEGADOR_NO_SERVIDOR === "1"
     ? criarMotorAgentBrowser({ dados: join(expandirTil(env.NOD_HOME ?? "~/.nod", homedir()), "navegadores"), segredo: chave, chrome: env.NOD_NAVEGADOR_CHROME ?? null })
     : null;
+  // A vista que muda vai ao canal ao vivo (quem assiste) e ao SSE (`navegador.mudou`, ~4/s por bot; a web relê por REST).
+  const avisoNavegador = criarAvisoNavegadorMudou({ publicar: (pessoaId, dados) => barramento.publicar(pessoaId, "navegador.mudou", dados) });
+  let vivoDoNavegador: ReturnType<typeof criarVivoNavegador> | null = null;
   const navegadores = criarNavegadores({ dentro, cifrar: (s) => cifrar(s, chave), decifrar: (s) => decifrar(s, chave), max: numero(env.NOD_NAVEGADORES_MAX, 4),
     motor: (lugar) => (lugar.tipo === "nod" ? motorNoServidor : null),
-    motivoIndisponivel: "O navegador do bot não roda neste servidor agora e ainda não há outro lugar ligado para ele." });
+    motivoIndisponivel: "O navegador do bot não roda neste servidor agora e ainda não há outro lugar ligado para ele.",
+    executor: () => executorAtual,
+    aoMudar: (escopo, vista) => { vivoDoNavegador?.vistaMudou(escopo, vista); avisoNavegador.mudou(escopo, vista); } });
+  const vivoNavegador = criarVivoNavegador({ portao: navegadores });
+  vivoDoNavegador = vivoNavegador;
   services.navegadores = navegadores;
   rodarAposCommit = async (escopo, efeito) => {
     if (efeito.tipo === "desligar_computador") {
@@ -1670,6 +1682,7 @@ export function comporApp(o: OpcoesCompor): App {
     ...(nuvemLigada ? rotasNuvem({ dentro, segredo: segredoEfetivo(env.NOD_LOGIN === "google" ? "google" : "stub", env.NOD_SESSAO_SEGREDO), oauth: oauthNuvem(env), conta: o.nuvem?.conta ?? criarContaGcp({ contaFaturamento: env.NOD_NUVEM_CONTA_FATURAMENTO ?? null }), ...(o.nuvem?.fetchImpl ? { fetchImpl: o.nuvem.fetchImpl } : {}), cifrar: (t) => cifrar(t, chave), provedorDa: async (escopo, credencialId) => provedorDaChave(await dentro(escopo, (d) => d.repos.credenciaisNuvem.chaveCifrada(credencialId))), ...(criacaoNuvem ? { registrarConvite: criacaoNuvem.registrarConvite } : {}), agora: relogio }) : []),
     // definido em 2026-09-16: NOD_LONGPOLL_MS encurta a fatia do long-poll de aprovação (testes/e2e); default LONGPOLL_APROVACAO_MS.
     ...rotasComputadores(computadores),
+    ...rotasNavegador(navegadores),
     ...rotasWorkspaces(workspaces, dentro),
     ...rotasInternas({ dentro, computadores, navegadores, workspaces, tokens, agora: relogio, revisor, disjuntor, pressao: (pessoaId) => trabalhosVivos.memoria(pessoaId)?.nivel ?? null, longpollMs: env.NOD_LONGPOLL_MS ? numero(env.NOD_LONGPOLL_MS, 20_000) : undefined }),
     ...criarRotasRotinas(depsL7),
@@ -1809,6 +1822,7 @@ export function comporApp(o: OpcoesCompor): App {
     useCases,
     dentro,
     computadores: o.computador || env.NOD_COMPUTADORES === "docker" || computadorNoMotor || provedoresComputador ? computadores : null,
+    navegadores,
     disjuntor,
     depsDe,
     ponte,
@@ -1865,6 +1879,7 @@ export function comporApp(o: OpcoesCompor): App {
         anexarMidia: ({ escopo, ligacaoId, retomar, canal }) => voz.anexarMidia({ pessoaId: escopo.pessoaId, ligacaoId, retomar, canal }),
         anexarCerebro: ({ identidade, ligacaoId, canal }) => voz.anexarCerebro({ turnoId: identidade.turnoId, ligacaoId, canal }),
         anexarDitado: ({ escopo, canal }) => anexarDitado(escopo, canal),
+        navegadorVivo: { web: (escopo, agenteId, canal) => vivoNavegador.web(escopo, agenteId, canal) },
         ...(sessoesVivo ? { computadorVivo: {
           web(escopo, agenteId, canal, modo) {
             const assistir = modo?.assistir === true;
@@ -1884,6 +1899,8 @@ export function comporApp(o: OpcoesCompor): App {
     },
     async fechar() {
       leitor.fechar();
+      vivoNavegador.fechar();
+      avisoNavegador.parar();
       await ditado.fechar();
       await voz.fechar();
       await provedoresVoz.encerrar();
