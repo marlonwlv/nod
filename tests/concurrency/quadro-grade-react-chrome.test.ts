@@ -17,7 +17,7 @@ import { abrirChrome, avaliar, type Cdp } from "../../scripts/carga-tela/cdp.ts"
  *  - a releitura que chega no meio do arrasto: a grade é o mesmo nó (o desenho grava em volta dela) e o arrasto termina;
  *  - apertar no Responder e arrastar seleciona o texto e não pega o card;
  *  - soltar um arquivo no quadro anexa na pílula (o dnd-kit não come o arrasto nativo de arquivo);
- *  - o "Mover para…" pelo teclado: Enter abre, a seta escolhe, Enter move; Esc fecha e devolve o foco ao botão.
+ *  - o "Mover para…" pelo teclado: Enter abre, a seta escolhe, Enter move (o foco segue o card, QA-146); Esc fecha e devolve o foco ao botão.
  * Sem Chrome na máquina, o teste é pulado; no CI (NOD_QA_EXIGE_CHROME=1) a falta é erro.
  */
 
@@ -239,5 +239,29 @@ descrever("ADR-180: a grade do quadro em React no Chrome real, arrastando por po
     const [, coluna] = await avaliar<[string, string]>(cdp, `window.__mudancas.find((m) => m[0] === "t3")`);
     expect(coluna).not.toBe("revisao");
     expect(escolhido.length).toBeGreaterThan(0);
+    // QA-146: o foco segue o card até a coluna nova (antes caía no <body> e o Tab recomeçava do topo da página).
+    await ate(`document.activeElement === document.querySelector('#quadro section.qd-col[data-coluna="${coluna}"] li.qd-card[data-tarefa="t3"] .rx-qd-mover')`);
+  }, 60_000);
+
+  it("Mover para… o Feito recolhido pelo teclado: o card some na tira e o foco vai para a tira do Feito (QA-146 × #253)", async () => {
+    await montar();
+    const bt = `#quadro li.qd-card[data-tarefa="t3"] .rx-qd-mover`;
+    await avaliar(cdp, `document.querySelector('${bt}').focus()`);
+    await tecla("Enter", "Enter", 13);
+    const aberto = `document.querySelector('[role="menu"]:not([data-closed])')`;
+    await ate(aberto);
+    await esperar(150);
+    // Desce até o item do Feito.
+    for (let i = 0; i < 12; i++) {
+      await tecla("ArrowDown", "ArrowDown", 40);
+      await esperar(40);
+      const txt = await avaliar<string>(cdp, `document.querySelector('[role="menu"]:not([data-closed]) [role="menuitem"][data-highlighted]')?.textContent ?? ""`);
+      if (/Feito/.test(txt)) break;
+    }
+    expect(await avaliar<string>(cdp, `document.querySelector('[role="menu"]:not([data-closed]) [role="menuitem"][data-highlighted]')?.textContent ?? ""`)).toMatch(/Feito/);
+    await tecla("Enter", "Enter", 13);
+    await ate(`window.__mudancas.some((m) => m[0] === "t3" && m[1] === "feito")`);
+    // O Feito segue recolhido: o card não aparece, e o foco não cai no <body>.
+    await ate(`document.activeElement === document.querySelector('#quadro .qd-col-tira[data-act="abrir-coluna"][data-status="feito"]')`);
   }, 60_000);
 });
